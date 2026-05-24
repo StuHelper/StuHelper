@@ -40,7 +40,7 @@ func (h *Handler) rejectRefreshReuse(c *gin.Context, refreshToken string) {
 		return
 	}
 
-	audit.Log(audit.Event{
+	audit.LogContext(c.Request.Context(), audit.Event{
 		Type:         audit.EventTokenRevoked,
 		ActorType:    "system",
 		UserID:       ref.UserID,

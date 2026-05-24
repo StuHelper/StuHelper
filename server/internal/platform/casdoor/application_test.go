@@ -40,7 +40,7 @@ func TestCreateApplicationMapsSpec(t *testing.T) {
 	assert.NotEmpty(t, api.added.SignupItems)
 	assert.NotEmpty(t, api.added.SigninItems)
 	assert.Equal(t, []string{"authorization_code"}, api.added.GrantTypes)
-	assert.Equal(t, "JWT", api.added.TokenFormat)
+	assert.Equal(t, "JWT-Custom", api.added.TokenFormat)
 	assert.Equal(t, []string{}, api.added.TokenFields)
 	assert.NotNil(t, api.added.TokenAttributes)
 	assert.NotNil(t, api.added.Tags)
@@ -163,7 +163,7 @@ func validApplicationSpec() ApplicationSpec {
 		ClientSecret:         "secret-demo",
 		RedirectURIs:         []string{"https://app.example.com/callback"},
 		GrantTypes:           []string{"authorization_code"},
-		TokenFormat:          "JWT",
+		TokenFormat:          "JWT-Custom",
 		TokenFields:          []string{},
 		ExpireInHours:        1,
 		RefreshExpireInHours: 24,

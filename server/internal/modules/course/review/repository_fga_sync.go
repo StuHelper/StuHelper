@@ -47,6 +47,13 @@ func (r *Repository) MarkFGASyncJobRetry(ctx context.Context, jobID int64, nextA
 	return nil
 }
 
+func (r *Repository) MarkFGASyncJobFailure(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string, terminal bool) error {
+	if err := outbox.MarkJobFailure(ctx, r.db, jobID, nextAttemptAt, lastError, terminal); err != nil {
+		return fmt.Errorf("MarkFGASyncJobFailure: %w", err)
+	}
+	return nil
+}
+
 func (r *Repository) ListReviewRelationProjectionStates(
 	ctx context.Context,
 	limit int,
@@ -54,6 +61,7 @@ func (r *Repository) ListReviewRelationProjectionStates(
 	if limit <= 0 {
 		return nil, nil
 	}
+	ctx = withDBTable(ctx, "reviews")
 	rows, err := r.db.Query(ctx, `
 		SELECT r.id, u.id, r.school_id
 		FROM reviews r
@@ -76,6 +84,7 @@ func (r *Repository) ListReportRelationProjectionStates(
 	if limit <= 0 {
 		return nil, nil
 	}
+	ctx = withDBTable(ctx, "review_reports")
 	rows, err := r.db.Query(ctx, `
 		SELECT rr.id, rr.school_id
 		FROM review_reports rr

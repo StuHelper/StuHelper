@@ -10,6 +10,7 @@ import (
 )
 
 func (r *Repository) GetPolicy(ctx context.Context, platform, guildID string) (*AdmissionPolicy, error) {
+	ctx = withDBTable(ctx, "group_admission_policies")
 	policy, err := scanAdmissionPolicy(r.db.QueryRow(ctx, `
 		SELECT id, platform, guild_id, school_id, auto_approve_join, initial_mute_duration_seconds,
 		       link_wait_seconds, submission_wait_seconds, manual_review_timeout_seconds,

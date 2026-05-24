@@ -157,7 +157,7 @@ func (s *Service) auditFGARelationReconciliation(
 	if reviewCount == 0 && reportCount == 0 {
 		return
 	}
-	audit.Log(audit.EventFromContext(ctx, audit.Event{
+	audit.LogContext(ctx, audit.Event{
 		Type:         audit.EventType("iam.drift.reconcile"),
 		Category:     "domain_event",
 		ActorType:    "system",
@@ -170,5 +170,5 @@ func (s *Service) auditFGARelationReconciliation(
 			"report_count":  reportCount,
 			"requeued_jobs": requeued,
 		},
-	}))
+	})
 }

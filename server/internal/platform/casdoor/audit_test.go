@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
@@ -52,12 +53,11 @@ func TestCasdoorAdminAuditEventUsesContextRequestID(t *testing.T) {
 	t.Parallel()
 
 	ctx := logger.WithRequestID(context.Background(), "req-casdoor-1")
-	event := casdoorAdminAuditEventFromContext(
-		ctx,
+	event := audit.EventFromContext(ctx, casdoorAdminAuditEvent(
 		Credential{Purpose: PurposeRoleSync, Organization: "stuhelper", Application: "casdoor-admin-role-sync"},
 		"update role users verified_student",
 		nil,
-	)
+	))
 
 	assert.Equal(t, "req-casdoor-1", event.RequestID)
 }

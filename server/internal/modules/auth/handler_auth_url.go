@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
@@ -27,6 +28,9 @@ type authURLRequest struct {
 }
 
 func (h *Handler) respondWithAuthURLProvider(c *gin.Context, provider authURLProvider) {
+	if rejectRepeatedAuthQueryParameters(c, "redirect", "platform", "app") {
+		return
+	}
 	redirect := strings.TrimSpace(c.Query("redirect"))
 	isNative := strings.TrimSpace(c.Query("platform")) == "native"
 	appKey, err := requestedOIDCApplication(c.Query("app"), isNative)
@@ -43,6 +47,9 @@ func (h *Handler) respondWithAuthURLProvider(c *gin.Context, provider authURLPro
 }
 
 func (h *Handler) respondWithFixedApplicationAuthURL(c *gin.Context, appKey string, provider authURLProvider) {
+	if rejectRepeatedAuthQueryParameters(c, "redirect") {
+		return
+	}
 	redirect := strings.TrimSpace(c.Query("redirect"))
 	h.respondWithResolvedAuthURL(c, authURLRequest{
 		provider: provider,
@@ -100,4 +107,25 @@ func requestedOIDCApplication(rawApp string, native bool) (string, error) {
 	default:
 		return "", errUnknownOIDCApplication
 	}
+}
+
+func rejectRepeatedAuthQueryParameters(c *gin.Context, names ...string) bool {
+	if name := repeatedAuthQueryParameterName(c, names...); name != "" {
+		response.BadRequest(c, "repeated query parameter: "+name, errs.ErrInvalidParam)
+		return true
+	}
+	return false
+}
+
+func repeatedAuthQueryParameterName(c *gin.Context, names ...string) string {
+	if c == nil || c.Request == nil || c.Request.URL == nil {
+		return ""
+	}
+	query := c.Request.URL.Query()
+	for _, name := range names {
+		if len(query[name]) > 1 {
+			return name
+		}
+	}
+	return ""
 }

@@ -4,16 +4,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
 
 func TestSetTokenCookies(t *testing.T) {
@@ -71,28 +69,6 @@ func TestClearTokenCookies(t *testing.T) {
 	assert.Empty(t, w.Header().Get(middleware.CSRFHeaderName))
 }
 
-func TestGetSessionID_PrefersTokenSIDOverCookie(t *testing.T) {
-	require.NoError(t, crypto.InitHMACKey("test-auth-cookie-secret-32-chars!", false))
-
-	h, _ := newTestHandler(t)
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "cookie-session"})
-	c.Request = req
-
-	jwt, err := token.SignJWT(crypto.GetHMACKey(), token.JWTClaims{
-		Sub:         "user-1",
-		Name:        "tester",
-		DisplayName: "Tester",
-		Typ:         token.JWTTokenTypeAccess,
-		Sid:         "token-session",
-	}, time.Minute)
-	require.NoError(t, err)
-
-	assert.Equal(t, "token-session", h.getSessionID(c, jwt))
-}
-
 func TestGetSessionID_FallsBackToCookie(t *testing.T) {
 	h, _ := newTestHandler(t)
 	w := httptest.NewRecorder()
@@ -115,7 +91,7 @@ func TestGetSessionID_FallsBackToHeaderWhenCookieMissing(t *testing.T) {
 	assert.Equal(t, "header-session", h.getSessionID(c, "not-a-jwt"))
 }
 
-func TestGetSessionID_PrefersHeaderOverCookie(t *testing.T) {
+func TestGetSessionID_RejectsAmbiguousHeaderAndCookie(t *testing.T) {
 	h, _ := newTestHandler(t)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -124,7 +100,23 @@ func TestGetSessionID_PrefersHeaderOverCookie(t *testing.T) {
 	req.Header.Set(nativeSessionIDHeader, "header-session")
 	c.Request = req
 
-	assert.Equal(t, "header-session", h.getSessionID(c, "not-a-jwt"))
+	assert.Empty(t, h.getSessionID(c, "not-a-jwt"))
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), string(errs.ErrInvalidParam))
+}
+
+func TestGetSessionID_RejectsRepeatedNativeSessionHeader(t *testing.T) {
+	h, _ := newTestHandler(t)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Add(nativeSessionIDHeader, "header-session-a")
+	req.Header.Add(nativeSessionIDHeader, "header-session-b")
+	c.Request = req
+
+	assert.Empty(t, h.getSessionID(c, "not-a-jwt"))
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), string(errs.ErrInvalidParam))
 }
 
 func TestSetSessionCookie(t *testing.T) {

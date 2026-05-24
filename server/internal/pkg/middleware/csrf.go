@@ -87,6 +87,9 @@ func hasCookieSession(c *gin.Context) bool {
 }
 
 func hasBearerAuthorization(c *gin.Context) bool {
+	if c != nil && c.Request != nil && len(c.Request.Header.Values("Authorization")) > 1 {
+		return false
+	}
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
 		return false

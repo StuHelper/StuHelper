@@ -2,19 +2,12 @@ package user
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
-
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/usersync"
 )
 
@@ -27,27 +20,19 @@ type roleFGAClient interface {
 // AuthSyncInput 认证同步输入，别名到 usersync.Input。
 type AuthSyncInput = usersync.Input
 
-// PhoneUser 手机号登录用户，别名到 usersync.PhoneUser。
-type PhoneUser = usersync.PhoneUser
-
-// ErrPhoneUserNotFound 手机号对应的用户不存在，别名到 usersync.ErrPhoneUserNotFound。
-var ErrPhoneUserNotFound = usersync.ErrPhoneUserNotFound
-
 // UserSyncRepository 用户同步持久化层，负责认证流程中的用户创建 / 查找 / 回填。
 // 业务归属为 user domain，auth domain 通过窄接口依赖。
 type UserSyncRepository struct {
-	db          *db.DB
-	phoneCipher pii.Encryptor
-	hmacKey     []byte
-	roleFGA     roleFGAClient
+	db      *db.DB
+	hmacKey []byte
+	roleFGA roleFGAClient
 }
 
 // NewUserSyncRepository 创建用户同步仓储
-func NewUserSyncRepository(database *db.DB, phoneCipher pii.Encryptor, hmacKey []byte) *UserSyncRepository {
+func NewUserSyncRepository(database *db.DB, hmacKey []byte) *UserSyncRepository {
 	return &UserSyncRepository{
-		db:          database,
-		phoneCipher: phoneCipher,
-		hmacKey:     hmacKey,
+		db:      database,
+		hmacKey: hmacKey,
 	}
 }
 
@@ -58,6 +43,7 @@ func (r *UserSyncRepository) WithRoleFGAClient(client roleFGAClient) *UserSyncRe
 
 // UpsertUser 同步 OIDC / SSO 登录用户到本地 shadow user 表。
 func (r *UserSyncRepository) UpsertUser(ctx context.Context, input AuthSyncInput) error {
+	ctx = withDBTable(ctx, "users")
 	if input.CasdoorSubject == "" || input.Username == "" {
 		return fmt.Errorf("UpsertUser: casdoorSubject and username are required")
 	}
@@ -112,151 +98,9 @@ func hasSyncRole(roles []string, expected string) bool {
 	return false
 }
 
-func (r *UserSyncRepository) encryptAndHashPhone(phone string) ([]byte, string, error) {
-	if r.phoneCipher == nil {
-		return nil, "", fmt.Errorf("phone cipher is not configured")
-	}
-
-	phoneEnc, err := r.phoneCipher.Encrypt(phone)
-	if err != nil {
-		return nil, "", fmt.Errorf("encrypt phone: %w", err)
-	}
-	phoneHash, err := phoneutil.HashLookupWithKey(phone, r.hmacKey)
-	if err != nil {
-		return nil, "", fmt.Errorf("hash phone: %w", err)
-	}
-	return phoneEnc, phoneHash, nil
-}
-
-// FindByPhone 通过手机号查找用户。
-func (r *UserSyncRepository) FindByPhone(ctx context.Context, phone string) (*PhoneUser, error) {
-	var u PhoneUser
-	phoneHash, err := phoneutil.HashLookupWithKey(phone, r.hmacKey)
-	if err != nil {
-		return nil, fmt.Errorf("FindByPhone hash phone: %w", err)
-	}
-
-	err = r.db.QueryRow(ctx, `
-		SELECT id, casdoor_subject, username, COALESCE(email, ''), avatar_url
-		FROM users WHERE phone_hash = $1
-	`, phoneHash).Scan(&u.ID, &u.CasdoorSubject, &u.Username, &u.Email, &u.AvatarURL)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrPhoneUserNotFound
-	}
-	if err != nil {
-		return nil, fmt.Errorf("FindByPhone: %w", err)
-	}
-	u.MaskedPhone = phoneutil.Mask(phone)
-	return &u, nil
-}
-
-func isAuthSyncUniqueViolation(err error) bool {
-	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == "23505"
-}
-
-func (r *UserSyncRepository) loadPhoneUserForUpdate(ctx context.Context, tx pgx.Tx, phoneHash string) (*PhoneUser, error) {
-	var u PhoneUser
-	err := tx.QueryRow(ctx, `
-		SELECT id, casdoor_subject, username, COALESCE(email, ''), avatar_url
-		FROM users
-		WHERE phone_hash = $1
-		LIMIT 1
-		FOR UPDATE
-	`, phoneHash).Scan(&u.ID, &u.CasdoorSubject, &u.Username, &u.Email, &u.AvatarURL)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &u, nil
-}
-
-func (r *UserSyncRepository) upsertPhoneUserTx(ctx context.Context, tx pgx.Tx, phone, phoneHash string, phoneEnc []byte) (*PhoneUser, error) {
-	existing, err := r.loadPhoneUserForUpdate(ctx, tx, phoneHash)
-	if err != nil {
-		return nil, fmt.Errorf("load phone user: %w", err)
-	}
-	if existing != nil {
-		userHash, hashErr := crypto.HMACHashWithKey(existing.CasdoorSubject, r.hmacKey)
-		if hashErr != nil {
-			return nil, fmt.Errorf("compute user_hash for existing phone user: %w", hashErr)
-		}
-		if _, err := tx.Exec(ctx, `
-			UPDATE users
-			SET phone_enc = $2,
-			    phone_hash = $3,
-			    user_hash = COALESCE(users.user_hash, $4),
-			    updated_at = NOW()
-			WHERE id = $1
-		`, existing.ID, phoneEnc, phoneHash, userHash); err != nil {
-			return nil, fmt.Errorf("update phone user: %w", err)
-		}
-		existing.MaskedPhone = phoneutil.Mask(phone)
-		return existing, nil
-	}
-
-	casdoorSubject := "phone:" + uuid.NewString()
-	userHash, hashErr := crypto.HMACHashWithKey(casdoorSubject, r.hmacKey)
-	if hashErr != nil {
-		return nil, fmt.Errorf("compute user_hash for new phone user: %w", hashErr)
-	}
-	username := "user_" + phone[len(phone)-4:]
-	created := &PhoneUser{MaskedPhone: phoneutil.Mask(phone)}
-	insertErr := tx.QueryRow(ctx, `
-		INSERT INTO users (casdoor_subject, username, phone_enc, phone_hash, user_hash, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-		RETURNING id, casdoor_subject, username, COALESCE(email, ''), avatar_url
-	`, casdoorSubject, username, phoneEnc, phoneHash, userHash).Scan(
-		&created.ID,
-		&created.CasdoorSubject,
-		&created.Username,
-		&created.Email,
-		&created.AvatarURL,
-	)
-	if insertErr == nil {
-		return created, nil
-	}
-	if !isAuthSyncUniqueViolation(insertErr) {
-		return nil, fmt.Errorf("insert phone user: %w", insertErr)
-	}
-
-	existing, err = r.loadPhoneUserForUpdate(ctx, tx, phoneHash)
-	if err != nil {
-		return nil, fmt.Errorf("reload phone user after conflict: %w", err)
-	}
-	if existing == nil {
-		return nil, fmt.Errorf("insert phone user conflict without row")
-	}
-	existing.MaskedPhone = phoneutil.Mask(phone)
-	return existing, nil
-}
-
-// UpsertByPhone 通过手机号查找或创建用户。
-func (r *UserSyncRepository) UpsertByPhone(ctx context.Context, phone string) (*PhoneUser, error) {
-	phoneEnc, phoneHash, err := r.encryptAndHashPhone(phone)
-	if err != nil {
-		return nil, fmt.Errorf("UpsertByPhone prepare phone: %w", err)
-	}
-
-	var u *PhoneUser
-	err = r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		created, err := r.upsertPhoneUserTx(ctx, tx, phone, phoneHash, phoneEnc)
-		if err != nil {
-			return err
-		}
-		u = created
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("UpsertByPhone: %w", err)
-	}
-	return u, nil
-}
-
 // ExistsByCasdoorSubject 检查 casdoor_subject 对应的用户是否仍然存在。
 func (r *UserSyncRepository) ExistsByCasdoorSubject(ctx context.Context, casdoorSubject string) (bool, error) {
+	ctx = withDBTable(ctx, "users")
 	var exists bool
 	if err := r.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE casdoor_subject = $1)`, casdoorSubject).Scan(&exists); err != nil {
 		return false, fmt.Errorf("ExistsByCasdoorSubject: %w", err)
@@ -266,6 +110,7 @@ func (r *UserSyncRepository) ExistsByCasdoorSubject(ctx context.Context, casdoor
 
 // CountMissingUserHashes 返回 user_hash 为空的用户数量（用于启动时检查）。
 func (r *UserSyncRepository) CountMissingUserHashes(ctx context.Context) (int64, error) {
+	ctx = withDBTable(ctx, "users")
 	var count int64
 	if err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM users WHERE user_hash IS NULL`).Scan(&count); err != nil {
 		return 0, fmt.Errorf("CountMissingUserHashes: %w", err)
@@ -275,6 +120,7 @@ func (r *UserSyncRepository) CountMissingUserHashes(ctx context.Context) (int64,
 
 // BackfillUserHashes 回填所有 user_hash 为空的用户。
 func (r *UserSyncRepository) BackfillUserHashes(ctx context.Context) (int64, error) {
+	ctx = withDBTable(ctx, "users")
 	const batchSize = 500
 	var totalCount int64
 

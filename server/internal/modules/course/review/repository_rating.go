@@ -20,6 +20,7 @@ type RatingTrendItem struct {
 
 // GetRatingTrend 获取课程评分趋势
 func (r *Repository) GetRatingTrend(ctx context.Context, courseID int64) ([]RatingTrendItem, error) {
+	ctx = withDBTable(ctx, "reviews")
 	rows, err := r.db.Query(ctx, `
 		SELECT r.term_id, COALESCE(t.name, r.term_id) as term_name,
 			AVG(r.avg_rating) as avg_rating,
@@ -57,6 +58,7 @@ type HotCourse struct {
 // ListHotCourses 获取热门课程排行
 // timeFilter 的值仅来自下方 switch 硬编码的 INTERVAL 字面量，不包含任何用户输入，无 SQL 注入风险
 func (r *Repository) ListHotCourses(ctx context.Context, period string, limit int) ([]HotCourse, error) {
+	ctx = withDBTable(ctx, "courses")
 	// 安全保证：timeFilter 仅从 switch 硬编码值中选取，period 参数不直接拼入 SQL
 	var timeFilter string
 	switch period {
@@ -98,6 +100,7 @@ func (r *Repository) ListHotCourses(ctx context.Context, period string, limit in
 
 // ListCourseTeachers 获取课程的授课教师列表（含全局统计，CTE + JOIN 避免 IN 子查询性能问题）
 func (r *Repository) ListCourseTeachers(ctx context.Context, courseID int64) ([]CourseTeacherStats, error) {
+	ctx = withDBTable(ctx, "reviews")
 	rows, err := r.db.Query(ctx, `
 		WITH course_teachers AS (
 			SELECT DISTINCT teacher_id
@@ -134,6 +137,7 @@ func (r *Repository) ListCourseTeachers(ctx context.Context, courseID int64) ([]
 
 // GetTeacherName 获取教师名称
 func (r *Repository) GetTeacherName(ctx context.Context, teacherID int64) (string, error) {
+	ctx = withDBTable(ctx, "teachers")
 	var name string
 	err := r.db.QueryRow(ctx, `
 		SELECT name FROM teachers WHERE id = $1
@@ -146,6 +150,7 @@ func (r *Repository) GetTeacherName(ctx context.Context, teacherID int64) (strin
 
 // GetTeacherInfo 获取教师基本信息（名称 + 院系名称）
 func (r *Repository) GetTeacherInfo(ctx context.Context, teacherID int64) (name, departmentName string, err error) {
+	ctx = withDBTable(ctx, "teachers")
 	err = r.db.QueryRow(ctx, `
 		SELECT t.name, COALESCE(d.name, '')
 		FROM teachers t
@@ -160,6 +165,7 @@ func (r *Repository) GetTeacherInfo(ctx context.Context, teacherID int64) (name,
 
 // ListTeacherCourses 获取教师授课课程列表（含评分和评论数）
 func (r *Repository) ListTeacherCourses(ctx context.Context, teacherID int64) ([]TeacherCourse, error) {
+	ctx = withDBTable(ctx, "reviews")
 	rows, err := r.db.Query(ctx, `
 		SELECT c.id, c.name,
 			AVG(CASE WHEN r.avg_rating > 0 THEN r.avg_rating END) AS avg_rating,
@@ -188,6 +194,7 @@ func (r *Repository) ListTeacherCourses(ctx context.Context, teacherID int64) ([
 
 // GetTeacherReviewCount 获取教师的评论总数
 func (r *Repository) GetTeacherReviewCount(ctx context.Context, teacherID int64) (int, error) {
+	ctx = withDBTable(ctx, "reviews")
 	var count int
 	err := r.db.QueryRow(ctx, `
 		SELECT COUNT(*) FROM reviews
@@ -201,6 +208,7 @@ func (r *Repository) GetTeacherReviewCount(ctx context.Context, teacherID int64)
 
 // GetTeacherRatingStats 获取教师评分统计
 func (r *Repository) GetTeacherRatingStats(ctx context.Context, teacherID int64) ([]TeacherRatingStats, error) {
+	ctx = withDBTable(ctx, "teacher_rating_stats")
 	rows, err := r.db.Query(ctx, `
 		SELECT id, teacher_id, term_id, dimension_key, avg_rating, rating_count, rating_dist, updated_at
 		FROM teacher_rating_stats
@@ -327,6 +335,7 @@ func (r *Repository) RefreshTeacherRatingStatsTx(ctx context.Context, tx pgx.Tx,
 
 // ListActiveSensitiveWords 获取所有启用的敏感词
 func (r *Repository) ListActiveSensitiveWords(ctx context.Context) ([]SensitiveWord, error) {
+	ctx = withDBTable(ctx, "sensitive_words")
 	rows, err := r.db.Query(ctx, `
 		SELECT id, word, category, level, is_active, created_at
 		FROM sensitive_words

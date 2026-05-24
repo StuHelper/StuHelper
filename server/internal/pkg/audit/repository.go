@@ -45,6 +45,7 @@ func NewRepository(database *db.DB) *Repository {
 }
 
 func (r *Repository) WriteEvent(ctx context.Context, event Event) error {
+	ctx = db.WithTableHint(ctx, "audit_events")
 	normalized, beforeData, afterData, details, err := normalizePersistedEvent(event)
 	if err != nil {
 		return err
@@ -78,6 +79,7 @@ func (r *Repository) WriteEvent(ctx context.Context, event Event) error {
 }
 
 func (r *Repository) ListAdminOperations(ctx context.Context, limit, offset int) ([]AdminOperationRecord, int, error) {
+	ctx = db.WithTableHint(ctx, "audit_events")
 	rows, err := r.db.Query(ctx, `
 			SELECT id, COALESCE(actor_user_id, ''), COALESCE(actor_username, ''),
 			       COALESCE(action, ''), COALESCE(resource_type, ''), COALESCE(resource_id, ''),
@@ -136,6 +138,7 @@ func (r *Repository) CleanupAdminOperations(ctx context.Context, retentionDays i
 }
 
 func (r *Repository) cleanupAuditEventsInChunks(ctx context.Context, query string, args ...any) (int64, error) {
+	ctx = db.WithTableHint(ctx, "audit_events")
 	var total int64
 	for {
 		if err := ctx.Err(); err != nil {

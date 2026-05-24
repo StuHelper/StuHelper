@@ -1,3 +1,11 @@
+DisclosureClientID:
+  name: client_id
+  in: query
+  required: true
+  description: 已批准开放平台应用的 OAuth client_id。
+  schema:
+    type: string
+
 DisclosureRedirectURI:
   name: redirect_uri
   in: query

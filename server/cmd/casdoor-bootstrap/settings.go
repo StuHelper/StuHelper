@@ -11,6 +11,7 @@ const (
 	defaultAccessTokenHours  = 1
 	defaultRefreshTokenHours = 24
 	defaultTokenFormat       = "JWT"
+	minimalTokenFormat       = "JWT-Custom"
 	defaultApplicationLogo   = "https://stuhelper.com/android-chrome-512x512.png"
 )
 
@@ -103,8 +104,13 @@ func buildApplications(getenv envReader) ([]casdoor.ApplicationSpec, error) {
 	if err != nil {
 		return nil, err
 	}
+	tokenProbeSmoke, err := tokenProbeSmokeAppSpec(getenv)
+	if err != nil {
+		return nil, err
+	}
 	apps := []casdoor.ApplicationSpec{web, admin, uniapp}
-	return append(apps, adminServices...), nil
+	apps = append(apps, adminServices...)
+	return append(apps, tokenProbeSmoke), nil
 }
 
 func buildAdminServiceApplications(getenv envReader) ([]casdoor.ApplicationSpec, error) {
@@ -247,6 +253,26 @@ func serviceAppSpec(getenv envReader, env serviceAppEnv) (casdoor.ApplicationSpe
 		ExpireInHours:        defaultAccessTokenHours,
 		RefreshExpireInHours: 0,
 	}, nil
+}
+
+func tokenProbeSmokeAppSpec(getenv envReader) (casdoor.ApplicationSpec, error) {
+	name, err := requiredValue(getenv, "CASDOOR_TOKEN_PROBE_SMOKE_APPLICATION")
+	if err != nil {
+		return casdoor.ApplicationSpec{}, err
+	}
+	spec, err := appSpec(getenv, appEnv{
+		name:        name,
+		displayName: "StuHelper Token Probe Smoke",
+		logoKey:     "CASDOOR_TOKEN_PROBE_SMOKE_LOGO",
+		clientIDKey: "CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID",
+		secretKey:   "CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_SECRET", // #nosec G101 -- env key name, not a secret value.
+		redirectKey: "CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI",
+	})
+	if err != nil {
+		return casdoor.ApplicationSpec{}, err
+	}
+	spec.TokenFormat = minimalTokenFormat
+	return spec, nil
 }
 
 func applicationLogo(getenv envReader, key string) string {

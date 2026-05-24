@@ -62,6 +62,9 @@ func (c *Config) validate(parseErrs []string) error {
 	if c.Identity.AccessTokenTTL < 60 || c.Identity.AccessTokenTTL > 86400 {
 		errs = append(errs, fmt.Sprintf("IDENTITY_ACCESS_TOKEN_TTL must be between 60 and 86400 seconds (got %d)", c.Identity.AccessTokenTTL))
 	}
+	if c.Identity.RefreshTokenTTL < 3600 || c.Identity.RefreshTokenTTL > 2592000 {
+		errs = append(errs, fmt.Sprintf("IDENTITY_REFRESH_TOKEN_TTL must be between 3600 and 2592000 seconds (got %d)", c.Identity.RefreshTokenTTL))
+	}
 	if c.Identity.AuthorizationCodeTTL < 60 || c.Identity.AuthorizationCodeTTL > 600 {
 		errs = append(errs, fmt.Sprintf("IDENTITY_AUTH_CODE_TTL must be between 60 and 600 seconds (got %d)", c.Identity.AuthorizationCodeTTL))
 	}
@@ -238,11 +241,71 @@ func (c *Config) validate(parseErrs []string) error {
 	if c.RateLimit.BatchUserLimit <= 0 || c.RateLimit.BatchUserLimit > maxRateLimit {
 		errs = append(errs, fmt.Sprintf("REVIEW_RATE_BATCH_USER_LIMIT must be between 1 and %d (got %d)", maxRateLimit, c.RateLimit.BatchUserLimit))
 	}
+	errs = append(errs, validateOpenPlatformDisclosureRateLimits(c.OpenPlatform.DisclosureRateLimit)...)
+	errs = append(errs, validateOpenPlatformTokenProbe(c.OpenPlatform.TokenProbe, c.App.Env == "production")...)
 
 	if len(errs) > 0 {
 		return fmt.Errorf("config validation failed: %s", strings.Join(errs, "; "))
 	}
 
+	return nil
+}
+
+func validateOpenPlatformTokenProbe(cfg OpenPlatformTokenProbeConfig, production bool) []string {
+	var errs []string
+	if production && !cfg.RuntimeRequired {
+		errs = append(errs, "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED must be true in production")
+	}
+	if cfg.RuntimeRequired && strings.TrimSpace(cfg.RuntimeCommand) == "" {
+		errs = append(errs, "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND is required when OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED=true")
+	}
+	if cfg.RuntimeTimeoutSeconds != 0 && (cfg.RuntimeTimeoutSeconds < 1 || cfg.RuntimeTimeoutSeconds > 600) {
+		errs = append(errs, fmt.Sprintf("OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_TIMEOUT_SECONDS must be between 1 and 600 seconds (got %d)", cfg.RuntimeTimeoutSeconds))
+	}
+	return errs
+}
+
+func validateOpenPlatformDisclosureRateLimits(cfg OpenPlatformDisclosureRateLimitConfig) []string {
+	var errs []string
+	const maxRateLimit = 100000
+	errs = append(errs,
+		validateOptionalLimit("OPEN_PLATFORM_DISCLOSURE_APP_LIMIT", cfg.AppLimit, maxRateLimit)...)
+	errs = append(errs,
+		validateOptionalLimit("OPEN_PLATFORM_DISCLOSURE_APP_USER_LIMIT", cfg.AppUserLimit, maxRateLimit)...)
+	errs = append(errs,
+		validateOptionalLimit("OPEN_PLATFORM_DISCLOSURE_ENDPOINT_LIMIT", cfg.EndpointLimit, maxRateLimit)...)
+	errs = append(errs,
+		validateOptionalLimit("OPEN_PLATFORM_DISCLOSURE_CONSENT_LIMIT", cfg.ConsentLimit, maxRateLimit)...)
+	errs = append(errs,
+		validateOptionalLimit("OPEN_PLATFORM_DISCLOSURE_REPLAY_LIMIT", cfg.ReplayLimit, maxRateLimit)...)
+
+	const maxWindowSeconds = 86400
+	errs = append(errs,
+		validateOptionalDurationSeconds("OPEN_PLATFORM_DISCLOSURE_WINDOW_SECONDS", cfg.WindowSeconds, maxWindowSeconds)...)
+	errs = append(errs,
+		validateOptionalDurationSeconds("OPEN_PLATFORM_DISCLOSURE_REPLAY_WINDOW_SECONDS", cfg.ReplayWindowSeconds, maxWindowSeconds)...)
+	errs = append(errs,
+		validateOptionalDurationSeconds("OPEN_PLATFORM_DISCLOSURE_REPLAY_AUDIT_COOLDOWN_SECONDS", cfg.ReplayAuditCooldownSeconds, maxWindowSeconds)...)
+	return errs
+}
+
+func validateOptionalLimit(name string, value int, limit int) []string {
+	if value == 0 {
+		return nil
+	}
+	if value < 0 || value > limit {
+		return []string{fmt.Sprintf("%s must be between 1 and %d when set (got %d)", name, limit, value)}
+	}
+	return nil
+}
+
+func validateOptionalDurationSeconds(name string, value int, limit int) []string {
+	if value == 0 {
+		return nil
+	}
+	if value < 0 || value > limit {
+		return []string{fmt.Sprintf("%s must be between 1 and %d seconds when set (got %d)", name, limit, value)}
+	}
 	return nil
 }
 

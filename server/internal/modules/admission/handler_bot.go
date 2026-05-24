@@ -98,6 +98,11 @@ func (h *Handler) requireBotCredential(scope string) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
+		if c.Request == nil || len(c.Request.Header.Values("Authorization")) != 1 {
+			response.Unauthorized(c, "unauthorized")
+			c.Abort()
+			return
+		}
 		rawToken, ok := parseAdmissionBearerToken(c.GetHeader("Authorization"))
 		if !ok {
 			response.Unauthorized(c, "unauthorized")

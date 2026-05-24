@@ -64,6 +64,7 @@ func scanQQBindingCodeRow(row pgx.Row) (*QQBindingCode, error) {
 }
 
 func (r *Repository) GetQQBindingByUserID(ctx context.Context, userID int64) (*QQBinding, error) {
+	ctx = withDBTable(ctx, "user_qq_bindings")
 	item, err := scanQQBindingRow(r.db.QueryRow(ctx, selectQQBindingByUserIDSQL, userID))
 	if err != nil {
 		return nil, fmt.Errorf("GetQQBindingByUserID: %w", err)
@@ -72,6 +73,7 @@ func (r *Repository) GetQQBindingByUserID(ctx context.Context, userID int64) (*Q
 }
 
 func (r *Repository) GetQQBindingByQQID(ctx context.Context, qqID string) (*QQBinding, error) {
+	ctx = withDBTable(ctx, "user_qq_bindings")
 	item, err := scanQQBindingRow(r.db.QueryRow(ctx, selectQQBindingByQQIDSQL, qqID))
 	if err != nil {
 		return nil, fmt.Errorf("GetQQBindingByQQID: %w", err)
@@ -80,6 +82,7 @@ func (r *Repository) GetQQBindingByQQID(ctx context.Context, qqID string) (*QQBi
 }
 
 func (r *Repository) UpsertQQBindingCode(ctx context.Context, code *QQBindingCode) error {
+	ctx = withDBTable(ctx, "user_qq_binding_codes")
 	_, err := r.db.Exec(ctx, `
 		INSERT INTO user_qq_binding_codes (
 			user_id, code_hash, expires_at, consumed_at, created_at, updated_at

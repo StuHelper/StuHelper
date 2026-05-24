@@ -50,6 +50,7 @@ func setUserPhone(ctx context.Context, queryRow queryRowFn, exec execFn, userID 
 
 // SetUserPhone 将手机号写入 users 表的加密列和哈希列。
 func (r *Repository) SetUserPhone(ctx context.Context, userID int64, phoneEnc []byte, phoneHash string) error {
+	ctx = withDBTable(ctx, "users")
 	return setUserPhone(ctx, func(ctx context.Context, sql string, args ...any) rowScanner { return r.db.QueryRow(ctx, sql, args...) }, r.db.Exec, userID, phoneEnc, phoneHash, "SetUserPhone")
 }
 

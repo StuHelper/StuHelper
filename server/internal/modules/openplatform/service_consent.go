@@ -39,17 +39,31 @@ func (s *Service) Authorize(ctx context.Context, req AuthorizeRequest, userID in
 	if err != nil {
 		return nil, err
 	}
+	if decision.InteractionRequired {
+		if decision.InteractionError == "consent_required" {
+			return nil, ErrConsentRequired
+		}
+		return nil, ErrProfileIncomplete
+	}
 	if decision.ProfileCompletionURL != "" {
+		definitions, err := s.scopeDefinitionsForApp(ctx, decision.App.ID, decision.Scopes)
+		if err != nil {
+			return nil, err
+		}
 		return &AuthorizeResult{
 			ProfileCompletionURL: decision.ProfileCompletionURL,
 			MissingFields:        decision.MissingFields,
-			Scopes:               ScopeDefinitions(decision.Scopes),
+			Scopes:               definitions,
 		}, nil
 	}
 	if decision.ConsentURL != "" {
+		definitions, err := s.scopeDefinitionsForApp(ctx, decision.App.ID, decision.Scopes)
+		if err != nil {
+			return nil, err
+		}
 		return &AuthorizeResult{
 			ConsentURL: decision.ConsentURL,
-			Scopes:     ScopeDefinitions(decision.Scopes),
+			Scopes:     definitions,
 		}, nil
 	}
 	redirectURL, err := s.buildOIDCRedirectURL(decision.App, req, decision.Scopes)
@@ -65,6 +79,10 @@ func (s *Service) BeginAuthorization(ctx context.Context, req AuthorizeRequest, 
 	if err != nil {
 		return nil, err
 	}
+	oauthScopes, err := NormalizeGrantedOAuthScopes(req.Scopes)
+	if err != nil {
+		return nil, err
+	}
 	app, err := s.loadAuthorizeApp(ctx, req)
 	if err != nil {
 		return nil, err
@@ -72,14 +90,29 @@ func (s *Service) BeginAuthorization(ctx context.Context, req AuthorizeRequest, 
 	if userID <= 0 {
 		return nil, ErrDisclosureUnavailable
 	}
+	if !redirectAllowed(app, req.RedirectURI) {
+		return nil, ErrRedirectURINotAllowed
+	}
 	if err := s.ensureScopesApproved(ctx, app.ID, scopes); err != nil {
 		return nil, err
 	}
+	consentScopes := UserConsentScopes(scopes)
 	projection, err := s.repo.GetUserProjection(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	if missing := RequiredProfileFields(projection, scopes); len(missing) > 0 {
+	if missing := RequiredProfileFields(projection, consentScopes); len(missing) > 0 {
+		if req.PromptNone {
+			return &AuthorizationDecision{
+				App:                 app,
+				UserID:              userID,
+				Scopes:              consentScopes,
+				OAuthScopes:         oauthScopes,
+				InteractionRequired: true,
+				InteractionError:    "interaction_required",
+				MissingFields:       missing,
+			}, nil
+		}
 		challenge, err := s.BuildProfileCompletionChallenge(ctx, app, userID, scopes, req)
 		if err != nil {
 			return nil, err
@@ -87,28 +120,46 @@ func (s *Service) BeginAuthorization(ctx context.Context, req AuthorizeRequest, 
 		return &AuthorizationDecision{
 			App:                  app,
 			UserID:               userID,
-			Scopes:               scopes,
+			Scopes:               consentScopes,
+			OAuthScopes:          oauthScopes,
 			ProfileCompletionURL: buildProfileCompletionURL(s.consentBaseURLForFlow(req.Flow), challenge.Token),
 			MissingFields:        missing,
 		}, nil
 	}
-	hasConsent, err := s.repo.HasActiveConsents(ctx, app.ID, userID, scopes)
+	if len(consentScopes) == 0 {
+		return &AuthorizationDecision{App: app, UserID: userID, Scopes: scopes, OAuthScopes: oauthScopes}, nil
+	}
+	hasConsent, err := s.repo.HasActiveConsents(ctx, app.ID, userID, consentScopes)
 	if err != nil {
 		return nil, err
 	}
-	if !hasConsent {
+	if !hasConsent || req.ForceConsent {
+		if req.PromptNone {
+			return &AuthorizationDecision{
+				App:                 app,
+				UserID:              userID,
+				Scopes:              consentScopes,
+				OAuthScopes:         oauthScopes,
+				InteractionRequired: true,
+				InteractionError:    "consent_required",
+			}, nil
+		}
+		if err := s.rateLimiter.checkConsentChallenge(ctx, app.ID, userID); err != nil {
+			return nil, err
+		}
 		challenge, err := s.BuildConsentChallenge(ctx, app, userID, scopes, req)
 		if err != nil {
 			return nil, err
 		}
 		return &AuthorizationDecision{
-			App:        app,
-			UserID:     userID,
-			Scopes:     scopes,
-			ConsentURL: buildConsentURL(s.consentBaseURLForFlow(req.Flow), challenge.Token),
+			App:         app,
+			UserID:      userID,
+			Scopes:      consentScopes,
+			OAuthScopes: oauthScopes,
+			ConsentURL:  buildConsentURL(s.consentBaseURLForFlow(req.Flow), challenge.Token),
 		}, nil
 	}
-	return &AuthorizationDecision{App: app, UserID: userID, Scopes: scopes}, nil
+	return &AuthorizationDecision{App: app, UserID: userID, Scopes: scopes, OAuthScopes: oauthScopes}, nil
 }
 
 func (s *Service) GetConsentPage(ctx context.Context, token string, userID int64) (*ConsentPage, error) {
@@ -119,14 +170,18 @@ func (s *Service) GetConsentPage(ctx context.Context, token string, userID int64
 	if err := ensureConsentActor(challenge, userID); err != nil {
 		return nil, err
 	}
-	app, err := s.repo.GetAppByID(ctx, challenge.AppID)
+	app, err := s.loadCurrentChallengeApp(ctx, challenge.AppID, challenge.RedirectURI, challenge.Scopes)
+	if err != nil {
+		return nil, err
+	}
+	definitions, err := s.scopeDefinitionsForApp(ctx, app.ID, challenge.ConsentScopes)
 	if err != nil {
 		return nil, err
 	}
 	return &ConsentPage{
 		Token:       challenge.Token,
 		App:         consentApp(app),
-		Scopes:      ScopeDefinitions(challenge.Scopes),
+		Scopes:      definitions,
 		RedirectURI: challenge.RedirectURI,
 		ExpiresAt:   challenge.ExpiresAt,
 	}, nil
@@ -155,18 +210,35 @@ func (s *Service) AcceptConsent(ctx context.Context, token, requestID string, us
 	return s.buildOIDCRedirectURL(app, AuthorizeRequest{
 		ClientID:    app.ClientID,
 		RedirectURI: challenge.RedirectURI,
-		Scopes:      challenge.Scopes,
+		Scopes:      grantedOAuthScopes(challenge.OAuthScopes, challenge.Scopes),
 		State:       challenge.State,
 	}, challenge.Scopes)
 }
 
-func (s *Service) DenyConsent(ctx context.Context, token string, userID int64) (string, error) {
+func (s *Service) DenyConsent(ctx context.Context, token, requestID string, userID int64) (string, error) {
 	challenge, err := s.LoadConsentChallenge(ctx, token)
 	if err != nil {
 		return "", err
 	}
 	if err := ensureConsentActor(challenge, userID); err != nil {
 		return "", err
+	}
+	if _, err := s.loadCurrentChallengeApp(ctx, challenge.AppID, challenge.RedirectURI, challenge.Scopes); err != nil {
+		return "", err
+	}
+	if err := s.repo.RecordAuditEvent(ctx, auditEvent{
+		AppID:     challenge.AppID,
+		UserID:    challenge.UserID,
+		EventType: "open_platform.consent.denied",
+		RequestID: requestID,
+		Metadata: map[string]any{
+			"actor":  "user",
+			"flow":   normalizeAuthorizeFlow(challenge.Flow),
+			"result": "access_denied",
+			"scopes": append([]string(nil), challenge.ConsentScopes...),
+		},
+	}); err != nil {
+		return "", fmt.Errorf("%w: consent denial audit unavailable", ErrDisclosureUnavailable)
 	}
 	if err := s.rdb.Del(ctx, consentRedisPrefix+token).Err(); err != nil {
 		return "", fmt.Errorf("delete denied consent challenge: %w", err)
@@ -183,6 +255,30 @@ func (s *Service) loadAuthorizeApp(ctx context.Context, req AuthorizeRequest) (*
 		return nil, ErrAppNotActive
 	}
 	return app, nil
+}
+
+func (s *Service) loadCurrentChallengeApp(ctx context.Context, appID int64, redirectURI string, scopes []string) (*App, error) {
+	if appID <= 0 {
+		return nil, ErrAppNotFound
+	}
+	app, err := s.repo.GetAppByID(ctx, appID)
+	if err != nil {
+		return nil, err
+	}
+	if app.Status != AppStatusApproved {
+		return nil, ErrAppNotActive
+	}
+	if !redirectAllowed(app, redirectURI) {
+		return nil, ErrRedirectURINotAllowed
+	}
+	if err := s.ensureScopesApproved(ctx, app.ID, scopes); err != nil {
+		return nil, err
+	}
+	return app, nil
+}
+
+func (s *Service) AuthorizeAppByClientID(ctx context.Context, clientID string) (*App, error) {
+	return s.loadAuthorizeApp(ctx, AuthorizeRequest{ClientID: clientID})
 }
 
 func ensureConsentActor(challenge *ConsentChallenge, userID int64) error {
@@ -209,8 +305,19 @@ func (s *Service) BuildConsentChallenge(
 	scopes []string,
 	req AuthorizeRequest,
 ) (*ConsentChallenge, error) {
-	if !redirectAllowed(app, req.RedirectURI) {
-		return nil, ErrRedirectURINotAllowed
+	if app == nil {
+		return nil, ErrAppNotFound
+	}
+	currentApp, err := s.loadCurrentChallengeApp(ctx, app.ID, req.RedirectURI, scopes)
+	if err != nil {
+		return nil, err
+	}
+	oauthScopes, err := NormalizeGrantedOAuthScopes(req.Scopes)
+	if err != nil {
+		oauthScopes, err = NormalizeGrantedOAuthScopes(scopes)
+		if err != nil {
+			return nil, err
+		}
 	}
 	token, err := randomHex("", consentTokenBytes)
 	if err != nil {
@@ -219,9 +326,11 @@ func (s *Service) BuildConsentChallenge(
 	now := time.Now().UTC()
 	challenge := &ConsentChallenge{
 		Token:               token,
-		AppID:               app.ID,
+		AppID:               currentApp.ID,
 		UserID:              userID,
 		Scopes:              scopes,
+		OAuthScopes:         oauthScopes,
+		ConsentScopes:       UserConsentScopes(scopes),
 		RedirectURI:         req.RedirectURI,
 		State:               strings.TrimSpace(req.State),
 		Flow:                normalizeAuthorizeFlow(req.Flow),
@@ -262,12 +371,15 @@ func (s *Service) grantConsent(ctx context.Context, token, requestID string, kee
 	if err != nil {
 		return nil, err
 	}
+	if _, err := s.loadCurrentChallengeApp(ctx, challenge.AppID, challenge.RedirectURI, challenge.Scopes); err != nil {
+		return nil, err
+	}
 	if err := s.repo.GrantConsents(ctx, Consent{
 		AppID:       challenge.AppID,
 		UserID:      challenge.UserID,
 		GrantSource: "web",
 		RequestID:   requestID,
-	}, challenge.Scopes); err != nil {
+	}, challenge.ConsentScopes); err != nil {
 		return nil, err
 	}
 	if keepChallenge {
@@ -292,11 +404,21 @@ func decodeConsentChallenge(token string, raw []byte) (*ConsentChallenge, error)
 	if err != nil {
 		return nil, fmt.Errorf("decode consent expires_at: %w", err)
 	}
+	consentScopes := append([]string(nil), payload.ConsentScopes...)
+	if payload.ConsentScopes == nil {
+		consentScopes = append([]string(nil), payload.Scopes...)
+	}
+	oauthScopes := append([]string(nil), payload.OAuthScopes...)
+	if payload.OAuthScopes == nil {
+		oauthScopes = append([]string(nil), payload.Scopes...)
+	}
 	return &ConsentChallenge{
 		Token:               token,
 		AppID:               payload.AppID,
 		UserID:              payload.UserID,
 		Scopes:              payload.Scopes,
+		OAuthScopes:         oauthScopes,
+		ConsentScopes:       consentScopes,
 		RedirectURI:         payload.RedirectURI,
 		State:               payload.State,
 		Flow:                normalizeAuthorizeFlow(payload.Flow),
@@ -347,8 +469,8 @@ func appendOAuthError(redirectURI, code, state string) string {
 	}
 	query := parsed.Query()
 	query.Set("error", code)
-	if trimmed := strings.TrimSpace(state); trimmed != "" {
-		query.Set("state", trimmed)
+	if state != "" {
+		query.Set("state", state)
 	}
 	parsed.RawQuery = query.Encode()
 	return parsed.String()

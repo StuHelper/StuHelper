@@ -40,6 +40,7 @@ var (
 	errSessionInvalid       = errors.New("session invalid")
 	errSessionUnavailable   = errors.New("session unavailable")
 	errRoleScopeUnavailable = errors.New("role scope unavailable")
+	errTokenMalformed       = errors.New("malformed token")
 )
 
 // resolveToken 从请求中提取、验证并解析 Token。
@@ -48,6 +49,9 @@ var (
 func resolveToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.Service) (*authResult, error) {
 	tokenString, source := getTokenWithSource(c)
 	if tokenString == "" {
+		if source == tokenSourceBearer {
+			return nil, errTokenMalformed
+		}
 		return nil, errNoToken
 	}
 
@@ -88,6 +92,7 @@ func resolveToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.S
 			displayName:    result.Name,
 			roles:          result.Roles,
 			orgScopedRoles: result.OrgScopedRoles,
+			authTime:       timeFromUnix(result.AuthTime),
 			mfaProofAt:     result.MFAProofVerifiedAt(),
 		}, nil
 	}

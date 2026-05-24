@@ -21,7 +21,7 @@ func TestLoadSettingsBuildsBootstrapPlan(t *testing.T) {
 	assert.Equal(t, casdoor.PurposeBootstrap, settings.credential.Purpose)
 	assert.Equal(t, "https://sso.example.com", settings.credential.Endpoint)
 	assert.Equal(t, "stuhelper", settings.plan.Organization.Name)
-	require.Len(t, settings.plan.Applications, 8)
+	require.Len(t, settings.plan.Applications, 9)
 	assert.Equal(t, "stuhelper-web", settings.plan.Applications[0].Name)
 	assert.Equal(t, "stuhelper-admin", settings.plan.Applications[1].Name)
 	assert.Equal(t, "stuhelper-uniapp", settings.plan.Applications[2].Name)
@@ -31,9 +31,14 @@ func TestLoadSettingsBuildsBootstrapPlan(t *testing.T) {
 	assert.Equal(t, "casdoor-admin-user-profile", settings.plan.Applications[5].Name)
 	assert.Equal(t, "casdoor-admin-role-sync", settings.plan.Applications[6].Name)
 	assert.Equal(t, "casdoor-admin-user-lookup", settings.plan.Applications[7].Name)
+	assert.Equal(t, "casdoor-token-probe-smoke", settings.plan.Applications[8].Name)
 	assert.Equal(t, []string{"client_credentials"}, settings.plan.Applications[3].GrantTypes)
 	assert.Equal(t, []string{"client_credentials"}, settings.plan.Applications[4].GrantTypes)
 	assert.Equal(t, []string{"client_credentials"}, settings.plan.Applications[5].GrantTypes)
+	assert.Equal(t, []string{"authorization_code", "refresh_token"}, settings.plan.Applications[8].GrantTypes)
+	assert.Equal(t, []string{"https://www.example.com/open-platform/token-probe/callback"}, settings.plan.Applications[8].RedirectURIs)
+	assert.Equal(t, "JWT-Custom", settings.plan.Applications[8].TokenFormat)
+	assert.Equal(t, []string{}, settings.plan.Applications[8].TokenFields)
 	require.Len(t, settings.plan.Roles, 8)
 	assert.Equal(t, "super_admin", settings.plan.Roles[0].Name)
 	require.Len(t, settings.plan.Providers, 1)
@@ -125,45 +130,49 @@ func TestLoadSettingsRejectsWrongSMSType(t *testing.T) {
 
 func completeEnv() map[string]string {
 	return map[string]string{
-		"CASDOOR_ISSUER":                         "https://sso.example.com",
-		"WEB_PUBLIC_URL":                         "https://www.example.com",
-		"CASDOOR_BOOTSTRAP_CLIENT_ID":            "bootstrap-client",
-		"CASDOOR_BOOTSTRAP_CLIENT_SECRET":        "bootstrap-secret",
-		"CASDOOR_BOOTSTRAP_APPLICATION":          "casdoor-admin-bootstrap",
-		"CASDOOR_ORGANIZATION":                   "stuhelper",
-		"CASDOOR_CLIENT_ID":                      "stuhelper-web",
-		"CASDOOR_CLIENT_SECRET":                  "web-secret",
-		"CASDOOR_REDIRECT_URI":                   "https://api.example.com/api/v1/auth/callback",
-		"CASDOOR_ADMIN_CLIENT_ID":                "stuhelper-admin",
-		"CASDOOR_ADMIN_CLIENT_SECRET":            "admin-secret",
-		"CASDOOR_ADMIN_REDIRECT_URI":             "https://api.example.com/api/v1/auth/callback",
-		"CASDOOR_UNIAPP_CLIENT_ID":               "stuhelper-uniapp",
-		"CASDOOR_UNIAPP_CLIENT_SECRET":           "uniapp-secret",
-		"CASDOOR_UNIAPP_REDIRECT_URI":            "https://api.example.com/api/v1/auth/callback",
-		"CASDOOR_APP_PROVISIONING_CLIENT_ID":     "casdoor-admin-app-provisioning",
-		"CASDOOR_APP_PROVISIONING_CLIENT_SECRET": "app-provisioning-secret",
-		"CASDOOR_APP_PROVISIONING_APPLICATION":   "casdoor-admin-app-provisioning",
-		"CASDOOR_USER_PROFILE_CLIENT_ID":         "casdoor-admin-user-profile",
-		"CASDOOR_USER_PROFILE_CLIENT_SECRET":     "user-profile-secret",
-		"CASDOOR_USER_PROFILE_APPLICATION":       "casdoor-admin-user-profile",
-		"CASDOOR_INTROSPECTION_CLIENT_ID":        "casdoor-token-introspection",
-		"CASDOOR_INTROSPECTION_CLIENT_SECRET":    "introspection-secret",
-		"CASDOOR_INTROSPECTION_APPLICATION":      "casdoor-token-introspection",
-		"CASDOOR_ROLE_SYNC_CLIENT_ID":            "casdoor-admin-role-sync",
-		"CASDOOR_ROLE_SYNC_CLIENT_SECRET":        "role-sync-secret",
-		"CASDOOR_ROLE_SYNC_APPLICATION":          "casdoor-admin-role-sync",
-		"CASDOOR_USER_LOOKUP_CLIENT_ID":          "casdoor-admin-user-lookup",
-		"CASDOOR_USER_LOOKUP_CLIENT_SECRET":      "user-lookup-secret",
-		"CASDOOR_USER_LOOKUP_APPLICATION":        "casdoor-admin-user-lookup",
-		"CASDOOR_SMS_PROVIDER_ENABLED":           "true",
-		"CASDOOR_SMS_PROVIDER_NAME":              "stuhelper-sms",
-		"CASDOOR_SMS_PROVIDER_DISPLAY_NAME":      "StuHelper SMS",
-		"CASDOOR_SMS_PROVIDER_CATEGORY":          "SMS",
-		"CASDOOR_SMS_PROVIDER_TYPE":              "CustomHTTP",
-		"CASDOOR_SMS_PROVIDER_METHOD":            "POST",
-		"CASDOOR_SMS_PROVIDER_TITLE":             "content",
-		"CASDOOR_SMS_PROVIDER_ENDPOINT":          "https://api.example.com/internal/sms/send",
-		"SMS_INTERNAL_KEY":                       "sms-internal-key",
+		"CASDOOR_ISSUER":                          "https://sso.example.com",
+		"WEB_PUBLIC_URL":                          "https://www.example.com",
+		"CASDOOR_BOOTSTRAP_CLIENT_ID":             "bootstrap-client",
+		"CASDOOR_BOOTSTRAP_CLIENT_SECRET":         "bootstrap-secret",
+		"CASDOOR_BOOTSTRAP_APPLICATION":           "casdoor-admin-bootstrap",
+		"CASDOOR_ORGANIZATION":                    "stuhelper",
+		"CASDOOR_CLIENT_ID":                       "stuhelper-web",
+		"CASDOOR_CLIENT_SECRET":                   "web-secret",
+		"CASDOOR_REDIRECT_URI":                    "https://api.example.com/api/v1/auth/callback",
+		"CASDOOR_ADMIN_CLIENT_ID":                 "stuhelper-admin",
+		"CASDOOR_ADMIN_CLIENT_SECRET":             "admin-secret",
+		"CASDOOR_ADMIN_REDIRECT_URI":              "https://api.example.com/api/v1/auth/callback",
+		"CASDOOR_UNIAPP_CLIENT_ID":                "stuhelper-uniapp",
+		"CASDOOR_UNIAPP_CLIENT_SECRET":            "uniapp-secret",
+		"CASDOOR_UNIAPP_REDIRECT_URI":             "https://api.example.com/api/v1/auth/callback",
+		"CASDOOR_APP_PROVISIONING_CLIENT_ID":      "casdoor-admin-app-provisioning",
+		"CASDOOR_APP_PROVISIONING_CLIENT_SECRET":  "app-provisioning-secret",
+		"CASDOOR_APP_PROVISIONING_APPLICATION":    "casdoor-admin-app-provisioning",
+		"CASDOOR_USER_PROFILE_CLIENT_ID":          "casdoor-admin-user-profile",
+		"CASDOOR_USER_PROFILE_CLIENT_SECRET":      "user-profile-secret",
+		"CASDOOR_USER_PROFILE_APPLICATION":        "casdoor-admin-user-profile",
+		"CASDOOR_INTROSPECTION_CLIENT_ID":         "casdoor-token-introspection",
+		"CASDOOR_INTROSPECTION_CLIENT_SECRET":     "introspection-secret",
+		"CASDOOR_INTROSPECTION_APPLICATION":       "casdoor-token-introspection",
+		"CASDOOR_ROLE_SYNC_CLIENT_ID":             "casdoor-admin-role-sync",
+		"CASDOOR_ROLE_SYNC_CLIENT_SECRET":         "role-sync-secret",
+		"CASDOOR_ROLE_SYNC_APPLICATION":           "casdoor-admin-role-sync",
+		"CASDOOR_USER_LOOKUP_CLIENT_ID":           "casdoor-admin-user-lookup",
+		"CASDOOR_USER_LOOKUP_CLIENT_SECRET":       "user-lookup-secret",
+		"CASDOOR_USER_LOOKUP_APPLICATION":         "casdoor-admin-user-lookup",
+		"CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID":     "casdoor-token-probe-smoke",
+		"CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_SECRET": "token-probe-smoke-secret",
+		"CASDOOR_TOKEN_PROBE_SMOKE_APPLICATION":   "casdoor-token-probe-smoke",
+		"CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI":  "https://www.example.com/open-platform/token-probe/callback",
+		"CASDOOR_SMS_PROVIDER_ENABLED":            "true",
+		"CASDOOR_SMS_PROVIDER_NAME":               "stuhelper-sms",
+		"CASDOOR_SMS_PROVIDER_DISPLAY_NAME":       "StuHelper SMS",
+		"CASDOOR_SMS_PROVIDER_CATEGORY":           "SMS",
+		"CASDOOR_SMS_PROVIDER_TYPE":               "CustomHTTP",
+		"CASDOOR_SMS_PROVIDER_METHOD":             "POST",
+		"CASDOOR_SMS_PROVIDER_TITLE":              "content",
+		"CASDOOR_SMS_PROVIDER_ENDPOINT":           "https://api.example.com/internal/sms/send",
+		"SMS_INTERNAL_KEY":                        "sms-internal-key",
 	}
 }
 

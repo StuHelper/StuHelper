@@ -21,6 +21,7 @@ type RatingStatRow struct {
 
 // ListRatingDimensions 获取评分维度列表
 func (r *Repository) ListRatingDimensions(ctx context.Context) ([]RatingDimension, error) {
+	ctx = withDBTable(ctx, "rating_dimensions")
 	rows, err := r.db.Query(ctx, `
 		SELECT id, school_id, key, name, description, sort_order, is_active, created_at, updated_at
 		FROM rating_dimensions
@@ -48,6 +49,7 @@ func (r *Repository) ListRatingDimensions(ctx context.Context) ([]RatingDimensio
 
 // GetDimensionNames 获取维度名称映射
 func (r *Repository) GetDimensionNames(ctx context.Context) (map[string]string, error) {
+	ctx = withDBTable(ctx, "rating_dimensions")
 	rows, err := r.db.Query(ctx, `SELECT key, name FROM rating_dimensions WHERE is_active = true`)
 	if err != nil {
 		return nil, err
@@ -67,6 +69,7 @@ func (r *Repository) GetDimensionNames(ctx context.Context) (map[string]string, 
 
 // ListCourseRatingStats 获取课程评分统计
 func (r *Repository) ListCourseRatingStats(ctx context.Context, courseID int64) ([]RatingStatRow, error) {
+	ctx = withDBTable(ctx, "course_rating_stats")
 	rows, err := r.db.Query(ctx, `
 		SELECT term_id, dimension_key, avg_rating, rating_count, rating_dist
 		FROM course_rating_stats

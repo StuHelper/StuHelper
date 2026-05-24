@@ -19,6 +19,10 @@ import (
 )
 
 const (
+	NamespaceGeneric = metrics.CacheNamespaceGeneric
+	NamespaceCourse  = metrics.CacheNamespaceCourse
+	NamespaceReview  = metrics.CacheNamespaceReview
+
 	// DefaultTTL 默认缓存过期时间
 	DefaultTTL = 5 * time.Minute
 	// VersionKeyTTL 版本号 key 的过期时间
@@ -54,6 +58,7 @@ type versionEvictionCandidate struct {
 // Helper Redis 缓存辅助工具
 type Helper struct {
 	client            *redis.Client
+	namespace         string
 	sf                singleflight.Group
 	vmu               sync.RWMutex
 	versions          map[string]versionEntry
@@ -62,20 +67,25 @@ type Helper struct {
 
 // NewHelper 创建缓存辅助工具
 func NewHelper(client *redis.Client) *Helper {
-	return &Helper{
-		client:            client,
-		versions:          make(map[string]versionEntry),
-		maxVersionEntries: defaultMaxVersionEntries,
-	}
+	return NewHelperWithNamespaceAndMaxVersions(client, NamespaceGeneric, defaultMaxVersionEntries)
+}
+
+func NewHelperWithNamespace(client *redis.Client, namespace string) *Helper {
+	return NewHelperWithNamespaceAndMaxVersions(client, namespace, defaultMaxVersionEntries)
 }
 
 // NewHelperWithMaxVersions 创建缓存辅助工具，可自定义版本号本地缓存上限
 func NewHelperWithMaxVersions(client *redis.Client, maxVersions int) *Helper {
+	return NewHelperWithNamespaceAndMaxVersions(client, NamespaceGeneric, maxVersions)
+}
+
+func NewHelperWithNamespaceAndMaxVersions(client *redis.Client, namespace string, maxVersions int) *Helper {
 	if maxVersions <= 0 {
 		maxVersions = defaultMaxVersionEntries
 	}
 	return &Helper{
 		client:            client,
+		namespace:         metrics.NormalizeCacheNamespace(namespace),
 		versions:          make(map[string]versionEntry),
 		maxVersionEntries: maxVersions,
 	}
@@ -90,15 +100,20 @@ func JitteredTTL(base time.Duration) time.Duration {
 }
 
 // randFloat64 使用非安全随机源生成 [0, 1) 范围的 float64。
-//
-//nolint:gosec // TTL jitter 只需要低成本随机性，不参与任何安全决策。
 func randFloat64() float64 {
-	return rand.Float64()
+	return rand.Float64() // #nosec G404 -- TTL jitter only needs low-cost randomness and is not used for security decisions.
 }
 
 // Client 返回底层 Redis 客户端（用于需要直接访问的场景）
 func (h *Helper) Client() *redis.Client {
 	return h.client
+}
+
+func (h *Helper) Namespace() string {
+	if h == nil {
+		return NamespaceGeneric
+	}
+	return metrics.NormalizeCacheNamespace(h.namespace)
 }
 
 // GetRaw 直接返回缓存中的 JSON 字节。
@@ -110,12 +125,12 @@ func (h *Helper) GetRaw(ctx context.Context, key string) (json.RawMessage, bool)
 	}
 	start := time.Now()
 	data, err := h.client.Get(ctx, key).Bytes()
-	metrics.CacheOperationDuration.WithLabelValues("get", "redis").Observe(time.Since(start).Seconds())
+	metrics.ObserveCacheOperation("get", metrics.CacheBackendRedis, h.Namespace(), time.Since(start).Seconds())
 	if err != nil {
-		metrics.CacheMissesTotal.WithLabelValues("redis").Inc()
+		metrics.ObserveCacheMiss(metrics.CacheBackendRedis, h.Namespace())
 		return nil, false
 	}
-	metrics.CacheHitsTotal.WithLabelValues("redis").Inc()
+	metrics.ObserveCacheHit(metrics.CacheBackendRedis, h.Namespace())
 	return json.RawMessage(data), true
 }
 
@@ -127,16 +142,16 @@ func GetAs[T any](h *Helper, ctx context.Context, key string) (T, bool) {
 	}
 	start := time.Now()
 	data, err := h.client.Get(ctx, key).Bytes()
-	metrics.CacheOperationDuration.WithLabelValues("get", "redis").Observe(time.Since(start).Seconds())
+	metrics.ObserveCacheOperation("get", metrics.CacheBackendRedis, h.Namespace(), time.Since(start).Seconds())
 	if err != nil {
-		metrics.CacheMissesTotal.WithLabelValues("redis").Inc()
+		metrics.ObserveCacheMiss(metrics.CacheBackendRedis, h.Namespace())
 		return zero, false
 	}
 	var v T
 	if err := json.Unmarshal(data, &v); err != nil {
 		return zero, false
 	}
-	metrics.CacheHitsTotal.WithLabelValues("redis").Inc()
+	metrics.ObserveCacheHit(metrics.CacheBackendRedis, h.Namespace())
 	return v, true
 }
 
@@ -155,7 +170,7 @@ func (h *Helper) Set(ctx context.Context, key string, value any, ttl time.Durati
 	}
 	start := time.Now()
 	defer func() {
-		metrics.CacheOperationDuration.WithLabelValues("set", "redis").Observe(time.Since(start).Seconds())
+		metrics.ObserveCacheOperation("set", metrics.CacheBackendRedis, h.Namespace(), time.Since(start).Seconds())
 	}()
 	if err := h.client.Set(ctx, key, data, ttl).Err(); err != nil {
 		logger.L().Warn("failed to set cache",

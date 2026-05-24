@@ -1,6 +1,10 @@
 package academics
 
-import "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+import (
+	"context"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+)
 
 type Repository struct {
 	db *db.DB
@@ -8,4 +12,8 @@ type Repository struct {
 
 func NewRepository(database *db.DB) *Repository {
 	return &Repository{db: database}
+}
+
+func withDBTable(ctx context.Context, table string) context.Context {
+	return db.WithTableHint(ctx, table)
 }

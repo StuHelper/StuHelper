@@ -21,8 +21,13 @@ func NewRepository(database *db.DB) *Repository {
 	return &Repository{db: database}
 }
 
+func withDBTable(ctx context.Context, table string) context.Context {
+	return db.WithTableHint(ctx, table)
+}
+
 // CourseExists 检查课程是否存在
 func (r *Repository) CourseExists(ctx context.Context, courseID int64) (bool, error) {
+	ctx = withDBTable(ctx, "courses")
 	var exists bool
 	err := r.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM courses WHERE id = $1)`, courseID).Scan(&exists)
 	return exists, err
@@ -30,6 +35,7 @@ func (r *Repository) CourseExists(ctx context.Context, courseID int64) (bool, er
 
 // ReviewExists 检查已发布的评论是否存在（用于用户侧操作：投票、举报、回复）
 func (r *Repository) ReviewExists(ctx context.Context, reviewID string) (bool, error) {
+	ctx = withDBTable(ctx, "reviews")
 	var exists bool
 	err := r.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM reviews WHERE id = $1 AND status = 'published')`, reviewID).Scan(&exists)
 	return exists, err
@@ -57,6 +63,7 @@ func (r *Repository) TeacherBelongsToCourseSchoolTx(ctx context.Context, tx pgx.
 }
 
 func (r *Repository) TeacherBelongsToCourseSchool(ctx context.Context, teacherID int64, courseID int64) (bool, error) {
+	ctx = withDBTable(ctx, "teachers")
 	var exists bool
 	err := r.db.QueryRow(ctx, `
 		SELECT EXISTS(
@@ -88,6 +95,7 @@ func (r *Repository) ReviewExistsTx(ctx context.Context, tx pgx.Tx, reviewID str
 
 // ReviewExistsAny 检查评论是否存在（不过滤状态，用于管理员操作）
 func (r *Repository) ReviewExistsAny(ctx context.Context, reviewID string) (bool, error) {
+	ctx = withDBTable(ctx, "reviews")
 	var exists bool
 	err := r.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM reviews WHERE id = $1)`, reviewID).Scan(&exists)
 	return exists, err
@@ -95,6 +103,7 @@ func (r *Repository) ReviewExistsAny(ctx context.Context, reviewID string) (bool
 
 // UserHasReviewedCourse 检查用户是否已对该课程发布评论
 func (r *Repository) UserHasReviewedCourse(ctx context.Context, userHash string, courseID int64) (bool, error) {
+	ctx = withDBTable(ctx, "reviews")
 	var exists bool
 	err := r.db.QueryRow(ctx, `
 		SELECT EXISTS(SELECT 1 FROM reviews WHERE user_hash = $1 AND course_id = $2 AND status != 'deleted')
@@ -104,6 +113,7 @@ func (r *Repository) UserHasReviewedCourse(ctx context.Context, userHash string,
 
 // CountByCourse 统计课程评论数量
 func (r *Repository) CountByCourse(ctx context.Context, courseID int64) (int, error) {
+	ctx = withDBTable(ctx, "reviews")
 	var count int
 	err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM reviews WHERE course_id = $1 AND status = 'published'`, courseID).Scan(&count)
 	return count, err
@@ -111,6 +121,7 @@ func (r *Repository) CountByCourse(ctx context.Context, courseID int64) (int, er
 
 // CountAll 统计所有已发布评论数量
 func (r *Repository) CountAll(ctx context.Context) (int, error) {
+	ctx = withDBTable(ctx, "reviews")
 	var count int
 	err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM reviews WHERE status = 'published'`).Scan(&count)
 	return count, err
@@ -118,6 +129,7 @@ func (r *Repository) CountAll(ctx context.Context) (int, error) {
 
 // GetPortalStats 获取门户统计数据（课程数、评论数、院系数、评课用户数）
 func (r *Repository) GetPortalStats(ctx context.Context) (courseCount, reviewCount, departmentCount, userCount int, err error) {
+	ctx = withDBTable(ctx, "reviews")
 	err = r.db.QueryRow(ctx, `
 		SELECT
 			(SELECT COUNT(*) FROM courses),
@@ -130,6 +142,7 @@ func (r *Repository) GetPortalStats(ctx context.Context) (courseCount, reviewCou
 
 // ListLatest 获取最新评论列表（含总数）
 func (r *Repository) ListLatest(ctx context.Context, limit, offset int, sort string) ([]Review, int, error) {
+	ctx = withDBTable(ctx, "reviews")
 	// SQL 注入安全保证：orderClause 的值 **仅** 来自 allowedSortOrders 硬编码 map，
 	// 不包含任何用户输入。即使 sort 参数被篡改，最坏情况也只会命中默认排序。
 	orderClause, ok := allowedSortOrders[sort]

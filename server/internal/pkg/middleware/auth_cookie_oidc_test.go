@@ -18,6 +18,7 @@ import (
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
@@ -65,6 +66,55 @@ func TestAuthMiddleware_CookieOIDCAcceptsMatchingSessionApplication(t *testing.T
 
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), `"userID":"user-oidc-cookie"`)
+}
+
+func TestAuthMiddleware_RejectsMalformedAuthorizationBeforeCookie(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	tokenSvc := newTokenServiceForMiddlewareTest(t)
+	oidcClient, server, issueIDToken := newCookieOIDCClient(t)
+	defer server.Close()
+
+	rawIDToken := issueIDToken("web-client")
+	storeOIDCCookieSession(t, tokenSvc, "sid-browser", "web", rawIDToken)
+
+	tests := []struct {
+		name    string
+		headers []string
+	}{
+		{
+			name:    "unsupported scheme",
+			headers: []string{"Basic Y2xpZW50OnNlY3JldA=="},
+		},
+		{
+			name:    "blank bearer",
+			headers: []string{"Bearer   "},
+		},
+		{
+			name:    "repeated authorization",
+			headers: []string{"Bearer api-token", "Bearer other-api-token"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := gin.New()
+			r.Use(AuthMiddleware(oidcClient, tokenSvc))
+			r.GET("/me", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"userID": GetUserID(c)}) })
+
+			req := httptest.NewRequest(http.MethodGet, "/me", nil)
+			req.AddCookie(&http.Cookie{Name: CookieAccessToken, Value: rawIDToken})
+			req.AddCookie(&http.Cookie{Name: CookieSessionID, Value: "sid-browser"})
+			for _, header := range tt.headers {
+				req.Header.Add("Authorization", header)
+			}
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusUnauthorized, w.Code, w.Body.String())
+			assert.Contains(t, w.Body.String(), string(errs.ErrTokenInvalid))
+			assert.NotContains(t, w.Body.String(), `"userID":"user-oidc-cookie"`)
+		})
+	}
 }
 
 func storeOIDCCookieSession(t *testing.T, tokenSvc *token.Service, sessionID, appKey, rawIDToken string) {

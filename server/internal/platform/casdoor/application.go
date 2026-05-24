@@ -154,7 +154,7 @@ func applicationSpecFromCasdoor(app *casdoorsdk.Application) ApplicationSpec {
 }
 
 func auditCasdoorApplication(ctx context.Context, credential Credential, appName string, action string) {
-	audit.Log(audit.EventFromContext(ctx, casdoorApplicationAuditEvent(credential, appName, action)))
+	audit.LogContext(ctx, casdoorApplicationAuditEvent(credential, appName, action))
 }
 
 func casdoorApplicationAuditEvent(credential Credential, appName string, action string) audit.Event {
@@ -329,8 +329,12 @@ func validateHomepageURL(value string) error {
 }
 
 func normalizeTokenFields(fields []string) ([]string, error) {
-	if fields == nil {
-		return nil, errors.New("casdoor: token fields must be explicit")
+	normalized, err := normalizeExplicitTokenFields(fields)
+	if err != nil {
+		return nil, err
 	}
-	return normalizeList("token field", fields)
+	if _, err := ProbeTokenClaimsMinimized(normalized); err != nil {
+		return nil, err
+	}
+	return normalized, nil
 }

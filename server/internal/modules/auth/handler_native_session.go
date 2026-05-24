@@ -15,7 +15,7 @@ import (
 
 // requireTrackedNativeRefreshSession 强制 native OIDC refresh 命中已追踪的服务端 session。
 func (h *Handler) requireTrackedNativeRefreshSession(c *gin.Context, fromBody bool, refreshToken string) bool {
-	if !fromBody || token.IsSelfSignedToken(refreshToken) {
+	if !fromBody {
 		return true
 	}
 
@@ -30,7 +30,7 @@ func (h *Handler) requireTrackedNativeRefreshSession(c *gin.Context, fromBody bo
 
 // requireTrackedNativeLogoutSession 防止 native OIDC 在缺失 tracked session 时仅撤销 access token。
 func (h *Handler) requireTrackedNativeLogoutSession(c *gin.Context, accessToken, refreshToken, sessionID string) bool {
-	if refreshToken != "" || accessToken == "" || token.IsSelfSignedToken(accessToken) {
+	if refreshToken != "" || accessToken == "" {
 		return true
 	}
 

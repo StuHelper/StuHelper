@@ -14,6 +14,14 @@ import (
 
 const DomainEventOutboxTable = "domain_event_outbox"
 
+const (
+	StatusPending    = "pending"
+	StatusProcessing = "processing"
+	StatusCompleted  = "completed"
+	StatusFailed     = "failed"
+	StatusDeadLetter = "dead_letter"
+)
+
 const upsertSQL = `
 	INSERT INTO ` + DomainEventOutboxTable + ` (
 		stream,
@@ -98,13 +106,36 @@ const markDoneSQL = `
 
 const markRetrySQL = `
 	UPDATE ` + DomainEventOutboxTable + `
-	SET status = 'failed',
+	SET status = '` + StatusFailed + `',
 		attempt_count = attempt_count + 1,
 		available_at = $2,
 		locked_at = NULL,
 		last_error = $3,
 		updated_at = NOW()
 	WHERE id = $1
+`
+
+const markDeadLetterSQL = `
+	UPDATE ` + DomainEventOutboxTable + `
+	SET status = '` + StatusDeadLetter + `',
+		attempt_count = attempt_count + 1,
+		available_at = NOW(),
+		locked_at = NULL,
+		last_error = $2,
+		updated_at = NOW()
+	WHERE id = $1
+`
+
+const requeueDeadLetterSQL = `
+	UPDATE ` + DomainEventOutboxTable + `
+	SET status = '` + StatusPending + `',
+		attempt_count = 0,
+		available_at = NOW(),
+		locked_at = NULL,
+		last_error = NULL,
+		updated_at = NOW()
+	WHERE id = $1
+	  AND status = '` + StatusDeadLetter + `'
 `
 
 var streamNamePattern = regexp.MustCompile(`^[a-z_]+$`)
@@ -182,6 +213,7 @@ func ClaimJobsByTypes(
 }
 
 func MarkJobDone(ctx context.Context, database *db.DB, jobID int64) error {
+	ctx = db.WithTableHint(ctx, DomainEventOutboxTable)
 	_, err := database.Exec(ctx, markDoneSQL, jobID)
 	if err != nil {
 		return fmt.Errorf("mark outbox job done: %w", err)
@@ -190,11 +222,37 @@ func MarkJobDone(ctx context.Context, database *db.DB, jobID int64) error {
 }
 
 func MarkJobRetry(ctx context.Context, database *db.DB, jobID int64, nextAttemptAt time.Time, lastError string) error {
+	ctx = db.WithTableHint(ctx, DomainEventOutboxTable)
 	_, err := database.Exec(ctx, markRetrySQL, jobID, nextAttemptAt, lastError)
 	if err != nil {
 		return fmt.Errorf("mark outbox job retry: %w", err)
 	}
 	return nil
+}
+
+func MarkJobDeadLetter(ctx context.Context, database *db.DB, jobID int64, lastError string) error {
+	ctx = db.WithTableHint(ctx, DomainEventOutboxTable)
+	_, err := database.Exec(ctx, markDeadLetterSQL, jobID, lastError)
+	if err != nil {
+		return fmt.Errorf("mark outbox job dead letter: %w", err)
+	}
+	return nil
+}
+
+func MarkJobFailure(ctx context.Context, database *db.DB, jobID int64, nextAttemptAt time.Time, lastError string, terminal bool) error {
+	if terminal {
+		return MarkJobDeadLetter(ctx, database, jobID, lastError)
+	}
+	return MarkJobRetry(ctx, database, jobID, nextAttemptAt, lastError)
+}
+
+func RequeueDeadLetterJob(ctx context.Context, database *db.DB, jobID int64) (bool, error) {
+	ctx = db.WithTableHint(ctx, DomainEventOutboxTable)
+	result, err := database.Exec(ctx, requeueDeadLetterSQL, jobID)
+	if err != nil {
+		return false, fmt.Errorf("requeue dead-letter outbox job: %w", err)
+	}
+	return result.RowsAffected() > 0, nil
 }
 
 func scanJobs(rows pgx.Rows, jobs *[]Job) error {

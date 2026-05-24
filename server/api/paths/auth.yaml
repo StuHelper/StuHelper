@@ -26,6 +26,21 @@
         schema:
           type: string
           enum: [web, admin, uniapp]
+      - name: prompt
+        in: query
+        required: false
+        description: 设置为 `login` 时强制上游 SSO 重新认证；用于 Identity `prompt=login` / `max_age=0` 转接。
+        schema:
+          type: string
+          enum: [login]
+      - name: max_age
+        in: query
+        required: false
+        description: 设置为 `0` 时强制上游 SSO 重新认证；当前登录 URL 生成只支持该强制重新认证语义。
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 0
     responses:
       '200':
         description: 返回 Casdoor OIDC 授权 URL 和 state
@@ -248,6 +263,8 @@
                         refreshToken:
                           type: string
                           description: 仅原生 App 请求时返回
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':
@@ -308,6 +325,8 @@
                   properties:
                     data:
                       $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 

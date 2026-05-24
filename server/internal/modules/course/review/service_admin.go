@@ -374,7 +374,7 @@ func (s *Service) BatchUpdateReviewsWithAudit(ctx context.Context, params BatchU
 	}
 
 	// 记录批量操作审计日志
-	audit.Log(audit.EventFromContext(ctx, audit.Event{
+	audit.LogContext(ctx, audit.Event{
 		Type:         audit.EventAdminBatchOp,
 		ActorType:    "admin",
 		UserID:       adminUserID,
@@ -389,7 +389,7 @@ func (s *Service) BatchUpdateReviewsWithAudit(ctx context.Context, params BatchU
 			"action":   params.Action,
 			"affected": result.Affected,
 		},
-	}))
+	})
 
 	return result, nil
 }

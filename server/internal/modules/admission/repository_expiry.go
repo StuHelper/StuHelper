@@ -13,6 +13,7 @@ func (r *Repository) ListExpiredFreshmanCredentials(
 	now time.Time,
 	limit int,
 ) ([]ExpiredFreshmanCredential, error) {
+	ctx = withDBTable(ctx, "user_verification_credentials")
 	rows, err := r.db.Query(ctx, `
 		SELECT id, user_id, expires_at
 		FROM user_verification_credentials

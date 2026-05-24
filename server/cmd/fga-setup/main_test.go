@@ -114,3 +114,15 @@ func TestParseAuthorizationModelJSONRejectsEmptyModel(t *testing.T) {
 		t.Fatal("expected empty model error")
 	}
 }
+
+func TestSkipSchoolTupleBootstrap(t *testing.T) {
+	t.Setenv("FGA_SKIP_SCHOOL_TUPLES", "true")
+	if !skipSchoolTupleBootstrap() {
+		t.Fatal("expected skipSchoolTupleBootstrap to accept true")
+	}
+
+	t.Setenv("FGA_SKIP_SCHOOL_TUPLES", "false")
+	if skipSchoolTupleBootstrap() {
+		t.Fatal("expected skipSchoolTupleBootstrap to reject false")
+	}
+}

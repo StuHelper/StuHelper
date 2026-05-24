@@ -88,9 +88,13 @@ func main() {
 	log.Printf("Model imported: %s", modelID)
 
 	// 4. Write initial tuples
-	log.Println("Writing initial tuples...")
-	if err := bootstrapSchoolTuples(ctx, apiURL, storeID, modelID); err != nil {
-		log.Fatalf("Failed to bootstrap FGA school tuples: %v", err)
+	if skipSchoolTupleBootstrap() {
+		log.Println("Skipping initial school tuple bootstrap because FGA_SKIP_SCHOOL_TUPLES=true")
+	} else {
+		log.Println("Writing initial tuples...")
+		if err := bootstrapSchoolTuples(ctx, apiURL, storeID, modelID); err != nil {
+			log.Fatalf("Failed to bootstrap FGA school tuples: %v", err)
+		}
 	}
 
 	// 5. Print env config
@@ -106,6 +110,10 @@ func envOrDefault(key, def string) string {
 		return v
 	}
 	return def
+}
+
+func skipSchoolTupleBootstrap() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("FGA_SKIP_SCHOOL_TUPLES")), "true")
 }
 
 func resolveModelPath(raw string) (string, error) {

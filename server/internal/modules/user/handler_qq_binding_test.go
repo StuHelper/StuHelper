@@ -165,6 +165,22 @@ func TestBotConsumeQQBinding_RejectsUnauthorizedToken(t *testing.T) {
 	assert.Equal(t, serviceaccount.ScopeBotQQBindingConsume, verifier.seenScope)
 }
 
+func TestBotConsumeQQBinding_RejectsRepeatedAuthorizationHeaders(t *testing.T) {
+	repo := newQQBindingMockRepo()
+	verifier := &fakeBotCredentialVerifier{}
+	r := setupQQBindingBotRouter(t, repo, verifier)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/bot/qq-binding/consume", strings.NewReader(`{"code":"ABCD1234","qqID":"123456789"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Add("Authorization", "Bearer expected-token")
+	req.Header.Add("Authorization", "Bearer other-token")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Empty(t, verifier.seenToken)
+}
+
 func TestBotConsumeQQBinding_RejectsForbiddenScope(t *testing.T) {
 	repo := newQQBindingMockRepo()
 	r := setupQQBindingBotRouter(t, repo, &fakeBotCredentialVerifier{err: serviceaccount.ErrCredentialForbidden})

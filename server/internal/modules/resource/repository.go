@@ -24,6 +24,10 @@ func NewRepository(database *db.DB) *Repository {
 	return &Repository{db: database}
 }
 
+func withDBTable(ctx context.Context, table string) context.Context {
+	return db.WithTableHint(ctx, table)
+}
+
 func (r *Repository) CreateResource(ctx context.Context, ownerUserID string, req CreateRequest, mountID int64, stored *storage.StoredObject) (*Item, error) {
 	var resourceID int64
 	err := r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
@@ -49,6 +53,7 @@ func (r *Repository) CreateResource(ctx context.Context, ownerUserID string, req
 }
 
 func (r *Repository) ListResources(ctx context.Context, filters ListFilters) ([]Item, int, error) {
+	ctx = withDBTable(ctx, "resource_items")
 	offset := httputil.SafeOffset(filters.Page, filters.PageSize)
 	queryPattern := "%" + httputil.EscapeLikePattern(filters.Query) + "%"
 	rows, err := r.db.Query(ctx, `
@@ -86,6 +91,7 @@ func (r *Repository) ListResources(ctx context.Context, filters ListFilters) ([]
 }
 
 func (r *Repository) GetResourceByID(ctx context.Context, resourceID int64) (*Item, error) {
+	ctx = withDBTable(ctx, "resource_items")
 	rows, err := r.db.Query(ctx, `
 		SELECT ri.id, ri.owner_user_id, ri.title, ri.description, ri.category, ri.visibility, ri.created_at, ri.updated_at,
 		       rv.id, rv.version_no, rv.mount_id, rv.object_key, rv.filename, rv.content_type, rv.size_bytes, rv.created_at,
@@ -176,6 +182,7 @@ func scanItem(rows pgx.Rows, total *int) (Item, error) {
 }
 
 func (r *Repository) loadTags(ctx context.Context, resourceID int64) ([]string, error) {
+	ctx = withDBTable(ctx, "resource_tags")
 	rows, err := r.db.Query(ctx, `SELECT tag FROM resource_tags WHERE resource_id = $1 ORDER BY tag ASC`, resourceID)
 	if err != nil {
 		return nil, fmt.Errorf("load resource tags: %w", err)
@@ -193,6 +200,7 @@ func (r *Repository) loadTags(ctx context.Context, resourceID int64) ([]string, 
 }
 
 func (r *Repository) loadBindings(ctx context.Context, resourceID int64) ([]Binding, error) {
+	ctx = withDBTable(ctx, "resource_bindings")
 	rows, err := r.db.Query(ctx, `
 		SELECT binding_type, binding_value
 		FROM resource_bindings

@@ -9,6 +9,7 @@ import (
 )
 
 func (r *Repository) GetUserProjection(ctx context.Context, userID int64) (*UserProjection, error) {
+	ctx = withDBTable(ctx, "users")
 	var item UserProjection
 	err := r.db.QueryRow(ctx, `
 		SELECT u.username,

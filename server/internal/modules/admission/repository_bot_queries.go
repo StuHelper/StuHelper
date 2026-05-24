@@ -17,6 +17,7 @@ func (r *Repository) ListPendingActionSessions(
 	if strings.TrimSpace(filter.Platform) == "" || strings.TrimSpace(filter.BotSelfID) == "" {
 		return nil, ErrAdmissionPendingActionFilterInvalid
 	}
+	ctx = withDBTable(ctx, "group_admission_sessions")
 	query, args := pendingActionSessionsQuery(filter, now)
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
@@ -60,6 +61,7 @@ func pendingActionSessionFilterClauses(filter AdmissionPendingActionFilter) ([]s
 }
 
 func (r *Repository) ListPendingFreshmanForwards(ctx context.Context) ([]freshmanForwardRecord, error) {
+	ctx = withDBTable(ctx, "freshman_verification_applications")
 	rows, err := r.db.Query(ctx, pendingFreshmanForwardSQL())
 	if err != nil {
 		return nil, fmt.Errorf("ListPendingFreshmanForwards: %w", err)
@@ -74,6 +76,7 @@ func (r *Repository) GetAdmissionFailure(
 	guildID string,
 	qqID string,
 ) (*AdmissionFailure, error) {
+	ctx = withDBTable(ctx, "group_admission_failures")
 	return scanAdmissionFailure(r.db.QueryRow(ctx, `
 		SELECT platform, guild_id, qq_id, failure_count
 		FROM group_admission_failures
@@ -125,6 +128,7 @@ type markBotSessionTxInput struct {
 }
 
 func (r *Repository) ManagementGuildAllowed(ctx context.Context, guildID string) (bool, error) {
+	ctx = withDBTable(ctx, "group_admission_policies")
 	var allowed bool
 	err := r.db.QueryRow(ctx, `
 		SELECT EXISTS (

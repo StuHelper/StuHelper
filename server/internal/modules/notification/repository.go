@@ -21,6 +21,10 @@ func NewRepository(database *db.DB) *Repository {
 	return &Repository{db: database}
 }
 
+func withDBTable(ctx context.Context, table string) context.Context {
+	return db.WithTableHint(ctx, table)
+}
+
 // CreateParams 创建通知参数
 type CreateParams struct {
 	UserID       int64
@@ -50,6 +54,7 @@ type ListResult struct {
 
 // Create 创建通知
 func (r *Repository) Create(ctx context.Context, p CreateParams) (string, error) {
+	ctx = withDBTable(ctx, "notifications")
 	newID, err := id.New()
 	if err != nil {
 		return "", fmt.Errorf("notification create generate id: %w", err)
@@ -66,6 +71,7 @@ func (r *Repository) Create(ctx context.Context, p CreateParams) (string, error)
 
 // List 获取通知列表
 func (r *Repository) List(ctx context.Context, p ListParams) (*ListResult, error) {
+	ctx = withDBTable(ctx, "notifications")
 	offset := httputil.SafeOffset(p.Page, p.PageSize)
 	result := &ListResult{List: make([]Notification, 0, p.PageSize)}
 	if err := r.db.QueryRow(ctx, `
@@ -117,6 +123,7 @@ func payloadOrEmptyJSON(payload json.RawMessage) json.RawMessage {
 
 // CountUnread 统计未读通知数量
 func (r *Repository) CountUnread(ctx context.Context, userID int64) (int, error) {
+	ctx = withDBTable(ctx, "notifications")
 	var count int
 	err := r.db.QueryRow(ctx, `
 		SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = false
@@ -129,6 +136,7 @@ func (r *Repository) CountUnread(ctx context.Context, userID int64) (int, error)
 
 // MarkRead 标记通知已读，返回本次调用是否真的发生了状态迁移。
 func (r *Repository) MarkRead(ctx context.Context, notifID string, userID int64) (bool, error) {
+	ctx = withDBTable(ctx, "notifications")
 	result, err := r.db.Exec(ctx, `
 		UPDATE notifications SET is_read = true
 		WHERE id = $1 AND user_id = $2 AND is_read = false
@@ -141,6 +149,7 @@ func (r *Repository) MarkRead(ctx context.Context, notifID string, userID int64)
 
 // MarkAllRead 标记所有通知已读
 func (r *Repository) MarkAllRead(ctx context.Context, userID int64) error {
+	ctx = withDBTable(ctx, "notifications")
 	_, err := r.db.Exec(ctx, `
 		UPDATE notifications SET is_read = true WHERE user_id = $1 AND is_read = false
 	`, userID)

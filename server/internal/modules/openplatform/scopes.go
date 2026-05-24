@@ -7,6 +7,7 @@ type ScopeDefinition struct {
 	DisplayName string   `json:"displayName"`
 	Sensitivity string   `json:"sensitivity"`
 	Fields      []string `json:"fields"`
+	Reason      string   `json:"reason"`
 }
 
 var scopeCatalog = map[string]ScopeDefinition{
@@ -46,6 +47,10 @@ var scopeCatalog = map[string]ScopeDefinition{
 		Scope: ScopeResourceWrite, DisplayName: "授权资源写入", Sensitivity: "very_high",
 		Fields: []string{"用户授权的资源写入权限"},
 	},
+	ScopeOfflineAccess: {
+		Scope: ScopeOfflineAccess, DisplayName: "离线访问", Sensitivity: "high",
+		Fields: []string{"长期刷新登录授权"},
+	},
 }
 
 func NormalizeScopes(scopes []string) ([]string, error) {
@@ -71,6 +76,46 @@ func NormalizeScopes(scopes []string) ([]string, error) {
 	return result, nil
 }
 
+func NormalizeGrantedOAuthScopes(scopes []string) ([]string, error) {
+	seen := make(map[string]struct{}, len(scopes))
+	result := make([]string, 0, len(scopes))
+	for _, raw := range scopes {
+		scope := strings.TrimSpace(raw)
+		if scope == "" {
+			continue
+		}
+		switch scope {
+		case "openid", "profile", "email", "phone":
+		default:
+			if _, ok := scopeCatalog[scope]; !ok {
+				return nil, ErrInvalidScope
+			}
+		}
+		if _, ok := seen[scope]; ok {
+			continue
+		}
+		seen[scope] = struct{}{}
+		result = append(result, scope)
+	}
+	if len(result) == 0 {
+		return nil, ErrInvalidScope
+	}
+	return result, nil
+}
+
+func UserConsentScopes(scopes []string) []string {
+	result := make([]string, 0, len(scopes))
+	for _, scope := range scopes {
+		switch scope {
+		case ScopeResourceRead, ScopeResourceWrite:
+			continue
+		default:
+			result = append(result, scope)
+		}
+	}
+	return result
+}
+
 func ScopeDefinitions(scopes []string) []ScopeDefinition {
 	result := make([]ScopeDefinition, 0, len(scopes))
 	for _, scope := range scopes {
@@ -79,4 +124,12 @@ func ScopeDefinitions(scopes []string) []ScopeDefinition {
 		}
 	}
 	return result
+}
+
+func ScopeDefinitionsWithReasons(scopes []string, reasons map[string]string) []ScopeDefinition {
+	definitions := ScopeDefinitions(scopes)
+	for i := range definitions {
+		definitions[i].Reason = strings.TrimSpace(reasons[definitions[i].Scope])
+	}
+	return definitions
 }

@@ -7,10 +7,12 @@ import (
 	"testing"
 	"time"
 
+	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
 )
 
@@ -31,7 +33,18 @@ func TestNewHelper(t *testing.T) {
 
 	assert.NotNil(t, h)
 	assert.Equal(t, client, h.Client())
+	assert.Equal(t, NamespaceGeneric, h.Namespace())
 	assert.Equal(t, defaultMaxVersionEntries, h.maxVersionEntries)
+}
+
+func TestNewHelperWithNamespace(t *testing.T) {
+	client, _ := setupTestRedis(t)
+
+	h := NewHelperWithNamespace(client, NamespaceReview)
+	assert.Equal(t, NamespaceReview, h.Namespace())
+
+	rawKeyHelper := NewHelperWithNamespace(client, "course:course:123")
+	assert.Equal(t, NamespaceGeneric, rawKeyHelper.Namespace())
 }
 
 func TestNewHelperWithMaxVersions(t *testing.T) {
@@ -116,6 +129,21 @@ func TestSetAndGetRaw_RoundTrip(t *testing.T) {
 	var got testPayload
 	require.NoError(t, json.Unmarshal(raw, &got))
 	assert.Equal(t, want, got)
+}
+
+func TestGetRaw_RecordsNamespaceMetrics(t *testing.T) {
+	client, _ := setupTestRedis(t)
+	h := NewHelperWithNamespace(client, NamespaceCourse)
+	ctx := context.Background()
+
+	require.NoError(t, h.Set(ctx, "course:categories", testPayload{Name: "cached", Count: 1}, time.Minute))
+
+	before := promtest.ToFloat64(metrics.CacheHitsTotal.WithLabelValues(metrics.CacheBackendRedis, metrics.CacheNamespaceCourse))
+	_, ok := h.GetRaw(ctx, "course:categories")
+	require.True(t, ok)
+
+	after := promtest.ToFloat64(metrics.CacheHitsTotal.WithLabelValues(metrics.CacheBackendRedis, metrics.CacheNamespaceCourse))
+	assert.Equal(t, before+1, after)
 }
 
 func TestGetRaw_Miss(t *testing.T) {

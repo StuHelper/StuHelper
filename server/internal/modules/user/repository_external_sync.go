@@ -125,10 +125,18 @@ func (r *Repository) MarkExternalSyncJobRetry(ctx context.Context, jobID int64, 
 	return nil
 }
 
+func (r *Repository) MarkExternalSyncJobFailure(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string, terminal bool) error {
+	if err := outbox.MarkJobFailure(ctx, r.db, jobID, nextAttemptAt, lastError, terminal); err != nil {
+		return fmt.Errorf("MarkExternalSyncJobFailure: %w", err)
+	}
+	return nil
+}
+
 func (r *Repository) ListStudentRoleProjectionStates(ctx context.Context, limit int) ([]StudentRoleProjectionState, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
+	ctx = withDBTable(ctx, "user_profiles")
 	rows, err := r.db.Query(ctx, `
 		SELECT user_id,
 		       verification_status = 'verified' AS approved

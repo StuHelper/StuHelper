@@ -24,11 +24,12 @@ func (rt *Runtime) initCourseModule(
 	notifSender notification.Sender,
 	userRepo *user.Repository,
 ) *course.Handler {
-	courseCache := cache.NewHelper(rt.redisClient.GetClient())
+	courseCache := cache.NewHelperWithNamespace(rt.redisClient.GetClient(), cache.NamespaceCourse)
+	reviewCache := cache.NewHelperWithNamespace(rt.redisClient.GetClient(), cache.NamespaceReview)
 	reviewRepo := review.NewRepository(rt.database)
 	reviewService := review.NewService(rt.database, reviewRepo, notifSender, authorizer, userRepo)
 	reviewHandler := review.NewHandler(review.HandlerConfig{
-		CacheHelper:            courseCache,
+		CacheHelper:            reviewCache,
 		Service:                reviewService,
 		Redis:                  rt.redisClient.GetClient(),
 		RateLimit:              rt.cfg.RateLimit,

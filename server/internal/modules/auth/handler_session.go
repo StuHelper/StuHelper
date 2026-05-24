@@ -9,7 +9,6 @@ import (
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
@@ -30,8 +29,11 @@ func (h *Handler) Logout(c *gin.Context) {
 		refreshToken = v
 	}
 
-	// 从 access token 或 session cookie 中获取 session ID
-	sessionID := h.getSessionID(c, accessToken)
+	// 从 native header 或浏览器 session cookie 中获取唯一 session ID
+	sessionID, ok := h.resolveSessionID(c)
+	if !ok {
+		return
+	}
 	if !h.requireTrackedNativeLogoutSession(c, accessToken, refreshToken, sessionID) {
 		return
 	}
@@ -52,13 +54,13 @@ func (h *Handler) Logout(c *gin.Context) {
 		)
 		// 仍然清除客户端 cookie（减少攻击面），但不向客户端承诺撤销成功
 		h.clearTokenCookies(c)
-		audit.LogFailure(audit.EventUserLogout, c.ClientIP(), c.Request.UserAgent(), requestID, "server-side revocation failed")
+		audit.LogFailureContext(c.Request.Context(), audit.EventUserLogout, c.ClientIP(), c.Request.UserAgent(), requestID, "server-side revocation failed")
 		response.InternalError(c, "logout partially failed: server-side revocation unsuccessful")
 		return
 	}
 
 	h.clearTokenCookies(c)
-	audit.LogSuccess(audit.EventUserLogout, userID, username, c.ClientIP(), c.Request.UserAgent(), requestID)
+	audit.LogSuccessContext(c.Request.Context(), audit.EventUserLogout, userID, username, c.ClientIP(), c.Request.UserAgent(), requestID)
 
 	response.Success(c, gin.H{"message": "logout successful"})
 }
@@ -79,7 +81,7 @@ func (h *Handler) LogoutAll(c *gin.Context) {
 	}
 
 	h.clearTokenCookies(c)
-	audit.LogSuccess(audit.EventUserLogoutAll, userID, username, c.ClientIP(), c.Request.UserAgent(), requestID)
+	audit.LogSuccessContext(c.Request.Context(), audit.EventUserLogoutAll, userID, username, c.ClientIP(), c.Request.UserAgent(), requestID)
 	response.Success(c, gin.H{"message": "logged out from all devices"})
 }
 
@@ -88,9 +90,20 @@ func (h *Handler) LogoutAll(c *gin.Context) {
 //  1. 请求体 JSON {"refreshToken": "..."}（原生 App）
 //  2. Cookie（Web 浏览器）
 func (h *Handler) RefreshToken(c *gin.Context) {
-	refreshTokenStr, fromBody := resolveRefreshToken(c)
+	refreshTokenStr, fromBody, ok := resolveRefreshToken(c)
+	if !ok {
+		return
+	}
 	if refreshTokenStr == "" {
 		response.Unauthorized(c, "missing refresh token", errs.ErrTokenMissing)
+		return
+	}
+	if token.IsSelfSignedToken(refreshTokenStr) {
+		h.clearTokenCookies(c)
+		response.Unauthorized(c, "unsupported refresh token", errs.ErrRefreshTokenInvalid)
+		return
+	}
+	if _, ok := h.resolveSessionID(c); !ok {
 		return
 	}
 
@@ -126,12 +139,6 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 		}
 		releaseConsume()
 	}()
-
-	// 自签名 JWT refresh token（手机验证码登录签发）
-	if token.IsSelfSignedToken(refreshTokenStr) {
-		success = h.refreshSelfSignedToken(c, refreshTokenStr)
-		return
-	}
 
 	// OIDC provider refresh token
 	success = h.refreshOIDCToken(c, refreshTokenStr)
@@ -174,26 +181,6 @@ func (h *Handler) consumeRefreshToken(c *gin.Context, refreshToken string) (func
 	}, true
 }
 
-// extractSessionID 从 access token 中提取 session ID。
-// 仅自签名 JWT（手机登录）携带 sid claim；OIDC ID Token 无此 claim，返回空字符串。
-func extractSessionID(accessToken string) string {
-	if accessToken == "" {
-		return ""
-	}
-	if !token.IsSelfSignedToken(accessToken) {
-		return ""
-	}
-	hmacKey := crypto.GetHMACKey()
-	if len(hmacKey) == 0 {
-		return ""
-	}
-	claims, err := token.VerifyJWT(hmacKey, accessToken)
-	if err != nil {
-		return ""
-	}
-	return claims.Sid
-}
-
 // refreshTokenRequest 原生 App 通过请求体传递 refresh token
 type refreshTokenRequest struct {
 	RefreshToken string `json:"refreshToken"`
@@ -214,22 +201,50 @@ func (h *Handler) buildRefreshResponse(c *gin.Context, accessToken, refreshToken
 	return resp
 }
 
-// resolveRefreshToken 按优先级从请求中获取 refresh token：
-//  1. 请求体 JSON {"refreshToken": "..."}（原生 App）
-//  2. Cookie（Web 浏览器）
+// resolveRefreshToken 从唯一凭据来源获取 refresh token：
+//   - 请求体 JSON {"refreshToken": "..."}（原生 App）
+//   - Cookie（Web 浏览器）
 //
-// 返回 token 字符串和是否来自请求体（原生 App 标识）。
-func resolveRefreshToken(c *gin.Context) (string, bool) {
-	// 1. 请求体（原生 App 无 cookie，通过 JSON body 传递）
-	var body refreshTokenRequest
-	if err := c.ShouldBindJSON(&body); err == nil && body.RefreshToken != "" {
-		return body.RefreshToken, true
+// 两种来源不能混用；请求体存在时必须是合法 JSON，避免 malformed body 静默回退到 cookie。
+// 返回 token 字符串、是否来自请求体（原生 App 标识）、请求是否可继续处理。
+func resolveRefreshToken(c *gin.Context) (string, bool, bool) {
+	if requestHasBody(c) {
+		if requestHasAuthSessionCookie(c) {
+			response.BadRequest(c, "refresh token source is ambiguous", errs.ErrInvalidParam)
+			return "", false, false
+		}
+		var body refreshTokenRequest
+		if err := c.ShouldBindJSON(&body); err != nil {
+			response.BadRequest(c, "invalid refresh request body", errs.ErrInvalidParam)
+			return "", false, false
+		}
+		return body.RefreshToken, true, true
 	}
 
-	// 2. Cookie（Web 浏览器标准路径）
 	if v, err := c.Cookie(middleware.CookieRefreshToken); err == nil && v != "" {
-		return v, false
+		return v, false, true
 	}
 
-	return "", false
+	return "", false, true
+}
+
+func requestHasBody(c *gin.Context) bool {
+	if c == nil || c.Request == nil || c.Request.Body == nil || c.Request.Body == http.NoBody {
+		return false
+	}
+	return c.Request.ContentLength != 0
+}
+
+func requestHasAuthSessionCookie(c *gin.Context) bool {
+	for _, name := range []string{
+		middleware.CookieAccessToken,
+		middleware.CookieRefreshToken,
+		middleware.CSRFCookieName,
+		sessionCookieName,
+	} {
+		if value, err := c.Cookie(name); err == nil && value != "" {
+			return true
+		}
+	}
+	return false
 }

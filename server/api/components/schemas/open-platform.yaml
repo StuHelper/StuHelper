@@ -10,10 +10,11 @@ OpenPlatformScope:
     - stu.student.school.read
     - resource.read
     - resource.write
+    - offline_access
 
 OpenPlatformScopeDefinition:
   type: object
-  required: [scope, displayName, sensitivity, fields]
+  required: [scope, displayName, sensitivity, fields, reason]
   properties:
     scope:
       $ref: '#/OpenPlatformScope'
@@ -26,6 +27,9 @@ OpenPlatformScopeDefinition:
       type: array
       items:
         type: string
+    reason:
+      type: string
+      description: 开发者申请该 scope 时提交、供用户授权决策参考的用途说明。
 
 OpenPlatformAuthorizeResponse:
   type: object
@@ -194,12 +198,14 @@ OpenPlatformApp:
 
 OpenPlatformScopeRequestInput:
   type: object
-  required: [scope]
+  required: [scope, reason]
   properties:
     scope:
       $ref: '#/OpenPlatformScope'
     reason:
       type: string
+      minLength: 1
+      description: 开发者申请该 scope 的用途说明，会展示在授权页、资料补全页和用户授权管理页。
 
 OpenPlatformRegisterAppRequest:
   type: object
@@ -227,6 +233,35 @@ OpenPlatformRegisterAppRequest:
       items:
         $ref: '#/OpenPlatformScopeRequestInput'
 
+OpenPlatformUpdateAppProfileRequest:
+  type: object
+  required: [displayName, homepageURL, privacyPolicyURL, reason]
+  properties:
+    displayName:
+      type: string
+    description:
+      type: string
+    homepageURL:
+      type: string
+      format: uri
+    privacyPolicyURL:
+      type: string
+      format: uri
+    reason:
+      type: string
+      description: 变更原因，用于开发者与管理员审计。
+
+OpenPlatformScopeChangeRequest:
+  type: object
+  required: [scopes]
+  properties:
+    scopes:
+      type: array
+      minItems: 1
+      description: 开发者新增或重提的 scope 申请；每个 scope 必须提供用途说明。
+      items:
+        $ref: '#/OpenPlatformScopeRequestInput'
+
 OpenPlatformRegisteredApp:
   type: object
   required: [app]
@@ -237,6 +272,707 @@ OpenPlatformRegisteredApp:
       type: string
       description: 注册阶段不返回 client secret；管理员批准应用后才返回。
 
+OpenPlatformScopeRequest:
+  type: object
+  required: [id, scope, displayName, sensitivity, fields, reason, status, createdAt, updatedAt]
+  properties:
+    id:
+      type: integer
+      format: int64
+    scope:
+      $ref: '#/OpenPlatformScope'
+    displayName:
+      type: string
+    sensitivity:
+      type: string
+      enum: [low, medium, high, very_high]
+    fields:
+      type: array
+      items:
+        type: string
+    reason:
+      type: string
+    status:
+      type: string
+      enum: [pending, approved, rejected, withdrawn]
+    reviewerUserID:
+      type:
+        - integer
+        - "null"
+      format: int64
+    reviewedAt:
+      type:
+        - string
+        - "null"
+      format: date-time
+    decisionNote:
+      type:
+        - string
+        - "null"
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+OpenPlatformRedirectURIChangeRequest:
+  type: object
+  required: [redirectURIs, reason]
+  properties:
+    redirectURIs:
+      type: array
+      minItems: 1
+      items:
+        type: string
+        format: uri
+    reason:
+      type: string
+      minLength: 1
+      description: 申请变更 redirect URI 的原因，会展示给管理员并写入审计事件。
+
+OpenPlatformRedirectURIReviewRequest:
+  type: object
+  properties:
+    decisionNote:
+      type: string
+
+OpenPlatformRedirectURIRequest:
+  type: object
+  required: [id, redirectURIs, reason, status, createdAt, updatedAt]
+  properties:
+    id:
+      type: integer
+      format: int64
+    redirectURIs:
+      type: array
+      items:
+        type: string
+        format: uri
+    reason:
+      type: string
+    status:
+      type: string
+      enum: [pending, approved, rejected, withdrawn]
+    reviewerUserID:
+      type:
+        - integer
+        - "null"
+      format: int64
+    reviewedAt:
+      type:
+        - string
+        - "null"
+      format: date-time
+    decisionNote:
+      type:
+        - string
+        - "null"
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+OpenPlatformScopeChangeResult:
+  type: object
+  required: [scopes]
+  properties:
+    scopes:
+      type: array
+      items:
+        $ref: '#/OpenPlatformScopeRequest'
+
+OpenPlatformAppWithScopes:
+  type: object
+  required: [app, scopes, redirectURIRequests]
+  properties:
+    app:
+      $ref: '#/OpenPlatformApp'
+    scopes:
+      type: array
+      items:
+        $ref: '#/OpenPlatformScopeRequest'
+    redirectURIRequests:
+      type: array
+      items:
+        $ref: '#/OpenPlatformRedirectURIRequest'
+
+OpenPlatformAppList:
+  type: object
+  required: [list, total]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/OpenPlatformAppWithScopes'
+    total:
+      type: integer
+
+OpenPlatformAuditEvent:
+  type: object
+  required: [id, eventType, metadata, createdAt]
+  properties:
+    id:
+      type: integer
+      format: int64
+    appID:
+      type:
+        - integer
+        - "null"
+      format: int64
+    userID:
+      type:
+        - integer
+        - "null"
+      format: int64
+    eventType:
+      type: string
+    scope:
+      type:
+        - string
+        - "null"
+    requestID:
+      type:
+        - string
+        - "null"
+    metadata:
+      type: object
+      additionalProperties: true
+    createdAt:
+      type: string
+      format: date-time
+
+OpenPlatformAuditEventList:
+  type: object
+  required: [list, total]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/OpenPlatformAuditEvent'
+    total:
+      type: integer
+
+OpenPlatformTokenProbeEvidence:
+  type: object
+  required:
+    - id
+    - appID
+    - casdoorApplicationName
+    - clientID
+    - redirectURI
+    - probeMethod
+    - result
+    - inspectedClaims
+    - businessClaims
+    - tokenClaims
+    - metadata
+    - error
+    - createdAt
+  properties:
+    id:
+      type: integer
+      format: int64
+    appID:
+      type: integer
+      format: int64
+    reviewerUserID:
+      type:
+        - integer
+        - "null"
+      format: int64
+    requestID:
+      type:
+        - string
+        - "null"
+    casdoorApplicationName:
+      type: string
+    clientID:
+      type: string
+    redirectURI:
+      type: string
+      format: uri
+    probeMethod:
+      type: string
+      description: 探针方式，当前为 authorization_code。
+    result:
+      type: string
+      enum: [passed, failed]
+    inspectedClaims:
+      type: array
+      items:
+        type: string
+    businessClaims:
+      type: array
+      items:
+        type: string
+    tokenClaims:
+      type: object
+      additionalProperties:
+        type: array
+        items:
+          type: string
+    metadata:
+      type: object
+      additionalProperties: true
+    error:
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+
+OpenPlatformTokenProbeEvidenceList:
+  type: object
+  required: [list, total]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/OpenPlatformTokenProbeEvidence'
+    total:
+      type: integer
+
+OpenPlatformResourceType:
+  type: string
+  enum: [user_profile, resource_item]
+
+OpenPlatformResourceAccessAction:
+  type: string
+  enum: [read, write]
+
+OpenPlatformResourceGrantRequest:
+  type: object
+  description: resource_item 支持 read/write；user_profile 仅支持 read。
+  required: [resourceType, resourceID, actions, reason]
+  properties:
+    resourceType:
+      $ref: '#/OpenPlatformResourceType'
+    resourceID:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: '^[A-Za-z0-9_-]+$'
+    actions:
+      type: array
+      minItems: 1
+      items:
+        $ref: '#/OpenPlatformResourceAccessAction'
+    reason:
+      type: string
+      minLength: 1
+      description: 管理员授予或撤销具体资源授权的审计原因。
+
+OpenPlatformResourceAccessCheckRequest:
+  type: object
+  description: |
+    resource_item 支持 read/write；user_profile 仅支持 read。
+    首选通过 Authorization: Bearer <client_credentials access_token> 认证；
+    未携带 Bearer token 时需在 body 中提供 clientID/clientSecret。
+    Bearer token 与 body clientID/clientSecret 互斥，避免凭据混用或在请求体中泄漏 secret。
+    携带非 Bearer 的 Authorization 头会被拒绝；使用 body clientID/clientSecret 兼容认证时应省略 Authorization 头。
+  required: [resourceType, resourceID, action]
+  properties:
+    clientID:
+      type: string
+      description: 兼容认证方式；未携带 Bearer token 时必填，携带 Bearer token 时不得传入。
+    clientSecret:
+      type: string
+      format: password
+      description: 兼容认证方式；未携带 Bearer token 时必填，携带 Bearer token 时不得传入。
+    resourceType:
+      $ref: '#/OpenPlatformResourceType'
+    resourceID:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: '^[A-Za-z0-9_-]+$'
+    action:
+      $ref: '#/OpenPlatformResourceAccessAction'
+
+OpenPlatformResourceGrant:
+  type: object
+  required: [appID, resourceType, resourceID, action, relation]
+  properties:
+    appID:
+      type: integer
+      format: int64
+    resourceType:
+      $ref: '#/OpenPlatformResourceType'
+    resourceID:
+      type: string
+    action:
+      $ref: '#/OpenPlatformResourceAccessAction'
+    relation:
+      type: string
+      enum: [can_read_by_app, can_write_by_app]
+
+OpenPlatformResourceGrantResult:
+  type: object
+  required: [app, grants]
+  properties:
+    app:
+      $ref: '#/OpenPlatformApp'
+    grants:
+      type: array
+      items:
+        $ref: '#/OpenPlatformResourceGrant'
+
+OpenPlatformResourceAccessDecision:
+  type: object
+  required: [allowed, appID, clientID, resourceType, resourceID, action, relation, reason]
+  properties:
+    allowed:
+      type: boolean
+    appID:
+      type: integer
+      format: int64
+    clientID:
+      type: string
+    resourceType:
+      $ref: '#/OpenPlatformResourceType'
+    resourceID:
+      type: string
+    action:
+      $ref: '#/OpenPlatformResourceAccessAction'
+    relation:
+      type: string
+      enum: [can_read_by_app, can_write_by_app]
+    reason:
+      type: string
+      enum: [allowed, fga_denied, scope_not_approved, token_scope_missing]
+
+OpenPlatformDisclosureReportSummary:
+  type: object
+  required: [windowHours, total, granted, denied, rateLimited, replayDetected]
+  properties:
+    windowHours:
+      type: integer
+    total:
+      type: integer
+    granted:
+      type: integer
+    denied:
+      type: integer
+    rateLimited:
+      type: integer
+    replayDetected:
+      type: integer
+
+OpenPlatformDisclosureEndpointStats:
+  type: object
+  required: [endpoint, total, granted, denied, rateLimited, replayDetected]
+  properties:
+    endpoint:
+      type: string
+      enum: [userinfo, verification, student, phone, identity_token]
+    total:
+      type: integer
+    granted:
+      type: integer
+    denied:
+      type: integer
+    rateLimited:
+      type: integer
+    replayDetected:
+      type: integer
+
+OpenPlatformDisclosureReasonStats:
+  type: object
+  required: [reason, total]
+  properties:
+    reason:
+      type: string
+    total:
+      type: integer
+
+OpenPlatformDisclosureRateLimitStats:
+  type: object
+  required: [dimension, total]
+  properties:
+    dimension:
+      type: string
+      enum: [app, app_user, endpoint, consent, unknown]
+    total:
+      type: integer
+
+OpenPlatformDisclosureReplayEvent:
+  type: object
+  required: [id, endpoint, result, count, scopes, metadata, detectedAt]
+  properties:
+    id:
+      type: integer
+      format: int64
+    appID:
+      type:
+        - integer
+        - "null"
+      format: int64
+    userID:
+      type:
+        - integer
+        - "null"
+      format: int64
+    endpoint:
+      type: string
+      enum: [userinfo, verification, student, phone, identity_token]
+    result:
+      type: string
+    count:
+      type: integer
+    scopes:
+      type: array
+      items:
+        type: string
+    requestID:
+      type:
+        - string
+        - "null"
+    metadata:
+      type: object
+      additionalProperties: true
+    detectedAt:
+      type: string
+      format: date-time
+
+OpenPlatformDisclosureReport:
+  type: object
+  required: [summary, endpoints, denialReasons, rateLimitDimensions, recentReplayEvents]
+  properties:
+    summary:
+      $ref: '#/OpenPlatformDisclosureReportSummary'
+    endpoints:
+      type: array
+      items:
+        $ref: '#/OpenPlatformDisclosureEndpointStats'
+    denialReasons:
+      type: array
+      items:
+        $ref: '#/OpenPlatformDisclosureReasonStats'
+    rateLimitDimensions:
+      type: array
+      items:
+        $ref: '#/OpenPlatformDisclosureRateLimitStats'
+    recentReplayEvents:
+      type: array
+      items:
+        $ref: '#/OpenPlatformDisclosureReplayEvent'
+
+OpenPlatformUserConsentScope:
+  type: object
+  required: [scope, displayName, sensitivity, fields, grantedAt, grantSource, reason]
+  properties:
+    scope:
+      $ref: '#/OpenPlatformScope'
+    displayName:
+      type: string
+    sensitivity:
+      type: string
+      enum: [low, medium, high, very_high]
+    fields:
+      type: array
+      items:
+        type: string
+    grantedAt:
+      type: string
+      format: date-time
+    lastUsedAt:
+      type: string
+      format: date-time
+      description: 最近一次通过 UserInfo / disclosure 成功读取该 scope 的时间；从审计事件派生，未使用过时省略。
+    grantSource:
+      type: string
+    reason:
+      type: string
+      description: 开发者申请该 scope 时提交、供用户撤权决策参考的用途说明。
+
+OpenPlatformUserAuthorizedApp:
+  type: object
+  required: [app, scopes]
+  properties:
+    app:
+      $ref: '#/OpenPlatformApp'
+    scopes:
+      type: array
+      items:
+        $ref: '#/OpenPlatformUserConsentScope'
+
+OpenPlatformUserConsents:
+  type: object
+  required: [apps]
+  properties:
+    apps:
+      type: array
+      items:
+        $ref: '#/OpenPlatformUserAuthorizedApp'
+
+OpenPlatformAdminUserAuthorizedApp:
+  type: object
+  required: [userID, app, scopes]
+  properties:
+    userID:
+      type: integer
+      format: int64
+      description: 被授权用户 ID。
+    app:
+      $ref: '#/OpenPlatformApp'
+    scopes:
+      type: array
+      items:
+        $ref: '#/OpenPlatformUserConsentScope'
+
+OpenPlatformAdminUserConsentList:
+  type: object
+  required: [list, total]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/OpenPlatformAdminUserAuthorizedApp'
+    total:
+      type: integer
+
+OpenPlatformAdminConsentRevokeRequest:
+  type: object
+  required: [userID, reason]
+  properties:
+    userID:
+      type: integer
+      format: int64
+      minimum: 1
+      description: 被撤销授权的用户 ID。
+    scopes:
+      type: array
+      items:
+        $ref: '#/OpenPlatformScope'
+      description: 为空或省略时撤销该用户对该 app 的全部 active consent。
+    reason:
+      type: string
+      minLength: 1
+      description: 管理员定向撤销授权的原因，写入审计 metadata。
+
+OpenPlatformUserConsentAuditEvent:
+  type: object
+  required: [id, eventType, scopes, details, createdAt]
+  properties:
+    id:
+      type: integer
+      format: int64
+    appID:
+      type:
+        - integer
+        - "null"
+      format: int64
+    appDisplayName:
+      type:
+        - string
+        - "null"
+      description: 事件关联应用的展示名；应用已删除或审计未绑定应用时为 null。
+    clientID:
+      type:
+        - string
+        - "null"
+      description: 事件关联应用的 client_id；应用已删除或审计未绑定应用时为 null。
+    eventType:
+      type: string
+      description: 用户可见的 Open Platform 授权、撤销或披露审计事件类型。
+    scope:
+      type:
+        - string
+        - "null"
+      description: consent grant/revoke 事件的单个 scope；披露事件通常使用 scopes 数组。
+    scopes:
+      type: array
+      items:
+        $ref: '#/OpenPlatformScope'
+      description: 事件涉及的 scope 列表，合并单 scope 字段和 consent/disclosure metadata.scopes 后去重。
+    endpoint:
+      type:
+        - string
+        - "null"
+      description: disclosure / UserInfo endpoint；非披露事件为 null。
+    result:
+      type:
+        - string
+        - "null"
+      description: disclosure 结果、拒绝原因或用户拒绝授权结果；非结果类事件为 null。
+    requestID:
+      type:
+        - string
+        - "null"
+    details:
+      type: object
+      additionalProperties: true
+      description: 面向当前用户的安全审计摘要，只包含 grantSource、actor、endpoint、result、scopes、rateLimitDimension 等非敏感字段。
+    createdAt:
+      type: string
+      format: date-time
+
+OpenPlatformUserConsentAuditEventList:
+  type: object
+  required: [list, total]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/OpenPlatformUserConsentAuditEvent'
+    total:
+      type: integer
+
+OpenPlatformDeveloperAppAuditEvent:
+  type: object
+  required: [id, eventType, scopes, details, createdAt]
+  properties:
+    id:
+      type: integer
+      format: int64
+    eventType:
+      type: string
+      description: 开发者可见的自有应用生命周期、审批、授权、披露、资源授权或 token 探针事件类型。
+    scope:
+      type:
+        - string
+        - "null"
+      description: 事件直接关联的单个 scope；披露事件通常使用 scopes 数组。
+    scopes:
+      type: array
+      items:
+        $ref: '#/OpenPlatformScope'
+      description: 事件涉及的 scope 列表，合并单 scope 字段和披露 metadata.scopes 后去重。
+    endpoint:
+      type:
+        - string
+        - "null"
+      description: disclosure / UserInfo endpoint；非披露事件为 null。
+    result:
+      type:
+        - string
+        - "null"
+      description: disclosure、资源授权检查或 token 探针结果；无结果时为 null。
+    requestID:
+      type:
+        - string
+        - "null"
+    details:
+      type: object
+      additionalProperties: true
+      description: 面向 app owner 的安全审计摘要，隐藏用户 ID、原始 token claims、堆栈或内部错误细节。
+    createdAt:
+      type: string
+      format: date-time
+
+OpenPlatformDeveloperAppAuditEventList:
+  type: object
+  required: [list, total]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/OpenPlatformDeveloperAppAuditEvent'
+    total:
+      type: integer
+
 OpenPlatformApprovedApp:
   type: object
   required: [app, clientSecret]
@@ -246,6 +982,48 @@ OpenPlatformApprovedApp:
     clientSecret:
       type: string
       description: 只在批准时返回一次，调用方必须自行保存。
+
+OpenPlatformSecretRotationRequest:
+  type: object
+  properties:
+    reason:
+      type: string
+      description: 轮换 client secret 的原因，会写入审计事件。
+
+OpenPlatformRotatedSecret:
+  type: object
+  required: [app, clientSecret]
+  properties:
+    app:
+      $ref: '#/OpenPlatformApp'
+    clientSecret:
+      type: string
+      description: 只在本次轮换响应中返回一次；旧 secret 已立即失效。
+
+OpenPlatformLifecycleActionRequest:
+  type: object
+  required: [reason]
+  properties:
+    reason:
+      type: string
+      minLength: 1
+      description: 暂停、恢复或吊销应用的原因，会写入审计事件。
+
+OpenPlatformWithdrawalRequest:
+  type: object
+  required: [reason]
+  properties:
+    reason:
+      type: string
+      minLength: 1
+      description: 开发者撤回待审核应用或变更申请的原因，会写入审计事件。
+
+OpenPlatformAppLifecycleResult:
+  type: object
+  required: [app]
+  properties:
+    app:
+      $ref: '#/OpenPlatformApp'
 
 OpenPlatformImportCasdoorAppRequest:
   type: object
@@ -297,6 +1075,12 @@ OpenPlatformImportedApp:
       enum: [provided, casdoor, generated]
 
 OpenPlatformApproveScopeRequest:
+  type: object
+  properties:
+    decisionNote:
+      type: string
+
+OpenPlatformRejectScopeRequest:
   type: object
   properties:
     decisionNote:

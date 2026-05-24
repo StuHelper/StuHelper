@@ -128,6 +128,7 @@ func buildExportQuery(status string) (string, []interface{}) {
 
 // ForEachReviewForExport 流式遍历导出评论
 func (r *Repository) ForEachReviewForExport(ctx context.Context, status string, fn func(Review) error) error {
+	ctx = withDBTable(ctx, "reviews")
 	query, args := buildExportQuery(status)
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 )
 
@@ -24,6 +25,18 @@ func TestHandleCallback_ValidationAndNativeBranch(t *testing.T) {
 	r.ServeHTTP(w, req)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), "missing authorization code")
+
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/callback?code=abc&code=def&state=s1", nil)
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), string(errs.ErrInvalidParam))
+
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/callback?code=abc&state=s1&state=s2", nil)
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), string(errs.ErrInvalidParam))
 
 	w = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/callback?code=abc&state=s1", nil)

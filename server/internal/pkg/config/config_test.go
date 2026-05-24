@@ -178,6 +178,7 @@ func TestValidate_ProductionRequiresObservability(t *testing.T) {
 		},
 		Identity: IdentityConfig{
 			AccessTokenTTL:       900,
+			RefreshTokenTTL:      2592000,
 			AuthorizationCodeTTL: 300,
 		},
 		OpenFGA: OpenFGAConfig{
@@ -235,6 +236,48 @@ func TestValidate_ProductionRequiresIdentityIssuerAndSigningKey(t *testing.T) {
 	assert.Contains(t, err.Error(), "IDENTITY_SIGNING_PRIVATE_KEY_PEM is required in production")
 }
 
+func TestLoadIdentityConfigFromEnv(t *testing.T) {
+	t.Setenv("IDENTITY_ISSUER", "https://id.example.com")
+	t.Setenv("IDENTITY_SIGNING_PRIVATE_KEY_PEM", "identity-signing-key")
+	t.Setenv("IDENTITY_SIGNING_KEY_ID", "identity-key-2")
+	t.Setenv("IDENTITY_ACCESS_TOKEN_TTL", "600")
+	t.Setenv("IDENTITY_REFRESH_TOKEN_TTL", "7200")
+	t.Setenv("IDENTITY_AUTH_CODE_TTL", "120")
+
+	var parseErrs []string
+	cfg := loadIdentityConfig(&parseErrs)
+
+	require.Empty(t, parseErrs)
+	assert.Equal(t, "https://id.example.com", cfg.Issuer)
+	assert.Equal(t, "identity-signing-key", cfg.SigningPrivateKeyPEM)
+	assert.Equal(t, "identity-key-2", cfg.SigningKeyID)
+	assert.Equal(t, 600, cfg.AccessTokenTTL)
+	assert.Equal(t, 7200, cfg.RefreshTokenTTL)
+	assert.Equal(t, 120, cfg.AuthorizationCodeTTL)
+}
+
+func TestValidate_RejectsInvalidIdentityRefreshTokenTTL(t *testing.T) {
+	tests := []struct {
+		name  string
+		value int
+	}{
+		{name: "too short", value: 3599},
+		{name: "too long", value: 2592001},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validProductionConfigForTest()
+			c.Identity.RefreshTokenTTL = tt.value
+
+			err := c.validate(nil)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "IDENTITY_REFRESH_TOKEN_TTL must be between 3600 and 2592000 seconds")
+		})
+	}
+}
+
 func TestValidate_DevelopmentAllowsMissingBotServiceToken(t *testing.T) {
 	c := validProductionConfigForTest()
 	c.App.Env = "development"
@@ -260,6 +303,41 @@ func TestValidate_ProductionRequiresCasdoorAdminCredentials(t *testing.T) {
 	assert.Contains(t, err.Error(), "CASDOOR_USER_PROFILE_CLIENT_SECRET is required")
 	assert.Contains(t, err.Error(), "CASDOOR_ROLE_SYNC_CLIENT_SECRET is required")
 	assert.Contains(t, err.Error(), "CASDOOR_USER_LOOKUP_APPLICATION is required")
+}
+
+func TestValidate_ProductionRequiresOpenPlatformRuntimeTokenProbe(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.OpenPlatform.TokenProbe.RuntimeRequired = false
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED must be true in production")
+}
+
+func TestValidate_OpenPlatformRuntimeTokenProbeRequiresCommandWhenRequired(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.App.Env = "development"
+	c.Token.CookieSecure = false
+	c.OpenPlatform.TokenProbe.RuntimeRequired = true
+	c.OpenPlatform.TokenProbe.RuntimeCommand = ""
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND is required")
+}
+
+func TestValidate_OpenPlatformRuntimeTokenProbeRejectsInvalidTimeout(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.App.Env = "development"
+	c.Token.CookieSecure = false
+	c.OpenPlatform.TokenProbe.RuntimeTimeoutSeconds = 601
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_TIMEOUT_SECONDS must be between 1 and 600 seconds")
 }
 
 func TestValidate_DevelopmentRejectsPartialCasdoorAppProvisioningCredential(t *testing.T) {
@@ -360,6 +438,7 @@ func TestValidate_SMSRequiresFullConfigWhenEnabled(t *testing.T) {
 		},
 		Identity: IdentityConfig{
 			AccessTokenTTL:       900,
+			RefreshTokenTTL:      2592000,
 			AuthorizationCodeTTL: 300,
 		},
 		OpenFGA: OpenFGAConfig{
@@ -427,6 +506,7 @@ func TestValidate_SMSDisabledAllowsEmptyConfig(t *testing.T) {
 		},
 		Identity: IdentityConfig{
 			AccessTokenTTL:       900,
+			RefreshTokenTTL:      2592000,
 			AuthorizationCodeTTL: 300,
 		},
 		OpenFGA: OpenFGAConfig{
@@ -610,9 +690,15 @@ func validProductionConfigForTest() *Config {
 			SigningPrivateKeyPEM: "-----BEGIN RSA PRIVATE KEY-----\nplaceholder\n-----END RSA PRIVATE KEY-----",
 			SigningKeyID:         "stuhelper-identity-1",
 			AccessTokenTTL:       900,
+			RefreshTokenTTL:      2592000,
 			AuthorizationCodeTTL: 300,
 		},
 		OpenFGA: OpenFGAConfig{StoreID: "store-id", AuthorizationModelID: "model-id", APIUrl: "http://openfga:8080"},
+		OpenPlatform: OpenPlatformConfig{TokenProbe: OpenPlatformTokenProbeConfig{
+			RuntimeRequired:       true,
+			RuntimeCommand:        "/usr/local/bin/stuhelper-token-probe",
+			RuntimeTimeoutSeconds: 30,
+		}},
 		Observability: ObservabilityConfig{
 			Enabled: true, ServiceName: "stuhelper-backend", OTLPEndpoint: "http://alloy:4318", TraceSampleRatio: 0.2,
 		},

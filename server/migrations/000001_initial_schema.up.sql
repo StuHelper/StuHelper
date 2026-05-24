@@ -721,7 +721,7 @@ CREATE TABLE public.domain_event_outbox (
     last_error text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT chk_domain_event_outbox_status CHECK ((status = ANY (ARRAY['pending'::text, 'processing'::text, 'completed'::text, 'failed'::text]))),
+    CONSTRAINT chk_domain_event_outbox_status CHECK ((status = ANY (ARRAY['pending'::text, 'processing'::text, 'completed'::text, 'failed'::text, 'dead_letter'::text]))),
     CONSTRAINT chk_domain_event_outbox_stream CHECK ((stream <> ''::text))
 );
 
@@ -1599,7 +1599,7 @@ CREATE TABLE public.open_platform_scope_requests (
     decision_note text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT chk_open_platform_scope_requests_status CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text])))
+    CONSTRAINT chk_open_platform_scope_requests_status CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'withdrawn'::text])))
 );
 
 
@@ -1620,6 +1620,45 @@ CREATE SEQUENCE public.open_platform_scope_requests_id_seq
 --
 
 ALTER SEQUENCE public.open_platform_scope_requests_id_seq OWNED BY public.open_platform_scope_requests.id;
+
+
+--
+-- Name: open_platform_redirect_uri_requests; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.open_platform_redirect_uri_requests (
+    id bigint NOT NULL,
+    app_id bigint NOT NULL,
+    redirect_uris jsonb NOT NULL,
+    reason text DEFAULT ''::text NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    reviewer_user_id bigint,
+    reviewed_at timestamp with time zone,
+    decision_note text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_open_platform_redirect_uri_requests_status CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'withdrawn'::text]))),
+    CONSTRAINT chk_open_platform_redirect_uri_requests_redirect_uris_array CHECK (jsonb_typeof(redirect_uris) = 'array'::text)
+);
+
+
+--
+-- Name: open_platform_redirect_uri_requests_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.open_platform_redirect_uri_requests_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: open_platform_redirect_uri_requests_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.open_platform_redirect_uri_requests_id_seq OWNED BY public.open_platform_redirect_uri_requests.id;
 
 
 --
@@ -1682,6 +1721,53 @@ CREATE SEQUENCE public.open_platform_audit_events_id_seq
 --
 
 ALTER SEQUENCE public.open_platform_audit_events_id_seq OWNED BY public.open_platform_audit_events.id;
+
+
+--
+-- Name: open_platform_token_probe_evidence; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.open_platform_token_probe_evidence (
+    id bigint NOT NULL,
+    app_id bigint NOT NULL,
+    reviewer_user_id bigint,
+    request_id text,
+    casdoor_application_name text NOT NULL,
+    client_id text NOT NULL,
+    redirect_uri text NOT NULL,
+    probe_method text NOT NULL,
+    result text NOT NULL,
+    inspected_claims jsonb NOT NULL,
+    business_claims jsonb NOT NULL,
+    token_claims jsonb DEFAULT '{}'::jsonb NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    error text DEFAULT ''::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_open_platform_token_probe_evidence_result CHECK ((result = ANY (ARRAY['passed'::text, 'failed'::text]))),
+    CONSTRAINT chk_open_platform_token_probe_evidence_inspected_claims_array CHECK (jsonb_typeof(inspected_claims) = 'array'::text),
+    CONSTRAINT chk_open_platform_token_probe_evidence_business_claims_array CHECK (jsonb_typeof(business_claims) = 'array'::text),
+    CONSTRAINT chk_open_platform_token_probe_evidence_token_claims_object CHECK (jsonb_typeof(token_claims) = 'object'::text),
+    CONSTRAINT chk_open_platform_token_probe_evidence_metadata_object CHECK (jsonb_typeof(metadata) = 'object'::text)
+);
+
+
+--
+-- Name: open_platform_token_probe_evidence_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.open_platform_token_probe_evidence_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: open_platform_token_probe_evidence_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.open_platform_token_probe_evidence_id_seq OWNED BY public.open_platform_token_probe_evidence.id;
 
 
 --
@@ -1858,10 +1944,24 @@ ALTER TABLE ONLY public.open_platform_scope_requests ALTER COLUMN id SET DEFAULT
 
 
 --
+-- Name: open_platform_redirect_uri_requests id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_redirect_uri_requests ALTER COLUMN id SET DEFAULT nextval('public.open_platform_redirect_uri_requests_id_seq'::regclass);
+
+
+--
 -- Name: open_platform_audit_events id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.open_platform_audit_events ALTER COLUMN id SET DEFAULT nextval('public.open_platform_audit_events_id_seq'::regclass);
+
+
+--
+-- Name: open_platform_token_probe_evidence id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_token_probe_evidence ALTER COLUMN id SET DEFAULT nextval('public.open_platform_token_probe_evidence_id_seq'::regclass);
 
 
 --
@@ -2537,6 +2637,14 @@ ALTER TABLE ONLY public.open_platform_scope_requests
 
 
 --
+-- Name: open_platform_redirect_uri_requests open_platform_redirect_uri_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_redirect_uri_requests
+    ADD CONSTRAINT open_platform_redirect_uri_requests_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: open_platform_approved_scopes open_platform_approved_scopes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2558,6 +2666,14 @@ ALTER TABLE ONLY public.open_platform_user_consents
 
 ALTER TABLE ONLY public.open_platform_audit_events
     ADD CONSTRAINT open_platform_audit_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: open_platform_token_probe_evidence open_platform_token_probe_evidence_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_token_probe_evidence
+    ADD CONSTRAINT open_platform_token_probe_evidence_pkey PRIMARY KEY (id);
 
 
 --
@@ -3277,6 +3393,27 @@ CREATE INDEX idx_open_platform_scope_requests_status ON public.open_platform_sco
 
 
 --
+-- Name: idx_open_platform_redirect_uri_requests_app_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_open_platform_redirect_uri_requests_app_created ON public.open_platform_redirect_uri_requests USING btree (app_id, created_at DESC);
+
+
+--
+-- Name: idx_open_platform_redirect_uri_requests_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_open_platform_redirect_uri_requests_status ON public.open_platform_redirect_uri_requests USING btree (status);
+
+
+--
+-- Name: idx_open_platform_redirect_uri_requests_pending_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_open_platform_redirect_uri_requests_pending_unique ON public.open_platform_redirect_uri_requests USING btree (app_id) WHERE (status = 'pending'::text);
+
+
+--
 -- Name: idx_open_platform_user_consents_user; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3284,10 +3421,59 @@ CREATE INDEX idx_open_platform_user_consents_user ON public.open_platform_user_c
 
 
 --
+-- Name: idx_open_platform_user_consents_active_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_open_platform_user_consents_active_user ON public.open_platform_user_consents USING btree (user_id, app_id, scope) WHERE (revoked_at IS NULL);
+
+
+--
+-- Name: idx_open_platform_user_consents_active_app; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_open_platform_user_consents_active_app ON public.open_platform_user_consents USING btree (app_id, user_id, scope) WHERE (revoked_at IS NULL);
+
+
+--
 -- Name: idx_open_platform_audit_events_app_created; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_open_platform_audit_events_app_created ON public.open_platform_audit_events USING btree (app_id, created_at DESC);
+
+
+--
+-- Name: idx_open_platform_audit_events_type_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_open_platform_audit_events_type_created ON public.open_platform_audit_events USING btree (event_type, created_at DESC);
+
+
+--
+-- Name: idx_open_platform_audit_events_user_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_open_platform_audit_events_user_created ON public.open_platform_audit_events USING btree (user_id, created_at DESC);
+
+
+--
+-- Name: idx_open_platform_audit_events_disclosure_usage; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_open_platform_audit_events_disclosure_usage ON public.open_platform_audit_events USING btree (app_id, user_id, created_at DESC, id DESC) WHERE (event_type = 'open_platform.disclosure.granted'::text);
+
+
+--
+-- Name: idx_open_platform_token_probe_evidence_app_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_open_platform_token_probe_evidence_app_created ON public.open_platform_token_probe_evidence USING btree (app_id, created_at DESC);
+
+
+--
+-- Name: idx_open_platform_token_probe_evidence_result_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_open_platform_token_probe_evidence_result_created ON public.open_platform_token_probe_evidence USING btree (result, created_at DESC);
 
 
 --
@@ -3319,6 +3505,22 @@ ALTER TABLE ONLY public.open_platform_scope_requests
 
 ALTER TABLE ONLY public.open_platform_scope_requests
     ADD CONSTRAINT open_platform_scope_requests_reviewer_user_id_fkey FOREIGN KEY (reviewer_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: open_platform_redirect_uri_requests open_platform_redirect_uri_requests_app_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_redirect_uri_requests
+    ADD CONSTRAINT open_platform_redirect_uri_requests_app_id_fkey FOREIGN KEY (app_id) REFERENCES public.open_platform_apps(id) ON DELETE CASCADE;
+
+
+--
+-- Name: open_platform_redirect_uri_requests open_platform_redirect_uri_requests_reviewer_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_redirect_uri_requests
+    ADD CONSTRAINT open_platform_redirect_uri_requests_reviewer_user_id_fkey FOREIGN KEY (reviewer_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 --
@@ -3367,6 +3569,22 @@ ALTER TABLE ONLY public.open_platform_audit_events
 
 ALTER TABLE ONLY public.open_platform_audit_events
     ADD CONSTRAINT open_platform_audit_events_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: open_platform_token_probe_evidence open_platform_token_probe_evidence_app_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_token_probe_evidence
+    ADD CONSTRAINT open_platform_token_probe_evidence_app_id_fkey FOREIGN KEY (app_id) REFERENCES public.open_platform_apps(id) ON DELETE CASCADE;
+
+
+--
+-- Name: open_platform_token_probe_evidence open_platform_token_probe_evidence_reviewer_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_token_probe_evidence
+    ADD CONSTRAINT open_platform_token_probe_evidence_reviewer_user_id_fkey FOREIGN KEY (reviewer_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 --

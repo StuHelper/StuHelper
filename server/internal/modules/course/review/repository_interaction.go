@@ -23,6 +23,7 @@ type CreateReportParams struct {
 
 // CreateReport 创建举报
 func (r *Repository) CreateReport(ctx context.Context, p CreateReportParams) error {
+	ctx = withDBTable(ctx, "review_reports")
 	newID, err := id.New()
 	if err != nil {
 		return fmt.Errorf("CreateReport generate id: %w", err)
@@ -55,6 +56,7 @@ func (r *Repository) CreateReportTx(ctx context.Context, tx pgx.Tx, p CreateRepo
 
 // ReportExists 检查是否已举报
 func (r *Repository) ReportExists(ctx context.Context, reviewID, userHash string) (bool, error) {
+	ctx = withDBTable(ctx, "review_reports")
 	var exists bool
 	err := r.db.QueryRow(ctx, `
 		SELECT EXISTS(SELECT 1 FROM review_reports WHERE review_id = $1 AND reporter_hash = $2)
@@ -80,6 +82,7 @@ func (r *Repository) ReportExistsTx(ctx context.Context, tx pgx.Tx, reviewID, us
 // ListReports 获取举报列表（包含评论信息，含总数）
 // 当 reviewID 为 nil（评论已被物理删除）时，跳过 Review 对象赋值，标记为已删除
 func (r *Repository) ListReports(ctx context.Context, status string, limit, offset int, schoolIDs []int64) ([]ReviewReport, int, error) {
+	ctx = withDBTable(ctx, "review_reports")
 	var qb strings.Builder
 	qb.WriteString(`
 		SELECT rr.id, rr.review_id, rr.reason, rr.description, rr.status,
@@ -148,6 +151,7 @@ func (r *Repository) ListReports(ctx context.Context, status string, limit, offs
 
 // GetReportByID 根据ID获取举报
 func (r *Repository) GetReportByID(ctx context.Context, reportID string) (*ReviewReport, error) {
+	ctx = withDBTable(ctx, "review_reports")
 	var rp ReviewReport
 	err := r.db.QueryRow(ctx, `
 		SELECT id, review_id, reason, description, status,
@@ -182,6 +186,7 @@ func (r *Repository) GetReportByIDForUpdate(ctx context.Context, tx pgx.Tx, repo
 }
 
 func (r *Repository) GetReportSchoolID(ctx context.Context, reportID string) (int64, error) {
+	ctx = withDBTable(ctx, "review_reports")
 	var schoolID int64
 	err := r.db.QueryRow(ctx, `
 		SELECT school_id
@@ -214,6 +219,7 @@ func (r *Repository) UpdateReport(ctx context.Context, tx pgx.Tx, p UpdateReport
 
 // CreateFavorite 创建收藏
 func (r *Repository) CreateFavorite(ctx context.Context, userHash string, courseID int64) error {
+	ctx = withDBTable(ctx, "course_favorites")
 	newID, err := id.New()
 	if err != nil {
 		return fmt.Errorf("CreateFavorite generate id: %w", err)
@@ -231,6 +237,7 @@ func (r *Repository) CreateFavorite(ctx context.Context, userHash string, course
 
 // DeleteFavorite 删除收藏
 func (r *Repository) DeleteFavorite(ctx context.Context, userHash string, courseID int64) error {
+	ctx = withDBTable(ctx, "course_favorites")
 	_, err := r.db.Exec(ctx, `
 		DELETE FROM course_favorites WHERE user_hash = $1 AND course_id = $2
 	`, userHash, courseID)
@@ -242,6 +249,7 @@ func (r *Repository) DeleteFavorite(ctx context.Context, userHash string, course
 
 // FavoriteExists 检查是否已收藏
 func (r *Repository) FavoriteExists(ctx context.Context, userHash string, courseID int64) (bool, error) {
+	ctx = withDBTable(ctx, "course_favorites")
 	var exists bool
 	err := r.db.QueryRow(ctx, `
 		SELECT EXISTS(SELECT 1 FROM course_favorites WHERE user_hash = $1 AND course_id = $2)
@@ -254,6 +262,7 @@ func (r *Repository) FavoriteExists(ctx context.Context, userHash string, course
 
 // ListFavorites 获取用户收藏列表（含总数）
 func (r *Repository) ListFavorites(ctx context.Context, userHash string, limit, offset int) ([]FavoriteCourse, int, error) {
+	ctx = withDBTable(ctx, "course_favorites")
 	rows, err := r.db.Query(ctx, `
 		SELECT c.id, c.name, c.code, c.credits, c.department_id,
 		       d.name, c.review_count, cf.created_at,
@@ -333,6 +342,7 @@ func (r *Repository) ReplyBelongsToReviewTx(ctx context.Context, tx pgx.Tx, repl
 
 // ListReplies 获取回复列表（含总数）
 func (r *Repository) ListReplies(ctx context.Context, reviewID string, limit, offset int) ([]Reply, int, error) {
+	ctx = withDBTable(ctx, "review_replies")
 	rows, err := r.db.Query(ctx, `
 		SELECT id, review_id, parent_id, user_hash, content, like_count, status, created_at, updated_at,
 		       COUNT(*) OVER() AS total
@@ -364,6 +374,7 @@ func (r *Repository) ListReplies(ctx context.Context, reviewID string, limit, of
 
 // GetReplyOwner 获取回复所有者
 func (r *Repository) GetReplyOwner(ctx context.Context, replyID string) (string, error) {
+	ctx = withDBTable(ctx, "review_replies")
 	var userHash string
 	err := r.db.QueryRow(ctx, `
 		SELECT user_hash FROM review_replies WHERE id = $1
@@ -376,6 +387,7 @@ func (r *Repository) GetReplyOwner(ctx context.Context, replyID string) (string,
 
 // GetReplyReviewID 获取回复所属的评论ID
 func (r *Repository) GetReplyReviewID(ctx context.Context, replyID string) (string, error) {
+	ctx = withDBTable(ctx, "review_replies")
 	var reviewID string
 	err := r.db.QueryRow(ctx, `
 		SELECT review_id FROM review_replies WHERE id = $1
@@ -388,6 +400,7 @@ func (r *Repository) GetReplyReviewID(ctx context.Context, replyID string) (stri
 
 // GetReplyOwnerAndReviewID 获取回复所有者和所属评论ID（单次查询）
 func (r *Repository) GetReplyOwnerAndReviewID(ctx context.Context, replyID string) (string, string, error) {
+	ctx = withDBTable(ctx, "review_replies")
 	var userHash, reviewID string
 	err := r.db.QueryRow(ctx, `
 		SELECT user_hash, review_id FROM review_replies WHERE id = $1

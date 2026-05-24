@@ -13,6 +13,7 @@ import (
 )
 
 func (r *Repository) ListPolicies(ctx context.Context) ([]AdmissionPolicy, error) {
+	ctx = withDBTable(ctx, "group_admission_policies")
 	rows, err := r.db.Query(ctx, `
 		SELECT id, platform, guild_id, school_id, auto_approve_join, initial_mute_duration_seconds,
 		       link_wait_seconds, submission_wait_seconds, manual_review_timeout_seconds,
@@ -30,6 +31,7 @@ func (r *Repository) ListPolicies(ctx context.Context) ([]AdmissionPolicy, error
 }
 
 func (r *Repository) UpdatePolicy(ctx context.Context, policy AdmissionPolicy) (*AdmissionPolicy, error) {
+	ctx = withDBTable(ctx, "group_admission_policies")
 	updated, err := scanAdmissionPolicy(r.db.QueryRow(ctx, updateAdmissionPolicySQL(), updateAdmissionPolicyArgs(policy)...))
 	if err != nil {
 		return nil, fmt.Errorf("UpdatePolicy: %w", err)
@@ -44,6 +46,7 @@ func (r *Repository) ListSessions(
 	ctx context.Context,
 	filter AdmissionSessionListFilter,
 ) ([]AdmissionSession, int, error) {
+	ctx = withDBTable(ctx, "group_admission_sessions")
 	rows, err := r.db.Query(ctx, `
 		SELECT `+admissionSessionColumns+`, COUNT(*) OVER() AS total
 		FROM group_admission_sessions
@@ -59,6 +62,7 @@ func (r *Repository) ListSessions(
 }
 
 func (r *Repository) GetFreshmanApplicationByID(ctx context.Context, applicationID string) (*FreshmanApplication, error) {
+	ctx = withDBTable(ctx, "freshman_verification_applications")
 	app, err := scanFreshmanApplication(r.db.QueryRow(ctx, freshmanApplicationSelectSQL()+" WHERE id = $1", applicationID))
 	if err != nil {
 		return nil, mapFreshmanApplicationScanError("GetFreshmanApplicationByID", err)
@@ -70,6 +74,7 @@ func (r *Repository) ListFreshmanApplications(
 	ctx context.Context,
 	filter FreshmanApplicationListFilter,
 ) ([]FreshmanApplication, int, error) {
+	ctx = withDBTable(ctx, "freshman_verification_applications")
 	rows, err := r.db.Query(ctx, freshmanApplicationListSQL(), string(filter.Status), filter.PageSize, filter.Offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("ListFreshmanApplications: %w", err)
@@ -82,6 +87,7 @@ func (r *Repository) ListAdminFreshmanApplications(
 	ctx context.Context,
 	filter FreshmanApplicationListFilter,
 ) ([]adminFreshmanApplicationRow, int, error) {
+	ctx = withDBTable(ctx, "freshman_verification_applications")
 	rows, err := r.db.Query(ctx, adminFreshmanApplicationListSQL(), string(filter.Status), filter.PageSize, filter.Offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("ListAdminFreshmanApplications: %w", err)
@@ -91,6 +97,7 @@ func (r *Repository) ListAdminFreshmanApplications(
 }
 
 func (r *Repository) MarkFreshmanApplicationForwarded(ctx context.Context, applicationID string, now time.Time) error {
+	ctx = withDBTable(ctx, "freshman_verification_applications")
 	tag, err := r.db.Exec(ctx, `
 		UPDATE freshman_verification_applications
 		SET forwarded_at = $2, updated_at = NOW()

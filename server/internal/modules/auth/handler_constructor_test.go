@@ -2,15 +2,12 @@ package auth
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sms"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
 )
@@ -33,7 +30,7 @@ func TestNewHandler_WiresDependencies(t *testing.T) {
 	}
 	client := oidc.NewStubClient("https://sso.example.com/authorize")
 
-	h := NewHandler(cfg, tokenSvc, fixture.Client, client, &fakeUserSyncRepo{}, nil)
+	h := NewHandler(cfg, tokenSvc, fixture.Client, client, &fakeUserSyncRepo{})
 	require.NotNil(t, h)
 	assert.NotNil(t, h.svc)
 	assert.Equal(t, client, h.oidcClient)
@@ -43,34 +40,6 @@ func TestNewHandler_WiresDependencies(t *testing.T) {
 	assert.Contains(t, h.allowedRedirectHosts, "web.example.com")
 	assert.Contains(t, h.allowedRedirectHosts, "admin.example.com")
 	assert.NotNil(t, h.refreshLimiter)
-	assert.NotNil(t, h.phoneLimiter)
 	assert.NotNil(t, h.authFailureGuard)
-	assert.Nil(t, h.otpService)
 	assert.Equal(t, "https://sso.example.com", h.oidcIssuer)
-
-	// sanity-check limiter wiring is live
-	for i := 0; i < 5; i++ {
-		allowed, err := h.phoneLimiter.Allow(t.Context(), "phone:1")
-		require.NoError(t, err)
-		assert.True(t, allowed)
-	}
-	blocked, err := h.phoneLimiter.Allow(t.Context(), "phone:1")
-	require.NoError(t, err)
-	assert.False(t, blocked)
-}
-
-func TestNewHandler_WithSMSInitializesOTPService(t *testing.T) {
-	require.NoError(t, crypto.InitHMACKey("test-auth-otp-secret-32-chars-long!", false))
-	tokenSvc, fixture := newTokenServiceForHandlerCtor(t)
-	cfg := HandlerConfig{CORSOrigins: []string{"https://web.example.com"}, Token: config.TokenConfig{AccessTokenTTL: 300, RefreshTokenTTL: 600}}
-	h := NewHandler(cfg, tokenSvc, fixture.Client, oidc.NewStubClient("https://sso.example.com/authorize"), &fakeUserSyncRepo{}, &sms.Service{})
-	require.NotNil(t, h.otpService)
-
-	// OTP service should use same redis backend and be operational
-	ctx := t.Context()
-	code, err := h.otpService.Generate(ctx, "13800138000")
-	require.NoError(t, err)
-	require.Len(t, code, otpLength)
-	// avoid unused time import lint drift guard by touching exported timing assumption
-	assert.Equal(t, 5*time.Minute, otpTTL)
 }

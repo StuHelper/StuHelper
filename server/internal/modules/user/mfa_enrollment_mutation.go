@@ -166,7 +166,7 @@ func (m *MFARecoveryManager) auditEnrollmentMutation(
 	params mfaEnrollmentMutation,
 	outcome mfaEnrollmentAuditOutcome,
 ) {
-	audit.Log(audit.EventFromContext(ctx, mfaEnrollmentMutationAuditEvent(params, outcome)))
+	audit.LogContext(ctx, mfaEnrollmentMutationAuditEvent(params, outcome))
 }
 
 type mfaEnrollmentAuditOutcome struct {

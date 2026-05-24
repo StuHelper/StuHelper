@@ -24,8 +24,13 @@ func NewRepository(database *db.DB) *Repository {
 	return &Repository{db: database}
 }
 
+func withDBTable(ctx context.Context, table string) context.Context {
+	return db.WithTableHint(ctx, table)
+}
+
 // ListDepartments 获取院系列表
 func (r *Repository) ListDepartments(ctx context.Context, category string) ([]Department, error) {
+	ctx = withDBTable(ctx, "departments")
 	rows, err := r.db.Query(ctx, `
 		SELECT id, school_id, name, short_name, category, sort_order
 		FROM departments
@@ -54,6 +59,7 @@ func (r *Repository) ListDepartments(ctx context.Context, category string) ([]De
 
 // ListTerms 获取学期列表
 func (r *Repository) ListTerms(ctx context.Context) ([]Term, error) {
+	ctx = withDBTable(ctx, "terms")
 	rows, err := r.db.Query(ctx, `
 		SELECT id, school_id, name, is_current
 		FROM terms
@@ -81,6 +87,7 @@ func (r *Repository) ListTerms(ctx context.Context) ([]Term, error) {
 
 // CountCourses 统计课程总数（可按院系过滤）
 func (r *Repository) CountCourses(ctx context.Context, departmentID int64) (int, error) {
+	ctx = withDBTable(ctx, "courses")
 	var count int
 	err := r.db.QueryRow(ctx,
 		"SELECT COUNT(*) FROM courses WHERE ($1::bigint = 0 OR department_id = $1)",
@@ -90,6 +97,7 @@ func (r *Repository) CountCourses(ctx context.Context, departmentID int64) (int,
 
 // CountDepartments 统计院系总数
 func (r *Repository) CountDepartments(ctx context.Context) (int, error) {
+	ctx = withDBTable(ctx, "departments")
 	var count int
 	err := r.db.QueryRow(ctx, "SELECT COUNT(*) FROM departments").Scan(&count)
 	return count, err
@@ -97,6 +105,7 @@ func (r *Repository) CountDepartments(ctx context.Context) (int, error) {
 
 // CountStats 单次查询同时获取课程数和院系数
 func (r *Repository) CountStats(ctx context.Context) (courseCount, departmentCount int, err error) {
+	ctx = withDBTable(ctx, "courses")
 	err = r.db.QueryRow(ctx,
 		"SELECT (SELECT COUNT(*) FROM courses), (SELECT COUNT(*) FROM departments)").
 		Scan(&courseCount, &departmentCount)
@@ -105,6 +114,7 @@ func (r *Repository) CountStats(ctx context.Context) (courseCount, departmentCou
 
 // ListCourses 获取课程列表（支持搜索、院系和分类过滤），使用窗口函数一次性返回数据和总数
 func (r *Repository) ListCourses(ctx context.Context, query string, departmentID int64, category, sort string, limit, offset int) ([]Course, int, error) {
+	ctx = withDBTable(ctx, "courses")
 	orderBy := "c.name ASC"
 	switch sort {
 	case CourseSortCredits:
@@ -135,6 +145,7 @@ func (r *Repository) ListCourses(ctx context.Context, query string, departmentID
 
 // SearchCourses 搜索课程，使用窗口函数一次性返回数据和总数
 func (r *Repository) SearchCourses(ctx context.Context, query string, limit, offset int) ([]Course, int, error) {
+	ctx = withDBTable(ctx, "courses")
 	pattern := "%" + httputil.EscapeLikePattern(query) + "%"
 	rows, err := r.db.Query(ctx, `
 		SELECT c.id, c.school_id, c.department_id, d.name, c.code, c.name, c.credits, c.category, c.review_count,
@@ -155,6 +166,7 @@ func (r *Repository) SearchCourses(ctx context.Context, query string, limit, off
 
 // GetCourseByID 根据ID获取课程
 func (r *Repository) GetCourseByID(ctx context.Context, id int64) (*Course, error) {
+	ctx = withDBTable(ctx, "courses")
 	var item Course
 	err := r.db.QueryRow(ctx, `
 		SELECT c.id, c.school_id, c.department_id, d.name, c.code, c.name, c.credits, c.category, c.review_count
@@ -197,6 +209,7 @@ func (r *Repository) scanCoursesWithTotal(rows pgx.Rows) ([]Course, int, error) 
 
 // ListCourseCategories 获取课程分类列表
 func (r *Repository) ListCourseCategories(ctx context.Context) ([]CourseCategory, error) {
+	ctx = withDBTable(ctx, "course_categories")
 	rows, err := r.db.Query(ctx, `
 		SELECT id, school_id, name, sort_order
 		FROM course_categories
@@ -223,6 +236,7 @@ func (r *Repository) ListCourseCategories(ctx context.Context) ([]CourseCategory
 
 // FavoriteExists 检查单个课程是否被用户收藏
 func (r *Repository) FavoriteExists(ctx context.Context, userHash string, courseID int64) (bool, error) {
+	ctx = withDBTable(ctx, "course_favorites")
 	var exists bool
 	err := r.db.QueryRow(ctx, `
 		SELECT EXISTS(SELECT 1 FROM course_favorites WHERE user_hash = $1 AND course_id = $2)
@@ -238,6 +252,7 @@ func (r *Repository) BatchFavoritedCourseIDs(ctx context.Context, userHash strin
 	if len(courseIDs) == 0 {
 		return nil, nil
 	}
+	ctx = withDBTable(ctx, "course_favorites")
 	rows, err := r.db.Query(ctx, `
 		SELECT course_id FROM course_favorites
 		WHERE user_hash = $1 AND course_id = ANY($2)
@@ -261,6 +276,7 @@ func (r *Repository) BatchFavoritedCourseIDs(ctx context.Context, userHash strin
 // ListCoursesGroupedByDepartment 一次查询获取所有课程，按院系分组返回。
 // 数据库端按 department 排序，Go 侧分组，避免前端全量拉取 + 聚合。
 func (r *Repository) ListCoursesGroupedByDepartment(ctx context.Context) ([]DepartmentGroup, error) {
+	ctx = withDBTable(ctx, "courses")
 	rows, err := r.db.Query(ctx, `
 		SELECT c.id, c.school_id, c.department_id, d.name, c.code, c.name, c.credits, c.category, c.review_count
 		FROM courses c

@@ -63,6 +63,7 @@ type MFAEnrollmentStateChange struct {
 }
 
 func (r *Repository) UpsertMFAEnrollment(ctx context.Context, params MFAEnrollmentUpsert) error {
+	ctx = withDBTable(ctx, "user_mfa_enrollment")
 	return upsertMFAEnrollment(ctx, mfaEnrollmentUpsertQuery{
 		Exec:   r.db.Exec,
 		Params: params,
@@ -152,6 +153,7 @@ func upsertMFAEnrollment(ctx context.Context, query mfaEnrollmentUpsertQuery) er
 }
 
 func (r *Repository) GetMFAEnrollment(ctx context.Context, userID int64) (*MFAEnrollment, error) {
+	ctx = withDBTable(ctx, "user_mfa_enrollment")
 	var item MFAEnrollment
 	err := r.db.QueryRow(ctx, `
 		SELECT user_id, active, methods, recovery_codes_issued_at, reset_required,

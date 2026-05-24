@@ -143,7 +143,7 @@ func (s *Service) runExternalSyncWorker(ctx context.Context) {
 		s.repo.ClaimExternalSyncJobs,
 		s.processExternalSyncJob,
 		s.repo.MarkExternalSyncJobDone,
-		s.repo.MarkExternalSyncJobRetry,
+		s.repo.MarkExternalSyncJobFailure,
 		func(job ExternalSyncJob) outbox.JobMeta {
 			return outbox.JobMeta{ID: job.ID, JobType: job.JobType, AttemptCount: job.AttemptCount}
 		},
@@ -158,7 +158,7 @@ func (s *Service) processExternalSyncBatch(ctx context.Context) error {
 		s.repo.ClaimExternalSyncJobs,
 		s.processExternalSyncJob,
 		s.repo.MarkExternalSyncJobDone,
-		s.repo.MarkExternalSyncJobRetry,
+		s.repo.MarkExternalSyncJobFailure,
 		func(job ExternalSyncJob) outbox.JobMeta {
 			return outbox.JobMeta{ID: job.ID, JobType: job.JobType, AttemptCount: job.AttemptCount}
 		},

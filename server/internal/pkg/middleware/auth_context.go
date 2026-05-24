@@ -25,6 +25,7 @@ const (
 	CtxKeyCapabilityGrants   = "capability_grants"
 	CtxKeyCapabilitySet      = "capability_set"       // map[string]struct{} — O(1) 查找
 	CtxKeyAuthBackendFailure = "auth_backend_failure" // OptionalAuth 后端故障诊断标记
+	CtxKeyAuthenticationTime = "authentication_time"
 )
 
 // authResult 认证解析结果
@@ -33,15 +34,12 @@ type authResult struct {
 	avatar                                      *string
 	roles                                       []string
 	orgScopedRoles                              map[string][]string
+	authTime                                    time.Time
 	mfaProofAt                                  time.Time
-	selfSigned                                  bool
 }
 
 func withResolvedRoleScopes(ctx context.Context, auth *authResult, resolver RoleScopeResolver) (*authResult, error) {
 	if auth == nil || resolver == nil {
-		return auth, nil
-	}
-	if auth.selfSigned {
 		return auth, nil
 	}
 	scopes, err := resolver.ResolveRoleScopes(ctx, auth.userID, auth.roles)
@@ -91,6 +89,7 @@ func setClaimsToContext(c *gin.Context, auth *authResult) {
 	c.Set(CtxKeyGlobalCapabilities, snapshot.GlobalCapabilities)
 	c.Set(CtxKeyCapabilityGrants, snapshot.CapabilityGrants)
 	c.Set(CtxKeyCapabilitySet, capSet)
+	SetAuthenticationTime(c, auth.authTime)
 	SetMFAProofVerifiedAt(c, auth.mfaProofAt)
 }
 
@@ -191,6 +190,25 @@ func HasCapabilityInSchool(c *gin.Context, capabilityName, schoolID string) bool
 // IsAuthenticated 检查当前请求是否已认证
 func IsAuthenticated(c *gin.Context) bool {
 	return GetUserID(c) != ""
+}
+
+func SetAuthenticationTime(c *gin.Context, authTime time.Time) {
+	if authTime.IsZero() {
+		return
+	}
+	c.Set(CtxKeyAuthenticationTime, authTime.UTC())
+}
+
+func GetAuthenticationTime(c *gin.Context) time.Time {
+	value, exists := c.Get(CtxKeyAuthenticationTime)
+	if !exists {
+		return time.Time{}
+	}
+	authTime, ok := value.(time.Time)
+	if !ok {
+		return time.Time{}
+	}
+	return authTime
 }
 
 func getContextString(c *gin.Context, key string) string {

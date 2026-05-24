@@ -20,6 +20,7 @@ type ReviewAccessSubject struct {
 
 // GetReviewAccessSubjectByCasdoorSubject 一次查询获取评课访问控制所需的用户事实。
 func (r *Repository) GetReviewAccessSubjectByCasdoorSubject(ctx context.Context, casdoorSubject string) (*ReviewAccessSubject, error) {
+	ctx = withDBTable(ctx, "users")
 	var subject ReviewAccessSubject
 	err := r.db.QueryRow(ctx, `
 		SELECT u.id,

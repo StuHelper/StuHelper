@@ -12,6 +12,7 @@ import (
 
 // ListSensitiveWords 分页获取敏感词列表
 func (r *Repository) ListSensitiveWords(ctx context.Context, category, level string, limit, offset int) ([]SensitiveWord, int, error) {
+	ctx = withDBTable(ctx, "sensitive_words")
 	var conditions []string
 	var args []interface{}
 	argIdx := 1
@@ -62,6 +63,7 @@ func (r *Repository) ListSensitiveWords(ctx context.Context, category, level str
 
 // CreateSensitiveWord 新增敏感词
 func (r *Repository) CreateSensitiveWord(ctx context.Context, word, category, level string) (SensitiveWord, error) {
+	ctx = withDBTable(ctx, "sensitive_words")
 	newID, err := id.New()
 	if err != nil {
 		return SensitiveWord{}, fmt.Errorf("CreateSensitiveWord id: %w", err)
@@ -87,6 +89,7 @@ func (r *Repository) CreateSensitiveWord(ctx context.Context, word, category, le
 
 // UpdateSensitiveWord 更新敏感词
 func (r *Repository) UpdateSensitiveWord(ctx context.Context, wordID string, word, category, level *string, isActive *bool) error {
+	ctx = withDBTable(ctx, "sensitive_words")
 	var sets []string
 	var args []interface{}
 	argIdx := 1
@@ -131,6 +134,7 @@ func (r *Repository) UpdateSensitiveWord(ctx context.Context, wordID string, wor
 
 // DeleteSensitiveWord 删除敏感词
 func (r *Repository) DeleteSensitiveWord(ctx context.Context, wordID string) error {
+	ctx = withDBTable(ctx, "sensitive_words")
 	tag, err := r.db.Exec(ctx, "DELETE FROM sensitive_words WHERE id = $1", wordID)
 	if err != nil {
 		return fmt.Errorf("DeleteSensitiveWord: %w", err)

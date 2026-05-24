@@ -2,10 +2,12 @@ package auth
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
@@ -87,23 +89,64 @@ func (h *Handler) setSessionCookie(c *gin.Context, sessionID string) {
 
 // getSessionID 从请求中获取 session ID。
 // 优先级：
-//  1. 自签名 JWT 的 sid claim（手机登录）
-//  2. X-Stuhelper-Session-ID header（原生 OIDC）
-//  3. session_id cookie（浏览器 OIDC）
-func (h *Handler) getSessionID(c *gin.Context, accessToken string) string {
-	// 自签名 JWT 优先（手机登录，sid 在 token claim 中）
-	if sid := extractSessionID(accessToken); sid != "" {
-		return sid
+//  1. X-Stuhelper-Session-ID header（原生 OIDC）
+//  2. session_id cookie（浏览器 OIDC）
+func (h *Handler) getSessionID(c *gin.Context, _ string) string {
+	sessionID, _ := h.resolveSessionID(c)
+	return sessionID
+}
+
+func (h *Handler) resolveSessionID(c *gin.Context) (string, bool) {
+	headerSessionID, hasHeader, ok := nativeSessionIDFromHeader(c)
+	if !ok {
+		response.BadRequest(c, "invalid native session id", errs.ErrInvalidParam)
+		return "", false
 	}
-	// 原生客户端：从显式 header 读取 session ID
-	if v := c.GetHeader(nativeSessionIDHeader); v != "" {
-		return v
+
+	cookieSessionID, hasCookie := sessionIDFromCookie(c)
+	if hasHeader && hasCookie {
+		response.BadRequest(c, "session id source is ambiguous", errs.ErrInvalidParam)
+		return "", false
 	}
-	// OIDC 回退：从 session cookie 读取
-	if v, err := c.Cookie(sessionCookieName); err == nil && v != "" {
-		return v
+	if hasHeader {
+		return headerSessionID, true
 	}
-	return ""
+	if hasCookie {
+		return cookieSessionID, true
+	}
+	return "", true
+}
+
+func nativeSessionIDFromHeader(c *gin.Context) (string, bool, bool) {
+	if c == nil || c.Request == nil {
+		return "", false, true
+	}
+
+	values := c.Request.Header.Values(nativeSessionIDHeader)
+	if len(values) == 0 {
+		return "", false, true
+	}
+	if len(values) != 1 {
+		return "", true, false
+	}
+
+	sessionID := strings.TrimSpace(values[0])
+	if sessionID == "" || strings.Contains(sessionID, ",") {
+		return "", true, false
+	}
+	return sessionID, true, true
+}
+
+func sessionIDFromCookie(c *gin.Context) (string, bool) {
+	if c == nil {
+		return "", false
+	}
+	v, err := c.Cookie(sessionCookieName)
+	if err != nil {
+		return "", false
+	}
+	sessionID := strings.TrimSpace(v)
+	return sessionID, sessionID != ""
 }
 
 // clearSessionCookie 清除 session ID cookie

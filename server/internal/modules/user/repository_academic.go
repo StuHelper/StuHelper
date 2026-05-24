@@ -38,6 +38,7 @@ var requiredAcademicColumns = []string{
 
 // GetAcademicStudentByXHFromTable 根据学号查询教务系统学生记录（指定学籍表）
 func (r *Repository) GetAcademicStudentByXHFromTable(ctx context.Context, xh string, tableName string) (*AcademicStudent, error) {
+	ctx = withDBTable(ctx, "academic_students")
 	normalizedTable, err := normalizeAcademicDBTableName(&tableName)
 	if err != nil {
 		return nil, fmt.Errorf("GetAcademicStudentByXHFromTable: %w", err)
@@ -71,6 +72,7 @@ func (r *Repository) GetAcademicStudentByXHFromTable(ctx context.Context, xh str
 
 // FindAcademicStudentsByPersonUIDFromTable 根据证件号查询教务系统学生记录（指定学籍表）
 func (r *Repository) FindAcademicStudentsByPersonUIDFromTable(ctx context.Context, sfzjlxdm, sfzjh string, tableName string) ([]AcademicStudent, error) {
+	ctx = withDBTable(ctx, "academic_students")
 	normalizedTable, err := normalizeAcademicDBTableName(&tableName)
 	if err != nil {
 		return nil, fmt.Errorf("FindAcademicStudentsByPersonUIDFromTable: %w", err)
@@ -130,6 +132,7 @@ func (r *Repository) hashDocumentLookup(docNumber string) (string, error) {
 
 // GetInternalUserID 根据外部ID获取内部用户ID
 func (r *Repository) GetInternalUserID(ctx context.Context, casdoorSubject string) (int64, error) {
+	ctx = withDBTable(ctx, "users")
 	var id int64
 	err := r.db.QueryRow(ctx, `SELECT id FROM users WHERE casdoor_subject = $1`, casdoorSubject).Scan(&id)
 	if err != nil {
@@ -140,6 +143,7 @@ func (r *Repository) GetInternalUserID(ctx context.Context, casdoorSubject strin
 
 // GetCasdoorSubject resolves users.id back to the current Casdoor subject for role sync.
 func (r *Repository) GetCasdoorSubject(ctx context.Context, userID int64) (string, error) {
+	ctx = withDBTable(ctx, "users")
 	var casdoorSubject string
 	err := r.db.QueryRow(ctx, `SELECT casdoor_subject FROM users WHERE id = $1`, userID).Scan(&casdoorSubject)
 	if err != nil {
@@ -196,6 +200,7 @@ func quoteAcademicDBTableName(normalized string) (string, error) {
 }
 
 func (r *Repository) ValidateAcademicDBTable(ctx context.Context, tableName string) error {
+	ctx = withDBTable(ctx, "information_schema.columns")
 	normalizedTable, err := normalizeAcademicDBTableName(&tableName)
 	if err != nil {
 		return err

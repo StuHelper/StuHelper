@@ -14,7 +14,6 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sms"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
 
@@ -26,12 +25,9 @@ type Handler struct {
 	tokenConfig          config.TokenConfig
 	redisClient          *redis.Client
 	refreshLimiter       *middleware.RedisRateLimiter
-	phoneLimiter         *middleware.RedisRateLimiter
 	authFailureGuard     *AuthFailureGuard
 	allowedRedirectHosts map[string]struct{}
 	defaultRedirectURL   string
-	otpService           *OTPService
-	smsService           *sms.Service
 	oidcIssuer           string
 }
 
@@ -49,18 +45,12 @@ func NewHandler(
 	rdb *redis.Client,
 	oidcClient *oidc.Client,
 	userSyncRepo UserSyncRepo,
-	smsService *sms.Service,
 ) *Handler {
 	svc := NewService(cfg.Token, tokenService, userSyncRepo, providerTokenRevocationOptions(oidcClient, cfg)...)
 
 	// 从 CORS_ORIGINS 构建允许的重定向地址白名单
 	redirectHosts := buildAllowedRedirectHosts(cfg.CORSOrigins)
 	defaultRedirect := buildDefaultRedirectURL(cfg.CORSOrigins)
-
-	var otpSvc *OTPService
-	if smsService != nil {
-		otpSvc = NewOTPService(rdb)
-	}
 
 	return &Handler{
 		svc:                  svc,
@@ -69,14 +59,18 @@ func NewHandler(
 		tokenConfig:          cfg.Token,
 		redisClient:          rdb,
 		refreshLimiter:       middleware.NewRedisRateLimiter(rdb, 10, time.Minute),
-		phoneLimiter:         middleware.NewRedisRateLimiter(rdb, 5, time.Minute),
 		authFailureGuard:     NewAuthFailureGuard(rdb),
 		allowedRedirectHosts: redirectHosts,
 		defaultRedirectURL:   defaultRedirect,
-		otpService:           otpSvc,
-		smsService:           smsService,
 		oidcIssuer:           cfg.OIDCIssuer,
 	}
+}
+
+func (h *Handler) SessionRevoker() *Service {
+	if h == nil {
+		return nil
+	}
+	return h.svc
 }
 
 func providerTokenRevocationOptions(oidcClient *oidc.Client, cfg HandlerConfig) []ServiceOption {
@@ -124,7 +118,6 @@ func buildDefaultRedirectURL(corsOrigins []string) string {
 
 // RegisterPublicRoutes 注册不需要 CSRF 保护的公开路由。
 // 必须在 CSRF 中间件挂载之前调用，否则匿名 POST 会被拦截。
-// OTP 路由已有独立限流保护。
 func (h *Handler) RegisterPublicRoutes(r *gin.RouterGroup) {
 	// 原生 App 令牌交换：无 cookie / 无 CSRF，用一次性 state 做防重放
 	r.POST("/auth/exchange-native", middleware.EndpointRateLimitMiddleware(h.refreshLimiter, "auth-exchange-native"), h.ExchangeNative)

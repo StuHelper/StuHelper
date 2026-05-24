@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -23,14 +24,26 @@ func (rt *Runtime) initOpenPlatformModule(
 	if err != nil {
 		return nil, nil, err
 	}
+	tokenProber, err := rt.newOpenPlatformRuntimeTokenProber()
+	if err != nil {
+		return nil, nil, err
+	}
 	service, err := openplatform.NewService(
 		openplatform.NewRepository(rt.database),
 		rt.redisClient.GetClient(),
 		openplatform.WithAppProvisioner(provisioner),
 		openplatform.WithOIDCAuthURLBuilder(rt.oidcClient),
 		openplatform.WithPhoneDecryptor(piiCipher),
+		openplatform.WithResourceFGAClient(rt.fgaClient),
 		openplatform.WithConsentBaseURL(rt.cfg.App.CORSOrigins[0]),
 		openplatform.WithIdentityBaseURL(rt.identityIssuer()),
+		openplatform.WithDisclosureRateLimits(openPlatformDisclosureRateLimitConfig(
+			rt.cfg.OpenPlatform.DisclosureRateLimit,
+		)),
+		openplatform.WithRuntimeTokenProbe(
+			tokenProber,
+			rt.cfg.OpenPlatform.TokenProbe.RuntimeRequired,
+		),
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize open platform service: %w", err)
@@ -38,6 +51,40 @@ func (rt *Runtime) initOpenPlatformModule(
 	handler := openplatform.NewHandler(service, userIDResolver)
 	handler.RegisterRoutes(api, authMW)
 	return handler, service, nil
+}
+
+func (rt *Runtime) newOpenPlatformRuntimeTokenProber() (platformcasdoor.RuntimeTokenMinimizationProber, error) {
+	cfg := rt.cfg.OpenPlatform.TokenProbe
+	if cfg.RuntimeCommand == "" {
+		return nil, nil
+	}
+	return platformcasdoor.NewCommandRuntimeTokenProber(platformcasdoor.RuntimeTokenProbeCommandConfig{
+		Command: cfg.RuntimeCommand,
+		Issuer:  rt.cfg.Casdoor.Issuer,
+		Timeout: secondsDuration(cfg.RuntimeTimeoutSeconds),
+	})
+}
+
+func openPlatformDisclosureRateLimitConfig(
+	cfg config.OpenPlatformDisclosureRateLimitConfig,
+) openplatform.DisclosureRateLimitConfig {
+	return openplatform.DisclosureRateLimitConfig{
+		AppLimit:            cfg.AppLimit,
+		AppUserLimit:        cfg.AppUserLimit,
+		EndpointLimit:       cfg.EndpointLimit,
+		ConsentLimit:        cfg.ConsentLimit,
+		ReplayLimit:         cfg.ReplayLimit,
+		Window:              secondsDuration(cfg.WindowSeconds),
+		ReplayWindow:        secondsDuration(cfg.ReplayWindowSeconds),
+		ReplayAuditCooldown: secondsDuration(cfg.ReplayAuditCooldownSeconds),
+	}
+}
+
+func secondsDuration(seconds int) time.Duration {
+	if seconds == 0 {
+		return 0
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 func (rt *Runtime) newCasdoorAppProvisioningClient() (*platformcasdoor.Client, error) {

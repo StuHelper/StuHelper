@@ -15,6 +15,7 @@ import (
 )
 
 func (r *Repository) GetLinkedSessionByUserID(ctx context.Context, userID int64) (*AdmissionSession, error) {
+	ctx = withDBTable(ctx, "group_admission_sessions")
 	query := "SELECT " + admissionSessionColumns + `
 		FROM group_admission_sessions
 		WHERE user_id = $1 AND status = $2
@@ -42,6 +43,7 @@ func (r *Repository) GetLinkedSessionByUserIDTx(ctx context.Context, tx pgx.Tx, 
 }
 
 func (r *Repository) CreateFreshmanApplication(ctx context.Context, app *FreshmanApplication) error {
+	ctx = withDBTable(ctx, "freshman_verification_applications")
 	_, err := r.db.Exec(ctx, `
 		INSERT INTO freshman_verification_applications (
 			id, user_id, school_id, admission_session_id, applicant_name, applicant_name_masked,
@@ -57,6 +59,7 @@ func (r *Repository) CreateFreshmanApplication(ctx context.Context, app *Freshma
 }
 
 func (r *Repository) HasPendingFreshmanApplication(ctx context.Context, userID, schoolID int64) (bool, error) {
+	ctx = withDBTable(ctx, "freshman_verification_applications")
 	var exists bool
 	err := r.db.QueryRow(ctx, `
 		SELECT EXISTS (
@@ -72,6 +75,7 @@ func (r *Repository) GetFreshmanApplicationForUser(
 	applicationID string,
 	userID int64,
 ) (*FreshmanApplication, error) {
+	ctx = withDBTable(ctx, "freshman_verification_applications")
 	return scanFreshmanApplication(r.db.QueryRow(ctx, `
 		SELECT id, user_id, school_id, admission_session_id, status, applicant_name, applicant_name_masked,
 		       department_or_major, material_type, provisional_expires_at, reviewed_at, created_at
@@ -81,6 +85,7 @@ func (r *Repository) GetFreshmanApplicationForUser(
 }
 
 func (r *Repository) CreateFreshmanMaterial(ctx context.Context, material FreshmanMaterialRecord) error {
+	ctx = withDBTable(ctx, "freshman_verification_materials")
 	_, err := r.db.Exec(ctx, `
 		INSERT INTO freshman_verification_materials (
 			id, application_id, object_key, content_type, size_bytes, sha256
@@ -122,6 +127,7 @@ func (r *Repository) MarkUserLinkedSessionsVerifiedTx(ctx context.Context, tx pg
 }
 
 func (r *Repository) GetAdmissionSchoolConfig(ctx context.Context, schoolID int64) (*AdmissionSchoolConfig, error) {
+	ctx = withDBTable(ctx, "school_configs")
 	var enabled bool
 	var raw sql.NullString
 	err := r.db.QueryRow(ctx, `

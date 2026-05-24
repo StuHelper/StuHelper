@@ -155,9 +155,6 @@ type failingOIDCUserSyncRepo struct{}
 func (failingOIDCUserSyncRepo) UpsertUser(context.Context, UserSyncInput) error {
 	return errors.New("sync failed")
 }
-func (failingOIDCUserSyncRepo) UpsertByPhone(context.Context, string) (*PhoneUser, error) {
-	return &PhoneUser{CasdoorSubject: "phone-user", Username: "phone-user"}, nil
-}
 func (failingOIDCUserSyncRepo) ExistsByCasdoorSubject(context.Context, string) (bool, error) {
 	return true, nil
 }

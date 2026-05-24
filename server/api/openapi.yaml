@@ -109,10 +109,64 @@ paths:
     $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1phone"
   /api/v1/open-platform/apps:
     $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1apps"
+  /api/v1/open-platform/apps/{appID}:
+    $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1apps~1{appID}"
+  /api/v1/open-platform/apps/{appID}/redirect-uris:
+    $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1apps~1{appID}~1redirect-uris"
+  /api/v1/open-platform/apps/{appID}/redirect-uri-requests/{requestID}/withdraw:
+    $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1apps~1{appID}~1redirect-uri-requests~1{requestID}~1withdraw"
+  /api/v1/open-platform/apps/{appID}/scopes:
+    $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1apps~1{appID}~1scopes"
+  /api/v1/open-platform/apps/{appID}/scopes/{scope}/withdraw:
+    $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1apps~1{appID}~1scopes~1{scope}~1withdraw"
+  /api/v1/open-platform/apps/{appID}/withdraw:
+    $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1apps~1{appID}~1withdraw"
+  /api/v1/open-platform/apps/{appID}/secret/rotate:
+    $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1apps~1{appID}~1secret~1rotate"
+  /api/v1/open-platform/apps/{appID}/audit-events:
+    $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1apps~1{appID}~1audit-events"
+  /api/v1/open-platform/consents:
+    $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1consents"
+  /api/v1/open-platform/consents/audit-events:
+    $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1consents~1audit-events"
+  /api/v1/open-platform/consents/{appID}:
+    $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1consents~1{appID}"
+  /api/v1/open-platform/resources/access/check:
+    $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1resources~1access~1check"
+  /api/v1/admin/open-platform/apps:
+    $ref: "paths/admin-open-platform.yaml#/~1api~1v1~1admin~1open-platform~1apps"
+  /api/v1/admin/open-platform/audit-events:
+    $ref: "paths/admin-open-platform.yaml#/~1api~1v1~1admin~1open-platform~1audit-events"
+  /api/v1/admin/open-platform/consents:
+    $ref: "paths/admin-open-platform.yaml#/~1api~1v1~1admin~1open-platform~1consents"
+  /api/v1/admin/open-platform/token-probe-evidence:
+    $ref: "paths/admin-open-platform.yaml#/~1api~1v1~1admin~1open-platform~1token-probe-evidence"
+  /api/v1/admin/open-platform/disclosure-report:
+    $ref: "paths/admin-open-platform.yaml#/~1api~1v1~1admin~1open-platform~1disclosure-report"
+  /api/v1/admin/open-platform/apps/{appID}/resource-grants:
+    $ref: "paths/admin-open-platform.yaml#/~1api~1v1~1admin~1open-platform~1apps~1{appID}~1resource-grants"
+  /api/v1/admin/open-platform/apps/{appID}/resource-grants/revoke:
+    $ref: "paths/admin-open-platform.yaml#/~1api~1v1~1admin~1open-platform~1apps~1{appID}~1resource-grants~1revoke"
+  /api/v1/admin/open-platform/apps/{appID}/consents/revoke:
+    $ref: "paths/admin-open-platform.yaml#/~1api~1v1~1admin~1open-platform~1apps~1{appID}~1consents~1revoke"
   /api/v1/admin/open-platform/apps/{appID}/scopes/{scope}/approve:
     $ref: "paths/admin-open-platform.yaml#/~1api~1v1~1admin~1open-platform~1apps~1{appID}~1scopes~1{scope}~1approve"
+  /api/v1/admin/open-platform/apps/{appID}/scopes/{scope}/reject:
+    $ref: "paths/admin-open-platform.yaml#/~1api~1v1~1admin~1open-platform~1apps~1{appID}~1scopes~1{scope}~1reject"
   /api/v1/admin/open-platform/apps/{appID}/approve:
     $ref: "paths/admin-open-platform.yaml#/~1api~1v1~1admin~1open-platform~1apps~1{appID}~1approve"
+  /api/v1/admin/open-platform/apps/{appID}/redirect-uri-requests/{requestID}/approve:
+    $ref: "paths/admin-open-platform.yaml#/~1api~1v1~1admin~1open-platform~1apps~1{appID}~1redirect-uri-requests~1{requestID}~1approve"
+  /api/v1/admin/open-platform/apps/{appID}/redirect-uri-requests/{requestID}/reject:
+    $ref: "paths/admin-open-platform.yaml#/~1api~1v1~1admin~1open-platform~1apps~1{appID}~1redirect-uri-requests~1{requestID}~1reject"
+  /api/v1/admin/open-platform/apps/{appID}/secret/rotate:
+    $ref: "paths/admin-open-platform.yaml#/~1api~1v1~1admin~1open-platform~1apps~1{appID}~1secret~1rotate"
+  /api/v1/admin/open-platform/apps/{appID}/suspend:
+    $ref: "paths/admin-open-platform.yaml#/~1api~1v1~1admin~1open-platform~1apps~1{appID}~1suspend"
+  /api/v1/admin/open-platform/apps/{appID}/resume:
+    $ref: "paths/admin-open-platform.yaml#/~1api~1v1~1admin~1open-platform~1apps~1{appID}~1resume"
+  /api/v1/admin/open-platform/apps/{appID}/revoke:
+    $ref: "paths/admin-open-platform.yaml#/~1api~1v1~1admin~1open-platform~1apps~1{appID}~1revoke"
   /api/v1/admin/open-platform/apps/import-casdoor:
     $ref: "paths/admin-open-platform.yaml#/~1api~1v1~1admin~1open-platform~1apps~1import-casdoor"
 
@@ -633,6 +687,18 @@ components:
       $ref: "components/schemas/open-platform.yaml#/OpenPlatformRegisterAppRequest"
     OpenPlatformRegisteredApp:
       $ref: "components/schemas/open-platform.yaml#/OpenPlatformRegisteredApp"
+    OpenPlatformScopeRequest:
+      $ref: "components/schemas/open-platform.yaml#/OpenPlatformScopeRequest"
+    OpenPlatformAppWithScopes:
+      $ref: "components/schemas/open-platform.yaml#/OpenPlatformAppWithScopes"
+    OpenPlatformAppList:
+      $ref: "components/schemas/open-platform.yaml#/OpenPlatformAppList"
+    OpenPlatformUserConsents:
+      $ref: "components/schemas/open-platform.yaml#/OpenPlatformUserConsents"
+    OpenPlatformUserAuthorizedApp:
+      $ref: "components/schemas/open-platform.yaml#/OpenPlatformUserAuthorizedApp"
+    OpenPlatformUserConsentScope:
+      $ref: "components/schemas/open-platform.yaml#/OpenPlatformUserConsentScope"
     OpenPlatformApprovedApp:
       $ref: "components/schemas/open-platform.yaml#/OpenPlatformApprovedApp"
     OpenPlatformImportCasdoorAppRequest:

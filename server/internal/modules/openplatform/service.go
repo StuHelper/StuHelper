@@ -7,11 +7,14 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	platformcasdoor "git.stuhelper.com/StuHelper/StuHelper/internal/platform/casdoor"
 )
 
@@ -28,8 +31,11 @@ const (
 	AuthorizeFlowIdentity = "identity"
 )
 
+var resourceIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
+
 type appProvisioner interface {
 	GetApplication(ctx context.Context, name string) (platformcasdoor.ApplicationSpec, error)
+	EnsureApplication(ctx context.Context, spec platformcasdoor.ApplicationSpec) error
 }
 
 type oidcAuthURLBuilder interface {
@@ -40,17 +46,33 @@ type phoneDecryptor interface {
 	Decrypt(ciphertext []byte) (string, error)
 }
 
+type resourceRelationClient interface {
+	Check(ctx context.Context, user, relation, object string) (bool, error)
+	WriteMissingTuples(ctx context.Context, desired []fga.Tuple) error
+	DeleteTuples(ctx context.Context, tuples []fga.Tuple) error
+	ListObjects(ctx context.Context, user, relation, objectType string) ([]string, error)
+}
+
 type Service struct {
-	repo            *Repository
-	rdb             *redis.Client
-	provisioner     appProvisioner
-	oidc            oidcAuthURLBuilder
-	phoneCipher     phoneDecryptor
-	consentBaseURL  string
-	identityBaseURL string
+	repo               *Repository
+	rdb                *redis.Client
+	provisioner        appProvisioner
+	oidc               oidcAuthURLBuilder
+	phoneCipher        phoneDecryptor
+	resourceFGA        resourceRelationClient
+	consentBaseURL     string
+	identityBaseURL    string
+	rateLimiter        *disclosureRateLimiter
+	replayDetector     *disclosureReplayDetector
+	tokenProber        tokenMinimizationRuntimeProber
+	tokenProbeRequired bool
 }
 
 type ServiceOption func(*Service)
+
+type tokenMinimizationRuntimeProber interface {
+	ProbeTokenMinimization(context.Context, platformcasdoor.ApplicationSpec) (platformcasdoor.RuntimeTokenMinimizationProbeResult, error)
+}
 
 func WithAppProvisioner(provisioner appProvisioner) ServiceOption {
 	return func(s *Service) {
@@ -82,6 +104,26 @@ func WithIdentityBaseURL(baseURL string) ServiceOption {
 	}
 }
 
+func WithDisclosureRateLimits(cfg DisclosureRateLimitConfig) ServiceOption {
+	return func(s *Service) {
+		s.rateLimiter = newDisclosureRateLimiter(s.rdb, cfg)
+		s.replayDetector = newDisclosureReplayDetector(s.rdb, cfg)
+	}
+}
+
+func WithRuntimeTokenProbe(prober tokenMinimizationRuntimeProber, required bool) ServiceOption {
+	return func(s *Service) {
+		s.tokenProber = prober
+		s.tokenProbeRequired = required
+	}
+}
+
+func WithResourceFGAClient(client resourceRelationClient) ServiceOption {
+	return func(s *Service) {
+		s.resourceFGA = client
+	}
+}
+
 func NewService(repo *Repository, rdb *redis.Client, opts ...ServiceOption) (*Service, error) {
 	if repo == nil {
 		return nil, fmt.Errorf("openplatform.NewService: repo is required")
@@ -89,7 +131,15 @@ func NewService(repo *Repository, rdb *redis.Client, opts ...ServiceOption) (*Se
 	if rdb == nil {
 		return nil, fmt.Errorf("openplatform.NewService: redis client is required")
 	}
-	svc := &Service{repo: repo, rdb: rdb}
+	svc := &Service{
+		repo:        repo,
+		rdb:         rdb,
+		rateLimiter: newDisclosureRateLimiter(rdb, defaultDisclosureRateLimitConfig()),
+		replayDetector: newDisclosureReplayDetector(
+			rdb,
+			defaultDisclosureRateLimitConfig(),
+		),
+	}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(svc)
@@ -108,6 +158,17 @@ type RegisterAppInput struct {
 	Scopes           []ScopeRequestInput
 }
 
+type UpdateAppProfileInput struct {
+	AppID            int64
+	OwnerUserID      int64
+	DisplayName      string
+	Description      string
+	HomepageURL      string
+	PrivacyPolicyURL string
+	Reason           string
+	RequestID        string
+}
+
 type ScopeRequestInput struct {
 	Scope  string
 	Reason string
@@ -116,6 +177,112 @@ type ScopeRequestInput struct {
 type RegisteredApp struct {
 	App          *App
 	ClientSecret string
+}
+
+type RevokeConsentInput struct {
+	UserID    int64
+	AppID     int64
+	Scopes    []string
+	RequestID string
+}
+
+type ListAdminUserConsentsInput struct {
+	AppID    int64
+	UserID   int64
+	Page     int
+	PageSize int
+}
+
+type AdminRevokeConsentInput struct {
+	AppID       int64
+	UserID      int64
+	ActorUserID int64
+	Reason      string
+	Scopes      []string
+	RequestID   string
+}
+
+type ListAppsInput struct {
+	OwnerUserID int64
+	Status      string
+	Page        int
+	PageSize    int
+}
+
+type ListAuditEventsInput struct {
+	AppID     int64
+	UserID    int64
+	EventType string
+	Scope     string
+	Page      int
+	PageSize  int
+}
+
+type ListUserConsentAuditEventsInput struct {
+	UserID    int64
+	AppID     int64
+	EventType string
+	Scope     string
+	Page      int
+	PageSize  int
+}
+
+type ListDeveloperAppAuditEventsInput struct {
+	OwnerUserID int64
+	AppID       int64
+	EventType   string
+	Scope       string
+	Page        int
+	PageSize    int
+}
+
+type ListTokenProbeEvidenceInput struct {
+	AppID          int64
+	ReviewerUserID int64
+	Result         string
+	ClientID       string
+	Page           int
+	PageSize       int
+}
+
+type DisclosureReportInput struct {
+	WindowHours int
+}
+
+type ResourceGrantInput struct {
+	AppID          int64
+	ReviewerUserID int64
+	ResourceType   string
+	ResourceID     string
+	Actions        []string
+	Reason         string
+	RequestID      string
+}
+
+type ResourceGrantRevokeInput struct {
+	AppID          int64
+	ReviewerUserID int64
+	ResourceType   string
+	ResourceID     string
+	Actions        []string
+	Reason         string
+	RequestID      string
+}
+
+type ResourceGrantListInput struct {
+	AppID        int64
+	ResourceType string
+}
+
+type ResourceAccessCheckInput struct {
+	ClientID            string
+	ClientSecret        string
+	AccessTokenClientID string
+	AccessTokenScopes   []string
+	ResourceType        string
+	ResourceID          string
+	Action              string
+	RequestID           string
 }
 
 func (s *Service) RegisterApp(ctx context.Context, input RegisterAppInput) (*RegisteredApp, error) {
@@ -139,6 +306,237 @@ func (s *Service) RegisterApp(ctx context.Context, input RegisterAppInput) (*Reg
 		return nil, fmt.Errorf("RegisterApp create app: %w", err)
 	}
 	return &RegisteredApp{App: app, ClientSecret: secret}, nil
+}
+
+func (s *Service) ListApps(ctx context.Context, input ListAppsInput) (AppListResult, error) {
+	if input.OwnerUserID < 0 {
+		return AppListResult{}, ErrDisclosureUnavailable
+	}
+	status, err := normalizeAppStatusFilter(input.Status)
+	if err != nil {
+		return AppListResult{}, err
+	}
+	pageSize := httputil.ClampPageSize(input.PageSize)
+	return s.repo.ListApps(ctx, appListFilter{
+		OwnerUserID: input.OwnerUserID,
+		Status:      status,
+		Limit:       pageSize,
+		Offset:      httputil.SafeOffset(input.Page, pageSize),
+	})
+}
+
+func (s *Service) UpdateAppProfile(ctx context.Context, input UpdateAppProfileInput) (*AppLifecycleResult, error) {
+	if input.AppID <= 0 {
+		return nil, ErrAppNotFound
+	}
+	if input.OwnerUserID <= 0 {
+		return nil, ErrDisclosureUnavailable
+	}
+	reason := strings.TrimSpace(input.Reason)
+	if reason == "" {
+		return nil, ErrLifecycleReasonRequired
+	}
+	app, err := s.repo.GetAppByID(ctx, input.AppID)
+	if err != nil {
+		return nil, err
+	}
+	if app.OwnerUserID != input.OwnerUserID {
+		return nil, ErrAppNotFound
+	}
+	if app.Status == AppStatusRevoked {
+		return nil, ErrInvalidAppStatus
+	}
+
+	updated := *app
+	updated.DisplayName = strings.TrimSpace(input.DisplayName)
+	updated.Description = strings.TrimSpace(input.Description)
+	updated.HomepageURL = strings.TrimSpace(input.HomepageURL)
+	updated.PrivacyPolicyURL = strings.TrimSpace(input.PrivacyPolicyURL)
+	if err := validateAppInput(&updated); err != nil {
+		return nil, err
+	}
+
+	saved, err := s.repo.UpdateAppProfileWithAudit(ctx, &updated, input.OwnerUserID, reason, input.RequestID)
+	if err != nil {
+		return nil, err
+	}
+	return &AppLifecycleResult{App: saved}, nil
+}
+
+func (s *Service) ListAuditEvents(ctx context.Context, input ListAuditEventsInput) (AuditEventListResult, error) {
+	if input.AppID < 0 || input.UserID < 0 {
+		return AuditEventListResult{}, ErrInvalidAuditFilter
+	}
+	eventType := strings.TrimSpace(input.EventType)
+	scope, err := normalizeAuditScopeFilter(input.Scope)
+	if err != nil {
+		return AuditEventListResult{}, err
+	}
+	pageSize := httputil.ClampPageSize(input.PageSize)
+	return s.repo.ListAuditEvents(ctx, auditEventListFilter{
+		AppID:     input.AppID,
+		UserID:    input.UserID,
+		EventType: eventType,
+		Scope:     scope,
+		Limit:     pageSize,
+		Offset:    httputil.SafeOffset(input.Page, pageSize),
+	})
+}
+
+func (s *Service) ListUserConsentAuditEvents(
+	ctx context.Context,
+	input ListUserConsentAuditEventsInput,
+) (UserConsentAuditEventListResult, error) {
+	if input.UserID <= 0 || input.AppID < 0 {
+		return UserConsentAuditEventListResult{}, ErrInvalidAuditFilter
+	}
+	eventType, err := normalizeUserConsentAuditEventType(input.EventType)
+	if err != nil {
+		return UserConsentAuditEventListResult{}, err
+	}
+	scope, err := normalizeAuditScopeFilter(input.Scope)
+	if err != nil {
+		return UserConsentAuditEventListResult{}, err
+	}
+	pageSize := httputil.ClampPageSize(input.PageSize)
+	return s.repo.ListUserConsentAuditEvents(ctx, userConsentAuditEventListFilter{
+		UserID:    input.UserID,
+		AppID:     input.AppID,
+		EventType: eventType,
+		Scope:     scope,
+		Limit:     pageSize,
+		Offset:    httputil.SafeOffset(input.Page, pageSize),
+	})
+}
+
+func (s *Service) ListDeveloperAppAuditEvents(
+	ctx context.Context,
+	input ListDeveloperAppAuditEventsInput,
+) (DeveloperAppAuditEventListResult, error) {
+	if input.OwnerUserID <= 0 || input.AppID <= 0 {
+		return DeveloperAppAuditEventListResult{}, ErrAppNotFound
+	}
+	app, err := s.repo.GetAppByID(ctx, input.AppID)
+	if err != nil {
+		return DeveloperAppAuditEventListResult{}, err
+	}
+	if app.OwnerUserID != input.OwnerUserID {
+		return DeveloperAppAuditEventListResult{}, ErrAppNotFound
+	}
+	eventType, err := normalizeDeveloperAppAuditEventType(input.EventType)
+	if err != nil {
+		return DeveloperAppAuditEventListResult{}, err
+	}
+	scope, err := normalizeAuditScopeFilter(input.Scope)
+	if err != nil {
+		return DeveloperAppAuditEventListResult{}, err
+	}
+	pageSize := httputil.ClampPageSize(input.PageSize)
+	return s.repo.ListDeveloperAppAuditEvents(ctx, developerAppAuditEventListFilter{
+		AppID:     input.AppID,
+		EventType: eventType,
+		Scope:     scope,
+		Limit:     pageSize,
+		Offset:    httputil.SafeOffset(input.Page, pageSize),
+	})
+}
+
+func (s *Service) ListTokenProbeEvidence(
+	ctx context.Context,
+	input ListTokenProbeEvidenceInput,
+) (TokenProbeEvidenceListResult, error) {
+	if input.AppID < 0 || input.ReviewerUserID < 0 {
+		return TokenProbeEvidenceListResult{}, ErrInvalidTokenProbeFilter
+	}
+	result := strings.TrimSpace(input.Result)
+	if result != "" && result != "passed" && result != "failed" {
+		return TokenProbeEvidenceListResult{}, ErrInvalidTokenProbeFilter
+	}
+	pageSize := httputil.ClampPageSize(input.PageSize)
+	return s.repo.ListTokenProbeEvidence(ctx, tokenProbeEvidenceListFilter{
+		AppID:          input.AppID,
+		ReviewerUserID: input.ReviewerUserID,
+		Result:         result,
+		ClientID:       strings.TrimSpace(input.ClientID),
+		Limit:          pageSize,
+		Offset:         httputil.SafeOffset(input.Page, pageSize),
+	})
+}
+
+func (s *Service) DisclosureReport(ctx context.Context, input DisclosureReportInput) (DisclosureReport, error) {
+	windowHours := normalizeDisclosureReportWindow(input.WindowHours)
+	return s.repo.DisclosureReport(ctx, windowHours)
+}
+
+func (s *Service) scopeDefinitionsForApp(ctx context.Context, appID int64, scopes []string) ([]ScopeDefinition, error) {
+	reasons, err := s.repo.ListScopeReasons(ctx, appID, scopes)
+	if err != nil {
+		return nil, err
+	}
+	return ScopeDefinitionsWithReasons(scopes, reasons), nil
+}
+
+func (s *Service) ListUserConsents(ctx context.Context, userID int64) ([]UserAuthorizedApp, error) {
+	if userID <= 0 {
+		return nil, ErrDisclosureUnavailable
+	}
+	return s.repo.ListUserConsents(ctx, userID)
+}
+
+func (s *Service) ListAdminUserConsents(ctx context.Context, input ListAdminUserConsentsInput) (AdminUserConsentListResult, error) {
+	if input.AppID < 0 || input.UserID < 0 {
+		return AdminUserConsentListResult{}, ErrInvalidAuditFilter
+	}
+	if input.AppID == 0 && input.UserID == 0 {
+		return AdminUserConsentListResult{}, ErrInvalidAuditFilter
+	}
+	pageSize := httputil.ClampPageSize(input.PageSize)
+	return s.repo.ListAdminUserConsents(ctx, adminUserConsentListFilter{
+		AppID:  input.AppID,
+		UserID: input.UserID,
+		Limit:  pageSize,
+		Offset: httputil.SafeOffset(input.Page, pageSize),
+	})
+}
+
+func (s *Service) RevokeUserConsent(ctx context.Context, input RevokeConsentInput) error {
+	if input.UserID <= 0 {
+		return ErrDisclosureUnavailable
+	}
+	if input.AppID <= 0 {
+		return ErrAppNotFound
+	}
+	scopes, err := normalizeOptionalScopes(input.Scopes)
+	if err != nil {
+		return err
+	}
+	return s.repo.RevokeAppConsents(ctx, input.AppID, input.UserID, scopes, input.RequestID)
+}
+
+func (s *Service) RevokeAdminUserConsent(ctx context.Context, input AdminRevokeConsentInput) error {
+	if input.ActorUserID <= 0 {
+		return ErrDisclosureUnavailable
+	}
+	if input.UserID <= 0 {
+		return ErrInvalidAuditFilter
+	}
+	if input.AppID <= 0 {
+		return ErrAppNotFound
+	}
+	reason := strings.TrimSpace(input.Reason)
+	if reason == "" {
+		return ErrLifecycleReasonRequired
+	}
+	scopes, err := normalizeOptionalScopes(input.Scopes)
+	if err != nil {
+		return err
+	}
+	return s.repo.RevokeAppConsentsWithAuditMetadata(ctx, input.AppID, input.UserID, scopes, input.RequestID, map[string]any{
+		"actor":       "admin",
+		"actorUserID": input.ActorUserID,
+		"reason":      reason,
+		"source":      "admin_console",
+	})
 }
 
 func (s *Service) VerifyClientSecret(ctx context.Context, clientID, clientSecret string) (*App, error) {
@@ -206,29 +604,109 @@ func normalizeScopeRequests(inputs []ScopeRequestInput) ([]ScopeRequestInput, er
 	}
 	result := make([]ScopeRequestInput, 0, len(scopes))
 	for _, scope := range scopes {
+		if reasons[scope] == "" {
+			return nil, ErrScopeReasonRequired
+		}
 		result = append(result, ScopeRequestInput{Scope: scope, Reason: reasons[scope]})
 	}
 	return result, nil
 }
 
-func validateAppInput(app *App) error {
-	if app.OwnerUserID <= 0 || app.DisplayName == "" {
-		return fmt.Errorf("open platform app owner and display name are required")
+func normalizeScopeChangeRequests(inputs []ScopeRequestInput) ([]ScopeRequestInput, error) {
+	scopes, err := normalizeScopeRequests(inputs)
+	if err != nil {
+		return nil, err
 	}
-	if err := validateHTTPSURL("homepage URL", app.HomepageURL); err != nil {
-		return err
+	if len(scopes) == 0 {
+		return nil, ErrInvalidScope
 	}
-	if err := validateHTTPSURL("privacy policy URL", app.PrivacyPolicyURL); err != nil {
-		return err
+	return scopes, nil
+}
+
+func normalizeOptionalScopes(scopes []string) ([]string, error) {
+	if len(scopes) == 0 {
+		return nil, nil
 	}
-	if len(app.RedirectURIs) == 0 {
-		return ErrRedirectURINotAllowed
+	return NormalizeScopes(scopes)
+}
+
+func normalizeAuditScopeFilter(raw string) (string, error) {
+	scope := strings.TrimSpace(raw)
+	if scope == "" {
+		return "", nil
 	}
-	for _, redirect := range app.RedirectURIs {
-		if err := validateRedirectURI(redirect); err != nil {
-			return err
+	return normalizeSingleScope(scope)
+}
+
+func normalizeUserConsentAuditEventType(raw string) (string, error) {
+	eventType := strings.TrimSpace(raw)
+	if eventType == "" {
+		return "", nil
+	}
+	switch eventType {
+	case "open_platform.consent.granted",
+		"open_platform.consent.denied",
+		"open_platform.consent.revoked",
+		"open_platform.disclosure.granted",
+		"open_platform.disclosure.denied",
+		"open_platform.disclosure.replay_detected":
+		return eventType, nil
+	default:
+		return "", ErrInvalidAuditFilter
+	}
+}
+
+func normalizeDeveloperAppAuditEventType(raw string) (string, error) {
+	eventType := strings.TrimSpace(raw)
+	if eventType == "" {
+		return "", nil
+	}
+	for _, allowed := range developerAppAuditEventTypes {
+		if eventType == allowed {
+			return eventType, nil
 		}
 	}
+	return "", ErrInvalidAuditFilter
+}
+
+func normalizeDisclosureReportWindow(windowHours int) int {
+	if windowHours <= 0 {
+		return 24
+	}
+	if windowHours > 168 {
+		return 168
+	}
+	return windowHours
+}
+
+func normalizeAppStatusFilter(raw string) (string, error) {
+	status := strings.TrimSpace(raw)
+	if status == "" || status == "all" {
+		return "", nil
+	}
+	switch status {
+	case AppStatusPending, AppStatusApproved, AppStatusSuspended, AppStatusRevoked:
+		return status, nil
+	default:
+		return "", ErrInvalidAppStatus
+	}
+}
+
+func validateAppInput(app *App) error {
+	if app.OwnerUserID <= 0 || app.DisplayName == "" {
+		return fmt.Errorf("%w: owner and display name are required", ErrInvalidAppProfile)
+	}
+	if err := validateHTTPSURL("homepage URL", app.HomepageURL); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidAppProfile, err)
+	}
+	if err := validateHTTPSURL("privacy policy URL", app.PrivacyPolicyURL); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidAppProfile, err)
+	}
+	redirects, err := normalizeAndValidateRedirectURIs(app.RedirectURIs)
+	if err != nil {
+		return err
+	}
+	app.RedirectURIs = redirects
 	return nil
 }
 
@@ -266,6 +744,19 @@ func normalizeRedirects(values []string) []string {
 		result = append(result, trimmed)
 	}
 	return result
+}
+
+func normalizeAndValidateRedirectURIs(values []string) ([]string, error) {
+	redirects := normalizeRedirects(values)
+	if len(redirects) == 0 {
+		return nil, ErrRedirectURINotAllowed
+	}
+	for _, redirect := range redirects {
+		if err := validateRedirectURI(redirect); err != nil {
+			return nil, err
+		}
+	}
+	return redirects, nil
 }
 
 func randomHex(prefix string, size int) (string, error) {

@@ -188,7 +188,7 @@ func (h *Handler) invalidateReviewCaches(c *gin.Context, courseID int64, extraKe
 	if courseID > 0 {
 		key := "review:course:" + strconv.FormatInt(courseID, 10)
 		if err := h.cache.InvalidateByVersion(ctx, key); err != nil {
-			metrics.CacheInvalidationFailuresTotal.WithLabelValues("review:course").Inc()
+			metrics.ObserveCacheInvalidationFailure(cache.NamespaceReview)
 			l.Warn("failed to invalidate course cache",
 				zap.String("cache_key", key),
 				zap.Int64("course_id", courseID),
@@ -197,7 +197,7 @@ func (h *Handler) invalidateReviewCaches(c *gin.Context, courseID int64, extraKe
 	} else {
 		// 无法确定课程 ID 时，失效全局课程缓存版本号（避免 SCAN）
 		if err := h.cache.InvalidateByVersion(ctx, "review:course"); err != nil {
-			metrics.CacheInvalidationFailuresTotal.WithLabelValues("review:course").Inc()
+			metrics.ObserveCacheInvalidationFailure(cache.NamespaceReview)
 			l.Warn("failed to invalidate global course cache version",
 				zap.String("cache_key", "review:course"),
 				zap.Error(err))
@@ -206,7 +206,7 @@ func (h *Handler) invalidateReviewCaches(c *gin.Context, courseID int64, extraKe
 
 	// 始终失效 latest 缓存（跨课程聚合）
 	if err := h.cache.InvalidateByVersion(ctx, "review:latest"); err != nil {
-		metrics.CacheInvalidationFailuresTotal.WithLabelValues("review:latest").Inc()
+		metrics.ObserveCacheInvalidationFailure(cache.NamespaceReview)
 		l.Warn("failed to invalidate cache",
 			zap.String("cache_key", "review:latest"),
 			zap.Error(err))
@@ -215,7 +215,7 @@ func (h *Handler) invalidateReviewCaches(c *gin.Context, courseID int64, extraKe
 	// 失效额外指定的缓存前缀
 	for _, key := range extraKeys {
 		if err := h.cache.InvalidateByVersion(ctx, key); err != nil {
-			metrics.CacheInvalidationFailuresTotal.WithLabelValues(key).Inc()
+			metrics.ObserveCacheInvalidationFailure(cache.NamespaceReview)
 			l.Warn("failed to invalidate cache",
 				zap.String("cache_key", key),
 				zap.Error(err))
@@ -228,7 +228,7 @@ func (h *Handler) invalidateCachePrefixes(c *gin.Context, keys ...string) {
 	l := logger.FromGin(c)
 	for _, key := range keys {
 		if err := h.cache.InvalidateByVersion(ctx, key); err != nil {
-			metrics.CacheInvalidationFailuresTotal.WithLabelValues(key).Inc()
+			metrics.ObserveCacheInvalidationFailure(cache.NamespaceReview)
 			l.Warn("failed to invalidate cache",
 				zap.String("cache_key", key),
 				zap.Error(err))

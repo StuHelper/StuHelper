@@ -30,11 +30,16 @@ FROM alpine:3.21
 
 WORKDIR /app
 
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache ca-certificates tzdata nodejs npm chromium
+
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+RUN npm install --omit=dev --prefix /app playwright-core@1.58.2 \
+    && npm cache clean --force
 
 COPY --from=builder /app/bin/stuhelper /app/stuhelper
 COPY --from=builder /app/bin/migrate-runtime /app/migrate-runtime
 COPY --from=builder /app/migrations /app/migrations
+COPY --from=builder /app/scripts/casdoor-runtime-token-probe-runner.mjs /app/casdoor-runtime-token-probe-runner.mjs
 
 RUN adduser -D -u 1000 appuser
 

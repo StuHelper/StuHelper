@@ -22,10 +22,15 @@ func NewRepository(database *db.DB) *Repository {
 	return &Repository{db: database}
 }
 
+func withDBTable(ctx context.Context, table string) context.Context {
+	return db.WithTableHint(ctx, table)
+}
+
 func (r *Repository) UpsertRuntimeDefaultMount(ctx context.Context, cfg config.ObjectStorageConfig) error {
 	if cfg.Endpoint == "" && cfg.Bucket == "" {
 		return nil
 	}
+	ctx = withDBTable(ctx, "storage_mounts")
 	_, err := r.db.Exec(ctx, `
 		INSERT INTO storage_mounts (key, name, driver, bucket, base_path, credential_source, enabled)
 		VALUES ($2, 'Default S3 Mount', 's3', $1, '', 'runtime_default_object_storage', TRUE)
@@ -40,6 +45,7 @@ func (r *Repository) UpsertRuntimeDefaultMount(ctx context.Context, cfg config.O
 }
 
 func (r *Repository) ListMounts(ctx context.Context) ([]Mount, error) {
+	ctx = withDBTable(ctx, "storage_mounts")
 	rows, err := r.db.Query(ctx, `
 		SELECT id, key, name, driver, bucket, base_path, credential_source, enabled,
 		       last_health_status, last_health_error, last_health_checked_at
@@ -62,6 +68,7 @@ func (r *Repository) ListMounts(ctx context.Context) ([]Mount, error) {
 }
 
 func (r *Repository) CreateMount(ctx context.Context, req CreateMountRequest) (*Mount, error) {
+	ctx = withDBTable(ctx, "storage_mounts")
 	rows, err := r.db.Query(ctx, `
 		INSERT INTO storage_mounts (key, name, driver, bucket, base_path, credential_source, enabled)
 		VALUES ($1, $2, $3, $4, $5, 'runtime_default_object_storage', $6)
@@ -83,6 +90,7 @@ func (r *Repository) CreateMount(ctx context.Context, req CreateMountRequest) (*
 }
 
 func (r *Repository) GetMountByID(ctx context.Context, mountID int64) (*Mount, error) {
+	ctx = withDBTable(ctx, "storage_mounts")
 	rows, err := r.db.Query(ctx, `
 		SELECT id, key, name, driver, bucket, base_path, credential_source, enabled,
 		       last_health_status, last_health_error, last_health_checked_at
@@ -104,6 +112,7 @@ func (r *Repository) GetMountByID(ctx context.Context, mountID int64) (*Mount, e
 }
 
 func (r *Repository) GetMountByKey(ctx context.Context, key string) (*Mount, error) {
+	ctx = withDBTable(ctx, "storage_mounts")
 	rows, err := r.db.Query(ctx, `
 		SELECT id, key, name, driver, bucket, base_path, credential_source, enabled,
 		       last_health_status, last_health_error, last_health_checked_at
@@ -125,6 +134,7 @@ func (r *Repository) GetMountByKey(ctx context.Context, key string) (*Mount, err
 }
 
 func (r *Repository) UpdateMountHealth(ctx context.Context, mountID int64, status string, errorMessage *string) error {
+	ctx = withDBTable(ctx, "storage_mounts")
 	_, err := r.db.Exec(ctx, `
 		UPDATE storage_mounts
 		SET last_health_status = $2, last_health_error = $3, last_health_checked_at = NOW(), updated_at = NOW()

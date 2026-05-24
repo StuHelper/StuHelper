@@ -25,6 +25,7 @@ type UpsertDraftParams struct {
 
 // UpsertDraft 保存或更新草稿
 func (r *Repository) UpsertDraft(ctx context.Context, p UpsertDraftParams) (*ReviewDraft, error) {
+	ctx = withDBTable(ctx, "review_drafts")
 	var d ReviewDraft
 
 	newID, err := id.New()
@@ -55,6 +56,7 @@ func (r *Repository) UpsertDraft(ctx context.Context, p UpsertDraftParams) (*Rev
 
 // GetDraft 获取草稿
 func (r *Repository) GetDraft(ctx context.Context, userHash string) (*ReviewDraft, error) {
+	ctx = withDBTable(ctx, "review_drafts")
 	var d ReviewDraft
 	err := scanDraftRow(r.db.QueryRow(ctx, `
 		SELECT id, course_id, teacher_id, term_id, title, content, grade, ratings, updated_at
@@ -72,6 +74,7 @@ func (r *Repository) GetDraft(ctx context.Context, userHash string) (*ReviewDraf
 
 // DeleteDraft 删除草稿
 func (r *Repository) DeleteDraft(ctx context.Context, userHash string) error {
+	ctx = withDBTable(ctx, "review_drafts")
 	_, err := r.db.Exec(ctx, `
 		DELETE FROM review_drafts WHERE user_hash = $1
 	`, userHash)

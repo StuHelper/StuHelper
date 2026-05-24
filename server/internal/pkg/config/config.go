@@ -16,6 +16,7 @@ type Config struct {
 	SMS           SMSConfig
 	Bot           BotConfig
 	Observability ObservabilityConfig
+	OpenPlatform  OpenPlatformConfig
 }
 
 // SecurityConfig PII 加密安全配置（已验证、可直接消费的强类型结果）
@@ -35,6 +36,31 @@ type ReviewRateLimitConfig struct {
 	SearchUserLimit int
 	BatchAnonLimit  int
 	BatchUserLimit  int
+}
+
+// OpenPlatformConfig 开放平台配置。
+type OpenPlatformConfig struct {
+	DisclosureRateLimit OpenPlatformDisclosureRateLimitConfig
+	TokenProbe          OpenPlatformTokenProbeConfig
+}
+
+// OpenPlatformDisclosureRateLimitConfig 控制 disclosure 路径限流和异常重放检测阈值。
+type OpenPlatformDisclosureRateLimitConfig struct {
+	AppLimit                   int
+	AppUserLimit               int
+	EndpointLimit              int
+	ConsentLimit               int
+	ReplayLimit                int
+	WindowSeconds              int
+	ReplayWindowSeconds        int
+	ReplayAuditCooldownSeconds int
+}
+
+// OpenPlatformTokenProbeConfig 控制第三方 Casdoor app runtime code-flow token 探针。
+type OpenPlatformTokenProbeConfig struct {
+	RuntimeRequired       bool
+	RuntimeCommand        string
+	RuntimeTimeoutSeconds int
 }
 
 // LogConfig 日志配置
@@ -146,6 +172,7 @@ type IdentityConfig struct {
 	SigningPrivateKeyPEM string
 	SigningKeyID         string
 	AccessTokenTTL       int
+	RefreshTokenTTL      int
 	AuthorizationCodeTTL int
 }
 
@@ -214,6 +241,7 @@ func Load() (*Config, error) {
 		SMS:           loadSMSConfig(&parseErrs),
 		Bot:           loadBotConfig(),
 		Observability: loadObservabilityConfig(&parseErrs),
+		OpenPlatform:  loadOpenPlatformConfig(&parseErrs),
 	}
 
 	securityCfg, securityErrs := parseSecurityConfig()
@@ -233,6 +261,7 @@ func loadIdentityConfig(parseErrs *[]string) IdentityConfig {
 		SigningPrivateKeyPEM: getEnv("IDENTITY_SIGNING_PRIVATE_KEY_PEM", ""),
 		SigningKeyID:         getEnv("IDENTITY_SIGNING_KEY_ID", "stuhelper-identity-1"),
 		AccessTokenTTL:       getEnvInt("IDENTITY_ACCESS_TOKEN_TTL", 900, parseErrs),
+		RefreshTokenTTL:      getEnvInt("IDENTITY_REFRESH_TOKEN_TTL", 2592000, parseErrs),
 		AuthorizationCodeTTL: getEnvInt("IDENTITY_AUTH_CODE_TTL", 300, parseErrs),
 	}
 }
@@ -379,6 +408,26 @@ func loadReviewRateLimitConfig(parseErrs *[]string) ReviewRateLimitConfig {
 		SearchUserLimit: getEnvInt("REVIEW_RATE_SEARCH_USER_LIMIT", 60, parseErrs),
 		BatchAnonLimit:  getEnvInt("REVIEW_RATE_BATCH_ANON_LIMIT", 5, parseErrs),
 		BatchUserLimit:  getEnvInt("REVIEW_RATE_BATCH_USER_LIMIT", 60, parseErrs),
+	}
+}
+
+func loadOpenPlatformConfig(parseErrs *[]string) OpenPlatformConfig {
+	return OpenPlatformConfig{
+		DisclosureRateLimit: OpenPlatformDisclosureRateLimitConfig{
+			AppLimit:                   getEnvInt("OPEN_PLATFORM_DISCLOSURE_APP_LIMIT", 600, parseErrs),
+			AppUserLimit:               getEnvInt("OPEN_PLATFORM_DISCLOSURE_APP_USER_LIMIT", 120, parseErrs),
+			EndpointLimit:              getEnvInt("OPEN_PLATFORM_DISCLOSURE_ENDPOINT_LIMIT", 1200, parseErrs),
+			ConsentLimit:               getEnvInt("OPEN_PLATFORM_DISCLOSURE_CONSENT_LIMIT", 20, parseErrs),
+			ReplayLimit:                getEnvInt("OPEN_PLATFORM_DISCLOSURE_REPLAY_LIMIT", 8, parseErrs),
+			WindowSeconds:              getEnvInt("OPEN_PLATFORM_DISCLOSURE_WINDOW_SECONDS", 60, parseErrs),
+			ReplayWindowSeconds:        getEnvInt("OPEN_PLATFORM_DISCLOSURE_REPLAY_WINDOW_SECONDS", 300, parseErrs),
+			ReplayAuditCooldownSeconds: getEnvInt("OPEN_PLATFORM_DISCLOSURE_REPLAY_AUDIT_COOLDOWN_SECONDS", 600, parseErrs),
+		},
+		TokenProbe: OpenPlatformTokenProbeConfig{
+			RuntimeRequired:       getEnvBool("OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED", false, parseErrs),
+			RuntimeCommand:        getEnv("OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND", ""),
+			RuntimeTimeoutSeconds: getEnvInt("OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_TIMEOUT_SECONDS", 30, parseErrs),
+		},
 	}
 }
 

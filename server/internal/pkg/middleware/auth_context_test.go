@@ -13,11 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSetClaimsToContextPropagatesMFAProofOnly(t *testing.T) {
+func TestSetClaimsToContextPropagatesAuthTimeAndMFAProof(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/me", nil)
+	authTime := time.Date(2026, 5, 2, 11, 30, 0, 0, time.UTC)
 	proofAt := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
 
 	setClaimsToContext(c, &authResult{
@@ -25,11 +26,13 @@ func TestSetClaimsToContextPropagatesMFAProofOnly(t *testing.T) {
 		username:    "alice",
 		displayName: "Alice",
 		roles:       []string{"school_admin"},
+		authTime:    authTime,
 		mfaProofAt:  proofAt,
 	})
 
 	assert.Equal(t, "casdoor-user-1", GetUserID(c))
 	assert.Equal(t, "alice", GetUsername(c))
+	assert.True(t, GetAuthenticationTime(c).Equal(authTime))
 	assert.True(t, GetMFAProofVerifiedAt(c).Equal(proofAt))
 	assert.False(t, GetMFAEnrollmentActive(c))
 }
@@ -67,19 +70,17 @@ func TestWithResolvedRoleScopesMergesIntoAuthResult(t *testing.T) {
 	assert.Equal(t, []string{"1001", "1002"}, result.orgScopedRoles["school_admin"])
 }
 
-func TestWithResolvedRoleScopesSkipsSelfSignedTokens(t *testing.T) {
+func TestWithResolvedRoleScopesResolvesAuthenticatedTokens(t *testing.T) {
 	resolver := &countingRoleScopeResolver{}
 
 	result, err := withResolvedRoleScopes(context.Background(), &authResult{
-		userID:     "phone-user-1",
-		roles:      []string{"school_admin"},
-		selfSigned: true,
+		userID: "casdoor-user-1",
+		roles:  []string{"school_admin"},
 	}, resolver)
 
 	require.NoError(t, err)
-	assert.True(t, result.selfSigned)
-	assert.Zero(t, resolver.calls)
-	assert.Nil(t, result.orgScopedRoles)
+	assert.Equal(t, 1, resolver.calls)
+	assert.Equal(t, []string{"1001"}, result.orgScopedRoles["school_admin"])
 }
 
 func TestWithResolvedRoleScopesMarksBackendUnavailable(t *testing.T) {

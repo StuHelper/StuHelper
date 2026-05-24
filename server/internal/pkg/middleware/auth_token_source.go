@@ -17,7 +17,7 @@ const (
 // path) tuple as cookie creation.
 const (
 	CookieAccessTokenPath  = "/"
-	CookieRefreshTokenPath = "/api/v1/auth" //nolint:gosec // cookie path constant, not token secret material.
+	CookieRefreshTokenPath = "/api/v1/auth" // #nosec G101 -- cookie path constant, not token secret material.
 )
 
 // tokenSource 标记 Token 来源
@@ -41,6 +41,9 @@ func GetAccessToken(c *gin.Context) string {
 // 当客户端显式携带 Bearer token 时，应优先按 API 客户端语义处理，
 // 避免浏览器 cookie 覆盖 bearerAuth 契约。
 func getTokenWithSource(c *gin.Context) (string, tokenSource) {
+	if c != nil && c.Request != nil && len(c.Request.Header.Values("Authorization")) > 1 {
+		return "", tokenSourceBearer
+	}
 	authHeader := c.GetHeader("Authorization")
 	if authHeader != "" {
 		parts := strings.SplitN(authHeader, " ", 2)
@@ -50,6 +53,7 @@ func getTokenWithSource(c *gin.Context) (string, tokenSource) {
 				return accessToken, tokenSourceBearer
 			}
 		}
+		return "", tokenSourceBearer
 	}
 
 	if accessToken, err := c.Cookie(CookieAccessToken); err == nil && accessToken != "" {

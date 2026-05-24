@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/identityserver"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/openplatform"
 )
@@ -15,9 +16,10 @@ import (
 func (rt *Runtime) initIdentityServerRoutes(
 	r *gin.Engine,
 	openPlatformService *openplatform.Service,
+	authHandler *auth.Handler,
 	optionalAuthMW gin.HandlerFunc,
 	userIDResolver func(context.Context, string) (int64, error),
-) error {
+) (*identityserver.Service, error) {
 	issuer := rt.identityIssuer()
 	signer, err := identityserver.NewSigner(
 		issuer,
@@ -25,7 +27,7 @@ func (rt *Runtime) initIdentityServerRoutes(
 		rt.cfg.Identity.SigningPrivateKeyPEM,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to initialize identity signer: %w", err)
+		return nil, fmt.Errorf("failed to initialize identity signer: %w", err)
 	}
 	service, err := identityserver.NewService(
 		openPlatformService,
@@ -34,12 +36,21 @@ func (rt *Runtime) initIdentityServerRoutes(
 		issuer,
 		time.Duration(rt.cfg.Identity.AuthorizationCodeTTL)*time.Second,
 		time.Duration(rt.cfg.Identity.AccessTokenTTL)*time.Second,
+		time.Duration(rt.cfg.Identity.RefreshTokenTTL)*time.Second,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to initialize identity server: %w", err)
+		return nil, fmt.Errorf("failed to initialize identity server: %w", err)
 	}
-	identityserver.NewHandler(service, openPlatformService, issuer, issuer, userIDResolver).RegisterRoutes(r, optionalAuthMW)
-	return nil
+	handler := identityserver.NewHandler(service, openPlatformService, issuer, issuer, userIDResolver)
+	if authHandler != nil {
+		handler.SetSessionRevoker(
+			authHandler.SessionRevoker(),
+			rt.cfg.Token.CookieDomain,
+			rt.cfg.Token.CookieSecure,
+		)
+	}
+	handler.RegisterRoutes(r, optionalAuthMW)
+	return service, nil
 }
 
 func (rt *Runtime) identityIssuer() string {

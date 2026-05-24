@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -117,27 +116,4 @@ func TestConsumeOIDCState_EdgeBranches(t *testing.T) {
 		assert.Equal(t, "verifier-native", consumed)
 		assert.Equal(t, oidc.ApplicationUniapp, consumedApp)
 	})
-}
-
-func TestPhoneHandlers_NotConfigured(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	h, _ := newRefreshTestHandler(t, &fakeUserSyncRepo{})
-
-	r := gin.New()
-	r.POST("/otp/request", h.RequestPhoneOTP)
-	r.POST("/otp/verify", h.VerifyPhoneOTP)
-
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/otp/request", strings.NewReader(`{"phone":"13800138000"}`))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
-	require.Equal(t, http.StatusServiceUnavailable, w.Code)
-	assert.Contains(t, w.Body.String(), "phone login is not configured")
-
-	w = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/otp/verify", strings.NewReader(`{"phone":"13800138000","code":"123456"}`))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
-	require.Equal(t, http.StatusServiceUnavailable, w.Code)
-	assert.Contains(t, w.Body.String(), "phone login is not configured")
 }

@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -18,22 +19,10 @@ import (
 
 func resolveCookieToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.Service, rawToken string) (*authResult, error) {
 	if token.IsSelfSignedToken(rawToken) {
-		return resolveSelfSignedCookieToken(rawToken)
+		metrics.ObserveAuthSessionValidationFailure("self_signed_unsupported")
+		return nil, errSessionInvalid
 	}
 	return resolveOIDCCookieToken(c, oidcClient, tokenService, rawToken)
-}
-
-func resolveSelfSignedCookieToken(rawToken string) (*authResult, error) {
-	hmacKey := crypto.GetHMACKey()
-	if len(hmacKey) == 0 {
-		return nil, fmt.Errorf("self-signed token present but HMAC key not initialized")
-	}
-	claims, err := token.VerifyJWTWithType(hmacKey, rawToken, token.JWTTokenTypeAccess)
-	if err != nil {
-		logger.L().Debug("self-signed JWT verification failed", zap.Error(err))
-		return nil, fmt.Errorf("invalid token: %w", err)
-	}
-	return authResultFromSelfSignedClaims(claims), nil
 }
 
 func resolveOIDCCookieToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.Service, rawIDToken string) (*authResult, error) {
@@ -54,7 +43,7 @@ func resolveOIDCCookieToken(c *gin.Context, oidcClient *oidc.Client, tokenServic
 		metrics.ObserveAuthSessionValidationFailure("user_mismatch")
 		return nil, errSessionInvalid
 	}
-	return authResultFromOIDCClaims(claims), nil
+	return authResultFromOIDCClaims(claims, session.CreatedAt), nil
 }
 
 func loadOIDCCookieSession(c *gin.Context, tokenService *token.Service, rawIDToken string) (*token.SessionData, error) {
@@ -107,23 +96,7 @@ func sessionAccessTokenMatches(rawToken, storedHash string) bool {
 	return subtle.ConstantTimeCompare([]byte(hash), []byte(storedHash)) == 1
 }
 
-func authResultFromSelfSignedClaims(claims *token.JWTClaims) *authResult {
-	var avatarPtr *string
-	if claims.Avatar != "" {
-		avatarPtr = &claims.Avatar
-	}
-	return &authResult{
-		userID:      claims.Sub,
-		username:    claims.Name,
-		email:       claims.Email,
-		displayName: claims.DisplayName,
-		avatar:      avatarPtr,
-		roles:       claims.Roles,
-		selfSigned:  true,
-	}
-}
-
-func authResultFromOIDCClaims(claims *oidc.Claims) *authResult {
+func authResultFromOIDCClaims(claims *oidc.Claims, fallbackUnix int64) *authResult {
 	return &authResult{
 		userID:         claims.GetUserID(),
 		appID:          claims.GetAppID(),
@@ -133,6 +106,21 @@ func authResultFromOIDCClaims(claims *oidc.Claims) *authResult {
 		avatar:         claims.GetAvatar(),
 		roles:          claims.Roles,
 		orgScopedRoles: claims.OrgScopedRoles,
+		authTime:       oidcAuthTime(claims.AuthTime, fallbackUnix),
 		mfaProofAt:     claims.MFAProofVerifiedAt(),
 	}
+}
+
+func oidcAuthTime(authTimeUnix, fallbackUnix int64) time.Time {
+	if authTime := timeFromUnix(authTimeUnix); !authTime.IsZero() {
+		return authTime
+	}
+	return timeFromUnix(fallbackUnix)
+}
+
+func timeFromUnix(value int64) time.Time {
+	if value <= 0 {
+		return time.Time{}
+	}
+	return time.Unix(value, 0).UTC()
 }

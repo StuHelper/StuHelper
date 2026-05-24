@@ -40,8 +40,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	}
 	rt.startAuditRetentionCleanup(bgCtx, startBackgroundTask)
 
-	smsSvc, err := rt.initSMSService(r)
-	if err != nil {
+	if _, err := rt.initSMSService(r); err != nil {
 		return err
 	}
 
@@ -62,7 +61,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		return err
 	}
 
-	authHandler, authMW, optionalAuthMW, err := rt.initAuthModule(api, bgCtx, piiCipher, smsSvc, roleScopeResolver)
+	authHandler, authMW, optionalAuthMW, err := rt.initAuthModule(api, bgCtx, piiCipher, roleScopeResolver)
 	if err != nil {
 		return err
 	}
@@ -120,9 +119,11 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	if err != nil {
 		return err
 	}
-	if err := rt.initIdentityServerRoutes(r, openPlatformService, optionalAuthMW, userRepo.GetInternalUserID); err != nil {
+	identityService, err := rt.initIdentityServerRoutes(r, openPlatformService, authHandler, optionalAuthMW, userRepo.GetInternalUserID)
+	if err != nil {
 		return err
 	}
+	openPlatformHandler.SetResourceAccessTokenVerifier(identityService)
 	botCredentialVerifier, err := rt.initBotCredentialVerifier(bgCtx)
 	if err != nil {
 		return err

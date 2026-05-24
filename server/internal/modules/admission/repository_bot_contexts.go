@@ -13,6 +13,7 @@ func (r *Repository) ListPoliciesByGuildKeys(
 	if len(keys) == 0 {
 		return result, nil
 	}
+	ctx = withDBTable(ctx, "group_admission_policies")
 	rows, err := r.db.Query(ctx, listPoliciesByGuildKeysSQL(), admissionGuildKeyArrays(keys)...)
 	if err != nil {
 		return nil, fmt.Errorf("ListPoliciesByGuildKeys: %w", err)
@@ -36,6 +37,7 @@ func (r *Repository) ListAdmissionFailuresByKeys(
 	if len(keys) == 0 {
 		return result, nil
 	}
+	ctx = withDBTable(ctx, "group_admission_failures")
 	rows, err := r.db.Query(ctx, listAdmissionFailuresByKeysSQL(), admissionFailureKeyArrays(keys)...)
 	if err != nil {
 		return nil, fmt.Errorf("ListAdmissionFailuresByKeys: %w", err)

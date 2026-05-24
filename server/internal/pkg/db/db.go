@@ -31,10 +31,33 @@ const txTimeoutMultiplier = 3
 // retryBaseDelay 重试基础延迟
 const retryBaseDelay = 100 * time.Millisecond
 
+type tableHintContextKey struct{}
+
+// WithTableHint attaches explicit repository table metadata for DB metrics.
+// The value is normalized before storage so downstream instrumentation never
+// needs to inspect SQL text or accept high-cardinality fragments.
+func WithTableHint(ctx context.Context, table string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, tableHintContextKey{}, metrics.NormalizeDBTable(table))
+}
+
+// TableHint returns the normalized DB metrics table label stored on ctx.
+func TableHint(ctx context.Context) string {
+	if ctx == nil {
+		return metrics.DBTableUnknown
+	}
+	if table, ok := ctx.Value(tableHintContextKey{}).(string); ok {
+		return metrics.NormalizeDBTable(table)
+	}
+	return metrics.DBTableUnknown
+}
+
 // jitteredRetryDelay 返回带随机抖动的重试延迟，防止惊群效应
 func jitteredRetryDelay() time.Duration {
 	jitter := float64(retryBaseDelay) * 0.5
-	delta := rand.Float64()*2*jitter - jitter //nolint:gosec // retry jitter is not security-sensitive randomness.
+	delta := rand.Float64()*2*jitter - jitter // #nosec G404 -- retry jitter is not security-sensitive randomness.
 	return retryBaseDelay + time.Duration(delta)
 }
 
@@ -71,20 +94,22 @@ func (d *DB) withTimeout(ctx context.Context) (context.Context, context.CancelFu
 // 返回 RowsWithCancel 包装类型，确保 rows 消费完毕后才取消 context
 // 对瞬时连接错误自动重试一次
 func (d *DB) Query(ctx context.Context, sql string, args ...any) (*RowsWithCancel, error) {
+	table := TableHint(ctx)
 	ctx, cancel := d.withTimeout(ctx)
-	ctx, span := d.startSpan(ctx, "query", sql)
+	ctx, span := d.startSpan(ctx, "query", sql, table)
 	start := time.Now()
 	rows, err := d.pool.Query(ctx, sql, args...)
 	duration := time.Since(start).Seconds()
-	metrics.DBQueryDuration.WithLabelValues("query", "").Observe(duration)
+	metrics.ObserveDBQueryDuration("query", table, duration)
 
 	// 瞬时连接错误：退避后重试一次（仅在 context 未超时时）
 	if err != nil && isConnectionError(err) && ctx.Err() == nil {
 		logger.L().Warn("query connection error, retrying once", zap.Error(err))
 		time.Sleep(jitteredRetryDelay())
+		retryStart := time.Now()
 		rows, err = d.pool.Query(ctx, sql, args...)
-		duration = time.Since(start).Seconds()
-		metrics.DBQueryDuration.WithLabelValues("query", "retry").Observe(duration)
+		duration = time.Since(retryStart).Seconds()
+		metrics.ObserveDBQueryDuration("query_retry", table, duration)
 	}
 
 	status := "ok"
@@ -93,10 +118,10 @@ func (d *DB) Query(ctx context.Context, sql string, args ...any) (*RowsWithCance
 		recordSpanError(span, err)
 		span.End()
 		cancel()
-		metrics.DBQueryTotal.WithLabelValues("query", "", status).Inc()
+		metrics.ObserveDBQueryTotal("query", table, status)
 		return nil, err
 	}
-	metrics.DBQueryTotal.WithLabelValues("query", "", status).Inc()
+	metrics.ObserveDBQueryTotal("query", table, status)
 	return &RowsWithCancel{rows: rows, cancel: cancel, span: span}, nil
 }
 
@@ -104,11 +129,12 @@ func (d *DB) Query(ctx context.Context, sql string, args ...any) (*RowsWithCance
 // 返回 RowWithCancel 包装类型，确保 Scan 完成后才取消 context
 // 对瞬时连接错误自动重试一次（与 Query 保持一致）
 func (d *DB) QueryRow(ctx context.Context, sql string, args ...any) *RowWithCancel {
+	table := TableHint(ctx)
 	ctx, cancel := d.withTimeout(ctx)
-	ctx, span := d.startSpan(ctx, "query_row", sql)
+	ctx, span := d.startSpan(ctx, "query_row", sql, table)
 	start := time.Now()
 	row := d.pool.QueryRow(ctx, sql, args...)
-	return &RowWithCancel{row: row, cancel: cancel, start: start, db: d, ctx: ctx, sql: sql, args: args, span: span}
+	return &RowWithCancel{row: row, cancel: cancel, start: start, db: d, ctx: ctx, sql: sql, args: args, span: span, table: table}
 }
 
 // RowWithCancel 包装 pgx.Row，确保 Scan 完成后才取消 context
@@ -121,6 +147,7 @@ type RowWithCancel struct {
 	sql    string
 	args   []any
 	span   trace.Span
+	table  string
 }
 
 func (r *RowWithCancel) release() {
@@ -131,6 +158,7 @@ func (r *RowWithCancel) release() {
 	r.sql = ""
 	r.args = nil
 	r.span = nil
+	r.table = ""
 	r.start = time.Time{}
 }
 
@@ -141,16 +169,17 @@ func (r *RowWithCancel) Scan(dest ...any) error {
 
 	err := r.row.Scan(dest...)
 	duration := time.Since(r.start).Seconds()
-	metrics.DBQueryDuration.WithLabelValues("query_row", "").Observe(duration)
+	metrics.ObserveDBQueryDuration("query_row", r.table, duration)
 
 	// 瞬时连接错误：退避后重试一次
 	if err != nil && isConnectionError(err) && r.ctx.Err() == nil {
 		logger.L().Warn("query_row connection error, retrying once", zap.Error(err))
 		time.Sleep(jitteredRetryDelay())
+		retryStart := time.Now()
 		retryRow := r.db.pool.QueryRow(r.ctx, r.sql, r.args...)
 		err = retryRow.Scan(dest...)
-		duration = time.Since(r.start).Seconds()
-		metrics.DBQueryDuration.WithLabelValues("query_row", "retry").Observe(duration)
+		duration = time.Since(retryStart).Seconds()
+		metrics.ObserveDBQueryDuration("query_row_retry", r.table, duration)
 	}
 
 	if r.cancel != nil {
@@ -164,7 +193,7 @@ func (r *RowWithCancel) Scan(dest ...any) error {
 	if r.span != nil {
 		r.span.End()
 	}
-	metrics.DBQueryTotal.WithLabelValues("query_row", "", status).Inc()
+	metrics.ObserveDBQueryTotal("query_row", r.table, status)
 	return err
 }
 
@@ -204,21 +233,22 @@ func (r *RowsWithCancel) Close() {
 // Exec 执行带超时的命令。
 // 与 Query 不同，Exec 可能承载非幂等写操作，因此禁止自动重试，避免重复写入。
 func (d *DB) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	table := TableHint(ctx)
 	ctx, cancel := d.withTimeout(ctx)
 	defer cancel()
-	ctx, span := d.startSpan(ctx, "exec", sql)
+	ctx, span := d.startSpan(ctx, "exec", sql, table)
 	defer span.End()
 	start := time.Now()
 	tag, err := d.pool.Exec(ctx, sql, args...)
 	duration := time.Since(start).Seconds()
-	metrics.DBQueryDuration.WithLabelValues("exec", "").Observe(duration)
+	metrics.ObserveDBQueryDuration("exec", table, duration)
 
 	status := "ok"
 	if err != nil {
 		status = "error"
 		recordSpanError(span, err)
 	}
-	metrics.DBQueryTotal.WithLabelValues("exec", "", status).Inc()
+	metrics.ObserveDBQueryTotal("exec", table, status)
 	return tag, err
 }
 
@@ -267,12 +297,13 @@ func (d *DB) collectPoolMetrics() {
 	}
 }
 
-func (d *DB) startSpan(ctx context.Context, operation, sql string) (context.Context, trace.Span) {
+func (d *DB) startSpan(ctx context.Context, operation, sql, table string) (context.Context, trace.Span) {
 	return tracer.Start(ctx, "postgres."+operation,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation.name", extractSQLOperation(sql)),
+			attribute.String("db.query.table", metrics.NormalizeDBTable(table)),
 		),
 	)
 }

@@ -10,6 +10,7 @@ import (
 )
 
 func (r *Repository) GetUserIDByQQID(ctx context.Context, qqID string) (*int64, error) {
+	ctx = withDBTable(ctx, "user_qq_bindings")
 	var userID int64
 	err := r.db.QueryRow(ctx, `
 		SELECT user_id
@@ -29,6 +30,7 @@ func (r *Repository) GetFreshmanApplicationForReviewPolicy(
 	ctx context.Context,
 	applicationID string,
 ) (*FreshmanApplication, error) {
+	ctx = withDBTable(ctx, "freshman_verification_applications")
 	app, err := scanFreshmanApplication(r.db.QueryRow(ctx, `
 		SELECT id, user_id, school_id, admission_session_id, status, applicant_name, applicant_name_masked,
 		       department_or_major, material_type, provisional_expires_at, reviewed_at, created_at

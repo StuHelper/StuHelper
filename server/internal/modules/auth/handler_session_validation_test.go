@@ -19,14 +19,14 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
 
-func TestResolveRefreshToken_PrefersBodyThenCookie(t *testing.T) {
+func TestResolveRefreshToken_UsesSingleCredentialSource(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/refresh", bytes.NewBufferString(`{"refreshToken":"body-token"}`))
 	c.Request.Header.Set("Content-Type", "application/json")
-	c.Request.AddCookie(&http.Cookie{Name: middleware.CookieRefreshToken, Value: "cookie-token"})
 
-	refreshToken, fromBody := resolveRefreshToken(c)
+	refreshToken, fromBody, ok := resolveRefreshToken(c)
+	require.True(t, ok)
 	assert.Equal(t, "body-token", refreshToken)
 	assert.True(t, fromBody)
 
@@ -35,9 +35,53 @@ func TestResolveRefreshToken_PrefersBodyThenCookie(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/refresh", nil)
 	c.Request.AddCookie(&http.Cookie{Name: middleware.CookieRefreshToken, Value: "cookie-token"})
 
-	refreshToken, fromBody = resolveRefreshToken(c)
+	refreshToken, fromBody, ok = resolveRefreshToken(c)
+	require.True(t, ok)
 	assert.Equal(t, "cookie-token", refreshToken)
 	assert.False(t, fromBody)
+}
+
+func TestResolveRefreshToken_RejectsAmbiguousOrMalformedBody(t *testing.T) {
+	tests := []struct {
+		name   string
+		body   string
+		cookie *http.Cookie
+	}{
+		{
+			name:   "body and refresh cookie",
+			body:   `{"refreshToken":"body-token"}`,
+			cookie: &http.Cookie{Name: middleware.CookieRefreshToken, Value: "cookie-token"},
+		},
+		{
+			name:   "body and session cookie",
+			body:   `{"refreshToken":"body-token"}`,
+			cookie: &http.Cookie{Name: sessionCookieName, Value: "sid-cookie"},
+		},
+		{
+			name: "malformed body",
+			body: `{`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodPost, "/refresh", bytes.NewBufferString(tt.body))
+			c.Request.Header.Set("Content-Type", "application/json")
+			if tt.cookie != nil {
+				c.Request.AddCookie(tt.cookie)
+			}
+
+			refreshToken, fromBody, ok := resolveRefreshToken(c)
+
+			require.False(t, ok)
+			assert.Empty(t, refreshToken)
+			assert.False(t, fromBody)
+			assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+			assert.Contains(t, w.Body.String(), string(errs.ErrInvalidParam))
+		})
+	}
 }
 
 func TestBuildRefreshResponse_NativeAndWeb(t *testing.T) {
@@ -117,6 +161,48 @@ func TestRefreshToken_RejectsInvalidCSRFMismatch(t *testing.T) {
 	assert.Contains(t, w.Body.String(), string(errs.ErrCSRFTokenInvalid))
 }
 
+func TestRefreshToken_RejectsAmbiguousOrRepeatedSessionIDSource(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, tokenSvc := newRefreshTestHandler(t, &fakeUserSyncRepo{})
+
+	r := gin.New()
+	r.POST("/refresh", h.RefreshToken)
+
+	t.Run("repeated native session header", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/refresh", bytes.NewBufferString(`{"refreshToken":"refresh-repeated-header"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Add(nativeSessionIDHeader, "sid-a")
+		req.Header.Add(nativeSessionIDHeader, "sid-b")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+		assert.Contains(t, w.Body.String(), string(errs.ErrInvalidParam))
+
+		blacklisted, err := tokenSvc.GetBlacklist().IsBlacklisted(t.Context(), "refresh-repeated-header")
+		require.NoError(t, err)
+		assert.False(t, blacklisted)
+	})
+
+	t.Run("native session header and browser session cookie", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
+		req.AddCookie(&http.Cookie{Name: middleware.CookieRefreshToken, Value: "refresh-ambiguous-session"})
+		req.AddCookie(&http.Cookie{Name: middleware.CSRFCookieName, Value: "csrf-123"})
+		req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-cookie"})
+		req.Header.Set(middleware.CSRFHeaderName, "csrf-123")
+		req.Header.Set(nativeSessionIDHeader, "sid-header")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+		assert.Contains(t, w.Body.String(), string(errs.ErrInvalidParam))
+
+		blacklisted, err := tokenSvc.GetBlacklist().IsBlacklisted(t.Context(), "refresh-ambiguous-session")
+		require.NoError(t, err)
+		assert.False(t, blacklisted)
+	})
+}
+
 func TestLogout_SuccessAndFailureBranches(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, tokenSvc := newRefreshTestHandler(t, &fakeUserSyncRepo{})
@@ -137,6 +223,7 @@ func TestLogout_SuccessAndFailureBranches(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/logout", nil)
 	req.AddCookie(&http.Cookie{Name: middleware.CookieRefreshToken, Value: "refresh-logout"})
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-logout"})
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -148,6 +235,7 @@ func TestLogout_SuccessAndFailureBranches(t *testing.T) {
 
 	req = httptest.NewRequest(http.MethodPost, "/logout", nil).WithContext(canceledContext())
 	req.AddCookie(&http.Cookie{Name: middleware.CookieRefreshToken, Value: "refresh-logout-fail"})
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-logout"})
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -182,6 +270,37 @@ func TestLogout_UsesNativeSessionHeaderForOIDCSession(t *testing.T) {
 	session, err := tokenSvc.GetSessionStore().Get(t.Context(), "sid-native-logout")
 	require.NoError(t, err)
 	assert.Nil(t, session)
+}
+
+func TestLogout_RejectsAmbiguousSessionIDSource(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, tokenSvc := newRefreshTestHandler(t, &fakeUserSyncRepo{})
+
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set(middleware.CtxKeyUserID, "user-native-logout")
+		c.Set(middleware.CtxKeyUsername, "native-logout-user")
+		c.Set(middleware.CtxKeyRequestID, "req-native-logout")
+		c.Next()
+	})
+	r.POST("/logout", h.Logout)
+
+	_, err := h.svc.CreateSession(t.Context(), "sid-native-logout", "user-native-logout", "oidc-access-token", "oidc-refresh-token", "oidc-native", "ios")
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/logout", nil)
+	req.Header.Set("Authorization", "Bearer oidc-access-token")
+	req.Header.Set(nativeSessionIDHeader, "sid-native-logout")
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-cookie"})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), string(errs.ErrInvalidParam))
+
+	session, err := tokenSvc.GetSessionStore().Get(t.Context(), "sid-native-logout")
+	require.NoError(t, err)
+	require.NotNil(t, session)
 }
 
 func TestLogout_NativeOIDCRequiresTrackedSession(t *testing.T) {

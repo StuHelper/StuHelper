@@ -52,6 +52,8 @@ func (s *Signer) JWKS() jose.JSONWebKeySet {
 func (s *Signer) SignAccessToken(input AccessTokenInput) (string, AccessTokenClaims, error) {
 	now := time.Now().UTC()
 	jti := uuid.NewString()
+	grantType := strings.TrimSpace(input.GrantType)
+	authorizationFingerprint := strings.TrimSpace(input.AuthorizationFingerprint)
 	claims := jwt.MapClaims{
 		"iss":          s.issuer,
 		"sub":          input.Subject,
@@ -65,29 +67,42 @@ func (s *Signer) SignAccessToken(input AccessTokenInput) (string, AccessTokenCla
 		"iat":          now.Unix(),
 		"exp":          now.Add(input.TTL).Unix(),
 	}
+	if grantType != "" {
+		claims["grant_type"] = grantType
+	}
+	if authorizationFingerprint != "" {
+		claims["stuhelper_authz"] = authorizationFingerprint
+	}
 	signed, err := s.signClaims(claims)
 	if err != nil {
 		return "", AccessTokenClaims{}, err
 	}
 	return signed, AccessTokenClaims{
-		Subject:  input.Subject,
-		ClientID: input.ClientID,
-		UserID:   input.UserID,
-		Scopes:   append([]string(nil), input.Scopes...),
-		JTI:      jti,
-		IssuedAt: now,
-		Expires:  now.Add(input.TTL),
+		Subject:                  input.Subject,
+		ClientID:                 input.ClientID,
+		UserID:                   input.UserID,
+		Scopes:                   append([]string(nil), input.Scopes...),
+		GrantType:                grantType,
+		AuthorizationFingerprint: authorizationFingerprint,
+		JTI:                      jti,
+		IssuedAt:                 now,
+		Expires:                  now.Add(input.TTL),
 	}, nil
 }
 
 func (s *Signer) SignIDToken(input IDTokenInput) (string, error) {
 	now := time.Now().UTC()
+	authTime := input.AuthTime
+	if authTime.IsZero() {
+		authTime = now
+	}
 	claims := jwt.MapClaims{
 		"iss":       s.issuer,
 		"sub":       input.Subject,
 		"aud":       input.ClientID,
 		"azp":       input.ClientID,
-		"auth_time": now.Unix(),
+		"typ":       "id_token",
+		"auth_time": authTime.UTC().Unix(),
 		"iat":       now.Unix(),
 		"exp":       now.Add(input.TTL).Unix(),
 	}
@@ -120,6 +135,26 @@ func (s *Signer) VerifyAccessToken(raw string) (AccessTokenClaims, error) {
 	return accessClaimsFromMap(claims)
 }
 
+func (s *Signer) VerifyIDToken(raw string) (IDTokenClaims, error) {
+	token, err := jwt.Parse(raw, func(token *jwt.Token) (any, error) {
+		if token.Method != jwt.SigningMethodRS256 {
+			return nil, fmt.Errorf("identity token alg %q is not supported", token.Header["alg"])
+		}
+		return &s.privateKey.PublicKey, nil
+	})
+	if err != nil {
+		return IDTokenClaims{}, err
+	}
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || !token.Valid {
+		return IDTokenClaims{}, errors.New("identity id token is invalid")
+	}
+	if err := validateIDClaims(claims, s.issuer); err != nil {
+		return IDTokenClaims{}, err
+	}
+	return idClaimsFromMap(claims)
+}
+
 func (s *Signer) signClaims(claims jwt.MapClaims) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	token.Header["kid"] = s.keyID
@@ -127,11 +162,13 @@ func (s *Signer) signClaims(claims jwt.MapClaims) (string, error) {
 }
 
 type AccessTokenInput struct {
-	Subject  string
-	ClientID string
-	UserID   int64
-	Scopes   []string
-	TTL      time.Duration
+	Subject                  string
+	ClientID                 string
+	UserID                   int64
+	Scopes                   []string
+	GrantType                string
+	AuthorizationFingerprint string
+	TTL                      time.Duration
 }
 
 type IDTokenInput struct {
@@ -139,6 +176,7 @@ type IDTokenInput struct {
 	ClientID string
 	Scopes   []string
 	Nonce    string
+	AuthTime time.Time
 	Profile  map[string]any
 	TTL      time.Duration
 }
@@ -153,10 +191,42 @@ func validateAccessClaims(claims jwt.MapClaims, issuer string) error {
 	if typ := stringClaim(claims, "typ"); typ != "access" {
 		return errors.New("identity token type is invalid")
 	}
+	clientID := strings.TrimSpace(stringClaim(claims, "client_id"))
 	if strings.TrimSpace(stringClaim(claims, "sub")) == "" ||
-		strings.TrimSpace(stringClaim(claims, "client_id")) == "" ||
+		clientID == "" ||
 		strings.TrimSpace(stringClaim(claims, "jti")) == "" {
 		return errors.New("identity token required claim is missing")
+	}
+	if !audienceContains(claims, clientID) {
+		return errors.New("identity token audience is invalid")
+	}
+	if azp := strings.TrimSpace(stringClaim(claims, "azp")); azp == "" || azp != clientID {
+		return errors.New("identity token authorized party is invalid")
+	}
+	return nil
+}
+
+func validateIDClaims(claims jwt.MapClaims, issuer string) error {
+	if !claims.VerifyIssuer(issuer, true) {
+		return errors.New("identity id token issuer is invalid")
+	}
+	if !claims.VerifyExpiresAt(time.Now().Unix(), true) {
+		return errors.New("identity id token is expired")
+	}
+	audiences := audienceClaims(claims)
+	if strings.TrimSpace(stringClaim(claims, "sub")) == "" ||
+		len(audiences) == 0 {
+		return errors.New("identity id token required claim is missing")
+	}
+	if typ := stringClaim(claims, "typ"); typ != "" && typ != "id_token" {
+		return errors.New("identity id token type is invalid")
+	}
+	azp := strings.TrimSpace(stringClaim(claims, "azp"))
+	if len(audiences) > 1 && azp == "" {
+		return errors.New("identity id token authorized party is invalid")
+	}
+	if azp != "" && !audienceContains(claims, azp) {
+		return errors.New("identity id token authorized party is invalid")
 	}
 	return nil
 }
@@ -175,14 +245,85 @@ func accessClaimsFromMap(claims jwt.MapClaims) (AccessTokenClaims, error) {
 		return AccessTokenClaims{}, err
 	}
 	return AccessTokenClaims{
+		Subject:                  stringClaim(claims, "sub"),
+		ClientID:                 stringClaim(claims, "client_id"),
+		UserID:                   userID,
+		Scopes:                   strings.Fields(stringClaim(claims, "scope")),
+		GrantType:                stringClaim(claims, "grant_type"),
+		AuthorizationFingerprint: stringClaim(claims, "stuhelper_authz"),
+		JTI:                      stringClaim(claims, "jti"),
+		Expires:                  exp,
+		IssuedAt:                 iat,
+	}, nil
+}
+
+func idClaimsFromMap(claims jwt.MapClaims) (IDTokenClaims, error) {
+	exp, err := numericTimeClaim(claims, "exp")
+	if err != nil {
+		return IDTokenClaims{}, err
+	}
+	iat, err := numericTimeClaim(claims, "iat")
+	if err != nil {
+		return IDTokenClaims{}, err
+	}
+	return IDTokenClaims{
 		Subject:  stringClaim(claims, "sub"),
-		ClientID: stringClaim(claims, "client_id"),
-		UserID:   userID,
-		Scopes:   strings.Fields(stringClaim(claims, "scope")),
-		JTI:      stringClaim(claims, "jti"),
+		ClientID: idTokenClientIDClaim(claims),
 		Expires:  exp,
 		IssuedAt: iat,
 	}, nil
+}
+
+func audienceClaim(claims jwt.MapClaims) string {
+	audiences := audienceClaims(claims)
+	if len(audiences) == 0 {
+		return ""
+	}
+	return audiences[0]
+}
+
+func idTokenClientIDClaim(claims jwt.MapClaims) string {
+	if azp := stringClaim(claims, "azp"); azp != "" {
+		return azp
+	}
+	return audienceClaim(claims)
+}
+
+func audienceContains(claims jwt.MapClaims, expected string) bool {
+	expected = strings.TrimSpace(expected)
+	if expected == "" {
+		return false
+	}
+	for _, audience := range audienceClaims(claims) {
+		if audience == expected {
+			return true
+		}
+	}
+	return false
+}
+
+func audienceClaims(claims jwt.MapClaims) []string {
+	var audiences []string
+	appendAudience := func(value string) {
+		if value = strings.TrimSpace(value); value != "" {
+			audiences = append(audiences, value)
+		}
+	}
+	switch value := claims["aud"].(type) {
+	case string:
+		appendAudience(value)
+	case []string:
+		for _, audience := range value {
+			appendAudience(audience)
+		}
+	case []any:
+		for _, audience := range value {
+			if text, ok := audience.(string); ok {
+				appendAudience(text)
+			}
+		}
+	}
+	return audiences
 }
 
 func numericTimeClaim(claims jwt.MapClaims, key string) (time.Time, error) {

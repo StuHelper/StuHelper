@@ -17,9 +17,6 @@ import (
 type fakeUserSyncRepo struct{}
 
 func (f *fakeUserSyncRepo) UpsertUser(ctx context.Context, input UserSyncInput) error { return nil }
-func (f *fakeUserSyncRepo) UpsertByPhone(ctx context.Context, phone string) (*PhoneUser, error) {
-	return &PhoneUser{CasdoorSubject: "phone-user", Username: "phone-user"}, nil
-}
 func (f *fakeUserSyncRepo) ExistsByCasdoorSubject(ctx context.Context, casdoorSubject string) (bool, error) {
 	return casdoorSubject != "", nil
 }
@@ -151,33 +148,7 @@ func TestRotateSession_WithoutSessionIDRejectsRequestAndBlacklistsOldRefresh(t *
 	assert.True(t, blacklisted)
 }
 
-func TestSignPhoneTokenPairAndHelpers(t *testing.T) {
-	svc, _ := newAuthServiceForTest(t)
-	avatar := "https://cdn.example.com/avatar.png"
-
-	accessToken, refreshToken, err := svc.SignPhoneTokenPair(&PhoneUser{
-		CasdoorSubject: "phone-user-1",
-		Username:       "phone-user",
-		Email:          "phone@example.com",
-		AvatarURL:      &avatar,
-	}, []string{"user"}, "sid-phone")
-	require.NoError(t, err)
-	assert.NotEmpty(t, accessToken)
-	assert.NotEmpty(t, refreshToken)
-
-	accessClaims, err := token.VerifyJWTWithType(crypto.GetHMACKey(), accessToken, token.JWTTokenTypeAccess)
-	require.NoError(t, err)
-	assert.Equal(t, "sid-phone", accessClaims.Sid)
-	assert.Equal(t, avatar, accessClaims.Avatar)
-
-	refreshClaims, err := token.VerifyJWTWithType(crypto.GetHMACKey(), refreshToken, token.JWTTokenTypeRefresh)
-	require.NoError(t, err)
-	assert.Equal(t, "sid-phone", refreshClaims.Sid)
-	assert.Equal(t, []string{"user"}, refreshClaims.Roles)
-	assert.Equal(t, "phone@example.com", refreshClaims.Email)
-	assert.Equal(t, "phone-user", refreshClaims.DisplayName)
-	assert.Equal(t, avatar, refreshClaims.Avatar)
-
+func TestHashTokenForSession(t *testing.T) {
 	hash, err := hashTokenForSession("sample-token")
 	require.NoError(t, err)
 	assert.NotEmpty(t, hash)

@@ -1,3 +1,436 @@
+/api/v1/admin/open-platform/apps:
+  get:
+    tags: [Admin, OpenPlatform]
+    operationId: listAdminOpenPlatformApps
+    summary: 管理员查看开放平台应用审核列表
+    description: 返回全部开放平台应用及其 scope 申请状态，用于管理后台审核、批准应用和排查迁移状态。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [pending, approved, suspended, revoked, all]
+          default: pending
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+    responses:
+      '200':
+        description: 开放平台应用分页列表。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/open-platform.yaml#/OpenPlatformAppList'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/open-platform/audit-events:
+  get:
+    tags: [Admin, OpenPlatform]
+    operationId: listAdminOpenPlatformAuditEvents
+    summary: 管理员查看开放平台审计事件
+    description: 返回开放平台应用审批、授权、密钥轮换、生命周期和 redirect URI 变更等事件，用于安全追踪和事后审计。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: appID
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: userID
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: eventType
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: scope
+        in: query
+        required: false
+        schema:
+          $ref: '../components/schemas/open-platform.yaml#/OpenPlatformScope'
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+    responses:
+      '200':
+        description: 开放平台审计事件分页列表。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/open-platform.yaml#/OpenPlatformAuditEventList'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/open-platform/consents:
+  get:
+    tags: [Admin, OpenPlatform]
+    operationId: listAdminOpenPlatformConsents
+    summary: 管理员查看开放平台 active 用户授权
+    description: |
+      按 appID 和 / 或 userID 查询仍处于 active 状态的用户授权，用于事故处置、合规核查和定向撤权。
+      为避免误扫全量授权，appID 与 userID 至少需要提供一个。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: appID
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: userID
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+    responses:
+      '200':
+        description: active 用户授权分页列表。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/open-platform.yaml#/OpenPlatformAdminUserConsentList'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/open-platform/token-probe-evidence:
+  get:
+    tags: [Admin, OpenPlatform]
+    operationId: listAdminOpenPlatformTokenProbeEvidence
+    summary: 管理员查看开放平台 token 探针证据
+    description: 返回第三方应用审批前 runtime authorization-code token 探针结果，用于核对 claim 最小化准入证据和失败原因。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: appID
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: reviewerUserID
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: result
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [passed, failed]
+      - name: clientID
+        in: query
+        required: false
+        schema:
+          type: string
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+    responses:
+      '200':
+        description: token 探针证据分页列表。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/open-platform.yaml#/OpenPlatformTokenProbeEvidenceList'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/open-platform/disclosure-report:
+  get:
+    tags: [Admin, OpenPlatform]
+    operationId: getAdminOpenPlatformDisclosureReport
+    summary: 管理员查看开放平台 disclosure 运营报表
+    description: 聚合最近一段时间的 disclosure 成功、拒绝、限流和异常重放审计事件，用于运营排查和告警核对。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: windowHours
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 168
+          default: 24
+        description: 统计窗口，单位小时，允许 1 到 168。
+    responses:
+      '200':
+        description: disclosure 运营报表。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/open-platform.yaml#/OpenPlatformDisclosureReport'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/open-platform/apps/{appID}/consents/revoke:
+  post:
+    tags: [Admin, OpenPlatform]
+    operationId: revokeAdminOpenPlatformConsent
+    summary: 管理员定向撤销用户授予某个开放平台应用的授权
+    description: |
+      不传 scopes 时撤销指定 userID 对该 app 的全部 active 授权；传 scopes 时只撤销指定 scope。
+      撤销会写入 `open_platform.consent.revoked` 审计，metadata 中包含 actor=admin、actorUserID、reason 和 source=admin_console。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: appID
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/open-platform.yaml#/OpenPlatformAdminConsentRevokeRequest'
+    responses:
+      '200':
+        description: 授权已撤销。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '412':
+        $ref: '../components/responses/open-platform.yaml#/ConsentRequired'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/open-platform/apps/{appID}/resource-grants:
+  get:
+    tags: [Admin, OpenPlatform]
+    operationId: listAdminOpenPlatformResourceGrants
+    summary: 管理员查看开放平台应用的资源授权
+    description: |
+      从 OpenFGA 读取 app -> resource tuple。该列表只表示具体资源授权，
+      不读取用户 consent 表，也不替代 resource.read/resource.write scope 审批。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: appID
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: resourceType
+        in: query
+        required: true
+        schema:
+          $ref: '../components/schemas/open-platform.yaml#/OpenPlatformResourceType'
+    responses:
+      '200':
+        description: 应用在指定资源类型下的 OpenFGA 授权 tuple 投影。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/open-platform.yaml#/OpenPlatformResourceGrantResult'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  post:
+    tags: [Admin, OpenPlatform]
+    operationId: grantAdminOpenPlatformResourceAccess
+    summary: 管理员授予开放平台应用具体资源访问权限
+    description: |
+      写入 OpenFGA app -> resource tuple。应用仍必须已被批准，且对应
+      resource.read/resource.write scope 已被批准；具体资源授权与用户 consent 分层存储。
+      请求必须携带非空 reason，用于写入 `open_platform.resource_access.granted` 审计。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: appID
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/open-platform.yaml#/OpenPlatformResourceGrantRequest'
+    responses:
+      '200':
+        description: 已写入资源授权 tuple。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/open-platform.yaml#/OpenPlatformResourceGrantResult'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/open-platform/apps/{appID}/resource-grants/revoke:
+  post:
+    tags: [Admin, OpenPlatform]
+    operationId: revokeAdminOpenPlatformResourceAccess
+    summary: 管理员撤销开放平台应用具体资源访问权限
+    description: 从 OpenFGA 删除 app -> resource tuple，并写入开放平台审计事件；请求必须携带非空 reason。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: appID
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/open-platform.yaml#/OpenPlatformResourceGrantRequest'
+    responses:
+      '200':
+        description: 已删除资源授权 tuple。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/open-platform.yaml#/OpenPlatformResourceGrantResult'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
 /api/v1/admin/open-platform/apps/{appID}/scopes/{scope}/approve:
   post:
     tags: [Admin, OpenPlatform]
@@ -46,6 +479,56 @@
       '404':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
+/api/v1/admin/open-platform/apps/{appID}/scopes/{scope}/reject:
+  post:
+    tags: [Admin, OpenPlatform]
+    operationId: rejectOpenPlatformScope
+    summary: 拒绝开放平台应用申请的 scope
+    description: |
+      仅可拒绝处于 pending 状态的 scope 申请。开发者可以更新用途说明后重新提交该 scope。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: appID
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: scope
+        in: path
+        required: true
+        schema:
+          $ref: '../components/schemas/open-platform.yaml#/OpenPlatformScope'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/open-platform.yaml#/OpenPlatformRejectScopeRequest'
+    responses:
+      '200':
+        description: scope 已拒绝。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
 /api/v1/admin/open-platform/apps/{appID}/approve:
   post:
     tags: [Admin, OpenPlatform]
@@ -74,6 +557,297 @@
                   properties:
                     data:
                       $ref: '../components/schemas/open-platform.yaml#/OpenPlatformApprovedApp'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/open-platform/apps/{appID}/redirect-uri-requests/{requestID}/approve:
+  post:
+    tags: [Admin, OpenPlatform]
+    operationId: approveOpenPlatformRedirectURIRequest
+    summary: 批准开放平台应用 redirect URI 变更申请
+    description: 批准后会用申请中的 redirect URI 列表整体替换应用当前 redirect URI，并写入审计事件。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: appID
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: requestID
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/open-platform.yaml#/OpenPlatformRedirectURIReviewRequest'
+    responses:
+      '200':
+        description: redirect URI 变更申请已批准。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/open-platform.yaml#/OpenPlatformRedirectURIRequest'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/open-platform/apps/{appID}/redirect-uri-requests/{requestID}/reject:
+  post:
+    tags: [Admin, OpenPlatform]
+    operationId: rejectOpenPlatformRedirectURIRequest
+    summary: 拒绝开放平台应用 redirect URI 变更申请
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: appID
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: requestID
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/open-platform.yaml#/OpenPlatformRedirectURIReviewRequest'
+    responses:
+      '200':
+        description: redirect URI 变更申请已拒绝。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/open-platform.yaml#/OpenPlatformRedirectURIRequest'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/open-platform/apps/{appID}/secret/rotate:
+  post:
+    tags: [Admin, OpenPlatform]
+    operationId: rotateAdminOpenPlatformAppSecret
+    summary: 管理员轮换开放平台应用 client secret
+    description: |
+      用于泄漏处置或例行轮换。旧 secret 会立即失效，新 secret 只在本次响应中返回一次。
+      应用处于 approved 或 suspended 时可以轮换；revoked 应用不可轮换。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: appID
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/open-platform.yaml#/OpenPlatformSecretRotationRequest'
+    responses:
+      '200':
+        description: Secret 已轮换。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/open-platform.yaml#/OpenPlatformRotatedSecret'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/open-platform/apps/{appID}/suspend:
+  post:
+    tags: [Admin, OpenPlatform]
+    operationId: suspendOpenPlatformApp
+    summary: 暂停开放平台应用
+    description: 暂停后该应用不能继续完成 client secret 校验、授权码换 token 或 disclosure。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: appID
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/open-platform.yaml#/OpenPlatformLifecycleActionRequest'
+    responses:
+      '200':
+        description: 应用已暂停。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/open-platform.yaml#/OpenPlatformAppLifecycleResult'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/open-platform/apps/{appID}/resume:
+  post:
+    tags: [Admin, OpenPlatform]
+    operationId: resumeOpenPlatformApp
+    summary: 恢复已暂停开放平台应用
+    description: |
+      将 suspended 应用恢复为 approved。恢复后该应用可以重新完成 client secret 校验、
+      授权码换 token、token introspection 和 disclosure；已被用户撤销的 consent 不会自动恢复。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: appID
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/open-platform.yaml#/OpenPlatformLifecycleActionRequest'
+    responses:
+      '200':
+        description: 应用已恢复。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/open-platform.yaml#/OpenPlatformAppLifecycleResult'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/open-platform/apps/{appID}/revoke:
+  post:
+    tags: [Admin, OpenPlatform]
+    operationId: revokeOpenPlatformApp
+    summary: 吊销开放平台应用
+    description: 吊销用于永久下线应用；吊销后该 app 的 client secret 不再可用，后续不能继续轮换。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: appID
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/open-platform.yaml#/OpenPlatformLifecycleActionRequest'
+    responses:
+      '200':
+        description: 应用已吊销。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/open-platform.yaml#/OpenPlatformAppLifecycleResult'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':

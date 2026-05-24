@@ -59,7 +59,7 @@ func TestAuthMiddleware_MissingToken(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestAuthMiddleware_SelfSignedCookieToken(t *testing.T) {
+func TestAuthMiddleware_RejectsSelfSignedCookieToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	tokenSvc := newTokenServiceForMiddlewareTest(t)
 	accessToken := mustSignAccessToken(t, token.JWTTokenTypeAccess)
@@ -75,10 +75,9 @@ func TestAuthMiddleware_SelfSignedCookieToken(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: CookieAccessToken, Value: accessToken})
 	r.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Contains(t, w.Body.String(), `"userID":"user-1"`)
-	assert.Contains(t, w.Body.String(), `"name":"tester"`)
-	assert.Contains(t, w.Body.String(), `"authed":true`)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Contains(t, w.Body.String(), string(errs.ErrTokenInvalid))
+	require.NotEmpty(t, w.Result().Cookies())
 }
 
 func TestOptionalAuthMiddleware_InvalidCookieClearsAndContinues(t *testing.T) {

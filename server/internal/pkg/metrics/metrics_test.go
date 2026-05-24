@@ -124,23 +124,29 @@ func TestMiddleware_UnknownRoute(t *testing.T) {
 
 func TestCacheMetrics_Registration(t *testing.T) {
 	assert.NotPanics(t, func() {
-		CacheHitsTotal.WithLabelValues("review").Inc()
-		CacheMissesTotal.WithLabelValues("review").Inc()
-		CacheInvalidationFailuresTotal.WithLabelValues("course:123").Inc()
-		CacheOperationDuration.WithLabelValues("get", "review").Observe(0.001)
+		ObserveCacheHit(CacheBackendRedis, CacheNamespaceReview)
+		ObserveCacheMiss(CacheBackendRedis, CacheNamespaceReview)
+		ObserveCacheInvalidationFailure(CacheNamespaceReview)
+		ObserveCacheOperation("get", CacheBackendRedis, CacheNamespaceReview, 0.001)
 	})
 }
 
 func TestCacheHitsTotal_Inc(t *testing.T) {
-	before := testutil.ToFloat64(CacheHitsTotal.WithLabelValues("test-cache"))
-	CacheHitsTotal.WithLabelValues("test-cache").Inc()
-	assert.Equal(t, before+1, testutil.ToFloat64(CacheHitsTotal.WithLabelValues("test-cache")))
+	before := testutil.ToFloat64(CacheHitsTotal.WithLabelValues(CacheBackendRedis, CacheNamespaceCourse))
+	ObserveCacheHit(CacheBackendRedis, CacheNamespaceCourse)
+	assert.Equal(t, before+1, testutil.ToFloat64(CacheHitsTotal.WithLabelValues(CacheBackendRedis, CacheNamespaceCourse)))
 }
 
 func TestCacheMissesTotal_Inc(t *testing.T) {
-	before := testutil.ToFloat64(CacheMissesTotal.WithLabelValues("test-cache-miss"))
-	CacheMissesTotal.WithLabelValues("test-cache-miss").Inc()
-	assert.Equal(t, before+1, testutil.ToFloat64(CacheMissesTotal.WithLabelValues("test-cache-miss")))
+	before := testutil.ToFloat64(CacheMissesTotal.WithLabelValues(CacheBackendRedis, CacheNamespaceCourse))
+	ObserveCacheMiss(CacheBackendRedis, CacheNamespaceCourse)
+	assert.Equal(t, before+1, testutil.ToFloat64(CacheMissesTotal.WithLabelValues(CacheBackendRedis, CacheNamespaceCourse)))
+}
+
+func TestNormalizeCacheNamespace_RejectsRawKeys(t *testing.T) {
+	assert.Equal(t, CacheNamespaceGeneric, NormalizeCacheNamespace("course:course:123"))
+	assert.Equal(t, CacheNamespaceGeneric, NormalizeCacheNamespace("q=math:page=1"))
+	assert.Equal(t, CacheNamespaceReview, NormalizeCacheNamespace(CacheNamespaceReview))
 }
 
 // ---------------------------------------------------------------------------
@@ -149,16 +155,24 @@ func TestCacheMissesTotal_Inc(t *testing.T) {
 
 func TestDBMetrics_Registration(t *testing.T) {
 	assert.NotPanics(t, func() {
-		DBQueryDuration.WithLabelValues("SELECT", "reviews").Observe(0.025)
-		DBQueryTotal.WithLabelValues("SELECT", "reviews", "ok").Inc()
+		ObserveDBQueryDuration("query", "reviews", 0.025)
+		ObserveDBQueryTotal("query", "reviews", "ok")
 		DBConnectionsActive.Set(5)
 	})
 }
 
 func TestDBQueryTotal_Counter(t *testing.T) {
-	before := testutil.ToFloat64(DBQueryTotal.WithLabelValues("INSERT", "test_table", "ok"))
-	DBQueryTotal.WithLabelValues("INSERT", "test_table", "ok").Inc()
-	assert.Equal(t, before+1, testutil.ToFloat64(DBQueryTotal.WithLabelValues("INSERT", "test_table", "ok")))
+	before := testutil.ToFloat64(DBQueryTotal.WithLabelValues("exec", "test_table", "ok"))
+	ObserveDBQueryTotal("exec", "test_table", "ok")
+	assert.Equal(t, before+1, testutil.ToFloat64(DBQueryTotal.WithLabelValues("exec", "test_table", "ok")))
+}
+
+func TestNormalizeDBTable(t *testing.T) {
+	assert.Equal(t, DBTableUnknown, NormalizeDBTable(""))
+	assert.Equal(t, DBTableUnknown, NormalizeDBTable("SELECT * FROM users"))
+	assert.Equal(t, DBTableUnknown, NormalizeDBTable("users;drop"))
+	assert.Equal(t, "users", NormalizeDBTable(" Users "))
+	assert.Equal(t, "academic.students", NormalizeDBTable("academic.students"))
 }
 
 func TestDBConnectionsActive_Gauge(t *testing.T) {

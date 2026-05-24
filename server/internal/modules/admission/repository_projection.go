@@ -13,6 +13,7 @@ import (
 const freshmanProjectionDedupePrefix = "freshman-provisional-role:"
 
 func (r *Repository) GetLatestSessionByUserID(ctx context.Context, userID int64) (*AdmissionSession, error) {
+	ctx = withDBTable(ctx, "group_admission_sessions")
 	session, err := scanAdmissionSession(r.db.QueryRow(ctx, `
 		SELECT `+admissionSessionColumns+`
 		FROM group_admission_sessions
@@ -30,6 +31,7 @@ func (r *Repository) GetLatestSessionByUserID(ctx context.Context, userID int64)
 }
 
 func (r *Repository) GetLatestCredentialForUser(ctx context.Context, userID int64) (*VerificationCredential, error) {
+	ctx = withDBTable(ctx, "user_verification_credentials")
 	credential, err := scanVerificationCredential(r.db.QueryRow(ctx, `
 		SELECT user_id, school_id, kind, subject_hash, subject_display,
 		       source_application_id, expires_at, verified_at
@@ -48,6 +50,7 @@ func (r *Repository) GetLatestCredentialForUser(ctx context.Context, userID int6
 }
 
 func (r *Repository) HasPendingFreshmanProjection(ctx context.Context, userID int64) (bool, error) {
+	ctx = withDBTable(ctx, "domain_event_outbox")
 	var exists bool
 	err := r.db.QueryRow(ctx, `
 		SELECT EXISTS (

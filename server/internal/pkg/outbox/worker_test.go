@@ -34,7 +34,7 @@ func TestProcessBatch_MarksDoneOnSuccess(t *testing.T) {
 			doneID = jobID
 			return nil
 		},
-		func(context.Context, int64, time.Time, string) error {
+		func(context.Context, int64, time.Time, string, bool) error {
 			return errors.New("should not retry")
 		},
 		func(job testJob) JobMeta {
@@ -63,9 +63,10 @@ func TestProcessBatch_MarksRetryOnFailure(t *testing.T) {
 		func(context.Context, int64) error {
 			return errors.New("should not mark done")
 		},
-		func(_ context.Context, jobID int64, _ time.Time, lastError string) error {
+		func(_ context.Context, jobID int64, _ time.Time, lastError string, terminal bool) error {
 			retryID = jobID
 			retryError = lastError
+			assert.False(t, terminal)
 			return nil
 		},
 		func(job testJob) JobMeta {
@@ -100,7 +101,7 @@ func TestProcessBatch_ContinuesAfterMarkDoneFailure(t *testing.T) {
 			}
 			return nil
 		},
-		func(context.Context, int64, time.Time, string) error {
+		func(context.Context, int64, time.Time, string, bool) error {
 			return errors.New("should not retry")
 		},
 		func(job testJob) JobMeta {
@@ -113,10 +114,13 @@ func TestProcessBatch_ContinuesAfterMarkDoneFailure(t *testing.T) {
 	assert.Equal(t, []int64{1, 2, 3}, doneIDs)
 }
 
-func TestProcessBatch_SchedulesLongFailedAfterMaxAttempts(t *testing.T) {
+func TestProcessBatch_MarksDeadLetterAfterMaxAttempts(t *testing.T) {
 	t.Parallel()
 
-	var nextRetry time.Time
+	var (
+		nextRetry time.Time
+		terminal  bool
+	)
 	err := ProcessBatch(
 		context.Background(),
 		WorkerConfig{
@@ -132,8 +136,9 @@ func TestProcessBatch_SchedulesLongFailedAfterMaxAttempts(t *testing.T) {
 		},
 		func(context.Context, testJob) error { return errors.New("boom") },
 		func(context.Context, int64) error { return errors.New("should not mark done") },
-		func(_ context.Context, _ int64, value time.Time, _ string) error {
+		func(_ context.Context, _ int64, value time.Time, _ string, terminalValue bool) error {
 			nextRetry = value
+			terminal = terminalValue
 			return nil
 		},
 		func(job testJob) JobMeta {
@@ -142,7 +147,8 @@ func TestProcessBatch_SchedulesLongFailedAfterMaxAttempts(t *testing.T) {
 		nil,
 	)
 	require.NoError(t, err)
-	assert.True(t, nextRetry.After(time.Now().Add(99*365*24*time.Hour)))
+	assert.True(t, terminal)
+	assert.True(t, nextRetry.IsZero())
 }
 
 func TestProcessBatch_RecordsTerminalFailureMetric(t *testing.T) {
@@ -165,7 +171,7 @@ func TestProcessBatch_RecordsTerminalFailureMetric(t *testing.T) {
 		},
 		func(context.Context, testJob) error { return errors.New("boom") },
 		func(context.Context, int64) error { return errors.New("should not mark done") },
-		func(context.Context, int64, time.Time, string) error { return nil },
+		func(context.Context, int64, time.Time, string, bool) error { return nil },
 		func(job testJob) JobMeta {
 			return JobMeta{ID: job.id, JobType: job.jobType, AttemptCount: job.attemptCount}
 		},

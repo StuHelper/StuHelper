@@ -17,6 +17,7 @@ const admissionSessionColumns = `
 `
 
 func (r *Repository) CreateSession(ctx context.Context, session *AdmissionSession) error {
+	ctx = withDBTable(ctx, "group_admission_sessions")
 	_, err := r.db.Exec(ctx, `
 		INSERT INTO group_admission_sessions (
 			id, platform, bot_self_id, guild_id, channel_id, qq_id, qq_nickname, user_id, token_hash, auth_url,
@@ -36,6 +37,7 @@ func (r *Repository) CreateSession(ctx context.Context, session *AdmissionSessio
 }
 
 func (r *Repository) GetSessionByID(ctx context.Context, id string) (*AdmissionSession, error) {
+	ctx = withDBTable(ctx, "group_admission_sessions")
 	query := "SELECT " + admissionSessionColumns + " FROM group_admission_sessions WHERE id = $1"
 	session, err := scanAdmissionSession(r.db.QueryRow(ctx, query, id))
 	if err != nil {
@@ -54,6 +56,7 @@ func (r *Repository) GetSessionByIDForUpdate(ctx context.Context, tx pgx.Tx, id 
 }
 
 func (r *Repository) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*AdmissionSession, error) {
+	ctx = withDBTable(ctx, "group_admission_sessions")
 	query := "SELECT " + admissionSessionColumns + " FROM group_admission_sessions WHERE token_hash = $1"
 	session, err := scanAdmissionSession(r.db.QueryRow(ctx, query, tokenHash))
 	if err != nil {
@@ -96,6 +99,7 @@ func (r *Repository) MarkMaterialSubmitted(
 	sessionID string,
 	manualReviewDeadline time.Time,
 ) (*AdmissionSession, error) {
+	ctx = withDBTable(ctx, "group_admission_sessions")
 	query := `
 		UPDATE group_admission_sessions
 		SET status = $2, manual_review_deadline_at = $3, updated_at = NOW()
@@ -109,6 +113,7 @@ func (r *Repository) MarkMaterialSubmitted(
 }
 
 func (r *Repository) MarkVerified(ctx context.Context, sessionID string, now time.Time) (*AdmissionSession, error) {
+	ctx = withDBTable(ctx, "group_admission_sessions")
 	query := `
 		UPDATE group_admission_sessions
 		SET status = $2, verified_at = $3, updated_at = NOW()

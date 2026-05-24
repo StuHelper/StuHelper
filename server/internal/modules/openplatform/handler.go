@@ -13,6 +13,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
@@ -21,6 +22,16 @@ import (
 type Handler struct {
 	service                *Service
 	internalUserIDResolver middleware.InternalUserIDResolver
+	resourceTokenVerifier  ResourceAccessTokenVerifier
+}
+
+type ResourceAccessToken struct {
+	ClientID string
+	Scopes   []string
+}
+
+type ResourceAccessTokenVerifier interface {
+	VerifyOpenPlatformResourceAccessToken(ctx context.Context, rawToken string) (ResourceAccessToken, error)
 }
 
 func NewHandler(service *Service, resolvers ...middleware.InternalUserIDResolver) *Handler {
@@ -29,6 +40,10 @@ func NewHandler(service *Service, resolvers ...middleware.InternalUserIDResolver
 		resolver = resolvers[0]
 	}
 	return &Handler{service: service, internalUserIDResolver: resolver}
+}
+
+func (h *Handler) SetResourceAccessTokenVerifier(verifier ResourceAccessTokenVerifier) {
+	h.resourceTokenVerifier = verifier
 }
 
 func (h *Handler) RegisterRoutes(api *gin.RouterGroup, authMW gin.HandlerFunc) {
@@ -43,14 +58,67 @@ func (h *Handler) RegisterRoutes(api *gin.RouterGroup, authMW gin.HandlerFunc) {
 	group.GET("/verification", authMW, h.verification)
 	group.GET("/student", authMW, h.student)
 	group.GET("/phone", authMW, h.phone)
+	group.GET("/apps", authMW, h.listApps)
 	group.POST("/apps", authMW, h.registerApp)
+	group.PATCH("/apps/:appID", authMW, h.updateOwnedAppProfile)
+	group.POST("/apps/:appID/redirect-uris", authMW, h.requestRedirectURIChange)
+	group.POST("/apps/:appID/redirect-uri-requests/:requestID/withdraw", authMW, h.withdrawRedirectURIRequest)
+	group.POST("/apps/:appID/scopes", authMW, h.requestScopeChange)
+	group.POST("/apps/:appID/scopes/:scope/withdraw", authMW, h.withdrawScopeRequest)
+	group.POST("/apps/:appID/withdraw", authMW, h.withdrawOwnedApp)
+	group.POST("/apps/:appID/secret/rotate", authMW, h.rotateOwnedAppSecret)
+	group.GET("/apps/:appID/audit-events", authMW, h.listOwnedAppAuditEvents)
+	group.GET("/consents", authMW, h.listConsents)
+	group.GET("/consents/audit-events", authMW, h.listConsentAuditEvents)
+	group.DELETE("/consents/:appID", authMW, h.revokeConsent)
+	group.POST("/resources/access/check", h.checkResourceAccess)
 }
 
 func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
 	group := admin.Group("/open-platform")
+	group.GET("/audit-events",
+		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
+		h.listAdminAuditEvents,
+	)
+	group.GET("/consents",
+		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
+		h.listAdminConsents,
+	)
+	group.GET("/token-probe-evidence",
+		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
+		h.listAdminTokenProbeEvidence,
+	)
+	group.GET("/disclosure-report",
+		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
+		h.getAdminDisclosureReport,
+	)
+	group.GET("/apps/:appID/resource-grants",
+		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
+		h.listAdminResourceGrants,
+	)
+	group.POST("/apps/:appID/resource-grants",
+		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
+		h.grantAdminResourceAccess,
+	)
+	group.POST("/apps/:appID/resource-grants/revoke",
+		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
+		h.revokeAdminResourceAccess,
+	)
+	group.POST("/apps/:appID/consents/revoke",
+		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
+		h.revokeAdminConsent,
+	)
+	group.GET("/apps",
+		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
+		h.listAdminApps,
+	)
 	group.POST("/apps/:appID/scopes/:scope/approve",
 		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
 		h.approveScope,
+	)
+	group.POST("/apps/:appID/scopes/:scope/reject",
+		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
+		h.rejectScope,
 	)
 	group.POST("/apps/import-casdoor",
 		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
@@ -60,9 +128,36 @@ func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
 		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
 		h.approveApp,
 	)
+	group.POST("/apps/:appID/redirect-uri-requests/:requestID/approve",
+		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
+		h.approveRedirectURIRequest,
+	)
+	group.POST("/apps/:appID/redirect-uri-requests/:requestID/reject",
+		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
+		h.rejectRedirectURIRequest,
+	)
+	group.POST("/apps/:appID/secret/rotate",
+		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
+		h.rotateAdminAppSecret,
+	)
+	group.POST("/apps/:appID/suspend",
+		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
+		h.suspendApp,
+	)
+	group.POST("/apps/:appID/resume",
+		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
+		h.resumeApp,
+	)
+	group.POST("/apps/:appID/revoke",
+		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
+		h.revokeApp,
+	)
 }
 
 func (h *Handler) authorize(c *gin.Context) {
+	if rejectRepeatedQueryParameters(c, "client_id", "redirect_uri", "scope", "state") {
+		return
+	}
 	userID, ok := h.resolveCurrentUserID(c)
 	if !ok {
 		return
@@ -82,11 +177,16 @@ func (h *Handler) authorize(c *gin.Context) {
 }
 
 func (h *Handler) getConsent(c *gin.Context) {
+	token, ok := singleRequiredQueryValue(c, "token")
+	if !ok {
+		h.respondError(c, ErrConsentTokenInvalid)
+		return
+	}
 	userID, ok := h.resolveCurrentUserID(c)
 	if !ok {
 		return
 	}
-	page, err := h.service.GetConsentPage(c.Request.Context(), c.Query("token"), userID)
+	page, err := h.service.GetConsentPage(c.Request.Context(), token, userID)
 	if err != nil {
 		h.respondError(c, err)
 		return
@@ -120,7 +220,7 @@ func (h *Handler) denyConsent(c *gin.Context) {
 	if !ok {
 		return
 	}
-	redirectURL, err := h.service.DenyConsent(c.Request.Context(), req.Token, userID)
+	redirectURL, err := h.service.DenyConsent(c.Request.Context(), req.Token, middleware.GetRequestID(c), userID)
 	if err != nil {
 		h.respondError(c, err)
 		return
@@ -129,11 +229,16 @@ func (h *Handler) denyConsent(c *gin.Context) {
 }
 
 func (h *Handler) getProfileCompletion(c *gin.Context) {
+	token, ok := singleRequiredQueryValue(c, "token")
+	if !ok {
+		h.respondError(c, ErrCompletionTokenInvalid)
+		return
+	}
 	userID, ok := h.resolveCurrentUserID(c)
 	if !ok {
 		return
 	}
-	page, err := h.service.GetProfileCompletionPage(c.Request.Context(), c.Query("token"), userID)
+	page, err := h.service.GetProfileCompletionPage(c.Request.Context(), token, userID)
 	if err != nil {
 		h.respondError(c, err)
 		return
@@ -180,7 +285,53 @@ func (h *Handler) phone(c *gin.Context) {
 	h.disclose(c, h.service.Phone)
 }
 
+func (h *Handler) checkResourceAccess(c *gin.Context) {
+	var req resourceAccessCheckRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	input := ResourceAccessCheckInput{
+		ClientID:     req.ClientID,
+		ClientSecret: req.ClientSecret,
+		ResourceType: req.ResourceType,
+		ResourceID:   req.ResourceID,
+		Action:       req.Action,
+		RequestID:    middleware.GetRequestID(c),
+	}
+	rawToken, hasBearerToken, unsupportedAuthorization := resourceAccessAuthorization(c)
+	if unsupportedAuthorization {
+		h.respondError(c, ErrInvalidResourceAccessToken)
+		return
+	}
+	if hasBearerToken {
+		if rawToken == "" || h.resourceTokenVerifier == nil {
+			h.respondError(c, ErrInvalidResourceAccessToken)
+			return
+		}
+		if strings.TrimSpace(req.ClientID) != "" || strings.TrimSpace(req.ClientSecret) != "" {
+			h.respondError(c, ErrInvalidResourceAccess)
+			return
+		}
+		token, err := h.resourceTokenVerifier.VerifyOpenPlatformResourceAccessToken(c.Request.Context(), rawToken)
+		if err != nil {
+			h.respondError(c, ErrInvalidResourceAccessToken)
+			return
+		}
+		input.AccessTokenClientID = token.ClientID
+		input.AccessTokenScopes = token.Scopes
+	}
+	decision, err := h.service.CheckResourceAccess(c.Request.Context(), input)
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Success(c, resourceAccessDecisionToJSON(decision))
+}
+
 func (h *Handler) disclose(c *gin.Context, fn func(context.Context, DisclosureRequest) (map[string]any, error)) {
+	if rejectRepeatedQueryParameters(c, "client_id", "redirect_uri", "scope", "consent_base_url") {
+		return
+	}
 	userID, ok := h.resolveCurrentUserID(c)
 	if !ok {
 		return
@@ -210,7 +361,538 @@ func (h *Handler) registerApp(c *gin.Context) {
 	response.Created(c, registeredAppToJSON(registered))
 }
 
+func (h *Handler) listApps(c *gin.Context) {
+	if rejectRepeatedListQueryParameters(c, "status") {
+		return
+	}
+	userID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+	page, pageSize := httputil.ParsePage(c)
+	result, err := h.service.ListApps(c.Request.Context(), ListAppsInput{
+		OwnerUserID: userID,
+		Status:      c.DefaultQuery("status", "all"),
+		Page:        page,
+		PageSize:    pageSize,
+	})
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Success(c, appListToJSON(result))
+}
+
+func (h *Handler) listAdminApps(c *gin.Context) {
+	if rejectRepeatedListQueryParameters(c, "status") {
+		return
+	}
+	page, pageSize := httputil.ParsePage(c)
+	result, err := h.service.ListApps(c.Request.Context(), ListAppsInput{
+		Status:   c.DefaultQuery("status", AppStatusPending),
+		Page:     page,
+		PageSize: pageSize,
+	})
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Success(c, appListToJSON(result))
+}
+
+func (h *Handler) updateOwnedAppProfile(c *gin.Context) {
+	appID, ok := parseInt64Path(c, "appID")
+	if !ok {
+		return
+	}
+	var req updateAppProfileRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	userID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.UpdateAppProfile(
+		c.Request.Context(),
+		updateAppProfileInput(appID, userID, middleware.GetRequestID(c), req),
+	)
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Success(c, appLifecycleToJSON(result))
+}
+
+func (h *Handler) listAdminAuditEvents(c *gin.Context) {
+	if rejectRepeatedListQueryParameters(c, "appID", "userID", "eventType", "scope") {
+		return
+	}
+	appID, ok := httputil.ParseOptionalInt64Query(c, "appID")
+	if !ok {
+		response.BadRequest(c, "invalid appID", errs.ErrInvalidParam)
+		return
+	}
+	userID, ok := httputil.ParseOptionalInt64Query(c, "userID")
+	if !ok {
+		response.BadRequest(c, "invalid userID", errs.ErrInvalidParam)
+		return
+	}
+	page, pageSize := httputil.ParsePage(c)
+	result, err := h.service.ListAuditEvents(c.Request.Context(), ListAuditEventsInput{
+		AppID:     appID,
+		UserID:    userID,
+		EventType: c.Query("eventType"),
+		Scope:     c.Query("scope"),
+		Page:      page,
+		PageSize:  pageSize,
+	})
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Success(c, auditEventListToJSON(result))
+}
+
+func (h *Handler) listAdminConsents(c *gin.Context) {
+	if rejectRepeatedListQueryParameters(c, "appID", "userID") {
+		return
+	}
+	appID, ok := httputil.ParseOptionalInt64Query(c, "appID")
+	if !ok {
+		response.BadRequest(c, "invalid appID", errs.ErrInvalidParam)
+		return
+	}
+	userID, ok := httputil.ParseOptionalInt64Query(c, "userID")
+	if !ok {
+		response.BadRequest(c, "invalid userID", errs.ErrInvalidParam)
+		return
+	}
+	page, pageSize := httputil.ParsePage(c)
+	result, err := h.service.ListAdminUserConsents(c.Request.Context(), ListAdminUserConsentsInput{
+		AppID:    appID,
+		UserID:   userID,
+		Page:     page,
+		PageSize: pageSize,
+	})
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Success(c, adminUserConsentListToJSON(result))
+}
+
+func (h *Handler) listOwnedAppAuditEvents(c *gin.Context) {
+	if rejectRepeatedListQueryParameters(c, "eventType", "scope") {
+		return
+	}
+	appID, ok := parseInt64Path(c, "appID")
+	if !ok {
+		return
+	}
+	userID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+	page, pageSize := httputil.ParsePage(c)
+	result, err := h.service.ListDeveloperAppAuditEvents(c.Request.Context(), ListDeveloperAppAuditEventsInput{
+		OwnerUserID: userID,
+		AppID:       appID,
+		EventType:   c.Query("eventType"),
+		Scope:       c.Query("scope"),
+		Page:        page,
+		PageSize:    pageSize,
+	})
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Success(c, developerAppAuditEventListToJSON(result))
+}
+
+func (h *Handler) listAdminTokenProbeEvidence(c *gin.Context) {
+	if rejectRepeatedListQueryParameters(c, "appID", "reviewerUserID", "result", "clientID") {
+		return
+	}
+	appID, ok := httputil.ParseOptionalInt64Query(c, "appID")
+	if !ok {
+		response.BadRequest(c, "invalid appID", errs.ErrInvalidParam)
+		return
+	}
+	reviewerUserID, ok := httputil.ParseOptionalInt64Query(c, "reviewerUserID")
+	if !ok {
+		response.BadRequest(c, "invalid reviewerUserID", errs.ErrInvalidParam)
+		return
+	}
+	page, pageSize := httputil.ParsePage(c)
+	result, err := h.service.ListTokenProbeEvidence(c.Request.Context(), ListTokenProbeEvidenceInput{
+		AppID:          appID,
+		ReviewerUserID: reviewerUserID,
+		Result:         c.Query("result"),
+		ClientID:       c.Query("clientID"),
+		Page:           page,
+		PageSize:       pageSize,
+	})
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Success(c, tokenProbeEvidenceListToJSON(result))
+}
+
+func (h *Handler) listAdminResourceGrants(c *gin.Context) {
+	if rejectRepeatedQueryParameters(c, "resourceType") {
+		return
+	}
+	appID, ok := parseInt64Path(c, "appID")
+	if !ok {
+		return
+	}
+	result, err := h.service.ListResourceGrants(c.Request.Context(), ResourceGrantListInput{
+		AppID:        appID,
+		ResourceType: c.Query("resourceType"),
+	})
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Success(c, resourceGrantResultToJSON(result))
+}
+
+func (h *Handler) grantAdminResourceAccess(c *gin.Context) {
+	appID, ok := parseInt64Path(c, "appID")
+	if !ok {
+		return
+	}
+	var req resourceGrantRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	actorID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.GrantResourceAccess(c.Request.Context(), ResourceGrantInput{
+		AppID:          appID,
+		ReviewerUserID: actorID,
+		ResourceType:   req.ResourceType,
+		ResourceID:     req.ResourceID,
+		Actions:        req.Actions,
+		Reason:         req.Reason,
+		RequestID:      middleware.GetRequestID(c),
+	})
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Success(c, resourceGrantResultToJSON(result))
+}
+
+func (h *Handler) revokeAdminResourceAccess(c *gin.Context) {
+	appID, ok := parseInt64Path(c, "appID")
+	if !ok {
+		return
+	}
+	var req resourceGrantRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	actorID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.RevokeResourceAccess(c.Request.Context(), ResourceGrantRevokeInput{
+		AppID:          appID,
+		ReviewerUserID: actorID,
+		ResourceType:   req.ResourceType,
+		ResourceID:     req.ResourceID,
+		Actions:        req.Actions,
+		Reason:         req.Reason,
+		RequestID:      middleware.GetRequestID(c),
+	})
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Success(c, resourceGrantResultToJSON(result))
+}
+
+func (h *Handler) revokeAdminConsent(c *gin.Context) {
+	appID, ok := parseInt64Path(c, "appID")
+	if !ok {
+		return
+	}
+	var req adminConsentRevokeRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	actorID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+	if err := h.service.RevokeAdminUserConsent(c.Request.Context(), AdminRevokeConsentInput{
+		AppID:       appID,
+		UserID:      req.UserID,
+		ActorUserID: actorID,
+		Reason:      req.Reason,
+		Scopes:      req.Scopes,
+		RequestID:   middleware.GetRequestID(c),
+	}); err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Success(c, messageResponse{Message: "consent revoked"})
+}
+
+func (h *Handler) getAdminDisclosureReport(c *gin.Context) {
+	if rejectRepeatedQueryParameters(c, "windowHours") {
+		return
+	}
+	windowHours, ok := httputil.ParseOptionalIntQuery(c, "windowHours")
+	if !ok {
+		response.BadRequest(c, "invalid windowHours", errs.ErrInvalidParam)
+		return
+	}
+	result, err := h.service.DisclosureReport(c.Request.Context(), DisclosureReportInput{
+		WindowHours: windowHours,
+	})
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Success(c, disclosureReportToJSON(result))
+}
+
+func (h *Handler) listConsents(c *gin.Context) {
+	userID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+	consents, err := h.service.ListUserConsents(c.Request.Context(), userID)
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Success(c, userConsentsToJSON(consents))
+}
+
+func (h *Handler) listConsentAuditEvents(c *gin.Context) {
+	if rejectRepeatedListQueryParameters(c, "appID", "eventType", "scope") {
+		return
+	}
+	appID, ok := httputil.ParseOptionalInt64Query(c, "appID")
+	if !ok {
+		response.BadRequest(c, "invalid appID", errs.ErrInvalidParam)
+		return
+	}
+	userID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+	page, pageSize := httputil.ParsePage(c)
+	result, err := h.service.ListUserConsentAuditEvents(c.Request.Context(), ListUserConsentAuditEventsInput{
+		UserID:    userID,
+		AppID:     appID,
+		EventType: c.Query("eventType"),
+		Scope:     c.Query("scope"),
+		Page:      page,
+		PageSize:  pageSize,
+	})
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Success(c, userConsentAuditEventListToJSON(result))
+}
+
+func (h *Handler) revokeConsent(c *gin.Context) {
+	appID, ok := parseInt64Path(c, "appID")
+	if !ok {
+		return
+	}
+	userID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+	if err := h.service.RevokeUserConsent(c.Request.Context(), RevokeConsentInput{
+		UserID:    userID,
+		AppID:     appID,
+		Scopes:    revokeScopesFromQuery(c),
+		RequestID: middleware.GetRequestID(c),
+	}); err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Success(c, messageResponse{Message: "consent revoked"})
+}
+
+func (h *Handler) rotateOwnedAppSecret(c *gin.Context) {
+	appID, ok := parseInt64Path(c, "appID")
+	if !ok {
+		return
+	}
+	var req secretRotationRequest
+	if !bindOptionalJSON(c, &req) {
+		return
+	}
+	userID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+	rotated, err := h.service.RotateAppSecret(c.Request.Context(), RotateAppSecretInput{
+		AppID:       appID,
+		ActorUserID: userID,
+		OwnerUserID: userID,
+		ActorType:   "developer",
+		Reason:      req.Reason,
+		RequestID:   middleware.GetRequestID(c),
+	})
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Success(c, rotatedSecretToJSON(rotated))
+}
+
+func (h *Handler) requestRedirectURIChange(c *gin.Context) {
+	appID, ok := parseInt64Path(c, "appID")
+	if !ok {
+		return
+	}
+	var req redirectURIChangeRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	userID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+	redirectRequest, err := h.service.RequestRedirectURIChange(c.Request.Context(), RedirectURIChangeInput{
+		AppID:        appID,
+		OwnerUserID:  userID,
+		RedirectURIs: req.RedirectURIs,
+		Reason:       req.Reason,
+		RequestID:    middleware.GetRequestID(c),
+	})
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Created(c, redirectURIRequestToJSON(redirectRequest))
+}
+
+func (h *Handler) withdrawRedirectURIRequest(c *gin.Context) {
+	appID, ok := parseInt64Path(c, "appID")
+	if !ok {
+		return
+	}
+	redirectURIRequestID, ok := parseInt64Path(c, "requestID")
+	if !ok {
+		return
+	}
+	var req lifecycleActionRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	userID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+	withdrawn, err := h.service.WithdrawRedirectURIRequest(c.Request.Context(), RedirectURIWithdrawalInput{
+		AppID:                appID,
+		RedirectURIRequestID: redirectURIRequestID,
+		OwnerUserID:          userID,
+		Reason:               req.Reason,
+		RequestID:            middleware.GetRequestID(c),
+	})
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Success(c, redirectURIRequestToJSON(withdrawn))
+}
+
+func (h *Handler) requestScopeChange(c *gin.Context) {
+	appID, ok := parseInt64Path(c, "appID")
+	if !ok {
+		return
+	}
+	var req scopeChangeRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	userID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.RequestScopeChange(c.Request.Context(), ScopeChangeInput{
+		AppID:       appID,
+		OwnerUserID: userID,
+		Scopes:      scopeChangeInput(req),
+		RequestID:   middleware.GetRequestID(c),
+	})
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Created(c, scopeChangeToJSON(result))
+}
+
+func (h *Handler) withdrawScopeRequest(c *gin.Context) {
+	appID, ok := parseInt64Path(c, "appID")
+	if !ok {
+		return
+	}
+	var req lifecycleActionRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	userID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+	withdrawn, err := h.service.WithdrawScopeRequest(c.Request.Context(), ScopeWithdrawalInput{
+		AppID:       appID,
+		OwnerUserID: userID,
+		Scope:       c.Param("scope"),
+		Reason:      req.Reason,
+		RequestID:   middleware.GetRequestID(c),
+	})
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Success(c, scopeRequestToJSON(withdrawn))
+}
+
 func (h *Handler) approveScope(c *gin.Context) {
+	h.reviewScope(c, func(ctx context.Context, appID int64, scope string, reviewerID int64, note string, requestID string) error {
+		return h.service.ApproveScope(ctx, ApproveScopeInput{
+			AppID:          appID,
+			Scope:          scope,
+			ReviewerUserID: reviewerID,
+			DecisionNote:   note,
+			RequestID:      requestID,
+		})
+	})
+}
+
+func (h *Handler) rejectScope(c *gin.Context) {
+	h.reviewScope(c, func(ctx context.Context, appID int64, scope string, reviewerID int64, note string, requestID string) error {
+		return h.service.RejectScope(ctx, RejectScopeInput{
+			AppID:          appID,
+			Scope:          scope,
+			ReviewerUserID: reviewerID,
+			DecisionNote:   note,
+			RequestID:      requestID,
+		})
+	})
+}
+
+func (h *Handler) reviewScope(
+	c *gin.Context,
+	fn func(context.Context, int64, string, int64, string, string) error,
+) {
 	appID, ok := parseInt64Path(c, "appID")
 	if !ok {
 		return
@@ -223,17 +905,12 @@ func (h *Handler) approveScope(c *gin.Context) {
 	if !ok {
 		return
 	}
-	err := h.service.ApproveScope(c.Request.Context(), ApproveScopeInput{
-		AppID:          appID,
-		Scope:          c.Param("scope"),
-		ReviewerUserID: reviewerID,
-		DecisionNote:   req.DecisionNote,
-	})
+	err := fn(c.Request.Context(), appID, c.Param("scope"), reviewerID, req.DecisionNote, middleware.GetRequestID(c))
 	if err != nil {
 		h.respondError(c, err)
 		return
 	}
-	response.Success(c, messageResponse{Message: "scope approved"})
+	response.Success(c, messageResponse{Message: "scope reviewed"})
 }
 
 func (h *Handler) approveApp(c *gin.Context) {
@@ -241,12 +918,156 @@ func (h *Handler) approveApp(c *gin.Context) {
 	if !ok {
 		return
 	}
-	approved, err := h.service.ApproveApp(c.Request.Context(), appID)
+	reviewerID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+	approved, err := h.service.ApproveAppWithAudit(c.Request.Context(), ApproveAppInput{
+		AppID:          appID,
+		ReviewerUserID: reviewerID,
+		RequestID:      middleware.GetRequestID(c),
+	})
 	if err != nil {
 		h.respondError(c, err)
 		return
 	}
 	response.Success(c, approvedAppToJSON(approved))
+}
+
+func (h *Handler) approveRedirectURIRequest(c *gin.Context) {
+	h.reviewRedirectURIRequest(c, h.service.ApproveRedirectURIRequest)
+}
+
+func (h *Handler) rejectRedirectURIRequest(c *gin.Context) {
+	h.reviewRedirectURIRequest(c, h.service.RejectRedirectURIRequest)
+}
+
+func (h *Handler) reviewRedirectURIRequest(
+	c *gin.Context,
+	fn func(context.Context, RedirectURIReviewInput) (RedirectURIRequest, error),
+) {
+	appID, ok := parseInt64Path(c, "appID")
+	if !ok {
+		return
+	}
+	redirectURIRequestID, ok := parseInt64Path(c, "requestID")
+	if !ok {
+		return
+	}
+	var req redirectURIReviewRequest
+	if !bindOptionalJSON(c, &req) {
+		return
+	}
+	reviewerID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+	reviewed, err := fn(c.Request.Context(), RedirectURIReviewInput{
+		AppID:                appID,
+		RedirectURIRequestID: redirectURIRequestID,
+		ReviewerUserID:       reviewerID,
+		DecisionNote:         req.DecisionNote,
+		RequestID:            middleware.GetRequestID(c),
+	})
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Success(c, redirectURIRequestToJSON(reviewed))
+}
+
+func (h *Handler) rotateAdminAppSecret(c *gin.Context) {
+	appID, ok := parseInt64Path(c, "appID")
+	if !ok {
+		return
+	}
+	var req secretRotationRequest
+	if !bindOptionalJSON(c, &req) {
+		return
+	}
+	actorID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+	rotated, err := h.service.RotateAppSecret(c.Request.Context(), RotateAppSecretInput{
+		AppID:       appID,
+		ActorUserID: actorID,
+		ActorType:   "admin",
+		Reason:      req.Reason,
+		RequestID:   middleware.GetRequestID(c),
+	})
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Success(c, rotatedSecretToJSON(rotated))
+}
+
+func (h *Handler) suspendApp(c *gin.Context) {
+	h.updateAppLifecycle(c, h.service.SuspendApp)
+}
+
+func (h *Handler) resumeApp(c *gin.Context) {
+	h.updateAppLifecycle(c, h.service.ResumeApp)
+}
+
+func (h *Handler) revokeApp(c *gin.Context) {
+	h.updateAppLifecycle(c, h.service.RevokeApp)
+}
+
+func (h *Handler) withdrawOwnedApp(c *gin.Context) {
+	appID, ok := parseInt64Path(c, "appID")
+	if !ok {
+		return
+	}
+	var req lifecycleActionRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ownerID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.WithdrawApp(c.Request.Context(), AppWithdrawalInput{
+		AppID:       appID,
+		OwnerUserID: ownerID,
+		Reason:      req.Reason,
+		RequestID:   middleware.GetRequestID(c),
+	})
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Success(c, appLifecycleToJSON(result))
+}
+
+func (h *Handler) updateAppLifecycle(
+	c *gin.Context,
+	fn func(context.Context, AppLifecycleActionInput) (*AppLifecycleResult, error),
+) {
+	appID, ok := parseInt64Path(c, "appID")
+	if !ok {
+		return
+	}
+	var req lifecycleActionRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	actorID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+	result, err := fn(c.Request.Context(), AppLifecycleActionInput{
+		AppID:       appID,
+		ActorUserID: actorID,
+		Reason:      req.Reason,
+		RequestID:   middleware.GetRequestID(c),
+	})
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	response.Success(c, appLifecycleToJSON(result))
 }
 
 func (h *Handler) importCasdoorApp(c *gin.Context) {
@@ -258,7 +1079,10 @@ func (h *Handler) importCasdoorApp(c *gin.Context) {
 	if !ok {
 		return
 	}
-	imported, err := h.service.ImportCasdoorApp(c.Request.Context(), importCasdoorAppInput(importerID, req))
+	imported, err := h.service.ImportCasdoorApp(
+		c.Request.Context(),
+		importCasdoorAppInput(importerID, middleware.GetRequestID(c), req),
+	)
 	if err != nil {
 		h.respondError(c, err)
 		return
@@ -273,6 +1097,26 @@ func (h *Handler) resolveCurrentUserID(c *gin.Context) (int64, bool) {
 		return 0, false
 	}
 	return middleware.ResolveRequiredInternalUserID(c, h.internalUserIDResolver, "failed to resolve user")
+}
+
+func resourceAccessBearerToken(c *gin.Context) (string, bool) {
+	token, ok, _ := resourceAccessAuthorization(c)
+	return token, ok
+}
+
+func resourceAccessAuthorization(c *gin.Context) (string, bool, bool) {
+	if c != nil && c.Request != nil && len(c.Request.Header.Values("Authorization")) > 1 {
+		return "", false, true
+	}
+	header := strings.TrimSpace(c.GetHeader("Authorization"))
+	if header == "" {
+		return "", false, false
+	}
+	const prefix = "bearer "
+	if !strings.HasPrefix(strings.ToLower(header), prefix) {
+		return "", false, true
+	}
+	return strings.TrimSpace(header[len(prefix):]), true, false
 }
 
 func bindJSON(c *gin.Context, target any) bool {
@@ -314,10 +1158,44 @@ func (h *Handler) respondError(c *gin.Context, err error) {
 		response.Conflict(c, "open platform app already exists")
 	case errors.Is(err, ErrAppNotActive), errors.Is(err, ErrAppNotApproved):
 		response.Forbidden(c, "open platform app is not active", errs.ErrOpenPlatformAppInactive)
+	case errors.Is(err, ErrInvalidAppProfile):
+		response.BadRequest(c, "open platform app profile is invalid", errs.ErrInvalidParam)
+	case errors.Is(err, ErrInvalidAuditFilter):
+		response.BadRequest(c, "open platform audit filter is invalid", errs.ErrInvalidParam)
+	case errors.Is(err, ErrInvalidTokenProbeFilter):
+		response.BadRequest(c, "open platform token probe filter is invalid", errs.ErrInvalidParam)
+	case errors.Is(err, ErrInvalidResourceAccess):
+		response.BadRequest(c, "open platform resource access request is invalid", errs.ErrInvalidParam)
+	case errors.Is(err, ErrInvalidResourceAccessToken):
+		response.Unauthorized(c, "open platform resource access token is invalid", errs.ErrTokenInvalid)
+	case errors.Is(err, ErrResourceAccessReasonRequired):
+		response.BadRequest(c, "open platform resource access reason is required", errs.ErrInvalidParam)
+	case errors.Is(err, ErrResourceAccessUnavailable):
+		response.ServiceUnavailable(c, "open platform resource authorization unavailable", errs.ErrServiceUnavailable)
+	case errors.Is(err, ErrInvalidAppStatus):
+		response.BadRequest(c, "open platform app status is invalid", errs.ErrInvalidParam)
+	case errors.Is(err, ErrLifecycleReasonRequired):
+		response.BadRequest(c, "open platform lifecycle reason is required", errs.ErrInvalidParam)
+	case errors.Is(err, ErrRedirectURIRequestNotFound):
+		response.NotFound(c, "open platform redirect URI request not found", errs.ErrOpenPlatformAppNotFound)
+	case errors.Is(err, ErrRedirectURIReasonRequired):
+		response.BadRequest(c, "open platform redirect URI reason is required", errs.ErrInvalidParam)
 	case errors.Is(err, ErrInvalidScope):
 		response.BadRequest(c, "open platform scope is invalid", errs.ErrOpenPlatformScopeInvalid)
+	case errors.Is(err, ErrScopeAlreadyApproved):
+		response.Conflict(c, "open platform scope is already approved")
+	case errors.Is(err, ErrScopeAlreadyPending):
+		response.Conflict(c, "open platform scope is already pending")
+	case errors.Is(err, ErrScopeReasonRequired):
+		response.BadRequest(c, "open platform scope reason is required", errs.ErrInvalidParam)
 	case errors.Is(err, ErrScopeNotApproved):
 		response.Forbidden(c, "open platform scope is not approved", errs.ErrOpenPlatformScopeDenied)
+	case errors.Is(err, ErrTokenMinimizationProbe):
+		response.Forbidden(c, "open platform token minimization probe failed", errs.ErrForbidden)
+	case errors.Is(err, ErrDisclosureClientMismatch):
+		response.Forbidden(c, "open platform disclosure client does not match authenticated credential", errs.ErrForbidden)
+	case errors.Is(err, ErrDisclosureRateLimited):
+		response.RateLimitExceeded(c, "open platform disclosure rate limit exceeded")
 	case errors.Is(err, ErrConsentRequired):
 		h.respondConsentRequired(c, err)
 	case errors.Is(err, ErrConsentTokenInvalid):
@@ -383,10 +1261,94 @@ func authorizeRequestFromQuery(c *gin.Context) AuthorizeRequest {
 
 func disclosureRequestFromQuery(c *gin.Context, userID int64) DisclosureRequest {
 	return DisclosureRequest{
-		ClientID:       middleware.GetAppID(c),
-		UserID:         userID,
-		Scopes:         strings.Fields(c.Query("scope")),
-		RedirectURI:    c.Query("redirect_uri"),
-		ConsentBaseURL: c.Query("consent_base_url"),
+		ClientID:              disclosureClientIDFromQuery(c),
+		AuthenticatedClientID: strings.TrimSpace(middleware.GetAppID(c)),
+		AuthenticatedByBearer: requestHasBearerAuthorization(c),
+		UserID:                userID,
+		Scopes:                strings.Fields(c.Query("scope")),
+		RedirectURI:           c.Query("redirect_uri"),
+		ConsentBaseURL:        c.Query("consent_base_url"),
+		RequestID:             middleware.GetRequestID(c),
 	}
+}
+
+func disclosureClientIDFromQuery(c *gin.Context) string {
+	clientID, ok := c.GetQuery("client_id")
+	if !ok {
+		return strings.TrimSpace(middleware.GetAppID(c))
+	}
+	return strings.TrimSpace(clientID)
+}
+
+func requestHasBearerAuthorization(c *gin.Context) bool {
+	header := c.GetHeader("Authorization")
+	parts := strings.SplitN(header, " ", 2)
+	return len(parts) == 2 &&
+		strings.EqualFold(parts[0], "Bearer") &&
+		strings.TrimSpace(parts[1]) != ""
+}
+
+func singleRequiredQueryValue(c *gin.Context, name string) (string, bool) {
+	if c == nil || c.Request == nil || c.Request.URL == nil {
+		return "", false
+	}
+	values := c.Request.URL.Query()[name]
+	if len(values) != 1 {
+		return "", false
+	}
+	value := strings.TrimSpace(values[0])
+	if value == "" {
+		return "", false
+	}
+	return value, true
+}
+
+func rejectRepeatedQueryParameters(c *gin.Context, names ...string) bool {
+	if name := repeatedQueryParameterName(c, names...); name != "" {
+		response.BadRequest(c, "repeated query parameter: "+name, errs.ErrInvalidParam)
+		return true
+	}
+	return false
+}
+
+func rejectRepeatedListQueryParameters(c *gin.Context, names ...string) bool {
+	listNames := append([]string{}, names...)
+	listNames = append(listNames, "page", "page_size", "pageSize")
+	if rejectRepeatedQueryParameters(c, listNames...) {
+		return true
+	}
+	if queryParameterPresent(c, "page_size") && queryParameterPresent(c, "pageSize") {
+		response.BadRequest(c, "ambiguous query parameter: page_size/pageSize", errs.ErrInvalidParam)
+		return true
+	}
+	return false
+}
+
+func repeatedQueryParameterName(c *gin.Context, names ...string) string {
+	if c == nil || c.Request == nil || c.Request.URL == nil {
+		return ""
+	}
+	query := c.Request.URL.Query()
+	for _, name := range names {
+		if len(query[name]) > 1 {
+			return name
+		}
+	}
+	return ""
+}
+
+func queryParameterPresent(c *gin.Context, name string) bool {
+	if c == nil || c.Request == nil || c.Request.URL == nil {
+		return false
+	}
+	_, ok := c.Request.URL.Query()[name]
+	return ok
+}
+
+func revokeScopesFromQuery(c *gin.Context) []string {
+	scopes := c.QueryArray("scope")
+	if len(scopes) == 0 {
+		scopes = strings.Fields(c.Query("scopes"))
+	}
+	return scopes
 }

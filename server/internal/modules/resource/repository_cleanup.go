@@ -60,6 +60,13 @@ func (r *Repository) MarkCleanupJobRetry(ctx context.Context, jobID int64, nextA
 	return nil
 }
 
+func (r *Repository) MarkCleanupJobFailure(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string, terminal bool) error {
+	if err := outbox.MarkJobFailure(ctx, r.db, jobID, nextAttemptAt, lastError, terminal); err != nil {
+		return fmt.Errorf("mark resource cleanup job failure: %w", err)
+	}
+	return nil
+}
+
 func (r *Repository) lockLatestVersionForDelete(ctx context.Context, tx pgx.Tx, resourceID int64, ownerUserID string) (int64, string, error) {
 	var (
 		actualOwner string

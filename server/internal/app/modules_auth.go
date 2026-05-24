@@ -14,17 +14,15 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sms"
 )
 
 func (rt *Runtime) initAuthModule(
 	api *gin.RouterGroup,
 	bgCtx context.Context,
 	piiCipher *pii.Cipher,
-	smsSvc *sms.Service,
 	roleScopeResolver middleware.RoleScopeResolver,
 ) (*auth.Handler, gin.HandlerFunc, gin.HandlerFunc, error) {
-	userSyncRepo := user.NewUserSyncRepository(rt.database, piiCipher, crypto.GetHMACKey()).
+	userSyncRepo := user.NewUserSyncRepository(rt.database, crypto.GetHMACKey()).
 		WithRoleFGAClient(rt.fgaClient)
 	rt.warnPendingUserHashBackfill(bgCtx, userSyncRepo)
 
@@ -39,7 +37,6 @@ func (rt *Runtime) initAuthModule(
 		rt.redisClient.GetClient(),
 		rt.oidcClient,
 		userSyncRepo,
-		smsSvc,
 	)
 	authHandler.RegisterPublicRoutes(api)
 

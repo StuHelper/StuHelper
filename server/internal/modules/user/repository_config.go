@@ -34,6 +34,7 @@ func scanSchoolConfig(row interface{ Scan(dest ...any) error }) (*SchoolConfig, 
 
 // GetSchoolConfig 获取学校认证配置
 func (r *Repository) GetSchoolConfig(ctx context.Context, schoolID int64) (*SchoolConfig, error) {
+	ctx = withDBTable(ctx, "school_configs")
 	item, err := scanSchoolConfig(r.db.QueryRow(ctx, `
 		SELECT `+selectSchoolConfigColumns+`
 		FROM school_configs
@@ -47,6 +48,7 @@ func (r *Repository) GetSchoolConfig(ctx context.Context, schoolID int64) (*Scho
 
 // ListSchoolConfigs 获取所有启用的学校认证配置
 func (r *Repository) ListSchoolConfigs(ctx context.Context) ([]SchoolConfig, error) {
+	ctx = withDBTable(ctx, "school_configs")
 	rows, err := r.db.Query(ctx, `
 		SELECT `+selectSchoolConfigColumns+`
 		FROM school_configs
@@ -85,6 +87,7 @@ func (r *Repository) ListReviewAccessSchoolConfigs(ctx context.Context) ([]revie
 
 // ListAllSchoolConfigs 获取所有学校认证配置（含禁用，管理端用）
 func (r *Repository) ListAllSchoolConfigs(ctx context.Context) ([]SchoolConfig, error) {
+	ctx = withDBTable(ctx, "school_configs")
 	rows, err := r.db.Query(ctx, `
 		SELECT `+selectSchoolConfigColumns+`
 		FROM school_configs
@@ -110,6 +113,7 @@ func (r *Repository) ListAllSchoolConfigs(ctx context.Context) ([]SchoolConfig, 
 
 // UpdateSchoolConfig 更新学校认证配置
 func (r *Repository) UpdateSchoolConfig(ctx context.Context, config *SchoolConfig) error {
+	ctx = withDBTable(ctx, "school_configs")
 	_, err := r.db.Exec(ctx, `
 		UPDATE school_configs SET
 			school_name = $2, verification_method = $3, approval_policy = $4, ldap_config = $5,
@@ -128,6 +132,7 @@ func (r *Repository) UpdateSchoolConfig(ctx context.Context, config *SchoolConfi
 
 // ListSystemConfigs 获取所有系统配置项
 func (r *Repository) ListSystemConfigs(ctx context.Context) ([]SystemConfig, error) {
+	ctx = withDBTable(ctx, "system_configs")
 	rows, err := r.db.Query(ctx, `
 		SELECT key, value, description, updated_at
 		FROM system_configs
@@ -166,6 +171,7 @@ func (r *Repository) ListReviewAccessSystemConfigs(ctx context.Context) ([]revie
 
 // UpdateSystemConfig 更新系统配置项
 func (r *Repository) UpdateSystemConfig(ctx context.Context, key, value string) error {
+	ctx = withDBTable(ctx, "system_configs")
 	tag, err := r.db.Exec(ctx, `
 		UPDATE system_configs SET value = $2, updated_at = NOW() WHERE key = $1
 	`, key, value)

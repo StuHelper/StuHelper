@@ -97,7 +97,7 @@ func (s *Service) runFGASyncWorker(ctx context.Context) {
 		s.repo.ClaimFGASyncJobs,
 		s.processFGASyncJob,
 		s.repo.MarkFGASyncJobDone,
-		s.repo.MarkFGASyncJobRetry,
+		s.repo.MarkFGASyncJobFailure,
 		func(job FGASyncJob) outbox.JobMeta {
 			return outbox.JobMeta{ID: job.ID, JobType: job.JobType, AttemptCount: job.AttemptCount}
 		},
@@ -112,7 +112,7 @@ func (s *Service) processFGASyncBatch(ctx context.Context) error {
 		s.repo.ClaimFGASyncJobs,
 		s.processFGASyncJob,
 		s.repo.MarkFGASyncJobDone,
-		s.repo.MarkFGASyncJobRetry,
+		s.repo.MarkFGASyncJobFailure,
 		func(job FGASyncJob) outbox.JobMeta {
 			return outbox.JobMeta{ID: job.ID, JobType: job.JobType, AttemptCount: job.AttemptCount}
 		},

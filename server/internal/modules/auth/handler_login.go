@@ -47,7 +47,18 @@ type oidcStatePayload struct {
 // GetLoginURL 生成 OIDC 授权 URL
 // 支持 ?redirect=<前端路径> 参数，登录成功后重定向回去
 func (h *Handler) GetLoginURL(c *gin.Context) {
+	if rejectRepeatedAuthQueryParameters(c, "prompt", "max_age") {
+		return
+	}
+	if forceReauthRequested(c) {
+		h.respondWithAuthURLProvider(c, h.oidcClient.GetStepUpAuthURLForApplication)
+		return
+	}
 	h.respondWithAuthURL(c)
+}
+
+func forceReauthRequested(c *gin.Context) bool {
+	return strings.TrimSpace(c.Query("prompt")) == "login" || strings.TrimSpace(c.Query("max_age")) == "0"
 }
 
 // GetSignupURL 生成 OIDC 注册 URL。
@@ -63,6 +74,9 @@ func (h *Handler) respondWithAuthURL(c *gin.Context) {
 // HandleCallback 处理 OIDC 授权回调
 // OIDC 登录后浏览器 302 到这里，Go 处理完后重定向回前端
 func (h *Handler) HandleCallback(c *gin.Context) {
+	if rejectRepeatedAuthQueryParameters(c, "code", "state") {
+		return
+	}
 	code := c.Query("code")
 	state := c.Query("state")
 	requestID := middleware.GetRequestID(c)
@@ -77,7 +91,7 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 	redirect, codeVerifier, appKey, isNative, err := h.consumeOIDCState(c, state)
 	if err != nil {
 		logger.FromGin(c).Warn("OIDC state verification failed", zap.Error(err))
-		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "invalid state")
+		audit.LogFailureContext(ctx, audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "invalid state")
 		response.BadRequest(c, "invalid or expired state parameter")
 		return
 	}
@@ -123,7 +137,7 @@ func (h *Handler) handleWebCallback(c *gin.Context, ctx context.Context, input w
 	oauthToken, err := h.oidcClient.ExchangeCodeForApplication(ctx, input.application, input.code, input.codeVerifier)
 	if err != nil {
 		logger.FromGin(c).Error("OIDC code exchange failed", zap.Error(err))
-		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), input.requestID, "code exchange error")
+		audit.LogFailureContext(ctx, audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), input.requestID, "code exchange error")
 		response.Unauthorized(c, "authentication failed", errs.ErrOAuthFailed)
 		return
 	}
@@ -132,7 +146,7 @@ func (h *Handler) handleWebCallback(c *gin.Context, ctx context.Context, input w
 	rawIDToken := oidc.ExtractIDToken(oauthToken)
 	if rawIDToken == "" {
 		logger.FromGin(c).Error("no id_token in OAuth response")
-		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), input.requestID, "missing id_token")
+		audit.LogFailureContext(ctx, audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), input.requestID, "missing id_token")
 		response.InternalError(c, "authentication failed")
 		return
 	}
@@ -140,7 +154,7 @@ func (h *Handler) handleWebCallback(c *gin.Context, ctx context.Context, input w
 	claims, err := h.oidcClient.VerifyIDTokenForApplication(ctx, input.application, rawIDToken)
 	if err != nil {
 		logger.FromGin(c).Error("ID token verification failed", zap.Error(err))
-		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), input.requestID, "id_token verification error")
+		audit.LogFailureContext(ctx, audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), input.requestID, "id_token verification error")
 		response.InternalError(c, "authentication failed")
 		return
 	}
@@ -157,7 +171,7 @@ func (h *Handler) handleWebCallback(c *gin.Context, ctx context.Context, input w
 			zap.String("user_id", claims.GetUserID()),
 			zap.Error(syncErr),
 		)
-		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), input.requestID, "user sync failed")
+		audit.LogFailureContext(ctx, audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), input.requestID, "user sync failed")
 		response.InternalError(c, "authentication failed")
 		return
 	}
@@ -167,7 +181,7 @@ func (h *Handler) handleWebCallback(c *gin.Context, ctx context.Context, input w
 	sessionID, sidErr := token.GenerateSessionID()
 	if sidErr != nil {
 		logger.FromGin(c).Error("failed to generate session id", zap.Error(sidErr))
-		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), input.requestID, "session id generation failed")
+		audit.LogFailureContext(ctx, audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), input.requestID, "session id generation failed")
 		response.InternalError(c, "authentication failed")
 		return
 	}
@@ -180,7 +194,7 @@ func (h *Handler) handleWebCallback(c *gin.Context, ctx context.Context, input w
 			zap.String("user_id", claims.GetUserID()),
 			zap.Error(sessErr),
 		)
-		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), input.requestID, "session creation failed")
+		audit.LogFailureContext(ctx, audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), input.requestID, "session creation failed")
 		response.InternalError(c, "authentication failed")
 		return
 	}
@@ -193,7 +207,7 @@ func (h *Handler) handleWebCallback(c *gin.Context, ctx context.Context, input w
 	// OIDC ID Token 无法携带自定义 sid claim，通过独立 cookie 传递 session ID
 	h.setSessionCookie(c, sessInfo.SessionID)
 
-	audit.LogSuccess(audit.EventUserLogin, claims.GetUserID(), claims.GetUsername(), c.ClientIP(), c.Request.UserAgent(), input.requestID)
+	audit.LogSuccessContext(ctx, audit.EventUserLogin, claims.GetUserID(), claims.GetUsername(), c.ClientIP(), c.Request.UserAgent(), input.requestID)
 
 	// 302 回前端
 	redirectTarget := h.resolveRedirectTarget(input.redirect)
@@ -386,7 +400,7 @@ func (h *Handler) ExchangeNative(c *gin.Context) {
 	if err != nil {
 		logger.FromGin(c).Warn("native exchange: code_verifier lookup failed",
 			zap.String("state", req.State), zap.Error(err))
-		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "invalid or expired native state")
+		audit.LogFailureContext(ctx, audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "invalid or expired native state")
 		response.BadRequest(c, "invalid or expired state parameter")
 		return
 	}
@@ -395,7 +409,7 @@ func (h *Handler) ExchangeNative(c *gin.Context) {
 	oauthToken, err := h.oidcClient.ExchangeCodeForApplication(ctx, appKey, req.Code, codeVerifier)
 	if err != nil {
 		logger.FromGin(c).Error("native exchange: OIDC code exchange failed", zap.Error(err))
-		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "code exchange error")
+		audit.LogFailureContext(ctx, audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "code exchange error")
 		response.Unauthorized(c, "authentication failed", errs.ErrOAuthFailed)
 		return
 	}
@@ -404,7 +418,7 @@ func (h *Handler) ExchangeNative(c *gin.Context) {
 	rawIDToken := oidc.ExtractIDToken(oauthToken)
 	if rawIDToken == "" {
 		logger.FromGin(c).Error("native exchange: no id_token in OAuth response")
-		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "missing id_token")
+		audit.LogFailureContext(ctx, audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "missing id_token")
 		response.InternalError(c, "authentication failed")
 		return
 	}
@@ -412,7 +426,7 @@ func (h *Handler) ExchangeNative(c *gin.Context) {
 	claims, err := h.oidcClient.VerifyIDTokenForApplication(ctx, appKey, rawIDToken)
 	if err != nil {
 		logger.FromGin(c).Error("native exchange: ID token verification failed", zap.Error(err))
-		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "id_token verification error")
+		audit.LogFailureContext(ctx, audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "id_token verification error")
 		response.InternalError(c, "authentication failed")
 		return
 	}
@@ -427,7 +441,7 @@ func (h *Handler) ExchangeNative(c *gin.Context) {
 	}); syncErr != nil {
 		logger.FromGin(c).Error("native exchange: user sync failed",
 			zap.String("user_id", claims.GetUserID()), zap.Error(syncErr))
-		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "user sync failed")
+		audit.LogFailureContext(ctx, audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "user sync failed")
 		response.InternalError(c, "authentication failed")
 		return
 	}
@@ -438,7 +452,7 @@ func (h *Handler) ExchangeNative(c *gin.Context) {
 	nativeSessionID, nativeSidErr := token.GenerateSessionID()
 	if nativeSidErr != nil {
 		logger.FromGin(c).Error("native exchange: failed to generate session id", zap.Error(nativeSidErr))
-		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "session id generation failed")
+		audit.LogFailureContext(ctx, audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "session id generation failed")
 		response.InternalError(c, "authentication failed")
 		return
 	}
@@ -448,12 +462,12 @@ func (h *Handler) ExchangeNative(c *gin.Context) {
 	); sessErr != nil {
 		logger.FromGin(c).Error("native exchange: failed to create session",
 			zap.String("user_id", claims.GetUserID()), zap.Error(sessErr))
-		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "session creation failed")
+		audit.LogFailureContext(ctx, audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "session creation failed")
 		response.InternalError(c, "authentication failed")
 		return
 	}
 
-	audit.LogSuccess(audit.EventUserLogin, claims.GetUserID(), claims.GetUsername(), c.ClientIP(), c.Request.UserAgent(), requestID)
+	audit.LogSuccessContext(ctx, audit.EventUserLogin, claims.GetUserID(), claims.GetUsername(), c.ClientIP(), c.Request.UserAgent(), requestID)
 
 	// 返回 token 给原生 App（JSON body 而非 cookie）
 	response.Success(c, gin.H{

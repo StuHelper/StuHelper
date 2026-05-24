@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
 )
@@ -50,6 +51,30 @@ func TestGetLoginURL_ReturnsAuthURL(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `"success":true`)
 }
 
+func TestRegisteredRouteSurfaceDoesNotExposeLocalPhoneOTPLogin(t *testing.T) {
+	h, _ := newTestHandler(t)
+	r := gin.New()
+	api := r.Group("/api/v1")
+
+	h.RegisterPublicRoutes(api)
+	h.RegisterRoutesWithAuthMiddleware(api, func(c *gin.Context) { c.Next() })
+
+	routes := make(map[string]struct{}, len(r.Routes()))
+	for _, route := range r.Routes() {
+		routes[route.Method+" "+route.Path] = struct{}{}
+	}
+
+	assert.Contains(t, routes, "POST /api/v1/auth/exchange-native")
+	for _, route := range []string{
+		"POST /api/v1/auth/otp/request",
+		"POST /api/v1/auth/otp/verify",
+		"POST /api/v1/auth/phone/request-otp",
+		"POST /api/v1/auth/phone/verify-otp",
+	} {
+		assert.NotContains(t, routes, route)
+	}
+}
+
 func TestGetSignupURL_ReturnsAuthURL(t *testing.T) {
 	h, _ := newTestHandler(t)
 
@@ -81,6 +106,68 @@ func TestGetStepUpURL_ReturnsReauthURL(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "prompt=login")
 	assert.Contains(t, w.Body.String(), "max_age=0")
 	assert.Contains(t, w.Body.String(), "acr_values=mfa")
+}
+
+func TestGetLoginURL_WithPromptLoginReturnsReauthURL(t *testing.T) {
+	h, _ := newTestHandler(t)
+
+	r := gin.New()
+	r.GET("/auth/login", h.GetLoginURL)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/login?prompt=login&max_age=0", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "prompt=login")
+	assert.Contains(t, w.Body.String(), "max_age=0")
+	assert.Contains(t, w.Body.String(), "acr_values=mfa")
+}
+
+func TestAuthURLHandlersRejectRepeatedSingleValueQueryParameters(t *testing.T) {
+	tests := []struct {
+		name   string
+		target string
+		mount  func(*gin.Engine, *Handler)
+	}{
+		{
+			name:   "login repeated prompt",
+			target: "/auth/login?prompt=login&prompt=none",
+			mount:  func(r *gin.Engine, h *Handler) { r.GET("/auth/login", h.GetLoginURL) },
+		},
+		{
+			name:   "login repeated redirect",
+			target: "/auth/login?redirect=/courses/1&redirect=/admin",
+			mount:  func(r *gin.Engine, h *Handler) { r.GET("/auth/login", h.GetLoginURL) },
+		},
+		{
+			name:   "signup repeated app",
+			target: "/auth/signup?app=web&app=admin",
+			mount:  func(r *gin.Engine, h *Handler) { r.GET("/auth/signup", h.GetSignupURL) },
+		},
+		{
+			name:   "step up repeated redirect",
+			target: "/auth/step-up?redirect=/settings&redirect=/admin",
+			mount:  func(r *gin.Engine, h *Handler) { r.GET("/auth/step-up", h.GetStepUpURL) },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, _ := newTestHandler(t)
+			r := gin.New()
+			tt.mount(r, h)
+
+			req := httptest.NewRequest(http.MethodGet, tt.target, nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+			assert.Contains(t, w.Body.String(), string(errs.ErrInvalidParam))
+			assert.NotContains(t, w.Body.String(), `"url"`)
+			assert.NotContains(t, w.Body.String(), `"state"`)
+		})
+	}
 }
 
 func TestGetLoginURL_StoresStateInRedis(t *testing.T) {

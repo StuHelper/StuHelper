@@ -112,7 +112,7 @@ func (v *Verifier) EnsureBootstrapCredential(ctx context.Context, input Bootstra
 		return BootstrapResult{}, fmt.Errorf("bootstrap service account credential: %w", err)
 	}
 	result.Status = BootstrapStatus(status)
-	logBootstrapCredential(result)
+	logBootstrapCredential(ctx, result)
 	return result, nil
 }
 
@@ -134,7 +134,7 @@ func (v *Verifier) Revoke(ctx context.Context, name string) error {
 	if err != nil {
 		return fmt.Errorf("revoke service account credential: %w", err)
 	}
-	audit.Log(serviceAccountCredentialAuditEvent(normalizedName, id, "revoked"))
+	audit.LogContext(ctx, serviceAccountCredentialAuditEvent(normalizedName, id, "revoked"))
 	return nil
 }
 
@@ -164,11 +164,11 @@ func (v *Verifier) hashToken(rawToken string) (string, error) {
 	return tokenHash, nil
 }
 
-func logBootstrapCredential(result BootstrapResult) {
+func logBootstrapCredential(ctx context.Context, result BootstrapResult) {
 	if result.Status == BootstrapUnchanged {
 		return
 	}
-	audit.Log(serviceAccountCredentialAuditEvent(result.Name, result.ID, string(result.Status)))
+	audit.LogContext(ctx, serviceAccountCredentialAuditEvent(result.Name, result.ID, string(result.Status)))
 }
 
 func serviceAccountCredentialAuditEvent(name string, id int64, action string) audit.Event {

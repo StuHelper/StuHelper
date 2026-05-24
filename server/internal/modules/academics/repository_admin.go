@@ -17,6 +17,7 @@ var ErrSourceDisabled = errors.New("academic source is disabled")
 var ErrOfferingNotFound = errors.New("academic offering not found")
 
 func (r *Repository) ListSources(ctx context.Context) ([]Source, error) {
+	ctx = withDBTable(ctx, "academic_sources")
 	rows, err := r.db.Query(ctx, `
 		SELECT id, key, name, provider, config, enabled
 		FROM academic_sources
@@ -38,6 +39,7 @@ func (r *Repository) ListSources(ctx context.Context) ([]Source, error) {
 }
 
 func (r *Repository) GetSourceByKey(ctx context.Context, key string) (*Source, error) {
+	ctx = withDBTable(ctx, "academic_sources")
 	var item Source
 	err := r.db.QueryRow(ctx, `
 		SELECT id, key, name, provider, config, enabled
@@ -54,6 +56,7 @@ func (r *Repository) GetSourceByKey(ctx context.Context, key string) (*Source, e
 }
 
 func (r *Repository) CreateImportJob(ctx context.Context, source Source, requestedBy string) (int64, error) {
+	ctx = withDBTable(ctx, "academic_import_jobs")
 	var requestedByPtr *string
 	if requestedBy != "" {
 		requestedByPtr = &requestedBy
@@ -71,6 +74,7 @@ func (r *Repository) CreateImportJob(ctx context.Context, source Source, request
 }
 
 func (r *Repository) MarkImportJobRunning(ctx context.Context, jobID int64) error {
+	ctx = withDBTable(ctx, "academic_import_jobs")
 	_, err := r.db.Exec(ctx, `
 		UPDATE academic_import_jobs
 		SET status = 'running', started_at = NOW()
@@ -83,6 +87,7 @@ func (r *Repository) MarkImportJobRunning(ctx context.Context, jobID int64) erro
 }
 
 func (r *Repository) MarkImportJobSucceeded(ctx context.Context, jobID int64, stats map[string]any) error {
+	ctx = withDBTable(ctx, "academic_import_jobs")
 	payload, err := json.Marshal(stats)
 	if err != nil {
 		return fmt.Errorf("marshal academic import stats: %w", err)
@@ -99,6 +104,7 @@ func (r *Repository) MarkImportJobSucceeded(ctx context.Context, jobID int64, st
 }
 
 func (r *Repository) MarkImportJobFailed(ctx context.Context, jobID int64, message string) error {
+	ctx = withDBTable(ctx, "academic_import_jobs")
 	_, err := r.db.Exec(ctx, `
 		UPDATE academic_import_jobs
 		SET status = 'failed', error_message = $2, finished_at = NOW()
@@ -111,6 +117,7 @@ func (r *Repository) MarkImportJobFailed(ctx context.Context, jobID int64, messa
 }
 
 func (r *Repository) ListImportJobs(ctx context.Context, page, pageSize int) ([]ImportJob, int, error) {
+	ctx = withDBTable(ctx, "academic_import_jobs")
 	offset := httputil.SafeOffset(page, pageSize)
 	rows, err := r.db.Query(ctx, `
 		SELECT j.id, s.key, s.name, j.provider, j.status, j.trigger_mode, j.requested_by_user_id,
@@ -129,6 +136,7 @@ func (r *Repository) ListImportJobs(ctx context.Context, page, pageSize int) ([]
 }
 
 func (r *Repository) GetImportJobByID(ctx context.Context, jobID int64) (*ImportJob, error) {
+	ctx = withDBTable(ctx, "academic_import_jobs")
 	rows, err := r.db.Query(ctx, `
 		SELECT j.id, s.key, s.name, j.provider, j.status, j.trigger_mode, j.requested_by_user_id,
 		       j.stats, j.error_message, j.started_at, j.finished_at, j.created_at,

@@ -32,6 +32,7 @@ func validateStatus(status, fallback string) string {
 // ListAllReviews 获取所有评论（管理员，含总数）
 // 使用 strings.Builder 重构 SQL 构建逻辑，参数绑定更清晰
 func (r *Repository) ListAllReviews(ctx context.Context, status string, limit, offset int, schoolIDs []int64) ([]Review, int, error) {
+	ctx = withDBTable(ctx, "reviews")
 	status = validateStatus(status, "all")
 
 	var qb strings.Builder
@@ -84,8 +85,9 @@ func (r *Repository) ListAllReviews(ctx context.Context, status string, limit, o
 // 典型 TTL 约 30s。写操作后会通过 invalidateReviewAggregateCaches 失效。
 func (r *Repository) GetAdminStats(ctx context.Context) (*AdminStats, error) {
 	var stats AdminStats
+	reviewCtx := withDBTable(ctx, "reviews")
 	// reviews 表：6 个计数合并为单次全表扫描 + FILTER 条件聚合
-	err := r.db.QueryRow(ctx, `
+	err := r.db.QueryRow(reviewCtx, `
 		SELECT
 			COUNT(*) AS total_reviews,
 			COUNT(*) FILTER (WHERE status = 'published') AS published_reviews,
@@ -105,8 +107,9 @@ func (r *Repository) GetAdminStats(ctx context.Context) (*AdminStats, error) {
 	if err != nil {
 		return nil, fmt.Errorf("GetAdminStats reviews: %w", err)
 	}
+	reportCtx := withDBTable(ctx, "review_reports")
 	// reports 表：独立扫描（与 reviews 无关联，无法合并）
-	err = r.db.QueryRow(ctx, `
+	err = r.db.QueryRow(reportCtx, `
 		SELECT
 			COUNT(*) AS total_reports,
 			COUNT(*) FILTER (WHERE status = 'pending') AS pending_reports

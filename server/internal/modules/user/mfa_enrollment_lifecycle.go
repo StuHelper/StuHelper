@@ -37,11 +37,11 @@ func (m *MFARecoveryManager) CompleteEnrollment(
 	if err != nil {
 		return nil, err
 	}
-	audit.Log(audit.EventFromContext(ctx, mfaRecoveryAuditEvent(mfaRecoveryAuditInput{
+	audit.LogContext(ctx, mfaRecoveryAuditEvent(mfaRecoveryAuditInput{
 		UserID: params.UserID,
 		Action: "enroll",
 		Result: "success",
-	})))
+	}))
 	return &MFARecoveryCodeBundle{Codes: codes, IssuedAt: issuedAt}, nil
 }
 

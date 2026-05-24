@@ -258,11 +258,7 @@ func initSDKConfig(credential Credential) {
 }
 
 func auditAdminCall(ctx context.Context, credential Credential, operation string, err error) {
-	audit.Log(casdoorAdminAuditEventFromContext(ctx, credential, operation, err))
-}
-
-func casdoorAdminAuditEventFromContext(ctx context.Context, credential Credential, operation string, err error) audit.Event {
-	return audit.EventFromContext(ctx, casdoorAdminAuditEvent(credential, operation, err))
+	audit.LogContext(ctx, casdoorAdminAuditEvent(credential, operation, err))
 }
 
 func casdoorAdminAuditEvent(credential Credential, operation string, err error) audit.Event {

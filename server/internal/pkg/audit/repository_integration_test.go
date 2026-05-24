@@ -7,9 +7,51 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/postgresfixture"
 )
+
+func TestLogContextPersistsWithCanceledContextAndTrace(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	ConfigureRepository(NewRepository(fixture.DB))
+	t.Cleanup(func() { ConfigureRepository(nil) })
+
+	traceID := trace.TraceID{0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef}
+	spanID := trace.SpanID{0x10, 0x32, 0x54, 0x76, 0x98, 0xba, 0xdc, 0xfe}
+	spanContext := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID:    traceID,
+		SpanID:     spanID,
+		TraceFlags: trace.FlagsSampled,
+		Remote:     true,
+	})
+	ctx := trace.ContextWithSpanContext(logger.WithRequestID(context.Background(), "req-canceled-1"), spanContext)
+	ctx, cancel := context.WithCancel(ctx)
+	cancel()
+
+	LogContext(ctx, Event{
+		Type:         EventAdminConfigChange,
+		Category:     "admin_operation",
+		ActorType:    "admin",
+		UserID:       "admin-trace",
+		Action:       "update",
+		ResourceType: "school_config",
+		ResourceID:   "trace-test",
+		Result:       "success",
+	})
+
+	var requestID string
+	var persistedTraceID string
+	row := fixture.Pool.QueryRow(context.Background(), `
+		SELECT request_id, trace_id
+		FROM audit_events
+		WHERE actor_user_id = $1 AND resource_id = $2
+	`, "admin-trace", "trace-test")
+	require.NoError(t, row.Scan(&requestID, &persistedTraceID))
+	assert.Equal(t, "req-canceled-1", requestID)
+	assert.Equal(t, traceID.String(), persistedTraceID)
+}
 
 func TestRepository_WriteListAndCleanupAdminOperations(t *testing.T) {
 	fixture := postgresfixture.Start(t)

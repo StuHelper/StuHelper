@@ -33,19 +33,29 @@ var completionFieldCatalog = map[string]ProfileCompletionField{
 
 func NormalizeAuthorizationScopes(scopes []string) ([]string, error) {
 	mapped := make([]string, 0, len(scopes))
+	seenScope := false
 	for _, raw := range scopes {
 		switch strings.TrimSpace(raw) {
-		case "", "openid":
+		case "":
 			continue
+		case "openid":
+			seenScope = true
 		case "profile":
+			seenScope = true
 			mapped = append(mapped, ScopeProfileBasicRead)
 		case "email":
+			seenScope = true
 			mapped = append(mapped, ScopeEmailRead)
 		case "phone":
+			seenScope = true
 			mapped = append(mapped, ScopePhoneRead)
 		default:
+			seenScope = true
 			mapped = append(mapped, raw)
 		}
+	}
+	if len(mapped) == 0 && seenScope {
+		return []string{}, nil
 	}
 	return NormalizeScopes(mapped)
 }
@@ -114,8 +124,19 @@ func (s *Service) BuildProfileCompletionChallenge(
 	scopes []string,
 	req AuthorizeRequest,
 ) (*ProfileCompletionChallenge, error) {
-	if !redirectAllowed(app, req.RedirectURI) {
-		return nil, ErrRedirectURINotAllowed
+	if app == nil {
+		return nil, ErrAppNotFound
+	}
+	currentApp, err := s.loadCurrentChallengeApp(ctx, app.ID, req.RedirectURI, scopes)
+	if err != nil {
+		return nil, err
+	}
+	oauthScopes, err := NormalizeGrantedOAuthScopes(req.Scopes)
+	if err != nil {
+		oauthScopes, err = NormalizeGrantedOAuthScopes(scopes)
+		if err != nil {
+			return nil, err
+		}
 	}
 	token, err := randomHex("", consentTokenBytes)
 	if err != nil {
@@ -124,9 +145,10 @@ func (s *Service) BuildProfileCompletionChallenge(
 	now := time.Now().UTC()
 	challenge := &ProfileCompletionChallenge{
 		Token:               token,
-		AppID:               app.ID,
+		AppID:               currentApp.ID,
 		UserID:              userID,
 		Scopes:              scopes,
+		OAuthScopes:         oauthScopes,
 		RedirectURI:         req.RedirectURI,
 		State:               strings.TrimSpace(req.State),
 		Flow:                normalizeAuthorizeFlow(req.Flow),
@@ -165,7 +187,7 @@ func (s *Service) GetProfileCompletionPage(ctx context.Context, token string, us
 	if err := ensureProfileCompletionActor(challenge, userID); err != nil {
 		return nil, err
 	}
-	app, err := s.repo.GetAppByID(ctx, challenge.AppID)
+	app, err := s.loadCurrentChallengeApp(ctx, challenge.AppID, challenge.RedirectURI, challenge.Scopes)
 	if err != nil {
 		return nil, err
 	}
@@ -173,11 +195,16 @@ func (s *Service) GetProfileCompletionPage(ctx context.Context, token string, us
 	if err != nil {
 		return nil, err
 	}
+	consentScopes := UserConsentScopes(challenge.Scopes)
+	definitions, err := s.scopeDefinitionsForApp(ctx, app.ID, consentScopes)
+	if err != nil {
+		return nil, err
+	}
 	return &ProfileCompletionPage{
 		Token:         challenge.Token,
 		App:           consentApp(app),
-		Scopes:        ScopeDefinitions(challenge.Scopes),
-		MissingFields: RequiredProfileFields(projection, challenge.Scopes),
+		Scopes:        definitions,
+		MissingFields: RequiredProfileFields(projection, consentScopes),
 		RedirectURI:   challenge.RedirectURI,
 		ExpiresAt:     challenge.ExpiresAt,
 	}, nil
@@ -191,7 +218,7 @@ func (s *Service) ContinueProfileCompletion(ctx context.Context, token string, u
 	if err := ensureProfileCompletionActor(challenge, userID); err != nil {
 		return nil, err
 	}
-	app, err := s.repo.GetAppByID(ctx, challenge.AppID)
+	app, err := s.loadCurrentChallengeApp(ctx, challenge.AppID, challenge.RedirectURI, challenge.Scopes)
 	if err != nil {
 		return nil, err
 	}
@@ -199,11 +226,16 @@ func (s *Service) ContinueProfileCompletion(ctx context.Context, token string, u
 	if err != nil {
 		return nil, err
 	}
-	if missing := RequiredProfileFields(projection, challenge.Scopes); len(missing) > 0 {
+	consentScopes := UserConsentScopes(challenge.Scopes)
+	if missing := RequiredProfileFields(projection, consentScopes); len(missing) > 0 {
+		definitions, err := s.scopeDefinitionsForApp(ctx, app.ID, consentScopes)
+		if err != nil {
+			return nil, err
+		}
 		return &AuthorizeResult{
 			ProfileCompletionURL: buildProfileCompletionURL(s.consentBaseURLForFlow(challenge.Flow), challenge.Token),
 			MissingFields:        missing,
-			Scopes:               ScopeDefinitions(challenge.Scopes),
+			Scopes:               definitions,
 		}, nil
 	}
 	if err := s.rdb.Del(ctx, completionRedisPrefix+token).Err(); err != nil {
@@ -212,25 +244,32 @@ func (s *Service) ContinueProfileCompletion(ctx context.Context, token string, u
 	req := AuthorizeRequest{
 		ClientID:            app.ClientID,
 		RedirectURI:         challenge.RedirectURI,
-		Scopes:              challenge.Scopes,
+		Scopes:              grantedOAuthScopes(challenge.OAuthScopes, challenge.Scopes),
 		State:               challenge.State,
 		Flow:                normalizeAuthorizeFlow(challenge.Flow),
 		CodeChallenge:       challenge.CodeChallenge,
 		CodeChallengeMethod: challenge.CodeChallengeMethod,
 		Nonce:               challenge.Nonce,
 	}
-	hasConsent, err := s.repo.HasActiveConsents(ctx, app.ID, challenge.UserID, challenge.Scopes)
-	if err != nil {
-		return nil, err
+	hasConsent := len(consentScopes) == 0
+	if !hasConsent {
+		hasConsent, err = s.repo.HasActiveConsents(ctx, app.ID, challenge.UserID, consentScopes)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if !hasConsent {
 		consentChallenge, err := s.BuildConsentChallenge(ctx, app, challenge.UserID, challenge.Scopes, req)
 		if err != nil {
 			return nil, err
 		}
+		definitions, err := s.scopeDefinitionsForApp(ctx, app.ID, consentScopes)
+		if err != nil {
+			return nil, err
+		}
 		return &AuthorizeResult{
 			ConsentURL: buildConsentURL(s.consentBaseURLForFlow(challenge.Flow), consentChallenge.Token),
-			Scopes:     ScopeDefinitions(challenge.Scopes),
+			Scopes:     definitions,
 		}, nil
 	}
 	if normalizeAuthorizeFlow(challenge.Flow) == AuthorizeFlowIdentity {
@@ -279,6 +318,7 @@ func decodeProfileCompletionChallenge(token string, raw []byte) (*ProfileComplet
 		AppID:               payload.AppID,
 		UserID:              payload.UserID,
 		Scopes:              payload.Scopes,
+		OAuthScopes:         grantedOAuthScopes(payload.OAuthScopes, payload.Scopes),
 		RedirectURI:         payload.RedirectURI,
 		State:               payload.State,
 		Flow:                normalizeAuthorizeFlow(payload.Flow),
@@ -288,6 +328,13 @@ func decodeProfileCompletionChallenge(token string, raw []byte) (*ProfileComplet
 		CreatedAt:           createdAt,
 		ExpiresAt:           expiresAt,
 	}, nil
+}
+
+func grantedOAuthScopes(oauthScopes, fallback []string) []string {
+	if len(oauthScopes) > 0 {
+		return append([]string(nil), oauthScopes...)
+	}
+	return append([]string(nil), fallback...)
 }
 
 func normalizeAuthorizeFlow(flow string) string {

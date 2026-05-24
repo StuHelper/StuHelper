@@ -74,6 +74,7 @@ func (r *Repository) GetMemberBlacklistAccess(
 	query MemberBlacklistAccessQuery,
 	now time.Time,
 ) (*MemberBlacklistEntry, error) {
+	ctx = withDBTable(ctx, "member_blacklist_entries")
 	return scanMemberBlacklistEntry(r.db.QueryRow(ctx, memberBlacklistAccessSQL(), query.Platform, query.SubjectType, query.SubjectID, query.GuildID, now))
 }
 
@@ -82,6 +83,7 @@ func (r *Repository) ListMemberBlacklist(
 	filter MemberBlacklistListFilter,
 	now time.Time,
 ) ([]MemberBlacklistEntry, int, error) {
+	ctx = withDBTable(ctx, "member_blacklist_entries")
 	query, args := memberBlacklistListSQL(filter, now)
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
@@ -131,6 +133,7 @@ func (r *Repository) ListExpiredMemberBlacklist(
 	now time.Time,
 	limit int,
 ) ([]MemberBlacklistEntry, error) {
+	ctx = withDBTable(ctx, "member_blacklist_entries")
 	rows, err := r.db.Query(ctx, expiredMemberBlacklistSQL(), now, limit)
 	if err != nil {
 		return nil, fmt.Errorf("ListExpiredMemberBlacklist: %w", err)

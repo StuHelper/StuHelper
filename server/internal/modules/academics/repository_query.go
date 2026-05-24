@@ -12,6 +12,7 @@ import (
 )
 
 func (r *Repository) ListTerms(ctx context.Context) ([]Term, error) {
+	ctx = withDBTable(ctx, "academic_terms")
 	rows, err := r.db.Query(ctx, `
 		SELECT id, code, name, start_date, end_date, is_current
 		FROM academic_terms
@@ -37,6 +38,7 @@ func (r *Repository) ListTerms(ctx context.Context) ([]Term, error) {
 }
 
 func (r *Repository) ListOfferings(ctx context.Context, filters OfferingFilters) ([]Offering, int, error) {
+	ctx = withDBTable(ctx, "academic_offerings")
 	offset := httputil.SafeOffset(filters.Page, filters.PageSize)
 	pattern := "%" + httputil.EscapeLikePattern(filters.CourseQuery) + "%"
 	teacherPattern := "%" + httputil.EscapeLikePattern(filters.TeacherQuery) + "%"
@@ -75,6 +77,7 @@ func (r *Repository) ListOfferings(ctx context.Context, filters OfferingFilters)
 }
 
 func (r *Repository) GetOfferingByID(ctx context.Context, offeringID int64) (*Offering, error) {
+	ctx = withDBTable(ctx, "academic_offerings")
 	rows, err := r.db.Query(ctx, `
 		SELECT o.id, t.code, t.name, c.code, c.name, o.section_code, o.school_name, o.department_name, o.campus,
 		       COALESCE(teachers.teacher_names, ''), COUNT(*) OVER()
@@ -109,6 +112,7 @@ func (r *Repository) GetOfferingByID(ctx context.Context, offeringID int64) (*Of
 }
 
 func (r *Repository) ListMyCourses(ctx context.Context, externalUserID, termCode string) ([]Offering, error) {
+	ctx = withDBTable(ctx, "academic_memberships")
 	rows, err := r.db.Query(ctx, `
 		SELECT o.id, t.code, t.name, c.code, c.name, o.section_code, o.school_name, o.department_name, o.campus,
 		       COALESCE(teachers.teacher_names, ''), COUNT(*) OVER()
@@ -150,6 +154,7 @@ func (r *Repository) ListMySchedule(ctx context.Context, externalUserID, termCod
 }
 
 func (r *Repository) listSchedulesByOfferingID(ctx context.Context, offeringID int64) ([]ScheduleSlot, error) {
+	ctx = withDBTable(ctx, "academic_schedules")
 	rows, err := r.db.Query(ctx, `
 		SELECT weekday, start_period, end_period, location, building, weeks_text
 		FROM academic_schedules

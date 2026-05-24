@@ -22,6 +22,10 @@ func NewRepository(database *db.DB, hmacKey []byte) *Repository {
 	return &Repository{db: database, hmacKey: hmacKey}
 }
 
+func withDBTable(ctx context.Context, table string) context.Context {
+	return db.WithTableHint(ctx, table)
+}
+
 func (r *Repository) WithTx(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx) error) error {
 	return r.db.WithTx(ctx, fn)
 }

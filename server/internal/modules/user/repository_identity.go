@@ -11,6 +11,7 @@ import (
 
 // CreateIdentity 创建实名认证记录
 func (r *Repository) CreateIdentity(ctx context.Context, identity *IdentityRecord) error {
+	ctx = withDBTable(ctx, "user_identities")
 	_, err := r.db.Exec(ctx, `
 		INSERT INTO user_identities (
 			user_id, doc_type, doc_number_enc, person_uid, real_name,
@@ -31,6 +32,7 @@ func (r *Repository) CreateIdentity(ctx context.Context, identity *IdentityRecor
 
 // UpdateIdentitySubmission 覆盖已驳回的实名认证提交内容，并重置审核状态。
 func (r *Repository) UpdateIdentitySubmission(ctx context.Context, identity *IdentityRecord) error {
+	ctx = withDBTable(ctx, "user_identities")
 	tag, err := r.db.Exec(ctx, `
 		UPDATE user_identities SET
 			doc_type = $2,
@@ -63,6 +65,7 @@ func (r *Repository) UpdateIdentitySubmission(ctx context.Context, identity *Ide
 
 // GetIdentityStatusByUserID 根据用户ID获取实名认证状态（最小字段集，不含 doc_number_enc/person_uid）
 func (r *Repository) GetIdentityStatusByUserID(ctx context.Context, userID int64) (*IdentityStatus, error) {
+	ctx = withDBTable(ctx, "user_identities")
 	var item IdentityStatus
 	err := r.db.QueryRow(ctx, `
 		SELECT user_id, doc_type, real_name,
@@ -86,6 +89,7 @@ func (r *Repository) GetIdentityStatusByUserID(ctx context.Context, userID int64
 
 // ListIdentityReviewItems 分页查询实名认证审核列表（不含 doc_number_enc/person_uid）
 func (r *Repository) ListIdentityReviewItems(ctx context.Context, status string, page, pageSize int) ([]IdentityReviewItem, int, error) {
+	ctx = withDBTable(ctx, "user_identities")
 	args := make([]any, 0, 4)
 	whereClause := ""
 
@@ -152,6 +156,7 @@ func (r *Repository) UpdateIdentityReviewStatus(
 	verifiedAt *time.Time,
 	rejectionReason *string,
 ) error {
+	ctx = withDBTable(ctx, "user_identities")
 	tag, err := r.db.Exec(ctx, `
 		UPDATE user_identities SET
 			verified = $2,

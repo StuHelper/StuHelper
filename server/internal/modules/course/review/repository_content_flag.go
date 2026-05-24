@@ -70,6 +70,7 @@ func (r *Repository) MarkContentFlagClearedTx(ctx context.Context, tx pgx.Tx, re
 
 // ListFlaggedReviews 获取待复核评课列表（content_flag in warn/review）。
 func (r *Repository) ListFlaggedReviews(ctx context.Context, limit, offset int, schoolIDs []int64) ([]Review, int, error) {
+	ctx = withDBTable(ctx, "reviews")
 	var qb strings.Builder
 	qb.WriteString(`
 		SELECT r.id, r.course_id, r.title, r.content, r.status, r.content_flag,

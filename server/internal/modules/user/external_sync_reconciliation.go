@@ -86,7 +86,7 @@ func (s *Service) ReconcileUserProfileProjections(ctx context.Context, repairLim
 	if err != nil {
 		return 0, err
 	}
-	audit.Log(audit.EventFromContext(ctx, audit.Event{
+	audit.LogContext(ctx, audit.Event{
 		Type:         audit.EventType("iam.drift.reconcile"),
 		Category:     "domain_event",
 		ActorType:    "system",
@@ -95,7 +95,7 @@ func (s *Service) ReconcileUserProfileProjections(ctx context.Context, repairLim
 		Action:       "requeue",
 		Result:       "success",
 		Details:      map[string]any{"profile_count": len(states), "requeued_jobs": requeued},
-	}))
+	})
 	return requeued, nil
 }
 

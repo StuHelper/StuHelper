@@ -32,7 +32,7 @@ type JobMeta struct {
 type ClaimFunc[T any] func(ctx context.Context, limit int, staleAfter time.Duration) ([]T, error)
 type ProcessFunc[T any] func(ctx context.Context, job T) error
 type MarkDoneFunc func(ctx context.Context, jobID int64) error
-type MarkRetryFunc func(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string) error
+type MarkFailureFunc func(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string, terminal bool) error
 type MetaFunc[T any] func(job T) JobMeta
 
 func RunPollingWorker[T any](
@@ -41,7 +41,7 @@ func RunPollingWorker[T any](
 	claim ClaimFunc[T],
 	process ProcessFunc[T],
 	markDone MarkDoneFunc,
-	markRetry MarkRetryFunc,
+	markFailure MarkFailureFunc,
 	meta MetaFunc[T],
 	truncateError func(error) string,
 ) {
@@ -49,7 +49,7 @@ func RunPollingWorker[T any](
 	defer ticker.Stop()
 
 	for {
-		if err := ProcessBatch(ctx, cfg, claim, process, markDone, markRetry, meta, truncateError); err != nil && ctx.Err() == nil {
+		if err := ProcessBatch(ctx, cfg, claim, process, markDone, markFailure, meta, truncateError); err != nil && ctx.Err() == nil {
 			logger.L().Warn(cfg.Name+" batch failed", zap.Error(err))
 		}
 
@@ -67,7 +67,7 @@ func ProcessBatch[T any](
 	claim ClaimFunc[T],
 	process ProcessFunc[T],
 	markDone MarkDoneFunc,
-	markRetry MarkRetryFunc,
+	markFailure MarkFailureFunc,
 	meta MetaFunc[T],
 	truncateError func(error) string,
 ) error {
@@ -80,24 +80,31 @@ func ProcessBatch[T any](
 	for _, job := range jobs {
 		if err := process(ctx, job); err != nil {
 			jobMeta := meta(job)
-			nextAttempt := nextAttemptAt(cfg, jobMeta.AttemptCount)
 			terminalFailed := reachedMaxAttempts(cfg, jobMeta.AttemptCount)
-			if retryErr := markRetry(ctx, jobMeta.ID, nextAttempt, truncate(truncateError, err)); retryErr != nil {
-				logger.L().Error("failed to mark "+cfg.Name+" job retry",
+			var nextAttempt time.Time
+			if !terminalFailed {
+				nextAttempt = nextAttemptAt(cfg, jobMeta.AttemptCount)
+			}
+			if retryErr := markFailure(ctx, jobMeta.ID, nextAttempt, truncate(truncateError, err), terminalFailed); retryErr != nil {
+				logger.L().Error("failed to mark "+cfg.Name+" job failure",
 					zap.Int64("job_id", jobMeta.ID),
 					zap.String("job_type", jobMeta.JobType),
+					zap.Bool("terminal_failed", terminalFailed),
 					zap.Error(retryErr),
 				)
 			}
 			metrics.ObserveOutboxJobFailure(cfg.Name, jobMeta.JobType, terminalFailed)
-			logger.L().Warn(cfg.Name+" job failed",
+			fields := []zap.Field{
 				zap.Int64("job_id", jobMeta.ID),
 				zap.String("job_type", jobMeta.JobType),
 				zap.Int("attempt", jobMeta.AttemptCount+1),
-				zap.Time("next_attempt_at", nextAttempt),
 				zap.Bool("terminal_failed", terminalFailed),
 				zap.Error(err),
-			)
+			}
+			if !terminalFailed {
+				fields = append(fields, zap.Time("next_attempt_at", nextAttempt))
+			}
+			logger.L().Warn(cfg.Name+" job failed", fields...)
 			continue
 		}
 
@@ -116,13 +123,8 @@ func ProcessBatch[T any](
 }
 
 func nextAttemptAt(cfg WorkerConfig, attemptCount int) time.Time {
-	if reachedMaxAttempts(cfg, attemptCount) {
-		return time.Now().Add(longFailedDelay)
-	}
 	return time.Now().Add(jitteredBackoff(nextBackoffDuration(cfg, attemptCount)))
 }
-
-const longFailedDelay = 100 * 365 * 24 * time.Hour
 
 func nextBackoffDuration(cfg WorkerConfig, attemptCount int) time.Duration {
 	backoff := cfg.RetryBaseBackoff
@@ -147,7 +149,7 @@ func jitteredBackoff(backoff time.Duration) time.Duration {
 	}
 	minDelay := backoff / 2
 	jitterWindow := backoff - minDelay
-	return minDelay + time.Duration(rand.Float64()*float64(jitterWindow)) //nolint:gosec // worker backoff jitter is not security-sensitive randomness.
+	return minDelay + time.Duration(rand.Float64()*float64(jitterWindow)) // #nosec G404 -- worker backoff jitter is not security-sensitive randomness.
 }
 
 func reachedMaxAttempts(cfg WorkerConfig, attemptCount int) bool {

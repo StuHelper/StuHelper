@@ -13,6 +13,7 @@ import (
 // ListAdminTeachers 获取教师列表（管理员，含院系名和评论数）。
 // 使用 CTE 预聚合评论数，避免 correlated subquery 对每行执行 COUNT。
 func (r *Repository) ListAdminTeachers(ctx context.Context, search string, departmentID int64, limit, offset int) ([]AdminTeacher, int, error) {
+	ctx = withDBTable(ctx, "teachers")
 	var qb strings.Builder
 	qb.WriteString(`
 		WITH review_counts AS (
@@ -68,6 +69,7 @@ func (r *Repository) ListAdminTeachers(ctx context.Context, search string, depar
 
 // CreateTeacher 创建教师
 func (r *Repository) CreateTeacher(ctx context.Context, name string, departmentID *int64) (*AdminTeacher, error) {
+	ctx = withDBTable(ctx, "teachers")
 	var t AdminTeacher
 	err := r.db.QueryRow(ctx, `
 		WITH inserted AS (
@@ -86,6 +88,7 @@ func (r *Repository) CreateTeacher(ctx context.Context, name string, departmentI
 
 // UpdateTeacher 更新教师
 func (r *Repository) UpdateTeacher(ctx context.Context, id int64, name string, departmentID *int64) error {
+	ctx = withDBTable(ctx, "teachers")
 	result, err := r.db.Exec(ctx, `
 		UPDATE teachers SET name = $2, department_id = $3 WHERE id = $1
 	`, id, name, departmentID)

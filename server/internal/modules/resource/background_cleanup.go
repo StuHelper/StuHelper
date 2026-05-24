@@ -57,7 +57,7 @@ func (s *Service) runCleanupWorker(ctx context.Context) {
 		s.repo.ClaimCleanupJobs,
 		s.processCleanupJob,
 		s.repo.MarkCleanupJobDone,
-		s.repo.MarkCleanupJobRetry,
+		s.repo.MarkCleanupJobFailure,
 		func(job cleanupJob) outbox.JobMeta {
 			return outbox.JobMeta{ID: job.ID, JobType: job.JobType, AttemptCount: job.AttemptCount}
 		},
@@ -78,7 +78,7 @@ func (s *Service) processCleanupBatch(ctx context.Context) error {
 		s.repo.ClaimCleanupJobs,
 		s.processCleanupJob,
 		s.repo.MarkCleanupJobDone,
-		s.repo.MarkCleanupJobRetry,
+		s.repo.MarkCleanupJobFailure,
 		func(job cleanupJob) outbox.JobMeta {
 			return outbox.JobMeta{ID: job.ID, JobType: job.JobType, AttemptCount: job.AttemptCount}
 		},

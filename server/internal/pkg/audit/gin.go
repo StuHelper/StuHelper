@@ -24,7 +24,7 @@ func EventFromGin(c *gin.Context, event Event) Event {
 
 // LogFromGin 使用 gin 上下文中的公共字段记录审计日志。
 func LogFromGin(c *gin.Context, event Event) {
-	Log(EventFromGin(c, event))
+	LogContext(c.Request.Context(), EventFromGin(c, event))
 }
 
 func inferActorType(c *gin.Context) string {

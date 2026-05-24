@@ -135,12 +135,12 @@ func (v *Verifier) touchLastUsed(ctx context.Context, id int64) error {
 }
 
 func logServiceAccountCall(ctx context.Context, input verifyInput, record *credentialRecord, result, reason string) {
-	audit.Log(audit.EventFromContext(ctx, serviceAccountCallAuditEvent(serviceAccountCallAudit{
+	audit.LogContext(ctx, serviceAccountCallAuditEvent(serviceAccountCallAudit{
 		Input:      input,
 		Credential: record,
 		Result:     result,
 		Reason:     reason,
-	})))
+	}))
 }
 
 func serviceAccountCallAuditEvent(entry serviceAccountCallAudit) audit.Event {

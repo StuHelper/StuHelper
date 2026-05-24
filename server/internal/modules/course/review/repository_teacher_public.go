@@ -11,6 +11,7 @@ import (
 // ListPublicTeachers 获取公开教师列表（支持搜索、院系过滤、多排序）。
 // 查询 mv_teacher_public_stats 物化视图，避免 live JOIN 全表聚合。
 func (r *Repository) ListPublicTeachers(ctx context.Context, search string, departmentID *int64, sort string, limit, offset int) ([]TeacherSummary, int, error) {
+	ctx = withDBTable(ctx, "mv_teacher_public_stats")
 	var qb strings.Builder
 	qb.WriteString(`
 		SELECT teacher_id, teacher_name, department_name,
@@ -69,6 +70,7 @@ func (r *Repository) ListPublicTeachers(ctx context.Context, search string, depa
 // ListHotTeachers 获取热门教师列表（按评论数+评分排序）。
 // 查询 mv_teacher_public_stats 物化视图，避免 live JOIN 全表聚合。
 func (r *Repository) ListHotTeachers(ctx context.Context, limit int) ([]TeacherSummary, error) {
+	ctx = withDBTable(ctx, "mv_teacher_public_stats")
 	rows, err := r.db.Query(ctx, `
 		SELECT teacher_id, teacher_name, department_name,
 			avg_rating, course_count, review_count
@@ -97,6 +99,7 @@ func (r *Repository) ListHotTeachers(ctx context.Context, limit int) ([]TeacherS
 // RefreshTeacherPublicStats 刷新 mv_teacher_public_stats 物化视图。
 // 使用 CONCURRENTLY 避免阻塞读操作（需要 UNIQUE INDEX）。
 func (r *Repository) RefreshTeacherPublicStats(ctx context.Context) error {
+	ctx = withDBTable(ctx, "mv_teacher_public_stats")
 	_, err := r.db.Exec(ctx, `REFRESH MATERIALIZED VIEW CONCURRENTLY mv_teacher_public_stats`)
 	if err != nil {
 		return fmt.Errorf("RefreshTeacherPublicStats: %w", err)

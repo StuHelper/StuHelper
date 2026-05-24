@@ -87,11 +87,11 @@ func (m *MFARecoveryManager) IssueRecoveryCodes(ctx context.Context, userID int6
 	if err != nil {
 		return nil, fmt.Errorf("issue mfa recovery codes: %w", err)
 	}
-	audit.Log(audit.EventFromContext(ctx, mfaRecoveryAuditEvent(mfaRecoveryAuditInput{
+	audit.LogContext(ctx, mfaRecoveryAuditEvent(mfaRecoveryAuditInput{
 		UserID: userID,
 		Action: "recovery_codes_issue",
 		Result: "success",
-	})))
+	}))
 	return &MFARecoveryCodeBundle{Codes: codes, IssuedAt: issuedAt}, nil
 }
 
@@ -173,7 +173,7 @@ func (m *MFARecoveryManager) hashRecoveryCode(userID int64, code string) (string
 }
 
 func (m *MFARecoveryManager) auditRecoveryUse(ctx context.Context, input mfaRecoveryAuditInput) {
-	audit.Log(audit.EventFromContext(ctx, mfaRecoveryAuditEvent(input)))
+	audit.LogContext(ctx, mfaRecoveryAuditEvent(input))
 }
 
 type mfaRecoveryAuditInput struct {

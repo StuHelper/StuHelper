@@ -174,7 +174,7 @@ func (h *Handler) AdminUpdateReview(c *gin.Context) {
 
 	// 记录审计事件（restore 操作）
 	if req.Action == "restore" {
-		audit.Log(audit.EventFromContext(c.Request.Context(), audit.Event{
+		audit.LogContext(c.Request.Context(), audit.Event{
 			Type:         audit.EventAdminReviewRestore,
 			ActorType:    "admin",
 			UserID:       userID,
@@ -189,7 +189,7 @@ func (h *Handler) AdminUpdateReview(c *gin.Context) {
 				"review_id":  reviewID,
 				"old_status": result.OldStatus,
 			},
-		}))
+		})
 	}
 
 	h.invalidateReviewAggregateCaches(c)

@@ -89,6 +89,7 @@ func scanProfileRow(row pgx.Row) (*Profile, error) {
 
 // GetProfileByUserID 根据用户ID获取学生认证档案
 func (r *Repository) GetProfileByUserID(ctx context.Context, userID int64) (*Profile, error) {
+	ctx = withDBTable(ctx, "user_profiles")
 	item, err := scanProfileRow(r.db.QueryRow(ctx, selectProfileByUserIDSQL, userID))
 	if err != nil {
 		return nil, fmt.Errorf("GetProfileByUserID: %w", err)
@@ -106,6 +107,7 @@ func (r *Repository) GetProfileByUserIDTx(ctx context.Context, tx pgx.Tx, userID
 
 // CreateProfile 创建学生认证档案
 func (r *Repository) CreateProfile(ctx context.Context, profile *Profile) error {
+	ctx = withDBTable(ctx, "user_profiles")
 	return saveProfile(ctx, r.db.Exec, profile, insertProfileSQL, "CreateProfile")
 }
 
@@ -115,6 +117,7 @@ func (r *Repository) CreateProfileTx(ctx context.Context, tx pgx.Tx, profile *Pr
 
 // UpdateProfile 更新学生认证档案
 func (r *Repository) UpdateProfile(ctx context.Context, profile *Profile) error {
+	ctx = withDBTable(ctx, "user_profiles")
 	return saveProfile(ctx, r.db.Exec, profile, updateProfileSQL, "UpdateProfile")
 }
 
@@ -124,6 +127,7 @@ func (r *Repository) UpdateProfileTx(ctx context.Context, tx pgx.Tx, profile *Pr
 
 // ListProfilesByStatus 分页查询学生认证档案（按状态和学校筛选）
 func (r *Repository) ListProfilesByStatus(ctx context.Context, status string, schoolID *int64, page, pageSize int) ([]Profile, int, error) {
+	ctx = withDBTable(ctx, "user_profiles")
 	args := make([]any, 0, 4)
 	argIdx := 1
 	whereClause := ""

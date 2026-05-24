@@ -62,6 +62,7 @@ func reviewCoreFieldsQuery(forUpdate bool) string {
 }
 
 func (r *Repository) getReviewCoreFields(ctx context.Context, reviewID string, forUpdate bool) (reviewCoreFields, error) {
+	ctx = withDBTable(ctx, "reviews")
 	return scanReviewCoreFields(r.db.QueryRow(ctx, reviewCoreFieldsQuery(forUpdate), reviewID))
 }
 
@@ -72,6 +73,7 @@ func getReviewCoreFieldsTx(ctx context.Context, tx pgx.Tx, reviewID string, forU
 // GetReviewByID 根据ID获取已发布的评论（仅返回 published 状态）
 // 包装 pgx.ErrNoRows 为业务层 sentinel error
 func (r *Repository) GetReviewByID(ctx context.Context, reviewID string) (*Review, error) {
+	ctx = withDBTable(ctx, "reviews")
 	var item Review
 	err := r.db.QueryRow(ctx, `
 		SELECT r.id, r.course_id, COALESCE(c.name, ''), r.teacher_id, COALESCE(t.name, ''), r.term_id,
@@ -192,6 +194,7 @@ func (r *Repository) GetReviewSchoolIDTx(ctx context.Context, tx pgx.Tx, reviewI
 }
 
 func (r *Repository) GetReviewSchoolID(ctx context.Context, reviewID string) (int64, error) {
+	ctx = withDBTable(ctx, "reviews")
 	var schoolID int64
 	err := r.db.QueryRow(ctx, `SELECT school_id FROM reviews WHERE id = $1`, reviewID).Scan(&schoolID)
 	return schoolID, err
@@ -228,6 +231,7 @@ func (r *Repository) ListReviewSchoolIDs(ctx context.Context, reviewIDs []string
 	if len(reviewIDs) == 0 {
 		return map[string]int64{}, nil
 	}
+	ctx = withDBTable(ctx, "reviews")
 
 	rows, err := r.db.Query(ctx, `
 		SELECT r.id, r.school_id
@@ -284,6 +288,7 @@ func (r *Repository) ListByMultipleCourses(ctx context.Context, courseIDs []int6
 	if len(courseIDs) == 0 {
 		return nil, nil, nil
 	}
+	ctx = withDBTable(ctx, "reviews")
 	if len(courseIDs) > maxBatchCourseIDs {
 		courseIDs = courseIDs[:maxBatchCourseIDs]
 	}
@@ -367,6 +372,7 @@ type ListByCourseWithSortParams struct {
 // ListByCourseWithSort 获取课程评论列表（支持排序和筛选，含总数）。
 // 公开查询使用分离的 COUNT + 数据查询，避免 COUNT(*) OVER() 的全量窗口扫描开销。
 func (r *Repository) ListByCourseWithSort(ctx context.Context, p ListByCourseWithSortParams) ([]Review, int, error) {
+	ctx = withDBTable(ctx, "reviews")
 	// 构建公共 WHERE 子句
 	baseWhere := ` WHERE r.course_id = $1 AND r.status = 'published'`
 	args := []interface{}{p.CourseID}
@@ -444,6 +450,7 @@ type SearchReviewsQueryParams struct {
 // SearchReviews 搜索测评列表（支持课程名/课号、院系、教师、学期筛选）。
 // 公开查询使用分离的 COUNT + 数据查询，避免 COUNT(*) OVER() 的全量窗口扫描开销。
 func (r *Repository) SearchReviews(ctx context.Context, p SearchReviewsQueryParams) ([]Review, int, error) {
+	ctx = withDBTable(ctx, "reviews")
 	// 构建公共 WHERE 子句片段和参数
 	var whereParts strings.Builder
 	args := make([]any, 0, 6)
@@ -523,6 +530,7 @@ func (r *Repository) SearchReviews(ctx context.Context, p SearchReviewsQueryPara
 
 // ListByUserHash 获取用户的评论列表（含总数）
 func (r *Repository) ListByUserHash(ctx context.Context, userHash string, limit, offset int) ([]Review, int, error) {
+	ctx = withDBTable(ctx, "reviews")
 	rows, err := r.db.Query(ctx, `
 		SELECT r.id, r.course_id, COALESCE(c.name, ''), r.teacher_id, COALESCE(t.name, ''), r.term_id,
 		       r.title, r.content, r.grade, r.ratings,
@@ -546,6 +554,7 @@ func (r *Repository) ListByUserHash(ctx context.Context, userHash string, limit,
 
 // ListVotedReviews 获取用户点赞/踩的评论列表（含总数）
 func (r *Repository) ListVotedReviews(ctx context.Context, userHash, voteType string, limit, offset int) ([]Review, int, error) {
+	ctx = withDBTable(ctx, "review_votes")
 	rows, err := r.db.Query(ctx, `
 		SELECT r.id, r.course_id, COALESCE(c.name, ''), r.teacher_id, COALESCE(t.name, ''), r.term_id,
 		       r.title, r.content, r.grade, r.ratings,

@@ -150,7 +150,7 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 		return nil, err
 	}
 
-	audit.Log(audit.EventFromContext(ctx, audit.Event{
+	audit.LogContext(ctx, audit.Event{
 		Type:         audit.EventDataCreate,
 		UserID:       maskHash(params.UserHash),
 		IP:           params.IPAddress,
@@ -165,7 +165,7 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 			"course_id": params.CourseID,
 			"status":    review.Status,
 		},
-	}))
+	})
 
 	return &PostReviewResult{Review: review}, nil
 }

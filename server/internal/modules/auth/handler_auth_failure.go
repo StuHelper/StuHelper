@@ -56,15 +56,15 @@ func (h *Handler) auditAuthIPLock(c *gin.Context, err error) {
 	if !errors.Is(err, ErrAuthIPLocked) {
 		return
 	}
-	audit.Log(authIPLockAuditEvent(c))
+	audit.LogContext(c.Request.Context(), authIPLockAuditEvent(c))
 }
 
 func (h *Handler) auditAuthAccountLock(c *gin.Context, account string, err error) {
 	switch {
 	case errors.Is(err, ErrAuthAccountHardLocked):
-		audit.Log(authAccountLockAuditEvent(c, account, "hard"))
+		audit.LogContext(c.Request.Context(), authAccountLockAuditEvent(c, account, "hard"))
 	case errors.Is(err, ErrAuthAccountSoftLocked):
-		audit.Log(authAccountLockAuditEvent(c, account, "soft"))
+		audit.LogContext(c.Request.Context(), authAccountLockAuditEvent(c, account, "soft"))
 	}
 }
 

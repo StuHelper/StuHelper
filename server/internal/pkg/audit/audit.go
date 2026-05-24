@@ -98,7 +98,18 @@ func EventFromContext(ctx context.Context, event Event) Event {
 
 // Log 记录审计日志，并在配置仓储后持久化到 audit_events。
 func Log(e Event) {
-	e = normalizeEvent(e)
+	LogContext(context.Background(), e)
+}
+
+// LogContext 记录带上下文的审计日志。
+//
+// 事件字段会从 ctx 补齐 request_id / trace_id；持久化使用 WithoutCancel 派生上下文，
+// 保留 trace baggage 和 request-scoped values，同时避免客户端断开取消安全审计写入。
+func LogContext(ctx context.Context, e Event) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	e = EventFromContext(ctx, e)
 
 	fields := []zap.Field{
 		zap.String("audit_type", string(e.Type)),
@@ -140,14 +151,26 @@ func Log(e Event) {
 	if repo == nil {
 		return
 	}
-	if err := repo.WriteEvent(context.Background(), e); err != nil {
+	if err := repo.WriteEvent(auditWriteContext(ctx), e); err != nil {
 		logger.L().Warn("persist audit event failed", zap.Error(err))
 	}
 }
 
+func auditWriteContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return context.WithoutCancel(ctx)
+}
+
 // LogSuccess 记录成功的审计事件
 func LogSuccess(eventType EventType, userID, username, ip, userAgent, requestID string) {
-	Log(Event{
+	LogSuccessContext(context.Background(), eventType, userID, username, ip, userAgent, requestID)
+}
+
+// LogSuccessContext 记录带上下文的成功审计事件。
+func LogSuccessContext(ctx context.Context, eventType EventType, userID, username, ip, userAgent, requestID string) {
+	LogContext(ctx, Event{
 		Type:         eventType,
 		ActorType:    "user",
 		UserID:       userID,
@@ -163,7 +186,12 @@ func LogSuccess(eventType EventType, userID, username, ip, userAgent, requestID 
 
 // LogFailure 记录失败的审计事件
 func LogFailure(eventType EventType, ip, userAgent, requestID, reason string) {
-	Log(Event{
+	LogFailureContext(context.Background(), eventType, ip, userAgent, requestID, reason)
+}
+
+// LogFailureContext 记录带上下文的失败审计事件。
+func LogFailureContext(ctx context.Context, eventType EventType, ip, userAgent, requestID, reason string) {
+	LogContext(ctx, Event{
 		Type:         eventType,
 		ActorType:    "user",
 		IP:           ip,
