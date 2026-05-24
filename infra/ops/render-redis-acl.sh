@@ -20,6 +20,8 @@ user default off
 user ${REDIS_USERNAME} on >${REDIS_PASSWORD} ~* +@all
 user ${REDIS_EXPORTER_USERNAME} on >${REDIS_PASSWORD} ~* +@all
 ACL
-chmod 600 "${ACL_FILE}"
+# Redis drops privileges before loading the ACL file from the bind mount, so it
+# must be readable by the container user, not only by the host file owner.
+chmod 644 "${ACL_FILE}"
 
 log "rendered Redis ACL file at ${ACL_FILE}"
