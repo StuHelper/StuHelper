@@ -270,7 +270,7 @@ docker build \
   --build-arg VITE_API_TIMEOUT_MS="${WEB_VITE_API_TIMEOUT_MS}" \
   -f "${REPO_ROOT}/clients/web/Dockerfile" \
   -t "${FRONTEND_IMAGE_REF}" \
-  "${REPO_ROOT}/clients"
+  "${REPO_ROOT}"
 docker build \
   --build-arg VITE_GLOB_API_URL="${ADMIN_VITE_API_URL}" \
   --build-arg VITE_BASE="${ADMIN_VITE_BASE}" \

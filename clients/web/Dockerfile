@@ -13,18 +13,22 @@ ENV VITE_API_URL=${VITE_API_URL}
 ENV VITE_SSO_URL=${VITE_SSO_URL}
 ENV VITE_ADMIN_URL=${VITE_ADMIN_URL}
 ENV VITE_API_TIMEOUT_MS=${VITE_API_TIMEOUT_MS}
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY web/package.json ./web/
-COPY shared/package.json ./shared/
-COPY uniappx/package.json ./uniappx/
+COPY clients/package.json clients/pnpm-lock.yaml clients/pnpm-workspace.yaml ./
+COPY clients/web/package.json ./web/
+COPY clients/shared/package.json ./shared/
+COPY clients/uniappx/package.json ./uniappx/
 RUN pnpm install --frozen-lockfile
-COPY . .
+COPY clients/scripts ./scripts
+COPY clients/shared ./shared
+COPY clients/web ./web
+COPY clients/uniappx ./uniappx
+COPY server/internal/pkg/capability/catalog.go /server/internal/pkg/capability/catalog.go
 RUN pnpm run build:web
 
 # Serve stage
 FROM ${NGINX_IMAGE}
 COPY --from=builder /app/web/dist /usr/share/nginx/html
-COPY web/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/web/nginx.conf /etc/nginx/conf.d/default.conf
 
 RUN chown -R nginx:nginx /usr/share/nginx/html && \
     chown -R nginx:nginx /var/cache/nginx && \
