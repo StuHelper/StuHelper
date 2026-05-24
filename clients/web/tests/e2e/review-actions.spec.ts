@@ -198,6 +198,10 @@ async function mockCourseDetail(page: Page) {
         "**/api/v1/course/review/courses/42/rating-trend*",
         (route) => route.fulfill(ok({ trend: [] })),
     );
+    await page.route(
+        "**/api/v1/course/review/courses/42/favorites",
+        (route) => route.fulfill(ok({ favorited: false })),
+    );
 }
 
 async function mockReviewFeed(page: Page) {
@@ -226,6 +230,12 @@ test.describe("Review actions", () => {
 
         await page.route("**/api/v1/course/review/user/reviews*", (route) =>
             route.fulfill(list([ownReview], 1)),
+        );
+        await page.route("**/api/v1/course/review/user/votes*", (route) =>
+            route.fulfill(list([], 0)),
+        );
+        await page.route("**/api/v1/course/review/user/favorites*", (route) =>
+            route.fulfill(list([], 0)),
         );
         await page.route(
             "**/api/v1/course/review/reviews/my-action-review",

@@ -28,10 +28,19 @@ function describeUnsuccessfulResponse(response: Response) {
   }`;
 }
 
+function isApiRequest(request: Request) {
+  const resourceType = request.resourceType();
+  if (resourceType !== 'fetch' && resourceType !== 'xhr') {
+    return false;
+  }
+  return new URL(request.url()).pathname.startsWith('/api/v1/');
+}
+
 export const test = base.extend<{ page: Page }>({
   page: async ({ page }, use) => {
     const pageErrors: string[] = [];
     const failedRequests: string[] = [];
+    const apiFailures: string[] = [];
 
     page.on('pageerror', (error) => {
       pageErrors.push(describePageError(error));
@@ -39,6 +48,9 @@ export const test = base.extend<{ page: Page }>({
     page.on('requestfailed', (request) => {
       if (criticalResourceTypes.has(request.resourceType())) {
         failedRequests.push(describeFailedRequest(request));
+      }
+      if (isApiRequest(request)) {
+        apiFailures.push(describeFailedRequest(request));
       }
     });
     page.on('response', (response) => {
@@ -49,6 +61,9 @@ export const test = base.extend<{ page: Page }>({
       ) {
         failedRequests.push(describeUnsuccessfulResponse(response));
       }
+      if (isApiRequest(request) && response.status() >= 500) {
+        apiFailures.push(describeUnsuccessfulResponse(response));
+      }
     });
 
     await use(page);
@@ -57,6 +72,10 @@ export const test = base.extend<{ page: Page }>({
     expect(
       failedRequests,
       'critical browser resources should load with successful HTTP status',
+    ).toEqual([]);
+    expect(
+      apiFailures,
+      'API requests should not fail with network errors or HTTP 5xx',
     ).toEqual([]);
   },
 });

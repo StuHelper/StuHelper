@@ -58,7 +58,9 @@ app.config.errorHandler = (err, instance, info) => {
 app.use(pinia)
 app.use(i18n)
 app.directive('ripple', vRipple)
-initObservability()
+if (import.meta.env.VITE_E2E_API_STUB !== '1') {
+  initObservability()
+}
 
 async function bootstrapApp() {
   useLocaleStore(pinia)
