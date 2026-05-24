@@ -22,6 +22,8 @@ assert_contains() {
 
 assert_contains "${SSO_NGINX_FILE}" 'server_name sso\.stuhelper\.com;'
 assert_contains "${SSO_NGINX_FILE}" 'return 301 https://sso\.stuhelper\.com\$request_uri;'
+assert_contains "${SSO_NGINX_FILE}" 'location = /\.well-known/openid-configuration \{'
+assert_contains "${SSO_NGINX_FILE}" 'location = /\.well-known/jwks \{'
 assert_contains "${SSO_NGINX_FILE}" 'location \^~ /\.well-known/ \{'
 assert_contains "${SSO_NGINX_FILE}" 'location \^~ /api/ \{'
 assert_contains "${SSO_NGINX_FILE}" 'proxy_pass http://127\.0\.0\.1:8087;'

@@ -280,6 +280,11 @@ def require_location_proxy(block: Node, label: str, modifier: str | None, path: 
         )
 
 
+def location_proxy_matches(block: Node, modifier: str | None, path: str, upstream: str) -> bool:
+    loc = location(block, modifier, path)
+    return loc is not None and upstream in proxy_pass_values(loc)
+
+
 def require_location_return(block: Node, label: str, modifier: str | None, path: str, code: str, target: str) -> None:
     loc = location(block, modifier, path)
     rendered = f"location {modifier + ' ' if modifier else ''}{path}"
@@ -319,11 +324,33 @@ def require_location_add_header(
     )
 
 
-def require_proxy_header(block: Node, label: str, header: str, value: str) -> None:
+def has_proxy_header(block: Node, header: str, values: set[str]) -> bool:
     for directive in direct(block, "proxy_set_header"):
-        if len(directive.args) >= 2 and directive.args[0].lower() == header.lower() and directive.args[1] == value:
-            return
+        if len(directive.args) >= 2 and directive.args[0].lower() == header.lower() and directive.args[1] in values:
+            return True
+    return False
+
+
+def require_proxy_header(block: Node, label: str, header: str, value: str) -> None:
+    if has_proxy_header(block, header, {value}):
+        return
     raise CheckError(f"{label}: missing proxy_set_header {header} {value}")
+
+
+def require_proxy_header_on_server_or_location(
+    server: Node,
+    loc: Node,
+    label: str,
+    rendered_location: str,
+    header: str,
+    values: set[str],
+) -> None:
+    if has_proxy_header(server, header, values) or has_proxy_header(loc, header, values):
+        return
+    rendered_values = ", ".join(sorted(values))
+    raise CheckError(
+        f"{label}: {rendered_location} or server block must set proxy_set_header {header} to one of {rendered_values}"
+    )
 
 
 def require_tls(block: Node, label: str) -> None:
@@ -351,6 +378,18 @@ def validate_main(block: Node, upstreams: dict[str, str]) -> None:
     require_location_proxy(block, label, None, "/", upstreams["web"])
 
 
+def has_static_well_known_location(block: Node, upstream: str) -> bool:
+    for loc in direct(block, "location"):
+        if not loc.args:
+            continue
+        path = loc.args[-1]
+        if path not in {"/.well-known", "/.well-known/"}:
+            continue
+        if upstream not in proxy_pass_values(loc):
+            return True
+    return False
+
+
 def validate_www(block: Node) -> None:
     require_tls(block, "www.stuhelper.com")
 
@@ -375,12 +414,49 @@ def validate_identity(block: Node, upstreams: dict[str, str]) -> None:
 
 def validate_sso(block: Node, upstreams: dict[str, str]) -> None:
     label = "sso.stuhelper.com"
-    require_common_proxy_server(block, label)
-    if recursive_has(block, {"root", "try_files"}):
-        raise CheckError(f"{label}: server block must not contain root or try_files")
-    require_location_proxy(block, label, "^~", "/.well-known/", upstreams["casdoor"])
-    require_location_proxy(block, label, "^~", "/api/", upstreams["casdoor"])
-    require_location_proxy(block, label, None, "/", upstreams["casdoor"])
+    require_tls(block, label)
+    casdoor_upstream = upstreams["casdoor"]
+
+    exact_discovery = location_proxy_matches(block, "=", "/.well-known/openid-configuration", casdoor_upstream)
+    exact_jwks = location_proxy_matches(block, "=", "/.well-known/jwks", casdoor_upstream)
+    well_known_prefix = location_proxy_matches(block, "^~", "/.well-known/", casdoor_upstream)
+    has_static_well_known_risk = recursive_has(block, {"root", "try_files"}) or has_static_well_known_location(block, casdoor_upstream)
+    if has_static_well_known_risk and not (exact_discovery and exact_jwks):
+        raise CheckError(
+            f"{label}: Baota static /.well-known handling requires exact openid-configuration and jwks proxy_pass {casdoor_upstream}"
+        )
+    if not well_known_prefix and not (exact_discovery and exact_jwks):
+        raise CheckError(
+            f"{label}: missing location ^~ /.well-known/ or exact openid-configuration and jwks proxy_pass {casdoor_upstream}"
+        )
+
+    header_locations: list[tuple[str, Node]] = []
+    for modifier, path in [
+        ("=", "/.well-known/openid-configuration"),
+        ("=", "/.well-known/jwks"),
+        ("^~", "/.well-known/"),
+        ("^~", "/api/"),
+        ("^~", "/"),
+        (None, "/"),
+    ]:
+        loc = location(block, modifier, path)
+        if loc is not None and casdoor_upstream in proxy_pass_values(loc):
+            rendered = f"location {modifier + ' ' if modifier else ''}{path}"
+            header_locations.append((rendered, loc))
+
+    for rendered, loc in header_locations:
+        require_proxy_header_on_server_or_location(block, loc, label, rendered, "Host", {"$host", "$http_host"})
+        require_proxy_header_on_server_or_location(block, loc, label, rendered, "X-Forwarded-Proto", {"https", "$scheme"})
+        require_proxy_header_on_server_or_location(block, loc, label, rendered, "X-Forwarded-Host", {"$host"})
+
+    require_location_proxy(block, label, "^~", "/api/", casdoor_upstream)
+    if not (
+        location_proxy_matches(block, None, "/", casdoor_upstream)
+        or location_proxy_matches(block, "^~", "/", casdoor_upstream)
+    ):
+        raise CheckError(
+            f"{label}: missing location / or location ^~ / proxy_pass {casdoor_upstream}"
+        )
 
 
 def matching_https_servers(servers: list[Node], domain: str) -> list[Node]:

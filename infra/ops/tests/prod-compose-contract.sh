@@ -104,6 +104,8 @@ assert_contains "${BAOTA_NGINX_FILE}" 'location \^~ /health/ \{'
 assert_contains "${BAOTA_NGINX_FILE}" 'location = /metrics \{'
 assert_contains "${BAOTA_NGINX_FILE}" 'location \^~ /docs/ \{'
 assert_contains "${SSO_NGINX_FILE}" 'server_name sso\.stuhelper\.com;'
+assert_contains "${SSO_NGINX_FILE}" 'location = /\.well-known/openid-configuration \{'
+assert_contains "${SSO_NGINX_FILE}" 'location = /\.well-known/jwks \{'
 assert_contains "${SSO_NGINX_FILE}" 'location \^~ /\.well-known/ \{'
 assert_contains "${SSO_NGINX_FILE}" 'proxy_pass http://127\.0\.0\.1:8087;'
 if printf '%s\n' "${app_block}" | grep -Eq 'proxy:'; then

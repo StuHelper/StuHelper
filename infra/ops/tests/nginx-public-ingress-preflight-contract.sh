@@ -123,6 +123,63 @@ server {
 }
 NGINX
 
+baota_sso_static_well_known_fixed="${tmpdir}/baota-sso-static-well-known-fixed.conf"
+cat >"${baota_sso_static_well_known_fixed}" <<'NGINX'
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name sso.stuhelper.com;
+    root /www/dk_project/wwwroot/sso.stuhelper.com;
+    ssl_certificate /tmp/fullchain.pem;
+    ssl_certificate_key /tmp/privkey.pem;
+
+    location = /.well-known/openid-configuration {
+      proxy_pass http://127.0.0.1:8087;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+      proxy_set_header X-Forwarded-Host $host;
+      proxy_http_version 1.1;
+    }
+
+    location = /.well-known/jwks {
+      proxy_pass http://127.0.0.1:8087;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+      proxy_set_header X-Forwarded-Host $host;
+      proxy_http_version 1.1;
+    }
+
+    location ^~ / {
+      proxy_pass http://127.0.0.1:8087;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Forwarded-Proto $scheme;
+      proxy_set_header X-Forwarded-Host $host;
+    }
+
+    location ^~ /api/ {
+      proxy_pass http://127.0.0.1:8087;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Forwarded-Proto $scheme;
+      proxy_set_header X-Forwarded-Host $host;
+    }
+
+    location /.well-known {
+      allow all;
+    }
+}
+NGINX
+
+baota_sso_static_well_known_missing_jwks="${tmpdir}/baota-sso-static-well-known-missing-jwks.conf"
+awk '
+  /^    location = \/.well-known\/jwks \{/ { skip=1; next }
+  skip && /^    }$/ { skip=0; next }
+  !skip { print }
+' "${baota_sso_static_well_known_fixed}" >"${baota_sso_static_well_known_missing_jwks}"
+
 sso_custom_upstream="${tmpdir}/sso-custom-upstream.conf"
 sed 's/127[.]0[.]0[.]1:8087/127.0.0.1:8085/g' "${SSO_NGINX_FILE}" >"${sso_custom_upstream}"
 
@@ -139,9 +196,11 @@ fi
 assert_file_contains "${tmpdir}/sso-custom-upstream.stdout" 'public Nginx ingress config preflight passed'
 run_preflight_pass "all" "${combined_good}" "${tmpdir}" "combined-template"
 run_preflight_pass "all" "${baota_dump_with_json_logs}" "${tmpdir}" "baota-json-log-dump"
+run_preflight_pass "sso" "${baota_sso_static_well_known_fixed}" "${tmpdir}" "baota-sso-static-well-known-fixed"
 run_preflight_fail "stuhelper" "${missing_id}" "${tmpdir}" "missing-id" 'id\.stuhelper\.com: missing HTTPS server block'
 run_preflight_fail "stuhelper" "${missing_id_redirect_cache_headers}" "${tmpdir}" "missing-id-redirect-cache-headers" 'location = / must add_header Cache-Control'
-run_preflight_fail "sso" "${bad_sso_static_root}" "${tmpdir}" "bad-sso-static-root" 'root or try_files'
+run_preflight_fail "sso" "${bad_sso_static_root}" "${tmpdir}" "bad-sso-static-root" 'requires exact openid-configuration and jwks'
+run_preflight_fail "sso" "${baota_sso_static_well_known_missing_jwks}" "${tmpdir}" "baota-sso-static-well-known-missing-jwks" 'requires exact openid-configuration and jwks'
 run_preflight_fail "unknown" "${combined_good}" "${tmpdir}" "unknown-profile" 'unknown NGINX_PUBLIC_INGRESS_PROFILE'
 
 if ! PUBLIC_INGRESS_CONFIG_PREFLIGHT_ENABLED=false \
