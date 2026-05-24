@@ -36,6 +36,15 @@ function isApiRequest(request: Request) {
   return new URL(request.url()).pathname.startsWith('/api/v1/');
 }
 
+function isExpectedApiErrorResponse(response: Response) {
+  const request = response.request();
+  const method = request.method().toUpperCase();
+  const pathname = new URL(response.url()).pathname;
+  const status = response.status();
+
+  return method === 'GET' && pathname === '/api/v1/auth/me' && status === 401;
+}
+
 export const test = base.extend<{ page: Page }>({
   page: async ({ page }, use) => {
     const pageErrors: string[] = [];
@@ -61,7 +70,11 @@ export const test = base.extend<{ page: Page }>({
       ) {
         failedRequests.push(describeUnsuccessfulResponse(response));
       }
-      if (isApiRequest(request) && response.status() >= 500) {
+      if (
+        isApiRequest(request) &&
+        response.status() >= 400 &&
+        !isExpectedApiErrorResponse(response)
+      ) {
         apiFailures.push(describeUnsuccessfulResponse(response));
       }
     });
@@ -75,7 +88,7 @@ export const test = base.extend<{ page: Page }>({
     ).toEqual([]);
     expect(
       apiFailures,
-      'API requests should not fail with network errors or HTTP 5xx',
+      'API requests should not fail with unexpected network errors or HTTP 4xx/5xx',
     ).toEqual([]);
   },
 });

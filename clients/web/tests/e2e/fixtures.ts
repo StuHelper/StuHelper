@@ -36,6 +36,47 @@ function isApiRequest(request: Request) {
   return new URL(request.url()).pathname.startsWith('/api/v1/')
 }
 
+function isExpectedApiErrorResponse(response: Response) {
+  const request = response.request()
+  const method = request.method().toUpperCase()
+  const pathname = new URL(response.url()).pathname
+  const status = response.status()
+
+  if (method === 'GET' && pathname === '/api/v1/auth/me' && status === 401) {
+    return true
+  }
+  if (
+    method === 'GET' &&
+    pathname === '/api/v1/user/qq-binding' &&
+    status === 404
+  ) {
+    return true
+  }
+  if (
+    method === 'GET' &&
+    pathname === '/api/v1/user/identity' &&
+    status === 404
+  ) {
+    return true
+  }
+  if (
+    method === 'GET' &&
+    /^\/api\/v1\/admission\/sessions\/[^/]+$/.test(pathname) &&
+    (status === 409 || status === 410)
+  ) {
+    return true
+  }
+  if (
+    method === 'GET' &&
+    /^\/api\/v1\/course\/review\/courses\/[^/]+\/favorites$/.test(pathname) &&
+    status === 401
+  ) {
+    return true
+  }
+
+  return false
+}
+
 export const test = base.extend<{ page: Page }>({
   page: async ({ page }, use) => {
     const pageErrors: string[] = []
@@ -61,7 +102,11 @@ export const test = base.extend<{ page: Page }>({
       ) {
         failedRequests.push(describeUnsuccessfulResponse(response))
       }
-      if (isApiRequest(request) && response.status() >= 500) {
+      if (
+        isApiRequest(request) &&
+        response.status() >= 400 &&
+        !isExpectedApiErrorResponse(response)
+      ) {
         apiFailures.push(describeUnsuccessfulResponse(response))
       }
     })
@@ -73,7 +118,10 @@ export const test = base.extend<{ page: Page }>({
       failedRequests,
       'critical browser resources should load with successful HTTP status',
     ).toEqual([])
-    expect(apiFailures, 'API requests should not fail with network errors or HTTP 5xx').toEqual([])
+    expect(
+      apiFailures,
+      'API requests should not fail with unexpected network errors or HTTP 4xx/5xx',
+    ).toEqual([])
   },
 })
 

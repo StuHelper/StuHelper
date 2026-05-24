@@ -3,7 +3,7 @@ type: internal
 audience: maintainers
 status: current
 authoritative-source: this file
-last-verified: 2026-05-24
+last-verified: 2026-05-25
 ---
 
 # 当前项目待办
@@ -74,6 +74,12 @@ E2E 覆盖。新增覆盖后已通过单文件
 `make check-infra-contracts`、`node --check infra/ops/prod-parity-browser-smoke.mjs`、
 `bash infra/ops/tests/prod-parity-contract.sh` 和 `git diff --check`。
 
+本地验证补充（2026-05-25）：Web / Admin Playwright fixture 的 API 门禁继续从 HTTP 5xx
+收紧到未声明允许的 `fetch` / `xhr` HTTP 4xx/5xx，防止页面断言未覆盖时漏掉客户端 API 错误。
+允许清单仅保留被页面显式展示的业务状态：匿名 `auth/me` 401、Web 未绑定 QQ 404、未创建实名信息
+404、入群链接冲突 / 过期 409 / 410、匿名读取课程收藏状态 401；Admin 仅允许匿名 `auth/me` 401。
+收紧后已通过完整 `CI=1 PLAYWRIGHT_WEB_PORT=3410 make e2e`，覆盖 Web 53 项和 Admin 26 项。
+
 本地验证补充（2026-05-25）：本机生产等价 browser smoke 从浅层首页检查扩展为公开 Web 路由
 矩阵，覆盖首页、登录页、关于、隐私、条款、课程入口、课程列表、课程说明、评课聚合、搜索、教师主页、
 写评课、用户中心各 tab、实名 / 学生认证、手机 / QQ 绑定、学籍信息、通知、开发者应用、Open Platform
@@ -102,7 +108,7 @@ E2E 与 prod-parity 验证进入远端部署 bundle；新增 `deploy-bundle-cont
 
 E2E 门禁补充（2026-05-25）：Web / Admin Vite E2E API stub 改为 fail-closed，除测试基础设施
 允许的 SSE / vitals 请求外，未被 Playwright route 显式 mock 的 `/api/*` 会返回
-`500 E2E_UNMOCKED_API`，并由现有 API 5xx fixture 门禁使测试失败。该门禁暴露并补齐了首页统计、
+`500 E2E_UNMOCKED_API`，并由 API 4xx/5xx fixture 门禁使测试失败。该门禁暴露并补齐了首页统计、
 首页热门课程、搜索院系、AppShell 身份 / 学籍 / QQ 绑定、用户中心后台 tabs、授权审计列表、课程收藏
 状态和写评课草稿等真实页面依赖的 mock。本轮已通过 `PLAYWRIGHT_WEB_PORT=3100 make e2e-web`、
 `make e2e-admin`、完整 `PLAYWRIGHT_WEB_PORT=3100 make e2e`、`pnpm lint:web`、`pnpm lint:admin`、
