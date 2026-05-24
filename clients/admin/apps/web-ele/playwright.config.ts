@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 
 const workspaceRoot = path.resolve(
   fileURLToPath(new URL('../..', import.meta.url)),
@@ -25,6 +25,16 @@ export default defineConfig({
     headless: !!process.env.CI,
     trace: 'on-first-retry',
   },
+  projects: [
+    {
+      name: 'desktop-chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'mobile-chromium',
+      use: { ...devices['Pixel 5'] },
+    },
+  ],
   webServer: {
     command: `cd ${JSON.stringify(workspaceRoot)} && pnpm -F @vben/web-ele exec vite --mode development --host ${host} --port ${port}`,
     env: {

@@ -98,6 +98,14 @@ Admin 26 项）。
 不放宽全局浏览器 / API 失败门禁。已通过 `CI=1 PLAYWRIGHT_WEB_PORT=3412 make e2e-web`（106 项）
 和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3413 make e2e`（Web 106 项、Admin 26 项）。
 
+本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
+`desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
+举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等
+26 条管理用例同时覆盖桌面与移动视口。本轮扩展暴露了 profile 测试在移动布局中命中隐藏导航标题副本的问题；
+断言已收敛到页面主体 `main` 内的认证用户信息和账号 tab，不放宽全局浏览器 / API 失败门禁。已通过
+`CI=1 ADMIN_E2E_PORT=4176 make e2e-admin`（52 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3414 ADMIN_E2E_PORT=4177 make e2e`（Web 106 项、Admin 52 项）。
+
 本地验证补充（2026-05-25）：Koishi Console Playwright UI smoke 已在原有 `pageerror` 和
 console error/warning tracker 基础上补齐关键资源门禁，把 `document`、`script`、`stylesheet`、
 `font`、`image` 的 `requestfailed` 和 HTTP 4xx/5xx 视为失败，避免 NavRail / view anchor

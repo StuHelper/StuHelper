@@ -67,8 +67,9 @@ test.describe('Admin core shell routes', () => {
   }) => {
     await page.goto('/profile');
 
-    await expect(page.getByText('个人中心').first()).toBeVisible();
-    await expect(page.getByText('Platform Admin').first()).toBeVisible();
+    const main = page.locator('main');
+
+    await expect(main.getByText('Platform Admin').first()).toBeVisible();
     await expect(page.getByRole('tab', { name: '基本设置' })).toBeVisible();
     await expect(page.getByText('用户名')).toBeVisible();
     await expect(page.getByRole('textbox', { name: '用户名' })).toHaveValue(

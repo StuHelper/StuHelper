@@ -86,6 +86,8 @@ pnpm test:web && pnpm test:e2e
 pnpm build:web && pnpm build:admin && pnpm build:uni:h5
 ```
 
+说明：`pnpm test:e2e` 会同时运行 Web 与 Admin 的 Playwright 用例，并在桌面和移动视口下执行。
+
 ## Koishi 工作区
 
 ```bash
