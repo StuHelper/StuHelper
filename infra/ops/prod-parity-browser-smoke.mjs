@@ -91,6 +91,17 @@ const checks = [
     expectedURLIncludes: '/login',
   },
   {
+    name: 'web-protected-user-reviews',
+    url: joinURL(webBaseURL, '/user/reviews'),
+    expectedTexts: ['登录', 'Login'],
+    expectedURLIncludes: '/login',
+  },
+  {
+    name: 'web-not-found',
+    url: joinURL(webBaseURL, '/this-route-does-not-exist'),
+    expectedTexts: ['页面不存在', 'Page Not Found'],
+  },
+  {
     name: 'admin-login-redirect',
     url: joinURL(adminBaseURL, '/admin/'),
     expectedTexts: ['Sign In', 'Password', '登录'],
@@ -209,9 +220,9 @@ async function runCheck(browser, check) {
     await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
     const title = await page.title();
     const bodyText = await page.locator('body').innerText({ timeout: timeoutMs });
-    const hasExpectedText = check.expectedTexts.some((text) => bodyText.includes(text));
+    const matchedText = check.expectedTexts.find((text) => bodyText.includes(text));
 
-    if (!hasExpectedText) {
+    if (!matchedText) {
       throw new Error(
         `missing expected text; expected one of: ${check.expectedTexts.join(', ')}`,
       );
@@ -243,6 +254,7 @@ async function runCheck(browser, check) {
       finalURL: page.url(),
       status: response.status(),
       title,
+      matchedText,
       screenshot: relative(repoRoot, screenshotFile),
     };
   } catch (error) {
