@@ -15,12 +15,23 @@ PARITY_DIR="${PROD_PARITY_DIR:-${REPO_ROOT}/.run/prod-parity}"
 mkdir -p "${PARITY_DIR}"
 chmod 700 "${PARITY_DIR}" 2>/dev/null || true
 
+parity_default_path() {
+  local current="$1"
+  local common_default="$2"
+  local parity_default="$3"
+  if [[ -z "${current}" || "${current}" == "${common_default}" ]]; then
+    printf '%s\n' "${parity_default}"
+    return
+  fi
+  printf '%s\n' "${current}"
+}
+
 export ENV_TEMPLATE_FILE="${REPO_ROOT}/.env.prod.example"
-export ENV_FILE="${ENV_FILE:-${PARITY_DIR}/.env.prod.shared}"
-export SECRETS_ENV_FILE="${SECRETS_ENV_FILE:-${PARITY_DIR}/.env.prod.secrets.local}"
-export GENERATED_ENV_FILE="${GENERATED_ENV_FILE:-${PARITY_DIR}/.env.prod.generated}"
-export GENERATED_SECRET_ENV_FILE="${GENERATED_SECRET_ENV_FILE:-${PARITY_DIR}/.env.prod.generated.secrets}"
-export DEPLOY_STATE_DIR="${DEPLOY_STATE_DIR:-${PARITY_DIR}/deploy-state}"
+export ENV_FILE="$(parity_default_path "${ENV_FILE:-}" "${REPO_ROOT}/.env" "${PARITY_DIR}/.env.prod.shared")"
+export SECRETS_ENV_FILE="$(parity_default_path "${SECRETS_ENV_FILE:-}" "" "${PARITY_DIR}/.env.prod.secrets.local")"
+export GENERATED_ENV_FILE="$(parity_default_path "${GENERATED_ENV_FILE:-}" "${REPO_ROOT}/.env.generated" "${PARITY_DIR}/.env.prod.generated")"
+export GENERATED_SECRET_ENV_FILE="$(parity_default_path "${GENERATED_SECRET_ENV_FILE:-}" "${REPO_ROOT}/.env.generated.secrets" "${PARITY_DIR}/.env.prod.generated.secrets")"
+export DEPLOY_STATE_DIR="$(parity_default_path "${DEPLOY_STATE_DIR:-}" "${REPO_ROOT}/.deploy" "${PARITY_DIR}/deploy-state")"
 
 touch "${ENV_FILE}" "${SECRETS_ENV_FILE}" "${GENERATED_ENV_FILE}" "${GENERATED_SECRET_ENV_FILE}"
 chmod 600 "${ENV_FILE}" "${SECRETS_ENV_FILE}" "${GENERATED_ENV_FILE}" "${GENERATED_SECRET_ENV_FILE}" 2>/dev/null || true
@@ -51,7 +62,7 @@ ensure_identity_private_key() {
   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "${key_file}" >/dev/null 2>&1
   b64="$(base64 -w0 "${key_file}" 2>/dev/null || base64 <"${key_file}" | tr -d '\n')"
   rm -f "${key_file}"
-  upsert_env_file "${SECRETS_ENV_FILE}" "IDENTITY_SIGNING_PRIVATE_KEY_PEM" "${b64}"
+  printf 'IDENTITY_SIGNING_PRIVATE_KEY_PEM=%s\n' "${b64}" >> "${SECRETS_ENV_FILE}"
 }
 
 tag="${PROD_PARITY_TAG:-prod-parity-$(git_tag_default)}"

@@ -10,12 +10,23 @@ require_cmd jq
 require_cmd python3
 
 PARITY_DIR="${PROD_PARITY_DIR:-${REPO_ROOT}/.run/prod-parity}"
+parity_default_path() {
+  local current="$1"
+  local common_default="$2"
+  local parity_default="$3"
+  if [[ -z "${current}" || "${current}" == "${common_default}" ]]; then
+    printf '%s\n' "${parity_default}"
+    return
+  fi
+  printf '%s\n' "${current}"
+}
+
 export ENV_TEMPLATE_FILE="${REPO_ROOT}/.env.prod.example"
-export ENV_FILE="${ENV_FILE:-${PARITY_DIR}/.env.prod.shared}"
-export SECRETS_ENV_FILE="${SECRETS_ENV_FILE:-${PARITY_DIR}/.env.prod.secrets.local}"
-export GENERATED_ENV_FILE="${GENERATED_ENV_FILE:-${PARITY_DIR}/.env.prod.generated}"
-export GENERATED_SECRET_ENV_FILE="${GENERATED_SECRET_ENV_FILE:-${PARITY_DIR}/.env.prod.generated.secrets}"
-export DEPLOY_STATE_DIR="${DEPLOY_STATE_DIR:-${PARITY_DIR}/deploy-state}"
+export ENV_FILE="$(parity_default_path "${ENV_FILE:-}" "${REPO_ROOT}/.env" "${PARITY_DIR}/.env.prod.shared")"
+export SECRETS_ENV_FILE="$(parity_default_path "${SECRETS_ENV_FILE:-}" "" "${PARITY_DIR}/.env.prod.secrets.local")"
+export GENERATED_ENV_FILE="$(parity_default_path "${GENERATED_ENV_FILE:-}" "${REPO_ROOT}/.env.generated" "${PARITY_DIR}/.env.prod.generated")"
+export GENERATED_SECRET_ENV_FILE="$(parity_default_path "${GENERATED_SECRET_ENV_FILE:-}" "${REPO_ROOT}/.env.generated.secrets" "${PARITY_DIR}/.env.prod.generated.secrets")"
+export DEPLOY_STATE_DIR="$(parity_default_path "${DEPLOY_STATE_DIR:-}" "${REPO_ROOT}/.deploy" "${PARITY_DIR}/deploy-state")"
 
 load_env
 
