@@ -342,4 +342,114 @@ test.describe("Auth callback and admission entry", () => {
         await expect(page.locator('input[type="file"]')).toHaveCount(0);
         await expect(page.getByText(/上传|相册|拖拽|PDF|文件/)).toHaveCount(0);
     });
+
+    test("freshman admission captures camera material and submits it for manual review", async ({
+        page,
+    }) => {
+        let applicationBody: unknown = null;
+        let cameraCaptureBody: unknown = null;
+
+        await page.addInitScript(() => {
+            Object.defineProperty(navigator, "mediaDevices", {
+                configurable: true,
+                value: {
+                    getUserMedia: async () => new MediaStream(),
+                },
+            });
+            Object.defineProperty(HTMLVideoElement.prototype, "videoWidth", {
+                configurable: true,
+                get: () => 2,
+            });
+            Object.defineProperty(HTMLVideoElement.prototype, "videoHeight", {
+                configurable: true,
+                get: () => 2,
+            });
+            HTMLVideoElement.prototype.play = async () => undefined;
+            HTMLCanvasElement.prototype.getContext = () =>
+                ({
+                    drawImage: () => undefined,
+                }) as unknown as CanvasRenderingContext2D;
+            HTMLCanvasElement.prototype.toDataURL = () =>
+                "data:image/jpeg;base64,QUJDRA==";
+        });
+        await mockAuthenticated(page);
+        await page.route("**/api/v1/admission/sessions/ADMIT-CAMERA**", (route) =>
+            route.fulfill(
+                ok({
+                    ...linkedSession,
+                    maxMaterialBytes: 1024,
+                }),
+            ),
+        );
+        await page.route("**/api/v1/admission/me", (route) =>
+            route.fulfill(ok(freshmanAdmissionMe)),
+        );
+        await page.route("**/api/v1/user/schools", (route) =>
+            route.fulfill(ok([])),
+        );
+        await page.route(
+            "**/api/v1/admission/freshman/applications",
+            async (route) => {
+                applicationBody = route.request().postDataJSON();
+                await route.fulfill(
+                    ok({
+                        id: "freshman-application-1",
+                        status: "pending",
+                        schoolID: 1001,
+                        qqID: "123456",
+                        applicantNameMasked: "赵*",
+                        materialURL: "",
+                        failureCount: 0,
+                        createdAt: now,
+                    }),
+                );
+            },
+        );
+        await page.route(
+            "**/api/v1/admission/freshman/applications/freshman-application-1/camera-captures",
+            async (route) => {
+                cameraCaptureBody = route.request().postDataJSON();
+                await route.fulfill(
+                    ok({
+                        id: "freshman-application-1",
+                        status: "pending",
+                        schoolID: 1001,
+                        qqID: "123456",
+                        applicantNameMasked: "赵*",
+                        materialURL: "camera://freshman-application-1",
+                        failureCount: 0,
+                        createdAt: now,
+                    }),
+                );
+            },
+        );
+
+        await page.goto("/admission/a/ADMIT-CAMERA?qq=123456");
+
+        await expect(page.locator("[data-admission-freshman-flow]")).toBeVisible();
+        await page.getByLabel("学校 ID").fill("1001");
+        await page.getByLabel("姓名").fill("赵一");
+        await page.getByLabel("院系或专业").fill("软件工程");
+        await page.getByRole("button", { name: "打开摄像头" }).click();
+        await page.getByRole("button", { name: "拍摄" }).click();
+        await expect(page.getByAltText("录取材料预览")).toBeVisible();
+        await page.getByRole("button", { name: "提交材料" }).click();
+
+        await expect(
+            page.getByRole("heading", { name: "等待管理员审核" }),
+        ).toBeVisible();
+        expect(applicationBody).toEqual({
+            schoolID: 1001,
+            applicantName: "赵一",
+            departmentOrMajor: "软件工程",
+            materialType: "admission_notice",
+        });
+        expect(cameraCaptureBody).toMatchObject({
+            contentType: "image/jpeg",
+            imageBase64: "QUJDRA==",
+        });
+        expect(
+            typeof (cameraCaptureBody as { capturedAt?: unknown }).capturedAt,
+        ).toBe("string");
+    });
 });
