@@ -133,6 +133,23 @@ describe('PersistentAdminTable', () => {
     ).toMatchObject({ 'data-width': '220' });
   });
 
+  it('does not render default cell slots without row context', () => {
+    let renderCount = 0;
+
+    mount(PersistentAdminTableColumn, {
+      ...mountOptions,
+      props: { columnKey: 'status' },
+      slots: {
+        default: () => {
+          renderCount += 1;
+          return h('span', 'status');
+        },
+      },
+    });
+
+    expect(renderCount).toBe(0);
+  });
+
   it('clears corrupt stored widths instead of crashing the table', () => {
     window.localStorage.setItem(STORAGE_KEY, '{bad-json');
 

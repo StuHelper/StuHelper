@@ -5,6 +5,13 @@ import { ElTableColumn } from 'element-plus';
 
 import { persistentAdminTableKey } from './context';
 
+type TableColumnSlotProps = {
+  $index?: number;
+  [key: string]: unknown;
+  column?: unknown;
+  row?: any;
+};
+
 defineOptions({ inheritAttrs: false });
 
 const props = defineProps<{
@@ -13,10 +20,41 @@ const props = defineProps<{
   defaultWidth?: number | string;
 }>();
 
+defineSlots<{
+  [name: string]: ((props: TableColumnSlotProps) => unknown) | undefined;
+  default?: (props: TableColumnSlotProps) => unknown;
+  header?: (props: TableColumnSlotProps) => unknown;
+}>();
+
 const table = inject(persistentAdminTableKey, null);
 const width = computed(() => {
   return table?.columnWidth(props.columnKey) ?? props.defaultWidth;
 });
+
+function normalizeSlotProps(slotProps: unknown): TableColumnSlotProps {
+  return typeof slotProps === 'object' && slotProps !== null
+    ? (slotProps as TableColumnSlotProps)
+    : {};
+}
+
+function shouldRenderSlot(slotName: string, slotProps: unknown) {
+  if (slotName !== 'default') {
+    return true;
+  }
+  if (
+    typeof slotProps !== 'object' ||
+    slotProps === null ||
+    !('row' in slotProps)
+  ) {
+    return false;
+  }
+
+  const row = (slotProps as { row?: unknown }).row;
+  if (typeof row === 'object' && row !== null) {
+    return Object.keys(row).length > 0;
+  }
+  return row !== undefined && row !== null;
+}
 </script>
 
 <template>
@@ -28,7 +66,11 @@ const width = computed(() => {
     :width="width"
   >
     <template v-for="(_, slotName) in $slots" #[slotName]="slotProps">
-      <slot :name="slotName" v-bind="slotProps ?? {}"></slot>
+      <slot
+        v-if="shouldRenderSlot(String(slotName), slotProps)"
+        :name="slotName"
+        v-bind="normalizeSlotProps(slotProps)"
+      ></slot>
     </template>
   </ElTableColumn>
 </template>
