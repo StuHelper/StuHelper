@@ -107,8 +107,6 @@ assert_env_value "${fresh_env}" "POSTGRES_ENABLE_SSL" "on"
 assert_env_value "${fresh_env}" "POSTGRES_INTERNAL_SSL_MODE" "verify-full"
 assert_env_value "${fresh_env}" "EXTERNAL_POSTGRES_ENABLED" "false"
 assert_env_value "${fresh_env}" "EXTERNAL_POSTGRES_ALLOW_PLAINTEXT" "false"
-assert_env_value "${fresh_env}" "EXTERNAL_REDIS_ENABLED" "false"
-assert_env_value "${fresh_env}" "EXTERNAL_REDIS_ALLOW_PLAINTEXT" "false"
 assert_env_value "${fresh_env}" "EXTERNAL_DATASTORE_NETWORK" ""
 assert_env_value "${fresh_env}" "REDIS_USERNAME" "stuhelper_app"
 assert_env_value "${fresh_env}" "CASDOOR_BOOTSTRAP_ENABLED" "true"
@@ -255,8 +253,6 @@ assert_env_value "${legacy_env}" "POSTGRES_ENABLE_SSL" "on"
 assert_env_value "${legacy_env}" "POSTGRES_INTERNAL_SSL_MODE" "verify-full"
 assert_env_value "${legacy_env}" "EXTERNAL_POSTGRES_ENABLED" "false"
 assert_env_value "${legacy_env}" "EXTERNAL_POSTGRES_ALLOW_PLAINTEXT" "false"
-assert_env_value "${legacy_env}" "EXTERNAL_REDIS_ENABLED" "false"
-assert_env_value "${legacy_env}" "EXTERNAL_REDIS_ALLOW_PLAINTEXT" "false"
 assert_env_value "${legacy_env}" "CORS_ORIGINS" "https://stuhelper.com,https://id.stuhelper.com"
 assert_env_value "${legacy_env}" "TOKEN_COOKIE_DOMAIN" ".stuhelper.com"
 assert_env_value "${legacy_env}" "CASDOOR_ISSUER" "https://sso.stuhelper.com"
@@ -375,12 +371,7 @@ replacements = {
     "POSTGRES_INTERNAL_SSL_MODE": "disable",
     "EXTERNAL_POSTGRES_ENABLED": "true",
     "EXTERNAL_POSTGRES_ALLOW_PLAINTEXT": "true",
-    "EXTERNAL_REDIS_ENABLED": "true",
-    "EXTERNAL_REDIS_ALLOW_PLAINTEXT": "true",
     "EXTERNAL_DATASTORE_NETWORK": "baota_net",
-    "REDIS_USERNAME": "",
-    "REDIS_TLS_ENABLED": "false",
-    "REDIS_TLS_CA": "",
 }
 lines = []
 for line in path.read_text().splitlines():
@@ -406,9 +397,9 @@ assert_env_value "${external_env}" "DB_SSL_ROOT_CERT" ""
 assert_env_value "${external_env}" "POSTGRES_ENABLE_SSL" "off"
 assert_env_value "${external_env}" "POSTGRES_INTERNAL_SSL_MODE" "disable"
 assert_env_value "${external_env}" "EXTERNAL_DATASTORE_NETWORK" "baota_net"
-assert_env_value "${external_env}" "REDIS_USERNAME" ""
-assert_env_value "${external_env}" "REDIS_TLS_ENABLED" "false"
-assert_env_value "${external_env}" "REDIS_TLS_CA" ""
+assert_env_value "${external_env}" "REDIS_USERNAME" "stuhelper_app"
+assert_env_value "${external_env}" "REDIS_TLS_ENABLED" "true"
+assert_env_value "${external_env}" "REDIS_TLS_CA" "/tls/ca.crt"
 
 insecure_dir="$(mktemp -d)"
 cleanup_dirs+=("${insecure_dir}")

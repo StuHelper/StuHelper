@@ -642,7 +642,7 @@ compose() {
     compose_files=(-f "${REPO_ROOT}/docker-compose.yml") && \
     if [[ -f "${REPO_ROOT}/docker-compose.observability.yml" ]]; then compose_files+=(-f "${REPO_ROOT}/docker-compose.observability.yml"); fi && \
     if [[ " $* " == *" --profile prod "* && -f "${REPO_ROOT}/docker-compose.prod.yml" ]]; then compose_files+=(-f "${REPO_ROOT}/docker-compose.prod.yml"); fi && \
-    if [[ -n "${EXTERNAL_DATASTORE_NETWORK:-}" && ( "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" || "${EXTERNAL_REDIS_ENABLED:-false}" == "true" ) && -f "${REPO_ROOT}/docker-compose.external-datastore.yml" ]]; then compose_files+=(-f "${REPO_ROOT}/docker-compose.external-datastore.yml"); fi && \
+    if [[ -n "${EXTERNAL_DATASTORE_NETWORK:-}" && "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" && -f "${REPO_ROOT}/docker-compose.external-datastore.yml" ]]; then compose_files+=(-f "${REPO_ROOT}/docker-compose.external-datastore.yml"); fi && \
     preserved_tag="${TAG-__STUHELPER_UNSET__}" && \
     preserved_rollback_tag="${ROLLBACK_TAG-__STUHELPER_UNSET__}" && \
     preserved_backend_image_ref="${BACKEND_IMAGE_REF-__STUHELPER_UNSET__}" && \

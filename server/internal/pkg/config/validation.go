@@ -156,9 +156,7 @@ func (c *Config) validate(parseErrs []string) error {
 			errs = append(errs, "DB_SSL_ROOT_CERT is required in production")
 		}
 		if !c.Redis.TLSEnabled {
-			if !c.Redis.AllowPlaintext {
-				errs = append(errs, "REDIS_TLS_ENABLED must be true in production")
-			}
+			errs = append(errs, "REDIS_TLS_ENABLED must be true in production")
 		}
 		if c.Redis.TLSEnabled && c.Redis.TLSCAFile == "" {
 			errs = append(errs, "REDIS_TLS_CA is required in production")

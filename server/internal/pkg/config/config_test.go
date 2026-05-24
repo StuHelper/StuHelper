@@ -236,14 +236,11 @@ func TestValidate_ProductionRequiresIdentityIssuerAndSigningKey(t *testing.T) {
 	assert.Contains(t, err.Error(), "IDENTITY_SIGNING_PRIVATE_KEY_PEM is required in production")
 }
 
-func TestValidate_ProductionAllowsExplicitExternalPlaintextDatastores(t *testing.T) {
+func TestValidate_ProductionAllowsExplicitExternalPlaintextPostgres(t *testing.T) {
 	c := validProductionConfigForTest()
 	c.Database.SSLMode = "disable"
 	c.Database.SSLRootCert = ""
 	c.Database.AllowPlaintext = true
-	c.Redis.TLSEnabled = false
-	c.Redis.TLSCAFile = ""
-	c.Redis.AllowPlaintext = true
 
 	err := c.validate(nil)
 

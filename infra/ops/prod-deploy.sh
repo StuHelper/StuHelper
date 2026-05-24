@@ -271,13 +271,7 @@ reject_local_value GRAFANA_ROOT_URL "${GRAFANA_ROOT_URL:-}"
 [[ "${SMS_ENABLED:-false}" == "true" ]] || die "SMS_ENABLED must be true for production deploy"
 [[ "${OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED:-false}" == "true" ]] || die "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED must be true for production deploy"
 require_production_postgres_ssl
-if [[ "${EXTERNAL_REDIS_ALLOW_PLAINTEXT:-false}" == "true" ]]; then
-  [[ "${EXTERNAL_REDIS_ENABLED:-false}" == "true" ]] || die "EXTERNAL_REDIS_ENABLED must be true when EXTERNAL_REDIS_ALLOW_PLAINTEXT=true"
-  [[ -n "${EXTERNAL_DATASTORE_NETWORK:-}" ]] || die "EXTERNAL_DATASTORE_NETWORK is required when EXTERNAL_REDIS_ALLOW_PLAINTEXT=true"
-  [[ "${REDIS_TLS_ENABLED:-false}" == "false" ]] || die "REDIS_TLS_ENABLED must be false when EXTERNAL_REDIS_ALLOW_PLAINTEXT=true"
-else
-  [[ "${REDIS_TLS_ENABLED:-false}" == "true" ]] || die "REDIS_TLS_ENABLED must be true for production deploy"
-fi
+[[ "${REDIS_TLS_ENABLED:-false}" == "true" ]] || die "REDIS_TLS_ENABLED must be true for production deploy"
 require_public_ingress_config_preflight
 require_public_identity_ingress_preflight
 
@@ -289,17 +283,14 @@ if [[ "${EXTERNAL_POSTGRES_ALLOW_PLAINTEXT:-false}" != "true" ]]; then
 else
   warn "PostgreSQL TLS material generation skipped because EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true"
 fi
-if [[ "${EXTERNAL_REDIS_ALLOW_PLAINTEXT:-false}" != "true" ]]; then
-  "${SCRIPT_DIR}/render-redis-acl.sh"
-else
-  warn "Redis ACL rendering skipped because EXTERNAL_REDIS_ALLOW_PLAINTEXT=true"
-fi
+"${SCRIPT_DIR}/render-redis-acl.sh"
 "${SCRIPT_DIR}/render-observability.sh" prod
 
 log "pulling immutable production images for release ${TAG}"
 compose --profile prod pull app frontend admin
 
 infra_services=(
+  redis
   minio
   alloy
   alertmanager
@@ -316,9 +307,6 @@ infra_services=(
 )
 if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]]; then
   infra_services=(postgres "${infra_services[@]}")
-fi
-if [[ "${EXTERNAL_REDIS_ENABLED:-false}" != "true" ]]; then
-  infra_services=(redis "${infra_services[@]}")
 fi
 
 authz_services=(

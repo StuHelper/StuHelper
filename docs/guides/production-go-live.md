@@ -389,7 +389,7 @@ ADMIN_IMAGE_REF=registry.example.com/stuhelper/admin:2026-05-09-<sha>
 预检会检查：
 
 - Docker / Compose 可用
-- 生产 PostgreSQL TLS 配置默认强制启用：`POSTGRES_ENABLE_SSL=on`、`POSTGRES_INTERNAL_SSL_MODE=verify-full`（最低必须为 `verify-ca`）、`DB_SSL_MODE=verify-full`，并且三个 PostgreSQL URL 都带 `sslrootcert`。如果目标机器复用已有宝塔 Postgres/Redis 且这些服务未启用 TLS，必须显式设置 `EXTERNAL_POSTGRES_ENABLED=true`、`EXTERNAL_REDIS_ENABLED=true`、`EXTERNAL_DATASTORE_NETWORK=baota_net`、`EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true`、`EXTERNAL_REDIS_ALLOW_PLAINTEXT=true`，发布前先把旧 StuHelper 专用 Postgres 中的 `stuhelper` / `openfga` 数据迁移到外部 Postgres。
+- 生产 PostgreSQL TLS 配置默认强制启用：`POSTGRES_ENABLE_SSL=on`、`POSTGRES_INTERNAL_SSL_MODE=verify-full`（最低必须为 `verify-ca`）、`DB_SSL_MODE=verify-full`，并且三个 PostgreSQL URL 都带 `sslrootcert`。如果目标机器复用已有宝塔 Postgres 且该服务未启用 TLS，必须显式设置 `EXTERNAL_POSTGRES_ENABLED=true`、`EXTERNAL_DATASTORE_NETWORK=baota_net`、`EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true`，发布前先在外部 Postgres 中为 StuHelper / OpenFGA 创建独立数据库和独立账号，并把旧 StuHelper 专用 Postgres 中的 `stuhelper` / `openfga` 数据迁移到外部 Postgres。Redis 不复用全局实例，仍由 StuHelper Compose 以独立实例运行。
 - 本机宝塔 Nginx 主站/id 入口配置满足反代契约：`stuhelper.com`、`www.stuhelper.com`、`id.stuhelper.com` 均有 HTTPS server block，主站 `/.well-known/`、`/oauth2/`、`/oidc/`、`/api/`、`/health/`、`/admin/` 和 `/` 均代理到约定的回环端口；`id.stuhelper.com/` 302 到开放平台开发者应用页，授权页 `/login`、`/consent`、`/complete-profile` 及 `/assets/` 仍代理到 web 前端
 - 公网身份入口公共 DNS / TLS / OIDC 可用：`stuhelper.com`、`id.stuhelper.com`、`sso.stuhelper.com` 在公共 DNS-over-HTTPS 中有公网 A/AAAA，`stuhelper.com`、`id.stuhelper.com` TLS 可达，`sso.stuhelper.com/.well-known/openid-configuration` 返回有效 Casdoor OIDC discovery
 - PostgreSQL 备份工具可用
@@ -423,10 +423,10 @@ make prod-deploy
 发布脚本会按顺序执行：
 
 1. 读取远端部署控制面和 secret backend
-2. 校验生产必填配置、占位符、不可变镜像、PostgreSQL TLS/Redis TLS（或显式外部明文 datastore 例外）/SMS/OTEL/Open Platform runtime token 探针门禁，并在拉镜像前审计本机宝塔 Nginx 主站/id 配置、验证 `stuhelper.com` / `id.stuhelper.com` / `sso.stuhelper.com` 公共 DNS、`stuhelper.com` / `id.stuhelper.com` TLS 可达与 `sso.stuhelper.com` OIDC discovery 元数据
-3. 渲染 PostgreSQL TLS、Redis ACL、观测配置；启用外部明文 datastore 例外时跳过 StuHelper 内部 PostgreSQL TLS 和 Redis ACL 渲染
+2. 校验生产必填配置、占位符、不可变镜像、PostgreSQL TLS/Redis TLS（或显式外部明文 PostgreSQL 例外）/SMS/OTEL/Open Platform runtime token 探针门禁，并在拉镜像前审计本机宝塔 Nginx 主站/id 配置、验证 `stuhelper.com` / `id.stuhelper.com` / `sso.stuhelper.com` 公共 DNS、`stuhelper.com` / `id.stuhelper.com` TLS 可达与 `sso.stuhelper.com` OIDC discovery 元数据
+3. 渲染 PostgreSQL TLS、Redis ACL、观测配置；启用外部明文 PostgreSQL 例外时只跳过 StuHelper 内部 PostgreSQL TLS 渲染，Redis ACL 仍始终渲染
 4. 拉取 backend / frontend / admin 镜像
-5. 启动 MinIO、观测栈，并在未启用外部 datastore 时启动 StuHelper 内部 PostgreSQL、Redis
+5. 启动 StuHelper 独立 Redis、MinIO、观测栈，并在未启用外部 PostgreSQL 时启动 StuHelper 内部 PostgreSQL
 6. 创建发布前逻辑备份
 7. 同步 pre-deploy 逻辑备份到对象存储，并执行 `postgres-backup-evidence.sh` 证明本地备份和取回备份 sha256 均匹配
 8. 执行数据库迁移和 OpenFGA migrate

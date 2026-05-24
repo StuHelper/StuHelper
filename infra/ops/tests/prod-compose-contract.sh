@@ -24,6 +24,14 @@ assert_contains() {
   fi
 }
 
+assert_not_contains() {
+  local file="$1"
+  local pattern="$2"
+  if grep -Eq "${pattern}" "${file}"; then
+    fail "expected ${file} to not contain pattern: ${pattern}"
+  fi
+}
+
 app_block="$(
   awk '
     /^  app:/ { in_block=1; next }
@@ -83,9 +91,11 @@ assert_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" 'external: true'
 assert_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" 'depends_on: !reset \[\]'
 assert_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" 'depends_on: !override'
 assert_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" 'DATABASE_URL: \$\{DATABASE_URL:\?DATABASE_URL is required\}'
-assert_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" 'REDIS_USERNAME: \$\{REDIS_USERNAME-\}'
-assert_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" 'REDIS_TLS_ENABLED: \$\{REDIS_TLS_ENABLED:-false\}'
-assert_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" 'REDIS_ADDR: \$\{REDIS_EXPORTER_ADDR:-redis://:\$\{REDIS_PASSWORD\}@\$\{REDIS_HOST:-redis\}:\$\{REDIS_PORT:-6379\}\}'
+assert_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" '^      redis:$'
+assert_not_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" '^  redis:'
+assert_not_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" '^  redis-exporter:'
+assert_not_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" 'REDIS_TLS_ENABLED: \$\{REDIS_TLS_ENABLED:-false\}'
+assert_not_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" 'REDIS_ADDR: \$\{REDIS_EXPORTER_ADDR:-redis://'
 if grep -Eq 'sslmode=\$\{(DB_SSL_MODE|POSTGRES_INTERNAL_SSL_MODE):-disable\}' "${COMPOSE_PROD_FILE}"; then
   fail "production compose overlay must not default PostgreSQL clients to sslmode=disable"
 fi
