@@ -89,10 +89,15 @@
             <li
               v-for="scope in completion.scopes"
               :key="scope.scope"
-              class="flex items-center justify-between gap-3 text-sm"
+              class="grid gap-1 rounded-md bg-bg-elevated p-3 text-sm sm:grid-cols-[1fr_auto] sm:items-start"
             >
-              <span class="text-text-primary font-medium">{{ scope.displayName }}</span>
-              <span class="text-xs text-text-muted break-all text-right">{{ scope.scope }}</span>
+              <span class="min-w-0">
+                <span class="block font-medium text-text-primary">{{ scope.displayName }}</span>
+                <span v-if="scope.reason" class="mt-1 block text-xs leading-relaxed text-text-secondary">
+                  {{ t('common.openPlatformProfileCompletion.reason', { reason: scope.reason }) }}
+                </span>
+              </span>
+              <span class="break-all text-xs text-text-muted sm:text-right">{{ scope.scope }}</span>
             </li>
           </ul>
         </section>

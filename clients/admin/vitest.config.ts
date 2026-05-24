@@ -1,9 +1,33 @@
+import { fileURLToPath, URL } from 'node:url';
+
 import Vue from '@vitejs/plugin-vue';
 import VueJsx from '@vitejs/plugin-vue-jsx';
 import { configDefaults, defineConfig } from 'vitest/config';
 
 export default defineConfig({
   plugins: [Vue(), VueJsx()],
+  resolve: {
+    alias: [
+      {
+        find: /^@stuhelper\/shared\/api$/,
+        replacement: fileURLToPath(
+          new URL('../shared/src/api/index.ts', import.meta.url),
+        ),
+      },
+      {
+        find: /^@stuhelper\/shared\/constants$/,
+        replacement: fileURLToPath(
+          new URL('../shared/src/constants/index.ts', import.meta.url),
+        ),
+      },
+      {
+        find: /^@stuhelper\/shared\/types$/,
+        replacement: fileURLToPath(
+          new URL('../shared/src/types/index.ts', import.meta.url),
+        ),
+      },
+    ],
+  },
   test: {
     environment: 'happy-dom',
     environmentOptions: {

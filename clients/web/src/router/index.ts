@@ -93,6 +93,14 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: "routes.openPlatformProfileCompletion", requiresAuth: true, layout: "none" },
     },
     {
+        path: "/developers/apps",
+        name: "open-platform-developer-apps",
+        component: lazyLoad(
+            () => import("@/modules/open-platform/views/DeveloperAppsPage.vue"),
+        ),
+        meta: { titleKey: "routes.openPlatformDeveloperApps", requiresAuth: true },
+    },
+    {
         path: "/admission/a/:code",
         name: "admission-token",
         component: lazyLoad(
@@ -258,6 +266,14 @@ const routes: RouteRecordRaw[] = [
         ),
         meta: { titleKey: "routes.userFavorites", requiresAuth: true },
     },
+    {
+        path: "/user/authorized-apps",
+        name: "user-authorized-apps",
+        component: lazyLoad(
+            () => import("@/modules/user/views/UserCenterPage.vue"),
+        ),
+        meta: { titleKey: "routes.userAuthorizedApps", requiresAuth: true },
+    },
 
     // 认证与资料页面
     {
@@ -422,7 +438,11 @@ router.beforeEach(async (to) => {
         return { name: "home" };
     }
 
-    if (to.meta.guest && isAuthenticated) {
+    const isReauthLogin =
+        to.name === "login" &&
+        typeof to.query.reauth === "string" &&
+        to.query.reauth === "1";
+    if (to.meta.guest && isAuthenticated && !isReauthLogin) {
         const redirect = typeof to.query.redirect === "string" ? to.query.redirect : undefined;
         if (
             redirect &&

@@ -37,9 +37,11 @@ async function mockAnonymousSession(page: Page) {
 test('admin login route initiates OIDC login', async ({ page }) => {
   await mockAnonymousSession(page);
   const loginRequest = page.waitForRequest('**/api/v1/auth/login**');
+  const loginResponse = page.waitForResponse('**/api/v1/auth/login**');
 
   await page.goto('/auth/login');
   const request = await loginRequest;
+  await loginResponse;
   const requestURL = new URL(request.url());
 
   await expect(page).toHaveTitle(/StuHelper Admin/i);
@@ -52,8 +54,10 @@ test('root route initiates OIDC login when unauthenticated', async ({
 }) => {
   await mockAnonymousSession(page);
   const loginRequest = page.waitForRequest('**/api/v1/auth/login**');
+  const loginResponse = page.waitForResponse('**/api/v1/auth/login**');
   await page.goto('/');
   const request = await loginRequest;
+  await loginResponse;
   const requestURL = new URL(request.url());
 
   await expect

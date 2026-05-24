@@ -3,6 +3,7 @@ import type { operations } from '../types/api.gen'
 
 type StepUpURLResponse = operations['getStepUpURL']['responses'][200]['content']['application/json']['data']
 type NativeSessionHeader = NonNullable<operations['refreshToken']['parameters']['header']>
+type LoginQuery = NonNullable<operations['getLoginURL']['parameters']['query']>
 
 export const NATIVE_SESSION_ID_HEADER = 'X-Stuhelper-Session-ID' as const
 
@@ -24,12 +25,24 @@ function withNativeSessionHeader(sessionID?: NativeSessionRequestOptions['sessio
 
 export type FirstPartyOIDCApp = 'admin' | 'uniapp' | 'web'
 
+export interface LoginRequestOptions {
+  prompt?: 'login'
+  maxAge?: 0
+}
+
 export const createAuthApi = (client: ApiClient) => ({
-  login: (redirect?: string, platform?: string, app?: FirstPartyOIDCApp) => {
-    const query: Record<string, string> = {}
+  login: (
+    redirect?: string,
+    platform?: string,
+    app?: FirstPartyOIDCApp,
+    options?: LoginRequestOptions,
+  ) => {
+    const query: LoginQuery = {}
     if (redirect) query.redirect = redirect
-    if (platform) query.platform = platform
+    if (platform === 'web' || platform === 'native') query.platform = platform
     if (app) query.app = app
+    if (options?.prompt) query.prompt = options.prompt
+    if (options?.maxAge !== undefined) query.max_age = options.maxAge
     return client.GET('/api/v1/auth/login', Object.keys(query).length > 0 ? { params: { query } } : undefined)
   },
 

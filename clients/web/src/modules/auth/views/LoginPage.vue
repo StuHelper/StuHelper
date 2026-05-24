@@ -47,6 +47,8 @@ const route = useRoute();
 const authStore = useAuthStore();
 const { loading } = storeToRefs(authStore);
 
+const isReauthRequest = () => route.query.reauth === "1";
+
 function sanitizeInternalRedirect(redirect: string | null | undefined): string | undefined {
     if (!redirect) return undefined;
     if (redirect.startsWith("/") && !redirect.startsWith("//")) {
@@ -89,7 +91,8 @@ const saveRedirectTarget = () => {
 const handleLogin = async () => {
     try {
         saveRedirectTarget();
-        await authStore.login(getRedirectTarget());
+        const startLogin = isReauthRequest() ? authStore.reauthenticate : authStore.login;
+        await startLogin(getRedirectTarget());
     } catch (e) {
         ElMessage.error(getErrorMessage(e, t("common.login.loginFailed")));
     }

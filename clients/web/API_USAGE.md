@@ -29,13 +29,6 @@ if (data?.url) window.location.href = data.url;
 const { data } = await api.auth.me();
 ```
 
-### 手机验证码
-
-```ts
-await api.auth.requestPhoneOTP("13800138000");
-await api.auth.verifyPhoneOTP("13800138000", "123456");
-```
-
 ### 搜索课程
 
 ```ts

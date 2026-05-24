@@ -227,6 +227,83 @@ test.describe('User Journey: User Center', () => {
     })
   })
 
+  test('user views and revokes authorized app scopes', async ({ page }) => {
+    let revokeCalled = false
+
+    await page.route('**/api/v1/open-platform/consents', async (route) => {
+      if (route.request().method() !== 'GET') {
+        await route.fallback()
+        return
+      }
+
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            apps: [
+              {
+                app: {
+                  id: 42,
+                  clientID: 'campus-client',
+                  displayName: 'Campus Tools',
+                  description: 'Campus utility integration',
+                  homepageURL: 'https://tools.example.com',
+                  privacyPolicyURL: 'https://tools.example.com/privacy',
+                  redirectURIs: ['https://tools.example.com/callback'],
+                  status: 'approved',
+                  createdAt: '2026-04-01T10:00:00Z',
+                  updatedAt: '2026-04-01T10:00:00Z',
+                },
+                scopes: [
+                  {
+                    scope: 'profile.basic.read',
+                    displayName: '基础资料',
+                    sensitivity: 'low',
+                    fields: ['昵称'],
+                    grantedAt: '2026-04-05T10:00:00Z',
+                    grantSource: 'consent_page',
+                  },
+                  {
+                    scope: 'email.read',
+                    displayName: '邮箱',
+                    sensitivity: 'medium',
+                    fields: ['邮箱'],
+                    grantedAt: '2026-04-05T10:00:00Z',
+                    grantSource: 'consent_page',
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      })
+    })
+
+    await page.route('**/api/v1/open-platform/consents/42?*', async (route) => {
+      revokeCalled = true
+      expect(route.request().method()).toBe('DELETE')
+      expect(new URL(route.request().url()).searchParams.getAll('scope')).toEqual(['email.read'])
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: { message: 'ok' } }),
+      })
+    })
+
+    await page.goto('/user/authorized-apps')
+    await page.waitForLoadState('networkidle')
+
+    await expect(page.getByText('Campus Tools')).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText('email.read')).toBeVisible()
+
+    await page.getByRole('button', { name: '撤销 邮箱' }).click()
+    await expect(page.getByRole('dialog', { name: '撤销 邮箱' })).toBeVisible()
+    await page.getByRole('button', { name: '确认撤销' }).click()
+
+    await expect.poll(() => revokeCalled).toBe(true)
+    await expect(page.getByText('email.read')).toHaveCount(0)
+  })
+
   test('user views notifications and marks all as read', async ({ page }) => {
     let markAllCalled = false
 

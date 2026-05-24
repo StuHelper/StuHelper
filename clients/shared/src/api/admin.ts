@@ -1,5 +1,5 @@
 import type { ApiClient } from './client'
-import type { components } from '../types/api.gen'
+import type { components, operations } from '../types/api.gen'
 
 type AdminUpdateReviewRequest = components['schemas']['AdminUpdateReviewRequest']
 type ProcessReportRequest = components['schemas']['ProcessReportRequest']
@@ -9,6 +9,20 @@ type CreateTeacherRequest = components['schemas']['CreateTeacherRequest']
 type UpdateTeacherRequest = components['schemas']['UpdateTeacherRequest']
 type CreateSensitiveWordRequest = components['schemas']['CreateSensitiveWordRequest']
 type UpdateSensitiveWordRequest = components['schemas']['UpdateSensitiveWordRequest']
+type OpenPlatformApproveScopeRequest = components['schemas']['OpenPlatformApproveScopeRequest']
+type OpenPlatformRejectScopeRequest = components['schemas']['OpenPlatformRejectScopeRequest']
+type OpenPlatformImportCasdoorAppRequest = components['schemas']['OpenPlatformImportCasdoorAppRequest']
+type OpenPlatformLifecycleActionRequest = components['schemas']['OpenPlatformLifecycleActionRequest']
+type OpenPlatformRedirectURIReviewRequest = components['schemas']['OpenPlatformRedirectURIReviewRequest']
+type OpenPlatformSecretRotationRequest = components['schemas']['OpenPlatformSecretRotationRequest']
+type OpenPlatformAdminConsentRevokeRequest = components['schemas']['OpenPlatformAdminConsentRevokeRequest']
+type OpenPlatformScope = components['schemas']['OpenPlatformScope']
+type OpenPlatformAppStatus = components['schemas']['OpenPlatformApp']['status'] | 'all'
+type OpenPlatformTokenProbeResult = components['schemas']['OpenPlatformTokenProbeEvidence']['result']
+type OpenPlatformResourceType = components['schemas']['OpenPlatformResourceType']
+type OpenPlatformResourceGrantRequest = components['schemas']['OpenPlatformResourceGrantRequest']
+type OpenPlatformResourceGrantResult =
+  operations['listAdminOpenPlatformResourceGrants']['responses'][200]['content']['application/json']['data']
 
 export const createAdminApi = (client: ApiClient) => ({
   getStats: () =>
@@ -66,5 +80,124 @@ export const createAdminApi = (client: ApiClient) => ({
     client.PUT('/api/v1/course/review/admin/sensitive-words/{sensitiveWordID}', { params: { path: { sensitiveWordID: id } }, body: data }),
 
   deleteSensitiveWord: (id: string) =>
-    client.DELETE('/api/v1/course/review/admin/sensitive-words/{sensitiveWordID}', { params: { path: { sensitiveWordID: id } } })
+    client.DELETE('/api/v1/course/review/admin/sensitive-words/{sensitiveWordID}', { params: { path: { sensitiveWordID: id } } }),
+
+  getOpenPlatformApps: (params?: { page?: number; pageSize?: number; status?: OpenPlatformAppStatus }) =>
+    client.GET('/api/v1/admin/open-platform/apps', { params: { query: params } }),
+
+  getOpenPlatformAuditEvents: (params?: {
+    appID?: number
+    eventType?: string
+    page?: number
+    pageSize?: number
+    scope?: OpenPlatformScope
+    userID?: number
+  }) =>
+    client.GET('/api/v1/admin/open-platform/audit-events', { params: { query: params } }),
+
+  getOpenPlatformConsents: (params?: {
+    appID?: number
+    page?: number
+    pageSize?: number
+    userID?: number
+  }) =>
+    client.GET('/api/v1/admin/open-platform/consents', { params: { query: params } }),
+
+  getOpenPlatformTokenProbeEvidence: (params?: {
+    appID?: number
+    clientID?: string
+    page?: number
+    pageSize?: number
+    result?: OpenPlatformTokenProbeResult
+    reviewerUserID?: number
+  }) =>
+    client.GET('/api/v1/admin/open-platform/token-probe-evidence', { params: { query: params } }),
+
+  getOpenPlatformDisclosureReport: (params?: { windowHours?: number }) =>
+    client.GET('/api/v1/admin/open-platform/disclosure-report', { params: { query: params } }),
+
+  getOpenPlatformResourceGrants: (appID: number, resourceType: OpenPlatformResourceType) =>
+    client.GET('/api/v1/admin/open-platform/apps/{appID}/resource-grants', {
+      params: { path: { appID }, query: { resourceType } },
+    }),
+
+  grantOpenPlatformResourceAccess: (appID: number, data: OpenPlatformResourceGrantRequest) =>
+    client.POST('/api/v1/admin/open-platform/apps/{appID}/resource-grants', {
+      body: data,
+      params: { path: { appID } },
+    }),
+
+  revokeOpenPlatformResourceAccess: (appID: number, data: OpenPlatformResourceGrantRequest) =>
+    client.POST('/api/v1/admin/open-platform/apps/{appID}/resource-grants/revoke', {
+      body: data,
+      params: { path: { appID } },
+    }),
+
+  revokeOpenPlatformConsent: (appID: number, data: OpenPlatformAdminConsentRevokeRequest) =>
+    client.POST('/api/v1/admin/open-platform/apps/{appID}/consents/revoke', {
+      body: data,
+      params: { path: { appID } },
+    }),
+
+  approveOpenPlatformScope: (appID: number, scope: OpenPlatformScope, data?: OpenPlatformApproveScopeRequest) =>
+    client.POST('/api/v1/admin/open-platform/apps/{appID}/scopes/{scope}/approve', {
+      body: data,
+      params: { path: { appID, scope } },
+    }),
+
+  rejectOpenPlatformScope: (appID: number, scope: OpenPlatformScope, data?: OpenPlatformRejectScopeRequest) =>
+    client.POST('/api/v1/admin/open-platform/apps/{appID}/scopes/{scope}/reject', {
+      body: data,
+      params: { path: { appID, scope } },
+    }),
+
+  approveOpenPlatformApp: (appID: number) =>
+    client.POST('/api/v1/admin/open-platform/apps/{appID}/approve', {
+      params: { path: { appID } },
+    }),
+
+  approveOpenPlatformRedirectURIRequest: (appID: number, requestID: number, data?: OpenPlatformRedirectURIReviewRequest) =>
+    client.POST('/api/v1/admin/open-platform/apps/{appID}/redirect-uri-requests/{requestID}/approve', {
+      body: data,
+      params: { path: { appID, requestID } },
+    }),
+
+  rejectOpenPlatformRedirectURIRequest: (appID: number, requestID: number, data?: OpenPlatformRedirectURIReviewRequest) =>
+    client.POST('/api/v1/admin/open-platform/apps/{appID}/redirect-uri-requests/{requestID}/reject', {
+      body: data,
+      params: { path: { appID, requestID } },
+    }),
+
+  rotateOpenPlatformAppSecret: (appID: number, data?: OpenPlatformSecretRotationRequest) =>
+    client.POST('/api/v1/admin/open-platform/apps/{appID}/secret/rotate', {
+      body: data,
+      params: { path: { appID } },
+    }),
+
+  suspendOpenPlatformApp: (appID: number, data: OpenPlatformLifecycleActionRequest) =>
+    client.POST('/api/v1/admin/open-platform/apps/{appID}/suspend', {
+      body: data,
+      params: { path: { appID } },
+    }),
+
+  resumeOpenPlatformApp: (appID: number, data: OpenPlatformLifecycleActionRequest) =>
+    client.POST('/api/v1/admin/open-platform/apps/{appID}/resume', {
+      body: data,
+      params: { path: { appID } },
+    }),
+
+  revokeOpenPlatformApp: (appID: number, data: OpenPlatformLifecycleActionRequest) =>
+    client.POST('/api/v1/admin/open-platform/apps/{appID}/revoke', {
+      body: data,
+      params: { path: { appID } },
+    }),
+
+  importOpenPlatformCasdoorApp: (data: OpenPlatformImportCasdoorAppRequest) =>
+    client.POST('/api/v1/admin/open-platform/apps/import-casdoor', { body: data })
 })
+
+export type {
+  OpenPlatformResourceGrantRequest as AdminOpenPlatformResourceGrantRequest,
+  OpenPlatformResourceGrantResult as AdminOpenPlatformResourceGrantResult,
+  OpenPlatformResourceType as AdminOpenPlatformResourceType,
+}

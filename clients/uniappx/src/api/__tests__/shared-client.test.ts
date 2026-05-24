@@ -267,13 +267,24 @@ describe('uniappx api client transport', () => {
       return { abort: vi.fn() }
     })
 
+    let secureTokenPayload = storedTokens
+    const secureStorage = {
+      getItem: vi.fn(() => secureTokenPayload),
+      removeItem: vi.fn(() => {
+        secureTokenPayload = ''
+      }),
+      setItem: vi.fn((_service: string, _key: string, value: string) => {
+        secureTokenPayload = value
+      }),
+    }
+
     vi.stubEnv('VITE_API_URL', 'https://api.example.com')
     vi.stubGlobal('plus', {})
     vi.stubGlobal('uni', {
       request,
-      getStorageSync: vi.fn((key: string) => (key === 'stuhelper:native-tokens' ? storedTokens : '')),
-      setStorageSync: vi.fn(),
+      removeStorageSync: vi.fn(),
     })
+    vi.stubGlobal('stuhelperSecureStorage', secureStorage)
 
     const { apiClient } = await import('../shared-client')
     const { NATIVE_SESSION_ID_HEADER } = await import('@stuhelper/shared/api')
@@ -290,6 +301,11 @@ describe('uniappx api client transport', () => {
       method: 'POST',
       url: 'https://api.example.com/api/v1/auth/refresh',
     })
+    expect(secureStorage.setItem).toHaveBeenCalledWith(
+      'stuhelper.native-session',
+      'stuhelper:native-tokens',
+      expect.stringContaining('"refreshToken":"rotated-refresh-token"'),
+    )
   })
 
   it('injects native session header into logout requests', async () => {
@@ -312,8 +328,12 @@ describe('uniappx api client transport', () => {
     vi.stubGlobal('plus', {})
     vi.stubGlobal('uni', {
       request,
-      getStorageSync: vi.fn((key: string) => (key === 'stuhelper:native-tokens' ? storedTokens : '')),
-      setStorageSync: vi.fn(),
+      removeStorageSync: vi.fn(),
+    })
+    vi.stubGlobal('stuhelperSecureStorage', {
+      getItem: vi.fn(() => storedTokens),
+      removeItem: vi.fn(),
+      setItem: vi.fn(),
     })
 
     const { apiClient } = await import('../shared-client')

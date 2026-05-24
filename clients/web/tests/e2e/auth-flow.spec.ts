@@ -153,6 +153,7 @@ test.describe('Auth Flow', () => {
     })
 
     await page.goto('/login?redirect=/user/reviews')
+    const appOrigin = new URL(page.url()).origin
     await expect(page.getByRole('button', { name: /Login with SSO|使用 SSO 登录/ })).toBeVisible()
 
     await Promise.all([
@@ -162,7 +163,7 @@ test.describe('Auth Flow', () => {
 
     expect(loginRequestURL).not.toBeNull()
     expect(loginRequestURL!.searchParams.get('app')).toBe('web')
-    expect(loginRequestURL!.searchParams.get('redirect')).toBe('http://127.0.0.1:3000/user/reviews')
+    expect(loginRequestURL!.searchParams.get('redirect')).toBe(`${appOrigin}/user/reviews`)
     const ssoURL = new URL(page.url())
     expect(ssoURL.origin).toBe('http://localhost:8085')
     expect(ssoURL.searchParams.get('client_id')).toBe('stuhelper-web')

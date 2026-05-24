@@ -9,6 +9,7 @@ import review from './review'
 import routes from './routes'
 import user from './user'
 import teaching from './teaching'
+import developer from './developer'
 
 export default {
   common,
@@ -18,5 +19,6 @@ export default {
   review,
   routes,
   user,
-  teaching
+  teaching,
+  developer
 }

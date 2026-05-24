@@ -1,10 +1,10 @@
 <template>
-  <div class="flex items-center gap-1 p-1 bg-bg-card rounded-full shadow-sm" role="tablist" @keydown="onKeydown">
+  <div class="flex max-w-full items-center gap-1 overflow-x-auto p-1 bg-bg-card rounded-full shadow-sm" role="tablist" @keydown="onKeydown">
     <button
       v-for="(tab, index) in tabs"
       :key="tab.value"
       :ref="el => { if (el) tabRefs[index] = el as HTMLButtonElement }"
-      class="px-4 py-1.5 text-sm font-medium text-text-muted rounded-full transition-all duration-base ease-spring cursor-pointer whitespace-nowrap hover:text-text-primary press-spring"
+      class="shrink-0 px-4 py-1.5 text-sm font-medium text-text-muted rounded-full transition-all duration-base ease-spring cursor-pointer whitespace-nowrap hover:text-text-primary press-spring"
       :class="modelValue === tab.value && 'bg-gradient-to-br from-primary to-accent text-text-inverse shadow-glow-sm'"
       role="tab"
       :aria-selected="modelValue === tab.value"

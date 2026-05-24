@@ -22,7 +22,10 @@ function defineApplicationConfig(userConfigPromise?: DefineApplicationOptions) {
     const { application = {}, vite = {} } = options || {};
     const root = process.cwd();
     const isBuild = command === 'build';
-    const env = loadEnv(mode, root);
+    const env = {
+      ...loadEnv(mode, root),
+      VITE_APP_TITLE: appTitle,
+    };
 
     const plugins = await loadApplicationPlugins({
       archiver: true,

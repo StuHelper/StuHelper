@@ -1,5 +1,16 @@
 const TOKEN_EXPIRY_BUFFER_MS = 30_000
 export const NATIVE_TOKEN_STORAGE_KEY = 'stuhelper:native-tokens'
+export const NATIVE_TOKEN_SECURE_STORAGE_SERVICE = 'stuhelper.native-session'
+
+export interface NativeSecureStorageBridge {
+  getItem: (service: string, key: string) => string | null | undefined
+  removeItem: (service: string, key: string) => void
+  setItem: (service: string, key: string, value: string) => void
+}
+
+declare global {
+  var stuhelperSecureStorage: NativeSecureStorageBridge | undefined
+}
 
 class NativeSessionStorageError extends Error {
   cause: unknown
@@ -23,6 +34,29 @@ export interface NativeTokens {
 /** 判断当前是否运行在原生 App 环境。 */
 export function isNativeRuntime(): boolean {
   return typeof plus !== 'undefined'
+}
+
+function secureStorageBridge(action: 'clear' | 'persist' | 'read'): NativeSecureStorageBridge {
+  const bridge = globalThis.stuhelperSecureStorage
+  if (
+    !bridge
+    || typeof bridge.getItem !== 'function'
+    || typeof bridge.removeItem !== 'function'
+    || typeof bridge.setItem !== 'function'
+  ) {
+    throw new NativeSessionStorageError(action, new Error('native secure storage bridge is unavailable'))
+  }
+  return bridge
+}
+
+function clearLegacyNativeTokenStorage(action: 'clear' | 'persist' | 'read'): void {
+  try {
+    if (typeof uni !== 'undefined' && typeof uni.removeStorageSync === 'function') {
+      uni.removeStorageSync(NATIVE_TOKEN_STORAGE_KEY)
+    }
+  } catch (error) {
+    throw new NativeSessionStorageError(action, error)
+  }
 }
 
 function parseNativeTokens(raw: unknown): NativeTokens | null {
@@ -52,8 +86,17 @@ function readNativeTokenSnapshot(): NativeTokens | null {
   if (!isNativeRuntime()) return null
 
   try {
-    return parseNativeTokens(uni.getStorageSync(NATIVE_TOKEN_STORAGE_KEY))
+    clearLegacyNativeTokenStorage('read')
+    return parseNativeTokens(
+      secureStorageBridge('read').getItem(
+        NATIVE_TOKEN_SECURE_STORAGE_SERVICE,
+        NATIVE_TOKEN_STORAGE_KEY,
+      ),
+    )
   } catch (error) {
+    if (error instanceof NativeSessionStorageError) {
+      throw error
+    }
     throw new NativeSessionStorageError('read', error)
   }
 }
@@ -87,18 +130,37 @@ export function readNativeSessionID(): string | null {
 
 /** 持久化原生 token 到本地存储。 */
 export function writeNativeTokens(tokens: NativeTokens): void {
+  if (!isNativeRuntime()) return
+
   try {
-    uni.setStorageSync(NATIVE_TOKEN_STORAGE_KEY, JSON.stringify(tokens))
+    clearLegacyNativeTokenStorage('persist')
+    secureStorageBridge('persist').setItem(
+      NATIVE_TOKEN_SECURE_STORAGE_SERVICE,
+      NATIVE_TOKEN_STORAGE_KEY,
+      JSON.stringify(tokens),
+    )
   } catch (error) {
+    if (error instanceof NativeSessionStorageError) {
+      throw error
+    }
     throw new NativeSessionStorageError('persist', error)
   }
 }
 
 /** 清除本地存储的原生 token。 */
 export function clearNativeTokens(): void {
+  if (!isNativeRuntime()) return
+
   try {
-    uni.removeStorageSync(NATIVE_TOKEN_STORAGE_KEY)
+    clearLegacyNativeTokenStorage('clear')
+    secureStorageBridge('clear').removeItem(
+      NATIVE_TOKEN_SECURE_STORAGE_SERVICE,
+      NATIVE_TOKEN_STORAGE_KEY,
+    )
   } catch (error) {
+    if (error instanceof NativeSessionStorageError) {
+      throw error
+    }
     throw new NativeSessionStorageError('clear', error)
   }
 }

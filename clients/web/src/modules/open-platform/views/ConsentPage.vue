@@ -107,6 +107,9 @@
                   <span>{{ field }}</span>
                 </li>
               </ul>
+              <p v-if="scope.reason" class="mt-3 mb-0 text-sm leading-relaxed text-text-secondary">
+                {{ t('common.openPlatformConsent.reason', { reason: scope.reason }) }}
+              </p>
             </article>
           </div>
         </section>

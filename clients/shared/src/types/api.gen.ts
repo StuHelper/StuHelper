@@ -433,10 +433,440 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * 查看当前用户提交的开放平台应用
+         * @description 返回当前用户作为 owner 提交的第三方应用及其 scope 审核状态，用于开发者门户展示应用生命周期。
+         */
+        get: operations["listOpenPlatformApps"];
         put?: never;
         /** 注册开放平台第三方应用 */
         post: operations["registerOpenPlatformApp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/open-platform/apps/{appID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 开发者更新自己应用的展示资料
+         * @description 当前登录用户必须是应用 owner，且应用不能处于 revoked 状态。该接口只允许更新展示名、
+         *     描述、主页和隐私政策 URL；redirect URI 仍需通过独立变更申请进入管理员审核。
+         *     更新会写入 `open_platform.app.profile_updated` 审计事件。
+         */
+        patch: operations["updateOpenPlatformAppProfile"];
+        trace?: never;
+    };
+    "/api/v1/open-platform/apps/{appID}/redirect-uris": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 开发者申请变更应用 redirect URI
+         * @description 当前登录用户必须是应用 owner，且应用不能处于 pending 或 revoked 状态。
+         *     该接口提交新的完整 redirect URI 列表；管理员批准后会整体替换应用当前 redirect URI。
+         */
+        post: operations["requestOpenPlatformRedirectURIs"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/open-platform/apps/{appID}/redirect-uri-requests/{requestID}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 开发者撤回待审核 redirect URI 变更申请
+         * @description 当前登录用户必须是应用 owner。只能撤回仍处于 pending 状态的 redirect URI 变更申请；
+         *     撤回后管理员不能再批准该申请，开发者可以重新提交新的变更申请。
+         */
+        post: operations["withdrawOpenPlatformRedirectURIRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/open-platform/apps/{appID}/scopes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 开发者申请新增或重提应用 scope
+         * @description 当前登录用户必须是应用 owner，且应用不能处于 revoked 状态。该接口用于已创建应用后新增 scope，
+         *     或在 scope 被拒绝 / 撤回后更新用途说明并重新提交审核；已批准或正在 pending 的 scope 不能重复申请。
+         */
+        post: operations["requestOpenPlatformAppScopes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/open-platform/apps/{appID}/scopes/{scope}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 开发者撤回待审核 scope 申请
+         * @description 当前登录用户必须是应用 owner。只能撤回仍处于 pending 状态的 scope 申请；
+         *     撤回后管理员不能再批准该申请，开发者可以更新用途说明后重新提交。
+         */
+        post: operations["withdrawOpenPlatformScopeRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/open-platform/apps/{appID}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 开发者撤回待审核应用
+         * @description 当前登录用户必须是应用 owner。只能撤回仍处于 pending 状态的应用；
+         *     撤回后应用进入 revoked 终态，不能被批准或用于授权。
+         */
+        post: operations["withdrawOpenPlatformApp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/open-platform/apps/{appID}/secret/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 开发者轮换自己应用的 client secret
+         * @description 当前登录用户必须是应用 owner，且应用必须处于 approved 状态。轮换成功后旧 secret 立即失效；
+         *     新 secret 只在本次响应中返回一次。
+         */
+        post: operations["rotateOpenPlatformAppSecret"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/open-platform/apps/{appID}/audit-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 开发者查看自己应用的开放平台审计摘要
+         * @description 当前登录用户必须是应用 owner。返回该应用的生命周期、审批、redirect URI、secret 轮换、
+         *     consent/disclosure、资源授权和 token 探针审计摘要；响应不包含用户 ID、管理员全量 metadata 或原始 token claim payload。
+         */
+        get: operations["listOpenPlatformAppAuditEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/open-platform/consents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查看当前用户已授权的开放平台应用
+         * @description 返回当前用户仍处于 active 状态的第三方应用授权，用户中心可据此展示应用、scope、授权时间并提供撤销入口。
+         */
+        get: operations["listOpenPlatformConsents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/open-platform/consents/audit-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查看当前用户开放平台授权活动记录
+         * @description 返回当前登录用户自己的 Open Platform consent grant/deny/revoke、disclosure granted/denied 和 replay_detected 审计摘要。
+         *     该接口不接受 userID 参数，也不会返回其他用户或管理员级全量审计事件。
+         */
+        get: operations["listOpenPlatformConsentAuditEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/open-platform/consents/{appID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 撤销当前用户授予某个开放平台应用的授权
+         * @description 不传 scope 时撤销当前用户对该应用的全部 active 授权；传 `scope` 查询参数时只撤销指定 scope。
+         *     撤销后下一次 disclosure / UserInfo 会立即重新进入 consent required。
+         */
+        delete: operations["revokeOpenPlatformConsent"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/open-platform/resources/access/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 第三方应用检查具体资源访问权限
+         * @description 首选使用 `Authorization: Bearer <client_credentials access_token>` 认证应用身份。
+         *     兼容模式下也可使用开放平台应用的 clientID/clientSecret 认证应用身份。
+         *     Bearer token 与 body clientID/clientSecret 互斥；携带 Bearer token 时请求体不得再包含应用密钥。
+         *     携带非 Bearer 的 Authorization 头会被拒绝；使用兼容 body credential 时应省略 Authorization 头。
+         *     `resource.read` / `resource.write` scope 只表示应用可申请资源类能力；
+         *     是否能访问某个具体资源由 OpenFGA 中的 app -> resource tuple 决定。
+         *     该接口不读取或写入用户 consent 表。
+         */
+        post: operations["checkOpenPlatformResourceAccess"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/open-platform/apps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 管理员查看开放平台应用审核列表
+         * @description 返回全部开放平台应用及其 scope 申请状态，用于管理后台审核、批准应用和排查迁移状态。
+         */
+        get: operations["listAdminOpenPlatformApps"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/open-platform/audit-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 管理员查看开放平台审计事件
+         * @description 返回开放平台应用审批、授权、密钥轮换、生命周期和 redirect URI 变更等事件，用于安全追踪和事后审计。
+         */
+        get: operations["listAdminOpenPlatformAuditEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/open-platform/consents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 管理员查看开放平台 active 用户授权
+         * @description 按 appID 和 / 或 userID 查询仍处于 active 状态的用户授权，用于事故处置、合规核查和定向撤权。
+         *     为避免误扫全量授权，appID 与 userID 至少需要提供一个。
+         */
+        get: operations["listAdminOpenPlatformConsents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/open-platform/token-probe-evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 管理员查看开放平台 token 探针证据
+         * @description 返回第三方应用审批前 runtime authorization-code token 探针结果，用于核对 claim 最小化准入证据和失败原因。
+         */
+        get: operations["listAdminOpenPlatformTokenProbeEvidence"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/open-platform/disclosure-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 管理员查看开放平台 disclosure 运营报表
+         * @description 聚合最近一段时间的 disclosure 成功、拒绝、限流和异常重放审计事件，用于运营排查和告警核对。
+         */
+        get: operations["getAdminOpenPlatformDisclosureReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/open-platform/apps/{appID}/resource-grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 管理员查看开放平台应用的资源授权
+         * @description 从 OpenFGA 读取 app -> resource tuple。该列表只表示具体资源授权，
+         *     不读取用户 consent 表，也不替代 resource.read/resource.write scope 审批。
+         */
+        get: operations["listAdminOpenPlatformResourceGrants"];
+        put?: never;
+        /**
+         * 管理员授予开放平台应用具体资源访问权限
+         * @description 写入 OpenFGA app -> resource tuple。应用仍必须已被批准，且对应
+         *     resource.read/resource.write scope 已被批准；具体资源授权与用户 consent 分层存储。
+         *     请求必须携带非空 reason，用于写入 `open_platform.resource_access.granted` 审计。
+         */
+        post: operations["grantAdminOpenPlatformResourceAccess"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/open-platform/apps/{appID}/resource-grants/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 管理员撤销开放平台应用具体资源访问权限
+         * @description 从 OpenFGA 删除 app -> resource tuple，并写入开放平台审计事件；请求必须携带非空 reason。
+         */
+        post: operations["revokeAdminOpenPlatformResourceAccess"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/open-platform/apps/{appID}/consents/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 管理员定向撤销用户授予某个开放平台应用的授权
+         * @description 不传 scopes 时撤销指定 userID 对该 app 的全部 active 授权；传 scopes 时只撤销指定 scope。
+         *     撤销会写入 `open_platform.consent.revoked` 审计，metadata 中包含 actor=admin、actorUserID、reason 和 source=admin_console。
+         */
+        post: operations["revokeAdminOpenPlatformConsent"];
         delete?: never;
         options?: never;
         head?: never;
@@ -460,6 +890,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/open-platform/apps/{appID}/scopes/{scope}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 拒绝开放平台应用申请的 scope
+         * @description 仅可拒绝处于 pending 状态的 scope 申请。开发者可以更新用途说明后重新提交该 scope。
+         */
+        post: operations["rejectOpenPlatformScope"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/open-platform/apps/{appID}/approve": {
         parameters: {
             query?: never;
@@ -471,6 +921,125 @@ export interface paths {
         put?: never;
         /** 批准开放平台应用并签发 id.stuhelper.com client secret */
         post: operations["approveOpenPlatformApp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/open-platform/apps/{appID}/redirect-uri-requests/{requestID}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 批准开放平台应用 redirect URI 变更申请
+         * @description 批准后会用申请中的 redirect URI 列表整体替换应用当前 redirect URI，并写入审计事件。
+         */
+        post: operations["approveOpenPlatformRedirectURIRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/open-platform/apps/{appID}/redirect-uri-requests/{requestID}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 拒绝开放平台应用 redirect URI 变更申请 */
+        post: operations["rejectOpenPlatformRedirectURIRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/open-platform/apps/{appID}/secret/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 管理员轮换开放平台应用 client secret
+         * @description 用于泄漏处置或例行轮换。旧 secret 会立即失效，新 secret 只在本次响应中返回一次。
+         *     应用处于 approved 或 suspended 时可以轮换；revoked 应用不可轮换。
+         */
+        post: operations["rotateAdminOpenPlatformAppSecret"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/open-platform/apps/{appID}/suspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 暂停开放平台应用
+         * @description 暂停后该应用不能继续完成 client secret 校验、授权码换 token 或 disclosure。
+         */
+        post: operations["suspendOpenPlatformApp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/open-platform/apps/{appID}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 恢复已暂停开放平台应用
+         * @description 将 suspended 应用恢复为 approved。恢复后该应用可以重新完成 client secret 校验、
+         *     授权码换 token、token introspection 和 disclosure；已被用户撤销的 consent 不会自动恢复。
+         */
+        post: operations["resumeOpenPlatformApp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/open-platform/apps/{appID}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 吊销开放平台应用
+         * @description 吊销用于永久下线应用；吊销后该 app 的 client secret 不再可用，后续不能继续轮换。
+         */
+        post: operations["revokeOpenPlatformApp"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3219,6 +3788,8 @@ export interface components {
             /** @enum {string} */
             sensitivity: "low" | "medium" | "high" | "very_high";
             fields: string[];
+            /** @description 开发者申请该 scope 时提交、供用户授权决策参考的用途说明。 */
+            reason: string;
         };
         OpenPlatformAuthorizeResponse: {
             /**
@@ -3286,6 +3857,60 @@ export interface components {
             app: components["schemas"]["OpenPlatformApp"];
             /** @description 注册阶段不返回 client secret；管理员批准应用后才返回。 */
             clientSecret?: string;
+        };
+        OpenPlatformScopeRequest: {
+            /** Format: int64 */
+            id: number;
+            scope: components["schemas"]["OpenPlatformScope"];
+            displayName: string;
+            /** @enum {string} */
+            sensitivity: "low" | "medium" | "high" | "very_high";
+            fields: string[];
+            reason: string;
+            /** @enum {string} */
+            status: "pending" | "approved" | "rejected" | "withdrawn";
+            /** Format: int64 */
+            reviewerUserID?: number | null;
+            /** Format: date-time */
+            reviewedAt?: string | null;
+            decisionNote?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        OpenPlatformAppWithScopes: {
+            app: components["schemas"]["OpenPlatformApp"];
+            scopes: components["schemas"]["OpenPlatformScopeRequest"][];
+            redirectURIRequests: components["schemas"]["OpenPlatformRedirectURIRequest"][];
+        };
+        OpenPlatformAppList: {
+            list: components["schemas"]["OpenPlatformAppWithScopes"][];
+            total: number;
+        };
+        OpenPlatformUserConsents: {
+            apps: components["schemas"]["OpenPlatformUserAuthorizedApp"][];
+        };
+        OpenPlatformUserAuthorizedApp: {
+            app: components["schemas"]["OpenPlatformApp"];
+            scopes: components["schemas"]["OpenPlatformUserConsentScope"][];
+        };
+        OpenPlatformUserConsentScope: {
+            scope: components["schemas"]["OpenPlatformScope"];
+            displayName: string;
+            /** @enum {string} */
+            sensitivity: "low" | "medium" | "high" | "very_high";
+            fields: string[];
+            /** Format: date-time */
+            grantedAt: string;
+            /**
+             * Format: date-time
+             * @description 最近一次通过 UserInfo / disclosure 成功读取该 scope 的时间；从审计事件派生，未使用过时省略。
+             */
+            lastUsedAt?: string;
+            grantSource: string;
+            /** @description 开发者申请该 scope 时提交、供用户撤权决策参考的用途说明。 */
+            reason: string;
         };
         OpenPlatformApprovedApp: {
             app: components["schemas"]["OpenPlatformApp"];
@@ -3578,7 +4203,7 @@ export interface components {
             phone: string;
         };
         /** @enum {string} */
-        OpenPlatformScope: "profile.basic.read" | "email.read" | "phone.read" | "stu.identity.status.read" | "stu.identity.type.read" | "stu.student.status.read" | "stu.student.school.read" | "resource.read" | "resource.write";
+        OpenPlatformScope: "profile.basic.read" | "email.read" | "phone.read" | "stu.identity.status.read" | "stu.identity.type.read" | "stu.student.status.read" | "stu.student.school.read" | "resource.read" | "resource.write" | "offline_access";
         OpenPlatformConsentApp: {
             /** Format: int64 */
             id: number;
@@ -3594,10 +4219,6 @@ export interface components {
             /** Format: int64 */
             id: number;
             name: string;
-        };
-        OpenPlatformScopeRequestInput: {
-            scope: components["schemas"]["OpenPlatformScope"];
-            reason?: string;
         };
         OpenPlatformApp: {
             /** Format: int64 */
@@ -3616,6 +4237,317 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+        };
+        OpenPlatformRedirectURIRequest: {
+            /** Format: int64 */
+            id: number;
+            redirectURIs: string[];
+            reason: string;
+            /** @enum {string} */
+            status: "pending" | "approved" | "rejected" | "withdrawn";
+            /** Format: int64 */
+            reviewerUserID?: number | null;
+            /** Format: date-time */
+            reviewedAt?: string | null;
+            decisionNote?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        OpenPlatformScopeRequestInput: {
+            scope: components["schemas"]["OpenPlatformScope"];
+            /** @description 开发者申请该 scope 的用途说明，会展示在授权页、资料补全页和用户授权管理页。 */
+            reason: string;
+        };
+        OpenPlatformUpdateAppProfileRequest: {
+            displayName: string;
+            description?: string;
+            /** Format: uri */
+            homepageURL: string;
+            /** Format: uri */
+            privacyPolicyURL: string;
+            /** @description 变更原因，用于开发者与管理员审计。 */
+            reason: string;
+        };
+        OpenPlatformAppLifecycleResult: {
+            app: components["schemas"]["OpenPlatformApp"];
+        };
+        OpenPlatformRedirectURIChangeRequest: {
+            redirectURIs: string[];
+            /** @description 申请变更 redirect URI 的原因，会展示给管理员并写入审计事件。 */
+            reason: string;
+        };
+        OpenPlatformWithdrawalRequest: {
+            /** @description 开发者撤回待审核应用或变更申请的原因，会写入审计事件。 */
+            reason: string;
+        };
+        OpenPlatformScopeChangeRequest: {
+            /** @description 开发者新增或重提的 scope 申请；每个 scope 必须提供用途说明。 */
+            scopes: components["schemas"]["OpenPlatformScopeRequestInput"][];
+        };
+        OpenPlatformScopeChangeResult: {
+            scopes: components["schemas"]["OpenPlatformScopeRequest"][];
+        };
+        OpenPlatformSecretRotationRequest: {
+            /** @description 轮换 client secret 的原因，会写入审计事件。 */
+            reason?: string;
+        };
+        OpenPlatformRotatedSecret: {
+            app: components["schemas"]["OpenPlatformApp"];
+            /** @description 只在本次轮换响应中返回一次；旧 secret 已立即失效。 */
+            clientSecret: string;
+        };
+        OpenPlatformDeveloperAppAuditEvent: {
+            /** Format: int64 */
+            id: number;
+            /** @description 开发者可见的自有应用生命周期、审批、授权、披露、资源授权或 token 探针事件类型。 */
+            eventType: string;
+            /** @description 事件直接关联的单个 scope；披露事件通常使用 scopes 数组。 */
+            scope?: string | null;
+            /** @description 事件涉及的 scope 列表，合并单 scope 字段和披露 metadata.scopes 后去重。 */
+            scopes: components["schemas"]["OpenPlatformScope"][];
+            /** @description disclosure / UserInfo endpoint；非披露事件为 null。 */
+            endpoint?: string | null;
+            /** @description disclosure、资源授权检查或 token 探针结果；无结果时为 null。 */
+            result?: string | null;
+            requestID?: string | null;
+            /** @description 面向 app owner 的安全审计摘要，隐藏用户 ID、原始 token claims、堆栈或内部错误细节。 */
+            details: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            createdAt: string;
+        };
+        OpenPlatformDeveloperAppAuditEventList: {
+            list: components["schemas"]["OpenPlatformDeveloperAppAuditEvent"][];
+            total: number;
+        };
+        OpenPlatformUserConsentAuditEvent: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            appID?: number | null;
+            /** @description 事件关联应用的展示名；应用已删除或审计未绑定应用时为 null。 */
+            appDisplayName?: string | null;
+            /** @description 事件关联应用的 client_id；应用已删除或审计未绑定应用时为 null。 */
+            clientID?: string | null;
+            /** @description 用户可见的 Open Platform 授权、撤销或披露审计事件类型。 */
+            eventType: string;
+            /** @description consent grant/revoke 事件的单个 scope；披露事件通常使用 scopes 数组。 */
+            scope?: string | null;
+            /** @description 事件涉及的 scope 列表，合并单 scope 字段和 consent/disclosure metadata.scopes 后去重。 */
+            scopes: components["schemas"]["OpenPlatformScope"][];
+            /** @description disclosure / UserInfo endpoint；非披露事件为 null。 */
+            endpoint?: string | null;
+            /** @description disclosure 结果、拒绝原因或用户拒绝授权结果；非结果类事件为 null。 */
+            result?: string | null;
+            requestID?: string | null;
+            /** @description 面向当前用户的安全审计摘要，只包含 grantSource、actor、endpoint、result、scopes、rateLimitDimension 等非敏感字段。 */
+            details: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            createdAt: string;
+        };
+        OpenPlatformUserConsentAuditEventList: {
+            list: components["schemas"]["OpenPlatformUserConsentAuditEvent"][];
+            total: number;
+        };
+        /** @enum {string} */
+        OpenPlatformResourceType: "user_profile" | "resource_item";
+        /** @enum {string} */
+        OpenPlatformResourceAccessAction: "read" | "write";
+        /**
+         * @description resource_item 支持 read/write；user_profile 仅支持 read。
+         *     首选通过 Authorization: Bearer <client_credentials access_token> 认证；
+         *     未携带 Bearer token 时需在 body 中提供 clientID/clientSecret。
+         *     Bearer token 与 body clientID/clientSecret 互斥，避免凭据混用或在请求体中泄漏 secret。
+         *     携带非 Bearer 的 Authorization 头会被拒绝；使用 body clientID/clientSecret 兼容认证时应省略 Authorization 头。
+         */
+        OpenPlatformResourceAccessCheckRequest: {
+            /** @description 兼容认证方式；未携带 Bearer token 时必填，携带 Bearer token 时不得传入。 */
+            clientID?: string;
+            /**
+             * Format: password
+             * @description 兼容认证方式；未携带 Bearer token 时必填，携带 Bearer token 时不得传入。
+             */
+            clientSecret?: string;
+            resourceType: components["schemas"]["OpenPlatformResourceType"];
+            resourceID: string;
+            action: components["schemas"]["OpenPlatformResourceAccessAction"];
+        };
+        OpenPlatformResourceAccessDecision: {
+            allowed: boolean;
+            /** Format: int64 */
+            appID: number;
+            clientID: string;
+            resourceType: components["schemas"]["OpenPlatformResourceType"];
+            resourceID: string;
+            action: components["schemas"]["OpenPlatformResourceAccessAction"];
+            /** @enum {string} */
+            relation: "can_read_by_app" | "can_write_by_app";
+            /** @enum {string} */
+            reason: "allowed" | "fga_denied" | "scope_not_approved" | "token_scope_missing";
+        };
+        OpenPlatformAuditEvent: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            appID?: number | null;
+            /** Format: int64 */
+            userID?: number | null;
+            eventType: string;
+            scope?: string | null;
+            requestID?: string | null;
+            metadata: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            createdAt: string;
+        };
+        OpenPlatformAuditEventList: {
+            list: components["schemas"]["OpenPlatformAuditEvent"][];
+            total: number;
+        };
+        OpenPlatformAdminUserAuthorizedApp: {
+            /**
+             * Format: int64
+             * @description 被授权用户 ID。
+             */
+            userID: number;
+            app: components["schemas"]["OpenPlatformApp"];
+            scopes: components["schemas"]["OpenPlatformUserConsentScope"][];
+        };
+        OpenPlatformAdminUserConsentList: {
+            list: components["schemas"]["OpenPlatformAdminUserAuthorizedApp"][];
+            total: number;
+        };
+        OpenPlatformTokenProbeEvidence: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            appID: number;
+            /** Format: int64 */
+            reviewerUserID?: number | null;
+            requestID?: string | null;
+            casdoorApplicationName: string;
+            clientID: string;
+            /** Format: uri */
+            redirectURI: string;
+            /** @description 探针方式，当前为 authorization_code。 */
+            probeMethod: string;
+            /** @enum {string} */
+            result: "passed" | "failed";
+            inspectedClaims: string[];
+            businessClaims: string[];
+            tokenClaims: {
+                [key: string]: string[];
+            };
+            metadata: {
+                [key: string]: unknown;
+            };
+            error: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        OpenPlatformTokenProbeEvidenceList: {
+            list: components["schemas"]["OpenPlatformTokenProbeEvidence"][];
+            total: number;
+        };
+        OpenPlatformDisclosureReportSummary: {
+            windowHours: number;
+            total: number;
+            granted: number;
+            denied: number;
+            rateLimited: number;
+            replayDetected: number;
+        };
+        OpenPlatformDisclosureEndpointStats: {
+            /** @enum {string} */
+            endpoint: "userinfo" | "verification" | "student" | "phone" | "identity_token";
+            total: number;
+            granted: number;
+            denied: number;
+            rateLimited: number;
+            replayDetected: number;
+        };
+        OpenPlatformDisclosureReasonStats: {
+            reason: string;
+            total: number;
+        };
+        OpenPlatformDisclosureRateLimitStats: {
+            /** @enum {string} */
+            dimension: "app" | "app_user" | "endpoint" | "consent" | "unknown";
+            total: number;
+        };
+        OpenPlatformDisclosureReplayEvent: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            appID?: number | null;
+            /** Format: int64 */
+            userID?: number | null;
+            /** @enum {string} */
+            endpoint: "userinfo" | "verification" | "student" | "phone" | "identity_token";
+            result: string;
+            count: number;
+            scopes: string[];
+            requestID?: string | null;
+            metadata: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            detectedAt: string;
+        };
+        OpenPlatformDisclosureReport: {
+            summary: components["schemas"]["OpenPlatformDisclosureReportSummary"];
+            endpoints: components["schemas"]["OpenPlatformDisclosureEndpointStats"][];
+            denialReasons: components["schemas"]["OpenPlatformDisclosureReasonStats"][];
+            rateLimitDimensions: components["schemas"]["OpenPlatformDisclosureRateLimitStats"][];
+            recentReplayEvents: components["schemas"]["OpenPlatformDisclosureReplayEvent"][];
+        };
+        OpenPlatformResourceGrant: {
+            /** Format: int64 */
+            appID: number;
+            resourceType: components["schemas"]["OpenPlatformResourceType"];
+            resourceID: string;
+            action: components["schemas"]["OpenPlatformResourceAccessAction"];
+            /** @enum {string} */
+            relation: "can_read_by_app" | "can_write_by_app";
+        };
+        OpenPlatformResourceGrantResult: {
+            app: components["schemas"]["OpenPlatformApp"];
+            grants: components["schemas"]["OpenPlatformResourceGrant"][];
+        };
+        /** @description resource_item 支持 read/write；user_profile 仅支持 read。 */
+        OpenPlatformResourceGrantRequest: {
+            resourceType: components["schemas"]["OpenPlatformResourceType"];
+            resourceID: string;
+            actions: components["schemas"]["OpenPlatformResourceAccessAction"][];
+            /** @description 管理员授予或撤销具体资源授权的审计原因。 */
+            reason: string;
+        };
+        OpenPlatformAdminConsentRevokeRequest: {
+            /**
+             * Format: int64
+             * @description 被撤销授权的用户 ID。
+             */
+            userID: number;
+            /** @description 为空或省略时撤销该用户对该 app 的全部 active consent。 */
+            scopes?: components["schemas"]["OpenPlatformScope"][];
+            /** @description 管理员定向撤销授权的原因，写入审计 metadata。 */
+            reason: string;
+        };
+        OpenPlatformRejectScopeRequest: {
+            decisionNote?: string;
+        };
+        OpenPlatformRedirectURIReviewRequest: {
+            decisionNote?: string;
+        };
+        OpenPlatformLifecycleActionRequest: {
+            /** @description 暂停、恢复或吊销应用的原因，会写入审计事件。 */
+            reason: string;
         };
         AcademicTerm: {
             /** Format: int64 */
@@ -3940,6 +4872,8 @@ export interface components {
         SensitiveWordIDPath: string;
         /** @description 原生 OIDC 客户端在 `exchange-native` 后拿到的服务端 session ID，用于 refresh/logout 保持同一 token family 追踪 */
         NativeSessionIDHeader: string;
+        /** @description 已批准开放平台应用的 OAuth client_id。 */
+        DisclosureClientID: string;
         DisclosureRedirectURI: string;
         /** @description 空格分隔的开放平台 scope。 */
         DisclosureScope: string;
@@ -4056,6 +4990,10 @@ export interface operations {
                 platform?: "web" | "native";
                 /** @description 发起登录的一方应用；默认 `web`，原生流程默认 `uniapp`。 */
                 app?: "web" | "admin" | "uniapp";
+                /** @description 设置为 `login` 时强制上游 SSO 重新认证；用于 Identity `prompt=login` / `max_age=0` 转接。 */
+                prompt?: "login";
+                /** @description 设置为 `0` 时强制上游 SSO 重新认证；当前登录 URL 生成只支持该强制重新认证语义。 */
+                max_age?: number;
             };
             header?: never;
             path?: never;
@@ -4210,6 +5148,7 @@ export interface operations {
                     };
                 };
             };
+            400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
@@ -4262,6 +5201,7 @@ export interface operations {
                     };
                 };
             };
+            400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
         };
     };
@@ -4533,6 +5473,8 @@ export interface operations {
     getOpenPlatformUserInfo: {
         parameters: {
             query: {
+                /** @description 已批准开放平台应用的 OAuth client_id。 */
+                client_id: components["parameters"]["DisclosureClientID"];
                 redirect_uri: components["parameters"]["DisclosureRedirectURI"];
                 /** @description 空格分隔的开放平台 scope。 */
                 scope: components["parameters"]["DisclosureScope"];
@@ -4555,6 +5497,8 @@ export interface operations {
     getOpenPlatformVerification: {
         parameters: {
             query: {
+                /** @description 已批准开放平台应用的 OAuth client_id。 */
+                client_id: components["parameters"]["DisclosureClientID"];
                 redirect_uri: components["parameters"]["DisclosureRedirectURI"];
                 /** @description 空格分隔的开放平台 scope。 */
                 scope: components["parameters"]["DisclosureScope"];
@@ -4577,6 +5521,8 @@ export interface operations {
     getOpenPlatformStudent: {
         parameters: {
             query: {
+                /** @description 已批准开放平台应用的 OAuth client_id。 */
+                client_id: components["parameters"]["DisclosureClientID"];
                 redirect_uri: components["parameters"]["DisclosureRedirectURI"];
                 /** @description 空格分隔的开放平台 scope。 */
                 scope: components["parameters"]["DisclosureScope"];
@@ -4599,6 +5545,8 @@ export interface operations {
     getOpenPlatformPhone: {
         parameters: {
             query: {
+                /** @description 已批准开放平台应用的 OAuth client_id。 */
+                client_id: components["parameters"]["DisclosureClientID"];
                 redirect_uri: components["parameters"]["DisclosureRedirectURI"];
                 /** @description 空格分隔的开放平台 scope。 */
                 scope: components["parameters"]["DisclosureScope"];
@@ -4616,6 +5564,37 @@ export interface operations {
             403: components["responses"]["ErrorResponse"];
             412: components["responses"]["ConsentRequired"];
             503: components["responses"]["ErrorResponse"];
+        };
+    };
+    listOpenPlatformApps: {
+        parameters: {
+            query?: {
+                status?: "pending" | "approved" | "suspended" | "revoked" | "all";
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前用户提交的开放平台应用分页列表。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformAppList"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
         };
     };
     registerOpenPlatformApp: {
@@ -4644,6 +5623,692 @@ export interface operations {
             };
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    updateOpenPlatformAppProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformUpdateAppProfileRequest"];
+            };
+        };
+        responses: {
+            /** @description 应用展示资料已更新。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformAppLifecycleResult"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    requestOpenPlatformRedirectURIs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformRedirectURIChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description redirect URI 变更申请已提交。 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformRedirectURIRequest"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    withdrawOpenPlatformRedirectURIRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appID: number;
+                requestID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformWithdrawalRequest"];
+            };
+        };
+        responses: {
+            /** @description redirect URI 变更申请已撤回。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformRedirectURIRequest"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    requestOpenPlatformAppScopes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformScopeChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description scope 申请已提交或重提。 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformScopeChangeResult"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    withdrawOpenPlatformScopeRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appID: number;
+                scope: components["schemas"]["OpenPlatformScope"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformWithdrawalRequest"];
+            };
+        };
+        responses: {
+            /** @description scope 申请已撤回。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformScopeRequest"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    withdrawOpenPlatformApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformWithdrawalRequest"];
+            };
+        };
+        responses: {
+            /** @description 应用已撤回。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformAppLifecycleResult"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    rotateOpenPlatformAppSecret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformSecretRotationRequest"];
+            };
+        };
+        responses: {
+            /** @description Secret 已轮换。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformRotatedSecret"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    listOpenPlatformAppAuditEvents: {
+        parameters: {
+            query?: {
+                /** @description 限定开发者可见的 Open Platform app 审计事件类型。 */
+                eventType?: string;
+                scope?: components["schemas"]["OpenPlatformScope"];
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+            };
+            header?: never;
+            path: {
+                appID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 自有应用的开放平台审计摘要。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformDeveloperAppAuditEventList"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    listOpenPlatformConsents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前用户的 active 授权应用列表。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformUserConsents"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    listOpenPlatformConsentAuditEvents: {
+        parameters: {
+            query?: {
+                appID?: number;
+                /** @description 限定用户可见的 consent/disclosure 事件类型。 */
+                eventType?: "open_platform.consent.granted" | "open_platform.consent.denied" | "open_platform.consent.revoked" | "open_platform.disclosure.granted" | "open_platform.disclosure.denied" | "open_platform.disclosure.replay_detected";
+                scope?: components["schemas"]["OpenPlatformScope"];
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前用户自己的开放平台授权活动记录。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformUserConsentAuditEventList"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    revokeOpenPlatformConsent: {
+        parameters: {
+            query?: {
+                /** @description 可重复传入的开放平台 scope；为空时撤销该 app 全部授权。 */
+                scope?: components["schemas"]["OpenPlatformScope"][];
+            };
+            header?: never;
+            path: {
+                appID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 授权已撤销。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["MessageData"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ConsentRequired"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    checkOpenPlatformResourceAccess: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformResourceAccessCheckRequest"];
+            };
+        };
+        responses: {
+            /** @description 返回资源访问决策。缺少资源 tuple 或未批准对应 scope 时 allowed=false。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformResourceAccessDecision"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAdminOpenPlatformApps: {
+        parameters: {
+            query?: {
+                status?: "pending" | "approved" | "suspended" | "revoked" | "all";
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 开放平台应用分页列表。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformAppList"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAdminOpenPlatformAuditEvents: {
+        parameters: {
+            query?: {
+                appID?: number;
+                userID?: number;
+                eventType?: string;
+                scope?: components["schemas"]["OpenPlatformScope"];
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 开放平台审计事件分页列表。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformAuditEventList"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAdminOpenPlatformConsents: {
+        parameters: {
+            query?: {
+                appID?: number;
+                userID?: number;
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description active 用户授权分页列表。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformAdminUserConsentList"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAdminOpenPlatformTokenProbeEvidence: {
+        parameters: {
+            query?: {
+                appID?: number;
+                reviewerUserID?: number;
+                result?: "passed" | "failed";
+                clientID?: string;
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description token 探针证据分页列表。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformTokenProbeEvidenceList"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    getAdminOpenPlatformDisclosureReport: {
+        parameters: {
+            query?: {
+                /** @description 统计窗口，单位小时，允许 1 到 168。 */
+                windowHours?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description disclosure 运营报表。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformDisclosureReport"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAdminOpenPlatformResourceGrants: {
+        parameters: {
+            query: {
+                resourceType: components["schemas"]["OpenPlatformResourceType"];
+            };
+            header?: never;
+            path: {
+                appID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 应用在指定资源类型下的 OpenFGA 授权 tuple 投影。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformResourceGrantResult"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    grantAdminOpenPlatformResourceAccess: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformResourceGrantRequest"];
+            };
+        };
+        responses: {
+            /** @description 已写入资源授权 tuple。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformResourceGrantResult"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    revokeAdminOpenPlatformResourceAccess: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformResourceGrantRequest"];
+            };
+        };
+        responses: {
+            /** @description 已删除资源授权 tuple。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformResourceGrantResult"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    revokeAdminOpenPlatformConsent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformAdminConsentRevokeRequest"];
+            };
+        };
+        responses: {
+            /** @description 授权已撤销。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["MessageData"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ConsentRequired"];
             500: components["responses"]["ErrorResponse"];
         };
     };
@@ -4680,6 +6345,39 @@ export interface operations {
             404: components["responses"]["ErrorResponse"];
         };
     };
+    rejectOpenPlatformScope: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appID: number;
+                scope: components["schemas"]["OpenPlatformScope"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformRejectScopeRequest"];
+            };
+        };
+        responses: {
+            /** @description scope 已拒绝。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["MessageData"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
     approveOpenPlatformApp: {
         parameters: {
             query?: never;
@@ -4699,6 +6397,206 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SuccessResponse"] & {
                         data: components["schemas"]["OpenPlatformApprovedApp"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    approveOpenPlatformRedirectURIRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appID: number;
+                requestID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformRedirectURIReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description redirect URI 变更申请已批准。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformRedirectURIRequest"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    rejectOpenPlatformRedirectURIRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appID: number;
+                requestID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformRedirectURIReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description redirect URI 变更申请已拒绝。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformRedirectURIRequest"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    rotateAdminOpenPlatformAppSecret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformSecretRotationRequest"];
+            };
+        };
+        responses: {
+            /** @description Secret 已轮换。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformRotatedSecret"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    suspendOpenPlatformApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformLifecycleActionRequest"];
+            };
+        };
+        responses: {
+            /** @description 应用已暂停。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformAppLifecycleResult"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    resumeOpenPlatformApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformLifecycleActionRequest"];
+            };
+        };
+        responses: {
+            /** @description 应用已恢复。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformAppLifecycleResult"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    revokeOpenPlatformApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformLifecycleActionRequest"];
+            };
+        };
+        responses: {
+            /** @description 应用已吊销。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformAppLifecycleResult"];
                     };
                 };
             };

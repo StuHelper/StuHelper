@@ -213,6 +213,16 @@ export const useAuthStore = defineStore("auth", () => {
             i18n.global.t("common.login.loginUrlFailed"),
         );
 
+    const reauthenticate = (redirect?: string) =>
+        startOAuthFlow(
+            () =>
+                api.auth.login(resolveLoginRedirectTarget(redirect), undefined, "web", {
+                    prompt: "login",
+                    maxAge: 0,
+                }),
+            i18n.global.t("common.login.loginUrlFailed"),
+        );
+
     // 注册
     const signup = (redirect?: string) =>
         startOAuthFlow(
@@ -392,6 +402,7 @@ export const useAuthStore = defineStore("auth", () => {
         isAuthenticated,
         globalCapabilities,
         login,
+        reauthenticate,
         signup,
         fetchUser,
         bootstrapSession,

@@ -20,6 +20,7 @@ export default {
   logout: '退出登录',
   user: '用户',
   profile: '个人中心',
+  developerApps: '开发者应用',
   searchPlaceholder: '搜索课程...',
   searchCoursePlaceholder: '搜索课程名称、教师...',
   searchResults: '搜索结果',

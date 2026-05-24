@@ -32,7 +32,6 @@ describe('useAuthStore', () => {
   })
 
   it('persists session id returned by exchange-native', async () => {
-    const setStorageSync = vi.fn()
     const getStorageSync = vi.fn((key: string) => {
       if (key === 'stuhelper:sso-state') {
         return 'state-1'
@@ -40,6 +39,11 @@ describe('useAuthStore', () => {
       return ''
     })
     const removeStorageSync = vi.fn()
+    const secureStorage = {
+      getItem: vi.fn(),
+      removeItem: vi.fn(),
+      setItem: vi.fn(),
+    }
 
     authApi.exchangeNative.mockResolvedValue({
       data: {
@@ -64,18 +68,20 @@ describe('useAuthStore', () => {
     vi.stubGlobal('uni', {
       getStorageSync,
       removeStorageSync,
-      setStorageSync,
     })
+    vi.stubGlobal('stuhelperSecureStorage', secureStorage)
 
     const { useAuthStore } = await import('./auth')
     const store = useAuthStore()
 
     await store.exchangeNativeCode('code-1', 'state-1')
 
-    expect(setStorageSync).toHaveBeenCalledWith(
+    expect(secureStorage.setItem).toHaveBeenCalledWith(
+      'stuhelper.native-session',
       'stuhelper:native-tokens',
       expect.stringContaining('"sessionID":"sid-native-1"'),
     )
+    expect(removeStorageSync).toHaveBeenCalledWith('stuhelper:native-tokens')
     expect(removeStorageSync).toHaveBeenCalledWith('stuhelper:sso-state')
   })
 
@@ -100,7 +106,11 @@ describe('useAuthStore', () => {
         return ''
       }),
       removeStorageSync: vi.fn(),
-      setStorageSync: vi.fn(() => {
+    })
+    vi.stubGlobal('stuhelperSecureStorage', {
+      getItem: vi.fn(),
+      removeItem: vi.fn(),
+      setItem: vi.fn(() => {
         throw new Error('disk full')
       }),
     })
@@ -181,9 +191,13 @@ describe('useAuthStore', () => {
 
     vi.stubGlobal('plus', {})
     vi.stubGlobal('uni', {
-      getStorageSync: vi.fn(() => storedTokens),
+      getStorageSync: vi.fn(),
       removeStorageSync: vi.fn(),
-      setStorageSync: vi.fn(),
+    })
+    vi.stubGlobal('stuhelperSecureStorage', {
+      getItem: vi.fn(() => storedTokens),
+      removeItem: vi.fn(),
+      setItem: vi.fn(),
     })
 
     const { useAuthStore } = await import('./auth')
@@ -199,11 +213,14 @@ describe('useAuthStore', () => {
   it('surfaces native session storage read failures during bootstrap', async () => {
     vi.stubGlobal('plus', {})
     vi.stubGlobal('uni', {
-      getStorageSync: vi.fn(() => {
+      removeStorageSync: vi.fn(),
+    })
+    vi.stubGlobal('stuhelperSecureStorage', {
+      getItem: vi.fn(() => {
         throw new Error('bridge unavailable')
       }),
-      removeStorageSync: vi.fn(),
-      setStorageSync: vi.fn(),
+      removeItem: vi.fn(),
+      setItem: vi.fn(),
     })
 
     const { useAuthStore } = await import('./auth')
@@ -220,13 +237,16 @@ describe('useAuthStore', () => {
 
     vi.stubGlobal('plus', {})
     vi.stubGlobal('uni', {
-      getStorageSync: vi.fn(() => {
-        throw new Error('bridge unavailable')
-      }),
       navigateTo,
       removeStorageSync: vi.fn(),
-      setStorageSync: vi.fn(),
       showToast,
+    })
+    vi.stubGlobal('stuhelperSecureStorage', {
+      getItem: vi.fn(() => {
+        throw new Error('bridge unavailable')
+      }),
+      removeItem: vi.fn(),
+      setItem: vi.fn(),
     })
 
     const { useAuthStore } = await import('./auth')
