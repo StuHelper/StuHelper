@@ -9,7 +9,8 @@ Agent 入口文件。只包含导航和速查表，详细内容见各文档。
 make dev-init && make dev-up   # 开发环境
 make dev-status                # 端口和进程
 make dev-down                  # 停止
-make e2e                       # Playwright
+make e2e                       # Web/Admin Playwright
+make e2e-koishi                # Koishi Console Playwright
 make obs-up                    # 可观测性
 make prod-init && make prod-deploy  # 生产
 
@@ -29,6 +30,7 @@ pnpm build:web && pnpm build:admin && pnpm build:uni:h5
 cd bots/koishi
 corepack yarn install
 corepack yarn dev
+corepack yarn test:ui
 corepack yarn workspaces list
 ```
 

@@ -25,7 +25,7 @@ help:
 	@echo "  make e2e-web    - run Web Playwright E2E locally"
 	@echo "  make e2e-admin  - run Admin Playwright E2E locally"
 	@echo "  make e2e-koishi - run Koishi Console Playwright E2E locally"
-	@echo "  make e2e        - run all frontend Playwright E2E locally"
+	@echo "  make e2e        - run Web/Admin Playwright E2E locally"
 	@echo ""
 	@echo "Observability:"
 	@echo "  make obs-up     - render configs and start observability stack"
