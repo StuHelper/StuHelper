@@ -20,6 +20,7 @@ func TestLoadSettingsBuildsBootstrapPlan(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, casdoor.PurposeBootstrap, settings.credential.Purpose)
 	assert.Equal(t, "https://sso.example.com", settings.credential.Endpoint)
+	assert.Equal(t, "stuhelper", settings.credential.Organization)
 	assert.Equal(t, "stuhelper", settings.plan.Organization.Name)
 	require.Len(t, settings.plan.Applications, 9)
 	assert.Equal(t, "stuhelper-web", settings.plan.Applications[0].Name)
@@ -46,6 +47,17 @@ func TestLoadSettingsBuildsBootstrapPlan(t *testing.T) {
 	assert.Equal(t, "Custom HTTP SMS", settings.plan.Providers[0].Type)
 	assert.Equal(t, "content", settings.plan.Providers[0].Title)
 	assert.Equal(t, "https://api.example.com/internal/sms/send?internal_key=sms-internal-key", settings.plan.Providers[0].Endpoint)
+}
+
+func TestLoadSettingsAllowsBootstrapCredentialOrganizationOverride(t *testing.T) {
+	env := completeEnv()
+	env["CASDOOR_BOOTSTRAP_ORGANIZATION"] = "built-in"
+
+	settings, err := loadSettings(testEnv(env))
+
+	require.NoError(t, err)
+	assert.Equal(t, "built-in", settings.credential.Organization)
+	assert.Equal(t, "stuhelper", settings.plan.Organization.Name)
 }
 
 func TestLoadSettingsAllowsApplicationLogoOverride(t *testing.T) {

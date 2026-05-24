@@ -23,18 +23,22 @@ type bootstrapSettings struct {
 }
 
 func loadSettings(getenv envReader) (bootstrapSettings, error) {
-	credential, err := buildCredential(getenv)
+	targetOrganization, err := requiredValue(getenv, "CASDOOR_ORGANIZATION")
 	if err != nil {
 		return bootstrapSettings{}, err
 	}
-	plan, err := buildPlan(getenv, credential.Organization)
+	credential, err := buildCredential(getenv, targetOrganization)
+	if err != nil {
+		return bootstrapSettings{}, err
+	}
+	plan, err := buildPlan(getenv, targetOrganization)
 	if err != nil {
 		return bootstrapSettings{}, err
 	}
 	return bootstrapSettings{credential: credential, plan: plan}, nil
 }
 
-func buildCredential(getenv envReader) (casdoor.Credential, error) {
+func buildCredential(getenv envReader, targetOrganization string) (casdoor.Credential, error) {
 	endpoint, err := requiredFirst(getenv, "CASDOOR_BOOTSTRAP_ENDPOINT", "CASDOOR_ISSUER")
 	if err != nil {
 		return casdoor.Credential{}, err
@@ -47,21 +51,18 @@ func buildCredential(getenv envReader) (casdoor.Credential, error) {
 	if err != nil {
 		return casdoor.Credential{}, err
 	}
-	organization, err := requiredValue(getenv, "CASDOOR_ORGANIZATION")
-	if err != nil {
-		return casdoor.Credential{}, err
-	}
 	application, err := requiredValue(getenv, "CASDOOR_BOOTSTRAP_APPLICATION")
 	if err != nil {
 		return casdoor.Credential{}, err
 	}
+	credentialOrganization := valueOrDefault(getenv("CASDOOR_BOOTSTRAP_ORGANIZATION"), targetOrganization)
 	return casdoor.Credential{
 		Purpose:      casdoor.PurposeBootstrap,
 		Endpoint:     endpoint,
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		Certificate:  strings.TrimSpace(getenv("CASDOOR_BOOTSTRAP_CERTIFICATE")),
-		Organization: organization,
+		Organization: credentialOrganization,
 		Application:  application,
 	}, nil
 }

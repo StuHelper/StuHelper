@@ -250,6 +250,7 @@ ensure_bootstrap_value "CASDOOR_BOOTSTRAP_CLIENT_ID" "client_id"
 ensure_bootstrap_value "CASDOOR_BOOTSTRAP_CLIENT_SECRET" "client_secret"
 ensure_bootstrap_value "CASDOOR_BOOTSTRAP_APPLICATION" "app-built-in"
 ensure_bootstrap_value "CASDOOR_BOOTSTRAP_CERTIFICATE" "cert-built-in"
+ensure_bootstrap_value "CASDOOR_BOOTSTRAP_ORGANIZATION" "built-in"
 
 load_env
 
