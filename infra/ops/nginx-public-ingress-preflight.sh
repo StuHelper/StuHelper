@@ -138,7 +138,21 @@ def tokenize(text: str) -> list[str]:
     return tokens
 
 
-def parse_nodes(tokens: list[str], index: int = 0, nested: bool = False) -> tuple[list[Node], int]:
+def skip_block(tokens: list[str], index: int) -> int:
+    depth = 1
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "{":
+            depth += 1
+        elif token == "}":
+            depth -= 1
+            if depth == 0:
+                return index + 1
+        index += 1
+    raise CheckError("unterminated block in Nginx config")
+
+
+def parse_nodes(tokens: list[str], index: int = 0, nested: bool = False, mode: str = "scan") -> tuple[list[Node], int]:
     children: list[Node] = []
     while index < len(tokens):
         token = tokens[index]
@@ -159,11 +173,21 @@ def parse_nodes(tokens: list[str], index: int = 0, nested: bool = False) -> tupl
             raise CheckError(f"directive {name} is missing ';' or block")
         terminator = tokens[index]
         if terminator == ";":
-            children.append(Node(name, args, []))
+            if mode in {"server", "location"}:
+                children.append(Node(name, args, []))
             index += 1
         elif terminator == "{":
-            block_children, index = parse_nodes(tokens, index + 1, nested=True)
-            children.append(Node(name, args, block_children))
+            if name in {"http", "stream"} and mode == "scan":
+                block_children, index = parse_nodes(tokens, index + 1, nested=True, mode="scan")
+                children.extend(block_children)
+            elif name == "server" and mode == "scan":
+                block_children, index = parse_nodes(tokens, index + 1, nested=True, mode="server")
+                children.append(Node(name, args, block_children))
+            elif name == "location" and mode == "server":
+                block_children, index = parse_nodes(tokens, index + 1, nested=True, mode="location")
+                children.append(Node(name, args, block_children))
+            else:
+                index = skip_block(tokens, index + 1)
         else:
             raise CheckError(f"directive {name} ended with unexpected '}}'")
 

@@ -60,6 +60,24 @@ trap cleanup EXIT
 combined_good="${tmpdir}/combined-good.conf"
 cat "${MAIN_NGINX_FILE}" "${SSO_NGINX_FILE}" >"${combined_good}"
 
+baota_dump_with_json_logs="${tmpdir}/baota-dump-with-json-logs.conf"
+{
+  cat <<'NGINX'
+http {
+    baota_log_payload {
+        "server_addr": "$server_addr",
+        "request_uri": "$request_uri",
+        "nested": {
+            "host": "$host"
+        }
+    }
+NGINX
+  cat "${MAIN_NGINX_FILE}" "${SSO_NGINX_FILE}"
+  cat <<'NGINX'
+}
+NGINX
+} >"${baota_dump_with_json_logs}"
+
 missing_id="${tmpdir}/missing-id.conf"
 cat >"${missing_id}" <<'NGINX'
 server {
@@ -116,6 +134,7 @@ if ! NGINX_PUBLIC_INGRESS_PROFILE="sso" \
 fi
 assert_file_contains "${tmpdir}/sso-custom-upstream.stdout" 'public Nginx ingress config preflight passed'
 run_preflight_pass "all" "${combined_good}" "${tmpdir}" "combined-template"
+run_preflight_pass "all" "${baota_dump_with_json_logs}" "${tmpdir}" "baota-json-log-dump"
 run_preflight_fail "stuhelper" "${missing_id}" "${tmpdir}" "missing-id" 'id\.stuhelper\.com: missing HTTPS server block'
 run_preflight_fail "sso" "${bad_sso_static_root}" "${tmpdir}" "bad-sso-static-root" 'root or try_files'
 run_preflight_fail "unknown" "${combined_good}" "${tmpdir}" "unknown-profile" 'unknown NGINX_PUBLIC_INGRESS_PROFILE'
