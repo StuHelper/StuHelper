@@ -106,6 +106,20 @@ async function runCheck(context, check) {
       });
     }
   });
+  page.on('response', (response) => {
+    const request = response.request();
+    if (
+      criticalResourceTypes.has(request.resourceType()) &&
+      response.status() >= 400
+    ) {
+      assetFailures.push({
+        url: response.url(),
+        resourceType: request.resourceType(),
+        status: response.status(),
+        statusText: response.statusText(),
+      });
+    }
+  });
 
   try {
     const response = await page.goto(check.url, {
