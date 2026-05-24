@@ -31,6 +31,8 @@ async function loadPopularTeachers() {
     const res = await api.rating.listHotTeachers(20)
     const list = res.data?.data?.list
     popularTeachers.value = (list ?? []).map(mapTeacher)
+  } catch (_error) { void _error;
+    popularTeachers.value = []
   } finally {
     loading.value = false
   }
@@ -102,7 +104,7 @@ const showEmpty = computed(
       <!-- Header -->
       <header class="text-center mb-10">
         <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight gradient-text">
-          {{ t('teaching.title') }}
+          {{ t('teaching.hub.title') }}
         </h1>
         <p class="mt-2 text-base text-text-secondary">
           {{ t('teaching.hub.description') }}

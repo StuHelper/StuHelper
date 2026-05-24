@@ -54,24 +54,6 @@ export default {
     searchResults: 'Search Results',
     reviewUnit: ' reviews',
     noResults: 'No teachers found. Try a different name.',
-    noTeachers: 'No teacher data available yet.',
-    actions: {
-      browseCourses: 'Browse Courses',
-      backToReview: 'Back to Review Center'
-    },
-    highlights: {
-      entry: {
-        title: 'Teacher profile entry',
-        description: 'Teacher detail pages are already routed. Full teacher listing, search, and filters will be added next.'
-      },
-      capabilities: {
-        title: 'Teaching capabilities',
-        description: 'This module will gradually take on teacher profiles, course associations, rating dimensions, and statistics.'
-      },
-      status: {
-        title: 'Current status',
-        description: 'The teacher hub homepage is still in progress, so a stable placeholder is shown here instead of redirecting users to the course list.'
-      }
-    }
+    noTeachers: 'No teacher data available yet.'
   }
 }
