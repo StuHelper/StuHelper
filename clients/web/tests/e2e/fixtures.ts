@@ -1,4 +1,10 @@
-import type { Page, Request, Response, Route } from '@playwright/test'
+import type {
+  ConsoleMessage,
+  Page,
+  Request,
+  Response,
+  Route,
+} from '@playwright/test'
 
 import { test as base, expect } from '@playwright/test'
 
@@ -12,6 +18,15 @@ const criticalResourceTypes = new Set([
 
 function describePageError(error: Error) {
   return error.stack || `${error.name}: ${error.message}`
+}
+
+function describeConsoleMessage(message: ConsoleMessage) {
+  const location = message.location()
+  const locationText =
+    location.url && location.lineNumber > 0
+      ? ` (${location.url}:${location.lineNumber}:${location.columnNumber})`
+      : ''
+  return `${message.text()}${locationText}`
 }
 
 function describeFailedRequest(request: Request) {
@@ -34,6 +49,12 @@ function isApiRequest(request: Request) {
     return false
   }
   return new URL(request.url()).pathname.startsWith('/api/v1/')
+}
+
+function isBrowserNetworkStatusConsoleError(text: string) {
+  return /^Failed to load resource: the server responded with a status of [45]\d\d \([^)]+\)$/.test(
+    text,
+  )
 }
 
 function isExpectedApiErrorResponse(response: Response) {
@@ -80,9 +101,18 @@ function isExpectedApiErrorResponse(response: Response) {
 export const test = base.extend<{ page: Page }>({
   page: async ({ page }, use) => {
     const pageErrors: string[] = []
+    const consoleErrors: string[] = []
     const failedRequests: string[] = []
     const apiFailures: string[] = []
 
+    page.on('console', (message) => {
+      if (
+        message.type() === 'error' &&
+        !isBrowserNetworkStatusConsoleError(message.text())
+      ) {
+        consoleErrors.push(describeConsoleMessage(message))
+      }
+    })
     page.on('pageerror', (error) => {
       pageErrors.push(describePageError(error))
     })
@@ -114,6 +144,7 @@ export const test = base.extend<{ page: Page }>({
     await use(page)
 
     expect(pageErrors, 'unexpected browser page errors').toEqual([])
+    expect(consoleErrors, 'unexpected browser console errors').toEqual([])
     expect(
       failedRequests,
       'critical browser resources should load with successful HTTP status',

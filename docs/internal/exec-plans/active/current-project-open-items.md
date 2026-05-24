@@ -74,8 +74,9 @@ E2E 覆盖。新增覆盖后已通过单文件
 `make check-infra-contracts`、`node --check infra/ops/prod-parity-browser-smoke.mjs`、
 `bash infra/ops/tests/prod-parity-contract.sh` 和 `git diff --check`。
 
-本地验证补充（2026-05-25）：Web / Admin Playwright fixture 的 API 门禁继续从 HTTP 5xx
-收紧到未声明允许的 `fetch` / `xhr` HTTP 4xx/5xx，防止页面断言未覆盖时漏掉客户端 API 错误。
+本地验证补充（2026-05-25）：Web / Admin Playwright fixture 的浏览器门禁继续从 API HTTP 5xx
+收紧到未声明允许的 `fetch` / `xhr` HTTP 4xx/5xx，并同步把非网络状态类 `console.error`
+纳入失败条件，防止页面断言未覆盖时漏掉客户端 API 错误或组件运行时报错。
 允许清单仅保留被页面显式展示的业务状态：匿名 `auth/me` 401、Web 未绑定 QQ 404、未创建实名信息
 404、入群链接冲突 / 过期 409 / 410、匿名读取课程收藏状态 401；Admin 仅允许匿名 `auth/me` 401。
 收紧后已通过完整 `CI=1 PLAYWRIGHT_WEB_PORT=3410 make e2e`，覆盖 Web 53 项和 Admin 26 项。
