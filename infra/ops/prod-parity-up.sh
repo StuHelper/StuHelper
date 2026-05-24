@@ -72,6 +72,33 @@ ensure_bootstrap_value() {
   upsert_env_file "${CASDOOR_BOOTSTRAP_ENV_FILE}" "${key}" "${value}"
 }
 
+sync_casdoor_builtin_bootstrap_credentials() {
+  local postgres_container="${SHARED_POSTGRES_CONTAINER:-${PROD_PARITY_POSTGRES_CONTAINER:-stuhelper-prod-parity-postgres}}"
+  local superuser="${SHARED_POSTGRES_SUPERUSER:-postgres}"
+  local casdoor_db="${CASDOOR_DB_NAME:-casdoor}"
+  local credentials
+  local client_id
+  local client_secret
+
+  credentials="$(
+    docker exec -i "${postgres_container}" \
+      psql -At -F $'\t' \
+        -U "${superuser}" \
+        -d "${casdoor_db}" \
+        -c "SELECT client_id, client_secret FROM application WHERE name = 'app-built-in' AND organization = 'built-in' LIMIT 1"
+  )"
+  IFS=$'\t' read -r client_id client_secret <<<"${credentials}"
+
+  [[ -n "${client_id}" ]] || die "failed to read Casdoor built-in application client_id from ${casdoor_db}"
+  [[ -n "${client_secret}" ]] || die "failed to read Casdoor built-in application client_secret from ${casdoor_db}"
+
+  ensure_bootstrap_value "CASDOOR_BOOTSTRAP_CLIENT_ID" "${client_id}"
+  ensure_bootstrap_value "CASDOOR_BOOTSTRAP_CLIENT_SECRET" "${client_secret}"
+  ensure_bootstrap_value "CASDOOR_BOOTSTRAP_APPLICATION" "app-built-in"
+  ensure_bootstrap_value "CASDOOR_BOOTSTRAP_CERTIFICATE" "cert-built-in"
+  ensure_bootstrap_value "CASDOOR_BOOTSTRAP_ORGANIZATION" "built-in"
+}
+
 tag="${PROD_PARITY_TAG:-prod-parity-$(git_tag_default)}"
 commit="$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo "local")"
 build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -246,8 +273,6 @@ ensure_file_secret "${SECRETS_ENV_FILE}" "GRAFANA_ADMIN_PASSWORD" "prod-parity-g
 ensure_file_secret "${SECRETS_ENV_FILE}" "BOT_SERVICE_TOKEN" "prod-parity-bot"
 ensure_identity_private_key
 
-ensure_bootstrap_value "CASDOOR_BOOTSTRAP_CLIENT_ID" "client_id"
-ensure_bootstrap_value "CASDOOR_BOOTSTRAP_CLIENT_SECRET" "client_secret"
 ensure_bootstrap_value "CASDOOR_BOOTSTRAP_APPLICATION" "app-built-in"
 ensure_bootstrap_value "CASDOOR_BOOTSTRAP_CERTIFICATE" "cert-built-in"
 ensure_bootstrap_value "CASDOOR_BOOTSTRAP_ORGANIZATION" "built-in"
@@ -272,6 +297,7 @@ log "starting local Baota-equivalent shared PostgreSQL"
 
 log "starting local production-parity Casdoor SSO"
 compose --profile prod --profile local-sso up -d --wait casdoor
+sync_casdoor_builtin_bootstrap_credentials
 
 log "rendering local production-parity Redis and observability configs"
 "${SCRIPT_DIR}/render-redis-tls.sh"
