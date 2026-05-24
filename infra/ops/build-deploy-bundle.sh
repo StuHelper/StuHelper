@@ -5,10 +5,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
 
+require_cmd git
 require_cmd tar
 
 OUTPUT_FILE="${1:-${REPO_ROOT}/infra/generated/deploy/stuhelper-deploy-bundle.tar.gz}"
 OUTPUT_DIR="$(dirname "${OUTPUT_FILE}")"
+
+if ! git -C "${REPO_ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  die "deployment bundle must be built from a Git worktree"
+fi
+if [[ -n "$(git -C "${REPO_ROOT}" status --porcelain --untracked-files=all)" ]]; then
+  die "deployment bundle requires a clean git worktree; commit or remove local changes before packaging"
+fi
+
 mkdir -p "${OUTPUT_DIR}"
 
 tmpfile="$(mktemp "${OUTPUT_DIR}/bundle.XXXXXX.tar.gz")"

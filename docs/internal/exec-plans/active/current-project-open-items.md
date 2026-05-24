@@ -93,6 +93,13 @@ StuHelper Compose 内的独立 TLS/ACL 实例，使用自己的 `/data` volume�
 `make prod-parity-datastore-smoke`、`make prod-parity-smoke`、`bash infra/ops/tests/prod-parity-contract.sh`、
 `make check-docs`、`make check-infra-contracts` 和 `git diff --check`。
 
+发布链路补充（2026-05-25）：`build-deploy-bundle.sh` 现在会在打包前要求当前目录是 Git
+worktree 且 `git status --porcelain --untracked-files=all` 为空，防止未提交 / 未签名改动绕过本机
+E2E 与 prod-parity 验证进入远端部署 bundle；新增 `deploy-bundle-contract.sh` 覆盖该顺序约束。
+本轮已验证 dirty worktree 下 `make deploy-bundle` 会失败，并通过 `make check-docs`、
+`make check-infra-contracts` 和 `git diff --check`；提交后已在干净工作区复跑 `make deploy-bundle`，
+证明正常打包路径仍可用，并确认 bundle 包含新增运维脚本但不包含 `.run`、`.deploy` 或本地生产 env。
+
 接口硬化补充（2026-05-24）：审计发现 legacy disclosure API 文档要求 `client_id`，但
 OpenAPI 未声明且 handler 只读取认证上下文 appID；同时服务端在已有 active consent 时未重新校验
 `redirect_uri`。本轮已按 OpenAPI-first 补齐 `GET /api/v1/open-platform/userinfo`、

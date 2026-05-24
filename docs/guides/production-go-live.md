@@ -423,7 +423,7 @@ make prod-deploy
 发布脚本会按顺序执行：
 
 1. 读取远端部署控制面和 secret backend
-2. 校验生产必填配置、占位符、不可变镜像、PostgreSQL TLS/Redis TLS（或显式外部明文 PostgreSQL 例外）/SMS/OTEL/Open Platform runtime token 探针门禁，并在拉镜像前审计本机宝塔 Nginx 主站/id 配置、验证 `stuhelper.com` / `id.stuhelper.com` / `sso.stuhelper.com` 公共 DNS、`stuhelper.com` / `id.stuhelper.com` TLS 可达与 `sso.stuhelper.com` OIDC discovery 元数据
+2. 校验生产必填配置、占位符、不可变镜像、PostgreSQL TLS/Redis TLS（或显式外部明文 PostgreSQL 例外）/SMS/OTEL/Open Platform runtime token 探针门禁，并在拉镜像前审计本机宝塔 Nginx 主站/id 配置、验证 `stuhelper.com` / `id.stuhelper.com` / `sso.stuhelper.com` 公共 DNS、`stuhelper.com` / `id.stuhelper.com` TLS 可达与 `sso.stuhelper.com` OIDC discovery 元数据；远端部署 bundle 必须已经由干净 Git 工作区打包，不能包含未提交改动
 3. 渲染 PostgreSQL TLS、Redis ACL、观测配置；启用外部明文 PostgreSQL 例外时只跳过 StuHelper 内部 PostgreSQL TLS 渲染，Redis ACL 仍始终渲染
 4. 拉取 backend / frontend / admin 镜像
 5. 启动 StuHelper 独立 Redis、MinIO、观测栈，并在未启用外部 PostgreSQL 时启动 StuHelper 内部 PostgreSQL

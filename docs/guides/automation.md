@@ -197,16 +197,17 @@ make prod-reset
    - 前端构建要求显式提供 `WEB_VITE_SSO_URL`；缺失即失败，不再使用构建期 fallback
 2. 构建 backend / frontend / admin 镜像
 3. 推送到自建镜像仓库
-4. 打包部署 bundle（脚本、compose、配置模板、文档）
+4. 在 Git 工作区干净时打包部署 bundle（脚本、compose、配置模板、文档）
 5. 通过 SSH 上传到远端 Ubuntu 24.04 服务器
 6. 在远端执行 `infra/ops/remote-preflight.sh` + `infra/ops/remote-prod-deploy.sh`
 
-生产分支真正部署到线上之前，还会经过 `remote-preflight.sh` 的最后一道检查，避免：
+生产分支真正部署到线上之前，打包阶段和 `remote-preflight.sh` 会共同避免：
 
 - 远端缺少 `.deploy/remote.env`
 - 远端缺少共享配置 / secrets
 - backup timer 或 backup sync timer 没启
 - WAL 归档目录没准备好
+- 部署 bundle 不是从已提交的干净工作区打包
 - 主站生产机的宝塔 Nginx `stuhelper.com` / `id.stuhelper.com` server block 漂移
 - `id.stuhelper.com` TLS 或 `sso.stuhelper.com` OIDC discovery 漂移
 
