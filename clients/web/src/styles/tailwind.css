@@ -1,5 +1,4 @@
 /* === StuHelper — Tailwind CSS v4 Entry === */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
 /* 复用现有 data-theme 属性切换暗色模式 */

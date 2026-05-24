@@ -48,6 +48,8 @@ OPENFGA_RESOURCE_SMOKE_MODE=container \
 OPENFGA_RESOURCE_SMOKE_EVIDENCE_FILE="${PARITY_DIR}/openfga-resource-access-smoke.json" \
 "${SCRIPT_DIR}/openfga-resource-access-smoke.sh" >/dev/null
 
+"${SCRIPT_DIR}/prod-parity-browser-smoke.sh"
+
 PROMETHEUS_URL="http://127.0.0.1:${PROMETHEUS_PORT:-29090}/-/ready" \
 GRAFANA_URL="http://127.0.0.1:${GRAFANA_PORT:-23003}/api/health" \
 LOKI_URL="http://127.0.0.1:${LOKI_PORT:-23100}/ready" \

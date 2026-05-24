@@ -8,6 +8,8 @@ INIT_SHARED_PG="${REPO_ROOT}/infra/ops/init-shared-postgres.sh"
 PARITY_UP="${REPO_ROOT}/infra/ops/prod-parity-up.sh"
 PARITY_DOWN="${REPO_ROOT}/infra/ops/prod-parity-down.sh"
 PARITY_SMOKE="${REPO_ROOT}/infra/ops/prod-parity-smoke.sh"
+PARITY_BROWSER_SMOKE="${REPO_ROOT}/infra/ops/prod-parity-browser-smoke.sh"
+PARITY_BROWSER_SMOKE_NODE="${REPO_ROOT}/infra/ops/prod-parity-browser-smoke.mjs"
 MAKEFILE="${REPO_ROOT}/Makefile"
 
 fail() {
@@ -31,11 +33,11 @@ assert_not_contains() {
   fi
 }
 
-for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}"; do
+for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_BROWSER_SMOKE_NODE}"; do
   [[ -f "${file}" ]] || fail "missing file: ${file}"
 done
 
-bash -n "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}"
+bash -n "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${PARITY_BROWSER_SMOKE}"
 
 assert_contains "${PARITY_COMPOSE}" '^  postgres:'
 assert_contains "${PARITY_COMPOSE}" 'POSTGRES_PASSWORD: \$\{SHARED_POSTGRES_PASSWORD:\?SHARED_POSTGRES_PASSWORD is required\}'
@@ -98,8 +100,22 @@ assert_contains "${PARITY_SMOKE}" 'identity-public-smoke.sh'
 assert_contains "${PARITY_SMOKE}" 'parity_default_path'
 assert_contains "${PARITY_SMOKE}" 'IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=true'
 assert_contains "${PARITY_SMOKE}" 'openfga-resource-access-smoke.sh'
+assert_contains "${PARITY_SMOKE}" 'prod-parity-browser-smoke.sh'
 assert_contains "${PARITY_SMOKE}" 'observability-smoke-check.sh'
 assert_contains "${PARITY_SMOKE}" 'OBS_SMOKE_STRICT=false'
+
+assert_contains "${PARITY_BROWSER_SMOKE}" 'PROD_PARITY_BROWSER_SMOKE_EVIDENCE_FILE'
+assert_contains "${PARITY_BROWSER_SMOKE}" 'browser-smoke-evidence\.json'
+assert_contains "${PARITY_BROWSER_SMOKE}" 'WEB_BASE_URL'
+assert_contains "${PARITY_BROWSER_SMOKE}" 'ADMIN_BASE_URL'
+assert_contains "${PARITY_BROWSER_SMOKE}" 'prod-parity-browser-smoke\.mjs'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" '@playwright/test'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-home'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-login'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'admin-login-redirect'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'finalURL'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'pageerror'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'requestfailed'
 
 assert_contains "${MAKEFILE}" 'prod-parity-up'
 assert_contains "${MAKEFILE}" 'prod-parity-down'
