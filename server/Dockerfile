@@ -1,10 +1,17 @@
 ARG GO_IMAGE=golang:1.26-alpine
 ARG RUNTIME_IMAGE=alpine:3.21
+ARG ALPINE_APK_REPOSITORY=
 
 # Build stage
 FROM ${GO_IMAGE} AS builder
 
+ARG ALPINE_APK_REPOSITORY
+
 WORKDIR /app
+
+RUN if [ -n "${ALPINE_APK_REPOSITORY}" ]; then \
+        sed -i "s|https://dl-cdn.alpinelinux.org/alpine|${ALPINE_APK_REPOSITORY}|g" /etc/apk/repositories; \
+    fi
 
 RUN apk add --no-cache git ca-certificates tzdata
 
@@ -31,7 +38,13 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build \
 # Final stage
 FROM ${RUNTIME_IMAGE}
 
+ARG ALPINE_APK_REPOSITORY
+
 WORKDIR /app
+
+RUN if [ -n "${ALPINE_APK_REPOSITORY}" ]; then \
+        sed -i "s|https://dl-cdn.alpinelinux.org/alpine|${ALPINE_APK_REPOSITORY}|g" /etc/apk/repositories; \
+    fi
 
 RUN apk add --no-cache ca-certificates tzdata nodejs npm chromium
 
