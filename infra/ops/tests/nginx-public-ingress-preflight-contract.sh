@@ -70,7 +70,7 @@ http {
         "nested": {
             "host": "$host"
         }
-    }
+    };
 NGINX
   cat "${MAIN_NGINX_FILE}" "${SSO_NGINX_FILE}"
   cat <<'NGINX'

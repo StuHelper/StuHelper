@@ -161,6 +161,9 @@ def parse_nodes(tokens: list[str], index: int = 0, nested: bool = False, mode: s
                 raise CheckError("unexpected closing brace in Nginx config")
             return children, index + 1
         if token in {"{", ";"}:
+            if mode == "scan":
+                index += 1
+                continue
             raise CheckError(f"unexpected token in Nginx config: {token}")
 
         name = token
@@ -189,6 +192,9 @@ def parse_nodes(tokens: list[str], index: int = 0, nested: bool = False, mode: s
             else:
                 index = skip_block(tokens, index + 1)
         else:
+            if mode == "scan":
+                index += 1
+                continue
             raise CheckError(f"directive {name} ended with unexpected '}}'")
 
     if nested:
