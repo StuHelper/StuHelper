@@ -41,9 +41,9 @@ SHA-256，确认生成幂等。已通过 `go test -count=1 ./...`、`make check-
 `pnpm type-check:all`、`pnpm lint:all`、`make build`、`pnpm build:web`、`pnpm build:admin` 和
 `pnpm build:uni:h5`。E2E 方面，默认 `127.0.0.1:3000` 已被本机既有 Vite 进程占用，
 因此使用 `PLAYWRIGHT_WEB_PORT=3300 make e2e-web` 跑通 Web 42 项，并使用
-`make e2e-admin` 跑通 Admin 9 项。
+`make e2e-admin` 跑通 Admin 12 项。
 
-本地验证补充（2026-05-25）：新增 Web Playwright 覆盖 Open Platform consent/profile completion、实名与学生认证、手机号绑定、QQ 绑定码、学籍信息、OAuth callback、admission 入群邮箱 OTP、课程说明页、评课聚合 feed 排序/院系侧栏、教师主页热门/搜索、自己评价编辑/删除、课程收藏切换和公开评价举报；新增 Admin Playwright 覆盖 dashboard、内容管理、用户系统、开放平台管理页、个人中心 tabs 和已登录 404 fallback。新增覆盖发现教师主页仍显示通用教学中心标题，且热门教师接口失败会触发全页 ErrorBoundary，已修正为教师主页标题并在加载失败时显示空态。新增覆盖后再次通过 `PLAYWRIGHT_WEB_PORT=3300 make e2e-web`（42 项）、`make e2e-admin`（9 项）、`pnpm --dir clients run type-check:web`、`pnpm --dir clients/admin --filter @vben/web-ele typecheck`、相关单文件 ESLint/Prettier、`pnpm --dir clients/admin lint` 和 `git diff --check`。
+本地验证补充（2026-05-25）：新增 Web Playwright 覆盖 Open Platform consent/profile completion、实名与学生认证、手机号绑定、QQ 绑定码、学籍信息、OAuth callback、admission 入群邮箱 OTP、课程说明页、评课聚合 feed 排序/院系侧栏、教师主页热门/搜索、自己评价编辑/删除、课程收藏切换和公开评价举报；新增 Admin Playwright 覆盖 dashboard、内容管理、用户系统、开放平台管理页、个人中心 tabs、已登录 404 fallback、评课审核动作、举报处置动作和实名审核通过/驳回。新增覆盖发现教师主页仍显示通用教学中心标题，且热门教师接口失败会触发全页 ErrorBoundary，已修正为教师主页标题并在加载失败时显示空态。新增覆盖后再次通过 `PLAYWRIGHT_WEB_PORT=3300 make e2e-web`（42 项）、`make e2e-admin`（12 项）、`pnpm --dir clients run type-check:web`、`pnpm --dir clients/admin --filter @vben/web-ele typecheck`、相关单文件格式/静态检查、`pnpm --dir clients/admin lint` 和 `git diff --check`。
 
 接口硬化补充（2026-05-24）：审计发现 legacy disclosure API 文档要求 `client_id`，但
 OpenAPI 未声明且 handler 只读取认证上下文 appID；同时服务端在已有 active consent 时未重新校验
