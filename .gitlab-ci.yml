@@ -93,7 +93,7 @@ frontend_lint:
 
 koishi_test:
   stage: test
-  image: node:24-bookworm
+  image: mcr.microsoft.com/playwright:v1.58.2-noble
   before_script:
   - corepack enable
   - corepack prepare yarn@4.12.0 --activate

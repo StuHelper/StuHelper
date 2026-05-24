@@ -3,7 +3,7 @@ type: guide
 audience: all
 status: current
 authoritative-source: this file
-last-verified: 2026-05-24
+last-verified: 2026-05-25
 ---
 
 # 快速开始
@@ -94,6 +94,7 @@ corepack yarn install
 corepack yarn build
 corepack yarn test:unit
 corepack yarn test:startup
+corepack yarn test:ui
 corepack yarn test
 corepack yarn dev
 ```
@@ -106,6 +107,7 @@ corepack yarn dev
 - `STUHELPER_PLATFORM_BASE_URL` 和 `STUHELPER_PLATFORM_SERVICE_TOKEN` 是 Koishi 插件读取的后端连接配置；其中 service token 应与后端 `BOT_SERVICE_TOKEN` 一致。
 - NapCat 保持外部部署；本地单元测试不依赖真实 OneBot。
 - Koishi Console 已挂载 StuHelper 自定义群管页面，访问路径为 `/stuhelper`。
+- `test:ui` 会临时拉起 Koishi Console 并通过 Playwright 覆盖群管中心 NavRail、11 个业务视图和 ChatDock；根目录也可直接运行 `make e2e-koishi`。
 - 机器人开发说明见 [guides/koishi-development.md](guides/koishi-development.md)。
 
 ## 手动拆分启动
@@ -161,6 +163,7 @@ make prod-parity-reset   # 停止并清理本机生产等价 volume
 ```bash
 PLAYWRIGHT_WEB_PORT=3300 make e2e-web
 make e2e-admin
+make e2e-koishi
 ```
 
 ## GitLab 发布

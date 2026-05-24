@@ -22,7 +22,8 @@ make dev-up
 ```bash
 make dev-status   # 端口和进程
 make dev-logs     # 热重载日志
-make e2e          # Playwright
+make e2e          # Web/Admin Playwright
+make e2e-koishi   # Koishi Console Playwright
 make dev-down     # 停止
 ```
 
@@ -32,6 +33,7 @@ make dev-down     # 停止
 cd bots/koishi
 corepack yarn install
 corepack yarn dev
+corepack yarn test:ui
 corepack yarn workspaces list
 ```
 

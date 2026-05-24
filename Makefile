@@ -1,4 +1,4 @@
-.PHONY: help bootstrap-dev-ubuntu2404 dev dev-init dev-up dev-docker-up dev-down dev-reset dev-smoke dev-status dev-logs e2e e2e-web e2e-admin obs-up obs-down obs-smoke prod-init prod-render prod-deploy prod-rollback deploy prod-down prod-reset prod-smoke prod-identity-smoke prod-open-platform-evidence prod-backup-evidence prod-parity-up prod-parity-down prod-parity-reset prod-parity-smoke prod-parity-datastore-smoke prod-parity-browser-smoke deploy-bundle ansible-bootstrap ansible-deploy-staging ansible-deploy-prod ansible-rollback-staging ansible-rollback-prod check-docs check-infra-contracts check-semgrep-custom
+.PHONY: help bootstrap-dev-ubuntu2404 dev dev-init dev-up dev-docker-up dev-down dev-reset dev-smoke dev-status dev-logs e2e e2e-web e2e-admin e2e-koishi obs-up obs-down obs-smoke prod-init prod-render prod-deploy prod-rollback deploy prod-down prod-reset prod-smoke prod-identity-smoke prod-open-platform-evidence prod-backup-evidence prod-parity-up prod-parity-down prod-parity-reset prod-parity-smoke prod-parity-datastore-smoke prod-parity-browser-smoke deploy-bundle ansible-bootstrap ansible-deploy-staging ansible-deploy-prod ansible-rollback-staging ansible-rollback-prod check-docs check-infra-contracts check-semgrep-custom
 
 .DEFAULT_GOAL := help
 
@@ -24,6 +24,7 @@ help:
 	@echo "  make dev-logs   - tail local dev process logs"
 	@echo "  make e2e-web    - run Web Playwright E2E locally"
 	@echo "  make e2e-admin  - run Admin Playwright E2E locally"
+	@echo "  make e2e-koishi - run Koishi Console Playwright E2E locally"
 	@echo "  make e2e        - run all frontend Playwright E2E locally"
 	@echo ""
 	@echo "Observability:"
@@ -96,6 +97,9 @@ e2e-web:
 
 e2e-admin:
 	cd clients && pnpm test:e2e:admin
+
+e2e-koishi:
+	cd bots/koishi && corepack yarn test:ui
 
 e2e:
 	cd clients && pnpm test:e2e
