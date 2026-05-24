@@ -120,8 +120,14 @@ assert_contains "${PARITY_BROWSER_SMOKE}" 'PROD_PARITY_BROWSER_SMOKE_EVIDENCE_FI
 assert_contains "${PARITY_BROWSER_SMOKE}" 'browser-smoke-evidence\.json'
 assert_contains "${PARITY_BROWSER_SMOKE}" 'WEB_BASE_URL'
 assert_contains "${PARITY_BROWSER_SMOKE}" 'ADMIN_BASE_URL'
+assert_contains "${PARITY_BROWSER_SMOKE}" 'clear_rate_limit_keys'
+assert_contains "${PARITY_BROWSER_SMOKE}" "scan --pattern 'rl:\*'"
 assert_contains "${PARITY_BROWSER_SMOKE}" 'prod-parity-browser-smoke\.mjs'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" '@playwright/test'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'telemetryRoutePattern'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'suppressedTelemetryRequests'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'allowedAPIResponses'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'ignoredAPIResponses'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-home'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-login'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-course-hub'
@@ -160,7 +166,6 @@ assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'requestfailed'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" "page\.on\('response'"
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'response\.status\(\) >= 400'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" "'fetch', 'xhr'"
-assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'response\.status\(\) >= 500'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'apiFailures'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'criticalResourceTypes'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" "'image'"

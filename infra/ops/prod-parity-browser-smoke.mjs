@@ -27,6 +27,7 @@ const evidenceFile =
 const screenshotDir =
   process.env.PROD_PARITY_BROWSER_SMOKE_SCREENSHOT_DIR || dirname(evidenceFile);
 const criticalResourceTypes = new Set(['document', 'font', 'image', 'script', 'stylesheet']);
+const telemetryRoutePattern = /\/api\/v1\/metrics\/(?:frontend-errors|vitals)(?:\?|$)/;
 
 const checks = [
   {
@@ -178,6 +179,12 @@ const checks = [
     url: joinURL(adminBaseURL, '/admin/'),
     expectedTexts: ['Sign In', 'Password', '登录'],
     expectedURLIncludes: '/login/oauth/authorize',
+    allowedAPIResponses: [
+      {
+        urlIncludes: '/api/v1/auth/me',
+        statuses: [401],
+      },
+    ],
   },
 ];
 
@@ -229,8 +236,18 @@ async function runCheck(browser, check) {
   const apiFailures = [];
   const consoleErrors = [];
   const ignoredConsoleErrors = [];
+  const ignoredAPIResponses = [];
   const pageErrors = [];
+  const suppressedTelemetryRequests = [];
   const screenshotFile = resolve(screenshotDir, `${check.name}.png`);
+
+  await page.route(telemetryRoutePattern, async (route) => {
+    suppressedTelemetryRequests.push({
+      method: route.request().method(),
+      url: route.request().url(),
+    });
+    await route.fulfill({ status: 204, body: '' });
+  });
 
   page.on('console', (message) => {
     if (message.type() === 'error') {
@@ -259,14 +276,19 @@ async function runCheck(browser, check) {
     const resourceType = request.resourceType();
     if (
       ['fetch', 'xhr'].includes(resourceType) &&
-      response.status() >= 500
+      response.status() >= 400
     ) {
-      apiFailures.push({
+      const described = {
         url: response.url(),
         resourceType,
         status: response.status(),
         statusText: response.statusText(),
-      });
+      };
+      if (isAllowedAPIResponse(check, response)) {
+        ignoredAPIResponses.push(described);
+      } else {
+        apiFailures.push(described);
+      }
     }
     if (
       criticalResourceTypes.has(resourceType) &&
@@ -344,6 +366,8 @@ async function runCheck(browser, check) {
       title,
       matchedText,
       ignoredConsoleErrors,
+      ignoredAPIResponses,
+      suppressedTelemetryRequests,
       screenshot: relative(repoRoot, screenshotFile),
     };
   } catch (error) {
@@ -357,6 +381,8 @@ async function runCheck(browser, check) {
       pageErrors,
       consoleErrors,
       ignoredConsoleErrors,
+      ignoredAPIResponses,
+      suppressedTelemetryRequests,
       assetFailures,
       apiFailures,
       screenshot: relative(repoRoot, screenshotFile),
@@ -378,6 +404,18 @@ function toArray(value) {
   if (Array.isArray(value)) return value;
   if (typeof value === 'string') return [value];
   return [];
+}
+
+function isAllowedAPIResponse(check, response) {
+  const rules = Array.isArray(check.allowedAPIResponses) ? check.allowedAPIResponses : [];
+  return rules.some((rule) => {
+    const statuses = Array.isArray(rule.statuses) ? rule.statuses : [];
+    return (
+      statuses.includes(response.status()) &&
+      typeof rule.urlIncludes === 'string' &&
+      response.url().includes(rule.urlIncludes)
+    );
+  });
 }
 
 function describeConsoleMessage(message) {
