@@ -44,6 +44,14 @@ app_block="$(
 
 [[ -n "${app_block}" ]] || fail "expected app service block in ${COMPOSE_PROD_FILE}"
 [[ -f "${COMPOSE_EXTERNAL_DATASTORE_FILE}" ]] || fail "missing external datastore compose overlay"
+external_app_block="$(
+  awk '
+    /^  app:/ { in_block=1; next }
+    /^networks:/ { in_block=0 }
+    in_block { print }
+  ' "${COMPOSE_EXTERNAL_DATASTORE_FILE}"
+)"
+[[ -n "${external_app_block}" ]] || fail "expected app service block in ${COMPOSE_EXTERNAL_DATASTORE_FILE}"
 
 minio_block="$(
   awk '
@@ -144,6 +152,9 @@ if printf '%s\n' "${app_block}" | grep -Eq 'proxy:'; then
 fi
 if ! printf '%s\n' "${app_block}" | grep -Eq '^    - frontend$'; then
   fail "production app service must join frontend network so web/admin nginx can resolve app upstreams"
+fi
+if ! printf '%s\n' "${external_app_block}" | grep -Eq '^    - frontend$'; then
+  fail "external datastore app override must preserve frontend network"
 fi
 assert_contains "${COMPOSE_PROD_FILE}" '\./infra/postgres/pg_hba\.prod\.conf:/etc/postgresql/pg_hba\.conf:ro'
 assert_contains "${PG_HBA_PROD_FILE}" '^hostnossl all[[:space:]]+all[[:space:]]+10\.0\.0\.0/8[[:space:]]+reject$'
