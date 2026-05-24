@@ -122,6 +122,8 @@ fi
 assert_contains "${COMPOSE_PROD_FILE}" '127\.0\.0\.1:\$\{BACKEND_EXTERNAL_PORT:-18080\}:8080'
 assert_contains "${COMPOSE_PROD_FILE}" '127\.0\.0\.1:\$\{WEB_EXTERNAL_PORT:-18000\}:80'
 assert_contains "${COMPOSE_PROD_FILE}" '127\.0\.0\.1:\$\{ADMIN_EXTERNAL_PORT:-18001\}:8080'
+assert_contains "${COMPOSE_FILE}" '127\.0\.0\.1:\$\{MINIO_API_EXTERNAL_PORT:-9000\}:9000'
+assert_contains "${COMPOSE_FILE}" '127\.0\.0\.1:\$\{MINIO_CONSOLE_EXTERNAL_PORT:-9001\}:9001'
 assert_contains "${BAOTA_NGINX_FILE}" 'server_name stuhelper\.com www\.stuhelper\.com;'
 assert_contains "${BAOTA_NGINX_FILE}" 'server_name stuhelper\.com;'
 assert_contains "${BAOTA_NGINX_FILE}" 'proxy_pass http://127\.0\.0\.1:18080;'
