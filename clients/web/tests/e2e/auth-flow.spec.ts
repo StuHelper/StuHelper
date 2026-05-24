@@ -190,6 +190,38 @@ test.describe('Auth Flow', () => {
     await expect(main).toBeVisible()
   })
 
+  test('user center shortcut redirects to the reviews tab', async ({ page }) => {
+    await mockAuthenticated(page, VERIFIED_STUDENT)
+
+    await page.route('**/api/v1/course/review/user/reviews*', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { list: [], total: 0, page: 1, pageSize: 20 },
+        }),
+      }),
+    )
+
+    await page.goto('/user')
+    await expect(page).toHaveURL(/\/user\/reviews/)
+    await expect(
+      page.locator('main, [role="main"], #app').first(),
+    ).toBeVisible()
+  })
+
+  test('user without review creation capability is redirected away from post page', async ({
+    page,
+  }) => {
+    await mockAuthenticated(page, BASIC_USER)
+
+    await page.goto('/courses/reviews/post')
+    await expect(page).toHaveURL('/')
+    await expect(
+      page.getByRole('button', { name: /发布评价|Submit Review|提交评价/ }),
+    ).toHaveCount(0)
+  })
+
   test('user center shows review data from mock', async ({ page }) => {
     await mockAuthenticated(page, VERIFIED_STUDENT)
 

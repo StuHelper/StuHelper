@@ -59,6 +59,13 @@ smoke 和 observability smoke 均通过；随后将 prod-parity browser smoke �
 `document`、`script`、`stylesheet`、`font`、`image` 并复跑 `make prod-parity-smoke` 通过。浏览器 evidence 写入
 `.run/prod-parity/browser-smoke-evidence.json`，截图写入 `.run/prod-parity/browser-smoke-screenshots/`。
 
+本地验证补充（2026-05-25）：对照 Web / Admin 路由表与现有 Playwright 用例重新审计浏览器覆盖；
+补齐 Web 用户中心快捷入口 `/user` 到 `/user/reviews` 的真实浏览器重定向，以及普通登录用户缺少
+`review:create` capability 时访问 `/courses/reviews/post` 会被路由守卫导回首页且不渲染发布表单的
+E2E 覆盖。新增覆盖后已通过单文件
+`CI=1 PLAYWRIGHT_WEB_PORT=3408 pnpm exec playwright test tests/e2e/auth-flow.spec.ts`（8 项）和
+全量 `CI=1 PLAYWRIGHT_WEB_PORT=3408 make e2e-web`（53 项）。
+
 接口硬化补充（2026-05-24）：审计发现 legacy disclosure API 文档要求 `client_id`，但
 OpenAPI 未声明且 handler 只读取认证上下文 appID；同时服务端在已有 active consent 时未重新校验
 `redirect_uri`。本轮已按 OpenAPI-first 补齐 `GET /api/v1/open-platform/userinfo`、
