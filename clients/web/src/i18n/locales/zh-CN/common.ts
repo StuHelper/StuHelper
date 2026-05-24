@@ -130,12 +130,6 @@ export default {
     noMissingFields: '资料已满足本次授权请求',
     expiresAt: '有效至 {time}'
   },
-  openPlatformAuthorize: {
-    title: '正在前往 StuHelper Identity',
-    subtitle: '正在检查应用和授权范围',
-    failed: '无法发起授权',
-    invalidRequest: '授权请求缺少必要参数'
-  },
   meta: {
     description: 'StuHelper 评课社区 - 真实的课程评价与教学反馈平台，帮助学生选课决策',
     ogTitle: '评课社区 - StuHelper'

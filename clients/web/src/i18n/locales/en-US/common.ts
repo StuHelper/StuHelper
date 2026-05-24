@@ -130,12 +130,6 @@ export default {
     noMissingFields: 'Your profile now satisfies this authorization request',
     expiresAt: 'Valid until {time}'
   },
-  openPlatformAuthorize: {
-    title: 'Opening StuHelper Identity',
-    subtitle: 'Checking the application and requested scopes',
-    failed: 'Unable to start authorization',
-    invalidRequest: 'The authorization request is missing required parameters'
-  },
   meta: {
     description: 'StuHelper Course Review Community - Authentic course reviews and teaching feedback to help students make informed choices',
     ogTitle: 'Course Review - StuHelper'
