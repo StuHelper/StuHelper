@@ -44,6 +44,7 @@ scope: 当前 Open Platform v1 baseline 与目标架构；第三方应用接入�
 - 资料补全后继续：`POST /api/v1/open-platform/profile-completion/continue`
 - 用户授权管理：主站 `/user/authorized-apps` 调用 `GET /api/v1/open-platform/consents`、`DELETE /api/v1/open-platform/consents/{appID}`，支持按 scope 或整应用撤销；授权列表会从 disclosure granted 审计派生每个 scope 的 `lastUsedAt`，让用户撤权前能看到最近一次成功披露时间
 - 用户授权活动记录：主站 `/user/authorized-apps` 调用 `GET /api/v1/open-platform/consents/audit-events`，只返回当前登录用户自己的 consent grant/deny/revoke、disclosure granted/denied 和 replay_detected 审计摘要
+- 审计保留：`open_platform_audit_events` 由运行时后台任务执行 chunked retention cleanup；高频 disclosure / `resource_access.checked` 事件默认保留 365 天，审批、consent、密钥轮换、资源授权等运营审计默认保留 1095 天，清理 SQL 使用参数化 `LIMIT` 批量删除和 `FOR UPDATE SKIP LOCKED`，避免线上无界大删除阻塞
 - 披露 API：`GET /api/v1/open-platform/userinfo`、`/verification`、`/student`、`/phone`
 - 开发者应用列表 / 创建 UI：主站 `/developers/apps` 调用 `GET /api/v1/open-platform/apps`、`POST /api/v1/open-platform/apps`，可查看 app 与 scope 审核状态并提交新应用；新应用每个 scope 必须提供非空用途说明，pending 应用可由 owner 调用 `POST /api/v1/open-platform/apps/{appID}/withdraw` 撤回为 revoked 终态
 - 开发者应用资料维护：主站 `/developers/apps` 调用 `PATCH /api/v1/open-platform/apps/{appID}`，允许 owner 更新非 revoked 应用的展示名、描述、主页和隐私政策 URL；redirect URI 仍走独立审核，资料变更写入 `open_platform.app.profile_updated`

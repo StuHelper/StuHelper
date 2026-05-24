@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/openplatform"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/postgresfixture"
 )
@@ -32,10 +33,34 @@ func TestRunAuditRetentionCleanupUsesIAMPolicy(t *testing.T) {
 	assert.EqualValues(t, 0, countAuditEvents(t, fixture))
 }
 
+func TestRunOpenPlatformAuditRetentionCleanupUsesDefaultPolicy(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := openplatform.NewRepository(fixture.DB)
+	ctx := context.Background()
+
+	_, err := fixture.Pool.Exec(ctx, `
+		INSERT INTO open_platform_audit_events (event_type, metadata, created_at)
+		VALUES ($1, '{}'::jsonb, NOW() - make_interval(days => $2))
+	`, "open_platform.disclosure.granted", 366)
+	require.NoError(t, err)
+
+	runOpenPlatformAuditRetentionCleanup(ctx, repo)
+
+	assert.EqualValues(t, 0, countOpenPlatformAuditEvents(t, fixture))
+}
+
 func countAuditEvents(t *testing.T, fixture *postgresfixture.Fixture) int64 {
 	t.Helper()
 	var count int64
 	err := fixture.Pool.QueryRow(context.Background(), `SELECT COUNT(*) FROM audit_events`).Scan(&count)
+	require.NoError(t, err)
+	return count
+}
+
+func countOpenPlatformAuditEvents(t *testing.T, fixture *postgresfixture.Fixture) int64 {
+	t.Helper()
+	var count int64
+	err := fixture.Pool.QueryRow(context.Background(), `SELECT COUNT(*) FROM open_platform_audit_events`).Scan(&count)
 	require.NoError(t, err)
 	return count
 }
