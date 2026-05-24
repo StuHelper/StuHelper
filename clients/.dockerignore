@@ -8,6 +8,5 @@ node_modules
 **/.turbo
 **/dist
 **/coverage
-admin
 old_course_review
 *.md

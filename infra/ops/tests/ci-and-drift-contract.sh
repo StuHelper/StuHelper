@@ -7,6 +7,7 @@ CI_FILE="${REPO_ROOT}/.gitlab-ci.yml"
 ROOT_MAKEFILE="${REPO_ROOT}/Makefile"
 SERVER_MAKEFILE="${REPO_ROOT}/server/Makefile"
 ADMIN_DOCKERFILE="${REPO_ROOT}/clients/admin/scripts/deploy/Dockerfile"
+CLIENTS_DOCKERIGNORE="${REPO_ROOT}/clients/.dockerignore"
 
 fail() {
   echo "[ci-and-drift-contract][error] $*" >&2
@@ -18,6 +19,14 @@ assert_contains() {
   local pattern="$2"
   if ! grep -Eq "${pattern}" "${file}"; then
     fail "expected ${file} to contain pattern: ${pattern}"
+  fi
+}
+
+assert_not_contains() {
+  local file="$1"
+  local pattern="$2"
+  if grep -Eq "${pattern}" "${file}"; then
+    fail "expected ${file} to not contain pattern: ${pattern}"
   fi
 }
 
@@ -47,8 +56,10 @@ assert_contains "${ROOT_MAKEFILE}" '^check-infra-contracts:$'
 assert_contains "${ROOT_MAKEFILE}" 'bash infra/ops/tests/run-infra-contracts\.sh'
 assert_contains "${CI_FILE}" 'docker buildx build .*--file clients/web/Dockerfile .* \.$'
 assert_contains "${CI_FILE}" 'docker buildx build .*--file clients/admin/scripts/deploy/Dockerfile .* clients$'
+assert_contains "${ADMIN_DOCKERFILE}" '^RUN corepack enable && corepack prepare pnpm@10\.32\.1 --activate$'
 assert_contains "${ADMIN_DOCKERFILE}" '^COPY shared /app/shared$'
 assert_contains "${ADMIN_DOCKERFILE}" '^RUN pnpm --filter @stuhelper/shared build$'
+assert_not_contains "${CLIENTS_DOCKERIGNORE}" '^admin$'
 assert_contains "${SERVER_MAKEFILE}" '^check-drift-ts: bundle-spec$'
 assert_contains "${SERVER_MAKEFILE}" '^check-drift-capabilities:$'
 assert_contains "${SERVER_MAKEFILE}" '^check-drift-all: check-drift-go check-drift-ts check-drift-capabilities$'

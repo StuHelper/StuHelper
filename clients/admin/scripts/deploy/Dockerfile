@@ -14,7 +14,7 @@ ARG VITE_BASE=/
 ENV VITE_GLOB_API_URL=${VITE_GLOB_API_URL}
 ENV VITE_BASE=${VITE_BASE}
 
-RUN npm i -g corepack
+RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 
 WORKDIR /app
 
