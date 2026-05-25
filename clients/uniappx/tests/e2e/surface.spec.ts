@@ -967,6 +967,38 @@ test.describe('UniAppX H5 surface', () => {
     await expect(page.getByTestId('uni-user-login')).toBeVisible()
   })
 
+  test('guest user menu sends protected entries to login with redirect', async ({ page }) => {
+    const { requests } = await mockUniApi(page)
+    await page.route('https://sso.example.test/**', async (route) => {
+      await route.fulfill({
+        contentType: 'text/html',
+        body: '<!doctype html><title>Mock SSO</title><main>Mock SSO</main>',
+      })
+    })
+
+    await gotoUniPage(page, '/#/pages/user/index')
+
+    await expect(page.getByTestId('uni-user-login')).toBeVisible()
+    await page.getByText('我的评课').click()
+    await expect(page).toHaveURL(/\/#\/pages\/auth\/login\?redirect=/)
+    await expectUniPageTitle(page, '登录')
+    await expect(page.getByText('登录 StuHelper')).toBeVisible()
+
+    await Promise.all([
+      page.waitForURL('https://sso.example.test/login?state=mobile-e2e-state'),
+      page.getByText('使用校园 SSO 登录').click(),
+    ])
+
+    const loginRequest = requests.find((request) => request.startsWith('GET /api/v1/auth/login?'))
+    expect(loginRequest).toBeDefined()
+    const loginURL = new URL(`http://uniappx.test${loginRequest?.slice('GET '.length)}`)
+    expect(loginURL.searchParams.get('app')).toBe('uniapp')
+    expect(loginURL.searchParams.get('platform')).toBeNull()
+    expect(loginURL.searchParams.get('redirect')).toBe('/pages/user/reviews')
+
+    await expect(page.getByText('Mock SSO')).toBeVisible()
+  })
+
   test('auth pages render login and callback error states', async ({ page }) => {
     await mockUniApi(page)
 

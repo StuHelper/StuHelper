@@ -502,6 +502,19 @@ Playwright MCP `browser_run_code_unsafe` 注入同样的管理员 session / logo
 （6 项）、`pnpm --dir clients/admin --filter @vben/web-ele typecheck`、`pnpm --dir clients/admin lint`
 和完整 `CI=1 ADMIN_E2E_PORT=4210 make e2e-admin`（68 项）。
 
+本地验证补充（2026-05-25）：继续补齐 UniAppX H5 未登录用户菜单认证边界。新增 E2E 覆盖未登录用户进入
+`/#/pages/user/index`，点击“我的评课”后进入 `/pages/auth/login`，再点击“使用校园 SSO 登录”调用
+`GET /api/v1/auth/login`，并断言 `app=uniapp`、不携带 `platform`、`redirect=/pages/user/reviews`。
+覆盖过程中发现 H5 `uni.navigateTo` 会把已编码的 redirect 再编码成 `%252F...`，导致登录页原样使用
+`options.redirect` 时可能把 `%2Fpages%2F...` 传给 SSO；已在 UniAppX 登录页对 redirect 做最多两次解码，
+并限制只能回跳 `/pages/...` 站内路径。除自动 E2E 外，还启动 UniAppX 本地 H5，通过 Playwright MCP
+`browser_run_code_unsafe` 注入匿名 session / login mock，实际从用户中心点击“我的评课”进入登录页并发起
+SSO，确认地址栏可见框架二次编码但 login API 请求的 redirect 已规范化为 `/pages/user/reviews`，最终跳到
+mock SSO 页面且无 console error。新增覆盖后已通过
+`CI=1 UNIAPPX_E2E_PORT=3144 pnpm --dir clients/uniappx exec playwright test tests/e2e/surface.spec.ts`
+（32 项）、`pnpm --dir clients run type-check:uni`、`pnpm --dir clients run test:uni` 和完整
+`CI=1 UNIAPPX_E2E_PORT=3146 make e2e-uni`（32 项）。
+
 本地全量复验（2026-05-25）：在提交 `d82afd53` 上复跑统一客户端 E2E 门禁，
 `CI=1 PLAYWRIGHT_WEB_PORT=3450 ADMIN_E2E_PORT=4206 UNIAPPX_E2E_PORT=3142 make e2e`
 通过 Web 120 项、Admin 66 项和 UniAppX H5 30 项，覆盖本轮 Web 重新认证 / callback guard 与

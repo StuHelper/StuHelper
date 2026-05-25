@@ -12,8 +12,30 @@ const ssoLoading = ref(false)
 const supportsSso = typeof window !== 'undefined' && typeof window.location?.href === 'string'
 const isNativeApp = typeof plus !== 'undefined'
 
+function normalizeRedirectOption(value: unknown) {
+  if (typeof value !== 'string' || !value) {
+    return '/pages/user/index'
+  }
+
+  let decoded = value
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const next = decodeURIComponent(decoded)
+      if (next === decoded) break
+      decoded = next
+    } catch (_error) { void _error;
+      break
+    }
+  }
+
+  if (!decoded.startsWith('/pages/') || decoded.startsWith('//')) {
+    return '/pages/user/index'
+  }
+  return decoded
+}
+
 onLoad((options) => {
-  redirect.value = typeof options?.redirect === 'string' && options.redirect ? options.redirect : '/pages/user/index'
+  redirect.value = normalizeRedirectOption(options?.redirect)
 })
 
 async function handleSSOLogin() {
