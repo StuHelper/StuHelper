@@ -115,6 +115,12 @@ Admin 26 项）。
 （6 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3424 make e2e-web`（108 项）。
 
+本地清理补充（2026-05-25）：审计 Web 课程列表页时确认当前页面只使用
+`GET /api/v1/course/courses/grouped` 渲染院系分组，不再使用旧的服务端筛选查询构造器；已删除无生产引用的
+`clients/web/src/modules/course/courseListQuery.ts` 和仅覆盖该废弃工具的单测文件。清理后 `rg` 确认无剩余引用，
+并通过 `pnpm --dir clients test:web`（53 文件、230 项）、`pnpm --dir clients type-check:web` 和
+`pnpm --dir clients lint:web`。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等
