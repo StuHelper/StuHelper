@@ -190,6 +190,16 @@ Web 首页无 console error；Admin 未登录入口会跳转到 Casdoor 登录�
 临时打开 Admin `vite preview` 构建产物 `/profile`，注入管理员 session mock 后确认个人中心渲染
 `Platform Admin`、账号 tab 可见，浏览器 console error 为 0。
 
+本地验证补充（2026-05-26）：继续对照 Web 用户中心页面结构审计 E2E 覆盖，补齐
+`ProfileSection` 顶部资料 / 认证摘要的浏览器断言，覆盖用户名与邮箱、实名认证 / 学生认证已认证状态、
+QQ / 手机未绑定状态，以及“学业信息”“生成绑定码”“绑定”三个后续入口的真实 `href`。新增覆盖后已通过
+单文件 `CI=1 PLAYWRIGHT_WEB_PORT=3444 pnpm --dir clients/web exec playwright test tests/e2e/journey-user-center.spec.ts`
+（24 项）和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3445 make e2e-web`（134 项）；同时通过
+`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和 `git diff --check`。Playwright
+MCP 也在临时 Web Vite `http://127.0.0.1:3446/user/reviews` 注入同等 session / profile mock 后确认
+`verifiedCount=2`、`unboundCount=2`，三个入口分别指向 `/user/academic-info`、`/user/qq-binding` 和
+`/user/phone-binding`，浏览器 console error 为 0。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

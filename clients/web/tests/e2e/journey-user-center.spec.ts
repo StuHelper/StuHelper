@@ -172,6 +172,35 @@ test.describe('User Journey: User Center', () => {
     await mockAuth(page)
   })
 
+  test('profile summary renders verification state and binding entrypoints', async ({
+    page,
+  }) => {
+    await page.goto('/user/reviews')
+
+    const main = page.locator('main')
+
+    await expect(main.getByRole('heading', { name: 'Bob' })).toBeVisible({
+      timeout: 10_000,
+    })
+    await expect(main.getByText('bob@example.com')).toBeVisible()
+    await expect(main.getByText('实名认证')).toBeVisible()
+    await expect(main.getByText('学生认证')).toBeVisible()
+    await expect(main.getByText('绑定 QQ')).toBeVisible()
+    await expect(main.getByText('绑定手机')).toBeVisible()
+    await expect(main.getByText('已认证', { exact: true })).toHaveCount(2)
+    await expect(main.getByText('未绑定', { exact: true })).toHaveCount(2)
+
+    await expect(
+      main.getByRole('link', { name: '学业信息' }),
+    ).toHaveAttribute('href', '/user/academic-info')
+    await expect(
+      main.getByRole('link', { name: '生成绑定码' }),
+    ).toHaveAttribute('href', '/user/qq-binding')
+    await expect(
+      main.getByRole('link', { name: '绑定', exact: true }),
+    ).toHaveAttribute('href', '/user/phone-binding')
+  })
+
   test('user opens header user menu and logs out', async ({ page }) => {
     let authActive = true
     let logoutRequest: { method: string; path: string } | null = null
