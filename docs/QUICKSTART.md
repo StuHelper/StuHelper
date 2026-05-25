@@ -91,6 +91,16 @@ pnpm build:web && pnpm build:admin && pnpm build:uni:h5
 
 说明：`pnpm test:e2e` 会同时运行 Web、Admin 与 UniAppX H5 的 Playwright 用例，并在桌面和移动视口下执行。UniAppX H5 用例覆盖首页、课程列表、课程详情、评课广场、教师主页、写评课草稿、个人中心、我的评课 / 投票 / 收藏、通知和认证页，并检查关键资源、API 4xx/5xx、`pageerror` 与非网络状态类 `console.error`。
 
+如果使用 Codex / MCP 调试本地页面，Playwright MCP 使用自己安装目录下的 `playwright-core`，可能与项目
+`@playwright/test` 使用的浏览器缓存版本不同。出现工具列表可见但调用时报 `Transport closed` 时，先确认 MCP
+对应浏览器已安装，再重启当前 Codex 会话让 MCP server 重新挂载：
+
+```bash
+codex mcp get playwright
+node ~/.codex/mcp-packages/playwright-mcp-*/node_modules/@playwright/mcp/cli.js --version
+node ~/.codex/mcp-packages/playwright-mcp-*/node_modules/@playwright/mcp/cli.js install-browser chromium
+```
+
 ## Koishi 工作区
 
 ```bash
