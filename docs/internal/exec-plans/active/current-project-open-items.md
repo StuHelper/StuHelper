@@ -171,8 +171,9 @@ UniAppX H5。新增用例在桌面与移动视口下覆盖 UniAppX 首页、课�
 运行时动态 `setTabBarItem` 会抛出空对象型 pageerror，已改为 H5 使用静态 tabBar 文案、非 H5 才同步
 运行时 chrome；同时补齐 `static/tabbar/*.png` 图标资源，避免 H5 tabBar 图片请求缺失。后续补齐
 `pages.json` 中文静态页面标题，并在 UniAppX H5 E2E 中断言浏览器标题，确保 H5 首屏 chrome 与默认
-中文界面一致；同时补齐 SSO callback 成功路径 E2E，覆盖一次性 state 校验、`exchange-native` 调用、
-state 清理和回到个人中心，修复页面提前删除 state 导致 store 二次校验失败的问题。已通过
+中文界面一致；同时补齐登录按钮发起校园 SSO 的交互 E2E，验证 `app=uniapp`、H5 不携带 native
+platform、redirect 保留和 SSO 页面跳转；并补齐 SSO callback 成功路径 E2E，覆盖一次性 state 校验、
+`exchange-native` 调用、state 清理和回到个人中心，修复页面提前删除 state 导致 store 二次校验失败的问题。已通过
 `pnpm --dir clients test:e2e:uni`、`pnpm --dir clients test:uni`、`pnpm --dir clients type-check:uni`、
 `pnpm --dir clients build:uni:h5` 和 `git diff --check`。
 

@@ -5,6 +5,11 @@ type MockOptions = {
   ssoState?: string
 }
 
+type MockUniApiResult = {
+  mutations: string[]
+  requests: string[]
+}
+
 const now = '2026-05-24T04:00:00Z'
 
 const user = {
@@ -109,8 +114,9 @@ function list<T>(items: T[]) {
   return ok({ list: items, total: items.length })
 }
 
-async function mockUniApi(page: Page, options: MockOptions = {}) {
+async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUniApiResult> {
   const mutations: string[] = []
+  const requests: string[] = []
 
   await page.addInitScript((ssoState) => {
     localStorage.setItem('stuhelper:uniappx:locale', 'zh-CN')
@@ -122,8 +128,11 @@ async function mockUniApi(page: Page, options: MockOptions = {}) {
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request()
     const method = request.method().toUpperCase()
-    const pathname = new URL(request.url()).pathname
+    const url = new URL(request.url())
+    const pathname = url.pathname
     const authenticated = options.authenticated === true
+
+    requests.push(`${method} ${pathname}${url.search}`)
 
     if (method !== 'GET') {
       mutations.push(`${method} ${pathname}`)
@@ -138,7 +147,10 @@ async function mockUniApi(page: Page, options: MockOptions = {}) {
       return
     }
     if (method === 'GET' && pathname === '/api/v1/auth/login') {
-      await route.fulfill(ok({ url: 'https://sso.example.test/login', state: 'mobile-e2e-state' }))
+      await route.fulfill(ok({
+        url: 'https://sso.example.test/login?state=mobile-e2e-state',
+        state: 'mobile-e2e-state',
+      }))
       return
     }
     if (method === 'POST' && pathname === '/api/v1/auth/exchange-native') {
@@ -310,7 +322,7 @@ async function mockUniApi(page: Page, options: MockOptions = {}) {
     }, 500))
   })
 
-  return mutations
+  return { mutations, requests }
 }
 
 async function gotoUniPage(page: Page, url: string) {
@@ -387,7 +399,7 @@ test.describe('UniAppX H5 surface', () => {
   test('authenticated review post page loads form data and saves a draft', async ({
     page,
   }) => {
-    const mutations = await mockUniApi(page, { authenticated: true })
+    const { mutations } = await mockUniApi(page, { authenticated: true })
 
     await gotoUniPage(page, `/#/pages/review/post?courseID=${course.id}`)
 
@@ -406,7 +418,7 @@ test.describe('UniAppX H5 surface', () => {
   test('authenticated user center pages render profile data and user lists', async ({
     page,
   }) => {
-    const mutations = await mockUniApi(page, { authenticated: true })
+    const { mutations } = await mockUniApi(page, { authenticated: true })
 
     await gotoUniPage(page, '/#/pages/user/index')
     await expectUniPageTitle(page, '个人中心')
@@ -450,8 +462,37 @@ test.describe('UniAppX H5 surface', () => {
     await expect(page.getByText('回调参数缺失，请重新登录')).toBeVisible()
   })
 
+  test('auth login button starts campus SSO and preserves redirect', async ({ page }) => {
+    const { requests } = await mockUniApi(page)
+    await page.route('https://sso.example.test/**', async (route) => {
+      await route.fulfill({
+        contentType: 'text/html',
+        body: '<!doctype html><title>Mock SSO</title><main>Mock SSO</main>',
+      })
+    })
+
+    await gotoUniPage(
+      page,
+      '/#/pages/auth/login?redirect=%2Fpages%2Freview%2Fpost%3FcourseID%3D101',
+    )
+
+    await Promise.all([
+      page.waitForURL('https://sso.example.test/login?state=mobile-e2e-state'),
+      page.getByText('使用校园 SSO 登录').click(),
+    ])
+
+    const loginRequest = requests.find((request) => request.startsWith('GET /api/v1/auth/login?'))
+    expect(loginRequest).toBeDefined()
+    const loginURL = new URL(`http://uniappx.test${loginRequest?.slice('GET '.length)}`)
+    expect(loginURL.searchParams.get('app')).toBe('uniapp')
+    expect(loginURL.searchParams.get('platform')).toBeNull()
+    expect(loginURL.searchParams.get('redirect')).toBe('/pages/review/post?courseID=101')
+
+    await expect(page.getByText('Mock SSO')).toBeVisible()
+  })
+
   test('auth callback exchanges native code and opens the user center', async ({ page }) => {
-    const mutations = await mockUniApi(page, {
+    const { mutations } = await mockUniApi(page, {
       authenticated: true,
       ssoState: 'mobile-e2e-state',
     })
