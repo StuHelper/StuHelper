@@ -502,6 +502,17 @@ Playwright MCP `browser_run_code_unsafe` 注入同样的管理员 session / logo
 （6 项）、`pnpm --dir clients/admin --filter @vben/web-ele typecheck`、`pnpm --dir clients/admin lint`
 和完整 `CI=1 ADMIN_E2E_PORT=4210 make e2e-admin`（68 项）。
 
+本地验证补充（2026-05-25）：继续补齐 Admin dashboard 首页入口的真实浏览器导航覆盖。新增
+`admin-surface` E2E 从 `/analytics` 点击“教师管理”进入 `/content/teachers` 并确认教师数据渲染，
+再从 `/workspace` 点击“待处理举报”进入 `/content/reports`、点击“实名审核”进入
+`/users/identity-review`，避免统计卡片和快捷入口只渲染但路由动作未被锁住。该用例同时跑 desktop /
+mobile Chromium project。除自动 E2E 外，还启动 Admin 本地 Vite，通过 Playwright MCP 在 `390x844`
+视口注入同等管理员 API mock，实际点击 analytics quick action 与 workspace 队列 / 快捷入口，确认最终
+URL、目标页面数据和 Admin API 请求路径均符合预期。新增覆盖后已通过
+`CI=1 ADMIN_E2E_PORT=4212 pnpm --dir clients/admin --filter @vben/web-ele exec playwright test tests/e2e/admin-surface.spec.ts`
+（24 项）、`pnpm --dir clients run type-check:admin`、`pnpm --dir clients run lint:admin` 和完整
+`CI=1 ADMIN_E2E_PORT=4214 make e2e-admin`（70 项）。
+
 本地验证补充（2026-05-25）：继续补齐 UniAppX H5 未登录用户菜单认证边界。新增 E2E 覆盖未登录用户进入
 `/#/pages/user/index`，点击“我的评课”后进入 `/pages/auth/login`，再点击“使用校园 SSO 登录”调用
 `GET /api/v1/auth/login`，并断言 `app=uniapp`、不携带 `platform`、`redirect=/pages/user/reviews`。

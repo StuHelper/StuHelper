@@ -595,6 +595,31 @@ test.describe('Admin management surfaces', () => {
     await expect(page.getByText('待处理举报')).toBeVisible();
   });
 
+  test('dashboard quick actions navigate to concrete management pages', async ({
+    page,
+  }) => {
+    await page.goto('/analytics');
+    await expect(
+      page.getByRole('heading', { name: /分析页|Analytics/ }),
+    ).toBeVisible();
+
+    await page.getByRole('button', { name: '教师管理' }).click();
+    await expect(page).toHaveURL(/\/content\/teachers$/);
+    await expect(page.getByText('李教授')).toBeVisible();
+
+    await page.goto('/workspace');
+    await expect(page.getByText('处理队列')).toBeVisible();
+
+    await page.getByRole('button', { name: /待处理举报/ }).click();
+    await expect(page).toHaveURL(/\/content\/reports$/);
+    await expect(page.getByText('疑似广告内容')).toBeVisible();
+
+    await page.goto('/workspace');
+    await page.getByRole('button', { name: '实名审核' }).click();
+    await expect(page).toHaveURL(/\/users\/identity-review$/);
+    await expect(page.getByText('张三')).toBeVisible();
+  });
+
   test('content management pages render review operations data', async ({
     page,
   }) => {
