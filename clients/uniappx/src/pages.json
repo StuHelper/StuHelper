@@ -16,74 +16,74 @@
     {
       "path": "pages/course/index",
       "style": {
-        "navigationBarTitleText": "Courses"
+        "navigationBarTitleText": "课程列表"
       }
     },
     {
       "path": "pages/course/detail",
       "style": {
-        "navigationBarTitleText": "Course Details"
+        "navigationBarTitleText": "课程详情"
       }
     },
     {
       "path": "pages/review/index",
       "style": {
-        "navigationBarTitleText": "Review Square"
+        "navigationBarTitleText": "评课广场"
       }
     },
     {
       "path": "pages/review/post",
       "style": {
-        "navigationBarTitleText": "Post Review"
+        "navigationBarTitleText": "发布评课"
       }
     },
     {
       "path": "pages/teacher/profile",
       "style": {
-        "navigationBarTitleText": "Teacher Profile"
+        "navigationBarTitleText": "教师主页"
       }
     },
     {
       "path": "pages/user/index",
       "style": {
-        "navigationBarTitleText": "Profile"
+        "navigationBarTitleText": "个人中心"
       }
     },
     {
       "path": "pages/user/notifications",
       "style": {
-        "navigationBarTitleText": "Notifications"
+        "navigationBarTitleText": "消息通知"
       }
     },
     {
       "path": "pages/user/reviews",
       "style": {
-        "navigationBarTitleText": "My Reviews"
+        "navigationBarTitleText": "我的评课"
       }
     },
     {
       "path": "pages/user/votes",
       "style": {
-        "navigationBarTitleText": "My Votes"
+        "navigationBarTitleText": "我的投票"
       }
     },
     {
       "path": "pages/user/favorites",
       "style": {
-        "navigationBarTitleText": "My Favorites"
+        "navigationBarTitleText": "我的收藏"
       }
     },
     {
       "path": "pages/auth/login",
       "style": {
-        "navigationBarTitleText": "Sign In",
+        "navigationBarTitleText": "登录",
         "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/auth/callback",
       "style": {
-        "navigationBarTitleText": "SSO Callback",
+        "navigationBarTitleText": "SSO 回调",
         "navigationStyle": "custom"
       }
     }

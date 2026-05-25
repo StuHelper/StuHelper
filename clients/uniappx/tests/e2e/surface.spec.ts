@@ -305,6 +305,10 @@ async function gotoUniPage(page: Page, url: string) {
   await page.waitForLoadState('networkidle')
 }
 
+async function expectUniPageTitle(page: Page, title: string) {
+  await expect(page).toHaveTitle(title)
+}
+
 async function expectTabBarIconsAvailable(page: Page) {
   const origin = new URL(page.url()).origin
   const iconNames = ['home', 'course', 'review', 'user']
@@ -325,6 +329,7 @@ test.describe('UniAppX H5 surface', () => {
 
     await gotoUniPage(page, '/')
 
+    await expectUniPageTitle(page, 'StuHelper')
     await expect(page.getByText('StuHelper 移动端')).toBeVisible()
     await expect(page.getByText('欢迎使用 StuHelper')).toBeVisible()
     await expect(page.getByText('课程查询')).toBeVisible()
@@ -342,21 +347,25 @@ test.describe('UniAppX H5 surface', () => {
     await mockUniApi(page)
 
     await gotoUniPage(page, '/#/pages/course/index')
+    await expectUniPageTitle(page, '课程列表')
     await expect(page.getByText(course.name)).toBeVisible()
     await expect(page.getByText(course.code)).toBeVisible()
 
     await gotoUniPage(page, `/#/pages/course/detail?id=${course.id}`)
+    await expectUniPageTitle(page, '课程详情')
     await expect(page.getByText(course.name).first()).toBeVisible()
     await expect(page.getByText(teacher.teacherName).first()).toBeVisible()
     await expect(page.getByText(review.title)).toBeVisible()
     await expect(page.getByText('写评课')).toBeVisible()
 
     await gotoUniPage(page, '/#/pages/review/index')
+    await expectUniPageTitle(page, '评课广场')
     await expect(page.getByText('最新')).toBeVisible()
     await expect(page.getByText('最热')).toBeVisible()
     await expect(page.getByText(review.title)).toBeVisible()
 
     await gotoUniPage(page, `/#/pages/teacher/profile?id=${teacher.teacherID}`)
+    await expectUniPageTitle(page, '教师主页')
     await expect(page.getByText(teacher.teacherName).first()).toBeVisible()
     await expect(page.getByText('授课课程')).toBeVisible()
     await expect(page.getByText(course.name)).toBeVisible()
@@ -369,6 +378,7 @@ test.describe('UniAppX H5 surface', () => {
 
     await gotoUniPage(page, `/#/pages/review/post?courseID=${course.id}`)
 
+    await expectUniPageTitle(page, '发布评课')
     await expect(page.getByText('发布评课').first()).toBeVisible()
     await expect(page.getByText(course.name)).toBeVisible()
     await expect(page.getByText(term.name).last()).toBeVisible()
@@ -386,21 +396,26 @@ test.describe('UniAppX H5 surface', () => {
     const mutations = await mockUniApi(page, { authenticated: true })
 
     await gotoUniPage(page, '/#/pages/user/index')
+    await expectUniPageTitle(page, '个人中心')
     await expect(page.getByText(user.displayName)).toBeVisible()
     await expect(page.getByText('认证概览')).toBeVisible()
     await expect(page.getByText('实名已通过')).toBeVisible()
     await expect(page.getByText('学生认证已通过')).toBeVisible()
 
     await gotoUniPage(page, '/#/pages/user/reviews')
+    await expectUniPageTitle(page, '我的评课')
     await expect(page.getByText(review.title)).toBeVisible()
 
     await gotoUniPage(page, '/#/pages/user/votes')
+    await expectUniPageTitle(page, '我的投票')
     await expect(page.getByText(review.title)).toBeVisible()
 
     await gotoUniPage(page, '/#/pages/user/favorites')
+    await expectUniPageTitle(page, '我的收藏')
     await expect(page.getByText(course.name)).toBeVisible()
 
     await gotoUniPage(page, '/#/pages/user/notifications')
+    await expectUniPageTitle(page, '消息通知')
     await expect(page.getByText(notification.title)).toBeVisible()
     await page.getByText('全部已读').click()
     await expect
@@ -412,10 +427,12 @@ test.describe('UniAppX H5 surface', () => {
     await mockUniApi(page)
 
     await gotoUniPage(page, '/#/pages/auth/login')
+    await expectUniPageTitle(page, '登录')
     await expect(page.getByText('登录 StuHelper')).toBeVisible()
     await expect(page.getByText('使用校园 SSO 登录')).toBeVisible()
 
     await gotoUniPage(page, '/#/pages/auth/callback')
+    await expectUniPageTitle(page, 'SSO 回调')
     await expect(page.getByText('登录失败')).toBeVisible()
     await expect(page.getByText('回调参数缺失，请重新登录')).toBeVisible()
   })
