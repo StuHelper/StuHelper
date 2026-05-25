@@ -20,7 +20,7 @@ If your project doesn’t include the `UI` component library you need, you can d
 
 ## Demo Code Slimming
 
-If you don’t need demo code, you can simply delete the `playground` folder
+The StuHelper admin workspace has already removed the upstream `playground` demo app and keeps only the production `apps/web-ele` app plus shared packages.
 
 ## Documentation Slimming
 
@@ -57,11 +57,9 @@ After slimming down, you may need to adjust commands according to your project. 
     "build:ele": "pnpm run build --filter=@vben/web-ele",
     "build:naive": "pnpm run build --filter=@vben/web-naive",
     "build:tdesign": "pnpm run build --filter=@vben/web-tdesign",
-    "build:play": "pnpm run build --filter=@vben/playground",
     "dev:antd": "pnpm -F @vben/web-antd run dev",
     "dev:docs": "pnpm -F @vben/docs run dev",
     "dev:ele": "pnpm -F @vben/web-ele run dev",
-    "dev:play": "pnpm -F @vben/playground run dev",
     "dev:naive": "pnpm -F @vben/web-naive run dev"
   }
 }

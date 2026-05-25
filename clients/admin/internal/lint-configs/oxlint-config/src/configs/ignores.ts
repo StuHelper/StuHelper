@@ -4,7 +4,6 @@ const ignores: OxlintConfig = {
   ignorePatterns: [
     '**/dist/**',
     '**/node_modules/**',
-    '_archived/**',
     'docs/**',
     '**/*.json',
     '**/*.md',

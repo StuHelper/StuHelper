@@ -169,10 +169,6 @@
       "path": "packages/utils"
     },
     {
-      "name": "@vben/playground [archived]",
-      "path": "_archived/playground"
-    },
-    {
       "name": "@vben/turbo-run",
       "path": "scripts/turbo-run"
     },

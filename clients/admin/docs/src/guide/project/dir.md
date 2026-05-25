@@ -58,7 +58,6 @@
 │   ├── styles # 样式
 │   ├── types # 类型定义
 │   └── utils # 工具
-├── playground # 演示目录
 ├── pnpm-lock.yaml # pnpm 锁定文件
 ├── pnpm-workspace.yaml # pnpm 工作区配置文件
 ├── scripts # 脚本目录

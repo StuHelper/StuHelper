@@ -93,7 +93,6 @@ pnpm dev
 │  ○ @vben/web-ele
 │  ○ @vben/web-naive
 │  ○ @vben/docs
-│  ● @vben/playground
 └
 ```
 
@@ -108,5 +107,4 @@ pnpm run dev:antd
 pnpm run dev:ele
 pnpm run dev:naive
 pnpm run dev:docs
-pnpm run dev:play
 ```

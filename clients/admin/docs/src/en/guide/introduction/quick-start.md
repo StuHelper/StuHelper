@@ -89,7 +89,6 @@ You will see an output similar to the following, allowing you to select the proj
 │  ○ @vben/web-ele
 │  ○ @vben/web-naive
 │  ○ @vben/docs
-│  ○ @vben/playground
 └
 ```
 

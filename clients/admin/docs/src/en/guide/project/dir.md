@@ -58,7 +58,6 @@ The repository uses Monorepo management, and the project structure is as follows
 │   ├── styles # Styles
 │   ├── types # Type definitions
 │   └── utils # Utilities
-├── playground # Demo directory
 ├── pnpm-lock.yaml # pnpm lock file
 ├── pnpm-workspace.yaml # pnpm workspace configuration file
 ├── scripts # Scripts directory

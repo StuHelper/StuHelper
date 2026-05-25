@@ -9,10 +9,6 @@ catalogs:
     '@nolebase/vitepress-plugin-git-changelog':
       specifier: ^2.18.2
       version: 2.18.2
-  conflicts_@tanstack/vue-query_h5_99_0:
-    '@tanstack/vue-query':
-      specifier: ^5.99.0
-      version: 5.99.0
   conflicts_@vite-pwa/vitepress_h1_1_0:
     '@vite-pwa/vitepress':
       specifier: ^1.1.0
@@ -598,88 +594,6 @@ importers:
       vue-tsc:
         specifier: 'catalog:'
         version: 3.2.6(typescript@5.9.3)
-
-  _archived/playground:
-    dependencies:
-      '@tanstack/vue-query':
-        specifier: catalog:conflicts_@tanstack/vue-query_h5_99_0
-        version: 5.99.0(vue@3.5.30(typescript@5.9.3))
-      '@vben-core/design':
-        specifier: workspace:*
-        version: link:../../packages/@core/base/design
-      '@vben-core/menu-ui':
-        specifier: workspace:*
-        version: link:../../packages/@core/ui-kit/menu-ui
-      '@vben-core/shadcn-ui':
-        specifier: workspace:*
-        version: link:../../packages/@core/ui-kit/shadcn-ui
-      '@vben/access':
-        specifier: workspace:*
-        version: link:../../packages/effects/access
-      '@vben/common-ui':
-        specifier: workspace:*
-        version: link:../../packages/effects/common-ui
-      '@vben/constants':
-        specifier: workspace:*
-        version: link:../../packages/constants
-      '@vben/hooks':
-        specifier: workspace:*
-        version: link:../../packages/effects/hooks
-      '@vben/icons':
-        specifier: workspace:*
-        version: link:../../packages/icons
-      '@vben/layouts':
-        specifier: workspace:*
-        version: link:../../packages/effects/layouts
-      '@vben/locales':
-        specifier: workspace:*
-        version: link:../../packages/locales
-      '@vben/plugins':
-        specifier: workspace:*
-        version: link:../../packages/effects/plugins
-      '@vben/preferences':
-        specifier: workspace:*
-        version: link:../../packages/preferences
-      '@vben/request':
-        specifier: workspace:*
-        version: link:../../packages/effects/request
-      '@vben/stores':
-        specifier: workspace:*
-        version: link:../../packages/stores
-      '@vben/styles':
-        specifier: workspace:*
-        version: link:../../packages/styles
-      '@vben/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      '@vben/utils':
-        specifier: workspace:*
-        version: link:../../packages/utils
-      '@vueuse/core':
-        specifier: 'catalog:'
-        version: 14.2.1(vue@3.5.30(typescript@5.9.3))
-      ant-design-vue:
-        specifier: catalog:conflicts_ant-design-vue_h4_2_6
-        version: 4.2.6(vue@3.5.30(typescript@5.9.3))
-      dayjs:
-        specifier: 'catalog:'
-        version: 1.11.20
-      json-bigint:
-        specifier: 'catalog:'
-        version: 1.0.0
-      pinia:
-        specifier: ^3.0.4
-        version: 3.0.4(typescript@5.9.3)(vue@3.5.30(typescript@5.9.3))
-      vue:
-        specifier: ^3.5.30
-        version: 3.5.30(typescript@5.9.3)
-      vue-router:
-        specifier: 'catalog:'
-        version: 5.0.4(@vue/compiler-sfc@3.5.30)(pinia@3.0.4(typescript@5.9.3)(vue@3.5.30(typescript@5.9.3)))(vue@3.5.30(typescript@5.9.3))
-    devDependencies:
-      '@types/json-bigint':
-        specifier: 'catalog:'
-        version: 1.0.4
 
   apps/web-ele:
     dependencies:
@@ -4771,27 +4685,11 @@ packages:
     peerDependencies:
       vite: ^5.2.0 || ^6 || ^7 || ^8
 
-  '@tanstack/match-sorter-utils@8.19.4':
-    resolution: {integrity: sha512-Wo1iKt2b9OT7d+YGhvEPD3DXvPv2etTusIMhMUoG7fbhmxcXCtIjJDEygy91Y2JFlwGyjqiBPRozme7UD8hoqg==}
-    engines: {node: '>=12'}
-
-  '@tanstack/query-core@5.99.0':
-    resolution: {integrity: sha512-3Jv3WQG0BCcH7G+7lf/bP8QyBfJOXeY+T08Rin3GZ1bshvwlbPt7NrDHMEzGdKIOmOzvIQmxjk28YEQX60k7pQ==}
-
   '@tanstack/store@0.9.2':
     resolution: {integrity: sha512-K013lUJEFJK2ofFQ/hZKJUmCnpcV00ebLyOyFOWQvyQHUOZp/iYO84BM6aOGiV81JzwbX0APTVmW8YI7yiG5oA==}
 
   '@tanstack/virtual-core@3.13.23':
     resolution: {integrity: sha512-zSz2Z2HNyLjCplANTDyl3BcdQJc2k1+yyFoKhNRmCr7V7dY8o8q5m8uFTI1/Pg1kL+Hgrz6u3Xo6eFUB7l66cg==}
-
-  '@tanstack/vue-query@5.99.0':
-    resolution: {integrity: sha512-okrHNkouasL5cjo7O8hUxul22DiIL335KUQus/cfoAdCOUytF/OIv3BpNDevfqE6zHqqJ651Fb9OkUJPUCL0ZQ==}
-    peerDependencies:
-      '@vue/composition-api': ^1.1.2
-      vue: ^3.5.30
-    peerDependenciesMeta:
-      '@vue/composition-api':
-        optional: true
 
   '@tanstack/vue-store@0.9.2':
     resolution: {integrity: sha512-Cz2QvwWg/vDziuCnP5TVjmZroshM8rI+Yaifqiv6A5jK8eaMxD5r86SJLUtznnOEGmqpTOPdp3ryvWzuPVTZrA==}
@@ -8796,9 +8694,6 @@ packages:
   relateurl@0.2.7:
     resolution: {integrity: sha512-G08Dxvm4iDN3MLM0EsP62EDV9IuhXPR6blNz6Utcp7zyV3tr4HVNINt6MpaRWbxoOHT3Q7YN2P+jaHX8vUbgog==}
     engines: {node: '>= 0.10'}
-
-  remove-accents@0.5.0:
-    resolution: {integrity: sha512-8g3/Otx1eJaVD12e31UbJj1YzdtVvzH85HV7t+9MJYk/u3XmkOUJ5Ys9wQrf9PCPK8+xn4ymzqYCiZl6QWKn+A==}
 
   require-directory@2.1.1:
     resolution: {integrity: sha512-fGxEI7+wsG9xrvdjsrlmL22OMTTiHRwAMroiEeMgq8gzoLC/PQr7RsRDSTLUg/bZAZtF+TVIkHc6/4RIKrui+Q==}
@@ -13427,23 +13322,9 @@ snapshots:
       tailwindcss: 4.2.2
       vite: 8.0.1(@types/node@25.5.0)(esbuild@0.27.4)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.98.0)(sass@1.98.0)(terser@5.46.1)(yaml@2.8.3)
 
-  '@tanstack/match-sorter-utils@8.19.4':
-    dependencies:
-      remove-accents: 0.5.0
-
-  '@tanstack/query-core@5.99.0': {}
-
   '@tanstack/store@0.9.2': {}
 
   '@tanstack/virtual-core@3.13.23': {}
-
-  '@tanstack/vue-query@5.99.0(vue@3.5.30(typescript@5.9.3))':
-    dependencies:
-      '@tanstack/match-sorter-utils': 8.19.4
-      '@tanstack/query-core': 5.99.0
-      '@vue/devtools-api': 6.6.4
-      vue: 3.5.30(typescript@5.9.3)
-      vue-demi: 0.14.10(vue@3.5.30(typescript@5.9.3))
 
   '@tanstack/vue-store@0.9.2(vue@3.5.30(typescript@5.9.3))':
     dependencies:
@@ -17859,8 +17740,6 @@ snapshots:
       - '@vue/composition-api'
 
   relateurl@0.2.7: {}
-
-  remove-accents@0.5.0: {}
 
   require-directory@2.1.1: {}
 

@@ -976,6 +976,18 @@ Playwright MCP 也在移动视口验证同一路径，结果显示 stream 已打
 `CI=1 ADMIN_E2E_PORT=4225 make e2e-admin`（78 项）、`pnpm --dir clients run check:no-empty-catch`、
 `make check-docs` 和 `git diff --check`。
 
+本地验证补充（2026-05-26）：继续收敛 Admin 工作区，删除已标记为非活跃的上游 Vben playground
+演示应用。`clients/admin/_archived/README.md` 原先说明 archived apps 不属于 active codebase，但
+`pnpm-workspace.yaml`、`pnpm-lock.yaml` 和 VS Code workspace 仍保留 `_archived/playground` /
+`@vben/playground`，导致演示应用参与 workspace 解析并保留专用 `@tanstack/vue-query` catalog 依赖。本轮删除
+`clients/admin/_archived` 下 184 个归档演示文件，移除 workspace / lockfile / VS Code workspace / oxlint ignore
+中的归档入口，并同步中英文 Admin 文档里仍指向本地 `dev:play` / `build:play` / `playground` 目录的说明。验证已通过
+`pnpm --dir clients/admin install --lockfile-only --ignore-scripts`、`pnpm --dir clients type-check:admin`、
+`pnpm --dir clients lint:admin` 和完整 `CI=1 ADMIN_E2E_PORT=4232 make e2e-admin`（78 项）；Playwright MCP
+打开构建产物 `http://127.0.0.1:4233/admin/auth/login`，确认 Admin 登录入口可访问并跳转本地 Casdoor 授权页，
+console 无 error，仅保留 Casdoor 上游 manifest `start_url` 跨源 warning，`auth/me` 未登录 401、登录 URL 与
+Casdoor app 查询符合预期。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |

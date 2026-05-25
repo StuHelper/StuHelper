@@ -1,5 +1,4 @@
 packages:
-  - _archived/playground
   - docs
   - internal/*
   - internal/lint-configs/*
@@ -183,8 +182,6 @@ catalog:
 catalogs:
   conflicts_@nolebase/vitepress-plugin-git-changelog_h2_18_2:
     '@nolebase/vitepress-plugin-git-changelog': ^2.18.2
-  conflicts_@tanstack/vue-query_h5_99_0:
-    '@tanstack/vue-query': ^5.99.0
   conflicts_@vite-pwa/vitepress_h1_1_0:
     '@vite-pwa/vitepress': ^1.1.0
   conflicts_ant-design-vue_h4_2_6:
