@@ -488,6 +488,20 @@ desktop / mobile Chromium project，避免普通用户菜单覆盖遗漏管理�
 （22 项）、`pnpm --dir clients run type-check:web`、`pnpm --dir clients run lint:web` 和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3467 make e2e-web`（132 项）。
 
+本地验证补充（2026-05-25）：继续补齐 Admin 顶栏用户下拉退出登录的真实浏览器覆盖。新增
+`admin-core` E2E 覆盖已登录管理员进入 `/profile` 后点击顶栏头像按钮，打开 Vben user dropdown，
+点击“退出登录”后显示页面内确认弹窗“是否退出登录？”，点击“确认”调用
+`POST /api/v1/auth/logout`，随后发起 `GET /api/v1/auth/login`，并断言 `app=admin` 且
+`redirect` 保留当前 `/profile` 回跳目标。测试过程中发现空头像会渲染隐藏 `img`，真实可点击目标是顶栏
+fallback 文本为 `IN` 的 button；还发现主动 `page.goto('about:blank')` 会中断正在加载的 Vite 脚本，
+已改为让 mocked SSO URL 自身返回 `about:blank`。除自动 E2E 外，还启动 Admin 本地 Vite，通过
+Playwright MCP `browser_run_code_unsafe` 注入同样的管理员 session / logout / login mock，实际点击
+顶栏头像下拉并确认退出，确认 logout/login 请求、`app=admin`、`redirect=http://127.0.0.1:4209/profile`
+和最终 `about:blank` 跳转均符合预期，且无 console error。新增覆盖后已通过
+`CI=1 ADMIN_E2E_PORT=4208 pnpm --dir clients/admin --filter @vben/web-ele exec playwright test tests/e2e/admin-core.spec.ts`
+（6 项）、`pnpm --dir clients/admin --filter @vben/web-ele typecheck`、`pnpm --dir clients/admin lint`
+和完整 `CI=1 ADMIN_E2E_PORT=4210 make e2e-admin`（68 项）。
+
 本地全量复验（2026-05-25）：在提交 `d82afd53` 上复跑统一客户端 E2E 门禁，
 `CI=1 PLAYWRIGHT_WEB_PORT=3450 ADMIN_E2E_PORT=4206 UNIAPPX_E2E_PORT=3142 make e2e`
 通过 Web 120 项、Admin 66 项和 UniAppX H5 30 项，覆盖本轮 Web 重新认证 / callback guard 与

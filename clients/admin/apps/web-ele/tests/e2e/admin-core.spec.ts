@@ -86,6 +86,102 @@ test.describe('Admin core shell routes', () => {
     await expect(page.getByText('系统消息', { exact: true })).toBeVisible();
   });
 
+  test('user dropdown confirms logout and starts admin SSO login', async ({
+    page,
+  }) => {
+    let sessionActive = true;
+    const observed: {
+      loginRequest: null | {
+        app: null | string;
+        method: string;
+        path: string;
+        redirect: null | string;
+      };
+      logoutRequest: null | { method: string; path: string };
+    } = {
+      loginRequest: null,
+      logoutRequest: null,
+    };
+
+    await page.route('**/api/v1/auth/me', async (route) => {
+      if (!sessionActive) {
+        await route.fulfill({
+          status: 401,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: 'A1000401',
+            message: 'unauthorized',
+            success: false,
+          }),
+        });
+        return;
+      }
+
+      await route.fulfill(ok(adminUser));
+    });
+    await page.route('**/api/v1/auth/logout', async (route) => {
+      const url = new URL(route.request().url());
+      observed.logoutRequest = {
+        method: route.request().method(),
+        path: url.pathname,
+      };
+      sessionActive = false;
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true }),
+      });
+    });
+    await page.route('**/api/v1/auth/login**', async (route) => {
+      const url = new URL(route.request().url());
+      observed.loginRequest = {
+        app: url.searchParams.get('app'),
+        method: route.request().method(),
+        path: url.pathname,
+        redirect: url.searchParams.get('redirect'),
+      };
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            state: 'logout-state',
+            url: 'about:blank',
+          },
+        }),
+      });
+    });
+
+    await page.goto('/profile');
+
+    const avatar = page.getByRole('banner').getByRole('button', {
+      name: 'IN',
+    });
+    await expect(avatar).toBeVisible();
+
+    await avatar.click();
+    await page.getByRole('menuitem', { name: /退出登录/ }).click();
+    await expect(page.getByText('是否退出登录？')).toBeVisible();
+
+    await page.getByRole('button', { name: '确认' }).click();
+
+    await expect
+      .poll(() => observed.logoutRequest)
+      .toEqual({
+        method: 'POST',
+        path: '/api/v1/auth/logout',
+      });
+    await expect
+      .poll(() => observed.loginRequest)
+      .toMatchObject({
+        app: 'admin',
+        method: 'GET',
+        path: '/api/v1/auth/login',
+      });
+    expect(observed.loginRequest?.redirect).toContain('/profile');
+
+    await expect(page).toHaveURL('about:blank');
+  });
+
   test('unknown authenticated route renders the admin 404 fallback', async ({
     page,
   }) => {
