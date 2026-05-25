@@ -71,6 +71,8 @@ Koishi 与 NapCat 当前不纳入主站 Docker Compose 拓扑，而是作为外�
 | 公网端口 | 443 (HTTPS)、80 (HTTP → 301 → HTTPS)，只由宝塔 Nginx 监听 |
 | 容器宿主机端口 | `127.0.0.1:18080` backend、`127.0.0.1:18000` web、`127.0.0.1:18001` admin |
 
+当前生产拓扑不使用 Traefik。Traefik 与 Nginx 技术上可以共存，但不能同时拥有公网 `80/443` 或分别承担同一批域名的入口职责；否则 TLS 终止、`X-Forwarded-*`、OIDC discovery、JWKS、授权页回调和路径路由会出现双层漂移。StuHelper 在宝塔单机环境中固定选择宝塔 Nginx 作为唯一公网入口，Compose 只把应用服务暴露到宿主机回环端口。
+
 如果生产机已经由宝塔 Compose 管理全局 PostgreSQL，可用 `docker-compose.external-datastore.yml` 把 StuHelper 生产容器接入 `EXTERNAL_DATASTORE_NETWORK=baota_net`，并设置 `EXTERNAL_POSTGRES_ENABLED=true`。该模式不会启动 `stuhelper-prod-postgres`，但需要先在外部 PostgreSQL 中为 StuHelper / OpenFGA 创建独立数据库和独立账号，并把旧 StuHelper 专用 Postgres 中的 `stuhelper` / `openfga` 数据迁移到外部 Postgres；若外部 PostgreSQL 未启用 TLS，还必须显式设置 `EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true`。Redis 仍由 StuHelper Compose 以独立 TLS/ACL 实例运行，不复用全局 Redis，也不加入外部 datastore 网络。本机 `make prod-parity-smoke` 会运行 `prod-parity-datastore-smoke.sh`，用容器级连接检查证明共享 PostgreSQL 的库/账号隔离和 Redis 独立实例约束；随后 `prod-parity-smoke-data.sh` 会写入本机专用最小课程 / 教师 / 评课数据和入群认证会话、刷新评分统计和教师物化视图，使浏览器 smoke 能验证生产镜像在真实后端数据下的课程详情、课程评课详情、评课聚合、教师详情和入群认证链接渲染。
 
 ### 证书终止策略

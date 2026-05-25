@@ -208,6 +208,8 @@ StuHelper 当前生产入口采用宝塔 Nginx。Docker Compose 只把业务服�
 | **Baota Nginx** | 当前生产默认 | 宝塔面板管理证书与站点反代 |
 | **External LB/CDN + Baota Nginx** | 云厂商 LB / CDN 前置 | 外部终止 TLS，或外部转发 HTTPS 到宝塔 |
 
+当前发布链路不提供 Traefik 入口模式。不要在同一生产机上再启动 Traefik 监听公网 `80/443`，也不要把 `stuhelper.com` / `id.stuhelper.com` 同时分散到 Traefik 和宝塔 Nginx；如确实需要外部负载均衡，只允许放在宝塔 Nginx 前面，并保持宝塔 Nginx 作为应用反代层。
+
 ### 方案 A：宝塔 Nginx（当前默认）
 
 宝塔 Nginx 是唯一公网入口，负责 `stuhelper.com` 的 `80/443`、证书、HTTP 到 HTTPS 跳转和反向代理。仓库提供反代示例：
