@@ -165,12 +165,15 @@ make prod-parity-reset   # 停止并清理本机生产等价 volume
 
 该模式使用仓库内生产 Compose 和 `.run/prod-parity/` 下的本地 env/secrets，不依赖宝塔面板；默认地址以脚本输出为准，通常为 Web `http://127.0.0.1:28000`、Admin `http://127.0.0.1:28001/admin/`、API `http://127.0.0.1:28080`、Grafana `http://127.0.0.1:23003`。它用于在 Ubuntu 24.04 本机先跑通“构建 → 启动 → migration/bootstrap → datastore isolation → API/Identity/OpenFGA/观测 smoke → Web/Admin 浏览器渲染 smoke”的生产等价流程，再把同一套发布脚本用于真实生产。datastore smoke 会验证共享 PostgreSQL 中 StuHelper / OpenFGA / 本地 SSO Casdoor 使用独立数据库、独立登录账号和跨库拒绝连接，并验证 Redis 是 StuHelper Compose 内的独立 TLS/ACL 实例、没有加入外部 datastore 网络；脱敏 evidence 写入 `.run/prod-parity/datastore-smoke-evidence.json`。浏览器 smoke 会先写入本机 prod-parity 专用的最小课程 / 教师 / 评课数据、入群认证会话，并刷新评分统计与教师物化视图，脱敏 evidence 写入 `.run/prod-parity/smoke-data-evidence.json`；随后用桌面和移动视口访问首页、登录、认证回调错误态、入群认证链接、静态说明页、课程入口、课程列表、课程详情、课程评课详情、评课聚合、搜索、教师主页、教师详情、写评课、用户中心各 tab、实名 / 学生认证、手机 / QQ 绑定、学籍信息、通知、开发者应用、Open Platform 授权与资料补全保护跳转、404 页面和 Admin 登录跳转，并验证保护入口保留 redirect；evidence 和截图写入 `.run/prod-parity/`，截图文件名带视口后缀。每次浏览器 smoke 前会清理本机 prod-parity Redis 中的课程 / 评课缓存和 `rl:*` 限流键，避免上一轮验收污染本轮结果；浏览器运行时会拦截 Web Vitals / 前端错误上报，防止烟测自身消耗业务 API 限流额度。该检查会覆盖 `document`、`script`、`stylesheet`、`font`、`image` 关键资源加载失败、关键资源 HTTP 4xx/5xx、页面触发的未声明允许 `fetch` / `xhr` HTTP 4xx/5xx、前端 `pageerror` 和非网络状态类浏览器 `console.error`，用于区分“curl 200 但前端实际白屏/资源加载失败”的问题。
 
-如果本机已有 Vite 占用默认 Playwright 端口，可改用备用端口运行 Web E2E。Web E2E 默认同时执行
-`desktop-chromium` 和 `mobile-chromium` 两个 Playwright project，覆盖桌面与移动视口交互：
+如果本机已有 Vite 占用默认 Playwright 端口，可改用备用端口运行 E2E。Web E2E 默认同时执行
+`desktop-chromium` 和 `mobile-chromium` 两个 Playwright project，覆盖桌面与移动视口交互；Admin
+E2E 会先构建后台 SPA，再用 `vite preview` 测试发布形态的静态产物，并覆盖桌面与移动 project。Admin
+默认串行执行；需要压测测试并发时，可显式设置 `ADMIN_E2E_WORKERS`：
 
 ```bash
 PLAYWRIGHT_WEB_PORT=3300 make e2e-web
 make e2e-admin
+ADMIN_E2E_WORKERS=2 ADMIN_E2E_PORT=4178 make e2e-admin
 make e2e-uni
 make e2e-koishi
 ```

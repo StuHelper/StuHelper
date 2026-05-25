@@ -17,7 +17,7 @@
     "test:web": "pnpm run build:shared && pnpm --filter @stuhelper/web test",
     "test:coverage:web": "pnpm run build:shared && pnpm --filter @stuhelper/web test:coverage",
     "test:e2e:web": "pnpm run build:shared && pnpm --filter @stuhelper/web test:e2e",
-    "test:e2e:admin": "pnpm --dir admin --filter @vben/web-ele test:e2e",
+    "test:e2e:admin": "pnpm run build:shared && pnpm --dir admin --filter @vben/web-ele test:e2e",
     "test:e2e:uni": "pnpm run build:shared && pnpm --filter @stuhelper/uniappx test:e2e",
     "test:e2e": "pnpm test:e2e:web && pnpm test:e2e:admin && pnpm test:e2e:uni",
     "generate:capabilities": "node scripts/generate-capabilities-from-go.mjs",

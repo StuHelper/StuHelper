@@ -9,7 +9,15 @@ const workspaceRoot = path.resolve(
 const host = process.env.ADMIN_E2E_HOST || '127.0.0.1';
 const port = Number(process.env.ADMIN_E2E_PORT || '4174');
 const baseURL = `http://${host}:${port}/admin`;
-const workers = Number(process.env.ADMIN_E2E_WORKERS || '4');
+// Admin E2E targets the built SPA instead of Vite's dev server. The Vben
+// workspace has many lazy chunks; testing the preview build avoids dev-time
+// transform/HMR network churn while keeping the browser path production-like.
+const workers = Number(process.env.ADMIN_E2E_WORKERS || '1');
+const webServerCommand = [
+  `cd ${JSON.stringify(workspaceRoot)}`,
+  'pnpm -F @vben/web-ele exec vite build --mode production',
+  `pnpm -F @vben/web-ele exec vite preview --host ${host} --port ${port}`,
+].join(' && ');
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -36,7 +44,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `cd ${JSON.stringify(workspaceRoot)} && pnpm -F @vben/web-ele exec vite --mode development --host ${host} --port ${port}`,
+    command: webServerCommand,
     env: {
       ...process.env,
       VITE_E2E_API_STUB: '1',
@@ -44,6 +52,7 @@ export default defineConfig({
         process.env.VITE_DEV_PROXY_TARGET ?? 'http://127.0.0.1:8080',
     },
     reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === '1',
+    timeout: 180_000,
     url: `${baseURL}/auth/login`,
   },
 });

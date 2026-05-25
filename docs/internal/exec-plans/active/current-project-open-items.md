@@ -178,6 +178,18 @@ Web `http://localhost:3000`、Admin `http://localhost:3001/admin/`、Backend `ht
 Web 首页无 console error；Admin 未登录入口会跳转到 Casdoor 登录页，不再出现 `Invalid client_id`，
 仅保留 Casdoor 上游 manifest `start_url` 跨源 warning。
 
+本地验证补充（2026-05-26）：完整客户端 E2E 串联入口曾在 Admin 段暴露 Vben/Vite 开发服务器动态
+模块冷加载不稳定，浏览器收到 `net::ERR_NETWORK_CHANGED` 后触发 `Failed to fetch dynamically imported module`
+并使 Open Platform 运营页用例超时；单独串行运行 Admin E2E 可通过，但不足以证明 `make e2e` 稳定。
+已将 Admin Playwright `webServer` 改为先执行 `vite build --mode production`，再用 `vite preview` 测试发布形态
+静态产物，默认保留 1 worker 并允许显式 `ADMIN_E2E_WORKERS` 压测并发。修复后已通过
+自包含 `CI=1 ADMIN_E2E_PORT=4186 make e2e-admin`（会先构建 `clients/shared`，70 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3442 ADMIN_E2E_PORT=4185 UNIAPPX_E2E_PORT=3142 make e2e`，覆盖 Web
+132 项、Admin 70 项和 UniAppX H5 34 项；同时通过 `pnpm --dir clients type-check:admin`、
+`pnpm --dir clients lint:admin`、`make check-docs` 和 `git diff --check`。另用 Playwright MCP
+临时打开 Admin `vite preview` 构建产物 `/profile`，注入管理员 session mock 后确认个人中心渲染
+`Platform Admin`、账号 tab 可见，浏览器 console error 为 0。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等
