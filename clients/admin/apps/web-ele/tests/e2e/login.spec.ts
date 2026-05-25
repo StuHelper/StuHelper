@@ -34,6 +34,58 @@ async function mockAnonymousSession(page: Page) {
   });
 }
 
+async function mockForbiddenAdminSession(page: Page) {
+  const observed = {
+    loginRequests: 0,
+    logoutRequests: 0,
+  };
+
+  await page.route('**/api/v1/auth/me', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          id: '100',
+          name: 'student-user',
+          displayName: 'Student User',
+          email: 'student@example.com',
+          avatar: '',
+          roles: ['verified_student'],
+          capabilities: ['review:list:full'],
+          globalCapabilities: ['review:list:full'],
+          capabilityGrants: [],
+          canAccessAdmin: false,
+          isPlatformAdmin: false,
+        },
+      }),
+    });
+  });
+  await page.route('**/api/v1/auth/logout', async (route) => {
+    observed.logoutRequests += 1;
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true }),
+    });
+  });
+  await page.route('**/api/v1/auth/login**', async (route) => {
+    observed.loginRequests += 1;
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          state: 'forbidden-e2e-state',
+          url: 'about:blank',
+        },
+      }),
+    });
+  });
+
+  return observed;
+}
+
 test('admin login route initiates OIDC login', async ({ page }) => {
   await mockAnonymousSession(page);
   const loginRequest = page.waitForRequest('**/api/v1/auth/login**');
@@ -63,4 +115,30 @@ test('root route initiates OIDC login when unauthenticated', async ({
   await expect
     .poll(() => requestURL.searchParams.get('redirect'))
     .toContain('/analytics');
+});
+
+test('authenticated user without admin access sees forbidden page before re-login', async ({
+  page,
+}) => {
+  const observed = await mockForbiddenAdminSession(page);
+
+  await page.goto('/analytics');
+
+  await expect(page).toHaveURL(/\/auth\/login\?error=forbidden/);
+  await expect(
+    page.getByRole('heading', { name: /无权访问|Access Denied/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/没有管理后台的访问权限|does not have permission/),
+  ).toBeVisible();
+  expect(observed.loginRequests).toBe(0);
+  expect(observed.logoutRequests).toBe(0);
+
+  await page
+    .getByRole('button', { name: /使用其他账号登录|Try a Different Account/ })
+    .click();
+
+  await expect.poll(() => observed.logoutRequests).toBe(1);
+  await expect.poll(() => observed.loginRequests).toBe(1);
+  await expect(page).toHaveURL('about:blank');
 });

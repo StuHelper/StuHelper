@@ -37,9 +37,9 @@ async function handleTryDifferentAccount() {
 <template>
   <div v-if="isForbidden" class="flex h-full items-center justify-center">
     <div class="text-center">
-      <p class="text-destructive mb-2 text-2xl font-bold">
+      <h1 class="text-destructive mb-2 text-2xl font-bold">
         {{ $t('authentication.accessDenied') }}
-      </p>
+      </h1>
       <p class="text-muted-foreground mb-6 text-sm">
         {{ $t('authentication.accessDeniedDesc') }}
       </p>
