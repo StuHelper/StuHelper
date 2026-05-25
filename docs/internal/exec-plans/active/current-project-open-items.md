@@ -440,6 +440,17 @@ Playwright MCP `browser_run_code_unsafe` 注入同样的 API mock 并打开 `/us
 （18 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3454 make e2e-web`（124 项）。
 
+本地验证补充（2026-05-25）：继续补齐 Web AppShell 语言切换入口的真实浏览器覆盖。新增首页 E2E
+覆盖默认中文 `html[lang=zh-CN]`、点击“切换到英文”后首页文案切换为
+`StuHelper Course Review Community`、按钮变为 `Switch to Chinese`、`localStorage.locale=en-US`，刷新页面后
+仍保持英文，再点击切回中文并确认 `html[lang=zh-CN]` 和 `localStorage.locale=zh-CN`。该用例同时跑
+desktop / mobile Chromium project。除自动 E2E 外，还启动 `VITE_E2E_API_STUB=1` 的本地 Vite，通过
+Playwright MCP 注入匿名首页 API mock，确认默认中文按钮可见、切换后 `html.lang=en-US`、切回按钮可见、
+刷新后仍保留英文且无 console error。新增覆盖后已通过
+`CI=1 PLAYWRIGHT_WEB_PORT=3456 pnpm --dir clients/web exec playwright test tests/e2e/home.spec.ts`
+（6 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3458 make e2e-web`（126 项）。
+
 本地全量复验（2026-05-25）：在提交 `d82afd53` 上复跑统一客户端 E2E 门禁，
 `CI=1 PLAYWRIGHT_WEB_PORT=3450 ADMIN_E2E_PORT=4206 UNIAPPX_E2E_PORT=3142 make e2e`
 通过 Web 120 项、Admin 66 项和 UniAppX H5 30 项，覆盖本轮 Web 重新认证 / callback guard 与

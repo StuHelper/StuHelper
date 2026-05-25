@@ -99,6 +99,45 @@ test('home page renders shell and brand', async ({ page }) => {
   ).toBeVisible()
 })
 
+test('locale switcher updates rendered language and persists preference', async ({
+  page,
+}) => {
+  await mockUnauthenticated(page)
+
+  await page.goto('/')
+
+  await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
+  await expect(page.getByText('StuHelper 评课社区')).toBeVisible()
+
+  await page.getByRole('button', { name: '切换到英文' }).click()
+
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en-US')
+  await expect(
+    page.getByText('StuHelper Course Review Community'),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Switch to Chinese' }),
+  ).toBeVisible()
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('locale')))
+    .toBe('en-US')
+
+  await page.reload()
+
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en-US')
+  await expect(
+    page.getByText('StuHelper Course Review Community'),
+  ).toBeVisible()
+
+  await page.getByRole('button', { name: 'Switch to Chinese' }).click()
+
+  await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
+  await expect(page.getByText('StuHelper 评课社区')).toBeVisible()
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('locale')))
+    .toBe('zh-CN')
+})
+
 test('command palette searches courses from keyboard and opens course detail', async ({
   page,
 }) => {
