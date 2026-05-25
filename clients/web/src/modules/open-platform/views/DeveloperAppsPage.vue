@@ -63,6 +63,7 @@
             <span class="shrink-0">{{ t('developer.apps.statusFilter') }}</span>
             <select
               v-model="statusFilter"
+              :aria-label="t('developer.apps.statusFilter')"
               class="h-9 rounded-md border border-border bg-bg-card px-2 text-sm text-text-primary outline-none transition-colors focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
             >
               <option v-for="status in statusOptions" :key="status" :value="status">

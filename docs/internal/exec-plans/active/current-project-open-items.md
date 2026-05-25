@@ -128,6 +128,15 @@ Admin 26 项）。
 （10 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3426 make e2e-web`（108 项）。
 
+本地验证补充（2026-05-25）：Web Open Platform 开发者门户 E2E 继续补齐生产关键查询路径，
+覆盖应用列表初始加载传递 `page=1`、`pageSize=10`、`status=all`，状态筛选传递 `status=pending`
+并重置到第一页，分页传递 `page=2`，以及应用活动记录请求传递 `pageSize=10`；同时给状态筛选下拉补充
+明确 `aria-label`，避免与“实名认证状态 / 学生认证状态”等权限复选框发生无障碍名称歧义。新增覆盖后已通过
+单文件
+`CI=1 PLAYWRIGHT_WEB_PORT=3429 pnpm --dir clients/web exec playwright test tests/e2e/open-platform-developer.spec.ts`
+（6 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3430 make e2e-web`（110 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

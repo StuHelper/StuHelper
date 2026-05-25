@@ -22,6 +22,70 @@ const user = {
     canAccessAdmin: false,
 };
 
+type QueryRecord = Record<string, string>;
+
+type MockRedirectURIRequest = {
+    id: number;
+    redirectURIs: string[];
+    reason: string;
+    status: string;
+    reviewerUserID: number | null;
+    reviewedAt: string | null;
+    decisionNote: string | null;
+    createdAt: string;
+    updatedAt: string;
+};
+
+type MockAppListItem = {
+    app: Record<string, unknown>;
+    scopes: Array<Record<string, unknown>>;
+    redirectURIRequests: MockRedirectURIRequest[];
+};
+
+function captureQuery(urlString: string): QueryRecord {
+    return Object.fromEntries(new URL(urlString).searchParams.entries());
+}
+
+function makeDeveloperApp(input: {
+    id: number;
+    displayName: string;
+    status: string;
+}): MockAppListItem {
+    const suffix = String(input.id).padStart(2, "0");
+
+    return {
+        app: {
+            id: input.id,
+            clientID: `op_app_${suffix}`,
+            displayName: input.displayName,
+            description: `${input.displayName} integration`,
+            homepageURL: `https://app-${suffix}.example.com`,
+            privacyPolicyURL: `https://app-${suffix}.example.com/privacy`,
+            redirectURIs: [`https://app-${suffix}.example.com/callback`],
+            status: input.status,
+            createdAt: "2026-05-01T10:00:00Z",
+            updatedAt: "2026-05-01T10:00:00Z",
+        },
+        scopes: [
+            {
+                id: input.id,
+                scope: "profile.basic.read",
+                displayName: "用户基本信息",
+                sensitivity: "low",
+                fields: ["用户名"],
+                reason: "显示用户",
+                status: input.status === "pending" ? "pending" : "approved",
+                reviewerUserID: null,
+                reviewedAt: null,
+                decisionNote: null,
+                createdAt: "2026-05-01T10:00:00Z",
+                updatedAt: "2026-05-01T10:00:00Z",
+            },
+        ],
+        redirectURIRequests: [],
+    };
+}
+
 async function mockAuth(page: Page) {
     await page.addInitScript((u) => {
         localStorage.setItem("stuhelper_user", JSON.stringify(u));
@@ -96,23 +160,7 @@ test.describe("Open Platform developer portal", () => {
         let redirectChangeSubmitted = false;
         let submittedBody: unknown = null;
         let redirectChangeBody: unknown = null;
-
-        type MockRedirectURIRequest = {
-            id: number;
-            redirectURIs: string[];
-            reason: string;
-            status: string;
-            reviewerUserID: number | null;
-            reviewedAt: string | null;
-            decisionNote: string | null;
-            createdAt: string;
-            updatedAt: string;
-        };
-        type MockAppListItem = {
-            app: Record<string, unknown>;
-            scopes: Array<Record<string, unknown>>;
-            redirectURIRequests: MockRedirectURIRequest[];
-        };
+        const listQueries: QueryRecord[] = [];
 
         const appList: MockAppListItem[] = [
             {
@@ -202,9 +250,11 @@ test.describe("Open Platform developer portal", () => {
         );
 
         await page.route("**/api/v1/open-platform/apps*", async (route) => {
-            if (route.request().method() === "POST") {
+            const request = route.request();
+
+            if (request.method() === "POST") {
                 appSubmitted = true;
-                submittedBody = route.request().postDataJSON();
+                submittedBody = request.postDataJSON();
                 appList.unshift({
                     app: {
                         id: 8,
@@ -261,6 +311,7 @@ test.describe("Open Platform developer portal", () => {
                 return;
             }
 
+            listQueries.push(captureQuery(request.url()));
             await route.fulfill({
                 contentType: "application/json",
                 body: JSON.stringify({
@@ -275,6 +326,9 @@ test.describe("Open Platform developer portal", () => {
 
         await page.goto("/developers/apps");
         await page.waitForLoadState("networkidle");
+        await expect
+            .poll(() => listQueries)
+            .toContainEqual({ page: "1", pageSize: "10", status: "all" });
 
         const existingApp = page
             .locator("article")
@@ -338,6 +392,95 @@ test.describe("Open Platform developer portal", () => {
         await expect(page.getByText("Library Sync")).toBeVisible();
     });
 
+    test("developer filters app status and paginates app list", async ({
+        page,
+    }) => {
+        const listQueries: QueryRecord[] = [];
+        const appList = Array.from({ length: 12 }, (_, index) =>
+            makeDeveloperApp({
+                id: index + 1,
+                displayName: `Portal App ${String(index + 1).padStart(2, "0")}`,
+                status: index % 2 === 0 ? "pending" : "approved",
+            }),
+        );
+
+        await page.route("**/api/v1/open-platform/apps*", async (route) => {
+            const request = route.request();
+            const url = new URL(request.url());
+
+            if (
+                request.method() !== "GET" ||
+                url.pathname !== "/api/v1/open-platform/apps"
+            ) {
+                await route.fulfill({
+                    status: 500,
+                    contentType: "application/json",
+                    body: JSON.stringify({
+                        success: false,
+                        error: {
+                            code: "E2E_UNMOCKED",
+                            message: `unmocked ${request.method()} ${url.pathname}`,
+                        },
+                    }),
+                });
+                return;
+            }
+
+            const query = captureQuery(request.url());
+            listQueries.push(query);
+
+            const requestedPage = Number(query.page ?? "1");
+            const pageSize = Number(query.pageSize ?? "10");
+            const status = query.status ?? "all";
+            const filteredApps =
+                status === "all"
+                    ? appList
+                    : appList.filter((item) => item.app.status === status);
+            const start = (requestedPage - 1) * pageSize;
+
+            await route.fulfill({
+                contentType: "application/json",
+                body: JSON.stringify({
+                    success: true,
+                    data: {
+                        list: filteredApps.slice(start, start + pageSize),
+                        total: filteredApps.length,
+                    },
+                }),
+            });
+        });
+
+        await page.goto("/developers/apps");
+        await page.waitForLoadState("networkidle");
+
+        await expect(
+            page.getByRole("heading", { name: "Portal App 01" }),
+        ).toBeVisible();
+        await expect
+            .poll(() => listQueries)
+            .toContainEqual({ page: "1", pageSize: "10", status: "all" });
+
+        await page.getByRole("button", { name: "下一页" }).click();
+        await expect(
+            page.getByRole("heading", { name: "Portal App 11" }),
+        ).toBeVisible();
+        await expect
+            .poll(() => listQueries)
+            .toContainEqual({ page: "2", pageSize: "10", status: "all" });
+
+        await page.getByLabel("状态", { exact: true }).selectOption("pending");
+        await expect(
+            page.getByRole("heading", { name: "Portal App 01" }),
+        ).toBeVisible();
+        await expect(
+            page.getByRole("heading", { name: "Portal App 02" }),
+        ).toBeHidden();
+        await expect(page.getByRole("button", { name: "下一页" })).toBeHidden();
+        await expect
+            .poll(() => listQueries)
+            .toContainEqual({ page: "1", pageSize: "10", status: "pending" });
+    });
+
     test("developer updates, withdraws, and audits existing apps", async ({
         page,
     }) => {
@@ -346,23 +489,8 @@ test.describe("Open Platform developer portal", () => {
             method: string;
             path: string;
         }> = [];
-
-        type MockRedirectURIRequest = {
-            id: number;
-            redirectURIs: string[];
-            reason: string;
-            status: string;
-            reviewerUserID: number | null;
-            reviewedAt: string | null;
-            decisionNote: string | null;
-            createdAt: string;
-            updatedAt: string;
-        };
-        type MockAppListItem = {
-            app: Record<string, unknown>;
-            scopes: Array<Record<string, unknown>>;
-            redirectURIRequests: MockRedirectURIRequest[];
-        };
+        const auditQueries: QueryRecord[] = [];
+        const listQueries: QueryRecord[] = [];
 
         const approvedApp: MockAppListItem = {
             app: {
@@ -480,6 +608,7 @@ test.describe("Open Platform developer portal", () => {
             const body = request.postData() ? request.postDataJSON() : null;
 
             if (method === "GET" && path === "/api/v1/open-platform/apps") {
+                listQueries.push(captureQuery(request.url()));
                 await route.fulfill({
                     contentType: "application/json",
                     body: JSON.stringify({
@@ -497,6 +626,7 @@ test.describe("Open Platform developer portal", () => {
                 method === "GET" &&
                 path === "/api/v1/open-platform/apps/7/audit-events"
             ) {
+                auditQueries.push(captureQuery(request.url()));
                 await route.fulfill({
                     contentType: "application/json",
                     body: JSON.stringify({
@@ -645,6 +775,9 @@ test.describe("Open Platform developer portal", () => {
 
         await page.goto("/developers/apps");
         await page.waitForLoadState("networkidle");
+        await expect
+            .poll(() => listQueries)
+            .toContainEqual({ page: "1", pageSize: "10", status: "all" });
 
         const approvedArticle = page
             .locator("article")
@@ -655,6 +788,9 @@ test.describe("Open Platform developer portal", () => {
         await approvedArticle.getByRole("button", { name: "活动记录" }).click();
         await expect(page.getByText("应用资料已更新")).toBeVisible();
         await expect(page.getByText("原因：更新品牌资料")).toBeVisible();
+        await expect
+            .poll(() => auditQueries)
+            .toContainEqual({ pageSize: "10" });
 
         await approvedArticle.getByRole("button", { name: "编辑资料" }).click();
         await approvedArticle
