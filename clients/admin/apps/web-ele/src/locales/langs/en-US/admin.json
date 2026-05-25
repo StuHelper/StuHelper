@@ -485,72 +485,21 @@
   "profile": {
     "title": "Profile",
     "tabs": {
-      "basic": "Basic Settings",
-      "security": "Security",
-      "password": "Change Password",
-      "notice": "Notifications"
+      "basic": "Account",
+      "password": "Account Settings"
     },
     "baseSetting": {
-      "roles": {
-        "admin": "Admin",
-        "user": "User",
-        "test": "Test"
-      },
       "fields": {
-        "realName": "Name",
+        "realName": "Display Name",
         "username": "Username",
-        "roles": "Roles",
-        "introduction": "Bio"
-      }
-    },
-    "notification": {
-      "accountPassword": {
-        "label": "Account Password",
-        "description": "Messages from other users will be delivered via inbox"
-      },
-      "systemMessage": {
-        "label": "System Message",
-        "description": "System notifications will be delivered via inbox"
-      },
-      "todoTask": {
-        "label": "Todo Tasks",
-        "description": "Todo reminders will be delivered via inbox"
+        "email": "Email",
+        "roles": "Roles"
       }
     },
     "password": {
-      "oldPassword": "Current Password",
-      "oldPasswordPlaceholder": "Enter current password",
-      "newPassword": "New Password",
-      "newPasswordPlaceholder": "Enter new password",
-      "confirmPassword": "Confirm Password",
-      "confirmPasswordPlaceholder": "Re-enter new password",
-      "passwordMismatch": "The two passwords do not match",
-      "updated": "Password updated successfully",
       "managedExternally": "Managed by identity provider",
-      "managedExternallyDesc": "Password changes are handled by the external identity provider. Use the link below to open the account settings page.",
+      "managedExternallyDesc": "Login, password, MFA, and account security settings are handled by the external identity provider. Use the link below to open the account settings page.",
       "goToAccountSettings": "Open account settings"
-    },
-    "security": {
-      "accountPassword": {
-        "label": "Account Password",
-        "description": "Current strength: strong"
-      },
-      "securityPhone": {
-        "label": "Security Phone",
-        "description": "Bound phone: 138****8293"
-      },
-      "securityQuestion": {
-        "label": "Security Question",
-        "description": "No security question configured yet"
-      },
-      "securityEmail": {
-        "label": "Backup Email",
-        "description": "Bound email: ant***sign.com"
-      },
-      "securityMfa": {
-        "label": "MFA Device",
-        "description": "No MFA device bound yet"
-      }
     }
   },
   "auth": {

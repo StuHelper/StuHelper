@@ -7,9 +7,7 @@ import { useUserStore } from '@vben/stores';
 import { $t } from '#/locales';
 
 import ProfileBase from './base-setting.vue';
-import ProfileNotificationSetting from './notification-setting.vue';
 import ProfilePasswordSetting from './password-setting.vue';
-import ProfileSecuritySetting from './security-setting.vue';
 
 const userStore = useUserStore();
 
@@ -21,16 +19,8 @@ const tabs = ref([
     value: 'basic',
   },
   {
-    label: $t('admin.profile.tabs.security'),
-    value: 'security',
-  },
-  {
     label: $t('admin.profile.tabs.password'),
     value: 'password',
-  },
-  {
-    label: $t('admin.profile.tabs.notice'),
-    value: 'notice',
   },
 ]);
 </script>
@@ -43,9 +33,7 @@ const tabs = ref([
   >
     <template #content>
       <ProfileBase v-if="tabsValue === 'basic'" />
-      <ProfileSecuritySetting v-if="tabsValue === 'security'" />
       <ProfilePasswordSetting v-if="tabsValue === 'password'" />
-      <ProfileNotificationSetting v-if="tabsValue === 'notice'" />
     </template>
   </Profile>
 </template>

@@ -485,72 +485,21 @@
   "profile": {
     "title": "个人中心",
     "tabs": {
-      "basic": "基本设置",
-      "security": "安全设置",
-      "password": "修改密码",
-      "notice": "新消息提醒"
+      "basic": "账号资料",
+      "password": "账户设置"
     },
     "baseSetting": {
-      "roles": {
-        "admin": "管理员",
-        "user": "用户",
-        "test": "测试"
-      },
       "fields": {
-        "realName": "姓名",
+        "realName": "显示名称",
         "username": "用户名",
-        "roles": "角色",
-        "introduction": "个人简介"
-      }
-    },
-    "notification": {
-      "accountPassword": {
-        "label": "账户密码",
-        "description": "其他用户的消息将以站内信的形式通知"
-      },
-      "systemMessage": {
-        "label": "系统消息",
-        "description": "系统消息将以站内信的形式通知"
-      },
-      "todoTask": {
-        "label": "待办任务",
-        "description": "待办任务将以站内信的形式通知"
+        "email": "邮箱",
+        "roles": "角色"
       }
     },
     "password": {
-      "oldPassword": "旧密码",
-      "oldPasswordPlaceholder": "请输入旧密码",
-      "newPassword": "新密码",
-      "newPasswordPlaceholder": "请输入新密码",
-      "confirmPassword": "确认密码",
-      "confirmPasswordPlaceholder": "请再次输入新密码",
-      "passwordMismatch": "两次输入的密码不一致",
-      "updated": "密码修改成功",
       "managedExternally": "由身份提供商管理",
-      "managedExternallyDesc": "密码修改由外部身份提供商处理，请使用下方链接打开账户设置页面。",
+      "managedExternallyDesc": "登录、密码、MFA 与账号安全设置由外部身份提供商处理，请使用下方链接打开账户设置页面。",
       "goToAccountSettings": "打开账户设置"
-    },
-    "security": {
-      "accountPassword": {
-        "label": "账户密码",
-        "description": "当前密码强度：强"
-      },
-      "securityPhone": {
-        "label": "密保手机",
-        "description": "已绑定手机：138****8293"
-      },
-      "securityQuestion": {
-        "label": "密保问题",
-        "description": "未设置密保问题，密保问题可有效保护账户安全"
-      },
-      "securityEmail": {
-        "label": "备用邮箱",
-        "description": "已绑定邮箱：ant***sign.com"
-      },
-      "securityMfa": {
-        "label": "MFA 设备",
-        "description": "未绑定 MFA 设备，绑定后，可以进行二次确认"
-      }
     }
   },
   "auth": {

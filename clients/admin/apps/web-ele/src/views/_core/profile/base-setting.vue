@@ -1,66 +1,66 @@
 <script setup lang="ts">
-import type { BasicOption } from '@vben/types';
-
-import type { VbenFormSchema } from '#/adapter/form';
+import type { AuthApi } from '#/api';
 
 import { computed, onMounted, ref } from 'vue';
 
-import { ProfileBaseSetting } from '@vben/common-ui';
+import {
+  ElDescriptions,
+  ElDescriptionsItem,
+  ElSkeleton,
+  ElTag,
+} from 'element-plus';
 
 import { getUserInfoApi } from '#/api';
 import { $t } from '#/locales';
 
-const profileBaseSettingRef = ref();
+const loading = ref(true);
+const profile = ref<AuthApi.MeResult | null>(null);
 
-const MOCK_ROLES_OPTIONS: BasicOption[] = [
-  {
-    label: $t('admin.profile.baseSetting.roles.admin'),
-    value: 'super',
-  },
-  {
-    label: $t('admin.profile.baseSetting.roles.user'),
-    value: 'user',
-  },
-  {
-    label: $t('admin.profile.baseSetting.roles.test'),
-    value: 'test',
-  },
-];
+const roles = computed(() => profile.value?.roles ?? []);
 
-const formSchema = computed((): VbenFormSchema[] => {
-  return [
-    {
-      fieldName: 'realName',
-      component: 'Input',
-      label: $t('admin.profile.baseSetting.fields.realName'),
-    },
-    {
-      fieldName: 'username',
-      component: 'Input',
-      label: $t('admin.profile.baseSetting.fields.username'),
-    },
-    {
-      fieldName: 'roles',
-      component: 'Select',
-      componentProps: {
-        mode: 'tags',
-        options: MOCK_ROLES_OPTIONS,
-      },
-      label: $t('admin.profile.baseSetting.fields.roles'),
-    },
-    {
-      fieldName: 'introduction',
-      component: 'Textarea',
-      label: $t('admin.profile.baseSetting.fields.introduction'),
-    },
-  ];
-});
+function displayValue(value: null | string | undefined) {
+  return value && value.trim() ? value : '-';
+}
 
 onMounted(async () => {
-  const { userInfo } = await getUserInfoApi();
-  profileBaseSettingRef.value.getFormApi().setValues(userInfo);
+  try {
+    const { me } = await getUserInfoApi();
+    profile.value = me;
+  } finally {
+    loading.value = false;
+  }
 });
 </script>
 <template>
-  <ProfileBaseSetting ref="profileBaseSettingRef" :form-schema="formSchema" />
+  <ElSkeleton :loading="loading" animated>
+    <div v-if="profile" class="max-w-2xl">
+      <ElDescriptions :column="1" border>
+        <ElDescriptionsItem
+          :label="$t('admin.profile.baseSetting.fields.realName')"
+        >
+          {{ displayValue(profile.displayName) }}
+        </ElDescriptionsItem>
+        <ElDescriptionsItem
+          :label="$t('admin.profile.baseSetting.fields.username')"
+        >
+          {{ displayValue(profile.name) }}
+        </ElDescriptionsItem>
+        <ElDescriptionsItem
+          :label="$t('admin.profile.baseSetting.fields.email')"
+        >
+          {{ displayValue(profile.email) }}
+        </ElDescriptionsItem>
+        <ElDescriptionsItem
+          :label="$t('admin.profile.baseSetting.fields.roles')"
+        >
+          <div v-if="roles.length > 0" class="flex flex-wrap gap-2">
+            <ElTag v-for="role in roles" :key="role" effect="plain">
+              {{ role }}
+            </ElTag>
+          </div>
+          <span v-else>-</span>
+        </ElDescriptionsItem>
+      </ElDescriptions>
+    </div>
+  </ElSkeleton>
 </template>

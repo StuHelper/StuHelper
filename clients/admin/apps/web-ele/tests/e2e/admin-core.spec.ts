@@ -197,7 +197,7 @@ test.describe('Admin core shell routes', () => {
     await mockAdminSession(page);
   });
 
-  test('profile route renders account tabs from the authenticated session', async ({
+  test('profile route renders real account data and external account settings', async ({
     page,
   }) => {
     await page.goto('/profile');
@@ -205,20 +205,20 @@ test.describe('Admin core shell routes', () => {
     const main = page.locator('main');
 
     await expect(main.getByText('Platform Admin').first()).toBeVisible();
-    await expect(page.getByRole('tab', { name: '基本设置' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: '账号资料' })).toBeVisible();
     await expect(page.getByText('用户名')).toBeVisible();
-    await expect(page.getByRole('textbox', { name: '用户名' })).toHaveValue(
-      'platform-admin',
-    );
+    await expect(
+      main.getByRole('cell', { name: 'platform-admin' }),
+    ).toBeVisible();
+    await expect(
+      main.getByRole('cell', { name: 'admin@example.com' }),
+    ).toBeVisible();
+    await expect(main.getByText('platform_admin')).toBeVisible();
+    await expect(page.getByRole('tab', { name: '安全设置' })).toHaveCount(0);
+    await expect(page.getByRole('tab', { name: '新消息提醒' })).toHaveCount(0);
 
-    await page.getByRole('tab', { name: '安全设置' }).click();
-    await expect(page.getByText('当前密码强度：强')).toBeVisible();
-
-    await page.getByRole('tab', { name: '修改密码' }).click();
+    await page.getByRole('tab', { name: '账户设置' }).click();
     await expect(page.getByText('由身份提供商管理')).toBeVisible();
-
-    await page.getByRole('tab', { name: '新消息提醒' }).click();
-    await expect(page.getByText('系统消息', { exact: true })).toBeVisible();
   });
 
   test('user dropdown confirms logout and starts admin SSO login', async ({

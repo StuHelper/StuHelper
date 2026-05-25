@@ -1028,6 +1028,22 @@ Admin 单测文件、73 项）、`pnpm --dir clients type-check:admin`、`pnpm -
 `vue/one-component-per-file` warning）、`rg` 确认示例组件名和示例文案无剩余引用，以及完整
 `CI=1 ADMIN_E2E_PORT=4236 make e2e-admin`（78 项）。
 
+本地清理补充（2026-05-26）：继续收敛 Admin 个人中心 active codebase。审计发现 `/profile` 仍保留上游
+Vben profile demo：`base-setting.vue` 使用 `MOCK_ROLES_OPTIONS` 渲染可编辑但不会保存的角色 / 简介表单，
+`security-setting.vue` 和 `notification-setting.vue` 只展示静态密码强度、密保手机、备用邮箱
+`ant***sign.com`、MFA 和站内信提醒开关；这些内容与 StuHelper 真实账号体系不一致，且安全、密码、MFA 均由
+外部身份提供商账户设置管理。本轮删除未接入的 security / notification profile tab 和对应组件 / locale，把
+基础资料页改成只读展示 `/auth/me` 返回的显示名称、用户名、邮箱和角色，并保留“账户设置”tab 跳转外部身份提供商
+账户设置。Admin E2E profile 用例同步改为断言真实账号资料渲染、`安全设置` / `新消息提醒` tab 不存在、
+`账户设置` tab 显示“由身份提供商管理”。验证已通过
+`pnpm --dir clients/admin --filter @vben/web-ele test -- src/store/auth.test.ts src/api/core/user.test.ts`（18 个
+Admin 单测文件、73 项）、`CI=1 ADMIN_E2E_PORT=4237 pnpm --dir clients/admin --filter @vben/web-ele exec playwright test tests/e2e/admin-core.spec.ts`
+（12 项）、`pnpm --dir clients type-check:admin`、`pnpm --dir clients lint:admin`（仅 7 个既有
+`vue/one-component-per-file` warning）、`rg` 确认 profile demo 组件和静态示例文案无剩余源码引用，以及完整
+`CI=1 ADMIN_E2E_PORT=4240 make e2e-admin`（78 项）。全量 Admin E2E 首轮曾出现一次桌面 Chromium
+`net::ERR_NETWORK_CHANGED` console 噪声，失败用例单跑桌面 / 移动 2 项通过，随后完整复跑 78 项通过，未做
+门禁放宽。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |
