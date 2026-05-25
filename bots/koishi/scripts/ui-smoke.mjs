@@ -347,6 +347,7 @@ async function writeSmokeConfig(tempDir) {
 async function writeSmokeSeedPlugin(tempDir) {
   await writeFile(join(tempDir, 'ui-smoke-seed.cjs'), `
 const { h, Universal } = require('koishi')
+const { GUARD_MEMBER_TABLE } = require('@stuhelper/koishi-shared')
 const {
   MODERATION_EVENT_TABLE,
   MODERATION_REPORT_TABLE,
@@ -361,6 +362,9 @@ const CHAT_IMAGE_FILE = 'ui-smoke-image.png'
 const CHAT_IMAGE_URL = 'https://gchat.qpic.cn/gchatpic_new/1001/100100-514-UI-SMOKE/0'
 const AUTHORITY_IMPORT_PID = '100003'
 const AUTHORITY_IMPORT_NAME = 'E2E Authority 导入用户'
+const IDENTITY_PENDING_MEMBER_ID = '200201'
+const IDENTITY_BOUND_MEMBER_ID = '200202'
+const IDENTITY_RELEASED_MEMBER_ID = '200203'
 const TRANSPARENT_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII='
 const DATA_AVATAR = 'data:image/png;base64,' + TRANSPARENT_PNG_BASE64
 
@@ -413,6 +417,7 @@ module.exports = function uiSmokeSeed(ctx) {
       }
 
       await seedAuthorityImportUser(ctx)
+      await seedIdentityGuardMembers(ctx)
       installSmokeBot(ctx, sentMessages, recalledMessages, () => ++messageSeq)
       console.log('${SEED_READY_MESSAGE}')
     } catch (error) {
@@ -461,6 +466,70 @@ async function seedAuthorityImportUser(ctx) {
       platform: 'onebot',
       pid: AUTHORITY_IMPORT_PID,
     })
+  }
+}
+
+async function seedIdentityGuardMembers(ctx) {
+  const createdAt = new Date('2026-05-25T00:20:00.000Z')
+  const records = [
+    guardMemberRecord({
+      id: 'ui-smoke-identity-pending-1',
+      guildId: '1001',
+      channelId: '2001',
+      memberId: IDENTITY_PENDING_MEMBER_ID,
+      memberName: 'E2E 待认证成员',
+      verificationState: 'unbound',
+      deadlineAt: new Date('2026-05-26T00:20:00.000Z'),
+      lastError: '等待用户绑定 StuHelper 账号',
+      createdAt,
+    }),
+    guardMemberRecord({
+      id: 'ui-smoke-identity-bound-1',
+      guildId: '1002',
+      channelId: '2002',
+      memberId: IDENTITY_BOUND_MEMBER_ID,
+      memberName: 'E2E 待完善认证成员',
+      verificationState: 'bound_unverified',
+      deadlineAt: new Date('2026-05-26T00:40:00.000Z'),
+      createdAt,
+    }),
+    guardMemberRecord({
+      id: 'ui-smoke-identity-released-1',
+      guildId: '1001',
+      channelId: '2001',
+      memberId: IDENTITY_RELEASED_MEMBER_ID,
+      memberName: 'E2E 已释放成员',
+      verificationState: 'verified',
+      deadlineAt: new Date('2026-05-25T01:20:00.000Z'),
+      releasedAt: new Date('2026-05-25T01:00:00.000Z'),
+      createdAt,
+    }),
+  ]
+
+  for (const record of records) {
+    const [existing] = await ctx.database.get(GUARD_MEMBER_TABLE, { id: record.id })
+    if (!existing) {
+      await ctx.database.create(GUARD_MEMBER_TABLE, record)
+    }
+  }
+}
+
+function guardMemberRecord(input) {
+  return {
+    platform: 'onebot',
+    botSelfId: '514',
+    admissionSessionID: 'session-' + input.id,
+    backendSyncPending: false,
+    joinedAt: input.createdAt,
+    nextReminderAt: null,
+    manualReviewDeadlineAt: null,
+    mutedAt: input.createdAt,
+    reminderSentAt: input.createdAt,
+    releasedAt: null,
+    kickedAt: null,
+    lastError: null,
+    updatedAt: input.createdAt,
+    ...input,
   }
 }
 
@@ -671,13 +740,7 @@ function startPlatformStub() {
 
     const qqVerificationMatch = url.pathname.match(/^\/api\/v1\/bot\/qq-users\/([^/]+)\/verification$/)
     if (method === 'GET' && qqVerificationMatch) {
-      writeJSON(response, {
-        qqID: decodeURIComponent(qqVerificationMatch[1]),
-        bindingStatus: 'unbound',
-        profileVerificationStatus: 'unverified',
-        studentVerificationStatus: 'unverified',
-        canJoin: false,
-      })
+      writeJSON(response, qqVerificationStatus(decodeURIComponent(qqVerificationMatch[1])))
       return
     }
 
@@ -714,6 +777,42 @@ function startPlatformStub() {
       })
     })
   })
+}
+
+function qqVerificationStatus(qqID) {
+  if (qqID === '200202') {
+    return {
+      qqID,
+      userID: 4202,
+      qqNickname: 'E2E 待完善资料',
+      boundAt: '2026-05-25T00:30:00.000Z',
+      verificationState: 'bound_unverified',
+      profileVerificationStatus: 'pending',
+      studentVerified: false,
+    }
+  }
+
+  if (qqID === '200203') {
+    return {
+      qqID,
+      userID: 4203,
+      qqNickname: 'E2E 已认证用户',
+      boundAt: '2026-05-25T00:40:00.000Z',
+      verificationState: 'verified',
+      profileVerificationStatus: 'verified',
+      studentVerified: true,
+    }
+  }
+
+  return {
+    qqID,
+    userID: null,
+    qqNickname: null,
+    boundAt: null,
+    verificationState: 'unbound',
+    profileVerificationStatus: 'unverified',
+    studentVerified: false,
+  }
 }
 
 function writeJSON(response, data) {

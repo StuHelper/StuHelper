@@ -302,7 +302,7 @@ async function loadData() {
 function applyNavigationState() {
   const state = props.navigation?.state.value
   selectedGuildId.value = state?.guildId || ''
-  keyword.value = state?.keyword || state?.memberId || ''
+  keyword.value = typeof state?.keyword === 'string' ? state.keyword : state?.memberId || ''
   selectedMemberId.value = state?.itemId || ''
 }
 
@@ -326,10 +326,11 @@ function selectMember(memberId: string) {
 function syncSelection() {
   const fallback = filteredMembers.value[0] ?? null
   const member = filteredMembers.value.find((item) => item.id === selectedMemberId.value) ?? fallback
+  const filterGuildId = selectedGuildId.value || null
   if (!member) {
     props.navigation?.replaceState({
       workspace: 'members',
-      guildId: selectedGuildId.value || null,
+      guildId: filterGuildId,
       memberId: null,
       itemId: null,
       keyword: keyword.value,
@@ -339,7 +340,7 @@ function syncSelection() {
   selectedMemberId.value = member.id
   props.navigation?.replaceState({
     workspace: 'members',
-    guildId: member.guildId,
+    guildId: filterGuildId,
     memberId: member.memberId,
     itemId: member.id,
     keyword: keyword.value,

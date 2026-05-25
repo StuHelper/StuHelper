@@ -122,6 +122,62 @@ for (const view of VIEWS) {
   })
 }
 
+test('identity view filters restricted members and renders verification context', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  await clickNavRail(page, '限制中')
+  await expect(page).toHaveURL(/#identity($|\?)/, { timeout: 5_000 })
+  await expect(page.locator('.sh-workspace-head__title', { hasText: '身份认证' }).first()).toBeVisible({
+    timeout: 10_000,
+  })
+
+  const metric = (label: string) =>
+    page
+      .locator('.sh-dashboard-metrics .sh-stat')
+      .filter({ has: page.locator('.sh-stat__label', { hasText: label }) })
+      .locator('.sh-stat__value')
+      .first()
+
+  await expect(metric('待认证成员')).toHaveText('2')
+  await expect(metric('已认证成员')).toHaveText('1')
+  await expect(metric('待完善认证')).toHaveText('1')
+  await expect(metric('最近释放')).toHaveText('1')
+
+  await page.locator('.sh-identity-toolbar__field--wide input').fill('')
+  await page.locator('.sh-identity-toolbar__field').first().locator('.el-select__wrapper').click()
+  await page.locator('.el-select-dropdown__item:visible', { hasText: '全部群组' }).click()
+
+  const restrictedSection = page.locator('.sh-section', { hasText: '当前受限成员' }).first()
+  await expect(restrictedSection.locator('.sh-lane__row', { hasText: 'E2E 待认证成员' })).toBeVisible({
+    timeout: 10_000,
+  })
+  await expect(restrictedSection.locator('.sh-lane__row', { hasText: 'E2E 待完善认证成员' })).toBeVisible()
+  await expect(restrictedSection.locator('.sh-lane__row', { hasText: 'E2E 已释放成员' })).toHaveCount(0)
+
+  await page.locator('.sh-identity-toolbar__field').first().locator('.el-select__wrapper').click()
+  await page.locator('.el-select-dropdown__item:visible', { hasText: '1002 · 1 待处理' }).click()
+  await page.locator('.sh-identity-toolbar__field--wide input').fill('待完善')
+
+  await expect(restrictedSection.locator('.sh-lane__row')).toHaveCount(1)
+  const filteredMember = restrictedSection.locator('.sh-lane__row', { hasText: 'E2E 待完善认证成员' }).first()
+  await expect(filteredMember).toBeVisible()
+  await expect(filteredMember).toContainText('bound_unverified')
+  await filteredMember.click()
+
+  const detailSection = page.locator('.sh-section', { hasText: '成员详情' }).first()
+  await expect(detailSection).toContainText('200202')
+  await expect(detailSection).toContainText('E2E 待完善认证成员')
+  await expect(detailSection).toContainText('bound_unverified')
+
+  const releaseSection = page.locator('.sh-section', { hasText: '最近自动解除' }).first()
+  await expect(releaseSection).toContainText('E2E 已释放成员')
+  await expect(releaseSection).toContainText('200203')
+  await expect(releaseSection).toContainText('verified')
+  await expect(page.locator('.sh-section', { hasText: '查询错误' })).toHaveCount(0)
+
+  tracker.assertClean()
+})
+
 test('chat dock opens via CommandBar and renders ChatView', async ({ loggedInPage: page }) => {
   await using tracker = createTracker(page)
 

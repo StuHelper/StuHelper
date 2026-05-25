@@ -698,6 +698,20 @@ admission action 与 freshman forward 都是 QQ 平台边界内的后台轮询�
 平台 API 拉取，执行 action 时的边界校验仍保留；构建后用同一临时 Koishi 配置等待超过一个 60 秒
 扫描周期，确认不再出现 `group guard scheduled scan failed`。
 
+本地验证补充（2026-05-26）：继续补齐 Koishi Console 身份认证 / 限制中页面的真实浏览器交互覆盖。
+`scripts/ui-smoke.mjs` 现在在隔离 Koishi 数据库中创建 2 条受限 guard member 和 1 条已释放记录，
+平台 stub 对三名成员返回 unbound / bound_unverified / verified 三种认证状态。新增 E2E 用例验证页面
+汇总指标、全部群组受限成员列表、群组筛选、关键字筛选、成员详情、最近自动解除表和查询错误空态。
+覆盖过程中发现 IdentityView 把 `guildId` 同时当作筛选条件和当前成员上下文，导致选择“全部群组”后又被
+当前成员群号覆盖；同时 `applyNavigationState()` 用 `state.keyword || state.memberId`，导致清空检索后
+又自动回填成员 ID。现已改为保留显式空 keyword，并在同步导航状态时保留用户选择的群组筛选。新增覆盖后
+已通过 `STUHELPER_UI_SMOKE_PORT=5190 corepack yarn --cwd bots/koishi test:ui`（29 项）。同日使用
+Playwright MCP 启动临时 Koishi Console `http://127.0.0.1:5191`，真实登录 admin 并复验同一路径，
+返回 `metrics={pending:2,verified:1,boundUnverified:1,released:1}`、`allRestrictedRowsAfterReset=2`、
+`filteredRowText` 包含 `MCP 待完善认证成员` 和 `bound_unverified`、详情包含 `200302`、最近释放包含
+`200303` / `verified`、`lookupErrorSectionCount=0`，业务交互阶段 console warning/error、pageerror
+和关键资源问题均为 0。
+
 本地验证补充（2026-05-25）：继续补齐 Koishi Console 处置中心真实写路径。`scripts/ui-smoke.mjs`
 现在随临时 Koishi 配置挂载仅用于 smoke 的 seed 插件，在 Koishi 自身数据库上下文里写入一条开放举报和
 关联事件，不在业务代码里增加测试开关。新增 E2E 用例进入“处置中心”，过滤“举报”工作项，选中
