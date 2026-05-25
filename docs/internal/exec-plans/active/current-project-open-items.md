@@ -119,7 +119,7 @@ view-specific 编辑区渲染；同时通过真实 UI 保存 `e2e-template` guar
 `make e2e-koishi`（15 项）和 `corepack yarn test:unit`（259 项）。
 
 本地验证补充（2026-05-25）：本机生产等价 browser smoke 从浅层首页检查扩展为公开 Web 路由
-矩阵，覆盖首页、登录页、关于、隐私、条款、课程入口、课程列表、课程说明、评课聚合、搜索、教师主页、
+矩阵，覆盖首页、登录页、认证回调错误态、入群认证链接、关于、隐私、条款、课程入口、课程列表、课程说明、评课聚合、搜索、教师主页、
 写评课、用户中心各 tab、实名 / 学生认证、手机 / QQ 绑定、学籍信息、通知、开发者应用、Open Platform
 授权与资料补全保护跳转、404 页面和 Admin 登录跳转；保护入口会同时验证落到登录页且保留原始 `redirect`。
 同一批检查现在会分别用桌面 `1365x900` 和移动 `390x844` 视口运行，evidence 记录视口信息，截图文件名带视口后缀。
@@ -132,12 +132,12 @@ view-specific 编辑区渲染；同时通过真实 UI 保存 `e2e-template` guar
 
 本地验证补充（2026-05-25）：本机生产等价 browser smoke 不再只验证空库页面壳。新增
 `prod-parity-smoke-data.sh`，在本机 prod-parity PostgreSQL 中幂等写入专用院系、教师、课程、
-已发布评课和回复，刷新课程 / 教师评分统计及 `mv_teacher_public_stats`，并清理 prod-parity Redis
+已发布评课、回复和入群认证会话，刷新课程 / 教师评分统计及 `mv_teacher_public_stats`，并清理 prod-parity Redis
 中的课程 / 评课缓存；脚本拒绝非 `prod-parity` PostgreSQL / Redis 容器，避免误用到生产。Browser smoke
 新增 `requiredTexts` 断言，并把课程列表、课程详情 `/courses/900001`、课程评课详情
 `/courses/900001/reviews`、评课聚合、教师主页和教师详情 `/teachers/900001` 都纳入桌面与移动视口检查。
-本轮已通过真实 API 验证课程、教师和匿名评课预览数据可见，并通过 `./infra/ops/prod-parity-browser-smoke.sh`
-（60 项，桌面 / 移动各 30 项）；smoke data evidence 写入 `.run/prod-parity/smoke-data-evidence.json`，
+本轮已通过真实 API 验证课程、教师、匿名评课预览数据和入群认证链接可见，并通过 `./infra/ops/prod-parity-browser-smoke.sh`
+（64 项，桌面 / 移动各 32 项）；smoke data evidence 写入 `.run/prod-parity/smoke-data-evidence.json`，
 browser evidence 写入 `.run/prod-parity/browser-smoke-evidence.json`。
 
 本地生产等价补充（2026-05-25）：新增 `prod-parity-datastore-smoke.sh`，并接入

@@ -21,6 +21,8 @@ try {
 const timeoutMs = Number(process.env.PROD_PARITY_BROWSER_SMOKE_TIMEOUT_MS || 30000);
 const webBaseURL = normalizeBaseURL(process.env.WEB_BASE_URL || 'http://127.0.0.1:28000');
 const adminBaseURL = normalizeBaseURL(process.env.ADMIN_BASE_URL || 'http://127.0.0.1:28001');
+const admissionToken = process.env.PROD_PARITY_ADMISSION_TOKEN || 'PROD-PARITY-ADMIT-LOGIN';
+const admissionQQ = process.env.PROD_PARITY_ADMISSION_QQ || '990001';
 const evidenceFile =
   process.env.PROD_PARITY_BROWSER_SMOKE_EVIDENCE_FILE ||
   resolve(repoRoot, '.run/prod-parity/browser-smoke-evidence.json');
@@ -55,6 +57,31 @@ const checks = [
     name: 'web-login',
     url: joinURL(webBaseURL, '/login'),
     expectedTexts: ['StuHelper'],
+  },
+  {
+    name: 'web-auth-callback-missing-code',
+    url: joinURL(webBaseURL, '/auth/callback?state=prod-parity-smoke'),
+    expectedTexts: ['登录失败', 'Login Failed'],
+    requiredTexts: ['缺少授权码'],
+  },
+  {
+    name: 'web-admission-login',
+    url: joinURL(
+      webBaseURL,
+      `/admission/a/${encodeURIComponent(admissionToken)}?qq=${encodeURIComponent(admissionQQ)}`,
+    ),
+    expectedTexts: ['登录 StuHelper'],
+    requiredTexts: ['入群身份认证', `QQ：${admissionQQ}`],
+    allowedAPIResponses: [
+      {
+        urlIncludes: '/api/v1/auth/me',
+        statuses: [401],
+      },
+      {
+        urlIncludes: '/api/v1/auth/refresh',
+        statuses: [401],
+      },
+    ],
   },
   {
     name: 'web-about',

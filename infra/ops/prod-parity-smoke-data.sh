@@ -36,9 +36,12 @@ app_user="${STUHELPER_APP_DB_USER:-stuhelper_app}"
 redis_container="${REDIS_CONTAINER_NAME:-${STACK_NAME:-stuhelper-prod-parity}-redis}"
 redis_username="${REDIS_USERNAME:-stuhelper_app}"
 evidence_file="${PROD_PARITY_SMOKE_DATA_EVIDENCE_FILE:-${PARITY_DIR}/smoke-data-evidence.json}"
+admission_token="${PROD_PARITY_ADMISSION_TOKEN:-PROD-PARITY-ADMIT-LOGIN}"
+admission_qq="${PROD_PARITY_ADMISSION_QQ:-990001}"
 
 [[ -n "${STUHELPER_APP_DB_PASSWORD:-}" ]] || die "STUHELPER_APP_DB_PASSWORD is required for prod-parity smoke data"
 [[ -n "${REDIS_PASSWORD:-}" ]] || die "REDIS_PASSWORD is required for prod-parity smoke data cache invalidation"
+[[ -n "${HMAC_SECRET:-}" ]] || die "HMAC_SECRET is required for prod-parity admission smoke data"
 
 case "${postgres_container}" in
   *prod-parity*) ;;
@@ -53,12 +56,27 @@ esac
 docker inspect "${postgres_container}" >/dev/null 2>&1 || die "PostgreSQL container not found: ${postgres_container}"
 docker inspect "${redis_container}" >/dev/null 2>&1 || die "Redis container not found: ${redis_container}"
 
+admission_token_hash="$(
+  python3 - "${HMAC_SECRET}" "${admission_token}" <<'PY'
+import hashlib
+import hmac
+import sys
+
+key = sys.argv[1].encode()
+token = sys.argv[2].strip().encode()
+print(hmac.new(key, token, hashlib.sha256).hexdigest())
+PY
+)"
+
 log "seeding deterministic prod-parity browser smoke data"
 docker exec \
   -e PGPASSWORD="${STUHELPER_APP_DB_PASSWORD}" \
   -i "${postgres_container}" \
   psql \
     -v ON_ERROR_STOP=1 \
+    -v admission_token="${admission_token}" \
+    -v admission_token_hash="${admission_token_hash}" \
+    -v admission_qq="${admission_qq}" \
     -h 127.0.0.1 \
     -U "${app_user}" \
     -d "${stuhelper_db}" <<'SQL' >/dev/null
@@ -283,6 +301,53 @@ SELECT setval('public.departments_id_seq', GREATEST((SELECT max(id) FROM public.
 SELECT setval('public.teachers_id_seq', GREATEST((SELECT max(id) FROM public.teachers), (SELECT last_value FROM public.teachers_id_seq)), true);
 SELECT setval('public.courses_id_seq', GREATEST((SELECT max(id) FROM public.courses), (SELECT last_value FROM public.courses_id_seq)), true);
 
+INSERT INTO public.group_admission_sessions (
+    id, platform, bot_self_id, guild_id, channel_id, qq_id, qq_nickname, user_id,
+    token_hash, auth_url, token_expires_at, token_consumed_at, status,
+    link_wait_deadline_at, submission_wait_deadline_at, manual_review_deadline_at,
+    initial_mute_until, verified_at, cancelled_at, last_bot_error, updated_at
+)
+VALUES (
+    'prod-parity-admission-session',
+    'qq',
+    'prod-parity-bot',
+    'prod-parity-guild',
+    'prod-parity-channel',
+    :'admission_qq',
+    '生产等价 QQ',
+    NULL,
+    :'admission_token_hash',
+    format('http://127.0.0.1:28000/admission/a/%s?qq=%s', :'admission_token', :'admission_qq'),
+    now() + interval '1 hour',
+    NULL,
+    'joined_muted',
+    now() + interval '1 hour',
+    now() + interval '1 day',
+    NULL,
+    now() + interval '30 days',
+    NULL,
+    NULL,
+    NULL,
+    now()
+)
+ON CONFLICT (id) DO UPDATE
+SET qq_id = EXCLUDED.qq_id,
+    qq_nickname = EXCLUDED.qq_nickname,
+    user_id = NULL,
+    token_hash = EXCLUDED.token_hash,
+    auth_url = EXCLUDED.auth_url,
+    token_expires_at = EXCLUDED.token_expires_at,
+    token_consumed_at = NULL,
+    status = EXCLUDED.status,
+    link_wait_deadline_at = EXCLUDED.link_wait_deadline_at,
+    submission_wait_deadline_at = EXCLUDED.submission_wait_deadline_at,
+    manual_review_deadline_at = NULL,
+    initial_mute_until = EXCLUDED.initial_mute_until,
+    verified_at = NULL,
+    cancelled_at = NULL,
+    last_bot_error = NULL,
+    updated_at = now();
+
 COMMIT;
 SQL
 
@@ -324,6 +389,7 @@ query_json="$(
     -i "${postgres_container}" \
     psql \
       -v ON_ERROR_STOP=1 \
+      -v admission_qq="${admission_qq}" \
       -h 127.0.0.1 \
       -U "${app_user}" \
       -d "${stuhelper_db}" \
@@ -338,7 +404,16 @@ SELECT jsonb_build_object(
   'replyCount', (SELECT count(*) FROM public.review_replies WHERE id = '01999999-0002-7000-8000-000000000002' AND status = 'published'),
   'courseRatingStatsCount', (SELECT count(*) FROM public.course_rating_stats WHERE course_id = 900001),
   'teacherRatingStatsCount', (SELECT count(*) FROM public.teacher_rating_stats WHERE teacher_id = 900001),
-  'teacherPublicStatsCount', (SELECT count(*) FROM public.mv_teacher_public_stats WHERE teacher_id = 900001 AND review_count > 0)
+  'teacherPublicStatsCount', (SELECT count(*) FROM public.mv_teacher_public_stats WHERE teacher_id = 900001 AND review_count > 0),
+  'admissionSessionCount', (
+      SELECT count(*)
+      FROM public.group_admission_sessions
+      WHERE id = 'prod-parity-admission-session'
+        AND qq_id = :'admission_qq'
+        AND status = 'joined_muted'
+        AND token_consumed_at IS NULL
+        AND token_expires_at > now()
+  )
 )::text;
 SQL
 )"
@@ -359,6 +434,7 @@ required = {
     "courseRatingStatsCount": 10,
     "teacherRatingStatsCount": 10,
     "teacherPublicStatsCount": 1,
+    "admissionSessionCount": 1,
 }
 failures = [
     f"{key} expected {expected}, got {payload.get(key)}"
