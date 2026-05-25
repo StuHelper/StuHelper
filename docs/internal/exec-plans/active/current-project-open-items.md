@@ -515,6 +515,17 @@ mock SSO 页面且无 console error。新增覆盖后已通过
 （32 项）、`pnpm --dir clients run type-check:uni`、`pnpm --dir clients run test:uni` 和完整
 `CI=1 UNIAPPX_E2E_PORT=3146 make e2e-uni`（32 项）。
 
+本地验证补充（2026-05-25）：继续补齐 UniAppX H5 评课广场未登录投票认证边界。新增 E2E 覆盖未登录用户进入
+`/#/pages/review/index` 后点击评课点赞按钮，前端不会调用
+`POST /api/v1/course/review/reviews/{id}/votes`，而是跳转登录页；随后点击“使用校园 SSO 登录”会调用
+`GET /api/v1/auth/login`，并断言 `app=uniapp`、不携带 `platform`、`redirect=/pages/review/index`。
+除自动 E2E 外，还启动 UniAppX 本地 H5，通过 Playwright MCP 在 `390x844` 视口注入同等 API mock，
+实际点击评课点赞并进入 mock SSO，确认登录页地址栏仍可见框架二次编码但 login API 请求的 redirect
+已规范化为 `/pages/review/index`，且未发送投票 mutation。新增覆盖后已通过
+`CI=1 UNIAPPX_E2E_PORT=3148 pnpm --dir clients/uniappx exec playwright test tests/e2e/surface.spec.ts`
+（34 项）、`pnpm --dir clients run type-check:uni`、`pnpm --dir clients run test:uni` 和完整
+`CI=1 UNIAPPX_E2E_PORT=3150 make e2e-uni`（34 项）。
+
 本地全量复验（2026-05-25）：在提交 `d82afd53` 上复跑统一客户端 E2E 门禁，
 `CI=1 PLAYWRIGHT_WEB_PORT=3450 ADMIN_E2E_PORT=4206 UNIAPPX_E2E_PORT=3142 make e2e`
 通过 Web 120 项、Admin 66 项和 UniAppX H5 30 项，覆盖本轮 Web 重新认证 / callback guard 与
