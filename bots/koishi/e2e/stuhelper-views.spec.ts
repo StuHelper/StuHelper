@@ -453,6 +453,62 @@ test('system cache actions refresh and clear through real console actions', asyn
   tracker.assertClean()
 })
 
+test('global settings discard, save, and restore defaults through real console actions', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  await clickNavRail(page, '全局设置')
+  await expect(page).toHaveURL(/#settings($|\?)/, { timeout: 5_000 })
+  await expect(page.locator('.view-title', { hasText: '全局设置' })).toBeVisible({ timeout: 10_000 })
+
+  const warnLimitInput = settingsInput(page, '警告次数限制')
+  const banExpressionInput = settingsInput(page, '禁言时长表达式')
+
+  await expect(warnLimitInput).toHaveValue('3')
+  await fillSettingsInput(page, '警告次数限制', '7')
+  await expect(page.locator('.save-bar', { hasText: '检测到未保存的修改' })).toBeVisible()
+  await page.getByRole('button', { name: '放弃更改', exact: true }).click()
+
+  const discardDialog = settingsDialog(page, '放弃更改')
+  await expect(discardDialog).toBeVisible({ timeout: 5_000 })
+  await expect(discardDialog.getByText('确定要放弃当前所有未保存的修改吗？')).toBeVisible()
+  await discardDialog.getByRole('button', { name: '确认', exact: true }).click()
+
+  await expect(page.getByText('已放弃更改')).toBeVisible({ timeout: 10_000 })
+  await expect(warnLimitInput).toHaveValue('3')
+  await expect(page.locator('.save-bar')).toHaveCount(0, { timeout: 5_000 })
+
+  await fillSettingsInput(page, '警告次数限制', '5')
+  await fillSettingsInput(page, '禁言时长表达式', '{t}h')
+  await page.getByRole('button', { name: '保存更改', exact: true }).click()
+
+  await expect(toastMessage(page, '设置已保存')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.save-bar')).toHaveCount(0, { timeout: 5_000 })
+
+  await clickNavRail(page, '日志检索')
+  await expect(page).toHaveURL(/#logs($|\?)/, { timeout: 5_000 })
+  await clickNavRail(page, '全局设置')
+  await expect(page).toHaveURL(/#settings($|\?)/, { timeout: 5_000 })
+  await expect(warnLimitInput).toHaveValue('5', { timeout: 10_000 })
+  await expect(banExpressionInput).toHaveValue('{t}h')
+
+  await page.getByRole('button', { name: '恢复默认', exact: true }).click()
+  const defaultDialog = settingsDialog(page, '恢复默认设置')
+  await expect(defaultDialog).toBeVisible({ timeout: 5_000 })
+  await expect(defaultDialog.getByText('确定要将所有设置恢复为默认值吗？此操作将覆盖当前所有设置，需要保存后才会生效。')).toBeVisible()
+  await defaultDialog.getByRole('button', { name: '确认', exact: true }).click()
+
+  await expect(page.getByText('已恢复默认设置，请保存以应用更改')).toBeVisible({ timeout: 10_000 })
+  await expect(warnLimitInput).toHaveValue('3')
+  await expect(banExpressionInput).toHaveValue('{t}^2h')
+  await expect(page.locator('.save-bar', { hasText: '检测到未保存的修改' })).toBeVisible()
+  await page.getByRole('button', { name: '保存更改', exact: true }).click()
+
+  await expect(toastMessage(page, '设置已保存')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.save-bar')).toHaveCount(0, { timeout: 5_000 })
+
+  tracker.assertClean()
+})
+
 /**
  * 通过 NavRail 的 button[title=label] 切到指定 view。
  * NavRail 收起时 label 文本 opacity:0 不可读，但 button 元素本身可点击；
@@ -491,6 +547,26 @@ async function setFeatureChecked(page: Page, label: string, checked: boolean): P
 
 function confirmDialog(page: Page, title: string) {
   return page.locator('.el-dialog.sh-confirm', { hasText: title }).first()
+}
+
+function settingsDialog(page: Page, title: string) {
+  return page.locator('.settings-view .modal-dialog', { hasText: title }).first()
+}
+
+function settingsInput(page: Page, label: string) {
+  return page
+    .locator('.settings-view .form-row')
+    .filter({ has: page.locator('.form-label', { hasText: label }) })
+    .locator('input')
+    .first()
+}
+
+async function fillSettingsInput(page: Page, label: string, value: string): Promise<void> {
+  await settingsInput(page, label).fill(value)
+}
+
+function toastMessage(page: Page, text: string) {
+  return page.locator('.el-message__content', { hasText: text }).last()
 }
 
 interface ConsoleIssue {

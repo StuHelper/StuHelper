@@ -612,6 +612,19 @@ Drawer 并点击“重置”确认筛选项清空。该用例覆盖 `stuhelperGr
 新增覆盖后已通过 `STUHELPER_UI_SMOKE_PORT=5163 corepack yarn --cwd bots/koishi test:ui`（22 项）和
 `corepack yarn --cwd bots/koishi test:unit`（260 项）。
 
+本地验证补充（2026-05-25）：继续补齐 Koishi Console 全局设置真实写入路径。新增 E2E 用例进入
+“全局设置”，修改“警告次数限制”后验证底部保存条出现，点击“放弃更改”并确认页面内弹窗后断言值恢复；
+随后修改“警告次数限制”和“禁言时长表达式”，点击“保存更改”，切到其他视图再回到设置页，断言新值
+`5` 和 `{t}h` 由后端设置重新加载；最后点击“恢复默认”，确认页面内弹窗，断言默认值 `3` 与
+`{t}^2h` 回到表单，再保存以恢复临时测试环境。该用例覆盖 `stuhelperGroupCenter/settings/get` 和
+`settings/update` 的浏览器 UI 到 WebSocket API 再到 `SettingsManager` 持久化链路。Playwright MCP
+也在临时 Koishi `http://127.0.0.1:5169` 上通过页面内 NavRail 复验同一路径，返回
+`initialWarnLimit=3`、`discardedWarnLimit=3`、保存后重新进入的 `persisted.warnLimit=5`、
+`persisted.banExpression={t}h`，以及恢复默认后的 `defaultsBeforeSave.warnLimit=3`、
+`defaultsBeforeSave.banExpression={t}^2h`，交互阶段未发现新增 console warning/error 或 pageerror。
+新增覆盖后已通过 `STUHELPER_UI_SMOKE_PORT=5168 corepack yarn --cwd bots/koishi test:ui`（23 项）和
+`corepack yarn --cwd bots/koishi test:unit`（260 项）。
+
 本地生产等价复验（2026-05-25）：在提交 `45b401c2` 上重新执行 `make prod-parity-up`，构建并启动
 tag 为 `prod-parity-45b401c2` 的 backend / frontend / admin 生产镜像。当前本机生产等价入口为
 Web `http://127.0.0.1:28000`、Admin `http://127.0.0.1:28001/admin/`、Backend
