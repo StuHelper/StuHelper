@@ -357,6 +357,18 @@ UniAppX H5 E2E 补充（2026-05-25）：继续收紧发布评课草稿路径。�
 112 项、Admin 66 项和 UniAppX H5 28 项。该轮复验覆盖三个客户端的桌面 / 移动 Playwright project，
 浏览器 `pageerror`、console error、关键静态资源和 API 4xx/5xx 门禁保持开启。
 
+本地生产等价复验（2026-05-25）：在当前提交 `605200fb` 上执行 `make prod-parity-up`，重建并启动
+tag 为 `prod-parity-605200fb` 的 backend / frontend / admin 生产镜像。共享 PostgreSQL、Casdoor、
+Redis、OpenFGA、MinIO、Grafana LGTM 与应用服务均健康，应用入口为 Web `http://127.0.0.1:28000`、
+Admin `http://127.0.0.1:28001/admin/`、Backend `http://127.0.0.1:28080`、Grafana
+`http://127.0.0.1:23003`。本轮自动 smoke 已通过基础 API 17 项、Identity public smoke 26 项、
+datastore isolation 22 项、prod-parity browser smoke 64 项和 observability smoke；evidence 写入
+`.run/prod-parity/datastore-smoke-evidence.json`、`.run/prod-parity/identity-public-smoke-evidence.json`、
+`.run/prod-parity/browser-smoke-evidence.json` 和 `.run/prod-parity/observability-smoke-evidence.json`。
+针对本轮 Web 成绩契约修复，还额外用真实浏览器访问 prod-parity Web 生产镜像
+`/courses/reviews/post`，mock 登录态和后端接口，确认 `review-grade` 下拉在生产 bundle 中可见，选择
+`A+` 后自动保存草稿 payload 携带 `grade=A+`，且无浏览器 pageerror 或 console error。
+
 接口硬化补充（2026-05-24）：审计发现 legacy disclosure API 文档要求 `client_id`，但
 OpenAPI 未声明且 handler 只读取认证上下文 appID；同时服务端在已有 active consent 时未重新校验
 `redirect_uri`。本轮已按 OpenAPI-first 补齐 `GET /api/v1/open-platform/userinfo`、
