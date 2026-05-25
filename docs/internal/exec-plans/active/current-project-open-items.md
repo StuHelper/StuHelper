@@ -124,6 +124,13 @@ view-specific 编辑区渲染；同时通过真实 UI 保存 `e2e-template` guar
 能把模板 ID、名称、禁言时长、踢出阈值、提醒文案和豁免名单提交到后端并回显保存结果。新增覆盖后已通过
 `make e2e-koishi`（15 项）和 `corepack yarn test:unit`（259 项）。
 
+本地全量复验（2026-05-25）：在提交前代码状态 `44b1e0dd` 上复跑统一客户端 E2E 门禁，
+`CI=1 PLAYWRIGHT_WEB_PORT=3420 ADMIN_E2E_PORT=4190 UNIAPPX_E2E_PORT=3134 make e2e`
+通过 Web 106 项、Admin 56 项和 UniAppX 28 项；随后复跑 `make e2e-koishi`，通过 Koishi
+Console UI 15 项。该轮复验覆盖 Web / Admin / UniAppX 的桌面与移动 Playwright project，以及
+Koishi Console Chromium UI smoke；浏览器 `pageerror`、console error、关键静态资源和 API
+4xx/5xx 门禁保持开启，未通过兜底或放宽断言来获得通过结果。
+
 本地验证补充（2026-05-25）：本机生产等价 browser smoke 从浅层首页检查扩展为公开 Web 路由
 矩阵，覆盖首页、登录页、认证回调错误态、入群认证链接、关于、隐私、条款、课程入口、课程列表、课程说明、评课聚合、搜索、教师主页、
 写评课、用户中心各 tab、实名 / 学生认证、手机 / QQ 绑定、学籍信息、通知、开发者应用、Open Platform
