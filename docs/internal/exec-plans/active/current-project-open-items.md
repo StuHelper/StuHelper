@@ -618,6 +618,11 @@ vote POST 和 reply POST 均未发生。Playwright MCP 也在本地 Web 开发�
 （8 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3461 make e2e-web`（136 项）。
 
+本地清理补充（2026-05-26）：继续清理 Web 评课回复旧实现。`ReplyList.vue` 在当前源码中没有任何引用，
+课程详情页已使用 `useReviewReplies` + `ReplyForm`，评课卡片已使用 `useReviewReply` + `ReplyForm`，该旧组件
+仍保留一套未接入当前认证边界的回复提交 / 删除逻辑，容易造成误维护。已删除该无引用组件，`rg "ReplyList"`
+确认 `clients/web/src` 与 `clients/web/tests` 中无剩余引用。
+
 本地全量复验（2026-05-25）：在提交 `d82afd53` 上复跑统一客户端 E2E 门禁，
 `CI=1 PLAYWRIGHT_WEB_PORT=3450 ADMIN_E2E_PORT=4206 UNIAPPX_E2E_PORT=3142 make e2e`
 通过 Web 120 项、Admin 66 项和 UniAppX H5 30 项，覆盖本轮 Web 重新认证 / callback guard 与
