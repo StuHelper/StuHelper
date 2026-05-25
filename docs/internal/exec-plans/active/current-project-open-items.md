@@ -427,6 +427,19 @@ rating trend 接口均用 fail-closed mock 明确返回。覆盖过程中使用 
 （4 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3452 make e2e-web`（122 项）。
 
+本地验证补充（2026-05-25）：继续补齐 Web AppShell 顶部通知铃的真实浏览器覆盖。`NotificationBell`
+下拉面板补充 `aria-controls`、命名 `role="region"` 和显式 button 类型；新增 E2E 覆盖已登录用户进入
+`/user/reviews` 后看到未读徽标、点击顶部通知按钮请求
+`GET /api/v1/course/review/user/notifications?page=1&pageSize=5`、渲染通知预览、点击“全部已读”调用
+`PUT /api/v1/course/review/user/notifications/read-all` 并清除徽标、继续点击单条通知调用
+`PUT /api/v1/course/review/user/notifications/{id}/read` 后按 `sourceUrl` 跳转 `/about`。该用例同时跑
+desktop / mobile Chromium project。除自动 E2E 外，还启动 `VITE_E2E_API_STUB=1` 的本地 Vite，通过
+Playwright MCP `browser_run_code_unsafe` 注入同样的 API mock 并打开 `/user/reviews`，确认通知按钮
+`aria-expanded=true` 且命名通知区域文本包含“顶部提醒 / 新的点赞 / 全部已读 / 查看全部”。新增覆盖后已通过
+`CI=1 PLAYWRIGHT_WEB_PORT=3453 pnpm --dir clients/web exec playwright test tests/e2e/journey-user-center.spec.ts`
+（18 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3454 make e2e-web`（124 项）。
+
 本地全量复验（2026-05-25）：在提交 `d82afd53` 上复跑统一客户端 E2E 门禁，
 `CI=1 PLAYWRIGHT_WEB_PORT=3450 ADMIN_E2E_PORT=4206 UNIAPPX_E2E_PORT=3142 make e2e`
 通过 Web 120 项、Admin 66 项和 UniAppX H5 30 项，覆盖本轮 Web 重新认证 / callback guard 与

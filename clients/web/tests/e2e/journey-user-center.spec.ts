@@ -584,6 +584,112 @@ test.describe('User Journey: User Center', () => {
     }
   })
 
+  test('user opens header notification bell and follows a notification link', async ({
+    page,
+  }) => {
+    let bellQuery: QueryRecord | null = null
+    let markAllRequest: { method: string; path: string } | null = null
+    let markReadRequest: { method: string; path: string } | null = null
+
+    await page.route('**/api/v1/course/review/user/notifications?*', (route) => {
+      bellQuery = captureQuery(route.request().url())
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            list: [
+              {
+                id: 'bell-notif-1',
+                type: 'reply',
+                title: '顶部提醒',
+                content: '点击后进入说明页',
+                isRead: false,
+                sourceUrl: '/about',
+                createdAt: '2026-04-05T10:00:00Z',
+              },
+              {
+                id: 'bell-notif-2',
+                type: 'vote',
+                title: '新的点赞',
+                content: '有人赞了你的评价',
+                isRead: false,
+                createdAt: '2026-04-05T09:00:00Z',
+              },
+            ],
+            total: 2,
+            page: 1,
+            pageSize: 5,
+          },
+        }),
+      })
+    })
+
+    await page.route(
+      '**/api/v1/course/review/user/notifications/read-all',
+      async (route) => {
+        const url = new URL(route.request().url())
+        markAllRequest = {
+          method: route.request().method(),
+          path: url.pathname,
+        }
+        await route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true }),
+        })
+      },
+    )
+
+    await page.route(
+      '**/api/v1/course/review/user/notifications/bell-notif-1/read',
+      async (route) => {
+        const url = new URL(route.request().url())
+        markReadRequest = {
+          method: route.request().method(),
+          path: url.pathname,
+        }
+        await route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true }),
+        })
+      },
+    )
+
+    await page.goto('/user/reviews')
+
+    const bellButton = page.getByRole('button', { name: '通知' })
+    await expect(bellButton).toBeVisible({ timeout: 10_000 })
+    await expect(bellButton.locator('span').filter({ hasText: '2' })).toBeVisible()
+
+    await bellButton.click()
+    const bellPanel = page.getByRole('region', { name: '通知' })
+    await expect(bellPanel).toBeVisible()
+    await expect(bellPanel.getByText('顶部提醒')).toBeVisible()
+    await expect(bellPanel.getByText('新的点赞')).toBeVisible()
+
+    await expect.poll(() => bellQuery).toEqual({ page: '1', pageSize: '5' })
+
+    await bellPanel.getByRole('button', { name: '全部已读' }).click()
+    await expect
+      .poll(() => markAllRequest)
+      .toEqual({
+        method: 'PUT',
+        path: '/api/v1/course/review/user/notifications/read-all',
+      })
+    await expect(bellButton.locator('span').filter({ hasText: '2' })).toHaveCount(0)
+    await expect(bellPanel.getByRole('button', { name: '全部已读' })).toHaveCount(0)
+
+    await bellPanel.getByRole('button', { name: /顶部提醒/ }).click()
+
+    await expect
+      .poll(() => markReadRequest)
+      .toEqual({
+        method: 'PUT',
+        path: '/api/v1/course/review/user/notifications/bell-notif-1/read',
+      })
+    await expect(page).toHaveURL(/\/about$/)
+  })
+
   test('user clicks one notification to mark it read and follow its link', async ({
     page,
   }) => {

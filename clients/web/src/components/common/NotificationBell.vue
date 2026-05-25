@@ -4,6 +4,7 @@
       class="bell-btn relative inline-flex size-11 cursor-pointer items-center justify-center rounded-xl border border-transparent bg-transparent text-text-secondary transition-all duration-fast hover:border-white/20 hover:bg-bg-card hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
       :aria-label="t('user.notification.bell')"
       :aria-expanded="showPanel"
+      aria-controls="notification-bell-panel"
       :title="t('user.notification.bell')"
       @click="togglePanel"
     >
@@ -19,12 +20,16 @@
     <transition name="dropdown">
       <div
         v-if="showPanel"
+        id="notification-bell-panel"
         class="absolute top-[calc(100%+10px)] right-0 z-[var(--z-dropdown)] w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-white/20 bg-bg-glass-heavy/95 shadow-lg backdrop-blur-xl dark:border-white/8"
+        role="region"
+        :aria-label="t('user.notification.bell')"
       >
         <div class="flex items-center justify-between p-3 border-b border-border-light font-medium text-sm">
           <span>{{ t('user.notification.bell') }}</span>
           <button
             v-if="hasUnread"
+            type="button"
             class="text-xs text-text-muted bg-transparent border-none cursor-pointer hover:text-text-primary transition-colors duration-fast"
             @click="handleMarkAllRead"
           >
