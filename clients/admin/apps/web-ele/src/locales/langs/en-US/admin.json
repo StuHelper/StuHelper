@@ -578,44 +578,7 @@
           "title": "Reviews This Week",
           "totalTitle": "Deleted Reviews"
         }
-      },
-      "tabs": {
-        "trends": "Traffic Trends",
-        "visits": "Monthly Visits"
-      },
-      "cards": {
-        "visitsData": "Visit Breakdown",
-        "visitsSource": "Visit Sources",
-        "salesShare": "Business Share"
-      },
-      "visitsData": {
-        "legend": {
-          "visits": "Visits",
-          "trend": "Trend"
-        },
-        "indicators": {
-          "web": "Web",
-          "mobile": "Mobile",
-          "client": "Client",
-          "thirdParty": "Third Party",
-          "other": "Other"
-        }
-      },
-      "sales": {
-        "outsourcing": "Outsourcing",
-        "custom": "Custom",
-        "support": "Support",
-        "remote": "Remote",
-        "seriesName": "Business Share"
-      },
-      "source": {
-        "search": "Search Engine",
-        "direct": "Direct",
-        "email": "Email",
-        "ads": "Ads",
-        "seriesName": "Visit Sources"
-      },
-      "monthLabel": "{month}"
+      }
     },
     "workspace": {
       "header": {

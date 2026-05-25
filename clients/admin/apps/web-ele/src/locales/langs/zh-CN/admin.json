@@ -578,44 +578,7 @@
           "title": "本周新增评课",
           "totalTitle": "已删除评课"
         }
-      },
-      "tabs": {
-        "trends": "流量趋势",
-        "visits": "月访问量"
-      },
-      "cards": {
-        "visitsData": "访问数量",
-        "visitsSource": "访问来源",
-        "salesShare": "商业占比"
-      },
-      "visitsData": {
-        "legend": {
-          "visits": "访问",
-          "trend": "趋势"
-        },
-        "indicators": {
-          "web": "网页",
-          "mobile": "移动端",
-          "client": "客户端",
-          "thirdParty": "第三方",
-          "other": "其它"
-        }
-      },
-      "sales": {
-        "outsourcing": "外包",
-        "custom": "定制",
-        "support": "技术支持",
-        "remote": "远程",
-        "seriesName": "商业占比"
-      },
-      "source": {
-        "search": "搜索引擎",
-        "direct": "直接访问",
-        "email": "邮件营销",
-        "ads": "联盟广告",
-        "seriesName": "访问来源"
-      },
-      "monthLabel": "{month}月"
+      }
     },
     "workspace": {
       "header": {

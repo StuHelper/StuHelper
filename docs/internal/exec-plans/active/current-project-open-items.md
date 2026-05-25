@@ -1016,6 +1016,18 @@ MCP 会话已断开；本轮浏览器回归改用本地 Playwright CLI 执行。
 `CI=1 PLAYWRIGHT_WEB_PORT=3494 pnpm --dir clients/web exec playwright test tests/e2e/search-and-static.spec.ts`
 （10 项）和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3495 make e2e-web`（142 项）。
 
+本地清理补充（2026-05-26）：继续收敛 Admin dashboard active codebase。审计发现
+`clients/admin/apps/web-ele/src/views/dashboard/analytics/` 中仍保留 5 个未引用的上游 Vben 示例图表组件
+`analytics-trends.vue`、`analytics-visits.vue`、`analytics-visits-data.vue`、`analytics-visits-sales.vue` 和
+`analytics-visits-source.vue`，对应 locale 还保留“流量趋势 / 商业占比 / 邮件营销 / 联盟广告”等非
+StuHelper 运营指标文案；当前 `/analytics` 实际已由 `getAdminStats` 驱动真实评课、举报和审核统计，不再使用
+这些示例组件。本轮删除上述 5 个组件和中英文无引用 locale，并新增 Admin 单元测试锁定 analytics 目录只保留
+当前真实页面、`admin.dashboard.analytics` locale 只保留 live moderation `overview` 键。验证已通过
+`pnpm --dir clients/admin --filter @vben/web-ele test -- src/views/dashboard/analytics/index.test.ts`（18 个
+Admin 单测文件、73 项）、`pnpm --dir clients type-check:admin`、`pnpm --dir clients lint:admin`（仅 7 个既有
+`vue/one-component-per-file` warning）、`rg` 确认示例组件名和示例文案无剩余引用，以及完整
+`CI=1 ADMIN_E2E_PORT=4236 make e2e-admin`（78 项）。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |
