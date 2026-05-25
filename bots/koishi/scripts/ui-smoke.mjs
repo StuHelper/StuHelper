@@ -332,6 +332,9 @@ async function writeSmokeConfig(tempDir) {
 }
 
 function startPlatformStub() {
+  const blacklistEntries = []
+  let blacklistSeq = 0
+
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1')
     const method = request.method ?? 'GET'
@@ -343,7 +346,8 @@ function startPlatformStub() {
     }
 
     if (method === 'GET' && url.pathname === '/api/v1/bot/member-blacklist') {
-      writeJSON(response, { list: [], total: 0 })
+      const result = filterMemberBlacklistEntries(blacklistEntries, url.searchParams)
+      writeJSON(response, result)
       return
     }
 
@@ -354,18 +358,30 @@ function startPlatformStub() {
 
     if (method === 'POST' && url.pathname === '/api/v1/bot/member-blacklist') {
       const body = await readJSONBody(request)
-      writeJSON(response, memberBlacklistEntry('stub-blacklist-entry', body))
+      const entry = memberBlacklistEntry(`stub-blacklist-entry-${++blacklistSeq}`, body)
+      blacklistEntries.push(entry)
+      writeJSON(response, entry)
       return
     }
 
     if (method === 'POST' && url.pathname === '/api/v1/bot/member-blacklist/release-by-subject') {
       const body = await readJSONBody(request)
-      writeJSON(response, memberBlacklistEntry('stub-blacklist-entry', body))
+      const entry = findMemberBlacklistEntryBySubject(blacklistEntries, body)
+        ?? memberBlacklistEntry(`stub-blacklist-entry-${++blacklistSeq}`, body)
+      releaseMemberBlacklistEntry(entry, body)
+      if (!blacklistEntries.some((item) => item.id === entry.id)) {
+        blacklistEntries.push(entry)
+      }
+      writeJSON(response, entry)
       return
     }
 
     if (method === 'POST' && /^\/api\/v1\/bot\/member-blacklist\/[^/]+\/release$/.test(url.pathname)) {
-      writeJSON(response, memberBlacklistEntry(url.pathname.split('/').at(-2) ?? 'stub-blacklist-entry', {}))
+      const id = decodeURIComponent(url.pathname.split('/').at(-2) ?? '')
+      const body = await readJSONBody(request)
+      const entry = blacklistEntries.find((item) => item.id === id) ?? memberBlacklistEntry(id || 'stub-blacklist-entry', {})
+      releaseMemberBlacklistEntry(entry, body)
+      writeJSON(response, entry)
       return
     }
 
@@ -458,5 +474,51 @@ function memberBlacklistEntry(id, input) {
     createdFrom: input.createdFrom ?? 'ui_smoke',
     createdAt: now,
     updatedAt: now,
+    expiresAt: input.expiresAt ?? null,
+    releasedAt: input.releasedAt ?? null,
+    releasedByType: input.releasedByType ?? null,
+    releasedByID: input.releasedByID ?? null,
+    releaseReasonCode: input.releaseReasonCode ?? null,
+    releaseReason: input.releaseReason ?? null,
   }
+}
+
+function filterMemberBlacklistEntries(entries, searchParams) {
+  const page = Math.max(Number.parseInt(searchParams.get('page') ?? '1', 10) || 1, 1)
+  const pageSize = Math.max(Number.parseInt(searchParams.get('pageSize') ?? '100', 10) || 100, 1)
+  const filtered = entries.filter((entry) => {
+    if (searchParams.has('platform') && entry.platform !== searchParams.get('platform')) return false
+    if (searchParams.has('subjectType') && entry.subjectType !== searchParams.get('subjectType')) return false
+    if (searchParams.has('scopeType') && entry.scopeType !== searchParams.get('scopeType')) return false
+    if (searchParams.has('guildID') && entry.guildID !== searchParams.get('guildID')) return false
+    if (searchParams.get('status') === 'active') {
+      return !entry.releasedAt && (!entry.expiresAt || Date.parse(entry.expiresAt) > Date.now())
+    }
+    return true
+  })
+  const offset = (page - 1) * pageSize
+  return {
+    list: filtered.slice(offset, offset + pageSize),
+    total: filtered.length,
+  }
+}
+
+function findMemberBlacklistEntryBySubject(entries, input) {
+  return entries.find((entry) =>
+    entry.platform === (input.platform ?? 'qq')
+    && entry.subjectType === (input.subjectType ?? 'qq_user')
+    && entry.subjectID === input.subjectID
+    && entry.scopeType === (input.scopeType ?? 'global')
+    && (entry.guildID ?? null) === (input.guildID ?? null)
+    && !entry.releasedAt)
+}
+
+function releaseMemberBlacklistEntry(entry, input) {
+  const now = new Date(0).toISOString()
+  entry.releasedAt = input.releasedAt ?? now
+  entry.releasedByType = input.releasedByType ?? 'qq_operator'
+  entry.releasedByID = input.releasedByID ?? 'ui-smoke'
+  entry.releaseReasonCode = input.releaseReasonCode ?? 'release_only'
+  entry.releaseReason = input.releaseReason ?? ''
+  entry.updatedAt = now
 }

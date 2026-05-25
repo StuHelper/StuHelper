@@ -572,6 +572,19 @@ ConfirmDialog、清空缓存 ConfirmDialog 与 NoticeStack 成功提示，确保
 `STUHELPER_UI_SMOKE_PORT=5149 corepack yarn --cwd bots/koishi test:ui`（19 项）和
 `corepack yarn --cwd bots/koishi test:unit`（52 项）。
 
+本地验证补充（2026-05-25）：继续补齐 Koishi Console 黑名单真实写路径。`scripts/ui-smoke.mjs`
+内置平台 stub 改为对 `member-blacklist` 保持内存状态，支持 `list` 按 platform / subjectType /
+scopeType / guildID / active status 过滤、按 page/pageSize 分页，并在 create / release /
+release-by-subject 后返回与后续 list 一致的条目状态，避免 UI 测试只能验证“请求成功”而无法验证列表状态。
+新增 E2E 用例进入“黑名单”，通过 Drawer 添加全局黑名单、确认全局范围风险弹窗、断言列表行出现并展示
+全局范围与原因，再点击“解除”、确认解除弹窗并断言目标行从 active 列表消失。该用例覆盖
+`stuhelperGroupCenter/blacklist/list`、`add` 和 `remove` 的浏览器 UI 到 WebSocket API 再到平台客户端
+链路。Playwright MCP 也在临时 Koishi `http://127.0.0.1:5155` + 临时平台 stub
+`http://127.0.0.1:5154` 上复验同一路径，最终停在 `/stuhelper#blacklist`，通知消息包含“已将
+目标用户加入黑名单”和“已从黑名单解除目标用户”，目标行计数为 0，未发现新增 console error/warning。
+新增覆盖后已通过 `STUHELPER_UI_SMOKE_PORT=5153 corepack yarn --cwd bots/koishi test:ui`（20 项）和
+`corepack yarn --cwd bots/koishi test:unit`（52 项）。
+
 本地生产等价复验（2026-05-25）：在提交 `45b401c2` 上重新执行 `make prod-parity-up`，构建并启动
 tag 为 `prod-parity-45b401c2` 的 backend / frontend / admin 生产镜像。当前本机生产等价入口为
 Web `http://127.0.0.1:28000`、Admin `http://127.0.0.1:28001/admin/`、Backend

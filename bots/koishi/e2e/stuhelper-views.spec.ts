@@ -15,8 +15,8 @@ import type { ConsoleMessage, Page, Request, Response } from '@playwright/test'
  *     - 无 pageerror、无 console.error/warning（按 allowlist 过滤）。
  * - chat 不在 NavRail，单独一个 test：通过 CommandBar 的 ⌘/ 按钮打开 ChatDock
  *   浮窗，断言 `.chat-view` 出现在 dock body 内。
- * - 配置治理、订阅管理与系统缓存覆盖真实操作路径，防止 console action / WebSocket API
- *   只在单元测试中通过、但浏览器 UI 断链。
+ * - 配置治理、黑名单、订阅管理与系统缓存覆盖真实操作路径，防止 console action /
+ *   WebSocket API 只在单元测试中通过、但浏览器 UI 断链。
  *
  * 不使用 test.describe.configure({ mode: 'serial' })：workers:1 已保证顺序，
  * 任一 view fail 不阻塞后续，方便看到全量基线状态。
@@ -296,6 +296,45 @@ test('subscription management adds, edits, and deletes a target through real con
 
   await expect(page.getByText('订阅已删除')).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('.sh-sub-card', { hasText: targetId })).toHaveCount(0, { timeout: 10_000 })
+
+  tracker.assertClean()
+})
+
+test('blacklist management adds and releases a global entry through real console actions', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  const userId = `200${Date.now()}`
+  const reason = `E2E 全局拉黑 ${userId}`
+
+  await clickNavRail(page, '黑名单')
+  await expect(page).toHaveURL(/#blacklist($|\?)/, { timeout: 5_000 })
+
+  await page.getByRole('button', { name: '添加用户', exact: true }).click()
+  await expect(page.locator('.el-drawer', { hasText: '添加黑名单用户' }).first()).toBeVisible({ timeout: 5_000 })
+  await fillLabeledInput(page, '用户 ID', userId)
+  await selectLabeledOption(page, '范围', '全局')
+  await fillLabeledInput(page, '原因', reason)
+  await page.getByRole('button', { name: '添加', exact: true }).click()
+
+  const globalAddDialog = confirmDialog(page, '添加全局黑名单')
+  await expect(globalAddDialog).toBeVisible({ timeout: 5_000 })
+  await expect(globalAddDialog.getByText(`确定要将 ${userId} 加入全局黑名单吗？该成员会被所有群拒绝。`)).toBeVisible()
+  await globalAddDialog.getByRole('button', { name: '添加全局黑名单', exact: true }).click()
+
+  await expect(page.getByText(`已将 ${userId} 加入黑名单`)).toBeVisible({ timeout: 10_000 })
+  const row = page.locator('.el-table__row', { hasText: userId }).first()
+  await expect(row).toBeVisible({ timeout: 10_000 })
+  await expect(row.getByText('全局', { exact: true })).toBeVisible()
+  await expect(row.getByText(reason)).toBeVisible()
+
+  await row.getByRole('button', { name: '解除', exact: true }).click()
+  const releaseDialog = confirmDialog(page, '解除黑名单成员')
+  await expect(releaseDialog).toBeVisible({ timeout: 5_000 })
+  await expect(releaseDialog.getByText(`确定要解除 ${userId} 的全局黑名单吗？认证失败计数会保留。`)).toBeVisible()
+  await releaseDialog.getByRole('button', { name: '解除', exact: true }).click()
+
+  await expect(page.getByText(`已从黑名单解除 ${userId}`)).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.el-table__row', { hasText: userId })).toHaveCount(0, { timeout: 10_000 })
 
   tracker.assertClean()
 })
