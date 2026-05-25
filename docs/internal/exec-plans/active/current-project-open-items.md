@@ -190,6 +190,16 @@ Web 首页无 console error；Admin 未登录入口会跳转到 Casdoor 登录�
 临时打开 Admin `vite preview` 构建产物 `/profile`，注入管理员 session mock 后确认个人中心渲染
 `Platform Admin`、账号 tab 可见，浏览器 console error 为 0。
 
+本地验证补充（2026-05-26）：继续补齐 Admin capability 路由边界。新增 Admin E2E 用例使用
+`canAccessAdmin=true` 但仅持有 `admin:dashboard:view` 的有限后台用户直达 `/open-platform/apps`，
+断言动态权限路由不会挂载 Open Platform 管理页、页面落到后台 404，且没有触发
+`/api/v1/admin/open-platform/*` 业务 API，避免“可进入后台但 capability 不足”的用户通过直达 URL
+访问未授权运营面。新增覆盖已通过单文件
+`CI=1 ADMIN_E2E_PORT=4210 pnpm --dir clients/admin --filter @vben/web-ele exec playwright test tests/e2e/admin-core.spec.ts`
+（桌面 / 移动共 8 项）。同日用 Playwright MCP 打开本机开发 Admin
+`http://127.0.0.1:3001/admin/open-platform/apps`，未登录直达受保护后台路由会按真实链路跳转到
+Casdoor 登录页，浏览器 console error 为 0，仅保留 Casdoor manifest `start_url` 跨源 warning。
+
 本地验证补充（2026-05-26）：继续对照 Web 用户中心页面结构审计 E2E 覆盖，补齐
 `ProfileSection` 顶部资料 / 认证摘要的浏览器断言，覆盖用户名与邮箱、实名认证 / 学生认证已认证状态、
 QQ / 手机未绑定状态，以及“学业信息”“生成绑定码”“绑定”三个后续入口的真实 `href`。新增覆盖后已通过

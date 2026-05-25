@@ -43,6 +43,21 @@ const adminUser = {
   isPlatformAdmin: true,
 };
 
+const dashboardOnlyCapabilities = ['admin:dashboard:view'];
+
+const dashboardOnlyAdminUser = {
+  ...adminUser,
+  capabilities: dashboardOnlyCapabilities,
+  globalCapabilities: dashboardOnlyCapabilities,
+  capabilityGrants: dashboardOnlyCapabilities.map((name) => ({
+    name,
+    global: true,
+    scopeRoles: [],
+    scopeSchoolIDs: [],
+    scopeSectionIDs: [],
+  })),
+};
+
 function ok(data: unknown) {
   return {
     status: 200,
@@ -51,9 +66,9 @@ function ok(data: unknown) {
   };
 }
 
-async function mockAdminSession(page: Page) {
+async function mockAdminSession(page: Page, user = adminUser) {
   await page.route('**/api/v1/auth/me', async (route) => {
-    await route.fulfill(ok(adminUser));
+    await route.fulfill(ok(user));
   });
 }
 
@@ -191,5 +206,39 @@ test.describe('Admin core shell routes', () => {
     await expect(
       page.getByText('抱歉，我们无法找到您要找的页面。'),
     ).toBeVisible();
+  });
+});
+
+test.describe('Admin capability route filtering', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockAdminSession(page, dashboardOnlyAdminUser);
+  });
+
+  test('limited admin cannot reach Open Platform route or trigger its API', async ({
+    page,
+  }) => {
+    const openPlatformRequests: string[] = [];
+
+    await page.route('**/api/v1/admin/open-platform/**', async (route) => {
+      openPlatformRequests.push(new URL(route.request().url()).pathname);
+      await route.fulfill(
+        ok({
+          list: [],
+          total: 0,
+          page: 1,
+          pageSize: 20,
+        }),
+      );
+    });
+
+    await page.goto('/open-platform/apps');
+
+    await expect(page.getByText('哎呀！未找到页面')).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(
+      page.getByText('抱歉，我们无法找到您要找的页面。'),
+    ).toBeVisible();
+    expect(openPlatformRequests).toEqual([]);
   });
 });
