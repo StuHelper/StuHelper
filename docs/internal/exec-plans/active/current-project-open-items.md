@@ -191,6 +191,13 @@ view-specific 编辑区渲染；同时通过真实 UI 保存 `e2e-template` guar
 能把模板 ID、名称、禁言时长、踢出阈值、提醒文案和豁免名单提交到后端并回显保存结果。新增覆盖后已通过
 `make e2e-koishi`（15 项）和 `corepack yarn test:unit`（259 项）。
 
+本地验证补充（2026-05-25）：Koishi Console 配置治理保存 E2E 继续补齐同一工作区剩余写路径；
+在真实 Console UI 中先保存 `e2e-template` guard template，再切到“群绑定”保存 `onebot/1001`
+到该模板的绑定并验证回显备注，最后切到“命令策略”保存 `report` 命令的 `authority=4` 和
+`admin, moderator` 角色白名单并验证列表回显。扩展时发现 Element Plus select 的隐藏 input 会被
+placeholder 截获点击，测试 helper 已改为点击 `.el-select__wrapper` 以匹配真实用户交互目标。
+新增覆盖后已通过 `make e2e-koishi`（15 项）和 `corepack yarn test:unit`（259 项）。
+
 本地全量复验（2026-05-25）：在提交前代码状态 `44b1e0dd` 上复跑统一客户端 E2E 门禁，
 `CI=1 PLAYWRIGHT_WEB_PORT=3420 ADMIN_E2E_PORT=4190 UNIAPPX_E2E_PORT=3134 make e2e`
 通过 Web 106 项、Admin 56 项和 UniAppX 28 项；随后复跑 `make e2e-koishi`，通过 Koishi

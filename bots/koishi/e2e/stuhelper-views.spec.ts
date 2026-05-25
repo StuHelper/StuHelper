@@ -156,7 +156,7 @@ test('config governance workspace tabs render and update navigation state', asyn
   tracker.assertClean()
 })
 
-test('config governance saves a guard template through the real console action', async ({ loggedInPage: page }) => {
+test('config governance saves template, binding, and command policy through real console actions', async ({ loggedInPage: page }) => {
   await using tracker = createTracker(page)
 
   await clickNavRail(page, '群组配置')
@@ -175,6 +175,27 @@ test('config governance saves a guard template through the real console action',
   await expect(page.getByText('已保存群模板：E2E 模板')).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText('E2E 模板').first()).toBeVisible({ timeout: 10_000 })
 
+  await page.getByRole('button', { name: '群绑定', exact: true }).click()
+  await expect(page).toHaveURL(/#config\?workspace=bindings/, { timeout: 5_000 })
+  await fillLabeledInput(page, '平台', 'onebot')
+  await fillLabeledInput(page, '群号', '1001')
+  await selectLabeledOption(page, '模板', 'E2E 模板 (e2e-template)')
+  await fillLabeledInput(page, '备注', 'E2E 绑定验证')
+  await page.getByRole('button', { name: '保存绑定', exact: true }).click()
+
+  await expect(page.getByText('已保存群绑定：onebot/1001')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('E2E 绑定验证').first()).toBeVisible({ timeout: 10_000 })
+
+  await page.getByRole('button', { name: '命令策略', exact: true }).click()
+  await expect(page).toHaveURL(/#config\?workspace=command-policies/, { timeout: 5_000 })
+  await selectLabeledOption(page, '命令', 'report')
+  await fillLabeledInput(page, '最小 authority', '4')
+  await fillLabeledInput(page, '角色白名单(逗号分隔)', 'admin, moderator')
+  await page.getByRole('button', { name: '保存策略', exact: true }).click()
+
+  await expect(page.getByText('已保存命令策略。')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('authority 4 · admin, moderator').first()).toBeVisible({ timeout: 10_000 })
+
   tracker.assertClean()
 })
 
@@ -191,6 +212,11 @@ async function clickNavRail(page: Page, label: string): Promise<void> {
 
 async function fillLabeledInput(page: Page, label: string, value: string): Promise<void> {
   await page.locator('label', { hasText: label }).locator('input').first().fill(value)
+}
+
+async function selectLabeledOption(page: Page, label: string, option: string): Promise<void> {
+  await page.locator('label', { hasText: label }).locator('.el-select__wrapper').first().click()
+  await page.locator('.el-select-dropdown__item:visible', { hasText: option }).click()
 }
 
 interface ConsoleIssue {
