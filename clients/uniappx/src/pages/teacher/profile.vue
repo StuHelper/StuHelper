@@ -78,7 +78,13 @@ onShow(() => {
           <text>{{ t('teacher.profile.noCourses') }}</text>
         </view>
         <view v-else>
-          <view v-for="course in teacher.courses" :key="course.id" class="course-row" @tap="openCourse(course.id)">
+          <view
+            v-for="course in teacher.courses"
+            :key="course.id"
+            class="course-row"
+            :data-testid="`uni-teacher-course-${course.id}`"
+            @tap="openCourse(course.id)"
+          >
             <view>
               <text class="course-name">{{ course.name }}</text>
               <text class="course-meta">{{ t('common.reviewCount', { count: course.reviewCount }) }}</text>

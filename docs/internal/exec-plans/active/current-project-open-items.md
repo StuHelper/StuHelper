@@ -637,6 +637,16 @@ H5 测试显式提供 `VITE_WEB_URL=https://web.example.test`，个人中心实�
 （46 项）、`pnpm --dir clients build:uni:h5`、`pnpm --dir clients run check:no-empty-catch` 和
 `make check-docs`。
 
+本地验证补充（2026-05-26）：继续补齐 UniAppX H5 课程 / 教师互跳链路。课程详情教师行和教师主页课程行
+补充稳定 `data-testid`，原有“课程、评课、教师浏览页渲染”E2E 扩展为从课程详情点击授课教师进入
+`/#/pages/teacher/profile?id=10`，再从教师主页点击授课课程回到 `/#/pages/course/detail?id=101`，
+断言两个页面标题、教师课程卡片和最终课程详情内容均可见。Playwright MCP 也在临时 UniAppX H5 dev server
+注入同等 API mock 后真实点击 `课程详情 -> 教师主页 -> 课程详情`，最终 URL 回到课程详情且课程名可见；
+浏览器无 console error，仅保留 Uni H5 dev server 既有的 `vue-router/dist/vue-router.esm-bundler.js`
+deprecated warning。新增覆盖后已通过 `pnpm --dir clients type-check:uni` 和
+`CI=1 UNIAPPX_E2E_PORT=3161 pnpm --dir clients/uniappx exec playwright test tests/e2e/surface.spec.ts`
+（40 项）、`pnpm --dir clients build:uni:h5`、`make check-docs` 和 `git diff --check`。
+
 本地全量复验（2026-05-25）：在提交 `d82afd53` 上复跑统一客户端 E2E 门禁，
 `CI=1 PLAYWRIGHT_WEB_PORT=3450 ADMIN_E2E_PORT=4206 UNIAPPX_E2E_PORT=3142 make e2e`
 通过 Web 120 项、Admin 66 项和 UniAppX H5 30 项，覆盖本轮 Web 重新认证 / callback guard 与

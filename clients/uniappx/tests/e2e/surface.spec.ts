@@ -652,6 +652,18 @@ test.describe('UniAppX H5 surface', () => {
     await expect(page.getByText(review.title)).toBeVisible()
     await expect(page.getByText('写评课')).toBeVisible()
 
+    await page.getByTestId(`uni-course-teacher-${teacher.teacherID}`).click()
+    await expect(page).toHaveURL(new RegExp(`/#/pages/teacher/profile\\?id=${teacher.teacherID}`))
+    await expectUniPageTitle(page, '教师主页')
+    await expect(page.getByText(teacher.teacherName).first()).toBeVisible()
+    await expect(page.getByText('授课课程')).toBeVisible()
+    await expect(page.getByTestId(`uni-teacher-course-${course.id}`)).toBeVisible()
+
+    await page.getByTestId(`uni-teacher-course-${course.id}`).click()
+    await expect(page).toHaveURL(new RegExp(`/#/pages/course/detail\\?id=${course.id}`))
+    await expectUniPageTitle(page, '课程详情')
+    await expect(page.getByText(course.name).first()).toBeVisible()
+
     await gotoUniPage(page, '/#/pages/review/index')
     await expectUniPageTitle(page, '评课广场')
     await expect(page.getByText('最新')).toBeVisible()

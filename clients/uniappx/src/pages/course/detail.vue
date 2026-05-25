@@ -205,7 +205,13 @@ onShow(() => {
         <text class="section-title">{{ t('course.detail.teachersTitle') }}</text>
         <view v-if="teachers.length === 0" class="empty-text"><text>{{ t('course.detail.noTeachers') }}</text></view>
         <view v-else>
-          <view v-for="teacher in teachers" :key="teacher.teacherID" class="teacher-row" @tap="goTeacher(teacher.teacherID)">
+          <view
+            v-for="teacher in teachers"
+            :key="teacher.teacherID"
+            class="teacher-row"
+            :data-testid="`uni-course-teacher-${teacher.teacherID}`"
+            @tap="goTeacher(teacher.teacherID)"
+          >
             <view>
               <text class="teacher-name">{{ teacher.teacherName }}</text>
               <text class="teacher-meta">
