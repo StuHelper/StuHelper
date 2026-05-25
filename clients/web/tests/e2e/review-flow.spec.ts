@@ -111,6 +111,7 @@ test("authenticated user can publish a review and vote on a course review", asyn
     page,
 }) => {
     let createdReviewPayload: Record<string, unknown> | null = null;
+    let savedDraftPayload: Record<string, unknown> | null = null;
     let votePayload: Record<string, unknown> | null = null;
 
     await page.route("**/api/v1/course/terms", async (route) => {
@@ -316,16 +317,39 @@ test("authenticated user can publish a review and vote on a course review", asyn
 
     await page.route("**/api/v1/course/review/drafts", async (route) => {
         if (route.request().method() === "POST") {
+            savedDraftPayload = route.request().postDataJSON() as Record<
+                string,
+                unknown
+            >;
             await route.fulfill({
                 contentType: "application/json",
-                body: JSON.stringify({ success: true, data: { saved: true } }),
+                body: JSON.stringify({
+                    success: true,
+                    data: {
+                        id: "draft-1",
+                        ...savedDraftPayload,
+                        updatedAt: "2026-04-03T10:00:00Z",
+                    },
+                }),
+            });
+            return;
+        }
+
+        if (route.request().method() === "DELETE") {
+            await route.fulfill({
+                contentType: "application/json",
+                body: JSON.stringify({ success: true, data: null }),
             });
             return;
         }
 
         await route.fulfill({
+            status: 404,
             contentType: "application/json",
-            body: JSON.stringify({ success: true, data: null }),
+            body: JSON.stringify({
+                success: false,
+                error: { code: "R0040404", message: "draft not found" },
+            }),
         });
     });
 
@@ -358,6 +382,10 @@ test("authenticated user can publish a review and vote on a course review", asyn
     await page
         .getByTestId("review-content")
         .fill("这是一条用于端到端验证的评课内容，长度足够通过校验。");
+    await page.getByTestId("review-grade").selectOption("A+");
+    await expect.poll(() => savedDraftPayload?.grade as string | undefined).toBe(
+        "A+",
+    );
     await page.getByTestId("review-submit").click();
 
     await expect(page).toHaveURL(/\/courses\/1\/reviews$/);
@@ -370,6 +398,7 @@ test("authenticated user can publish a review and vote on a course review", asyn
     );
     expect(createdPayload.courseID).toBe(1);
     expect(createdPayload.termID).toBe("2025-fall");
+    expect(createdPayload.grade).toBe("A+");
     expect(createdPayload.ratings).toMatchObject({
         difficulty: 5,
         workload: 3,

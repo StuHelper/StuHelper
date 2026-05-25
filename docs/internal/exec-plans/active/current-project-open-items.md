@@ -334,6 +334,24 @@ UniAppX H5 E2E 补充（2026-05-25）：继续收紧发布评课草稿路径。�
 `pnpm --dir clients test:uni`（46 项）、`pnpm --dir clients build:uni:h5`、`make check-docs`
 和 `git diff --check`。
 
+本地验证补充（2026-05-25）：Web 发布评课页同步收紧成绩契约，成绩字段从任意文本输入改为共享
+`REVIEW_GRADES` 枚举下拉，草稿保存、草稿签名、离开提示输入判断和最终发布 payload 都复用
+`normalizeReviewGrade`，避免草稿保留 `90` / `优秀` 等 OpenAPI 不接受的旧自由文本。草稿 store 现在会拒绝
+接口返回的非法成绩，并把可裁剪的合法成绩归一化为共享枚举；Web 中英文文案也改为只提示 `A+ / B / F`
+这类合法成绩。新增/收紧的测试覆盖草稿 store 非法成绩响应、合法成绩归一化，以及发布评课 E2E 中
+自动保存草稿和创建评课 payload 都携带 `grade=A+`；Web E2E fixture 同步把无草稿时
+`GET /api/v1/course/review/drafts` 的 404 标记为预期业务状态。新增覆盖后已通过
+`pnpm --dir clients/web exec vitest run src/stores/__tests__/draft.test.ts src/components/business/review/__tests__/reviewPayload.test.ts`
+（17 项）、`CI=1 PLAYWRIGHT_WEB_PORT=3441 pnpm --dir clients/web exec playwright test tests/e2e/review-flow.spec.ts`
+（2 项）、`pnpm --dir clients type-check:web` 和 `pnpm --dir clients lint:web`。随后全量
+`CI=1 PLAYWRIGHT_WEB_PORT=3442 make e2e-web` 首轮暴露移动端用户认证用例会在 `page.goto()` 整页跳转时
+取消 AppShell 未读通知请求；测试已改为每次进入已登录页面后等待
+`GET /api/v1/course/review/user/notifications/unread-count` 落地，再继续下一次整页跳转，不放宽全局 API
+失败门禁。稳定性修复后通过
+`CI=1 PLAYWRIGHT_WEB_PORT=3443 pnpm --dir clients/web exec playwright test tests/e2e/user-verification.spec.ts`
+（4 项）、再次通过 `pnpm --dir clients type-check:web` 和 `pnpm --dir clients lint:web`，并最终通过
+`CI=1 PLAYWRIGHT_WEB_PORT=3444 make e2e-web`（112 项）。
+
 接口硬化补充（2026-05-24）：审计发现 legacy disclosure API 文档要求 `client_id`，但
 OpenAPI 未声明且 handler 只读取认证上下文 appID；同时服务端在已有 active consent 时未重新校验
 `redirect_uri`。本轮已按 OpenAPI-first 补齐 `GET /api/v1/open-platform/userinfo`、

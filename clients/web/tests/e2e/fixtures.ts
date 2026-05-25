@@ -94,6 +94,13 @@ function isExpectedApiErrorResponse(response: Response) {
   ) {
     return true
   }
+  if (
+    method === 'GET' &&
+    pathname === '/api/v1/course/review/drafts' &&
+    status === 404
+  ) {
+    return true
+  }
 
   return false
 }

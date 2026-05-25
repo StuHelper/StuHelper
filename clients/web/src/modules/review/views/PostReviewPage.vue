@@ -300,12 +300,21 @@
               ({{ t('review.post.gradeOptional') }})
             </span>
           </label>
-          <input
+          <select
             v-model="grade"
-            type="text"
-            class="w-full px-4 py-3 bg-bg-elevated rounded-lg text-text-primary placeholder:text-text-muted focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors"
-            :placeholder="t('review.postForm.gradePlaceholder')"
-          />
+            data-testid="review-grade"
+            class="w-full px-4 py-3 bg-bg-elevated rounded-lg text-text-primary focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors appearance-none bg-no-repeat"
+            :style="selectArrowStyle"
+          >
+            <option value="">{{ t('review.postForm.gradePlaceholder') }}</option>
+            <option
+              v-for="gradeOption in gradeOptions"
+              :key="gradeOption"
+              :value="gradeOption"
+            >
+              {{ gradeOption }}
+            </option>
+          </select>
           <p class="text-xs text-text-muted/60 mt-1.5 mb-0">
             {{ t('review.postForm.gradeHint') }}
           </p>
@@ -384,6 +393,8 @@ import {
   REVIEW_TITLE_MAX_LENGTH,
   REVIEW_CONTENT_MIN_LENGTH,
   REVIEW_CONTENT_MAX_LENGTH,
+  REVIEW_GRADES,
+  normalizeReviewGrade,
 } from '@stuhelper/shared/constants'
 import type { Course, TeacherStats, Term } from '@stuhelper/shared/course'
 import type { ReviewRatings } from '@stuhelper/shared/review'
@@ -398,6 +409,7 @@ const draftStore = useDraftStore()
 const TITLE_MAX = REVIEW_TITLE_MAX_LENGTH
 const CONTENT_MIN = REVIEW_CONTENT_MIN_LENGTH
 const CONTENT_MAX = REVIEW_CONTENT_MAX_LENGTH
+const gradeOptions = REVIEW_GRADES
 
 const defaultTemplate = computed(() => t('review.postForm.defaultTemplate'))
 
@@ -622,13 +634,14 @@ watch(selectedCourse, async (course) => {
 })
 
 function buildDraftPayload() {
+  const nextGrade = normalizeReviewGrade(grade.value)
   return {
     ...(selectedCourse.value?.id ? { courseID: selectedCourse.value.id } : {}),
     ...(selectedTeacherID.value ? { teacherID: selectedTeacherID.value } : {}),
     ...(termID.value.trim() ? { termID: termID.value.trim() } : {}),
     ...(title.value ? { title: title.value } : {}),
     ...(content.value ? { content: content.value } : {}),
-    ...(grade.value.trim() ? { grade: grade.value.trim() } : {}),
+    ...(nextGrade ? { grade: nextGrade } : {}),
     ...(Object.keys(ratings.value).length > 0 ? { ratings: ratings.value } : {}),
   }
 }
@@ -654,7 +667,7 @@ const hasMeaningfulDraftInput = computed(() => {
     selectedCourse.value ||
     selectedTeacherID.value ||
     title.value.trim() ||
-    grade.value.trim() ||
+    normalizeReviewGrade(grade.value) ||
     Object.keys(ratings.value).length > 0 ||
     (content.value.trim() && content.value.trim() !== defaultTemplate.value.trim()),
   )
@@ -876,6 +889,7 @@ async function handleSubmit() {
 
   submitting.value = true
   try {
+    const nextGrade = normalizeReviewGrade(grade.value)
     // 内容预检
     const checkRes = await api.review.checkContent({ content: content.value.trim() })
     const checkResult = checkRes.data?.data
@@ -897,7 +911,7 @@ async function handleSubmit() {
       title: title.value.trim(),
       content: content.value.trim(),
       ratings: ratings.value,
-      ...(grade.value.trim() ? { grade: grade.value.trim() } : {}),
+      ...(nextGrade ? { grade: nextGrade } : {}),
     })
 
     await api.review.createReview(payload)

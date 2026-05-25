@@ -96,6 +96,22 @@ describe('useDraftStore', () => {
       await expect(store.saveDraft({ title: 'x' })).rejects.toThrow('invalid draft response')
       expect(store.hasDraft).toBe(false)
     })
+
+    it('rejects draft responses with invalid grades', async () => {
+      mockSaveDraft.mockResolvedValue({
+        data: {
+          data: {
+            id: 'draft-1',
+            grade: '优秀',
+            updatedAt: '2026-04-05T00:00:00Z',
+          },
+        },
+      })
+
+      const store = useDraftStore()
+      await expect(store.saveDraft({ grade: 'A+' })).rejects.toThrow('invalid draft response')
+      expect(store.hasDraft).toBe(false)
+    })
   })
 
   describe('loadDraft', () => {
@@ -181,6 +197,24 @@ describe('useDraftStore', () => {
 
       const store = useDraftStore()
       await expect(store.loadDraft()).rejects.toThrow('invalid draft response')
+    })
+
+    it('normalizes loaded draft grades to the shared enum', async () => {
+      mockGetDraft.mockResolvedValue({
+        data: {
+          data: {
+            id: 'd1',
+            grade: ' A- ',
+            updatedAt: '2026-04-05T00:00:00Z',
+          },
+        },
+      })
+
+      const store = useDraftStore()
+      const result = await store.loadDraft()
+
+      expect(result?.grade).toBe('A-')
+      expect(store.draft?.grade).toBe('A-')
     })
   })
 

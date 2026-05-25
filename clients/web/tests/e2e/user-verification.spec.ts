@@ -103,6 +103,21 @@ function notFound(message = "not found") {
     );
 }
 
+async function gotoAuthenticatedPage(page: Page, path: string) {
+    const unreadCountLoaded = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return (
+            response.request().method() === "GET" &&
+            url.pathname ===
+                "/api/v1/course/review/user/notifications/unread-count" &&
+            response.status() === 200
+        );
+    });
+
+    await page.goto(path);
+    await unreadCountLoaded;
+}
+
 async function mockUserApi(page: Page, state: UserApiState) {
     await page.addInitScript((u) => {
         localStorage.setItem("stuhelper_user", JSON.stringify(u));
@@ -236,7 +251,7 @@ test.describe("User verification flows", () => {
             await route.fallback();
         });
 
-        await page.goto("/user/identity-verification");
+        await gotoAuthenticatedPage(page, "/user/identity-verification");
 
         await page.getByLabel("真实姓名").fill("张三");
         await page.getByLabel("证件号码").fill("110101200001010010");
@@ -253,7 +268,7 @@ test.describe("User verification flows", () => {
         });
 
         state.identity = { ...verifiedIdentity };
-        await page.goto("/user/student-verification");
+        await gotoAuthenticatedPage(page, "/user/student-verification");
 
         await page.locator("#student-school").selectOption("1001");
         await page.getByLabel("学号").fill("20260001");
@@ -297,7 +312,7 @@ test.describe("User verification flows", () => {
             await route.fallback();
         });
 
-        await page.goto("/user/phone-binding");
+        await gotoAuthenticatedPage(page, "/user/phone-binding");
 
         await page.getByLabel("手机号码").fill("13812345678");
         await page.getByRole("button", { name: "发送验证码" }).click();
@@ -312,14 +327,14 @@ test.describe("User verification flows", () => {
             otpCode: "123456",
         });
 
-        await page.goto("/user/qq-binding");
+        await gotoAuthenticatedPage(page, "/user/qq-binding");
         await page.getByRole("button", { name: "生成绑定码" }).click();
         await expect(
             page.getByText("请私聊机器人并发送下面这条命令"),
         ).toBeVisible();
         await expect(page.getByText("绑定 QQ-CODE-1")).toBeVisible();
 
-        await page.goto("/user/academic-info");
+        await gotoAuthenticatedPage(page, "/user/academic-info");
         await expect(page.getByText("20260001")).toBeVisible();
         await expect(page.getByText("张三")).toBeVisible();
         await expect(page.getByText("计算机学院")).toBeVisible();

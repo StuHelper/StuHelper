@@ -5,6 +5,7 @@ import { defineStore, getActivePinia } from "pinia";
 import { computed, ref } from "vue";
 import type { Draft, SaveDraftParams } from "@stuhelper/shared/draft";
 import { isValidRating } from "@stuhelper/shared/course";
+import { normalizeReviewGrade } from "@stuhelper/shared/constants";
 import { api } from "@/api";
 import { safeOnScopeDispose } from "@/stores/safeScopeDispose";
 import { registerSessionResetHandler } from "@/stores/sessionOrchestrator";
@@ -74,6 +75,11 @@ export const useDraftStore = defineStore("draft", () => {
             }
             ratings = normalizedRatings;
         }
+        const grade =
+            value.grade !== undefined ? normalizeReviewGrade(value.grade) : undefined;
+        if (value.grade !== undefined && grade === undefined) {
+            throw new Error("invalid draft response");
+        }
 
         return {
             id: value.id,
@@ -86,9 +92,7 @@ export const useDraftStore = defineStore("draft", () => {
             ...(value.termID !== undefined && { termID: value.termID }),
             ...(value.title !== undefined && { title: value.title }),
             ...(value.content !== undefined && { content: value.content }),
-            ...(value.grade !== undefined && {
-                grade: value.grade as Draft["grade"],
-            }),
+            ...(grade !== undefined && { grade }),
             ...(ratings !== undefined && { ratings }),
             updatedAt: value.updatedAt,
         };
