@@ -2,6 +2,7 @@ import { expect, test, type Page } from './fixtures'
 
 type MockOptions = {
   authenticated?: boolean
+  ssoState?: string
 }
 
 const now = '2026-05-24T04:00:00Z'
@@ -111,9 +112,12 @@ function list<T>(items: T[]) {
 async function mockUniApi(page: Page, options: MockOptions = {}) {
   const mutations: string[] = []
 
-  await page.addInitScript(() => {
+  await page.addInitScript((ssoState) => {
     localStorage.setItem('stuhelper:uniappx:locale', 'zh-CN')
-  })
+    if (ssoState) {
+      localStorage.setItem('stuhelper:sso-state', ssoState)
+    }
+  }, options.ssoState ?? '')
 
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request()
@@ -135,6 +139,15 @@ async function mockUniApi(page: Page, options: MockOptions = {}) {
     }
     if (method === 'GET' && pathname === '/api/v1/auth/login') {
       await route.fulfill(ok({ url: 'https://sso.example.test/login', state: 'mobile-e2e-state' }))
+      return
+    }
+    if (method === 'POST' && pathname === '/api/v1/auth/exchange-native') {
+      await route.fulfill(ok({
+        accessToken: 'mobile-native-access-token',
+        refreshToken: 'mobile-native-refresh-token',
+        sessionID: 'mobile-native-session',
+        expiresIn: 900,
+      }))
       return
     }
 
@@ -435,5 +448,24 @@ test.describe('UniAppX H5 surface', () => {
     await expectUniPageTitle(page, 'SSO 回调')
     await expect(page.getByText('登录失败')).toBeVisible()
     await expect(page.getByText('回调参数缺失，请重新登录')).toBeVisible()
+  })
+
+  test('auth callback exchanges native code and opens the user center', async ({ page }) => {
+    const mutations = await mockUniApi(page, {
+      authenticated: true,
+      ssoState: 'mobile-e2e-state',
+    })
+
+    await gotoUniPage(page, '/#/pages/auth/callback?code=mobile-e2e-code&state=mobile-e2e-state')
+
+    await expect
+      .poll(() => mutations.includes('POST /api/v1/auth/exchange-native'))
+      .toBe(true)
+    await expect(page).toHaveURL(/\/#\/pages\/user\/index/)
+    await expectUniPageTitle(page, '个人中心')
+    await expect(page.getByText(user.displayName)).toBeVisible()
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem('stuhelper:sso-state')))
+      .toBeNull()
   })
 })
