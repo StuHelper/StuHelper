@@ -15,7 +15,7 @@ import type { ConsoleMessage, Page, Request, Response } from '@playwright/test'
  *     - 无 pageerror、无 console.error/warning（按 allowlist 过滤）。
  * - chat 不在 NavRail，单独一个 test：通过 CommandBar 的 ⌘/ 按钮打开 ChatDock
  *   浮窗，断言 `.chat-view` 出现在 dock body 内。
- * - 配置治理与订阅管理覆盖真实表单保存路径，防止 console action / WebSocket API
+ * - 配置治理、订阅管理与系统缓存覆盖真实操作路径，防止 console action / WebSocket API
  *   只在单元测试中通过、但浏览器 UI 断链。
  *
  * 不使用 test.describe.configure({ mode: 'serial' })：workers:1 已保证顺序，
@@ -300,6 +300,36 @@ test('subscription management adds, edits, and deletes a target through real con
   tracker.assertClean()
 })
 
+test('system cache actions refresh and clear through real console actions', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  await clickNavRail(page, '系统 / 缓存')
+  await expect(page).toHaveURL(/#system($|\?)/, { timeout: 5_000 })
+
+  await expect(page.getByText('群组缓存')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('用户缓存')).toBeVisible()
+  await expect(page.getByText('成员缓存')).toBeVisible()
+
+  await page.getByRole('button', { name: '刷新统计', exact: true }).click()
+  await expect(page.getByText('缓存操作')).toBeVisible({ timeout: 10_000 })
+
+  await page.getByRole('button', { name: '强制刷新', exact: true }).click()
+  const refreshDialog = confirmDialog(page, '强制刷新缓存')
+  await expect(refreshDialog).toBeVisible({ timeout: 5_000 })
+  await expect(refreshDialog.getByText('确认从 Bot 重新拉取所有群组、用户、成员信息？这可能耗时数十秒。')).toBeVisible()
+  await refreshDialog.getByRole('button', { name: '开始刷新', exact: true }).click()
+  await expect(page.getByText('缓存刷新完成')).toBeVisible({ timeout: 10_000 })
+
+  await page.getByRole('button', { name: '清空缓存', exact: true }).click()
+  const clearDialog = confirmDialog(page, '清空缓存')
+  await expect(clearDialog).toBeVisible({ timeout: 5_000 })
+  await expect(clearDialog.getByText('确认清空所有本地缓存？下次访问相关群 / 用户时会重新拉取。')).toBeVisible()
+  await clearDialog.getByRole('button', { name: '清空', exact: true }).click()
+  await expect(page.getByText('缓存已清空')).toBeVisible({ timeout: 10_000 })
+
+  tracker.assertClean()
+})
+
 /**
  * 通过 NavRail 的 button[title=label] 切到指定 view。
  * NavRail 收起时 label 文本 opacity:0 不可读，但 button 元素本身可点击；
@@ -334,6 +364,10 @@ async function setFeatureChecked(page: Page, label: string, checked: boolean): P
   } else {
     await expect(input).not.toBeChecked()
   }
+}
+
+function confirmDialog(page: Page, title: string) {
+  return page.locator('.el-dialog.sh-confirm', { hasText: title }).first()
 }
 
 interface ConsoleIssue {

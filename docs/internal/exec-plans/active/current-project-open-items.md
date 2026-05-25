@@ -562,6 +562,16 @@ feature 状态，再次编辑关闭“防撤回”、打开“禁言解除”，
 `STUHELPER_UI_SMOKE_PORT=5147 corepack yarn --cwd bots/koishi test:ui`（18 项）和
 `corepack yarn --cwd bots/koishi test:unit`（52 项）。
 
+本地验证补充（2026-05-25）：本轮再次通过 `tool_search` 暴露 `mcp__playwright__`，先用
+`browser_resize` 和 `browser_snapshot` 确认 MCP 可以操作当前浏览器，再启动隔离的临时 Koishi
+实例 `http://127.0.0.1:5151`，使用 Playwright MCP 真实登录 admin、进入 `#system`，点击“刷新统计”、
+确认“强制刷新缓存”、确认“清空缓存”，最终页面停在 `/stuhelper#system`，通知消息包含“缓存刷新完成”
+和“缓存已清空”。同时补齐 Koishi Console 系统 / 缓存页 E2E：新增用例覆盖缓存统计刷新、强制刷新
+ConfirmDialog、清空缓存 ConfirmDialog 与 NoticeStack 成功提示，确保 `cache/stats`、`cache/refresh`
+和 `cache/clear` 的浏览器 UI 到 WebSocket API 链路不断裂。新增覆盖后已通过
+`STUHELPER_UI_SMOKE_PORT=5149 corepack yarn --cwd bots/koishi test:ui`（19 项）和
+`corepack yarn --cwd bots/koishi test:unit`（52 项）。
+
 本地生产等价复验（2026-05-25）：在提交 `45b401c2` 上重新执行 `make prod-parity-up`，构建并启动
 tag 为 `prod-parity-45b401c2` 的 backend / frontend / admin 生产镜像。当前本机生产等价入口为
 Web `http://127.0.0.1:28000`、Admin `http://127.0.0.1:28001/admin/`、Backend
