@@ -530,6 +530,16 @@ enabled，MCP `tools/list` 返回 `browser_navigate`、`browser_snapshot`、`bro
 当前会话已通过 `tool_search` 暴露 `mcp__playwright__`，并实际用 `browser_navigate` / `browser_snapshot`
 完成页面快照验证。
 
+本地验证补充（2026-05-25）：当前会话再次通过 `tool_search` 暴露 `mcp__playwright__`，并用
+`browser_navigate` 打开最小检查页、`browser_evaluate` 返回 title、heading 和 button 数量，确认
+Playwright MCP 在 Codex 会话内已经可用。随后继续补齐 Koishi Console 订阅管理真实写路径 E2E：
+新增用例进入“推送订阅”，通过 Element Plus Drawer 添加订阅、切换 feature checkbox、保存后断言卡片
+feature 状态，再次编辑关闭“防撤回”、打开“禁言解除”，最后通过 popconfirm 删除订阅并确认目标卡片消失。
+该用例覆盖 `stuhelperGroupCenter/subscriptions/add`、`update` 和 `remove` 的浏览器 UI 到 WebSocket API
+链路。新增覆盖后已通过
+`STUHELPER_UI_SMOKE_PORT=5147 corepack yarn --cwd bots/koishi test:ui`（18 项）和
+`corepack yarn --cwd bots/koishi test:unit`（52 项）。
+
 本地生产等价复验（2026-05-25）：在提交 `45b401c2` 上重新执行 `make prod-parity-up`，构建并启动
 tag 为 `prod-parity-45b401c2` 的 backend / frontend / admin 生产镜像。当前本机生产等价入口为
 Web `http://127.0.0.1:28000`、Admin `http://127.0.0.1:28001/admin/`、Backend

@@ -15,6 +15,8 @@ import type { ConsoleMessage, Page, Request, Response } from '@playwright/test'
  *     - 无 pageerror、无 console.error/warning（按 allowlist 过滤）。
  * - chat 不在 NavRail，单独一个 test：通过 CommandBar 的 ⌘/ 按钮打开 ChatDock
  *   浮窗，断言 `.chat-view` 出现在 dock body 内。
+ * - 配置治理与订阅管理覆盖真实表单保存路径，防止 console action / WebSocket API
+ *   只在单元测试中通过、但浏览器 UI 断链。
  *
  * 不使用 test.describe.configure({ mode: 'serial' })：workers:1 已保证顺序，
  * 任一 view fail 不阻塞后续，方便看到全量基线状态。
@@ -258,6 +260,46 @@ test('config governance saves template, binding, and command policy through real
   tracker.assertClean()
 })
 
+test('subscription management adds, edits, and deletes a target through real console actions', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  const targetId = `e2e-sub-${Date.now()}`
+
+  await clickNavRail(page, '推送订阅')
+  await expect(page).toHaveURL(/#subscriptions($|\?)/, { timeout: 5_000 })
+
+  await page.getByRole('button', { name: '添加订阅', exact: true }).click()
+  await expect(page.locator('.el-drawer', { hasText: '添加订阅' }).first()).toBeVisible({ timeout: 5_000 })
+  await fillLabeledInput(page, '目标 ID', targetId)
+  await setFeatureChecked(page, '防撤回', true)
+  await page.getByRole('button', { name: '添加', exact: true }).click()
+
+  await expect(page.getByText('订阅已添加')).toBeVisible({ timeout: 10_000 })
+  const card = page.locator('.sh-sub-card', { hasText: targetId }).first()
+  await expect(card).toBeVisible({ timeout: 10_000 })
+  await expect(card.locator('.sh-sub-card__feature', { hasText: '防撤回' })).toHaveAttribute('data-active', 'true')
+
+  await card.click()
+  await expect(page.locator('.el-drawer', { hasText: '编辑订阅' }).first()).toBeVisible({ timeout: 5_000 })
+  await setFeatureChecked(page, '防撤回', false)
+  await setFeatureChecked(page, '禁言解除', true)
+  await page.getByRole('button', { name: '保存', exact: true }).click()
+
+  await expect(page.getByText('订阅已更新')).toBeVisible({ timeout: 10_000 })
+  await expect(card.locator('.sh-sub-card__feature', { hasText: '防撤回' })).toHaveAttribute('data-active', 'false')
+  await expect(card.locator('.sh-sub-card__feature', { hasText: '禁言解除' })).toHaveAttribute('data-active', 'true')
+
+  await card.click()
+  await expect(page.locator('.el-drawer', { hasText: '编辑订阅' }).first()).toBeVisible({ timeout: 5_000 })
+  await page.getByRole('button', { name: '删除订阅', exact: true }).click()
+  await page.getByRole('button', { name: '删除', exact: true }).click()
+
+  await expect(page.getByText('订阅已删除')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.sh-sub-card', { hasText: targetId })).toHaveCount(0, { timeout: 10_000 })
+
+  tracker.assertClean()
+})
+
 /**
  * 通过 NavRail 的 button[title=label] 切到指定 view。
  * NavRail 收起时 label 文本 opacity:0 不可读，但 button 元素本身可点击；
@@ -276,6 +318,22 @@ async function fillLabeledInput(page: Page, label: string, value: string): Promi
 async function selectLabeledOption(page: Page, label: string, option: string): Promise<void> {
   await page.locator('label', { hasText: label }).locator('.el-select__wrapper').first().click()
   await page.locator('.el-select-dropdown__item:visible', { hasText: option }).click()
+}
+
+async function setFeatureChecked(page: Page, label: string, checked: boolean): Promise<void> {
+  const feature = page.locator('.sh-sub-feature', { hasText: label }).first()
+  await expect(feature).toBeVisible({ timeout: 5_000 })
+
+  const input = feature.locator('input[type="checkbox"]').first()
+  if (await input.isChecked() !== checked) {
+    await feature.locator('.el-checkbox').first().click()
+  }
+
+  if (checked) {
+    await expect(input).toBeChecked()
+  } else {
+    await expect(input).not.toBeChecked()
+  }
 }
 
 interface ConsoleIssue {
