@@ -120,6 +120,29 @@ test.describe("Auth callback and admission entry", () => {
         await expect(page.getByText("Backend callback")).toBeVisible();
     });
 
+    test("auth callback rejects oversized parameters before reaching backend callback", async ({
+        page,
+    }) => {
+        let backendCallbackRequests = 0;
+        await page.route("**/api/v1/auth/callback?*", async (route) => {
+            backendCallbackRequests += 1;
+            await route.fulfill({
+                contentType: "text/html",
+                body: "<!doctype html><title>Unexpected backend callback</title>",
+            });
+        });
+
+        await page.goto(
+            `/auth/callback?code=oauth-code-1&state=${"s".repeat(4097)}`,
+        );
+
+        await expect(page).toHaveURL(/\/login\?error=invalid_callback/);
+        await expect(
+            page.getByRole("button", { name: /Login with SSO|使用 SSO 登录/ }),
+        ).toBeVisible();
+        expect(backendCallbackRequests).toBe(0);
+    });
+
     test("anonymous admission link starts login with the current admission return URL", async ({
         page,
     }) => {

@@ -379,6 +379,15 @@ datastore isolation 22 项、prod-parity browser smoke 64 项和 observability s
 （10 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3447 make e2e-web`（116 项）。
 
+本地验证补充（2026-05-25）：继续对照 Web 认证路由守卫补齐 E2E。新增覆盖已登录用户访问
+`/login?reauth=1&redirect=/user/reviews` 时仍停留在登录页，点击 SSO 登录后
+`GET /api/v1/auth/login` 请求携带 `app=web`、`prompt=login`、`max_age=0` 和本应用内回跳地址；
+同时覆盖 `/auth/callback` 收到超过 4096 字符的 OAuth 参数时 fail-closed 到
+`/login?error=invalid_callback`，并确认不会进入后端 callback。新增覆盖后已通过
+`CI=1 PLAYWRIGHT_WEB_PORT=3448 pnpm --dir clients/web exec playwright test tests/e2e/auth-flow.spec.ts tests/e2e/auth-callback-and-admission.spec.ts`
+（32 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3449 make e2e-web`（120 项）。
+
 接口硬化补充（2026-05-24）：审计发现 legacy disclosure API 文档要求 `client_id`，但
 OpenAPI 未声明且 handler 只读取认证上下文 appID；同时服务端在已有 active consent 时未重新校验
 `redirect_uri`。本轮已按 OpenAPI-first 补齐 `GET /api/v1/open-platform/userinfo`、

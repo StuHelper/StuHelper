@@ -209,6 +209,53 @@ test.describe('Auth Flow', () => {
     await expect(page).toHaveURL('/')
   })
 
+  test('authenticated user can force SSO reauthentication from login route', async ({
+    page,
+  }) => {
+    await mockAuthenticated(page, BASIC_USER)
+
+    let loginRequestURL: URL | null = null
+    await page.route('**/api/v1/auth/login*', (route) => {
+      loginRequestURL = new URL(route.request().url())
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            url: 'http://localhost:8085/login/oauth/authorize?client_id=stuhelper-web&state=reauth-state',
+            state: 'reauth-state',
+          },
+        }),
+      })
+    })
+    await page.route('http://localhost:8085/**', (route) =>
+      route.fulfill({
+        contentType: 'text/html',
+        body: '<!doctype html><title>Mock SSO Reauth</title><main>Mock SSO Reauth</main>',
+      }),
+    )
+
+    await page.goto('/login?reauth=1&redirect=/user/reviews')
+    const appOrigin = new URL(page.url()).origin
+    await expect(page).toHaveURL(/\/login\?/)
+
+    await Promise.all([
+      page.waitForURL(/http:\/\/localhost:8085\/login\/oauth\/authorize/),
+      page.getByRole('button', { name: /Login with SSO|使用 SSO 登录/ }).click(),
+    ])
+
+    expect(loginRequestURL).not.toBeNull()
+    expect(loginRequestURL!.searchParams.get('app')).toBe('web')
+    expect(loginRequestURL!.searchParams.get('prompt')).toBe('login')
+    expect(loginRequestURL!.searchParams.get('max_age')).toBe('0')
+    expect(loginRequestURL!.searchParams.get('redirect')).toBe(
+      `${appOrigin}/user/reviews`,
+    )
+    const ssoURL = new URL(page.url())
+    expect(ssoURL.origin).toBe('http://localhost:8085')
+    await expect(page.getByText('Mock SSO Reauth')).toBeVisible()
+  })
+
   test('login button starts SSO and preserves redirect target', async ({
     page,
   }) => {
