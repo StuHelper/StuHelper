@@ -4,7 +4,23 @@
  *
  * Simulates a user searching for courses and reviews.
  */
-import { test, expect, type Page } from './fixtures'
+import { test, expect, type Page, type Route } from './fixtures'
+
+const webApiRequests: string[] = []
+
+function recordApiRequest(route: Route) {
+  const request = route.request()
+  const url = new URL(request.url())
+  webApiRequests.push(`${request.method()} ${url.pathname}${url.search}`)
+}
+
+function hasWebGetRequest(pathname: string, matches: (url: URL) => boolean) {
+  return webApiRequests.some((request) => {
+    if (!request.startsWith('GET ')) return false
+    const url = new URL(request.slice('GET '.length), 'http://web.e2e')
+    return url.pathname === pathname && matches(url)
+  })
+}
 
 async function mockUnauthenticated(page: Page) {
   await page.route('**/api/v1/auth/me', (route) =>
@@ -21,6 +37,7 @@ async function mockUnauthenticated(page: Page) {
 
 test.describe('User Journey: Search', () => {
   test.beforeEach(async ({ page }) => {
+    webApiRequests.length = 0
     await mockUnauthenticated(page)
 
     await page.route('**/api/v1/course/departments*', (route) =>
@@ -53,8 +70,9 @@ test.describe('User Journey: Search', () => {
   test('user searches by course name and sees matching results', async ({
     page,
   }) => {
-    await page.route('**/api/v1/course/courses/search*', (route) =>
-      route.fulfill({
+    await page.route('**/api/v1/course/courses/search*', (route) => {
+      recordApiRequest(route)
+      return route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({
           success: true,
@@ -72,11 +90,12 @@ test.describe('User Journey: Search', () => {
             total: 1,
           },
         }),
-      }),
-    )
+      })
+    })
 
-    await page.route('**/api/v1/course/review/reviews/search*', (route) =>
-      route.fulfill({
+    await page.route('**/api/v1/course/review/reviews/search*', (route) => {
+      recordApiRequest(route)
+      return route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({
           success: true,
@@ -96,8 +115,8 @@ test.describe('User Journey: Search', () => {
             total: 1,
           },
         }),
-      }),
-    )
+      })
+    })
 
     await page.goto('/search')
     await page.waitForLoadState('networkidle')
@@ -121,6 +140,11 @@ test.describe('User Journey: Search', () => {
     await courseNameInput.fill('数据结构')
 
     // Click the search submit button (the one with "Search" or "搜索" text)
+    const coursesSearchResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/v1/course/courses/search') &&
+        resp.status() === 200,
+    )
     const reviewsSearchResponse = page.waitForResponse(
       (resp) =>
         resp.url().includes('/api/v1/course/review/reviews/search') &&
@@ -133,7 +157,29 @@ test.describe('User Journey: Search', () => {
       .click()
 
     // Wait for the search to complete and results view to render.
-    await reviewsSearchResponse
+    await Promise.all([coursesSearchResponse, reviewsSearchResponse])
+
+    await expect
+      .poll(() =>
+        hasWebGetRequest('/api/v1/course/courses/search', (url) =>
+          (
+            url.searchParams.get('q') === '数据结构' &&
+            url.searchParams.get('pageSize') === '50'
+          ),
+        ),
+      )
+      .toBe(true)
+    await expect
+      .poll(() =>
+        hasWebGetRequest('/api/v1/course/review/reviews/search', (url) =>
+          (
+            url.searchParams.get('q') === '数据结构' &&
+            url.searchParams.get('pageSize') === '50' &&
+            url.searchParams.get('sort') === 'time'
+          ),
+        ),
+      )
+      .toBe(true)
 
     // The matching course name appears in results
     await expect(page.getByText('数据结构与算法').first()).toBeVisible({
@@ -141,26 +187,135 @@ test.describe('User Journey: Search', () => {
     })
   })
 
-  test('search with no results shows empty state', async ({ page }) => {
-    await page.route('**/api/v1/course/courses/search*', (route) =>
-      route.fulfill({
+  test('user searches by department, teacher, and term query params', async ({
+    page,
+  }) => {
+    await page.route('**/api/v1/course/courses?*', (route) => {
+      recordApiRequest(route)
+      return route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({
           success: true,
-          data: { list: [], total: 0 },
+          data: {
+            list: [
+              {
+                id: 102,
+                name: '编译原理',
+                code: 'CS301',
+                departmentID: 1,
+                departmentName: '计算机科学与技术学院',
+                reviewCount: 8,
+              },
+            ],
+            total: 1,
+          },
         }),
-      }),
+      })
+    })
+
+    await page.route('**/api/v1/course/review/reviews/search*', (route) => {
+      recordApiRequest(route)
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            list: [
+              {
+                id: 'search-rev-teacher-term',
+                courseID: 102,
+                courseName: '编译原理',
+                teacherName: '张教授',
+                title: '按老师和学期命中的评价',
+                content: '这个筛选组合能找到指定老师在指定学期的评价。',
+                ratings: { recommendation: 5 },
+                likeCount: 4,
+                createdAt: '2026-03-22T10:00:00Z',
+              },
+            ],
+            total: 1,
+          },
+        }),
+      })
+    })
+
+    await page.goto('/search')
+    await page.waitForLoadState('networkidle')
+
+    await page.locator('#advanced-department').selectOption('1')
+    await page.locator('#advanced-teacher-name').fill('张教授')
+    await page.locator('#advanced-term').selectOption('2025-fall')
+
+    const coursesResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/v1/course/courses?') &&
+        resp.status() === 200,
+    )
+    const reviewsResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/v1/course/review/reviews/search') &&
+        resp.status() === 200,
     )
 
-    await page.route('**/api/v1/course/review/reviews/search*', (route) =>
-      route.fulfill({
+    await page
+      .getByRole('button', { name: /^Search$|^搜索$/ })
+      .first()
+      .click()
+
+    await Promise.all([coursesResponse, reviewsResponse])
+
+    await expect
+      .poll(() =>
+        hasWebGetRequest('/api/v1/course/courses', (url) =>
+          (
+            url.searchParams.get('departmentID') === '1' &&
+            url.searchParams.get('pageSize') === '50'
+          ),
+        ),
+      )
+      .toBe(true)
+    await expect
+      .poll(() =>
+        hasWebGetRequest('/api/v1/course/review/reviews/search', (url) =>
+          (
+            url.searchParams.get('departmentID') === '1' &&
+            url.searchParams.get('teacherName') === '张教授' &&
+            url.searchParams.get('termID') === '2025-fall' &&
+            url.searchParams.get('pageSize') === '50' &&
+            url.searchParams.get('sort') === 'time'
+          ),
+        ),
+      )
+      .toBe(true)
+
+    await expect(page.getByText('编译原理').first()).toBeVisible({
+      timeout: 10_000,
+    })
+    await expect(page.getByText('按老师和学期命中的评价')).toBeVisible()
+  })
+
+  test('search with no results shows empty state', async ({ page }) => {
+    await page.route('**/api/v1/course/courses/search*', (route) => {
+      recordApiRequest(route)
+      return route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({
           success: true,
           data: { list: [], total: 0 },
         }),
-      }),
-    )
+      })
+    })
+
+    await page.route('**/api/v1/course/review/reviews/search*', (route) => {
+      recordApiRequest(route)
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { list: [], total: 0 },
+        }),
+      })
+    })
 
     await page.goto('/search')
     await page.waitForLoadState('networkidle')
