@@ -63,6 +63,37 @@ function list<T>(items: T[]) {
 
 const adminApiRequests: string[] = [];
 
+function hasAdminGetRequest(pathname: string, matches: (url: URL) => boolean) {
+  return adminApiRequests.some((request) => {
+    if (!request.startsWith('GET ')) return false;
+    const url = new URL(request.slice('GET '.length), 'http://admin.e2e');
+    return url.pathname === pathname && matches(url);
+  });
+}
+
+async function waitForAdminGetRequest(
+  page: Page,
+  pathname: string,
+  matches: (url: URL) => boolean,
+  trigger: () => Promise<void>,
+) {
+  const responsePromise = page.waitForResponse((response) => {
+    const request = response.request();
+    const url = new URL(response.url());
+    return (
+      request.method() === 'GET' &&
+      url.pathname === pathname &&
+      matches(url) &&
+      response.status() < 400
+    );
+  });
+
+  await trigger();
+  await responsePromise;
+
+  await expect.poll(() => hasAdminGetRequest(pathname, matches)).toBe(true);
+}
+
 const stats = {
   totalReviews: 128,
   todayReviews: 7,
@@ -608,6 +639,54 @@ test.describe('Admin management surfaces', () => {
         }),
       )
       .toBe(true);
+  });
+
+  test('content filters pass status, category, and level query params', async ({
+    page,
+  }) => {
+    await page.goto('/content/reviews');
+    await waitForAdminGetRequest(
+      page,
+      '/api/v1/course/review/admin/reviews',
+      (url) =>
+        url.searchParams.get('status') === 'pending_review' &&
+        url.searchParams.get('page') === '1' &&
+        url.searchParams.get('pageSize') === '20',
+      async () => {
+        await page.getByRole('main').locator('.el-select').click();
+        await page.getByRole('option', { name: '待审核' }).click();
+      },
+    );
+
+    await page.goto('/content/reports');
+    await waitForAdminGetRequest(
+      page,
+      '/api/v1/course/review/admin/reports',
+      (url) =>
+        url.searchParams.get('status') === 'resolved' &&
+        url.searchParams.get('page') === '1' &&
+        url.searchParams.get('pageSize') === '20',
+      async () => {
+        await page.getByRole('main').locator('.el-select').click();
+        await page.getByRole('option', { name: '已处理' }).click();
+      },
+    );
+
+    await page.goto('/content/sensitive-words');
+    await page.getByPlaceholder('按分类筛选...').fill('comment');
+    await waitForAdminGetRequest(
+      page,
+      '/api/v1/course/review/admin/sensitive-words',
+      (url) =>
+        url.searchParams.get('category') === 'comment' &&
+        url.searchParams.get('level') === 'review' &&
+        url.searchParams.get('page') === '1' &&
+        url.searchParams.get('pageSize') === '20',
+      async () => {
+        await page.getByRole('main').locator('.el-select').click();
+        await page.getByRole('option', { name: '复核' }).click();
+      },
+    );
   });
 
   test('user system pages render identity, admission, and blacklist data', async ({
