@@ -195,6 +195,50 @@ test('global search opens entity overlay and entity jump updates navigation stat
   tracker.assertClean()
 })
 
+test('log search filters seeded command log and opens detail drawer', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  await clickNavRail(page, '日志检索')
+  await expect(page).toHaveURL(/#logs($|\?)/, { timeout: 5_000 })
+  await expect(page.locator('.sh-workspace-head__title', { hasText: '日志检索' }).first()).toBeVisible({
+    timeout: 10_000,
+  })
+
+  await fillLabeledInput(page, '命令', 'e2e.log-search')
+  await fillLabeledInput(page, '用户 ID', '100000')
+  await fillLabeledInput(page, '详情关键字', 'drawer-match-token')
+  await page.getByRole('button', { name: '检索', exact: true }).click()
+
+  const row = page
+    .locator('.el-table__row', { hasText: 'e2e.log-search' })
+    .filter({ hasText: '100000' })
+    .filter({ hasText: 'drawer-match-token' })
+    .first()
+  await expect(row).toBeVisible({ timeout: 10_000 })
+  await expect(row.getByText('成功', { exact: true })).toBeVisible()
+
+  await row.click()
+
+  const drawer = page.locator('.el-drawer.sh-drawer', { hasText: 'e2e.log-search' }).first()
+  await expect(drawer).toBeVisible({ timeout: 5_000 })
+  await expect(drawer.getByText('E2E 日志用户')).toBeVisible()
+  await expect(drawer.getByText('E2E 日志群')).toBeVisible()
+  await expect(drawer.getByText('42 ms')).toBeVisible()
+  await expect(
+    drawer.locator('.sh-logs__code', { hasText: 'E2E command log result drawer-match-token' }),
+  ).toBeVisible()
+
+  await drawer.getByRole('button', { name: '关闭', exact: true }).click()
+  await expect(drawer).toBeHidden({ timeout: 5_000 })
+
+  await page.getByRole('button', { name: '重置', exact: true }).click()
+  await expect(page.locator('label', { hasText: '命令' }).locator('input').first()).toHaveValue('')
+  await expect(page.locator('label', { hasText: '用户 ID' }).locator('input').first()).toHaveValue('')
+  await expect(page.locator('label', { hasText: '详情关键字' }).locator('input').first()).toHaveValue('')
+
+  tracker.assertClean()
+})
+
 test('config governance workspace tabs render and update navigation state', async ({ loggedInPage: page }) => {
   await using tracker = createTracker(page)
 

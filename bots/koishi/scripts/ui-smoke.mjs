@@ -23,6 +23,7 @@ const SHUTDOWN_TIMEOUT_MS = 5_000
 const COREPACK_BIN = process.platform === 'win32' ? 'corepack.cmd' : 'corepack'
 const cwd = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const tempConfigDir = await createTempConfigDir()
+const smokeDataDir = join(tempConfigDir, 'stuhelper-data')
 const tempConfigPath = await writeSmokeConfig(tempConfigDir)
 const platformStub = process.env.STUHELPER_PLATFORM_BASE_URL
   ? null
@@ -36,6 +37,7 @@ let playwrightExitCode = 1
 
 try {
   await releasePort(SMOKE_PORT)
+  await seedSmokeData(smokeDataDir)
   buildWorkspace()
 
   const koishiStartup = corepackSpawnInvocation(['yarn', 'exec', 'koishi', 'start', tempConfigPath])
@@ -45,7 +47,7 @@ try {
       ...process.env,
       NODE_ENV: 'production',
       KOISHI_CONFIG_FILE: '',
-      STUHELPER_GROUP_CENTER_DATA_DIR: join(tempConfigDir, 'stuhelper-data'),
+      STUHELPER_GROUP_CENTER_DATA_DIR: smokeDataDir,
       STUHELPER_CONSOLE_ADMIN_PASSWORD: process.env.STUHELPER_CONSOLE_ADMIN_PASSWORD ?? 'ui-smoke-password',
       STUHELPER_PLATFORM_BASE_URL: process.env.STUHELPER_PLATFORM_BASE_URL ?? platformStub.baseUrl,
       STUHELPER_PLATFORM_SERVICE_TOKEN: process.env.STUHELPER_PLATFORM_SERVICE_TOKEN ?? 'ui-smoke-service-token',
@@ -330,6 +332,34 @@ async function writeSmokeConfig(tempDir) {
   const targetPath = join(tempDir, 'koishi.yml')
   await writeFile(targetPath, dump(config))
   return targetPath
+}
+
+async function seedSmokeData(dataDir) {
+  await mkdir(dataDir, { recursive: true })
+  await writeFile(join(dataDir, 'command_logs.json'), JSON.stringify([
+    {
+      id: 'ui-smoke-command-log-1',
+      timestamp: '2026-05-25T00:00:00.000Z',
+      userId: '100000',
+      username: 'E2E 日志用户',
+      userAuthority: 4,
+      guildId: '1001',
+      guildName: 'E2E 日志群',
+      channelId: '2001',
+      platform: 'onebot',
+      command: 'e2e.log-search',
+      args: ['--case', 'log-search'],
+      options: {
+        source: 'ui-smoke',
+        match: 'drawer-match-token',
+      },
+      success: true,
+      executionTime: 42,
+      result: 'E2E command log result drawer-match-token',
+      messageId: 'ui-smoke-message-1',
+      isPrivate: false,
+    },
+  ], null, 2))
 }
 
 function startPlatformStub() {

@@ -600,6 +600,18 @@ glob 未加引号导致 Bash 只展开一层目录、深层单元测试未进入
 `corepack yarn --cwd bots/koishi test:unit`（260 项）和
 `cd bots/koishi && corepack yarn exec tsx --test --test-reporter spec plugins/stuhelper-core/src/core/data/data.service.test.ts`。
 
+本地验证补充（2026-05-25）：继续补齐 Koishi Console 日志检索真实查询路径。`scripts/ui-smoke.mjs`
+现在会在临时 `STUHELPER_GROUP_CENTER_DATA_DIR` 下预置一条命令执行日志，避免依赖开发机历史数据；
+新增 E2E 用例进入“日志检索”，按命令、用户 ID 和详情关键字组合过滤，断言表格行展示目标命令、
+用户、群组和执行结果，点击行打开详情 Drawer 后验证用户、群组、执行耗时和原始执行结果，再关闭
+Drawer 并点击“重置”确认筛选项清空。该用例覆盖 `stuhelperGroupCenter/logs/search` 的浏览器 UI
+到 WebSocket API 再到 `LogModule.getAllLogs()` 查询链路。Playwright MCP 也在临时 Koishi
+`http://127.0.0.1:5165` 上复验同一路径，最终停在 `/stuhelper#logs`，返回行内容包含
+`MCP 日志用户`、`MCP 日志群` 和 `MCP command log result drawer-match-token`，详情 Drawer 四项断言
+均为 true，重置后的 `command`、`userId` 和 `details` 均为空，未发现新增 console error 或 pageerror。
+新增覆盖后已通过 `STUHELPER_UI_SMOKE_PORT=5163 corepack yarn --cwd bots/koishi test:ui`（22 项）和
+`corepack yarn --cwd bots/koishi test:unit`（260 项）。
+
 本地生产等价复验（2026-05-25）：在提交 `45b401c2` 上重新执行 `make prod-parity-up`，构建并启动
 tag 为 `prod-parity-45b401c2` 的 backend / frontend / admin 生产镜像。当前本机生产等价入口为
 Web `http://127.0.0.1:28000`、Admin `http://127.0.0.1:28001/admin/`、Backend
