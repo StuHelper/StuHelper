@@ -137,6 +137,18 @@ Admin 26 项）。
 （6 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3430 make e2e-web`（110 项）。
 
+本地生产等价验证补充（2026-05-25）：按“先本机同构，再生产发布”的流程，用当前提交
+`prod-parity-afde095e` 重新执行完整 `make prod-parity-up`。该入口在本机 Ubuntu 24.04 + Docker 中完成
+共享 PostgreSQL 初始化、StuHelper / OpenFGA / Casdoor 独立数据库和账号创建、独立 Redis TLS/ACL 实例启动、
+生产镜像构建、migration、OpenFGA/Casdoor bootstrap、API/Identity/OpenFGA/浏览器/观测 smoke，并最终输出
+Web `http://127.0.0.1:28000`、Admin `http://127.0.0.1:28001/admin/`、Backend `http://127.0.0.1:28080`、
+Grafana `http://127.0.0.1:23003`。其中 datastore evidence 显示 PostgreSQL 容器
+`stuhelper-prod-parity-postgres` 内 `stuhelper` / `openfga` / `casdoor` 三库均已隔离，Redis 容器
+`stuhelper-prod-parity-redis` 只在 StuHelper backend 网络中运行且未加入 `stuhelper-prod-parity-baota-net`；
+浏览器 smoke evidence 记录 64 项检查通过，Identity evidence 记录 26 项检查通过。首次运行在
+`proxy.golang.org` 依赖下载阶段遇到瞬时 `unexpected EOF`，复跑 `make prod-parity-smoke` 通过后，再次完整
+`make prod-parity-up` 已成功收尾。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等
