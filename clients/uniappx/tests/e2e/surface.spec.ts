@@ -757,7 +757,7 @@ test.describe('UniAppX H5 surface', () => {
   test('authenticated review post page loads form data and saves a draft', async ({
     page,
   }) => {
-    const { mutations } = await mockUniApi(page, { authenticated: true })
+    const { mutationBodies, mutations } = await mockUniApi(page, { authenticated: true })
 
     await gotoUniPage(page, `/#/pages/review/post?courseID=${course.id}`)
 
@@ -767,10 +767,33 @@ test.describe('UniAppX H5 surface', () => {
     await expect(page.getByText(term.name).last()).toBeVisible()
     await expect(page.getByText('综合体验')).toBeVisible()
 
-    await page.getByText('保存草稿').click()
+    await setUniFieldValue(page, 'uni-review-title', '移动端草稿标题')
+    await setUniFieldValue(page, 'uni-review-grade', 'A')
+    await setUniFieldValue(
+      page,
+      'uni-review-content',
+      '这是一条用于 UniAppX H5 端到端测试的草稿正文。',
+    )
+    await page.getByTestId('uni-review-rating-overall-5').click()
+    await page.getByTestId('uni-review-rating-workload-4').click()
+    await page.getByTestId('uni-review-save-draft').click()
     await expect
       .poll(() => mutations.includes('POST /api/v1/course/review/drafts'))
       .toBe(true)
+    const draftPayload = requireMutationBody(
+      mutationBodies,
+      'POST',
+      '/api/v1/course/review/drafts',
+    )
+    expect(draftPayload).toMatchObject({
+      content: '这是一条用于 UniAppX H5 端到端测试的草稿正文。',
+      courseID: course.id,
+      grade: 'A',
+      ratings: { overall: 5, workload: 4 },
+      termID: term.id,
+      title: '移动端草稿标题',
+    })
+    expect(draftPayload).not.toHaveProperty('teacherID')
   })
 
   test('authenticated review post page submits a complete review', async ({ page }) => {
@@ -779,7 +802,7 @@ test.describe('UniAppX H5 surface', () => {
     await gotoUniPage(page, `/#/pages/review/post?courseID=${course.id}`)
 
     await setUniFieldValue(page, 'uni-review-title', '移动端提交评课验证')
-    await setUniFieldValue(page, 'uni-review-grade', '2024 级')
+    await setUniFieldValue(page, 'uni-review-grade', 'A')
     await setUniFieldValue(
       page,
       'uni-review-content',
@@ -802,7 +825,7 @@ test.describe('UniAppX H5 surface', () => {
     )
     expect(payload).toMatchObject({
       courseID: course.id,
-      grade: '2024 级',
+      grade: 'A',
       ratings: { overall: 5, workload: 4 },
       termID: term.id,
       title: '移动端提交评课验证',

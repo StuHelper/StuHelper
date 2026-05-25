@@ -4,6 +4,7 @@ import { onLoad } from '@dcloudio/uni-app'
 import { api } from '@/api'
 import type { components } from '@/api'
 import type { ReviewRatings } from '@stuhelper/shared/review'
+import { normalizeReviewGrade } from '@stuhelper/shared/constants'
 import { assertMutationSuccess, unwrapData, unwrapOptionalData } from '@/api/result'
 import { setPageTitle, translate } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
@@ -25,7 +26,7 @@ const form = ref<{
   termID: string
   title: string
   content: string
-  grade: '' | ReviewGrade
+  grade: string
   ratings: ReviewRatings
 }>({
   teacherID: 0,
@@ -37,7 +38,7 @@ const form = ref<{
 })
 
 function normalizedGrade(): ReviewGrade | undefined {
-  return form.value.grade === '' ? undefined : form.value.grade
+  return normalizeReviewGrade(form.value.grade)
 }
 
 const canSubmit = computed(() =>

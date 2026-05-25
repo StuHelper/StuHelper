@@ -63,6 +63,13 @@ function isExpectedAbortedTabBarImage(request: Request) {
   return new URL(request.url()).pathname.startsWith('/static/tabbar/')
 }
 
+function isExpectedAbortedViteDevtoolsScript(request: Request) {
+  if (request.resourceType() !== 'script') return false
+  if (request.failure()?.errorText !== 'net::ERR_ABORTED') return false
+  const pathname = new URL(request.url()).pathname
+  return pathname.startsWith('/@fs/') && pathname.includes('/@vue/devtools-api/')
+}
+
 export const test = base.extend<{ page: Page }>({
   page: async ({ page }, use) => {
     const pageErrors: string[] = []
@@ -82,7 +89,10 @@ export const test = base.extend<{ page: Page }>({
       pageErrors.push(describePageError(error))
     })
     page.on('requestfailed', (request) => {
-      if (isExpectedAbortedTabBarImage(request)) {
+      if (
+        isExpectedAbortedTabBarImage(request) ||
+        isExpectedAbortedViteDevtoolsScript(request)
+      ) {
         return
       }
       if (criticalResourceTypes.has(request.resourceType())) {

@@ -312,7 +312,7 @@ UniAppX H5。新增用例在桌面与移动视口下覆盖 UniAppX 首页、课�
 运行时 chrome；同时补齐 `static/tabbar/*.png` 图标资源，避免 H5 tabBar 图片请求缺失。后续补齐
 `pages.json` 中文静态页面标题，并在 UniAppX H5 E2E 中断言浏览器标题，确保 H5 首屏 chrome 与默认
 中文界面一致；补齐课程列表搜索、加载更多和课程详情跳转 E2E，验证 `q` / `page` / `sort` 查询参数、
-分页追加和搜索结果替换；补齐发布评课完整提交 E2E，验证标题、年级、正文和评分进入创建评课 payload、提交后清理
+分页追加和搜索结果替换；补齐发布评课完整提交 E2E，验证标题、成绩、正文和评分进入创建评课 payload、提交后清理
 草稿并返回课程详情；补齐课程详情收藏切换和回复提交流程 E2E，验证收藏 POST/DELETE、回复列表加载、
 回复 payload 和提交后回显；补齐评课广场排序、点赞、加载更多和课程跳转 E2E，验证 sort/page 查询参数、
 vote payload、乐观计数更新和二页数据追加；补齐用户中心我的评课 / 投票 / 收藏分页和课程跳转、
@@ -322,6 +322,17 @@ platform、redirect 保留和 SSO 页面跳转；并补齐 SSO callback 成功�
 `exchange-native` 调用、state 清理和回到个人中心，修复页面提前删除 state 导致 store 二次校验失败的问题。已通过
 `pnpm --dir clients test:e2e:uni`、`pnpm --dir clients test:uni`、`pnpm --dir clients type-check:uni`、
 `pnpm --dir clients build:uni:h5` 和 `git diff --check`。
+
+UniAppX H5 E2E 补充（2026-05-25）：继续收紧发布评课草稿路径。新增浏览器断言会填写标题、合法成绩
+`A`、正文和两个评分维度后点击“保存草稿”，验证 `POST /api/v1/course/review/drafts` 的 body 包含
+`courseID`、默认 `termID`、`title`、`content`、`grade=A` 和完整 `ratings`，且未选择教师时不会误发
+`teacherID`。该补充发现 UniAppX 文案仍把 OpenAPI/后端枚举成绩字段描述为“年级 / 2024 级”，且正式提交路径未
+复用共享 `normalizeReviewGrade`；已改为按共享成绩枚举规范化，中文文案改为“成绩（可选）”，中英文 placeholder
+都只提示 `A+ / B / F` 这类合法成绩。H5 fixture 还为 Vite 开发时 `@vue/devtools-api` 内部脚本的
+`net::ERR_ABORTED` 添加窄范围忽略，业务 script、静态资源和 API 门禁不放宽。新增覆盖后已通过
+`CI=1 UNIAPPX_E2E_PORT=3137 make e2e-uni`（28 项）、`pnpm --dir clients type-check:uni`、
+`pnpm --dir clients test:uni`（46 项）、`pnpm --dir clients build:uni:h5`、`make check-docs`
+和 `git diff --check`。
 
 接口硬化补充（2026-05-24）：审计发现 legacy disclosure API 文档要求 `client_id`，但
 OpenAPI 未声明且 handler 只读取认证上下文 appID；同时服务端在已有 active consent 时未重新校验

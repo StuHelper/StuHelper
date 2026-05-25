@@ -130,7 +130,7 @@ export const enUSMessages = {
   'review.post.reviewTitle': 'Title',
   'review.post.titlePlaceholder': 'Summarize this course in one sentence',
   'review.post.grade': 'Grade (optional)',
-  'review.post.gradePlaceholder': 'For example: sophomore / class of 2024',
+  'review.post.gradePlaceholder': 'For example: A+ / B / F',
   'review.post.rating': 'Ratings',
   'review.post.content': 'Content',
   'review.post.contentPlaceholder': 'Describe the teaching style, workload, grading, and who this course is best for.',
