@@ -1001,6 +1001,21 @@ Casdoor app 查询符合预期。
 `CI=1 PLAYWRIGHT_WEB_PORT=3490 pnpm --dir clients/web exec playwright test tests/e2e/home.spec.ts`（8 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3492 make e2e-web`（142 项）。
 
+本地验证补充（2026-05-26）：继续收紧 Web 可观测性上报的浏览器运行时行为。Playwright MCP 公共页面巡检
+`/`、`/courses`、`/courses/list`、`/courses/about`、`/courses/reviews`、`/teachers`、`/search`、
+`/about`、`/privacy` 和 `/terms` 时没有发现页面 console error，但连续快速跳转会看到
+`POST /api/v1/metrics/vitals net::ERR_ABORTED`；后端 metrics handler 已按 sendBeacon 请求体兼容处理，
+前端 helper 也命名为 `sendBeaconJSON`，但实际只走 `fetch keepalive`。本轮改为优先使用
+`navigator.sendBeacon` 发送 `application/json` Blob，只有 sendBeacon 不存在或拒绝 payload 时才回退到原有
+`fetch keepalive`，且回退路径继续携带浏览器 cookie 和 CSRF header。单测覆盖 sendBeacon 成功、sendBeacon
+缺失回退、sendBeacon 拒绝回退三条路径。变更后 Codex 暴露的 Playwright MCP transport 持续返回
+`Transport closed`，本机 `npx -y @playwright/mcp@0.0.75 --help` 可正常执行，说明仓库依赖可用但当前托管
+MCP 会话已断开；本轮浏览器回归改用本地 Playwright CLI 执行。验证已通过
+`pnpm --dir clients/web exec vitest run src/utils/__tests__/observability.test.ts`（3 项）、
+`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、静态页 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3494 pnpm --dir clients/web exec playwright test tests/e2e/search-and-static.spec.ts`
+（10 项）和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3495 make e2e-web`（142 项）。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |

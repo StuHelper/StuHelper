@@ -34,6 +34,14 @@ function sendBeaconJSON(path: string, payload: unknown) {
     if (typeof window === "undefined") return;
     const body = JSON.stringify(payload);
     const url = resolveApiURL(path);
+    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+        const accepted = navigator.sendBeacon(
+            url,
+            new Blob([body], { type: "application/json" }),
+        );
+        if (accepted) return;
+    }
+
     const csrfToken = readCookie(CSRF_COOKIE_NAME);
     const headers: Record<string, string> = {
         "Content-Type": "application/json",
