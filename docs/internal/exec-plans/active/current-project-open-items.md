@@ -1059,6 +1059,17 @@ Codex Playwright MCP 配置从 `npx -y @playwright/mcp@0.0.75 --headless` 改为
 Codex 会话中的托管 Playwright MCP transport 仍返回 `Transport closed`，需要新会话重新挂载后才能用 MCP 工具，
 本轮浏览器门禁继续使用 Playwright CLI。
 
+本地清理补充（2026-05-26）：继续移除 Admin active bundle 中的演示入口痕迹。审计发现
+`src/locales/langs/*/demos.json` 仍随 `import.meta.glob('./langs/**/*.json')` 进入语言包，内容是 Demos、Vben 项目、
+Ant Design Vue / Naive UI / TDesign 版本等上游演示文案，但当前路由和页面已无 demos namespace 读取；同时
+403 / 404 fallback 组件名仍为 `Fallback403Demo` / `Fallback404Demo`。本轮删除中英文 `demos.json`，新增
+`src/locales/locales.test.ts` 锁定每个语言目录只加载 `admin.json` 和 `page.json`，并将 fallback 组件名收敛为
+`Fallback403` / `Fallback404`。验证已通过演示 namespace / fallback demo 名称 `rg` 扫描无输出、
+`pnpm --dir clients/admin --filter @vben/web-ele test -- src/locales/locales.test.ts src/views/dashboard/analytics/index.test.ts src/store/auth.test.ts`
+（19 个 Admin 单测文件、75 项）、`pnpm --dir clients type-check:admin`、`pnpm --dir clients lint:admin`（仅 7 个既有
+`vue/one-component-per-file` warning）和完整 `CI=1 ADMIN_E2E_PORT=4242 make e2e-admin`（78 项，桌面 / 移动均覆盖
+403 / 404 fallback 路由）。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |
