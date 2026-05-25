@@ -415,17 +415,32 @@ datastore isolation 22 项、prod-parity browser smoke 64 项和 observability s
 （32 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3449 make e2e-web`（120 项）。
 
+本地验证补充（2026-05-25）：继续对照 Web AppShell 交互补齐全局命令面板 E2E。新增覆盖从首页等待
+shell 挂载后按 `Control+K` 打开命令面板、输入 `math` 调用
+`GET /api/v1/course/courses/search?q=math&pageSize=10`、展示课程结果并点击进入 `/courses/77` 详情页；
+该用例同时跑 desktop / mobile Chromium project，课程详情依赖的 reviews、rating stats、teachers 和
+rating trend 接口均用 fail-closed mock 明确返回。覆盖过程中使用 Playwright MCP 事件探针确认 Chromium
+向页面派发的组合键事件为 `key="K"`、`code="KeyK"`、`ctrlKey=true`，因此 `useCommandPalette`
+改为统一用 `e.key.toLowerCase()` 判断 `k` / `escape`；`CommandPalette` 的 `role="dialog"` 同步补充
+可访问名称，便于真实用户语义定位。新增覆盖后已通过
+`CI=1 PLAYWRIGHT_WEB_PORT=3451 pnpm --dir clients/web exec playwright test tests/e2e/home.spec.ts`
+（4 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3452 make e2e-web`（122 项）。
+
 本地全量复验（2026-05-25）：在提交 `d82afd53` 上复跑统一客户端 E2E 门禁，
 `CI=1 PLAYWRIGHT_WEB_PORT=3450 ADMIN_E2E_PORT=4206 UNIAPPX_E2E_PORT=3142 make e2e`
 通过 Web 120 项、Admin 66 项和 UniAppX H5 30 项，覆盖本轮 Web 重新认证 / callback guard 与
 UniAppX callback state mismatch 本地化修复后的组合状态。
 
-本地工具链修复（2026-05-25）：排查发现本机 Codex Playwright MCP 已配置但使用 Windows 命令
-`cmd /c npx -y @playwright/mcp@latest`，在 Ubuntu 24.04 会被 Codex 列为 enabled 但无法启动，因此当前会话
-没有暴露 `browser_*` 工具。已将 `~/.codex/config.toml` 中 Playwright MCP 改为 Linux 可执行的
-`command = "npx"`、`args = ["-y", "@playwright/mcp@latest"]`，并验证
-`npx -y @playwright/mcp@latest --version` 返回 `0.0.75`。当前 Codex 会话不热加载 MCP server，需新开会话后
-才能使用 Playwright MCP 工具。
+本地工具链修复（2026-05-25）：排查发现本机 Codex Playwright MCP 已配置但当前会话未暴露
+`browser_*` 工具；配置使用大写 server 名 `Playwright` 和动态 `@playwright/mcp@latest`。同时 GitLab /
+ace-tool 仍是 Windows `cmd /c` 写法，`codex doctor` 在 Ubuntu 24.04 下报告这些 stdio 命令不可解析。
+已将 `~/.codex/config.toml` 中 Playwright MCP 改为稳定的小写 server 名和 Linux 可执行的
+`command = "npx"`、`args = ["-y", "@playwright/mcp@0.0.75", "--headless"]`，并将 GitLab / ace-tool
+MCP 从 Windows `cmd /c` 改为 Ubuntu 下直接执行 `npx`。修复后 `codex mcp list` 显示 `playwright`
+enabled，MCP `tools/list` 返回 `browser_navigate`、`browser_snapshot`、`browser_click` 等工具；
+当前会话已通过 `tool_search` 暴露 `mcp__playwright__`，并实际用 `browser_navigate` / `browser_snapshot`
+完成页面快照验证。
 
 本地生产等价复验（2026-05-25）：在提交 `45b401c2` 上重新执行 `make prod-parity-up`，构建并启动
 tag 为 `prod-parity-45b401c2` 的 backend / frontend / admin 生产镜像。当前本机生产等价入口为

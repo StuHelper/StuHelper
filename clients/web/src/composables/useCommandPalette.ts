@@ -28,18 +28,19 @@ function toggle() {
 
 function handleKeydown(e: KeyboardEvent) {
   if (e.defaultPrevented) return
+  const key = e.key.toLowerCase()
 
   const target = e.target as HTMLElement | null
   const isEditable = target instanceof HTMLInputElement
     || target instanceof HTMLTextAreaElement
     || target?.isContentEditable === true
 
-  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+  if ((e.metaKey || e.ctrlKey) && key === 'k') {
     if (isEditable) return
     e.preventDefault()
     toggle()
   }
-  if (e.key === 'Escape' && isOpen.value) {
+  if (key === 'escape' && isOpen.value) {
     e.preventDefault()
     close()
   }

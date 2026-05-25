@@ -11,6 +11,7 @@
           class="w-full max-w-[640px] bg-bg-card rounded-xl shadow-xl overflow-hidden animate-modal-in max-md:rounded-lg glow-border"
           role="dialog"
           aria-modal="true"
+          :aria-label="t('nav.searchCoursePlaceholder')"
           @keydown="trapFocus"
         >
           <div class="flex items-center gap-3 px-5 py-4 border-b border-border-light">

@@ -31,6 +31,63 @@ async function mockUnauthenticated(page: Page) {
   )
 }
 
+async function mockCourseDetail(page: Page, courseId: number) {
+  await page.route(`**/api/v1/course/courses/${courseId}`, (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          id: courseId,
+          name: '线性代数',
+          code: 'MATH077',
+          departmentName: '数学科学学院',
+          credits: 3,
+        },
+      }),
+    }),
+  )
+
+  await page.route(
+    `**/api/v1/course/review/courses/${courseId}/reviews*`,
+    (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: { list: [], total: 0 } }),
+      }),
+  )
+
+  await page.route(
+    `**/api/v1/course/review/courses/${courseId}/rating-stats*`,
+    (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { averageRating: 4.8, totalReviews: 12 },
+        }),
+      }),
+  )
+
+  await page.route(
+    `**/api/v1/course/review/courses/${courseId}/teachers*`,
+    (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: [] }),
+      }),
+  )
+
+  await page.route(
+    `**/api/v1/course/review/courses/${courseId}/rating-trend*`,
+    (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: { trend: [] } }),
+      }),
+  )
+}
+
 test('home page renders shell and brand', async ({ page }) => {
   await mockUnauthenticated(page)
 
@@ -40,4 +97,61 @@ test('home page renders shell and brand', async ({ page }) => {
   await expect(
     page.getByRole('link', { name: /StuHelper/i }).first(),
   ).toBeVisible()
+})
+
+test('command palette searches courses from keyboard and opens course detail', async ({
+  page,
+}) => {
+  await mockUnauthenticated(page)
+  await mockCourseDetail(page, 77)
+
+  const searchRequests: URL[] = []
+  await page.route('**/api/v1/course/courses/search*', (route) => {
+    searchRequests.push(new URL(route.request().url()))
+    return route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          list: [
+            {
+              id: 77,
+              name: '线性代数',
+              code: 'MATH077',
+              departmentName: '数学科学学院',
+              credits: 3,
+            },
+          ],
+          total: 1,
+        },
+      }),
+    })
+  })
+
+  await page.goto('/')
+  await expect(
+    page.getByRole('link', { name: /StuHelper/i }).first(),
+  ).toBeVisible()
+
+  await page.keyboard.press('Control+K')
+  const dialog = page.getByRole('dialog', {
+    name: /搜索课程名称、教师|Search course name, teacher/i,
+  })
+  await expect(dialog).toBeVisible()
+
+  await dialog.getByRole('combobox').fill('math')
+  const result = dialog.getByRole('option', { name: /线性代数/ })
+  await expect(result).toBeVisible({ timeout: 10_000 })
+
+  const searchRequest = searchRequests.at(-1)
+  expect(searchRequest?.searchParams.get('q')).toBe('math')
+  expect(searchRequest?.searchParams.get('pageSize')).toBe('10')
+
+  await result.click()
+
+  await expect(page).toHaveURL(/\/courses\/77$/)
+  await expect(page.getByText('线性代数').first()).toBeVisible({
+    timeout: 10_000,
+  })
+  await expect(dialog).toBeHidden()
 })
