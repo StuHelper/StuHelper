@@ -336,6 +336,7 @@ async function writeSmokeConfig(tempDir) {
   // 用临时目录隔离 SQLite，避免 admin 账户/会话残留污染下次 smoke 与开发数据库
   plugins['group:storage']['database-sqlite:q4tbt0'].path = join(tempDir, 'koishi.db')
   plugins['group:ui-smoke'] = {
+    'mock:ui-smoke': { selfId: '514' },
     './ui-smoke-seed.cjs:seed': {},
   }
   const targetPath = join(tempDir, 'koishi.yml')
@@ -345,6 +346,7 @@ async function writeSmokeConfig(tempDir) {
 
 async function writeSmokeSeedPlugin(tempDir) {
   await writeFile(join(tempDir, 'ui-smoke-seed.cjs'), `
+const { h, Universal } = require('koishi')
 const {
   MODERATION_EVENT_TABLE,
   MODERATION_REPORT_TABLE,
@@ -353,55 +355,211 @@ const {
 const REPORT_ID = 'ui-smoke-report-1'
 const EVENT_ID = 'ui-smoke-report-event-1'
 const CREATED_AT = new Date('2026-05-25T00:10:00.000Z')
+const CHAT_GUILD_ID = '1001'
+const CHAT_CHANNEL_ID = '1001'
+const CHAT_IMAGE_FILE = 'ui-smoke-image.png'
+const CHAT_IMAGE_URL = 'https://gchat.qpic.cn/gchatpic_new/1001/100100-514-UI-SMOKE/0'
+const TRANSPARENT_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII='
+const DATA_AVATAR = 'data:image/png;base64,' + TRANSPARENT_PNG_BASE64
 
 module.exports = function uiSmokeSeed(ctx) {
+  const sentMessages = []
+  const recalledMessages = []
+  let messageSeq = 0
+  const router = ctx.root.server || ctx.server || ctx.router
+
   ctx.on('ready', async () => {
-    const [report] = await ctx.database.get(MODERATION_REPORT_TABLE, { id: REPORT_ID })
-    if (!report) {
-      await ctx.database.create(MODERATION_REPORT_TABLE, {
-        id: REPORT_ID,
-        platform: 'onebot',
-        botSelfId: '514',
-        guildId: '1001',
-        channelId: '2001',
-        reporterMemberId: '100999',
-        targetMemberId: '200200',
-        reason: 'E2E 处置中心举报 dismiss-report-token',
-        aiStatus: 'completed',
-        aiSeverity: 'medium',
-        aiSummary: 'E2E 处置中心 AI 摘要',
-        createdAt: CREATED_AT,
-        updatedAt: CREATED_AT,
-      })
-    }
-
-    const [event] = await ctx.database.get(MODERATION_EVENT_TABLE, { id: EVENT_ID })
-    if (!event) {
-      await ctx.database.create(MODERATION_EVENT_TABLE, {
-        id: EVENT_ID,
-        platform: 'onebot',
-        botSelfId: '514',
-        guildId: '1001',
-        channelId: '2001',
-        memberId: '200200',
-        type: 'report_created',
-        level: 'medium',
-        summary: 'E2E 处置中心关联事件 report-related-token',
-        payload: {
+    try {
+      const [report] = await ctx.database.get(MODERATION_REPORT_TABLE, { id: REPORT_ID })
+      if (!report) {
+        await ctx.database.create(MODERATION_REPORT_TABLE, {
+          id: REPORT_ID,
+          platform: 'onebot',
+          botSelfId: '514',
+          guildId: '1001',
+          channelId: '2001',
+          reporterMemberId: '100999',
+          targetMemberId: '200200',
           reason: 'E2E 处置中心举报 dismiss-report-token',
-          reportID: REPORT_ID,
-        },
-        createdAt: CREATED_AT,
-        updatedAt: CREATED_AT,
-      })
-    }
+          aiStatus: 'completed',
+          aiSeverity: 'medium',
+          aiSummary: 'E2E 处置中心 AI 摘要',
+          createdAt: CREATED_AT,
+          updatedAt: CREATED_AT,
+        })
+      }
 
-    console.log('${SEED_READY_MESSAGE}')
+      const [event] = await ctx.database.get(MODERATION_EVENT_TABLE, { id: EVENT_ID })
+      if (!event) {
+        await ctx.database.create(MODERATION_EVENT_TABLE, {
+          id: EVENT_ID,
+          platform: 'onebot',
+          botSelfId: '514',
+          guildId: '1001',
+          channelId: '2001',
+          memberId: '200200',
+          type: 'report_created',
+          level: 'medium',
+          summary: 'E2E 处置中心关联事件 report-related-token',
+          payload: {
+            reason: 'E2E 处置中心举报 dismiss-report-token',
+            reportID: REPORT_ID,
+          },
+          createdAt: CREATED_AT,
+          updatedAt: CREATED_AT,
+        })
+      }
+
+      installSmokeBot(ctx, sentMessages, recalledMessages, () => ++messageSeq)
+      console.log('${SEED_READY_MESSAGE}')
+    } catch (error) {
+      console.error('[ui-smoke-seed] failed to prepare smoke data', error)
+      throw error
+    }
+  })
+
+  router.post('/__stuhelper-ui-smoke/chat/incoming', async (koa) => {
+    const body = koa.request.body || {}
+    const includeImage = body.includeImage !== false
+    const messageId = emitChatMessage(ctx, {
+      messageId: String(body.messageId || 'ui-smoke-incoming-' + (++messageSeq)),
+      userId: String(body.userId || '100100'),
+      username: String(body.username || 'E2E 聊天用户'),
+      content: String(body.content || 'E2E incoming chat message'),
+      includeImage,
+      isSelf: false,
+    })
+    koa.body = { success: true, messageId }
+  })
+
+  router.get('/__stuhelper-ui-smoke/chat/actions', (koa) => {
+    koa.body = { success: true, sentMessages, recalledMessages }
   })
 }
 
 module.exports.name = 'stuhelper-ui-smoke-seed'
 module.exports.inject = ['database']
+
+function installSmokeBot(ctx, sentMessages, recalledMessages, nextSeq) {
+  const bot = ctx.bots[0]
+  if (!bot) {
+    throw new Error('ui smoke mock bot is not registered')
+  }
+
+  bot.platform = 'onebot'
+  bot.selfId = '514'
+  bot.user = { id: '514', name: 'E2E Bot', avatar: DATA_AVATAR }
+  bot.internal = {
+    getImage: async (file) => {
+      if (file !== CHAT_IMAGE_FILE) {
+        throw new Error('unexpected ui smoke image file: ' + file)
+      }
+      return { base64: TRANSPARENT_PNG_BASE64, file }
+    },
+  }
+  bot.getLogin = async () => ({ user: bot.user })
+  bot.getGuild = async (guildId) => ({
+    id: guildId,
+    name: 'E2E 聊天群',
+    avatar: DATA_AVATAR,
+  })
+  bot.getUser = async (userId) => ({
+    id: userId,
+    name: userId === '100100' ? 'E2E 聊天用户' : 'E2E 用户 ' + userId,
+    avatar: DATA_AVATAR,
+  })
+  bot.getGuildMember = async (_guildId, userId) => ({
+    user: { id: userId, name: userId === '100100' ? 'E2E 聊天用户' : 'E2E 成员 ' + userId, avatar: DATA_AVATAR },
+    nick: userId === '100100' ? 'E2E 聊天用户' : 'E2E 成员 ' + userId,
+    roles: userId === '100001' ? ['owner'] : userId === '100002' ? ['admin'] : [],
+    title: userId === '100100' ? '自动化成员' : '',
+  })
+  bot.getGuildMemberList = async () => ({
+    data: [
+      {
+        user: { id: '100001', name: 'E2E 群主', avatar: DATA_AVATAR },
+        nick: 'E2E 群主',
+        roles: ['owner'],
+      },
+      {
+        user: { id: '100002', name: 'E2E 管理员', avatar: DATA_AVATAR },
+        nick: 'E2E 管理员',
+        roles: ['admin'],
+      },
+      {
+        user: { id: '100100', name: 'E2E 聊天用户', avatar: DATA_AVATAR },
+        nick: 'E2E 聊天用户',
+        roles: [],
+        title: '自动化成员',
+      },
+    ],
+    next: undefined,
+  })
+  bot.sendMessage = async (channelId, content, guildId) => {
+    const messageId = 'ui-smoke-outgoing-' + nextSeq()
+    sentMessages.push({ channelId, guildId, content, messageId })
+    emitChatMessage(ctx, {
+      messageId,
+      userId: bot.selfId,
+      username: 'E2E Bot',
+      content: String(content),
+      includeImage: false,
+      isSelf: true,
+    })
+    return [messageId]
+  }
+  bot.deleteMessage = async (channelId, messageId) => {
+    recalledMessages.push({ channelId, messageId })
+  }
+}
+
+function emitChatMessage(ctx, input) {
+  const bot = ctx.bots[0]
+  const elements = h.parse(input.content)
+  if (input.includeImage) {
+    elements.push(h('img', { src: CHAT_IMAGE_URL, file: CHAT_IMAGE_FILE }))
+  }
+
+  const session = bot.session({
+    type: input.isSelf ? 'send' : 'message',
+    platform: 'onebot',
+    selfId: bot.selfId,
+    user: {
+      id: input.userId,
+      name: input.username,
+      avatar: DATA_AVATAR,
+    },
+    guild: {
+      id: CHAT_GUILD_ID,
+      name: 'E2E 聊天群',
+      avatar: DATA_AVATAR,
+    },
+    channel: {
+      id: CHAT_CHANNEL_ID,
+      name: 'E2E 聊天频道',
+      type: Universal.Channel.Type.TEXT,
+    },
+    message: {
+      id: input.messageId,
+      messageId: input.messageId,
+      content: input.content,
+      elements,
+    },
+  })
+  session.author = {
+    name: input.username,
+    nick: input.username,
+    avatar: DATA_AVATAR,
+  }
+  session.content = input.content
+  session.elements = elements
+  session.messageId = input.messageId
+  session.timestamp = Date.now()
+  session.guildName = 'E2E 聊天群'
+  session.channelName = 'E2E 聊天频道'
+  ctx.emit(input.isSelf ? 'send' : 'message', session)
+  return input.messageId
+}
 `)
 }
 

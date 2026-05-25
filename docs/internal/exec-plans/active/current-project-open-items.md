@@ -649,6 +649,15 @@ Drawer 并点击“重置”确认筛选项清空。该用例覆盖 `stuhelperGr
 成功消息为“已驳回举报：200200”，最终 URL 保持
 `#review?workspace=report&keyword=dismiss-report-token` 且页面展示“没有匹配的工作项”。
 
+本地验证补充（2026-05-25）：继续补齐 Koishi Console 实时聊天真实交互路径。`scripts/ui-smoke.mjs`
+现在随临时 Koishi 配置挂载 `@koishijs/plugin-mock` 作为临时 bot，并在 smoke seed 插件中覆盖
+`getGuild`、`getGuildMemberList`、`sendMessage`、`deleteMessage` 和 OneBot `getImage`，仅用于隔离
+UI smoke。新增 E2E 用例打开 ChatDock，经临时 HTTP seed 端点投递一条真实 console chat message，
+断言会话列表未读、群成员列表、入站文本和经 `stuhelperGroupCenter/image/fetch` 代理后的图片 data URL；
+随后在输入框粘贴图片并发送，断言 `stuhelperGroupCenter/chat/send` 实际收到文本和 data URL 图片内容，
+再右键自身消息执行“撤回”，断言 `stuhelperGroupCenter/chat/recall` 记录目标 messageId 且 UI 移除消息。
+新增覆盖后已通过 `STUHELPER_UI_SMOKE_PORT=5179 corepack yarn --cwd bots/koishi test:ui`（26 项）。
+
 本地生产等价复验（2026-05-25）：在提交 `45b401c2` 上重新执行 `make prod-parity-up`，构建并启动
 tag 为 `prod-parity-45b401c2` 的 backend / frontend / admin 生产镜像。当前本机生产等价入口为
 Web `http://127.0.0.1:28000`、Admin `http://127.0.0.1:28001/admin/`、Backend

@@ -13,8 +13,8 @@ import type { ConsoleMessage, Page, Request, Response } from '@playwright/test'
  *     - URL 落定后 hash 包含 view id；
  *     - view-specific anchor 元素出现（防"渲染错 view 但壳还在"）；
  *     - 无 pageerror、无 console.error/warning（按 allowlist 过滤）。
- * - chat 不在 NavRail，单独一个 test：通过 CommandBar 的 ⌘/ 按钮打开 ChatDock
- *   浮窗，断言 `.chat-view` 出现在 dock body 内。
+ * - chat 不在 NavRail，单独覆盖 ChatDock 打开/关闭，以及实时消息接收、图片代理、
+ *   群成员加载、发送含粘贴图片、右键撤回等真实 console action 路径。
  * - 配置治理、警告记录、黑名单、订阅管理与系统缓存覆盖真实操作路径，防止
  *   console action / WebSocket API 只在单元测试中通过、但浏览器 UI 断链。
  *
@@ -138,6 +138,75 @@ test('chat dock opens via CommandBar and renders ChatView', async ({ loggedInPag
   })
 
   await page.locator('.sh-dock[data-open="true"] .sh-dock__action[title="关闭"]').click()
+  await expect(page.locator('.sh-dock[data-open="true"]')).toHaveCount(0, { timeout: 5_000 })
+
+  tracker.assertClean()
+})
+
+test('chat dock receives, sends image message, and recalls through real console actions', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  await clickNavRail(page, VIEWS[0].label)
+  await expect(page).toHaveURL(/#dashboard($|\?)/, { timeout: 5_000 })
+
+  await page.locator('.sh-cmd__chat').first().click()
+  const dock = page.locator('.sh-dock[data-open="true"]').first()
+  await expect(dock.locator('.chat-view')).toBeVisible({ timeout: 10_000 })
+
+  await uiSmokeChatPost(page, '/__stuhelper-ui-smoke/chat/incoming', {
+    content: 'E2E incoming chat message',
+    includeImage: true,
+  })
+
+  const sessionItem = dock.locator('.session-item', { hasText: 'E2E 聊天频道' }).first()
+  await expect(sessionItem).toBeVisible({ timeout: 10_000 })
+  await expect(sessionItem.locator('.badge')).toHaveText('1')
+  await sessionItem.click()
+
+  await expect(dock.locator('.chat-header', { hasText: 'E2E 聊天频道' })).toBeVisible({ timeout: 10_000 })
+  await expect(dock.locator('.member-item', { hasText: 'E2E 群主' })).toBeVisible({ timeout: 10_000 })
+  await expect(dock.locator('.member-item', { hasText: 'E2E 管理员' })).toBeVisible()
+  await expect(dock.locator('.member-item', { hasText: 'E2E 聊天用户' })).toBeVisible()
+
+  const incomingRow = dock.locator('.message-row', { hasText: 'E2E incoming chat message' }).first()
+  await expect(incomingRow).toBeVisible({ timeout: 10_000 })
+  await expect(incomingRow.locator('.username')).toHaveText('E2E 聊天用户')
+  await expect(incomingRow.locator('img.msg-img[alt="聊天图片"]').first()).toHaveAttribute(
+    'src',
+    /^data:image\/png;base64,/,
+    { timeout: 10_000 },
+  )
+
+  const input = dock.locator('.chat-input').first()
+  await input.fill('E2E outbound chat text')
+  await pasteTinyPng(page)
+  await expect(dock.locator('.pending-image-item')).toBeVisible({ timeout: 5_000 })
+
+  await dock.locator('.send-btn').click()
+  await expect(input).toHaveValue('', { timeout: 10_000 })
+  await expect(dock.locator('.pending-image-item')).toHaveCount(0, { timeout: 10_000 })
+
+  const selfRow = dock.locator('.message-row.self', { hasText: 'E2E outbound chat text' }).first()
+  await expect(selfRow).toBeVisible({ timeout: 10_000 })
+
+  const actions = await uiSmokeChatActions(page)
+  expect(actions.sentMessages.at(-1)?.content).toContain('E2E outbound chat text')
+  expect(actions.sentMessages.at(-1)?.content).toContain('<img src="data:image/png;base64,')
+
+  await selfRow.click({ button: 'right' })
+  const contextMenu = page.locator('.context-menu').first()
+  await expect(contextMenu).toBeVisible({ timeout: 5_000 })
+  await contextMenu.locator('.context-menu-item.danger', { hasText: '撤回' }).click()
+
+  await expect(toastMessage(page, '消息已撤回')).toBeVisible({ timeout: 10_000 })
+  await expect(dock.locator('.message-row.self', { hasText: 'E2E outbound chat text' })).toHaveCount(0, {
+    timeout: 10_000,
+  })
+
+  const recalled = await uiSmokeChatActions(page)
+  expect(recalled.recalledMessages.at(-1)?.messageId).toBe(actions.sentMessages.at(-1)?.messageId)
+
+  await dock.locator('.sh-dock__action[title="关闭"]').click()
   await expect(page.locator('.sh-dock[data-open="true"]')).toHaveCount(0, { timeout: 5_000 })
 
   tracker.assertClean()
@@ -606,6 +675,66 @@ test('role management creates, edits, assigns member, revokes member, and delete
  * NavRail 收起时 label 文本 opacity:0 不可读，但 button 元素本身可点击；
  * title attribute 在两种状态下都准确反映 view label，是稳定的 selector key。
  */
+interface UiSmokeChatActions {
+  sentMessages: Array<{
+    channelId: string
+    guildId?: string
+    content: string
+    messageId: string
+  }>
+  recalledMessages: Array<{
+    channelId: string
+    messageId: string
+  }>
+}
+
+async function uiSmokeChatPost(page: Page, path: string, body: Record<string, unknown>): Promise<void> {
+  await page.evaluate(async ({ path, body }) => {
+    const response = await fetch(path, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const result = await response.json()
+    if (!response.ok || !result.success) {
+      throw new Error(result.error || `ui smoke chat seed failed: ${response.status}`)
+    }
+  }, { path, body })
+}
+
+async function uiSmokeChatActions(page: Page): Promise<UiSmokeChatActions> {
+  return page.evaluate(async () => {
+    const response = await fetch('/__stuhelper-ui-smoke/chat/actions')
+    const result = await response.json()
+    if (!response.ok || !result.success) {
+      throw new Error(result.error || `ui smoke chat actions failed: ${response.status}`)
+    }
+    return {
+      sentMessages: result.sentMessages ?? [],
+      recalledMessages: result.recalledMessages ?? [],
+    }
+  })
+}
+
+async function pasteTinyPng(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const base64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII='
+    const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0))
+    const file = new File([bytes], 'ui-smoke.png', { type: 'image/png' })
+    const dataTransfer = new DataTransfer()
+    dataTransfer.items.add(file)
+
+    const input = document.querySelector<HTMLTextAreaElement>('.sh-dock[data-open="true"] .chat-input')
+    if (!input) {
+      throw new Error('chat input is not mounted')
+    }
+
+    const event = new Event('paste', { bubbles: true, cancelable: true })
+    Object.defineProperty(event, 'clipboardData', { value: dataTransfer })
+    input.dispatchEvent(event)
+  })
+}
+
 async function clickNavRail(page: Page, label: string): Promise<void> {
   const button = page.locator(`.sh-rail__item[title="${label}"]`)
   await expect(button.first()).toBeAttached({ timeout: 5_000 })
