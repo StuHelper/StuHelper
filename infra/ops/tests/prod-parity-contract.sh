@@ -8,6 +8,7 @@ INIT_SHARED_PG="${REPO_ROOT}/infra/ops/init-shared-postgres.sh"
 PARITY_UP="${REPO_ROOT}/infra/ops/prod-parity-up.sh"
 PARITY_DOWN="${REPO_ROOT}/infra/ops/prod-parity-down.sh"
 PARITY_SMOKE="${REPO_ROOT}/infra/ops/prod-parity-smoke.sh"
+PARITY_SMOKE_DATA="${REPO_ROOT}/infra/ops/prod-parity-smoke-data.sh"
 PARITY_DATASTORE_SMOKE="${REPO_ROOT}/infra/ops/prod-parity-datastore-smoke.sh"
 PARITY_BROWSER_SMOKE="${REPO_ROOT}/infra/ops/prod-parity-browser-smoke.sh"
 PARITY_BROWSER_SMOKE_NODE="${REPO_ROOT}/infra/ops/prod-parity-browser-smoke.mjs"
@@ -35,11 +36,11 @@ assert_not_contains() {
   fi
 }
 
-for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_BROWSER_SMOKE_NODE}" "${ADMIN_INDEX_HTML}"; do
+for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${PARITY_SMOKE_DATA}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_BROWSER_SMOKE_NODE}" "${ADMIN_INDEX_HTML}"; do
   [[ -f "${file}" ]] || fail "missing file: ${file}"
 done
 
-bash -n "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}"
+bash -n "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${PARITY_SMOKE_DATA}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}"
 
 assert_contains "${PARITY_COMPOSE}" '^  postgres:'
 assert_contains "${PARITY_COMPOSE}" 'POSTGRES_PASSWORD: \$\{SHARED_POSTGRES_PASSWORD:\?SHARED_POSTGRES_PASSWORD is required\}'
@@ -99,6 +100,7 @@ assert_not_contains "${PARITY_UP}" 'prod-deploy.sh'
 
 assert_contains "${PARITY_DOWN}" 'parity_default_path'
 assert_contains "${PARITY_SMOKE}" 'prod-parity-datastore-smoke.sh'
+assert_contains "${PARITY_SMOKE}" 'prod-parity-smoke-data.sh'
 assert_contains "${PARITY_SMOKE}" 'identity-public-smoke.sh'
 assert_contains "${PARITY_SMOKE}" 'parity_default_path'
 assert_contains "${PARITY_SMOKE}" 'IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=true'
@@ -116,11 +118,23 @@ assert_contains "${PARITY_DATASTORE_SMOKE}" 'Redis plaintext port must be disabl
 assert_contains "${PARITY_DATASTORE_SMOKE}" 'redis-cli --tls'
 assert_contains "${PARITY_DATASTORE_SMOKE}" 'casdoorChecked'
 
+assert_contains "${PARITY_SMOKE_DATA}" 'smoke-data-evidence\.json'
+assert_contains "${PARITY_SMOKE_DATA}" 'refusing to seed non prod-parity PostgreSQL container'
+assert_contains "${PARITY_SMOKE_DATA}" '生产等价课程'
+assert_contains "${PARITY_SMOKE_DATA}" '生产等价教师'
+assert_contains "${PARITY_SMOKE_DATA}" '生产等价评课'
+assert_contains "${PARITY_SMOKE_DATA}" 'REFRESH MATERIALIZED VIEW public\.mv_teacher_public_stats'
+assert_contains "${PARITY_SMOKE_DATA}" "course:\\*"
+assert_contains "${PARITY_SMOKE_DATA}" "review:\\*"
+assert_contains "${PARITY_SMOKE_DATA}" 'courseRatingStatsCount'
+assert_contains "${PARITY_SMOKE_DATA}" 'teacherPublicStatsCount'
+
 assert_contains "${PARITY_BROWSER_SMOKE}" 'PROD_PARITY_BROWSER_SMOKE_EVIDENCE_FILE'
 assert_contains "${PARITY_BROWSER_SMOKE}" 'browser-smoke-evidence\.json'
 assert_contains "${PARITY_BROWSER_SMOKE}" 'WEB_BASE_URL'
 assert_contains "${PARITY_BROWSER_SMOKE}" 'ADMIN_BASE_URL'
 assert_contains "${PARITY_BROWSER_SMOKE}" 'clear_rate_limit_keys'
+assert_contains "${PARITY_BROWSER_SMOKE}" 'prod-parity-smoke-data.sh'
 assert_contains "${PARITY_BROWSER_SMOKE}" "scan --pattern 'rl:\*'"
 assert_contains "${PARITY_BROWSER_SMOKE}" 'prod-parity-browser-smoke\.mjs'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" '@playwright/test'
@@ -137,9 +151,12 @@ assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-home'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-login'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-course-hub'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-course-list'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-course-detail'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-course-detail-reviews'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-review-feed'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-search'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-teacher-hub'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-teacher-profile'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-protected-review-post'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-protected-user-reviews'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-protected-user-votes'
@@ -160,6 +177,8 @@ assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'checkName'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'viewportSize'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'finalURL'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'matchedText'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'requiredTexts'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'missingRequiredTexts'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'expectedURLIncludes'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'toArray'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" "page\.on\('console'"

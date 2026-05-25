@@ -80,6 +80,7 @@ const checks = [
     name: 'web-course-list',
     url: joinURL(webBaseURL, '/courses/list'),
     expectedTexts: ['课程列表', 'Course List'],
+    requiredTexts: ['生产等价课程'],
   },
   {
     name: 'web-course-about',
@@ -87,9 +88,22 @@ const checks = [
     expectedTexts: ['关于评课社区@BUAA'],
   },
   {
+    name: 'web-course-detail',
+    url: joinURL(webBaseURL, '/courses/900001'),
+    expectedTexts: ['生产等价课程'],
+    requiredTexts: ['生产等价课程', '生产等价学院'],
+  },
+  {
+    name: 'web-course-detail-reviews',
+    url: joinURL(webBaseURL, '/courses/900001/reviews'),
+    expectedTexts: ['生产等价课程'],
+    requiredTexts: ['生产等价课程', '生产等价评课'],
+  },
+  {
     name: 'web-review-feed',
     url: joinURL(webBaseURL, '/courses/reviews'),
     expectedTexts: ['最新', 'Latest'],
+    requiredTexts: ['生产等价评课'],
   },
   {
     name: 'web-search',
@@ -100,6 +114,13 @@ const checks = [
     name: 'web-teacher-hub',
     url: joinURL(webBaseURL, '/teachers'),
     expectedTexts: ['教师主页', 'Teacher'],
+    requiredTexts: ['生产等价教师'],
+  },
+  {
+    name: 'web-teacher-profile',
+    url: joinURL(webBaseURL, '/teachers/900001'),
+    expectedTexts: ['生产等价教师'],
+    requiredTexts: ['生产等价教师', '生产等价课程'],
   },
   {
     name: 'web-protected-review-post',
@@ -353,10 +374,17 @@ async function runCheck(browser, check, viewportVariant) {
     const title = await page.title();
     const bodyText = await page.locator('body').innerText({ timeout: timeoutMs });
     const matchedText = check.expectedTexts.find((text) => bodyText.includes(text));
+    const requiredTexts = toArray(check.requiredTexts);
+    const missingRequiredTexts = requiredTexts.filter((text) => !bodyText.includes(text));
 
     if (!matchedText) {
       throw new Error(
         `missing expected text; expected one of: ${check.expectedTexts.join(', ')}`,
+      );
+    }
+    if (missingRequiredTexts.length > 0) {
+      throw new Error(
+        `missing required text: ${missingRequiredTexts.join(', ')}`,
       );
     }
     if (
@@ -393,6 +421,7 @@ async function runCheck(browser, check, viewportVariant) {
       status: response.status(),
       title,
       matchedText,
+      requiredTexts,
       ignoredConsoleErrors,
       ignoredAPIResponses,
       suppressedTelemetryRequests,

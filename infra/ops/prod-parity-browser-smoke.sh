@@ -29,6 +29,8 @@ export DEPLOY_STATE_DIR="$(parity_default_path "${DEPLOY_STATE_DIR:-}" "${REPO_R
 
 load_env
 
+"${SCRIPT_DIR}/prod-parity-smoke-data.sh"
+
 clear_rate_limit_keys() {
   local redis_container="${REDIS_CONTAINER_NAME:-${STACK_NAME:-stuhelper-prod-parity}-redis}"
   local redis_username="${REDIS_USERNAME:-stuhelper_app}"

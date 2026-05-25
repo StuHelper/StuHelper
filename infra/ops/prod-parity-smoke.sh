@@ -37,6 +37,7 @@ export CHECK_ADMIN=true
 export APP_ENV=production
 
 "${SCRIPT_DIR}/prod-parity-datastore-smoke.sh"
+"${SCRIPT_DIR}/prod-parity-smoke-data.sh"
 
 "${SCRIPT_DIR}/smoke-check.sh"
 
