@@ -86,4 +86,6 @@ pnpm type-check:all && pnpm lint:all && pnpm test:web && pnpm test:e2e
 pnpm build:web && pnpm build:admin && pnpm build:uni:h5
 ```
 
+`pnpm test:e2e` 覆盖 Web、Admin 与 UniAppX H5 三个前端入口；Koishi Console 使用独立工作区的 `make e2e-koishi`。
+
 或在仓库根目录执行 `make dev-up` 连基础设施一起启动。

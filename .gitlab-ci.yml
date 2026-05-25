@@ -189,6 +189,18 @@ admin_e2e:
     - clients/admin/apps/web-ele/playwright-report
     - clients/admin/apps/web-ele/test-results
 
+uniappx_e2e:
+  extends: .playwright_job
+  script:
+  - cd clients
+  - pnpm install --frozen-lockfile
+  - pnpm run test:e2e:uni
+  artifacts:
+    when: always
+    paths:
+    - clients/uniappx/playwright-report
+    - clients/uniappx/test-results
+
 frontend_dependency_scan:
   stage: security
   extends: .node_pnpm_job

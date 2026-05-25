@@ -7,7 +7,8 @@
     "build:h5": "uni build",
     "build:mp-weixin": "uni build -p mp-weixin",
     "type-check": "vue-tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@dcloudio/uni-app": "vue3",
@@ -23,6 +24,7 @@
     "vue": "3.4.21"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@dcloudio/types": "^3.4.0",
     "@dcloudio/vite-plugin-uni": "vue3",
     "@vue/compiler-sfc": "3.4.21",

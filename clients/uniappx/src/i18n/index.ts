@@ -48,6 +48,10 @@ function shouldIgnoreTabBarSyncError(error: unknown): boolean {
     || normalized.includes('not support')
 }
 
+function isH5Runtime(): boolean {
+  return typeof window !== 'undefined' && typeof document !== 'undefined' && typeof plus === 'undefined'
+}
+
 function readStoredLocale(): SupportedLocale | null {
   const runtime = getUniRuntime()
   if (!runtime) return null
@@ -133,6 +137,7 @@ export function setPageTitle(key: string, params?: TranslationParams) {
 export function syncAppChrome() {
   const runtime = getUniRuntime()
   if (!runtime) return
+  if (isH5Runtime()) return
 
   const tabs = [
     translate('common.tabs.home'),

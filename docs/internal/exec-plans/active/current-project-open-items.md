@@ -163,6 +163,16 @@ E2E 门禁补充（2026-05-25）：Web / Admin Vite E2E API stub 改为 fail-clo
 `make e2e-admin`、完整 `PLAYWRIGHT_WEB_PORT=3100 make e2e`、`pnpm lint:web`、`pnpm lint:admin`、
 `pnpm type-check:web`、`pnpm type-check:admin` 和 `git diff --check`。
 
+UniAppX H5 E2E 补充（2026-05-25）：新增 `clients/uniappx` 独立 Playwright 配置和
+`make e2e-uni` / `pnpm test:e2e:uni` 入口，完整 `pnpm test:e2e` 现覆盖 Web、Admin 与
+UniAppX H5。新增用例在桌面与移动视口下覆盖 UniAppX 首页、课程列表、课程详情、评课广场、教师主页、
+写评课草稿、个人中心、我的评课 / 投票 / 收藏、通知和认证页，并复用浏览器 `pageerror`、console error、
+关键资源和 API 4xx/5xx 门禁；未 mock 的 `/api/v1/*` 会返回 `500 E2E_UNMOCKED_API`。该门禁发现 H5
+运行时动态 `setTabBarItem` 会抛出空对象型 pageerror，已改为 H5 使用静态 tabBar 文案、非 H5 才同步
+运行时 chrome；同时补齐 `static/tabbar/*.png` 图标资源，避免 H5 tabBar 图片请求缺失。已通过
+`pnpm --dir clients test:e2e:uni`、`pnpm --dir clients test:uni`、`pnpm --dir clients type-check:uni`、
+`pnpm --dir clients build:uni:h5` 和 `git diff --check`。
+
 接口硬化补充（2026-05-24）：审计发现 legacy disclosure API 文档要求 `client_id`，但
 OpenAPI 未声明且 handler 只读取认证上下文 appID；同时服务端在已有 active consent 时未重新校验
 `redirect_uri`。本轮已按 OpenAPI-first 补齐 `GET /api/v1/open-platform/userinfo`、

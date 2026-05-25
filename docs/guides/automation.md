@@ -275,9 +275,10 @@ GitLab CI 至少需要以下变量：
 
 - `frontend_e2e`：Web Playwright
 - `admin_e2e`：Admin Playwright
+- `uniappx_e2e`：UniAppX H5 Playwright
 - `koishi_test`：Koishi packages/plugins 单元测试、真实启动烟雾验证和 Console Playwright smoke
 
-只有 Web/Admin E2E 和 Koishi 测试通过后，镜像构建与远端部署才会继续。Koishi Console Playwright
+只有 Web/Admin/UniAppX H5 E2E 和 Koishi 测试通过后，镜像构建与远端部署才会继续。Koishi Console Playwright
 失败时，GitLab 会保留 `bots/koishi/playwright-report` 和 `bots/koishi/test-results` 作为 artifact，
 用于查看 trace、截图和错误上下文。
 

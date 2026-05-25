@@ -42,13 +42,14 @@ last-verified: 2026-05-25
 
 1. `frontend_e2e`
 2. `admin_e2e`
-3. `koishi_test`
-4. `package_backend`
-5. `package_frontend`
-6. `package_admin`
-7. `deploy_staging`
-8. `verify_staging`
-9. 远端实际执行：
+3. `uniappx_e2e`
+4. `koishi_test`
+5. `package_backend`
+6. `package_frontend`
+7. `package_admin`
+8. `deploy_staging`
+9. `verify_staging`
+10. 远端实际执行：
    - `./infra/ops/remote-preflight.sh`
    - `./infra/ops/remote-prod-deploy.sh`
 
@@ -56,16 +57,17 @@ last-verified: 2026-05-25
 
 1. `frontend_e2e`
 2. `admin_e2e`
-3. `koishi_test`
-4. `backend_security` / `backend_vulnerability_scan`
-5. `frontend_dependency_scan` / `admin_dependency_scan`
-6. `container_scan_backend` / `container_scan_frontend` / `container_scan_admin`
-7. `package_backend`
-8. `package_frontend`
-9. `package_admin`
-10. 手工触发 `deploy_production`
-11. `verify_production`
-12. 远端实际执行：
+3. `uniappx_e2e`
+4. `koishi_test`
+5. `backend_security` / `backend_vulnerability_scan`
+6. `frontend_dependency_scan` / `admin_dependency_scan`
+7. `container_scan_backend` / `container_scan_frontend` / `container_scan_admin`
+8. `package_backend`
+9. `package_frontend`
+10. `package_admin`
+11. 手工触发 `deploy_production`
+12. `verify_production`
+13. 远端实际执行：
     - `./infra/ops/remote-preflight.sh`
     - `./infra/ops/remote-prod-deploy.sh`
 

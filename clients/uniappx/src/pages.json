@@ -96,25 +96,25 @@
     "list": [
       {
         "pagePath": "pages/home/index",
-        "text": "Home",
+        "text": "首页",
         "iconPath": "static/tabbar/home.png",
         "selectedIconPath": "static/tabbar/home-active.png"
       },
       {
         "pagePath": "pages/course/index",
-        "text": "Courses",
+        "text": "课程",
         "iconPath": "static/tabbar/course.png",
         "selectedIconPath": "static/tabbar/course-active.png"
       },
       {
         "pagePath": "pages/review/index",
-        "text": "Reviews",
+        "text": "评课",
         "iconPath": "static/tabbar/review.png",
         "selectedIconPath": "static/tabbar/review-active.png"
       },
       {
         "pagePath": "pages/user/index",
-        "text": "Profile",
+        "text": "我的",
         "iconPath": "static/tabbar/user.png",
         "selectedIconPath": "static/tabbar/user-active.png"
       }

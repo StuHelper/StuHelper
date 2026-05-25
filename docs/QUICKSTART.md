@@ -86,7 +86,7 @@ pnpm test:web && pnpm test:e2e
 pnpm build:web && pnpm build:admin && pnpm build:uni:h5
 ```
 
-说明：`pnpm test:e2e` 会同时运行 Web 与 Admin 的 Playwright 用例，并在桌面和移动视口下执行。
+说明：`pnpm test:e2e` 会同时运行 Web、Admin 与 UniAppX H5 的 Playwright 用例，并在桌面和移动视口下执行。UniAppX H5 用例覆盖首页、课程列表、课程详情、评课广场、教师主页、写评课草稿、个人中心、我的评课 / 投票 / 收藏、通知和认证页，并检查关键资源、API 4xx/5xx、`pageerror` 与非网络状态类 `console.error`。
 
 ## Koishi 工作区
 
@@ -166,6 +166,7 @@ make prod-parity-reset   # 停止并清理本机生产等价 volume
 ```bash
 PLAYWRIGHT_WEB_PORT=3300 make e2e-web
 make e2e-admin
+make e2e-uni
 make e2e-koishi
 ```
 

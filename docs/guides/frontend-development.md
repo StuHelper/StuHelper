@@ -103,7 +103,7 @@ pnpm dev:admin
 pnpm dev:uni
 pnpm type-check:all && pnpm lint:all
 pnpm test:web
-pnpm test:e2e:web && pnpm test:e2e:admin
+pnpm test:e2e:web && pnpm test:e2e:admin && pnpm test:e2e:uni
 pnpm build:web && pnpm build:admin && pnpm build:uni:h5
 ```
 
