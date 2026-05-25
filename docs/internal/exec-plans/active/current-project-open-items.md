@@ -946,6 +946,17 @@ chunk 请求被浏览器主动中止，同时保持关键资源失败门禁不�
 工作区包，再启动本地 Console smoke 实例；29 项 UI smoke 全部通过，覆盖导航、身份视图、聊天抽屉、全局搜索、
 审核中心、日志、配置治理、订阅、黑名单、警告记录、系统缓存、全局设置和角色管理等真实 console actions。
 
+本地验证补充（2026-05-26）：继续补齐 Web 顶部通知铃铛的实时 SSE 成功路径。此前 Web E2E 已能捕获
+`EventSource` stream 失败，但没有证明 `notification` / `unread_count` 事件会实际驱动 UI。本轮新增用户中心
+E2E：登录后模拟 `/api/v1/course/review/user/notifications/stream` 推送一条 `reply` 通知和未读数 3，断言顶部
+铃铛未读徽标更新、打开面板后能看到 SSE 推送的通知，即使历史列表接口返回空列表也不会丢失实时通知；随后点击该通知，
+断言 `PUT /api/v1/course/review/user/notifications/sse-notif-1/read` 发出并跳转到通知携带的 `/about`。
+Playwright MCP 也在移动视口验证同一路径，结果显示 stream 已打开、历史列表请求为 `page=1&pageSize=5`、已读请求
+命中目标通知，且无 console error、pageerror、失败请求或未 mock API。验证已通过
+`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、单文件
+`CI=1 PLAYWRIGHT_WEB_PORT=3483 pnpm --dir clients/web exec playwright test tests/e2e/journey-user-center.spec.ts`
+（26 项）和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3485 make e2e-web`（138 项）。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |
