@@ -745,6 +745,17 @@ test.describe('UniAppX H5 surface', () => {
     )
     expect(votePayload).toMatchObject({ voteType: 'like' })
 
+    const dislikeButton = page.getByTestId(`uni-review-dislike-${review.id}`)
+    await expect(dislikeButton).toContainText('1')
+    await dislikeButton.click()
+    await expect(likeButton).toContainText('7')
+    await expect(dislikeButton).toContainText('2')
+    await expect
+      .poll(() => mutationBodies
+        .filter((item) => item.path === `/api/v1/course/review/reviews/${review.id}/votes`)
+        .map((item) => item.body))
+      .toEqual([{ voteType: 'like' }, { voteType: 'dislike' }])
+
     await page.getByTestId('uni-review-load-more').click()
     await expect
       .poll(() => requests.some((request) => (

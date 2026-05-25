@@ -647,6 +647,17 @@ deprecated warning。新增覆盖后已通过 `pnpm --dir clients type-check:uni
 `CI=1 UNIAPPX_E2E_PORT=3161 pnpm --dir clients/uniappx exec playwright test tests/e2e/surface.spec.ts`
 （40 项）、`pnpm --dir clients build:uni:h5`、`make check-docs` 和 `git diff --check`。
 
+本地验证补充（2026-05-26）：继续补齐 UniAppX H5 评课广场投票切换链路。原有 E2E 只覆盖点赞一次，
+未证明用户从点赞切到点踩时本地乐观计数和第二次 vote payload 是否正确。现已扩展评课广场认证用户用例：
+点击点赞后断言 `👍 7 -> 👍 8`，再点击点踩后断言点赞回落到 `👍 7`、点踩增加到 `👎 2`，并断言同一
+review 的 vote mutation body 顺序为 `{ voteType: "like" }`、`{ voteType: "dislike" }`。Playwright MCP
+也在临时 UniAppX H5 dev server 注入同等 API mock 后真实点击 like -> dislike，确认 UI 计数和 payload
+顺序一致；浏览器无 console error，仅保留 Uni H5 dev server 既有的 vue-router deprecated warning。
+新增覆盖后已通过 `pnpm --dir clients type-check:uni` 和
+`CI=1 UNIAPPX_E2E_PORT=3163 pnpm --dir clients/uniappx exec playwright test tests/e2e/surface.spec.ts`
+（40 项）、`CI=1 UNIAPPX_E2E_PORT=3165 make e2e-uni`（40 项）、
+`pnpm --dir clients build:uni:h5`、`make check-docs` 和 `git diff --check`。
+
 本地全量复验（2026-05-25）：在提交 `d82afd53` 上复跑统一客户端 E2E 门禁，
 `CI=1 PLAYWRIGHT_WEB_PORT=3450 ADMIN_E2E_PORT=4206 UNIAPPX_E2E_PORT=3142 make e2e`
 通过 Web 120 项、Admin 66 项和 UniAppX H5 30 项，覆盖本轮 Web 重新认证 / callback guard 与
