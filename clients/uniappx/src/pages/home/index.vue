@@ -106,6 +106,13 @@ function openCourse(courseID: number) {
   uni.navigateTo({ url: `/pages/course/detail?id=${courseID}` })
 }
 
+function shortcutKey(path: string): string {
+  if (path === '/pages/course/index') return 'course'
+  if (path === '/pages/review/index') return 'review'
+  if (path === '/pages/user/index') return 'user'
+  return path.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '')
+}
+
 onShow(() => {
   void loadDashboard()
 })
@@ -140,6 +147,7 @@ onShow(() => {
           v-for="item in shortcuts"
           :key="item.path"
           class="shortcut-card"
+          :data-testid="`uni-home-shortcut-${shortcutKey(item.path)}`"
           @tap="go(item.path)"
         >
           <text class="shortcut-icon">{{ item.icon }}</text>
@@ -152,14 +160,26 @@ onShow(() => {
     <view class="section">
       <view class="section-header">
         <text class="section-title">{{ t('home.hotCoursesTitle') }}</text>
-        <text class="section-link" @tap="go('/pages/review/index')">{{ t('home.viewAll') }}</text>
+        <text
+          class="section-link"
+          data-testid="uni-home-view-all-reviews"
+          @tap="go('/pages/review/index')"
+        >
+          {{ t('home.viewAll') }}
+        </text>
       </view>
       <view v-if="loading" class="loading-card"><text>{{ t('common.loading') }}</text></view>
       <view v-else-if="hotCourses.length === 0" class="empty-card">
         <text>{{ t('home.noHotCourses') }}</text>
       </view>
       <view v-else class="list-card">
-        <view v-for="course in hotCourses" :key="course.courseID" class="list-row" @tap="openCourse(course.courseID)">
+        <view
+          v-for="course in hotCourses"
+          :key="course.courseID"
+          class="list-row"
+          :data-testid="`uni-home-hot-course-${course.courseID}`"
+          @tap="openCourse(course.courseID)"
+        >
           <view class="list-main">
             <text class="list-title">{{ course.courseName }}</text>
             <text class="list-meta">{{ t('common.reviewCount', { count: course.reviewCount }) }}</text>

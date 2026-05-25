@@ -904,6 +904,18 @@ API mock，验证教师显示值更新、`POST /api/v1/course/review/drafts` 和
 （40 项）、完整 `CI=1 UNIAPPX_E2E_PORT=3169 make e2e-uni`（40 项）、
 `pnpm --dir clients build:uni:h5`、`pnpm --dir clients run check:no-empty-catch` 和 `git diff --check`。
 
+本地验证补充（2026-05-26）：继续补齐 UniAppX 首页真实入口跳转覆盖。此前首页 surface 用例只确认课程查询、
+评课广场、个人中心和热门课程在首页渲染，没有点击验证 `switchTab` / `navigateTo` 是否进入正确页面。本轮为首页
+快捷入口、热门课程“查看全部”和热门课程行增加稳定测试标识，并新增独立 E2E 覆盖课程列表、评课广场、游客个人中心、
+查看全部评课和热门课程详情五个入口。用例按入口拆分，避免在同一 H5 页面内连续快速跳出 lazy-loaded 页面导致 Vite
+chunk 请求被浏览器主动中止，同时保持关键资源失败门禁不放宽。Playwright MCP 也在移动视口分别点击五个首页入口，
+确认 URL、页面标题和目标页内容正确，且无 pageerror、无失败请求、无非预期 console。验证已通过首页单文件筛选
+`CI=1 UNIAPPX_E2E_PORT=3170 pnpm --dir clients/uniappx exec playwright test tests/e2e/surface.spec.ts -g "home"`
+（12 项）、`pnpm --dir clients type-check:uni`、完整单文件
+`CI=1 UNIAPPX_E2E_PORT=3170 pnpm --dir clients/uniappx exec playwright test tests/e2e/surface.spec.ts`
+（50 项）、完整 `CI=1 UNIAPPX_E2E_PORT=3172 make e2e-uni`（50 项）、
+`pnpm --dir clients build:uni:h5`、`pnpm --dir clients run check:no-empty-catch` 和 `git diff --check`。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |

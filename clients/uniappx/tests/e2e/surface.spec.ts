@@ -661,6 +661,61 @@ test.describe('UniAppX H5 surface', () => {
     await expectTabBarIconsAvailable(page)
   })
 
+  test('home course shortcut opens the course list tab', async ({ page }) => {
+    await mockUniApi(page)
+
+    await gotoUniPage(page, '/')
+    await page.getByTestId('uni-home-shortcut-course').click()
+    await expect(page).toHaveURL(/#\/pages\/course\/index/)
+    await expectUniPageTitle(page, '课程列表')
+    await expect(page.getByText(course.name)).toBeVisible()
+    await page.waitForLoadState('networkidle')
+  })
+
+  test('home review shortcut opens the review square tab', async ({ page }) => {
+    await mockUniApi(page)
+
+    await gotoUniPage(page, '/')
+    await page.getByTestId('uni-home-shortcut-review').click()
+    await expect(page).toHaveURL(/#\/pages\/review\/index/)
+    await expectUniPageTitle(page, '评课广场')
+    await expect(page.getByText(review.title)).toBeVisible()
+    await page.waitForLoadState('networkidle')
+  })
+
+  test('home user shortcut opens the guest user center tab', async ({ page }) => {
+    await mockUniApi(page)
+
+    await gotoUniPage(page, '/')
+    await page.getByTestId('uni-home-shortcut-user').click()
+    await expect(page).toHaveURL(/#\/pages\/user\/index/)
+    await expectUniPageTitle(page, '个人中心')
+    await expect(page.getByTestId('uni-user-login')).toBeVisible()
+    await page.waitForLoadState('networkidle')
+  })
+
+  test('home hot courses view-all opens the review square tab', async ({ page }) => {
+    await mockUniApi(page)
+
+    await gotoUniPage(page, '/')
+    await page.getByTestId('uni-home-view-all-reviews').click()
+    await expect(page).toHaveURL(/#\/pages\/review\/index/)
+    await expectUniPageTitle(page, '评课广场')
+    await expect(page.getByText(review.title)).toBeVisible()
+    await page.waitForLoadState('networkidle')
+  })
+
+  test('home hot course row opens the course detail page', async ({ page }) => {
+    await mockUniApi(page)
+
+    await gotoUniPage(page, '/')
+    await page.getByTestId(`uni-home-hot-course-${course.id}`).click()
+    await expect(page).toHaveURL(new RegExp(`/#/pages/course/detail\\?id=${course.id}`))
+    await expectUniPageTitle(page, '课程详情')
+    await expect(page.getByText(course.name).first()).toBeVisible()
+    await page.waitForLoadState('networkidle')
+  })
+
   test('course, review, and teacher browsing pages render API-backed content', async ({
     page,
   }) => {
