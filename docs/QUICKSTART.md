@@ -35,12 +35,12 @@ make dev-up
 完成以下步骤：
 - 生成开发环境变量
 - 启动 PostgreSQL / Redis / Casdoor / OpenFGA / MinIO（Docker）
-- 验证 Casdoor OIDC metadata；生产路径会用独立 bootstrap 凭据幂等创建 Casdoor organization / first-party applications / flat roles / providers
+- 验证 Casdoor OIDC metadata；本地开发会从 Casdoor 内置应用读取一次性 bootstrap 凭据，并幂等创建 StuHelper 的 Web / Admin / UniApp first-party applications、flat roles 和启用的 providers；生产路径会使用独立 bootstrap 凭据执行同一套对象收敛
 - 初始化 OpenFGA Store 和 Model
 - 初始化对象存储 bucket
 - 数据库迁移和开发 seed
 - 启动热重载：后端 `air`、前端 `Vite`
-- 自动选择可用端口
+- 自动选择可用端口；若 PostgreSQL / Redis / OpenFGA / MinIO 或 Web/Admin 默认宿主机端口已被占用，会顺延到下一个空闲端口；默认开发链路不启动 Traefik，也不占用本机 `80/443`
 
 ```bash
 make dev-status   # 查看实际地址
@@ -60,6 +60,9 @@ make dev-reset    # 彻底清理（含 volume）
 | API | http://127.0.0.1:8080 |
 | Casdoor | http://127.0.0.1:8085 |
 | Grafana | http://127.0.0.1:3003（需 `make obs-up`） |
+
+PostgreSQL、Redis 和 MinIO 的宿主机端口如果已被本机服务占用，`make dev-up`
+会顺延到可用端口并写回 `.env`；实际值以 `make dev-status` 与 `.env` 为准。
 
 ## 后端命令
 
@@ -119,6 +122,8 @@ docker compose up -d     # 基础设施
 cd server && air          # 后端
 cd clients && pnpm dev:web   # 前端
 ```
+
+手动 `docker compose up -d` 只用于基础设施容器。公网 / 单入口反代以生产文档中的宝塔 Nginx 配置为准；本地热更新开发不需要 Traefik。
 
 ## 可观测性
 

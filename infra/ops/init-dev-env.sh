@@ -12,6 +12,7 @@ require_cmd python3
 ensure_env_file
 ensure_generated_files
 remove_retired_idp_env_files "${ENV_FILE}" "${GENERATED_ENV_FILE}" "${GENERATED_SECRET_ENV_FILE}"
+remove_env_key_prefixes_from_file "${ENV_FILE}" "TRAEFIK_"
 
 ensure_value() {
   local key="$1"
@@ -40,6 +41,68 @@ ensure_dev_default() {
       return
     fi
   done
+  return 0
+}
+
+ensure_dev_pattern_default() {
+  local key="$1"
+  local current="${2:-}"
+  local desired="$3"
+  shift 3 || true
+
+  if [[ -z "${current}" ]]; then
+    upsert_env_file "${ENV_FILE}" "${key}" "${desired}"
+    return
+  fi
+
+  local legacy_pattern
+  for legacy_pattern in "$@"; do
+    case "${current}" in
+      ${legacy_pattern})
+        upsert_env_file "${ENV_FILE}" "${key}" "${desired}"
+        return
+        ;;
+    esac
+  done
+  return 0
+}
+
+replace_legacy_env_value() {
+  local key="$1"
+  local current="${2:-}"
+  local desired="$3"
+  shift 3 || true
+
+  [[ -n "${current}" ]] || return 0
+
+  local legacy
+  for legacy in "$@"; do
+    if [[ "${current}" == "${legacy}" ]]; then
+      upsert_env_file "${ENV_FILE}" "${key}" "${desired}"
+      return
+    fi
+  done
+  return 0
+}
+
+replace_legacy_env_pattern() {
+  local key="$1"
+  local current="${2:-}"
+  local desired="$3"
+  shift 3 || true
+
+  [[ -n "${current}" ]] || return 0
+
+  local legacy_pattern
+  for legacy_pattern in "$@"; do
+    case "${current}" in
+      ${legacy_pattern})
+        upsert_env_file "${ENV_FILE}" "${key}" "${desired}"
+        return
+        ;;
+    esac
+  done
+  return 0
 }
 
 placeholder_or_empty() {
@@ -183,8 +246,9 @@ elif placeholder_or_empty "${STUHELPER_PLATFORM_SERVICE_TOKEN:-}"; then
   upsert_env_file "${ENV_FILE}" "STUHELPER_PLATFORM_SERVICE_TOKEN" "${BOT_SERVICE_TOKEN}"
 fi
 
-ensure_value "STACK_NAME" "${STACK_NAME:-}" "stuhelper-dev"
-ensure_value "APP_ENV" "${APP_ENV:-}" "development"
+ensure_dev_default "STACK_NAME" "${STACK_NAME:-}" "stuhelper-dev" "stuhelper-prod" "stuhelper-prod-parity"
+ensure_dev_default "COMPOSE_PROJECT_NAME" "${COMPOSE_PROJECT_NAME:-}" "stuhelper-dev" "stuhelper-prod" "stuhelper-prod-parity"
+ensure_dev_default "APP_ENV" "${APP_ENV:-}" "development" "production"
 ensure_dev_default "API_IP_RATE_LIMIT" "${API_IP_RATE_LIMIT:-}" "5000" "100"
 ensure_dev_default "API_GLOBAL_RATE_LIMIT" "${API_GLOBAL_RATE_LIMIT:-}" "50000" "10000"
 ensure_dev_default "REVIEW_RATE_POST_LIMIT" "${REVIEW_RATE_POST_LIMIT:-}" "500" "5"
@@ -218,64 +282,101 @@ ensure_dev_default \
   "${CORS_ORIGINS:-}" \
   "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001" \
   "http://localhost:3000,http://localhost:3001" \
-  "http://localhost:5173,http://localhost:3001"
+  "http://localhost:5173,http://localhost:3001" \
+  "http://127.0.0.1:28000,http://127.0.0.1:28001"
+replace_legacy_env_pattern "BACKUP_DATABASE_URL" "${BACKUP_DATABASE_URL:-}" "" "postgres://stuhelper_backup:*@postgres:5432/stuhelper?sslmode=disable"
+replace_legacy_env_pattern "REPLICATION_DATABASE_URL" "${REPLICATION_DATABASE_URL:-}" "" "postgres://stuhelper_replication:*@postgres:5432/stuhelper?sslmode=disable"
+replace_legacy_env_value "EXTERNAL_POSTGRES_ENABLED" "${EXTERNAL_POSTGRES_ENABLED:-}" "false" "true"
+replace_legacy_env_value "EXTERNAL_POSTGRES_ALLOW_PLAINTEXT" "${EXTERNAL_POSTGRES_ALLOW_PLAINTEXT:-}" "false" "true"
+replace_legacy_env_value "EXTERNAL_DATASTORE_NETWORK" "${EXTERNAL_DATASTORE_NETWORK:-}" "" "stuhelper-prod-parity-baota-net" "baota_net"
+replace_legacy_env_value "SHARED_POSTGRES_CONTAINER" "${SHARED_POSTGRES_CONTAINER:-}" "" "stuhelper-prod-parity-postgres"
+replace_legacy_env_value "PROD_PARITY_POSTGRES_CONTAINER" "${PROD_PARITY_POSTGRES_CONTAINER:-}" "" "stuhelper-prod-parity-postgres"
+replace_legacy_env_value "PROD_PARITY_POSTGRES_PORT" "${PROD_PARITY_POSTGRES_PORT:-}" "" "15432"
+replace_legacy_env_value "SHARED_POSTGRES_SUPERUSER" "${SHARED_POSTGRES_SUPERUSER:-}" "" "postgres"
+replace_legacy_env_value "SHARED_POSTGRES_DB" "${SHARED_POSTGRES_DB:-}" "" "postgres"
+replace_legacy_env_value "POSTGRES_HOST" "${POSTGRES_HOST:-}" "localhost" "postgres"
+replace_legacy_env_value "IDENTITY_ISSUER" "${IDENTITY_ISSUER:-}" "http://localhost:3000" "http://127.0.0.1:28000" "https://id.stuhelper.com"
+replace_legacy_env_value "IDENTITY_SIGNING_KEY_ID" "${IDENTITY_SIGNING_KEY_ID:-}" "stuhelper-identity-dev" "stuhelper-identity-prod-parity-1" "stuhelper-identity-1"
+replace_legacy_env_value "IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS" "${IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS:-}" "false" "true"
+replace_legacy_env_value "IDENTITY_PUBLIC_SMOKE_ENABLED" "${IDENTITY_PUBLIC_SMOKE_ENABLED:-}" "false" "true"
+replace_legacy_env_value "IDENTITY_PUBLIC_SMOKE_HOMEPAGE_URL" "${IDENTITY_PUBLIC_SMOKE_HOMEPAGE_URL:-}" "http://localhost:3000" "http://127.0.0.1:28000" "https://stuhelper.com"
+replace_legacy_env_value "IDENTITY_PUBLIC_SMOKE_PRIVACY_POLICY_URL" "${IDENTITY_PUBLIC_SMOKE_PRIVACY_POLICY_URL:-}" "http://localhost:3000/privacy" "http://127.0.0.1:28000/privacy" "https://stuhelper.com/privacy"
+replace_legacy_env_value "OPEN_PLATFORM_PRODUCTION_EVIDENCE_ALLOW_LOCAL_TARGETS" "${OPEN_PLATFORM_PRODUCTION_EVIDENCE_ALLOW_LOCAL_TARGETS:-}" "false" "true"
+replace_legacy_env_value "OTEL_EXPORTER_OTLP_ENDPOINT" "${OTEL_EXPORTER_OTLP_ENDPOINT:-}" "http://localhost:4318" "http://alloy:4318"
+replace_legacy_env_value "OBJECT_STORAGE_ACCESS_KEY_ID" "${OBJECT_STORAGE_ACCESS_KEY_ID:-}" "stuhelper" "stuhelper-prod-parity"
+replace_legacy_env_value "TOKEN_COOKIE_SECURE" "${TOKEN_COOKIE_SECURE:-}" "false" "true"
+replace_legacy_env_value "ALLOW_LOCAL_ALERT_SINK" "${ALLOW_LOCAL_ALERT_SINK:-}" "false" "true"
+replace_legacy_env_value "ALERTMANAGER_WEBHOOK_URL" "${ALERTMANAGER_WEBHOOK_URL:-}" "" "http://alert-webhook-sink:8080/alerts"
 load_env
 
-ensure_value "DATABASE_URL" "${DATABASE_URL:-}" "postgres://stuhelper_app:${STUHELPER_APP_DB_PASSWORD:-}@localhost:5432/stuhelper?sslmode=disable"
+ensure_dev_pattern_default "DATABASE_URL" "${DATABASE_URL:-}" "postgres://stuhelper_app:${STUHELPER_APP_DB_PASSWORD:-}@localhost:5432/stuhelper?sslmode=disable" "postgres://stuhelper_app:*@postgres:5432/stuhelper?sslmode=disable"
+ensure_dev_default "POSTGRES_EXTERNAL_PORT" "${POSTGRES_EXTERNAL_PORT:-}" "5432" "15432"
 ensure_value "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}" "disable"
 ensure_dev_default "POSTGRES_PGDATA" "${POSTGRES_PGDATA:-}" "/var/lib/postgresql/data" "/var/lib/postgresql/18/docker"
 ensure_dev_default "POSTGRES_ARCHIVE_MODE" "${POSTGRES_ARCHIVE_MODE:-}" "off" "on"
 ensure_value "POSTGRES_ARCHIVE_TIMEOUT" "${POSTGRES_ARCHIVE_TIMEOUT:-}" "60s"
-ensure_value "REDIS_HOST" "${REDIS_HOST:-}" "localhost"
+ensure_dev_default "REDIS_HOST" "${REDIS_HOST:-}" "localhost" "redis"
 ensure_value "REDIS_PORT" "${REDIS_PORT:-}" "6379"
+ensure_dev_default "REDIS_EXTERNAL_PORT" "${REDIS_EXTERNAL_PORT:-}" "6379" "26379"
 ensure_value "REDIS_TLS_ENABLED" "${REDIS_TLS_ENABLED:-}" "true"
-ensure_value "REDIS_TLS_CA" "${REDIS_TLS_CA:-}" "/tls/ca.crt"
-ensure_value "CASDOOR_EXTERNALPORT" "${CASDOOR_EXTERNALPORT:-}" "8085"
+ensure_dev_default "REDIS_TLS_CA" "${REDIS_TLS_CA:-}" "/tls/ca.crt" "/redis-tls/ca.crt"
+ensure_dev_default "CASDOOR_EXTERNALPORT" "${CASDOOR_EXTERNALPORT:-}" "8085" "28085"
 ensure_value "CASDOOR_VERSION" "${CASDOOR_VERSION:-}" "3.31.1"
-ensure_dev_default "TRAEFIK_HTTP_PORT" "${TRAEFIK_HTTP_PORT:-}" "8088" "8085"
-ensure_dev_default "CASDOOR_ISSUER" "${CASDOOR_ISSUER:-}" "http://localhost:8085" "http://localhost" "http://host.docker.internal:8085"
+ensure_dev_default "CASDOOR_ISSUER" "${CASDOOR_ISSUER:-}" "http://localhost:8085" "http://localhost" "http://host.docker.internal:8085" "https://sso.stuhelper.com" "http://127.0.0.1:28085"
 ensure_value "CASDOOR_INTERNAL_ADDRESS" "${CASDOOR_INTERNAL_ADDRESS:-}" "casdoor:8000"
-ensure_value "CASDOOR_REDIRECT_URI" "${CASDOOR_REDIRECT_URI:-}" "http://localhost:8080/api/v1/auth/callback"
+ensure_dev_default "CASDOOR_REDIRECT_URI" "${CASDOOR_REDIRECT_URI:-}" "http://localhost:8080/api/v1/auth/callback" "http://127.0.0.1:28080/api/v1/auth/callback" "https://stuhelper.com/api/v1/auth/callback"
 ensure_value "CASDOOR_ORGANIZATION" "${CASDOOR_ORGANIZATION:-}" "stuhelper"
 ensure_value "CASDOOR_ROLES_CLAIM" "${CASDOOR_ROLES_CLAIM:-}" "roles"
-ensure_value "CASDOOR_BOOTSTRAP_ENABLED" "${CASDOOR_BOOTSTRAP_ENABLED:-}" "false"
-ensure_value "CASDOOR_BOOTSTRAP_ENV_FILE" "${CASDOOR_BOOTSTRAP_ENV_FILE:-}" ".env.casdoor-bootstrap.local"
-ensure_value "CASDOOR_ADMIN_REDIRECT_URI" "${CASDOOR_ADMIN_REDIRECT_URI:-}" "${CASDOOR_REDIRECT_URI:-http://localhost:8080/api/v1/auth/callback}"
-ensure_value "CASDOOR_UNIAPP_REDIRECT_URI" "${CASDOOR_UNIAPP_REDIRECT_URI:-}" "${CASDOOR_REDIRECT_URI:-http://localhost:8080/api/v1/auth/callback}"
-ensure_value "CASDOOR_SMS_PROVIDER_ENABLED" "${CASDOOR_SMS_PROVIDER_ENABLED:-}" "false"
+ensure_dev_default "CASDOOR_BOOTSTRAP_ENABLED" "${CASDOOR_BOOTSTRAP_ENABLED:-}" "false" "true"
+ensure_dev_pattern_default "CASDOOR_BOOTSTRAP_ENV_FILE" "${CASDOOR_BOOTSTRAP_ENV_FILE:-}" ".env.casdoor-bootstrap.local" "*/.run/prod-parity/.env.casdoor-bootstrap.local"
+ensure_dev_default "CASDOOR_ADMIN_REDIRECT_URI" "${CASDOOR_ADMIN_REDIRECT_URI:-}" "http://localhost:8080/api/v1/auth/callback" "http://127.0.0.1:28080/api/v1/auth/callback" "https://stuhelper.com/api/v1/auth/callback"
+ensure_dev_default "CASDOOR_UNIAPP_REDIRECT_URI" "${CASDOOR_UNIAPP_REDIRECT_URI:-}" "http://localhost:8080/api/v1/auth/callback" "http://127.0.0.1:28080/api/v1/auth/callback" "https://stuhelper.com/api/v1/auth/callback"
+ensure_dev_default "CASDOOR_SMS_PROVIDER_ENABLED" "${CASDOOR_SMS_PROVIDER_ENABLED:-}" "false" "true"
 ensure_value "CASDOOR_SMS_PROVIDER_NAME" "${CASDOOR_SMS_PROVIDER_NAME:-}" "stuhelper-sms"
 ensure_value "CASDOOR_SMS_PROVIDER_DISPLAY_NAME" "${CASDOOR_SMS_PROVIDER_DISPLAY_NAME:-}" "StuHelper-SMS"
 ensure_value "CASDOOR_SMS_PROVIDER_CATEGORY" "${CASDOOR_SMS_PROVIDER_CATEGORY:-}" "SMS"
 ensure_value "CASDOOR_SMS_PROVIDER_TYPE" "${CASDOOR_SMS_PROVIDER_TYPE:-}" "CustomHTTP"
 ensure_value "CASDOOR_SMS_PROVIDER_METHOD" "${CASDOOR_SMS_PROVIDER_METHOD:-}" "POST"
 ensure_value "CASDOOR_SMS_PROVIDER_TITLE" "${CASDOOR_SMS_PROVIDER_TITLE:-}" "content"
-ensure_value "CASDOOR_SMS_PROVIDER_ENDPOINT" "${CASDOOR_SMS_PROVIDER_ENDPOINT:-}" "http://host.docker.internal:8080/internal/sms/send"
+ensure_dev_default "CASDOOR_SMS_PROVIDER_ENDPOINT" "${CASDOOR_SMS_PROVIDER_ENDPOINT:-}" "http://host.docker.internal:8080/internal/sms/send" "http://app:8080/internal/sms/send"
 ensure_value "CASDOOR_EMAIL_PROVIDER_ENABLED" "${CASDOOR_EMAIL_PROVIDER_ENABLED:-}" "false"
-ensure_value "WEB_PUBLIC_URL" "${WEB_PUBLIC_URL:-}" "http://localhost:3000"
-ensure_value "ADMIN_PUBLIC_URL" "${ADMIN_PUBLIC_URL:-}" "http://localhost:${ADMIN_EXTERNAL_PORT:-3001}"
-ensure_value "STUHELPER_PLATFORM_BASE_URL" "${STUHELPER_PLATFORM_BASE_URL:-}" "http://localhost:8080"
+ensure_dev_default "SMS_ENABLED" "${SMS_ENABLED:-}" "false" "true"
+replace_legacy_env_value "SMS_APP_ID" "${SMS_APP_ID:-}" "" "prod-parity-sms-app" "REPLACE_WITH_SMS_APP_ID"
+replace_legacy_env_value "SMS_SIGN_NAME" "${SMS_SIGN_NAME:-}" "" "StuHelper" "REPLACE_WITH_SMS_SIGN_NAME"
+replace_legacy_env_value "SMS_TEMPLATE_ID" "${SMS_TEMPLATE_ID:-}" "" "prod-parity-template" "REPLACE_WITH_SMS_TEMPLATE_ID"
+ensure_dev_default "BACKEND_EXTERNAL_PORT" "${BACKEND_EXTERNAL_PORT:-}" "8080" "18080" "28080"
+ensure_dev_default "WEB_EXTERNAL_PORT" "${WEB_EXTERNAL_PORT:-}" "3000" "18000" "28000"
+ensure_dev_default "ADMIN_EXTERNAL_PORT" "${ADMIN_EXTERNAL_PORT:-}" "3001" "18001" "28001"
+ensure_dev_default "WEB_PUBLIC_URL" "${WEB_PUBLIC_URL:-}" "http://localhost:3000" "http://127.0.0.1:28000" "https://stuhelper.com"
+ensure_dev_default "ADMIN_PUBLIC_URL" "${ADMIN_PUBLIC_URL:-}" "http://localhost:3001" "http://127.0.0.1:28001/admin/" "https://stuhelper.com/admin/"
+ensure_dev_default "STUHELPER_PLATFORM_BASE_URL" "${STUHELPER_PLATFORM_BASE_URL:-}" "http://localhost:8080" "http://127.0.0.1:28080" "https://stuhelper.com"
 ensure_dev_default "WEB_VITE_API_URL" "${WEB_VITE_API_URL:-}" "/api" ""
-ensure_dev_default "WEB_VITE_SSO_URL" "${WEB_VITE_SSO_URL:-}" "http://localhost:8085" "http://host.docker.internal:8085"
+ensure_dev_default "WEB_VITE_SSO_URL" "${WEB_VITE_SSO_URL:-}" "http://localhost:8085" "http://host.docker.internal:8085" "https://sso.stuhelper.com" "http://127.0.0.1:28085"
 ensure_value "WEB_VITE_API_TIMEOUT_MS" "${WEB_VITE_API_TIMEOUT_MS:-}" "15000"
 ensure_value "ADMIN_VITE_API_URL" "${ADMIN_VITE_API_URL:-}" "/api/v1"
 ensure_value "ADMIN_VITE_BASE" "${ADMIN_VITE_BASE:-}" "/admin/"
-ensure_value "OPENFGA_API_URL" "${OPENFGA_API_URL:-}" "http://localhost:8081"
-ensure_value "OPENFGA_RESOURCE_SMOKE_MODE" "${OPENFGA_RESOURCE_SMOKE_MODE:-}" "host"
-ensure_value "OBJECT_STORAGE_ENDPOINT" "${OBJECT_STORAGE_ENDPOINT:-}" "http://localhost:9000"
+ensure_dev_default "OPENFGA_API_URL" "${OPENFGA_API_URL:-}" "http://localhost:8081" "http://openfga:8080"
+ensure_dev_default "OPENFGA_HTTP_EXTERNAL_PORT" "${OPENFGA_HTTP_EXTERNAL_PORT:-}" "8081"
+ensure_dev_default "OPENFGA_GRPC_EXTERNAL_PORT" "${OPENFGA_GRPC_EXTERNAL_PORT:-}" "8082"
+ensure_dev_default "OPENFGA_PLAYGROUND_EXTERNAL_PORT" "${OPENFGA_PLAYGROUND_EXTERNAL_PORT:-}" "3002"
+ensure_dev_default "OPENFGA_RESOURCE_SMOKE_MODE" "${OPENFGA_RESOURCE_SMOKE_MODE:-}" "host" "container"
+ensure_dev_default "OBJECT_STORAGE_ENDPOINT" "${OBJECT_STORAGE_ENDPOINT:-}" "http://localhost:9000" "http://minio:9000"
 ensure_value "OBJECT_STORAGE_REGION" "${OBJECT_STORAGE_REGION:-}" "us-east-1"
 ensure_value "OBJECT_STORAGE_BUCKET" "${OBJECT_STORAGE_BUCKET:-}" "stuhelper-identity"
 ensure_value "OBJECT_STORAGE_ACCESS_KEY_ID" "${OBJECT_STORAGE_ACCESS_KEY_ID:-}" "stuhelper"
-ensure_value "OBJECT_STORAGE_USE_SSL" "${OBJECT_STORAGE_USE_SSL:-}" "false"
+ensure_dev_default "OBJECT_STORAGE_USE_SSL" "${OBJECT_STORAGE_USE_SSL:-}" "false" "true"
 ensure_value "OBJECT_STORAGE_FORCE_PATH_STYLE" "${OBJECT_STORAGE_FORCE_PATH_STYLE:-}" "true"
 ensure_value "OBJECT_STORAGE_PRESIGN_TTL" "${OBJECT_STORAGE_PRESIGN_TTL:-}" "600"
+ensure_dev_default "MINIO_API_EXTERNAL_PORT" "${MINIO_API_EXTERNAL_PORT:-}" "9000" "29000"
+ensure_dev_default "MINIO_CONSOLE_EXTERNAL_PORT" "${MINIO_CONSOLE_EXTERNAL_PORT:-}" "9001" "29001"
 ensure_value "PROMETHEUS_RETENTION_TIME" "${PROMETHEUS_RETENTION_TIME:-}" "15d"
 ensure_value "PROMETHEUS_RETENTION_SIZE" "${PROMETHEUS_RETENTION_SIZE:-}" "20GB"
 ensure_value "BACKUP_LOGICAL_RETENTION_DAYS" "${BACKUP_LOGICAL_RETENTION_DAYS:-}" "14"
 ensure_value "BACKUP_BASE_RETENTION_DAYS" "${BACKUP_BASE_RETENTION_DAYS:-}" "30"
 ensure_value "WAL_ARCHIVE_RETENTION_DAYS" "${WAL_ARCHIVE_RETENTION_DAYS:-}" "14"
-ensure_value "BACKEND_IMAGE_REF" "${BACKEND_IMAGE_REF:-}" "stuhelper/backend:dev-placeholder"
-ensure_value "FRONTEND_IMAGE_REF" "${FRONTEND_IMAGE_REF:-}" "stuhelper/frontend:dev-placeholder"
-ensure_value "ADMIN_IMAGE_REF" "${ADMIN_IMAGE_REF:-}" "stuhelper/admin:dev-placeholder"
+ensure_dev_pattern_default "BACKEND_IMAGE_REF" "${BACKEND_IMAGE_REF:-}" "stuhelper/backend:dev-placeholder" "stuhelper/backend:prod-parity-*"
+ensure_dev_pattern_default "FRONTEND_IMAGE_REF" "${FRONTEND_IMAGE_REF:-}" "stuhelper/frontend:dev-placeholder" "stuhelper/frontend:prod-parity-*"
+ensure_dev_pattern_default "ADMIN_IMAGE_REF" "${ADMIN_IMAGE_REF:-}" "stuhelper/admin:dev-placeholder" "stuhelper/admin:prod-parity-*"
 
 "${SCRIPT_DIR}/render-redis-tls.sh"
 "${SCRIPT_DIR}/render-redis-acl.sh"

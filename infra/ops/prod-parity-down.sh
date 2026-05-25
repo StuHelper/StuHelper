@@ -12,7 +12,7 @@ parity_default_path() {
   local current="$1"
   local common_default="$2"
   local parity_default="$3"
-  if [[ -z "${current}" || "${current}" == "${common_default}" ]]; then
+  if repo_default_path_matches "${current}" "${common_default}"; then
     printf '%s\n' "${parity_default}"
     return
   fi

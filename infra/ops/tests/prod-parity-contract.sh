@@ -12,6 +12,7 @@ PARITY_SMOKE_DATA="${REPO_ROOT}/infra/ops/prod-parity-smoke-data.sh"
 PARITY_DATASTORE_SMOKE="${REPO_ROOT}/infra/ops/prod-parity-datastore-smoke.sh"
 PARITY_BROWSER_SMOKE="${REPO_ROOT}/infra/ops/prod-parity-browser-smoke.sh"
 PARITY_BROWSER_SMOKE_NODE="${REPO_ROOT}/infra/ops/prod-parity-browser-smoke.mjs"
+COMMON_LIB="${REPO_ROOT}/infra/ops/lib/common.sh"
 ADMIN_INDEX_HTML="${REPO_ROOT}/clients/admin/apps/web-ele/index.html"
 MAKEFILE="${REPO_ROOT}/Makefile"
 
@@ -36,11 +37,27 @@ assert_not_contains() {
   fi
 }
 
-for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${PARITY_SMOKE_DATA}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_BROWSER_SMOKE_NODE}" "${ADMIN_INDEX_HTML}"; do
+for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${PARITY_SMOKE_DATA}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_BROWSER_SMOKE_NODE}" "${COMMON_LIB}" "${ADMIN_INDEX_HTML}"; do
   [[ -f "${file}" ]] || fail "missing file: ${file}"
 done
 
 bash -n "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${PARITY_SMOKE_DATA}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}"
+
+for default_path in ".env" "./.env" ".env.generated" "./.env.generated" ".env.generated.secrets" "./.env.generated.secrets" ".deploy" "./.deploy"; do
+  case "${default_path}" in
+    *.generated.secrets|./*.generated.secrets) expected="${REPO_ROOT}/.env.generated.secrets" ;;
+    *.generated|./*.generated) expected="${REPO_ROOT}/.env.generated" ;;
+    *.env|./*.env) expected="${REPO_ROOT}/.env" ;;
+    *) expected="${REPO_ROOT}/.deploy" ;;
+  esac
+  if ! bash -c 'source "$1"; repo_default_path_matches "$2" "$3"' bash "${COMMON_LIB}" "${default_path}" "${expected}"; then
+    fail "expected repo_default_path_matches to accept ${default_path} as ${expected}"
+  fi
+done
+
+if bash -c 'source "$1"; repo_default_path_matches "$2" "$3"' bash "${COMMON_LIB}" "/tmp/custom.env" "${REPO_ROOT}/.env"; then
+  fail "expected repo_default_path_matches to preserve explicit custom env paths"
+fi
 
 assert_contains "${PARITY_COMPOSE}" '^  postgres:'
 assert_contains "${PARITY_COMPOSE}" 'POSTGRES_PASSWORD: \$\{SHARED_POSTGRES_PASSWORD:\?SHARED_POSTGRES_PASSWORD is required\}'
@@ -65,6 +82,9 @@ assert_contains "${PARITY_UP}" 'EXTERNAL_POSTGRES_ENABLED.*true'
 assert_contains "${PARITY_UP}" 'EXTERNAL_POSTGRES_ALLOW_PLAINTEXT.*true'
 assert_contains "${PARITY_UP}" 'EXTERNAL_DATASTORE_NETWORK.*stuhelper-prod-parity-baota-net'
 assert_contains "${PARITY_UP}" 'REDIS_EXTERNAL_PORT.*26379'
+assert_contains "${PARITY_UP}" 'OPENFGA_HTTP_EXTERNAL_PORT.*8081'
+assert_contains "${PARITY_UP}" 'OPENFGA_GRPC_EXTERNAL_PORT.*8082'
+assert_contains "${PARITY_UP}" 'OPENFGA_PLAYGROUND_EXTERNAL_PORT.*3002'
 assert_contains "${PARITY_UP}" 'MINIO_API_EXTERNAL_PORT.*29000'
 assert_contains "${PARITY_UP}" 'MINIO_CONSOLE_EXTERNAL_PORT.*29001'
 assert_contains "${PARITY_UP}" 'CASDOOR_EXTERNALPORT.*28085'
@@ -96,13 +116,16 @@ assert_contains "${PARITY_UP}" 'OPENFGA_BOOTSTRAP_API_URL="http://127\.0\.0\.1:8
 assert_contains "${PARITY_UP}" 'OPENFGA_BOOTSTRAP_DATABASE_URL="postgres://stuhelper_app:\$\{STUHELPER_APP_DB_PASSWORD\}@127\.0\.0\.1:\$\{PROD_PARITY_POSTGRES_PORT:-15432\}/stuhelper\?sslmode=disable"'
 assert_contains "${PARITY_UP}" 'prod-parity-smoke.sh'
 assert_contains "${PARITY_UP}" 'IDENTITY_SIGNING_PRIVATE_KEY_PEM=%s'
+assert_contains "${PARITY_UP}" 'repo_default_path_matches'
 assert_not_contains "${PARITY_UP}" 'prod-deploy.sh'
 
 assert_contains "${PARITY_DOWN}" 'parity_default_path'
+assert_contains "${PARITY_DOWN}" 'repo_default_path_matches'
 assert_contains "${PARITY_SMOKE}" 'prod-parity-datastore-smoke.sh'
 assert_contains "${PARITY_SMOKE}" 'prod-parity-smoke-data.sh'
 assert_contains "${PARITY_SMOKE}" 'identity-public-smoke.sh'
 assert_contains "${PARITY_SMOKE}" 'parity_default_path'
+assert_contains "${PARITY_SMOKE}" 'repo_default_path_matches'
 assert_contains "${PARITY_SMOKE}" 'IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=true'
 assert_contains "${PARITY_SMOKE}" 'openfga-resource-access-smoke.sh'
 assert_contains "${PARITY_SMOKE}" 'prod-parity-browser-smoke.sh'
@@ -110,6 +133,7 @@ assert_contains "${PARITY_SMOKE}" 'observability-smoke-check.sh'
 assert_contains "${PARITY_SMOKE}" 'OBS_SMOKE_STRICT=false'
 
 assert_contains "${PARITY_DATASTORE_SMOKE}" 'datastore-smoke-evidence\.json'
+assert_contains "${PARITY_DATASTORE_SMOKE}" 'repo_default_path_matches'
 assert_contains "${PARITY_DATASTORE_SMOKE}" 'has_database_privilege'
 assert_contains "${PARITY_DATASTORE_SMOKE}" 'assert_pg_connect_allowed'
 assert_contains "${PARITY_DATASTORE_SMOKE}" 'assert_pg_connect_denied'
@@ -119,6 +143,7 @@ assert_contains "${PARITY_DATASTORE_SMOKE}" 'redis-cli --tls'
 assert_contains "${PARITY_DATASTORE_SMOKE}" 'casdoorChecked'
 
 assert_contains "${PARITY_SMOKE_DATA}" 'smoke-data-evidence\.json'
+assert_contains "${PARITY_SMOKE_DATA}" 'repo_default_path_matches'
 assert_contains "${PARITY_SMOKE_DATA}" 'refusing to seed non prod-parity PostgreSQL container'
 assert_contains "${PARITY_SMOKE_DATA}" '生产等价课程'
 assert_contains "${PARITY_SMOKE_DATA}" '生产等价教师'
@@ -134,6 +159,7 @@ assert_contains "${PARITY_SMOKE_DATA}" 'courseRatingStatsCount'
 assert_contains "${PARITY_SMOKE_DATA}" 'teacherPublicStatsCount'
 
 assert_contains "${PARITY_BROWSER_SMOKE}" 'PROD_PARITY_BROWSER_SMOKE_EVIDENCE_FILE'
+assert_contains "${PARITY_BROWSER_SMOKE}" 'repo_default_path_matches'
 assert_contains "${PARITY_BROWSER_SMOKE}" 'browser-smoke-evidence\.json'
 assert_contains "${PARITY_BROWSER_SMOKE}" 'WEB_BASE_URL'
 assert_contains "${PARITY_BROWSER_SMOKE}" 'ADMIN_BASE_URL'

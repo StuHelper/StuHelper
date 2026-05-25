@@ -165,6 +165,19 @@ Grafana `http://127.0.0.1:23003`。其中 datastore evidence 显示 PostgreSQL �
 `proxy.golang.org` 依赖下载阶段遇到瞬时 `unexpected EOF`，复跑 `make prod-parity-smoke` 通过后，再次完整
 `make prod-parity-up` 已成功收尾。
 
+本地开发入口复验（2026-05-26，本机 Asia/Shanghai 时间）：默认开发 / 生产路径已从仓库内 Traefik
+收敛到本地 Compose 依赖与宝塔 Nginx 公网入口；`docker-compose.yml` 不再启动 `proxy`，默认 dev
+也不占用 `80/443`。在 prod-parity 栈仍占用 OpenFGA `8081/8082/3002` 且本机已有 Redis `6379`
+监听的条件下，`make dev-up` 已自动选择 Redis `6380`、OpenFGA `8083/8084/3003` 和 MinIO
+`9001/9002`，并写回 `.env` 中的对应本地端口。dev-up 现在会从本地 Casdoor 内置
+`app-built-in` 读取一次性 bootstrap 凭据，幂等创建 / 更新 StuHelper Web、Admin、UniApp 和服务应用；
+本轮数据库确认 `stuhelper-web`、`stuhelper-admin`、`stuhelper-uniapp` 均存在。最终本地热更新入口为
+Web `http://localhost:3000`、Admin `http://localhost:3001/admin/`、Backend `http://localhost:8080`；
+`make dev-status` 显示 backend/frontend/admin 进程和 PostgreSQL / Redis / Casdoor / OpenFGA / MinIO
+容器均运行，`make dev-smoke` 返回 17 通过、0 失败、1 个 Grafana 配置跳过。Playwright MCP 复验
+Web 首页无 console error；Admin 未登录入口会跳转到 Casdoor 登录页，不再出现 `Invalid client_id`，
+仅保留 Casdoor 上游 manifest `start_url` 跨源 warning。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

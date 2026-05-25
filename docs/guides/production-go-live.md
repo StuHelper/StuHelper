@@ -18,7 +18,7 @@ last-verified: 2026-05-24
   - web：`127.0.0.1:18000`
   - admin：`127.0.0.1:18001`
 - `stuhelper.com` 承载主站、后台和 API；`id.stuhelper.com` 承载 StuHelper Identity/OIDC；`sso.stuhelper.com` 是外部 Casdoor SSO。
-- Traefik 保留给开发或可选内部网关，不作为当前生产公网入口。
+- 仓库 Compose 不再启动 Traefik；开发热更新使用 Vite / 后端本机端口，生产公网入口统一由宝塔 Nginx 承担。
 
 ## 缺漏清单
 
@@ -295,7 +295,7 @@ Open Platform runtime token 探针要求：
 - 内置 runner 只请求 `scope=openid`，通过 Playwright 完成 authorization-code + PKCE 登录，解码 `id_token` 和 JWT `access_token` 的 claim key，发现手机号、学生认证、学校、身份类型等业务 claim 时审批失败。
 - backend 镜像已经包含 Node、Playwright Core、Chromium 和 `/app/casdoor-runtime-token-probe-runner.mjs`；生产样例默认 `CASDOOR_TOKEN_PROBE_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium-browser`。
 - 如 Casdoor 登录页定制导致默认 selector 失效，可设置 `CASDOOR_TOKEN_PROBE_USERNAME_SELECTOR`、`CASDOOR_TOKEN_PROBE_PASSWORD_SELECTOR`、`CASDOOR_TOKEN_PROBE_SUBMIT_SELECTOR`、`CASDOOR_TOKEN_PROBE_CONSENT_SELECTOR`。
-- 生产 OpenFGA resource smoke 默认用 `OPENFGA_RESOURCE_SMOKE_MODE=container`，确保 `OPENFGA_API_URL=http://openfga:8080` 在 Docker backend 网络内解析；开发环境默认 `host`，使用 `http://localhost:8081`。
+- 生产 OpenFGA resource smoke 默认用 `OPENFGA_RESOURCE_SMOKE_MODE=container`，确保 `OPENFGA_API_URL=http://openfga:8080` 在 Docker backend 网络内解析；开发环境默认 `host`，初始使用 `http://localhost:8081`，若该端口被 prod-parity 或本机其他服务占用，`make dev-up` 会自动写回可用的 `OPENFGA_HTTP_EXTERNAL_PORT` 和 `OPENFGA_API_URL`。
 
 ## 6. 写入 secret backend
 

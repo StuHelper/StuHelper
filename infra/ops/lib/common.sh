@@ -230,6 +230,29 @@ trim_trailing_slash() {
   printf '%s\n' "${value%/}"
 }
 
+repo_default_path_matches() {
+  local current="$1"
+  local common_default="$2"
+  local normalized
+
+  if [[ -z "${current}" ]]; then
+    return 0
+  fi
+  if [[ -z "${common_default}" ]]; then
+    return 1
+  fi
+  if [[ "${current}" == "${common_default}" ]]; then
+    return 0
+  fi
+
+  case "${current}" in
+    /*) normalized="${current}" ;;
+    *) normalized="${REPO_ROOT}/${current#./}" ;;
+  esac
+
+  [[ "${normalized}" == "${common_default}" ]]
+}
+
 _public_ingress_body_snippet() {
   python3 - "$1" <<'PY'
 from pathlib import Path

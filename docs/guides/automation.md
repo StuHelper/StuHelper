@@ -33,7 +33,7 @@ make dev-up
 
 1. 初始化本地 `.env`（补齐可运行的开发密钥与默认值）
 2. 启动 PostgreSQL / Redis / Casdoor / OpenFGA / MinIO / migration / seed（Docker）
-3. 验证 Casdoor OIDC metadata；开发默认显式跳过 Casdoor admin bootstrap，设置 `CASDOOR_BOOTSTRAP_ENABLED=true` 后才执行
+3. 验证 Casdoor OIDC metadata，从本地 Casdoor 内置应用读取一次性 bootstrap 凭据，并幂等创建 StuHelper 的 Web / Admin / UniApp first-party applications、flat roles 和启用的 providers
 4. 自动初始化 OpenFGA Store、Model、基础 tuples
 5. 自动初始化对象存储 bucket
 6. 生成 `.env.generated`
@@ -41,7 +41,10 @@ make dev-up
    - 后端：`air`
    - Web：`Vite`
    - Admin：`Vite`
-8. 自动选择可用端口；若 `3000/3001` 已被占用，会顺延到下一个空闲端口
+8. 自动选择可用端口；若 `3000/3001` 或 PostgreSQL / Redis / OpenFGA / MinIO 默认宿主机端口已被占用，会顺延到下一个空闲端口
+
+默认开发链路不启动 Traefik，也不监听本机 `80/443`。生产公网入口以宝塔 Nginx 配置和
+`infra/ops/nginx-public-ingress-preflight.sh` 契约为准。
 
 查看实际运行地址与进程状态：
 

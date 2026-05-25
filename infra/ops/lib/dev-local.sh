@@ -160,7 +160,7 @@ ensure_pnpm_workspace() {
 ensure_air() {
   local air_bin="${TOOLS_BIN_DIR}/air"
   if [[ ! -x "${air_bin}" ]]; then
-    log "installing air ${AIR_VERSION}"
+    log "installing air ${AIR_VERSION}" >&2
     (
       cd "${REPO_ROOT}/server"
       GOBIN="${TOOLS_BIN_DIR}" go install "github.com/air-verse/air@${AIR_VERSION}"
@@ -197,25 +197,17 @@ kill_listener_if_matches() {
 
 is_port_available() {
   local port="$1"
-  if command -v lsof >/dev/null 2>&1; then
-    ! lsof -nP -iTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1
-    return
-  fi
-
   python3 - "$port" <<'PY'
 import socket
 import sys
 port = int(sys.argv[1])
-families = [(socket.AF_INET, "127.0.0.1"), (socket.AF_INET6, "::1")]
-for family, host in families:
-    s = socket.socket(family, socket.SOCK_STREAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    try:
-        s.bind((host, port))
-    except OSError:
-        sys.exit(1)
-    finally:
-        s.close()
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+try:
+    s.bind(("127.0.0.1", port))
+except OSError:
+    sys.exit(1)
+finally:
+    s.close()
 PY
 }
 

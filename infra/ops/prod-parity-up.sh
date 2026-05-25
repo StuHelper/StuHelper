@@ -19,7 +19,7 @@ parity_default_path() {
   local current="$1"
   local common_default="$2"
   local parity_default="$3"
-  if [[ -z "${current}" || "${current}" == "${common_default}" ]]; then
+  if repo_default_path_matches "${current}" "${common_default}"; then
     printf '%s\n' "${parity_default}"
     return
   fi
@@ -147,6 +147,9 @@ ensure_file_value "${ENV_FILE}" "BACKEND_EXTERNAL_PORT" "28080"
 ensure_file_value "${ENV_FILE}" "WEB_EXTERNAL_PORT" "28000"
 ensure_file_value "${ENV_FILE}" "ADMIN_EXTERNAL_PORT" "28001"
 ensure_file_value "${ENV_FILE}" "OPENFGA_API_URL" "http://openfga:8080"
+ensure_file_value "${ENV_FILE}" "OPENFGA_HTTP_EXTERNAL_PORT" "8081"
+ensure_file_value "${ENV_FILE}" "OPENFGA_GRPC_EXTERNAL_PORT" "8082"
+ensure_file_value "${ENV_FILE}" "OPENFGA_PLAYGROUND_EXTERNAL_PORT" "3002"
 ensure_file_value "${ENV_FILE}" "OPENFGA_RESOURCE_SMOKE_MODE" "container"
 ensure_file_value "${ENV_FILE}" "CASDOOR_EXTERNALPORT" "28085"
 ensure_file_value "${ENV_FILE}" "CASDOOR_ISSUER" "http://127.0.0.1:28085"
