@@ -403,6 +403,23 @@ datastore isolation 22 项、prod-parity browser smoke 64 项和 observability s
 通过 Web 120 项、Admin 66 项和 UniAppX H5 30 项，覆盖本轮 Web 重新认证 / callback guard 与
 UniAppX callback state mismatch 本地化修复后的组合状态。
 
+本地工具链修复（2026-05-25）：排查发现本机 Codex Playwright MCP 已配置但使用 Windows 命令
+`cmd /c npx -y @playwright/mcp@latest`，在 Ubuntu 24.04 会被 Codex 列为 enabled 但无法启动，因此当前会话
+没有暴露 `browser_*` 工具。已将 `~/.codex/config.toml` 中 Playwright MCP 改为 Linux 可执行的
+`command = "npx"`、`args = ["-y", "@playwright/mcp@latest"]`，并验证
+`npx -y @playwright/mcp@latest --version` 返回 `0.0.75`。当前 Codex 会话不热加载 MCP server，需新开会话后
+才能使用 Playwright MCP 工具。
+
+本地生产等价复验（2026-05-25）：在提交 `45b401c2` 上重新执行 `make prod-parity-up`，构建并启动
+tag 为 `prod-parity-45b401c2` 的 backend / frontend / admin 生产镜像。当前本机生产等价入口为
+Web `http://127.0.0.1:28000`、Admin `http://127.0.0.1:28001/admin/`、Backend
+`http://127.0.0.1:28080`、Grafana `http://127.0.0.1:23003`，三项应用容器均 healthy。本轮自动检查通过
+基础 API 17 项、datastore isolation 22 项、Identity public smoke 26 项、prod-parity browser smoke
+64 项和 observability smoke 6 项；smoke data seed 也通过。evidence 写入
+`.run/prod-parity/datastore-smoke-evidence.json`、`.run/prod-parity/identity-public-smoke-evidence.json`、
+`.run/prod-parity/browser-smoke-evidence.json`、`.run/prod-parity/observability-smoke-evidence.json` 和
+`.run/prod-parity/smoke-data-evidence.json`。
+
 接口硬化补充（2026-05-24）：审计发现 legacy disclosure API 文档要求 `client_id`，但
 OpenAPI 未声明且 handler 只读取认证上下文 appID；同时服务端在已有 active consent 时未重新校验
 `redirect_uri`。本轮已按 OpenAPI-first 补齐 `GET /api/v1/open-platform/userinfo`、
