@@ -893,6 +893,17 @@ E2E 复验时还发现用户系统 surface 用例连续切换页面会在表格�
 （12 项）、`CI=1 ADMIN_E2E_PORT=4222 pnpm --dir clients/admin --filter @vben/web-ele exec playwright test tests/e2e/admin-surface.spec.ts`
 （24 项）和完整 `CI=1 ADMIN_E2E_PORT=4223 make e2e-admin`（78 项）。
 
+本地验证补充（2026-05-26）：继续补齐 UniAppX 写评课表单的教师选择覆盖。此前草稿保存用例只验证未选择
+教师时不会携带 `teacherID`，没有覆盖 H5 picker 选择教师后的草稿和提交 payload。本轮在发布评课页为教师
+picker 增加稳定测试标识，E2E 通过真实点击 Uni H5 picker 的桌面 select 分支和移动 picker-view 分支选择
+`移动端教师`，随后断言保存草稿和发布评课请求都携带 `teacherID=10`。Playwright MCP 也在移动视口注入同款
+API mock，验证教师显示值更新、`POST /api/v1/course/review/drafts` 和
+`POST /api/v1/course/review/reviews` payload 都包含 `teacherID: 10`，并确认脚本捕获的 console/pageerror
+为空。验证已通过 `pnpm --dir clients type-check:uni`、单文件
+`CI=1 UNIAPPX_E2E_PORT=3167 pnpm --dir clients/uniappx exec playwright test tests/e2e/surface.spec.ts`
+（40 项）、完整 `CI=1 UNIAPPX_E2E_PORT=3169 make e2e-uni`（40 项）、
+`pnpm --dir clients build:uni:h5`、`pnpm --dir clients run check:no-empty-catch` 和 `git diff --check`。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |

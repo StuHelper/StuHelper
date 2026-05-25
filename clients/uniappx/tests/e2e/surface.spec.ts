@@ -589,6 +589,32 @@ async function setUniFieldValue(page: Page, testID: string, value: string) {
   }, value)
 }
 
+async function selectUniPickerIndex(page: Page, testID: string, index: number) {
+  await page.getByTestId(testID).click()
+  const picker = page.locator('.uni-picker-container:visible').last()
+  await expect(picker).toBeVisible()
+
+  const selectOption = picker.locator('.uni-picker-select .uni-picker-item').nth(index)
+  try {
+    await expect(selectOption).toBeVisible({ timeout: 1000 })
+    await selectOption.click()
+    return
+  } catch {
+    // Mobile H5 renders the selector as a picker-view overlay instead of the desktop select list.
+  }
+
+  const pickerView = picker.locator('uni-picker-view')
+  await expect(pickerView).toBeVisible()
+  await pickerView.evaluate((element, selectedIndex) => {
+    element.dispatchEvent(new CustomEvent('change', {
+      bubbles: true,
+      composed: true,
+      detail: { value: [selectedIndex] },
+    }))
+  }, index)
+  await picker.locator('.uni-picker-action-confirm').click()
+}
+
 function requireMutationBody(
   mutationBodies: MockUniApiResult['mutationBodies'],
   method: string,
@@ -868,6 +894,8 @@ test.describe('UniAppX H5 surface', () => {
     await expect(page.getByText(term.name).last()).toBeVisible()
     await expect(page.getByText('综合体验')).toBeVisible()
 
+    await selectUniPickerIndex(page, 'uni-review-teacher-picker', 0)
+    await expect(page.getByTestId('uni-review-teacher-value')).toContainText(teacher.teacherName)
     await setUniFieldValue(page, 'uni-review-title', '移动端草稿标题')
     await setUniFieldValue(page, 'uni-review-grade', 'A')
     await setUniFieldValue(
@@ -891,10 +919,10 @@ test.describe('UniAppX H5 surface', () => {
       courseID: course.id,
       grade: 'A',
       ratings: { overall: 5, workload: 4 },
+      teacherID: teacher.teacherID,
       termID: term.id,
       title: '移动端草稿标题',
     })
-    expect(draftPayload).not.toHaveProperty('teacherID')
   })
 
   test('authenticated review post page submits a complete review', async ({ page }) => {
@@ -902,6 +930,8 @@ test.describe('UniAppX H5 surface', () => {
 
     await gotoUniPage(page, `/#/pages/review/post?courseID=${course.id}`)
 
+    await selectUniPickerIndex(page, 'uni-review-teacher-picker', 0)
+    await expect(page.getByTestId('uni-review-teacher-value')).toContainText(teacher.teacherName)
     await setUniFieldValue(page, 'uni-review-title', '移动端提交评课验证')
     await setUniFieldValue(page, 'uni-review-grade', 'A')
     await setUniFieldValue(
@@ -928,6 +958,7 @@ test.describe('UniAppX H5 surface', () => {
       courseID: course.id,
       grade: 'A',
       ratings: { overall: 5, workload: 4 },
+      teacherID: teacher.teacherID,
       termID: term.id,
       title: '移动端提交评课验证',
     })

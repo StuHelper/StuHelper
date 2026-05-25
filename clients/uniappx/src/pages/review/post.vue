@@ -175,8 +175,8 @@ onLoad((options) => {
 
       <view class="field-group">
         <text class="field-label">{{ t('review.post.teacher') }}</text>
-        <picker :range="teachers" range-key="teacherName" @change="updateTeacher">
-          <view class="picker-field">
+        <picker data-testid="uni-review-teacher-picker" :range="teachers" range-key="teacherName" @change="updateTeacher">
+          <view class="picker-field" data-testid="uni-review-teacher-value">
             {{
               teachers.find((item) => item.teacherID === form.teacherID)?.teacherName ||
               t('review.post.selectTeacher')
