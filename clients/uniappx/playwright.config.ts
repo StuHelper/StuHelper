@@ -28,6 +28,7 @@ export default defineConfig({
     env: {
       ...process.env,
       VITE_API_URL: '',
+      VITE_WEB_URL: process.env.UNIAPPX_E2E_WEB_URL ?? 'https://web.example.test',
     },
     reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === '1',
     url: origin,

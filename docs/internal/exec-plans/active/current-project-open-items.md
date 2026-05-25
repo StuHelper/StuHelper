@@ -623,6 +623,20 @@ vote POST 和 reply POST 均未发生。Playwright MCP 也在本地 Web 开发�
 仍保留一套未接入当前认证边界的回复提交 / 删除逻辑，容易造成误维护。已删除该无引用组件，`rg "ReplyList"`
 确认 `clients/web/src` 与 `clients/web/tests` 中无剩余引用。
 
+本地验证补充（2026-05-26）：继续补齐 UniAppX H5 个人中心认证摘要的真实点击链路。E2E 配置现在为
+H5 测试显式提供 `VITE_WEB_URL=https://web.example.test`，个人中心实名 / 学生 / 手机摘要块补充稳定
+`data-testid`。新增浏览器覆盖未完成实名的登录用户会看到“未完成实名 / 请先完成实名认证 / 未绑定”，点击
+学生认证摘要不会越过实名前置，点击实名认证摘要会跳转 Web `/user/identity-verification`；同时覆盖
+实名已通过但学生认证被驳回的用户会看到“实名已通过 / 学生认证被驳回 / 已绑定”，点击实名摘要不会重复跳转，
+点击学生认证摘要会跳转 Web `/user/student-verification`。Playwright MCP 也在临时 UniAppX H5 dev server
+注入同等 session / user surface mock 后真实点击，确认已通过实名摘要不跳转、学生认证摘要打开
+`https://web.example.test/user/student-verification`，且无 console warning/error。新增覆盖后已通过
+`pnpm --dir clients type-check:uni` 和
+`CI=1 UNIAPPX_E2E_PORT=3158 pnpm --dir clients/uniappx exec playwright test tests/e2e/surface.spec.ts`
+（40 项）、`CI=1 UNIAPPX_E2E_PORT=3160 make e2e-uni`（40 项）、`pnpm --dir clients test:uni`
+（46 项）、`pnpm --dir clients build:uni:h5`、`pnpm --dir clients run check:no-empty-catch` 和
+`make check-docs`。
+
 本地全量复验（2026-05-25）：在提交 `d82afd53` 上复跑统一客户端 E2E 门禁，
 `CI=1 PLAYWRIGHT_WEB_PORT=3450 ADMIN_E2E_PORT=4206 UNIAPPX_E2E_PORT=3142 make e2e`
 通过 Web 120 项、Admin 66 项和 UniAppX H5 30 项，覆盖本轮 Web 重新认证 / callback guard 与

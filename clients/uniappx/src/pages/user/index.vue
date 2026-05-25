@@ -143,18 +143,26 @@ onShow(() => {
     <view v-else class="section-card">
       <text class="section-title">{{ t('user.index.authOverview') }}</text>
       <view class="summary-row">
-        <view class="summary-item" @tap="!identityVerified && goVerify('identity')">
+        <view
+          class="summary-item"
+          data-testid="uni-user-identity-summary"
+          @tap="!identityVerified && goVerify('identity')"
+        >
           <text class="summary-label">{{ t('user.index.realName') }}</text>
           <text class="summary-value" :class="{ 'action-link': !identityVerified }">{{ identitySummary }}</text>
           <text v-if="!identityVerified" class="action-hint">{{ t('user.index.tapToVerify') }}</text>
         </view>
-        <view class="summary-item" @tap="identityVerified && !studentVerified && goVerify('student')">
+        <view
+          class="summary-item"
+          data-testid="uni-user-student-summary"
+          @tap="identityVerified && !studentVerified && goVerify('student')"
+        >
           <text class="summary-label">{{ t('user.index.student') }}</text>
           <text class="summary-value" :class="{ 'action-link': identityVerified && !studentVerified }">{{ verificationSummary }}</text>
           <text v-if="identityVerified && !studentVerified" class="action-hint">{{ t('user.index.tapToVerify') }}</text>
           <text v-else-if="!identityVerified && !studentVerified" class="action-hint">{{ t('user.index.identityFirst') }}</text>
         </view>
-        <view class="summary-item">
+        <view class="summary-item" data-testid="uni-user-phone-summary">
           <text class="summary-label">{{ t('user.index.phone') }}</text>
           <text class="summary-value">
             {{ surface?.phoneBound ? t('user.index.phoneBound') : t('user.index.phoneUnbound') }}
