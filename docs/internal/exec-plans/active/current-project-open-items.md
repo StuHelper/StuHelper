@@ -625,6 +625,18 @@ Drawer 并点击“重置”确认筛选项清空。该用例覆盖 `stuhelperGr
 新增覆盖后已通过 `STUHELPER_UI_SMOKE_PORT=5168 corepack yarn --cwd bots/koishi test:ui`（23 项）和
 `corepack yarn --cwd bots/koishi test:unit`（260 项）。
 
+本地验证补充（2026-05-25）：继续补齐 Koishi Console 角色权限真实写路径。新增 E2E 用例进入
+“角色权限”，通过页面“＋”按钮创建自定义角色，编辑角色名称、别名和颜色并保存，断言角色列表回显；
+随后切到成员 tab，添加成员并断言成员行出现，再移除成员并断言成员列表恢复空态；最后点击“删除角色”，
+确认页面内删除弹窗并断言角色列表不再包含目标角色。该用例覆盖
+`stuhelperGroupCenter/auth/role/update`、`auth/user/assign`、`auth/user/revoke` 和
+`auth/role/delete` 的浏览器 UI 到 WebSocket API 再到 `AuthService` / `auth_roles.json` /
+`auth_users.json` 持久化链路。Playwright MCP 也在临时 Koishi `http://127.0.0.1:5173` 上复验同一路径，
+返回添加成员后的 `memberText` 包含目标用户 ID，移除后的 `remainingMembers=0`，删除后的
+`remainingRoles=0`，交互阶段未发现新增 console warning/error 或 pageerror。新增覆盖后已通过
+`STUHELPER_UI_SMOKE_PORT=5171 corepack yarn --cwd bots/koishi test:ui`（24 项）和
+`corepack yarn --cwd bots/koishi test:unit`（260 项）。
+
 本地生产等价复验（2026-05-25）：在提交 `45b401c2` 上重新执行 `make prod-parity-up`，构建并启动
 tag 为 `prod-parity-45b401c2` 的 backend / frontend / admin 生产镜像。当前本机生产等价入口为
 Web `http://127.0.0.1:28000`、Admin `http://127.0.0.1:28001/admin/`、Backend

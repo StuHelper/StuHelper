@@ -509,6 +509,57 @@ test('global settings discard, save, and restore defaults through real console a
   tracker.assertClean()
 })
 
+test('role management creates, edits, assigns member, revokes member, and deletes a custom role', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  const suffix = Date.now().toString().slice(-8)
+  const roleName = `E2E 角色 ${suffix}`
+  const roleAlias = `e2e-${suffix}`
+  const memberId = `30${suffix}`
+
+  await clickNavRail(page, '角色权限')
+  await expect(page).toHaveURL(/#roles($|\?)/, { timeout: 5_000 })
+  await expect(page.locator('.roles-view-container')).toBeVisible({ timeout: 10_000 })
+
+  await page.getByRole('button', { name: '＋', exact: true }).click()
+  await expect(toastMessage(page, '角色创建成功')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.content-header h1', { hasText: '新角色' })).toBeVisible({ timeout: 10_000 })
+
+  await fillRoleInput(page, '角色名称', roleName)
+  await fillRoleInput(page, '角色别名', roleAlias)
+  await fillRoleInput(page, '角色颜色', '#3b82f6')
+  await expect(page.locator('.roles-view-container .save-bar', { hasText: '检测到未保存的修改' })).toBeVisible()
+  await page.getByRole('button', { name: '保存更改', exact: true }).click()
+
+  await expect(toastMessage(page, '保存成功')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.role-item', { hasText: roleName }).first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.roles-view-container .save-bar')).toHaveCount(0, { timeout: 5_000 })
+
+  await page.locator('.tab-item', { hasText: '成员' }).click()
+  await page.locator('.add-member input[placeholder="输入用户 ID 添加..."]').fill(memberId)
+  await page.getByRole('button', { name: '添加成员', exact: true }).click()
+
+  await expect(toastMessage(page, '添加成员成功')).toBeVisible({ timeout: 10_000 })
+  const memberRow = page.locator('.member-item', { hasText: memberId }).first()
+  await expect(memberRow).toBeVisible({ timeout: 10_000 })
+
+  await memberRow.getByRole('button', { name: '移除', exact: true }).click()
+  await expect(toastMessage(page, '移除成员成功')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.member-item', { hasText: memberId })).toHaveCount(0, { timeout: 10_000 })
+  await expect(page.locator('.empty-tip', { hasText: '暂无成员（输入用户 QQ 号添加）' })).toBeVisible()
+
+  await page.getByRole('button', { name: '删除角色', exact: true }).click()
+  const deleteDialog = roleDialog(page, '删除角色')
+  await expect(deleteDialog).toBeVisible({ timeout: 5_000 })
+  await expect(deleteDialog.getByText(`确定要删除角色"${roleName}"吗？此操作不可撤销。`)).toBeVisible()
+  await deleteDialog.getByRole('button', { name: '确认', exact: true }).click()
+
+  await expect(toastMessage(page, '删除成功')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.role-item', { hasText: roleName })).toHaveCount(0, { timeout: 10_000 })
+
+  tracker.assertClean()
+})
+
 /**
  * 通过 NavRail 的 button[title=label] 切到指定 view。
  * NavRail 收起时 label 文本 opacity:0 不可读，但 button 元素本身可点击；
@@ -567,6 +618,22 @@ async function fillSettingsInput(page: Page, label: string, value: string): Prom
 
 function toastMessage(page: Page, text: string) {
   return page.locator('.el-message__content', { hasText: text }).last()
+}
+
+function roleDialog(page: Page, title: string) {
+  return page.locator('.roles-view-container .modal-dialog', { hasText: title }).first()
+}
+
+function roleInput(page: Page, label: string) {
+  return page
+    .locator('.roles-view-container .form-group')
+    .filter({ has: page.locator('label', { hasText: label }) })
+    .locator('input')
+    .last()
+}
+
+async function fillRoleInput(page: Page, label: string, value: string): Promise<void> {
+  await roleInput(page, label).fill(value)
 }
 
 interface ConsoleIssue {
