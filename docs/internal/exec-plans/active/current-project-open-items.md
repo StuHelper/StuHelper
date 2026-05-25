@@ -131,6 +131,14 @@ Console UI 15 项。该轮复验覆盖 Web / Admin / UniAppX 的桌面与移动 
 Koishi Console Chromium UI smoke；浏览器 `pageerror`、console error、关键静态资源和 API
 4xx/5xx 门禁保持开启，未通过兜底或放宽断言来获得通过结果。
 
+本地验证补充（2026-05-25）：Admin 操作日志页 E2E 从只断言表格渲染扩展到分页交互，
+通过真实点击 Element Plus pagination 下一页按钮验证 `GET /api/v1/course/review/admin/logs`
+携带 `page=2` 和当前 `pageSize=20` 查询参数，避免操作日志页面能展示第一页但分页请求未传递到后端。
+新增覆盖后已通过单文件
+`CI=1 ADMIN_E2E_PORT=4192 pnpm --dir clients/admin --filter @vben/web-ele exec playwright test tests/e2e/admin-surface.spec.ts`
+（14 项）、完整 `CI=1 ADMIN_E2E_PORT=4193 make e2e-admin`（58 项）、
+`pnpm --dir clients type-check:admin` 和 `pnpm --dir clients lint:admin`。
+
 本地验证补充（2026-05-25）：本机生产等价 browser smoke 从浅层首页检查扩展为公开 Web 路由
 矩阵，覆盖首页、登录页、认证回调错误态、入群认证链接、关于、隐私、条款、课程入口、课程列表、课程说明、评课聚合、搜索、教师主页、
 写评课、用户中心各 tab、实名 / 学生认证、手机 / QQ 绑定、学籍信息、通知、开发者应用、Open Platform

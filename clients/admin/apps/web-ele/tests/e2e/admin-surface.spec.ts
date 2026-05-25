@@ -393,7 +393,18 @@ async function mockAdminApi(page: Page) {
     }
 
     if (path === '/api/v1/course/review/admin/logs') {
-      await route.fulfill(list([operationLog]));
+      const pageNumber = Number(url.searchParams.get('page') ?? '1');
+      await route.fulfill(
+        ok({
+          list: [
+            {
+              ...operationLog,
+              id: `log-${pageNumber}`,
+            },
+          ],
+          total: 40,
+        }),
+      );
       return;
     }
 
@@ -575,6 +586,28 @@ test.describe('Admin management surfaces', () => {
     await page.goto('/content/logs');
     await expect(page.getByText('platform-admin')).toBeVisible();
     await expect(page.getByText('review.hide')).toBeVisible();
+  });
+
+  test('operation logs pagination requests the next page with current page size', async ({
+    page,
+  }) => {
+    await page.goto('/content/logs');
+    await expect(page.getByText('platform-admin')).toBeVisible();
+
+    await page.locator('.el-pagination .btn-next').click();
+
+    await expect
+      .poll(() =>
+        adminApiRequests.some((request) => {
+          const url = new URL(request.slice('GET '.length), 'http://admin.e2e');
+          return (
+            url.pathname === '/api/v1/course/review/admin/logs' &&
+            url.searchParams.get('page') === '2' &&
+            url.searchParams.get('pageSize') === '20'
+          );
+        }),
+      )
+      .toBe(true);
   });
 
   test('user system pages render identity, admission, and blacklist data', async ({
