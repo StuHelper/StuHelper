@@ -69,7 +69,13 @@ onShow(() => {
     <view v-if="loading" class="state-card"><text>{{ t('common.loading') }}</text></view>
     <view v-else-if="reviews.length === 0" class="state-card"><text>{{ t('user.reviews.empty') }}</text></view>
     <view v-else class="list-wrap">
-      <view v-for="review in reviews" :key="review.id" class="card" @tap="openCourse(review.courseID)">
+      <view
+        v-for="review in reviews"
+        :key="review.id"
+        class="card"
+        :data-testid="`uni-user-review-card-${review.id}`"
+        @tap="openCourse(review.courseID)"
+      >
         <text class="title">{{ review.title }}</text>
         <text class="meta">
           {{ review.courseName || t('common.courseFallback', { id: review.courseID }) }} ·
@@ -78,7 +84,7 @@ onShow(() => {
         <text class="content">{{ truncateText(review.content, 180) }}</text>
         <text class="score">{{ t('common.scorePrefix', { value: averageRating(review.ratings) }) }}</text>
       </view>
-      <view v-if="hasMore" class="load-more" @tap="loadMore">
+      <view v-if="hasMore" class="load-more" data-testid="uni-user-reviews-load-more" @tap="loadMore">
         <text>{{ loadingMore ? t('common.loading') : t('common.loadMore') }}</text>
       </view>
     </view>

@@ -4,6 +4,7 @@ type MockOptions = {
   authenticated?: boolean
   paginatedCourses?: boolean
   paginatedReviews?: boolean
+  paginatedUserLists?: boolean
   ssoState?: string
 }
 
@@ -120,6 +121,18 @@ function buildReview(id: string, index: number) {
 }
 
 const secondPageReview = buildReview('mobile-review-page-2-1', 21)
+const secondUserReview = {
+  ...buildReview('mobile-user-review-page-2-1', 31),
+  courseID: secondCourse.id,
+  courseName: secondCourse.name,
+  title: '移动端二页我的评课',
+}
+const secondUserVote = {
+  ...buildReview('mobile-user-vote-page-2-1', 32),
+  courseID: secondCourse.id,
+  courseName: secondCourse.name,
+  title: '移动端二页我的投票',
+}
 
 const initialReply = {
   id: 'mobile-reply-1',
@@ -136,6 +149,11 @@ const favorite = {
   favoritedAt: now,
 }
 
+const secondFavorite = {
+  ...secondCourse,
+  favoritedAt: now,
+}
+
 const notification = {
   id: 'notice-1',
   title: '移动端通知',
@@ -143,6 +161,14 @@ const notification = {
   type: 'reply',
   isRead: false,
   createdAt: now,
+}
+
+const secondNotification = {
+  ...notification,
+  id: 'notice-2',
+  title: '移动端二页通知',
+  content: '这是第二页加载出来的通知。',
+  isRead: false,
 }
 
 function json(data: unknown, status = 200) {
@@ -177,6 +203,33 @@ async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUn
   const paginatedCoursePage = [
     course,
     ...Array.from({ length: 19 }, (_, index) => buildCourse(index + 102, index + 2)),
+  ]
+  const paginatedUserReviewPage = [
+    review,
+    ...Array.from({ length: 19 }, (_, index) => (
+      buildReview(`mobile-user-review-page-1-${index + 2}`, index + 2)
+    )),
+  ]
+  const paginatedUserVotePage = [
+    review,
+    ...Array.from({ length: 19 }, (_, index) => (
+      buildReview(`mobile-user-vote-page-1-${index + 2}`, index + 2)
+    )),
+  ]
+  const paginatedFavoritePage = [
+    favorite,
+    ...Array.from({ length: 19 }, (_, index) => ({
+      ...buildCourse(index + 102, index + 2),
+      favoritedAt: now,
+    })),
+  ]
+  const paginatedNotificationPage = [
+    notification,
+    ...Array.from({ length: 19 }, (_, index) => ({
+      ...notification,
+      id: `notice-page-1-${index + 2}`,
+      title: `移动端通知 ${index + 2}`,
+    })),
   ]
 
   await page.addInitScript((ssoState) => {
@@ -398,18 +451,50 @@ async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUn
       return
     }
     if (method === 'GET' && pathname === '/api/v1/course/review/user/reviews') {
+      if (options.paginatedUserLists) {
+        const pageNumber = Number(url.searchParams.get('page') || '1')
+        await route.fulfill(paginatedList(
+          pageNumber === 1 ? paginatedUserReviewPage : [secondUserReview],
+          21,
+        ))
+        return
+      }
       await route.fulfill(list([review]))
       return
     }
     if (method === 'GET' && pathname === '/api/v1/course/review/user/votes') {
+      if (options.paginatedUserLists) {
+        const pageNumber = Number(url.searchParams.get('page') || '1')
+        await route.fulfill(paginatedList(
+          pageNumber === 1 ? paginatedUserVotePage : [secondUserVote],
+          21,
+        ))
+        return
+      }
       await route.fulfill(list([review]))
       return
     }
     if (method === 'GET' && pathname === '/api/v1/course/review/user/favorites') {
+      if (options.paginatedUserLists) {
+        const pageNumber = Number(url.searchParams.get('page') || '1')
+        await route.fulfill(paginatedList(
+          pageNumber === 1 ? paginatedFavoritePage : [secondFavorite],
+          21,
+        ))
+        return
+      }
       await route.fulfill(list([favorite]))
       return
     }
     if (method === 'GET' && pathname === '/api/v1/course/review/user/notifications') {
+      if (options.paginatedUserLists) {
+        const pageNumber = Number(url.searchParams.get('page') || '1')
+        await route.fulfill(paginatedList(
+          pageNumber === 1 ? paginatedNotificationPage : [secondNotification],
+          21,
+        ))
+        return
+      }
       await route.fulfill(list([notification]))
       return
     }
@@ -762,6 +847,101 @@ test.describe('UniAppX H5 surface', () => {
     await expect
       .poll(() => mutations.includes('PUT /api/v1/course/review/user/notifications/read-all'))
       .toBe(true)
+  })
+
+  test('authenticated user lists paginate and open linked courses', async ({ page }) => {
+    const { requests } = await mockUniApi(page, {
+      authenticated: true,
+      paginatedUserLists: true,
+    })
+
+    await gotoUniPage(page, '/#/pages/user/reviews')
+    await page.getByTestId('uni-user-reviews-load-more').click()
+    await expect
+      .poll(() => requests.some((request) => (
+        request.startsWith('GET /api/v1/course/review/user/reviews?') &&
+        request.includes('page=2') &&
+        request.includes('pageSize=20')
+      )))
+      .toBe(true)
+    await expect(page.getByTestId(`uni-user-review-card-${secondUserReview.id}`)).toBeVisible()
+    await page.getByTestId(`uni-user-review-card-${secondUserReview.id}`).click()
+    await expect(page).toHaveURL(new RegExp(`/#/pages/course/detail\\?id=${secondCourse.id}`))
+    await expect(page.getByText(secondCourse.name).first()).toBeVisible()
+
+    await gotoUniPage(page, '/#/pages/user/votes')
+    await page.getByTestId('uni-user-votes-load-more').click()
+    await expect
+      .poll(() => requests.some((request) => (
+        request.startsWith('GET /api/v1/course/review/user/votes?') &&
+        request.includes('page=2') &&
+        request.includes('pageSize=20') &&
+        request.includes('voteType=like')
+      )))
+      .toBe(true)
+    await expect(page.getByTestId(`uni-user-vote-card-${secondUserVote.id}`)).toBeVisible()
+    await page.getByTestId(`uni-user-vote-card-${secondUserVote.id}`).click()
+    await expect(page).toHaveURL(new RegExp(`/#/pages/course/detail\\?id=${secondCourse.id}`))
+    await expect(page.getByText(secondCourse.name).first()).toBeVisible()
+
+    await gotoUniPage(page, '/#/pages/user/favorites')
+    await page.getByTestId('uni-user-favorites-load-more').click()
+    await expect
+      .poll(() => requests.some((request) => (
+        request.startsWith('GET /api/v1/course/review/user/favorites?') &&
+        request.includes('page=2') &&
+        request.includes('pageSize=20')
+      )))
+      .toBe(true)
+    await expect(page.getByTestId(`uni-user-favorite-card-${secondFavorite.id}`)).toBeVisible()
+    await page.getByTestId(`uni-user-favorite-card-${secondFavorite.id}`).click()
+    await expect(page).toHaveURL(new RegExp(`/#/pages/course/detail\\?id=${secondCourse.id}`))
+    await expect(page.getByText(secondCourse.name).first()).toBeVisible()
+  })
+
+  test('authenticated notifications support paging and read actions', async ({ page }) => {
+    const { mutations, requests } = await mockUniApi(page, {
+      authenticated: true,
+      paginatedUserLists: true,
+    })
+
+    await gotoUniPage(page, '/#/pages/user/notifications')
+
+    await page.getByTestId('uni-notification-load-more').click()
+    await expect
+      .poll(() => requests.some((request) => (
+        request.startsWith('GET /api/v1/course/review/user/notifications?') &&
+        request.includes('page=2') &&
+        request.includes('pageSize=20')
+      )))
+      .toBe(true)
+    await expect(page.getByTestId(`uni-notification-card-${secondNotification.id}`)).toBeVisible()
+
+    await expect(page.getByTestId(`uni-notification-unread-${notification.id}`)).toBeVisible()
+    await page.getByTestId(`uni-notification-card-${notification.id}`).click()
+    await expect
+      .poll(() => mutations.includes(`PUT /api/v1/course/review/user/notifications/${notification.id}/read`))
+      .toBe(true)
+    await expect(page.getByTestId(`uni-notification-unread-${notification.id}`)).toHaveCount(0)
+
+    await page.getByTestId('uni-notification-mark-all').click()
+    await expect
+      .poll(() => mutations.includes('PUT /api/v1/course/review/user/notifications/read-all'))
+      .toBe(true)
+    await expect(page.locator('[data-testid^="uni-notification-unread-"]')).toHaveCount(0)
+  })
+
+  test('authenticated user center logs out and returns to guest actions', async ({ page }) => {
+    const { mutations } = await mockUniApi(page, { authenticated: true })
+
+    await gotoUniPage(page, '/#/pages/user/index')
+
+    await expect(page.getByTestId('uni-user-logout')).toBeVisible()
+    await page.getByTestId('uni-user-logout').click()
+    await expect
+      .poll(() => mutations.includes('POST /api/v1/auth/logout'))
+      .toBe(true)
+    await expect(page.getByTestId('uni-user-login')).toBeVisible()
   })
 
   test('auth pages render login and callback error states', async ({ page }) => {

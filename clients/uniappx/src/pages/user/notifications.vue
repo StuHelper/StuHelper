@@ -91,15 +91,30 @@ onShow(() => {
 <template>
   <scroll-view class="notifications-page" scroll-y>
     <view class="toolbar">
-      <button class="mark-all-btn" @tap="markAllRead">{{ t('user.notifications.markAllRead') }}</button>
+      <button class="mark-all-btn" data-testid="uni-notification-mark-all" @tap="markAllRead">
+        {{ t('user.notifications.markAllRead') }}
+      </button>
     </view>
     <view v-if="loading" class="state-card"><text>{{ t('common.loading') }}</text></view>
     <view v-else-if="notifications.length === 0" class="state-card"><text>{{ t('user.notifications.empty') }}</text></view>
     <view v-else class="list-wrap">
-      <view v-for="item in notifications" :key="item.id" class="notification-card" :class="{ unread: !item.isRead }" @tap="markRead(item.id)">
+      <view
+        v-for="item in notifications"
+        :key="item.id"
+        class="notification-card"
+        :class="{ unread: !item.isRead }"
+        :data-testid="`uni-notification-card-${item.id}`"
+        @tap="markRead(item.id)"
+      >
         <view class="notification-head">
           <text class="notification-title">{{ item.title }}</text>
-          <text v-if="!item.isRead" class="badge">{{ t('user.notifications.unread') }}</text>
+          <text
+            v-if="!item.isRead"
+            class="badge"
+            :data-testid="`uni-notification-unread-${item.id}`"
+          >
+            {{ t('user.notifications.unread') }}
+          </text>
         </view>
         <text v-if="item.content" class="notification-content">{{ item.content }}</text>
         <view class="notification-meta">
@@ -107,7 +122,7 @@ onShow(() => {
           <text>{{ formatDateTime(item.createdAt) }}</text>
         </view>
       </view>
-      <view v-if="hasMore" class="load-more" @tap="loadMore">
+      <view v-if="hasMore" class="load-more" data-testid="uni-notification-load-more" @tap="loadMore">
         <text>{{ loadingMore ? t('common.loading') : t('common.loadMore') }}</text>
       </view>
     </view>

@@ -72,7 +72,13 @@ onShow(() => {
     <view v-if="loading" class="state-card"><text>{{ t('common.loading') }}</text></view>
     <view v-else-if="favorites.length === 0" class="state-card"><text>{{ t('user.favorites.empty') }}</text></view>
     <view v-else class="list-wrap">
-      <view v-for="course in favorites" :key="course.id" class="card" @tap="openCourse(course.id)">
+      <view
+        v-for="course in favorites"
+        :key="course.id"
+        class="card"
+        :data-testid="`uni-user-favorite-card-${course.id}`"
+        @tap="openCourse(course.id)"
+      >
         <text class="title">{{ course.name }}</text>
         <text class="meta">
           {{ course.departmentName || t('common.departmentFallback', { id: course.departmentID }) }}
@@ -84,7 +90,7 @@ onShow(() => {
           {{ course.category || t('common.unclassified') }}
         </text>
       </view>
-      <view v-if="hasMore" class="load-more" @tap="loadMore">
+      <view v-if="hasMore" class="load-more" data-testid="uni-user-favorites-load-more" @tap="loadMore">
         <text>{{ loadingMore ? t('common.loading') : t('common.loadMore') }}</text>
       </view>
     </view>

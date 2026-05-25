@@ -175,7 +175,9 @@ UniAppX H5。新增用例在桌面与移动视口下覆盖 UniAppX 首页、课�
 分页追加和搜索结果替换；补齐发布评课完整提交 E2E，验证标题、年级、正文和评分进入创建评课 payload、提交后清理
 草稿并返回课程详情；补齐课程详情收藏切换和回复提交流程 E2E，验证收藏 POST/DELETE、回复列表加载、
 回复 payload 和提交后回显；补齐评课广场排序、点赞、加载更多和课程跳转 E2E，验证 sort/page 查询参数、
-vote payload、乐观计数更新和二页数据追加；同时补齐登录按钮发起校园 SSO 的交互 E2E，验证 `app=uniapp`、H5 不携带 native
+vote payload、乐观计数更新和二页数据追加；补齐用户中心我的评课 / 投票 / 收藏分页和课程跳转、
+通知分页、单条已读、全部已读以及退出登录 E2E，验证 `page` / `pageSize` / `voteType` 查询参数、
+二页数据追加、通知已读 UI 状态和 logout 调用；同时补齐登录按钮发起校园 SSO 的交互 E2E，验证 `app=uniapp`、H5 不携带 native
 platform、redirect 保留和 SSO 页面跳转；并补齐 SSO callback 成功路径 E2E，覆盖一次性 state 校验、
 `exchange-native` 调用、state 清理和回到个人中心，修复页面提前删除 state 导致 store 二次校验失败的问题。已通过
 `pnpm --dir clients test:e2e:uni`、`pnpm --dir clients test:uni`、`pnpm --dir clients type-check:uni`、

@@ -125,10 +125,17 @@ onShow(() => {
           <text class="user-subtitle">{{ authStore.user?.email || t('user.index.subtitleGuest') }}</text>
         </view>
       </view>
-      <button v-if="!authStore.isAuthenticated" class="login-btn" @tap="open('/pages/user/index')">
+      <button
+        v-if="!authStore.isAuthenticated"
+        class="login-btn"
+        data-testid="uni-user-login"
+        @tap="open('/pages/user/index')"
+      >
         {{ t('user.index.loginNow') }}
       </button>
-      <button v-else class="logout-btn" @tap="handleLogout">{{ t('user.index.logout') }}</button>
+      <button v-else class="logout-btn" data-testid="uni-user-logout" @tap="handleLogout">
+        {{ t('user.index.logout') }}
+      </button>
     </view>
 
     <view v-if="loading" class="state-card"><text>{{ t('common.loading') }}</text></view>
