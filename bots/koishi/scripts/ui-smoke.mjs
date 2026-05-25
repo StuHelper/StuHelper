@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { execFileSync, spawn } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -23,6 +24,9 @@ const COREPACK_BIN = process.platform === 'win32' ? 'corepack.cmd' : 'corepack'
 const cwd = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const tempConfigDir = await createTempConfigDir()
 const tempConfigPath = await writeSmokeConfig(tempConfigDir)
+const platformStub = process.env.STUHELPER_PLATFORM_BASE_URL
+  ? null
+  : await startPlatformStub()
 
 let koishiChild
 let koishiClosed = false
@@ -42,7 +46,7 @@ try {
       NODE_ENV: 'production',
       KOISHI_CONFIG_FILE: '',
       STUHELPER_CONSOLE_ADMIN_PASSWORD: process.env.STUHELPER_CONSOLE_ADMIN_PASSWORD ?? 'ui-smoke-password',
-      STUHELPER_PLATFORM_BASE_URL: process.env.STUHELPER_PLATFORM_BASE_URL ?? 'http://127.0.0.1:8080',
+      STUHELPER_PLATFORM_BASE_URL: process.env.STUHELPER_PLATFORM_BASE_URL ?? platformStub.baseUrl,
       STUHELPER_PLATFORM_SERVICE_TOKEN: process.env.STUHELPER_PLATFORM_SERVICE_TOKEN ?? 'ui-smoke-service-token',
     },
     detached: process.platform !== 'win32',
@@ -96,6 +100,7 @@ try {
     await waitForExit()
   }
   await rm(tempConfigDir, { recursive: true, force: true })
+  await platformStub?.close()
 }
 
 if (playwrightExitCode !== 0) {
@@ -324,4 +329,134 @@ async function writeSmokeConfig(tempDir) {
   const targetPath = join(tempDir, 'koishi.yml')
   await writeFile(targetPath, dump(config))
   return targetPath
+}
+
+function startPlatformStub() {
+  const server = createServer(async (request, response) => {
+    const url = new URL(request.url ?? '/', 'http://127.0.0.1')
+    const method = request.method ?? 'GET'
+
+    if (method === 'GET' && url.pathname === '/health/live') {
+      response.writeHead(204)
+      response.end()
+      return
+    }
+
+    if (method === 'GET' && url.pathname === '/api/v1/bot/member-blacklist') {
+      writeJSON(response, { list: [], total: 0 })
+      return
+    }
+
+    if (method === 'GET' && url.pathname === '/api/v1/bot/member-blacklist/access') {
+      writeJSON(response, { canJoin: true, decision: 'allowed' })
+      return
+    }
+
+    if (method === 'POST' && url.pathname === '/api/v1/bot/member-blacklist') {
+      const body = await readJSONBody(request)
+      writeJSON(response, memberBlacklistEntry('stub-blacklist-entry', body))
+      return
+    }
+
+    if (method === 'POST' && url.pathname === '/api/v1/bot/member-blacklist/release-by-subject') {
+      const body = await readJSONBody(request)
+      writeJSON(response, memberBlacklistEntry('stub-blacklist-entry', body))
+      return
+    }
+
+    if (method === 'POST' && /^\/api\/v1\/bot\/member-blacklist\/[^/]+\/release$/.test(url.pathname)) {
+      writeJSON(response, memberBlacklistEntry(url.pathname.split('/').at(-2) ?? 'stub-blacklist-entry', {}))
+      return
+    }
+
+    const qqVerificationMatch = url.pathname.match(/^\/api\/v1\/bot\/qq-users\/([^/]+)\/verification$/)
+    if (method === 'GET' && qqVerificationMatch) {
+      writeJSON(response, {
+        qqID: decodeURIComponent(qqVerificationMatch[1]),
+        bindingStatus: 'unbound',
+        profileVerificationStatus: 'unverified',
+        studentVerificationStatus: 'unverified',
+        canJoin: false,
+      })
+      return
+    }
+
+    if (method === 'GET' && url.pathname === '/api/v1/bot/admission/sessions/pending') {
+      writeJSON(response, [])
+      return
+    }
+
+    if (method === 'GET' && url.pathname === '/api/v1/bot/admission/freshman/applications/pending-forward') {
+      writeJSON(response, [])
+      return
+    }
+
+    if (method === 'POST' && /^\/api\/v1\/bot\/admission\/sessions\/[^/]+\/events$/.test(url.pathname)) {
+      writeJSON(response, { message: 'ok' })
+      return
+    }
+
+    response.writeHead(404, { 'content-type': 'application/json' })
+    response.end(JSON.stringify({ success: false, error: { code: 'not_found', message: `stub route not found: ${method} ${url.pathname}` } }))
+  })
+
+  return new Promise((resolveStub, rejectStub) => {
+    server.once('error', rejectStub)
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address()
+      assert.equal(typeof address, 'object')
+      assert.notEqual(address, null)
+      resolveStub({
+        baseUrl: `http://127.0.0.1:${address.port}`,
+        close: () => new Promise((resolveClose, rejectClose) => {
+          server.close((error) => error ? rejectClose(error) : resolveClose())
+        }),
+      })
+    })
+  })
+}
+
+function writeJSON(response, data) {
+  response.writeHead(200, { 'content-type': 'application/json' })
+  response.end(JSON.stringify({ success: true, data }))
+}
+
+function readJSONBody(request) {
+  return new Promise((resolveBody, rejectBody) => {
+    const chunks = []
+    request.on('data', (chunk) => chunks.push(chunk))
+    request.once('error', rejectBody)
+    request.once('end', () => {
+      if (chunks.length === 0) {
+        resolveBody({})
+        return
+      }
+      try {
+        resolveBody(JSON.parse(Buffer.concat(chunks).toString('utf8')))
+      } catch (error) {
+        rejectBody(error)
+      }
+    })
+  })
+}
+
+function memberBlacklistEntry(id, input) {
+  const now = new Date(0).toISOString()
+  return {
+    id,
+    platform: input.platform ?? 'qq',
+    subjectType: input.subjectType ?? 'qq_user',
+    subjectID: input.subjectID ?? '100000',
+    scopeType: input.scopeType ?? 'global',
+    guildID: input.guildID ?? null,
+    source: input.source ?? 'manual_admin',
+    reasonCode: input.reasonCode ?? 'manual_blacklist',
+    reasonText: input.reasonText ?? '',
+    metadata: input.metadata ?? {},
+    createdByType: 'qq_operator',
+    createdByID: input.metadata?.operatorQQID ?? 'ui-smoke',
+    createdFrom: input.createdFrom ?? 'ui_smoke',
+    createdAt: now,
+    updatedAt: now,
+  }
 }

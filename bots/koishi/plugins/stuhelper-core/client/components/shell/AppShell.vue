@@ -54,17 +54,18 @@ function onKeydown(event: KeyboardEvent): void {
   if (event.defaultPrevented) return
   const isMac = navigator.platform.toLowerCase().includes('mac')
   const meta = isMac ? event.metaKey : event.ctrlKey
-  if (meta && event.key === 'k') {
+  const key = event.key.toLowerCase()
+  if (meta && key === 'k') {
     event.preventDefault()
     shell.toggleSearch()
     return
   }
-  if (meta && event.key === '/') {
+  if (meta && key === '/') {
     event.preventDefault()
     shell.toggleChat()
     return
   }
-  if (event.key === 'Escape') {
+  if (key === 'escape') {
     if (shell.searchOpen.value) {
       shell.closeSearch()
       event.preventDefault()

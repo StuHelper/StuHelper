@@ -109,9 +109,10 @@
   --sh-dock-h: 600px;
   --sh-z-rail: 30;
   --sh-z-cmd: 31;
-  --sh-z-overlay: 50;
-  --sh-z-dock: 55;
-  --sh-z-confirm: 60;
+  --sh-z-overlay: 1400;
+  --sh-z-dock: 1450;
+  --sh-z-confirm: 1500;
+  --sh-z-search: 1600;
 
   color: var(--sh-fg);
   font-family: var(--sh-font-ui);

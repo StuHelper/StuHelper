@@ -205,6 +205,16 @@ Warns、Blacklist、Config、Roles、Settings、Logs、Subscriptions、System、
 `bots/koishi` 工作目录通过 259 项、0 失败，覆盖 admission、绑定、群管 runtime modules、Console
 scope、governance 写入、黑名单、举报、关键词、入群认证、反撤回、AI 超时等机器人侧单元路径。
 
+本地验证补充（2026-05-25）：Koishi Console Playwright UI smoke 继续补齐全局搜索与实体上下文抽屉。
+新增用例覆盖 `Control+K` 打开全局搜索、搜索 `logs` 跳转“日志检索”、数字实体搜索打开用户上下文抽屉、
+空记录用户显示空态、抽屉内“警告记录”快捷跳转写入 `#warns?keyword=100000`，并把 ChatDock 测试收敛为
+打开后关闭，避免共享浏览器会话残留浮层遮挡后续配置保存。该轮测试暴露了非 Mac 键盘快捷键只识别小写
+`k`、Teleport 到 body 的搜索 / 抽屉 / 聊天浮层层级低于 Koishi 主界面、以及 isolated UI smoke
+默认指向不存在的平台后端导致 Dashboard 显示 `TypeError: fetch failed` 的问题；已通过按键归一化、
+提升 portal z-index、为 `scripts/ui-smoke.mjs` 提供可被真实环境变量覆盖的本地平台 stub 修复，并在
+Dashboard E2E 中断言统计卡片出现且无“加载失败”。修复后已通过 `make e2e-koishi`（17 项）、
+`corepack yarn test:unit`（259 项）、`node --check bots/koishi/scripts/ui-smoke.mjs` 和 `git diff --check`。
+
 本地全量复验（2026-05-25）：在提交前代码状态 `44b1e0dd` 上复跑统一客户端 E2E 门禁，
 `CI=1 PLAYWRIGHT_WEB_PORT=3420 ADMIN_E2E_PORT=4190 UNIAPPX_E2E_PORT=3134 make e2e`
 通过 Web 106 项、Admin 56 项和 UniAppX 28 项；随后复跑 `make e2e-koishi`，通过 Koishi

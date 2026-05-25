@@ -246,7 +246,7 @@ function kindLabel(kind: SearchResult['kind']): string {
 .sh-search {
   position: fixed;
   inset: 0;
-  z-index: 70;
+  z-index: var(--sh-z-search);
   display: flex;
   align-items: flex-start;
   justify-content: center;

@@ -111,6 +111,10 @@ for (const view of VIEWS) {
       ? anchorBase.filter({ hasText: view.anchor.text })
       : anchorBase
     await expect(anchor.first()).toBeVisible({ timeout: 10_000 })
+    if (view.id === 'dashboard') {
+      await expect(page.getByText('已配置群组').first()).toBeVisible({ timeout: 10_000 })
+      await expect(page.getByText('加载失败')).toHaveCount(0)
+    }
 
     tracker.assertClean()
   })
@@ -130,6 +134,61 @@ test('chat dock opens via CommandBar and renders ChatView', async ({ loggedInPag
   await expect(page.locator('.sh-dock[data-open="true"] .chat-view').first()).toBeVisible({
     timeout: 10_000,
   })
+
+  await page.locator('.sh-dock[data-open="true"] .sh-dock__action[title="关闭"]').click()
+  await expect(page.locator('.sh-dock[data-open="true"]')).toHaveCount(0, { timeout: 5_000 })
+
+  tracker.assertClean()
+})
+
+test('global search opens from keyboard and navigates to a view result', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  await clickNavRail(page, '总览')
+  await expect(page).toHaveURL(/#dashboard($|\?)/, { timeout: 5_000 })
+
+  await page.keyboard.press('Control+K')
+
+  const searchDialog = page.getByRole('dialog', { name: '全站搜索' })
+  await expect(searchDialog).toBeVisible({ timeout: 5_000 })
+  await searchDialog.getByPlaceholder('输入用户 ID / 群号 / 视图名 / 命令…').fill('logs')
+  await searchDialog.getByText('日志检索').click()
+
+  await expect(page).toHaveURL(/#logs($|\?)/, { timeout: 5_000 })
+  await expect(page.locator('.sh-workspace-head__title', { hasText: '日志检索' }).first()).toBeVisible({
+    timeout: 10_000,
+  })
+  await expect(searchDialog).toBeHidden({ timeout: 5_000 })
+
+  tracker.assertClean()
+})
+
+test('global search opens entity overlay and entity jump updates navigation state', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  await clickNavRail(page, '总览')
+  await expect(page).toHaveURL(/#dashboard($|\?)/, { timeout: 5_000 })
+
+  await page.locator('.sh-cmd__search').click()
+
+  const searchDialog = page.getByRole('dialog', { name: '全站搜索' })
+  await expect(searchDialog).toBeVisible({ timeout: 5_000 })
+  await searchDialog.getByPlaceholder('输入用户 ID / 群号 / 视图名 / 命令…').fill('100000')
+  await searchDialog.getByText('查看用户 100000').click()
+
+  const overlay = page.locator('.sh-overlay[data-open="true"]')
+  await expect(overlay).toBeVisible({ timeout: 10_000 })
+  await expect(overlay.locator('.sh-overlay__kind')).toHaveText('USER')
+  await expect(overlay.locator('.sh-overlay__title')).toHaveText('100000')
+  await expect(overlay.getByText('此用户当前无任何记录。')).toBeVisible({ timeout: 10_000 })
+
+  await overlay.locator('.sh-overlay__jump', { hasText: '警告记录' }).click()
+
+  await expect(page).toHaveURL(/#warns\?keyword=100000/, { timeout: 5_000 })
+  await expect(page.locator('.sh-workspace-head__title', { hasText: '警告记录' }).first()).toBeVisible({
+    timeout: 10_000,
+  })
+  await expect(page.locator('.sh-overlay[data-open="true"]')).toHaveCount(0)
 
   tracker.assertClean()
 })
