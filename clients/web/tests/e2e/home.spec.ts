@@ -31,7 +31,16 @@ async function mockUnauthenticated(page: Page) {
   )
 }
 
-async function mockCourseDetail(page: Page, courseId: number) {
+async function mockCourseDetail(
+  page: Page,
+  courseId: number,
+  course: {
+    name?: string
+    code?: string
+    departmentName?: string
+    credits?: number
+  } = {},
+) {
   await page.route(`**/api/v1/course/courses/${courseId}`, (route) =>
     route.fulfill({
       contentType: 'application/json',
@@ -39,10 +48,10 @@ async function mockCourseDetail(page: Page, courseId: number) {
         success: true,
         data: {
           id: courseId,
-          name: '线性代数',
-          code: 'MATH077',
-          departmentName: '数学科学学院',
-          credits: 3,
+          name: course.name ?? '线性代数',
+          code: course.code ?? 'MATH077',
+          departmentName: course.departmentName ?? '数学科学学院',
+          credits: course.credits ?? 3,
         },
       }),
     }),
@@ -85,6 +94,61 @@ async function mockCourseDetail(page: Page, courseId: number) {
         contentType: 'application/json',
         body: JSON.stringify({ success: true, data: { trend: [] } }),
       }),
+  )
+}
+
+async function mockCourseHub(page: Page) {
+  await page.route('**/api/v1/course/courses?*', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          list: [
+            {
+              id: 88,
+              name: '高等数学A',
+              code: 'MATH101',
+              departmentName: '数学科学学院',
+              credits: 5,
+              reviewCount: 32,
+            },
+          ],
+          total: 1,
+        },
+      }),
+    }),
+  )
+
+  await page.route('**/api/v1/course/review/stats', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          courseCount: 120,
+          reviewCount: 580,
+          departmentCount: 8,
+        },
+      }),
+    }),
+  )
+
+  await page.route('**/api/v1/course/review/rankings/hot*', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, data: { list: [] } }),
+    }),
+  )
+
+  await page.route('**/api/v1/course/terms*', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: [{ id: '2026-spring', name: '2026 春' }],
+      }),
+    }),
   )
 }
 
@@ -193,4 +257,75 @@ test('command palette searches courses from keyboard and opens course detail', a
     timeout: 10_000,
   })
   await expect(dialog).toBeHidden()
+})
+
+test('course hub slash shortcut focuses inline search and opens a course result', async ({
+  page,
+}) => {
+  await mockUnauthenticated(page)
+  await mockCourseHub(page)
+  await mockCourseDetail(page, 88, {
+    name: '高等数学A',
+    code: 'MATH101',
+    departmentName: '数学科学学院',
+    credits: 5,
+  })
+
+  const searchRequests: URL[] = []
+  await page.route('**/api/v1/course/courses/search*', (route) => {
+    searchRequests.push(new URL(route.request().url()))
+    return route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          list: [
+            {
+              id: 88,
+              name: '高等数学A',
+              code: 'MATH101',
+              departmentName: '数学科学学院',
+              credits: 5,
+              reviewCount: 32,
+            },
+          ],
+          total: 1,
+        },
+      }),
+    })
+  })
+
+  await page.goto('/courses')
+  await expect(page.getByRole('heading', { name: '评课社区@BUAA' })).toBeVisible({
+    timeout: 10_000,
+  })
+
+  const inlineSearch = page
+    .locator('header')
+    .getByRole('combobox', { name: '搜索课程...' })
+  await page.keyboard.press('/')
+  await expect(inlineSearch).toBeFocused()
+  await expect(
+    page.getByRole('dialog', {
+      name: /搜索课程名称、教师|Search course name, teacher/i,
+    }),
+  ).toHaveCount(0)
+
+  await inlineSearch.fill('calculus')
+  const option = page
+    .locator('#inline-search-listbox')
+    .getByRole('option', { name: /高等数学A/ })
+  await expect(option).toBeVisible({ timeout: 10_000 })
+
+  const searchRequest = searchRequests.at(-1)
+  expect(searchRequest?.searchParams.get('q')).toBe('calculus')
+  expect(searchRequest?.searchParams.get('pageSize')).toBe('10')
+
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('Enter')
+
+  await expect(page).toHaveURL(/\/courses\/88$/)
+  await expect(page.getByText('高等数学A').first()).toBeVisible({
+    timeout: 10_000,
+  })
 })

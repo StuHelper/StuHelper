@@ -26,7 +26,7 @@
         @blur="handleBlur"
         @keydown="handleKeydown"
       />
-      <kbd class="hidden lg:inline font-sans text-xs py-px px-1.5 bg-bg-tertiary rounded text-text-muted">{{ isMac ? '⌘' : 'Ctrl' }}K</kbd>
+      <kbd class="hidden lg:inline font-sans text-xs py-px px-1.5 bg-bg-tertiary rounded text-text-muted">/</kbd>
     </div>
 
     <!-- 下拉面板 -->
@@ -115,8 +115,6 @@ const isLoading = ref(false)
 const isFocused = ref(false)
 const activeIndex = ref(-1)
 const recentSearches = ref<RecentItem[]>(loadRecent())
-
-const isMac = /mac/i.test(navigator.userAgent)
 
 // 下拉面板显示条件：聚焦 && (有输入 || 有最近搜索)
 const showDropdown = computed(() =>
@@ -256,15 +254,8 @@ function saveRecent(item: RecentItem) {
   }
 }
 
-// Cmd+K / Ctrl+K 全局快捷键聚焦搜索框
+// "/" focuses the in-page course search. Ctrl/Cmd+K is reserved for the global command palette.
 function handleGlobalKeydown(e: KeyboardEvent) {
-  // Cmd+K / Ctrl+K works from any context (including editable fields)
-  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-    e.preventDefault()
-    inputRef.value?.focus()
-    return
-  }
-
   const target = e.target as HTMLElement | null
   const isEditable = target instanceof HTMLInputElement
     || target instanceof HTMLTextAreaElement

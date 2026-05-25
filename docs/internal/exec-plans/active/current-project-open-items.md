@@ -988,6 +988,19 @@ Playwright MCP 也在移动视口验证同一路径，结果显示 stream 已打
 console 无 error，仅保留 Casdoor 上游 manifest `start_url` 跨源 warning，`auth/me` 未登录 401、登录 URL 与
 Casdoor app 查询符合预期。
 
+本地验证补充（2026-05-26）：继续补齐 Web 课程页顶部内联搜索快捷键覆盖。审计发现 `/courses` 页头部
+`InlineSearch` 使用 `Ctrl/Cmd+K` 聚焦自身，同时全局 `CommandPalette` 也使用同一快捷键打开命令面板，且
+`/` 聚焦内联搜索的行为没有真实浏览器覆盖。本轮保留 `Ctrl/Cmd+K` 给全局命令面板，把 `InlineSearch`
+的可见快捷键提示改为 `/` 并删除自身 `Ctrl/Cmd+K` 监听；新增 Web E2E 在课程首页按 `/` 后断言头部内联
+搜索获得焦点、全局命令面板未打开，输入 `calculus` 后请求
+`GET /api/v1/course/courses/search?q=calculus&pageSize=10`，再用方向键和回车进入 `/courses/88` 并渲染
+“高等数学A”。Playwright MCP 用同样 API mock 在 `http://127.0.0.1:3491/courses` 复现该路径，结果显示
+`focusedAfterSlash=true`、`commandDialogCountAfterSlash=0`、最终 URL 为 `/courses/88`，console 无 error，
+仅保留开发态 `VITE_API_URL not set` fallback warning。验证已通过 `pnpm --dir clients type-check:web`、
+`pnpm --dir clients lint:web`、单文件
+`CI=1 PLAYWRIGHT_WEB_PORT=3490 pnpm --dir clients/web exec playwright test tests/e2e/home.spec.ts`（8 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3492 make e2e-web`（142 项）。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |
