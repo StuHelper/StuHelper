@@ -1070,6 +1070,18 @@ Ant Design Vue / Naive UI / TDesign 版本等上游演示文案，但当前路�
 `vue/one-component-per-file` warning）和完整 `CI=1 ADMIN_E2E_PORT=4242 make e2e-admin`（78 项，桌面 / 移动均覆盖
 403 / 404 fallback 路由）。
 
+本地验证补充（2026-05-26）：继续补齐 UniAppX H5 发布评课权限边界，并复验 Koishi Console 群管中心。审计发现
+`clients/uniappx/src/pages/review/post.vue` 的提交评课路径会先 `requireAuth`，但页面初始化会直接读取私有草稿，
+“保存草稿”按钮也未经过认证门禁；如果游客直接打开 `/#/pages/review/post?courseID=...`，可能在登录前访问草稿 API
+或发起保存草稿 mutation。本轮把发布评课页改为受保护页面：`onLoad` 先校验登录，未登录直接跳转登录并保留当前
+发布页 redirect；`saveDraft` 也复用 `requireAuth`，防止会话过期后继续写入草稿。新增 UniAppX H5 E2E 覆盖游客
+直达发布评课页会进入登录页、redirect 保留 `/pages/review/post?courseID=101`，且不会请求
+`GET /api/v1/course/review/drafts` 或 `POST /api/v1/course/review/drafts`。验证已通过
+`CI=1 PLAYWRIGHT_UNI_PORT=4250 pnpm --dir clients --filter @stuhelper/uniappx exec playwright test tests/e2e/surface.spec.ts -g "review post"`
+（6 项）、`pnpm --dir clients type-check:uni` 和完整 `CI=1 PLAYWRIGHT_UNI_PORT=4251 make e2e-uni`（52 项）。
+同轮复验 `make e2e-koishi`，Koishi Console 真实浏览器 UI smoke 29 项通过，覆盖 NavRail 11 个 view、ChatDock、
+全局搜索、处置中心、日志、配置治理、订阅、黑名单、警告记录、系统缓存、全局设置和角色权限操作路径。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |

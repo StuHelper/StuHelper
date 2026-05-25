@@ -100,6 +100,7 @@ function setRating(key: string, value: 1 | 2 | 3 | 4 | 5) {
 }
 
 async function saveDraft() {
+  if (!(await authStore.requireAuth(t('review.post.requireAuth')))) return
   if (!course.value) return
   try {
     assertMutationSuccess(await api.draft.saveDraft({
@@ -135,7 +136,12 @@ async function submitReview() {
       ratings: form.value.ratings as ReviewRatings,
     }))
     uni.showToast({ title: t('review.post.submitSuccess'), icon: 'success' })
-    try { await api.draft.deleteDraft() } catch (_error) { void _error; /* draft cleanup is best-effort */ }
+    try {
+      await api.draft.deleteDraft()
+    } catch (_error) {
+      void _error
+      // Draft cleanup is best-effort after a successful review submission.
+    }
     setTimeout(() => {
       uni.redirectTo({ url: `/pages/course/detail?id=${course.value?.id}` })
     }, 300)
@@ -149,9 +155,10 @@ async function submitReview() {
   }
 }
 
-onLoad((options) => {
+onLoad(async (options) => {
   setPageTitle('common.pageTitles.postReview')
   courseID.value = Number(options?.courseID || 0)
+  if (!(await authStore.requireAuth(t('review.post.requireAuth')))) return
   void loadPage()
 })
 </script>

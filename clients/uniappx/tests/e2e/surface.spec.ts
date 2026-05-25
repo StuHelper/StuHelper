@@ -936,6 +936,20 @@ test.describe('UniAppX H5 surface', () => {
     )
   })
 
+  test('guest direct review post route redirects to login before draft access', async ({
+    page,
+  }) => {
+    const { mutations, requests } = await mockUniApi(page)
+
+    await gotoUniPage(page, `/#/pages/review/post?courseID=${course.id}`)
+
+    await expect(page).toHaveURL(/\/#\/pages\/auth\/login\?redirect=/)
+    await expectUniPageTitle(page, '登录')
+    expect(currentLoginRedirect(page)).toBe(`/pages/review/post?courseID=${course.id}`)
+    expect(requests).not.toContain('GET /api/v1/course/review/drafts')
+    expect(mutations).not.toContain('POST /api/v1/course/review/drafts')
+  })
+
   test('authenticated review post page loads form data and saves a draft', async ({
     page,
   }) => {
