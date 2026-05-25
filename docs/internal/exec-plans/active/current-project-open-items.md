@@ -1044,6 +1044,21 @@ Admin 单测文件、73 项）、`CI=1 ADMIN_E2E_PORT=4237 pnpm --dir clients/ad
 `net::ERR_NETWORK_CHANGED` console 噪声，失败用例单跑桌面 / 移动 2 项通过，随后完整复跑 78 项通过，未做
 门禁放宽。
 
+本地清理补充（2026-05-26）：继续删除 Admin 中仍残留的上游演示 locale。审计发现
+`admin.layout.notifications` 仍保留“14 份新周报 / 示例通知 / Workspace navigation example”等静态通知文案，
+但 `layouts/basic.vue` 运行时通知列表已经是空数组，未接入这些示例消息；`admin.dashboard.workspace` 也仍保留
+projects / todos / trends、Vue / GitHub / Admin Vben 文章等上游 workspace 示例文案，但当前 workspace 页面已经由
+`getAdminStats` 驱动真实评课、举报、审核队列和常用入口，不再读取这些 locale。本轮删除两端中英文无引用示例键，
+并扩展 dashboard locale 单测锁定 `dashboard` 只保留当前在用的 `analytics`、`quickActions`、`summary`，且不再出现
+`admin.layout` 示例通知树。验证已通过 `node` JSON parse 校验中英文 admin locale、残留文案 `rg` 扫描无输出、
+`pnpm --dir clients/admin --filter @vben/web-ele test -- src/views/dashboard/analytics/index.test.ts`（18 个 Admin
+单测文件、74 项）、`pnpm --dir clients type-check:admin`、`pnpm --dir clients lint:admin`（仅 7 个既有
+`vue/one-component-per-file` warning）和完整 `CI=1 ADMIN_E2E_PORT=4241 make e2e-admin`（78 项）。同轮还把本机
+Codex Playwright MCP 配置从 `npx -y @playwright/mcp@0.0.75 --headless` 改为稳定安装目录下的
+`node .../@playwright/mcp/cli.js --headless --no-sandbox`，命令与 `codex mcp get playwright` 均正常；但当前已运行的
+Codex 会话中的托管 Playwright MCP transport 仍返回 `Transport closed`，需要新会话重新挂载后才能用 MCP 工具，
+本轮浏览器门禁继续使用 Playwright CLI。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |

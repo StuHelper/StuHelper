@@ -13,9 +13,10 @@ function readAdminLocale(locale: 'en-US' | 'zh-CN') {
       'utf8',
     ),
   ) as {
-    dashboard: {
+    dashboard: Record<string, unknown> & {
       analytics: Record<string, unknown>;
     };
+    layout?: unknown;
   };
 }
 
@@ -33,6 +34,19 @@ describe('admin analytics dashboard source', () => {
       const analytics = readAdminLocale(locale).dashboard.analytics;
 
       expect(Object.keys(analytics).toSorted()).toEqual(['overview']);
+    }
+  });
+
+  it('does not keep unused upstream dashboard and notification locale demos', () => {
+    for (const locale of ['zh-CN', 'en-US'] as const) {
+      const admin = readAdminLocale(locale);
+
+      expect(admin.layout).toBeUndefined();
+      expect(Object.keys(admin.dashboard).toSorted()).toEqual([
+        'analytics',
+        'quickActions',
+        'summary',
+      ]);
     }
   });
 });
