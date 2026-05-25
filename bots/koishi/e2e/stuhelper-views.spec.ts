@@ -670,6 +670,58 @@ test('role management creates, edits, assigns member, revokes member, and delete
   tracker.assertClean()
 })
 
+test('role management imports members from another custom role', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  const suffix = Date.now().toString().slice(-8)
+  const sourceRoleName = `E2E 来源角色 ${suffix}`
+  const targetRoleName = `E2E 目标角色 ${suffix}`
+  const importedMemberId = `40${suffix}`
+
+  await clickNavRail(page, '角色权限')
+  await expect(page).toHaveURL(/#roles($|\?)/, { timeout: 5_000 })
+  await expect(page.locator('.roles-view-container')).toBeVisible({ timeout: 10_000 })
+
+  await createNamedRole(page, sourceRoleName, `src-${suffix}`)
+  await page.locator('.tab-item', { hasText: '成员' }).click()
+  await page.locator('.add-member input[placeholder="输入用户 ID 添加..."]').fill(importedMemberId)
+  await page.getByRole('button', { name: '添加成员', exact: true }).click()
+  await expect(toastMessage(page, '添加成员成功')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.member-item', { hasText: importedMemberId }).first()).toBeVisible({
+    timeout: 10_000,
+  })
+
+  await createNamedRole(page, targetRoleName, `dst-${suffix}`)
+  await page.locator('.tab-item', { hasText: '成员' }).click()
+  await expect(page.locator('.empty-tip', { hasText: '暂无成员（输入用户 QQ 号添加）' })).toBeVisible({
+    timeout: 10_000,
+  })
+
+  await page.getByRole('button', { name: '导入成员', exact: true }).click()
+  const importDialog = roleDialog(page, '导入成员')
+  await expect(importDialog).toBeVisible({ timeout: 5_000 })
+  await importDialog
+    .locator('.form-group', { hasText: '选择角色' })
+    .locator('select')
+    .selectOption({ label: sourceRoleName })
+
+  const previewRow = importDialog.locator('.preview-item', { hasText: importedMemberId }).first()
+  await expect(previewRow).toBeVisible({ timeout: 10_000 })
+  await expect(importDialog.locator('.preview-count')).toHaveText('已选 1 / 1')
+  await importDialog.getByRole('button', { name: '导入 (1)', exact: true }).click()
+
+  await expect(toastMessage(page, '成功导入 1 个成员')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.member-item', { hasText: importedMemberId }).first()).toBeVisible({
+    timeout: 10_000,
+  })
+
+  await deleteCurrentRole(page, targetRoleName)
+  await page.locator('.role-item', { hasText: sourceRoleName }).first().click()
+  await deleteCurrentRole(page, sourceRoleName)
+
+  tracker.assertClean()
+})
+
 /**
  * 通过 NavRail 的 button[title=label] 切到指定 view。
  * NavRail 收起时 label 文本 opacity:0 不可读，但 button 元素本身可点击；
@@ -804,6 +856,30 @@ function roleInput(page: Page, label: string) {
 
 async function fillRoleInput(page: Page, label: string, value: string): Promise<void> {
   await roleInput(page, label).fill(value)
+}
+
+async function createNamedRole(page: Page, name: string, alias: string): Promise<void> {
+  await page.getByRole('button', { name: '＋', exact: true }).click()
+  await expect(toastMessage(page, '角色创建成功')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.content-header h1', { hasText: '新角色' })).toBeVisible({ timeout: 10_000 })
+
+  await fillRoleInput(page, '角色名称', name)
+  await fillRoleInput(page, '角色别名', alias)
+  await page.getByRole('button', { name: '保存更改', exact: true }).click()
+
+  await expect(toastMessage(page, '保存成功')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.role-item', { hasText: name }).first()).toBeVisible({ timeout: 10_000 })
+}
+
+async function deleteCurrentRole(page: Page, roleName: string): Promise<void> {
+  await page.getByRole('button', { name: '删除角色', exact: true }).click()
+  const deleteDialog = roleDialog(page, '删除角色')
+  await expect(deleteDialog).toBeVisible({ timeout: 5_000 })
+  await expect(deleteDialog.getByText(`确定要删除角色"${roleName}"吗？此操作不可撤销。`)).toBeVisible()
+  await deleteDialog.getByRole('button', { name: '确认', exact: true }).click()
+
+  await expect(toastMessage(page, '删除成功')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.role-item', { hasText: roleName })).toHaveCount(0, { timeout: 10_000 })
 }
 
 interface ConsoleIssue {

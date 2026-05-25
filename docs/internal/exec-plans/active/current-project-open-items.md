@@ -3,7 +3,7 @@ type: internal
 audience: maintainers
 status: current
 authoritative-source: this file
-last-verified: 2026-05-25
+last-verified: 2026-05-26
 ---
 
 # 当前项目待办
@@ -671,6 +671,17 @@ Drawer 并点击“重置”确认筛选项清空。该用例覆盖 `stuhelperGr
 `remainingRoles=0`，交互阶段未发现新增 console warning/error 或 pageerror。新增覆盖后已通过
 `STUHELPER_UI_SMOKE_PORT=5171 corepack yarn --cwd bots/koishi test:ui`（24 项）和
 `corepack yarn --cwd bots/koishi test:unit`（260 项）。
+
+本地验证补充（2026-05-26）：继续补齐 Koishi Console 角色权限的导入成员真实写路径。新增 E2E
+用例在“角色权限”中创建 source / target 两个自定义角色，先给 source 角色添加成员，再打开 target
+角色的“导入成员”弹窗，选择“从其他角色导入”，验证预览列表默认选中 source 成员，点击“导入 (1)”后断言
+`stuhelperGroupCenter/auth/role/import-members` 链路把成员写入 target 角色并在成员列表回显，最后清理
+两个临时角色。新增覆盖后已通过
+`STUHELPER_UI_SMOKE_PORT=5181 corepack yarn --cwd bots/koishi test:ui`（27 项）和
+`corepack yarn --cwd bots/koishi test:unit`（260 项）。同日使用 Playwright MCP 启动临时 Koishi
+Console `http://127.0.0.1:5182`，真实登录 admin 并复验同一路径，返回
+`previewCount=已选 1 / 1`、`importedVisible=true`、`remainingSourceRoles=0`、
+`remainingTargetRoles=0`，浏览器 console error 为 0。
 
 本地验证补充（2026-05-25）：继续补齐 Koishi Console 处置中心真实写路径。`scripts/ui-smoke.mjs`
 现在随临时 Koishi 配置挂载仅用于 smoke 的 seed 插件，在 Koishi 自身数据库上下文里写入一条开放举报和
