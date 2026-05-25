@@ -658,6 +658,12 @@ UI smoke。新增 E2E 用例打开 ChatDock，经临时 HTTP seed 端点投递�
 再右键自身消息执行“撤回”，断言 `stuhelperGroupCenter/chat/recall` 记录目标 messageId 且 UI 移除消息。
 新增覆盖后已通过 `STUHELPER_UI_SMOKE_PORT=5179 corepack yarn --cwd bots/koishi test:ui`（26 项）。
 
+本地全量客户端复验（2026-05-25）：在提交 `7f926a5d` 上执行
+`CI=1 PLAYWRIGHT_WEB_PORT=3471 ADMIN_E2E_PORT=4216 UNIAPPX_E2E_PORT=3152 make e2e`，
+通过 Web 132 项、Admin 70 项和 UniAppX H5 34 项。该轮复验覆盖三个客户端的桌面 / 移动
+Playwright project，浏览器 `pageerror`、console error、关键静态资源和 API 4xx/5xx 门禁保持开启；
+测试产物已在复验后清理，工作区保持干净。
+
 本地生产等价复验（2026-05-25）：在提交 `45b401c2` 上重新执行 `make prod-parity-up`，构建并启动
 tag 为 `prod-parity-45b401c2` 的 backend / frontend / admin 生产镜像。当前本机生产等价入口为
 Web `http://127.0.0.1:28000`、Admin `http://127.0.0.1:28001/admin/`、Backend
