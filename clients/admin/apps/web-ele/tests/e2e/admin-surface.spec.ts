@@ -826,6 +826,56 @@ test.describe('Admin management surfaces', () => {
     await expect(page.getByRole('row', { name: /fga_denied/ })).toBeVisible();
   });
 
+  test('open platform audit and consent filters pass query params', async ({
+    page,
+  }) => {
+    await page.goto('/open-platform/audit-events');
+    await page.getByPlaceholder('按应用 ID').fill('42');
+    await page.getByPlaceholder('按用户 ID').fill('12');
+    await page
+      .getByRole('main')
+      .locator('.el-select.admin-toolbar-control--wide')
+      .first()
+      .click();
+    await page.getByRole('option', { name: '用户授权' }).click();
+    await page
+      .getByRole('main')
+      .locator('.el-select.admin-toolbar-control--wide')
+      .nth(1)
+      .click();
+    await page.getByRole('option', { name: 'email.read' }).click();
+    await waitForAdminGetRequest(
+      page,
+      '/api/v1/admin/open-platform/audit-events',
+      (url) =>
+        url.searchParams.get('appID') === '42' &&
+        url.searchParams.get('userID') === '12' &&
+        url.searchParams.get('eventType') === 'open_platform.consent.granted' &&
+        url.searchParams.get('scope') === 'email.read' &&
+        url.searchParams.get('page') === '1' &&
+        url.searchParams.get('pageSize') === '20',
+      async () => {
+        await page.getByRole('button', { name: '查询' }).click();
+      },
+    );
+
+    await page.goto('/open-platform/consents');
+    await page.getByPlaceholder('按应用 ID').fill('42');
+    await page.getByPlaceholder('按用户 ID').fill('12');
+    await waitForAdminGetRequest(
+      page,
+      '/api/v1/admin/open-platform/consents',
+      (url) =>
+        url.searchParams.get('appID') === '42' &&
+        url.searchParams.get('userID') === '12' &&
+        url.searchParams.get('page') === '1' &&
+        url.searchParams.get('pageSize') === '20',
+      async () => {
+        await page.getByRole('button', { name: '查询' }).click();
+      },
+    );
+  });
+
   test('open platform token probe evidence filters request by app, reviewer, result, and client', async ({
     page,
   }) => {
