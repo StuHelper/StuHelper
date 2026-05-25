@@ -16,6 +16,22 @@ function list<T>(items: T[]) {
     return ok({ list: items, total: items.length });
 }
 
+const webApiRequests: string[] = [];
+
+function recordApiRequest(route: Route) {
+    const request = route.request();
+    const url = new URL(request.url());
+    webApiRequests.push(`${request.method()} ${url.pathname}${url.search}`);
+}
+
+function hasWebGetRequest(pathname: string, matches: (url: URL) => boolean) {
+    return webApiRequests.some((request) => {
+        if (!request.startsWith("GET ")) return false;
+        const url = new URL(request.slice("GET ".length), "http://web.e2e");
+        return url.pathname === pathname && matches(url);
+    });
+}
+
 async function mockUnauthenticated(page: Page) {
     await page.route("**/api/v1/auth/me", (route) =>
         route.fulfill(
@@ -111,16 +127,20 @@ const searchedTeachers = [
 ];
 
 async function mockCourseCommunityApi(page: Page) {
-    await page.route("**/api/v1/course/categories*", (route) =>
-        route.fulfill(ok([{ id: 1, name: "工科" }])),
-    );
-    await page.route("**/api/v1/course/departments*", (route) =>
-        route.fulfill(ok(departments)),
-    );
-    await page.route("**/api/v1/course/courses?*", (route) =>
-        route.fulfill(list(departmentCourses)),
-    );
+    await page.route("**/api/v1/course/categories*", (route) => {
+        recordApiRequest(route);
+        return route.fulfill(ok([{ id: 1, name: "工科" }]));
+    });
+    await page.route("**/api/v1/course/departments*", (route) => {
+        recordApiRequest(route);
+        return route.fulfill(ok(departments));
+    });
+    await page.route("**/api/v1/course/courses?*", (route) => {
+        recordApiRequest(route);
+        return route.fulfill(list(departmentCourses));
+    });
     await page.route("**/api/v1/course/review/reviews/latest*", (route) => {
+        recordApiRequest(route);
         const url = new URL(route.request().url());
         const sort = url.searchParams.get("sort");
         const review =
@@ -135,12 +155,14 @@ async function mockCourseCommunityApi(page: Page) {
 }
 
 async function mockTeacherApi(page: Page) {
-    await page.route("**/api/v1/course/review/teachers/hot*", (route) =>
-        route.fulfill(list(popularTeachers)),
-    );
-    await page.route("**/api/v1/course/review/teachers?*", (route) =>
-        route.fulfill(list(searchedTeachers)),
-    );
+    await page.route("**/api/v1/course/review/teachers/hot*", (route) => {
+        recordApiRequest(route);
+        return route.fulfill(list(popularTeachers));
+    });
+    await page.route("**/api/v1/course/review/teachers?*", (route) => {
+        recordApiRequest(route);
+        return route.fulfill(list(searchedTeachers));
+    });
 }
 
 async function fulfillUnexpected(route: Route) {
@@ -160,6 +182,7 @@ async function fulfillUnexpected(route: Route) {
 
 test.describe("Course community surfaces", () => {
     test.beforeEach(async ({ page }) => {
+        webApiRequests.length = 0;
         await page.route("**/api/v1/**", fulfillUnexpected);
         await mockUnauthenticated(page);
     });
@@ -207,6 +230,17 @@ test.describe("Course community surfaces", () => {
 
         await page.getByRole("tab", { name: "最热" }).click();
         await expect(page.getByText("最热排序测评")).toBeVisible();
+        await expect
+            .poll(() =>
+                hasWebGetRequest(
+                    "/api/v1/course/review/reviews/latest",
+                    (url) =>
+                        url.searchParams.get("sort") === "likes" &&
+                        url.searchParams.get("page") === "1" &&
+                        url.searchParams.get("pageSize") === "10",
+                ),
+            )
+            .toBe(true);
         await expect(page.getByRole("tab", { name: "最热" })).toHaveAttribute(
             "aria-selected",
             "true",
@@ -214,6 +248,17 @@ test.describe("Course community surfaces", () => {
 
         await page.getByRole("tab", { name: "精选" }).click();
         await expect(page.getByText("高分排序测评")).toBeVisible();
+        await expect
+            .poll(() =>
+                hasWebGetRequest(
+                    "/api/v1/course/review/reviews/latest",
+                    (url) =>
+                        url.searchParams.get("sort") === "rating" &&
+                        url.searchParams.get("page") === "1" &&
+                        url.searchParams.get("pageSize") === "10",
+                ),
+            )
+            .toBe(true);
 
         const courseListDrawerButton = page.getByRole("button", {
             name: "课程列表",
@@ -224,6 +269,17 @@ test.describe("Course community surfaces", () => {
         await page
             .getByRole("button", { name: "计算机科学与技术学院" })
             .click();
+        await expect
+            .poll(() =>
+                hasWebGetRequest("/api/v1/course/courses", (url) =>
+                    (
+                        url.searchParams.get("departmentID") === "1" &&
+                        url.searchParams.get("page") === "1" &&
+                        url.searchParams.get("pageSize") === "100"
+                    ),
+                ),
+            )
+            .toBe(true);
         await expect(
             page.getByRole("link", { name: /编译原理/ }),
         ).toBeVisible();
@@ -249,5 +305,16 @@ test.describe("Course community surfaces", () => {
         await expect(page.getByRole("link", { name: /王老师/ })).toBeVisible({
             timeout: 10_000,
         });
+        await expect
+            .poll(() =>
+                hasWebGetRequest("/api/v1/course/review/teachers", (url) =>
+                    (
+                        url.searchParams.get("q") === "王" &&
+                        url.searchParams.get("sort") === "reviews" &&
+                        url.searchParams.get("pageSize") === "30"
+                    ),
+                ),
+            )
+            .toBe(true);
     });
 });

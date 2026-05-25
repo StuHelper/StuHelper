@@ -98,6 +98,14 @@ Admin 26 项）。
 不放宽全局浏览器 / API 失败门禁。已通过 `CI=1 PLAYWRIGHT_WEB_PORT=3412 make e2e-web`（106 项）
 和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3413 make e2e`（Web 106 项、Admin 26 项）。
 
+本地验证补充（2026-05-25）：Web 评课社区 E2E 继续补齐浏览交互的请求参数断言，覆盖评课聚合页
+“最热”/“精选”排序传递 `sort=likes` / `sort=rating`、`page=1`、`pageSize=10`，院系侧栏展开课程列表传递
+`departmentID=1`、`page=1`、`pageSize=100`，以及教师主页搜索传递 `q=王`、`sort=reviews`、
+`pageSize=30`；用例继续在桌面和移动 project 下运行。新增覆盖后已通过单文件
+`CI=1 PLAYWRIGHT_WEB_PORT=3421 pnpm --dir clients/web exec playwright test tests/e2e/course-community.spec.ts`
+（6 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3422 make e2e-web`（106 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等
