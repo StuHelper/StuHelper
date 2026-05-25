@@ -713,6 +713,14 @@ disclosure report 和用户授权审计查询也已拒绝重复的单值过滤�
 `go test -count=1 ./internal/modules/openplatform`、`go test -count=1 ./internal/pkg/middleware` 和
 `go test -count=1 ./...`。
 
+本地后端门禁补充（2026-05-25）：在提交 `b8d90ab1` 上复跑后端契约、漂移、静态检查、测试和构建门禁。
+已通过 `make lint-spec`、`make check-doc-sync`、`make check-drift`、`make lint`、`make test`、
+`make build` 和 `make check-coverage-threshold`；OpenAPI lint、API 文档覆盖同步、Casdoor 边界检查、
+OpenAPI/Go/TypeScript/Capability 生成漂移、`golangci-lint run ./...`、`go test -race ./...` 和
+`CGO_ENABLED=0` 主服务构建均通过。覆盖率阈值检查显示 `auth` 78.1% >= 70%、`course` 82.0% >= 80%、
+`course/review` 78.7% >= 70%、`middleware` 82.2% >= 75%、`oidc` 80.5% >= 80%、`fga` 87.2% >= 80%；
+构建后工作区未出现二进制或生成文件差异。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |
