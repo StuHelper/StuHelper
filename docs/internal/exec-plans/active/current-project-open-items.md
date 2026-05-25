@@ -137,6 +137,14 @@ Admin 26 项）。
 （6 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3430 make e2e-web`（110 项）。
 
+本地验证补充（2026-05-25）：Web 用户中心授权应用 E2E 继续补齐 consent 活动链路，
+覆盖授权活动列表请求传递 `pageSize=10`，并断言页面渲染 consent grant 活动的 app、scope、endpoint
+和 result；撤销单个 `email.read` scope 后，测试验证应用仍保留、对应 scope 从应用授权清单移除，
+授权活动刷新为 `open_platform.consent.revoked`，且展示被撤销的 scope。新增覆盖后已通过单文件
+`CI=1 PLAYWRIGHT_WEB_PORT=3434 pnpm --dir clients/web exec playwright test tests/e2e/journey-user-center.spec.ts`
+（16 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3435 make e2e-web`（110 项）。
+
 本地生产等价验证补充（2026-05-25）：按“先本机同构，再生产发布”的流程，用当前提交
 `prod-parity-afde095e` 重新执行完整 `make prod-parity-up`。该入口在本机 Ubuntu 24.04 + Docker 中完成
 共享 PostgreSQL 初始化、StuHelper / OpenFGA / Casdoor 独立数据库和账号创建、独立 Redis TLS/ACL 实例启动、

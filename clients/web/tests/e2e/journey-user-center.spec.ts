@@ -28,6 +28,12 @@ const user = {
   canAccessAdmin: false,
 }
 
+type QueryRecord = Record<string, string>
+
+function captureQuery(urlString: string): QueryRecord {
+  return Object.fromEntries(new URL(urlString).searchParams.entries())
+}
+
 async function mockAuth(page: Page) {
   await page.addInitScript((u) => {
     localStorage.setItem('stuhelper_user', JSON.stringify(u))
@@ -267,6 +273,8 @@ test.describe('User Journey: User Center', () => {
 
   test('user views and revokes authorized app scopes', async ({ page }) => {
     let revokeCalled = false
+    let scopeRevoked = false
+    const auditQueries: QueryRecord[] = []
 
     await page.route('**/api/v1/open-platform/consents', async (route) => {
       if (route.request().method() !== 'GET') {
@@ -318,8 +326,48 @@ test.describe('User Journey: User Center', () => {
       })
     })
 
+    await page.route(
+      '**/api/v1/open-platform/consents/audit-events*',
+      async (route) => {
+        auditQueries.push(captureQuery(route.request().url()))
+        await route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: {
+              list: [
+                {
+                  id: scopeRevoked ? 102 : 101,
+                  appID: 42,
+                  appDisplayName: 'Campus Tools',
+                  clientID: 'campus-client',
+                  eventType: scopeRevoked
+                    ? 'open_platform.consent.revoked'
+                    : 'open_platform.consent.granted',
+                  scopes: scopeRevoked
+                    ? ['email.read']
+                    : ['profile.basic.read', 'email.read'],
+                  endpoint: '/oidc/userinfo',
+                  result: scopeRevoked ? 'revoked' : 'success',
+                  requestID: scopeRevoked ? 'req-revoke-email' : 'req-grant',
+                  details: {},
+                  createdAt: scopeRevoked
+                    ? '2026-04-06T10:00:00Z'
+                    : '2026-04-05T10:00:00Z',
+                },
+              ],
+              total: 1,
+              page: 1,
+              pageSize: 10,
+            },
+          }),
+        })
+      },
+    )
+
     await page.route('**/api/v1/open-platform/consents/42?*', async (route) => {
       revokeCalled = true
+      scopeRevoked = true
       expect(route.request().method()).toBe('DELETE')
       expect(new URL(route.request().url()).searchParams.getAll('scope')).toEqual(['email.read'])
       await route.fulfill({
@@ -331,15 +379,41 @@ test.describe('User Journey: User Center', () => {
     await page.goto('/user/authorized-apps')
     await page.waitForLoadState('networkidle')
 
-    await expect(page.getByText('Campus Tools')).toBeVisible({ timeout: 10_000 })
-    await expect(page.getByText('email.read')).toBeVisible()
+    const emailScopeItem = page
+      .getByRole('listitem')
+      .filter({ hasText: '邮箱' })
+      .filter({ hasText: 'email.read' })
+
+    await expect(
+      page.getByRole('heading', { name: 'Campus Tools' }),
+    ).toBeVisible({ timeout: 10_000 })
+    await expect(emailScopeItem).toBeVisible()
+    await expect(page.getByText('授权已授予')).toBeVisible()
+    await expect(
+      page.getByRole('listitem').filter({ hasText: '授权已授予' }),
+    ).toContainText('Campus Tools')
+    await expect(
+      page.getByText('涉及权限：profile.basic.read / email.read'),
+    ).toBeVisible()
+    await expect(page.getByText('接口：/oidc/userinfo · 结果：success')).toBeVisible()
+    await expect
+      .poll(() => auditQueries)
+      .toContainEqual({ pageSize: '10' })
 
     await page.getByRole('button', { name: '撤销 邮箱' }).click()
     await expect(page.getByRole('dialog', { name: '撤销 邮箱' })).toBeVisible()
     await page.getByRole('button', { name: '确认撤销' }).click()
 
     await expect.poll(() => revokeCalled).toBe(true)
-    await expect(page.getByText('email.read')).toHaveCount(0)
+    await expect(emailScopeItem).toHaveCount(0)
+    const revokedActivityItem = page
+      .getByRole('listitem')
+      .filter({ hasText: '授权已撤销' })
+    await expect(revokedActivityItem).toBeVisible()
+    await expect(revokedActivityItem).toContainText('涉及权限：email.read')
+    await expect
+      .poll(() => auditQueries.filter((query) => query.pageSize === '10').length)
+      .toBeGreaterThanOrEqual(2)
   })
 
   test('user revokes an authorized app grant', async ({ page }) => {
