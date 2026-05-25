@@ -73,10 +73,11 @@ onShow(() => {
       <input
         v-model="query"
         class="search-input"
+        data-testid="uni-course-search-input"
         :placeholder="t('course.index.searchPlaceholder')"
         @confirm="handleSearch"
       />
-      <button class="search-btn" @tap="handleSearch">{{ t('common.search') }}</button>
+      <button class="search-btn" data-testid="uni-course-search-submit" @tap="handleSearch">{{ t('common.search') }}</button>
     </view>
 
     <view v-if="loading" class="state-card"><text>{{ t('common.loading') }}</text></view>
@@ -84,7 +85,7 @@ onShow(() => {
       <text>{{ t('course.index.noResults') }}</text>
     </view>
     <view v-else class="list-wrap">
-      <view v-for="course in courses" :key="course.id" class="course-card" @tap="openCourse(course.id)">
+      <view v-for="course in courses" :key="course.id" class="course-card" :data-testid="`uni-course-card-${course.id}`" @tap="openCourse(course.id)">
         <view class="course-main">
           <text class="course-name">{{ course.name }}</text>
           <text class="course-code">{{ course.code || t('common.unavailableCourseCode') }}</text>
@@ -99,7 +100,7 @@ onShow(() => {
         </view>
       </view>
 
-      <button v-if="courses.length < total" class="more-btn" :disabled="loadingMore" @tap="loadMore">
+      <button v-if="courses.length < total" class="more-btn" data-testid="uni-course-load-more" :disabled="loadingMore" @tap="loadMore">
         {{ loadingMore ? t('common.loading') : t('common.loadMore') }}
       </button>
     </view>

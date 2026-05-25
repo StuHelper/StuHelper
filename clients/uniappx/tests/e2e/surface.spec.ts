@@ -2,6 +2,7 @@ import { expect, test, type Page } from './fixtures'
 
 type MockOptions = {
   authenticated?: boolean
+  paginatedCourses?: boolean
   paginatedReviews?: boolean
   ssoState?: string
 }
@@ -49,6 +50,24 @@ const course = {
   credits: 3,
   category: '专业核心',
   reviewCount: 2,
+}
+
+function buildCourse(id: number, index: number) {
+  return {
+    ...course,
+    id,
+    name: `${course.name} ${index}`,
+    code: `MOBILE-DS-${String(index).padStart(3, '0')}`,
+    reviewCount: course.reviewCount + index,
+  }
+}
+
+const secondCourse = {
+  ...course,
+  id: 202,
+  name: '移动端算法设计',
+  code: 'MOBILE-ALG-202',
+  reviewCount: 5,
 }
 
 const term = {
@@ -142,6 +161,10 @@ function list<T>(items: T[]) {
   return ok({ list: items, total: items.length })
 }
 
+function paginatedList<T>(items: T[], total: number) {
+  return ok({ list: items, total })
+}
+
 async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUniApiResult> {
   const mutations: string[] = []
   const mutationBodies: MockUniApiResult['mutationBodies'] = []
@@ -150,6 +173,10 @@ async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUn
   const paginatedReviewPage = [
     review,
     ...Array.from({ length: 19 }, (_, index) => buildReview(`mobile-review-page-1-${index + 2}`, index + 2)),
+  ]
+  const paginatedCoursePage = [
+    course,
+    ...Array.from({ length: 19 }, (_, index) => buildCourse(index + 102, index + 2)),
   ]
 
   await page.addInitScript((ssoState) => {
@@ -214,11 +241,22 @@ async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUn
       return
     }
     if (method === 'GET' && pathname === '/api/v1/course/courses') {
+      if (options.paginatedCourses) {
+        const pageNumber = Number(url.searchParams.get('page') || '1')
+        const search = url.searchParams.get('q')?.trim()
+        if (search) {
+          await route.fulfill(paginatedList([secondCourse], 1))
+          return
+        }
+        await route.fulfill(paginatedList(pageNumber === 1 ? paginatedCoursePage : [secondCourse], 21))
+        return
+      }
       await route.fulfill(list([course]))
       return
     }
     if (method === 'GET' && /^\/api\/v1\/course\/courses\/\d+$/.test(pathname)) {
-      await route.fulfill(ok(course))
+      const courseID = Number(pathname.split('/').pop())
+      await route.fulfill(ok(courseID === secondCourse.id ? secondCourse : course))
       return
     }
 
@@ -503,6 +541,41 @@ test.describe('UniAppX H5 surface', () => {
     await expect(page.getByText(teacher.teacherName).first()).toBeVisible()
     await expect(page.getByText('授课课程')).toBeVisible()
     await expect(page.getByText(course.name)).toBeVisible()
+  })
+
+  test('course list searches, loads more, and opens a course detail page', async ({ page }) => {
+    const { requests } = await mockUniApi(page, { paginatedCourses: true })
+
+    await gotoUniPage(page, '/#/pages/course/index')
+
+    await expect(page.getByTestId(`uni-course-card-${course.id}`)).toBeVisible()
+    await page.getByTestId('uni-course-load-more').click()
+    await expect
+      .poll(() => requests.some((request) => (
+        request.startsWith('GET /api/v1/course/courses?') &&
+        request.includes('page=2') &&
+        request.includes('sort=reviewCount')
+      )))
+      .toBe(true)
+    await expect(page.getByTestId(`uni-course-card-${secondCourse.id}`)).toBeVisible()
+
+    await setUniFieldValue(page, 'uni-course-search-input', '算法')
+    await page.getByTestId('uni-course-search-submit').click()
+    await expect
+      .poll(() => requests.some((request) => (
+        request.startsWith('GET /api/v1/course/courses?') &&
+        request.includes('page=1') &&
+        request.includes('q=%E7%AE%97%E6%B3%95') &&
+        request.includes('sort=reviewCount')
+      )))
+      .toBe(true)
+    await expect(page.getByTestId(`uni-course-card-${secondCourse.id}`)).toBeVisible()
+    await expect(page.getByTestId(`uni-course-card-${course.id}`)).toHaveCount(0)
+
+    await page.getByTestId(`uni-course-card-${secondCourse.id}`).click()
+    await expect(page).toHaveURL(new RegExp(`/#/pages/course/detail\\?id=${secondCourse.id}`))
+    await expectUniPageTitle(page, '课程详情')
+    await expect(page.getByText(secondCourse.name).first()).toBeVisible()
   })
 
   test('authenticated review square supports sorting, voting, loading more, and course navigation', async ({
