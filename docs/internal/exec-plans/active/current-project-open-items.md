@@ -154,6 +154,17 @@ StuHelper Compose 内的独立 TLS/ACL 实例，使用自己的 `/data` volume�
 `make prod-parity-datastore-smoke`、`make prod-parity-smoke`、`bash infra/ops/tests/prod-parity-contract.sh`、
 `make check-docs`、`make check-infra-contracts` 和 `git diff --check`。
 
+本地生产等价复验（2026-05-25）：使用当前 HEAD `babfe8af` 执行 `make prod-parity-up`，
+重建并滚动本机生产等价镜像 `stuhelper/backend:prod-parity-babfe8af`、
+`stuhelper/frontend:prod-parity-babfe8af` 和 `stuhelper/admin:prod-parity-babfe8af`，
+三个应用容器均为 healthy。完整启动链路已通过共享 PostgreSQL / 独立 Redis datastore smoke
+（22 项）、prod-parity smoke data seed、基础业务 smoke（17 通过、1 个 Grafana URL 配置跳过）、
+Identity public smoke（26 项）、OpenFGA resource access smoke、Web/Admin 生产镜像 browser smoke
+（64 项，桌面 / 移动各 32 项）和 observability smoke（Prometheus、Grafana、Loki、Tempo、
+Alertmanager、Alloy 共 6 项）。脱敏 evidence 保留在 `.run/prod-parity/datastore-smoke-evidence.json`、
+`.run/prod-parity/smoke-data-evidence.json`、`.run/prod-parity/identity-public-smoke-evidence.json`、
+`.run/prod-parity/browser-smoke-evidence.json` 和 `.run/prod-parity/observability-smoke-evidence.json`。
+
 发布链路补充（2026-05-25）：`build-deploy-bundle.sh` 现在会在打包前要求当前目录是 Git
 worktree 且 `git status --porcelain --untracked-files=all` 为空，防止未提交 / 未签名改动绕过本机
 E2E 与 prod-parity 验证进入远端部署 bundle；新增 `deploy-bundle-contract.sh` 覆盖该顺序约束。
