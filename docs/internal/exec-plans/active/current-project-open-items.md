@@ -916,6 +916,18 @@ chunk 请求被浏览器主动中止，同时保持关键资源失败门禁不�
 （50 项）、完整 `CI=1 UNIAPPX_E2E_PORT=3172 make e2e-uni`（50 项）、
 `pnpm --dir clients build:uni:h5`、`pnpm --dir clients run check:no-empty-catch` 和 `git diff --check`。
 
+本地验证补充（2026-05-26）：继续清理 Web 评课回复删除交互。`ReplyCard` 原先依赖浏览器原生
+`confirm`，并用 3 秒 timeout 作为删除失败后的按钮状态兜底；现改为页面内确认控件，删除请求只在用户点击
+“确认”后发出，取消不会触发 mutation，并为回复卡片、删除按钮和确认区补充稳定测试标识。E2E 覆盖已更新为真实
+点击“删除”→确认区出现→点击“确认”，并断言 `DELETE /api/v1/course/review/replies/reply-1` 和 UI 移除；
+通用 Web E2E mock 同步补齐通知 SSE `/api/v1/course/review/user/notifications/stream`，避免登录后页面级通知连接
+落入未 mock API。Playwright MCP 在移动视口验证确认区默认隐藏、点击删除后显示确认文案、确认后发出
+`DELETE reply-1` 且回复从页面移除；同轮 MCP 结果没有 pageerror、失败请求或未 mock API，控制台仅保留测试刻意模拟
+未绑定 QQ 的 404 和有限 SSE mock 关闭后的开发态 warning。验证已通过 `pnpm --dir clients type-check:web`、
+`pnpm --dir clients lint:web`、单文件
+`CI=1 PLAYWRIGHT_WEB_PORT=3476 pnpm --dir clients/web exec playwright test tests/e2e/review-actions.spec.ts`
+（10 项）和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3480 make e2e-web`（136 项）。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |

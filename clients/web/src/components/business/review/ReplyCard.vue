@@ -2,6 +2,7 @@
   <div
     class="p-3 mb-2 last:mb-0 bg-bg-secondary rounded-lg animate-fade-in-up"
     :class="reply.isOwner && 'bg-primary/[0.06] border-l-3 border-l-primary'"
+    :data-testid="`reply-card-${reply.id}`"
   >
     <div class="text-sm text-text-primary leading-relaxed break-words">
       {{ reply.content }}
@@ -10,12 +11,38 @@
       <span class="text-xs text-text-muted">{{ formattedTime }}</span>
       <button
         v-if="reply.isOwner"
-        class="text-xs text-text-muted bg-transparent border-none cursor-pointer px-2 py-1 rounded-sm transition-all duration-fast hover:text-accent disabled:opacity-50 disabled:cursor-not-allowed"
-        @click="handleDelete"
-        :disabled="deleting"
+        class="text-xs text-text-muted bg-transparent border-none cursor-pointer px-2 py-1 rounded-sm transition-all duration-fast hover:text-accent"
+        type="button"
+        :data-testid="`reply-delete-${reply.id}`"
+        @click="requestDelete"
       >
-        {{ deleting ? t('common.actions.deleting') : t('common.actions.delete') }}
+        {{ t('common.actions.delete') }}
       </button>
+    </div>
+    <div
+      v-if="confirmingDelete"
+      class="mt-3 rounded-md border border-accent/20 bg-accent/5 p-3"
+      :data-testid="`reply-delete-confirm-${reply.id}`"
+      role="group"
+      :aria-label="t('review.reply.deleteConfirm')"
+    >
+      <p class="m-0 text-xs text-text-primary">{{ t('review.reply.deleteConfirm') }}</p>
+      <div class="mt-3 flex justify-end gap-2">
+        <button
+          class="rounded-sm border border-border bg-bg-primary px-3 py-1 text-xs text-text-secondary transition-colors hover:text-text-primary"
+          type="button"
+          @click="cancelDelete"
+        >
+          {{ t('common.actions.cancel') }}
+        </button>
+        <button
+          class="rounded-sm border border-accent bg-accent px-3 py-1 text-xs text-white transition-colors hover:bg-accent/90"
+          type="button"
+          @click="confirmDelete"
+        >
+          {{ t('common.actions.confirm') }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -36,17 +63,20 @@ const emit = defineEmits<{
   delete: [id: string]
 }>()
 
-const deleting = ref(false)
+const confirmingDelete = ref(false)
 
 const formattedTime = computed(() => formatRelativeTime(props.reply.createdAt, locale.value, t))
 
-const handleDelete = () => {
-  if (!window.confirm(t('review.reply.deleteConfirm'))) {
-    return
-  }
-  deleting.value = true
+const requestDelete = () => {
+  confirmingDelete.value = true
+}
+
+const cancelDelete = () => {
+  confirmingDelete.value = false
+}
+
+const confirmDelete = () => {
+  confirmingDelete.value = false
   emit('delete', props.reply.id)
-  // 安全兜底：删除成功时组件会被卸载，失败时 3 秒后恢复按钮
-  setTimeout(() => { deleting.value = false }, 3000)
 }
 </script>

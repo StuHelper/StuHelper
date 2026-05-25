@@ -71,6 +71,16 @@ async function mockAuth(page: Page) {
         "**/api/v1/course/review/user/notifications/unread-count*",
         (route) => route.fulfill(ok({ count: 0 })),
     );
+    await page.route(
+        "**/api/v1/course/review/user/notifications/stream",
+        (route) =>
+            route.fulfill({
+                status: 200,
+                contentType: "text/event-stream",
+                headers: { "Cache-Control": "no-cache" },
+                body: 'event: unread_count\ndata: {"count":0}\n\n',
+            }),
+    );
     await page.route("**/api/v1/user/identity", (route) =>
         route.fulfill(ok({ verified: true, status: "verified" })),
     );
@@ -355,8 +365,6 @@ test.describe("Review actions", () => {
                 await route.fulfill(ok());
             },
         );
-        page.on("dialog", (dialog) => dialog.accept());
-
         await page.goto("/courses/42/reviews");
         await expect(page.getByText("可举报的公开评价")).toBeVisible({
             timeout: 10_000,
@@ -381,11 +389,12 @@ test.describe("Review actions", () => {
             .toEqual({ content: "新增回复内容" });
         await expect(page.getByText("新增回复内容")).toBeVisible();
 
-        await page
-            .getByText("已有回复内容")
-            .locator("xpath=ancestor::div[contains(@class, 'rounded-lg')][1]")
-            .getByRole("button", { name: "删除" })
-            .click();
+        const existingReplyCard = page.getByTestId("reply-card-reply-1");
+        await existingReplyCard.getByRole("button", { name: "删除" }).click();
+        await expect(
+            existingReplyCard.getByTestId("reply-delete-confirm-reply-1"),
+        ).toContainText("确定要删除这条回复吗？");
+        await existingReplyCard.getByRole("button", { name: "确认" }).click();
         await expect.poll(() => deletedReplyID).toBe("reply-1");
         await expect(page.getByText("已有回复内容")).toHaveCount(0);
     });
