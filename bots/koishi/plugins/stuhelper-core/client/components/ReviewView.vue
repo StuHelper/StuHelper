@@ -196,6 +196,7 @@
 </template>
 
 <script setup lang="ts">
+import { message } from '@koishijs/client'
 import { computed, ref, watch } from 'vue'
 
 import { useConfirm, type ConfirmTone } from '../composables/use-confirm'
@@ -335,17 +336,19 @@ async function submitAction(action: ReviewWorkItem['availableActions'][number]) 
   actionLoading.value = true
   error.value = ''
   try {
-    await consolePageApi.workItemAction({
+    const result = await consolePageApi.workItemAction({
       kind: item.kind,
       itemId: item.id,
       action,
       note: reviewNote.value || undefined,
     })
+    message.success(result)
     reviewNote.value = ''
     await loadData()
     syncSelection()
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : String(cause)
+    message.error(error.value || '处置失败')
   } finally {
     actionLoading.value = false
   }

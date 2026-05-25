@@ -21,9 +21,11 @@ const SMOKE_PORT = Number.parseInt(process.env.STUHELPER_UI_SMOKE_PORT ?? '5140'
 const STARTUP_LISTEN_TIMEOUT_MS = 30_000
 const SHUTDOWN_TIMEOUT_MS = 5_000
 const COREPACK_BIN = process.platform === 'win32' ? 'corepack.cmd' : 'corepack'
+const SEED_READY_MESSAGE = '[ui-smoke-seed] moderation report ready'
 const cwd = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const tempConfigDir = await createTempConfigDir()
 const smokeDataDir = join(tempConfigDir, 'stuhelper-data')
+await writeSmokeSeedPlugin(tempConfigDir)
 const tempConfigPath = await writeSmokeConfig(tempConfigDir)
 const platformStub = process.env.STUHELPER_PLATFORM_BASE_URL
   ? null
@@ -66,6 +68,7 @@ try {
 
   let listening = false
   let cacheWarmed = false
+  let smokeSeeded = false
 
   koishiChild.stdout.on('data', (chunk) => {
     const text = chunk.toString()
@@ -76,6 +79,9 @@ try {
     // 等 cache 预热完成才让 spec 开跑，避免 dashboard 首次访问冷启动竞态
     if (text.includes('缓存预热完成')) {
       cacheWarmed = true
+    }
+    if (text.includes(SEED_READY_MESSAGE)) {
+      smokeSeeded = true
     }
   })
 
@@ -90,10 +96,10 @@ try {
           `koishi 进程在监听就绪前提前退出（exitCode=${koishiExitCode}, signal=${koishiExitSignal}）`,
         )
       }
-      return listening && cacheWarmed
+      return listening && cacheWarmed && smokeSeeded
     },
     STARTUP_LISTEN_TIMEOUT_MS,
-    'koishi 控制台未在超时内完成 listening + cache 预热',
+    'koishi 控制台未在超时内完成 listening + cache 预热 + smoke seed',
   )
 
   playwrightExitCode = await runPlaywright()
@@ -329,9 +335,74 @@ async function writeSmokeConfig(tempDir) {
   plugins['group:server']['server:chm356'].maxPort = SMOKE_PORT
   // 用临时目录隔离 SQLite，避免 admin 账户/会话残留污染下次 smoke 与开发数据库
   plugins['group:storage']['database-sqlite:q4tbt0'].path = join(tempDir, 'koishi.db')
+  plugins['group:ui-smoke'] = {
+    './ui-smoke-seed.cjs:seed': {},
+  }
   const targetPath = join(tempDir, 'koishi.yml')
   await writeFile(targetPath, dump(config))
   return targetPath
+}
+
+async function writeSmokeSeedPlugin(tempDir) {
+  await writeFile(join(tempDir, 'ui-smoke-seed.cjs'), `
+const {
+  MODERATION_EVENT_TABLE,
+  MODERATION_REPORT_TABLE,
+} = require('@stuhelper/koishi-moderation-core')
+
+const REPORT_ID = 'ui-smoke-report-1'
+const EVENT_ID = 'ui-smoke-report-event-1'
+const CREATED_AT = new Date('2026-05-25T00:10:00.000Z')
+
+module.exports = function uiSmokeSeed(ctx) {
+  ctx.on('ready', async () => {
+    const [report] = await ctx.database.get(MODERATION_REPORT_TABLE, { id: REPORT_ID })
+    if (!report) {
+      await ctx.database.create(MODERATION_REPORT_TABLE, {
+        id: REPORT_ID,
+        platform: 'onebot',
+        botSelfId: '514',
+        guildId: '1001',
+        channelId: '2001',
+        reporterMemberId: '100999',
+        targetMemberId: '200200',
+        reason: 'E2E 处置中心举报 dismiss-report-token',
+        aiStatus: 'completed',
+        aiSeverity: 'medium',
+        aiSummary: 'E2E 处置中心 AI 摘要',
+        createdAt: CREATED_AT,
+        updatedAt: CREATED_AT,
+      })
+    }
+
+    const [event] = await ctx.database.get(MODERATION_EVENT_TABLE, { id: EVENT_ID })
+    if (!event) {
+      await ctx.database.create(MODERATION_EVENT_TABLE, {
+        id: EVENT_ID,
+        platform: 'onebot',
+        botSelfId: '514',
+        guildId: '1001',
+        channelId: '2001',
+        memberId: '200200',
+        type: 'report_created',
+        level: 'medium',
+        summary: 'E2E 处置中心关联事件 report-related-token',
+        payload: {
+          reason: 'E2E 处置中心举报 dismiss-report-token',
+          reportID: REPORT_ID,
+        },
+        createdAt: CREATED_AT,
+        updatedAt: CREATED_AT,
+      })
+    }
+
+    console.log('${SEED_READY_MESSAGE}')
+  })
+}
+
+module.exports.name = 'stuhelper-ui-smoke-seed'
+module.exports.inject = ['database']
+`)
 }
 
 async function seedSmokeData(dataDir) {

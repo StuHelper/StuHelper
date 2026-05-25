@@ -195,6 +195,47 @@ test('global search opens entity overlay and entity jump updates navigation stat
   tracker.assertClean()
 })
 
+test('review center dismisses a seeded report through real console action', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  await clickNavRail(page, '处置中心')
+  await expect(page).toHaveURL(/#review($|\?)/, { timeout: 5_000 })
+  await expect(page.locator('.sh-workspace-head__title', { hasText: '处置中心' }).first()).toBeVisible({
+    timeout: 10_000,
+  })
+
+  await selectLabeledOption(page, '类型', '举报')
+  await fillLabeledInput(page, '检索', 'dismiss-report-token')
+
+  const row = page
+    .locator('.sh-lane__row', { hasText: '200200' })
+    .filter({ hasText: 'dismiss-report-token' })
+    .first()
+  await expect(row).toBeVisible({ timeout: 10_000 })
+  await expect(row.getByText('举报', { exact: true })).toBeVisible()
+  await expect(row.getByText('completed', { exact: true })).toBeVisible()
+  await row.click()
+
+  await expect(page.getByText('E2E 处置中心关联事件 report-related-token')).toBeVisible({ timeout: 10_000 })
+  await page
+    .locator('.sh-field', { hasText: '处理备注(可选)' })
+    .locator('input')
+    .first()
+    .fill('E2E 浏览器驳回举报备注')
+  await page.getByRole('button', { name: '驳回举报', exact: true }).click()
+
+  const actionDialog = confirmDialog(page, '确认处置')
+  await expect(actionDialog).toBeVisible({ timeout: 5_000 })
+  await expect(actionDialog.getByText('确定要对 200200 执行「驳回举报」吗？')).toBeVisible()
+  await actionDialog.getByRole('button', { name: '驳回举报', exact: true }).click()
+
+  await expect(toastMessage(page, '已驳回举报：200200')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.sh-lane__row', { hasText: '200200' })).toHaveCount(0, { timeout: 10_000 })
+  await expect(page.getByText('没有匹配的工作项')).toBeVisible({ timeout: 10_000 })
+
+  tracker.assertClean()
+})
+
 test('log search filters seeded command log and opens detail drawer', async ({ loggedInPage: page }) => {
   await using tracker = createTracker(page)
 

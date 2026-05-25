@@ -637,6 +637,18 @@ Drawer 并点击“重置”确认筛选项清空。该用例覆盖 `stuhelperGr
 `STUHELPER_UI_SMOKE_PORT=5171 corepack yarn --cwd bots/koishi test:ui`（24 项）和
 `corepack yarn --cwd bots/koishi test:unit`（260 项）。
 
+本地验证补充（2026-05-25）：继续补齐 Koishi Console 处置中心真实写路径。`scripts/ui-smoke.mjs`
+现在随临时 Koishi 配置挂载仅用于 smoke 的 seed 插件，在 Koishi 自身数据库上下文里写入一条开放举报和
+关联事件，不在业务代码里增加测试开关。新增 E2E 用例进入“处置中心”，过滤“举报”工作项，选中
+`dismiss-report-token` 种子记录，填写处理备注，点击“驳回举报”，确认页面内 `ConfirmDialog`，
+断言后端 action 返回的“已驳回举报：200200”成功消息展示、目标工作项从列表移除且空态出现。该用例覆盖
+`stuhelperGroupCenter/page/review`、`stuhelperGroupCenter/action/work-item`、`handleReportAction()`
+到 `ModerationStore.removeReport()` / 审计事件写入的浏览器链路；处置中心同时补充成功 / 失败消息反馈，
+避免 action 执行后 UI 只静默刷新。Playwright MCP 也在临时 Koishi `http://127.0.0.1:5177`
+上复验同一路径，返回种子行包含 `200200`、确认弹窗包含“确定要对 200200 执行「驳回举报」吗？”、
+成功消息为“已驳回举报：200200”，最终 URL 保持
+`#review?workspace=report&keyword=dismiss-report-token` 且页面展示“没有匹配的工作项”。
+
 本地生产等价复验（2026-05-25）：在提交 `45b401c2` 上重新执行 `make prod-parity-up`，构建并启动
 tag 为 `prod-parity-45b401c2` 的 backend / frontend / admin 生产镜像。当前本机生产等价入口为
 Web `http://127.0.0.1:28000`、Admin `http://127.0.0.1:28001/admin/`、Backend
