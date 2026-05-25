@@ -1,4 +1,4 @@
-import { expect, test, type Page } from './fixtures';
+import { expect, mockNotificationStream, test, type Page } from './fixtures';
 
 const user = {
     id: "u2",
@@ -115,6 +115,7 @@ async function mockAuth(page: Page) {
                 body: JSON.stringify({ success: true, data: { count: 0 } }),
             }),
     );
+    await mockNotificationStream(page);
     await page.route("**/api/v1/user/identity", (route) =>
         route.fulfill({
             contentType: "application/json",

@@ -1,4 +1,4 @@
-import { test, expect, type Page } from './fixtures'
+import { test, expect, mockNotificationStream, type Page } from './fixtures'
 
 // ---- Auth mock helpers (inlined to avoid dual @playwright/test resolution) ----
 
@@ -102,6 +102,7 @@ async function mockAuthenticated(
         body: JSON.stringify({ success: true, data: { count: 0 } }),
       }),
   )
+  await mockNotificationStream(page)
   await page.route('**/api/v1/course/review/user/votes*', (route) =>
     route.fulfill({
       contentType: 'application/json',

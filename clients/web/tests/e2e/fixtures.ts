@@ -45,10 +45,27 @@ function describeUnsuccessfulResponse(response: Response) {
 
 function isApiRequest(request: Request) {
   const resourceType = request.resourceType()
-  if (resourceType !== 'fetch' && resourceType !== 'xhr') {
+  if (
+    resourceType !== 'fetch' &&
+    resourceType !== 'xhr' &&
+    resourceType !== 'eventsource'
+  ) {
     return false
   }
   return new URL(request.url()).pathname.startsWith('/api/v1/')
+}
+
+async function mockNotificationStream(page: Page) {
+  await page.route(
+    '**/api/v1/course/review/user/notifications/stream',
+    (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream',
+        headers: { 'Cache-Control': 'no-cache' },
+        body: 'event: unread_count\ndata: {"count":0}\n\n',
+      }),
+  )
 }
 
 function isBrowserNetworkStatusConsoleError(text: string) {
@@ -164,4 +181,5 @@ export const test = base.extend<{ page: Page }>({
 })
 
 export { expect }
+export { mockNotificationStream }
 export type { Page, Route }

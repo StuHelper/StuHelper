@@ -928,6 +928,14 @@ chunk 请求被浏览器主动中止，同时保持关键资源失败门禁不�
 `CI=1 PLAYWRIGHT_WEB_PORT=3476 pnpm --dir clients/web exec playwright test tests/e2e/review-actions.spec.ts`
 （10 项）和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3480 make e2e-web`（136 项）。
 
+本地验证补充（2026-05-26）：继续收紧 Web E2E 对登录后通知链路的失败门禁。此前夹具只把 `fetch` / `xhr`
+纳入 API 失败审计，浏览器 `EventSource` 建立的
+`/api/v1/course/review/user/notifications/stream` 若落入未 mock API，不会被 `apiFailures` 捕获；现将
+`eventsource` 资源类型也纳入 `/api/v1/*` 响应门禁，并在 Web E2E 夹具提供统一的通知 SSE mock。所有已 mock
+通知未读数的认证场景均显式接入该 stream mock，避免页面级通知连接静默 500 后再由轮询兜住。验证已通过
+`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3481 make e2e-web`（136 项）。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |

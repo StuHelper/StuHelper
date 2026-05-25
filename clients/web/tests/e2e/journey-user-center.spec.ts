@@ -4,7 +4,7 @@
  *
  * Simulates a user navigating through their personal content.
  */
-import { test, expect, type Page } from './fixtures'
+import { test, expect, mockNotificationStream, type Page } from './fixtures'
 
 const user = {
   id: 'u2',
@@ -64,6 +64,7 @@ async function mockAuth(page: Page, authUser = user) {
         body: JSON.stringify({ success: true, data: { count: 2 } }),
       }),
   )
+  await mockNotificationStream(page)
   // Verification status (for AppShell badges + canViewFullReviews)
   await page.route('**/api/v1/user/identity', (route) =>
     route.fulfill({

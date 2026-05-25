@@ -1,4 +1,4 @@
-import { expect, test, type Page } from './fixtures';
+import { expect, mockNotificationStream, test, type Page } from './fixtures';
 
 const user = {
     id: "u2",
@@ -135,6 +135,7 @@ async function mockUserApi(page: Page, state: UserApiState) {
         "**/api/v1/course/review/user/notifications/unread-count*",
         (route) => route.fulfill(ok({ count: 0 })),
     );
+    await mockNotificationStream(page);
     await page.route("**/api/v1/course/review/user/reviews*", (route) =>
         route.fulfill(ok({ list: [], total: 0, page: 1, pageSize: 10 })),
     );

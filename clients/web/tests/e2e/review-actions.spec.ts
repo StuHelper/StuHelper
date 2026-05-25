@@ -1,4 +1,10 @@
-import { expect, test, type Page, type Route } from './fixtures';
+import {
+    expect,
+    mockNotificationStream,
+    test,
+    type Page,
+    type Route,
+} from './fixtures';
 
 const user = {
     id: "u2",
@@ -71,16 +77,7 @@ async function mockAuth(page: Page) {
         "**/api/v1/course/review/user/notifications/unread-count*",
         (route) => route.fulfill(ok({ count: 0 })),
     );
-    await page.route(
-        "**/api/v1/course/review/user/notifications/stream",
-        (route) =>
-            route.fulfill({
-                status: 200,
-                contentType: "text/event-stream",
-                headers: { "Cache-Control": "no-cache" },
-                body: 'event: unread_count\ndata: {"count":0}\n\n',
-            }),
-    );
+    await mockNotificationStream(page);
     await page.route("**/api/v1/user/identity", (route) =>
         route.fulfill(ok({ verified: true, status: "verified" })),
     );
