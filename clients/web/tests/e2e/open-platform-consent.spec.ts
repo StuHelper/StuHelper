@@ -140,6 +140,61 @@ test.describe("Open Platform consent flow", () => {
         expect(acceptedBody).toEqual({ token: "consent-token" });
     });
 
+    test("user rejects an authorization request and returns to the client", async ({
+        page,
+    }) => {
+        let deniedBody: unknown = null;
+
+        await page.route("**/api/v1/open-platform/consent?*", async (route) => {
+            const url = new URL(route.request().url());
+            expect(url.searchParams.get("token")).toBe("deny-consent-token");
+            await route.fulfill(
+                ok({
+                    token: "deny-consent-token",
+                    app,
+                    scopes,
+                    redirectURI: "https://client.example.com/callback",
+                    expiresAt: "2026-06-01T10:00:00Z",
+                }),
+            );
+        });
+        await page.route(
+            "**/api/v1/open-platform/consent/deny",
+            async (route) => {
+                deniedBody = route.request().postDataJSON();
+                await route.fulfill(
+                    ok({
+                        redirectURL:
+                            "https://client.example.com/callback?error=access_denied&state=xyz",
+                    }),
+                );
+            },
+        );
+        await page.route("https://client.example.com/**", (route) =>
+            route.fulfill({
+                contentType: "text/html",
+                body: "<!doctype html><title>Client denied callback</title><main>Client denied callback</main>",
+            }),
+        );
+
+        await page.goto("/consent?token=deny-consent-token");
+
+        await expect(
+            page.getByRole("heading", { name: /Campus Connector/ }),
+        ).toBeVisible();
+        await expect(page.getByText("stu.student.status.read")).toBeVisible();
+
+        await Promise.all([
+            page.waitForURL(
+                "https://client.example.com/callback?error=access_denied&state=xyz",
+            ),
+            page.getByRole("button", { name: /拒绝|Deny/ }).click(),
+        ]);
+
+        expect(deniedBody).toEqual({ token: "deny-consent-token" });
+        await expect(page.getByText("Client denied callback")).toBeVisible();
+    });
+
     test("user completes missing profile fields and continues to consent", async ({
         page,
     }) => {

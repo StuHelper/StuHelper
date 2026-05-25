@@ -145,6 +145,14 @@ Admin 26 项）。
 （16 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3435 make e2e-web`（110 项）。
 
+本地验证补充（2026-05-25）：Web Open Platform consent E2E 继续补齐用户拒绝授权路径，
+覆盖 `/consent?token=...` 载入 challenge 后点击“拒绝”，断言前端调用
+`POST /api/v1/open-platform/consent/deny` 且 body 只包含 challenge token，并按后端返回的
+`error=access_denied` 回调 URL 跳回第三方客户端。新增覆盖后已通过单文件
+`CI=1 PLAYWRIGHT_WEB_PORT=3436 pnpm --dir clients/web exec playwright test tests/e2e/open-platform-consent.spec.ts`
+（6 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3437 make e2e-web`（112 项）。
+
 本地生产等价验证补充（2026-05-25）：按“先本机同构，再生产发布”的流程，用当前提交
 `prod-parity-afde095e` 重新执行完整 `make prod-parity-up`。该入口在本机 Ubuntu 24.04 + Docker 中完成
 共享 PostgreSQL 初始化、StuHelper / OpenFGA / Casdoor 独立数据库和账号创建、独立 Redis TLS/ACL 实例启动、
