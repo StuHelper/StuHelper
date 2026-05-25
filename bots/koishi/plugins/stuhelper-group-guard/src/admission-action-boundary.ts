@@ -22,6 +22,10 @@ export function requireAdmissionActionPlatform(bot: GuardBotRuntime) {
   return bot.platform
 }
 
+export function isAdmissionActionPlatform(bot: GuardBotRuntime) {
+  return bot.platform === ADMISSION_ACTION_PLATFORM
+}
+
 export async function assertAdmissionActionBoundary(input: AdmissionActionBoundaryInput) {
   const platform = requireAdmissionActionPlatform(input.bot)
   assertActionBot(input.action, input.bot, platform)

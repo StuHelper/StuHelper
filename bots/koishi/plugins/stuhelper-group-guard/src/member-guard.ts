@@ -9,6 +9,7 @@ import type { ModerationStore } from '@stuhelper/koishi-moderation-core'
 
 import {
   assertAdmissionActionBoundary,
+  isAdmissionActionPlatform,
   requireAdmissionActionPlatform,
 } from './admission-action-boundary'
 import {
@@ -187,6 +188,10 @@ export class MemberGuardService {
   }
 
   private async scanBotAdmissionActions(bot: GuardBotRuntime, now: Date) {
+    if (!isAdmissionActionPlatform(bot)) {
+      return
+    }
+
     const platform = requireAdmissionActionPlatform(bot)
     const actions = await this.deps.platform.listPendingAdmissionActions({
       platform,
@@ -299,9 +304,14 @@ export class MemberGuardService {
   }
 
   private async forwardFreshmanMaterials(bots: readonly GuardBotRuntime[]) {
+    const forwardBots = bots.filter(isAdmissionActionPlatform)
+    if (!forwardBots.length) {
+      return
+    }
+
     const items = await this.deps.platform.listPendingFreshmanForwards()
     for (const item of items) {
-      const bot = resolveFreshmanForwardBot(bots, item)
+      const bot = resolveFreshmanForwardBot(forwardBots, item)
       await forwardFreshmanMaterial(bot, item)
       await this.deps.platform.markFreshmanForwarded(item.application.id)
     }

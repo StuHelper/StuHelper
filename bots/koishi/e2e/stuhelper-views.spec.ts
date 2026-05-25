@@ -722,6 +722,69 @@ test('role management imports members from another custom role', async ({ logged
   tracker.assertClean()
 })
 
+test('role management imports members from authority and guild admin sources', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  const suffix = Date.now().toString().slice(-8)
+  const targetRoleName = `E2E 多源导入角色 ${suffix}`
+  const authorityMemberId = '100003'
+  const ownerMemberId = '100001'
+  const adminMemberId = '100002'
+
+  await clickNavRail(page, '角色权限')
+  await expect(page).toHaveURL(/#roles($|\?)/, { timeout: 5_000 })
+  await expect(page.locator('.roles-view-container')).toBeVisible({ timeout: 10_000 })
+
+  await createNamedRole(page, targetRoleName, `multi-${suffix}`)
+  await page.locator('.tab-item', { hasText: '成员' }).click()
+
+  await page.getByRole('button', { name: '导入成员', exact: true }).click()
+  let importDialog = roleDialog(page, '导入成员')
+  await expect(importDialog).toBeVisible({ timeout: 5_000 })
+  await importDialog.getByText('从 Authority 等级导入', { exact: true }).click()
+  await importDialog
+    .locator('.form-group', { hasText: '选择权限等级' })
+    .locator('select')
+    .selectOption('2')
+  await expect(importDialog.locator('.preview-item', { hasText: authorityMemberId }).first()).toBeVisible({
+    timeout: 10_000,
+  })
+  await expect(importDialog.locator('.preview-item', { hasText: 'E2E Authority 导入用户' }).first()).toBeVisible()
+  await expect(importDialog.locator('.preview-count')).toHaveText('已选 1 / 1')
+  await importDialog.getByRole('button', { name: '导入 (1)', exact: true }).click()
+
+  await expect(toastMessage(page, '成功导入 1 个成员')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.member-item', { hasText: authorityMemberId }).first()).toBeVisible({
+    timeout: 10_000,
+  })
+
+  await page.getByRole('button', { name: '导入成员', exact: true }).click()
+  importDialog = roleDialog(page, '导入成员')
+  await expect(importDialog).toBeVisible({ timeout: 5_000 })
+  await importDialog.getByText('从群管理员导入', { exact: true }).click()
+  await importDialog.locator('input[placeholder="请输入群号..."]').fill('1001')
+  await importDialog.getByRole('button', { name: '获取', exact: true }).click()
+
+  await expect(importDialog.locator('.preview-item', { hasText: ownerMemberId }).first()).toBeVisible({
+    timeout: 10_000,
+  })
+  await expect(importDialog.locator('.preview-item', { hasText: adminMemberId }).first()).toBeVisible()
+  await expect(importDialog.locator('.preview-item', { hasText: 'E2E 聊天用户' })).toHaveCount(0)
+  await expect(importDialog.locator('.preview-count')).toHaveText('已选 2 / 2')
+  await importDialog.getByRole('button', { name: '导入 (2)', exact: true }).click()
+
+  await expect(toastMessage(page, '成功导入 2 个成员')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.member-item', { hasText: authorityMemberId }).first()).toBeVisible({
+    timeout: 10_000,
+  })
+  await expect(page.locator('.member-item', { hasText: ownerMemberId }).first()).toBeVisible()
+  await expect(page.locator('.member-item', { hasText: adminMemberId }).first()).toBeVisible()
+
+  await deleteCurrentRole(page, targetRoleName)
+
+  tracker.assertClean()
+})
+
 /**
  * 通过 NavRail 的 button[title=label] 切到指定 view。
  * NavRail 收起时 label 文本 opacity:0 不可读，但 button 元素本身可点击；

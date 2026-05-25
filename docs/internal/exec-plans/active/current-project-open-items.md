@@ -683,6 +683,21 @@ Console `http://127.0.0.1:5182`，真实登录 admin 并复验同一路径，返
 `previewCount=已选 1 / 1`、`importedVisible=true`、`remainingSourceRoles=0`、
 `remainingTargetRoles=0`，浏览器 console error 为 0。
 
+本地验证补充（2026-05-26）：继续补齐 Koishi Console 角色权限导入成员弹窗的剩余来源。`scripts/ui-smoke.mjs`
+现在在隔离 Koishi 数据库中创建 Authority 2 用户 `E2E Authority 导入用户`，新增 E2E 用例先从
+“从 Authority 等级导入”预览并导入该成员，再从“从群管理员导入”读取 mock bot 的群主 / 管理员成员，
+断言普通群成员不会混入预览，最后确认三个成员均写入目标角色并删除临时角色。新增覆盖后已通过
+`node --check bots/koishi/scripts/ui-smoke.mjs`、`corepack yarn --cwd bots/koishi tsx --test plugins/stuhelper-group-guard/src/member-guard.test.ts plugins/stuhelper-group-guard/src/freshman-forward.test.ts`
+（10 项）、`STUHELPER_UI_SMOKE_PORT=5186 corepack yarn --cwd bots/koishi test:ui`（28 项）和
+`corepack yarn --cwd bots/koishi test:unit`（260 项）。同日使用 Playwright MCP 启动临时 Koishi
+Console `http://127.0.0.1:5185`，真实登录 admin 并复验 Authority 与群管理员导入路径，返回
+`authorityImportedVisible=1`、`ownerImportedVisible=1`、`adminImportedVisible=1`、
+`normalMemberPreviewCount=0`、`remainingRoleCount=0`，业务交互阶段 console warning/error、pageerror
+和关键资源问题均为 0。MCP 长时间运行还暴露了 `group-guard` 在非 QQ mock bot 环境下的定时扫描噪声：
+admission action 与 freshman forward 都是 QQ 平台边界内的后台轮询，现在没有 QQ bot 时会跳过这些
+平台 API 拉取，执行 action 时的边界校验仍保留；构建后用同一临时 Koishi 配置等待超过一个 60 秒
+扫描周期，确认不再出现 `group guard scheduled scan failed`。
+
 本地验证补充（2026-05-25）：继续补齐 Koishi Console 处置中心真实写路径。`scripts/ui-smoke.mjs`
 现在随临时 Koishi 配置挂载仅用于 smoke 的 seed 插件，在 Koishi 自身数据库上下文里写入一条开放举报和
 关联事件，不在业务代码里增加测试开关。新增 E2E 用例进入“处置中心”，过滤“举报”工作项，选中

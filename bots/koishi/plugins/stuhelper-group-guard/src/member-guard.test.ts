@@ -373,13 +373,19 @@ test('member guard reports action failures, keeps errors visible, and continues 
   assert.match(messages[0], /remind-token/)
 })
 
-test('member guard rejects admission action scans without qq platform', async () => {
+test('member guard skips qq-only background polls without qq platform', async () => {
+  let pendingActionCalls = 0
+  let freshmanForwardCalls = 0
   const service = new MemberGuardService({
     platform: {
       async listPendingAdmissionActions() {
-        throw new Error('pending actions should not be requested')
+        pendingActionCalls += 1
+        return []
       },
-      async listPendingFreshmanForwards() { return [] },
+      async listPendingFreshmanForwards() {
+        freshmanForwardCalls += 1
+        return []
+      },
     },
     guardStore: { async listBackendSyncPending() { return [] } },
     policyStore: policyStoreFor(['guild-1']),
@@ -387,10 +393,10 @@ test('member guard rejects admission action scans without qq platform', async ()
     logger: { error() {}, warn() {} },
   } as any)
 
-  await assert.rejects(
-    service.scanPendingMembers([{ selfId: '514', sid: 'missing:514' } as any]),
-    /admission action worker requires platform qq/,
-  )
+  await service.scanPendingMembers([{ selfId: '514', sid: 'missing:514' } as any])
+
+  assert.equal(pendingActionCalls, 0)
+  assert.equal(freshmanForwardCalls, 0)
 })
 
 test('member guard refuses pending admission actions outside local guard policy', async () => {

@@ -359,6 +359,8 @@ const CHAT_GUILD_ID = '1001'
 const CHAT_CHANNEL_ID = '1001'
 const CHAT_IMAGE_FILE = 'ui-smoke-image.png'
 const CHAT_IMAGE_URL = 'https://gchat.qpic.cn/gchatpic_new/1001/100100-514-UI-SMOKE/0'
+const AUTHORITY_IMPORT_PID = '100003'
+const AUTHORITY_IMPORT_NAME = 'E2E Authority 导入用户'
 const TRANSPARENT_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII='
 const DATA_AVATAR = 'data:image/png;base64,' + TRANSPARENT_PNG_BASE64
 
@@ -410,6 +412,7 @@ module.exports = function uiSmokeSeed(ctx) {
         })
       }
 
+      await seedAuthorityImportUser(ctx)
       installSmokeBot(ctx, sentMessages, recalledMessages, () => ++messageSeq)
       console.log('${SEED_READY_MESSAGE}')
     } catch (error) {
@@ -439,6 +442,27 @@ module.exports = function uiSmokeSeed(ctx) {
 
 module.exports.name = 'stuhelper-ui-smoke-seed'
 module.exports.inject = ['database']
+
+async function seedAuthorityImportUser(ctx) {
+  const [existingUser] = await ctx.database.get('user', { name: AUTHORITY_IMPORT_NAME })
+  const user = existingUser || await ctx.database.create('user', {
+    name: AUTHORITY_IMPORT_NAME,
+    authority: 2,
+  })
+
+  const existingBindings = await ctx.database.get('binding', {
+    aid: user.id,
+    platform: 'onebot',
+    pid: AUTHORITY_IMPORT_PID,
+  })
+  if (existingBindings.length === 0) {
+    await ctx.database.create('binding', {
+      aid: user.id,
+      platform: 'onebot',
+      pid: AUTHORITY_IMPORT_PID,
+    })
+  }
+}
 
 function installSmokeBot(ctx, sentMessages, recalledMessages, nextSeq) {
   const bot = ctx.bots[0]
