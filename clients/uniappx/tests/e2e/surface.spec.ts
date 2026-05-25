@@ -2,6 +2,7 @@ import { expect, test, type Page } from './fixtures'
 
 type MockOptions = {
   authenticated?: boolean
+  paginatedReviews?: boolean
   ssoState?: string
 }
 
@@ -89,6 +90,18 @@ const review = {
   updatedAt: now,
 }
 
+function buildReview(id: string, index: number) {
+  return {
+    ...review,
+    id,
+    title: `${review.title} ${index}`,
+    likeCount: review.likeCount + index,
+    dislikeCount: review.dislikeCount + index,
+  }
+}
+
+const secondPageReview = buildReview('mobile-review-page-2-1', 21)
+
 const initialReply = {
   id: 'mobile-reply-1',
   reviewID: review.id,
@@ -134,6 +147,10 @@ async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUn
   const mutationBodies: MockUniApiResult['mutationBodies'] = []
   const requests: string[] = []
   const replyItems = [initialReply]
+  const paginatedReviewPage = [
+    review,
+    ...Array.from({ length: 19 }, (_, index) => buildReview(`mobile-review-page-1-${index + 2}`, index + 2)),
+  ]
 
   await page.addInitScript((ssoState) => {
     localStorage.setItem('stuhelper:uniappx:locale', 'zh-CN')
@@ -272,6 +289,11 @@ async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUn
       return
     }
     if (method === 'GET' && pathname === '/api/v1/course/review/reviews/latest') {
+      if (options.paginatedReviews) {
+        const pageNumber = Number(url.searchParams.get('page') || '1')
+        await route.fulfill(list(pageNumber === 1 ? paginatedReviewPage : [secondPageReview]))
+        return
+      }
       await route.fulfill(list([review]))
       return
     }
@@ -481,6 +503,55 @@ test.describe('UniAppX H5 surface', () => {
     await expect(page.getByText(teacher.teacherName).first()).toBeVisible()
     await expect(page.getByText('授课课程')).toBeVisible()
     await expect(page.getByText(course.name)).toBeVisible()
+  })
+
+  test('authenticated review square supports sorting, voting, loading more, and course navigation', async ({
+    page,
+  }) => {
+    const { mutationBodies, mutations, requests } = await mockUniApi(page, {
+      authenticated: true,
+      paginatedReviews: true,
+    })
+
+    await gotoUniPage(page, '/#/pages/review/index')
+
+    await expect(page.getByTestId(`uni-review-card-${review.id}`)).toBeVisible()
+    await page.getByTestId('uni-review-sort-likes').click()
+    await expect
+      .poll(() => requests.some((request) => (
+        request.startsWith('GET /api/v1/course/review/reviews/latest?') &&
+        request.includes('sort=likes')
+      )))
+      .toBe(true)
+
+    const likeButton = page.getByTestId(`uni-review-like-${review.id}`)
+    await expect(likeButton).toContainText('7')
+    await likeButton.click()
+    await expect(likeButton).toContainText('8')
+    await expect
+      .poll(() => mutations.includes(`POST /api/v1/course/review/reviews/${review.id}/votes`))
+      .toBe(true)
+    const votePayload = requireMutationBody(
+      mutationBodies,
+      'POST',
+      `/api/v1/course/review/reviews/${review.id}/votes`,
+    )
+    expect(votePayload).toMatchObject({ voteType: 'like' })
+
+    await page.getByTestId('uni-review-load-more').click()
+    await expect
+      .poll(() => requests.some((request) => (
+        request.startsWith('GET /api/v1/course/review/reviews/latest?') &&
+        request.includes('page=2') &&
+        request.includes('sort=likes')
+      )))
+      .toBe(true)
+    await expect(page.getByTestId(`uni-review-card-${secondPageReview.id}`)).toBeVisible()
+
+    await page.getByTestId(`uni-review-view-course-${review.id}`).click()
+    await expect(page).toHaveURL(new RegExp(`/#/pages/course/detail\\?id=${course.id}`))
+    await expectUniPageTitle(page, '课程详情')
+    await expect(page.getByText(course.name).first()).toBeVisible()
   })
 
   test('authenticated course detail toggles favorites and submits a reply', async ({ page }) => {

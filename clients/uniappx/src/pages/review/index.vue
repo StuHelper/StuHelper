@@ -134,13 +134,13 @@ onShow(() => {
 <template>
   <scroll-view class="review-page" scroll-y>
     <view class="filter-row">
-      <button class="filter-btn" :class="{ active: sort === 'time' }" @tap="sort = 'time'; loadReviews()">
+      <button data-testid="uni-review-sort-time" class="filter-btn" :class="{ active: sort === 'time' }" @tap="sort = 'time'; loadReviews()">
         {{ t('review.index.sort.latest') }}
       </button>
-      <button class="filter-btn" :class="{ active: sort === 'likes' }" @tap="sort = 'likes'; loadReviews()">
+      <button data-testid="uni-review-sort-likes" class="filter-btn" :class="{ active: sort === 'likes' }" @tap="sort = 'likes'; loadReviews()">
         {{ t('review.index.sort.hot') }}
       </button>
-      <button class="filter-btn" :class="{ active: sort === 'rating' }" @tap="sort = 'rating'; loadReviews()">
+      <button data-testid="uni-review-sort-rating" class="filter-btn" :class="{ active: sort === 'rating' }" @tap="sort = 'rating'; loadReviews()">
         {{ t('review.index.sort.top') }}
       </button>
     </view>
@@ -148,8 +148,8 @@ onShow(() => {
     <view v-if="loading" class="state-card"><text>{{ t('common.loading') }}</text></view>
     <view v-else-if="reviews.length === 0" class="state-card"><text>{{ t('review.index.empty') }}</text></view>
     <view v-else class="list-wrap">
-      <view v-for="review in reviews" :key="review.id" class="review-card">
-        <view class="review-head" @tap="openCourse(review.courseID)">
+      <view v-for="review in reviews" :key="review.id" class="review-card" :data-testid="`uni-review-card-${review.id}`">
+        <view class="review-head" :data-testid="`uni-review-open-${review.id}`" @tap="openCourse(review.courseID)">
           <view class="review-main">
             <text class="course-name">{{ review.courseName || t('common.courseFallback', { id: review.courseID }) }}</text>
             <text class="review-title">{{ review.title }}</text>
@@ -163,16 +163,16 @@ onShow(() => {
           <text>{{ formatShortDate(review.createdAt) }}</text>
         </view>
         <view class="action-row">
-          <button class="vote-btn" :class="{ active: localVotes[review.id] === 'like' }" :disabled="voting[review.id]" @tap="vote(review, 'like')">
+          <button class="vote-btn" :data-testid="`uni-review-like-${review.id}`" :class="{ active: localVotes[review.id] === 'like' }" :disabled="voting[review.id]" @tap="vote(review, 'like')">
             👍 {{ review.likeCount }}
           </button>
-          <button class="vote-btn down" :class="{ active: localVotes[review.id] === 'dislike' }" :disabled="voting[review.id]" @tap="vote(review, 'dislike')">
+          <button class="vote-btn down" :data-testid="`uni-review-dislike-${review.id}`" :class="{ active: localVotes[review.id] === 'dislike' }" :disabled="voting[review.id]" @tap="vote(review, 'dislike')">
             👎 {{ review.dislikeCount }}
           </button>
-          <button class="detail-btn" @tap="openCourse(review.courseID)">{{ t('review.index.viewCourse') }}</button>
+          <button class="detail-btn" :data-testid="`uni-review-view-course-${review.id}`" @tap="openCourse(review.courseID)">{{ t('review.index.viewCourse') }}</button>
         </view>
       </view>
-      <view v-if="hasMore" class="load-more" @tap="loadMore">
+      <view v-if="hasMore" class="load-more" data-testid="uni-review-load-more" @tap="loadMore">
         <text>{{ loadingMore ? t('common.loading') : t('common.loadMore') }}</text>
       </view>
     </view>
