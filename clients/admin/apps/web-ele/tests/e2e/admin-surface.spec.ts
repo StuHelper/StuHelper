@@ -723,6 +723,81 @@ test.describe('Admin management surfaces', () => {
     await expect(page.getByText('评课保留天数')).toBeVisible();
   });
 
+  test('user system filters pass review and blacklist query params', async ({
+    page,
+  }) => {
+    await page.goto('/users/identity-review');
+    await waitForAdminGetRequest(
+      page,
+      '/api/v1/admin/identities',
+      (url) =>
+        url.searchParams.get('status') === 'verified' &&
+        url.searchParams.get('page') === '1' &&
+        url.searchParams.get('pageSize') === '20',
+      async () => {
+        await page.getByRole('main').locator('.el-select').click();
+        await page.getByRole('option', { name: '已认证' }).click();
+      },
+    );
+
+    await page.goto('/users/student-verification');
+    await page.getByPlaceholder('按学校ID筛选...').fill('1001');
+    await waitForAdminGetRequest(
+      page,
+      '/api/v1/admin/student-verifications',
+      (url) =>
+        url.searchParams.get('status') === 'verified' &&
+        url.searchParams.get('schoolID') === '1001' &&
+        url.searchParams.get('page') === '1' &&
+        url.searchParams.get('pageSize') === '20',
+      async () => {
+        await page.getByRole('main').locator('.el-select').click();
+        await page.getByRole('option', { name: '已认证' }).click();
+      },
+    );
+
+    await page.goto('/users/freshman-verification');
+    await waitForAdminGetRequest(
+      page,
+      '/api/v1/admin/freshman-verifications',
+      (url) =>
+        url.searchParams.get('status') === 'rejected' &&
+        url.searchParams.get('page') === '1' &&
+        url.searchParams.get('pageSize') === '20',
+      async () => {
+        await page.getByRole('main').locator('.el-select').click();
+        await page.getByRole('option', { name: '已驳回' }).click();
+      },
+    );
+
+    await page.goto('/users/member-blacklist');
+    await page.getByPlaceholder('QQ / 主体 ID').fill('10001');
+    await page.getByPlaceholder('群号').fill('guild-filter');
+    await page.getByPlaceholder('平台').fill('qq');
+    await page.locator('.el-select[data-field="scopeType"]').click();
+    await page.getByRole('option', { name: '单群' }).click();
+    await page.locator('.el-select[data-field="source"]').click();
+    await page.getByRole('option', { name: '审核处置' }).click();
+    await page.locator('.el-select[data-field="status"]').click();
+    await page.getByRole('option', { name: '已解除' }).click();
+    await waitForAdminGetRequest(
+      page,
+      '/api/v1/admin/member-blacklist',
+      (url) =>
+        url.searchParams.get('subjectID') === '10001' &&
+        url.searchParams.get('guildID') === 'guild-filter' &&
+        url.searchParams.get('platform') === 'qq' &&
+        url.searchParams.get('scopeType') === 'guild' &&
+        url.searchParams.get('source') === 'moderation_action' &&
+        url.searchParams.get('status') === 'released' &&
+        url.searchParams.get('page') === '1' &&
+        url.searchParams.get('pageSize') === '20',
+      async () => {
+        await page.getByRole('button', { name: '查询' }).click();
+      },
+    );
+  });
+
   test('open platform admin pages render app review and audit evidence', async ({
     page,
   }) => {

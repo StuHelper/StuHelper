@@ -147,6 +147,15 @@ Koishi Console Chromium UI smoke；浏览器 `pageerror`、console error、关�
 （16 项）、`pnpm --dir clients type-check:admin`、`pnpm --dir clients lint:admin` 和按顺序执行的完整
 `CI=1 ADMIN_E2E_PORT=4197 make e2e-admin`（60 项）。
 
+本地验证补充（2026-05-25）：Admin 用户系统页 E2E 继续补齐筛选参数断言，覆盖实名审核状态筛选
+`status=verified`、学生认证审核 `schoolID=1001` + `status=verified`、新生材料审核
+`status=rejected`，以及成员黑名单 `subjectID` / `guildID` / `platform` / `scopeType` / `source` /
+`status` 组合筛选；用例复用 fail-closed Admin API mock，并等待对应 filtered response 完成后断言请求参数。
+新增覆盖后已通过单文件
+`CI=1 ADMIN_E2E_PORT=4199 pnpm --dir clients/admin --filter @vben/web-ele exec playwright test tests/e2e/admin-surface.spec.ts`
+（18 项）、`pnpm --dir clients type-check:admin`、`pnpm --dir clients lint:admin`、完整
+`CI=1 ADMIN_E2E_PORT=4200 make e2e-admin`（62 项）、`make check-docs` 和 `git diff --check`。
+
 本地验证补充（2026-05-25）：本机生产等价 browser smoke 从浅层首页检查扩展为公开 Web 路由
 矩阵，覆盖首页、登录页、认证回调错误态、入群认证链接、关于、隐私、条款、课程入口、课程列表、课程说明、评课聚合、搜索、教师主页、
 写评课、用户中心各 tab、实名 / 学生认证、手机 / QQ 绑定、学籍信息、通知、开发者应用、Open Platform
