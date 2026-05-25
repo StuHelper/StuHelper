@@ -689,6 +689,41 @@ test.describe('Admin management surfaces', () => {
     );
   });
 
+  test('teacher and app status filters pass query params', async ({ page }) => {
+    await page.goto('/content/teachers');
+    await page.getByPlaceholder('搜索教师姓名...').fill('李教授');
+    await page.getByPlaceholder('按院系 ID 筛选...').fill('1');
+    await waitForAdminGetRequest(
+      page,
+      '/api/v1/course/review/admin/teachers',
+      (url) =>
+        url.searchParams.get('search') === '李教授' &&
+        url.searchParams.get('departmentID') === '1' &&
+        url.searchParams.get('page') === '1' &&
+        url.searchParams.get('pageSize') === '20',
+      async () => {
+        await page.getByRole('button', { name: '查询' }).click();
+      },
+    );
+
+    await page.goto('/open-platform/apps');
+    await waitForAdminGetRequest(
+      page,
+      '/api/v1/admin/open-platform/apps',
+      (url) =>
+        url.searchParams.get('status') === 'approved' &&
+        url.searchParams.get('page') === '1' &&
+        url.searchParams.get('pageSize') === '20',
+      async () => {
+        await page
+          .getByRole('main')
+          .locator('.el-select.admin-toolbar-control')
+          .click();
+        await page.getByRole('option', { name: '已批准' }).click();
+      },
+    );
+  });
+
   test('user system pages render identity, admission, and blacklist data', async ({
     page,
   }) => {
