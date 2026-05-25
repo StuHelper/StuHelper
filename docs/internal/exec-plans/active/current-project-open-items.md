@@ -200,6 +200,19 @@ Web 首页无 console error；Admin 未登录入口会跳转到 Casdoor 登录�
 `http://127.0.0.1:3001/admin/open-platform/apps`，未登录直达受保护后台路由会按真实链路跳转到
 Casdoor 登录页，浏览器 console error 为 0，仅保留 Casdoor manifest `start_url` 跨源 warning。
 
+本地验证补充（2026-05-26）：继续修正 Admin dashboard / workspace 在有限 capability 用户下的入口展示。
+此前 dashboard 快捷操作和 workspace 处理队列 / 常用入口是静态列表，`canAccessAdmin=true` 但仅拥有
+`admin:dashboard:view` 的用户会看到点击后必然落到 404 的教师管理、评课 / 举报管理、实名审核、学生认证、
+成员黑名单等入口。现已按对应路由 authority 过滤这些入口，并与动态路由生成使用的“任一 authority 命中即可访问”
+语义保持一致；有限 dashboard 用户仍可查看统计，但不会看到不可访问目标。新增 E2E 覆盖 `/analytics` 与
+`/workspace` 两个 dashboard 页面，断言不可访问快捷入口均不出现；同一批保留全权限用户的 dashboard 快捷入口
+跳转用例，避免误删正常运营入口。新增覆盖已通过单文件
+`CI=1 ADMIN_E2E_PORT=4213 pnpm --dir clients/admin --filter @vben/web-ele exec playwright test tests/e2e/admin-core.spec.ts`
+（桌面 / 移动共 10 项）和完整 `CI=1 ADMIN_E2E_PORT=4214 make e2e-admin`（76 项）。同日用 Playwright
+MCP 打开本机开发 Admin `http://127.0.0.1:3001/admin/analytics`，未登录受保护 dashboard 路由跳转到
+Casdoor 登录页；浏览器仅出现预期匿名 `auth/me` 401 资源状态行和 Casdoor manifest `start_url` 跨源
+warning，未观察到受保护 dashboard 内容越权渲染。
+
 本地验证补充（2026-05-26）：继续对照 Web 用户中心页面结构审计 E2E 覆盖，补齐
 `ProfileSection` 顶部资料 / 认证摘要的浏览器断言，覆盖用户名与邮箱、实名认证 / 学生认证已认证状态、
 QQ / 手机未绑定状态，以及“学业信息”“生成绑定码”“绑定”三个后续入口的真实 `href`。新增覆盖后已通过

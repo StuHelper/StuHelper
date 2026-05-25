@@ -5,6 +5,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { IconifyIcon } from '@vben/icons';
+import { useAccessStore } from '@vben/stores';
 
 import { ElButton, ElSkeleton } from 'element-plus';
 
@@ -14,36 +15,57 @@ import { $t } from '#/locales';
 import './analytics.css';
 
 const router = useRouter();
+const accessStore = useAccessStore();
 const loading = ref(true);
 const stats = ref<AdminStats | null>(null);
 
-const quickActions = [
+interface DashboardShortcut {
+  authority: string[];
+  icon: string;
+  label: string;
+  path: string;
+}
+
+const allQuickActions: DashboardShortcut[] = [
   {
+    authority: ['admin:reviews:manage'],
     icon: 'lucide:message-square',
     label: $t('admin.dashboard.quickActions.reviews'),
     path: '/content/reviews',
   },
   {
+    authority: ['admin:reports:manage'],
     icon: 'lucide:flag',
     label: $t('admin.dashboard.quickActions.reports'),
     path: '/content/reports',
   },
   {
+    authority: ['admin:teachers:manage'],
     icon: 'lucide:graduation-cap',
     label: $t('admin.dashboard.quickActions.teachers'),
     path: '/content/teachers',
   },
   {
+    authority: ['user:identity:review'],
     icon: 'lucide:id-card',
     label: $t('admin.dashboard.quickActions.identity'),
     path: '/users/identity-review',
   },
   {
+    authority: ['user:student:review'],
     icon: 'lucide:badge-check',
     label: $t('admin.dashboard.quickActions.students'),
     path: '/users/student-verification',
   },
 ];
+
+function canAccess(authority: string[]) {
+  return authority.some((code) => accessStore.accessCodes.includes(code));
+}
+
+const quickActions = computed(() =>
+  allQuickActions.filter((action) => canAccess(action.authority)),
+);
 
 const overviewItems = computed(() => {
   const current = stats.value;
@@ -172,7 +194,7 @@ onMounted(fetchStats);
       </section>
 
       <section class="admin-dashboard__main">
-        <div class="admin-dashboard__panel">
+        <div v-if="quickActions.length > 0" class="admin-dashboard__panel">
           <div class="admin-dashboard__panel-title">
             {{ $t('admin.dashboard.quickActions.title') }}
           </div>

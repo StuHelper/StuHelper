@@ -58,6 +58,17 @@ const dashboardOnlyAdminUser = {
   })),
 };
 
+const stats = {
+  totalReviews: 128,
+  todayReviews: 7,
+  weekReviews: 31,
+  publishedReviews: 113,
+  hiddenReviews: 4,
+  deletedReviews: 11,
+  totalReports: 18,
+  pendingReports: 3,
+};
+
 function ok(data: unknown) {
   return {
     status: 200,
@@ -69,6 +80,12 @@ function ok(data: unknown) {
 async function mockAdminSession(page: Page, user = adminUser) {
   await page.route('**/api/v1/auth/me', async (route) => {
     await route.fulfill(ok(user));
+  });
+}
+
+async function mockAdminStats(page: Page) {
+  await page.route('**/api/v1/course/review/admin/stats', async (route) => {
+    await route.fulfill(ok(stats));
   });
 }
 
@@ -212,6 +229,7 @@ test.describe('Admin core shell routes', () => {
 test.describe('Admin capability route filtering', () => {
   test.beforeEach(async ({ page }) => {
     await mockAdminSession(page, dashboardOnlyAdminUser);
+    await mockAdminStats(page);
   });
 
   test('limited admin cannot reach Open Platform route or trigger its API', async ({
@@ -240,5 +258,35 @@ test.describe('Admin capability route filtering', () => {
       page.getByText('抱歉，我们无法找到您要找的页面。'),
     ).toBeVisible();
     expect(openPlatformRequests).toEqual([]);
+  });
+
+  test('limited admin dashboard hides shortcuts for inaccessible routes', async ({
+    page,
+  }) => {
+    await page.goto('/analytics');
+
+    await expect(
+      page.getByRole('heading', { name: /分析页|Analytics/ }),
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('button', { name: '教师管理' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '举报管理' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '评课管理' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '实名审核' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '学生认证' })).toHaveCount(0);
+
+    await page.goto('/workspace');
+    await expect(page.getByText('评课总量')).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(page.getByRole('button', { name: /待处理举报/ })).toHaveCount(
+      0,
+    );
+    await expect(page.getByRole('button', { name: /隐藏评课/ })).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: /本周新增评课/ }),
+    ).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '成员黑名单' })).toHaveCount(
+      0,
+    );
   });
 });

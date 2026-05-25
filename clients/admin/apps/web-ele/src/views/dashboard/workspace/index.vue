@@ -5,6 +5,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { IconifyIcon } from '@vben/icons';
+import { useAccessStore } from '@vben/stores';
 
 import { ElButton, ElSkeleton } from 'element-plus';
 
@@ -16,13 +17,31 @@ import AdminContentLayout from '../../shared/AdminContentLayout.vue';
 import './workspace.css';
 
 const router = useRouter();
+const accessStore = useAccessStore();
 const loading = ref(true);
 const stats = ref<AdminStats | null>(null);
+
+interface WorkspaceLink {
+  authority: string[];
+  icon: string;
+  label: string;
+  path: string;
+}
+
+interface WorkspaceQueueItem extends WorkspaceLink {
+  tone: string;
+  value: number;
+}
+
+function canAccess(authority: string[]) {
+  return authority.some((code) => accessStore.accessCodes.includes(code));
+}
 
 const queueItems = computed(() => {
   const current = stats.value;
   return [
     {
+      authority: ['admin:reports:manage'],
       icon: 'lucide:flag',
       label: '待处理举报',
       path: '/content/reports',
@@ -30,6 +49,7 @@ const queueItems = computed(() => {
       value: current?.pendingReports ?? 0,
     },
     {
+      authority: ['admin:reviews:manage'],
       icon: 'lucide:eye-off',
       label: '隐藏评课',
       path: '/content/reviews',
@@ -37,14 +57,19 @@ const queueItems = computed(() => {
       value: current?.hiddenReviews ?? 0,
     },
     {
+      authority: ['admin:reviews:manage'],
       icon: 'lucide:calendar-plus',
       label: '本周新增评课',
       path: '/content/reviews',
       tone: 'green',
       value: current?.weekReviews ?? 0,
     },
-  ];
+  ] satisfies WorkspaceQueueItem[];
 });
+
+const visibleQueueItems = computed(() =>
+  queueItems.value.filter((item) => canAccess(item.authority)),
+);
 
 const overviewItems = computed(() => {
   const current = stats.value;
@@ -68,28 +93,36 @@ const overviewItems = computed(() => {
   ];
 });
 
-const shortcuts = [
+const shortcuts: WorkspaceLink[] = [
   {
+    authority: ['admin:reviews:manage'],
     icon: 'lucide:message-square-text',
     label: '评课管理',
     path: '/content/reviews',
   },
   {
+    authority: ['admin:reports:manage'],
     icon: 'lucide:flag',
     label: '举报管理',
     path: '/content/reports',
   },
   {
+    authority: ['user:identity:review'],
     icon: 'lucide:id-card',
     label: '实名审核',
     path: '/users/identity-review',
   },
   {
+    authority: ['member_blacklist:read', 'member_blacklist:manage'],
     icon: 'lucide:shield-check',
     label: '成员黑名单',
     path: '/users/member-blacklist',
   },
 ];
+
+const visibleShortcuts = computed(() =>
+  shortcuts.filter((item) => canAccess(item.authority)),
+);
 
 async function fetchStats() {
   loading.value = true;
@@ -142,12 +175,12 @@ onMounted(fetchStats);
       </section>
 
       <section class="admin-workspace__main">
-        <div class="admin-workspace__panel">
+        <div v-if="visibleQueueItems.length > 0" class="admin-workspace__panel">
           <div class="admin-workspace__panel-header">
             <h2>处理队列</h2>
           </div>
           <button
-            v-for="item in queueItems"
+            v-for="item in visibleQueueItems"
             :key="item.label"
             class="admin-workspace__queue"
             :data-tone="item.tone"
@@ -162,13 +195,13 @@ onMounted(fetchStats);
           </button>
         </div>
 
-        <div class="admin-workspace__panel">
+        <div v-if="visibleShortcuts.length > 0" class="admin-workspace__panel">
           <div class="admin-workspace__panel-header">
             <h2>常用入口</h2>
           </div>
           <div class="admin-workspace__shortcuts">
             <button
-              v-for="item in shortcuts"
+              v-for="item in visibleShortcuts"
               :key="item.path"
               class="admin-workspace__shortcut"
               type="button"
