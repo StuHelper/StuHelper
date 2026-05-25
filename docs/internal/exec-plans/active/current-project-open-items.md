@@ -451,6 +451,19 @@ Playwright MCP 注入匿名首页 API mock，确认默认中文按钮可见、�
 （6 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3458 make e2e-web`（126 项）。
 
+本地验证补充（2026-05-25）：继续补齐 Web Header 响应式导航的真实点击覆盖。新增浏览器用例按
+Playwright project viewport 分支：桌面项目直接通过主导航点击“课程”，移动项目等待“菜单”按钮、
+断言 `aria-expanded=false -> true`、打开 `#app-mobile-nav` 后点击“课程”，并确认路由进入 `/courses`、
+移动菜单在路由切换后卸载且课程 hub 标题“评课社区@BUAA”可见。覆盖过程中首轮测试暴露用
+`locator.isVisible()` 做同步分支判断会在移动端 Header 尚未完成渲染时误判到桌面分支；已改为先等待
+AppShell 品牌可见，再按 viewport 宽度选择桌面 / 移动路径。除自动 E2E 外，还启动
+`VITE_E2E_API_STUB=1` 的本地 Vite，通过 Playwright MCP 将视口设为 `390x844`，注入匿名课程 API mock，
+实际点击“菜单 -> 课程”，确认最终 URL 为 `/courses`、菜单按钮展开状态从 `false` 到 `true`，导航后
+`#app-mobile-nav` 数量为 0。新增覆盖后已通过
+`CI=1 PLAYWRIGHT_WEB_PORT=3459 pnpm --dir clients/web exec playwright test tests/e2e/journey-browse.spec.ts`
+（8 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3461 make e2e-web`（128 项）。
+
 本地全量复验（2026-05-25）：在提交 `d82afd53` 上复跑统一客户端 E2E 门禁，
 `CI=1 PLAYWRIGHT_WEB_PORT=3450 ADMIN_E2E_PORT=4206 UNIAPPX_E2E_PORT=3142 make e2e`
 通过 Web 120 项、Admin 66 项和 UniAppX H5 30 项，覆盖本轮 Web 重新认证 / callback guard 与

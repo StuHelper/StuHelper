@@ -212,6 +212,40 @@ test.describe('User Journey: Browse Platform', () => {
     await expect(page.getByText('高等数学A')).toBeVisible()
   })
 
+  test('visitor uses responsive header navigation to open the course hub', async ({
+    page,
+  }) => {
+    await page.goto('/')
+    await expect(
+      page.getByRole('link', { name: /StuHelper/i }).first(),
+    ).toBeVisible()
+
+    const isMobileViewport = (page.viewportSize()?.width ?? 0) < 1024
+    if (isMobileViewport) {
+      const menuButton = page.getByRole('button', { name: '菜单' })
+      await expect(menuButton).toBeVisible()
+      await expect(menuButton).toHaveAttribute('aria-expanded', 'false')
+      await menuButton.click()
+      await expect(menuButton).toHaveAttribute('aria-expanded', 'true')
+
+      const mobileNav = page
+        .locator('#app-mobile-nav')
+        .getByRole('navigation', { name: '主导航' })
+      await expect(mobileNav).toBeVisible()
+      await mobileNav.getByRole('link', { name: '课程' }).click()
+      await expect(page.locator('#app-mobile-nav')).toHaveCount(0)
+    } else {
+      const primaryNav = page.getByRole('navigation', { name: '主导航' })
+      await expect(primaryNav).toBeVisible()
+      await primaryNav.getByRole('link', { name: '课程' }).click()
+    }
+
+    await expect(page).toHaveURL(/\/courses$/)
+    await expect(page.getByRole('heading', { name: '评课社区@BUAA' })).toBeVisible({
+      timeout: 10_000,
+    })
+  })
+
   test('visitor browses course list and clicks into course detail with reviews', async ({
     page,
   }) => {
