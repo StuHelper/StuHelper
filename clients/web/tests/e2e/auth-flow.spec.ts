@@ -204,6 +204,31 @@ test.describe('Auth Flow', () => {
     expect(url.searchParams.get('redirect')).toBe('/user/reviews')
   })
 
+  test('unauthenticated review post route redirects before loading drafts', async ({
+    page,
+  }) => {
+    await mockUnauthenticated(page)
+    let draftRequestCount = 0
+    await page.route('**/api/v1/course/review/drafts**', (route) => {
+      draftRequestCount += 1
+      return route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: false,
+          error: { code: 'E0050000', message: 'unexpected draft access' },
+        }),
+      })
+    })
+
+    await page.goto('/courses/reviews/post?from=e2e')
+    await expect(page).toHaveURL(/\/login/)
+    const url = new URL(page.url())
+    expect(url.searchParams.get('redirect')).toBe('/courses/reviews/post?from=e2e')
+    await page.waitForLoadState('networkidle')
+    expect(draftRequestCount).toBe(0)
+  })
+
   test('authenticated user is redirected away from login', async ({ page }) => {
     await mockAuthenticated(page, BASIC_USER)
     await page.goto('/login')
