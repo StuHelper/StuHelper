@@ -936,6 +936,11 @@ chunk 请求被浏览器主动中止，同时保持关键资源失败门禁不�
 `pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3481 make e2e-web`（136 项）。
 
+本地验证补充（2026-05-26）：在 Web 回复删除确认和通知 SSE E2E 门禁收紧后，复跑一键前端 E2E 入口
+`CI=1 PLAYWRIGHT_WEB_PORT=3482 ADMIN_E2E_PORT=4224 UNIAPPX_E2E_PORT=3173 make e2e`。本轮 Web
+136 项、Admin 78 项、UniAppX H5 50 项全部通过，确认主站、管理后台和 UniAppX H5 的当前 Playwright
+回归套件能在同一轮本地开发环境命令下完成。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |
