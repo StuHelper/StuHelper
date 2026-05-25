@@ -941,6 +941,11 @@ chunk 请求被浏览器主动中止，同时保持关键资源失败门禁不�
 136 项、Admin 78 项、UniAppX H5 50 项全部通过，确认主站、管理后台和 UniAppX H5 的当前 Playwright
 回归套件能在同一轮本地开发环境命令下完成。
 
+本地验证补充（2026-05-26）：继续复跑 Koishi Console Playwright 入口 `make e2e-koishi`。本轮会先构建
+`moderation-core`、`stuhelper-binding`、`stuhelper-admin`、`stuhelper-core`、`stuhelper-group-guard` 等 Koishi
+工作区包，再启动本地 Console smoke 实例；29 项 UI smoke 全部通过，覆盖导航、身份视图、聊天抽屉、全局搜索、
+审核中心、日志、配置治理、订阅、黑名单、警告记录、系统缓存、全局设置和角色管理等真实 console actions。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |
