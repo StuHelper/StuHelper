@@ -189,6 +189,7 @@ onLoad((options) => {
         <input
           v-model="form.title"
           class="input-field"
+          data-testid="uni-review-title"
           maxlength="40"
           :placeholder="t('review.post.titlePlaceholder')"
         />
@@ -199,6 +200,7 @@ onLoad((options) => {
         <input
           v-model="form.grade"
           class="input-field"
+          data-testid="uni-review-grade"
           maxlength="20"
           :placeholder="t('review.post.gradePlaceholder')"
         />
@@ -214,6 +216,7 @@ onLoad((options) => {
               :key="value"
               class="rating-pill"
               :class="{ active: form.ratings[dimension.key] === value }"
+              :data-testid="`uni-review-rating-${dimension.key}-${value}`"
               @tap="setRating(dimension.key, value)"
             >
               {{ value }}
@@ -227,6 +230,7 @@ onLoad((options) => {
         <textarea
           v-model="form.content"
           class="textarea-field"
+          data-testid="uni-review-content"
           maxlength="5000"
           :placeholder="t('review.post.contentPlaceholder')"
         />
@@ -235,8 +239,8 @@ onLoad((options) => {
         </text>
       </view>
 
-      <button class="secondary-btn" @tap="saveDraft">{{ t('review.post.saveDraft') }}</button>
-      <button class="primary-btn" :disabled="!canSubmit || submitting" @tap="submitReview">
+      <button class="secondary-btn" data-testid="uni-review-save-draft" @tap="saveDraft">{{ t('review.post.saveDraft') }}</button>
+      <button class="primary-btn" data-testid="uni-review-submit" :disabled="!canSubmit || submitting" @tap="submitReview">
         {{ submitting ? t('review.post.submitting') : t('review.post.submit') }}
       </button>
     </view>

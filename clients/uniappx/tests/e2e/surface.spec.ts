@@ -7,6 +7,11 @@ type MockOptions = {
 
 type MockUniApiResult = {
   mutations: string[]
+  mutationBodies: Array<{
+    body: unknown
+    method: string
+    path: string
+  }>
   requests: string[]
 }
 
@@ -116,6 +121,7 @@ function list<T>(items: T[]) {
 
 async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUniApiResult> {
   const mutations: string[] = []
+  const mutationBodies: MockUniApiResult['mutationBodies'] = []
   const requests: string[] = []
 
   await page.addInitScript((ssoState) => {
@@ -136,6 +142,14 @@ async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUn
 
     if (method !== 'GET') {
       mutations.push(`${method} ${pathname}`)
+      let body: unknown = null
+      try {
+        body = request.postDataJSON()
+      } catch (_error) {
+        void _error
+        body = request.postData()
+      }
+      mutationBodies.push({ body, method, path: pathname })
     }
 
     if (method === 'GET' && pathname === '/api/v1/auth/me') {
@@ -322,7 +336,7 @@ async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUn
     }, 500))
   })
 
-  return { mutations, requests }
+  return { mutations, mutationBodies, requests }
 }
 
 async function gotoUniPage(page: Page, url: string) {
@@ -344,6 +358,43 @@ async function expectTabBarIconsAvailable(page: Page) {
       expect(response.headers()['content-type']).toContain('image/png')
     }
   }
+}
+
+async function setUniFieldValue(page: Page, testID: string, value: string) {
+  await page.getByTestId(testID).evaluate((element, nextValue) => {
+    const control = element.querySelector('input,textarea') as
+      | HTMLInputElement
+      | HTMLTextAreaElement
+      | null
+    if (!control) {
+      throw new Error(`Uni form control not found for ${element.getAttribute('data-testid')}`)
+    }
+
+    control.value = nextValue
+    control.dispatchEvent(new Event('input', { bubbles: true, composed: true }))
+    control.dispatchEvent(new Event('change', { bubbles: true, composed: true }))
+    element.dispatchEvent(new CustomEvent('input', {
+      bubbles: true,
+      composed: true,
+      detail: { value: nextValue },
+    }))
+    element.dispatchEvent(new CustomEvent('change', {
+      bubbles: true,
+      composed: true,
+      detail: { value: nextValue },
+    }))
+  }, value)
+}
+
+function requireMutationBody(
+  mutationBodies: MockUniApiResult['mutationBodies'],
+  method: string,
+  path: string,
+): Record<string, unknown> {
+  const body = mutationBodies.find((item) => item.method === method && item.path === path)?.body
+  expect(body, `${method} ${path} request body should be captured`).toBeTruthy()
+  expect(typeof body).toBe('object')
+  return body as Record<string, unknown>
 }
 
 test.describe('UniAppX H5 surface', () => {
@@ -413,6 +464,49 @@ test.describe('UniAppX H5 surface', () => {
     await expect
       .poll(() => mutations.includes('POST /api/v1/course/review/drafts'))
       .toBe(true)
+  })
+
+  test('authenticated review post page submits a complete review', async ({ page }) => {
+    const { mutationBodies, mutations } = await mockUniApi(page, { authenticated: true })
+
+    await gotoUniPage(page, `/#/pages/review/post?courseID=${course.id}`)
+
+    await setUniFieldValue(page, 'uni-review-title', '移动端提交评课验证')
+    await setUniFieldValue(page, 'uni-review-grade', '2024 级')
+    await setUniFieldValue(
+      page,
+      'uni-review-content',
+      '这是一条用于 UniAppX H5 端到端测试的完整评课正文，长度足够通过提交校验。',
+    )
+    await page.getByTestId('uni-review-rating-overall-5').click()
+    await page.getByTestId('uni-review-rating-workload-4').click()
+
+    const submitButton = page.getByTestId('uni-review-submit')
+    await expect(submitButton).toBeEnabled()
+    await submitButton.click()
+
+    await expect
+      .poll(() => mutations.includes('POST /api/v1/course/review/reviews'))
+      .toBe(true)
+    const payload = requireMutationBody(
+      mutationBodies,
+      'POST',
+      '/api/v1/course/review/reviews',
+    )
+    expect(payload).toMatchObject({
+      courseID: course.id,
+      grade: '2024 级',
+      ratings: { overall: 5, workload: 4 },
+      termID: term.id,
+      title: '移动端提交评课验证',
+    })
+    expect(payload.content).toBe('这是一条用于 UniAppX H5 端到端测试的完整评课正文，长度足够通过提交校验。')
+    await expect
+      .poll(() => mutations.includes('DELETE /api/v1/course/review/drafts'))
+      .toBe(true)
+
+    await expect(page).toHaveURL(new RegExp(`/#/pages/course/detail\\?id=${course.id}`))
+    await expect(page.getByText(course.name).first()).toBeVisible()
   })
 
   test('authenticated user center pages render profile data and user lists', async ({
