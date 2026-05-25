@@ -664,15 +664,22 @@ UI smoke。新增 E2E 用例打开 ChatDock，经临时 HTTP seed 端点投递�
 Playwright project，浏览器 `pageerror`、console error、关键静态资源和 API 4xx/5xx 门禁保持开启；
 测试产物已在复验后清理，工作区保持干净。
 
-本地生产等价复验（2026-05-25）：在提交 `45b401c2` 上重新执行 `make prod-parity-up`，构建并启动
-tag 为 `prod-parity-45b401c2` 的 backend / frontend / admin 生产镜像。当前本机生产等价入口为
+本地生产等价复验（2026-05-25）：在提交 `a35bd45a` 上重新执行 `make prod-parity-up`，构建并启动
+tag 为 `prod-parity-a35bd45a` 的 backend / frontend / admin 生产镜像。当前本机生产等价入口为
 Web `http://127.0.0.1:28000`、Admin `http://127.0.0.1:28001/admin/`、Backend
 `http://127.0.0.1:28080`、Grafana `http://127.0.0.1:23003`，三项应用容器均 healthy。本轮自动检查通过
-基础 API 17 项、datastore isolation 22 项、Identity public smoke 26 项、prod-parity browser smoke
-64 项和 observability smoke 6 项；smoke data seed 也通过。evidence 写入
+基础 API 17 项、datastore isolation 22 项、Identity public smoke 26 项、OpenFGA resource access
+smoke、prod-parity browser smoke 64 项和 observability smoke 6 项；smoke data seed 也通过。复验时发现
+`prod-parity-smoke.sh` 已传入 `OPENFGA_RESOURCE_SMOKE_EVIDENCE_FILE`，但
+`openfga-resource-access-smoke.sh` 未实际写文件，导致 OpenFGA 资源授权 smoke 缺少本地 evidence；已修复脚本，
+复跑 `make prod-parity-smoke` 通过，并生成 `.run/prod-parity/openfga-resource-access-smoke.json`。该证据显示
+`readAfterGrant=true`、`writeAfterGrant=true`、`listedReadGrant=true`、`readAfterRevoke=false`、
+`writeAfterRevoke=false`、`listedReadAfterRevoke=false`。其他 evidence 写入
 `.run/prod-parity/datastore-smoke-evidence.json`、`.run/prod-parity/identity-public-smoke-evidence.json`、
 `.run/prod-parity/browser-smoke-evidence.json`、`.run/prod-parity/observability-smoke-evidence.json` 和
-`.run/prod-parity/smoke-data-evidence.json`。
+`.run/prod-parity/smoke-data-evidence.json`。Playwright MCP 也对生产等价 Web/Admin 入口做了真实浏览器抽检：
+首页、课程入口、课程详情 `/courses/900001`、课程测评 `/courses/900001/reviews`、教师详情
+`/teachers/900001`、高级搜索和 Admin 未登录入口均渲染预期内容，Admin 按预期跳转本地 Casdoor 登录页。
 
 接口硬化补充（2026-05-24）：审计发现 legacy disclosure API 文档要求 `client_id`，但
 OpenAPI 未声明且 handler 只读取认证上下文 appID；同时服务端在已有 active consent 时未重新校验

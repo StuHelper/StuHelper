@@ -27,6 +27,7 @@ Optional env:
   OPENFGA_RESOURCE_SMOKE_TIMEOUT   Go duration, defaults to 20s
   OPENFGA_RESOURCE_SMOKE_MODE      host or container; defaults to container in production, otherwise host when Go is available
   OPENFGA_RESOURCE_SMOKE_GO_IMAGE  container-mode Go image; defaults to GOLANG_IMAGE_REF or golang:1.26-bookworm
+  OPENFGA_RESOURCE_SMOKE_EVIDENCE_FILE
 USAGE
 }
 
@@ -91,12 +92,19 @@ mode="$(smoke_mode)"
 case "${mode}" in
   host)
     command -v go >/dev/null 2>&1 || die "Go is required when OPENFGA_RESOURCE_SMOKE_MODE=host"
-    run_smoke_with_go
+    evidence_json="$(run_smoke_with_go)"
     ;;
   container)
-    run_smoke_with_docker
+    evidence_json="$(run_smoke_with_docker)"
     ;;
   *)
     die "OPENFGA_RESOURCE_SMOKE_MODE must be host or container"
     ;;
-esac | jq .
+esac
+
+if [[ -n "${OPENFGA_RESOURCE_SMOKE_EVIDENCE_FILE:-}" ]]; then
+  mkdir -p "$(dirname "${OPENFGA_RESOURCE_SMOKE_EVIDENCE_FILE}")"
+  printf '%s\n' "${evidence_json}" | jq . >"${OPENFGA_RESOURCE_SMOKE_EVIDENCE_FILE}"
+fi
+
+printf '%s\n' "${evidence_json}" | jq .
