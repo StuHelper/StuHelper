@@ -754,29 +754,35 @@ test.describe('Admin management surfaces', () => {
   }) => {
     await page.goto('/users/identity-review');
     await expect(page.getByText('张三')).toBeVisible();
+    await page.waitForLoadState('networkidle');
 
     await page.goto('/users/student-verification');
     await expect(page.getByText('20260001')).toBeVisible();
+    await page.waitForLoadState('networkidle');
 
     await page.goto('/users/school-config');
     await expect(page.getByText('测试大学')).toBeVisible();
     await expect(page.getByText('ldap://ldap.example.com')).toBeVisible();
+    await page.waitForLoadState('networkidle');
 
     await page.goto('/users/freshman-verification');
     await expect(page.getByText('赵*')).toBeVisible();
     await expect(page.getByText('10001').first()).toBeVisible();
+    await page.waitForLoadState('networkidle');
 
     await page.goto('/users/admission-policy');
     await expect(
       page.getByRole('heading', { name: '入群认证策略' }),
     ).toBeVisible();
     await expect(page.getByText('QQ 群 guild-1')).toBeVisible();
+    await page.waitForLoadState('networkidle');
 
     await page.goto('/users/member-blacklist');
     await expect(
       page.getByRole('heading', { name: '成员黑名单' }),
     ).toBeVisible();
     await expect(page.getByText('too many failures')).toBeVisible();
+    await page.waitForLoadState('networkidle');
 
     await page.goto('/users/system-config');
     await expect(page.getByText('review.retention_days')).toBeVisible();

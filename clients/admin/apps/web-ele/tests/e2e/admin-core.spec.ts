@@ -58,6 +58,25 @@ const dashboardOnlyAdminUser = {
   })),
 };
 
+const userSystemReadOnlyCapabilities = [
+  'user:school:read',
+  'user:system:read',
+  'member_blacklist:read',
+];
+
+const userSystemReadOnlyAdminUser = {
+  ...adminUser,
+  capabilities: userSystemReadOnlyCapabilities,
+  globalCapabilities: userSystemReadOnlyCapabilities,
+  capabilityGrants: userSystemReadOnlyCapabilities.map((name) => ({
+    name,
+    global: true,
+    scopeRoles: [],
+    scopeSchoolIDs: [],
+    scopeSectionIDs: [],
+  })),
+};
+
 const stats = {
   totalReviews: 128,
   todayReviews: 7,
@@ -67,6 +86,52 @@ const stats = {
   deletedReviews: 11,
   totalReports: 18,
   pendingReports: 3,
+};
+
+const schoolConfig = {
+  schoolID: 1001,
+  schoolName: '只读大学',
+  verificationMethod: 'ldap',
+  enabled: true,
+  academicDbTable: 'academic_students',
+  consentText: '只读认证授权说明',
+  ldapConfig: {
+    url: 'ldap://readonly.example.com',
+    baseDN: 'dc=readonly,dc=example',
+    systemBindDN: 'cn=reader,dc=readonly,dc=example',
+    useTLS: true,
+  },
+};
+
+const systemConfig = {
+  key: 'review.retention_days',
+  value: '365',
+  description: '评课保留天数',
+  updatedAt: '2026-05-26T04:00:00Z',
+};
+
+const blacklistEntry = {
+  id: 'entry-readonly',
+  platform: 'qq',
+  subjectType: 'qq_user',
+  subjectID: '30001',
+  scopeType: 'guild',
+  guildID: 'guild-readonly',
+  source: 'admission_failure',
+  reasonCode: 'admission_timeout_limit',
+  reasonText: 'read-only visible reason',
+  createdFrom: 'admin_console',
+  createdByType: 'admin_user',
+  createdByID: 'admin-1',
+  createdAt: '2026-05-26T04:00:00Z',
+  updatedAt: '2026-05-26T04:00:00Z',
+  expiresAt: null,
+  releasedAt: null,
+  releasedByType: null,
+  releasedByID: null,
+  releaseReasonCode: null,
+  releaseReason: null,
+  metadata: {},
 };
 
 function ok(data: unknown) {
@@ -86,6 +151,44 @@ async function mockAdminSession(page: Page, user = adminUser) {
 async function mockAdminStats(page: Page) {
   await page.route('**/api/v1/course/review/admin/stats', async (route) => {
     await route.fulfill(ok(stats));
+  });
+}
+
+async function mockReadOnlyUserSystemApi(
+  page: Page,
+  mutatingRequests: string[],
+) {
+  await mockAdminSession(page, userSystemReadOnlyAdminUser);
+
+  await page.route('**/api/v1/admin/**', async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const path = url.pathname;
+    const method = request.method();
+
+    if (path === '/api/v1/admin/school-configs' && method === 'GET') {
+      await route.fulfill(ok([schoolConfig]));
+      return;
+    }
+
+    if (path === '/api/v1/admin/system-configs' && method === 'GET') {
+      await route.fulfill(ok([systemConfig]));
+      return;
+    }
+
+    if (path === '/api/v1/admin/member-blacklist' && method === 'GET') {
+      await route.fulfill(
+        ok({
+          items: [blacklistEntry],
+          list: [blacklistEntry],
+          total: 1,
+        }),
+      );
+      return;
+    }
+
+    mutatingRequests.push(`${method} ${path}`);
+    await route.fulfill(ok({}));
   });
 }
 
@@ -223,6 +326,41 @@ test.describe('Admin core shell routes', () => {
     await expect(
       page.getByText('抱歉，我们无法找到您要找的页面。'),
     ).toBeVisible();
+  });
+});
+
+test.describe('Admin user-system read-only capability boundaries', () => {
+  test('read-only user can view data but cannot see mutating controls', async ({
+    page,
+  }) => {
+    const mutatingRequests: string[] = [];
+    await mockReadOnlyUserSystemApi(page, mutatingRequests);
+
+    await page.goto('/users/school-config');
+    await expect(page.getByText('只读大学')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('ldap://readonly.example.com')).toBeVisible();
+    await expect(page.getByRole('button', { name: /编辑|Edit/ })).toHaveCount(
+      0,
+    );
+
+    await page.goto('/users/system-config');
+    await expect(page.getByText('review.retention_days')).toBeVisible();
+    await expect(page.getByText('评课保留天数')).toBeVisible();
+    await expect(page.getByRole('button', { name: /编辑|Edit/ })).toHaveCount(
+      0,
+    );
+
+    await page.goto('/users/member-blacklist');
+    await expect(
+      page.getByRole('heading', { name: '成员黑名单' }),
+    ).toBeVisible();
+    await expect(page.getByText('read-only visible reason')).toBeVisible();
+    await expect(page.getByRole('button', { name: '新增黑名单' })).toHaveCount(
+      0,
+    );
+    await expect(page.getByRole('button', { name: '解除' })).toHaveCount(0);
+
+    expect(mutatingRequests).toEqual([]);
   });
 });
 

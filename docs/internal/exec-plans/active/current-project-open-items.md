@@ -819,6 +819,17 @@ OpenAPI/Go/TypeScript/Capability 生成漂移、`golangci-lint run ./...`、`go 
 `course/review` 78.7% >= 70%、`middleware` 82.2% >= 75%、`oidc` 80.5% >= 80%、`fga` 87.2% >= 80%；
 构建后工作区未出现二进制或生成文件差异。
 
+本地验证补充（2026-05-26）：继续补齐 Admin 用户系统的 capability 边界。新增 E2E 使用
+`canAccessAdmin=true` 且仅持有 `user:school:read`、`user:system:read`、`member_blacklist:read`
+的只读后台用户，分别直达学校配置、系统配置和成员黑名单页面，断言页面数据可正常渲染，同时“编辑”、
+“新增黑名单”和“解除”等写操作入口均不出现，并记录没有触发对应 mutating admin API。全量 Admin
+E2E 复验时还发现用户系统 surface 用例连续切换页面会在表格拖拽相关 lazy chunk 加载完成前导航，导致
+严格关键资源门禁偶发记录 `sortable.complete.esm` 脚本请求中止；现已在该连续页面访问用例中等待
+`networkidle` 后再切换页面，保留全局关键资源门禁不放宽。新增覆盖已通过单文件
+`CI=1 ADMIN_E2E_PORT=4220 pnpm --dir clients/admin --filter @vben/web-ele exec playwright test tests/e2e/admin-core.spec.ts`
+（12 项）、`CI=1 ADMIN_E2E_PORT=4222 pnpm --dir clients/admin --filter @vben/web-ele exec playwright test tests/e2e/admin-surface.spec.ts`
+（24 项）和完整 `CI=1 ADMIN_E2E_PORT=4223 make e2e-admin`（78 项）。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |
