@@ -622,10 +622,6 @@
         "title": "Good morning, {name}. Let's start the day!",
         "description": "Sunny today, 20℃ - 32℃!"
       },
-      "placeholderTitle": "Workspace widgets are not ready yet",
-      "placeholderDescription": "Use analytics and moderation pages for live operational data until this workspace is integrated with real services.",
-      "placeholderPrimaryAction": "Open analytics",
-      "placeholderSecondaryAction": "Open reviews",
       "cards": {
         "projects": "Projects",
         "trends": "Latest Activity",

@@ -622,10 +622,6 @@
         "title": "早安, {name}, 开始您一天的工作吧！",
         "description": "今日晴，20℃ - 32℃！"
       },
-      "placeholderTitle": "工作台组件暂未接入真实业务数据",
-      "placeholderDescription": "在工作台完成真实集成前，请使用分析页和内容审核页处理线上运营工作。",
-      "placeholderPrimaryAction": "打开分析页",
-      "placeholderSecondaryAction": "打开评课管理",
       "cards": {
         "projects": "项目",
         "trends": "最新动态",

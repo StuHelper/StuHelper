@@ -968,6 +968,14 @@ Playwright MCP 也在移动视口验证同一路径，结果显示 stream 已打
 `CI=1 PLAYWRIGHT_WEB_PORT=3486 pnpm --dir clients/web exec playwright test tests/e2e/journey-user-center.spec.ts`
 （28 项）和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3488 make e2e-web`（140 项）。
 
+本地验证补充（2026-05-26）：清理 Admin 工作台历史占位文案。`/workspace` 当前已接入
+`getAdminStats` 并由 Admin E2E 覆盖统计、处理队列和快捷入口；旧 locale 中仍保留
+`placeholderTitle` / `placeholderDescription` / `placeholderPrimaryAction` / `placeholderSecondaryAction`，
+其中中文文案为“工作台组件暂未接入真实业务数据”，已与当前实现不符。本轮删除中英文未引用占位键，并确认源码中不再出现
+该占位文案。验证已通过 `pnpm --dir clients type-check:admin`、`pnpm --dir clients lint:admin`、完整
+`CI=1 ADMIN_E2E_PORT=4225 make e2e-admin`（78 项）、`pnpm --dir clients run check:no-empty-catch`、
+`make check-docs` 和 `git diff --check`。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |
