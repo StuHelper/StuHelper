@@ -25,6 +25,7 @@ const user = {
     'review:delete:own',
   ],
   capabilityGrants: [],
+  isPlatformAdmin: false,
   canAccessAdmin: false,
 }
 
@@ -34,19 +35,19 @@ function captureQuery(urlString: string): QueryRecord {
   return Object.fromEntries(new URL(urlString).searchParams.entries())
 }
 
-async function mockAuth(page: Page) {
+async function mockAuth(page: Page, authUser = user) {
   await page.addInitScript((u) => {
     localStorage.setItem('stuhelper_user', JSON.stringify(u))
     localStorage.setItem(
       'stuhelper_token_expiry',
       String(Date.now() + 60 * 60 * 1000),
     )
-  }, user)
+  }, authUser)
 
   await page.route('**/api/v1/auth/me', (route) =>
     route.fulfill({
       contentType: 'application/json',
-      body: JSON.stringify({ success: true, data: user }),
+      body: JSON.stringify({ success: true, data: authUser }),
     }),
   )
   await page.route('**/api/v1/auth/refresh', (route) =>
@@ -135,6 +136,36 @@ async function mockAuth(page: Page) {
       }),
   )
 }
+
+test.describe('Admin AppShell', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockAuth(page, {
+      ...user,
+      canAccessAdmin: true,
+      isPlatformAdmin: true,
+      roles: ['platform_admin', ...user.roles],
+    })
+  })
+
+  test('admin user opens header user menu and enters admin console', async ({
+    page,
+  }) => {
+    await page.goto('/user/reviews')
+
+    const userButton = page.getByRole('button', { name: '用户' })
+    await expect(userButton).toBeVisible({ timeout: 10_000 })
+    await expect(page.locator('[title="管理员"]')).toBeVisible()
+
+    await userButton.click()
+    const menu = page.getByRole('menu', { name: '用户' })
+    await expect(menu).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: '管理后台' })).toBeVisible()
+
+    await menu.getByRole('menuitem', { name: '管理后台' }).click()
+
+    await expect(page).toHaveURL(/\/admin\/$/)
+  })
+})
 
 test.describe('User Journey: User Center', () => {
   test.beforeEach(async ({ page }) => {
