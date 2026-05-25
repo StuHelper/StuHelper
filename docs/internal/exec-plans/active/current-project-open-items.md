@@ -595,6 +595,15 @@ mock SSO 页面且无 console error。新增覆盖后已通过
 （34 项）、`pnpm --dir clients run type-check:uni`、`pnpm --dir clients run test:uni` 和完整
 `CI=1 UNIAPPX_E2E_PORT=3150 make e2e-uni`（34 项）。
 
+本地验证补充（2026-05-26）：继续补齐 UniAppX H5 课程详情游客认证边界。新增 E2E 覆盖未登录用户在
+`/#/pages/course/detail?id=101` 点击收藏、写评课和提交回复三个受保护入口时，均跳转登录页并保留解码后的
+`redirect=/pages/course/detail?id=101`，同时不会误发收藏 POST/DELETE 或回复 POST mutation。该用例保留对
+H5 地址栏二次编码现象的兼容断言，但检查最终解码 redirect 与登录页实际使用语义。新增覆盖后已通过
+`CI=1 UNIAPPX_E2E_PORT=3154 pnpm --dir clients/uniappx exec playwright test tests/e2e/surface.spec.ts`
+（36 项）、`CI=1 UNIAPPX_E2E_PORT=3155 make e2e-uni`（36 项）、`pnpm --dir clients type-check:uni`、
+`pnpm --dir clients test:uni`（46 项）、`pnpm --dir clients build:uni:h5`、
+`pnpm --dir clients run check:no-empty-catch` 和 `make check-docs`。
+
 本地全量复验（2026-05-25）：在提交 `d82afd53` 上复跑统一客户端 E2E 门禁，
 `CI=1 PLAYWRIGHT_WEB_PORT=3450 ADMIN_E2E_PORT=4206 UNIAPPX_E2E_PORT=3142 make e2e`
 通过 Web 120 项、Admin 66 项和 UniAppX H5 30 项，覆盖本轮 Web 重新认证 / callback guard 与

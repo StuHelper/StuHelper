@@ -578,6 +578,21 @@ function requireMutationBody(
   return body as Record<string, unknown>
 }
 
+function currentLoginRedirect(page: Page): string | null {
+  const hash = new URL(page.url()).hash
+  const queryString = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : ''
+  const encoded = new URLSearchParams(queryString).get('redirect')
+  if (!encoded) return null
+
+  let decoded = encoded
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const next = decodeURIComponent(decoded)
+    if (next === decoded) break
+    decoded = next
+  }
+  return decoded
+}
+
 test.describe('UniAppX H5 surface', () => {
   test('home dashboard renders real feature entrypoints and hot course data', async ({
     page,
@@ -752,6 +767,47 @@ test.describe('UniAppX H5 surface', () => {
       content: '这是一条 UniAppX H5 端到端回复内容。',
     })
     await expect(page.getByText('这是一条 UniAppX H5 端到端回复内容。')).toBeVisible()
+  })
+
+  test('guest course detail protected actions redirect to login without mutations', async ({
+    page,
+  }) => {
+    const { mutations } = await mockUniApi(page)
+
+    await gotoUniPage(page, `/#/pages/course/detail?id=${course.id}`)
+
+    await page.getByTestId('uni-course-favorite').click()
+    await expect(page).toHaveURL(/\/#\/pages\/auth\/login\?redirect=/)
+    await expectUniPageTitle(page, '登录')
+    expect(currentLoginRedirect(page)).toBe(`/pages/course/detail?id=${course.id}`)
+    expect(mutations).not.toContain(
+      `POST /api/v1/course/review/courses/${course.id}/favorites`,
+    )
+    expect(mutations).not.toContain(
+      `DELETE /api/v1/course/review/courses/${course.id}/favorites`,
+    )
+
+    await gotoUniPage(page, `/#/pages/course/detail?id=${course.id}`)
+
+    await page.getByText('写评课').click()
+    await expect(page).toHaveURL(/\/#\/pages\/auth\/login\?redirect=/)
+    expect(currentLoginRedirect(page)).toBe(`/pages/course/detail?id=${course.id}`)
+
+    await gotoUniPage(page, `/#/pages/course/detail?id=${course.id}`)
+
+    await page.getByTestId(`uni-review-replies-${review.id}`).click()
+    await expect(page.getByText(initialReply.content)).toBeVisible()
+    await setUniFieldValue(
+      page,
+      `uni-review-reply-input-${review.id}`,
+      '游客不应提交这条回复。',
+    )
+    await page.getByTestId(`uni-review-reply-submit-${review.id}`).click()
+    await expect(page).toHaveURL(/\/#\/pages\/auth\/login\?redirect=/)
+    expect(currentLoginRedirect(page)).toBe(`/pages/course/detail?id=${course.id}`)
+    expect(mutations).not.toContain(
+      `POST /api/v1/course/review/reviews/${review.id}/replies`,
+    )
   })
 
   test('authenticated review post page loads form data and saves a draft', async ({
