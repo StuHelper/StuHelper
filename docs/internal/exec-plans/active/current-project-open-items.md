@@ -464,6 +464,19 @@ AppShell 品牌可见，再按 viewport 宽度选择桌面 / 移动路径。除�
 （8 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3461 make e2e-web`（128 项）。
 
+本地验证补充（2026-05-25）：继续补齐 Web AppShell 已登录用户菜单的真实浏览器覆盖。新增
+`journey-user-center` E2E 覆盖已登录用户进入 `/user/reviews` 后打开顶部用户按钮，验证菜单为命名
+`role="menu"` 且包含个人中心、开发者应用、实名认证、学生认证、绑定 QQ 和退出登录入口；点击
+“退出登录”后断言调用 `POST /api/v1/auth/logout`、路由回到首页、顶部登录入口可见，并确认
+`localStorage.stuhelper_user` 与 `localStorage.stuhelper_token_expiry` 均被清理。测试内对登出后的
+`auth/me` 明确返回 401，避免退出后被登录态 mock 重新拉起。除自动 E2E 外，还启动
+`VITE_E2E_API_STUB=1` 的本地 Vite，通过 Playwright MCP `browser_run_code_unsafe` 注入同等 API mock，
+实际打开 `/user/reviews` 并点击用户菜单退出，确认登出请求、菜单项、首页跳转和本地会话清理均符合预期，
+且无 console error。新增覆盖后已通过
+`CI=1 PLAYWRIGHT_WEB_PORT=3462 pnpm --dir clients/web exec playwright test tests/e2e/journey-user-center.spec.ts`
+（20 项）、`pnpm --dir clients run type-check:web`、`pnpm --dir clients run lint:web` 和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3463 make e2e-web`（130 项）。
+
 本地全量复验（2026-05-25）：在提交 `d82afd53` 上复跑统一客户端 E2E 门禁，
 `CI=1 PLAYWRIGHT_WEB_PORT=3450 ADMIN_E2E_PORT=4206 UNIAPPX_E2E_PORT=3142 make e2e`
 通过 Web 120 项、Admin 66 项和 UniAppX H5 30 项，覆盖本轮 Web 重新认证 / callback guard 与

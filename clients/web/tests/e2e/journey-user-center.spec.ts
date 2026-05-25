@@ -141,6 +141,95 @@ test.describe('User Journey: User Center', () => {
     await mockAuth(page)
   })
 
+  test('user opens header user menu and logs out', async ({ page }) => {
+    let authActive = true
+    let logoutRequest: { method: string; path: string } | null = null
+
+    await page.route('**/api/v1/auth/me', (route) => {
+      if (!authActive) {
+        return route.fulfill({
+          status: 401,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: false,
+            error: { code: 'A0040101', message: 'login required' },
+          }),
+        })
+      }
+
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: user }),
+      })
+    })
+    await page.route('**/api/v1/auth/logout', async (route) => {
+      const url = new URL(route.request().url())
+      logoutRequest = {
+        method: route.request().method(),
+        path: url.pathname,
+      }
+      authActive = false
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true }),
+      })
+    })
+    await page.route('**/api/v1/course/stats*', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { courseCount: 120, departmentCount: 8 },
+        }),
+      }),
+    )
+    await page.route('**/api/v1/course/review/stats*', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { courseCount: 230, reviewCount: 580, userCount: 42 },
+        }),
+      }),
+    )
+
+    await page.goto('/user/reviews')
+
+    const userButton = page.getByRole('button', { name: '用户' })
+    await expect(userButton).toBeVisible({ timeout: 10_000 })
+    await expect(userButton).toHaveAttribute('aria-expanded', 'false')
+
+    await userButton.click()
+    await expect(userButton).toHaveAttribute('aria-expanded', 'true')
+
+    const menu = page.getByRole('menu', { name: '用户' })
+    await expect(menu).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: /个人中心/ })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: /开发者应用/ })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: /实名认证/ })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: /学生认证/ })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: /绑定 QQ/ })).toBeVisible()
+
+    await menu.getByRole('menuitem', { name: '退出登录' }).click()
+
+    await expect
+      .poll(() => logoutRequest)
+      .toEqual({
+        method: 'POST',
+        path: '/api/v1/auth/logout',
+      })
+    await expect(page).toHaveURL(/\/$/)
+    await expect(page.getByRole('link', { name: '登录' })).toBeVisible()
+    await expect
+      .poll(() =>
+        page.evaluate(() => ({
+          expiry: localStorage.getItem('stuhelper_token_expiry'),
+          user: localStorage.getItem('stuhelper_user'),
+        })),
+      )
+      .toEqual({ expiry: null, user: null })
+  })
+
   test('user views their own reviews', async ({ page }) => {
     await page.route('**/api/v1/course/review/user/reviews*', (route) =>
       route.fulfill({
