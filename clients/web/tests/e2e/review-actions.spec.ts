@@ -393,7 +393,7 @@ test.describe("Review actions", () => {
     test("user loads additional reviews from course detail", async ({
         page,
     }) => {
-        const requestedPages: string[] = [];
+        const requestedReviewQueries: string[] = [];
 
         await mockCourseDetail(page);
         await page.route(
@@ -401,7 +401,7 @@ test.describe("Review actions", () => {
             (route) => {
                 const url = new URL(route.request().url());
                 const requestedPage = url.searchParams.get("page") ?? "1";
-                requestedPages.push(requestedPage);
+                requestedReviewQueries.push(url.search);
                 return route.fulfill(
                     list(
                         requestedPage === "2"
@@ -421,7 +421,21 @@ test.describe("Review actions", () => {
         await page.getByRole("button", { name: "加载更多" }).click();
 
         await expect(page.getByText("第二页公开评价")).toBeVisible();
-        await expect.poll(() => requestedPages).toEqual(["1", "2"]);
+        await expect
+            .poll(() =>
+                requestedReviewQueries.map((query) => {
+                    const params = new URLSearchParams(query);
+                    return {
+                        page: params.get("page"),
+                        pageSize: params.get("pageSize"),
+                        sort: params.get("sort"),
+                    };
+                }),
+            )
+            .toEqual([
+                { page: "1", pageSize: "20", sort: "time" },
+                { page: "2", pageSize: "20", sort: "time" },
+            ]);
     });
 
     test("user reports a public review from the review feed", async ({

@@ -121,6 +121,13 @@ Admin 26 项）。
 并通过 `pnpm --dir clients test:web`（53 文件、230 项）、`pnpm --dir clients type-check:web` 和
 `pnpm --dir clients lint:web`。
 
+本地验证补充（2026-05-25）：Web 课程详情页“加载更多”E2E 继续从只检查页码扩展到完整请求参数断言，
+验证初始评课列表和第二页请求都携带 `pageSize=20` 与 `sort=time`，分别请求 `page=1` 和 `page=2`，
+并确认第二页评价真实追加渲染。新增覆盖后已通过单文件
+`CI=1 PLAYWRIGHT_WEB_PORT=3425 pnpm --dir clients/web exec playwright test tests/e2e/review-actions.spec.ts`
+（10 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3426 make e2e-web`（108 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等
