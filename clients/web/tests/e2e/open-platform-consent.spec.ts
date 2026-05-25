@@ -277,4 +277,113 @@ test.describe("Open Platform consent flow", () => {
         await expect.poll(() => nextConsentToken).toBe("next-consent");
         await expect(page.getByText("将获取以下权限")).toBeVisible();
     });
+
+    test("profile completion without a token shows a fail-closed error state", async ({
+        page,
+    }) => {
+        let profileCompletionRequested = false;
+        await page.route(
+            "**/api/v1/open-platform/profile-completion?*",
+            async (route) => {
+                profileCompletionRequested = true;
+                await route.fulfill(ok({}));
+            },
+        );
+
+        await page.goto("/complete-profile");
+
+        await expect(
+            page.getByRole("heading", {
+                name: /资料补全请求加载失败|Failed to load profile completion request/,
+            }),
+        ).toBeVisible();
+        await expect(
+            page.getByText(
+                /资料补全请求已失效或缺少 token|profile completion request is expired or missing a token/,
+            ),
+        ).toBeVisible();
+        expect(profileCompletionRequested).toBe(false);
+    });
+
+    test("profile completion refreshes missing fields and continues to the client redirect", async ({
+        page,
+    }) => {
+        let loadCount = 0;
+        let continueBody: unknown = null;
+
+        await page.route(
+            "**/api/v1/open-platform/profile-completion?*",
+            async (route) => {
+                loadCount += 1;
+                await route.fulfill(
+                    ok({
+                        token: "refresh-profile-token",
+                        app,
+                        scopes,
+                        missingFields:
+                            loadCount === 1
+                                ? [
+                                      {
+                                          key: "profile.phone",
+                                          displayName: "手机号",
+                                          actionURL: "/user/phone-binding",
+                                      },
+                                  ]
+                                : [],
+                        redirectURI: "https://client.example.com/callback",
+                        expiresAt: "2026-06-01T10:00:00Z",
+                    }),
+                );
+            },
+        );
+        await page.route(
+            "**/api/v1/open-platform/profile-completion/continue",
+            async (route) => {
+                continueBody = route.request().postDataJSON();
+                await route.fulfill(
+                    ok({
+                        redirectURL:
+                            "https://client.example.com/callback?code=profile-complete&state=xyz",
+                    }),
+                );
+            },
+        );
+        await page.route("https://client.example.com/**", (route) =>
+            route.fulfill({
+                contentType: "text/html",
+                body: "<!doctype html><title>Profile complete callback</title><main>Profile complete callback</main>",
+            }),
+        );
+
+        await page.goto("/complete-profile?token=refresh-profile-token");
+
+        await expect(page.getByText("profile.phone")).toBeVisible();
+        await page
+            .getByRole("button", { name: /重新检查|Check again/ })
+            .click();
+        await expect
+            .poll(() => loadCount, {
+                message: "profile completion refresh should reload the request",
+            })
+            .toBe(2);
+        await expect(
+            page.getByText(
+                /资料已满足本次授权请求|profile now satisfies this authorization request/,
+            ),
+        ).toBeVisible();
+
+        await Promise.all([
+            page.waitForURL(
+                "https://client.example.com/callback?code=profile-complete&state=xyz",
+            ),
+            page
+                .getByRole("button", {
+                    name: /我已补全，继续|I have completed this/,
+                })
+                .click(),
+        ]);
+
+        expect(continueBody).toEqual({ token: "refresh-profile-token" });
+        await expect(page.getByText("Profile complete callback")).toBeVisible();
+    });
 });

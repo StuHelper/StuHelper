@@ -369,6 +369,16 @@ datastore isolation 22 项、prod-parity browser smoke 64 项和 observability s
 `/courses/reviews/post`，mock 登录态和后端接口，确认 `review-grade` 下拉在生产 bundle 中可见，选择
 `A+` 后自动保存草稿 payload 携带 `grade=A+`，且无浏览器 pageerror 或 console error。
 
+本地验证补充（2026-05-25）：对照 Web 路由表继续补齐 Open Platform 资料补全页的授权边界 E2E。
+新增浏览器覆盖 `/complete-profile` 缺少 token 时不请求后端并显示 fail-closed 错误态；覆盖
+`/complete-profile?token=...` 初次仍缺资料、点击“重新检查”后后端返回 `missingFields=[]`、页面显示
+“资料已满足本次授权请求”，再点击“我已补全，继续”后调用
+`POST /api/v1/open-platform/profile-completion/continue` 且 body 只包含 profile completion token，并按
+后端返回的 `redirectURL` 跳回第三方客户端。新增覆盖后已通过
+`CI=1 PLAYWRIGHT_WEB_PORT=3446 pnpm --dir clients/web exec playwright test tests/e2e/open-platform-consent.spec.ts`
+（10 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3447 make e2e-web`（116 项）。
+
 接口硬化补充（2026-05-24）：审计发现 legacy disclosure API 文档要求 `client_id`，但
 OpenAPI 未声明且 handler 只读取认证上下文 appID；同时服务端在已有 active consent 时未重新校验
 `redirect_uri`。本轮已按 OpenAPI-first 补齐 `GET /api/v1/open-platform/userinfo`、
