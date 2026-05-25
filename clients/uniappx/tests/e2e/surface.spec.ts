@@ -1010,6 +1010,28 @@ test.describe('UniAppX H5 surface', () => {
     await expect(page.getByText('Mock SSO')).toBeVisible()
   })
 
+  test('auth callback rejects mismatched native state before token exchange', async ({
+    page,
+  }) => {
+    const { mutations } = await mockUniApi(page, {
+      ssoState: 'mobile-e2e-state',
+    })
+
+    await gotoUniPage(page, '/#/pages/auth/callback?code=mobile-e2e-code&state=wrong-state')
+
+    await expectUniPageTitle(page, 'SSO 回调')
+    await expect(page.getByText('登录失败')).toBeVisible()
+    await expect(page.getByText('安全校验失败，请重新登录')).toBeVisible()
+    expect(mutations).not.toContain('POST /api/v1/auth/exchange-native')
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem('stuhelper:sso-state')))
+      .toBeNull()
+
+    await page.getByText('重新登录', { exact: true }).click()
+    await expect(page).toHaveURL(/\/#\/pages\/auth\/login/)
+    await expectUniPageTitle(page, '登录')
+  })
+
   test('auth callback exchanges native code and opens the user center', async ({ page }) => {
     const { mutations } = await mockUniApi(page, {
       authenticated: true,

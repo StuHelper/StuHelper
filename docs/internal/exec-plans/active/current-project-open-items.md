@@ -334,6 +334,16 @@ UniAppX H5 E2E 补充（2026-05-25）：继续收紧发布评课草稿路径。�
 `pnpm --dir clients test:uni`（46 项）、`pnpm --dir clients build:uni:h5`、`make check-docs`
 和 `git diff --check`。
 
+UniAppX H5 E2E 补充（2026-05-25）：继续补齐 SSO callback 失败显示路径。新增浏览器覆盖
+`/#/pages/auth/callback?code=...&state=wrong-state` 在本地保存 state 不匹配时不会调用
+`POST /api/v1/auth/exchange-native`，会清理一次性 `stuhelper:sso-state`，页面展示本地化错误
+“安全校验失败，请重新登录”，点击“重新登录”返回登录页；页面实现同步把 store 的内部英文错误
+`invalid native SSO state` / `missing native SSO state` 映射到现有 i18n 文案，避免 H5 用户看到内部错误。
+新增覆盖后已通过
+`CI=1 UNIAPPX_E2E_PORT=3140 pnpm --dir clients/uniappx exec playwright test tests/e2e/surface.spec.ts`
+（30 项）、`pnpm --dir clients type-check:uni` 和完整
+`CI=1 UNIAPPX_E2E_PORT=3141 make e2e-uni`（30 项）。
+
 本地验证补充（2026-05-25）：Web 发布评课页同步收紧成绩契约，成绩字段从任意文本输入改为共享
 `REVIEW_GRADES` 枚举下拉，草稿保存、草稿签名、离开提示输入判断和最终发布 payload 都复用
 `normalizeReviewGrade`，避免草稿保留 `90` / `优秀` 等 OpenAPI 不接受的旧自由文本。草稿 store 现在会拒绝

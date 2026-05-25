@@ -9,6 +9,14 @@ const t = translate
 const status = ref<'loading' | 'success' | 'error'>('loading')
 const errorMessage = ref('')
 
+function resolveCallbackErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : ''
+  if (message === 'invalid native SSO state' || message === 'missing native SSO state') {
+    return t('auth.callback.stateMismatch')
+  }
+  return message || t('auth.callback.exchangeFailed')
+}
+
 onLoad(async (options) => {
   const code = typeof options?.code === 'string' ? options.code : ''
   const state = typeof options?.state === 'string' ? options.state : ''
@@ -32,7 +40,7 @@ onLoad(async (options) => {
     }, 500)
   } catch (error) {
     status.value = 'error'
-    errorMessage.value = error instanceof Error ? error.message : t('auth.callback.exchangeFailed')
+    errorMessage.value = resolveCallbackErrorMessage(error)
   }
 })
 
