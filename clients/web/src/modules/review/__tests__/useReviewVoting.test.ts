@@ -3,6 +3,13 @@ import { nextTick } from 'vue'
 
 const mockVoteReview = vi.fn()
 const mockToastError = vi.fn()
+const mockRouterPush = vi.fn()
+const mockBootstrapSession = vi.fn()
+const mockAuthStore = {
+  bootstrapCompleted: true,
+  isAuthenticated: true,
+  bootstrapSession: mockBootstrapSession,
+}
 
 vi.mock('@/api', () => ({
   api: {
@@ -28,12 +35,31 @@ vi.mock('@/composables/useToast', () => ({
   }),
 }))
 
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => mockAuthStore,
+}))
+
+vi.mock('vue-router', () => ({
+  useRouter: () => ({
+    currentRoute: {
+      value: {
+        fullPath: '/courses/42/reviews',
+      },
+    },
+    push: mockRouterPush,
+  }),
+}))
+
 const { useReviewVoting } = await import('../useReviewVoting')
 
 describe('useReviewVoting', () => {
   beforeEach(() => {
     mockVoteReview.mockReset()
     mockToastError.mockReset()
+    mockRouterPush.mockReset()
+    mockBootstrapSession.mockReset()
+    mockAuthStore.bootstrapCompleted = true
+    mockAuthStore.isAuthenticated = true
   })
 
   it('optimistically updates vote state on success', async () => {
@@ -63,5 +89,21 @@ describe('useReviewVoting', () => {
     expect(voting.displayLikeCount(review as never)).toBe(3)
     expect(voting.displayDislikeCount(review as never)).toBe(1)
     expect(mockToastError).toHaveBeenCalledWith('review.review.voteFailed')
+  })
+
+  it('redirects unauthenticated users before mutating vote state', async () => {
+    mockAuthStore.isAuthenticated = false
+    const review = { id: 'review-guest', likeCount: 1, dislikeCount: 0 }
+    const voting = useReviewVoting()
+
+    await voting.handleVote(review as never, 'like')
+
+    expect(mockVoteReview).not.toHaveBeenCalled()
+    expect(voting.reviewVotes['review-guest']).toBeUndefined()
+    expect(voting.displayLikeCount(review as never)).toBe(1)
+    expect(mockRouterPush).toHaveBeenCalledWith({
+      name: 'login',
+      query: { redirect: '/courses/42/reviews' },
+    })
   })
 })

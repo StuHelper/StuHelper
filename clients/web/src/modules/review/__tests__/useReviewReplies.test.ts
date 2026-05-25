@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mockCreateReply = vi.fn()
 const mockToastSuccess = vi.fn()
 const mockToastError = vi.fn()
+const mockRouterPush = vi.fn()
+const mockBootstrapSession = vi.fn()
+const mockAuthStore = {
+  bootstrapCompleted: true,
+  isAuthenticated: true,
+  bootstrapSession: mockBootstrapSession,
+}
 
 vi.mock('@/api', () => ({
   api: {
@@ -31,6 +38,21 @@ vi.mock('@/composables/useToast', () => ({
   }),
 }))
 
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => mockAuthStore,
+}))
+
+vi.mock('vue-router', () => ({
+  useRouter: () => ({
+    currentRoute: {
+      value: {
+        fullPath: '/courses/42/reviews',
+      },
+    },
+    push: mockRouterPush,
+  }),
+}))
+
 const { useReviewReplies } = await import('../useReviewReplies')
 
 describe('useReviewReplies', () => {
@@ -38,6 +60,10 @@ describe('useReviewReplies', () => {
     mockCreateReply.mockReset()
     mockToastSuccess.mockReset()
     mockToastError.mockReset()
+    mockRouterPush.mockReset()
+    mockBootstrapSession.mockReset()
+    mockAuthStore.bootstrapCompleted = true
+    mockAuthStore.isAuthenticated = true
   })
 
   it('clears the active reply form when Vue exposes v-for refs as an array', async () => {
@@ -64,5 +90,21 @@ describe('useReviewReplies', () => {
     expect(mockToastSuccess).toHaveBeenCalledWith('review.review.replySuccess')
     expect(mockToastError).not.toHaveBeenCalled()
     expect(replies.replyCountMap['review-1']).toBe(1)
+  })
+
+  it('redirects unauthenticated users before submitting replies', async () => {
+    mockAuthStore.isAuthenticated = false
+    const replies = useReviewReplies()
+
+    await replies.handleReplySubmit('review-guest', 'guest reply')
+
+    expect(mockCreateReply).not.toHaveBeenCalled()
+    expect(replies.replySubmitting.value).toBe(false)
+    expect(mockToastSuccess).not.toHaveBeenCalled()
+    expect(mockToastError).not.toHaveBeenCalled()
+    expect(mockRouterPush).toHaveBeenCalledWith({
+      name: 'login',
+      query: { redirect: '/courses/42/reviews' },
+    })
   })
 })

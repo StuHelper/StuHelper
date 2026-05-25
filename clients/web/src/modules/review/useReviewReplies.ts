@@ -1,9 +1,11 @@
 import { ref, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 
 import { api } from '@/api'
 import { getErrorMessage } from '@/api/errors'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
 import ReplyForm from '@/components/business/review/ReplyForm.vue'
 
 import type { Reply } from '@stuhelper/shared/reply'
@@ -19,6 +21,8 @@ function clearReplyForm(refValue: ReplyFormRefValue) {
 export function useReviewReplies() {
   const { t } = useI18n()
   const toast = useToast()
+  const router = useRouter()
+  const authStore = useAuthStore()
 
   const expandedReviewID = ref<string | null>(null)
   const replies = ref<Reply[]>([])
@@ -59,6 +63,17 @@ export function useReviewReplies() {
   }
 
   async function handleReplySubmit(reviewId: string, content: string) {
+    if (!authStore.bootstrapCompleted) {
+      await authStore.bootstrapSession()
+    }
+    if (!authStore.isAuthenticated) {
+      await router.push({
+        name: 'login',
+        query: { redirect: router.currentRoute.value.fullPath },
+      })
+      return
+    }
+
     replySubmitting.value = true
     try {
       const res = await api.reply.createReply(reviewId, { content })

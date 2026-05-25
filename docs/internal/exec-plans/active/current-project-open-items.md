@@ -604,6 +604,20 @@ H5 地址栏二次编码现象的兼容断言，但检查最终解码 redirect �
 `pnpm --dir clients test:uni`（46 项）、`pnpm --dir clients build:uni:h5`、
 `pnpm --dir clients run check:no-empty-catch` 和 `make check-docs`。
 
+本地验证补充（2026-05-26）：继续补齐 Web 课程详情游客认证边界。审计发现 Web 课程详情页的收藏和
+发布测评已能跳转登录，但点赞 / 点踩与回复提交会直接调用受保护 API 后依赖 401 错误反馈，行为与
+UniAppX 和主站其它受保护入口不一致。现已在课程详情使用的投票与回复 composable 中加入会话确认：
+未登录用户点击点赞 / 点踩或提交回复时直接进入 `/login?redirect=/courses/{id}/reviews`，不会触发乐观
+计数更新，也不会发送 vote/reply mutation。新增 Web E2E 覆盖未登录用户在 `/courses/4/reviews`
+依次点击收藏、发布测评、点赞和提交回复，断言四个入口都保留详情页 redirect，且收藏 POST/DELETE、
+vote POST 和 reply POST 均未发生。Playwright MCP 也在本地 Web 开发服务注入同等 API mock 后真实点击
+四个入口，确认四个 redirect 均为 `/courses/4/reviews`、`mutations=[]`；浏览器控制台仅保留预期的匿名
+`auth/me` 401 状态行。新增覆盖后已通过
+`pnpm --dir clients/web exec vitest run src/modules/review/__tests__/useReviewVoting.test.ts src/modules/review/__tests__/useReviewReplies.test.ts`
+（5 项）、`CI=1 PLAYWRIGHT_WEB_PORT=3460 pnpm --dir clients/web exec playwright test tests/e2e/course-browse.spec.ts`
+（8 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3461 make e2e-web`（136 项）。
+
 本地全量复验（2026-05-25）：在提交 `d82afd53` 上复跑统一客户端 E2E 门禁，
 `CI=1 PLAYWRIGHT_WEB_PORT=3450 ADMIN_E2E_PORT=4206 UNIAPPX_E2E_PORT=3142 make e2e`
 通过 Web 120 项、Admin 66 项和 UniAppX H5 30 项，覆盖本轮 Web 重新认证 / callback guard 与

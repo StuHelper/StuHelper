@@ -1,9 +1,11 @@
 import { ref, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 
 import { api } from '@/api'
 import { getErrorMessage } from '@/api/errors'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
 import {
   applyOptimisticVote,
   createReviewVoteState,
@@ -16,6 +18,8 @@ import type { Review } from '@stuhelper/shared/review'
 export function useReviewVoting() {
   const { t } = useI18n()
   const toast = useToast()
+  const router = useRouter()
+  const authStore = useAuthStore()
 
   const reviewVotes = reactive<Record<string, VoteType | null>>({})
   const likeOffsets = reactive<Record<string, number>>({})
@@ -31,6 +35,17 @@ export function useReviewVoting() {
   }
 
   async function handleVote(r: Review, type: VoteType) {
+    if (!authStore.bootstrapCompleted) {
+      await authStore.bootstrapSession()
+    }
+    if (!authStore.isAuthenticated) {
+      await router.push({
+        name: 'login',
+        query: { redirect: router.currentRoute.value.fullPath },
+      })
+      return
+    }
+
     if (votingReviews.value.has(r.id)) return
     votingReviews.value.add(r.id)
 

@@ -13,6 +13,13 @@ async function mockUnauthenticated(page: Page) {
   )
 }
 
+async function expectLoginRedirect(page: Page, redirect: string) {
+  await expect(page).toHaveURL(/\/login\?/)
+  const url = new URL(page.url())
+  expect(url.pathname).toBe('/login')
+  expect(url.searchParams.get('redirect')).toBe(redirect)
+}
+
 test.describe('Course Browse Flow', () => {
   test.beforeEach(async ({ page }) => {
     await mockUnauthenticated(page)
@@ -286,5 +293,161 @@ test.describe('Course Browse Flow', () => {
       }),
     ).toHaveCount(0)
     expect(favoriteStatusRequests).toBe(0)
+  })
+
+  test('guest course detail protected actions redirect to login without mutations', async ({
+    page,
+  }) => {
+    const protectedRoute = '/courses/4/reviews'
+    const reviewID = 'web-guest-review'
+    const mutations: string[] = []
+
+    await page.route('**/api/v1/course/courses/4', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            id: 4,
+            name: '游客保护课程',
+            code: 'GUEST101',
+            departmentName: '测试学院',
+            credits: 3,
+          },
+        }),
+      }),
+    )
+
+    await page.route('**/api/v1/course/review/courses/4/reviews*', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            list: [
+              {
+                id: reviewID,
+                courseID: 4,
+                courseName: '游客保护课程',
+                title: '游客操作保护验证',
+                content: '这条评价用于验证游客不能直接触发受保护动作。',
+                teacherName: '陈老师',
+                termName: '2026 春',
+                grade: 'A',
+                ratings: { overall: 5, workload: 4 },
+                likeCount: 2,
+                dislikeCount: 0,
+                replyCount: 0,
+                status: 'published',
+                createdAt: '2026-05-01T08:00:00Z',
+              },
+            ],
+            total: 1,
+          },
+        }),
+      }),
+    )
+
+    await page.route(
+      '**/api/v1/course/review/courses/4/rating-stats*',
+      (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: {
+              courseID: 4,
+              overall: { termName: '总体', dimensions: [] },
+              byTerm: [],
+              allDimensionKeys: [],
+            },
+          }),
+        }),
+    )
+
+    await page.route(
+      '**/api/v1/course/review/courses/4/teachers*',
+      (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: [{ teacherID: 4, teacherName: '陈老师', reviewCount: 1 }],
+          }),
+        }),
+    )
+
+    await page.route(
+      '**/api/v1/course/review/courses/4/rating-trend*',
+      (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: { trend: [] } }),
+        }),
+    )
+
+    await page.route('**/api/v1/course/review/courses/4/favorites', (route) => {
+      if (route.request().method() !== 'GET') {
+        mutations.push(
+          `${route.request().method()} ${new URL(route.request().url()).pathname}`,
+        )
+      }
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: { favorited: false } }),
+      })
+    })
+
+    await page.route(
+      `**/api/v1/course/review/reviews/${reviewID}/votes`,
+      (route) => {
+        mutations.push(
+          `${route.request().method()} ${new URL(route.request().url()).pathname}`,
+        )
+        return route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: { voteType: 'like' } }),
+        })
+      },
+    )
+
+    await page.route(
+      `**/api/v1/course/review/reviews/${reviewID}/replies`,
+      (route) => {
+        if (route.request().method() !== 'GET') {
+          mutations.push(
+            `${route.request().method()} ${new URL(route.request().url()).pathname}`,
+          )
+        }
+        return route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: { list: [], total: 0 } }),
+        })
+      },
+    )
+
+    await page.goto(protectedRoute)
+    await expect(page.getByText('游客保护课程')).toBeVisible({ timeout: 10_000 })
+    await page.getByRole('button', { name: /^(收藏|Favorite)$/ }).click()
+    await expectLoginRedirect(page, protectedRoute)
+    expect(mutations).toEqual([])
+
+    await page.goto(protectedRoute)
+    await expect(page.getByText('游客操作保护验证')).toBeVisible()
+    await page.getByRole('button', { name: /^(发布测评|Post Review)$/ }).click()
+    await expectLoginRedirect(page, protectedRoute)
+    expect(mutations).toEqual([])
+
+    await page.goto(protectedRoute)
+    await page.getByTestId(`review-like-${reviewID}`).click()
+    await expectLoginRedirect(page, protectedRoute)
+    expect(mutations).toEqual([])
+
+    await page.goto(protectedRoute)
+    await page.getByRole('button', { name: /^(查看回复|View replies)$/ }).click()
+    await page.getByRole('textbox', { name: /^(回复内容|Reply content)$/ }).fill('游客回复内容')
+    await page.getByRole('button', { name: /^(发送|Send)$/ }).click()
+    await expectLoginRedirect(page, protectedRoute)
+    expect(mutations).toEqual([])
   })
 })
