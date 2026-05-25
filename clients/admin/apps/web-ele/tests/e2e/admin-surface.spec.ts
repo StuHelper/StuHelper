@@ -61,6 +61,8 @@ function list<T>(items: T[]) {
   return ok({ list: items, total: items.length });
 }
 
+const adminApiRequests: string[] = [];
+
 const stats = {
   totalReviews: 128,
   todayReviews: 7,
@@ -336,6 +338,8 @@ async function mockAdminApi(page: Page) {
     const path = url.pathname;
     const method = request.method();
 
+    adminApiRequests.push(`${method} ${path}${url.search}`);
+
     if (path === '/api/v1/auth/me') {
       await route.fulfill(ok(adminUser));
       return;
@@ -524,6 +528,7 @@ async function fulfillUnexpected(route: Route, path: string, method: string) {
 
 test.describe('Admin management surfaces', () => {
   test.beforeEach(async ({ page }) => {
+    adminApiRequests.length = 0;
     await mockAdminApi(page);
   });
 
@@ -632,5 +637,57 @@ test.describe('Admin management surfaces', () => {
       page.getByRole('row', { name: /\/oidc\/userinfo\s+10\s+8/ }),
     ).toBeVisible();
     await expect(page.getByRole('row', { name: /fga_denied/ })).toBeVisible();
+  });
+
+  test('open platform token probe evidence filters request by app, reviewer, result, and client', async ({
+    page,
+  }) => {
+    await page.goto('/open-platform/token-probe-evidence');
+
+    await page.getByPlaceholder('按应用 ID').fill('42');
+    await page.getByPlaceholder('按审核人 ID').fill('99');
+    await page.getByRole('main').locator('.el-select').click();
+    await page.getByRole('option', { name: '失败' }).click();
+    await page.getByPlaceholder('按 Client ID').fill('campus-filter');
+    await page.getByRole('button', { name: '查询' }).click();
+
+    await expect
+      .poll(() =>
+        adminApiRequests.some((request) => {
+          const url = new URL(request.slice('GET '.length), 'http://admin.e2e');
+          return (
+            url.pathname ===
+              '/api/v1/admin/open-platform/token-probe-evidence' &&
+            url.searchParams.get('appID') === '42' &&
+            url.searchParams.get('reviewerUserID') === '99' &&
+            url.searchParams.get('result') === 'failed' &&
+            url.searchParams.get('clientID') === 'campus-filter' &&
+            url.searchParams.get('page') === '1' &&
+            url.searchParams.get('pageSize') === '20'
+          );
+        }),
+      )
+      .toBe(true);
+  });
+
+  test('open platform disclosure report query updates the reporting window', async ({
+    page,
+  }) => {
+    await page.goto('/open-platform/disclosure-report');
+
+    await page.getByPlaceholder('统计窗口（小时）').fill('6');
+    await page.getByRole('button', { name: '查询' }).click();
+
+    await expect
+      .poll(() =>
+        adminApiRequests.some((request) => {
+          const url = new URL(request.slice('GET '.length), 'http://admin.e2e');
+          return (
+            url.pathname === '/api/v1/admin/open-platform/disclosure-report' &&
+            url.searchParams.get('windowHours') === '6'
+          );
+        }),
+      )
+      .toBe(true);
   });
 });

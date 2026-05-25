@@ -106,6 +106,12 @@ Admin 26 项）。
 `CI=1 ADMIN_E2E_PORT=4176 make e2e-admin`（52 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3414 ADMIN_E2E_PORT=4177 make e2e`（Web 106 项、Admin 52 项）。
 
+本地验证补充（2026-05-25）：Admin Open Platform 运营页 E2E 从静态渲染扩展到查询交互，
+覆盖 token probe evidence 的应用 ID、审核人 ID、结果和 Client ID 筛选，以及 disclosure report 的统计窗口查询；
+用例会断言 UI 输入实际进入 `GET /api/v1/admin/open-platform/token-probe-evidence` 的
+`appID` / `reviewerUserID` / `result` / `clientID` / `page` / `pageSize` 查询参数，以及
+`GET /api/v1/admin/open-platform/disclosure-report` 的 `windowHours` 查询参数，避免运营页表格能渲染但筛选条件未传递到后端。
+
 本地验证补充（2026-05-25）：Koishi Console Playwright UI smoke 已在原有 `pageerror` 和
 console error/warning tracker 基础上补齐关键资源门禁，把 `document`、`script`、`stylesheet`、
 `font`、`image` 的 `requestfailed` 和 HTTP 4xx/5xx 视为失败，避免 NavRail / view anchor
