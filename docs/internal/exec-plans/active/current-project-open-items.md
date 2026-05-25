@@ -681,6 +681,11 @@ smoke、prod-parity browser smoke 64 项和 observability smoke 6 项；smoke da
 首页、课程入口、课程详情 `/courses/900001`、课程测评 `/courses/900001/reviews`、教师详情
 `/teachers/900001`、高级搜索和 Admin 未登录入口均渲染预期内容，Admin 按预期跳转本地 Casdoor 登录页。
 
+发布链路复验（2026-05-25）：在提交 `1a5959bb` 的干净工作区执行 `make deploy-bundle`，成功生成
+`infra/generated/deploy/stuhelper-deploy-bundle.tar.gz`。抽查 tarball 内容确认不包含 `.run/`、`.deploy/`、
+`.playwright-mcp`、`test-results`、`playwright-report` 或生产 secret env 等本地 / 敏感产物；命令执行后
+`git status --short` 仍为空。
+
 接口硬化补充（2026-05-24）：审计发现 legacy disclosure API 文档要求 `client_id`，但
 OpenAPI 未声明且 handler 只读取认证上下文 appID；同时服务端在已有 active consent 时未重新校验
 `redirect_uri`。本轮已按 OpenAPI-first 补齐 `GET /api/v1/open-platform/userinfo`、
