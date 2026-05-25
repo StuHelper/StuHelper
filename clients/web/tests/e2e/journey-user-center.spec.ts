@@ -931,6 +931,104 @@ test.describe('User Journey: User Center', () => {
     await expect(page).toHaveURL(/\/about$/)
   })
 
+  test('notifications page inserts live SSE notifications after initial empty load', async ({
+    page,
+  }) => {
+    let releaseStream!: () => void
+    const streamRelease = new Promise<void>((resolve) => {
+      releaseStream = resolve
+    })
+    let streamOpened = false
+    let historyQuery: QueryRecord | null = null
+    let markReadRequest: { method: string; path: string } | null = null
+
+    await page.unroute('**/api/v1/course/review/user/notifications/unread-count*')
+    await page.route(
+      '**/api/v1/course/review/user/notifications/unread-count*',
+      (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: { count: streamOpened ? 1 : 0 },
+          }),
+        }),
+    )
+    await page.unroute('**/api/v1/course/review/user/notifications/stream')
+    await page.route(
+      '**/api/v1/course/review/user/notifications/stream',
+      async (route) => {
+        streamOpened = true
+        await streamRelease
+        await route.fulfill({
+          status: 200,
+          contentType: 'text/event-stream',
+          headers: { 'Cache-Control': 'no-cache' },
+          body: [
+            'event: notification',
+            'data: {"id":"sse-page-notif-1","type":"reply","title":"实时页面提醒","content":"通知中心收到 SSE","isRead":false,"sourceUrl":"/about","createdAt":"2026-04-05T10:12:00Z"}',
+            '',
+            'event: unread_count',
+            'data: {"count":1}',
+            '',
+            '',
+          ].join('\n'),
+        })
+      },
+    )
+
+    await page.route('**/api/v1/course/review/user/notifications?*', (route) => {
+      historyQuery = captureQuery(route.request().url())
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { list: [], total: 0, page: 1, pageSize: 20 },
+        }),
+      })
+    })
+
+    await page.route(
+      '**/api/v1/course/review/user/notifications/sse-page-notif-1/read',
+      async (route) => {
+        const url = new URL(route.request().url())
+        markReadRequest = {
+          method: route.request().method(),
+          path: url.pathname,
+        }
+        await route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true }),
+        })
+      },
+    )
+
+    await page.goto('/notifications')
+
+    await expect(page.getByRole('heading', { name: '通知' })).toBeVisible({
+      timeout: 10_000,
+    })
+    await expect.poll(() => historyQuery).toEqual({ page: '1', pageSize: '20' })
+    await expect(page.getByText('暂无通知')).toBeVisible()
+    await expect.poll(() => streamOpened).toBe(true)
+
+    releaseStream()
+
+    await expect(page.getByText('实时页面提醒')).toBeVisible()
+    await expect(page.getByText('通知中心收到 SSE')).toBeVisible()
+    await expect(page.getByRole('button', { name: /全部.*已读/ })).toBeVisible()
+
+    await page.getByRole('button', { name: /实时页面提醒/ }).click()
+
+    await expect
+      .poll(() => markReadRequest)
+      .toEqual({
+        method: 'PUT',
+        path: '/api/v1/course/review/user/notifications/sse-page-notif-1/read',
+      })
+    await expect(page).toHaveURL(/\/about$/)
+  })
+
   test('user clicks one notification to mark it read and follow its link', async ({
     page,
   }) => {

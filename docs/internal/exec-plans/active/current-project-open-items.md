@@ -957,6 +957,17 @@ Playwright MCP 也在移动视口验证同一路径，结果显示 stream 已打
 `CI=1 PLAYWRIGHT_WEB_PORT=3483 pnpm --dir clients/web exec playwright test tests/e2e/journey-user-center.spec.ts`
 （26 项）和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3485 make e2e-web`（138 项）。
 
+本地验证补充（2026-05-26）：继续补齐 Web 通知中心页面本身的 SSE 同步成功路径。新增 E2E 用受控
+`EventSource` 先挂起 stream，让 `/notifications` 初始列表接口返回空列表并显示“暂无通知”，随后释放
+`notification` / `unread_count` 事件，断言页面插入“实时页面提醒”、未读状态显示“全部标记已读”，点击该通知后发送
+`PUT /api/v1/course/review/user/notifications/sse-page-notif-1/read` 并跳转到 `/about`。这覆盖了通知页面
+`useNotificationSSESync` 与页面初始加载之间的真实浏览器时序，避免实时通知被空历史列表覆盖。Playwright MCP 也在移动
+视口复现同一路径，确认初始空状态后释放 SSE 能插入通知，历史查询为 `page=1&pageSize=20`，已读请求命中目标通知，
+且无 console error、pageerror、失败请求或未 mock API。验证已通过 `pnpm --dir clients type-check:web`、
+`pnpm --dir clients lint:web`、单文件
+`CI=1 PLAYWRIGHT_WEB_PORT=3486 pnpm --dir clients/web exec playwright test tests/e2e/journey-user-center.spec.ts`
+（28 项）和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3488 make e2e-web`（140 项）。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |
