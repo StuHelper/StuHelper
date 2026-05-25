@@ -352,6 +352,11 @@ UniAppX H5 E2E 补充（2026-05-25）：继续收紧发布评课草稿路径。�
 （4 项）、再次通过 `pnpm --dir clients type-check:web` 和 `pnpm --dir clients lint:web`，并最终通过
 `CI=1 PLAYWRIGHT_WEB_PORT=3444 make e2e-web`（112 项）。
 
+本地全量客户端复验（2026-05-25）：在当前提交 `4f66346e` 上执行
+`CI=1 PLAYWRIGHT_WEB_PORT=3445 ADMIN_E2E_PORT=4197 UNIAPPX_E2E_PORT=3138 make e2e`，通过 Web
+112 项、Admin 66 项和 UniAppX H5 28 项。该轮复验覆盖三个客户端的桌面 / 移动 Playwright project，
+浏览器 `pageerror`、console error、关键静态资源和 API 4xx/5xx 门禁保持开启。
+
 接口硬化补充（2026-05-24）：审计发现 legacy disclosure API 文档要求 `client_id`，但
 OpenAPI 未声明且 handler 只读取认证上下文 appID；同时服务端在已有 active consent 时未重新校验
 `redirect_uri`。本轮已按 OpenAPI-first 补齐 `GET /api/v1/open-platform/userinfo`、
