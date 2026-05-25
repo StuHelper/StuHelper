@@ -585,6 +585,21 @@ release-by-subject 后返回与后续 list 一致的条目状态，避免 UI 测
 新增覆盖后已通过 `STUHELPER_UI_SMOKE_PORT=5153 corepack yarn --cwd bots/koishi test:ui`（20 项）和
 `corepack yarn --cwd bots/koishi test:unit`（52 项）。
 
+本地验证补充（2026-05-25）：继续补齐 Koishi Console 警告记录真实写路径，并修复 smoke 数据隔离
+缺口。新增 E2E 用例进入“警告记录”，通过 Drawer 添加警告、断言成员行计数为 1、点击“重载”验证
+JSON store flush 后可从磁盘重新加载、再通过“清除”动作确认高风险弹窗并断言目标行消失和空状态恢复。
+该用例覆盖 `stuhelperGroupCenter/warns/add`、`reload` 和 `update` 清零路径。Playwright MCP 也在临时
+Koishi `http://127.0.0.1:5159` 上复验同一路径，最终停在 `/stuhelper#warns`，通知消息包含“添加警告”、
+“警告数据已重新加载”和“警告已清除”，目标行计数为 0，未发现新增 console error/warning。测试过程中
+发现 `scripts/ui-smoke.mjs` 只隔离 SQLite，StuHelper JSON 数据仍会落到仓库 `bots/koishi/data/`；
+已新增 `STUHELPER_GROUP_CENTER_DATA_DIR` 环境变量覆盖 `DataManager.dataPath`，并让 UI smoke 将警告、
+订阅、缓存、设置等 JSON store 全部写入临时目录。同时修复 `bots/koishi/package.json` 中 `test:unit`
+glob 未加引号导致 Bash 只展开一层目录、深层单元测试未进入门禁的问题；修复后
+`corepack yarn --cwd bots/koishi test:unit` 实际运行 260 项并全部通过。新增覆盖后已通过
+`STUHELPER_UI_SMOKE_PORT=5158 corepack yarn --cwd bots/koishi test:ui`（21 项）、
+`corepack yarn --cwd bots/koishi test:unit`（260 项）和
+`cd bots/koishi && corepack yarn exec tsx --test --test-reporter spec plugins/stuhelper-core/src/core/data/data.service.test.ts`。
+
 本地生产等价复验（2026-05-25）：在提交 `45b401c2` 上重新执行 `make prod-parity-up`，构建并启动
 tag 为 `prod-parity-45b401c2` 的 backend / frontend / admin 生产镜像。当前本机生产等价入口为
 Web `http://127.0.0.1:28000`、Admin `http://127.0.0.1:28001/admin/`、Backend

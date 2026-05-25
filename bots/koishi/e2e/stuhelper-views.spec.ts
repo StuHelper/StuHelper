@@ -15,8 +15,8 @@ import type { ConsoleMessage, Page, Request, Response } from '@playwright/test'
  *     - 无 pageerror、无 console.error/warning（按 allowlist 过滤）。
  * - chat 不在 NavRail，单独一个 test：通过 CommandBar 的 ⌘/ 按钮打开 ChatDock
  *   浮窗，断言 `.chat-view` 出现在 dock body 内。
- * - 配置治理、黑名单、订阅管理与系统缓存覆盖真实操作路径，防止 console action /
- *   WebSocket API 只在单元测试中通过、但浏览器 UI 断链。
+ * - 配置治理、警告记录、黑名单、订阅管理与系统缓存覆盖真实操作路径，防止
+ *   console action / WebSocket API 只在单元测试中通过、但浏览器 UI 断链。
  *
  * 不使用 test.describe.configure({ mode: 'serial' })：workers:1 已保证顺序，
  * 任一 view fail 不阻塞后续，方便看到全量基线状态。
@@ -335,6 +335,46 @@ test('blacklist management adds and releases a global entry through real console
 
   await expect(page.getByText(`已从黑名单解除 ${userId}`)).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('.el-table__row', { hasText: userId })).toHaveCount(0, { timeout: 10_000 })
+
+  tracker.assertClean()
+})
+
+test('warn records add, reload, and clear through real console actions', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  const suffix = Date.now().toString().slice(-9)
+  const guildId = `g${suffix}`
+  const userId = `u${suffix}`
+
+  await clickNavRail(page, '警告记录')
+  await expect(page).toHaveURL(/#warns($|\?)/, { timeout: 5_000 })
+
+  await page.getByRole('button', { name: '添加警告', exact: true }).click()
+  await expect(page.locator('.el-drawer', { hasText: '添加警告' }).first()).toBeVisible({ timeout: 5_000 })
+  await fillLabeledInput(page, '群号', guildId)
+  await fillLabeledInput(page, '用户 ID', userId)
+  await page.getByRole('button', { name: '添加', exact: true }).click()
+
+  await expect(page.getByText(`已在 ${guildId} 添加警告`)).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.sh-lane__row', { hasText: guildId }).first()).toBeVisible({ timeout: 10_000 })
+
+  const row = page.locator('.el-table__row', { hasText: userId }).first()
+  await expect(row).toBeVisible({ timeout: 10_000 })
+  await expect(row.locator('.el-input-number input')).toHaveValue('1')
+
+  await page.getByRole('button', { name: '重载', exact: true }).click()
+  await expect(page.getByText('警告数据已重新加载')).toBeVisible({ timeout: 10_000 })
+  await expect(row).toBeVisible({ timeout: 10_000 })
+
+  await row.getByRole('button', { name: '清除', exact: true }).click()
+  const clearDialog = confirmDialog(page, '清除警告记录')
+  await expect(clearDialog).toBeVisible({ timeout: 5_000 })
+  await expect(clearDialog.getByText('确定要清除这条警告记录吗？清零后该成员会从当前群组列表中移除。')).toBeVisible()
+  await clearDialog.getByRole('button', { name: '清除', exact: true }).click()
+
+  await expect(page.getByText('警告已清除')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.el-table__row', { hasText: userId })).toHaveCount(0, { timeout: 10_000 })
+  await expect(page.getByText('暂无警告记录')).toBeVisible({ timeout: 10_000 })
 
   tracker.assertClean()
 })

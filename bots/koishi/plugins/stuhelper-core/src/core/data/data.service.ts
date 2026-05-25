@@ -22,6 +22,8 @@ import type {
   AuthUsersData
 } from '../../types'
 
+const DATA_DIR_ENV = 'STUHELPER_GROUP_CENTER_DATA_DIR'
+
 /** 数据存储映射类型 */
 export interface DataStores {
   warns: JsonDataStore<Record<string, WarnRecord>>
@@ -49,7 +51,10 @@ export class DataManager {
   private stores: Partial<DataStores> = {}
 
   constructor(private ctx: Context) {
-    this.dataPath = path.resolve(ctx.baseDir, 'data/stuhelperGroupCenter')
+    const configuredDataPath = process.env[DATA_DIR_ENV]?.trim()
+    this.dataPath = configuredDataPath
+      ? path.resolve(configuredDataPath)
+      : path.resolve(ctx.baseDir, 'data/stuhelperGroupCenter')
     this.logPath = path.resolve(this.dataPath, 'stuhelperGroupCenter.log')
     this.init()
   }

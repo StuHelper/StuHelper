@@ -45,6 +45,7 @@ try {
       ...process.env,
       NODE_ENV: 'production',
       KOISHI_CONFIG_FILE: '',
+      STUHELPER_GROUP_CENTER_DATA_DIR: join(tempConfigDir, 'stuhelper-data'),
       STUHELPER_CONSOLE_ADMIN_PASSWORD: process.env.STUHELPER_CONSOLE_ADMIN_PASSWORD ?? 'ui-smoke-password',
       STUHELPER_PLATFORM_BASE_URL: process.env.STUHELPER_PLATFORM_BASE_URL ?? platformStub.baseUrl,
       STUHELPER_PLATFORM_SERVICE_TOKEN: process.env.STUHELPER_PLATFORM_SERVICE_TOKEN ?? 'ui-smoke-service-token',
