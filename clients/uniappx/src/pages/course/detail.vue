@@ -29,13 +29,7 @@ const repliesLoading = ref(false)
 const replyText = ref('')
 const replySubmitting = ref(false)
 
-async function toggleReplies(reviewId: string) {
-  if (expandedReview.value === reviewId) {
-    expandedReview.value = null
-    return
-  }
-  expandedReview.value = reviewId
-  replyText.value = ''
+async function loadReplies(reviewId: string) {
   repliesLoading.value = true
   replies.value = []
   try {
@@ -48,6 +42,16 @@ async function toggleReplies(reviewId: string) {
   }
 }
 
+async function toggleReplies(reviewId: string) {
+  if (expandedReview.value === reviewId) {
+    expandedReview.value = null
+    return
+  }
+  expandedReview.value = reviewId
+  replyText.value = ''
+  await loadReplies(reviewId)
+}
+
 async function submitReply(reviewId: string) {
   const text = replyText.value.trim()
   if (!text) return
@@ -57,8 +61,8 @@ async function submitReply(reviewId: string) {
     assertMutationSuccess(await api.reply.createReply(reviewId, { content: text }))
     replyText.value = ''
     uni.showToast({ title: t('course.detail.replySent'), icon: 'none' })
-    await toggleReplies(reviewId) // reload
     expandedReview.value = reviewId
+    await loadReplies(reviewId)
   } catch (error) {
     uni.showToast({ title: error instanceof Error ? error.message : t('course.detail.replyFailed'), icon: 'none' })
   } finally {
@@ -169,7 +173,7 @@ onShow(() => {
             <text class="course-name">{{ course.name }}</text>
             <text class="course-code">{{ course.code || t('common.unavailableCourseCode') }}</text>
           </view>
-          <button class="favorite-btn" :disabled="favoriteLoading" @tap="toggleFavorite">
+          <button class="favorite-btn" data-testid="uni-course-favorite" :disabled="favoriteLoading" @tap="toggleFavorite">
             {{ favoriteLoading ? t('common.processing') : isFavorite ? t('course.detail.favorited') : t('course.detail.favorite') }}
           </button>
         </view>
@@ -226,7 +230,7 @@ onShow(() => {
             <text class="review-content">{{ truncateText(review.content, 180) }}</text>
             <view class="review-meta">
               <text>👍 {{ review.likeCount }}</text>
-              <text class="reply-toggle" @tap="toggleReplies(review.id)">💬 {{ review.replyCount }}</text>
+              <text class="reply-toggle" :data-testid="`uni-review-replies-${review.id}`" @tap="toggleReplies(review.id)">💬 {{ review.replyCount }}</text>
               <text>{{ review.termName || review.termID }}</text>
             </view>
             <!-- Replies section -->
@@ -243,10 +247,11 @@ onShow(() => {
                 <input
                   v-model="replyText"
                   class="reply-input"
+                  :data-testid="`uni-review-reply-input-${review.id}`"
                   :placeholder="t('course.detail.replyPlaceholder')"
                   :disabled="replySubmitting"
                 />
-                <button class="reply-submit-btn" :disabled="replySubmitting || !replyText.trim()" @tap="submitReply(review.id)">
+                <button class="reply-submit-btn" :data-testid="`uni-review-reply-submit-${review.id}`" :disabled="replySubmitting || !replyText.trim()" @tap="submitReply(review.id)">
                   {{ t('course.detail.replySubmit') }}
                 </button>
               </view>

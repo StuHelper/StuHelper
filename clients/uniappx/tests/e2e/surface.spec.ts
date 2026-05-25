@@ -89,6 +89,16 @@ const review = {
   updatedAt: now,
 }
 
+const initialReply = {
+  id: 'mobile-reply-1',
+  reviewID: review.id,
+  content: '已有移动端回复',
+  authorID: 'mobile-reply-author',
+  authorName: '回复用户',
+  createdAt: now,
+  updatedAt: now,
+}
+
 const favorite = {
   ...course,
   favoritedAt: now,
@@ -123,6 +133,7 @@ async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUn
   const mutations: string[] = []
   const mutationBodies: MockUniApiResult['mutationBodies'] = []
   const requests: string[] = []
+  const replyItems = [initialReply]
 
   await page.addInitScript((ssoState) => {
     localStorage.setItem('stuhelper:uniappx:locale', 'zh-CN')
@@ -253,12 +264,37 @@ async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUn
       await route.fulfill(ok({ favorited: true }))
       return
     }
+    if (
+      (method === 'POST' || method === 'DELETE') &&
+      /^\/api\/v1\/course\/review\/courses\/\d+\/favorites$/.test(pathname)
+    ) {
+      await route.fulfill(ok())
+      return
+    }
     if (method === 'GET' && pathname === '/api/v1/course/review/reviews/latest') {
       await route.fulfill(list([review]))
       return
     }
     if (method === 'POST' && /^\/api\/v1\/course\/review\/reviews\/[^/]+\/votes$/.test(pathname)) {
       await route.fulfill(ok())
+      return
+    }
+    if (method === 'GET' && /^\/api\/v1\/course\/review\/reviews\/[^/]+\/replies$/.test(pathname)) {
+      await route.fulfill(list(replyItems))
+      return
+    }
+    if (method === 'POST' && /^\/api\/v1\/course\/review\/reviews\/[^/]+\/replies$/.test(pathname)) {
+      const body = mutationBodies[mutationBodies.length - 1]?.body as { content?: unknown } | undefined
+      replyItems.push({
+        id: 'mobile-reply-created',
+        reviewID: review.id,
+        content: typeof body?.content === 'string' ? body.content : '',
+        authorID: user.id,
+        authorName: user.displayName,
+        createdAt: now,
+        updatedAt: now,
+      })
+      await route.fulfill(ok({ id: 'mobile-reply-created' }))
       return
     }
     if (method === 'POST' && pathname === '/api/v1/course/review/reviews') {
@@ -445,6 +481,48 @@ test.describe('UniAppX H5 surface', () => {
     await expect(page.getByText(teacher.teacherName).first()).toBeVisible()
     await expect(page.getByText('授课课程')).toBeVisible()
     await expect(page.getByText(course.name)).toBeVisible()
+  })
+
+  test('authenticated course detail toggles favorites and submits a reply', async ({ page }) => {
+    const { mutationBodies, mutations } = await mockUniApi(page, { authenticated: true })
+
+    await gotoUniPage(page, `/#/pages/course/detail?id=${course.id}`)
+
+    const favoriteButton = page.getByTestId('uni-course-favorite')
+    await expect(favoriteButton).toContainText('已收藏')
+    await favoriteButton.click()
+    await expect
+      .poll(() => mutations.includes(`DELETE /api/v1/course/review/courses/${course.id}/favorites`))
+      .toBe(true)
+    await expect(favoriteButton).toContainText('收藏')
+    await favoriteButton.click()
+    await expect
+      .poll(() => mutations.includes(`POST /api/v1/course/review/courses/${course.id}/favorites`))
+      .toBe(true)
+    await expect(favoriteButton).toContainText('已收藏')
+
+    await page.getByTestId(`uni-review-replies-${review.id}`).click()
+    await expect(page.getByText(initialReply.content)).toBeVisible()
+
+    await setUniFieldValue(
+      page,
+      `uni-review-reply-input-${review.id}`,
+      '这是一条 UniAppX H5 端到端回复内容。',
+    )
+    await page.getByTestId(`uni-review-reply-submit-${review.id}`).click()
+
+    await expect
+      .poll(() => mutations.includes(`POST /api/v1/course/review/reviews/${review.id}/replies`))
+      .toBe(true)
+    const replyPayload = requireMutationBody(
+      mutationBodies,
+      'POST',
+      `/api/v1/course/review/reviews/${review.id}/replies`,
+    )
+    expect(replyPayload).toMatchObject({
+      content: '这是一条 UniAppX H5 端到端回复内容。',
+    })
+    await expect(page.getByText('这是一条 UniAppX H5 端到端回复内容。')).toBeVisible()
   })
 
   test('authenticated review post page loads form data and saves a draft', async ({
