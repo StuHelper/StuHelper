@@ -198,6 +198,13 @@ view-specific 编辑区渲染；同时通过真实 UI 保存 `e2e-template` guar
 placeholder 截获点击，测试 helper 已改为点击 `.el-select__wrapper` 以匹配真实用户交互目标。
 新增覆盖后已通过 `make e2e-koishi`（15 项）和 `corepack yarn test:unit`（259 项）。
 
+本地机器人侧复验（2026-05-25）：在提交 `823b4acc` 上复跑 Koishi Console 与机器人核心测试。
+`make e2e-koishi` 通过 15 项 Playwright UI smoke，覆盖 NavRail、Dashboard、Review、Identity、
+Warns、Blacklist、Config、Roles、Settings、Logs、Subscriptions、System、ChatDock、配置治理 tabs，
+以及真实 Console action 保存 guard template、群绑定和命令策略；`corepack yarn test:unit` 在
+`bots/koishi` 工作目录通过 259 项、0 失败，覆盖 admission、绑定、群管 runtime modules、Console
+scope、governance 写入、黑名单、举报、关键词、入群认证、反撤回、AI 超时等机器人侧单元路径。
+
 本地全量复验（2026-05-25）：在提交前代码状态 `44b1e0dd` 上复跑统一客户端 E2E 门禁，
 `CI=1 PLAYWRIGHT_WEB_PORT=3420 ADMIN_E2E_PORT=4190 UNIAPPX_E2E_PORT=3134 make e2e`
 通过 Web 106 项、Admin 56 项和 UniAppX 28 项；随后复跑 `make e2e-koishi`，通过 Koishi
