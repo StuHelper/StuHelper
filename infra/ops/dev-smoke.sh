@@ -16,4 +16,11 @@ if [[ -f "${DEV_RUNTIME_ENV}" ]]; then
   set +a
 fi
 
+if [[ -z "${GRAFANA_URL:-}" ]]; then
+  dev_grafana_url="http://127.0.0.1:${GRAFANA_PORT:-3003}"
+  if curl --fail --silent --show-error --max-time 2 "${dev_grafana_url}/api/health" >/dev/null 2>&1; then
+    export GRAFANA_URL="${dev_grafana_url}"
+  fi
+fi
+
 "${SCRIPT_DIR}/smoke-check.sh"

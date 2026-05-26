@@ -51,7 +51,11 @@ make dev-up
 ```bash
 make dev-status
 make dev-logs
+make dev-smoke
 ```
+
+`make dev-smoke` 默认验收 API / Web / Admin；如果本地 Grafana 健康端点在 `.env` 的
+`GRAFANA_PORT` 上可达，会自动把它纳入同一次 smoke，避免观测栈已运行却被跳过。
 
 如需保留旧的全 Docker 开发模式：
 

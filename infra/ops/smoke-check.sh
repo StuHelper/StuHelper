@@ -75,6 +75,19 @@ check_body() {
   fi
 }
 
+check_body_regex() {
+  local name="$1" url="$2" pattern="$3"
+  local body
+  body=$(curl -s --max-time 10 "$url" 2>/dev/null || echo "")
+  if echo "$body" | grep -Eq "$pattern"; then
+    echo "  ✅ $name"
+    PASS=$((PASS + 1))
+  else
+    echo "  ❌ $name (响应中未匹配 '$pattern')"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
 echo ""
 echo "━━━ 阶段 2：业务端点验证 ━━━"
 
@@ -126,7 +139,7 @@ GRAFANA_URL="${GRAFANA_URL:-}"
 if [ -n "$GRAFANA_URL" ]; then
   echo ""
   echo "── Grafana ──"
-  check_body "Grafana 健康" "${GRAFANA_URL}/api/health" '"database":"ok"'
+  check_body_regex "Grafana 健康" "${GRAFANA_URL}/api/health" '"database"[[:space:]]*:[[:space:]]*"ok"'
 else
   echo "  ⚠️  GRAFANA_URL 未设置，跳过 Grafana 检查"
   WARN=$((WARN + 1))
