@@ -365,6 +365,16 @@ fail-closed 路径。已通过目标 E2E
 `pnpm --dir clients test:web`（55 文件、258 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3542 make e2e-web`（222 项）。
 
+本地验证补充（2026-05-26）：继续收紧发布评价页评分维度响应。`useRatingDimensions`
+现在会校验评分维度响应必须是数组且每个维度包含 `id`、`key`、`name`、`sortOrder`、`isActive`、
+`createdAt` 和 `updatedAt` 等必需字段；畸形 200 会进入“评分维度加载失败”，不再被过滤成
+“暂无可用评分维度”。同步补齐 Review Flow E2E 中 rating-dimensions mock 的契约字段，并新增
+畸形评分维度响应 fail-closed 覆盖。已通过目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3543 pnpm --dir clients/web exec playwright test tests/e2e/review-flow.spec.ts`
+（14 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、
+`pnpm --dir clients test:web`（55 文件、258 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3544 make e2e-web`（224 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

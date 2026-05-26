@@ -1,9 +1,58 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
+import { readArrayPayload } from '@/api/responsePayload'
 import { isValidRating, type RatingDimension } from '@stuhelper/shared/course'
 import type { ReviewRatings } from '@stuhelper/shared/review'
 import { localizeRatingDimension } from '@/modules/review/ratingHelpers'
+
+function readRatingDimension(payload: unknown): RatingDimension {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid rating dimensions response')
+  }
+
+  const {
+    id,
+    key,
+    name,
+    description,
+    sortOrder,
+    isActive,
+    createdAt,
+    updatedAt,
+  } = payload as {
+    id?: unknown
+    key?: unknown
+    name?: unknown
+    description?: unknown
+    sortOrder?: unknown
+    isActive?: unknown
+    createdAt?: unknown
+    updatedAt?: unknown
+  }
+  if (
+    typeof id !== 'string' ||
+    typeof key !== 'string' ||
+    typeof name !== 'string' ||
+    (description !== undefined && typeof description !== 'string') ||
+    typeof sortOrder !== 'number' ||
+    !Number.isFinite(sortOrder) ||
+    typeof isActive !== 'boolean' ||
+    typeof createdAt !== 'string' ||
+    typeof updatedAt !== 'string'
+  ) {
+    throw new Error('Invalid rating dimensions response')
+  }
+
+  return payload as RatingDimension
+}
+
+function readRatingDimensionsPayload(payload: unknown): RatingDimension[] {
+  return readArrayPayload<unknown>(
+    payload,
+    'Invalid rating dimensions response',
+  ).map(readRatingDimension)
+}
 
 export function useRatingDimensions() {
   const { t } = useI18n()
@@ -26,7 +75,7 @@ export function useRatingDimensions() {
     loadFailed.value = false
     try {
       const response = await api.rating.getDimensions()
-      rawDimensions.value = response.data?.data ?? []
+      rawDimensions.value = readRatingDimensionsPayload(response.data?.data)
     } catch (_error) { void _error;
       rawDimensions.value = []
       loadFailed.value = true

@@ -104,6 +104,20 @@ function requireRecord(
     return value as Record<string, unknown>;
 }
 
+function ratingDimension(key: string, name: string, sortOrder: number) {
+    return {
+        id: `dim-${key}`,
+        schoolID: 1,
+        key,
+        name,
+        description: "",
+        sortOrder,
+        isActive: true,
+        createdAt: "2026-04-03T10:00:00Z",
+        updatedAt: "2026-04-03T10:00:00Z",
+    };
+}
+
 async function mockPostReviewBootstrap(page: Page, termsData: unknown) {
     await page.route("**/api/v1/course/terms", async (route) => {
         await route.fulfill({
@@ -120,17 +134,7 @@ async function mockPostReviewBootstrap(page: Page, termsData: unknown) {
             contentType: "application/json",
             body: JSON.stringify({
                 success: true,
-                data: [
-                    {
-                        id: "dim-difficulty",
-                        schoolID: 1,
-                        key: "difficulty",
-                        name: "Difficulty",
-                        description: "",
-                        sortOrder: 1,
-                        isActive: true,
-                    },
-                ],
+                data: [ratingDimension("difficulty", "Difficulty", 1)],
             }),
         });
     });
@@ -162,6 +166,27 @@ test("post review page fails closed when terms response is malformed", async ({
         page.getByRole("alert").filter({ hasText: /Load failed|加载失败/i }),
     ).toBeVisible({ timeout: 10_000 });
     await expect(page.getByTestId("review-term")).not.toContainText("2025 秋");
+});
+
+test("post review page fails closed when rating dimensions response is malformed", async ({
+    page,
+}) => {
+    await mockPostReviewBootstrap(page, [{ id: "2025-fall", name: "2025 秋" }]);
+    await page.route("**/api/v1/course/review/rating-dimensions", async (route) => {
+        await route.fulfill({
+            contentType: "application/json",
+            body: JSON.stringify({ success: true, data: [{ key: "difficulty" }] }),
+        });
+    });
+
+    await page.goto("/courses/reviews/post");
+
+    await expect(
+        page.getByText(/评分维度加载失败|Failed to load rating dimensions/i),
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(
+        page.getByText(/暂无可用评分维度|No rating dimensions/i),
+    ).toHaveCount(0);
 });
 
 test("post review course autocomplete fails closed when search response is malformed", async ({
@@ -373,51 +398,11 @@ test("authenticated user can publish a review and vote on a course review", asyn
             body: JSON.stringify({
                 success: true,
                 data: [
-                    {
-                        id: "dim-difficulty",
-                        schoolID: 1,
-                        key: "difficulty",
-                        name: "Difficulty",
-                        description: "",
-                        sortOrder: 1,
-                        isActive: true,
-                    },
-                    {
-                        id: "dim-workload",
-                        schoolID: 1,
-                        key: "workload",
-                        name: "Workload",
-                        description: "",
-                        sortOrder: 2,
-                        isActive: true,
-                    },
-                    {
-                        id: "dim-usefulness",
-                        schoolID: 1,
-                        key: "usefulness",
-                        name: "Usefulness",
-                        description: "",
-                        sortOrder: 3,
-                        isActive: true,
-                    },
-                    {
-                        id: "dim-teaching",
-                        schoolID: 1,
-                        key: "teaching",
-                        name: "Teaching",
-                        description: "",
-                        sortOrder: 4,
-                        isActive: true,
-                    },
-                    {
-                        id: "dim-grading",
-                        schoolID: 1,
-                        key: "grading",
-                        name: "Grading",
-                        description: "",
-                        sortOrder: 5,
-                        isActive: true,
-                    },
+                    ratingDimension("difficulty", "Difficulty", 1),
+                    ratingDimension("workload", "Workload", 2),
+                    ratingDimension("usefulness", "Usefulness", 3),
+                    ratingDimension("teaching", "Teaching", 4),
+                    ratingDimension("grading", "Grading", 5),
                 ],
             }),
         });
