@@ -8,11 +8,43 @@ import { api } from "@/api";
 import { safeOnScopeDispose } from "@/stores/safeScopeDispose";
 import { registerSessionResetHandler } from "@/stores/sessionOrchestrator";
 
+type PaginatedApiResponse = {
+    data?: {
+        data?: unknown;
+    } | null;
+};
+
+function readPaginatedPayload<T>(payload: unknown): { list: T[]; total: number } {
+    if (!payload || typeof payload !== "object") {
+        throw new Error("Invalid paginated response");
+    }
+
+    const { list, total } = payload as { list?: unknown; total?: unknown };
+    if (!Array.isArray(list) || typeof total !== "number") {
+        throw new Error("Invalid paginated response");
+    }
+
+    return { list: list as T[], total };
+}
+
+function readFavoriteStatus(payload: unknown): boolean {
+    if (!payload || typeof payload !== "object") {
+        throw new Error("Invalid favorite status response");
+    }
+
+    const { favorited } = payload as { favorited?: unknown };
+    if (typeof favorited !== "boolean") {
+        throw new Error("Invalid favorite status response");
+    }
+
+    return favorited;
+}
+
 async function fetchPaginated<T>(
     apiFn: (
         page: number,
         pageSize: number,
-    ) => Promise<{ data?: { data?: { list: T[]; total: number } } }>,
+    ) => Promise<PaginatedApiResponse>,
     listRef: Ref<T[]>,
     totalRef: Ref<number>,
     loadingRef: Ref<boolean>,
@@ -25,7 +57,9 @@ async function fetchPaginated<T>(
     errorRef.value = null;
     try {
         const res = await apiFn(page, pageSize);
-        const items = res.data?.data?.list || [];
+        const { list: items, total } = readPaginatedPayload<T>(
+            res.data?.data,
+        );
         if (page === 1) {
             listRef.value = items;
         } else if (!keySelector) {
@@ -42,7 +76,7 @@ async function fetchPaginated<T>(
             });
             listRef.value = [...listRef.value, ...newItems];
         }
-        totalRef.value = res.data?.data?.total || 0;
+        totalRef.value = total;
     } catch (err) {
         errorRef.value = err instanceof Error ? err.message : String(err);
         throw err;
@@ -118,7 +152,7 @@ export const useUserStore = defineStore("user", () => {
         if (favoriteStatus.value[courseID] !== undefined) return;
         try {
             const res = await api.user.getFavoriteStatus(courseID);
-            const favorited = res.data?.data?.favorited ?? false;
+            const favorited = readFavoriteStatus(res.data?.data);
             favoriteStatus.value = {
                 ...favoriteStatus.value,
                 [courseID]: favorited,

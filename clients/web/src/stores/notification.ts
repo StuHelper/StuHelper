@@ -51,6 +51,35 @@ function isUnreadNotification(notification: AppNotification | undefined) {
     return notification && !notification.isRead;
 }
 
+function readNotificationPage(payload: unknown): {
+    list: AppNotification[];
+    total: number;
+} {
+    if (!payload || typeof payload !== "object") {
+        throw new Error("Invalid notification page response");
+    }
+
+    const { list, total } = payload as { list?: unknown; total?: unknown };
+    if (!Array.isArray(list) || typeof total !== "number") {
+        throw new Error("Invalid notification page response");
+    }
+
+    return { list: list as AppNotification[], total };
+}
+
+function readUnreadCount(payload: unknown): number {
+    if (!payload || typeof payload !== "object") {
+        throw new Error("Invalid unread count response");
+    }
+
+    const { count } = payload as { count?: unknown };
+    if (typeof count !== "number") {
+        throw new Error("Invalid unread count response");
+    }
+
+    return count;
+}
+
 export const useNotificationStore = defineStore("notification", () => {
     const pinia = getActivePinia();
     if (!pinia) {
@@ -254,8 +283,7 @@ export const useNotificationStore = defineStore("notification", () => {
                 normalizedPage,
                 normalizedPageSize,
             );
-            const list = (res.data?.data?.list || []) as AppNotification[];
-            const total = res.data?.data?.total || 0;
+            const { list, total } = readNotificationPage(res.data?.data);
 
             pageNotifications.value =
                 normalizedPage === 1
@@ -288,7 +316,7 @@ export const useNotificationStore = defineStore("notification", () => {
                 normalizedPage,
                 normalizedPageSize,
             );
-            const list = (res.data?.data?.list || []) as AppNotification[];
+            const { list } = readNotificationPage(res.data?.data);
 
             bellNotifications.value =
                 normalizedPage === 1
@@ -302,7 +330,7 @@ export const useNotificationStore = defineStore("notification", () => {
     const fetchUnreadCount = async () => {
         try {
             const res = await api.notification.getUnreadCount();
-            unreadCount.value = res.data?.data?.count || 0;
+            unreadCount.value = readUnreadCount(res.data?.data);
             consecutiveFailures = 0;
             clearStreamError();
         } catch (_error) { void _error;

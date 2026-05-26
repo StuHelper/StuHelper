@@ -109,6 +109,30 @@ describe('useNotificationStore', () => {
       expect(store.pageLoading).toBe(false)
     })
 
+    it('fails closed when page response is missing data', async () => {
+      const list = [{ id: '1', message: 'test', isRead: false }]
+      mockGetNotifications
+        .mockResolvedValueOnce({
+          data: { data: { list, total: 1 } },
+        })
+        .mockResolvedValueOnce({
+          data: { data: null },
+        })
+
+      const store = useNotificationStore()
+      await store.fetchPageNotifications(1, 20)
+
+      await expect(store.fetchPageNotifications(2, 20)).rejects.toThrow(
+        'Invalid notification page response',
+      )
+      expect(store.pageNotifications).toEqual(list)
+      expect(store.pageTotal).toBe(1)
+      expect(store.pageFetchError?.message).toBe(
+        'Invalid notification page response',
+      )
+      expect(store.pageLoading).toBe(false)
+    })
+
     it('normalizes invalid page params', async () => {
       mockGetNotifications.mockResolvedValue({
         data: { data: { list: [], total: 0 } },
@@ -142,6 +166,20 @@ describe('useNotificationStore', () => {
       expect(store.pageNotifications).toHaveLength(0)
       expect(store.bellLoading).toBe(false)
     })
+
+    it('fails closed when bell response is missing list data', async () => {
+      mockGetNotifications.mockResolvedValue({
+        data: { data: null },
+      })
+
+      const store = useNotificationStore()
+      await expect(store.fetchBellNotifications(1, 5)).rejects.toThrow(
+        'Invalid notification page response',
+      )
+
+      expect(store.bellNotifications).toEqual([])
+      expect(store.bellLoading).toBe(false)
+    })
   })
 
   describe('fetchUnreadCount', () => {
@@ -167,6 +205,18 @@ describe('useNotificationStore', () => {
 
       expect(store.unreadCount).toBe(0)
       expect(store.hasUnread).toBe(false)
+    })
+
+    it('does not overwrite unread count when count response is malformed', async () => {
+      mockGetUnreadCount.mockResolvedValue({
+        data: { data: null },
+      })
+
+      const store = useNotificationStore()
+      store.unreadCount = 7
+      await store.fetchUnreadCount()
+
+      expect(store.unreadCount).toBe(7)
     })
   })
 

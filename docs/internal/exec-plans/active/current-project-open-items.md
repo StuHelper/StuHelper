@@ -223,6 +223,20 @@ MCP 也在临时 Web Vite `http://127.0.0.1:3446/user/reviews` 注入同等 sess
 `verifiedCount=2`、`unboundCount=2`，三个入口分别指向 `/user/academic-info`、`/user/qq-binding` 和
 `/user/phone-binding`，浏览器 console error 为 0。
 
+本地验证补充（2026-05-26）：继续收紧 Web 用户内容与通知列表的成功响应校验，`我的评价`、`我的点赞`、
+`我的收藏`、通知页和通知铃铛不再把 HTTP 200 但缺失 `data.list` / `data.total` / `data.count` 的响应
+静默显示为“暂无”，而是进入加载失败 / 保持既有状态并允许重试；课程收藏状态查询也不再把畸形响应默认为未收藏。
+新增 store 单测覆盖收藏分页、收藏状态、通知页列表、通知铃铛列表和未读数畸形响应，新增用户中心 E2E 覆盖评价、
+点赞、收藏、通知页 fail-closed 与重试成功路径；同批修正用户中心资料摘要测试选择器歧义，并让 Web
+E2E fixture 不再把页面导航取消的 API `net::ERR_ABORTED` 误判为后端失败。已通过目标单测
+`pnpm --dir clients --filter @stuhelper/web exec vitest run src/stores/__tests__/user.test.ts src/stores/__tests__/notification.test.ts src/modules/user/__tests__/useNotificationsPageController.test.ts src/components/common/__tests__/useNotificationBellController.test.ts`
+（28 项）、目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3512 pnpm --dir clients/web exec playwright test tests/e2e/journey-user-center.spec.ts`
+（40 项）、失败用例复验
+`CI=1 PLAYWRIGHT_WEB_PORT=3514 pnpm --dir clients/web exec playwright test tests/e2e/journey-user-center.spec.ts:183 tests/e2e/journey-browse.spec.ts:183`
+（4 项）、`pnpm --dir clients test:web`（54 文件、247 项）、`pnpm --dir clients type-check:web`、
+`pnpm --dir clients lint:web` 和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3515 make e2e-web`（184 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

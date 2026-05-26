@@ -51,6 +51,21 @@
         />
       </div>
       <EmptyState
+        v-else-if="pageFetchError && !loading"
+        :title="t('common.loadFailed')"
+        :description="t('common.loadFailed')"
+      >
+        <template #action>
+          <button
+            type="button"
+            class="inline-flex items-center justify-center rounded-sm bg-text-primary px-4 py-2 text-sm font-medium text-bg-base transition-colors duration-fast hover:bg-accent hover:text-white"
+            @click="init"
+          >
+            {{ t('common.actions.retry') }}
+          </button>
+        </template>
+      </EmptyState>
+      <EmptyState
         v-else-if="!loading"
         :title="t('user.notification.empty')"
         :description="t('user.notification.emptyDesc')"
@@ -81,6 +96,7 @@ const {
   unreadCount,
   hasUnread,
   lastSSEEvent,
+  pageFetchError,
 } = storeToRefs(store)
 
 const {

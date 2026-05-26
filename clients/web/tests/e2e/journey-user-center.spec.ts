@@ -191,10 +191,10 @@ test.describe('User Journey: User Center', () => {
       timeout: 10_000,
     })
     await expect(main.getByText('bob@example.com')).toBeVisible()
-    await expect(main.getByText('实名认证')).toBeVisible()
-    await expect(main.getByText('学生认证')).toBeVisible()
-    await expect(main.getByText('绑定 QQ')).toBeVisible()
-    await expect(main.getByText('绑定手机')).toBeVisible()
+    await expect(main.getByText('实名认证', { exact: true })).toBeVisible()
+    await expect(main.getByText('学生认证', { exact: true })).toBeVisible()
+    await expect(main.getByText('绑定 QQ', { exact: true })).toBeVisible()
+    await expect(main.getByText('绑定手机', { exact: true })).toBeVisible()
     await expect(main.getByText('已认证', { exact: true })).toHaveCount(2)
     await expect(main.getByText('未绑定', { exact: true })).toHaveCount(2)
 
@@ -426,6 +426,137 @@ test.describe('User Journey: User Center', () => {
     await expect(page.getByText('数据结构与算法').first()).toBeVisible({
       timeout: 10_000,
     })
+  })
+
+  test('invalid user reviews response fails closed and can retry', async ({
+    page,
+  }) => {
+    let loadCount = 0
+
+    await page.route('**/api/v1/course/review/user/reviews*', async (route) => {
+      loadCount += 1
+      await route.fulfill(
+        loadCount === 1
+          ? ok(null)
+          : ok({
+              list: [
+                {
+                  id: 'retry-review-1',
+                  courseID: 101,
+                  courseName: '数据结构与算法',
+                  title: '重试后的评价',
+                  content: '异常响应重试后应显示真实评价。',
+                  ratings: { recommendation: 4 },
+                  likeCount: 3,
+                  dislikeCount: 0,
+                  replyCount: 1,
+                  status: 'published',
+                  createdAt: '2026-04-01T10:00:00Z',
+                },
+              ],
+              total: 1,
+              page: 1,
+              pageSize: 10,
+            }),
+      )
+    })
+
+    await page.goto('/user/reviews')
+
+    const status = page.getByRole('status').filter({ hasText: '加载失败' })
+    await expect(status).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText('暂无评价')).toHaveCount(0)
+
+    await status.getByRole('button', { name: '重试' }).click()
+
+    await expect.poll(() => loadCount).toBe(2)
+    await expect(page.getByText('重试后的评价')).toBeVisible()
+  })
+
+  test('invalid user votes response fails closed and can retry', async ({
+    page,
+  }) => {
+    let loadCount = 0
+
+    await page.route('**/api/v1/course/review/user/votes*', async (route) => {
+      loadCount += 1
+      await route.fulfill(
+        loadCount === 1
+          ? ok(null)
+          : ok({
+              list: [
+                {
+                  id: 'retry-vote-1',
+                  courseID: 101,
+                  courseName: '数据结构与算法',
+                  title: '重试后的点赞评价',
+                  content: '异常响应重试后应显示真实点赞评价。',
+                  ratings: { recommendation: 5 },
+                  likeCount: 10,
+                  dislikeCount: 0,
+                  replyCount: 2,
+                  status: 'published',
+                  createdAt: '2026-03-25T10:00:00Z',
+                },
+              ],
+              total: 1,
+              page: 1,
+              pageSize: 10,
+            }),
+      )
+    })
+
+    await page.goto('/user/votes')
+
+    const status = page.getByRole('status').filter({ hasText: '加载失败' })
+    await expect(status).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText('暂无点赞')).toHaveCount(0)
+
+    await status.getByRole('button', { name: '重试' }).click()
+
+    await expect.poll(() => loadCount).toBe(2)
+    await expect(page.getByText('重试后的点赞评价')).toBeVisible()
+  })
+
+  test('invalid user favorites response fails closed and can retry', async ({
+    page,
+  }) => {
+    let loadCount = 0
+
+    await page.route('**/api/v1/course/review/user/favorites*', async (route) => {
+      loadCount += 1
+      await route.fulfill(
+        loadCount === 1
+          ? ok(null)
+          : ok({
+              list: [
+                {
+                  id: 101,
+                  name: '数据结构与算法',
+                  code: 'CS201',
+                  departmentID: 1,
+                  departmentName: '计算机科学与技术学院',
+                  reviewCount: 23,
+                  favoritedAt: '2026-03-25T10:00:00Z',
+                },
+              ],
+              total: 1,
+              page: 1,
+              pageSize: 10,
+            }),
+      )
+    })
+
+    await page.goto('/user/favorites')
+
+    const status = page.getByRole('status').filter({ hasText: '加载失败' })
+    await expect(status).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText('暂无收藏')).toHaveCount(0)
+
+    await status.getByRole('button', { name: '重试' }).click()
+
+    await expect.poll(() => loadCount).toBe(2)
+    await expect(page.getByText('数据结构与算法').first()).toBeVisible()
   })
 
   test('invalid authorized apps response fails closed and can retry', async ({
@@ -824,6 +955,50 @@ test.describe('User Journey: User Center', () => {
     await expect(
       page.getByRole('heading', { name: 'Campus Data' }),
     ).toHaveCount(0)
+  })
+
+  test('invalid notifications response fails closed and can retry', async ({
+    page,
+  }) => {
+    let loadCount = 0
+
+    await page.route(
+      '**/api/v1/course/review/user/notifications?*',
+      async (route) => {
+        loadCount += 1
+        await route.fulfill(
+          loadCount === 1
+            ? ok(null)
+            : ok({
+                list: [
+                  {
+                    id: 'retry-notif-1',
+                    type: 'reply',
+                    title: '重试后的通知',
+                    content: '异常响应重试后应显示真实通知。',
+                    isRead: false,
+                    createdAt: '2026-04-05T10:00:00Z',
+                    meta: { courseID: 101, reviewID: 'my-rev-1' },
+                  },
+                ],
+                total: 1,
+                page: 1,
+                pageSize: 20,
+              }),
+        )
+      },
+    )
+
+    await page.goto('/notifications')
+
+    const status = page.getByRole('status').filter({ hasText: '加载失败' })
+    await expect(status).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText('暂无通知')).toHaveCount(0)
+
+    await status.getByRole('button', { name: '重试' }).click()
+
+    await expect.poll(() => loadCount).toBe(2)
+    await expect(page.getByText('重试后的通知')).toBeVisible()
   })
 
   test('user views notifications and marks all as read', async ({ page }) => {

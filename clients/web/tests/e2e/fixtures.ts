@@ -89,6 +89,10 @@ function isApiRequest(request: Request) {
   return new URL(request.url()).pathname.startsWith('/api/v1/')
 }
 
+function isExpectedApiRequestFailure(request: Request) {
+  return request.failure()?.errorText === 'net::ERR_ABORTED'
+}
+
 async function mockNotificationStream(page: Page) {
   await page.route(
     '**/api/v1/course/review/user/notifications/stream',
@@ -190,7 +194,9 @@ export const test = base.extend<{ page: Page }>({
         failedRequests.push(describeFailedRequest(request))
       }
       if (isApiRequest(request)) {
-        apiFailures.push(describeFailedRequest(request))
+        if (!isExpectedApiRequestFailure(request)) {
+          apiFailures.push(describeFailedRequest(request))
+        }
       }
     })
     page.on('response', (response) => {

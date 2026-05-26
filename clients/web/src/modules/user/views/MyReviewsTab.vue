@@ -79,13 +79,30 @@ const total = ref(0)
 const page = ref(1)
 const errorMessage = ref('')
 
+function readReviewPage(payload: unknown): { list: Review[]; total: number } {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid review list response')
+  }
+
+  const { list, total } = payload as { list?: unknown; total?: unknown }
+  if (!Array.isArray(list) || typeof total !== 'number') {
+    throw new Error('Invalid review list response')
+  }
+
+  return {
+    list: normalizeReviews(list as Parameters<typeof normalizeReviews>[0]),
+    total,
+  }
+}
+
 async function loadInitial() {
   loading.value = true
   errorMessage.value = ''
   try {
     const res = await api.user.getMyReviews(1, 10)
-    reviews.value = normalizeReviews(res.data?.data?.list)
-    total.value = res.data?.data?.total || 0
+    const pageData = readReviewPage(res.data?.data)
+    reviews.value = pageData.list
+    total.value = pageData.total
     page.value = 1
   } catch (err) {
     errorMessage.value = getErrorMessage(err, t('common.loadFailed'))
@@ -102,7 +119,9 @@ const loadMore = async () => {
   const nextPage = page.value + 1
   try {
     const res = await api.user.getMyReviews(nextPage, 10)
-    reviews.value = [...reviews.value, ...normalizeReviews(res.data?.data?.list)]
+    const pageData = readReviewPage(res.data?.data)
+    reviews.value = [...reviews.value, ...pageData.list]
+    total.value = pageData.total
     page.value = nextPage
   } catch (err) {
     errorMessage.value = getErrorMessage(err, t('common.loadFailed'))
