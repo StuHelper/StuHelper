@@ -695,6 +695,14 @@ panic，避免生产路由在错误装配下返回 501 并掩盖配置问题；�
 QUICKSTART 已同步说明本地复用 / CI 不复用行为。修正后在当前 dev 栈运行中直接执行裸 `make e2e`
 已通过 Web 232 项、Admin 78 项和 UniAppX H5 52 项。
 
+本地 dev smoke 补强（2026-05-27）：清理 `clients/shared/dist` 等产物后复跑 `make dev-smoke` 时，
+Admin 未登录入口按预期跳转本地 Casdoor，但跳转会取消同源 Vite 模块请求并产生 `net::ERR_ABORTED`，
+旧版 `dev-browser-smoke.mjs` 将这些浏览器导航取消误判为关键资源破损。现仅在 `admin-entry` 检查中允许
+同源、非 `document`、错误文本为 `net::ERR_ABORTED` 的关键资源请求失败；文档、HTTP 4xx/5xx、
+API 失败、`pageerror` 和非预期 `console.error` 仍按失败处理。已通过
+`node --check infra/ops/dev-browser-smoke.mjs`、`bash infra/ops/tests/dev-smoke-contract.sh`、
+`make dev-smoke`（HTTP/API 18 项、浏览器 3 项）和 Playwright MCP 抽检 Web 首页 / Admin 到 Casdoor 登录页。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

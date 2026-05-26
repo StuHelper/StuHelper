@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 DEV_SMOKE="${REPO_ROOT}/infra/ops/dev-smoke.sh"
+DEV_BROWSER_SMOKE="${REPO_ROOT}/infra/ops/dev-browser-smoke.mjs"
 
 fail() {
   echo "[dev-smoke-contract][error] $*" >&2
@@ -27,8 +28,10 @@ line_number() {
 }
 
 [[ -x "${DEV_SMOKE}" ]] || fail "missing executable file: ${DEV_SMOKE}"
+[[ -f "${DEV_BROWSER_SMOKE}" ]] || fail "missing file: ${DEV_BROWSER_SMOKE}"
 
 bash -n "${DEV_SMOKE}"
+node --check "${DEV_BROWSER_SMOKE}"
 
 assert_contains "${DEV_SMOKE}" 'source "\$\{SCRIPT_DIR\}/lib/common\.sh"'
 assert_contains "${DEV_SMOKE}" 'source "\$\{SCRIPT_DIR\}/lib/dev-local\.sh"'
@@ -42,6 +45,9 @@ assert_contains "${DEV_SMOKE}" 'export GRAFANA_URL="\$\{dev_grafana_url\}"'
 assert_contains "${DEV_SMOKE}" '"\$\{SCRIPT_DIR\}/smoke-check\.sh"'
 assert_contains "${DEV_SMOKE}" 'if \[\[ "\$\{DEV_BROWSER_SMOKE:-true\}" == "true" \]\]; then'
 assert_contains "${DEV_SMOKE}" 'node "\$\{SCRIPT_DIR\}/dev-browser-smoke\.mjs"'
+assert_contains "${DEV_BROWSER_SMOKE}" 'allowNavigationAbortedResourceRequests: true'
+assert_contains "${DEV_BROWSER_SMOKE}" "request\\.resourceType\\(\\) === 'document'"
+assert_contains "${DEV_BROWSER_SMOKE}" "request\\.failure\\(\\)\\?\\.errorText !== 'net::ERR_ABORTED'"
 
 probe_line="$(line_number 'curl --fail --silent --show-error --max-time 2 "\$\{dev_grafana_url\}/api/health"')"
 export_line="$(line_number 'export GRAFANA_URL="\$\{dev_grafana_url\}"')"

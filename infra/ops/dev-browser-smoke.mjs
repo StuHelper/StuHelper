@@ -38,6 +38,7 @@ const checks = [
     name: 'admin-entry',
     url: joinURL(adminBaseURL, adminPath),
     expectedTexts: ['Sign In', '登录', 'StuHelper Admin'],
+    allowNavigationAbortedResourceRequests: true,
     allowedAPIResponses: [
       {
         path: '/api/v1/auth/me',
@@ -91,6 +92,9 @@ async function runCheck(browserInstance, check) {
   });
   page.on('requestfailed', (request) => {
     if (!criticalResourceTypes.has(request.resourceType())) {
+      return;
+    }
+    if (isAllowedFailedCriticalResource(request, check)) {
       return;
     }
     failures.push(
@@ -169,6 +173,19 @@ function isAllowedNetworkStatusConsoleError(text, allowedResponses) {
     return false;
   }
   return allowedResponses.length > 0;
+}
+
+function isAllowedFailedCriticalResource(request, check) {
+  if (!check.allowNavigationAbortedResourceRequests) {
+    return false;
+  }
+  if (request.resourceType() === 'document') {
+    return false;
+  }
+  if (request.failure()?.errorText !== 'net::ERR_ABORTED') {
+    return false;
+  }
+  return new URL(request.url()).origin === new URL(check.url).origin;
 }
 
 function normalizeBaseURL(value) {
