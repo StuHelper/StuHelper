@@ -29,6 +29,39 @@ const allCollapsed = computed(() =>
   departmentGroups.value.every((g) => !g.expanded),
 )
 
+function readDepartmentGroups(payload: unknown): DepartmentGroup[] {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid grouped courses response')
+  }
+
+  const { groups } = payload as { groups?: unknown }
+  if (!Array.isArray(groups)) {
+    throw new Error('Invalid grouped courses response')
+  }
+
+  return groups.map((group) => {
+    if (!group || typeof group !== 'object') {
+      throw new Error('Invalid grouped courses response')
+    }
+
+    const { departmentName, courses } = group as {
+      departmentName?: unknown
+      courses?: unknown
+    }
+    if (!Array.isArray(courses)) {
+      throw new Error('Invalid grouped courses response')
+    }
+
+    return {
+      name: typeof departmentName === 'string' && departmentName
+        ? departmentName
+        : t('review.filters.all'),
+      courses: courses as Course[],
+      expanded: true,
+    }
+  })
+}
+
 function expandAll(): void {
   departmentGroups.value = departmentGroups.value.map((g) => ({
     ...g,
@@ -54,12 +87,7 @@ async function fetchCourses(): Promise<void> {
   error.value = null
   try {
     const res = await api.course.getCoursesGrouped()
-    const groups = res.data?.data?.groups ?? []
-    departmentGroups.value = groups.map((g) => ({
-      name: g.departmentName ?? t('review.filters.all'),
-      courses: g.courses ?? [],
-      expanded: true,
-    }))
+    departmentGroups.value = readDepartmentGroups(res.data?.data)
   } catch (_error) { void _error;
     error.value = t('review.courseList.loadFailed')
     departmentGroups.value = []

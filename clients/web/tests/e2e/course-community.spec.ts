@@ -344,4 +344,65 @@ test.describe("Course community surfaces", () => {
             )
             .toBe(true);
     });
+
+    test("invalid popular teachers response fails closed and can retry", async ({
+        page,
+    }) => {
+        let loadCount = 0;
+
+        await page.route("**/api/v1/course/review/teachers/hot*", (route) => {
+            recordApiRequest(route);
+            loadCount += 1;
+            return route.fulfill(
+                loadCount === 1 ? ok(null) : list(popularTeachers),
+            );
+        });
+
+        await page.goto("/teachers");
+
+        await expect(page.getByText("加载失败")).toBeVisible({
+            timeout: 10_000,
+        });
+        await expect(page.getByText("暂无教师数据。")).toHaveCount(0);
+
+        await page.getByRole("button", { name: "重试" }).click();
+
+        await expect.poll(() => loadCount).toBe(2);
+        await expect(page.getByRole("link", { name: /陈老师/ })).toBeVisible();
+    });
+
+    test("invalid teacher search response fails closed and can retry", async ({
+        page,
+    }) => {
+        let searchCount = 0;
+
+        await page.route("**/api/v1/course/review/teachers/hot*", (route) => {
+            recordApiRequest(route);
+            return route.fulfill(list(popularTeachers));
+        });
+        await page.route("**/api/v1/course/review/teachers?*", (route) => {
+            recordApiRequest(route);
+            searchCount += 1;
+            return route.fulfill(
+                searchCount === 1 ? ok(null) : list(searchedTeachers),
+            );
+        });
+
+        await page.goto("/teachers");
+        await expect(page.getByRole("link", { name: /陈老师/ })).toBeVisible({
+            timeout: 10_000,
+        });
+
+        await page.getByLabel("输入教师姓名搜索...").fill("王");
+
+        await expect(page.getByText("加载失败")).toBeVisible({
+            timeout: 10_000,
+        });
+        await expect(page.getByText("未找到匹配的教师，换个名字试试。")).toHaveCount(0);
+
+        await page.getByRole("button", { name: "重试" }).click();
+
+        await expect.poll(() => searchCount).toBe(2);
+        await expect(page.getByRole("link", { name: /王老师/ })).toBeVisible();
+    });
 });

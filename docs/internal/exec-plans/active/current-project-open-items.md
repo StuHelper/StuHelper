@@ -263,6 +263,18 @@ composable 都会把 HTTP 200 但缺失 `data.list` / `data.total` 的回复列�
 （12 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、`pnpm --dir clients test:web`
 （55 文件、253 项）和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3519 make e2e-web`（188 项）。
 
+本地验证补充（2026-05-26）：继续收紧课程与教师列表响应。课程 store 的院系数组和院系课程列表不再把
+畸形 200 响应写入缓存；课程全集 `/courses/list` 要求 grouped payload 必须包含 `groups` 数组且每个分组
+必须有 `courses` 数组，否则显示“获取课程列表失败，请稍后重试”而不是“没有获取到任何课程数据”；教师主页
+热门教师和搜索结果也分别要求 `data.list` / `data.list + data.total`，畸形响应显示加载失败并保留重试入口，
+不再误显示“暂无教师数据”或“未找到匹配的教师”。新增 course store 单测覆盖畸形院系 / 课程列表响应，新增
+课程全集和教师主页 E2E 覆盖首次畸形响应 fail-closed 与重试成功。已通过目标单测
+`pnpm --dir clients --filter @stuhelper/web exec vitest run src/stores/__tests__/courseReview.test.ts`（14 项）、
+目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3520 pnpm --dir clients/web exec playwright test tests/e2e/course-browse.spec.ts tests/e2e/course-community.spec.ts`
+（22 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、`pnpm --dir clients test:web`
+（55 文件、255 项）和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3521 make e2e-web`（194 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

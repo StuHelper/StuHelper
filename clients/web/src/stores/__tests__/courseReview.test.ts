@@ -81,6 +81,19 @@ describe('useCourseStore', () => {
       expect(store.departments).toEqual([])
       expect(store.departmentsLoading).toBe(false)
     })
+
+    it('fails closed when departments response is malformed', async () => {
+      mockGetDepartments.mockResolvedValue({ data: { data: null } })
+
+      const store = useCourseStore()
+      await expect(store.fetchDepartments()).rejects.toThrow(
+        'Invalid departments response',
+      )
+
+      expect(store.departmentsError).toBeTruthy()
+      expect(store.departments).toEqual([])
+      expect(store.departmentsLoading).toBe(false)
+    })
   })
 
   describe('fetchCourses', () => {
@@ -122,6 +135,19 @@ describe('useCourseStore', () => {
 
       expect(store.coursesError).toBeTruthy()
       expect(store.courses).toEqual([])
+    })
+
+    it('fails closed when courses response is missing list data', async () => {
+      mockGetCourses.mockResolvedValue({ data: { data: null } })
+
+      const store = useCourseStore()
+      await expect(store.fetchCourses(1)).rejects.toThrow(
+        'Invalid courses response',
+      )
+
+      expect(store.coursesError).toBeTruthy()
+      expect(store.courses).toEqual([])
+      expect(store.coursesLoading).toBe(false)
     })
   })
 

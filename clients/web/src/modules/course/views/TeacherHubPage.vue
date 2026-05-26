@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Search, X, User, BookOpen } from 'lucide-vue-next'
 import { api } from '@/api'
+import { readListPayload, readPaginatedPayload } from '@/api/responsePayload'
 import EmojiRating from '@/components/business/review/EmojiRating.vue'
 
 interface TeacherEntry {
@@ -21,18 +22,24 @@ const searchResults = ref<TeacherEntry[]>([])
 const searchTotal = ref(0)
 const searching = ref(false)
 const loading = ref(true)
+const errorMessage = ref('')
 const popularTeachers = ref<TeacherEntry[]>([])
 
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 
 async function loadPopularTeachers() {
   loading.value = true
+  errorMessage.value = ''
   try {
     const res = await api.rating.listHotTeachers(20)
-    const list = res.data?.data?.list
-    popularTeachers.value = (list ?? []).map(mapTeacher)
+    const list = readListPayload<Parameters<typeof mapTeacher>[0]>(
+      res.data?.data,
+      'Invalid popular teachers response',
+    )
+    popularTeachers.value = list.map(mapTeacher)
   } catch (_error) { void _error;
     popularTeachers.value = []
+    errorMessage.value = t('common.loadFailed')
   } finally {
     loading.value = false
   }
@@ -54,6 +61,7 @@ function handleSearchInput() {
   if (!searchQuery.value.trim()) {
     searchResults.value = []
     searchTotal.value = 0
+    errorMessage.value = ''
     return
   }
   searchTimer = setTimeout(() => doSearch(), 350)
@@ -64,14 +72,19 @@ async function doSearch() {
   if (!q) return
 
   searching.value = true
+  errorMessage.value = ''
   try {
     const res = await api.rating.listTeachers({ q, sort: 'reviews', pageSize: 30 })
-    const data = res.data?.data
-    searchResults.value = (data?.list ?? []).map(mapTeacher)
-    searchTotal.value = data?.total ?? 0
+    const data = readPaginatedPayload<Parameters<typeof mapTeacher>[0]>(
+      res.data?.data,
+      'Invalid teacher search response',
+    )
+    searchResults.value = data.list.map(mapTeacher)
+    searchTotal.value = data.total
   } catch (_error) { void _error;
     searchResults.value = []
     searchTotal.value = 0
+    errorMessage.value = t('common.loadFailed')
   } finally {
     searching.value = false
   }
@@ -81,6 +94,7 @@ function clearSearch() {
   searchQuery.value = ''
   searchResults.value = []
   searchTotal.value = 0
+  errorMessage.value = ''
 }
 
 onMounted(loadPopularTeachers)
@@ -94,7 +108,7 @@ const displayTeachers = computed(() =>
 )
 
 const showEmpty = computed(
-  () => !loading.value && !searching.value && displayTeachers.value.length === 0,
+  () => !loading.value && !searching.value && !errorMessage.value && displayTeachers.value.length === 0,
 )
 </script>
 
@@ -162,6 +176,19 @@ const showEmpty = computed(
           class="h-[140px] rounded-xl bg-[length:200%_100%] animate-shimmer"
           :style="{ backgroundImage: 'linear-gradient(90deg, var(--color-bg-secondary) 25%, var(--color-bg-tertiary) 50%, var(--color-bg-secondary) 75%)' }"
         />
+      </div>
+
+      <!-- Error -->
+      <div v-else-if="errorMessage" class="text-center py-12 text-text-muted">
+        <User :size="48" class="mx-auto mb-4 opacity-30" />
+        <p class="mb-4">{{ errorMessage }}</p>
+        <button
+          type="button"
+          class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
+          @click="searchQuery.trim() ? doSearch() : loadPopularTeachers()"
+        >
+          {{ t('common.actions.retry') }}
+        </button>
       </div>
 
       <!-- Teacher cards -->

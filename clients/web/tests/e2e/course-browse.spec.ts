@@ -138,6 +138,57 @@ test.describe('Course Browse Flow', () => {
     await expect(page.getByText('数据结构')).toBeVisible()
   })
 
+  test('invalid grouped course response fails closed and can retry', async ({
+    page,
+  }) => {
+    let loadCount = 0
+
+    await page.route('**/api/v1/course/courses/grouped', async (route) => {
+      loadCount += 1
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify(
+          loadCount === 1
+            ? { success: true, data: null }
+            : {
+                success: true,
+                data: {
+                  groups: [
+                    {
+                      departmentID: 2,
+                      departmentName: '数学科学学院',
+                      courses: [
+                        {
+                          id: 1,
+                          name: '高等数学A',
+                          code: 'MATH101',
+                          departmentID: 2,
+                          departmentName: '数学科学学院',
+                          credits: 4,
+                          reviewCount: 15,
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+        ),
+      })
+    })
+
+    await page.goto('/courses/list')
+
+    await expect(page.getByText('获取课程列表失败，请稍后重试')).toBeVisible({
+      timeout: 10_000,
+    })
+    await expect(page.getByText('没有获取到任何课程数据')).toHaveCount(0)
+
+    await page.getByRole('button', { name: '重试' }).click()
+
+    await expect.poll(() => loadCount).toBe(2)
+    await expect(page.getByText('高等数学A')).toBeVisible()
+  })
+
   test('course detail page loads and shows course info', async ({ page }) => {
     await page.route('**/api/v1/course/courses/1', (route) =>
       route.fulfill({
