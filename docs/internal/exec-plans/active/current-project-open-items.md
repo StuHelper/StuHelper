@@ -1111,6 +1111,17 @@ Load Failed”静态错误页；随后点击错误页“刷新页面 / Refresh P
 （12 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3500 make e2e-web`（156 项）。
 
+本地验证补充（2026-05-26）：继续补齐 Open Platform 授权页 fail-closed 浏览器路径。此前
+`open-platform-consent.spec.ts` 已覆盖正常授权、拒绝授权、资料补全和资料刷新，但未覆盖授权请求 API
+返回结构异常、授权提交返回非法 redirect 这两类生产可见错误态。本轮新增桌面 / 移动 E2E：当
+`GET /api/v1/open-platform/consent` 返回 `success=true` 但 `data=null` 时，页面停在授权页并显示
+“授权请求加载失败 / Failed to load authorization request”，点击“重试 / Retry”后会重新请求并恢复到
+正常授权确认页；当 `POST /api/v1/open-platform/consent/accept` 返回 `javascript:` redirect 时，页面拒绝
+离开 `id` 授权页并显示“授权操作失败，请重试 / Authorization failed. Please retry”。验证已通过
+`CI=1 PLAYWRIGHT_WEB_PORT=3502 pnpm --dir clients/web exec playwright test tests/e2e/open-platform-consent.spec.ts`
+（14 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、`make check-docs` 和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3503 make e2e-web`（160 项）。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |

@@ -195,6 +195,86 @@ test.describe("Open Platform consent flow", () => {
         await expect(page.getByText("Client denied callback")).toBeVisible();
     });
 
+    test("invalid authorization request response fails closed and can retry", async ({
+        page,
+    }) => {
+        let loadCount = 0;
+
+        await page.route("**/api/v1/open-platform/consent?*", async (route) => {
+            loadCount += 1;
+            await route.fulfill(
+                loadCount === 1
+                    ? ok(null)
+                    : ok({
+                          token: "retry-consent-token",
+                          app,
+                          scopes,
+                          redirectURI: "https://client.example.com/callback",
+                          expiresAt: "2026-06-01T10:00:00Z",
+                      }),
+            );
+        });
+
+        await page.goto("/consent?token=retry-consent-token");
+
+        await expect(
+            page.getByRole("heading", {
+                name: /授权请求加载失败|Failed to load authorization request/,
+            }),
+        ).toBeVisible();
+        await expect(
+            page
+                .locator("p")
+                .filter({
+                    hasText:
+                        /授权请求加载失败|Failed to load authorization request/,
+                }),
+        ).toBeVisible();
+
+        await page.getByRole("button", { name: /重试|Retry/ }).click();
+        await expect.poll(() => loadCount).toBe(2);
+        await expect(
+            page.getByRole("heading", { name: /Campus Connector/ }),
+        ).toBeVisible();
+        await expect(page.getByText("profile.basic.read")).toBeVisible();
+    });
+
+    test("unsafe authorization redirect is rejected without leaving identity page", async ({
+        page,
+    }) => {
+        await page.route("**/api/v1/open-platform/consent?*", async (route) => {
+            await route.fulfill(
+                ok({
+                    token: "unsafe-redirect-token",
+                    app,
+                    scopes,
+                    redirectURI: "https://client.example.com/callback",
+                    expiresAt: "2026-06-01T10:00:00Z",
+                }),
+            );
+        });
+        await page.route(
+            "**/api/v1/open-platform/consent/accept",
+            async (route) => {
+                await route.fulfill(
+                    ok({ redirectURL: "javascript:alert(1)" }),
+                );
+            },
+        );
+
+        await page.goto("/consent?token=unsafe-redirect-token");
+        await expect(
+            page.getByRole("heading", { name: /Campus Connector/ }),
+        ).toBeVisible();
+
+        await page.getByRole("button", { name: /允许|Allow/ }).click();
+
+        await expect(page).toHaveURL(/\/consent\?token=unsafe-redirect-token/);
+        await expect(
+            page.getByText(/授权操作失败，请重试|Authorization failed. Please retry/),
+        ).toBeVisible();
+    });
+
     test("user completes missing profile fields and continues to consent", async ({
         page,
     }) => {
