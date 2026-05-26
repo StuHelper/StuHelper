@@ -1161,6 +1161,19 @@ No application activity yet”；轮换 client secret 时如果响应缺少 `cli
 （12 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、`pnpm --dir clients test:web`
 （53 文件、238 项）和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3509 make e2e-web`（174 项）。
 
+本地验证补充（2026-05-26）：继续补齐用户认证 / 绑定链路的成功响应 fail-closed 约束。此前
+`useVerificationStore` 会把实名认证、学生认证、学校列表、证件照片上传、手机绑定后的 profile 刷新和
+QQ 绑定码生成接口中 `success=true` 但 `data=null` / 缺少关键字段的响应当作空状态处理，可能导致页面把
+契约异常误显示为未认证、无学校、无绑定码或绑定成功。本轮改为：404 仍表示“资源不存在”，但 200 成功响应
+必须携带对应业务数据；学校列表必须是数组，证件照片上传必须返回非空 `key`，QQ 绑定码必须返回完整对象，
+手机绑定后必须刷新到 profile。新增 store 单测锁定认证状态、QQ 绑定码和证件照片上传异常响应 fail-closed；
+新增桌面 / 移动 E2E 覆盖 QQ 绑定码接口返回 `data=null` 时页面显示“操作失败，请重试”，不会显示成功指令或
+伪造绑定命令。验证已通过
+`pnpm --dir clients --filter @stuhelper/web exec vitest run src/stores/__tests__/verification.test.ts`（7 项）、
+`CI=1 PLAYWRIGHT_WEB_PORT=3510 pnpm --dir clients/web exec playwright test tests/e2e/user-verification.spec.ts`
+（16 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、`pnpm --dir clients test:web`
+（53 文件、241 项）和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3511 make e2e-web`（176 项）。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |

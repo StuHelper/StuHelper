@@ -87,6 +87,26 @@ describe('useVerificationStore', () => {
     expect(store.qqBinding).toBeNull()
   })
 
+  it('认证状态接口成功但缺少 data 时失败关闭', async () => {
+    mockGetIdentity.mockResolvedValue({
+      data: {
+        data: null,
+      },
+    })
+    mockGetProfile.mockRejectedValue({ status: 404 })
+    mockGetQQBinding.mockRejectedValue({ status: 404 })
+
+    const store = useVerificationStore()
+
+    await expect(store.fetchStatus()).rejects.toThrow(
+      'Invalid nullable resource response',
+    )
+    expect(store.identity).toBeNull()
+    expect(store.profile).toBeNull()
+    expect(store.qqBinding).toBeNull()
+    expect(store.loading).toBe(false)
+  })
+
   it('生成绑定码后会更新本地状态', async () => {
     mockCreateQQBindingCode.mockResolvedValue({
       data: {
@@ -102,6 +122,40 @@ describe('useVerificationStore', () => {
 
     expect(result?.code).toBe('ABCD1234')
     expect(store.qqBindingCode?.expiresAt).toBe('2026-04-19T00:10:00Z')
+  })
+
+  it('生成绑定码接口成功但缺少 data 时失败关闭', async () => {
+    mockCreateQQBindingCode.mockResolvedValue({
+      data: {
+        data: null,
+      },
+    })
+
+    const store = useVerificationStore()
+
+    await expect(store.createQQBindingCode()).rejects.toThrow(
+      'Invalid QQ binding code response',
+    )
+    expect(store.qqBindingCode).toBeNull()
+  })
+
+  it('证件照片上传成功但缺少 key 时失败关闭', async () => {
+    mockUploadIdentityPhoto.mockResolvedValue({
+      data: {
+        data: {},
+      },
+    })
+
+    const store = useVerificationStore()
+
+    await expect(
+      store.uploadIdentityPhoto({
+        slot: 'front',
+        filename: 'passport.png',
+        contentType: 'image/png',
+        dataBase64: 'AA==',
+      }),
+    ).rejects.toThrow('Invalid identity photo upload response')
   })
 
   it('reset 会清空 QQ 绑定相关状态', async () => {

@@ -639,6 +639,31 @@ test.describe("User verification flows", () => {
         await expect(page.getByText("软件工程")).toBeVisible();
     });
 
+    test("invalid QQ binding code response fails closed", async ({ page }) => {
+        const state: UserApiState = {
+            identity: { ...verifiedIdentity },
+            profile: { ...verifiedProfile },
+            qqBinding: null,
+        };
+
+        await mockUserApi(page, state);
+        await page.unroute("**/api/v1/user/qq-binding/code");
+        await page.route("**/api/v1/user/qq-binding/code", (route) =>
+            route.fulfill(ok(null)),
+        );
+
+        await gotoAuthenticatedPage(page, "/user/qq-binding");
+        await page.getByRole("button", { name: "生成绑定码" }).click();
+
+        await expect(
+            page.getByRole("alert").filter({ hasText: "操作失败，请重试" }),
+        ).toBeVisible();
+        await expect(
+            page.getByText("请私聊机器人并发送下面这条命令"),
+        ).toHaveCount(0);
+        await expect(page.getByText("绑定 QQ-CODE-1")).toHaveCount(0);
+    });
+
     test("academic info page renders verification-required and empty states", async ({
         page,
     }) => {

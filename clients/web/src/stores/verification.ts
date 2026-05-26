@@ -67,26 +67,44 @@ export const useVerificationStore = defineStore("verification", () => {
     // 获取学校列表
     const fetchSchools = async () => {
         const res = await api.identity.listSchools();
-        schools.value = res.data?.data ?? [];
+        schools.value = requireArrayData(
+            res.data?.data,
+            "Invalid school list response",
+        );
     };
 
     // 提交实名认证
     const submitIdentity = async (data: SubmitIdentityRequest) => {
         const res = await api.identity.submitIdentity(data);
-        identity.value = res.data?.data ?? null;
-        return res.data?.data ?? null;
+        const nextIdentity = requireResponseData(
+            res.data?.data,
+            "Invalid identity response",
+        );
+        identity.value = nextIdentity;
+        return nextIdentity;
     };
 
     const uploadIdentityPhoto = async (data: UploadIdentityPhotoRequest) => {
         const res = await api.identity.uploadIdentityPhoto(data);
-        return res.data?.data?.key ?? "";
+        const uploaded = requireResponseData(
+            res.data?.data,
+            "Invalid identity photo upload response",
+        );
+        if (!uploaded.key) {
+            throw new Error("Invalid identity photo upload response");
+        }
+        return uploaded.key;
     };
 
     // 学生认证
     const verifyStudent = async (data: SubmitStudentVerificationRequest) => {
         const res = await api.identity.verifyStudent(data);
-        profile.value = res.data?.data ?? null;
-        return res.data?.data ?? null;
+        const nextProfile = requireResponseData(
+            res.data?.data,
+            "Invalid student verification response",
+        );
+        profile.value = nextProfile;
+        return nextProfile;
     };
 
     // 请求绑定手机验证码
@@ -99,7 +117,10 @@ export const useVerificationStore = defineStore("verification", () => {
         await api.identity.bindPhone(data);
         // 绑定成功后必须刷新 profile；刷新失败应显式抛出，避免 UI 误判为已绑定。
         const profileRes = await api.identity.getProfile();
-        profile.value = profileRes.data?.data ?? null;
+        profile.value = requireResponseData(
+            profileRes.data?.data,
+            "Invalid profile response after phone binding",
+        );
     };
 
     const fetchQQBinding = async () => {
@@ -112,7 +133,10 @@ export const useVerificationStore = defineStore("verification", () => {
 
     const createQQBindingCode = async () => {
         const res = await api.identity.createQQBindingCode();
-        qqBindingCode.value = res.data?.data ?? null;
+        qqBindingCode.value = requireResponseData(
+            res.data?.data,
+            "Invalid QQ binding code response",
+        );
         return qqBindingCode.value;
     };
 
@@ -158,15 +182,38 @@ export const useVerificationStore = defineStore("verification", () => {
 });
 
 async function loadNullableResource<T>(
-    loader: () => Promise<{ data?: { data?: T } }>,
+    loader: () => Promise<{ data?: { data?: T | null } }>,
 ): Promise<T | null> {
     try {
         const response = await loader();
-        return response.data?.data ?? null;
+        return requireResponseData(
+            response.data?.data,
+            "Invalid nullable resource response",
+        );
     } catch (error) {
         if (getErrorStatus(error) === 404) {
             return null;
         }
         throw error;
     }
+}
+
+function requireResponseData<T>(
+    value: T | null | undefined,
+    message: string,
+): T {
+    if (value == null) {
+        throw new Error(message);
+    }
+    return value;
+}
+
+function requireArrayData<T>(
+    value: T[] | null | undefined,
+    message: string,
+): T[] {
+    if (!Array.isArray(value)) {
+        throw new Error(message);
+    }
+    return value;
 }
