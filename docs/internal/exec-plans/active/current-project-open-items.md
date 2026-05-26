@@ -1082,6 +1082,23 @@ Ant Design Vue / Naive UI / TDesign 版本等上游演示文案，但当前路�
 同轮复验 `make e2e-koishi`，Koishi Console 真实浏览器 UI smoke 29 项通过，覆盖 NavRail 11 个 view、ChatDock、
 全局搜索、处置中心、日志、配置治理、订阅、黑名单、警告记录、系统缓存、全局设置和角色权限操作路径。
 
+本地生产等价复验（2026-05-26）：在既有 `prod-parity-a35bd45a` 本机生产等价栈上复跑
+`make prod-parity-smoke`。本轮通过 datastore isolation、prod-parity smoke data seed、基础业务 smoke
+（17 通过、0 失败、1 个 Grafana URL 配置跳过；随后 observability smoke 单独验证 Grafana / Prometheus /
+Loki / Tempo / Alertmanager / Alloy 均健康）、Identity public smoke（26 通过、0 失败）、Open Platform
+OpenFGA resource access smoke、prod-parity browser smoke 和 observability smoke；evidence 写入
+`.run/prod-parity/datastore-smoke-evidence.json`、`.run/prod-parity/smoke-data-evidence.json`、
+`.run/prod-parity/identity-public-smoke-evidence.json`、`.run/prod-parity/browser-smoke-evidence.json` 和
+`.run/prod-parity/observability-smoke-evidence.json`，浏览器截图写入
+`.run/prod-parity/browser-smoke-screenshots/`。同轮继续排查 Codex Playwright MCP：全局配置已从裸
+`node` 改为绝对 Node 路径
+`/www/server/nodejs/v24.14.1/bin/node .../@playwright/mcp/cli.js --headless --no-sandbox --isolated`；
+stdio MCP 服务用 JSON-RPC 初始化可返回 Playwright serverInfo，但当前已运行的 Codex 托管
+`mcp__playwright__` 工具调用仍返回 `Transport closed`。为隔离问题，临时启动同一 MCP 包的 HTTP 端点并通过
+MCP JSON-RPC 调用 `browser_navigate` 打开 `http://127.0.0.1:28000/`，页面标题返回
+`首页 - StuHelper`；该结果证明本机 Playwright MCP 包、浏览器和生产等价页面均正常，剩余问题限定在当前
+Codex 会话的托管 stdio transport 上。临时 HTTP MCP 配置、服务进程和 `.playwright-mcp` 产物已清理。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |
