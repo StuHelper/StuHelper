@@ -643,6 +643,13 @@ Web 232 项、Admin 桌面 / 移动 78 项、UniAppX H5 52 项。Koishi Console 
 `make e2e-koishi`（29 项），覆盖群管中心视图、聊天、全局搜索、审核、配置治理、订阅、黑名单、
 警告记录、缓存、全局设置和角色管理等真实控制台动作。
 
+本地后端与运维门禁补充（2026-05-27）：后端已通过 `make fmt`、`make lint`、`make test`、
+`make build`、`make lint-spec` 和 `make check-drift`；其中 `make test` 执行 `go test -race ./...`，
+`make check-drift` 重新 bundle OpenAPI、生成 Go API 代码、校验前端 `api.gen.ts` 和 capability 常量无漂移。
+顶层运维 / 安全门禁也已通过 `make check-infra-contracts` 和 `make check-semgrep-custom`；自定义 Semgrep
+扫描 353 个目标，0 findings。当前本地证据覆盖后端编译、race 测试、OpenAPI 契约、生成代码漂移、
+生产 / 开发部署脚本契约和 phone/mobile 日志脱敏规则。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等
