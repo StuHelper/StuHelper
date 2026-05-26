@@ -635,6 +635,14 @@ fail-closed 与重试恢复断言。已通过 `pnpm --dir clients type-check:web
 `CI=1 PLAYWRIGHT_WEB_PORT=3602 make e2e-web`（232 项）。Playwright MCP 已用本地 Vite 页面
 `http://127.0.0.1:3601/` 验证首页壳、导航、CTA 和统计区域可见。
 
+本地全端验证补充（2026-05-27）：本地开发环境继续扩展到 Web 之外的客户端面。已通过
+`pnpm --dir clients type-check:all`（Web、UniAppX H5、Admin）和 `pnpm --dir clients lint:all`；
+Admin lint 仍仅报告既有测试文件 `vue/one-component-per-file` 警告，无错误。完整客户端 Playwright 门禁
+`CI=1 PLAYWRIGHT_WEB_PORT=3603 ADMIN_E2E_PORT=4178 UNIAPPX_E2E_PORT=3604 make e2e` 已通过：
+Web 232 项、Admin 桌面 / 移动 78 项、UniAppX H5 52 项。Koishi Console UI 也已通过
+`make e2e-koishi`（29 项），覆盖群管中心视图、聊天、全局搜索、审核、配置治理、订阅、黑名单、
+警告记录、缓存、全局设置和角色管理等真实控制台动作。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等
