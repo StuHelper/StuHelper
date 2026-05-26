@@ -40,7 +40,10 @@
             </div>
 
             <template v-else-if="searchQuery.trim()">
-              <div v-if="results.length === 0" class="p-8 text-center text-text-muted text-sm">
+              <div v-if="searchError" role="alert" class="p-8 text-center text-danger text-sm">
+                {{ searchError }}
+              </div>
+              <div v-else-if="results.length === 0" class="p-8 text-center text-text-muted text-sm">
                 {{ t('common.empty.result') }}
               </div>
               <div v-else class="py-1">
@@ -98,6 +101,7 @@ import { useI18n } from 'vue-i18n'
 import { Search, Clock } from 'lucide-vue-next'
 import { useCommandPalette } from '@/composables/useCommandPalette'
 import { api } from '@/api'
+import { readListPayload } from '@/api/responsePayload'
 import type { Course } from '@stuhelper/shared/course'
 
 const { t } = useI18n()
@@ -108,6 +112,7 @@ const inputRef = ref<HTMLInputElement | null>(null)
 const modalRef = ref<HTMLElement | null>(null)
 const results = ref<Course[]>([])
 const loading = ref(false)
+const searchError = ref('')
 const activeIndex = ref(0)
 
 // 保存打开前的 body overflow 原始值，关闭时恢复而非无条件置空
@@ -165,11 +170,13 @@ watch(searchQuery, (val) => {
   if (!q) {
     if (searchController) { searchController.abort(); searchController = undefined }
     results.value = []
+    searchError.value = ''
     loading.value = false
     return
   }
 
   loading.value = true
+  searchError.value = ''
   searchTimer = setTimeout(async () => {
     if (searchController) searchController.abort()
     const controller = new AbortController()
@@ -179,7 +186,10 @@ watch(searchQuery, (val) => {
       const res = await api.course.searchCourses(q, 10, { signal: controller.signal })
       if (controller.signal.aborted) return
       // 按 ID 去重，防止后端返回重复课程
-      const list = res.data?.data?.list || []
+      const list = readListPayload<Course>(
+        res.data?.data,
+        'Invalid course search response',
+      )
       const seen = new Set<number>()
       results.value = list.filter((c: Course) => {
         if (seen.has(c.id)) return false
@@ -190,6 +200,7 @@ watch(searchQuery, (val) => {
       if (controller.signal.aborted) return
       if (searchQuery.value.trim() === q) {
         results.value = []
+        searchError.value = t('common.loadFailed')
       }
     } finally {
       if (!controller.signal.aborted && searchQuery.value.trim() === q) {
@@ -223,6 +234,7 @@ watch(isOpen, (val) => {
     if (searchController) { searchController.abort(); searchController = undefined }
     searchQuery.value = ''
     results.value = []
+    searchError.value = ''
     activeIndex.value = 0
   }
 })

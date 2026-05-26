@@ -264,6 +264,38 @@ test('command palette searches courses from keyboard and opens course detail', a
   await expect(dialog).toBeHidden()
 })
 
+test('command palette fails closed when course search response is malformed', async ({
+  page,
+}) => {
+  await mockUnauthenticated(page)
+
+  await page.route('**/api/v1/course/courses/search*', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, data: null }),
+    }),
+  )
+
+  await page.goto('/')
+  await expect(
+    page.getByRole('link', { name: /StuHelper/i }).first(),
+  ).toBeVisible()
+  await page.keyboard.press('Control+K')
+  const dialog = page.getByRole('dialog', {
+    name: /搜索课程名称、教师|Search course name, teacher/i,
+  })
+  await expect(dialog).toBeVisible()
+
+  await dialog.getByRole('combobox').fill('broken')
+
+  await expect(
+    dialog.getByRole('alert').filter({ hasText: /Load failed|加载失败/i }),
+  ).toBeVisible({ timeout: 10_000 })
+  await expect(
+    dialog.getByText(/No results found|未找到结果/i),
+  ).toHaveCount(0)
+})
+
 test('course hub slash shortcut focuses inline search and opens a course result', async ({
   page,
 }) => {
@@ -333,4 +365,38 @@ test('course hub slash shortcut focuses inline search and opens a course result'
   await expect(page.getByText('高等数学A').first()).toBeVisible({
     timeout: 10_000,
   })
+})
+
+test('inline course search fails closed when response is malformed', async ({
+  page,
+}) => {
+  await mockUnauthenticated(page)
+  await mockCourseHub(page)
+
+  await page.route('**/api/v1/course/courses/search*', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, data: null }),
+    }),
+  )
+
+  await page.goto('/courses')
+  await expect(page.getByRole('heading', { name: '评课社区@BUAA' })).toBeVisible({
+    timeout: 10_000,
+  })
+
+  const inlineSearch = page
+    .locator('header')
+    .getByRole('combobox', { name: '搜索课程...' })
+  await page.keyboard.press('/')
+  await expect(inlineSearch).toBeFocused()
+  await inlineSearch.fill('broken')
+
+  const listbox = page.locator('#inline-search-listbox')
+  await expect(
+    listbox.getByRole('alert').filter({ hasText: /Load failed|加载失败/i }),
+  ).toBeVisible({ timeout: 10_000 })
+  await expect(
+    listbox.getByText(/No rating data|暂无评分数据/i),
+  ).toHaveCount(0)
 })

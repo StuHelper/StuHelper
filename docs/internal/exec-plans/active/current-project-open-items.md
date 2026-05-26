@@ -333,6 +333,16 @@ Web E2E 中旧版 rating-stats mock，删除生产代码无引用的 `CourseRati
 `pnpm --dir clients test:web`（55 文件、257 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3535 make e2e-web`（212 项）。
 
+本地验证补充（2026-05-26）：继续收紧 Web 公共课程搜索入口响应。顶部全局
+`CommandPalette` 和课程页头部 `InlineSearch` 现在都通过共享 payload normalizer 校验
+课程搜索分页响应；后端返回 200 但 `data` 缺失或畸形时会显示“加载失败”，不会退化为
+“未找到结果”或“暂无评分数据”。新增 Home E2E 覆盖命令面板与课程页内联搜索的畸形成功响应
+fail-closed 路径。已通过目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3537 pnpm --dir clients/web exec playwright test tests/e2e/home.spec.ts`
+（12 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、
+`pnpm --dir clients test:web`（55 文件、257 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3538 make e2e-web`（216 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

@@ -41,6 +41,9 @@
         <div v-if="isLoading" class="flex items-center justify-center py-6" aria-busy="true" :aria-label="t('common.actions.loading')">
           <div class="w-5 h-5 border-2 border-border border-t-primary rounded-full animate-spin" aria-hidden="true" />
         </div>
+        <div v-else-if="searchError" role="alert" class="py-6 text-center text-sm text-danger">
+          {{ searchError }}
+        </div>
         <div v-else-if="results.length === 0" class="py-6 text-center text-sm text-text-muted">
           {{ t('review.chart.emptyTitle') }}
         </div>
@@ -92,6 +95,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Search } from 'lucide-vue-next'
 import { api } from '@/api'
+import { readListPayload } from '@/api/responsePayload'
 import type { Course } from '@stuhelper/shared/course'
 
 interface RecentItem {
@@ -112,6 +116,7 @@ const inputRef = ref<HTMLInputElement>()
 const query = ref('')
 const results = ref<Course[]>([])
 const isLoading = ref(false)
+const searchError = ref('')
 const isFocused = ref(false)
 const activeIndex = ref(-1)
 const recentSearches = ref<RecentItem[]>(loadRecent())
@@ -134,11 +139,13 @@ watch(query, (val) => {
   if (!trimmed) {
     if (searchController) { searchController.abort(); searchController = undefined }
     results.value = []
+    searchError.value = ''
     isLoading.value = false
     return
   }
 
   isLoading.value = true
+  searchError.value = ''
   debounceTimer = setTimeout(async () => {
     // 取消前一次仍在进行的请求
     if (searchController) searchController.abort()
@@ -149,7 +156,10 @@ watch(query, (val) => {
       const res = await api.course.searchCourses(trimmed, 10, { signal: controller.signal })
       // 请求已被取消则忽略结果
       if (controller.signal.aborted) return
-      const list = res.data?.data?.list || []
+      const list = readListPayload<Course>(
+        res.data?.data,
+        'Invalid course search response',
+      )
       // 按 ID 去重，防止后端返回重复课程
       const seen = new Set<number>()
       results.value = list.filter((c: Course) => {
@@ -163,6 +173,7 @@ watch(query, (val) => {
       if (import.meta.env.DEV) { console.warn('[InlineSearch] Search failed:', err) }
       if (query.value.trim() === trimmed) {
         results.value = []
+        searchError.value = t('common.loadFailed')
       }
     } finally {
       if (!controller.signal.aborted && query.value.trim() === trimmed) {
