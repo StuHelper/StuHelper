@@ -1802,6 +1802,19 @@ Vite CJS Node API deprecated warning。由于当前 `@koishijs/client` 和 `kois
 `plugin-config` / `plugin-hmr` / `loader` 的 root peer requirement 明确闭合；剩余 Yarn peer
 说明来自上游依赖内部可选 peer，不影响当前构建和 UI smoke。
 
+本地验证补充（2026-05-27）：继续用 Playwright MCP 复验 Web 移动端真实触控路径，复现
+`/courses` 页悬浮模块导航在 mobile touch 上点击当前模块入口后仍停留在 `/courses` 的问题；根因是
+`FloatingModuleNav` 对 `touchstart` 使用 `.prevent`，抑制了移动端合成点击导航。现已改为只在超过拖拽阈值的
+touch move 中阻止默认滚动，并用 click capture 只拦截真实拖拽后的点击；同时给当前模块入口补充稳定
+`data-testid`。新增 Web E2E `mobile floating module nav opens the review feed on touch tap`，覆盖从
+`/courses` 触控点击进入 `/courses/reviews` 并渲染评课 feed；同轮把 Web / Admin / UniAppX Playwright
+webServer 环境中的 `NO_COLOR` 过滤，避免 Node 22 在 `FORCE_COLOR` 下输出颜色环境变量 warning。已通过
+目标 E2E `CI=1 PLAYWRIGHT_WEB_PORT=3561 pnpm --dir clients/web exec playwright test tests/e2e/course-community.spec.ts`
+（19 项通过、1 项 desktop skip）、`pnpm --dir clients type-check:all`、`pnpm --dir clients lint:all`
+和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3562 ADMIN_E2E_PORT=4222 UNIAPPX_E2E_PORT=3144 make e2e`
+（Web 233 项通过、1 项 desktop skip；Admin 78 项通过；UniAppX H5 52 项通过）。复验输出不再出现
+`NO_COLOR` / `FORCE_COLOR` warning，运行后已清理 Playwright 测试结果和 MCP 临时产物。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |

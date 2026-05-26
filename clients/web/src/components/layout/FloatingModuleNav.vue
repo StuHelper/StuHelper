@@ -3,15 +3,17 @@
         class="fixed z-[var(--z-sticky)] flex flex-col items-center gap-1.5 transition-opacity duration-base"
         :style="positionStyle"
         :class="isDragging ? 'cursor-grabbing' : 'cursor-grab'"
+        @click.capture="suppressClickAfterDrag"
         @mouseenter="expanded = true"
         @mouseleave="expanded = false"
         @mousedown.prevent="startDrag"
-        @touchstart.prevent="startDrag"
+        @touchstart="startDrag"
     >
         <!-- 当前模块图标（始终显示） -->
         <div class="relative group">
             <router-link
                 :to="activeTab.to"
+                data-testid="floating-module-nav-active"
                 class="w-10 h-10 rounded-full bg-bg-glass-heavy backdrop-blur-xl backdrop-saturate-150 border border-white/15 dark:border-white/8 shadow-md flex items-center justify-center no-underline transition-all duration-base hover:shadow-lg"
                 aria-describedby="tooltip-active"
                 @click.stop
@@ -208,8 +210,12 @@ function onDrag(e: MouseEvent | TouchEvent) {
     const dy = point.clientY - dragStartY;
 
     // 使用常量化的拖拽阈值
-    if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)
+    if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) {
         hasMoved = true;
+        if ("touches" in e && e.cancelable) {
+            e.preventDefault();
+        }
+    }
 
     // 使用 clampPosition 约束到视口范围
     const clamped = clampPosition(startPosX + dx, startPosY + dy);
@@ -231,6 +237,13 @@ function stopDrag() {
     if (hasMoved) {
         savePosition();
     }
+}
+
+function suppressClickAfterDrag(e: MouseEvent) {
+    if (!hasMoved) return;
+    e.preventDefault();
+    e.stopPropagation();
+    hasMoved = false;
 }
 
 onMounted(loadPosition);

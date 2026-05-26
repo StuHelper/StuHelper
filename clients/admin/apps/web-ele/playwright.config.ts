@@ -3,6 +3,8 @@ import { fileURLToPath } from 'node:url';
 
 import { defineConfig, devices } from '@playwright/test';
 
+delete process.env.NO_COLOR;
+
 const workspaceRoot = path.resolve(
   fileURLToPath(new URL('../..', import.meta.url)),
 );
@@ -18,6 +20,21 @@ const webServerCommand = [
   'pnpm -F @vben/web-ele exec vite build --mode production',
   `pnpm -F @vben/web-ele exec vite preview --host ${host} --port ${port}`,
 ].join(' && ');
+const webServerEnv = withoutNoColorEnv({
+  VITE_E2E_API_STUB: '1',
+  VITE_DEV_PROXY_TARGET:
+    process.env.VITE_DEV_PROXY_TARGET ?? 'http://127.0.0.1:8080',
+});
+
+function withoutNoColorEnv(overrides: Record<string, string>) {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (key !== 'NO_COLOR' && typeof value === 'string') {
+      env[key] = value;
+    }
+  }
+  return { ...env, ...overrides };
+}
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -45,12 +62,7 @@ export default defineConfig({
   ],
   webServer: {
     command: webServerCommand,
-    env: {
-      ...process.env,
-      VITE_E2E_API_STUB: '1',
-      VITE_DEV_PROXY_TARGET:
-        process.env.VITE_DEV_PROXY_TARGET ?? 'http://127.0.0.1:8080',
-    },
+    env: webServerEnv,
     reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === '1',
     timeout: 180_000,
     url: `${baseURL}/auth/login`,

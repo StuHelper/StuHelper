@@ -152,6 +152,27 @@ async function mockCourseCommunityApi(page: Page) {
 
         return route.fulfill(list([review]));
     });
+    await page.route("**/api/v1/course/review/stats", (route) => {
+        recordApiRequest(route);
+        return route.fulfill(
+            ok({
+                courseCount: 120,
+                reviewCount: 580,
+                departmentCount: 8,
+                userCount: 230,
+            }),
+        );
+    });
+    await page.route("**/api/v1/course/review/rankings/hot*", (route) => {
+        recordApiRequest(route);
+        return route.fulfill(ok({ list: [] }));
+    });
+    await page.route("**/api/v1/course/terms*", (route) => {
+        recordApiRequest(route);
+        return route.fulfill(
+            ok([{ id: "2026-spring", name: "2026 春", isCurrent: true }]),
+        );
+    });
 }
 
 async function mockTeacherApi(page: Page) {
@@ -287,6 +308,24 @@ test.describe("Course community surfaces", () => {
         await expect(
             page.getByRole("link", { name: /编译原理/ }),
         ).toBeVisible();
+    });
+
+    test("mobile floating module nav opens the review feed on touch tap", async ({
+        page,
+    }, testInfo) => {
+        test.skip(
+            testInfo.project.name !== "mobile-chromium",
+            "touch navigation regression only applies to mobile contexts",
+        );
+        await mockCourseCommunityApi(page);
+
+        await page.goto("/courses");
+        await page.getByTestId("floating-module-nav-active").tap();
+
+        await expect(page).toHaveURL(/\/courses\/reviews$/);
+        await expect(page.getByText("最新聚合测评")).toBeVisible({
+            timeout: 10_000,
+        });
     });
 
     test("invalid review feed response fails closed and can retry", async ({
