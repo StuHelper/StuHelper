@@ -453,6 +453,22 @@ verification store 单测覆盖畸形 identity、学校列表、实名认证提�
 `pnpm --dir clients test:web`（56 文件、270 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3564 make e2e-web`（228 项）。
 
+本地验证补充（2026-05-26）：继续收紧 Open Platform 开发者应用和用户授权管理响应。新增
+`apiPayload` reader 统一校验开发者应用列表、应用 scope 申请、redirect URI 申请、开发者应用审计、
+client secret 轮换、用户授权应用、用户授权 scope 和用户授权审计事件；`DeveloperAppsPage` 与
+`authorizedAppsController` 不再只校验数组外壳，畸形 200 不能把错误 app status、未知 scope、缺失 app
+字段或不完整轮换响应写入页面状态。新增 authorized apps controller 单测覆盖嵌套 app / audit 字段畸形；
+同步扩展开发者应用页和用户中心 E2E 的 invalid-response 场景，并补齐授权 scope 的用途说明字段。已通过
+目标单测
+`pnpm --dir clients --filter @stuhelper/web exec vitest run src/modules/user/__tests__/authorizedAppsController.test.ts`
+（6 项）、目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3565 pnpm --dir clients/web exec playwright test tests/e2e/open-platform-developer.spec.ts`
+（12 项）和
+`CI=1 PLAYWRIGHT_WEB_PORT=3566 pnpm --dir clients/web exec playwright test tests/e2e/journey-user-center.spec.ts`
+（40 项）；并通过 `pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、
+`pnpm --dir clients test:web`（56 文件、270 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3567 make e2e-web`（228 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

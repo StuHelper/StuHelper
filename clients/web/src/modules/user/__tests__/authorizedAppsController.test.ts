@@ -78,9 +78,23 @@ describe('useAuthorizedAppsController', () => {
   })
 
   it('fails closed when authorized apps response is malformed', async () => {
+    const malformedApp = authorizedApp([
+      consentScope('profile.basic.read', 'Basic profile'),
+    ])
+
     mocks.listConsents.mockResolvedValueOnce({
       data: {
-        data: null,
+        data: {
+          apps: [
+            {
+              ...malformedApp,
+              app: {
+                ...malformedApp.app,
+                status: 'enabled',
+              },
+            },
+          ],
+        },
       },
     })
 
@@ -94,9 +108,21 @@ describe('useAuthorizedAppsController', () => {
   })
 
   it('fails closed when authorization activity response is malformed', async () => {
+    const malformedEvent = auditEvent('open_platform.consent.granted', [
+      'profile.basic.read',
+    ])
+
     mocks.listConsentAuditEvents.mockResolvedValueOnce({
       data: {
-        data: null,
+        data: {
+          list: [
+            {
+              ...malformedEvent,
+              scopes: ['future.scope'],
+            },
+          ],
+          total: 1,
+        },
       },
     })
 

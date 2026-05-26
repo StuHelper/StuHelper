@@ -191,9 +191,25 @@ test.describe("Open Platform developer portal", () => {
             }
 
             loadCount += 1;
+            const malformedApp = makeDeveloperApp({
+                id: 1,
+                displayName: "Portal App 01",
+                status: "approved",
+            });
             await route.fulfill(
                 loadCount === 1
-                    ? ok(null)
+                    ? ok({
+                          list: [
+                              {
+                                  ...malformedApp,
+                                  app: {
+                                      ...malformedApp.app,
+                                      status: "enabled",
+                                  },
+                              },
+                          ],
+                          total: 1,
+                      })
                     : ok({
                           list: [
                               makeDeveloperApp({
@@ -259,7 +275,22 @@ test.describe("Open Platform developer portal", () => {
                 auditLoadCount += 1;
                 await route.fulfill(
                     auditLoadCount === 1
-                        ? ok(null)
+                        ? ok({
+                              list: [
+                                  {
+                                      id: 91,
+                                      eventType:
+                                          "open_platform.app.profile_updated",
+                                      requestID: "req-profile-update",
+                                      scopes: ["future.scope"],
+                                      endpoint: null,
+                                      result: "success",
+                                      details: { reason: "更新品牌资料" },
+                                      createdAt: "2026-05-03T10:00:00Z",
+                                  },
+                              ],
+                              total: 1,
+                          })
                         : ok({
                               list: [
                                   {
@@ -351,7 +382,15 @@ test.describe("Open Platform developer portal", () => {
                 url.pathname === "/api/v1/open-platform/apps/7/secret/rotate"
             ) {
                 rotateCalled = true;
-                await route.fulfill(ok(null));
+                await route.fulfill(
+                    ok({
+                        app: {
+                            displayName: "Campus Connector",
+                            clientID: "op_app_07",
+                        },
+                        clientSecret: "ids_rotated_secret",
+                    }),
+                );
                 return;
             }
 

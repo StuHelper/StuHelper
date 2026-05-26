@@ -3,12 +3,14 @@ import { computed, reactive, ref } from 'vue'
 import { api } from '@/api'
 import { getErrorMessage } from '@/api/errors'
 import { useToast } from '@/composables/useToast'
+import {
+  readUserConsentAuditEventsPayload,
+  readUserConsentsPayload,
+} from '@/modules/open-platform/apiPayload'
 import type {
   OpenPlatformUserAuthorizedApp,
   OpenPlatformUserConsentAuditEvent,
-  OpenPlatformUserConsentAuditEventsResponse,
   OpenPlatformUserConsentScope,
-  OpenPlatformUserConsentsResponse,
 } from '@stuhelper/shared/api'
 
 type Translate = (key: string, params?: Record<string, unknown>) => string
@@ -74,10 +76,7 @@ export function useAuthorizedAppsController(t: Translate) {
     errorMessage.value = ''
     try {
       const response = await api.openPlatform.listConsents()
-      const data = response.data?.data
-      if (!isUserConsentsResponse(data)) {
-        throw new Error('Invalid authorized apps response')
-      }
+      const data = readUserConsentsPayload(response.data?.data)
       apps.value = data.apps
     } catch (err) {
       errorMessage.value = getErrorMessage(err, t('common.loadFailed'))
@@ -91,10 +90,7 @@ export function useAuthorizedAppsController(t: Translate) {
     activityErrorMessage.value = ''
     try {
       const response = await api.openPlatform.listConsentAuditEvents({ pageSize: 10 })
-      const data = response.data?.data
-      if (!isUserConsentAuditEventsResponse(data)) {
-        throw new Error('Invalid authorization activity response')
-      }
+      const data = readUserConsentAuditEventsPayload(response.data?.data)
       activities.value = data.list
     } catch (err) {
       activityErrorMessage.value = getErrorMessage(err, t('user.authorizedApps.activityLoadFailed'))
@@ -225,16 +221,4 @@ function appRevokeKey(appID: number) {
 
 function scopeRevokeKey(appID: number, scope: string) {
   return `scope:${appID}:${scope}`
-}
-
-function isUserConsentsResponse(
-  value: OpenPlatformUserConsentsResponse | null | undefined,
-): value is OpenPlatformUserConsentsResponse {
-  return value != null && Array.isArray(value.apps)
-}
-
-function isUserConsentAuditEventsResponse(
-  value: OpenPlatformUserConsentAuditEventsResponse | null | undefined,
-): value is OpenPlatformUserConsentAuditEventsResponse {
-  return value != null && Array.isArray(value.list)
 }

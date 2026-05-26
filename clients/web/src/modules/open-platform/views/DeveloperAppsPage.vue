@@ -926,18 +926,20 @@ import { getErrorMessage } from '@/api/errors'
 import { useToast } from '@/composables/useToast'
 import EmptyState from '@/components/common/EmptyState.vue'
 import SkeletonCard from '@/components/common/SkeletonCard.vue'
+import {
+  readDeveloperAppAuditEventsPayload,
+  readOpenPlatformAppListPayload,
+  readRotatedSecretPayload,
+} from '../apiPayload'
 import { developerOpenPlatformAuditTypeKey } from '../auditEvents'
 import type {
   OpenPlatformAppRedirectURIRequest,
   OpenPlatformAppListParams,
-  OpenPlatformAppListResponse,
   OpenPlatformAppScopeRequest,
   OpenPlatformAppWithScopes,
   OpenPlatformDeveloperAppAuditEvent,
-  OpenPlatformDeveloperAppAuditEventsResponse,
   OpenPlatformRedirectURIChangeRequest,
   OpenPlatformRegisterAppRequest,
-  OpenPlatformRotatedSecretResponse,
 } from '@stuhelper/shared/api'
 
 type AppStatus = OpenPlatformAppWithScopes['app']['status']
@@ -1216,10 +1218,7 @@ async function loadApps() {
       pageSize: PAGE_SIZE,
       status: statusFilter.value,
     })
-    const data = response.data?.data
-    if (!isAppListResponse(data)) {
-      throw new Error('Invalid developer app list response')
-    }
+    const data = readOpenPlatformAppListPayload(response.data?.data)
     apps.value = data.list
     total.value = data.total
   } catch (err) {
@@ -1250,10 +1249,7 @@ async function loadAppAuditEvents(appID = auditPanelAppID.value) {
       appID,
       params: { pageSize: APP_AUDIT_PAGE_SIZE },
     })
-    const data = response.data?.data
-    if (!isDeveloperAppAuditEventsResponse(data)) {
-      throw new Error('Invalid developer app audit response')
-    }
+    const data = readDeveloperAppAuditEventsPayload(response.data?.data)
     auditEvents.value = data.list
     auditTotal.value = data.total
   } catch (err) {
@@ -1389,10 +1385,7 @@ async function rotateSecret(item: OpenPlatformAppWithScopes, reason: string) {
       appID: item.app.id,
       reason,
     })
-    const data = response.data?.data
-    if (!isRotatedSecretResponse(data)) {
-      throw new Error('Invalid rotated secret response')
-    }
+    const data = readRotatedSecretPayload(response.data?.data)
     rotatedSecret.value = {
       appName: data.app.displayName,
       clientID: data.app.clientID,
@@ -1816,31 +1809,6 @@ function canWithdrawApp(item: OpenPlatformAppWithScopes) {
 
 function appWithdrawKey(appID: number) {
   return `app:${appID}`
-}
-
-function isAppListResponse(
-  value: OpenPlatformAppListResponse | null | undefined,
-): value is OpenPlatformAppListResponse {
-  return value != null && Array.isArray(value.list) && typeof value.total === 'number'
-}
-
-function isDeveloperAppAuditEventsResponse(
-  value: OpenPlatformDeveloperAppAuditEventsResponse | null | undefined,
-): value is OpenPlatformDeveloperAppAuditEventsResponse {
-  return value != null && Array.isArray(value.list) && typeof value.total === 'number'
-}
-
-function isRotatedSecretResponse(
-  value: OpenPlatformRotatedSecretResponse | null | undefined,
-): value is OpenPlatformRotatedSecretResponse {
-  return (
-    value != null &&
-    value.app != null &&
-    typeof value.app.displayName === 'string' &&
-    typeof value.app.clientID === 'string' &&
-    typeof value.clientSecret === 'string' &&
-    value.clientSecret.length > 0
-  )
 }
 
 function scopeWithdrawKey(appID: number, scope: string) {

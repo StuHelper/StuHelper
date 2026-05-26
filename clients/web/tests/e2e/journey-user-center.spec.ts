@@ -600,7 +600,25 @@ test.describe('User Journey: User Center', () => {
       loadCount += 1
       await route.fulfill(
         loadCount === 1
-          ? ok(null)
+          ? ok({
+              apps: [
+                {
+                  app: {
+                    id: 42,
+                    clientID: 'campus-client',
+                    displayName: 'Campus Tools',
+                    description: 'Campus utility integration',
+                    homepageURL: 'https://tools.example.com',
+                    privacyPolicyURL: 'https://tools.example.com/privacy',
+                    redirectURIs: ['https://tools.example.com/callback'],
+                    status: 'enabled',
+                    createdAt: '2026-04-01T10:00:00Z',
+                    updatedAt: '2026-04-01T10:00:00Z',
+                  },
+                  scopes: [],
+                },
+              ],
+            })
           : ok({
               apps: [
                 {
@@ -624,6 +642,7 @@ test.describe('User Journey: User Center', () => {
                       fields: ['昵称'],
                       grantedAt: '2026-04-05T10:00:00Z',
                       grantSource: 'consent_page',
+                      reason: '展示基础资料',
                     },
                   ],
                 },
@@ -686,6 +705,7 @@ test.describe('User Journey: User Center', () => {
                   fields: ['邮箱'],
                   grantedAt: '2026-04-05T10:00:00Z',
                   grantSource: 'consent_page',
+                  reason: '发送邮箱通知',
                 },
               ],
             },
@@ -699,7 +719,24 @@ test.describe('User Journey: User Center', () => {
         activityLoadCount += 1
         await route.fulfill(
           activityLoadCount === 1
-            ? ok(null)
+            ? ok({
+                list: [
+                  {
+                    id: 101,
+                    appID: 42,
+                    appDisplayName: 'Campus Tools',
+                    clientID: 'campus-client',
+                    eventType: 'open_platform.consent.granted',
+                    scopes: ['future.scope'],
+                    endpoint: '/oidc/userinfo',
+                    result: 'success',
+                    requestID: 'req-grant',
+                    details: {},
+                    createdAt: '2026-04-05T10:00:00Z',
+                  },
+                ],
+                total: 1,
+              })
             : ok({
                 list: [
                   {
@@ -779,6 +816,7 @@ test.describe('User Journey: User Center', () => {
                     fields: ['昵称'],
                     grantedAt: '2026-04-05T10:00:00Z',
                     grantSource: 'consent_page',
+                    reason: '展示基础资料',
                   },
                   {
                     scope: 'email.read',
@@ -787,6 +825,7 @@ test.describe('User Journey: User Center', () => {
                     fields: ['邮箱'],
                     grantedAt: '2026-04-05T10:00:00Z',
                     grantSource: 'consent_page',
+                    reason: '发送邮箱通知',
                   },
                 ],
               },
@@ -922,6 +961,7 @@ test.describe('User Journey: User Center', () => {
                     fields: ['昵称'],
                     grantedAt: '2026-04-05T10:00:00Z',
                     grantSource: 'consent_page',
+                    reason: '展示基础资料',
                   },
                 ],
               },
