@@ -412,7 +412,15 @@ test("authenticated user can publish a review and vote on a course review", asyn
         async (route) => {
             await route.fulfill({
                 contentType: "application/json",
-                body: JSON.stringify({ success: true, data: null }),
+                body: JSON.stringify({
+                    success: true,
+                    data: {
+                        courseID: 1,
+                        overall: { termName: "总体", dimensions: [] },
+                        byTerm: [],
+                        allDimensionKeys: [],
+                    },
+                }),
             });
         },
     );

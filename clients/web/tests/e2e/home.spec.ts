@@ -73,7 +73,12 @@ async function mockCourseDetail(
         contentType: 'application/json',
         body: JSON.stringify({
           success: true,
-          data: { averageRating: 4.8, totalReviews: 12 },
+          data: {
+            courseID: courseId,
+            overall: { termName: '总体', dimensions: [] },
+            byTerm: [],
+            allDimensionKeys: [],
+          },
         }),
       }),
   )

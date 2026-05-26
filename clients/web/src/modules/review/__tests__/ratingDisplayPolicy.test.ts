@@ -13,7 +13,6 @@ const policySources: Record<string, string> = {
   emojiRating: source('src/components/business/review/EmojiRating.vue'),
   ratingDisplay: source('src/components/business/review/RatingDisplay.vue'),
   ratingDistribution: source('src/components/business/review/RatingDistribution.vue'),
-  courseRatingChart: source('src/components/business/review/CourseRatingChart.vue'),
   semesterStatsGrid: source('src/components/business/review/SemesterStatsGrid.vue'),
   teacherStatsCard: source('src/components/business/review/TeacherStatsCard.vue'),
   courseDetailPage: source('src/modules/review/views/CourseDetailPage.vue'),
@@ -42,7 +41,6 @@ describe('review community rating display policy', () => {
   })
 
   it('keeps chart tooltips non-numeric for rating values', () => {
-    expect(policySources.courseRatingChart).toContain("formatter: (params: { name?: string }) => params.name ?? ''")
     expect(policySources.teacherProfilePage).toContain("return `${p.name}<br/>${t('teaching.profile.ratingLabel')}`")
   })
 })

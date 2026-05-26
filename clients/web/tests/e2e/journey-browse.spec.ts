@@ -280,14 +280,10 @@ test.describe('User Journey: Browse Platform', () => {
           body: JSON.stringify({
             success: true,
             data: {
-              overall: 4.3,
-              totalReviews: 2,
-              dimensions: {
-                recommendation: 4.5,
-                content_quality: 4.5,
-                workload: 2.5,
-                grading: 3.5,
-              },
+              courseID: 101,
+              overall: { termName: '总体', dimensions: [] },
+              byTerm: [],
+              allDimensionKeys: [],
             },
           }),
         }),

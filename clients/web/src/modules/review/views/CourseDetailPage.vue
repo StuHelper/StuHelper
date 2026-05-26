@@ -605,6 +605,70 @@ function readRatingTrendPayload(payload: unknown): RatingTrendPoint[] {
   )
 }
 
+function readTermRatingStats(payload: unknown): CourseRatingStatsResponse['overall'] {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid rating stats response')
+  }
+
+  const raw = payload as { termName?: unknown; dimensions?: unknown }
+  if (typeof raw.termName !== 'string') {
+    throw new Error('Invalid rating stats response')
+  }
+  const dimensions = readArrayPayload<CourseRatingStatsResponse['overall']['dimensions'][number]>(
+    raw.dimensions,
+    'Invalid rating stats response',
+  )
+  for (const dimension of dimensions) {
+    if (
+      !dimension ||
+      typeof dimension !== 'object' ||
+      typeof dimension.key !== 'string' ||
+      typeof dimension.name !== 'string' ||
+      typeof dimension.avgRating !== 'number' ||
+      !Number.isFinite(dimension.avgRating) ||
+      typeof dimension.ratingCount !== 'number' ||
+      !Number.isFinite(dimension.ratingCount)
+    ) {
+      throw new Error('Invalid rating stats response')
+    }
+  }
+
+  return payload as CourseRatingStatsResponse['overall']
+}
+
+function readRatingStatsPayload(payload: unknown): CourseRatingStatsResponse {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid rating stats response')
+  }
+
+  const raw = payload as {
+    courseID?: unknown
+    overall?: unknown
+    byTerm?: unknown
+    allDimensionKeys?: unknown
+  }
+  if (typeof raw.courseID !== 'number' || !Number.isFinite(raw.courseID) || raw.courseID <= 0) {
+    throw new Error('Invalid rating stats response')
+  }
+
+  readTermRatingStats(raw.overall)
+  const byTerm = readArrayPayload<CourseRatingStatsResponse['byTerm'][number]>(
+    raw.byTerm,
+    'Invalid rating stats response',
+  )
+  byTerm.forEach(readTermRatingStats)
+
+  const allDimensionKeys = readArrayPayload<string>(
+    raw.allDimensionKeys,
+    'Invalid rating stats response',
+  )
+  if (allDimensionKeys.some((key) => typeof key !== 'string')) {
+    throw new Error('Invalid rating stats response')
+  }
+
+  return payload as CourseRatingStatsResponse
+}
+
 // ── Navigation ──
 function handleLogin() {
   void authStore.login()
@@ -663,8 +727,9 @@ function refreshReviews() {
 const fetchRatingStats = async () => {
   try {
     const res = await api.rating.getCourseStats(courseID.value)
-    ratingStats.value = res.data?.data ?? null
+    ratingStats.value = readRatingStatsPayload(res.data?.data)
   } catch (error) {
+    ratingStats.value = null
     toast.error(getErrorMessage(error, t('common.loadFailed')))
   }
 }
@@ -719,9 +784,15 @@ const fetchAll = async () => {
     let hasPartialError = [statsRes, reviewsRes].some(item => item.status === 'rejected')
 
     if (statsRes.status === 'fulfilled') {
-      ratingStats.value = statsRes.value.data?.data ?? null
+      try {
+        ratingStats.value = readRatingStatsPayload(statsRes.value.data?.data)
+      } catch (_error) { void _error;
+        ratingStats.value = null
+        hasPartialError = true
+      }
     } else {
       ratingStats.value = null
+      hasPartialError = true
     }
 
     if (reviewsRes.status === 'fulfilled') {

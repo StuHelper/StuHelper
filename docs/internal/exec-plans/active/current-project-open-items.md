@@ -320,6 +320,19 @@ composable 都会把 HTTP 200 但缺失 `data.list` / `data.total` 的回复列�
 `pnpm --dir clients test:web`（55 文件、257 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3532 make e2e-web`（212 项）。
 
+本地验证补充（2026-05-26）：继续收紧课程评分统计响应并清理无引用组件。课程详情页现在要求
+`CourseRatingStatsResponse` 必含 `courseID`、`overall`、`byTerm` 和 `allDimensionKeys`，且 term / dimension
+结构符合 OpenAPI；评分统计畸形成功响应会进入课程详情局部失败态，不再静默展示为无评分数据。同步修正
+Web E2E 中旧版 rating-stats mock，删除生产代码无引用的 `CourseRatingChart.vue`，并调整评分展示策略单测。
+本轮复查 `rg` 已无剩余 `res.data?.data ||`、`res.data?.data ??`、旧 list 兜底或 rating-trend 可选链降级路径。
+已通过目标单测
+`pnpm --dir clients --filter @stuhelper/web exec vitest run src/modules/review/__tests__/ratingDisplayPolicy.test.ts`
+（3 项）、目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3534 pnpm --dir clients/web exec playwright test tests/e2e/course-browse.spec.ts tests/e2e/home.spec.ts tests/e2e/journey-browse.spec.ts tests/e2e/journey-review.spec.ts tests/e2e/review-flow.spec.ts`
+（42 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、
+`pnpm --dir clients test:web`（55 文件、257 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3535 make e2e-web`（212 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

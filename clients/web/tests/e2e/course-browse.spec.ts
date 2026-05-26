@@ -220,7 +220,12 @@ test.describe('Course Browse Flow', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             success: true,
-            data: { averageRating: 4.2, totalReviews: 15 },
+            data: {
+              courseID: 1,
+              overall: { termName: '总体', dimensions: [] },
+              byTerm: [],
+              allDimensionKeys: [],
+            },
           }),
         }),
     )
@@ -432,15 +437,7 @@ test.describe('Course Browse Flow', () => {
       (route) =>
         route.fulfill({
           contentType: 'application/json',
-          body: JSON.stringify({
-            success: true,
-            data: {
-              courseID: 6,
-              overall: { termName: '总体', dimensions: [] },
-              byTerm: [],
-              allDimensionKeys: [],
-            },
-          }),
+          body: JSON.stringify({ success: true, data: null }),
         }),
     )
 

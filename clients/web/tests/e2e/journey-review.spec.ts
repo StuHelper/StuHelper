@@ -166,7 +166,15 @@ test.describe('User Journey: Review Lifecycle', () => {
       (route) =>
         route.fulfill({
           contentType: 'application/json',
-          body: JSON.stringify({ success: true, data: null }),
+          body: JSON.stringify({
+            success: true,
+            data: {
+              courseID: 101,
+              overall: { termName: '总体', dimensions: [] },
+              byTerm: [],
+              allDimensionKeys: [],
+            },
+          }),
         }),
     )
 
@@ -278,7 +286,15 @@ test.describe('User Journey: Review Lifecycle', () => {
       (route) =>
         route.fulfill({
           contentType: 'application/json',
-          body: JSON.stringify({ success: true, data: null }),
+          body: JSON.stringify({
+            success: true,
+            data: {
+              courseID: 101,
+              overall: { termName: '总体', dimensions: [] },
+              byTerm: [],
+              allDimensionKeys: [],
+            },
+          }),
         }),
     )
     await page.route(
