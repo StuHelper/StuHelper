@@ -1,0 +1,65 @@
+diff --git a/lib/index.js b/lib/index.js
+index e424d7aa8bfed16ef10136b443ea4efba22b746b..24da4f6c6f7c547717da42af913e5e9f49b522df 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -36,13 +36,25 @@ __export(index_exports, {
+   inject: () => inject
+ });
+ module.exports = __toCommonJS(index_exports);
+-var vite = __toESM(require("vite"));
+ var import_fs = require("fs");
+ var import_path = require("path");
+-var import_plugin_vue = __toESM(require("@vitejs/plugin-vue"));
+-var import_vite_plugin_yaml = __toESM(require("@maikolib/vite-plugin-yaml"));
++async function loadVite() {
++  return await import("vite");
++}
++__name(loadVite, "loadVite");
++async function loadPluginVue() {
++  return (await import("@vitejs/plugin-vue")).default;
++}
++__name(loadPluginVue, "loadPluginVue");
++async function loadYamlPlugin() {
++  return (await import("@maikolib/vite-plugin-yaml")).default;
++}
++__name(loadYamlPlugin, "loadYamlPlugin");
+ async function build2(root, config = {}) {
+   if (!(0, import_fs.existsSync)(root + "/client")) return;
++  const vite = await loadVite();
++  const pluginVue = await loadPluginVue();
++  const yamlPlugin = await loadYamlPlugin();
+   const outDir = root + "/dist";
+   if ((0, import_fs.existsSync)(outDir)) {
+     await import_fs.promises.rm(outDir, { recursive: true });
+@@ -78,8 +90,8 @@ async function build2(root, config = {}) {
+       }
+     },
+     plugins: [
+-      (0, import_plugin_vue.default)(),
+-      (0, import_vite_plugin_yaml.default)(),
++      pluginVue(),
++      yamlPlugin(),
+       (await import("unocss/vite")).default({
+         presets: [
+           (await import("unocss/preset-mini")).default({
+@@ -121,6 +133,9 @@ async function build2(root, config = {}) {
+ }
+ __name(build2, "build");
+ async function createServer2(baseDir, config) {
++  const vite = await loadVite();
++  const pluginVue = await loadPluginVue();
++  const yamlPlugin = await loadYamlPlugin();
+   const root = (0, import_path.resolve)(__dirname, "../app");
+   return vite.createServer(vite.mergeConfig({
+     root,
+@@ -134,8 +149,8 @@ async function createServer2(baseDir, config) {
+       }
+     },
+     plugins: [
+-      (0, import_plugin_vue.default)(),
+-      (0, import_vite_plugin_yaml.default)(),
++      pluginVue(),
++      yamlPlugin(),
+       (await import("unocss/vite")).default({
+         presets: [
+           (await import("unocss/preset-mini")).default({

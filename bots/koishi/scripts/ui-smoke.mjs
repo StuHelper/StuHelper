@@ -128,12 +128,16 @@ function buildWorkspace() {
 function runPlaywright() {
   return new Promise((resolveExit, rejectExit) => {
     const playwright = corepackSpawnInvocation(['yarn', 'exec', 'playwright', 'test'])
+    const env = {
+      ...process.env,
+      STUHELPER_UI_SMOKE_PORT: String(SMOKE_PORT),
+    }
+    // Playwright forces color for workers; inheriting NO_COLOR makes Node warn before tests start.
+    delete env.NO_COLOR
+
     const child = spawn(playwright.command, playwright.args, {
       cwd,
-      env: {
-        ...process.env,
-        STUHELPER_UI_SMOKE_PORT: String(SMOKE_PORT),
-      },
+      env,
       shell: playwright.shell,
       stdio: 'inherit',
     })

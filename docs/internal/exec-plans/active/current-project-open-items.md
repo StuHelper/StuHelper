@@ -1790,6 +1790,15 @@ Identity public smoke、OpenFGA resource smoke、observability、prod-parity 和
 `corepack yarn --cwd bots/koishi build` 和 `make e2e-koishi`（Console Playwright 29 项）；
 运行后已清理 Koishi `.tmp`、`data`、`test-results`、`playwright-report` 和临时 console dist 产物。
 
+本地 Koishi 构建输出清理（2026-05-27）：通过 `VITE_CJS_TRACE=true corepack yarn build`
+定位到 `@koishijs/client@5.30.11` 的构建入口经 CJS 加载 `vite` 与 `@vitejs/plugin-vue`，触发
+Vite CJS Node API deprecated warning。由于当前 `@koishijs/client` 和 `koishi` 都已是 npm latest，
+本地采用 Yarn patch + root `resolutions` 将 Vite、Vue 插件和 YAML 插件改为按需 ESM
+`import()`，不使用环境变量隐藏 warning；同时 `scripts/ui-smoke.mjs` 在启动 Playwright 子进程前删除继承的
+`NO_COLOR`，避免 Playwright worker 的 `FORCE_COLOR` 与 Node 22 颜色环境变量 warning 冲突。复验
+`corepack yarn install --immutable`、`corepack yarn build`、`corepack yarn test:unit`（282 项）和
+`make e2e-koishi`（29 项）均通过，Koishi 构建与 UI smoke 输出不再出现上述 warning。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |

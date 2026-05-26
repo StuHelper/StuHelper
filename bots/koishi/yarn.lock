@@ -1074,7 +1074,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@koishijs/client@npm:^5.30.4":
+"@koishijs/client@npm:5.30.11":
   version: 5.30.11
   resolution: "@koishijs/client@npm:5.30.11"
   dependencies:
@@ -1098,6 +1098,33 @@ __metadata:
   bin:
     koishi-console: bin.js
   checksum: 10c0/f8173ee7fe7f1fa19d9124b1281a2cdd14568b0625672dcf3377c57fc06a65ac5317b69d67f2be6fcb48db64107b24e8ed866c9ca888351f7418d845be4bbc69
+  languageName: node
+  linkType: hard
+
+"@koishijs/client@patch:@koishijs/client@npm%3A5.30.11#~/.yarn/patches/@koishijs-client-npm-5.30.11-f4fd28fbc1.patch":
+  version: 5.30.11
+  resolution: "@koishijs/client@patch:@koishijs/client@npm%3A5.30.11#~/.yarn/patches/@koishijs-client-npm-5.30.11-f4fd28fbc1.patch::version=5.30.11&hash=6beac3"
+  dependencies:
+    "@koishijs/components": "npm:1.5.22"
+    "@maikolib/vite-plugin-yaml": "npm:^1.0.1"
+    "@satorijs/protocol": "npm:^1.6.1"
+    "@vitejs/plugin-vue": "npm:^5.1.4"
+    "@vueuse/core": "npm:^11.1.0"
+    cac: "npm:^6.7.14"
+    cordis: "npm:^3.18.1"
+    cosmokit: "npm:^1.7.2"
+    element-plus: "npm:2.7.7"
+    marked-vue: "npm:^1.3.0"
+    ns-require: "npm:^1.1.4"
+    sass: "npm:^1.82.0"
+    unocss: "npm:^0.65.1"
+    vite: "npm:^5.4.10"
+    vue: "npm:^3.5.12"
+    vue-i18n: "npm:^9.10.2"
+    vue-router: "npm:^4.4.5"
+  bin:
+    koishi-console: bin.js
+  checksum: 10c0/926ff397b5acd42ccd044cb81912aa54cd03e3215f9af99b8f59635bdbeb5f5433f75b65c1ca45cc0874c8711129a1721debcbb5cacc8a82b50f0ba364d1d507
   languageName: node
   linkType: hard
 

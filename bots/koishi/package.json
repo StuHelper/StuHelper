@@ -60,6 +60,9 @@
     "yakumo-tsc": "^1.0.0-beta.5",
     "yml-register": "^1.2.5"
   },
+  "resolutions": {
+    "@koishijs/client@npm:^5.30.4": "patch:@koishijs/client@npm%3A5.30.11#~/.yarn/patches/@koishijs-client-npm-5.30.11-f4fd28fbc1.patch"
+  },
   "dependencies": {
     "@koishijs/plugin-actions": "^0.0.2",
     "@koishijs/plugin-adapter-discord": "^4.5.10",
