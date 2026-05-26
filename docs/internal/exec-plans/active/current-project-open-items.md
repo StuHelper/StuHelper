@@ -689,6 +689,12 @@ panic，避免生产路由在错误装配下返回 501 并掩盖配置问题；�
 `h.ready(c)` 分支已删除，Bot service token 未配置的 503 仍保留在 `requireBotCredential` 入口。
 已通过 `go test -race ./internal/modules/admission` 和 `make lint`。
 
+本地 E2E 入口补强（2026-05-27）：裸 `make e2e` 在 `make dev-up` 已启动且 Web Vite 占用
+`127.0.0.1:3000` 时会先于测试阶段失败；Playwright 配置本身已支持 `PLAYWRIGHT_REUSE_SERVER=1`。
+顶层 Makefile 现本地默认导出 `PLAYWRIGHT_REUSE_SERVER=1`，CI 默认仍为 `0`，显式环境变量可覆盖。
+QUICKSTART 已同步说明本地复用 / CI 不复用行为。修正后在当前 dev 栈运行中直接执行裸 `make e2e`
+已通过 Web 232 项、Admin 78 项和 UniAppX H5 52 项。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等
