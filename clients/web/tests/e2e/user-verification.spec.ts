@@ -722,8 +722,23 @@ test.describe("User verification flows", () => {
         await expect(page.getByText("暂无学籍数据")).toBeVisible();
 
         await page.unroute("**/api/v1/user/profile/academic-info");
+        let malformedAcademicInfo = true;
         await page.route("**/api/v1/user/profile/academic-info", (route) =>
-            route.fulfill(ok({})),
+            route.fulfill(
+                ok(
+                    malformedAcademicInfo
+                        ? {
+                              xh: "20260001",
+                              xm: "张三",
+                              sjh: 13812345678,
+                          }
+                        : {
+                              xh: "20260001",
+                              xm: "张三",
+                              yxdm: "计算机学院",
+                          },
+                ),
+            ),
         );
 
         await gotoAuthenticatedPage(page, "/user/academic-info");
@@ -732,5 +747,10 @@ test.describe("User verification flows", () => {
             page.getByRole("button", { name: "重试" }),
         ).toBeVisible();
         await expect(page.getByText("暂无学籍数据")).toHaveCount(0);
+
+        malformedAcademicInfo = false;
+        await page.getByRole("button", { name: "重试" }).click();
+        await expect(page.getByText("20260001")).toBeVisible();
+        await expect(page.getByText("计算机学院")).toBeVisible();
     });
 });

@@ -24,15 +24,17 @@ function isNonNegativeNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
 function readCourseStatsPayload(payload: unknown): { courseCount: number } {
-  if (!payload || typeof payload !== 'object') {
+  if (!isRecord(payload)) {
     throw new Error('Invalid course stats response')
   }
 
-  const { courseCount, departmentCount } = payload as {
-    courseCount?: unknown
-    departmentCount?: unknown
-  }
+  const courseCount = payload.courseCount
+  const departmentCount = payload.departmentCount
   if (!isNonNegativeNumber(courseCount) || !isNonNegativeNumber(departmentCount)) {
     throw new Error('Invalid course stats response')
   }
@@ -41,16 +43,14 @@ function readCourseStatsPayload(payload: unknown): { courseCount: number } {
 }
 
 function readReviewStatsPayload(payload: unknown): { reviewCount: number; userCount: number } {
-  if (!payload || typeof payload !== 'object') {
+  if (!isRecord(payload)) {
     throw new Error('Invalid review stats response')
   }
 
-  const { courseCount, reviewCount, departmentCount, userCount } = payload as {
-    courseCount?: unknown
-    reviewCount?: unknown
-    departmentCount?: unknown
-    userCount?: unknown
-  }
+  const courseCount = payload.courseCount
+  const reviewCount = payload.reviewCount
+  const departmentCount = payload.departmentCount
+  const userCount = payload.userCount
   if (
     !isNonNegativeNumber(courseCount) ||
     !isNonNegativeNumber(reviewCount) ||

@@ -208,6 +208,32 @@ test('home stats fail closed when course stats response is malformed', async ({
   ).toBeVisible({ timeout: 10_000 })
 })
 
+test('home stats fail closed when review stats response is malformed', async ({
+  page,
+}) => {
+  await mockUnauthenticated(page)
+  await page.route('**/api/v1/course/review/stats', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          courseCount: 120,
+          reviewCount: 580,
+          departmentCount: 8,
+          userCount: '230',
+        },
+      }),
+    }),
+  )
+
+  await page.goto('/')
+
+  await expect(
+    page.getByRole('alert').filter({ hasText: /Load failed|加载失败/i }),
+  ).toBeVisible({ timeout: 10_000 })
+})
+
 test('locale switcher updates rendered language and persists preference', async ({
   page,
 }) => {

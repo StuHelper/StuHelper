@@ -29,25 +29,27 @@ const allCollapsed = computed(() =>
   departmentGroups.value.every((g) => !g.expanded),
 )
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
 function readDepartmentGroups(payload: unknown): DepartmentGroup[] {
-  if (!payload || typeof payload !== 'object') {
+  if (!isRecord(payload)) {
     throw new Error('Invalid grouped courses response')
   }
 
-  const { groups } = payload as { groups?: unknown }
+  const groups = payload.groups
   if (!Array.isArray(groups)) {
     throw new Error('Invalid grouped courses response')
   }
 
   return groups.map((group) => {
-    if (!group || typeof group !== 'object') {
+    if (!isRecord(group)) {
       throw new Error('Invalid grouped courses response')
     }
 
-    const { departmentName, courses } = group as {
-      departmentName?: unknown
-      courses?: unknown
-    }
+    const departmentName = group.departmentName
+    const courses = group.courses
     if (!Array.isArray(courses)) {
       throw new Error('Invalid grouped courses response')
     }
@@ -63,22 +65,21 @@ function readDepartmentGroups(payload: unknown): DepartmentGroup[] {
 }
 
 function readCoursePayload(payload: unknown): Course {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+  if (!isRecord(payload)) {
     throw new Error('Invalid grouped courses response')
   }
 
-  const record = payload as Record<string, unknown>
   return {
-    id: readInteger(record, 'id'),
-    schoolID: readOptionalInteger(record, 'schoolID'),
-    departmentID: readInteger(record, 'departmentID'),
-    departmentName: readOptionalString(record, 'departmentName'),
-    code: readOptionalString(record, 'code'),
-    name: readString(record, 'name'),
-    credits: readNumber(record, 'credits'),
-    category: readOptionalString(record, 'category'),
-    reviewCount: readInteger(record, 'reviewCount'),
-    isFavorited: readOptionalBoolean(record, 'isFavorited'),
+    id: readInteger(payload, 'id'),
+    schoolID: readOptionalInteger(payload, 'schoolID'),
+    departmentID: readInteger(payload, 'departmentID'),
+    departmentName: readOptionalString(payload, 'departmentName'),
+    code: readOptionalString(payload, 'code'),
+    name: readString(payload, 'name'),
+    credits: readNumber(payload, 'credits'),
+    category: readOptionalString(payload, 'category'),
+    reviewCount: readInteger(payload, 'reviewCount'),
+    isFavorited: readOptionalBoolean(payload, 'isFavorited'),
   }
 }
 

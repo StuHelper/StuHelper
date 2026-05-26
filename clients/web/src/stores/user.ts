@@ -18,11 +18,12 @@ function readPaginatedPayload<T>(
     payload: unknown,
     itemReader: (item: unknown) => T,
 ): { list: T[]; total: number } {
-    if (!payload || typeof payload !== "object") {
+    if (!isRecord(payload)) {
         throw new Error("Invalid paginated response");
     }
 
-    const { list, total } = payload as { list?: unknown; total?: unknown };
+    const list = payload.list;
+    const total = payload.total;
     if (
         !Array.isArray(list) ||
         typeof total !== "number" ||
@@ -142,11 +143,11 @@ function readFavoriteCourse(payload: unknown): FavoriteCourse {
 }
 
 function readFavoriteStatus(payload: unknown): boolean {
-    if (!payload || typeof payload !== "object") {
+    if (!isRecord(payload)) {
         throw new Error("Invalid favorite status response");
     }
 
-    const { favorited } = payload as { favorited?: unknown };
+    const favorited = payload.favorited;
     if (typeof favorited !== "boolean") {
         throw new Error("Invalid favorite status response");
     }

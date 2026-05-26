@@ -625,6 +625,16 @@ fail-closed 路径。已通过 `pnpm --dir clients type-check:web`、`pnpm --dir
 （14 项）；并通过 `pnpm --dir clients test:web`（58 文件、288 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3599 make e2e-web`（230 项）。
 
+本地清理补充（2026-05-27）：继续收敛 Web 业务页面响应解析。首页、课程目录、课程社区热门课程、
+课程详情评分统计、评分维度和用户中心收藏 / 收藏状态读取不再通过局部 `payload as` 访问响应字段；
+学籍信息页改为显式构造 `AcademicStudentInfo`，拒绝数组、缺失必填字段和可选字段类型漂移，不再把后端额外字段
+透传进页面状态。首页新增 review stats 嵌套字段畸形 fail-closed E2E；学籍信息页新增可选手机号字段类型漂移
+fail-closed 与重试恢复断言。已通过 `pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3600 pnpm --dir clients/web exec playwright test tests/e2e/home.spec.ts tests/e2e/user-verification.spec.ts tests/e2e/course-browse.spec.ts tests/e2e/review-flow.spec.ts tests/e2e/journey-user-center.spec.ts`
+（102 项）；并通过 `pnpm --dir clients test:web`（58 文件、288 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3602 make e2e-web`（232 项）。Playwright MCP 已用本地 Vite 页面
+`http://127.0.0.1:3601/` 验证首页壳、导航、CTA 和统计区域可见。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

@@ -291,6 +291,10 @@ function isNonNegativeNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
 function mapCourseItem(raw: Course): CourseItem {
   return {
     id: raw.id,
@@ -301,16 +305,14 @@ function mapCourseItem(raw: Course): CourseItem {
 }
 
 function mapHotCourse(raw: unknown): HotCourse {
-  if (!raw || typeof raw !== 'object') {
+  if (!isRecord(raw)) {
     throw new Error('Invalid hot courses response')
   }
 
-  const { courseID, courseName, reviewCount, avgRating } = raw as {
-    courseID?: unknown
-    courseName?: unknown
-    reviewCount?: unknown
-    avgRating?: unknown
-  }
+  const courseID = raw.courseID
+  const courseName = raw.courseName
+  const reviewCount = raw.reviewCount
+  const avgRating = raw.avgRating
   if (
     !isNonNegativeNumber(courseID) ||
     typeof courseName !== 'string' ||
@@ -324,28 +326,22 @@ function mapHotCourse(raw: unknown): HotCourse {
 }
 
 function readHotCourseListPayload(payload: unknown): HotCourse[] {
-  if (
-    !payload ||
-    typeof payload !== 'object' ||
-    !Array.isArray((payload as { list?: unknown }).list)
-  ) {
+  if (!isRecord(payload) || !Array.isArray(payload.list)) {
     throw new Error('Invalid hot courses response')
   }
 
-  return (payload as { list: unknown[] }).list.map(mapHotCourse)
+  return payload.list.map(mapHotCourse)
 }
 
 function readReviewStatsPayload(payload: unknown): ReviewStats {
-  if (!payload || typeof payload !== 'object') {
+  if (!isRecord(payload)) {
     throw new Error('Invalid review stats response')
   }
 
-  const { courseCount, reviewCount, departmentCount, userCount } = payload as {
-    courseCount?: unknown
-    reviewCount?: unknown
-    departmentCount?: unknown
-    userCount?: unknown
-  }
+  const courseCount = payload.courseCount
+  const reviewCount = payload.reviewCount
+  const departmentCount = payload.departmentCount
+  const userCount = payload.userCount
   if (
     !isNonNegativeNumber(courseCount) ||
     !isNonNegativeNumber(reviewCount) ||

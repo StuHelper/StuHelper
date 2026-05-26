@@ -14,27 +14,15 @@ function readRatingDimension(payload: unknown): RatingDimension {
     throw new Error('Invalid rating dimensions response')
   }
 
-  const {
-    id,
-    key,
-    name,
-    description,
-    sortOrder,
-    isActive,
-    createdAt,
-    updatedAt,
-    schoolID,
-  } = payload as {
-    id?: unknown
-    schoolID?: unknown
-    key?: unknown
-    name?: unknown
-    description?: unknown
-    sortOrder?: unknown
-    isActive?: unknown
-    createdAt?: unknown
-    updatedAt?: unknown
-  }
+  const id = payload.id
+  const key = payload.key
+  const name = payload.name
+  const description = payload.description
+  const sortOrder = payload.sortOrder
+  const isActive = payload.isActive
+  const createdAt = payload.createdAt
+  const updatedAt = payload.updatedAt
+  const schoolID = payload.schoolID
   if (
     typeof id !== 'string' ||
     (schoolID !== undefined && (typeof schoolID !== 'number' || !Number.isInteger(schoolID))) ||

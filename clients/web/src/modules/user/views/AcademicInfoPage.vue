@@ -78,26 +78,48 @@ const loading = ref(false)
 const errorState = ref<ErrorState>(null)
 const info = ref<AcademicStudentInfo | null>(null)
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function readOptionalString(
+  record: Record<string, unknown>,
+  key: keyof AcademicStudentInfo,
+): string | undefined {
+  const value = record[key]
+  if (value === undefined) {
+    return undefined
+  }
+  if (typeof value !== 'string') {
+    throw new Error('invalid academic info response')
+  }
+  return value
+}
+
 function readAcademicInfoPayload(payload: unknown): AcademicStudentInfo {
-  if (!payload || typeof payload !== 'object') {
+  if (!isRecord(payload)) {
     throw new Error('invalid academic info response')
   }
 
-  const raw = payload as Record<string, unknown>
-  if (typeof raw.xh !== 'string' || raw.xh.trim() === '') {
+  if (typeof payload.xh !== 'string' || payload.xh.trim() === '') {
     throw new Error('invalid academic info response')
   }
-  if (typeof raw.xm !== 'string' || raw.xm.trim() === '') {
+  if (typeof payload.xm !== 'string' || payload.xm.trim() === '') {
     throw new Error('invalid academic info response')
   }
 
-  for (const field of ['yxdm', 'zydm', 'bjdm', 'xznj', 'rxnj', 'pyccdm', 'sjh', 'dzxx'] as const) {
-    if (raw[field] !== undefined && typeof raw[field] !== 'string') {
-      throw new Error('invalid academic info response')
-    }
+  return {
+    xh: payload.xh,
+    xm: payload.xm,
+    yxdm: readOptionalString(payload, 'yxdm'),
+    zydm: readOptionalString(payload, 'zydm'),
+    bjdm: readOptionalString(payload, 'bjdm'),
+    xznj: readOptionalString(payload, 'xznj'),
+    rxnj: readOptionalString(payload, 'rxnj'),
+    pyccdm: readOptionalString(payload, 'pyccdm'),
+    sjh: readOptionalString(payload, 'sjh'),
+    dzxx: readOptionalString(payload, 'dzxx'),
   }
-
-  return raw as AcademicStudentInfo
 }
 
 const displayFields = computed(() => {

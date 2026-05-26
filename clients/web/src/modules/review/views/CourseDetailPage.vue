@@ -703,16 +703,19 @@ function readRatingStatsPayload(payload: unknown): CourseRatingStatsResponse {
   }
 
   const allDimensionKeys = readArray(payload.allDimensionKeys, 'Invalid rating stats response')
-  if (allDimensionKeys.some((key) => typeof key !== 'string')) {
-    throw new Error('Invalid rating stats response')
-  }
+    .map((key) => {
+      if (typeof key !== 'string') {
+        throw new Error('Invalid rating stats response')
+      }
+      return key
+    })
 
   return {
     courseID: readPositiveInteger(payload, 'courseID', 'Invalid rating stats response'),
     overall: readTermRatingStats(payload.overall),
     byTerm: readArray(payload.byTerm, 'Invalid rating stats response').map(readTermRatingStats),
     allDimensionKeys,
-  } as CourseRatingStatsResponse
+  }
 }
 
 // ── Navigation ──
