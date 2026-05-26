@@ -396,6 +396,48 @@ test.describe("Review actions", () => {
         await expect(page.getByText("已有回复内容")).toHaveCount(0);
     });
 
+    test("invalid reply list response fails closed and can retry", async ({
+        page,
+    }) => {
+        let loadCount = 0;
+
+        await mockCourseDetail(page);
+        await page.route(
+            "**/api/v1/course/review/courses/42/reviews*",
+            (route) =>
+                route.fulfill(list([{ ...publicReview, replyCount: 1 }])),
+        );
+        await page.route(
+            "**/api/v1/course/review/reviews/public-report-review/replies",
+            async (route) => {
+                if (route.request().method() !== "GET") {
+                    await route.fallback();
+                    return;
+                }
+
+                loadCount += 1;
+                await route.fulfill(
+                    loadCount === 1 ? ok(null) : list([existingReply], 1),
+                );
+            },
+        );
+
+        await page.goto("/courses/42/reviews");
+        await expect(page.getByText("可举报的公开评价")).toBeVisible({
+            timeout: 10_000,
+        });
+
+        await page.getByRole("button", { name: "查看回复" }).click();
+
+        await expect(page.getByText("加载回复失败")).toBeVisible();
+        await expect(page.getByText("暂无回复")).toHaveCount(0);
+
+        await page.getByRole("button", { name: "重试" }).click();
+
+        await expect.poll(() => loadCount).toBe(2);
+        await expect(page.getByText("已有回复内容")).toBeVisible();
+    });
+
     test("user loads additional reviews from course detail", async ({
         page,
     }) => {

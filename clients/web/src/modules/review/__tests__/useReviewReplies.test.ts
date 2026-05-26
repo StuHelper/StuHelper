@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockCreateReply = vi.fn()
+const mockGetReplies = vi.fn()
+const mockDeleteReply = vi.fn()
 const mockToastSuccess = vi.fn()
 const mockToastError = vi.fn()
 const mockRouterPush = vi.fn()
@@ -15,8 +17,8 @@ vi.mock('@/api', () => ({
   api: {
     reply: {
       createReply: mockCreateReply,
-      getReplies: vi.fn(),
-      deleteReply: vi.fn(),
+      getReplies: mockGetReplies,
+      deleteReply: mockDeleteReply,
     },
   },
 }))
@@ -58,6 +60,8 @@ const { useReviewReplies } = await import('../useReviewReplies')
 describe('useReviewReplies', () => {
   beforeEach(() => {
     mockCreateReply.mockReset()
+    mockGetReplies.mockReset()
+    mockDeleteReply.mockReset()
     mockToastSuccess.mockReset()
     mockToastError.mockReset()
     mockRouterPush.mockReset()
@@ -90,6 +94,36 @@ describe('useReviewReplies', () => {
     expect(mockToastSuccess).toHaveBeenCalledWith('review.review.replySuccess')
     expect(mockToastError).not.toHaveBeenCalled()
     expect(replies.replyCountMap['review-1']).toBe(1)
+  })
+
+  it('fails closed when reply list response is missing page data', async () => {
+    mockGetReplies.mockResolvedValue({
+      data: { data: null },
+    })
+
+    const replies = useReviewReplies()
+
+    await replies.toggleExpand('review-1')
+
+    expect(mockGetReplies).toHaveBeenCalledWith('review-1')
+    expect(replies.replies.value).toEqual([])
+    expect(replies.repliesError.value).toBe(true)
+    expect(replies.replyCountMap['review-1']).toBeUndefined()
+  })
+
+  it('surfaces malformed create-reply success responses as submit failures', async () => {
+    mockCreateReply.mockResolvedValue({
+      data: { data: null },
+    })
+
+    const replies = useReviewReplies()
+
+    await replies.handleReplySubmit('review-1', 'saved reply')
+
+    expect(replies.replies.value).toEqual([])
+    expect(replies.replyCountMap['review-1']).toBeUndefined()
+    expect(mockToastSuccess).not.toHaveBeenCalled()
+    expect(mockToastError).toHaveBeenCalledWith('review.review.replyFailed')
   })
 
   it('redirects unauthenticated users before submitting replies', async () => {

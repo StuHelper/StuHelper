@@ -7,6 +7,7 @@ import { getErrorMessage } from '@/api/errors'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import ReplyForm from '@/components/business/review/ReplyForm.vue'
+import { readReply, readReplyPage } from './replyPageResponse'
 
 import type { Reply } from '@stuhelper/shared/reply'
 
@@ -49,8 +50,9 @@ export function useReviewReplies() {
     try {
       const res = await api.reply.getReplies(reviewId)
       if (requestSeq !== repliesRequestSeq || expandedReviewID.value !== reviewId) return
-      replies.value = res.data?.data?.list || []
-      replyCountMap[reviewId] = res.data?.data?.total || 0
+      const pageData = readReplyPage(res.data?.data)
+      replies.value = pageData.list
+      replyCountMap[reviewId] = pageData.total
     } catch (_error) { void _error;
       if (requestSeq !== repliesRequestSeq || expandedReviewID.value !== reviewId) return
       replies.value = []
@@ -77,12 +79,11 @@ export function useReviewReplies() {
     replySubmitting.value = true
     try {
       const res = await api.reply.createReply(reviewId, { content })
-      if (res.data?.data) {
-        replies.value = [...replies.value, res.data.data]
-        replyCountMap[reviewId] = (replyCountMap[reviewId] ?? 0) + 1
-        clearReplyForm(replyFormRef.value)
-        toast.success(t('review.review.replySuccess'))
-      }
+      const reply = readReply(res.data?.data)
+      replies.value = [...replies.value, reply]
+      replyCountMap[reviewId] = (replyCountMap[reviewId] ?? 0) + 1
+      clearReplyForm(replyFormRef.value)
+      toast.success(t('review.review.replySuccess'))
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, t('review.review.replyFailed')))
     } finally {
