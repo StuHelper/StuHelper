@@ -661,6 +661,8 @@ Playwright MCP 同轮确认 Admin 入口正常跳转到本地 Casdoor 登录页�
 已通过 `node --check infra/ops/dev-browser-smoke.mjs`、`bash infra/ops/tests/dev-smoke-contract.sh`、
 `pnpm --dir clients type-check:admin`、`pnpm --dir clients lint:admin`、`pnpm --dir clients build:admin`、
 `CI=1 ADMIN_E2E_PORT=4179 make e2e-admin`（78 项）和 `make check-infra-contracts`。
+同轮真实本地观测栈 `make obs-smoke` 也已通过，Prometheus、Grafana、Loki、Tempo、Alertmanager 和
+Alloy ready 检查均 healthy。
 
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
