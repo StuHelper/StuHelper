@@ -2,6 +2,7 @@ import type { Session } from 'koishi'
 
 import type { AntiRecallModule } from './antirecall.module'
 import {
+  type AntiRecallConfigOptions,
   formatRecallRecords,
   formatStatusMessage,
   parseConfigUpdates,
@@ -125,13 +126,14 @@ function handleRecallQuery(
     })
     return formatRecallRecords(records, query.userId, Boolean(config?.showOriginalTime))
   } catch (error) {
-    host.data.writeLog(`[antirecall] 查询撤回记录失败: ${error}`)
-    void host.logCommand({ session, command: 'antirecall', target: input, result: `失败: ${error.message}` })
-    return `查询撤回记录失败: ${error.message}`
+    const message = errorMessage(error)
+    host.data.writeLog(`[antirecall] 查询撤回记录失败: ${message}`)
+    void host.logCommand({ session, command: 'antirecall', target: input, result: `失败: ${message}` })
+    return `查询撤回记录失败: ${message}`
   }
 }
 
-function handleConfigCommand(host: AntiRecallModule, session: Session, options: any): string {
+function handleConfigCommand(host: AntiRecallModule, session: Session, options: AntiRecallConfigOptions): string {
   if (!session.guildId) return '此命令只能在群聊中使用'
   if (Object.keys(options).length === 0) {
     return '请指定要配置的选项：-e (启用/禁用), -d (天数), -m (最大条数)'
@@ -148,6 +150,10 @@ function handleConfigCommand(host: AntiRecallModule, session: Session, options: 
     result: `更新配置: ${JSON.stringify(updates)}`,
   })
   return `配置已更新：\n${messages.join('\n')}`
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function logQuerySuccess(entry: QueryLogEntry): void {

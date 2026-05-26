@@ -16,6 +16,7 @@ import {
   scheduleAntiRecallCleanup,
 } from './antirecall-events'
 import { registerAntiRecallCommands } from './antirecall-commands'
+import type { AntiRecallStatus } from './antirecall-formatters'
 
 export interface CachedMessage {
   content: string
@@ -132,7 +133,7 @@ export class AntiRecallModule implements RuntimeModuleInstance {
     return (records[guildId]?.[userId] || []).slice(0, limit)
   }
 
-  getStatus(guildId: string) {
+  getStatus(guildId: string): AntiRecallStatus {
     const records = this.data.recallRecords.getAll()
     let totalRecords = 0
     let totalUsers = 0

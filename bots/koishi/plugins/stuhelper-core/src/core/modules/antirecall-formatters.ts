@@ -1,6 +1,6 @@
 import { Element } from 'koishi'
 
-import type { RecalledMessage } from '../../types'
+import type { Config, RecalledMessage } from '../../types'
 
 const DEFAULT_QUERY_LIMIT = 10
 const MAX_QUERY_LIMIT = 50
@@ -15,9 +15,26 @@ export interface RecallQuery {
   count: number
 }
 
+export interface AntiRecallConfigOptions {
+  readonly enabled?: string | boolean
+  readonly days?: string | number
+  readonly max?: string | number
+}
+
 export interface ConfigUpdateResult {
-  updates: any
+  updates: Partial<Config['antiRecall']>
   messages: string[]
+}
+
+export interface AntiRecallStatus {
+  readonly globalEnabled: boolean
+  readonly groupSpecificEnabled?: boolean
+  readonly effectiveConfig: Config['antiRecall']
+  readonly statistics: {
+    readonly totalRecords: number
+    readonly totalUsers: number
+    readonly totalGuilds: number
+  }
 }
 
 export function parseRecallQuery(input: string, defaultGuildId?: string): RecallQuery {
@@ -42,8 +59,8 @@ export function parseRecallQuery(input: string, defaultGuildId?: string): Recall
   return { userId: parseTargetUserId(targetUser), targetGuildId, count }
 }
 
-export function parseConfigUpdates(options: any): ConfigUpdateResult {
-  const updates: any = {}
+export function parseConfigUpdates(options: AntiRecallConfigOptions): ConfigUpdateResult {
+  const updates: Partial<Config['antiRecall']> = {}
   const messages: string[] = []
 
   applyEnabledOption(options, updates, messages)
@@ -74,7 +91,7 @@ export function formatRecallRecords(
   return message.trim()
 }
 
-export function formatStatusMessage(status: any): string {
+export function formatStatusMessage(status: AntiRecallStatus): string {
   const { globalEnabled, groupSpecificEnabled, effectiveConfig, statistics } = status
   const groupStatusText = groupSpecificEnabled === undefined
     ? `未单独设置 (跟随全局)`
@@ -157,7 +174,11 @@ function formatElement(element: Element): string {
   }
 }
 
-function applyEnabledOption(options: any, updates: any, messages: string[]): void {
+function applyEnabledOption(
+  options: AntiRecallConfigOptions,
+  updates: Partial<Config['antiRecall']>,
+  messages: string[],
+): void {
   if (options.enabled === undefined) return
 
   const enabledStr = options.enabled.toString().toLowerCase()
@@ -170,26 +191,41 @@ function applyEnabledOption(options: any, updates: any, messages: string[]): voi
   }
 }
 
-function applyDaysOption(options: any, updates: any, messages: string[]): void {
+function applyDaysOption(
+  options: AntiRecallConfigOptions,
+  updates: Partial<Config['antiRecall']>,
+  messages: string[],
+): void {
   if (options.days === undefined) return
 
-  if (options.days >= MIN_CONFIG_VALUE && options.days <= MAX_RETENTION_DAYS) {
-    updates.retentionDays = options.days
-    messages.push(`保留天数设为 ${options.days} 天`)
+  const days = readNumberOption(options.days)
+  if (days !== null && days >= MIN_CONFIG_VALUE && days <= MAX_RETENTION_DAYS) {
+    updates.retentionDays = days
+    messages.push(`保留天数设为 ${days} 天`)
   } else {
     messages.push('保留天数无效 (需 1-365)')
   }
 }
 
-function applyMaxOption(options: any, updates: any, messages: string[]): void {
+function applyMaxOption(
+  options: AntiRecallConfigOptions,
+  updates: Partial<Config['antiRecall']>,
+  messages: string[],
+): void {
   if (options.max === undefined) return
 
-  if (options.max >= MIN_CONFIG_VALUE && options.max <= MAX_RECORDS_PER_USER) {
-    updates.maxRecordsPerUser = options.max
-    messages.push(`最大记录数设为 ${options.max} 条`)
+  const maxRecords = readNumberOption(options.max)
+  if (maxRecords !== null && maxRecords >= MIN_CONFIG_VALUE && maxRecords <= MAX_RECORDS_PER_USER) {
+    updates.maxRecordsPerUser = maxRecords
+    messages.push(`最大记录数设为 ${maxRecords} 条`)
   } else {
     messages.push('最大记录数无效 (需 1-1000)')
   }
+}
+
+function readNumberOption(value: string | number): number | null {
+  const parsed = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 function formatBool(value: boolean): string {

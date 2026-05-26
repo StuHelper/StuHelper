@@ -791,6 +791,15 @@ logs collection，并用源码合同锁定 Help / Status 不回退旧边界。�
 `corepack yarn --cwd bots/koishi test:unit`（279 项）、`corepack yarn --cwd bots/koishi build` 和
 `make e2e-koishi`（29 项，覆盖 System 视图和全局 Console UI 路径）。
 
+本地 Koishi AntiRecall 运行时类型清理（2026-05-27）：`antirecall-formatters.ts`、
+`antirecall-commands.ts` 和 `antirecall.module.ts` 不再用裸 `options: any`、`updates: any` 或
+`status: any` 表达防撤回配置与状态模型，改为 `AntiRecallConfigOptions`、`ConfigUpdateResult` 和
+`AntiRecallStatus`；查询失败路径也统一从 `unknown` 经 `errorMessage()` 展示，不再直接插值
+`error.message`。配置命令的 `days` / `max` 选项从隐式 JS 强制转换改成明确的 finite number 解析，非法值继续
+返回既有错误文案。新增单测覆盖开关 / 数字配置归一化、非法配置提示和状态文本渲染，并用源码合同防止回退。
+已通过 `corepack yarn --cwd bots/koishi test:unit`（282 项）、`corepack yarn --cwd bots/koishi build` 和
+`make e2e-koishi`（29 项，覆盖防撤回模块初始化与全局 Console UI 路径）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等
