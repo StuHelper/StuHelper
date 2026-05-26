@@ -1751,6 +1751,16 @@ QQ 绑定码生成接口中 `success=true` 但 `data=null` / 缺少关键字段�
 （16 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、`pnpm --dir clients test:web`
 （53 文件、241 项）和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3511 make e2e-web`（176 项）。
 
+本地验证补充（2026-05-27）：继续复验本地开发环境的全前端浏览器链路。完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3520 ADMIN_E2E_PORT=4220 UNIAPPX_E2E_PORT=3143 make e2e`
+已通过，覆盖 Web 232 项、Admin 78 项和 UniAppX H5 52 项；Playwright MCP 另行抽查 Web 首页、
+课程列表、移动端课程社区页，以及 Admin 未登录访问 `/admin/analytics` 跳转 Casdoor 登录页，
+上述页面均能正常渲染且浏览器 console error 为 0。后端门禁同步复验通过 `make fmt`、`make lint`、
+`make test`（`go test -race ./...`）和 `make build`。前端全量 `pnpm --dir clients type-check:all`
+通过；Admin lint 曾在测试 stub 文件输出 `vue/one-component-per-file` warning，本轮将该规则仅在
+`*.test.ts` 关闭，保留生产代码约束，并通过 `pnpm --dir clients/admin lint` 确认 Admin lint 输出
+0 warnings / 0 errors。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |
