@@ -11,7 +11,5 @@ export type {
 
 export {
   isValidRatings,
-  normalizeReviews,
-  normalizeReviewList,
   normalizeContentCheck,
 } from './presentation/review'

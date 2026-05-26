@@ -110,7 +110,7 @@ describe('createReviewAppApi', () => {
     const client = {
       GET: vi.fn(),
       POST: vi.fn().mockResolvedValue({
-        data: { data: null },
+        data: { data: { isValid: true, matchCount: -1 } },
       }),
       PUT: vi.fn(),
       PATCH: vi.fn(),

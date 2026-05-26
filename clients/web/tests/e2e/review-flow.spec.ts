@@ -317,7 +317,10 @@ test("post review content check fails closed when response is malformed", async 
     await page.route("**/api/v1/course/review/content/check", async (route) => {
         await route.fulfill({
             contentType: "application/json",
-            body: JSON.stringify({ success: true, data: null }),
+            body: JSON.stringify({
+                success: true,
+                data: { isValid: true, matchCount: -1 },
+            }),
         });
     });
     await page.route("**/api/v1/course/review/reviews", async (route) => {

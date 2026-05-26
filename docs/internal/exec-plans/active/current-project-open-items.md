@@ -535,6 +535,19 @@ ReviewCard 共用的回复列表和创建回复成功响应不再把缺失 `revi
 （30 项）；并通过 `pnpm --dir clients lint:web`、`pnpm --dir clients test:web`（57 文件、280 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3580 make e2e-web`（228 项）。
 
+本地清理补充（2026-05-27）：继续清理 shared 旧评课 presentation 入口。Web 公共评价列表、用户评价 /
+点赞和课程详情回复已经迁到严格 reader 后，仓库内不再有生产代码引用 `normalizeReviews` /
+`normalizeReviewList`，本轮删除这两个只做浅层 cast 的导出和对应 shared 单测，避免后续重新引入畸形
+Review 列表渲染路径。同时收紧 `normalizeContentCheck`，当后端返回 `matchCount` 时要求其为非负整数；
+发布评课 content-check invalid-response E2E 从顶层 `null` 扩展为嵌套 `matchCount` 畸形。已通过
+`pnpm --dir clients --filter @stuhelper/web exec vitest run src/api/__tests__/review.test.ts`（3 项）、
+`pnpm --dir clients --filter @stuhelper/shared test`（9 文件、50 项）、`pnpm --dir clients type-check:all`、
+目标 E2E `CI=1 PLAYWRIGHT_WEB_PORT=3583 pnpm --dir clients/web exec playwright test tests/e2e/review-flow.spec.ts`
+（14 项，首次同文件运行曾因草稿 autosave 时序未捕获 `grade` 出现一次不稳定失败，单测失败用例与整文件复跑均通过）、
+`pnpm --dir clients lint:all`（Admin lint 前先执行 `pnpm --dir clients/admin -r run stub --if-present` 生成本地
+workspace CLI stub；Admin 保留 7 个既有 warning，退出码 0）、`pnpm --dir clients test:web`（57 文件、280 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3584 make e2e-web`（228 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

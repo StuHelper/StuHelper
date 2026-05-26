@@ -5,15 +5,10 @@
  * 业务别名（Review, ReviewRatings 等）仍在 types/business/review.ts。
  */
 import type { components } from '../types/api.gen'
-import type { Review, ReviewRatings } from '../types/business/review'
+import type { ReviewRatings } from '../types/business/review'
 
 // ---- 局部 wire 别名（仅 normalizer 内部使用） ----
 
-type ApiReview = components['schemas']['Review']
-type ApiReviewListPayload = {
-  list?: ApiReview[] | null
-  total?: number | null
-}
 type ApiContentCheckResult = components['schemas']['ContentCheckResult']
 
 // ---- 纯 UI 接口 ----
@@ -42,36 +37,24 @@ export function isValidRatings(
   )
 }
 
-export function normalizeReviews(items?: ApiReview[] | null): Review[] {
-  return (items ?? []) as Review[]
-}
-
-export function normalizeReviewList(payload?: ApiReviewListPayload | null): PaginatedResult<Review> {
-  if (!payload || typeof payload !== 'object') {
-    throw new Error('Invalid review list response')
-  }
-
-  const { list, total } = payload
-  if (!Array.isArray(list) || typeof total !== 'number' || !Number.isFinite(total) || total < 0) {
-    throw new Error('Invalid review list response')
-  }
-
-  return {
-    list: list as Review[],
-    total,
-  }
-}
-
 export function normalizeContentCheck(payload?: ApiContentCheckResult | null): ReviewContentCheck {
   if (!payload || typeof payload !== 'object') {
     throw new Error('Invalid content check response')
   }
 
-  const { isValid, level } = payload
+  const { isValid, level, matchCount } = payload
   if (
     typeof isValid !== 'boolean' ||
     (level !== undefined && level !== 'block' && level !== 'warn') ||
-    (!isValid && level === undefined)
+    (!isValid && level === undefined) ||
+    (
+      matchCount !== undefined &&
+      (
+        typeof matchCount !== 'number' ||
+        !Number.isInteger(matchCount) ||
+        matchCount < 0
+      )
+    )
   ) {
     throw new Error('Invalid content check response')
   }
