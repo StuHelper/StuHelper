@@ -53,7 +53,7 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import { getErrorMessage } from '@/api/errors'
 import type { Review } from '@stuhelper/shared/review'
-import { normalizeReviews } from '@stuhelper/shared/review'
+import { readReviewPagePayload } from '@/modules/review/reviewListPayload'
 import ReviewCard from '@/components/business/review/ReviewCard.vue'
 import SkeletonCard from '@/components/common/SkeletonCard.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -67,28 +67,15 @@ const total = ref(0)
 const page = ref(1)
 const errorMessage = ref('')
 
-function readVotePage(payload: unknown): { list: Review[]; total: number } {
-  if (!payload || typeof payload !== 'object') {
-    throw new Error('Invalid vote list response')
-  }
-
-  const { list, total } = payload as { list?: unknown; total?: unknown }
-  if (!Array.isArray(list) || typeof total !== 'number') {
-    throw new Error('Invalid vote list response')
-  }
-
-  return {
-    list: normalizeReviews(list as Parameters<typeof normalizeReviews>[0]),
-    total,
-  }
-}
-
 async function loadInitial() {
   loading.value = true
   errorMessage.value = ''
   try {
     const res = await api.user.getMyVotes(1, 10)
-    const pageData = readVotePage(res.data?.data)
+    const pageData = readReviewPagePayload(
+      res.data?.data,
+      'Invalid vote list response',
+    )
     votes.value = pageData.list
     total.value = pageData.total
     page.value = 1
@@ -107,7 +94,10 @@ const loadMore = async () => {
   const nextPage = page.value + 1
   try {
     const res = await api.user.getMyVotes(nextPage, 10)
-    const pageData = readVotePage(res.data?.data)
+    const pageData = readReviewPagePayload(
+      res.data?.data,
+      'Invalid vote list response',
+    )
     votes.value = [...votes.value, ...pageData.list]
     total.value = pageData.total
     page.value = nextPage

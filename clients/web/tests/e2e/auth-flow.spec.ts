@@ -392,6 +392,7 @@ test.describe('Auth Flow', () => {
                 id: 'rev-e2e-1',
                 courseID: 42,
                 courseName: 'E2E Test Course',
+                termID: '2026-spring',
                 title: 'My E2E Review Title',
                 content: 'Content body.',
                 ratings: { recommendation: 5 },

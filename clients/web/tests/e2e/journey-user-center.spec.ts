@@ -337,6 +337,7 @@ test.describe('User Journey: User Center', () => {
                 id: 'my-rev-1',
                 courseID: 101,
                 courseName: '数据结构与算法',
+                termID: '2026-spring',
                 title: '我的第一条评价',
                 content: '这门课帮助我理解了基本的数据结构概念。',
                 ratings: { recommendation: 4 },
@@ -350,6 +351,7 @@ test.describe('User Journey: User Center', () => {
                 id: 'my-rev-2',
                 courseID: 102,
                 courseName: '高等数学A',
+                termID: '2026-spring',
                 title: '考试较难但收获很大',
                 content: '高数A是一门很有挑战性的课，需要大量练习。',
                 ratings: { recommendation: 3 },
@@ -395,6 +397,7 @@ test.describe('User Journey: User Center', () => {
                 id: 'voted-rev-1',
                 courseID: 101,
                 courseName: '数据结构与算法',
+                termID: '2026-spring',
                 title: '我投过票的评价',
                 content: '这是一条我投过票的评价内容。',
                 ratings: { recommendation: 5 },
@@ -465,13 +468,34 @@ test.describe('User Journey: User Center', () => {
       loadCount += 1
       await route.fulfill(
         loadCount === 1
-          ? ok(null)
+          ? ok({
+              list: [
+                {
+                  id: 'retry-review-1',
+                  courseID: 101,
+                  courseName: '数据结构与算法',
+                  termID: '2026-spring',
+                  title: '重试后的评价',
+                  content: '畸形响应不应显示。',
+                  ratings: { recommendation: 6 },
+                  likeCount: 3,
+                  dislikeCount: 0,
+                  replyCount: 1,
+                  status: 'published',
+                  createdAt: '2026-04-01T10:00:00Z',
+                },
+              ],
+              total: 1,
+              page: 1,
+              pageSize: 10,
+            })
           : ok({
               list: [
                 {
                   id: 'retry-review-1',
                   courseID: 101,
                   courseName: '数据结构与算法',
+                  termID: '2026-spring',
                   title: '重试后的评价',
                   content: '异常响应重试后应显示真实评价。',
                   ratings: { recommendation: 4 },
@@ -510,13 +534,34 @@ test.describe('User Journey: User Center', () => {
       loadCount += 1
       await route.fulfill(
         loadCount === 1
-          ? ok(null)
+          ? ok({
+              list: [
+                {
+                  id: 'retry-vote-1',
+                  courseID: 101,
+                  courseName: '数据结构与算法',
+                  termID: '2026-spring',
+                  title: '重试后的点赞评价',
+                  content: '畸形响应不应显示。',
+                  ratings: { recommendation: 5 },
+                  likeCount: 10,
+                  dislikeCount: 0,
+                  replyCount: 2,
+                  status: 'approved',
+                  createdAt: '2026-03-25T10:00:00Z',
+                },
+              ],
+              total: 1,
+              page: 1,
+              pageSize: 10,
+            })
           : ok({
               list: [
                 {
                   id: 'retry-vote-1',
                   courseID: 101,
                   courseName: '数据结构与算法',
+                  termID: '2026-spring',
                   title: '重试后的点赞评价',
                   content: '异常响应重试后应显示真实点赞评价。',
                   ratings: { recommendation: 5 },

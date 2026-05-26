@@ -480,6 +480,18 @@ client secret 轮换、用户授权应用、用户授权 scope 和用户授权�
 （40 项）；并通过 `pnpm --dir clients lint:web`、`pnpm --dir clients test:web`（56 文件、271 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3569 make e2e-web`（228 项）。
 
+本地验证补充（2026-05-27）：继续收紧用户中心“我的评价 / 我的点赞”响应。新增 `reviewListPayload`
+reader，按 OpenAPI 校验 `Review` 必需字段、`termID`、状态枚举、内容标记枚举、评分对象、点赞 / 点踩 /
+回复计数和时间字段；`MyReviewsTab` 与 `MyVotesTab` 不再依赖只转换类型的浅层 `normalizeReviews`。畸形
+200 不再把未知状态、缺失学期或越界评分渲染成用户自己的评价 / 点赞记录。新增 reader 单测覆盖缺失
+`termID`、非法状态和越界评分；同步补齐用户中心、认证流程和评价操作 E2E mock 的 `termID` 契约字段，
+并把用户中心评价 / 点赞 invalid-response 场景扩展为嵌套 review 字段畸形。已通过目标单测
+`pnpm --dir clients --filter @stuhelper/web exec vitest run src/modules/review/__tests__/reviewListPayload.test.ts`
+（4 项）、`pnpm --dir clients type-check:web`、目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3570 pnpm --dir clients/web exec playwright test tests/e2e/journey-user-center.spec.ts tests/e2e/auth-flow.spec.ts tests/e2e/review-actions.spec.ts`
+（72 项）；并通过 `pnpm --dir clients lint:web`、`pnpm --dir clients test:web`（57 文件、275 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3571 make e2e-web`（228 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

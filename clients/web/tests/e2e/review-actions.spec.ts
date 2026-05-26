@@ -108,6 +108,7 @@ const ownReview = {
     id: "my-action-review",
     courseID: 42,
     courseName: "操作系统",
+    termID: "2026-spring",
     title: "需要维护的评价",
     content: "原始评价内容，便于确认编辑前状态。",
     ratings: { recommendation: 4, content_quality: 4 },
