@@ -24,10 +24,23 @@ import {
 } from './native-session'
 
 type RequestBody = UniNamespace.RequestOptions['data']
+type UniRequestMethod = NonNullable<UniNamespace.RequestOptions['method']> | 'PATCH'
+type UniRequestOptions = Omit<UniNamespace.RequestOptions, 'method'> & {
+  method?: UniRequestMethod
+}
+type UniRequest = (options: UniRequestOptions) => UniNamespace.RequestTask
+type ApiResultResponse = NonNullable<ApiCallResult<unknown>['response']>
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? ''
 const CSRF_STORAGE_KEY = 'stuhelper:csrf-token'
 const H5 = typeof window !== 'undefined' && typeof window.location?.origin === 'string'
+const UNI_REQUEST_METHODS = {
+  DELETE: 'DELETE',
+  GET: 'GET',
+  PATCH: 'PATCH',
+  POST: 'POST',
+  PUT: 'PUT',
+} satisfies Record<HttpMethod, UniRequestMethod>
 const SESSION_BOUND_AUTH_PATHS = new Set<string>([
   AUTH_REFRESH_PATH,
   '/api/v1/auth/logout',
@@ -184,20 +197,16 @@ function normalizeRequestBody(data: unknown): RequestBody {
   return String(data)
 }
 
-function createResponse(status: number, headers?: Record<string, unknown>): Response {
-  const normalizedHeaders = Object.fromEntries(
-    Object.entries(headers ?? {}).map(([key, value]) => [key.toLowerCase(), String(value)]),
-  )
+function requestWithPatch(options: UniRequestOptions): UniNamespace.RequestTask {
+  // @dcloudio/types omits PATCH from uni.request, but H5/native transports accept it.
+  const request = uni.request as UniRequest
+  return request(options)
+}
 
+function createResponse(status: number): ApiResultResponse {
   return {
-    ok: status >= 200 && status < 300,
     status,
-    headers: {
-      get(name: string) {
-        return normalizedHeaders[name.toLowerCase()] ?? null
-      },
-    },
-  } as unknown as Response
+  }
 }
 
 function buildSuccessResult<T>(
@@ -208,7 +217,7 @@ function buildSuccessResult<T>(
   persistCSRFToken(headers)
   return {
     data: normalizeBody(data) as ApiCallResult<T>['data'],
-    response: createResponse(status, headers),
+    response: createResponse(status),
   }
 }
 
@@ -220,7 +229,7 @@ function buildErrorResult<T>(
   persistCSRFToken(headers)
   return {
     error: normalizeBody(data),
-    response: createResponse(status, headers),
+    response: createResponse(status),
   }
 }
 
@@ -279,13 +288,13 @@ function performRequest<T>(
       resolve(result)
     }
 
-    const requestTask = uni.request({
+    const requestTask = requestWithPatch({
       data: normalizeRequestBody(init?.body),
       fail: (error) => {
         finish(toTransportErrorResult<T>(error))
       },
       header: headers,
-      method: method as unknown as UniNamespace.RequestOptions['method'],
+      method: UNI_REQUEST_METHODS[method],
       success: (response) => {
         try {
           const status = typeof response.statusCode === 'number' ? response.statusCode : 0
@@ -313,7 +322,7 @@ function performRequest<T>(
       timeout: 15000,
       url,
       withCredentials: true,
-    }) as UniNamespace.RequestTask
+    })
 
     const signal = init?.signal
     if (!signal) return

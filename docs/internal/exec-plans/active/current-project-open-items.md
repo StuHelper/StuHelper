@@ -676,6 +676,13 @@ Casdoor 自带 CSS 请求 `https://fonts.googleapis.com/...`，外部字体 CDN 
 基础业务 17 项、Identity public smoke 26 项、OpenFGA resource access、生产镜像浏览器渲染 64 项和
 Prometheus / Grafana / Loki / Tempo / Alertmanager / Alloy ready。
 
+本地清理补充（2026-05-27）：继续收敛 UniAppX API transport 的类型边界。
+`clients/uniappx/src/api/shared-client.ts` 不再把最小响应对象伪装成 DOM `Response`，而是返回
+`ApiCallResult` 实际使用的 `status` 响应形状；`uni.request` 的 method 也改为显式 `HttpMethod` 到
+UniAppX request method 的映射，并把 `@dcloudio/types` 缺失 `PATCH` 的适配收敛到单个
+`requestWithPatch` 边界。已通过 `pnpm --dir clients type-check:uni`、`pnpm --dir clients test:uni`
+和 `CI=1 UNIAPPX_E2E_PORT=3605 make e2e-uni`（52 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等
