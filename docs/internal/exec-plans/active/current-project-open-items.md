@@ -719,6 +719,14 @@ API 失败、`pageerror` 和非预期 `console.error` 仍按失败处理。已�
 `corepack yarn --cwd bots/koishi test:unit`（263 项）、`corepack yarn --cwd bots/koishi build` 和
 `make e2e-koishi`（29 项，覆盖警告记录、全局设置、缓存、角色等真实 Console actions）。
 
+本地 Koishi Console 服务端 API 清理（2026-05-27）：删除未被当前注册链路引用的旧
+`src/core/api/ops-api.ts` 和 `src/core/api/websocket-api-context.ts`，避免重复的日志 / 设置 / 缓存
+WebSocket API 装配路径继续存在于源码中；运行时契约新增断言，防止这两份旧文件回流。仍在使用的
+`warns-api.ts` 警告列表构造改为显式 `ConsoleGuildScope`、`CacheData` 和 `WarnListItem[]`，并要求警告记录
+同时具备数字 `count` / `timestamp`；`settings-api.ts` 的更新入口改为从 `unknown` 校验
+`Partial<PluginSettings>`，不再接收裸 `any`。已通过 `corepack yarn --cwd bots/koishi test:unit`
+（264 项）、`corepack yarn --cwd bots/koishi build`、`make e2e-koishi`（29 项）和 `git diff --check`。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

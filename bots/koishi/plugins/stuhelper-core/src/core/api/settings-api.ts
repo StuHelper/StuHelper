@@ -1,3 +1,4 @@
+import type { PluginSettings } from '../settings'
 import type { WebSocketAPIContext } from './api-context'
 import { error, success } from './api-response'
 import { assertGlobalConsoleScope } from './console-guild-scope'
@@ -6,9 +7,12 @@ export function registerSettingsAPI(api: WebSocketAPIContext): void {
   api.addAuthorityListener('stuhelperGroupCenter/settings/get', async function () {
     return handleSettingsGet(api, this)
   })
-  api.addAuthorityListener('stuhelperGroupCenter/settings/update', async function (params: { settings: any }) {
-    return handleSettingsUpdate(api, this, params.settings)
-  })
+  api.addAuthorityListener(
+    'stuhelperGroupCenter/settings/update',
+    async function (params?: { settings?: unknown }) {
+      return handleSettingsUpdate(api, this, params?.settings)
+    },
+  )
   api.addAuthorityListener('stuhelperGroupCenter/settings/reset', async function () {
     return handleSettingsReset(api, this)
   })
@@ -24,11 +28,11 @@ async function handleSettingsGet(api: WebSocketAPIContext, client: unknown) {
   }
 }
 
-async function handleSettingsUpdate(api: WebSocketAPIContext, client: unknown, settings: any) {
+async function handleSettingsUpdate(api: WebSocketAPIContext, client: unknown, settings: unknown) {
   try {
     const scope = await api.resolveConsoleScope(client)
     assertGlobalConsoleScope(scope, 'settings')
-    if (!settings || typeof settings !== 'object') {
+    if (!isSettingsPatch(settings)) {
       return error('无效的设置数据')
     }
     await api.service.settings.update(settings)
@@ -38,6 +42,10 @@ async function handleSettingsUpdate(api: WebSocketAPIContext, client: unknown, s
     api.ctx.logger('stuhelperGroupCenter').error('更新设置失败:', cause)
     return error(cause instanceof Error ? cause.message : '更新设置失败')
   }
+}
+
+function isSettingsPatch(value: unknown): value is Partial<PluginSettings> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 async function handleSettingsReset(api: WebSocketAPIContext, client: unknown) {

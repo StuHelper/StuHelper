@@ -361,6 +361,21 @@ test('stuhelper-core WebSocket API 不应保留空 catch 静默吞错', async ()
   )
 })
 
+test('stuhelper-core 不保留旧版未注册 WebSocket API 装配文件', async () => {
+  const obsoleteFiles = [
+    'plugins/stuhelper-core/src/core/api/ops-api.ts',
+    'plugins/stuhelper-core/src/core/api/websocket-api-context.ts',
+  ]
+
+  for (const relativePath of obsoleteFiles) {
+    await assert.rejects(
+      () => readWorkspaceFile(relativePath),
+      /ENOENT/,
+      `${relativePath} 已被当前 api-context 和拆分 API 注册器取代，不应重新引入。`,
+    )
+  }
+})
+
 test('stuhelper-core 服务端运行时代码不直接写 console', async () => {
   const files = await listTypeScriptFiles([
     join(workspaceRoot, 'plugins/stuhelper-core/src/core'),

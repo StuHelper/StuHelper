@@ -1,7 +1,12 @@
 import type { WarnRecord } from '../../types'
+import type { CacheData } from '../services/cache-types'
 import type { WebSocketAPIContext } from './api-context'
 import { error, success } from './api-response'
-import { assertConsoleGuildAccess, assertGlobalConsoleScope } from './console-guild-scope'
+import {
+  assertConsoleGuildAccess,
+  assertGlobalConsoleScope,
+  type ConsoleGuildScope,
+} from './console-guild-scope'
 import { parseWarnKey } from './scope-filters'
 
 export function registerWarnsAPI(api: WebSocketAPIContext): void {
@@ -36,6 +41,18 @@ interface WarnAddParams {
   readonly userId: string
 }
 
+interface WarnListItem {
+  readonly key: string
+  readonly guildId: string
+  readonly userId: string
+  readonly guildName: string
+  readonly guildAvatar: string
+  readonly userName: string
+  readonly userAvatar: string
+  readonly count: number
+  readonly timestamp: number
+}
+
 async function handleWarnsReload(api: WebSocketAPIContext, client: unknown) {
   try {
     const scope = await api.resolveConsoleScope(client)
@@ -48,9 +65,9 @@ async function handleWarnsReload(api: WebSocketAPIContext, client: unknown) {
   }
 }
 
-function buildWarnList(api: WebSocketAPIContext, scope: any, fetchNames: boolean) {
+function buildWarnList(api: WebSocketAPIContext, scope: ConsoleGuildScope, fetchNames: boolean): WarnListItem[] {
   const cacheData = fetchNames ? api.service.cache.getCachedData() : undefined
-  const result: any[] = []
+  const result: WarnListItem[] = []
 
   for (const [guildId, guildWarns] of Object.entries(api.service.data.warns.getAll())) {
     if (!isVisibleGuildWarns(scope, guildId, guildWarns)) continue
@@ -62,21 +79,28 @@ function buildWarnList(api: WebSocketAPIContext, scope: any, fetchNames: boolean
   return result
 }
 
-function isVisibleGuildWarns(scope: any, guildId: string, guildWarns: unknown) {
+function isVisibleGuildWarns(scope: ConsoleGuildScope, guildId: string, guildWarns: unknown) {
   if (!guildWarns || typeof guildWarns !== 'object') return false
   return scope.kind === 'all' || scope.guildIds.has(guildId)
 }
 
 function isWarnInfo(value: unknown): value is { count: number, timestamp: number } {
-  return Boolean(value && typeof value === 'object' && 'count' in value)
+  return Boolean(
+    value
+      && typeof value === 'object'
+      && 'count' in value
+      && typeof value.count === 'number'
+      && 'timestamp' in value
+      && typeof value.timestamp === 'number',
+  )
 }
 
 function buildWarnListItem(input: {
   readonly guildId: string
   readonly userId: string
   readonly info: { count: number, timestamp: number }
-  readonly cacheData?: any
-}) {
+  readonly cacheData?: CacheData
+}): WarnListItem {
   const { guildId, userId, info, cacheData } = input
   const guildCache = cacheData?.guilds[guildId]
   const memberKey = `${guildId}:${userId}`
