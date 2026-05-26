@@ -749,6 +749,13 @@ WebSocket API 装配路径继续存在于源码中；运行时契约新增断言
 JSON 默认值深拷贝。已通过 `corepack yarn --cwd bots/koishi test:unit`（267 项）、
 `corepack yarn --cwd bots/koishi build` 和 `make e2e-koishi`（29 项，覆盖全局设置放弃更改、保存和恢复默认）。
 
+本地 Koishi Console 设置合并工具类型清理（2026-05-27）：`settings-merge.ts` 不再使用
+`Record<string, any>`、`as any` 或 `any[]` 表达深合并 / 差异计算，而是用 `DeepPartial<T>`、`PlainRecord`
+和 `unknown` 数组比较保留现有行为；`SettingsManager.update()` 保存差异时也直接读取 `Partial<PluginSettings>`
+键值，不再通过 `(toSave as any)[key]`。新增单测覆盖嵌套覆盖不污染默认值、只持久化非默认差异，以及源码不回退
+裸 `any`。已通过 `corepack yarn --cwd bots/koishi test:unit`（270 项）、
+`corepack yarn --cwd bots/koishi build` 和 `make e2e-koishi`（29 项，覆盖全局设置真实保存 / 恢复链路）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

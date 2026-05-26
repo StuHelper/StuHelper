@@ -223,7 +223,10 @@ export class SettingsManager {
 
     // 设置新值
     for (const key of Object.keys(toSave) as Array<keyof PluginSettings>) {
-      this.store.set(key, (toSave as any)[key])
+      const value = toSave[key]
+      if (value !== undefined) {
+        this.store.set(key, value)
+      }
     }
 
     await this.store.flush()
