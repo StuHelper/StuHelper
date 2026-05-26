@@ -34,7 +34,7 @@ export type StatusData = {
   readonly stuhelperGroupCenter: {
     readonly version: string
     readonly groupCount: number
-    readonly logCount: unknown
+    readonly logCount: number
   }
 }
 
@@ -45,6 +45,8 @@ export async function getSystemStatusData(ctx: Context, data: DataManager): Prom
   const usedMem = totalMem - freeMem
   const cpus = os.cpus()
   const pkg = require('../../../package.json')
+  const groupConfigs = await data.groupConfig.getAll()
+  const commandLogs = await data.commandLogs.getAll()
 
   return {
     os: {
@@ -76,8 +78,8 @@ export async function getSystemStatusData(ctx: Context, data: DataManager): Prom
     },
     stuhelperGroupCenter: {
       version: `${pkg.version || 'unknown'}`,
-      groupCount: Object.keys(await data.groupConfig.getAll()).length,
-      logCount: (await data.commandLogs.getAll() as any).length,
+      groupCount: Object.keys(groupConfigs).length,
+      logCount: commandLogs.logs.length,
     },
   }
 }

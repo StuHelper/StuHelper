@@ -3,7 +3,7 @@
  * 提供帮助信息显示和时间解析测试功能
  */
 
-import { Context } from 'koishi'
+import type { Context, Session } from 'koishi'
 import { parseTimeString, formatDuration } from '../../utils'
 import { registerRuntimeCommand } from '../../runtime/command'
 import type {
@@ -12,6 +12,7 @@ import type {
   RuntimeModuleMeta,
   RuntimeModuleState,
 } from '../../runtime/types'
+import type { RegisteredCommand } from '../../types'
 const pkg = require('../../../package.json')
 
 export class HelpModule implements RuntimeModuleInstance {
@@ -91,8 +92,8 @@ export class HelpModule implements RuntimeModuleInstance {
         try {
           const milliseconds = parseTimeString(expression)
           return `表达式 "${expression}" 解析结果：${formatDuration(milliseconds)} (${milliseconds}毫秒)`
-        } catch (e) {
-          return `解析错误：${e.message}`
+        } catch (error) {
+          return `解析错误：${errorMessage(error)}`
         }
       })
   }
@@ -105,7 +106,7 @@ export class HelpModule implements RuntimeModuleInstance {
     return text.replace(/</g, '&lt;').replace(/>/g, '&gt;')
   }
 
-  private getFullHelpText(session: any): string {
+  private getFullHelpText(session: Session): string {
     const commandsByModule = this.ctx.stuhelperGroupCenter.auth.getCommandsByModule()
     const lines: string[] = []
 
@@ -123,7 +124,7 @@ export class HelpModule implements RuntimeModuleInstance {
     return lines.join('\n')
   }
 
-  private formatCommandModuleHelp(moduleDesc: string, commands: any[]): string[] {
+  private formatCommandModuleHelp(moduleDesc: string, commands: readonly RegisteredCommand[]): string[] {
     const lines = [`=== ${moduleDesc} ===`]
     for (const cmd of commands) {
       lines.push(this.formatCommandHelpLine(cmd))
@@ -136,7 +137,7 @@ export class HelpModule implements RuntimeModuleInstance {
     return lines
   }
 
-  private formatCommandHelpLine(cmd: any): string {
+  private formatCommandHelpLine(cmd: RegisteredCommand): string {
     const args = cmd.args ? ` ${this.escapeAngleBrackets(cmd.args)}` : ''
     return `${cmd.name}${args}  ${cmd.desc}`
   }
@@ -152,6 +153,10 @@ export class HelpModule implements RuntimeModuleInstance {
   · (sqrt(100)+1e1)^2s = 400秒 = 6分40秒
 · 时间范围：1秒 ~ 29天23小时59分59秒`
   }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 export const helpRuntimeModule: RuntimeModule<HelpModule> = {

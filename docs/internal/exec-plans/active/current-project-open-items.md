@@ -782,6 +782,15 @@ forbidden 命令添加关键词、启用自动禁言、设置禁言时长、开�
 `corepack yarn --cwd bots/koishi test:unit`（277 项）、`corepack yarn --cwd bots/koishi build` 和
 `make e2e-koishi`（29 项，覆盖 Console 真实 UI 路径和关键词模块初始化）。
 
+本地 Koishi Help / Status 运行时修复（2026-05-27）：`HelpModule` 的完整帮助生成不再用
+`session: any`、`commands: any[]` 或 `cmd: any` 表达命令权限过滤和格式化，改为 Koishi `Session` 与
+`RegisteredCommand`；`parse-time` 错误展示也从 `unknown` 经 `errorMessage()` 转换，不再直接读取
+`e.message`。`status-data.ts` 修正了系统状态 `Logs` 计数，直接读取 `commandLogs.logs.length`，不再通过
+`as any` 访问不存在的顶层 `length`，避免状态图显示 `undefined`。新增单测覆盖日志计数来自 typed
+logs collection，并用源码合同锁定 Help / Status 不回退旧边界。已通过
+`corepack yarn --cwd bots/koishi test:unit`（279 项）、`corepack yarn --cwd bots/koishi build` 和
+`make e2e-koishi`（29 项，覆盖 System 视图和全局 Console UI 路径）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等
