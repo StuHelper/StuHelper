@@ -243,6 +243,13 @@ const checks = [
     url: joinURL(adminBaseURL, '/admin/'),
     expectedTexts: ['Sign In', 'Password', '登录'],
     expectedURLIncludes: '/login/oauth/authorize',
+    stubbedResources: [
+      {
+        url: 'https://fonts.googleapis.com/**',
+        contentType: 'text/css',
+        body: '/* prod-parity smoke uses system fonts for the Casdoor login page. */\n',
+      },
+    ],
     allowedAPIResponses: [
       {
         urlIncludes: '/api/v1/auth/me',
@@ -311,8 +318,28 @@ async function runCheck(browser, check, viewportVariant) {
   const ignoredAPIResponses = [];
   const pageErrors = [];
   const suppressedTelemetryRequests = [];
+  const stubbedExternalResources = [];
   const checkName = `${check.name}-${viewportVariant.name}`;
   const screenshotFile = resolve(screenshotDir, `${checkName}.png`);
+
+  for (const resourceStub of resourceStubsForCheck(check)) {
+    await page.route(resourceStub.url, async (route) => {
+      const request = route.request();
+      const status = resourceStub.status || 200;
+      const contentType = resourceStub.contentType || 'text/plain';
+      stubbedExternalResources.push({
+        url: request.url(),
+        resourceType: request.resourceType(),
+        status,
+        contentType,
+      });
+      await route.fulfill({
+        status,
+        contentType,
+        body: resourceStub.body || '',
+      });
+    });
+  }
 
   await page.route(telemetryRoutePattern, async (route) => {
     suppressedTelemetryRequests.push({
@@ -452,6 +479,7 @@ async function runCheck(browser, check, viewportVariant) {
       ignoredConsoleErrors,
       ignoredAPIResponses,
       suppressedTelemetryRequests,
+      stubbedExternalResources,
       screenshot: relative(repoRoot, screenshotFile),
     };
   } catch (error) {
@@ -470,6 +498,7 @@ async function runCheck(browser, check, viewportVariant) {
       ignoredConsoleErrors,
       ignoredAPIResponses,
       suppressedTelemetryRequests,
+      stubbedExternalResources,
       assetFailures,
       apiFailures,
       screenshot: relative(repoRoot, screenshotFile),
@@ -491,6 +520,15 @@ function toArray(value) {
   if (Array.isArray(value)) return value;
   if (typeof value === 'string') return [value];
   return [];
+}
+
+function resourceStubsForCheck(check) {
+  if (!Array.isArray(check.stubbedResources)) return [];
+  return check.stubbedResources.filter((resourceStub) => (
+    resourceStub &&
+    typeof resourceStub.url === 'string' &&
+    resourceStub.url.length > 0
+  ));
 }
 
 function isAllowedAPIResponse(check, response) {

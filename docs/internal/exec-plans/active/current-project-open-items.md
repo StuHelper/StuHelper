@@ -664,6 +664,18 @@ Playwright MCP 同轮确认 Admin 入口正常跳转到本地 Casdoor 登录页�
 同轮真实本地观测栈 `make obs-smoke` 也已通过，Prometheus、Grafana、Loki、Tempo、Alertmanager 和
 Alloy ready 检查均 healthy。
 
+本地生产等价复验（2026-05-27）：在既有 `prod-parity-a35bd45a` 本机生产等价栈上复跑
+`make prod-parity-smoke` 时，服务端 / datastore / Identity 均通过，但 Admin 未登录跳转到本机 Casdoor 后
+Casdoor 自带 CSS 请求 `https://fonts.googleapis.com/...`，外部字体 CDN 偶发断开导致浏览器 smoke 失败。
+`prod-parity-browser-smoke.mjs` 现只在 `admin-login-redirect` 检查中把该 Casdoor Google Fonts CSS
+替换为空 CSS，并把命中的请求写入 `stubbedExternalResources` evidence；本地业务静态资源、API 失败、
+`pageerror` 和非预期 `console.error` 仍按原门禁失败。修正后已通过
+`node --check infra/ops/prod-parity-browser-smoke.mjs`、`bash infra/ops/tests/prod-parity-contract.sh`、
+`make prod-parity-browser-smoke`（桌面 / 移动共 64 项）、完整 `make prod-parity-smoke`、`make check-docs`、
+`make check-infra-contracts` 和 `git diff --check`；完整 smoke 覆盖 datastore isolation、HTTP/API
+基础业务 17 项、Identity public smoke 26 项、OpenFGA resource access、生产镜像浏览器渲染 64 项和
+Prometheus / Grafana / Loki / Tempo / Alertmanager / Alloy ready。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等
