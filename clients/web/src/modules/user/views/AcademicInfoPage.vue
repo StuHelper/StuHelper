@@ -78,6 +78,28 @@ const loading = ref(false)
 const errorState = ref<ErrorState>(null)
 const info = ref<AcademicStudentInfo | null>(null)
 
+function readAcademicInfoPayload(payload: unknown): AcademicStudentInfo {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('invalid academic info response')
+  }
+
+  const raw = payload as Record<string, unknown>
+  if (typeof raw.xh !== 'string' || raw.xh.trim() === '') {
+    throw new Error('invalid academic info response')
+  }
+  if (typeof raw.xm !== 'string' || raw.xm.trim() === '') {
+    throw new Error('invalid academic info response')
+  }
+
+  for (const field of ['yxdm', 'zydm', 'bjdm', 'xznj', 'rxnj', 'pyccdm', 'sjh', 'dzxx'] as const) {
+    if (raw[field] !== undefined && typeof raw[field] !== 'string') {
+      throw new Error('invalid academic info response')
+    }
+  }
+
+  return raw as AcademicStudentInfo
+}
+
 const displayFields = computed(() => {
   const v = info.value
   if (!v) return []
@@ -109,10 +131,7 @@ async function load(): Promise<void> {
   errorState.value = null
   try {
     const res = await api.identity.getAcademicInfo()
-    info.value = res.data?.data ?? null
-    if (!info.value) {
-      errorState.value = 'not-found'
-    }
+    info.value = readAcademicInfoPayload(res.data?.data)
   } catch (err: unknown) {
     const status = err instanceof ApiError ? err.status : undefined
     if (status === 401) {

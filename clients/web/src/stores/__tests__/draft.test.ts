@@ -112,6 +112,21 @@ describe('useDraftStore', () => {
       await expect(store.saveDraft({ grade: 'A+' })).rejects.toThrow('invalid draft response')
       expect(store.hasDraft).toBe(false)
     })
+
+    it('rejects draft responses without required identifiers', async () => {
+      mockSaveDraft.mockResolvedValue({
+        data: {
+          data: {
+            title: 'missing id',
+            updatedAt: '2026-04-05T00:00:00Z',
+          },
+        },
+      })
+
+      const store = useDraftStore()
+      await expect(store.saveDraft({ title: 'missing id' })).rejects.toThrow('invalid draft response')
+      expect(store.hasDraft).toBe(false)
+    })
   })
 
   describe('loadDraft', () => {
@@ -197,6 +212,22 @@ describe('useDraftStore', () => {
 
       const store = useDraftStore()
       await expect(store.loadDraft()).rejects.toThrow('invalid draft response')
+    })
+
+    it('throws when the loaded draft has invalid field types', async () => {
+      mockGetDraft.mockResolvedValue({
+        data: {
+          data: {
+            id: 'd1',
+            courseID: '100',
+            updatedAt: '2026-04-05T00:00:00Z',
+          },
+        },
+      })
+
+      const store = useDraftStore()
+      await expect(store.loadDraft()).rejects.toThrow('invalid draft response')
+      expect(store.hasDraft).toBe(false)
     })
 
     it('normalizes loaded draft grades to the shared enum', async () => {

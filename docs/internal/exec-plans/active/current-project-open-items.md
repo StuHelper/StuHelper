@@ -308,6 +308,18 @@ composable 都会把 HTTP 200 但缺失 `data.list` / `data.total` 的回复列�
 `pnpm --dir clients test:web`（55 文件、255 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3530 make e2e-web`（212 项）。
 
+本地验证补充（2026-05-26）：继续收紧草稿与学籍信息响应。草稿 store 现在会校验 `ReviewDraft` 的
+`id`、`updatedAt`、可选数字 / 字符串字段、`grade` 和 `ratings`，不再把缺少必需字段或字段类型错误的
+畸形成功响应写入本地缓存；学籍信息页也要求 `AcademicStudentInfo` 必含 `xh` 和 `xm` 字符串，畸形 200
+进入“加载失败”并保留重试，而不是显示空字段成功页或误判为暂无数据。新增 draft store 单测覆盖缺少必需字段和
+字段类型错误，新增学籍信息 E2E 覆盖畸形成功响应 fail-closed。已通过目标单测
+`pnpm --dir clients --filter @stuhelper/web exec vitest run src/stores/__tests__/draft.test.ts`（16 项）、
+目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3531 pnpm --dir clients/web exec playwright test tests/e2e/user-verification.spec.ts`
+（16 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、
+`pnpm --dir clients test:web`（55 文件、257 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3532 make e2e-web`（212 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

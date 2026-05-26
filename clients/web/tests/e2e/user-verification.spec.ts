@@ -716,5 +716,17 @@ test.describe("User verification flows", () => {
 
         await gotoAuthenticatedPage(page, "/user/academic-info");
         await expect(page.getByText("暂无学籍数据")).toBeVisible();
+
+        await page.unroute("**/api/v1/user/profile/academic-info");
+        await page.route("**/api/v1/user/profile/academic-info", (route) =>
+            route.fulfill(ok({})),
+        );
+
+        await gotoAuthenticatedPage(page, "/user/academic-info");
+        await expect(page.getByText("加载失败")).toBeVisible();
+        await expect(
+            page.getByRole("button", { name: "重试" }),
+        ).toBeVisible();
+        await expect(page.getByText("暂无学籍数据")).toHaveCount(0);
     });
 });

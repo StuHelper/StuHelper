@@ -45,29 +45,45 @@ export const useDraftStore = defineStore("draft", () => {
         }
     }
 
-    function normalizeDraft(
-        value:
-            | {
-                  id: string;
-                  courseID?: number | null;
-                  teacherID?: number | null;
-                  termID?: string;
-                  title?: string;
-                  content?: string;
-                  grade?: string;
-                  ratings?: Record<string, number>;
-                  updatedAt: string;
-              }
-            | undefined,
-    ): Draft {
-        if (!value) {
+    function normalizeDraft(value: unknown): Draft {
+        if (!value || typeof value !== "object") {
             throw new Error("invalid draft response");
         }
 
+        const raw = value as Record<string, unknown>;
+        if (typeof raw.id !== "string" || raw.id.trim() === "") {
+            throw new Error("invalid draft response");
+        }
+        if (typeof raw.updatedAt !== "string" || raw.updatedAt.trim() === "") {
+            throw new Error("invalid draft response");
+        }
+        if (
+            raw.courseID !== undefined &&
+            raw.courseID !== null &&
+            (typeof raw.courseID !== "number" || !Number.isFinite(raw.courseID))
+        ) {
+            throw new Error("invalid draft response");
+        }
+        if (
+            raw.teacherID !== undefined &&
+            raw.teacherID !== null &&
+            (typeof raw.teacherID !== "number" || !Number.isFinite(raw.teacherID))
+        ) {
+            throw new Error("invalid draft response");
+        }
+        for (const field of ["termID", "title", "content", "grade"] as const) {
+            if (raw[field] !== undefined && typeof raw[field] !== "string") {
+                throw new Error("invalid draft response");
+            }
+        }
+
         let ratings: Draft["ratings"] = undefined;
-        if (value.ratings) {
+        if (raw.ratings !== undefined) {
+            if (!raw.ratings || typeof raw.ratings !== "object" || Array.isArray(raw.ratings)) {
+                throw new Error("invalid draft response");
+            }
             const normalizedRatings: Record<string, 1 | 2 | 3 | 4 | 5> = {};
-            for (const [key, rating] of Object.entries(value.ratings)) {
+            for (const [key, rating] of Object.entries(raw.ratings)) {
                 if (!isValidRating(rating)) {
                     throw new Error("invalid draft response");
                 }
@@ -76,25 +92,25 @@ export const useDraftStore = defineStore("draft", () => {
             ratings = normalizedRatings;
         }
         const grade =
-            value.grade !== undefined ? normalizeReviewGrade(value.grade) : undefined;
-        if (value.grade !== undefined && grade === undefined) {
+            raw.grade !== undefined ? normalizeReviewGrade(raw.grade as string) : undefined;
+        if (raw.grade !== undefined && grade === undefined) {
             throw new Error("invalid draft response");
         }
 
         return {
-            id: value.id,
-            ...(value.courseID !== undefined && value.courseID !== null && {
-                courseID: value.courseID,
+            id: raw.id,
+            ...(raw.courseID !== undefined && raw.courseID !== null && {
+                courseID: raw.courseID as number,
             }),
-            ...(value.teacherID !== undefined && {
-                teacherID: value.teacherID,
+            ...(raw.teacherID !== undefined && {
+                teacherID: raw.teacherID as number | null,
             }),
-            ...(value.termID !== undefined && { termID: value.termID }),
-            ...(value.title !== undefined && { title: value.title }),
-            ...(value.content !== undefined && { content: value.content }),
+            ...(raw.termID !== undefined && { termID: raw.termID as string }),
+            ...(raw.title !== undefined && { title: raw.title as string }),
+            ...(raw.content !== undefined && { content: raw.content as string }),
             ...(grade !== undefined && { grade }),
             ...(ratings !== undefined && { ratings }),
-            updatedAt: value.updatedAt,
+            updatedAt: raw.updatedAt,
         };
     }
 
@@ -108,7 +124,7 @@ export const useDraftStore = defineStore("draft", () => {
         saving.value = true;
         const save = (async () => {
             const res = await api.draft.saveDraft(data);
-            const nextDraft = normalizeDraft(res.data?.data ?? undefined);
+            const nextDraft = normalizeDraft(res.data?.data);
             cacheDraft(nextDraft);
             lastSavedAt.value = new Date();
             return nextDraft;
@@ -131,7 +147,7 @@ export const useDraftStore = defineStore("draft", () => {
 
         try {
             const res = await api.draft.getDraft();
-            const nextDraft = normalizeDraft(res.data?.data ?? undefined);
+            const nextDraft = normalizeDraft(res.data?.data);
             cacheDraft(nextDraft);
             return nextDraft;
         } catch (err: unknown) {
