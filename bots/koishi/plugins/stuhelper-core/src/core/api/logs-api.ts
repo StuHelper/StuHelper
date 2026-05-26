@@ -1,7 +1,9 @@
 import type { WebSocketAPIContext } from './api-context'
 import { error, success } from './api-response'
 import { assertConsoleGuildAccess } from './console-guild-scope'
+import { findLogModule } from './log-module-lookup'
 import { filterLogs } from './scope-filters'
+import type { CommandLogRecord } from '../modules/log.module'
 
 const DEFAULT_LOG_PAGE = 1
 const DEFAULT_LOG_PAGE_SIZE = 20
@@ -31,18 +33,18 @@ async function handleLogSearch(api: WebSocketAPIContext, client: unknown, params
       assertConsoleGuildAccess(scope, params.guildId, 'log search')
     }
 
-    const logModule = api.service.getAllModules().find((module) => module.meta.name === 'log') as any
+    const logModule = findLogModule(api)
     if (!logModule) return error('Log module not found')
 
     const filteredLogs = filterLogs(await logModule.getAllLogs(), scope)
-      .filter((log: any) => matchesLogSearch(log, params))
+      .filter((log) => matchesLogSearch(log, params))
     return success(paginateLogs(filteredLogs, params))
   } catch (cause) {
     return error(cause instanceof Error ? cause.message : '检索日志失败')
   }
 }
 
-function matchesLogSearch(log: any, params: LogSearchParams) {
+function matchesLogSearch(log: CommandLogRecord, params: LogSearchParams) {
   const time = new Date(log.timestamp).getTime()
   if (params.startTime && time < new Date(params.startTime).getTime()) return false
   if (params.endTime && time > new Date(params.endTime).getTime()) return false
@@ -58,16 +60,16 @@ function includesInsensitive(value: unknown, keyword: string) {
   return String(value || '').toLowerCase().includes(keyword.toLowerCase())
 }
 
-function matchesLogDetails(log: any, details: string) {
+function matchesLogDetails(log: CommandLogRecord, details: string) {
   const keyword = details.toLowerCase()
   const matchResult = String(log.result || '').toLowerCase().includes(keyword)
   const matchError = String(log.error || '').toLowerCase().includes(keyword)
-  const matchArgs = log.args?.some((arg: any) => String(arg).toLowerCase().includes(keyword))
+  const matchArgs = log.args.some((arg) => String(arg).toLowerCase().includes(keyword))
   const matchOptions = JSON.stringify(log.options || {}).toLowerCase().includes(keyword)
   return matchResult || matchError || matchArgs || matchOptions
 }
 
-function paginateLogs(logs: any[], params: LogSearchParams) {
+function paginateLogs(logs: CommandLogRecord[], params: LogSearchParams) {
   const page = params.page || DEFAULT_LOG_PAGE
   const pageSize = params.pageSize || DEFAULT_LOG_PAGE_SIZE
   return {

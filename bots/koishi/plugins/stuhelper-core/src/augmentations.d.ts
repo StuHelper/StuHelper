@@ -24,6 +24,7 @@ import type {
   ReviewWorkItem,
   ModuleStateSnapshot,
 } from './core/services/page-types'
+import type { CommandLogRecord } from './core/modules/log.module'
 
 declare module 'koishi' {
   interface Context {
@@ -162,7 +163,7 @@ declare module '@koishijs/console' {
       page?: number
       pageSize?: number
     }): Promise<ApiResponse<{
-      list: unknown[]
+      list: CommandLogRecord[]
       total: number
       page: number
       pageSize: number

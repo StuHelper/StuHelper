@@ -35,7 +35,7 @@ export interface CommandLogRecord {
   platform: string
   command: string
   args: string[]
-  options: Record<string, any>
+  options: Record<string, unknown>
   success: boolean
   error?: string
   executionTime: number

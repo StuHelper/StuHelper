@@ -2,7 +2,9 @@ import type { WebSocketAPIContext } from './api-context'
 import { error, success } from './api-response'
 import { assertGlobalConsoleScope, type ConsoleGuildScope } from './console-guild-scope'
 import { loadScopedBlacklistTotal } from './dashboard-blacklist-stats'
+import { findLogModule } from './log-module-lookup'
 import { filterGuildEntries, filterLogs, filterSubscriptions } from './scope-filters'
+import type { CommandLogRecord } from '../modules/log.module'
 
 const DEFAULT_CHART_DAYS = 7
 const MS_PER_DAY = 24 * 60 * 60 * 1000
@@ -59,7 +61,7 @@ function countScopedWarns(allWarns: Record<string, unknown>, scope: ConsoleGuild
 
 async function handleChartStats(api: WebSocketAPIContext, scope: ConsoleGuildScope, params?: { days?: number }) {
   const days = params?.days || DEFAULT_CHART_DAYS
-  const logModule = api.service.getAllModules().find((module) => module.meta.name === 'log') as any
+  const logModule = findLogModule(api)
   if (!logModule) return error('Log module not found')
 
   const logs = filterLogs(await logModule.getAllLogs(), scope)
@@ -74,7 +76,19 @@ async function handleChartStats(api: WebSocketAPIContext, scope: ConsoleGuildSco
   })
 }
 
-function collectChartStats(logs: any[], options: { now: number, days: number }) {
+interface ChartStatsState {
+  dailyStats: Record<string, number>
+  commandStats: Record<string, number>
+  guildStats: Record<string, number>
+  userStats: Record<string, { count: number, name: string }>
+  counters: {
+    successCount: number
+    failCount: number
+  }
+  startTime: number
+}
+
+function collectChartStats(logs: CommandLogRecord[], options: { now: number, days: number }) {
   const dailyStats = initDailyStats(options.now, options.days)
   const commandStats: Record<string, number> = {}
   const guildStats: Record<string, number> = {}
@@ -95,7 +109,7 @@ function initDailyStats(now: number, days: number) {
   return dailyStats
 }
 
-function applyLogToChartStats(log: any, stats: any) {
+function applyLogToChartStats(log: CommandLogRecord, stats: ChartStatsState) {
   const logTime = new Date(log.timestamp).getTime()
   if (logTime < stats.startTime) return
 
@@ -109,7 +123,7 @@ function applyLogToChartStats(log: any, stats: any) {
   if (log.userId) incrementUserStats(stats.userStats, log)
 }
 
-function incrementUserStats(userStats: Record<string, { count: number, name: string }>, log: any) {
+function incrementUserStats(userStats: Record<string, { count: number, name: string }>, log: CommandLogRecord) {
   if (!userStats[log.userId]) {
     userStats[log.userId] = { count: 0, name: log.username || log.userId }
   }

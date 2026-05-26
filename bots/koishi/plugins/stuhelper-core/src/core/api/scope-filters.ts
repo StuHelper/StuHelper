@@ -32,7 +32,7 @@ export function filterSubscriptions(subscriptions: Subscription[], scope: Consol
   return subscriptions.filter((sub) => sub.type === 'group' && scope.guildIds.has(sub.id))
 }
 
-export function filterLogs(logs: any[], scope: ConsoleGuildScope) {
+export function filterLogs<T extends { guildId?: unknown }>(logs: T[], scope: ConsoleGuildScope): T[] {
   if (scope.kind === 'all') {
     return logs
   }

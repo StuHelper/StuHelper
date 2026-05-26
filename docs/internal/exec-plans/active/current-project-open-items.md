@@ -756,6 +756,14 @@ JSON 默认值深拷贝。已通过 `corepack yarn --cwd bots/koishi test:unit`�
 裸 `any`。已通过 `corepack yarn --cwd bots/koishi test:unit`（270 项）、
 `corepack yarn --cwd bots/koishi build` 和 `make e2e-koishi`（29 项，覆盖全局设置真实保存 / 恢复链路）。
 
+本地 Koishi Console 日志 API 类型清理（2026-05-27）：`logs-api.ts` 和 `stats-api.ts` 不再通过
+`getAllModules().find(...) as any` 读取日志模块，改为 `findLogModule()` 统一优先使用 typed
+`getModule<LogModule>('log')`，并用类型守卫兼容既有测试夹具；日志过滤、日志检索分页和 dashboard 图表统计
+均收敛到 `CommandLogRecord`，`filterLogs()` 改为保留输入类型的泛型过滤，命令日志 `options` 也从
+`Record<string, any>` 收敛到 `Record<string, unknown>`。新增源码合同锁定日志 / 统计 Console API 不回退旧
+`as any` 查找路径。已通过 `corepack yarn --cwd bots/koishi test:unit`（271 项）、
+`corepack yarn --cwd bots/koishi build` 和 `make e2e-koishi`（29 项，覆盖 dashboard 与日志检索真实 UI 路径）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等
