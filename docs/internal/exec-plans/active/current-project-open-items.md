@@ -1122,6 +1122,19 @@ Load Failed”静态错误页；随后点击错误页“刷新页面 / Refresh P
 （14 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、`make check-docs` 和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3503 make e2e-web`（160 项）。
 
+本地验证补充（2026-05-26）：继续补齐 Open Platform 资料补全页 fail-closed 浏览器路径，并修正提交失败
+标题误显示为“加载失败”的问题。`ConsentPage.vue` / `ProfileCompletionPage.vue` 现在区分加载失败标题和提交失败
+标题，授权提交失败显示“授权操作失败 / Authorization failed”，资料补全继续授权失败显示“继续授权失败 /
+Failed to continue authorization”，避免正文与标题语义冲突。本轮新增桌面 / 移动 E2E：当
+`GET /api/v1/open-platform/profile-completion` 返回 `success=true` 但 `data=null` 时，页面停在资料补全页
+并显示“资料补全请求加载失败 / Failed to load profile completion request”，点击“重试 / Retry”后会重新
+请求并恢复到正常资料补全页；当 `POST /api/v1/open-platform/profile-completion/continue` 返回 `javascript:`
+redirect 时，页面拒绝离开 `id` 资料补全页并显示“继续授权失败，请重试 / Failed to continue authorization.
+Please retry”。验证已通过
+`CI=1 PLAYWRIGHT_WEB_PORT=3504 pnpm --dir clients/web exec playwright test tests/e2e/open-platform-consent.spec.ts`
+（18 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、`pnpm --dir clients test:web`
+（53 文件、236 项）和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3505 make e2e-web`（164 项）。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |

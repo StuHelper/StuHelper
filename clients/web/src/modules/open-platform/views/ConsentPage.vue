@@ -11,7 +11,7 @@
       <div v-else-if="error" class="min-h-[360px] flex flex-col items-center justify-center gap-4 px-6 text-center">
         <AlertTriangle class="w-10 h-10 text-danger" aria-hidden="true" />
         <div>
-          <h1 class="m-0 text-xl font-bold text-text-primary">{{ t('common.openPlatformConsent.loadFailed') }}</h1>
+          <h1 class="m-0 text-xl font-bold text-text-primary">{{ errorTitle }}</h1>
           <p class="mt-2 mb-0 text-sm text-text-muted">{{ error }}</p>
         </div>
         <button
@@ -159,6 +159,7 @@ const authStore = useAuthStore()
 const { t } = useI18n()
 
 const consent = ref<OpenPlatformConsentPageResponse | null>(null)
+const errorTitle = ref('')
 const error = ref('')
 const loading = ref(true)
 const submitting = ref<SubmitAction | ''>('')
@@ -184,10 +185,12 @@ const expiresAtText = computed(() => {
 
 async function loadConsent() {
   if (!token.value) {
+    errorTitle.value = t('common.openPlatformConsent.loadFailed')
     error.value = t('common.openPlatformConsent.invalidToken')
     loading.value = false
     return
   }
+  errorTitle.value = ''
   error.value = ''
   loading.value = true
   try {
@@ -196,6 +199,7 @@ async function loadConsent() {
     if (!data) throw new Error('Invalid consent response')
     consent.value = data
   } catch (err) {
+    errorTitle.value = t('common.openPlatformConsent.loadFailed')
     error.value = getErrorMessage(err, t('common.openPlatformConsent.loadFailed'))
   } finally {
     loading.value = false
@@ -212,6 +216,7 @@ async function submitDecision(accept: boolean) {
     if (!redirectURL) throw new Error('Invalid redirect response')
     redirectToURL(redirectURL)
   } catch (err) {
+    errorTitle.value = t('common.openPlatformConsent.submitFailedTitle')
     error.value = getErrorMessage(err, t('common.openPlatformConsent.submitFailed'))
     submitting.value = ''
   }

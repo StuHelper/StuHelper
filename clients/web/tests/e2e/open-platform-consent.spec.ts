@@ -271,6 +271,11 @@ test.describe("Open Platform consent flow", () => {
 
         await expect(page).toHaveURL(/\/consent\?token=unsafe-redirect-token/);
         await expect(
+            page.getByRole("heading", {
+                name: /授权操作失败|Authorization failed/,
+            }),
+        ).toBeVisible();
+        await expect(
             page.getByText(/授权操作失败，请重试|Authorization failed. Please retry/),
         ).toBeVisible();
     });
@@ -383,6 +388,118 @@ test.describe("Open Platform consent flow", () => {
             ),
         ).toBeVisible();
         expect(profileCompletionRequested).toBe(false);
+    });
+
+    test("invalid profile completion response fails closed and can retry", async ({
+        page,
+    }) => {
+        let loadCount = 0;
+
+        await page.route(
+            "**/api/v1/open-platform/profile-completion?*",
+            async (route) => {
+                loadCount += 1;
+                await route.fulfill(
+                    loadCount === 1
+                        ? ok(null)
+                        : ok({
+                              token: "retry-profile-token",
+                              app,
+                              scopes,
+                              missingFields: [
+                                  {
+                                      key: "profile.phone",
+                                      displayName: "手机号",
+                                      actionURL: "/user/phone-binding",
+                                  },
+                              ],
+                              redirectURI: "https://client.example.com/callback",
+                              expiresAt: "2026-06-01T10:00:00Z",
+                          }),
+                );
+            },
+        );
+
+        await page.goto("/complete-profile?token=retry-profile-token");
+
+        await expect(
+            page.getByRole("heading", {
+                name: /资料补全请求加载失败|Failed to load profile completion request/,
+            }),
+        ).toBeVisible();
+        await expect(
+            page
+                .locator("p")
+                .filter({
+                    hasText:
+                        /资料补全请求加载失败|Failed to load profile completion request/,
+                }),
+        ).toBeVisible();
+
+        await page.getByRole("button", { name: /重试|Retry/ }).click();
+        await expect.poll(() => loadCount).toBe(2);
+        await expect(
+            page.getByRole("heading", { name: /Campus Connector/ }),
+        ).toBeVisible();
+        await expect(page.getByText("profile.phone")).toBeVisible();
+    });
+
+    test("unsafe profile completion redirect is rejected without leaving identity page", async ({
+        page,
+    }) => {
+        await page.route(
+            "**/api/v1/open-platform/profile-completion?*",
+            async (route) => {
+                await route.fulfill(
+                    ok({
+                        token: "unsafe-profile-token",
+                        app,
+                        scopes,
+                        missingFields: [],
+                        redirectURI: "https://client.example.com/callback",
+                        expiresAt: "2026-06-01T10:00:00Z",
+                    }),
+                );
+            },
+        );
+        await page.route(
+            "**/api/v1/open-platform/profile-completion/continue",
+            async (route) => {
+                await route.fulfill(
+                    ok({ redirectURL: "javascript:alert(1)" }),
+                );
+            },
+        );
+
+        await page.goto("/complete-profile?token=unsafe-profile-token");
+        await expect(
+            page.getByRole("heading", { name: /Campus Connector/ }),
+        ).toBeVisible();
+        await expect(
+            page.getByText(
+                /资料已满足本次授权请求|profile now satisfies this authorization request/,
+            ),
+        ).toBeVisible();
+
+        await page
+            .getByRole("button", {
+                name: /我已补全，继续|I have completed this/,
+            })
+            .click();
+
+        await expect(page).toHaveURL(
+            /\/complete-profile\?token=unsafe-profile-token/,
+        );
+        await expect(
+            page.getByRole("heading", {
+                name: /继续授权失败|Failed to continue authorization/,
+            }),
+        ).toBeVisible();
+        await expect(
+            page.getByText(
+                /继续授权失败，请重试|Failed to continue authorization. Please retry/,
+            ),
+        ).toBeVisible();
     });
 
     test("profile completion refreshes missing fields and continues to the client redirect", async ({

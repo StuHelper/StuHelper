@@ -12,7 +12,7 @@
         <AlertTriangle class="w-10 h-10 text-danger" aria-hidden="true" />
         <div>
           <h1 class="m-0 text-xl font-bold text-text-primary">
-            {{ t('common.openPlatformProfileCompletion.loadFailed') }}
+            {{ errorTitle }}
           </h1>
           <p class="mt-2 mb-0 text-sm text-text-muted">{{ error }}</p>
         </div>
@@ -144,6 +144,7 @@ const authStore = useAuthStore()
 const { t } = useI18n()
 
 const completion = ref<OpenPlatformProfileCompletionPageResponse | null>(null)
+const errorTitle = ref('')
 const error = ref('')
 const loading = ref(true)
 const submitting = ref(false)
@@ -164,10 +165,12 @@ const expiresAtText = computed(() => {
 
 async function loadCompletion() {
   if (!token.value) {
+    errorTitle.value = t('common.openPlatformProfileCompletion.loadFailed')
     error.value = t('common.openPlatformProfileCompletion.invalidToken')
     loading.value = false
     return
   }
+  errorTitle.value = ''
   error.value = ''
   loading.value = true
   try {
@@ -176,6 +179,7 @@ async function loadCompletion() {
     if (!data) throw new Error('Invalid profile completion response')
     completion.value = data
   } catch (err) {
+    errorTitle.value = t('common.openPlatformProfileCompletion.loadFailed')
     error.value = getErrorMessage(err, t('common.openPlatformProfileCompletion.loadFailed'))
   } finally {
     loading.value = false
@@ -192,6 +196,7 @@ async function continueAuthorization() {
     if (!target) throw new Error('Invalid authorization response')
     redirectToURL(target)
   } catch (err) {
+    errorTitle.value = t('common.openPlatformProfileCompletion.submitFailedTitle')
     error.value = getErrorMessage(err, t('common.openPlatformProfileCompletion.submitFailed'))
     submitting.value = false
   }
