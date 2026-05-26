@@ -135,14 +135,19 @@ async function mockAuthenticated(
       contentType: 'application/json',
       body: JSON.stringify({
         success: true,
-        data: { reviewCount: 580, userCount: 230 },
+        data: {
+          courseCount: 120,
+          reviewCount: 580,
+          departmentCount: 8,
+          userCount: 230,
+        },
       }),
     }),
   )
   await page.route('**/api/v1/course/review/rankings/hot*', (route) =>
     route.fulfill({
       contentType: 'application/json',
-      body: JSON.stringify({ success: true, data: [] }),
+      body: JSON.stringify({ success: true, data: { list: [] } }),
     }),
   )
 }

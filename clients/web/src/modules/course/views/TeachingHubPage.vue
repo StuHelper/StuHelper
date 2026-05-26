@@ -53,6 +53,8 @@
         <!-- Autocomplete dropdown -->
         <div
           v-if="showDropdown && query.trim()"
+          id="course-hub-search-listbox"
+          role="listbox"
           class="absolute left-0 right-0 mt-1 rounded-xl overflow-hidden z-[var(--z-dropdown)]
                  bg-bg-card shadow-lg
                  max-h-[360px] overflow-y-auto"
@@ -61,6 +63,8 @@
             <div
               v-for="(course, idx) in results"
               :key="course.id"
+              role="option"
+              :aria-selected="idx === selectedIndex"
               class="flex items-center justify-between px-4 py-3 cursor-pointer transition-colors duration-fast"
               :class="idx === selectedIndex ? 'bg-bg-hover' : 'bg-transparent'"
               @mouseenter="selectedIndex = idx"
@@ -80,6 +84,9 @@
               </span>
             </div>
           </template>
+          <div v-else-if="searchCatalogError" role="alert" class="px-4 py-6 text-center text-sm text-danger">
+            {{ searchCatalogError }}
+          </div>
           <div v-else class="px-4 py-6 text-center text-sm text-text-muted">
             <p>{{ t('review.home.courseNotFound') }}</p>
             <p class="mt-1">
@@ -179,6 +186,7 @@
       <Transition name="snackbar">
         <div
           v-if="errorMessage"
+          role="alert"
           class="fixed bottom-6 left-1/2 -translate-x-1/2 px-6 py-3 rounded-lg text-sm font-medium z-[var(--z-toast)]
                  bg-danger text-white shadow-lg"
         >
@@ -195,6 +203,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { Search, X, BookOpen, PenLine } from 'lucide-vue-next'
 import { api } from '@/api'
+import { readArrayPayload, readListPayload, readPaginatedPayload } from '@/api/responsePayload'
 import { usePinyinSearch, type PinyinSearchItem } from '@/composables/usePinyinSearch'
 import ScrollReveal from '@/components/animated/ScrollReveal.vue'
 
@@ -216,6 +225,7 @@ interface ReviewStats {
   courseCount: number
   reviewCount: number
   departmentCount: number
+  userCount: number
 }
 
 const { t } = useI18n()
@@ -225,6 +235,7 @@ const allCourses = ref<CourseItem[]>([])
 const hotCourses = ref<HotCourse[]>([])
 const reviewStats = ref<ReviewStats | null>(null)
 const errorMessage = ref('')
+const searchCatalogError = ref('')
 const showDropdown = ref(false)
 const searchInputRef = ref<HTMLInputElement | null>(null)
 const currentTerm = ref('')
@@ -275,6 +286,94 @@ function handleClickOutside(e: MouseEvent) {
   }
 }
 
+function isNonNegativeNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+}
+
+function mapCourseItem(raw: unknown): CourseItem {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('Invalid course catalog response')
+  }
+
+  const { id, name, departmentName, reviewCount } = raw as {
+    id?: unknown
+    name?: unknown
+    departmentName?: unknown
+    reviewCount?: unknown
+  }
+  if (!isNonNegativeNumber(id) || typeof name !== 'string' || !isNonNegativeNumber(reviewCount)) {
+    throw new Error('Invalid course catalog response')
+  }
+
+  return {
+    id,
+    name,
+    departmentName: typeof departmentName === 'string' ? departmentName : undefined,
+    reviewCount,
+  }
+}
+
+function mapHotCourse(raw: unknown): HotCourse {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('Invalid hot courses response')
+  }
+
+  const { courseID, courseName, reviewCount, avgRating } = raw as {
+    courseID?: unknown
+    courseName?: unknown
+    reviewCount?: unknown
+    avgRating?: unknown
+  }
+  if (
+    !isNonNegativeNumber(courseID) ||
+    typeof courseName !== 'string' ||
+    !isNonNegativeNumber(reviewCount) ||
+    !isNonNegativeNumber(avgRating)
+  ) {
+    throw new Error('Invalid hot courses response')
+  }
+
+  return { courseID, courseName, reviewCount, avgRating }
+}
+
+function readReviewStatsPayload(payload: unknown): ReviewStats {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid review stats response')
+  }
+
+  const { courseCount, reviewCount, departmentCount, userCount } = payload as {
+    courseCount?: unknown
+    reviewCount?: unknown
+    departmentCount?: unknown
+    userCount?: unknown
+  }
+  if (
+    !isNonNegativeNumber(courseCount) ||
+    !isNonNegativeNumber(reviewCount) ||
+    !isNonNegativeNumber(departmentCount) ||
+    !isNonNegativeNumber(userCount)
+  ) {
+    throw new Error('Invalid review stats response')
+  }
+
+  return { courseCount, reviewCount, departmentCount, userCount }
+}
+
+function readCurrentTermPayload(payload: unknown): string {
+  const terms = readArrayPayload<unknown>(payload, 'Invalid terms response')
+  if (terms.length === 0) return ''
+
+  const term = terms[0]
+  if (!term || typeof term !== 'object') {
+    throw new Error('Invalid terms response')
+  }
+
+  const { id, name } = term as { id?: unknown; name?: unknown }
+  if (typeof name === 'string') return name
+  if (typeof id === 'string') return id
+  throw new Error('Invalid terms response')
+}
+
 onMounted(async () => {
   document.addEventListener('click', handleClickOutside)
 
@@ -286,42 +385,62 @@ onMounted(async () => {
   ])
 
   if (coursesRes.status === 'fulfilled') {
-    const list = coursesRes.value.data?.data?.list
-    if (list) {
-      allCourses.value = list.map((c) => ({
-        id: c.id,
-        name: c.name,
-        departmentName: c.departmentName ?? undefined,
-        reviewCount: c.reviewCount,
-      }))
+    try {
+      const data = readPaginatedPayload<unknown>(
+        coursesRes.value.data?.data,
+        'Invalid course catalog response',
+      )
+      allCourses.value = data.list.map(mapCourseItem)
+      searchCatalogError.value = ''
+    } catch (_error) { void _error;
+      allCourses.value = []
+      searchCatalogError.value = t('common.loadFailed')
+      showError(t('common.loadFailed'))
     }
   } else {
-    showError(String(coursesRes.reason))
+    allCourses.value = []
+    searchCatalogError.value = t('common.loadFailed')
+    showError(t('common.loadFailed'))
   }
 
   if (statsRes.status === 'fulfilled') {
-    const data = statsRes.value.data?.data
-    if (data) {
-      reviewStats.value = {
-        courseCount: data.courseCount,
-        reviewCount: data.reviewCount,
-        departmentCount: data.departmentCount,
-      }
+    try {
+      reviewStats.value = readReviewStatsPayload(statsRes.value.data?.data)
+    } catch (_error) { void _error;
+      reviewStats.value = null
+      showError(t('common.loadFailed'))
     }
+  } else {
+    reviewStats.value = null
+    showError(t('common.loadFailed'))
   }
 
   if (hotRes.status === 'fulfilled') {
-    const list = hotRes.value.data?.data?.list
-    if (list) {
-      hotCourses.value = list.slice(0, 6)
+    try {
+      const list = readListPayload<unknown>(
+        hotRes.value.data?.data,
+        'Invalid hot courses response',
+      )
+      hotCourses.value = list.map(mapHotCourse).slice(0, 6)
+    } catch (_error) { void _error;
+      hotCourses.value = []
+      showError(t('common.loadFailed'))
     }
+  } else {
+    hotCourses.value = []
+    showError(t('common.loadFailed'))
   }
 
   if (termsRes.status === 'fulfilled') {
-    const terms = termsRes.value.data?.data
-    if (Array.isArray(terms) && terms.length > 0) {
-      currentTerm.value = terms[0].name ?? terms[0].id ?? ''
+    try {
+      currentTerm.value = readCurrentTermPayload(termsRes.value.data?.data)
+    } catch (_error) { void _error;
+      currentTerm.value = ''
+      showError(t('common.loadFailed'))
     }
+  } else {
+    currentTerm.value = ''
+    showError(t('common.loadFailed'))
   }
 })
 

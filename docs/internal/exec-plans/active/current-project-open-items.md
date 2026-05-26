@@ -343,6 +343,16 @@ fail-closed 路径。已通过目标 E2E
 `pnpm --dir clients test:web`（55 文件、257 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3538 make e2e-web`（216 项）。
 
+本地验证补充（2026-05-26）：继续收紧课程社区主页初始化响应。`/courses` 主页的课程目录、
+全站评课统计、热门课程和当前学期响应现在都会按 OpenAPI 形状校验；畸形 200 不再被静默当作
+空目录、空统计或空热门课程，课程目录加载失败后本地搜索下拉会显示“加载失败”，不会误导为课程未收录。
+同步修正相关 E2E mock 的 review stats 与 hot rankings 响应形状，并给主页错误 snackbar 标记
+`role=alert`。新增 Home E2E 覆盖课程目录畸形成功响应的本地搜索 fail-closed 路径。已通过
+目标 E2E `CI=1 PLAYWRIGHT_WEB_PORT=3539 pnpm --dir clients/web exec playwright test tests/e2e/home.spec.ts`
+（14 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、
+`pnpm --dir clients test:web`（55 文件、257 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3540 make e2e-web`（218 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

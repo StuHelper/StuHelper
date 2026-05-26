@@ -25,7 +25,12 @@ async function mockUnauthenticated(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         success: true,
-        data: { reviewCount: 580, userCount: 230 },
+        data: {
+          courseCount: 120,
+          reviewCount: 580,
+          departmentCount: 8,
+          userCount: 230,
+        },
       }),
     }),
   )
@@ -134,6 +139,7 @@ async function mockCourseHub(page: Page) {
           courseCount: 120,
           reviewCount: 580,
           departmentCount: 8,
+          userCount: 230,
         },
       }),
     }),
@@ -398,5 +404,67 @@ test('inline course search fails closed when response is malformed', async ({
   ).toBeVisible({ timeout: 10_000 })
   await expect(
     listbox.getByText(/No rating data|暂无评分数据/i),
+  ).toHaveCount(0)
+})
+
+test('course hub local catalog fails closed when course catalog response is malformed', async ({
+  page,
+}) => {
+  await mockUnauthenticated(page)
+
+  await page.route('**/api/v1/course/courses?*', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, data: null }),
+    }),
+  )
+  await page.route('**/api/v1/course/review/stats', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          courseCount: 120,
+          reviewCount: 580,
+          departmentCount: 8,
+          userCount: 230,
+        },
+      }),
+    }),
+  )
+  await page.route('**/api/v1/course/review/rankings/hot*', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, data: { list: [] } }),
+    }),
+  )
+  await page.route('**/api/v1/course/terms*', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: [{ id: '2026-spring', name: '2026 春' }],
+      }),
+    }),
+  )
+
+  await page.goto('/courses')
+  await expect(page.getByRole('heading', { name: '评课社区@BUAA' })).toBeVisible({
+    timeout: 10_000,
+  })
+
+  const localSearch = page
+    .locator('main')
+    .getByRole('textbox', {
+      name: /搜索课程名称、拼音|Search by course name/i,
+    })
+  await localSearch.fill('missing')
+
+  const dropdown = page.locator('#course-hub-search-listbox')
+  await expect(
+    dropdown.getByRole('alert').filter({ hasText: /Load failed|加载失败/i }),
+  ).toBeVisible({ timeout: 10_000 })
+  await expect(
+    dropdown.getByText(/暂未被收录|not listed/i),
   ).toHaveCount(0)
 })

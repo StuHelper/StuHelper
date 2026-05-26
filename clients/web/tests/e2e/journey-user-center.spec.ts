@@ -256,7 +256,12 @@ test.describe('User Journey: User Center', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           success: true,
-          data: { courseCount: 230, reviewCount: 580, userCount: 42 },
+          data: {
+            courseCount: 230,
+            reviewCount: 580,
+            departmentCount: 8,
+            userCount: 42,
+          },
         }),
       }),
     )

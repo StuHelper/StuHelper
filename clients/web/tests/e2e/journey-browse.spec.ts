@@ -158,7 +158,12 @@ function setupCommonMocks(page: Page) {
         contentType: 'application/json',
         body: JSON.stringify({
           success: true,
-          data: { reviewCount: 580, userCount: 230 },
+          data: {
+            courseCount: 120,
+            reviewCount: 580,
+            departmentCount: 8,
+            userCount: 230,
+          },
         }),
       }),
     ),
@@ -167,7 +172,7 @@ function setupCommonMocks(page: Page) {
         contentType: 'application/json',
         body: JSON.stringify({
           success: true,
-          data: [],
+          data: { list: [] },
         }),
       }),
     ),
