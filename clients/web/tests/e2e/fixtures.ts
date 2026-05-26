@@ -99,6 +99,13 @@ function isExpectedApiErrorResponse(response: Response) {
   }
   if (
     method === 'GET' &&
+    pathname === '/api/v1/user/profile/academic-info' &&
+    (status === 403 || status === 404)
+  ) {
+    return true
+  }
+  if (
+    method === 'GET' &&
     /^\/api\/v1\/admission\/sessions\/[^/]+$/.test(pathname) &&
     (status === 409 || status === 410)
   ) {

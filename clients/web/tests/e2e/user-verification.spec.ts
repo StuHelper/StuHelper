@@ -638,4 +638,58 @@ test.describe("User verification flows", () => {
         await expect(page.getByText("计算机学院")).toBeVisible();
         await expect(page.getByText("软件工程")).toBeVisible();
     });
+
+    test("academic info page renders verification-required and empty states", async ({
+        page,
+    }) => {
+        const state: UserApiState = {
+            identity: { ...verifiedIdentity },
+            profile: { ...unverifiedProfile },
+            qqBinding: null,
+        };
+
+        await mockUserApi(page, state);
+        await page.unroute("**/api/v1/user/profile/academic-info");
+        await page.route("**/api/v1/user/profile/academic-info", (route) =>
+            route.fulfill(
+                json(
+                    {
+                        success: false,
+                        error: {
+                            code: "A0040300",
+                            message: "student verification required",
+                        },
+                    },
+                    403,
+                ),
+            ),
+        );
+
+        await gotoAuthenticatedPage(page, "/user/academic-info");
+        await expect(
+            page.getByText("请先完成学生认证后查看学业信息"),
+        ).toBeVisible();
+        await expect(
+            page.getByRole("link", { name: "去认证" }),
+        ).toHaveAttribute("href", "/user/student-verification");
+
+        await page.unroute("**/api/v1/user/profile/academic-info");
+        await page.route("**/api/v1/user/profile/academic-info", (route) =>
+            route.fulfill(
+                json(
+                    {
+                        success: false,
+                        error: {
+                            code: "A0040404",
+                            message: "academic info not found",
+                        },
+                    },
+                    404,
+                ),
+            ),
+        );
+
+        await gotoAuthenticatedPage(page, "/user/academic-info");
+        await expect(page.getByText("暂无学籍数据")).toBeVisible();
+    });
 });
