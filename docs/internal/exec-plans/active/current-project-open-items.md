@@ -773,6 +773,15 @@ fallback 在类型层仍可选，handler 内按既有默认值归一化。日志
 防止命令日志相关文件回退到裸 `any`。已通过 `corepack yarn --cwd bots/koishi test:unit`（274 项）、
 `corepack yarn --cwd bots/koishi build` 和 `make e2e-koishi`（29 项，覆盖日志检索和全局 Console UI 路径）。
 
+本地 Koishi 关键词命令类型清理（2026-05-27）：`keyword-forbidden-command.ts`、
+`keyword-verify-command.ts` 和 `keyword-middleware.ts` 不再用裸 `options: any` /
+`forbiddenConfig: any` 表达命令参数和关键词运行时配置，改为 `ForbiddenCommandOptions`、
+`VerifyCommandOptions`、`GroupForbiddenConfig` 和 `EffectiveForbiddenConfig`。新增单测覆盖
+forbidden 命令添加关键词、启用自动禁言、设置禁言时长、开启回显和列表展示，以及 verify 命令添加审核关键词、
+启用自动拒绝、设置拒绝词和列表展示，并用源码合同防止关键词命令回退到裸 `any`。已通过
+`corepack yarn --cwd bots/koishi test:unit`（277 项）、`corepack yarn --cwd bots/koishi build` 和
+`make e2e-koishi`（29 项，覆盖 Console 真实 UI 路径和关键词模块初始化）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

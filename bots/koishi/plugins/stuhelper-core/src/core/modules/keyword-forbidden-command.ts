@@ -6,11 +6,26 @@ import type { KeywordModule } from './keyword.module'
 
 const FORBIDDEN_USAGE = '请使用：\n-a 添加关键词\n-r 移除关键词\n--clear 清空关键词\n-l 列出关键词\n-d <true/false> 设置是否自动撤回包含关键词的消息\n-b <true/false> 设置是否启用关键词禁言\n-k <true/false> 设置是否启用关键词踢出\n-t <时长> 设置自动禁言时长\n--echo <true/false> 设置是否启用触发回显\n多个关键词用英文逗号分隔'
 
+type GroupForbiddenConfig = NonNullable<GroupConfig['forbidden']>
+type EffectiveForbiddenConfig = Config['forbidden'] & Pick<GroupForbiddenConfig, 'echo'>
+
+interface ForbiddenCommandOptions {
+  readonly a?: string
+  readonly r?: string
+  readonly clear?: boolean
+  readonly l?: boolean
+  readonly d?: string | boolean
+  readonly b?: string | boolean
+  readonly k?: string | boolean
+  readonly t?: string
+  readonly echo?: string | boolean
+}
+
 interface ForbiddenCommandInput {
   host: KeywordModule
   session: Session
   groupConfig: GroupConfig
-  options: any
+  options: ForbiddenCommandOptions
 }
 
 interface ForbiddenFlagInput {
@@ -43,10 +58,10 @@ export function registerKeywordForbiddenCommand(host: KeywordModule): void {
     .option('k', '-k <value:string> 设置是否自动踢出')
     .option('t', '-t <时长> 设置自动禁言时长')
     .option('echo', '--echo <value:string> 是否在操作后回显结果')
-    .action(async ({ session, options }) => handleForbiddenCommand(host, session, options))
+    .action(async ({ session, options }) => handleForbiddenCommand(host, session, options as ForbiddenCommandOptions))
 }
 
-async function handleForbiddenCommand(host: KeywordModule, session: Session, options: any): Promise<string> {
+async function handleForbiddenCommand(host: KeywordModule, session: Session, options: ForbiddenCommandOptions): Promise<string> {
   if (!session.guildId) return '喵呜...这个命令只能在群里用喵...'
 
   const groupConfig = host.data.groupConfig.get(session.guildId) || {} as GroupConfig
@@ -186,11 +201,11 @@ function setEchoFlag(input: ForbiddenFlagInput): string {
   return `回显状态更新为${state}`
 }
 
-function getEffectiveForbiddenConfig(config: Config, groupConfig: GroupConfig) {
+function getEffectiveForbiddenConfig(config: Config, groupConfig: GroupConfig): EffectiveForbiddenConfig {
   return { ...config.forbidden, ...(groupConfig.forbidden || {}) }
 }
 
-function ensureForbiddenConfig(host: KeywordModule, groupConfig: GroupConfig) {
+function ensureForbiddenConfig(host: KeywordModule, groupConfig: GroupConfig): GroupForbiddenConfig {
   if (!groupConfig.forbidden) {
     groupConfig.forbidden = {
       autoDelete: host.config.forbidden.autoDelete,
@@ -202,8 +217,8 @@ function ensureForbiddenConfig(host: KeywordModule, groupConfig: GroupConfig) {
   return groupConfig.forbidden
 }
 
-function parseKeywordList(input: string): string[] {
-  return input.split(',').map((keyword: string) => keyword.trim()).filter((keyword: string) => keyword)
+function parseKeywordList(input: unknown): string[] {
+  return String(input).split(',').map((keyword) => keyword.trim()).filter((keyword) => keyword)
 }
 
 function parseBooleanOption(input: unknown): boolean | null {

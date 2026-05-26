@@ -1,21 +1,24 @@
 import type { Session } from 'koishi'
 
-import type { GroupConfig } from '../../types'
+import type { Config, GroupConfig } from '../../types'
 import { formatDuration } from '../../utils'
 import type { KeywordModule } from './keyword.module'
+
+type GroupForbiddenConfig = NonNullable<GroupConfig['forbidden']>
+type EffectiveForbiddenConfig = Config['forbidden'] & Pick<GroupForbiddenConfig, 'echo'>
 
 interface KeywordMatchInput {
   host: KeywordModule
   session: Session
   content: string
   keywords: string[]
-  forbiddenConfig: any
+  forbiddenConfig: EffectiveForbiddenConfig
 }
 
 interface KeywordActionInput {
   host: KeywordModule
   session: Session
-  forbiddenConfig: any
+  forbiddenConfig: EffectiveForbiddenConfig
 }
 
 export function registerKeywordMiddleware(host: KeywordModule): void {
@@ -26,7 +29,7 @@ export function registerKeywordMiddleware(host: KeywordModule): void {
     if (!content) return next()
 
     const groupConfig = host.data.groupConfig.get(session.guildId) || {} as GroupConfig
-    const forbiddenConfig = { ...host.config.forbidden, ...(groupConfig.forbidden || {}) }
+    const forbiddenConfig = getEffectiveForbiddenConfig(host.config, groupConfig)
     const effectiveKeywords = [...host.config.forbidden.keywords, ...(groupConfig.keywords || [])]
     if (effectiveKeywords.length === 0) return next()
 
@@ -36,6 +39,10 @@ export function registerKeywordMiddleware(host: KeywordModule): void {
 
     return next()
   })
+}
+
+function getEffectiveForbiddenConfig(config: Config, groupConfig: GroupConfig): EffectiveForbiddenConfig {
+  return { ...config.forbidden, ...(groupConfig.forbidden || {}) }
 }
 
 function sanitizeMessageContent(content: string): string {

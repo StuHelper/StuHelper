@@ -5,6 +5,15 @@ import type { KeywordModule } from './keyword.module'
 
 const VERIFY_USAGE = '请使用：\n-a 添加关键词\n-r 移除关键词\n--clear 清空关键词\n-l 列出关键词\n-n <true/false> 未匹配关键词自动拒绝\n-w <拒绝词> 设置拒绝时的回复\n多个关键词用英文逗号分隔'
 
+interface VerifyCommandOptions {
+  readonly a?: string
+  readonly r?: string
+  readonly clear?: boolean
+  readonly l?: boolean
+  readonly n?: string | boolean
+  readonly w?: string
+}
+
 interface VerifyCommandInput {
   host: KeywordModule
   session: Session
@@ -26,10 +35,10 @@ export function registerKeywordVerifyCommand(host: KeywordModule): void {
     .option('l', '-l 列出关键词')
     .option('n', '-n <true/false> 设置未匹配关键词时是否自动拒绝')
     .option('w', '-w <拒绝词> 设置拒绝时的回复')
-    .action(async ({ session, options }) => handleVerifyCommand(host, session, options))
+    .action(async ({ session, options }) => handleVerifyCommand(host, session, options as VerifyCommandOptions))
 }
 
-async function handleVerifyCommand(host: KeywordModule, session: Session, options: any): Promise<string> {
+async function handleVerifyCommand(host: KeywordModule, session: Session, options: VerifyCommandOptions): Promise<string> {
   if (!session.guildId) return '喵呜...这个命令只能在群里用喵...'
 
   const groupConfig = getVerifyGroupConfig(host, session.guildId)
@@ -107,7 +116,7 @@ function setRejectMessage(input: VerifyCommandInput): string {
 }
 
 function parseKeywordList(input: string): string[] {
-  return input.split(',').map((keyword: string) => keyword.trim()).filter((keyword: string) => keyword)
+  return input.split(',').map((keyword) => keyword.trim()).filter((keyword) => keyword)
 }
 
 function removeKeywords(current: string[], targets: string[]): string[] {
