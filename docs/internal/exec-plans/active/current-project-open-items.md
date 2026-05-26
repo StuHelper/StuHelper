@@ -524,6 +524,17 @@ payload；通知中心 `useNotificationSSESync` 会忽略畸形内部事件，�
 （40 项）；并通过 `pnpm --dir clients lint:web`、`pnpm --dir clients test:web`（57 文件、278 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3578 make e2e-web`（228 项）。
 
+本地验证补充（2026-05-27）：继续收紧评课回复链路。`replyPageResponse` 现在按 OpenAPI 校验
+`Reply` 的 ID、review ID、parent ID、内容、非负点赞数、状态、owner 标记和创建 / 更新时间；课程详情页与
+ReviewCard 共用的回复列表和创建回复成功响应不再把缺失 `reviewID`、`isOwner` 或负数 `likeCount` 的回复写入
+页面。新增两套回复 composable 单测覆盖嵌套 reply 字段畸形；课程详情 invalid reply list E2E 从顶层 `null`
+扩展为嵌套回复字段畸形，并补齐发布评课流程中创建回复 mock 的完整 `Reply` 字段。已通过目标单测
+`pnpm --dir clients --filter @stuhelper/web exec vitest run src/modules/review/__tests__/useReviewReplies.test.ts src/components/business/review/__tests__/useReviewReply.test.ts`
+（9 项）、`pnpm --dir clients type-check:web`、目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3579 pnpm --dir clients/web exec playwright test tests/e2e/review-actions.spec.ts tests/e2e/journey-review.spec.ts tests/e2e/course-browse.spec.ts`
+（30 项）；并通过 `pnpm --dir clients lint:web`、`pnpm --dir clients test:web`（57 文件、280 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3580 make e2e-web`（228 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

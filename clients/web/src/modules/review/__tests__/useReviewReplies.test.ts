@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Reply } from '@stuhelper/shared/reply'
 
 const mockCreateReply = vi.fn()
 const mockGetReplies = vi.fn()
@@ -57,6 +58,21 @@ vi.mock('vue-router', () => ({
 
 const { useReviewReplies } = await import('../useReviewReplies')
 
+function makeReply(id: string, overrides: Partial<Reply> = {}): Reply {
+  return {
+    id,
+    reviewID: 'review-1',
+    parentID: null,
+    content: `reply-${id}`,
+    likeCount: 0,
+    status: 'published',
+    isOwner: true,
+    createdAt: '2026-05-11T00:00:00Z',
+    updatedAt: '2026-05-11T00:00:00Z',
+    ...overrides,
+  }
+}
+
 describe('useReviewReplies', () => {
   beforeEach(() => {
     mockCreateReply.mockReset()
@@ -74,11 +90,9 @@ describe('useReviewReplies', () => {
     const clear = vi.fn()
     mockCreateReply.mockResolvedValue({
       data: {
-        data: {
-          id: 'reply-1',
+        data: makeReply('reply-1', {
           content: 'saved reply',
-          createdAt: '2026-05-11T00:00:00Z',
-        },
+        }),
       },
     })
 
@@ -106,6 +120,36 @@ describe('useReviewReplies', () => {
     await replies.toggleExpand('review-1')
 
     expect(mockGetReplies).toHaveBeenCalledWith('review-1')
+    expect(replies.replies.value).toEqual([])
+    expect(replies.repliesError.value).toBe(true)
+    expect(replies.replyCountMap['review-1']).toBeUndefined()
+  })
+
+  it('fails closed when a reply list item is malformed', async () => {
+    mockGetReplies.mockResolvedValue({
+      data: {
+        data: {
+          list: [
+            {
+              id: 'reply-bad',
+              reviewID: 'review-1',
+              content: 'bad reply',
+              likeCount: -1,
+              status: 'published',
+              isOwner: true,
+              createdAt: '2026-05-11T00:00:00Z',
+              updatedAt: '2026-05-11T00:00:00Z',
+            },
+          ],
+          total: 1,
+        },
+      },
+    })
+
+    const replies = useReviewReplies()
+
+    await replies.toggleExpand('review-1')
+
     expect(replies.replies.value).toEqual([])
     expect(replies.repliesError.value).toBe(true)
     expect(replies.replyCountMap['review-1']).toBeUndefined()

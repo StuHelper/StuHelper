@@ -119,6 +119,20 @@ const existingReview = {
   authorDisplayName: '匿名用户',
 }
 
+function makeReply(id: string, content: string) {
+  return {
+    id,
+    reviewID: 'rev-existing',
+    parentID: null,
+    content,
+    likeCount: 0,
+    status: 'published',
+    isOwner: true,
+    createdAt: '2026-03-20T10:05:00Z',
+    updatedAt: '2026-03-20T10:05:00Z',
+  }
+}
+
 test.describe('User Journey: Review Lifecycle', () => {
   test.beforeEach(async ({ page }) => {
     await mockAuth(page)
@@ -338,20 +352,16 @@ test.describe('User Journey: Review Lifecycle', () => {
             contentType: 'application/json',
             body: JSON.stringify({
               success: true,
-              data: {
-                id: 'reply-new',
-                reviewID: 'rev-existing',
-                content: replyPayload?.content,
-                authorName: 'bob',
-                authorDisplayName: 'Bob',
-                createdAt: new Date().toISOString(),
-              },
+              data: makeReply('reply-new', String(replyPayload?.content ?? '')),
             }),
           })
         } else {
           await route.fulfill({
             contentType: 'application/json',
-            body: JSON.stringify({ success: true, data: [] }),
+            body: JSON.stringify({
+              success: true,
+              data: { list: [], total: 0 },
+            }),
           })
         }
       },

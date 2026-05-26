@@ -419,7 +419,9 @@ test.describe("Review actions", () => {
 
                 loadCount += 1;
                 await route.fulfill(
-                    loadCount === 1 ? ok(null) : list([existingReply], 1),
+                    loadCount === 1
+                        ? list([{ ...existingReply, likeCount: -1 }], 1)
+                        : list([existingReply], 1),
                 );
             },
         );
