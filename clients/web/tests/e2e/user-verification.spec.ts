@@ -390,6 +390,90 @@ test.describe("User verification flows", () => {
         });
     });
 
+    test("user submits passport identity with uploaded document photos", async ({
+        page,
+    }) => {
+        const state: UserApiState = {
+            identity: null,
+            profile: { ...unverifiedProfile },
+            qqBinding: null,
+        };
+        const uploads: unknown[] = [];
+        let identityBody: unknown = null;
+
+        await mockUserApi(page, state);
+        await page.route("**/api/v1/user/identity/uploads", async (route) => {
+            const body = route.request().postDataJSON();
+            uploads.push(body);
+            await route.fulfill(
+                ok({ key: `identity/${body.slot}-${body.filename}` }),
+            );
+        });
+        await page.route("**/api/v1/user/identity", async (route) => {
+            if (route.request().method() === "POST") {
+                identityBody = route.request().postDataJSON();
+            }
+            await route.fallback();
+        });
+
+        await gotoAuthenticatedPage(page, "/user/identity-verification");
+
+        await page.getByText("护照").click();
+        await page.getByLabel("真实姓名").fill("Alice Passport");
+        await page.getByLabel("证件号码").fill("P12345678");
+
+        const png = {
+            name: "passport.png",
+            mimeType: "image/png",
+            buffer: Buffer.from(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/az+0XcAAAAASUVORK5CYII=",
+                "base64",
+            ),
+        };
+
+        await page.locator('input[type="file"]').nth(0).setInputFiles(png);
+        await page.locator('input[type="file"]').nth(0).setInputFiles({
+            ...png,
+            name: "passport-back.png",
+        });
+        await page.locator('input[type="file"]').nth(0).setInputFiles({
+            ...png,
+            name: "passport-selfie.png",
+        });
+        await expect(page.locator("img")).toHaveCount(3);
+
+        await page.getByRole("button", { name: "提交认证" }).click();
+
+        await expect(
+            page.getByRole("heading", { name: "审核中" }),
+        ).toBeVisible();
+        expect(uploads).toEqual([
+            expect.objectContaining({
+                slot: "front",
+                filename: "passport.png",
+                contentType: "image/png",
+            }),
+            expect.objectContaining({
+                slot: "back",
+                filename: "passport-back.png",
+                contentType: "image/png",
+            }),
+            expect.objectContaining({
+                slot: "selfie",
+                filename: "passport-selfie.png",
+                contentType: "image/png",
+            }),
+        ]);
+        expect(identityBody).toMatchObject({
+            docType: "PASSPORT",
+            realName: "Alice Passport",
+            docNumber: "P12345678",
+            docPhotoFront: "identity/front-passport.png",
+            docPhotoBack: "identity/back-passport-back.png",
+            docPhotoSelfie: "identity/selfie-passport-selfie.png",
+        });
+    });
+
     test("user submits manual student verification dynamic fields", async ({
         page,
     }) => {
