@@ -1148,6 +1148,19 @@ Please retry”。验证已通过
 （32 项）、`pnpm --dir clients lint:web`、`pnpm --dir clients test:web`（53 文件、238 项）、
 `pnpm --dir clients type-check:web` 和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3507 make e2e-web`（168 项）。
 
+本地验证补充（2026-05-26）：继续补齐 Open Platform 开发者门户 fail-closed 浏览器路径。此前
+`DeveloperAppsPage.vue` 在开发者应用列表和单应用活动记录读取时使用 `data?.list ?? []` / `data?.total ?? 0`
+兜底，`success=true` 但 `data=null` 会被误显示为“暂无应用 / No applications”或“暂无应用活动记录 /
+No application activity yet”；轮换 client secret 时如果响应缺少 `clientSecret` 也会显示成功 toast 但没有
+可保存的新 secret。本轮改为显式要求列表响应包含 `list` 数组和 `total` 数字、活动响应包含 `list` 数组和
+`total` 数字、密钥轮换响应包含 `app.displayName` / `app.clientID` / 非空 `clientSecret`，否则进入失败态并保留
+原页面 / 对话框。新增桌面 / 移动 E2E 覆盖应用列表异常响应显示“加载失败”且重试后恢复到应用卡片、活动记录
+异常响应显示“应用活动加载失败，请重试 / Failed to load application activity. Please retry”且刷新后恢复到
+审计事件、密钥轮换异常响应保持轮换对话框并显示失败信息。验证已通过
+`CI=1 PLAYWRIGHT_WEB_PORT=3508 pnpm --dir clients/web exec playwright test tests/e2e/open-platform-developer.spec.ts`
+（12 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、`pnpm --dir clients test:web`
+（53 文件、238 项）和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3509 make e2e-web`（174 项）。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |

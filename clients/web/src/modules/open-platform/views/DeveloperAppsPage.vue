@@ -930,11 +930,14 @@ import { developerOpenPlatformAuditTypeKey } from '../auditEvents'
 import type {
   OpenPlatformAppRedirectURIRequest,
   OpenPlatformAppListParams,
+  OpenPlatformAppListResponse,
   OpenPlatformAppScopeRequest,
   OpenPlatformAppWithScopes,
   OpenPlatformDeveloperAppAuditEvent,
+  OpenPlatformDeveloperAppAuditEventsResponse,
   OpenPlatformRedirectURIChangeRequest,
   OpenPlatformRegisterAppRequest,
+  OpenPlatformRotatedSecretResponse,
 } from '@stuhelper/shared/api'
 
 type AppStatus = OpenPlatformAppWithScopes['app']['status']
@@ -1214,8 +1217,11 @@ async function loadApps() {
       status: statusFilter.value,
     })
     const data = response.data?.data
-    apps.value = data?.list ?? []
-    total.value = data?.total ?? 0
+    if (!isAppListResponse(data)) {
+      throw new Error('Invalid developer app list response')
+    }
+    apps.value = data.list
+    total.value = data.total
   } catch (err) {
     errorMessage.value = getErrorMessage(err, t('developer.apps.loadFailed'))
   } finally {
@@ -1245,8 +1251,11 @@ async function loadAppAuditEvents(appID = auditPanelAppID.value) {
       params: { pageSize: APP_AUDIT_PAGE_SIZE },
     })
     const data = response.data?.data
-    auditEvents.value = data?.list ?? []
-    auditTotal.value = data?.total ?? 0
+    if (!isDeveloperAppAuditEventsResponse(data)) {
+      throw new Error('Invalid developer app audit response')
+    }
+    auditEvents.value = data.list
+    auditTotal.value = data.total
   } catch (err) {
     auditError.value = getErrorMessage(err, t('developer.apps.auditLoadFailed'))
   } finally {
@@ -1381,12 +1390,13 @@ async function rotateSecret(item: OpenPlatformAppWithScopes, reason: string) {
       reason,
     })
     const data = response.data?.data
-    if (data) {
-      rotatedSecret.value = {
-        appName: data.app.displayName,
-        clientID: data.app.clientID,
-        secret: data.clientSecret,
-      }
+    if (!isRotatedSecretResponse(data)) {
+      throw new Error('Invalid rotated secret response')
+    }
+    rotatedSecret.value = {
+      appName: data.app.displayName,
+      clientID: data.app.clientID,
+      secret: data.clientSecret,
     }
     toast.success(t('developer.apps.rotateSecretSuccess'))
     await loadApps()
@@ -1806,6 +1816,31 @@ function canWithdrawApp(item: OpenPlatformAppWithScopes) {
 
 function appWithdrawKey(appID: number) {
   return `app:${appID}`
+}
+
+function isAppListResponse(
+  value: OpenPlatformAppListResponse | null | undefined,
+): value is OpenPlatformAppListResponse {
+  return value != null && Array.isArray(value.list) && typeof value.total === 'number'
+}
+
+function isDeveloperAppAuditEventsResponse(
+  value: OpenPlatformDeveloperAppAuditEventsResponse | null | undefined,
+): value is OpenPlatformDeveloperAppAuditEventsResponse {
+  return value != null && Array.isArray(value.list) && typeof value.total === 'number'
+}
+
+function isRotatedSecretResponse(
+  value: OpenPlatformRotatedSecretResponse | null | undefined,
+): value is OpenPlatformRotatedSecretResponse {
+  return (
+    value != null &&
+    value.app != null &&
+    typeof value.app.displayName === 'string' &&
+    typeof value.app.clientID === 'string' &&
+    typeof value.clientSecret === 'string' &&
+    value.clientSecret.length > 0
+  )
 }
 
 function scopeWithdrawKey(appID: number, scope: string) {

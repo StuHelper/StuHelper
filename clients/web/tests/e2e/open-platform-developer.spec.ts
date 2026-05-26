@@ -46,6 +46,13 @@ function captureQuery(urlString: string): QueryRecord {
     return Object.fromEntries(new URL(urlString).searchParams.entries());
 }
 
+function ok(data: unknown = null) {
+    return {
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, data }),
+    };
+}
+
 function makeDeveloperApp(input: {
     id: number;
     displayName: string;
@@ -153,6 +160,235 @@ async function mockAuth(page: Page) {
 test.describe("Open Platform developer portal", () => {
     test.beforeEach(async ({ page }) => {
         await mockAuth(page);
+    });
+
+    test("invalid developer app list response fails closed and can retry", async ({
+        page,
+    }) => {
+        let loadCount = 0;
+
+        await page.route("**/api/v1/open-platform/apps**", async (route) => {
+            const request = route.request();
+            const url = new URL(request.url());
+
+            if (
+                request.method() !== "GET" ||
+                url.pathname !== "/api/v1/open-platform/apps"
+            ) {
+                await route.fulfill({
+                    status: 500,
+                    contentType: "application/json",
+                    body: JSON.stringify({
+                        success: false,
+                        error: {
+                            code: "E2E_UNMOCKED",
+                            message: `unmocked ${request.method()} ${url.pathname}`,
+                        },
+                    }),
+                });
+                return;
+            }
+
+            loadCount += 1;
+            await route.fulfill(
+                loadCount === 1
+                    ? ok(null)
+                    : ok({
+                          list: [
+                              makeDeveloperApp({
+                                  id: 1,
+                                  displayName: "Portal App 01",
+                                  status: "approved",
+                              }),
+                          ],
+                          total: 1,
+                      }),
+            );
+        });
+
+        await page.goto("/developers/apps");
+
+        const status = page.getByRole("status").filter({
+            hasText: /加载失败|Load failed/,
+        });
+        await expect(status).toBeVisible({ timeout: 10_000 });
+        await expect(page.getByText(/应用列表加载失败|Failed to load applications/)).toBeVisible();
+        await expect(page.getByText(/暂无应用|No applications/)).toHaveCount(0);
+
+        await status.getByRole("button", { name: /重试|Retry/ }).click();
+
+        await expect.poll(() => loadCount).toBe(2);
+        await expect(
+            page.locator("article").filter({ hasText: "Portal App 01" }),
+        ).toBeVisible();
+    });
+
+    test("invalid developer app audit response fails closed and can retry", async ({
+        page,
+    }) => {
+        let auditLoadCount = 0;
+
+        await page.route("**/api/v1/open-platform/apps**", async (route) => {
+            const request = route.request();
+            const url = new URL(request.url());
+
+            if (
+                request.method() === "GET" &&
+                url.pathname === "/api/v1/open-platform/apps"
+            ) {
+                await route.fulfill(
+                    ok({
+                        list: [
+                            makeDeveloperApp({
+                                id: 7,
+                                displayName: "Campus Connector",
+                                status: "approved",
+                            }),
+                        ],
+                        total: 1,
+                    }),
+                );
+                return;
+            }
+
+            if (
+                request.method() === "GET" &&
+                url.pathname === "/api/v1/open-platform/apps/7/audit-events"
+            ) {
+                auditLoadCount += 1;
+                await route.fulfill(
+                    auditLoadCount === 1
+                        ? ok(null)
+                        : ok({
+                              list: [
+                                  {
+                                      id: 91,
+                                      appID: 7,
+                                      eventType:
+                                          "open_platform.app.profile_updated",
+                                      requestID: "req-profile-update",
+                                      scopes: [],
+                                      endpoint: null,
+                                      result: "success",
+                                      details: { reason: "更新品牌资料" },
+                                      createdAt: "2026-05-03T10:00:00Z",
+                                  },
+                              ],
+                              total: 1,
+                          }),
+                );
+                return;
+            }
+
+            await route.fulfill({
+                status: 500,
+                contentType: "application/json",
+                body: JSON.stringify({
+                    success: false,
+                    error: {
+                        code: "E2E_UNMOCKED",
+                        message: `unmocked ${request.method()} ${url.pathname}`,
+                    },
+                }),
+            });
+        });
+
+        await page.goto("/developers/apps");
+
+        const appArticle = page
+            .locator("article")
+            .filter({ hasText: "Campus Connector" })
+            .first();
+        await expect(appArticle).toBeVisible({ timeout: 10_000 });
+
+        await appArticle.getByRole("button", { name: /活动记录|Activity/ }).click();
+        await expect(
+            page.getByText(/应用活动加载失败，请重试|Failed to load application activity. Please retry/),
+        ).toBeVisible();
+        await expect(page.getByText(/暂无应用活动记录|No application activity yet/)).toHaveCount(0);
+
+        const auditPanel = appArticle.locator("section").filter({
+            hasText: /应用活动|Application Activity/,
+        });
+        await auditPanel.getByRole("button", { name: /刷新|Refresh/ }).click();
+
+        await expect.poll(() => auditLoadCount).toBe(2);
+        await expect(page.getByText(/应用资料已更新|Application profile updated/)).toBeVisible();
+        await expect(page.getByText("原因：更新品牌资料")).toBeVisible();
+    });
+
+    test("invalid rotated secret response keeps the rotation dialog open", async ({
+        page,
+    }) => {
+        let rotateCalled = false;
+
+        await page.route("**/api/v1/open-platform/apps**", async (route) => {
+            const request = route.request();
+            const url = new URL(request.url());
+
+            if (
+                request.method() === "GET" &&
+                url.pathname === "/api/v1/open-platform/apps"
+            ) {
+                await route.fulfill(
+                    ok({
+                        list: [
+                            makeDeveloperApp({
+                                id: 7,
+                                displayName: "Campus Connector",
+                                status: "approved",
+                            }),
+                        ],
+                        total: 1,
+                    }),
+                );
+                return;
+            }
+
+            if (
+                request.method() === "POST" &&
+                url.pathname === "/api/v1/open-platform/apps/7/secret/rotate"
+            ) {
+                rotateCalled = true;
+                await route.fulfill(ok(null));
+                return;
+            }
+
+            await route.fulfill({
+                status: 500,
+                contentType: "application/json",
+                body: JSON.stringify({
+                    success: false,
+                    error: {
+                        code: "E2E_UNMOCKED",
+                        message: `unmocked ${request.method()} ${url.pathname}`,
+                    },
+                }),
+            });
+        });
+
+        await page.goto("/developers/apps");
+
+        const appArticle = page
+            .locator("article")
+            .filter({ hasText: "Campus Connector" })
+            .first();
+        await expect(appArticle).toBeVisible({ timeout: 10_000 });
+
+        await appArticle.getByRole("button", { name: /轮换密钥|Rotate Secret/ }).click();
+        const dialog = page.getByRole("dialog", {
+            name: /轮换 client secret|Rotate client secret/,
+        });
+        await expect(dialog).toBeVisible();
+        await dialog.getByLabel(/操作原因|Reason/).fill("例行轮换");
+        await dialog.getByRole("button", { name: /确认轮换|Confirm rotation/ }).click();
+
+        await expect.poll(() => rotateCalled).toBe(true);
+        await expect(dialog).toBeVisible();
+        await expect(
+            dialog.getByText(/轮换 client secret 失败，请重试|Failed to rotate client secret. Please retry/),
+        ).toBeVisible();
+        await expect(page.getByText(/的新 client secret|New client secret for/)).toHaveCount(0);
     });
 
     test("developer lists and submits apps", async ({ page }) => {
