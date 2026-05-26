@@ -220,8 +220,10 @@ test.describe('Course Browse Flow', () => {
             id: 1,
             name: '高等数学A',
             code: 'MATH101',
+            departmentID: 2,
             departmentName: '数学科学学院',
             credits: 4,
+            reviewCount: 15,
           },
         }),
       }),
@@ -290,8 +292,10 @@ test.describe('Course Browse Flow', () => {
             id: 3,
             name: '空测评课程',
             code: 'EMPTY101',
+            departmentID: 1,
             departmentName: '测试学院',
             credits: 2,
+            reviewCount: 0,
           },
         }),
       }),
@@ -378,7 +382,10 @@ test.describe('Course Browse Flow', () => {
     await page.route('**/api/v1/course/courses/5', (route) =>
       route.fulfill({
         contentType: 'application/json',
-        body: JSON.stringify({ success: true, data: null }),
+        body: JSON.stringify({
+          success: true,
+          data: { id: 5, name: '缺失字段的课程' },
+        }),
       }),
     )
 
@@ -439,8 +446,10 @@ test.describe('Course Browse Flow', () => {
             id: 6,
             name: '局部失败课程',
             code: 'PARTIAL101',
+            departmentID: 1,
             departmentName: '测试学院',
             credits: 2,
+            reviewCount: 0,
           },
         }),
       }),
@@ -458,7 +467,25 @@ test.describe('Course Browse Flow', () => {
       (route) =>
         route.fulfill({
           contentType: 'application/json',
-          body: JSON.stringify({ success: true, data: null }),
+          body: JSON.stringify({
+            success: true,
+            data: {
+              courseID: 6,
+              overall: {
+                termName: '总体',
+                dimensions: [
+                  {
+                    key: 'overall',
+                    name: '总体',
+                    avgRating: '5',
+                    ratingCount: 1,
+                  },
+                ],
+              },
+              byTerm: [],
+              allDimensionKeys: ['overall'],
+            },
+          }),
         }),
     )
 
@@ -467,7 +494,18 @@ test.describe('Course Browse Flow', () => {
       (route) =>
         route.fulfill({
           contentType: 'application/json',
-          body: JSON.stringify({ success: true, data: null }),
+          body: JSON.stringify({
+            success: true,
+            data: [
+              {
+                teacherID: 6,
+                teacherName: '局部失败教师',
+                departmentName: '测试学院',
+                courseCount: -1,
+                reviewCount: 1,
+              },
+            ],
+          }),
         }),
     )
 
@@ -476,7 +514,10 @@ test.describe('Course Browse Flow', () => {
       (route) =>
         route.fulfill({
           contentType: 'application/json',
-          body: JSON.stringify({ success: true, data: null }),
+          body: JSON.stringify({
+            success: true,
+            data: { trend: [{ termName: '2026 春', avgRating: '4' }] },
+          }),
         }),
     )
 
@@ -507,8 +548,10 @@ test.describe('Course Browse Flow', () => {
             id: 4,
             name: '游客保护课程',
             code: 'GUEST101',
+            departmentID: 1,
             departmentName: '测试学院',
             credits: 3,
+            reviewCount: 1,
           },
         }),
       }),
@@ -569,7 +612,15 @@ test.describe('Course Browse Flow', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             success: true,
-            data: [{ teacherID: 4, teacherName: '陈老师', reviewCount: 1 }],
+            data: [
+              {
+                teacherID: 4,
+                teacherName: '陈老师',
+                departmentName: '测试学院',
+                courseCount: 1,
+                reviewCount: 1,
+              },
+            ],
           }),
         }),
     )

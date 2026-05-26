@@ -596,6 +596,17 @@ invalid-response 从顶层 `null` 扩展为嵌套 `departmentID`、`reviewCount`
 （34 项）；并通过 `pnpm --dir clients test:web`（58 文件、288 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3593 make e2e-web`（230 项）。
 
+本地验证补充（2026-05-27）：继续收紧课程详情页 payload。`CourseDetailPage` 主课程响应改用
+`coursePayload.readCoursePayload` 校验完整 `Course` 契约，不再只检查 `id`；授课教师列表改用
+`readTeacherStatsArrayPayload`，评分趋势和评分统计改为本地逐项校验 `termName`、`avgRating`、维度
+`key` / `name` / `ratingCount`、`allDimensionKeys` 和可选 distribution。课程详情主响应字段缺失进入整页加载失败；
+评分统计、授课教师或趋势嵌套字段畸形进入局部失败，不再把畸形数据渲染为正常空态。相关 E2E mock 补齐
+`departmentID`、`credits`、`reviewCount`、授课教师 `departmentName` / `courseCount` 等必需字段，并把 invalid-response
+从顶层 `null` 扩展为嵌套字段畸形。已通过 `pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3594 pnpm --dir clients/web exec playwright test tests/e2e/course-browse.spec.ts tests/e2e/journey-browse.spec.ts tests/e2e/journey-review.spec.ts tests/e2e/review-actions.spec.ts tests/e2e/home.spec.ts`
+（56 项）；并通过 `pnpm --dir clients test:web`（58 文件、288 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3595 make e2e-web`（230 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

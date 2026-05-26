@@ -178,8 +178,10 @@ async function mockCourseDetail(page: Page) {
                 id: 42,
                 name: "操作系统",
                 code: "CS304",
+                departmentID: 1,
                 departmentName: "计算机科学与技术学院",
                 credits: 4,
+                reviewCount: 1,
             }),
         ),
     );
@@ -200,7 +202,15 @@ async function mockCourseDetail(page: Page) {
     );
     await page.route("**/api/v1/course/review/courses/42/teachers*", (route) =>
         route.fulfill(
-            ok([{ teacherID: 9, teacherName: "赵老师", reviewCount: 1 }]),
+            ok([
+                {
+                    teacherID: 9,
+                    teacherName: "赵老师",
+                    departmentName: "计算机科学与技术学院",
+                    courseCount: 1,
+                    reviewCount: 1,
+                },
+            ]),
         ),
     );
     await page.route(

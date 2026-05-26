@@ -454,11 +454,14 @@ import { useReviewVoting } from '@/modules/review/useReviewVoting'
 
 import { api } from '@/api'
 import { getErrorMessage } from '@/api/errors'
-import { readArrayPayload } from '@/api/responsePayload'
 import { useToast } from '@/composables/useToast'
 import { formatRelativeTime } from '@/utils/date'
 import { useReviewPost } from '@/composables/useReviewPost'
 import { rememberReviewPostCourse } from '@/modules/review/reviewPostNavigation'
+import {
+  readCoursePayload,
+  readTeacherStatsArrayPayload,
+} from '@/modules/course/coursePayload'
 import { useAuthStore } from '@/stores/auth'
 import { useVerificationStore } from '@/stores/verification'
 import { canListFullReviews } from '@/utils/adminAccess'
@@ -581,92 +584,135 @@ function dimensionLabel(key: string, fallback?: string): string {
   return ratingDimensionLabel({ key, fallback, t })
 }
 
-function readCoursePayload(payload: unknown): Course {
-  if (!payload || typeof payload !== 'object') {
-    throw new Error('Invalid course response')
-  }
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
 
-  const { id } = payload as { id?: unknown }
-  if (typeof id !== 'number' || !Number.isFinite(id) || id <= 0) {
-    throw new Error('Invalid course response')
+function readArray(payload: unknown, message: string): unknown[] {
+  if (!Array.isArray(payload)) {
+    throw new Error(message)
   }
+  return payload
+}
 
-  return payload as Course
+function readOptionalString(record: Record<string, unknown>, key: string, message: string): string | undefined {
+  const value = record[key]
+  if (value === undefined) {
+    return undefined
+  }
+  if (typeof value !== 'string') {
+    throw new Error(message)
+  }
+  return value
+}
+
+function readString(record: Record<string, unknown>, key: string, message: string): string {
+  const value = record[key]
+  if (typeof value !== 'string') {
+    throw new Error(message)
+  }
+  return value
+}
+
+function readNonNegativeNumber(
+  record: Record<string, unknown>,
+  key: string,
+  message: string,
+): number {
+  const value = record[key]
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    throw new Error(message)
+  }
+  return value
+}
+
+function readPositiveInteger(
+  record: Record<string, unknown>,
+  key: string,
+  message: string,
+): number {
+  const value = record[key]
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+    throw new Error(message)
+  }
+  return value
 }
 
 function readRatingTrendPayload(payload: unknown): RatingTrendPoint[] {
-  if (!payload || typeof payload !== 'object') {
+  if (!isRecord(payload)) {
     throw new Error('Invalid rating trend response')
   }
 
-  return readArrayPayload<RatingTrendPoint>(
-    (payload as { trend?: unknown }).trend,
-    'Invalid rating trend response',
-  )
+  return readArray(payload.trend, 'Invalid rating trend response').map(item => {
+    if (!isRecord(item)) {
+      throw new Error('Invalid rating trend response')
+    }
+
+    return {
+      termName: readString(item, 'termName', 'Invalid rating trend response'),
+      avgRating: readNonNegativeNumber(item, 'avgRating', 'Invalid rating trend response'),
+    }
+  })
 }
 
-function readTermRatingStats(payload: unknown): CourseRatingStatsResponse['overall'] {
-  if (!payload || typeof payload !== 'object') {
+function readDimensionStats(payload: unknown): CourseRatingStatsResponse['overall']['dimensions'][number] {
+  if (!isRecord(payload)) {
     throw new Error('Invalid rating stats response')
   }
 
-  const raw = payload as { termName?: unknown; dimensions?: unknown }
-  if (typeof raw.termName !== 'string') {
-    throw new Error('Invalid rating stats response')
-  }
-  const dimensions = readArrayPayload<CourseRatingStatsResponse['overall']['dimensions'][number]>(
-    raw.dimensions,
-    'Invalid rating stats response',
-  )
-  for (const dimension of dimensions) {
-    if (
-      !dimension ||
-      typeof dimension !== 'object' ||
-      typeof dimension.key !== 'string' ||
-      typeof dimension.name !== 'string' ||
-      typeof dimension.avgRating !== 'number' ||
-      !Number.isFinite(dimension.avgRating) ||
-      typeof dimension.ratingCount !== 'number' ||
-      !Number.isFinite(dimension.ratingCount)
-    ) {
+  const distributionValue = payload.distribution
+  let distribution: Record<string, number> | undefined
+  if (distributionValue !== undefined) {
+    if (!isRecord(distributionValue)) {
       throw new Error('Invalid rating stats response')
+    }
+    distribution = {}
+    for (const [key, value] of Object.entries(distributionValue)) {
+      if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+        throw new Error('Invalid rating stats response')
+      }
+      distribution[key] = value
     }
   }
 
-  return payload as CourseRatingStatsResponse['overall']
+  return {
+    key: readString(payload, 'key', 'Invalid rating stats response'),
+    name: readString(payload, 'name', 'Invalid rating stats response'),
+    avgRating: readNonNegativeNumber(payload, 'avgRating', 'Invalid rating stats response'),
+    ratingCount: readNonNegativeNumber(payload, 'ratingCount', 'Invalid rating stats response'),
+    distribution,
+  }
+}
+
+function readTermRatingStats(payload: unknown): CourseRatingStatsResponse['overall'] {
+  if (!isRecord(payload)) {
+    throw new Error('Invalid rating stats response')
+  }
+
+  return {
+    termID: readOptionalString(payload, 'termID', 'Invalid rating stats response'),
+    termName: readString(payload, 'termName', 'Invalid rating stats response'),
+    dimensions: readArray(payload.dimensions, 'Invalid rating stats response')
+      .map(readDimensionStats),
+  }
 }
 
 function readRatingStatsPayload(payload: unknown): CourseRatingStatsResponse {
-  if (!payload || typeof payload !== 'object') {
+  if (!isRecord(payload)) {
     throw new Error('Invalid rating stats response')
   }
 
-  const raw = payload as {
-    courseID?: unknown
-    overall?: unknown
-    byTerm?: unknown
-    allDimensionKeys?: unknown
-  }
-  if (typeof raw.courseID !== 'number' || !Number.isFinite(raw.courseID) || raw.courseID <= 0) {
-    throw new Error('Invalid rating stats response')
-  }
-
-  readTermRatingStats(raw.overall)
-  const byTerm = readArrayPayload<CourseRatingStatsResponse['byTerm'][number]>(
-    raw.byTerm,
-    'Invalid rating stats response',
-  )
-  byTerm.forEach(readTermRatingStats)
-
-  const allDimensionKeys = readArrayPayload<string>(
-    raw.allDimensionKeys,
-    'Invalid rating stats response',
-  )
+  const allDimensionKeys = readArray(payload.allDimensionKeys, 'Invalid rating stats response')
   if (allDimensionKeys.some((key) => typeof key !== 'string')) {
     throw new Error('Invalid rating stats response')
   }
 
-  return payload as CourseRatingStatsResponse
+  return {
+    courseID: readPositiveInteger(payload, 'courseID', 'Invalid rating stats response'),
+    overall: readTermRatingStats(payload.overall),
+    byTerm: readArray(payload.byTerm, 'Invalid rating stats response').map(readTermRatingStats),
+    allDimensionKeys,
+  } as CourseRatingStatsResponse
 }
 
 // ── Navigation ──
@@ -767,7 +813,7 @@ const fetchAll = async () => {
 
     if (courseRes.status === 'fulfilled') {
       try {
-        course.value = readCoursePayload(courseRes.value.data?.data)
+        course.value = readCoursePayload(courseRes.value.data?.data, 'Invalid course response')
       } catch (err) {
         course.value = null
         error.value = true
@@ -805,7 +851,7 @@ const fetchAll = async () => {
 
     if (teachersRes.status === 'fulfilled') {
       try {
-        courseTeachers.value = readArrayPayload<TeacherStats>(
+        courseTeachers.value = readTeacherStatsArrayPayload(
           teachersRes.value.data?.data,
           'Invalid course teachers response',
         )

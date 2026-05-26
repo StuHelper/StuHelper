@@ -300,7 +300,15 @@ test.describe('User Journey: Browse Platform', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             success: true,
-            data: [{ teacherID: 10, teacherName: '张教授', reviewCount: 2 }],
+            data: [
+              {
+                teacherID: 10,
+                teacherName: '张教授',
+                departmentName: '计算机科学与技术学院',
+                courseCount: 1,
+                reviewCount: 2,
+              },
+            ],
           }),
         }),
     )
