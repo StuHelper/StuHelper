@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import type { Course, Department } from '@stuhelper/shared/course'
 
 const mockGetDepartments = vi.fn()
 const mockGetCourses = vi.fn()
@@ -28,6 +29,26 @@ vi.mock('@/i18n', () => ({
 
 const { useCourseStore } = await import('@/stores/courseReview')
 
+function makeDepartment(id: number, overrides: Partial<Department> = {}): Department {
+  return {
+    id,
+    name: `department-${id}`,
+    category: 'engineering',
+    ...overrides,
+  }
+}
+
+function makeCourse(id: number, overrides: Partial<Course> = {}): Course {
+  return {
+    id,
+    departmentID: 1,
+    name: `course-${id}`,
+    credits: 3,
+    reviewCount: 0,
+    ...overrides,
+  }
+}
+
 describe('useCourseStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -36,7 +57,10 @@ describe('useCourseStore', () => {
 
   describe('fetchDepartments', () => {
     it('loads departments from API', async () => {
-      const depts = [{ id: 1, name: 'CS' }, { id: 2, name: 'Math' }]
+      const depts = [
+        makeDepartment(1, { name: 'CS' }),
+        makeDepartment(2, { name: 'Math' }),
+      ]
       mockGetDepartments.mockResolvedValue({ data: { data: depts } })
 
       const store = useCourseStore()
@@ -49,7 +73,7 @@ describe('useCourseStore', () => {
     })
 
     it('returns cached data on second call', async () => {
-      const depts = [{ id: 1, name: 'CS' }]
+      const depts = [makeDepartment(1, { name: 'CS' })]
       mockGetDepartments.mockResolvedValue({ data: { data: depts } })
 
       const store = useCourseStore()
@@ -94,11 +118,26 @@ describe('useCourseStore', () => {
       expect(store.departments).toEqual([])
       expect(store.departmentsLoading).toBe(false)
     })
+
+    it('fails closed when a department item is malformed', async () => {
+      mockGetDepartments.mockResolvedValue({
+        data: { data: [{ id: 1, name: 'CS' }] },
+      })
+
+      const store = useCourseStore()
+      await expect(store.fetchDepartments()).rejects.toThrow(
+        'Invalid departments response',
+      )
+
+      expect(store.departmentsError).toBeTruthy()
+      expect(store.departments).toEqual([])
+      expect(store.departmentsLoading).toBe(false)
+    })
   })
 
   describe('fetchCourses', () => {
     it('loads courses for a department', async () => {
-      const courses = [{ id: 10, name: 'Intro CS' }]
+      const courses = [makeCourse(10, { name: 'Intro CS' })]
       mockGetCourses.mockResolvedValue({
         data: { data: { list: courses } },
       })
@@ -112,7 +151,7 @@ describe('useCourseStore', () => {
     })
 
     it('returns cached courses on second call', async () => {
-      const courses = [{ id: 10, name: 'Intro CS' }]
+      const courses = [makeCourse(10, { name: 'Intro CS' })]
       mockGetCourses.mockResolvedValue({
         data: { data: { list: courses } },
       })
@@ -149,6 +188,25 @@ describe('useCourseStore', () => {
       expect(store.courses).toEqual([])
       expect(store.coursesLoading).toBe(false)
     })
+
+    it('fails closed when a course item is malformed', async () => {
+      mockGetCourses.mockResolvedValue({
+        data: {
+          data: {
+            list: [{ id: 10, name: 'Intro CS' }],
+          },
+        },
+      })
+
+      const store = useCourseStore()
+      await expect(store.fetchCourses(1)).rejects.toThrow(
+        'Invalid courses response',
+      )
+
+      expect(store.coursesError).toBeTruthy()
+      expect(store.courses).toEqual([])
+      expect(store.coursesLoading).toBe(false)
+    })
   })
 
   describe('loading computed', () => {
@@ -160,7 +218,7 @@ describe('useCourseStore', () => {
 
   describe('clearCache', () => {
     it('forces fresh API call after clearing', async () => {
-      const depts = [{ id: 1, name: 'CS' }]
+      const depts = [makeDepartment(1, { name: 'CS' })]
       mockGetDepartments.mockResolvedValue({ data: { data: depts } })
 
       const store = useCourseStore()
@@ -177,7 +235,7 @@ describe('useCourseStore', () => {
 
   describe('invalidateCourseCache', () => {
     it('invalidates specific department course cache', async () => {
-      const courses = [{ id: 10, name: 'x' }]
+      const courses = [makeCourse(10, { name: 'x' })]
       mockGetCourses.mockResolvedValue({ data: { data: { list: courses } } })
 
       const store = useCourseStore()
@@ -213,8 +271,8 @@ describe('useCourseStore', () => {
 
   describe('reset', () => {
     it('resets all state including caches', async () => {
-      mockGetDepartments.mockResolvedValue({ data: { data: [{ id: 1, name: 'CS' }] } })
-      mockGetCourses.mockResolvedValue({ data: { data: { list: [{ id: 10, name: 'x' }] } } })
+      mockGetDepartments.mockResolvedValue({ data: { data: [makeDepartment(1, { name: 'CS' })] } })
+      mockGetCourses.mockResolvedValue({ data: { data: { list: [makeCourse(10, { name: 'x' })] } } })
 
       const store = useCourseStore()
       await store.fetchDepartments()

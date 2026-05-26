@@ -7,8 +7,11 @@ import { ref, computed } from "vue";
 import type { Department, Course } from "@stuhelper/shared/course";
 import { api } from "@/api";
 import { classifyApiError } from "@/api/errors";
-import { readArrayPayload, readListPayload } from "@/api/responsePayload";
 import i18n from "@/i18n";
+import {
+    readCourseListPayload,
+    readDepartmentArrayPayload,
+} from "@/modules/course/coursePayload";
 import { safeOnScopeDispose } from "@/stores/safeScopeDispose";
 import { registerSessionResetHandler } from "@/stores/sessionOrchestrator";
 
@@ -130,7 +133,7 @@ export const useCourseStore = defineStore("course", () => {
             // 在更新状态前检查 requestID
             if (requestID !== deptRequestID) return departments.value;
 
-            const data = readArrayPayload<Department>(
+            const data = readDepartmentArrayPayload(
                 res.data?.data,
                 "Invalid departments response",
             );
@@ -173,7 +176,7 @@ export const useCourseStore = defineStore("course", () => {
             // 在更新状态前检查 requestID，过期响应直接丢弃
             if (requestID !== courseRequestID) return courses.value;
 
-            const data = readListPayload<Course>(
+            const data = readCourseListPayload(
                 res.data?.data,
                 "Invalid courses response",
             );

@@ -325,7 +325,11 @@ test.describe("Course community surfaces", () => {
         await page.route("**/api/v1/course/departments*", (route) => {
             recordApiRequest(route);
             loadCount += 1;
-            return route.fulfill(malformed ? ok(null) : ok(departments));
+            return route.fulfill(
+                malformed
+                    ? ok([{ id: 1, name: "缺失分类的院系" }])
+                    : ok(departments),
+            );
         });
 
         await page.goto("/courses/reviews");
@@ -347,6 +351,42 @@ test.describe("Course community surfaces", () => {
         ).toBeVisible();
     });
 
+    test("invalid course category response fails closed and can retry", async ({
+        page,
+    }) => {
+        let loadCount = 0;
+        let malformed = true;
+        await mockCourseCommunityApi(page);
+        await page.route("**/api/v1/course/categories*", (route) => {
+            recordApiRequest(route);
+            loadCount += 1;
+            return route.fulfill(
+                malformed
+                    ? ok([{ id: 1, name: 123 }])
+                    : ok([{ id: 1, name: "工科" }]),
+            );
+        });
+
+        await page.goto("/courses/reviews");
+        await expect(page.getByText("最新聚合测评")).toBeVisible({
+            timeout: 10_000,
+        });
+        await openCourseListDrawerIfNeeded(page);
+
+        const alert = page.getByRole("alert").filter({ hasText: "加载失败" });
+        await expect(alert).toBeVisible({ timeout: 10_000 });
+        await expect(page.getByText("未找到结果")).toHaveCount(0);
+
+        malformed = false;
+        await alert.getByRole("button", { name: "重试" }).click();
+
+        await expect.poll(() => loadCount).toBeGreaterThan(1);
+        await expect(page.getByRole("button", { name: "工科" })).toBeVisible();
+        await expect(
+            page.getByRole("button", { name: "计算机科学与技术学院" }),
+        ).toBeVisible();
+    });
+
     test("invalid department course response fails closed and can retry", async ({
         page,
     }) => {
@@ -356,7 +396,11 @@ test.describe("Course community surfaces", () => {
         await page.route("**/api/v1/course/courses?*", (route) => {
             recordApiRequest(route);
             loadCount += 1;
-            return route.fulfill(malformed ? ok(null) : list(departmentCourses));
+            return route.fulfill(
+                malformed
+                    ? list([{ ...departmentCourses[0], credits: "3" }])
+                    : list(departmentCourses),
+            );
         });
 
         await page.goto("/courses/reviews");

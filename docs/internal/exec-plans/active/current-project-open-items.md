@@ -548,6 +548,19 @@ Review 列表渲染路径。同时收紧 `normalizeContentCheck`，当后端返�
 workspace CLI stub；Admin 保留 7 个既有 warning，退出码 0）、`pnpm --dir clients test:web`（57 文件、280 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3584 make e2e-web`（228 项）。
 
+本地验证补充（2026-05-27）：继续收紧课程侧基础列表 payload。新增 `coursePayload`
+reader，按 OpenAPI 校验 `CourseCategory`、`Department` 和 `Course` 的必需字段、正整数 ID、非负学分 /
+评课数和可选字段类型；`DepartmentSidebar` 与 `courseReview` store 不再通过泛型
+`readArrayPayload` / `readListPayload` 只检查数组外壳。畸形 200 不再把缺失 `category` 的院系、类型错误的课程分类或
+`credits` 非数字的课程写入课程社区侧栏 / 院系课程缓存。新增 course store 单测覆盖嵌套院系 / 课程字段畸形；
+课程社区 E2E 的 invalid sidebar / department course 场景从顶层 `null` 扩展为嵌套字段畸形，并新增课程分类
+invalid-response 重试路径。已通过目标单测
+`pnpm --dir clients --filter @stuhelper/web exec vitest run src/stores/__tests__/courseReview.test.ts`
+（16 项）、`pnpm --dir clients type-check:web`、目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3586 pnpm --dir clients/web exec playwright test tests/e2e/course-community.spec.ts`
+（18 项）；并通过 `pnpm --dir clients lint:web`、`pnpm --dir clients test:web`（57 文件、282 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3587 make e2e-web`（230 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

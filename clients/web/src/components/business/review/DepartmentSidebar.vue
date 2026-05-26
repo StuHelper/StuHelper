@@ -92,8 +92,12 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { api } from '@/api'
-import { readArrayPayload, readListPayload } from '@/api/responsePayload'
 import type { Department, Course, CourseCategory } from '@stuhelper/shared/course'
+import {
+  readCourseCategoryArrayPayload,
+  readCourseListPayload,
+  readDepartmentArrayPayload,
+} from '@/modules/course/coursePayload'
 import CourseListItem from './CourseListItem.vue'
 
 const route = useRoute()
@@ -134,7 +138,7 @@ function isDeptActive(deptId: number): boolean {
 async function loadCategories() {
   try {
     const res = await api.course.getCategories()
-    categories.value = readArrayPayload<CourseCategory>(
+    categories.value = readCourseCategoryArrayPayload(
       res.data?.data,
       'Invalid course categories response',
     )
@@ -152,7 +156,7 @@ async function loadDepartments() {
     const res = await api.course.getDepartments(
       normalizedCategory ? { category: normalizedCategory } : {}
     )
-    departments.value = readArrayPayload<Department>(
+    departments.value = readDepartmentArrayPayload(
       res.data?.data,
       'Invalid departments response',
     )
@@ -233,7 +237,7 @@ async function loadDeptCourses(id: number) {
     )
     // 仅当分类未切换时才写入缓存
     if (version === categoryVersion) {
-      const courses = readListPayload<Course>(
+      const courses = readCourseListPayload(
         res.data?.data,
         'Invalid department courses response',
       )
