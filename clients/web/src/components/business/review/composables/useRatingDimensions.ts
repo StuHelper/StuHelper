@@ -1,13 +1,16 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
-import { readArrayPayload } from '@/api/responsePayload'
 import { isValidRating, type RatingDimension } from '@stuhelper/shared/course'
 import type { ReviewRatings } from '@stuhelper/shared/review'
 import { localizeRatingDimension } from '@/modules/review/ratingHelpers'
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
 function readRatingDimension(payload: unknown): RatingDimension {
-  if (!payload || typeof payload !== 'object') {
+  if (!isRecord(payload)) {
     throw new Error('Invalid rating dimensions response')
   }
 
@@ -20,8 +23,10 @@ function readRatingDimension(payload: unknown): RatingDimension {
     isActive,
     createdAt,
     updatedAt,
+    schoolID,
   } = payload as {
     id?: unknown
+    schoolID?: unknown
     key?: unknown
     name?: unknown
     description?: unknown
@@ -32,6 +37,7 @@ function readRatingDimension(payload: unknown): RatingDimension {
   }
   if (
     typeof id !== 'string' ||
+    (schoolID !== undefined && (typeof schoolID !== 'number' || !Number.isInteger(schoolID))) ||
     typeof key !== 'string' ||
     typeof name !== 'string' ||
     (description !== undefined && typeof description !== 'string') ||
@@ -44,14 +50,25 @@ function readRatingDimension(payload: unknown): RatingDimension {
     throw new Error('Invalid rating dimensions response')
   }
 
-  return payload as RatingDimension
+  return {
+    id,
+    schoolID,
+    key,
+    name,
+    description,
+    sortOrder,
+    isActive,
+    createdAt,
+    updatedAt,
+  }
 }
 
 function readRatingDimensionsPayload(payload: unknown): RatingDimension[] {
-  return readArrayPayload<unknown>(
-    payload,
-    'Invalid rating dimensions response',
-  ).map(readRatingDimension)
+  if (!Array.isArray(payload)) {
+    throw new Error('Invalid rating dimensions response')
+  }
+
+  return payload.map(readRatingDimension)
 }
 
 export function useRatingDimensions() {

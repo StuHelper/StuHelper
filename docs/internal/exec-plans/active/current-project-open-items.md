@@ -616,6 +616,15 @@ invalid-response E2E 从顶层 `null` 扩展为嵌套课程 `avgRating` 类型�
 （10 项）；并通过 `pnpm --dir clients test:web`（58 文件、288 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3597 make e2e-web`（230 项）。
 
+本地清理补充（2026-05-27）：删除 Web 旧泛型响应 cast 工具 `clients/web/src/api/responsePayload.ts`。
+评分维度 composable 已改为自校验数组和 `RatingDimension` 字段，返回显式构造对象并校验可选 `schoolID` 为整数；
+仓库内除文档历史记录和 `user` store 内部局部 helper 外，不再有生产代码引用 `readArrayPayload` /
+`readListPayload` / `readPaginatedPayload`。发布评价页评分维度 malformed-response E2E 继续覆盖缺失必需字段的
+fail-closed 路径。已通过 `pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3598 pnpm --dir clients/web exec playwright test tests/e2e/review-flow.spec.ts`
+（14 项）；并通过 `pnpm --dir clients test:web`（58 文件、288 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3599 make e2e-web`（230 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等
