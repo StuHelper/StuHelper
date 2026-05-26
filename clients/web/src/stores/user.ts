@@ -14,17 +14,131 @@ type PaginatedApiResponse = {
     } | null;
 };
 
-function readPaginatedPayload<T>(payload: unknown): { list: T[]; total: number } {
+function readPaginatedPayload<T>(
+    payload: unknown,
+    itemReader: (item: unknown) => T,
+): { list: T[]; total: number } {
     if (!payload || typeof payload !== "object") {
         throw new Error("Invalid paginated response");
     }
 
     const { list, total } = payload as { list?: unknown; total?: unknown };
-    if (!Array.isArray(list) || typeof total !== "number") {
+    if (
+        !Array.isArray(list) ||
+        typeof total !== "number" ||
+        !Number.isInteger(total) ||
+        total < 0
+    ) {
         throw new Error("Invalid paginated response");
     }
 
-    return { list: list as T[], total };
+    return { list: list.map(itemReader), total };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function readString(
+    record: Record<string, unknown>,
+    key: string,
+    message: string,
+): string {
+    const value = record[key];
+    if (typeof value !== "string") {
+        throw new Error(message);
+    }
+    return value;
+}
+
+function readOptionalString(
+    record: Record<string, unknown>,
+    key: string,
+    message: string,
+): string | undefined {
+    const value = record[key];
+    if (value === undefined) {
+        return undefined;
+    }
+    if (typeof value !== "string") {
+        throw new Error(message);
+    }
+    return value;
+}
+
+function readInteger(
+    record: Record<string, unknown>,
+    key: string,
+    message: string,
+): number {
+    const value = record[key];
+    if (typeof value !== "number" || !Number.isInteger(value)) {
+        throw new Error(message);
+    }
+    return value;
+}
+
+function readOptionalInteger(
+    record: Record<string, unknown>,
+    key: string,
+    message: string,
+): number | undefined {
+    const value = record[key];
+    if (value === undefined) {
+        return undefined;
+    }
+    if (typeof value !== "number" || !Number.isInteger(value)) {
+        throw new Error(message);
+    }
+    return value;
+}
+
+function readNumber(
+    record: Record<string, unknown>,
+    key: string,
+    message: string,
+): number {
+    const value = record[key];
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw new Error(message);
+    }
+    return value;
+}
+
+function readOptionalBoolean(
+    record: Record<string, unknown>,
+    key: string,
+    message: string,
+): boolean | undefined {
+    const value = record[key];
+    if (value === undefined) {
+        return undefined;
+    }
+    if (typeof value !== "boolean") {
+        throw new Error(message);
+    }
+    return value;
+}
+
+function readFavoriteCourse(payload: unknown): FavoriteCourse {
+    const message = "Invalid favorite course response";
+    if (!isRecord(payload)) {
+        throw new Error(message);
+    }
+
+    return {
+        id: readInteger(payload, "id", message),
+        schoolID: readOptionalInteger(payload, "schoolID", message),
+        departmentID: readInteger(payload, "departmentID", message),
+        departmentName: readOptionalString(payload, "departmentName", message),
+        code: readOptionalString(payload, "code", message),
+        name: readString(payload, "name", message),
+        credits: readNumber(payload, "credits", message),
+        category: readOptionalString(payload, "category", message),
+        reviewCount: readInteger(payload, "reviewCount", message),
+        isFavorited: readOptionalBoolean(payload, "isFavorited", message),
+        favoritedAt: readString(payload, "favoritedAt", message),
+    };
 }
 
 function readFavoriteStatus(payload: unknown): boolean {
@@ -51,6 +165,7 @@ async function fetchPaginated<T>(
     errorRef: Ref<string | null>,
     page: number,
     pageSize: number,
+    itemReader: (item: unknown) => T,
     keySelector?: (item: T) => number | string | undefined,
 ) {
     loadingRef.value = true;
@@ -59,6 +174,7 @@ async function fetchPaginated<T>(
         const res = await apiFn(page, pageSize);
         const { list: items, total } = readPaginatedPayload<T>(
             res.data?.data,
+            itemReader,
         );
         if (page === 1) {
             listRef.value = items;
@@ -107,6 +223,7 @@ export const useUserStore = defineStore("user", () => {
             myFavoritesError,
             page,
             pageSize,
+            readFavoriteCourse,
             (course) => course.id,
         );
 

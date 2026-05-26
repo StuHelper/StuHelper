@@ -469,6 +469,17 @@ client secret 轮换、用户授权应用、用户授权 scope 和用户授权�
 `pnpm --dir clients test:web`（56 文件、270 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3567 make e2e-web`（228 项）。
 
+本地验证补充（2026-05-27）：继续收紧用户收藏响应。`user` store 的收藏分页读取现在会校验
+`FavoriteCourse` 内部字段，包括 course ID、department ID、课程名、学分、评课数、收藏时间和可选收藏状态；
+畸形 200 不再把缺失或类型错误的收藏课程写入 `myFavorites` / `favoriteStatus`。新增 user store 单测覆盖
+收藏课程字段畸形 fail-closed；用户中心 E2E 的收藏 invalid-response 场景也从 `null` 扩展为嵌套课程字段畸形，
+并补齐有效收藏 mock 的 `credits` 契约字段。已通过目标单测
+`pnpm --dir clients --filter @stuhelper/web exec vitest run src/stores/__tests__/user.test.ts`（4 项）、
+`pnpm --dir clients type-check:web`、目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3568 pnpm --dir clients/web exec playwright test tests/e2e/journey-user-center.spec.ts`
+（40 项）；并通过 `pnpm --dir clients lint:web`、`pnpm --dir clients test:web`（56 文件、271 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3569 make e2e-web`（228 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

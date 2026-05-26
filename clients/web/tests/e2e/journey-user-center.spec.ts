@@ -433,6 +433,7 @@ test.describe('User Journey: User Center', () => {
                 id: 101,
                 name: '数据结构与算法',
                 code: 'CS201',
+                credits: 3,
                 departmentID: 1,
                 departmentName: '计算机科学与技术学院',
                 reviewCount: 23,
@@ -554,13 +555,30 @@ test.describe('User Journey: User Center', () => {
       loadCount += 1
       await route.fulfill(
         loadCount === 1
-          ? ok(null)
+          ? ok({
+              list: [
+                {
+                  id: 101,
+                  name: '数据结构与算法',
+                  code: 'CS201',
+                  credits: '3',
+                  departmentID: 1,
+                  departmentName: '计算机科学与技术学院',
+                  reviewCount: 23,
+                  favoritedAt: '2026-03-25T10:00:00Z',
+                },
+              ],
+              total: 1,
+              page: 1,
+              pageSize: 10,
+            })
           : ok({
               list: [
                 {
                   id: 101,
                   name: '数据结构与算法',
                   code: 'CS201',
+                  credits: 3,
                   departmentID: 1,
                   departmentName: '计算机科学与技术学院',
                   reviewCount: 23,

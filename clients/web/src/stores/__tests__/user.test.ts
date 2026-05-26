@@ -19,6 +19,17 @@ vi.mock('@/api', () => ({
 
 const { useUserStore } = await import('@/stores/user')
 
+const favoriteCourse = {
+  id: 101,
+  name: '数据结构与算法',
+  code: 'CS201',
+  credits: 3,
+  departmentID: 1,
+  departmentName: '计算机科学与技术学院',
+  reviewCount: 23,
+  favoritedAt: '2026-03-25T10:00:00Z',
+}
+
 describe('useUserStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -26,23 +37,14 @@ describe('useUserStore', () => {
   })
 
   it('loads favorites and marks listed courses as favorited', async () => {
-    const favorite = {
-      id: 101,
-      name: '数据结构与算法',
-      code: 'CS201',
-      departmentID: 1,
-      departmentName: '计算机科学与技术学院',
-      reviewCount: 23,
-      favoritedAt: '2026-03-25T10:00:00Z',
-    }
     mockGetMyFavorites.mockResolvedValue({
-      data: { data: { list: [favorite], total: 1 } },
+      data: { data: { list: [favoriteCourse], total: 1 } },
     })
 
     const store = useUserStore()
     await store.fetchMyFavorites()
 
-    expect(store.myFavorites).toEqual([favorite])
+    expect(store.myFavorites).toEqual([favoriteCourse])
     expect(store.myFavoritesTotal).toBe(1)
     expect(store.myFavoritesLoading).toBe(false)
     expect(store.myFavoritesError).toBeNull()
@@ -50,18 +52,9 @@ describe('useUserStore', () => {
   })
 
   it('fails closed when favorites response is missing page data', async () => {
-    const favorite = {
-      id: 101,
-      name: '数据结构与算法',
-      code: 'CS201',
-      departmentID: 1,
-      departmentName: '计算机科学与技术学院',
-      reviewCount: 23,
-      favoritedAt: '2026-03-25T10:00:00Z',
-    }
     mockGetMyFavorites
       .mockResolvedValueOnce({
-        data: { data: { list: [favorite], total: 1 } },
+        data: { data: { list: [favoriteCourse], total: 1 } },
       })
       .mockResolvedValueOnce({
         data: { data: null },
@@ -73,10 +66,37 @@ describe('useUserStore', () => {
     await expect(store.fetchMyFavorites(2)).rejects.toThrow(
       'Invalid paginated response',
     )
-    expect(store.myFavorites).toEqual([favorite])
+    expect(store.myFavorites).toEqual([favoriteCourse])
     expect(store.myFavoritesTotal).toBe(1)
     expect(store.myFavoritesLoading).toBe(false)
     expect(store.myFavoritesError).toBe('Invalid paginated response')
+  })
+
+  it('fails closed when favorites response has malformed course fields', async () => {
+    mockGetMyFavorites.mockResolvedValue({
+      data: {
+        data: {
+          list: [
+            {
+              ...favoriteCourse,
+              credits: '3',
+            },
+          ],
+          total: 1,
+        },
+      },
+    })
+
+    const store = useUserStore()
+
+    await expect(store.fetchMyFavorites()).rejects.toThrow(
+      'Invalid favorite course response',
+    )
+    expect(store.myFavorites).toEqual([])
+    expect(store.myFavoritesTotal).toBe(0)
+    expect(store.myFavoritesLoading).toBe(false)
+    expect(store.myFavoritesError).toBe('Invalid favorite course response')
+    expect(store.favoriteStatus[101]).toBeUndefined()
   })
 
   it('keeps favorite status unknown when status response is malformed', async () => {
