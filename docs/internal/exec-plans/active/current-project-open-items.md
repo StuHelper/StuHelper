@@ -710,6 +710,15 @@ API 失败、`pageerror` 和非预期 `console.error` 仍按失败处理。已�
 不会回归。已通过 `corepack yarn --cwd bots/koishi test:unit`（262 项）、`corepack yarn --cwd bots/koishi build`
 和 `make e2e-koishi`（29 项，覆盖警告记录真实添加 / 重载 / 清除动作）。
 
+本地 Koishi Console legacy API 类型边界清理（2026-05-27）：`client/api.ts` 的旧 API wrapper
+不再使用 `@ts-ignore`、`keyof any` 或 `params?: any` 调用 Koishi `send`；现在统一从
+`unknown` 边界读取 `ApiResponse<T>`，失败响应显式抛错，图片代理返回也通过 `ImageProxyResult`
+归一化。警告列表返回类型收敛为 `WarnListItem[]`，`WarnsView` 复用该类型并删除本地重复结构和
+`as ProcessedWarn[]` 强转；聊天图片解析、日志 options 和聊天元素也从裸 `any` 收敛到显式结果或
+`unknown`。源码合同已锁定这些弱类型入口不会回归。已通过
+`corepack yarn --cwd bots/koishi test:unit`（263 项）、`corepack yarn --cwd bots/koishi build` 和
+`make e2e-koishi`（29 项，覆盖警告记录、全局设置、缓存、角色等真实 Console actions）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

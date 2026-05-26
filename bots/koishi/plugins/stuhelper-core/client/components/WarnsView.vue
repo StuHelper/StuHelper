@@ -174,7 +174,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 
-import { warnsApi } from '../api'
+import { warnsApi, type WarnListItem } from '../api'
 import { useConfirm } from '../composables/use-confirm'
 import type { ConsoleNavigationController } from '../composables/use-console-navigation'
 import { formatTimestamp } from '../models/formatters'
@@ -193,17 +193,7 @@ import QueueTable, {
 import WorkspaceHead, { type WorkspaceHeadChip } from './primitives/WorkspaceHead.vue'
 import WorkspaceSection from './primitives/WorkspaceSection.vue'
 
-interface ProcessedWarn {
-  key: string
-  userId: string
-  userName: string
-  userAvatar: string
-  guildId: string
-  guildName: string
-  guildAvatar: string
-  count: number
-  timestamp: number
-}
+type ProcessedWarn = WarnListItem
 
 interface WarnUserCell extends QueueTableCellObject {
   secondary: string
@@ -342,7 +332,7 @@ onMounted(refresh)
 async function refresh() {
   loading.value = true
   try {
-    const list = (await warnsApi.list(fetchNames.value)) as ProcessedWarn[]
+    const list = await warnsApi.list(fetchNames.value)
     const next: Record<string, ProcessedWarn[]> = {}
     for (const item of list) {
       if (!next[item.guildId]) next[item.guildId] = []

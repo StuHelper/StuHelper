@@ -6,7 +6,9 @@
 import { send } from '@koishijs/client'
 import type {
   GroupConfig,
+  PluginSettings,
   WarnRecord,
+  WarnListItem,
   MemberBlacklistCreateParams,
   MemberBlacklistEntry,
   MemberBlacklistListResult,
@@ -20,7 +22,9 @@ import type {
 // 重新导出类型
 export type {
   GroupConfig,
+  PluginSettings,
   WarnRecord,
+  WarnListItem,
   MemberBlacklistCreateParams,
   MemberBlacklistEntry,
   MemberBlacklistListResult,
@@ -47,15 +51,35 @@ interface ApiResponse<T> {
   error?: string
 }
 
+type ConsoleSend = (event: string, params?: unknown) => Promise<unknown>
+
+const sendConsole = send as ConsoleSend
+
 // 通用调用封装
-async function call<T>(event: keyof any, params?: any): Promise<T> {
-  // @ts-ignore
-  const result = await send(event, params) as ApiResponse<T>
+async function call<T>(event: string, params?: unknown): Promise<T> {
+  const result = await sendConsole(event, params)
+  return unwrapApiResponse<T>(result)
+}
+
+function unwrapApiResponse<T>(result: unknown): T {
+  if (!isApiResponse<T>(result)) {
+    throw new Error('请求失败')
+  }
   if (!result.success) {
     throw new Error(result.error || '请求失败')
   }
-  // @ts-ignore
-  return result.data
+  return result.data as T
+}
+
+function isApiResponse<T>(value: unknown): value is ApiResponse<T> {
+  if (!isRecord(value) || typeof value.success !== 'boolean') {
+    return false
+  }
+  return value.error === undefined || typeof value.error === 'string'
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
 }
 
 // 群组配置 API
@@ -71,7 +95,7 @@ export const configApi = {
 
 // 警告记录 API
 export const warnsApi = {
-  list: (fetchNames?: boolean) => call<any[]>('stuhelperGroupCenter/warns/list', { fetchNames }),
+  list: (fetchNames?: boolean) => call<WarnListItem[]>('stuhelperGroupCenter/warns/list', { fetchNames }),
   get: (key: string) => call<WarnRecord | undefined>('stuhelperGroupCenter/warns/get', { key }),
   add: (guildId: string, userId: string) => call<{ success: boolean }>('stuhelperGroupCenter/warns/add', { guildId, userId }),
   clear: (key: string) => call<{ success: boolean }>('stuhelperGroupCenter/warns/clear', { key }),
@@ -150,8 +174,8 @@ export const logsApi = {
 
 // 全局设置 API
 export const settingsApi = {
-  get: () => call<any>('stuhelperGroupCenter/settings/get'),
-  update: (settings: any) => call<{ success: boolean }>('stuhelperGroupCenter/settings/update', { settings }),
+  get: () => call<PluginSettings>('stuhelperGroupCenter/settings/get'),
+  update: (settings: PluginSettings) => call<{ success: boolean }>('stuhelperGroupCenter/settings/update', { settings }),
   reset: () => call<{ success: boolean }>('stuhelperGroupCenter/settings/reset'),
 }
 
@@ -203,13 +227,33 @@ export const imageApi = {
    */
   fetch: async (url: string, file?: string): Promise<ImageProxyResult> => {
     try {
-      // @ts-ignore - send 接受两个参数
-      const result = await send('stuhelperGroupCenter/image/fetch', { url, file }) as ImageProxyResult
-      return result
-    } catch (e: any) {
-      return { success: false, error: e.message || '图片加载失败' }
+      const result = await sendConsole('stuhelperGroupCenter/image/fetch', { url, file })
+      return readImageProxyResult(result)
+    } catch (cause) {
+      return { success: false, error: cause instanceof Error ? cause.message : '图片加载失败' }
     }
   },
+}
+
+function readImageProxyResult(result: unknown): ImageProxyResult {
+  if (!isApiResponse<ImageProxyResult['data']>(result)) {
+    return { success: false, error: '图片加载失败' }
+  }
+  if (!result.success) {
+    return { success: false, error: result.error || '图片加载失败' }
+  }
+  return { success: true, data: normalizeImageProxyData(result.data) }
+}
+
+function normalizeImageProxyData(data: ImageProxyResult['data'] | undefined): ImageProxyResult['data'] | undefined {
+  if (!isRecord(data)) {
+    return undefined
+  }
+  return {
+    dataUrl: typeof data.dataUrl === 'string' ? data.dataUrl : undefined,
+    direct: data.direct === true,
+    source: typeof data.source === 'string' ? data.source : undefined,
+  }
 }
 
 // 缓存管理 API

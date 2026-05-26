@@ -54,6 +54,22 @@ test('page API client uses typed Koishi send events without double casts', () =>
   assert.match(typesSource, /'stuhelperGroupCenter\/action\/save-guard-binding'\(input: \{/)
 })
 
+test('legacy API client unwraps console responses through an explicit unknown boundary', () => {
+  const source = readClientFile('./api.ts')
+  const chatImageSource = readClientFile('./components/chat/image-proxy.ts')
+
+  assert.doesNotMatch(source, /@ts-ignore/)
+  assert.doesNotMatch(source, /keyof any/)
+  assert.doesNotMatch(source, /params\?: any/)
+  assert.doesNotMatch(source, /catch \(e: any\)/)
+  assert.match(source, /type ConsoleSend = \(event: string, params\?: unknown\) => Promise<unknown>/)
+  assert.match(source, /function unwrapApiResponse<T>\(result: unknown\): T/)
+  assert.match(source, /list: \(fetchNames\?: boolean\) => call<WarnListItem\[\]>/)
+  assert.match(source, /get: \(\) => call<PluginSettings>/)
+  assert.doesNotMatch(chatImageSource, /result: any/)
+  assert.match(chatImageSource, /result: ImageProxyResult/)
+})
+
 test('ChatView delegates message rendering to a safe component instead of v-html', () => {
   const source = readClientFile('./components/ChatView.vue')
 

@@ -1,4 +1,5 @@
 import { imageApi } from '../../api'
+import type { ImageProxyResult } from '../../api'
 
 const imageCache = new Map<string, string>()
 const pendingLoads = new Map<string, Promise<string | null>>()
@@ -48,11 +49,11 @@ async function fetchImage(url: string, file: string | undefined, cacheKey: strin
   }
 }
 
-function resolveImageResult(result: any, url: string, file?: string): string | null {
-  if (result?.success && result.data?.dataUrl) {
+function resolveImageResult(result: ImageProxyResult, url: string, file?: string): string | null {
+  if (result.success && result.data?.dataUrl) {
     return result.data.dataUrl
   }
-  if (result?.success && result.data?.direct) {
+  if (result.success && result.data?.direct) {
     return url
   }
   if (file && imageCache.has(url)) {

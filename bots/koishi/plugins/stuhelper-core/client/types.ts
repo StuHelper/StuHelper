@@ -95,6 +95,20 @@ export interface WarnRecord {
   }
 }
 
+export interface WarnListItem {
+  key: string
+  guildId: string
+  userId: string
+  guildName: string
+  guildAvatar: string
+  userName: string
+  userAvatar: string
+  count: number
+  timestamp: number
+}
+
+export type PluginSettings = Record<string, unknown>
+
 // 黑名单记录
 export type MemberBlacklistScopeType = 'global' | 'guild'
 export type MemberBlacklistSource = 'admission_failure' | 'manual_admin' | 'kick_blacklist' | 'moderation_action' | 'migration_legacy_koishi' | 'migration_admission_failure'
@@ -195,7 +209,7 @@ export interface LogRecord {
   platform: string
   command: string
   args: string[]
-  options: Record<string, any>
+  options: Record<string, unknown>
   success: boolean
   error?: string
   executionTime: number
@@ -220,7 +234,7 @@ export interface ChatMessage {
   username: string
   avatar?: string
   content: string
-  elements?: any[] // h elements
+  elements?: unknown[] // h elements
   platform: string
   guildId?: string
   guildName?: string
@@ -270,7 +284,7 @@ declare module '@koishijs/client' {
     'stuhelperGroupCenter/config/update'(guildId: string, config: GroupConfig): Promise<{ success: boolean }>
 
     // 警告记录 API
-    'stuhelperGroupCenter/warns/list'(): Promise<Record<string, WarnRecord>>
+    'stuhelperGroupCenter/warns/list'(): Promise<WarnListItem[]>
     'stuhelperGroupCenter/warns/get'(key: string): Promise<WarnRecord | undefined>
     'stuhelperGroupCenter/warns/clear'(key: string): Promise<{ success: boolean }>
 
