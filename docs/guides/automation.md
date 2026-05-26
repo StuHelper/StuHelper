@@ -41,7 +41,7 @@ make dev-up
    - 后端：`air`
    - Web：`Vite`
    - Admin：`Vite`
-8. 自动选择可用端口；若 `3000/3001` 或 PostgreSQL / Redis / OpenFGA / MinIO 默认宿主机端口已被占用，会顺延到下一个空闲端口
+8. 自动选择可用端口；若 `3000/3001`、PostgreSQL / Redis / OpenFGA / MinIO 默认宿主机端口，或启用观测栈时的 Prometheus / Grafana / Alloy / exporter 等宿主机端口已被占用，会顺延到下一个空闲端口
 
 默认开发链路不启动 Traefik，也不监听本机 `80/443`。生产公网入口以宝塔 Nginx 配置和
 `infra/ops/nginx-public-ingress-preflight.sh` 契约为准。
@@ -86,6 +86,8 @@ make check-infra-contracts
 # 项目根目录下运行
 make obs-up
 ```
+
+`make obs-up` 会复用开发环境的端口选择逻辑，若本机同时运行 prod-parity 或其他服务占用了观测端口，会把实际端口写回 `.env`，并按这些端口运行 `obs-smoke`。
 
 停止：
 

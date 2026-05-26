@@ -40,7 +40,7 @@ make dev-up
 - 初始化对象存储 bucket
 - 数据库迁移和开发 seed
 - 启动热重载：后端 `air`、前端 `Vite`
-- 自动选择可用端口；若 PostgreSQL / Redis / OpenFGA / MinIO 或 Web/Admin 默认宿主机端口已被占用，会顺延到下一个空闲端口；默认开发链路不启动 Traefik，也不占用本机 `80/443`
+- 自动选择可用端口；若 PostgreSQL / Redis / OpenFGA / MinIO、Web/Admin 或启用观测栈时的 Prometheus / Grafana / Alloy / exporter 默认宿主机端口已被占用，会顺延到下一个空闲端口；默认开发链路不启动 Traefik，也不占用本机 `80/443`
 
 ```bash
 make dev-status   # 查看实际地址

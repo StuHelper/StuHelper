@@ -211,6 +211,16 @@ finally:
 PY
 }
 
+port_is_published_by_container() {
+  local port="$1"
+  local container="$2"
+  local published
+
+  published="$(docker ps --filter "name=^/${container}$" --format '{{.Ports}}' 2>/dev/null || true)"
+  [[ -n "${published}" ]] || return 1
+  grep -Eq "(^|, )((127\\.0\\.0\\.1|0\\.0\\.0\\.0|\\[::\\]|::):)?${port}->" <<<"${published}"
+}
+
 pick_available_port() {
   local preferred="$1"
   local max="${2:-30}"
@@ -237,6 +247,100 @@ pick_available_port() {
     fi
   done
   die "no free TCP port found starting at ${preferred}"
+}
+
+pick_available_or_current_container_port() {
+  local preferred="$1"
+  local max="$2"
+  local container="$3"
+  shift 3 || true
+  local reserved_port
+
+  for reserved_port in "$@"; do
+    if [[ -n "${reserved_port}" && "${preferred}" == "${reserved_port}" ]]; then
+      pick_available_port "${preferred}" "${max}" "$@"
+      return
+    fi
+  done
+
+  if is_port_available "${preferred}" || port_is_published_by_container "${preferred}" "${container}"; then
+    printf '%s\n' "${preferred}"
+    return
+  fi
+
+  pick_available_port "${preferred}" "${max}" "$@"
+}
+
+sync_dev_observability_ports() {
+  local -a reserved=("$@")
+  local stack="${STACK_NAME:-stuhelper-dev}"
+
+  ALLOY_HTTP_PORT_SELECTED="$(pick_available_or_current_container_port "${ALLOY_HTTP_PORT:-12345}" 30 "${stack}-alloy" "${reserved[@]}")"
+  reserved+=("${ALLOY_HTTP_PORT_SELECTED}")
+  OTEL_GRPC_PORT_SELECTED="$(pick_available_or_current_container_port "${OTEL_GRPC_PORT:-4317}" 30 "${stack}-alloy" "${reserved[@]}")"
+  reserved+=("${OTEL_GRPC_PORT_SELECTED}")
+  OTEL_HTTP_PORT_SELECTED="$(pick_available_or_current_container_port "${OTEL_HTTP_PORT:-4318}" 30 "${stack}-alloy" "${reserved[@]}")"
+  reserved+=("${OTEL_HTTP_PORT_SELECTED}")
+  PROMETHEUS_PORT_SELECTED="$(pick_available_or_current_container_port "${PROMETHEUS_PORT:-9090}" 30 "${stack}-prometheus" "${reserved[@]}")"
+  reserved+=("${PROMETHEUS_PORT_SELECTED}")
+  ALERTMANAGER_PORT_SELECTED="$(pick_available_or_current_container_port "${ALERTMANAGER_PORT:-9093}" 30 "${stack}-alertmanager" "${reserved[@]}")"
+  reserved+=("${ALERTMANAGER_PORT_SELECTED}")
+  LOKI_PORT_SELECTED="$(pick_available_or_current_container_port "${LOKI_PORT:-3100}" 30 "${stack}-loki" "${reserved[@]}")"
+  reserved+=("${LOKI_PORT_SELECTED}")
+  TEMPO_HTTP_PORT_SELECTED="$(pick_available_or_current_container_port "${TEMPO_HTTP_PORT:-3200}" 30 "${stack}-tempo" "${reserved[@]}")"
+  reserved+=("${TEMPO_HTTP_PORT_SELECTED}")
+  GRAFANA_PORT_SELECTED="$(pick_available_or_current_container_port "${GRAFANA_PORT:-3003}" 30 "${stack}-grafana" "${reserved[@]}")"
+  reserved+=("${GRAFANA_PORT_SELECTED}")
+  CADVISOR_PORT_SELECTED="$(pick_available_or_current_container_port "${CADVISOR_PORT:-8088}" 30 "${stack}-cadvisor" "${reserved[@]}")"
+  reserved+=("${CADVISOR_PORT_SELECTED}")
+  POSTGRES_EXPORTER_PORT_SELECTED="$(pick_available_or_current_container_port "${POSTGRES_EXPORTER_PORT:-9187}" 30 "${stack}-postgres-exporter" "${reserved[@]}")"
+  reserved+=("${POSTGRES_EXPORTER_PORT_SELECTED}")
+  REDIS_EXPORTER_PORT_SELECTED="$(pick_available_or_current_container_port "${REDIS_EXPORTER_PORT:-9121}" 30 "${stack}-redis-exporter" "${reserved[@]}")"
+  reserved+=("${REDIS_EXPORTER_PORT_SELECTED}")
+  BLACKBOX_EXPORTER_PORT_SELECTED="$(pick_available_or_current_container_port "${BLACKBOX_EXPORTER_PORT:-9115}" 30 "${stack}-blackbox-exporter" "${reserved[@]}")"
+
+  if [[ "${ALLOY_HTTP_PORT:-}" != "${ALLOY_HTTP_PORT_SELECTED}" ]]; then
+    upsert_env_file "${ENV_FILE}" "ALLOY_HTTP_PORT" "${ALLOY_HTTP_PORT_SELECTED}"
+  fi
+  if [[ "${OTEL_GRPC_PORT:-}" != "${OTEL_GRPC_PORT_SELECTED}" ]]; then
+    upsert_env_file "${ENV_FILE}" "OTEL_GRPC_PORT" "${OTEL_GRPC_PORT_SELECTED}"
+  fi
+  if [[ "${OTEL_HTTP_PORT:-}" != "${OTEL_HTTP_PORT_SELECTED}" ]]; then
+    upsert_env_file "${ENV_FILE}" "OTEL_HTTP_PORT" "${OTEL_HTTP_PORT_SELECTED}"
+  fi
+  if [[ "${PROMETHEUS_PORT:-}" != "${PROMETHEUS_PORT_SELECTED}" ]]; then
+    upsert_env_file "${ENV_FILE}" "PROMETHEUS_PORT" "${PROMETHEUS_PORT_SELECTED}"
+  fi
+  if [[ "${ALERTMANAGER_PORT:-}" != "${ALERTMANAGER_PORT_SELECTED}" ]]; then
+    upsert_env_file "${ENV_FILE}" "ALERTMANAGER_PORT" "${ALERTMANAGER_PORT_SELECTED}"
+  fi
+  if [[ "${LOKI_PORT:-}" != "${LOKI_PORT_SELECTED}" ]]; then
+    upsert_env_file "${ENV_FILE}" "LOKI_PORT" "${LOKI_PORT_SELECTED}"
+  fi
+  if [[ "${TEMPO_HTTP_PORT:-}" != "${TEMPO_HTTP_PORT_SELECTED}" ]]; then
+    upsert_env_file "${ENV_FILE}" "TEMPO_HTTP_PORT" "${TEMPO_HTTP_PORT_SELECTED}"
+  fi
+  if [[ "${GRAFANA_PORT:-}" != "${GRAFANA_PORT_SELECTED}" ]]; then
+    upsert_env_file "${ENV_FILE}" "GRAFANA_PORT" "${GRAFANA_PORT_SELECTED}"
+  fi
+  if [[ "${CADVISOR_PORT:-}" != "${CADVISOR_PORT_SELECTED}" ]]; then
+    upsert_env_file "${ENV_FILE}" "CADVISOR_PORT" "${CADVISOR_PORT_SELECTED}"
+  fi
+  if [[ "${POSTGRES_EXPORTER_PORT:-}" != "${POSTGRES_EXPORTER_PORT_SELECTED}" ]]; then
+    upsert_env_file "${ENV_FILE}" "POSTGRES_EXPORTER_PORT" "${POSTGRES_EXPORTER_PORT_SELECTED}"
+  fi
+  if [[ "${REDIS_EXPORTER_PORT:-}" != "${REDIS_EXPORTER_PORT_SELECTED}" ]]; then
+    upsert_env_file "${ENV_FILE}" "REDIS_EXPORTER_PORT" "${REDIS_EXPORTER_PORT_SELECTED}"
+  fi
+  if [[ "${BLACKBOX_EXPORTER_PORT:-}" != "${BLACKBOX_EXPORTER_PORT_SELECTED}" ]]; then
+    upsert_env_file "${ENV_FILE}" "BLACKBOX_EXPORTER_PORT" "${BLACKBOX_EXPORTER_PORT_SELECTED}"
+  fi
+
+  case "${GRAFANA_ROOT_URL:-}" in
+    ""|http://localhost:*|http://127.0.0.1:*)
+      upsert_env_file "${ENV_FILE}" "GRAFANA_ROOT_URL" "http://127.0.0.1:${GRAFANA_PORT_SELECTED}"
+      ;;
+  esac
 }
 
 write_dev_runtime_env() {

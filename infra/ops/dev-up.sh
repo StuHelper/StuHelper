@@ -15,38 +15,6 @@ require_cmd go
 
 dev_up_mode="${DEV_UP_MODE:-local}"
 
-port_is_published_by_container() {
-  local port="$1"
-  local container="$2"
-  local published
-
-  published="$(docker ps --filter "name=^/${container}$" --format '{{.Ports}}' 2>/dev/null || true)"
-  [[ -n "${published}" ]] || return 1
-  grep -Eq "(^|, )((127\\.0\\.0\\.1|0\\.0\\.0\\.0|\\[::\\]|::):)?${port}->" <<<"${published}"
-}
-
-pick_available_or_current_container_port() {
-  local preferred="$1"
-  local max="$2"
-  local container="$3"
-  shift 3 || true
-  local reserved_port
-
-  for reserved_port in "$@"; do
-    if [[ -n "${reserved_port}" && "${preferred}" == "${reserved_port}" ]]; then
-      pick_available_port "${preferred}" "${max}" "$@"
-      return
-    fi
-  done
-
-  if is_port_available "${preferred}" || port_is_published_by_container "${preferred}" "${container}"; then
-    printf '%s\n' "${preferred}"
-    return
-  fi
-
-  pick_available_port "${preferred}" "${max}" "$@"
-}
-
 casdoor_bootstrap_env_file_path() {
   case "${CASDOOR_BOOTSTRAP_ENV_FILE:-.env.casdoor-bootstrap.local}" in
     /*) printf '%s\n' "${CASDOOR_BOOTSTRAP_ENV_FILE}" ;;
@@ -154,6 +122,33 @@ case "${OBJECT_STORAGE_ENDPOINT:-}" in
 esac
 load_env
 
+observability_reserved_ports=()
+if [[ "${WITH_OBSERVABILITY:-false}" == "true" ]]; then
+  sync_dev_observability_ports \
+    "${POSTGRES_EXTERNAL_PORT_SELECTED}" \
+    "${REDIS_EXTERNAL_PORT_SELECTED}" \
+    "${OPENFGA_HTTP_EXTERNAL_PORT_SELECTED}" \
+    "${OPENFGA_GRPC_EXTERNAL_PORT_SELECTED}" \
+    "${OPENFGA_PLAYGROUND_EXTERNAL_PORT_SELECTED}" \
+    "${MINIO_API_EXTERNAL_PORT_SELECTED}" \
+    "${MINIO_CONSOLE_EXTERNAL_PORT_SELECTED}"
+  observability_reserved_ports=(
+    "${ALLOY_HTTP_PORT_SELECTED}"
+    "${OTEL_GRPC_PORT_SELECTED}"
+    "${OTEL_HTTP_PORT_SELECTED}"
+    "${PROMETHEUS_PORT_SELECTED}"
+    "${ALERTMANAGER_PORT_SELECTED}"
+    "${LOKI_PORT_SELECTED}"
+    "${TEMPO_HTTP_PORT_SELECTED}"
+    "${GRAFANA_PORT_SELECTED}"
+    "${CADVISOR_PORT_SELECTED}"
+    "${POSTGRES_EXPORTER_PORT_SELECTED}"
+    "${REDIS_EXPORTER_PORT_SELECTED}"
+    "${BLACKBOX_EXPORTER_PORT_SELECTED}"
+  )
+  load_env
+fi
+
 "${SCRIPT_DIR}/render-observability.sh" dev
 
 base_services=(
@@ -176,8 +171,8 @@ compose --profile dev-full stop app-dev frontend-dev admin-dev >/dev/null 2>&1 |
 compose --profile dev-full rm -f app-dev frontend-dev admin-dev >/dev/null 2>&1 || true
 kill_all_dev_processes
 
-WEB_DEV_PORT_SELECTED="$(pick_available_port "${WEB_DEV_PORT:-3000}" 30 "${POSTGRES_EXTERNAL_PORT_SELECTED}" "${REDIS_EXTERNAL_PORT_SELECTED}" "${OPENFGA_HTTP_EXTERNAL_PORT_SELECTED}" "${OPENFGA_GRPC_EXTERNAL_PORT_SELECTED}" "${OPENFGA_PLAYGROUND_EXTERNAL_PORT_SELECTED}" "${MINIO_API_EXTERNAL_PORT_SELECTED}" "${MINIO_CONSOLE_EXTERNAL_PORT_SELECTED}")"
-ADMIN_DEV_PORT_SELECTED="$(pick_available_port "${ADMIN_EXTERNAL_PORT:-3001}" 30 "${WEB_DEV_PORT_SELECTED}" "${POSTGRES_EXTERNAL_PORT_SELECTED}" "${REDIS_EXTERNAL_PORT_SELECTED}" "${OPENFGA_HTTP_EXTERNAL_PORT_SELECTED}" "${OPENFGA_GRPC_EXTERNAL_PORT_SELECTED}" "${OPENFGA_PLAYGROUND_EXTERNAL_PORT_SELECTED}" "${MINIO_API_EXTERNAL_PORT_SELECTED}" "${MINIO_CONSOLE_EXTERNAL_PORT_SELECTED}")"
+WEB_DEV_PORT_SELECTED="$(pick_available_port "${WEB_DEV_PORT:-3000}" 30 "${POSTGRES_EXTERNAL_PORT_SELECTED}" "${REDIS_EXTERNAL_PORT_SELECTED}" "${OPENFGA_HTTP_EXTERNAL_PORT_SELECTED}" "${OPENFGA_GRPC_EXTERNAL_PORT_SELECTED}" "${OPENFGA_PLAYGROUND_EXTERNAL_PORT_SELECTED}" "${MINIO_API_EXTERNAL_PORT_SELECTED}" "${MINIO_CONSOLE_EXTERNAL_PORT_SELECTED}" "${observability_reserved_ports[@]}")"
+ADMIN_DEV_PORT_SELECTED="$(pick_available_port "${ADMIN_EXTERNAL_PORT:-3001}" 30 "${WEB_DEV_PORT_SELECTED}" "${POSTGRES_EXTERNAL_PORT_SELECTED}" "${REDIS_EXTERNAL_PORT_SELECTED}" "${OPENFGA_HTTP_EXTERNAL_PORT_SELECTED}" "${OPENFGA_GRPC_EXTERNAL_PORT_SELECTED}" "${OPENFGA_PLAYGROUND_EXTERNAL_PORT_SELECTED}" "${MINIO_API_EXTERNAL_PORT_SELECTED}" "${MINIO_CONSOLE_EXTERNAL_PORT_SELECTED}" "${observability_reserved_ports[@]}")"
 sync_dev_browser_public_urls "${WEB_DEV_PORT_SELECTED}" "${ADMIN_DEV_PORT_SELECTED}"
 load_env
 

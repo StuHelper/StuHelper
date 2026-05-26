@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 DEV_UP="${REPO_ROOT}/infra/ops/dev-up.sh"
 DEV_BACKEND_RUN="${REPO_ROOT}/infra/ops/dev-backend-run.sh"
+DEV_LOCAL="${REPO_ROOT}/infra/ops/lib/dev-local.sh"
 
 fail() {
   echo "[dev-up-contract][error] $*" >&2
@@ -29,12 +30,15 @@ assert_not_contains() {
 
 [[ -f "${DEV_UP}" ]] || fail "missing file: ${DEV_UP}"
 [[ -x "${DEV_BACKEND_RUN}" ]] || fail "missing executable file: ${DEV_BACKEND_RUN}"
+[[ -f "${DEV_LOCAL}" ]] || fail "missing file: ${DEV_LOCAL}"
 
 bash -n "${DEV_UP}"
 bash -n "${DEV_BACKEND_RUN}"
+bash -n "${DEV_LOCAL}"
 
-assert_contains "${DEV_UP}" 'port_is_published_by_container'
-assert_contains "${DEV_UP}" 'pick_available_or_current_container_port'
+assert_contains "${DEV_LOCAL}" 'port_is_published_by_container'
+assert_contains "${DEV_LOCAL}" 'pick_available_or_current_container_port'
+assert_contains "${DEV_LOCAL}" 'sync_dev_observability_ports'
 assert_contains "${DEV_UP}" 'sync_dev_casdoor_builtin_bootstrap_credentials'
 assert_contains "${DEV_UP}" 'sync_dev_browser_public_urls'
 assert_contains "${DEV_UP}" "SELECT client_id, client_secret FROM application WHERE name = 'app-built-in' AND organization = 'built-in' LIMIT 1"
@@ -55,8 +59,10 @@ assert_contains "${DEV_UP}" 'OPENFGA_API_URL'
 assert_contains "${DEV_UP}" 'http://localhost:\$\{OPENFGA_HTTP_EXTERNAL_PORT_SELECTED\}'
 assert_contains "${DEV_UP}" 'upsert_env_file "\$\{ENV_FILE\}" "MINIO_API_EXTERNAL_PORT" "\$\{MINIO_API_EXTERNAL_PORT_SELECTED\}"'
 assert_contains "${DEV_UP}" 'upsert_env_file "\$\{ENV_FILE\}" "MINIO_CONSOLE_EXTERNAL_PORT" "\$\{MINIO_CONSOLE_EXTERNAL_PORT_SELECTED\}"'
-assert_contains "${DEV_UP}" 'WEB_DEV_PORT_SELECTED="\$\(pick_available_port "\$\{WEB_DEV_PORT:-3000\}" 30 "\$\{POSTGRES_EXTERNAL_PORT_SELECTED\}" "\$\{REDIS_EXTERNAL_PORT_SELECTED\}" "\$\{OPENFGA_HTTP_EXTERNAL_PORT_SELECTED\}" "\$\{OPENFGA_GRPC_EXTERNAL_PORT_SELECTED\}" "\$\{OPENFGA_PLAYGROUND_EXTERNAL_PORT_SELECTED\}" "\$\{MINIO_API_EXTERNAL_PORT_SELECTED\}" "\$\{MINIO_CONSOLE_EXTERNAL_PORT_SELECTED\}"\)"'
-assert_contains "${DEV_UP}" 'ADMIN_DEV_PORT_SELECTED="\$\(pick_available_port "\$\{ADMIN_EXTERNAL_PORT:-3001\}" 30 "\$\{WEB_DEV_PORT_SELECTED\}" "\$\{POSTGRES_EXTERNAL_PORT_SELECTED\}" "\$\{REDIS_EXTERNAL_PORT_SELECTED\}" "\$\{OPENFGA_HTTP_EXTERNAL_PORT_SELECTED\}" "\$\{OPENFGA_GRPC_EXTERNAL_PORT_SELECTED\}" "\$\{OPENFGA_PLAYGROUND_EXTERNAL_PORT_SELECTED\}" "\$\{MINIO_API_EXTERNAL_PORT_SELECTED\}" "\$\{MINIO_CONSOLE_EXTERNAL_PORT_SELECTED\}"\)"'
+assert_contains "${DEV_UP}" 'sync_dev_observability_ports'
+assert_contains "${DEV_UP}" 'observability_reserved_ports'
+assert_contains "${DEV_UP}" 'WEB_DEV_PORT_SELECTED="\$\(pick_available_port "\$\{WEB_DEV_PORT:-3000\}" 30 "\$\{POSTGRES_EXTERNAL_PORT_SELECTED\}" "\$\{REDIS_EXTERNAL_PORT_SELECTED\}" "\$\{OPENFGA_HTTP_EXTERNAL_PORT_SELECTED\}" "\$\{OPENFGA_GRPC_EXTERNAL_PORT_SELECTED\}" "\$\{OPENFGA_PLAYGROUND_EXTERNAL_PORT_SELECTED\}" "\$\{MINIO_API_EXTERNAL_PORT_SELECTED\}" "\$\{MINIO_CONSOLE_EXTERNAL_PORT_SELECTED\}" "\$\{observability_reserved_ports\[@\]\}"\)"'
+assert_contains "${DEV_UP}" 'ADMIN_DEV_PORT_SELECTED="\$\(pick_available_port "\$\{ADMIN_EXTERNAL_PORT:-3001\}" 30 "\$\{WEB_DEV_PORT_SELECTED\}" "\$\{POSTGRES_EXTERNAL_PORT_SELECTED\}" "\$\{REDIS_EXTERNAL_PORT_SELECTED\}" "\$\{OPENFGA_HTTP_EXTERNAL_PORT_SELECTED\}" "\$\{OPENFGA_GRPC_EXTERNAL_PORT_SELECTED\}" "\$\{OPENFGA_PLAYGROUND_EXTERNAL_PORT_SELECTED\}" "\$\{MINIO_API_EXTERNAL_PORT_SELECTED\}" "\$\{MINIO_CONSOLE_EXTERNAL_PORT_SELECTED\}" "\$\{observability_reserved_ports\[@\]\}"\)"'
 assert_contains "${DEV_UP}" 'sync_dev_browser_public_urls "\$\{WEB_DEV_PORT_SELECTED\}" "\$\{ADMIN_DEV_PORT_SELECTED\}"'
 assert_contains "${DEV_UP}" 'upsert_env_file "\$\{ENV_FILE\}" "WEB_PUBLIC_URL" "http://localhost:\$\{web_port\}"'
 assert_contains "${DEV_UP}" 'upsert_env_file "\$\{ENV_FILE\}" "ADMIN_PUBLIC_URL" "http://localhost:\$\{admin_port\}/admin/"'
