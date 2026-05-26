@@ -1105,10 +1105,11 @@ Codex 会话的托管 stdio transport 上。临时 HTTP MCP 配置、服务进�
 本轮给 Web Playwright fixture 增加按用例显式声明的预期关键资源失败 / console error 白名单，保持默认
 关键资源、API、`pageerror` 和 console error 门禁不放宽；新增 `search-and-static.spec.ts` 用例拦截
 `SearchPage.vue` 动态 import 并强制失败，验证桌面和移动视口都会至少重试两次、最终展示“加载失败 /
-Load Failed”静态错误页，并清理 `stuhelper_chunk_reload_attempted` sessionStorage 标记。验证已通过
-`CI=1 PLAYWRIGHT_WEB_PORT=3497 pnpm --dir clients/web exec playwright test tests/e2e/search-and-static.spec.ts`
+Load Failed”静态错误页；随后点击错误页“刷新页面 / Refresh Page”按钮，验证会再次重新尝试目标 chunk
+加载并重新回到静态错误页，且每轮都清理 `stuhelper_chunk_reload_attempted` sessionStorage 标记。验证已通过
+`CI=1 PLAYWRIGHT_WEB_PORT=3499 pnpm --dir clients/web exec playwright test tests/e2e/search-and-static.spec.ts`
 （12 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
-`CI=1 PLAYWRIGHT_WEB_PORT=3498 make e2e-web`（156 项）。
+`CI=1 PLAYWRIGHT_WEB_PORT=3500 make e2e-web`（156 项）。
 
 ## 近期已完成
 

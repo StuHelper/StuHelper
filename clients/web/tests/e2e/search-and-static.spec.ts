@@ -134,5 +134,21 @@ test.describe('Static Pages', () => {
         ),
       )
       .toBeNull()
+
+    const failedRequestsBeforeReload = failedChunkRequests
+    await page.getByRole('button', { name: /Refresh Page|刷新页面/i }).click()
+    await expect(
+      page.getByRole('heading', { name: /Load Failed|加载失败/i }),
+    ).toBeVisible({ timeout: 10_000 })
+    await expect
+      .poll(() => failedChunkRequests)
+      .toBeGreaterThanOrEqual(failedRequestsBeforeReload + 2)
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          sessionStorage.getItem('stuhelper_chunk_reload_attempted'),
+        ),
+      )
+      .toBeNull()
   })
 })
