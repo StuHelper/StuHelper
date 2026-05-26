@@ -51,6 +51,21 @@ function isApiRequest(request: Request) {
   return new URL(request.url()).pathname.startsWith('/api/v1/')
 }
 
+function isExpectedApiErrorResponse(response: Response) {
+  const request = response.request()
+  const method = request.method().toUpperCase()
+  const pathname = new URL(response.url()).pathname
+  const status = response.status()
+
+  if (method === 'GET' && pathname === '/api/v1/auth/me' && status === 401) {
+    return true
+  }
+  if (method === 'POST' && pathname === '/api/v1/auth/refresh' && status === 401) {
+    return true
+  }
+  return false
+}
+
 function isBrowserNetworkStatusConsoleError(text: string) {
   return /^Failed to load resource: the server responded with a status of [45]\d\d \([^)]+\)$/.test(
     text,
@@ -111,6 +126,9 @@ export const test = base.extend<{ page: Page }>({
         failedRequests.push(describeUnsuccessfulResponse(response))
       }
       if (isApiRequest(request) && response.status() >= 400) {
+        if (isExpectedApiErrorResponse(response)) {
+          return
+        }
         apiFailures.push(describeUnsuccessfulResponse(response))
       }
     })

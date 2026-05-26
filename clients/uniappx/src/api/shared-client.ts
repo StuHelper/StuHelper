@@ -372,10 +372,24 @@ async function refreshSession() {
   })
 }
 
+function hasRefreshSessionHint(): boolean {
+  try {
+    if (isNativeRuntime()) {
+      return readNativeRefreshToken() !== null
+    }
+    return resolveCSRFToken() !== null
+  } catch (_error) { void _error;
+    return false
+  }
+}
+
 export const apiClient: ApiClient = createSessionApiClient(
   {
     refresh: refreshSession,
     request: performRequest,
+    shouldRefresh(schemaPath, status) {
+      return status === 401 && schemaPath !== AUTH_REFRESH_PATH && hasRefreshSessionHint()
+    },
   },
   {
     enableRefresh: true,

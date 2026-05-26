@@ -50,7 +50,6 @@ export const zhCNMessages = {
 
   'auth.login.success': '登录成功',
   'auth.login.ssoInitFailed': 'SSO 登录初始化失败',
-  'auth.login.ssoUnavailable': 'SSO 仅支持 H5 浏览器环境',
   'auth.login.title': '登录 StuHelper',
   'auth.login.subtitle': 'uniappx 端使用真实校园 SSO 认证链路登录。',
   'auth.login.preparingSso': '准备 SSO...',

@@ -1815,6 +1815,27 @@ webServer 环境中的 `NO_COLOR` 过滤，避免 Node 22 在 `FORCE_COLOR` 下�
 （Web 233 项通过、1 项 desktop skip；Admin 78 项通过；UniAppX H5 52 项通过）。复验输出不再出现
 `NO_COLOR` / `FORCE_COLOR` warning，运行后已清理 Playwright 测试结果和 MCP 临时产物。
 
+本地验证补充（2026-05-27）：继续用 Playwright MCP 复验 UniAppX H5 登录页真实本地开发链路，发现
+未配置 H5 dev `/api` 代理时，`GET /api/v1/auth/me` 会被 Vite 回退成 `index.html`，前端再把 HTML
+当 API 响应处理并输出 `[uniappx] auth bootstrap failed`；同轮还发现匿名 401 后缺少 session hint 时仍会
+尝试 `/api/v1/auth/refresh`。现已为 UniAppX H5 Vite dev 默认代理 `/api` 到
+`VITE_DEV_PROXY_TARGET`（缺省 `http://localhost:8080`），为 H5 index 增加本地 favicon，删除无生产价值的
+“SSO 不可用”运行时兜底分支和对应 i18n 文案，并让 UniAppX API client 只有在原生 refresh token 或 H5
+CSRF/session hint 存在时才触发 refresh；同时补齐 `@stuhelper/shared` source-first Vite alias，并用 pre-resolve
+插件把 DCloud 内置 `vue-router` 解析到官方 ESM 入口，消除本地 dev 的 deprecated import warning。E2E mock
+也改为按真实后端语义返回匿名 `auth/me` 401，并锁定登录页
+匿名启动不会调用 refresh。已通过 `pnpm --dir clients --filter @stuhelper/uniappx exec vitest run src/api/__tests__/shared-client.test.ts src/stores/auth.test.ts`
+（16 项）、`pnpm --dir clients type-check:uni`、完整 `CI=1 UNIAPPX_E2E_PORT=3148 pnpm --dir clients/uniappx exec playwright test tests/e2e/surface.spec.ts`
+（52 项）、登录页目标 E2E `CI=1 UNIAPPX_E2E_PORT=3149 pnpm --dir clients/uniappx exec playwright test tests/e2e/surface.spec.ts --grep "auth pages render login and callback error states"`
+（桌面 / 移动 2 项）、`pnpm --dir clients test:uni`（47 项）、`pnpm --dir clients run check:no-empty-catch`
+和 `pnpm --dir clients build:uni:h5`；随后完整 `CI=1 PLAYWRIGHT_WEB_PORT=3563 ADMIN_E2E_PORT=4223 UNIAPPX_E2E_PORT=3150 make e2e`
+通过 Web 233 项 + 1 skip、Admin 78 项、UniAppX H5 52 项；补齐 shared alias / vue-router 入口后又复跑
+`CI=1 UNIAPPX_E2E_PORT=3152 pnpm --dir clients/uniappx exec playwright test tests/e2e/surface.spec.ts`（52 项）
+和 `pnpm --dir clients build:uni:h5` 均通过。MCP 复验 `http://127.0.0.1:3146/#/pages/auth/login?...` 时，
+`/api/v1/auth/me` 已由本地 backend 返回预期 401 JSON，不再回退到 HTML；点击“使用校园 SSO 登录”会跳转到
+本地 Casdoor `http://localhost:8085/login/oauth/authorize?...client_id=stuhelper-uniapp...`，且不再出现
+`[uniappx] auth bootstrap failed` 或 `vue-router` deprecated import warning。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |

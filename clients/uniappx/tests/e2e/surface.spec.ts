@@ -278,7 +278,21 @@ async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUn
     }
 
     if (method === 'GET' && pathname === '/api/v1/auth/me') {
-      await route.fulfill(ok(authenticated ? user : null))
+      if (authenticated) {
+        await route.fulfill(ok(user))
+        return
+      }
+      await route.fulfill(json({
+        success: false,
+        error: { code: 'A0010003', message: 'missing authentication token' },
+      }, 401))
+      return
+    }
+    if (method === 'POST' && pathname === '/api/v1/auth/refresh') {
+      await route.fulfill(json({
+        success: false,
+        error: { code: 'A0010100', message: 'session expired' },
+      }, 401))
       return
     }
     if (method === 'POST' && pathname === '/api/v1/auth/logout') {
@@ -1296,12 +1310,16 @@ test.describe('UniAppX H5 surface', () => {
   })
 
   test('auth pages render login and callback error states', async ({ page }) => {
-    await mockUniApi(page)
+    const { mutations, requests } = await mockUniApi(page)
 
     await gotoUniPage(page, '/#/pages/auth/login')
     await expectUniPageTitle(page, '登录')
     await expect(page.getByText('登录 StuHelper')).toBeVisible()
     await expect(page.getByText('使用校园 SSO 登录')).toBeVisible()
+    await expect
+      .poll(() => requests.includes('GET /api/v1/auth/me'))
+      .toBe(true)
+    expect(mutations).not.toContain('POST /api/v1/auth/refresh')
 
     await gotoUniPage(page, '/#/pages/auth/callback')
     await expectUniPageTitle(page, 'SSO 回调')

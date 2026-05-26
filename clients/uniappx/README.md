@@ -55,6 +55,8 @@ pnpm build:mp-weixin
 - 已接入 Cookie Session / OIDC 登录、课程列表、课程详情、评课广场、发评课、教师详情、通知中心
 - 已接入个人中心的「我的评课 / 我的投票 / 我的收藏 / 通知」页面
 - 运行时请求通过 uni-app transport 适配层实现，但业务接口仍统一来自 `clients/shared`
+- H5 本地开发默认把 `/api` 代理到 `VITE_DEV_PROXY_TARGET`，缺省为 `http://localhost:8080`；
+  原生 / 小程序构建需要提供绝对 `VITE_API_URL`
 
 ## 功能模块
 
@@ -64,7 +66,7 @@ pnpm build:mp-weixin
 - **发布评课**: 学期/教师选择、评分维度填写、草稿保存与提交
 - **教师主页**: 教师评分统计与课程列表
 - **个人中心**: 认证概览、我的评课、我的投票、我的收藏、通知
-- **登录**: 手机 OTP + OIDC 登录入口
+- **登录**: 校园 SSO / OIDC 登录入口
 
 ## 共享代码
 

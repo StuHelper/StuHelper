@@ -227,6 +227,31 @@ describe('uniappx api client transport', () => {
     expect(result.data).toEqual({ data: { ok: true } })
   })
 
+  it('does not refresh an anonymous 401 response without a session hint', async () => {
+    const request = vi.fn((options: any) => {
+      options.success?.({
+        statusCode: 401,
+        data: { error: { message: 'missing authentication token' } },
+        header: {},
+      })
+      return { abort: vi.fn() }
+    })
+
+    vi.stubEnv('VITE_API_URL', 'https://api.example.com')
+    vi.stubGlobal('uni', {
+      request,
+      getStorageSync: vi.fn(() => null),
+      setStorageSync: vi.fn(),
+    })
+
+    const { apiClient } = await import('../shared-client')
+    const result = await apiClient.GET('/api/v1/auth/me' as never)
+
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(request.mock.calls[0][0].url).toBe('https://api.example.com/api/v1/auth/me')
+    expect(result.response?.status).toBe(401)
+  })
+
   it('injects native session header into refresh requests', async () => {
     const storedTokens = JSON.stringify({
       accessToken: 'native-access-token',

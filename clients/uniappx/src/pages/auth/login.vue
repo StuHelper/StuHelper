@@ -9,7 +9,6 @@ import { translate } from '@/i18n'
 const t = translate
 const redirect = ref('/pages/user/index')
 const ssoLoading = ref(false)
-const supportsSso = typeof window !== 'undefined' && typeof window.location?.href === 'string'
 const isNativeApp = typeof plus !== 'undefined'
 
 function normalizeRedirectOption(value: unknown) {
@@ -56,13 +55,9 @@ async function handleSSOLogin() {
       plus.runtime.openURL(data.url)
       return
     }
-    if (supportsSso) {
-      // H5/WebView：直接跳转
-      window.location.href = data.url
-      return
-    }
-    // 兜底：SSO 不可用
-    uni.showToast({ title: t('auth.login.ssoUnavailable'), icon: 'none' })
+    if (typeof window === 'undefined') throw new Error(t('auth.login.ssoInitFailed'))
+    // H5/WebView：直接跳转
+    window.location.href = data.url
   } catch (error) {
     uni.showToast({
       title: error instanceof Error ? error.message : t('auth.login.ssoInitFailed'),

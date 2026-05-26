@@ -50,7 +50,6 @@ export const enUSMessages = {
 
   'auth.login.success': 'Signed in successfully',
   'auth.login.ssoInitFailed': 'Failed to initialize SSO sign-in',
-  'auth.login.ssoUnavailable': 'SSO is only available in H5 browsers',
   'auth.login.title': 'Sign in to StuHelper',
   'auth.login.subtitle': 'uniappx uses the real campus SSO flow for sign-in.',
   'auth.login.preparingSso': 'Preparing SSO...',
