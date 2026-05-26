@@ -101,6 +101,10 @@ node ~/.codex/mcp-packages/playwright-mcp-*/node_modules/@playwright/mcp/cli.js 
 node ~/.codex/mcp-packages/playwright-mcp-*/node_modules/@playwright/mcp/cli.js install-browser chromium
 ```
 
+如果浏览器已安装但调用 `browser_navigate` 仍返回 `Transport closed`，优先让 MCP 使用隔离浏览器
+profile，避免复用已损坏或跨版本的持久 profile。`codex mcp get playwright` 中的 args 应包含
+`--headless --no-sandbox --isolated`；修改 MCP 配置后需要重启当前 Codex 会话，让 server 按新参数重新挂载。
+
 ## Koishi 工作区
 
 ```bash
