@@ -336,9 +336,12 @@ test.describe("User verification flows", () => {
                 phoneVerified: true,
             },
             qqBinding: {
+                userID: 12,
                 qqID: "123456",
                 qqNickname: "航小伴",
                 boundAt: now,
+                createdAt: now,
+                updatedAt: now,
             },
         };
 

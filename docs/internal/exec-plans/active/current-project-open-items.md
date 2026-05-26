@@ -439,6 +439,20 @@ E2E 的新生申请 mock，使其符合 `FreshmanApplication` 契约。已通过
 `pnpm --dir clients test:web`（56 文件、266 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3559 make e2e-web`（228 项）。
 
+本地验证补充（2026-05-26）：继续收紧实名 / 学生认证和用户绑定状态响应。`verification` store 现在会按
+OpenAPI 校验 `UserIdentity`、`UserProfile`、学校配置、manual form field、QQ 绑定、QQ 绑定码和证件
+照片上传结果；畸形 200 不再被当作已实名、已学生认证、已绑定 QQ 或可用学校配置写入 store。新增
+verification store 单测覆盖畸形 identity、学校列表、实名认证提交和绑定手机后资料刷新响应；同步补齐
+用户中心与实名 / 学生认证 E2E mock 的必需字段。已通过目标单测
+`pnpm --dir clients --filter @stuhelper/web exec vitest run src/stores/__tests__/verification.test.ts`
+（11 项）、目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3562 pnpm --dir clients/web exec playwright test tests/e2e/user-verification.spec.ts`
+（16 项）和
+`CI=1 PLAYWRIGHT_WEB_PORT=3563 pnpm --dir clients/web exec playwright test tests/e2e/journey-user-center.spec.ts`
+（40 项）；并通过 `pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、
+`pnpm --dir clients test:web`（56 文件、270 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3564 make e2e-web`（228 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等
