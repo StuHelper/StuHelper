@@ -1761,6 +1761,17 @@ QQ 绑定码生成接口中 `success=true` 但 `data=null` / 缺少关键字段�
 `*.test.ts` 关闭，保留生产代码约束，并通过 `pnpm --dir clients/admin lint` 确认 Admin lint 输出
 0 warnings / 0 errors。
 
+本地验证补充（2026-05-27）：继续清理 Web 单测运行时噪声。审计 `pnpm test:web` 输出发现
+`@vue/test-utils` 会从 pnpm 根隐藏目录解析到 UniAppX 使用的 Vue 3.4.21，而 Web SFC 与 Vue compiler
+使用 Vue 3.5.29，导致组件单测混用两个 Vue runtime 并输出 `resolveComponent` / `withDirectives`
+/ `Missing ref owner context` warning。本轮将 Web Vitest 的 Vue alias 改为带 runtime compiler 的
+`vue/dist/vue.esm-bundler.js`，并把 `@vue/test-utils` 精确解析到 ESM bundler 入口，使其内部
+`vue` import 继续走 Web 的 Vue 3.5 alias；同时把 API client 缺省配置 warning 和 auth bootstrap
+预期失败日志收敛为局部 spy 断言，避免测试输出把预期路径伪装成异常。验证已通过 targeted
+`pnpm --dir clients/web exec vitest run src/components/layout/__tests__/AppHeader.test.ts src/components/layout/__tests__/AppUserMenu.test.ts src/components/business/review/__tests__/ReviewCard.locked.test.ts`
+（10 项）、`pnpm --dir clients test:web`（58 文件、288 项，输出无 Vue warning / 预期失败噪声）、
+`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和 `pnpm --dir clients build:web`。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |

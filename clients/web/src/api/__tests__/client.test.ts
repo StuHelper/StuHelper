@@ -116,6 +116,7 @@ describe("browser API client", () => {
         mockHasStoredSessionHint.mockReset();
         mockTokenExpirySet.mockReset();
         mockHasStoredSessionHint.mockReturnValue(true);
+        vi.stubEnv("VITE_API_URL", "/api");
 
         Object.defineProperty(globalThis, "window", {
             configurable: true,
@@ -165,6 +166,7 @@ describe("browser API client", () => {
     });
 
     it("warns once in development when VITE_API_URL is missing", async () => {
+        vi.stubEnv("VITE_API_URL", "");
         const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
         try {

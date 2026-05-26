@@ -63,6 +63,10 @@ describe('auth bootstrap', () => {
     mockClearAuth.mockReset()
   })
 
+  function muteExpectedBootstrapError() {
+    return vi.spyOn(console, 'error').mockImplementation(() => undefined)
+  }
+
   it('hydrates user from server when local cache is empty but session is valid', async () => {
     mockGetUser.mockReturnValue(null)
     mockAuthMe.mockResolvedValue({
@@ -96,6 +100,7 @@ describe('auth bootstrap', () => {
   })
 
   it('does not clear local session on network-style bootstrap failure', async () => {
+    const errorSpy = muteExpectedBootstrapError()
     mockGetUser.mockReturnValue(null)
     mockAuthMe.mockRejectedValue(new ApiError({
       code: 'NETWORK_ERROR',
@@ -106,13 +111,22 @@ describe('auth bootstrap', () => {
     const { useAuthStore } = await import('../auth')
     const store = useAuthStore()
 
-    await expect(store.bootstrapSession()).resolves.toBeFalsy()
+    try {
+      await expect(store.bootstrapSession()).resolves.toBeFalsy()
+      expect(errorSpy).toHaveBeenCalledWith(
+        '[Auth] bootstrapSession failed:',
+        expect.any(Error),
+      )
+    } finally {
+      errorSpy.mockRestore()
+    }
 
     expect(store.isAuthenticated).toBe(false)
     expect(mockClearAuth).not.toHaveBeenCalled()
   })
 
   it('keeps cached users free of stale capability surfaces when bootstrap fails', async () => {
+    const errorSpy = muteExpectedBootstrapError()
     mockGetUser.mockReturnValue({
       id: 'user_2',
       name: 'bob',
@@ -132,7 +146,15 @@ describe('auth bootstrap', () => {
     expect(store.isAuthenticated).toBe(true)
     expect(store.globalCapabilities).toEqual([])
 
-    await expect(store.bootstrapSession()).resolves.toBeFalsy()
+    try {
+      await expect(store.bootstrapSession()).resolves.toBeFalsy()
+      expect(errorSpy).toHaveBeenCalledWith(
+        '[Auth] bootstrapSession failed:',
+        expect.any(Error),
+      )
+    } finally {
+      errorSpy.mockRestore()
+    }
 
     expect(store.isAuthenticated).toBe(true)
     expect(store.globalCapabilities).toEqual([])
@@ -140,6 +162,7 @@ describe('auth bootstrap', () => {
   })
 
   it('fails closed when auth/me returns malformed user capabilities', async () => {
+    const errorSpy = muteExpectedBootstrapError()
     mockGetUser.mockReturnValue({
       id: 'cached_user',
       name: 'cached',
@@ -165,7 +188,15 @@ describe('auth bootstrap', () => {
 
     expect(store.isAuthenticated).toBe(true)
 
-    await expect(store.bootstrapSession({ force: true })).resolves.toBeFalsy()
+    try {
+      await expect(store.bootstrapSession({ force: true })).resolves.toBeFalsy()
+      expect(errorSpy).toHaveBeenCalledWith(
+        '[Auth] bootstrapSession failed:',
+        expect.any(Error),
+      )
+    } finally {
+      errorSpy.mockRestore()
+    }
 
     expect(store.isAuthenticated).toBe(true)
     expect(store.bootstrapCompleted).toBe(false)
