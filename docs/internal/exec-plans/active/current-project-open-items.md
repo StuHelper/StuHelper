@@ -375,6 +375,17 @@ fail-closed 路径。已通过目标 E2E
 `pnpm --dir clients test:web`（55 文件、258 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3544 make e2e-web`（224 项）。
 
+本地验证补充（2026-05-26）：继续收紧教师主页详情响应。`TeacherProfilePage` 不再把
+`GET /api/v1/course/review/teachers/{teacherID}/stats` 的 `data` 强转为教师详情；现在会校验
+教师 ID、姓名、院系、评分统计、课程列表和趋势点的必需字段，畸形 200 会显示“加载失败”和重试入口，
+不会误显示为“未找到教师信息”或进入半渲染状态。同步修正 Teacher Profile E2E mock 中旧的
+`overallRating` / `rating` 字段，改为契约字段 `avgRating`，并新增畸形教师统计响应 fail-closed 覆盖。
+已通过目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3545 pnpm --dir clients/web exec playwright test tests/e2e/journey-browse.spec.ts`
+（10 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、
+`pnpm --dir clients test:web`（55 文件、258 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3546 make e2e-web`（226 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

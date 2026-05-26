@@ -341,15 +341,15 @@ test.describe('User Journey: Browse Platform', () => {
             teacherID: 10,
             teacherName: '张教授',
             departmentName: '计算机科学与技术学院',
-            overallRating: 4.5,
+            avgRating: 4.5,
             courseCount: 3,
             reviewCount: 28,
             courses: [
-              { id: 101, name: '数据结构与算法', reviewCount: 23 },
+              { id: 101, name: '数据结构与算法', avgRating: 4.4, reviewCount: 23 },
             ],
             ratingTrend: [
-              { termID: '2025-spring', termName: '2025 春', rating: 4.3 },
-              { termID: '2025-fall', termName: '2025 秋', rating: 4.5 },
+              { termID: '2025-spring', termName: '2025 春', avgRating: 4.3 },
+              { termID: '2025-fall', termName: '2025 秋', avgRating: 4.5 },
             ],
           },
         }),
@@ -371,5 +371,25 @@ test.describe('User Journey: Browse Platform', () => {
 
     // Course in teacher's course list
     await expect(page.getByText('数据结构与算法').first()).toBeVisible()
+  })
+
+  test('teacher profile fails closed when stats response is malformed', async ({
+    page,
+  }) => {
+    await page.route('**/api/v1/course/review/teachers/10/stats*', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: null }),
+      }),
+    )
+
+    await page.goto('/teachers/10')
+
+    await expect(
+      page.getByRole('alert').filter({ hasText: /Load failed|加载失败/i }),
+    ).toBeVisible({ timeout: 10_000 })
+    await expect(
+      page.getByText(/Teacher not found|未找到教师信息/i),
+    ).toHaveCount(0)
   })
 })

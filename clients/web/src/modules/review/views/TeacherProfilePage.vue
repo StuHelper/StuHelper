@@ -92,6 +92,16 @@
     </template>
 
     <!-- Error State -->
+    <div v-else-if="loadError" role="alert" class="flex flex-col items-center justify-center p-12 text-center text-text-muted">
+      <p>{{ loadError }}</p>
+      <button
+        type="button"
+        class="mt-4 rounded-lg bg-primary px-4 py-2 text-white hover:bg-primary/90 cursor-pointer"
+        @click="fetchTeacher"
+      >
+        {{ t('common.actions.retry') }}
+      </button>
+    </div>
     <div v-else class="flex flex-col items-center justify-center p-12 text-center text-text-muted">
       <p>{{ t('teaching.profile.notFound') }}</p>
       <router-link to="/" class="mt-4 text-primary no-underline hover:underline">{{ t('teaching.profile.backToHome') }}</router-link>
@@ -151,6 +161,7 @@ const teacherID = computed(() => Number(route.params.id))
 
 const loading = ref(true)
 const teacher = ref<TeacherDetail | null>(null)
+const loadError = ref('')
 const chartRef = ref<HTMLElement>()
 let chartInstance: ECharts | null = null
 
@@ -187,13 +198,117 @@ const trendText = computed(() => {
   return t('teaching.profile.trend.stable')
 })
 
+function isNonNegativeNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+}
+
+function readTeacherCourse(payload: unknown): TeacherCourse {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid teacher stats response')
+  }
+
+  const { id, name, avgRating, reviewCount } = payload as {
+    id?: unknown
+    name?: unknown
+    avgRating?: unknown
+    reviewCount?: unknown
+  }
+  if (
+    !isNonNegativeNumber(id) ||
+    typeof name !== 'string' ||
+    (avgRating !== undefined && avgRating !== null && !isNonNegativeNumber(avgRating)) ||
+    !isNonNegativeNumber(reviewCount)
+  ) {
+    throw new Error('Invalid teacher stats response')
+  }
+
+  return {
+    id,
+    name,
+    avgRating: typeof avgRating === 'number' ? avgRating : null,
+    reviewCount,
+  }
+}
+
+function readRatingTrendItem(payload: unknown): RatingTrendItem {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid teacher stats response')
+  }
+
+  const { termID, termName, avgRating } = payload as {
+    termID?: unknown
+    termName?: unknown
+    avgRating?: unknown
+  }
+  if (
+    typeof termID !== 'string' ||
+    typeof termName !== 'string' ||
+    !isNonNegativeNumber(avgRating)
+  ) {
+    throw new Error('Invalid teacher stats response')
+  }
+
+  return { termID, termName, avgRating }
+}
+
+function readTeacherPayload(payload: unknown): TeacherDetail {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid teacher stats response')
+  }
+
+  const {
+    teacherID,
+    teacherName,
+    departmentName,
+    avgRating,
+    courseCount,
+    reviewCount,
+    courses,
+    ratingTrend,
+  } = payload as {
+    teacherID?: unknown
+    teacherName?: unknown
+    departmentName?: unknown
+    avgRating?: unknown
+    courseCount?: unknown
+    reviewCount?: unknown
+    courses?: unknown
+    ratingTrend?: unknown
+  }
+  if (
+    !isNonNegativeNumber(teacherID) ||
+    typeof teacherName !== 'string' ||
+    typeof departmentName !== 'string' ||
+    (avgRating !== undefined && avgRating !== null && !isNonNegativeNumber(avgRating)) ||
+    !isNonNegativeNumber(courseCount) ||
+    !isNonNegativeNumber(reviewCount) ||
+    !Array.isArray(courses) ||
+    !Array.isArray(ratingTrend)
+  ) {
+    throw new Error('Invalid teacher stats response')
+  }
+
+  return {
+    teacherID,
+    teacherName,
+    departmentName,
+    avgRating: typeof avgRating === 'number' ? avgRating : null,
+    courseCount,
+    reviewCount,
+    courses: courses.map(readTeacherCourse),
+    ratingTrend: ratingTrend.map(readRatingTrendItem),
+  }
+}
+
 const fetchTeacher = async () => {
   loading.value = true
+  loadError.value = ''
   try {
     const res = await api.rating.getTeacherStats(teacherID.value)
-    teacher.value = res.data?.data as TeacherDetail
+    teacher.value = readTeacherPayload(res.data?.data)
   } catch (_error) { void _error;
-    // 加载失败时 teacher 保持 null，UI 显示错误状态
+    teacher.value = null
+    loadError.value = t('common.loadFailed')
   } finally {
     loading.value = false
   }
