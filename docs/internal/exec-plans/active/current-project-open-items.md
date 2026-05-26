@@ -275,6 +275,16 @@ composable 都会把 HTTP 200 但缺失 `data.list` / `data.total` 的回复列�
 （22 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、`pnpm --dir clients test:web`
 （55 文件、255 项）和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3521 make e2e-web`（194 项）。
 
+本地验证补充（2026-05-26）：继续收紧课程社区院系侧栏。此前 `DepartmentSidebar` 会把课程分类、院系列表和
+展开院系后的课程列表畸形成功响应静默降级为空数组，桌面和移动抽屉中都会误显示“未找到结果”。现已复用
+`readArrayPayload` / `readListPayload` 校验这些响应：分类 / 院系列表畸形时侧栏显示“加载失败”并提供重试，
+院系课程列表畸形时仅该院系展开区显示“加载失败”并可重试，不再写入空课程缓存。新增 E2E 覆盖院系列表
+畸形响应和院系课程畸形响应在桌面 / 移动布局下均 fail-closed；移动布局同时覆盖隐藏侧栏实例先发请求的场景，
+确保只有用户点击重试后才恢复成功响应。已通过目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3523 pnpm --dir clients/web exec playwright test tests/e2e/course-community.spec.ts`
+（16 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、`pnpm --dir clients test:web`
+（55 文件、255 项）和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3524 make e2e-web`（198 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

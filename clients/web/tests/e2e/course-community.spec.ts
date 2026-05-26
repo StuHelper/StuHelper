@@ -180,6 +180,15 @@ async function fulfillUnexpected(route: Route) {
     );
 }
 
+async function openCourseListDrawerIfNeeded(page: Page) {
+    const courseListDrawerButton = page.getByRole("button", {
+        name: "课程列表",
+    });
+    if (await courseListDrawerButton.isVisible()) {
+        await courseListDrawerButton.click();
+    }
+}
+
 test.describe("Course community surfaces", () => {
     test.beforeEach(async ({ page }) => {
         webApiRequests.length = 0;
@@ -260,12 +269,7 @@ test.describe("Course community surfaces", () => {
             )
             .toBe(true);
 
-        const courseListDrawerButton = page.getByRole("button", {
-            name: "课程列表",
-        });
-        if (await courseListDrawerButton.isVisible()) {
-            await courseListDrawerButton.click();
-        }
+        await openCourseListDrawerIfNeeded(page);
         await page
             .getByRole("button", { name: "计算机科学与技术学院" })
             .click();
@@ -310,6 +314,72 @@ test.describe("Course community surfaces", () => {
 
         await expect.poll(() => loadCount).toBe(2);
         await expect(page.getByText("最新聚合测评")).toBeVisible();
+    });
+
+    test("invalid department sidebar response fails closed and can retry", async ({
+        page,
+    }) => {
+        let loadCount = 0;
+        let malformed = true;
+        await mockCourseCommunityApi(page);
+        await page.route("**/api/v1/course/departments*", (route) => {
+            recordApiRequest(route);
+            loadCount += 1;
+            return route.fulfill(malformed ? ok(null) : ok(departments));
+        });
+
+        await page.goto("/courses/reviews");
+        await expect(page.getByText("最新聚合测评")).toBeVisible({
+            timeout: 10_000,
+        });
+        await openCourseListDrawerIfNeeded(page);
+
+        const alert = page.getByRole("alert").filter({ hasText: "加载失败" });
+        await expect(alert).toBeVisible({ timeout: 10_000 });
+        await expect(page.getByText("未找到结果")).toHaveCount(0);
+
+        malformed = false;
+        await alert.getByRole("button", { name: "重试" }).click();
+
+        await expect.poll(() => loadCount).toBeGreaterThan(1);
+        await expect(
+            page.getByRole("button", { name: "计算机科学与技术学院" }),
+        ).toBeVisible();
+    });
+
+    test("invalid department course response fails closed and can retry", async ({
+        page,
+    }) => {
+        let loadCount = 0;
+        let malformed = true;
+        await mockCourseCommunityApi(page);
+        await page.route("**/api/v1/course/courses?*", (route) => {
+            recordApiRequest(route);
+            loadCount += 1;
+            return route.fulfill(malformed ? ok(null) : list(departmentCourses));
+        });
+
+        await page.goto("/courses/reviews");
+        await expect(page.getByText("最新聚合测评")).toBeVisible({
+            timeout: 10_000,
+        });
+        await openCourseListDrawerIfNeeded(page);
+
+        await page
+            .getByRole("button", { name: "计算机科学与技术学院" })
+            .click();
+
+        const alert = page.getByRole("alert").filter({ hasText: "加载失败" });
+        await expect(alert).toBeVisible({ timeout: 10_000 });
+        await expect(page.getByText("未找到结果")).toHaveCount(0);
+
+        malformed = false;
+        await alert.getByRole("button", { name: "重试" }).click();
+
+        await expect.poll(() => loadCount).toBeGreaterThan(1);
+        await expect(
+            page.getByRole("link", { name: /编译原理/ }),
+        ).toBeVisible();
     });
 
     test("teacher hub shows popular teachers and searches by name", async ({
