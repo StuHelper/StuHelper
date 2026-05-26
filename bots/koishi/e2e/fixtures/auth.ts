@@ -1,4 +1,5 @@
 import { test as base, expect, type Page } from '@playwright/test'
+import { createTracker } from './diagnostics'
 
 /**
  * Koishi Console 共享登录 fixture。
@@ -33,7 +34,9 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       const context = await browser.newContext()
       const page = await context.newPage()
       try {
+        await using tracker = createTracker(page)
         await loginAndWarmUp(page)
+        tracker.assertClean()
         await use(page)
       } finally {
         await context.close()

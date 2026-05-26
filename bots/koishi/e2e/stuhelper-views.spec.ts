@@ -1,5 +1,6 @@
 import { test, expect } from './fixtures/auth'
-import type { ConsoleMessage, Page, Request, Response } from '@playwright/test'
+import { createTracker } from './fixtures/diagnostics'
+import type { Page } from '@playwright/test'
 
 /**
  * P0b：StuHelper 群管中心 view 端到端导航回归基线（NavRail + Shell 重构后）。
@@ -61,28 +62,6 @@ const VIEWS: readonly ViewSpec[] = [
   { id: 'subscriptions', label: '推送订阅', anchor: { selector: '.sh-workspace-head__title', text: '订阅管理' } },
   { id: 'system', label: '系统 / 缓存', anchor: { selector: '.sh-workspace-head__title', text: '系统 / 缓存' } },
 ]
-
-/**
- * 当真实环境出现需要忽略的合法 console message 时，在这里加显式条目。
- * 规则：
- * - 必须带注释说明为什么忽略以及在哪个 Koishi/Element Plus 版本观察到
- * - 不允许泛化正则（如 /Vue Router/、/Element Plus/）
- * - 必须包含具体 message 片段，缩小范围
- */
-const CONSOLE_ALLOWLIST: readonly RegExp[] = [
-  // Koishi Console 通过 ctx.console.addEntry 把 stuhelper-core 的 /stuhelper page
-  // 异步注入客户端 Vue Router。在 page 注册完成之前，浏览器对该路径的 navigation
-  // 会触发 Vue Router 的 "No match found" 警告。fixture warm-up 已等到 page 渲染，
-  // warning 不影响 view 实际渲染（spec 的 anchor 断言已验证）。
-  //
-  // 观察版本：@koishijs/plugin-console 5.30.4 + koishi 4.18.7（2026-04-25）。
-  //
-  // 范围：仅放过 path 等于 /stuhelper 或 /stuhelper?<query>。hash 不参与 path
-  // 匹配；其他路径下同类 No match 仍会失败，保留对真实路由错误的灵敏度。
-  /^\[Vue Router warn\]: No match found for location with path "\/stuhelper(\?[^"]*)?"$/,
-]
-
-const CRITICAL_RESOURCE_TYPES = new Set(['document', 'font', 'image', 'script', 'stylesheet'])
 
 test('NavRail click switches between views', async ({ loggedInPage: page }) => {
   await using tracker = createTracker(page)
@@ -999,104 +978,4 @@ async function deleteCurrentRole(page: Page, roleName: string): Promise<void> {
 
   await expect(toastMessage(page, '删除成功')).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('.role-item', { hasText: roleName })).toHaveCount(0, { timeout: 10_000 })
-}
-
-interface ConsoleIssue {
-  readonly type: 'error' | 'warning'
-  readonly text: string
-  readonly url: string
-}
-
-interface ResourceIssue {
-  readonly method: string
-  readonly resourceType: string
-  readonly url: string
-  readonly status?: number
-  readonly statusText?: string
-  readonly failure?: string
-}
-
-interface Tracker extends AsyncDisposable {
-  readonly issues: readonly ConsoleIssue[]
-  readonly errors: readonly Error[]
-  readonly resourceIssues: readonly ResourceIssue[]
-  assertClean(): void
-}
-
-function createTracker(page: Page): Tracker {
-  const issues: ConsoleIssue[] = []
-  const errors: Error[] = []
-  const resourceIssues: ResourceIssue[] = []
-
-  const onConsole = (message: ConsoleMessage) => {
-    const type = message.type()
-    if (type !== 'error' && type !== 'warning') return
-    const text = message.text()
-    if (CONSOLE_ALLOWLIST.some((pattern) => pattern.test(text))) return
-    issues.push({ type, text, url: message.location().url })
-  }
-  const onPageError = (error: Error) => {
-    errors.push(error)
-  }
-  const onRequestFailed = (request: Request) => {
-    if (!CRITICAL_RESOURCE_TYPES.has(request.resourceType())) return
-    resourceIssues.push({
-      method: request.method(),
-      resourceType: request.resourceType(),
-      url: request.url(),
-      failure: request.failure()?.errorText ?? 'failed',
-    })
-  }
-  const onResponse = (response: Response) => {
-    const request = response.request()
-    if (!CRITICAL_RESOURCE_TYPES.has(request.resourceType()) || response.status() < 400) {
-      return
-    }
-    resourceIssues.push({
-      method: request.method(),
-      resourceType: request.resourceType(),
-      url: response.url(),
-      status: response.status(),
-      statusText: response.statusText(),
-    })
-  }
-
-  page.on('console', onConsole)
-  page.on('pageerror', onPageError)
-  page.on('requestfailed', onRequestFailed)
-  page.on('response', onResponse)
-
-  return {
-    issues,
-    errors,
-    resourceIssues,
-    assertClean() {
-      expect(
-        errors,
-        `unexpected pageerror:\n${errors.map((error) => `  ${error.message}`).join('\n')}`,
-      ).toHaveLength(0)
-      expect(
-        issues,
-        `unexpected console output:\n${issues
-          .map((issue) => `  [${issue.type}] ${issue.text} (${issue.url})`)
-          .join('\n')}`,
-      ).toHaveLength(0)
-      expect(
-        resourceIssues,
-        `unexpected critical resource failures:\n${resourceIssues
-          .map((issue) => {
-            const status = issue.status ? ` HTTP ${issue.status} ${issue.statusText ?? ''}` : ''
-            const failure = issue.failure ? ` ${issue.failure}` : ''
-            return `  ${issue.resourceType} ${issue.method} ${issue.url}${status}${failure}`
-          })
-          .join('\n')}`,
-      ).toHaveLength(0)
-    },
-    async [Symbol.asyncDispose]() {
-      page.off('console', onConsole)
-      page.off('pageerror', onPageError)
-      page.off('requestfailed', onRequestFailed)
-      page.off('response', onResponse)
-    },
-  }
 }
