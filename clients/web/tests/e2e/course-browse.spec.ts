@@ -149,7 +149,28 @@ test.describe('Course Browse Flow', () => {
         contentType: 'application/json',
         body: JSON.stringify(
           loadCount === 1
-            ? { success: true, data: null }
+            ? {
+                success: true,
+                data: {
+                  groups: [
+                    {
+                      departmentID: 2,
+                      departmentName: '数学科学学院',
+                      courses: [
+                        {
+                          id: 1,
+                          name: '高等数学A',
+                          code: 'MATH101',
+                          departmentID: 2,
+                          departmentName: '数学科学学院',
+                          credits: '4',
+                          reviewCount: 15,
+                        },
+                      ],
+                    },
+                  ],
+                },
+              }
             : {
                 success: true,
                 data: {

@@ -492,6 +492,14 @@ reader，按 OpenAPI 校验 `Review` 必需字段、`termID`、状态枚举、�
 （72 项）；并通过 `pnpm --dir clients lint:web`、`pnpm --dir clients test:web`（57 文件、275 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3571 make e2e-web`（228 项）。
 
+本地验证补充（2026-05-27）：继续收紧课程列表分组响应。`CourseListPage` 现在会逐项校验 grouped
+courses 内每门课程的 ID、department ID、课程名、学分、评课数和可选收藏状态；畸形 200 不再只因
+`groups[].courses` 是数组就渲染课程卡片。课程浏览 E2E 的 invalid grouped response 已从 `null`
+扩展为嵌套课程字段畸形，锁定内部字段校验。已通过 `pnpm --dir clients type-check:web`、目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3572 pnpm --dir clients/web exec playwright test tests/e2e/course-browse.spec.ts tests/e2e/journey-browse.spec.ts`
+（24 项）；并通过 `pnpm --dir clients lint:web`、`pnpm --dir clients test:web`（57 文件、275 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3573 make e2e-web`（228 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

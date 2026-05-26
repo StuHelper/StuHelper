@@ -56,10 +56,96 @@ function readDepartmentGroups(payload: unknown): DepartmentGroup[] {
       name: typeof departmentName === 'string' && departmentName
         ? departmentName
         : t('review.filters.all'),
-      courses: courses as Course[],
+      courses: courses.map(readCoursePayload),
       expanded: true,
     }
   })
+}
+
+function readCoursePayload(payload: unknown): Course {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('Invalid grouped courses response')
+  }
+
+  const record = payload as Record<string, unknown>
+  return {
+    id: readInteger(record, 'id'),
+    schoolID: readOptionalInteger(record, 'schoolID'),
+    departmentID: readInteger(record, 'departmentID'),
+    departmentName: readOptionalString(record, 'departmentName'),
+    code: readOptionalString(record, 'code'),
+    name: readString(record, 'name'),
+    credits: readNumber(record, 'credits'),
+    category: readOptionalString(record, 'category'),
+    reviewCount: readInteger(record, 'reviewCount'),
+    isFavorited: readOptionalBoolean(record, 'isFavorited'),
+  }
+}
+
+function readString(record: Record<string, unknown>, key: string): string {
+  const value = record[key]
+  if (typeof value !== 'string') {
+    throw new Error('Invalid grouped courses response')
+  }
+  return value
+}
+
+function readOptionalString(
+  record: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = record[key]
+  if (value === undefined) {
+    return undefined
+  }
+  if (typeof value !== 'string') {
+    throw new Error('Invalid grouped courses response')
+  }
+  return value
+}
+
+function readInteger(record: Record<string, unknown>, key: string): number {
+  const value = record[key]
+  if (typeof value !== 'number' || !Number.isInteger(value)) {
+    throw new Error('Invalid grouped courses response')
+  }
+  return value
+}
+
+function readOptionalInteger(
+  record: Record<string, unknown>,
+  key: string,
+): number | undefined {
+  const value = record[key]
+  if (value === undefined) {
+    return undefined
+  }
+  if (typeof value !== 'number' || !Number.isInteger(value)) {
+    throw new Error('Invalid grouped courses response')
+  }
+  return value
+}
+
+function readNumber(record: Record<string, unknown>, key: string): number {
+  const value = record[key]
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error('Invalid grouped courses response')
+  }
+  return value
+}
+
+function readOptionalBoolean(
+  record: Record<string, unknown>,
+  key: string,
+): boolean | undefined {
+  const value = record[key]
+  if (value === undefined) {
+    return undefined
+  }
+  if (typeof value !== 'boolean') {
+    throw new Error('Invalid grouped courses response')
+  }
+  return value
 }
 
 function expandAll(): void {
