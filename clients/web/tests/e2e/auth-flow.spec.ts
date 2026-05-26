@@ -11,6 +11,7 @@ const BASIC_USER = {
   capabilities: ['review:list:brief'],
   globalCapabilities: ['review:list:brief'],
   capabilityGrants: [],
+  isPlatformAdmin: false,
   canAccessAdmin: false,
 }
 
@@ -33,6 +34,7 @@ const VERIFIED_STUDENT = {
     'review:delete:own',
   ],
   capabilityGrants: [],
+  isPlatformAdmin: false,
   canAccessAdmin: false,
 }
 

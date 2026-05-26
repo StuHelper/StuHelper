@@ -9,6 +9,7 @@ const user = {
     capabilities: ["review:list:full"],
     globalCapabilities: ["review:list:full"],
     capabilityGrants: [],
+    isPlatformAdmin: false,
     canAccessAdmin: false,
 };
 

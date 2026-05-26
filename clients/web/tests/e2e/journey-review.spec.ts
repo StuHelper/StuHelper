@@ -25,6 +25,7 @@ const verifiedStudent = {
     'review:delete:own',
   ],
   capabilityGrants: [],
+  isPlatformAdmin: false,
   canAccessAdmin: false,
 }
 

@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 
 const mockLogout = vi.fn();
+const mockRefresh = vi.fn();
 const mockGetUser = vi.fn();
 const mockSetUser = vi.fn();
 const mockClearAuth = vi.fn();
+const mockTokenExpirySet = vi.fn();
 
 vi.mock("@/api", () => ({
     api: {
@@ -12,7 +14,7 @@ vi.mock("@/api", () => ({
             me: vi.fn(),
             login: vi.fn(),
             signup: vi.fn(),
-            refresh: vi.fn(),
+            refresh: mockRefresh,
             logout: mockLogout,
         },
     },
@@ -25,7 +27,7 @@ vi.mock("@/utils/auth", () => ({
     },
     clearAuth: mockClearAuth,
     tokenExpiry: {
-        set: vi.fn(),
+        set: mockTokenExpirySet,
     },
 }));
 
@@ -41,9 +43,11 @@ describe("auth session reset", () => {
     beforeEach(() => {
         setActivePinia(createPinia());
         mockLogout.mockReset();
+        mockRefresh.mockReset();
         mockGetUser.mockReset();
         mockSetUser.mockReset();
         mockClearAuth.mockReset();
+        mockTokenExpirySet.mockReset();
         mockGetUser.mockReturnValue(null);
     });
 
@@ -74,5 +78,19 @@ describe("auth session reset", () => {
 
         expect(mockClearAuth).toHaveBeenCalledTimes(1);
         expect(resetSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("rejects malformed refresh responses without updating local expiry", async () => {
+        mockRefresh.mockResolvedValue({ data: { data: { expiresIn: "3600" } } });
+
+        const { useAuthStore } = await import("../auth");
+        const store = useAuthStore();
+
+        await expect(store.refreshSession()).rejects.toThrow(
+            "Invalid refresh response",
+        );
+
+        expect(mockTokenExpirySet).not.toHaveBeenCalled();
+        expect(mockClearAuth).not.toHaveBeenCalled();
     });
 });

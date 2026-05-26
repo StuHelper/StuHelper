@@ -19,6 +19,7 @@ const storedUser = {
         "review:delete:own",
     ],
     capabilityGrants: [],
+    isPlatformAdmin: false,
     canAccessAdmin: false,
 };
 

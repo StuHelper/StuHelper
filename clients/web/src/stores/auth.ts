@@ -30,6 +30,8 @@ export interface AuthError {
 
 type UserInfo = components["schemas"]["UserInfo"];
 type LoginURLResponse = components["schemas"]["LoginURLResponse"];
+type RefreshResponse = components["schemas"]["RefreshResponse"];
+type CapabilityGrant = UserInfo["capabilityGrants"][number];
 
 // 登出结果类型
 export type LogoutResult =
@@ -71,29 +73,183 @@ function resolveLoginRedirectTarget(redirect?: string): string | undefined {
         ) {
             return parsed.toString();
         }
-    } catch (_error) { void _error;
+    } catch {
         // ignore invalid redirect and fall back to current page
     }
 
     return window.location.href;
 }
 
-function normalizeCurrentUser(
-    data: UserInfo,
-    currentUser: UserInfo | null,
-): UserInfo {
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === "object";
+}
+
+function readString(
+    record: Record<string, unknown>,
+    key: string,
+    message: string,
+): string {
+    const value = record[key];
+    if (typeof value !== "string") {
+        throw new Error(message);
+    }
+    return value;
+}
+
+function readOptionalString(
+    record: Record<string, unknown>,
+    key: string,
+    message: string,
+): string | undefined {
+    const value = record[key];
+    if (value === undefined) {
+        return undefined;
+    }
+    if (typeof value !== "string") {
+        throw new Error(message);
+    }
+    return value;
+}
+
+function readBoolean(
+    record: Record<string, unknown>,
+    key: string,
+    message: string,
+): boolean {
+    const value = record[key];
+    if (typeof value !== "boolean") {
+        throw new Error(message);
+    }
+    return value;
+}
+
+function readInteger(
+    record: Record<string, unknown>,
+    key: string,
+    message: string,
+): number {
+    const value = record[key];
+    if (typeof value !== "number" || !Number.isInteger(value)) {
+        throw new Error(message);
+    }
+    return value;
+}
+
+function readStringArray(value: unknown, message: string): string[] {
+    if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
+        throw new Error(message);
+    }
+    return value;
+}
+
+function readOptionalStringArray(
+    record: Record<string, unknown>,
+    key: string,
+    message: string,
+): string[] | undefined {
+    const value = record[key];
+    if (value === undefined) {
+        return undefined;
+    }
+    return readStringArray(value, message);
+}
+
+function readOptionalAbsoluteURL(
+    record: Record<string, unknown>,
+    key: string,
+    message: string,
+): string | undefined {
+    const value = readOptionalString(record, key, message);
+    if (value === undefined) {
+        return undefined;
+    }
+    try {
+        const parsed = new URL(value);
+        if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+            throw new Error(message);
+        }
+    } catch {
+        throw new Error(message);
+    }
+    return value;
+}
+
+function readCapabilityGrant(value: unknown, message: string): CapabilityGrant {
+    if (!isRecord(value)) {
+        throw new Error(message);
+    }
+
     return {
-        id: data.id,
-        name: data.name,
-        displayName: data.displayName ?? data.name,
-        email: data.email ?? currentUser?.email,
-        avatar: data.avatar ?? currentUser?.avatar,
-        roles: data.roles ?? currentUser?.roles ?? [],
-        isPlatformAdmin: data.isPlatformAdmin === true,
-        capabilities: data.capabilities ?? [],
-        globalCapabilities: data.globalCapabilities ?? [],
-        capabilityGrants: data.capabilityGrants ?? [],
-        canAccessAdmin: data.canAccessAdmin === true,
+        name: readString(value, "name", message),
+        scopeSchoolIDs: readOptionalStringArray(value, "scopeSchoolIDs", message),
+        scopeSectionIDs: readOptionalStringArray(
+            value,
+            "scopeSectionIDs",
+            message,
+        ),
+        scopeRoles: readOptionalStringArray(value, "scopeRoles", message),
+        global: readBoolean(value, "global", message),
+    };
+}
+
+function readCapabilityGrants(value: unknown, message: string): CapabilityGrant[] {
+    if (!Array.isArray(value)) {
+        throw new Error(message);
+    }
+    return value.map((item) => readCapabilityGrant(item, message));
+}
+
+function readLoginURLPayload(
+    payload: unknown,
+    message = "Invalid OAuth response",
+): LoginURLResponse {
+    if (!isRecord(payload)) {
+        throw new Error(message);
+    }
+
+    return {
+        url: readString(payload, "url", message),
+        state: readString(payload, "state", message),
+    };
+}
+
+function readUserInfoPayload(
+    payload: unknown,
+    message = "Invalid user response",
+): UserInfo {
+    if (!isRecord(payload)) {
+        throw new Error(message);
+    }
+
+    return {
+        id: readString(payload, "id", message),
+        name: readString(payload, "name", message),
+        displayName: readString(payload, "displayName", message),
+        avatar: readOptionalString(payload, "avatar", message),
+        email: readOptionalString(payload, "email", message),
+        roles: readStringArray(payload.roles, message),
+        isPlatformAdmin: readBoolean(payload, "isPlatformAdmin", message),
+        capabilities: readStringArray(payload.capabilities, message),
+        globalCapabilities: readStringArray(payload.globalCapabilities, message),
+        capabilityGrants: readCapabilityGrants(payload.capabilityGrants, message),
+        canAccessAdmin: readBoolean(payload, "canAccessAdmin", message),
+        accountSettingsUrl: readOptionalAbsoluteURL(
+            payload,
+            "accountSettingsUrl",
+            message,
+        ),
+    };
+}
+
+function readRefreshPayload(
+    payload: unknown,
+    message = "Invalid refresh response",
+): RefreshResponse {
+    if (!isRecord(payload)) {
+        throw new Error(message);
+    }
+    return {
+        expiresIn: readInteger(payload, "expiresIn", message),
     };
 }
 
@@ -128,7 +284,7 @@ export const useAuthStore = defineStore("auth", () => {
     let initialUser: UserInfo | null = null;
     try {
         initialUser = normalizeStoredUser(userManager.getUser());
-    } catch (_error) { void _error;
+    } catch {
         initialUser = null;
     }
 
@@ -175,8 +331,8 @@ export const useAuthStore = defineStore("auth", () => {
         loading.value = true;
         try {
             const res = await apiCall();
-            const data = res.data?.data;
-            if (!data?.url || !data?.state) {
+            const data = readLoginURLPayload(res.data?.data);
+            if (!data.url || !data.state) {
                 throw new Error("Invalid OAuth response");
             }
             // 校验 OAuth URL 必须指向配置的 SSO Origin
@@ -236,11 +392,7 @@ export const useAuthStore = defineStore("auth", () => {
         loading.value = true;
         try {
             const res = await api.auth.me();
-            const data = res.data?.data;
-            if (!data) {
-                throw new Error("Invalid user response");
-            }
-            const normalizedUser = normalizeCurrentUser(data, user.value);
+            const normalizedUser = readUserInfoPayload(res.data?.data);
             user.value = normalizedUser;
             userManager.setUser(normalizedUser);
             bootstrapCompleted.value = true;
@@ -278,16 +430,7 @@ export const useAuthStore = defineStore("auth", () => {
         bootstrapPromise = (async () => {
             try {
                 const res = await api.auth.me();
-                const data = res.data?.data;
-                if (!data) {
-                    if (user.value) {
-                        clearAuth();
-                        user.value = null;
-                    }
-                    bootstrapCompleted.value = true;
-                    return false;
-                }
-                const normalizedUser = normalizeCurrentUser(data, user.value);
+                const normalizedUser = readUserInfoPayload(res.data?.data);
                 user.value = normalizedUser;
                 userManager.setUser(normalizedUser);
                 bootstrapCompleted.value = true;
@@ -330,10 +473,8 @@ export const useAuthStore = defineStore("auth", () => {
     const refreshSession = async () => {
         try {
             const res = await api.auth.refresh();
-            const data = res.data?.data;
-            if (typeof data?.expiresIn === "number") {
-                tokenExpiry.set(data.expiresIn);
-            }
+            const data = readRefreshPayload(res.data?.data);
+            tokenExpiry.set(data.expiresIn);
             return data;
         } catch (err) {
             if (

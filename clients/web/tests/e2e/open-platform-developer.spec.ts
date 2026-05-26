@@ -19,6 +19,7 @@ const user = {
         "review:delete:own",
     ],
     capabilityGrants: [],
+    isPlatformAdmin: false,
     canAccessAdmin: false,
 };
 

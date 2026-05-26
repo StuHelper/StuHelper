@@ -72,6 +72,7 @@ describe('auth bootstrap', () => {
           name: 'alice',
           displayName: 'Alice',
           email: 'alice@example.com',
+          roles: ['admin'],
           isPlatformAdmin: false,
           capabilities: ['admin:reviews:manage'],
           globalCapabilities: ['admin:reviews:manage'],
@@ -135,6 +136,40 @@ describe('auth bootstrap', () => {
 
     expect(store.isAuthenticated).toBe(true)
     expect(store.globalCapabilities).toEqual([])
+    expect(mockClearAuth).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when auth/me returns malformed user capabilities', async () => {
+    mockGetUser.mockReturnValue({
+      id: 'cached_user',
+      name: 'cached',
+      displayName: 'Cached',
+    })
+    mockAuthMe.mockResolvedValue({
+      data: {
+        data: {
+          id: 'user_3',
+          name: 'carol',
+          displayName: 'Carol',
+          isPlatformAdmin: false,
+          capabilities: [],
+          globalCapabilities: [],
+          capabilityGrants: [],
+          canAccessAdmin: false,
+        },
+      },
+    })
+
+    const { useAuthStore } = await import('../auth')
+    const store = useAuthStore()
+
+    expect(store.isAuthenticated).toBe(true)
+
+    await expect(store.bootstrapSession({ force: true })).resolves.toBeFalsy()
+
+    expect(store.isAuthenticated).toBe(true)
+    expect(store.bootstrapCompleted).toBe(false)
+    expect(mockSetUser).not.toHaveBeenCalled()
     expect(mockClearAuth).not.toHaveBeenCalled()
   })
 })

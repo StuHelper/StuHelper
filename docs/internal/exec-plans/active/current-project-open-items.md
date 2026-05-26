@@ -406,6 +406,23 @@ Consent E2E 的 invalid-response 覆盖已从 `null` 扩展为嵌套字段缺失
 `pnpm --dir clients test:web`（55 文件、258 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3550 make e2e-web`（228 项）。
 
+本地验证补充（2026-05-26）：继续收紧 Web 认证会话响应。`auth` store 现在会按 `UserInfo` 契约校验
+`/api/v1/auth/me` 的必需字符串、布尔值、能力数组、角色数组和 capability grant 明细；畸形 200 不再被
+补成空 roles / 空 capabilities 的低权限用户，也不会在 bootstrap 时被当作匿名成功状态清掉本地缓存。
+`/api/v1/auth/refresh` 也要求返回整数 `expiresIn` 后才更新本地 token expiry。新增 auth store 单测覆盖
+畸形 `auth/me` fail-closed 和畸形 refresh 不写 expiry；同步补齐 Web E2E 登录用户 mock 的
+`isPlatformAdmin` 契约字段。已通过目标单测
+`pnpm --dir clients --filter @stuhelper/web exec vitest run src/stores/__tests__/authBootstrap.test.ts src/stores/__tests__/authSessionReset.test.ts`
+（7 项）、目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3552 pnpm --dir clients/web exec playwright test tests/e2e/auth-flow.spec.ts`
+（20 项）、
+`CI=1 PLAYWRIGHT_WEB_PORT=3553 pnpm --dir clients/web exec playwright test tests/e2e/review-flow.spec.ts`
+（14 项）和
+`CI=1 PLAYWRIGHT_WEB_PORT=3554 pnpm --dir clients/web exec playwright test tests/e2e/journey-user-center.spec.ts`
+（40 项）；并通过 `pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、
+`pnpm --dir clients test:web`（55 文件、260 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3555 make e2e-web`（228 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等
