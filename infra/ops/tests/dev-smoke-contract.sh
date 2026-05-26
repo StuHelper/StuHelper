@@ -40,10 +40,13 @@ assert_contains "${DEV_SMOKE}" 'dev_grafana_url="http://127\.0\.0\.1:\$\{GRAFANA
 assert_contains "${DEV_SMOKE}" 'curl --fail --silent --show-error --max-time 2 "\$\{dev_grafana_url\}/api/health"'
 assert_contains "${DEV_SMOKE}" 'export GRAFANA_URL="\$\{dev_grafana_url\}"'
 assert_contains "${DEV_SMOKE}" '"\$\{SCRIPT_DIR\}/smoke-check\.sh"'
+assert_contains "${DEV_SMOKE}" 'if \[\[ "\$\{DEV_BROWSER_SMOKE:-true\}" == "true" \]\]; then'
+assert_contains "${DEV_SMOKE}" 'node "\$\{SCRIPT_DIR\}/dev-browser-smoke\.mjs"'
 
 probe_line="$(line_number 'curl --fail --silent --show-error --max-time 2 "\$\{dev_grafana_url\}/api/health"')"
 export_line="$(line_number 'export GRAFANA_URL="\$\{dev_grafana_url\}"')"
 smoke_line="$(line_number '"\$\{SCRIPT_DIR\}/smoke-check\.sh"')"
+browser_smoke_line="$(line_number 'node "\$\{SCRIPT_DIR\}/dev-browser-smoke\.mjs"')"
 
 if (( probe_line >= export_line )); then
   fail "Grafana URL must only be exported after a successful health probe"
@@ -51,6 +54,10 @@ fi
 
 if (( export_line >= smoke_line )); then
   fail "Grafana URL detection must run before smoke-check"
+fi
+
+if (( smoke_line >= browser_smoke_line )); then
+  fail "browser smoke must run after HTTP smoke-check"
 fi
 
 echo "[dev-smoke-contract] all assertions passed"

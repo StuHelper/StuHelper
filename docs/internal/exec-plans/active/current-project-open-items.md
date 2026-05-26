@@ -650,6 +650,18 @@ Web 232 项、Admin 桌面 / 移动 78 项、UniAppX H5 52 项。Koishi Console 
 扫描 353 个目标，0 findings。当前本地证据覆盖后端编译、race 测试、OpenAPI 契约、生成代码漂移、
 生产 / 开发部署脚本契约和 phone/mobile 日志脱敏规则。
 
+本地 dev smoke 补强（2026-05-27）：Playwright MCP 抽检真实本地 Admin 入口时发现旧版 `make dev-smoke`
+只检查 Admin HTML 200，未发现 `clients/shared/dist` 被清理后 Admin Vite 运行时加载
+`@stuhelper/shared` dist 脚本 404、页面白屏的问题。Admin Vite 现与 Web 一样把 `@stuhelper/shared`
+解析到 `clients/shared/src`，不再依赖可清理的 shared build 产物；`make dev-smoke` 在原 HTTP/API
+smoke 后新增 `infra/ops/dev-browser-smoke.mjs`，用 Playwright 检查 Web 首页、课程入口和 Admin 入口，
+并阻断关键资源 4xx/5xx、pageerror、非预期 console error 和空白 body。本地已删除 `clients/shared/dist`
+后重跑 `make dev-up`，随后 `make dev-smoke` 通过：HTTP smoke 18 项通过，浏览器 smoke 3 项通过。
+Playwright MCP 同轮确认 Admin 入口正常跳转到本地 Casdoor 登录页并显示 StuHelper Admin / Sign In。
+已通过 `node --check infra/ops/dev-browser-smoke.mjs`、`bash infra/ops/tests/dev-smoke-contract.sh`、
+`pnpm --dir clients type-check:admin`、`pnpm --dir clients lint:admin`、`pnpm --dir clients build:admin`、
+`CI=1 ADMIN_E2E_PORT=4179 make e2e-admin`（78 项）和 `make check-infra-contracts`。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

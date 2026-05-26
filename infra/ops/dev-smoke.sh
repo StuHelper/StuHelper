@@ -24,3 +24,7 @@ if [[ -z "${GRAFANA_URL:-}" ]]; then
 fi
 
 "${SCRIPT_DIR}/smoke-check.sh"
+
+if [[ "${DEV_BROWSER_SMOKE:-true}" == "true" ]]; then
+  node "${SCRIPT_DIR}/dev-browser-smoke.mjs"
+fi

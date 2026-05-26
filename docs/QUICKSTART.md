@@ -45,7 +45,7 @@ make dev-up
 ```bash
 make dev-status   # 查看实际地址
 make dev-logs     # 热重载日志
-make dev-smoke    # 验收 API / Web / Admin；若观测栈运行中，也检查 Grafana
+make dev-smoke    # 验收 API / Web / Admin，并用浏览器检查 Web/Admin 是否真实渲染；若观测栈运行中，也检查 Grafana
 make dev-down     # 停止
 make dev-reset    # 彻底清理（含 volume）
 ```

@@ -54,7 +54,9 @@ make dev-logs
 make dev-smoke
 ```
 
-`make dev-smoke` 默认验收 API / Web / Admin；如果本地 Grafana 健康端点在 `.env` 的
+`make dev-smoke` 默认验收 API / Web / Admin，并在 HTTP 检查后运行浏览器 smoke：用 Playwright 打开
+Web 首页、课程入口和 Admin 入口，阻断关键资源 4xx/5xx、页面运行时错误和空白渲染。这样可以发现
+“HTML 返回 200，但前端脚本缺失或页面白屏”的问题。如果本地 Grafana 健康端点在 `.env` 的
 `GRAFANA_PORT` 上可达，会自动把它纳入同一次 smoke，避免观测栈已运行却被跳过。
 
 如需保留旧的全 Docker 开发模式：
