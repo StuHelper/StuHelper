@@ -422,11 +422,12 @@ test.describe("Auth callback and admission entry", () => {
                 await route.fulfill(
                     ok({
                         id: "freshman-application-1",
+                        userID: user.id,
                         status: "pending",
                         schoolID: 1001,
                         qqID: "123456",
                         applicantNameMasked: "赵*",
-                        materialURL: "",
+                        materialType: "admission_notice",
                         failureCount: 0,
                         createdAt: now,
                     }),
@@ -440,11 +441,13 @@ test.describe("Auth callback and admission entry", () => {
                 await route.fulfill(
                     ok({
                         id: "freshman-application-1",
+                        userID: user.id,
                         status: "pending",
                         schoolID: 1001,
                         qqID: "123456",
                         applicantNameMasked: "赵*",
-                        materialURL: "camera://freshman-application-1",
+                        materialType: "admission_notice",
+                        materialURL: "https://stuhelper.com/materials/freshman-application-1.jpg",
                         failureCount: 0,
                         createdAt: now,
                     }),

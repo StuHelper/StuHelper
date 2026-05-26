@@ -86,8 +86,10 @@ describe('useReviewPost', () => {
     mockGetUserSurface.mockResolvedValue({
       data: {
         data: {
+          displayName: 'Alice',
           identityStatus: 'approved',
           verificationStatus: 'approved',
+          phoneBound: true,
           capabilities: [REVIEW_CREATE],
         },
       },
@@ -103,8 +105,10 @@ describe('useReviewPost', () => {
     mockGetUserSurface.mockResolvedValue({
       data: {
         data: {
+          displayName: 'Alice',
           identityStatus: 'pending',
           verificationStatus: 'approved',
+          phoneBound: true,
           capabilities: [REVIEW_CREATE],
         },
       },
@@ -121,8 +125,10 @@ describe('useReviewPost', () => {
     mockGetUserSurface.mockResolvedValue({
       data: {
         data: {
+          displayName: 'Alice',
           identityStatus: 'approved',
           verificationStatus: 'pending',
+          phoneBound: true,
           capabilities: [REVIEW_CREATE],
         },
       },
@@ -139,8 +145,10 @@ describe('useReviewPost', () => {
     mockGetUserSurface.mockResolvedValue({
       data: {
         data: {
+          displayName: 'Alice',
           identityStatus: 'approved',
           verificationStatus: 'approved',
+          phoneBound: true,
           capabilities: [],
         },
       },
@@ -167,13 +175,35 @@ describe('useReviewPost', () => {
     )
     expect(mockToastError).toHaveBeenCalledWith('common.loadFailed')
   })
+
+  it('fails closed when user surface response is malformed', async () => {
+    mockGetUserSurface.mockResolvedValue({
+      data: {
+        data: {
+          identityStatus: 'approved',
+          verificationStatus: 'approved',
+          phoneBound: true,
+          capabilities: [REVIEW_CREATE],
+        },
+      },
+    })
+    mockGetErrorMessage.mockReturnValue('common.loadFailed')
+
+    const { ensureCanPostReview } = useReviewPost()
+
+    await expect(ensureCanPostReview()).resolves.toBe(false)
+    expect(mockToastError).toHaveBeenCalledWith('common.loadFailed')
+    expect(mockPush).not.toHaveBeenCalled()
+  })
 })
 
 describe('resolveReviewPostBlock', () => {
   it('returns null only when identity, student verification and capability all pass', () => {
     expect(resolveReviewPostBlock({
+      displayName: 'Alice',
       identityStatus: 'approved',
       verificationStatus: 'approved',
+      phoneBound: true,
       capabilities: [REVIEW_CREATE],
     } as never)).toBeNull()
   })

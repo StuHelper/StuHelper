@@ -423,6 +423,22 @@ Consent E2E 的 invalid-response 覆盖已从 `null` 扩展为嵌套字段缺失
 `pnpm --dir clients test:web`（55 文件、260 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3555 make e2e-web`（228 项）。
 
+本地验证补充（2026-05-26）：继续收紧发评课前置授权面和入群认证响应。`useReviewPost` 现在会校验
+`/api/v1/user/me` 的 `UserSurface` 必需字段、认证状态枚举、`phoneBound` 和 capability 数组；畸形 200
+不再被当作可发评课或可路由跳转的有效用户面。`admissionApi` 现在会校验入群认证 session、`AdmissionMe`
+及嵌套 session、新生材料申请和摄像头提交响应的必需字段、状态枚举、整数 ID / 字节数和 http(s) URL；畸形
+200 会进入既有失败态，不再推进到下一步流程。新增 `useReviewPost` 单测覆盖畸形用户面 fail-closed，新增
+admission API 单测覆盖 session、nested admission me、新生申请和邮箱 OTP 响应校验；同步修正入群认证
+E2E 的新生申请 mock，使其符合 `FreshmanApplication` 契约。已通过目标单测
+`pnpm --dir clients --filter @stuhelper/web exec vitest run src/composables/__tests__/useReviewPost.test.ts src/modules/admission/__tests__/api.test.ts`
+（13 项）、目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3556 pnpm --dir clients/web exec playwright test tests/e2e/review-flow.spec.ts`
+（14 项）和
+`CI=1 PLAYWRIGHT_WEB_PORT=3558 pnpm --dir clients/web exec playwright test tests/e2e/auth-callback-and-admission.spec.ts`
+（14 项）；并通过 `pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、
+`pnpm --dir clients test:web`（56 文件、266 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3559 make e2e-web`（228 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

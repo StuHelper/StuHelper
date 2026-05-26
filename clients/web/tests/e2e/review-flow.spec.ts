@@ -50,9 +50,10 @@ async function mockAuth(page: Page) {
             body: JSON.stringify({
                 success: true,
                 data: {
-                    id: storedUser.id,
+                    displayName: storedUser.displayName,
                     identityStatus: "approved",
                     verificationStatus: "approved",
+                    phoneBound: true,
                     capabilities: storedUser.capabilities,
                 },
             }),

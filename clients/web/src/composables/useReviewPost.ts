@@ -16,6 +16,93 @@ interface ReviewPostBlock {
   routeName: null | 'home' | 'identity-verification' | 'student-verification'
 }
 
+const USER_SURFACE_STATUS_VALUES = new Set([
+  'none',
+  'pending',
+  'approved',
+  'rejected',
+])
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object'
+}
+
+function readString(
+  record: Record<string, unknown>,
+  key: string,
+  message: string,
+): string {
+  const value = record[key]
+  if (typeof value !== 'string') {
+    throw new Error(message)
+  }
+  return value
+}
+
+function readBoolean(
+  record: Record<string, unknown>,
+  key: string,
+  message: string,
+): boolean {
+  const value = record[key]
+  if (typeof value !== 'boolean') {
+    throw new Error(message)
+  }
+  return value
+}
+
+function readOptionalString(
+  record: Record<string, unknown>,
+  key: string,
+  message: string,
+): string | undefined {
+  const value = record[key]
+  if (value === undefined) {
+    return undefined
+  }
+  if (typeof value !== 'string') {
+    throw new Error(message)
+  }
+  return value
+}
+
+function readStringArray(value: unknown, message: string): string[] {
+  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
+    throw new Error(message)
+  }
+  return value
+}
+
+function readSurfaceStatus(
+  record: Record<string, unknown>,
+  key: string,
+  message: string,
+): UserSurface['identityStatus'] {
+  const value = readString(record, key, message)
+  if (!USER_SURFACE_STATUS_VALUES.has(value)) {
+    throw new Error(message)
+  }
+  return value as UserSurface['identityStatus']
+}
+
+function readUserSurfacePayload(
+  payload: unknown,
+  message = 'Invalid user surface response',
+): UserSurface {
+  if (!isRecord(payload)) {
+    throw new Error(message)
+  }
+
+  return {
+    displayName: readString(payload, 'displayName', message),
+    avatarURL: readOptionalString(payload, 'avatarURL', message),
+    identityStatus: readSurfaceStatus(payload, 'identityStatus', message),
+    verificationStatus: readSurfaceStatus(payload, 'verificationStatus', message),
+    phoneBound: readBoolean(payload, 'phoneBound', message),
+    capabilities: readStringArray(payload.capabilities, message),
+  }
+}
+
 export function resolveReviewPostBlock(surface: UserSurface): null | ReviewPostBlock {
   if (surface.identityStatus !== 'approved') {
     return {
@@ -72,10 +159,9 @@ export function useReviewPost() {
     }
 
     try {
-      const surface = (await api.identity.getUserSurface()).data?.data
-      if (!surface) {
-        throw new Error('Invalid user surface response')
-      }
+      const surface = readUserSurfacePayload(
+        (await api.identity.getUserSurface()).data?.data,
+      )
 
       const block = resolveReviewPostBlock(surface)
       if (!block) {
