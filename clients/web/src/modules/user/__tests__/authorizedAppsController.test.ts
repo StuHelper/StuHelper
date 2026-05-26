@@ -77,6 +77,40 @@ describe('useAuthorizedAppsController', () => {
     expect(mocks.listConsentAuditEvents).toHaveBeenCalledWith({ pageSize: 10 })
   })
 
+  it('fails closed when authorized apps response is malformed', async () => {
+    mocks.listConsents.mockResolvedValueOnce({
+      data: {
+        data: null,
+      },
+    })
+
+    const controller = useAuthorizedAppsController(t)
+
+    await controller.loadConsents()
+
+    expect(controller.loading.value).toBe(false)
+    expect(controller.errorMessage.value).toBe('common.loadFailed')
+    expect(controller.apps.value).toEqual([])
+  })
+
+  it('fails closed when authorization activity response is malformed', async () => {
+    mocks.listConsentAuditEvents.mockResolvedValueOnce({
+      data: {
+        data: null,
+      },
+    })
+
+    const controller = useAuthorizedAppsController(t)
+
+    await controller.loadActivities()
+
+    expect(controller.activityLoading.value).toBe(false)
+    expect(controller.activityErrorMessage.value).toBe(
+      'user.authorizedApps.activityLoadFailed',
+    )
+    expect(controller.activities.value).toEqual([])
+  })
+
   it('revokes one granted scope without removing the whole app', async () => {
     const controller = useAuthorizedAppsController(t)
     await controller.loadConsents()

@@ -35,6 +35,13 @@ function captureQuery(urlString: string): QueryRecord {
   return Object.fromEntries(new URL(urlString).searchParams.entries())
 }
 
+function ok(data: unknown = null) {
+  return {
+    contentType: 'application/json',
+    body: JSON.stringify({ success: true, data }),
+  }
+}
+
 async function mockAuth(page: Page, authUser = user) {
   await page.addInitScript((u) => {
     localStorage.setItem('stuhelper_user', JSON.stringify(u))
@@ -419,6 +426,161 @@ test.describe('User Journey: User Center', () => {
     await expect(page.getByText('数据结构与算法').first()).toBeVisible({
       timeout: 10_000,
     })
+  })
+
+  test('invalid authorized apps response fails closed and can retry', async ({
+    page,
+  }) => {
+    let loadCount = 0
+
+    await page.route('**/api/v1/open-platform/consents', async (route) => {
+      if (route.request().method() !== 'GET') {
+        await route.fallback()
+        return
+      }
+
+      loadCount += 1
+      await route.fulfill(
+        loadCount === 1
+          ? ok(null)
+          : ok({
+              apps: [
+                {
+                  app: {
+                    id: 42,
+                    clientID: 'campus-client',
+                    displayName: 'Campus Tools',
+                    description: 'Campus utility integration',
+                    homepageURL: 'https://tools.example.com',
+                    privacyPolicyURL: 'https://tools.example.com/privacy',
+                    redirectURIs: ['https://tools.example.com/callback'],
+                    status: 'approved',
+                    createdAt: '2026-04-01T10:00:00Z',
+                    updatedAt: '2026-04-01T10:00:00Z',
+                  },
+                  scopes: [
+                    {
+                      scope: 'profile.basic.read',
+                      displayName: '基础资料',
+                      sensitivity: 'low',
+                      fields: ['昵称'],
+                      grantedAt: '2026-04-05T10:00:00Z',
+                      grantSource: 'consent_page',
+                    },
+                  ],
+                },
+              ],
+            }),
+      )
+    })
+    await page.route(
+      '**/api/v1/open-platform/consents/audit-events*',
+      (route) =>
+        route.fulfill(ok({ list: [], total: 0, page: 1, pageSize: 10 })),
+    )
+
+    await page.goto('/user/authorized-apps')
+
+    const status = page.getByRole('status').filter({ hasText: '加载失败' })
+    await expect(status).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText('暂无授权应用')).toHaveCount(0)
+
+    await status.getByRole('button', { name: '重试' }).click()
+
+    await expect.poll(() => loadCount).toBe(2)
+    await expect(
+      page.getByRole('heading', { name: 'Campus Tools' }),
+    ).toBeVisible()
+  })
+
+  test('invalid authorized app activity response fails closed and can retry', async ({
+    page,
+  }) => {
+    let activityLoadCount = 0
+
+    await page.route('**/api/v1/open-platform/consents', async (route) => {
+      if (route.request().method() !== 'GET') {
+        await route.fallback()
+        return
+      }
+
+      await route.fulfill(
+        ok({
+          apps: [
+            {
+              app: {
+                id: 42,
+                clientID: 'campus-client',
+                displayName: 'Campus Tools',
+                description: 'Campus utility integration',
+                homepageURL: 'https://tools.example.com',
+                privacyPolicyURL: 'https://tools.example.com/privacy',
+                redirectURIs: ['https://tools.example.com/callback'],
+                status: 'approved',
+                createdAt: '2026-04-01T10:00:00Z',
+                updatedAt: '2026-04-01T10:00:00Z',
+              },
+              scopes: [
+                {
+                  scope: 'email.read',
+                  displayName: '邮箱',
+                  sensitivity: 'medium',
+                  fields: ['邮箱'],
+                  grantedAt: '2026-04-05T10:00:00Z',
+                  grantSource: 'consent_page',
+                },
+              ],
+            },
+          ],
+        }),
+      )
+    })
+    await page.route(
+      '**/api/v1/open-platform/consents/audit-events*',
+      async (route) => {
+        activityLoadCount += 1
+        await route.fulfill(
+          activityLoadCount === 1
+            ? ok(null)
+            : ok({
+                list: [
+                  {
+                    id: 101,
+                    appID: 42,
+                    appDisplayName: 'Campus Tools',
+                    clientID: 'campus-client',
+                    eventType: 'open_platform.consent.granted',
+                    scopes: ['email.read'],
+                    endpoint: '/oidc/userinfo',
+                    result: 'success',
+                    requestID: 'req-grant',
+                    details: {},
+                    createdAt: '2026-04-05T10:00:00Z',
+                  },
+                ],
+                total: 1,
+                page: 1,
+                pageSize: 10,
+              }),
+        )
+      },
+    )
+
+    await page.goto('/user/authorized-apps')
+
+    await expect(
+      page.getByRole('heading', { name: 'Campus Tools' }),
+    ).toBeVisible({ timeout: 10_000 })
+    await expect(
+      page.getByText('授权活动加载失败，请重试'),
+    ).toBeVisible()
+    await expect(page.getByText('暂无授权活动记录')).toHaveCount(0)
+
+    await page.getByRole('button', { name: '重试' }).click()
+
+    await expect.poll(() => activityLoadCount).toBe(2)
+    await expect(page.getByText('授权已授予')).toBeVisible()
+    await expect(page.getByText('涉及权限：email.read')).toBeVisible()
   })
 
   test('user views and revokes authorized app scopes', async ({ page }) => {

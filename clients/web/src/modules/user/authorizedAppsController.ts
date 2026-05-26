@@ -6,7 +6,9 @@ import { useToast } from '@/composables/useToast'
 import type {
   OpenPlatformUserAuthorizedApp,
   OpenPlatformUserConsentAuditEvent,
+  OpenPlatformUserConsentAuditEventsResponse,
   OpenPlatformUserConsentScope,
+  OpenPlatformUserConsentsResponse,
 } from '@stuhelper/shared/api'
 
 type Translate = (key: string, params?: Record<string, unknown>) => string
@@ -72,7 +74,11 @@ export function useAuthorizedAppsController(t: Translate) {
     errorMessage.value = ''
     try {
       const response = await api.openPlatform.listConsents()
-      apps.value = response.data?.data?.apps ?? []
+      const data = response.data?.data
+      if (!isUserConsentsResponse(data)) {
+        throw new Error('Invalid authorized apps response')
+      }
+      apps.value = data.apps
     } catch (err) {
       errorMessage.value = getErrorMessage(err, t('common.loadFailed'))
     } finally {
@@ -85,7 +91,11 @@ export function useAuthorizedAppsController(t: Translate) {
     activityErrorMessage.value = ''
     try {
       const response = await api.openPlatform.listConsentAuditEvents({ pageSize: 10 })
-      activities.value = response.data?.data?.list ?? []
+      const data = response.data?.data
+      if (!isUserConsentAuditEventsResponse(data)) {
+        throw new Error('Invalid authorization activity response')
+      }
+      activities.value = data.list
     } catch (err) {
       activityErrorMessage.value = getErrorMessage(err, t('user.authorizedApps.activityLoadFailed'))
     } finally {
@@ -215,4 +225,16 @@ function appRevokeKey(appID: number) {
 
 function scopeRevokeKey(appID: number, scope: string) {
   return `scope:${appID}:${scope}`
+}
+
+function isUserConsentsResponse(
+  value: OpenPlatformUserConsentsResponse | null | undefined,
+): value is OpenPlatformUserConsentsResponse {
+  return value != null && Array.isArray(value.apps)
+}
+
+function isUserConsentAuditEventsResponse(
+  value: OpenPlatformUserConsentAuditEventsResponse | null | undefined,
+): value is OpenPlatformUserConsentAuditEventsResponse {
+  return value != null && Array.isArray(value.list)
 }

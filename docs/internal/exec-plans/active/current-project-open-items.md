@@ -1135,6 +1135,19 @@ Please retry”。验证已通过
 （18 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、`pnpm --dir clients test:web`
 （53 文件、236 项）和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3505 make e2e-web`（164 项）。
 
+本地验证补充（2026-05-26）：继续补齐 Open Platform 用户授权应用页 fail-closed 浏览器路径。此前
+`AuthorizedAppsTab.vue` 通过 `authorizedAppsController` 读取授权应用和授权活动，但当
+`GET /api/v1/open-platform/consents` 或 `GET /api/v1/open-platform/consents/audit-events` 返回
+`success=true` 且 `data=null` 时会被当作空列表，误显示“暂无授权应用 / No authorized apps”或
+“暂无授权活动记录 / No authorization activity yet”。本轮改为要求响应体必须包含 `apps` / `list` 数组，
+否则显示加载失败并保留重试入口；新增控制器单测锁定两个异常响应 fail-closed，新增桌面 / 移动 E2E
+验证授权应用列表异常响应显示“加载失败”且重试后恢复到正常应用卡片，授权活动异常响应显示“授权活动加载失败，
+请重试 / Failed to load authorization activity. Please retry”且重试后恢复到真实活动记录。验证已通过
+`pnpm --dir clients --filter @stuhelper/web exec vitest run src/modules/user/__tests__/authorizedAppsController.test.ts`
+（6 项）、`CI=1 PLAYWRIGHT_WEB_PORT=3506 pnpm --dir clients/web exec playwright test tests/e2e/journey-user-center.spec.ts`
+（32 项）、`pnpm --dir clients lint:web`、`pnpm --dir clients test:web`（53 文件、238 项）、
+`pnpm --dir clients type-check:web` 和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3507 make e2e-web`（168 项）。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |
