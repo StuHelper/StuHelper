@@ -1781,6 +1781,15 @@ well-known 和 Grafana health。同轮测试卫生审计确认 `server`、`clien
 `.skip` / `.only` 测试残留，仓库内没有 Playwright `test-results`、`playwright-report` 或 `.playwright-mcp`
 残留目录；待办标记扫描只剩测试中合法的 `context.TODO()` 与 `mktemp` 随机模板 `XXXXXX` 非待办命中。
 
+本地验证补充（2026-05-27）：继续补齐契约、基础设施和 Koishi 当前证据。OpenAPI
+`make lint-spec` 通过，`make check-drift` 重新 bundle OpenAPI、执行 Go generate、生成
+`clients/shared/src/types/api.gen.ts` 和能力常量后确认无漂移；`make check-infra-contracts`
+通过全部运维契约测试，覆盖 dev/prod init、remote preflight、Baota Nginx 公网入口、
+Identity public smoke、OpenFGA resource smoke、observability、prod-parity 和 deploy bundle
+等脚本约束。Koishi 侧通过 `corepack yarn --cwd bots/koishi test:unit`（282 项）、
+`corepack yarn --cwd bots/koishi build` 和 `make e2e-koishi`（Console Playwright 29 项）；
+运行后已清理 Koishi `.tmp`、`data`、`test-results`、`playwright-report` 和临时 console dist 产物。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |
