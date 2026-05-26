@@ -59,6 +59,13 @@ describe('useNotificationSSESync (real composable)', () => {
       expect(pageNotifications.value).toHaveLength(2)
       expect(pageTotal.value).toBe(2)
     })
+
+    it('ignores malformed notification events', async () => {
+      const { pageNotifications, pageTotal, emit } = setup([n2], 1, 'all')
+      await emit('notification', { id: 'bad' })
+      expect(pageNotifications.value).toEqual([n2])
+      expect(pageTotal.value).toBe(1)
+    })
   })
 
   describe('notification_read event', () => {
@@ -81,6 +88,13 @@ describe('useNotificationSSESync (real composable)', () => {
       const { pageNotifications, pageTotal, emit } = setup([n2], 1, 'unread')
       await emit('notification_read', { id: '1' }) // n1 not in list
       expect(pageNotifications.value).toHaveLength(1)
+      expect(pageTotal.value).toBe(1)
+    })
+
+    it('ignores malformed read events', async () => {
+      const { pageNotifications, pageTotal, emit } = setup([n1], 1, 'unread')
+      await emit('notification_read', { id: 1 })
+      expect(pageNotifications.value).toEqual([n1])
       expect(pageTotal.value).toBe(1)
     })
   })

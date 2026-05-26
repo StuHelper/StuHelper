@@ -3,7 +3,10 @@
  */
 import { computed, ref, watch } from "vue";
 import { defineStore, getActivePinia } from "pinia";
-import type { Notification as AppNotification } from "@stuhelper/shared/notification";
+import type {
+    Notification as AppNotification,
+    NotificationType,
+} from "@stuhelper/shared/notification";
 import { api, NOTIFICATION_STREAM_PATH } from "@/api";
 import { safeOnScopeDispose } from "@/stores/safeScopeDispose";
 import { registerSessionResetHandler } from "@/stores/sessionOrchestrator";
@@ -14,6 +17,19 @@ const POLL_INTERVAL_MS = 30_000;
 const MAX_POLL_FAILURES = 5;
 const SSE_INITIAL_RECONNECT_MS = 1_000;
 const SSE_MAX_RECONNECT_MS = 30_000;
+const NOTIFICATION_TYPES = new Set<NotificationType>([
+    "reply",
+    "like",
+    "vote",
+    "review_hidden",
+    "review_restored",
+    "report_resolved",
+    "identity_approved",
+    "identity_rejected",
+    "student_approved",
+    "student_rejected",
+    "system",
+]);
 
 export interface SSENotificationEvent {
     seq: number;
@@ -51,33 +67,170 @@ function isUnreadNotification(notification: AppNotification | undefined) {
     return notification && !notification.isRead;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function readString(
+    record: Record<string, unknown>,
+    key: string,
+    message: string,
+): string {
+    const value = record[key];
+    if (typeof value !== "string") {
+        throw new Error(message);
+    }
+    return value;
+}
+
+function readOptionalString(
+    record: Record<string, unknown>,
+    key: string,
+    message: string,
+): string | undefined {
+    const value = record[key];
+    if (value === undefined) {
+        return undefined;
+    }
+    if (typeof value !== "string") {
+        throw new Error(message);
+    }
+    return value;
+}
+
+function readOptionalInteger(
+    record: Record<string, unknown>,
+    key: string,
+    message: string,
+): number | undefined {
+    const value = record[key];
+    if (value === undefined) {
+        return undefined;
+    }
+    if (typeof value !== "number" || !Number.isInteger(value)) {
+        throw new Error(message);
+    }
+    return value;
+}
+
+function readBoolean(
+    record: Record<string, unknown>,
+    key: string,
+    message: string,
+): boolean {
+    const value = record[key];
+    if (typeof value !== "boolean") {
+        throw new Error(message);
+    }
+    return value;
+}
+
+function readNotificationType(
+    record: Record<string, unknown>,
+    key: string,
+    message: string,
+): NotificationType {
+    const value = readString(record, key, message);
+    if (!NOTIFICATION_TYPES.has(value as NotificationType)) {
+        throw new Error(message);
+    }
+    return value as NotificationType;
+}
+
+function readOptionalPayload(
+    record: Record<string, unknown>,
+    key: string,
+    message: string,
+): AppNotification["payload"] | undefined {
+    const value = record[key];
+    if (value === undefined) {
+        return undefined;
+    }
+    if (!isRecord(value)) {
+        throw new Error(message);
+    }
+    return { ...value };
+}
+
+function readNotificationPayload(
+    payload: unknown,
+    message = "Invalid notification response",
+): AppNotification {
+    if (!isRecord(payload)) {
+        throw new Error(message);
+    }
+
+    return {
+        id: readString(payload, "id", message),
+        type: readNotificationType(payload, "type", message),
+        title: readString(payload, "title", message),
+        content: readOptionalString(payload, "content", message),
+        payload: readOptionalPayload(payload, "payload", message),
+        sourceModule: readOptionalString(payload, "sourceModule", message),
+        sourceId: readOptionalString(payload, "sourceId", message),
+        sourceUrl: readOptionalString(payload, "sourceUrl", message),
+        courseID: readOptionalInteger(payload, "courseID", message),
+        isRead: readBoolean(payload, "isRead", message),
+        createdAt: readString(payload, "createdAt", message),
+    };
+}
+
+function readNotificationIDPayload(
+    payload: unknown,
+    message = "Invalid notification SSE event",
+): { id: string } {
+    if (!isRecord(payload)) {
+        throw new Error(message);
+    }
+    return { id: readString(payload, "id", message) };
+}
+
+function readUnreadCountPayload(
+    payload: unknown,
+    message = "Invalid unread count response",
+): { count: number } {
+    if (!isRecord(payload)) {
+        throw new Error(message);
+    }
+
+    const { count } = payload;
+    if (typeof count !== "number" || !Number.isInteger(count) || count < 0) {
+        throw new Error(message);
+    }
+    return { count };
+}
+
 function readNotificationPage(payload: unknown): {
     list: AppNotification[];
     total: number;
 } {
-    if (!payload || typeof payload !== "object") {
+    if (!isRecord(payload)) {
         throw new Error("Invalid notification page response");
     }
 
-    const { list, total } = payload as { list?: unknown; total?: unknown };
-    if (!Array.isArray(list) || typeof total !== "number") {
+    const { list, total } = payload;
+    if (
+        !Array.isArray(list) ||
+        typeof total !== "number" ||
+        !Number.isInteger(total) ||
+        total < 0
+    ) {
         throw new Error("Invalid notification page response");
     }
 
-    return { list: list as AppNotification[], total };
+    return {
+        list: list.map((item) =>
+            readNotificationPayload(
+                item,
+                "Invalid notification page response",
+            ),
+        ),
+        total,
+    };
 }
 
 function readUnreadCount(payload: unknown): number {
-    if (!payload || typeof payload !== "object") {
-        throw new Error("Invalid unread count response");
-    }
-
-    const { count } = payload as { count?: unknown };
-    if (typeof count !== "number") {
-        throw new Error("Invalid unread count response");
-    }
-
-    return count;
+    return readUnreadCountPayload(payload).count;
 }
 
 export const useNotificationStore = defineStore("notification", () => {
@@ -201,7 +354,16 @@ export const useNotificationStore = defineStore("notification", () => {
 
         switch (event.type) {
             case "notification": {
-                const notification = event.data as AppNotification;
+                let notification: AppNotification;
+                try {
+                    notification = readNotificationPayload(
+                        event.data,
+                        "Invalid notification SSE event",
+                    );
+                } catch (err) {
+                    setStreamError("invalid notification SSE event", err);
+                    break;
+                }
                 const existing = bellNotifications.value.find(
                     (item) => item.id === notification.id,
                 );
@@ -212,7 +374,13 @@ export const useNotificationStore = defineStore("notification", () => {
                 break;
             }
             case "notification_read": {
-                const { id } = event.data as { id: string };
+                let id: string;
+                try {
+                    id = readNotificationIDPayload(event.data).id;
+                } catch (err) {
+                    setStreamError("invalid notification_read SSE event", err);
+                    break;
+                }
                 const previous = bellNotifications.value.find(
                     (item) => item.id === id,
                 );
@@ -244,7 +412,13 @@ export const useNotificationStore = defineStore("notification", () => {
                 break;
             }
             case "notification_deleted": {
-                const { id } = event.data as { id: string };
+                let id: string;
+                try {
+                    id = readNotificationIDPayload(event.data).id;
+                } catch (err) {
+                    setStreamError("invalid notification_deleted SSE event", err);
+                    break;
+                }
                 const previous = bellNotifications.value.find(
                     (item) => item.id === id,
                 );
@@ -260,9 +434,13 @@ export const useNotificationStore = defineStore("notification", () => {
                 break;
             }
             case "unread_count": {
-                const data = event.data as { count?: number };
-                if (typeof data?.count === "number") {
-                    unreadCount.value = Math.max(0, data.count);
+                try {
+                    unreadCount.value = readUnreadCountPayload(
+                        event.data,
+                        "Invalid unread_count SSE event",
+                    ).count;
+                } catch (err) {
+                    setStreamError("invalid unread_count SSE event", err);
                 }
                 break;
             }
@@ -424,6 +602,37 @@ export const useNotificationStore = defineStore("notification", () => {
         }, delay);
     };
 
+    const handleSSEPayloadError = (
+        source: EventSource,
+        message: string,
+        err: unknown,
+    ) => {
+        consecutiveFailures++;
+        setStreamError(message, err);
+        if (consecutiveFailures >= MAX_POLL_FAILURES) {
+            closeEventSource(source);
+            startPollingFallback();
+            scheduleReconnect();
+        }
+    };
+
+    const readSSEPayload = <T>(
+        event: MessageEvent,
+        source: EventSource,
+        reader: (payload: unknown) => T,
+        message: string,
+    ): T | null => {
+        try {
+            const data = reader(JSON.parse(event.data));
+            consecutiveFailures = 0;
+            clearStreamError();
+            return data;
+        } catch (err) {
+            handleSSEPayloadError(source, message, err);
+            return null;
+        }
+    };
+
     const startPolling = (interval = POLL_INTERVAL_MS) => {
         monitoringActive = true;
         clearReconnectTimer();
@@ -472,100 +681,78 @@ export const useNotificationStore = defineStore("notification", () => {
         };
 
         source.addEventListener("unread_count", (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                if (typeof data.count === "number") {
-                    unreadCount.value = data.count;
-                    consecutiveFailures = 0;
-                    clearStreamError();
-                }
-            } catch (err) {
-                consecutiveFailures++;
-                setStreamError("failed to parse unread_count SSE payload", err);
-                if (consecutiveFailures >= MAX_POLL_FAILURES) {
-                    closeEventSource(source);
-                    startPollingFallback();
-                    scheduleReconnect();
-                }
+            const data = readSSEPayload(
+                event,
+                source,
+                (payload) =>
+                    readUnreadCountPayload(
+                        payload,
+                        "Invalid unread_count SSE payload",
+                    ),
+                "failed to parse unread_count SSE payload",
+            );
+            if (data) {
+                unreadCount.value = data.count;
             }
         });
 
         source.addEventListener("notification", (event) => {
-            try {
-                publishSSEEvent("notification", JSON.parse(event.data));
-                consecutiveFailures = 0;
-                clearStreamError();
-            } catch (err) {
-                consecutiveFailures++;
-                setStreamError("failed to parse notification SSE payload", err);
-                if (consecutiveFailures >= MAX_POLL_FAILURES) {
-                    closeEventSource(source);
-                    startPollingFallback();
-                    scheduleReconnect();
-                }
+            const notification = readSSEPayload(
+                event,
+                source,
+                (payload) =>
+                    readNotificationPayload(
+                        payload,
+                        "Invalid notification SSE payload",
+                    ),
+                "failed to parse notification SSE payload",
+            );
+            if (notification) {
+                publishSSEEvent("notification", notification);
             }
             void fetchUnreadCount();
         });
 
         source.addEventListener("notification_read", (event) => {
-            try {
-                publishSSEEvent("notification_read", JSON.parse(event.data));
-                consecutiveFailures = 0;
-                clearStreamError();
-            } catch (err) {
-                consecutiveFailures++;
-                setStreamError(
-                    "failed to parse notification_read SSE payload",
-                    err,
-                );
-                if (consecutiveFailures >= MAX_POLL_FAILURES) {
-                    closeEventSource(source);
-                    startPollingFallback();
-                    scheduleReconnect();
-                }
+            const data = readSSEPayload(
+                event,
+                source,
+                readNotificationIDPayload,
+                "failed to parse notification_read SSE payload",
+            );
+            if (data) {
+                publishSSEEvent("notification_read", data);
             }
             void fetchUnreadCount();
         });
 
         source.addEventListener("notification_read_all", (event) => {
-            try {
-                publishSSEEvent(
-                    "notification_read_all",
-                    JSON.parse(event.data),
-                );
-                consecutiveFailures = 0;
-                clearStreamError();
-            } catch (err) {
-                consecutiveFailures++;
-                setStreamError(
-                    "failed to parse notification_read_all SSE payload",
-                    err,
-                );
-                if (consecutiveFailures >= MAX_POLL_FAILURES) {
-                    closeEventSource(source);
-                    startPollingFallback();
-                    scheduleReconnect();
-                }
+            const data = readSSEPayload(
+                event,
+                source,
+                (payload) => {
+                    if (!isRecord(payload)) {
+                        throw new Error("Invalid notification_read_all SSE payload");
+                    }
+                    return { ...payload };
+                },
+                "failed to parse notification_read_all SSE payload",
+            );
+            if (data) {
+                publishSSEEvent("notification_read_all", data);
             }
             void fetchUnreadCount();
         });
 
         source.addEventListener("notification_deleted", (event) => {
-            try {
-                publishSSEEvent("notification_deleted", JSON.parse(event.data));
-                consecutiveFailures = 0;
-                clearStreamError();
-            } catch (err) {
-                consecutiveFailures++;
-                setStreamError(
-                    "failed to parse notification_deleted SSE payload",
-                    err,
-                );
-                if (consecutiveFailures >= MAX_POLL_FAILURES) {
-                    closeEventSource(source);
-                    startPollingFallback();
-                    scheduleReconnect();
-                }
+            const data = readSSEPayload(
+                event,
+                source,
+                readNotificationIDPayload,
+                "failed to parse notification_deleted SSE payload",
+            );
+            if (data) {
+                publishSSEEvent("notification_deleted", data);
             }
             void fetchUnreadCount();
         });

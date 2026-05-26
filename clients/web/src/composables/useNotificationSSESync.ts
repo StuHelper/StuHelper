@@ -9,6 +9,36 @@ export interface PageNotification {
 
 export type NotificationFilter = 'all' | 'unread' | 'read'
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function readPageNotification(payload: unknown): PageNotification | null {
+  if (!isRecord(payload)) {
+    return null
+  }
+
+  const { id, isRead } = payload
+  if (typeof id !== 'string' || typeof isRead !== 'boolean') {
+    return null
+  }
+
+  const notification: PageNotification = { id, isRead }
+  for (const [key, value] of Object.entries(payload)) {
+    if (key !== 'id' && key !== 'isRead') {
+      notification[key] = value
+    }
+  }
+  return notification
+}
+
+function readNotificationID(payload: unknown): string | null {
+  if (!isRecord(payload) || typeof payload.id !== 'string') {
+    return null
+  }
+  return payload.id
+}
+
 /**
  * 响应 SSE 实时推送，幂等更新本页通知列表。
  *
@@ -26,7 +56,8 @@ export function useNotificationSSESync(
 
     switch (event.type) {
       case 'notification': {
-        const n = event.data as PageNotification
+        const n = readPageNotification(event.data)
+        if (!n) break
         if (activeFilter.value === 'read') break
         const exists = pageNotifications.value.some(item => item.id === n.id)
         if (!exists) {
@@ -36,7 +67,8 @@ export function useNotificationSSESync(
         break
       }
       case 'notification_read': {
-        const { id } = event.data as { id: string }
+        const id = readNotificationID(event.data)
+        if (!id) break
         if (activeFilter.value === 'unread') {
           const found = pageNotifications.value.some(item => item.id === id)
           if (found) {
@@ -62,7 +94,8 @@ export function useNotificationSSESync(
         break
       }
       case 'notification_deleted': {
-        const { id } = event.data as { id: string }
+        const id = readNotificationID(event.data)
+        if (!id) break
         const found = pageNotifications.value.some(item => item.id === id)
         if (found) {
           pageNotifications.value = pageNotifications.value.filter(item => item.id !== id)

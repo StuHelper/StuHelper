@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import type { Notification } from '@stuhelper/shared/notification'
 
 const mockGetNotifications = vi.fn()
 const mockGetUnreadCount = vi.fn()
@@ -20,6 +21,17 @@ vi.mock('@/api', () => ({
 // Import after mocks
 const { useNotificationStore } = await import('@/stores/notification')
 
+function makeNotification(id: string, overrides: Partial<Notification> = {}): Notification {
+  return {
+    id,
+    type: 'reply',
+    title: `notification-${id}`,
+    isRead: false,
+    createdAt: '2026-04-08T00:00:00Z',
+    ...overrides,
+  }
+}
+
 describe('useNotificationStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -34,8 +46,8 @@ describe('useNotificationStore', () => {
   describe('fetchNotifications', () => {
     it('loads first page and replaces notifications', async () => {
       const list = [
-        { id: '1', message: 'test1', isRead: false },
-        { id: '2', message: 'test2', isRead: true },
+        makeNotification('1', { title: 'test1', isRead: false }),
+        makeNotification('2', { title: 'test2', isRead: true }),
       ]
       mockGetNotifications.mockResolvedValue({
         data: { data: { list, total: 2 } },
@@ -54,7 +66,7 @@ describe('useNotificationStore', () => {
       const store = useNotificationStore()
 
       mockGetNotifications.mockResolvedValue({
-        data: { data: { list: [{ id: '1', message: 'a', isRead: false }], total: 3 } },
+        data: { data: { list: [makeNotification('1', { title: 'a' })], total: 3 } },
       })
       await store.fetchPageNotifications(1, 1)
 
@@ -63,8 +75,8 @@ describe('useNotificationStore', () => {
         data: {
           data: {
             list: [
-              { id: '1', message: 'a', isRead: false }, // duplicate
-              { id: '2', message: 'b', isRead: false },
+              makeNotification('1', { title: 'a' }), // duplicate
+              makeNotification('2', { title: 'b' }),
             ],
             total: 3,
           },
@@ -82,7 +94,7 @@ describe('useNotificationStore', () => {
       mockGetNotifications.mockResolvedValue({
         data: {
           data: {
-            list: [{ id: '1', message: 'a', isRead: false }],
+            list: [makeNotification('1', { title: 'a' })],
             total: 2,
           },
         },
@@ -110,7 +122,7 @@ describe('useNotificationStore', () => {
     })
 
     it('fails closed when page response is missing data', async () => {
-      const list = [{ id: '1', message: 'test', isRead: false }]
+      const list = [makeNotification('1', { title: 'test' })]
       mockGetNotifications
         .mockResolvedValueOnce({
           data: { data: { list, total: 1 } },
@@ -133,6 +145,39 @@ describe('useNotificationStore', () => {
       expect(store.pageLoading).toBe(false)
     })
 
+    it('fails closed when a notification item is malformed', async () => {
+      const list = [makeNotification('1', { title: 'test' })]
+      mockGetNotifications
+        .mockResolvedValueOnce({
+          data: { data: { list, total: 1 } },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            data: {
+              list: [
+                {
+                  id: '2',
+                  type: 'unsupported',
+                  title: 'bad',
+                  isRead: false,
+                  createdAt: '2026-04-08T00:00:00Z',
+                },
+              ],
+              total: 2,
+            },
+          },
+        })
+
+      const store = useNotificationStore()
+      await store.fetchPageNotifications(1, 20)
+
+      await expect(store.fetchPageNotifications(2, 20)).rejects.toThrow(
+        'Invalid notification page response',
+      )
+      expect(store.pageNotifications).toEqual(list)
+      expect(store.pageTotal).toBe(1)
+    })
+
     it('normalizes invalid page params', async () => {
       mockGetNotifications.mockResolvedValue({
         data: { data: { list: [], total: 0 } },
@@ -151,8 +196,8 @@ describe('useNotificationStore', () => {
         data: {
           data: {
             list: [
-              { id: '1', message: 'bell-1', isRead: false },
-              { id: '2', message: 'bell-2', isRead: false },
+              makeNotification('1', { title: 'bell-1' }),
+              makeNotification('2', { title: 'bell-2' }),
             ],
             total: 2,
           },
@@ -226,7 +271,7 @@ describe('useNotificationStore', () => {
       mockGetNotifications.mockResolvedValue({
         data: {
           data: {
-            list: [{ id: '1', message: 'test', isRead: false }],
+            list: [makeNotification('1', { title: 'test' })],
             total: 1,
           },
         },
@@ -247,7 +292,7 @@ describe('useNotificationStore', () => {
       mockGetNotifications.mockResolvedValue({
         data: {
           data: {
-            list: [{ id: '1', message: 'test', isRead: false }],
+            list: [makeNotification('1', { title: 'test' })],
             total: 1,
           },
         },
@@ -270,8 +315,8 @@ describe('useNotificationStore', () => {
         data: {
           data: {
             list: [
-              { id: '1', isRead: false },
-              { id: '2', isRead: false },
+              makeNotification('1'),
+              makeNotification('2'),
             ],
             total: 2,
           },
@@ -294,7 +339,7 @@ describe('useNotificationStore', () => {
       mockGetNotifications.mockResolvedValue({
         data: {
           data: {
-            list: [{ id: '1', isRead: false }],
+            list: [makeNotification('1')],
             total: 1,
           },
         },

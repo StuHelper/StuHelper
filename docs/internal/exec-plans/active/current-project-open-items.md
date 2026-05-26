@@ -512,6 +512,18 @@ courses 内每门课程的 ID、department ID、课程名、学分、评课数�
 （24 项）；并通过 `pnpm --dir clients lint:web`、`pnpm --dir clients test:web`（57 文件、275 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3576 make e2e-web`（228 项）。
 
+本地验证补充（2026-05-27）：继续收紧通知分页与 SSE 实时链路。`notification` store 现在按 OpenAPI
+校验通知分页里的 `Notification` 必需字段、通知类型枚举、已读状态、创建时间、可选 source 字段和非负整数
+`total`；未读数量响应与 `unread_count` SSE payload 要求非负整数 `count`。`notification`、
+`notification_read`、`notification_read_all` 和 `notification_deleted` SSE 事件在写入铃铛 / 页面状态前都会先校验
+payload；通知中心 `useNotificationSSESync` 会忽略畸形内部事件，不再让缺失 `isRead` 或非字符串 `id` 的推送污染
+页面列表和分页总数。通知页 invalid-response E2E 从顶层 `null` 扩展为嵌套通知字段畸形。已通过目标单测
+`pnpm --dir clients --filter @stuhelper/web exec vitest run src/stores/__tests__/notification.test.ts src/composables/__tests__/useNotificationSSESync.test.ts src/modules/user/__tests__/useNotificationsPageController.test.ts src/components/common/__tests__/useNotificationBellController.test.ts`
+（41 项）、`pnpm --dir clients type-check:web`、目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3577 pnpm --dir clients/web exec playwright test tests/e2e/journey-user-center.spec.ts`
+（40 项）；并通过 `pnpm --dir clients lint:web`、`pnpm --dir clients test:web`（57 文件、278 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3578 make e2e-web`（228 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

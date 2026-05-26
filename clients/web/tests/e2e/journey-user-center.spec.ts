@@ -1098,7 +1098,20 @@ test.describe('User Journey: User Center', () => {
         loadCount += 1
         await route.fulfill(
           loadCount === 1
-            ? ok(null)
+            ? ok({
+                list: [
+                  {
+                    id: 'bad-notif-1',
+                    type: 'reply',
+                    title: '畸形通知',
+                    isRead: 'no',
+                    createdAt: '2026-04-05T10:00:00Z',
+                  },
+                ],
+                total: 1,
+                page: 1,
+                pageSize: 20,
+              })
             : ok({
                 list: [
                   {
