@@ -229,6 +229,70 @@ async function mockUserApi(page: Page, state: UserApiState) {
 }
 
 test.describe("User verification flows", () => {
+    test("verified and bound account detail pages render persisted status", async ({
+        page,
+    }) => {
+        const state: UserApiState = {
+            identity: { ...verifiedIdentity },
+            profile: {
+                ...verifiedProfile,
+                phone: "138****5678",
+                phoneVerified: true,
+            },
+            qqBinding: {
+                qqID: "123456",
+                qqNickname: "航小伴",
+                boundAt: now,
+            },
+        };
+
+        await mockUserApi(page, state);
+
+        await gotoAuthenticatedPage(page, "/user/identity-verification");
+        await expect(
+            page.getByRole("heading", { name: "实名认证" }),
+        ).toBeVisible();
+        await expect(
+            page.getByRole("heading", { name: "已认证" }),
+        ).toBeVisible();
+        await expect(page.getByText("大陆居民身份证")).toBeVisible();
+        await expect(page.getByText("张三")).toBeVisible();
+
+        await gotoAuthenticatedPage(page, "/user/student-verification");
+        await expect(
+            page.getByRole("heading", { name: "学生认证" }),
+        ).toBeVisible();
+        await expect(
+            page.getByRole("heading", { name: "已认证" }),
+        ).toBeVisible();
+        await expect(page.getByText("测试大学")).toBeVisible();
+
+        await gotoAuthenticatedPage(page, "/user/phone-binding");
+        await expect(
+            page.getByRole("heading", { name: "绑定手机" }),
+        ).toBeVisible();
+        await expect(
+            page.getByRole("heading", { name: "已绑定" }),
+        ).toBeVisible();
+        await expect(page.getByText("138****5678")).toBeVisible();
+
+        await gotoAuthenticatedPage(page, "/user/qq-binding");
+        await expect(
+            page.getByRole("heading", { name: "绑定 QQ" }),
+        ).toBeVisible();
+        await expect(
+            page.getByRole("heading", { name: "已绑定" }),
+        ).toBeVisible();
+        await expect(page.getByText("123456")).toBeVisible();
+        await expect(page.getByText("航小伴")).toBeVisible();
+
+        await gotoAuthenticatedPage(page, "/user/academic-info");
+        await expect(page.getByText("20260001")).toBeVisible();
+        await expect(page.getByText("张三")).toBeVisible();
+        await expect(page.getByText("计算机学院")).toBeVisible();
+        await expect(page.getByText("软件工程")).toBeVisible();
+    });
+
     test("user submits identity verification and completes LDAP student verification", async ({
         page,
     }) => {
