@@ -741,6 +741,14 @@ WebSocket API 装配路径继续存在于源码中；运行时契约新增断言
 已通过 `corepack yarn --cwd bots/koishi test:unit`（266 项）、`corepack yarn --cwd bots/koishi build`、
 `make e2e-koishi`（29 项，覆盖 ChatDock、配置治理和全局设置真实 Console actions）和 `git diff --check`。
 
+本地 Koishi Console SettingsView 状态类型清理（2026-05-27）：`SettingsView` 的全局设置状态不再使用
+`ref<any>`，而是用页面实际绑定字段定义 `SettingsModel`；默认设置通过 `cloneDefaultSettings()` 克隆，
+服务端返回和本地快照都先经过 `unknown` 边界，再由 `deepMerge<T extends PlainRecord>()` 合并到默认结构。
+禁言关键词和好友关键词编辑也改为基于已知设置模型读写，不再在 setter 里动态造空对象兜底。源码合同已锁定
+`SettingsModel`、typed `deepMerge` 和 `parseSettingsSnapshot()`，防止全局设置状态退回裸 `any` 或
+JSON 默认值深拷贝。已通过 `corepack yarn --cwd bots/koishi test:unit`（267 项）、
+`corepack yarn --cwd bots/koishi build` 和 `make e2e-koishi`（29 项，覆盖全局设置放弃更改、保存和恢复默认）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

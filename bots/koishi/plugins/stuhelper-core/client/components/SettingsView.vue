@@ -644,8 +644,92 @@ import { ref, onMounted, computed } from 'vue'
 import { message } from '@koishijs/client'
 import { settingsApi } from '../api'
 
+type PlainRecord = Record<string, unknown>
+
+interface SettingsModel extends PlainRecord {
+  keywords: string[]
+  warnLimit: number
+  banTimes: {
+    expression: string
+  }
+  forbidden: {
+    autoDelete: boolean
+    autoBan: boolean
+    autoKick: boolean
+    muteDuration: number
+    keywords: string[]
+  }
+  dice: {
+    enabled: boolean
+    lengthLimit: number
+  }
+  banme: {
+    enabled: boolean
+    baseMin: number
+    baseMax: number
+    growthRate: number
+    autoBan: boolean
+    jackpot: {
+      enabled: boolean
+      baseProb: number
+      softPity: number
+      hardPity: number
+      upDuration: string
+      loseDuration: string
+    }
+  }
+  friendRequest: {
+    enabled: boolean
+    keywords: string[]
+    rejectMessage: string
+  }
+  guildRequest: {
+    enabled: boolean
+    rejectMessage: string
+  }
+  setTitle: {
+    enabled: boolean
+    authority: number
+    maxLength: number
+  }
+  antiRepeat: {
+    enabled: boolean
+    threshold: number
+  }
+  openai: {
+    enabled: boolean
+    chatEnabled: boolean
+    translateEnabled: boolean
+    apiKey: string
+    apiUrl: string
+    model: string
+    systemPrompt: string
+    translatePrompt: string
+    maxTokens: number
+    temperature: number
+    contextLimit: number
+  }
+  report: {
+    enabled: boolean
+    authority: number
+    autoProcess: boolean
+    defaultPrompt: string
+    contextPrompt: string
+    maxReportTime: number
+    maxReportCooldown: number
+    minAuthorityNoLimit: number
+    guildConfigs: PlainRecord
+  }
+  antiRecall: {
+    enabled: boolean
+    retentionDays: number
+    maxRecordsPerUser: number
+    showOriginalTime: boolean
+  }
+}
+
 // 默认配置结构
-const defaultSettings = {
+const defaultSettings: SettingsModel = {
   keywords: [],
   warnLimit: 3,
   banTimes: { expression: '{t}^2h' },
@@ -717,7 +801,7 @@ const defaultSettings = {
 
 const loading = ref(true)
 const saving = ref(false)
-const settings = ref<any>({ ...defaultSettings })
+const settings = ref<SettingsModel>(cloneDefaultSettings())
 const originalSettings = ref<string>('') // 原始设置的 JSON 字符串用于比较
 const activeSection = ref('warn')
 const sectionDropdownOpen = ref(false)
@@ -785,18 +869,16 @@ const keywordsText = computed({
 })
 
 const forbiddenKeywordsText = computed({
-  get: () => (settings.value.forbidden?.keywords || []).join('\n'),
-  set: (val) => { 
-    if (!settings.value.forbidden) settings.value.forbidden = {}
-    settings.value.forbidden.keywords = val.split('\n').map((s: string) => s.trim()).filter((s: string) => s) 
+  get: () => settings.value.forbidden.keywords.join('\n'),
+  set: (val: string) => {
+    settings.value.forbidden.keywords = splitLines(val)
   }
 })
 
 const friendKeywordsText = computed({
-  get: () => (settings.value.friendRequest?.keywords || []).join('\n'),
-  set: (val) => { 
-    if (!settings.value.friendRequest) settings.value.friendRequest = {}
-    settings.value.friendRequest.keywords = val.split('\n').map((s: string) => s.trim()).filter((s: string) => s) 
+  get: () => settings.value.friendRequest.keywords.join('\n'),
+  set: (val: string) => {
+    settings.value.friendRequest.keywords = splitLines(val)
   }
 })
 
@@ -815,17 +897,39 @@ const sections = [
   { id: 'report', label: '举报功能', icon: 'stuhelperGroupCenter:octicons.warning' },
 ]
 
-// 深度合并对象
-const deepMerge = (target: any, source: any) => {
-  for (const key of Object.keys(source)) {
-    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
-      if (!target[key]) target[key] = {}
-      deepMerge(target[key], source[key])
+function splitLines(value: string): string[] {
+  return value.split('\n').map((line) => line.trim()).filter((line) => line)
+}
+
+function cloneDefaultSettings(): SettingsModel {
+  return structuredClone(defaultSettings)
+}
+
+function deepMerge<T extends PlainRecord>(target: T, source: unknown): T {
+  if (!isPlainRecord(source)) {
+    return target
+  }
+
+  const targetRecord = target as PlainRecord
+  for (const [key, value] of Object.entries(source)) {
+    const current = targetRecord[key]
+    if (isPlainRecord(current) && isPlainRecord(value)) {
+      deepMerge(current, value)
     } else {
-      target[key] = source[key]
+      targetRecord[key] = value
     }
   }
+
   return target
+}
+
+function isPlainRecord(value: unknown): value is PlainRecord {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function parseSettingsSnapshot(value: string): SettingsModel {
+  const parsed: unknown = JSON.parse(value)
+  return deepMerge(cloneDefaultSettings(), parsed)
 }
 
 const loadSettings = async () => {
@@ -833,7 +937,7 @@ const loadSettings = async () => {
   try {
     const data = await settingsApi.get()
     // 深度合并默认值和返回数据
-    settings.value = deepMerge({ ...defaultSettings }, data || {})
+    settings.value = deepMerge(cloneDefaultSettings(), data)
     // 保存原始设置用于比较
     originalSettings.value = JSON.stringify(settings.value)
   } catch (cause) {
@@ -870,7 +974,7 @@ const resetChanges = async () => {
   
   if (confirmed) {
     // 从原始设置恢复
-    settings.value = JSON.parse(originalSettings.value)
+    settings.value = parseSettingsSnapshot(originalSettings.value)
     message.success('已放弃更改')
   }
 }
@@ -884,7 +988,7 @@ const resetToDefault = async () => {
   
   if (confirmed) {
     // 恢复为默认设置
-    settings.value = JSON.parse(JSON.stringify(defaultSettings))
+    settings.value = cloneDefaultSettings()
     message.success('已恢复默认设置，请保存以应用更改')
   }
 }

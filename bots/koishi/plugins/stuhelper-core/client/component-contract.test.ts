@@ -95,6 +95,18 @@ test('console views treat caught errors as unknown before showing messages', () 
   }
 })
 
+test('SettingsView keeps global settings state and merge helpers typed', () => {
+  const source = readClientFile('./components/SettingsView.vue')
+
+  assert.doesNotMatch(source, /ref<any>/)
+  assert.doesNotMatch(source, /deepMerge = \(target: any, source: any\)/)
+  assert.doesNotMatch(source, /JSON\.parse\(JSON\.stringify\(defaultSettings\)\)/)
+  assert.match(source, /interface SettingsModel extends PlainRecord \{/)
+  assert.match(source, /const settings = ref<SettingsModel>\(cloneDefaultSettings\(\)\)/)
+  assert.match(source, /function deepMerge<T extends PlainRecord>\(target: T, source: unknown\): T/)
+  assert.match(source, /function parseSettingsSnapshot\(value: string\): SettingsModel/)
+})
+
 test('ChatView delegates message rendering to a safe component instead of v-html', () => {
   const source = readClientFile('./components/ChatView.vue')
 
