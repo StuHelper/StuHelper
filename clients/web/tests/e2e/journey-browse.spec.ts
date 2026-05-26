@@ -387,7 +387,28 @@ test.describe('User Journey: Browse Platform', () => {
     await page.route('**/api/v1/course/review/teachers/10/stats*', (route) =>
       route.fulfill({
         contentType: 'application/json',
-        body: JSON.stringify({ success: true, data: null }),
+        body: JSON.stringify({
+          success: true,
+          data: {
+            teacherID: 10,
+            teacherName: '张教授',
+            departmentName: '计算机科学与技术学院',
+            avgRating: 4.5,
+            courseCount: 3,
+            reviewCount: 28,
+            courses: [
+              {
+                id: 101,
+                name: '数据结构与算法',
+                avgRating: '4.4',
+                reviewCount: 23,
+              },
+            ],
+            ratingTrend: [
+              { termID: '2025-fall', termName: '2025 秋', avgRating: 4.5 },
+            ],
+          },
+        }),
       }),
     )
 

@@ -202,101 +202,102 @@ function isNonNegativeNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
 }
 
-function readTeacherCourse(payload: unknown): TeacherCourse {
-  if (!payload || typeof payload !== 'object') {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function readPositiveInteger(
+  record: Record<string, unknown>,
+  key: string,
+): number {
+  const value = record[key]
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
     throw new Error('Invalid teacher stats response')
   }
+  return value
+}
 
-  const { id, name, avgRating, reviewCount } = payload as {
-    id?: unknown
-    name?: unknown
-    avgRating?: unknown
-    reviewCount?: unknown
+function readNonNegativeInteger(
+  record: Record<string, unknown>,
+  key: string,
+): number {
+  const value = record[key]
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+    throw new Error('Invalid teacher stats response')
   }
-  if (
-    !isNonNegativeNumber(id) ||
-    typeof name !== 'string' ||
-    (avgRating !== undefined && avgRating !== null && !isNonNegativeNumber(avgRating)) ||
-    !isNonNegativeNumber(reviewCount)
-  ) {
+  return value
+}
+
+function readString(record: Record<string, unknown>, key: string): string {
+  const value = record[key]
+  if (typeof value !== 'string') {
+    throw new Error('Invalid teacher stats response')
+  }
+  return value
+}
+
+function readRating(record: Record<string, unknown>, key: string): number {
+  const value = record[key]
+  if (!isNonNegativeNumber(value) || value > 5) {
+    throw new Error('Invalid teacher stats response')
+  }
+  return value
+}
+
+function readOptionalRating(record: Record<string, unknown>, key: string): number | null {
+  const value = record[key]
+  if (value === undefined || value === null) {
+    return null
+  }
+  if (!isNonNegativeNumber(value) || value > 5) {
+    throw new Error('Invalid teacher stats response')
+  }
+  return value
+}
+
+function readTeacherCourse(payload: unknown): TeacherCourse {
+  if (!isRecord(payload)) {
     throw new Error('Invalid teacher stats response')
   }
 
   return {
-    id,
-    name,
-    avgRating: typeof avgRating === 'number' ? avgRating : null,
-    reviewCount,
+    id: readPositiveInteger(payload, 'id'),
+    name: readString(payload, 'name'),
+    avgRating: readOptionalRating(payload, 'avgRating'),
+    reviewCount: readNonNegativeInteger(payload, 'reviewCount'),
   }
 }
 
 function readRatingTrendItem(payload: unknown): RatingTrendItem {
-  if (!payload || typeof payload !== 'object') {
-    throw new Error('Invalid teacher stats response')
-  }
-
-  const { termID, termName, avgRating } = payload as {
-    termID?: unknown
-    termName?: unknown
-    avgRating?: unknown
-  }
-  if (
-    typeof termID !== 'string' ||
-    typeof termName !== 'string' ||
-    !isNonNegativeNumber(avgRating)
-  ) {
-    throw new Error('Invalid teacher stats response')
-  }
-
-  return { termID, termName, avgRating }
-}
-
-function readTeacherPayload(payload: unknown): TeacherDetail {
-  if (!payload || typeof payload !== 'object') {
-    throw new Error('Invalid teacher stats response')
-  }
-
-  const {
-    teacherID,
-    teacherName,
-    departmentName,
-    avgRating,
-    courseCount,
-    reviewCount,
-    courses,
-    ratingTrend,
-  } = payload as {
-    teacherID?: unknown
-    teacherName?: unknown
-    departmentName?: unknown
-    avgRating?: unknown
-    courseCount?: unknown
-    reviewCount?: unknown
-    courses?: unknown
-    ratingTrend?: unknown
-  }
-  if (
-    !isNonNegativeNumber(teacherID) ||
-    typeof teacherName !== 'string' ||
-    typeof departmentName !== 'string' ||
-    (avgRating !== undefined && avgRating !== null && !isNonNegativeNumber(avgRating)) ||
-    !isNonNegativeNumber(courseCount) ||
-    !isNonNegativeNumber(reviewCount) ||
-    !Array.isArray(courses) ||
-    !Array.isArray(ratingTrend)
-  ) {
+  if (!isRecord(payload)) {
     throw new Error('Invalid teacher stats response')
   }
 
   return {
-    teacherID,
-    teacherName,
-    departmentName,
-    avgRating: typeof avgRating === 'number' ? avgRating : null,
-    courseCount,
-    reviewCount,
-    courses: courses.map(readTeacherCourse),
-    ratingTrend: ratingTrend.map(readRatingTrendItem),
+    termID: readString(payload, 'termID'),
+    termName: readString(payload, 'termName'),
+    avgRating: readRating(payload, 'avgRating'),
+  }
+}
+
+function readTeacherPayload(payload: unknown): TeacherDetail {
+  if (!isRecord(payload)) {
+    throw new Error('Invalid teacher stats response')
+  }
+
+  if (!Array.isArray(payload.courses) || !Array.isArray(payload.ratingTrend)) {
+    throw new Error('Invalid teacher stats response')
+  }
+
+  return {
+    teacherID: readPositiveInteger(payload, 'teacherID'),
+    teacherName: readString(payload, 'teacherName'),
+    departmentName: readString(payload, 'departmentName'),
+    avgRating: readOptionalRating(payload, 'avgRating'),
+    courseCount: readNonNegativeInteger(payload, 'courseCount'),
+    reviewCount: readNonNegativeInteger(payload, 'reviewCount'),
+    courses: payload.courses.map(readTeacherCourse),
+    ratingTrend: payload.ratingTrend.map(readRatingTrendItem),
   }
 }
 

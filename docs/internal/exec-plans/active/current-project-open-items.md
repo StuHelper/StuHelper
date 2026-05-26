@@ -607,6 +607,15 @@ invalid-response 从顶层 `null` 扩展为嵌套 `departmentID`、`reviewCount`
 （56 项）；并通过 `pnpm --dir clients test:web`（58 文件、288 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3595 make e2e-web`（230 项）。
 
+本地验证补充（2026-05-27）：继续收紧教师详情页统计 payload。`TeacherProfilePage` 现在要求教师 ID 和课程
+ID 为正整数，课程数 / 评课数为非负整数，教师评分、课程评分和趋势评分在 0-5 区间内；教师课程列表和评分趋势
+任一嵌套字段畸形时进入加载失败，不再把非法 ID、字符串评分或非整数计数渲染为正常教师资料。教师详情
+invalid-response E2E 从顶层 `null` 扩展为嵌套课程 `avgRating` 类型错误。已通过
+`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3596 pnpm --dir clients/web exec playwright test tests/e2e/journey-browse.spec.ts`
+（10 项）；并通过 `pnpm --dir clients test:web`（58 文件、288 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3597 make e2e-web`（230 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等
