@@ -93,14 +93,14 @@
           <template #cell-user="{ row }">
             <EntityChip
               kind="user"
-              :id="(row.cells.user as any).secondary"
-              :name="(row.cells.user as any).text"
+              :id="warnUserCell(row.cells.user).secondary"
+              :name="warnUserCell(row.cells.user).text"
               :guild-id="selectedGuildId ?? undefined"
             />
           </template>
           <template #cell-count="{ row }">
             <el-input-number
-              :model-value="(row.cells.count as any).value"
+              :model-value="warnCountCell(row.cells.count).value"
               :min="0"
               :max="99"
               size="small"
@@ -185,6 +185,8 @@ import EmptyState from './primitives/EmptyState.vue'
 import EntityChip from './primitives/EntityChip.vue'
 import NoticeStack, { type NoticeItem } from './primitives/NoticeStack.vue'
 import QueueTable, {
+  type QueueTableCell,
+  type QueueTableCellObject,
   type QueueTableColumn,
   type QueueTableRow,
 } from './primitives/QueueTable.vue'
@@ -201,6 +203,14 @@ interface ProcessedWarn {
   guildAvatar: string
   count: number
   timestamp: number
+}
+
+interface WarnUserCell extends QueueTableCellObject {
+  secondary: string
+}
+
+interface WarnCountCell extends QueueTableCellObject {
+  value: number
 }
 
 const props = defineProps<{
@@ -246,24 +256,26 @@ const totalRecords = computed(() =>
 
 const rows = computed<QueueTableRow[]>(() => {
   const list = selectedGroup.value ?? []
-  return list.map((item) => ({
-    id: item.key,
-    cells: {
-      user: {
-        text: item.userName && item.userName !== 'Unknown' ? item.userName : '未知用户',
-        secondary: item.userId,
+  return list.map((item) => {
+    const userCell: WarnUserCell = {
+      text: item.userName && item.userName !== 'Unknown' ? item.userName : '未知用户',
+      secondary: item.userId,
+    }
+    const countCell: WarnCountCell = { text: String(item.count), value: item.count }
+
+    return {
+      id: item.key,
+      cells: {
+        user: userCell,
+        time: {
+          text: item.timestamp ? formatTimestamp(item.timestamp) : '未知',
+          mono: true,
+        },
+        count: countCell,
       },
-      time: {
-        text: item.timestamp ? formatTimestamp(item.timestamp) : '未知',
-        mono: true,
-      },
-      count: { text: String(item.count), value: item.count } as unknown as {
-        text: string
-        value: number
-      },
-    },
-    actions: [{ key: 'clear', label: '清除', tone: 'danger' }],
-  }))
+      actions: [{ key: 'clear', label: '清除', tone: 'danger' }],
+    }
+  })
 })
 
 const headerChips = computed<WorkspaceHeadChip[]>(() => {
@@ -275,6 +287,34 @@ const headerChips = computed<WorkspaceHeadChip[]>(() => {
   }
   return chips
 })
+
+function warnUserCell(cell: QueueTableCell | undefined): WarnUserCell {
+  if (!isCellObject(cell) || typeof cell.secondary !== 'string') {
+    throw new Error('Invalid warn user cell')
+  }
+  return {
+    text: cell.text,
+    secondary: cell.secondary,
+    mono: cell.mono,
+    tone: cell.tone,
+  }
+}
+
+function warnCountCell(cell: QueueTableCell | undefined): WarnCountCell {
+  if (!isCellObject(cell) || !('value' in cell) || typeof cell.value !== 'number') {
+    throw new Error('Invalid warn count cell')
+  }
+  return {
+    text: cell.text,
+    value: cell.value,
+    mono: cell.mono,
+    tone: cell.tone,
+  }
+}
+
+function isCellObject(cell: QueueTableCell | undefined): cell is QueueTableCellObject {
+  return typeof cell === 'object' && cell !== null && typeof cell.text === 'string'
+}
 
 const canSubmitAdd = computed(() => Boolean(draft.guildId.trim() && draft.userId.trim()))
 

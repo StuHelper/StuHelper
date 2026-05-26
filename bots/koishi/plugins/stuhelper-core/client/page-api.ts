@@ -1,37 +1,25 @@
 import { send } from '@koishijs/client'
 
-import type {
-  ConfigGovernancePageData,
-  DashboardPageData,
-  EntityProfile,
-  EntityProfileQuery,
-  IdentityPageData,
-  ReviewPageData,
-  ReviewWorkItem,
-} from './page-types'
-
-async function callPage<T>(event: string, params?: Record<string, unknown>) {
-  return (send as unknown as (name: string, payload?: Record<string, unknown>) => Promise<T>)(event, params)
-}
+import type { EntityProfileQuery, ReviewWorkItem } from './page-types'
 
 export const consolePageApi = {
   dashboard() {
-    return callPage<DashboardPageData>('stuhelperGroupCenter/page/dashboard')
+    return send('stuhelperGroupCenter/page/dashboard')
   },
   identity() {
-    return callPage<IdentityPageData>('stuhelperGroupCenter/page/identity')
+    return send('stuhelperGroupCenter/page/identity')
   },
   review() {
-    return callPage<ReviewPageData>('stuhelperGroupCenter/page/review')
+    return send('stuhelperGroupCenter/page/review')
   },
   configGovernance() {
-    return callPage<ConfigGovernancePageData>('stuhelperGroupCenter/page/config-governance')
+    return send('stuhelperGroupCenter/page/config-governance')
   },
   entityProfile(query: EntityProfileQuery) {
-    return callPage<EntityProfile>('stuhelperGroupCenter/page/entity-profile', query as unknown as Record<string, unknown>)
+    return send('stuhelperGroupCenter/page/entity-profile', query)
   },
   reviewAction(input: { reviewId: string; action: 'execute' | 'reject'; note?: string }) {
-    return callPage<string>('stuhelperGroupCenter/action/review', input)
+    return send('stuhelperGroupCenter/action/review', input)
   },
   workItemAction(input: {
     kind: ReviewWorkItem['kind']
@@ -47,10 +35,10 @@ export const consolePageApi = {
       | 'create-review'
     note?: string
   }) {
-    return callPage<string>('stuhelperGroupCenter/action/work-item', input)
+    return send('stuhelperGroupCenter/action/work-item', input)
   },
   saveCommandPolicy(input: { commandId: string; roles: string[]; minAuthority: number }) {
-    return callPage<string>('stuhelperGroupCenter/action/save-command-policy', input)
+    return send('stuhelperGroupCenter/action/save-command-policy', input)
   },
   saveGuardTemplate(input: {
     id: string
@@ -61,7 +49,7 @@ export const consolePageApi = {
     exemptUsers: string[]
     enabled: boolean
   }) {
-    return callPage<string>('stuhelperGroupCenter/action/save-guard-template', input)
+    return send('stuhelperGroupCenter/action/save-guard-template', input)
   },
   saveGuardBinding(input: {
     platform: string
@@ -70,6 +58,6 @@ export const consolePageApi = {
     enabled: boolean
     note?: string | null
   }) {
-    return callPage<string>('stuhelperGroupCenter/action/save-guard-binding', input)
+    return send('stuhelperGroupCenter/action/save-guard-binding', input)
   },
 }

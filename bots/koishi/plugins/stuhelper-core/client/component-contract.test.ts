@@ -33,6 +33,27 @@ test('WarnsView refreshes server state after successful count updates', () => {
   assert.match(source, /await refresh\(\)/)
 })
 
+test('WarnsView reads table cells through typed helpers instead of template any casts', () => {
+  const source = readClientFile('./components/WarnsView.vue')
+
+  assert.doesNotMatch(source, /row\.cells\.\w+ as any/)
+  assert.match(source, /interface WarnUserCell extends QueueTableCellObject/)
+  assert.match(source, /interface WarnCountCell extends QueueTableCellObject/)
+  assert.match(source, /function warnUserCell\(cell: QueueTableCell \| undefined\): WarnUserCell/)
+  assert.match(source, /function warnCountCell\(cell: QueueTableCell \| undefined\): WarnCountCell/)
+})
+
+test('page API client uses typed Koishi send events without double casts', () => {
+  const source = readClientFile('./page-api.ts')
+  const typesSource = readClientFile('./types.ts')
+
+  assert.doesNotMatch(source, /as unknown as/)
+  assert.doesNotMatch(source, /query as unknown as/)
+  assert.match(source, /return send\('stuhelperGroupCenter\/page\/entity-profile', query\)/)
+  assert.match(typesSource, /'stuhelperGroupCenter\/page\/dashboard'\(\): Promise<DashboardPageData>/)
+  assert.match(typesSource, /'stuhelperGroupCenter\/action\/save-guard-binding'\(input: \{/)
+})
+
 test('ChatView delegates message rendering to a safe component instead of v-html', () => {
   const source = readClientFile('./components/ChatView.vue')
 

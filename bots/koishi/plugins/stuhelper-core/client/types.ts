@@ -3,6 +3,16 @@
  * 注意：这里直接定义类型，不从 src 导入（client 和 src 有独立的 tsconfig）
  */
 
+import type {
+  ConfigGovernancePageData,
+  DashboardPageData,
+  EntityProfile,
+  EntityProfileQuery,
+  IdentityPageData,
+  ReviewPageData,
+  ReviewWorkItem,
+} from './page-types'
+
 export interface RoleMember {
  id: string
  name: string
@@ -282,5 +292,52 @@ declare module '@koishijs/client' {
 
     // 聊天 API
     'stuhelperGroupCenter/chat/send'(params: { channelId: string, content: string, platform?: string, guildId?: string }): Promise<{ success: boolean }>
+
+    // 页面域 API
+    'stuhelperGroupCenter/page/dashboard'(): Promise<DashboardPageData>
+    'stuhelperGroupCenter/page/identity'(): Promise<IdentityPageData>
+    'stuhelperGroupCenter/page/review'(): Promise<ReviewPageData>
+    'stuhelperGroupCenter/page/config-governance'(): Promise<ConfigGovernancePageData>
+    'stuhelperGroupCenter/page/entity-profile'(query: EntityProfileQuery): Promise<EntityProfile>
+    'stuhelperGroupCenter/action/review'(input: {
+      reviewId: string
+      action: 'execute' | 'reject'
+      note?: string
+    }): Promise<string>
+    'stuhelperGroupCenter/action/work-item'(input: {
+      kind: ReviewWorkItem['kind']
+      itemId: string
+      action:
+        | 'execute'
+        | 'reject'
+        | 'approve'
+        | 'deny'
+        | 'defer'
+        | 'dismiss'
+        | 'escalate'
+        | 'create-review'
+      note?: string
+    }): Promise<string>
+    'stuhelperGroupCenter/action/save-command-policy'(input: {
+      commandId: string
+      roles: string[]
+      minAuthority: number
+    }): Promise<string>
+    'stuhelperGroupCenter/action/save-guard-template'(input: {
+      id: string
+      name: string
+      muteDurationSeconds: number
+      kickAfterMinutes: number
+      reminderTemplate: string
+      exemptUsers: string[]
+      enabled: boolean
+    }): Promise<string>
+    'stuhelperGroupCenter/action/save-guard-binding'(input: {
+      platform: string
+      guildId: string
+      templateId: string
+      enabled: boolean
+      note?: string | null
+    }): Promise<string>
   }
 }

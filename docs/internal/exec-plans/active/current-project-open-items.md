@@ -703,6 +703,13 @@ API 失败、`pageerror` 和非预期 `console.error` 仍按失败处理。已�
 `node --check infra/ops/dev-browser-smoke.mjs`、`bash infra/ops/tests/dev-smoke-contract.sh`、
 `make dev-smoke`（HTTP/API 18 项、浏览器 3 项）和 Playwright MCP 抽检 Web 首页 / Admin 到 Casdoor 登录页。
 
+本地 Koishi Console 类型边界清理（2026-05-27）：`page-api.ts` 不再把 Koishi `send` 双重断言成
+任意 page caller；客户端 `Events` 现显式声明群管中心 page/action 事件，页面 API 直接用 typed `send`
+调用。`WarnsView` 的 QueueTable 用户 / 警告次数单元格也改为显式 `WarnUserCell` / `WarnCountCell`
+和 fail-fast 读取 helper，不再在模板里通过 `row.cells.* as any` 访问。新增源码合同锁定这两类弱类型路径
+不会回归。已通过 `corepack yarn --cwd bots/koishi test:unit`（262 项）、`corepack yarn --cwd bots/koishi build`
+和 `make e2e-koishi`（29 项，覆盖警告记录真实添加 / 重载 / 清除动作）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等
