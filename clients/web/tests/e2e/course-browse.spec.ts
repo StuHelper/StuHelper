@@ -346,6 +346,133 @@ test.describe('Course Browse Flow', () => {
     expect(favoriteStatusRequests).toBe(0)
   })
 
+  test('malformed course detail response shows full load failure', async ({
+    page,
+  }) => {
+    await page.route('**/api/v1/course/courses/5', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: null }),
+      }),
+    )
+
+    await page.route('**/api/v1/course/review/courses/5/reviews*', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: { list: [], total: 0 } }),
+      }),
+    )
+
+    await page.route(
+      '**/api/v1/course/review/courses/5/rating-stats*',
+      (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: null }),
+        }),
+    )
+
+    await page.route(
+      '**/api/v1/course/review/courses/5/teachers*',
+      (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: [] }),
+        }),
+    )
+
+    await page.route(
+      '**/api/v1/course/review/courses/5/rating-trend*',
+      (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: { trend: [] } }),
+        }),
+    )
+
+    await page.goto('/courses/5')
+    await page.waitForLoadState('networkidle')
+
+    await expect(page.getByText(/Load failed|加载失败/i).first()).toBeVisible({
+      timeout: 10_000,
+    })
+    await expect(
+      page.getByRole('button', { name: /Retry|重试/i }),
+    ).toBeVisible()
+  })
+
+  test('malformed course detail auxiliary responses show partial load failure', async ({
+    page,
+  }) => {
+    await page.route('**/api/v1/course/courses/6', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            id: 6,
+            name: '局部失败课程',
+            code: 'PARTIAL101',
+            departmentName: '测试学院',
+            credits: 2,
+          },
+        }),
+      }),
+    )
+
+    await page.route('**/api/v1/course/review/courses/6/reviews*', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: { list: [], total: 0 } }),
+      }),
+    )
+
+    await page.route(
+      '**/api/v1/course/review/courses/6/rating-stats*',
+      (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: {
+              courseID: 6,
+              overall: { termName: '总体', dimensions: [] },
+              byTerm: [],
+              allDimensionKeys: [],
+            },
+          }),
+        }),
+    )
+
+    await page.route(
+      '**/api/v1/course/review/courses/6/teachers*',
+      (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: null }),
+        }),
+    )
+
+    await page.route(
+      '**/api/v1/course/review/courses/6/rating-trend*',
+      (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: null }),
+        }),
+    )
+
+    await page.goto('/courses/6/reviews')
+    await page.waitForLoadState('networkidle')
+
+    await expect(page.getByText('局部失败课程')).toBeVisible({
+      timeout: 10_000,
+    })
+    await expect(
+      page.getByRole('alert').filter({ hasText: /Load failed|加载失败/i }).first(),
+    ).toBeVisible()
+  })
+
   test('guest course detail protected actions redirect to login without mutations', async ({
     page,
   }) => {

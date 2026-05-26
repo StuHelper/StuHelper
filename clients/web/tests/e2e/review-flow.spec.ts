@@ -427,7 +427,7 @@ test("authenticated user can publish a review and vote on a course review", asyn
     await page.route("**/api/v1/course/review/courses/1/rating-trend*", async (route) => {
         await route.fulfill({
             contentType: "application/json",
-            body: JSON.stringify({ success: true, data: [] }),
+            body: JSON.stringify({ success: true, data: { trend: [] } }),
         });
     });
 

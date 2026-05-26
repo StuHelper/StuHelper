@@ -306,7 +306,7 @@ test.describe('User Journey: Browse Platform', () => {
     await page.route('**/api/v1/course/review/courses/101/rating-trend*', (route) =>
       route.fulfill({
         contentType: 'application/json',
-        body: JSON.stringify({ success: true, data: [] }),
+        body: JSON.stringify({ success: true, data: { trend: [] } }),
       }),
     )
 

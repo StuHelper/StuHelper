@@ -298,6 +298,16 @@ composable 都会把 HTTP 200 但缺失 `data.list` / `data.total` 的回复列�
 `pnpm --dir clients test:web`（55 文件、255 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3528 make e2e-web`（208 项）。
 
+本地验证补充（2026-05-26）：继续收紧课程详情页响应。课程详情主响应 `data` 缺失或畸形时不再渲染空白页，
+而是进入整页“加载失败”并保留重试；课程详情的授课教师列表和评分趋势畸形成功响应也不再被静默当作空数组，
+会显示局部“加载失败”提示并触发失败态。同步修正既有 E2E 中不符合 OpenAPI 的 rating-trend mock，使趋势接口
+统一返回 `{ trend: [] }`。新增课程详情 E2E 覆盖主课程响应畸形的整页失败态，以及教师 / 趋势辅助响应畸形的
+局部失败态。已通过目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3529 pnpm --dir clients/web exec playwright test tests/e2e/course-browse.spec.ts`
+（14 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、
+`pnpm --dir clients test:web`（55 文件、255 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3530 make e2e-web`（212 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

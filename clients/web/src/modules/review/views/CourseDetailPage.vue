@@ -26,7 +26,11 @@
       </div>
 
       <template v-else-if="course">
-        <div v-if="partialLoadError" class="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
+        <div
+          v-if="partialLoadError"
+          role="alert"
+          class="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning"
+        >
           {{ t('common.loadFailed') }}
         </div>
         <!-- ========== 1. Course Header ========== -->
@@ -450,6 +454,7 @@ import { useReviewVoting } from '@/modules/review/useReviewVoting'
 
 import { api } from '@/api'
 import { getErrorMessage } from '@/api/errors'
+import { readArrayPayload } from '@/api/responsePayload'
 import { useToast } from '@/composables/useToast'
 import { formatRelativeTime } from '@/utils/date'
 import { useReviewPost } from '@/composables/useReviewPost'
@@ -466,6 +471,11 @@ import {
 
 import type { Course, CourseRatingStatsResponse, TeacherStats } from '@stuhelper/shared/course'
 import type { Review } from '@stuhelper/shared/review'
+
+type RatingTrendPoint = {
+  termName: string
+  avgRating: number
+}
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -489,7 +499,7 @@ const contentReady = ref(false)
 const course = ref<Course | null>(null)
 const ratingStats = ref<CourseRatingStatsResponse | null>(null)
 const courseTeachers = ref<TeacherStats[]>([])
-const ratingTrend = ref<{ termName: string; avgRating: number }[]>([])
+const ratingTrend = ref<RatingTrendPoint[]>([])
 // ── Reviews ──
 const reviews = ref<Review[]>([])
 const reviewsLoading = ref(false)
@@ -569,6 +579,30 @@ const isReviewContentLocked = computed(() =>
 
 function dimensionLabel(key: string, fallback?: string): string {
   return ratingDimensionLabel({ key, fallback, t })
+}
+
+function readCoursePayload(payload: unknown): Course {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid course response')
+  }
+
+  const { id } = payload as { id?: unknown }
+  if (typeof id !== 'number' || !Number.isFinite(id) || id <= 0) {
+    throw new Error('Invalid course response')
+  }
+
+  return payload as Course
+}
+
+function readRatingTrendPayload(payload: unknown): RatingTrendPoint[] {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid rating trend response')
+  }
+
+  return readArrayPayload<RatingTrendPoint>(
+    (payload as { trend?: unknown }).trend,
+    'Invalid rating trend response',
+  )
 }
 
 // ── Navigation ──
@@ -667,7 +701,14 @@ const fetchAll = async () => {
     if (version !== loadVersion) return
 
     if (courseRes.status === 'fulfilled') {
-      course.value = courseRes.value.data?.data ?? null
+      try {
+        course.value = readCoursePayload(courseRes.value.data?.data)
+      } catch (err) {
+        course.value = null
+        error.value = true
+        toast.error(getErrorMessage(err, t('common.loadFailed')))
+        return
+      }
     } else {
       course.value = null
       error.value = true
@@ -675,6 +716,7 @@ const fetchAll = async () => {
       return
     }
 
+    let hasPartialError = [statsRes, reviewsRes].some(item => item.status === 'rejected')
 
     if (statsRes.status === 'fulfilled') {
       ratingStats.value = statsRes.value.data?.data ?? null
@@ -691,18 +733,33 @@ const fetchAll = async () => {
     }
 
     if (teachersRes.status === 'fulfilled') {
-      courseTeachers.value = teachersRes.value.data?.data || []
+      try {
+        courseTeachers.value = readArrayPayload<TeacherStats>(
+          teachersRes.value.data?.data,
+          'Invalid course teachers response',
+        )
+      } catch (_error) { void _error;
+        courseTeachers.value = []
+        hasPartialError = true
+      }
     } else {
       courseTeachers.value = []
+      hasPartialError = true
     }
 
     if (trendRes.status === 'fulfilled') {
-      ratingTrend.value = trendRes.value.data?.data?.trend || []
+      try {
+        ratingTrend.value = readRatingTrendPayload(trendRes.value.data?.data)
+      } catch (_error) { void _error;
+        ratingTrend.value = []
+        hasPartialError = true
+      }
     } else {
       ratingTrend.value = []
+      hasPartialError = true
     }
 
-    partialLoadError.value = [statsRes, reviewsRes, teachersRes, trendRes].some(item => item.status === 'rejected')
+    partialLoadError.value = hasPartialError
     if (partialLoadError.value) {
       toast.error(t('common.loadFailed'))
     }

@@ -184,7 +184,7 @@ test.describe('User Journey: Review Lifecycle', () => {
       (route) =>
         route.fulfill({
           contentType: 'application/json',
-          body: JSON.stringify({ success: true, data: [] }),
+          body: JSON.stringify({ success: true, data: { trend: [] } }),
         }),
     )
 
@@ -294,7 +294,7 @@ test.describe('User Journey: Review Lifecycle', () => {
       (route) =>
         route.fulfill({
           contentType: 'application/json',
-          body: JSON.stringify({ success: true, data: [] }),
+          body: JSON.stringify({ success: true, data: { trend: [] } }),
         }),
     )
     await page.route('**/api/v1/course/terms*', (route) =>
