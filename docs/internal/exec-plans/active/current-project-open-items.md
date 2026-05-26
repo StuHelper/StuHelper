@@ -1798,6 +1798,9 @@ Vite CJS Node API deprecated warning。由于当前 `@koishijs/client` 和 `kois
 `NO_COLOR`，避免 Playwright worker 的 `FORCE_COLOR` 与 Node 22 颜色环境变量 warning 冲突。复验
 `corepack yarn install --immutable`、`corepack yarn build`、`corepack yarn test:unit`（282 项）和
 `make e2e-koishi`（29 项）均通过，Koishi 构建与 UI smoke 输出不再出现上述 warning。
+同轮补齐 Koishi 根工作区对 `@koishijs/loader` 与 `@koishijs/core` 的直接依赖声明，使
+`plugin-config` / `plugin-hmr` / `loader` 的 root peer requirement 明确闭合；剩余 Yarn peer
+说明来自上游依赖内部可选 peer，不影响当前构建和 UI smoke。
 
 ## 近期已完成
 

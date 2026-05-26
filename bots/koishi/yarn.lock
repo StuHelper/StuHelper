@@ -1174,7 +1174,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@koishijs/loader@npm:4.6.11":
+"@koishijs/loader@npm:4.6.11, @koishijs/loader@npm:^4.6.11":
   version: 4.6.11
   resolution: "@koishijs/loader@npm:4.6.11"
   dependencies:
@@ -5372,6 +5372,8 @@ __metadata:
   resolution: "koishi@workspace:."
   dependencies:
     "@koishijs/client": "npm:^5.30.4"
+    "@koishijs/core": "npm:4.18.11"
+    "@koishijs/loader": "npm:^4.6.11"
     "@koishijs/plugin-actions": "npm:^0.0.2"
     "@koishijs/plugin-adapter-discord": "npm:^4.5.10"
     "@koishijs/plugin-adapter-kook": "npm:^4.6.5"
