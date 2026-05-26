@@ -95,7 +95,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Search } from 'lucide-vue-next'
 import { api } from '@/api'
-import { readListPayload } from '@/api/responsePayload'
+import { readCourseListPayload } from '@/modules/course/coursePayload'
 import type { Course } from '@stuhelper/shared/course'
 
 interface RecentItem {
@@ -156,7 +156,7 @@ watch(query, (val) => {
       const res = await api.course.searchCourses(trimmed, 10, { signal: controller.signal })
       // 请求已被取消则忽略结果
       if (controller.signal.aborted) return
-      const list = readListPayload<Course>(
+      const list = readCourseListPayload(
         res.data?.data,
         'Invalid course search response',
       )

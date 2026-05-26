@@ -101,7 +101,7 @@ import { useI18n } from 'vue-i18n'
 import { Search, Clock } from 'lucide-vue-next'
 import { useCommandPalette } from '@/composables/useCommandPalette'
 import { api } from '@/api'
-import { readListPayload } from '@/api/responsePayload'
+import { readCourseListPayload } from '@/modules/course/coursePayload'
 import type { Course } from '@stuhelper/shared/course'
 
 const { t } = useI18n()
@@ -186,7 +186,7 @@ watch(searchQuery, (val) => {
       const res = await api.course.searchCourses(q, 10, { signal: controller.signal })
       if (controller.signal.aborted) return
       // 按 ID 去重，防止后端返回重复课程
-      const list = readListPayload<Course>(
+      const list = readCourseListPayload(
         res.data?.data,
         'Invalid course search response',
       )

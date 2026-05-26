@@ -574,6 +574,16 @@ Course / Department / Term / TeacherStats 字段级 fail-closed。已通过目�
 （24 项）；并通过 `pnpm --dir clients test:web`（58 文件、287 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3589 make e2e-web`（230 项）。
 
+本地验证补充（2026-05-27）：继续收紧 Web 公共课程搜索入口。顶部全局 `CommandPalette` 和课程页头部
+`InlineSearch` 现在复用 `coursePayload.readCourseListPayload`，要求搜索结果里的课程满足 OpenAPI 字段契约；
+后端返回 200 但嵌套课程缺少必需字段或字段类型错误时，会显示“加载失败”而不是把畸形课程写入搜索结果或跳转到详情页。
+首页 E2E 的命令面板 / 内联搜索 invalid-response 场景从顶层 `null` 扩展为嵌套 `reviewCount` / `credits`
+类型错误，并补齐成功路径 mock 的 `departmentID`、`credits`、`reviewCount` 等必需字段。已通过
+`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3590 pnpm --dir clients/web exec playwright test tests/e2e/home.spec.ts`
+（16 项）；并通过 `pnpm --dir clients test:web`（58 文件、287 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3591 make e2e-web`（230 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

@@ -36,6 +36,21 @@ async function mockUnauthenticated(page: Page) {
   )
 }
 
+function course(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 77,
+    schoolID: 1,
+    departmentID: 1,
+    departmentName: '数学科学学院',
+    code: 'MATH077',
+    name: '线性代数',
+    credits: 3,
+    category: '公共基础',
+    reviewCount: 12,
+    ...overrides,
+  }
+}
+
 async function mockCourseDetail(
   page: Page,
   courseId: number,
@@ -53,10 +68,12 @@ async function mockCourseDetail(
         success: true,
         data: {
           id: courseId,
+          departmentID: 1,
           name: course.name ?? '线性代数',
           code: course.code ?? 'MATH077',
           departmentName: course.departmentName ?? '数学科学学院',
           credits: course.credits ?? 3,
+          reviewCount: 12,
         },
       }),
     }),
@@ -115,14 +132,13 @@ async function mockCourseHub(page: Page) {
         success: true,
         data: {
           list: [
-            {
+            course({
               id: 88,
               name: '高等数学A',
               code: 'MATH101',
-              departmentName: '数学科学学院',
               credits: 5,
               reviewCount: 32,
-            },
+            }),
           ],
           total: 1,
         },
@@ -157,7 +173,7 @@ async function mockCourseHub(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         success: true,
-        data: [{ id: '2026-spring', name: '2026 春' }],
+        data: [{ id: '2026-spring', name: '2026 春', isCurrent: true }],
       }),
     }),
   )
@@ -245,15 +261,7 @@ test('command palette searches courses from keyboard and opens course detail', a
       body: JSON.stringify({
         success: true,
         data: {
-          list: [
-            {
-              id: 77,
-              name: '线性代数',
-              code: 'MATH077',
-              departmentName: '数学科学学院',
-              credits: 3,
-            },
-          ],
+          list: [course()],
           total: 1,
         },
       }),
@@ -296,7 +304,13 @@ test('command palette fails closed when course search response is malformed', as
   await page.route('**/api/v1/course/courses/search*', (route) =>
     route.fulfill({
       contentType: 'application/json',
-      body: JSON.stringify({ success: true, data: null }),
+      body: JSON.stringify({
+        success: true,
+        data: {
+          list: [course({ reviewCount: '12' })],
+          total: 1,
+        },
+      }),
     }),
   )
 
@@ -341,14 +355,13 @@ test('course hub slash shortcut focuses inline search and opens a course result'
         success: true,
         data: {
           list: [
-            {
+            course({
               id: 88,
               name: '高等数学A',
               code: 'MATH101',
-              departmentName: '数学科学学院',
               credits: 5,
               reviewCount: 32,
-            },
+            }),
           ],
           total: 1,
         },
@@ -400,7 +413,13 @@ test('inline course search fails closed when response is malformed', async ({
   await page.route('**/api/v1/course/courses/search*', (route) =>
     route.fulfill({
       contentType: 'application/json',
-      body: JSON.stringify({ success: true, data: null }),
+      body: JSON.stringify({
+        success: true,
+        data: {
+          list: [course({ credits: '5' })],
+          total: 1,
+        },
+      }),
     }),
   )
 
