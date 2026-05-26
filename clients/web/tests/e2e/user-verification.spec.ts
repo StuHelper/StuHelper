@@ -73,6 +73,43 @@ const schools = [
         manualFormFields: null,
         enabled: true,
     },
+    {
+        schoolID: 1002,
+        schoolName: "人工审核大学",
+        verificationMethod: "manual",
+        consentText: "请确认人工审核材料真实有效",
+        manualFormFields: [
+            {
+                key: "studentId",
+                label: "学号",
+                type: "text",
+                required: true,
+                placeholder: "请输入学号",
+            },
+            {
+                key: "college",
+                label: "学院",
+                type: "select",
+                required: true,
+                options: ["计算机学院", "材料学院"],
+                placeholder: "请选择学院",
+            },
+            {
+                key: "note",
+                label: "补充说明",
+                type: "textarea",
+                required: false,
+                placeholder: "补充说明",
+            },
+            {
+                key: "enrolledAt",
+                label: "入学日期",
+                type: "date",
+                required: false,
+            },
+        ],
+        enabled: true,
+    },
 ];
 
 type UserApiState = {
@@ -349,6 +386,60 @@ test.describe("User verification flows", () => {
             schoolID: 1001,
             studentID: "20260001",
             password: "secret-pass",
+            consent: true,
+        });
+    });
+
+    test("user submits manual student verification dynamic fields", async ({
+        page,
+    }) => {
+        const state: UserApiState = {
+            identity: { ...verifiedIdentity },
+            profile: { ...unverifiedProfile },
+            qqBinding: null,
+        };
+        let manualBody: unknown = null;
+
+        await mockUserApi(page, state);
+        await page.route("**/api/v1/user/profile/verify", async (route) => {
+            const body = route.request().postDataJSON();
+            manualBody = body;
+            state.profile = {
+                ...unverifiedProfile,
+                schoolID: body.schoolID,
+                verificationStatus: "pending",
+                verificationMethod: "manual",
+                consentGivenAt: now,
+                manualFormData: body.manualFormData,
+                updatedAt: now,
+            };
+            await route.fulfill(ok(state.profile));
+        });
+
+        await gotoAuthenticatedPage(page, "/user/student-verification");
+
+        await page.locator("#student-school").selectOption("1002");
+        await expect(page.locator("#manual-studentId")).toBeVisible();
+        await expect(page.getByRole("button", { name: "验证" })).toBeDisabled();
+
+        await page.locator("#manual-studentId").fill("M20260002");
+        await page.locator("#manual-college").selectOption("计算机学院");
+        await page.locator("#manual-note").fill("人工审核材料已上传到学校系统");
+        await page.locator("#manual-enrolledAt").fill("2026-09-01");
+        await page.getByRole("checkbox").check();
+        await page.getByRole("button", { name: "验证" }).click();
+
+        await expect(
+            page.getByRole("heading", { name: "审核中" }),
+        ).toBeVisible();
+        expect(manualBody).toMatchObject({
+            schoolID: 1002,
+            manualFormData: {
+                studentId: "M20260002",
+                college: "计算机学院",
+                note: "人工审核材料已上传到学校系统",
+                enrolledAt: "2026-09-01",
+            },
             consent: true,
         });
     });
