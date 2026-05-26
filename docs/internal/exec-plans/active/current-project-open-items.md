@@ -584,6 +584,18 @@ Course / Department / Term / TeacherStats 字段级 fail-closed。已通过目�
 （16 项）；并通过 `pnpm --dir clients test:web`（58 文件、287 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3591 make e2e-web`（230 项）。
 
+本地验证补充（2026-05-27）：继续收紧课程中心和教师中心 payload。`TeachingHubPage` 不再使用泛型
+`readPaginatedPayload` / `readListPayload` / `readArrayPayload` 读取课程目录、热门课程和当前学期；课程目录现在复用
+`coursePayload.readCoursePagePayload` 校验完整 `Course` 字段，当前学期复用 `readTermArrayPayload` 并优先显示
+`isCurrent=true` 的学期，热门课程保留本地字段级 reader。`TeacherHubPage` 新增 `TeacherSummary` list/page reader，
+要求教师 ID、姓名、非负评课数 / 课程数和合法可选评分；热门教师和教师搜索畸形 200 不再误显示空态。相关 E2E
+invalid-response 从顶层 `null` 扩展为嵌套 `departmentID`、`reviewCount`、`courseCount` 等字段畸形。已通过
+`pnpm --dir clients --filter @stuhelper/web exec vitest run src/modules/course/__tests__/coursePayload.test.ts`
+（6 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3592 pnpm --dir clients/web exec playwright test tests/e2e/home.spec.ts tests/e2e/course-community.spec.ts`
+（34 项）；并通过 `pnpm --dir clients test:web`（58 文件、288 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3593 make e2e-web`（230 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

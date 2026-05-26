@@ -468,7 +468,16 @@ test.describe("Course community surfaces", () => {
             recordApiRequest(route);
             loadCount += 1;
             return route.fulfill(
-                loadCount === 1 ? ok(null) : list(popularTeachers),
+                loadCount === 1
+                    ? ok({
+                          list: [
+                              {
+                                  ...popularTeachers[0],
+                                  reviewCount: "18",
+                              },
+                          ],
+                      })
+                    : list(popularTeachers),
             );
         });
 
@@ -498,7 +507,9 @@ test.describe("Course community surfaces", () => {
             recordApiRequest(route);
             searchCount += 1;
             return route.fulfill(
-                searchCount === 1 ? ok(null) : list(searchedTeachers),
+                searchCount === 1
+                    ? list([{ ...searchedTeachers[0], courseCount: -1 }])
+                    : list(searchedTeachers),
             );
         });
 

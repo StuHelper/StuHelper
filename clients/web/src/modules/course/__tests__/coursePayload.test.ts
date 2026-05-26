@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest'
 
 import {
   readCourseListPayload,
+  readCoursePagePayload,
   readDepartmentArrayPayload,
   readTeacherStatsArrayPayload,
+  readTeacherSummaryListPayload,
+  readTeacherSummaryPagePayload,
   readTermArrayPayload,
 } from '../coursePayload'
 
@@ -46,12 +49,32 @@ const teacher = {
   tags: ['认真负责'],
 }
 
+const teacherSummary = {
+  teacherID: 2,
+  teacherName: '李老师',
+  departmentName: '软件学院',
+  avgRating: 4.3,
+  reviewCount: 9,
+  courseCount: 2,
+}
+
 describe('course payload readers', () => {
   it('reads valid course, department, term, and teacher payloads', () => {
     expect(readCourseListPayload({ list: [course] })).toEqual([course])
+    expect(readCoursePagePayload({ list: [course], total: 1 })).toEqual({
+      list: [course],
+      total: 1,
+    })
     expect(readDepartmentArrayPayload([department])).toEqual([department])
     expect(readTermArrayPayload([term])).toEqual([term])
     expect(readTeacherStatsArrayPayload([teacher])).toEqual([teacher])
+    expect(readTeacherSummaryListPayload({ list: [teacherSummary] })).toEqual([
+      teacherSummary,
+    ])
+    expect(readTeacherSummaryPagePayload({ list: [teacherSummary], total: 1 })).toEqual({
+      list: [teacherSummary],
+      total: 1,
+    })
   })
 
   it('fails closed when course fields are malformed', () => {
@@ -78,5 +101,14 @@ describe('course payload readers', () => {
     expect(() =>
       readTeacherStatsArrayPayload([{ ...teacher, courseCount: -1 }]),
     ).toThrow('Invalid course teachers response')
+  })
+
+  it('fails closed when teacher summary fields are malformed', () => {
+    expect(() =>
+      readTeacherSummaryPagePayload({
+        list: [{ ...teacherSummary, reviewCount: '9' }],
+        total: 1,
+      }),
+    ).toThrow('Invalid teachers response')
   })
 })

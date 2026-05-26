@@ -452,7 +452,13 @@ test('course hub local catalog fails closed when course catalog response is malf
   await page.route('**/api/v1/course/courses?*', (route) =>
     route.fulfill({
       contentType: 'application/json',
-      body: JSON.stringify({ success: true, data: null }),
+      body: JSON.stringify({
+        success: true,
+        data: {
+          list: [course({ departmentID: '1' })],
+          total: 1,
+        },
+      }),
     }),
   )
   await page.route('**/api/v1/course/review/stats', (route) =>
@@ -480,7 +486,7 @@ test('course hub local catalog fails closed when course catalog response is malf
       contentType: 'application/json',
       body: JSON.stringify({
         success: true,
-        data: [{ id: '2026-spring', name: '2026 春' }],
+        data: [{ id: '2026-spring', name: '2026 春', isCurrent: true }],
       }),
     }),
   )

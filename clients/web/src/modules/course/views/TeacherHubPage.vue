@@ -3,7 +3,11 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Search, X, User, BookOpen } from 'lucide-vue-next'
 import { api } from '@/api'
-import { readListPayload, readPaginatedPayload } from '@/api/responsePayload'
+import {
+  readTeacherSummaryListPayload,
+  readTeacherSummaryPagePayload,
+  type TeacherSummaryPayload,
+} from '@/modules/course/coursePayload'
 import EmojiRating from '@/components/business/review/EmojiRating.vue'
 
 interface TeacherEntry {
@@ -32,7 +36,7 @@ async function loadPopularTeachers() {
   errorMessage.value = ''
   try {
     const res = await api.rating.listHotTeachers(20)
-    const list = readListPayload<Parameters<typeof mapTeacher>[0]>(
+    const list = readTeacherSummaryListPayload(
       res.data?.data,
       'Invalid popular teachers response',
     )
@@ -45,7 +49,7 @@ async function loadPopularTeachers() {
   }
 }
 
-function mapTeacher(raw: { teacherID: number; teacherName: string; departmentName?: string; avgRating?: number | null; reviewCount: number; courseCount: number }): TeacherEntry {
+function mapTeacher(raw: TeacherSummaryPayload): TeacherEntry {
   return {
     teacherID: raw.teacherID,
     teacherName: raw.teacherName,
@@ -75,7 +79,7 @@ async function doSearch() {
   errorMessage.value = ''
   try {
     const res = await api.rating.listTeachers({ q, sort: 'reviews', pageSize: 30 })
-    const data = readPaginatedPayload<Parameters<typeof mapTeacher>[0]>(
+    const data = readTeacherSummaryPagePayload(
       res.data?.data,
       'Invalid teacher search response',
     )

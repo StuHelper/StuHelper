@@ -1,5 +1,14 @@
 import type { Course, CourseCategory, Department, TeacherStats, Term } from '@stuhelper/shared/course'
 
+export interface TeacherSummaryPayload {
+  teacherID: number
+  teacherName: string
+  departmentName?: string
+  avgRating?: number | null
+  reviewCount: number
+  courseCount: number
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
@@ -133,6 +142,26 @@ function readList<T>(
   return payload.list.map(item => reader(item, message))
 }
 
+function readPage<T>(
+  payload: unknown,
+  message: string,
+  reader: (item: unknown, message: string) => T,
+): { list: T[]; total: number } {
+  if (!isRecord(payload) || !Array.isArray(payload.list)) {
+    throw new Error(message)
+  }
+
+  const total = readInteger(payload, 'total', message)
+  if (total < 0) {
+    throw new Error(message)
+  }
+
+  return {
+    list: payload.list.map(item => reader(item, message)),
+    total,
+  }
+}
+
 export function readCoursePayload(payload: unknown, message = 'Invalid course response'): Course {
   if (!isRecord(payload)) {
     throw new Error(message)
@@ -165,6 +194,13 @@ export function readCourseListPayload(
   message = 'Invalid courses response',
 ): Course[] {
   return readList(payload, message, readCoursePayload)
+}
+
+export function readCoursePagePayload(
+  payload: unknown,
+  message = 'Invalid courses response',
+): { list: Course[]; total: number } {
+  return readPage(payload, message, readCoursePayload)
 }
 
 export function readDepartmentPayload(
@@ -282,4 +318,49 @@ export function readTeacherStatsArrayPayload(
   message = 'Invalid course teachers response',
 ): TeacherStats[] {
   return readArray(payload, message, readTeacherStatsPayload)
+}
+
+export function readTeacherSummaryPayload(
+  payload: unknown,
+  message = 'Invalid teachers response',
+): TeacherSummaryPayload {
+  if (!isRecord(payload)) {
+    throw new Error(message)
+  }
+
+  const teacherID = readInteger(payload, 'teacherID', message)
+  const avgRating = readOptionalNullableNumber(payload, 'avgRating', message)
+  const reviewCount = readInteger(payload, 'reviewCount', message)
+  const courseCount = readInteger(payload, 'courseCount', message)
+  if (
+    teacherID <= 0 ||
+    (typeof avgRating === 'number' && avgRating < 0) ||
+    reviewCount < 0 ||
+    courseCount < 0
+  ) {
+    throw new Error(message)
+  }
+
+  return {
+    teacherID,
+    teacherName: readString(payload, 'teacherName', message),
+    departmentName: readOptionalString(payload, 'departmentName', message),
+    avgRating,
+    reviewCount,
+    courseCount,
+  }
+}
+
+export function readTeacherSummaryListPayload(
+  payload: unknown,
+  message = 'Invalid teachers response',
+): TeacherSummaryPayload[] {
+  return readList(payload, message, readTeacherSummaryPayload)
+}
+
+export function readTeacherSummaryPagePayload(
+  payload: unknown,
+  message = 'Invalid teachers response',
+): { list: TeacherSummaryPayload[]; total: number } {
+  return readPage(payload, message, readTeacherSummaryPayload)
 }

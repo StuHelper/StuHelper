@@ -203,9 +203,10 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { Search, X, BookOpen, PenLine } from 'lucide-vue-next'
 import { api } from '@/api'
-import { readArrayPayload, readListPayload, readPaginatedPayload } from '@/api/responsePayload'
+import { readCoursePagePayload, readTermArrayPayload } from '@/modules/course/coursePayload'
 import { usePinyinSearch, type PinyinSearchItem } from '@/composables/usePinyinSearch'
 import ScrollReveal from '@/components/animated/ScrollReveal.vue'
+import type { Course } from '@stuhelper/shared/course'
 
 interface CourseItem extends PinyinSearchItem {
   id: number
@@ -290,26 +291,12 @@ function isNonNegativeNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
 }
 
-function mapCourseItem(raw: unknown): CourseItem {
-  if (!raw || typeof raw !== 'object') {
-    throw new Error('Invalid course catalog response')
-  }
-
-  const { id, name, departmentName, reviewCount } = raw as {
-    id?: unknown
-    name?: unknown
-    departmentName?: unknown
-    reviewCount?: unknown
-  }
-  if (!isNonNegativeNumber(id) || typeof name !== 'string' || !isNonNegativeNumber(reviewCount)) {
-    throw new Error('Invalid course catalog response')
-  }
-
+function mapCourseItem(raw: Course): CourseItem {
   return {
-    id,
-    name,
-    departmentName: typeof departmentName === 'string' ? departmentName : undefined,
-    reviewCount,
+    id: raw.id,
+    name: raw.name,
+    departmentName: raw.departmentName,
+    reviewCount: raw.reviewCount,
   }
 }
 
@@ -336,6 +323,18 @@ function mapHotCourse(raw: unknown): HotCourse {
   return { courseID, courseName, reviewCount, avgRating }
 }
 
+function readHotCourseListPayload(payload: unknown): HotCourse[] {
+  if (
+    !payload ||
+    typeof payload !== 'object' ||
+    !Array.isArray((payload as { list?: unknown }).list)
+  ) {
+    throw new Error('Invalid hot courses response')
+  }
+
+  return (payload as { list: unknown[] }).list.map(mapHotCourse)
+}
+
 function readReviewStatsPayload(payload: unknown): ReviewStats {
   if (!payload || typeof payload !== 'object') {
     throw new Error('Invalid review stats response')
@@ -360,18 +359,10 @@ function readReviewStatsPayload(payload: unknown): ReviewStats {
 }
 
 function readCurrentTermPayload(payload: unknown): string {
-  const terms = readArrayPayload<unknown>(payload, 'Invalid terms response')
+  const terms = readTermArrayPayload(payload, 'Invalid terms response')
   if (terms.length === 0) return ''
 
-  const term = terms[0]
-  if (!term || typeof term !== 'object') {
-    throw new Error('Invalid terms response')
-  }
-
-  const { id, name } = term as { id?: unknown; name?: unknown }
-  if (typeof name === 'string') return name
-  if (typeof id === 'string') return id
-  throw new Error('Invalid terms response')
+  return (terms.find(term => term.isCurrent) ?? terms[0]).name
 }
 
 onMounted(async () => {
@@ -386,7 +377,7 @@ onMounted(async () => {
 
   if (coursesRes.status === 'fulfilled') {
     try {
-      const data = readPaginatedPayload<unknown>(
+      const data = readCoursePagePayload(
         coursesRes.value.data?.data,
         'Invalid course catalog response',
       )
@@ -417,11 +408,7 @@ onMounted(async () => {
 
   if (hotRes.status === 'fulfilled') {
     try {
-      const list = readListPayload<unknown>(
-        hotRes.value.data?.data,
-        'Invalid hot courses response',
-      )
-      hotCourses.value = list.map(mapHotCourse).slice(0, 6)
+      hotCourses.value = readHotCourseListPayload(hotRes.value.data?.data).slice(0, 6)
     } catch (_error) { void _error;
       hotCourses.value = []
       showError(t('common.loadFailed'))
