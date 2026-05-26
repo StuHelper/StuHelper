@@ -19,6 +19,21 @@
         {{ t('review.search.subtitle') }}
       </p>
 
+      <div
+        v-if="referenceError"
+        role="alert"
+        class="mb-6 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning flex items-center justify-between gap-3"
+      >
+        <span>{{ referenceError }}</span>
+        <button
+          type="button"
+          class="shrink-0 rounded-full bg-warning/15 px-3 py-1 text-xs font-semibold text-warning transition-colors hover:bg-warning/25"
+          @click="retryReferenceData"
+        >
+          {{ t('common.actions.retry') }}
+        </button>
+      </div>
+
       <!-- Course Conditions Section -->
       <div class="bg-bg-card rounded-2xl shadow-md p-6 mb-6">
         <h2 class="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
@@ -193,7 +208,13 @@
         <span class="text-text-muted">{{ t('common.actions.loading') }}</span>
       </div>
 
-      <div v-if="searchError" class="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">{{ searchError }}</div>
+      <div
+        v-if="searchError"
+        role="alert"
+        class="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning"
+      >
+        {{ searchError }}
+      </div>
 
       <!-- No Results -->
       <div
@@ -298,6 +319,7 @@ import { ArrowLeft, Search, SearchX } from 'lucide-vue-next'
 import ReviewCard from '@/components/business/review/ReviewCard.vue'
 import { api } from '@/api'
 import { getErrorMessage } from '@/api/errors'
+import { readArrayPayload, readListPayload } from '@/api/responsePayload'
 import { useToast } from '@/composables/useToast'
 import type { Department, Term, Course } from '@stuhelper/shared/course'
 import type { Review } from '@stuhelper/shared/review'
@@ -332,6 +354,7 @@ const validationError = ref('')
 const resultCourses = ref<Course[]>([])
 const resultReviews = ref<Review[]>([])
 const searchError = ref('')
+const referenceError = ref('')
 
 let abortController: AbortController | null = null
 
@@ -362,19 +385,33 @@ function backToForm() {
 async function loadDepartments() {
   try {
     const res = await api.course.getDepartments()
-    departments.value = res.data?.data || []
+    departments.value = readArrayPayload<Department>(
+      res.data?.data,
+      'Invalid departments response',
+    )
   } catch (_error) { void _error;
     departments.value = []
+    referenceError.value = t('common.loadFailed')
   }
 }
 
 async function loadTerms() {
   try {
     const res = await api.course.getTerms()
-    terms.value = res.data?.data || []
+    terms.value = readArrayPayload<Term>(
+      res.data?.data,
+      'Invalid terms response',
+    )
   } catch (_error) { void _error;
     terms.value = []
+    referenceError.value = t('common.loadFailed')
   }
+}
+
+function retryReferenceData() {
+  referenceError.value = ''
+  void loadDepartments()
+  void loadTerms()
 }
 
 // --- Search ---
@@ -439,9 +476,15 @@ async function handleSearch() {
     if (signal.aborted) return
 
     if (courseRes.status === 'fulfilled' && courseRes.value) {
-      const raw = courseRes.value.data?.data
-      const courseList: Course[] = (raw && 'list' in raw ? raw.list : raw) as Course[] ?? []
-      resultCourses.value = courseList
+      try {
+        resultCourses.value = readListPayload<Course>(
+          courseRes.value.data?.data,
+          'Invalid course search response',
+        )
+      } catch (error) {
+        resultCourses.value = []
+        searchError.value = getErrorMessage(error, t('common.loadFailed'))
+      }
     } else if (courseRes.status === 'rejected') {
       searchError.value = getErrorMessage(courseRes.reason, t('common.loadFailed'))
     }
@@ -453,7 +496,7 @@ async function handleSearch() {
       searchError.value = searchError.value || message
     }
 
-    if (courseRes.status === 'rejected' || reviewRes.status === 'rejected') {
+    if (searchError.value) {
       toast.error(searchError.value || t('common.loadFailed'))
     }
   } catch (error) {

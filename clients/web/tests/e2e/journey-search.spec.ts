@@ -67,6 +67,61 @@ test.describe('User Journey: Search', () => {
     )
   })
 
+  test('invalid reference data shows load failure and retry restores filters', async ({
+    page,
+  }) => {
+    let departmentsRequestCount = 0
+    let termsRequestCount = 0
+
+    await page.route('**/api/v1/course/departments*', (route) => {
+      departmentsRequestCount += 1
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify(
+          departmentsRequestCount === 1
+            ? { success: true, data: null }
+            : {
+                success: true,
+                data: [{ id: 1, name: '计算机科学与技术学院' }],
+              },
+        ),
+      })
+    })
+
+    await page.route('**/api/v1/course/terms*', (route) => {
+      termsRequestCount += 1
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify(
+          termsRequestCount === 1
+            ? { success: true, data: null }
+            : {
+                success: true,
+                data: [{ id: '2025-fall', name: '2025 秋' }],
+              },
+        ),
+      })
+    })
+
+    await page.goto('/search')
+    await page.waitForLoadState('networkidle')
+
+    await expect(
+      page.getByRole('alert').filter({ hasText: /Load failed|加载失败/i }).first(),
+    ).toBeVisible({ timeout: 10_000 })
+    await expect(page.locator('#advanced-department')).not.toContainText(
+      '计算机科学与技术学院',
+    )
+    await expect(page.locator('#advanced-term')).not.toContainText('2025 秋')
+
+    await page.getByRole('button', { name: /Retry|重试/i }).click()
+
+    await expect(page.locator('#advanced-department')).toContainText(
+      '计算机科学与技术学院',
+    )
+    await expect(page.locator('#advanced-term')).toContainText('2025 秋')
+  })
+
   test('user searches by course name and sees matching results', async ({
     page,
   }) => {
@@ -346,5 +401,68 @@ test.describe('User Journey: Search', () => {
     await expect(
       page.getByText(/No results found|未找到任何符合条件/i).first(),
     ).toBeVisible({ timeout: 10_000 })
+  })
+
+  test('malformed course search response shows load failure instead of empty state', async ({
+    page,
+  }) => {
+    await page.route('**/api/v1/course/courses/search*', (route) => {
+      recordApiRequest(route)
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: null,
+        }),
+      })
+    })
+
+    await page.route('**/api/v1/course/review/reviews/search*', (route) => {
+      recordApiRequest(route)
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { list: [], total: 0 },
+        }),
+      })
+    })
+
+    await page.goto('/search')
+    await page.waitForLoadState('networkidle')
+
+    const courseNameInput = page
+      .locator('label')
+      .filter({ hasText: /Course Name|课程名|课程名称/i })
+      .first()
+      .locator('..')
+      .locator('input')
+      .first()
+    await courseNameInput.fill('畸形课程响应')
+
+    const coursesSearchResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/v1/course/courses/search') &&
+        resp.status() === 200,
+    )
+    const reviewsSearchResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/v1/course/review/reviews/search') &&
+        resp.status() === 200,
+    )
+
+    await page
+      .getByRole('button', { name: /^Search$|^搜索$/ })
+      .first()
+      .click()
+
+    await Promise.all([coursesSearchResponse, reviewsSearchResponse])
+
+    await expect(
+      page.getByRole('alert').filter({ hasText: /Load failed|加载失败/i }).first(),
+    ).toBeVisible({ timeout: 10_000 })
+    await expect(
+      page.getByText(/No results found|未找到任何符合条件/i),
+    ).toHaveCount(0)
   })
 })

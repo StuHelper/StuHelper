@@ -104,8 +104,133 @@ function requireRecord(
     return value as Record<string, unknown>;
 }
 
+async function mockPostReviewBootstrap(page: Page, termsData: unknown) {
+    await page.route("**/api/v1/course/terms", async (route) => {
+        await route.fulfill({
+            contentType: "application/json",
+            body: JSON.stringify({
+                success: true,
+                data: termsData,
+            }),
+        });
+    });
+
+    await page.route("**/api/v1/course/review/rating-dimensions", async (route) => {
+        await route.fulfill({
+            contentType: "application/json",
+            body: JSON.stringify({
+                success: true,
+                data: [
+                    {
+                        id: "dim-difficulty",
+                        schoolID: 1,
+                        key: "difficulty",
+                        name: "Difficulty",
+                        description: "",
+                        sortOrder: 1,
+                        isActive: true,
+                    },
+                ],
+            }),
+        });
+    });
+
+    await page.route("**/api/v1/course/review/drafts", async (route) => {
+        await route.fulfill({
+            status: 404,
+            contentType: "application/json",
+            body: JSON.stringify({
+                success: false,
+                error: { code: "R0040404", message: "draft not found" },
+            }),
+        });
+    });
+}
+
 test.beforeEach(async ({ page }) => {
     await mockAuth(page);
+});
+
+test("post review page fails closed when terms response is malformed", async ({
+    page,
+}) => {
+    await mockPostReviewBootstrap(page, null);
+
+    await page.goto("/courses/reviews/post");
+
+    await expect(
+        page.getByRole("alert").filter({ hasText: /Load failed|加载失败/i }),
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("review-term")).not.toContainText("2025 秋");
+});
+
+test("post review course autocomplete fails closed when search response is malformed", async ({
+    page,
+}) => {
+    await mockPostReviewBootstrap(page, [{ id: "2025-fall", name: "2025 秋" }]);
+    await page.route("**/api/v1/course/courses/search*", async (route) => {
+        await route.fulfill({
+            contentType: "application/json",
+            body: JSON.stringify({ success: true, data: null }),
+        });
+    });
+
+    await page.goto("/courses/reviews/post");
+
+    await page
+        .getByPlaceholder(/高等数学|gaodengshuxue|gdsx|Search by course/i)
+        .fill("高等数学");
+
+    await expect(
+        page.getByRole("alert").filter({ hasText: /Load failed|加载失败/i }),
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/not listed yet|暂未被收录/i)).toHaveCount(0);
+});
+
+test("post review teacher selector fails closed when teachers response is malformed", async ({
+    page,
+}) => {
+    await mockPostReviewBootstrap(page, [{ id: "2025-fall", name: "2025 秋" }]);
+    await page.route("**/api/v1/course/courses/search*", async (route) => {
+        await route.fulfill({
+            contentType: "application/json",
+            body: JSON.stringify({
+                success: true,
+                data: {
+                    list: [
+                        {
+                            id: 1,
+                            name: "高等数学",
+                            code: "MATH101",
+                            departmentName: "数学系",
+                            reviewCount: 1,
+                        },
+                    ],
+                    total: 1,
+                },
+            }),
+        });
+    });
+    await page.route("**/api/v1/course/review/courses/1/teachers", async (route) => {
+        await route.fulfill({
+            contentType: "application/json",
+            body: JSON.stringify({ success: true, data: null }),
+        });
+    });
+
+    await page.goto("/courses/reviews/post");
+
+    await page
+        .getByPlaceholder(/高等数学|gaodengshuxue|gdsx|Search by course/i)
+        .fill("高等数学");
+    await page.getByText("高等数学").click();
+
+    await expect(
+        page.getByRole("alert").filter({ hasText: /Load failed|加载失败/i }),
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("review-course-selected")).toContainText(
+        "高等数学",
+    );
 });
 
 test("authenticated user can publish a review and vote on a course review", async ({

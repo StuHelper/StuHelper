@@ -285,6 +285,19 @@ composable 都会把 HTTP 200 但缺失 `data.list` / `data.total` 的回复列�
 （16 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、`pnpm --dir clients test:web`
 （55 文件、255 项）和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3524 make e2e-web`（198 项）。
 
+本地验证补充（2026-05-26）：继续收紧 Web 搜索和发布评价入口的参考数据响应。高级搜索页不再把院系列表、
+学期列表或课程搜索结果的畸形 HTTP 200 响应当作空数组；院系 / 学期加载失败时表单显示“加载失败”并可重试，
+课程搜索结果畸形时结果页显示加载失败而不是“未找到任何符合条件”。发布评价页也不再把学期、课程自动完成或
+授课教师列表畸形响应降级为空列表；对应控件直接显示加载失败，学期数据异常会阻止提交。新增 E2E 覆盖搜索页
+参考数据 fail-closed 与重试、课程搜索畸形响应 fail-closed，以及发布评价页学期、课程自动完成、授课教师响应
+畸形时的失败态。已通过目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3527 pnpm --dir clients/web exec playwright test tests/e2e/journey-search.spec.ts`
+（10 项）和
+`CI=1 PLAYWRIGHT_WEB_PORT=3526 pnpm --dir clients/web exec playwright test tests/e2e/review-flow.spec.ts`
+（8 项），并通过 `pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、
+`pnpm --dir clients test:web`（55 文件、255 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3528 make e2e-web`（208 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

@@ -85,6 +85,13 @@
               >
                 {{ t('common.actions.loading') }}
               </div>
+              <div
+                v-else-if="courseSearchError"
+                role="alert"
+                class="px-4 py-3 text-sm text-danger"
+              >
+                {{ courseSearchError }}
+              </div>
               <template v-else-if="courseSearch.results.value.length > 0">
                 <div
                   v-for="(item, index) in courseSearch.results.value"
@@ -146,6 +153,9 @@
               <template v-if="teacher.departmentName"> · {{ teacher.departmentName }}</template>
             </option>
           </select>
+          <span v-if="teachersLoadError" role="alert" class="block text-danger text-xs mt-1.5">
+            {{ teachersLoadError }}
+          </span>
         </div>
 
         <!-- Semester dropdown -->
@@ -170,7 +180,10 @@
               {{ term.name }}
             </option>
           </select>
-          <span v-if="showErrors && !termID.trim()" class="block text-danger text-xs mt-1.5">
+          <span v-if="termsLoadError" role="alert" class="block text-danger text-xs mt-1.5">
+            {{ termsLoadError }}
+          </span>
+          <span v-else-if="showErrors && !termID.trim()" class="block text-danger text-xs mt-1.5">
             {{ t('review.postForm.errors.semester') }}
           </span>
         </div>
@@ -381,6 +394,7 @@ import DraftPromptDialog from '@/components/business/review/DraftPromptDialog.vu
 import EmojiRatingInput from '@/components/business/review/EmojiRatingInput.vue'
 import { areRatingsComplete, useRatingDimensions } from '@/components/business/review/composables/useRatingDimensions'
 import { api } from '@/api'
+import { readArrayPayload, readListPayload } from '@/api/responsePayload'
 import { useToast } from '@/composables/useToast'
 import { usePinyinSearch, type PinyinSearchItem } from '@/composables/usePinyinSearch'
 import { buildCreateReviewPayload } from '@/components/business/review/reviewPayload'
@@ -431,6 +445,7 @@ const {
 const selectedCourse = ref<Course | null>(null)
 const teachers = ref<TeacherStats[]>([])
 const teachersLoading = ref(false)
+const teachersLoadError = ref('')
 const selectedTeacherID = ref<number | null>(null)
 const termID = ref('')
 const ratings = ref<ReviewRatings>({})
@@ -453,30 +468,42 @@ const AUTOSAVE_DELAY_MS = 700
 
 // ── Term options ─────────────────────────────────────────
 const terms = ref<Term[]>([])
+const termsLoadError = ref('')
 const termOptions = computed(() => buildTermOptions(terms.value))
 
 async function fetchTerms() {
+  termsLoadError.value = ''
   try {
     const res = await api.course.getTerms()
-    terms.value = res.data?.data || []
+    terms.value = readArrayPayload<Term>(
+      res.data?.data,
+      'Invalid terms response',
+    )
     if (!termID.value && terms.value.length > 0) {
       const options = buildTermOptions(terms.value)
       termID.value = options[0]?.id || ''
     }
   } catch (_error) { void _error;
     terms.value = []
+    termID.value = ''
+    termsLoadError.value = t('common.loadFailed')
   }
 }
 
 async function fetchTeachers(courseID: number) {
   teachersLoading.value = true
+  teachersLoadError.value = ''
   teachers.value = []
   selectedTeacherID.value = null
   try {
     const res = await api.rating.getCourseTeachers(courseID)
-    teachers.value = res.data?.data ?? []
+    teachers.value = readArrayPayload<TeacherStats>(
+      res.data?.data,
+      'Invalid course teachers response',
+    )
   } catch (_error) { void _error;
     teachers.value = []
+    teachersLoadError.value = t('common.loadFailed')
   } finally {
     teachersLoading.value = false
   }
@@ -485,6 +512,7 @@ async function fetchTeachers(courseID: number) {
 // ── Course search ────────────────────────────────────────
 const courses = ref<Course[]>([])
 const courseSearchLoading = ref(false)
+const courseSearchError = ref('')
 const showDropdown = ref(false)
 const searchContainerRef = ref<HTMLDivElement | null>(null)
 const courseSearchInputRef = ref<HTMLInputElement | null>(null)
@@ -512,6 +540,7 @@ watch(
     const trimmed = q.trim()
     if (!trimmed) {
       courses.value = []
+      courseSearchError.value = ''
       return
     }
 
@@ -520,18 +549,18 @@ watch(
 
     searchDebounceTimer = setTimeout(async () => {
       courseSearchLoading.value = true
+      courseSearchError.value = ''
       searchAbortController = new AbortController()
       try {
         const res = await api.course.searchCourses(trimmed, { pageSize: 30 }, { signal: searchAbortController.signal })
-        const data = res.data?.data
-        courses.value = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.list)
-            ? data.list
-            : []
+        courses.value = readListPayload<Course>(
+          res.data?.data,
+          'Invalid course search response',
+        )
       } catch (err: unknown) {
         if (err instanceof DOMException && err.name === 'AbortError') return
         courses.value = []
+        courseSearchError.value = t('common.loadFailed')
       } finally {
         courseSearchLoading.value = false
       }
@@ -545,8 +574,10 @@ function selectCourse(item: PinyinSearchItem) {
     restorePromptDiscarded.value = false
     selectedTeacherID.value = null
     teachers.value = []
+    teachersLoadError.value = ''
     selectedCourse.value = found
     courseSearch.query.value = found.name
+    courseSearchError.value = ''
     showDropdown.value = false
   }
 }
@@ -556,9 +587,11 @@ function clearCourseSelection() {
   selectedCourse.value = null
   selectedTeacherID.value = null
   teachers.value = []
+  teachersLoadError.value = ''
   courseSearch.query.value = ''
   courseSearch.clear()
   courses.value = []
+  courseSearchError.value = ''
   showDropdown.value = false
 }
 
@@ -868,6 +901,7 @@ const allRatingsProvided = computed(() =>
 
 const canSubmit = computed(() =>
   !!selectedCourse.value &&
+  !termsLoadError.value &&
   termID.value.trim().length > 0 &&
   allRatingsProvided.value &&
   title.value.trim().length > 0 &&
@@ -881,6 +915,11 @@ async function handleSubmit() {
   submitError.value = ''
   if (ratingDimensionsLoadFailed.value) {
     submitError.value = t('review.post.ratingLoadFailed')
+    toast.error(submitError.value)
+    return
+  }
+  if (termsLoadError.value) {
+    submitError.value = t('common.loadFailed')
     toast.error(submitError.value)
     return
   }
