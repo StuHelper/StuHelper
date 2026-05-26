@@ -63,8 +63,21 @@ export function normalizeReviewList(payload?: ApiReviewListPayload | null): Pagi
 }
 
 export function normalizeContentCheck(payload?: ApiContentCheckResult | null): ReviewContentCheck {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid content check response')
+  }
+
+  const { isValid, level } = payload
+  if (
+    typeof isValid !== 'boolean' ||
+    (level !== undefined && level !== 'block' && level !== 'warn') ||
+    (!isValid && level === undefined)
+  ) {
+    throw new Error('Invalid content check response')
+  }
+
   return {
-    isValid: payload?.isValid ?? true,
-    level: payload?.level as ReviewContentCheck['level'],
+    isValid,
+    level: level as ReviewContentCheck['level'],
   }
 }

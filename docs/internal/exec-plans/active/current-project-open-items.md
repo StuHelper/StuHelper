@@ -353,6 +353,18 @@ fail-closed 路径。已通过目标 E2E
 `pnpm --dir clients test:web`（55 文件、257 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3540 make e2e-web`（218 项）。
 
+本地验证补充（2026-05-26）：继续收紧发布评价页课程恢复与内容审核响应。共享
+`normalizeContentCheck` 不再把缺失或畸形内容审核结果默认视为通过；发布评价提交前的
+`checkContentResult` 失败会显示“加载失败”并停止提交，不会继续创建评价。入口预选课程和草稿课程恢复
+也会校验课程响应至少包含有效 `id` 与 `name`，畸形 200 会在课程字段显示“加载失败”，不会静默清空。
+新增 API adapter 单测覆盖畸形 content-check fail-closed，新增 Review Flow E2E 覆盖预选课程畸形响应和
+内容审核畸形响应不会提交。已通过目标单测
+`pnpm --dir clients --filter @stuhelper/web exec vitest run src/api/__tests__/review.test.ts`（3 项）、
+目标 E2E `CI=1 PLAYWRIGHT_WEB_PORT=3541 pnpm --dir clients/web exec playwright test tests/e2e/review-flow.spec.ts`
+（12 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、
+`pnpm --dir clients test:web`（55 文件、258 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3542 make e2e-web`（222 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

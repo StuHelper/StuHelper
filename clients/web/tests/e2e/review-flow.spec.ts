@@ -233,6 +233,123 @@ test("post review teacher selector fails closed when teachers response is malfor
     );
 });
 
+test("post review preselected course fails closed when course response is malformed", async ({
+    page,
+}) => {
+    await mockPostReviewBootstrap(page, [{ id: "2025-fall", name: "2025 秋" }]);
+    await page.addInitScript(() => {
+        window.sessionStorage.setItem("review_post_preselect_course_id", "1");
+    });
+    await page.route("**/api/v1/course/courses/1", async (route) => {
+        await route.fulfill({
+            contentType: "application/json",
+            body: JSON.stringify({ success: true, data: null }),
+        });
+    });
+
+    await page.goto("/courses/reviews/post");
+
+    await expect(
+        page.getByRole("alert").filter({ hasText: /Load failed|加载失败/i }),
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("review-course-selected")).toHaveCount(0);
+});
+
+test("post review content check fails closed when response is malformed", async ({
+    page,
+}) => {
+    let createReviewCalled = false;
+
+    await mockPostReviewBootstrap(page, [{ id: "2025-fall", name: "2025 秋" }]);
+    await page.route("**/api/v1/course/courses/search*", async (route) => {
+        await route.fulfill({
+            contentType: "application/json",
+            body: JSON.stringify({
+                success: true,
+                data: {
+                    list: [
+                        {
+                            id: 1,
+                            name: "高等数学",
+                            code: "MATH101",
+                            departmentName: "数学系",
+                            reviewCount: 1,
+                        },
+                    ],
+                    total: 1,
+                },
+            }),
+        });
+    });
+    await page.route("**/api/v1/course/review/courses/1/teachers", async (route) => {
+        await route.fulfill({
+            contentType: "application/json",
+            body: JSON.stringify({ success: true, data: [] }),
+        });
+    });
+    await page.route("**/api/v1/course/review/content/check", async (route) => {
+        await route.fulfill({
+            contentType: "application/json",
+            body: JSON.stringify({ success: true, data: null }),
+        });
+    });
+    await page.route("**/api/v1/course/review/reviews", async (route) => {
+        if (route.request().method() === "POST") {
+            createReviewCalled = true;
+        }
+        await route.fulfill({
+            status: 201,
+            contentType: "application/json",
+            body: JSON.stringify({ success: true, data: { id: "review-new" } }),
+        });
+    });
+    await page.route("**/api/v1/course/review/drafts", async (route) => {
+        if (route.request().method() === "POST") {
+            await route.fulfill({
+                contentType: "application/json",
+                body: JSON.stringify({
+                    success: true,
+                    data: {
+                        id: "draft-1",
+                        updatedAt: "2026-04-03T10:00:00Z",
+                        ...route.request().postDataJSON(),
+                    },
+                }),
+            });
+            return;
+        }
+
+        await route.fulfill({
+            status: 404,
+            contentType: "application/json",
+            body: JSON.stringify({
+                success: false,
+                error: { code: "R0040404", message: "draft not found" },
+            }),
+        });
+    });
+
+    await page.goto("/courses/reviews/post");
+    await page
+        .getByPlaceholder(/高等数学|gaodengshuxue|gdsx|Search by course/i)
+        .fill("高等数学");
+    await page.getByText("高等数学").click();
+    await page.getByTestId("review-term").selectOption("2025-fall");
+    await page.getByTestId("rating-difficulty-5").click();
+    await page.getByTestId("review-title").fill("内容审核异常验证");
+    await page
+        .getByTestId("review-content")
+        .fill("这是一条用于验证内容审核异常时不会提交的评课正文，长度足够通过前端校验。");
+
+    await page.getByTestId("review-submit").click();
+
+    await expect(
+        page.locator('p[role="alert"]').filter({ hasText: /Load failed|加载失败/i }),
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(page).toHaveURL(/\/courses\/reviews\/post$/);
+    expect(createReviewCalled).toBe(false);
+});
+
 test("authenticated user can publish a review and vote on a course review", async ({
     page,
 }) => {

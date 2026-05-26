@@ -126,6 +126,9 @@
           <span v-if="showErrors && !selectedCourse" class="block text-danger text-xs mt-1.5">
             {{ t('review.postForm.errors.course') }}
           </span>
+          <span v-else-if="courseLoadError" role="alert" class="block text-danger text-xs mt-1.5">
+            {{ courseLoadError }}
+          </span>
         </div>
 
         <!-- Teacher selector -->
@@ -447,6 +450,7 @@ const teachers = ref<TeacherStats[]>([])
 const teachersLoading = ref(false)
 const teachersLoadError = ref('')
 const selectedTeacherID = ref<number | null>(null)
+const courseLoadError = ref('')
 const termID = ref('')
 const ratings = ref<ReviewRatings>({})
 const title = ref('')
@@ -544,6 +548,7 @@ watch(
       return
     }
 
+    courseLoadError.value = ''
     if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
     if (searchAbortController) searchAbortController.abort()
 
@@ -572,6 +577,7 @@ function selectCourse(item: PinyinSearchItem) {
   const found = courses.value.find((c) => c.id === item.id)
   if (found) {
     restorePromptDiscarded.value = false
+    courseLoadError.value = ''
     selectedTeacherID.value = null
     teachers.value = []
     teachersLoadError.value = ''
@@ -584,6 +590,7 @@ function selectCourse(item: PinyinSearchItem) {
 
 function clearCourseSelection() {
   restorePromptDiscarded.value = false
+  courseLoadError.value = ''
   selectedCourse.value = null
   selectedTeacherID.value = null
   teachers.value = []
@@ -629,6 +636,45 @@ onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', handleBeforeUnload)
 })
 
+function readCoursePayload(payload: unknown): Course {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid course response')
+  }
+
+  const { id, name } = payload as { id?: unknown; name?: unknown }
+  if (
+    typeof id !== 'number' ||
+    !Number.isFinite(id) ||
+    id <= 0 ||
+    typeof name !== 'string'
+  ) {
+    throw new Error('Invalid course response')
+  }
+
+  return payload as Course
+}
+
+async function loadCourseSelection(courseID: number): Promise<boolean> {
+  courseLoadError.value = ''
+  try {
+    const res = await api.course.getCourse(courseID)
+    const data = readCoursePayload(res.data?.data)
+    selectedCourse.value = data
+    courseSearch.query.value = data.name
+    return true
+  } catch (_error) { void _error;
+    selectedCourse.value = null
+    selectedTeacherID.value = null
+    teachers.value = []
+    teachersLoadError.value = ''
+    courseSearch.query.value = ''
+    courseSearch.clear()
+    courses.value = []
+    courseLoadError.value = t('common.loadFailed')
+    return false
+  }
+}
+
 // ── 从入口携带的临时状态恢复默认课程 ─────────
 onMounted(async () => {
   if (!(await ensureCanPostReview())) {
@@ -639,16 +685,7 @@ onMounted(async () => {
 
   const courseID = consumeReviewPostCourseID()
   if (courseID) {
-    try {
-      const res = await api.course.getCourse(courseID)
-      const data = res.data?.data as Course | undefined
-      if (data) {
-        selectedCourse.value = data
-        courseSearch.query.value = data.name
-      }
-    } catch (_error) { void _error;
-      // 路由中的课程不存在时，仍允许用户手动搜索
-    }
+    await loadCourseSelection(courseID)
   }
 
   await promptDraftRestoreOnEntry()
@@ -769,15 +806,9 @@ function restoreDraftTeacherSelection(course: Course) {
 }
 
 async function loadDraftCourse(courseID: number) {
-  try {
-    const res = await api.course.getCourse(courseID)
-    const data = res.data?.data as Course | undefined
-    if (data) {
-      selectedCourse.value = data
-      courseSearch.query.value = data.name
-    }
-  } catch (_error) { void _error;
-    clearCourseSelection()
+  const loaded = await loadCourseSelection(courseID)
+  if (!loaded) {
+    draftTeacherIDToRestore.value = null
   }
 }
 
@@ -930,16 +961,21 @@ async function handleSubmit() {
   try {
     const nextGrade = normalizeReviewGrade(grade.value)
     // 内容预检
-    const checkRes = await api.review.checkContent({ content: content.value.trim() })
-    const checkResult = checkRes.data?.data
-    if (checkResult && !checkResult.isValid) {
-      if (checkResult.level === 'block') {
+    let checkResult: Awaited<ReturnType<typeof api.review.checkContentResult>>
+    try {
+      checkResult = await api.review.checkContentResult({ content: content.value.trim() })
+    } catch (_error) { void _error;
+      submitError.value = t('common.loadFailed')
+      toast.error(submitError.value)
+      return
+    }
+    if (!checkResult.isValid) {
+      if (checkResult.level === 'warn') {
+        toast.warning(t('review.post.contentWarning'))
+      } else {
         submitError.value = t('review.post.contentBlocked')
         toast.error(submitError.value)
         return
-      }
-      if (checkResult.level === 'warn') {
-        toast.warning(t('review.post.contentWarning'))
       }
     }
 

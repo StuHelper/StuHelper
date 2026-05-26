@@ -71,4 +71,22 @@ describe('createReviewAppApi', () => {
       'Invalid review list response',
     )
   })
+
+  it('fails closed when a content check response is malformed', async () => {
+    const client = {
+      GET: vi.fn(),
+      POST: vi.fn().mockResolvedValue({
+        data: { data: null },
+      }),
+      PUT: vi.fn(),
+      PATCH: vi.fn(),
+      DELETE: vi.fn(),
+    }
+
+    const api = createReviewAppApi(client as never)
+
+    await expect(api.checkContentResult({ content: 'hello' })).rejects.toThrow(
+      'Invalid content check response',
+    )
+  })
 })
