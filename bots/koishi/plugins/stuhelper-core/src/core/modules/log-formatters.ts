@@ -1,6 +1,22 @@
 import type { CommandLogRecord } from './log.module'
 
-export function filterLogs(logs: CommandLogRecord[], options: any): CommandLogRecord[] {
+export interface LogFilterOptions {
+  readonly user?: string
+  readonly command?: string
+  readonly failed?: boolean
+  readonly private?: boolean
+  readonly guild?: string
+  readonly platform?: string
+  readonly authority?: number
+  readonly since?: string
+  readonly until?: string
+}
+
+export interface LogStatsOptions extends LogFilterOptions {
+  readonly limit?: number
+}
+
+export function filterLogs(logs: CommandLogRecord[], options: LogFilterOptions): CommandLogRecord[] {
   let filteredLogs = logs
 
   if (options.user) {
@@ -43,7 +59,7 @@ export function formatLogList(logs: CommandLogRecord[], total: number): string {
   return message.trim()
 }
 
-export function formatStats(logs: CommandLogRecord[], options: any): string {
+export function formatStats(logs: CommandLogRecord[], options: LogStatsOptions): string {
   const commandGroups = groupLogsByCommand(logs)
   const sortedCommands = Array.from(commandGroups.entries())
     .sort((a, b) => b[1].length - a[1].length)

@@ -7,6 +7,11 @@ const DEFAULT_OPERATION_LOG_LINES = 100
 const DEFAULT_KEEP_DAYS = 7
 const DAY_MS = 24 * 60 * 60 * 1000
 
+interface ClearOperationLogOptions {
+  readonly a?: boolean
+  readonly d?: number
+}
+
 export function registerOperationLogCommands(host: LogModule): void {
   registerListLogCommand(host)
   registerClearLogCommand(host)
@@ -53,11 +58,11 @@ function handleListLog(host: LogModule, session: Session, lines: number): string
     void host.logCommand({ session, command: 'listlog', target: `${lines}`, result: 'success' })
     return `=== 最近 ${Math.min(lines, recentLines.length)} 条操作记录 ===\n${recentLines.join('\n')}`
   } catch (error) {
-    return `读取日志失败喵...${error.message}`
+    return `读取日志失败喵...${errorMessage(error)}`
   }
 }
 
-function handleClearLog(host: LogModule, session: Session, options: any): string {
+function handleClearLog(host: LogModule, session: Session, options: ClearOperationLogOptions): string {
   if (!fs.existsSync(host.logPath)) return '还没有任何日志记录喵~'
 
   try {
@@ -77,8 +82,12 @@ function handleClearLog(host: LogModule, session: Session, options: any): string
     })
     return `已清理 ${deletedCount} 条日志记录，保留最近 ${days} 天的记录喵~`
   } catch (error) {
-    return `清理日志失败喵...${error.message}`
+    return `清理日志失败喵...${errorMessage(error)}`
   }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function keepRecentOperationLogs(logPath: string, days: number): number {

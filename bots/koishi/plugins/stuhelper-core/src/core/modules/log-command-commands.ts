@@ -1,7 +1,7 @@
 import type { Session } from 'koishi'
 
 import type { CommandLogRecord, LogModule } from './log.module'
-import { filterLogs, formatLogList, formatStats } from './log-formatters'
+import { filterLogs, formatLogList, formatStats, type LogFilterOptions, type LogStatsOptions } from './log-formatters'
 
 const DEFAULT_COMMAND_LOG_LIMIT = 10
 const COMMAND_LOG_SAMPLE_MULTIPLIER = 10
@@ -10,6 +10,25 @@ const DEFAULT_CLEAR_DAYS = 0
 const DEFAULT_EXPORT_DAYS = 7
 const DAY_MS = 24 * 60 * 60 * 1000
 const JSON_INDENT_SPACES = 2
+
+interface CommandLogCheckOptions extends LogFilterOptions {
+  readonly limit?: number
+}
+
+interface CommandLogStatsOptions extends LogStatsOptions {
+  readonly limit?: number
+  readonly sortBy?: 'count' | 'time' | 'guild' | 'user' | string
+}
+
+interface CommandLogClearOptions {
+  readonly days?: number
+  readonly all?: boolean
+}
+
+interface CommandLogExportOptions {
+  readonly days?: number
+  readonly format?: 'json' | 'csv' | string
+}
 
 export function registerCommandLogCommands(host: LogModule): void {
   registerCheckCommand(host)
@@ -86,22 +105,23 @@ function registerExportCommand(host: LogModule): void {
     .action(async ({ options }) => handleExportCommand(host, options))
 }
 
-function handleCheckCommand(host: LogModule, options: any): string {
+function handleCheckCommand(host: LogModule, options: CommandLogCheckOptions): string {
   try {
-    const sampleSize = Math.min(options.limit * COMMAND_LOG_SAMPLE_MULTIPLIER, MAX_COMMAND_LOG_SAMPLE_SIZE)
+    const limit = options.limit ?? DEFAULT_COMMAND_LOG_LIMIT
+    const sampleSize = Math.min(limit * COMMAND_LOG_SAMPLE_MULTIPLIER, MAX_COMMAND_LOG_SAMPLE_SIZE)
     const logs = host.readCommandLogs().slice(-sampleSize).reverse()
     if (logs.length === 0) return '暂无命令执行记录'
 
-    const filteredLogs = filterLogs(logs, options).slice(0, options.limit)
+    const filteredLogs = filterLogs(logs, options).slice(0, limit)
     if (filteredLogs.length === 0) return '没有符合条件的命令记录'
 
     return formatLogList(filteredLogs, logs.length)
   } catch (error) {
-    return `获取命令日志失败: ${error.message}`
+    return `获取命令日志失败: ${errorMessage(error)}`
   }
 }
 
-function handleStatsCommand(host: LogModule, options: any): string {
+function handleStatsCommand(host: LogModule, options: CommandLogStatsOptions): string {
   try {
     const allLogs = host.readCommandLogs()
     if (allLogs.length === 0) return '暂无命令使用记录'
@@ -111,11 +131,11 @@ function handleStatsCommand(host: LogModule, options: any): string {
 
     return formatStats(filteredLogs, options)
   } catch (error) {
-    return `获取命令统计失败: ${error.message}`
+    return `获取命令统计失败: ${errorMessage(error)}`
   }
 }
 
-function handleClearCommand(host: LogModule, session: Session, options: any): string {
+function handleClearCommand(host: LogModule, session: Session, options: CommandLogClearOptions): string {
   try {
     if (options.all) {
       host.saveCommandLogs([])
@@ -123,37 +143,43 @@ function handleClearCommand(host: LogModule, session: Session, options: any): st
       void host.logCommand({ session, command: 'cmdlogs.clear', target: 'all', result: 'success' })
       return '已清除所有命令日志'
     }
-    if (options.days <= 0) {
+    const days = options.days ?? DEFAULT_CLEAR_DAYS
+    if (days <= 0) {
       return '请指定 --all 清除所有日志，或使用 -d <天数> 清除指定天数前的日志'
     }
 
-    const removedCount = cleanOldLogs(host, options.days)
+    const removedCount = cleanOldLogs(host, days)
     void host.logCommand({
       session,
       command: 'cmdlogs.clear',
-      target: `${options.days}days`,
+      target: `${days}days`,
       result: `removed ${removedCount}`,
     })
-    return `已清理 ${removedCount} 条超过 ${options.days} 天的命令日志`
+    return `已清理 ${removedCount} 条超过 ${days} 天的命令日志`
   } catch (error) {
-    return `清理日志失败: ${error.message}`
+    return `清理日志失败: ${errorMessage(error)}`
   }
 }
 
-function handleExportCommand(host: LogModule, options: any): string {
+function handleExportCommand(host: LogModule, options: CommandLogExportOptions): string {
   try {
     const logs = host.readCommandLogs()
-    const cutoffTime = Date.now() - (options.days * DAY_MS)
+    const days = options.days ?? DEFAULT_EXPORT_DAYS
+    const cutoffTime = Date.now() - (days * DAY_MS)
     const filteredLogs = logs.filter(log => new Date(log.timestamp).getTime() > cutoffTime)
-    if (filteredLogs.length === 0) return `最近 ${options.days} 天没有命令执行记录`
+    if (filteredLogs.length === 0) return `最近 ${days} 天没有命令执行记录`
 
     if (options.format === 'csv') {
       return formatCsvExport(filteredLogs)
     }
     return `JSON格式日志 (${filteredLogs.length} 条记录)\n\n${JSON.stringify(filteredLogs, null, JSON_INDENT_SPACES)}`
   } catch (error) {
-    return `导出日志失败: ${error.message}`
+    return `导出日志失败: ${errorMessage(error)}`
   }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function cleanOldLogs(host: LogModule, daysToKeep: number): number {
