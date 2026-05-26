@@ -237,6 +237,20 @@ E2E fixture 不再把页面导航取消的 API `net::ERR_ABORTED` 误判为后�
 （4 项）、`pnpm --dir clients test:web`（54 文件、247 项）、`pnpm --dir clients type-check:web`、
 `pnpm --dir clients lint:web` 和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3515 make e2e-web`（184 项）。
 
+本地验证补充（2026-05-26）：继续收紧共享评课分页 normalizer，`normalizeReviewList` 不再把缺失
+`data`、缺失 `list`、`list` 非数组或非法 `total` 的 HTTP 200 响应归一化为空列表 / 0；所有通过
+Web `api.review.*Page` 的评课 feed、课程详情评课列表和高级搜索评价结果都会收到显式错误并进入既有失败态。
+新增 shared 单测覆盖合法分页与畸形分页 fail-closed，新增 Web API adapter 单测覆盖畸形分页向上传递错误，
+新增评课社区 E2E 覆盖 `/courses/reviews` 最新评价 feed 首次畸形响应显示“加载测评失败”而非“暂无测评”，
+点击重试后恢复真实评价。已通过目标 shared 单测
+`pnpm --dir clients --filter @stuhelper/shared exec vitest run src/__tests__/review.test.ts`（2 项）、
+目标 Web API 单测
+`pnpm --dir clients --filter @stuhelper/web exec vitest run src/api/__tests__/review.test.ts`（2 项）、
+目标 E2E `CI=1 PLAYWRIGHT_WEB_PORT=3516 pnpm --dir clients/web exec playwright test tests/e2e/course-community.spec.ts`
+（8 项）、`pnpm --dir clients test:shared`（10 文件、52 项）、`pnpm --dir clients test:web`
+（54 文件、248 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3517 make e2e-web`（186 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

@@ -47,9 +47,18 @@ export function normalizeReviews(items?: ApiReview[] | null): Review[] {
 }
 
 export function normalizeReviewList(payload?: ApiReviewListPayload | null): PaginatedResult<Review> {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid review list response')
+  }
+
+  const { list, total } = payload
+  if (!Array.isArray(list) || typeof total !== 'number' || !Number.isFinite(total) || total < 0) {
+    throw new Error('Invalid review list response')
+  }
+
   return {
-    list: (payload?.list ?? []) as Review[],
-    total: payload?.total ?? 0,
+    list: list as Review[],
+    total,
   }
 }
 

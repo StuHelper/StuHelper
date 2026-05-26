@@ -285,6 +285,33 @@ test.describe("Course community surfaces", () => {
         ).toBeVisible();
     });
 
+    test("invalid review feed response fails closed and can retry", async ({
+        page,
+    }) => {
+        let loadCount = 0;
+        await mockCourseCommunityApi(page);
+        await page.route("**/api/v1/course/review/reviews/latest*", (route) => {
+            recordApiRequest(route);
+            loadCount += 1;
+            return route.fulfill(
+                loadCount === 1 ? ok(null) : list([latestReview]),
+            );
+        });
+
+        await page.goto("/courses/reviews");
+
+        const alert = page.getByRole("alert").filter({
+            hasText: "加载测评失败，请稍后重试",
+        });
+        await expect(alert).toBeVisible({ timeout: 10_000 });
+        await expect(page.getByText("暂无测评，来发布第一条吧")).toHaveCount(0);
+
+        await alert.getByRole("button", { name: "重试" }).click();
+
+        await expect.poll(() => loadCount).toBe(2);
+        await expect(page.getByText("最新聚合测评")).toBeVisible();
+    });
+
     test("teacher hub shows popular teachers and searches by name", async ({
         page,
     }) => {

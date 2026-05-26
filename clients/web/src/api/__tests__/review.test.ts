@@ -53,4 +53,22 @@ describe('createReviewAppApi', () => {
       },
     )
   })
+
+  it('fails closed when a paginated review response is malformed', async () => {
+    const client = {
+      GET: vi.fn().mockResolvedValue({
+        data: { data: null },
+      }),
+      POST: vi.fn(),
+      PUT: vi.fn(),
+      PATCH: vi.fn(),
+      DELETE: vi.fn(),
+    }
+
+    const api = createReviewAppApi(client as never)
+
+    await expect(api.getLatestReviewsPage()).rejects.toThrow(
+      'Invalid review list response',
+    )
+  })
 })
