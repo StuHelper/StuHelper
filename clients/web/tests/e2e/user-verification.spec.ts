@@ -37,6 +37,14 @@ const verifiedIdentity = {
     updatedAt: now,
 };
 
+const rejectedIdentity = {
+    ...verifiedIdentity,
+    verified: false,
+    reviewedAt: now,
+    verifiedAt: null,
+    rejectionReason: "证件号码与姓名不匹配",
+};
+
 const unverifiedProfile = {
     userID: 12,
     schoolID: null,
@@ -62,6 +70,17 @@ const verifiedProfile = {
     verificationStatus: "verified",
     verificationMethod: "ldap",
     verifiedAt: now,
+};
+
+const rejectedProfile = {
+    ...unverifiedProfile,
+    schoolID: 1001,
+    studentIDs: [],
+    activeStudentID: null,
+    verificationStatus: "rejected",
+    verificationMethod: "ldap",
+    rejectionReason: "统一身份认证失败",
+    reviewedAt: now,
 };
 
 const schools = [
@@ -266,6 +285,45 @@ async function mockUserApi(page: Page, state: UserApiState) {
 }
 
 test.describe("User verification flows", () => {
+    test("rejected identity and student verification pages allow resubmission", async ({
+        page,
+    }) => {
+        const state: UserApiState = {
+            identity: { ...rejectedIdentity },
+            profile: { ...rejectedProfile },
+            qqBinding: null,
+        };
+
+        await mockUserApi(page, state);
+
+        await gotoAuthenticatedPage(page, "/user/identity-verification");
+        await expect(
+            page.getByRole("heading", { name: "已拒绝" }),
+        ).toBeVisible();
+        await expect(page.getByText("证件号码与姓名不匹配")).toBeVisible();
+
+        await page.getByRole("button", { name: "重新提交" }).click();
+        await expect(page.getByLabel("真实姓名")).toBeVisible();
+        await expect(page.getByLabel("证件号码")).toBeVisible();
+        await expect(
+            page.getByRole("button", { name: "提交认证" }),
+        ).toBeDisabled();
+
+        state.identity = { ...verifiedIdentity };
+        await gotoAuthenticatedPage(page, "/user/student-verification");
+        await expect(
+            page.getByRole("heading", { name: "已拒绝" }),
+        ).toBeVisible();
+        await expect(page.getByText("验证失败，请检查学号和密码")).toBeVisible();
+
+        await page.getByRole("button", { name: "重新提交" }).click();
+        await expect(page.locator("#student-school")).toBeVisible();
+        await page.locator("#student-school").selectOption("1001");
+        await expect(
+            page.getByRole("button", { name: "验证" }),
+        ).toBeDisabled();
+    });
+
     test("verified and bound account detail pages render persisted status", async ({
         page,
     }) => {
