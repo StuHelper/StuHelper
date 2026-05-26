@@ -22,6 +22,29 @@ function hasWebGetRequest(pathname: string, matches: (url: URL) => boolean) {
   })
 }
 
+function department(id: number, name: string) {
+  return { id, name, category: 'engineering' }
+}
+
+function term(id: string, name: string, isCurrent = false) {
+  return { id, name, isCurrent }
+}
+
+function course(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 101,
+    schoolID: 1,
+    departmentID: 1,
+    departmentName: '计算机科学与技术学院',
+    code: 'CS201',
+    name: '数据结构与算法',
+    credits: 3,
+    category: '专业课',
+    reviewCount: 23,
+    ...overrides,
+  }
+}
+
 async function mockUnauthenticated(page: Page) {
   await page.route('**/api/v1/auth/me', (route) =>
     route.fulfill({
@@ -46,8 +69,8 @@ test.describe('User Journey: Search', () => {
         body: JSON.stringify({
           success: true,
           data: [
-            { id: 1, name: '计算机科学与技术学院' },
-            { id: 2, name: '数学科学学院' },
+            department(1, '计算机科学与技术学院'),
+            department(2, '数学科学学院'),
           ],
         }),
       }),
@@ -59,8 +82,8 @@ test.describe('User Journey: Search', () => {
         body: JSON.stringify({
           success: true,
           data: [
-            { id: '2025-fall', name: '2025 秋' },
-            { id: '2025-spring', name: '2025 春' },
+            term('2025-fall', '2025 秋', true),
+            term('2025-spring', '2025 春'),
           ],
         }),
       }),
@@ -79,10 +102,13 @@ test.describe('User Journey: Search', () => {
         contentType: 'application/json',
         body: JSON.stringify(
           departmentsRequestCount === 1
-            ? { success: true, data: null }
+            ? {
+                success: true,
+                data: [{ id: 1, name: '缺失分类的院系' }],
+              }
             : {
                 success: true,
-                data: [{ id: 1, name: '计算机科学与技术学院' }],
+                data: [department(1, '计算机科学与技术学院')],
               },
         ),
       })
@@ -94,10 +120,10 @@ test.describe('User Journey: Search', () => {
         contentType: 'application/json',
         body: JSON.stringify(
           termsRequestCount === 1
-            ? { success: true, data: null }
+            ? { success: true, data: [{ id: '2025-fall', name: '2025 秋' }] }
             : {
                 success: true,
-                data: [{ id: '2025-fall', name: '2025 秋' }],
+                data: [term('2025-fall', '2025 秋', true)],
               },
         ),
       })
@@ -132,16 +158,7 @@ test.describe('User Journey: Search', () => {
         body: JSON.stringify({
           success: true,
           data: {
-            list: [
-              {
-                id: 101,
-                name: '数据结构与算法',
-                code: 'CS201',
-                departmentID: 1,
-                departmentName: '计算机科学与技术学院',
-                reviewCount: 23,
-              },
-            ],
+            list: [course()],
             total: 1,
           },
         }),
@@ -257,14 +274,12 @@ test.describe('User Journey: Search', () => {
           success: true,
           data: {
             list: [
-              {
+              course({
                 id: 102,
                 name: '编译原理',
                 code: 'CS301',
-                departmentID: 1,
-                departmentName: '计算机科学与技术学院',
                 reviewCount: 8,
-              },
+              }),
             ],
             total: 1,
           },
@@ -420,7 +435,10 @@ test.describe('User Journey: Search', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           success: true,
-          data: null,
+          data: {
+            list: [course({ credits: '3' })],
+            total: 1,
+          },
         }),
       })
     })

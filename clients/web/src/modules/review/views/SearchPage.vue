@@ -319,8 +319,12 @@ import { ArrowLeft, Search, SearchX } from 'lucide-vue-next'
 import ReviewCard from '@/components/business/review/ReviewCard.vue'
 import { api } from '@/api'
 import { getErrorMessage } from '@/api/errors'
-import { readArrayPayload, readListPayload } from '@/api/responsePayload'
 import { useToast } from '@/composables/useToast'
+import {
+  readCourseListPayload,
+  readDepartmentArrayPayload,
+  readTermArrayPayload,
+} from '@/modules/course/coursePayload'
 import type { Department, Term, Course } from '@stuhelper/shared/course'
 import type { Review } from '@stuhelper/shared/review'
 
@@ -385,7 +389,7 @@ function backToForm() {
 async function loadDepartments() {
   try {
     const res = await api.course.getDepartments()
-    departments.value = readArrayPayload<Department>(
+    departments.value = readDepartmentArrayPayload(
       res.data?.data,
       'Invalid departments response',
     )
@@ -398,7 +402,7 @@ async function loadDepartments() {
 async function loadTerms() {
   try {
     const res = await api.course.getTerms()
-    terms.value = readArrayPayload<Term>(
+    terms.value = readTermArrayPayload(
       res.data?.data,
       'Invalid terms response',
     )
@@ -477,7 +481,7 @@ async function handleSearch() {
 
     if (courseRes.status === 'fulfilled' && courseRes.value) {
       try {
-        resultCourses.value = readListPayload<Course>(
+        resultCourses.value = readCourseListPayload(
           courseRes.value.data?.data,
           'Invalid course search response',
         )

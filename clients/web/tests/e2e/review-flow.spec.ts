@@ -120,6 +120,37 @@ function ratingDimension(key: string, name: string, sortOrder: number) {
     };
 }
 
+function term(id: string, name: string, isCurrent = true) {
+    return { id, name, isCurrent };
+}
+
+function course(overrides: Record<string, unknown> = {}) {
+    return {
+        id: 1,
+        schoolID: 1,
+        departmentID: 1,
+        departmentName: "数学系",
+        code: "MATH101",
+        name: "高等数学",
+        credits: 4,
+        category: "公共基础",
+        reviewCount: 1,
+        ...overrides,
+    };
+}
+
+function teacher(overrides: Record<string, unknown> = {}) {
+    return {
+        teacherID: 1,
+        teacherName: "王老师",
+        departmentName: "数学系",
+        avgRating: 4.5,
+        courseCount: 1,
+        reviewCount: 1,
+        ...overrides,
+    };
+}
+
 async function mockPostReviewBootstrap(page: Page, termsData: unknown) {
     await page.route("**/api/v1/course/terms", async (route) => {
         await route.fulfill({
@@ -160,7 +191,7 @@ test.beforeEach(async ({ page }) => {
 test("post review page fails closed when terms response is malformed", async ({
     page,
 }) => {
-    await mockPostReviewBootstrap(page, null);
+    await mockPostReviewBootstrap(page, [{ id: "2025-fall", name: "2025 秋" }]);
 
     await page.goto("/courses/reviews/post");
 
@@ -173,7 +204,7 @@ test("post review page fails closed when terms response is malformed", async ({
 test("post review page fails closed when rating dimensions response is malformed", async ({
     page,
 }) => {
-    await mockPostReviewBootstrap(page, [{ id: "2025-fall", name: "2025 秋" }]);
+    await mockPostReviewBootstrap(page, [term("2025-fall", "2025 秋")]);
     await page.route("**/api/v1/course/review/rating-dimensions", async (route) => {
         await route.fulfill({
             contentType: "application/json",
@@ -194,11 +225,17 @@ test("post review page fails closed when rating dimensions response is malformed
 test("post review course autocomplete fails closed when search response is malformed", async ({
     page,
 }) => {
-    await mockPostReviewBootstrap(page, [{ id: "2025-fall", name: "2025 秋" }]);
+    await mockPostReviewBootstrap(page, [term("2025-fall", "2025 秋")]);
     await page.route("**/api/v1/course/courses/search*", async (route) => {
         await route.fulfill({
             contentType: "application/json",
-            body: JSON.stringify({ success: true, data: null }),
+            body: JSON.stringify({
+                success: true,
+                data: {
+                    list: [course({ credits: "4" })],
+                    total: 1,
+                },
+            }),
         });
     });
 
@@ -217,22 +254,14 @@ test("post review course autocomplete fails closed when search response is malfo
 test("post review teacher selector fails closed when teachers response is malformed", async ({
     page,
 }) => {
-    await mockPostReviewBootstrap(page, [{ id: "2025-fall", name: "2025 秋" }]);
+    await mockPostReviewBootstrap(page, [term("2025-fall", "2025 秋")]);
     await page.route("**/api/v1/course/courses/search*", async (route) => {
         await route.fulfill({
             contentType: "application/json",
             body: JSON.stringify({
                 success: true,
                 data: {
-                    list: [
-                        {
-                            id: 1,
-                            name: "高等数学",
-                            code: "MATH101",
-                            departmentName: "数学系",
-                            reviewCount: 1,
-                        },
-                    ],
+                    list: [course()],
                     total: 1,
                 },
             }),
@@ -241,7 +270,10 @@ test("post review teacher selector fails closed when teachers response is malfor
     await page.route("**/api/v1/course/review/courses/1/teachers", async (route) => {
         await route.fulfill({
             contentType: "application/json",
-            body: JSON.stringify({ success: true, data: null }),
+            body: JSON.stringify({
+                success: true,
+                data: [teacher({ courseCount: -1 })],
+            }),
         });
     });
 
@@ -263,14 +295,17 @@ test("post review teacher selector fails closed when teachers response is malfor
 test("post review preselected course fails closed when course response is malformed", async ({
     page,
 }) => {
-    await mockPostReviewBootstrap(page, [{ id: "2025-fall", name: "2025 秋" }]);
+    await mockPostReviewBootstrap(page, [term("2025-fall", "2025 秋")]);
     await page.addInitScript(() => {
         window.sessionStorage.setItem("review_post_preselect_course_id", "1");
     });
     await page.route("**/api/v1/course/courses/1", async (route) => {
         await route.fulfill({
             contentType: "application/json",
-            body: JSON.stringify({ success: true, data: null }),
+            body: JSON.stringify({
+                success: true,
+                data: course({ reviewCount: "1" }),
+            }),
         });
     });
 
@@ -287,22 +322,14 @@ test("post review content check fails closed when response is malformed", async 
 }) => {
     let createReviewCalled = false;
 
-    await mockPostReviewBootstrap(page, [{ id: "2025-fall", name: "2025 秋" }]);
+    await mockPostReviewBootstrap(page, [term("2025-fall", "2025 秋")]);
     await page.route("**/api/v1/course/courses/search*", async (route) => {
         await route.fulfill({
             contentType: "application/json",
             body: JSON.stringify({
                 success: true,
                 data: {
-                    list: [
-                        {
-                            id: 1,
-                            name: "高等数学",
-                            code: "MATH101",
-                            departmentName: "数学系",
-                            reviewCount: 1,
-                        },
-                    ],
+                    list: [course()],
                     total: 1,
                 },
             }),
@@ -392,7 +419,7 @@ test("authenticated user can publish a review and vote on a course review", asyn
             contentType: "application/json",
             body: JSON.stringify({
                 success: true,
-                data: [{ id: "2025-fall", name: "2025 秋" }],
+                data: [term("2025-fall", "2025 秋")],
             }),
         });
     });
@@ -418,12 +445,7 @@ test("authenticated user can publish a review and vote on a course review", asyn
             contentType: "application/json",
             body: JSON.stringify({
                 success: true,
-                data: {
-                    id: 1,
-                    name: "高等数学",
-                    code: "MATH101",
-                    departmentName: "数学系",
-                },
+                data: course(),
             }),
         });
     });
@@ -434,15 +456,7 @@ test("authenticated user can publish a review and vote on a course review", asyn
             body: JSON.stringify({
                 success: true,
                 data: {
-                    list: [
-                        {
-                            id: 1,
-                            name: "高等数学",
-                            code: "MATH101",
-                            departmentName: "数学系",
-                            reviewCount: 1,
-                        },
-                    ],
+                    list: [course()],
                     total: 1,
                 },
             }),

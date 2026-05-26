@@ -561,6 +561,19 @@ invalid-response 重试路径。已通过目标单测
 （18 项）；并通过 `pnpm --dir clients lint:web`、`pnpm --dir clients test:web`（57 文件、282 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3587 make e2e-web`（230 项）。
 
+本地验证补充（2026-05-27）：继续收紧发布评价和高级搜索参考数据 payload。`coursePayload`
+reader 新增 `Term` 与 `TeacherStats` 校验，要求学期包含 `id`、`name`、`isCurrent`，授课教师包含正整数
+`teacherID`、教师名、院系名、非负课程 / 评价计数和合法可选评分；发布评价页的学期、课程自动完成、预选课程恢复、
+授课教师列表，以及高级搜索页的院系、学期、课程结果均不再通过泛型 reader 浅层 cast。相关 invalid-response
+E2E 从顶层 `null` 扩展为嵌套字段畸形：缺失 `isCurrent` 的学期、`credits` 类型错误的课程、`reviewCount`
+类型错误的预选课程、`courseCount` 为负的教师、缺失 `category` 的院系。新增 `coursePayload` 单测直接锁定
+Course / Department / Term / TeacherStats 字段级 fail-closed。已通过目标单测
+`pnpm --dir clients --filter @stuhelper/web exec vitest run src/modules/course/__tests__/coursePayload.test.ts src/stores/__tests__/courseReview.test.ts`
+（21 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3588 pnpm --dir clients/web exec playwright test tests/e2e/review-flow.spec.ts tests/e2e/journey-search.spec.ts`
+（24 项）；并通过 `pnpm --dir clients test:web`（58 文件、287 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3589 make e2e-web`（230 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

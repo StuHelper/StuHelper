@@ -1,4 +1,4 @@
-import type { Course, CourseCategory, Department } from '@stuhelper/shared/course'
+import type { Course, CourseCategory, Department, TeacherStats, Term } from '@stuhelper/shared/course'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -68,6 +68,44 @@ function readOptionalBoolean(
     return undefined
   }
   if (typeof value !== 'boolean') {
+    throw new Error(message)
+  }
+  return value
+}
+
+function readBoolean(record: Record<string, unknown>, key: string, message: string): boolean {
+  const value = record[key]
+  if (typeof value !== 'boolean') {
+    throw new Error(message)
+  }
+  return value
+}
+
+function readOptionalNullableNumber(
+  record: Record<string, unknown>,
+  key: string,
+  message: string,
+): number | null | undefined {
+  const value = record[key]
+  if (value === undefined || value === null) {
+    return value
+  }
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(message)
+  }
+  return value
+}
+
+function readOptionalStringArray(
+  record: Record<string, unknown>,
+  key: string,
+  message: string,
+): string[] | undefined {
+  const value = record[key]
+  if (value === undefined) {
+    return undefined
+  }
+  if (!Array.isArray(value) || value.some(item => typeof item !== 'string')) {
     throw new Error(message)
   }
   return value
@@ -185,4 +223,63 @@ export function readCourseCategoryArrayPayload(
   message = 'Invalid course categories response',
 ): CourseCategory[] {
   return readArray(payload, message, readCourseCategoryPayload)
+}
+
+export function readTermPayload(payload: unknown, message = 'Invalid terms response'): Term {
+  if (!isRecord(payload)) {
+    throw new Error(message)
+  }
+
+  return {
+    id: readString(payload, 'id', message),
+    schoolID: readOptionalInteger(payload, 'schoolID', message),
+    name: readString(payload, 'name', message),
+    isCurrent: readBoolean(payload, 'isCurrent', message),
+  }
+}
+
+export function readTermArrayPayload(
+  payload: unknown,
+  message = 'Invalid terms response',
+): Term[] {
+  return readArray(payload, message, readTermPayload)
+}
+
+export function readTeacherStatsPayload(
+  payload: unknown,
+  message = 'Invalid course teachers response',
+): TeacherStats {
+  if (!isRecord(payload)) {
+    throw new Error(message)
+  }
+
+  const teacherID = readInteger(payload, 'teacherID', message)
+  const avgRating = readOptionalNullableNumber(payload, 'avgRating', message)
+  const courseCount = readInteger(payload, 'courseCount', message)
+  const reviewCount = readInteger(payload, 'reviewCount', message)
+  if (
+    teacherID <= 0 ||
+    (typeof avgRating === 'number' && avgRating < 0) ||
+    courseCount < 0 ||
+    reviewCount < 0
+  ) {
+    throw new Error(message)
+  }
+
+  return {
+    teacherID,
+    teacherName: readString(payload, 'teacherName', message),
+    departmentName: readString(payload, 'departmentName', message),
+    avgRating,
+    courseCount,
+    reviewCount,
+    tags: readOptionalStringArray(payload, 'tags', message),
+  }
+}
+
+export function readTeacherStatsArrayPayload(
+  payload: unknown,
+  message = 'Invalid course teachers response',
+): TeacherStats[] {
+  return readArray(payload, message, readTeacherStatsPayload)
 }

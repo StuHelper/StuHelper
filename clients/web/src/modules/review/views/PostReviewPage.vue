@@ -397,11 +397,16 @@ import DraftPromptDialog from '@/components/business/review/DraftPromptDialog.vu
 import EmojiRatingInput from '@/components/business/review/EmojiRatingInput.vue'
 import { areRatingsComplete, useRatingDimensions } from '@/components/business/review/composables/useRatingDimensions'
 import { api } from '@/api'
-import { readArrayPayload, readListPayload } from '@/api/responsePayload'
 import { useToast } from '@/composables/useToast'
 import { usePinyinSearch, type PinyinSearchItem } from '@/composables/usePinyinSearch'
 import { buildCreateReviewPayload } from '@/components/business/review/reviewPayload'
 import { buildTermOptions } from '@/modules/course/termOptions'
+import {
+  readCourseListPayload,
+  readCoursePayload,
+  readTeacherStatsArrayPayload,
+  readTermArrayPayload,
+} from '@/modules/course/coursePayload'
 import { useReviewPost } from '@/composables/useReviewPost'
 import { getErrorMessage } from '@/api/errors'
 import { consumeReviewPostCourseID } from '@/modules/review/reviewPostNavigation'
@@ -479,7 +484,7 @@ async function fetchTerms() {
   termsLoadError.value = ''
   try {
     const res = await api.course.getTerms()
-    terms.value = readArrayPayload<Term>(
+    terms.value = readTermArrayPayload(
       res.data?.data,
       'Invalid terms response',
     )
@@ -501,7 +506,7 @@ async function fetchTeachers(courseID: number) {
   selectedTeacherID.value = null
   try {
     const res = await api.rating.getCourseTeachers(courseID)
-    teachers.value = readArrayPayload<TeacherStats>(
+    teachers.value = readTeacherStatsArrayPayload(
       res.data?.data,
       'Invalid course teachers response',
     )
@@ -558,7 +563,7 @@ watch(
       searchAbortController = new AbortController()
       try {
         const res = await api.course.searchCourses(trimmed, { pageSize: 30 }, { signal: searchAbortController.signal })
-        courses.value = readListPayload<Course>(
+        courses.value = readCourseListPayload(
           res.data?.data,
           'Invalid course search response',
         )
@@ -636,29 +641,11 @@ onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', handleBeforeUnload)
 })
 
-function readCoursePayload(payload: unknown): Course {
-  if (!payload || typeof payload !== 'object') {
-    throw new Error('Invalid course response')
-  }
-
-  const { id, name } = payload as { id?: unknown; name?: unknown }
-  if (
-    typeof id !== 'number' ||
-    !Number.isFinite(id) ||
-    id <= 0 ||
-    typeof name !== 'string'
-  ) {
-    throw new Error('Invalid course response')
-  }
-
-  return payload as Course
-}
-
 async function loadCourseSelection(courseID: number): Promise<boolean> {
   courseLoadError.value = ''
   try {
     const res = await api.course.getCourse(courseID)
-    const data = readCoursePayload(res.data?.data)
+    const data = readCoursePayload(res.data?.data, 'Invalid course response')
     selectedCourse.value = data
     courseSearch.query.value = data.name
     return true
