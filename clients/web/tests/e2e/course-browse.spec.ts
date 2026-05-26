@@ -525,6 +525,7 @@ test.describe('Course Browse Flow', () => {
                 id: reviewID,
                 courseID: 4,
                 courseName: '游客保护课程',
+                termID: '2026-spring',
                 title: '游客操作保护验证',
                 content: '这条评价用于验证游客不能直接触发受保护动作。',
                 teacherName: '陈老师',

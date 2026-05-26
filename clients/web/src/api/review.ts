@@ -1,8 +1,8 @@
 import type { ApiClient } from '@stuhelper/shared/api'
 import { createReviewApi } from '@stuhelper/shared/api'
+import { readReviewPagePayload } from '@/modules/review/reviewListPayload'
 import {
   normalizeContentCheck,
-  normalizeReviewList,
   type PaginatedResult,
   type Review,
   type ReviewContentCheck,
@@ -40,19 +40,19 @@ export function createReviewAppApi(client: ApiClient): ReviewAppApi {
     },
     async getBatchCourseReviewsPage(courseIDs, params) {
       const result = await wire.getBatchCourseReviews(courseIDs, params)
-      return normalizeReviewList(result.data?.data)
+      return readReviewPagePayload(result.data?.data)
     },
     async getLatestReviewsPage(params) {
       const result = await wire.getLatestReviews(params)
-      return normalizeReviewList(result.data?.data)
+      return readReviewPagePayload(result.data?.data)
     },
     async getReviewsPage(courseId, params) {
       const result = await wire.getReviews(courseId, params)
-      return normalizeReviewList(result.data?.data)
+      return readReviewPagePayload(result.data?.data)
     },
     async searchReviewsPage(params, options) {
       const result = await wire.searchReviews(params, options)
-      return normalizeReviewList(result.data?.data)
+      return readReviewPagePayload(result.data?.data)
     },
   }
 }

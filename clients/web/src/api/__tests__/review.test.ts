@@ -4,11 +4,25 @@ import { createReviewAppApi } from '../review'
 
 describe('createReviewAppApi', () => {
   it('keeps wire calls in the transport layer and normalizes paginated responses in the app adapter', async () => {
+    const review = {
+      id: 'r1',
+      courseID: 42,
+      courseName: '操作系统',
+      termID: '2026-spring',
+      title: 'hello',
+      content: 'hello',
+      ratings: { recommendation: 5 },
+      likeCount: 1,
+      dislikeCount: 0,
+      replyCount: 0,
+      status: 'published',
+      createdAt: '2026-04-01T00:00:00Z',
+    }
     const client = {
       GET: vi.fn().mockResolvedValue({
         data: {
           data: {
-            list: [{ id: 'r1', content: 'hello' }],
+            list: [review],
             total: 1,
           },
         },
@@ -29,7 +43,7 @@ describe('createReviewAppApi', () => {
     const api = createReviewAppApi(client as never)
 
     await expect(api.getReviewsPage(42, { page: 2, pageSize: 10 })).resolves.toEqual({
-      list: [{ id: 'r1', content: 'hello' }],
+      list: [review],
       total: 1,
     })
     await expect(api.checkContentResult({ content: 'hello' })).resolves.toEqual({
@@ -57,7 +71,27 @@ describe('createReviewAppApi', () => {
   it('fails closed when a paginated review response is malformed', async () => {
     const client = {
       GET: vi.fn().mockResolvedValue({
-        data: { data: null },
+        data: {
+          data: {
+            list: [
+              {
+                id: 'r1',
+                courseID: 42,
+                courseName: '操作系统',
+                termID: '2026-spring',
+                title: 'hello',
+                content: 'hello',
+                ratings: { recommendation: 6 },
+                likeCount: 1,
+                dislikeCount: 0,
+                replyCount: 0,
+                status: 'published',
+                createdAt: '2026-04-01T00:00:00Z',
+              },
+            ],
+            total: 1,
+          },
+        },
       }),
       POST: vi.fn(),
       PUT: vi.fn(),

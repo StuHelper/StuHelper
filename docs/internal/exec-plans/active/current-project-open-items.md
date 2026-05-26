@@ -3,7 +3,7 @@ type: internal
 audience: maintainers
 status: current
 authoritative-source: this file
-last-verified: 2026-05-26
+last-verified: 2026-05-27
 ---
 
 # 当前项目待办
@@ -499,6 +499,18 @@ courses 内每门课程的 ID、department ID、课程名、学分、评课数�
 `CI=1 PLAYWRIGHT_WEB_PORT=3572 pnpm --dir clients/web exec playwright test tests/e2e/course-browse.spec.ts tests/e2e/journey-browse.spec.ts`
 （24 项）；并通过 `pnpm --dir clients lint:web`、`pnpm --dir clients test:web`（57 文件、275 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3573 make e2e-web`（228 项）。
+
+本地验证补充（2026-05-27）：继续收紧公共评价列表 adapter。`api/review.ts` 现在复用
+`reviewListPayload` 校验 `getBatchCourseReviewsPage`、`getLatestReviewsPage`、`getReviewsPage` 和
+`searchReviewsPage` 的 `Review` 列表响应；首页评价流、课程详情评价、搜索评价等公共列表不再依赖 shared
+`normalizeReviewList` 的浅层 cast。畸形 200 不再把缺失 `termID`、未知状态或越界评分的评价写入公共评价列表。
+更新 review API 单测覆盖嵌套 review 字段畸形；同步补齐课程浏览与高级搜索 E2E mock 的必需字段。已通过
+目标单测
+`pnpm --dir clients --filter @stuhelper/web exec vitest run src/api/__tests__/review.test.ts src/modules/review/__tests__/reviewListPayload.test.ts`
+（7 项）、`pnpm --dir clients type-check:web`、目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3575 pnpm --dir clients/web exec playwright test tests/e2e/course-browse.spec.ts tests/e2e/journey-search.spec.ts`
+（24 项）；并通过 `pnpm --dir clients lint:web`、`pnpm --dir clients test:web`（57 文件、275 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3576 make e2e-web`（228 项）。
 
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
