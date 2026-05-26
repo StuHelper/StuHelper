@@ -568,8 +568,8 @@ const handleRecall = async () => {
       session.messages.splice(index, 1)
     }
     message.success('消息已撤回')
-  } catch (e: any) {
-    message.error(e.message || '撤回失败')
+  } catch (cause) {
+    message.error(errorMessage(cause) || '撤回失败')
   }
   hideContextMenu()
 }
@@ -793,8 +793,8 @@ const sendMessage = async () => {
     // 清空输入框和待发送图片
     inputText.value = ''
     pendingImages.value = []
-  } catch (e: any) {
-    message.error(e.message || '发送失败')
+  } catch (cause) {
+    message.error(errorMessage(cause) || '发送失败')
   } finally {
     sending.value = false
     // 聚焦回输入框

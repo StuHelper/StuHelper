@@ -735,6 +735,12 @@ WebSocket API 装配路径继续存在于源码中；运行时契约新增断言
 `corepack yarn --cwd bots/koishi build`、`make e2e-koishi`（29 项，含 dashboard 渲染）和
 `git diff --check`。
 
+本地 Koishi Console 错误处理类型清理（2026-05-27）：`ChatView`、`ConfigView` 和 `SettingsView`
+的用户提示错误路径不再使用 `catch (e: any)` 或直接读取 `e.message`，统一把捕获值视为 `unknown` 后
+通过 `errorMessage(cause)` 转为展示文案。源码合同已覆盖这三个视图，防止 catch 重新退回裸 `any`。
+已通过 `corepack yarn --cwd bots/koishi test:unit`（266 项）、`corepack yarn --cwd bots/koishi build`、
+`make e2e-koishi`（29 项，覆盖 ChatDock、配置治理和全局设置真实 Console actions）和 `git diff --check`。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

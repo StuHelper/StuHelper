@@ -84,6 +84,17 @@ test('dashboard chart components use explicit chart item types', () => {
   assert.match(rankSource, /function rankItemId\(item: RankChartItem\): string/)
 })
 
+test('console views treat caught errors as unknown before showing messages', () => {
+  const chatSource = readClientFile('./components/ChatView.vue')
+  const configSource = readClientFile('./components/ConfigView.vue')
+  const settingsSource = readClientFile('./components/SettingsView.vue')
+
+  for (const source of [chatSource, configSource, settingsSource]) {
+    assert.doesNotMatch(source, /catch \(e: any\)/)
+    assert.match(source, /function errorMessage\(cause: unknown\): string|const errorMessage = \(cause: unknown\)/)
+  }
+})
+
 test('ChatView delegates message rendering to a safe component instead of v-html', () => {
   const source = readClientFile('./components/ChatView.vue')
 

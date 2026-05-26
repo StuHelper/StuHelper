@@ -735,8 +735,8 @@ const refreshConfigs = async () => {
   loading.value = true
   try {
     configs.value = await configApi.list(fetchNames.value)
-  } catch (e: any) {
-    message.error(e.message || '加载配置失败')
+  } catch (cause) {
+    message.error(errorMessage(cause) || '加载配置失败')
   } finally {
     loading.value = false
   }
@@ -748,8 +748,8 @@ const reloadConfigs = async () => {
     const result = await configApi.reload()
     message.success(`已重新加载 ${result.count} 条配置`)
     await refreshConfigs()
-  } catch (e: any) {
-    message.error(e.message || '重新加载失败')
+  } catch (cause) {
+    message.error(errorMessage(cause) || '重新加载失败')
   } finally {
     reloading.value = false
   }
@@ -821,8 +821,8 @@ const saveConfig = async () => {
     message.success('保存成功')
     showEditDialog.value = false
     await refreshConfigs()
-  } catch (e: any) {
-    message.error(e.message || '保存失败')
+  } catch (cause) {
+    message.error(errorMessage(cause) || '保存失败')
   } finally {
     saving.value = false
   }
@@ -843,8 +843,8 @@ const createConfig = async () => {
     newConfig.value.guildId = ''
     await refreshConfigs()
     editConfig(guildId)
-  } catch (e: any) {
-    message.error(e.message || '创建失败')
+  } catch (cause) {
+    message.error(errorMessage(cause) || '创建失败')
   } finally {
     creating.value = false
   }
@@ -868,11 +868,15 @@ const confirmDelete = async () => {
     showDeleteDialog.value = false
     showEditDialog.value = false
     await refreshConfigs()
-  } catch (e: any) {
-    message.error(e.message || '删除失败')
+  } catch (cause) {
+    message.error(errorMessage(cause) || '删除失败')
   } finally {
     deleting.value = false
   }
+}
+
+function errorMessage(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause)
 }
 
 const copyGuildId = (guildId?: string) => {

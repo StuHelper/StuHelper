@@ -836,8 +836,8 @@ const loadSettings = async () => {
     settings.value = deepMerge({ ...defaultSettings }, data || {})
     // 保存原始设置用于比较
     originalSettings.value = JSON.stringify(settings.value)
-  } catch (e: any) {
-    message.error(e.message || '加载设置失败')
+  } catch (cause) {
+    message.error(errorMessage(cause) || '加载设置失败')
   } finally {
     loading.value = false
   }
@@ -850,11 +850,15 @@ const saveSettings = async () => {
     // 更新原始设置
     originalSettings.value = JSON.stringify(settings.value)
     message.success('设置已保存')
-  } catch (e: any) {
-    message.error(e.message || '保存设置失败')
+  } catch (cause) {
+    message.error(errorMessage(cause) || '保存设置失败')
   } finally {
     saving.value = false
   }
+}
+
+function errorMessage(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause)
 }
 
 const resetChanges = async () => {
