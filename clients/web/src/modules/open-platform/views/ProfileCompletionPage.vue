@@ -137,6 +137,10 @@ import { AlertTriangle, ArrowRight, ExternalLink, RefreshCw, UserCheck } from 'l
 import { api } from '@/api'
 import { getErrorMessage } from '@/api/errors'
 import { useAuthStore } from '@/stores/auth'
+import {
+  readAuthorizationTargetPayload,
+  readProfileCompletionPagePayload,
+} from '@/modules/open-platform/pagePayload'
 import type { OpenPlatformProfileCompletionPageResponse } from '@stuhelper/shared/api'
 
 const route = useRoute()
@@ -175,9 +179,7 @@ async function loadCompletion() {
   loading.value = true
   try {
     const response = await api.openPlatform.getProfileCompletion(token.value)
-    const data = response.data?.data
-    if (!data) throw new Error('Invalid profile completion response')
-    completion.value = data
+    completion.value = readProfileCompletionPagePayload(response.data?.data)
   } catch (err) {
     errorTitle.value = t('common.openPlatformProfileCompletion.loadFailed')
     error.value = getErrorMessage(err, t('common.openPlatformProfileCompletion.loadFailed'))
@@ -191,10 +193,7 @@ async function continueAuthorization() {
   submitting.value = true
   try {
     const response = await api.openPlatform.continueProfileCompletion(completion.value.token)
-    const data = response.data?.data
-    const target = data?.redirectURL || data?.consentURL || data?.profileCompletionURL
-    if (!target) throw new Error('Invalid authorization response')
-    redirectToURL(target)
+    redirectToURL(readAuthorizationTargetPayload(response.data?.data))
   } catch (err) {
     errorTitle.value = t('common.openPlatformProfileCompletion.submitFailedTitle')
     error.value = getErrorMessage(err, t('common.openPlatformProfileCompletion.submitFailed'))

@@ -204,7 +204,17 @@ test.describe("Open Platform consent flow", () => {
             loadCount += 1;
             await route.fulfill(
                 loadCount === 1
-                    ? ok(null)
+                    ? ok({
+                          token: "retry-consent-token",
+                          app: {
+                              id: 42,
+                              clientID: "campus-connector",
+                              displayName: "Campus Connector",
+                          },
+                          scopes,
+                          redirectURI: "https://client.example.com/callback",
+                          expiresAt: "2026-06-01T10:00:00Z",
+                      })
                     : ok({
                           token: "retry-consent-token",
                           app,
@@ -401,7 +411,19 @@ test.describe("Open Platform consent flow", () => {
                 loadCount += 1;
                 await route.fulfill(
                     loadCount === 1
-                        ? ok(null)
+                        ? ok({
+                              token: "retry-profile-token",
+                              app,
+                              scopes,
+                              missingFields: [
+                                  {
+                                      key: "profile.phone",
+                                      displayName: "手机号",
+                                  },
+                              ],
+                              redirectURI: "https://client.example.com/callback",
+                              expiresAt: "2026-06-01T10:00:00Z",
+                          })
                         : ok({
                               token: "retry-profile-token",
                               app,

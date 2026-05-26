@@ -395,6 +395,17 @@ fail-closed 路径。已通过目标 E2E
 `pnpm --dir clients test:web`（55 文件、258 项）和完整
 `CI=1 PLAYWRIGHT_WEB_PORT=3548 make e2e-web`（228 项）。
 
+本地验证补充（2026-05-26）：继续收紧 Open Platform 授权页和资料补全页响应。`ConsentPage` 与
+`ProfileCompletionPage` 现在会校验 challenge payload 的 token、app、scope 枚举、敏感级别、字段列表、
+redirect URI、过期时间和资料补全缺失字段；同意 / 拒绝授权、继续授权的跳转响应也会校验目标字段类型。
+畸形 200 不再被当作可用 challenge 或可跳转结果，而是进入既有加载 / 提交失败态。现有 Open Platform
+Consent E2E 的 invalid-response 覆盖已从 `null` 扩展为嵌套字段缺失的畸形对象，锁定内部字段校验路径。
+已通过目标 E2E
+`CI=1 PLAYWRIGHT_WEB_PORT=3549 pnpm --dir clients/web exec playwright test tests/e2e/open-platform-consent.spec.ts`
+（18 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web`、
+`pnpm --dir clients test:web`（55 文件、258 项）和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3550 make e2e-web`（228 项）。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

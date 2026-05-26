@@ -149,6 +149,10 @@ import { AlertTriangle, Check, ExternalLink, ShieldCheck, X } from 'lucide-vue-n
 import { api } from '@/api'
 import { getErrorMessage } from '@/api/errors'
 import { useAuthStore } from '@/stores/auth'
+import {
+  readConsentPagePayload,
+  readRedirectURLPayload,
+} from '@/modules/open-platform/pagePayload'
 import type { OpenPlatformConsentPageResponse } from '@stuhelper/shared/api'
 
 type Sensitivity = OpenPlatformConsentPageResponse['scopes'][number]['sensitivity']
@@ -195,9 +199,7 @@ async function loadConsent() {
   loading.value = true
   try {
     const response = await api.openPlatform.getConsent(token.value)
-    const data = response.data?.data
-    if (!data) throw new Error('Invalid consent response')
-    consent.value = data
+    consent.value = readConsentPagePayload(response.data?.data)
   } catch (err) {
     errorTitle.value = t('common.openPlatformConsent.loadFailed')
     error.value = getErrorMessage(err, t('common.openPlatformConsent.loadFailed'))
@@ -212,9 +214,7 @@ async function submitDecision(accept: boolean) {
   try {
     const action = accept ? api.openPlatform.acceptConsent : api.openPlatform.denyConsent
     const response = await action(consent.value.token)
-    const redirectURL = response.data?.data?.redirectURL
-    if (!redirectURL) throw new Error('Invalid redirect response')
-    redirectToURL(redirectURL)
+    redirectToURL(readRedirectURLPayload(response.data?.data))
   } catch (err) {
     errorTitle.value = t('common.openPlatformConsent.submitFailedTitle')
     error.value = getErrorMessage(err, t('common.openPlatformConsent.submitFailed'))
