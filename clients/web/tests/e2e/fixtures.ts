@@ -8,6 +8,24 @@ import type {
 
 import { test as base, expect } from '@playwright/test'
 
+const expectedCriticalResourceFailures = new WeakMap<Page, RegExp[]>()
+const expectedConsoleErrors = new WeakMap<Page, RegExp[]>()
+
+export function allowExpectedCriticalResourceFailure(
+  page: Page,
+  urlPattern: RegExp,
+) {
+  const patterns = expectedCriticalResourceFailures.get(page) ?? []
+  patterns.push(urlPattern)
+  expectedCriticalResourceFailures.set(page, patterns)
+}
+
+export function allowExpectedConsoleError(page: Page, textPattern: RegExp) {
+  const patterns = expectedConsoleErrors.get(page) ?? []
+  patterns.push(textPattern)
+  expectedConsoleErrors.set(page, patterns)
+}
+
 const criticalResourceTypes = new Set([
   'document',
   'font',
@@ -34,6 +52,22 @@ function describeFailedRequest(request: Request) {
   return `${request.resourceType()} ${request.method()} ${request.url()} ${
     failure?.errorText ?? 'failed'
   }`
+}
+
+function isExpectedCriticalResourceFailure(page: Page, url: string) {
+  return (
+    expectedCriticalResourceFailures
+      .get(page)
+      ?.some((pattern) => pattern.test(url)) ?? false
+  )
+}
+
+function isExpectedConsoleError(page: Page, text: string) {
+  return (
+    expectedConsoleErrors
+      .get(page)
+      ?.some((pattern) => pattern.test(text)) ?? false
+  )
 }
 
 function describeUnsuccessfulResponse(response: Response) {
@@ -139,7 +173,8 @@ export const test = base.extend<{ page: Page }>({
     page.on('console', (message) => {
       if (
         message.type() === 'error' &&
-        !isBrowserNetworkStatusConsoleError(message.text())
+        !isBrowserNetworkStatusConsoleError(message.text()) &&
+        !isExpectedConsoleError(page, message.text())
       ) {
         consoleErrors.push(describeConsoleMessage(message))
       }
@@ -148,7 +183,10 @@ export const test = base.extend<{ page: Page }>({
       pageErrors.push(describePageError(error))
     })
     page.on('requestfailed', (request) => {
-      if (criticalResourceTypes.has(request.resourceType())) {
+      if (
+        criticalResourceTypes.has(request.resourceType()) &&
+        !isExpectedCriticalResourceFailure(page, request.url())
+      ) {
         failedRequests.push(describeFailedRequest(request))
       }
       if (isApiRequest(request)) {
@@ -159,7 +197,8 @@ export const test = base.extend<{ page: Page }>({
       const request = response.request()
       if (
         criticalResourceTypes.has(request.resourceType()) &&
-        response.status() >= 400
+        response.status() >= 400 &&
+        !isExpectedCriticalResourceFailure(page, response.url())
       ) {
         failedRequests.push(describeUnsuccessfulResponse(response))
       }

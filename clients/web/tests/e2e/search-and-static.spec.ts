@@ -1,4 +1,10 @@
-import { test, expect, type Page } from './fixtures'
+import {
+  allowExpectedCriticalResourceFailure,
+  allowExpectedConsoleError,
+  test,
+  expect,
+  type Page,
+} from './fixtures'
 
 async function mockUnauthenticated(page: Page) {
   await page.route('**/api/v1/auth/me', (route) =>
@@ -93,5 +99,40 @@ test.describe('Static Pages', () => {
     await expect(
       page.getByText(/removed|地址有误/i),
     ).toBeVisible()
+  })
+
+  test('chunk load failure retries once and renders static load error page', async ({ page }) => {
+    await mockUnauthenticated(page)
+
+    const searchPageChunkPattern =
+      /\/src\/modules\/review\/views\/SearchPage\.vue(?:\?|$)/
+    let failedChunkRequests = 0
+    allowExpectedCriticalResourceFailure(page, searchPageChunkPattern)
+    allowExpectedConsoleError(page, /^Failed to load resource: net::ERR_FAILED$/)
+    allowExpectedConsoleError(
+      page,
+      /^\[App\] bootstrap failed: TypeError: Failed to fetch dynamically imported module: .*\/src\/modules\/review\/views\/SearchPage\.vue/,
+    )
+    await page.route('**/src/modules/review/views/SearchPage.vue*', (route) => {
+      failedChunkRequests += 1
+      return route.abort('failed')
+    })
+
+    await page.goto('/search')
+
+    await expect(
+      page.getByRole('heading', { name: /Load Failed|加载失败/i }),
+    ).toBeVisible({ timeout: 10_000 })
+    await expect(
+      page.getByText(/Please refresh and try again|请刷新重试/i),
+    ).toBeVisible()
+    await expect.poll(() => failedChunkRequests).toBeGreaterThanOrEqual(2)
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          sessionStorage.getItem('stuhelper_chunk_reload_attempted'),
+        ),
+      )
+      .toBeNull()
   })
 })

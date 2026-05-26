@@ -1099,6 +1099,17 @@ MCP JSON-RPC 调用 `browser_navigate` 打开 `http://127.0.0.1:28000/`，页面
 `首页 - StuHelper`；该结果证明本机 Playwright MCP 包、浏览器和生产等价页面均正常，剩余问题限定在当前
 Codex 会话的托管 stdio transport 上。临时 HTTP MCP 配置、服务进程和 `.playwright-mcp` 产物已清理。
 
+本地验证补充（2026-05-26）：继续补齐 Web 动态 chunk 加载失败路径的浏览器覆盖。审计发现
+`clients/web/src/router/index.ts` 已有 chunk 首次失败后按目标路由重载一次、再次失败时渲染静态
+`ChunkErrorPage` 的逻辑，但此前 E2E 只覆盖普通 404 / 静态页，没有覆盖动态资源失败时是否会白屏。
+本轮给 Web Playwright fixture 增加按用例显式声明的预期关键资源失败 / console error 白名单，保持默认
+关键资源、API、`pageerror` 和 console error 门禁不放宽；新增 `search-and-static.spec.ts` 用例拦截
+`SearchPage.vue` 动态 import 并强制失败，验证桌面和移动视口都会至少重试两次、最终展示“加载失败 /
+Load Failed”静态错误页，并清理 `stuhelper_chunk_reload_attempted` sessionStorage 标记。验证已通过
+`CI=1 PLAYWRIGHT_WEB_PORT=3497 pnpm --dir clients/web exec playwright test tests/e2e/search-and-static.spec.ts`
+（12 项）、`pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和完整
+`CI=1 PLAYWRIGHT_WEB_PORT=3498 make e2e-web`（156 项）。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |
