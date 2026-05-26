@@ -70,6 +70,20 @@ test('legacy API client unwraps console responses through an explicit unknown bo
   assert.match(chatImageSource, /result: ImageProxyResult/)
 })
 
+test('dashboard chart components use explicit chart item types', () => {
+  const trendSource = readClientFile('./components/dashboard/TrendChartCard.vue')
+  const distSource = readClientFile('./components/dashboard/DistChartCard.vue')
+  const rankSource = readClientFile('./components/dashboard/RankChartCard.vue')
+
+  for (const source of [trendSource, distSource, rankSource]) {
+    assert.doesNotMatch(source, /data: any\[\]/)
+  }
+  assert.match(trendSource, /data: ChartTrendItem\[\]/)
+  assert.match(distSource, /data: ChartDistributionItem\[\]/)
+  assert.match(rankSource, /type RankChartItem = ChartGuildRankItem \| ChartUserRankItem/)
+  assert.match(rankSource, /function rankItemId\(item: RankChartItem\): string/)
+})
+
 test('ChatView delegates message rendering to a safe component instead of v-html', () => {
   const source = readClientFile('./components/ChatView.vue')
 

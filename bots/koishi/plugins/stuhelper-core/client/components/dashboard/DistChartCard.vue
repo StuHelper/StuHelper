@@ -38,8 +38,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+import type { ChartDistributionItem } from '../../api'
+
 const props = defineProps<{
-  data: any[]
+  data: ChartDistributionItem[]
   loading?: boolean
 }>()
 

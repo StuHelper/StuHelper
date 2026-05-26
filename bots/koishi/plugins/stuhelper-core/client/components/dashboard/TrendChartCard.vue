@@ -39,8 +39,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+import type { ChartTrendItem } from '../../api'
+
 const props = defineProps<{
-  data: any[]
+  data: ChartTrendItem[]
   loading?: boolean
 }>()
 

@@ -15,12 +15,12 @@
       <div v-else class="horizontal-bar-chart">
         <div
           v-for="(item, index) in data"
-          :key="item[idKey] || index"
+          :key="rankItemId(item) || index"
           class="h-bar-item"
         >
           <div class="h-bar-label">
             <span class="h-bar-rank">{{ index + 1 }}</span>
-            <span class="h-bar-name" :title="item[idKey]">{{ item.name || item[idKey] }}</span>
+            <span class="h-bar-name" :title="rankItemId(item)">{{ rankItemLabel(item) }}</span>
           </div>
           <div class="h-bar-track">
             <div
@@ -39,9 +39,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+import type { ChartGuildRankItem, ChartUserRankItem } from '../../api'
+
+type RankChartItem = ChartGuildRankItem | ChartUserRankItem
+
 const props = defineProps<{
   type: 'guild' | 'user'
-  data: any[]
+  data: RankChartItem[]
   loading?: boolean
   title: string
   icon: string
@@ -54,12 +58,20 @@ const resolvedIcon = computed(() => {
   return `stuhelperGroupCenter:${props.icon}`
 })
 
-const idKey = computed(() => props.type === 'guild' ? 'guildId' : 'userId')
-
 const maxCount = computed(() => {
   if (!props.data || props.data.length === 0) return 1
   return Math.max(...props.data.map(i => i.count), 1)
 })
+
+function rankItemId(item: RankChartItem): string {
+  if (props.type === 'guild' && 'guildId' in item) return item.guildId
+  if (props.type === 'user' && 'userId' in item) return item.userId
+  return 'guildId' in item ? item.guildId : item.userId
+}
+
+function rankItemLabel(item: RankChartItem): string {
+  return item.name || rankItemId(item)
+}
 
 const getBarHeight = (count: number, max: number) => {
   if (max === 0) return 0

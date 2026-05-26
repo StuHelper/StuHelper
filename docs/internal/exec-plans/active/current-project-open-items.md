@@ -727,6 +727,14 @@ WebSocket API 装配路径继续存在于源码中；运行时契约新增断言
 `Partial<PluginSettings>`，不再接收裸 `any`。已通过 `corepack yarn --cwd bots/koishi test:unit`
 （264 项）、`corepack yarn --cwd bots/koishi build`、`make e2e-koishi`（29 项）和 `git diff --check`。
 
+本地 Koishi Console Dashboard 图表类型清理（2026-05-27）：`TrendChartCard`、`DistChartCard`
+和 `RankChartCard` 不再用 `data: any[]` 接收统计数据，而是复用 legacy API 客户端已经声明的
+`ChartTrendItem`、`ChartDistributionItem`、`ChartGuildRankItem` 和 `ChartUserRankItem`；Rank 图表的
+动态 `item[idKey]` 访问也收敛到 `rankItemId()` / `rankItemLabel()` helper。源码合同已锁定三类图表
+组件不得回退到 `data: any[]`。已通过 `corepack yarn --cwd bots/koishi test:unit`（265 项）、
+`corepack yarn --cwd bots/koishi build`、`make e2e-koishi`（29 项，含 dashboard 渲染）和
+`git diff --check`。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等
