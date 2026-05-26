@@ -18,27 +18,73 @@ const { t } = useI18n()
 const courseCount = ref(0)
 const reviewCount = ref(0)
 const userCount = ref(0)
+const statsLoadError = ref('')
+
+function isNonNegativeNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+}
+
+function readCourseStatsPayload(payload: unknown): { courseCount: number } {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid course stats response')
+  }
+
+  const { courseCount, departmentCount } = payload as {
+    courseCount?: unknown
+    departmentCount?: unknown
+  }
+  if (!isNonNegativeNumber(courseCount) || !isNonNegativeNumber(departmentCount)) {
+    throw new Error('Invalid course stats response')
+  }
+
+  return { courseCount }
+}
+
+function readReviewStatsPayload(payload: unknown): { reviewCount: number; userCount: number } {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid review stats response')
+  }
+
+  const { courseCount, reviewCount, departmentCount, userCount } = payload as {
+    courseCount?: unknown
+    reviewCount?: unknown
+    departmentCount?: unknown
+    userCount?: unknown
+  }
+  if (
+    !isNonNegativeNumber(courseCount) ||
+    !isNonNegativeNumber(reviewCount) ||
+    !isNonNegativeNumber(departmentCount) ||
+    !isNonNegativeNumber(userCount)
+  ) {
+    throw new Error('Invalid review stats response')
+  }
+
+  return { reviewCount, userCount }
+}
 
 onMounted(async () => {
+  statsLoadError.value = ''
   const [courseStatsRes, reviewStatsRes] = await Promise.allSettled([
     api.course.getStats(),
     api.review.getReviewStats(),
   ])
-  if (courseStatsRes.status === 'fulfilled') {
-    const data = courseStatsRes.value.data?.data
-    if (data) {
-      courseCount.value = data.courseCount ?? 0
+
+  try {
+    if (courseStatsRes.status !== 'fulfilled' || reviewStatsRes.status !== 'fulfilled') {
+      throw new Error('Stats request failed')
     }
-  }
-  if (reviewStatsRes.status === 'fulfilled') {
-    const data = reviewStatsRes.value.data?.data
-    if (data) {
-      reviewCount.value = data.reviewCount ?? 0
-      userCount.value =
-        'userCount' in data && typeof data.userCount === 'number'
-          ? data.userCount
-          : 0
-    }
+
+    const courseStats = readCourseStatsPayload(courseStatsRes.value.data?.data)
+    const reviewStats = readReviewStatsPayload(reviewStatsRes.value.data?.data)
+    courseCount.value = courseStats.courseCount
+    reviewCount.value = reviewStats.reviewCount
+    userCount.value = reviewStats.userCount
+  } catch (_error) { void _error;
+    courseCount.value = 0
+    reviewCount.value = 0
+    userCount.value = 0
+    statsLoadError.value = t('common.loadFailed')
   }
 })
 
@@ -99,7 +145,14 @@ const onLearnMore = () => {
 
     <section class="py-12 px-6 mx-4 lg:mx-auto max-w-[1200px]">
       <div class="glass-card rounded-2xl py-12 px-6">
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center">
+        <div
+          v-if="statsLoadError"
+          role="alert"
+          class="text-center text-sm font-medium text-danger"
+        >
+          {{ statsLoadError }}
+        </div>
+        <div v-else class="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center">
           <ScrollReveal
             v-for="(stat, i) in stats"
             :key="stat.label"

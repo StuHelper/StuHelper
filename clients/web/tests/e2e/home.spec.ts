@@ -174,6 +174,24 @@ test('home page renders shell and brand', async ({ page }) => {
   ).toBeVisible()
 })
 
+test('home stats fail closed when course stats response is malformed', async ({
+  page,
+}) => {
+  await mockUnauthenticated(page)
+  await page.route('**/api/v1/course/stats', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, data: null }),
+    }),
+  )
+
+  await page.goto('/')
+
+  await expect(
+    page.getByRole('alert').filter({ hasText: /Load failed|加载失败/i }),
+  ).toBeVisible({ timeout: 10_000 })
+})
+
 test('locale switcher updates rendered language and persists preference', async ({
   page,
 }) => {
