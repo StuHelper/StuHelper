@@ -1772,6 +1772,15 @@ QQ 绑定码生成接口中 `success=true` 但 `data=null` / 缺少关键字段�
 （10 项）、`pnpm --dir clients test:web`（58 文件、288 项，输出无 Vue warning / 预期失败噪声）、
 `pnpm --dir clients type-check:web`、`pnpm --dir clients lint:web` 和 `pnpm --dir clients build:web`。
 
+本地验证补充（2026-05-27）：继续复验开发栈长期运行后的状态。`make dev-status` 确认 backend、
+frontend、admin 热更新进程均运行，Web `http://localhost:3000`、Admin
+`http://localhost:3001/admin/`、Backend `http://localhost:8080` 可用，PostgreSQL、Redis、Casdoor、
+OpenFGA、MinIO 和观测容器均 healthy；随后 `make dev-smoke` 返回 18 通过、0 失败、0 跳过，覆盖
+API live/ready、Web/Admin 前端、公开课程 API、认证端点、OIDC 回调错误路径、指标端点、Casdoor
+well-known 和 Grafana health。同轮测试卫生审计确认 `server`、`clients`、`bots`、`infra` 内没有
+`.skip` / `.only` 测试残留，仓库内没有 Playwright `test-results`、`playwright-report` 或 `.playwright-mcp`
+残留目录；待办标记扫描只剩测试中合法的 `context.TODO()` 与 `mktemp` 随机模板 `XXXXXX` 非待办命中。
+
 ## 近期已完成
 
 | 任务 | 完成状态 |
