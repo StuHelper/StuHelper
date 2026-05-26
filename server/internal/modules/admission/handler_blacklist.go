@@ -41,9 +41,6 @@ type memberBlacklistReleaseBySubjectHTTPRequest struct {
 }
 
 func (h *Handler) handleGetBotMemberBlacklistAccess(c *gin.Context) {
-	if !h.ready(c) {
-		return
-	}
 	decision, err := h.service.GetMemberBlacklistAccess(c.Request.Context(), memberBlacklistAccessQueryFromGin(c))
 	if err != nil {
 		respondAdmissionError(c, err)
@@ -53,9 +50,6 @@ func (h *Handler) handleGetBotMemberBlacklistAccess(c *gin.Context) {
 }
 
 func (h *Handler) handleListBotMemberBlacklist(c *gin.Context) {
-	if !h.ready(c) {
-		return
-	}
 	filter, err := botMemberBlacklistListFilterFromGin(c)
 	if err != nil {
 		respondAdmissionError(c, err)
@@ -65,9 +59,6 @@ func (h *Handler) handleListBotMemberBlacklist(c *gin.Context) {
 }
 
 func (h *Handler) handleListAdminMemberBlacklist(c *gin.Context) {
-	if !h.ready(c) {
-		return
-	}
 	h.listMemberBlacklist(c, memberBlacklistListFilterFromGin(c))
 }
 
@@ -184,9 +175,6 @@ func (h *Handler) bindMemberBlacklistCreateRequest(c *gin.Context) (memberBlackl
 }
 
 func (h *Handler) bindMemberBlacklistJSON(c *gin.Context, req any) bool {
-	if !h.ready(c) {
-		return false
-	}
 	if err := c.ShouldBindJSON(req); err != nil {
 		response.BadRequest(c, "invalid request parameters")
 		return false

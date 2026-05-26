@@ -14,9 +14,6 @@ type adminFreshmanReviewHTTPRequest struct {
 }
 
 func (h *Handler) handleAdminReviewFreshmanVerification(c *gin.Context) {
-	if !h.ready(c) {
-		return
-	}
 	userID, ok := middleware.ResolveRequiredInternalUserID(
 		c,
 		h.internalUserIDResolver,

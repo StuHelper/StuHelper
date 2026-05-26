@@ -2,7 +2,6 @@ package admission
 
 import (
 	"context"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 
@@ -27,6 +26,12 @@ func NewHandler(
 	internalUserIDResolver middleware.InternalUserIDResolver,
 	botCredentialVerifier BotCredentialVerifier,
 ) *Handler {
+	if service == nil {
+		panic("admission.NewHandler: service must not be nil")
+	}
+	if internalUserIDResolver == nil {
+		panic("admission.NewHandler: internal user id resolver must not be nil")
+	}
 	return &Handler{
 		service:                service,
 		internalUserIDResolver: internalUserIDResolver,
@@ -177,14 +182,4 @@ func (h *Handler) registerAdminMemberBlacklistRoutes(admin *gin.RouterGroup) {
 		rbac.RequireCapability(capability.MemberBlacklistManage),
 		h.handleReleaseAdminMemberBlacklist,
 	)
-}
-
-func notImplemented(c *gin.Context) {
-	c.AbortWithStatusJSON(http.StatusNotImplemented, gin.H{
-		"success": false,
-		"error": gin.H{
-			"code":    "B0000004",
-			"message": "admission endpoint not implemented",
-		},
-	})
 }

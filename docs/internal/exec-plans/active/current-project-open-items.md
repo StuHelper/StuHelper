@@ -683,6 +683,12 @@ UniAppX request method 的映射，并把 `@dcloudio/types` 缺失 `PATCH` 的�
 `requestWithPatch` 边界。已通过 `pnpm --dir clients type-check:uni`、`pnpm --dir clients test:uni`
 和 `CI=1 UNIAPPX_E2E_PORT=3605 make e2e-uni`（52 项）。
 
+本地清理补充（2026-05-27）：Admission handler 不再保留运行时 `ready()` / `notImplemented()` 兜底。
+Admission service 和 internal user ID resolver 现在由 `NewHandler` 在启动装配阶段强制校验，缺失时直接
+panic，避免生产路由在错误装配下返回 501 并掩盖配置问题；各用户、Bot、Admin handler 中的重复
+`h.ready(c)` 分支已删除，Bot service token 未配置的 503 仍保留在 `requireBotCredential` 入口。
+已通过 `go test -race ./internal/modules/admission` 和 `make lint`。
+
 本地验证补充（2026-05-25）：Admin Playwright E2E 也从单浏览器上下文扩展为
 `desktop-chromium` 与 `mobile-chromium` 两个 project，使管理后台核心壳、登录跳转、内容审核 /
 举报处理、教师与敏感词 CRUD、用户系统配置、入群认证策略、Open Platform 应用审核 / 授权 / 同意撤销等

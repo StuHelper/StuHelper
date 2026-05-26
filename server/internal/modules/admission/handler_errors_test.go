@@ -1,6 +1,7 @@
 package admission
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -8,6 +9,20 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestNewHandlerRequiresDependencies(t *testing.T) {
+	assert.PanicsWithValue(t, "admission.NewHandler: service must not be nil", func() {
+		NewHandler(nil, nil, nil)
+	})
+	assert.PanicsWithValue(t, "admission.NewHandler: internal user id resolver must not be nil", func() {
+		NewHandler(&Service{}, nil, nil)
+	})
+
+	resolver := func(context.Context, string) (int64, error) {
+		return 0, nil
+	}
+	assert.NotNil(t, NewHandler(&Service{}, resolver, nil))
+}
 
 func TestRespondAdmissionErrorDistinguishesInvalidInputAndForbiddenSource(t *testing.T) {
 	tests := []struct {

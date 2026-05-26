@@ -35,9 +35,6 @@ type schoolEmailOTPVerifyHTTPRequest struct {
 }
 
 func (h *Handler) handlePreviewAdmissionSession(c *gin.Context) {
-	if !h.ready(c) {
-		return
-	}
 	session, err := h.service.PreviewToken(c.Request.Context(), c.Param("token"), c.Query("qq"))
 	if err != nil {
 		respondAdmissionError(c, err)
@@ -47,9 +44,6 @@ func (h *Handler) handlePreviewAdmissionSession(c *gin.Context) {
 }
 
 func (h *Handler) handleLinkAdmissionSession(c *gin.Context) {
-	if !h.ready(c) {
-		return
-	}
 	userID, ok := middleware.ResolveRequiredInternalUserID(
 		c,
 		h.internalUserIDResolver,
@@ -71,9 +65,6 @@ func (h *Handler) handleLinkAdmissionSession(c *gin.Context) {
 }
 
 func (h *Handler) handleAdmissionMe(c *gin.Context) {
-	if !h.ready(c) {
-		return
-	}
 	userID, ok := middleware.ResolveRequiredInternalUserID(
 		c,
 		h.internalUserIDResolver,
@@ -200,18 +191,7 @@ func (h *Handler) handleCompleteSchoolSSO(c *gin.Context) {
 	c.Redirect(http.StatusFound, result.ReturnURL)
 }
 
-func (h *Handler) ready(c *gin.Context) bool {
-	if h.service != nil {
-		return true
-	}
-	notImplemented(c)
-	return false
-}
-
 func (h *Handler) resolveAdmissionUser(c *gin.Context) (int64, bool) {
-	if !h.ready(c) {
-		return 0, false
-	}
 	return middleware.ResolveRequiredInternalUserID(
 		c,
 		h.internalUserIDResolver,

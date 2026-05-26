@@ -29,9 +29,6 @@ type botFreshmanCommandHTTPRequest struct {
 }
 
 func (h *Handler) handleRecordBotJoinRequestEvent(c *gin.Context) {
-	if !h.ready(c) {
-		return
-	}
 	var req botJoinRequestEventHTTPRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "invalid request parameters")
@@ -46,9 +43,6 @@ func (h *Handler) handleRecordBotJoinRequestEvent(c *gin.Context) {
 }
 
 func (h *Handler) handleListBotPendingActions(c *gin.Context) {
-	if !h.ready(c) {
-		return
-	}
 	filter, ok := botPendingActionFilter(c)
 	if !ok {
 		return
@@ -93,9 +87,6 @@ func botPendingActionLimit(c *gin.Context) (int, bool) {
 }
 
 func (h *Handler) handleListBotPendingFreshmanForwards(c *gin.Context) {
-	if !h.ready(c) {
-		return
-	}
 	items, err := h.service.ListPendingFreshmanForwards(c.Request.Context())
 	if err != nil {
 		respondAdmissionError(c, err)
@@ -105,9 +96,6 @@ func (h *Handler) handleListBotPendingFreshmanForwards(c *gin.Context) {
 }
 
 func (h *Handler) handleMarkBotFreshmanApplicationForwarded(c *gin.Context) {
-	if !h.ready(c) {
-		return
-	}
 	if err := h.service.MarkFreshmanApplicationForwarded(c.Request.Context(), c.Param("id")); err != nil {
 		respondAdmissionError(c, err)
 		return
@@ -129,9 +117,6 @@ func (h *Handler) handleBotViewFreshmanApplication(c *gin.Context) {
 }
 
 func (h *Handler) bindBotFreshmanCommand(c *gin.Context) (BotFreshmanCommandInput, bool) {
-	if !h.ready(c) {
-		return BotFreshmanCommandInput{}, false
-	}
 	var req botFreshmanCommandHTTPRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "invalid request parameters")

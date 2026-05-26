@@ -39,9 +39,6 @@ type botFreshmanReviewHTTPRequest struct {
 }
 
 func (h *Handler) handleCreateBotSession(c *gin.Context) {
-	if !h.ready(c) {
-		return
-	}
 	var req botSessionCreateHTTPRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "invalid request parameters")
@@ -56,9 +53,6 @@ func (h *Handler) handleCreateBotSession(c *gin.Context) {
 }
 
 func (h *Handler) handleRecordBotEvent(c *gin.Context) {
-	if !h.ready(c) {
-		return
-	}
 	var req botAdmissionEventHTTPRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "invalid request parameters")
@@ -72,9 +66,6 @@ func (h *Handler) handleRecordBotEvent(c *gin.Context) {
 }
 
 func (h *Handler) handleBotReviewFreshmanApplication(c *gin.Context) {
-	if !h.ready(c) {
-		return
-	}
 	var req botFreshmanReviewHTTPRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "invalid request parameters")

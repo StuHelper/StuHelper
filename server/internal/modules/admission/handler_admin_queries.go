@@ -10,9 +10,6 @@ import (
 )
 
 func (h *Handler) handleAdminListAdmissionPolicies(c *gin.Context) {
-	if !h.ready(c) {
-		return
-	}
 	items, err := h.service.ListAdmissionPolicies(c.Request.Context())
 	if err != nil {
 		respondAdmissionError(c, err)
@@ -22,9 +19,6 @@ func (h *Handler) handleAdminListAdmissionPolicies(c *gin.Context) {
 }
 
 func (h *Handler) handleAdminUpdateAdmissionPolicy(c *gin.Context) {
-	if !h.ready(c) {
-		return
-	}
 	var policy AdmissionPolicy
 	if err := c.ShouldBindJSON(&policy); err != nil {
 		response.BadRequest(c, "invalid request parameters")
@@ -40,9 +34,6 @@ func (h *Handler) handleAdminUpdateAdmissionPolicy(c *gin.Context) {
 }
 
 func (h *Handler) handleAdminListAdmissionSessions(c *gin.Context) {
-	if !h.ready(c) {
-		return
-	}
 	filter, ok := admissionSessionListFilterFromQuery(c)
 	if !ok {
 		return
@@ -56,9 +47,6 @@ func (h *Handler) handleAdminListAdmissionSessions(c *gin.Context) {
 }
 
 func (h *Handler) handleAdminListFreshmanVerifications(c *gin.Context) {
-	if !h.ready(c) {
-		return
-	}
 	filter, ok := freshmanApplicationListFilterFromQuery(c)
 	if !ok {
 		return
@@ -72,9 +60,6 @@ func (h *Handler) handleAdminListFreshmanVerifications(c *gin.Context) {
 }
 
 func (h *Handler) handleAdminGetFreshmanVerification(c *gin.Context) {
-	if !h.ready(c) {
-		return
-	}
 	app, err := h.service.GetFreshmanApplication(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		respondAdmissionError(c, err)
