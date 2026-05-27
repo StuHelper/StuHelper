@@ -159,6 +159,20 @@ const checks = [
         body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>\n',
       },
     ],
+    allowedAPIResponses: [
+      {
+        urlIncludes: '/api/v1/user/profile',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/qq-binding',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/identity',
+        statuses: [404],
+      },
+    ],
   },
   {
     name: 'identity-authorized-apps-authenticated',
