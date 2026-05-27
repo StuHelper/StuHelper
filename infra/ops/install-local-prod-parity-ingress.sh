@@ -25,6 +25,14 @@ run_root() {
   sudo -n "$@"
 }
 
+root_test() {
+  if [[ "${EUID}" -eq 0 ]]; then
+    test "$@"
+    return
+  fi
+  sudo -n test "$@"
+}
+
 install_hosts() {
   local tmp
   tmp="$(mktemp)"
@@ -43,7 +51,7 @@ install_hosts() {
 }
 
 nginx_target() {
-  if [[ -d /www/server/panel/vhost/nginx && -f /www/server/nginx/conf/nginx.conf ]]; then
+  if root_test -d /www/server/panel/vhost/nginx && root_test -f /www/server/nginx/conf/nginx.conf; then
     printf '%s\n' "/www/server/panel/vhost/nginx/stuhelper-prod-parity-local.conf"
     return
   fi
@@ -66,6 +74,9 @@ install_nginx_config() {
   render_config >"${tmp}"
   run_root install -d -m 0755 "$(dirname "${target}")"
   run_root install -m 0644 "${tmp}" "${target}"
+  if [[ "${target}" != "/etc/nginx/conf.d/stuhelper-prod-parity-local.conf" ]] && root_test -f /etc/nginx/conf.d/stuhelper-prod-parity-local.conf; then
+    run_root rm -f /etc/nginx/conf.d/stuhelper-prod-parity-local.conf
+  fi
   rm -f "${tmp}"
   run_root nginx -t
   run_root nginx -s reload
