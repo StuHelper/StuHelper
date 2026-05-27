@@ -122,4 +122,4 @@ Koishi 与 NapCat 当前不纳入主站 Docker Compose 拓扑，而是作为外�
 3. 观测链路（Grafana、指标端点）
 4. OIDC 连通性（`id.stuhelper.com` discovery、JWKS、authorize/token/introspect/revoke/UserInfo 基础路由）
 
-默认生产门禁不再要求 `sso.stuhelper.com` 是公网可达站点。`infra/ops/identity-public-smoke.sh` 默认验证 `stuhelper.com` health 与 `id.stuhelper.com` OIDC/OAuth/UserInfo/logout 路由；只有设置 `IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED=true` 时，才额外验证 `CASDOOR_ISSUER` 的 discovery/JWKS。`remote-preflight.sh` 同理默认只检查 Web 与 Identity 的公网 DNS/TLS；只有设置 `PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED=true` 时，才把 Casdoor upstream 纳入公网门禁。
+默认生产门禁不再要求 `sso.stuhelper.com` 是公网可达站点。`infra/ops/identity-public-smoke.sh` 默认验证 `stuhelper.com` health、`id.stuhelper.com` OIDC/OAuth/UserInfo/logout 路由，以及 `id` 入口自己的 Web app 图标和 `site.webmanifest` 不会落入主站兜底跳转；只有设置 `IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED=true` 时，才额外验证 `CASDOOR_ISSUER` 的 discovery/JWKS。`remote-preflight.sh` 同理默认只检查 Web 与 Identity 的公网 DNS/TLS；只有设置 `PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED=true` 时，才把 Casdoor upstream 纳入公网门禁。

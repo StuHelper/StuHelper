@@ -450,6 +450,16 @@ def validate_identity(block: Node, upstreams: dict[str, str]) -> None:
     require_location_proxy(block, label, "=", "/account", upstreams["casdoor"])
     require_location_proxy(block, label, "^~", "/signup", upstreams["casdoor"])
     require_location_proxy(block, label, "^~", "/forget", upstreams["casdoor"])
+    for path in [
+        "/favicon.ico",
+        "/favicon-32x32.png",
+        "/favicon-16x16.png",
+        "/apple-touch-icon.png",
+        "/android-chrome-192x192.png",
+        "/android-chrome-512x512.png",
+        "/site.webmanifest",
+    ]:
+        require_location_proxy(block, label, "=", path, upstreams["web"])
     require_location_return(block, label, None, "/", "302", "https://stuhelper.com$request_uri")
 
 

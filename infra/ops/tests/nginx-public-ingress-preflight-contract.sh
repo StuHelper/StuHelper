@@ -51,6 +51,9 @@ run_preflight_fail() {
   assert_file_contains "${tmpdir}/${label}.stderr" "${expected_error}"
 }
 
+assert_file_contains "${PREFLIGHT_SCRIPT}" '/favicon\.ico'
+assert_file_contains "${PREFLIGHT_SCRIPT}" '/site\.webmanifest'
+
 tmpdir="$(mktemp -d)"
 cleanup() {
   rm -rf "${tmpdir}"
@@ -121,6 +124,13 @@ NGINX
 missing_id_redirect_cache_headers="${tmpdir}/missing-id-redirect-cache-headers.conf"
 sed '/add_header Cache-Control "no-store, no-cache, must-revalidate, private" always;/d' \
   "${MAIN_NGINX_FILE}" >"${missing_id_redirect_cache_headers}"
+
+missing_id_manifest_route="${tmpdir}/missing-id-manifest-route.conf"
+awk '
+  /^    location = \/site.webmanifest \{/ { skip=1; next }
+  skip && /^    }$/ { skip=0; next }
+  !skip { print }
+' "${MAIN_NGINX_FILE}" >"${missing_id_manifest_route}"
 
 bad_sso_static_root="${tmpdir}/bad-sso-static-root.conf"
 cat >"${bad_sso_static_root}" <<'NGINX'
@@ -214,6 +224,7 @@ run_preflight_pass "all" "${baota_dump_with_json_logs}" "${tmpdir}" "baota-json-
 run_preflight_pass "sso" "${baota_sso_static_well_known_fixed}" "${tmpdir}" "baota-sso-static-well-known-fixed"
 run_preflight_fail "stuhelper" "${missing_id}" "${tmpdir}" "missing-id" 'id\.stuhelper\.com: missing HTTPS server block'
 run_preflight_fail "stuhelper" "${missing_id_redirect_cache_headers}" "${tmpdir}" "missing-id-redirect-cache-headers" 'location = / must add_header Cache-Control'
+run_preflight_fail "stuhelper" "${missing_id_manifest_route}" "${tmpdir}" "missing-id-manifest-route" 'location = /site\.webmanifest'
 run_preflight_fail "sso" "${bad_sso_static_root}" "${tmpdir}" "bad-sso-static-root" 'requires exact openid-configuration and jwks'
 run_preflight_fail "sso" "${baota_sso_static_well_known_missing_jwks}" "${tmpdir}" "baota-sso-static-well-known-missing-jwks" 'requires exact openid-configuration and jwks'
 run_preflight_fail "unknown" "${combined_good}" "${tmpdir}" "unknown-profile" 'unknown NGINX_PUBLIC_INGRESS_PROFILE'

@@ -529,6 +529,41 @@ server {
         proxy_http_version 1.1;
     }
 
+    location = /favicon.ico {
+        proxy_pass http://127.0.0.1:${web_port};
+        proxy_http_version 1.1;
+    }
+
+    location = /favicon-32x32.png {
+        proxy_pass http://127.0.0.1:${web_port};
+        proxy_http_version 1.1;
+    }
+
+    location = /favicon-16x16.png {
+        proxy_pass http://127.0.0.1:${web_port};
+        proxy_http_version 1.1;
+    }
+
+    location = /apple-touch-icon.png {
+        proxy_pass http://127.0.0.1:${web_port};
+        proxy_http_version 1.1;
+    }
+
+    location = /android-chrome-192x192.png {
+        proxy_pass http://127.0.0.1:${web_port};
+        proxy_http_version 1.1;
+    }
+
+    location = /android-chrome-512x512.png {
+        proxy_pass http://127.0.0.1:${web_port};
+        proxy_http_version 1.1;
+    }
+
+    location = /site.webmanifest {
+        proxy_pass http://127.0.0.1:${web_port};
+        proxy_http_version 1.1;
+    }
+
     location / {
         return 302 \$scheme://stuhelper.com\$request_uri;
     }

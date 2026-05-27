@@ -13,6 +13,8 @@ Verifies the public production identity ingress:
 
   - WEB_PUBLIC_URL /health/ready
   - IDENTITY_ISSUER OIDC discovery, OAuth authorization server metadata, and JWKS
+  - IDENTITY_ISSUER web app assets served on the identity host without falling
+    through to the main site
   - IDENTITY_ISSUER /oauth2/authorize unauthenticated redirect
   - IDENTITY_ISSUER /oauth2/authorize prompt=login / max_age=0 reauth redirect
   - Optional registered-client prompt=none login_required redirect with iss
@@ -370,6 +372,8 @@ bundle = {
         "identityDiscovery": sys.argv[4] + "/.well-known/openid-configuration",
         "identityAuthorizationServerMetadata": sys.argv[4] + "/.well-known/oauth-authorization-server",
         "identityJWKS": sys.argv[4] + "/.well-known/jwks.json",
+        "identityFavicon": sys.argv[4] + "/favicon.ico",
+        "identityWebManifest": sys.argv[4] + "/site.webmanifest",
         "identityAuthorize": sys.argv[4] + "/oauth2/authorize",
         "identityToken": sys.argv[4] + "/oauth2/token",
         "identityIntrospection": sys.argv[4] + "/oauth2/introspect",
@@ -474,6 +478,46 @@ fetch_json() {
     record_fail "${name} 响应不是 JSON object: ${url}" "$(json_detail url "${url}" httpStatus "${status}" bodySnippet "${snippet}")"
     return 1
   fi
+}
+
+check_identity_web_asset() {
+  local name="$1"
+  local url="$2"
+  local expected_text="${3:-}"
+  local min_bytes="${4:-1}"
+  local response_file
+  local headers_file
+  local error_file
+  local status
+  local location
+  local content_type
+  local bytes
+  local curl_error
+  local snippet
+  response_file="$(mktemp)"
+  headers_file="$(mktemp)"
+  error_file="$(mktemp)"
+
+  if ! status="$(curl -sS --max-time 10 -D "${headers_file}" -w '%{http_code}' -o "${response_file}" "${url}" 2>"${error_file}")"; then
+    status="${status:-000}"
+  fi
+  location="$(response_header "${headers_file}" "Location")"
+  content_type="$(response_header "${headers_file}" "Content-Type")"
+  bytes="$(wc -c <"${response_file}" | tr -d '[:space:]')"
+  curl_error="$(body_snippet "${error_file}")"
+
+  if [[ "${status}" =~ ^[0-9][0-9][0-9]$ ]] && \
+    (( status >= 200 && status < 300 )) && \
+    (( bytes >= min_bytes )) && \
+    { [[ -z "${expected_text}" ]] || grep -Fq -- "${expected_text}" "${response_file}"; }; then
+    rm -f "${response_file}" "${headers_file}" "${error_file}"
+    record_pass "${name}" "$(json_detail url "${url}" httpStatus "${status}" bytes "${bytes}" contentType "${content_type}" curlError "${curl_error}")"
+    return
+  fi
+
+  snippet="$(body_snippet "${response_file}")"
+  rm -f "${response_file}" "${headers_file}" "${error_file}"
+  record_fail "${name} 响应异常，status=${status}" "$(json_detail url "${url}" httpStatus "${status}" expectedText "${expected_text}" minBytes "${min_bytes}" bytes "${bytes}" contentType "${content_type}" location "${location}" bodySnippet "${snippet}" curlError "${curl_error}")"
 }
 
 check_identity_discovery() {
@@ -1511,6 +1555,8 @@ if fetch_json "Identity JWKS" "${identity_issuer}/.well-known/jwks.json" "${jwks
   check_jwks "Identity" "$(cat "${jwks_file}")"
 fi
 
+check_identity_web_asset "Identity favicon 留在 id 入口" "${identity_issuer}/favicon.ico" "" 128
+check_identity_web_asset "Identity web manifest 留在 id 入口" "${identity_issuer}/site.webmanifest" '"name": "StuHelper"' 32
 check_authorize_redirect
 check_authorize_reauth_redirect
 check_registered_prompt_none_login_required
