@@ -250,12 +250,19 @@ async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUn
     capabilities: user.capabilities,
   }
 
-  await page.addInitScript((ssoState) => {
+  await page.addInitScript(({ isAuthenticated, ssoState }) => {
     localStorage.setItem('stuhelper:uniappx:locale', 'zh-CN')
     if (ssoState) {
       localStorage.setItem('stuhelper:sso-state', ssoState)
     }
-  }, options.ssoState ?? '')
+    if (isAuthenticated) {
+      document.cookie = 'csrf_token=mobile-e2e-csrf; path=/'
+      localStorage.setItem('stuhelper:csrf-token', 'mobile-e2e-csrf')
+    }
+  }, {
+    isAuthenticated: authenticated,
+    ssoState: options.ssoState ?? '',
+  })
 
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request()
@@ -659,7 +666,7 @@ test.describe('UniAppX H5 surface', () => {
   test('home dashboard renders real feature entrypoints and hot course data', async ({
     page,
   }) => {
-    await mockUniApi(page)
+    const { requests } = await mockUniApi(page)
 
     await gotoUniPage(page, '/')
 
@@ -673,6 +680,7 @@ test.describe('UniAppX H5 surface', () => {
     await expect(page.getByText('首页', { exact: true })).toBeVisible()
     await expect(page.getByText('我的', { exact: true })).toBeVisible()
     await expectTabBarIconsAvailable(page)
+    expect(requests.some((request) => request.startsWith('GET /api/v1/auth/me'))).toBe(false)
   })
 
   test('home course shortcut opens the course list tab', async ({ page }) => {
@@ -1316,9 +1324,7 @@ test.describe('UniAppX H5 surface', () => {
     await expectUniPageTitle(page, '登录')
     await expect(page.getByText('登录 StuHelper')).toBeVisible()
     await expect(page.getByText('使用校园 SSO 登录')).toBeVisible()
-    await expect
-      .poll(() => requests.includes('GET /api/v1/auth/me'))
-      .toBe(true)
+    expect(requests.some((request) => request.startsWith('GET /api/v1/auth/me'))).toBe(false)
     expect(mutations).not.toContain('POST /api/v1/auth/refresh')
 
     await gotoUniPage(page, '/#/pages/auth/callback')

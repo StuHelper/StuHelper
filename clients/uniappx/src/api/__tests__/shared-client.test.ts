@@ -60,6 +60,34 @@ describe('uniappx api client transport', () => {
     expect(result.data).toEqual({ data: { ok: true } })
   })
 
+  it('detects H5 session hints from browser csrf state only', async () => {
+    vi.stubEnv('VITE_API_URL', '/api')
+    vi.stubGlobal('window', {
+      location: {
+        origin: 'https://app.example',
+      },
+    })
+    vi.stubGlobal('document', {
+      cookie: '',
+    })
+    vi.stubGlobal('localStorage', {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn(),
+    })
+
+    const { hasStoredH5SessionHint } = await import('../shared-client')
+
+    expect(hasStoredH5SessionHint()).toBe(false)
+
+    vi.stubGlobal('document', {
+      cookie: 'foo=bar; csrf_token=test-csrf-token',
+    })
+    expect(hasStoredH5SessionHint()).toBe(true)
+
+    vi.stubGlobal('plus', {})
+    expect(hasStoredH5SessionHint()).toBe(false)
+  })
+
   it('reuses and refreshes csrf tokens from storage for non-h5 builds', async () => {
     const request = vi.fn((options: any) => {
       options.success?.({

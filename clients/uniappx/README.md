@@ -57,6 +57,9 @@ pnpm build:mp-weixin
 - 运行时请求通过 uni-app transport 适配层实现，但业务接口仍统一来自 `clients/shared`
 - H5 本地开发默认把 `/api` 代理到 `VITE_DEV_PROXY_TARGET`，缺省为 `http://localhost:8080`；
   原生 / 小程序构建需要提供绝对 `VITE_API_URL`
+- H5 启动只在存在浏览器会话提示（`csrf_token` cookie 或已持久化 CSRF token）时探测
+  `/api/v1/auth/me`，游客态不得产生预期内的 401 控制台噪声；原生 App 仍以 secure-storage
+  bridge 中的 token 作为会话提示
 
 ## 功能模块
 

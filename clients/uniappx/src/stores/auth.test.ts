@@ -6,11 +6,16 @@ const authApi = {
   logout: vi.fn(),
   me: vi.fn(),
 }
+const hasStoredH5SessionHint = vi.fn()
 
 vi.mock('@/api', () => ({
   api: {
     auth: authApi,
   },
+}))
+
+vi.mock('@/api/shared-client', () => ({
+  hasStoredH5SessionHint,
 }))
 
 vi.mock('@/api/result', () => ({
@@ -28,7 +33,41 @@ describe('useAuthStore', () => {
     vi.clearAllMocks()
     vi.resetModules()
     vi.unstubAllGlobals()
+    hasStoredH5SessionHint.mockReturnValue(false)
     setActivePinia(createPinia())
+  })
+
+  it('skips H5 session bootstrap when no local browser session hint exists', async () => {
+    const { useAuthStore } = await import('./auth')
+    const store = useAuthStore()
+
+    await store.bootstrapSession(true)
+
+    expect(hasStoredH5SessionHint).toHaveBeenCalledTimes(1)
+    expect(authApi.me).not.toHaveBeenCalled()
+    expect(store.initialized).toBe(true)
+    expect(store.isAuthenticated).toBe(false)
+  })
+
+  it('probes H5 session bootstrap when a local browser session hint exists', async () => {
+    hasStoredH5SessionHint.mockReturnValue(true)
+    authApi.me.mockResolvedValue({
+      data: {
+        data: {
+          id: 'h5-user-1',
+          displayName: 'H5 User',
+        },
+      },
+    })
+
+    const { useAuthStore } = await import('./auth')
+    const store = useAuthStore()
+
+    await store.bootstrapSession(true)
+
+    expect(authApi.me).toHaveBeenCalledTimes(1)
+    expect(store.isAuthenticated).toBe(true)
+    expect(store.user?.displayName).toBe('H5 User')
   })
 
   it('persists session id returned by exchange-native', async () => {

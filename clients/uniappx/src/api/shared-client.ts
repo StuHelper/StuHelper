@@ -156,6 +156,17 @@ function resolveCSRFToken(): string | null {
   return readCookie(CSRF_COOKIE_NAME) ?? readStoredCSRFToken()
 }
 
+export function hasStoredH5SessionHint(): boolean {
+  if (isNativeRuntime()) return false
+
+  try {
+    return resolveCSRFToken() !== null
+  } catch (_error) {
+    void _error
+    return false
+  }
+}
+
 function resolveRequestURL(
   schemaPath: string,
   pathParams?: Record<string, unknown>,

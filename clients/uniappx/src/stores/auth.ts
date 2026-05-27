@@ -10,6 +10,7 @@ import {
   writeNativeTokens,
 } from '@/api/native-session'
 import { assertMutationSuccess, unwrapData, unwrapOptionalData } from '@/api/result'
+import { hasStoredH5SessionHint } from '@/api/shared-client'
 import {
   clearStoredSSOState,
   readStoredSSOState,
@@ -75,7 +76,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function bootstrapSession(force = false) {
     const now = Date.now()
-    if (!force && initialized.value && now - lastBootstrapAt.value < BOOTSTRAP_STALE_MS) {
+    if (!force && initialized.value && user.value && now - lastBootstrapAt.value < BOOTSTRAP_STALE_MS) {
       return
     }
     if (loading.value) return
@@ -91,6 +92,11 @@ export const useAuthStore = defineStore('auth', () => {
           initialized.value = true
           return
         }
+      } else if (!hasStoredH5SessionHint()) {
+        user.value = null
+        lastBootstrapAt.value = Date.now()
+        initialized.value = true
+        return
       }
 
       const result = await api.auth.me()
