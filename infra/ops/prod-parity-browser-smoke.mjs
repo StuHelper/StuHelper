@@ -20,6 +20,9 @@ try {
 
 const timeoutMs = Number(process.env.PROD_PARITY_BROWSER_SMOKE_TIMEOUT_MS || 30000);
 const webBaseURL = normalizeBaseURL(process.env.WEB_BASE_URL || 'http://stuhelper.com');
+const frontendDirectBaseURL = normalizeBaseURL(
+  process.env.FRONTEND_DIRECT_BASE_URL || 'http://127.0.0.1:28000',
+);
 const identityBaseURL = normalizeBaseURL(
   process.env.IDENTITY_BASE_URL ||
     process.env.CASDOOR_PUBLIC_AUTH_BASE_URL ||
@@ -37,6 +40,7 @@ const screenshotDir =
   process.env.PROD_PARITY_BROWSER_SMOKE_SCREENSHOT_DIR || dirname(evidenceFile);
 const criticalResourceTypes = new Set(['document', 'font', 'image', 'script', 'stylesheet']);
 const telemetryRoutePattern = /\/api\/v1\/metrics\/(?:frontend-errors|vitals)(?:\?|$)/;
+const bootstrapFallbackTexts = ['应用启动失败', 'App startup failed'];
 const viewportVariants = [
   {
     name: 'desktop',
@@ -64,6 +68,12 @@ const checks = [
     name: 'web-login',
     url: joinURL(webBaseURL, '/login'),
     expectedTexts: ['StuHelper'],
+  },
+  {
+    name: 'frontend-direct-login-redirect',
+    url: joinURL(frontendDirectBaseURL, '/login'),
+    expectedTexts: ['登录', 'Login'],
+    expectedURLIncludes: [joinURL(identityBaseURL, '/login')],
   },
   {
     name: 'identity-developer-login',
@@ -953,7 +963,10 @@ async function runCheck(browser, check, viewportVariant) {
       : check.expectedTexts.find((text) => bodyText.includes(text));
     const requiredTexts = toArray(check.requiredTexts);
     const missingRequiredTexts = requiredTexts.filter((text) => !bodyText.includes(text));
-    const forbiddenTexts = toArray(check.forbiddenTexts);
+    const forbiddenTexts = [
+      ...bootstrapFallbackTexts,
+      ...toArray(check.forbiddenTexts),
+    ];
     const presentForbiddenTexts = forbiddenTexts.filter((text) => bodyText.includes(text));
 
     if (!matchedText) {

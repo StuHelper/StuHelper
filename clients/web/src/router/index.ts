@@ -51,6 +51,17 @@ function isChunkLoadError(error: unknown): boolean {
 // chunk 加载失败时自动重载一次
 const CHUNK_RELOAD_KEY = "stuhelper_chunk_reload_attempted";
 
+let pendingExternalLocationRedirect: string | null = null;
+
+export function hasPendingExternalLocationRedirect(): boolean {
+    return pendingExternalLocationRedirect !== null;
+}
+
+function replaceWithExternalLocation(target: URL) {
+    pendingExternalLocationRedirect = target.toString();
+    window.location.replace(pendingExternalLocationRedirect);
+}
+
 function redirectIdentityPortalRoute(
     to: Pick<RouteLocationNormalized, "fullPath" | "matched" | "path">,
     from: Pick<RouteLocationNormalized, "fullPath" | "name">,
@@ -85,7 +96,7 @@ function redirectIdentityPortalRoute(
             }
         }
 
-        window.location.replace(target.toString());
+        replaceWithExternalLocation(target);
         return false;
     }
 
@@ -103,7 +114,7 @@ function redirectIdentityPortalRoute(
     }
 
     const target = new URL(to.fullPath, webOrigin);
-    window.location.replace(target.toString());
+    replaceWithExternalLocation(target);
     return false;
 }
 

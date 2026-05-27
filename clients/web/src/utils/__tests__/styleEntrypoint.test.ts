@@ -68,6 +68,36 @@ describe("style entrypoint", () => {
         );
     });
 
+    it("does not render the bootstrap failure page for expected cross-origin route redirects", () => {
+        const mainSource = readFileSync(
+            resolve(__dirname, "../../main.ts"),
+            "utf-8",
+        );
+        const routerSource = readFileSync(
+            resolve(__dirname, "../../router/index.ts"),
+            "utf-8",
+        );
+        const smokeSource = readFileSync(
+            resolve(
+                __dirname,
+                "../../../../../infra/ops/prod-parity-browser-smoke.mjs",
+            ),
+            "utf-8",
+        );
+
+        expect(routerSource).toContain("pendingExternalLocationRedirect");
+        expect(routerSource).toContain(
+            "export function hasPendingExternalLocationRedirect()",
+        );
+        expect(routerSource).toContain("replaceWithExternalLocation(target)");
+        expect(mainSource).toContain("isNavigationFailure");
+        expect(mainSource).toContain("NavigationFailureType.aborted");
+        expect(mainSource).toContain("isExpectedExternalRedirectAbort");
+        expect(smokeSource).toContain("bootstrapFallbackTexts");
+        expect(smokeSource).toContain("'应用启动失败'");
+        expect(smokeSource).toContain("frontend-direct-login-redirect");
+    });
+
     it("uses the identity home route as the default login return target on the identity host", () => {
         const loginSource = readFileSync(
             resolve(__dirname, "../../modules/auth/views/LoginPage.vue"),
