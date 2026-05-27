@@ -281,7 +281,9 @@ if [[ "${OBS_SMOKE_STRICT}" == "true" ]]; then
   check_prometheus_query "Prometheus target alertmanager" 'up{job="alertmanager"}' || true
   check_prometheus_query "Prometheus target cadvisor" 'up{job="cadvisor"}' || true
   check_prometheus_query "Blackbox identity metadata" 'probe_success{job="blackbox-http",instance="https://id.stuhelper.com/.well-known/openid-configuration"}' || true
-  check_prometheus_query "Blackbox Casdoor metadata" 'probe_success{job="blackbox-http",instance="https://sso.stuhelper.com/.well-known/openid-configuration"}' || true
+  if [[ "${OBS_SMOKE_CASDOOR_UPSTREAM_ENABLED:-false}" == "true" ]]; then
+    check_prometheus_query "Blackbox Casdoor upstream metadata" 'probe_success{job="blackbox-http",instance="https://sso.stuhelper.com/.well-known/openid-configuration"}' || true
+  fi
   check_prometheus_query "Blackbox OpenFGA TCP" 'probe_success{job="blackbox-tcp",instance="openfga:8081"}' || true
 fi
 

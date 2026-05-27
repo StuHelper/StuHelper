@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AppHeader from '../AppHeader.vue'
 
 const mocks = vi.hoisted(() => ({
@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
     isAuthenticated: false,
   },
   route: {
+    name: 'home' as string | undefined,
     path: '/',
     fullPath: '/',
     params: {} as Record<string, string>,
@@ -94,11 +95,13 @@ function mountHeader(authState: {
 
 describe('AppHeader', () => {
   beforeEach(() => {
+    vi.unstubAllEnvs()
     Object.assign(mocks.authStore, {
       bootstrapCompleted: false,
       isAuthenticated: false,
     })
     Object.assign(mocks.route, {
+      name: 'home',
       path: '/',
       fullPath: '/',
       params: {},
@@ -106,6 +109,10 @@ describe('AppHeader', () => {
     mocks.routerPush.mockReset()
     mocks.ensureCanPostReview.mockResolvedValue(true)
     mocks.rememberReviewPostCourse.mockReset()
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it('does not mount authenticated header actions while cached auth is unresolved', () => {
@@ -139,6 +146,28 @@ describe('AppHeader', () => {
     expect(wrapper.find('[data-test="notification-bell"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="app-user-menu"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('nav.login')
+  })
+
+  it('uses identity portal navigation on the configured identity host', () => {
+    vi.stubEnv('VITE_IDENTITY_URL', window.location.origin)
+    Object.assign(mocks.route, {
+      name: 'login',
+      path: '/login',
+      fullPath: '/login?redirect=/developers/apps',
+      params: {},
+    })
+
+    const wrapper = mountHeader({
+      bootstrapCompleted: true,
+      isAuthenticated: false,
+    })
+
+    expect(wrapper.text()).toContain('routes.openPlatformDeveloperApps')
+    expect(wrapper.text()).toContain('routes.userAuthorizedApps')
+    expect(wrapper.text()).toContain('routes.identityVerification')
+    expect(wrapper.text()).not.toContain('nav.courses')
+    expect(wrapper.text()).not.toContain('nav.teacher')
+    expect(wrapper.text()).not.toContain('nav.login')
   })
 
   it('uses courses as the only course-review top navigation entry', () => {

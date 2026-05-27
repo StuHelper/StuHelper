@@ -144,6 +144,7 @@ type DatabaseConfig struct {
 type CasdoorConfig struct {
 	Issuer                      string // OIDC 对外签发者地址，如 https://sso.stuhelper.com
 	InternalAddress             string // 可选：容器内访问 IDP 的拨号地址，如 host.docker.internal:8085
+	PublicAuthBaseURL           string // 可选：浏览器可见的 Casdoor 授权入口 origin，如 https://id.stuhelper.com
 	ClientID                    string
 	ClientSecret                string
 	RedirectURI                 string
@@ -315,6 +316,7 @@ func loadCasdoorConfig() CasdoorConfig {
 	return CasdoorConfig{
 		Issuer:                      getEnv("CASDOOR_ISSUER", ""),
 		InternalAddress:             getEnv("CASDOOR_INTERNAL_ADDRESS", ""),
+		PublicAuthBaseURL:           getEnv("CASDOOR_PUBLIC_AUTH_BASE_URL", ""),
 		ClientID:                    getEnv("CASDOOR_CLIENT_ID", ""),
 		ClientSecret:                getEnv("CASDOOR_CLIENT_SECRET", ""),
 		RedirectURI:                 getEnv("CASDOOR_REDIRECT_URI", ""),

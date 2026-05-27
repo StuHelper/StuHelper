@@ -43,6 +43,15 @@ bootstrap_require_line="$(line_number 'require_nonempty CASDOOR_BOOTSTRAP_CLIENT
 identity_issuer_require_line="$(line_number 'require_nonempty IDENTITY_ISSUER')"
 identity_issuer_reject_line="$(line_number 'reject_placeholder IDENTITY_ISSUER')"
 identity_issuer_local_reject_line="$(line_number 'reject_local_value IDENTITY_ISSUER')"
+casdoor_public_auth_require_line="$(line_number 'require_nonempty CASDOOR_PUBLIC_AUTH_BASE_URL')"
+casdoor_public_auth_reject_line="$(line_number 'reject_placeholder CASDOOR_PUBLIC_AUTH_BASE_URL')"
+casdoor_public_auth_local_reject_line="$(line_number 'reject_local_value CASDOOR_PUBLIC_AUTH_BASE_URL')"
+web_identity_require_line="$(line_number 'require_nonempty WEB_VITE_IDENTITY_URL')"
+web_identity_reject_line="$(line_number 'reject_placeholder WEB_VITE_IDENTITY_URL')"
+web_identity_local_reject_line="$(line_number 'reject_local_value WEB_VITE_IDENTITY_URL')"
+web_url_require_line="$(line_number 'require_nonempty WEB_VITE_WEB_URL')"
+web_url_reject_line="$(line_number 'reject_placeholder WEB_VITE_WEB_URL')"
+web_url_local_reject_line="$(line_number 'reject_local_value WEB_VITE_WEB_URL')"
 bootstrap_reject_line="$(line_number 'reject_placeholder CASDOOR_BOOTSTRAP_CLIENT_SECRET')"
 app_provisioning_require_line="$(line_number 'require_nonempty CASDOOR_APP_PROVISIONING_CLIENT_SECRET')"
 app_provisioning_reject_line="$(line_number 'reject_placeholder CASDOOR_APP_PROVISIONING_CLIENT_SECRET')"
@@ -82,6 +91,30 @@ if (( identity_issuer_reject_line <= identity_issuer_require_line )); then
 fi
 if (( identity_issuer_local_reject_line <= identity_issuer_reject_line )); then
   fail "Identity issuer local endpoint rejection must run after placeholder rejection"
+fi
+if (( casdoor_public_auth_require_line <= identity_issuer_require_line )); then
+  fail "Casdoor public auth base URL must be validated with identity ingress settings"
+fi
+if (( casdoor_public_auth_reject_line <= casdoor_public_auth_require_line )); then
+  fail "Casdoor public auth base URL placeholder rejection must run after non-empty validation"
+fi
+if (( casdoor_public_auth_local_reject_line <= casdoor_public_auth_reject_line )); then
+  fail "Casdoor public auth base URL local endpoint rejection must run after placeholder rejection"
+fi
+if (( web_identity_reject_line <= web_identity_require_line )); then
+  fail "Web identity URL placeholder rejection must run after non-empty validation"
+fi
+if (( web_identity_local_reject_line <= web_identity_reject_line )); then
+  fail "Web identity URL local endpoint rejection must run after placeholder rejection"
+fi
+if (( web_url_require_line <= web_identity_require_line )); then
+  fail "Web public frontend URL validation should be grouped after identity URL validation"
+fi
+if (( web_url_reject_line <= web_url_require_line )); then
+  fail "Web public frontend URL placeholder rejection must run after non-empty validation"
+fi
+if (( web_url_local_reject_line <= web_url_reject_line )); then
+  fail "Web public frontend URL local endpoint rejection must run after placeholder rejection"
 fi
 if (( bootstrap_reject_line <= bootstrap_require_line )); then
   fail "Casdoor bootstrap placeholder rejection must run after non-empty validation"
@@ -193,7 +226,7 @@ if ! grep -qF 'EXTERNAL_POSTGRES_ENABLED' "${PROD_DEPLOY_FILE}"; then
   fail "production deploy must support skipping the internal PostgreSQL service"
 fi
 if ! grep -qF 'require_public_identity_ingress_preflight' "${PROD_DEPLOY_FILE}"; then
-  fail "production deploy must fail fast on missing public identity ingress TLS and Casdoor discovery"
+  fail "production deploy must fail fast on missing public web and identity ingress"
 fi
 if ! grep -qF 'require_public_ingress_config_preflight' "${PROD_DEPLOY_FILE}"; then
   fail "production deploy must fail fast on missing local Nginx public ingress config"

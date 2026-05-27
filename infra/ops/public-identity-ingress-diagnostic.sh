@@ -20,8 +20,7 @@ Collects DNS, SNI TLS, and public OIDC endpoint diagnostics for:
   - IDENTITY_ISSUER /.well-known/openid-configuration
   - IDENTITY_ISSUER /.well-known/oauth-authorization-server
   - IDENTITY_ISSUER /.well-known/jwks.json
-  - CASDOOR_ISSUER /.well-known/openid-configuration
-  - CASDOOR_ISSUER JWKS URI from discovery
+  - Optional CASDOOR_ISSUER /.well-known/openid-configuration and JWKS
 
 Required env:
   none
@@ -29,7 +28,8 @@ Required env:
 Optional env:
   WEB_PUBLIC_URL                                  defaults to https://stuhelper.com
   IDENTITY_ISSUER                                 defaults to https://id.stuhelper.com
-  CASDOOR_ISSUER                                  defaults to https://sso.stuhelper.com
+  CASDOOR_ISSUER                                  required only when
+                                                   PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_CASDOOR_UPSTREAM_ENABLED=true
   PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_TIMEOUT     defaults to PUBLIC_INGRESS_PREFLIGHT_TIMEOUT_SECONDS or 10
   PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_FILE        defaults to infra/generated/public-identity-ingress-diagnostic.json
                                                    set to "-" to only print the JSON bundle
@@ -40,6 +40,9 @@ Optional env:
                                                    defaults to false; true allows WEB_PUBLIC_URL /
                                                    IDENTITY_ISSUER / CASDOOR_ISSUER loaded from ENV_FILE.
                                                    Inline env always overrides.
+  PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_CASDOOR_UPSTREAM_ENABLED
+                                                   defaults to false; set true only to diagnose a public
+                                                   browser-facing Casdoor upstream.
 USAGE
 }
 
@@ -61,6 +64,7 @@ preserved_file="${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_FILE-__STUHELPER_UNSET__}"
 preserved_strict="${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_STRICT-__STUHELPER_UNSET__}"
 preserved_public_dns_enabled="${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_PUBLIC_DNS_ENABLED-__STUHELPER_UNSET__}"
 preserved_use_env_targets="${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_USE_ENV_TARGETS-__STUHELPER_UNSET__}"
+preserved_casdoor_upstream_enabled="${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_CASDOOR_UPSTREAM_ENABLED-__STUHELPER_UNSET__}"
 
 load_env
 
@@ -69,6 +73,7 @@ if [[ "${preserved_file}" != "__STUHELPER_UNSET__" ]]; then PUBLIC_IDENTITY_INGR
 if [[ "${preserved_strict}" != "__STUHELPER_UNSET__" ]]; then PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_STRICT="${preserved_strict}"; fi
 if [[ "${preserved_public_dns_enabled}" != "__STUHELPER_UNSET__" ]]; then PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_PUBLIC_DNS_ENABLED="${preserved_public_dns_enabled}"; fi
 if [[ "${preserved_use_env_targets}" != "__STUHELPER_UNSET__" ]]; then PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_USE_ENV_TARGETS="${preserved_use_env_targets}"; fi
+if [[ "${preserved_casdoor_upstream_enabled}" != "__STUHELPER_UNSET__" ]]; then PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_CASDOOR_UPSTREAM_ENABLED="${preserved_casdoor_upstream_enabled}"; fi
 
 use_env_targets="${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_USE_ENV_TARGETS:-false}"
 case "${use_env_targets}" in
@@ -95,7 +100,16 @@ fi
 
 web_public_url="$(trim_trailing_slash "${WEB_PUBLIC_URL:-https://stuhelper.com}")"
 identity_issuer="$(trim_trailing_slash "${IDENTITY_ISSUER:-https://id.stuhelper.com}")"
-casdoor_issuer="$(trim_trailing_slash "${CASDOOR_ISSUER:-https://sso.stuhelper.com}")"
+casdoor_upstream_enabled="${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_CASDOOR_UPSTREAM_ENABLED:-false}"
+case "${casdoor_upstream_enabled}" in
+  true | TRUE | 1 | yes | YES) casdoor_upstream_enabled="true" ;;
+  false | FALSE | 0 | no | NO | "") casdoor_upstream_enabled="false" ;;
+  *) die "PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_CASDOOR_UPSTREAM_ENABLED must be true or false" ;;
+esac
+casdoor_issuer=""
+if [[ "${casdoor_upstream_enabled}" == "true" ]]; then
+  casdoor_issuer="$(trim_trailing_slash "${CASDOOR_ISSUER:-https://sso.stuhelper.com}")"
+fi
 timeout_seconds="${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_TIMEOUT:-${PUBLIC_INGRESS_PREFLIGHT_TIMEOUT_SECONDS:-10}}"
 evidence_file="${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_FILE:-${REPO_ROOT}/infra/generated/public-identity-ingress-diagnostic.json}"
 strict="${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_STRICT:-false}"
@@ -119,7 +133,8 @@ bundle="$(
     "${identity_issuer}" \
     "${casdoor_issuer}" \
     "${timeout_seconds}" \
-    "${public_dns_enabled}" <<'PY'
+    "${public_dns_enabled}" \
+    "${casdoor_upstream_enabled}" <<'PY'
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -134,8 +149,9 @@ from pathlib import Path
 from urllib.parse import quote, urlparse
 
 
-web_public_url, identity_issuer, casdoor_issuer, timeout_raw, public_dns_enabled_raw = sys.argv[1:6]
+web_public_url, identity_issuer, casdoor_issuer, timeout_raw, public_dns_enabled_raw, casdoor_upstream_enabled_raw = sys.argv[1:7]
 public_dns_enabled = public_dns_enabled_raw == "true"
+casdoor_upstream_enabled = casdoor_upstream_enabled_raw == "true"
 
 try:
     timeout = max(1.0, float(timeout_raw))
@@ -602,8 +618,9 @@ def jwks_probe(label: str, url: str) -> dict[str, object]:
 targets = {
     "web": parse_endpoint(web_public_url),
     "identity": parse_endpoint(identity_issuer),
-    "casdoor": parse_endpoint(casdoor_issuer),
 }
+if casdoor_upstream_enabled:
+    targets["casdoor"] = parse_endpoint(casdoor_issuer)
 
 hosts: dict[str, object] = {}
 for name, target in targets.items():
@@ -620,17 +637,18 @@ for name, target in targets.items():
     }
 
 identity_discovery = oidc_discovery_probe("Identity", identity_issuer)
-casdoor_discovery = oidc_discovery_probe("Casdoor", casdoor_issuer)
-casdoor_jwks_url = str(casdoor_discovery.get("jwksURI") or endpoint_url(casdoor_issuer, "/.well-known/jwks"))
 
 endpoints = {
     "webHealth": run_curl(endpoint_url(web_public_url, "/health/ready")),
     "identityDiscovery": identity_discovery,
     "identityAuthorizationServerMetadata": oauth_authorization_server_metadata_probe(identity_issuer),
     "identityJWKS": jwks_probe("Identity", endpoint_url(identity_issuer, "/.well-known/jwks.json")),
-    "casdoorDiscovery": casdoor_discovery,
-    "casdoorJWKS": jwks_probe("Casdoor", casdoor_jwks_url),
 }
+if casdoor_upstream_enabled:
+    casdoor_discovery = oidc_discovery_probe("Casdoor", casdoor_issuer)
+    casdoor_jwks_url = str(casdoor_discovery.get("jwksURI") or endpoint_url(casdoor_issuer, "/.well-known/jwks"))
+    endpoints["casdoorDiscovery"] = casdoor_discovery
+    endpoints["casdoorJWKS"] = jwks_probe("Casdoor", casdoor_jwks_url)
 
 diagnoses: list[dict[str, str]] = []
 failed = 0
@@ -673,6 +691,7 @@ bundle = {
     "webPublicURL": web_public_url,
     "identityIssuer": identity_issuer,
     "casdoorIssuer": casdoor_issuer,
+    "casdoorUpstreamChecked": casdoor_upstream_enabled,
     "hosts": hosts,
     "endpoints": endpoints,
     "diagnoses": diagnoses,

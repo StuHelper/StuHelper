@@ -116,5 +116,6 @@ bin/
 storybook-static/
 test-results/
 playwright-report/
+.playwright-mcp/
 *.zip
 .ace-tool/

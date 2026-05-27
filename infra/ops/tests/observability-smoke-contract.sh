@@ -36,7 +36,7 @@ assert_contains "${SMOKE_SCRIPT}" 'OBS_SMOKE_STRICT'
 assert_contains "${SMOKE_SCRIPT}" 'OBSERVABILITY_SMOKE_EVIDENCE_FILE'
 assert_contains "${SMOKE_SCRIPT}" 'up\{job="app"\}'
 assert_contains "${SMOKE_SCRIPT}" 'probe_success\{job="blackbox-http",instance="https://id\.stuhelper\.com/.well-known/openid-configuration"\}'
-assert_contains "${SMOKE_SCRIPT}" 'probe_success\{job="blackbox-http",instance="https://sso\.stuhelper\.com/.well-known/openid-configuration"\}'
+assert_contains "${SMOKE_SCRIPT}" 'OBS_SMOKE_CASDOOR_UPSTREAM_ENABLED'
 assert_contains "${SMOKE_SCRIPT}" 'probe_success\{job="blackbox-tcp",instance="openfga:8081"\}'
 assert_contains "${SMOKE_SCRIPT}" 'alert-webhook-sink'
 
@@ -142,7 +142,7 @@ jq -e '
   .strict == true
   and .passed == true
   and .summary.failed == 0
-  and ([.checks[] | select(.kind == "prometheus_query")] | length >= 7)
+  and ([.checks[] | select(.kind == "prometheus_query")] | length >= 6)
   and ([.checks[] | select(.name == "Alertmanager webhook configured" and .passed == true)] | length == 1)
 ' "${evidence_file}" >/dev/null
 

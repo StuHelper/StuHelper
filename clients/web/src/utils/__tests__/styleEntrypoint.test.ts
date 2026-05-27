@@ -53,7 +53,7 @@ describe('style entrypoint', () => {
     )
     const routerSource = readFileSync(resolve(__dirname, '../../router/index.ts'), 'utf-8')
 
-    expect(routerSource).toMatch(/name:\s*"login"[\s\S]*meta:\s*\{\s*titleKey:\s*"routes\.login",\s*guest:\s*true\s*\}/)
+    expect(routerSource).toMatch(/name:\s*"login"[\s\S]*meta:\s*\{\s*titleKey:\s*"routes\.login",\s*guest:\s*true,\s*identityPortal:\s*true\s*\}/)
     expect(loginSource).not.toContain('ParticleBackground')
     expect(loginSource).not.toContain(':global([data-theme="dark"])')
     expect(loginSource).not.toMatch(/\[data-theme="dark"\]\s*\{[\s\S]*opacity/)
@@ -134,6 +134,13 @@ describe('style entrypoint', () => {
     expect(routerSource).not.toContain('path: "/courses/:id/reviews/post"')
     expect(routerSource).not.toContain('rememberReviewPostCourse(courseID)')
     expect(reviewPageSource).not.toContain('<ReviewDialog')
+  })
+
+  it('hides main-site floating navigation on the identity host', () => {
+    const shellSource = readFileSync(resolve(__dirname, '../../components/layout/AppShell.vue'), 'utf-8')
+
+    expect(shellSource).toContain('configuredIdentityOrigin')
+    expect(shellSource).toContain('<FloatingModuleNav v-if="!isIdentityPortalHost" />')
   })
 
   it('keeps review drafts user-scoped and recoverable from the post page', () => {

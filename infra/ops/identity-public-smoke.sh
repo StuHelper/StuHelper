@@ -22,14 +22,15 @@ Verifies the public production identity ingress:
   - IDENTITY_ISSUER /oauth2/logout POST query/body rejection
   - IDENTITY_ISSUER /oidc/userinfo GET/POST missing bearer failure
   - IDENTITY_ISSUER /oidc/userinfo query/body token-source rejection
-  - CASDOOR_ISSUER discovery and JWKS
+  - Optional CASDOOR_ISSUER discovery and JWKS when enabled
 
 Required env:
   IDENTITY_ISSUER
-  CASDOOR_ISSUER
 
 Optional env:
   WEB_PUBLIC_URL                         defaults to https://stuhelper.com
+  CASDOOR_ISSUER                         required only when
+                                         IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED=true
   IDENTITY_PUBLIC_SMOKE_RETRIES          defaults to 30
   IDENTITY_PUBLIC_SMOKE_SLEEP_SECONDS    defaults to 2
   IDENTITY_PUBLIC_SMOKE_EVIDENCE_FILE    defaults to infra/generated/identity-public-smoke-evidence.json
@@ -51,6 +52,9 @@ Optional env:
   IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS
                                          defaults to false; set true only for local contract tests or
                                          intentional local production validation
+  IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED
+                                         defaults to false; set true only to audit a public
+                                         browser-facing Casdoor upstream
 USAGE
 }
 
@@ -79,6 +83,7 @@ preserved_smoke_resource_access_resource_id="${IDENTITY_PUBLIC_SMOKE_RESOURCE_AC
 preserved_smoke_resource_access_action="${IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_ACTION-__STUHELPER_UNSET__}"
 preserved_smoke_resource_access_expect_allowed="${IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_EXPECT_ALLOWED-__STUHELPER_UNSET__}"
 preserved_allow_local_targets="${IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS-__STUHELPER_UNSET__}"
+preserved_casdoor_upstream_enabled="${IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED-__STUHELPER_UNSET__}"
 
 load_env
 
@@ -98,6 +103,7 @@ if [[ "${preserved_smoke_resource_access_resource_id}" != "__STUHELPER_UNSET__" 
 if [[ "${preserved_smoke_resource_access_action}" != "__STUHELPER_UNSET__" ]]; then IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_ACTION="${preserved_smoke_resource_access_action}"; fi
 if [[ "${preserved_smoke_resource_access_expect_allowed}" != "__STUHELPER_UNSET__" ]]; then IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_EXPECT_ALLOWED="${preserved_smoke_resource_access_expect_allowed}"; fi
 if [[ "${preserved_allow_local_targets}" != "__STUHELPER_UNSET__" ]]; then IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS="${preserved_allow_local_targets}"; fi
+if [[ "${preserved_casdoor_upstream_enabled}" != "__STUHELPER_UNSET__" ]]; then IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED="${preserved_casdoor_upstream_enabled}"; fi
 
 trim_trailing_slash() {
   local value="$1"
@@ -130,20 +136,31 @@ smoke_resource_access_resource_id="${IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_RESOU
 smoke_resource_access_action="${IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_ACTION:-}"
 smoke_resource_access_expect_allowed="${IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_EXPECT_ALLOWED:-false}"
 allow_local_targets="${IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS:-false}"
+casdoor_upstream_enabled="${IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED:-false}"
 pkce_s256_challenge="E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
-casdoor_jwks_url="${casdoor_issuer}/.well-known/jwks"
+casdoor_jwks_url=""
 
 [[ -n "${identity_issuer}" ]] || die "IDENTITY_ISSUER is required"
-[[ -n "${casdoor_issuer}" ]] || die "CASDOOR_ISSUER is required"
 case "${allow_local_targets}" in
   true | TRUE | 1 | yes | YES) allow_local_targets="true" ;;
   false | FALSE | 0 | no | NO | "") allow_local_targets="false" ;;
   *) die "IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS must be true or false" ;;
 esac
+case "${casdoor_upstream_enabled}" in
+  true | TRUE | 1 | yes | YES) casdoor_upstream_enabled="true" ;;
+  false | FALSE | 0 | no | NO | "") casdoor_upstream_enabled="false" ;;
+  *) die "IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED must be true or false" ;;
+esac
+if [[ "${casdoor_upstream_enabled}" == "true" ]]; then
+  [[ -n "${casdoor_issuer}" ]] || die "CASDOOR_ISSUER is required when IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED=true"
+  casdoor_jwks_url="${casdoor_issuer}/.well-known/jwks"
+fi
 if [[ "${allow_local_targets}" != "true" ]]; then
   reject_local_smoke_target "WEB_PUBLIC_URL" "${web_public_url}"
   reject_local_smoke_target "IDENTITY_ISSUER" "${identity_issuer}"
-  reject_local_smoke_target "CASDOOR_ISSUER" "${casdoor_issuer}"
+  if [[ "${casdoor_upstream_enabled}" == "true" ]]; then
+    reject_local_smoke_target "CASDOOR_ISSUER" "${casdoor_issuer}"
+  fi
 fi
 if [[ -n "${smoke_client_id}" && -z "${smoke_redirect_uri}" ]]; then
   die "IDENTITY_PUBLIC_SMOKE_REDIRECT_URI is required when IDENTITY_PUBLIC_SMOKE_CLIENT_ID is set"
@@ -315,12 +332,13 @@ write_evidence() {
       "${pass}" \
       "${fail}" \
       "${passed}" \
+      "${casdoor_upstream_enabled}" \
       "${check_jsonl}" <<'PY'
 import json
 import sys
 from pathlib import Path
 
-checks_path = Path(sys.argv[10])
+checks_path = Path(sys.argv[11])
 checks = []
 if checks_path.exists():
     checks = [
@@ -336,6 +354,7 @@ bundle = {
     "webPublicURL": sys.argv[3],
     "identityIssuer": sys.argv[4],
     "casdoorIssuer": sys.argv[5],
+    "casdoorUpstreamChecked": sys.argv[10] == "true",
     "endpoints": {
         "webHealth": sys.argv[3] + "/health/ready",
         "identityDiscovery": sys.argv[4] + "/.well-known/openid-configuration",
@@ -348,8 +367,6 @@ bundle = {
         "identityLogout": sys.argv[4] + "/oauth2/logout",
         "identityUserInfo": sys.argv[4] + "/oidc/userinfo",
         "openPlatformResourceAccessCheck": sys.argv[3] + "/api/v1/open-platform/resources/access/check",
-        "casdoorDiscovery": sys.argv[5] + "/.well-known/openid-configuration",
-        "casdoorJWKS": sys.argv[6],
     },
     "summary": {
         "passed": int(sys.argv[7]),
@@ -357,6 +374,9 @@ bundle = {
     },
     "checks": checks,
 }
+if sys.argv[10] == "true":
+    bundle["endpoints"]["casdoorDiscovery"] = sys.argv[5] + "/.well-known/openid-configuration"
+    bundle["endpoints"]["casdoorJWKS"] = sys.argv[6]
 print(json.dumps(bundle, ensure_ascii=True, indent=2))
 PY
   )"
@@ -1506,17 +1526,21 @@ check_userinfo_rejects_non_header_token_source "query" "Identity UserInfo URL qu
 check_userinfo_rejects_non_header_token_source "body" "Identity UserInfo body token 返回 invalid_token"
 check_client_credentials_grant
 
-casdoor_metadata_file="${tmpdir}/casdoor-openid-configuration.json"
-if fetch_json "Casdoor discovery" "${casdoor_issuer}/.well-known/openid-configuration" "${casdoor_metadata_file}"; then
-  check_casdoor_discovery "$(cat "${casdoor_metadata_file}")"
-  discovered_casdoor_jwks_url="$(jq -r '.jwks_uri // empty' "${casdoor_metadata_file}")"
-  if [[ -n "${discovered_casdoor_jwks_url}" ]]; then
-    casdoor_jwks_url="${discovered_casdoor_jwks_url}"
+if [[ "${casdoor_upstream_enabled}" == "true" ]]; then
+  casdoor_metadata_file="${tmpdir}/casdoor-openid-configuration.json"
+  if fetch_json "Casdoor upstream discovery" "${casdoor_issuer}/.well-known/openid-configuration" "${casdoor_metadata_file}"; then
+    check_casdoor_discovery "$(cat "${casdoor_metadata_file}")"
+    discovered_casdoor_jwks_url="$(jq -r '.jwks_uri // empty' "${casdoor_metadata_file}")"
+    if [[ -n "${discovered_casdoor_jwks_url}" ]]; then
+      casdoor_jwks_url="${discovered_casdoor_jwks_url}"
+    fi
+    casdoor_jwks_file="${tmpdir}/casdoor-jwks.json"
+    if fetch_json "Casdoor upstream JWKS" "${casdoor_jwks_url}" "${casdoor_jwks_file}"; then
+      check_jwks "Casdoor upstream" "$(cat "${casdoor_jwks_file}")"
+    fi
   fi
-  casdoor_jwks_file="${tmpdir}/casdoor-jwks.json"
-  if fetch_json "Casdoor JWKS" "${casdoor_jwks_url}" "${casdoor_jwks_file}"; then
-    check_jwks "Casdoor" "$(cat "${casdoor_jwks_file}")"
-  fi
+else
+  log "skipping public Casdoor upstream smoke; set IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED=true to enable" >&2
 fi
 
 printf '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'

@@ -23,7 +23,7 @@ last-verified: 2026-05-24
 | 用户主体 claim | Casdoor subject | StuHelper Identity subject，格式为 `sub=stuhelper:<internal-user-id>` |
 | 用户字段来源 | Casdoor 用户 API 或 Casdoor token | StuHelper Identity 按已审批 scope 和用户 consent 披露 |
 
-`sso.stuhelper.com` 仍然负责账号密码、注册、短信和上游登录会话。应用侧不再直接信任它作为 StuHelper Open Platform issuer。
+Casdoor 仍然负责账号密码、注册、短信和上游登录会话，但它是 `id.stuhelper.com` 背后的 upstream；浏览器和应用侧不再直接访问或信任 `sso.stuhelper.com` 作为 StuHelper Open Platform issuer。授权、UserInfo、introspection、revoke、开发者平台和用户授权管理都以 `https://id.stuhelper.com` 为对外入口。
 
 ## 迁移前清单
 

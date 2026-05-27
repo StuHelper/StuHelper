@@ -64,7 +64,7 @@ Admin 后台执行：
 3. 后端返回认证链接、禁言时长、等待截止时间、提醒间隔等策略。
 4. Koishi 默认禁言 30 天，并 @ 新人发送认证链接和截止时间。
 5. 用户打开 `auth.stuhelper.com` 链接；后端先做 token 轻量校验，但不消费 token。
-6. 未登录用户跳转到 `sso.stuhelper.com` 登录或注册，SSO 完成后回到原 admission URL。
+6. 未登录用户跳转到 `id.stuhelper.com` 登录或注册，Identity 完成后回到原 admission URL。
 7. 已登录用户回到 admission 页面后，后端消费 token，将当前登录用户与 token 绑定的 QQ 会话关联，并在安全条件满足时自动建立 QQ 绑定；link 成功时从当前时间重新计算 submission 等待截止时间。
 8. 用户选择老生或新生认证路径。
 9. 认证通过后，Koishi 扫描到状态变化并自动解禁。
@@ -85,9 +85,9 @@ Koishi 群内 @ 新人的短文案直接发送 canonical URL。`buaa.team` 只�
 
 登录回跳规则：
 
-- admission 链接先落在 `auth.stuhelper.com`，不要直接把群内链接发到 `sso.stuhelper.com`。
-- 未登录时跳转 `sso.stuhelper.com`，OIDC `state` 中保存受保护的 admission return target。
-- SSO 回调只允许回跳到 StuHelper 白名单域名和 admission 路径，避免 open redirect。
+- admission 链接先落在 `auth.stuhelper.com`，不要直接把群内链接发到 Casdoor upstream。
+- 未登录时跳转 `id.stuhelper.com`，OIDC `state` 中保存受保护的 admission return target。
+- Identity 回调只允许回跳到 StuHelper 白名单域名和 admission 路径，避免 open redirect。
 - 登录或注册中断不会消费 token；只有已登录用户确认进入 admission 流程时才消费。
 - OIDC 使用 `state + nonce + PKCE`；回调后恢复原始 `code` 与 `qq` 展示参数。
 

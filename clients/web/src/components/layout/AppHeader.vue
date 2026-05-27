@@ -5,7 +5,7 @@
   >
     <div class="mx-auto flex h-[var(--navbar-height)] max-w-[var(--max-width)] items-center gap-5 px-6 max-md:px-4 max-md:gap-2">
       <router-link
-        to="/"
+        :to="logoRoute"
         class="group flex min-w-0 shrink-0 items-center gap-2.5 rounded-xl py-1 pr-2 no-underline transition-opacity duration-fast hover:opacity-90"
         :aria-label="t('nav.logo')"
       >
@@ -81,7 +81,7 @@
 
         <router-link
           v-else-if="showLoginEntry"
-          to="/login"
+          :to="loginEntryRoute"
           class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-text-primary px-4 text-sm font-semibold text-bg-base no-underline whitespace-nowrap shadow-sm transition-all duration-fast hover:-translate-y-px hover:bg-primary hover:text-white hover:shadow-glow-primary max-sm:w-11 max-sm:px-0"
           :aria-label="t('nav.login')"
           :title="t('nav.login')"
@@ -133,10 +133,13 @@ import { useI18n } from 'vue-i18n'
 import {
   GraduationCap,
   Home,
+  KeyRound,
   LibraryBig,
   LogIn,
   Menu,
   PenLine,
+  ShieldCheck,
+  UserRound,
   X,
   type LucideIcon,
 } from 'lucide-vue-next'
@@ -147,6 +150,7 @@ import NotificationBell from '@/components/common/NotificationBell.vue'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import AppUserMenu from './AppUserMenu.vue'
 import { rememberReviewPostCourse } from '@/modules/review/reviewPostNavigation'
+import { configuredIdentityOrigin } from '@/utils/redirect'
 
 interface NavItem {
   to: string
@@ -165,21 +169,43 @@ const isScrolled = ref(false)
 const mobileMenuOpen = ref(false)
 let scrollTicking = false
 
-const showCourseSearch = computed(() => route.path === '/courses')
+const isIdentityPortalHost = computed(() => {
+  if (typeof window === 'undefined') return false
+  return configuredIdentityOrigin() === window.location.origin
+})
+const logoRoute = computed(() => (isIdentityPortalHost.value ? '/developers/apps' : '/'))
+const showCourseSearch = computed(() => !isIdentityPortalHost.value && route.path === '/courses')
 const showWriteReview = computed(() =>
-  route.path.startsWith('/courses') ||
-  route.path.startsWith('/teachers'),
+  !isIdentityPortalHost.value &&
+  (route.path.startsWith('/courses') ||
+    route.path.startsWith('/teachers')),
 )
 const showAuthenticatedActions = computed(() =>
   authStore.bootstrapCompleted && authStore.isAuthenticated,
 )
-const showLoginEntry = computed(() => !authStore.isAuthenticated)
+const showLoginEntry = computed(() => !authStore.isAuthenticated && route.name !== 'login')
+const loginEntryRoute = computed(() => ({
+  path: '/login',
+  query: {
+    redirect: typeof window === 'undefined'
+      ? route.fullPath
+      : new URL(route.fullPath, window.location.origin).toString(),
+  },
+}))
 
-const navItems = computed<NavItem[]>(() => [
-  { to: '/', label: t('nav.home'), icon: Home, exact: true },
-  { to: '/courses', label: t('nav.courses'), icon: LibraryBig },
-  { to: '/teachers', label: t('nav.teacher'), icon: GraduationCap },
-])
+const navItems = computed<NavItem[]>(() =>
+  isIdentityPortalHost.value
+    ? [
+        { to: '/developers/apps', label: t('routes.openPlatformDeveloperApps'), icon: KeyRound },
+        { to: '/user/authorized-apps', label: t('routes.userAuthorizedApps'), icon: ShieldCheck },
+        { to: '/user/identity-verification', label: t('routes.identityVerification'), icon: UserRound },
+      ]
+    : [
+        { to: '/', label: t('nav.home'), icon: Home, exact: true },
+        { to: '/courses', label: t('nav.courses'), icon: LibraryBig },
+        { to: '/teachers', label: t('nav.teacher'), icon: GraduationCap },
+      ],
+)
 
 function isNavActive(item: NavItem) {
   if (item.exact) {

@@ -24,6 +24,9 @@ bash -n "${SMOKE_CHECK}"
 
 assert_contains "${SMOKE_CHECK}" 'check_body_regex\(\)'
 assert_contains "${SMOKE_CHECK}" 'grep -Eq "\$pattern"'
+assert_contains "${SMOKE_CHECK}" 'IDENTITY_ISSUER'
+assert_contains "${SMOKE_CHECK}" 'Identity well-known'
+assert_contains "${SMOKE_CHECK}" 'SMOKE_CHECK_CASDOOR_UPSTREAM_ENABLED'
 assert_contains "${SMOKE_CHECK}" 'check_body_regex "Grafana 健康" "\$\{GRAFANA_URL\}/api/health"'
 assert_contains "${SMOKE_CHECK}" '"database"\[\[:space:\]\]\*:\[\[:space:\]\]\*"ok"'
 

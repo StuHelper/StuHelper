@@ -49,3 +49,20 @@ func TestClaimsAccessorsAndStubClientHelpers(t *testing.T) {
 	assert.Empty(t, ExtractIDToken((&oauth2.Token{}).WithExtra(map[string]any{"id_token": 123})))
 	assert.Empty(t, ExtractIDToken(&oauth2.Token{}))
 }
+
+func TestGetAuthURLForApplicationRewritesBrowserAuthBaseURL(t *testing.T) {
+	client := NewStubClient("https://sso.example.com/login/oauth/authorize")
+	client.publicAuthBaseURL = "https://id.example.com"
+
+	authURL, verifier, err := client.GetAuthURLForApplication(ApplicationWeb, "state-123")
+	require.NoError(t, err)
+	assert.NotEmpty(t, verifier)
+	assert.Contains(t, authURL, "https://id.example.com/login/oauth/authorize")
+	assert.Contains(t, authURL, "state-123")
+	assert.NotContains(t, authURL, "https://sso.example.com")
+
+	stepUpURL, _, err := client.GetStepUpAuthURLForApplication(ApplicationWeb, "step-up-state")
+	require.NoError(t, err)
+	assert.Contains(t, stepUpURL, "https://id.example.com/login/oauth/authorize")
+	assert.Contains(t, stepUpURL, "prompt=login")
+}

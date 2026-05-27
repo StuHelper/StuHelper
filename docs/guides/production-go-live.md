@@ -2,7 +2,7 @@
 type: guide
 audience: ops
 status: current
-authoritative-source: docker-compose.prod.yml + infra/ops/*.sh + infra/nginx/baota-stuhelper.conf + infra/nginx/baota-casdoor-sso.conf
+authoritative-source: docker-compose.prod.yml + infra/ops/*.sh + infra/nginx/baota-stuhelper.conf
 last-verified: 2026-05-24
 ---
 
@@ -17,22 +17,22 @@ last-verified: 2026-05-24
   - backend：`127.0.0.1:18080`
   - web：`127.0.0.1:18000`
   - admin：`127.0.0.1:18001`
-- `stuhelper.com` 承载主站、后台和 API；`id.stuhelper.com` 承载 StuHelper Identity/OIDC；`sso.stuhelper.com` 是外部 Casdoor SSO。
+- `stuhelper.com` 承载主站、后台和 API；`id.stuhelper.com` 承载个人信息、认证、开发者平台、Open Platform Connect/OIDC 和浏览器登录入口；Casdoor 只作为后端 upstream，不再作为默认公网站点入口。
 - 仓库 Compose 不再启动 Traefik；开发热更新使用 Vite / 后端本机端口，生产公网入口统一由宝塔 Nginx 承担。
 
 ## 缺漏清单
 
 | 项目 | 当前状态 | 上线前动作 | 是否阻断 |
 |------|----------|------------|----------|
-| 域名 DNS | 仓库不能代配 | `stuhelper.com`、`www.stuhelper.com`、`id.stuhelper.com` A/AAAA 记录指向生产机；`sso.stuhelper.com` 指向 SSO 机器 | 是 |
-| 宝塔 Nginx 反代 | 仓库已提供 `infra/nginx/baota-stuhelper.conf`、`infra/nginx/baota-casdoor-sso.conf` 和 `infra/ops/nginx-public-ingress-preflight.sh` | 主站机器合并主站/id 配置并跑 `NGINX_PUBLIC_INGRESS_PROFILE=stuhelper` 审计；SSO 机器合并 Casdoor SSO 配置并跑 `NGINX_PUBLIC_INGRESS_PROFILE=sso` 审计；证书生效后 reload Nginx | 是 |
+| 域名 DNS | 仓库不能代配 | `stuhelper.com`、`www.stuhelper.com`、`id.stuhelper.com` A/AAAA 记录指向生产机 | 是 |
+| 宝塔 Nginx 反代 | 仓库已提供 `infra/nginx/baota-stuhelper.conf` 和 `infra/ops/nginx-public-ingress-preflight.sh` | 主站机器合并主站/id 配置并跑 `NGINX_PUBLIC_INGRESS_PROFILE=stuhelper` 审计；证书生效后 reload Nginx | 是 |
 | Docker 生产端口 | 仓库已在 `docker-compose.prod.yml` 绑定 `127.0.0.1:18080/18000/18001` | 保持默认端口，确认防火墙没有把这些端口开放公网 | 是 |
 | 远端 secret backend | 脚本要求生产使用非 file secret backend | 配置 `.deploy/remote.env` 中的 `SECRET_BACKEND=vault-kv-v2`、`VAULT_ADDR`、`VAULT_TOKEN_FILE`、`*_SECRET_REF` | 是 |
 | 生产环境变量 | `.env.prod.example` 已按 `stuhelper.com` 预设主站 URL | 替换所有 `REPLACE_WITH_*` 和镜像占位符；不得提交 `.env.prod.*` | 是 |
-| 公网身份入口 smoke | 发布脚本会执行 `infra/ops/identity-public-smoke.sh` 并写入 `infra/generated/identity-public-smoke-evidence.json` | 验证 `stuhelper.com` health、`id.stuhelper.com` OIDC discovery、OAuth authorization server metadata、JWKS、OAuth/UserInfo GET/POST 路由、`authorization_code` / `refresh_token` / `client_credentials` grant metadata、`response_modes_supported=query`、token / introspect / revoke endpoint 的 `client_secret_basic` / `client_secret_post` auth metadata、authorize 未登录跳转、`prompt=login&max_age=0` 重新认证跳转、token / introspect / revoke 路由级错误、GET/POST logout、POST logout URL query / JSON body 拒绝、UserInfo URL query / body token 来源拒绝、token/UserInfo/introspection/revoke 响应 `Cache-Control: no-store` 与 `Pragma: no-cache`、401 `WWW-Authenticate` challenge、`sso.stuhelper.com` discovery；配置专用 `IDENTITY_PUBLIC_SMOKE_CLIENT_ID` 后还会验证 `prompt=none` 的 `login_required` + `iss` 错误回调；同时配置 client secret 时会实测 `client_credentials` token 签发、携带 `token_type_hint=access_token` 的 introspection / revoke、混用 Basic 与 body client credential 时返回 `invalid_client`、UserInfo 拒绝、Open Platform resource access API 使用 Bearer app-only token 对未授权随机资源返回 `fga_denied` 或对预授权 smoke 资源返回 `allowed`、revoke 后 inactive | 是 |
-| 公网身份入口诊断 | 仓库提供 `infra/ops/public-identity-ingress-diagnostic.sh` | 当 smoke 或 preflight 失败时，生成脱敏 `infra/generated/public-identity-ingress-diagnostic.json`，区分 DNS、SNI TLS、`id.stuhelper.com` OIDC discovery / OAuth authorization server metadata / JWKS `.well-known` 反代、`sso.stuhelper.com` Casdoor discovery/JWKS 被 SPA/404 覆盖等问题 | 否 |
+| 公网身份入口 smoke | 发布脚本会执行 `infra/ops/identity-public-smoke.sh` 并写入 `infra/generated/identity-public-smoke-evidence.json` | 验证 `stuhelper.com` health、`id.stuhelper.com` OIDC discovery、OAuth authorization server metadata、JWKS、OAuth/UserInfo GET/POST 路由、`authorization_code` / `refresh_token` / `client_credentials` grant metadata、`response_modes_supported=query`、token / introspect / revoke endpoint 的 `client_secret_basic` / `client_secret_post` auth metadata、authorize 未登录跳转、`prompt=login&max_age=0` 重新认证跳转、token / introspect / revoke 路由级错误、GET/POST logout、POST logout URL query / JSON body 拒绝、UserInfo URL query / body token 来源拒绝、token/UserInfo/introspection/revoke 响应 `Cache-Control: no-store` 与 `Pragma: no-cache`、401 `WWW-Authenticate` challenge；配置专用 `IDENTITY_PUBLIC_SMOKE_CLIENT_ID` 后还会验证 `prompt=none` 的 `login_required` + `iss` 错误回调；同时配置 client secret 时会实测 `client_credentials` token 签发、携带 `token_type_hint=access_token` 的 introspection / revoke、混用 Basic 与 body client credential 时返回 `invalid_client`、UserInfo 拒绝、Open Platform resource access API 使用 Bearer app-only token 对未授权随机资源返回 `fga_denied` 或对预授权 smoke 资源返回 `allowed`、revoke 后 inactive；只有 `IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED=true` 时才额外检查 Casdoor upstream discovery/JWKS | 是 |
+| 公网身份入口诊断 | 仓库提供 `infra/ops/public-identity-ingress-diagnostic.sh` | 当 smoke 或 preflight 失败时，生成脱敏 `infra/generated/public-identity-ingress-diagnostic.json`，区分 DNS、SNI TLS、`id.stuhelper.com` OIDC discovery / OAuth authorization server metadata / JWKS `.well-known` 反代等问题；Casdoor upstream 诊断只在显式传入目标时作为兼容检查 | 否 |
 | 不可变镜像 | 脚本会拒绝 `latest` / 浮动 tag | 准备 `BACKEND_IMAGE_REF`、`FRONTEND_IMAGE_REF`、`ADMIN_IMAGE_REF`，使用明确 tag 或 digest | 是 |
-| Casdoor SSO | 主站 Compose 不启动本地 Casdoor | 确认 `https://sso.stuhelper.com` 可达，准备 bootstrap 管理应用凭据和 `stuhelper-identity` 一方应用 client secret | 是 |
+| Casdoor upstream | 主站 Compose 不启动生产 Casdoor | 确认主机上的 Casdoor upstream 端口（默认 `127.0.0.1:8087`）可由宝塔 Nginx 的 `id.stuhelper.com` 相关路径反代访问，准备 bootstrap 管理应用凭据和 `stuhelper-identity` 一方应用 client secret | 是 |
 | SMS | 生产强制 `SMS_ENABLED=true` | 配置短信厂商 `SMS_SECRET_ID`、`SMS_SECRET_KEY`、`SMS_APP_ID`、签名、模板 | 是 |
 | Open Platform runtime token 探针 | backend 镜像内置 `/app/casdoor-runtime-token-probe-runner.mjs`，发布 evidence 脚本会执行 Casdoor smoke | 配置低权限 Casdoor 探针账号，保持 `OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED=true`，审批第三方 app 前自动实测 authorization-code token claims | 是 |
 | 对象存储 | 后端生产要求 `OBJECT_STORAGE_USE_SSL=true` | 配置 HTTPS S3 兼容 endpoint、bucket、access key；本仓库未把内置 MinIO 暴露成生产 HTTPS 对象存储入口 | 是 |
@@ -82,7 +82,6 @@ DNS：
 stuhelper.com      A/AAAA -> 主站生产机
 www.stuhelper.com  A/AAAA -> 主站生产机
 id.stuhelper.com   A/AAAA -> 主站生产机
-sso.stuhelper.com  A/AAAA -> Casdoor SSO 机器
 ```
 
 宝塔中为 `stuhelper.com` 建站，并把 `www.stuhelper.com` 加入同一站点。证书可以用宝塔 Let's Encrypt，也可以上传已有证书。
@@ -92,7 +91,6 @@ sso.stuhelper.com  A/AAAA -> Casdoor SSO 机器
 ```bash
 curl -I https://stuhelper.com
 curl -fsS https://id.stuhelper.com/.well-known/openid-configuration | head
-curl -fsS https://sso.stuhelper.com/.well-known/openid-configuration | head
 ```
 
 此时主站应用还没启动，`stuhelper.com` 可以暂时不是 200；但 TLS 握手和证书链必须正常。
@@ -114,23 +112,20 @@ id.stuhelper.com /oauth2/*      -> http://127.0.0.1:18080
 id.stuhelper.com /oidc/*        -> http://127.0.0.1:18080
 id.stuhelper.com /api/*         -> http://127.0.0.1:18080
 id.stuhelper.com /login /consent /complete-profile /assets/* -> http://127.0.0.1:18000
-id.stuhelper.com /              -> 302 https://stuhelper.com/developers/apps
-id.stuhelper.com 其他浏览器路径 -> 302 https://stuhelper.com$request_uri
+id.stuhelper.com /api/v1/*       -> http://127.0.0.1:18080
+id.stuhelper.com /login/oauth/*  -> http://127.0.0.1:8087
+id.stuhelper.com /signup/oauth/* -> http://127.0.0.1:8087
+id.stuhelper.com /api/*          -> http://127.0.0.1:8087
+id.stuhelper.com /static/* /img/* /buttons/* /flag-icons/* /web/* /mfa/* /account /signup /forget
+                                  -> http://127.0.0.1:8087
+id.stuhelper.com /login /auth/callback /consent /complete-profile /developers/* /user/authorized-apps /user/identity-verification /user/student-verification /user/phone-binding /user/qq-binding /user/academic-info /assets/*
+                                  -> http://127.0.0.1:18000
+id.stuhelper.com /               -> 302 /developers/apps
 ```
 
-宝塔面板保存后执行 Nginx 配置测试和 reload。命令路径随宝塔安装方式可能不同；至少要在面板里看到 Nginx 测试通过。
+主站 `stuhelper.com` 上的身份类浏览器路径必须 302 到 `id.stuhelper.com`，包括 `/login`、`/auth/callback`、`/consent`、`/complete-profile`、`/developers/*`、`/user/authorized-apps`、实名/学生认证、手机/QQ 绑定和学籍信息。这样浏览器对外只看到 `id.stuhelper.com` 作为身份与开发者平台站点。
 
-在外部 Casdoor SSO 机器上，合并 `infra/nginx/baota-casdoor-sso.conf` 或等价规则。关键要求：
-
-```text
-sso.stuhelper.com /.well-known/* -> http://127.0.0.1:8087
-sso.stuhelper.com /api/*         -> http://127.0.0.1:8087
-sso.stuhelper.com /              -> http://127.0.0.1:8087
-```
-
-`/.well-known/openid-configuration` 不能落到宝塔静态站点根目录；否则会返回 Casdoor SPA HTML / 404，`remote-preflight.sh` 和 `identity-public-smoke.sh` 都会阻断发布。
-
-当前生产 SSO 现场端口是 `127.0.0.1:8087`，仓库模板也按该端口给出 upstream；如果外部 SSO 机器实际监听其他端口，需要在合并模板时同步替换三处 `proxy_pass`，并用 `NGINX_PUBLIC_INGRESS_CASDOOR_UPSTREAM=http://127.0.0.1:<port>` 执行 SSO 侧 Nginx preflight。
+宝塔面板保存后执行 Nginx 配置测试和 reload。命令路径随宝塔安装方式可能不同；至少要在面板里看到 Nginx 测试通过。当前 Casdoor upstream 现场端口是 `127.0.0.1:8087`，仓库模板也按该端口给出 upstream；如果实际监听其他端口，需要在合并模板时同步替换相关 `proxy_pass`。
 
 保存配置并 reload 前，先在对应机器审计实际 Nginx 配置。默认读取 `nginx -T` 输出；如果宝塔机器只能导出单个配置文件，可用 `NGINX_PUBLIC_INGRESS_CONFIG_FILE=/path/to/nginx.conf` 指定离线文件。
 
@@ -138,12 +133,6 @@ sso.stuhelper.com /              -> http://127.0.0.1:8087
 
 ```bash
 NGINX_PUBLIC_INGRESS_PROFILE=stuhelper ./infra/ops/nginx-public-ingress-preflight.sh
-```
-
-外部 Casdoor SSO 机器：
-
-```bash
-NGINX_PUBLIC_INGRESS_PROFILE=sso ./infra/ops/nginx-public-ingress-preflight.sh
 ```
 
 应用未启动前，`127.0.0.1:18080/18000/18001` 连接失败是正常的；Nginx 本身不能报配置语法错误。
@@ -202,12 +191,14 @@ PUBLIC_INGRESS_CONFIG_PREFLIGHT_ENABLED=true
 NGINX_PUBLIC_INGRESS_PROFILE=stuhelper
 NGINX_PUBLIC_INGRESS_CONFIG_FILE=
 PUBLIC_INGRESS_PREFLIGHT_ENABLED=true
+PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED=false
 PUBLIC_INGRESS_PREFLIGHT_TIMEOUT_SECONDS=10
 PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_TIMEOUT=10
 PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_FILE=infra/generated/public-identity-ingress-diagnostic.json
 PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_STRICT=false
 PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_PUBLIC_DNS_ENABLED=true
 PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_USE_ENV_TARGETS=false
+PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_CASDOOR_UPSTREAM_ENABLED=false
 IDENTITY_PUBLIC_SMOKE_ENABLED=true
 IDENTITY_PUBLIC_SMOKE_BOOTSTRAP_ENABLED=false
 IDENTITY_PUBLIC_SMOKE_BOOTSTRAP_MODE=container
@@ -225,8 +216,11 @@ IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_RESOURCE_ID=
 IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_ACTION=
 IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_EXPECT_ALLOWED=false
 IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=false
+IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED=false
 WEB_VITE_API_URL=/api
-WEB_VITE_SSO_URL=https://sso.stuhelper.com
+WEB_VITE_SSO_URL=https://id.stuhelper.com
+WEB_VITE_IDENTITY_URL=https://id.stuhelper.com
+WEB_VITE_WEB_URL=https://stuhelper.com
 ADMIN_VITE_API_URL=/api/v1
 ADMIN_VITE_BASE=/admin/
 IDENTITY_ISSUER=https://id.stuhelper.com
@@ -235,8 +229,10 @@ TOKEN_COOKIE_SECURE=true
 TOKEN_COOKIE_DOMAIN=.stuhelper.com
 
 CASDOOR_ISSUER=https://sso.stuhelper.com
-CASDOOR_REDIRECT_URI=https://stuhelper.com/api/v1/auth/callback
-CASDOOR_ADMIN_REDIRECT_URI=https://stuhelper.com/api/v1/auth/callback
+CASDOOR_PUBLIC_AUTH_BASE_URL=https://id.stuhelper.com
+CASDOOR_REDIRECT_URI=https://id.stuhelper.com/api/v1/auth/callback
+CASDOOR_ADMIN_REDIRECT_URI=https://id.stuhelper.com/api/v1/auth/callback
+CASDOOR_UNIAPP_REDIRECT_URI=https://id.stuhelper.com/api/v1/auth/callback
 CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID=casdoor-token-probe-smoke
 CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_SECRET=<generated-or-secret-backend-value>
 CASDOOR_TOKEN_PROBE_SMOKE_APPLICATION=casdoor-token-probe-smoke
@@ -258,7 +254,7 @@ WEB_EXTERNAL_PORT=18000
 ADMIN_EXTERNAL_PORT=18001
 ```
 
-`id.stuhelper.com` 的 `/login` 页面会复用主站后端会话。`CASDOOR_REDIRECT_URI` 固定回到 `stuhelper.com/api/v1/auth/callback` 时，生产必须设置 `TOKEN_COOKIE_DOMAIN=.stuhelper.com`，否则回到 `id.stuhelper.com/oauth2/authorize` 时浏览器不会携带登录 cookie，第三方授权会进入重复登录。
+`id.stuhelper.com` 的 `/login` 页面会复用主站后端会话。`CASDOOR_REDIRECT_URI` 固定回到 `id.stuhelper.com/api/v1/auth/callback`，生产必须设置 `TOKEN_COOKIE_DOMAIN=.stuhelper.com`，否则浏览器在主站和 `id` 之间切换时不会携带登录 cookie，第三方授权会进入重复登录。
 
 必须替换的外部依赖：
 
@@ -390,8 +386,8 @@ ADMIN_IMAGE_REF=registry.example.com/stuhelper/admin:2026-05-09-<sha>
 
 - Docker / Compose 可用
 - 生产 PostgreSQL TLS 配置默认强制启用：`POSTGRES_ENABLE_SSL=on`、`POSTGRES_INTERNAL_SSL_MODE=verify-full`（最低必须为 `verify-ca`）、`DB_SSL_MODE=verify-full`，并且三个 PostgreSQL URL 都带 `sslrootcert`。如果目标机器复用已有宝塔 Postgres 且该服务未启用 TLS，必须显式设置 `EXTERNAL_POSTGRES_ENABLED=true`、`EXTERNAL_DATASTORE_NETWORK=baota_net`、`EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true`，发布前先在外部 Postgres 中为 StuHelper / OpenFGA 创建独立数据库和独立账号，并把旧 StuHelper 专用 Postgres 中的 `stuhelper` / `openfga` 数据迁移到外部 Postgres。Redis 不复用全局实例，仍由 StuHelper Compose 以独立实例运行。
-- 本机宝塔 Nginx 主站/id 入口配置满足反代契约：`stuhelper.com`、`www.stuhelper.com`、`id.stuhelper.com` 均有 HTTPS server block，主站 `/.well-known/`、`/oauth2/`、`/oidc/`、`/api/`、`/health/`、`/admin/` 和 `/` 均代理到约定的回环端口；`id.stuhelper.com/` 302 到开放平台开发者应用页，授权页 `/login`、`/consent`、`/complete-profile` 及 `/assets/` 仍代理到 web 前端
-- 公网身份入口公共 DNS / TLS / OIDC 可用：`stuhelper.com`、`id.stuhelper.com`、`sso.stuhelper.com` 在公共 DNS-over-HTTPS 中有公网 A/AAAA，`stuhelper.com`、`id.stuhelper.com` TLS 可达，`sso.stuhelper.com/.well-known/openid-configuration` 返回有效 Casdoor OIDC discovery
+- 本机宝塔 Nginx 主站/id 入口配置满足反代契约：`stuhelper.com`、`www.stuhelper.com`、`id.stuhelper.com` 均有 HTTPS server block，主站 `/api/`、`/health/`、`/admin/` 和 `/` 代理到约定的回环端口，主站身份类浏览器路径 302 到 `id.stuhelper.com`；`id.stuhelper.com/` 302 到开放平台开发者应用页，`/.well-known/`、`/oauth2/`、`/oidc/`、`/api/v1/` 代理到 backend，`/login/oauth/`、`/signup/oauth/`、Casdoor `/api/` 和静态资源代理到 Casdoor upstream，`/login`、`/auth/callback`、`/consent`、`/complete-profile`、`/developers/*`、用户授权/认证/绑定/学籍页及 `/assets/` 代理到 web 前端
+- 公网身份入口公共 DNS / TLS / OIDC 可用：`stuhelper.com`、`id.stuhelper.com` 在公共 DNS-over-HTTPS 中有公网 A/AAAA，`stuhelper.com`、`id.stuhelper.com` TLS 可达；只有 `PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED=true` 时才额外要求 Casdoor upstream 的公网 discovery/JWKS
 - PostgreSQL 备份工具可用
 - secret backend 配置可用
 - 备份 timer 已安装且启用
@@ -423,7 +419,7 @@ make prod-deploy
 发布脚本会按顺序执行：
 
 1. 读取远端部署控制面和 secret backend
-2. 校验生产必填配置、占位符、不可变镜像、PostgreSQL TLS/Redis TLS（或显式外部明文 PostgreSQL 例外）/SMS/OTEL/Open Platform runtime token 探针门禁，并在拉镜像前审计本机宝塔 Nginx 主站/id 配置、验证 `stuhelper.com` / `id.stuhelper.com` / `sso.stuhelper.com` 公共 DNS、`stuhelper.com` / `id.stuhelper.com` TLS 可达与 `sso.stuhelper.com` OIDC discovery 元数据；远端部署 bundle 必须已经由干净 Git 工作区打包，不能包含未提交改动
+2. 校验生产必填配置、占位符、不可变镜像、PostgreSQL TLS/Redis TLS（或显式外部明文 PostgreSQL 例外）/SMS/OTEL/Open Platform runtime token 探针门禁，并在拉镜像前审计本机宝塔 Nginx 主站/id 配置、验证 `stuhelper.com` / `id.stuhelper.com` 公共 DNS 与 TLS、`id.stuhelper.com` OIDC 元数据；远端部署 bundle 必须已经由干净 Git 工作区打包，不能包含未提交改动
 3. 渲染 PostgreSQL TLS、Redis ACL、观测配置；启用外部明文 PostgreSQL 例外时只跳过 StuHelper 内部 PostgreSQL TLS 渲染，Redis ACL 仍始终渲染
 4. 拉取 backend / frontend / admin 镜像
 5. 启动 StuHelper 独立 Redis、MinIO、观测栈，并在未启用外部 PostgreSQL 时启动 StuHelper 内部 PostgreSQL
@@ -456,7 +452,9 @@ curl -fsS https://stuhelper.com/health/ready
 curl -fsSI https://stuhelper.com/admin/
 curl -fsS https://stuhelper.com/api/v1/course/departments
 curl -fsS https://id.stuhelper.com/.well-known/openid-configuration | head
-curl -fsS https://sso.stuhelper.com/.well-known/openid-configuration | head
+curl -fsSI https://id.stuhelper.com/developers/apps
+curl -fsSI https://id.stuhelper.com/user/authorized-apps
+curl -fsSI https://stuhelper.com/user/authorized-apps  # 应 302 到 id.stuhelper.com
 ```
 
 如果上述公网入口或 `identity-public-smoke.sh` 失败，先生成脱敏诊断 evidence：
@@ -465,7 +463,7 @@ curl -fsS https://sso.stuhelper.com/.well-known/openid-configuration | head
 ./infra/ops/public-identity-ingress-diagnostic.sh
 ```
 
-诊断脚本默认固定检查 `https://stuhelper.com`、`https://id.stuhelper.com` 和 `https://sso.stuhelper.com`，即使本地 `.env` 是开发环境 localhost 也不会覆盖公网目标。需要临时诊断其他目标时，应在当前命令显式传入 `WEB_PUBLIC_URL` / `IDENTITY_ISSUER` / `CASDOOR_ISSUER`；只有确实要使用 `ENV_FILE` 里的目标时，才设置 `PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_USE_ENV_TARGETS=true`。诊断输出会同时保留本机 resolver 和 `dns.google` 公共 DNS-over-HTTPS 视角，标记 `dns_resolution_failed`、`dns_non_public_address`、`public_dns_nxdomain`、`public_dns_non_public_address`、`tls_handshake_failed`、`identity_well_known_not_proxied`、`identity_oauth_as_metadata_not_proxied`、`casdoor_well_known_served_by_spa` 等分类，并把 `Set-Cookie` 等响应头值替换成 `<redacted>`。如果生产机无法访问公共 DoH，可设置 `PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_PUBLIC_DNS_ENABLED=false` 只保留本机 resolver 视角。
+诊断脚本默认固定检查 `https://stuhelper.com` 和 `https://id.stuhelper.com`，即使本地 `.env` 是开发环境 localhost 也不会覆盖公网目标。需要临时诊断其他目标时，应在当前命令显式传入 `WEB_PUBLIC_URL` / `IDENTITY_ISSUER` / `CASDOOR_ISSUER`；只有确实要使用 `ENV_FILE` 里的目标时，才设置 `PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_USE_ENV_TARGETS=true`。诊断输出会同时保留本机 resolver 和 `dns.google` 公共 DNS-over-HTTPS 视角，标记 `dns_resolution_failed`、`dns_non_public_address`、`public_dns_nxdomain`、`public_dns_non_public_address`、`tls_handshake_failed`、`identity_well_known_not_proxied`、`identity_oauth_as_metadata_not_proxied` 等分类，并把 `Set-Cookie` 等响应头值替换成 `<redacted>`。如果生产机无法访问公共 DoH，可设置 `PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_PUBLIC_DNS_ENABLED=false` 只保留本机 resolver 视角。
 
 Open Platform token 探针链路：
 
@@ -484,7 +482,7 @@ docker compose -f docker-compose.yml -f docker-compose.observability.yml -f dock
 API_BASE_URL=https://stuhelper.com \
 WEB_BASE_URL=https://stuhelper.com \
 ADMIN_BASE_URL=https://stuhelper.com \
-CASDOOR_ISSUER=https://sso.stuhelper.com \
+IDENTITY_ISSUER=https://id.stuhelper.com \
 ./infra/ops/smoke-check.sh
 
 ./infra/ops/open-platform-production-evidence.sh
@@ -613,8 +611,10 @@ Grafana 中至少确认：
 
 生产发布会以 `OBS_SMOKE_STRICT=true` 执行 `observability-smoke-check.sh`，并写入
 `infra/generated/observability-smoke-evidence.json`。该 evidence 会证明核心服务 ready、
-Prometheus 已抓到 app/Grafana/Alertmanager/cAdvisor，黑盒探针已覆盖 `id.stuhelper.com`、
-`sso.stuhelper.com` 和 OpenFGA TCP，且 Alertmanager webhook 不是本地 sink。
+Prometheus 已抓到 app/Grafana/Alertmanager/cAdvisor，黑盒探针已覆盖 `id.stuhelper.com`
+和 OpenFGA TCP，且 Alertmanager webhook 不是本地 sink。只有显式设置
+`OBS_SMOKE_CASDOOR_UPSTREAM_ENABLED=true` 时，观测 smoke 才额外要求 Casdoor upstream
+metadata probe 存在。
 
 ## 12. 回滚
 
@@ -640,9 +640,8 @@ make prod-rollback
 
 - `https://stuhelper.com/`、`/admin/`、`/api/v1/*`、`/health/ready` 可通过宝塔 Nginx 访问。
 - `https://id.stuhelper.com/.well-known/openid-configuration`、`/oauth2/authorize`、`/oidc/userinfo` 路由到主站后端。
-- `https://sso.stuhelper.com/.well-known/openid-configuration` 可访问，登录 URL 能生成。
 - `make prod-deploy` 或 `remote-prod-deploy.sh` 完整通过。
-- `identity-public-smoke.sh` 完整通过，并生成 `infra/generated/identity-public-smoke-evidence.json`，证明 `stuhelper.com`、`id.stuhelper.com`、`sso.stuhelper.com` 公网身份入口可达，Identity OIDC discovery、OAuth authorization server metadata、JWKS 以及 Casdoor discovery/JWKS 正确，普通 authorize、`prompt=login&max_age=0` 重新认证跳转、`response_modes_supported=query`、token / introspect / revoke 路由级行为、GET/POST logout、POST logout URL query / JSON body 拒绝、GET/POST UserInfo 缺 bearer、UserInfo URL query / body token 来源拒绝、敏感 OAuth 响应 no-store/no-cache 缓存控制和 401 `WWW-Authenticate` challenge 符合预期；如已配置专用 `IDENTITY_PUBLIC_SMOKE_CLIENT_ID`，还要证明 `prompt=none` 会按注册 redirect URI 回调 `login_required`、`state` 和 `iss`；如同时配置 `IDENTITY_PUBLIC_SMOKE_CLIENT_SECRET`，还要证明 `client_credentials` token 签发、携带 `token_type_hint=access_token` 的 introspection / revoke、UserInfo 拒绝、Open Platform resource access API 使用 Bearer app-only token 且对未授权随机资源返回 `fga_denied` 或对预授权 smoke 资源返回 `allowed`、revoke 后 inactive 均通过。
+- `identity-public-smoke.sh` 完整通过，并生成 `infra/generated/identity-public-smoke-evidence.json`，证明 `stuhelper.com`、`id.stuhelper.com` 公网身份入口可达，Identity OIDC discovery、OAuth authorization server metadata、JWKS、普通 authorize、`prompt=login&max_age=0` 重新认证跳转、`response_modes_supported=query`、token / introspect / revoke 路由级行为、GET/POST logout、POST logout URL query / JSON body 拒绝、GET/POST UserInfo 缺 bearer、UserInfo URL query / body token 来源拒绝、敏感 OAuth 响应 no-store/no-cache 缓存控制和 401 `WWW-Authenticate` challenge 符合预期；如已配置专用 `IDENTITY_PUBLIC_SMOKE_CLIENT_ID`，还要证明 `prompt=none` 会按注册 redirect URI 回调 `login_required`、`state` 和 `iss`；如同时配置 `IDENTITY_PUBLIC_SMOKE_CLIENT_SECRET`，还要证明 `client_credentials` token 签发、携带 `token_type_hint=access_token` 的 introspection / revoke、UserInfo 拒绝、Open Platform resource access API 使用 Bearer app-only token 且对未授权随机资源返回 `fga_denied` 或对预授权 smoke 资源返回 `allowed`、revoke 后 inactive 均通过。只有显式开启 Casdoor upstream smoke 时，完成定义才要求 Casdoor discovery/JWKS 证据。
 - `smoke-check.sh`、`open-platform-production-evidence.sh` 和 `observability-smoke-check.sh` 完整通过；其中 Open Platform evidence 已包含 `openfga-resource-access-smoke.sh`。
 - `open-platform-production-evidence.sh` 生成脱敏 evidence，且 runtime token probe command 不是占位符、`.configuration.runtimeTokenProbeRequired=true`、`businessClaims=[]`、OpenFGA grant/list/list-after-revoke/revoke 断言通过。
 - 备份 timer 已启用，`postgres-backup-evidence.sh` 生成脱敏 evidence，证明至少一个本地逻辑备份存在且能从对象存储取回并通过 sha256 校验。

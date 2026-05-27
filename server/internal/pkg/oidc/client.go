@@ -15,15 +15,16 @@ import (
 
 // Client 标准 OIDC 客户端
 type Client struct {
-	provider         *gooidc.Provider
-	verifier         *gooidc.IDTokenVerifier
-	oauth2Cfg        oauth2.Config
-	oauth2Configs    map[string]oauth2.Config
-	rolesClaim       string
-	metricName       string
-	httpClient       *http.Client
-	introspectionURL string
-	introspectionCfg oauth2.Config
+	provider          *gooidc.Provider
+	verifier          *gooidc.IDTokenVerifier
+	oauth2Cfg         oauth2.Config
+	oauth2Configs     map[string]oauth2.Config
+	rolesClaim        string
+	metricName        string
+	httpClient        *http.Client
+	introspectionURL  string
+	introspectionCfg  oauth2.Config
+	publicAuthBaseURL string
 }
 
 const (
@@ -71,14 +72,15 @@ func NewClient(ctx context.Context, cfg config.CasdoorConfig) (*Client, error) {
 	}
 
 	return &Client{
-		provider:         provider,
-		verifier:         verifier,
-		oauth2Cfg:        oauth2Cfg,
-		oauth2Configs:    oauth2Configs,
-		rolesClaim:       defaultRolesClaim(cfg.RolesClaim),
-		metricName:       "casdoor_oidc",
-		httpClient:       httpClient,
-		introspectionURL: introspectionURL,
-		introspectionCfg: introspectionCfg,
+		provider:          provider,
+		verifier:          verifier,
+		oauth2Cfg:         oauth2Cfg,
+		oauth2Configs:     oauth2Configs,
+		rolesClaim:        defaultRolesClaim(cfg.RolesClaim),
+		metricName:        "casdoor_oidc",
+		httpClient:        httpClient,
+		introspectionURL:  introspectionURL,
+		introspectionCfg:  introspectionCfg,
+		publicAuthBaseURL: cfg.PublicAuthBaseURL,
 	}, nil
 }

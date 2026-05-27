@@ -90,6 +90,7 @@ assert_env_value "${env_file}" "OPENFGA_GRPC_EXTERNAL_PORT" "8082"
 assert_env_value "${env_file}" "OPENFGA_PLAYGROUND_EXTERNAL_PORT" "3002"
 assert_env_value "${env_file}" "SMS_ENABLED" "false"
 assert_env_value "${env_file}" "WEB_VITE_API_URL" "/api"
+assert_env_value "${env_file}" "WEB_VITE_WEB_URL" "http://localhost:3000"
 assert_env_value "${env_file}" "API_IP_RATE_LIMIT" "5000"
 assert_env_value "${env_file}" "API_GLOBAL_RATE_LIMIT" "50000"
 assert_env_value "${env_file}" "REVIEW_RATE_POST_LIMIT" "500"
@@ -221,11 +222,12 @@ overrides = {
     "CASDOOR_EXTERNALPORT": "28085",
     "CASDOOR_ISSUER": "http://sso.stuhelper.com",
     "CASDOOR_INTERNAL_ADDRESS": "host.docker.internal:80",
-    "CASDOOR_REDIRECT_URI": "http://stuhelper.com/api/v1/auth/callback",
+    "CASDOOR_PUBLIC_AUTH_BASE_URL": "http://id.stuhelper.com",
+    "CASDOOR_REDIRECT_URI": "http://id.stuhelper.com/api/v1/auth/callback",
     "CASDOOR_BOOTSTRAP_ENABLED": "true",
     "CASDOOR_BOOTSTRAP_ENV_FILE": "/workspace/.run/prod-parity/.env.casdoor-bootstrap.local",
-    "CASDOOR_ADMIN_REDIRECT_URI": "http://stuhelper.com/api/v1/auth/callback",
-    "CASDOOR_UNIAPP_REDIRECT_URI": "http://stuhelper.com/api/v1/auth/callback",
+    "CASDOOR_ADMIN_REDIRECT_URI": "http://id.stuhelper.com/api/v1/auth/callback",
+    "CASDOOR_UNIAPP_REDIRECT_URI": "http://id.stuhelper.com/api/v1/auth/callback",
     "CASDOOR_SMS_PROVIDER_ENABLED": "true",
     "CASDOOR_SMS_PROVIDER_ENDPOINT": "http://app:8080/internal/sms/send",
     "SMS_ENABLED": "true",
@@ -240,11 +242,15 @@ overrides = {
     "IDENTITY_ISSUER": "http://id.stuhelper.com",
     "IDENTITY_SIGNING_KEY_ID": "stuhelper-identity-prod-parity-1",
     "IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS": "true",
+    "IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED": "false",
+    "PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_CASDOOR_UPSTREAM_ENABLED": "false",
     "IDENTITY_PUBLIC_SMOKE_ENABLED": "true",
     "IDENTITY_PUBLIC_SMOKE_HOMEPAGE_URL": "http://stuhelper.com",
     "IDENTITY_PUBLIC_SMOKE_PRIVACY_POLICY_URL": "http://stuhelper.com/privacy",
     "STUHELPER_PLATFORM_BASE_URL": "http://stuhelper.com",
-    "WEB_VITE_SSO_URL": "http://sso.stuhelper.com",
+    "WEB_VITE_SSO_URL": "http://id.stuhelper.com",
+    "WEB_VITE_IDENTITY_URL": "http://id.stuhelper.com",
+    "WEB_VITE_WEB_URL": "http://stuhelper.com",
     "OPENFGA_API_URL": "http://openfga:8080",
     "OPENFGA_HTTP_EXTERNAL_PORT": "8081",
     "OPENFGA_GRPC_EXTERNAL_PORT": "8082",
@@ -314,6 +320,7 @@ assert_env_value "${polluted_env}" "CORS_ORIGINS" "http://localhost:3000,http://
 assert_env_value "${polluted_env}" "CASDOOR_EXTERNALPORT" "8085"
 assert_env_value "${polluted_env}" "CASDOOR_ISSUER" "http://localhost:8085"
 assert_env_value "${polluted_env}" "CASDOOR_INTERNAL_ADDRESS" "casdoor:8000"
+assert_env_value "${polluted_env}" "CASDOOR_PUBLIC_AUTH_BASE_URL" ""
 assert_env_value "${polluted_env}" "CASDOOR_REDIRECT_URI" "http://localhost:8080/api/v1/auth/callback"
 assert_env_value "${polluted_env}" "CASDOOR_BOOTSTRAP_ENABLED" "false"
 assert_env_value "${polluted_env}" "CASDOOR_BOOTSTRAP_ENV_FILE" ".env.casdoor-bootstrap.local"
@@ -329,11 +336,15 @@ assert_env_value "${polluted_env}" "ADMIN_PUBLIC_URL" "http://localhost:3001"
 assert_env_value "${polluted_env}" "IDENTITY_ISSUER" "http://localhost:3000"
 assert_env_value "${polluted_env}" "IDENTITY_SIGNING_KEY_ID" "stuhelper-identity-dev"
 assert_env_value "${polluted_env}" "IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS" "false"
+assert_env_value "${polluted_env}" "IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED" "false"
+assert_env_value "${polluted_env}" "PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_CASDOOR_UPSTREAM_ENABLED" "false"
 assert_env_value "${polluted_env}" "IDENTITY_PUBLIC_SMOKE_ENABLED" "false"
 assert_env_value "${polluted_env}" "IDENTITY_PUBLIC_SMOKE_HOMEPAGE_URL" "http://localhost:3000"
 assert_env_value "${polluted_env}" "IDENTITY_PUBLIC_SMOKE_PRIVACY_POLICY_URL" "http://localhost:3000/privacy"
 assert_env_value "${polluted_env}" "STUHELPER_PLATFORM_BASE_URL" "http://localhost:8080"
 assert_env_value "${polluted_env}" "WEB_VITE_SSO_URL" "http://localhost:8085"
+assert_env_value "${polluted_env}" "WEB_VITE_IDENTITY_URL" ""
+assert_env_value "${polluted_env}" "WEB_VITE_WEB_URL" "http://localhost:3000"
 assert_env_value "${polluted_env}" "OPENFGA_API_URL" "http://localhost:8081"
 assert_env_value "${polluted_env}" "OPENFGA_HTTP_EXTERNAL_PORT" "8081"
 assert_env_value "${polluted_env}" "OPENFGA_GRPC_EXTERNAL_PORT" "8082"

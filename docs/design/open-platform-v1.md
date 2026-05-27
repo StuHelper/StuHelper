@@ -42,16 +42,16 @@ scope: 当前 Open Platform v1 baseline 与目标架构；第三方应用接入�
 - 资料补全页：`/complete-profile?token=...` 前端页调用 `GET /api/v1/open-platform/profile-completion`
 - 用户同意 / 拒绝：`POST /api/v1/open-platform/consent/accept`、`POST /api/v1/open-platform/consent/deny`
 - 资料补全后继续：`POST /api/v1/open-platform/profile-completion/continue`
-- 用户授权管理：主站 `/user/authorized-apps` 调用 `GET /api/v1/open-platform/consents`、`DELETE /api/v1/open-platform/consents/{appID}`，支持按 scope 或整应用撤销；授权列表会从 disclosure granted 审计派生每个 scope 的 `lastUsedAt`，让用户撤权前能看到最近一次成功披露时间
-- 用户授权活动记录：主站 `/user/authorized-apps` 调用 `GET /api/v1/open-platform/consents/audit-events`，只返回当前登录用户自己的 consent grant/deny/revoke、disclosure granted/denied 和 replay_detected 审计摘要
+- 用户授权管理：`id.stuhelper.com/user/authorized-apps` 调用 `GET /api/v1/open-platform/consents`、`DELETE /api/v1/open-platform/consents/{appID}`，支持按 scope 或整应用撤销；授权列表会从 disclosure granted 审计派生每个 scope 的 `lastUsedAt`，让用户撤权前能看到最近一次成功披露时间
+- 用户授权活动记录：`id.stuhelper.com/user/authorized-apps` 调用 `GET /api/v1/open-platform/consents/audit-events`，只返回当前登录用户自己的 consent grant/deny/revoke、disclosure granted/denied 和 replay_detected 审计摘要
 - 审计保留：`open_platform_audit_events` 由运行时后台任务执行 chunked retention cleanup；高频 disclosure / `resource_access.checked` 事件默认保留 365 天，审批、consent、密钥轮换、资源授权等运营审计默认保留 1095 天，清理 SQL 使用参数化 `LIMIT` 批量删除和 `FOR UPDATE SKIP LOCKED`，避免线上无界大删除阻塞
 - 披露 API：`GET /api/v1/open-platform/userinfo`、`/verification`、`/student`、`/phone`
-- 开发者应用列表 / 创建 UI：主站 `/developers/apps` 调用 `GET /api/v1/open-platform/apps`、`POST /api/v1/open-platform/apps`，可查看 app 与 scope 审核状态并提交新应用；新应用每个 scope 必须提供非空用途说明，pending 应用可由 owner 调用 `POST /api/v1/open-platform/apps/{appID}/withdraw` 撤回为 revoked 终态
-- 开发者应用资料维护：主站 `/developers/apps` 调用 `PATCH /api/v1/open-platform/apps/{appID}`，允许 owner 更新非 revoked 应用的展示名、描述、主页和隐私政策 URL；redirect URI 仍走独立审核，资料变更写入 `open_platform.app.profile_updated`
-- 开发者 scope 变更申请：主站 `/developers/apps` 调用 `POST /api/v1/open-platform/apps/{appID}/scopes`，可为非 revoked 应用新增 scope，或在 scope 被 rejected / withdrawn 后更新用途说明并重提审核；已 approved 或 pending scope 不能重复提交；pending scope 可由 owner 调用 `POST /api/v1/open-platform/apps/{appID}/scopes/{scope}/withdraw` 撤回
-- 开发者 redirect URI 变更申请：主站 `/developers/apps` 调用 `POST /api/v1/open-platform/apps/{appID}/redirect-uris`，对 approved / suspended 应用提交新的完整 redirect URI 列表，管理员批准后整体替换；pending redirect URI 申请可由 owner 调用 `POST /api/v1/open-platform/apps/{appID}/redirect-uri-requests/{requestID}/withdraw` 撤回
-- 开发者自有应用审计摘要：主站 `/developers/apps` 调用 `GET /api/v1/open-platform/apps/{appID}/audit-events`，只允许 app owner 查看该应用生命周期、审批、授权、披露、资源授权和 token 探针摘要；响应隐藏用户 ID、原始 token claims 和内部错误细节
-- Client secret 生命周期：开发者可在 `/developers/apps` 调用 `POST /api/v1/open-platform/apps/{appID}/secret/rotate` 轮换自己的 approved 应用 secret；管理员可调用 `POST /api/v1/admin/open-platform/apps/{appID}/secret/rotate` 处置 approved / suspended 应用 secret，旧 secret 立即失效，新 secret 只返回一次
+- 开发者应用列表 / 创建 UI：`id.stuhelper.com/developers/apps` 调用 `GET /api/v1/open-platform/apps`、`POST /api/v1/open-platform/apps`，可查看 app 与 scope 审核状态并提交新应用；新应用每个 scope 必须提供非空用途说明，pending 应用可由 owner 调用 `POST /api/v1/open-platform/apps/{appID}/withdraw` 撤回为 revoked 终态
+- 开发者应用资料维护：`id.stuhelper.com/developers/apps` 调用 `PATCH /api/v1/open-platform/apps/{appID}`，允许 owner 更新非 revoked 应用的展示名、描述、主页和隐私政策 URL；redirect URI 仍走独立审核，资料变更写入 `open_platform.app.profile_updated`
+- 开发者 scope 变更申请：`id.stuhelper.com/developers/apps` 调用 `POST /api/v1/open-platform/apps/{appID}/scopes`，可为非 revoked 应用新增 scope，或在 scope 被 rejected / withdrawn 后更新用途说明并重提审核；已 approved 或 pending scope 不能重复提交；pending scope 可由 owner 调用 `POST /api/v1/open-platform/apps/{appID}/scopes/{scope}/withdraw` 撤回
+- 开发者 redirect URI 变更申请：`id.stuhelper.com/developers/apps` 调用 `POST /api/v1/open-platform/apps/{appID}/redirect-uris`，对 approved / suspended 应用提交新的完整 redirect URI 列表，管理员批准后整体替换；pending redirect URI 申请可由 owner 调用 `POST /api/v1/open-platform/apps/{appID}/redirect-uri-requests/{requestID}/withdraw` 撤回
+- 开发者自有应用审计摘要：`id.stuhelper.com/developers/apps` 调用 `GET /api/v1/open-platform/apps/{appID}/audit-events`，只允许 app owner 查看该应用生命周期、审批、授权、披露、资源授权和 token 探针摘要；响应隐藏用户 ID、原始 token claims 和内部错误细节
+- Client secret 生命周期：开发者可在 `id.stuhelper.com/developers/apps` 调用 `POST /api/v1/open-platform/apps/{appID}/secret/rotate` 轮换自己的 approved 应用 secret；管理员可调用 `POST /api/v1/admin/open-platform/apps/{appID}/secret/rotate` 处置 approved / suspended 应用 secret，旧 secret 立即失效，新 secret 只返回一次
 - 应用暂停 / 恢复 / 吊销处置：管理员可暂停 approved 应用、将 suspended 应用恢复为 approved，或吊销 pending / approved / suspended 应用；吊销会撤回 pending 子申请，若应用已有 active user consent，则同事务撤销这些 consent，并为受影响用户写入 `open_platform.consent.revoked` 审计，用户授权列表不再显示该已吊销应用
 - 管理员应用审核列表 API/UI：`GET /api/v1/admin/open-platform/apps` 与管理后台开放平台应用审核页，可批准 / 驳回 scope、批准 / 驳回 redirect URI 变更、导入 legacy Casdoor 应用、签发 / 轮换 client secret、暂停、恢复和吊销应用
 - 管理员审计事件查看 API/UI：`GET /api/v1/admin/open-platform/audit-events` 与管理后台开放平台审计事件页，可按 app、用户、事件类型和 scope 检索审批、consent、密钥、生命周期、资源授权和 token 探针事件；前端使用共享 Open Platform audit event taxonomy 生成筛选项，并通过测试防止新增事件缺少可读标签
@@ -72,8 +72,8 @@ Casdoor 与 StuHelper 的职责边界固定如下：
 
 | 层 | 职责 | 不承担 |
 |----|------|--------|
-| Casdoor (`sso.stuhelper.com`) | 身份、注册、登录、SMS / Email provider、用户手机号真相源、StuHelper 一方登录应用 | StuHelper 业务 scope、学生认证事实、业务授权决策、第三方应用对外 issuer、第三方披露审计 |
-| StuHelper Identity (`id.stuhelper.com`) | 对一方 / 三方应用暴露 OIDC issuer、授权码、JWKS、UserInfo、token introspection/revoke | 原始账号密码登录、手机号真相源 |
+| Casdoor upstream (`CASDOOR_ISSUER`，历史上为 `sso.stuhelper.com`) | 身份、注册、登录、SMS / Email provider、用户手机号真相源、StuHelper 一方登录应用 | 浏览器对外入口、StuHelper 业务 scope、学生认证事实、业务授权决策、第三方应用对外 issuer、第三方披露审计 |
+| StuHelper Identity (`id.stuhelper.com`) | 对浏览器、一方 / 三方应用暴露 OIDC issuer、授权码、JWKS、UserInfo、token introspection/revoke、用户授权管理、个人认证/绑定/学籍信息、开发者平台 | 原始账号密码登录、手机号真相源 |
 | StuHelper Open Platform | 第三方应用注册、scope 申请、管理员审批、用户 consent、profile completion gate、disclosure API、审计、撤销与限流 | 原始账号密码登录、直接暴露 Casdoor 用户 API |
 | StuHelper DB | 实名认证、学生认证、学校归属、业务用户锚点、open_platform_* 状态 | Casdoor 账号主数据 |
 | OpenFGA | 资源级关系授权；v1.1 起承载 app 到具体资源的关系 | scope consent、应用元数据、登录决策 |

@@ -20,6 +20,11 @@ try {
 
 const timeoutMs = Number(process.env.PROD_PARITY_BROWSER_SMOKE_TIMEOUT_MS || 30000);
 const webBaseURL = normalizeBaseURL(process.env.WEB_BASE_URL || 'http://stuhelper.com');
+const identityBaseURL = normalizeBaseURL(
+  process.env.IDENTITY_BASE_URL ||
+    process.env.CASDOOR_PUBLIC_AUTH_BASE_URL ||
+    'http://id.stuhelper.com',
+);
 const adminBaseURL = normalizeBaseURL(process.env.ADMIN_BASE_URL || 'http://stuhelper.com');
 const casdoorLoginUsername = process.env.PROD_PARITY_CASDOOR_LOGIN_USERNAME || 'admin';
 const casdoorLoginPassword = process.env.PROD_PARITY_CASDOOR_LOGIN_PASSWORD || '123';
@@ -59,6 +64,15 @@ const checks = [
     name: 'web-login',
     url: joinURL(webBaseURL, '/login'),
     expectedTexts: ['StuHelper'],
+  },
+  {
+    name: 'identity-developer-login',
+    url: joinURL(identityBaseURL, '/developers/apps'),
+    flow: 'identity-portal-shell',
+    expectedTexts: ['登录', 'Login'],
+    requiredTexts: ['开发者应用', '授权应用', '实名认证'],
+    forbiddenTexts: ['课程', '教师', '评课'],
+    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/developers/apps'],
   },
   {
     name: 'web-login-session-refresh',
@@ -195,85 +209,100 @@ const checks = [
     name: 'web-protected-review-post',
     url: joinURL(webBaseURL, '/courses/reviews/post'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: ['/login', 'redirect=/courses/reviews/post'],
+    expectedURLIncludes: [
+      joinURL(identityBaseURL, '/login'),
+      webRedirectQuery('/courses/reviews/post'),
+    ],
   },
   {
     name: 'web-protected-user-reviews',
     url: joinURL(webBaseURL, '/user/reviews'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: ['/login', 'redirect=/user/reviews'],
+    expectedURLIncludes: [
+      joinURL(identityBaseURL, '/login'),
+      webRedirectQuery('/user/reviews'),
+    ],
   },
   {
     name: 'web-protected-user-votes',
     url: joinURL(webBaseURL, '/user/votes'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: ['/login', 'redirect=/user/votes'],
+    expectedURLIncludes: [
+      joinURL(identityBaseURL, '/login'),
+      webRedirectQuery('/user/votes'),
+    ],
   },
   {
     name: 'web-protected-user-favorites',
     url: joinURL(webBaseURL, '/user/favorites'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: ['/login', 'redirect=/user/favorites'],
+    expectedURLIncludes: [
+      joinURL(identityBaseURL, '/login'),
+      webRedirectQuery('/user/favorites'),
+    ],
   },
   {
     name: 'web-protected-user-authorized-apps',
     url: joinURL(webBaseURL, '/user/authorized-apps'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: ['/login', 'redirect=/user/authorized-apps'],
+    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/user/authorized-apps'],
   },
   {
     name: 'web-protected-identity-verification',
     url: joinURL(webBaseURL, '/user/identity-verification'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: ['/login', 'redirect=/user/identity-verification'],
+    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/user/identity-verification'],
   },
   {
     name: 'web-protected-student-verification',
     url: joinURL(webBaseURL, '/user/student-verification'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: ['/login', 'redirect=/user/student-verification'],
+    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/user/student-verification'],
   },
   {
     name: 'web-protected-phone-binding',
     url: joinURL(webBaseURL, '/user/phone-binding'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: ['/login', 'redirect=/user/phone-binding'],
+    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/user/phone-binding'],
   },
   {
     name: 'web-protected-qq-binding',
     url: joinURL(webBaseURL, '/user/qq-binding'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: ['/login', 'redirect=/user/qq-binding'],
+    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/user/qq-binding'],
   },
   {
     name: 'web-protected-academic-info',
     url: joinURL(webBaseURL, '/user/academic-info'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: ['/login', 'redirect=/user/academic-info'],
+    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/user/academic-info'],
   },
   {
     name: 'web-protected-notifications',
     url: joinURL(webBaseURL, '/notifications'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: ['/login', 'redirect=/notifications'],
+    expectedURLIncludes: [
+      joinURL(identityBaseURL, '/login'),
+      webRedirectQuery('/notifications'),
+    ],
   },
   {
     name: 'web-protected-developer-apps',
     url: joinURL(webBaseURL, '/developers/apps'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: ['/login', 'redirect=/developers/apps'],
+    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/developers/apps'],
   },
   {
     name: 'web-protected-open-platform-consent',
     url: joinURL(webBaseURL, '/consent?token=smoke'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: ['/login', 'redirect=/consent?token=smoke'],
+    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/consent?token=smoke'],
   },
   {
     name: 'web-protected-profile-completion',
     url: joinURL(webBaseURL, '/complete-profile?token=smoke'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: ['/login', 'redirect=/complete-profile?token=smoke'],
+    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/complete-profile?token=smoke'],
   },
   {
     name: 'web-not-found',
@@ -331,6 +360,7 @@ try {
     generatedAt: new Date().toISOString(),
     passed,
     webBaseURL,
+    identityBaseURL,
     adminBaseURL,
     viewportVariants,
     checks: results,
@@ -458,10 +488,7 @@ async function runCheck(browser, check, viewportVariant) {
       throw new Error(`unexpected HTTP ${response.status()} for ${check.url}`);
     }
 
-    const flowResult =
-      check.flow === 'web-login-session-refresh'
-        ? await runWebLoginSessionRefreshFlow(page)
-        : null;
+    const flowResult = await runCheckFlow(page, check, viewportVariant);
 
     const expectedURLIncludes = toArray(check.expectedURLIncludes);
     if (expectedURLIncludes.length > 0) {
@@ -475,10 +502,12 @@ async function runCheck(browser, check, viewportVariant) {
     const title = await page.title();
     const bodyText = await page.locator('body').innerText({ timeout: timeoutMs });
     const matchedText = flowResult
-      ? 'authenticated session survived refresh'
+      ? flowResult.matchedText
       : check.expectedTexts.find((text) => bodyText.includes(text));
     const requiredTexts = toArray(check.requiredTexts);
     const missingRequiredTexts = requiredTexts.filter((text) => !bodyText.includes(text));
+    const forbiddenTexts = toArray(check.forbiddenTexts);
+    const presentForbiddenTexts = forbiddenTexts.filter((text) => bodyText.includes(text));
 
     if (!matchedText) {
       throw new Error(
@@ -488,6 +517,11 @@ async function runCheck(browser, check, viewportVariant) {
     if (missingRequiredTexts.length > 0) {
       throw new Error(
         `missing required text: ${missingRequiredTexts.join(', ')}`,
+      );
+    }
+    if (presentForbiddenTexts.length > 0) {
+      throw new Error(
+        `present forbidden text: ${presentForbiddenTexts.join(', ')}`,
       );
     }
     if (
@@ -525,6 +559,7 @@ async function runCheck(browser, check, viewportVariant) {
       title,
       matchedText,
       requiredTexts,
+      forbiddenTexts,
       flowResult,
       ignoredConsoleErrors,
       ignoredAPIResponses,
@@ -566,10 +601,24 @@ function joinURL(base, path) {
   return `${normalizeBaseURL(base)}${path}`;
 }
 
+function webRedirectQuery(path) {
+  return `redirect=${encodeURIComponent(joinURL(webBaseURL, path))}`;
+}
+
 function toArray(value) {
   if (Array.isArray(value)) return value;
   if (typeof value === 'string') return [value];
   return [];
+}
+
+async function runCheckFlow(page, check, viewportVariant) {
+  if (check.flow === 'web-login-session-refresh') {
+    return runWebLoginSessionRefreshFlow(page);
+  }
+  if (check.flow === 'identity-portal-shell') {
+    return runIdentityPortalShellFlow(page, viewportVariant);
+  }
+  return null;
 }
 
 async function runWebLoginSessionRefreshFlow(page) {
@@ -603,9 +652,52 @@ async function runWebLoginSessionRefreshFlow(page) {
   await expectAuthenticatedHeader(page);
 
   return {
+    matchedText: 'authenticated session survived refresh',
     username: casdoorLoginUsername,
     beforeRefreshStatus: beforeRefresh.status,
     afterRefreshStatus: afterRefresh.status,
+  };
+}
+
+async function runIdentityPortalShellFlow(page, viewportVariant) {
+  const header = page.locator('header');
+  if (viewportVariant.isMobile) {
+    await header.locator('[aria-controls="app-mobile-nav"]').click({ timeout: timeoutMs });
+    await page.locator('#app-mobile-nav').waitFor({ state: 'visible', timeout: timeoutMs });
+  }
+
+  const headerText = await header.innerText({ timeout: timeoutMs });
+  const requiredLabels = ['开发者应用', '授权应用', '实名认证'];
+  const missingLabels = requiredLabels.filter((label) => !headerText.includes(label));
+  if (missingLabels.length > 0) {
+    throw new Error(`identity header missing labels: ${missingLabels.join(', ')}`);
+  }
+
+  const forbiddenLabels = ['课程', '教师', '评课'];
+  const presentForbiddenLabels = forbiddenLabels.filter((label) => headerText.includes(label));
+  if (presentForbiddenLabels.length > 0) {
+    throw new Error(`identity header contains main-site labels: ${presentForbiddenLabels.join(', ')}`);
+  }
+
+  const linkPaths = await header.locator('a[href]').evaluateAll((links) =>
+    links.map((link) => new URL(link.href).pathname),
+  );
+  const requiredPaths = ['/developers/apps', '/user/authorized-apps', '/user/identity-verification'];
+  const missingPaths = requiredPaths.filter((path) => !linkPaths.includes(path));
+  if (missingPaths.length > 0) {
+    throw new Error(`identity header missing links: ${missingPaths.join(', ')}`);
+  }
+
+  const forbiddenPaths = ['/courses', '/teachers', '/courses/reviews'];
+  const presentForbiddenPaths = forbiddenPaths.filter((path) => linkPaths.includes(path));
+  if (presentForbiddenPaths.length > 0) {
+    throw new Error(`identity header contains main-site links: ${presentForbiddenPaths.join(', ')}`);
+  }
+
+  return {
+    matchedText: 'identity portal shell navigation',
+    requiredLabels,
+    requiredPaths,
   };
 }
 

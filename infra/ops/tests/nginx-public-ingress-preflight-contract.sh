@@ -96,6 +96,17 @@ server {
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-Proto https;
     proxy_set_header X-Forwarded-Host $host;
+    location = /login { return 302 https://id.stuhelper.com$request_uri; }
+    location = /auth/callback { return 302 https://id.stuhelper.com$request_uri; }
+    location = /consent { return 302 https://id.stuhelper.com$request_uri; }
+    location = /complete-profile { return 302 https://id.stuhelper.com$request_uri; }
+    location ^~ /developers/ { return 302 https://id.stuhelper.com$request_uri; }
+    location = /user/authorized-apps { return 302 https://id.stuhelper.com$request_uri; }
+    location = /user/identity-verification { return 302 https://id.stuhelper.com$request_uri; }
+    location = /user/student-verification { return 302 https://id.stuhelper.com$request_uri; }
+    location = /user/phone-binding { return 302 https://id.stuhelper.com$request_uri; }
+    location = /user/qq-binding { return 302 https://id.stuhelper.com$request_uri; }
+    location = /user/academic-info { return 302 https://id.stuhelper.com$request_uri; }
     location ^~ /api/ { proxy_pass http://127.0.0.1:18080; }
     location ^~ /health/ { proxy_pass http://127.0.0.1:18080; }
     location ^~ /admin/ { proxy_pass http://127.0.0.1:18001; }

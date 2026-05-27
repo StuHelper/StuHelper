@@ -5,6 +5,7 @@ import { defineStore, getActivePinia } from "pinia";
 import { ref, computed } from "vue";
 import { api } from "@/api";
 import { userManager, clearAuth, tokenExpiry } from "@/utils/auth";
+import { resolvePostLoginRedirectTarget } from "@/utils/redirect";
 import {
     classifyApiError,
     isApiError,
@@ -50,34 +51,6 @@ function getSSOOrigin(): string {
     }
 
     return parsed.origin;
-}
-
-function resolveLoginRedirectTarget(redirect?: string): string | undefined {
-    if (typeof window === "undefined") {
-        return redirect;
-    }
-
-    if (!redirect) {
-        return window.location.href;
-    }
-
-    if (redirect.startsWith("/") && !redirect.startsWith("//")) {
-        return new URL(redirect, window.location.origin).toString();
-    }
-
-    try {
-        const parsed = new URL(redirect, window.location.origin);
-        if (
-            parsed.origin === window.location.origin &&
-            (parsed.protocol === "https:" || parsed.protocol === "http:")
-        ) {
-            return parsed.toString();
-        }
-    } catch {
-        // ignore invalid redirect and fall back to current page
-    }
-
-    return window.location.href;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -365,14 +338,14 @@ export const useAuthStore = defineStore("auth", () => {
     // 登录
     const login = (redirect?: string) =>
         startOAuthFlow(
-            () => api.auth.login(resolveLoginRedirectTarget(redirect), undefined, "web"),
+            () => api.auth.login(resolvePostLoginRedirectTarget(redirect), undefined, "web"),
             i18n.global.t("common.login.loginUrlFailed"),
         );
 
     const reauthenticate = (redirect?: string) =>
         startOAuthFlow(
             () =>
-                api.auth.login(resolveLoginRedirectTarget(redirect), undefined, "web", {
+                api.auth.login(resolvePostLoginRedirectTarget(redirect), undefined, "web", {
                     prompt: "login",
                     maxAge: 0,
                 }),
@@ -382,7 +355,7 @@ export const useAuthStore = defineStore("auth", () => {
     // 注册
     const signup = (redirect?: string) =>
         startOAuthFlow(
-            () => api.auth.signup(resolveLoginRedirectTarget(redirect)),
+            () => api.auth.signup(resolvePostLoginRedirectTarget(redirect)),
             i18n.global.t("common.login.signupUrlFailed"),
         );
 

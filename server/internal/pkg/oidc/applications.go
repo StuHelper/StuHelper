@@ -111,7 +111,7 @@ func (c *Client) GetAuthURLForApplication(appKey, state string) (string, string,
 	}
 	verifier := oauth2.GenerateVerifier()
 	authURL := cfg.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier))
-	return authURL, verifier, nil
+	return c.rewriteBrowserAuthURL(authURL), verifier, nil
 }
 
 func (c *Client) GetStepUpAuthURLForApplication(appKey, state string) (string, string, error) {
@@ -128,7 +128,7 @@ func (c *Client) GetStepUpAuthURLForApplication(appKey, state string) (string, s
 		oauth2.SetAuthURLParam("max_age", "0"),
 		oauth2.SetAuthURLParam("acr_values", "mfa"),
 	)
-	return authURL, verifier, nil
+	return c.rewriteBrowserAuthURL(authURL), verifier, nil
 }
 
 func (c *Client) GetAuthURL(clientID string, redirectURI string, scopes []string, state string) string {
@@ -152,4 +152,25 @@ func BuildAuthURL(authorizeEndpoint, clientID, redirectURI string, scopes []stri
 		values.Set("state", trimmed)
 	}
 	return strings.TrimRight(authorizeEndpoint, "?") + "?" + values.Encode()
+}
+
+func (c *Client) rewriteBrowserAuthURL(rawURL string) string {
+	base := strings.TrimRight(strings.TrimSpace(c.publicAuthBaseURL), "/")
+	if base == "" {
+		return rawURL
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	publicBase, err := url.Parse(base)
+	if err != nil || publicBase.Scheme == "" || publicBase.Host == "" {
+		return rawURL
+	}
+	parsed.Scheme = publicBase.Scheme
+	parsed.Host = publicBase.Host
+	if basePath := strings.TrimRight(publicBase.Path, "/"); basePath != "" {
+		parsed.Path = basePath + parsed.Path
+	}
+	return parsed.String()
 }

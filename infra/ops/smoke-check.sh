@@ -124,14 +124,26 @@ else
 fi
 
 # OIDC（可选）
-CASDOOR_ISSUER="${CASDOOR_ISSUER:-}"
-if [ -n "$CASDOOR_ISSUER" ]; then
+IDENTITY_ISSUER="${IDENTITY_ISSUER:-}"
+if [ -n "$IDENTITY_ISSUER" ]; then
   echo ""
   echo "── OIDC ──"
-  check_body "Casdoor well-known" "${CASDOOR_ISSUER}/.well-known/openid-configuration" '"issuer":'
+  check_body "Identity well-known" "${IDENTITY_ISSUER}/.well-known/openid-configuration" '"issuer":'
 else
-  echo "  ⚠️  CASDOOR_ISSUER 未设置，跳过 OIDC 检查"
+  echo "  ⚠️  IDENTITY_ISSUER 未设置，跳过 OIDC 检查"
   WARN=$((WARN + 1))
+fi
+
+CASDOOR_ISSUER="${CASDOOR_ISSUER:-}"
+if [[ "${SMOKE_CHECK_CASDOOR_UPSTREAM_ENABLED:-false}" == "true" ]]; then
+  if [ -n "$CASDOOR_ISSUER" ]; then
+    echo ""
+    echo "── Casdoor upstream ──"
+    check_body "Casdoor upstream well-known" "${CASDOOR_ISSUER}/.well-known/openid-configuration" '"issuer":'
+  else
+    echo "  ⚠️  CASDOOR_ISSUER 未设置，跳过 Casdoor upstream 检查"
+    WARN=$((WARN + 1))
+  fi
 fi
 
 # Grafana（可选）

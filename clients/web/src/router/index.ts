@@ -1,10 +1,17 @@
 import {
     createRouter,
     createWebHistory,
+    type RouteLocationNormalized,
     type RouteRecordRaw,
 } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import { isTokenExpired } from "@/utils/auth";
+import {
+    absoluteURLOnCurrentOrigin,
+    configuredIdentityOrigin,
+    configuredWebOrigin,
+    isSafeRelativeRedirect,
+} from "@/utils/redirect";
 import { hasStoredSessionHint } from "@/utils/sessionHint";
 import { updatePageMeta } from "@/composables/usePageMeta";
 import i18n from "@/i18n";
@@ -28,6 +35,7 @@ declare module "vue-router" {
         guest?: boolean;
         titleKey?: string;
         layout?: "shell" | "none";
+        identityPortal?: boolean;
     }
 }
 
@@ -44,6 +52,47 @@ function isChunkLoadError(error: unknown): boolean {
 
 // chunk 加载失败时自动重载一次
 const CHUNK_RELOAD_KEY = "stuhelper_chunk_reload_attempted";
+
+function redirectIdentityPortalRoute(
+    to: Pick<RouteLocationNormalized, "fullPath" | "matched" | "path">,
+    from: Pick<RouteLocationNormalized, "fullPath" | "name">,
+) {
+    const isIdentityPortalRoute = to.matched.some((route) => route.meta?.identityPortal);
+    const identityOrigin = configuredIdentityOrigin();
+
+    if (isIdentityPortalRoute) {
+        if (!identityOrigin || window.location.origin === identityOrigin) {
+            return null;
+        }
+
+        const target = new URL(to.fullPath, identityOrigin);
+        if (to.path === "/login") {
+            const redirect = target.searchParams.get("redirect");
+            if (redirect && isSafeRelativeRedirect(redirect)) {
+                target.searchParams.set("redirect", absoluteURLOnCurrentOrigin(redirect));
+            } else if (!redirect && from.name) {
+                target.searchParams.set("redirect", absoluteURLOnCurrentOrigin(from.fullPath));
+            }
+        }
+
+        window.location.replace(target.toString());
+        return false;
+    }
+
+    const webOrigin = configuredWebOrigin();
+    if (
+        !identityOrigin ||
+        !webOrigin ||
+        window.location.origin !== identityOrigin ||
+        webOrigin === identityOrigin
+    ) {
+        return null;
+    }
+
+    const target = new URL(to.fullPath, webOrigin);
+    window.location.replace(target.toString());
+    return false;
+}
 
 function lazyLoad(loader: () => Promise<unknown>) {
     return () =>
@@ -68,7 +117,7 @@ const routes: RouteRecordRaw[] = [
         path: "/login",
         name: "login",
         component: lazyLoad(() => import("@/modules/auth/views/LoginPage.vue")),
-        meta: { titleKey: "routes.login", guest: true },
+        meta: { titleKey: "routes.login", guest: true, identityPortal: true },
     },
     {
         path: "/auth/callback",
@@ -76,7 +125,7 @@ const routes: RouteRecordRaw[] = [
         component: lazyLoad(
             () => import("@/modules/auth/views/AuthCallbackPage.vue"),
         ),
-        meta: { titleKey: "routes.authCallback", guest: true, layout: "none" },
+        meta: { titleKey: "routes.authCallback", guest: true, layout: "none", identityPortal: true },
     },
     {
         path: "/consent",
@@ -84,7 +133,7 @@ const routes: RouteRecordRaw[] = [
         component: lazyLoad(
             () => import("@/modules/open-platform/views/ConsentPage.vue"),
         ),
-        meta: { titleKey: "routes.openPlatformConsent", requiresAuth: true, layout: "none" },
+        meta: { titleKey: "routes.openPlatformConsent", requiresAuth: true, layout: "none", identityPortal: true },
     },
     {
         path: "/complete-profile",
@@ -92,7 +141,7 @@ const routes: RouteRecordRaw[] = [
         component: lazyLoad(
             () => import("@/modules/open-platform/views/ProfileCompletionPage.vue"),
         ),
-        meta: { titleKey: "routes.openPlatformProfileCompletion", requiresAuth: true, layout: "none" },
+        meta: { titleKey: "routes.openPlatformProfileCompletion", requiresAuth: true, layout: "none", identityPortal: true },
     },
     {
         path: "/developers/apps",
@@ -100,7 +149,7 @@ const routes: RouteRecordRaw[] = [
         component: lazyLoad(
             () => import("@/modules/open-platform/views/DeveloperAppsPage.vue"),
         ),
-        meta: { titleKey: "routes.openPlatformDeveloperApps", requiresAuth: true },
+        meta: { titleKey: "routes.openPlatformDeveloperApps", requiresAuth: true, identityPortal: true },
     },
     {
         path: "/admission/a/:code",
@@ -274,7 +323,7 @@ const routes: RouteRecordRaw[] = [
         component: lazyLoad(
             () => import("@/modules/user/views/UserCenterPage.vue"),
         ),
-        meta: { titleKey: "routes.userAuthorizedApps", requiresAuth: true },
+        meta: { titleKey: "routes.userAuthorizedApps", requiresAuth: true, identityPortal: true },
     },
 
     // 认证与资料页面
@@ -284,7 +333,7 @@ const routes: RouteRecordRaw[] = [
         component: lazyLoad(
             () => import("@/modules/user/views/IdentityVerificationPage.vue"),
         ),
-        meta: { titleKey: "routes.identityVerification", requiresAuth: true },
+        meta: { titleKey: "routes.identityVerification", requiresAuth: true, identityPortal: true },
     },
     {
         path: "/user/student-verification",
@@ -292,7 +341,7 @@ const routes: RouteRecordRaw[] = [
         component: lazyLoad(
             () => import("@/modules/user/views/StudentVerificationPage.vue"),
         ),
-        meta: { titleKey: "routes.studentVerification", requiresAuth: true },
+        meta: { titleKey: "routes.studentVerification", requiresAuth: true, identityPortal: true },
     },
     {
         path: "/user/phone-binding",
@@ -300,7 +349,7 @@ const routes: RouteRecordRaw[] = [
         component: lazyLoad(
             () => import("@/modules/user/views/PhoneBindingPage.vue"),
         ),
-        meta: { titleKey: "routes.phoneBinding", requiresAuth: true },
+        meta: { titleKey: "routes.phoneBinding", requiresAuth: true, identityPortal: true },
     },
     {
         path: "/user/qq-binding",
@@ -308,7 +357,7 @@ const routes: RouteRecordRaw[] = [
         component: lazyLoad(
             () => import("@/modules/user/views/QQBindingPage.vue"),
         ),
-        meta: { titleKey: "routes.qqBinding", requiresAuth: true },
+        meta: { titleKey: "routes.qqBinding", requiresAuth: true, identityPortal: true },
     },
     {
         path: "/user/academic-info",
@@ -316,7 +365,7 @@ const routes: RouteRecordRaw[] = [
         component: lazyLoad(
             () => import("@/modules/user/views/AcademicInfoPage.vue"),
         ),
-        meta: { titleKey: "routes.academicInfo", requiresAuth: true },
+        meta: { titleKey: "routes.academicInfo", requiresAuth: true, identityPortal: true },
     },
 
     // 通知中心
@@ -345,7 +394,12 @@ const router = createRouter({
     },
 });
 
-router.beforeEach(async (to) => {
+router.beforeEach(async (to, from) => {
+    const identityPortalRedirect = redirectIdentityPortalRoute(to, from);
+    if (identityPortalRedirect !== null) {
+        return identityPortalRedirect;
+    }
+
     if (to.path === "/auth/callback") {
         const code = typeof to.query.code === "string" ? to.query.code : "";
         const state = typeof to.query.state === "string" ? to.query.state : "";

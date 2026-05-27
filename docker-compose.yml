@@ -7,7 +7,7 @@
 #   /admin/*        (600)  → admin 前端（Vben Admin）
 #   /               (500)  → web 前端（Vue SPA，catch-all）
 #
-# Casdoor SSO 在生产环境独立部署为 https://sso.stuhelper.com；
+# 生产浏览器身份入口固定为 https://id.stuhelper.com；Casdoor 只作为 upstream。
 # 本 compose 中的 casdoor service 仅用于本地开发或显式本地 SSO 验证。
 #
 # 使用方式:
@@ -461,6 +461,8 @@ services:
     - NODE_ENV=development
     - VITE_API_URL=${WEB_VITE_API_URL:-/api}
     - VITE_SSO_URL=${WEB_VITE_SSO_URL:-http://localhost:8085}
+    - VITE_IDENTITY_URL=${WEB_VITE_IDENTITY_URL:-}
+    - VITE_WEB_URL=${WEB_VITE_WEB_URL:-http://localhost:3000}
     - VITE_ADMIN_URL=${ADMIN_PUBLIC_URL:-http://localhost:3001}
     - VITE_API_TIMEOUT_MS=${WEB_VITE_API_TIMEOUT_MS:-15000}
     - VITE_DEV_PROXY_TARGET=http://app-dev:8080

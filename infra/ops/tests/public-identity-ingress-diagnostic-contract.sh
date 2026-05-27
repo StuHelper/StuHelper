@@ -36,6 +36,7 @@ assert_contains "${DIAG_SCRIPT}" 'PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_FILE'
 assert_contains "${DIAG_SCRIPT}" 'PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_STRICT'
 assert_contains "${DIAG_SCRIPT}" 'PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_PUBLIC_DNS_ENABLED'
 assert_contains "${DIAG_SCRIPT}" 'PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_USE_ENV_TARGETS'
+assert_contains "${DIAG_SCRIPT}" 'PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_CASDOOR_UPSTREAM_ENABLED'
 assert_contains "${DIAG_SCRIPT}" 'public-identity-ingress-diagnostic\.json'
 assert_contains "${DIAG_SCRIPT}" 'openssl.*s_client'
 assert_contains "${DIAG_SCRIPT}" '-servername'
@@ -242,15 +243,31 @@ assert_json "${ok_file}" '.passed == true'
 assert_json "${ok_file}" '.summary.failed == 0'
 assert_json "${ok_file}" '.endpoints.identityDiscovery.issuer == "https://localhost/id"'
 assert_json "${ok_file}" '.endpoints.identityAuthorizationServerMetadata.issuer == "https://localhost/id"'
-assert_json "${ok_file}" '.endpoints.casdoorDiscovery.issuer == "https://localhost/sso"'
-assert_json "${ok_file}" '.endpoints.casdoorDiscovery.jwksURI == "https://localhost/sso/.well-known/jwks"'
-assert_json "${ok_file}" '.endpoints.casdoorJWKS.passed == true'
+assert_json "${ok_file}" '.casdoorUpstreamChecked == false'
+assert_json "${ok_file}" '.endpoints.casdoorDiscovery == null'
+assert_json "${ok_file}" '.endpoints.casdoorJWKS == null'
 if grep -Eiq 'secret|token=' "${ok_file}"; then
   fail "diagnostic evidence must not contain secrets or raw token values"
 fi
 if grep -Eiq 'set-cookie: [^<]' "${ok_file}"; then
   fail "diagnostic evidence must redact Set-Cookie header values"
 fi
+
+casdoor_upstream_file="${tmpdir}/casdoor-upstream.json"
+PATH="${fake_bin}:${PATH}" \
+  WEB_PUBLIC_URL=https://localhost/web \
+  IDENTITY_ISSUER=https://localhost/id \
+  CASDOOR_ISSUER=https://localhost/sso \
+  PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_CASDOOR_UPSTREAM_ENABLED=true \
+  PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_FILE="${casdoor_upstream_file}" \
+  PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_STRICT=true \
+  "${DIAG_SCRIPT}" >"${tmpdir}/casdoor-upstream.stdout" 2>"${tmpdir}/casdoor-upstream.stderr"
+
+assert_json "${casdoor_upstream_file}" '.passed == true'
+assert_json "${casdoor_upstream_file}" '.casdoorUpstreamChecked == true'
+assert_json "${casdoor_upstream_file}" '.endpoints.casdoorDiscovery.issuer == "https://localhost/sso"'
+assert_json "${casdoor_upstream_file}" '.endpoints.casdoorDiscovery.jwksURI == "https://localhost/sso/.well-known/jwks"'
+assert_json "${casdoor_upstream_file}" '.endpoints.casdoorJWKS.passed == true'
 
 local_env_file="${tmpdir}/local.env"
 cat >"${local_env_file}" <<'ENV'
@@ -267,7 +284,8 @@ PATH="${fake_bin}:${PATH}" \
 
 assert_json "${default_targets_file}" '.webPublicURL == "https://stuhelper.com"'
 assert_json "${default_targets_file}" '.identityIssuer == "https://id.stuhelper.com"'
-assert_json "${default_targets_file}" '.casdoorIssuer == "https://sso.stuhelper.com"'
+assert_json "${default_targets_file}" '.casdoorIssuer == ""'
+assert_json "${default_targets_file}" '.casdoorUpstreamChecked == false'
 
 env_targets_file="${tmpdir}/env-targets.json"
 PATH="${fake_bin}:${PATH}" \
@@ -278,7 +296,8 @@ PATH="${fake_bin}:${PATH}" \
 
 assert_json "${env_targets_file}" '.webPublicURL == "http://localhost:3000"'
 assert_json "${env_targets_file}" '.identityIssuer == "http://localhost:3000"'
-assert_json "${env_targets_file}" '.casdoorIssuer == "http://localhost:8085"'
+assert_json "${env_targets_file}" '.casdoorIssuer == ""'
+assert_json "${env_targets_file}" '.casdoorUpstreamChecked == false'
 
 non_public_dns_file="${tmpdir}/non-public-dns.json"
 PATH="${fake_bin}:${PATH}" \
@@ -324,6 +343,7 @@ PATH="${fake_bin}:${PATH}" \
   WEB_PUBLIC_URL=https://localhost/web \
   IDENTITY_ISSUER=https://localhost/id \
   CASDOOR_ISSUER=https://localhost/sso \
+  PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_CASDOOR_UPSTREAM_ENABLED=true \
   PUBLIC_IDENTITY_DIAG_FAKE_CURL_MODE=sso_spa_404 \
   PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_FILE="${sso_spa_file}" \
   "${DIAG_SCRIPT}" >"${tmpdir}/sso-spa.stdout" 2>"${tmpdir}/sso-spa.stderr"
@@ -338,6 +358,7 @@ PATH="${fake_bin}:${PATH}" \
   WEB_PUBLIC_URL=https://localhost/web \
   IDENTITY_ISSUER=https://localhost/id \
   CASDOOR_ISSUER=https://localhost/sso \
+  PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_CASDOOR_UPSTREAM_ENABLED=true \
   PUBLIC_IDENTITY_DIAG_FAKE_CURL_MODE=sso_jwks_404 \
   PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_FILE="${sso_jwks_file}" \
   "${DIAG_SCRIPT}" >"${tmpdir}/sso-jwks.stdout" 2>"${tmpdir}/sso-jwks.stderr"

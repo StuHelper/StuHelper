@@ -527,15 +527,20 @@ require_public_identity_ingress_preflight() {
 
   require_public_dns_resolved "Web" "$(trim_trailing_slash "${WEB_PUBLIC_URL:-}")"
   require_public_dns_resolved "Identity" "$(trim_trailing_slash "${IDENTITY_ISSUER:-}")"
-  require_public_dns_resolved "Casdoor" "$(trim_trailing_slash "${CASDOOR_ISSUER:-}")"
   require_public_http_reachable "Web" "$(trim_trailing_slash "${WEB_PUBLIC_URL:-}")"
   require_public_http_reachable "Identity" "$(trim_trailing_slash "${IDENTITY_ISSUER:-}")"
-  require_public_oidc_discovery "Casdoor" "${CASDOOR_ISSUER:-}"
-  local casdoor_jwks_uri
-  if ! casdoor_jwks_uri="$(public_oidc_jwks_uri "${CASDOOR_ISSUER:-}")"; then
-    die "Casdoor JWKS URI preflight failed for ${CASDOOR_ISSUER:-}: discovery did not expose jwks_uri"
+
+  if [[ "${PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED:-false}" == "true" ]]; then
+    require_public_dns_resolved "Casdoor upstream" "$(trim_trailing_slash "${CASDOOR_ISSUER:-}")"
+    require_public_oidc_discovery "Casdoor upstream" "${CASDOOR_ISSUER:-}"
+    local casdoor_jwks_uri
+    if ! casdoor_jwks_uri="$(public_oidc_jwks_uri "${CASDOOR_ISSUER:-}")"; then
+      die "Casdoor upstream JWKS URI preflight failed for ${CASDOOR_ISSUER:-}: discovery did not expose jwks_uri"
+    fi
+    require_public_jwks "Casdoor upstream" "${casdoor_jwks_uri}"
+  else
+    log "Casdoor upstream public preflight skipped because PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED is not true"
   fi
-  require_public_jwks "Casdoor" "${casdoor_jwks_uri}"
 }
 
 require_public_ingress_config_preflight() {

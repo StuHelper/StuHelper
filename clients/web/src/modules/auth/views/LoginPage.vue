@@ -41,6 +41,10 @@ import { useI18n } from "vue-i18n";
 import { ElMessage } from "element-plus";
 import { getErrorMessage } from "@/api/errors";
 import { useAuthStore } from "@/stores/auth";
+import {
+    resolvePostLoginRedirectTarget,
+    sanitizePostLoginRedirect,
+} from "@/utils/redirect";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -49,38 +53,23 @@ const { loading } = storeToRefs(authStore);
 
 const isReauthRequest = () => route.query.reauth === "1";
 
-function sanitizeInternalRedirect(redirect: string | null | undefined): string | undefined {
-    if (!redirect) return undefined;
-    if (redirect.startsWith("/") && !redirect.startsWith("//")) {
-        return redirect;
-    }
-
-    try {
-        const parsed = new URL(redirect, window.location.origin);
-        if (parsed.origin !== window.location.origin) return undefined;
-        return `${parsed.pathname}${parsed.search}${parsed.hash}`;
-    } catch (_error) { void _error;
-        return undefined;
-    }
-}
-
 function defaultAuthenticatedRoute(): string {
     return new URL("/", window.location.origin).toString();
 }
 
 // 单点登录跳转辅助逻辑
 const getRedirectTarget = (): string | undefined => {
-    const redirect = sanitizeInternalRedirect(
+    const redirect = sanitizePostLoginRedirect(
         typeof route.query.redirect === "string" ? route.query.redirect : undefined,
     );
     if (redirect) {
-        return new URL(redirect, window.location.origin).toString();
+        return resolvePostLoginRedirectTarget(redirect);
     }
     return defaultAuthenticatedRoute();
 };
 
 const saveRedirectTarget = () => {
-    const redirect = sanitizeInternalRedirect(
+    const redirect = sanitizePostLoginRedirect(
         typeof route.query.redirect === "string" ? route.query.redirect : undefined,
     );
     if (redirect) {
