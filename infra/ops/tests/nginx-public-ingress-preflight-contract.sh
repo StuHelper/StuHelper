@@ -96,6 +96,7 @@ server {
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-Proto https;
     proxy_set_header X-Forwarded-Host $host;
+    location = /identity { return 302 https://id.stuhelper.com$request_uri; }
     location = /login { return 302 https://id.stuhelper.com$request_uri; }
     location = /auth/callback { return 302 https://id.stuhelper.com$request_uri; }
     location = /consent { return 302 https://id.stuhelper.com$request_uri; }

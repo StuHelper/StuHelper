@@ -7,6 +7,41 @@ export default {
     myVotes: "我的点赞",
     myFavorites: "我的收藏",
     myAuthorizedApps: "授权应用",
+    identityHome: {
+        eyebrow: "StuHelper ID",
+        title: "身份中心",
+        subtitle: "集中管理你的 StuHelper 账号资料、认证状态、第三方授权和开发者应用。",
+        sectionsLabel: "身份中心入口",
+        open: "打开",
+        authorizedApps: {
+            title: "授权应用",
+            description: "查看第三方应用的授权范围、最近披露记录并撤销授权。",
+        },
+        identityVerification: {
+            title: "实名认证",
+            description: "维护真实身份认证状态，作为学生认证和敏感授权的基础。",
+        },
+        studentVerification: {
+            title: "学生认证",
+            description: "绑定学校身份和学籍状态，解锁校园与评课相关能力。",
+        },
+        phoneBinding: {
+            title: "绑定手机",
+            description: "维护手机号绑定状态，用于账号安全和授权资料披露。",
+        },
+        qqBinding: {
+            title: "绑定 QQ",
+            description: "连接机器人侧账号识别与入群认证流程。",
+        },
+        academicInfo: {
+            title: "学业信息",
+            description: "查看已验证的学校、院系、专业和学籍资料。",
+        },
+        developerApps: {
+            title: "开发者应用",
+            description: "注册应用、申请 scope、维护回调地址并查看应用审计摘要。",
+        },
+    },
     reviews: {
         empty: "暂无评价",
         emptyDesc: "去发表你的第一条课程评价吧",

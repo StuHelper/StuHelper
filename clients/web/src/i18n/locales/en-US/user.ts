@@ -7,6 +7,41 @@ export default {
     myVotes: "My Votes",
     myFavorites: "My Favorites",
     myAuthorizedApps: "Authorized Apps",
+    identityHome: {
+        eyebrow: "StuHelper ID",
+        title: "Identity Hub",
+        subtitle: "Manage your StuHelper profile, verification status, third-party authorizations, and developer apps.",
+        sectionsLabel: "Identity hub sections",
+        open: "Open",
+        authorizedApps: {
+            title: "Authorized Apps",
+            description: "Review third-party app scopes, recent disclosures, and revoke authorizations.",
+        },
+        identityVerification: {
+            title: "Identity Verification",
+            description: "Maintain real-name verification as the base for student verification and sensitive authorization.",
+        },
+        studentVerification: {
+            title: "Student Verification",
+            description: "Connect your school identity and academic status for campus and course-review capabilities.",
+        },
+        phoneBinding: {
+            title: "Phone Binding",
+            description: "Maintain phone binding for account security and authorized profile disclosure.",
+        },
+        qqBinding: {
+            title: "QQ Binding",
+            description: "Connect bot-side account recognition and group admission verification.",
+        },
+        academicInfo: {
+            title: "Academic Info",
+            description: "Review verified school, department, major, and academic-status details.",
+        },
+        developerApps: {
+            title: "Developer Apps",
+            description: "Register apps, request scopes, maintain redirect URIs, and review app audit summaries.",
+        },
+    },
     reviews: {
         empty: "No reviews yet",
         emptyDesc: "Post your first course review",

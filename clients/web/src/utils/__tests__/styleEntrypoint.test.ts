@@ -35,13 +35,15 @@ describe('style entrypoint', () => {
     expect(routerSource).toContain('isAuthenticated: authStore.isAuthenticated')
   })
 
-  it('uses the home route as the default SSO return target from the login page', () => {
+  it('uses the identity home route as the default SSO return target on the identity host', () => {
     const loginSource = readFileSync(
       resolve(__dirname, '../../modules/auth/views/LoginPage.vue'),
       'utf-8',
     )
 
     expect(loginSource).toContain('function defaultAuthenticatedRoute()')
+    expect(loginSource).toContain('configuredIdentityOrigin')
+    expect(loginSource).toContain('return new URL("/identity", window.location.origin).toString()')
     expect(loginSource).toContain('return new URL("/", window.location.origin).toString()')
     expect(loginSource).toContain('return defaultAuthenticatedRoute()')
   })
@@ -141,6 +143,17 @@ describe('style entrypoint', () => {
 
     expect(shellSource).toContain('configuredIdentityOrigin')
     expect(shellSource).toContain('<FloatingModuleNav v-if="!isIdentityPortalHost" />')
+  })
+
+  it('keeps the identity home route inside the identity portal', () => {
+    const routerSource = readFileSync(resolve(__dirname, '../../router/index.ts'), 'utf-8')
+    const headerSource = readFileSync(resolve(__dirname, '../../components/layout/AppHeader.vue'), 'utf-8')
+
+    expect(routerSource).toContain('path: "/identity"')
+    expect(routerSource).toContain('name: "identity-home"')
+    expect(routerSource).toMatch(/path:\s*"\/identity"[\s\S]*meta:\s*\{\s*titleKey:\s*"routes\.identityHome",\s*requiresAuth:\s*true,\s*identityPortal:\s*true\s*\}/)
+    expect(headerSource).toContain("const logoRoute = computed(() => (isIdentityPortalHost.value ? '/identity' : '/'))")
+    expect(headerSource).toContain("{ to: '/identity', label: t('routes.identityHome')")
   })
 
   it('keeps review drafts user-scoped and recoverable from the post page', () => {

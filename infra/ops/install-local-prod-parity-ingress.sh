@@ -157,6 +157,10 @@ server {
     proxy_set_header X-Forwarded-Proto \$scheme;
     proxy_set_header X-Forwarded-Host \$host;
 
+    location = /identity {
+        return 302 \$scheme://id.stuhelper.com\$request_uri;
+    }
+
     location = /login {
         return 302 \$scheme://id.stuhelper.com\$request_uri;
     }
@@ -327,7 +331,7 @@ server {
         add_header Cache-Control "no-store, no-cache, must-revalidate, private" always;
         add_header Pragma "no-cache" always;
         add_header Expires "0" always;
-        return 302 /developers/apps;
+        return 302 /identity;
     }
 
     location ^~ /login/oauth/ {
@@ -360,6 +364,11 @@ server {
     }
 
     location = /complete-profile {
+        proxy_pass http://127.0.0.1:${web_port};
+        proxy_http_version 1.1;
+    }
+
+    location = /identity {
         proxy_pass http://127.0.0.1:${web_port};
         proxy_http_version 1.1;
     }

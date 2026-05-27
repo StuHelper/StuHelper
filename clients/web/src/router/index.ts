@@ -144,6 +144,14 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: "routes.openPlatformProfileCompletion", requiresAuth: true, layout: "none", identityPortal: true },
     },
     {
+        path: "/identity",
+        name: "identity-home",
+        component: lazyLoad(
+            () => import("@/modules/user/views/IdentityHomePage.vue"),
+        ),
+        meta: { titleKey: "routes.identityHome", requiresAuth: true, identityPortal: true },
+    },
+    {
         path: "/developers/apps",
         name: "open-platform-developer-apps",
         component: lazyLoad(
@@ -507,6 +515,14 @@ router.beforeEach(async (to, from) => {
             !redirect.startsWith("//")
         ) {
             return redirect;
+        }
+        const identityOrigin = configuredIdentityOrigin();
+        if (
+            identityOrigin &&
+            typeof window !== "undefined" &&
+            window.location.origin === identityOrigin
+        ) {
+            return { name: "identity-home" };
         }
         return { name: "home" };
     }

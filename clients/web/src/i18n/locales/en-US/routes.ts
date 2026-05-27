@@ -6,6 +6,7 @@ export default {
   authCallback: 'Authenticating',
   openPlatformConsent: 'Authorize',
   openPlatformProfileCompletion: 'Complete Profile',
+  identityHome: 'Identity Hub',
   openPlatformDeveloperApps: 'Developer Apps',
   home: 'Home',
   hub: 'StuHelper',

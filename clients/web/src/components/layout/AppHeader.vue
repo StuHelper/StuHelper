@@ -173,7 +173,7 @@ const isIdentityPortalHost = computed(() => {
   if (typeof window === 'undefined') return false
   return configuredIdentityOrigin() === window.location.origin
 })
-const logoRoute = computed(() => (isIdentityPortalHost.value ? '/developers/apps' : '/'))
+const logoRoute = computed(() => (isIdentityPortalHost.value ? '/identity' : '/'))
 const showCourseSearch = computed(() => !isIdentityPortalHost.value && route.path === '/courses')
 const showWriteReview = computed(() =>
   !isIdentityPortalHost.value &&
@@ -196,9 +196,9 @@ const loginEntryRoute = computed(() => ({
 const navItems = computed<NavItem[]>(() =>
   isIdentityPortalHost.value
     ? [
-        { to: '/developers/apps', label: t('routes.openPlatformDeveloperApps'), icon: KeyRound },
+        { to: '/identity', label: t('routes.identityHome'), icon: UserRound },
         { to: '/user/authorized-apps', label: t('routes.userAuthorizedApps'), icon: ShieldCheck },
-        { to: '/user/identity-verification', label: t('routes.identityVerification'), icon: UserRound },
+        { to: '/developers/apps', label: t('routes.openPlatformDeveloperApps'), icon: KeyRound },
       ]
     : [
         { to: '/', label: t('nav.home'), icon: Home, exact: true },

@@ -111,20 +111,20 @@ id.stuhelper.com /.well-known/* -> http://127.0.0.1:18080
 id.stuhelper.com /oauth2/*      -> http://127.0.0.1:18080
 id.stuhelper.com /oidc/*        -> http://127.0.0.1:18080
 id.stuhelper.com /api/*         -> http://127.0.0.1:18080
-id.stuhelper.com /login /consent /complete-profile /assets/* -> http://127.0.0.1:18000
+id.stuhelper.com /identity /login /consent /complete-profile /assets/* -> http://127.0.0.1:18000
 id.stuhelper.com /api/v1/*       -> http://127.0.0.1:18080
 id.stuhelper.com /login/oauth/*  -> http://127.0.0.1:8087
 id.stuhelper.com /signup/oauth/* -> http://127.0.0.1:8087
 id.stuhelper.com /api/*          -> http://127.0.0.1:8087
 id.stuhelper.com /static/* /img/* /buttons/* /flag-icons/* /web/* /mfa/* /account /signup /forget
                                   -> http://127.0.0.1:8087
-id.stuhelper.com /login /auth/callback /consent /complete-profile /developers/* /user/authorized-apps /user/identity-verification /user/student-verification /user/phone-binding /user/qq-binding /user/academic-info /assets/*
+id.stuhelper.com /identity /login /auth/callback /consent /complete-profile /developers/* /user/authorized-apps /user/identity-verification /user/student-verification /user/phone-binding /user/qq-binding /user/academic-info /assets/*
                                   -> http://127.0.0.1:18000
-id.stuhelper.com /               -> 302 /developers/apps
+id.stuhelper.com /               -> 302 /identity
 id.stuhelper.com other main-site paths -> 302 https://stuhelper.com$request_uri
 ```
 
-主站 `stuhelper.com` 上的身份类浏览器路径必须 302 到 `id.stuhelper.com`，包括 `/login`、`/auth/callback`、`/consent`、`/complete-profile`、`/developers/*`、`/user/authorized-apps`、实名/学生认证、手机/QQ 绑定和学籍信息。这样浏览器对外只看到 `id.stuhelper.com` 作为身份与开发者平台站点。
+主站 `stuhelper.com` 上的身份类浏览器路径必须 302 到 `id.stuhelper.com`，包括 `/identity`、`/login`、`/auth/callback`、`/consent`、`/complete-profile`、`/developers/*`、`/user/authorized-apps`、实名/学生认证、手机/QQ 绑定和学籍信息。这样浏览器对外只看到 `id.stuhelper.com` 作为身份、授权与开发者平台站点。
 
 宝塔面板保存后执行 Nginx 配置测试和 reload。命令路径随宝塔安装方式可能不同；至少要在面板里看到 Nginx 测试通过。当前 Casdoor upstream 现场端口是 `127.0.0.1:8087`，仓库模板也按该端口给出 upstream；如果实际监听其他端口，需要在合并模板时同步替换相关 `proxy_pass`。
 
@@ -453,8 +453,11 @@ curl -fsS https://stuhelper.com/health/ready
 curl -fsSI https://stuhelper.com/admin/
 curl -fsS https://stuhelper.com/api/v1/course/departments
 curl -fsS https://id.stuhelper.com/.well-known/openid-configuration | head
+curl -fsSI https://id.stuhelper.com/              # 应 302 到 /identity
+curl -fsSI https://id.stuhelper.com/identity
 curl -fsSI https://id.stuhelper.com/developers/apps
 curl -fsSI https://id.stuhelper.com/user/authorized-apps
+curl -fsSI https://stuhelper.com/identity         # 应 302 到 id.stuhelper.com
 curl -fsSI https://stuhelper.com/user/authorized-apps  # 应 302 到 id.stuhelper.com
 curl -fsSI https://id.stuhelper.com/courses          # 应 302 回 stuhelper.com/courses
 ```

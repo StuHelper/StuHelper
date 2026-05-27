@@ -164,7 +164,8 @@ describe('AppHeader', () => {
 
     expect(wrapper.text()).toContain('routes.openPlatformDeveloperApps')
     expect(wrapper.text()).toContain('routes.userAuthorizedApps')
-    expect(wrapper.text()).toContain('routes.identityVerification')
+    expect(wrapper.text()).toContain('routes.identityHome')
+    expect(wrapper.text()).not.toContain('routes.identityVerification')
     expect(wrapper.text()).not.toContain('nav.courses')
     expect(wrapper.text()).not.toContain('nav.teacher')
     expect(wrapper.text()).not.toContain('nav.login')

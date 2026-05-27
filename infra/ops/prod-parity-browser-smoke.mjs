@@ -70,9 +70,52 @@ const checks = [
     url: joinURL(identityBaseURL, '/developers/apps'),
     flow: 'identity-portal-shell',
     expectedTexts: ['登录', 'Login'],
-    requiredTexts: ['开发者应用', '授权应用', '实名认证'],
+    requiredTexts: ['身份中心', '授权应用', '开发者应用'],
     forbiddenTexts: ['课程', '教师', '评课'],
     expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/developers/apps'],
+  },
+  {
+    name: 'identity-root-login',
+    url: joinURL(identityBaseURL, '/'),
+    flow: 'identity-portal-shell',
+    expectedTexts: ['登录', 'Login'],
+    requiredTexts: ['身份中心', '授权应用', '开发者应用'],
+    forbiddenTexts: ['课程', '教师', '评课'],
+    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/identity'],
+  },
+  {
+    name: 'identity-home-authenticated',
+    url: joinURL(identityBaseURL, '/identity'),
+    flow: 'identity-home-authenticated',
+    expectedTexts: ['身份中心', 'Identity Hub'],
+    requiredTexts: ['授权应用', '开发者应用'],
+    expectedURLIncludes: joinURL(identityBaseURL, '/identity'),
+    stubbedResources: [
+      {
+        url: 'https://fonts.googleapis.com/**',
+        contentType: 'text/css',
+        body: '/* prod-parity smoke uses system fonts for the Casdoor login page. */\n',
+      },
+      {
+        url: 'https://cdn.casbin.org/flag-icons/**',
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>\n',
+      },
+    ],
+    allowedAPIResponses: [
+      {
+        urlIncludes: '/api/v1/user/profile',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/qq-binding',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/identity',
+        statuses: [404],
+      },
+    ],
   },
   {
     name: 'identity-main-route-redirect',
@@ -246,6 +289,12 @@ const checks = [
       joinURL(identityBaseURL, '/login'),
       webRedirectQuery('/user/favorites'),
     ],
+  },
+  {
+    name: 'web-protected-identity-home',
+    url: joinURL(webBaseURL, '/identity'),
+    expectedTexts: ['登录', 'Login'],
+    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/identity'],
   },
   {
     name: 'web-protected-user-authorized-apps',
@@ -624,6 +673,9 @@ async function runCheckFlow(page, check, viewportVariant) {
   if (check.flow === 'identity-portal-shell') {
     return runIdentityPortalShellFlow(page, viewportVariant);
   }
+  if (check.flow === 'identity-home-authenticated') {
+    return runIdentityHomeAuthenticatedFlow(page);
+  }
   return null;
 }
 
@@ -673,7 +725,7 @@ async function runIdentityPortalShellFlow(page, viewportVariant) {
   }
 
   const headerText = await header.innerText({ timeout: timeoutMs });
-  const requiredLabels = ['开发者应用', '授权应用', '实名认证'];
+  const requiredLabels = ['身份中心', '授权应用', '开发者应用'];
   const missingLabels = requiredLabels.filter((label) => !headerText.includes(label));
   if (missingLabels.length > 0) {
     throw new Error(`identity header missing labels: ${missingLabels.join(', ')}`);
@@ -688,7 +740,7 @@ async function runIdentityPortalShellFlow(page, viewportVariant) {
   const linkPaths = await header.locator('a[href]').evaluateAll((links) =>
     links.map((link) => new URL(link.href).pathname),
   );
-  const requiredPaths = ['/developers/apps', '/user/authorized-apps', '/user/identity-verification'];
+  const requiredPaths = ['/identity', '/user/authorized-apps', '/developers/apps'];
   const missingPaths = requiredPaths.filter((path) => !linkPaths.includes(path));
   if (missingPaths.length > 0) {
     throw new Error(`identity header missing links: ${missingPaths.join(', ')}`);
@@ -704,6 +756,45 @@ async function runIdentityPortalShellFlow(page, viewportVariant) {
     matchedText: 'identity portal shell navigation',
     requiredLabels,
     requiredPaths,
+  };
+}
+
+async function runIdentityHomeAuthenticatedFlow(page) {
+  await page.waitForURL((url) => url.pathname === '/login', { timeout: timeoutMs });
+  await page.getByRole('button', { name: /SSO|统一身份/i }).click({ timeout: timeoutMs });
+  await page.waitForURL((url) => url.pathname.includes('/login/oauth/authorize'), {
+    timeout: timeoutMs,
+  });
+
+  await page.getByRole('textbox', { name: /username|email|phone/i }).fill(casdoorLoginUsername);
+  await page.getByRole('textbox', { name: /password/i }).fill(casdoorLoginPassword);
+  await page.getByRole('button', { name: /sign in|登录/i }).click({ timeout: timeoutMs });
+  await page.waitForURL((url) => url.href.startsWith(joinURL(identityBaseURL, '/identity')), {
+    timeout: timeoutMs,
+  });
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
+
+  const beforeRefresh = await authMe(page);
+  if (beforeRefresh.status !== 200) {
+    throw new Error(`auth/me before identity refresh returned ${beforeRefresh.status}`);
+  }
+
+  await page.reload({ waitUntil: 'domcontentloaded', timeout: timeoutMs });
+  await page.waitForURL((url) => url.href.startsWith(joinURL(identityBaseURL, '/identity')), {
+    timeout: timeoutMs,
+  });
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
+
+  const afterRefresh = await authMe(page);
+  if (afterRefresh.status !== 200) {
+    throw new Error(`auth/me after identity refresh returned ${afterRefresh.status}`);
+  }
+
+  return {
+    matchedText: 'identity home authenticated session survived refresh',
+    username: casdoorLoginUsername,
+    beforeRefreshStatus: beforeRefresh.status,
+    afterRefreshStatus: afterRefresh.status,
   };
 }
 

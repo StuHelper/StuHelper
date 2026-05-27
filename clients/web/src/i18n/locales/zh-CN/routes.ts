@@ -6,6 +6,7 @@ export default {
   authCallback: '认证中',
   openPlatformConsent: '授权确认',
   openPlatformProfileCompletion: '资料补全',
+  identityHome: '身份中心',
   openPlatformDeveloperApps: '开发者应用',
   home: '首页',
   hub: 'StuHelper',

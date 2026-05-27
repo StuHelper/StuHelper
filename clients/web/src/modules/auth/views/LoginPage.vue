@@ -42,6 +42,7 @@ import { ElMessage } from "element-plus";
 import { getErrorMessage } from "@/api/errors";
 import { useAuthStore } from "@/stores/auth";
 import {
+    configuredIdentityOrigin,
     resolvePostLoginRedirectTarget,
     sanitizePostLoginRedirect,
 } from "@/utils/redirect";
@@ -54,6 +55,14 @@ const { loading } = storeToRefs(authStore);
 const isReauthRequest = () => route.query.reauth === "1";
 
 function defaultAuthenticatedRoute(): string {
+    const identityOrigin = configuredIdentityOrigin();
+    if (
+        identityOrigin &&
+        typeof window !== "undefined" &&
+        window.location.origin === identityOrigin
+    ) {
+        return new URL("/identity", window.location.origin).toString();
+    }
     return new URL("/", window.location.origin).toString();
 }
 
