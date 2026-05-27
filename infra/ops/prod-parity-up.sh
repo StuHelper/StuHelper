@@ -198,6 +198,8 @@ ensure_file_value "${ENV_FILE}" "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED" "tr
 ensure_file_value "${ENV_FILE}" "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND" "/app/casdoor-runtime-token-probe-runner.mjs"
 ensure_file_value "${ENV_FILE}" "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_TIMEOUT_SECONDS" "30"
 ensure_file_value "${ENV_FILE}" "OPEN_PLATFORM_PRODUCTION_EVIDENCE_ALLOW_LOCAL_TARGETS" "true"
+ensure_file_value "${ENV_FILE}" "API_IP_RATE_LIMIT" "5000"
+ensure_file_value "${ENV_FILE}" "API_GLOBAL_RATE_LIMIT" "50000"
 ensure_file_value "${ENV_FILE}" "IDENTITY_SIGNING_KEY_ID" "stuhelper-identity-prod-parity-1"
 ensure_file_value "${ENV_FILE}" "IDENTITY_ACCESS_TOKEN_TTL" "900"
 ensure_file_value "${ENV_FILE}" "IDENTITY_AUTH_CODE_TTL" "300"

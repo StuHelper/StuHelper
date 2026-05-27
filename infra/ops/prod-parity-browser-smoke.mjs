@@ -188,6 +188,185 @@ const checks = [
     ],
   },
   {
+    name: 'identity-identity-verification-authenticated',
+    url: joinURL(identityBaseURL, '/user/identity-verification'),
+    flow: 'identity-authenticated-refresh',
+    expectedTexts: ['实名认证', 'Identity Verification'],
+    requiredTexts: ['实名认证'],
+    forbiddenTexts: ['我的评价', '我的点赞', '我的收藏', 'My Reviews', 'My Votes', 'My Favorites'],
+    expectedURLIncludes: joinURL(identityBaseURL, '/user/identity-verification'),
+    stubbedResources: [
+      {
+        url: 'https://fonts.googleapis.com/**',
+        contentType: 'text/css',
+        body: '/* prod-parity smoke uses system fonts for the Casdoor login page. */\n',
+      },
+      {
+        url: 'https://cdn.casbin.org/flag-icons/**',
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>\n',
+      },
+    ],
+    allowedAPIResponses: [
+      {
+        urlIncludes: '/api/v1/user/profile',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/qq-binding',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/identity',
+        statuses: [404],
+      },
+    ],
+  },
+  {
+    name: 'identity-student-verification-authenticated',
+    url: joinURL(identityBaseURL, '/user/student-verification'),
+    flow: 'identity-authenticated-refresh',
+    expectedTexts: ['学生认证', 'Student Verification'],
+    requiredTexts: ['学生认证'],
+    forbiddenTexts: ['我的评价', '我的点赞', '我的收藏', 'My Reviews', 'My Votes', 'My Favorites'],
+    expectedURLIncludes: joinURL(identityBaseURL, '/user/student-verification'),
+    stubbedResources: [
+      {
+        url: 'https://fonts.googleapis.com/**',
+        contentType: 'text/css',
+        body: '/* prod-parity smoke uses system fonts for the Casdoor login page. */\n',
+      },
+      {
+        url: 'https://cdn.casbin.org/flag-icons/**',
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>\n',
+      },
+    ],
+    allowedAPIResponses: [
+      {
+        urlIncludes: '/api/v1/user/profile',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/qq-binding',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/identity',
+        statuses: [404],
+      },
+    ],
+  },
+  {
+    name: 'identity-phone-binding-authenticated',
+    url: joinURL(identityBaseURL, '/user/phone-binding'),
+    flow: 'identity-authenticated-refresh',
+    expectedTexts: ['绑定手机', 'Phone Binding'],
+    requiredTexts: ['绑定手机'],
+    forbiddenTexts: ['我的评价', '我的点赞', '我的收藏', 'My Reviews', 'My Votes', 'My Favorites'],
+    expectedURLIncludes: joinURL(identityBaseURL, '/user/phone-binding'),
+    stubbedResources: [
+      {
+        url: 'https://fonts.googleapis.com/**',
+        contentType: 'text/css',
+        body: '/* prod-parity smoke uses system fonts for the Casdoor login page. */\n',
+      },
+      {
+        url: 'https://cdn.casbin.org/flag-icons/**',
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>\n',
+      },
+    ],
+    allowedAPIResponses: [
+      {
+        urlIncludes: '/api/v1/user/profile',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/qq-binding',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/identity',
+        statuses: [404],
+      },
+    ],
+  },
+  {
+    name: 'identity-qq-binding-authenticated',
+    url: joinURL(identityBaseURL, '/user/qq-binding'),
+    flow: 'identity-authenticated-refresh',
+    expectedTexts: ['绑定 QQ', 'QQ Binding'],
+    requiredTexts: ['绑定 QQ'],
+    forbiddenTexts: ['我的评价', '我的点赞', '我的收藏', 'My Reviews', 'My Votes', 'My Favorites'],
+    expectedURLIncludes: joinURL(identityBaseURL, '/user/qq-binding'),
+    stubbedResources: [
+      {
+        url: 'https://fonts.googleapis.com/**',
+        contentType: 'text/css',
+        body: '/* prod-parity smoke uses system fonts for the Casdoor login page. */\n',
+      },
+      {
+        url: 'https://cdn.casbin.org/flag-icons/**',
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>\n',
+      },
+    ],
+    allowedAPIResponses: [
+      {
+        urlIncludes: '/api/v1/user/profile',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/qq-binding',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/identity',
+        statuses: [404],
+      },
+    ],
+  },
+  {
+    name: 'identity-academic-info-authenticated',
+    url: joinURL(identityBaseURL, '/user/academic-info'),
+    flow: 'identity-authenticated-refresh',
+    expectedTexts: ['学业信息', 'Academic Info'],
+    requiredTexts: ['学业信息'],
+    forbiddenTexts: ['我的评价', '我的点赞', '我的收藏', 'My Reviews', 'My Votes', 'My Favorites'],
+    expectedURLIncludes: joinURL(identityBaseURL, '/user/academic-info'),
+    stubbedResources: [
+      {
+        url: 'https://fonts.googleapis.com/**',
+        contentType: 'text/css',
+        body: '/* prod-parity smoke uses system fonts for the Casdoor login page. */\n',
+      },
+      {
+        url: 'https://cdn.casbin.org/flag-icons/**',
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>\n',
+      },
+    ],
+    allowedAPIResponses: [
+      {
+        urlIncludes: '/api/v1/user/profile',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/qq-binding',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/identity',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/profile/academic-info',
+        statuses: [403, 404],
+      },
+    ],
+  },
+  {
     name: 'identity-main-route-redirect',
     url: joinURL(identityBaseURL, '/courses'),
     expectedTexts: ['评课社区@BUAA', 'Browse Courses'],
@@ -744,7 +923,7 @@ async function runCheckFlow(page, check, viewportVariant) {
     return runIdentityPortalShellFlow(page, viewportVariant);
   }
   if (check.flow === 'identity-authenticated-refresh') {
-    return runIdentityAuthenticatedRefreshFlow(page, check);
+    return runIdentityAuthenticatedRefreshFlow(page, check, viewportVariant);
   }
   return null;
 }
@@ -788,7 +967,7 @@ async function runWebLoginSessionRefreshFlow(page) {
 }
 
 async function runIdentityPortalShellFlow(page, viewportVariant) {
-  const header = page.locator('header');
+  const header = appShellHeader(page);
   if (viewportVariant.isMobile) {
     await header.locator('[aria-controls="app-mobile-nav"]').click({ timeout: timeoutMs });
     await page.locator('#app-mobile-nav').waitFor({ state: 'visible', timeout: timeoutMs });
@@ -829,7 +1008,7 @@ async function runIdentityPortalShellFlow(page, viewportVariant) {
   };
 }
 
-async function runIdentityAuthenticatedRefreshFlow(page, check) {
+async function runIdentityAuthenticatedRefreshFlow(page, check, viewportVariant) {
   const targetPath = new URL(check.url).pathname;
   await page.waitForURL((url) => url.pathname === '/login', { timeout: timeoutMs });
   await page.getByRole('button', { name: /SSO|统一身份/i }).click({ timeout: timeoutMs });
@@ -849,6 +1028,7 @@ async function runIdentityAuthenticatedRefreshFlow(page, check) {
   if (beforeRefresh.status !== 200) {
     throw new Error(`auth/me before identity refresh returned ${beforeRefresh.status}`);
   }
+  const beforeHeader = await expectIdentityAuthenticatedHeader(page, viewportVariant);
 
   await page.reload({ waitUntil: 'domcontentloaded', timeout: timeoutMs });
   await page.waitForURL((url) => url.href.startsWith(joinURL(identityBaseURL, targetPath)), {
@@ -860,13 +1040,51 @@ async function runIdentityAuthenticatedRefreshFlow(page, check) {
   if (afterRefresh.status !== 200) {
     throw new Error(`auth/me after identity refresh returned ${afterRefresh.status}`);
   }
+  const afterHeader = await expectIdentityAuthenticatedHeader(page, viewportVariant);
 
   return {
     matchedText: `identity ${targetPath} authenticated session survived refresh`,
     username: casdoorLoginUsername,
     beforeRefreshStatus: beforeRefresh.status,
     afterRefreshStatus: afterRefresh.status,
+    beforeHeader,
+    afterHeader,
   };
+}
+
+async function expectIdentityAuthenticatedHeader(page, viewportVariant) {
+  await runIdentityPortalShellFlow(page, viewportVariant);
+
+  const header = appShellHeader(page);
+  const notificationBellCount = await header.locator('.notification-bell').count();
+  if (notificationBellCount > 0) {
+    throw new Error('identity header should not render the main-site notification bell');
+  }
+
+  const userMenuButton = header.getByRole('button', { name: /用户|User/i });
+  await userMenuButton.waitFor({ state: 'visible', timeout: timeoutMs });
+  await userMenuButton.click({ timeout: timeoutMs });
+  const userMenu = page.getByRole('menu', { name: /用户|User/i });
+  await userMenu.waitFor({ state: 'visible', timeout: timeoutMs });
+  const menuText = await userMenu.innerText({ timeout: timeoutMs });
+
+  if (!/身份中心|Identity Hub/i.test(menuText)) {
+    throw new Error(`identity user menu does not expose identity home: ${menuText}`);
+  }
+  if (/个人中心|Profile/i.test(menuText)) {
+    throw new Error(`identity user menu exposes main-site profile entry: ${menuText}`);
+  }
+
+  await page.keyboard.press('Escape').catch(() => undefined);
+
+  return {
+    matchedText: 'identity authenticated header actions',
+    notificationBellCount,
+  };
+}
+
+function appShellHeader(page) {
+  return page.getByRole('banner').first();
 }
 
 async function authMe(page) {
@@ -880,7 +1098,7 @@ async function authMe(page) {
 }
 
 async function expectAuthenticatedHeader(page) {
-  const header = page.locator('header');
+  const header = appShellHeader(page);
   const headerText = await header.innerText({ timeout: timeoutMs });
   if (/登录|Login/i.test(headerText)) {
     throw new Error(`header still shows login after authentication: ${headerText}`);
