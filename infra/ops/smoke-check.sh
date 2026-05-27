@@ -15,6 +15,14 @@ CHECK_ADMIN="${CHECK_ADMIN:-true}"
 SMOKE_RETRIES="${SMOKE_RETRIES:-30}"
 SMOKE_SLEEP_SECONDS="${SMOKE_SLEEP_SECONDS:-2}"
 
+curl() {
+  if [[ "${SMOKE_CHECK_CURL_INSECURE:-false}" == "true" ]]; then
+    command curl --insecure "$@"
+    return
+  fi
+  command curl "$@"
+}
+
 PASS=0
 FAIL=0
 WARN=0

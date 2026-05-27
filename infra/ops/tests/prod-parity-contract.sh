@@ -8,6 +8,8 @@ INIT_SHARED_PG="${REPO_ROOT}/infra/ops/init-shared-postgres.sh"
 PARITY_UP="${REPO_ROOT}/infra/ops/prod-parity-up.sh"
 PARITY_DOWN="${REPO_ROOT}/infra/ops/prod-parity-down.sh"
 PARITY_SMOKE="${REPO_ROOT}/infra/ops/prod-parity-smoke.sh"
+SMOKE_CHECK="${REPO_ROOT}/infra/ops/smoke-check.sh"
+IDENTITY_PUBLIC_SMOKE="${REPO_ROOT}/infra/ops/identity-public-smoke.sh"
 PARITY_SMOKE_DATA="${REPO_ROOT}/infra/ops/prod-parity-smoke-data.sh"
 PARITY_DATASTORE_SMOKE="${REPO_ROOT}/infra/ops/prod-parity-datastore-smoke.sh"
 PARITY_BROWSER_SMOKE="${REPO_ROOT}/infra/ops/prod-parity-browser-smoke.sh"
@@ -40,11 +42,11 @@ assert_not_contains() {
   fi
 }
 
-for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${PARITY_SMOKE_DATA}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_BROWSER_SMOKE_NODE}" "${PARITY_LOCAL_INGRESS}" "${PARITY_LOCAL_INGRESS_NGINX}" "${COMMON_LIB}" "${ADMIN_INDEX_HTML}" "${WEB_NGINX}"; do
+for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${SMOKE_CHECK}" "${IDENTITY_PUBLIC_SMOKE}" "${PARITY_SMOKE_DATA}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_BROWSER_SMOKE_NODE}" "${PARITY_LOCAL_INGRESS}" "${PARITY_LOCAL_INGRESS_NGINX}" "${COMMON_LIB}" "${ADMIN_INDEX_HTML}" "${WEB_NGINX}"; do
   [[ -f "${file}" ]] || fail "missing file: ${file}"
 done
 
-bash -n "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${PARITY_SMOKE_DATA}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_LOCAL_INGRESS}"
+bash -n "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${SMOKE_CHECK}" "${IDENTITY_PUBLIC_SMOKE}" "${PARITY_SMOKE_DATA}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_LOCAL_INGRESS}"
 
 for default_path in ".env" "./.env" ".env.generated" "./.env.generated" ".env.generated.secrets" "./.env.generated.secrets" ".deploy" "./.deploy"; do
   case "${default_path}" in
@@ -182,6 +184,8 @@ assert_contains "${PARITY_DOWN}" 'repo_default_path_matches'
 assert_contains "${PARITY_SMOKE}" 'prod-parity-datastore-smoke.sh'
 assert_contains "${PARITY_SMOKE}" 'prod-parity-smoke-data.sh'
 assert_contains "${PARITY_SMOKE}" 'identity-public-smoke.sh'
+assert_contains "${PARITY_SMOKE}" 'SMOKE_CHECK_CURL_INSECURE=true'
+assert_contains "${PARITY_SMOKE}" 'IDENTITY_PUBLIC_SMOKE_CURL_INSECURE=true'
 assert_contains "${PARITY_SMOKE}" 'parity_default_path'
 assert_contains "${PARITY_SMOKE}" 'repo_default_path_matches'
 assert_contains "${PARITY_SMOKE}" 'IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=true'
@@ -189,6 +193,8 @@ assert_contains "${PARITY_SMOKE}" 'openfga-resource-access-smoke.sh'
 assert_contains "${PARITY_SMOKE}" 'prod-parity-browser-smoke.sh'
 assert_contains "${PARITY_SMOKE}" 'observability-smoke-check.sh'
 assert_contains "${PARITY_SMOKE}" 'OBS_SMOKE_STRICT=false'
+assert_contains "${SMOKE_CHECK}" 'SMOKE_CHECK_CURL_INSECURE'
+assert_contains "${IDENTITY_PUBLIC_SMOKE}" 'IDENTITY_PUBLIC_SMOKE_CURL_INSECURE'
 
 assert_contains "${PARITY_DATASTORE_SMOKE}" 'datastore-smoke-evidence\.json'
 assert_contains "${PARITY_DATASTORE_SMOKE}" 'repo_default_path_matches'

@@ -35,6 +35,7 @@ export WEB_BASE_URL="${WEB_PUBLIC_URL:-https://stuhelper.com}"
 export ADMIN_BASE_URL="${WEB_PUBLIC_URL:-https://stuhelper.com}"
 export CHECK_ADMIN=true
 export APP_ENV=production
+export SMOKE_CHECK_CURL_INSECURE=true
 
 "${SCRIPT_DIR}/prod-parity-datastore-smoke.sh"
 "${SCRIPT_DIR}/prod-parity-smoke-data.sh"
@@ -42,6 +43,7 @@ export APP_ENV=production
 "${SCRIPT_DIR}/smoke-check.sh"
 
 IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=true \
+IDENTITY_PUBLIC_SMOKE_CURL_INSECURE=true \
 IDENTITY_PUBLIC_SMOKE_EVIDENCE_FILE="${PARITY_DIR}/identity-public-smoke-evidence.json" \
 "${SCRIPT_DIR}/identity-public-smoke.sh"
 

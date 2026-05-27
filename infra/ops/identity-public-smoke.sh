@@ -84,6 +84,7 @@ preserved_smoke_resource_access_action="${IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_
 preserved_smoke_resource_access_expect_allowed="${IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_EXPECT_ALLOWED-__STUHELPER_UNSET__}"
 preserved_allow_local_targets="${IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS-__STUHELPER_UNSET__}"
 preserved_casdoor_upstream_enabled="${IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED-__STUHELPER_UNSET__}"
+preserved_curl_insecure="${IDENTITY_PUBLIC_SMOKE_CURL_INSECURE-__STUHELPER_UNSET__}"
 
 load_env
 
@@ -104,6 +105,15 @@ if [[ "${preserved_smoke_resource_access_action}" != "__STUHELPER_UNSET__" ]]; t
 if [[ "${preserved_smoke_resource_access_expect_allowed}" != "__STUHELPER_UNSET__" ]]; then IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_EXPECT_ALLOWED="${preserved_smoke_resource_access_expect_allowed}"; fi
 if [[ "${preserved_allow_local_targets}" != "__STUHELPER_UNSET__" ]]; then IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS="${preserved_allow_local_targets}"; fi
 if [[ "${preserved_casdoor_upstream_enabled}" != "__STUHELPER_UNSET__" ]]; then IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED="${preserved_casdoor_upstream_enabled}"; fi
+if [[ "${preserved_curl_insecure}" != "__STUHELPER_UNSET__" ]]; then IDENTITY_PUBLIC_SMOKE_CURL_INSECURE="${preserved_curl_insecure}"; fi
+
+curl() {
+  if [[ "${IDENTITY_PUBLIC_SMOKE_CURL_INSECURE:-false}" == "true" ]]; then
+    command curl --insecure "$@"
+    return
+  fi
+  command curl "$@"
+}
 
 trim_trailing_slash() {
   local value="$1"
