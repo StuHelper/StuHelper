@@ -59,7 +59,28 @@ func TestBuildUserPayload_IncludesAvatarWhenPresent(t *testing.T) {
 	assert.Equal(t, "alice@example.com", decoded["email"])
 }
 
-func TestBuildUserPayload_UsesCasdoorAccountSettingsURL(t *testing.T) {
+func TestBuildUserPayload_UsesPublicAccountSettingsURLWhenConfigured(t *testing.T) {
+	h := &Handler{
+		oidcIssuer:             " https://sso.example.com/ ",
+		accountSettingsBaseURL: " https://id.example.com/ ",
+	}
+
+	payload := h.buildUserPayload(
+		"user-1",
+		"alice",
+		"Alice",
+		"",
+		nil,
+		[]string{"user"},
+		[]capability.Grant{},
+	)
+
+	assert.Equal(t, "https://id.example.com/account", payload.AccountSettingsURL)
+	assert.NotContains(t, payload.AccountSettingsURL, "sso.example.com")
+	assert.NotContains(t, payload.AccountSettingsURL, "/ui/v2/login/password/change")
+}
+
+func TestBuildUserPayload_FallsBackToCasdoorIssuerForAccountSettingsURL(t *testing.T) {
 	h := &Handler{oidcIssuer: " http://localhost:8085/ "}
 
 	payload := h.buildUserPayload(

@@ -10,9 +10,11 @@ export default {
     identityHome: {
         eyebrow: "StuHelper ID",
         title: "身份中心",
-        subtitle: "集中管理你的 StuHelper 账号资料、认证状态、第三方授权和开发者应用。",
+        subtitle:
+            "集中管理你的 StuHelper 账号资料、认证状态、第三方授权和开发者应用。",
         sectionsLabel: "身份中心入口",
         open: "打开",
+        accountSecurity: "账号安全",
         authorizedApps: {
             title: "授权应用",
             description: "查看第三方应用的授权范围、最近披露记录并撤销授权。",
@@ -39,7 +41,8 @@ export default {
         },
         developerApps: {
             title: "开发者应用",
-            description: "注册应用、申请 scope、维护回调地址并查看应用审计摘要。",
+            description:
+                "注册应用、申请 scope、维护回调地址并查看应用审计摘要。",
         },
     },
     reviews: {
@@ -58,7 +61,8 @@ export default {
     },
     authorizedApps: {
         pageTitle: "授权应用",
-        pageSubtitle: "查看第三方应用已经获得的授权范围、最近披露记录，并按应用或单项 scope 撤销授权。",
+        pageSubtitle:
+            "查看第三方应用已经获得的授权范围、最近披露记录，并按应用或单项 scope 撤销授权。",
         backToIdentity: "返回身份中心",
         empty: "暂无授权应用",
         emptyDesc: "完成第三方应用授权后会显示在这里",
@@ -90,9 +94,11 @@ export default {
         revokeSuccess: "授权已撤销",
         revokeFailed: "撤销授权失败，请重试",
         revokeAppDialogTitle: "撤销应用授权",
-        revokeAppDialogDescription: "将撤销 {app} 的全部授权。该应用需要重新发起授权流程后才能再次访问你的信息。",
+        revokeAppDialogDescription:
+            "将撤销 {app} 的全部授权。该应用需要重新发起授权流程后才能再次访问你的信息。",
         revokeScopeDialogTitle: "撤销 {scope}",
-        revokeScopeDialogDescription: "将撤销 {app} 的“{scope}”权限。该应用再次使用该权限前需要重新获得你的授权。",
+        revokeScopeDialogDescription:
+            "将撤销 {app} 的“{scope}”权限。该应用再次使用该权限前需要重新获得你的授权。",
         confirmRevoke: "确认撤销",
         revokeScopeLabel: "撤销 {scope}",
     },

@@ -62,8 +62,18 @@ func (h *Handler) buildUserPayload(
 		CapabilityGrants:   snapshot.CapabilityGrants,
 		IsPlatformAdmin:    hasRole(roles, "super_admin"),
 		CanAccessAdmin:     capability.CanAccessAdmin(snapshot.Capabilities),
-		AccountSettingsURL: buildAccountSettingsURL(h.oidcIssuer),
+		AccountSettingsURL: buildAccountSettingsURL(h.accountSettingsURLBase()),
 	}
+}
+
+func (h *Handler) accountSettingsURLBase() string {
+	if h == nil {
+		return ""
+	}
+	if strings.TrimSpace(h.accountSettingsBaseURL) != "" {
+		return h.accountSettingsBaseURL
+	}
+	return h.oidcIssuer
 }
 
 func buildAccountSettingsURL(issuer string) string {

@@ -10,36 +10,45 @@ export default {
     identityHome: {
         eyebrow: "StuHelper ID",
         title: "Identity Hub",
-        subtitle: "Manage your StuHelper profile, verification status, third-party authorizations, and developer apps.",
+        subtitle:
+            "Manage your StuHelper profile, verification status, third-party authorizations, and developer apps.",
         sectionsLabel: "Identity hub sections",
         open: "Open",
+        accountSecurity: "Account Security",
         authorizedApps: {
             title: "Authorized Apps",
-            description: "Review third-party app scopes, recent disclosures, and revoke authorizations.",
+            description:
+                "Review third-party app scopes, recent disclosures, and revoke authorizations.",
         },
         identityVerification: {
             title: "Identity Verification",
-            description: "Maintain real-name verification as the base for student verification and sensitive authorization.",
+            description:
+                "Maintain real-name verification as the base for student verification and sensitive authorization.",
         },
         studentVerification: {
             title: "Student Verification",
-            description: "Connect your school identity and academic status for campus and course-review capabilities.",
+            description:
+                "Connect your school identity and academic status for campus and course-review capabilities.",
         },
         phoneBinding: {
             title: "Phone Binding",
-            description: "Maintain phone binding for account security and authorized profile disclosure.",
+            description:
+                "Maintain phone binding for account security and authorized profile disclosure.",
         },
         qqBinding: {
             title: "QQ Binding",
-            description: "Connect bot-side account recognition and group admission verification.",
+            description:
+                "Connect bot-side account recognition and group admission verification.",
         },
         academicInfo: {
             title: "Academic Info",
-            description: "Review verified school, department, major, and academic-status details.",
+            description:
+                "Review verified school, department, major, and academic-status details.",
         },
         developerApps: {
             title: "Developer Apps",
-            description: "Register apps, request scopes, maintain redirect URIs, and review app audit summaries.",
+            description:
+                "Register apps, request scopes, maintain redirect URIs, and review app audit summaries.",
         },
     },
     reviews: {
@@ -58,7 +67,8 @@ export default {
     },
     authorizedApps: {
         pageTitle: "Authorized Apps",
-        pageSubtitle: "Review third-party app scopes, recent disclosures, and revoke access by app or individual scope.",
+        pageSubtitle:
+            "Review third-party app scopes, recent disclosures, and revoke access by app or individual scope.",
         backToIdentity: "Back to Identity Hub",
         empty: "No authorized apps",
         emptyDesc: "Third-party app authorizations will appear here",
@@ -71,7 +81,8 @@ export default {
         neverUsed: "Last used: no successful disclosure yet",
         activityTitle: "Authorization Activity",
         activityEmpty: "No authorization activity yet",
-        activityLoadFailed: "Failed to load authorization activity. Please retry",
+        activityLoadFailed:
+            "Failed to load authorization activity. Please retry",
         activityScopes: "Scopes: {scopes}",
         activityEndpoint: "Endpoint: {endpoint}",
         activityResult: "Result: {result}",
@@ -90,9 +101,11 @@ export default {
         revokeSuccess: "Authorization revoked",
         revokeFailed: "Failed to revoke authorization. Please retry",
         revokeAppDialogTitle: "Revoke application authorization",
-        revokeAppDialogDescription: "This revokes all authorizations for {app}. The application must start authorization again before it can access your information.",
+        revokeAppDialogDescription:
+            "This revokes all authorizations for {app}. The application must start authorization again before it can access your information.",
         revokeScopeDialogTitle: "Revoke {scope}",
-        revokeScopeDialogDescription: "This revokes the \"{scope}\" permission for {app}. The application must obtain your authorization again before using it.",
+        revokeScopeDialogDescription:
+            'This revokes the "{scope}" permission for {app}. The application must obtain your authorization again before using it.',
         confirmRevoke: "Confirm revoke",
         revokeScopeLabel: "Revoke {scope}",
     },
@@ -175,7 +188,8 @@ export default {
             invalidCode: "Invalid verification code",
             alreadyBound: "Phone number already bound",
             tooManyRequests: "Too many requests, please try again later",
-            tooManyAttempts: "Too many failed attempts, please request a new code",
+            tooManyAttempts:
+                "Too many failed attempts, please request a new code",
             serviceUnavailable:
                 "Phone binding is not configured, so verification codes cannot be sent or checked right now",
         },
@@ -189,14 +203,17 @@ export default {
             creating: "Creating...",
             codeCreated: "Binding code created",
             alreadyBound: "This account is already bound to a QQ number",
-            instruction: "Send the following command to the bot in a private chat",
+            instruction:
+                "Send the following command to the bot in a private chat",
             expiresAt: "Expires At",
             qqNumber: "QQ Number",
             nickname: "QQ Nickname",
             emptyNickname: "Not Reported",
             boundAt: "Bound At",
-            verifiedHint: "This account has completed student verification and will be auto-approved in protected groups.",
-            pendingHint: "After binding QQ, you still need to complete student verification in StuHelper.",
+            verifiedHint:
+                "This account has completed student verification and will be auto-approved in protected groups.",
+            pendingHint:
+                "After binding QQ, you still need to complete student verification in StuHelper.",
         },
         academic: {
             title: "Academic Info",

@@ -19,23 +19,25 @@ import (
 
 // Handler 认证处理器
 type Handler struct {
-	svc                  *Service
-	oidcClient           *oidc.Client
-	tokenService         *token.Service
-	tokenConfig          config.TokenConfig
-	redisClient          *redis.Client
-	refreshLimiter       *middleware.RedisRateLimiter
-	authFailureGuard     *AuthFailureGuard
-	allowedRedirectHosts map[string]struct{}
-	defaultRedirectURL   string
-	oidcIssuer           string
+	svc                    *Service
+	oidcClient             *oidc.Client
+	tokenService           *token.Service
+	tokenConfig            config.TokenConfig
+	redisClient            *redis.Client
+	refreshLimiter         *middleware.RedisRateLimiter
+	authFailureGuard       *AuthFailureGuard
+	allowedRedirectHosts   map[string]struct{}
+	defaultRedirectURL     string
+	oidcIssuer             string
+	accountSettingsBaseURL string
 }
 
 type HandlerConfig struct {
-	Token               config.TokenConfig
-	CORSOrigins         []string
-	OIDCIssuer          string
-	ProviderTokenCipher pii.EncryptDecryptor
+	Token                  config.TokenConfig
+	CORSOrigins            []string
+	OIDCIssuer             string
+	AccountSettingsBaseURL string
+	ProviderTokenCipher    pii.EncryptDecryptor
 }
 
 // NewHandler 创建认证处理器
@@ -53,16 +55,17 @@ func NewHandler(
 	defaultRedirect := buildDefaultRedirectURL(cfg.CORSOrigins)
 
 	return &Handler{
-		svc:                  svc,
-		oidcClient:           oidcClient,
-		tokenService:         tokenService,
-		tokenConfig:          cfg.Token,
-		redisClient:          rdb,
-		refreshLimiter:       middleware.NewRedisRateLimiter(rdb, 10, time.Minute),
-		authFailureGuard:     NewAuthFailureGuard(rdb),
-		allowedRedirectHosts: redirectHosts,
-		defaultRedirectURL:   defaultRedirect,
-		oidcIssuer:           cfg.OIDCIssuer,
+		svc:                    svc,
+		oidcClient:             oidcClient,
+		tokenService:           tokenService,
+		tokenConfig:            cfg.Token,
+		redisClient:            rdb,
+		refreshLimiter:         middleware.NewRedisRateLimiter(rdb, 10, time.Minute),
+		authFailureGuard:       NewAuthFailureGuard(rdb),
+		allowedRedirectHosts:   redirectHosts,
+		defaultRedirectURL:     defaultRedirect,
+		oidcIssuer:             cfg.OIDCIssuer,
+		accountSettingsBaseURL: cfg.AccountSettingsBaseURL,
 	}
 }
 

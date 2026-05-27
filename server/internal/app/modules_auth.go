@@ -28,10 +28,11 @@ func (rt *Runtime) initAuthModule(
 
 	authHandler := auth.NewHandler(
 		auth.HandlerConfig{
-			Token:               rt.cfg.Token,
-			CORSOrigins:         rt.authRedirectOrigins(),
-			OIDCIssuer:          rt.cfg.Casdoor.Issuer,
-			ProviderTokenCipher: piiCipher,
+			Token:                  rt.cfg.Token,
+			CORSOrigins:            rt.authRedirectOrigins(),
+			OIDCIssuer:             rt.cfg.Casdoor.Issuer,
+			AccountSettingsBaseURL: rt.cfg.Casdoor.PublicAuthBaseURL,
+			ProviderTokenCipher:    piiCipher,
 		},
 		rt.tokenService,
 		rt.redisClient.GetClient(),

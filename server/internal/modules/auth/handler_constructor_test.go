@@ -24,9 +24,10 @@ func newTokenServiceForHandlerCtor(t *testing.T) (*token.Service, *redisfixture.
 func TestNewHandler_WiresDependencies(t *testing.T) {
 	tokenSvc, fixture := newTokenServiceForHandlerCtor(t)
 	cfg := HandlerConfig{
-		CORSOrigins: []string{"https://web.example.com", "https://admin.example.com"},
-		Token:       config.TokenConfig{AccessTokenTTL: 300, RefreshTokenTTL: 600, CookieSecure: true, CookieDomain: ".example.com"},
-		OIDCIssuer:  "https://sso.example.com",
+		CORSOrigins:            []string{"https://web.example.com", "https://admin.example.com"},
+		Token:                  config.TokenConfig{AccessTokenTTL: 300, RefreshTokenTTL: 600, CookieSecure: true, CookieDomain: ".example.com"},
+		OIDCIssuer:             "https://sso.example.com",
+		AccountSettingsBaseURL: "https://id.example.com",
 	}
 	client := oidc.NewStubClient("https://sso.example.com/authorize")
 
@@ -42,4 +43,5 @@ func TestNewHandler_WiresDependencies(t *testing.T) {
 	assert.NotNil(t, h.refreshLimiter)
 	assert.NotNil(t, h.authFailureGuard)
 	assert.Equal(t, "https://sso.example.com", h.oidcIssuer)
+	assert.Equal(t, "https://id.example.com", h.accountSettingsBaseURL)
 }
