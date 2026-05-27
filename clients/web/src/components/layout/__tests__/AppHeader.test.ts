@@ -154,6 +154,7 @@ describe('AppHeader', () => {
     expect(wrapper.find('[data-test="notification-bell"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="app-user-menu"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('routes.identityHome')
+    expect(wrapper.text()).toContain('routes.identityConnect')
     expect(wrapper.text()).toContain('routes.userAuthorizedApps')
     expect(wrapper.text()).toContain('routes.openPlatformDeveloperApps')
   })
@@ -185,6 +186,7 @@ describe('AppHeader', () => {
 
     expect(wrapper.text()).toContain('routes.openPlatformDeveloperApps')
     expect(wrapper.text()).toContain('routes.userAuthorizedApps')
+    expect(wrapper.text()).toContain('routes.identityConnect')
     expect(wrapper.text()).toContain('routes.identityHome')
     expect(wrapper.text()).not.toContain('routes.identityVerification')
     expect(wrapper.text()).not.toContain('nav.courses')

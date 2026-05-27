@@ -45,6 +45,11 @@ export default {
             description:
                 "Review verified school, department, major, and academic-status details.",
         },
+        connect: {
+            title: "StuHelper ID Connect",
+            description:
+                "Review the public OIDC / OAuth issuer, discovery, UserInfo, JWKS, and token lifecycle endpoints.",
+        },
         developerApps: {
             title: "Developer Apps",
             description:

@@ -70,7 +70,7 @@ const checks = [
     url: joinURL(identityBaseURL, '/developers/apps'),
     flow: 'identity-portal-shell',
     expectedTexts: ['登录', 'Login'],
-    requiredTexts: ['身份中心', '授权应用', '开发者应用'],
+    requiredTexts: ['身份中心', 'Connect', '授权应用', '开发者应用'],
     forbiddenTexts: ['课程', '教师', '评课'],
     expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/developers/apps'],
   },
@@ -79,16 +79,39 @@ const checks = [
     url: joinURL(identityBaseURL, '/'),
     flow: 'identity-portal-shell',
     expectedTexts: ['登录', 'Login'],
-    requiredTexts: ['身份中心', '授权应用', '开发者应用'],
+    requiredTexts: ['身份中心', 'Connect', '授权应用', '开发者应用'],
     forbiddenTexts: ['课程', '教师', '评课'],
     expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/identity'],
+  },
+  {
+    name: 'identity-connect-public',
+    url: joinURL(identityBaseURL, '/connect'),
+    expectedTexts: ['StuHelper ID Connect'],
+    requiredTexts: [
+      joinURL(identityBaseURL, '/.well-known/openid-configuration'),
+      joinURL(identityBaseURL, '/oauth2/authorize'),
+      joinURL(identityBaseURL, '/oauth2/token'),
+      joinURL(identityBaseURL, '/oidc/userinfo'),
+    ],
+    forbiddenTexts: ['课程', '教师', '评课'],
+    expectedURLIncludes: joinURL(identityBaseURL, '/connect'),
+  },
+  {
+    name: 'web-identity-connect-redirect',
+    url: joinURL(webBaseURL, '/connect'),
+    expectedTexts: ['StuHelper ID Connect'],
+    requiredTexts: [
+      joinURL(identityBaseURL, '/.well-known/openid-configuration'),
+      joinURL(identityBaseURL, '/oauth2/token'),
+    ],
+    expectedURLIncludes: joinURL(identityBaseURL, '/connect'),
   },
   {
     name: 'identity-home-authenticated',
     url: joinURL(identityBaseURL, '/identity'),
     flow: 'identity-authenticated-refresh',
     expectedTexts: ['身份中心', 'Identity Hub'],
-    requiredTexts: ['授权应用', '开发者应用'],
+    requiredTexts: ['Connect', '授权应用', '开发者应用'],
     expectedURLIncludes: joinURL(identityBaseURL, '/identity'),
     stubbedResources: [
       {
@@ -1017,7 +1040,7 @@ async function runIdentityPortalShellFlow(page, viewportVariant) {
   }
 
   const headerText = await header.innerText({ timeout: timeoutMs });
-  const requiredLabels = ['身份中心', '授权应用', '开发者应用'];
+  const requiredLabels = ['身份中心', 'Connect', '授权应用', '开发者应用'];
   const missingLabels = requiredLabels.filter((label) => !headerText.includes(label));
   if (missingLabels.length > 0) {
     throw new Error(`identity header missing labels: ${missingLabels.join(', ')}`);
@@ -1032,7 +1055,7 @@ async function runIdentityPortalShellFlow(page, viewportVariant) {
   const linkPaths = await header.locator('a[href]').evaluateAll((links) =>
     links.map((link) => new URL(link.href).pathname),
   );
-  const requiredPaths = ['/identity', '/user/authorized-apps', '/developers/apps'];
+  const requiredPaths = ['/identity', '/connect', '/user/authorized-apps', '/developers/apps'];
   const missingPaths = requiredPaths.filter((path) => !linkPaths.includes(path));
   if (missingPaths.length > 0) {
     throw new Error(`identity header missing links: ${missingPaths.join(', ')}`);

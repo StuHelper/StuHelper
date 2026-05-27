@@ -185,6 +185,17 @@ const routes: RouteRecordRaw[] = [
         },
     },
     {
+        path: "/connect",
+        name: "identity-connect",
+        component: lazyLoad(
+            () => import("@/modules/open-platform/views/ConnectPage.vue"),
+        ),
+        meta: {
+            titleKey: "routes.identityConnect",
+            identityPortal: true,
+        },
+    },
+    {
         path: "/developers/apps",
         name: "open-platform-developer-apps",
         component: lazyLoad(

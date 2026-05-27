@@ -55,6 +55,7 @@ import {
   FileText,
   GraduationCap,
   KeyRound,
+  Network,
   Phone,
   ShieldCheck,
   UserRoundCheck,
@@ -107,6 +108,12 @@ const portalItems = computed<PortalItem[]>(() => [
     icon: markRaw(FileText),
     title: t('user.identityHome.academicInfo.title'),
     description: t('user.identityHome.academicInfo.description'),
+  },
+  {
+    to: '/connect',
+    icon: markRaw(Network),
+    title: t('user.identityHome.connect.title'),
+    description: t('user.identityHome.connect.description'),
   },
   {
     to: '/developers/apps',

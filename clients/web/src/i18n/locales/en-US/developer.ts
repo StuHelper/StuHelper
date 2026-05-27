@@ -2,6 +2,13 @@
  * Developer portal text - English
  */
 export default {
+  connect: {
+    eyebrow: 'StuHelper ID',
+    title: 'StuHelper ID Connect',
+    subtitle: 'OIDC / OAuth entrypoints for first-party and third-party apps. The public issuer is id.stuhelper.com; Casdoor stays behind it as the upstream login source.',
+    backToIdentity: 'Back to Identity Hub',
+    developerApps: 'Developer Apps',
+  },
   apps: {
     eyebrow: 'Open Platform',
     title: 'Developer Apps',

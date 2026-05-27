@@ -322,14 +322,22 @@ describe("style entrypoint", () => {
 
         expect(routerSource).toContain('path: "/identity"');
         expect(routerSource).toContain('name: "identity-home"');
+        expect(routerSource).toContain('path: "/connect"');
+        expect(routerSource).toContain('name: "identity-connect"');
         expect(routerSource).toMatch(
             /path:\s*"\/identity"[\s\S]*meta:\s*\{[\s\S]*titleKey:\s*"routes\.identityHome"[\s\S]*requiresAuth:\s*true[\s\S]*identityPortal:\s*true[\s\S]*\}/,
+        );
+        expect(routerSource).toMatch(
+            /path:\s*"\/connect"[\s\S]*meta:\s*\{[\s\S]*titleKey:\s*"routes\.identityConnect"[\s\S]*identityPortal:\s*true[\s\S]*\}/,
         );
         expect(headerSource).toContain(
             "const logoRoute = computed(() => (isIdentityPortalHost.value ? '/identity' : '/'))",
         );
         expect(headerSource).toContain(
             "{ to: '/identity', label: t('routes.identityHome')",
+        );
+        expect(headerSource).toContain(
+            "{ to: '/connect', label: t('routes.identityConnect')",
         );
         expect(routerSource).toContain(
             'if (to.path === "/") {\n        return { path: "/identity", replace: true }',

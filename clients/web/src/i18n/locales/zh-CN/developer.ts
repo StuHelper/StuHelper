@@ -2,6 +2,13 @@
  * 开发者门户文本 - 中文
  */
 export default {
+  connect: {
+    eyebrow: 'StuHelper ID',
+    title: 'StuHelper ID Connect',
+    subtitle: '面向一方和第三方应用的 OIDC / OAuth 入口。对外 issuer 固定为 id.stuhelper.com，Casdoor 只作为后端上游登录源。',
+    backToIdentity: '返回身份中心',
+    developerApps: '开发者应用',
+  },
   apps: {
     eyebrow: 'Open Platform',
     title: '开发者应用',

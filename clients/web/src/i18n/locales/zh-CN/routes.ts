@@ -7,6 +7,7 @@ export default {
   openPlatformConsent: '授权确认',
   openPlatformProfileCompletion: '资料补全',
   identityHome: '身份中心',
+  identityConnect: 'Connect',
   openPlatformDeveloperApps: '开发者应用',
   home: '首页',
   hub: 'StuHelper',

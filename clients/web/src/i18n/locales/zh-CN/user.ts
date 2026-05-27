@@ -39,6 +39,11 @@ export default {
             title: "学业信息",
             description: "查看已验证的学校、院系、专业和学籍资料。",
         },
+        connect: {
+            title: "StuHelper ID Connect",
+            description:
+                "查看对外 OIDC / OAuth issuer、发现文档、UserInfo、JWKS 和 token 生命周期端点。",
+        },
         developerApps: {
             title: "开发者应用",
             description:
