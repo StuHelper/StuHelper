@@ -28,7 +28,7 @@ services:
     - ${GENERATED_ENV_FILE_PATH:-.env.generated}
     - ${GENERATED_SECRET_ENV_FILE_PATH:-.env.prod.generated.secrets}
     environment:
-      APP_ENV: production
+      APP_ENV: ${APP_ENV:-production}
       LOG_FORMAT: json
       DATABASE_URL: postgresql://stuhelper_app:${STUHELPER_APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=${DB_SSL_MODE:-verify-full}&sslrootcert=/tls/ca.crt
       DB_SSL_ROOT_CERT: /tls/ca.crt
@@ -57,6 +57,7 @@ services:
     - "stuhelper.com:host-gateway"
     - "id.stuhelper.com:host-gateway"
     - "sso.stuhelper.com:host-gateway"
+    - "host.docker.internal:host-gateway"
     ports:
     - "127.0.0.1:${BACKEND_EXTERNAL_PORT:-18080}:8080"
     depends_on:

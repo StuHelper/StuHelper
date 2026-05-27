@@ -105,7 +105,7 @@ build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 ensure_file_value "${ENV_FILE}" "STACK_NAME" "stuhelper-prod-parity"
 ensure_file_value "${ENV_FILE}" "COMPOSE_PROJECT_NAME" "stuhelper-prod-parity"
-ensure_file_value "${ENV_FILE}" "APP_ENV" "production"
+ensure_file_value "${ENV_FILE}" "APP_ENV" "prod-parity"
 ensure_file_value "${ENV_FILE}" "LOG_LEVEL" "info"
 ensure_file_value "${ENV_FILE}" "LOG_FORMAT" "json"
 ensure_file_value "${ENV_FILE}" "LOG_OUTPUT" "stdout"

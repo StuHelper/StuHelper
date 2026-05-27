@@ -184,7 +184,7 @@ fi
 load_env
 
 ensure_prod_default "STACK_NAME" "${STACK_NAME:-}" "stuhelper-prod" "stuhelper-dev" "stuhelper"
-ensure_prod_default "APP_ENV" "${APP_ENV:-}" "production" "development"
+ensure_prod_default "APP_ENV" "${APP_ENV:-}" "production" "development" "prod-parity"
 ensure_value "LOG_LEVEL" "${LOG_LEVEL:-}" "info"
 ensure_prod_default "LOG_FORMAT" "${LOG_FORMAT:-}" "json" "console"
 ensure_value "LOG_OUTPUT" "${LOG_OUTPUT:-}" "stdout"

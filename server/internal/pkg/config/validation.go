@@ -10,14 +10,16 @@ import (
 func (c *Config) validate(parseErrs []string) error {
 	var errs []string
 
+	productionLike := IsProductionLikeEnv(c.App.Env)
+
 	const hmacMinLen = 32
 	switch {
 	case c.App.HMACSecret == "":
-		if c.App.Env == "production" {
+		if productionLike {
 			errs = append(errs, "HMAC_SECRET is required in production")
 		}
 	case len(c.App.HMACSecret) < hmacMinLen:
-		if c.App.Env == "production" {
+		if productionLike {
 			errs = append(errs, fmt.Sprintf("HMAC_SECRET must be at least %d characters in production (got %d)", hmacMinLen, len(c.App.HMACSecret)))
 		} else {
 			fmt.Fprintf(os.Stderr, "WARNING: HMAC_SECRET is shorter than %d characters (%d), consider using a stronger secret\n", hmacMinLen, len(c.App.HMACSecret))
@@ -106,11 +108,11 @@ func (c *Config) validate(parseErrs []string) error {
 		}
 	}
 
-	if c.App.Env == "production" {
+	if productionLike {
 		if c.Database.URL == "" {
 			errs = append(errs, "DATABASE_URL is required in production")
 		}
-		if !c.Token.CookieSecure {
+		if c.App.Env == EnvProduction && !c.Token.CookieSecure {
 			errs = append(errs, "TOKEN_COOKIE_SECURE must be true in production")
 		}
 		if len(c.App.TrustedProxies) == 0 {
@@ -175,8 +177,8 @@ func (c *Config) validate(parseErrs []string) error {
 		errs = append(errs, parseErrs...)
 	}
 
-	if c.App.Env != "production" && c.App.Env != "development" && !c.Token.CookieSecure {
-		errs = append(errs, "TOKEN_COOKIE_SECURE can only be false in development")
+	if c.App.Env != EnvProduction && c.App.Env != EnvDevelopment && c.App.Env != EnvProdParity && !c.Token.CookieSecure {
+		errs = append(errs, "TOKEN_COOKIE_SECURE can only be false in development or prod-parity")
 	}
 
 	// Casdoor OIDC 配置校验
@@ -201,7 +203,7 @@ func (c *Config) validate(parseErrs []string) error {
 	if c.Casdoor.Organization == "" {
 		errs = append(errs, "CASDOOR_ORGANIZATION is required")
 	}
-	errs = append(errs, validateCasdoorAdminCredentials(c.Casdoor, c.App.Env == "production")...)
+	errs = append(errs, validateCasdoorAdminCredentials(c.Casdoor, productionLike)...)
 
 	// OpenFGA 是应用运行时必需依赖，所有环境都需要完整配置。
 	if c.OpenFGA.StoreID == "" {
@@ -243,7 +245,7 @@ func (c *Config) validate(parseErrs []string) error {
 		errs = append(errs, fmt.Sprintf("REVIEW_RATE_BATCH_USER_LIMIT must be between 1 and %d (got %d)", maxRateLimit, c.RateLimit.BatchUserLimit))
 	}
 	errs = append(errs, validateOpenPlatformDisclosureRateLimits(c.OpenPlatform.DisclosureRateLimit)...)
-	errs = append(errs, validateOpenPlatformTokenProbe(c.OpenPlatform.TokenProbe, c.App.Env == "production")...)
+	errs = append(errs, validateOpenPlatformTokenProbe(c.OpenPlatform.TokenProbe, productionLike)...)
 
 	if len(errs) > 0 {
 		return fmt.Errorf("config validation failed: %s", strings.Join(errs, "; "))

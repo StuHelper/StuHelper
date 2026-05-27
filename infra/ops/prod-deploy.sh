@@ -247,6 +247,8 @@ if [[ "${ALERTMANAGER_WEBHOOK_URL:-}" == "http://alert-webhook-sink:8080/alerts"
   die "ALERTMANAGER_WEBHOOK_URL points to the local sink; set ALLOW_LOCAL_ALERT_SINK=true only for local production validation"
 fi
 
+[[ "${APP_ENV:-production}" == "production" ]] || die "APP_ENV must be production for production deploy"
+
 reject_local_value CORS_ORIGINS "${CORS_ORIGINS:-}"
 reject_local_value CASDOOR_ISSUER "${CASDOOR_ISSUER:-}"
 reject_local_value IDENTITY_ISSUER "${IDENTITY_ISSUER:-}"

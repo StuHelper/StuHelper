@@ -84,7 +84,7 @@ func (rt *Runtime) run() error {
 }
 
 func (rt *Runtime) loadDotEnv() {
-	if os.Getenv("APP_ENV") == "production" || os.Getenv("GIN_MODE") == "release" {
+	if config.IsProductionLikeEnv(os.Getenv("APP_ENV")) || os.Getenv("GIN_MODE") == "release" {
 		return
 	}
 	if err := godotenv.Load("../.env"); err != nil {
@@ -98,7 +98,7 @@ func (rt *Runtime) initConfigAndLogger() error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 	rt.cfg = cfg
-	rt.isProduction = cfg.App.Env == "production"
+	rt.isProduction = config.IsProductionLikeEnv(cfg.App.Env)
 	configureRBACAuthorizer(cfg.App.Env)
 
 	logger.Init(logger.Config{

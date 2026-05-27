@@ -69,6 +69,7 @@ assert_contains "${PARITY_COMPOSE}" 'name: \$\{EXTERNAL_DATASTORE_NETWORK:-stuhe
 assert_contains "${PARITY_COMPOSE}" 'aliases:'
 assert_contains "${PARITY_COMPOSE}" 'postgres'
 assert_not_contains "${PARITY_COMPOSE}" '^  redis:'
+assert_contains "${REPO_ROOT}/docker-compose.prod.yml" 'APP_ENV: \$\{APP_ENV:-production\}'
 
 assert_contains "${INIT_SHARED_PG}" 'STUHELPER_APP_DB_PASSWORD'
 assert_contains "${INIT_SHARED_PG}" 'OPENFGA_DB_PASSWORD'
@@ -83,6 +84,7 @@ assert_contains "${INIT_SHARED_PG}" 'casdoor_database'
 assert_contains "${PARITY_UP}" 'EXTERNAL_POSTGRES_ENABLED.*true'
 assert_contains "${PARITY_UP}" 'EXTERNAL_POSTGRES_ALLOW_PLAINTEXT.*true'
 assert_contains "${PARITY_UP}" 'EXTERNAL_DATASTORE_NETWORK.*stuhelper-prod-parity-baota-net'
+assert_contains "${PARITY_UP}" 'APP_ENV.*prod-parity'
 assert_contains "${PARITY_UP}" 'REDIS_EXTERNAL_PORT.*26379'
 assert_contains "${PARITY_UP}" 'OPENFGA_HTTP_EXTERNAL_PORT.*8081'
 assert_contains "${PARITY_UP}" 'OPENFGA_GRPC_EXTERNAL_PORT.*8082'
@@ -140,6 +142,7 @@ assert_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'proxy_pass http://127\.0\.0\.1:
 assert_contains "${REPO_ROOT}/docker-compose.prod.yml" 'stuhelper\.com:host-gateway'
 assert_contains "${REPO_ROOT}/docker-compose.prod.yml" 'id\.stuhelper\.com:host-gateway'
 assert_contains "${REPO_ROOT}/docker-compose.prod.yml" 'sso\.stuhelper\.com:host-gateway'
+assert_contains "${REPO_ROOT}/docker-compose.prod.yml" 'host\.docker\.internal:host-gateway'
 
 assert_contains "${PARITY_DOWN}" 'parity_default_path'
 assert_contains "${PARITY_DOWN}" 'repo_default_path_matches'

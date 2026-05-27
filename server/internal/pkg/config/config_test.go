@@ -214,6 +214,30 @@ func TestValidate_ProductionRequiresBotServiceToken(t *testing.T) {
 	assert.Contains(t, err.Error(), "BOT_SERVICE_TOKEN is required in production")
 }
 
+func TestValidate_ProdParityAllowsInsecureCookiesButKeepsProductionRequirements(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.App.Env = EnvProdParity
+	c.Token.CookieSecure = false
+
+	require.NoError(t, c.validate(nil))
+
+	c.Bot.ServiceToken = ""
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "BOT_SERVICE_TOKEN is required in production")
+}
+
+func TestValidate_ProductionRejectsInsecureCookies(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.Token.CookieSecure = false
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "TOKEN_COOKIE_SECURE must be true in production")
+}
+
 func TestValidate_ProductionRequiresSMSEnabled(t *testing.T) {
 	c := validProductionConfigForTest()
 	c.SMS.Enabled = false

@@ -198,7 +198,7 @@ path = Path(sys.argv[1])
 overrides = {
     "STACK_NAME": "stuhelper-prod-parity",
     "COMPOSE_PROJECT_NAME": "stuhelper-prod-parity",
-    "APP_ENV": "production",
+    "APP_ENV": "prod-parity",
     "TRAEFIK_HTTP_PORT": "8088",
     "TRAEFIK_HTTPS_PORT": "443",
     "DATABASE_URL": "postgres://stuhelper_app:prod-parity-app@postgres:5432/stuhelper?sslmode=disable",

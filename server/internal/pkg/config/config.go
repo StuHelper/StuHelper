@@ -1,5 +1,17 @@
 package config
 
+const (
+	EnvDevelopment = "development"
+	EnvProduction  = "production"
+	EnvProdParity  = "prod-parity"
+)
+
+// IsProductionLikeEnv reports whether an environment should use production-grade
+// validation and runtime behavior.
+func IsProductionLikeEnv(env string) bool {
+	return env == EnvProduction || env == EnvProdParity
+}
+
 // Config 应用配置
 type Config struct {
 	App           AppConfig
