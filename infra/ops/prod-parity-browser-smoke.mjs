@@ -188,6 +188,46 @@ const checks = [
     ],
   },
   {
+    name: 'identity-consent-missing-token-authenticated',
+    url: joinURL(identityBaseURL, '/consent'),
+    flow: 'identity-connect-error-refresh',
+    expectedTexts: ['StuHelper ID Connect'],
+    requiredTexts: ['授权请求加载失败', '返回身份中心'],
+    expectedURLIncludes: joinURL(identityBaseURL, '/consent'),
+    stubbedResources: [
+      {
+        url: 'https://fonts.googleapis.com/**',
+        contentType: 'text/css',
+        body: '/* prod-parity smoke uses system fonts for the Casdoor login page. */\n',
+      },
+      {
+        url: 'https://cdn.casbin.org/flag-icons/**',
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>\n',
+      },
+    ],
+  },
+  {
+    name: 'identity-profile-completion-missing-token-authenticated',
+    url: joinURL(identityBaseURL, '/complete-profile'),
+    flow: 'identity-connect-error-refresh',
+    expectedTexts: ['StuHelper ID Connect'],
+    requiredTexts: ['资料补全请求加载失败', '返回身份中心'],
+    expectedURLIncludes: joinURL(identityBaseURL, '/complete-profile'),
+    stubbedResources: [
+      {
+        url: 'https://fonts.googleapis.com/**',
+        contentType: 'text/css',
+        body: '/* prod-parity smoke uses system fonts for the Casdoor login page. */\n',
+      },
+      {
+        url: 'https://cdn.casbin.org/flag-icons/**',
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>\n',
+      },
+    ],
+  },
+  {
     name: 'identity-identity-verification-authenticated',
     url: joinURL(identityBaseURL, '/user/identity-verification'),
     flow: 'identity-authenticated-refresh',
@@ -925,6 +965,9 @@ async function runCheckFlow(page, check, viewportVariant) {
   if (check.flow === 'identity-authenticated-refresh') {
     return runIdentityAuthenticatedRefreshFlow(page, check, viewportVariant);
   }
+  if (check.flow === 'identity-connect-error-refresh') {
+    return runIdentityConnectErrorRefreshFlow(page, check);
+  }
   return null;
 }
 
@@ -1049,6 +1092,46 @@ async function runIdentityAuthenticatedRefreshFlow(page, check, viewportVariant)
     afterRefreshStatus: afterRefresh.status,
     beforeHeader,
     afterHeader,
+  };
+}
+
+async function runIdentityConnectErrorRefreshFlow(page, check) {
+  const targetPath = new URL(check.url).pathname;
+  await page.waitForURL((url) => url.pathname === '/login', { timeout: timeoutMs });
+  await page.getByRole('button', { name: /SSO|统一身份/i }).click({ timeout: timeoutMs });
+  await page.waitForURL((url) => url.pathname.includes('/login/oauth/authorize'), {
+    timeout: timeoutMs,
+  });
+
+  await page.getByRole('textbox', { name: /username|email|phone/i }).fill(casdoorLoginUsername);
+  await page.getByRole('textbox', { name: /password/i }).fill(casdoorLoginPassword);
+  await page.getByRole('button', { name: /sign in|登录/i }).click({ timeout: timeoutMs });
+  await page.waitForURL((url) => url.href.startsWith(joinURL(identityBaseURL, targetPath)), {
+    timeout: timeoutMs,
+  });
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
+
+  const beforeRefresh = await authMe(page);
+  if (beforeRefresh.status !== 200) {
+    throw new Error(`auth/me before identity connect refresh returned ${beforeRefresh.status}`);
+  }
+
+  await page.reload({ waitUntil: 'domcontentloaded', timeout: timeoutMs });
+  await page.waitForURL((url) => url.href.startsWith(joinURL(identityBaseURL, targetPath)), {
+    timeout: timeoutMs,
+  });
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
+
+  const afterRefresh = await authMe(page);
+  if (afterRefresh.status !== 200) {
+    throw new Error(`auth/me after identity connect refresh returned ${afterRefresh.status}`);
+  }
+
+  return {
+    matchedText: `identity ${targetPath} connect error page survived refresh`,
+    username: casdoorLoginUsername,
+    beforeRefreshStatus: beforeRefresh.status,
+    afterRefreshStatus: afterRefresh.status,
   };
 }
 

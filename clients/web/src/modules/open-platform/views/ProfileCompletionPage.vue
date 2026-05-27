@@ -16,16 +16,26 @@
           </h1>
           <p class="mt-2 mb-0 text-sm text-text-muted">{{ error }}</p>
         </div>
-        <button
-          v-ripple
-          class="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-border bg-bg-elevated text-text-primary text-sm font-medium cursor-pointer hover:bg-bg-hover disabled:opacity-50 disabled:cursor-not-allowed"
-          type="button"
-          :disabled="!token || loading"
-          @click="loadCompletion"
-        >
-          <RefreshCw class="w-4 h-4" aria-hidden="true" />
-          {{ t('common.actions.retry') }}
-        </button>
+        <div class="flex flex-col gap-3 sm:flex-row">
+          <button
+            v-if="token"
+            v-ripple
+            class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md border border-border bg-bg-elevated text-text-primary text-sm font-medium cursor-pointer hover:bg-bg-hover disabled:opacity-50 disabled:cursor-not-allowed"
+            type="button"
+            :disabled="loading"
+            @click="loadCompletion"
+          >
+            <RefreshCw class="w-4 h-4" aria-hidden="true" />
+            {{ t('common.actions.retry') }}
+          </button>
+          <router-link
+            class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md border border-transparent bg-primary text-white text-sm font-semibold no-underline hover:bg-primary-dark"
+            to="/identity"
+          >
+            <Home class="w-4 h-4" aria-hidden="true" />
+            {{ t('common.openPlatformProfileCompletion.openIdentityHome') }}
+          </router-link>
+        </div>
       </div>
 
       <div v-else-if="completion" class="p-6 sm:p-8">
@@ -34,7 +44,9 @@
             <UserCheck class="w-6 h-6" aria-hidden="true" />
           </div>
           <div class="min-w-0 flex-1">
-            <p class="m-0 text-xs font-semibold uppercase text-text-muted">StuHelper Identity</p>
+            <p class="m-0 text-xs font-semibold uppercase text-text-muted">
+              {{ t('common.openPlatformProfileCompletion.connectEyebrow') }}
+            </p>
             <h1 class="mt-2 mb-0 text-2xl font-extrabold text-text-primary leading-tight">
               {{ t('common.openPlatformProfileCompletion.title', { app: completion.app.displayName }) }}
             </h1>
@@ -133,7 +145,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { AlertTriangle, ArrowRight, ExternalLink, RefreshCw, UserCheck } from 'lucide-vue-next'
+import { AlertTriangle, ArrowRight, ExternalLink, Home, RefreshCw, UserCheck } from 'lucide-vue-next'
 import { api } from '@/api'
 import { getErrorMessage } from '@/api/errors'
 import { useAuthStore } from '@/stores/auth'

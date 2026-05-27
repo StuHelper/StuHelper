@@ -2,6 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  normalizeConfiguredHTTPOrigin,
   resolvePostLoginRedirectTarget,
   sanitizePostLoginRedirect,
 } from '../redirect'
@@ -35,5 +36,23 @@ describe('post-login redirect helpers', () => {
   it('rejects external and scheme-relative redirects', () => {
     expect(sanitizePostLoginRedirect('https://evil.example/path')).toBeUndefined()
     expect(sanitizePostLoginRedirect('//evil.example/path')).toBeUndefined()
+  })
+
+  it('keeps configured HTTP origins on HTTP pages', () => {
+    expect(
+      normalizeConfiguredHTTPOrigin('http://id.stuhelper.com', 'http://stuhelper.com'),
+    ).toBe('http://id.stuhelper.com')
+    expect(
+      normalizeConfiguredHTTPOrigin('http://stuhelper.com', 'http://id.stuhelper.com'),
+    ).toBe('http://stuhelper.com')
+  })
+
+  it('does not downgrade configured origins from an HTTPS page', () => {
+    expect(
+      normalizeConfiguredHTTPOrigin('http://id.stuhelper.com', 'https://stuhelper.com'),
+    ).toBe('https://id.stuhelper.com')
+    expect(
+      normalizeConfiguredHTTPOrigin('http://stuhelper.com', 'https://id.stuhelper.com'),
+    ).toBe('https://stuhelper.com')
   })
 })

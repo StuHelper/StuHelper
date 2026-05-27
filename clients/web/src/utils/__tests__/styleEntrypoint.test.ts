@@ -71,6 +71,30 @@ describe('style entrypoint', () => {
     expect(enCommonSource).not.toContain('StuHelper SSO')
   })
 
+  it('brands Open Platform challenge pages as StuHelper ID Connect with identity-home fallback', () => {
+    const consentSource = readFileSync(
+      resolve(__dirname, '../../modules/open-platform/views/ConsentPage.vue'),
+      'utf-8',
+    )
+    const completionSource = readFileSync(
+      resolve(__dirname, '../../modules/open-platform/views/ProfileCompletionPage.vue'),
+      'utf-8',
+    )
+    const zhCommonSource = readFileSync(resolve(__dirname, '../../i18n/locales/zh-CN/common.ts'), 'utf-8')
+    const enCommonSource = readFileSync(resolve(__dirname, '../../i18n/locales/en-US/common.ts'), 'utf-8')
+
+    for (const source of [consentSource, completionSource]) {
+      expect(source).toContain('connectEyebrow')
+      expect(source).toContain('openIdentityHome')
+      expect(source).toContain('to="/identity"')
+      expect(source).not.toContain('StuHelper Identity')
+    }
+    expect(zhCommonSource).toContain("connectEyebrow: 'StuHelper ID Connect'")
+    expect(zhCommonSource).toContain("openIdentityHome: '返回身份中心'")
+    expect(enCommonSource).toContain("connectEyebrow: 'StuHelper ID Connect'")
+    expect(enCommonSource).toContain("openIdentityHome: 'Back to Identity Hub'")
+  })
+
   it('keeps the login page inside the shared shell without global background side effects', () => {
     const loginSource = readFileSync(
       resolve(__dirname, '../../modules/auth/views/LoginPage.vue'),
