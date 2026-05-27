@@ -76,6 +76,46 @@ const checks = [
     expectedURLIncludes: [joinURL(identityBaseURL, '/login')],
   },
   {
+    name: 'frontend-direct-login-session-refresh',
+    url: joinURL(frontendDirectBaseURL, '/'),
+    flow: 'frontend-direct-login-session-refresh',
+    expectedTexts: ['StuHelper'],
+    stubbedResources: [
+      {
+        url: 'https://fonts.googleapis.com/**',
+        contentType: 'text/css',
+        body: '/* prod-parity smoke uses system fonts for the Casdoor login page. */\n',
+      },
+      {
+        url: 'https://cdn.casbin.org/flag-icons/**',
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>\n',
+      },
+    ],
+    allowedAPIResponses: [
+      {
+        urlIncludes: '/api/v1/auth/me',
+        statuses: [401],
+      },
+      {
+        urlIncludes: '/api/v1/auth/refresh',
+        statuses: [401],
+      },
+      {
+        urlIncludes: '/api/v1/user/profile',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/qq-binding',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/identity',
+        statuses: [404],
+      },
+    ],
+  },
+  {
     name: 'identity-developer-login',
     url: joinURL(identityBaseURL, '/developers/apps'),
     flow: 'identity-portal-shell',
@@ -1074,7 +1114,14 @@ function toArray(value) {
 
 async function runCheckFlow(page, check, viewportVariant) {
   if (check.flow === 'web-login-session-refresh') {
-    return runWebLoginSessionRefreshFlow(page);
+    return runLoginSessionRefreshFlow(page, [webBaseURL], 'web');
+  }
+  if (check.flow === 'frontend-direct-login-session-refresh') {
+    return runLoginSessionRefreshFlow(
+      page,
+      [frontendDirectBaseURL, webBaseURL],
+      'frontend direct',
+    );
   }
   if (check.flow === 'identity-portal-shell') {
     return runIdentityPortalShellFlow(page, viewportVariant);
@@ -1088,7 +1135,7 @@ async function runCheckFlow(page, check, viewportVariant) {
   return null;
 }
 
-async function runWebLoginSessionRefreshFlow(page) {
+async function runLoginSessionRefreshFlow(page, expectedFinalBaseURLs, label) {
   await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
   await page.getByRole('link', { name: /登录|Login/i }).click({ timeout: timeoutMs });
   await page.waitForURL((url) => url.pathname === '/login', { timeout: timeoutMs });
@@ -1100,7 +1147,10 @@ async function runWebLoginSessionRefreshFlow(page) {
   await page.getByRole('textbox', { name: /username|email|phone/i }).fill(casdoorLoginUsername);
   await page.getByRole('textbox', { name: /password/i }).fill(casdoorLoginPassword);
   await page.getByRole('button', { name: /sign in|登录/i }).click({ timeout: timeoutMs });
-  await page.waitForURL((url) => url.href.startsWith(`${webBaseURL}/`), { timeout: timeoutMs });
+  await page.waitForURL(
+    (url) => expectedFinalBaseURLs.some((baseURL) => url.href.startsWith(`${baseURL}/`)),
+    { timeout: timeoutMs },
+  );
   await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
 
   const beforeRefresh = await authMe(page);
@@ -1119,7 +1169,7 @@ async function runWebLoginSessionRefreshFlow(page) {
   await expectAuthenticatedHeader(page);
 
   return {
-    matchedText: 'authenticated session survived refresh',
+    matchedText: `${label} authenticated session survived refresh`,
     username: casdoorLoginUsername,
     beforeRefreshStatus: beforeRefresh.status,
     afterRefreshStatus: afterRefresh.status,
