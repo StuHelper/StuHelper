@@ -53,6 +53,10 @@ services:
     volumes:
     - ./infra/generated/postgres:/tls:ro
     - ./infra/generated/redis:/redis-tls:ro
+    extra_hosts:
+    - "stuhelper.com:host-gateway"
+    - "id.stuhelper.com:host-gateway"
+    - "sso.stuhelper.com:host-gateway"
     ports:
     - "127.0.0.1:${BACKEND_EXTERNAL_PORT:-18080}:8080"
     depends_on:

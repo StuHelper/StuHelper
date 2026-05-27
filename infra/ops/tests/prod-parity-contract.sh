@@ -12,6 +12,8 @@ PARITY_SMOKE_DATA="${REPO_ROOT}/infra/ops/prod-parity-smoke-data.sh"
 PARITY_DATASTORE_SMOKE="${REPO_ROOT}/infra/ops/prod-parity-datastore-smoke.sh"
 PARITY_BROWSER_SMOKE="${REPO_ROOT}/infra/ops/prod-parity-browser-smoke.sh"
 PARITY_BROWSER_SMOKE_NODE="${REPO_ROOT}/infra/ops/prod-parity-browser-smoke.mjs"
+PARITY_LOCAL_INGRESS="${REPO_ROOT}/infra/ops/install-local-prod-parity-ingress.sh"
+PARITY_LOCAL_INGRESS_NGINX="${REPO_ROOT}/infra/nginx/prod-parity-local-ingress.conf"
 COMMON_LIB="${REPO_ROOT}/infra/ops/lib/common.sh"
 ADMIN_INDEX_HTML="${REPO_ROOT}/clients/admin/apps/web-ele/index.html"
 MAKEFILE="${REPO_ROOT}/Makefile"
@@ -37,11 +39,11 @@ assert_not_contains() {
   fi
 }
 
-for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${PARITY_SMOKE_DATA}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_BROWSER_SMOKE_NODE}" "${COMMON_LIB}" "${ADMIN_INDEX_HTML}"; do
+for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${PARITY_SMOKE_DATA}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_BROWSER_SMOKE_NODE}" "${PARITY_LOCAL_INGRESS}" "${PARITY_LOCAL_INGRESS_NGINX}" "${COMMON_LIB}" "${ADMIN_INDEX_HTML}"; do
   [[ -f "${file}" ]] || fail "missing file: ${file}"
 done
 
-bash -n "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${PARITY_SMOKE_DATA}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}"
+bash -n "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${PARITY_SMOKE_DATA}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_LOCAL_INGRESS}"
 
 for default_path in ".env" "./.env" ".env.generated" "./.env.generated" ".env.generated.secrets" "./.env.generated.secrets" ".deploy" "./.deploy"; do
   case "${default_path}" in
@@ -87,9 +89,16 @@ assert_contains "${PARITY_UP}" 'OPENFGA_GRPC_EXTERNAL_PORT.*8082'
 assert_contains "${PARITY_UP}" 'OPENFGA_PLAYGROUND_EXTERNAL_PORT.*3002'
 assert_contains "${PARITY_UP}" 'MINIO_API_EXTERNAL_PORT.*29000'
 assert_contains "${PARITY_UP}" 'MINIO_CONSOLE_EXTERNAL_PORT.*29001'
+assert_contains "${PARITY_UP}" 'WEB_PUBLIC_URL.*http://stuhelper\.com'
+assert_contains "${PARITY_UP}" 'ADMIN_PUBLIC_URL.*http://stuhelper\.com/admin/'
+assert_contains "${PARITY_UP}" 'IDENTITY_ISSUER.*http://id\.stuhelper\.com'
+assert_contains "${PARITY_UP}" 'WEB_VITE_SSO_URL.*http://sso\.stuhelper\.com'
 assert_contains "${PARITY_UP}" 'CASDOOR_EXTERNALPORT.*28085'
-assert_contains "${PARITY_UP}" 'CASDOOR_ISSUER.*http://127\.0\.0\.1:28085'
-assert_contains "${PARITY_UP}" 'CASDOOR_INTERNAL_ADDRESS.*casdoor:8000'
+assert_contains "${PARITY_UP}" 'CASDOOR_ISSUER.*http://sso\.stuhelper\.com'
+assert_contains "${PARITY_UP}" 'CASDOOR_INTERNAL_ADDRESS.*host\.docker\.internal:80'
+assert_contains "${PARITY_UP}" 'CASDOOR_REDIRECT_URI.*http://stuhelper\.com/api/v1/auth/callback'
+assert_contains "${PARITY_UP}" 'TOKEN_COOKIE_SECURE.*false'
+assert_contains "${PARITY_UP}" 'TOKEN_COOKIE_DOMAIN.*\.stuhelper\.com'
 assert_contains "${PARITY_UP}" 'CASDOOR_BOOTSTRAP_ENABLED.*true'
 assert_contains "${PARITY_UP}" 'CASDOOR_BOOTSTRAP_ENV_FILE'
 assert_contains "${PARITY_UP}" 'CASDOOR_DB_PASSWORD'
@@ -117,7 +126,20 @@ assert_contains "${PARITY_UP}" 'OPENFGA_BOOTSTRAP_DATABASE_URL="postgres://stuhe
 assert_contains "${PARITY_UP}" 'prod-parity-smoke.sh'
 assert_contains "${PARITY_UP}" 'IDENTITY_SIGNING_PRIVATE_KEY_PEM=%s'
 assert_contains "${PARITY_UP}" 'repo_default_path_matches'
+assert_contains "${PARITY_UP}" 'install-local-prod-parity-ingress\.sh'
 assert_not_contains "${PARITY_UP}" 'prod-deploy.sh'
+
+assert_contains "${PARITY_LOCAL_INGRESS}" 'stuhelper\.com www\.stuhelper\.com id\.stuhelper\.com sso\.stuhelper\.com'
+assert_contains "${PARITY_LOCAL_INGRESS}" 'nginx -t'
+assert_contains "${PARITY_LOCAL_INGRESS}" 'nginx -s reload'
+assert_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'server_name stuhelper\.com www\.stuhelper\.com'
+assert_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'server_name id\.stuhelper\.com'
+assert_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'server_name sso\.stuhelper\.com'
+assert_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'proxy_pass http://127\.0\.0\.1:__BACKEND_PORT__'
+assert_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'proxy_pass http://127\.0\.0\.1:__CASDOOR_PORT__'
+assert_contains "${REPO_ROOT}/docker-compose.prod.yml" 'stuhelper\.com:host-gateway'
+assert_contains "${REPO_ROOT}/docker-compose.prod.yml" 'id\.stuhelper\.com:host-gateway'
+assert_contains "${REPO_ROOT}/docker-compose.prod.yml" 'sso\.stuhelper\.com:host-gateway'
 
 assert_contains "${PARITY_DOWN}" 'parity_default_path'
 assert_contains "${PARITY_DOWN}" 'repo_default_path_matches'
@@ -149,6 +171,7 @@ assert_contains "${PARITY_SMOKE_DATA}" '生产等价课程'
 assert_contains "${PARITY_SMOKE_DATA}" '生产等价教师'
 assert_contains "${PARITY_SMOKE_DATA}" '生产等价评课'
 assert_contains "${PARITY_SMOKE_DATA}" 'PROD_PARITY_ADMISSION_TOKEN'
+assert_contains "${PARITY_SMOKE_DATA}" 'web_public_url'
 assert_contains "${PARITY_SMOKE_DATA}" 'prod-parity-admission-session'
 assert_contains "${PARITY_SMOKE_DATA}" 'admissionSessionCount'
 assert_contains "${PARITY_SMOKE_DATA}" 'hmac\.new'
@@ -182,6 +205,9 @@ assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'allowedAPIResponses'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'ignoredAPIResponses'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-home'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-login'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-login-session-refresh'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'runWebLoginSessionRefreshFlow'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'auth/me after browser refresh returned'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-auth-callback-missing-code'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-admission-login'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-course-hub'
@@ -236,6 +262,7 @@ assert_not_contains "${ADMIN_INDEX_HTML}" 'hm\.baidu\.com'
 assert_not_contains "${ADMIN_INDEX_HTML}" '_VBEN_ADMIN_PRO_APP_CONF_'
 
 assert_contains "${MAKEFILE}" 'prod-parity-up'
+assert_contains "${MAKEFILE}" 'prod-parity-ingress'
 assert_contains "${MAKEFILE}" 'prod-parity-down'
 assert_contains "${MAKEFILE}" 'prod-parity-smoke'
 assert_contains "${MAKEFILE}" 'prod-parity-datastore-smoke'

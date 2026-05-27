@@ -19,8 +19,10 @@ try {
 }
 
 const timeoutMs = Number(process.env.PROD_PARITY_BROWSER_SMOKE_TIMEOUT_MS || 30000);
-const webBaseURL = normalizeBaseURL(process.env.WEB_BASE_URL || 'http://127.0.0.1:28000');
-const adminBaseURL = normalizeBaseURL(process.env.ADMIN_BASE_URL || 'http://127.0.0.1:28001');
+const webBaseURL = normalizeBaseURL(process.env.WEB_BASE_URL || 'http://stuhelper.com');
+const adminBaseURL = normalizeBaseURL(process.env.ADMIN_BASE_URL || 'http://stuhelper.com');
+const casdoorLoginUsername = process.env.PROD_PARITY_CASDOOR_LOGIN_USERNAME || 'admin';
+const casdoorLoginPassword = process.env.PROD_PARITY_CASDOOR_LOGIN_PASSWORD || '123';
 const admissionToken = process.env.PROD_PARITY_ADMISSION_TOKEN || 'PROD-PARITY-ADMIT-LOGIN';
 const admissionQQ = process.env.PROD_PARITY_ADMISSION_QQ || '990001';
 const evidenceFile =
@@ -57,6 +59,29 @@ const checks = [
     name: 'web-login',
     url: joinURL(webBaseURL, '/login'),
     expectedTexts: ['StuHelper'],
+  },
+  {
+    name: 'web-login-session-refresh',
+    url: joinURL(webBaseURL, '/'),
+    flow: 'web-login-session-refresh',
+    expectedTexts: ['StuHelper'],
+    stubbedResources: [
+      {
+        url: 'https://fonts.googleapis.com/**',
+        contentType: 'text/css',
+        body: '/* prod-parity smoke uses system fonts for the Casdoor login page. */\n',
+      },
+    ],
+    allowedAPIResponses: [
+      {
+        urlIncludes: '/api/v1/auth/me',
+        statuses: [401],
+      },
+      {
+        urlIncludes: '/api/v1/auth/refresh',
+        statuses: [401],
+      },
+    ],
   },
   {
     name: 'web-auth-callback-missing-code',
@@ -416,6 +441,11 @@ async function runCheck(browser, check, viewportVariant) {
       throw new Error(`unexpected HTTP ${response.status()} for ${check.url}`);
     }
 
+    const flowResult =
+      check.flow === 'web-login-session-refresh'
+        ? await runWebLoginSessionRefreshFlow(page)
+        : null;
+
     const expectedURLIncludes = toArray(check.expectedURLIncludes);
     if (expectedURLIncludes.length > 0) {
       await page.waitForURL(
@@ -427,7 +457,9 @@ async function runCheck(browser, check, viewportVariant) {
     await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
     const title = await page.title();
     const bodyText = await page.locator('body').innerText({ timeout: timeoutMs });
-    const matchedText = check.expectedTexts.find((text) => bodyText.includes(text));
+    const matchedText = flowResult
+      ? 'authenticated session survived refresh'
+      : check.expectedTexts.find((text) => bodyText.includes(text));
     const requiredTexts = toArray(check.requiredTexts);
     const missingRequiredTexts = requiredTexts.filter((text) => !bodyText.includes(text));
 
@@ -476,6 +508,7 @@ async function runCheck(browser, check, viewportVariant) {
       title,
       matchedText,
       requiredTexts,
+      flowResult,
       ignoredConsoleErrors,
       ignoredAPIResponses,
       suppressedTelemetryRequests,
@@ -520,6 +553,63 @@ function toArray(value) {
   if (Array.isArray(value)) return value;
   if (typeof value === 'string') return [value];
   return [];
+}
+
+async function runWebLoginSessionRefreshFlow(page) {
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
+  await page.getByRole('link', { name: /登录|Login/i }).click({ timeout: timeoutMs });
+  await page.waitForURL((url) => url.pathname === '/login', { timeout: timeoutMs });
+  await page.getByRole('button', { name: /SSO|统一身份/i }).click({ timeout: timeoutMs });
+  await page.waitForURL((url) => url.pathname.includes('/login/oauth/authorize'), {
+    timeout: timeoutMs,
+  });
+
+  await page.getByRole('textbox', { name: /username|email|phone/i }).fill(casdoorLoginUsername);
+  await page.getByRole('textbox', { name: /password/i }).fill(casdoorLoginPassword);
+  await page.getByRole('button', { name: /sign in|登录/i }).click({ timeout: timeoutMs });
+  await page.waitForURL((url) => url.href.startsWith(`${webBaseURL}/`), { timeout: timeoutMs });
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
+
+  const beforeRefresh = await authMe(page);
+  if (beforeRefresh.status !== 200) {
+    throw new Error(`auth/me after login returned ${beforeRefresh.status}: ${beforeRefresh.body}`);
+  }
+  await expectAuthenticatedHeader(page);
+
+  await page.reload({ waitUntil: 'domcontentloaded', timeout: timeoutMs });
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
+
+  const afterRefresh = await authMe(page);
+  if (afterRefresh.status !== 200) {
+    throw new Error(`auth/me after browser refresh returned ${afterRefresh.status}: ${afterRefresh.body}`);
+  }
+  await expectAuthenticatedHeader(page);
+
+  return {
+    username: casdoorLoginUsername,
+    beforeRefreshStatus: beforeRefresh.status,
+    afterRefreshStatus: afterRefresh.status,
+  };
+}
+
+async function authMe(page) {
+  return page.evaluate(async () => {
+    const response = await fetch('/api/v1/auth/me', { credentials: 'include' });
+    return {
+      status: response.status,
+      body: await response.text(),
+    };
+  });
+}
+
+async function expectAuthenticatedHeader(page) {
+  const headerText = await page.locator('header').innerText({ timeout: timeoutMs });
+  if (/登录|Login/i.test(headerText)) {
+    throw new Error(`header still shows login after authentication: ${headerText}`);
+  }
+  if (!/通知|用户|Notifications|User/i.test(headerText)) {
+    throw new Error(`header does not show authenticated controls: ${headerText}`);
+  }
 }
 
 function resourceStubsForCheck(check) {

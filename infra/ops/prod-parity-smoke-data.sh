@@ -38,6 +38,7 @@ redis_username="${REDIS_USERNAME:-stuhelper_app}"
 evidence_file="${PROD_PARITY_SMOKE_DATA_EVIDENCE_FILE:-${PARITY_DIR}/smoke-data-evidence.json}"
 admission_token="${PROD_PARITY_ADMISSION_TOKEN:-PROD-PARITY-ADMIT-LOGIN}"
 admission_qq="${PROD_PARITY_ADMISSION_QQ:-990001}"
+web_public_url="${WEB_PUBLIC_URL:-http://stuhelper.com}"
 
 [[ -n "${STUHELPER_APP_DB_PASSWORD:-}" ]] || die "STUHELPER_APP_DB_PASSWORD is required for prod-parity smoke data"
 [[ -n "${REDIS_PASSWORD:-}" ]] || die "REDIS_PASSWORD is required for prod-parity smoke data cache invalidation"
@@ -77,6 +78,7 @@ docker exec \
     -v admission_token="${admission_token}" \
     -v admission_token_hash="${admission_token_hash}" \
     -v admission_qq="${admission_qq}" \
+    -v web_public_url="${web_public_url%/}" \
     -h 127.0.0.1 \
     -U "${app_user}" \
     -d "${stuhelper_db}" <<'SQL' >/dev/null
@@ -317,7 +319,7 @@ VALUES (
     '生产等价 QQ',
     NULL,
     :'admission_token_hash',
-    format('http://127.0.0.1:28000/admission/a/%s?qq=%s', :'admission_token', :'admission_qq'),
+    format('%s/admission/a/%s?qq=%s', :'web_public_url', :'admission_token', :'admission_qq'),
     now() + interval '1 hour',
     NULL,
     'joined_muted',

@@ -1,4 +1,4 @@
-.PHONY: help bootstrap-dev-ubuntu2404 dev dev-init dev-up dev-docker-up dev-down dev-reset dev-smoke dev-status dev-logs e2e e2e-web e2e-admin e2e-uni e2e-koishi obs-up obs-down obs-smoke prod-init prod-render prod-deploy prod-rollback deploy prod-down prod-reset prod-smoke prod-identity-smoke prod-open-platform-evidence prod-backup-evidence prod-parity-up prod-parity-down prod-parity-reset prod-parity-smoke prod-parity-datastore-smoke prod-parity-browser-smoke deploy-bundle ansible-bootstrap ansible-deploy-staging ansible-deploy-prod ansible-rollback-staging ansible-rollback-prod check-docs check-infra-contracts check-semgrep-custom
+.PHONY: help bootstrap-dev-ubuntu2404 dev dev-init dev-up dev-docker-up dev-down dev-reset dev-smoke dev-status dev-logs e2e e2e-web e2e-admin e2e-uni e2e-koishi obs-up obs-down obs-smoke prod-init prod-render prod-deploy prod-rollback deploy prod-down prod-reset prod-smoke prod-identity-smoke prod-open-platform-evidence prod-backup-evidence prod-parity-ingress prod-parity-up prod-parity-down prod-parity-reset prod-parity-smoke prod-parity-datastore-smoke prod-parity-browser-smoke deploy-bundle ansible-bootstrap ansible-deploy-staging ansible-deploy-prod ansible-rollback-staging ansible-rollback-prod check-docs check-infra-contracts check-semgrep-custom
 
 .DEFAULT_GOAL := help
 
@@ -48,6 +48,7 @@ help:
 	@echo "  make prod-identity-smoke - verify public stuhelper/id/sso identity ingress"
 	@echo "  make prod-open-platform-evidence - run token/OpenFGA production evidence smokes"
 	@echo "  make prod-backup-evidence - verify local/fetched PostgreSQL backup evidence"
+	@echo "  make prod-parity-ingress - install local stuhelper/id/sso host ingress"
 	@echo "  make prod-parity-up - build and run local production-equivalent stack"
 	@echo "  make prod-parity-down - stop local production-equivalent stack"
 	@echo "  make prod-parity-reset - stop local production-equivalent stack and remove volumes"
@@ -154,6 +155,9 @@ prod-open-platform-evidence:
 
 prod-backup-evidence:
 	$(PROD_RUNTIME_ENV) ./infra/ops/postgres-backup-evidence.sh
+
+prod-parity-ingress:
+	./infra/ops/install-local-prod-parity-ingress.sh
 
 prod-parity-up:
 	./infra/ops/prod-parity-up.sh

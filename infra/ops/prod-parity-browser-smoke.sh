@@ -68,8 +68,8 @@ clear_rate_limit_keys() {
 clear_rate_limit_keys
 
 export API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:${BACKEND_EXTERNAL_PORT:-28080}}"
-export WEB_BASE_URL="${WEB_BASE_URL:-http://127.0.0.1:${WEB_EXTERNAL_PORT:-28000}}"
-export ADMIN_BASE_URL="${ADMIN_BASE_URL:-http://127.0.0.1:${ADMIN_EXTERNAL_PORT:-28001}}"
+export WEB_BASE_URL="${WEB_BASE_URL:-${WEB_PUBLIC_URL:-http://stuhelper.com}}"
+export ADMIN_BASE_URL="${ADMIN_BASE_URL:-${WEB_PUBLIC_URL:-http://stuhelper.com}}"
 export PROD_PARITY_BROWSER_SMOKE_EVIDENCE_FILE="${PROD_PARITY_BROWSER_SMOKE_EVIDENCE_FILE:-${PARITY_DIR}/browser-smoke-evidence.json}"
 export PROD_PARITY_BROWSER_SMOKE_SCREENSHOT_DIR="${PROD_PARITY_BROWSER_SMOKE_SCREENSHOT_DIR:-${PARITY_DIR}/browser-smoke-screenshots}"
 

@@ -31,8 +31,8 @@ export DEPLOY_STATE_DIR="$(parity_default_path "${DEPLOY_STATE_DIR:-}" "${REPO_R
 load_env
 
 export API_BASE_URL="http://127.0.0.1:${BACKEND_EXTERNAL_PORT:-28080}"
-export WEB_BASE_URL="http://127.0.0.1:${WEB_EXTERNAL_PORT:-28000}"
-export ADMIN_BASE_URL="http://127.0.0.1:${ADMIN_EXTERNAL_PORT:-28001}"
+export WEB_BASE_URL="${WEB_PUBLIC_URL:-http://stuhelper.com}"
+export ADMIN_BASE_URL="${WEB_PUBLIC_URL:-http://stuhelper.com}"
 export CHECK_ADMIN=true
 export APP_ENV=production
 
@@ -41,8 +41,6 @@ export APP_ENV=production
 
 "${SCRIPT_DIR}/smoke-check.sh"
 
-WEB_PUBLIC_URL="${WEB_BASE_URL}" \
-IDENTITY_ISSUER="${WEB_BASE_URL}" \
 IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=true \
 IDENTITY_PUBLIC_SMOKE_EVIDENCE_FILE="${PARITY_DIR}/identity-public-smoke-evidence.json" \
 "${SCRIPT_DIR}/identity-public-smoke.sh"

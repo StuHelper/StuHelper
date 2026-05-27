@@ -217,14 +217,15 @@ overrides = {
     "REDIS_HOST": "redis",
     "REDIS_EXTERNAL_PORT": "26379",
     "REDIS_TLS_CA": "/redis-tls/ca.crt",
-    "CORS_ORIGINS": "http://127.0.0.1:28000,http://127.0.0.1:28001",
+    "CORS_ORIGINS": "http://stuhelper.com,http://id.stuhelper.com",
     "CASDOOR_EXTERNALPORT": "28085",
-    "CASDOOR_ISSUER": "https://sso.stuhelper.com",
-    "CASDOOR_REDIRECT_URI": "http://127.0.0.1:28080/api/v1/auth/callback",
+    "CASDOOR_ISSUER": "http://sso.stuhelper.com",
+    "CASDOOR_INTERNAL_ADDRESS": "host.docker.internal:80",
+    "CASDOOR_REDIRECT_URI": "http://stuhelper.com/api/v1/auth/callback",
     "CASDOOR_BOOTSTRAP_ENABLED": "true",
     "CASDOOR_BOOTSTRAP_ENV_FILE": "/workspace/.run/prod-parity/.env.casdoor-bootstrap.local",
-    "CASDOOR_ADMIN_REDIRECT_URI": "http://127.0.0.1:28080/api/v1/auth/callback",
-    "CASDOOR_UNIAPP_REDIRECT_URI": "http://127.0.0.1:28080/api/v1/auth/callback",
+    "CASDOOR_ADMIN_REDIRECT_URI": "http://stuhelper.com/api/v1/auth/callback",
+    "CASDOOR_UNIAPP_REDIRECT_URI": "http://stuhelper.com/api/v1/auth/callback",
     "CASDOOR_SMS_PROVIDER_ENABLED": "true",
     "CASDOOR_SMS_PROVIDER_ENDPOINT": "http://app:8080/internal/sms/send",
     "SMS_ENABLED": "true",
@@ -234,16 +235,16 @@ overrides = {
     "BACKEND_EXTERNAL_PORT": "28080",
     "WEB_EXTERNAL_PORT": "28000",
     "ADMIN_EXTERNAL_PORT": "28001",
-    "WEB_PUBLIC_URL": "http://127.0.0.1:28000",
-    "ADMIN_PUBLIC_URL": "http://127.0.0.1:28001/admin/",
-    "IDENTITY_ISSUER": "http://127.0.0.1:28000",
+    "WEB_PUBLIC_URL": "http://stuhelper.com",
+    "ADMIN_PUBLIC_URL": "http://stuhelper.com/admin/",
+    "IDENTITY_ISSUER": "http://id.stuhelper.com",
     "IDENTITY_SIGNING_KEY_ID": "stuhelper-identity-prod-parity-1",
     "IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS": "true",
     "IDENTITY_PUBLIC_SMOKE_ENABLED": "true",
-    "IDENTITY_PUBLIC_SMOKE_HOMEPAGE_URL": "http://127.0.0.1:28000",
-    "IDENTITY_PUBLIC_SMOKE_PRIVACY_POLICY_URL": "http://127.0.0.1:28000/privacy",
-    "STUHELPER_PLATFORM_BASE_URL": "http://127.0.0.1:28080",
-    "WEB_VITE_SSO_URL": "https://sso.stuhelper.com",
+    "IDENTITY_PUBLIC_SMOKE_HOMEPAGE_URL": "http://stuhelper.com",
+    "IDENTITY_PUBLIC_SMOKE_PRIVACY_POLICY_URL": "http://stuhelper.com/privacy",
+    "STUHELPER_PLATFORM_BASE_URL": "http://stuhelper.com",
+    "WEB_VITE_SSO_URL": "http://sso.stuhelper.com",
     "OPENFGA_API_URL": "http://openfga:8080",
     "OPENFGA_HTTP_EXTERNAL_PORT": "8081",
     "OPENFGA_GRPC_EXTERNAL_PORT": "8082",
@@ -257,6 +258,7 @@ overrides = {
     "MINIO_API_EXTERNAL_PORT": "29000",
     "MINIO_CONSOLE_EXTERNAL_PORT": "29001",
     "TOKEN_COOKIE_SECURE": "true",
+    "TOKEN_COOKIE_DOMAIN": ".stuhelper.com",
     "ALLOW_LOCAL_ALERT_SINK": "true",
     "ALERTMANAGER_WEBHOOK_URL": "http://alert-webhook-sink:8080/alerts",
     "BACKEND_IMAGE_REF": "stuhelper/backend:prod-parity-deadbee",
@@ -311,6 +313,7 @@ assert_env_value "${polluted_env}" "REDIS_TLS_CA" "/tls/ca.crt"
 assert_env_value "${polluted_env}" "CORS_ORIGINS" "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001"
 assert_env_value "${polluted_env}" "CASDOOR_EXTERNALPORT" "8085"
 assert_env_value "${polluted_env}" "CASDOOR_ISSUER" "http://localhost:8085"
+assert_env_value "${polluted_env}" "CASDOOR_INTERNAL_ADDRESS" "casdoor:8000"
 assert_env_value "${polluted_env}" "CASDOOR_REDIRECT_URI" "http://localhost:8080/api/v1/auth/callback"
 assert_env_value "${polluted_env}" "CASDOOR_BOOTSTRAP_ENABLED" "false"
 assert_env_value "${polluted_env}" "CASDOOR_BOOTSTRAP_ENV_FILE" ".env.casdoor-bootstrap.local"
@@ -348,6 +351,7 @@ assert_env_value "${polluted_env}" "OBJECT_STORAGE_USE_SSL" "false"
 assert_env_value "${polluted_env}" "MINIO_API_EXTERNAL_PORT" "9000"
 assert_env_value "${polluted_env}" "MINIO_CONSOLE_EXTERNAL_PORT" "9001"
 assert_env_value "${polluted_env}" "TOKEN_COOKIE_SECURE" "false"
+assert_env_value "${polluted_env}" "TOKEN_COOKIE_DOMAIN" ""
 assert_env_value "${polluted_env}" "ALLOW_LOCAL_ALERT_SINK" "false"
 assert_env_value "${polluted_env}" "ALERTMANAGER_WEBHOOK_URL" ""
 assert_env_value "${polluted_env}" "BACKEND_IMAGE_REF" "stuhelper/backend:dev-placeholder"
