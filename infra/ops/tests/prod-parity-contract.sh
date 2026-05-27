@@ -16,6 +16,7 @@ PARITY_LOCAL_INGRESS="${REPO_ROOT}/infra/ops/install-local-prod-parity-ingress.s
 PARITY_LOCAL_INGRESS_NGINX="${REPO_ROOT}/infra/nginx/prod-parity-local-ingress.conf"
 COMMON_LIB="${REPO_ROOT}/infra/ops/lib/common.sh"
 ADMIN_INDEX_HTML="${REPO_ROOT}/clients/admin/apps/web-ele/index.html"
+WEB_NGINX="${REPO_ROOT}/clients/web/nginx.conf"
 MAKEFILE="${REPO_ROOT}/Makefile"
 
 fail() {
@@ -39,7 +40,7 @@ assert_not_contains() {
   fi
 }
 
-for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${PARITY_SMOKE_DATA}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_BROWSER_SMOKE_NODE}" "${PARITY_LOCAL_INGRESS}" "${PARITY_LOCAL_INGRESS_NGINX}" "${COMMON_LIB}" "${ADMIN_INDEX_HTML}"; do
+for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${PARITY_SMOKE_DATA}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_BROWSER_SMOKE_NODE}" "${PARITY_LOCAL_INGRESS}" "${PARITY_LOCAL_INGRESS_NGINX}" "${COMMON_LIB}" "${ADMIN_INDEX_HTML}" "${WEB_NGINX}"; do
   [[ -f "${file}" ]] || fail "missing file: ${file}"
 done
 
@@ -314,6 +315,13 @@ assert_contains "${PARITY_BROWSER_SMOKE_NODE}" "'font'"
 
 assert_not_contains "${ADMIN_INDEX_HTML}" 'hm\.baidu\.com'
 assert_not_contains "${ADMIN_INDEX_HTML}" '_VBEN_ADMIN_PRO_APP_CONF_'
+
+assert_contains "${WEB_NGINX}" 'location / \{'
+assert_contains "${WEB_NGINX}" 'location /admission/ \{'
+assert_contains "${WEB_NGINX}" 'try_files \$uri \$uri/ /index\.html'
+assert_contains "${WEB_NGINX}" 'add_header Cache-Control "no-store, no-cache, must-revalidate" always;'
+assert_contains "${WEB_NGINX}" 'location /assets/ \{'
+assert_contains "${WEB_NGINX}" 'add_header Cache-Control "public, immutable";'
 
 assert_contains "${MAKEFILE}" 'prod-parity-up'
 assert_contains "${MAKEFILE}" 'prod-parity-ingress'
