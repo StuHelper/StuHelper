@@ -38,7 +38,7 @@ redis_username="${REDIS_USERNAME:-stuhelper_app}"
 evidence_file="${PROD_PARITY_SMOKE_DATA_EVIDENCE_FILE:-${PARITY_DIR}/smoke-data-evidence.json}"
 admission_token="${PROD_PARITY_ADMISSION_TOKEN:-PROD-PARITY-ADMIT-LOGIN}"
 admission_qq="${PROD_PARITY_ADMISSION_QQ:-990001}"
-web_public_url="${WEB_PUBLIC_URL:-http://stuhelper.com}"
+web_public_url="${WEB_PUBLIC_URL:-https://stuhelper.com}"
 
 [[ -n "${STUHELPER_APP_DB_PASSWORD:-}" ]] || die "STUHELPER_APP_DB_PASSWORD is required for prod-parity smoke data"
 [[ -n "${REDIS_PASSWORD:-}" ]] || die "REDIS_PASSWORD is required for prod-parity smoke data cache invalidation"

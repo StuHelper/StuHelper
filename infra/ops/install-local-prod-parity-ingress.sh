@@ -7,6 +7,7 @@ source "${SCRIPT_DIR}/lib/common.sh"
 
 require_cmd awk
 require_cmd nginx
+require_cmd openssl
 require_cmd sed
 if [[ "${EUID}" -ne 0 ]]; then
   require_cmd sudo
@@ -19,6 +20,9 @@ HOSTS_LINE="127.0.0.1 stuhelper.com www.stuhelper.com id.stuhelper.com sso.stuhe
 PROXY_BYPASS_HOSTS=(stuhelper.com www.stuhelper.com id.stuhelper.com sso.stuhelper.com "*.stuhelper.com")
 DEFAULT_BAOTA_TLS_CERT="/www/server/panel/vhost/cert/panel212.stuhelper.com/fullchain.pem"
 DEFAULT_BAOTA_TLS_KEY="/www/server/panel/vhost/cert/panel212.stuhelper.com/privkey.pem"
+DEFAULT_GENERATED_TLS_DIR="${PROD_PARITY_LOCAL_TLS_DIR:-${REPO_ROOT}/.run/prod-parity/local-tls}"
+DEFAULT_GENERATED_TLS_CERT="${DEFAULT_GENERATED_TLS_DIR}/stuhelper-local.crt"
+DEFAULT_GENERATED_TLS_KEY="${DEFAULT_GENERATED_TLS_DIR}/stuhelper-local.key"
 
 run_root() {
   if [[ "${EUID}" -eq 0 ]]; then
@@ -114,11 +118,51 @@ render_config() {
 }
 
 local_tls_cert() {
-  printf '%s\n' "${PROD_PARITY_LOCAL_TLS_CERT:-${DEFAULT_BAOTA_TLS_CERT}}"
+  if [[ -n "${PROD_PARITY_LOCAL_TLS_CERT:-}" ]]; then
+    printf '%s\n' "${PROD_PARITY_LOCAL_TLS_CERT}"
+    return
+  fi
+  if root_test -f "${DEFAULT_BAOTA_TLS_CERT}" && root_test -f "${DEFAULT_BAOTA_TLS_KEY}"; then
+    printf '%s\n' "${DEFAULT_BAOTA_TLS_CERT}"
+    return
+  fi
+  printf '%s\n' "${DEFAULT_GENERATED_TLS_CERT}"
 }
 
 local_tls_key() {
-  printf '%s\n' "${PROD_PARITY_LOCAL_TLS_KEY:-${DEFAULT_BAOTA_TLS_KEY}}"
+  if [[ -n "${PROD_PARITY_LOCAL_TLS_KEY:-}" ]]; then
+    printf '%s\n' "${PROD_PARITY_LOCAL_TLS_KEY}"
+    return
+  fi
+  if root_test -f "${DEFAULT_BAOTA_TLS_CERT}" && root_test -f "${DEFAULT_BAOTA_TLS_KEY}"; then
+    printf '%s\n' "${DEFAULT_BAOTA_TLS_KEY}"
+    return
+  fi
+  printf '%s\n' "${DEFAULT_GENERATED_TLS_KEY}"
+}
+
+ensure_local_tls() {
+  local cert key
+  cert="$(local_tls_cert)"
+  key="$(local_tls_key)"
+  if root_test -f "${cert}" && root_test -f "${key}"; then
+    return
+  fi
+  mkdir -p "$(dirname "${cert}")"
+  openssl req \
+    -x509 \
+    -nodes \
+    -newkey rsa:2048 \
+    -sha256 \
+    -days 825 \
+    -subj "/CN=stuhelper.com" \
+    -addext "subjectAltName=DNS:stuhelper.com,DNS:www.stuhelper.com,DNS:id.stuhelper.com,DNS:sso.stuhelper.com" \
+    -keyout "${key}" \
+    -out "${cert}" \
+    >/dev/null 2>&1
+  chmod 0644 "${cert}"
+  chmod 0600 "${key}"
+  log "generated local prod-parity TLS certificate: ${cert}"
 }
 
 local_tls_available() {
@@ -537,6 +581,7 @@ install_nginx_config() {
   local target tmp
   target="$(nginx_target)"
   tmp="$(mktemp)"
+  ensure_local_tls
   render_config >"${tmp}"
   run_root install -d -m 0755 "$(dirname "${target}")"
   run_root install -m 0644 "${tmp}" "${target}"

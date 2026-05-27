@@ -31,8 +31,8 @@ export DEPLOY_STATE_DIR="$(parity_default_path "${DEPLOY_STATE_DIR:-}" "${REPO_R
 load_env
 
 export API_BASE_URL="http://127.0.0.1:${BACKEND_EXTERNAL_PORT:-28080}"
-export WEB_BASE_URL="${WEB_PUBLIC_URL:-http://stuhelper.com}"
-export ADMIN_BASE_URL="${WEB_PUBLIC_URL:-http://stuhelper.com}"
+export WEB_BASE_URL="${WEB_PUBLIC_URL:-https://stuhelper.com}"
+export ADMIN_BASE_URL="${WEB_PUBLIC_URL:-https://stuhelper.com}"
 export CHECK_ADMIN=true
 export APP_ENV=production
 

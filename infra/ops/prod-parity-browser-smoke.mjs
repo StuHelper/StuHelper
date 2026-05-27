@@ -19,16 +19,16 @@ try {
 }
 
 const timeoutMs = Number(process.env.PROD_PARITY_BROWSER_SMOKE_TIMEOUT_MS || 30000);
-const webBaseURL = normalizeBaseURL(process.env.WEB_BASE_URL || 'http://stuhelper.com');
+const webBaseURL = normalizeBaseURL(process.env.WEB_BASE_URL || 'https://stuhelper.com');
 const frontendDirectBaseURL = normalizeBaseURL(
   process.env.FRONTEND_DIRECT_BASE_URL || 'http://127.0.0.1:28000',
 );
 const identityBaseURL = normalizeBaseURL(
   process.env.IDENTITY_BASE_URL ||
     process.env.CASDOOR_PUBLIC_AUTH_BASE_URL ||
-    'http://id.stuhelper.com',
+    'https://id.stuhelper.com',
 );
-const adminBaseURL = normalizeBaseURL(process.env.ADMIN_BASE_URL || 'http://stuhelper.com');
+const adminBaseURL = normalizeBaseURL(process.env.ADMIN_BASE_URL || 'https://stuhelper.com');
 const casdoorLoginUsername = process.env.PROD_PARITY_CASDOOR_LOGIN_USERNAME || 'admin';
 const casdoorLoginPassword = process.env.PROD_PARITY_CASDOOR_LOGIN_PASSWORD || '123';
 const admissionToken = process.env.PROD_PARITY_ADMISSION_TOKEN || 'PROD-PARITY-ADMIT-LOGIN';
@@ -838,6 +838,7 @@ async function runCheck(browser, check, viewportVariant) {
     deviceScaleFactor: viewportVariant.deviceScaleFactor,
     isMobile: viewportVariant.isMobile,
     hasTouch: viewportVariant.hasTouch,
+    ignoreHTTPSErrors: true,
   });
   const page = await context.newPage();
   const assetFailures = [];
