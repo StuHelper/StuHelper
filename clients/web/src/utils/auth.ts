@@ -113,7 +113,7 @@ const TOKEN_EXPIRY_BUFFER_SECONDS = 60
  */
 export function isTokenExpired(): boolean {
   const expiresAt = tokenExpiry.get()
-  if (expiresAt === null) return true
+  if (expiresAt === null) return false
   return expiresAt < Date.now() + TOKEN_EXPIRY_BUFFER_SECONDS * 1000
 }
 

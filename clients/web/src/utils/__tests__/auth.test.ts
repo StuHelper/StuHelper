@@ -102,6 +102,10 @@ describe('auth utilities', () => {
     expect(isTokenExpired()).toBe(false)
   })
 
+  it('does not proactively refresh when the token expiry is unknown', () => {
+    expect(isTokenExpired()).toBe(false)
+  })
+
   it('clears auth and redirect session state together', () => {
     localStorage.setItem('stuhelper_user', JSON.stringify({ id: 'user_2', name: 'bob', displayName: 'Bob' }))
     localStorage.setItem('stuhelper_token_expiry', String(Date.now() + 60_000))
