@@ -7,7 +7,7 @@ import {
 import { useAuthStore } from "@/stores/auth";
 import { isTokenExpired } from "@/utils/auth";
 import {
-    absoluteURLOnCurrentOrigin,
+    absoluteURLOnPreferredOrigin,
     configuredIdentityOrigin,
     configuredWebOrigin,
     isSafeRelativeRedirect,
@@ -59,6 +59,7 @@ function redirectIdentityPortalRoute(
         (route) => route.meta?.identityPortal,
     );
     const identityOrigin = configuredIdentityOrigin();
+    const webOrigin = configuredWebOrigin();
 
     if (isIdentityPortalRoute) {
         if (!identityOrigin || window.location.origin === identityOrigin) {
@@ -71,12 +72,12 @@ function redirectIdentityPortalRoute(
             if (redirect && isSafeRelativeRedirect(redirect)) {
                 target.searchParams.set(
                     "redirect",
-                    absoluteURLOnCurrentOrigin(redirect),
+                    absoluteURLOnPreferredOrigin(redirect, webOrigin),
                 );
             } else if (!redirect && from.name) {
                 target.searchParams.set(
                     "redirect",
-                    absoluteURLOnCurrentOrigin(from.fullPath),
+                    absoluteURLOnPreferredOrigin(from.fullPath, webOrigin),
                 );
             }
         }
@@ -85,7 +86,6 @@ function redirectIdentityPortalRoute(
         return false;
     }
 
-    const webOrigin = configuredWebOrigin();
     if (
         !identityOrigin ||
         !webOrigin ||

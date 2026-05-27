@@ -2,6 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  absoluteURLOnPreferredOrigin,
   normalizeConfiguredHTTPOrigin,
   resolvePostLoginRedirectTarget,
   sanitizePostLoginRedirect,
@@ -54,5 +55,17 @@ describe('post-login redirect helpers', () => {
     expect(
       normalizeConfiguredHTTPOrigin('http://stuhelper.com', 'https://id.stuhelper.com'),
     ).toBe('https://stuhelper.com')
+  })
+
+  it('builds login return targets on the configured web origin before entering the identity host', () => {
+    expect(
+      absoluteURLOnPreferredOrigin('/courses?tab=latest', 'http://stuhelper.com'),
+    ).toBe('http://stuhelper.com/courses?tab=latest')
+  })
+
+  it('falls back to the current origin when no preferred origin is configured', () => {
+    expect(absoluteURLOnPreferredOrigin('/identity', null)).toBe(
+      `${window.location.origin}/identity`,
+    )
   })
 })

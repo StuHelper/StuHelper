@@ -90,7 +90,14 @@ export function resolvePostLoginRedirectTarget(redirect?: string): string | unde
     return new URL(sanitized, window.location.origin).toString();
 }
 
-export function absoluteURLOnCurrentOrigin(path: string): string {
+export function absoluteURLOnPreferredOrigin(
+    path: string,
+    preferredOrigin?: string | null,
+): string {
     if (typeof window === "undefined") return path;
-    return new URL(path, window.location.origin).toString();
+    return new URL(path, preferredOrigin || window.location.origin).toString();
+}
+
+export function absoluteURLOnCurrentOrigin(path: string): string {
+    return absoluteURLOnPreferredOrigin(path);
 }

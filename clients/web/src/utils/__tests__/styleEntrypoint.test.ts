@@ -53,6 +53,21 @@ describe("style entrypoint", () => {
         );
     });
 
+    it("returns identity login flows to the configured web origin", () => {
+        const routerSource = readFileSync(
+            resolve(__dirname, "../../router/index.ts"),
+            "utf-8",
+        );
+
+        expect(routerSource).toContain("absoluteURLOnPreferredOrigin");
+        expect(routerSource).toContain(
+            "absoluteURLOnPreferredOrigin(redirect, webOrigin)",
+        );
+        expect(routerSource).toContain(
+            "absoluteURLOnPreferredOrigin(from.fullPath, webOrigin)",
+        );
+    });
+
     it("uses the identity home route as the default login return target on the identity host", () => {
         const loginSource = readFileSync(
             resolve(__dirname, "../../modules/auth/views/LoginPage.vue"),
