@@ -15,9 +15,7 @@ import {
 import { hasStoredSessionHint } from "@/utils/sessionHint";
 import { updatePageMeta } from "@/composables/usePageMeta";
 import i18n from "@/i18n";
-import {
-    REVIEW_CREATE,
-} from "@stuhelper/shared/constants";
+import { REVIEW_CREATE } from "@stuhelper/shared/constants";
 import {
     hasRequiredRouteCapabilityAccess,
     resolveProtectedRouteAuthFailure,
@@ -57,7 +55,9 @@ function redirectIdentityPortalRoute(
     to: Pick<RouteLocationNormalized, "fullPath" | "matched" | "path">,
     from: Pick<RouteLocationNormalized, "fullPath" | "name">,
 ) {
-    const isIdentityPortalRoute = to.matched.some((route) => route.meta?.identityPortal);
+    const isIdentityPortalRoute = to.matched.some(
+        (route) => route.meta?.identityPortal,
+    );
     const identityOrigin = configuredIdentityOrigin();
 
     if (isIdentityPortalRoute) {
@@ -69,9 +69,15 @@ function redirectIdentityPortalRoute(
         if (to.path === "/login") {
             const redirect = target.searchParams.get("redirect");
             if (redirect && isSafeRelativeRedirect(redirect)) {
-                target.searchParams.set("redirect", absoluteURLOnCurrentOrigin(redirect));
+                target.searchParams.set(
+                    "redirect",
+                    absoluteURLOnCurrentOrigin(redirect),
+                );
             } else if (!redirect && from.name) {
-                target.searchParams.set("redirect", absoluteURLOnCurrentOrigin(from.fullPath));
+                target.searchParams.set(
+                    "redirect",
+                    absoluteURLOnCurrentOrigin(from.fullPath),
+                );
             }
         }
 
@@ -87,6 +93,10 @@ function redirectIdentityPortalRoute(
         webOrigin === identityOrigin
     ) {
         return null;
+    }
+
+    if (to.path === "/") {
+        return { path: "/identity", replace: true };
     }
 
     const target = new URL(to.fullPath, webOrigin);
@@ -125,7 +135,12 @@ const routes: RouteRecordRaw[] = [
         component: lazyLoad(
             () => import("@/modules/auth/views/AuthCallbackPage.vue"),
         ),
-        meta: { titleKey: "routes.authCallback", guest: true, layout: "none", identityPortal: true },
+        meta: {
+            titleKey: "routes.authCallback",
+            guest: true,
+            layout: "none",
+            identityPortal: true,
+        },
     },
     {
         path: "/consent",
@@ -133,15 +148,26 @@ const routes: RouteRecordRaw[] = [
         component: lazyLoad(
             () => import("@/modules/open-platform/views/ConsentPage.vue"),
         ),
-        meta: { titleKey: "routes.openPlatformConsent", requiresAuth: true, layout: "none", identityPortal: true },
+        meta: {
+            titleKey: "routes.openPlatformConsent",
+            requiresAuth: true,
+            layout: "none",
+            identityPortal: true,
+        },
     },
     {
         path: "/complete-profile",
         name: "open-platform-profile-completion",
         component: lazyLoad(
-            () => import("@/modules/open-platform/views/ProfileCompletionPage.vue"),
+            () =>
+                import("@/modules/open-platform/views/ProfileCompletionPage.vue"),
         ),
-        meta: { titleKey: "routes.openPlatformProfileCompletion", requiresAuth: true, layout: "none", identityPortal: true },
+        meta: {
+            titleKey: "routes.openPlatformProfileCompletion",
+            requiresAuth: true,
+            layout: "none",
+            identityPortal: true,
+        },
     },
     {
         path: "/identity",
@@ -149,7 +175,11 @@ const routes: RouteRecordRaw[] = [
         component: lazyLoad(
             () => import("@/modules/user/views/IdentityHomePage.vue"),
         ),
-        meta: { titleKey: "routes.identityHome", requiresAuth: true, identityPortal: true },
+        meta: {
+            titleKey: "routes.identityHome",
+            requiresAuth: true,
+            identityPortal: true,
+        },
     },
     {
         path: "/developers/apps",
@@ -157,7 +187,11 @@ const routes: RouteRecordRaw[] = [
         component: lazyLoad(
             () => import("@/modules/open-platform/views/DeveloperAppsPage.vue"),
         ),
-        meta: { titleKey: "routes.openPlatformDeveloperApps", requiresAuth: true, identityPortal: true },
+        meta: {
+            titleKey: "routes.openPlatformDeveloperApps",
+            requiresAuth: true,
+            identityPortal: true,
+        },
     },
     {
         path: "/admission/a/:code",
@@ -331,7 +365,11 @@ const routes: RouteRecordRaw[] = [
         component: lazyLoad(
             () => import("@/modules/user/views/AuthorizedAppsPage.vue"),
         ),
-        meta: { titleKey: "routes.userAuthorizedApps", requiresAuth: true, identityPortal: true },
+        meta: {
+            titleKey: "routes.userAuthorizedApps",
+            requiresAuth: true,
+            identityPortal: true,
+        },
     },
 
     // 认证与资料页面
@@ -341,7 +379,11 @@ const routes: RouteRecordRaw[] = [
         component: lazyLoad(
             () => import("@/modules/user/views/IdentityVerificationPage.vue"),
         ),
-        meta: { titleKey: "routes.identityVerification", requiresAuth: true, identityPortal: true },
+        meta: {
+            titleKey: "routes.identityVerification",
+            requiresAuth: true,
+            identityPortal: true,
+        },
     },
     {
         path: "/user/student-verification",
@@ -349,7 +391,11 @@ const routes: RouteRecordRaw[] = [
         component: lazyLoad(
             () => import("@/modules/user/views/StudentVerificationPage.vue"),
         ),
-        meta: { titleKey: "routes.studentVerification", requiresAuth: true, identityPortal: true },
+        meta: {
+            titleKey: "routes.studentVerification",
+            requiresAuth: true,
+            identityPortal: true,
+        },
     },
     {
         path: "/user/phone-binding",
@@ -357,7 +403,11 @@ const routes: RouteRecordRaw[] = [
         component: lazyLoad(
             () => import("@/modules/user/views/PhoneBindingPage.vue"),
         ),
-        meta: { titleKey: "routes.phoneBinding", requiresAuth: true, identityPortal: true },
+        meta: {
+            titleKey: "routes.phoneBinding",
+            requiresAuth: true,
+            identityPortal: true,
+        },
     },
     {
         path: "/user/qq-binding",
@@ -365,7 +415,11 @@ const routes: RouteRecordRaw[] = [
         component: lazyLoad(
             () => import("@/modules/user/views/QQBindingPage.vue"),
         ),
-        meta: { titleKey: "routes.qqBinding", requiresAuth: true, identityPortal: true },
+        meta: {
+            titleKey: "routes.qqBinding",
+            requiresAuth: true,
+            identityPortal: true,
+        },
     },
     {
         path: "/user/academic-info",
@@ -373,7 +427,11 @@ const routes: RouteRecordRaw[] = [
         component: lazyLoad(
             () => import("@/modules/user/views/AcademicInfoPage.vue"),
         ),
-        meta: { titleKey: "routes.academicInfo", requiresAuth: true, identityPortal: true },
+        meta: {
+            titleKey: "routes.academicInfo",
+            requiresAuth: true,
+            identityPortal: true,
+        },
     },
 
     // 通知中心
@@ -431,13 +489,13 @@ router.beforeEach(async (to, from) => {
         : matchedTitleRoute?.meta.title;
     updatePageMeta({ title: resolvedTitle });
 
-    const routeHasRequiredCapabilities = to.matched.some((route) =>
-        Array.isArray(route.meta.requiredCapabilities) &&
-        route.meta.requiredCapabilities.length > 0,
+    const routeHasRequiredCapabilities = to.matched.some(
+        (route) =>
+            Array.isArray(route.meta.requiredCapabilities) &&
+            route.meta.requiredCapabilities.length > 0,
     );
     const requiresAuthRoute =
-        Boolean(to.meta.requiresAuth) ||
-        routeHasRequiredCapabilities;
+        Boolean(to.meta.requiresAuth) || routeHasRequiredCapabilities;
     const hasSessionHint = hasStoredSessionHint();
     if (!hasSessionHint && authStore.isAuthenticated) {
         authStore.clearSession();
@@ -460,7 +518,10 @@ router.beforeEach(async (to, from) => {
         } catch (err) {
             refreshFailed = true;
             if (import.meta.env.DEV) {
-                console.warn("[Router] session refresh failed during navigation:", err);
+                console.warn(
+                    "[Router] session refresh failed during navigation:",
+                    err,
+                );
             }
         }
     }
@@ -508,7 +569,10 @@ router.beforeEach(async (to, from) => {
         typeof to.query.reauth === "string" &&
         to.query.reauth === "1";
     if (to.meta.guest && isAuthenticated && !isReauthLogin) {
-        const redirect = typeof to.query.redirect === "string" ? to.query.redirect : undefined;
+        const redirect =
+            typeof to.query.redirect === "string"
+                ? to.query.redirect
+                : undefined;
         if (
             redirect &&
             redirect.startsWith("/") &&
