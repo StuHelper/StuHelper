@@ -51,7 +51,7 @@
         @click="goToUser"
       >
         <User class="size-4" />
-        {{ t('nav.profile') }}
+        {{ isIdentityPortalHost ? t('routes.identityHome') : t('nav.profile') }}
       </button>
       <button
         type="button"
@@ -145,6 +145,7 @@ import { useVerificationStore } from '@/stores/verification'
 import { useToast } from '@/composables/useToast'
 import { canShowAdminEntry } from '@/utils/adminAccess'
 import { resolveAdminConsoleURL } from '@/utils/adminUrl'
+import { configuredIdentityOrigin } from '@/utils/redirect'
 
 const USER_MENU_ID = 'app-shell-user-menu'
 const adminConsoleURL = resolveAdminConsoleURL(import.meta.env.VITE_ADMIN_URL)
@@ -169,6 +170,10 @@ const showAdminEntry = computed(() => canShowAdminEntry(authStore.user))
 const canFetchVerificationStatus = computed(() =>
   authStore.bootstrapCompleted && authStore.isAuthenticated,
 )
+const isIdentityPortalHost = computed(() => {
+  if (typeof window === 'undefined') return false
+  return configuredIdentityOrigin() === window.location.origin
+})
 
 function syncUserMenuItems() {
   userMenuItems.value = userMenuRef.value
@@ -251,7 +256,7 @@ function handleUserMenuKeydown(event: KeyboardEvent) {
 
 function goToUser() {
   closeUserMenu()
-  void router.push('/user/reviews')
+  void router.push(isIdentityPortalHost.value ? '/identity' : '/user/reviews')
 }
 
 function goTo(routeName: string) {
@@ -268,6 +273,10 @@ async function handleLogout() {
   closeUserMenu()
   const result = await authStore.logout()
   if (result.ok) {
+    if (isIdentityPortalHost.value) {
+      void router.push({ path: '/login', query: { redirect: '/identity' } })
+      return
+    }
     void router.push('/')
     return
   }

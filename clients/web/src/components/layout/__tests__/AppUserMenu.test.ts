@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AppUserMenu from '../AppUserMenu.vue'
 
 const mocks = vi.hoisted(() => ({
@@ -72,6 +72,7 @@ function mountUserMenu(authState: {
 
 describe('AppUserMenu', () => {
   beforeEach(() => {
+    vi.unstubAllEnvs()
     Object.assign(mocks.authStore, {
       bootstrapCompleted: false,
       isAuthenticated: false,
@@ -86,6 +87,10 @@ describe('AppUserMenu', () => {
     mocks.verificationStore.fetchStatus.mockResolvedValue(undefined)
     mocks.routerPush.mockReset()
     mocks.toastError.mockReset()
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it('does not fetch verification status while cached auth is unresolved', () => {
@@ -113,5 +118,55 @@ describe('AppUserMenu', () => {
     })
 
     expect(mocks.verificationStore.fetchStatus).not.toHaveBeenCalled()
+  })
+
+  it('keeps the profile menu item on the main user center outside the identity host', async () => {
+    const wrapper = mountUserMenu({
+      bootstrapCompleted: true,
+      isAuthenticated: true,
+    })
+
+    await wrapper.get('[aria-haspopup="menu"]').trigger('click')
+    await wrapper
+      .findAll('[role="menuitem"]')
+      .find((item) => item.text().includes('nav.profile'))
+      ?.trigger('click')
+
+    expect(mocks.routerPush).toHaveBeenCalledWith('/user/reviews')
+  })
+
+  it('routes the profile menu item to identity home on the identity host', async () => {
+    vi.stubEnv('VITE_IDENTITY_URL', window.location.origin)
+    const wrapper = mountUserMenu({
+      bootstrapCompleted: true,
+      isAuthenticated: true,
+    })
+
+    await wrapper.get('[aria-haspopup="menu"]').trigger('click')
+    await wrapper
+      .findAll('[role="menuitem"]')
+      .find((item) => item.text().includes('routes.identityHome'))
+      ?.trigger('click')
+
+    expect(mocks.routerPush).toHaveBeenCalledWith('/identity')
+  })
+
+  it('keeps logout on the identity login flow when used from the identity host', async () => {
+    vi.stubEnv('VITE_IDENTITY_URL', window.location.origin)
+    const wrapper = mountUserMenu({
+      bootstrapCompleted: true,
+      isAuthenticated: true,
+    })
+
+    await wrapper.get('[aria-haspopup="menu"]').trigger('click')
+    await wrapper
+      .findAll('[role="menuitem"]')
+      .find((item) => item.text().includes('nav.logout'))
+      ?.trigger('click')
+
+    expect(mocks.routerPush).toHaveBeenCalledWith({
+      path: '/login',
+      query: { redirect: '/identity' },
+    })
   })
 })

@@ -4,7 +4,7 @@
       <button
         class="p-2 bg-transparent rounded-lg text-text-muted cursor-pointer transition-all duration-fast hover:border-text-primary hover:text-text-primary"
         :aria-label="t('common.actions.back')"
-        @click="router.back()"
+        @click="goBack"
       >
         <ArrowLeft class="size-5" />
       </button>
@@ -178,7 +178,7 @@ async function onSubmit() {
   try {
     await verificationStore.bindPhone({ phone: phone.value, otpCode: otpCode.value })
     toast.success(t('user.verification.phone.bindSuccess'))
-    router.push('/user/reviews')
+    void router.push('/identity')
   } catch (err: unknown) {
     const status = getErrorStatus(err)
     if (status === 401) {
@@ -195,6 +195,14 @@ async function onSubmit() {
   } finally {
     loading.value = false
   }
+}
+
+function goBack() {
+  if (window.history.length > 1) {
+    router.back()
+    return
+  }
+  void router.push('/identity')
 }
 
 onMounted(() => {

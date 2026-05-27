@@ -76,7 +76,7 @@
           <Menu v-else :size="20" aria-hidden="true" />
         </button>
         <LocaleSwitcher />
-        <NotificationBell v-if="showAuthenticatedActions" />
+        <NotificationBell v-if="showNotificationBell" />
         <AppUserMenu v-if="showAuthenticatedActions" />
 
         <router-link
@@ -182,6 +182,9 @@ const showWriteReview = computed(() =>
 )
 const showAuthenticatedActions = computed(() =>
   authStore.bootstrapCompleted && authStore.isAuthenticated,
+)
+const showNotificationBell = computed(() =>
+  showAuthenticatedActions.value && !isIdentityPortalHost.value,
 )
 const showLoginEntry = computed(() => !authStore.isAuthenticated && route.name !== 'login')
 const loginEntryRoute = computed(() => ({

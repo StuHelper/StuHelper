@@ -5,7 +5,7 @@
             <button
                 class="p-2 bg-transparent rounded-lg text-text-muted cursor-pointer transition-all duration-fast hover:border-text-primary hover:text-text-primary"
                 :aria-label="t('common.actions.back')"
-                @click="router.back()"
+                @click="goBack"
             >
                 <ArrowLeft class="size-5" />
             </button>
@@ -360,6 +360,14 @@ const form = reactive({
     manualFormData: {} as Record<string, string>,
     consent: false,
 });
+
+function goBack() {
+    if (window.history.length > 1) {
+        router.back();
+        return;
+    }
+    void router.push("/identity");
+}
 
 const selectedSchool = computed(() => {
     if (!form.schoolID) return null;

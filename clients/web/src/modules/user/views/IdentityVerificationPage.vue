@@ -5,7 +5,7 @@
             <button
                 class="p-2 bg-transparent rounded-lg text-text-muted cursor-pointer transition-all duration-fast hover:border-text-primary hover:text-text-primary"
                 :aria-label="t('common.actions.back')"
-                @click="router.back()"
+                @click="goBack"
             >
                 <ArrowLeft class="size-5" />
             </button>
@@ -426,6 +426,14 @@ const previews = reactive<{
     back: null,
     selfie: null,
 });
+
+function goBack() {
+    if (window.history.length > 1) {
+        router.back();
+        return;
+    }
+    void router.push("/identity");
+}
 
 function docTypeLabel(docType: string): string {
     const found = docTypes.value.find((dt) => dt.value === docType);

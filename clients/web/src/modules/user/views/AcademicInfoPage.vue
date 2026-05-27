@@ -144,7 +144,7 @@ function goBack(): void {
   if (window.history.length > 1) {
     router.back()
   } else {
-    void router.push('/user/reviews')
+    void router.push('/identity')
   }
 }
 
@@ -157,7 +157,7 @@ async function load(): Promise<void> {
   } catch (err: unknown) {
     const status = err instanceof ApiError ? err.status : undefined
     if (status === 401) {
-      void router.push('/login')
+      void router.push({ path: '/login', query: { redirect: '/user/academic-info' } })
       return
     }
     if (status === 403) {

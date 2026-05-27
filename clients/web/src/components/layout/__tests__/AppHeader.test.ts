@@ -137,6 +137,27 @@ describe('AppHeader', () => {
     expect(wrapper.text()).not.toContain('nav.login')
   })
 
+  it('hides main-site notifications on the identity host after authentication', () => {
+    vi.stubEnv('VITE_IDENTITY_URL', window.location.origin)
+    Object.assign(mocks.route, {
+      name: 'identity-home',
+      path: '/identity',
+      fullPath: '/identity',
+      params: {},
+    })
+
+    const wrapper = mountHeader({
+      bootstrapCompleted: true,
+      isAuthenticated: true,
+    })
+
+    expect(wrapper.find('[data-test="notification-bell"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="app-user-menu"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('routes.identityHome')
+    expect(wrapper.text()).toContain('routes.userAuthorizedApps')
+    expect(wrapper.text()).toContain('routes.openPlatformDeveloperApps')
+  })
+
   it('shows the login entry after session bootstrap resolves anonymous', () => {
     const wrapper = mountHeader({
       bootstrapCompleted: true,
