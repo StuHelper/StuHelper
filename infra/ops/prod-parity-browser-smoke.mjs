@@ -1348,7 +1348,7 @@ function describeConsoleMessage(message) {
 
 function isIgnoredConsoleError(text) {
   return (
-    /^Failed to load resource: the server responded with a status of [45]\d\d \([^)]+\)$/.test(
+    /^Failed to load resource: the server responded with a status of [45]\d\d \([^)]*\)$/.test(
       text,
     ) ||
     text.includes('The Cross-Origin-Opener-Policy header has been ignored')
