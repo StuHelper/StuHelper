@@ -161,6 +161,14 @@ server {
         return 302 \$scheme://id.stuhelper.com\$request_uri;
     }
 
+    location = /connect {
+        return 302 \$scheme://id.stuhelper.com\$request_uri;
+    }
+
+    location = /account/security {
+        return 302 \$scheme://id.stuhelper.com\$request_uri;
+    }
+
     location = /login {
         return 302 \$scheme://id.stuhelper.com\$request_uri;
     }
@@ -369,6 +377,16 @@ server {
     }
 
     location = /identity {
+        proxy_pass http://127.0.0.1:${web_port};
+        proxy_http_version 1.1;
+    }
+
+    location = /connect {
+        proxy_pass http://127.0.0.1:${web_port};
+        proxy_http_version 1.1;
+    }
+
+    location = /account/security {
         proxy_pass http://127.0.0.1:${web_port};
         proxy_http_version 1.1;
     }

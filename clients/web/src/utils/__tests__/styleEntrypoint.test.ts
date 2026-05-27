@@ -322,6 +322,8 @@ describe("style entrypoint", () => {
 
         expect(routerSource).toContain('path: "/identity"');
         expect(routerSource).toContain('name: "identity-home"');
+        expect(routerSource).toContain('path: "/account/security"');
+        expect(routerSource).toContain('name: "account-security"');
         expect(routerSource).toContain('path: "/connect"');
         expect(routerSource).toContain('name: "identity-connect"');
         expect(routerSource).toMatch(
@@ -329,6 +331,9 @@ describe("style entrypoint", () => {
         );
         expect(routerSource).toMatch(
             /path:\s*"\/connect"[\s\S]*meta:\s*\{[\s\S]*titleKey:\s*"routes\.identityConnect"[\s\S]*identityPortal:\s*true[\s\S]*\}/,
+        );
+        expect(routerSource).toMatch(
+            /path:\s*"\/account\/security"[\s\S]*meta:\s*\{[\s\S]*titleKey:\s*"routes\.accountSecurity"[\s\S]*requiresAuth:\s*true[\s\S]*identityPortal:\s*true[\s\S]*\}/,
         );
         expect(headerSource).toContain(
             "const logoRoute = computed(() => (isIdentityPortalHost.value ? '/identity' : '/'))",
@@ -342,7 +347,7 @@ describe("style entrypoint", () => {
         expect(routerSource).toContain(
             'if (to.path === "/") {\n        return { path: "/identity", replace: true }',
         );
-        expect(profileSource).toContain("accountSettingsUrl");
+        expect(profileSource).toContain('to="/account/security"');
         expect(profileSource).toContain("user.identityHome.accountSecurity");
     });
 

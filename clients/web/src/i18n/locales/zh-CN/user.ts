@@ -50,6 +50,42 @@ export default {
                 "注册应用、申请 scope、维护回调地址并查看应用审计摘要。",
         },
     },
+    accountSecurity: {
+        eyebrow: "StuHelper ID",
+        title: "账号安全",
+        subtitle: "管理当前 StuHelper ID、浏览器会话和上游账号安全设置。",
+        backToIdentity: "返回身份中心",
+        actionsLabel: "账号安全操作",
+        emailMissing: "暂无邮箱",
+        fields: {
+            accountId: "账号 ID",
+            username: "用户名",
+        },
+        session: {
+            title: "当前浏览器会话",
+            description: "当前设备已通过 StuHelper ID 登录。",
+            active: "会话有效",
+            logout: "退出当前会话",
+            loggingOut: "正在退出...",
+        },
+        provider: {
+            title: "密码与上游账号",
+            description: "打开 StuHelper ID 的上游账号设置，修改密码或安全资料。",
+            open: "打开账号设置",
+        },
+        phone: {
+            title: "绑定手机",
+            description: "维护手机号绑定状态，用于账号安全和授权资料披露。",
+        },
+        authorizedApps: {
+            title: "授权应用",
+            description: "查看第三方应用的授权范围、最近披露记录并撤销授权。",
+        },
+        identity: {
+            title: "实名认证",
+            description: "维护真实身份认证状态，作为学生认证和敏感授权的基础。",
+        },
+    },
     reviews: {
         empty: "暂无评价",
         emptyDesc: "去发表你的第一条课程评价吧",

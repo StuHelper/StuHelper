@@ -185,6 +185,18 @@ const routes: RouteRecordRaw[] = [
         },
     },
     {
+        path: "/account/security",
+        name: "account-security",
+        component: lazyLoad(
+            () => import("@/modules/user/views/AccountSecurityPage.vue"),
+        ),
+        meta: {
+            titleKey: "routes.accountSecurity",
+            requiresAuth: true,
+            identityPortal: true,
+        },
+    },
+    {
         path: "/connect",
         name: "identity-connect",
         component: lazyLoad(

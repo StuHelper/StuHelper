@@ -22,13 +22,13 @@ last-verified: 2026-05-22
     ├── stuhelper.com /api/*        → 127.0.0.1:18080 → backend (Go, :8080)
     ├── stuhelper.com /admin/*      → 127.0.0.1:18001 → admin 前端 (Nginx, :8080)
     ├── stuhelper.com /             → 127.0.0.1:18000 → web 前端 (Nginx, :80)
-    ├── stuhelper.com /identity /connect /login /auth/callback /consent /complete-profile /developers/* /user/authorized-apps /user/*-verification /user/*-binding /user/academic-info
+    ├── stuhelper.com /identity /account/security /connect /login /auth/callback /consent /complete-profile /developers/* /user/authorized-apps /user/*-verification /user/*-binding /user/academic-info
     │       → 302 https://id.stuhelper.com$request_uri
     ├── id.stuhelper.com /.well-known/* /oauth2/* /oidc/* → backend
     ├── id.stuhelper.com /api/v1/*  → backend
     ├── id.stuhelper.com /login/oauth/* /signup/oauth/* /api/* /static/* /img/* /buttons/* /flag-icons/* /web/* /mfa/* /account /signup /forget
     │       → 127.0.0.1:8087 → Casdoor upstream
-    ├── id.stuhelper.com /identity /connect /login /auth/callback /consent /complete-profile /developers/* /user/authorized-apps /user/*-verification /user/*-binding /user/academic-info /assets/*
+    ├── id.stuhelper.com /identity /account/security /connect /login /auth/callback /consent /complete-profile /developers/* /user/authorized-apps /user/*-verification /user/*-binding /user/academic-info /assets/*
     │       → web 前端
     ├── id.stuhelper.com / → 302 到 /identity，且重定向响应禁用缓存
     └── id.stuhelper.com 其他主站路径 → 302 https://stuhelper.com$request_uri

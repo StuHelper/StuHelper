@@ -151,6 +151,21 @@ describe('AppUserMenu', () => {
     expect(mocks.routerPush).toHaveBeenCalledWith('/identity')
   })
 
+  it('opens account security from the user menu', async () => {
+    const wrapper = mountUserMenu({
+      bootstrapCompleted: true,
+      isAuthenticated: true,
+    })
+
+    await wrapper.get('[aria-haspopup="menu"]').trigger('click')
+    await wrapper
+      .findAll('[role="menuitem"]')
+      .find((item) => item.text().includes('nav.accountSecurity'))
+      ?.trigger('click')
+
+    expect(mocks.routerPush).toHaveBeenCalledWith({ name: 'account-security' })
+  })
+
   it('keeps logout on the identity login flow when used from the identity host', async () => {
     vi.stubEnv('VITE_IDENTITY_URL', window.location.origin)
     const wrapper = mountUserMenu({

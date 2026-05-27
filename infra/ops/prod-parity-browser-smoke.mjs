@@ -111,7 +111,7 @@ const checks = [
     url: joinURL(identityBaseURL, '/identity'),
     flow: 'identity-authenticated-refresh',
     expectedTexts: ['身份中心', 'Identity Hub'],
-    requiredTexts: ['Connect', '授权应用', '开发者应用'],
+    requiredTexts: ['账号安全', 'Connect', '授权应用', '开发者应用'],
     expectedURLIncludes: joinURL(identityBaseURL, '/identity'),
     stubbedResources: [
       {
@@ -137,6 +137,26 @@ const checks = [
       {
         urlIncludes: '/api/v1/user/identity',
         statuses: [404],
+      },
+    ],
+  },
+  {
+    name: 'identity-account-security-authenticated',
+    url: joinURL(identityBaseURL, '/account/security'),
+    flow: 'identity-authenticated-refresh',
+    expectedTexts: ['账号安全', 'Account Security'],
+    requiredTexts: ['当前浏览器会话', '退出当前会话', '打开账号设置'],
+    expectedURLIncludes: joinURL(identityBaseURL, '/account/security'),
+    stubbedResources: [
+      {
+        url: 'https://fonts.googleapis.com/**',
+        contentType: 'text/css',
+        body: '/* prod-parity smoke uses system fonts for the Casdoor login page. */\n',
+      },
+      {
+        url: 'https://cdn.casbin.org/flag-icons/**',
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>\n',
       },
     ],
   },
@@ -607,6 +627,12 @@ const checks = [
     url: joinURL(webBaseURL, '/identity'),
     expectedTexts: ['登录', 'Login'],
     expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/identity'],
+  },
+  {
+    name: 'web-protected-account-security',
+    url: joinURL(webBaseURL, '/account/security'),
+    expectedTexts: ['登录', 'Login'],
+    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/account/security'],
   },
   {
     name: 'web-protected-user-authorized-apps',

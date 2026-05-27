@@ -56,6 +56,47 @@ export default {
                 "Register apps, request scopes, maintain redirect URIs, and review app audit summaries.",
         },
     },
+    accountSecurity: {
+        eyebrow: "StuHelper ID",
+        title: "Account Security",
+        subtitle:
+            "Manage your current StuHelper ID, browser session, and upstream account security settings.",
+        backToIdentity: "Back to Identity Hub",
+        actionsLabel: "Account security actions",
+        emailMissing: "No email",
+        fields: {
+            accountId: "Account ID",
+            username: "Username",
+        },
+        session: {
+            title: "Current Browser Session",
+            description: "This device is signed in with StuHelper ID.",
+            active: "Session active",
+            logout: "Sign out current session",
+            loggingOut: "Signing out...",
+        },
+        provider: {
+            title: "Password and Upstream Account",
+            description:
+                "Open the upstream account settings for password and security profile changes.",
+            open: "Open account settings",
+        },
+        phone: {
+            title: "Phone Binding",
+            description:
+                "Maintain phone binding for account security and authorized profile disclosure.",
+        },
+        authorizedApps: {
+            title: "Authorized Apps",
+            description:
+                "Review third-party app scopes, recent disclosures, and revoke authorizations.",
+        },
+        identity: {
+            title: "Identity Verification",
+            description:
+                "Maintain real-name verification as the base for student verification and sensitive authorization.",
+        },
+    },
     reviews: {
         empty: "No reviews yet",
         emptyDesc: "Post your first course review",

@@ -55,6 +55,7 @@ import {
   FileText,
   GraduationCap,
   KeyRound,
+  LockKeyhole,
   Network,
   Phone,
   ShieldCheck,
@@ -73,6 +74,12 @@ interface PortalItem {
 const { t } = useI18n()
 
 const portalItems = computed<PortalItem[]>(() => [
+  {
+    to: '/account/security',
+    icon: markRaw(LockKeyhole),
+    title: t('user.identityHome.accountSecurity'),
+    description: t('user.accountSecurity.subtitle'),
+  },
   {
     to: '/user/authorized-apps',
     icon: markRaw(ShieldCheck),

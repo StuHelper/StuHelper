@@ -7,6 +7,7 @@ export default {
   openPlatformConsent: 'Authorize',
   openPlatformProfileCompletion: 'Complete Profile',
   identityHome: 'Identity Hub',
+  accountSecurity: 'Account Security',
   identityConnect: 'Connect',
   openPlatformDeveloperApps: 'Developer Apps',
   home: 'Home',

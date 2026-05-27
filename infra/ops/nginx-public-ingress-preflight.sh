@@ -375,6 +375,7 @@ def validate_main(block: Node, upstreams: dict[str, str]) -> None:
     for path in [
         "/identity",
         "/connect",
+        "/account/security",
         "/login",
         "/auth/callback",
         "/consent",
@@ -430,6 +431,7 @@ def validate_identity(block: Node, upstreams: dict[str, str]) -> None:
     require_location_proxy(block, label, "=", "/complete-profile", upstreams["web"])
     require_location_proxy(block, label, "=", "/identity", upstreams["web"])
     require_location_proxy(block, label, "=", "/connect", upstreams["web"])
+    require_location_proxy(block, label, "=", "/account/security", upstreams["web"])
     require_location_proxy(block, label, "^~", "/developers/", upstreams["web"])
     for path in [
         "/user/authorized-apps",

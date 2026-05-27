@@ -32,14 +32,13 @@
                 </div>
             </div>
 
-            <a
-                v-if="accountSettingsUrl"
-                :href="accountSettingsUrl"
+            <router-link
+                to="/account/security"
                 class="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-bg-base px-3 text-sm font-medium text-text-secondary no-underline transition-colors duration-fast hover:border-primary/40 hover:text-primary"
             >
                 <KeyRound class="size-4" aria-hidden="true" />
                 {{ t("user.identityHome.accountSecurity") }}
-            </a>
+            </router-link>
         </div>
 
         <!-- Status cards grid -->
@@ -255,7 +254,6 @@ const user = computed(() => authStore.user);
 const displayName = computed(
     () => user.value?.displayName ?? user.value?.name ?? "",
 );
-const accountSettingsUrl = computed(() => user.value?.accountSettingsUrl ?? "");
 const identityVerified = computed(() => verificationStore.identityVerified);
 const studentVerified = computed(() => verificationStore.studentVerified);
 const qqBound = computed(() => verificationStore.qqBound);
