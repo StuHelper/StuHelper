@@ -6,7 +6,7 @@
       <!-- 渐变条 -->
       <div class="h-[3px] bg-gradient-to-r from-primary to-accent -mt-12 -mx-4 sm:-mx-10 mb-6"></div>
 
-      <h1 class="font-sans text-2xl font-extrabold tracking-tight m-0 mb-2 gradient-text">StuHelper</h1>
+      <h1 class="font-sans text-2xl font-extrabold tracking-tight m-0 mb-2 gradient-text">{{ $t('common.login.title') }}</h1>
       <p class="text-text-muted mb-6 text-sm leading-relaxed">{{ $t('common.login.subtitle') }}</p>
 
       <div class="flex flex-col gap-3">
@@ -16,7 +16,7 @@
           @click="handleLogin"
           :disabled="loading"
         >
-          {{ loading ? $t('common.login.redirecting') : $t('common.login.ssoLogin') }}
+          {{ loading ? $t('common.login.redirecting') : $t('common.login.identityLogin') }}
         </button>
 
         <button
@@ -28,7 +28,7 @@
           {{ $t('common.login.signup') }}
         </button>
 
-        <p class="mt-2 text-text-muted text-xs">{{ $t('common.login.ssoHint') }}</p>
+        <p class="mt-2 text-text-muted text-xs">{{ $t('common.login.identityHint') }}</p>
       </div>
     </div>
   </div>

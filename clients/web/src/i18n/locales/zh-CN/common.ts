@@ -58,11 +58,12 @@ export default {
     daysAgo: '{n} 天前'
   },
   login: {
-    subtitle: '航小伴 - 你的校园助手',
-    ssoLogin: '使用 SSO 登录',
-    signup: '注册新账号',
+    title: 'StuHelper ID',
+    subtitle: '统一身份、认证与开放平台入口',
+    identityLogin: '使用统一身份认证登录',
+    signup: '注册 StuHelper ID',
     redirecting: '跳转中...',
-    hint: '使用 StuHelper SSO 统一身份认证登录',
+    hint: '使用 StuHelper ID 统一身份认证登录',
     loginFailed: '登录失败',
     signupFailed: '注册失败',
     networkError: '网络连接失败',
@@ -83,7 +84,7 @@ export default {
     otpSent: '验证码已发送',
     invalidPhone: '请输入正确的手机号',
     phoneHint: '使用手机号快捷登录',
-    ssoHint: '通过 SSO 统一身份认证'
+    identityHint: '通过 StuHelper ID 完成账号登录、认证与第三方应用授权'
   },
   openPlatformConsent: {
     loading: '正在加载授权请求...',
@@ -161,7 +162,7 @@ export default {
         },
         roadmap: {
           heading: '开发方向',
-          body: '项目采用 OpenAPI 3 Spec-First、多端共享 API 客户端和统一 SSO 登录，后续会继续完善教学相关模块。'
+          body: '项目采用 OpenAPI 3 Spec-First、多端共享 API 客户端和 StuHelper ID 统一身份登录，后续会继续完善教学相关模块。'
         }
       }
     },

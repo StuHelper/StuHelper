@@ -35,7 +35,7 @@ describe('style entrypoint', () => {
     expect(routerSource).toContain('isAuthenticated: authStore.isAuthenticated')
   })
 
-  it('uses the identity home route as the default SSO return target on the identity host', () => {
+  it('uses the identity home route as the default login return target on the identity host', () => {
     const loginSource = readFileSync(
       resolve(__dirname, '../../modules/auth/views/LoginPage.vue'),
       'utf-8',
@@ -46,6 +46,29 @@ describe('style entrypoint', () => {
     expect(loginSource).toContain('return new URL("/identity", window.location.origin).toString()')
     expect(loginSource).toContain('return new URL("/", window.location.origin).toString()')
     expect(loginSource).toContain('return defaultAuthenticatedRoute()')
+  })
+
+  it('brands the public login page as StuHelper ID instead of a standalone SSO site', () => {
+    const loginSource = readFileSync(
+      resolve(__dirname, '../../modules/auth/views/LoginPage.vue'),
+      'utf-8',
+    )
+    const zhCommonSource = readFileSync(resolve(__dirname, '../../i18n/locales/zh-CN/common.ts'), 'utf-8')
+    const enCommonSource = readFileSync(resolve(__dirname, '../../i18n/locales/en-US/common.ts'), 'utf-8')
+
+    expect(loginSource).toContain("common.login.title")
+    expect(loginSource).toContain("common.login.identityLogin")
+    expect(loginSource).toContain("common.login.identityHint")
+    expect(loginSource).not.toContain("common.login.ssoLogin")
+    expect(loginSource).not.toContain("common.login.ssoHint")
+    expect(zhCommonSource).toContain("title: 'StuHelper ID'")
+    expect(zhCommonSource).toContain("identityLogin: '使用统一身份认证登录'")
+    expect(zhCommonSource).not.toContain('使用 SSO 登录')
+    expect(zhCommonSource).not.toContain('StuHelper SSO')
+    expect(enCommonSource).toContain("title: 'StuHelper ID'")
+    expect(enCommonSource).toContain("identityLogin: 'Continue with StuHelper ID'")
+    expect(enCommonSource).not.toContain('Login with SSO')
+    expect(enCommonSource).not.toContain('StuHelper SSO')
   })
 
   it('keeps the login page inside the shared shell without global background side effects', () => {

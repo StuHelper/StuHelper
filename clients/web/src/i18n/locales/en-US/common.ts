@@ -58,11 +58,12 @@ export default {
     daysAgo: '{n} days ago'
   },
   login: {
-    subtitle: 'Your Campus Assistant',
-    ssoLogin: 'Login with SSO',
-    signup: 'Sign Up',
+    title: 'StuHelper ID',
+    subtitle: 'Identity, verification, and Open Platform access',
+    identityLogin: 'Continue with StuHelper ID',
+    signup: 'Create StuHelper ID',
     redirecting: 'Redirecting...',
-    hint: 'Login with StuHelper SSO unified authentication',
+    hint: 'Sign in with StuHelper ID unified authentication',
     loginFailed: 'Login failed',
     signupFailed: 'Signup failed',
     networkError: 'Network connection failed',
@@ -83,7 +84,7 @@ export default {
     otpSent: 'Verification code sent',
     invalidPhone: 'Please enter a valid phone number',
     phoneHint: 'Quick login with phone number',
-    ssoHint: 'Via SSO unified authentication'
+    identityHint: 'Use StuHelper ID for account sign-in, verification, and third-party app authorization'
   },
   openPlatformConsent: {
     loading: 'Loading authorization request...',
@@ -161,7 +162,7 @@ export default {
         },
         roadmap: {
           heading: 'Product Direction',
-          body: 'The project uses an OpenAPI 3 spec-first workflow, shared multi-client APIs, and unified SSO, and we will continue expanding the teaching-related product surface.'
+          body: 'The project uses an OpenAPI 3 spec-first workflow, shared multi-client APIs, and StuHelper ID unified sign-in, and we will continue expanding the teaching-related product surface.'
         }
       }
     },
