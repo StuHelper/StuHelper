@@ -70,7 +70,7 @@ const checks = [
     url: joinURL(identityBaseURL, '/developers/apps'),
     flow: 'identity-portal-shell',
     expectedTexts: ['登录', 'Login'],
-    requiredTexts: ['身份中心', 'Connect', '授权应用', '开发者应用'],
+    requiredTexts: ['身份中心', '个人资料', 'Connect', '授权应用', '开发者应用'],
     forbiddenTexts: ['课程', '教师', '评课'],
     expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/developers/apps'],
   },
@@ -79,7 +79,7 @@ const checks = [
     url: joinURL(identityBaseURL, '/'),
     flow: 'identity-portal-shell',
     expectedTexts: ['登录', 'Login'],
-    requiredTexts: ['身份中心', 'Connect', '授权应用', '开发者应用'],
+    requiredTexts: ['身份中心', '个人资料', 'Connect', '授权应用', '开发者应用'],
     forbiddenTexts: ['课程', '教师', '评课'],
     expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/identity'],
   },
@@ -111,8 +111,42 @@ const checks = [
     url: joinURL(identityBaseURL, '/identity'),
     flow: 'identity-authenticated-refresh',
     expectedTexts: ['身份中心', 'Identity Hub'],
-    requiredTexts: ['账号安全', 'Connect', '授权应用', '开发者应用'],
+    requiredTexts: ['个人资料', '账号安全', 'Connect', '授权应用', '开发者应用'],
     expectedURLIncludes: joinURL(identityBaseURL, '/identity'),
+    stubbedResources: [
+      {
+        url: 'https://fonts.googleapis.com/**',
+        contentType: 'text/css',
+        body: '/* prod-parity smoke uses system fonts for the Casdoor login page. */\n',
+      },
+      {
+        url: 'https://cdn.casbin.org/flag-icons/**',
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>\n',
+      },
+    ],
+    allowedAPIResponses: [
+      {
+        urlIncludes: '/api/v1/user/profile',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/qq-binding',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/identity',
+        statuses: [404],
+      },
+    ],
+  },
+  {
+    name: 'identity-account-profile-authenticated',
+    url: joinURL(identityBaseURL, '/account/profile'),
+    flow: 'identity-authenticated-refresh',
+    expectedTexts: ['个人资料', 'Profile'],
+    requiredTexts: ['联系信息', '授权披露字段', '实名认证'],
+    expectedURLIncludes: joinURL(identityBaseURL, '/account/profile'),
     stubbedResources: [
       {
         url: 'https://fonts.googleapis.com/**',
@@ -643,6 +677,12 @@ const checks = [
     expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/identity'],
   },
   {
+    name: 'web-protected-account-profile',
+    url: joinURL(webBaseURL, '/account/profile'),
+    expectedTexts: ['登录', 'Login'],
+    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/account/profile'],
+  },
+  {
     name: 'web-protected-account-security',
     url: joinURL(webBaseURL, '/account/security'),
     expectedTexts: ['登录', 'Login'],
@@ -1080,7 +1120,7 @@ async function runIdentityPortalShellFlow(page, viewportVariant) {
   }
 
   const headerText = await header.innerText({ timeout: timeoutMs });
-  const requiredLabels = ['身份中心', 'Connect', '授权应用', '开发者应用'];
+  const requiredLabels = ['身份中心', '个人资料', 'Connect', '授权应用', '开发者应用'];
   const missingLabels = requiredLabels.filter((label) => !headerText.includes(label));
   if (missingLabels.length > 0) {
     throw new Error(`identity header missing labels: ${missingLabels.join(', ')}`);
@@ -1095,7 +1135,7 @@ async function runIdentityPortalShellFlow(page, viewportVariant) {
   const linkPaths = await header.locator('a[href]').evaluateAll((links) =>
     links.map((link) => new URL(link.href).pathname),
   );
-  const requiredPaths = ['/identity', '/connect', '/user/authorized-apps', '/developers/apps'];
+  const requiredPaths = ['/identity', '/account/profile', '/connect', '/user/authorized-apps', '/developers/apps'];
   const missingPaths = requiredPaths.filter((path) => !linkPaths.includes(path));
   if (missingPaths.length > 0) {
     throw new Error(`identity header missing links: ${missingPaths.join(', ')}`);

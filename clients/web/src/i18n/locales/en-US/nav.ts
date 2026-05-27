@@ -20,6 +20,7 @@ export default {
   logout: 'Logout',
   user: 'User',
   profile: 'Profile',
+  accountProfile: 'Profile',
   accountSecurity: 'Account Security',
   developerApps: 'Developer Apps',
   searchPlaceholder: 'Search courses...',

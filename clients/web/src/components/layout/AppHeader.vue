@@ -208,6 +208,7 @@ const navItems = computed<NavItem[]>(() =>
   isIdentityPortalHost.value
     ? [
         { to: '/identity', label: t('routes.identityHome'), icon: UserRound },
+        { to: '/account/profile', label: t('routes.accountProfile'), icon: UserRound },
         { to: '/connect', label: t('routes.identityConnect'), icon: Network },
         { to: '/user/authorized-apps', label: t('routes.userAuthorizedApps'), icon: ShieldCheck },
         { to: '/developers/apps', label: t('routes.openPlatformDeveloperApps'), icon: KeyRound },

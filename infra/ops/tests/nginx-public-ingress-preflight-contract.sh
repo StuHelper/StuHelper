@@ -97,6 +97,7 @@ server {
     proxy_set_header X-Forwarded-Proto https;
     proxy_set_header X-Forwarded-Host $host;
     location = /identity { return 302 https://id.stuhelper.com$request_uri; }
+    location = /account/profile { return 302 https://id.stuhelper.com$request_uri; }
     location = /connect { return 302 https://id.stuhelper.com$request_uri; }
     location = /account/security { return 302 https://id.stuhelper.com$request_uri; }
     location = /login { return 302 https://id.stuhelper.com$request_uri; }

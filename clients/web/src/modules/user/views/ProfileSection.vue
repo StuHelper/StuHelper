@@ -33,11 +33,11 @@
             </div>
 
             <router-link
-                to="/account/security"
+                to="/account/profile"
                 class="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-bg-base px-3 text-sm font-medium text-text-secondary no-underline transition-colors duration-fast hover:border-primary/40 hover:text-primary"
             >
-                <KeyRound class="size-4" aria-hidden="true" />
-                {{ t("user.identityHome.accountSecurity") }}
+                <User class="size-4" aria-hidden="true" />
+                {{ t("user.identityHome.accountProfile.title") }}
             </router-link>
         </div>
 
@@ -239,7 +239,6 @@ import {
     Bot,
     ShieldCheck,
     GraduationCap,
-    KeyRound,
     User,
     Phone,
 } from "lucide-vue-next";

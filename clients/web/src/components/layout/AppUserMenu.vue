@@ -59,6 +59,17 @@
         tabindex="-1"
         data-user-menu-item
         class="flex min-h-10 w-full items-center gap-2.5 rounded-lg px-3 text-sm text-text-secondary transition-colors duration-fast hover:bg-bg-hover hover:text-text-primary"
+        @click="goTo('account-profile')"
+      >
+        <UserRound class="size-4" />
+        {{ t('nav.accountProfile') }}
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        tabindex="-1"
+        data-user-menu-item
+        class="flex min-h-10 w-full items-center gap-2.5 rounded-lg px-3 text-sm text-text-secondary transition-colors duration-fast hover:bg-bg-hover hover:text-text-primary"
         @click="goTo('account-security')"
       >
         <LockKeyhole class="size-4" />
@@ -150,7 +161,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { Bot, GraduationCap, KeyRound, LockKeyhole, LogOut, Settings, ShieldCheck, User } from 'lucide-vue-next'
+import { Bot, GraduationCap, KeyRound, LockKeyhole, LogOut, Settings, ShieldCheck, User, UserRound } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useVerificationStore } from '@/stores/verification'
 import { useToast } from '@/composables/useToast'

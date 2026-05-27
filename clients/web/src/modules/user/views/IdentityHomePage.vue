@@ -59,6 +59,7 @@ import {
   Network,
   Phone,
   ShieldCheck,
+  UserRound,
   UserRoundCheck,
   type LucideIcon,
 } from 'lucide-vue-next'
@@ -74,6 +75,12 @@ interface PortalItem {
 const { t } = useI18n()
 
 const portalItems = computed<PortalItem[]>(() => [
+  {
+    to: '/account/profile',
+    icon: markRaw(UserRound),
+    title: t('user.identityHome.accountProfile.title'),
+    description: t('user.identityHome.accountProfile.description'),
+  },
   {
     to: '/account/security',
     icon: markRaw(LockKeyhole),

@@ -322,12 +322,17 @@ describe("style entrypoint", () => {
 
         expect(routerSource).toContain('path: "/identity"');
         expect(routerSource).toContain('name: "identity-home"');
+        expect(routerSource).toContain('path: "/account/profile"');
+        expect(routerSource).toContain('name: "account-profile"');
         expect(routerSource).toContain('path: "/account/security"');
         expect(routerSource).toContain('name: "account-security"');
         expect(routerSource).toContain('path: "/connect"');
         expect(routerSource).toContain('name: "identity-connect"');
         expect(routerSource).toMatch(
             /path:\s*"\/identity"[\s\S]*meta:\s*\{[\s\S]*titleKey:\s*"routes\.identityHome"[\s\S]*requiresAuth:\s*true[\s\S]*identityPortal:\s*true[\s\S]*\}/,
+        );
+        expect(routerSource).toMatch(
+            /path:\s*"\/account\/profile"[\s\S]*meta:\s*\{[\s\S]*titleKey:\s*"routes\.accountProfile"[\s\S]*requiresAuth:\s*true[\s\S]*identityPortal:\s*true[\s\S]*\}/,
         );
         expect(routerSource).toMatch(
             /path:\s*"\/connect"[\s\S]*meta:\s*\{[\s\S]*titleKey:\s*"routes\.identityConnect"[\s\S]*identityPortal:\s*true[\s\S]*\}/,
@@ -342,13 +347,16 @@ describe("style entrypoint", () => {
             "{ to: '/identity', label: t('routes.identityHome')",
         );
         expect(headerSource).toContain(
+            "{ to: '/account/profile', label: t('routes.accountProfile')",
+        );
+        expect(headerSource).toContain(
             "{ to: '/connect', label: t('routes.identityConnect')",
         );
         expect(routerSource).toContain(
             'if (to.path === "/") {\n        return { path: "/identity", replace: true }',
         );
-        expect(profileSource).toContain('to="/account/security"');
-        expect(profileSource).toContain("user.identityHome.accountSecurity");
+        expect(profileSource).toContain('to="/account/profile"');
+        expect(profileSource).toContain("user.identityHome.accountProfile.title");
     });
 
     it("serves authorized apps as a dedicated identity portal page", () => {

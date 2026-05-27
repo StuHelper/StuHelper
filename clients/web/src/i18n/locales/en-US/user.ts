@@ -14,6 +14,11 @@ export default {
             "Manage your StuHelper profile, verification status, third-party authorizations, and developer apps.",
         sectionsLabel: "Identity hub sections",
         open: "Open",
+        accountProfile: {
+            title: "Profile",
+            description:
+                "Review account display details, contact fields, verification facts, and fields available for authorized disclosure.",
+        },
         accountSecurity: "Account Security",
         authorizedApps: {
             title: "Authorized Apps",
@@ -54,6 +59,83 @@ export default {
             title: "Developer Apps",
             description:
                 "Register apps, request scopes, maintain redirect URIs, and review app audit summaries.",
+        },
+    },
+    accountProfile: {
+        eyebrow: "StuHelper ID",
+        title: "Profile",
+        subtitle:
+            "Review the account details, contact fields, verification status, and third-party disclosure fields for your current StuHelper ID.",
+        backToIdentity: "Back to Identity Hub",
+        missing: {
+            value: "Not available",
+            email: "No email",
+            phone: "No phone binding",
+            qq: "No QQ binding",
+        },
+        fields: {
+            displayName: "Display Name",
+            username: "Username",
+            accountId: "Account ID",
+            email: "Email",
+            phone: "Phone",
+            qq: "QQ",
+        },
+        status: {
+            available: "Available",
+            missing: "Missing",
+            verified: "Verified",
+            unverified: "Unverified",
+            bound: "Bound",
+            unbound: "Unbound",
+        },
+        contact: {
+            title: "Contact Fields",
+            description:
+                "These fields are disclosed only after app approval and your authorization.",
+        },
+        verification: {
+            actionsLabel: "Verification actions",
+            identity: {
+                title: "Identity Verification",
+                description:
+                    "Maintain real-name verification as the base for student verification and sensitive authorization.",
+            },
+            student: {
+                title: "Student Verification",
+                description:
+                    "Connect your school identity and academic status for campus and course-review capabilities.",
+            },
+            phone: {
+                title: "Phone Binding",
+                description:
+                    "Maintain phone binding for account security and authorized profile disclosure.",
+            },
+        },
+        disclosure: {
+            title: "Authorized Disclosure Fields",
+            description:
+                "Third-party apps can read each field only after scope approval and your authorization.",
+            profile: {
+                title: "Basic Profile",
+                description: "Display name, username, and avatar.",
+            },
+            email: {
+                title: "Email",
+                description: "Account email address.",
+            },
+            phone: {
+                title: "Phone",
+                description: "Verified phone number.",
+            },
+            identity: {
+                title: "Identity Status",
+                description: "Real-name verification status and identity type.",
+            },
+            student: {
+                title: "Student Status",
+                description: "Student verification status and school information.",
+            },
         },
     },
     accountSecurity: {

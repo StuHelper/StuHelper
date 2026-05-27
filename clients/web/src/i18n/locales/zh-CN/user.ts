@@ -14,6 +14,11 @@ export default {
             "集中管理你的 StuHelper 账号资料、认证状态、第三方授权和开发者应用。",
         sectionsLabel: "身份中心入口",
         open: "打开",
+        accountProfile: {
+            title: "个人资料",
+            description:
+                "查看账号展示资料、联系信息、认证事实和可授权披露字段。",
+        },
         accountSecurity: "账号安全",
         authorizedApps: {
             title: "授权应用",
@@ -48,6 +53,79 @@ export default {
             title: "开发者应用",
             description:
                 "注册应用、申请 scope、维护回调地址并查看应用审计摘要。",
+        },
+    },
+    accountProfile: {
+        eyebrow: "StuHelper ID",
+        title: "个人资料",
+        subtitle:
+            "查看当前 StuHelper ID 的账号资料、联系信息、认证状态和第三方应用可申请披露的字段。",
+        backToIdentity: "返回身份中心",
+        missing: {
+            value: "暂无",
+            email: "暂无邮箱",
+            phone: "暂无绑定手机",
+            qq: "暂无绑定 QQ",
+        },
+        fields: {
+            displayName: "展示名",
+            username: "用户名",
+            accountId: "账号 ID",
+            email: "邮箱",
+            phone: "手机",
+            qq: "QQ",
+        },
+        status: {
+            available: "可用",
+            missing: "暂无",
+            verified: "已验证",
+            unverified: "未验证",
+            bound: "已绑定",
+            unbound: "未绑定",
+        },
+        contact: {
+            title: "联系信息",
+            description: "这些字段只会在应用获得审批且你授权后披露。",
+        },
+        verification: {
+            actionsLabel: "认证入口",
+            identity: {
+                title: "实名认证",
+                description: "维护真实身份认证状态，作为学生认证和敏感授权的基础。",
+            },
+            student: {
+                title: "学生认证",
+                description: "绑定学校身份和学籍状态，解锁校园与评课相关能力。",
+            },
+            phone: {
+                title: "绑定手机",
+                description: "维护手机号绑定状态，用于账号安全和授权资料披露。",
+            },
+        },
+        disclosure: {
+            title: "授权披露字段",
+            description:
+                "第三方应用只能在 scope 已审批且你授权后读取对应字段。",
+            profile: {
+                title: "基础资料",
+                description: "展示名、用户名和头像。",
+            },
+            email: {
+                title: "邮箱",
+                description: "账号邮箱地址。",
+            },
+            phone: {
+                title: "手机",
+                description: "已验证的手机号。",
+            },
+            identity: {
+                title: "实名状态",
+                description: "实名认证状态和身份类型。",
+            },
+            student: {
+                title: "学生状态",
+                description: "学生认证状态和学校信息。",
+            },
         },
     },
     accountSecurity: {
