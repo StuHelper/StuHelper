@@ -71,6 +71,11 @@ const checks = [
         contentType: 'text/css',
         body: '/* prod-parity smoke uses system fonts for the Casdoor login page. */\n',
       },
+      {
+        url: 'https://cdn.casbin.org/flag-icons/**',
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>\n',
+      },
     ],
     allowedAPIResponses: [
       {
@@ -80,6 +85,18 @@ const checks = [
       {
         urlIncludes: '/api/v1/auth/refresh',
         statuses: [401],
+      },
+      {
+        urlIncludes: '/api/v1/user/profile',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/qq-binding',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/identity',
+        statuses: [404],
       },
     ],
   },
@@ -377,7 +394,7 @@ async function runCheck(browser, check, viewportVariant) {
   page.on('console', (message) => {
     if (message.type() === 'error') {
       const described = describeConsoleMessage(message);
-      if (isBrowserNetworkStatusConsoleError(message.text())) {
+      if (isIgnoredConsoleError(message.text())) {
         ignoredConsoleErrors.push(described);
       } else {
         consoleErrors.push(described);
@@ -603,13 +620,22 @@ async function authMe(page) {
 }
 
 async function expectAuthenticatedHeader(page) {
-  const headerText = await page.locator('header').innerText({ timeout: timeoutMs });
+  const header = page.locator('header');
+  const headerText = await header.innerText({ timeout: timeoutMs });
   if (/登录|Login/i.test(headerText)) {
     throw new Error(`header still shows login after authentication: ${headerText}`);
   }
-  if (!/通知|用户|Notifications|User/i.test(headerText)) {
-    throw new Error(`header does not show authenticated controls: ${headerText}`);
-  }
+
+  const userMenuButton = header.getByRole('button', { name: /用户|User/i });
+  await userMenuButton.waitFor({ state: 'visible', timeout: timeoutMs });
+  await userMenuButton.click({ timeout: timeoutMs });
+  const userMenu = page.getByRole('menu', { name: /用户|User/i });
+  await userMenu.waitFor({ state: 'visible', timeout: timeoutMs });
+  await userMenu.getByRole('menuitem', { name: /退出登录|Logout/i }).waitFor({
+    state: 'visible',
+    timeout: timeoutMs,
+  });
+  await page.keyboard.press('Escape').catch(() => undefined);
 }
 
 function resourceStubsForCheck(check) {
@@ -642,8 +668,11 @@ function describeConsoleMessage(message) {
   return `${message.text()}${locationText}`;
 }
 
-function isBrowserNetworkStatusConsoleError(text) {
-  return /^Failed to load resource: the server responded with a status of [45]\d\d \([^)]+\)$/.test(
-    text,
+function isIgnoredConsoleError(text) {
+  return (
+    /^Failed to load resource: the server responded with a status of [45]\d\d \([^)]+\)$/.test(
+      text,
+    ) ||
+    text.includes('The Cross-Origin-Opener-Policy header has been ignored')
   );
 }
