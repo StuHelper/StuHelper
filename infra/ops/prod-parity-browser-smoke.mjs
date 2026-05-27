@@ -153,6 +153,41 @@ const checks = [
     ],
   },
   {
+    name: 'identity-developer-apps-authenticated',
+    url: joinURL(identityBaseURL, '/developers/apps'),
+    flow: 'identity-authenticated-refresh',
+    expectedTexts: ['开发者应用', 'Developer Apps'],
+    requiredTexts: ['创建应用'],
+    forbiddenTexts: ['我的评价', '我的点赞', '我的收藏', 'My Reviews', 'My Votes', 'My Favorites'],
+    expectedURLIncludes: joinURL(identityBaseURL, '/developers/apps'),
+    stubbedResources: [
+      {
+        url: 'https://fonts.googleapis.com/**',
+        contentType: 'text/css',
+        body: '/* prod-parity smoke uses system fonts for the Casdoor login page. */\n',
+      },
+      {
+        url: 'https://cdn.casbin.org/flag-icons/**',
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>\n',
+      },
+    ],
+    allowedAPIResponses: [
+      {
+        urlIncludes: '/api/v1/user/profile',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/qq-binding',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/identity',
+        statuses: [404],
+      },
+    ],
+  },
+  {
     name: 'identity-main-route-redirect',
     url: joinURL(identityBaseURL, '/courses'),
     expectedTexts: ['评课社区@BUAA', 'Browse Courses'],
