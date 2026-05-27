@@ -57,6 +57,9 @@ export default {
         browseCourses: "Browse Courses",
     },
     authorizedApps: {
+        pageTitle: "Authorized Apps",
+        pageSubtitle: "Review third-party app scopes, recent disclosures, and revoke access by app or individual scope.",
+        backToIdentity: "Back to Identity Hub",
         empty: "No authorized apps",
         emptyDesc: "Third-party app authorizations will appear here",
         homepage: "Homepage",

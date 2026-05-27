@@ -329,7 +329,7 @@ const routes: RouteRecordRaw[] = [
         path: "/user/authorized-apps",
         name: "user-authorized-apps",
         component: lazyLoad(
-            () => import("@/modules/user/views/UserCenterPage.vue"),
+            () => import("@/modules/user/views/AuthorizedAppsPage.vue"),
         ),
         meta: { titleKey: "routes.userAuthorizedApps", requiresAuth: true, identityPortal: true },
     },

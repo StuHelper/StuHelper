@@ -156,6 +156,13 @@ describe('style entrypoint', () => {
     expect(headerSource).toContain("{ to: '/identity', label: t('routes.identityHome')")
   })
 
+  it('serves authorized apps as a dedicated identity portal page', () => {
+    const routerSource = readFileSync(resolve(__dirname, '../../router/index.ts'), 'utf-8')
+
+    expect(routerSource).toMatch(/path:\s*"\/user\/authorized-apps"[\s\S]*AuthorizedAppsPage\.vue/)
+    expect(routerSource).toMatch(/path:\s*"\/user\/authorized-apps"[\s\S]*identityPortal:\s*true/)
+  })
+
   it('keeps review drafts user-scoped and recoverable from the post page', () => {
     const draftApiSource = readFileSync(resolve(__dirname, '../../../../shared/src/api/draft.ts'), 'utf-8')
     const draftStoreSource = readFileSync(resolve(__dirname, '../../stores/draft.ts'), 'utf-8')

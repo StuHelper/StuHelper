@@ -57,6 +57,9 @@ export default {
         browseCourses: "浏览课程",
     },
     authorizedApps: {
+        pageTitle: "授权应用",
+        pageSubtitle: "查看第三方应用已经获得的授权范围、最近披露记录，并按应用或单项 scope 撤销授权。",
+        backToIdentity: "返回身份中心",
         empty: "暂无授权应用",
         emptyDesc: "完成第三方应用授权后会显示在这里",
         homepage: "主页",

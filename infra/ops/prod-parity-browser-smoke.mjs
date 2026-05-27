@@ -86,10 +86,45 @@ const checks = [
   {
     name: 'identity-home-authenticated',
     url: joinURL(identityBaseURL, '/identity'),
-    flow: 'identity-home-authenticated',
+    flow: 'identity-authenticated-refresh',
     expectedTexts: ['身份中心', 'Identity Hub'],
     requiredTexts: ['授权应用', '开发者应用'],
     expectedURLIncludes: joinURL(identityBaseURL, '/identity'),
+    stubbedResources: [
+      {
+        url: 'https://fonts.googleapis.com/**',
+        contentType: 'text/css',
+        body: '/* prod-parity smoke uses system fonts for the Casdoor login page. */\n',
+      },
+      {
+        url: 'https://cdn.casbin.org/flag-icons/**',
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>\n',
+      },
+    ],
+    allowedAPIResponses: [
+      {
+        urlIncludes: '/api/v1/user/profile',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/qq-binding',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/identity',
+        statuses: [404],
+      },
+    ],
+  },
+  {
+    name: 'identity-authorized-apps-authenticated',
+    url: joinURL(identityBaseURL, '/user/authorized-apps'),
+    flow: 'identity-authenticated-refresh',
+    expectedTexts: ['授权应用', 'Authorized Apps'],
+    requiredTexts: ['授权应用'],
+    forbiddenTexts: ['我的评价', '我的点赞', '我的收藏', 'My Reviews', 'My Votes', 'My Favorites'],
+    expectedURLIncludes: joinURL(identityBaseURL, '/user/authorized-apps'),
     stubbedResources: [
       {
         url: 'https://fonts.googleapis.com/**',
@@ -673,8 +708,8 @@ async function runCheckFlow(page, check, viewportVariant) {
   if (check.flow === 'identity-portal-shell') {
     return runIdentityPortalShellFlow(page, viewportVariant);
   }
-  if (check.flow === 'identity-home-authenticated') {
-    return runIdentityHomeAuthenticatedFlow(page);
+  if (check.flow === 'identity-authenticated-refresh') {
+    return runIdentityAuthenticatedRefreshFlow(page, check);
   }
   return null;
 }
@@ -759,7 +794,8 @@ async function runIdentityPortalShellFlow(page, viewportVariant) {
   };
 }
 
-async function runIdentityHomeAuthenticatedFlow(page) {
+async function runIdentityAuthenticatedRefreshFlow(page, check) {
+  const targetPath = new URL(check.url).pathname;
   await page.waitForURL((url) => url.pathname === '/login', { timeout: timeoutMs });
   await page.getByRole('button', { name: /SSO|统一身份/i }).click({ timeout: timeoutMs });
   await page.waitForURL((url) => url.pathname.includes('/login/oauth/authorize'), {
@@ -769,7 +805,7 @@ async function runIdentityHomeAuthenticatedFlow(page) {
   await page.getByRole('textbox', { name: /username|email|phone/i }).fill(casdoorLoginUsername);
   await page.getByRole('textbox', { name: /password/i }).fill(casdoorLoginPassword);
   await page.getByRole('button', { name: /sign in|登录/i }).click({ timeout: timeoutMs });
-  await page.waitForURL((url) => url.href.startsWith(joinURL(identityBaseURL, '/identity')), {
+  await page.waitForURL((url) => url.href.startsWith(joinURL(identityBaseURL, targetPath)), {
     timeout: timeoutMs,
   });
   await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
@@ -780,7 +816,7 @@ async function runIdentityHomeAuthenticatedFlow(page) {
   }
 
   await page.reload({ waitUntil: 'domcontentloaded', timeout: timeoutMs });
-  await page.waitForURL((url) => url.href.startsWith(joinURL(identityBaseURL, '/identity')), {
+  await page.waitForURL((url) => url.href.startsWith(joinURL(identityBaseURL, targetPath)), {
     timeout: timeoutMs,
   });
   await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
@@ -791,7 +827,7 @@ async function runIdentityHomeAuthenticatedFlow(page) {
   }
 
   return {
-    matchedText: 'identity home authenticated session survived refresh',
+    matchedText: `identity ${targetPath} authenticated session survived refresh`,
     username: casdoorLoginUsername,
     beforeRefreshStatus: beforeRefresh.status,
     afterRefreshStatus: afterRefresh.status,
