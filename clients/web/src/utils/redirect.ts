@@ -83,11 +83,12 @@ export function resolvePostLoginRedirectTarget(redirect?: string): string | unde
     }
 
     const sanitized = sanitizePostLoginRedirect(redirect);
+    const preferredOrigin = preferredPostLoginRedirectOrigin();
     if (!sanitized) {
-        return window.location.href;
+        return absoluteURLOnPreferredOrigin(window.location.href, preferredOrigin);
     }
 
-    return new URL(sanitized, window.location.origin).toString();
+    return absoluteURLOnPreferredOrigin(sanitized, preferredOrigin);
 }
 
 export function absoluteURLOnPreferredOrigin(
@@ -95,9 +96,33 @@ export function absoluteURLOnPreferredOrigin(
     preferredOrigin?: string | null,
 ): string {
     if (typeof window === "undefined") return path;
-    return new URL(path, preferredOrigin || window.location.origin).toString();
+
+    const currentOrigin = window.location.origin;
+    const parsed = new URL(path, preferredOrigin || currentOrigin);
+    if (
+        preferredOrigin &&
+        parsed.origin === currentOrigin &&
+        parsed.origin !== preferredOrigin
+    ) {
+        return new URL(
+            `${parsed.pathname}${parsed.search}${parsed.hash}`,
+            preferredOrigin,
+        ).toString();
+    }
+    return parsed.toString();
 }
 
 export function absoluteURLOnCurrentOrigin(path: string): string {
     return absoluteURLOnPreferredOrigin(path);
+}
+
+function preferredPostLoginRedirectOrigin(): string | null {
+    if (typeof window === "undefined") return null;
+
+    const identityOrigin = configuredIdentityOrigin();
+    if (identityOrigin && window.location.origin === identityOrigin) {
+        return identityOrigin;
+    }
+
+    return configuredWebOrigin();
 }

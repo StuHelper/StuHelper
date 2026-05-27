@@ -61,7 +61,7 @@ describe("style entrypoint", () => {
 
         expect(routerSource).toContain("absoluteURLOnPreferredOrigin");
         expect(routerSource).toContain(
-            "absoluteURLOnPreferredOrigin(redirect, webOrigin)",
+            "absoluteURLOnPreferredOrigin(sanitizedRedirect, webOrigin)",
         );
         expect(routerSource).toContain(
             "absoluteURLOnPreferredOrigin(from.fullPath, webOrigin)",

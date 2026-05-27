@@ -10,7 +10,7 @@ import {
     absoluteURLOnPreferredOrigin,
     configuredIdentityOrigin,
     configuredWebOrigin,
-    isSafeRelativeRedirect,
+    sanitizePostLoginRedirect,
 } from "@/utils/redirect";
 import { hasStoredSessionHint } from "@/utils/sessionHint";
 import { updatePageMeta } from "@/composables/usePageMeta";
@@ -69,11 +69,14 @@ function redirectIdentityPortalRoute(
         const target = new URL(to.fullPath, identityOrigin);
         if (to.path === "/login") {
             const redirect = target.searchParams.get("redirect");
-            if (redirect && isSafeRelativeRedirect(redirect)) {
+            const sanitizedRedirect = sanitizePostLoginRedirect(redirect);
+            if (sanitizedRedirect) {
                 target.searchParams.set(
                     "redirect",
-                    absoluteURLOnPreferredOrigin(redirect, webOrigin),
+                    absoluteURLOnPreferredOrigin(sanitizedRedirect, webOrigin),
                 );
+            } else if (redirect) {
+                target.searchParams.delete("redirect");
             } else if (!redirect && from.name) {
                 target.searchParams.set(
                     "redirect",

@@ -63,6 +63,22 @@ describe('post-login redirect helpers', () => {
     ).toBe('http://stuhelper.com/courses?tab=latest')
   })
 
+  it('moves current-origin return targets onto the configured web origin', () => {
+    vi.stubEnv('VITE_IDENTITY_URL', 'http://id.stuhelper.com')
+
+    expect(
+      absoluteURLOnPreferredOrigin(
+        `${window.location.origin}/courses?tab=latest`,
+        'http://stuhelper.com',
+      ),
+    ).toBe('http://stuhelper.com/courses?tab=latest')
+    expect(
+      resolvePostLoginRedirectTarget(
+        `${window.location.origin}/courses?tab=latest`,
+      ),
+    ).toBe('http://stuhelper.com/courses?tab=latest')
+  })
+
   it('falls back to the current origin when no preferred origin is configured', () => {
     expect(absoluteURLOnPreferredOrigin('/identity', null)).toBe(
       `${window.location.origin}/identity`,

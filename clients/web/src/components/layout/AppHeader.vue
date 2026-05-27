@@ -150,7 +150,11 @@ import NotificationBell from '@/components/common/NotificationBell.vue'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import AppUserMenu from './AppUserMenu.vue'
 import { rememberReviewPostCourse } from '@/modules/review/reviewPostNavigation'
-import { configuredIdentityOrigin } from '@/utils/redirect'
+import {
+  absoluteURLOnPreferredOrigin,
+  configuredIdentityOrigin,
+  configuredWebOrigin,
+} from '@/utils/redirect'
 
 interface NavItem {
   to: string
@@ -192,7 +196,10 @@ const loginEntryRoute = computed(() => ({
   query: {
     redirect: typeof window === 'undefined'
       ? route.fullPath
-      : new URL(route.fullPath, window.location.origin).toString(),
+      : absoluteURLOnPreferredOrigin(
+        route.fullPath,
+        isIdentityPortalHost.value ? window.location.origin : configuredWebOrigin(),
+      ),
   },
 }))
 
