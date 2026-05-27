@@ -30,7 +30,8 @@ last-verified: 2026-05-22
     │       → 127.0.0.1:8087 → Casdoor upstream
     ├── id.stuhelper.com /login /auth/callback /consent /complete-profile /developers/* /user/authorized-apps /user/*-verification /user/*-binding /user/academic-info /assets/*
     │       → web 前端
-    └── id.stuhelper.com / → 302 到 /developers/apps，且重定向响应禁用缓存
+    ├── id.stuhelper.com / → 302 到 /developers/apps，且重定向响应禁用缓存
+    └── id.stuhelper.com 其他主站路径 → 302 https://stuhelper.com$request_uri
 ```
 
 主站生产配置中 `IDENTITY_ISSUER`、`WEB_VITE_SSO_URL`、`WEB_VITE_IDENTITY_URL` 与 `CASDOOR_PUBLIC_AUTH_BASE_URL` 固定指向 `https://id.stuhelper.com`，`WEB_VITE_WEB_URL` 固定指向 `https://stuhelper.com`，用于从主站跳到 `id` 登录后再回到原主站页面；`CASDOOR_ISSUER` 保留为后端识别 Casdoor issuer 的上游配置，不代表浏览器应直接访问 `sso.stuhelper.com`。`CASDOOR_REDIRECT_URI`、`CASDOOR_ADMIN_REDIRECT_URI` 与 `CASDOOR_UNIAPP_REDIRECT_URI` 固定回到 `https://id.stuhelper.com/api/v1/auth/callback`。`CORS_ORIGINS` 必须同时包含 `https://stuhelper.com` 和 `https://id.stuhelper.com`，`TOKEN_COOKIE_DOMAIN` 必须设置为 `.stuhelper.com`，让回调后签发的浏览器会话可同时用于主站和 `id.stuhelper.com` 的身份页。仓库内 `casdoor` compose service 只用于本地开发或显式本地 SSO 验证，生产发布脚本不得启动该服务。

@@ -121,6 +121,7 @@ id.stuhelper.com /static/* /img/* /buttons/* /flag-icons/* /web/* /mfa/* /accoun
 id.stuhelper.com /login /auth/callback /consent /complete-profile /developers/* /user/authorized-apps /user/identity-verification /user/student-verification /user/phone-binding /user/qq-binding /user/academic-info /assets/*
                                   -> http://127.0.0.1:18000
 id.stuhelper.com /               -> 302 /developers/apps
+id.stuhelper.com other main-site paths -> 302 https://stuhelper.com$request_uri
 ```
 
 主站 `stuhelper.com` 上的身份类浏览器路径必须 302 到 `id.stuhelper.com`，包括 `/login`、`/auth/callback`、`/consent`、`/complete-profile`、`/developers/*`、`/user/authorized-apps`、实名/学生认证、手机/QQ 绑定和学籍信息。这样浏览器对外只看到 `id.stuhelper.com` 作为身份与开发者平台站点。
@@ -386,7 +387,7 @@ ADMIN_IMAGE_REF=registry.example.com/stuhelper/admin:2026-05-09-<sha>
 
 - Docker / Compose 可用
 - 生产 PostgreSQL TLS 配置默认强制启用：`POSTGRES_ENABLE_SSL=on`、`POSTGRES_INTERNAL_SSL_MODE=verify-full`（最低必须为 `verify-ca`）、`DB_SSL_MODE=verify-full`，并且三个 PostgreSQL URL 都带 `sslrootcert`。如果目标机器复用已有宝塔 Postgres 且该服务未启用 TLS，必须显式设置 `EXTERNAL_POSTGRES_ENABLED=true`、`EXTERNAL_DATASTORE_NETWORK=baota_net`、`EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true`，发布前先在外部 Postgres 中为 StuHelper / OpenFGA 创建独立数据库和独立账号，并把旧 StuHelper 专用 Postgres 中的 `stuhelper` / `openfga` 数据迁移到外部 Postgres。Redis 不复用全局实例，仍由 StuHelper Compose 以独立实例运行。
-- 本机宝塔 Nginx 主站/id 入口配置满足反代契约：`stuhelper.com`、`www.stuhelper.com`、`id.stuhelper.com` 均有 HTTPS server block，主站 `/api/`、`/health/`、`/admin/` 和 `/` 代理到约定的回环端口，主站身份类浏览器路径 302 到 `id.stuhelper.com`；`id.stuhelper.com/` 302 到开放平台开发者应用页，`/.well-known/`、`/oauth2/`、`/oidc/`、`/api/v1/` 代理到 backend，`/login/oauth/`、`/signup/oauth/`、Casdoor `/api/` 和静态资源代理到 Casdoor upstream，`/login`、`/auth/callback`、`/consent`、`/complete-profile`、`/developers/*`、用户授权/认证/绑定/学籍页及 `/assets/` 代理到 web 前端
+- 本机宝塔 Nginx 主站/id 入口配置满足反代契约：`stuhelper.com`、`www.stuhelper.com`、`id.stuhelper.com` 均有 HTTPS server block，主站 `/api/`、`/health/`、`/admin/` 和 `/` 代理到约定的回环端口，主站身份类浏览器路径 302 到 `id.stuhelper.com`；`id.stuhelper.com/` 302 到开放平台开发者应用页，`id.stuhelper.com` 的非身份主站路径 302 回 `stuhelper.com` 同路径，`/.well-known/`、`/oauth2/`、`/oidc/`、`/api/v1/` 代理到 backend，`/login/oauth/`、`/signup/oauth/`、Casdoor `/api/` 和静态资源代理到 Casdoor upstream，`/login`、`/auth/callback`、`/consent`、`/complete-profile`、`/developers/*`、用户授权/认证/绑定/学籍页及 `/assets/` 代理到 web 前端
 - 公网身份入口公共 DNS / TLS / OIDC 可用：`stuhelper.com`、`id.stuhelper.com` 在公共 DNS-over-HTTPS 中有公网 A/AAAA，`stuhelper.com`、`id.stuhelper.com` TLS 可达；只有 `PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED=true` 时才额外要求 Casdoor upstream 的公网 discovery/JWKS
 - PostgreSQL 备份工具可用
 - secret backend 配置可用
@@ -455,6 +456,7 @@ curl -fsS https://id.stuhelper.com/.well-known/openid-configuration | head
 curl -fsSI https://id.stuhelper.com/developers/apps
 curl -fsSI https://id.stuhelper.com/user/authorized-apps
 curl -fsSI https://stuhelper.com/user/authorized-apps  # 应 302 到 id.stuhelper.com
+curl -fsSI https://id.stuhelper.com/courses          # 应 302 回 stuhelper.com/courses
 ```
 
 如果上述公网入口或 `identity-public-smoke.sh` 失败，先生成脱敏诊断 evidence：

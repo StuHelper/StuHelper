@@ -450,7 +450,7 @@ server {
     }
 
     location / {
-        return 302 /developers/apps;
+        return 302 \$scheme://stuhelper.com\$request_uri;
     }
 }
 

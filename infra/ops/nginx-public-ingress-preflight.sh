@@ -442,7 +442,7 @@ def validate_identity(block: Node, upstreams: dict[str, str]) -> None:
     require_location_proxy(block, label, "=", "/account", upstreams["casdoor"])
     require_location_proxy(block, label, "^~", "/signup", upstreams["casdoor"])
     require_location_proxy(block, label, "^~", "/forget", upstreams["casdoor"])
-    require_location_return(block, label, None, "/", "302", "/developers/apps")
+    require_location_return(block, label, None, "/", "302", "https://stuhelper.com$request_uri")
 
 
 def validate_sso(block: Node, upstreams: dict[str, str]) -> None:

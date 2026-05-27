@@ -75,6 +75,12 @@ const checks = [
     expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/developers/apps'],
   },
   {
+    name: 'identity-main-route-redirect',
+    url: joinURL(identityBaseURL, '/courses'),
+    expectedTexts: ['评课社区@BUAA', 'Browse Courses'],
+    expectedURLIncludes: joinURL(webBaseURL, '/courses'),
+  },
+  {
     name: 'web-login-session-refresh',
     url: joinURL(webBaseURL, '/'),
     flow: 'web-login-session-refresh',
