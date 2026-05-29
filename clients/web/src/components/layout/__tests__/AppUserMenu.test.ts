@@ -28,6 +28,8 @@ const mocks = vi.hoisted(() => ({
   },
   routerPush: vi.fn(),
   toastError: vi.fn(),
+  identityPortalURL: vi.fn((path: string) => `https://id.stuhelper.com${path}`),
+  navigateToExternalURL: vi.fn(),
 }))
 
 vi.mock('vue-router', () => ({
@@ -62,6 +64,15 @@ vi.mock('@/utils/adminUrl', () => ({
   resolveAdminConsoleURL: () => 'http://localhost:5174',
 }))
 
+vi.mock('@/utils/redirect', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/utils/redirect')>()
+  return {
+    ...actual,
+    identityPortalURL: mocks.identityPortalURL,
+    navigateToExternalURL: mocks.navigateToExternalURL,
+  }
+})
+
 function mountUserMenu(authState: {
   bootstrapCompleted: boolean
   isAuthenticated: boolean
@@ -87,6 +98,8 @@ describe('AppUserMenu', () => {
     mocks.verificationStore.fetchStatus.mockResolvedValue(undefined)
     mocks.routerPush.mockReset()
     mocks.toastError.mockReset()
+    mocks.identityPortalURL.mockClear()
+    mocks.navigateToExternalURL.mockClear()
   })
 
   afterEach(() => {
@@ -151,7 +164,7 @@ describe('AppUserMenu', () => {
     expect(mocks.routerPush).toHaveBeenCalledWith('/identity')
   })
 
-  it('opens account security from the user menu', async () => {
+  it('opens account security on the identity portal from the main host', async () => {
     const wrapper = mountUserMenu({
       bootstrapCompleted: true,
       isAuthenticated: true,
@@ -163,10 +176,14 @@ describe('AppUserMenu', () => {
       .find((item) => item.text().includes('nav.accountSecurity'))
       ?.trigger('click')
 
-    expect(mocks.routerPush).toHaveBeenCalledWith({ name: 'account-security' })
+    expect(mocks.identityPortalURL).toHaveBeenCalledWith('/account/security')
+    expect(mocks.navigateToExternalURL).toHaveBeenCalledWith(
+      'https://id.stuhelper.com/account/security',
+    )
+    expect(mocks.routerPush).not.toHaveBeenCalled()
   })
 
-  it('opens account profile from the user menu', async () => {
+  it('opens account profile on the identity portal from the main host', async () => {
     const wrapper = mountUserMenu({
       bootstrapCompleted: true,
       isAuthenticated: true,
@@ -178,7 +195,46 @@ describe('AppUserMenu', () => {
       .find((item) => item.text().includes('nav.accountProfile'))
       ?.trigger('click')
 
-    expect(mocks.routerPush).toHaveBeenCalledWith({ name: 'account-profile' })
+    expect(mocks.identityPortalURL).toHaveBeenCalledWith('/account/profile')
+    expect(mocks.navigateToExternalURL).toHaveBeenCalledWith(
+      'https://id.stuhelper.com/account/profile',
+    )
+    expect(mocks.routerPush).not.toHaveBeenCalled()
+  })
+
+  it('opens identity menu entries with local routes on the identity host', async () => {
+    vi.stubEnv('VITE_IDENTITY_URL', window.location.origin)
+    const wrapper = mountUserMenu({
+      bootstrapCompleted: true,
+      isAuthenticated: true,
+    })
+
+    await wrapper.get('[aria-haspopup="menu"]').trigger('click')
+    await wrapper
+      .findAll('[role="menuitem"]')
+      .find((item) => item.text().includes('nav.accountProfile'))
+      ?.trigger('click')
+
+    expect(mocks.routerPush).toHaveBeenCalledWith('/account/profile')
+    expect(mocks.navigateToExternalURL).not.toHaveBeenCalled()
+  })
+
+  it('opens developer apps on the identity portal from the main host', async () => {
+    const wrapper = mountUserMenu({
+      bootstrapCompleted: true,
+      isAuthenticated: true,
+    })
+
+    await wrapper.get('[aria-haspopup="menu"]').trigger('click')
+    await wrapper
+      .findAll('[role="menuitem"]')
+      .find((item) => item.text().includes('nav.developerApps'))
+      ?.trigger('click')
+
+    expect(mocks.identityPortalURL).toHaveBeenCalledWith('/developers/apps')
+    expect(mocks.navigateToExternalURL).toHaveBeenCalledWith(
+      'https://id.stuhelper.com/developers/apps',
+    )
   })
 
   it('keeps logout on the identity login flow when used from the identity host', async () => {

@@ -434,6 +434,29 @@ describe("style entrypoint", () => {
         expect(userCenterSource).not.toContain("user.myAuthorizedApps");
     });
 
+    it("sends user menu identity actions directly to the identity portal", () => {
+        const userMenuSource = readFileSync(
+            resolve(__dirname, "../../components/layout/AppUserMenu.vue"),
+            "utf-8",
+        );
+
+        expect(userMenuSource).toContain("identityPortalURL");
+        expect(userMenuSource).toContain("navigateToExternalURL");
+        expect(userMenuSource).toContain("'account-profile': '/account/profile'");
+        expect(userMenuSource).toContain("'account-security': '/account/security'");
+        expect(userMenuSource).toContain("'open-platform-developer-apps': '/developers/apps'");
+        expect(userMenuSource).toContain("'identity-verification': '/user/identity-verification'");
+        expect(userMenuSource).toContain("'student-verification': '/user/student-verification'");
+        expect(userMenuSource).toContain("'qq-binding': '/user/qq-binding'");
+        expect(userMenuSource).not.toContain("void router.push({ name: routeName })");
+        expect(userMenuSource).not.toContain("@click=\"goTo('account-profile')\"");
+        expect(userMenuSource).not.toContain("@click=\"goTo('account-security')\"");
+        expect(userMenuSource).not.toContain("@click=\"goTo('open-platform-developer-apps')\"");
+        expect(userMenuSource).not.toContain("@click=\"goTo('identity-verification')\"");
+        expect(userMenuSource).not.toContain("@click=\"goTo('student-verification')\"");
+        expect(userMenuSource).not.toContain("@click=\"goTo('qq-binding')\"");
+    });
+
     it("keeps review drafts user-scoped and recoverable from the post page", () => {
         const draftApiSource = readFileSync(
             resolve(__dirname, "../../../../shared/src/api/draft.ts"),

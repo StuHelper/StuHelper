@@ -59,7 +59,7 @@
         tabindex="-1"
         data-user-menu-item
         class="flex min-h-10 w-full items-center gap-2.5 rounded-lg px-3 text-sm text-text-secondary transition-colors duration-fast hover:bg-bg-hover hover:text-text-primary"
-        @click="goTo('account-profile')"
+        @click="goToIdentityRoute('account-profile')"
       >
         <UserRound class="size-4" />
         {{ t('nav.accountProfile') }}
@@ -70,7 +70,7 @@
         tabindex="-1"
         data-user-menu-item
         class="flex min-h-10 w-full items-center gap-2.5 rounded-lg px-3 text-sm text-text-secondary transition-colors duration-fast hover:bg-bg-hover hover:text-text-primary"
-        @click="goTo('account-security')"
+        @click="goToIdentityRoute('account-security')"
       >
         <LockKeyhole class="size-4" />
         {{ t('nav.accountSecurity') }}
@@ -81,7 +81,7 @@
         tabindex="-1"
         data-user-menu-item
         class="flex min-h-10 w-full items-center gap-2.5 rounded-lg px-3 text-sm text-text-secondary transition-colors duration-fast hover:bg-bg-hover hover:text-text-primary"
-        @click="goTo('open-platform-developer-apps')"
+        @click="goToIdentityRoute('open-platform-developer-apps')"
       >
         <KeyRound class="size-4" />
         {{ t('nav.developerApps') }}
@@ -93,7 +93,7 @@
         data-user-menu-item
         class="flex min-h-10 w-full items-center gap-2.5 rounded-lg px-3 text-sm transition-colors duration-fast hover:bg-bg-hover"
         :class="verificationStore.identityVerified ? 'text-success' : 'text-text-secondary hover:text-text-primary'"
-        @click="goTo('identity-verification')"
+        @click="goToIdentityRoute('identity-verification')"
       >
         <ShieldCheck class="size-4" />
         {{ t('nav.identityVerification') }}
@@ -106,7 +106,7 @@
         data-user-menu-item
         class="flex min-h-10 w-full items-center gap-2.5 rounded-lg px-3 text-sm transition-colors duration-fast hover:bg-bg-hover"
         :class="verificationStore.studentVerified ? 'text-success' : 'text-text-secondary hover:text-text-primary'"
-        @click="goTo('student-verification')"
+        @click="goToIdentityRoute('student-verification')"
       >
         <GraduationCap class="size-4" />
         {{ t('nav.studentVerification') }}
@@ -119,7 +119,7 @@
         data-user-menu-item
         class="flex min-h-10 w-full items-center gap-2.5 rounded-lg px-3 text-sm transition-colors duration-fast hover:bg-bg-hover"
         :class="verificationStore.qqBound ? 'text-success' : 'text-text-secondary hover:text-text-primary'"
-        @click="goTo('qq-binding')"
+        @click="goToIdentityRoute('qq-binding')"
       >
         <Bot class="size-4" />
         {{ t('nav.qqBinding') }}
@@ -167,10 +167,18 @@ import { useVerificationStore } from '@/stores/verification'
 import { useToast } from '@/composables/useToast'
 import { canShowAdminEntry } from '@/utils/adminAccess'
 import { resolveAdminConsoleURL } from '@/utils/adminUrl'
-import { configuredIdentityOrigin } from '@/utils/redirect'
+import { configuredIdentityOrigin, identityPortalURL, navigateToExternalURL } from '@/utils/redirect'
 
 const USER_MENU_ID = 'app-shell-user-menu'
 const adminConsoleURL = resolveAdminConsoleURL(import.meta.env.VITE_ADMIN_URL)
+const identityMenuRoutes: Record<string, string> = {
+  'account-profile': '/account/profile',
+  'account-security': '/account/security',
+  'open-platform-developer-apps': '/developers/apps',
+  'identity-verification': '/user/identity-verification',
+  'student-verification': '/user/student-verification',
+  'qq-binding': '/user/qq-binding',
+}
 
 const { t } = useI18n()
 const router = useRouter()
@@ -281,9 +289,17 @@ function goToUser() {
   void router.push(isIdentityPortalHost.value ? '/identity' : '/user/reviews')
 }
 
-function goTo(routeName: string) {
+function goToIdentityRoute(routeName: string) {
   closeUserMenu()
-  void router.push({ name: routeName })
+  const path = identityMenuRoutes[routeName]
+  if (!path) return
+
+  if (isIdentityPortalHost.value) {
+    void router.push(path)
+    return
+  }
+
+  navigateToExternalURL(identityPortalURL(path))
 }
 
 function goToAdmin() {
