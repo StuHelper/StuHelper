@@ -9713,6 +9713,8 @@ components:
         actionURL:
           type: string
           format: uri-reference
+          description: |
+            身份站资料补全动作地址。服务端可返回 id.stuhelper.com 下的绝对 URL， 或返回以 / 开头的身份站相对路径；客户端必须按 id.stuhelper.com 解析， 不能把该路径当作 stuhelper.com 主站用户中心入口。
     OpenPlatformProfileCompletionPage:
       type: object
       required:
