@@ -6,6 +6,7 @@ import type { Notification } from '@stuhelper/shared/notification'
 import i18n from '@/i18n'
 import { getErrorMessage } from '@/api/errors'
 import { useToast } from '@/composables/useToast'
+import { identityPortalURLForHref, navigateToExternalURL } from '@/utils/redirect'
 
 interface NotificationsPageControllerOptions {
   pageNotifications: Ref<Notification[]>
@@ -97,6 +98,11 @@ export function useNotificationsPageController({
     }
     const href = resolveNotificationHref(notification)
     if (href) {
+      const identityURL = identityPortalURLForHref(href)
+      if (identityURL) {
+        navigateToExternalURL(identityURL)
+        return
+      }
       await push(href)
     }
   }

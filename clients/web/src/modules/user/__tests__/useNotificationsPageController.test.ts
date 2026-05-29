@@ -5,6 +5,14 @@ import type { SSENotificationEvent } from '@/stores/notification'
 import { useNotificationsPageController } from '../useNotificationsPageController'
 
 const mockToastError = vi.fn()
+const redirectMocks = vi.hoisted(() => ({
+  identityPortalURLForHref: vi.fn((href: string) =>
+    href.startsWith('/user/') || href.startsWith('/developers/')
+      ? `https://id.stuhelper.com${href}`
+      : null,
+  ),
+  navigateToExternalURL: vi.fn(),
+}))
 
 vi.mock('@/composables/useToast', () => ({
   useToast: () => ({
@@ -22,6 +30,11 @@ vi.mock('@/i18n', () => ({
       t: (key: string) => key,
     },
   },
+}))
+
+vi.mock('@/utils/redirect', () => ({
+  identityPortalURLForHref: redirectMocks.identityPortalURLForHref,
+  navigateToExternalURL: redirectMocks.navigateToExternalURL,
 }))
 
 function makeNotification(id: string, isRead: boolean, overrides: Partial<Notification> = {}): Notification {
@@ -162,6 +175,41 @@ describe('useNotificationsPageController', () => {
     expect(controller.visibleNotifications.value.map(notification => notification.id)).toEqual(['2'])
     expect(pageNotifications.value.map(notification => notification.id)).toEqual(['2'])
     expect(pageTotal.value).toBe(1)
+  })
+
+  it('opens identity notification hrefs on the identity portal', async () => {
+    const notification = makeNotification('1', false, { type: 'identity_rejected' })
+    const { controller, markAsRead, push } = setupController({
+      initialNotifications: [notification],
+      total: 1,
+      unreadCount: 1,
+    })
+
+    await controller.handleClick(notification)
+
+    expect(markAsRead).toHaveBeenCalledWith('1')
+    expect(redirectMocks.identityPortalURLForHref).toHaveBeenCalledWith('/user/identity-verification')
+    expect(redirectMocks.navigateToExternalURL).toHaveBeenCalledWith(
+      'https://id.stuhelper.com/user/identity-verification',
+    )
+    expect(push).not.toHaveBeenCalled()
+  })
+
+  it('opens identity source URLs on the identity portal', async () => {
+    const notification = makeNotification('1', false, { sourceUrl: '/developers/apps' })
+    const { controller, push } = setupController({
+      initialNotifications: [notification],
+      total: 1,
+      unreadCount: 1,
+    })
+
+    await controller.handleClick(notification)
+
+    expect(redirectMocks.identityPortalURLForHref).toHaveBeenCalledWith('/developers/apps')
+    expect(redirectMocks.navigateToExternalURL).toHaveBeenCalledWith(
+      'https://id.stuhelper.com/developers/apps',
+    )
+    expect(push).not.toHaveBeenCalled()
   })
 
   it('surfaces init/load-more/interaction failures via toast', async () => {

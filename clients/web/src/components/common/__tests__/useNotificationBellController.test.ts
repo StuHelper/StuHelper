@@ -6,6 +6,12 @@ import type { Notification } from '@stuhelper/shared/notification'
 import { useNotificationBellController, type NotificationBellStore } from '../useNotificationBellController'
 
 const mockToastError = vi.fn()
+const redirectMocks = vi.hoisted(() => ({
+  identityPortalURLForHref: vi.fn((href: string) =>
+    href.startsWith('/user/') ? `https://id.stuhelper.com${href}` : null,
+  ),
+  navigateToExternalURL: vi.fn(),
+}))
 
 vi.mock('@/composables/useToast', () => ({
   useToast: () => ({
@@ -23,6 +29,11 @@ vi.mock('@/i18n', () => ({
       t: (key: string) => key,
     },
   },
+}))
+
+vi.mock('@/utils/redirect', () => ({
+  identityPortalURLForHref: redirectMocks.identityPortalURLForHref,
+  navigateToExternalURL: redirectMocks.navigateToExternalURL,
 }))
 
 function makeNotification(id: string, overrides: Partial<Notification> = {}): Notification {
@@ -104,6 +115,33 @@ describe('useNotificationBellController', () => {
 
     expect(store.markAsRead).toHaveBeenCalledWith('1')
     expect(push).toHaveBeenCalledWith('/target')
+    expect(controller.showPanel.value).toBe(false)
+  })
+
+  it('opens identity notification hrefs on the identity portal', async () => {
+    const push = vi.fn().mockResolvedValue(undefined)
+    const store = makeStore({
+      bellNotifications: [makeNotification('1', { type: 'student_rejected' })],
+      unreadCount: 1,
+      hasUnread: true,
+    })
+    const rootRef = ref<HTMLElement | null>(document.createElement('div'))
+
+    const controller = useNotificationBellController({
+      rootRef,
+      store,
+      router: { push },
+    })
+
+    controller.showPanel.value = true
+    await controller.handleNotificationClick(store.bellNotifications[0]!)
+
+    expect(store.markAsRead).toHaveBeenCalledWith('1')
+    expect(redirectMocks.identityPortalURLForHref).toHaveBeenCalledWith('/user/student-verification')
+    expect(redirectMocks.navigateToExternalURL).toHaveBeenCalledWith(
+      'https://id.stuhelper.com/user/student-verification',
+    )
+    expect(push).not.toHaveBeenCalled()
     expect(controller.showPanel.value).toBe(false)
   })
 

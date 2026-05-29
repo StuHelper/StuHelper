@@ -120,6 +120,40 @@ export function identityPortalURL(path: string): string {
     return absoluteURLOnPreferredOrigin(path, configuredIdentityOrigin());
 }
 
+export function isIdentityPortalPath(pathname: string): boolean {
+    return pathname === "/identity" ||
+        pathname === "/connect" ||
+        pathname === "/developers/apps" ||
+        pathname.startsWith("/developers/apps/") ||
+        pathname.startsWith("/account/") ||
+        pathname === "/consent" ||
+        pathname === "/complete-profile" ||
+        pathname === "/user/authorized-apps" ||
+        pathname === "/user/identity-verification" ||
+        pathname === "/user/student-verification" ||
+        pathname === "/user/phone-binding" ||
+        pathname === "/user/qq-binding" ||
+        pathname === "/user/academic-info";
+}
+
+export function identityPortalURLForHref(href: string): string | null {
+    if (typeof window === "undefined") return null;
+
+    try {
+        const parsed = new URL(href, window.location.origin);
+        const identityOrigin = configuredIdentityOrigin();
+        if (identityOrigin && parsed.origin === identityOrigin) {
+            return parsed.toString();
+        }
+        if (parsed.origin !== window.location.origin || !isIdentityPortalPath(parsed.pathname)) {
+            return null;
+        }
+        return identityPortalURL(`${parsed.pathname}${parsed.search}${parsed.hash}`);
+    } catch {
+        return null;
+    }
+}
+
 export function navigateToExternalURL(url: string): void {
     window.location.assign(url);
 }

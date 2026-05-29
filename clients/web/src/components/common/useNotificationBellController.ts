@@ -5,6 +5,7 @@ import type { Notification } from '@stuhelper/shared/notification'
 import i18n from '@/i18n'
 import { getErrorMessage } from '@/api/errors'
 import { useToast } from '@/composables/useToast'
+import { identityPortalURLForHref, navigateToExternalURL } from '@/utils/redirect'
 
 export interface NotificationBellStore {
   bellNotifications: Notification[]
@@ -70,6 +71,11 @@ export function useNotificationBellController({
       showPanel.value = false
       const href = resolveNotificationHref(notification)
       if (href) {
+        const identityURL = identityPortalURLForHref(href)
+        if (identityURL) {
+          navigateToExternalURL(identityURL)
+          return
+        }
         await router.push(href)
       }
     } catch (err) {

@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   absoluteURLOnPreferredOrigin,
   identityPortalURL,
+  identityPortalURLForHref,
+  isIdentityPortalPath,
   normalizeConfiguredHTTPOrigin,
   resolvePostLoginRedirectTarget,
   sanitizePostLoginRedirect,
@@ -92,5 +94,25 @@ describe('post-login redirect helpers', () => {
     expect(identityPortalURL('/user/student-verification')).toBe(
       'http://id.stuhelper.com/user/student-verification',
     )
+  })
+
+  it('detects identity portal paths', () => {
+    expect(isIdentityPortalPath('/identity')).toBe(true)
+    expect(isIdentityPortalPath('/account/profile')).toBe(true)
+    expect(isIdentityPortalPath('/developers/apps')).toBe(true)
+    expect(isIdentityPortalPath('/user/identity-verification')).toBe(true)
+    expect(isIdentityPortalPath('/user/student-verification')).toBe(true)
+    expect(isIdentityPortalPath('/courses')).toBe(false)
+    expect(isIdentityPortalPath('/user/reviews')).toBe(false)
+  })
+
+  it('resolves relative identity hrefs to the configured identity origin', () => {
+    vi.stubEnv('VITE_IDENTITY_URL', 'https://id.stuhelper.com')
+
+    expect(identityPortalURLForHref('/user/student-verification?next=1#form')).toBe(
+      'https://id.stuhelper.com/user/student-verification?next=1#form',
+    )
+    expect(identityPortalURLForHref('/courses/1/reviews')).toBeNull()
+    expect(identityPortalURLForHref('https://evil.example/user/student-verification')).toBeNull()
   })
 })
