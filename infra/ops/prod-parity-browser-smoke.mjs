@@ -554,6 +554,41 @@ const checks = [
     expectedURLIncludes: joinURL(webBaseURL, '/courses'),
   },
   {
+    name: 'web-user-center-business-tabs-authenticated',
+    url: joinURL(webBaseURL, '/user/reviews'),
+    flow: 'web-authenticated-refresh',
+    expectedTexts: ['我的评价', 'My Reviews'],
+    requiredTexts: ['我的评价', '我的点赞', '我的收藏'],
+    forbiddenTexts: ['授权应用', 'Authorized Apps', '开发者应用', 'Developer Apps'],
+    expectedURLIncludes: joinURL(webBaseURL, '/user/reviews'),
+    stubbedResources: [
+      {
+        url: 'https://fonts.googleapis.com/**',
+        contentType: 'text/css',
+        body: '/* prod-parity smoke uses system fonts for the Casdoor login page. */\n',
+      },
+      {
+        url: 'https://cdn.casbin.org/flag-icons/**',
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>\n',
+      },
+    ],
+    allowedAPIResponses: [
+      {
+        urlIncludes: '/api/v1/user/profile',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/qq-binding',
+        statuses: [404],
+      },
+      {
+        urlIncludes: '/api/v1/user/identity',
+        statuses: [404],
+      },
+    ],
+  },
+  {
     name: 'web-login-session-refresh',
     url: joinURL(webBaseURL, '/'),
     flow: 'web-login-session-refresh',
@@ -1123,6 +1158,9 @@ async function runCheckFlow(page, check, viewportVariant) {
       'frontend direct',
     );
   }
+  if (check.flow === 'web-authenticated-refresh') {
+    return runWebAuthenticatedRefreshFlow(page, check, viewportVariant);
+  }
   if (check.flow === 'identity-portal-shell') {
     return runIdentityPortalShellFlow(page, viewportVariant);
   }
@@ -1170,6 +1208,48 @@ async function runLoginSessionRefreshFlow(page, expectedFinalBaseURLs, label) {
 
   return {
     matchedText: `${label} authenticated session survived refresh`,
+    username: casdoorLoginUsername,
+    beforeRefreshStatus: beforeRefresh.status,
+    afterRefreshStatus: afterRefresh.status,
+  };
+}
+
+async function runWebAuthenticatedRefreshFlow(page, check) {
+  const targetPath = new URL(check.url).pathname;
+  await page.waitForURL((url) => url.pathname === '/login', { timeout: timeoutMs });
+  await page.getByRole('button', { name: /SSO|统一身份/i }).click({ timeout: timeoutMs });
+  await page.waitForURL((url) => url.pathname.includes('/login/oauth/authorize'), {
+    timeout: timeoutMs,
+  });
+
+  await page.getByRole('textbox', { name: /username|email|phone/i }).fill(casdoorLoginUsername);
+  await page.getByRole('textbox', { name: /password/i }).fill(casdoorLoginPassword);
+  await page.getByRole('button', { name: /sign in|登录/i }).click({ timeout: timeoutMs });
+  await page.waitForURL((url) => url.href.startsWith(joinURL(webBaseURL, targetPath)), {
+    timeout: timeoutMs,
+  });
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
+
+  const beforeRefresh = await authMe(page);
+  if (beforeRefresh.status !== 200) {
+    throw new Error(`auth/me before web refresh returned ${beforeRefresh.status}`);
+  }
+  await expectAuthenticatedHeader(page);
+
+  await page.reload({ waitUntil: 'domcontentloaded', timeout: timeoutMs });
+  await page.waitForURL((url) => url.href.startsWith(joinURL(webBaseURL, targetPath)), {
+    timeout: timeoutMs,
+  });
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
+
+  const afterRefresh = await authMe(page);
+  if (afterRefresh.status !== 200) {
+    throw new Error(`auth/me after web refresh returned ${afterRefresh.status}`);
+  }
+  await expectAuthenticatedHeader(page);
+
+  return {
+    matchedText: `web ${targetPath} authenticated session survived refresh`,
     username: casdoorLoginUsername,
     beforeRefreshStatus: beforeRefresh.status,
     afterRefreshStatus: afterRefresh.status,

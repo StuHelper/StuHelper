@@ -11,7 +11,6 @@
       <MyReviewsTab v-show="activeTab === 'reviews'" />
       <MyVotesTab v-show="activeTab === 'votes'" />
       <MyFavoritesTab v-show="activeTab === 'favorites'" />
-      <AuthorizedAppsTab v-if="activeTab === 'authorized-apps'" />
     </div>
   </div>
 </template>
@@ -25,7 +24,6 @@ import ProfileSection from './ProfileSection.vue'
 import MyReviewsTab from './MyReviewsTab.vue'
 import MyVotesTab from './MyVotesTab.vue'
 import MyFavoritesTab from './MyFavoritesTab.vue'
-import AuthorizedAppsTab from './AuthorizedAppsTab.vue'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -35,13 +33,11 @@ const tabItems = computed(() => [
   { value: 'reviews', label: t('user.myReviews') },
   { value: 'votes', label: t('user.myVotes') },
   { value: 'favorites', label: t('user.myFavorites') },
-  { value: 'authorized-apps', label: t('user.myAuthorizedApps') },
 ])
 
 const activeTab = computed(() => {
   if (route.name === 'user-votes') return 'votes'
   if (route.name === 'user-favorites') return 'favorites'
-  if (route.name === 'user-authorized-apps') return 'authorized-apps'
   return 'reviews'
 })
 
@@ -52,9 +48,7 @@ function handleTabChange(tab: string) {
     ? 'user-votes'
     : tab === 'favorites'
       ? 'user-favorites'
-      : tab === 'authorized-apps'
-        ? 'user-authorized-apps'
-        : 'user-reviews'
+      : 'user-reviews'
 
   void router.replace({ name: routeName })
 }

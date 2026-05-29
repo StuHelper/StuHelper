@@ -394,6 +394,10 @@ describe("style entrypoint", () => {
             resolve(__dirname, "../../router/index.ts"),
             "utf-8",
         );
+        const userCenterSource = readFileSync(
+            resolve(__dirname, "../../modules/user/views/UserCenterPage.vue"),
+            "utf-8",
+        );
 
         expect(routerSource).toMatch(
             /path:\s*"\/user\/authorized-apps"[\s\S]*AuthorizedAppsPage\.vue/,
@@ -401,6 +405,9 @@ describe("style entrypoint", () => {
         expect(routerSource).toMatch(
             /path:\s*"\/user\/authorized-apps"[\s\S]*identityPortal:\s*true/,
         );
+        expect(userCenterSource).not.toContain("AuthorizedAppsTab");
+        expect(userCenterSource).not.toContain("user-authorized-apps");
+        expect(userCenterSource).not.toContain("user.myAuthorizedApps");
     });
 
     it("keeps review drafts user-scoped and recoverable from the post page", () => {

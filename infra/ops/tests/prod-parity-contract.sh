@@ -276,6 +276,8 @@ assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'identity-phone-binding-authentic
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'identity-qq-binding-authenticated'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'identity-academic-info-authenticated'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'identity-main-route-redirect'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-user-center-business-tabs-authenticated'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'runWebAuthenticatedRefreshFlow'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'frontend-direct-login-session-refresh'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-login-session-refresh'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'runLoginSessionRefreshFlow'
