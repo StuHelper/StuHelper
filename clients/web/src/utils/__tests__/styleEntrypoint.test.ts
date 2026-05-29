@@ -140,6 +140,44 @@ describe("style entrypoint", () => {
         expect(loginSource).toContain("return defaultAuthenticatedRoute()");
     });
 
+    it("keeps account security as the identity-side hub for verification and bindings", () => {
+        const accountSecuritySource = readFileSync(
+            resolve(
+                __dirname,
+                "../../modules/user/views/AccountSecurityPage.vue",
+            ),
+            "utf-8",
+        );
+        const smokeSource = readFileSync(
+            resolve(
+                __dirname,
+                "../../../../../infra/ops/prod-parity-browser-smoke.mjs",
+            ),
+            "utf-8",
+        );
+
+        for (const path of [
+            "/user/phone-binding",
+            "/user/authorized-apps",
+            "/user/identity-verification",
+            "/user/student-verification",
+            "/user/qq-binding",
+            "/user/academic-info",
+        ]) {
+            expect(accountSecuritySource).toContain(`to="${path}"`);
+        }
+        for (const label of [
+            "绑定手机",
+            "授权应用",
+            "实名认证",
+            "学生认证",
+            "绑定 QQ",
+            "学业信息",
+        ]) {
+            expect(smokeSource).toContain(label);
+        }
+    });
+
     it("brands the public login page as StuHelper ID instead of a standalone SSO site", () => {
         const loginSource = readFileSync(
             resolve(__dirname, "../../modules/auth/views/LoginPage.vue"),

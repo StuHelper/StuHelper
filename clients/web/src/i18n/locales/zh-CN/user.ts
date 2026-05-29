@@ -163,6 +163,18 @@ export default {
             title: "实名认证",
             description: "维护真实身份认证状态，作为学生认证和敏感授权的基础。",
         },
+        student: {
+            title: "学生认证",
+            description: "绑定学校身份和学籍状态，解锁校园与评课相关能力。",
+        },
+        qq: {
+            title: "绑定 QQ",
+            description: "连接机器人侧账号识别与入群认证流程。",
+        },
+        academic: {
+            title: "学业信息",
+            description: "查看已验证的学校、院系、专业和学籍资料。",
+        },
     },
     reviews: {
         empty: "暂无评价",

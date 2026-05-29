@@ -144,6 +144,42 @@
           :action="t('user.identityHome.open')"
         />
       </router-link>
+
+      <router-link
+        to="/user/student-verification"
+        class="group rounded-lg border border-border bg-bg-card p-5 text-left no-underline shadow-sm transition-all duration-fast hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+      >
+        <AccountAction
+          :icon="GraduationCap"
+          :title="t('user.accountSecurity.student.title')"
+          :description="t('user.accountSecurity.student.description')"
+          :action="t('user.identityHome.open')"
+        />
+      </router-link>
+
+      <router-link
+        to="/user/qq-binding"
+        class="group rounded-lg border border-border bg-bg-card p-5 text-left no-underline shadow-sm transition-all duration-fast hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+      >
+        <AccountAction
+          :icon="Bot"
+          :title="t('user.accountSecurity.qq.title')"
+          :description="t('user.accountSecurity.qq.description')"
+          :action="t('user.identityHome.open')"
+        />
+      </router-link>
+
+      <router-link
+        to="/user/academic-info"
+        class="group rounded-lg border border-border bg-bg-card p-5 text-left no-underline shadow-sm transition-all duration-fast hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+      >
+        <AccountAction
+          :icon="FileText"
+          :title="t('user.accountSecurity.academic.title')"
+          :description="t('user.accountSecurity.academic.description')"
+          :action="t('user.identityHome.open')"
+        />
+      </router-link>
     </section>
   </main>
 </template>
@@ -155,6 +191,9 @@ import { useI18n } from 'vue-i18n'
 import {
   ArrowLeft,
   ArrowUpRight,
+  Bot,
+  FileText,
+  GraduationCap,
   KeyRound,
   LogOut,
   Phone,

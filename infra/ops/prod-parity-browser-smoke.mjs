@@ -229,7 +229,17 @@ const checks = [
     url: joinURL(identityBaseURL, '/account/security'),
     flow: 'identity-authenticated-refresh',
     expectedTexts: ['账号安全', 'Account Security'],
-    requiredTexts: ['当前浏览器会话', '退出当前会话', '打开账号设置'],
+    requiredTexts: [
+      '当前浏览器会话',
+      '退出当前会话',
+      '打开账号设置',
+      '绑定手机',
+      '授权应用',
+      '实名认证',
+      '学生认证',
+      '绑定 QQ',
+      '学业信息',
+    ],
     expectedURLIncludes: joinURL(identityBaseURL, '/account/security'),
     stubbedResources: [
       {

@@ -178,6 +178,21 @@ export default {
             description:
                 "Maintain real-name verification as the base for student verification and sensitive authorization.",
         },
+        student: {
+            title: "Student Verification",
+            description:
+                "Connect your school identity and academic status for campus and course-review capabilities.",
+        },
+        qq: {
+            title: "QQ Binding",
+            description:
+                "Connect bot-side account recognition and group admission verification.",
+        },
+        academic: {
+            title: "Academic Info",
+            description:
+                "Review verified school, department, major, and academic-status details.",
+        },
     },
     reviews: {
         empty: "No reviews yet",
