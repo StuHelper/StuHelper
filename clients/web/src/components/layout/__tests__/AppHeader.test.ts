@@ -153,8 +153,11 @@ describe('AppHeader', () => {
 
     expect(wrapper.find('[data-test="notification-bell"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="app-user-menu"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('nav.identityBrand')
+    expect(wrapper.text()).toContain('nav.identityTagline')
     expect(wrapper.text()).toContain('routes.identityHome')
     expect(wrapper.text()).toContain('routes.accountProfile')
+    expect(wrapper.text()).toContain('routes.accountSecurity')
     expect(wrapper.text()).toContain('routes.identityConnect')
     expect(wrapper.text()).toContain('routes.userAuthorizedApps')
     expect(wrapper.text()).toContain('routes.openPlatformDeveloperApps')
@@ -185,11 +188,14 @@ describe('AppHeader', () => {
       isAuthenticated: false,
     })
 
+    expect(wrapper.text()).toContain('nav.identityBrand')
+    expect(wrapper.text()).toContain('nav.identityTagline')
     expect(wrapper.text()).toContain('routes.openPlatformDeveloperApps')
     expect(wrapper.text()).toContain('routes.userAuthorizedApps')
     expect(wrapper.text()).toContain('routes.identityConnect')
     expect(wrapper.text()).toContain('routes.identityHome')
     expect(wrapper.text()).toContain('routes.accountProfile')
+    expect(wrapper.text()).toContain('routes.accountSecurity')
     expect(wrapper.text()).not.toContain('routes.identityVerification')
     expect(wrapper.text()).not.toContain('nav.courses')
     expect(wrapper.text()).not.toContain('nav.teacher')

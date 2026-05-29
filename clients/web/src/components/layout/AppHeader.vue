@@ -13,8 +13,8 @@
           S
         </span>
         <span class="flex min-w-0 flex-col leading-none">
-          <span class="font-display text-lg font-extrabold tracking-tight text-text-primary">StuHelper</span>
-          <span class="mt-1 hidden text-[11px] font-medium text-text-muted xl:block">{{ t('nav.tagline') }}</span>
+          <span class="font-display text-lg font-extrabold tracking-tight text-text-primary">{{ brandTitle }}</span>
+          <span class="mt-1 hidden text-[11px] font-medium text-text-muted xl:block">{{ brandTagline }}</span>
         </span>
       </router-link>
 
@@ -136,6 +136,7 @@ import {
   KeyRound,
   LibraryBig,
   LogIn,
+  LockKeyhole,
   Menu,
   Network,
   PenLine,
@@ -179,6 +180,8 @@ const isIdentityPortalHost = computed(() => {
   return configuredIdentityOrigin() === window.location.origin
 })
 const logoRoute = computed(() => (isIdentityPortalHost.value ? '/identity' : '/'))
+const brandTitle = computed(() => (isIdentityPortalHost.value ? t('nav.identityBrand') : 'StuHelper'))
+const brandTagline = computed(() => (isIdentityPortalHost.value ? t('nav.identityTagline') : t('nav.tagline')))
 const showCourseSearch = computed(() => !isIdentityPortalHost.value && route.path === '/courses')
 const showWriteReview = computed(() =>
   !isIdentityPortalHost.value &&
@@ -209,6 +212,7 @@ const navItems = computed<NavItem[]>(() =>
     ? [
         { to: '/identity', label: t('routes.identityHome'), icon: UserRound },
         { to: '/account/profile', label: t('routes.accountProfile'), icon: UserRound },
+        { to: '/account/security', label: t('routes.accountSecurity'), icon: LockKeyhole },
         { to: '/connect', label: t('routes.identityConnect'), icon: Network },
         { to: '/user/authorized-apps', label: t('routes.userAuthorizedApps'), icon: ShieldCheck },
         { to: '/developers/apps', label: t('routes.openPlatformDeveloperApps'), icon: KeyRound },

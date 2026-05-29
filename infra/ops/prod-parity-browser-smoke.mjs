@@ -120,7 +120,7 @@ const checks = [
     url: joinURL(identityBaseURL, '/developers/apps'),
     flow: 'identity-portal-shell',
     expectedTexts: ['登录', 'Login'],
-    requiredTexts: ['身份中心', '个人资料', 'Connect', '授权应用', '开发者应用'],
+    requiredTexts: ['StuHelper ID', '身份中心', '个人资料', '账号安全', 'Connect', '授权应用', '开发者应用'],
     forbiddenTexts: ['课程', '教师', '评课'],
     expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/developers/apps'],
   },
@@ -129,7 +129,7 @@ const checks = [
     url: joinURL(identityBaseURL, '/'),
     flow: 'identity-portal-shell',
     expectedTexts: ['登录', 'Login'],
-    requiredTexts: ['身份中心', '个人资料', 'Connect', '授权应用', '开发者应用'],
+    requiredTexts: ['StuHelper ID', '身份中心', '个人资料', '账号安全', 'Connect', '授权应用', '开发者应用'],
     forbiddenTexts: ['课程', '教师', '评课'],
     expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/identity'],
   },
@@ -1279,7 +1279,7 @@ async function runIdentityPortalShellFlow(page, viewportVariant) {
   }
 
   const headerText = await header.innerText({ timeout: timeoutMs });
-  const requiredLabels = ['身份中心', '个人资料', 'Connect', '授权应用', '开发者应用'];
+  const requiredLabels = ['StuHelper ID', '身份中心', '个人资料', '账号安全', 'Connect', '授权应用', '开发者应用'];
   const missingLabels = requiredLabels.filter((label) => !headerText.includes(label));
   if (missingLabels.length > 0) {
     throw new Error(`identity header missing labels: ${missingLabels.join(', ')}`);
@@ -1294,7 +1294,7 @@ async function runIdentityPortalShellFlow(page, viewportVariant) {
   const linkPaths = await header.locator('a[href]').evaluateAll((links) =>
     links.map((link) => new URL(link.href).pathname),
   );
-  const requiredPaths = ['/identity', '/account/profile', '/connect', '/user/authorized-apps', '/developers/apps'];
+  const requiredPaths = ['/identity', '/account/profile', '/account/security', '/connect', '/user/authorized-apps', '/developers/apps'];
   const missingPaths = requiredPaths.filter((path) => !linkPaths.includes(path));
   if (missingPaths.length > 0) {
     throw new Error(`identity header missing links: ${missingPaths.join(', ')}`);
