@@ -78,7 +78,7 @@
               </div>
               <a
                 class="completion-action"
-                :href="field.actionURL"
+                :href="profileCompletionActionURL(field.actionURL)"
                 target="_blank"
                 rel="noreferrer"
               >
@@ -153,6 +153,7 @@ import {
   readAuthorizationTargetPayload,
   readProfileCompletionPagePayload,
 } from '@/modules/open-platform/pagePayload'
+import { identityPortalURLForHref } from '@/utils/redirect'
 import type { OpenPlatformProfileCompletionPageResponse } from '@stuhelper/shared/api'
 
 const route = useRoute()
@@ -219,6 +220,10 @@ function redirectToURL(rawURL: string) {
     throw new Error('Invalid redirect URL protocol')
   }
   window.location.assign(parsed.toString())
+}
+
+function profileCompletionActionURL(actionURL: string): string {
+  return identityPortalURLForHref(actionURL) ?? actionURL
 }
 
 onMounted(loadCompletion)

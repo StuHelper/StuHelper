@@ -457,6 +457,19 @@ describe("style entrypoint", () => {
         expect(userMenuSource).not.toContain("@click=\"goTo('qq-binding')\"");
     });
 
+    it("keeps profile completion actions on the identity portal", () => {
+        const profileCompletionSource = readFileSync(
+            resolve(__dirname, "../../modules/open-platform/views/ProfileCompletionPage.vue"),
+            "utf-8",
+        );
+
+        expect(profileCompletionSource).toContain("identityPortalURLForHref");
+        expect(profileCompletionSource).toContain("profileCompletionActionURL(field.actionURL)");
+        expect(profileCompletionSource).toContain(
+            "return identityPortalURLForHref(actionURL) ?? actionURL",
+        );
+    });
+
     it("keeps review drafts user-scoped and recoverable from the post page", () => {
         const draftApiSource = readFileSync(
             resolve(__dirname, "../../../../shared/src/api/draft.ts"),

@@ -22,9 +22,9 @@ const (
 )
 
 var completionFieldCatalog = map[string]ProfileCompletionField{
-	ProfileFieldUsername: {Key: ProfileFieldUsername, DisplayName: "用户名", ActionURL: "/user"},
-	ProfileFieldEmail:    {Key: ProfileFieldEmail, DisplayName: "邮箱", ActionURL: "/user"},
-	ProfileFieldAvatar:   {Key: ProfileFieldAvatar, DisplayName: "头像", ActionURL: "/user"},
+	ProfileFieldUsername: {Key: ProfileFieldUsername, DisplayName: "用户名", ActionURL: "/account/profile"},
+	ProfileFieldEmail:    {Key: ProfileFieldEmail, DisplayName: "邮箱", ActionURL: "/account/profile"},
+	ProfileFieldAvatar:   {Key: ProfileFieldAvatar, DisplayName: "头像", ActionURL: "/account/profile"},
 	ProfileFieldPhone:    {Key: ProfileFieldPhone, DisplayName: "手机号", ActionURL: "/user/phone-binding"},
 	ProfileFieldIdentity: {Key: ProfileFieldIdentity, DisplayName: "实名认证", ActionURL: "/user/identity-verification"},
 	ProfileFieldStudent:  {Key: ProfileFieldStudent, DisplayName: "学生认证", ActionURL: "/user/student-verification"},
