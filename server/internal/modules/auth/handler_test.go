@@ -321,8 +321,9 @@ func TestResolveRedirectTarget_DisallowedHost(t *testing.T) {
 func TestResolveRedirectTarget_AllowedAbsoluteAndEmpty(t *testing.T) {
 	h := &Handler{
 		defaultRedirectURL:   "https://web.example.com",
-		allowedRedirectHosts: map[string]struct{}{"web.example.com": {}, "admin.example.com": {}},
+		allowedRedirectHosts: map[string]struct{}{"web.example.com": {}, "admin.example.com": {}, "id.stuhelper.com": {}},
 	}
 	assert.Equal(t, "https://admin.example.com/reviews", h.resolveRedirectTarget("https://admin.example.com/reviews"))
+	assert.Equal(t, "https://id.stuhelper.com/developers/apps", h.resolveRedirectTarget("https://id.stuhelper.com/developers/apps"))
 	assert.Equal(t, "https://web.example.com", h.resolveRedirectTarget("   "))
 }
