@@ -406,6 +406,7 @@ describe("style entrypoint", () => {
             /path:\s*"\/user\/authorized-apps"[\s\S]*identityPortal:\s*true/,
         );
         expect(userCenterSource).not.toContain("AuthorizedAppsTab");
+        expect(userCenterSource).not.toContain("ProfileSection");
         expect(userCenterSource).not.toContain("user-authorized-apps");
         expect(userCenterSource).not.toContain("user.myAuthorizedApps");
     });

@@ -1,8 +1,5 @@
 <template>
   <div class="max-w-[800px] mx-auto p-6 animate-fade-in max-sm:p-4">
-    <!-- Profile + verification status -->
-    <ProfileSection />
-
     <nav class="mb-6">
       <TabBar :tabs="tabItems" :model-value="activeTab" @update:model-value="handleTabChange" />
     </nav>
@@ -20,7 +17,6 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import TabBar from '@/components/common/TabBar.vue'
-import ProfileSection from './ProfileSection.vue'
 import MyReviewsTab from './MyReviewsTab.vue'
 import MyVotesTab from './MyVotesTab.vue'
 import MyFavoritesTab from './MyFavoritesTab.vue'

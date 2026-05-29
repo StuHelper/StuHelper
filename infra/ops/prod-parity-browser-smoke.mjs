@@ -559,7 +559,22 @@ const checks = [
     flow: 'web-authenticated-refresh',
     expectedTexts: ['我的评价', 'My Reviews'],
     requiredTexts: ['我的评价', '我的点赞', '我的收藏'],
-    forbiddenTexts: ['授权应用', 'Authorized Apps', '开发者应用', 'Developer Apps'],
+    forbiddenTexts: [
+      '个人资料',
+      'Account Profile',
+      '实名认证',
+      'Identity Verification',
+      '学生认证',
+      'Student Verification',
+      '绑定 QQ',
+      'QQ Binding',
+      '绑定手机',
+      'Phone Binding',
+      '授权应用',
+      'Authorized Apps',
+      '开发者应用',
+      'Developer Apps',
+    ],
     expectedURLIncludes: joinURL(webBaseURL, '/user/reviews'),
     stubbedResources: [
       {
