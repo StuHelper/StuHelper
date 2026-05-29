@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   absoluteURLOnPreferredOrigin,
+  identityPortalURL,
   normalizeConfiguredHTTPOrigin,
   resolvePostLoginRedirectTarget,
   sanitizePostLoginRedirect,
@@ -82,6 +83,14 @@ describe('post-login redirect helpers', () => {
   it('falls back to the current origin when no preferred origin is configured', () => {
     expect(absoluteURLOnPreferredOrigin('/identity', null)).toBe(
       `${window.location.origin}/identity`,
+    )
+  })
+
+  it('builds identity portal URLs on the configured identity origin', () => {
+    vi.stubEnv('VITE_IDENTITY_URL', 'http://id.stuhelper.com')
+
+    expect(identityPortalURL('/user/student-verification')).toBe(
+      'http://id.stuhelper.com/user/student-verification',
     )
   })
 })

@@ -6,6 +6,7 @@ const mockPush = vi.fn()
 const mockGetUserSurface = vi.fn()
 const mockToastError = vi.fn()
 const mockGetErrorMessage = vi.fn()
+const mockNavigateToExternalURL = vi.fn()
 const mockAuthStore = {
   bootstrapCompleted: true,
   bootstrapSession: vi.fn(),
@@ -53,6 +54,11 @@ vi.mock('@/composables/useToast', () => ({
   }),
 }))
 
+vi.mock('@/utils/redirect', () => ({
+  identityPortalURL: (path: string) => `https://id.stuhelper.com${path}`,
+  navigateToExternalURL: mockNavigateToExternalURL,
+}))
+
 const { resolveReviewPostBlock, useReviewPost } = await import('../useReviewPost')
 
 describe('useReviewPost', () => {
@@ -62,6 +68,7 @@ describe('useReviewPost', () => {
     mockGetUserSurface.mockReset()
     mockToastError.mockReset()
     mockGetErrorMessage.mockReset()
+    mockNavigateToExternalURL.mockReset()
     mockAuthStore.bootstrapCompleted = true
     mockAuthStore.bootstrapSession.mockReset()
     mockAuthStore.bootstrapSession.mockResolvedValue(true)
@@ -118,7 +125,9 @@ describe('useReviewPost', () => {
 
     await expect(ensureCanPostReview()).resolves.toBe(false)
     expect(mockToastError).toHaveBeenCalledWith('user.verification.student.identityRequired')
-    expect(mockPush).toHaveBeenCalledWith({ name: 'identity-verification' })
+    expect(mockNavigateToExternalURL).toHaveBeenCalledWith(
+      'https://id.stuhelper.com/user/identity-verification',
+    )
   })
 
   it('redirects users without student verification to the student page', async () => {
@@ -138,7 +147,9 @@ describe('useReviewPost', () => {
 
     await expect(ensureCanPostReview()).resolves.toBe(false)
     expect(mockToastError).toHaveBeenCalledWith('review.card.verifyToView')
-    expect(mockPush).toHaveBeenCalledWith({ name: 'student-verification' })
+    expect(mockNavigateToExternalURL).toHaveBeenCalledWith(
+      'https://id.stuhelper.com/user/student-verification',
+    )
   })
 
   it('redirects users without review:create capability away from the post flow', async () => {

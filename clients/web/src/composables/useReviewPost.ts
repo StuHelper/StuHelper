@@ -6,6 +6,7 @@ import { getErrorMessage } from '@/api/errors'
 import i18n from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
+import { identityPortalURL, navigateToExternalURL } from '@/utils/redirect'
 
 export type UseReviewPostReturn = ReturnType<typeof useReviewPost>
 
@@ -170,7 +171,13 @@ export function useReviewPost() {
 
       toast.error(i18n.global.t(block.messageKey))
       if (block.routeName) {
-        await router.push({ name: block.routeName })
+        if (block.routeName === 'identity-verification') {
+          navigateToExternalURL(identityPortalURL('/user/identity-verification'))
+        } else if (block.routeName === 'student-verification') {
+          navigateToExternalURL(identityPortalURL('/user/student-verification'))
+        } else {
+          await router.push({ name: block.routeName })
+        }
       }
       return false
     } catch (error) {

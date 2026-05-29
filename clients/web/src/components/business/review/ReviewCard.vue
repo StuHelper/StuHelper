@@ -90,7 +90,7 @@
       :preview-line="review.content"
       :message="t('review.card.verifyToView')"
       :action-label="t('review.card.goVerify')"
-      @action="$router.push({ name: 'student-verification' })"
+      @action="goVerify"
     />
 
     <!-- 状态3: 正常显示（已登录 + published，或管理员查看 hidden） -->
@@ -313,6 +313,7 @@ import { useReviewEdit } from './useReviewEdit'
 import { useReviewDelete } from './useReviewDelete'
 import { useReviewModeration } from './useReviewModeration'
 import { ratingDimensionLabel } from '@/modules/review/ratingHelpers'
+import { identityPortalURL } from '@/utils/redirect'
 
 const props = defineProps<{
   review: Review
@@ -368,6 +369,10 @@ const avgRating = computed(() => {
 })
 const ratingColor = computed(() => getRatingColor(avgRating.value))
 const formattedTime = computed(() => formatRelativeTime(props.review.createdAt, locale.value, t))
+
+function goVerify() {
+  window.location.assign(identityPortalURL('/user/student-verification'))
+}
 
 const {
   userVote,

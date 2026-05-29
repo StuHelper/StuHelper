@@ -116,6 +116,14 @@ export function absoluteURLOnCurrentOrigin(path: string): string {
     return absoluteURLOnPreferredOrigin(path);
 }
 
+export function identityPortalURL(path: string): string {
+    return absoluteURLOnPreferredOrigin(path, configuredIdentityOrigin());
+}
+
+export function navigateToExternalURL(url: string): void {
+    window.location.assign(url);
+}
+
 function preferredPostLoginRedirectOrigin(): string | null {
     if (typeof window === "undefined") return null;
 

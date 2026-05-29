@@ -465,6 +465,7 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { useVerificationStore } from '@/stores/verification'
 import { canListFullReviews } from '@/utils/adminAccess'
+import { identityPortalURL } from '@/utils/redirect'
 import {
   ratingBarColor,
   ratingDimensionLabel,
@@ -724,7 +725,7 @@ function handleLogin() {
 }
 
 function goVerify() {
-  void router.push({ name: 'student-verification' })
+  window.location.assign(identityPortalURL('/user/student-verification'))
 }
 
 async function goToPostPage() {

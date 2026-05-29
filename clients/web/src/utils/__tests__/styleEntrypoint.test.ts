@@ -68,6 +68,29 @@ describe("style entrypoint", () => {
         );
     });
 
+    it("sends review-triggered verification actions directly to the identity portal", () => {
+        const reviewPostSource = readFileSync(
+            resolve(__dirname, "../../composables/useReviewPost.ts"),
+            "utf-8",
+        );
+        const courseDetailSource = readFileSync(
+            resolve(__dirname, "../../modules/review/views/CourseDetailPage.vue"),
+            "utf-8",
+        );
+        const reviewCardSource = readFileSync(
+            resolve(__dirname, "../../components/business/review/ReviewCard.vue"),
+            "utf-8",
+        );
+
+        for (const source of [reviewPostSource, courseDetailSource, reviewCardSource]) {
+            expect(source).toContain("identityPortalURL");
+            expect(source).toContain("/user/student-verification");
+            expect(source).not.toContain("name: 'student-verification'");
+        }
+        expect(reviewPostSource).toContain("/user/identity-verification");
+        expect(reviewPostSource).not.toContain("name: 'identity-verification'");
+    });
+
     it("does not render the bootstrap failure page for expected cross-origin route redirects", () => {
         const mainSource = readFileSync(
             resolve(__dirname, "../../main.ts"),
