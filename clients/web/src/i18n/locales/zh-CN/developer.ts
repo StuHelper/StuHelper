@@ -21,7 +21,7 @@ export default {
     loadFailed: '应用列表加载失败',
     connect: {
       title: 'StuHelper ID Connect',
-      subtitle: '对外 OIDC / OAuth 端点以 id.stuhelper.com 为准，应用接入时不要直连 sso.stuhelper.com。',
+      subtitle: '对外 OIDC / OAuth 端点统一以 id.stuhelper.com 为准，应用接入只使用 StuHelper ID issuer。',
       copyLabel: '复制 {endpoint}',
       copied: '端点已复制',
       copyFailed: '复制失败，请手动复制',

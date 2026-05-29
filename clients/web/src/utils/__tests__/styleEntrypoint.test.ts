@@ -178,6 +178,30 @@ describe("style entrypoint", () => {
         }
     });
 
+    it("does not expose the internal SSO host in public identity or Connect surfaces", () => {
+        const issuerFiles = [
+            "../../i18n/locales/zh-CN/developer.ts",
+            "../../i18n/locales/en-US/developer.ts",
+            "../../modules/open-platform/connectEndpoints.ts",
+        ];
+        const checkedFiles = [
+            ...issuerFiles,
+            "../../modules/open-platform/views/ConnectPage.vue",
+            "../../modules/open-platform/components/ConnectEndpointsPanel.vue",
+            "../../modules/open-platform/views/DeveloperAppsPage.vue",
+        ];
+
+        for (const file of issuerFiles) {
+            const source = readFileSync(resolve(__dirname, file), "utf-8");
+            expect(source, file).toContain("id.stuhelper.com");
+        }
+        for (const file of checkedFiles) {
+            const source = readFileSync(resolve(__dirname, file), "utf-8");
+            expect(source, file).not.toContain("sso.stuhelper.com");
+            expect(source, file).not.toContain("StuHelper SSO");
+        }
+    });
+
     it("brands the public login page as StuHelper ID instead of a standalone SSO site", () => {
         const loginSource = readFileSync(
             resolve(__dirname, "../../modules/auth/views/LoginPage.vue"),

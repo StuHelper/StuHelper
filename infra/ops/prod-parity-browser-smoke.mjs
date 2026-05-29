@@ -143,7 +143,7 @@ const checks = [
       joinURL(identityBaseURL, '/oauth2/token'),
       joinURL(identityBaseURL, '/oidc/userinfo'),
     ],
-    forbiddenTexts: ['课程', '教师', '评课'],
+    forbiddenTexts: ['课程', '教师', '评课', 'sso.stuhelper.com', 'StuHelper SSO'],
     expectedURLIncludes: joinURL(identityBaseURL, '/connect'),
   },
   {

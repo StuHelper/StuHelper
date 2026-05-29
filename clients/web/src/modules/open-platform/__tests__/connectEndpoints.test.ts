@@ -55,4 +55,17 @@ describe('StuHelper ID Connect endpoint helpers', () => {
       expect(enUSDeveloper.apps.connect.endpoints[endpoint.key], `en-US ${endpoint.key}`).toEqual(expect.any(String))
     }
   })
+
+  it('keeps the public Connect copy centered on the identity issuer only', () => {
+    const publicCopy = [
+      zhCNDeveloper.connect.subtitle,
+      zhCNDeveloper.apps.connect.subtitle,
+      enUSDeveloper.connect.subtitle,
+      enUSDeveloper.apps.connect.subtitle,
+    ].join('\n')
+
+    expect(publicCopy).toContain('id.stuhelper.com')
+    expect(publicCopy).not.toContain('sso.stuhelper.com')
+    expect(publicCopy).not.toContain('StuHelper SSO')
+  })
 })
