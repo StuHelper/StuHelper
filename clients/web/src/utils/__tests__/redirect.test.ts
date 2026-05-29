@@ -33,7 +33,7 @@ describe('post-login redirect helpers', () => {
   it('allows identity-local relative redirects', () => {
     expect(sanitizePostLoginRedirect('/developers/apps')).toBe('/developers/apps')
     expect(resolvePostLoginRedirectTarget('/developers/apps')).toBe(
-      `${window.location.origin}/developers/apps`,
+      'http://localhost:3000/developers/apps',
     )
   })
 
@@ -114,5 +114,20 @@ describe('post-login redirect helpers', () => {
     )
     expect(identityPortalURLForHref('/courses/1/reviews')).toBeNull()
     expect(identityPortalURLForHref('https://evil.example/user/student-verification')).toBeNull()
+  })
+
+  it('resolves identity post-login redirects to the identity origin', () => {
+    vi.stubEnv('VITE_WEB_URL', 'https://stuhelper.com')
+    vi.stubEnv('VITE_IDENTITY_URL', 'https://id.stuhelper.com')
+
+    expect(resolvePostLoginRedirectTarget('/developers/apps')).toBe(
+      'https://id.stuhelper.com/developers/apps',
+    )
+    expect(resolvePostLoginRedirectTarget('/user/authorized-apps')).toBe(
+      'https://id.stuhelper.com/user/authorized-apps',
+    )
+    expect(resolvePostLoginRedirectTarget('/courses')).toBe(
+      'https://stuhelper.com/courses',
+    )
   })
 })

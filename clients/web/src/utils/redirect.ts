@@ -83,12 +83,16 @@ export function resolvePostLoginRedirectTarget(redirect?: string): string | unde
     }
 
     const sanitized = sanitizePostLoginRedirect(redirect);
-    const preferredOrigin = preferredPostLoginRedirectOrigin();
     if (!sanitized) {
-        return absoluteURLOnPreferredOrigin(window.location.href, preferredOrigin);
+        return absoluteURLOnPreferredOrigin(window.location.href, preferredPostLoginRedirectOrigin());
     }
 
-    return absoluteURLOnPreferredOrigin(sanitized, preferredOrigin);
+    const identityRedirect = identityPortalURLForHref(sanitized);
+    if (identityRedirect) {
+        return identityRedirect;
+    }
+
+    return absoluteURLOnPreferredOrigin(sanitized, preferredPostLoginRedirectOrigin());
 }
 
 export function absoluteURLOnPreferredOrigin(
