@@ -3,7 +3,6 @@ import 'element-plus/es/components/message/style/css'
 import 'element-plus/es/components/config-provider/style/css'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import { isNavigationFailure, NavigationFailureType } from 'vue-router'
 import router, { hasPendingExternalLocationRedirect } from './router'
 import i18n from './i18n'
 import enUS from './i18n/locales/en-US'
@@ -48,10 +47,14 @@ function renderBootstrapFallback(error: unknown) {
 }
 
 function isExpectedExternalRedirectAbort(error: unknown) {
-  return (
-    hasPendingExternalLocationRedirect() &&
-    isNavigationFailure(error, NavigationFailureType.aborted)
-  )
+  if (!hasPendingExternalLocationRedirect()) {
+    return false
+  }
+
+  if (import.meta.env.DEV) {
+    console.debug('[App] router startup interrupted by external redirect:', error)
+  }
+  return true
 }
 
 // 全局错误处理：未捕获的组件错误在此统一处理

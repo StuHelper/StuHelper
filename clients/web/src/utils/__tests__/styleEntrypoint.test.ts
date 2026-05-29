@@ -113,9 +113,11 @@ describe("style entrypoint", () => {
             "export function hasPendingExternalLocationRedirect()",
         );
         expect(routerSource).toContain("replaceWithExternalLocation(target)");
-        expect(mainSource).toContain("isNavigationFailure");
-        expect(mainSource).toContain("NavigationFailureType.aborted");
         expect(mainSource).toContain("isExpectedExternalRedirectAbort");
+        expect(mainSource).toContain("hasPendingExternalLocationRedirect()");
+        expect(mainSource).toContain(
+            "router startup interrupted by external redirect",
+        );
         expect(smokeSource).toContain("bootstrapFallbackTexts");
         expect(smokeSource).toContain("'应用启动失败'");
         expect(smokeSource).toContain("frontend-direct-login-redirect");
