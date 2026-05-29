@@ -198,10 +198,6 @@ async function onSubmit() {
 }
 
 function goBack() {
-  if (window.history.length > 1) {
-    router.back()
-    return
-  }
   void router.push('/identity')
 }
 

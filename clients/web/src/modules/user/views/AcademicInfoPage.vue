@@ -141,11 +141,7 @@ const displayFields = computed(() => {
 })
 
 function goBack(): void {
-  if (window.history.length > 1) {
-    router.back()
-  } else {
-    void router.push('/identity')
-  }
+  void router.push('/identity')
 }
 
 async function load(): Promise<void> {

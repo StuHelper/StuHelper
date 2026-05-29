@@ -178,6 +178,25 @@ describe("style entrypoint", () => {
         }
     });
 
+    it("keeps verification and binding page back actions inside the identity portal", () => {
+        const identityPageFiles = [
+            "../../modules/user/views/IdentityVerificationPage.vue",
+            "../../modules/user/views/StudentVerificationPage.vue",
+            "../../modules/user/views/PhoneBindingPage.vue",
+            "../../modules/user/views/QQBindingPage.vue",
+            "../../modules/user/views/AcademicInfoPage.vue",
+        ];
+
+        for (const file of identityPageFiles) {
+            const source = readFileSync(resolve(__dirname, file), "utf-8");
+            expect(source, file).toContain("function goBack");
+            expect(source, file).toContain("router.push");
+            expect(source, file).toContain("/identity");
+            expect(source, file).not.toContain("router.back");
+            expect(source, file).not.toContain("window.history");
+        }
+    });
+
     it("does not expose the internal SSO host in public identity or Connect surfaces", () => {
         const issuerFiles = [
             "../../i18n/locales/zh-CN/developer.ts",
