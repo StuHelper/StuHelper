@@ -23,13 +23,13 @@ func (r *Repository) CreateSession(ctx context.Context, session *AdmissionSessio
 			id, platform, bot_self_id, guild_id, channel_id, qq_id, user_id, token_hash, auth_url,
 			token_expires_at, token_consumed_at, status, link_wait_deadline_at,
 			submission_wait_deadline_at, manual_review_deadline_at, initial_mute_until,
-			verified_at, cancelled_at, last_bot_error
+			verified_at, cancelled_at, last_bot_error, next_reminder_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 	`, session.ID, session.Platform, session.BotSelfID, session.GuildID, session.ChannelID, session.QQID,
 		session.UserID, session.TokenHash, session.AuthURL, session.TokenExpiresAt, session.TokenConsumedAt, session.Status,
 		session.LinkWaitDeadlineAt, session.SubmissionWaitDeadlineAt, session.ManualReviewDeadlineAt,
-		session.InitialMuteUntil, session.VerifiedAt, session.CancelledAt, session.LastBotError)
+		session.InitialMuteUntil, session.VerifiedAt, session.CancelledAt, session.LastBotError, session.nextReminderAt)
 	if err != nil {
 		return fmt.Errorf("CreateSession: %w", err)
 	}
@@ -42,13 +42,13 @@ func (r *Repository) CreateSessionTx(ctx context.Context, tx pgx.Tx, session *Ad
 			id, platform, bot_self_id, guild_id, channel_id, qq_id, user_id, token_hash, auth_url,
 			token_expires_at, token_consumed_at, status, link_wait_deadline_at,
 			submission_wait_deadline_at, manual_review_deadline_at, initial_mute_until,
-			verified_at, cancelled_at, last_bot_error
+			verified_at, cancelled_at, last_bot_error, next_reminder_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 	`, session.ID, session.Platform, session.BotSelfID, session.GuildID, session.ChannelID, session.QQID,
 		session.UserID, session.TokenHash, session.AuthURL, session.TokenExpiresAt, session.TokenConsumedAt, session.Status,
 		session.LinkWaitDeadlineAt, session.SubmissionWaitDeadlineAt, session.ManualReviewDeadlineAt,
-		session.InitialMuteUntil, session.VerifiedAt, session.CancelledAt, session.LastBotError)
+		session.InitialMuteUntil, session.VerifiedAt, session.CancelledAt, session.LastBotError, session.nextReminderAt)
 	if err != nil {
 		return fmt.Errorf("CreateSessionTx: %w", err)
 	}

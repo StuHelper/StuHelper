@@ -33,6 +33,39 @@ func TestPendingAdmissionActionBlacklistsOnFinalFailure(t *testing.T) {
 	assert.Equal(t, BotActionBlacklist, actions[0].Action)
 }
 
+func TestNewAdmissionSessionWaitsBeforeFirstPendingReminder(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created, err := svc.CreateBotSession(context.Background(), BotSessionCreateInput{
+		Platform:  "qq",
+		BotSelfID: "514",
+		GuildID:   "guild-1",
+		ChannelID: "channel-1",
+		QQID:      "10001",
+	})
+	require.NoError(t, err)
+
+	actions, err := svc.ListPendingAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
+	require.NoError(t, err)
+	assert.Empty(t, actions)
+
+	svc.now = func() time.Time {
+		return fixedAdmissionNow().Add(initialReminderGrace + time.Second)
+	}
+	actions, err = svc.ListPendingAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
+	require.NoError(t, err)
+	require.Len(t, actions, 1)
+	assert.Equal(t, BotActionRemind, actions[0].Action)
+	assert.Equal(t, created.Session.ID, actions[0].SessionID)
+}
+
 func TestPendingAdmissionActionsRespectLimit(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)

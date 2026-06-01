@@ -17,6 +17,8 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
 )
 
+const initialReminderGrace = time.Duration(DefaultInitialReminderGraceSeconds) * time.Second
+
 func (s *Service) CreateBotSession(ctx context.Context, input BotSessionCreateInput) (*CreatedAdmissionSession, error) {
 	input = normalizeBotSessionCreateInput(input)
 	if err := validateBotSessionCreateInput(input); err != nil {
@@ -407,6 +409,7 @@ func (s *Service) newAdmissionSession(
 		return nil, fmt.Errorf("newAdmissionSession id: %w", err)
 	}
 	now := s.now()
+	nextReminderAt := initialReminderNotBefore(now, policy)
 	return &AdmissionSession{
 		ID:                       sessionID,
 		Platform:                 input.Platform,
@@ -421,7 +424,19 @@ func (s *Service) newAdmissionSession(
 		LinkWaitDeadlineAt:       now.Add(time.Duration(policy.LinkWaitSeconds) * time.Second),
 		SubmissionWaitDeadlineAt: now.Add(time.Duration(policy.SubmissionWaitSeconds) * time.Second),
 		InitialMuteUntil:         now.Add(time.Duration(policy.InitialMuteDurationSeconds) * time.Second),
+		nextReminderAt:           &nextReminderAt,
 	}, nil
+}
+
+func initialReminderNotBefore(now time.Time, policy *AdmissionPolicy) time.Time {
+	grace := initialReminderGrace
+	if policy != nil && policy.ReminderIntervalSeconds > 0 {
+		interval := time.Duration(policy.ReminderIntervalSeconds) * time.Second
+		if interval < grace {
+			grace = interval
+		}
+	}
+	return now.Add(grace)
 }
 
 func (s *Service) validateTokenSession(session *AdmissionSession, qqQuery string) error {

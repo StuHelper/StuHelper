@@ -7,14 +7,15 @@ import (
 )
 
 const (
-	DefaultInitialMuteDurationSeconds       = 30 * 24 * 60 * 60
-	DefaultLinkWaitSeconds                  = 60 * 60
-	DefaultSubmissionWaitSeconds            = 24 * 60 * 60
-	DefaultManualReviewTimeoutSeconds       = 24 * 60 * 60
-	DefaultReminderIntervalSeconds          = 15 * 60
-	DefaultFailedJoinLimit                  = 3
-	DefaultMaxMaterialBytes           int64 = 10 * 1024 * 1024
-	DefaultMaxExtensionDays                 = 90
+	DefaultInitialMuteDurationSeconds        = 30 * 24 * 60 * 60
+	DefaultLinkWaitSeconds                   = 60 * 60
+	DefaultSubmissionWaitSeconds             = 24 * 60 * 60
+	DefaultManualReviewTimeoutSeconds        = 24 * 60 * 60
+	DefaultReminderIntervalSeconds           = 15 * 60
+	DefaultInitialReminderGraceSeconds       = 2 * 60
+	DefaultFailedJoinLimit                   = 3
+	DefaultMaxMaterialBytes            int64 = 10 * 1024 * 1024
+	DefaultMaxExtensionDays                  = 90
 )
 
 type AdmissionSessionStatus string
@@ -94,6 +95,7 @@ type AdmissionSession struct {
 	CancelledAt              *time.Time             `json:"cancelledAt,omitempty"`
 	LastBotError             *string                `json:"lastBotError,omitempty"`
 	ProjectionPending        bool                   `json:"projectionPending"`
+	nextReminderAt           *time.Time
 }
 
 func (s AdmissionSession) MarshalJSON() ([]byte, error) {
