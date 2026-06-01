@@ -10,6 +10,11 @@ fail() {
   exit 1
 }
 
+grep -q '.env.prod.secrets.local' "${SMOKE_SCRIPT}" ||
+  fail "script should auto-detect production secrets env"
+grep -q '.env.prod.shared' "${SMOKE_SCRIPT}" ||
+  fail "script should auto-detect production shared env"
+
 tmpdir="$(mktemp -d)"
 cleanup() {
   if [[ -n "${server_pid:-}" ]]; then

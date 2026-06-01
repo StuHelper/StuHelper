@@ -5,6 +5,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
 
+if [[ "${ENV_FILE}" == "${REPO_ROOT}/.env" && -f "${REPO_ROOT}/.env.prod.shared" ]]; then
+  ENV_FILE="${REPO_ROOT}/.env.prod.shared"
+fi
+if [[ -z "${SECRETS_ENV_FILE:-}" && -f "${REPO_ROOT}/.env.prod.secrets.local" ]]; then
+  SECRETS_ENV_FILE="${REPO_ROOT}/.env.prod.secrets.local"
+fi
+if [[ "${GENERATED_ENV_FILE}" == "${REPO_ROOT}/.env.generated" && -f "${REPO_ROOT}/.env.prod.generated" ]]; then
+  GENERATED_ENV_FILE="${REPO_ROOT}/.env.prod.generated"
+fi
+if [[ "${GENERATED_SECRET_ENV_FILE}" == "${REPO_ROOT}/.env.generated.secrets" && -f "${REPO_ROOT}/.env.prod.generated.secrets" ]]; then
+  GENERATED_SECRET_ENV_FILE="${REPO_ROOT}/.env.prod.generated.secrets"
+fi
+
 require_cmd python3
 load_env
 
