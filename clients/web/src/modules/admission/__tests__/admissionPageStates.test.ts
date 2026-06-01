@@ -264,6 +264,28 @@ describe('AdmissionPage edge states', () => {
     expect(wrapper.text()).toContain('开始认证')
   })
 
+  it('refreshes the admission state when the SSO tab returns focus without pageshow', async () => {
+    mockAuth.isAuthenticated = false
+    mockAuth.bootstrapSession
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true)
+    mockAdmissionApi.getAdmissionSession.mockResolvedValue(
+      sessionWithStatus('joined_muted'),
+    )
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+    expect(wrapper.find('[data-state="needsLogin"]').exists()).toBe(true)
+
+    window.dispatchEvent(new Event('focus'))
+    await settleAdmissionPage(wrapper)
+
+    expect(mockAdmissionApi.getAdmissionSession).toHaveBeenCalledTimes(2)
+    expect(mockAuth.bootstrapSession).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[data-state="ready"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('开始认证')
+  })
+
   it('keeps the linked admission page open when post-link resources fail to refresh', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
       sessionWithStatus('joined_muted'),

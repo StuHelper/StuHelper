@@ -178,6 +178,13 @@ func (s *Service) CreateFreshmanCameraHandoff(
 	}
 	if err := s.repo.CreateFreshmanCameraHandoff(ctx, handoff, s.hashToken(token)); err != nil {
 		if isFreshmanCameraHandoffActiveUniqueViolation(err) {
+			active, getErr := s.repo.GetActiveFreshmanCameraHandoff(ctx, app.ID, s.now())
+			if getErr != nil {
+				return nil, getErr
+			}
+			if active != nil {
+				return s.hydrateFreshmanCameraHandoff(ctx, active)
+			}
 			return nil, ErrAdmissionCameraHandoffLocked
 		}
 		return nil, err

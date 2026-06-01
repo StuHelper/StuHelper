@@ -296,7 +296,7 @@ func TestFreshmanCameraHandoffUploadsAndLocksContinuation(t *testing.T) {
 	require.ErrorIs(t, err, ErrAdmissionCameraHandoffLocked)
 }
 
-func TestFreshmanCameraHandoffRejectsConcurrentActiveHandoff(t *testing.T) {
+func TestFreshmanCameraHandoffReusesConcurrentActiveHandoff(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newFreshmanTestService(t, fixture)
 	tokenIndex := 0
@@ -322,12 +322,15 @@ func TestFreshmanCameraHandoffRejectsConcurrentActiveHandoff(t *testing.T) {
 		})
 	}
 
-	_, err := svc.CreateFreshmanCameraHandoff(context.Background(), FreshmanCameraHandoffCreateInput{
+	handoff, err := svc.CreateFreshmanCameraHandoff(context.Background(), FreshmanCameraHandoffCreateInput{
 		UserID:        userID,
 		ApplicationID: app.ID,
 	})
 
-	require.ErrorIs(t, err, ErrAdmissionCameraHandoffLocked)
+	require.NoError(t, err)
+	require.NotNil(t, handoff)
+	assert.Equal(t, "freshman-camera-race-existing", handoff.ID)
+	assert.Equal(t, FreshmanCameraHandoffPending, handoff.Status)
 }
 
 func TestFreshmanDesktopCaptureExpiresPendingMobileHandoff(t *testing.T) {

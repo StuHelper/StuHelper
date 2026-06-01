@@ -414,6 +414,10 @@ function handleVisibilityChange(): void {
   }
 }
 
+function handleWindowFocus(): void {
+  refreshAfterBrowserReturn()
+}
+
 async function confirmLink() {
   linking.value = true
   try {
@@ -464,6 +468,7 @@ function readErrorMessage(error: unknown, fallback: string): string {
 
 onMounted(() => {
   window.addEventListener('pageshow', handlePageShow)
+  window.addEventListener('focus', handleWindowFocus)
   document.addEventListener('visibilitychange', handleVisibilityChange)
   queueAdmissionSessionLoad()
 })
@@ -479,6 +484,7 @@ watch(
 onBeforeUnmount(() => {
   projectionRefreshAbort?.abort()
   window.removeEventListener('pageshow', handlePageShow)
+  window.removeEventListener('focus', handleWindowFocus)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 
