@@ -226,22 +226,21 @@ record_check() {
   local details="${3-}"
   [[ -n "${details}" ]] || details="{}"
   [[ -n "${check_jsonl}" ]] || return 0
-  python3 - "${passed}" "${name}" "${details}" >>"${check_jsonl}" <<'PY'
-import json
-import sys
-
-item = {
-    "name": sys.argv[2],
-    "passed": sys.argv[1] == "true",
-}
-try:
-    details = json.loads(sys.argv[3])
-except Exception:
-    details = {}
-if isinstance(details, dict) and details:
-    item["details"] = details
-print(json.dumps(item, ensure_ascii=True, separators=(",", ":")))
-PY
+  jq -cn \
+    --arg name "${name}" \
+    --arg passed "${passed}" \
+    --arg details "${details}" \
+    '($details | fromjson? // {}) as $parsedDetails
+    | {
+        name: $name,
+        passed: ($passed == "true")
+      }
+      + (
+        if ($parsedDetails | type) == "object" and ($parsedDetails | length) > 0
+        then {details: $parsedDetails}
+        else {}
+        end
+      )' >>"${check_jsonl}"
 }
 
 record_pass() {
