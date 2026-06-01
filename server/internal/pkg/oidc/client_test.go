@@ -20,3 +20,24 @@ func TestVerifyIDTokenAudienceForApplication(t *testing.T) {
 	require.NoError(t, client.verifyIDTokenAudience([]string{"admin-client"}, ""))
 	require.ErrorIs(t, client.verifyIDTokenAudience([]string{"unknown-client"}, ""), ErrInvalidAudience)
 }
+
+func TestVerifyIDTokenAuthorizedPartyForApplication(t *testing.T) {
+	client := &Client{}
+
+	require.NoError(t, client.verifyIDTokenAuthorizedParty(
+		[]byte(`{"aud":["web-client","resource-api"],"azp":"web-client"}`),
+		"web-client",
+	))
+	require.NoError(t, client.verifyIDTokenAuthorizedParty(
+		[]byte(`{"aud":"web-client"}`),
+		"web-client",
+	))
+	require.ErrorIs(t, client.verifyIDTokenAuthorizedParty(
+		[]byte(`{"aud":["web-client","resource-api"],"azp":"admin-client"}`),
+		"web-client",
+	), ErrInvalidAudience)
+	require.ErrorIs(t, client.verifyIDTokenAuthorizedParty(
+		[]byte(`{"aud":["web-client","resource-api"],"client_id":"built-in"}`),
+		"web-client",
+	), ErrInvalidAudience)
+}

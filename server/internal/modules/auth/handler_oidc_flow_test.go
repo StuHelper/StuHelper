@@ -33,6 +33,34 @@ func newFakeOIDCProvider(t *testing.T) *fakeOIDCProvider {
 }
 
 func newFakeOIDCProviderWithTokenPayload(t *testing.T, payloadFn func(issueIDToken func() string) map[string]any) *fakeOIDCProvider {
+	return newFakeOIDCProviderWithTokenPayloadForAudience(t, func(_ func(string) string, issueRequestIDToken func() string) map[string]any {
+		if payloadFn == nil {
+			return nil
+		}
+		return payloadFn(issueRequestIDToken)
+	})
+}
+
+func newFakeOIDCProviderWithTokenPayloadForAudience(
+	t *testing.T,
+	payloadFn func(issueIDTokenForAudience func(string) string, issueRequestIDToken func() string) map[string]any,
+) *fakeOIDCProvider {
+	return newFakeOIDCProviderWithTokenPayloadForClaims(t,
+		func(issueIDTokenWithClaims func(map[string]any) string, issueRequestIDToken func() string) map[string]any {
+			if payloadFn == nil {
+				return nil
+			}
+			return payloadFn(func(audience string) string {
+				return issueIDTokenWithClaims(map[string]any{"aud": audience})
+			}, issueRequestIDToken)
+		},
+	)
+}
+
+func newFakeOIDCProviderWithTokenPayloadForClaims(
+	t *testing.T,
+	payloadFn func(issueIDTokenWithClaims func(map[string]any) string, issueRequestIDToken func() string) map[string]any,
+) *fakeOIDCProvider {
 	t.Helper()
 	privateKey, err := rsa.GenerateKey(crand.Reader, 2048)
 	require.NoError(t, err)
@@ -42,13 +70,13 @@ func newFakeOIDCProviderWithTokenPayload(t *testing.T, payloadFn func(issueIDTok
 	jwk := jose.JSONWebKey{Key: &privateKey.PublicKey, KeyID: "test-key", Algorithm: string(jose.RS256), Use: "sig"}
 
 	var issuer string
-	issueIDToken := func(audience string) string {
+	issueIDTokenWithClaims := func(overrides map[string]any) string {
 		signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: jose.JSONWebKey{Key: privateKey, KeyID: jwk.KeyID}}, nil)
 		require.NoError(t, err)
-		raw, err := josejwt.Signed(signer).Claims(map[string]any{
+		claims := map[string]any{
 			"iss":                issuer,
 			"sub":                "oidc-user-1",
-			"aud":                audience,
+			"aud":                clientID,
 			"exp":                time.Now().Add(time.Hour).Unix(),
 			"iat":                time.Now().Unix(),
 			"name":               "OIDC Tester",
@@ -57,7 +85,11 @@ func newFakeOIDCProviderWithTokenPayload(t *testing.T, payloadFn func(issueIDTok
 			"email_verified":     true,
 			"picture":            "https://cdn.example.com/oidc.png",
 			"roles":              []string{"school_admin"},
-		}).Serialize()
+		}
+		for key, value := range overrides {
+			claims[key] = value
+		}
+		raw, err := josejwt.Signed(signer).Claims(claims).Serialize()
 		require.NoError(t, err)
 		return raw
 	}
@@ -81,7 +113,7 @@ func newFakeOIDCProviderWithTokenPayload(t *testing.T, payloadFn func(issueIDTok
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		_ = r.ParseForm()
 		issueForRequestClient := func() string {
-			return issueIDToken(requestOIDCClientID(r, clientID))
+			return issueIDTokenWithClaims(map[string]any{"aud": requestOIDCClientID(r, clientID)})
 		}
 		w.Header().Set("Content-Type", "application/json")
 		payload := map[string]any{
@@ -92,7 +124,9 @@ func newFakeOIDCProviderWithTokenPayload(t *testing.T, payloadFn func(issueIDTok
 			"id_token":      issueForRequestClient(),
 		}
 		if payloadFn != nil {
-			payload = payloadFn(issueForRequestClient)
+			if customPayload := payloadFn(issueIDTokenWithClaims, issueForRequestClient); customPayload != nil {
+				payload = customPayload
+			}
 		}
 		_ = json.NewEncoder(w).Encode(payload)
 	})
@@ -159,6 +193,16 @@ func (failingOIDCUserSyncRepo) ExistsByCasdoorSubject(context.Context, string) (
 	return true, nil
 }
 
+type fakeOIDCSubjectValidator struct {
+	gotSubject string
+	err        error
+}
+
+func (v *fakeOIDCSubjectValidator) ValidateOIDCSubject(_ context.Context, subject string) error {
+	v.gotSubject = subject
+	return v.err
+}
+
 func TestHandleWebCallback_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, repo := newOIDCTestHandler(t, &recordingUserSyncRepo{})
@@ -198,6 +242,67 @@ func TestHandleWebCallback_Success(t *testing.T) {
 	assert.True(t, hasAccess)
 	assert.True(t, hasRefresh)
 	assert.True(t, hasSession)
+}
+
+func TestHandleWebCallback_RejectsSubjectValidationFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, repo := newOIDCTestHandler(t, &recordingUserSyncRepo{})
+	validator := &fakeOIDCSubjectValidator{err: errors.New("owner mismatch")}
+	h.oidcSubjectValidator = validator
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/auth/callback", nil)
+
+	h.handleWebCallback(c, c.Request.Context(), webCallbackInput{
+		code:         "code-1",
+		redirect:     "/dashboard",
+		codeVerifier: "verifier-1",
+		application:  oidcpkg.ApplicationWeb,
+		requestID:    "request-1",
+	})
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Equal(t, "oidc-user-1", validator.gotSubject)
+	assert.Empty(t, repo.upsertInput.CasdoorSubject)
+	assert.Empty(t, w.Header().Get("Location"))
+	assertNoIssuedTokenCookies(t, w)
+}
+
+func TestHandleWebCallback_RejectsTokenForDifferentAuthorizedParty(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	provider := newFakeOIDCProviderWithTokenPayloadForClaims(t,
+		func(issueIDTokenWithClaims func(map[string]any) string, _ func() string) map[string]any {
+			return map[string]any{
+				"access_token":  "provider-access-token",
+				"token_type":    "Bearer",
+				"refresh_token": "provider-refresh-token",
+				"expires_in":    3600,
+				"id_token": issueIDTokenWithClaims(map[string]any{
+					"aud": []string{"test-client-id", "resource-api"},
+					"azp": "built-in",
+				}),
+			}
+		},
+	)
+	h, repo := newOIDCTestHandlerWithProvider(t, &recordingUserSyncRepo{}, provider)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/auth/callback", nil)
+
+	h.handleWebCallback(c, c.Request.Context(), webCallbackInput{
+		code:         "code-1",
+		redirect:     "/dashboard",
+		codeVerifier: "verifier-1",
+		application:  oidcpkg.ApplicationWeb,
+		requestID:    "request-1",
+	})
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Empty(t, repo.upsertInput.CasdoorSubject)
+	assert.Empty(t, w.Header().Get("Location"))
+	assertNoIssuedTokenCookies(t, w)
 }
 
 func TestRefreshOIDCToken_Success(t *testing.T) {
@@ -388,6 +493,29 @@ func TestExchangeNative_Success(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "refreshToken")
 	assert.Contains(t, w.Body.String(), "sessionID")
 	assert.Equal(t, "oidc-user-1", repo.upsertInput.CasdoorSubject)
+}
+
+func TestExchangeNative_RejectsSubjectValidationFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, repo := newOIDCTestHandler(t, &recordingUserSyncRepo{})
+	validator := &fakeOIDCSubjectValidator{err: errors.New("owner mismatch")}
+	h.oidcSubjectValidator = validator
+	require.NoError(t, h.storeNativeCodeVerifier(context.Background(), "native-state-1", nativeCodeVerifierPayload{
+		CodeVerifier: "native-verifier",
+		Application:  oidcpkg.ApplicationUniapp,
+	}))
+
+	body := bytes.NewBufferString(`{"code":"code-1","state":"native-state-1"}`)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/auth/exchange-native", body)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.ExchangeNative(c)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Equal(t, "oidc-user-1", validator.gotSubject)
+	assert.Empty(t, repo.upsertInput.CasdoorSubject)
 }
 
 func TestHandleWebCallback_MissingIDToken(t *testing.T) {

@@ -173,10 +173,7 @@ func appIDFromRawClaims(rawJSON []byte) string {
 	if err := json.Unmarshal(rawJSON, &raw); err != nil {
 		return ""
 	}
-	if appID := claimString(raw["azp"]); appID != "" {
-		return appID
-	}
-	if appID := claimString(raw["client_id"]); appID != "" {
+	if appID := authorizedPartyFromRaw(raw); appID != "" {
 		return appID
 	}
 	audiences := claimStringList(raw["aud"])
@@ -184,6 +181,21 @@ func appIDFromRawClaims(rawJSON []byte) string {
 		return audiences[0]
 	}
 	return ""
+}
+
+func authorizedPartyFromRawClaims(rawJSON []byte) string {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(rawJSON, &raw); err != nil {
+		return ""
+	}
+	return authorizedPartyFromRaw(raw)
+}
+
+func authorizedPartyFromRaw(raw map[string]json.RawMessage) string {
+	if appID := claimString(raw["azp"]); appID != "" {
+		return appID
+	}
+	return claimString(raw["client_id"])
 }
 
 func claimString(raw json.RawMessage) string {

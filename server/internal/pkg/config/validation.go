@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -61,14 +62,16 @@ func (c *Config) validate(parseErrs []string) error {
 	if c.Token.RefreshTokenTTL < 3600 || c.Token.RefreshTokenTTL > 2592000 {
 		errs = append(errs, fmt.Sprintf("TOKEN_REFRESH_TTL must be between 3600 and 2592000 seconds (got %d)", c.Token.RefreshTokenTTL))
 	}
-	if c.Identity.AccessTokenTTL < 60 || c.Identity.AccessTokenTTL > 86400 {
-		errs = append(errs, fmt.Sprintf("IDENTITY_ACCESS_TOKEN_TTL must be between 60 and 86400 seconds (got %d)", c.Identity.AccessTokenTTL))
-	}
-	if c.Identity.RefreshTokenTTL < 3600 || c.Identity.RefreshTokenTTL > 2592000 {
-		errs = append(errs, fmt.Sprintf("IDENTITY_REFRESH_TOKEN_TTL must be between 3600 and 2592000 seconds (got %d)", c.Identity.RefreshTokenTTL))
-	}
-	if c.Identity.AuthorizationCodeTTL < 60 || c.Identity.AuthorizationCodeTTL > 600 {
-		errs = append(errs, fmt.Sprintf("IDENTITY_AUTH_CODE_TTL must be between 60 and 600 seconds (got %d)", c.Identity.AuthorizationCodeTTL))
+	if c.Identity.Enabled {
+		if c.Identity.AccessTokenTTL < 60 || c.Identity.AccessTokenTTL > 86400 {
+			errs = append(errs, fmt.Sprintf("IDENTITY_ACCESS_TOKEN_TTL must be between 60 and 86400 seconds (got %d)", c.Identity.AccessTokenTTL))
+		}
+		if c.Identity.RefreshTokenTTL < 3600 || c.Identity.RefreshTokenTTL > 2592000 {
+			errs = append(errs, fmt.Sprintf("IDENTITY_REFRESH_TOKEN_TTL must be between 3600 and 2592000 seconds (got %d)", c.Identity.RefreshTokenTTL))
+		}
+		if c.Identity.AuthorizationCodeTTL < 60 || c.Identity.AuthorizationCodeTTL > 600 {
+			errs = append(errs, fmt.Sprintf("IDENTITY_AUTH_CODE_TTL must be between 60 and 600 seconds (got %d)", c.Identity.AuthorizationCodeTTL))
+		}
 	}
 
 	if c.Observability.TraceSampleRatio < 0 || c.Observability.TraceSampleRatio > 1 {
@@ -107,6 +110,90 @@ func (c *Config) validate(parseErrs []string) error {
 			errs = append(errs, "SMS_INTERNAL_KEY is required when SMS_ENABLED=true")
 		}
 	}
+	if c.Email.Enabled {
+		driver := strings.TrimSpace(c.Email.Driver)
+		if driver == "" {
+			driver = "smtp"
+		}
+		switch driver {
+		case "smtp":
+			if c.Email.SMTPHost == "" {
+				errs = append(errs, "EMAIL_SMTP_HOST is required when EMAIL_ENABLED=true and EMAIL_DRIVER=smtp")
+			}
+			if c.Email.SMTPPort <= 0 || c.Email.SMTPPort > 65535 {
+				errs = append(errs, fmt.Sprintf("EMAIL_SMTP_PORT must be between 1 and 65535 when EMAIL_ENABLED=true and EMAIL_DRIVER=smtp (got %d)", c.Email.SMTPPort))
+			}
+			if c.Email.From == "" {
+				errs = append(errs, "EMAIL_FROM is required when EMAIL_ENABLED=true and EMAIL_DRIVER=smtp")
+			}
+		case "blackhole":
+			if c.App.Env == EnvProduction {
+				errs = append(errs, "EMAIL_DRIVER=blackhole is only allowed outside production")
+			}
+		case "tencent_ses":
+			if c.Email.From == "" {
+				errs = append(errs, "EMAIL_FROM is required when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses")
+			}
+			if c.Email.TencentSecretID == "" {
+				errs = append(errs, "EMAIL_TENCENT_SECRET_ID is required when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses")
+			}
+			if c.Email.TencentSecretKey == "" {
+				errs = append(errs, "EMAIL_TENCENT_SECRET_KEY is required when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses")
+			}
+			if c.Email.TencentRegion == "" {
+				errs = append(errs, "EMAIL_TENCENT_REGION is required when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses")
+			}
+			if c.Email.TencentEndpoint == "" {
+				errs = append(errs, "EMAIL_TENCENT_ENDPOINT is required when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses")
+			}
+			if c.Email.TencentTemplateID <= 0 {
+				errs = append(errs, "EMAIL_TENCENT_TEMPLATE_ID must be greater than 0 when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses")
+			}
+			if c.Email.TencentTemplateExpireMinutes <= 0 {
+				errs = append(errs, "EMAIL_TENCENT_TEMPLATE_EXPIRE_MINUTES must be greater than 0 when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses")
+			}
+		case "resend":
+			if c.Email.From == "" {
+				errs = append(errs, "EMAIL_FROM is required when EMAIL_ENABLED=true and EMAIL_DRIVER=resend")
+			}
+			if c.Email.ResendAPIKey == "" {
+				errs = append(errs, "EMAIL_RESEND_API_KEY is required when EMAIL_ENABLED=true and EMAIL_DRIVER=resend")
+			}
+			if c.Email.ResendEndpoint == "" {
+				errs = append(errs, "EMAIL_RESEND_ENDPOINT is required when EMAIL_ENABLED=true and EMAIL_DRIVER=resend")
+			}
+		case "multi":
+			if c.Email.From == "" {
+				errs = append(errs, "EMAIL_FROM is required when EMAIL_ENABLED=true and EMAIL_DRIVER=multi")
+			}
+			if c.Email.TencentSecretID == "" {
+				errs = append(errs, "EMAIL_TENCENT_SECRET_ID is required when EMAIL_ENABLED=true and EMAIL_DRIVER=multi")
+			}
+			if c.Email.TencentSecretKey == "" {
+				errs = append(errs, "EMAIL_TENCENT_SECRET_KEY is required when EMAIL_ENABLED=true and EMAIL_DRIVER=multi")
+			}
+			if c.Email.TencentRegion == "" {
+				errs = append(errs, "EMAIL_TENCENT_REGION is required when EMAIL_ENABLED=true and EMAIL_DRIVER=multi")
+			}
+			if c.Email.TencentEndpoint == "" {
+				errs = append(errs, "EMAIL_TENCENT_ENDPOINT is required when EMAIL_ENABLED=true and EMAIL_DRIVER=multi")
+			}
+			if c.Email.TencentTemplateID <= 0 {
+				errs = append(errs, "EMAIL_TENCENT_TEMPLATE_ID must be greater than 0 when EMAIL_ENABLED=true and EMAIL_DRIVER=multi")
+			}
+			if c.Email.TencentTemplateExpireMinutes <= 0 {
+				errs = append(errs, "EMAIL_TENCENT_TEMPLATE_EXPIRE_MINUTES must be greater than 0 when EMAIL_ENABLED=true and EMAIL_DRIVER=multi")
+			}
+			if c.Email.ResendAPIKey == "" {
+				errs = append(errs, "EMAIL_RESEND_API_KEY is required when EMAIL_ENABLED=true and EMAIL_DRIVER=multi")
+			}
+			if c.Email.ResendEndpoint == "" {
+				errs = append(errs, "EMAIL_RESEND_ENDPOINT is required when EMAIL_ENABLED=true and EMAIL_DRIVER=multi")
+			}
+		default:
+			errs = append(errs, "EMAIL_DRIVER must be smtp, blackhole, tencent_ses, resend, or multi")
+		}
+	}
 
 	if productionLike {
 		if c.Database.URL == "" {
@@ -139,6 +226,9 @@ func (c *Config) validate(parseErrs []string) error {
 		if c.Bot.ServiceToken == "" {
 			errs = append(errs, "BOT_SERVICE_TOKEN is required in production")
 		}
+		if c.Admission.PublicBaseURL == "" {
+			errs = append(errs, "ADMISSION_PUBLIC_BASE_URL is required in production")
+		}
 		if !c.SMS.Enabled {
 			errs = append(errs, "SMS_ENABLED must be true in production")
 		}
@@ -165,13 +255,14 @@ func (c *Config) validate(parseErrs []string) error {
 		if !c.ObjectStorage.UseSSL {
 			errs = append(errs, "OBJECT_STORAGE_USE_SSL must be true in production")
 		}
-		if c.Identity.Issuer == "" {
+		if c.Identity.Enabled && c.Identity.Issuer == "" {
 			errs = append(errs, "IDENTITY_ISSUER is required in production")
 		}
-		if c.Identity.SigningPrivateKeyPEM == "" {
+		if c.Identity.Enabled && c.Identity.SigningPrivateKeyPEM == "" {
 			errs = append(errs, "IDENTITY_SIGNING_PRIVATE_KEY_PEM is required in production")
 		}
 	}
+	errs = append(errs, validateAdmissionPublicBaseURL(c.Admission.PublicBaseURL, productionLike)...)
 
 	if len(parseErrs) > 0 {
 		errs = append(errs, parseErrs...)
@@ -251,6 +342,33 @@ func (c *Config) validate(parseErrs []string) error {
 		return fmt.Errorf("config validation failed: %s", strings.Join(errs, "; "))
 	}
 
+	return nil
+}
+
+func validateAdmissionPublicBaseURL(raw string, productionLike bool) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return []string{"ADMISSION_PUBLIC_BASE_URL must be an absolute http(s) URL"}
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return []string{"ADMISSION_PUBLIC_BASE_URL must be an absolute http(s) URL"}
+	}
+	if parsed.RawQuery != "" || parsed.Fragment != "" {
+		return []string{"ADMISSION_PUBLIC_BASE_URL must not include query or fragment"}
+	}
+	if parsed.Path != "" && parsed.Path != "/" {
+		return []string{"ADMISSION_PUBLIC_BASE_URL must not include a path"}
+	}
+	if productionLike && parsed.Scheme != "https" {
+		return []string{"ADMISSION_PUBLIC_BASE_URL must use https in production"}
+	}
+	if productionLike && strings.TrimRight(raw, "/") != "https://join.stuhelper.com" {
+		return []string{"ADMISSION_PUBLIC_BASE_URL must be https://join.stuhelper.com in production"}
+	}
 	return nil
 }
 

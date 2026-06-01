@@ -458,8 +458,12 @@ func consentApp(app *App) ConsentApp {
 	}
 }
 
-func casdoorOAuthScopes(_ []string) []string {
-	return []string{"openid"}
+func casdoorOAuthScopes(scopes []string) []string {
+	oauthScopes, err := NormalizeGrantedOAuthScopes(scopes)
+	if err != nil || len(oauthScopes) == 0 {
+		return []string{"openid"}
+	}
+	return oauthScopes
 }
 
 func appendOAuthError(redirectURI, code, state string) string {

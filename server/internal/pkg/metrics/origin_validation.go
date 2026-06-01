@@ -42,6 +42,13 @@ func OriginValidationMiddleware(allowedOrigins []string) gin.HandlerFunc {
 			}
 		}
 
+		if isBrowserSameOriginFetch(c.GetHeader("Sec-Fetch-Site")) {
+			if _, ok := allowed[requestOrigin(c)]; ok {
+				c.Next()
+				return
+			}
+		}
+
 		c.AbortWithStatus(http.StatusForbidden)
 	}
 }
@@ -59,4 +66,32 @@ func originFromReferer(raw string) string {
 		return ""
 	}
 	return u.Scheme + "://" + u.Host
+}
+
+func isBrowserSameOriginFetch(raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "same-origin", "same-site":
+		return true
+	default:
+		return false
+	}
+}
+
+func requestOrigin(c *gin.Context) string {
+	proto := strings.TrimSpace(c.GetHeader("X-Forwarded-Proto"))
+	if proto == "" {
+		if c.Request.TLS != nil {
+			proto = "https"
+		} else {
+			proto = "http"
+		}
+	}
+	host := strings.TrimSpace(c.GetHeader("X-Forwarded-Host"))
+	if host == "" {
+		host = strings.TrimSpace(c.Request.Host)
+	}
+	if proto == "" || host == "" {
+		return ""
+	}
+	return strings.TrimRight(proto+"://"+host, "/")
 }

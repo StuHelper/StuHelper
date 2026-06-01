@@ -23,6 +23,7 @@ const (
 var ErrApplicationNotFound = errors.New("casdoor: application not found")
 
 type ApplicationSpec struct {
+	Organization         string
 	Name                 string
 	DisplayName          string
 	Logo                 string
@@ -137,6 +138,7 @@ func applicationSpecFromCasdoor(app *casdoorsdk.Application) ApplicationSpec {
 		return ApplicationSpec{}
 	}
 	return ApplicationSpec{
+		Organization:         app.Organization,
 		Name:                 app.Name,
 		DisplayName:          app.DisplayName,
 		Logo:                 app.Logo,
@@ -182,6 +184,10 @@ func (c *Client) buildApplication(spec ApplicationSpec) (*casdoorsdk.Application
 		return nil, err
 	}
 	interactive := applicationGrantRequiresRedirect(normalized.GrantTypes)
+	organization := normalized.Organization
+	if organization == "" {
+		organization = c.credential.Organization
+	}
 	return &casdoorsdk.Application{
 		Owner:                "admin",
 		Name:                 normalized.Name,
@@ -189,7 +195,7 @@ func (c *Client) buildApplication(spec ApplicationSpec) (*casdoorsdk.Application
 		Logo:                 normalized.Logo,
 		HomepageUrl:          normalized.HomepageURL,
 		Description:          normalized.Description,
-		Organization:         c.credential.Organization,
+		Organization:         organization,
 		Cert:                 defaultApplicationCertificate,
 		EnablePassword:       interactive,
 		EnableSignUp:         interactive,
@@ -213,6 +219,7 @@ func (c *Client) buildApplication(spec ApplicationSpec) (*casdoorsdk.Application
 }
 
 func normalizeApplicationSpec(spec ApplicationSpec) (ApplicationSpec, error) {
+	spec.Organization = strings.TrimSpace(spec.Organization)
 	spec.Name = strings.TrimSpace(spec.Name)
 	spec.DisplayName = strings.TrimSpace(spec.DisplayName)
 	spec.Logo = strings.TrimSpace(spec.Logo)
@@ -223,6 +230,11 @@ func normalizeApplicationSpec(spec ApplicationSpec) (ApplicationSpec, error) {
 	spec.TokenFormat = strings.TrimSpace(spec.TokenFormat)
 	if err := validateApplicationRequiredFields(spec); err != nil {
 		return ApplicationSpec{}, err
+	}
+	if spec.Organization != "" {
+		if err := validateName("application organization", spec.Organization); err != nil {
+			return ApplicationSpec{}, err
+		}
 	}
 	grants, err := normalizeNonEmptyList("grant type", spec.GrantTypes)
 	if err != nil {

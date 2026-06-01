@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/postgresfixture"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
 )
@@ -48,6 +49,190 @@ func TestSchoolEmailOTPRequiresLinkedSessionAndVerifiesCredential(t *testing.T) 
 	assertUserSessionVerified(t, pg, userID)
 }
 
+func TestSchoolEmailOTPDerivesBUAAEmailAfterAcademicNameMatch(t *testing.T) {
+	pg := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	sender := &testSchoolEmailSender{}
+	svc := newFreshmanTestService(t, pg)
+	svc.redisClient = redis.Client
+	svc.emailSender = sender
+	svc.academicLookup = testAcademicLookupGateway{
+		student: &user.AcademicStudent{XH: "20250001", XM: stringPtr("张三")},
+	}
+	userID := seedLinkedAdmissionUser(t, pg, svc, "email-otp-academic")
+
+	_, err := pg.Pool.Exec(context.Background(), `
+		UPDATE school_configs
+		SET enabled = true,
+		    manual_form_fields = '{"admission":{"emailDomains":["buaa.edu.cn"],"emailIdentityPolicy":{"type":"academic_student_email","studentIDEmailDomain":"buaa.edu.cn","requireStudentName":true}}}'::jsonb
+		WHERE school_id = 10006
+	`)
+	require.NoError(t, err)
+
+	resp, err := svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
+		UserID:      userID,
+		SchoolID:    10006,
+		StudentID:   "20250001",
+		StudentName: " 张 三 ",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "20250001@buaa.edu.cn", resp.Email)
+	assert.Equal(t, "20250001@buaa.edu.cn", sender.email)
+
+	_, err = svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
+		UserID:      userID,
+		SchoolID:    10006,
+		StudentID:   "20250001",
+		StudentName: "李四",
+	})
+	require.ErrorIs(t, err, ErrAdmissionStudentNameMismatch)
+
+	_, err = svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
+		UserID:      userID,
+		SchoolID:    10006,
+		Email:       "alias@buaa.edu.cn",
+		StudentID:   "20250001",
+		StudentName: "张三",
+	})
+	require.ErrorIs(t, err, ErrAdmissionEmailDomainNotAllowed)
+}
+
+func TestResolveSchoolIDByCodeUsesEnabledAdmissionSchoolConfig(t *testing.T) {
+	pg := postgresfixture.Start(t)
+	svc := newSessionTestService(t, pg)
+	_, err := pg.Pool.Exec(context.Background(), `
+		UPDATE school_configs
+		SET enabled = true
+		WHERE school_id = 10006
+	`)
+	require.NoError(t, err)
+
+	schoolID, err := svc.ResolveSchoolIDByCode(context.Background(), "4111010006")
+	require.NoError(t, err)
+	assert.Equal(t, int64(10006), schoolID)
+
+	_, err = svc.ResolveSchoolIDByCode(context.Background(), "4111010001")
+	require.ErrorIs(t, err, ErrAdmissionSchoolNotFound)
+}
+
+func TestAdmissionMVPEmailOTPFlowReleasesVerifiedMember(t *testing.T) {
+	pg := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	sender := &testSchoolEmailSender{}
+	svc := newFreshmanTestService(t, pg)
+	svc.redisClient = redis.Client
+	svc.emailSender = sender
+
+	created, err := svc.CreateBotSession(context.Background(), BotSessionCreateInput{
+		Platform:  "qq",
+		BotSelfID: "514",
+		GuildID:   "guild-1",
+		ChannelID: "channel-1",
+		QQID:      "10001",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "https://join.stuhelper.com/verify/test-admission-token?qq=10001", created.AuthURL)
+
+	userID := seedAdmissionUser(t, pg, "mvp-email-otp")
+	_, err = svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+
+	_, err = svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
+		UserID:   userID,
+		SchoolID: 1,
+		Email:    "student@buaa.edu.cn",
+	})
+	require.NoError(t, err)
+	_, err = svc.VerifySchoolEmailOTP(context.Background(), SchoolEmailOTPVerifyInput{
+		UserID:   userID,
+		SchoolID: 1,
+		Email:    "student@buaa.edu.cn",
+		Code:     sender.code,
+	})
+	require.NoError(t, err)
+
+	actions, err := svc.ListPendingAdmissionActions(context.Background(), AdmissionPendingActionFilter{
+		Platform:  "qq",
+		BotSelfID: "514",
+	})
+	require.NoError(t, err)
+	require.Len(t, actions, 1)
+	assert.Equal(t, created.Session.ID, actions[0].SessionID)
+	assert.Equal(t, BotActionRelease, actions[0].Action)
+	assert.Equal(t, created.AuthURL, actions[0].AuthURL)
+
+	err = svc.RecordBotEvent(context.Background(), actions[0].SessionID, BotEventInput{
+		Action:  actions[0].Action,
+		Success: true,
+	})
+	require.NoError(t, err)
+	assertAdmissionSessionCancelled(t, pg, created.Session.ID)
+}
+
+func TestAdmissionMVPSchoolSSOFlowReleasesVerifiedMember(t *testing.T) {
+	pg := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	svc := newFreshmanTestService(t, pg)
+	svc.redisClient = redis.Client
+	svc.schoolSSO = &testSchoolSSOExchanger{
+		identity: SchoolSSOIdentity{
+			Subject:        "school-sso-student-id",
+			SubjectDisplay: "school-sso-student",
+		},
+	}
+
+	created, err := svc.CreateBotSession(context.Background(), BotSessionCreateInput{
+		Platform:  "qq",
+		BotSelfID: "514",
+		GuildID:   "guild-1",
+		ChannelID: "channel-1",
+		QQID:      "10001",
+	})
+	require.NoError(t, err)
+	userID := seedAdmissionUser(t, pg, "mvp-school-sso")
+	_, err = svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+
+	start, err := svc.StartSchoolSSO(context.Background(), SchoolSSOStartInput{
+		UserID:    userID,
+		SchoolID:  1,
+		ReturnURL: "https://join.stuhelper.com/verify/test-admission-token?qq=10001",
+	})
+	require.NoError(t, err)
+	_, err = svc.CompleteSchoolSSO(context.Background(), SchoolSSOCompleteInput{
+		SchoolID: 1,
+		State:    start.State,
+		UserID:   userID,
+		Code:     "oidc-code",
+	})
+	require.NoError(t, err)
+
+	actions, err := svc.ListPendingAdmissionActions(context.Background(), AdmissionPendingActionFilter{
+		Platform:  "qq",
+		BotSelfID: "514",
+	})
+	require.NoError(t, err)
+	require.Len(t, actions, 1)
+	assert.Equal(t, created.Session.ID, actions[0].SessionID)
+	assert.Equal(t, BotActionRelease, actions[0].Action)
+	assert.Equal(t, created.AuthURL, actions[0].AuthURL)
+
+	err = svc.RecordBotEvent(context.Background(), actions[0].SessionID, BotEventInput{
+		Action:  actions[0].Action,
+		Success: true,
+	})
+	require.NoError(t, err)
+	assertAdmissionSessionCancelled(t, pg, created.Session.ID)
+}
+
 func TestSchoolEmailOTPSendFailureClearsCooldown(t *testing.T) {
 	pg := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
@@ -82,14 +267,14 @@ func TestSchoolSSOStartAndCallback(t *testing.T) {
 	_, err := svc.StartSchoolSSO(context.Background(), SchoolSSOStartInput{
 		UserID:    userID,
 		SchoolID:  1,
-		ReturnURL: "https://evil.example/admission/a/token",
+		ReturnURL: "https://evil.example/verify/token",
 	})
 	require.ErrorIs(t, err, ErrAdmissionReturnURLNotAllowed)
 
 	start, err := svc.StartSchoolSSO(context.Background(), SchoolSSOStartInput{
 		UserID:    userID,
 		SchoolID:  1,
-		ReturnURL: "https://auth.stuhelper.com/admission/a/token?qq=10001",
+		ReturnURL: "https://join.stuhelper.com/verify/token?qq=10001",
 	})
 	require.NoError(t, err)
 	assert.Contains(t, start.RedirectURL, "https://sso.school.example/login")
@@ -102,7 +287,7 @@ func TestSchoolSSOStartAndCallback(t *testing.T) {
 		Code:     "oidc-code",
 	})
 	require.NoError(t, err)
-	assert.Equal(t, "https://auth.stuhelper.com/admission/a/token?qq=10001", complete.ReturnURL)
+	assert.Equal(t, "https://join.stuhelper.com/verify/token?qq=10001", complete.ReturnURL)
 	assertCredentialStored(t, pg, userID, CredentialSchoolSSO, "official student")
 	assertUserSessionVerified(t, pg, userID)
 
@@ -159,7 +344,7 @@ func startSchoolSSOForTest(t *testing.T, svc *Service, userID int64) *SchoolSSOS
 	start, err := svc.StartSchoolSSO(context.Background(), SchoolSSOStartInput{
 		UserID:    userID,
 		SchoolID:  1,
-		ReturnURL: "https://auth.stuhelper.com/admission/a/token?qq=10001",
+		ReturnURL: "https://join.stuhelper.com/verify/token?qq=10001",
 	})
 	require.NoError(t, err)
 	return start
@@ -169,6 +354,19 @@ type testSchoolEmailSender struct {
 	email string
 	code  string
 	err   error
+}
+
+type testAcademicLookupGateway struct {
+	student *user.AcademicStudent
+	err     error
+}
+
+func (g testAcademicLookupGateway) GetAcademicInfo(
+	context.Context,
+	int64,
+	string,
+) (*user.AcademicStudent, error) {
+	return g.student, g.err
 }
 
 type testSchoolSSOExchanger struct {
@@ -238,4 +436,16 @@ func assertNoCredentialStored(
 	`, userID, kind).Scan(&count)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count)
+}
+
+func assertAdmissionSessionCancelled(t *testing.T, fixture *postgresfixture.Fixture, sessionID string) {
+	t.Helper()
+	var cancelled bool
+	err := fixture.Pool.QueryRow(context.Background(), `
+		SELECT cancelled_at IS NOT NULL
+		FROM group_admission_sessions
+		WHERE id = $1
+	`, sessionID).Scan(&cancelled)
+	require.NoError(t, err)
+	assert.True(t, cancelled)
 }

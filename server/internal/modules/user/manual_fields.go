@@ -16,12 +16,21 @@ var allowedManualFieldTypes = map[string]struct{}{
 }
 
 func decodeManualFieldDescriptors(raw json.RawMessage) ([]ManualFieldDescriptor, error) {
-	if len(raw) == 0 || string(raw) == "null" {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == "null" {
 		return nil, nil
+	}
+	if strings.HasPrefix(trimmed, "{") {
+		var envelope struct {
+			Admission json.RawMessage `json:"admission"`
+		}
+		if err := json.Unmarshal([]byte(trimmed), &envelope); err == nil && len(envelope.Admission) > 0 {
+			return nil, nil
+		}
 	}
 
 	var fields []ManualFieldDescriptor
-	if err := json.Unmarshal(raw, &fields); err != nil {
+	if err := json.Unmarshal([]byte(trimmed), &fields); err != nil {
 		return nil, fmt.Errorf("decode manual field descriptors: %w", err)
 	}
 	if err := validateManualFieldDescriptors(fields); err != nil {

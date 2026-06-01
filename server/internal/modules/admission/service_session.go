@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -12,11 +13,15 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
 )
 
 func (s *Service) CreateBotSession(ctx context.Context, input BotSessionCreateInput) (*CreatedAdmissionSession, error) {
 	input = normalizeBotSessionCreateInput(input)
+	if err := validateBotSessionCreateInput(input); err != nil {
+		return nil, err
+	}
 	if err := s.ensureBotSessionMemberAllowed(ctx, input); err != nil {
 		return nil, err
 	}
@@ -35,6 +40,70 @@ func (s *Service) CreateBotSession(ctx context.Context, input BotSessionCreateIn
 	if err := s.repo.CreateSession(ctx, session); err != nil {
 		return nil, err
 	}
+	return &CreatedAdmissionSession{
+		Session: session,
+		Token:   token,
+		AuthURL: session.AuthURL,
+	}, nil
+}
+
+func (s *Service) GetBotAdmissionSession(ctx context.Context, input BotSessionSubjectInput) (*AdmissionSession, error) {
+	input = normalizeBotSessionSubjectInput(input)
+	if err := validateBotSessionSubjectInput(input); err != nil {
+		return nil, err
+	}
+	return s.repo.GetLatestSessionBySubject(ctx, input)
+}
+
+func (s *Service) ResendBotAdmissionSession(ctx context.Context, input BotSessionSubjectInput) (*AdmissionSession, error) {
+	session, err := s.GetBotAdmissionSession(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.validateResendableSession(session); err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
+func (s *Service) RegenerateBotAdmissionSession(
+	ctx context.Context,
+	input BotSessionCreateInput,
+) (*CreatedAdmissionSession, error) {
+	input = normalizeBotSessionCreateInput(input)
+	if err := validateBotSessionCreateInput(input); err != nil {
+		return nil, err
+	}
+	subject := botSessionCreateSubject(input)
+	if err := s.ensureBotSessionMemberAllowed(ctx, input); err != nil {
+		return nil, err
+	}
+	if err := s.ensureRegeneratableSession(ctx, subject); err != nil {
+		return nil, err
+	}
+	policy, err := s.loadPolicy(ctx, input.Platform, input.GuildID)
+	if err != nil {
+		return nil, err
+	}
+	token, err := s.generateToken()
+	if err != nil {
+		return nil, fmt.Errorf("RegenerateBotAdmissionSession token: %w", err)
+	}
+	session, err := s.newAdmissionSession(input, policy, token)
+	if err != nil {
+		return nil, err
+	}
+	var cancelledIDs []string
+	if err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		cancelledIDs, err = s.repo.CancelInProgressSessionsBySubjectTx(ctx, tx, subject, s.now())
+		if err != nil {
+			return err
+		}
+		return s.repo.CreateSessionTx(ctx, tx, session)
+	}); err != nil {
+		return nil, fmt.Errorf("RegenerateBotAdmissionSession: %w", err)
+	}
+	s.auditBotSessionRegenerated(ctx, session, cancelledIDs)
 	return &CreatedAdmissionSession{
 		Session: session,
 		Token:   token,
@@ -61,13 +130,17 @@ func (s *Service) LinkTokenToUser(ctx context.Context, input AdmissionTokenLinkI
 			return err
 		}
 		if err := s.validateTokenSession(session, input.QQQuery); err != nil {
+			if errors.Is(err, ErrAdmissionTokenConsumed) && sessionLinkedToUser(session, input.UserID) {
+				linked = session
+				return nil
+			}
 			return err
 		}
 		policy, err := s.loadPolicy(ctx, session.Platform, session.GuildID)
 		if err != nil {
 			return err
 		}
-		if _, err := s.qqGateway.EnsureQQBindingForUserTx(ctx, tx, input.UserID, session.QQID, session.QQNickname); err != nil {
+		if _, err := s.qqGateway.EnsureQQBindingForUserTx(ctx, tx, input.UserID, session.QQID); err != nil {
 			return err
 		}
 		deadline := s.now().Add(time.Duration(policy.SubmissionWaitSeconds) * time.Second)
@@ -78,6 +151,87 @@ func (s *Service) LinkTokenToUser(ctx context.Context, input AdmissionTokenLinkI
 		return nil, fmt.Errorf("LinkTokenToUser: %w", err)
 	}
 	return linked, nil
+}
+
+func (s *Service) validateResendableSession(session *AdmissionSession) error {
+	if session == nil {
+		return ErrAdmissionSessionNotFound
+	}
+	now := s.now()
+	switch session.Status {
+	case StatusJoinedMuted:
+		if now.After(session.TokenExpiresAt) || now.After(session.LinkWaitDeadlineAt) {
+			return ErrAdmissionTokenExpired
+		}
+		return nil
+	case StatusLinked:
+		if now.After(session.SubmissionWaitDeadlineAt) {
+			return ErrAdmissionInvalidStatus
+		}
+		return nil
+	case StatusMaterialSubmitted:
+		if session.ManualReviewDeadlineAt != nil && now.After(*session.ManualReviewDeadlineAt) {
+			return ErrAdmissionInvalidStatus
+		}
+		return nil
+	default:
+		return ErrAdmissionInvalidStatus
+	}
+}
+
+func (s *Service) ensureRegeneratableSession(ctx context.Context, subject BotSessionSubjectInput) error {
+	session, err := s.repo.GetLatestSessionBySubject(ctx, subject)
+	if err != nil {
+		if errors.Is(err, ErrAdmissionSessionNotFound) {
+			return nil
+		}
+		return err
+	}
+	if session.Status == StatusVerified {
+		return ErrAdmissionInvalidStatus
+	}
+	return nil
+}
+
+func (s *Service) auditBotSessionRegenerated(
+	ctx context.Context,
+	session *AdmissionSession,
+	cancelledIDs []string,
+) {
+	if session == nil {
+		return
+	}
+	audit.LogContext(ctx, audit.Event{
+		Type:         audit.EventDataUpdate,
+		Category:     "admission",
+		ActorType:    "bot",
+		Resource:     "group_admission_sessions",
+		ResourceType: "group_admission_session",
+		ResourceID:   session.ID,
+		Action:       "regenerate",
+		Result:       "success",
+		Details: map[string]any{
+			"platform":              session.Platform,
+			"guildID":               session.GuildID,
+			"qqID":                  session.QQID,
+			"botSelfID":             session.BotSelfID,
+			"cancelledSessionIDs":   cancelledIDs,
+			"cancelledSessionCount": len(cancelledIDs),
+		},
+		Timestamp: s.now(),
+	})
+}
+
+func sessionLinkedToUser(session *AdmissionSession, userID int64) bool {
+	if session == nil || session.UserID == nil || *session.UserID != userID {
+		return false
+	}
+	switch session.Status {
+	case StatusLinked, StatusMaterialSubmitted, StatusVerified:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Service) MarkMaterialSubmitted(ctx context.Context, sessionID string) (*AdmissionSession, error) {
@@ -118,6 +272,13 @@ func (s *Service) RecordBotEvent(ctx context.Context, sessionID string, event Bo
 				Tx:        tx,
 				SessionID: sessionID,
 				BotError:  normalizeBotEventError(event),
+			})
+		}
+		if event.Action == BotActionRelease {
+			return s.applySuccessfulBotEventTx(ctx, successfulBotEventTxInput{
+				Tx:      tx,
+				Session: session,
+				Action:  event.Action,
 			})
 		}
 		policy, err := s.loadPolicy(ctx, session.Platform, session.GuildID)
@@ -244,7 +405,6 @@ func (s *Service) newAdmissionSession(
 		GuildID:                  input.GuildID,
 		ChannelID:                input.ChannelID,
 		QQID:                     input.QQID,
-		QQNickname:               input.QQNickname,
 		TokenHash:                s.hashToken(token),
 		AuthURL:                  s.buildAuthURL(token, input.QQID),
 		TokenExpiresAt:           now.Add(time.Duration(policy.LinkWaitSeconds) * time.Second),
@@ -279,7 +439,7 @@ func (s *Service) loadPolicy(ctx context.Context, platform, guildID string) (*Ad
 	if policy != nil {
 		return policy, nil
 	}
-	return defaultAdmissionPolicy(platform, guildID, s.now()), nil
+	return nil, ErrAdmissionPolicyNotFound
 }
 
 func (s *Service) hashToken(token string) string {
@@ -299,9 +459,37 @@ func normalizeBotSessionCreateInput(input BotSessionCreateInput) BotSessionCreat
 	input.GuildID = strings.TrimSpace(input.GuildID)
 	input.ChannelID = strings.TrimSpace(input.ChannelID)
 	input.QQID = strings.TrimSpace(input.QQID)
-	input.QQNickname = normalizeStringPtr(input.QQNickname)
 	input.BotSelfID = strings.TrimSpace(input.BotSelfID)
 	return input
+}
+
+func normalizeBotSessionSubjectInput(input BotSessionSubjectInput) BotSessionSubjectInput {
+	input.Platform = strings.TrimSpace(input.Platform)
+	input.GuildID = strings.TrimSpace(input.GuildID)
+	input.QQID = strings.TrimSpace(input.QQID)
+	return input
+}
+
+func validateBotSessionCreateInput(input BotSessionCreateInput) error {
+	if input.Platform == "" || input.GuildID == "" || input.ChannelID == "" || input.QQID == "" {
+		return ErrAdmissionInvalidInput
+	}
+	return nil
+}
+
+func validateBotSessionSubjectInput(input BotSessionSubjectInput) error {
+	if input.Platform == "" || input.GuildID == "" || input.QQID == "" {
+		return ErrAdmissionInvalidInput
+	}
+	return nil
+}
+
+func botSessionCreateSubject(input BotSessionCreateInput) BotSessionSubjectInput {
+	return BotSessionSubjectInput{
+		Platform: input.Platform,
+		GuildID:  input.GuildID,
+		QQID:     input.QQID,
+	}
 }
 
 func normalizeStringPtr(value *string) *string {

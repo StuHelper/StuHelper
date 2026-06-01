@@ -10,13 +10,13 @@ import (
 )
 
 const selectQQBindingByUserIDSQL = `
-		SELECT user_id, qq_id, qq_nickname, bound_at, created_at, updated_at
+		SELECT user_id, qq_id, bound_at, created_at, updated_at
 		FROM user_qq_bindings
 		WHERE user_id = $1
 	`
 
 const selectQQBindingByQQIDSQL = `
-		SELECT user_id, qq_id, qq_nickname, bound_at, created_at, updated_at
+		SELECT user_id, qq_id, bound_at, created_at, updated_at
 		FROM user_qq_bindings
 		WHERE qq_id = $1
 	`
@@ -32,7 +32,6 @@ func scanQQBindingRow(row pgx.Row) (*QQBinding, error) {
 	if err := row.Scan(
 		&item.UserID,
 		&item.QQID,
-		&item.QQNickname,
 		&item.BoundAt,
 		&item.CreatedAt,
 		&item.UpdatedAt,
@@ -126,9 +125,9 @@ func (r *Repository) GetQQBindingByQQIDTx(ctx context.Context, tx pgx.Tx, qqID s
 func (r *Repository) CreateQQBindingTx(ctx context.Context, tx pgx.Tx, binding *QQBinding) error {
 	_, err := tx.Exec(ctx, `
 		INSERT INTO user_qq_bindings (
-			user_id, qq_id, qq_nickname, bound_at, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, NOW(), NOW())
-	`, binding.UserID, binding.QQID, binding.QQNickname, binding.BoundAt)
+			user_id, qq_id, bound_at, created_at, updated_at
+		) VALUES ($1, $2, $3, NOW(), NOW())
+	`, binding.UserID, binding.QQID, binding.BoundAt)
 	if err != nil {
 		return fmt.Errorf("CreateQQBindingTx: %w", err)
 	}

@@ -35,10 +35,13 @@ func TestBootstrapCreatesMissingObjects(t *testing.T) {
 	assert.NotNil(t, orgs.added.ThemeData)
 	require.NotNil(t, apps.added)
 	assert.Equal(t, "stuhelper-web", apps.added.Name)
+	assert.Equal(t, "stuhelper", apps.added.Organization)
 	require.NotNil(t, roles.added)
 	assert.Equal(t, "verified_student", roles.added.Name)
+	assert.Equal(t, "stuhelper", roles.added.Owner)
 	require.NotNil(t, providers.added)
 	assert.Equal(t, "stuhelper-sms", providers.added.Name)
+	assert.Equal(t, "stuhelper", providers.added.Owner)
 }
 
 func TestBootstrapUpdatesExistingObjects(t *testing.T) {
@@ -59,6 +62,28 @@ func TestBootstrapUpdatesExistingObjects(t *testing.T) {
 	assert.Equal(t, "Verified Student", roles.updated.DisplayName)
 	assert.Nil(t, providers.added)
 	assert.Equal(t, "https://api.example.com/internal/sms/send", providers.updated.Endpoint)
+}
+
+func TestBootstrapUsesTargetOrganizationWhenCredentialIsBuiltIn(t *testing.T) {
+	apps := &fakeApplicationAPI{addOK: true}
+	roles := &fakeRoleAPI{}
+	orgs := &fakeOrganizationAPI{addOK: true}
+	providers := &fakeProviderAPI{addOK: true}
+	credential := validCredential()
+	credential.Purpose = PurposeBootstrap
+	credential.Organization = "built-in"
+	client, err := newBootstrapClient(credential, apps, roles, orgs, providers)
+	require.NoError(t, err)
+
+	err = client.Bootstrap(context.Background(), validBootstrapPlan())
+
+	require.NoError(t, err)
+	require.NotNil(t, apps.added)
+	assert.Equal(t, "stuhelper", apps.added.Organization)
+	require.NotNil(t, roles.added)
+	assert.Equal(t, "stuhelper", roles.added.Owner)
+	require.NotNil(t, providers.added)
+	assert.Equal(t, "stuhelper", providers.added.Owner)
 }
 
 func TestNewBootstrapClientRequiresBootstrapPurpose(t *testing.T) {

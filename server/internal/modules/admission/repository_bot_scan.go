@@ -87,7 +87,7 @@ func pendingFreshmanForwardSQL() string {
 		       app.applicant_name, app.applicant_name_masked, app.department_or_major,
 		       app.material_type, app.provisional_expires_at, app.reviewed_at, app.created_at,
 		       material.object_key, policy.management_guild_ids, session.platform,
-		       session.bot_self_id, schools.school_name, session.qq_id
+		       session.bot_self_id, schools.name, session.qq_id
 		FROM freshman_verification_applications app
 		JOIN freshman_verification_materials material ON material.application_id = app.id
 		JOIN group_admission_sessions session ON session.id = app.admission_session_id

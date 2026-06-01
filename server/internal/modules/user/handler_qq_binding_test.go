@@ -119,10 +119,9 @@ func TestHandleGetQQBinding_ReturnsBinding(t *testing.T) {
 	}
 	repo.onGetQQBindingByUserID = func(_ context.Context, userID int64) (*QQBinding, error) {
 		return &QQBinding{
-			UserID:     userID,
-			QQID:       "123456789",
-			QQNickname: ptr("航小伴"),
-			BoundAt:    boundAt,
+			UserID:  userID,
+			QQID:    "123456789",
+			BoundAt: boundAt,
 		}, nil
 	}
 
@@ -134,6 +133,7 @@ func TestHandleGetQQBinding_ReturnsBinding(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), `"qqID":"123456789"`)
+	assert.NotContains(t, w.Body.String(), "qqNickname")
 }
 
 func TestBotConsumeQQBinding_RejectsMissingServiceToken(t *testing.T) {
@@ -233,7 +233,7 @@ func TestBotConsumeQQBinding_ReturnsBindingResult(t *testing.T) {
 	}
 
 	r := setupQQBindingBotRouter(t, repo, &fakeBotCredentialVerifier{})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/bot/qq-binding/consume", strings.NewReader(`{"code":"ABCD1234","qqID":"123456789","qqNickname":"航小伴"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/bot/qq-binding/consume", strings.NewReader(`{"code":"ABCD1234","qqID":"123456789"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer expected-token")
 	w := httptest.NewRecorder()
@@ -242,6 +242,7 @@ func TestBotConsumeQQBinding_ReturnsBindingResult(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), `"verificationState":"verified"`)
+	assert.NotContains(t, w.Body.String(), "qqNickname")
 }
 
 func TestBotGetQQVerification_ReturnsVerificationState(t *testing.T) {

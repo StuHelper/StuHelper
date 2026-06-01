@@ -17,10 +17,7 @@ import (
 	"golang.org/x/oauth2"
 )
 
-const (
-	admissionSSOStateTTL            = 10 * time.Minute
-	defaultAdmissionReturnURLOrigin = "https://auth.stuhelper.com"
-)
+const admissionSSOStateTTL = 10 * time.Minute
 
 const admissionSchoolSSOStateKeyPrefix = "admission:school_sso_state:"
 
@@ -233,7 +230,15 @@ func (s *Service) admissionReturnURLAllowed(value string) bool {
 		return false
 	}
 	origin := parsed.Scheme + "://" + parsed.Host
-	return origin == s.returnURLOrigin
+	if origin != s.returnURLOrigin {
+		return false
+	}
+	return isAdmissionReturnPath(parsed.Path)
+}
+
+func isAdmissionReturnPath(path string) bool {
+	code := strings.TrimPrefix(path, "/verify/")
+	return code != path && code != "" && !strings.Contains(code, "/")
 }
 
 func appendSSOState(loginURL string, state string, codeVerifier string) string {

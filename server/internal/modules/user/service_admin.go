@@ -326,6 +326,10 @@ func (s *Service) validateSystemConfigValue(ctx context.Context, key, value stri
 		if _, err := systemconfig.ParseBoundedInt(value, 1, 100); err != nil {
 			return fmt.Errorf("%w: %s %v", ErrInvalidSystemConfigValue, key, err)
 		}
+	case systemconfig.EmailDeliveryPolicyKey:
+		if err := systemconfig.ValidateEmailDeliveryPolicy(value); err != nil {
+			return fmt.Errorf("%w: %s %v", ErrInvalidSystemConfigValue, key, err)
+		}
 	}
 	return nil
 }

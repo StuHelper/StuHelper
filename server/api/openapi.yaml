@@ -341,6 +341,10 @@ paths:
     $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile"
   /api/v1/user/profile/verify:
     $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile~1verify"
+  /api/v1/user/profile/school-email/request-otp:
+    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile~1school-email~1request-otp"
+  /api/v1/user/profile/school-email/verify-otp:
+    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile~1school-email~1verify-otp"
   /api/v1/user/profile/bind-phone/otp:
     $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile~1bind-phone~1otp"
   /api/v1/user/profile/bind-phone:
@@ -363,14 +367,26 @@ paths:
     $ref: "paths/admission.yaml#/~1api~1v1~1admission~1freshman~1applications"
   /api/v1/admission/freshman/applications/{id}/camera-captures:
     $ref: "paths/admission.yaml#/~1api~1v1~1admission~1freshman~1applications~1{id}~1camera-captures"
+  /api/v1/admission/freshman/applications/{id}/camera-handoffs:
+    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1freshman~1applications~1{id}~1camera-handoffs"
+  /api/v1/admission/freshman/camera-handoffs/{id}:
+    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1freshman~1camera-handoffs~1{id}"
+  /api/v1/admission/freshman/camera-handoffs/{id}/events:
+    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1freshman~1camera-handoffs~1{id}~1events"
+  /api/v1/admission/freshman/mobile-camera-handoffs/{token}:
+    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1freshman~1mobile-camera-handoffs~1{token}"
+  /api/v1/admission/freshman/mobile-camera-handoffs/{token}/camera-capture:
+    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1freshman~1mobile-camera-handoffs~1{token}~1camera-capture"
+  /api/v1/admission/freshman/mobile-camera-handoffs/{token}/continue:
+    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1freshman~1mobile-camera-handoffs~1{token}~1continue"
   /api/v1/admission/school-email/request-otp:
     $ref: "paths/admission.yaml#/~1api~1v1~1admission~1school-email~1request-otp"
   /api/v1/admission/school-email/verify-otp:
     $ref: "paths/admission.yaml#/~1api~1v1~1admission~1school-email~1verify-otp"
-  /api/v1/admission/school-sso/{schoolID}/login:
-    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1school-sso~1{schoolID}~1login"
-  /api/v1/admission/school-sso/{schoolID}/callback:
-    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1school-sso~1{schoolID}~1callback"
+  /api/v1/admission/school-sso/{schoolCode}/login:
+    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1school-sso~1{schoolCode}~1login"
+  /api/v1/admission/school-sso/{schoolCode}/callback:
+    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1school-sso~1{schoolCode}~1callback"
 
   # ── Bot: User Binding ──
   /api/v1/bot/qq-binding/consume:
@@ -381,6 +397,12 @@ paths:
   # ── Bot: Admission ──
   /api/v1/bot/admission/sessions:
     $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1sessions"
+  /api/v1/bot/admission/sessions/member:
+    $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1sessions~1member"
+  /api/v1/bot/admission/sessions/member/resend:
+    $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1sessions~1member~1resend"
+  /api/v1/bot/admission/sessions/member/regenerate:
+    $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1sessions~1member~1regenerate"
   /api/v1/bot/admission/join-requests/events:
     $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1join-requests~1events"
   /api/v1/bot/member-blacklist/access:
@@ -463,6 +485,11 @@ paths:
                 rating:
                   type: string
                   enum: [good, needs-improvement, poor]
+          text/plain:
+            schema:
+              type: string
+              maxLength: 1024
+              description: JSON-encoded Web Vitals payload sent by navigator.sendBeacon.
       responses:
         "204":
           description: Accepted
@@ -639,10 +666,18 @@ components:
       $ref: "components/schemas/user-system.yaml#/UserProfile"
     SubmitStudentVerificationRequest:
       $ref: "components/schemas/user-system.yaml#/SubmitStudentVerificationRequest"
+    StudentEmailOTPRequest:
+      $ref: "components/schemas/user-system.yaml#/StudentEmailOTPRequest"
+    StudentEmailOTPVerifyRequest:
+      $ref: "components/schemas/user-system.yaml#/StudentEmailOTPVerifyRequest"
+    StudentEmailOTPResponse:
+      $ref: "components/schemas/user-system.yaml#/StudentEmailOTPResponse"
     BindPhoneRequest:
       $ref: "components/schemas/user-system.yaml#/BindPhoneRequest"
     SchoolConfig:
       $ref: "components/schemas/user-system.yaml#/SchoolConfig"
+    SchoolEmailIdentityPolicy:
+      $ref: "components/schemas/user-system.yaml#/SchoolEmailIdentityPolicy"
     AcademicStudentInfo:
       $ref: "components/schemas/user-system.yaml#/AcademicStudentInfo"
     ReviewIdentityRequest:
@@ -731,10 +766,16 @@ components:
       $ref: "components/schemas/admission.yaml#/BotFreshmanReviewRequest"
     CameraCaptureRequest:
       $ref: "components/schemas/admission.yaml#/CameraCaptureRequest"
+    FreshmanCameraHandoff:
+      $ref: "components/schemas/admission.yaml#/FreshmanCameraHandoff"
+    FreshmanCameraHandoffContinuationRequest:
+      $ref: "components/schemas/admission.yaml#/FreshmanCameraHandoffContinuationRequest"
     SchoolEmailOTPRequest:
       $ref: "components/schemas/admission.yaml#/SchoolEmailOTPRequest"
     SchoolEmailOTPVerifyRequest:
       $ref: "components/schemas/admission.yaml#/SchoolEmailOTPVerifyRequest"
+    SchoolEmailOTPResponse:
+      $ref: "components/schemas/admission.yaml#/SchoolEmailOTPResponse"
     MemberBlacklistEntry:
       $ref: "components/schemas/member-blacklist.yaml#/MemberBlacklistEntry"
     MemberBlacklistCreateRequest:

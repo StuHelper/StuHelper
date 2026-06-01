@@ -22,6 +22,11 @@ type bootstrapSettings struct {
 	plan       casdoor.BootstrapPlan
 }
 
+type applicationBootstrapSettings struct {
+	credential   casdoor.Credential
+	applications []casdoor.ApplicationSpec
+}
+
 func loadSettings(getenv envReader) (bootstrapSettings, error) {
 	targetOrganization, err := requiredValue(getenv, "CASDOOR_ORGANIZATION")
 	if err != nil {
@@ -36,6 +41,22 @@ func loadSettings(getenv envReader) (bootstrapSettings, error) {
 		return bootstrapSettings{}, err
 	}
 	return bootstrapSettings{credential: credential, plan: plan}, nil
+}
+
+func loadApplicationBootstrapSettings(getenv envReader) (applicationBootstrapSettings, error) {
+	targetOrganization, err := requiredValue(getenv, "CASDOOR_ORGANIZATION")
+	if err != nil {
+		return applicationBootstrapSettings{}, err
+	}
+	credential, err := buildApplicationBootstrapCredential(getenv, targetOrganization)
+	if err != nil {
+		return applicationBootstrapSettings{}, err
+	}
+	apps, err := buildApplications(getenv)
+	if err != nil {
+		return applicationBootstrapSettings{}, err
+	}
+	return applicationBootstrapSettings{credential: credential, applications: apps}, nil
 }
 
 func buildCredential(getenv envReader, targetOrganization string) (casdoor.Credential, error) {
@@ -63,6 +84,34 @@ func buildCredential(getenv envReader, targetOrganization string) (casdoor.Crede
 		ClientSecret: clientSecret,
 		Certificate:  strings.TrimSpace(getenv("CASDOOR_BOOTSTRAP_CERTIFICATE")),
 		Organization: credentialOrganization,
+		Application:  application,
+	}, nil
+}
+
+func buildApplicationBootstrapCredential(getenv envReader, targetOrganization string) (casdoor.Credential, error) {
+	endpoint, err := requiredFirst(getenv, "CASDOOR_BOOTSTRAP_ENDPOINT", "CASDOOR_ISSUER")
+	if err != nil {
+		return casdoor.Credential{}, err
+	}
+	clientID, err := requiredFirst(getenv, "CASDOOR_APP_PROVISIONING_CLIENT_ID", "CASDOOR_BOOTSTRAP_CLIENT_ID")
+	if err != nil {
+		return casdoor.Credential{}, err
+	}
+	clientSecret, err := requiredFirst(getenv, "CASDOOR_APP_PROVISIONING_CLIENT_SECRET", "CASDOOR_BOOTSTRAP_CLIENT_SECRET")
+	if err != nil {
+		return casdoor.Credential{}, err
+	}
+	application, err := requiredFirst(getenv, "CASDOOR_APP_PROVISIONING_APPLICATION", "CASDOOR_BOOTSTRAP_APPLICATION")
+	if err != nil {
+		return casdoor.Credential{}, err
+	}
+	return casdoor.Credential{
+		Purpose:      casdoor.PurposeAppProvisioning,
+		Endpoint:     endpoint,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Certificate:  strings.TrimSpace(getenv("CASDOOR_APP_PROVISIONING_CERTIFICATE")),
+		Organization: targetOrganization,
 		Application:  application,
 	}, nil
 }

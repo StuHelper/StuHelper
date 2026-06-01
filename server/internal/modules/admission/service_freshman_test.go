@@ -3,6 +3,8 @@ package admission
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,7 +14,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/postgresfixture"
 )
 
-func TestFreshmanApplicationRejectsClosedChannelAndDuplicatePending(t *testing.T) {
+func TestFreshmanApplicationRejectsClosedChannelAndReusesPendingApplication(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newFreshmanTestService(t, fixture)
 	userID := seedLinkedAdmissionUser(t, fixture, svc, "freshman-closed")
@@ -36,13 +38,14 @@ func TestFreshmanApplicationRejectsClosedChannelAndDuplicatePending(t *testing.T
 	require.NoError(t, err)
 	require.NotEmpty(t, app.ID)
 
-	_, err = svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
+	reused, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
 		UserID:        userID,
 		SchoolID:      1,
 		ApplicantName: "Alice Applicant",
 		MaterialType:  MaterialAdmissionNotice,
 	})
-	require.ErrorIs(t, err, ErrAdmissionFreshmanPendingExists)
+	require.NoError(t, err)
+	assert.Equal(t, app.ID, reused.ID)
 }
 
 func TestFreshmanCameraCaptureValidatesAndStoresImage(t *testing.T) {
@@ -81,6 +84,188 @@ func TestFreshmanCameraCaptureValidatesAndStoresImage(t *testing.T) {
 	assert.Equal(t, "image/png", store.contentType)
 	assert.NotEmpty(t, store.objectKey)
 	assert.NotEmpty(t, store.content)
+}
+
+func TestFreshmanCameraHandoffUploadsAndLocksContinuation(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	store := &testAdmissionMaterialStore{}
+	svc := newFreshmanTestService(t, fixture)
+	svc.materialStore = store
+	tokenIndex := 0
+	svc.generateToken = func() (string, error) {
+		tokenIndex++
+		return fmt.Sprintf("freshman-camera-token-%d", tokenIndex), nil
+	}
+	userID := seedLinkedAdmissionUser(t, fixture, svc, "freshman-camera-handoff")
+	app := createFreshmanTestApplication(t, svc, userID)
+
+	handoff, err := svc.CreateFreshmanCameraHandoff(context.Background(), FreshmanCameraHandoffCreateInput{
+		UserID:        userID,
+		ApplicationID: app.ID,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, handoff.ID)
+	assert.Equal(t, FreshmanCameraHandoffPending, handoff.Status)
+	assert.Contains(t, handoff.MobileURL, "/admission/freshman/camera/")
+	token := handoff.MobileURL[strings.LastIndex(handoff.MobileURL, "/")+1:]
+
+	preview, err := svc.PreviewFreshmanCameraHandoff(
+		context.Background(),
+		token,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, handoff.ID, preview.ID)
+
+	regenerated, err := svc.CreateFreshmanCameraHandoff(context.Background(), FreshmanCameraHandoffCreateInput{
+		UserID:        userID,
+		ApplicationID: app.ID,
+	})
+	require.NoError(t, err)
+	assert.NotEqual(t, handoff.ID, regenerated.ID)
+	assert.Equal(t, FreshmanCameraHandoffPending, regenerated.Status)
+	token = regenerated.MobileURL[strings.LastIndex(regenerated.MobileURL, "/")+1:]
+
+	uploaded, err := svc.SubmitFreshmanCameraHandoffCapture(context.Background(), FreshmanCameraHandoffCaptureInput{
+		Token:       token,
+		ContentType: "image/png",
+		ImageBase64: base64.StdEncoding.EncodeToString(validPNGBytes()),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, FreshmanCameraHandoffUploaded, uploaded.Status)
+	assert.NotNil(t, uploaded.UploadedAt)
+	assert.NotEmpty(t, store.objectKey)
+
+	_, err = svc.SubmitCameraCapture(context.Background(), CameraCaptureInput{
+		UserID:        userID,
+		ApplicationID: app.ID,
+		ContentType:   "image/png",
+		ImageBase64:   base64.StdEncoding.EncodeToString(validPNGBytes()),
+	})
+	require.ErrorIs(t, err, ErrAdmissionCameraHandoffLocked)
+
+	retried, err := svc.SubmitFreshmanCameraHandoffCapture(context.Background(), FreshmanCameraHandoffCaptureInput{
+		Token:       token,
+		ContentType: "image/png",
+		ImageBase64: base64.StdEncoding.EncodeToString(validPNGBytes()),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, FreshmanCameraHandoffUploaded, retried.Status)
+	assert.Equal(t, uploaded.ID, retried.ID)
+
+	locked, err := svc.ChooseFreshmanCameraHandoffContinuation(context.Background(), FreshmanCameraHandoffContinuationInput{
+		Token:      token,
+		ContinueOn: FreshmanCameraContinueDesktop,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, FreshmanCameraHandoffLocked, locked.Status)
+	require.NotNil(t, locked.ContinueOn)
+	assert.Equal(t, FreshmanCameraContinueDesktop, *locked.ContinueOn)
+	require.NotNil(t, locked.ChosenAt)
+
+	_, err = svc.ChooseFreshmanCameraHandoffContinuation(context.Background(), FreshmanCameraHandoffContinuationInput{
+		Token:      token,
+		ContinueOn: FreshmanCameraContinueMobile,
+	})
+	require.ErrorIs(t, err, ErrAdmissionCameraHandoffLocked)
+}
+
+func TestFreshmanDesktopCaptureExpiresPendingMobileHandoff(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	store := &testAdmissionMaterialStore{}
+	svc := newFreshmanTestService(t, fixture)
+	svc.materialStore = store
+	svc.generateToken = func() (string, error) {
+		return "freshman-camera-token", nil
+	}
+	userID := seedLinkedAdmissionUser(t, fixture, svc, "freshman-camera-desktop-after-handoff")
+	app := createFreshmanTestApplication(t, svc, userID)
+
+	handoff, err := svc.CreateFreshmanCameraHandoff(context.Background(), FreshmanCameraHandoffCreateInput{
+		UserID:        userID,
+		ApplicationID: app.ID,
+	})
+	require.NoError(t, err)
+	token := handoff.MobileURL[strings.LastIndex(handoff.MobileURL, "/")+1:]
+
+	updated, err := svc.SubmitCameraCapture(context.Background(), CameraCaptureInput{
+		UserID:        userID,
+		ApplicationID: app.ID,
+		ContentType:   "image/png",
+		ImageBase64:   base64.StdEncoding.EncodeToString(validPNGBytes()),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, FreshmanApplicationPending, updated.Status)
+	assert.NotEmpty(t, store.objectKey)
+
+	preview, err := svc.PreviewFreshmanCameraHandoff(context.Background(), token)
+	require.NoError(t, err)
+	assert.Equal(t, FreshmanCameraHandoffExpired, preview.Status)
+}
+
+func TestAdmissionMVPFreshmanMaterialFlowReleasesVerifiedMember(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	store := &testAdmissionMaterialStore{}
+	svc := newOperatorTestService(t, fixture)
+	svc.materialStore = store
+	operatorID := seedAdmissionUser(t, fixture, "mvp-freshman-operator")
+	bindAdmissionOperatorQQ(t, fixture, operatorBindingSeed{UserID: operatorID, QQID: "90004"})
+	svc.operatorAccess = &testOperatorAccessGateway{allowedUserID: operatorID}
+
+	created, err := svc.CreateBotSession(context.Background(), BotSessionCreateInput{
+		Platform:  "qq",
+		BotSelfID: "514",
+		GuildID:   "guild-1",
+		ChannelID: "channel-1",
+		QQID:      "10001",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "https://join.stuhelper.com/verify/test-admission-token?qq=10001", created.AuthURL)
+
+	userID := seedAdmissionUser(t, fixture, "mvp-freshman")
+	_, err = svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+	app, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
+		UserID:        userID,
+		SchoolID:      1,
+		ApplicantName: "Alice Applicant",
+		MaterialType:  MaterialAdmissionNotice,
+	})
+	require.NoError(t, err)
+	_, err = svc.SubmitCameraCapture(context.Background(), CameraCaptureInput{
+		UserID:        userID,
+		ApplicationID: app.ID,
+		ContentType:   "image/png",
+		ImageBase64:   base64.StdEncoding.EncodeToString(validPNGBytes()),
+	})
+	require.NoError(t, err)
+
+	reviewed, err := svc.ReviewFreshmanApplicationFromBot(
+		context.Background(),
+		botReviewInput(app.ID, "90004"),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, FreshmanApplicationApproved, reviewed.Status)
+
+	actions, err := svc.ListPendingAdmissionActions(context.Background(), AdmissionPendingActionFilter{
+		Platform:  "qq",
+		BotSelfID: "514",
+	})
+	require.NoError(t, err)
+	require.Len(t, actions, 1)
+	assert.Equal(t, created.Session.ID, actions[0].SessionID)
+	assert.Equal(t, BotActionRelease, actions[0].Action)
+	assert.Equal(t, created.AuthURL, actions[0].AuthURL)
+
+	err = svc.RecordBotEvent(context.Background(), actions[0].SessionID, BotEventInput{
+		Action:  actions[0].Action,
+		Success: true,
+	})
+	require.NoError(t, err)
+	assertAdmissionSessionCancelled(t, fixture, created.Session.ID)
 }
 
 func newFreshmanTestService(t *testing.T, fixture *postgresfixture.Fixture) *Service {

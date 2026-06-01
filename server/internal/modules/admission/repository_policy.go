@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -24,33 +23,6 @@ func (r *Repository) GetPolicy(ctx context.Context, platform, guildID string) (*
 		return nil, fmt.Errorf("GetPolicy: %w", err)
 	}
 	return policy, nil
-}
-
-func defaultAdmissionPolicy(platform, guildID string, now time.Time) *AdmissionPolicy {
-	return &AdmissionPolicy{
-		Platform:                   platform,
-		GuildID:                    guildID,
-		AutoApproveJoin:            true,
-		InitialMuteDurationSeconds: DefaultInitialMuteDurationSeconds,
-		LinkWaitSeconds:            DefaultLinkWaitSeconds,
-		SubmissionWaitSeconds:      DefaultSubmissionWaitSeconds,
-		ManualReviewTimeoutSeconds: DefaultManualReviewTimeoutSeconds,
-		ReminderIntervalSeconds:    DefaultReminderIntervalSeconds,
-		FailedJoinLimit:            DefaultFailedJoinLimit,
-		FreshmanChannelEnabled:     true,
-		FreshmanChannelClosesAt:    defaultFreshmanCloseTime(now),
-		FreshmanDefaultExpiresAt:   defaultFreshmanCloseTime(now),
-		MaxMaterialBytes:           DefaultMaxMaterialBytes,
-		MaxExtensionDays:           DefaultMaxExtensionDays,
-	}
-}
-
-func defaultFreshmanCloseTime(now time.Time) time.Time {
-	closeAt := time.Date(now.Year(), time.October, 1, 12, 0, 0, 0, time.Local)
-	if now.After(closeAt) {
-		return closeAt.AddDate(1, 0, 0)
-	}
-	return closeAt
 }
 
 func scanAdmissionPolicy(row pgx.Row) (*AdmissionPolicy, error) {

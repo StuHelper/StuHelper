@@ -107,11 +107,11 @@ func TestComputePersonUID_Consistency(t *testing.T) {
 	svc, err := NewService(&mockRepo{}, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	uid1 := svc.computePersonUID("MAINLAND_ID", "110101199001011234")
-	uid2 := svc.computePersonUID("MAINLAND_ID", "110101199001011234")
+	uid1 := svc.computePersonUID("MAINLAND_ID", "110101199001011237")
+	uid2 := svc.computePersonUID("MAINLAND_ID", "110101199001011237")
 	assert.Equal(t, uid1, uid2)
 
-	uid3 := svc.computePersonUID("PASSPORT", "110101199001011234")
+	uid3 := svc.computePersonUID("PASSPORT", "110101199001011237")
 	assert.NotEqual(t, uid1, uid3)
 }
 
@@ -153,7 +153,7 @@ func TestSubmitIdentity_EncryptAndWriteCiphertext(t *testing.T) {
 	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), enc)
 	require.NoError(t, err)
 
-	docNumber := "110101199001011234"
+	docNumber := "110101199001011237"
 	result, err := svc.SubmitIdentity(context.Background(), 42, SubmitIdentityRequest{
 		DocType:   DocTypeMainlandID,
 		DocNumber: docNumber,
@@ -176,6 +176,62 @@ func TestSubmitIdentity_EncryptAndWriteCiphertext(t *testing.T) {
 	// PersonUID 应为 HMAC 结果，非空且非原始值
 	assert.NotEmpty(t, capturedIdentity.PersonUID)
 	assert.NotEqual(t, docNumber, capturedIdentity.PersonUID)
+}
+
+func TestSubmitIdentity_RejectsInvalidMainlandIDNumber(t *testing.T) {
+	svc, err := NewService(&mockRepo{}, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	_, err = svc.SubmitIdentity(context.Background(), 42, SubmitIdentityRequest{
+		DocType:   DocTypeMainlandID,
+		DocNumber: "not-an-id-card",
+		RealName:  "张三",
+	})
+	assert.ErrorIs(t, err, ErrIdentityDocNumberInvalid)
+
+	_, err = svc.SubmitIdentity(context.Background(), 42, SubmitIdentityRequest{
+		DocType:   DocTypeMainlandID,
+		DocNumber: "110101200001010011",
+		RealName:  "张三",
+	})
+	assert.ErrorIs(t, err, ErrIdentityDocNumberInvalid)
+}
+
+func TestSubmitIdentity_NormalizesMainlandIDAndRealName(t *testing.T) {
+	enc := &fakeEncryptor{}
+	var capturedIdentity *IdentityRecord
+	callCount := 0
+	repo := &mockRepo{
+		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
+			callCount++
+			if callCount == 1 {
+				return nil, nil
+			}
+			return &IdentityStatus{
+				UserID:   42,
+				DocType:  DocTypeMainlandID,
+				RealName: capturedIdentity.RealName,
+				Verified: false,
+			}, nil
+		},
+		onCreateIdentity: func(_ context.Context, identity *IdentityRecord) error {
+			copied := *identity
+			capturedIdentity = &copied
+			return nil
+		},
+	}
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), enc)
+	require.NoError(t, err)
+
+	_, err = svc.SubmitIdentity(context.Background(), 42, SubmitIdentityRequest{
+		DocType:   DocTypeMainlandID,
+		DocNumber: " 11010519491231002x ",
+		RealName:  " 张三 ",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, capturedIdentity)
+	assert.Equal(t, "11010519491231002X", enc.lastInput)
+	assert.Equal(t, "张三", capturedIdentity.RealName)
 }
 
 func TestSubmitIdentity_AlreadyExists(t *testing.T) {

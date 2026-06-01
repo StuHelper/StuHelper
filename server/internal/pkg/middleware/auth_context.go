@@ -19,6 +19,7 @@ const (
 	CtxKeyDisplayName        = "display_name"
 	CtxKeyAvatar             = "avatar"
 	CtxKeyRoles              = "roles"
+	CtxKeyTokenScopes        = "token_scopes"
 	CtxKeyOrgScopedRoles     = "org_scoped_roles" // map[string][]string — StuHelper scoped role grants
 	CtxKeyCapabilities       = "capabilities"
 	CtxKeyGlobalCapabilities = "global_capabilities"
@@ -32,6 +33,7 @@ const (
 type authResult struct {
 	userID, appID, username, email, displayName string
 	avatar                                      *string
+	tokenScopes                                 []string
 	roles                                       []string
 	orgScopedRoles                              map[string][]string
 	authTime                                    time.Time
@@ -81,6 +83,7 @@ func setClaimsToContext(c *gin.Context, auth *authResult) {
 	c.Set(CtxKeyEmail, auth.email)
 	c.Set(CtxKeyDisplayName, auth.displayName)
 	setAvatarContext(c, auth.avatar)
+	c.Set(CtxKeyTokenScopes, append([]string(nil), auth.tokenScopes...))
 	c.Set(CtxKeyRoles, auth.roles)
 	if auth.orgScopedRoles != nil {
 		c.Set(CtxKeyOrgScopedRoles, auth.orgScopedRoles)
@@ -108,6 +111,15 @@ func GetUserID(c *gin.Context) string {
 
 func GetAppID(c *gin.Context) string {
 	return getContextString(c, CtxKeyAppID)
+}
+
+func GetTokenScopes(c *gin.Context) []string {
+	if val, exists := c.Get(CtxKeyTokenScopes); exists {
+		if scopes, ok := val.([]string); ok {
+			return append([]string(nil), scopes...)
+		}
+	}
+	return nil
 }
 
 // GetUsername 从上下文获取用户名

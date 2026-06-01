@@ -82,8 +82,18 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	if err := storageService.EnsureDefaultMount(bgCtx); err != nil {
 		return fmt.Errorf("failed to ensure storage default mount: %w", err)
 	}
+	schoolEmailSender, err := newSchoolEmailSender(rt.cfg.Email, rt.database)
+	if err != nil {
+		return fmt.Errorf("failed to initialize school email sender: %w", err)
+	}
+	var studentEmailSender user.StudentEmailSender
+	var admissionEmailSender admission.SchoolEmailSender
+	if schoolEmailSender != nil {
+		studentEmailSender = schoolEmailSender
+		admissionEmailSender = schoolEmailSender
+	}
 
-	userService, err := rt.initUserService(userRepo, piiCipher, fgaClient, storageService)
+	userService, err := rt.initUserService(userRepo, piiCipher, fgaClient, storageService, studentEmailSender)
 	if err != nil {
 		return err
 	}
@@ -119,11 +129,13 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	if err != nil {
 		return err
 	}
-	identityService, err := rt.initIdentityServerRoutes(r, openPlatformService, authHandler, optionalAuthMW, userRepo.GetInternalUserID)
-	if err != nil {
-		return err
+	if rt.cfg.Identity.Enabled {
+		identityService, err := rt.initIdentityServerRoutes(r, openPlatformService, authHandler, optionalAuthMW, userRepo.GetInternalUserID)
+		if err != nil {
+			return err
+		}
+		openPlatformHandler.SetResourceAccessTokenVerifier(identityService)
 	}
-	openPlatformHandler.SetResourceAccessTokenVerifier(identityService)
 	botCredentialVerifier, err := rt.initBotCredentialVerifier(bgCtx)
 	if err != nil {
 		return err
@@ -133,12 +145,15 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		userService,
 		crypto.GetHMACKey(),
 		admission.WithAdmissionRedisClient(rt.redisClient.GetClient()),
+		admission.WithSchoolEmailSender(admissionEmailSender),
+		admission.WithAcademicStudentLookupGateway(userService),
 		admission.WithAdmissionMaterialStore(
 			admission.NewStorageAdmissionMaterialStore(storageService, storage.DefaultMountKey),
 		),
 		admission.WithOperatorAccessGateway(rt.initAdmissionOperatorAccess(userRepo)),
 		admission.WithFreshmanProjectionGateway(userService),
 		admission.WithSchoolSSOExchanger(admission.NewOIDCSchoolSSOExchanger(rt.oidcClient)),
+		admission.WithAdmissionPublicBaseURL(rt.cfg.Admission.PublicBaseURL),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to initialize admission service: %w", err)
@@ -215,7 +230,13 @@ func (rt *Runtime) warnPendingUserHashBackfill(ctx context.Context, repo *user.U
 	}
 }
 
-func (rt *Runtime) initUserService(userRepo *user.Repository, piiCipher *pii.Cipher, fgaClient *fga.Client, storageService *storage.Service) (*user.Service, error) {
+func (rt *Runtime) initUserService(
+	userRepo *user.Repository,
+	piiCipher *pii.Cipher,
+	fgaClient *fga.Client,
+	storageService *storage.Service,
+	schoolEmailSender user.StudentEmailSender,
+) (*user.Service, error) {
 	var photoStore user.ServiceOption
 	if rt.cfg.ObjectStorage.Endpoint != "" {
 		initCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -236,6 +257,7 @@ func (rt *Runtime) initUserService(userRepo *user.Repository, piiCipher *pii.Cip
 		piiCipher,
 		user.WithProfileFGAClient(fgaClient),
 		user.WithRoleSyncFunc(roleSyncFn),
+		user.WithStudentEmailOTP(rt.redisClient.GetClient(), schoolEmailSender),
 		photoStore,
 	)
 	if err != nil {

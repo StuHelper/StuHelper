@@ -1260,15 +1260,61 @@ func authorizeRequestFromQuery(c *gin.Context) AuthorizeRequest {
 }
 
 func disclosureRequestFromQuery(c *gin.Context, userID int64) DisclosureRequest {
+	tokenScopes := middleware.GetTokenScopes(c)
 	return DisclosureRequest{
 		ClientID:              disclosureClientIDFromQuery(c),
 		AuthenticatedClientID: strings.TrimSpace(middleware.GetAppID(c)),
 		AuthenticatedByBearer: requestHasBearerAuthorization(c),
+		AccessTokenScopes:     normalizeDisclosureTokenScopes(tokenScopes),
 		UserID:                userID,
-		Scopes:                strings.Fields(c.Query("scope")),
+		Scopes:                disclosureScopesFromQuery(c, tokenScopes),
 		RedirectURI:           c.Query("redirect_uri"),
 		ConsentBaseURL:        c.Query("consent_base_url"),
 		RequestID:             middleware.GetRequestID(c),
+	}
+}
+
+func disclosureScopesFromQuery(c *gin.Context, tokenScopes []string) []string {
+	queryScopes := strings.Fields(c.Query("scope"))
+	if len(queryScopes) > 0 || !requestHasBearerAuthorization(c) {
+		return queryScopes
+	}
+	return normalizeDisclosureTokenScopes(tokenScopes)
+}
+
+func normalizeDisclosureTokenScopes(scopes []string) []string {
+	seen := make(map[string]struct{}, len(scopes))
+	normalized := make([]string, 0, len(scopes))
+	for _, raw := range scopes {
+		for _, scope := range disclosureScopesFromTokenScope(raw) {
+			if _, ok := seen[scope]; ok {
+				continue
+			}
+			seen[scope] = struct{}{}
+			normalized = append(normalized, scope)
+		}
+	}
+	return normalized
+}
+
+func disclosureScopesFromTokenScope(raw string) []string {
+	scope := strings.TrimSpace(raw)
+	switch scope {
+	case "", "openid":
+		return nil
+	case "profile":
+		return []string{ScopeProfileBasicRead}
+	case "email":
+		return []string{ScopeEmailRead}
+	case "phone":
+		return []string{ScopePhoneRead}
+	case ScopeResourceRead, ScopeResourceWrite, ScopeOfflineAccess:
+		return nil
+	default:
+		if _, ok := scopeCatalog[scope]; !ok {
+			return nil
+		}
+		return []string{scope}
 	}
 }
 

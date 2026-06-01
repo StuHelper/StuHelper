@@ -58,16 +58,20 @@ func assertAdmissionUserRoutes(t *testing.T, routes gin.RoutesInfo) {
 	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/admission/me")
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/admission/freshman/applications")
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/admission/freshman/applications/:id/camera-captures")
+	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/admission/freshman/camera-handoffs/:id/events")
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/admission/school-email/request-otp")
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/admission/school-email/verify-otp")
-	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/admission/school-sso/:schoolID/login")
-	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/admission/school-sso/:schoolID/callback")
+	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/admission/school-sso/:schoolCode/login")
+	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/admission/school-sso/:schoolCode/callback")
 }
 
 func assertAdmissionBotRoutes(t *testing.T, routes gin.RoutesInfo) {
 	t.Helper()
 
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/bot/admission/sessions")
+	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/bot/admission/sessions/member")
+	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/bot/admission/sessions/member/resend")
+	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/bot/admission/sessions/member/regenerate")
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/bot/admission/join-requests/events")
 	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/bot/member-blacklist/access")
 	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/bot/member-blacklist")

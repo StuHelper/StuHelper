@@ -63,7 +63,7 @@ func (c pendingActionContexts) policyFor(session *AdmissionSession) *AdmissionPo
 	if policy, ok := c.policies[key]; ok {
 		return policy
 	}
-	return defaultAdmissionPolicy(session.Platform, session.GuildID, c.now())
+	return nil
 }
 
 func (c pendingActionContexts) failureFor(session *AdmissionSession) *AdmissionFailure {

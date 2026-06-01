@@ -70,6 +70,148 @@ func TestPendingAdmissionActionsRequireBotIdentity(t *testing.T) {
 	require.ErrorIs(t, err, ErrAdmissionPendingActionFilterInvalid)
 }
 
+func TestLinkedAdmissionSessionDoesNotReleaseBeforeStudentVerification(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createBotLinkedSessionForPendingActions(t, svc, fixture, "linked-no-student-proof")
+
+	actions, err := svc.ListPendingAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
+
+	require.NoError(t, err)
+	assert.Empty(t, actions)
+
+	_, err = svc.MarkVerified(context.Background(), created.Session.ID)
+	require.NoError(t, err)
+
+	actions, err = svc.ListPendingAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
+
+	require.NoError(t, err)
+	require.Len(t, actions, 1)
+	assert.Equal(t, BotActionRelease, actions[0].Action)
+	assert.Equal(t, created.Session.ID, actions[0].SessionID)
+}
+
+func TestLinkedAdmissionSessionTimesOutInsteadOfReleaseWithoutStudentVerification(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createBotLinkedSessionForPendingActions(t, svc, fixture, "linked-timeout-no-student-proof")
+	svc.now = func() time.Time {
+		return fixedAdmissionNow().Add(25 * time.Hour)
+	}
+
+	actions, err := svc.ListPendingAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
+
+	require.NoError(t, err)
+	require.Len(t, actions, 1)
+	assert.Equal(t, BotActionKick, actions[0].Action)
+	assert.Equal(t, created.Session.ID, actions[0].SessionID)
+}
+
+func TestPendingFreshmanForwardsAllowEmptyQueueWithoutMaterialStore(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+
+	items, err := svc.ListPendingFreshmanForwards(context.Background())
+
+	require.NoError(t, err)
+	assert.Empty(t, items)
+}
+
+func TestPendingFreshmanForwardsRequireMaterialStoreWhenQueueHasItems(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionSchoolConfig(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createLinkableSession(t, svc)
+	userID := seedAdmissionUser(t, fixture, "freshman-forward-requires-store")
+	appID := "freshman-forward-requires-store"
+	_, err := fixture.Pool.Exec(context.Background(), `
+		INSERT INTO freshman_verification_applications (
+			id, user_id, school_id, admission_session_id, status, applicant_name,
+			applicant_name_masked, material_type, created_at, updated_at
+		)
+		VALUES ($1, $2, 1, $3, 'pending', 'Alice Applicant', 'A***',
+			'admission_notice', NOW(), NOW())
+	`, appID, userID, created.Session.ID)
+	require.NoError(t, err)
+	_, err = fixture.Pool.Exec(context.Background(), `
+		INSERT INTO freshman_verification_materials (
+			id, application_id, object_key, content_type, size_bytes, sha256, created_at
+		)
+		VALUES ('material-forward-requires-store', $1, 'admission/material.png',
+			'image/png', 12, repeat('a', 64), NOW())
+	`, appID)
+	require.NoError(t, err)
+	_, err = fixture.Pool.Exec(context.Background(), `
+		UPDATE group_admission_policies
+		SET forward_raw_material_to_qq = TRUE
+		WHERE platform = 'qq' AND guild_id = 'guild-1'
+	`)
+	require.NoError(t, err)
+
+	_, err = svc.ListPendingFreshmanForwards(context.Background())
+
+	require.ErrorIs(t, err, ErrAdmissionMaterialStoreUnavailable)
+}
+
+func TestPendingAdmissionKickActionRequiresPolicy(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	insertAdmissionSession(t, fixture, admissionSessionSeed{
+		ID:        "adm-missing-policy",
+		QQID:      "10001",
+		TokenHash: "token-hash-missing-policy",
+		Status:    StatusJoinedMuted,
+	})
+	expireAdmissionLinkWait(t, fixture, "adm-missing-policy")
+	deleteAdmissionPolicies(t, fixture)
+
+	_, err := svc.ListPendingAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
+
+	require.ErrorIs(t, err, ErrAdmissionPolicyNotFound)
+}
+
+func createBotLinkedSessionForPendingActions(
+	t *testing.T,
+	svc *Service,
+	fixture *postgresfixture.Fixture,
+	userSuffix string,
+) *CreatedAdmissionSession {
+	t.Helper()
+
+	created, err := svc.CreateBotSession(context.Background(), BotSessionCreateInput{
+		Platform:  "qq",
+		BotSelfID: "514",
+		GuildID:   "guild-1",
+		ChannelID: "channel-1",
+		QQID:      "10001",
+	})
+	require.NoError(t, err)
+	userID := seedAdmissionUser(t, fixture, userSuffix)
+	_, err = svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+	return created
+}
+
 func expireAdmissionLinkWait(t *testing.T, fixture *postgresfixture.Fixture, sessionID string) {
 	t.Helper()
 

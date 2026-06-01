@@ -26,6 +26,7 @@ func TestAdmissionSessionCreatePreviewAndMismatch(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, created.Token)
+	assert.Equal(t, "https://join.stuhelper.com/verify/test-admission-token?qq=10001", created.AuthURL)
 	assert.Equal(t, StatusJoinedMuted, created.Session.Status)
 	assert.Equal(t, svc.now().Add(time.Hour), created.Session.LinkWaitDeadlineAt)
 
@@ -36,6 +37,17 @@ func TestAdmissionSessionCreatePreviewAndMismatch(t *testing.T) {
 
 	_, err = svc.PreviewToken(context.Background(), created.Token, "99999")
 	require.ErrorIs(t, err, ErrAdmissionQQMismatch)
+}
+
+func TestCreateBotSessionRequiresConfiguredPolicy(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+
+	_, err := svc.CreateBotSession(context.Background(), BotSessionCreateInput{
+		Platform: "qq", GuildID: "guild-1", ChannelID: "channel-1", QQID: "10001",
+	})
+
+	require.ErrorIs(t, err, ErrAdmissionPolicyNotFound)
 }
 
 func TestAdmissionTokenLinkIsAtomicUnderConcurrency(t *testing.T) {
@@ -74,6 +86,148 @@ func TestAdmissionTokenExpiredAndConsumedErrors(t *testing.T) {
 	require.ErrorIs(t, err, ErrAdmissionTokenConsumed)
 }
 
+func TestAdmissionTokenLinkIsIdempotentForSameUser(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createLinkableSession(t, svc)
+	userID := seedAdmissionUser(t, fixture, "idempotent-link")
+
+	first, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, first.UserID)
+	assert.Equal(t, StatusLinked, first.Status)
+
+	second, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, second.UserID)
+	assert.Equal(t, first.ID, second.ID)
+	assert.Equal(t, StatusLinked, second.Status)
+	assert.Equal(t, userID, *second.UserID)
+}
+
+func TestAdmissionTokenLinkConsumedByAnotherUserStillRejected(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createLinkableSession(t, svc)
+	firstUser := seedAdmissionUser(t, fixture, "first-link-owner")
+	secondUser := seedAdmissionUser(t, fixture, "second-link-owner")
+
+	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  firstUser,
+	})
+	require.NoError(t, err)
+
+	_, err = svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  secondUser,
+	})
+	require.ErrorIs(t, err, ErrAdmissionTokenConsumed)
+}
+
+func TestBotAdmissionSessionQueryAndResendLinkedSession(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createLinkableSession(t, svc)
+	userID := seedAdmissionUser(t, fixture, "bot-resend-linked")
+
+	linked, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, StatusLinked, linked.Status)
+
+	queried, err := svc.GetBotAdmissionSession(context.Background(), BotSessionSubjectInput{
+		Platform: "qq",
+		GuildID:  "guild-1",
+		QQID:     "10001",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, created.Session.ID, queried.ID)
+	assert.Equal(t, StatusLinked, queried.Status)
+
+	resent, err := svc.ResendBotAdmissionSession(context.Background(), BotSessionSubjectInput{
+		Platform: "qq",
+		GuildID:  "guild-1",
+		QQID:     "10001",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, created.AuthURL, resent.AuthURL)
+	assert.Equal(t, StatusLinked, resent.Status)
+}
+
+func TestRegenerateBotAdmissionSessionCancelsInProgressSession(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	tokenIndex := 0
+	svc.generateToken = func() (string, error) {
+		tokenIndex++
+		return fmt.Sprintf("test-admission-token-%d", tokenIndex), nil
+	}
+	created := createLinkableSession(t, svc)
+	userID := seedAdmissionUser(t, fixture, "bot-regenerate")
+	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+
+	regenerated, err := svc.RegenerateBotAdmissionSession(context.Background(), BotSessionCreateInput{
+		Platform: "qq", GuildID: "guild-1", ChannelID: "channel-1", QQID: "10001", BotSelfID: "514",
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, created.Session.ID, regenerated.Session.ID)
+	assert.Equal(t, "https://join.stuhelper.com/verify/test-admission-token-2?qq=10001", regenerated.AuthURL)
+	assert.Equal(t, StatusJoinedMuted, regenerated.Session.Status)
+	assertAdmissionSessionStatus(t, fixture, created.Session.ID, StatusCancelled)
+
+	latest, err := svc.GetBotAdmissionSession(context.Background(), BotSessionSubjectInput{
+		Platform: "qq",
+		GuildID:  "guild-1",
+		QQID:     "10001",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, regenerated.Session.ID, latest.ID)
+}
+
+func TestRegenerateBotAdmissionSessionRejectsVerifiedSession(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createLinkableSession(t, svc)
+	userID := seedAdmissionUser(t, fixture, "bot-regenerate-verified")
+	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+	_, err = svc.MarkVerified(context.Background(), created.Session.ID)
+	require.NoError(t, err)
+
+	_, err = svc.RegenerateBotAdmissionSession(context.Background(), BotSessionCreateInput{
+		Platform: "qq", GuildID: "guild-1", ChannelID: "channel-1", QQID: "10001",
+	})
+	require.ErrorIs(t, err, ErrAdmissionInvalidStatus)
+}
+
 func TestAdmissionSessionStatusTransitions(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)
@@ -96,6 +250,36 @@ func TestAdmissionSessionStatusTransitions(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, StatusVerified, verified.Status)
 	require.NotNil(t, verified.VerifiedAt)
+}
+
+func TestLinkedAdmissionActionsRequirePolicyForTimeoutsButNotRelease(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createLinkableSession(t, svc)
+	userID := seedAdmissionUser(t, fixture, "missing-policy-link")
+	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+
+	deleteAdmissionPolicies(t, fixture)
+
+	_, err = svc.MarkMaterialSubmitted(context.Background(), created.Session.ID)
+	require.ErrorIs(t, err, ErrAdmissionPolicyNotFound)
+
+	verified, err := svc.MarkVerified(context.Background(), created.Session.ID)
+	require.NoError(t, err)
+	assert.Equal(t, StatusVerified, verified.Status)
+
+	err = svc.RecordBotEvent(context.Background(), created.Session.ID, BotEventInput{
+		Action:  BotActionRelease,
+		Success: true,
+	})
+	require.NoError(t, err)
+	assertAdmissionSessionCancelled(t, fixture, created.Session.ID)
 }
 
 func TestAdmissionFailureBlacklistFromKickEvent(t *testing.T) {
@@ -215,7 +399,6 @@ func (g *testQQBindingGateway) EnsureQQBindingForUserTx(
 	pgx.Tx,
 	int64,
 	string,
-	*string,
 ) (*user.QQBinding, error) {
 	return &user.QQBinding{}, nil
 }
@@ -244,4 +427,28 @@ func assertAdmissionFailureCount(t *testing.T, fixture *postgresfixture.Fixture,
 	`, qqID).Scan(&failureCount)
 	require.NoError(t, err)
 	assert.Equal(t, expected, failureCount)
+}
+
+func assertAdmissionSessionStatus(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	sessionID string,
+	expected AdmissionSessionStatus,
+) {
+	t.Helper()
+	var status AdmissionSessionStatus
+	err := fixture.Pool.QueryRow(context.Background(), `
+		SELECT status
+		FROM group_admission_sessions
+		WHERE id = $1
+	`, sessionID).Scan(&status)
+	require.NoError(t, err)
+	assert.Equal(t, expected, status)
+}
+
+func deleteAdmissionPolicies(t *testing.T, fixture *postgresfixture.Fixture) {
+	t.Helper()
+
+	_, err := fixture.Pool.Exec(context.Background(), `DELETE FROM group_admission_policies`)
+	require.NoError(t, err)
 }

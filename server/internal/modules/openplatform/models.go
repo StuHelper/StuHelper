@@ -25,6 +25,8 @@ const (
 	ScopeIdentityTypeRead   = "stu.identity.type.read"
 	ScopeStudentStatusRead  = "stu.student.status.read"
 	ScopeStudentSchoolRead  = "stu.student.school.read"
+	ScopeQQStatusRead       = "stu.qq.status.read"
+	ScopeQQNumberRead       = "stu.qq.number.read"
 	ScopeResourceRead       = "resource.read"
 	ScopeResourceWrite      = "resource.write"
 	ScopeOfflineAccess      = "offline_access"
@@ -331,6 +333,7 @@ type UserProjection struct {
 	ProfileStatus    *string
 	SchoolID         *int64
 	SchoolName       *string
+	QQID             *string
 }
 
 type AuthorizationDecision struct {

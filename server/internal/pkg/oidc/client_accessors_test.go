@@ -50,19 +50,47 @@ func TestClaimsAccessorsAndStubClientHelpers(t *testing.T) {
 	assert.Empty(t, ExtractIDToken(&oauth2.Token{}))
 }
 
+func TestGetSignupURLForApplicationUsesCasdoorSignupAuthorizePath(t *testing.T) {
+	client := NewStubClient("https://sso.example.com/login/oauth/authorize")
+
+	signupURL, verifier, err := client.GetSignupURLForApplication(ApplicationWeb, "signup-state")
+	require.NoError(t, err)
+	assert.NotEmpty(t, verifier)
+	assert.Contains(t, signupURL, "https://sso.example.com/signup/oauth/authorize")
+	assert.Contains(t, signupURL, "state=signup-state")
+	assert.NotContains(t, signupURL, "/login/oauth/authorize")
+}
+
 func TestGetAuthURLForApplicationRewritesBrowserAuthBaseURL(t *testing.T) {
+	client := NewStubClient("https://sso.example.com/oauth2/authorize")
+	client.publicAuthBaseURL = "https://id.example.com"
+
+	authURL, verifier, err := client.GetAuthURLForApplication(ApplicationWeb, "state-123")
+	require.NoError(t, err)
+	assert.NotEmpty(t, verifier)
+	assert.Contains(t, authURL, "https://id.example.com/oauth2/authorize")
+	assert.Contains(t, authURL, "state-123")
+	assert.NotContains(t, authURL, "https://sso.example.com")
+
+	stepUpURL, _, err := client.GetStepUpAuthURLForApplication(ApplicationWeb, "step-up-state")
+	require.NoError(t, err)
+	assert.Contains(t, stepUpURL, "https://id.example.com/oauth2/authorize")
+	assert.Contains(t, stepUpURL, "prompt=login")
+}
+
+func TestGetAuthURLForApplicationDoesNotRewriteCasdoorLoginOAuthToDifferentHost(t *testing.T) {
 	client := NewStubClient("https://sso.example.com/login/oauth/authorize")
 	client.publicAuthBaseURL = "https://id.example.com"
 
 	authURL, verifier, err := client.GetAuthURLForApplication(ApplicationWeb, "state-123")
 	require.NoError(t, err)
 	assert.NotEmpty(t, verifier)
-	assert.Contains(t, authURL, "https://id.example.com/login/oauth/authorize")
-	assert.Contains(t, authURL, "state-123")
-	assert.NotContains(t, authURL, "https://sso.example.com")
+	assert.Contains(t, authURL, "https://sso.example.com/login/oauth/authorize")
+	assert.NotContains(t, authURL, "https://id.example.com/login/oauth/authorize")
 
 	stepUpURL, _, err := client.GetStepUpAuthURLForApplication(ApplicationWeb, "step-up-state")
 	require.NoError(t, err)
-	assert.Contains(t, stepUpURL, "https://id.example.com/login/oauth/authorize")
+	assert.Contains(t, stepUpURL, "https://sso.example.com/login/oauth/authorize")
+	assert.NotContains(t, stepUpURL, "https://id.example.com/login/oauth/authorize")
 	assert.Contains(t, stepUpURL, "prompt=login")
 }

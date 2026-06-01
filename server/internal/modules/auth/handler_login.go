@@ -62,9 +62,8 @@ func forceReauthRequested(c *gin.Context) bool {
 }
 
 // GetSignupURL 生成 OIDC 注册 URL。
-// 当前 Casdoor Login UI 内置注册入口，因此这里与登录 URL 复用同一授权地址。
 func (h *Handler) GetSignupURL(c *gin.Context) {
-	h.respondWithAuthURL(c)
+	h.respondWithAuthURLProvider(c, h.oidcClient.GetSignupURLForApplication)
 }
 
 func (h *Handler) respondWithAuthURL(c *gin.Context) {
@@ -156,6 +155,9 @@ func (h *Handler) handleWebCallback(c *gin.Context, ctx context.Context, input w
 		logger.FromGin(c).Error("ID token verification failed", zap.Error(err))
 		audit.LogFailureContext(ctx, audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), input.requestID, "id_token verification error")
 		response.InternalError(c, "authentication failed")
+		return
+	}
+	if !h.validateOIDCSubjectForLogin(c, ctx, claims, input.requestID, "oidc subject organization mismatch") {
 		return
 	}
 
@@ -428,6 +430,9 @@ func (h *Handler) ExchangeNative(c *gin.Context) {
 		logger.FromGin(c).Error("native exchange: ID token verification failed", zap.Error(err))
 		audit.LogFailureContext(ctx, audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "id_token verification error")
 		response.InternalError(c, "authentication failed")
+		return
+	}
+	if !h.validateOIDCSubjectForLogin(c, ctx, claims, requestID, "native oidc subject organization mismatch") {
 		return
 	}
 

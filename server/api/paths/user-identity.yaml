@@ -216,6 +216,82 @@
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
+/api/v1/user/profile/school-email/request-otp:
+  post:
+    tags: [User]
+    operationId: requestStudentEmailOTP
+    summary: 请求学生认证学校邮箱验证码
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/user-system.yaml#/StudentEmailOTPRequest'
+    responses:
+      '200':
+        description: OTP 已发送
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/user-system.yaml#/StudentEmailOTPResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/user/profile/school-email/verify-otp:
+  post:
+    tags: [User]
+    operationId: verifyStudentEmailOTP
+    summary: 校验学生认证学校邮箱验证码
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/user-system.yaml#/StudentEmailOTPVerifyRequest'
+    responses:
+      '200':
+        description: 学生认证结果
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/user-system.yaml#/UserProfile'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
 /api/v1/user/profile/bind-phone/otp:
   post:
     tags: [User]

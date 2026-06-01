@@ -83,6 +83,27 @@ func TestOpenAPIRequestValidationMiddleware_AllowsValidRequest(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestOpenAPIRequestValidationMiddleware_AllowsSendBeaconVitalsTextPlain(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	r := gin.New()
+	api := r.Group("/api/v1")
+	validator, err := NewOpenAPIRequestValidationMiddleware()
+	require.NoError(t, err)
+	api.Use(validator)
+	api.POST("/metrics/vitals", func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+
+	body := bytes.NewBufferString(`{"name":"LCP","value":123,"rating":"good"}`)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/vitals", body)
+	req.Header.Set("Content-Type", "text/plain;charset=UTF-8")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+}
+
 func TestOpenAPIRequestValidationMiddleware_RejectsMethodNotAllowed(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()

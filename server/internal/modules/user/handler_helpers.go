@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/schoolauth"
 )
 
 // resolveCurrentUser 从请求上下文解析当前用户内部 ID
@@ -70,16 +71,21 @@ type profileResponse struct {
 }
 
 type schoolConfigPublicResponse struct {
-	SchoolID           int64                    `json:"schoolID"`
-	SchoolName         string                   `json:"schoolName"`
-	VerificationMethod string                   `json:"verificationMethod"`
-	ConsentText        *string                  `json:"consentText"`
-	Enabled            bool                     `json:"enabled"`
-	ManualFormFields   *[]ManualFieldDescriptor `json:"manualFormFields,omitempty"`
+	SchoolID              int64                    `json:"schoolID"`
+	SchoolCode            string                   `json:"schoolCode"`
+	SchoolName            string                   `json:"schoolName"`
+	VerificationMethod    string                   `json:"verificationMethod"`
+	ConsentText           *string                  `json:"consentText"`
+	Enabled               bool                     `json:"enabled"`
+	ManualFormFields      *[]ManualFieldDescriptor `json:"manualFormFields,omitempty"`
+	SchoolSSOEnabled      bool                     `json:"schoolSsoEnabled"`
+	SchoolEmailOTPEnabled bool                     `json:"schoolEmailOtpEnabled"`
+	SchoolEmailPolicy     *SchoolEmailPolicyView   `json:"schoolEmailIdentityPolicy,omitempty"`
 }
 
 type adminSchoolConfigResponse struct {
 	SchoolID           int64                   `json:"schoolID"`
+	SchoolCode         string                  `json:"schoolCode"`
 	SchoolName         string                  `json:"schoolName"`
 	VerificationMethod string                  `json:"verificationMethod"`
 	ApprovalPolicy     string                  `json:"approvalPolicy"`
@@ -147,6 +153,12 @@ type academicInfoResponse struct {
 	DZXX   *string `json:"dzxx"`
 }
 
+type SchoolEmailPolicyView struct {
+	Type                 string `json:"type"`
+	StudentIDEmailDomain string `json:"studentIDEmailDomain,omitempty"`
+	RequireStudentName   bool   `json:"requireStudentName"`
+}
+
 func identityStatusToJSON(i *IdentityStatus) identityStatusResponse {
 	return identityStatusResponse{
 		UserID:          i.UserID,
@@ -202,13 +214,18 @@ func schoolConfigPublicToJSON(s *SchoolConfig) (schoolConfigPublicResponse, erro
 	if err != nil {
 		return schoolConfigPublicResponse{}, fmt.Errorf("decode manualFormFields: %w", err)
 	}
+	admissionCapabilities := schoolAdmissionCapabilities(s.ManualFormFields)
 
 	result := schoolConfigPublicResponse{
-		SchoolID:           s.SchoolID,
-		SchoolName:         s.SchoolName,
-		VerificationMethod: s.VerificationMethod,
-		ConsentText:        s.ConsentText,
-		Enabled:            s.Enabled,
+		SchoolID:              s.SchoolID,
+		SchoolCode:            s.SchoolCode,
+		SchoolName:            s.SchoolName,
+		VerificationMethod:    s.VerificationMethod,
+		ConsentText:           s.ConsentText,
+		Enabled:               s.Enabled,
+		SchoolSSOEnabled:      admissionCapabilities.ssoEnabled,
+		SchoolEmailOTPEnabled: admissionCapabilities.emailOTPEnabled,
+		SchoolEmailPolicy:     schoolEmailPolicyToView(admissionCapabilities.emailIdentityPolicy),
 	}
 	if s.VerificationMethod == VerifyMethodManual {
 		fields := nonNilManualFieldDescriptors(manualFormFields)
@@ -229,6 +246,7 @@ func adminSchoolConfigToJSON(s *SchoolConfig) (adminSchoolConfigResponse, error)
 
 	return adminSchoolConfigResponse{
 		SchoolID:           s.SchoolID,
+		SchoolCode:         s.SchoolCode,
 		SchoolName:         s.SchoolName,
 		VerificationMethod: s.VerificationMethod,
 		ApprovalPolicy:     s.ApprovalPolicy,
@@ -318,6 +336,41 @@ func nonNilManualFieldDescriptors(fields []ManualFieldDescriptor) []ManualFieldD
 		return []ManualFieldDescriptor{}
 	}
 	return fields
+}
+
+type schoolAdmissionCapabilityFlags struct {
+	ssoEnabled          bool
+	emailOTPEnabled     bool
+	emailIdentityPolicy *schoolauth.EmailIdentityPolicy
+}
+
+func schoolAdmissionCapabilities(raw json.RawMessage) schoolAdmissionCapabilityFlags {
+	settings := schoolauth.ParseAdmissionSettings(raw)
+	return schoolAdmissionCapabilityFlags{
+		ssoEnabled:          strings.TrimSpace(settings.SSOLoginURL) != "",
+		emailOTPEnabled:     hasNonBlankString(settings.EmailDomains),
+		emailIdentityPolicy: settings.EmailIdentityPolicy,
+	}
+}
+
+func schoolEmailPolicyToView(policy *schoolauth.EmailIdentityPolicy) *SchoolEmailPolicyView {
+	if policy == nil {
+		return nil
+	}
+	return &SchoolEmailPolicyView{
+		Type:                 policy.Type,
+		StudentIDEmailDomain: policy.StudentIDEmailDomain,
+		RequireStudentName:   policy.RequireStudentName,
+	}
+}
+
+func hasNonBlankString(values []string) bool {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizeAdminReviewStatus(raw string) (string, bool) {

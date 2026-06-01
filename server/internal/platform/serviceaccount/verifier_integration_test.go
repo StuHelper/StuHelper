@@ -84,6 +84,73 @@ func TestVerifierVerifyPersistsCallAuditEvents(t *testing.T) {
 	assert.NotContains(t, events[2].Details, "wrong-token")
 }
 
+func TestVerifierVerifyAllowsCredentialWhenUsageTrackingFails(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	verifier := newTestVerifier(t, fixture)
+	ctx := context.Background()
+
+	_, err := verifier.EnsureBootstrapCredential(ctx, BootstrapCredential{
+		Name:     KoishiRuntimeCredentialName,
+		RawToken: "koishi-token",
+		Audience: []string{AudienceBotAPI},
+		Scopes:   KoishiRuntimeScopes(),
+	})
+	require.NoError(t, err)
+
+	_, err = fixture.Pool.Exec(ctx, `
+		ALTER TABLE public.bot_service_credentials
+		DROP COLUMN last_used_at CASCADE
+	`)
+	require.NoError(t, err)
+
+	audit.ConfigureRepository(audit.NewRepository(fixture.DB))
+	defer audit.ConfigureRepository(nil)
+
+	err = verifier.Verify(ctx, "koishi-token", "/api/v1/bot/admission/sessions/pending", ScopeBotAdmissionSession)
+	require.NoError(t, err)
+
+	events := loadServiceAccountCallEvents(t, fixture)
+	require.Len(t, events, 1)
+	assert.Equal(t, "success", events[0].Result)
+	assert.Equal(t, usageTrackingReason, events[0].Reason)
+	assert.Equal(t, KoishiRuntimeCredentialName, events[0].ResourceID)
+	assert.Contains(t, events[0].Details, ScopeBotAdmissionSession)
+}
+
+func TestVerifierVerifyReportsCredentialStoreUnavailable(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	verifier := newTestVerifier(t, fixture)
+	ctx := context.Background()
+
+	_, err := verifier.EnsureBootstrapCredential(ctx, BootstrapCredential{
+		Name:     KoishiRuntimeCredentialName,
+		RawToken: "koishi-token",
+		Audience: []string{AudienceBotAPI},
+		Scopes:   KoishiRuntimeScopes(),
+	})
+	require.NoError(t, err)
+
+	_, err = fixture.Pool.Exec(ctx, `
+		ALTER TABLE public.bot_service_credentials
+		DROP COLUMN token_hash CASCADE
+	`)
+	require.NoError(t, err)
+
+	audit.ConfigureRepository(audit.NewRepository(fixture.DB))
+	defer audit.ConfigureRepository(nil)
+
+	err = verifier.Verify(ctx, "koishi-token", "/api/v1/bot/admission/sessions/pending", ScopeBotAdmissionSession)
+	require.ErrorIs(t, err, ErrCredentialStoreUnavailable)
+
+	events := loadServiceAccountCallEvents(t, fixture)
+	require.Len(t, events, 1)
+	assert.Equal(t, "failure", events[0].Result)
+	assert.Equal(t, storeUnavailableReason, events[0].Reason)
+	assert.Equal(t, "unknown", events[0].ResourceID)
+	assert.Contains(t, events[0].Details, "token_hash_prefix")
+	assert.NotContains(t, events[0].Details, "koishi-token")
+}
+
 func TestVerifierBootstrapRotationReactivatesRevokedCredential(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	verifier := newTestVerifier(t, fixture)
@@ -167,6 +234,7 @@ func assertCredentialLastUsed(t *testing.T, fixture *postgresfixture.Fixture, id
 
 type callAuditEventRow struct {
 	Result     string
+	Reason     string
 	ResourceID string
 	Details    string
 }
@@ -174,7 +242,7 @@ type callAuditEventRow struct {
 func loadServiceAccountCallEvents(t *testing.T, fixture *postgresfixture.Fixture) []callAuditEventRow {
 	t.Helper()
 	rows, err := fixture.Pool.Query(context.Background(), `
-		SELECT result, resource_id, details::text
+		SELECT result, reason, resource_id, details::text
 		FROM audit_events
 		WHERE event_type = 'iam.service_account.call'
 		ORDER BY created_at ASC, id ASC
@@ -185,7 +253,7 @@ func loadServiceAccountCallEvents(t *testing.T, fixture *postgresfixture.Fixture
 	var events []callAuditEventRow
 	for rows.Next() {
 		var event callAuditEventRow
-		require.NoError(t, rows.Scan(&event.Result, &event.ResourceID, &event.Details))
+		require.NoError(t, rows.Scan(&event.Result, &event.Reason, &event.ResourceID, &event.Details))
 		events = append(events, event)
 	}
 	require.NoError(t, rows.Err())

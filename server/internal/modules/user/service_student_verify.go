@@ -20,14 +20,6 @@ import (
 
 // VerifyStudent 学生认证（LDAP 方式）
 func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStudentRequest) (*Profile, error) {
-	identityStatus, err := s.repo.GetIdentityStatusByUserID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("VerifyStudent check identity: %w", err)
-	}
-	if identityStatus == nil || !identityStatus.Verified {
-		return nil, ErrIdentityRequired
-	}
-
 	existing, err := s.repo.GetProfileByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("VerifyStudent check existing: %w", err)
@@ -321,6 +313,23 @@ func (s *Service) GetAcademicInfo(ctx context.Context, schoolID int64, studentID
 // ListSchools 获取所有启用的学校列表
 func (s *Service) ListSchools(ctx context.Context) ([]SchoolConfig, error) {
 	return s.repo.ListSchoolConfigs(ctx)
+}
+
+func (s *Service) ResolveEnabledSchoolIDByCode(ctx context.Context, schoolCode string) (int64, error) {
+	code := strings.TrimSpace(schoolCode)
+	if code == "" {
+		return 0, ErrSchoolNotFound
+	}
+	schools, err := s.repo.ListSchoolConfigs(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("ResolveEnabledSchoolIDByCode list schools: %w", err)
+	}
+	for i := range schools {
+		if strings.EqualFold(strings.TrimSpace(schools[i].SchoolCode), code) {
+			return schools[i].SchoolID, nil
+		}
+	}
+	return 0, ErrSchoolNotFound
 }
 
 func (s *Service) getAcademicStudentByXH(ctx context.Context, studentID string, tableName string) (*AcademicStudent, error) {

@@ -124,6 +124,7 @@ SubmitIdentityRequest:
       type: string
       minLength: 1
       maxLength: 50
+      description: MAINLAND_ID 使用中国大陆居民身份证号码，服务端会校验证件格式、出生日期和校验位。
     realName:
       type: string
       minLength: 1
@@ -170,7 +171,7 @@ UserProfile:
       type:
         - string
         - "null"
-      enum: [ldap, manual]
+      enum: [ldap, manual, school_email_otp]
     rejectionReason:
       type:
         - string
@@ -274,12 +275,18 @@ AdminStudentVerificationItem:
 
 SubmitStudentVerificationRequest:
   type: object
-  required: [schoolID, consent]
+  required: [schoolCode, consent]
   properties:
+    schoolCode:
+      type: string
+      pattern: '^[0-9]{10}$'
+      description: 教育部学校标识码；公开学生认证请求必须以此字段识别学校。
     schoolID:
       type: integer
       format: int64
       minimum: 1
+      deprecated: true
+      description: StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
     studentID:
       type: string
     password:
@@ -293,6 +300,70 @@ SubmitStudentVerificationRequest:
       description: manual 模式动态表单提交数据
     consent:
       type: boolean
+
+StudentEmailOTPRequest:
+  type: object
+  required: [schoolCode]
+  properties:
+    schoolCode:
+      type: string
+      pattern: '^[0-9]{10}$'
+      description: 教育部学校标识码；公开学校邮箱 OTP 请求必须以此字段识别学校。
+    schoolID:
+      type: integer
+      format: int64
+      minimum: 1
+      deprecated: true
+      description: StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
+    email:
+      type: string
+      format: email
+      description: 普通学校邮箱 OTP 可直接提交邮箱；配置学籍邮箱策略时由后端按学号派生并校验不可篡改
+    studentID:
+      type: string
+      description: 配置 academic_student_email 策略的学校必填
+    studentName:
+      type: string
+      description: 配置 academic_student_email 且 requireStudentName=true 的学校必填
+
+StudentEmailOTPVerifyRequest:
+  type: object
+  required: [schoolCode, code, consent]
+  properties:
+    schoolCode:
+      type: string
+      pattern: '^[0-9]{10}$'
+      description: 教育部学校标识码；公开学校邮箱 OTP 校验请求必须以此字段识别学校。
+    schoolID:
+      type: integer
+      format: int64
+      minimum: 1
+      deprecated: true
+      description: StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
+    email:
+      type: string
+      format: email
+    code:
+      type: string
+      minLength: 4
+      maxLength: 12
+    consent:
+      type: boolean
+
+StudentEmailOTPResponse:
+  type: object
+  required: [email, cooldownSeconds]
+  properties:
+    email:
+      type: string
+      format: email
+      description: 后端最终锁定并发送验证码的学校邮箱
+    studentID:
+      type: string
+      description: 学籍邮箱策略下已匹配的学号
+    cooldownSeconds:
+      type: integer
+      minimum: 1
 
 ManualFieldDescriptor:
   type: object
@@ -339,11 +410,22 @@ BindPhoneRequest:
 
 SchoolConfig:
   type: object
-  required: [schoolID, schoolName, verificationMethod, enabled]
+  required:
+    - schoolID
+    - schoolCode
+    - schoolName
+    - verificationMethod
+    - enabled
+    - schoolSsoEnabled
+    - schoolEmailOtpEnabled
   properties:
     schoolID:
       type: integer
       format: int64
+      description: StuHelper 内部学校主键，仅用于后端外键兼容
+    schoolCode:
+      type: string
+      description: 教育部学校标识码；对外选择和展示应优先使用此字段
     schoolName:
       type: string
     verificationMethod:
@@ -360,6 +442,28 @@ SchoolConfig:
       items:
         $ref: "#/ManualFieldDescriptor"
     enabled:
+      type: boolean
+    schoolSsoEnabled:
+      type: boolean
+      description: 该学校是否已接入加群验证用的学校官方 SSO
+    schoolEmailOtpEnabled:
+      type: boolean
+      description: 该学校是否已接入加群验证用的学校邮箱 OTP
+    schoolEmailIdentityPolicy:
+      $ref: "#/SchoolEmailIdentityPolicy"
+      description: 学校邮箱认证的可选身份校验策略；BUAA 使用 academic_student_email 派生学号邮箱
+
+SchoolEmailIdentityPolicy:
+  type: object
+  required: [type, requireStudentName]
+  properties:
+    type:
+      type: string
+      enum: [academic_student_email]
+    studentIDEmailDomain:
+      type: string
+      description: 学号邮箱域名，例如 buaa.edu.cn
+    requireStudentName:
       type: boolean
 
 SchoolLDAPConfigView:
@@ -480,11 +584,13 @@ AcademicStudentInfo:
 
 AdminSchoolConfig:
   type: object
-  required: [schoolID, schoolName, verificationMethod, approvalPolicy, enabled, createdAt]
+  required: [schoolID, schoolCode, schoolName, verificationMethod, approvalPolicy, enabled, createdAt]
   properties:
     schoolID:
       type: integer
       format: int64
+    schoolCode:
+      type: string
     schoolName:
       type: string
     verificationMethod:
@@ -549,10 +655,6 @@ QQBinding:
       format: int64
     qqID:
       type: string
-    qqNickname:
-      type:
-        - string
-        - "null"
     boundAt:
       type: string
       format: date-time
@@ -585,11 +687,6 @@ ConsumeQQBindingRequest:
       type: string
       minLength: 1
       maxLength: 64
-    qqNickname:
-      type:
-        - string
-        - "null"
-      maxLength: 255
 
 QQVerificationStatus:
   type: object
@@ -602,10 +699,6 @@ QQVerificationStatus:
         - integer
         - "null"
       format: int64
-    qqNickname:
-      type:
-        - string
-        - "null"
     boundAt:
       type:
         - string

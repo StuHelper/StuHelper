@@ -88,6 +88,55 @@ func TestVerifyStudent_ManualAllowsEmptyCredentialsAndPersistsManualData(t *test
 	assert.JSONEq(t, `{"department":"计算机学院","studentID":"20240001"}`, string(captured.ManualFormData))
 }
 
+func TestVerifyStudent_DoesNotRequireIdentityVerification(t *testing.T) {
+	var captured *Profile
+
+	repo := &mockRepo{
+		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
+			t.Fatal("student verification must not query identity verification status")
+			return nil, nil
+		},
+		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
+			require.Equal(t, int64(10006), schoolID)
+			return &SchoolConfig{
+				SchoolID:           10006,
+				SchoolName:         "北航",
+				VerificationMethod: VerifyMethodManual,
+				ApprovalPolicy:     "manual",
+				ManualFormFields: json.RawMessage(`[
+					{"key":"studentID","label":"学号","type":"text","required":true}
+				]`),
+				Enabled: true,
+			}, nil
+		},
+		onCreateProfile: func(_ context.Context, profile *Profile) error {
+			captured = profile
+			return nil
+		},
+		onGetProfileByUserID: func(_ context.Context, _ int64) (*Profile, error) {
+			if captured == nil {
+				return nil, nil
+			}
+			return captured, nil
+		},
+	}
+
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	profile, err := svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
+		SchoolID: 10006,
+		ManualFormData: map[string]any{
+			"studentID": "20240001",
+		},
+		Consent: true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, profile)
+	require.NotNil(t, captured)
+	assert.Equal(t, StatusPending, captured.VerificationStatus)
+}
+
 func TestVerifyStudent_ManualWithoutStudentIDDoesNotPersistBlankIdentifiers(t *testing.T) {
 	var captured *Profile
 

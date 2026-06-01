@@ -25,6 +25,7 @@ type DisclosureRequest struct {
 	ClientID              string
 	AuthenticatedClientID string
 	AuthenticatedByBearer bool
+	AccessTokenScopes     []string
 	UserID                int64
 	Scopes                []string
 	RedirectURI           string
@@ -223,7 +224,10 @@ func (s *Service) disclose(ctx context.Context, req DisclosureRequest) (map[stri
 	if !disclosureClientCredentialMatches(req) {
 		return nil, s.recordDisclosureDenied(ctx, app, req, scopes, "client_mismatch", ErrDisclosureClientMismatch)
 	}
-	if !redirectAllowed(app, req.RedirectURI) {
+	if req.AuthenticatedByBearer && !requestedScopesGranted(scopes, req.AccessTokenScopes) {
+		return nil, s.recordDisclosureDenied(ctx, app, req, scopes, "token_scope_missing", ErrScopeNotApproved)
+	}
+	if !req.AuthenticatedByBearer && !redirectAllowed(app, req.RedirectURI) {
 		return nil, s.recordDisclosureDenied(ctx, app, req, scopes, disclosureErrorResult(ErrRedirectURINotAllowed), ErrRedirectURINotAllowed)
 	}
 	if req.UserID <= 0 {
@@ -235,19 +239,21 @@ func (s *Service) disclose(ctx context.Context, req DisclosureRequest) (map[stri
 	if err := s.ensureScopesApproved(ctx, app.ID, scopes); err != nil {
 		return nil, s.recordDisclosureDenied(ctx, app, req, scopes, disclosureErrorResult(err), err)
 	}
-	hasConsent, err := s.repo.HasActiveConsents(ctx, app.ID, req.UserID, disclosureScopes)
-	if err != nil {
-		return nil, s.recordDisclosureDenied(ctx, app, req, scopes, "consent_lookup_error", err)
-	}
-	if !hasConsent {
-		if err := s.rateLimiter.checkConsentChallenge(ctx, app.ID, req.UserID); err != nil {
-			return nil, s.recordDisclosureDenied(ctx, app, req, scopes, disclosureErrorResult(err), err)
-		}
-		err := s.consentRequired(ctx, app, req.UserID, disclosureScopes, req)
+	if !req.AuthenticatedByBearer {
+		hasConsent, err := s.repo.HasActiveConsents(ctx, app.ID, req.UserID, disclosureScopes)
 		if err != nil {
-			return nil, s.recordDisclosureDenied(ctx, app, req, scopes, "consent_required", err)
+			return nil, s.recordDisclosureDenied(ctx, app, req, scopes, "consent_lookup_error", err)
 		}
-		return nil, err
+		if !hasConsent {
+			if err := s.rateLimiter.checkConsentChallenge(ctx, app.ID, req.UserID); err != nil {
+				return nil, s.recordDisclosureDenied(ctx, app, req, scopes, disclosureErrorResult(err), err)
+			}
+			err := s.consentRequired(ctx, app, req.UserID, disclosureScopes, req)
+			if err != nil {
+				return nil, s.recordDisclosureDenied(ctx, app, req, scopes, "consent_required", err)
+			}
+			return nil, err
+		}
 	}
 	projection, err := s.repo.GetUserProjection(ctx, req.UserID)
 	if err != nil {
@@ -299,6 +305,24 @@ func disclosureClientCredentialMatches(req DisclosureRequest) bool {
 		return true
 	}
 	return clientID == authenticatedClientID
+}
+
+func requestedScopesGranted(requested, granted []string) bool {
+	if len(requested) == 0 {
+		return true
+	}
+	set := make(map[string]struct{}, len(granted))
+	for _, scope := range granted {
+		if normalized := strings.TrimSpace(scope); normalized != "" {
+			set[normalized] = struct{}{}
+		}
+	}
+	for _, scope := range requested {
+		if _, ok := set[strings.TrimSpace(scope)]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Service) ensureScopesApproved(ctx context.Context, appID int64, scopes []string) error {
@@ -518,6 +542,10 @@ func (s *Service) addScopePayload(ctx context.Context, out map[string]any, proje
 		out["studentVerified"] = isStudentVerified(projection)
 	case ScopeStudentSchoolRead:
 		addSchoolPayload(out, projection)
+	case ScopeQQStatusRead:
+		out["qqBound"] = projection.QQID != nil && strings.TrimSpace(*projection.QQID) != ""
+	case ScopeQQNumberRead:
+		addQQNumberPayload(out, projection)
 	}
 	return nil
 }
@@ -565,11 +593,23 @@ func isStudentVerified(projection *UserProjection) bool {
 }
 
 func addSchoolPayload(out map[string]any, projection *UserProjection) {
-	if projection.SchoolID == nil || projection.SchoolName == nil {
+	if projection.SchoolID == nil {
 		return
 	}
 	out["school"] = map[string]any{
-		"id":   *projection.SchoolID,
-		"name": *projection.SchoolName,
+		"id": *projection.SchoolID,
 	}
+}
+
+func addQQNumberPayload(out map[string]any, projection *UserProjection) {
+	if projection.QQID == nil || strings.TrimSpace(*projection.QQID) == "" {
+		out["qqBound"] = false
+		return
+	}
+	qq := map[string]any{
+		"bound": true,
+		"id":    strings.TrimSpace(*projection.QQID),
+	}
+	out["qqBound"] = true
+	out["qq"] = qq
 }

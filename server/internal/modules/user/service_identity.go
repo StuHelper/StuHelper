@@ -37,6 +37,15 @@ func (s *Service) SubmitIdentity(ctx context.Context, userID int64, req SubmitId
 		}
 	}
 
+	req.RealName = strings.TrimSpace(req.RealName)
+	req.DocNumber = normalizeIdentityDocNumber(req.DocType, req.DocNumber)
+	if req.RealName == "" {
+		return nil, ErrIdentityRealNameInvalid
+	}
+	if !isValidIdentityDocNumber(req.DocType, req.DocNumber) {
+		return nil, ErrIdentityDocNumberInvalid
+	}
+
 	if req.DocType != DocTypeMainlandID {
 		if req.DocPhotoFront == nil || *req.DocPhotoFront == "" {
 			return nil, ErrPhotoRequired

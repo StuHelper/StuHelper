@@ -1,15 +1,17 @@
 DisclosureClientID:
   name: client_id
   in: query
-  required: true
-  description: 已批准开放平台应用的 OAuth client_id。
+  required: false
+  description: >
+    已批准开放平台应用的 OAuth client_id。使用 Authorization: Bearer <Casdoor access token>
+    调用开放平台资源 API 时可省略，服务端会从 token 的 client_id/aud 推导应用。
   schema:
     type: string
 
 DisclosureRedirectURI:
   name: redirect_uri
   in: query
-  required: true
+  required: false
   schema:
     type: string
     format: uri
@@ -17,8 +19,10 @@ DisclosureRedirectURI:
 DisclosureScope:
   name: scope
   in: query
-  required: true
-  description: 空格分隔的开放平台 scope。
+  required: false
+  description: >
+    空格分隔的开放平台 scope。使用 Authorization: Bearer <Casdoor access token> 且省略该参数时，
+    服务端按 token 中实际授权的 scope 裁剪返回字段。
   schema:
     type: string
 

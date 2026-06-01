@@ -46,10 +46,16 @@ func (h *Handler) RegisterRoutes(api *gin.RouterGroup, authMW gin.HandlerFunc) {
 	admission.GET("/me", authMW, h.handleAdmissionMe)
 	admission.POST("/freshman/applications", authMW, h.handleCreateFreshmanApplication)
 	admission.POST("/freshman/applications/:id/camera-captures", authMW, h.handleUploadFreshmanCameraCapture)
+	admission.POST("/freshman/applications/:id/camera-handoffs", authMW, h.handleCreateFreshmanCameraHandoff)
+	admission.GET("/freshman/camera-handoffs/:id", authMW, h.handleGetFreshmanCameraHandoff)
+	admission.GET("/freshman/camera-handoffs/:id/events", authMW, h.handleWatchFreshmanCameraHandoff)
+	admission.GET("/freshman/mobile-camera-handoffs/:token", h.handlePreviewFreshmanCameraHandoff)
+	admission.POST("/freshman/mobile-camera-handoffs/:token/camera-capture", h.handleUploadFreshmanCameraHandoffCapture)
+	admission.POST("/freshman/mobile-camera-handoffs/:token/continue", h.handleChooseFreshmanCameraHandoffContinuation)
 	admission.POST("/school-email/request-otp", authMW, h.handleRequestSchoolEmailOTP)
 	admission.POST("/school-email/verify-otp", authMW, h.handleVerifySchoolEmailOTP)
-	admission.GET("/school-sso/:schoolID/login", authMW, h.handleStartSchoolSSO)
-	admission.GET("/school-sso/:schoolID/callback", authMW, h.handleCompleteSchoolSSO)
+	admission.GET("/school-sso/:schoolCode/login", authMW, h.handleStartSchoolSSO)
+	admission.GET("/school-sso/:schoolCode/callback", authMW, h.handleCompleteSchoolSSO)
 }
 
 func (h *Handler) RegisterBotRoutes(api *gin.RouterGroup) {
@@ -62,6 +68,21 @@ func (h *Handler) RegisterBotRoutes(api *gin.RouterGroup) {
 
 func (h *Handler) registerBotAdmissionRoutes(bot *gin.RouterGroup) {
 	bot.POST("/sessions", h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession), h.handleCreateBotSession)
+	bot.GET(
+		"/sessions/member",
+		h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession),
+		h.handleGetBotAdmissionSession,
+	)
+	bot.POST(
+		"/sessions/member/resend",
+		h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession),
+		h.handleResendBotAdmissionSession,
+	)
+	bot.POST(
+		"/sessions/member/regenerate",
+		h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession),
+		h.handleRegenerateBotAdmissionSession,
+	)
 	bot.POST(
 		"/join-requests/events",
 		h.requireBotCredential(serviceaccount.ScopeBotAdmissionEvent),

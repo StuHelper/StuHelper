@@ -114,6 +114,16 @@ func (c *Client) GetAuthURLForApplication(appKey, state string) (string, string,
 	return c.rewriteBrowserAuthURL(authURL), verifier, nil
 }
 
+func (c *Client) GetSignupURLForApplication(appKey, state string) (string, string, error) {
+	cfg, err := c.oauth2ConfigForApplication(appKey)
+	if err != nil {
+		return "", "", err
+	}
+	verifier := oauth2.GenerateVerifier()
+	authURL := cfg.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier))
+	return c.rewriteBrowserAuthURL(casdoorSignupAuthURL(authURL)), verifier, nil
+}
+
 func (c *Client) GetStepUpAuthURLForApplication(appKey, state string) (string, string, error) {
 	cfg, err := c.oauth2ConfigForApplication(appKey)
 	if err != nil {
@@ -154,6 +164,17 @@ func BuildAuthURL(authorizeEndpoint, clientID, redirectURI string, scopes []stri
 	return strings.TrimRight(authorizeEndpoint, "?") + "?" + values.Encode()
 }
 
+func casdoorSignupAuthURL(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	if strings.HasSuffix(parsed.Path, "/login/oauth/authorize") {
+		parsed.Path = strings.TrimSuffix(parsed.Path, "/login/oauth/authorize") + "/signup/oauth/authorize"
+	}
+	return parsed.String()
+}
+
 func (c *Client) rewriteBrowserAuthURL(rawURL string) string {
 	base := strings.TrimRight(strings.TrimSpace(c.publicAuthBaseURL), "/")
 	if base == "" {
@@ -167,10 +188,20 @@ func (c *Client) rewriteBrowserAuthURL(rawURL string) string {
 	if err != nil || publicBase.Scheme == "" || publicBase.Host == "" {
 		return rawURL
 	}
+	if casdoorBrowserAuthPath(parsed.Path) && publicBase.Host != parsed.Host {
+		return rawURL
+	}
 	parsed.Scheme = publicBase.Scheme
 	parsed.Host = publicBase.Host
 	if basePath := strings.TrimRight(publicBase.Path, "/"); basePath != "" {
 		parsed.Path = basePath + parsed.Path
 	}
 	return parsed.String()
+}
+
+func casdoorBrowserAuthPath(path string) bool {
+	return path == "/login/oauth/authorize" ||
+		path == "/signup/oauth/authorize" ||
+		strings.HasPrefix(path, "/login/oauth/") ||
+		strings.HasPrefix(path, "/signup/oauth/")
 }

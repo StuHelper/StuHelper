@@ -158,7 +158,6 @@ func TestGenerateQQBindingCode_RejectsAlreadyBoundUser(t *testing.T) {
 func TestConsumeQQBindingCode_BindsQQAndMarksCodeConsumed(t *testing.T) {
 	repo := newQQBindingMockRepo()
 	code := "ABCD1234"
-	nickname := "航小伴"
 	now := time.Now()
 
 	var createdBinding *QQBinding
@@ -189,14 +188,13 @@ func TestConsumeQQBindingCode_BindsQQAndMarksCodeConsumed(t *testing.T) {
 	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	result, err := svc.ConsumeQQBindingCode(context.Background(), code, "123456789", &nickname)
+	result, err := svc.ConsumeQQBindingCode(context.Background(), code, "123456789")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, createdBinding)
 
 	assert.Equal(t, int64(77), result.UserID)
 	assert.Equal(t, "123456789", result.QQID)
-	assert.Equal(t, &nickname, result.QQNickname)
 	assert.Equal(t, int64(77), consumedUserID)
 	assert.WithinDuration(t, time.Now(), consumedAt, time.Second)
 	assert.Equal(t, createdBinding.QQID, result.QQID)
@@ -221,7 +219,7 @@ func TestConsumeQQBindingCode_ReturnsConflictWhenQQBelongsToAnotherUser(t *testi
 	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	result, err := svc.ConsumeQQBindingCode(context.Background(), "ABCD1234", "123456789", nil)
+	result, err := svc.ConsumeQQBindingCode(context.Background(), "ABCD1234", "123456789")
 	require.ErrorIs(t, err, ErrQQBindingQQAlreadyBound)
 	assert.Nil(t, result)
 }
@@ -242,7 +240,7 @@ func TestConsumeQQBindingCode_ReturnsExpiredForTimedOutCode(t *testing.T) {
 	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	result, err := svc.ConsumeQQBindingCode(context.Background(), "ABCD1234", "123456789", nil)
+	result, err := svc.ConsumeQQBindingCode(context.Background(), "ABCD1234", "123456789")
 	require.ErrorIs(t, err, ErrQQBindingCodeExpired)
 	assert.Nil(t, result)
 }
@@ -314,7 +312,7 @@ func TestConsumeQQBindingCode_PropagatesTxError(t *testing.T) {
 	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	result, err := svc.ConsumeQQBindingCode(context.Background(), "ABCD1234", "123456789", nil)
+	result, err := svc.ConsumeQQBindingCode(context.Background(), "ABCD1234", "123456789")
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "tx failed")

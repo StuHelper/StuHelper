@@ -13,6 +13,11 @@ import (
 const bootstrapTimeout = 2 * time.Minute
 
 func main() {
+	if os.Getenv("CASDOOR_BOOTSTRAP_MODE") == "applications-only" {
+		runApplicationBootstrap()
+		return
+	}
+
 	settings, err := loadSettings(os.Getenv)
 	if err != nil {
 		log.Fatalf("invalid Casdoor bootstrap configuration: %v", err)
@@ -35,5 +40,30 @@ func main() {
 		len(settings.plan.Applications),
 		len(settings.plan.Roles),
 		len(settings.plan.Providers),
+	)
+}
+
+func runApplicationBootstrap() {
+	settings, err := loadApplicationBootstrapSettings(os.Getenv)
+	if err != nil {
+		log.Fatalf("invalid Casdoor application bootstrap configuration: %v", err)
+	}
+
+	client, err := casdoor.NewAppProvisioningClient(settings.credential)
+	if err != nil {
+		log.Fatalf("create Casdoor application provisioning client: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), bootstrapTimeout)
+	defer cancel()
+	for _, app := range settings.applications {
+		if err := client.EnsureApplication(ctx, app); err != nil {
+			log.Fatalf("bootstrap Casdoor application %s: %v", app.Name, err)
+		}
+	}
+
+	log.Printf(
+		"Casdoor application bootstrap ensured applications=%d",
+		len(settings.applications),
 	)
 }

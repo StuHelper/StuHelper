@@ -4,12 +4,11 @@ import "time"
 
 // QQBinding 记录用户与 QQ 账号的绑定关系。
 type QQBinding struct {
-	UserID     int64
-	QQID       string
-	QQNickname *string
-	BoundAt    time.Time
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	UserID    int64
+	QQID      string
+	BoundAt   time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // QQBindingCode 记录待消费的 QQ 绑定码。
@@ -41,7 +40,6 @@ const (
 type QQVerificationStatus struct {
 	QQID                      string
 	UserID                    *int64
-	QQNickname                *string
 	BoundAt                   *time.Time
 	VerificationState         QQVerificationState
 	ProfileVerificationStatus string

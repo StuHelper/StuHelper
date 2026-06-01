@@ -66,7 +66,7 @@ func TestGetAcademicStudentByXH_UsesTableAwareRepoWhenAvailable(t *testing.T) {
 
 func TestFindAcademicStudentsByPersonUID_UsesTableAwareRepoWhenAvailable(t *testing.T) {
 	const expectedTable = "academic.custom_students"
-	const expectedDocID = "110101199001011234"
+	const expectedDocID = "110101199001011237"
 
 	repo := &academicAwareMockRepo{
 		mockRepo: &mockRepo{},
@@ -90,7 +90,7 @@ func TestFindAcademicStudentsByPersonUID_UsesTableAwareRepoWhenAvailable(t *test
 
 func TestSubmitIdentity_MainlandIDAutoMatchUsesEnabledSchoolTables(t *testing.T) {
 	const (
-		docNumber = "110101199001011234"
+		docNumber = "110101199001011237"
 		realName  = "张三"
 	)
 

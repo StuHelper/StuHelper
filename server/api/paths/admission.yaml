@@ -103,11 +103,17 @@
         application/json:
           schema:
             type: object
-            required: [schoolID, applicantName, materialType]
+            required: [schoolCode, applicantName, materialType]
             properties:
+              schoolCode:
+                type: string
+                pattern: '^[0-9]{10}$'
+                description: 教育部学校标识码；公开新生材料申请必须以此字段识别学校。
               schoolID:
                 type: integer
                 format: int64
+                deprecated: true
+                description: StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
               applicantName:
                 type: string
               departmentOrMajor:
@@ -174,6 +180,194 @@
       '415':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
+/api/v1/admission/freshman/applications/{id}/camera-handoffs:
+  post:
+    tags: [Admission]
+    operationId: createFreshmanCameraHandoff
+    summary: 创建新生材料手机拍照接力
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '201':
+        description: 接力已创建
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/admission.yaml#/FreshmanCameraHandoff'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admission/freshman/camera-handoffs/{id}:
+  get:
+    tags: [Admission]
+    operationId: getFreshmanCameraHandoff
+    summary: 查询手机拍照接力状态
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: 接力状态
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/admission.yaml#/FreshmanCameraHandoff'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admission/freshman/camera-handoffs/{id}/events:
+  get:
+    tags: [Admission]
+    operationId: watchFreshmanCameraHandoff
+    summary: 订阅手机拍照接力状态变化
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Server-Sent Events stream. Each `handoff` event contains a FreshmanCameraHandoff JSON payload.
+        content:
+          text/event-stream:
+            schema:
+              type: string
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admission/freshman/mobile-camera-handoffs/{token}:
+  get:
+    tags: [Admission]
+    operationId: previewFreshmanMobileCameraHandoff
+    summary: 手机端预览拍照接力
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: 接力状态
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/admission.yaml#/FreshmanCameraHandoff'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '410':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admission/freshman/mobile-camera-handoffs/{token}/camera-capture:
+  post:
+    tags: [Admission]
+    operationId: uploadFreshmanMobileCameraCapture
+    summary: 手机端上传接力拍摄的新生材料图片
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/admission.yaml#/CameraCaptureRequest'
+    responses:
+      '200':
+        description: 材料已上传
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/admission.yaml#/FreshmanCameraHandoff'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '410':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '413':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '415':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admission/freshman/mobile-camera-handoffs/{token}/continue:
+  post:
+    tags: [Admission]
+    operationId: chooseFreshmanMobileCameraContinuation
+    summary: 手机端选择上传后在哪一端继续
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/admission.yaml#/FreshmanCameraHandoffContinuationRequest'
+    responses:
+      '200':
+        description: 已锁定继续端
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/admission.yaml#/FreshmanCameraHandoff'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '410':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
 /api/v1/admission/school-email/request-otp:
   post:
     tags: [Admission]
@@ -191,7 +385,13 @@
         content:
           application/json:
             schema:
-              $ref: '../components/schemas/common.yaml#/SuccessResponse'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/admission.yaml#/SchoolEmailOTPResponse'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
@@ -228,19 +428,19 @@
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
-/api/v1/admission/school-sso/{schoolID}/login:
+/api/v1/admission/school-sso/{schoolCode}/login:
   get:
     tags: [Admission]
     operationId: startAdmissionSchoolSSO
     summary: 跳转学校官方 SSO 登录
     security: []
     parameters:
-      - name: schoolID
+      - name: schoolCode
         in: path
         required: true
         schema:
-          type: integer
-          format: int64
+          type: string
+          pattern: '^[0-9]{10}$'
       - name: return
         in: query
         schema:
@@ -252,19 +452,19 @@
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
-/api/v1/admission/school-sso/{schoolID}/callback:
+/api/v1/admission/school-sso/{schoolCode}/callback:
   get:
     tags: [Admission]
     operationId: completeAdmissionSchoolSSO
     summary: 学校官方 SSO 回调
     security: []
     parameters:
-      - name: schoolID
+      - name: schoolCode
         in: path
         required: true
         schema:
-          type: integer
-          format: int64
+          type: string
+          pattern: '^[0-9]{10}$'
       - name: code
         in: query
         schema:

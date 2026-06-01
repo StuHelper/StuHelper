@@ -27,6 +27,7 @@ type IntrospectionResult struct {
 	Username       string              `json:"username"`
 	Email          string              `json:"email"`
 	Name           string              `json:"name"`
+	Scope          string              `json:"scope"`
 	AMR            []string            `json:"amr,omitempty"`
 	AuthTime       int64               `json:"auth_time,omitempty"`
 	AppID          string              `json:"-"`
@@ -39,6 +40,13 @@ func (r *IntrospectionResult) GetAppID() string {
 		return ""
 	}
 	return r.AppID
+}
+
+func (r *IntrospectionResult) Scopes() []string {
+	if r == nil {
+		return nil
+	}
+	return strings.Fields(r.Scope)
 }
 
 func (r *IntrospectionResult) MFAProofVerifiedAt() time.Time {

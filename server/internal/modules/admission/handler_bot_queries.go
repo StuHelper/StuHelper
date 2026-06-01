@@ -10,6 +10,7 @@ import (
 )
 
 const maxBotPendingActionFilterLength = 64
+const maxBotSessionSubjectGuildLength = 128
 
 type botJoinRequestEventHTTPRequest struct {
 	Platform  string         `json:"platform" binding:"required"`
@@ -26,6 +27,23 @@ type botFreshmanCommandHTTPRequest struct {
 	GuildID      string  `json:"guildID" binding:"required"`
 	ChannelID    *string `json:"channelID"`
 	RawCommand   string  `json:"rawCommand" binding:"required"`
+}
+
+func botSessionSubjectFromQuery(c *gin.Context) (BotSessionSubjectInput, bool) {
+	platform := strings.TrimSpace(c.Query("platform"))
+	guildID := strings.TrimSpace(c.Query("guildID"))
+	qqID := strings.TrimSpace(c.Query("qqID"))
+	if platform == "" || guildID == "" || qqID == "" {
+		response.BadRequest(c, "admission session query requires platform, guildID and qqID")
+		return BotSessionSubjectInput{}, false
+	}
+	if len(platform) > maxBotPendingActionFilterLength ||
+		len(guildID) > maxBotSessionSubjectGuildLength ||
+		len(qqID) > maxBotPendingActionFilterLength {
+		response.BadRequest(c, "admission session query too long")
+		return BotSessionSubjectInput{}, false
+	}
+	return BotSessionSubjectInput{Platform: platform, GuildID: guildID, QQID: qqID}, true
 }
 
 func (h *Handler) handleRecordBotJoinRequestEvent(c *gin.Context) {

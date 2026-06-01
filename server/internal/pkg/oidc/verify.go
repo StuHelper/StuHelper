@@ -35,20 +35,23 @@ func (c *Client) verifyIDToken(ctx context.Context, expectedClientID, rawIDToken
 	if err := c.verifyIDTokenAudience(idToken.Audience, expectedClientID); err != nil {
 		return nil, err
 	}
+	rawJSON, err := marshalIDTokenClaims(idToken)
+	if err != nil {
+		return nil, fmt.Errorf("oidc: failed to parse raw claims: %w", err)
+	}
+	if err := c.verifyIDTokenAuthorizedParty(rawJSON, expectedClientID); err != nil {
+		return nil, err
+	}
 
 	claims := &Claims{}
 	if err := idToken.Claims(claims); err != nil {
 		return nil, fmt.Errorf("oidc: failed to parse claims: %w", err)
 	}
-	c.decorateIDTokenClaims(idToken, claims)
+	c.decorateIDTokenClaims(rawJSON, claims)
 	return claims, nil
 }
 
-func (c *Client) decorateIDTokenClaims(idToken *gooidc.IDToken, claims *Claims) {
-	rawJSON, err := marshalIDTokenClaims(idToken)
-	if err != nil {
-		return
-	}
+func (c *Client) decorateIDTokenClaims(rawJSON []byte, claims *Claims) {
 	claims.AppID = appIDFromRawClaims(rawJSON)
 	roles, parseErr := ParseProviderRolesFromRaw(rawJSON, c.rolesClaim)
 	if parseErr != nil {
@@ -68,6 +71,17 @@ func (c *Client) verifyIDTokenAudience(audience []string, expectedClientID strin
 		}
 	}
 	return fmt.Errorf("%w: %v", ErrInvalidAudience, audience)
+}
+
+func (c *Client) verifyIDTokenAuthorizedParty(rawJSON []byte, expectedClientID string) error {
+	if expectedClientID == "" {
+		return nil
+	}
+	appID := authorizedPartyFromRawClaims(rawJSON)
+	if appID == "" || appID == expectedClientID {
+		return nil
+	}
+	return fmt.Errorf("%w: authorized party %s", ErrInvalidAudience, appID)
 }
 
 // marshalIDTokenClaims 将 ID Token 的 claims 序列化为 JSON 以提取动态字段

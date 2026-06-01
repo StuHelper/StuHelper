@@ -4,8 +4,8 @@
     operationId: openPlatformAuthorize
     summary: 发起开放平台授权
     description: |
-      Legacy 授权辅助接口。新应用应直接接入 id.stuhelper.com 的 OIDC discovery；
-      该接口保留给站内授权页与历史调用方。若用户已授予全部 scope，
+      Legacy 授权辅助接口。新应用应直接接入 sso.stuhelper.com 的 OIDC discovery，
+      并通过 StuHelper Open API 读取业务数据。该接口保留给站内授权页与历史调用方。若用户已授予全部 scope，
       返回下一步 redirect URL；否则返回 StuHelper 授权确认页或资料补全页 URL。
     security:
       - cookieAuth: []

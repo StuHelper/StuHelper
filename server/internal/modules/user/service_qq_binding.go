@@ -45,7 +45,7 @@ func (s *Service) GenerateQQBindingCode(ctx context.Context, userID int64, ttl t
 }
 
 // ConsumeQQBindingCode 将绑定码与 QQ 账号建立永久绑定。
-func (s *Service) ConsumeQQBindingCode(ctx context.Context, code, qqID string, qqNickname *string) (*QQBinding, error) {
+func (s *Service) ConsumeQQBindingCode(ctx context.Context, code, qqID string) (*QQBinding, error) {
 	trimmedCode := strings.TrimSpace(code)
 	trimmedQQID := strings.TrimSpace(qqID)
 	if trimmedQQID == "" {
@@ -58,7 +58,7 @@ func (s *Service) ConsumeQQBindingCode(ctx context.Context, code, qqID string, q
 		if err != nil {
 			return err
 		}
-		result, err = s.consumeQQBindingCodeTx(ctx, tx, bindingCode, trimmedQQID, normalizeOptionalString(qqNickname))
+		result, err = s.consumeQQBindingCodeTx(ctx, tx, bindingCode, trimmedQQID)
 		return err
 	}); err != nil {
 		return nil, fmt.Errorf("ConsumeQQBindingCode: %w", err)
@@ -72,14 +72,13 @@ func (s *Service) EnsureQQBindingForUserTx(
 	tx pgx.Tx,
 	userID int64,
 	qqID string,
-	qqNickname *string,
 ) (*QQBinding, error) {
 	trimmedQQID := strings.TrimSpace(qqID)
 	if trimmedQQID == "" {
 		return nil, ErrQQIDRequired
 	}
 
-	binding, err := s.ensureQQBindingForUserTx(ctx, tx, userID, trimmedQQID, normalizeOptionalString(qqNickname))
+	binding, err := s.ensureQQBindingForUserTx(ctx, tx, userID, trimmedQQID)
 	if err != nil {
 		return nil, fmt.Errorf("EnsureQQBindingForUserTx: %w", err)
 	}
@@ -153,7 +152,7 @@ func (s *Service) loadQQBindingCodeForConsume(ctx context.Context, tx pgx.Tx, co
 	return bindingCode, nil
 }
 
-func (s *Service) consumeQQBindingCodeTx(ctx context.Context, tx pgx.Tx, bindingCode *QQBindingCode, qqID string, qqNickname *string) (*QQBinding, error) {
+func (s *Service) consumeQQBindingCodeTx(ctx context.Context, tx pgx.Tx, bindingCode *QQBindingCode, qqID string) (*QQBinding, error) {
 	userBinding, err := s.repo.GetQQBindingByUserIDTx(ctx, tx, bindingCode.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("consumeQQBindingCodeTx user binding: %w", err)
@@ -177,12 +176,11 @@ func (s *Service) consumeQQBindingCodeTx(ctx context.Context, tx pgx.Tx, binding
 
 	now := time.Now()
 	binding := &QQBinding{
-		UserID:     bindingCode.UserID,
-		QQID:       qqID,
-		QQNickname: qqNickname,
-		BoundAt:    now,
-		CreatedAt:  now,
-		UpdatedAt:  now,
+		UserID:    bindingCode.UserID,
+		QQID:      qqID,
+		BoundAt:   now,
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 	if err := s.repo.CreateQQBindingTx(ctx, tx, binding); err != nil {
 		return nil, fmt.Errorf("consumeQQBindingCodeTx create binding: %w", err)
@@ -198,7 +196,6 @@ func (s *Service) ensureQQBindingForUserTx(
 	tx pgx.Tx,
 	userID int64,
 	qqID string,
-	qqNickname *string,
 ) (*QQBinding, error) {
 	userBinding, err := s.repo.GetQQBindingByUserIDTx(ctx, tx, userID)
 	if err != nil {
@@ -218,12 +215,11 @@ func (s *Service) ensureQQBindingForUserTx(
 
 	now := time.Now()
 	binding := &QQBinding{
-		UserID:     userID,
-		QQID:       qqID,
-		QQNickname: qqNickname,
-		BoundAt:    now,
-		CreatedAt:  now,
-		UpdatedAt:  now,
+		UserID:    userID,
+		QQID:      qqID,
+		BoundAt:   now,
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 	if err := s.repo.CreateQQBindingTx(ctx, tx, binding); err != nil {
 		return nil, fmt.Errorf("ensureQQBindingForUserTx create binding: %w", err)
@@ -245,17 +241,6 @@ func resolveQQBindingConflict(userBinding, qqBinding *QQBinding, userID int64, q
 		return qqBinding, nil
 	}
 	return nil, nil
-}
-
-func normalizeOptionalString(value *string) *string {
-	if value == nil {
-		return nil
-	}
-	trimmed := strings.TrimSpace(*value)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
 }
 
 func newUnboundQQVerificationStatus(qqID string) *QQVerificationStatus {
@@ -282,7 +267,6 @@ func buildQQVerificationStatus(binding *QQBinding, profile *Profile) *QQVerifica
 	return &QQVerificationStatus{
 		QQID:                      binding.QQID,
 		UserID:                    &binding.UserID,
-		QQNickname:                binding.QQNickname,
 		BoundAt:                   &binding.BoundAt,
 		VerificationState:         state,
 		ProfileVerificationStatus: status,

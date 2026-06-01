@@ -77,6 +77,7 @@ func TestRegisteredRouteSurfaceDoesNotExposeLocalPhoneOTPLogin(t *testing.T) {
 
 func TestGetSignupURL_ReturnsAuthURL(t *testing.T) {
 	h, _ := newTestHandler(t)
+	h.oidcClient = oidc.NewStubClient("https://sso.example.com/login/oauth/authorize")
 
 	r := gin.New()
 	r.GET("/auth/signup", h.GetSignupURL)
@@ -88,6 +89,8 @@ func TestGetSignupURL_ReturnsAuthURL(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), `"url"`)
 	assert.Contains(t, w.Body.String(), `"state"`)
+	assert.Contains(t, w.Body.String(), "https://sso.example.com/signup/oauth/authorize")
+	assert.NotContains(t, w.Body.String(), "/login/oauth/authorize")
 }
 
 func TestGetStepUpURL_ReturnsReauthURL(t *testing.T) {
@@ -320,10 +323,20 @@ func TestResolveRedirectTarget_DisallowedHost(t *testing.T) {
 
 func TestResolveRedirectTarget_AllowedAbsoluteAndEmpty(t *testing.T) {
 	h := &Handler{
-		defaultRedirectURL:   "https://web.example.com",
-		allowedRedirectHosts: map[string]struct{}{"web.example.com": {}, "admin.example.com": {}, "id.stuhelper.com": {}},
+		defaultRedirectURL: "https://web.example.com",
+		allowedRedirectHosts: map[string]struct{}{
+			"web.example.com":    {},
+			"admin.example.com":  {},
+			"id.stuhelper.com":   {},
+			"join.stuhelper.com": {},
+		},
 	}
 	assert.Equal(t, "https://admin.example.com/reviews", h.resolveRedirectTarget("https://admin.example.com/reviews"))
 	assert.Equal(t, "https://id.stuhelper.com/developers/apps", h.resolveRedirectTarget("https://id.stuhelper.com/developers/apps"))
+	assert.Equal(
+		t,
+		"https://join.stuhelper.com/verify/ADMIT-LOGIN?qq=123456",
+		h.resolveRedirectTarget("https://join.stuhelper.com/verify/ADMIT-LOGIN?qq=123456"),
+	)
 	assert.Equal(t, "https://web.example.com", h.resolveRedirectTarget("   "))
 }

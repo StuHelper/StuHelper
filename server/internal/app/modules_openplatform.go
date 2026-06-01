@@ -36,7 +36,7 @@ func (rt *Runtime) initOpenPlatformModule(
 		openplatform.WithPhoneDecryptor(piiCipher),
 		openplatform.WithResourceFGAClient(rt.fgaClient),
 		openplatform.WithConsentBaseURL(rt.cfg.App.CORSOrigins[0]),
-		openplatform.WithIdentityBaseURL(rt.identityIssuer()),
+		openplatform.WithIdentityBaseURL(rt.openPlatformIdentityBaseURL()),
 		openplatform.WithDisclosureRateLimits(openPlatformDisclosureRateLimitConfig(
 			rt.cfg.OpenPlatform.DisclosureRateLimit,
 		)),
@@ -51,6 +51,13 @@ func (rt *Runtime) initOpenPlatformModule(
 	handler := openplatform.NewHandler(service, userIDResolver)
 	handler.RegisterRoutes(api, authMW)
 	return handler, service, nil
+}
+
+func (rt *Runtime) openPlatformIdentityBaseURL() string {
+	if rt.cfg.Identity.Enabled {
+		return rt.identityIssuer()
+	}
+	return rt.cfg.Casdoor.Issuer
 }
 
 func (rt *Runtime) newOpenPlatformRuntimeTokenProber() (platformcasdoor.RuntimeTokenMinimizationProber, error) {

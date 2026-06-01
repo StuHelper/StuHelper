@@ -26,7 +26,9 @@ type Config struct {
 	RateLimit     ReviewRateLimitConfig
 	Security      SecurityConfig
 	SMS           SMSConfig
+	Email         EmailConfig
 	Bot           BotConfig
+	Admission     AdmissionConfig
 	Observability ObservabilityConfig
 	OpenPlatform  OpenPlatformConfig
 }
@@ -73,6 +75,11 @@ type OpenPlatformTokenProbeConfig struct {
 	RuntimeRequired       bool
 	RuntimeCommand        string
 	RuntimeTimeoutSeconds int
+}
+
+// AdmissionConfig controls the public group admission verification surface.
+type AdmissionConfig struct {
+	PublicBaseURL string
 }
 
 // LogConfig 日志配置
@@ -180,8 +187,10 @@ type CasdoorConfig struct {
 	UserLookupCertificate       string
 }
 
-// IdentityConfig configures StuHelper's public OIDC issuer at id.stuhelper.com.
+// IdentityConfig configures the legacy StuHelper-hosted OIDC issuer.
+// New public OAuth/OIDC integrations should use Casdoor at sso.stuhelper.com.
 type IdentityConfig struct {
+	Enabled              bool
 	Issuer               string
 	SigningPrivateKeyPEM string
 	SigningKeyID         string
@@ -207,6 +216,33 @@ type SMSConfig struct {
 	TemplateID  string
 	Region      string
 	InternalKey string // 内部调用鉴权密钥
+}
+
+type EmailConfig struct {
+	Enabled                      bool
+	Driver                       string
+	ProviderPolicy               string
+	StudentVerificationSubject   string
+	SMTPHost                     string
+	SMTPPort                     int
+	SMTPUsername                 string
+	SMTPPassword                 string
+	From                         string
+	FromName                     string
+	UseTLS                       bool
+	StartTLS                     bool
+	TencentSecretID              string
+	TencentSecretKey             string
+	TencentRegion                string
+	TencentEndpoint              string
+	TencentTemplateID            int64
+	TencentReplyTo               string
+	TencentTemplatePurpose       string
+	TencentTemplateSchoolName    string
+	TencentTemplateExpireMinutes int
+	ResendAPIKey                 string
+	ResendEndpoint               string
+	ResendReplyTo                string
 }
 
 // BotConfig 机器人内部调用配置。
@@ -253,7 +289,9 @@ func Load() (*Config, error) {
 		Log:           loadLogConfig(&parseErrs),
 		RateLimit:     loadReviewRateLimitConfig(&parseErrs),
 		SMS:           loadSMSConfig(&parseErrs),
+		Email:         loadEmailConfig(&parseErrs),
 		Bot:           loadBotConfig(),
+		Admission:     loadAdmissionConfig(),
 		Observability: loadObservabilityConfig(&parseErrs),
 		OpenPlatform:  loadOpenPlatformConfig(&parseErrs),
 	}
@@ -271,6 +309,7 @@ func Load() (*Config, error) {
 
 func loadIdentityConfig(parseErrs *[]string) IdentityConfig {
 	return IdentityConfig{
+		Enabled:              getEnvBool("IDENTITY_SERVER_ENABLED", false, parseErrs),
 		Issuer:               getEnv("IDENTITY_ISSUER", ""),
 		SigningPrivateKeyPEM: getEnv("IDENTITY_SIGNING_PRIVATE_KEY_PEM", ""),
 		SigningKeyID:         getEnv("IDENTITY_SIGNING_KEY_ID", "stuhelper-identity-1"),
@@ -460,9 +499,44 @@ func loadSMSConfig(parseErrs *[]string) SMSConfig {
 	}
 }
 
+func loadEmailConfig(parseErrs *[]string) EmailConfig {
+	return EmailConfig{
+		Enabled:                      getEnvBool("EMAIL_ENABLED", false, parseErrs),
+		Driver:                       getEnv("EMAIL_DRIVER", "smtp"),
+		ProviderPolicy:               getEnv("EMAIL_PROVIDER_POLICY", ""),
+		StudentVerificationSubject:   getEnv("EMAIL_STUDENT_VERIFICATION_SUBJECT", "学生认证验证码"),
+		SMTPHost:                     getEnv("EMAIL_SMTP_HOST", ""),
+		SMTPPort:                     getEnvInt("EMAIL_SMTP_PORT", 587, parseErrs),
+		SMTPUsername:                 getEnv("EMAIL_SMTP_USERNAME", ""),
+		SMTPPassword:                 getEnv("EMAIL_SMTP_PASSWORD", ""),
+		From:                         getEnv("EMAIL_FROM", ""),
+		FromName:                     getEnv("EMAIL_FROM_NAME", "StuHelper 系统邮件"),
+		UseTLS:                       getEnvBool("EMAIL_SMTP_USE_TLS", false, parseErrs),
+		StartTLS:                     getEnvBool("EMAIL_SMTP_STARTTLS", true, parseErrs),
+		TencentSecretID:              getEnv("EMAIL_TENCENT_SECRET_ID", ""),
+		TencentSecretKey:             getEnv("EMAIL_TENCENT_SECRET_KEY", ""),
+		TencentRegion:                getEnv("EMAIL_TENCENT_REGION", "ap-guangzhou"),
+		TencentEndpoint:              getEnv("EMAIL_TENCENT_ENDPOINT", "ses.tencentcloudapi.com"),
+		TencentTemplateID:            getEnvInt64("EMAIL_TENCENT_TEMPLATE_ID", 0, parseErrs),
+		TencentReplyTo:               getEnv("EMAIL_TENCENT_REPLY_TO", ""),
+		TencentTemplatePurpose:       getEnv("EMAIL_TENCENT_TEMPLATE_PURPOSE", "学校邮箱认证"),
+		TencentTemplateSchoolName:    getEnv("EMAIL_TENCENT_TEMPLATE_SCHOOL_NAME", "北京航空航天大学"),
+		TencentTemplateExpireMinutes: getEnvInt("EMAIL_TENCENT_TEMPLATE_EXPIRE_MINUTES", 5, parseErrs),
+		ResendAPIKey:                 getEnv("EMAIL_RESEND_API_KEY", ""),
+		ResendEndpoint:               getEnv("EMAIL_RESEND_ENDPOINT", "https://api.resend.com/emails"),
+		ResendReplyTo:                getEnv("EMAIL_RESEND_REPLY_TO", ""),
+	}
+}
+
 func loadBotConfig() BotConfig {
 	return BotConfig{
 		ServiceToken: getEnv("BOT_SERVICE_TOKEN", ""),
+	}
+}
+
+func loadAdmissionConfig() AdmissionConfig {
+	return AdmissionConfig{
+		PublicBaseURL: getEnv("ADMISSION_PUBLIC_BASE_URL", ""),
 	}
 }
 

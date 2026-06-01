@@ -16,12 +16,14 @@ type OrganizationSpec struct {
 }
 
 type RoleSpec struct {
+	Owner       string
 	Name        string
 	DisplayName string
 	Description string
 }
 
 type ProviderSpec struct {
+	Owner       string
 	Name        string
 	DisplayName string
 	Category    string
@@ -49,17 +51,27 @@ func (c *Client) Bootstrap(ctx context.Context, plan BootstrapPlan) error {
 	if err := c.EnsureOrganization(ctx, plan.Organization); err != nil {
 		return err
 	}
+	targetOrganization := strings.TrimSpace(plan.Organization.Name)
 	for _, app := range plan.Applications {
+		if app.Organization == "" {
+			app.Organization = targetOrganization
+		}
 		if err := c.EnsureApplication(ctx, app); err != nil {
 			return err
 		}
 	}
 	for _, role := range plan.Roles {
+		if role.Owner == "" {
+			role.Owner = targetOrganization
+		}
 		if err := c.EnsureRole(ctx, role); err != nil {
 			return err
 		}
 	}
 	for _, provider := range plan.Providers {
+		if provider.Owner == "" {
+			provider.Owner = targetOrganization
+		}
 		if err := c.EnsureProvider(ctx, provider); err != nil {
 			return err
 		}
@@ -155,8 +167,12 @@ func (c *Client) buildRole(spec RoleSpec) (*casdoorsdk.Role, error) {
 	if err != nil {
 		return nil, err
 	}
+	owner := spec.Owner
+	if owner == "" {
+		owner = c.credential.Organization
+	}
 	return &casdoorsdk.Role{
-		Owner:       c.credential.Organization,
+		Owner:       owner,
 		Name:        spec.Name,
 		DisplayName: spec.DisplayName,
 		Description: spec.Description,
@@ -169,8 +185,12 @@ func (c *Client) buildProvider(spec ProviderSpec) (*casdoorsdk.Provider, error) 
 	if err != nil {
 		return nil, err
 	}
+	owner := spec.Owner
+	if owner == "" {
+		owner = c.credential.Organization
+	}
 	return &casdoorsdk.Provider{
-		Owner:       c.credential.Organization,
+		Owner:       owner,
 		Name:        spec.Name,
 		DisplayName: spec.DisplayName,
 		Category:    spec.Category,
@@ -202,11 +222,17 @@ func normalizeOrganizationSpec(spec OrganizationSpec) (OrganizationSpec, error) 
 }
 
 func normalizeRoleSpec(spec RoleSpec) (RoleSpec, error) {
+	spec.Owner = strings.TrimSpace(spec.Owner)
 	spec.Name = strings.TrimSpace(spec.Name)
 	spec.DisplayName = strings.TrimSpace(spec.DisplayName)
 	spec.Description = strings.TrimSpace(spec.Description)
 	if err := validateName("role name", spec.Name); err != nil {
 		return RoleSpec{}, err
+	}
+	if spec.Owner != "" {
+		if err := validateName("role owner", spec.Owner); err != nil {
+			return RoleSpec{}, err
+		}
 	}
 	if spec.DisplayName == "" {
 		return RoleSpec{}, errors.New("casdoor: role display name is required")
@@ -215,6 +241,7 @@ func normalizeRoleSpec(spec RoleSpec) (RoleSpec, error) {
 }
 
 func normalizeProviderSpec(spec ProviderSpec) (ProviderSpec, error) {
+	spec.Owner = strings.TrimSpace(spec.Owner)
 	spec.Name = strings.TrimSpace(spec.Name)
 	spec.DisplayName = strings.TrimSpace(spec.DisplayName)
 	spec.Category = strings.TrimSpace(spec.Category)
@@ -229,6 +256,11 @@ func normalizeProviderSpec(spec ProviderSpec) (ProviderSpec, error) {
 	spec.Metadata = strings.TrimSpace(spec.Metadata)
 	if err := validateProviderRequired(spec); err != nil {
 		return ProviderSpec{}, err
+	}
+	if spec.Owner != "" {
+		if err := validateName("provider owner", spec.Owner); err != nil {
+			return ProviderSpec{}, err
+		}
 	}
 	return spec, nil
 }

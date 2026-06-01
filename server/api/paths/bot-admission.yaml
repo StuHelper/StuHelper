@@ -23,10 +23,121 @@
                   required: [data]
                   properties:
                     data:
+                      $ref: '../components/schemas/admission.yaml#/CreatedAdmissionSession'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/bot/admission/sessions/member:
+  get:
+    tags: [Bot]
+    operationId: getBotAdmissionSessionByMember
+    summary: 机器人按群成员查询最新入群认证会话
+    security:
+      - serviceTokenAuth: []
+    parameters:
+      - name: platform
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: guildID
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: qqID
+        in: query
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: 最新入群认证会话
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
                       $ref: '../components/schemas/admission.yaml#/AdmissionSession'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/bot/admission/sessions/member/resend:
+  post:
+    tags: [Bot]
+    operationId: resendBotAdmissionSessionLink
+    summary: 机器人重发当前入群认证链接
+    security:
+      - serviceTokenAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/admission.yaml#/BotAdmissionSessionSubjectRequest'
+    responses:
+      '200':
+        description: 可继续的入群认证会话
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/admission.yaml#/AdmissionSession'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/bot/admission/sessions/member/regenerate:
+  post:
+    tags: [Bot]
+    operationId: regenerateBotAdmissionSessionLink
+    summary: 机器人取消旧会话并重新生成入群认证链接
+    security:
+      - serviceTokenAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/admission.yaml#/BotAdmissionSessionCreateRequest'
+    responses:
+      '201':
+        description: 入群认证会话已重新生成
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/admission.yaml#/CreatedAdmissionSession'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
 /api/v1/bot/admission/join-requests/events:

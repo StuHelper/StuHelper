@@ -14,8 +14,12 @@ type MemberBlacklistReleaseBySubjectRequest =
 type CreateFreshmanApplicationRequest =
   operations['createFreshmanApplication']['requestBody']['content']['application/json']
 type CameraCaptureRequest = components['schemas']['CameraCaptureRequest']
+type FreshmanCameraHandoff = components['schemas']['FreshmanCameraHandoff']
+type FreshmanCameraHandoffContinuationRequest =
+  components['schemas']['FreshmanCameraHandoffContinuationRequest']
 type SchoolEmailOTPRequest = components['schemas']['SchoolEmailOTPRequest']
 type SchoolEmailOTPVerifyRequest = components['schemas']['SchoolEmailOTPVerifyRequest']
+type SchoolEmailOTPResponse = components['schemas']['SchoolEmailOTPResponse']
 type AdmissionPolicy = components['schemas']['AdmissionPolicy']
 type FreshmanReviewRequest = components['schemas']['FreshmanReviewRequest']
 type ListAdmissionSessionsParams =
@@ -55,6 +59,36 @@ export const createAdmissionApi = (client: ApiClient) => ({
   uploadCameraCapture: (applicationID: string, data: CameraCaptureRequest) =>
     client.POST('/api/v1/admission/freshman/applications/{id}/camera-captures', {
       params: { path: { id: applicationID } },
+      body: data,
+    }),
+
+  createFreshmanCameraHandoff: (applicationID: string) =>
+    client.POST('/api/v1/admission/freshman/applications/{id}/camera-handoffs', {
+      params: { path: { id: applicationID } },
+    }),
+
+  getFreshmanCameraHandoff: (handoffID: string) =>
+    client.GET('/api/v1/admission/freshman/camera-handoffs/{id}', {
+      params: { path: { id: handoffID } },
+    }),
+
+  previewFreshmanMobileCameraHandoff: (token: string) =>
+    client.GET('/api/v1/admission/freshman/mobile-camera-handoffs/{token}', {
+      params: { path: { token } },
+    }),
+
+  uploadFreshmanMobileCameraCapture: (token: string, data: CameraCaptureRequest) =>
+    client.POST('/api/v1/admission/freshman/mobile-camera-handoffs/{token}/camera-capture', {
+      params: { path: { token } },
+      body: data,
+    }),
+
+  chooseFreshmanMobileCameraContinuation: (
+    token: string,
+    data: FreshmanCameraHandoffContinuationRequest,
+  ) =>
+    client.POST('/api/v1/admission/freshman/mobile-camera-handoffs/{token}/continue', {
+      params: { path: { token } },
       body: data,
     }),
 
@@ -121,6 +155,8 @@ export type {
   CameraCaptureRequest,
   CreateFreshmanApplicationRequest,
   FreshmanApplication,
+  FreshmanCameraHandoff,
+  FreshmanCameraHandoffContinuationRequest,
   FreshmanReviewRequest,
   ListAdmissionSessionsParams,
   ListFreshmanVerificationsParams,
@@ -131,4 +167,5 @@ export type {
   MemberBlacklistReleaseRequest,
   SchoolEmailOTPRequest,
   SchoolEmailOTPVerifyRequest,
+  SchoolEmailOTPResponse,
 }

@@ -152,11 +152,28 @@ func (h *Handler) handleGetProfile(c *gin.Context) {
 }
 
 type verifyStudentHTTPRequest struct {
-	SchoolID       int64          `json:"schoolID" binding:"required,min=1"`
+	SchoolCode     string         `json:"schoolCode" binding:"omitempty,numeric,len=10"`
+	SchoolID       int64          `json:"schoolID" binding:"omitempty,min=1"`
 	StudentID      string         `json:"studentID" binding:"omitempty,max=50"`
 	Password       string         `json:"password" binding:"omitempty,max=200"`
 	ManualFormData map[string]any `json:"manualFormData"`
 	Consent        bool           `json:"consent"`
+}
+
+type studentEmailOTPHTTPRequest struct {
+	SchoolCode  string `json:"schoolCode" binding:"omitempty,numeric,len=10"`
+	SchoolID    int64  `json:"schoolID" binding:"omitempty,min=1"`
+	Email       string `json:"email" binding:"omitempty,max=320"`
+	StudentID   string `json:"studentID" binding:"omitempty,max=50"`
+	StudentName string `json:"studentName" binding:"omitempty,max=80"`
+}
+
+type studentEmailOTPVerifyHTTPRequest struct {
+	SchoolCode string `json:"schoolCode" binding:"omitempty,numeric,len=10"`
+	SchoolID   int64  `json:"schoolID" binding:"omitempty,min=1"`
+	Email      string `json:"email" binding:"omitempty,max=320"`
+	Code       string `json:"code" binding:"required,min=4,max=12"`
+	Consent    bool   `json:"consent"`
 }
 
 func (h *Handler) handleVerifyStudent(c *gin.Context) {
@@ -170,8 +187,18 @@ func (h *Handler) handleVerifyStudent(c *gin.Context) {
 		response.BadRequest(c, "invalid request parameters")
 		return
 	}
+	schoolID, ok := h.resolvePublicSchoolID(c, req.SchoolCode, req.SchoolID)
+	if !ok {
+		return
+	}
 
-	profile, err := h.service.VerifyStudent(c.Request.Context(), userID, VerifyStudentRequest(req))
+	profile, err := h.service.VerifyStudent(c.Request.Context(), userID, VerifyStudentRequest{
+		SchoolID:       schoolID,
+		StudentID:      req.StudentID,
+		Password:       req.Password,
+		ManualFormData: req.ManualFormData,
+		Consent:        req.Consent,
+	})
 	if err != nil {
 		if respondVerifyStudentError(c, err) {
 			return
@@ -182,6 +209,94 @@ func (h *Handler) handleVerifyStudent(c *gin.Context) {
 	}
 
 	response.Success(c, profileToJSON(profile))
+}
+
+func (h *Handler) handleRequestStudentEmailOTP(c *gin.Context) {
+	userID, ok := h.resolveCurrentUser(c)
+	if !ok {
+		return
+	}
+
+	var req studentEmailOTPHTTPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request parameters")
+		return
+	}
+	schoolID, ok := h.resolvePublicSchoolID(c, req.SchoolCode, req.SchoolID)
+	if !ok {
+		return
+	}
+	result, err := h.service.RequestStudentEmailOTP(c.Request.Context(), StudentEmailOTPInput{
+		UserID:      userID,
+		SchoolID:    schoolID,
+		Email:       req.Email,
+		StudentID:   req.StudentID,
+		StudentName: req.StudentName,
+	})
+	if err != nil {
+		if respondVerifyStudentError(c, err) {
+			return
+		}
+		logger.FromGin(c).Error("failed to request student email otp", zap.Error(err))
+		response.InternalError(c, "failed to request student email otp")
+		return
+	}
+	response.Success(c, result)
+}
+
+func (h *Handler) handleVerifyStudentEmailOTP(c *gin.Context) {
+	userID, ok := h.resolveCurrentUser(c)
+	if !ok {
+		return
+	}
+
+	var req studentEmailOTPVerifyHTTPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request parameters")
+		return
+	}
+	schoolID, ok := h.resolvePublicSchoolID(c, req.SchoolCode, req.SchoolID)
+	if !ok {
+		return
+	}
+	profile, err := h.service.VerifyStudentEmailOTP(c.Request.Context(), StudentEmailOTPVerifyInput{
+		UserID:   userID,
+		SchoolID: schoolID,
+		Email:    req.Email,
+		Code:     req.Code,
+		Consent:  req.Consent,
+	})
+	if err != nil {
+		if respondVerifyStudentError(c, err) {
+			return
+		}
+		logger.FromGin(c).Error("failed to verify student email otp", zap.Error(err))
+		response.InternalError(c, "failed to verify student email otp")
+		return
+	}
+	response.Success(c, profileToJSON(profile))
+}
+
+func (h *Handler) resolvePublicSchoolID(c *gin.Context, schoolCode string, schoolID int64) (int64, bool) {
+	code := strings.TrimSpace(schoolCode)
+	if code == "" {
+		response.BadRequest(c, "schoolCode is required")
+		return 0, false
+	}
+	resolvedSchoolID, err := h.service.ResolveEnabledSchoolIDByCode(c.Request.Context(), code)
+	if err != nil {
+		if respondVerifyStudentError(c, err) {
+			return 0, false
+		}
+		logger.FromGin(c).Error("failed to resolve school code", zap.Error(err))
+		response.InternalError(c, "failed to resolve school")
+		return 0, false
+	}
+	if schoolID > 0 && schoolID != resolvedSchoolID {
+		response.BadRequest(c, "schoolCode and schoolID mismatch")
+		return 0, false
+	}
+	return resolvedSchoolID, true
 }
 
 type bindPhoneHTTPRequest struct {

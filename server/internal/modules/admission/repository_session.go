@@ -10,7 +10,7 @@ import (
 )
 
 const admissionSessionColumns = `
-	id, platform, bot_self_id, guild_id, channel_id, qq_id, qq_nickname, user_id, token_hash, auth_url,
+	id, platform, bot_self_id, guild_id, channel_id, qq_id, user_id, token_hash, auth_url,
 	token_expires_at, token_consumed_at, status, link_wait_deadline_at,
 	submission_wait_deadline_at, manual_review_deadline_at, initial_mute_until,
 	verified_at, cancelled_at, last_bot_error
@@ -20,18 +20,37 @@ func (r *Repository) CreateSession(ctx context.Context, session *AdmissionSessio
 	ctx = withDBTable(ctx, "group_admission_sessions")
 	_, err := r.db.Exec(ctx, `
 		INSERT INTO group_admission_sessions (
-			id, platform, bot_self_id, guild_id, channel_id, qq_id, qq_nickname, user_id, token_hash, auth_url,
+			id, platform, bot_self_id, guild_id, channel_id, qq_id, user_id, token_hash, auth_url,
 			token_expires_at, token_consumed_at, status, link_wait_deadline_at,
 			submission_wait_deadline_at, manual_review_deadline_at, initial_mute_until,
 			verified_at, cancelled_at, last_bot_error
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
-	`, session.ID, session.Platform, session.BotSelfID, session.GuildID, session.ChannelID, session.QQID, session.QQNickname,
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+	`, session.ID, session.Platform, session.BotSelfID, session.GuildID, session.ChannelID, session.QQID,
 		session.UserID, session.TokenHash, session.AuthURL, session.TokenExpiresAt, session.TokenConsumedAt, session.Status,
 		session.LinkWaitDeadlineAt, session.SubmissionWaitDeadlineAt, session.ManualReviewDeadlineAt,
 		session.InitialMuteUntil, session.VerifiedAt, session.CancelledAt, session.LastBotError)
 	if err != nil {
 		return fmt.Errorf("CreateSession: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) CreateSessionTx(ctx context.Context, tx pgx.Tx, session *AdmissionSession) error {
+	_, err := tx.Exec(ctx, `
+		INSERT INTO group_admission_sessions (
+			id, platform, bot_self_id, guild_id, channel_id, qq_id, user_id, token_hash, auth_url,
+			token_expires_at, token_consumed_at, status, link_wait_deadline_at,
+			submission_wait_deadline_at, manual_review_deadline_at, initial_mute_until,
+			verified_at, cancelled_at, last_bot_error
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+	`, session.ID, session.Platform, session.BotSelfID, session.GuildID, session.ChannelID, session.QQID,
+		session.UserID, session.TokenHash, session.AuthURL, session.TokenExpiresAt, session.TokenConsumedAt, session.Status,
+		session.LinkWaitDeadlineAt, session.SubmissionWaitDeadlineAt, session.ManualReviewDeadlineAt,
+		session.InitialMuteUntil, session.VerifiedAt, session.CancelledAt, session.LastBotError)
+	if err != nil {
+		return fmt.Errorf("CreateSessionTx: %w", err)
 	}
 	return nil
 }
@@ -51,6 +70,28 @@ func (r *Repository) GetSessionByIDForUpdate(ctx context.Context, tx pgx.Tx, id 
 	session, err := scanAdmissionSession(tx.QueryRow(ctx, query, id))
 	if err != nil {
 		return nil, fmt.Errorf("GetSessionByIDForUpdate: %w", err)
+	}
+	return session, nil
+}
+
+func (r *Repository) GetLatestSessionBySubject(
+	ctx context.Context,
+	input BotSessionSubjectInput,
+) (*AdmissionSession, error) {
+	ctx = withDBTable(ctx, "group_admission_sessions")
+	query := `
+		SELECT ` + admissionSessionColumns + `
+		FROM group_admission_sessions
+		WHERE platform = $1 AND guild_id = $2 AND qq_id = $3
+		ORDER BY created_at DESC, updated_at DESC, id DESC
+		LIMIT 1
+	`
+	session, err := scanAdmissionSession(r.db.QueryRow(ctx, query, input.Platform, input.GuildID, input.QQID))
+	if err != nil {
+		if errors.Is(err, ErrAdmissionTokenNotFound) {
+			return nil, ErrAdmissionSessionNotFound
+		}
+		return nil, fmt.Errorf("GetLatestSessionBySubject: %w", err)
 	}
 	return session, nil
 }
@@ -76,6 +117,39 @@ func (r *Repository) GetSessionByTokenHashForUpdate(
 		return nil, fmt.Errorf("GetSessionByTokenHashForUpdate: %w", err)
 	}
 	return session, nil
+}
+
+func (r *Repository) CancelInProgressSessionsBySubjectTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	input BotSessionSubjectInput,
+	now time.Time,
+) ([]string, error) {
+	rows, err := tx.Query(ctx, `
+		UPDATE group_admission_sessions
+		SET status = $4, cancelled_at = $5, updated_at = NOW()
+		WHERE platform = $1 AND guild_id = $2 AND qq_id = $3
+		  AND status IN ($6, $7, $8)
+		RETURNING id
+	`, input.Platform, input.GuildID, input.QQID, StatusCancelled, now,
+		StatusJoinedMuted, StatusLinked, StatusMaterialSubmitted)
+	if err != nil {
+		return nil, fmt.Errorf("CancelInProgressSessionsBySubjectTx: %w", err)
+	}
+	defer rows.Close()
+
+	ids := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("CancelInProgressSessionsBySubjectTx scan: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("CancelInProgressSessionsBySubjectTx rows: %w", err)
+	}
+	return ids, nil
 }
 
 func (r *Repository) MarkTokenConsumedAndLinked(
@@ -138,7 +212,7 @@ func scanAdmissionSession(row pgx.Row) (*AdmissionSession, error) {
 	var session AdmissionSession
 	err := row.Scan(
 		&session.ID, &session.Platform, &session.BotSelfID, &session.GuildID, &session.ChannelID, &session.QQID,
-		&session.QQNickname, &session.UserID, &session.TokenHash, &session.AuthURL, &session.TokenExpiresAt,
+		&session.UserID, &session.TokenHash, &session.AuthURL, &session.TokenExpiresAt,
 		&session.TokenConsumedAt, &session.Status, &session.LinkWaitDeadlineAt,
 		&session.SubmissionWaitDeadlineAt, &session.ManualReviewDeadlineAt, &session.InitialMuteUntil,
 		&session.VerifiedAt, &session.CancelledAt, &session.LastBotError,

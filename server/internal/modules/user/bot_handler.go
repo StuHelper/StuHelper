@@ -49,9 +49,8 @@ func (h *BotHandler) RegisterRoutes(rg *gin.RouterGroup) {
 }
 
 type consumeQQBindingHTTPRequest struct {
-	Code       string  `json:"code" binding:"required,max=32"`
-	QQID       string  `json:"qqID" binding:"required,max=64"`
-	QQNickname *string `json:"qqNickname"`
+	Code string `json:"code" binding:"required,max=32"`
+	QQID string `json:"qqID" binding:"required,max=64"`
 }
 
 func (h *BotHandler) handleConsumeQQBindingCode(c *gin.Context) {
@@ -61,7 +60,7 @@ func (h *BotHandler) handleConsumeQQBindingCode(c *gin.Context) {
 		return
 	}
 
-	binding, err := h.service.ConsumeQQBindingCode(c.Request.Context(), req.Code, req.QQID, req.QQNickname)
+	binding, err := h.service.ConsumeQQBindingCode(c.Request.Context(), req.Code, req.QQID)
 	if err != nil {
 		if respondQQBindingConsumeError(c, err) {
 			return
@@ -148,6 +147,9 @@ func respondBotCredentialError(c *gin.Context, err error) {
 		response.Unauthorized(c, "unauthorized")
 	case errors.Is(err, serviceaccount.ErrCredentialForbidden):
 		response.Forbidden(c, "forbidden")
+	case errors.Is(err, serviceaccount.ErrCredentialStoreUnavailable):
+		logger.FromGin(c).Error("bot service credential store unavailable", zap.Error(err))
+		response.ServiceUnavailable(c, "bot service credential store unavailable")
 	default:
 		logger.FromGin(c).Error("failed to verify bot service credential", zap.Error(err))
 		response.InternalError(c, "failed to verify bot service credential")

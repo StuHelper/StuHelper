@@ -5,7 +5,9 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/serviceaccount"
 )
@@ -13,12 +15,17 @@ import (
 const admissionBearerPrefix = "Bearer "
 
 type botSessionCreateHTTPRequest struct {
-	Platform   string  `json:"platform" binding:"required,max=32"`
-	GuildID    string  `json:"guildID" binding:"required,max=128"`
-	ChannelID  string  `json:"channelID" binding:"required,max=128"`
-	QQID       string  `json:"qqID" binding:"required,max=64"`
-	QQNickname *string `json:"qqNickname"`
-	BotSelfID  string  `json:"botSelfID"`
+	Platform  string `json:"platform" binding:"required,max=32"`
+	GuildID   string `json:"guildID" binding:"required,max=128"`
+	ChannelID string `json:"channelID" binding:"required,max=128"`
+	QQID      string `json:"qqID" binding:"required,max=64"`
+	BotSelfID string `json:"botSelfID"`
+}
+
+type botSessionSubjectHTTPRequest struct {
+	Platform string `json:"platform" binding:"required,max=32"`
+	GuildID  string `json:"guildID" binding:"required,max=128"`
+	QQID     string `json:"qqID" binding:"required,max=64"`
 }
 
 type botAdmissionEventHTTPRequest struct {
@@ -45,6 +52,47 @@ func (h *Handler) handleCreateBotSession(c *gin.Context) {
 		return
 	}
 	created, err := h.service.CreateBotSession(c.Request.Context(), botSessionCreateInput(req))
+	if err != nil {
+		respondAdmissionError(c, err)
+		return
+	}
+	response.Created(c, created)
+}
+
+func (h *Handler) handleGetBotAdmissionSession(c *gin.Context) {
+	input, ok := botSessionSubjectFromQuery(c)
+	if !ok {
+		return
+	}
+	session, err := h.service.GetBotAdmissionSession(c.Request.Context(), input)
+	if err != nil {
+		respondAdmissionError(c, err)
+		return
+	}
+	response.Success(c, session)
+}
+
+func (h *Handler) handleResendBotAdmissionSession(c *gin.Context) {
+	var req botSessionSubjectHTTPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request parameters")
+		return
+	}
+	session, err := h.service.ResendBotAdmissionSession(c.Request.Context(), botSessionSubjectInput(req))
+	if err != nil {
+		respondAdmissionError(c, err)
+		return
+	}
+	response.Success(c, session)
+}
+
+func (h *Handler) handleRegenerateBotAdmissionSession(c *gin.Context) {
+	var req botSessionCreateHTTPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request parameters")
+		return
+	}
+	created, err := h.service.RegenerateBotAdmissionSession(c.Request.Context(), botSessionCreateInput(req))
 	if err != nil {
 		respondAdmissionError(c, err)
 		return
@@ -112,6 +160,10 @@ func botSessionCreateInput(req botSessionCreateHTTPRequest) BotSessionCreateInpu
 	return BotSessionCreateInput(req)
 }
 
+func botSessionSubjectInput(req botSessionSubjectHTTPRequest) BotSessionSubjectInput {
+	return BotSessionSubjectInput(req)
+}
+
 func botEventInput(req botAdmissionEventHTTPRequest) BotEventInput {
 	return BotEventInput(req)
 }
@@ -151,7 +203,11 @@ func respondAdmissionBotCredentialError(c *gin.Context, err error) {
 		response.Unauthorized(c, "unauthorized")
 	case errors.Is(err, serviceaccount.ErrCredentialForbidden):
 		response.Forbidden(c, "forbidden")
+	case errors.Is(err, serviceaccount.ErrCredentialStoreUnavailable):
+		logger.FromGin(c).Error("admission bot service credential store unavailable", zap.Error(err))
+		response.ServiceUnavailable(c, "bot service credential store unavailable")
 	default:
+		logger.FromGin(c).Error("failed to verify admission bot service credential", zap.Error(err))
 		response.InternalError(c, "failed to verify bot service credential")
 	}
 	c.Abort()

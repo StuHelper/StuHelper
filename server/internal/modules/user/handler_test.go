@@ -504,10 +504,20 @@ func TestHandleVerifyStudent_ManualAllowsEmptyCredentials(t *testing.T) {
 			assert.Equal(t, int64(42), userID)
 			return &IdentityStatus{UserID: userID, Verified: true}, nil
 		},
+		onListSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {
+			return []SchoolConfig{{
+				SchoolID:           10006,
+				SchoolCode:         "4111010006",
+				SchoolName:         "北航",
+				VerificationMethod: VerifyMethodManual,
+				Enabled:            true,
+			}}, nil
+		},
 		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
 			assert.Equal(t, int64(10006), schoolID)
 			return &SchoolConfig{
 				SchoolID:           10006,
+				SchoolCode:         "4111010006",
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodManual,
 				ApprovalPolicy:     "manual",
@@ -544,7 +554,7 @@ func TestHandleVerifyStudent_ManualAllowsEmptyCredentials(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v1/user/profile/verify",
-		strings.NewReader(`{"schoolID":10006,"manualFormData":{"studentID":"20240001"},"consent":true}`),
+		strings.NewReader(`{"schoolCode":"4111010006","manualFormData":{"studentID":"20240001"},"consent":true}`),
 	)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -558,6 +568,132 @@ func TestHandleVerifyStudent_ManualAllowsEmptyCredentials(t *testing.T) {
 	require.NoError(t, err)
 	data := resp["data"].(map[string]any)
 	assert.Equal(t, "pending", data["verificationStatus"])
+}
+
+func TestHandleVerifyStudent_RejectsSchoolIDOnlyPublicRequest(t *testing.T) {
+	repo := &mockRepo{
+		onGetInternalUserID: func(_ context.Context, _ string) (int64, error) {
+			return 42, nil
+		},
+	}
+
+	r := setupUserHandlerTestRouterWithRepo(t, repo)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/profile/verify",
+		strings.NewReader(`{"schoolID":10006,"manualFormData":{"studentID":"20240001"},"consent":true}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "schoolCode is required")
+}
+
+func TestPublicStudentVerificationEndpointsRequireSchoolCode(t *testing.T) {
+	cases := []struct {
+		name string
+		path string
+		body string
+	}{
+		{
+			name: "manual verification",
+			path: "/api/v1/user/profile/verify",
+			body: `{"schoolID":10006,"manualFormData":{"studentID":"20240001"},"consent":true}`,
+		},
+		{
+			name: "request school email otp",
+			path: "/api/v1/user/profile/school-email/request-otp",
+			body: `{"schoolID":10006,"studentID":"20240001","studentName":"张三"}`,
+		},
+		{
+			name: "verify school email otp",
+			path: "/api/v1/user/profile/school-email/verify-otp",
+			body: `{"schoolID":10006,"email":"20240001@buaa.edu.cn","code":"123456","consent":true}`,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &mockRepo{
+				onGetInternalUserID: func(_ context.Context, _ string) (int64, error) {
+					return 42, nil
+				},
+				onListSchoolConfigs: func(context.Context) ([]SchoolConfig, error) {
+					t.Fatal("schoolID-only public request must fail before school lookup")
+					return nil, nil
+				},
+			}
+
+			r := setupUserHandlerTestRouterWithRepo(t, repo)
+			req := httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusBadRequest, w.Code)
+			assert.Contains(t, w.Body.String(), "schoolCode is required")
+		})
+	}
+}
+
+func TestPublicStudentVerificationEndpointsRejectSchoolCodeSchoolIDMismatch(t *testing.T) {
+	cases := []struct {
+		name string
+		path string
+		body string
+	}{
+		{
+			name: "manual verification",
+			path: "/api/v1/user/profile/verify",
+			body: `{"schoolCode":"4111010006","schoolID":99999,"manualFormData":{"studentID":"20240001"},"consent":true}`,
+		},
+		{
+			name: "request school email otp",
+			path: "/api/v1/user/profile/school-email/request-otp",
+			body: `{"schoolCode":"4111010006","schoolID":99999,"studentID":"20240001","studentName":"张三"}`,
+		},
+		{
+			name: "verify school email otp",
+			path: "/api/v1/user/profile/school-email/verify-otp",
+			body: `{"schoolCode":"4111010006","schoolID":99999,"email":"20240001@buaa.edu.cn","code":"123456","consent":true}`,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &mockRepo{
+				onGetInternalUserID: func(_ context.Context, _ string) (int64, error) {
+					return 42, nil
+				},
+				onListSchoolConfigs: func(context.Context) ([]SchoolConfig, error) {
+					return []SchoolConfig{{
+						SchoolID:   10006,
+						SchoolCode: "4111010006",
+						SchoolName: "北京航空航天大学",
+						Enabled:    true,
+					}}, nil
+				},
+				onGetSchoolConfig: func(context.Context, int64) (*SchoolConfig, error) {
+					t.Fatal("schoolCode/schoolID mismatch must fail before verification service")
+					return nil, nil
+				},
+			}
+
+			r := setupUserHandlerTestRouterWithRepo(t, repo)
+			req := httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusBadRequest, w.Code)
+			assert.Contains(t, w.Body.String(), "schoolCode and schoolID mismatch")
+		})
+	}
 }
 
 func TestHandleVerifyStudent_LDAPMissingStudentIDReturns400(t *testing.T) {
@@ -889,6 +1025,42 @@ func TestHandleListSchools_ManualIncludesManualFormFields(t *testing.T) {
 	require.Len(t, manualFormFields, 1)
 	firstField := manualFormFields[0].(map[string]any)
 	assert.Equal(t, "studentID", firstField["key"])
+	assert.Equal(t, false, item["schoolSsoEnabled"])
+	assert.Equal(t, false, item["schoolEmailOtpEnabled"])
+}
+
+func TestHandleListSchools_AdmissionCapabilitiesFromSchoolConfig(t *testing.T) {
+	repo := &mockRepo{
+		onListSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {
+			return []SchoolConfig{{
+				SchoolID:           10006,
+				SchoolName:         "北京航空航天大学",
+				VerificationMethod: VerifyMethodLDAP,
+				ManualFormFields: json.RawMessage(
+					`{"admission":{"emailDomains":["buaa.edu.cn"],"ssoLoginURL":"https://sso.school.example/login"}}`,
+				),
+				Enabled: true,
+			}}, nil
+		},
+	}
+
+	r := setupUserHandlerTestRouterWithRepo(t, repo)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/user/schools", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+
+	list := resp["data"].([]any)
+	require.Len(t, list, 1)
+	item := list[0].(map[string]any)
+	assert.Equal(t, true, item["schoolSsoEnabled"])
+	assert.Equal(t, true, item["schoolEmailOtpEnabled"])
+	assert.NotContains(t, item, "manualFormFields")
 }
 
 func TestHandleListSchools_ManualWithoutFieldsReturnsEmptySlice(t *testing.T) {
@@ -919,6 +1091,8 @@ func TestHandleListSchools_ManualWithoutFieldsReturnsEmptySlice(t *testing.T) {
 	item := list[0].(map[string]any)
 	manualFormFields := item["manualFormFields"].([]any)
 	assert.Empty(t, manualFormFields)
+	assert.Equal(t, false, item["schoolSsoEnabled"])
+	assert.Equal(t, false, item["schoolEmailOtpEnabled"])
 }
 
 func TestHandleAdminListSystemConfigs_MapsToSpecShape(t *testing.T) {

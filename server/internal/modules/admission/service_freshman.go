@@ -6,11 +6,14 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
+	"net/url"
 	"strings"
+	"time"
 
 	_ "golang.org/x/image/webp"
 
@@ -18,6 +21,7 @@ import (
 )
 
 const freshmanMaterialObjectPrefix = "admission/freshman/"
+const freshmanCameraHandoffTTL = 30 * time.Minute
 
 func (s *Service) CreateFreshmanApplication(
 	ctx context.Context,
@@ -34,8 +38,12 @@ func (s *Service) CreateFreshmanApplication(
 	if !policy.FreshmanChannelEnabled || s.now().After(policy.FreshmanChannelClosesAt) {
 		return nil, ErrAdmissionFreshmanChannelClosed
 	}
-	if err := s.ensureNoPendingApplication(ctx, input.UserID, input.SchoolID); err != nil {
+	existing, err := s.repo.GetPendingFreshmanApplication(ctx, input.UserID, input.SchoolID)
+	if err != nil {
 		return nil, err
+	}
+	if existing != nil {
+		return existing, nil
 	}
 	app, err := s.buildFreshmanApplication(input, session.ID)
 	if err != nil {
@@ -59,6 +67,9 @@ func (s *Service) SubmitCameraCapture(ctx context.Context, input CameraCaptureIn
 	if err != nil {
 		return nil, err
 	}
+	if err := s.ensureFreshmanDesktopCaptureAllowed(ctx, app.ID); err != nil {
+		return nil, err
+	}
 	material, content, err := s.buildFreshmanMaterial(input, policy.MaxMaterialBytes)
 	if err != nil {
 		return nil, err
@@ -70,12 +81,172 @@ func (s *Service) SubmitCameraCapture(ctx context.Context, input CameraCaptureIn
 		if cleanupErr := s.materialStore.DeleteAdmissionMaterial(ctx, material.ObjectKey); cleanupErr != nil {
 			return nil, fmt.Errorf("SubmitCameraCapture create material: %w; cleanup: %v", err, cleanupErr)
 		}
+		if isFreshmanMaterialApplicationUniqueViolation(err) {
+			return nil, ErrAdmissionCameraHandoffLocked
+		}
 		return nil, err
 	}
 	if _, err := s.MarkMaterialSubmitted(ctx, session.ID); err != nil {
 		return nil, err
 	}
 	return app, nil
+}
+
+func (s *Service) CreateFreshmanCameraHandoff(
+	ctx context.Context,
+	input FreshmanCameraHandoffCreateInput,
+) (*FreshmanCameraHandoff, error) {
+	app, err := s.repo.GetFreshmanApplicationForUser(ctx, input.ApplicationID, input.UserID)
+	if err != nil {
+		return nil, err
+	}
+	if _, _, err := s.loadApplicationSessionPolicy(ctx, app); err != nil {
+		return nil, err
+	}
+	hasMaterial, err := s.repo.FreshmanApplicationHasMaterial(ctx, app.ID)
+	if err != nil {
+		return nil, err
+	}
+	if hasMaterial {
+		return nil, ErrAdmissionCameraHandoffLocked
+	}
+	active, err := s.repo.GetActiveFreshmanCameraHandoff(ctx, app.ID, s.now())
+	if err != nil {
+		return nil, err
+	}
+	if active != nil && active.Status == FreshmanCameraHandoffUploaded {
+		return s.hydrateFreshmanCameraHandoff(ctx, active)
+	}
+	if err := s.repo.ExpirePendingFreshmanCameraHandoffs(ctx, app.ID, s.now()); err != nil {
+		return nil, err
+	}
+	token, err := s.generateToken()
+	if err != nil {
+		return nil, err
+	}
+	handoffID, err := id.New()
+	if err != nil {
+		return nil, err
+	}
+	handoff := FreshmanCameraHandoff{
+		ID:            handoffID,
+		ApplicationID: app.ID,
+		UserID:        input.UserID,
+		Status:        FreshmanCameraHandoffPending,
+		MobileURL:     s.buildFreshmanCameraMobileURL(token),
+		ExpiresAt:     s.now().Add(freshmanCameraHandoffTTL),
+		CreatedAt:     s.now(),
+	}
+	if err := s.repo.CreateFreshmanCameraHandoff(ctx, handoff, s.hashToken(token)); err != nil {
+		return nil, err
+	}
+	return &handoff, nil
+}
+
+func (s *Service) GetFreshmanCameraHandoffForUser(
+	ctx context.Context,
+	userID int64,
+	handoffID string,
+) (*FreshmanCameraHandoff, error) {
+	handoff, err := s.repo.GetFreshmanCameraHandoffForUser(ctx, handoffID, userID)
+	if err != nil {
+		return nil, err
+	}
+	return s.hydrateFreshmanCameraHandoff(ctx, handoff)
+}
+
+func (s *Service) PreviewFreshmanCameraHandoff(
+	ctx context.Context,
+	token string,
+) (*FreshmanCameraHandoff, error) {
+	handoff, err := s.repo.GetFreshmanCameraHandoffByTokenHash(ctx, s.hashToken(token))
+	if err != nil {
+		return nil, err
+	}
+	return s.hydrateFreshmanCameraHandoff(ctx, handoff)
+}
+
+func (s *Service) SubmitFreshmanCameraHandoffCapture(
+	ctx context.Context,
+	input FreshmanCameraHandoffCaptureInput,
+) (*FreshmanCameraHandoff, error) {
+	if s.materialStore == nil {
+		return nil, ErrAdmissionMaterialStoreUnavailable
+	}
+	handoff, err := s.repo.GetFreshmanCameraHandoffByTokenHash(ctx, s.hashToken(input.Token))
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureFreshmanCameraHandoffUsable(handoff); err != nil {
+		if errors.Is(err, ErrAdmissionCameraHandoffLocked) {
+			return s.recoverFreshmanCameraHandoffUpload(ctx, handoff)
+		}
+		return nil, err
+	}
+	app, err := s.repo.GetFreshmanApplicationByID(ctx, handoff.ApplicationID)
+	if err != nil {
+		return nil, err
+	}
+	session, policy, err := s.loadApplicationSessionPolicy(ctx, app)
+	if err != nil {
+		return nil, err
+	}
+	material, content, err := s.buildFreshmanMaterial(CameraCaptureInput{
+		ApplicationID: app.ID,
+		ContentType:   input.ContentType,
+		ImageBase64:   input.ImageBase64,
+	}, policy.MaxMaterialBytes)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.materialStore.PutAdmissionMaterial(ctx, material.ObjectKey, content, material.ContentType); err != nil {
+		return nil, fmt.Errorf("SubmitFreshmanCameraHandoffCapture store material: %w", err)
+	}
+	if err := s.repo.CreateFreshmanMaterial(ctx, material); err != nil {
+		if cleanupErr := s.materialStore.DeleteAdmissionMaterial(ctx, material.ObjectKey); cleanupErr != nil {
+			return nil, fmt.Errorf("SubmitFreshmanCameraHandoffCapture create material: %w; cleanup: %v", err, cleanupErr)
+		}
+		if isFreshmanMaterialApplicationUniqueViolation(err) {
+			return s.recoverFreshmanCameraHandoffUpload(ctx, handoff)
+		}
+		return nil, err
+	}
+	if err := s.ensureFreshmanMaterialSubmitted(ctx, session); err != nil {
+		return nil, err
+	}
+	now := s.now()
+	if err := s.repo.MarkFreshmanCameraHandoffUploaded(ctx, handoff.ID, now); err != nil {
+		return nil, err
+	}
+	handoff.Status = FreshmanCameraHandoffUploaded
+	handoff.UploadedAt = &now
+	return handoff, nil
+}
+
+func (s *Service) ChooseFreshmanCameraHandoffContinuation(
+	ctx context.Context,
+	input FreshmanCameraHandoffContinuationInput,
+) (*FreshmanCameraHandoff, error) {
+	switch input.ContinueOn {
+	case FreshmanCameraContinueDesktop, FreshmanCameraContinueMobile:
+	default:
+		return nil, ErrAdmissionCameraHandoffInvalidChoice
+	}
+	handoff, err := s.repo.GetFreshmanCameraHandoffByTokenHash(ctx, s.hashToken(input.Token))
+	if err != nil {
+		return nil, err
+	}
+	if s.now().After(handoff.ExpiresAt) {
+		return nil, ErrAdmissionCameraHandoffExpired
+	}
+	if handoff.Status != FreshmanCameraHandoffUploaded {
+		return nil, ErrAdmissionCameraHandoffLocked
+	}
+	updated, err := s.repo.ChooseFreshmanCameraHandoffContinuation(ctx, handoff.ID, input.ContinueOn, s.now())
+	if err != nil {
+		return nil, err
+	}
+	return updated, nil
 }
 
 func (s *Service) requireLinkedSession(ctx context.Context, userID int64) (*AdmissionSession, error) {
@@ -87,6 +258,130 @@ func (s *Service) requireLinkedSession(ctx context.Context, userID int64) (*Admi
 		return nil, ErrAdmissionLinkedSessionRequired
 	}
 	return session, nil
+}
+
+func (s *Service) ensureFreshmanCameraHandoffUsable(handoff *FreshmanCameraHandoff) error {
+	if handoff == nil {
+		return ErrAdmissionCameraHandoffNotFound
+	}
+	if s.now().After(handoff.ExpiresAt) {
+		return ErrAdmissionCameraHandoffExpired
+	}
+	if handoff.Status != FreshmanCameraHandoffPending {
+		return ErrAdmissionCameraHandoffLocked
+	}
+	return nil
+}
+
+func (s *Service) ensureFreshmanCameraHandoffCanStart(ctx context.Context, applicationID string) error {
+	hasMaterial, err := s.repo.FreshmanApplicationHasMaterial(ctx, applicationID)
+	if err != nil {
+		return err
+	}
+	if hasMaterial {
+		return ErrAdmissionCameraHandoffLocked
+	}
+	active, err := s.repo.HasActiveFreshmanCameraHandoff(ctx, applicationID, s.now())
+	if err != nil {
+		return err
+	}
+	if active {
+		return ErrAdmissionCameraHandoffLocked
+	}
+	return nil
+}
+
+func (s *Service) ensureFreshmanDesktopCaptureAllowed(ctx context.Context, applicationID string) error {
+	hasMaterial, err := s.repo.FreshmanApplicationHasMaterial(ctx, applicationID)
+	if err != nil {
+		return err
+	}
+	if hasMaterial {
+		return ErrAdmissionCameraHandoffLocked
+	}
+	active, err := s.repo.GetActiveFreshmanCameraHandoff(ctx, applicationID, s.now())
+	if err != nil {
+		return err
+	}
+	if active == nil {
+		return nil
+	}
+	if active.Status == FreshmanCameraHandoffPending {
+		return s.repo.ExpirePendingFreshmanCameraHandoffs(ctx, applicationID, s.now())
+	}
+	if active.Status == FreshmanCameraHandoffUploaded {
+		return ErrAdmissionCameraHandoffLocked
+	}
+	return nil
+}
+
+func (s *Service) hydrateFreshmanCameraHandoff(
+	_ context.Context,
+	handoff *FreshmanCameraHandoff,
+) (*FreshmanCameraHandoff, error) {
+	if handoff == nil {
+		return nil, ErrAdmissionCameraHandoffNotFound
+	}
+	if s.now().After(handoff.ExpiresAt) && handoff.Status == FreshmanCameraHandoffPending {
+		handoff.Status = FreshmanCameraHandoffExpired
+	}
+	return handoff, nil
+}
+
+func (s *Service) recoverFreshmanCameraHandoffUpload(
+	ctx context.Context,
+	handoff *FreshmanCameraHandoff,
+) (*FreshmanCameraHandoff, error) {
+	hasMaterial, err := s.repo.FreshmanApplicationHasMaterial(ctx, handoff.ApplicationID)
+	if err != nil {
+		return nil, err
+	}
+	if !hasMaterial {
+		return nil, ErrAdmissionCameraHandoffLocked
+	}
+	app, err := s.repo.GetFreshmanApplicationByID(ctx, handoff.ApplicationID)
+	if err != nil {
+		return nil, err
+	}
+	session, _, err := s.loadApplicationSessionPolicy(ctx, app)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureFreshmanMaterialSubmitted(ctx, session); err != nil {
+		return nil, err
+	}
+	if handoff.Status == FreshmanCameraHandoffPending {
+		if err := s.repo.MarkFreshmanCameraHandoffUploaded(ctx, handoff.ID, s.now()); err != nil &&
+			!errors.Is(err, ErrAdmissionCameraHandoffLocked) {
+			return nil, err
+		}
+	}
+	current, err := s.repo.GetFreshmanCameraHandoffByID(ctx, handoff.ID)
+	if err != nil {
+		return nil, err
+	}
+	return s.hydrateFreshmanCameraHandoff(ctx, current)
+}
+
+func (s *Service) ensureFreshmanMaterialSubmitted(ctx context.Context, session *AdmissionSession) error {
+	switch session.Status {
+	case StatusLinked:
+		policy, err := s.loadPolicy(ctx, session.Platform, session.GuildID)
+		if err != nil {
+			return err
+		}
+		deadline := s.now().Add(time.Duration(policy.ManualReviewTimeoutSeconds) * time.Second)
+		_, err = s.repo.MarkMaterialSubmitted(ctx, session.ID, deadline)
+		return err
+	case StatusMaterialSubmitted, StatusVerified:
+		return nil
+	default:
+		return ErrAdmissionInvalidStatus
+	}
+}
+
+func (s *Service) buildFreshmanCameraMobileURL(token string) string {
+	return s.returnURLOrigin + "/admission/freshman/camera/" + url.PathEscape(token)
 }
 
 func (s *Service) ensureNoPendingApplication(ctx context.Context, userID, schoolID int64) error {

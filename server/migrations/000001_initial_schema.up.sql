@@ -885,7 +885,6 @@ CREATE TABLE public.group_admission_sessions (
     guild_id text NOT NULL,
     channel_id text NOT NULL,
     qq_id text NOT NULL,
-    qq_nickname text,
     user_id bigint,
     token_hash character varying(128) NOT NULL,
     auth_url text DEFAULT ''::text NOT NULL,
@@ -1490,7 +1489,6 @@ CREATE TABLE public.user_qq_binding_codes (
 CREATE TABLE public.user_qq_bindings (
     user_id bigint NOT NULL,
     qq_id character varying(64) NOT NULL,
-    qq_nickname character varying(255),
     bound_at timestamp with time zone DEFAULT now() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
@@ -4205,7 +4203,8 @@ VALUES
     ('review_preview_title_chars', '24', '评课标题预览最大字符数'),
     ('review_preview_content_chars', '120', '评课正文预览最大字符数'),
     ('review_preview_content_percent', '100', '评课正文预览最大展示比例（1-100）'),
-    ('auth_access_token_ttl_seconds', '300', 'Access Token 有效期（秒）；可在管理后台系统设置中热更新');
+    ('auth_access_token_ttl_seconds', '300', 'Access Token 有效期（秒）；可在管理后台系统设置中热更新'),
+    ('email.delivery_policy', '{"mode":"priority","maxAttempts":2,"providers":[{"name":"tencent_ses","enabled":true,"priority":10,"weight":100},{"name":"resend","enabled":true,"priority":20,"weight":100}]}', '邮件发送提供商策略；mode=priority/weighted，priority 越小越优先，weight 用于同优先级负载均衡');
 
 INSERT INTO public.academic_sources (key, name, provider, config)
 VALUES ('buaa-fixture', 'BUAA Demo Fixture', 'fixture', '{"fixture":"buaa-default"}'::jsonb);

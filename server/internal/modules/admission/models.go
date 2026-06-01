@@ -1,6 +1,10 @@
 package admission
 
-import "time"
+import (
+	"encoding/json"
+	"strconv"
+	"time"
+)
 
 const (
 	DefaultInitialMuteDurationSeconds       = 30 * 24 * 60 * 60
@@ -32,6 +36,22 @@ const (
 	FreshmanApplicationRejected FreshmanApplicationStatus = "rejected"
 )
 
+type FreshmanCameraHandoffStatus string
+
+const (
+	FreshmanCameraHandoffPending  FreshmanCameraHandoffStatus = "pending"
+	FreshmanCameraHandoffUploaded FreshmanCameraHandoffStatus = "uploaded"
+	FreshmanCameraHandoffLocked   FreshmanCameraHandoffStatus = "locked"
+	FreshmanCameraHandoffExpired  FreshmanCameraHandoffStatus = "expired"
+)
+
+type FreshmanCameraContinuation string
+
+const (
+	FreshmanCameraContinueDesktop FreshmanCameraContinuation = "desktop"
+	FreshmanCameraContinueMobile  FreshmanCameraContinuation = "mobile"
+)
+
 type VerificationCredentialKind string
 
 const (
@@ -51,7 +71,7 @@ const (
 	BotActionForward   BotAction = "forward"
 )
 
-const defaultAdmissionAuthBaseURL = "https://auth.stuhelper.com/admission/a/"
+const defaultAdmissionPublicBaseURL = "https://join.stuhelper.com"
 
 type AdmissionSession struct {
 	ID                       string                 `json:"id"`
@@ -60,7 +80,6 @@ type AdmissionSession struct {
 	GuildID                  string                 `json:"guildID"`
 	ChannelID                string                 `json:"channelID"`
 	QQID                     string                 `json:"qqID"`
-	QQNickname               *string                `json:"qqNickname,omitempty"`
 	UserID                   *int64                 `json:"userID,omitempty"`
 	TokenHash                string                 `json:"-"`
 	AuthURL                  string                 `json:"authURL,omitempty"`
@@ -75,6 +94,22 @@ type AdmissionSession struct {
 	CancelledAt              *time.Time             `json:"cancelledAt,omitempty"`
 	LastBotError             *string                `json:"lastBotError,omitempty"`
 	ProjectionPending        bool                   `json:"projectionPending"`
+}
+
+func (s AdmissionSession) MarshalJSON() ([]byte, error) {
+	type alias AdmissionSession
+	var userID *string
+	if s.UserID != nil {
+		value := strconv.FormatInt(*s.UserID, 10)
+		userID = &value
+	}
+	return json.Marshal(struct {
+		alias
+		UserID *string `json:"userID,omitempty"`
+	}{
+		alias:  alias(s),
+		UserID: userID,
+	})
 }
 
 type AdmissionMe struct {
@@ -92,12 +127,17 @@ type CreatedAdmissionSession struct {
 }
 
 type BotSessionCreateInput struct {
-	Platform   string
-	GuildID    string
-	ChannelID  string
-	QQID       string
-	QQNickname *string
-	BotSelfID  string
+	Platform  string
+	GuildID   string
+	ChannelID string
+	QQID      string
+	BotSelfID string
+}
+
+type BotSessionSubjectInput struct {
+	Platform string
+	GuildID  string
+	QQID     string
 }
 
 type BotEventInput struct {
@@ -130,6 +170,17 @@ type FreshmanApplication struct {
 	ProvisionalExpiresAt *time.Time                `json:"provisionalExpiresAt,omitempty"`
 	ReviewedAt           *time.Time                `json:"reviewedAt,omitempty"`
 	CreatedAt            time.Time                 `json:"createdAt"`
+}
+
+func (app FreshmanApplication) MarshalJSON() ([]byte, error) {
+	type alias FreshmanApplication
+	return json.Marshal(struct {
+		alias
+		UserID string `json:"userID"`
+	}{
+		alias:  alias(app),
+		UserID: strconv.FormatInt(app.UserID, 10),
+	})
 }
 
 type FreshmanApplicationCreateInput struct {
@@ -173,10 +224,52 @@ type CameraCaptureInput struct {
 	ImageBase64   string
 }
 
+type FreshmanCameraHandoff struct {
+	ID            string                      `json:"id"`
+	ApplicationID string                      `json:"applicationID"`
+	UserID        int64                       `json:"userID"`
+	Status        FreshmanCameraHandoffStatus `json:"status"`
+	ContinueOn    *FreshmanCameraContinuation `json:"continueOn,omitempty"`
+	MobileURL     string                      `json:"mobileURL,omitempty"`
+	ExpiresAt     time.Time                   `json:"expiresAt"`
+	UploadedAt    *time.Time                  `json:"uploadedAt,omitempty"`
+	ChosenAt      *time.Time                  `json:"chosenAt,omitempty"`
+	CreatedAt     time.Time                   `json:"createdAt"`
+}
+
+func (h FreshmanCameraHandoff) MarshalJSON() ([]byte, error) {
+	type alias FreshmanCameraHandoff
+	return json.Marshal(struct {
+		alias
+		UserID string `json:"userID"`
+	}{
+		alias:  alias(h),
+		UserID: strconv.FormatInt(h.UserID, 10),
+	})
+}
+
+type FreshmanCameraHandoffCreateInput struct {
+	UserID        int64
+	ApplicationID string
+}
+
+type FreshmanCameraHandoffCaptureInput struct {
+	Token       string
+	ContentType string
+	ImageBase64 string
+}
+
+type FreshmanCameraHandoffContinuationInput struct {
+	Token      string
+	ContinueOn FreshmanCameraContinuation
+}
+
 type SchoolEmailOTPInput struct {
-	UserID   int64
-	SchoolID int64
-	Email    string
+	UserID      int64
+	SchoolID    int64
+	Email       string
+	StudentID   string
+	StudentName string
 }
 
 type SchoolEmailOTPVerifyInput struct {
@@ -187,7 +280,9 @@ type SchoolEmailOTPVerifyInput struct {
 }
 
 type SchoolEmailOTPResponse struct {
-	CooldownSeconds int
+	CooldownSeconds int    `json:"cooldownSeconds"`
+	Email           string `json:"email"`
+	StudentID       string `json:"studentID,omitempty"`
 }
 
 type SchoolSSOStartInput struct {
@@ -225,11 +320,20 @@ type SchoolSSOIdentity struct {
 }
 
 type AdmissionSchoolConfig struct {
-	SchoolID        int64
-	Enabled         bool
-	EmailDomains    []string
-	SSOLoginURL     string
-	FreshmanEnabled bool
+	SchoolID            int64
+	SchoolCode          string
+	Enabled             bool
+	EmailDomains        []string
+	SSOLoginURL         string
+	EmailIdentityPolicy *SchoolEmailIdentityPolicy
+	FreshmanEnabled     bool
+	AcademicDBTable     *string
+}
+
+type SchoolEmailIdentityPolicy struct {
+	Type                 string `json:"type,omitempty"`
+	StudentIDEmailDomain string `json:"studentIDEmailDomain,omitempty"`
+	RequireStudentName   bool   `json:"requireStudentName,omitempty"`
 }
 
 type ExpiredFreshmanCredential struct {

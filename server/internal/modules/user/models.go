@@ -91,6 +91,7 @@ type ManualFieldDescriptor struct {
 // SchoolConfig 学校认证配置
 type SchoolConfig struct {
 	SchoolID           int64
+	SchoolCode         string
 	SchoolName         string
 	VerificationMethod string
 	ApprovalPolicy     string // auto: 认证通过即批准; manual: 需人工审核

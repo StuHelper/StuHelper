@@ -10,8 +10,10 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
 const (
@@ -22,6 +24,7 @@ const (
 	forbiddenCredentialReason = "credential audience or scope denied"   // #nosec G101 -- audit reason, not a secret.
 	revokedCredentialReason   = "credential revoked"                    // #nosec G101 -- audit reason, not a secret.
 	expiredCredentialReason   = "credential expired"                    // #nosec G101 -- audit reason, not a secret.
+	storeUnavailableReason    = "credential store unavailable"          // #nosec G101 -- audit reason, not a secret.
 	usageTrackingReason       = "credential usage tracking unavailable" // #nosec G101 -- audit reason, not a secret.
 )
 
@@ -66,8 +69,16 @@ func (v *Verifier) Verify(ctx context.Context, rawToken, audience, scope string)
 		return err
 	}
 	if err := v.touchLastUsed(ctx, record.ID); err != nil {
-		logServiceAccountCall(ctx, input, record, auditResultFailure, usageTrackingReason)
-		return err
+		logger.L().Warn(
+			"touch service account credential usage failed",
+			zap.Error(err),
+			zap.Int64("credential_id", record.ID),
+			zap.String("credential_name", record.Name),
+			zap.String("audience", input.Audience),
+			zap.String("scope", input.Scope),
+		)
+		logServiceAccountCall(ctx, input, record, auditResultSuccess, usageTrackingReason)
+		return nil
 	}
 
 	logServiceAccountCall(ctx, input, record, auditResultSuccess, "")
@@ -99,7 +110,8 @@ func (v *Verifier) handleCredentialLoadError(ctx context.Context, input verifyIn
 		logServiceAccountCall(ctx, input, nil, auditResultFailure, invalidCredentialReason)
 		return ErrCredentialInvalid
 	}
-	return fmt.Errorf("verify service account credential: %w", err)
+	logServiceAccountCall(ctx, input, nil, auditResultFailure, storeUnavailableReason)
+	return fmt.Errorf("%w: %v", ErrCredentialStoreUnavailable, err)
 }
 
 func (v *Verifier) validateCredential(ctx context.Context, input verifyInput, record *credentialRecord) error {

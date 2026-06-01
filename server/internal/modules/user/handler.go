@@ -63,8 +63,12 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, authMW gin.HandlerFunc) {
 		user.GET("/profile", h.handleGetProfile)
 		if h.verifyLimiter != nil {
 			user.POST("/profile/verify", middleware.EndpointRateLimitMiddleware(h.verifyLimiter, "user-profile-verify"), h.handleVerifyStudent)
+			user.POST("/profile/school-email/request-otp", middleware.EndpointRateLimitMiddleware(h.verifyLimiter, "user-profile-school-email-request-otp"), h.handleRequestStudentEmailOTP)
+			user.POST("/profile/school-email/verify-otp", middleware.EndpointRateLimitMiddleware(h.verifyLimiter, "user-profile-school-email-verify-otp"), h.handleVerifyStudentEmailOTP)
 		} else {
 			user.POST("/profile/verify", h.handleVerifyStudent)
+			user.POST("/profile/school-email/request-otp", h.handleRequestStudentEmailOTP)
+			user.POST("/profile/school-email/verify-otp", h.handleVerifyStudentEmailOTP)
 		}
 		if h.bindPhoneUserLimiter != nil && h.bindPhoneEndpointLimiter != nil {
 			user.POST(

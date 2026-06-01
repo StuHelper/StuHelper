@@ -11,15 +11,16 @@ import (
 )
 
 const selectSchoolConfigColumns = `
-	school_id, school_name, verification_method, approval_policy, ldap_config,
-	academic_db_table, consent_text, manual_form_fields,
-	enabled, created_at, updated_at
+	sc.school_id, COALESCE(s.code, sc.school_id::text) AS school_code, sc.school_name,
+	sc.verification_method, sc.approval_policy, sc.ldap_config,
+	sc.academic_db_table, sc.consent_text, sc.manual_form_fields,
+	sc.enabled, sc.created_at, sc.updated_at
 `
 
 func scanSchoolConfig(row interface{ Scan(dest ...any) error }) (*SchoolConfig, error) {
 	var item SchoolConfig
 	err := row.Scan(
-		&item.SchoolID, &item.SchoolName, &item.VerificationMethod, &item.ApprovalPolicy, &item.LDAPConfig,
+		&item.SchoolID, &item.SchoolCode, &item.SchoolName, &item.VerificationMethod, &item.ApprovalPolicy, &item.LDAPConfig,
 		&item.AcademicDBTable, &item.ConsentText, &item.ManualFormFields,
 		&item.Enabled, &item.CreatedAt, &item.UpdatedAt,
 	)
@@ -37,8 +38,9 @@ func (r *Repository) GetSchoolConfig(ctx context.Context, schoolID int64) (*Scho
 	ctx = withDBTable(ctx, "school_configs")
 	item, err := scanSchoolConfig(r.db.QueryRow(ctx, `
 		SELECT `+selectSchoolConfigColumns+`
-		FROM school_configs
-		WHERE school_id = $1
+		FROM school_configs sc
+		LEFT JOIN schools s ON s.id = sc.school_id
+		WHERE sc.school_id = $1
 	`, schoolID))
 	if err != nil {
 		return nil, fmt.Errorf("GetSchoolConfig: %w", err)
@@ -51,9 +53,10 @@ func (r *Repository) ListSchoolConfigs(ctx context.Context) ([]SchoolConfig, err
 	ctx = withDBTable(ctx, "school_configs")
 	rows, err := r.db.Query(ctx, `
 		SELECT `+selectSchoolConfigColumns+`
-		FROM school_configs
-		WHERE enabled = true
-		ORDER BY school_name ASC
+		FROM school_configs sc
+		LEFT JOIN schools s ON s.id = sc.school_id
+		WHERE sc.enabled = true
+		ORDER BY sc.school_name ASC
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("ListSchoolConfigs: %w", err)
@@ -90,8 +93,9 @@ func (r *Repository) ListAllSchoolConfigs(ctx context.Context) ([]SchoolConfig, 
 	ctx = withDBTable(ctx, "school_configs")
 	rows, err := r.db.Query(ctx, `
 		SELECT `+selectSchoolConfigColumns+`
-		FROM school_configs
-		ORDER BY school_name ASC
+		FROM school_configs sc
+		LEFT JOIN schools s ON s.id = sc.school_id
+		ORDER BY sc.school_name ASC
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("ListAllSchoolConfigs: %w", err)

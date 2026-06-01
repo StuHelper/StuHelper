@@ -12,7 +12,6 @@ import (
 
 func TestEnsureQQBindingForUserTx_CreatesBindingWithoutNestedTx(t *testing.T) {
 	repo := newQQBindingMockRepo()
-	nickname := " Admission User "
 	var created *QQBinding
 
 	repo.onWithTx = func(context.Context, func(context.Context, pgx.Tx) error) error {
@@ -25,14 +24,13 @@ func TestEnsureQQBindingForUserTx_CreatesBindingWithoutNestedTx(t *testing.T) {
 	}
 
 	svc := newQQGatewayTestService(t, repo)
-	binding, err := svc.EnsureQQBindingForUserTx(context.Background(), nil, 77, " 123456789 ", &nickname)
+	binding, err := svc.EnsureQQBindingForUserTx(context.Background(), nil, 77, " 123456789 ")
 	require.NoError(t, err)
 	require.NotNil(t, binding)
 	require.NotNil(t, created)
 
 	assert.Equal(t, int64(77), binding.UserID)
 	assert.Equal(t, "123456789", binding.QQID)
-	assert.Equal(t, "Admission User", *binding.QQNickname)
 	assert.WithinDuration(t, time.Now(), binding.BoundAt, time.Second)
 }
 
@@ -44,7 +42,7 @@ func TestEnsureQQBindingForUserTx_ReturnsExistingBinding(t *testing.T) {
 	}
 
 	svc := newQQGatewayTestService(t, repo)
-	binding, err := svc.EnsureQQBindingForUserTx(context.Background(), nil, 77, "123456789", nil)
+	binding, err := svc.EnsureQQBindingForUserTx(context.Background(), nil, 77, "123456789")
 	require.NoError(t, err)
 	assert.Same(t, existing, binding)
 }
@@ -56,7 +54,7 @@ func TestEnsureQQBindingForUserTx_RejectsUserBoundToOtherQQ(t *testing.T) {
 	}
 
 	svc := newQQGatewayTestService(t, repo)
-	binding, err := svc.EnsureQQBindingForUserTx(context.Background(), nil, 77, "123456789", nil)
+	binding, err := svc.EnsureQQBindingForUserTx(context.Background(), nil, 77, "123456789")
 	require.ErrorIs(t, err, ErrQQBindingUserConflict)
 	assert.Nil(t, binding)
 }
@@ -68,7 +66,7 @@ func TestEnsureQQBindingForUserTx_RejectsQQBoundToOtherUser(t *testing.T) {
 	}
 
 	svc := newQQGatewayTestService(t, repo)
-	binding, err := svc.EnsureQQBindingForUserTx(context.Background(), nil, 77, "123456789", nil)
+	binding, err := svc.EnsureQQBindingForUserTx(context.Background(), nil, 77, "123456789")
 	require.ErrorIs(t, err, ErrQQBindingQQAlreadyBound)
 	assert.Nil(t, binding)
 }

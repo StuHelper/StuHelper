@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -16,11 +18,15 @@ import (
 const admissionTokenBytes = 32
 
 type QQBindingGateway interface {
-	EnsureQQBindingForUserTx(context.Context, pgx.Tx, int64, string, *string) (*user.QQBinding, error)
+	EnsureQQBindingForUserTx(context.Context, pgx.Tx, int64, string) (*user.QQBinding, error)
 }
 
 type SchoolEmailSender interface {
 	SendAdmissionOTP(ctx context.Context, email string, code string) error
+}
+
+type AcademicStudentLookupGateway interface {
+	GetAcademicInfo(ctx context.Context, schoolID int64, studentID string) (*user.AcademicStudent, error)
 }
 
 type OperatorAccessGateway interface {
@@ -48,6 +54,7 @@ type Service struct {
 	materialStore   AdmissionMaterialStore
 	redisClient     *redis.Client
 	emailSender     SchoolEmailSender
+	academicLookup  AcademicStudentLookupGateway
 	operatorAccess  OperatorAccessGateway
 	projection      FreshmanProjectionGateway
 	schoolSSO       SchoolSSOExchanger
@@ -67,6 +74,10 @@ func WithSchoolEmailSender(sender SchoolEmailSender) ServiceOption {
 	return func(s *Service) { s.emailSender = sender }
 }
 
+func WithAcademicStudentLookupGateway(gateway AcademicStudentLookupGateway) ServiceOption {
+	return func(s *Service) { s.academicLookup = gateway }
+}
+
 func WithOperatorAccessGateway(gateway OperatorAccessGateway) ServiceOption {
 	return func(s *Service) { s.operatorAccess = gateway }
 }
@@ -79,8 +90,15 @@ func WithSchoolSSOExchanger(exchanger SchoolSSOExchanger) ServiceOption {
 	return func(s *Service) { s.schoolSSO = exchanger }
 }
 
-func WithAdmissionReturnURLOrigin(origin string) ServiceOption {
-	return func(s *Service) { s.returnURLOrigin = origin }
+func WithAdmissionPublicBaseURL(baseURL string) ServiceOption {
+	return func(s *Service) {
+		normalized := normalizeAdmissionPublicBaseURL(baseURL)
+		if normalized == "" {
+			return
+		}
+		s.authBaseURL = normalized + "/verify/"
+		s.returnURLOrigin = normalized
+	}
 }
 
 func NewService(repo *Repository, qqGateway QQBindingGateway, hmacKey []byte, opts ...ServiceOption) (*Service, error) {
@@ -101,8 +119,11 @@ func NewService(repo *Repository, qqGateway QQBindingGateway, hmacKey []byte, op
 		generateToken:   generateAdmissionToken,
 		generateOTP:     generateAdmissionOTPCode,
 		generateState:   generateAdmissionState,
-		authBaseURL:     defaultAdmissionAuthBaseURL,
-		returnURLOrigin: defaultAdmissionReturnURLOrigin,
+		authBaseURL:     defaultAdmissionPublicBaseURL + "/verify/",
+		returnURLOrigin: defaultAdmissionPublicBaseURL,
+	}
+	if gateway, ok := qqGateway.(AcademicStudentLookupGateway); ok {
+		svc.academicLookup = gateway
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -110,6 +131,24 @@ func NewService(repo *Repository, qqGateway QQBindingGateway, hmacKey []byte, op
 		}
 	}
 	return svc, nil
+}
+
+func (s *Service) ResolveSchoolIDByCode(ctx context.Context, schoolCode string) (int64, error) {
+	code := strings.TrimSpace(schoolCode)
+	if code == "" {
+		return 0, ErrAdmissionSchoolNotFound
+	}
+	config, err := s.repo.GetAdmissionSchoolConfigByCode(ctx, code)
+	if err != nil {
+		return 0, err
+	}
+	if config == nil {
+		return 0, ErrAdmissionSchoolNotFound
+	}
+	if !config.Enabled {
+		return 0, ErrAdmissionSchoolDisabled
+	}
+	return config.SchoolID, nil
 }
 
 func generateAdmissionToken() (string, error) {
@@ -122,4 +161,22 @@ func generateAdmissionToken() (string, error) {
 
 func generateAdmissionState() (string, error) {
 	return generateAdmissionToken()
+}
+
+func normalizeAdmissionPublicBaseURL(raw string) string {
+	raw = strings.TrimRight(strings.TrimSpace(raw), "/")
+	if raw == "" {
+		return ""
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return ""
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return ""
+	}
+	parsed.Path = ""
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return strings.TrimRight(parsed.String(), "/")
 }

@@ -70,6 +70,18 @@ func TestLoadSettingsAllowsApplicationLogoOverride(t *testing.T) {
 	assert.Equal(t, "https://static.example.com/admin-logo.png", settings.plan.Applications[1].Logo)
 }
 
+func TestLoadApplicationBootstrapSettingsUsesAppProvisioningCredential(t *testing.T) {
+	settings, err := loadApplicationBootstrapSettings(testEnv(completeEnv()))
+
+	require.NoError(t, err)
+	assert.Equal(t, casdoor.PurposeAppProvisioning, settings.credential.Purpose)
+	assert.Equal(t, "casdoor-admin-app-provisioning", settings.credential.ClientID)
+	assert.Equal(t, "stuhelper", settings.credential.Organization)
+	require.Len(t, settings.applications, 9)
+	assert.Equal(t, "stuhelper-web", settings.applications[0].Name)
+	assert.Equal(t, "casdoor-token-probe-smoke", settings.applications[8].Name)
+}
+
 func TestFlatRoleCatalogMatchesAuthorizationRoles(t *testing.T) {
 	expected := []string{
 		"super_admin",

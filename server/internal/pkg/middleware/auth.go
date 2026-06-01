@@ -90,6 +90,7 @@ func resolveToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.S
 			username:       result.Username,
 			email:          result.Email,
 			displayName:    result.Name,
+			tokenScopes:    result.Scopes(),
 			roles:          result.Roles,
 			orgScopedRoles: result.OrgScopedRoles,
 			authTime:       timeFromUnix(result.AuthTime),

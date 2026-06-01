@@ -8,6 +8,8 @@ OpenPlatformScope:
     - stu.identity.type.read
     - stu.student.status.read
     - stu.student.school.read
+    - stu.qq.status.read
+    - stu.qq.number.read
     - resource.read
     - resource.write
     - offline_access
@@ -75,9 +77,8 @@ OpenPlatformProfileCompletionField:
       type: string
       format: uri-reference
       description: >
-        身份站资料补全动作地址。服务端可返回 id.stuhelper.com 下的绝对 URL，
-        或返回以 / 开头的身份站相对路径；客户端必须按 id.stuhelper.com 解析，
-        不能把该路径当作 stuhelper.com 主站用户中心入口。
+        账号中心资料补全动作地址。服务端可返回 stuhelper.com 下的绝对 URL，
+        或返回以 / 开头的主站相对路径；客户端必须按 stuhelper.com 账号中心解析。
 
 OpenPlatformConsentApp:
   type: object

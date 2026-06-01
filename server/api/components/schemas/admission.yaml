@@ -25,8 +25,6 @@ AdmissionSession:
       type: string
     qqID:
       type: string
-    qqNickname:
-      type: string
     userID:
       type: string
     status:
@@ -75,6 +73,18 @@ AdmissionMe:
         - string
         - "null"
       format: date-time
+
+CreatedAdmissionSession:
+  type: object
+  required: [session, token, authURL]
+  properties:
+    session:
+      $ref: '#/AdmissionSession'
+    token:
+      type: string
+    authURL:
+      type: string
+      format: uri
 
 AdmissionQQAccess:
   type: object
@@ -228,9 +238,18 @@ BotAdmissionSessionCreateRequest:
       type: string
     qqID:
       type: string
-    qqNickname:
-      type: string
     botSelfID:
+      type: string
+
+BotAdmissionSessionSubjectRequest:
+  type: object
+  required: [platform, guildID, qqID]
+  properties:
+    platform:
+      type: string
+    guildID:
+      type: string
+    qqID:
       type: string
 
 BotAdmissionEventRequest:
@@ -280,24 +299,83 @@ CameraCaptureRequest:
       type: string
       format: date-time
 
+FreshmanCameraHandoff:
+  type: object
+  required: [id, applicationID, userID, status, expiresAt, createdAt]
+  properties:
+    id:
+      type: string
+    applicationID:
+      type: string
+    userID:
+      type: string
+    status:
+      type: string
+      enum: [pending, uploaded, locked, expired]
+    continueOn:
+      type: string
+      enum: [desktop, mobile]
+    mobileURL:
+      type: string
+      format: uri
+    expiresAt:
+      type: string
+      format: date-time
+    uploadedAt:
+      type: string
+      format: date-time
+    chosenAt:
+      type: string
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+
+FreshmanCameraHandoffContinuationRequest:
+  type: object
+  required: [continueOn]
+  properties:
+    continueOn:
+      type: string
+      enum: [desktop, mobile]
+
 SchoolEmailOTPRequest:
   type: object
-  required: [schoolID, email]
+  required: [schoolCode]
   properties:
+    schoolCode:
+      type: string
+      pattern: '^[0-9]{10}$'
+      description: 教育部学校标识码；公开 admission 学校邮箱 OTP 请求必须以此字段识别学校。
     schoolID:
       type: integer
       format: int64
+      deprecated: true
+      description: StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
     email:
       type: string
       format: email
+      description: 普通学校邮箱 OTP 可直接提交邮箱；配置学籍邮箱策略时由后端按学号派生并校验不可篡改
+    studentID:
+      type: string
+      description: 配置 academic_student_email 策略的学校必填
+    studentName:
+      type: string
+      description: 配置 academic_student_email 且 requireStudentName=true 的学校必填
 
 SchoolEmailOTPVerifyRequest:
   type: object
-  required: [schoolID, email, code]
+  required: [schoolCode, email, code]
   properties:
+    schoolCode:
+      type: string
+      pattern: '^[0-9]{10}$'
+      description: 教育部学校标识码；公开 admission 学校邮箱 OTP 校验请求必须以此字段识别学校。
     schoolID:
       type: integer
       format: int64
+      deprecated: true
+      description: StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
     email:
       type: string
       format: email
@@ -305,3 +383,18 @@ SchoolEmailOTPVerifyRequest:
       type: string
       minLength: 4
       maxLength: 12
+
+SchoolEmailOTPResponse:
+  type: object
+  required: [email, cooldownSeconds]
+  properties:
+    email:
+      type: string
+      format: email
+      description: 后端最终锁定并发送验证码的学校邮箱
+    studentID:
+      type: string
+      description: 学籍邮箱策略下已匹配的学号
+    cooldownSeconds:
+      type: integer
+      minimum: 1

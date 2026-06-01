@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/redis/go-redis/v9"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
@@ -17,43 +18,54 @@ import (
 
 // 业务错误定义
 var (
-	ErrIdentityAlreadyExists      = errors.New("identity already exists")
-	ErrIdentityAlreadyVerified    = errors.New("identity already verified")
-	ErrProfileAlreadyVerified     = errors.New("profile already verified")
-	ErrProfilePendingReview       = errors.New("profile is pending review, please wait for admin approval")
-	ErrSchoolNotFound             = errors.New("school not found")
-	ErrSchoolDisabled             = errors.New("school verification disabled")
-	ErrConsentRequired            = errors.New("consent is required")
-	ErrPhotoRequired              = errors.New("photo upload required for non-mainland documents")
-	ErrLDAPFailed                 = errors.New("LDAP verification failed")
-	ErrIdentityRequired           = errors.New("identity verification required before student verification")
-	ErrStudentIDRequired          = errors.New("student ID is required for LDAP verification")
-	ErrPasswordRequired           = errors.New("password is required for LDAP verification")
-	ErrPhoneAlreadyBound          = errors.New("phone already bound to another user")
-	ErrStudentNotFound            = errors.New("student record not found in academic database")
-	ErrProfileNotFound            = errors.New("student profile not found")
-	ErrIdentityNotFound           = errors.New("identity not found")
-	ErrManualFieldRequired        = errors.New("required manual form field is missing")
-	ErrManualFieldInvalid         = errors.New("manual form field value is invalid")
-	ErrInvalidManualFieldConfig   = errors.New("manual form field config is invalid")
-	ErrInvalidAcademicDBTable     = errors.New("academic table config is invalid")
-	ErrAcademicTableNotConfigured = errors.New("academic table is not configured for the school")
-	ErrSchoolLDAPConfigMissing    = errors.New("LDAP configuration is not provided for the school")
-	ErrLDAPConfigInvalid          = errors.New("LDAP configuration is invalid")
-	ErrSystemConfigNotFound       = errors.New("system config not found")
-	ErrInvalidSystemConfigValue   = errors.New("system config value is invalid")
-	ErrIdentityPhotoStoreDisabled = errors.New("identity photo storage is not configured")
-	ErrIdentityPhotoTooLarge      = errors.New("identity photo too large")
-	ErrIdentityPhotoInvalidType   = errors.New("identity photo content type is invalid")
-	ErrIdentityPhotoInvalidData   = errors.New("identity photo data is invalid")
-	ErrIdentityPhotoInvalidRef    = errors.New("identity photo reference is invalid")
-	ErrQQBindingAlreadyExists     = errors.New("qq binding already exists")
-	ErrQQBindingCodeInvalid       = errors.New("qq binding code is invalid")
-	ErrQQBindingCodeExpired       = errors.New("qq binding code has expired")
-	ErrQQBindingQQAlreadyBound    = errors.New("qq account already bound to another user")
-	ErrQQBindingUserConflict      = errors.New("user already bound to another qq account")
-	ErrQQIDRequired               = errors.New("qq id is required")
-	ErrProfileIdentitySyncMissing = errors.New("profile identity sync gateway is not configured")
+	ErrIdentityAlreadyExists         = errors.New("identity already exists")
+	ErrIdentityAlreadyVerified       = errors.New("identity already verified")
+	ErrProfileAlreadyVerified        = errors.New("profile already verified")
+	ErrProfilePendingReview          = errors.New("profile is pending review, please wait for admin approval")
+	ErrSchoolNotFound                = errors.New("school not found")
+	ErrSchoolDisabled                = errors.New("school verification disabled")
+	ErrConsentRequired               = errors.New("consent is required")
+	ErrPhotoRequired                 = errors.New("photo upload required for non-mainland documents")
+	ErrLDAPFailed                    = errors.New("LDAP verification failed")
+	ErrIdentityRequired              = errors.New("identity verification required before student verification")
+	ErrStudentIDRequired             = errors.New("student ID is required for LDAP verification")
+	ErrPasswordRequired              = errors.New("password is required for LDAP verification")
+	ErrPhoneAlreadyBound             = errors.New("phone already bound to another user")
+	ErrStudentNotFound               = errors.New("student record not found in academic database")
+	ErrProfileNotFound               = errors.New("student profile not found")
+	ErrIdentityNotFound              = errors.New("identity not found")
+	ErrManualFieldRequired           = errors.New("required manual form field is missing")
+	ErrManualFieldInvalid            = errors.New("manual form field value is invalid")
+	ErrInvalidManualFieldConfig      = errors.New("manual form field config is invalid")
+	ErrInvalidAcademicDBTable        = errors.New("academic table config is invalid")
+	ErrAcademicTableNotConfigured    = errors.New("academic table is not configured for the school")
+	ErrSchoolLDAPConfigMissing       = errors.New("LDAP configuration is not provided for the school")
+	ErrLDAPConfigInvalid             = errors.New("LDAP configuration is invalid")
+	ErrSystemConfigNotFound          = errors.New("system config not found")
+	ErrInvalidSystemConfigValue      = errors.New("system config value is invalid")
+	ErrIdentityPhotoStoreDisabled    = errors.New("identity photo storage is not configured")
+	ErrIdentityPhotoTooLarge         = errors.New("identity photo too large")
+	ErrIdentityPhotoInvalidType      = errors.New("identity photo content type is invalid")
+	ErrIdentityPhotoInvalidData      = errors.New("identity photo data is invalid")
+	ErrIdentityPhotoInvalidRef       = errors.New("identity photo reference is invalid")
+	ErrIdentityDocNumberInvalid      = errors.New("identity document number is invalid")
+	ErrIdentityRealNameInvalid       = errors.New("identity real name is invalid")
+	ErrQQBindingAlreadyExists        = errors.New("qq binding already exists")
+	ErrQQBindingCodeInvalid          = errors.New("qq binding code is invalid")
+	ErrQQBindingCodeExpired          = errors.New("qq binding code has expired")
+	ErrQQBindingQQAlreadyBound       = errors.New("qq account already bound to another user")
+	ErrQQBindingUserConflict         = errors.New("user already bound to another qq account")
+	ErrQQIDRequired                  = errors.New("qq id is required")
+	ErrProfileIdentitySyncMissing    = errors.New("profile identity sync gateway is not configured")
+	ErrStudentEmailDomainNotAllowed  = errors.New("student email domain not allowed")
+	ErrStudentEmailSenderUnavailable = errors.New("student email sender unavailable")
+	ErrStudentEmailRedisUnavailable  = errors.New("student email redis unavailable")
+	ErrStudentEmailOTPCooldown       = errors.New("student email otp cooldown")
+	ErrStudentEmailOTPExpired        = errors.New("student email otp expired")
+	ErrStudentEmailOTPInvalid        = errors.New("student email otp invalid")
+	ErrStudentEmailOTPMaxAttempts    = errors.New("student email otp max attempts exceeded")
+	ErrStudentNameRequired           = errors.New("student name is required")
+	ErrStudentNameMismatch           = errors.New("student name does not match academic database")
 )
 
 // DocType 证件类型常量
@@ -74,10 +86,11 @@ const (
 
 // VerifyMethod 认证方式常量
 const (
-	VerifyMethodAcademicDB = "academic_db_match"
-	VerifyMethodTencent    = "tencent_cloud"
-	VerifyMethodManual     = "manual"
-	VerifyMethodLDAP       = "ldap"
+	VerifyMethodAcademicDB     = "academic_db_match"
+	VerifyMethodTencent        = "tencent_cloud"
+	VerifyMethodManual         = "manual"
+	VerifyMethodLDAP           = "ldap"
+	VerifyMethodSchoolEmailOTP = "school_email_otp"
 )
 
 const (
@@ -159,12 +172,19 @@ type profileIdentitySyncGateway interface {
 	UpdatePhone(ctx context.Context, subject, phone string) error
 }
 
+type StudentEmailSender interface {
+	SendStudentVerificationOTP(ctx context.Context, email string, code string) error
+}
+
 // Service 用户服务层
 type Service struct {
 	repo                Repo
 	ldapClientFactory   ldapClientFactory
 	hmacKey             []byte
 	docCipher           pii.EncryptDecryptor
+	redisClient         *redis.Client
+	studentEmailSender  StudentEmailSender
+	generateOTP         func() (string, error)
 	onRoleSync          RoleSyncFunc
 	profileFGA          profileFGAClient
 	photoStore          identityPhotoStore
@@ -202,6 +222,13 @@ func WithProfileIdentitySyncGateway(gateway profileIdentitySyncGateway) ServiceO
 	}
 }
 
+func WithStudentEmailOTP(client *redis.Client, sender StudentEmailSender) ServiceOption {
+	return func(s *Service) {
+		s.redisClient = client
+		s.studentEmailSender = sender
+	}
+}
+
 func (s *Service) SetProfileIdentitySyncGateway(gateway profileIdentitySyncGateway) {
 	s.profileIdentitySync = gateway
 }
@@ -230,6 +257,7 @@ func NewService(repo Repo, hmacKey []byte, docCipher pii.EncryptDecryptor, opts 
 		ldapClientFactory: func(cfg ldap.Config) (ldapAuthClient, error) { return ldap.NewClient(cfg) },
 		hmacKey:           hmacKey,
 		docCipher:         docCipher,
+		generateOTP:       generateStudentEmailOTPCode,
 	}
 	for _, opt := range opts {
 		if opt != nil {

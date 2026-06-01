@@ -38,7 +38,7 @@ func scanAdmissionSessionWithTotal(row pgx.Row) (*AdmissionSession, int, error) 
 	var total int
 	err := row.Scan(
 		&session.ID, &session.Platform, &session.BotSelfID, &session.GuildID, &session.ChannelID, &session.QQID,
-		&session.QQNickname, &session.UserID, &session.TokenHash, &session.AuthURL, &session.TokenExpiresAt,
+		&session.UserID, &session.TokenHash, &session.AuthURL, &session.TokenExpiresAt,
 		&session.TokenConsumedAt, &session.Status, &session.LinkWaitDeadlineAt,
 		&session.SubmissionWaitDeadlineAt, &session.ManualReviewDeadlineAt, &session.InitialMuteUntil,
 		&session.VerifiedAt, &session.CancelledAt, &session.LastBotError, &total,

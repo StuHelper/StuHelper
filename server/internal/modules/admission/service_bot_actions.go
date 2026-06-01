@@ -28,12 +28,15 @@ func (s *Service) ListPendingAdmissionActions(
 }
 
 func (s *Service) ListPendingFreshmanForwards(ctx context.Context) ([]FreshmanForwardItem, error) {
-	if s.materialStore == nil {
-		return nil, ErrAdmissionMaterialStoreUnavailable
-	}
 	records, err := s.repo.ListPendingFreshmanForwards(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if len(records) == 0 {
+		return []FreshmanForwardItem{}, nil
+	}
+	if s.materialStore == nil {
+		return nil, ErrAdmissionMaterialStoreUnavailable
 	}
 	return s.freshmanForwardItems(ctx, records)
 }
@@ -81,6 +84,9 @@ func (s *Service) pendingActionFromSession(
 
 func resolveKickAction(session *AdmissionSession, contexts pendingActionContexts) (BotAction, error) {
 	policy := contexts.policyFor(session)
+	if policy == nil {
+		return "", ErrAdmissionPolicyNotFound
+	}
 	failure := contexts.failureFor(session)
 	if nextFailureReachesBlacklist(failure, policy) {
 		return BotActionBlacklist, nil

@@ -37,6 +37,22 @@ func TestOriginValidationMiddleware_AllowsRefererFallback(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, w.Code)
 }
 
+func TestOriginValidationMiddleware_AllowsSameOriginFetchMetadataFallback(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(OriginValidationMiddleware([]string{"https://join.stuhelper.com"}))
+	router.POST("/metrics", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+
+	req := httptest.NewRequest(http.MethodPost, "/metrics", nil)
+	req.Host = "join.stuhelper.com"
+	req.Header.Set("X-Forwarded-Proto", "https")
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+}
+
 func TestOriginValidationMiddleware_RejectsUnknownOrEmptyAllowlist(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

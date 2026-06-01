@@ -36,8 +36,16 @@ var scopeCatalog = map[string]ScopeDefinition{
 		Fields: []string{"是否已完成学生认证"},
 	},
 	ScopeStudentSchoolRead: {
-		Scope: ScopeStudentSchoolRead, DisplayName: "学校信息", Sensitivity: "high",
-		Fields: []string{"学校 ID", "学校名称"},
+		Scope: ScopeStudentSchoolRead, DisplayName: "认证学校", Sensitivity: "high",
+		Fields: []string{"学校 ID", "校区 ID（如已认证）"},
+	},
+	ScopeQQStatusRead: {
+		Scope: ScopeQQStatusRead, DisplayName: "QQ 绑定状态", Sensitivity: "medium",
+		Fields: []string{"是否已绑定 QQ"},
+	},
+	ScopeQQNumberRead: {
+		Scope: ScopeQQNumberRead, DisplayName: "QQ 号", Sensitivity: "high",
+		Fields: []string{"绑定的 QQ 号"},
 	},
 	ScopeResourceRead: {
 		Scope: ScopeResourceRead, DisplayName: "授权资源读取", Sensitivity: "high",

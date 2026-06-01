@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -14,6 +15,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	platformcasdoor "git.stuhelper.com/StuHelper/StuHelper/internal/platform/casdoor"
 )
 
 func (rt *Runtime) initAuthModule(
@@ -25,6 +27,10 @@ func (rt *Runtime) initAuthModule(
 	userSyncRepo := user.NewUserSyncRepository(rt.database, crypto.GetHMACKey()).
 		WithRoleFGAClient(rt.fgaClient)
 	rt.warnPendingUserHashBackfill(bgCtx, userSyncRepo)
+	oidcSubjectValidator, err := rt.initOIDCSubjectValidator()
+	if err != nil {
+		return nil, nil, nil, err
+	}
 
 	authHandler := auth.NewHandler(
 		auth.HandlerConfig{
@@ -33,6 +39,7 @@ func (rt *Runtime) initAuthModule(
 			OIDCIssuer:             rt.cfg.Casdoor.Issuer,
 			AccountSettingsBaseURL: rt.cfg.Casdoor.PublicAuthBaseURL,
 			ProviderTokenCipher:    piiCipher,
+			OIDCSubjectValidator:   oidcSubjectValidator,
 		},
 		rt.tokenService,
 		rt.redisClient.GetClient(),
@@ -51,6 +58,32 @@ func (rt *Runtime) initAuthModule(
 
 	optionalAuthMW := middleware.OptionalAuthMiddlewareWithRoleScopeResolver(rt.oidcClient, rt.tokenService, authCookieConfig, roleScopeResolver)
 	return authHandler, authMW, optionalAuthMW, nil
+}
+
+type casdoorOIDCSubjectValidator struct {
+	client       *platformcasdoor.UserLookupClient
+	organization string
+}
+
+func (v casdoorOIDCSubjectValidator) ValidateOIDCSubject(ctx context.Context, subject string) error {
+	return v.client.ValidateSubjectOwner(ctx, subject, v.organization)
+}
+
+func (rt *Runtime) initOIDCSubjectValidator() (auth.OIDCSubjectValidator, error) {
+	cfg := rt.cfg.Casdoor
+	if strings.TrimSpace(cfg.UserLookupClientID) == "" &&
+		strings.TrimSpace(cfg.UserLookupClientSecret) == "" &&
+		strings.TrimSpace(cfg.UserLookupApplication) == "" {
+		return nil, nil
+	}
+	client, err := platformcasdoor.NewUserLookupClient(casdoorUserLookupCredential(cfg))
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize Casdoor OIDC subject validator: %w", err)
+	}
+	return casdoorOIDCSubjectValidator{
+		client:       client,
+		organization: cfg.Organization,
+	}, nil
 }
 
 func (rt *Runtime) authRedirectOrigins() []string {

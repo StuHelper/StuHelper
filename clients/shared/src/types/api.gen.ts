@@ -260,8 +260,8 @@ export interface paths {
         };
         /**
          * 发起开放平台授权
-         * @description Legacy 授权辅助接口。新应用应直接接入 id.stuhelper.com 的 OIDC discovery；
-         *     该接口保留给站内授权页与历史调用方。若用户已授予全部 scope，
+         * @description Legacy 授权辅助接口。新应用应直接接入 sso.stuhelper.com 的 OIDC discovery，
+         *     并通过 StuHelper Open API 读取业务数据。该接口保留给站内授权页与历史调用方。若用户已授予全部 scope，
          *     返回下一步 redirect URL；否则返回 StuHelper 授权确认页或资料补全页 URL。
          */
         get: operations["openPlatformAuthorize"];
@@ -919,7 +919,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 批准开放平台应用并签发 id.stuhelper.com client secret */
+        /** 批准开放平台应用并签发 client secret */
         post: operations["approveOpenPlatformApp"];
         delete?: never;
         options?: never;
@@ -1056,9 +1056,9 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 导入 legacy Casdoor 应用到 id.stuhelper.com
-         * @description 用于把历史上直接接入 sso.stuhelper.com/Casdoor 的应用导入 StuHelper Identity。
-         *     导入后应用应把 OIDC issuer/discovery 从 sso.stuhelper.com 切换到 id.stuhelper.com。
+         * 导入 legacy Casdoor 应用到 StuHelper 开放平台
+         * @description 用于把历史上直接接入 sso.stuhelper.com/Casdoor 的应用导入 StuHelper 开放平台 registry。
+         *     导入后应用继续使用 sso.stuhelper.com 作为 OIDC issuer，并通过 StuHelper Open API 读取业务数据。
          *     若未提供 clientSecret 且 Casdoor 可返回原 secret，则保留原 client_id/client_secret；
          *     否则服务端生成新的 client secret 并只在本响应中返回一次。
          */
@@ -2298,6 +2298,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/user/profile/school-email/request-otp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 请求学生认证学校邮箱验证码 */
+        post: operations["requestStudentEmailOTP"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user/profile/school-email/verify-otp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 校验学生认证学校邮箱验证码 */
+        post: operations["verifyStudentEmailOTP"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/user/profile/bind-phone/otp": {
         parameters: {
             query?: never;
@@ -2468,6 +2502,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admission/freshman/applications/{id}/camera-handoffs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 创建新生材料手机拍照接力 */
+        post: operations["createFreshmanCameraHandoff"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admission/freshman/camera-handoffs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询手机拍照接力状态 */
+        get: operations["getFreshmanCameraHandoff"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admission/freshman/camera-handoffs/{id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 订阅手机拍照接力状态变化 */
+        get: operations["watchFreshmanCameraHandoff"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admission/freshman/mobile-camera-handoffs/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 手机端预览拍照接力 */
+        get: operations["previewFreshmanMobileCameraHandoff"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admission/freshman/mobile-camera-handoffs/{token}/camera-capture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 手机端上传接力拍摄的新生材料图片 */
+        post: operations["uploadFreshmanMobileCameraCapture"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admission/freshman/mobile-camera-handoffs/{token}/continue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 手机端选择上传后在哪一端继续 */
+        post: operations["chooseFreshmanMobileCameraContinuation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admission/school-email/request-otp": {
         parameters: {
             query?: never;
@@ -2502,7 +2638,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admission/school-sso/{schoolID}/login": {
+    "/api/v1/admission/school-sso/{schoolCode}/login": {
         parameters: {
             query?: never;
             header?: never;
@@ -2519,7 +2655,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admission/school-sso/{schoolID}/callback": {
+    "/api/v1/admission/school-sso/{schoolCode}/callback": {
         parameters: {
             query?: never;
             header?: never;
@@ -2581,6 +2717,57 @@ export interface paths {
         put?: never;
         /** 机器人创建入群认证会话 */
         post: operations["createBotAdmissionSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/admission/sessions/member": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 机器人按群成员查询最新入群认证会话 */
+        get: operations["getBotAdmissionSessionByMember"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/admission/sessions/member/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 机器人重发当前入群认证链接 */
+        post: operations["resendBotAdmissionSessionLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/admission/sessions/member/regenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 机器人取消旧会话并重新生成入群认证链接 */
+        post: operations["regenerateBotAdmissionSessionLink"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3616,6 +3803,7 @@ export interface components {
         SubmitIdentityRequest: {
             /** @enum {string} */
             docType: "MAINLAND_ID" | "HK_MACAU" | "TW" | "PASSPORT";
+            /** @description MAINLAND_ID 使用中国大陆居民身份证号码，服务端会校验证件格式、出生日期和校验位。 */
             docNumber: string;
             realName: string;
             docPhotoFront?: string | null;
@@ -3632,7 +3820,7 @@ export interface components {
             /** @enum {string} */
             verificationStatus: "unverified" | "pending" | "verified" | "rejected";
             /** @enum {string|null} */
-            verificationMethod?: "ldap" | "manual" | null;
+            verificationMethod?: "ldap" | "manual" | "school_email_otp" | null;
             rejectionReason?: string | null;
             /** Format: date-time */
             reviewedAt?: string | null;
@@ -3649,8 +3837,14 @@ export interface components {
             updatedAt: string;
         };
         SubmitStudentVerificationRequest: {
-            /** Format: int64 */
-            schoolID: number;
+            /** @description 教育部学校标识码；公开学生认证请求必须以此字段识别学校。 */
+            schoolCode: string;
+            /**
+             * Format: int64
+             * @deprecated
+             * @description StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
+             */
+            schoolID?: number;
             studentID?: string;
             password?: string;
             /** @description manual 模式动态表单提交数据 */
@@ -3659,20 +3853,81 @@ export interface components {
             } | null;
             consent: boolean;
         };
+        StudentEmailOTPRequest: {
+            /** @description 教育部学校标识码；公开学校邮箱 OTP 请求必须以此字段识别学校。 */
+            schoolCode: string;
+            /**
+             * Format: int64
+             * @deprecated
+             * @description StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
+             */
+            schoolID?: number;
+            /**
+             * Format: email
+             * @description 普通学校邮箱 OTP 可直接提交邮箱；配置学籍邮箱策略时由后端按学号派生并校验不可篡改
+             */
+            email?: string;
+            /** @description 配置 academic_student_email 策略的学校必填 */
+            studentID?: string;
+            /** @description 配置 academic_student_email 且 requireStudentName=true 的学校必填 */
+            studentName?: string;
+        };
+        StudentEmailOTPVerifyRequest: {
+            /** @description 教育部学校标识码；公开学校邮箱 OTP 校验请求必须以此字段识别学校。 */
+            schoolCode: string;
+            /**
+             * Format: int64
+             * @deprecated
+             * @description StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
+             */
+            schoolID?: number;
+            /** Format: email */
+            email?: string;
+            code: string;
+            consent: boolean;
+        };
+        StudentEmailOTPResponse: {
+            /**
+             * Format: email
+             * @description 后端最终锁定并发送验证码的学校邮箱
+             */
+            email: string;
+            /** @description 学籍邮箱策略下已匹配的学号 */
+            studentID?: string;
+            cooldownSeconds: number;
+        };
         BindPhoneRequest: {
             phone: string;
             /** @description 短信验证码（6位） */
             otpCode: string;
         };
         SchoolConfig: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description StuHelper 内部学校主键，仅用于后端外键兼容
+             */
             schoolID: number;
+            /** @description 教育部学校标识码；对外选择和展示应优先使用此字段 */
+            schoolCode: string;
             schoolName: string;
             /** @enum {string} */
             verificationMethod: "ldap" | "manual";
             consentText?: string | null;
             manualFormFields?: components["schemas"]["ManualFieldDescriptor"][] | null;
             enabled: boolean;
+            /** @description 该学校是否已接入加群验证用的学校官方 SSO */
+            schoolSsoEnabled: boolean;
+            /** @description 该学校是否已接入加群验证用的学校邮箱 OTP */
+            schoolEmailOtpEnabled: boolean;
+            /** @description 学校邮箱认证的可选身份校验策略；BUAA 使用 academic_student_email 派生学号邮箱 */
+            schoolEmailIdentityPolicy?: components["schemas"]["SchoolEmailIdentityPolicy"];
+        };
+        SchoolEmailIdentityPolicy: {
+            /** @enum {string} */
+            type: "academic_student_email";
+            /** @description 学号邮箱域名，例如 buaa.edu.cn */
+            studentIDEmailDomain?: string;
+            requireStudentName: boolean;
         };
         AcademicStudentInfo: {
             /** @description Student ID */
@@ -3712,6 +3967,7 @@ export interface components {
         AdminSchoolConfig: {
             /** Format: int64 */
             schoolID: number;
+            schoolCode: string;
             schoolName: string;
             /** @enum {string} */
             verificationMethod: "ldap" | "manual";
@@ -3751,7 +4007,6 @@ export interface components {
             /** Format: int64 */
             userID: number;
             qqID: string;
-            qqNickname?: string | null;
             /** Format: date-time */
             boundAt: string;
             /** Format: date-time */
@@ -3767,13 +4022,11 @@ export interface components {
         ConsumeQQBindingRequest: {
             code: string;
             qqID: string;
-            qqNickname?: string | null;
         };
         QQVerificationStatus: {
             qqID: string;
             /** Format: int64 */
             userID?: number | null;
-            qqNickname?: string | null;
             /** Format: date-time */
             boundAt?: string | null;
             /** @enum {string} */
@@ -3825,7 +4078,7 @@ export interface components {
             displayName: string;
             /**
              * Format: uri-reference
-             * @description 身份站资料补全动作地址。服务端可返回 id.stuhelper.com 下的绝对 URL， 或返回以 / 开头的身份站相对路径；客户端必须按 id.stuhelper.com 解析， 不能把该路径当作 stuhelper.com 主站用户中心入口。
+             * @description 账号中心资料补全动作地址。服务端可返回 stuhelper.com 下的绝对 URL， 或返回以 / 开头的主站相对路径；客户端必须按 stuhelper.com 账号中心解析。
              */
             actionURL: string;
         };
@@ -3977,7 +4230,6 @@ export interface components {
             guildID: string;
             channelID?: string;
             qqID: string;
-            qqNickname?: string;
             userID?: string;
             status: components["schemas"]["AdmissionStatus"];
             /** Format: date-time */
@@ -4062,7 +4314,6 @@ export interface components {
             guildID: string;
             channelID: string;
             qqID: string;
-            qqNickname?: string;
             botSelfID?: string;
         };
         BotAdmissionEventRequest: {
@@ -4091,18 +4342,70 @@ export interface components {
             /** Format: date-time */
             capturedAt?: string;
         };
+        FreshmanCameraHandoff: {
+            id: string;
+            applicationID: string;
+            userID: string;
+            /** @enum {string} */
+            status: "pending" | "uploaded" | "locked" | "expired";
+            /** @enum {string} */
+            continueOn?: "desktop" | "mobile";
+            /** Format: uri */
+            mobileURL?: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            uploadedAt?: string;
+            /** Format: date-time */
+            chosenAt?: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        FreshmanCameraHandoffContinuationRequest: {
+            /** @enum {string} */
+            continueOn: "desktop" | "mobile";
+        };
         SchoolEmailOTPRequest: {
-            /** Format: int64 */
-            schoolID: number;
-            /** Format: email */
-            email: string;
+            /** @description 教育部学校标识码；公开 admission 学校邮箱 OTP 请求必须以此字段识别学校。 */
+            schoolCode: string;
+            /**
+             * Format: int64
+             * @deprecated
+             * @description StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
+             */
+            schoolID?: number;
+            /**
+             * Format: email
+             * @description 普通学校邮箱 OTP 可直接提交邮箱；配置学籍邮箱策略时由后端按学号派生并校验不可篡改
+             */
+            email?: string;
+            /** @description 配置 academic_student_email 策略的学校必填 */
+            studentID?: string;
+            /** @description 配置 academic_student_email 且 requireStudentName=true 的学校必填 */
+            studentName?: string;
         };
         SchoolEmailOTPVerifyRequest: {
-            /** Format: int64 */
-            schoolID: number;
+            /** @description 教育部学校标识码；公开 admission 学校邮箱 OTP 校验请求必须以此字段识别学校。 */
+            schoolCode: string;
+            /**
+             * Format: int64
+             * @deprecated
+             * @description StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
+             */
+            schoolID?: number;
             /** Format: email */
             email: string;
             code: string;
+        };
+        SchoolEmailOTPResponse: {
+            /**
+             * Format: email
+             * @description 后端最终锁定并发送验证码的学校邮箱
+             */
+            email: string;
+            /** @description 学籍邮箱策略下已匹配的学号 */
+            studentID?: string;
+            cooldownSeconds: number;
         };
         MemberBlacklistEntry: {
             id: string;
@@ -4206,7 +4509,7 @@ export interface components {
             phone: string;
         };
         /** @enum {string} */
-        OpenPlatformScope: "profile.basic.read" | "email.read" | "phone.read" | "stu.identity.status.read" | "stu.identity.type.read" | "stu.student.status.read" | "stu.student.school.read" | "resource.read" | "resource.write" | "offline_access";
+        OpenPlatformScope: "profile.basic.read" | "email.read" | "phone.read" | "stu.identity.status.read" | "stu.identity.type.read" | "stu.student.status.read" | "stu.student.school.read" | "stu.qq.status.read" | "stu.qq.number.read" | "resource.read" | "resource.write" | "offline_access";
         OpenPlatformConsentApp: {
             /** Format: int64 */
             id: number;
@@ -4753,6 +5056,17 @@ export interface components {
         AdmissionStatus: "joined_muted" | "linked" | "material_submitted" | "verified" | "expired_kicked" | "cancelled";
         /** @enum {string} */
         FreshmanApplicationStatus: "pending" | "approved" | "rejected";
+        CreatedAdmissionSession: {
+            session: components["schemas"]["AdmissionSession"];
+            token: string;
+            /** Format: uri */
+            authURL: string;
+        };
+        BotAdmissionSessionSubjectRequest: {
+            platform: string;
+            guildID: string;
+            qqID: string;
+        };
         BotFreshmanCommandContext: {
             operatorQQID: string;
             platform?: string;
@@ -4875,10 +5189,10 @@ export interface components {
         SensitiveWordIDPath: string;
         /** @description 原生 OIDC 客户端在 `exchange-native` 后拿到的服务端 session ID，用于 refresh/logout 保持同一 token family 追踪 */
         NativeSessionIDHeader: string;
-        /** @description 已批准开放平台应用的 OAuth client_id。 */
+        /** @description 已批准开放平台应用的 OAuth client_id。使用 Authorization: Bearer <Casdoor access token> 调用开放平台资源 API 时可省略，服务端会从 token 的 client_id/aud 推导应用。 */
         DisclosureClientID: string;
         DisclosureRedirectURI: string;
-        /** @description 空格分隔的开放平台 scope。 */
+        /** @description 空格分隔的开放平台 scope。使用 Authorization: Bearer <Casdoor access token> 且省略该参数时， 服务端按 token 中实际授权的 scope 裁剪返回字段。 */
         DisclosureScope: string;
         /** @description 第三方客户端希望用户跳转查看授权页时使用的前端 base URL；为空时返回站内相对地址。 */
         ConsentBaseURL: string;
@@ -5475,12 +5789,12 @@ export interface operations {
     };
     getOpenPlatformUserInfo: {
         parameters: {
-            query: {
-                /** @description 已批准开放平台应用的 OAuth client_id。 */
-                client_id: components["parameters"]["DisclosureClientID"];
-                redirect_uri: components["parameters"]["DisclosureRedirectURI"];
-                /** @description 空格分隔的开放平台 scope。 */
-                scope: components["parameters"]["DisclosureScope"];
+            query?: {
+                /** @description 已批准开放平台应用的 OAuth client_id。使用 Authorization: Bearer <Casdoor access token> 调用开放平台资源 API 时可省略，服务端会从 token 的 client_id/aud 推导应用。 */
+                client_id?: components["parameters"]["DisclosureClientID"];
+                redirect_uri?: components["parameters"]["DisclosureRedirectURI"];
+                /** @description 空格分隔的开放平台 scope。使用 Authorization: Bearer <Casdoor access token> 且省略该参数时， 服务端按 token 中实际授权的 scope 裁剪返回字段。 */
+                scope?: components["parameters"]["DisclosureScope"];
                 /** @description 第三方客户端希望用户跳转查看授权页时使用的前端 base URL；为空时返回站内相对地址。 */
                 consent_base_url?: components["parameters"]["ConsentBaseURL"];
             };
@@ -5499,12 +5813,12 @@ export interface operations {
     };
     getOpenPlatformVerification: {
         parameters: {
-            query: {
-                /** @description 已批准开放平台应用的 OAuth client_id。 */
-                client_id: components["parameters"]["DisclosureClientID"];
-                redirect_uri: components["parameters"]["DisclosureRedirectURI"];
-                /** @description 空格分隔的开放平台 scope。 */
-                scope: components["parameters"]["DisclosureScope"];
+            query?: {
+                /** @description 已批准开放平台应用的 OAuth client_id。使用 Authorization: Bearer <Casdoor access token> 调用开放平台资源 API 时可省略，服务端会从 token 的 client_id/aud 推导应用。 */
+                client_id?: components["parameters"]["DisclosureClientID"];
+                redirect_uri?: components["parameters"]["DisclosureRedirectURI"];
+                /** @description 空格分隔的开放平台 scope。使用 Authorization: Bearer <Casdoor access token> 且省略该参数时， 服务端按 token 中实际授权的 scope 裁剪返回字段。 */
+                scope?: components["parameters"]["DisclosureScope"];
                 /** @description 第三方客户端希望用户跳转查看授权页时使用的前端 base URL；为空时返回站内相对地址。 */
                 consent_base_url?: components["parameters"]["ConsentBaseURL"];
             };
@@ -5523,12 +5837,12 @@ export interface operations {
     };
     getOpenPlatformStudent: {
         parameters: {
-            query: {
-                /** @description 已批准开放平台应用的 OAuth client_id。 */
-                client_id: components["parameters"]["DisclosureClientID"];
-                redirect_uri: components["parameters"]["DisclosureRedirectURI"];
-                /** @description 空格分隔的开放平台 scope。 */
-                scope: components["parameters"]["DisclosureScope"];
+            query?: {
+                /** @description 已批准开放平台应用的 OAuth client_id。使用 Authorization: Bearer <Casdoor access token> 调用开放平台资源 API 时可省略，服务端会从 token 的 client_id/aud 推导应用。 */
+                client_id?: components["parameters"]["DisclosureClientID"];
+                redirect_uri?: components["parameters"]["DisclosureRedirectURI"];
+                /** @description 空格分隔的开放平台 scope。使用 Authorization: Bearer <Casdoor access token> 且省略该参数时， 服务端按 token 中实际授权的 scope 裁剪返回字段。 */
+                scope?: components["parameters"]["DisclosureScope"];
                 /** @description 第三方客户端希望用户跳转查看授权页时使用的前端 base URL；为空时返回站内相对地址。 */
                 consent_base_url?: components["parameters"]["ConsentBaseURL"];
             };
@@ -5547,12 +5861,12 @@ export interface operations {
     };
     getOpenPlatformPhone: {
         parameters: {
-            query: {
-                /** @description 已批准开放平台应用的 OAuth client_id。 */
-                client_id: components["parameters"]["DisclosureClientID"];
-                redirect_uri: components["parameters"]["DisclosureRedirectURI"];
-                /** @description 空格分隔的开放平台 scope。 */
-                scope: components["parameters"]["DisclosureScope"];
+            query?: {
+                /** @description 已批准开放平台应用的 OAuth client_id。使用 Authorization: Bearer <Casdoor access token> 调用开放平台资源 API 时可省略，服务端会从 token 的 client_id/aud 推导应用。 */
+                client_id?: components["parameters"]["DisclosureClientID"];
+                redirect_uri?: components["parameters"]["DisclosureRedirectURI"];
+                /** @description 空格分隔的开放平台 scope。使用 Authorization: Bearer <Casdoor access token> 且省略该参数时， 服务端按 token 中实际授权的 scope 裁剪返回字段。 */
+                scope?: components["parameters"]["DisclosureScope"];
                 /** @description 第三方客户端希望用户跳转查看授权页时使用的前端 base URL；为空时返回站内相对地址。 */
                 consent_base_url?: components["parameters"]["ConsentBaseURL"];
             };
@@ -9253,6 +9567,68 @@ export interface operations {
             500: components["responses"]["ErrorResponse"];
         };
     };
+    requestStudentEmailOTP: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentEmailOTPRequest"];
+            };
+        };
+        responses: {
+            /** @description OTP 已发送 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["StudentEmailOTPResponse"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    verifyStudentEmailOTP: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentEmailOTPVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description 学生认证结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["UserProfile"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
     requestBindPhoneOTP: {
         parameters: {
             query?: never;
@@ -9483,8 +9859,14 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    /** Format: int64 */
-                    schoolID: number;
+                    /** @description 教育部学校标识码；公开新生材料申请必须以此字段识别学校。 */
+                    schoolCode: string;
+                    /**
+                     * Format: int64
+                     * @deprecated
+                     * @description StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
+                     */
+                    schoolID?: number;
                     applicantName: string;
                     departmentOrMajor?: string;
                     /** @enum {string} */
@@ -9541,6 +9923,172 @@ export interface operations {
             415: components["responses"]["ErrorResponse"];
         };
     };
+    createFreshmanCameraHandoff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 接力已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["FreshmanCameraHandoff"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    getFreshmanCameraHandoff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 接力状态 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["FreshmanCameraHandoff"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    watchFreshmanCameraHandoff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Server-Sent Events stream. Each `handoff` event contains a FreshmanCameraHandoff JSON payload. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    previewFreshmanMobileCameraHandoff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 接力状态 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["FreshmanCameraHandoff"];
+                    };
+                };
+            };
+            404: components["responses"]["ErrorResponse"];
+            410: components["responses"]["ErrorResponse"];
+        };
+    };
+    uploadFreshmanMobileCameraCapture: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CameraCaptureRequest"];
+            };
+        };
+        responses: {
+            /** @description 材料已上传 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["FreshmanCameraHandoff"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            410: components["responses"]["ErrorResponse"];
+            413: components["responses"]["ErrorResponse"];
+            415: components["responses"]["ErrorResponse"];
+        };
+    };
+    chooseFreshmanMobileCameraContinuation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FreshmanCameraHandoffContinuationRequest"];
+            };
+        };
+        responses: {
+            /** @description 已锁定继续端 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["FreshmanCameraHandoff"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            410: components["responses"]["ErrorResponse"];
+        };
+    };
     requestAdmissionSchoolEmailOTP: {
         parameters: {
             query?: never;
@@ -9560,7 +10108,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SuccessResponse"];
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["SchoolEmailOTPResponse"];
+                    };
                 };
             };
             400: components["responses"]["ErrorResponse"];
@@ -9603,7 +10153,7 @@ export interface operations {
             };
             header?: never;
             path: {
-                schoolID: number;
+                schoolCode: string;
             };
             cookie?: never;
         };
@@ -9627,7 +10177,7 @@ export interface operations {
             };
             header?: never;
             path: {
-                schoolID: number;
+                schoolCode: string;
             };
             cookie?: never;
         };
@@ -9727,12 +10277,100 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["CreatedAdmissionSession"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    getBotAdmissionSessionByMember: {
+        parameters: {
+            query: {
+                platform: string;
+                guildID: string;
+                qqID: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 最新入群认证会话 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
                         data: components["schemas"]["AdmissionSession"];
                     };
                 };
             };
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    resendBotAdmissionSessionLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BotAdmissionSessionSubjectRequest"];
+            };
+        };
+        responses: {
+            /** @description 可继续的入群认证会话 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdmissionSession"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+        };
+    };
+    regenerateBotAdmissionSessionLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BotAdmissionSessionCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 入群认证会话已重新生成 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["CreatedAdmissionSession"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
         };
     };
     recordBotAdmissionJoinRequestEvent: {
@@ -10690,6 +11328,7 @@ export interface operations {
                     /** @enum {string} */
                     rating: "good" | "needs-improvement" | "poor";
                 };
+                "text/plain": string;
             };
         };
         responses: {

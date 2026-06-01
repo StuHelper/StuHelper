@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"net/url"
 	"strings"
 	"time"
@@ -21,6 +22,7 @@ import (
 type Handler struct {
 	svc                    *Service
 	oidcClient             *oidc.Client
+	oidcSubjectValidator   OIDCSubjectValidator
 	tokenService           *token.Service
 	tokenConfig            config.TokenConfig
 	redisClient            *redis.Client
@@ -38,6 +40,11 @@ type HandlerConfig struct {
 	OIDCIssuer             string
 	AccountSettingsBaseURL string
 	ProviderTokenCipher    pii.EncryptDecryptor
+	OIDCSubjectValidator   OIDCSubjectValidator
+}
+
+type OIDCSubjectValidator interface {
+	ValidateOIDCSubject(ctx context.Context, subject string) error
 }
 
 // NewHandler 创建认证处理器
@@ -57,6 +64,7 @@ func NewHandler(
 	return &Handler{
 		svc:                    svc,
 		oidcClient:             oidcClient,
+		oidcSubjectValidator:   cfg.OIDCSubjectValidator,
 		tokenService:           tokenService,
 		tokenConfig:            cfg.Token,
 		redisClient:            rdb,

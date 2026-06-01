@@ -214,6 +214,72 @@ func TestValidate_ProductionRequiresBotServiceToken(t *testing.T) {
 	assert.Contains(t, err.Error(), "BOT_SERVICE_TOKEN is required in production")
 }
 
+func TestValidate_ProductionRequiresAdmissionPublicBaseURL(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.Admission.PublicBaseURL = ""
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "ADMISSION_PUBLIC_BASE_URL is required in production")
+}
+
+func TestValidate_ProductionRequiresCanonicalAdmissionPublicBaseURL(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.Admission.PublicBaseURL = "https://admission.example.com"
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "ADMISSION_PUBLIC_BASE_URL must be https://join.stuhelper.com in production")
+}
+
+func TestValidate_RejectsInvalidAdmissionPublicBaseURL(t *testing.T) {
+	tests := []struct {
+		name      string
+		baseURL   string
+		wantError string
+	}{
+		{
+			name:      "relative URL",
+			baseURL:   "join.stuhelper.com",
+			wantError: "ADMISSION_PUBLIC_BASE_URL must be an absolute http(s) URL",
+		},
+		{
+			name:      "unsupported scheme",
+			baseURL:   "ftp://join.stuhelper.com",
+			wantError: "ADMISSION_PUBLIC_BASE_URL must be an absolute http(s) URL",
+		},
+		{
+			name:      "path",
+			baseURL:   "https://join.stuhelper.com/verify",
+			wantError: "ADMISSION_PUBLIC_BASE_URL must not include a path",
+		},
+		{
+			name:      "query",
+			baseURL:   "https://join.stuhelper.com?from=env",
+			wantError: "ADMISSION_PUBLIC_BASE_URL must not include query or fragment",
+		},
+		{
+			name:      "production http",
+			baseURL:   "http://join.stuhelper.com",
+			wantError: "ADMISSION_PUBLIC_BASE_URL must use https in production",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validProductionConfigForTest()
+			c.Admission.PublicBaseURL = tt.baseURL
+
+			err := c.validate(nil)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantError)
+		})
+	}
+}
+
 func TestValidate_ProdParityAllowsInsecureCookiesButKeepsProductionRequirements(t *testing.T) {
 	c := validProductionConfigForTest()
 	c.App.Env = EnvProdParity
@@ -248,8 +314,120 @@ func TestValidate_ProductionRequiresSMSEnabled(t *testing.T) {
 	assert.Contains(t, err.Error(), "SMS_ENABLED must be true in production")
 }
 
+func TestValidate_EmailSMTPRequiresHostAndFrom(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.App.Env = "development"
+	c.Token.CookieSecure = false
+	c.Email = EmailConfig{
+		Enabled: true,
+		Driver:  "smtp",
+	}
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "EMAIL_SMTP_HOST is required when EMAIL_ENABLED=true and EMAIL_DRIVER=smtp")
+	assert.Contains(t, err.Error(), "EMAIL_FROM is required when EMAIL_ENABLED=true and EMAIL_DRIVER=smtp")
+}
+
+func TestValidate_ProdParityAllowsBlackholeEmailDriver(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.App.Env = EnvProdParity
+	c.Token.CookieSecure = false
+	c.Email = EmailConfig{
+		Enabled: true,
+		Driver:  "blackhole",
+	}
+
+	require.NoError(t, c.validate(nil))
+}
+
+func TestValidate_ProductionRejectsBlackholeEmailDriver(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.Email = EmailConfig{
+		Enabled: true,
+		Driver:  "blackhole",
+	}
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "EMAIL_DRIVER=blackhole is only allowed outside production")
+}
+
+func TestValidate_EmailTencentSESRequiresProviderConfig(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.Email = EmailConfig{
+		Enabled: true,
+		Driver:  "tencent_ses",
+	}
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "EMAIL_FROM is required when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses")
+	assert.Contains(t, err.Error(), "EMAIL_TENCENT_SECRET_ID is required when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses")
+	assert.Contains(t, err.Error(), "EMAIL_TENCENT_SECRET_KEY is required when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses")
+	assert.Contains(t, err.Error(), "EMAIL_TENCENT_REGION is required when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses")
+	assert.Contains(t, err.Error(), "EMAIL_TENCENT_ENDPOINT is required when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses")
+	assert.Contains(t, err.Error(), "EMAIL_TENCENT_TEMPLATE_ID must be greater than 0 when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses")
+	assert.Contains(t, err.Error(), "EMAIL_TENCENT_TEMPLATE_EXPIRE_MINUTES must be greater than 0 when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses")
+}
+
+func TestValidate_EmailTencentSESAllowsProduction(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.Email = EmailConfig{
+		Enabled:                      true,
+		Driver:                       "tencent_ses",
+		From:                         "noreply@notify.stuhelper.com",
+		TencentSecretID:              "AKIDEXAMPLE",
+		TencentSecretKey:             "secret-example",
+		TencentRegion:                "ap-guangzhou",
+		TencentEndpoint:              "ses.tencentcloudapi.com",
+		TencentTemplateID:            49779,
+		TencentTemplateExpireMinutes: 5,
+	}
+
+	require.NoError(t, c.validate(nil))
+}
+
+func TestValidate_EmailResendRequiresProviderConfig(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.Email = EmailConfig{
+		Enabled: true,
+		Driver:  "resend",
+	}
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "EMAIL_FROM is required when EMAIL_ENABLED=true and EMAIL_DRIVER=resend")
+	assert.Contains(t, err.Error(), "EMAIL_RESEND_API_KEY is required when EMAIL_ENABLED=true and EMAIL_DRIVER=resend")
+	assert.Contains(t, err.Error(), "EMAIL_RESEND_ENDPOINT is required when EMAIL_ENABLED=true and EMAIL_DRIVER=resend")
+}
+
+func TestValidate_EmailMultiAllowsProduction(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.Email = EmailConfig{
+		Enabled:                      true,
+		Driver:                       "multi",
+		From:                         "noreply@notify.stuhelper.com",
+		TencentSecretID:              "AKIDEXAMPLE",
+		TencentSecretKey:             "secret-example",
+		TencentRegion:                "ap-guangzhou",
+		TencentEndpoint:              "ses.tencentcloudapi.com",
+		TencentTemplateID:            49779,
+		TencentTemplateExpireMinutes: 5,
+		ResendAPIKey:                 "re_test",
+		ResendEndpoint:               "https://api.resend.com/emails",
+	}
+
+	require.NoError(t, c.validate(nil))
+}
+
 func TestValidate_ProductionRequiresIdentityIssuerAndSigningKey(t *testing.T) {
 	c := validProductionConfigForTest()
+	c.Identity.Enabled = true
 	c.Identity.Issuer = ""
 	c.Identity.SigningPrivateKeyPEM = ""
 
@@ -258,6 +436,20 @@ func TestValidate_ProductionRequiresIdentityIssuerAndSigningKey(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "IDENTITY_ISSUER is required in production")
 	assert.Contains(t, err.Error(), "IDENTITY_SIGNING_PRIVATE_KEY_PEM is required in production")
+}
+
+func TestValidate_ProductionAllowsDisabledLegacyIdentityServer(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.Identity = IdentityConfig{
+		Enabled:              false,
+		AccessTokenTTL:       900,
+		RefreshTokenTTL:      2592000,
+		AuthorizationCodeTTL: 300,
+	}
+
+	err := c.validate(nil)
+
+	require.NoError(t, err)
 }
 
 func TestValidate_ProductionAllowsExplicitExternalPlaintextPostgres(t *testing.T) {
@@ -286,6 +478,7 @@ func TestValidate_ProductionRejectsImplicitPlaintextDatastores(t *testing.T) {
 }
 
 func TestLoadIdentityConfigFromEnv(t *testing.T) {
+	t.Setenv("IDENTITY_SERVER_ENABLED", "true")
 	t.Setenv("IDENTITY_ISSUER", "https://id.example.com")
 	t.Setenv("IDENTITY_SIGNING_PRIVATE_KEY_PEM", "identity-signing-key")
 	t.Setenv("IDENTITY_SIGNING_KEY_ID", "identity-key-2")
@@ -297,12 +490,21 @@ func TestLoadIdentityConfigFromEnv(t *testing.T) {
 	cfg := loadIdentityConfig(&parseErrs)
 
 	require.Empty(t, parseErrs)
+	assert.True(t, cfg.Enabled)
 	assert.Equal(t, "https://id.example.com", cfg.Issuer)
 	assert.Equal(t, "identity-signing-key", cfg.SigningPrivateKeyPEM)
 	assert.Equal(t, "identity-key-2", cfg.SigningKeyID)
 	assert.Equal(t, 600, cfg.AccessTokenTTL)
 	assert.Equal(t, 7200, cfg.RefreshTokenTTL)
 	assert.Equal(t, 120, cfg.AuthorizationCodeTTL)
+}
+
+func TestLoadAdmissionConfigFromEnv(t *testing.T) {
+	t.Setenv("ADMISSION_PUBLIC_BASE_URL", "https://join.stuhelper.com")
+
+	cfg := loadAdmissionConfig()
+
+	assert.Equal(t, "https://join.stuhelper.com", cfg.PublicBaseURL)
 }
 
 func TestValidate_RejectsInvalidIdentityRefreshTokenTTL(t *testing.T) {
@@ -317,6 +519,7 @@ func TestValidate_RejectsInvalidIdentityRefreshTokenTTL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := validProductionConfigForTest()
+			c.Identity.Enabled = true
 			c.Identity.RefreshTokenTTL = tt.value
 
 			err := c.validate(nil)
@@ -735,6 +938,7 @@ func validProductionConfigForTest() *Config {
 			UserLookupApplication:       "stuhelper-user-lookup",
 		},
 		Identity: IdentityConfig{
+			Enabled:              true,
 			Issuer:               "https://id.example.com",
 			SigningPrivateKeyPEM: "-----BEGIN RSA PRIVATE KEY-----\nplaceholder\n-----END RSA PRIVATE KEY-----",
 			SigningKeyID:         "stuhelper-identity-1",
@@ -751,6 +955,7 @@ func validProductionConfigForTest() *Config {
 		Observability: ObservabilityConfig{
 			Enabled: true, ServiceName: "stuhelper-backend", OTLPEndpoint: "http://alloy:4318", TraceSampleRatio: 0.2,
 		},
+		Admission: AdmissionConfig{PublicBaseURL: "https://join.stuhelper.com"},
 		RateLimit: ReviewRateLimitConfig{PostLimit: 5, VoteLimit: 30, ReportLimit: 10, ReplyLimit: 10, WriteLimit: 10, SearchAnonLimit: 5, SearchUserLimit: 60, BatchAnonLimit: 5, BatchUserLimit: 60},
 		SMS: SMSConfig{
 			Enabled:     true,

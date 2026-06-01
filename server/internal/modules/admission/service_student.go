@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/schoolauth"
 )
 
 const (
@@ -30,8 +32,10 @@ const (
 )
 
 type admissionEmailOTPRecord struct {
-	Email string `json:"email"`
-	Code  string `json:"code"`
+	Email       string `json:"email"`
+	Code        string `json:"code"`
+	StudentID   string `json:"studentID,omitempty"`
+	StudentName string `json:"studentName,omitempty"`
 }
 
 func (s *Service) RequestSchoolEmailOTP(
@@ -44,14 +48,14 @@ func (s *Service) RequestSchoolEmailOTP(
 	if _, err := s.requireLinkedSession(ctx, input.UserID); err != nil {
 		return nil, err
 	}
-	config, email, err := s.loadEmailOTPConfig(ctx, input)
+	config, email, studentID, studentName, err := s.loadEmailOTPConfig(ctx, input)
 	if err != nil {
 		return nil, err
 	}
-	if !emailDomainAllowed(email, config.EmailDomains) {
+	if !schoolauth.EmailDomainAllowed(email, config.EmailDomains) {
 		return nil, ErrAdmissionEmailDomainNotAllowed
 	}
-	code, err := s.issueEmailOTP(ctx, input.UserID, input.SchoolID, email)
+	code, err := s.issueEmailOTP(ctx, input.UserID, input.SchoolID, email, studentID, studentName)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +65,11 @@ func (s *Service) RequestSchoolEmailOTP(
 		}
 		return nil, fmt.Errorf("RequestSchoolEmailOTP send: %w", err)
 	}
-	return &SchoolEmailOTPResponse{CooldownSeconds: admissionEmailOTPCooldownSeconds}, nil
+	return &SchoolEmailOTPResponse{
+		CooldownSeconds: admissionEmailOTPCooldownSeconds,
+		Email:           email,
+		StudentID:       studentID,
+	}, nil
 }
 
 func (s *Service) VerifySchoolEmailOTP(ctx context.Context, input SchoolEmailOTPVerifyInput) (*AdmissionSession, error) {
@@ -104,22 +112,90 @@ func (s *Service) requireEmailOTPDependencies() error {
 func (s *Service) loadEmailOTPConfig(
 	ctx context.Context,
 	input SchoolEmailOTPInput,
-) (*AdmissionSchoolConfig, string, error) {
+) (*AdmissionSchoolConfig, string, string, string, error) {
 	config, err := s.repo.GetAdmissionSchoolConfig(ctx, input.SchoolID)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", "", err
 	}
-	if config == nil || !config.Enabled {
-		return nil, "", ErrAdmissionEmailDomainNotAllowed
+	if config == nil {
+		return nil, "", "", "", ErrAdmissionSchoolNotFound
+	}
+	if !config.Enabled {
+		return nil, "", "", "", ErrAdmissionSchoolDisabled
+	}
+	if config.EmailIdentityPolicy != nil && strings.EqualFold(
+		strings.TrimSpace(config.EmailIdentityPolicy.Type),
+		schoolauth.EmailIdentityPolicyAcademicStudentEmail,
+	) {
+		email, studentID, studentName, err := s.resolveAcademicStudentEmail(ctx, config, input)
+		if err != nil {
+			return nil, "", "", "", err
+		}
+		return config, email, studentID, studentName, nil
 	}
 	email, err := normalizeAdmissionEmail(input.Email)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", "", err
 	}
-	return config, email, nil
+	return config, email, "", "", nil
 }
 
-func (s *Service) issueEmailOTP(ctx context.Context, userID, schoolID int64, email string) (string, error) {
+func (s *Service) resolveAcademicStudentEmail(
+	ctx context.Context,
+	config *AdmissionSchoolConfig,
+	input SchoolEmailOTPInput,
+) (string, string, string, error) {
+	if s.academicLookup == nil {
+		return "", "", "", ErrAdmissionAcademicLookupUnavailable
+	}
+	studentID := schoolauth.NormalizeStudentID(input.StudentID)
+	if studentID == "" {
+		return "", "", "", ErrAdmissionStudentIDRequired
+	}
+	studentName := schoolauth.NormalizeAcademicName(input.StudentName)
+	if config.EmailIdentityPolicy.RequireStudentName && studentName == "" {
+		return "", "", "", ErrAdmissionStudentNameRequired
+	}
+	student, err := s.academicLookup.GetAcademicInfo(ctx, config.SchoolID, studentID)
+	if err != nil {
+		return "", "", "", fmt.Errorf("resolveAcademicStudentEmail lookup: %w", err)
+	}
+	if student == nil {
+		return "", "", "", ErrAdmissionStudentRecordNotFound
+	}
+	if config.EmailIdentityPolicy.RequireStudentName {
+		recordName := ""
+		if student.XM != nil {
+			recordName = schoolauth.NormalizeAcademicName(*student.XM)
+		}
+		if recordName == "" || recordName != studentName {
+			return "", "", "", ErrAdmissionStudentNameMismatch
+		}
+	}
+	email := schoolauth.DeriveStudentEmail(studentID, config.EmailIdentityPolicy.StudentIDEmailDomain)
+	if email == "" {
+		return "", "", "", ErrAdmissionEmailDomainNotAllowed
+	}
+	if normalizedInputEmail := strings.TrimSpace(input.Email); normalizedInputEmail != "" {
+		inputEmail, err := normalizeAdmissionEmail(normalizedInputEmail)
+		if err != nil {
+			return "", "", "", err
+		}
+		if inputEmail != email {
+			return "", "", "", ErrAdmissionEmailDomainNotAllowed
+		}
+	}
+	return email, studentID, studentName, nil
+}
+
+func (s *Service) issueEmailOTP(
+	ctx context.Context,
+	userID int64,
+	schoolID int64,
+	email string,
+	studentID string,
+	studentName string,
+) (string, error) {
 	if err := s.reserveEmailOTPCooldown(ctx, userID, schoolID); err != nil {
 		return "", err
 	}
@@ -127,7 +203,12 @@ func (s *Service) issueEmailOTP(ctx context.Context, userID, schoolID int64, ema
 	if err != nil {
 		return "", err
 	}
-	record := admissionEmailOTPRecord{Email: email, Code: code}
+	record := admissionEmailOTPRecord{
+		Email:       email,
+		Code:        code,
+		StudentID:   studentID,
+		StudentName: studentName,
+	}
 	store := emailOTPStoreInput{UserID: userID, SchoolID: schoolID, Record: record}
 	if err := s.storeEmailOTPRecord(ctx, store); err != nil {
 		return "", err
@@ -242,19 +323,6 @@ func normalizeAdmissionEmail(value string) (string, error) {
 		return "", ErrAdmissionEmailDomainNotAllowed
 	}
 	return email, nil
-}
-
-func emailDomainAllowed(email string, domains []string) bool {
-	parts := strings.Split(email, "@")
-	if len(parts) != 2 {
-		return false
-	}
-	for _, domain := range domains {
-		if strings.EqualFold(parts[1], domain) {
-			return true
-		}
-	}
-	return false
 }
 
 func maskAdmissionEmail(email string) string {
