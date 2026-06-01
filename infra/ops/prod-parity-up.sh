@@ -331,6 +331,7 @@ sync_casdoor_builtin_bootstrap_credentials
 
 log "rendering local production-parity Redis and observability configs"
 "${SCRIPT_DIR}/render-redis-tls.sh"
+"${SCRIPT_DIR}/render-minio-ca-bundle.sh"
 "${SCRIPT_DIR}/render-redis-acl.sh"
 "${SCRIPT_DIR}/render-observability.sh" prod
 

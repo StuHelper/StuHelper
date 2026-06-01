@@ -12,6 +12,7 @@ SMOKE_CHECK="${REPO_ROOT}/infra/ops/smoke-check.sh"
 SSO_PUBLIC_SMOKE="${REPO_ROOT}/infra/ops/sso-public-smoke.sh"
 ADMISSION_PUBLIC_SMOKE="${REPO_ROOT}/infra/ops/admission-public-smoke.sh"
 PARITY_SMOKE_DATA="${REPO_ROOT}/infra/ops/prod-parity-smoke-data.sh"
+MINIO_CA_BUNDLE="${REPO_ROOT}/infra/ops/render-minio-ca-bundle.sh"
 ADMISSION_READINESS="${REPO_ROOT}/infra/ops/admission-production-readiness.sh"
 PARITY_DATASTORE_SMOKE="${REPO_ROOT}/infra/ops/prod-parity-datastore-smoke.sh"
 PARITY_BROWSER_SMOKE="${REPO_ROOT}/infra/ops/prod-parity-browser-smoke.sh"
@@ -46,11 +47,11 @@ assert_not_contains() {
   fi
 }
 
-for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${SMOKE_CHECK}" "${SSO_PUBLIC_SMOKE}" "${ADMISSION_PUBLIC_SMOKE}" "${PARITY_SMOKE_DATA}" "${ADMISSION_READINESS}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_BROWSER_SMOKE_NODE}" "${ADMISSION_PROD_SIM_E2E}" "${ADMISSION_PROD_SIM_E2E_NODE}" "${PARITY_LOCAL_INGRESS}" "${PARITY_LOCAL_INGRESS_NGINX}" "${COMMON_LIB}" "${ADMIN_INDEX_HTML}" "${WEB_NGINX}"; do
+for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${SMOKE_CHECK}" "${SSO_PUBLIC_SMOKE}" "${ADMISSION_PUBLIC_SMOKE}" "${PARITY_SMOKE_DATA}" "${MINIO_CA_BUNDLE}" "${ADMISSION_READINESS}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_BROWSER_SMOKE_NODE}" "${ADMISSION_PROD_SIM_E2E}" "${ADMISSION_PROD_SIM_E2E_NODE}" "${PARITY_LOCAL_INGRESS}" "${PARITY_LOCAL_INGRESS_NGINX}" "${COMMON_LIB}" "${ADMIN_INDEX_HTML}" "${WEB_NGINX}"; do
   [[ -f "${file}" ]] || fail "missing file: ${file}"
 done
 
-bash -n "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${SMOKE_CHECK}" "${SSO_PUBLIC_SMOKE}" "${ADMISSION_PUBLIC_SMOKE}" "${PARITY_SMOKE_DATA}" "${ADMISSION_READINESS}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${ADMISSION_PROD_SIM_E2E}" "${PARITY_LOCAL_INGRESS}"
+bash -n "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${SMOKE_CHECK}" "${SSO_PUBLIC_SMOKE}" "${ADMISSION_PUBLIC_SMOKE}" "${PARITY_SMOKE_DATA}" "${MINIO_CA_BUNDLE}" "${ADMISSION_READINESS}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${ADMISSION_PROD_SIM_E2E}" "${PARITY_LOCAL_INGRESS}"
 
 for default_path in ".env" "./.env" ".env.generated" "./.env.generated" ".env.generated.secrets" "./.env.generated.secrets" ".deploy" "./.deploy"; do
   case "${default_path}" in
@@ -98,6 +99,7 @@ assert_contains "${PARITY_UP}" 'OPENFGA_GRPC_EXTERNAL_PORT.*8082'
 assert_contains "${PARITY_UP}" 'OPENFGA_PLAYGROUND_EXTERNAL_PORT.*3002'
 assert_contains "${PARITY_UP}" 'MINIO_API_EXTERNAL_PORT.*29000'
 assert_contains "${PARITY_UP}" 'MINIO_CONSOLE_EXTERNAL_PORT.*29001'
+assert_contains "${PARITY_UP}" 'render-minio-ca-bundle\.sh'
 assert_contains "${PARITY_UP}" 'WEB_PUBLIC_URL.*https://stuhelper\.com'
 assert_contains "${PARITY_UP}" 'ADMIN_PUBLIC_URL.*https://stuhelper\.com/admin/'
 assert_contains "${PARITY_UP}" 'ADMISSION_PUBLIC_BASE_URL.*https://join\.stuhelper\.com'
@@ -118,6 +120,12 @@ assert_contains "${PARITY_UP}" 'SSO_PUBLIC_BASE_URL.*https://sso\.stuhelper\.com
 assert_contains "${PARITY_UP}" 'SSO_PUBLIC_SMOKE_EXPECTED_ISSUER.*http://sso\.stuhelper\.com'
 assert_contains "${PARITY_UP}" 'SSO_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS.*true'
 assert_contains "${PARITY_UP}" 'IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED.*false'
+
+assert_contains "${MINIO_CA_BUNDLE}" 'MINIO_TLS_DIR'
+assert_contains "${MINIO_CA_BUNDLE}" 'ca\.crt'
+assert_contains "${MINIO_CA_BUNDLE}" 'is a directory'
+assert_contains "${MINIO_CA_BUNDLE}" 'sudo -n true'
+assert_contains "${MINIO_CA_BUNDLE}" 'openssl_cmd req'
 assert_contains "${PARITY_UP}" 'CASDOOR_EXTERNALPORT.*28085'
 assert_contains "${PARITY_UP}" 'CASDOOR_ISSUER.*http://sso\.stuhelper\.com'
 assert_contains "${PARITY_UP}" 'CASDOOR_PUBLIC_AUTH_BASE_URL.*https://sso\.stuhelper\.com'
