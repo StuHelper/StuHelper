@@ -56,6 +56,8 @@ for name in (
     "SSO web application exposes password signup controls",
 ):
     require(len([item for item in checks if item.get("name") == name and item.get("passed") is True]) == 1, name)
+for item in checks:
+    require(item.get("details", {}).get("remoteIP") == "127.0.0.1", f"remoteIP detail for {item.get('name')}")
 
 issuer = evidence.get("expectedIssuer", "")
 endpoints = evidence.get("endpoints", {})
@@ -90,6 +92,9 @@ assert_contains "${SMOKE_SCRIPT}" 'SSO web application exposes password signup c
 assert_contains "${SMOKE_SCRIPT}" 'SSO_PUBLIC_SMOKE_APPLICATION_ID'
 assert_contains "${SMOKE_SCRIPT}" 'SSO_PUBLIC_SMOKE_CURL_NO_PROXY'
 assert_contains "${SMOKE_SCRIPT}" 'SSO_PUBLIC_SMOKE_RESOLVE_IP'
+assert_contains "${SMOKE_SCRIPT}" '%\{remote_ip\}'
+assert_contains "${SMOKE_SCRIPT}" 'remoteIP'
+assert_contains "${SMOKE_SCRIPT}" 'not a public/global IP address'
 assert_contains "${PROD_DEPLOY_SCRIPT}" 'SSO_PUBLIC_SMOKE_ENABLED'
 assert_contains "${PROD_DEPLOY_SCRIPT}" 'sso-public-smoke\.sh'
 assert_contains "${PROD_PARITY_SMOKE_SCRIPT}" 'SSO_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=true'
@@ -218,6 +223,29 @@ local_refused_output="$(
 
 printf '%s\n' "${local_refused_output}" | grep -q 'SSO_PUBLIC_BASE_URL must be exactly https://sso.stuhelper.com' || \
   fail "local target refusal did not enforce the production SSO origin guard"
+
+prod_env_file="${tmpdir}/.env.prod"
+cat >"${prod_env_file}" <<ENV
+APP_ENV=production
+CASDOOR_PUBLIC_AUTH_BASE_URL=https://sso.stuhelper.com
+CASDOOR_ISSUER=https://sso.stuhelper.com
+CASDOOR_CLIENT_ID=stuhelper-web
+CASDOOR_REDIRECT_URI=https://stuhelper.com/api/v1/auth/callback
+ENV
+
+local_resolve_refused_output="$(
+  ENV_FILE="${prod_env_file}" \
+  GENERATED_ENV_FILE="${generated_env_file}" \
+  GENERATED_SECRET_ENV_FILE="${generated_secret_env_file}" \
+  GENERATED_OBS_DIR="${generated_obs_dir}" \
+  SSO_PUBLIC_SMOKE_EVIDENCE_FILE="${evidence_file}" \
+  SSO_PUBLIC_SMOKE_RESOLVE_IP=127.0.0.1 \
+  SSO_PUBLIC_SMOKE_RETRIES=1 \
+  "${SMOKE_SCRIPT}" 2>&1
+)" && fail "smoke unexpectedly allowed a local SSO_PUBLIC_SMOKE_RESOLVE_IP"
+
+printf '%s\n' "${local_resolve_refused_output}" | grep -q 'SSO_PUBLIC_SMOKE_RESOLVE_IP resolved to a non-public target' || \
+  fail "local resolve override refusal did not mention the resolved target"
 
 output="$(
   ENV_FILE="${env_file}" \

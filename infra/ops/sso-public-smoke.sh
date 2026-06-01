@@ -15,7 +15,7 @@ Verifies the public production SSO/Casdoor ingress:
   - the discovery issuer matches SSO_PUBLIC_SMOKE_EXPECTED_ISSUER
   - the discovered JWKS endpoint returns a JSON Web Key Set
   - the discovered authorization endpoint is routed to SSO and not a static 404/5xx
-  - the StuHelper web Casdoor application still enables password login, signup, and signin sessions
+  - the StuHelper web Casdoor application still enables password login and signup controls
 
 Required production env:
   CASDOOR_ISSUER must be https://sso.stuhelper.com
@@ -114,6 +114,40 @@ reject_local_smoke_target() {
   esac
 }
 
+non_public_ip_error() {
+  local value="$1"
+  [[ -n "${value}" ]] || return 0
+  python3 - "${value}" <<'PY'
+import ipaddress
+import sys
+
+raw = sys.argv[1].strip()
+candidate = raw.strip("[]").split("%", 1)[0]
+try:
+    ip = ipaddress.ip_address(candidate)
+except ValueError:
+    raise SystemExit(0)
+
+if not ip.is_global:
+    print(f"{raw} is not a public/global IP address")
+    raise SystemExit(1)
+PY
+}
+
+non_public_smoke_ip_message() {
+  local name="$1"
+  local value="$2"
+  local error
+  [[ "${allow_local_targets:-false}" != "true" ]] || return 1
+  [[ -n "${value}" ]] || return 1
+  if ! error="$(non_public_ip_error "${value}")"; then
+    printf '%s resolved to a non-public target (%s); sso-public-smoke verifies public production SSO ingress. Set SSO_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=true only for local contract tests or intentional local validation.' \
+      "${name}" "${error:-${value}}"
+    return 0
+  fi
+  return 1
+}
+
 urlencode() {
   python3 - "$1" <<'PY'
 from urllib.parse import quote
@@ -172,13 +206,14 @@ request_url() {
   local headers_file="$3"
   local error_file="$4"
   local meta
-  if ! meta="$(curl -sS --max-time 10 -D "${headers_file}" -w $'%{http_code}\n%{url_effective}\n%{ssl_verify_result}' -o "${response_file}" "${url}" 2>"${error_file}")"; then
+  if ! meta="$(curl -sS --max-time 10 -D "${headers_file}" -w $'%{http_code}\n%{url_effective}\n%{ssl_verify_result}\n%{remote_ip}' -o "${response_file}" "${url}" 2>"${error_file}")"; then
     :
   fi
-  printf '%s\n%s\n%s\n' \
+  printf '%s\n%s\n%s\n%s\n' \
     "$(printf '%s\n' "${meta:-}" | sed -n '1p')" \
     "$(printf '%s\n' "${meta:-}" | sed -n '2p')" \
-    "$(printf '%s\n' "${meta:-}" | sed -n '3p')"
+    "$(printf '%s\n' "${meta:-}" | sed -n '3p')" \
+    "$(printf '%s\n' "${meta:-}" | sed -n '4p')"
 }
 
 sso_public_base_url="$(trim_trailing_slash "${SSO_PUBLIC_BASE_URL:-${CASDOOR_PUBLIC_AUTH_BASE_URL:-${WEB_VITE_SSO_URL:-${CASDOOR_ISSUER:-https://sso.stuhelper.com}}}}")"
@@ -210,6 +245,9 @@ if [[ "${allow_local_targets}" != "true" ]]; then
     die "SSO_PUBLIC_SMOKE_EXPECTED_ISSUER must be exactly https://sso.stuhelper.com for production SSO public smoke"
   reject_local_smoke_target "SSO_PUBLIC_BASE_URL" "${sso_public_base_url}"
   reject_local_smoke_target "SSO_PUBLIC_SMOKE_EXPECTED_ISSUER" "${expected_issuer}"
+  if non_public_message="$(non_public_smoke_ip_message "SSO_PUBLIC_SMOKE_RESOLVE_IP" "${resolve_ip}")"; then
+    die "${non_public_message}"
+  fi
 fi
 
 pass=0
@@ -260,7 +298,7 @@ record_fail() {
 }
 
 check_discovery() {
-  local attempt response_file headers_file error_file meta status content_type bytes curl_error snippet
+  local attempt response_file headers_file error_file meta status remote_ip remote_ip_error content_type bytes curl_error snippet
   local actual_issuer actual_authorization_endpoint actual_jwks_uri actual_token_endpoint
   response_file="$(mktemp)"
   headers_file="$(mktemp)"
@@ -271,9 +309,15 @@ check_discovery() {
     : >"${error_file}"
     meta="$(request_url "${discovery_url}" "${response_file}" "${headers_file}" "${error_file}")"
     status="$(printf '%s\n' "${meta}" | sed -n '1p')"
+    remote_ip="$(printf '%s\n' "${meta}" | sed -n '4p')"
     content_type="$(response_header "${headers_file}" "Content-Type")"
     bytes="$(wc -c <"${response_file}" | tr -d '[:space:]')"
     curl_error="$(body_snippet "${error_file}")"
+    if remote_ip_error="$(non_public_smoke_ip_message "SSO discovery remote IP" "${remote_ip}")"; then
+      rm -f "${response_file}" "${headers_file}" "${error_file}"
+      record_fail "SSO discovery metadata resolved to non-public target" "$(json_detail url "${discovery_url}" remoteIP "${remote_ip}" resolveIP "${resolve_ip}" reason "${remote_ip_error}" curlError "${curl_error}")"
+      return
+    fi
     actual_issuer="$(jq -r '.issuer // ""' "${response_file}" 2>/dev/null || true)"
     actual_authorization_endpoint="$(jq -r '.authorization_endpoint // ""' "${response_file}" 2>/dev/null || true)"
     actual_jwks_uri="$(jq -r '.jwks_uri // ""' "${response_file}" 2>/dev/null || true)"
@@ -290,7 +334,7 @@ check_discovery() {
       userinfo_endpoint="$(jq -r '.userinfo_endpoint // empty' "${response_file}")"
       jwks_url="$(jq -r '.jwks_uri' "${response_file}")"
       rm -f "${response_file}" "${headers_file}" "${error_file}"
-      record_pass "SSO discovery metadata" "$(json_detail url "${discovery_url}" httpStatus "${status}" issuer "${expected_issuer}" bytes "${bytes}" contentType "${content_type}" curlError "${curl_error}")"
+      record_pass "SSO discovery metadata" "$(json_detail url "${discovery_url}" httpStatus "${status}" remoteIP "${remote_ip}" issuer "${expected_issuer}" bytes "${bytes}" contentType "${content_type}" curlError "${curl_error}")"
       return
     fi
     if (( attempt < retries )); then
@@ -299,11 +343,11 @@ check_discovery() {
   done
   snippet="$(body_snippet "${response_file}")"
   rm -f "${response_file}" "${headers_file}" "${error_file}"
-  record_fail "SSO discovery metadata expected issuer ${expected_issuer}, got ${actual_issuer:-<missing>} with HTTP ${status:-000}" "$(json_detail url "${discovery_url}" expectedIssuer "${expected_issuer}" actualIssuer "${actual_issuer:-}" actualAuthorizationEndpoint "${actual_authorization_endpoint:-}" actualJWKSURI "${actual_jwks_uri:-}" actualTokenEndpoint "${actual_token_endpoint:-}" httpStatus "${status:-000}" contentType "${content_type:-}" bodySnippet "${snippet}" curlError "${curl_error:-}")"
+  record_fail "SSO discovery metadata expected issuer ${expected_issuer}, got ${actual_issuer:-<missing>} with HTTP ${status:-000}" "$(json_detail url "${discovery_url}" expectedIssuer "${expected_issuer}" actualIssuer "${actual_issuer:-}" actualAuthorizationEndpoint "${actual_authorization_endpoint:-}" actualJWKSURI "${actual_jwks_uri:-}" actualTokenEndpoint "${actual_token_endpoint:-}" httpStatus "${status:-000}" remoteIP "${remote_ip:-}" contentType "${content_type:-}" bodySnippet "${snippet}" curlError "${curl_error:-}")"
 }
 
 check_jwks() {
-  local attempt response_file headers_file error_file meta status content_type bytes curl_error snippet
+  local attempt response_file headers_file error_file meta status remote_ip remote_ip_error content_type bytes curl_error snippet
   response_file="$(mktemp)"
   headers_file="$(mktemp)"
   error_file="$(mktemp)"
@@ -313,12 +357,18 @@ check_jwks() {
     : >"${error_file}"
     meta="$(request_url "${jwks_url}" "${response_file}" "${headers_file}" "${error_file}")"
     status="$(printf '%s\n' "${meta}" | sed -n '1p')"
+    remote_ip="$(printf '%s\n' "${meta}" | sed -n '4p')"
     content_type="$(response_header "${headers_file}" "Content-Type")"
     bytes="$(wc -c <"${response_file}" | tr -d '[:space:]')"
     curl_error="$(body_snippet "${error_file}")"
+    if remote_ip_error="$(non_public_smoke_ip_message "SSO JWKS remote IP" "${remote_ip}")"; then
+      rm -f "${response_file}" "${headers_file}" "${error_file}"
+      record_fail "SSO JWKS resolved to non-public target" "$(json_detail url "${jwks_url}" remoteIP "${remote_ip}" resolveIP "${resolve_ip}" reason "${remote_ip_error}" curlError "${curl_error}")"
+      return
+    fi
     if [[ "${status}" == "200" ]] && jq -e 'type == "object" and (.keys | type == "array")' "${response_file}" >/dev/null; then
       rm -f "${response_file}" "${headers_file}" "${error_file}"
-      record_pass "SSO JWKS" "$(json_detail url "${jwks_url}" httpStatus "${status}" bytes "${bytes}" contentType "${content_type}" curlError "${curl_error}")"
+      record_pass "SSO JWKS" "$(json_detail url "${jwks_url}" httpStatus "${status}" remoteIP "${remote_ip}" bytes "${bytes}" contentType "${content_type}" curlError "${curl_error}")"
       return
     fi
     if (( attempt < retries )); then
@@ -327,11 +377,11 @@ check_jwks() {
   done
   snippet="$(body_snippet "${response_file}")"
   rm -f "${response_file}" "${headers_file}" "${error_file}"
-  record_fail "SSO JWKS expected JSON Web Key Set, got HTTP ${status:-000}" "$(json_detail url "${jwks_url}" httpStatus "${status:-000}" contentType "${content_type:-}" bodySnippet "${snippet}" curlError "${curl_error:-}")"
+  record_fail "SSO JWKS expected JSON Web Key Set, got HTTP ${status:-000}" "$(json_detail url "${jwks_url}" httpStatus "${status:-000}" remoteIP "${remote_ip:-}" contentType "${content_type:-}" bodySnippet "${snippet}" curlError "${curl_error:-}")"
 }
 
 check_authorize_route() {
-  local id redirect encoded_scope state authorize_url response_file headers_file error_file meta status location content_type curl_error snippet
+  local id redirect encoded_scope state authorize_url response_file headers_file error_file meta status remote_ip remote_ip_error location content_type curl_error snippet
   id="${client_id:-sso-public-smoke}"
   redirect="${redirect_uri:-https://stuhelper.com/api/v1/auth/callback}"
   encoded_scope="$(urlencode "${scope}")"
@@ -342,21 +392,27 @@ check_authorize_route() {
   error_file="$(mktemp)"
   meta="$(request_url "${authorize_url}" "${response_file}" "${headers_file}" "${error_file}")"
   status="$(printf '%s\n' "${meta}" | sed -n '1p')"
+  remote_ip="$(printf '%s\n' "${meta}" | sed -n '4p')"
   location="$(response_header "${headers_file}" "Location")"
   content_type="$(response_header "${headers_file}" "Content-Type")"
   curl_error="$(body_snippet "${error_file}")"
+  if remote_ip_error="$(non_public_smoke_ip_message "SSO authorize remote IP" "${remote_ip}")"; then
+    rm -f "${response_file}" "${headers_file}" "${error_file}"
+    record_fail "SSO authorize route resolved to non-public target" "$(json_detail url "${authorization_endpoint}" remoteIP "${remote_ip}" resolveIP "${resolve_ip}" reason "${remote_ip_error}" clientID "${id}" curlError "${curl_error}")"
+    return
+  fi
   if [[ "${status}" =~ ^[0-9][0-9][0-9]$ ]] && (( status >= 200 && status < 500 )) && [[ "${status}" != "404" ]]; then
     rm -f "${response_file}" "${headers_file}" "${error_file}"
-    record_pass "SSO authorize route reachable" "$(json_detail url "${authorization_endpoint}" httpStatus "${status}" location "${location}" contentType "${content_type}" clientID "${id}" curlError "${curl_error}")"
+    record_pass "SSO authorize route reachable" "$(json_detail url "${authorization_endpoint}" httpStatus "${status}" remoteIP "${remote_ip}" location "${location}" contentType "${content_type}" clientID "${id}" curlError "${curl_error}")"
     return
   fi
   snippet="$(body_snippet "${response_file}")"
   rm -f "${response_file}" "${headers_file}" "${error_file}"
-  record_fail "SSO authorize route returned ${status:-000}" "$(json_detail url "${authorization_endpoint}" httpStatus "${status:-000}" location "${location}" contentType "${content_type}" bodySnippet "${snippet}" curlError "${curl_error}")"
+  record_fail "SSO authorize route returned ${status:-000}" "$(json_detail url "${authorization_endpoint}" httpStatus "${status:-000}" remoteIP "${remote_ip:-}" location "${location}" contentType "${content_type}" bodySnippet "${snippet}" curlError "${curl_error}")"
 }
 
 check_application_config() {
-  local response_file headers_file error_file meta status content_type bytes curl_error summary
+  local response_file headers_file error_file meta status remote_ip remote_ip_error content_type bytes curl_error summary
   local application_url
   application_url="${sso_public_base_url}/api/get-application?id=$(urlencode "${application_id}")"
   response_file="$(mktemp)"
@@ -364,9 +420,15 @@ check_application_config() {
   error_file="$(mktemp)"
   meta="$(request_url "${application_url}" "${response_file}" "${headers_file}" "${error_file}")"
   status="$(printf '%s\n' "${meta}" | sed -n '1p')"
+  remote_ip="$(printf '%s\n' "${meta}" | sed -n '4p')"
   content_type="$(response_header "${headers_file}" "Content-Type")"
   bytes="$(wc -c <"${response_file}" | tr -d '[:space:]')"
   curl_error="$(body_snippet "${error_file}")"
+  if remote_ip_error="$(non_public_smoke_ip_message "SSO application config remote IP" "${remote_ip}")"; then
+    rm -f "${response_file}" "${headers_file}" "${error_file}"
+    record_fail "SSO web application config resolved to non-public target" "$(json_detail url "${application_url}" remoteIP "${remote_ip}" resolveIP "${resolve_ip}" reason "${remote_ip_error}" applicationID "${application_id}" curlError "${curl_error}")"
+    return
+  fi
   if [[ "${status}" == "200" ]] && jq -e --arg app_id "${application_id}" '
     def method_rule($name):
       (.data.signinMethods // [])
@@ -390,14 +452,15 @@ check_application_config() {
     and signup_item_required("Confirm password") == true
   ' "${response_file}" >/dev/null; then
     rm -f "${response_file}" "${headers_file}" "${error_file}"
-    record_pass "SSO web application exposes password signup controls" "$(json_detail url "${application_url}" httpStatus "${status}" applicationID "${application_id}" bytes "${bytes}" contentType "${content_type}" curlError "${curl_error}")"
+    record_pass "SSO web application exposes password signup controls" "$(json_detail url "${application_url}" httpStatus "${status}" remoteIP "${remote_ip}" applicationID "${application_id}" bytes "${bytes}" contentType "${content_type}" curlError "${curl_error}")"
     return
   fi
 
-  summary="$(jq -c --arg url "${application_url}" --arg http_status "${status:-000}" --arg content_type "${content_type:-}" --arg bytes "${bytes:-0}" --arg curl_error "${curl_error:-}" '
+  summary="$(jq -c --arg url "${application_url}" --arg http_status "${status:-000}" --arg remote_ip "${remote_ip:-}" --arg content_type "${content_type:-}" --arg bytes "${bytes:-0}" --arg curl_error "${curl_error:-}" '
     {
       url: $url,
       httpStatus: $http_status,
+      remoteIP: $remote_ip,
       contentType: $content_type,
       bytes: $bytes,
       curlError: $curl_error,
@@ -420,7 +483,7 @@ check_application_config() {
   ' "${response_file}" 2>/dev/null || true)"
   rm -f "${response_file}" "${headers_file}" "${error_file}"
   if [[ -z "${summary}" ]]; then
-    summary="$(json_detail url "${application_url}" httpStatus "${status:-000}" contentType "${content_type:-}" bytes "${bytes:-0}" curlError "${curl_error:-}")"
+    summary="$(json_detail url "${application_url}" httpStatus "${status:-000}" remoteIP "${remote_ip:-}" contentType "${content_type:-}" bytes "${bytes:-0}" curlError "${curl_error:-}")"
   fi
   record_fail "SSO web application password/signup controls drift" "${summary}"
 }
