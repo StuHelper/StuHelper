@@ -43,17 +43,43 @@ func (s *Service) CreateFreshmanApplication(
 		return nil, err
 	}
 	if existing != nil {
-		if existing.AdmissionSessionID == nil || *existing.AdmissionSessionID != session.ID {
-			return s.repo.ReassignPendingFreshmanApplicationSession(ctx, existing.ID, session.ID)
-		}
-		return existing, nil
+		return s.usePendingFreshmanApplicationForSession(ctx, existing, session)
+	}
+	if s.beforeFreshmanApplicationCreate != nil {
+		s.beforeFreshmanApplicationCreate()
 	}
 	app, err := s.buildFreshmanApplication(input, session.ID)
 	if err != nil {
 		return nil, err
 	}
 	if err := s.repo.CreateFreshmanApplication(ctx, app); err != nil {
+		if isFreshmanApplicationPendingUniqueViolation(err) {
+			existing, getErr := s.repo.GetPendingFreshmanApplication(ctx, input.UserID, input.SchoolID)
+			if getErr != nil {
+				return nil, getErr
+			}
+			if existing != nil {
+				return s.usePendingFreshmanApplicationForSession(ctx, existing, session)
+			}
+		}
 		return nil, err
+	}
+	return app, nil
+}
+
+func (s *Service) usePendingFreshmanApplicationForSession(
+	ctx context.Context,
+	app *FreshmanApplication,
+	session *AdmissionSession,
+) (*FreshmanApplication, error) {
+	if app == nil {
+		return nil, ErrAdmissionApplicationNotFound
+	}
+	if session == nil {
+		return nil, ErrAdmissionLinkedSessionRequired
+	}
+	if app.AdmissionSessionID == nil || *app.AdmissionSessionID != session.ID {
+		return s.repo.ReassignPendingFreshmanApplicationSession(ctx, app.ID, session.ID)
 	}
 	return app, nil
 }

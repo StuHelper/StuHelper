@@ -102,6 +102,43 @@ func TestFreshmanApplicationReassignsPendingApplicationToCurrentSession(t *testi
 	assert.Equal(t, relinked.ID, *reused.AdmissionSessionID)
 }
 
+func TestFreshmanApplicationUniqueRaceReusesPendingApplication(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newFreshmanTestService(t, fixture)
+	userID := seedLinkedAdmissionUser(t, fixture, svc, "freshman-race")
+	session, err := svc.GetBotAdmissionSession(context.Background(), BotSessionSubjectInput{
+		Platform: "qq",
+		GuildID:  "guild-1",
+		QQID:     "10001",
+	})
+	require.NoError(t, err)
+	inserted := false
+	svc.beforeFreshmanApplicationCreate = func() {
+		if inserted {
+			return
+		}
+		inserted = true
+		insertFreshmanPendingApplication(t, fixture, freshmanPendingSeed{
+			ID:            "freshman-race-existing",
+			UserID:        userID,
+			SchoolID:      1,
+			SessionID:     session.ID,
+			ApplicantName: "Concurrent Applicant",
+		})
+	}
+
+	app, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
+		UserID:        userID,
+		SchoolID:      1,
+		ApplicantName: "Alice Applicant",
+		MaterialType:  MaterialAdmissionNotice,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "freshman-race-existing", app.ID)
+	require.NotNil(t, app.AdmissionSessionID)
+	assert.Equal(t, session.ID, *app.AdmissionSessionID)
+}
+
 func TestFreshmanApplicationRejectsExpiredLinkedSession(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newFreshmanTestService(t, fixture)
@@ -408,6 +445,31 @@ func openFreshmanChannel(t *testing.T, fixture *postgresfixture.Fixture) {
 		SET freshman_channel_closes_at = $1
 		WHERE platform = 'qq' AND guild_id = 'guild-1'
 	`, futureTime(30))
+	require.NoError(t, err)
+}
+
+type freshmanPendingSeed struct {
+	ID            string
+	UserID        int64
+	SchoolID      int64
+	SessionID     string
+	ApplicantName string
+}
+
+func insertFreshmanPendingApplication(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	seed freshmanPendingSeed,
+) {
+	t.Helper()
+	_, err := fixture.Pool.Exec(context.Background(), `
+		INSERT INTO freshman_verification_applications (
+			id, user_id, school_id, admission_session_id, applicant_name,
+			applicant_name_masked, material_type, status
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`, seed.ID, seed.UserID, seed.SchoolID, seed.SessionID, seed.ApplicantName,
+		maskAdmissionName(seed.ApplicantName), MaterialAdmissionNotice, FreshmanApplicationPending)
 	require.NoError(t, err)
 }
 

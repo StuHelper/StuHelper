@@ -58,6 +58,8 @@ type Service struct {
 	operatorAccess  OperatorAccessGateway
 	projection      FreshmanProjectionGateway
 	schoolSSO       SchoolSSOExchanger
+
+	beforeFreshmanApplicationCreate func()
 }
 
 type ServiceOption func(*Service)
