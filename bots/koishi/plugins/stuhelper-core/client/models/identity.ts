@@ -26,7 +26,7 @@ export function buildIdentityModel(
     if (!keyword) {
       return true
     }
-    return [member.memberId, member.memberName, member.profile?.qqNickname]
+    return [member.memberId, member.memberName]
       .filter(Boolean)
       .some((value) => String(value).toLowerCase().includes(keyword))
   })

@@ -14,11 +14,12 @@ export async function muteGuardedMember(input: {
 }
 
 export async function sendAdmissionReminder(bot: Universal.Methods, record: GuardMemberRecord, authURL: string) {
-  await bot.sendMessage(record.channelId, formatAdmissionReminder({
+  const result = await bot.sendMessage(record.channelId, formatAdmissionReminder({
     memberId: record.memberId,
     authURL,
     deadlineAt: record.deadlineAt,
   }))
+  return firstMessageID(result)
 }
 
 export async function sendBackendPendingReminder(
@@ -30,4 +31,11 @@ export async function sendBackendPendingReminder(
     `${h.at(record.memberId)} ${reminderTemplate}`,
     '认证链接暂时无法创建，机器人会自动重试。',
   ].join('\n'))
+}
+
+function firstMessageID(result: unknown): string | undefined {
+  if (Array.isArray(result)) {
+    return typeof result[0] === 'string' ? result[0] : undefined
+  }
+  return typeof result === 'string' ? result : undefined
 }

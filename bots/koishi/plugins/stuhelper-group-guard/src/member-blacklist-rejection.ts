@@ -3,6 +3,7 @@ import type { Logger, Session, Universal } from 'koishi'
 import { PlatformAPIError } from '@stuhelper/koishi-shared'
 import type { ModerationStore } from '@stuhelper/koishi-moderation-core'
 
+import { requireAdmissionSubjectPlatform } from './admission-subject-platform'
 import { formatAdmissionActionError } from './admission-actions'
 import { requireMemberID, resolveGuildID } from './member-records'
 import type { GuardMemberRecord } from './model'
@@ -23,7 +24,7 @@ export async function kickBlacklistedJoin(input: BlacklistedJoinInput) {
   const memberId = requireMemberID(input.session)
   await input.session.bot.kickGuildMember(guildId, memberId, false)
   await reportBlacklistedMember({
-    platform: input.session.platform,
+    platform: requireAdmissionSubjectPlatform(input.session.platform),
     botSelfId: input.session.selfId,
     guildId,
     channelId: input.session.channelId || guildId,

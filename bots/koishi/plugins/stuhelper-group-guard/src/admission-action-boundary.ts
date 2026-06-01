@@ -3,10 +3,12 @@ import type {
   GuardPolicyStore,
 } from '@stuhelper/koishi-shared'
 
+import {
+  requireAdmissionSubjectPlatform,
+  resolveAdmissionSubjectPlatform,
+} from './admission-subject-platform'
 import type { GuardBotRuntime } from './member-guard'
 import type { GuardMemberRecord } from './model'
-
-const ADMISSION_ACTION_PLATFORM = 'qq'
 
 interface AdmissionActionBoundaryInput {
   readonly bot: GuardBotRuntime
@@ -16,14 +18,11 @@ interface AdmissionActionBoundaryInput {
 }
 
 export function requireAdmissionActionPlatform(bot: GuardBotRuntime) {
-  if (bot.platform !== ADMISSION_ACTION_PLATFORM) {
-    throw new Error(`admission action worker requires platform ${ADMISSION_ACTION_PLATFORM}`)
-  }
-  return bot.platform
+  return requireAdmissionSubjectPlatform(bot.platform)
 }
 
 export function isAdmissionActionPlatform(bot: GuardBotRuntime) {
-  return bot.platform === ADMISSION_ACTION_PLATFORM
+  return Boolean(resolveAdmissionSubjectPlatform(bot.platform))
 }
 
 export async function assertAdmissionActionBoundary(input: AdmissionActionBoundaryInput) {

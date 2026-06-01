@@ -32,7 +32,6 @@ test('绑定命令在私聊中消费绑定码并返回成功提示', async () =>
           binding: {
             userID: 42,
             qqID: '10001',
-            qqNickname: '10001',
             boundAt: '2026-04-19T00:00:00Z',
             createdAt: '2026-04-19T00:00:00Z',
             updatedAt: '2026-04-19T00:00:00Z',
@@ -40,7 +39,6 @@ test('绑定命令在私聊中消费绑定码并返回成功提示', async () =>
           verificationState: {
             qqID: '10001',
             userID: 42,
-            qqNickname: '10001',
             boundAt: '2026-04-19T00:00:00Z',
             verificationState: 'verified',
             profileVerificationStatus: 'verified',

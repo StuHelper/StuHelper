@@ -10,7 +10,7 @@ interface EventLogger {
 
 interface EventDeps {
   memberGuard: MemberGuardService
-  messageGuard: MessageGuardService
+  messageGuard?: MessageGuardService
   logger: EventLogger
   scanIntervalSeconds: number
 }
@@ -20,13 +20,15 @@ export function registerGroupGuardEvents(ctx: Context, deps: EventDeps) {
     return deps.memberGuard.handleGuildMemberAdded(session)
   })
 
-  ctx.on('message', (session) => {
-    return deps.messageGuard.handleMessage(session)
-  })
+  if (deps.messageGuard) {
+    ctx.on('message', (session) => {
+      return deps.messageGuard!.handleMessage(session)
+    })
 
-  ctx.on('message-deleted', (session) => {
-    return deps.messageGuard.handleMessageDeleted(session)
-  })
+    ctx.on('message-deleted', (session) => {
+      return deps.messageGuard!.handleMessageDeleted(session)
+    })
+  }
 
   ctx.setInterval(() => {
     return deps.memberGuard

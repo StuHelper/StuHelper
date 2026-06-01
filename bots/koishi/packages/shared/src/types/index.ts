@@ -80,6 +80,7 @@ export interface StuhelperKeywordRuleConfig {
 }
 
 export interface StuhelperModerationConfig {
+  enabled?: boolean
   repeatThreshold: number
   repeatWindowSize: number
   warningThresholdExpression: string
@@ -108,6 +109,20 @@ export interface StuhelperAIConfig {
   model: string
 }
 
+export interface StuhelperCommandConfig {
+  enabled?: boolean
+}
+
+export interface StuhelperAdmissionCommandConfig {
+  enabled?: boolean
+  minAuthority?: number
+  operatorQQIDs?: string[]
+}
+
+export interface StuhelperFreshmanForwardConfig {
+  enabled?: boolean
+}
+
 export interface StuhelperCoreConfig {
   platform: StuhelperPlatformConfig
   guard: StuhelperGuardConfig
@@ -126,6 +141,9 @@ export interface StuhelperGroupGuardPluginConfig {
   moderation: StuhelperModerationConfig
   fun: StuhelperFunConfig
   ai: StuhelperAIConfig
+  commands?: StuhelperCommandConfig
+  admissionCommands?: StuhelperAdmissionCommandConfig
+  freshmanForward?: StuhelperFreshmanForwardConfig
 }
 
 export interface StuhelperAdminPluginConfig {
@@ -143,7 +161,6 @@ export interface StuhelperConsolePluginConfig {
 export interface QQBinding {
   userID: number
   qqID: string
-  qqNickname: string | null
   boundAt: string
   createdAt: string
   updatedAt: string
@@ -157,13 +174,11 @@ export interface QQBindingCode {
 export interface ConsumeQQBindingRequest {
   code: string
   qqID: string
-  qqNickname?: string
 }
 
 export interface QQVerificationStatus {
   qqID: string
   userID: number | null
-  qqNickname: string | null
   boundAt: string | null
   verificationState: PlatformVerificationState
   profileVerificationStatus: 'unverified' | 'pending' | 'verified' | 'rejected'
@@ -176,7 +191,6 @@ export interface AdmissionSession {
   readonly guildID: string
   readonly channelID?: string
   readonly qqID: string
-  readonly qqNickname?: string | null
   readonly userID?: number | string | null
   readonly status: AdmissionSessionStatus
   readonly tokenExpiresAt: string
@@ -187,6 +201,7 @@ export interface AdmissionSession {
   readonly projectionPending: boolean
   readonly authURL?: string
   readonly maxMaterialBytes?: number
+  readonly lastBotError?: string | null
 }
 
 export interface AdmissionSessionCreateRequest {
@@ -194,8 +209,13 @@ export interface AdmissionSessionCreateRequest {
   readonly guildID: string
   readonly channelID: string
   readonly qqID: string
-  readonly qqNickname?: string
   readonly botSelfID?: string
+}
+
+export interface AdmissionSessionSubjectRequest {
+  readonly platform: string
+  readonly guildID: string
+  readonly qqID: string
 }
 
 export interface AdmissionSessionCreateResult {

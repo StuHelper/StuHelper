@@ -94,6 +94,23 @@ export class GuardMemberStore {
     return record as GuardMemberRecord | undefined
   }
 
+  async findActiveBySubject(input: {
+    readonly platform: string
+    readonly botSelfId: string
+    readonly guildId: string
+    readonly memberId: string
+  }) {
+    const [record] = await this.ctx.database.get(GUARD_MEMBER_TABLE, {
+      platform: input.platform,
+      botSelfId: input.botSelfId,
+      guildId: input.guildId,
+      memberId: input.memberId,
+      releasedAt: null,
+      kickedAt: null,
+    })
+    return record as GuardMemberRecord | undefined
+  }
+
   async listBackendSyncPending(platform: string | undefined, botSelfId: string) {
     const query: Record<string, unknown> = {
       botSelfId,

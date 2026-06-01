@@ -1,4 +1,4 @@
-import { Context, Schema, Session } from 'koishi'
+import { Context, Schema } from 'koishi'
 
 import {
   PlatformAPIError,
@@ -35,7 +35,6 @@ export function apply(ctx: Context, config: Config) {
         const result = await platform.consumeQQBindingCode({
           code: code.trim(),
           qqID: session.userId,
-          qqNickname: resolveQQNickname(session),
         })
         logger.info('qq binding succeeded', {
           qqID: session.userId,
@@ -54,10 +53,6 @@ export function apply(ctx: Context, config: Config) {
     })
 
   logger.info(`绑定插件已加载，命令字：${config.binding.command}`)
-}
-
-function resolveQQNickname(session: Session) {
-  return session.username || session.event.user?.nick || session.author?.nick
 }
 
 function buildBindingSuccessMessage(state: PlatformVerificationState) {

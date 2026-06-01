@@ -19,6 +19,8 @@
 - `plugins/stuhelper-group-guard`：处理入群 admission session 创建、禁言、认证链接提醒、后端 pending action 执行、材料转发、关键词命中、撤回留痕、举报流和娱乐命令。
 - `plugins/stuhelper-admin`：提供文本管理员命令，用于查看待认证成员、查询警告、查看复核队列、批量禁言、提交踢人/拉黑复核申请，以及 QQ 管理群新生材料审核。
 
+Koishi 群管中心 WebUI 只由 `koishi-plugin-stuhelper-core` 注册到 Koishi Console；`stuhelper-group-guard` 不提供单独 WebUI。历史上讨论过的 `stuhelper-console` / `stuhelper-platform` 已按 ADR-0006 从运行路径移除，所以“注册 WebUI”对应的是 `stuhelper-core` 的 Console 入口，而不是 admission 插件本身。
+
 ## 本地命令
 
 ```bash
@@ -37,13 +39,32 @@ corepack yarn workspaces list
 - `STUHELPER_PLATFORM_BASE_URL` 指向 StuHelper 后端地址；`STUHELPER_PLATFORM_SERVICE_TOKEN` 是 Koishi 调用后端机器人接口时发送的 Bearer token，应与后端 `BOT_SERVICE_TOKEN` 保持一致。
 - `STUHELPER_PLATFORM_SERVICE_TOKEN` 对应的 Koishi runtime service account 必须至少具备 `bot.qq_binding.consume`、`bot.qq_verification.read`、`bot.admission.session`、`bot.admission.event`、`bot.admission.review`、`bot.admission.forward` scopes。
 - `STUHELPER_GROUP_CENTER_DATA_DIR` 可选覆盖群管中心 JSON 数据目录；留空时使用 Koishi baseDir 下的 `data/stuhelperGroupCenter`。UI smoke 会自动指向临时目录，避免污染本地开发数据。
+- `STUHELPER_FRESHMAN_MATERIAL_HOSTS` 是新生材料图片 URL 允许转发的 HTTPS host 白名单；当前 MVP 生产默认不启用材料原图转发扫描。
 - 本地可直接 `export STUHELPER_CONSOLE_ADMIN_PASSWORD=dev-console-admin-password`，或把同名变量写入仓库根目录 `.env` / 生产环境变量文件。
 
 ## Admission 策略边界
 
 `koishi.yml` 的本地 `guard` 字段保留为运行时启用范围、数据库群绑定模板兜底、旧群管命令默认值和扫描间隔配置；新生入群认证的准入与会话策略由后端 admission policy 决定。后端负责 `auto_approve_join`、初始禁言时长、link/submission/manual-review 等待时间、提醒间隔、失败次数拉黑、黑名单期限、新生通道关闭时间、原始材料转发开关和 `management_guild_ids`。
 
-Koishi 在 admission 流程中只做执行器：入群后创建后端 session，发送 `auth.stuhelper.com` 认证链接，按后端 pending actions 执行提醒、解禁、踢出、拉黑和材料转发，再把执行结果回写后端。`koishi.yml` 的插件加载保持不变，不新增短链域名配置。
+Koishi 在 admission 流程中只做执行器：入群后创建后端 session，发送后端返回的 `join.stuhelper.com/verify/<token>?qq=<qq>` 认证链接，按后端 pending actions 执行提醒、解禁、踢出、拉黑和材料转发，再把执行结果回写后端。`koishi.yml` 的插件加载保持不变，不新增短链域名配置。
+
+生产 NapCat 的 Koishi runtime platform 是 `onebot`，后端 admission 表中的 `platform` 是被验证账号的 subject platform。当前 admission MVP 验证的是 QQ 号，因此 `onebot` runtime 会显式映射为后端 `platform=qq`；未来若接入官方 QQ 机器人适配器，需要重新确认事件能力和 ID 语义，不能把 Koishi 适配器名直接写入 admission 业务记录。
+
+生产 admission MVP 建议在 `stuhelper-group-guard` 下显式配置：
+
+```yaml
+commands:
+  enabled: false
+admissionCommands:
+  enabled: true
+  minAuthority: 4
+moderation:
+  enabled: false
+freshmanForward:
+  enabled: false
+```
+
+这些开关只限制新插件是否接管公开命令、消息风控监听和新生材料原图转发扫描；`admissionCommands` 保留“查询入群认证 / 重发认证链接 / 重新生成认证链接”等管理员命令，便于恢复真实 QQ 入群测试。不要因此卸载或关闭旧 `student-query` 插件本身。若旧插件也在同一批目标群处理同一阶段入群验证，应在旧插件自身的目标群或功能开关中排除 admission 群，避免两个监听器双处理。
 
 ## 自动化验证
 

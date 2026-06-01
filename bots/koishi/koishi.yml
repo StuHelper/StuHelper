@@ -35,6 +35,18 @@ plugins:
       platform:
         baseUrl: ${{ env.STUHELPER_PLATFORM_BASE_URL }}
         serviceToken: ${{ env.STUHELPER_PLATFORM_SERVICE_TOKEN }}
+      guard:
+        targetGroups:
+          - '178037297'
+      commands:
+        enabled: false
+      admissionCommands:
+        enabled: true
+        minAuthority: 4
+      moderation:
+        enabled: false
+      freshmanForward:
+        enabled: false
     stuhelper-admin:admin:
       platform:
         baseUrl: ${{ env.STUHELPER_PLATFORM_BASE_URL }}

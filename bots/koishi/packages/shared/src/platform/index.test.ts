@@ -30,7 +30,15 @@ test('platform admission client sends expected paths and payloads', async (t) =>
     guildID: 'guild-1',
     channelID: 'channel-1',
     qqID: '10001',
-    qqNickname: 'Alice',
+    botSelfID: '514',
+  })
+  await client.getAdmissionSessionByMember({ platform: 'qq', guildID: 'guild-1', qqID: '10001' })
+  await client.resendAdmissionSessionLink({ platform: 'qq', guildID: 'guild-1', qqID: '10001' })
+  await client.regenerateAdmissionSessionLink({
+    platform: 'qq',
+    guildID: 'guild-1',
+    channelID: 'channel-1',
+    qqID: '10001',
     botSelfID: '514',
   })
   await client.recordJoinRequestEvent({
@@ -98,6 +106,9 @@ test('platform admission client sends expected paths and payloads', async (t) =>
   })
   assert.deepEqual(calls.map((call) => [call.method, call.path]), [
     ['POST', '/api/v1/bot/admission/sessions'],
+    ['GET', '/api/v1/bot/admission/sessions/member?platform=qq&guildID=guild-1&qqID=10001'],
+    ['POST', '/api/v1/bot/admission/sessions/member/resend'],
+    ['POST', '/api/v1/bot/admission/sessions/member/regenerate'],
     ['POST', '/api/v1/bot/admission/join-requests/events'],
     ['GET', '/api/v1/bot/admission/sessions/pending?platform=qq&botSelfID=514&limit=50'],
     ['GET', '/api/v1/bot/member-blacklist/access?platform=qq&subjectType=qq_user&subjectID=10001&guildID=guild-1'],
@@ -112,14 +123,16 @@ test('platform admission client sends expected paths and payloads', async (t) =>
     ['POST', '/api/v1/bot/admission/freshman/applications/app-1/review'],
   ])
   assert.ok(calls.every((call) => call.authorization === 'Bearer service-token'))
-  assert.equal(calls[0].body.qqNickname, 'Alice')
-  assert.equal(calls[1].body.rawEvent.comment, '我是新生')
-  assert.equal(calls[5].body.metadata.operatorQQID, '90001')
-  assert.equal(calls[5].body.createdFrom, 'qq_command')
-  assert.equal(calls[7].body.releaseReasonCode, 'manual_pardon')
-  assert.equal(calls[8].body.messageID, 'message-1')
-  assert.equal(calls[11].body.operatorQQID, '90001')
-  assert.equal(calls[12].body.expiresInDays, 30)
+  assert.equal('qqNickname' in calls[0].body, false)
+  assert.equal(calls[2].body.qqID, '10001')
+  assert.equal(calls[3].body.botSelfID, '514')
+  assert.equal(calls[4].body.rawEvent.comment, '我是新生')
+  assert.equal(calls[8].body.metadata.operatorQQID, '90001')
+  assert.equal(calls[8].body.createdFrom, 'qq_command')
+  assert.equal(calls[10].body.releaseReasonCode, 'manual_pardon')
+  assert.equal(calls[11].body.messageID, 'message-1')
+  assert.equal(calls[14].body.operatorQQID, '90001')
+  assert.equal(calls[15].body.expiresInDays, 30)
 })
 
 test('platform client accepts empty success responses for void requests', async (t) => {
@@ -153,16 +166,80 @@ test('platform admission client requires bot identity for pending actions', asyn
   )
 })
 
-test('platform client rejects missing platform config at construction', () => {
-  assert.throws(() => createPlatformClient({
+test('platform admission client requires member query identity', async () => {
+  const client = createPlatformClient({
     baseUrl: 'https://api.example.test',
-    serviceToken: '',
-  }), /platform service token is required/)
-
-  assert.throws(() => createPlatformClient({
-    baseUrl: '',
     serviceToken: 'service-token',
-  }), /platform baseUrl is required/)
+  })
+
+  await assert.rejects(
+    client.getAdmissionSessionByMember({ platform: 'qq', guildID: '', qqID: '10001' }),
+    /platform, guildID and qqID are required/,
+  )
+})
+
+test('platform client resolves Koishi env placeholders from process env', async (t) => {
+  const originalFetch = globalThis.fetch
+  const previousBaseURL = process.env.STUHELPER_PLATFORM_BASE_URL
+  const previousServiceToken = process.env.STUHELPER_PLATFORM_SERVICE_TOKEN
+  let capturedURL = ''
+  let capturedAuthorization = ''
+
+  process.env.STUHELPER_PLATFORM_BASE_URL = 'https://env-api.example.test'
+  process.env.STUHELPER_PLATFORM_SERVICE_TOKEN = 'env-service-token'
+  globalThis.fetch = async (input, init) => {
+    capturedURL = String(input)
+    capturedAuthorization = new Headers(init?.headers).get('authorization') || ''
+    return new Response(null, { status: 204 })
+  }
+  t.after(() => {
+    globalThis.fetch = originalFetch
+    restoreEnv('STUHELPER_PLATFORM_BASE_URL', previousBaseURL)
+    restoreEnv('STUHELPER_PLATFORM_SERVICE_TOKEN', previousServiceToken)
+  })
+
+  const client = createPlatformClient({
+    baseUrl: '${{ env.STUHELPER_PLATFORM_BASE_URL }}',
+    serviceToken: '${{ env.STUHELPER_PLATFORM_SERVICE_TOKEN }}',
+  })
+
+  await client.getHealth()
+
+  assert.equal(capturedURL, 'https://env-api.example.test/health/live')
+  assert.equal(capturedAuthorization, 'Bearer env-service-token')
+})
+
+test('platform client rejects missing platform config at construction', () => {
+  const previousBaseURL = process.env.STUHELPER_PLATFORM_BASE_URL
+  const previousServiceToken = process.env.STUHELPER_PLATFORM_SERVICE_TOKEN
+  delete process.env.STUHELPER_PLATFORM_BASE_URL
+  delete process.env.STUHELPER_PLATFORM_SERVICE_TOKEN
+  try {
+    assert.throws(() => createPlatformClient({
+      baseUrl: 'https://api.example.test',
+      serviceToken: '',
+    }), /platform service token is required/)
+
+    assert.throws(() => createPlatformClient({
+      baseUrl: '',
+      serviceToken: 'service-token',
+    }), /platform baseUrl is required/)
+
+    assert.throws(() => createPlatformClient({
+      baseUrl: '${{ env.STUHELPER_PLATFORM_BASE_URL }}',
+      serviceToken: 'service-token',
+    }), /platform baseUrl is required/)
+  } finally {
+    restoreEnv('STUHELPER_PLATFORM_BASE_URL', previousBaseURL)
+    restoreEnv('STUHELPER_PLATFORM_SERVICE_TOKEN', previousServiceToken)
+  }
+})
+
+test('platform client rejects invalid platform baseUrl at construction', () => {
+  assert.throws(() => createPlatformClient({
+    baseUrl: 'not-a-url',
+    serviceToken: 'service-token',
+  }), /platform baseUrl must be an absolute URL/)
 })
 
 interface CapturedRequest {
@@ -180,11 +257,27 @@ function jsonResponse(data: unknown) {
 }
 
 function responseDataForPath(path: string) {
+  if (path.endsWith('/sessions/member')) {
+    return admissionSession('session-1')
+  }
+  if (path.endsWith('/sessions/member/resend')) {
+    return {
+      ...admissionSession('session-1'),
+      authURL: 'https://join.stuhelper.com/verify/token-1?qq=10001',
+    }
+  }
+  if (path.endsWith('/sessions/member/regenerate')) {
+    return {
+      session: admissionSession('session-2'),
+      token: 'token-2',
+      authURL: 'https://join.stuhelper.com/verify/token-2?qq=10001',
+    }
+  }
   if (path.endsWith('/sessions')) {
     return {
       session: admissionSession('session-1'),
       token: 'token-1',
-      authURL: 'https://auth.stuhelper.com/admission/a/token-1?qq=10001',
+      authURL: 'https://join.stuhelper.com/verify/token-1?qq=10001',
     }
   }
   if (path.endsWith('/sessions/pending')) {
@@ -210,6 +303,14 @@ function responseDataForPath(path: string) {
     return freshmanApplication('app-1')
   }
   return { message: 'ok' }
+}
+
+function restoreEnv(name: string, value: string | undefined) {
+  if (typeof value === 'undefined') {
+    delete process.env[name]
+    return
+  }
+  process.env[name] = value
 }
 
 function admissionSession(id: string) {

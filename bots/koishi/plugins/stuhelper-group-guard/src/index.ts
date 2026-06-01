@@ -21,6 +21,7 @@ import { MessageGuardService } from './message-guard'
 import { registerGroupGuardEvents } from './events'
 import { ReportService } from './report-service'
 import { registerPublicCommands } from './commands'
+import { registerAdmissionAdminCommands } from './admission-admin-commands'
 
 export const name = 'stuhelper-group-guard'
 export const inject = ['database']
@@ -53,6 +54,7 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
     policyStore,
     moderationStore,
     logger,
+    freshmanForwardEnabled: config.freshmanForward?.enabled !== false,
   })
   const messageGuard = new MessageGuardService({
     store: moderationStore,
@@ -69,24 +71,37 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
 
   registerGroupGuardEvents(ctx, {
     memberGuard,
-    messageGuard,
+    messageGuard: config.moderation.enabled === false ? undefined : messageGuard,
     logger,
     scanIntervalSeconds: config.scheduler.scanIntervalSeconds,
   })
 
-  ctx.on('ready', async () => {
-    try {
-      await messageGuard.bootstrapKeywordRules()
-    } catch (error) {
-      logger.error('failed to bootstrap moderation rules', error)
-    }
-  })
+  if (config.moderation.enabled !== false) {
+    ctx.on('ready', async () => {
+      try {
+        await messageGuard.bootstrapKeywordRules()
+      } catch (error) {
+        logger.error('failed to bootstrap moderation rules', error)
+      }
+    })
+  }
 
-  registerPublicCommands(ctx, {
-    store: moderationStore,
-    reportService,
-    config,
-  })
+  if (config.commands?.enabled !== false) {
+    registerPublicCommands(ctx, {
+      store: moderationStore,
+      reportService,
+      config,
+    })
+  }
+
+  if (config.admissionCommands?.enabled !== false) {
+    registerAdmissionAdminCommands(ctx, {
+      platform,
+      guardStore,
+      policyStore,
+      config,
+    })
+  }
 
   logger.info(`群管插件已加载，目标群数量：${config.guard.targetGroups.length}，扫描间隔：${config.scheduler.scanIntervalSeconds} 秒`)
 }

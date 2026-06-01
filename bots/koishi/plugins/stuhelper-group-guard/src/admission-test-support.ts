@@ -32,7 +32,7 @@ export function respondAdmissionSession(input: {
     success: true,
     data: {
       token: `token-${qqID}`,
-      authURL: `https://auth.stuhelper.com/admission/a/token-${qqID}?qq=${qqID}`,
+      authURL: `https://join.stuhelper.com/verify/token-${qqID}?qq=${qqID}`,
       session: admissionSessionData(qqID, guildID),
     },
   }))

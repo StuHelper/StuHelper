@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { mkdtemp, rm } from 'node:fs/promises'
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -15,6 +16,7 @@ import {
   MODERATION_FUN_PROFILE_TABLE,
   MODERATION_REPORT_TABLE,
 } from '@stuhelper/koishi-moderation-core'
+import { GUARD_MEMBER_TABLE } from '@stuhelper/koishi-shared'
 
 import groupGuardPlugin from './index.ts'
 import { createKoishiTestRuntime } from '../../test-utils/runtime.ts'
@@ -132,6 +134,105 @@ test('命令权限策略会限制举报命令并允许角色放行', async () =>
   }
 })
 
+test('公开命令可以关闭以避免接管既有生产命令', async () => {
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-commands-'))
+
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(commands)
+  runtime.register(MockBot, { selfId: '514' })
+  runtime.register(groupGuardPlugin, createGroupGuardConfig({
+    commands: { enabled: false },
+  }))
+
+  try {
+    await root.start()
+    assert.equal(root.$commander.resolve('举报'), undefined)
+    assert.equal(root.$commander.resolve('骰子'), undefined)
+    assert.equal(root.$commander.resolve('抽禁言'), undefined)
+    assert.notEqual(root.$commander.resolve('查询入群认证'), undefined)
+  } finally {
+    runtime.dispose()
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('入群认证管理员命令可以查询、重发和重新生成认证链接', async () => {
+  const requests: CapturedAdmissionAdminRequest[] = []
+  const server = createServer((req, res) => respondAdmissionAdminRequest(req, res, requests))
+  await new Promise<void>((resolve) => server.listen(0, resolve))
+  const address = server.address()
+  assert.ok(address && typeof address === 'object')
+
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-commands-'))
+  const muteActions: Array<{ guildId: string, memberId: string, duration: number }> = []
+
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(commands)
+  runtime.register(MockBot, { selfId: '514' })
+  runtime.register(groupGuardPlugin, createGroupGuardConfig({
+    platform: {
+      baseUrl: `http://127.0.0.1:${address.port}`,
+      serviceToken: 'test-token',
+    },
+    commands: { enabled: false },
+    moderation: { enabled: false },
+    freshmanForward: { enabled: false },
+    scheduler: { scanIntervalSeconds: 3600 },
+  }))
+
+  try {
+    await root.start()
+    await root.mock.initUser('90001', 5)
+    await root.mock.initChannel('group-1')
+    const bot = root.bots[0] as unknown as Universal.Methods & { platform?: string }
+    bot.platform = 'onebot'
+    bot.muteGuildMember = async (guildId, memberId, duration) => {
+      muteActions.push({ guildId, memberId, duration })
+    }
+
+    const client = root.mock.client('90001', 'group-1')
+    await root.database.create(GUARD_MEMBER_TABLE, activeAdmissionGuardRecord())
+    await assertSingleReply(client, '查询入群认证 10001', /状态：已绑定 QQ，等待学生认证/)
+    await assertSingleReply(client, '重发认证链接 10001', /https:\/\/join\.stuhelper\.com\/verify\/token-current\?qq=10001/)
+    await assertSingleReply(client, '重新生成认证链接 10001', /https:\/\/join\.stuhelper\.com\/verify\/token-new\?qq=10001/)
+    await waitForRequestCount(requests, 5)
+
+    const [record] = await root.database.get(GUARD_MEMBER_TABLE, { id: 'qq:514:group-1:10001' })
+    assert.ok(record)
+    assert.equal(record.admissionSessionID, 'session-token-new')
+    assert.equal(record.backendSyncPending, false)
+    assert.ok(record.reminderSentAt instanceof Date)
+    assert.equal(record.releasedAt, null)
+    assert.equal(record.kickedAt, null)
+
+    assert.deepEqual(requests.map((item) => [item.method, item.path]), [
+      ['GET', '/api/v1/bot/admission/sessions/member?platform=qq&guildID=group-1&qqID=10001'],
+      ['POST', '/api/v1/bot/admission/sessions/member/resend'],
+      ['POST', '/api/v1/bot/admission/sessions/session-token-current/events'],
+      ['POST', '/api/v1/bot/admission/sessions/member/regenerate'],
+      ['POST', '/api/v1/bot/admission/sessions/session-token-new/events'],
+    ])
+    assert.ok(requests.every((item) => item.authorization === 'Bearer test-token'))
+    assert.deepEqual(requests[1].body, { platform: 'qq', guildID: 'group-1', qqID: '10001' })
+    assert.equal(requests[2].body.action, 'remind')
+    assert.equal(requests[2].body.success, true)
+    assert.equal(requests[3].body.botSelfID, '514')
+    assert.equal(requests[4].body.action, 'remind')
+    assert.equal(requests[4].body.success, true)
+    assert.equal(muteActions[0].guildId, 'group-1')
+    assert.equal(muteActions[0].memberId, '10001')
+    assert.ok(muteActions[0].duration > 0)
+  } finally {
+    runtime.dispose()
+    await closeServer(server)
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
 function createGroupGuardConfig(overrides?: Partial<ReturnType<typeof createBaseGroupGuardConfig>>) {
   return {
     ...createBaseGroupGuardConfig(),
@@ -155,6 +256,18 @@ function createGroupGuardConfig(overrides?: Partial<ReturnType<typeof createBase
     ai: {
       ...createBaseGroupGuardConfig().ai,
       ...overrides?.ai,
+    },
+    commands: {
+      ...createBaseGroupGuardConfig().commands,
+      ...overrides?.commands,
+    },
+    admissionCommands: {
+      ...createBaseGroupGuardConfig().admissionCommands,
+      ...overrides?.admissionCommands,
+    },
+    freshmanForward: {
+      ...createBaseGroupGuardConfig().freshmanForward,
+      ...overrides?.freshmanForward,
     },
   }
 }
@@ -196,5 +309,149 @@ function createBaseGroupGuardConfig() {
       apiKey: '',
       model: '',
     },
+    commands: {
+      enabled: true,
+    },
+    admissionCommands: {
+      enabled: true,
+      minAuthority: 4,
+      operatorQQIDs: [],
+    },
+    freshmanForward: {
+      enabled: false,
+    },
   }
+}
+
+interface CapturedAdmissionAdminRequest {
+  readonly method: string
+  readonly path: string
+  readonly authorization: string
+  readonly body: Record<string, unknown>
+}
+
+async function respondAdmissionAdminRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  requests: CapturedAdmissionAdminRequest[],
+) {
+  const url = new URL(req.url || '/', 'http://127.0.0.1')
+  const body = req.method === 'POST' ? await readJSONBody(req) : {}
+  requests.push({
+    method: req.method || 'GET',
+    path: url.pathname + url.search,
+    authorization: req.headers.authorization || '',
+    body,
+  })
+  res.setHeader('content-type', 'application/json')
+  if (req.method === 'GET' && url.pathname === '/api/v1/bot/admission/sessions/member') {
+    res.end(JSON.stringify({ success: true, data: admissionAdminSession('linked', 'token-current') }))
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/v1/bot/admission/sessions/member/resend') {
+    res.end(JSON.stringify({ success: true, data: admissionAdminSession('linked', 'token-current') }))
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/v1/bot/admission/sessions/member/regenerate') {
+    res.statusCode = 201
+    res.end(JSON.stringify({
+      success: true,
+      data: {
+        session: admissionAdminSession('joined_muted', 'token-new'),
+        token: 'token-new',
+        authURL: 'https://join.stuhelper.com/verify/token-new?qq=10001',
+      },
+    }))
+    return
+  }
+  if (
+    req.method === 'POST' &&
+    url.pathname.startsWith('/api/v1/bot/admission/sessions/') &&
+    url.pathname.endsWith('/events')
+  ) {
+    res.end(JSON.stringify({ success: true }))
+    return
+  }
+  res.statusCode = 404
+  res.end(JSON.stringify({ success: false, error: { message: 'not found' } }))
+}
+
+function admissionAdminSession(status: string, token: string) {
+  const now = Date.now()
+  return {
+    id: `session-${token}`,
+    platform: 'qq',
+    guildID: 'group-1',
+    channelID: 'group-1',
+    qqID: '10001',
+    status,
+    authURL: `https://join.stuhelper.com/verify/${token}?qq=10001`,
+    tokenExpiresAt: new Date(now + 60 * 60 * 1000).toISOString(),
+    linkWaitDeadlineAt: new Date(now + 60 * 60 * 1000).toISOString(),
+    submissionWaitDeadlineAt: new Date(now + 24 * 60 * 60 * 1000).toISOString(),
+    initialMuteUntil: new Date(now + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    projectionPending: false,
+  }
+}
+
+function activeAdmissionGuardRecord() {
+  const now = new Date()
+  return {
+    id: 'qq:514:group-1:10001',
+    platform: 'qq',
+    botSelfId: '514',
+    guildId: 'group-1',
+    channelId: 'group-1',
+    memberId: '10001',
+    memberName: '10001',
+    verificationState: 'bound_unverified',
+    admissionSessionID: 'session-token-current',
+    backendSyncPending: false,
+    joinedAt: now,
+    deadlineAt: new Date(now.getTime() + 60 * 60 * 1000),
+    nextReminderAt: new Date(now.getTime() + 10 * 60 * 1000),
+    manualReviewDeadlineAt: null,
+    mutedAt: now,
+    reminderSentAt: null,
+    releasedAt: null,
+    kickedAt: null,
+    lastError: null,
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+async function readJSONBody(req: IncomingMessage) {
+  const chunks: Buffer[] = []
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+  }
+  if (!chunks.length) return {}
+  return JSON.parse(Buffer.concat(chunks).toString()) as Record<string, unknown>
+}
+
+async function closeServer(server: ReturnType<typeof createServer>) {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error) reject(error)
+      else resolve()
+    })
+  })
+}
+
+async function waitForRequestCount(requests: readonly unknown[], expected: number) {
+  const deadline = Date.now() + 1000
+  while (requests.length < expected && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+}
+
+async function assertSingleReply(
+  client: { receive(message: string): Promise<string[]> },
+  message: string,
+  expected: RegExp,
+) {
+  const replies = await client.receive(message)
+  assert.equal(replies.length, 1)
+  assert.match(replies[0], expected)
 }

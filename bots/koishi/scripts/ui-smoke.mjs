@@ -788,7 +788,6 @@ function qqVerificationStatus(qqID) {
     return {
       qqID,
       userID: 4202,
-      qqNickname: 'E2E 待完善资料',
       boundAt: '2026-05-25T00:30:00.000Z',
       verificationState: 'bound_unverified',
       profileVerificationStatus: 'pending',
@@ -800,7 +799,6 @@ function qqVerificationStatus(qqID) {
     return {
       qqID,
       userID: 4203,
-      qqNickname: 'E2E 已认证用户',
       boundAt: '2026-05-25T00:40:00.000Z',
       verificationState: 'verified',
       profileVerificationStatus: 'verified',
@@ -811,7 +809,6 @@ function qqVerificationStatus(qqID) {
   return {
     qqID,
     userID: null,
-    qqNickname: null,
     boundAt: null,
     verificationState: 'unbound',
     profileVerificationStatus: 'unverified',

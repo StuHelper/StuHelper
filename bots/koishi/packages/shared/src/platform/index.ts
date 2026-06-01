@@ -3,8 +3,10 @@ import type {
   AdmissionJoinRequestEvent,
   AdmissionPendingAction,
   AdmissionPendingActionsRequest,
+  AdmissionSession,
   AdmissionSessionCreateRequest,
   AdmissionSessionCreateResult,
+  AdmissionSessionSubjectRequest,
   ConsumeQQBindingRequest,
   FreshmanApplication,
   FreshmanCommandContext,
@@ -35,6 +37,9 @@ const MEMBER_BLACKLIST_PATH = '/api/v1/bot/member-blacklist'
 const AUTH_SCHEME = 'Bearer'
 const JSON_CONTENT_TYPE = 'application/json'
 const PLATFORM_REQUEST_TIMEOUT_MS = 8_000
+const PLATFORM_BASE_URL_ENV = 'STUHELPER_PLATFORM_BASE_URL'
+const PLATFORM_SERVICE_TOKEN_ENV = 'STUHELPER_PLATFORM_SERVICE_TOKEN'
+const ENV_PLACEHOLDER_RE = /^\s*\$\{\{\s*env\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}\s*$/
 
 interface APIErrorPayload {
   code?: string
@@ -76,6 +81,9 @@ export interface PlatformClient {
   releaseMemberBlacklist(id: string, input: MemberBlacklistReleaseRequest): Promise<MemberBlacklistEntry>
   releaseMemberBlacklistBySubject(input: MemberBlacklistReleaseBySubjectRequest): Promise<MemberBlacklistEntry>
   createAdmissionSession(input: AdmissionSessionCreateRequest): Promise<AdmissionSessionCreateResult>
+  getAdmissionSessionByMember(input: AdmissionSessionSubjectRequest): Promise<AdmissionSession>
+  resendAdmissionSessionLink(input: AdmissionSessionSubjectRequest): Promise<AdmissionSession>
+  regenerateAdmissionSessionLink(input: AdmissionSessionCreateRequest): Promise<AdmissionSessionCreateResult>
   recordJoinRequestEvent(input: AdmissionJoinRequestEvent): Promise<void>
   listPendingAdmissionActions(input: AdmissionPendingActionsRequest): Promise<readonly AdmissionPendingAction[]>
   recordAdmissionEvent(sessionID: string, input: AdmissionBotEventRequest): Promise<void>
@@ -86,8 +94,9 @@ export interface PlatformClient {
 }
 
 export function createPlatformClient(config: StuhelperPlatformConfig): PlatformClient {
-  assertPlatformConfig(config)
-  const request = createRequest(config)
+  const resolvedConfig = resolvePlatformConfig(config)
+  assertPlatformConfig(resolvedConfig)
+  const request = createRequest(resolvedConfig)
 
   return {
     ...createSystemClient(request),
@@ -132,6 +141,9 @@ function createAdmissionClient(
   request: PlatformRequest,
 ): Pick<PlatformClient,
   'createAdmissionSession'
+  | 'getAdmissionSessionByMember'
+  | 'resendAdmissionSessionLink'
+  | 'regenerateAdmissionSessionLink'
   | 'recordJoinRequestEvent'
   | 'listPendingAdmissionActions'
   | 'recordAdmissionEvent'
@@ -139,6 +151,22 @@ function createAdmissionClient(
   return {
     async createAdmissionSession(input) {
       return request<AdmissionSessionCreateResult>(ADMISSION_SESSIONS_PATH, jsonPost(input))
+    },
+
+    async getAdmissionSessionByMember(input) {
+      assertAdmissionSessionSubjectRequest(input)
+      return request<AdmissionSession>(withQuery(`${ADMISSION_SESSIONS_PATH}/member`, input), {
+        method: 'GET',
+      })
+    },
+
+    async resendAdmissionSessionLink(input) {
+      assertAdmissionSessionSubjectRequest(input)
+      return request<AdmissionSession>(`${ADMISSION_SESSIONS_PATH}/member/resend`, jsonPost(input))
+    },
+
+    async regenerateAdmissionSessionLink(input) {
+      return request<AdmissionSessionCreateResult>(`${ADMISSION_SESSIONS_PATH}/member/regenerate`, jsonPost(input))
     },
 
     async recordJoinRequestEvent(input) {
@@ -222,6 +250,12 @@ function assertPendingAdmissionActionsRequest(input: AdmissionPendingActionsRequ
   }
 }
 
+function assertAdmissionSessionSubjectRequest(input: AdmissionSessionSubjectRequest) {
+  if (!input.platform?.trim() || !input.guildID?.trim() || !input.qqID?.trim()) {
+    throw new Error('platform, guildID and qqID are required for admission session member queries')
+  }
+}
+
 function withRequestOptions(init: RequestInit, options?: PlatformRequestOptions): RequestInit {
   if (!options?.timeoutMs) return init
   return { ...init, signal: AbortSignal.timeout(options.timeoutMs) }
@@ -234,6 +268,30 @@ function assertPlatformConfig(config: StuhelperPlatformConfig) {
   if (!config.baseUrl?.trim()) {
     throw new Error('platform baseUrl is required')
   }
+  try {
+    new URL(config.baseUrl)
+  } catch {
+    throw new Error('platform baseUrl must be an absolute URL')
+  }
+}
+
+function resolvePlatformConfig(config: StuhelperPlatformConfig): StuhelperPlatformConfig {
+  return {
+    baseUrl: resolveConfigValue(config.baseUrl, PLATFORM_BASE_URL_ENV),
+    serviceToken: resolveConfigValue(config.serviceToken, PLATFORM_SERVICE_TOKEN_ENV),
+  }
+}
+
+function resolveConfigValue(value: string | undefined, fallbackEnvName: string) {
+  const raw = value?.trim() ?? ''
+  const placeholder = raw.match(ENV_PLACEHOLDER_RE)
+  if (placeholder) {
+    return process.env[placeholder[1]]?.trim() ?? ''
+  }
+  if (raw) {
+    return raw
+  }
+  return process.env[fallbackEnvName]?.trim() ?? ''
 }
 
 function createRequest(config: StuhelperPlatformConfig) {

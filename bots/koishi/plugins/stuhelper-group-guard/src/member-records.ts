@@ -5,6 +5,7 @@ import {
   type PlatformClient,
 } from '@stuhelper/koishi-shared'
 
+import type { AdmissionSubjectPlatform } from './admission-subject-platform'
 import type { GuardMemberRecord } from './model'
 
 const MINUTE_MS = 60_000
@@ -12,13 +13,12 @@ const MINUTE_MS = 60_000
 export type EffectiveGuardPolicy = NonNullable<Awaited<ReturnType<GuardPolicyStore['resolvePolicy']>>>
 export type AdmissionSessionCreateResult = Awaited<ReturnType<PlatformClient['createAdmissionSession']>>
 
-export function createAdmissionSessionRequest(session: Session) {
+export function createAdmissionSessionRequest(session: Session, platform: AdmissionSubjectPlatform) {
   return {
-    platform: session.platform,
+    platform,
     guildID: requireGuildID(session),
     channelID: resolveChannelID(session),
     qqID: requireMemberID(session),
-    qqNickname: resolveMemberName(session),
     botSelfID: session.selfId,
   }
 }
@@ -26,9 +26,11 @@ export function createAdmissionSessionRequest(session: Session) {
 export function createGuardMemberRecord(
   session: Session,
   admission: AdmissionSessionCreateResult,
+  platform: AdmissionSubjectPlatform,
 ): GuardMemberRecord {
   const now = new Date()
   return createBaseGuardMemberRecord(session, {
+    platform,
     admissionSessionID: admission.session.id,
     backendSyncPending: false,
     deadlineAt: new Date(admission.session.linkWaitDeadlineAt),
@@ -42,12 +44,14 @@ export function createGuardMemberRecord(
 export function createBackendPendingGuardMemberRecord(input: {
   readonly session: Session
   readonly policy: EffectiveGuardPolicy
+  readonly platform: AdmissionSubjectPlatform
   readonly lastError: string
   readonly now?: Date
 }): GuardMemberRecord {
-  const { session, policy, lastError, now = new Date() } = input
+  const { session, policy, platform, lastError, now = new Date() } = input
   const deadlineAt = new Date(now.getTime() + policy.kickAfterMinutes * MINUTE_MS)
   return createBaseGuardMemberRecord(session, {
+    platform,
     admissionSessionID: null,
     backendSyncPending: true,
     deadlineAt,
@@ -94,8 +98,8 @@ function createBaseGuardMemberRecord(
   const guildId = requireGuildID(session)
   const memberId = requireMemberID(session)
   return {
-    id: `${session.platform}:${session.selfId}:${guildId}:${memberId}`,
-    platform: session.platform,
+    id: `${input.platform}:${session.selfId}:${guildId}:${memberId}`,
+    platform: input.platform,
     botSelfId: session.selfId,
     guildId,
     channelId: resolveChannelID(session),
@@ -135,6 +139,7 @@ function parseOptionalDate(value: string | null | undefined) {
 }
 
 interface GuardMemberRecordBaseInput {
+  readonly platform: AdmissionSubjectPlatform
   readonly admissionSessionID: string | null
   readonly backendSyncPending: boolean
   readonly deadlineAt: Date

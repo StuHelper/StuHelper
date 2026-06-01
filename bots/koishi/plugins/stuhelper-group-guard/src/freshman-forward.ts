@@ -2,6 +2,7 @@ import { h, type Universal } from 'koishi'
 
 import type { FreshmanForwardItem } from '@stuhelper/koishi-shared'
 
+import { resolveAdmissionSubjectPlatform } from './admission-subject-platform'
 import { formatFreshmanForwardSummary } from './admission-format'
 import { validateFreshmanMaterialURL } from './freshman-material-url'
 
@@ -52,7 +53,8 @@ export interface FreshmanForwardBot extends Universal.Methods {
 }
 
 function botMatchesForward(bot: FreshmanForwardBot, item: FreshmanForwardItem) {
-  const platformMatches = !item.platform || !bot.platform || bot.platform === item.platform
+  const botPlatform = resolveAdmissionSubjectPlatform(bot.platform)
+  const platformMatches = !item.platform || !botPlatform || botPlatform === item.platform
   return platformMatches && bot.selfId === item.botSelfID
 }
 

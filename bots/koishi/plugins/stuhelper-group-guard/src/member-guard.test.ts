@@ -10,13 +10,14 @@ test('member guard creates admission session, mutes, and sends canonical auth li
   const muteActions: Array<{ guildId: string, memberId: string, duration: number }> = []
   const sentMessages: string[] = []
   const createSessionCalls: unknown[] = []
+  const admissionEvents: unknown[] = []
   const service = new MemberGuardService({
     platform: {
       async createAdmissionSession(input: unknown) {
         createSessionCalls.push(input)
         return {
           token: 'token-1',
-          authURL: 'https://auth.stuhelper.com/admission/a/token-1?qq=10001',
+          authURL: 'https://join.stuhelper.com/verify/token-1?qq=10001',
           session: {
             id: 'session-1',
             platform: 'qq',
@@ -32,8 +33,12 @@ test('member guard creates admission session, mutes, and sends canonical auth li
           },
         }
       },
+      async recordAdmissionEvent(sessionID: string, input: unknown) {
+        admissionEvents.push({ sessionID, input })
+      },
     },
     guardStore: {
+      async findActiveBySubject() { return null },
       async savePending(record: unknown) { savedRecords.push(record) },
       async markMuted() {},
       async markReminderSent() {},
@@ -65,6 +70,7 @@ test('member guard creates admission session, mutes, and sends canonical auth li
       },
       sendMessage: async (_channelId: string, content: string) => {
         sentMessages.push(content)
+        return ['message-join']
       },
     },
   } as any)
@@ -74,7 +80,6 @@ test('member guard creates admission session, mutes, and sends canonical auth li
     guildID: 'guild-1',
     channelID: 'channel-1',
     qqID: '10001',
-    qqNickname: 'Alice',
     botSelfID: '514',
   }])
   assert.equal(muteActions.length, 1)
@@ -83,8 +88,16 @@ test('member guard creates admission session, mutes, and sends canonical auth li
   assert.ok(muteActions[0].duration > 29 * 24 * 60 * 60 * 1000)
   assert.equal(savedRecords.length, 1)
   assert.match(JSON.stringify(savedRecords[0]), /session-1/)
-  assert.match(sentMessages[0], /https:\/\/auth\.stuhelper\.com\/admission\/a\/token-1\?qq=10001/)
+  assert.match(sentMessages[0], /https:\/\/join\.stuhelper\.com\/verify\/token-1\?qq=10001/)
   assert.doesNotMatch(sentMessages[0], /buaa\.team|sso\.stuhelper\.com/)
+  assert.deepEqual(admissionEvents, [{
+    sessionID: 'session-1',
+    input: {
+      action: 'remind',
+      success: true,
+      messageID: 'message-join',
+    },
+  }])
 })
 
 test('member guard fail-closes when platform session creation is unavailable and syncs later', async () => {
@@ -92,6 +105,7 @@ test('member guard fail-closes when platform session creation is unavailable and
   const updates: Array<{ id: string, input: Record<string, unknown> }> = []
   const muteActions: Array<{ guildId: string, memberId: string, duration: number }> = []
   const sentMessages: string[] = []
+  const admissionEvents: unknown[] = []
   let backendAvailable = false
   const service = new MemberGuardService({
     platform: {
@@ -101,8 +115,12 @@ test('member guard fail-closes when platform session creation is unavailable and
       },
       async listPendingAdmissionActions() { return [] },
       async listPendingFreshmanForwards() { return [] },
+      async recordAdmissionEvent(sessionID: string, input: unknown) {
+        admissionEvents.push({ sessionID, input })
+      },
     },
     guardStore: {
+      async findActiveBySubject() { return null },
       async savePending(record: any) { savedRecords.push(record) },
       async listBackendSyncPending() { return savedRecords.filter((record) => record.backendSyncPending) },
       async markBackendSynced(id: string, input: Record<string, unknown>) {
@@ -178,7 +196,15 @@ test('member guard fail-closes when platform session creation is unavailable and
   assert.equal(updates[0].id, savedRecords[0].id)
   assert.equal(updates[0].input.admissionSessionID, 'session-synced')
   assert.equal(updates[0].input.backendSyncPending, false)
-  assert.match(sentMessages[1], /https:\/\/auth\.stuhelper\.com\/admission\/a\/token-synced\?qq=10001/)
+  assert.match(sentMessages[1], /https:\/\/join\.stuhelper\.com\/verify\/token-synced\?qq=10001/)
+  assert.deepEqual(admissionEvents, [{
+    sessionID: 'session-synced',
+    input: {
+      action: 'remind',
+      success: true,
+      messageID: 'message-1',
+    },
+  }])
 })
 
 test('member guard kicks blacklisted members instead of pending backend sync', async () => {
@@ -191,6 +217,7 @@ test('member guard kicks blacklisted members instead of pending backend sync', a
       },
     },
     guardStore: {
+      async findActiveBySubject() { return null },
       async savePending(record: unknown) { savedRecords.push(record) },
       async markMuted() {},
       async markReminderSent() {},
@@ -229,10 +256,65 @@ test('member guard kicks blacklisted members instead of pending backend sync', a
   assert.deepEqual(kicks, [{ guildId: 'guild-1', memberId: '10001', permanent: false }])
 })
 
+test('member guard ignores duplicate join events for an active admission record', async () => {
+  const savedRecords: any[] = []
+  const createSessionCalls: unknown[] = []
+  const muteActions: Array<{ guildId: string, memberId: string, duration: number }> = []
+  const sentMessages: string[] = []
+  const service = new MemberGuardService({
+    platform: {
+      async createAdmissionSession(input: unknown) {
+        createSessionCalls.push(input)
+        return admissionResult('session-duplicate', 'token-duplicate')
+      },
+      async recordAdmissionEvent() {},
+    },
+    guardStore: {
+      async findActiveBySubject() {
+        return savedRecords[0] ?? null
+      },
+      async savePending(record: any) { savedRecords.push(record) },
+      async markMuted() {},
+      async markReminderSent() {},
+    },
+    policyStore: policyStoreFor(['guild-1']),
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+  } as any)
+  const session = {
+    platform: 'onebot',
+    selfId: '514',
+    guildId: 'guild-1',
+    channelId: 'guild-1',
+    userId: '10001',
+    username: 'Alice',
+    event: { user: { nick: 'Alice' } },
+    bot: {
+      muteGuildMember: async (guildId: string, memberId: string, duration: number) => {
+        muteActions.push({ guildId, memberId, duration })
+      },
+      sendMessage: async (_channelId: string, content: string) => {
+        sentMessages.push(content)
+        return ['message-duplicate']
+      },
+    },
+  } as any
+
+  await service.handleGuildMemberAdded(session)
+  await service.handleGuildMemberAdded(session)
+
+  assert.equal(createSessionCalls.length, 1)
+  assert.equal(savedRecords.length, 1)
+  assert.equal(muteActions.length, 1)
+  assert.equal(sentMessages.length, 1)
+  assert.equal(savedRecords[0].platform, 'qq')
+  assert.match(sentMessages[0], /https:\/\/join\.stuhelper\.com\/verify\/token-duplicate\?qq=10001/)
+})
+
 test('member guard executes pending admission actions and reports results', async () => {
   const actions = [
     action('session-remind', 'remind', {
-      authURL: 'https://auth.stuhelper.com/admission/a/remind-token?qq=10001',
+      authURL: 'https://join.stuhelper.com/verify/remind-token?qq=10001',
     }),
     action('session-release', 'release'),
     action('session-kick', 'kick'),
@@ -287,7 +369,7 @@ test('member guard executes pending admission actions and reports results', asyn
   } as any])
 
   assert.deepEqual(listCalls, [{ platform: 'qq', botSelfID: '514' }])
-  assert.match(messages[0].content, /https:\/\/auth\.stuhelper\.com\/admission\/a\/remind-token\?qq=10001/)
+  assert.match(messages[0].content, /https:\/\/join\.stuhelper\.com\/verify\/remind-token\?qq=10001/)
   assert.deepEqual(mutes, [{ guildId: 'guild-1', memberId: '10001', duration: 0 }])
   assert.deepEqual(kicks, [
     { guildId: 'guild-1', memberId: '10001', permanent: undefined },
@@ -318,7 +400,7 @@ test('member guard reports action failures, keeps errors visible, and continues 
         return [
           action('session-release', 'release'),
           action('session-remind', 'remind', {
-            authURL: 'https://auth.stuhelper.com/admission/a/remind-token?qq=10001',
+            authURL: 'https://join.stuhelper.com/verify/remind-token?qq=10001',
           }),
         ]
       },
@@ -373,6 +455,56 @@ test('member guard reports action failures, keeps errors visible, and continues 
   assert.match(messages[0], /remind-token/)
 })
 
+test('member guard suppresses duplicate pending reminders shortly after a local reminder was sent', async () => {
+  const events: unknown[] = []
+  const marks: string[] = []
+  const service = new MemberGuardService({
+    platform: {
+      async listPendingAdmissionActions() {
+        return [
+          action('session-remind', 'remind', {
+            authURL: 'https://join.stuhelper.com/verify/remind-token?qq=10001',
+          }),
+        ]
+      },
+      async recordAdmissionEvent(sessionID: string, input: unknown) {
+        events.push({ sessionID, input })
+      },
+      async listPendingFreshmanForwards() { return [] },
+    },
+    guardStore: {
+      async listBackendSyncPending() { return [] },
+      async findActiveByAdmissionSessionID(sessionID: string) {
+        return {
+          ...recordFor(sessionID),
+          reminderSentAt: new Date(),
+        }
+      },
+      async markReminderSent(id: string) { marks.push(`reminder:${id}`) },
+      async markLastError() { throw new Error('duplicate reminder should not fail the guard record') },
+    },
+    policyStore: policyStoreFor(['guild-1']),
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+  } as any)
+
+  await service.scanPendingMembers([{
+    platform: 'qq',
+    selfId: '514',
+    sid: 'qq:514',
+    sendMessage: async () => { throw new Error('duplicate reminder should not send another group message') },
+  } as any])
+
+  assert.deepEqual(events, [{
+    sessionID: 'session-remind',
+    input: {
+      action: 'remind',
+      success: true,
+    },
+  }])
+  assert.deepEqual(marks, ['reminder:guard-session-remind'])
+})
+
 test('member guard skips qq-only background polls without qq platform', async () => {
   let pendingActionCalls = 0
   let freshmanForwardCalls = 0
@@ -396,6 +528,33 @@ test('member guard skips qq-only background polls without qq platform', async ()
   await service.scanPendingMembers([{ selfId: '514', sid: 'missing:514' } as any])
 
   assert.equal(pendingActionCalls, 0)
+  assert.equal(freshmanForwardCalls, 0)
+})
+
+test('member guard can explicitly disable freshman material forward polling', async () => {
+  let freshmanForwardCalls = 0
+  const service = new MemberGuardService({
+    platform: {
+      async listPendingAdmissionActions() { return [] },
+      async listPendingFreshmanForwards() {
+        freshmanForwardCalls += 1
+        return []
+      },
+    },
+    guardStore: { async listBackendSyncPending() { return [] } },
+    policyStore: policyStoreFor(['guild-1']),
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+    freshmanForwardEnabled: false,
+  } as any)
+
+  await service.scanPendingMembers([{
+    platform: 'onebot',
+    selfId: '514',
+    sid: 'onebot:514',
+    sendMessage: async () => ['message-1'],
+  } as any])
+
   assert.equal(freshmanForwardCalls, 0)
 })
 
@@ -501,7 +660,7 @@ function successEvent(sessionID: string, actionName: string, messageID: string) 
 function admissionResult(sessionID: string, token: string) {
   return {
     token,
-    authURL: `https://auth.stuhelper.com/admission/a/${token}?qq=10001`,
+    authURL: `https://join.stuhelper.com/verify/${token}?qq=10001`,
     session: {
       id: sessionID,
       platform: 'qq',

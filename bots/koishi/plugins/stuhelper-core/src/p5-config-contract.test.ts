@@ -33,6 +33,18 @@ test('P5 loads split StuHelper plugins explicitly from koishi.yml', async () => 
   assert.doesNotMatch(config, /&platform_config|\*platform_config/, 'P5 must not use YAML anchors.')
 })
 
+test('koishi.yml keeps admission MVP production-safe defaults', async () => {
+  const config = await readWorkspaceFile('koishi.yml')
+  const guardBlock = extractYamlBlock(config, 'stuhelper-group-guard:')
+
+  assert.match(guardBlock, /targetGroups:\s*\n\s+- '178037297'/)
+  assert.match(guardBlock, /commands:\s*\n\s+enabled: false/)
+  assert.match(guardBlock, /admissionCommands:\s*\n\s+enabled: true/)
+  assert.match(guardBlock, /minAuthority: 4/)
+  assert.match(guardBlock, /moderation:\s*\n\s+enabled: false/)
+  assert.match(guardBlock, /freshmanForward:\s*\n\s+enabled: false/)
+})
+
 test('P6 removes old wrapper setup from stuhelper-core', async () => {
   const entry = await readWorkspaceFile('plugins/stuhelper-core/src/index.ts')
   const setupPath = 'plugins/stuhelper-core/src/setup/register-' + 'legacy-plugins.ts'
@@ -82,5 +94,11 @@ async function readWorkspaceFile(relativePath: string) {
 function extractCoreBlock(content: string, name: string) {
   const match = content.match(new RegExp(`${name}[\\s\\S]*?\\{([\\s\\S]*?)\\n\\}`))
   assert.ok(match, `${name} block not found`)
+  return match[1]
+}
+
+function extractYamlBlock(content: string, key: string) {
+  const match = content.match(new RegExp(`\\n(\\s+${key}[^\\n]*\\n[\\s\\S]*?)(?=\\n\\s{4}\\S|\\n\\s{2}\\S|$)`))
+  assert.ok(match, `${key} block not found`)
   return match[1]
 }

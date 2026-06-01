@@ -3,11 +3,14 @@ import { Schema } from 'koishi'
 import type {
   StuhelperAdminConfig,
   StuhelperAdminPluginConfig,
+  StuhelperAdmissionCommandConfig,
   StuhelperBindingConfig,
   StuhelperBindingPluginConfig,
+  StuhelperCommandConfig,
   StuhelperConsoleConfig,
   StuhelperConsolePluginConfig,
   StuhelperCoreConfig,
+  StuhelperFreshmanForwardConfig,
   StuhelperFunConfig,
   StuhelperGuardConfig,
   StuhelperGroupGuardPluginConfig,
@@ -34,6 +37,7 @@ const DEFAULT_MUTE_LOTTERY_MAX_SECONDS = 600
 const DEFAULT_MUTE_LOTTERY_PITY_THRESHOLD = 5
 const DEFAULT_MUTE_LOTTERY_PITY_SECONDS = 300
 const DEFAULT_CONSOLE_TITLE = 'StuHelper 群管中心'
+const DEFAULT_ADMISSION_COMMAND_AUTHORITY = 4
 
 export function createPlatformConfigSchema(): Schema<StuhelperPlatformConfig> {
   return Schema.object({
@@ -86,6 +90,7 @@ export function createKeywordRuleConfigSchema(): Schema<StuhelperKeywordRuleConf
 
 export function createModerationConfigSchema(): Schema<StuhelperModerationConfig> {
   return Schema.object({
+    enabled: Schema.boolean().default(true).description('是否启用消息风控监听。'),
     repeatThreshold: Schema.number().min(2).default(DEFAULT_REPEAT_THRESHOLD).description('复读命中阈值。'),
     repeatWindowSize: Schema.number().min(2).default(DEFAULT_REPEAT_WINDOW_SIZE).description('复读检测窗口大小。'),
     warningThresholdExpression: Schema.string().default(DEFAULT_WARNING_EXPRESSION).description('警告升级表达式，例如 `warnings >= 3`。'),
@@ -102,6 +107,26 @@ export function createFunConfigSchema(): Schema<StuhelperFunConfig> {
     muteLotteryMaxSeconds: Schema.number().min(1).default(DEFAULT_MUTE_LOTTERY_MAX_SECONDS).description('抽禁言最大时长。'),
     muteLotteryPityThreshold: Schema.number().min(1).default(DEFAULT_MUTE_LOTTERY_PITY_THRESHOLD).description('触发保底前需要累计的抽卡次数。'),
     muteLotteryPitySeconds: Schema.number().min(1).default(DEFAULT_MUTE_LOTTERY_PITY_SECONDS).description('保底时至少获得的禁言秒数。'),
+  })
+}
+
+export function createCommandConfigSchema(): Schema<StuhelperCommandConfig> {
+  return Schema.object({
+    enabled: Schema.boolean().default(true).description('是否注册举报、骰子、抽禁言等公开命令。'),
+  })
+}
+
+export function createAdmissionCommandConfigSchema(): Schema<StuhelperAdmissionCommandConfig> {
+  return Schema.object({
+    enabled: Schema.boolean().default(true).description('是否注册入群认证管理员命令。'),
+    minAuthority: Schema.number().min(0).default(DEFAULT_ADMISSION_COMMAND_AUTHORITY).description('执行入群认证管理员命令所需的最低 Koishi 权限等级。'),
+    operatorQQIDs: Schema.array(Schema.string()).default([]).description('允许执行入群认证管理员命令的 QQ 号白名单。'),
+  })
+}
+
+export function createFreshmanForwardConfigSchema(): Schema<StuhelperFreshmanForwardConfig> {
+  return Schema.object({
+    enabled: Schema.boolean().default(true).description('是否扫描并转发待审核新生原始材料到管理群。'),
   })
 }
 
@@ -144,6 +169,9 @@ export function createGroupGuardPluginConfigSchema(): Schema<StuhelperGroupGuard
     moderation: createModerationConfigSchema(),
     fun: createFunConfigSchema(),
     ai: createAIConfigSchema(),
+    commands: createCommandConfigSchema(),
+    admissionCommands: createAdmissionCommandConfigSchema(),
+    freshmanForward: createFreshmanForwardConfigSchema(),
   })
 }
 

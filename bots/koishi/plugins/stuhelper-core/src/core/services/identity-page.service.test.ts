@@ -25,7 +25,6 @@ test('buildIdentityPageData groups records, summaries and releases', () => {
       {
         qqID: '2001',
         userID: 1,
-        qqNickname: 'Alice',
         boundAt: '2026-04-20T10:00:00.000Z',
         verificationState: 'bound_unverified',
         profileVerificationStatus: 'pending',
@@ -34,7 +33,6 @@ test('buildIdentityPageData groups records, summaries and releases', () => {
       {
         qqID: '2002',
         userID: 2,
-        qqNickname: 'Bob',
         boundAt: '2026-04-20T09:00:00.000Z',
         verificationState: 'verified',
         profileVerificationStatus: 'verified',

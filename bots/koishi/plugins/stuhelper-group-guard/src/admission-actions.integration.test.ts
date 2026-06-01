@@ -67,19 +67,88 @@ test('未认证成员入群后会被禁言并收到提醒，认证完成后自�
     assert.equal(muteActions[0].groupId, 'group-1')
     assert.equal(muteActions[0].memberId, '10001')
     assert.ok(muteActions[0].duration > 29 * 24 * 60 * 60 * 1000)
-    assert.match(sentMessages[0], /https:\/\/auth\.stuhelper\.com\/admission\/a\/token-10001\?qq=10001/)
+    assert.match(sentMessages[0], /https:\/\/join\.stuhelper\.com\/verify\/token-10001\?qq=10001/)
 
     const records = await root.database.get(GUARD_MEMBER_TABLE, {})
     assert.equal(records.length, 1)
     assert.equal(records[0].releasedAt, null)
+    await waitFor(() => Boolean(findEventByAction(admissionEvents, 'remind')))
 
     pendingActions = [admissionAction('10001', 'group-1', 'release')]
-    await sleep(1200)
+    await waitFor(() => Boolean(findEventByAction(admissionEvents, 'release')), 2500)
+    await waitFor(async () => {
+      const [record] = await root.database.get(GUARD_MEMBER_TABLE, {})
+      return record?.releasedAt instanceof Date
+    }, 2500)
 
     assert.equal(muteActions[1]?.duration, 0)
-    assert.deepEqual(admissionEvents[0], successEvent('session-10001', 'release', 'msg-1'))
+    assert.deepEqual(findEventByAction(admissionEvents, 'release'), successEvent('session-10001', 'release', 'msg-1'))
     const released = await root.database.get(GUARD_MEMBER_TABLE, {})
     assert.ok(released[0].releasedAt instanceof Date)
+  } finally {
+    runtime.dispose()
+    await closeServer(server)
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('重复入群事件只创建一个认证链接', async () => {
+  let admissionSessionRequests = 0
+  const admissionEvents: unknown[] = []
+  const server = createServer((req, res) => {
+    if (req.method === 'POST' && req.url === '/api/v1/bot/admission/sessions') {
+      admissionSessionRequests += 1
+    }
+    if (respondAdmissionSession({ req, res, qqID: '10004', guildID: 'group-dup' })) return
+    if (respondPendingActions(req, res, [])) return
+    if (respondAdmissionEvent({ req, res, events: admissionEvents })) return
+    if (respondFreshmanForwards(req, res)) return
+    assert.fail(`unexpected platform request: ${req.method} ${req.url}`)
+  })
+
+  await new Promise<void>((resolve) => server.listen(0, resolve))
+  const address = server.address()
+  assert.ok(address && typeof address === 'object')
+
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-guard-'))
+  const muteActions: Array<{ groupId: string, memberId: string, duration: number }> = []
+  const sentMessages: string[] = []
+
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(MockBot, { selfId: '514' })
+  runtime.register(groupGuardPlugin, groupGuardConfig(address.port, ['group-dup'], '请先完成认证。'))
+
+  try {
+    await root.start()
+    const bot = root.bots[0] as unknown as Universal.Methods & { receive: ReceiveEvent }
+    forceOneBotAdmissionBot(bot)
+    bot.muteGuildMember = async (groupId, memberId, duration) => {
+      muteActions.push({ groupId, memberId, duration })
+    }
+    bot.kickGuildMember = async () => { throw new Error('kick should not be called in this test') }
+    bot.sendMessage = async (_channelId, content) => {
+      sentMessages.push(String(content))
+      return ['msg-1']
+    }
+
+    receiveJoin(bot, '10004', 'group-dup', undefined, 'onebot')
+    receiveJoin(bot, '10004', 'group-dup', undefined, 'onebot')
+    await waitFor(() => sentMessages.length > 0)
+    await waitFor(() => Boolean(findEventByAction(admissionEvents, 'remind')))
+
+    assert.equal(admissionSessionRequests, 1)
+    assert.equal(muteActions.length, 1)
+    assert.equal(sentMessages.length, 1)
+    assert.match(sentMessages[0], /https:\/\/join\.stuhelper\.com\/verify\/token-10004\?qq=10004/)
+
+    const records = await root.database.get(GUARD_MEMBER_TABLE, {})
+    assert.equal(records.length, 1)
+    assert.equal(records[0].platform, 'qq')
+    assert.equal(records[0].botSelfId, '514')
+    assert.equal(records[0].guildId, 'group-dup')
+    assert.equal(records[0].memberId, '10004')
   } finally {
     runtime.dispose()
     await closeServer(server)
@@ -121,12 +190,17 @@ test('超时未认证成员会被自动踢出', async () => {
 
     receiveJoin(bot, '10002', 'group-2')
     await waitFor(async () => (await root.database.get(GUARD_MEMBER_TABLE, {})).length > 0)
+    await waitFor(() => Boolean(findEventByAction(admissionEvents, 'remind')))
 
     pendingActions = [admissionAction('10002', 'group-2', 'kick')]
-    await sleep(1200)
+    await waitFor(() => Boolean(findEventByAction(admissionEvents, 'kick')), 2500)
+    await waitFor(async () => {
+      const [record] = await root.database.get(GUARD_MEMBER_TABLE, {})
+      return record?.kickedAt instanceof Date
+    }, 2500)
 
     assert.deepEqual(kickActions[0], { groupId: 'group-2', memberId: '10002' })
-    assert.deepEqual(admissionEvents[0], successEvent('session-10002', 'kick', 'msg-1'))
+    assert.deepEqual(findEventByAction(admissionEvents, 'kick'), successEvent('session-10002', 'kick', 'msg-1'))
     const records = await root.database.get(GUARD_MEMBER_TABLE, {})
     assert.ok(records[0].kickedAt instanceof Date)
   } finally {
@@ -195,13 +269,18 @@ test('扫描待认证成员时会路由到记录绑定的 bot 实例', async () 
     assert.equal(secondBotMuteActions[0].groupId, 'group-3')
     assert.equal(secondBotMuteActions[0].memberId, '10003')
     assert.ok(secondBotMuteActions[0].duration > 29 * 24 * 60 * 60 * 1000)
+    await waitFor(() => Boolean(findEventByAction(admissionEvents, 'remind')))
 
     releaseEnabled = true
-    await sleep(1200)
+    await waitFor(() => Boolean(findEventByAction(admissionEvents, 'release')), 2500)
+    await waitFor(async () => {
+      const [record] = await root.database.get(GUARD_MEMBER_TABLE, {})
+      return record?.releasedAt instanceof Date
+    }, 2500)
 
     assert.equal(firstBotMuteActions.length, 0)
     assert.deepEqual(secondBotMuteActions[1], { groupId: 'group-3', memberId: '10003', duration: 0 })
-    assert.deepEqual(admissionEvents[0], successEvent('session-10003', 'release', 'msg-2'))
+    assert.deepEqual(findEventByAction(admissionEvents, 'release'), successEvent('session-10003', 'release', 'msg-2'))
   } finally {
     runtime.dispose()
     await closeServer(server)
@@ -222,6 +301,7 @@ function groupGuardConfig(port: number, targetGroups: string[], reminderTemplate
       exemptUsers: [],
     },
     scheduler: { scanIntervalSeconds: 1 },
+    freshmanForward: { enabled: false },
   }
 }
 
@@ -229,11 +309,21 @@ function forceQQAdmissionBot(bot: { platform?: string }) {
   bot.platform = 'qq'
 }
 
-function receiveJoin(bot: { receive: ReceiveEvent }, userID: string, guildID: string, selfId?: string) {
+function forceOneBotAdmissionBot(bot: { platform?: string }) {
+  bot.platform = 'onebot'
+}
+
+function receiveJoin(
+  bot: { receive: ReceiveEvent },
+  userID: string,
+  guildID: string,
+  selfId?: string,
+  platform = 'qq',
+) {
   bot.receive({
     type: 'guild-member-added',
     selfId,
-    platform: 'qq',
+    platform,
     user: { id: userID, name: userID },
     guild: { id: guildID },
     channel: { id: guildID, type: Universal.Channel.Type.TEXT },
@@ -242,6 +332,16 @@ function receiveJoin(bot: { receive: ReceiveEvent }, userID: string, guildID: st
 
 function successEvent(sessionID: string, action: string, messageID: string) {
   return { sessionID, body: { action, success: true, messageID } }
+}
+
+function findEventByAction(events: unknown[], action: string) {
+  return events.find((event) => eventAction(event) === action)
+}
+
+function eventAction(event: unknown) {
+  if (!event || typeof event !== 'object') return undefined
+  const body = (event as { body?: { action?: unknown } }).body
+  return typeof body?.action === 'string' ? body.action : undefined
 }
 
 function closeServer(server: ReturnType<typeof createServer>) {
