@@ -11,6 +11,7 @@ import {
 
 import { formatAdmissionReminder } from './admission-format'
 import { resolveAdmissionSubjectPlatform } from './admission-subject-platform'
+import type { AdmissionReminderDeduper } from './admission-reminder-deduper'
 import { backendSyncUpdate } from './member-records'
 import type { GuardMemberStore } from './store'
 
@@ -21,6 +22,7 @@ interface AdmissionAdminCommandDeps {
   readonly guardStore: GuardMemberStore
   readonly policyStore: GuardPolicyStore
   readonly config: StuhelperGroupGuardPluginConfig
+  readonly reminderDeduper?: AdmissionReminderDeduper
 }
 
 interface AdmissionCommandContext {
@@ -195,7 +197,14 @@ async function sendAdmissionReminderForCommand(
   if (!admission.authURL) {
     return message
   }
-  const messageID = await sendCommandMessage(command.session, message)
+  deps.reminderDeduper?.remember(admission.id)
+  let messageID: string | undefined
+  try {
+    messageID = await sendCommandMessage(command.session, message)
+  } catch (error) {
+    deps.reminderDeduper?.forget(admission.id)
+    throw error
+  }
   await markLocalReminderSent(command, deps.guardStore)
   await deps.platform.recordAdmissionEvent(admission.id, {
     action: 'remind',

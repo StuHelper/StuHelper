@@ -31,6 +31,7 @@ import {
   sendAdmissionReminder,
   sendBackendPendingReminder,
 } from './member-guard-actions'
+import type { AdmissionReminderDeduper } from './admission-reminder-deduper'
 import {
   backendSyncUpdate,
   createAdmissionSessionRequest,
@@ -54,6 +55,7 @@ interface MemberGuardDeps {
   moderationStore: ModerationStore
   logger: Logger
   freshmanForwardEnabled?: boolean
+  reminderDeduper?: AdmissionReminderDeduper
 }
 
 export class MemberGuardService {
@@ -106,6 +108,7 @@ export class MemberGuardService {
         muteDurationMs: muteDurationMs(new Date(admission.session.initialMuteUntil)),
       })
       await this.deps.guardStore.markMuted(record.id, new Date())
+      this.deps.reminderDeduper?.remember(admission.session.id)
       const messageID = await sendAdmissionReminder(session.bot, record, admission.authURL)
       await this.deps.guardStore.markReminderSent(record.id, new Date())
       await this.recordAdmissionReminderSent(admission.session.id, messageID)
@@ -256,6 +259,7 @@ export class MemberGuardService {
       })
       const update = backendSyncUpdate(admission)
       await this.deps.guardStore.markBackendSynced(record.id, update)
+      this.deps.reminderDeduper?.remember(admission.session.id, now)
       const messageID = await sendAdmissionReminder(bot, { ...record, ...update }, admission.authURL)
       await this.deps.guardStore.markReminderSent(record.id, now)
       await this.recordAdmissionReminderSent(admission.session.id, messageID)
@@ -290,7 +294,7 @@ export class MemberGuardService {
         record: record ?? null,
         policyStore: this.deps.policyStore,
       })
-      if (isRecentDuplicateReminder(action, record, now)) {
+      if (this.isRecentDuplicateReminder(action, record, now)) {
         await this.deps.platform.recordAdmissionEvent(action.sessionID, {
           action: 'remind',
           success: true,
@@ -299,6 +303,9 @@ export class MemberGuardService {
         return
       }
       const result = await executeAdmissionAction(bot, action, record ?? null)
+      if (action.action === 'remind') {
+        this.deps.reminderDeduper?.remember(action.sessionID, now)
+      }
       await this.deps.platform.recordAdmissionEvent(action.sessionID, result.event)
       await this.markActionComplete(record, result.mark, now)
     } catch (error) {
@@ -377,6 +384,20 @@ export class MemberGuardService {
       await forwardFreshmanMaterial(bot, item)
       await this.deps.platform.markFreshmanForwarded(item.application.id)
     }
+  }
+
+  private isRecentDuplicateReminder(
+    action: AdmissionPendingAction,
+    record: GuardMemberRecord | undefined,
+    now: Date,
+  ) {
+    if (action.action !== 'remind') {
+      return false
+    }
+    if (this.deps.reminderDeduper?.wasRecentlySent(action.sessionID, now)) {
+      return true
+    }
+    return isRecentDuplicateReminder(action, record, now)
   }
 }
 

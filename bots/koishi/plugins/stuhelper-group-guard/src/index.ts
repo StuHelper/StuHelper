@@ -22,6 +22,7 @@ import { registerGroupGuardEvents } from './events'
 import { ReportService } from './report-service'
 import { registerPublicCommands } from './commands'
 import { registerAdmissionAdminCommands } from './admission-admin-commands'
+import { AdmissionReminderDeduper } from './admission-reminder-deduper'
 
 export const name = 'stuhelper-group-guard'
 export const inject = ['database']
@@ -48,6 +49,7 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
   const policyStore = new GuardPolicyStore(ctx, config.guard)
   const moderationStore = new ModerationStore(ctx)
   const actions = new ModerationActionService(moderationStore)
+  const admissionReminderDeduper = new AdmissionReminderDeduper()
   const memberGuard = new MemberGuardService({
     platform,
     guardStore,
@@ -55,6 +57,7 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
     moderationStore,
     logger,
     freshmanForwardEnabled: config.freshmanForward?.enabled !== false,
+    reminderDeduper: admissionReminderDeduper,
   })
   const messageGuard = new MessageGuardService({
     store: moderationStore,
@@ -100,6 +103,7 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
       guardStore,
       policyStore,
       config,
+      reminderDeduper: admissionReminderDeduper,
     })
   }
 

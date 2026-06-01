@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import { PlatformAPIError } from '@stuhelper/koishi-shared'
 
+import { AdmissionReminderDeduper } from './admission-reminder-deduper'
 import { MemberGuardService } from './member-guard'
 
 test('member guard creates admission session, mutes, and sends canonical auth link', async () => {
@@ -503,6 +504,51 @@ test('member guard suppresses duplicate pending reminders shortly after a local 
     },
   }])
   assert.deepEqual(marks, ['reminder:guard-session-remind'])
+})
+
+test('member guard suppresses scheduler reminder after admin command reminder even without local record', async () => {
+  const events: unknown[] = []
+  const deduper = new AdmissionReminderDeduper()
+  deduper.remember('session-remind')
+  const service = new MemberGuardService({
+    platform: {
+      async listPendingAdmissionActions() {
+        return [
+          action('session-remind', 'remind', {
+            authURL: 'https://join.stuhelper.com/verify/remind-token?qq=10001',
+          }),
+        ]
+      },
+      async recordAdmissionEvent(sessionID: string, input: unknown) {
+        events.push({ sessionID, input })
+      },
+      async listPendingFreshmanForwards() { return [] },
+    },
+    guardStore: {
+      async listBackendSyncPending() { return [] },
+      async findActiveByAdmissionSessionID() { return null },
+      async markLastError() { throw new Error('deduped reminder should not fail a missing guard record') },
+    },
+    policyStore: policyStoreFor(['guild-1']),
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+    reminderDeduper: deduper,
+  } as any)
+
+  await service.scanPendingMembers([{
+    platform: 'qq',
+    selfId: '514',
+    sid: 'qq:514',
+    sendMessage: async () => { throw new Error('deduped reminder should not send a group message') },
+  } as any])
+
+  assert.deepEqual(events, [{
+    sessionID: 'session-remind',
+    input: {
+      action: 'remind',
+      success: true,
+    },
+  }])
 })
 
 test('member guard skips qq-only background polls without qq platform', async () => {
