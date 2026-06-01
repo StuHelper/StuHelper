@@ -25,6 +25,8 @@ last-verified: 2026-05-25
 | `plugins/stuhelper-group-guard` | 入群准入、关键词/复读处理、撤回留痕、举报、骰子和抽禁言；待认证成员记录会绑定 `platform + botSelfId`，扫描时按原 bot 路由动作 |
 | `plugins/stuhelper-admin` | 提供 `群审状态`、`群审警告`、`群审复核`、`群审禁言`、`群审踢人申请`、`群审拉黑申请` 等文本管理员命令 |
 
+群管中心 WebUI 的唯一运行入口是 `plugins/stuhelper-core`。它通过 Koishi Console 注册 `/stuhelper` 页面；`stuhelper-group-guard` 只提供运行时服务、事件监听和可选公开命令，不注册独立 WebUI。历史 `stuhelper-console` / `stuhelper-platform` 方向已由 ADR-0006 废弃。
+
 ## 本地命令
 
 ```bash
@@ -59,6 +61,7 @@ corepack yarn workspaces list
 - `scripts/startup-smoke.mjs` 会在烟雾验证前先清理占用 `5140` 的进程，避免端口漂移到其他值
 - `koishi.yml` 显式加载 `stuhelper-core`、`stuhelper-binding`、`stuhelper-group-guard` 与 `stuhelper-admin`，群管中心 WebUI 挂载到 Koishi Console 的 `/stuhelper`
 - `STUHELPER_CONSOLE_ADMIN_PASSWORD` 是 Koishi Console 的管理员密码，必须通过环境变量提供且不能为空
+- Docker Compose 部署 Koishi 时，`koishi` service 必须通过 `env_file` 或等价机制注入 `STUHELPER_PLATFORM_BASE_URL`、`STUHELPER_PLATFORM_SERVICE_TOKEN`、`STUHELPER_FRESHMAN_MATERIAL_HOSTS` 和 `STUHELPER_CONSOLE_ADMIN_PASSWORD`
 - 本地 SQLite 默认位于 `bots/koishi/data/koishi.db`
 - 群管中心 JSON 数据默认位于 Koishi baseDir 下的 `data/stuhelperGroupCenter`；`STUHELPER_GROUP_CENTER_DATA_DIR` 可选覆盖该目录，`test:ui` 会自动指向临时目录以隔离 smoke 数据
 
@@ -83,6 +86,10 @@ Koishi 当前依赖的 StuHelper 后端机器人接口包括：
 
 - `POST /api/v1/bot/qq-binding/consume`
 - `GET /api/v1/bot/qq-users/{qqID}/verification`
+- `POST /api/v1/bot/admission/sessions`
+- `GET /api/v1/bot/admission/sessions/pending?platform=qq&botSelfID=<botSelfID>`
+- `POST /api/v1/bot/admission/sessions/{id}/events`
+- `GET /api/v1/bot/admission/freshman/applications/pending-forward`
 
 这两类接口都不是面向浏览器或普通用户的公开入口，而是面向机器人服务的内部接口：
 
@@ -106,6 +113,8 @@ Koishi 当前依赖的 StuHelper 后端机器人接口包括：
 
 - 当前后端机器人接口仍然是 QQ 专属契约，因此 `packages/shared/src/platform` 依旧保留 `qq-binding`、`qq-users` 命名。
 - 这种 QQ 语义不会继续向群管核心域扩散；`packages/moderation-core` 与 `plugins/stuhelper-group-guard` 内部已经收敛为平台无关成员语义。
+- admission 后端 `platform` 字段表示被验证账号的 subject platform，当前只有 `qq`。生产 NapCat / OneBot 的 Koishi runtime platform 可能是 `onebot`，插件会把它映射为 `qq` 后调用 admission API；禁言、踢人和发消息仍使用当前 runtime bot，不切换适配器。
+- 当前 admission MVP 可在生产显式设置 `commands.enabled=false`、`moderation.enabled=false`、`freshmanForward.enabled=false`，避免新插件抢旧群管命令、接管消息风控或触发原始材料转发扫描。旧 `student-query` 插件不应因为 admission 上线被整体关闭；如它也监听同一批 admission 群的同一阶段入群验证，应调整旧插件自己的目标群或功能范围。
 
 ## 测试策略
 

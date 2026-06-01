@@ -3,7 +3,7 @@ type: design
 audience: frontend-dev
 status: current
 authoritative-source: this file
-last-verified: 2026-04-19
+last-verified: 2026-05-30
 ---
 
 # 前端 Monorepo 架构
@@ -56,13 +56,16 @@ server/api/openapi.bundled.yaml
 ## 登录流程
 
 ```
-LoginPage → /api/v1/auth/login
-  → 跳转 Casdoor
-  → OIDC 回调 /api/v1/auth/callback
+业务页面 → /login?redirect=<当前业务目标>
+  → LoginPage 调用 /api/v1/auth/login 启动 sso.stuhelper.com Casdoor 登录
+  → OIDC 回调 stuhelper.com/api/v1/auth/callback
   → 后端写入 Cookie
-  → AuthCallbackPage + auth store 拉 /api/v1/auth/me
+  → AuthCallbackPage 或后端 302 回业务目标页
+  → auth store 拉 /api/v1/auth/me
   → 路由守卫按登录态和 capabilities 放行
 ```
+
+前端不再把受保护入口跨域改写到 `id.stuhelper.com`。账号中心、开发者应用、授权应用、学生认证和 QQ 绑定都在 `stuhelper.com` 主站路由内承载；入群验证只从 `join.stuhelper.com/verify/<token>?qq=<qq>` 进入。
 
 ## 状态管理
 

@@ -162,8 +162,8 @@ cd /opt/stuhelper
 - 共享配置 / secrets 文件是否就位
 - 备份目录是否存在
 - 生产 PostgreSQL TLS 是否强制开启并使用 `verify-ca` 或更严格的 `verify-full`
-- 本机宝塔 Nginx 主站/id 入口配置是否满足 `infra/ops/nginx-public-ingress-preflight.sh` 契约
-- 公网身份入口是否已经具备可用 TLS，并且 `id.stuhelper.com/.well-known/openid-configuration` 返回有效 StuHelper Identity OIDC discovery；Casdoor upstream 公网 discovery 只有在显式打开 upstream preflight 时才检查
+- 本机宝塔 Nginx 主站/join/id legacy disabled 入口配置是否满足 `infra/ops/nginx-public-ingress-preflight.sh` 契约
+- 公网 SSO 入口是否已经具备可用 TLS，并且 `sso.stuhelper.com/.well-known/openid-configuration` 返回有效 Casdoor OIDC discovery；`id.stuhelper.com` 必须保持 404
 - PostgreSQL 逻辑备份 / base backup / backup sync timer 是否已启用
 - `BACKUP_DATABASE_URL` / `REPLICATION_DATABASE_URL` / `BACKUP_OBJECT_STORAGE_ENDPOINT` / `BACKUP_OBJECT_STORAGE_BUCKET` / `BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID` / `BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY`
 
@@ -206,7 +206,7 @@ make prod-reset
    - `Trivy`
    - Web / Admin unit test + Playwright
    - Koishi unit / startup / Console Playwright smoke
-   - 前端构建要求显式提供 `WEB_VITE_SSO_URL`；生产值应指向 `https://id.stuhelper.com`，缺失即失败，不再使用构建期 fallback
+   - 前端构建要求显式提供 `WEB_VITE_SSO_URL`；生产值应指向 `https://sso.stuhelper.com`，用于主站发起 Casdoor 登录和展示 Connect 端点，缺失即失败，不再使用构建期 fallback
 2. 构建 backend / frontend / admin 镜像
 3. 推送到自建镜像仓库
 4. 在 Git 工作区干净时打包部署 bundle（脚本、compose、配置模板、文档）
@@ -220,8 +220,11 @@ make prod-reset
 - backup timer 或 backup sync timer 没启
 - WAL 归档目录没准备好
 - 部署 bundle 不是从已提交的干净工作区打包
-- 主站生产机的宝塔 Nginx `stuhelper.com` / `id.stuhelper.com` server block 漂移
+- 主站生产机的宝塔 Nginx `stuhelper.com` / `id.stuhelper.com` / `join.stuhelper.com` server block 漂移
 - `id.stuhelper.com` TLS 或 OIDC discovery 漂移
+- `join.stuhelper.com` DNS/TLS 或 `/verify/<token>?qq=<qq>` 入口漂移
+- 主站和 `id.stuhelper.com` 上的 `/verify` / `/verify/*` 被错误兼容或兜底到旧流程
+- `id.stuhelper.com/login/oauth/*` 或 `/signup/oauth/*` 被错误反代到 Casdoor，而不是返回 404
 
 第一次准备远端服务器：
 
@@ -229,7 +232,7 @@ make prod-reset
 sudo bash infra/ops/bootstrap-ubuntu2404.sh
 ```
 
-这个脚本除了装 Docker / Compose 之外，还会准备：
+这个脚本除了装 Docker / Compose 和 Go 1.26 之外，还会准备：
 
 - 部署目录
 - `.deploy/remote.env`
@@ -245,9 +248,9 @@ GitLab CI 至少需要以下变量：
   - `REGISTRY`
   - `REGISTRY_USERNAME`
   - `REGISTRY_PASSWORD`
-  - `WEB_VITE_SSO_URL`（前端构建单一来源；生产值指向 `https://id.stuhelper.com`，缺失即失败，不再回落到默认 SSO 域名）
-  - `WEB_VITE_IDENTITY_URL`（Identity Portal 浏览器跳转来源；生产值指向 `https://id.stuhelper.com`）
-  - `WEB_VITE_WEB_URL`（Web 主站浏览器 origin；生产值指向 `https://stuhelper.com`，用于从 `id` 登录后回到主站原路径）
+  - `WEB_VITE_SSO_URL`（前端构建单一来源；生产值指向 `https://sso.stuhelper.com`，只用于上游 Casdoor 认证，缺失即失败，不再回落到默认 SSO 域名）
+  - `WEB_VITE_IDENTITY_URL`（legacy identity portal 已禁用；生产值必须为空，不得指向 `id.stuhelper.com`）
+  - `WEB_VITE_WEB_URL`（Web 主站浏览器 origin；生产值指向 `https://stuhelper.com`，用于登录后回到主站原路径）
 - **SSH 发布阶段（staging）**
   - `STAGING_DEPLOY_HOST`
   - `STAGING_DEPLOY_PORT`

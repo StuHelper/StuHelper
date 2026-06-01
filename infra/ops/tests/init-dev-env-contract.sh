@@ -80,6 +80,7 @@ assert_env_value "${env_file}" "STACK_NAME" "stuhelper-dev"
 assert_env_value "${env_file}" "COMPOSE_PROJECT_NAME" "stuhelper-dev"
 assert_env_value "${env_file}" "APP_ENV" "development"
 assert_env_value "${env_file}" "CORS_ORIGINS" "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001"
+assert_env_value "${env_file}" "ADMISSION_PUBLIC_BASE_URL" "http://localhost:3000"
 assert_env_value "${env_file}" "BACKEND_EXTERNAL_PORT" "8080"
 assert_env_value "${env_file}" "WEB_EXTERNAL_PORT" "3000"
 assert_env_value "${env_file}" "ADMIN_EXTERNAL_PORT" "3001"
@@ -89,6 +90,16 @@ assert_env_value "${env_file}" "OPENFGA_HTTP_EXTERNAL_PORT" "8081"
 assert_env_value "${env_file}" "OPENFGA_GRPC_EXTERNAL_PORT" "8082"
 assert_env_value "${env_file}" "OPENFGA_PLAYGROUND_EXTERNAL_PORT" "3002"
 assert_env_value "${env_file}" "SMS_ENABLED" "false"
+assert_env_value "${env_file}" "EMAIL_ENABLED" "false"
+assert_env_value "${env_file}" "EMAIL_DRIVER" "smtp"
+assert_env_value "${env_file}" "EMAIL_STUDENT_VERIFICATION_SUBJECT" "学生认证验证码"
+assert_env_value "${env_file}" "EMAIL_FROM_NAME" "StuHelper 系统邮件"
+assert_env_value "${env_file}" "EMAIL_TENCENT_REGION" "ap-guangzhou"
+assert_env_value "${env_file}" "EMAIL_TENCENT_ENDPOINT" "ses.tencentcloudapi.com"
+assert_env_value "${env_file}" "EMAIL_TENCENT_TEMPLATE_PURPOSE" "学校邮箱认证"
+assert_env_value "${env_file}" "EMAIL_TENCENT_TEMPLATE_SCHOOL_NAME" "北京航空航天大学"
+assert_env_value "${env_file}" "EMAIL_TENCENT_TEMPLATE_EXPIRE_MINUTES" "5"
+assert_env_value "${env_file}" "EMAIL_RESEND_ENDPOINT" "https://api.resend.com/emails"
 assert_env_value "${env_file}" "WEB_VITE_API_URL" "/api"
 assert_env_value "${env_file}" "WEB_VITE_WEB_URL" "http://localhost:3000"
 assert_env_value "${env_file}" "API_IP_RATE_LIMIT" "5000"
@@ -157,6 +168,7 @@ assert_env_value "${legacy_env}" "STACK_NAME" "stuhelper-dev"
 assert_env_value "${legacy_env}" "COMPOSE_PROJECT_NAME" "stuhelper-dev"
 assert_env_value "${legacy_env}" "APP_ENV" "development"
 assert_env_value "${legacy_env}" "CORS_ORIGINS" "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001"
+assert_env_value "${legacy_env}" "ADMISSION_PUBLIC_BASE_URL" "http://localhost:3000"
 assert_env_value "${legacy_env}" "BACKEND_EXTERNAL_PORT" "8080"
 assert_env_value "${legacy_env}" "WEB_EXTERNAL_PORT" "3000"
 assert_env_value "${legacy_env}" "ADMIN_EXTERNAL_PORT" "3001"
@@ -166,6 +178,16 @@ assert_env_value "${legacy_env}" "OPENFGA_HTTP_EXTERNAL_PORT" "8081"
 assert_env_value "${legacy_env}" "OPENFGA_GRPC_EXTERNAL_PORT" "8082"
 assert_env_value "${legacy_env}" "OPENFGA_PLAYGROUND_EXTERNAL_PORT" "3002"
 assert_env_value "${legacy_env}" "SMS_ENABLED" "false"
+assert_env_value "${legacy_env}" "EMAIL_ENABLED" "false"
+assert_env_value "${legacy_env}" "EMAIL_DRIVER" "smtp"
+assert_env_value "${legacy_env}" "EMAIL_STUDENT_VERIFICATION_SUBJECT" "学生认证验证码"
+assert_env_value "${legacy_env}" "EMAIL_FROM_NAME" "StuHelper 系统邮件"
+assert_env_value "${legacy_env}" "EMAIL_TENCENT_REGION" "ap-guangzhou"
+assert_env_value "${legacy_env}" "EMAIL_TENCENT_ENDPOINT" "ses.tencentcloudapi.com"
+assert_env_value "${legacy_env}" "EMAIL_TENCENT_TEMPLATE_PURPOSE" "学校邮箱认证"
+assert_env_value "${legacy_env}" "EMAIL_TENCENT_TEMPLATE_SCHOOL_NAME" "北京航空航天大学"
+assert_env_value "${legacy_env}" "EMAIL_TENCENT_TEMPLATE_EXPIRE_MINUTES" "5"
+assert_env_value "${legacy_env}" "EMAIL_RESEND_ENDPOINT" "https://api.resend.com/emails"
 assert_env_value "${legacy_env}" "WEB_VITE_API_URL" "/api"
 assert_env_value "${legacy_env}" "API_IP_RATE_LIMIT" "5000"
 assert_env_value "${legacy_env}" "API_GLOBAL_RATE_LIMIT" "50000"
@@ -218,16 +240,16 @@ overrides = {
     "REDIS_HOST": "redis",
     "REDIS_EXTERNAL_PORT": "26379",
     "REDIS_TLS_CA": "/redis-tls/ca.crt",
-    "CORS_ORIGINS": "http://stuhelper.com,http://id.stuhelper.com",
+    "CORS_ORIGINS": "http://stuhelper.com,http://join.stuhelper.com,http://sso.stuhelper.com",
     "CASDOOR_EXTERNALPORT": "28085",
     "CASDOOR_ISSUER": "http://sso.stuhelper.com",
     "CASDOOR_INTERNAL_ADDRESS": "host.docker.internal:80",
-    "CASDOOR_PUBLIC_AUTH_BASE_URL": "http://id.stuhelper.com",
-    "CASDOOR_REDIRECT_URI": "http://id.stuhelper.com/api/v1/auth/callback",
+    "CASDOOR_PUBLIC_AUTH_BASE_URL": "http://sso.stuhelper.com",
+    "CASDOOR_REDIRECT_URI": "http://stuhelper.com/api/v1/auth/callback",
     "CASDOOR_BOOTSTRAP_ENABLED": "true",
     "CASDOOR_BOOTSTRAP_ENV_FILE": "/workspace/.run/prod-parity/.env.casdoor-bootstrap.local",
-    "CASDOOR_ADMIN_REDIRECT_URI": "http://id.stuhelper.com/api/v1/auth/callback",
-    "CASDOOR_UNIAPP_REDIRECT_URI": "http://id.stuhelper.com/api/v1/auth/callback",
+    "CASDOOR_ADMIN_REDIRECT_URI": "http://stuhelper.com/api/v1/auth/callback",
+    "CASDOOR_UNIAPP_REDIRECT_URI": "http://stuhelper.com/api/v1/auth/callback",
     "CASDOOR_SMS_PROVIDER_ENABLED": "true",
     "CASDOOR_SMS_PROVIDER_ENDPOINT": "http://app:8080/internal/sms/send",
     "SMS_ENABLED": "true",
@@ -239,17 +261,20 @@ overrides = {
     "ADMIN_EXTERNAL_PORT": "28001",
     "WEB_PUBLIC_URL": "http://stuhelper.com",
     "ADMIN_PUBLIC_URL": "http://stuhelper.com/admin/",
-    "IDENTITY_ISSUER": "http://id.stuhelper.com",
+    "ADMISSION_PUBLIC_BASE_URL": "http://join.stuhelper.com",
+    "IDENTITY_SERVER_ENABLED": "false",
+    "IDENTITY_ISSUER": "",
     "IDENTITY_SIGNING_KEY_ID": "stuhelper-identity-prod-parity-1",
     "IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS": "true",
     "IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED": "false",
     "PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_CASDOOR_UPSTREAM_ENABLED": "false",
-    "IDENTITY_PUBLIC_SMOKE_ENABLED": "true",
+    "PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED": "true",
+    "IDENTITY_PUBLIC_SMOKE_ENABLED": "false",
     "IDENTITY_PUBLIC_SMOKE_HOMEPAGE_URL": "http://stuhelper.com",
     "IDENTITY_PUBLIC_SMOKE_PRIVACY_POLICY_URL": "http://stuhelper.com/privacy",
     "STUHELPER_PLATFORM_BASE_URL": "http://stuhelper.com",
-    "WEB_VITE_SSO_URL": "http://id.stuhelper.com",
-    "WEB_VITE_IDENTITY_URL": "http://id.stuhelper.com",
+    "WEB_VITE_SSO_URL": "http://sso.stuhelper.com",
+    "WEB_VITE_IDENTITY_URL": "",
     "WEB_VITE_WEB_URL": "http://stuhelper.com",
     "OPENFGA_API_URL": "http://openfga:8080",
     "OPENFGA_HTTP_EXTERNAL_PORT": "8081",
@@ -333,11 +358,15 @@ assert_env_value "${polluted_env}" "WEB_EXTERNAL_PORT" "3000"
 assert_env_value "${polluted_env}" "ADMIN_EXTERNAL_PORT" "3001"
 assert_env_value "${polluted_env}" "WEB_PUBLIC_URL" "http://localhost:3000"
 assert_env_value "${polluted_env}" "ADMIN_PUBLIC_URL" "http://localhost:3001"
-assert_env_value "${polluted_env}" "IDENTITY_ISSUER" "http://localhost:3000"
+assert_env_value "${polluted_env}" "ADMISSION_PUBLIC_BASE_URL" "http://localhost:3000"
+assert_env_value "${polluted_env}" "IDENTITY_SERVER_ENABLED" "false"
+assert_env_value "${polluted_env}" "IDENTITY_ISSUER" ""
 assert_env_value "${polluted_env}" "IDENTITY_SIGNING_KEY_ID" "stuhelper-identity-dev"
 assert_env_value "${polluted_env}" "IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS" "false"
 assert_env_value "${polluted_env}" "IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED" "false"
 assert_env_value "${polluted_env}" "PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_CASDOOR_UPSTREAM_ENABLED" "false"
+assert_env_value "${polluted_env}" "PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED" "false"
+assert_file_not_contains "${polluted_env}" '^SSO_PUBLIC_'
 assert_env_value "${polluted_env}" "IDENTITY_PUBLIC_SMOKE_ENABLED" "false"
 assert_env_value "${polluted_env}" "IDENTITY_PUBLIC_SMOKE_HOMEPAGE_URL" "http://localhost:3000"
 assert_env_value "${polluted_env}" "IDENTITY_PUBLIC_SMOKE_PRIVACY_POLICY_URL" "http://localhost:3000/privacy"

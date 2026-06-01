@@ -113,7 +113,6 @@ require_nonempty CORS_ORIGINS "${CORS_ORIGINS:-}"
 require_nonempty HMAC_SECRET "${HMAC_SECRET:-}"
 require_nonempty DOC_AES_KEYS "${DOC_AES_KEYS:-}"
 require_nonempty CASDOOR_ISSUER "${CASDOOR_ISSUER:-}"
-require_nonempty IDENTITY_ISSUER "${IDENTITY_ISSUER:-}"
 require_nonempty CASDOOR_PUBLIC_AUTH_BASE_URL "${CASDOOR_PUBLIC_AUTH_BASE_URL:-}"
 require_nonempty CASDOOR_REDIRECT_URI "${CASDOOR_REDIRECT_URI:-}"
 require_nonempty CASDOOR_CLIENT_ID "${CASDOOR_CLIENT_ID:-}"
@@ -169,8 +168,10 @@ require_nonempty SMS_REGION "${SMS_REGION:-}"
 require_nonempty SMS_INTERNAL_KEY "${SMS_INTERNAL_KEY:-}"
 require_nonempty WEB_PUBLIC_URL "${WEB_PUBLIC_URL:-}"
 require_nonempty ADMIN_PUBLIC_URL "${ADMIN_PUBLIC_URL:-}"
+require_nonempty ADMISSION_PUBLIC_BASE_URL "${ADMISSION_PUBLIC_BASE_URL:-}"
+require_nonempty ADMISSION_PRODUCTION_READINESS_ENABLED "${ADMISSION_PRODUCTION_READINESS_ENABLED:-}"
+require_nonempty STUHELPER_FRESHMAN_MATERIAL_HOSTS "${STUHELPER_FRESHMAN_MATERIAL_HOSTS:-}"
 require_nonempty WEB_VITE_SSO_URL "${WEB_VITE_SSO_URL:-}"
-require_nonempty WEB_VITE_IDENTITY_URL "${WEB_VITE_IDENTITY_URL:-}"
 require_nonempty WEB_VITE_WEB_URL "${WEB_VITE_WEB_URL:-}"
 require_nonempty OPENFGA_API_URL "${OPENFGA_API_URL:-}"
 require_nonempty OBJECT_STORAGE_ENDPOINT "${OBJECT_STORAGE_ENDPOINT:-}"
@@ -189,7 +190,6 @@ reject_placeholder REDIS_PASSWORD "${REDIS_PASSWORD:-}" "dev123"
 reject_placeholder GRAFANA_ADMIN_PASSWORD "${GRAFANA_ADMIN_PASSWORD:-}" "ChangeMeBeforeProduction"
 reject_placeholder CORS_ORIGINS "${CORS_ORIGINS:-}" "REPLACE_WITH_PRODUCTION_CORS_ORIGINS"
 reject_placeholder CASDOOR_ISSUER "${CASDOOR_ISSUER:-}" "REPLACE_WITH_CASDOOR_ISSUER"
-reject_placeholder IDENTITY_ISSUER "${IDENTITY_ISSUER:-}" "REPLACE_WITH_IDENTITY_ISSUER"
 reject_placeholder CASDOOR_PUBLIC_AUTH_BASE_URL "${CASDOOR_PUBLIC_AUTH_BASE_URL:-}" "REPLACE_WITH_CASDOOR_PUBLIC_AUTH_BASE_URL"
 reject_placeholder CASDOOR_REDIRECT_URI "${CASDOOR_REDIRECT_URI:-}" "REPLACE_WITH_CASDOOR_REDIRECT_URI"
 reject_placeholder CASDOOR_CLIENT_ID "${CASDOOR_CLIENT_ID:-}" "REPLACE_WITH_CASDOOR_CLIENT_ID"
@@ -235,8 +235,8 @@ reject_placeholder SMS_TEMPLATE_ID "${SMS_TEMPLATE_ID:-}" "REPLACE_WITH_SMS_TEMP
 reject_placeholder SMS_INTERNAL_KEY "${SMS_INTERNAL_KEY:-}" "REPLACE_WITH_SMS_INTERNAL_KEY"
 reject_placeholder WEB_PUBLIC_URL "${WEB_PUBLIC_URL:-}" "REPLACE_WITH_WEB_PUBLIC_URL"
 reject_placeholder ADMIN_PUBLIC_URL "${ADMIN_PUBLIC_URL:-}" "REPLACE_WITH_ADMIN_PUBLIC_URL"
+reject_placeholder ADMISSION_PUBLIC_BASE_URL "${ADMISSION_PUBLIC_BASE_URL:-}" "REPLACE_WITH_ADMISSION_PUBLIC_BASE_URL"
 reject_placeholder WEB_VITE_SSO_URL "${WEB_VITE_SSO_URL:-}" "REPLACE_WITH_WEB_VITE_SSO_URL"
-reject_placeholder WEB_VITE_IDENTITY_URL "${WEB_VITE_IDENTITY_URL:-}" "REPLACE_WITH_WEB_VITE_IDENTITY_URL"
 reject_placeholder WEB_VITE_WEB_URL "${WEB_VITE_WEB_URL:-}" "REPLACE_WITH_WEB_VITE_WEB_URL"
 reject_placeholder OBJECT_STORAGE_ENDPOINT "${OBJECT_STORAGE_ENDPOINT:-}" "REPLACE_WITH_OBJECT_STORAGE_ENDPOINT"
 reject_placeholder OBJECT_STORAGE_ACCESS_KEY_ID "${OBJECT_STORAGE_ACCESS_KEY_ID:-}" "REPLACE_WITH_OBJECT_STORAGE_ACCESS_KEY_ID"
@@ -257,7 +257,6 @@ fi
 
 reject_local_value CORS_ORIGINS "${CORS_ORIGINS:-}"
 reject_local_value CASDOOR_ISSUER "${CASDOOR_ISSUER:-}"
-reject_local_value IDENTITY_ISSUER "${IDENTITY_ISSUER:-}"
 reject_local_value CASDOOR_PUBLIC_AUTH_BASE_URL "${CASDOOR_PUBLIC_AUTH_BASE_URL:-}"
 reject_local_value CASDOOR_REDIRECT_URI "${CASDOOR_REDIRECT_URI:-}"
 reject_local_value CASDOOR_ADMIN_REDIRECT_URI "${CASDOOR_ADMIN_REDIRECT_URI:-}"
@@ -265,8 +264,8 @@ reject_local_value CASDOOR_UNIAPP_REDIRECT_URI "${CASDOOR_UNIAPP_REDIRECT_URI:-}
 reject_local_value CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI "${CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI:-}"
 reject_local_value WEB_PUBLIC_URL "${WEB_PUBLIC_URL:-}"
 reject_local_value ADMIN_PUBLIC_URL "${ADMIN_PUBLIC_URL:-}"
+reject_local_value ADMISSION_PUBLIC_BASE_URL "${ADMISSION_PUBLIC_BASE_URL:-}"
 reject_local_value WEB_VITE_SSO_URL "${WEB_VITE_SSO_URL:-}"
-reject_local_value WEB_VITE_IDENTITY_URL "${WEB_VITE_IDENTITY_URL:-}"
 reject_local_value WEB_VITE_WEB_URL "${WEB_VITE_WEB_URL:-}"
 reject_local_value OPENFGA_API_URL "${OPENFGA_API_URL:-}"
 reject_local_value OBJECT_STORAGE_ENDPOINT "${OBJECT_STORAGE_ENDPOINT:-}"
@@ -274,6 +273,7 @@ reject_local_value BACKUP_OBJECT_STORAGE_ENDPOINT "${BACKUP_OBJECT_STORAGE_ENDPO
 reject_local_value GRAFANA_ROOT_URL "${GRAFANA_ROOT_URL:-}"
 
 [[ "${TOKEN_COOKIE_SECURE:-false}" == "true" ]] || die "TOKEN_COOKIE_SECURE must be true for production deploy"
+[[ "${ADMISSION_PUBLIC_BASE_URL:-}" == "https://join.stuhelper.com" ]] || die "ADMISSION_PUBLIC_BASE_URL must be exactly https://join.stuhelper.com for production deploy"
 [[ "${OTEL_ENABLED:-false}" == "true" ]] || die "OTEL_ENABLED must be true for production deploy"
 [[ "${CASDOOR_BOOTSTRAP_ENABLED:-false}" == "true" ]] || die "CASDOOR_BOOTSTRAP_ENABLED must be true for production deploy"
 [[ "${CASDOOR_SMS_PROVIDER_ENABLED:-false}" == "true" ]] || die "CASDOOR_SMS_PROVIDER_ENABLED must be true for production deploy"
@@ -344,6 +344,9 @@ log "running production database migrations"
 compose --profile prod up --no-deps migrate
 compose --profile prod up --no-deps openfga-migrate
 
+log "checking admission production readiness"
+"${SCRIPT_DIR}/admission-production-readiness.sh"
+
 log "starting production authorization services"
 compose --profile prod up -d --wait "${authz_services[@]}"
 
@@ -356,16 +359,20 @@ log "running Open Platform production evidence smokes"
 log "starting production application services"
 compose --profile prod up -d --wait app frontend admin
 
-if [[ "${IDENTITY_PUBLIC_SMOKE_BOOTSTRAP_ENABLED:-false}" == "true" ]]; then
-  log "ensuring approved Identity public smoke client"
-  "${SCRIPT_DIR}/bootstrap-identity-public-smoke-client.sh"
-  load_env # reload Identity public smoke credentials
-fi
-
-if [[ "${IDENTITY_PUBLIC_SMOKE_ENABLED:-true}" == "true" ]]; then
-  "${SCRIPT_DIR}/identity-public-smoke.sh"
+if [[ "${SSO_PUBLIC_SMOKE_ENABLED:-true}" == "true" ]]; then
+  "${SCRIPT_DIR}/sso-public-smoke.sh"
 else
-  warn "public identity smoke skipped because IDENTITY_PUBLIC_SMOKE_ENABLED is not true"
+  warn "public SSO smoke skipped because SSO_PUBLIC_SMOKE_ENABLED is not true"
+fi
+if [[ "${ADMISSION_PUBLIC_SMOKE_ENABLED:-true}" == "true" ]]; then
+  "${SCRIPT_DIR}/admission-public-smoke.sh"
+else
+  warn "public admission smoke skipped because ADMISSION_PUBLIC_SMOKE_ENABLED is not true"
+fi
+if [[ "${PUBLIC_WEB_AUTH_BROWSER_SMOKE_ENABLED:-true}" == "true" ]]; then
+  node "${SCRIPT_DIR}/public-web-auth-browser-smoke.mjs"
+else
+  warn "public Web auth browser smoke skipped because PUBLIC_WEB_AUTH_BROWSER_SMOKE_ENABLED is not true"
 fi
 "${SCRIPT_DIR}/smoke-check.sh"
 OBS_SMOKE_STRICT=true "${SCRIPT_DIR}/observability-smoke-check.sh"
@@ -374,7 +381,7 @@ record_release "${TAG}"
 log "production deployment completed successfully"
 echo "  Web:     ${WEB_PUBLIC_URL}"
 echo "  Admin UI:${ADMIN_PUBLIC_URL:-http://127.0.0.1:${ADMIN_EXTERNAL_PORT:-18001}}"
-echo "  Identity:${WEB_VITE_IDENTITY_URL}"
+echo "  SSO:     ${WEB_VITE_SSO_URL}"
 echo "  Release: ${TAG}"
 echo "  Backend: ${BACKEND_IMAGE_REF}"
 echo "  Frontend:${FRONTEND_IMAGE_REF}"

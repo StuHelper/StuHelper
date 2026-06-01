@@ -74,7 +74,7 @@ Extend `stuhelper-core/src/core/modules/event-handlers.ts:handleGuildMemberReque
 
 - [x] **Step 4: Write failing added-member tests**
 
-Test a new unverified QQ member calls backend `createAdmissionSession`, mutes for returned `initialMuteDurationSeconds`, and sends `https://auth.stuhelper.com/admission/a/<code>?qq=<qq>`. Assert no `buaa.team` and no `sso.stuhelper.com` appear in group text.
+Test a new unverified QQ member calls backend `createAdmissionSession`, mutes for returned `initialMuteDurationSeconds`, and sends `https://join.stuhelper.com/verify/<token>?qq=<qq>`. Assert no `buaa.team` and no `sso.stuhelper.com` appear in group text.
 
 - [x] **Step 5: Implement formatter and cache schema**
 

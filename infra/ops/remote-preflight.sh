@@ -55,6 +55,17 @@ fi
 require_production_postgres_ssl
 require_public_ingress_config_preflight
 require_public_identity_ingress_preflight
+if [[ "${ADMISSION_PUBLIC_SMOKE_ENABLED:-true}" == "true" ]]; then
+  ADMISSION_PUBLIC_SMOKE_RETRIES="${ADMISSION_PUBLIC_SMOKE_PREFLIGHT_RETRIES:-${ADMISSION_PUBLIC_SMOKE_RETRIES:-1}}" \
+    "${SCRIPT_DIR}/admission-public-smoke.sh"
+else
+  warn "public admission smoke preflight skipped because ADMISSION_PUBLIC_SMOKE_ENABLED is not true"
+fi
+if [[ "${PUBLIC_WEB_AUTH_BROWSER_SMOKE_PREFLIGHT_ENABLED:-false}" == "true" ]]; then
+  node "${SCRIPT_DIR}/public-web-auth-browser-smoke.mjs"
+else
+  warn "public Web auth browser smoke preflight skipped because PUBLIC_WEB_AUTH_BROWSER_SMOKE_PREFLIGHT_ENABLED is not true"
+fi
 
 # 校验 Docker 和 Docker Compose 运行环境
 docker info >/dev/null

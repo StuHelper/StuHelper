@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 PROD_DEPLOY_FILE="${REPO_ROOT}/infra/ops/prod-deploy.sh"
+ADMISSION_READINESS_FILE="${REPO_ROOT}/infra/ops/admission-production-readiness.sh"
 
 fail() {
   echo "[prod-deploy-contract][error] $*" >&2
@@ -30,28 +31,25 @@ predeploy_backup_line="$(line_number '"${SCRIPT_DIR}/backup-postgres.sh" "${pred
 sync_backup_line="$(line_number '"${SCRIPT_DIR}/sync-postgres-backups.sh"')"
 postgres_backup_evidence_line="$(line_number '"${SCRIPT_DIR}/postgres-backup-evidence.sh"')"
 migrate_line="$(line_number 'compose --profile prod up --no-deps migrate')"
+admission_readiness_line="$(line_number '"${SCRIPT_DIR}/admission-production-readiness.sh"')"
 start_authz_line="$(line_number 'compose --profile prod up -d --wait "${authz_services[@]}"')"
 bootstrap_platform_line="$(line_number '"${SCRIPT_DIR}/bootstrap-platform.sh" prod')"
 open_platform_evidence_line="$(line_number '"${SCRIPT_DIR}/open-platform-production-evidence.sh"')"
 start_app_line="$(line_number 'compose --profile prod up -d --wait app frontend admin')"
-identity_public_smoke_bootstrap_line="$(line_number '"${SCRIPT_DIR}/bootstrap-identity-public-smoke-client.sh"')"
-identity_public_smoke_reload_line="$(line_number 'load_env # reload Identity public smoke credentials')"
-identity_public_smoke_line="$(line_number '"${SCRIPT_DIR}/identity-public-smoke.sh"')"
+sso_public_smoke_line="$(line_number '"${SCRIPT_DIR}/sso-public-smoke.sh"')"
+admission_public_smoke_line="$(line_number '"${SCRIPT_DIR}/admission-public-smoke.sh"')"
+public_web_auth_browser_smoke_line="$(line_number 'node "${SCRIPT_DIR}/public-web-auth-browser-smoke.mjs"')"
 smoke_check_line="$(line_number '"${SCRIPT_DIR}/smoke-check.sh"')"
 observability_smoke_line="$(line_number 'OBS_SMOKE_STRICT=true "${SCRIPT_DIR}/observability-smoke-check.sh"')"
 bootstrap_require_line="$(line_number 'require_nonempty CASDOOR_BOOTSTRAP_CLIENT_SECRET')"
-identity_issuer_require_line="$(line_number 'require_nonempty IDENTITY_ISSUER')"
-identity_issuer_reject_line="$(line_number 'reject_placeholder IDENTITY_ISSUER')"
-identity_issuer_local_reject_line="$(line_number 'reject_local_value IDENTITY_ISSUER')"
 casdoor_public_auth_require_line="$(line_number 'require_nonempty CASDOOR_PUBLIC_AUTH_BASE_URL')"
 casdoor_public_auth_reject_line="$(line_number 'reject_placeholder CASDOOR_PUBLIC_AUTH_BASE_URL')"
 casdoor_public_auth_local_reject_line="$(line_number 'reject_local_value CASDOOR_PUBLIC_AUTH_BASE_URL')"
-web_identity_require_line="$(line_number 'require_nonempty WEB_VITE_IDENTITY_URL')"
-web_identity_reject_line="$(line_number 'reject_placeholder WEB_VITE_IDENTITY_URL')"
-web_identity_local_reject_line="$(line_number 'reject_local_value WEB_VITE_IDENTITY_URL')"
 web_url_require_line="$(line_number 'require_nonempty WEB_VITE_WEB_URL')"
 web_url_reject_line="$(line_number 'reject_placeholder WEB_VITE_WEB_URL')"
 web_url_local_reject_line="$(line_number 'reject_local_value WEB_VITE_WEB_URL')"
+admission_public_base_require_line="$(line_number 'require_nonempty ADMISSION_PUBLIC_BASE_URL')"
+freshman_material_hosts_require_line="$(line_number 'require_nonempty STUHELPER_FRESHMAN_MATERIAL_HOSTS')"
 bootstrap_reject_line="$(line_number 'reject_placeholder CASDOOR_BOOTSTRAP_CLIENT_SECRET')"
 app_provisioning_require_line="$(line_number 'require_nonempty CASDOOR_APP_PROVISIONING_CLIENT_SECRET')"
 app_provisioning_reject_line="$(line_number 'reject_placeholder CASDOOR_APP_PROVISIONING_CLIENT_SECRET')"
@@ -71,11 +69,19 @@ token_probe_smoke_secret_reject_line="$(line_number 'reject_placeholder CASDOOR_
 token_probe_command_reject_line="$(line_number 'reject_placeholder OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND')"
 token_probe_username_reject_line="$(line_number 'reject_placeholder CASDOOR_TOKEN_PROBE_USERNAME')"
 sms_secret_require_line="$(line_number 'require_nonempty SMS_SECRET_ID')"
+admission_public_base_exact_line="$(line_number 'ADMISSION_PUBLIC_BASE_URL must be exactly https://join.stuhelper.com for production deploy')"
 casdoor_sms_enabled_line="$(line_number 'CASDOOR_SMS_PROVIDER_ENABLED must be true for production deploy')"
 casdoor_sms_type_line="$(line_number 'CASDOOR_SMS_PROVIDER_TYPE must be CustomHTTP for production deploy')"
 casdoor_sms_title_line="$(line_number 'CASDOOR_SMS_PROVIDER_TITLE must be content for production deploy')"
 sms_enabled_line="$(line_number 'SMS_ENABLED must be true for production deploy')"
 token_probe_required_line="$(line_number 'OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED must be true for production deploy')"
+admission_readiness_require_line="$(line_number 'require_nonempty ADMISSION_PRODUCTION_READINESS_ENABLED')"
+
+[[ -f "${ADMISSION_READINESS_FILE}" ]] || fail "missing admission production readiness script"
+bash -n "${ADMISSION_READINESS_FILE}"
+if [[ ! -x "${ADMISSION_READINESS_FILE}" ]]; then
+  fail "admission production readiness script must be executable"
+fi
 
 if (( source_bootstrap_line <= load_env_line )); then
   fail "Casdoor bootstrap env must be sourced after load_env"
@@ -83,16 +89,7 @@ fi
 if (( bootstrap_require_line <= source_bootstrap_line )); then
   fail "Casdoor bootstrap credentials must be validated after sourcing bootstrap env"
 fi
-if (( identity_issuer_require_line <= source_bootstrap_line )); then
-  fail "Identity issuer must be validated after env files and bootstrap env are loaded"
-fi
-if (( identity_issuer_reject_line <= identity_issuer_require_line )); then
-  fail "Identity issuer placeholder rejection must run after non-empty validation"
-fi
-if (( identity_issuer_local_reject_line <= identity_issuer_reject_line )); then
-  fail "Identity issuer local endpoint rejection must run after placeholder rejection"
-fi
-if (( casdoor_public_auth_require_line <= identity_issuer_require_line )); then
+if (( casdoor_public_auth_require_line <= source_bootstrap_line )); then
   fail "Casdoor public auth base URL must be validated with identity ingress settings"
 fi
 if (( casdoor_public_auth_reject_line <= casdoor_public_auth_require_line )); then
@@ -101,20 +98,20 @@ fi
 if (( casdoor_public_auth_local_reject_line <= casdoor_public_auth_reject_line )); then
   fail "Casdoor public auth base URL local endpoint rejection must run after placeholder rejection"
 fi
-if (( web_identity_reject_line <= web_identity_require_line )); then
-  fail "Web identity URL placeholder rejection must run after non-empty validation"
-fi
-if (( web_identity_local_reject_line <= web_identity_reject_line )); then
-  fail "Web identity URL local endpoint rejection must run after placeholder rejection"
-fi
-if (( web_url_require_line <= web_identity_require_line )); then
-  fail "Web public frontend URL validation should be grouped after identity URL validation"
+if (( web_url_require_line <= casdoor_public_auth_require_line )); then
+  fail "Web public frontend URL validation should be grouped after SSO public auth validation"
 fi
 if (( web_url_reject_line <= web_url_require_line )); then
   fail "Web public frontend URL placeholder rejection must run after non-empty validation"
 fi
 if (( web_url_local_reject_line <= web_url_reject_line )); then
   fail "Web public frontend URL local endpoint rejection must run after placeholder rejection"
+fi
+if (( admission_readiness_require_line <= admission_public_base_require_line )); then
+  fail "admission production readiness flag must be validated with admission public URL settings"
+fi
+if (( freshman_material_hosts_require_line <= admission_readiness_require_line )); then
+  fail "freshman material host validation must stay grouped after admission readiness flag validation"
 fi
 if (( bootstrap_reject_line <= bootstrap_require_line )); then
   fail "Casdoor bootstrap placeholder rejection must run after non-empty validation"
@@ -173,6 +170,12 @@ fi
 if (( casdoor_sms_enabled_line <= sms_secret_require_line )); then
   fail "Casdoor SMS provider production gate must run after SMS credentials are validated"
 fi
+if (( admission_public_base_exact_line <= sms_secret_require_line )); then
+  fail "Admission public base URL exact production gate must run after required credentials are validated"
+fi
+if (( casdoor_sms_enabled_line <= admission_public_base_exact_line )); then
+  fail "Casdoor SMS provider production gate must run after admission public URL exact gate"
+fi
 if (( casdoor_sms_type_line <= casdoor_sms_enabled_line )); then
   fail "Casdoor SMS provider type gate must run after provider enabled gate"
 fi
@@ -192,13 +195,22 @@ if (( public_ingress_config_preflight_line <= postgres_ssl_line )); then
   fail "public Nginx ingress config preflight must run after production PostgreSQL SSL config validation"
 fi
 if (( public_ingress_preflight_line <= public_ingress_config_preflight_line )); then
-  fail "public identity ingress preflight must run after local Nginx config preflight"
+  fail "public SSO/admission ingress preflight must run after local Nginx config preflight"
+fi
+if (( admission_public_smoke_line <= sso_public_smoke_line )); then
+  fail "admission public smoke must run after SSO public smoke"
+fi
+if (( public_web_auth_browser_smoke_line <= admission_public_smoke_line )); then
+  fail "public Web auth browser smoke must run after admission public smoke"
+fi
+if (( smoke_check_line <= public_web_auth_browser_smoke_line )); then
+  fail "smoke-check must run after public Web auth browser smoke"
 fi
 if (( public_ingress_preflight_line <= postgres_ssl_line )); then
-  fail "public identity ingress preflight must run after production PostgreSQL SSL config validation"
+  fail "public SSO/admission ingress preflight must run after production PostgreSQL SSL config validation"
 fi
 if (( render_postgres_tls_line <= public_ingress_preflight_line )); then
-  fail "render-postgres-tls.sh must run after public identity ingress preflight"
+  fail "render-postgres-tls.sh must run after public SSO/admission ingress preflight"
 fi
 if (( render_postgres_tls_line <= postgres_ssl_line )); then
   fail "render-postgres-tls.sh must run after production PostgreSQL SSL config validation"
@@ -226,7 +238,7 @@ if ! grep -qF 'EXTERNAL_POSTGRES_ENABLED' "${PROD_DEPLOY_FILE}"; then
   fail "production deploy must support skipping the internal PostgreSQL service"
 fi
 if ! grep -qF 'require_public_identity_ingress_preflight' "${PROD_DEPLOY_FILE}"; then
-  fail "production deploy must fail fast on missing public web and identity ingress"
+  fail "production deploy must fail fast on missing public web, SSO, and admission ingress"
 fi
 if ! grep -qF 'require_public_ingress_config_preflight' "${PROD_DEPLOY_FILE}"; then
   fail "production deploy must fail fast on missing local Nginx public ingress config"
@@ -255,6 +267,9 @@ fi
 if (( migrate_line <= postgres_backup_evidence_line )); then
   fail "database migrations must wait until PostgreSQL backup evidence passes"
 fi
+if (( admission_readiness_line <= migrate_line )); then
+  fail "admission production readiness must run after database migrations"
+fi
 
 authz_block="$(
   awk '
@@ -277,26 +292,23 @@ fi
 if (( start_authz_line <= start_infra_line )); then
   fail "authorization services must start after infrastructure services"
 fi
+if (( start_authz_line <= admission_readiness_line )); then
+  fail "authorization services must start after admission production readiness passes"
+fi
 if (( open_platform_evidence_line <= bootstrap_platform_line )); then
   fail "Open Platform production evidence smokes must run after bootstrap-platform creates Casdoor smoke app and writes OpenFGA IDs"
 fi
 if (( start_app_line <= open_platform_evidence_line )); then
   fail "application services must start after Open Platform production evidence smokes pass"
 fi
-if (( identity_public_smoke_line <= start_app_line )); then
-  fail "public identity smoke must run after production application services start"
+if (( sso_public_smoke_line <= start_app_line )); then
+  fail "public SSO smoke must run after production application services start"
 fi
-if (( identity_public_smoke_bootstrap_line <= start_app_line )); then
-  fail "Identity public smoke client bootstrap must run after production application services start"
+if (( public_web_auth_browser_smoke_line <= admission_public_smoke_line )); then
+  fail "public Web auth browser smoke must run after admission public smoke"
 fi
-if (( identity_public_smoke_reload_line <= identity_public_smoke_bootstrap_line )); then
-  fail "production deploy must reload env after bootstrapping Identity public smoke credentials"
-fi
-if (( identity_public_smoke_line <= identity_public_smoke_reload_line )); then
-  fail "public identity smoke must run after optional Identity public smoke client bootstrap reloads env"
-fi
-if (( smoke_check_line <= identity_public_smoke_line )); then
-  fail "business smoke-check must run after public identity smoke"
+if (( smoke_check_line <= public_web_auth_browser_smoke_line )); then
+  fail "business smoke-check must run after public Web auth browser smoke"
 fi
 if (( observability_smoke_line <= smoke_check_line )); then
   fail "strict observability smoke must run after business smoke-check"
@@ -313,6 +325,10 @@ infra_block="$(
 [[ -n "${infra_block}" ]] || fail "expected infra_services block in ${PROD_DEPLOY_FILE}"
 if ! printf '%s\n' "${infra_block}" | grep -Eq '(^|[[:space:]])cadvisor($|[[:space:]])'; then
   fail "production infra services must include cadvisor because Prometheus scrapes it"
+fi
+
+if (( start_app_line <= admission_readiness_line )); then
+  fail "application services must start after admission production readiness passes"
 fi
 
 echo "[prod-deploy-contract] all assertions passed"

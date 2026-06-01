@@ -65,6 +65,7 @@ assert_contains "${DEV_UP}" 'WEB_DEV_PORT_SELECTED="\$\(pick_available_port "\$\
 assert_contains "${DEV_UP}" 'ADMIN_DEV_PORT_SELECTED="\$\(pick_available_port "\$\{ADMIN_EXTERNAL_PORT:-3001\}" 30 "\$\{WEB_DEV_PORT_SELECTED\}" "\$\{POSTGRES_EXTERNAL_PORT_SELECTED\}" "\$\{REDIS_EXTERNAL_PORT_SELECTED\}" "\$\{OPENFGA_HTTP_EXTERNAL_PORT_SELECTED\}" "\$\{OPENFGA_GRPC_EXTERNAL_PORT_SELECTED\}" "\$\{OPENFGA_PLAYGROUND_EXTERNAL_PORT_SELECTED\}" "\$\{MINIO_API_EXTERNAL_PORT_SELECTED\}" "\$\{MINIO_CONSOLE_EXTERNAL_PORT_SELECTED\}" "\$\{observability_reserved_ports\[@\]\}"\)"'
 assert_contains "${DEV_UP}" 'sync_dev_browser_public_urls "\$\{WEB_DEV_PORT_SELECTED\}" "\$\{ADMIN_DEV_PORT_SELECTED\}"'
 assert_contains "${DEV_UP}" 'upsert_env_file "\$\{ENV_FILE\}" "WEB_PUBLIC_URL" "http://localhost:\$\{web_port\}"'
+assert_contains "${DEV_UP}" 'upsert_env_file "\$\{ENV_FILE\}" "ADMISSION_PUBLIC_BASE_URL" "http://localhost:\$\{web_port\}"'
 assert_contains "${DEV_UP}" 'upsert_env_file "\$\{ENV_FILE\}" "ADMIN_PUBLIC_URL" "http://localhost:\$\{admin_port\}/admin/"'
 assert_contains "${DEV_UP}" 'upsert_env_file "\$\{ENV_FILE\}" "CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI" "http://localhost:\$\{web_port\}/open-platform/token-probe/callback"'
 assert_contains "${DEV_UP}" 'upsert_env_file "\$\{ENV_FILE\}" "CORS_ORIGINS" "http://localhost:\$\{web_port\},http://127\.0\.0\.1:\$\{web_port\},http://localhost:\$\{admin_port\},http://127\.0\.0\.1:\$\{admin_port\}"'

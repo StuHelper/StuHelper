@@ -31,14 +31,20 @@ export DEPLOY_STATE_DIR="$(parity_default_path "${DEPLOY_STATE_DIR:-}" "${REPO_R
 load_env
 
 postgres_container="${SHARED_POSTGRES_CONTAINER:-${PROD_PARITY_POSTGRES_CONTAINER:-stuhelper-prod-parity-postgres}}"
+superuser="${SHARED_POSTGRES_SUPERUSER:-postgres}"
 stuhelper_db="${STUHELPER_APP_DB_NAME:-${POSTGRES_DB:-stuhelper}}"
+casdoor_db="${CASDOOR_DB_NAME:-casdoor}"
 app_user="${STUHELPER_APP_DB_USER:-stuhelper_app}"
 redis_container="${REDIS_CONTAINER_NAME:-${STACK_NAME:-stuhelper-prod-parity}-redis}"
 redis_username="${REDIS_USERNAME:-stuhelper_app}"
 evidence_file="${PROD_PARITY_SMOKE_DATA_EVIDENCE_FILE:-${PARITY_DIR}/smoke-data-evidence.json}"
 admission_token="${PROD_PARITY_ADMISSION_TOKEN:-PROD-PARITY-ADMIT-LOGIN}"
 admission_qq="${PROD_PARITY_ADMISSION_QQ:-990001}"
-web_public_url="${WEB_PUBLIC_URL:-https://stuhelper.com}"
+admission_public_base_url="${ADMISSION_PUBLIC_BASE_URL:-https://join.stuhelper.com}"
+casdoor_login_username="${PROD_PARITY_CASDOOR_LOGIN_USERNAME:-admission-e2e}"
+casdoor_login_password="${PROD_PARITY_CASDOOR_LOGIN_PASSWORD:-ProdParityAdmission1!}"
+casdoor_login_user_id="${PROD_PARITY_CASDOOR_LOGIN_USER_ID:-prod-parity-admission-e2e-user}"
+casdoor_login_email="${PROD_PARITY_CASDOOR_LOGIN_EMAIL:-admission-e2e@prod-parity.local}"
 
 [[ -n "${STUHELPER_APP_DB_PASSWORD:-}" ]] || die "STUHELPER_APP_DB_PASSWORD is required for prod-parity smoke data"
 [[ -n "${REDIS_PASSWORD:-}" ]] || die "REDIS_PASSWORD is required for prod-parity smoke data cache invalidation"
@@ -69,6 +75,25 @@ print(hmac.new(key, token, hashlib.sha256).hexdigest())
 PY
 )"
 
+casdoor_password_hash="$(
+  python3 -W ignore::DeprecationWarning - "${casdoor_login_password}" <<'PY'
+import crypt
+import sys
+
+print(crypt.crypt(sys.argv[1], crypt.mksalt(crypt.METHOD_BLOWFISH)))
+PY
+)"
+
+casdoor_password_salt="$(
+  python3 - <<'PY'
+import secrets
+import string
+
+alphabet = string.ascii_letters + string.digits
+print("".join(secrets.choice(alphabet) for _ in range(20)))
+PY
+)"
+
 log "seeding deterministic prod-parity browser smoke data"
 docker exec \
   -e PGPASSWORD="${STUHELPER_APP_DB_PASSWORD}" \
@@ -78,11 +103,15 @@ docker exec \
     -v admission_token="${admission_token}" \
     -v admission_token_hash="${admission_token_hash}" \
     -v admission_qq="${admission_qq}" \
-    -v web_public_url="${web_public_url%/}" \
+    -v admission_public_base_url="${admission_public_base_url%/}" \
+    -v casdoor_login_user_id="${casdoor_login_user_id}" \
     -h 127.0.0.1 \
     -U "${app_user}" \
     -d "${stuhelper_db}" <<'SQL' >/dev/null
 BEGIN;
+
+DELETE FROM public.users
+WHERE casdoor_subject = :'casdoor_login_user_id';
 
 INSERT INTO public.departments (id, school_id, name, short_name, category, sort_order)
 VALUES (900001, 10006, '生产等价学院', '等价', '工科', 900001)
@@ -303,8 +332,83 @@ SELECT setval('public.departments_id_seq', GREATEST((SELECT max(id) FROM public.
 SELECT setval('public.teachers_id_seq', GREATEST((SELECT max(id) FROM public.teachers), (SELECT last_value FROM public.teachers_id_seq)), true);
 SELECT setval('public.courses_id_seq', GREATEST((SELECT max(id) FROM public.courses), (SELECT last_value FROM public.courses_id_seq)), true);
 
+INSERT INTO public.school_configs (
+    school_id, school_name, verification_method, academic_db_table, consent_text,
+    manual_form_fields, enabled, approval_policy
+)
+VALUES (
+    10006,
+    '北京航空航天大学',
+    'ldap',
+    'academic.buaa_students',
+    '生产等价 admission smoke 使用学校 SSO 或邮箱 OTP 验证学生身份。',
+    '{"admission":{"emailDomains":["buaa.edu.cn"],"ssoLoginURL":"https://sso.school.example/login","emailIdentityPolicy":{"type":"academic_student_email","studentIDEmailDomain":"buaa.edu.cn","requireStudentName":true}}}'::jsonb,
+    true,
+    'auto'
+)
+ON CONFLICT (school_id) DO UPDATE
+SET school_name = EXCLUDED.school_name,
+    verification_method = EXCLUDED.verification_method,
+    academic_db_table = EXCLUDED.academic_db_table,
+    consent_text = EXCLUDED.consent_text,
+    manual_form_fields = EXCLUDED.manual_form_fields,
+    enabled = EXCLUDED.enabled,
+    approval_policy = EXCLUDED.approval_policy,
+    updated_at = now();
+
+INSERT INTO academic.buaa_students (
+    xh, xm, yxdm, zydm, bjdm, rxnj, dzxx, xjztdm, sfzx, sfzj, synced_at
+)
+VALUES (
+    '20259901',
+    '张三',
+    'prod-parity-dept',
+    'prod-parity-major',
+    'prod-parity-class',
+    '2025',
+    '20259901@buaa.edu.cn',
+    'active',
+    '1',
+    '1',
+    now()
+)
+ON CONFLICT (xh) DO UPDATE
+SET xm = EXCLUDED.xm,
+    yxdm = EXCLUDED.yxdm,
+    zydm = EXCLUDED.zydm,
+    bjdm = EXCLUDED.bjdm,
+    rxnj = EXCLUDED.rxnj,
+    dzxx = EXCLUDED.dzxx,
+    xjztdm = EXCLUDED.xjztdm,
+    sfzx = EXCLUDED.sfzx,
+    sfzj = EXCLUDED.sfzj,
+    synced_at = now();
+
+INSERT INTO public.group_admission_policies (
+    id, platform, guild_id, school_id, auto_approve_join, management_guild_ids,
+    freshman_channel_closes_at, freshman_default_expires_at
+)
+VALUES (
+    'prod-parity-admission-policy',
+    'qq',
+    'prod-parity-guild',
+    10006,
+    true,
+    ARRAY['prod-parity-management']::text[],
+    now() + interval '30 days',
+    now() + interval '180 days'
+)
+ON CONFLICT (platform, guild_id) DO UPDATE
+SET school_id = EXCLUDED.school_id,
+    auto_approve_join = EXCLUDED.auto_approve_join,
+    management_guild_ids = EXCLUDED.management_guild_ids,
+    freshman_channel_enabled = true,
+    freshman_channel_closes_at = EXCLUDED.freshman_channel_closes_at,
+    freshman_default_expires_at = EXCLUDED.freshman_default_expires_at,
+    updated_at = now();
+
 INSERT INTO public.group_admission_sessions (
-    id, platform, bot_self_id, guild_id, channel_id, qq_id, qq_nickname, user_id,
+    id, platform, bot_self_id, guild_id, channel_id, qq_id, user_id,
     token_hash, auth_url, token_expires_at, token_consumed_at, status,
     link_wait_deadline_at, submission_wait_deadline_at, manual_review_deadline_at,
     initial_mute_until, verified_at, cancelled_at, last_bot_error, updated_at
@@ -316,10 +420,9 @@ VALUES (
     'prod-parity-guild',
     'prod-parity-channel',
     :'admission_qq',
-    '生产等价 QQ',
     NULL,
     :'admission_token_hash',
-    format('%s/admission/a/%s?qq=%s', :'web_public_url', :'admission_token', :'admission_qq'),
+    format('%s/verify/%s?qq=%s', :'admission_public_base_url', :'admission_token', :'admission_qq'),
     now() + interval '1 hour',
     NULL,
     'joined_muted',
@@ -334,7 +437,6 @@ VALUES (
 )
 ON CONFLICT (id) DO UPDATE
 SET qq_id = EXCLUDED.qq_id,
-    qq_nickname = EXCLUDED.qq_nickname,
     user_id = NULL,
     token_hash = EXCLUDED.token_hash,
     auth_url = EXCLUDED.auth_url,
@@ -351,6 +453,78 @@ SET qq_id = EXCLUDED.qq_id,
     updated_at = now();
 
 COMMIT;
+SQL
+
+log "seeding deterministic prod-parity Casdoor login user"
+docker exec \
+  -i "${postgres_container}" \
+  psql \
+    -v ON_ERROR_STOP=1 \
+    -v casdoor_login_username="${casdoor_login_username}" \
+    -v casdoor_login_user_id="${casdoor_login_user_id}" \
+    -v casdoor_login_email="${casdoor_login_email}" \
+    -v casdoor_password_hash="${casdoor_password_hash}" \
+    -v casdoor_password_salt="${casdoor_password_salt}" \
+    -U "${superuser}" \
+    -d "${casdoor_db}" <<'SQL' >/dev/null
+INSERT INTO public."user" (
+    owner, name, created_time, updated_time, id, type,
+    password, password_salt, password_type,
+    display_name, email, email_verified,
+    language, is_admin, is_forbidden, is_deleted, is_verified,
+    signup_application, register_type, register_source,
+    score, karma, ranking, balance, balance_credit, currency, balance_currency,
+    properties, roles, permissions, groups
+)
+VALUES (
+    'stuhelper',
+    :'casdoor_login_username',
+    to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+    to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+    :'casdoor_login_user_id',
+    'normal-user',
+    :'casdoor_password_hash',
+    :'casdoor_password_salt',
+    'bcrypt',
+    'Admission E2E',
+    :'casdoor_login_email',
+    true,
+    'zh',
+    false,
+    false,
+    false,
+    false,
+    'stuhelper-web',
+    'Add User',
+    'prod-parity/smoke-data',
+    0,
+    0,
+    0,
+    0,
+    0,
+    'CNY',
+    'CNY',
+    '{}',
+    'null',
+    'null',
+    'null'
+)
+ON CONFLICT (owner, name) DO UPDATE
+SET updated_time = EXCLUDED.updated_time,
+    id = EXCLUDED.id,
+    type = EXCLUDED.type,
+    password = EXCLUDED.password,
+    password_salt = EXCLUDED.password_salt,
+    password_type = EXCLUDED.password_type,
+    display_name = EXCLUDED.display_name,
+    email = EXCLUDED.email,
+    email_verified = EXCLUDED.email_verified,
+    language = EXCLUDED.language,
+    is_admin = false,
+    is_forbidden = false,
+    is_deleted = false,
+    signup_application = EXCLUDED.signup_application,
+    register_source = EXCLUDED.register_source;
 SQL
 
 clear_cache_keys() {
@@ -407,6 +581,37 @@ SELECT jsonb_build_object(
   'courseRatingStatsCount', (SELECT count(*) FROM public.course_rating_stats WHERE course_id = 900001),
   'teacherRatingStatsCount', (SELECT count(*) FROM public.teacher_rating_stats WHERE teacher_id = 900001),
   'teacherPublicStatsCount', (SELECT count(*) FROM public.mv_teacher_public_stats WHERE teacher_id = 900001 AND review_count > 0),
+  'admissionSchoolConfigCount', (
+      SELECT count(*)
+      FROM public.school_configs
+      WHERE school_id = 10006
+        AND enabled
+        AND manual_form_fields #>> '{admission,ssoLoginURL}' = 'https://sso.school.example/login'
+        AND manual_form_fields #> '{admission,emailDomains}' ? 'buaa.edu.cn'
+        AND manual_form_fields #>> '{admission,emailIdentityPolicy,type}' = 'academic_student_email'
+        AND manual_form_fields #>> '{admission,emailIdentityPolicy,studentIDEmailDomain}' = 'buaa.edu.cn'
+        AND (manual_form_fields #>> '{admission,emailIdentityPolicy,requireStudentName}')::boolean
+  ),
+  'admissionAcademicStudentCount', (
+      SELECT count(*)
+      FROM academic.buaa_students
+      WHERE xh = '20259901'
+        AND xm = '张三'
+        AND dzxx = '20259901@buaa.edu.cn'
+  ),
+  'admissionPolicyCount', (
+      SELECT count(*)
+      FROM public.group_admission_policies
+      WHERE id = 'prod-parity-admission-policy'
+        AND platform = 'qq'
+        AND guild_id = 'prod-parity-guild'
+        AND school_id = 10006
+        AND auto_approve_join
+        AND 'prod-parity-management' = ANY(management_guild_ids)
+        AND freshman_channel_enabled
+        AND freshman_channel_closes_at > now()
+        AND freshman_default_expires_at > now()
+  ),
   'admissionSessionCount', (
       SELECT count(*)
       FROM public.group_admission_sessions
@@ -420,13 +625,52 @@ SELECT jsonb_build_object(
 SQL
 )"
 
-python3 - "${query_json}" "${evidence_file}" <<'PY'
+casdoor_query_json="$(
+  docker exec \
+    -i "${postgres_container}" \
+    psql \
+      -v ON_ERROR_STOP=1 \
+      -v casdoor_login_username="${casdoor_login_username}" \
+      -v casdoor_login_user_id="${casdoor_login_user_id}" \
+      -U "${superuser}" \
+      -d "${casdoor_db}" \
+      -At <<'SQL'
+SELECT jsonb_build_object(
+  'casdoorStuhelperWebApplicationCount', (
+      SELECT count(*)
+      FROM public.application
+      WHERE owner = 'admin'
+        AND name = 'stuhelper-web'
+        AND organization = 'stuhelper'
+        AND client_id = 'stuhelper-web'
+        AND enable_password
+        AND enable_sign_up
+        AND redirect_uris::text LIKE '%https://stuhelper.com/api/v1/auth/callback%'
+  ),
+  'casdoorAdmissionE2EUserCount', (
+      SELECT count(*)
+      FROM public."user"
+      WHERE owner = 'stuhelper'
+        AND name = :'casdoor_login_username'
+        AND id = :'casdoor_login_user_id'
+        AND password_type = 'bcrypt'
+        AND signup_application = 'stuhelper-web'
+        AND NOT is_admin
+        AND NOT is_forbidden
+        AND NOT is_deleted
+  )
+)::text;
+SQL
+)"
+
+python3 - "${query_json}" "${casdoor_query_json}" "${evidence_file}" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 payload = json.loads(sys.argv[1])
+payload.update(json.loads(sys.argv[2]))
 required = {
     "departmentCount": 1,
     "courseCount": 1,
@@ -436,7 +680,12 @@ required = {
     "courseRatingStatsCount": 10,
     "teacherRatingStatsCount": 10,
     "teacherPublicStatsCount": 1,
+    "admissionSchoolConfigCount": 1,
+    "admissionAcademicStudentCount": 1,
+    "admissionPolicyCount": 1,
     "admissionSessionCount": 1,
+    "casdoorStuhelperWebApplicationCount": 1,
+    "casdoorAdmissionE2EUserCount": 1,
 }
 failures = [
     f"{key} expected {expected}, got {payload.get(key)}"
@@ -449,7 +698,7 @@ evidence = {
     "checks": payload,
     "failures": failures,
 }
-path = Path(sys.argv[2])
+path = Path(sys.argv[3])
 path.parent.mkdir(parents=True, exist_ok=True)
 path.write_text(json.dumps(evidence, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 if failures:

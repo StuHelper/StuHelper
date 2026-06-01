@@ -4,14 +4,14 @@ audience: backend-dev, frontend-dev, product, maintainers
 status: current
 authoritative-source: server/api/openapi.yaml after implementation
 created: 2026-05-03
-last-verified: 2026-05-07
+last-verified: 2026-05-30
 ---
 
 # Koishi 新生群入群认证与学生身份打通设计
 ## 背景
 当前系统已经有 QQ 绑定码、学生认证、Koishi 入群禁言/提醒/解禁/踢出，以及对象存储。新需求是在 QQ 新生群中实现“先入群、禁言、认证、通过后解禁”的完整链路，并把老生认证、新生材料审核、QQ 绑定、Admin 后台和 QQ 管理群审批打通。
 
-后期 QQ 加群问题可写成“访问网站 `buaa. team` 完成认证”，这是为了绕开 QQ 加群问题的字数限制和文案拦截。`buaa.team` 只做短域名重定向工具，目标是 StuHelper 认证域名，例如 `https://auth.stuhelper.com/admission`。群内提醒和系统生成链接不使用 `buaa.team`。
+后期 QQ 加群问题可写成“访问网站 `join.stuhelper.com` 完成认证”，这是为了绕开 QQ 加群问题的字数限制和文案拦截。群内提醒和系统生成链接使用后端返回的 `https://join.stuhelper.com/verify/<token>?qq=<qq>`。
 
 ## 目标
 - 老生通过学校官方 SSO 或学校邮箱 OTP 任一方式获得正式学生身份。
@@ -63,8 +63,8 @@ Admin 后台执行：
 2. 新人实际入群后，Koishi 调后端创建入群认证会话。
 3. 后端返回认证链接、禁言时长、等待截止时间、提醒间隔等策略。
 4. Koishi 默认禁言 30 天，并 @ 新人发送认证链接和截止时间。
-5. 用户打开 `auth.stuhelper.com` 链接；后端先做 token 轻量校验，但不消费 token。
-6. 未登录用户跳转到 `id.stuhelper.com` 登录或注册，Identity 完成后回到原 admission URL。
+5. 用户打开 `join.stuhelper.com` 链接；后端先做 token 轻量校验，但不消费 token。
+6. 未登录用户跳转到主站登录入口，由后端生成 `sso.stuhelper.com` Casdoor 登录 URL；登录完成后回到原 admission URL。
 7. 已登录用户回到 admission 页面后，后端消费 token，将当前登录用户与 token 绑定的 QQ 会话关联，并在安全条件满足时自动建立 QQ 绑定；link 成功时从当前时间重新计算 submission 等待截止时间。
 8. 用户选择老生或新生认证路径。
 9. 认证通过后，Koishi 扫描到状态变化并自动解禁。
@@ -76,7 +76,7 @@ Admin 后台执行：
 认证链接的 canonical URL 使用 StuHelper 域名，例如：
 
 ```text
-https://auth.stuhelper.com/admission/a/<code>?qq=123456789
+https://join.stuhelper.com/verify/<token>?qq=123456789
 ```
 
 Koishi 群内 @ 新人的短文案直接发送 canonical URL。`buaa.team` 只允许用于 QQ 加群问题，不用于群内提醒或系统生成链接。
@@ -85,8 +85,8 @@ Koishi 群内 @ 新人的短文案直接发送 canonical URL。`buaa.team` 只�
 
 登录回跳规则：
 
-- admission 链接先落在 `auth.stuhelper.com`，不要直接把群内链接发到 Casdoor upstream。
-- 未登录时跳转 `id.stuhelper.com`，OIDC `state` 中保存受保护的 admission return target。
+- admission 链接先落在 `join.stuhelper.com`，不要直接把群内链接发到 Casdoor upstream。
+- 未登录时跳转 `stuhelper.com/login?redirect=<admission URL>` 或等价受保护登录入口，后端 OIDC `state` 中保存受保护的 admission return target。
 - Identity 回调只允许回跳到 StuHelper 白名单域名和 admission 路径，避免 open redirect。
 - 登录或注册中断不会消费 token；只有已登录用户确认进入 admission 流程时才消费。
 - OIDC 使用 `state + nonce + PKCE`；回调后恢复原始 `code` 与 `qq` 展示参数。
@@ -116,7 +116,7 @@ Koishi 群内 @ 新人的短文案直接发送 canonical URL。`buaa.team` 只�
 
 记录一次 QQ 入群认证会话。
 
-字段：`id`, `policy_id`, `platform`, `guild_id`, `channel_id`, `qq_id`, `qq_nickname`, `user_id`, `status`, `token_hash`, `token_expires_at`, `link_wait_deadline_at`, `submission_wait_deadline_at`, `manual_review_deadline_at`, `initial_mute_until`, `next_reminder_at`, `last_reminder_at`, `reminder_count`, `muted_at`, `released_at`, `kicked_at`, `kick_warned_at`, `post_kick_notice_sent_at`, `blacklist_applied_at`, `last_bot_error`, `created_at`, `updated_at`。
+字段：`id`, `policy_id`, `platform`, `guild_id`, `channel_id`, `qq_id`, `user_id`, `status`, `token_hash`, `token_expires_at`, `link_wait_deadline_at`, `submission_wait_deadline_at`, `manual_review_deadline_at`, `initial_mute_until`, `next_reminder_at`, `last_reminder_at`, `reminder_count`, `muted_at`, `released_at`, `kicked_at`, `kick_warned_at`, `post_kick_notice_sent_at`, `blacklist_applied_at`, `last_bot_error`, `created_at`, `updated_at`。
 
 `status` 取值：`joined_muted`, `linked`, `material_submitted`, `verified`, `expired_kicked`, `cancelled`。`platform + guild_id + qq_id` 只在 `joined_muted`/`linked` 下做 partial unique；历史状态保留。
 
@@ -138,7 +138,7 @@ Koishi 群内 @ 新人的短文案直接发送 canonical URL。`buaa.team` 只�
 
 ### `group_admission_policies`
 
-记录群准入策略，按 `platform + guild_id` 生效；没有群级配置时用全局或学校默认值。
+记录群准入策略，按 `platform + guild_id` 生效；这里的 `platform` 是被验证账号的 subject platform，当前 MVP 为 `qq`。生产 NapCat / OneBot 的 Koishi runtime platform 可以是 `onebot`，但 admission session、policy、failure 和 pending action 仍写入 `platform=qq`。禁言、踢人、发消息继续使用当前 Koishi runtime bot。
 
 默认值：
 
@@ -181,7 +181,7 @@ Koishi 群内 @ 新人的短文案直接发送 canonical URL。`buaa.team` 只�
 - 用户没有正式学生身份。
 - 用户没有同学校 pending 新生申请。
 
-材料入口只允许调用摄像头拍摄。前端只使用 WebRTC `getUserMedia` 打开摄像头并通过 canvas 生成图片；不使用普通文件输入、相册选择、拖拽上传或 `<input capture>` 作为提交入口。设备无可用摄像头时明确提示换手机打开。后端拒绝 PDF、超大文件、伪装 content type 和非图片内容。材料转发到 QQ 管理群是显式策略开关；开启 `forward_raw_material_to_qq` 后，后端为待转发申请返回可供 Koishi 发送的图片 URL，Koishi 直接把图片和申请摘要发送到策略指定管理群列表。第一版不做额外 signed URL、IP 绑定、水印合成或私有下载代理；安全边界依赖默认关闭、管理群白名单、审批权限和审计记录。
+材料入口只允许调用摄像头拍摄。前端优先使用 WebRTC `getUserMedia` 在当前浏览器打开摄像头并通过 canvas 生成图片；不使用普通文件输入、相册选择、拖拽上传或 `<input capture>` 作为提交入口。桌面端可生成手机拍照二维码，手机端免复杂登录进入拍照上传步骤；上传后必须选择回到电脑端继续或转为手机端继续，后端用 handoff 状态锁定另一端，避免重复提交。桌面端通过 SSE 订阅 handoff 状态变化，浏览器不支持或连接失败时回退短轮询。后端拒绝 PDF、超大文件、伪装 content type 和非图片内容。材料转发到 QQ 管理群是显式策略开关；开启 `forward_raw_material_to_qq` 后，后端为待转发申请返回可供 Koishi 发送的图片 URL，Koishi 还必须启用 `freshmanForward.enabled=true` 才会扫描并转发。当前 admission MVP 生产默认 `forward_raw_material_to_qq=false` 且 `freshmanForward.enabled=false`，避免未准备对象存储公开下载链路时每分钟扫描报错。第一版不做额外 signed URL、IP 绑定、水印合成或私有下载代理；安全边界依赖默认关闭、管理群白名单、审批权限和审计记录。
 
 ## API 形状
 
@@ -192,10 +192,16 @@ Koishi 群内 @ 新人的短文案直接发送 canonical URL。`buaa.team` 只�
 - `GET /api/v1/admission/me`，包含 admission 状态和 `projectionPending`
 - `POST /api/v1/admission/freshman/applications`
 - `POST /api/v1/admission/freshman/applications/{id}/camera-captures`
+- `POST /api/v1/admission/freshman/applications/{id}/camera-handoffs`
+- `GET /api/v1/admission/freshman/camera-handoffs/{id}`
+- `GET /api/v1/admission/freshman/camera-handoffs/{id}/events`
+- `GET /api/v1/admission/freshman/mobile-camera-handoffs/{token}`
+- `POST /api/v1/admission/freshman/mobile-camera-handoffs/{token}/camera-capture`
+- `POST /api/v1/admission/freshman/mobile-camera-handoffs/{token}/continue`
 - `POST /api/v1/admission/school-email/request-otp`
 - `POST /api/v1/admission/school-email/verify-otp`
-- `GET /api/v1/admission/school-sso/{schoolID}/login`
-- `GET /api/v1/admission/school-sso/{schoolID}/callback`
+- `GET /api/v1/admission/school-sso/{schoolCode}/login`
+- `GET /api/v1/admission/school-sso/{schoolCode}/callback`
 
 Bot 内部接口：
 

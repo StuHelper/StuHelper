@@ -20,17 +20,28 @@ try {
 
 const timeoutMs = Number(process.env.PROD_PARITY_BROWSER_SMOKE_TIMEOUT_MS || 30000);
 const webBaseURL = normalizeBaseURL(process.env.WEB_BASE_URL || 'https://stuhelper.com');
+const admissionBaseURL = normalizeBaseURL(
+  process.env.ADMISSION_BASE_URL ||
+    process.env.ADMISSION_PUBLIC_BASE_URL ||
+    'https://join.stuhelper.com',
+);
 const frontendDirectBaseURL = normalizeBaseURL(
   process.env.FRONTEND_DIRECT_BASE_URL || 'http://127.0.0.1:28000',
 );
 const identityBaseURL = normalizeBaseURL(
+  process.env.ACCOUNT_BASE_URL ||
   process.env.IDENTITY_BASE_URL ||
+    process.env.WEB_BASE_URL ||
+    'https://stuhelper.com',
+);
+const ssoBaseURL = normalizeBaseURL(
+  process.env.SSO_BASE_URL ||
     process.env.CASDOOR_PUBLIC_AUTH_BASE_URL ||
-    'https://id.stuhelper.com',
+    'https://sso.stuhelper.com',
 );
 const adminBaseURL = normalizeBaseURL(process.env.ADMIN_BASE_URL || 'https://stuhelper.com');
-const casdoorLoginUsername = process.env.PROD_PARITY_CASDOOR_LOGIN_USERNAME || 'admin';
-const casdoorLoginPassword = process.env.PROD_PARITY_CASDOOR_LOGIN_PASSWORD || '123';
+const casdoorLoginUsername = process.env.PROD_PARITY_CASDOOR_LOGIN_USERNAME || 'admission-e2e';
+const casdoorLoginPassword = process.env.PROD_PARITY_CASDOOR_LOGIN_PASSWORD || 'ProdParityAdmission1!';
 const admissionToken = process.env.PROD_PARITY_ADMISSION_TOKEN || 'PROD-PARITY-ADMIT-LOGIN';
 const admissionQQ = process.env.PROD_PARITY_ADMISSION_QQ || '990001';
 const evidenceFile =
@@ -63,6 +74,12 @@ const checks = [
     name: 'web-home',
     url: joinURL(webBaseURL, '/'),
     expectedTexts: ['StuHelper'],
+    expectedResponseHeaders: [
+      {
+        name: 'permissions-policy',
+        includes: 'camera=()',
+      },
+    ],
   },
   {
     name: 'web-login',
@@ -70,10 +87,10 @@ const checks = [
     expectedTexts: ['StuHelper'],
   },
   {
-    name: 'frontend-direct-login-redirect',
+    name: 'frontend-direct-login-page',
     url: joinURL(frontendDirectBaseURL, '/login'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: [joinURL(identityBaseURL, '/login')],
+    expectedURLIncludes: [joinURL(frontendDirectBaseURL, '/login')],
   },
   {
     name: 'frontend-direct-login-session-refresh',
@@ -120,7 +137,7 @@ const checks = [
     url: joinURL(identityBaseURL, '/developers/apps'),
     flow: 'identity-portal-shell',
     expectedTexts: ['登录', 'Login'],
-    requiredTexts: ['StuHelper ID', '身份中心', '个人资料', '账号安全', 'Connect', '授权应用', '开发者应用'],
+    requiredTexts: ['账号中心', '个人资料', '账号安全', 'Connect', '授权应用', '开发者应用'],
     forbiddenTexts: ['课程', '教师', '评课'],
     expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/developers/apps'],
   },
@@ -129,30 +146,30 @@ const checks = [
     url: joinURL(identityBaseURL, '/'),
     flow: 'identity-portal-shell',
     expectedTexts: ['登录', 'Login'],
-    requiredTexts: ['StuHelper ID', '身份中心', '个人资料', '账号安全', 'Connect', '授权应用', '开发者应用'],
+    requiredTexts: ['账号中心', '个人资料', '账号安全', 'Connect', '授权应用', '开发者应用'],
     forbiddenTexts: ['课程', '教师', '评课'],
     expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/identity'],
   },
   {
     name: 'identity-connect-public',
     url: joinURL(identityBaseURL, '/connect'),
-    expectedTexts: ['StuHelper ID Connect'],
+    expectedTexts: ['StuHelper Connect'],
     requiredTexts: [
-      joinURL(identityBaseURL, '/.well-known/openid-configuration'),
-      joinURL(identityBaseURL, '/oauth2/authorize'),
-      joinURL(identityBaseURL, '/oauth2/token'),
-      joinURL(identityBaseURL, '/oidc/userinfo'),
+      joinURL(ssoBaseURL, '/.well-known/openid-configuration'),
+      joinURL(ssoBaseURL, '/login/oauth/authorize'),
+      joinURL(ssoBaseURL, '/api/login/oauth/access_token'),
+      joinURL(ssoBaseURL, '/api/userinfo'),
     ],
-    forbiddenTexts: ['课程', '教师', '评课', 'sso.stuhelper.com', 'StuHelper SSO'],
+    forbiddenTexts: ['课程', '教师', '评课', 'id.stuhelper.com'],
     expectedURLIncludes: joinURL(identityBaseURL, '/connect'),
   },
   {
     name: 'web-identity-connect-redirect',
     url: joinURL(webBaseURL, '/connect'),
-    expectedTexts: ['StuHelper ID Connect'],
+    expectedTexts: ['StuHelper Connect'],
     requiredTexts: [
-      joinURL(identityBaseURL, '/.well-known/openid-configuration'),
-      joinURL(identityBaseURL, '/oauth2/token'),
+      joinURL(ssoBaseURL, '/.well-known/openid-configuration'),
+      joinURL(ssoBaseURL, '/api/login/oauth/access_token'),
     ],
     expectedURLIncludes: joinURL(identityBaseURL, '/connect'),
   },
@@ -160,7 +177,7 @@ const checks = [
     name: 'identity-home-authenticated',
     url: joinURL(identityBaseURL, '/identity'),
     flow: 'identity-authenticated-refresh',
-    expectedTexts: ['身份中心', 'Identity Hub'],
+    expectedTexts: ['账号中心', 'Account Center'],
     requiredTexts: ['个人资料', '账号安全', 'Connect', '授权应用', '开发者应用'],
     expectedURLIncludes: joinURL(identityBaseURL, '/identity'),
     stubbedResources: [
@@ -342,8 +359,8 @@ const checks = [
     name: 'identity-consent-missing-token-authenticated',
     url: joinURL(identityBaseURL, '/consent'),
     flow: 'identity-connect-error-refresh',
-    expectedTexts: ['StuHelper ID Connect'],
-    requiredTexts: ['授权请求加载失败', '返回身份中心'],
+    expectedTexts: ['StuHelper Connect'],
+    requiredTexts: ['授权请求加载失败', '返回账号中心'],
     expectedURLIncludes: joinURL(identityBaseURL, '/consent'),
     stubbedResources: [
       {
@@ -362,8 +379,8 @@ const checks = [
     name: 'identity-profile-completion-missing-token-authenticated',
     url: joinURL(identityBaseURL, '/complete-profile'),
     flow: 'identity-connect-error-refresh',
-    expectedTexts: ['StuHelper ID Connect'],
-    requiredTexts: ['资料补全请求加载失败', '返回身份中心'],
+    expectedTexts: ['StuHelper Connect'],
+    requiredTexts: ['资料补全请求加载失败', '返回账号中心'],
     expectedURLIncludes: joinURL(identityBaseURL, '/complete-profile'),
     stubbedResources: [
       {
@@ -662,9 +679,53 @@ const checks = [
   {
     name: 'web-admission-login',
     url: joinURL(
-      webBaseURL,
-      `/admission/a/${encodeURIComponent(admissionToken)}?qq=${encodeURIComponent(admissionQQ)}`,
+      admissionBaseURL,
+      `/verify/${encodeURIComponent(admissionToken)}?qq=${encodeURIComponent(admissionQQ)}`,
     ),
+    expectedTexts: ['登录 StuHelper'],
+    requiredTexts: ['入群身份认证', `QQ：${admissionQQ}`],
+    expectedResponseHeaders: [
+      {
+        name: 'permissions-policy',
+        includes: 'camera=(self)',
+      },
+    ],
+    allowedAPIResponses: [
+      {
+        urlIncludes: '/api/v1/auth/me',
+        statuses: [401],
+      },
+      {
+        urlIncludes: '/api/v1/auth/refresh',
+        statuses: [401],
+      },
+    ],
+  },
+  {
+    name: 'admission-mobile-camera-permission',
+    url: joinURL(admissionBaseURL, '/admission/freshman/camera/__prod_parity_probe__'),
+    expectedTexts: ['新生材料拍照'],
+    requiredTexts: ['无法打开拍照链接'],
+    expectedResponseHeaders: [
+      {
+        name: 'permissions-policy',
+        includes: 'camera=(self)',
+      },
+    ],
+    allowedAPIResponses: [
+      {
+        urlIncludes: '/api/v1/admission/freshman/mobile-camera-handoffs/__prod_parity_probe__',
+        statuses: [404],
+      },
+    ],
+  },
+  {
+    name: 'admission-sse-ingress',
+    url: joinURL(
+      admissionBaseURL,
+      `/verify/${encodeURIComponent(admissionToken)}?qq=${encodeURIComponent(admissionQQ)}`,
+    ),
+    flow: 'admission-sse-ingress',
     expectedTexts: ['登录 StuHelper'],
     requiredTexts: ['入群身份认证', `QQ：${admissionQQ}`],
     allowedAPIResponses: [
@@ -674,6 +735,10 @@ const checks = [
       },
       {
         urlIncludes: '/api/v1/auth/refresh',
+        statuses: [401],
+      },
+      {
+        urlIncludes: '/api/v1/admission/freshman/camera-handoffs/__prod_parity_probe__/events',
         statuses: [401],
       },
     ],
@@ -870,7 +935,7 @@ const checks = [
     name: 'admin-login-redirect',
     url: joinURL(adminBaseURL, '/admin/'),
     expectedTexts: ['Sign In', 'Password', '登录'],
-    expectedURLIncludes: '/login/oauth/authorize',
+    expectedURLIncludes: joinURL('https://sso.stuhelper.com', '/login/oauth/authorize'),
     stubbedResources: [
       {
         url: 'https://fonts.googleapis.com/**',
@@ -893,7 +958,10 @@ let browser;
 
 try {
   await mkdir(screenshotDir, { recursive: true });
-  browser = await chromium.launch({ headless: process.env.PLAYWRIGHT_HEADLESS !== '0' });
+  browser = await chromium.launch({
+    headless: process.env.PLAYWRIGHT_HEADLESS !== '0',
+    args: ['--no-proxy-server'],
+  });
 
   for (const viewportVariant of viewportVariants) {
     for (const check of checks) {
@@ -1045,6 +1113,7 @@ async function runCheck(browser, check, viewportVariant) {
     if (response.status() >= 400) {
       throw new Error(`unexpected HTTP ${response.status()} for ${check.url}`);
     }
+    assertExpectedResponseHeaders(response, check);
 
     const flowResult = await runCheckFlow(page, check, viewportVariant);
 
@@ -1121,6 +1190,7 @@ async function runCheck(browser, check, viewportVariant) {
       matchedText,
       requiredTexts,
       forbiddenTexts,
+      responseHeaders: readExpectedResponseHeaders(response, check),
       flowResult,
       ignoredConsoleErrors,
       ignoredAPIResponses,
@@ -1172,6 +1242,25 @@ function toArray(value) {
   return [];
 }
 
+function assertExpectedResponseHeaders(response, check) {
+  for (const expected of toArray(check.expectedResponseHeaders)) {
+    const actual = response.headers()[expected.name.toLowerCase()] || '';
+    if (expected.includes && !actual.includes(expected.includes)) {
+      throw new Error(
+        `header ${expected.name}=${JSON.stringify(actual)} does not include ${JSON.stringify(expected.includes)}`,
+      );
+    }
+  }
+}
+
+function readExpectedResponseHeaders(response, check) {
+  const result = {};
+  for (const expected of toArray(check.expectedResponseHeaders)) {
+    result[expected.name.toLowerCase()] = response.headers()[expected.name.toLowerCase()] || '';
+  }
+  return result;
+}
+
 async function runCheckFlow(page, check, viewportVariant) {
   if (check.flow === 'web-login-session-refresh') {
     return runLoginSessionRefreshFlow(page, [webBaseURL], 'web');
@@ -1195,7 +1284,50 @@ async function runCheckFlow(page, check, viewportVariant) {
   if (check.flow === 'identity-connect-error-refresh') {
     return runIdentityConnectErrorRefreshFlow(page, check);
   }
+  if (check.flow === 'admission-sse-ingress') {
+    return runAdmissionSSEIngressFlow(page);
+  }
   return null;
+}
+
+async function fillCasdoorPasswordLogin(page) {
+  const usernameInput = page.locator([
+    '.login-username-input input',
+    'input[name="username"]',
+    'input[id*="username" i]',
+    'input[placeholder*="username" i]',
+    'input[placeholder*="email" i]',
+    'input[type="text"]',
+  ].join(', ')).first();
+  await usernameInput.waitFor({ state: 'visible', timeout: timeoutMs });
+  await usernameInput.fill(casdoorLoginUsername);
+  const usernameValue = await usernameInput.inputValue();
+  if (usernameValue !== casdoorLoginUsername) {
+    throw new Error('Casdoor username field was not filled');
+  }
+
+  const passwordInput = page.locator([
+    '.login-password-input input',
+    'input[name="password"]',
+    'input[id*="password" i]',
+    'input[type="password"]',
+  ].join(', ')).first();
+  await passwordInput.waitFor({ state: 'visible', timeout: timeoutMs });
+  await passwordInput.fill(casdoorLoginPassword);
+  const passwordValue = await passwordInput.inputValue();
+  if (passwordValue !== casdoorLoginPassword) {
+    throw new Error('Casdoor password field was not filled');
+  }
+
+  const loginButton = page.locator([
+    '.login-button',
+    'button[type="submit"]',
+  ].join(', ')).first();
+  if (await loginButton.count()) {
+    await loginButton.click({ timeout: timeoutMs });
+    return;
+  }
+  await page.getByRole('button', { name: /sign in|登录/i }).click({ timeout: timeoutMs });
 }
 
 async function runLoginSessionRefreshFlow(page, expectedFinalBaseURLs, label) {
@@ -1203,13 +1335,11 @@ async function runLoginSessionRefreshFlow(page, expectedFinalBaseURLs, label) {
   await page.getByRole('link', { name: /登录|Login/i }).click({ timeout: timeoutMs });
   await page.waitForURL((url) => url.pathname === '/login', { timeout: timeoutMs });
   await page.getByRole('button', { name: /SSO|统一身份/i }).click({ timeout: timeoutMs });
-  await page.waitForURL((url) => url.pathname.includes('/login/oauth/authorize'), {
+  await page.waitForURL((url) => url.hostname === 'sso.stuhelper.com' && url.pathname.includes('/login/oauth/authorize'), {
     timeout: timeoutMs,
   });
 
-  await page.getByRole('textbox', { name: /username|email|phone/i }).fill(casdoorLoginUsername);
-  await page.getByRole('textbox', { name: /password/i }).fill(casdoorLoginPassword);
-  await page.getByRole('button', { name: /sign in|登录/i }).click({ timeout: timeoutMs });
+  await fillCasdoorPasswordLogin(page);
   await page.waitForURL(
     (url) => expectedFinalBaseURLs.some((baseURL) => url.href.startsWith(`${baseURL}/`)),
     { timeout: timeoutMs },
@@ -1243,13 +1373,11 @@ async function runWebAuthenticatedRefreshFlow(page, check) {
   const targetPath = new URL(check.url).pathname;
   await page.waitForURL((url) => url.pathname === '/login', { timeout: timeoutMs });
   await page.getByRole('button', { name: /SSO|统一身份/i }).click({ timeout: timeoutMs });
-  await page.waitForURL((url) => url.pathname.includes('/login/oauth/authorize'), {
+  await page.waitForURL((url) => url.hostname === 'sso.stuhelper.com' && url.pathname.includes('/login/oauth/authorize'), {
     timeout: timeoutMs,
   });
 
-  await page.getByRole('textbox', { name: /username|email|phone/i }).fill(casdoorLoginUsername);
-  await page.getByRole('textbox', { name: /password/i }).fill(casdoorLoginPassword);
-  await page.getByRole('button', { name: /sign in|登录/i }).click({ timeout: timeoutMs });
+  await fillCasdoorPasswordLogin(page);
   await page.waitForURL((url) => url.href.startsWith(joinURL(webBaseURL, targetPath)), {
     timeout: timeoutMs,
   });
@@ -1289,7 +1417,7 @@ async function runIdentityPortalShellFlow(page, viewportVariant) {
   }
 
   const headerText = await header.innerText({ timeout: timeoutMs });
-  const requiredLabels = ['StuHelper ID', '身份中心', '个人资料', '账号安全', 'Connect', '授权应用', '开发者应用'];
+  const requiredLabels = ['账号中心', '个人资料', '账号安全', 'Connect', '授权应用', '开发者应用'];
   const missingLabels = requiredLabels.filter((label) => !headerText.includes(label));
   if (missingLabels.length > 0) {
     throw new Error(`identity header missing labels: ${missingLabels.join(', ')}`);
@@ -1327,13 +1455,11 @@ async function runIdentityAuthenticatedRefreshFlow(page, check, viewportVariant)
   const targetPath = new URL(check.url).pathname;
   await page.waitForURL((url) => url.pathname === '/login', { timeout: timeoutMs });
   await page.getByRole('button', { name: /SSO|统一身份/i }).click({ timeout: timeoutMs });
-  await page.waitForURL((url) => url.pathname.includes('/login/oauth/authorize'), {
+  await page.waitForURL((url) => url.hostname === 'sso.stuhelper.com' && url.pathname.includes('/login/oauth/authorize'), {
     timeout: timeoutMs,
   });
 
-  await page.getByRole('textbox', { name: /username|email|phone/i }).fill(casdoorLoginUsername);
-  await page.getByRole('textbox', { name: /password/i }).fill(casdoorLoginPassword);
-  await page.getByRole('button', { name: /sign in|登录/i }).click({ timeout: timeoutMs });
+  await fillCasdoorPasswordLogin(page);
   await page.waitForURL((url) => url.href.startsWith(joinURL(identityBaseURL, targetPath)), {
     timeout: timeoutMs,
   });
@@ -1371,13 +1497,11 @@ async function runIdentityConnectErrorRefreshFlow(page, check) {
   const targetPath = new URL(check.url).pathname;
   await page.waitForURL((url) => url.pathname === '/login', { timeout: timeoutMs });
   await page.getByRole('button', { name: /SSO|统一身份/i }).click({ timeout: timeoutMs });
-  await page.waitForURL((url) => url.pathname.includes('/login/oauth/authorize'), {
+  await page.waitForURL((url) => url.hostname === 'sso.stuhelper.com' && url.pathname.includes('/login/oauth/authorize'), {
     timeout: timeoutMs,
   });
 
-  await page.getByRole('textbox', { name: /username|email|phone/i }).fill(casdoorLoginUsername);
-  await page.getByRole('textbox', { name: /password/i }).fill(casdoorLoginPassword);
-  await page.getByRole('button', { name: /sign in|登录/i }).click({ timeout: timeoutMs });
+  await fillCasdoorPasswordLogin(page);
   await page.waitForURL((url) => url.href.startsWith(joinURL(identityBaseURL, targetPath)), {
     timeout: timeoutMs,
   });
@@ -1407,6 +1531,34 @@ async function runIdentityConnectErrorRefreshFlow(page, check) {
   };
 }
 
+async function runAdmissionSSEIngressFlow(page) {
+  const result = await page.evaluate(async () => {
+    const response = await fetch('/api/v1/admission/freshman/camera-handoffs/__prod_parity_probe__/events', {
+      headers: {
+        Accept: 'text/event-stream',
+      },
+    });
+    return {
+      status: response.status,
+      contentType: response.headers.get('content-type') || '',
+      xAccelBuffering: response.headers.get('x-accel-buffering') || '',
+      bodyPrefix: (await response.text()).slice(0, 120),
+    };
+  });
+
+  if (result.status !== 401) {
+    throw new Error(`admission SSE unauthenticated probe returned ${result.status}`);
+  }
+  if (result.xAccelBuffering.toLowerCase() !== 'no') {
+    throw new Error(`admission SSE X-Accel-Buffering=${JSON.stringify(result.xAccelBuffering)}`);
+  }
+
+  return {
+    matchedText: 'admission SSE ingress disables buffering',
+    sseProbe: result,
+  };
+}
+
 async function expectIdentityAuthenticatedHeader(page, viewportVariant) {
   await runIdentityPortalShellFlow(page, viewportVariant);
 
@@ -1423,8 +1575,8 @@ async function expectIdentityAuthenticatedHeader(page, viewportVariant) {
   await userMenu.waitFor({ state: 'visible', timeout: timeoutMs });
   const menuText = await userMenu.innerText({ timeout: timeoutMs });
 
-  if (!/身份中心|Identity Hub/i.test(menuText)) {
-    throw new Error(`identity user menu does not expose identity home: ${menuText}`);
+  if (!/账号中心|Account Center/i.test(menuText)) {
+    throw new Error(`identity user menu does not expose account center: ${menuText}`);
   }
   if (/个人中心|Profile/i.test(menuText)) {
     throw new Error(`identity user menu exposes main-site profile entry: ${menuText}`);

@@ -39,19 +39,28 @@ export SMOKE_CHECK_CURL_INSECURE=true
 
 "${SCRIPT_DIR}/prod-parity-datastore-smoke.sh"
 "${SCRIPT_DIR}/prod-parity-smoke-data.sh"
+"${SCRIPT_DIR}/admission-production-readiness.sh"
 
 "${SCRIPT_DIR}/smoke-check.sh"
 
-IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=true \
-IDENTITY_PUBLIC_SMOKE_CURL_INSECURE=true \
-IDENTITY_PUBLIC_SMOKE_EVIDENCE_FILE="${PARITY_DIR}/identity-public-smoke-evidence.json" \
-"${SCRIPT_DIR}/identity-public-smoke.sh"
+SSO_PUBLIC_BASE_URL="https://sso.stuhelper.com" \
+SSO_PUBLIC_SMOKE_EXPECTED_ISSUER="${CASDOOR_ISSUER:-http://sso.stuhelper.com}" \
+SSO_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=true \
+SSO_PUBLIC_SMOKE_CURL_INSECURE=true \
+SSO_PUBLIC_SMOKE_EVIDENCE_FILE="${PARITY_DIR}/sso-public-smoke-evidence.json" \
+"${SCRIPT_DIR}/sso-public-smoke.sh"
+
+ADMISSION_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=true \
+ADMISSION_PUBLIC_SMOKE_CURL_INSECURE=true \
+ADMISSION_PUBLIC_SMOKE_EVIDENCE_FILE="${PARITY_DIR}/admission-public-smoke-evidence.json" \
+"${SCRIPT_DIR}/admission-public-smoke.sh"
 
 OPENFGA_RESOURCE_SMOKE_MODE=container \
 OPENFGA_RESOURCE_SMOKE_EVIDENCE_FILE="${PARITY_DIR}/openfga-resource-access-smoke.json" \
 "${SCRIPT_DIR}/openfga-resource-access-smoke.sh" >/dev/null
 
 "${SCRIPT_DIR}/prod-parity-browser-smoke.sh"
+"${SCRIPT_DIR}/admission-prod-sim-e2e.sh"
 
 PROMETHEUS_URL="http://127.0.0.1:${PROMETHEUS_PORT:-29090}/-/ready" \
 GRAFANA_URL="http://127.0.0.1:${GRAFANA_PORT:-23003}/api/health" \

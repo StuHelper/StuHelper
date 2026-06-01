@@ -64,8 +64,10 @@ sync_dev_browser_public_urls() {
   local admin_port="$2"
 
   upsert_env_file "${ENV_FILE}" "WEB_PUBLIC_URL" "http://localhost:${web_port}"
+  upsert_env_file "${ENV_FILE}" "ADMISSION_PUBLIC_BASE_URL" "http://localhost:${web_port}"
   upsert_env_file "${ENV_FILE}" "ADMIN_PUBLIC_URL" "http://localhost:${admin_port}/admin/"
-  upsert_env_file "${ENV_FILE}" "IDENTITY_ISSUER" "http://localhost:${web_port}"
+  upsert_env_file "${ENV_FILE}" "IDENTITY_SERVER_ENABLED" "false"
+  upsert_env_file "${ENV_FILE}" "IDENTITY_ISSUER" ""
   upsert_env_file "${ENV_FILE}" "IDENTITY_PUBLIC_SMOKE_HOMEPAGE_URL" "http://localhost:${web_port}"
   upsert_env_file "${ENV_FILE}" "IDENTITY_PUBLIC_SMOKE_PRIVACY_POLICY_URL" "http://localhost:${web_port}/privacy"
   upsert_env_file "${ENV_FILE}" "CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI" "http://localhost:${web_port}/open-platform/token-probe/callback"
@@ -229,7 +231,6 @@ frontend_cmd="
   export NODE_ENV=development && \
   export VITE_API_URL='${WEB_VITE_API_URL:-/api}' && \
   export VITE_SSO_URL='${WEB_VITE_SSO_URL:-http://localhost:8085}' && \
-  export VITE_IDENTITY_URL='${WEB_VITE_IDENTITY_URL:-}' && \
   export VITE_WEB_URL='${WEB_VITE_WEB_URL:-http://localhost:3000}' && \
   export VITE_ADMIN_URL='http://localhost:${ADMIN_DEV_PORT_SELECTED}' && \
   export VITE_API_TIMEOUT_MS='${WEB_VITE_API_TIMEOUT_MS:-15000}' && \

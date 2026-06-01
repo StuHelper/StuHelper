@@ -138,19 +138,29 @@ casdoor_bootstrap_endpoint() {
 }
 
 run_casdoor_bootstrap_with_go() {
+  local mode="${1:-full}"
+  local -a env_args=()
+  if [[ "${mode}" == "applications-only" ]]; then
+    env_args+=(CASDOOR_BOOTSTRAP_MODE=applications-only)
+  fi
   (
     cd "${REPO_ROOT}/server" && \
+    env "${env_args[@]}" \
     CASDOOR_BOOTSTRAP_ENDPOINT="$(casdoor_bootstrap_endpoint false)" \
     go run ./cmd/casdoor-bootstrap
   )
 }
 
 run_casdoor_bootstrap_with_docker() {
+  local mode="${1:-full}"
   local endpoint
   local -a env_args
   local key
   endpoint="$(casdoor_bootstrap_endpoint true)"
   env_args=(-e "CASDOOR_BOOTSTRAP_ENDPOINT=${endpoint}")
+  if [[ "${mode}" == "applications-only" ]]; then
+    env_args+=(-e "CASDOOR_BOOTSTRAP_MODE=applications-only")
+  fi
   for key in "${CASDOOR_BOOTSTRAP_ENV_KEYS[@]}"; do
     env_args+=(-e "${key}=${!key:-}")
   done
@@ -252,9 +262,15 @@ if casdoor_bootstrap_required; then
   require_casdoor_bootstrap_config
   log "bootstrapping Casdoor organization, applications, roles, and providers"
   if command -v go >/dev/null 2>&1; then
-    run_casdoor_bootstrap_with_go
+    if ! run_casdoor_bootstrap_with_go; then
+      warn "full Casdoor bootstrap failed; retrying applications-only bootstrap with app provisioning credentials"
+      run_casdoor_bootstrap_with_go applications-only
+    fi
   else
-    run_casdoor_bootstrap_with_docker
+    if ! run_casdoor_bootstrap_with_docker; then
+      warn "full Casdoor bootstrap failed; retrying applications-only bootstrap with app provisioning credentials"
+      run_casdoor_bootstrap_with_docker applications-only
+    fi
   fi
 else
   warn "Casdoor bootstrap skipped because CASDOOR_BOOTSTRAP_ENABLED is not true"

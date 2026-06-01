@@ -37,6 +37,8 @@ line_number() {
 
 assert_contains "${BOOTSTRAP_SCRIPT}" 'CASDOOR_CLIENT_ID must be configured before platform bootstrap'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'go run \./cmd/casdoor-bootstrap'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'CASDOOR_BOOTSTRAP_MODE=applications-only'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'retrying applications-only bootstrap with app provisioning credentials'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'CASDOOR_BOOTSTRAP_CLIENT_SECRET'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'CASDOOR_BOOTSTRAP_ORGANIZATION'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'SMS_INTERNAL_KEY'

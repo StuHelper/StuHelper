@@ -1,4 +1,4 @@
-.PHONY: help bootstrap-dev-ubuntu2404 dev dev-init dev-up dev-docker-up dev-down dev-reset dev-smoke dev-status dev-logs e2e e2e-web e2e-admin e2e-uni e2e-koishi obs-up obs-down obs-smoke prod-init prod-render prod-deploy prod-rollback deploy prod-down prod-reset prod-smoke prod-identity-smoke prod-open-platform-evidence prod-backup-evidence prod-parity-ingress prod-parity-up prod-parity-down prod-parity-reset prod-parity-smoke prod-parity-datastore-smoke prod-parity-browser-smoke deploy-bundle ansible-bootstrap ansible-deploy-staging ansible-deploy-prod ansible-rollback-staging ansible-rollback-prod check-docs check-infra-contracts check-semgrep-custom
+.PHONY: help bootstrap-dev-ubuntu2404 dev dev-init dev-up dev-docker-up dev-down dev-reset dev-smoke dev-status dev-logs e2e e2e-web e2e-admin e2e-uni e2e-koishi obs-up obs-down obs-smoke prod-init prod-render prod-deploy prod-rollback deploy prod-down prod-reset prod-smoke prod-sso-smoke prod-tencent-ses-smoke prod-admission-reviewer-readiness prod-admission-mvp-evidence prod-admission-mvp-final-evidence prod-admission-mvp-final-koishi-evidence prod-admission-mvp-final-verify prod-open-platform-evidence prod-backup-evidence prod-parity-ingress prod-parity-up prod-parity-down prod-parity-reset prod-parity-smoke prod-parity-datastore-smoke prod-parity-browser-smoke prod-parity-admission-e2e deploy-bundle ansible-bootstrap ansible-deploy-staging ansible-deploy-prod ansible-rollback-staging ansible-rollback-prod check-docs check-admission-mvp check-infra-contracts check-semgrep-custom
 
 .DEFAULT_GOAL := help
 
@@ -45,7 +45,13 @@ help:
 	@echo "  make prod-down   - stop prod stack"
 	@echo "  make prod-reset  - stop prod stack and remove volumes"
 	@echo "  make prod-smoke  - run app + observability smoke checks"
-	@echo "  make prod-identity-smoke - verify public stuhelper/id/sso identity ingress"
+	@echo "  make prod-sso-smoke - verify public sso.stuhelper.com OIDC ingress"
+	@echo "  make prod-tencent-ses-smoke - verify Tencent SES template credentials/status without sending email"
+	@echo "  make prod-admission-reviewer-readiness - verify freshman reviewer QQ binding/capability without mutating data"
+	@echo "  make prod-admission-mvp-evidence - collect admission MVP production smoke evidence"
+	@echo "  make prod-admission-mvp-final-evidence - require fresh real QQ bot-released evidence"
+	@echo "  make prod-admission-mvp-final-koishi-evidence - collect required Koishi-node admission evidence"
+	@echo "  make prod-admission-mvp-final-verify - verify both final admission MVP evidence files"
 	@echo "  make prod-open-platform-evidence - run token/OpenFGA production evidence smokes"
 	@echo "  make prod-backup-evidence - verify local/fetched PostgreSQL backup evidence"
 	@echo "  make prod-parity-ingress - install local stuhelper/id/sso host ingress"
@@ -55,6 +61,7 @@ help:
 	@echo "  make prod-parity-smoke - smoke-check local production-equivalent stack"
 	@echo "  make prod-parity-datastore-smoke - verify local parity PostgreSQL/Redis isolation"
 	@echo "  make prod-parity-browser-smoke - run browser smoke against local production-equivalent Web/Admin"
+	@echo "  make prod-parity-admission-e2e - simulate full admission MVP on local production-equivalent stack"
 	@echo ""
 	@echo "Ansible:"
 	@echo "  make ansible-bootstrap      - bootstrap a remote Ubuntu host from infra/ansible"
@@ -65,6 +72,7 @@ help:
 	@echo ""
 	@echo "Security:"
 	@echo "  make check-infra-contracts - run ops shell and Node contract tests"
+	@echo "  make check-admission-mvp - run the local admission MVP regression suite"
 	@echo "  make check-semgrep-custom - run StuHelper custom Semgrep rules and fixtures"
 
 bootstrap-dev-ubuntu2404:
@@ -147,8 +155,36 @@ prod-smoke:
 	$(PROD_RUNTIME_ENV) ./infra/ops/smoke-check.sh && \
 	$(PROD_RUNTIME_ENV) ./infra/ops/observability-smoke-check.sh
 
-prod-identity-smoke:
-	$(PROD_RUNTIME_ENV) ./infra/ops/identity-public-smoke.sh
+prod-sso-smoke:
+	$(PROD_RUNTIME_ENV) ./infra/ops/sso-public-smoke.sh
+
+prod-tencent-ses-smoke:
+	$(PROD_RUNTIME_ENV) ./infra/ops/tencent-ses-template-smoke.sh
+
+prod-admission-reviewer-readiness:
+	$(PROD_RUNTIME_ENV) ./infra/ops/admission-reviewer-readiness.sh
+
+prod-admission-mvp-evidence:
+	$(PROD_RUNTIME_ENV) ./infra/ops/admission-mvp-production-evidence.sh
+
+prod-admission-mvp-final-evidence:
+	$(PROD_RUNTIME_ENV) \
+	ADMISSION_MVP_PRODUCTION_EVIDENCE_FILE=infra/generated/admission-mvp-final-evidence.json \
+	ADMISSION_MVP_PRODUCTION_E2E_REQUIRED=true \
+	ADMISSION_MVP_PRODUCTION_E2E_WAIT=true \
+	ADMISSION_MVP_PRODUCTION_E2E_EXPECTED_STAGE=bot-released \
+	ADMISSION_MVP_PRODUCTION_E2E_MAX_SESSION_AGE_MINUTES=180 \
+	./infra/ops/admission-mvp-production-evidence.sh
+
+prod-admission-mvp-final-koishi-evidence:
+	$(PROD_RUNTIME_ENV) \
+	ADMISSION_MVP_PRODUCTION_EVIDENCE_MODE=koishi \
+	ADMISSION_MVP_PRODUCTION_EVIDENCE_FILE=infra/generated/admission-mvp-final-koishi-evidence.json \
+	ADMISSION_MVP_PRODUCTION_RUN_KOISHI=true \
+	./infra/ops/admission-mvp-production-evidence.sh
+
+prod-admission-mvp-final-verify:
+	$(PROD_RUNTIME_ENV) ./infra/ops/admission-mvp-final-evidence-verify.sh
 
 prod-open-platform-evidence:
 	$(PROD_RUNTIME_ENV) ./infra/ops/open-platform-production-evidence.sh
@@ -177,6 +213,9 @@ prod-parity-datastore-smoke:
 prod-parity-browser-smoke:
 	./infra/ops/prod-parity-browser-smoke.sh
 
+prod-parity-admission-e2e:
+	./infra/ops/admission-prod-sim-e2e.sh
+
 ansible-bootstrap:
 	cd infra/ansible && ansible-playbook -i inventory/production.ini playbooks/bootstrap.yml
 
@@ -195,6 +234,9 @@ ansible-rollback-prod:
 check-docs:
 	node --test scripts/check-docs-hygiene.test.mjs
 	bash scripts/check-docs-hygiene.sh
+
+check-admission-mvp:
+	./infra/ops/admission-mvp-local-test.sh
 
 check-infra-contracts:
 	bash infra/ops/tests/run-infra-contracts.sh

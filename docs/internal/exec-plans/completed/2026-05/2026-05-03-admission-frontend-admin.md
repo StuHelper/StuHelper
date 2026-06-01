@@ -10,7 +10,7 @@ last-verified: 2026-05-07
 
 **Goal:** Build the user admission page, camera-only freshman submission, old-student email/SSO flows, and admin review/policy screens.
 
-**Architecture:** The public web app owns `auth.stuhelper.com/admission/a/:code`; it previews token state before login, redirects unauthenticated users through existing SSO login/signup, then links the token after authentication. Vben Admin consumes generated shared API clients for review and policy operations.
+**Architecture:** The public web app owns `join.stuhelper.com/verify/:code`; it previews token state before login, redirects unauthenticated users through existing SSO login/signup, then links the token after authentication. Vben Admin consumes generated shared API clients for review and policy operations.
 
 **Tech Stack:** Vue 3, TypeScript, Pinia, Vite, Element Plus/Vben Admin, generated `@stuhelper/shared` OpenAPI clients, Vitest.
 
@@ -33,7 +33,7 @@ last-verified: 2026-05-07
 
 - [x] **Step 1: Write failing token tests**
 
-Test `buildAdmissionReturnURL('/admission/a/ABCD?qq=123')` returns same-origin absolute URL, rejects `//evil.example`, rejects non-admission paths, and preserves `qq`. Add API error mapping tests for `admission.qq_mismatch`, `admission.token_consumed`, and `admission.token_expired`.
+Test `buildAdmissionReturnURL('/verify/ABCD?qq=123')` returns same-origin absolute URL, rejects `//evil.example`, rejects non-admission paths, and preserves `qq`. Add API error mapping tests for `admission.qq_mismatch`, `admission.token_consumed`, and `admission.token_expired`.
 
 - [x] **Step 2: Run failing tests**
 
@@ -46,7 +46,7 @@ Add methods `getAdmissionSession(token, qq)`, `linkAdmissionSession(token, qq)`,
 
 - [x] **Step 4: Implement route and page**
 
-Add route `/admission/a/:code` with `layout: "none"`. Page states are `loading`, `needsLogin`, `qqMismatch`, `ready`, `linked`, `pendingReview`, `approved`, `expired`, and `error`. `qqMismatch` must not show login/signup buttons or call link API; it shows fixed text asking the user to contact an admin for a fresh link. For `needsLogin`, call `auth.login(currentAdmissionURL)` and `auth.signup(currentAdmissionURL)`.
+Add route `/verify/:code` with `layout: "none"`. Page states are `loading`, `needsLogin`, `qqMismatch`, `ready`, `linked`, `pendingReview`, `approved`, `expired`, and `error`. `qqMismatch` must not show login/signup buttons or call link API; it shows fixed text asking the user to contact an admin for a fresh link. For `needsLogin`, call `auth.login(currentAdmissionURL)` and `auth.signup(currentAdmissionURL)`.
 
 - [x] **Step 5: Run tests and commit**
 
@@ -96,7 +96,7 @@ Expected: FAIL.
 
 - [x] **Step 3: Implement old-student actions**
 
-Official SSO button navigates to `/api/v1/admission/school-sso/{schoolID}/login?return=<encoded current admission URL>`; backend owns state binding and return-target whitelist validation. Email form calls request OTP, then verify OTP, then refreshes admission status and shows verified state.
+Official SSO button navigates to `/api/v1/admission/school-sso/{schoolCode}/login?return=<encoded current admission URL>`; backend owns state binding and return-target whitelist validation. Email form calls request OTP, then verify OTP, then refreshes admission status and shows verified state.
 
 - [x] **Step 4: Run tests and commit**
 

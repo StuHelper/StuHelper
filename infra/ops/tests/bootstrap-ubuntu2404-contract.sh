@@ -26,6 +26,8 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'DEPLOY_USER="\$\{DEPLOY_USER:-stuhelper\}
 assert_contains "${BOOTSTRAP_SCRIPT}" 'DEPLOY_APP_DIR="\$\{DEPLOY_APP_DIR:-/opt/stuhelper\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'CONFIGURE_UFW="\$\{CONFIGURE_UFW:-true\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'INSTALL_BACKUP_TIMERS="\$\{INSTALL_BACKUP_TIMERS:-true\}"'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'INSTALL_GO="\$\{INSTALL_GO:-true\}"'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'GO_VERSION="\$\{GO_VERSION:-1\.26\.0\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'run as root \(sudo bash infra/ops/bootstrap-ubuntu2404\.sh\)'
 
 assert_contains "${BOOTSTRAP_SCRIPT}" 'apt-get update -y'
@@ -59,6 +61,10 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'ufw --force enable'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'ufw allow OpenSSH'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'ALLOW_HTTP_PORTS="\$\{ALLOW_HTTP_PORTS:-80,443\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'ufw allow "\$\{port\}"/tcp'
+
+assert_contains "${BOOTSTRAP_SCRIPT}" 'https://go\.dev/dl/go\$\{GO_VERSION\}\.linux-\$\{arch\}\.tar\.gz'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'ln -sf /usr/local/go/bin/go /usr/local/bin/go'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt'
 
 assert_contains "${BOOTSTRAP_SCRIPT}" 'stuhelper-postgres-dump-backup\.service'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'stuhelper-postgres-basebackup\.service'

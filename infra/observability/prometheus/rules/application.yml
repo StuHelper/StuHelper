@@ -160,15 +160,15 @@ groups:
           summary: Frontend runtime errors are elevated
           description: Frontend runtime error reporting has exceeded 0.1 events/s for 15 minutes.
 
-      - alert: StuHelperIdentityProbeFailed
-        expr: probe_success{job="blackbox-http",instance="https://id.stuhelper.com/.well-known/openid-configuration"} == 0
+      - alert: StuHelperSSOProbeFailed
+        expr: probe_success{job="blackbox-http",instance="https://sso.stuhelper.com/.well-known/openid-configuration"} == 0
         for: 5m
         labels:
           severity: critical
           team: platform
         annotations:
-          summary: StuHelper Identity OIDC metadata probe failed
-          description: The public StuHelper Identity OIDC metadata endpoint has failed blackbox probing for 5 minutes.
+          summary: StuHelper SSO OIDC metadata probe failed
+          description: The public StuHelper SSO OIDC metadata endpoint has failed blackbox probing for 5 minutes.
 
       - alert: StuHelperOpenFGAGRPCProbeFailed
         expr: probe_success{job="blackbox-tcp",instance="openfga:8081"} == 0

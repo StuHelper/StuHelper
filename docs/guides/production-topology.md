@@ -10,7 +10,7 @@ last-verified: 2026-05-22
 
 ## 部署架构
 
-主站单机 Docker Compose 部署。StuHelper 应用、PostgreSQL、Redis、OpenFGA、对象存储与观测栈由仓库内 Compose 管理；公网入口由宝塔 Nginx 管理。对浏览器和一方 / 三方应用暴露的统一身份入口是 `https://id.stuhelper.com`，由主站 web/frontend + backend 共同承载；Casdoor 只作为后端上游登录源，不再作为默认公网站点入口。
+主站单机 Docker Compose 部署。StuHelper 应用、PostgreSQL、Redis、OpenFGA、对象存储与观测栈由仓库内 Compose 管理；公网入口由宝塔 Nginx 管理。公开登录认证入口和 OIDC issuer 是 `https://sso.stuhelper.com`（Casdoor）。StuHelper 账号中心、学生认证、QQ 绑定、授权应用和开发者应用当前由 `https://stuhelper.com` 主站承载；`https://join.stuhelper.com` 只承载入群验证业务闭环。`id.stuhelper.com` 是已禁用的 legacy host，不作为普通用户、第三方应用或 OIDC issuer 入口。
 
 > 生产前提：承载 `postgres_data` / `redis_data` / 对象存储数据目录的底层块设备必须开启静态加密（云盘 KMS/EBS/PD 或主机侧 LUKS）。仓库内的 Compose 只定义容器拓扑，不负责替代宿主机磁盘加密。
 
@@ -22,19 +22,15 @@ last-verified: 2026-05-22
     ├── stuhelper.com /api/*        → 127.0.0.1:18080 → backend (Go, :8080)
     ├── stuhelper.com /admin/*      → 127.0.0.1:18001 → admin 前端 (Nginx, :8080)
     ├── stuhelper.com /             → 127.0.0.1:18000 → web 前端 (Nginx, :80)
-    ├── stuhelper.com /identity /account/profile /account/security /connect /login /auth/callback /consent /complete-profile /developers/* /user/authorized-apps /user/*-verification /user/*-binding /user/academic-info
-    │       → 302 https://id.stuhelper.com$request_uri
-    ├── id.stuhelper.com /.well-known/* /oauth2/* /oidc/* → backend
-    ├── id.stuhelper.com /api/v1/*  → backend
-    ├── id.stuhelper.com /login/oauth/* /signup/oauth/* /api/* /static/* /img/* /buttons/* /flag-icons/* /web/* /mfa/* /account /signup /forget
-    │       → 127.0.0.1:8087 → Casdoor upstream
-    ├── id.stuhelper.com /identity /account/profile /account/security /connect /login /auth/callback /consent /complete-profile /developers/* /user/authorized-apps /user/*-verification /user/*-binding /user/academic-info /assets/*
-    │       → web 前端
-    ├── id.stuhelper.com / → 302 到 /identity，且重定向响应禁用缓存
-    └── id.stuhelper.com 其他主站路径 → 302 https://stuhelper.com$request_uri
+    ├── stuhelper.com /verify 和 /verify/* → 404（不兼容旧入口）
+    ├── join.stuhelper.com /verify/<token>?qq=<qq> → 127.0.0.1:18000 → web 前端
+    ├── join.stuhelper.com /verify → 404
+    ├── join.stuhelper.com /api/* 与 /health/* → 127.0.0.1:18080 → backend
+    ├── sso.stuhelper.com /.well-known/* /api/* /login/* → Casdoor
+    └── id.stuhelper.com /* → 404（legacy disabled）
 ```
 
-主站生产配置中 `IDENTITY_ISSUER`、`WEB_VITE_SSO_URL`、`WEB_VITE_IDENTITY_URL` 与 `CASDOOR_PUBLIC_AUTH_BASE_URL` 固定指向 `https://id.stuhelper.com`，`WEB_VITE_WEB_URL` 固定指向 `https://stuhelper.com`，用于从主站跳到 `id` 登录后再回到原主站页面；`CASDOOR_ISSUER` 保留为后端识别 Casdoor issuer 的上游配置，不代表浏览器应直接访问 `sso.stuhelper.com`。`CASDOOR_REDIRECT_URI`、`CASDOOR_ADMIN_REDIRECT_URI` 与 `CASDOOR_UNIAPP_REDIRECT_URI` 固定回到 `https://id.stuhelper.com/api/v1/auth/callback`。`CORS_ORIGINS` 必须同时包含 `https://stuhelper.com` 和 `https://id.stuhelper.com`，`TOKEN_COOKIE_DOMAIN` 必须设置为 `.stuhelper.com`，让回调后签发的浏览器会话可同时用于主站和 `id.stuhelper.com` 的身份页。仓库内 `casdoor` compose service 只用于本地开发或显式本地 SSO 验证，生产发布脚本不得启动该服务。
+主站生产配置中 `IDENTITY_SERVER_ENABLED=false`，`IDENTITY_ISSUER=`，`WEB_VITE_IDENTITY_URL=`；不再发布 StuHelper 自研 identity issuer。`WEB_VITE_WEB_URL=https://stuhelper.com`，`WEB_VITE_SSO_URL=https://sso.stuhelper.com`，`CASDOOR_ISSUER=https://sso.stuhelper.com`，`CASDOOR_PUBLIC_AUTH_BASE_URL=https://sso.stuhelper.com`。`CASDOOR_REDIRECT_URI`、`CASDOOR_ADMIN_REDIRECT_URI` 与 `CASDOOR_UNIAPP_REDIRECT_URI` 固定回到 `https://stuhelper.com/api/v1/auth/callback`。`ADMISSION_PUBLIC_BASE_URL=https://join.stuhelper.com`。`CORS_ORIGINS` 必须包含 `https://stuhelper.com`、`https://join.stuhelper.com` 和 `https://sso.stuhelper.com`；`TOKEN_COOKIE_DOMAIN=.stuhelper.com`，让登录回调后签发的浏览器会话可用于主站和 admission 流程。
 
 ## 外部机器人链路
 
@@ -49,7 +45,7 @@ Koishi 与 NapCat 当前不纳入主站 Docker Compose 拓扑，而是作为外�
    ▼
 [Koishi]
    │
-   ├── 调用 StuHelper API：QQ 绑定码消费、QQ 认证状态查询
+   ├── 调用 StuHelper API：QQ 绑定码消费、QQ 认证状态查询、admission session / pending action / freshman review
    ├── 持有本地 SQLite：群规则、消息账本、处罚记录、事件日志
    └── 持有独立服务令牌：不与主站浏览器令牌共享
 ```
@@ -59,12 +55,14 @@ Koishi 与 NapCat 当前不纳入主站 Docker Compose 拓扑，而是作为外�
 - StuHelper 主站负责 API、身份系统、业务数据和 OpenAPI 契约。
 - Koishi 负责机器人运行时、群管逻辑和本地群管域数据。
 - NapCat 只负责 QQ 协议与 OneBot 适配。
+- admission 后端记录的 `platform=qq` 是被验证账号的 subject platform；Koishi 生产 runtime 可以是 `onebot`，插件负责映射后调用后端，具体禁言 / 踢人 / 发消息仍由当前 OneBot bot 执行。
 
 当前工作区默认约定：
 
 - Koishi 本地控制台端口固定为 `5140`
 - 群管本地数据库路径为 `bots/koishi/data/koishi.db`
 - Koishi 与主站之间只通过 `/api/v1/bot/*` 服务令牌接口通信，不共享 PostgreSQL 或 Redis
+- Koishi 容器必须通过 `.env`、Compose `env_file` 或等价机制注入 `STUHELPER_PLATFORM_BASE_URL`、`STUHELPER_PLATFORM_SERVICE_TOKEN`、`STUHELPER_FRESHMAN_MATERIAL_HOSTS` 和 Console 管理密码；真实 token 不写入仓库。
 
 ## 公网入口
 
@@ -84,10 +82,11 @@ Koishi 与 NapCat 当前不纳入主站 Docker Compose 拓扑，而是作为外�
 **默认方案：宝塔 Nginx 终止 TLS**
 
 - `stuhelper.com` 与 `www.stuhelper.com` 在宝塔面板中建站并配置证书。
-- 主站宝塔 Nginx 根据路径反代到本机回环端口，示例见 `infra/nginx/baota-stuhelper.conf`。
-- Casdoor upstream 由 `id.stuhelper.com` 的 `/login/oauth/*`、`/signup/oauth/*`、`/api/*` 和静态资源路径反代到本机 `127.0.0.1:8087`，不要要求用户浏览器直接访问 `sso.stuhelper.com`。
-- 保存或 reload 前，用 `infra/ops/nginx-public-ingress-preflight.sh` 审计实际配置；主站机器使用 `NGINX_PUBLIC_INGRESS_PROFILE=stuhelper`。历史兼容的 `NGINX_PUBLIC_INGRESS_PROFILE=sso` 只用于显式保留独立 `sso.stuhelper.com` 公网入口的环境，不是默认发布门禁。
-- 如果公网 smoke 报 `SSL_ERROR_SYSCALL`、`.well-known` 404 或 SPA HTML，运行 `infra/ops/public-identity-ingress-diagnostic.sh` 生成脱敏诊断 evidence；默认重点检查 `stuhelper.com` 与 `id.stuhelper.com`，只有显式传入 Casdoor upstream 目标或打开 upstream 检查时才把 `sso` 作为公网诊断对象。
+- `join.stuhelper.com` 与 `sso.stuhelper.com` 必须有公网 TLS。`join` 使用主站 Web/API 回环端口；`sso` 反代到 Casdoor。
+- 主站宝塔 Nginx 根据域名和路径反代到本机回环端口，示例见 `infra/nginx/baota-stuhelper.conf` 和 `infra/nginx/baota-casdoor-sso.conf`。
+- `id.stuhelper.com` 必须返回 404；不要把 OIDC discovery、OAuth endpoint、Casdoor 静态资源或账号中心挂回 `id`。
+- 保存或 reload 前，用 `infra/ops/nginx-public-ingress-preflight.sh` 审计实际配置；主站机器使用 `NGINX_PUBLIC_INGRESS_PROFILE=stuhelper`，SSO 机器使用 `NGINX_PUBLIC_INGRESS_PROFILE=sso`。
+- 如果 SSO discovery 报 `.well-known` 404 或 SPA HTML，检查 `sso.stuhelper.com` 的宝塔 Nginx 是否把 `/.well-known/` 正确反代到 Casdoor upstream。
 - Docker Compose 中的业务端口只绑定 `127.0.0.1`，不直接暴露公网。
 
 **备选方案：外部 LB/CDN 终止**
@@ -120,6 +119,6 @@ Koishi 与 NapCat 当前不纳入主站 Docker Compose 拓扑，而是作为外�
 1. 基础设施就绪（API health、Web、Admin）
 2. 公开业务端点（院系、课程、认证）
 3. 观测链路（Grafana、指标端点）
-4. OIDC 连通性（`id.stuhelper.com` discovery、JWKS、authorize/token/introspect/revoke/UserInfo 基础路由）
+4. OIDC 连通性（`sso.stuhelper.com` discovery、JWKS、authorize/token/introspect/revoke/UserInfo 基础路由，按当前 Casdoor 配置验证）
 
-默认生产门禁不再要求 `sso.stuhelper.com` 是公网可达站点。`infra/ops/identity-public-smoke.sh` 默认验证 `stuhelper.com` health、`id.stuhelper.com` OIDC/OAuth/UserInfo/logout 路由，以及 `id` 入口自己的 Web app 图标和 `site.webmanifest` 不会落入主站兜底跳转；只有设置 `IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED=true` 时，才额外验证 `CASDOOR_ISSUER` 的 discovery/JWKS。`remote-preflight.sh` 同理默认只检查 Web 与 Identity 的公网 DNS/TLS；只有设置 `PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED=true` 时，才把 Casdoor upstream 纳入公网门禁。
+当前生产门禁默认关闭 legacy `identity-public-smoke.sh`。入群验证公网门禁使用 `infra/ops/admission-public-smoke.sh`：`join.stuhelper.com/verify/<token>?qq=<qq>` 必须返回 Web SPA，`join.stuhelper.com/verify`、`stuhelper.com/verify` 和 `stuhelper.com/verify/<token>` 必须返回 404。SSO 入口由 `nginx-public-ingress-preflight.sh` 的 `sso` profile 和 Casdoor discovery/JWKS 检查覆盖。

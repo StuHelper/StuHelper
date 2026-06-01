@@ -6,6 +6,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 PREFLIGHT_SCRIPT="${REPO_ROOT}/infra/ops/nginx-public-ingress-preflight.sh"
 MAIN_NGINX_FILE="${REPO_ROOT}/infra/nginx/baota-stuhelper.conf"
 SSO_NGINX_FILE="${REPO_ROOT}/infra/nginx/baota-casdoor-sso.conf"
+SSO_WELL_KNOWN_EXTENSION_FILE="${REPO_ROOT}/infra/nginx/baota-casdoor-sso-well-known-extension.conf"
 
 fail() {
   echo "[nginx-public-ingress-preflight-contract][error] $*" >&2
@@ -51,8 +52,10 @@ run_preflight_fail() {
   assert_file_contains "${tmpdir}/${label}.stderr" "${expected_error}"
 }
 
-assert_file_contains "${PREFLIGHT_SCRIPT}" '/favicon\.ico'
-assert_file_contains "${PREFLIGHT_SCRIPT}" '/site\.webmanifest'
+assert_file_contains "${PREFLIGHT_SCRIPT}" 'join\.stuhelper\.com'
+assert_file_contains "${PREFLIGHT_SCRIPT}" 'server block must return'
+assert_file_contains "${SSO_WELL_KNOWN_EXTENSION_FILE}" 'location = /.well-known/openid-configuration'
+assert_file_contains "${SSO_WELL_KNOWN_EXTENSION_FILE}" 'location = /.well-known/jwks'
 
 tmpdir="$(mktemp -d)"
 cleanup() {
@@ -114,23 +117,99 @@ server {
     location = /user/phone-binding { return 302 https://id.stuhelper.com$request_uri; }
     location = /user/qq-binding { return 302 https://id.stuhelper.com$request_uri; }
     location = /user/academic-info { return 302 https://id.stuhelper.com$request_uri; }
+    location = /verify { return 404; }
+    location ^~ /verify/ { return 404; }
     location ^~ /api/ { proxy_pass http://127.0.0.1:18080; }
     location ^~ /health/ { proxy_pass http://127.0.0.1:18080; }
     location ^~ /admin/ { proxy_pass http://127.0.0.1:18001; }
     location / { proxy_pass http://127.0.0.1:18000; }
 }
+
+server {
+    listen 443 ssl http2;
+    server_name join.stuhelper.com;
+    ssl_certificate /tmp/fullchain.pem;
+    ssl_certificate_key /tmp/privkey.pem;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-Host $host;
+    location = /verify { return 404; }
+    location ^~ /verify/ { proxy_pass http://127.0.0.1:18000; }
+    location ^~ /api/ { proxy_pass http://127.0.0.1:18080; }
+    location ^~ /health/ { proxy_pass http://127.0.0.1:18080; }
+    location ^~ /assets/ { proxy_pass http://127.0.0.1:18000; }
+    location / { proxy_pass http://127.0.0.1:18000; }
+}
 NGINX
 
-missing_id_redirect_cache_headers="${tmpdir}/missing-id-redirect-cache-headers.conf"
-sed '/add_header Cache-Control "no-store, no-cache, must-revalidate, private" always;/d' \
-  "${MAIN_NGINX_FILE}" >"${missing_id_redirect_cache_headers}"
-
-missing_id_manifest_route="${tmpdir}/missing-id-manifest-route.conf"
+missing_main_verify_reject="${tmpdir}/missing-main-verify-reject.conf"
 awk '
-  /^    location = \/site.webmanifest \{/ { skip=1; next }
+  /^    location = \/verify \{$/ { skip=1; next }
+  /^    location \^~ \/verify\/ \{$/ { skip=1; next }
   skip && /^    }$/ { skip=0; next }
   !skip { print }
-' "${MAIN_NGINX_FILE}" >"${missing_id_manifest_route}"
+' "${MAIN_NGINX_FILE}" >"${missing_main_verify_reject}"
+
+missing_join_verify_proxy="${tmpdir}/missing-join-verify-proxy.conf"
+awk '
+  /^    server_name join\.stuhelper\.com;$/ { in_join=1 }
+  in_join && /^server \{$/ { in_join=0 }
+  in_join && /^    location \^~ \/verify\/ \{$/ { skip=1; next }
+  skip && /^    }$/ { skip=0; next }
+  !skip { print }
+' "${MAIN_NGINX_FILE}" >"${missing_join_verify_proxy}"
+
+bad_id_enabled="${tmpdir}/bad-id-enabled.conf"
+cat >"${bad_id_enabled}" <<'NGINX'
+server {
+    listen 443 ssl http2;
+    server_name www.stuhelper.com;
+    ssl_certificate /tmp/fullchain.pem;
+    ssl_certificate_key /tmp/privkey.pem;
+    return 301 https://stuhelper.com$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name stuhelper.com;
+    ssl_certificate /tmp/fullchain.pem;
+    ssl_certificate_key /tmp/privkey.pem;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-Host $host;
+    location = /verify { return 404; }
+    location ^~ /verify/ { return 404; }
+    location ^~ /api/ { proxy_pass http://127.0.0.1:18080; }
+    location ^~ /health/ { proxy_pass http://127.0.0.1:18080; }
+    location ^~ /admin/ { proxy_pass http://127.0.0.1:18001; }
+    location / { proxy_pass http://127.0.0.1:18000; }
+}
+
+server {
+    listen 443 ssl http2;
+    server_name join.stuhelper.com;
+    ssl_certificate /tmp/fullchain.pem;
+    ssl_certificate_key /tmp/privkey.pem;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-Host $host;
+    location = /verify { return 404; }
+    location ^~ /verify/ { proxy_pass http://127.0.0.1:18000; }
+    location ^~ /api/ { proxy_pass http://127.0.0.1:18080; }
+    location ^~ /health/ { proxy_pass http://127.0.0.1:18080; }
+    location ^~ /assets/ { proxy_pass http://127.0.0.1:18000; }
+    location / { proxy_pass http://127.0.0.1:18000; }
+}
+
+server {
+    listen 443 ssl http2;
+    server_name id.stuhelper.com;
+    ssl_certificate /tmp/fullchain.pem;
+    ssl_certificate_key /tmp/privkey.pem;
+    location ^~ /.well-known/ { proxy_pass http://127.0.0.1:18080; }
+    location / { proxy_pass http://127.0.0.1:18000; }
+}
+NGINX
 
 bad_sso_static_root="${tmpdir}/bad-sso-static-root.conf"
 cat >"${bad_sso_static_root}" <<'NGINX'
@@ -198,6 +277,45 @@ server {
 }
 NGINX
 
+baota_sso_static_well_known_with_extension="${tmpdir}/baota-sso-static-well-known-with-extension.conf"
+{
+  cat <<'NGINX'
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name sso.stuhelper.com;
+    root /www/dk_project/wwwroot/sso.stuhelper.com;
+    ssl_certificate /tmp/fullchain.pem;
+    ssl_certificate_key /tmp/privkey.pem;
+
+    # Baota keeps this include even when it rewrites the main vhost.
+    include /www/server/panel/vhost/nginx/extension/sso.stuhelper.com/*.conf;
+
+NGINX
+  sed 's/^/    /' "${SSO_WELL_KNOWN_EXTENSION_FILE}"
+  cat <<'NGINX'
+
+    location ^~ / {
+      proxy_pass http://127.0.0.1:8087;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Forwarded-Proto $scheme;
+      proxy_set_header X-Forwarded-Host $host;
+    }
+
+    location ^~ /api/ {
+      proxy_pass http://127.0.0.1:8087;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Forwarded-Proto $scheme;
+      proxy_set_header X-Forwarded-Host $host;
+    }
+
+    location /.well-known {
+      allow all;
+    }
+}
+NGINX
+} >"${baota_sso_static_well_known_with_extension}"
+
 baota_sso_static_well_known_missing_jwks="${tmpdir}/baota-sso-static-well-known-missing-jwks.conf"
 awk '
   /^    location = \/.well-known\/jwks \{/ { skip=1; next }
@@ -222,9 +340,11 @@ assert_file_contains "${tmpdir}/sso-custom-upstream.stdout" 'public Nginx ingres
 run_preflight_pass "all" "${combined_good}" "${tmpdir}" "combined-template"
 run_preflight_pass "all" "${baota_dump_with_json_logs}" "${tmpdir}" "baota-json-log-dump"
 run_preflight_pass "sso" "${baota_sso_static_well_known_fixed}" "${tmpdir}" "baota-sso-static-well-known-fixed"
+run_preflight_pass "sso" "${baota_sso_static_well_known_with_extension}" "${tmpdir}" "baota-sso-static-well-known-with-extension"
 run_preflight_fail "stuhelper" "${missing_id}" "${tmpdir}" "missing-id" 'id\.stuhelper\.com: missing HTTPS server block'
-run_preflight_fail "stuhelper" "${missing_id_redirect_cache_headers}" "${tmpdir}" "missing-id-redirect-cache-headers" 'location = / must add_header Cache-Control'
-run_preflight_fail "stuhelper" "${missing_id_manifest_route}" "${tmpdir}" "missing-id-manifest-route" 'location = /site\.webmanifest'
+run_preflight_fail "stuhelper" "${missing_main_verify_reject}" "${tmpdir}" "missing-main-verify-reject" 'stuhelper\.com: no HTTPS server block satisfies the ingress contract: stuhelper\.com: missing location = /verify'
+run_preflight_fail "stuhelper" "${missing_join_verify_proxy}" "${tmpdir}" "missing-join-verify-proxy" 'join\.stuhelper\.com: no HTTPS server block satisfies the ingress contract: join\.stuhelper\.com: missing location \^~ /verify/'
+run_preflight_fail "stuhelper" "${bad_id_enabled}" "${tmpdir}" "bad-id-enabled" 'id\.stuhelper\.com: no HTTPS server block satisfies the ingress contract: .*must return 404'
 run_preflight_fail "sso" "${bad_sso_static_root}" "${tmpdir}" "bad-sso-static-root" 'requires exact openid-configuration and jwks'
 run_preflight_fail "sso" "${baota_sso_static_well_known_missing_jwks}" "${tmpdir}" "baota-sso-static-well-known-missing-jwks" 'requires exact openid-configuration and jwks'
 run_preflight_fail "unknown" "${combined_good}" "${tmpdir}" "unknown-profile" 'unknown NGINX_PUBLIC_INGRESS_PROFILE'

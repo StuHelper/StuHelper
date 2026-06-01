@@ -16,8 +16,8 @@ fi
 TEMPLATE="${REPO_ROOT}/infra/nginx/prod-parity-local-ingress.conf"
 HOSTS_START="# StuHelper prod-parity local ingress BEGIN"
 HOSTS_END="# StuHelper prod-parity local ingress END"
-HOSTS_LINE="127.0.0.1 stuhelper.com www.stuhelper.com id.stuhelper.com sso.stuhelper.com"
-PROXY_BYPASS_HOSTS=(stuhelper.com www.stuhelper.com id.stuhelper.com sso.stuhelper.com "*.stuhelper.com")
+HOSTS_LINE="127.0.0.1 stuhelper.com www.stuhelper.com id.stuhelper.com join.stuhelper.com sso.stuhelper.com"
+PROXY_BYPASS_HOSTS=(stuhelper.com www.stuhelper.com id.stuhelper.com join.stuhelper.com sso.stuhelper.com "*.stuhelper.com")
 DEFAULT_BAOTA_TLS_CERT="/www/server/panel/vhost/cert/panel212.stuhelper.com/fullchain.pem"
 DEFAULT_BAOTA_TLS_KEY="/www/server/panel/vhost/cert/panel212.stuhelper.com/privkey.pem"
 DEFAULT_GENERATED_TLS_DIR="${PROD_PARITY_LOCAL_TLS_DIR:-${REPO_ROOT}/.run/prod-parity/local-tls}"
@@ -156,7 +156,7 @@ ensure_local_tls() {
     -sha256 \
     -days 825 \
     -subj "/CN=stuhelper.com" \
-    -addext "subjectAltName=DNS:stuhelper.com,DNS:www.stuhelper.com,DNS:id.stuhelper.com,DNS:sso.stuhelper.com" \
+    -addext "subjectAltName=DNS:stuhelper.com,DNS:www.stuhelper.com,DNS:id.stuhelper.com,DNS:join.stuhelper.com,DNS:sso.stuhelper.com" \
     -keyout "${key}" \
     -out "${cert}" \
     >/dev/null 2>&1
@@ -201,64 +201,23 @@ server {
     proxy_set_header X-Forwarded-Proto \$scheme;
     proxy_set_header X-Forwarded-Host \$host;
 
-    location = /identity {
-        return 302 \$scheme://id.stuhelper.com\$request_uri;
+    location = /verify {
+        return 404;
     }
 
-    location = /account/profile {
-        return 302 \$scheme://id.stuhelper.com\$request_uri;
+    location ^~ /verify/ {
+        return 404;
     }
 
-    location = /connect {
-        return 302 \$scheme://id.stuhelper.com\$request_uri;
-    }
-
-    location = /account/security {
-        return 302 \$scheme://id.stuhelper.com\$request_uri;
-    }
-
-    location = /login {
-        return 302 \$scheme://id.stuhelper.com\$request_uri;
-    }
-
-    location = /auth/callback {
-        return 302 \$scheme://id.stuhelper.com\$request_uri;
-    }
-
-    location = /consent {
-        return 302 \$scheme://id.stuhelper.com\$request_uri;
-    }
-
-    location = /complete-profile {
-        return 302 \$scheme://id.stuhelper.com\$request_uri;
-    }
-
-    location ^~ /developers/ {
-        return 302 \$scheme://id.stuhelper.com\$request_uri;
-    }
-
-    location = /user/authorized-apps {
-        return 302 \$scheme://id.stuhelper.com\$request_uri;
-    }
-
-    location = /user/identity-verification {
-        return 302 \$scheme://id.stuhelper.com\$request_uri;
-    }
-
-    location = /user/student-verification {
-        return 302 \$scheme://id.stuhelper.com\$request_uri;
-    }
-
-    location = /user/phone-binding {
-        return 302 \$scheme://id.stuhelper.com\$request_uri;
-    }
-
-    location = /user/qq-binding {
-        return 302 \$scheme://id.stuhelper.com\$request_uri;
-    }
-
-    location = /user/academic-info {
-        return 302 \$scheme://id.stuhelper.com\$request_uri;
+    location ^~ /api/v1/admission/freshman/camera-handoffs/ {
+        proxy_pass http://127.0.0.1:${backend_port};
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        add_header X-Accel-Buffering no always;
     }
 
     location ^~ /api/ {
@@ -334,6 +293,21 @@ server {
     ssl_certificate_key ${key};
     ssl_protocols TLSv1.2 TLSv1.3;
 
+    location / {
+        return 404;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name join.stuhelper.com;
+
+    ssl_certificate ${cert};
+    ssl_certificate_key ${key};
+    ssl_protocols TLSv1.2 TLSv1.3;
+
     client_max_body_size 50m;
 
     proxy_set_header Host \$host;
@@ -342,31 +316,28 @@ server {
     proxy_set_header X-Forwarded-Proto \$scheme;
     proxy_set_header X-Forwarded-Host \$host;
 
-    location ^~ /.well-known/ {
-        proxy_pass http://127.0.0.1:${backend_port};
+    location = /verify {
+        return 404;
+    }
+
+    location ^~ /verify/ {
+        proxy_pass http://127.0.0.1:${web_port};
         proxy_http_version 1.1;
     }
 
-    location ^~ /oauth2/ {
+    location ^~ /api/v1/admission/freshman/camera-handoffs/ {
         proxy_pass http://127.0.0.1:${backend_port};
         proxy_http_version 1.1;
-    }
-
-    location ^~ /oidc/ {
-        proxy_pass http://127.0.0.1:${backend_port};
-        proxy_http_version 1.1;
-    }
-
-    location ^~ /api/v1/ {
-        proxy_pass http://127.0.0.1:${backend_port};
-        proxy_http_version 1.1;
+        proxy_set_header Connection "";
         proxy_buffering off;
-        proxy_read_timeout 300s;
-        proxy_send_timeout 300s;
+        proxy_cache off;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        add_header X-Accel-Buffering no always;
     }
 
     location ^~ /api/ {
-        proxy_pass http://127.0.0.1:${casdoor_port};
+        proxy_pass http://127.0.0.1:${backend_port};
         proxy_http_version 1.1;
         proxy_buffering off;
         proxy_read_timeout 300s;
@@ -383,189 +354,14 @@ server {
         proxy_http_version 1.1;
     }
 
-    location = / {
-        add_header Cache-Control "no-store, no-cache, must-revalidate, private" always;
-        add_header Pragma "no-cache" always;
-        add_header Expires "0" always;
-        return 302 /identity;
-    }
-
-    location ^~ /login/oauth/ {
-        proxy_pass http://127.0.0.1:${casdoor_port};
-        proxy_http_version 1.1;
-        proxy_read_timeout 300s;
-        proxy_send_timeout 300s;
-    }
-
-    location ^~ /signup/oauth/ {
-        proxy_pass http://127.0.0.1:${casdoor_port};
-        proxy_http_version 1.1;
-        proxy_read_timeout 300s;
-        proxy_send_timeout 300s;
-    }
-
-    location = /login {
-        proxy_pass http://127.0.0.1:${web_port};
-        proxy_http_version 1.1;
-    }
-
-    location = /auth/callback {
-        proxy_pass http://127.0.0.1:${web_port};
-        proxy_http_version 1.1;
-    }
-
-    location = /consent {
-        proxy_pass http://127.0.0.1:${web_port};
-        proxy_http_version 1.1;
-    }
-
-    location = /complete-profile {
-        proxy_pass http://127.0.0.1:${web_port};
-        proxy_http_version 1.1;
-    }
-
-    location = /identity {
-        proxy_pass http://127.0.0.1:${web_port};
-        proxy_http_version 1.1;
-    }
-
-    location = /account/profile {
-        proxy_pass http://127.0.0.1:${web_port};
-        proxy_http_version 1.1;
-    }
-
-    location = /connect {
-        proxy_pass http://127.0.0.1:${web_port};
-        proxy_http_version 1.1;
-    }
-
-    location = /account/security {
-        proxy_pass http://127.0.0.1:${web_port};
-        proxy_http_version 1.1;
-    }
-
-    location ^~ /developers/ {
-        proxy_pass http://127.0.0.1:${web_port};
-        proxy_http_version 1.1;
-    }
-
-    location = /user/authorized-apps {
-        proxy_pass http://127.0.0.1:${web_port};
-        proxy_http_version 1.1;
-    }
-
-    location = /user/identity-verification {
-        proxy_pass http://127.0.0.1:${web_port};
-        proxy_http_version 1.1;
-    }
-
-    location = /user/student-verification {
-        proxy_pass http://127.0.0.1:${web_port};
-        proxy_http_version 1.1;
-    }
-
-    location = /user/phone-binding {
-        proxy_pass http://127.0.0.1:${web_port};
-        proxy_http_version 1.1;
-    }
-
-    location = /user/qq-binding {
-        proxy_pass http://127.0.0.1:${web_port};
-        proxy_http_version 1.1;
-    }
-
-    location = /user/academic-info {
-        proxy_pass http://127.0.0.1:${web_port};
-        proxy_http_version 1.1;
-    }
-
     location ^~ /assets/ {
         proxy_pass http://127.0.0.1:${web_port};
         proxy_http_version 1.1;
     }
 
-    location ^~ /static/ {
-        proxy_pass http://127.0.0.1:${casdoor_port};
-        proxy_http_version 1.1;
-    }
-
-    location ^~ /img/ {
-        proxy_pass http://127.0.0.1:${casdoor_port};
-        proxy_http_version 1.1;
-    }
-
-    location ^~ /buttons/ {
-        proxy_pass http://127.0.0.1:${casdoor_port};
-        proxy_http_version 1.1;
-    }
-
-    location ^~ /flag-icons/ {
-        proxy_pass http://127.0.0.1:${casdoor_port};
-        proxy_http_version 1.1;
-    }
-
-    location ^~ /web/ {
-        proxy_pass http://127.0.0.1:${casdoor_port};
-        proxy_http_version 1.1;
-    }
-
-    location ^~ /mfa/ {
-        proxy_pass http://127.0.0.1:${casdoor_port};
-        proxy_http_version 1.1;
-    }
-
-    location = /account {
-        proxy_pass http://127.0.0.1:${casdoor_port};
-        proxy_http_version 1.1;
-    }
-
-    location ^~ /signup {
-        proxy_pass http://127.0.0.1:${casdoor_port};
-        proxy_http_version 1.1;
-    }
-
-    location ^~ /forget {
-        proxy_pass http://127.0.0.1:${casdoor_port};
-        proxy_http_version 1.1;
-    }
-
-    location = /favicon.ico {
-        proxy_pass http://127.0.0.1:${web_port};
-        proxy_http_version 1.1;
-    }
-
-    location = /favicon-32x32.png {
-        proxy_pass http://127.0.0.1:${web_port};
-        proxy_http_version 1.1;
-    }
-
-    location = /favicon-16x16.png {
-        proxy_pass http://127.0.0.1:${web_port};
-        proxy_http_version 1.1;
-    }
-
-    location = /apple-touch-icon.png {
-        proxy_pass http://127.0.0.1:${web_port};
-        proxy_http_version 1.1;
-    }
-
-    location = /android-chrome-192x192.png {
-        proxy_pass http://127.0.0.1:${web_port};
-        proxy_http_version 1.1;
-    }
-
-    location = /android-chrome-512x512.png {
-        proxy_pass http://127.0.0.1:${web_port};
-        proxy_http_version 1.1;
-    }
-
-    location = /site.webmanifest {
-        proxy_pass http://127.0.0.1:${web_port};
-        proxy_http_version 1.1;
-    }
-
     location / {
-        return 302 \$scheme://stuhelper.com\$request_uri;
+        proxy_pass http://127.0.0.1:${web_port};
+        proxy_http_version 1.1;
     }
 }
 
@@ -632,4 +428,4 @@ install_nginx_config() {
 install_hosts
 install_proxy_bypass
 install_nginx_config
-log "local prod-parity hosts: stuhelper.com, id.stuhelper.com, sso.stuhelper.com -> 127.0.0.1"
+log "local prod-parity hosts: stuhelper.com, id.stuhelper.com, join.stuhelper.com, sso.stuhelper.com -> 127.0.0.1"

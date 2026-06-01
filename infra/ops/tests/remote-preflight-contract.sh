@@ -56,6 +56,10 @@ assert_contains "${COMMON_LIB_FILE}" 'require_public_jwks\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'public_oidc_jwks_uri\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'require_public_dns_resolved\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'dns\.google/resolve'
+assert_contains "${COMMON_LIB_FILE}" 'require_public_dns_resolved "Admission"'
+assert_contains "${COMMON_LIB_FILE}" 'require_public_http_reachable "Admission"'
+assert_contains "${COMMON_LIB_FILE}" 'ADMISSION_PUBLIC_BASE_URL'
+assert_contains "${COMMON_LIB_FILE}" '/verify/__stuhelper_public_ingress_probe__'
 assert_contains "${COMMON_LIB_FILE}" 'PUBLIC_INGRESS_CONFIG_PREFLIGHT_ENABLED'
 assert_contains "${COMMON_LIB_FILE}" 'PUBLIC_INGRESS_PREFLIGHT_ENABLED'
 assert_contains "${COMMON_LIB_FILE}" 'PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED'
@@ -69,34 +73,52 @@ assert_contains "${COMMON_LIB_FILE}" 'DB_SSL_MODE must be verify-full for produc
 assert_contains "${PREFLIGHT_FILE}" 'require_production_postgres_ssl'
 assert_contains "${PREFLIGHT_FILE}" 'require_public_ingress_config_preflight'
 assert_contains "${PREFLIGHT_FILE}" 'require_public_identity_ingress_preflight'
+assert_contains "${PREFLIGHT_FILE}" 'ADMISSION_PUBLIC_SMOKE_ENABLED'
+assert_contains "${PREFLIGHT_FILE}" 'ADMISSION_PUBLIC_SMOKE_PREFLIGHT_RETRIES'
+assert_contains "${PREFLIGHT_FILE}" 'admission-public-smoke\.sh'
 
 ssl_gate_line="$(line_number "${PREFLIGHT_FILE}" 'require_production_postgres_ssl')"
 public_ingress_config_preflight_line="$(line_number "${PREFLIGHT_FILE}" 'require_public_ingress_config_preflight')"
 public_ingress_preflight_line="$(line_number "${PREFLIGHT_FILE}" 'require_public_identity_ingress_preflight')"
+admission_public_smoke_line="$(line_number "${PREFLIGHT_FILE}" 'admission-public-smoke.sh')"
 docker_info_line="$(line_number "${PREFLIGHT_FILE}" 'docker info >/dev/null')"
 pg_isready_line="$(line_number "${PREFLIGHT_FILE}" 'pg_isready -d "${BACKUP_DATABASE_URL}" -t 5')"
 public_dns_web_line="$(line_number "${COMMON_LIB_FILE}" 'require_public_dns_resolved "Web"')"
+public_dns_admission_line="$(line_number "${COMMON_LIB_FILE}" 'require_public_dns_resolved "Admission"')"
 public_http_web_line="$(line_number "${COMMON_LIB_FILE}" 'require_public_http_reachable "Web"')"
+public_http_admission_line="$(line_number "${COMMON_LIB_FILE}" 'require_public_http_reachable "Admission"')"
 if (( ssl_gate_line >= docker_info_line )); then
   fail "remote preflight must validate production PostgreSQL SSL before Docker checks"
 fi
 if (( public_ingress_preflight_line <= ssl_gate_line )); then
-  fail "remote preflight must validate public identity ingress after PostgreSQL SSL config validation"
+  fail "remote preflight must validate public SSO/admission ingress after PostgreSQL SSL config validation"
 fi
 if (( public_ingress_config_preflight_line <= ssl_gate_line )); then
   fail "remote preflight must validate local Nginx public ingress config after PostgreSQL SSL config validation"
 fi
 if (( public_ingress_preflight_line <= public_ingress_config_preflight_line )); then
-  fail "remote preflight must validate public identity ingress after local Nginx config validation"
+  fail "remote preflight must validate public SSO/admission ingress after local Nginx config validation"
 fi
 if (( public_ingress_preflight_line >= docker_info_line )); then
-  fail "remote preflight must validate public identity ingress before Docker checks"
+  fail "remote preflight must validate public SSO/admission ingress before Docker checks"
+fi
+if (( admission_public_smoke_line <= public_ingress_preflight_line )); then
+  fail "remote preflight admission public smoke must run after public SSO/admission ingress preflight"
+fi
+if (( admission_public_smoke_line >= docker_info_line )); then
+  fail "remote preflight admission public smoke must run before Docker checks"
 fi
 if (( ssl_gate_line >= pg_isready_line )); then
   fail "remote preflight must validate production PostgreSQL SSL before pg_isready"
 fi
 if (( public_dns_web_line >= public_http_web_line )); then
   fail "public DNS preflight must run before public HTTP/TLS reachability checks"
+fi
+if (( public_dns_admission_line >= public_http_admission_line )); then
+  fail "admission public DNS preflight must run before admission public HTTP/TLS reachability checks"
+fi
+if (( public_dns_admission_line >= public_http_web_line )); then
+  fail "admission public DNS preflight must run before public HTTP/TLS reachability checks"
 fi
 
 tmpdir="$(mktemp -d)"
@@ -173,7 +195,7 @@ PATH="${fake_bin}:${PATH}" bash -c '
 if PATH="${fake_bin}:${PATH}" bash -c '
   set -euo pipefail
   source "$1"
-  require_public_dns_resolved "Identity" "https://missing.example.com"
+  require_public_dns_resolved "SSO" "https://missing.example.com"
 ' bash "${COMMON_LIB_FILE}" >"${tmpdir}/missing.out" 2>"${tmpdir}/missing.err"; then
   fail "public DNS preflight should fail when public resolver returns NXDOMAIN"
 fi

@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
-# Collect sanitized diagnostics for the public StuHelper identity ingress.
+# Collect sanitized diagnostics for the public StuHelper auth ingress.
 #
-# This script is intentionally diagnostic rather than a deployment gate by
-# default. Set PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_STRICT=true to fail the
-# command when any public ingress check fails.
+# Current production auth topology:
+# - sso.stuhelper.com is the public Casdoor OIDC issuer.
+# - id.stuhelper.com is a disabled legacy host and must return 404.
+#
+# This script is diagnostic rather than a deployment gate by default. Set
+# PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_STRICT=true to fail the command when any
+# public ingress check fails.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,32 +21,30 @@ Usage: infra/ops/public-identity-ingress-diagnostic.sh
 Collects DNS, SNI TLS, and public OIDC endpoint diagnostics for:
 
   - WEB_PUBLIC_URL /health/ready
-  - IDENTITY_ISSUER /.well-known/openid-configuration
-  - IDENTITY_ISSUER /.well-known/oauth-authorization-server
-  - IDENTITY_ISSUER /.well-known/jwks.json
-  - Optional CASDOOR_ISSUER /.well-known/openid-configuration and JWKS
+  - SSO_PUBLIC_BASE_URL /.well-known/openid-configuration
+  - SSO discovery JWKS URI
+  - legacy id.stuhelper.com / and /.well-known/openid-configuration returning 404
 
 Required env:
   none
 
 Optional env:
-  WEB_PUBLIC_URL                                  defaults to https://stuhelper.com
-  IDENTITY_ISSUER                                 defaults to https://id.stuhelper.com
-  CASDOOR_ISSUER                                  required only when
-                                                   PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_CASDOOR_UPSTREAM_ENABLED=true
-  PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_TIMEOUT     defaults to PUBLIC_INGRESS_PREFLIGHT_TIMEOUT_SECONDS or 10
-  PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_FILE        defaults to infra/generated/public-identity-ingress-diagnostic.json
-                                                   set to "-" to only print the JSON bundle
-  PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_STRICT      defaults to false; true exits non-zero when checks fail
-  PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_PUBLIC_DNS_ENABLED
-                                                   defaults to true; queries dns.google DoH for public A/AAAA evidence.
-  PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_USE_ENV_TARGETS
-                                                   defaults to false; true allows WEB_PUBLIC_URL /
-                                                   IDENTITY_ISSUER / CASDOOR_ISSUER loaded from ENV_FILE.
-                                                   Inline env always overrides.
-  PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_CASDOOR_UPSTREAM_ENABLED
-                                                   defaults to false; set true only to diagnose a public
-                                                   browser-facing Casdoor upstream.
+  WEB_PUBLIC_URL                                           defaults to https://stuhelper.com
+  SSO_PUBLIC_BASE_URL                                      defaults to CASDOOR_PUBLIC_AUTH_BASE_URL,
+                                                           WEB_VITE_SSO_URL, CASDOOR_ISSUER, or
+                                                           https://sso.stuhelper.com
+  SSO_PUBLIC_SMOKE_EXPECTED_ISSUER                         defaults to CASDOOR_ISSUER,
+                                                           SSO_PUBLIC_BASE_URL, or
+                                                           https://sso.stuhelper.com
+  PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_LEGACY_ID_URL         defaults to https://id.stuhelper.com
+  PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_TIMEOUT               defaults to PUBLIC_INGRESS_PREFLIGHT_TIMEOUT_SECONDS or 10
+  PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_FILE                  defaults to infra/generated/public-identity-ingress-diagnostic.json
+                                                           set to "-" to only print the JSON bundle
+  PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_STRICT                defaults to false; true exits non-zero when checks fail
+  PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_PUBLIC_DNS_ENABLED    defaults to true; queries dns.google DoH for public A/AAAA evidence
+  PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_USE_ENV_TARGETS       defaults to false; true allows WEB_PUBLIC_URL /
+                                                           SSO_PUBLIC_BASE_URL / CASDOOR_* loaded from ENV_FILE.
+                                                           Inline env always overrides.
 USAGE
 }
 
@@ -57,14 +59,17 @@ require_cmd openssl
 require_cmd python3
 
 preserved_web_public_url="${WEB_PUBLIC_URL-__STUHELPER_UNSET__}"
-preserved_identity_issuer="${IDENTITY_ISSUER-__STUHELPER_UNSET__}"
+preserved_sso_public_base_url="${SSO_PUBLIC_BASE_URL-__STUHELPER_UNSET__}"
+preserved_expected_issuer="${SSO_PUBLIC_SMOKE_EXPECTED_ISSUER-__STUHELPER_UNSET__}"
+preserved_casdoor_public_auth_base_url="${CASDOOR_PUBLIC_AUTH_BASE_URL-__STUHELPER_UNSET__}"
+preserved_web_vite_sso_url="${WEB_VITE_SSO_URL-__STUHELPER_UNSET__}"
 preserved_casdoor_issuer="${CASDOOR_ISSUER-__STUHELPER_UNSET__}"
+preserved_legacy_id_url="${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_LEGACY_ID_URL-__STUHELPER_UNSET__}"
 preserved_timeout="${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_TIMEOUT-__STUHELPER_UNSET__}"
 preserved_file="${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_FILE-__STUHELPER_UNSET__}"
 preserved_strict="${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_STRICT-__STUHELPER_UNSET__}"
 preserved_public_dns_enabled="${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_PUBLIC_DNS_ENABLED-__STUHELPER_UNSET__}"
 preserved_use_env_targets="${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_USE_ENV_TARGETS-__STUHELPER_UNSET__}"
-preserved_casdoor_upstream_enabled="${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_CASDOOR_UPSTREAM_ENABLED-__STUHELPER_UNSET__}"
 
 load_env
 
@@ -73,7 +78,7 @@ if [[ "${preserved_file}" != "__STUHELPER_UNSET__" ]]; then PUBLIC_IDENTITY_INGR
 if [[ "${preserved_strict}" != "__STUHELPER_UNSET__" ]]; then PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_STRICT="${preserved_strict}"; fi
 if [[ "${preserved_public_dns_enabled}" != "__STUHELPER_UNSET__" ]]; then PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_PUBLIC_DNS_ENABLED="${preserved_public_dns_enabled}"; fi
 if [[ "${preserved_use_env_targets}" != "__STUHELPER_UNSET__" ]]; then PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_USE_ENV_TARGETS="${preserved_use_env_targets}"; fi
-if [[ "${preserved_casdoor_upstream_enabled}" != "__STUHELPER_UNSET__" ]]; then PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_CASDOOR_UPSTREAM_ENABLED="${preserved_casdoor_upstream_enabled}"; fi
+if [[ "${preserved_legacy_id_url}" != "__STUHELPER_UNSET__" ]]; then PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_LEGACY_ID_URL="${preserved_legacy_id_url}"; fi
 
 use_env_targets="${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_USE_ENV_TARGETS:-false}"
 case "${use_env_targets}" in
@@ -87,10 +92,25 @@ if [[ "${preserved_web_public_url}" != "__STUHELPER_UNSET__" ]]; then
 elif [[ "${use_env_targets}" != "true" ]]; then
   unset WEB_PUBLIC_URL
 fi
-if [[ "${preserved_identity_issuer}" != "__STUHELPER_UNSET__" ]]; then
-  IDENTITY_ISSUER="${preserved_identity_issuer}"
+if [[ "${preserved_sso_public_base_url}" != "__STUHELPER_UNSET__" ]]; then
+  SSO_PUBLIC_BASE_URL="${preserved_sso_public_base_url}"
 elif [[ "${use_env_targets}" != "true" ]]; then
-  unset IDENTITY_ISSUER
+  unset SSO_PUBLIC_BASE_URL
+fi
+if [[ "${preserved_expected_issuer}" != "__STUHELPER_UNSET__" ]]; then
+  SSO_PUBLIC_SMOKE_EXPECTED_ISSUER="${preserved_expected_issuer}"
+elif [[ "${use_env_targets}" != "true" ]]; then
+  unset SSO_PUBLIC_SMOKE_EXPECTED_ISSUER
+fi
+if [[ "${preserved_casdoor_public_auth_base_url}" != "__STUHELPER_UNSET__" ]]; then
+  CASDOOR_PUBLIC_AUTH_BASE_URL="${preserved_casdoor_public_auth_base_url}"
+elif [[ "${use_env_targets}" != "true" ]]; then
+  unset CASDOOR_PUBLIC_AUTH_BASE_URL
+fi
+if [[ "${preserved_web_vite_sso_url}" != "__STUHELPER_UNSET__" ]]; then
+  WEB_VITE_SSO_URL="${preserved_web_vite_sso_url}"
+elif [[ "${use_env_targets}" != "true" ]]; then
+  unset WEB_VITE_SSO_URL
 fi
 if [[ "${preserved_casdoor_issuer}" != "__STUHELPER_UNSET__" ]]; then
   CASDOOR_ISSUER="${preserved_casdoor_issuer}"
@@ -99,17 +119,9 @@ elif [[ "${use_env_targets}" != "true" ]]; then
 fi
 
 web_public_url="$(trim_trailing_slash "${WEB_PUBLIC_URL:-https://stuhelper.com}")"
-identity_issuer="$(trim_trailing_slash "${IDENTITY_ISSUER:-https://id.stuhelper.com}")"
-casdoor_upstream_enabled="${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_CASDOOR_UPSTREAM_ENABLED:-false}"
-case "${casdoor_upstream_enabled}" in
-  true | TRUE | 1 | yes | YES) casdoor_upstream_enabled="true" ;;
-  false | FALSE | 0 | no | NO | "") casdoor_upstream_enabled="false" ;;
-  *) die "PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_CASDOOR_UPSTREAM_ENABLED must be true or false" ;;
-esac
-casdoor_issuer=""
-if [[ "${casdoor_upstream_enabled}" == "true" ]]; then
-  casdoor_issuer="$(trim_trailing_slash "${CASDOOR_ISSUER:-https://sso.stuhelper.com}")"
-fi
+sso_public_base_url="$(trim_trailing_slash "${SSO_PUBLIC_BASE_URL:-${CASDOOR_PUBLIC_AUTH_BASE_URL:-${WEB_VITE_SSO_URL:-${CASDOOR_ISSUER:-https://sso.stuhelper.com}}}}")"
+expected_issuer="$(trim_trailing_slash "${SSO_PUBLIC_SMOKE_EXPECTED_ISSUER:-${CASDOOR_ISSUER:-${sso_public_base_url}}}")"
+legacy_id_url="$(trim_trailing_slash "${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_LEGACY_ID_URL:-https://id.stuhelper.com}")"
 timeout_seconds="${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_TIMEOUT:-${PUBLIC_INGRESS_PREFLIGHT_TIMEOUT_SECONDS:-10}}"
 evidence_file="${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_FILE:-${REPO_ROOT}/infra/generated/public-identity-ingress-diagnostic.json}"
 strict="${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_STRICT:-false}"
@@ -120,7 +132,6 @@ case "${strict}" in
   false | FALSE | 0 | no | NO | "") strict="false" ;;
   *) die "PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_STRICT must be true or false" ;;
 esac
-
 case "${public_dns_enabled}" in
   true | TRUE | 1 | yes | YES) public_dns_enabled="true" ;;
   false | FALSE | 0 | no | NO | "") public_dns_enabled="false" ;;
@@ -130,17 +141,16 @@ esac
 bundle="$(
   python3 - \
     "${web_public_url}" \
-    "${identity_issuer}" \
-    "${casdoor_issuer}" \
+    "${sso_public_base_url}" \
+    "${expected_issuer}" \
+    "${legacy_id_url}" \
     "${timeout_seconds}" \
-    "${public_dns_enabled}" \
-    "${casdoor_upstream_enabled}" <<'PY'
+    "${public_dns_enabled}" <<'PY'
 from __future__ import annotations
 
 from datetime import datetime, timezone
 import ipaddress
 import json
-import os
 import socket
 import subprocess
 import sys
@@ -149,9 +159,8 @@ from pathlib import Path
 from urllib.parse import quote, urlparse
 
 
-web_public_url, identity_issuer, casdoor_issuer, timeout_raw, public_dns_enabled_raw, casdoor_upstream_enabled_raw = sys.argv[1:7]
+web_public_url, sso_public_base_url, expected_issuer, legacy_id_url, timeout_raw, public_dns_enabled_raw = sys.argv[1:7]
 public_dns_enabled = public_dns_enabled_raw == "true"
-casdoor_upstream_enabled = casdoor_upstream_enabled_raw == "true"
 
 try:
     timeout = max(1.0, float(timeout_raw))
@@ -171,13 +180,7 @@ def snippet(value: str, limit: int = 320) -> str:
 
 
 def sanitize_headers(value: str) -> str:
-    sensitive = {
-        "authorization",
-        "cookie",
-        "proxy-authorization",
-        "set-cookie",
-        "x-csrf-token",
-    }
+    sensitive = {"authorization", "cookie", "proxy-authorization", "set-cookie", "x-csrf-token"}
     safe_lines: list[str] = []
     for raw_line in value.splitlines():
         line = raw_line.strip()
@@ -196,26 +199,32 @@ def parse_endpoint(base_url: str) -> dict[str, object]:
     scheme = parsed.scheme or "https"
     host = parsed.hostname or ""
     if not host:
-        return {
-            "url": base_url,
-            "scheme": scheme,
-            "host": "",
-            "port": None,
-            "valid": False,
-            "error": "URL host is empty",
-        }
+        return {"url": base_url, "scheme": scheme, "host": "", "port": None, "valid": False, "error": "URL host is empty"}
     port = parsed.port or (443 if scheme == "https" else 80)
-    return {
-        "url": base_url,
-        "scheme": scheme,
-        "host": host,
-        "port": port,
-        "valid": True,
-    }
+    return {"url": base_url, "scheme": scheme, "host": host, "port": port, "valid": True}
 
 
 def endpoint_url(base_url: str, path: str) -> str:
     return trim(base_url) + path
+
+
+def is_localhost(host: str) -> bool:
+    return host.strip().lower().rstrip(".") in {"localhost", "127.0.0.1", "::1"}
+
+
+def is_ip_literal(host: str) -> bool:
+    try:
+        ipaddress.ip_address(host.strip().strip("[]").split("%", 1)[0])
+        return True
+    except ValueError:
+        return False
+
+
+def is_global_ip(address: str) -> bool:
+    try:
+        return ipaddress.ip_address(address.split("%", 1)[0]).is_global
+    except ValueError:
+        return False
 
 
 def dns_probe(host: str, port: int) -> dict[str, object]:
@@ -224,7 +233,6 @@ def dns_probe(host: str, port: int) -> dict[str, object]:
             "passed": False,
             "diagnosis": "dns_resolution_failed",
             "recommendation": "Set a non-empty public hostname for this ingress target.",
-            "error": "host is empty",
             "addresses": [],
         }
     try:
@@ -243,7 +251,7 @@ def dns_probe(host: str, port: int) -> dict[str, object]:
                 result["nonPublicAddresses"] = non_public
                 result["recommendation"] = "Public ingress hostnames must resolve to public A/AAAA records; check authoritative DNS, split-horizon DNS, and local fake-IP/proxy DNS."
         return result
-    except Exception as exc:  # noqa: BLE001 - diagnostic command must report, not crash.
+    except Exception as exc:  # noqa: BLE001 - diagnostics should report, not crash.
         return {
             "passed": False,
             "diagnosis": "dns_resolution_failed",
@@ -251,26 +259,6 @@ def dns_probe(host: str, port: int) -> dict[str, object]:
             "addresses": [],
             "error": snippet(str(exc)),
         }
-
-
-def is_localhost(host: str) -> bool:
-    normalized = host.strip().lower().rstrip(".")
-    return normalized in {"localhost", "127.0.0.1", "::1"}
-
-
-def is_ip_literal(host: str) -> bool:
-    try:
-        ipaddress.ip_address(host.strip().strip("[]").split("%", 1)[0])
-        return True
-    except ValueError:
-        return False
-
-
-def is_global_ip(address: str) -> bool:
-    try:
-        return ipaddress.ip_address(address.split("%", 1)[0]).is_global
-    except ValueError:
-        return False
 
 
 def public_dns_probe(host: str) -> dict[str, object]:
@@ -297,12 +285,7 @@ def public_dns_probe(host: str) -> dict[str, object]:
     cname_records: list[str] = []
     for rrtype, rrnumber in (("A", 1), ("AAAA", 28)):
         url = f"https://dns.google/resolve?name={quote(host.rstrip('.'))}&type={rrtype}"
-        proc = subprocess.run(
-            ["curl", "-fsS", "--max-time", str(timeout), url],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=False,
-        )
+        proc = subprocess.run(["curl", "-fsS", "--max-time", str(timeout), url], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
         if proc.returncode != 0:
             return {
                 "passed": False,
@@ -339,12 +322,7 @@ def public_dns_probe(host: str) -> dict[str, object]:
 
     addresses = sorted(set(addresses))
     cname_records = sorted(set(cname_records))
-    result: dict[str, object] = {
-        "passed": bool(addresses),
-        "provider": "dns.google",
-        "statuses": statuses,
-        "addresses": addresses,
-    }
+    result: dict[str, object] = {"passed": bool(addresses), "provider": "dns.google", "statuses": statuses, "addresses": addresses}
     if cname_records:
         result["cnameRecords"] = cname_records
     if not addresses:
@@ -368,28 +346,10 @@ def tls_probe(host: str, port: int, scheme: str) -> dict[str, object]:
     if scheme != "https":
         return {"passed": True, "skipped": True, "reason": f"scheme is {scheme}"}
     if not host:
-        return {"passed": False, "error": "host is empty"}
-    cmd = [
-        "openssl",
-        "s_client",
-        "-connect",
-        f"{host}:{port}",
-        "-servername",
-        host,
-        "-verify_hostname",
-        host,
-        "-verify_return_error",
-        "-brief",
-    ]
+        return {"passed": False, "diagnosis": "tls_probe_failed", "error": "host is empty"}
+    cmd = ["openssl", "s_client", "-connect", f"{host}:{port}", "-servername", host, "-verify_hostname", host, "-verify_return_error", "-brief"]
     try:
-        proc = subprocess.run(
-            cmd,
-            input=b"",
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=timeout,
-            check=False,
-        )
+        proc = subprocess.run(cmd, input=b"", stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout, check=False)
     except subprocess.TimeoutExpired:
         return {
             "passed": False,
@@ -424,32 +384,15 @@ def run_curl(url: str) -> dict[str, object]:
         tmpdir = Path(tmp)
         body_path = tmpdir / "body"
         header_path = tmpdir / "headers"
-        write_out = (
-            "\n"
-            + marker
-            + "%{http_code}\t%{content_type}\t%{ssl_verify_result}\t"
-            + "%{remote_ip}\t%{http_version}\t%{time_connect}\t%{time_appconnect}"
-        )
-        cmd = [
-            "curl",
-            "-sS",
-            "--max-time",
-            str(timeout),
-            "-D",
-            str(header_path),
-            "-o",
-            str(body_path),
-            "-w",
-            write_out,
-            url,
-        ]
+        write_out = "\n" + marker + "%{http_code}\t%{content_type}\t%{ssl_verify_result}\t%{remote_ip}\t%{http_version}\t%{time_connect}\t%{time_appconnect}"
+        cmd = ["curl", "-sS", "--max-time", str(timeout), "-D", str(header_path), "-o", str(body_path), "-w", write_out, url]
         proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
         stdout = proc.stdout.decode("utf-8", "replace")
         stderr = proc.stderr.decode("utf-8", "replace")
         meta_line = ""
         for line in stdout.splitlines():
             if line.startswith(marker):
-                meta_line = line[len(marker) :]
+                meta_line = line[len(marker):]
         parts = meta_line.split("\t") if meta_line else []
         body_text = body_path.read_text(encoding="utf-8", errors="replace") if body_path.exists() else ""
         headers_text = header_path.read_text(encoding="utf-8", errors="replace") if header_path.exists() else ""
@@ -481,43 +424,43 @@ def run_curl(url: str) -> dict[str, object]:
     return result
 
 
-def oidc_discovery_probe(label: str, issuer: str) -> dict[str, object]:
-    url = endpoint_url(issuer, "/.well-known/openid-configuration")
+def load_json_from_url(url: str) -> dict[str, object] | None:
+    proc = subprocess.run(["curl", "-sS", "--max-time", str(timeout), url], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+    if proc.returncode != 0:
+        return None
+    try:
+        payload = json.loads(proc.stdout.decode("utf-8", "replace"))
+    except json.JSONDecodeError:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def oidc_discovery_probe(issuer_base: str, expected: str) -> dict[str, object]:
+    url = endpoint_url(issuer_base, "/.well-known/openid-configuration")
     result = run_curl(url)
     if not (str(result.get("httpStatus", "")).isdigit() and 200 <= int(str(result["httpStatus"])) < 300):
         body = str(result.get("bodySnippet", "")).lower()
         if "casdoor" in body and "<html" in body:
-            result["diagnosis"] = "casdoor_well_known_served_by_spa"
+            result["diagnosis"] = "sso_well_known_served_by_spa"
             result["recommendation"] = "On the SSO host, proxy location ^~ /.well-known/ to Casdoor before any static root/try_files rule."
-        elif str(result.get("httpStatus")) == "404" and label == "Identity":
-            result["diagnosis"] = "identity_well_known_not_proxied"
-            result["recommendation"] = "On the main host, proxy id.stuhelper.com location ^~ /.well-known/ to the backend."
+        elif str(result.get("httpStatus")) == "404":
+            result["diagnosis"] = "sso_well_known_not_proxied"
+            result["recommendation"] = "On the SSO host, proxy /.well-known/openid-configuration to Casdoor."
         return result
-    try:
-        metadata = json.loads(str(result.get("bodySnippet", "")))
-    except json.JSONDecodeError:
-        # bodySnippet may be truncated. Re-run from the saved curl body is not
-        # available here, so do a small direct fetch without headers for metadata.
-        direct = subprocess.run(
-            ["curl", "-sS", "--max-time", str(timeout), url],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=False,
-        )
-        try:
-            metadata = json.loads(direct.stdout.decode("utf-8", "replace"))
-        except json.JSONDecodeError:
-            result["passed"] = False
-            result["diagnosis"] = "oidc_discovery_invalid_json"
-            result["recommendation"] = "Discovery must return a JSON object, not an SPA/HTML/static fallback."
-            return result
-    expected = trim(issuer)
+
+    metadata = load_json_from_url(url)
+    if metadata is None:
+        result["passed"] = False
+        result["diagnosis"] = "oidc_discovery_invalid_json"
+        result["recommendation"] = "Discovery must return a JSON object, not an SPA/HTML/static fallback."
+        return result
+    expected = trim(expected)
     if metadata.get("issuer") != expected:
         result["passed"] = False
         result["diagnosis"] = "oidc_issuer_mismatch"
         result["expectedIssuer"] = expected
         result["actualIssuer"] = metadata.get("issuer")
-        result["recommendation"] = "Fix issuer/base URL config so discovery issuer exactly matches the public issuer."
+        result["recommendation"] = "Fix Casdoor issuer/base URL config so discovery issuer exactly matches the public issuer."
         return result
     required = ["authorization_endpoint", "token_endpoint", "jwks_uri"]
     missing = [key for key in required if not isinstance(metadata.get(key), str) or not metadata.get(key)]
@@ -525,85 +468,25 @@ def oidc_discovery_probe(label: str, issuer: str) -> dict[str, object]:
         result["passed"] = False
         result["diagnosis"] = "oidc_discovery_missing_fields"
         result["missingFields"] = missing
-        result["recommendation"] = "Ensure the upstream OIDC service is serving complete discovery metadata."
+        result["recommendation"] = "Ensure Casdoor is serving complete OIDC discovery metadata."
     else:
         result["passed"] = True
         result["issuer"] = metadata.get("issuer")
+        result["authorizationEndpoint"] = metadata.get("authorization_endpoint")
+        result["tokenEndpoint"] = metadata.get("token_endpoint")
         result["jwksURI"] = metadata.get("jwks_uri")
     return result
 
 
-def oauth_authorization_server_metadata_probe(issuer: str) -> dict[str, object]:
-    url = endpoint_url(issuer, "/.well-known/oauth-authorization-server")
-    result = run_curl(url)
-    if not (str(result.get("httpStatus", "")).isdigit() and 200 <= int(str(result["httpStatus"])) < 300):
-        if str(result.get("httpStatus")) == "404":
-            result["diagnosis"] = "identity_oauth_as_metadata_not_proxied"
-            result["recommendation"] = "On the main host, proxy id.stuhelper.com location ^~ /.well-known/ to the backend, including /.well-known/oauth-authorization-server."
-        return result
-    try:
-        metadata = json.loads(str(result.get("bodySnippet", "")))
-    except json.JSONDecodeError:
-        direct = subprocess.run(
-            ["curl", "-sS", "--max-time", str(timeout), url],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=False,
-        )
-        try:
-            metadata = json.loads(direct.stdout.decode("utf-8", "replace"))
-        except json.JSONDecodeError:
-            result["passed"] = False
-            result["diagnosis"] = "oauth_as_metadata_invalid_json"
-            result["recommendation"] = "OAuth authorization server metadata must return a JSON object, not an SPA/HTML/static fallback."
-            return result
-    expected = trim(issuer)
-    if metadata.get("issuer") != expected:
-        result["passed"] = False
-        result["diagnosis"] = "oauth_as_issuer_mismatch"
-        result["expectedIssuer"] = expected
-        result["actualIssuer"] = metadata.get("issuer")
-        result["recommendation"] = "Fix issuer/base URL config so OAuth AS metadata issuer exactly matches the public issuer."
-        return result
-    required = [
-        "authorization_endpoint",
-        "token_endpoint",
-        "jwks_uri",
-        "revocation_endpoint",
-        "introspection_endpoint",
-    ]
-    missing = [key for key in required if not isinstance(metadata.get(key), str) or not metadata.get(key)]
-    if missing:
-        result["passed"] = False
-        result["diagnosis"] = "oauth_as_metadata_missing_fields"
-        result["missingFields"] = missing
-        result["recommendation"] = "Ensure StuHelper Identity serves complete RFC 8414 metadata for OAuth2 gateways and resource servers."
-    else:
-        result["passed"] = True
-        result["issuer"] = metadata.get("issuer")
-    return result
-
-
-def jwks_probe(label: str, url: str) -> dict[str, object]:
+def jwks_probe(url: str) -> dict[str, object]:
     result = run_curl(url)
     if not result.get("passed"):
         if str(result.get("httpStatus")) == "404":
-            if label == "Identity":
-                result["diagnosis"] = "identity_jwks_not_proxied"
-                result["recommendation"] = "Proxy id.stuhelper.com location ^~ /.well-known/ to the backend."
-            else:
-                result["diagnosis"] = "casdoor_jwks_not_proxied"
-                result["recommendation"] = "On the SSO host, proxy the Casdoor JWKS path from discovery to Casdoor before any static /.well-known rule."
+            result["diagnosis"] = "sso_jwks_not_proxied"
+            result["recommendation"] = "On the SSO host, proxy the JWKS path from discovery to Casdoor before any static /.well-known rule."
         return result
-    direct = subprocess.run(
-        ["curl", "-sS", "--max-time", str(timeout), url],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
-    try:
-        jwks = json.loads(direct.stdout.decode("utf-8", "replace"))
-    except json.JSONDecodeError:
+    jwks = load_json_from_url(url)
+    if jwks is None:
         result["passed"] = False
         result["diagnosis"] = "jwks_invalid_json"
         result["recommendation"] = "JWKS must return a JSON object with a keys array."
@@ -611,16 +494,29 @@ def jwks_probe(label: str, url: str) -> dict[str, object]:
     if not isinstance(jwks.get("keys"), list):
         result["passed"] = False
         result["diagnosis"] = "jwks_missing_keys"
-        result["recommendation"] = f"{label} JWKS must contain a keys array."
+        result["recommendation"] = "SSO JWKS must contain a keys array."
+    else:
+        result["passed"] = True
+    return result
+
+
+def expected_status_probe(url: str, expected_status: str, diagnosis: str, recommendation: str) -> dict[str, object]:
+    result = run_curl(url)
+    result["expectedStatus"] = expected_status
+    if str(result.get("httpStatus")) == expected_status:
+        result["passed"] = True
+    else:
+        result["passed"] = False
+        result["diagnosis"] = diagnosis
+        result["recommendation"] = recommendation
     return result
 
 
 targets = {
     "web": parse_endpoint(web_public_url),
-    "identity": parse_endpoint(identity_issuer),
+    "sso": parse_endpoint(sso_public_base_url),
+    "legacyId": parse_endpoint(legacy_id_url),
 }
-if casdoor_upstream_enabled:
-    targets["casdoor"] = parse_endpoint(casdoor_issuer)
 
 hosts: dict[str, object] = {}
 for name, target in targets.items():
@@ -636,19 +532,26 @@ for name, target in targets.items():
         "tls": tls_probe(host, port, scheme),
     }
 
-identity_discovery = oidc_discovery_probe("Identity", identity_issuer)
+sso_discovery = oidc_discovery_probe(sso_public_base_url, expected_issuer)
+sso_jwks_url = str(sso_discovery.get("jwksURI") or endpoint_url(sso_public_base_url, "/.well-known/jwks"))
 
 endpoints = {
     "webHealth": run_curl(endpoint_url(web_public_url, "/health/ready")),
-    "identityDiscovery": identity_discovery,
-    "identityAuthorizationServerMetadata": oauth_authorization_server_metadata_probe(identity_issuer),
-    "identityJWKS": jwks_probe("Identity", endpoint_url(identity_issuer, "/.well-known/jwks.json")),
+    "ssoDiscovery": sso_discovery,
+    "ssoJWKS": jwks_probe(sso_jwks_url),
+    "legacyIdRoot404": expected_status_probe(
+        legacy_id_url,
+        "404",
+        "legacy_id_root_not_disabled",
+        "id.stuhelper.com must stay disabled and return 404, not serve account center, Casdoor, or StuHelper Identity.",
+    ),
+    "legacyIdDiscovery404": expected_status_probe(
+        endpoint_url(legacy_id_url, "/.well-known/openid-configuration"),
+        "404",
+        "legacy_id_oidc_discovery_exposed",
+        "id.stuhelper.com must not expose OIDC discovery; SSO discovery belongs on sso.stuhelper.com.",
+    ),
 }
-if casdoor_upstream_enabled:
-    casdoor_discovery = oidc_discovery_probe("Casdoor", casdoor_issuer)
-    casdoor_jwks_url = str(casdoor_discovery.get("jwksURI") or endpoint_url(casdoor_issuer, "/.well-known/jwks"))
-    endpoints["casdoorDiscovery"] = casdoor_discovery
-    endpoints["casdoorJWKS"] = jwks_probe("Casdoor", casdoor_jwks_url)
 
 diagnoses: list[dict[str, str]] = []
 failed = 0
@@ -666,9 +569,7 @@ for group_name, group in (("hosts", hosts), ("endpoints", endpoints)):
         else:
             failed += 1
         for check in checks:
-            if not isinstance(check, dict):
-                continue
-            if check.get("passed"):
+            if not isinstance(check, dict) or check.get("passed"):
                 continue
             diagnosis = check.get("diagnosis")
             if diagnosis:
@@ -683,15 +584,11 @@ for group_name, group in (("hosts", hosts), ("endpoints", endpoints)):
 bundle = {
     "generatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     "passed": failed == 0,
-    "summary": {
-        "passed": passed,
-        "failed": failed,
-        "diagnoses": len(diagnoses),
-    },
+    "summary": {"passed": passed, "failed": failed, "diagnoses": len(diagnoses)},
     "webPublicURL": web_public_url,
-    "identityIssuer": identity_issuer,
-    "casdoorIssuer": casdoor_issuer,
-    "casdoorUpstreamChecked": casdoor_upstream_enabled,
+    "ssoPublicBaseURL": sso_public_base_url,
+    "expectedIssuer": expected_issuer,
+    "legacyIdURL": legacy_id_url,
     "hosts": hosts,
     "endpoints": endpoints,
     "diagnoses": diagnoses,
@@ -707,11 +604,11 @@ if [[ "${evidence_file}" != "-" ]]; then
   trap 'rm -f "${tmp_file}"' EXIT
   printf '%s\n' "${bundle}" >"${tmp_file}"
   install -m 600 "${tmp_file}" "${evidence_file}"
-  log "wrote public identity ingress diagnostic to ${evidence_file}" >&2
+  log "wrote public auth ingress diagnostic to ${evidence_file}" >&2
 fi
 
 printf '%s\n' "${bundle}" | jq .
 
 if [[ "${strict}" == "true" ]] && ! printf '%s\n' "${bundle}" | jq -e '.passed == true' >/dev/null; then
-  die "public identity ingress diagnostic found failing checks"
+  die "public auth ingress diagnostic found failing checks"
 fi

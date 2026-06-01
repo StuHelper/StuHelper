@@ -521,25 +521,31 @@ public_oidc_jwks_uri() {
 
 require_public_identity_ingress_preflight() {
   if [[ "${PUBLIC_INGRESS_PREFLIGHT_ENABLED:-true}" != "true" ]]; then
-    warn "public identity ingress preflight skipped because PUBLIC_INGRESS_PREFLIGHT_ENABLED is not true"
+    warn "public SSO/admission ingress preflight skipped because PUBLIC_INGRESS_PREFLIGHT_ENABLED is not true"
     return 0
   fi
 
-  require_public_dns_resolved "Web" "$(trim_trailing_slash "${WEB_PUBLIC_URL:-}")"
-  require_public_dns_resolved "Identity" "$(trim_trailing_slash "${IDENTITY_ISSUER:-}")"
-  require_public_http_reachable "Web" "$(trim_trailing_slash "${WEB_PUBLIC_URL:-}")"
-  require_public_http_reachable "Identity" "$(trim_trailing_slash "${IDENTITY_ISSUER:-}")"
+  local admission_public_base_url
+  admission_public_base_url="$(trim_trailing_slash "${ADMISSION_PUBLIC_BASE_URL:-}")"
+  local sso_public_base_url
+  sso_public_base_url="$(trim_trailing_slash "${CASDOOR_PUBLIC_AUTH_BASE_URL:-${WEB_VITE_SSO_URL:-${CASDOOR_ISSUER:-}}}")"
 
-  if [[ "${PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED:-false}" == "true" ]]; then
-    require_public_dns_resolved "Casdoor upstream" "$(trim_trailing_slash "${CASDOOR_ISSUER:-}")"
-    require_public_oidc_discovery "Casdoor upstream" "${CASDOOR_ISSUER:-}"
-    local casdoor_jwks_uri
-    if ! casdoor_jwks_uri="$(public_oidc_jwks_uri "${CASDOOR_ISSUER:-}")"; then
-      die "Casdoor upstream JWKS URI preflight failed for ${CASDOOR_ISSUER:-}: discovery did not expose jwks_uri"
+  require_public_dns_resolved "Web" "$(trim_trailing_slash "${WEB_PUBLIC_URL:-}")"
+  require_public_dns_resolved "SSO" "${sso_public_base_url}"
+  require_public_dns_resolved "Admission" "${admission_public_base_url}"
+  require_public_http_reachable "Web" "$(trim_trailing_slash "${WEB_PUBLIC_URL:-}")"
+  require_public_http_reachable "SSO" "${sso_public_base_url}"
+  require_public_http_reachable "Admission" "${admission_public_base_url}/verify/__stuhelper_public_ingress_probe__"
+
+  if [[ "${PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED:-true}" == "true" ]]; then
+    require_public_oidc_discovery "SSO" "${sso_public_base_url}"
+    local sso_jwks_uri
+    if ! sso_jwks_uri="$(public_oidc_jwks_uri "${sso_public_base_url}")"; then
+      die "SSO JWKS URI preflight failed for ${sso_public_base_url}: discovery did not expose jwks_uri"
     fi
-    require_public_jwks "Casdoor upstream" "${casdoor_jwks_uri}"
+    require_public_jwks "SSO" "${sso_jwks_uri}"
   else
-    log "Casdoor upstream public preflight skipped because PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED is not true"
+    log "SSO public OIDC metadata preflight skipped because PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED is not true"
   fi
 }
 

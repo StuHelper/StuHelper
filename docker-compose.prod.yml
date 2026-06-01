@@ -44,6 +44,7 @@ services:
       CASDOOR_INTROSPECTION_CLIENT_SECRET: ${CASDOOR_INTROSPECTION_CLIENT_SECRET:?CASDOOR_INTROSPECTION_CLIENT_SECRET is required}
       CASDOOR_ROLE_SYNC_CLIENT_SECRET: ${CASDOOR_ROLE_SYNC_CLIENT_SECRET:?CASDOOR_ROLE_SYNC_CLIENT_SECRET is required}
       CASDOOR_USER_LOOKUP_CLIENT_SECRET: ${CASDOOR_USER_LOOKUP_CLIENT_SECRET:?CASDOOR_USER_LOOKUP_CLIENT_SECRET is required}
+      AWS_CA_BUNDLE: /minio-tls/ca.crt
       OTEL_ENABLED: "true"
       OTEL_SERVICE_NAME: stuhelper-backend
       OTEL_SERVICE_NAMESPACE: stuhelper
@@ -53,9 +54,10 @@ services:
     volumes:
     - ./infra/generated/postgres:/tls:ro
     - ./infra/generated/redis:/redis-tls:ro
+    - ./infra/generated/minio/ca.crt:/minio-tls/ca.crt:ro
     extra_hosts:
     - "stuhelper.com:host-gateway"
-    - "id.stuhelper.com:host-gateway"
+    - "join.stuhelper.com:host-gateway"
     - "sso.stuhelper.com:host-gateway"
     - "host.docker.internal:host-gateway"
     ports:

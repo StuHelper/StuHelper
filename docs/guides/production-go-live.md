@@ -3,657 +3,351 @@ type: guide
 audience: ops
 status: current
 authoritative-source: docker-compose.prod.yml + infra/ops/*.sh + infra/nginx/baota-stuhelper.conf
-last-verified: 2026-05-24
+last-verified: 2026-05-30
 ---
 
 # 生产上线缺漏清单与执行指导
 
-本文回答一个问题：现在要把 `stuhelper.com` 主站先落地到生产，哪些还缺、哪些仓库已经补齐、每一步怎么做。
+本文用于当前 B/2B 架构的生产上线：本地仓库、部署脚本、配置模板和 runbook 是唯一事实来源；生产环境只做可复现部署、smoke 和日志确认，不把生产手工修改当最终状态。
 
-当前生产入口约定：
+## 当前入口约定
 
-- 公网 `80/443` 只由宝塔 Nginx 监听。
-- Docker Compose 只把业务服务绑定到宿主机回环地址：
-  - backend：`127.0.0.1:18080`
-  - web：`127.0.0.1:18000`
-  - admin：`127.0.0.1:18001`
-- `stuhelper.com` 承载主站、后台和 API；`id.stuhelper.com` 承载个人信息、认证、开发者平台、Open Platform Connect/OIDC 和浏览器登录入口；Casdoor 只作为后端 upstream，不再作为默认公网站点入口。
-- 仓库 Compose 不再启动 Traefik；开发热更新使用 Vite / 后端本机端口，生产公网入口统一由宝塔 Nginx 承担。
+- `stuhelper.com`：主站、后台、API、账号中心、学生认证、QQ 绑定、授权应用和开发者应用。
+- `join.stuhelper.com`：加群验证业务域，唯一公开验证链接是 `https://join.stuhelper.com/verify/<token>?qq=<qq>`。
+- `sso.stuhelper.com`：Casdoor，唯一公开登录认证系统和 OIDC issuer。
+- `id.stuhelper.com`：legacy disabled host，所有路径返回 404；不得提供 discovery、OAuth endpoint、账号中心、登录页或 Casdoor 反代。
 
-## 缺漏清单
+主站生产 Compose 只把业务服务绑定到回环地址，公网 `80/443` 只由宝塔 Nginx 监听。
 
-| 项目 | 当前状态 | 上线前动作 | 是否阻断 |
-|------|----------|------------|----------|
-| 域名 DNS | 仓库不能代配 | `stuhelper.com`、`www.stuhelper.com`、`id.stuhelper.com` A/AAAA 记录指向生产机 | 是 |
-| 宝塔 Nginx 反代 | 仓库已提供 `infra/nginx/baota-stuhelper.conf` 和 `infra/ops/nginx-public-ingress-preflight.sh` | 主站机器合并主站/id 配置并跑 `NGINX_PUBLIC_INGRESS_PROFILE=stuhelper` 审计；证书生效后 reload Nginx | 是 |
-| Docker 生产端口 | 仓库已在 `docker-compose.prod.yml` 绑定 `127.0.0.1:18080/18000/18001` | 保持默认端口，确认防火墙没有把这些端口开放公网 | 是 |
-| 远端 secret backend | 脚本要求生产使用非 file secret backend | 配置 `.deploy/remote.env` 中的 `SECRET_BACKEND=vault-kv-v2`、`VAULT_ADDR`、`VAULT_TOKEN_FILE`、`*_SECRET_REF` | 是 |
-| 生产环境变量 | `.env.prod.example` 已按 `stuhelper.com` 预设主站 URL | 替换所有 `REPLACE_WITH_*` 和镜像占位符；不得提交 `.env.prod.*` | 是 |
-| 公网身份入口 smoke | 发布脚本会执行 `infra/ops/identity-public-smoke.sh` 并写入 `infra/generated/identity-public-smoke-evidence.json` | 验证 `stuhelper.com` health、`id.stuhelper.com` OIDC discovery、OAuth authorization server metadata、JWKS、`id` 入口 Web app 图标与 `site.webmanifest`、OAuth/UserInfo GET/POST 路由、`authorization_code` / `refresh_token` / `client_credentials` grant metadata、`response_modes_supported=query`、token / introspect / revoke endpoint 的 `client_secret_basic` / `client_secret_post` auth metadata、authorize 未登录跳转、`prompt=login&max_age=0` 重新认证跳转、token / introspect / revoke 路由级错误、GET/POST logout、POST logout URL query / JSON body 拒绝、UserInfo URL query / body token 来源拒绝、token/UserInfo/introspection/revoke 响应 `Cache-Control: no-store` 与 `Pragma: no-cache`、401 `WWW-Authenticate` challenge；配置专用 `IDENTITY_PUBLIC_SMOKE_CLIENT_ID` 后还会验证 `prompt=none` 的 `login_required` + `iss` 错误回调；同时配置 client secret 时会实测 `client_credentials` token 签发、携带 `token_type_hint=access_token` 的 introspection / revoke、混用 Basic 与 body client credential 时返回 `invalid_client`、UserInfo 拒绝、Open Platform resource access API 使用 Bearer app-only token 对未授权随机资源返回 `fga_denied` 或对预授权 smoke 资源返回 `allowed`、revoke 后 inactive；只有 `IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED=true` 时才额外检查 Casdoor upstream discovery/JWKS | 是 |
-| 公网身份入口诊断 | 仓库提供 `infra/ops/public-identity-ingress-diagnostic.sh` | 当 smoke 或 preflight 失败时，生成脱敏 `infra/generated/public-identity-ingress-diagnostic.json`，区分 DNS、SNI TLS、`id.stuhelper.com` OIDC discovery / OAuth authorization server metadata / JWKS `.well-known` 反代等问题；Casdoor upstream 诊断只在显式传入目标时作为兼容检查 | 否 |
-| 不可变镜像 | 脚本会拒绝 `latest` / 浮动 tag | 准备 `BACKEND_IMAGE_REF`、`FRONTEND_IMAGE_REF`、`ADMIN_IMAGE_REF`，使用明确 tag 或 digest | 是 |
-| Casdoor upstream | 主站 Compose 不启动生产 Casdoor | 确认主机上的 Casdoor upstream 端口（默认 `127.0.0.1:8087`）可由宝塔 Nginx 的 `id.stuhelper.com` 相关路径反代访问，准备 bootstrap 管理应用凭据和 `stuhelper-identity` 一方应用 client secret | 是 |
-| SMS | 生产强制 `SMS_ENABLED=true` | 配置短信厂商 `SMS_SECRET_ID`、`SMS_SECRET_KEY`、`SMS_APP_ID`、签名、模板 | 是 |
-| Open Platform runtime token 探针 | backend 镜像内置 `/app/casdoor-runtime-token-probe-runner.mjs`，发布 evidence 脚本会执行 Casdoor smoke | 配置低权限 Casdoor 探针账号，保持 `OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED=true`，审批第三方 app 前自动实测 authorization-code token claims | 是 |
-| 对象存储 | 后端生产要求 `OBJECT_STORAGE_USE_SSL=true` | 配置 HTTPS S3 兼容 endpoint、bucket、access key；本仓库未把内置 MinIO 暴露成生产 HTTPS 对象存储入口 | 是 |
-| 备份对象存储 | 发布脚本会拒绝备份对象存储占位符，并在迁移前同步 / 取回验证 pre-deploy backup | 配置 `BACKUP_OBJECT_STORAGE_*`，并确认 `sync-postgres-backups.sh` 能写入 | 是 |
-| PostgreSQL 备份 timer | bootstrap 脚本可安装 | 启用 dump、basebackup、backup sync timer，并完成一次恢复演练 | 是 |
-| 观测与告警 | Compose 已包含 LGTM、Alertmanager、cAdvisor | 配置真实 `ALERTMANAGER_WEBHOOK_URL`，不要用本地 sink；确认 Grafana dashboard 有数据 | 是 |
-| OpenFGA | 发布脚本会执行 migrate + bootstrap | 不手填模型；让 `bootstrap-platform.sh prod` 写入生成配置 | 是 |
-| OpenFGA 资源授权 smoke | 发布 evidence 脚本会执行 `infra/ops/openfga-resource-access-smoke.sh` | 验证 Open Platform app -> resource_item tuple 的 grant / check / list / list-after-revoke / revoke 在真实 OpenFGA store/model 中生效 | 是 |
-| Koishi/NapCat | 不纳入主站 Compose | 如机器人也要一起上线，按 `docs/guides/koishi-development.md` 单独部署并配置 service token | 视上线范围 |
-| 真实教务连接器 / 第三方网盘驱动 | 当前是扩展骨架，不是主站基础链路 | 若本次主站只交付认证、课程评课、用户系统、后台和机器人入口，可暂缓 | 否 |
-
-## 1. 准备生产机器
-
-在部署机上准备仓库目录，例如：
-
-```bash
-cd /opt
-git clone <repo-url> StuHelper
-cd StuHelper
-```
-
-首次初始化 Ubuntu 生产机：
-
-```bash
-sudo bash infra/ops/bootstrap-ubuntu2404.sh
-```
-
-完成后确认：
-
-```bash
-docker version
-docker compose version
-ss -lntp | grep -E ':(80|443|18080|18000|18001|5432|6379)\b' || true
-```
-
-要求：
-
-- 公网安全组只开放 `80`、`443`，SSH 只允许可信 IP。
-- `18080`、`18000`、`18001`、`5432`、`6379`、`9000`、`9001` 只能绑定或访问本机/内网。
-- 承载 Docker volume 的磁盘启用云盘 KMS、主机 LUKS 或等价静态加密。
-
-## 2. 配置 DNS 和证书
-
-DNS：
+默认回环端口：
 
 ```text
-stuhelper.com      A/AAAA -> 主站生产机
-www.stuhelper.com  A/AAAA -> 主站生产机
-id.stuhelper.com   A/AAAA -> 主站生产机
+backend 127.0.0.1:18080
+web     127.0.0.1:18000
+admin   127.0.0.1:18001
 ```
 
-宝塔中为 `stuhelper.com` 建站，并把 `www.stuhelper.com` 加入同一站点。证书可以用宝塔 Let's Encrypt，也可以上传已有证书。
+## 上线前阻断项
 
-证书生效后先确认：
+| 项目 | 要求 |
+|------|------|
+| DNS | `stuhelper.com`、`www.stuhelper.com`、`join.stuhelper.com`、`sso.stuhelper.com` 指向对应公网入口；`id.stuhelper.com` 可解析到主站入口但必须 404 |
+| 宝塔 Nginx | 主站机合并 `infra/nginx/baota-stuhelper.conf`；Casdoor 入口按 `infra/nginx/baota-casdoor-sso.conf` 或等价配置反代 |
+| 生产 env | 使用 `infra/ops/init-prod-env.sh` 生成模板，替换占位符；不得提交真实 `.env.prod.*` |
+| Secret backend | 生产使用非 repo 的 secret backend；真实 token、密码、对象存储密钥不写入仓库 |
+| PostgreSQL / Redis | 生产 PostgreSQL TLS 默认开启；Redis 使用 StuHelper 独立实例，不复用全局 Redis |
+| 对象存储与备份 | 配置 HTTPS S3 兼容对象存储和备份对象存储，至少完成一次取回校验 |
+| Admission 数据 | `admission-bootstrap-production-data.sh` 可重复执行并准备 BUAA 和目标 QQ 群策略 |
+| Koishi/NapCat | 独立节点部署，插件包来自本地当前代码构建产物，不在生产 `node_modules` 手改源码 |
 
-```bash
-curl -I https://stuhelper.com
-curl -fsS https://id.stuhelper.com/.well-known/openid-configuration | head
-```
+## 生产环境核心变量
 
-此时主站应用还没启动，`stuhelper.com` 可以暂时不是 200；但 TLS 握手和证书链必须正常。
-
-## 3. 应用宝塔 Nginx 反代
-
-把 `infra/nginx/baota-stuhelper.conf` 的三个 server block 合并到宝塔站点配置。反代目标必须保持：
-
-```text
-/api/*      -> http://127.0.0.1:18080
-/health/*   -> http://127.0.0.1:18080
-/metrics    -> http://127.0.0.1:18080
-/docs/*     -> http://127.0.0.1:18080
-/admin/*    -> http://127.0.0.1:18001
-/           -> http://127.0.0.1:18000
-
-id.stuhelper.com /.well-known/* -> http://127.0.0.1:18080
-id.stuhelper.com /oauth2/*      -> http://127.0.0.1:18080
-id.stuhelper.com /oidc/*        -> http://127.0.0.1:18080
-id.stuhelper.com /api/*         -> http://127.0.0.1:18080
-id.stuhelper.com /identity /account/profile /account/security /connect /login /consent /complete-profile /assets/* -> http://127.0.0.1:18000
-id.stuhelper.com /api/v1/*       -> http://127.0.0.1:18080
-id.stuhelper.com /login/oauth/*  -> http://127.0.0.1:8087
-id.stuhelper.com /signup/oauth/* -> http://127.0.0.1:8087
-id.stuhelper.com /api/*          -> http://127.0.0.1:8087
-id.stuhelper.com /static/* /img/* /buttons/* /flag-icons/* /web/* /mfa/* /account /signup /forget
-                                  -> http://127.0.0.1:8087
-id.stuhelper.com /identity /account/profile /account/security /connect /login /auth/callback /consent /complete-profile /developers/* /user/authorized-apps /user/identity-verification /user/student-verification /user/phone-binding /user/qq-binding /user/academic-info /assets/*
-                                  -> http://127.0.0.1:18000
-id.stuhelper.com /               -> 302 /identity
-id.stuhelper.com other main-site paths -> 302 https://stuhelper.com$request_uri
-```
-
-主站 `stuhelper.com` 上的身份类浏览器路径必须 302 到 `id.stuhelper.com`，包括 `/identity`、`/account/profile`、`/account/security`、`/connect`、`/login`、`/auth/callback`、`/consent`、`/complete-profile`、`/developers/*`、`/user/authorized-apps`、实名/学生认证、手机/QQ 绑定和学籍信息。这样浏览器对外只看到 `id.stuhelper.com` 作为身份、授权与开发者平台站点。
-
-宝塔面板保存后执行 Nginx 配置测试和 reload。命令路径随宝塔安装方式可能不同；至少要在面板里看到 Nginx 测试通过。当前 Casdoor upstream 现场端口是 `127.0.0.1:8087`，仓库模板也按该端口给出 upstream；如果实际监听其他端口，需要在合并模板时同步替换相关 `proxy_pass`。
-
-保存配置并 reload 前，先在对应机器审计实际 Nginx 配置。默认读取 `nginx -T` 输出；如果宝塔机器只能导出单个配置文件，可用 `NGINX_PUBLIC_INGRESS_CONFIG_FILE=/path/to/nginx.conf` 指定离线文件。
-
-主站生产机：
-
-```bash
-NGINX_PUBLIC_INGRESS_PROFILE=stuhelper ./infra/ops/nginx-public-ingress-preflight.sh
-```
-
-应用未启动前，`127.0.0.1:18080/18000/18001` 连接失败是正常的；Nginx 本身不能报配置语法错误。
-
-## 4. 准备远端部署控制面
-
-在生产机仓库目录执行：
-
-```bash
-./infra/ops/init-remote-deploy-config.sh
-chmod 600 .deploy/remote.env
-```
-
-编辑 `.deploy/remote.env`，至少填实：
-
-```bash
-REGISTRY=<registry-host>
-REGISTRY_USERNAME_SECRET_REF=secret/stuhelper/prod/registry-username
-REGISTRY_PASSWORD_SECRET_REF=secret/stuhelper/prod/registry-password
-
-ENV_FILE=/opt/StuHelper/.env.prod.shared
-SECRETS_ENV_FILE=/opt/StuHelper/.env.prod.secrets
-GENERATED_ENV_FILE=/opt/StuHelper/.env.prod.generated
-GENERATED_SECRET_ENV_FILE=/opt/StuHelper/.env.prod.generated.secrets
-
-SECRET_BACKEND=vault-kv-v2
-SHARED_ENV_SECRET_REF=secret/stuhelper/prod/shared-env
-SECRETS_ENV_SECRET_REF=secret/stuhelper/prod/secrets-env
-GENERATED_ENV_SECRET_REF=secret/stuhelper/prod/generated-secrets-env
-VAULT_ADDR=https://<vault-host>
-VAULT_TOKEN_FILE=/opt/StuHelper/.secrets/vault/token
-VAULT_KV_MOUNT=secret
-```
-
-生产发布脚本会拒绝 `SECRET_BACKEND=none`、空 secret backend、以及 `SECRET_BACKEND=file`。这是硬门禁：运行时派生 secret 不能靠本地明文文件长期保存。
-
-## 5. 生成并填写生产环境变量
-
-先生成 skeleton：
-
-```bash
-ENV_FILE=.env.prod.shared \
-SECRETS_ENV_FILE=.env.prod.secrets \
-GENERATED_ENV_FILE=.env.prod.generated \
-GENERATED_SECRET_ENV_FILE=.env.prod.generated.secrets \
-./infra/ops/init-prod-env.sh
-```
-
-然后填写 `.env.prod.shared` 和 `.env.prod.secrets` 中的占位符。核心项：
-
-```bash
-CORS_ORIGINS=https://stuhelper.com,https://id.stuhelper.com
+```env
 WEB_PUBLIC_URL=https://stuhelper.com
 ADMIN_PUBLIC_URL=https://stuhelper.com/admin/
-PUBLIC_INGRESS_CONFIG_PREFLIGHT_ENABLED=true
-NGINX_PUBLIC_INGRESS_PROFILE=stuhelper
-NGINX_PUBLIC_INGRESS_CONFIG_FILE=
-PUBLIC_INGRESS_PREFLIGHT_ENABLED=true
-PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED=false
-PUBLIC_INGRESS_PREFLIGHT_TIMEOUT_SECONDS=10
-PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_TIMEOUT=10
-PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_FILE=infra/generated/public-identity-ingress-diagnostic.json
-PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_STRICT=false
-PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_PUBLIC_DNS_ENABLED=true
-PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_USE_ENV_TARGETS=false
-PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_CASDOOR_UPSTREAM_ENABLED=false
-IDENTITY_PUBLIC_SMOKE_ENABLED=true
-IDENTITY_PUBLIC_SMOKE_BOOTSTRAP_ENABLED=false
-IDENTITY_PUBLIC_SMOKE_BOOTSTRAP_MODE=container
-IDENTITY_PUBLIC_SMOKE_OWNER_USER_ID=
-IDENTITY_PUBLIC_SMOKE_REVIEWER_USER_ID=
-IDENTITY_PUBLIC_SMOKE_HOMEPAGE_URL=https://stuhelper.com
-IDENTITY_PUBLIC_SMOKE_PRIVACY_POLICY_URL=https://stuhelper.com/privacy
-IDENTITY_PUBLIC_SMOKE_CLIENT_ID=
-IDENTITY_PUBLIC_SMOKE_REDIRECT_URI=
-IDENTITY_PUBLIC_SMOKE_SCOPE=openid
-IDENTITY_PUBLIC_SMOKE_CLIENT_SECRET=
-IDENTITY_PUBLIC_SMOKE_CLIENT_CREDENTIALS_SCOPE=resource.read
-IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_RESOURCE_TYPE=resource_item
-IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_RESOURCE_ID=
-IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_ACTION=
-IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_EXPECT_ALLOWED=false
-IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=false
-IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED=false
-WEB_VITE_API_URL=/api
-WEB_VITE_SSO_URL=https://id.stuhelper.com
-WEB_VITE_IDENTITY_URL=https://id.stuhelper.com
+ADMISSION_PUBLIC_BASE_URL=https://join.stuhelper.com
 WEB_VITE_WEB_URL=https://stuhelper.com
-ADMIN_VITE_API_URL=/api/v1
-ADMIN_VITE_BASE=/admin/
-IDENTITY_ISSUER=https://id.stuhelper.com
-IDENTITY_REFRESH_TOKEN_TTL=2592000
+WEB_VITE_SSO_URL=https://sso.stuhelper.com
+WEB_VITE_IDENTITY_URL=
+
+IDENTITY_SERVER_ENABLED=false
+IDENTITY_ISSUER=
+IDENTITY_PUBLIC_SMOKE_ENABLED=false
+SSO_PUBLIC_SMOKE_ENABLED=true
+
+CASDOOR_ISSUER=https://sso.stuhelper.com
+CASDOOR_PUBLIC_AUTH_BASE_URL=https://sso.stuhelper.com
+CASDOOR_REDIRECT_URI=https://stuhelper.com/api/v1/auth/callback
+CASDOOR_ADMIN_REDIRECT_URI=https://stuhelper.com/api/v1/auth/callback
+CASDOOR_UNIAPP_REDIRECT_URI=https://stuhelper.com/api/v1/auth/callback
+
+CORS_ORIGINS=https://stuhelper.com,https://join.stuhelper.com,https://sso.stuhelper.com
 TOKEN_COOKIE_SECURE=true
 TOKEN_COOKIE_DOMAIN=.stuhelper.com
 
-CASDOOR_ISSUER=https://sso.stuhelper.com
-CASDOOR_PUBLIC_AUTH_BASE_URL=https://id.stuhelper.com
-CASDOOR_REDIRECT_URI=https://id.stuhelper.com/api/v1/auth/callback
-CASDOOR_ADMIN_REDIRECT_URI=https://id.stuhelper.com/api/v1/auth/callback
-CASDOOR_UNIAPP_REDIRECT_URI=https://id.stuhelper.com/api/v1/auth/callback
-CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID=casdoor-token-probe-smoke
-CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_SECRET=<generated-or-secret-backend-value>
-CASDOOR_TOKEN_PROBE_SMOKE_APPLICATION=casdoor-token-probe-smoke
-CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI=https://stuhelper.com/open-platform/token-probe/callback
+ADMISSION_PRODUCTION_READINESS_ENABLED=true
+ADMISSION_READINESS_REQUIRED_PLATFORM=qq
+ADMISSION_READINESS_REQUIRED_GUILD_IDS=178037297
+ADMISSION_READINESS_REQUIRED_SCHOOL_CODES=4111010006
+ADMISSION_READINESS_REQUIRED_SCHOOL_IDS=
+ADMISSION_READINESS_REQUIRED_BOT_CREDENTIAL_NAME=koishi-runtime
+ADMISSION_READINESS_REQUIRED_BOT_CREDENTIAL_AUDIENCE=/api/v1/bot/*
+ADMISSION_READINESS_REQUIRED_BOT_CREDENTIAL_SCOPES=bot.qq_binding.consume,bot.qq_verification.read,bot.admission.session,bot.admission.event,bot.admission.review,bot.admission.forward,bot.member_blacklist.read,bot.member_blacklist.manage
+ADMISSION_PUBLIC_SMOKE_ENABLED=true
+ADMISSION_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=false
+ADMISSION_PUBLIC_SMOKE_CURL_INSECURE=false
+ADMISSION_PUBLIC_SMOKE_DISABLED_ID_URL=https://id.stuhelper.com
+PUBLIC_WEB_AUTH_BROWSER_SMOKE_ENABLED=true
+PUBLIC_WEB_AUTH_BROWSER_SMOKE_DISABLED_ID_URL=https://id.stuhelper.com
+PUBLIC_WEB_AUTH_BROWSER_SMOKE_ALLOW_LOCAL_TARGETS=false
 
-OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED=true
-OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND=/app/casdoor-runtime-token-probe-runner.mjs
-OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_TIMEOUT_SECONDS=30
-OPEN_PLATFORM_PRODUCTION_EVIDENCE_ALLOW_LOCAL_TARGETS=false
-CASDOOR_TOKEN_PROBE_USERNAME=<low-privilege-casdoor-probe-user>
-CASDOOR_TOKEN_PROBE_PASSWORD=<probe-user-password>
-CASDOOR_TOKEN_PROBE_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium-browser
-CASDOOR_TOKEN_PROBE_BROWSER_NO_SANDBOX=true
-
-OPENFGA_RESOURCE_SMOKE_MODE=container
-
-BACKEND_EXTERNAL_PORT=18080
-WEB_EXTERNAL_PORT=18000
-ADMIN_EXTERNAL_PORT=18001
+STUHELPER_FRESHMAN_MATERIAL_HOSTS=stuhelper.com,join.stuhelper.com
 ```
 
-`id.stuhelper.com` 的 `/login` 页面会复用主站后端会话。`CASDOOR_REDIRECT_URI` 固定回到 `id.stuhelper.com/api/v1/auth/callback`，生产必须设置 `TOKEN_COOKIE_DOMAIN=.stuhelper.com`，否则浏览器在主站和 `id` 之间切换时不会携带登录 cookie，第三方授权会进入重复登录。
+Koishi 独立节点必须注入：
 
-必须替换的外部依赖：
+```env
+STUHELPER_PLATFORM_BASE_URL=https://stuhelper.com
+STUHELPER_PLATFORM_SERVICE_TOKEN=<redacted>
+STUHELPER_FRESHMAN_MATERIAL_HOSTS=stuhelper.com,join.stuhelper.com
+```
 
-- `CASDOOR_CLIENT_ID` / `CASDOOR_CLIENT_SECRET`
-- `CASDOOR_ADMIN_CLIENT_SECRET`
-- `CASDOOR_UNIAPP_CLIENT_SECRET` / `CASDOOR_UNIAPP_REDIRECT_URI`
-- `CASDOOR_APP_PROVISIONING_*`
-- `CASDOOR_INTROSPECTION_*`
-- `CASDOOR_ROLE_SYNC_*`
-- `CASDOOR_USER_LOOKUP_*`
-- `CASDOOR_TOKEN_PROBE_SMOKE_*`
-- `OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND`
-- `CASDOOR_TOKEN_PROBE_USERNAME` / `CASDOOR_TOKEN_PROBE_PASSWORD`
-- `IDENTITY_SIGNING_PRIVATE_KEY_PEM`
-- `SMS_*`
-- `OBJECT_STORAGE_*`
-- `BACKUP_OBJECT_STORAGE_*`
-- `GRAFANA_ROOT_URL`
-- `ALERTMANAGER_WEBHOOK_URL`
-- `BACKEND_IMAGE_REF` / `FRONTEND_IMAGE_REF` / `ADMIN_IMAGE_REF`
+`STUHELPER_PLATFORM_SERVICE_TOKEN` 的值必须对应后端 `BOT_SERVICE_TOKEN` bootstrap 出来的 bot service credential。不要把真实值写入 runbook、脚本或 git。
 
-不要手动填：
+## Nginx 入口契约
 
-- `OPENFGA_STORE_ID`
-- `OPENFGA_MODEL_ID`
+主站入口：
 
-它们由 `bootstrap-platform.sh prod` 在发布时写入生成配置。
+```text
+stuhelper.com /api/*      -> http://127.0.0.1:18080
+stuhelper.com /health/*   -> http://127.0.0.1:18080
+stuhelper.com /admin/*    -> http://127.0.0.1:18001
+stuhelper.com /verify     -> 404
+stuhelper.com /verify/*   -> 404
+stuhelper.com /*          -> http://127.0.0.1:18000
+```
 
-Open Platform runtime token 探针要求：
+Join 入口：
 
-- 探针账号必须是专用低权限 Casdoor 用户，不授予后台管理员、平台运维或业务管理角色。
-- 探针账号需要能完成普通网页登录；如果生产 Casdoor 对所有用户强制 MFA，要为该账号配置可自动化的专用测试认证策略，或改用等价的自定义 `OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND`。
-- `bootstrap-platform.sh prod` 会创建 / 更新专用 `CASDOOR_TOKEN_PROBE_SMOKE_APPLICATION`，显式设置空 `TokenFields`；`prod-deploy.sh` 在启动 backend/frontend/admin 前会运行 `infra/ops/open-platform-production-evidence.sh`，用该 app 实跑 authorization-code token 最小化验证，并同步验证 OpenFGA resource smoke。
-- 内置 runner 只请求 `scope=openid`，通过 Playwright 完成 authorization-code + PKCE 登录，解码 `id_token` 和 JWT `access_token` 的 claim key，发现手机号、学生认证、学校、身份类型等业务 claim 时审批失败。
-- backend 镜像已经包含 Node、Playwright Core、Chromium 和 `/app/casdoor-runtime-token-probe-runner.mjs`；生产样例默认 `CASDOOR_TOKEN_PROBE_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium-browser`。
-- 如 Casdoor 登录页定制导致默认 selector 失效，可设置 `CASDOOR_TOKEN_PROBE_USERNAME_SELECTOR`、`CASDOOR_TOKEN_PROBE_PASSWORD_SELECTOR`、`CASDOOR_TOKEN_PROBE_SUBMIT_SELECTOR`、`CASDOOR_TOKEN_PROBE_CONSENT_SELECTOR`。
-- 生产 OpenFGA resource smoke 默认用 `OPENFGA_RESOURCE_SMOKE_MODE=container`，确保 `OPENFGA_API_URL=http://openfga:8080` 在 Docker backend 网络内解析；开发环境默认 `host`，初始使用 `http://localhost:8081`，若该端口被 prod-parity 或本机其他服务占用，`make dev-up` 会自动写回可用的 `OPENFGA_HTTP_EXTERNAL_PORT` 和 `OPENFGA_API_URL`。
+```text
+join.stuhelper.com /verify/<token>?qq=<qq> -> http://127.0.0.1:18000
+join.stuhelper.com /verify                 -> 404
+join.stuhelper.com /api/*                  -> http://127.0.0.1:18080
+join.stuhelper.com /health/*               -> http://127.0.0.1:18080
+```
 
-## 6. 写入 secret backend
+SSO 入口：
 
-如果使用 Vault KV v2，建议把 shared env、secrets env、registry 凭据分别写入独立 secret：
+```text
+sso.stuhelper.com /.well-known/openid-configuration -> Casdoor
+sso.stuhelper.com /.well-known/jwks                 -> Casdoor
+sso.stuhelper.com /login/*                          -> Casdoor
+sso.stuhelper.com /api/*                            -> Casdoor
+```
+
+Legacy ID：
+
+```text
+id.stuhelper.com /* -> 404
+```
+
+执行审计：
 
 ```bash
-vault kv put secret/stuhelper/prod/shared-env value=@.env.prod.shared
-vault kv put secret/stuhelper/prod/secrets-env value=@.env.prod.secrets
-vault kv put secret/stuhelper/prod/generated-secrets-env value=''
-vault kv put secret/stuhelper/prod/registry-username value='<registry-user>'
-vault kv put secret/stuhelper/prod/registry-password value='<registry-password>'
+NGINX_PUBLIC_INGRESS_PROFILE=stuhelper ./infra/ops/nginx-public-ingress-preflight.sh
+NGINX_PUBLIC_INGRESS_PROFILE=sso ./infra/ops/nginx-public-ingress-preflight.sh
 ```
 
-运行时生成的 `generated-secrets-env` 初始可以为空，但 `GENERATED_ENV_SECRET_REF` 必须能被当前 token 读写。发布脚本会在 bootstrap 后写入真实派生配置。
-
-生产机本地的 `.env.prod.generated.secrets` 只保留空占位文件，不作为真实 secret 来源。
-
-## 7. 配置对象存储与备份
-
-后端生产校验要求：
+应用或恢复宝塔 vhost 模板：
 
 ```bash
-OBJECT_STORAGE_USE_SSL=true
+# 默认只 dry-run，不写文件
+./infra/ops/apply-baota-nginx-templates.sh --profile all
+
+# 主站和 SSO 同机时可一次应用；脚本会先备份目标文件，再 nginx -t，最后按需 reload
+sudo ./infra/ops/apply-baota-nginx-templates.sh --profile all --apply --reload --preflight
+
+# 如果宝塔面板重写了 sso.stuhelper.com.conf，导致 discovery 变成 404，优先只恢复 SSO vhost
+sudo ./infra/ops/apply-baota-nginx-templates.sh --profile sso --apply --reload --preflight
+./infra/ops/sso-public-smoke.sh
 ```
 
-因此生产对象存储必须是 HTTPS S3 兼容 endpoint，例如云厂商 OSS/COS/S3，或你自己暴露了 HTTPS 的 MinIO endpoint。
+注意：`apply-baota-nginx-templates.sh` 是仓库事实来源的一部分，生产不应直接手改 vhost 后停留在漂移状态。`--profile sso` 会同时安装 `infra/nginx/baota-casdoor-sso.conf` 和 `infra/nginx/baota-casdoor-sso-well-known-extension.conf`。后者目标路径是宝塔扩展目录 `/www/server/panel/vhost/nginx/extension/sso.stuhelper.com/stuhelper-sso-well-known.conf`，用于在宝塔重写主 vhost 但保留 extension include 时继续让 OIDC discovery/JWKS 走 Casdoor。如果主站和 SSO 不在同一台机器，只在对应机器执行对应 profile；不要把另一台机器的 vhost 目标路径作为临时手改。宝塔面板保存站点配置后可能重写 vhost。若 `sso-public-smoke.sh` 报 discovery 404，先用上面的 `--profile sso` 恢复，再审计 `NGINX_PUBLIC_INGRESS_PROFILE=sso ./infra/ops/nginx-public-ingress-preflight.sh`。
 
-示例：
+## Admission 生产数据
+
+幂等准备：
 
 ```bash
-OBJECT_STORAGE_ENDPOINT=https://s3.example.com
-OBJECT_STORAGE_BUCKET=stuhelper-identity
-OBJECT_STORAGE_ACCESS_KEY_ID=<access-key>
-OBJECT_STORAGE_SECRET_ACCESS_KEY=<secret-key>
-OBJECT_STORAGE_USE_SSL=true
-OBJECT_STORAGE_FORCE_PATH_STYLE=false
-
-BACKUP_OBJECT_STORAGE_ENDPOINT=https://s3.example.com
-BACKUP_OBJECT_STORAGE_BUCKET=stuhelper-postgres-backup
-BACKUP_OBJECT_STORAGE_PREFIX=postgres
-BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID=<backup-access-key>
-BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY=<backup-secret-key>
-BACKUP_OBJECT_STORAGE_TLS_INSECURE=false
+./infra/ops/admission-bootstrap-production-data.sh
+./infra/ops/admission-production-readiness.sh
 ```
 
-注意：仓库内 Compose 的 `minio` 服务默认只绑定本机 HTTP 端口，不能直接满足生产 `OBJECT_STORAGE_USE_SSL=true` 的外部访问要求。除非你额外给 MinIO 配好 HTTPS 公网或内网入口，否则不要把 `OBJECT_STORAGE_ENDPOINT` 指向 `http://minio:9000`。
+验收条件：学校目录中存在 `code=4111010006` 的北京航空航天大学；当前 admission 白名单只通过 `school_configs.enabled=true` 开放该校，对外、前端表单和运维检查使用学校代码 `4111010006`，内部 `school_id=10006` 只是数据库外键。公开学生认证、admission 邮箱 OTP、新生材料申请和学校 SSO 路径都应以 `schoolCode` 为主识别字段。`manual_form_fields.admission.emailDomains` 只有 `buaa.edu.cn`，且 `emailIdentityPolicy.type=academic_student_email`。`group_admission_policies` 至少包含 `platform=qq, guild_id=178037297, forward_raw_material_to_qq=false`，除非对象存储公开材料下载链路已完成并单独验收。手机拍照接力桌面端优先使用 `/api/v1/admission/freshman/camera-handoffs/{id}/events` SSE 获取实时状态，失败时才回退短轮询；上传后 continuation 必须锁定另一端，防止重复提交。`bot_service_credentials` 中存在 `koishi-runtime`，未吊销、未过期，audience 包含 `/api/v1/bot/*`，scopes 覆盖 QQ 绑定、admission session/event/review/forward 和 member blacklist。
 
-安装并启用备份 timer：
+## Koishi Admission MVP 配置
+
+生产 `stuhelper-group-guard` 的 admission 配置必须限制职责边界：
+
+```yaml
+stuhelper-group-guard:admission:
+  platform:
+    baseUrl: ${{ env.STUHELPER_PLATFORM_BASE_URL }}
+    serviceToken: ${{ env.STUHELPER_PLATFORM_SERVICE_TOKEN }}
+  guard:
+    targetGroups:
+      - '178037297'
+  commands:
+    enabled: false
+  admissionCommands:
+    enabled: true
+    minAuthority: 4
+  moderation:
+    enabled: false
+  freshmanForward:
+    enabled: false
+```
+
+约束：生产 NapCat / OneBot runtime platform 可以是 `onebot`；后端 admission policy/session/action 的 subject platform 仍是 `qq`。禁言、踢人、发消息使用当前 Koishi runtime bot，不切换适配器。`student-query.enableGroupVerify` 不因 admission 上线被整体关闭；冲突应通过新插件 `commands.enabled=false`、`moderation.enabled=false` 和旧插件自己的目标群范围处理。`admissionCommands.enabled=true` 只保留入群认证管理员命令，用于“查询入群认证 / 重发认证链接 / 重新生成认证链接”。当前 MVP 默认关闭 `freshmanForward.enabled`，避免未启用材料转发时每分钟请求 `/api/v1/bot/admission/freshman/applications/pending-forward` 并报错。
+
+部署包必须从本地当前代码构建：
 
 ```bash
-sudo ./infra/ops/install-backup-timers.sh
-systemctl list-timers | grep stuhelper-postgres
+./infra/ops/package-koishi-stuhelper-packages.sh
 ```
 
-上线前至少做一次恢复链路验证：
+若宝塔 Compose 环境只能手工覆盖包，也必须记录包 sha256、覆盖路径和重启步骤；源码修复必须回写到仓库。
 
-```bash
-./infra/ops/fetch-postgres-backups.sh all
-```
+## 发布流程
 
-如果目标环境还没有历史备份，第一次发布前 `remote-preflight.sh` 会允许目录为空，但备份 timer、连接串和对象存储配置必须齐。
+1. 在本地确认工作树中要发布的代码脚本模板和 runbook 已完整。
+2. 生成并填写生产 env，不提交真实 secret：
 
-## 8. 准备不可变镜像
+   ```bash
+   ENV_FILE=.env.prod.shared \
+   SECRETS_ENV_FILE=.env.prod.secrets \
+   GENERATED_ENV_FILE=.env.prod.generated \
+   GENERATED_SECRET_ENV_FILE=.env.prod.generated.secrets \
+   ./infra/ops/init-prod-env.sh
+   ```
 
-生产镜像不能使用 `latest`、`main`、`master`、`develop-latest`、`ci-*` 这类浮动 tag。
+3. 本地执行契约和构建验证：
 
-推荐使用 digest：
+   ```bash
+   make check-admission-mvp
+   make check-infra-contracts
+   cd server && make test && make build
+   cd clients && pnpm type-check:all && pnpm build:web && pnpm build:admin
+   cd bots/koishi && corepack yarn test && corepack yarn build
+   ```
 
-```bash
-BACKEND_IMAGE_REF=registry.example.com/stuhelper/backend@sha256:<digest>
-FRONTEND_IMAGE_REF=registry.example.com/stuhelper/frontend@sha256:<digest>
-ADMIN_IMAGE_REF=registry.example.com/stuhelper/admin@sha256:<digest>
-```
+4. 远端发布：
 
-也可以使用明确发布 tag：
+   ```bash
+   ./infra/ops/remote-prod-deploy.sh
+   ```
 
-```bash
-BACKEND_IMAGE_REF=registry.example.com/stuhelper/backend:2026-05-09-<sha>
-FRONTEND_IMAGE_REF=registry.example.com/stuhelper/frontend:2026-05-09-<sha>
-ADMIN_IMAGE_REF=registry.example.com/stuhelper/admin:2026-05-09-<sha>
-```
+   或在生产机已加载 `.deploy/remote.env` 后：
 
-## 9. 执行发布前预检
+   ```bash
+   make prod-deploy
+   ```
 
-在生产机执行：
+5. 发布后执行 smoke 和日志确认。
 
-```bash
-./infra/ops/remote-preflight.sh
-```
+## 发布后 smoke
 
-预检会检查：
-
-- Docker / Compose 可用
-- 生产 PostgreSQL TLS 配置默认强制启用：`POSTGRES_ENABLE_SSL=on`、`POSTGRES_INTERNAL_SSL_MODE=verify-full`（最低必须为 `verify-ca`）、`DB_SSL_MODE=verify-full`，并且三个 PostgreSQL URL 都带 `sslrootcert`。如果目标机器复用已有宝塔 Postgres 且该服务未启用 TLS，必须显式设置 `EXTERNAL_POSTGRES_ENABLED=true`、`EXTERNAL_DATASTORE_NETWORK=baota_net`、`EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true`，发布前先在外部 Postgres 中为 StuHelper / OpenFGA 创建独立数据库和独立账号，并把旧 StuHelper 专用 Postgres 中的 `stuhelper` / `openfga` 数据迁移到外部 Postgres。Redis 不复用全局实例，仍由 StuHelper Compose 以独立实例运行。
-- 本机宝塔 Nginx 主站/id 入口配置满足反代契约：`stuhelper.com`、`www.stuhelper.com`、`id.stuhelper.com` 均有 HTTPS server block，主站 `/api/`、`/health/`、`/admin/` 和 `/` 代理到约定的回环端口，主站身份类浏览器路径 302 到 `id.stuhelper.com`；`id.stuhelper.com/` 302 到身份中心，`id.stuhelper.com` 的非身份主站路径 302 回 `stuhelper.com` 同路径，`/.well-known/`、`/oauth2/`、`/oidc/`、`/api/v1/` 代理到 backend，`/login/oauth/`、`/signup/oauth/`、Casdoor `/api/` 和静态资源代理到 Casdoor upstream，`/identity`、`/account/profile`、`/account/security`、`/connect`、`/login`、`/auth/callback`、`/consent`、`/complete-profile`、`/developers/*`、用户授权/认证/绑定/学籍页及 `/assets/` 代理到 web 前端
-- 公网身份入口公共 DNS / TLS / OIDC 可用：`stuhelper.com`、`id.stuhelper.com` 在公共 DNS-over-HTTPS 中有公网 A/AAAA，`stuhelper.com`、`id.stuhelper.com` TLS 可达；只有 `PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED=true` 时才额外要求 Casdoor upstream 的公网 discovery/JWKS
-- PostgreSQL 备份工具可用
-- secret backend 配置可用
-- 备份 timer 已安装且启用
-- `BACKUP_DATABASE_URL` / `REPLICATION_DATABASE_URL` 可连接
-- 恢复工具 `pg_restore` 可用
-- 备份目录可写
-
-预检失败时不要继续发布。先修具体错误，再重跑。
-
-## 10. 发布
-
-远端生产发布入口：
-
-```bash
-./infra/ops/remote-prod-deploy.sh
-```
-
-如果你是在生产机上手工执行且已经本地登录 registry，也可以：
-
-```bash
-set -a
-source .deploy/remote.env
-set +a
-make prod-deploy
-```
-
-不要在没有加载 `.deploy/remote.env` 的情况下直接执行 `make prod-deploy`，否则它会按本地生产演练路径读取 `.env.prod.secrets.local`。
-
-发布脚本会按顺序执行：
-
-1. 读取远端部署控制面和 secret backend
-2. 校验生产必填配置、占位符、不可变镜像、PostgreSQL TLS/Redis TLS（或显式外部明文 PostgreSQL 例外）/SMS/OTEL/Open Platform runtime token 探针门禁，并在拉镜像前审计本机宝塔 Nginx 主站/id 配置、验证 `stuhelper.com` / `id.stuhelper.com` 公共 DNS 与 TLS、`id.stuhelper.com` OIDC 元数据；远端部署 bundle 必须已经由干净 Git 工作区打包，不能包含未提交改动
-3. 渲染 PostgreSQL TLS、Redis ACL、观测配置；启用外部明文 PostgreSQL 例外时只跳过 StuHelper 内部 PostgreSQL TLS 渲染，Redis ACL 仍始终渲染
-4. 拉取 backend / frontend / admin 镜像
-5. 启动 StuHelper 独立 Redis、MinIO、观测栈，并在未启用外部 PostgreSQL 时启动 StuHelper 内部 PostgreSQL
-6. 创建发布前逻辑备份
-7. 同步 pre-deploy 逻辑备份到对象存储，并执行 `postgres-backup-evidence.sh` 证明本地备份和取回备份 sha256 均匹配
-8. 执行数据库迁移和 OpenFGA migrate
-9. bootstrap Casdoor 应用、角色、provider 与 OpenFGA 配置
-10. 执行 Open Platform 生产准入 evidence smokes，验证 Casdoor token `businessClaims=[]` 和 OpenFGA app -> resource tuple 的 grant / check / list / list-after-revoke / revoke
-11. 启动 app、frontend、admin
-12. 执行公网身份入口 smoke、业务 smoke check 和 strict observability smoke check
-13. 写入 `.deploy/releases.log`
-
-## 11. 验证
-
-容器和本机端口：
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.observability.yml -f docker-compose.prod.yml --profile prod ps
-curl -fsS http://127.0.0.1:18080/health/live
-curl -fsS http://127.0.0.1:18080/health/ready
-curl -fsSI http://127.0.0.1:18000/
-curl -fsSI http://127.0.0.1:18001/admin/
-```
-
-宝塔公网入口：
+公网入口：
 
 ```bash
 curl -fsSI https://stuhelper.com/
+curl -fsS https://stuhelper.com/health/live
 curl -fsS https://stuhelper.com/health/ready
 curl -fsSI https://stuhelper.com/admin/
-curl -fsS https://stuhelper.com/api/v1/course/departments
-curl -fsS https://id.stuhelper.com/.well-known/openid-configuration | head
-curl -fsSI https://id.stuhelper.com/              # 应 302 到 /identity
-curl -fsSI https://id.stuhelper.com/identity
-curl -fsSI https://id.stuhelper.com/account/profile
-curl -fsSI https://id.stuhelper.com/account/security
-curl -fsSI https://id.stuhelper.com/connect
-curl -fsSI https://id.stuhelper.com/developers/apps
-curl -fsSI https://id.stuhelper.com/user/authorized-apps
-curl -fsSI https://stuhelper.com/identity         # 应 302 到 id.stuhelper.com
-curl -fsSI https://stuhelper.com/account/profile  # 应 302 到 id.stuhelper.com
-curl -fsSI https://stuhelper.com/account/security # 应 302 到 id.stuhelper.com
-curl -fsSI https://stuhelper.com/user/authorized-apps  # 应 302 到 id.stuhelper.com
-curl -fsSI https://id.stuhelper.com/courses          # 应 302 回 stuhelper.com/courses
+curl -fsS https://sso.stuhelper.com/.well-known/openid-configuration | head
+curl -fsSI https://id.stuhelper.com/                         # 应 404
+curl -fsSI 'https://join.stuhelper.com/verify/__manual_probe__?qq=10000'
+curl -fsSI https://join.stuhelper.com/verify                  # 应 404
+curl -fsSI 'https://stuhelper.com/verify/__manual_probe__?qq=10000' # 应 404
 ```
 
-如果上述公网入口或 `identity-public-smoke.sh` 失败，先生成脱敏诊断 evidence：
+自动 smoke：
 
 ```bash
-./infra/ops/public-identity-ingress-diagnostic.sh
-```
-
-诊断脚本默认固定检查 `https://stuhelper.com` 和 `https://id.stuhelper.com`，即使本地 `.env` 是开发环境 localhost 也不会覆盖公网目标。需要临时诊断其他目标时，应在当前命令显式传入 `WEB_PUBLIC_URL` / `IDENTITY_ISSUER` / `CASDOOR_ISSUER`；只有确实要使用 `ENV_FILE` 里的目标时，才设置 `PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_USE_ENV_TARGETS=true`。诊断输出会同时保留本机 resolver 和 `dns.google` 公共 DNS-over-HTTPS 视角，标记 `dns_resolution_failed`、`dns_non_public_address`、`public_dns_nxdomain`、`public_dns_non_public_address`、`tls_handshake_failed`、`identity_well_known_not_proxied`、`identity_oauth_as_metadata_not_proxied` 等分类，并把 `Set-Cookie` 等响应头值替换成 `<redacted>`。如果生产机无法访问公共 DoH，可设置 `PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_PUBLIC_DNS_ENABLED=false` 只保留本机 resolver 视角。
-
-Open Platform token 探针链路：
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.observability.yml -f docker-compose.prod.yml --profile prod exec app \
-  test -x /app/casdoor-runtime-token-probe-runner.mjs
-
-./infra/ops/casdoor-runtime-token-probe-smoke.sh
-```
-
-发布脚本会在 `bootstrap-platform.sh prod` 之后通过 `open-platform-production-evidence.sh` 自动运行同一个 smoke；输出 JSON evidence 时 `businessClaims` 必须为空，且 `metadata.nonceVerified` 必须为 `true`，证明返回的 ID Token 绑定到本次授权请求。随后可在管理后台批准一个只请求基础 `openid` 的测试第三方应用，确认审批成功且 `/open-platform/token-probe-evidence` 中出现 `passed` evidence。不要在终端输出探针账号密码；runner 所需凭据应来自生产 secret backend 注入的环境变量。
-
-完整 smoke：
-
-```bash
-API_BASE_URL=https://stuhelper.com \
-WEB_BASE_URL=https://stuhelper.com \
-ADMIN_BASE_URL=https://stuhelper.com \
-IDENTITY_ISSUER=https://id.stuhelper.com \
+./infra/ops/sso-public-smoke.sh
+./infra/ops/admission-public-smoke.sh
+./infra/ops/public-web-auth-browser-smoke.mjs
+./infra/ops/admission-production-readiness.sh
+./infra/ops/admission-reviewer-readiness.sh
+./infra/ops/admission-mvp-production-evidence.sh
+./infra/ops/tencent-ses-template-smoke.sh
 ./infra/ops/smoke-check.sh
-
 ./infra/ops/open-platform-production-evidence.sh
-
-./infra/ops/postgres-backup-evidence.sh
-
-./infra/ops/identity-public-smoke.sh
-
 ./infra/ops/observability-smoke-check.sh
 ```
 
-公网身份入口 smoke 成功或失败都会把脱敏 evidence 写入
-`infra/generated/identity-public-smoke-evidence.json`，其中包含本次检查的 public URL、
-issuer、各 endpoint、通过 / 失败计数，以及每个检查可用的 `httpStatus`、`curlError`
-和 `bodySnippet` 诊断字段。发布留档时确认 `.passed == true` 且 `.summary.failed == 0`。
-脚本默认拒绝 `localhost`、`127.0.0.1`、`::1` 和 `host.docker.internal` 目标，防止把开发环境结果误写成公网 smoke evidence；只有本地合同测试或明确的本地生产验证才允许设置 `IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=true`。
+学校邮箱 OTP 邮件使用多提供商驱动。生产配置应保持 `EMAIL_DRIVER=multi`、`EMAIL_FROM=noreply@notify.stuhelper.com`、`EMAIL_FROM_NAME=StuHelper 系统邮件`、`EMAIL_STUDENT_VERIFICATION_SUBJECT=学生认证验证码`、`EMAIL_TENCENT_TEMPLATE_ID=49779`、`EMAIL_RESEND_ENDPOINT=https://api.resend.com/emails`；`EMAIL_TENCENT_SECRET_ID`、`EMAIL_TENCENT_SECRET_KEY` 与 `EMAIL_RESEND_API_KEY` 只能放在 `.env.prod.secrets.local` 或部署 secret store。默认发送策略来自 `system_configs.email.delivery_policy`：腾讯云 SES `priority=10` 先发，Resend `priority=20` 作为故障兜底；如需负载均衡，把策略 `mode` 改为 `weighted` 并把多个 provider 设为同一优先级。`tencent-ses-template-smoke.sh` 不发送邮件，只调用 `GetEmailTemplate` 确认腾讯云凭据、地域、模板 ID 和审核状态，证据写入 `infra/generated/tencent-ses-template-smoke.json`。Resend 不使用腾讯云模板，后端按 Resend Email API 直接发送 HTML/text。
 
-如果已经在 Open Platform 中准备了一个 approved 的专用 Identity smoke client，可以在
-生产环境中设置：
+`sso-public-smoke.sh` 不只检查 discovery/JWKS/authorize 路由，也会读取公开 Casdoor application 元数据并断言 `admin/stuhelper-web` 仍为 `organization=stuhelper`、`enableSignUp=true`、`Password` 登录方式为 `All`、`Face ID` 为 `None`，且注册项包含必填的 `Password` 与 `Confirm password`。如果这里失败，先运行仓库内 `bootstrap-platform.sh prod` 修复 Casdoor 配置漂移，不要在 Casdoor 控制台手工改完就结束。
 
-```bash
-IDENTITY_PUBLIC_SMOKE_BOOTSTRAP_ENABLED=false
-IDENTITY_PUBLIC_SMOKE_CLIENT_ID=<approved-open-platform-client-id>
-IDENTITY_PUBLIC_SMOKE_REDIRECT_URI=<registered-exact-redirect-uri>
-IDENTITY_PUBLIC_SMOKE_SCOPE=openid
-IDENTITY_PUBLIC_SMOKE_CLIENT_SECRET=<approved-open-platform-client-secret>
-IDENTITY_PUBLIC_SMOKE_CLIENT_CREDENTIALS_SCOPE=resource.read
-IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_RESOURCE_TYPE=resource_item
-IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_RESOURCE_ID=
-IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_ACTION=
-IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_EXPECT_ALLOWED=false
-```
+`admission-public-smoke.sh` 不只检查 `join.stuhelper.com/verify/<token>?qq=<qq>` 和旧入口 404，还会从 join 域向 `/api/v1/metrics/vitals`、`/api/v1/metrics/frontend-errors` 发送同源 beacon，要求返回 204，避免真实页面加载时 F12 出现红色 metrics 请求却被上线 smoke 漏掉。脚本还会无登录探测 `/api/v1/admission/freshman/camera-handoffs/<probe>/events`，要求走到后端返回 401 且 `X-Accel-Buffering: no`，防止手机拍照接力 SSE 被 Nginx 误转给 SPA 或被缓冲。
 
-也可以让发布脚本在公网 smoke 前自动准备这个专用 client。此模式需要指定一个
-已存在的普通 owner 用户和一个已存在的 reviewer/admin 用户 ID；脚本只会把生成的
-client secret 写入 secret env 文件，日志和 evidence 不输出 secret：
+`public-web-auth-browser-smoke.mjs` 会用真实浏览器确认主站登录按钮进入 `sso.stuhelper.com/login/oauth/authorize` 后仍有账号密码登录和 `/signup/oauth/authorize` 注册入口，确认主站“注册账号”进入 `sso.stuhelper.com/signup/oauth/authorize` 的账号密码注册表单，并确认 `join.stuhelper.com/login?redirect=/verify/<token>?qq=<qq>` 的登录/注册按钮也分别进入 SSO 登录和注册授权页。这样 Casdoor 配置漂移成“只剩 Face ID”、注册按钮走错授权路径，或 join 入群链路的登录入口漂移时，公网浏览器 smoke 会直接失败。
+
+`admission-mvp-production-evidence.sh` 是生产 admission MVP 的聚合证据入口。主站节点默认执行 SSO public smoke、admission public smoke、Web auth browser smoke 和 admission DB readiness，并写入 `infra/generated/admission-mvp-production-evidence.json`。Koishi 节点用 `ADMISSION_MVP_PRODUCTION_EVIDENCE_MODE=koishi` 执行同一入口时，会运行 `koishi-admission-production-evidence.sh`。普通聚合 evidence 允许真实 QQ E2E 被记录为 skipped，只能作为生产 smoke；最终上线验收必须在主站节点使用 `make prod-admission-mvp-final-evidence`，并在 Koishi 节点使用 `make prod-admission-mvp-final-koishi-evidence`。主站 final evidence 等价于显式设置 `ADMISSION_MVP_PRODUCTION_E2E_REQUIRED=true`、`ADMISSION_MVP_PRODUCTION_E2E_WAIT=true`、`ADMISSION_E2E_QQ_ID=<small-account-qq>`、`ADMISSION_MVP_PRODUCTION_E2E_EXPECTED_STAGE=bot-released` 和 `ADMISSION_MVP_PRODUCTION_E2E_MAX_SESSION_AGE_MINUTES=180`，让聚合 evidence 把最新真实 QQ 解除禁言回写也纳入验收。
+
+如果主站生产机没有 Node/Playwright，不要跳过公网浏览器 smoke。应先在有 Playwright 的运维机或 CI 上运行 `PUBLIC_WEB_AUTH_BROWSER_SMOKE_EVIDENCE_FILE=infra/generated/public-web-auth-browser-smoke-evidence.json ./infra/ops/public-web-auth-browser-smoke.mjs`，把生成的脱敏 evidence 复制到主站源码目录，再给聚合入口设置 `ADMISSION_MVP_PRODUCTION_BROWSER_SMOKE_EVIDENCE_FILE=infra/generated/public-web-auth-browser-smoke-evidence.json`。聚合入口会校验该 evidence 新鲜、目标域名正确、十个浏览器检查全部通过，并确认 `/identity` 直接入口、join 登录/注册入口、camera permission 与 fake media capture 成功。
+
+`admission-mvp-final-evidence-verify.sh` 只校验已采集的脱敏 evidence 文件，不访问生产，也不输出 secret。最终验收时，主站节点生成 `infra/generated/admission-mvp-final-evidence.json` 和 `infra/generated/admission-join-e2e-evidence.json`，Koishi 节点生成 `infra/generated/admission-mvp-final-koishi-evidence.json`；把三份文件放在同一份仓库工作目录后运行 `make prod-admission-mvp-final-verify`。该校验要求三份 evidence 都在默认 180 分钟新鲜度窗口内，主站和 Koishi 聚合 evidence 没有 failed/skipped，主站 evidence 必须包含真实 QQ `bot-released`，Koishi evidence 必须包含 Koishi admission production evidence 且不能夹带真实 QQ E2E placeholder，join E2E 子证据必须显示 token 已消费、QQ 已绑定、存在 active student verification credential、后端记录 bot release 和 cancelled marker，并包含通过的 `release requires active student verification credential` 检查。
+
+`admission-reviewer-readiness.sh` 是只读检查，用 bot 的 `/api/v1/bot/admission/freshman/applications/{id}/view` 接口验证 QQ 管理员是否同时满足：所在群属于该申请的 `management_guild_ids`、管理员 QQ 已在 StuHelper 绑定、绑定用户拥有 `admission:freshman:review` 能力。它不调用 `/review`，不会批准或驳回申请。最终 E2E 卡在 `material_submitted` 时，应先用这条检查确认至少一个管理员可审核，而不是让用户反复试。可通过 `make prod-admission-reviewer-readiness` 调用，必填 `ADMISSION_REVIEWER_READINESS_APPLICATION_ID` 和 `ADMISSION_REVIEWER_READINESS_OPERATOR_QQ_IDS`，输出脱敏 evidence 到 `infra/generated/admission-reviewer-readiness.json`。
+
+真实 QQ 小号入群 E2E 证据：
 
 ```bash
-IDENTITY_PUBLIC_SMOKE_BOOTSTRAP_ENABLED=true
-IDENTITY_PUBLIC_SMOKE_BOOTSTRAP_MODE=container
-IDENTITY_PUBLIC_SMOKE_OWNER_USER_ID=<existing-owner-user-id>
-IDENTITY_PUBLIC_SMOKE_REVIEWER_USER_ID=<existing-reviewer-user-id>
-IDENTITY_PUBLIC_SMOKE_CLIENT_ID=identity-public-smoke
-IDENTITY_PUBLIC_SMOKE_REDIRECT_URI=https://stuhelper.com/open-platform/identity-public-smoke/callback
-IDENTITY_PUBLIC_SMOKE_HOMEPAGE_URL=https://stuhelper.com
-IDENTITY_PUBLIC_SMOKE_PRIVACY_POLICY_URL=https://stuhelper.com/privacy
-IDENTITY_PUBLIC_SMOKE_CLIENT_CREDENTIALS_SCOPE=resource.read
+# 如果生产 DB 的 group_admission_sessions 为 0，说明还没有真实 QQ 入群事件触发 admission；
+# 先让一个不在目标群内的小号实际申请/进入 178037297，再采集证据。
+
+# 等待真实入群事件并自动落盘脱敏 evidence
+ADMISSION_E2E_QQ_ID=<small-account-qq> \
+ADMISSION_E2E_GUILD_ID=178037297 \
+ADMISSION_E2E_EXPECTED_STAGE=join-created \
+./infra/ops/admission-join-e2e-wait.sh
+
+# 入群事件触发后，先验证 Koishi/后端已经创建 canonical admission session
+ADMISSION_E2E_QQ_ID=<small-account-qq> \
+ADMISSION_E2E_GUILD_ID=178037297 \
+ADMISSION_E2E_EXPECTED_STAGE=join-created \
+./infra/ops/admission-join-e2e-evidence.sh
+
+# 等待用户完成 join.stuhelper.com 流程并自动落盘脱敏 evidence
+ADMISSION_E2E_QQ_ID=<small-account-qq> \
+ADMISSION_E2E_GUILD_ID=178037297 \
+ADMISSION_E2E_EXPECTED_STAGE=flow-completed \
+./infra/ops/admission-join-e2e-wait.sh
+
+# 用户完成 join.stuhelper.com 登录、QQ 绑定和学生认证/新生材料流程后，验证业务流程完成
+ADMISSION_E2E_QQ_ID=<small-account-qq> \
+ADMISSION_E2E_GUILD_ID=178037297 \
+ADMISSION_E2E_EXPECTED_STAGE=flow-completed \
+./infra/ops/admission-join-e2e-evidence.sh
+
+# 若 flow-completed 来自新生材料提交，先只读确认至少一个管理员 QQ 有审核权限
+ADMISSION_REVIEWER_READINESS_APPLICATION_ID=<freshman-application-id> \
+ADMISSION_REVIEWER_READINESS_OPERATOR_QQ_IDS=<operator-qq-ids> \
+ADMISSION_REVIEWER_READINESS_GUILD_ID=178037297 \
+make prod-admission-reviewer-readiness
+
+# 等待 Koishi 执行解除禁言并把 release 成功回写后端
+ADMISSION_E2E_QQ_ID=<small-account-qq> \
+ADMISSION_E2E_GUILD_ID=178037297 \
+ADMISSION_E2E_EXPECTED_STAGE=bot-released \
+ADMISSION_E2E_WAIT_TIMEOUT_SECONDS=900 \
+./infra/ops/admission-join-e2e-wait.sh
 ```
 
-默认 smoke 还会用无凭据请求验证 `/oauth2/token`、`/oauth2/introspect`、`/oauth2/revoke`
-会返回 OAuth JSON 错误，验证无会话 GET/POST `/oauth2/logout` 返回 204，并验证 logout
-POST URL query / JSON body 以及 UserInfo URL query / body token 来源会被拒绝，避免公网 Nginx
-只放行 discovery 但漏转 token、撤销、登出、UserInfo 等方法路由。配置专用 client secret 后，smoke 还会对
-token、introspection 和 revoke 路由发送同时包含 Basic 头与 body `client_id` / `client_secret`
-的请求，并要求返回 `invalid_client`，证明公网链路没有绕过 Identity Server 的 client
-authentication hardening。
-token、UserInfo、introspection 和 revoke 相关检查还会要求 `Cache-Control: no-store` 与
-`Pragma: no-cache`，避免反向代理或浏览器缓存保存 token、用户资料或 introspection 结果。
-其中 `invalid_client` 401 必须带 Basic `WWW-Authenticate` challenge，UserInfo 的
-`invalid_token` 401 必须带 Bearer `WWW-Authenticate` challenge，确保标准 OAuth/OIDC
-客户端能按认证类型处理失败。
-
-设置专用 client 后，`identity-public-smoke.sh` 会额外发送注册客户端的 `prompt=none` 授权请求，
-并要求未登录浏览器态通过已登记 redirect URI 回调 `error=login_required`、原始
-`state` 和 `iss=https://id.stuhelper.com`。这能同时证明 app registry、redirect URI
-精确匹配、静默登录错误语义和 RFC 9207 错误回调 issuer 都在公网链路上可用。
-如果同时设置 `IDENTITY_PUBLIC_SMOKE_CLIENT_SECRET`，脚本还会执行真实 `client_credentials`
-grant，要求只返回 app-only access token、introspection 为 `active=true` 且
-`grant_type=client_credentials`；introspection 和 revoke 请求会携带
-`token_type_hint=access_token`，验证标准客户端 hint 不影响 token 查找和撤销语义。UserInfo
-对该 token 返回 `invalid_token`，并用该 app-only token 调用
-`POST /api/v1/open-platform/resources/access/check`。默认检查一个每次运行不同的
-`resource_item`，预期返回 `allowed=false` / `reason=fga_denied`，证明公开 API 能完成 token
-校验、scope 准入和 OpenFGA 决策；随后 revoke 后再次 introspection 必须为 `active=false`。
-evidence 只记录 client ID、scope、资源类型 / ID、动作和 HTTP 状态，不记录 client secret 或
-access token。
-
-如果要把公网 smoke 升级为正向资源授权证据，先在管理后台给该 smoke app 授权一个稳定的
-`resource_item` 或 `user_profile` 资源，再设置：
+Koishi 生产证据脚本会检查配置、容器环境、bot API 探针和 admission 相关日志，只输出脱敏结果，不输出 token：
 
 ```bash
-IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_RESOURCE_TYPE=resource_item
-IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_RESOURCE_ID=<pre-granted-resource-id>
-IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_ACTION=read
-IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_EXPECT_ALLOWED=true
+KOISHI_COMPOSE_DIR=/www/server/panel/data/compose/koishi-napcat \
+KOISHI_ADMISSION_BOT_SELF_ID=<botSelfID> \
+./infra/ops/koishi-admission-production-evidence.sh
 ```
 
-此时 evidence 必须包含 `Open Platform resource access API 允许已授权资源`，且
-`.details.expectedReason == "allowed"`。不要把业务生产用户资料 ID 当作长期公开 smoke
-资源；建议准备一个专用测试资源或专用测试用户投影。
-
-Open Platform 生产准入证据也可单独用聚合脚本生成：
-
-```bash
-./infra/ops/open-platform-production-evidence.sh
-```
-
-脚本会顺序执行 `casdoor-runtime-token-probe-smoke.sh` 和 `openfga-resource-access-smoke.sh`，
-并把脱敏后的 JSON evidence 写入 `infra/generated/open-platform-production-evidence.json`。
-聚合脚本会先校验 `OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED=true` 且 runtime command 已配置并非模板占位符，证明审批路径的强制 token 探针门禁处于开启状态；随后校验子 smoke evidence 指向当前 `CASDOOR_ISSUER`、`OPENFGA_API_URL`、
-`OPENFGA_STORE_ID` 和 `OPENFGA_MODEL_ID`，避免把其他环境的证据误归档到本次发布。失败诊断只输出
-claim 名称和 OpenFGA 布尔断言等白名单字段，不输出 raw token、client secret 或 probe 密码。
-脚本默认拒绝 `CASDOOR_ISSUER`、`CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI` 或 `OPENFGA_API_URL`
-指向 `localhost`、`127.0.0.1`、`::1`、`host.docker.internal`，避免把开发环境 Casdoor/OpenFGA
-结果写成生产准入 evidence；只有本地合同测试或明确的本地生产验证才允许设置
-`OPEN_PLATFORM_PRODUCTION_EVIDENCE_ALLOW_LOCAL_TARGETS=true`。
-完成证据必须同时满足：
-
-- `.passed == true`
-- `.configuration.runtimeTokenProbeRequired == true`
-- `.casdoorRuntimeTokenProbe.businessClaims == []`
-- `.casdoorRuntimeTokenProbe.metadata.nonceVerified == true`
-- `.openfgaResourceAccessSmoke.listedReadGrant == true`
-- `.openfgaResourceAccessSmoke.readAfterGrant == true`
-- `.openfgaResourceAccessSmoke.writeAfterGrant == true`
-- `.openfgaResourceAccessSmoke.listedReadAfterRevoke == false`
-- `.openfgaResourceAccessSmoke.readAfterRevoke == false`
-- `.openfgaResourceAccessSmoke.writeAfterRevoke == false`
-
-Grafana 中至少确认：
-
-- `StuHelper Overview` 有最近 5 分钟数据
-- `StuHelper Application` 有 API 延迟、状态码、错误率
-- `StuHelper Infrastructure` 有 node-exporter 与 cAdvisor 数据
-- Alertmanager receiver 指向真实值班系统
-
-生产发布会以 `OBS_SMOKE_STRICT=true` 执行 `observability-smoke-check.sh`，并写入
-`infra/generated/observability-smoke-evidence.json`。该 evidence 会证明核心服务 ready、
-Prometheus 已抓到 app/Grafana/Alertmanager/cAdvisor，黑盒探针已覆盖 `id.stuhelper.com`
-和 OpenFGA TCP，且 Alertmanager webhook 不是本地 sink。只有显式设置
-`OBS_SMOKE_CASDOOR_UPSTREAM_ENABLED=true` 时，观测 smoke 才额外要求 Casdoor upstream
-metadata probe 存在。
-
-## 12. 回滚
-
-应用层回滚：
-
-```bash
-export ROLLBACK_TAG=<previous-stable-tag>
-make prod-rollback
-```
-
-如果不设置 `ROLLBACK_TAG`，脚本会尝试使用 `.deploy/releases.log` 中上一条成功发布。
-
-如果本次包含破坏性数据库变更：
-
-1. 先切回上一版镜像。
-2. 用 `docs/guides/backup-and-restore.md` 的流程恢复数据库。
-3. 重跑 smoke check。
-4. 记录恢复耗时、备份文件、验证结果。
+预期：HTTP status 为 200。Koishi 日志无 `admission 401` / `unauthorized`。Koishi 日志无 `duplicate command names: 举报`。Koishi 日志无 `pending-forward` 每分钟 500 循环。`stuhelper-group-guard:admission` 已加载，目标群数量为 1。evidence 文件写入 `infra/generated/koishi-admission-production-evidence.json`，其中只记录 token 是否存在、bot API 状态码和 body 大小，不包含真实 token。默认日志窗口是最近 2 小时；如需审计更早的历史错误，可显式设置 `KOISHI_ADMISSION_LOG_SINCE=24h`。长期运行的 Koishi 容器可能已经没有启动加载日志，脚本默认不要求加载日志必须出现在当前窗口；刚重启后可设置 `KOISHI_ADMISSION_REQUIRE_LOAD_LOG=true` 强制检查。
 
 ## 上线完成定义
 
-同时满足下面条件，才算主站生产落地完成：
+同时满足以下条件才算完成：
 
-- `https://stuhelper.com/`、`/admin/`、`/api/v1/*`、`/health/ready` 可通过宝塔 Nginx 访问。
-- `https://id.stuhelper.com/.well-known/openid-configuration`、`/oauth2/authorize`、`/oidc/userinfo` 路由到主站后端。
-- `make prod-deploy` 或 `remote-prod-deploy.sh` 完整通过。
-- `identity-public-smoke.sh` 完整通过，并生成 `infra/generated/identity-public-smoke-evidence.json`，证明 `stuhelper.com`、`id.stuhelper.com` 公网身份入口可达，Identity OIDC discovery、OAuth authorization server metadata、JWKS、`id` 入口 Web app 图标与 `site.webmanifest`、普通 authorize、`prompt=login&max_age=0` 重新认证跳转、`response_modes_supported=query`、token / introspect / revoke 路由级行为、GET/POST logout、POST logout URL query / JSON body 拒绝、GET/POST UserInfo 缺 bearer、UserInfo URL query / body token 来源拒绝、敏感 OAuth 响应 no-store/no-cache 缓存控制和 401 `WWW-Authenticate` challenge 符合预期；如已配置专用 `IDENTITY_PUBLIC_SMOKE_CLIENT_ID`，还要证明 `prompt=none` 会按注册 redirect URI 回调 `login_required`、`state` 和 `iss`；如同时配置 `IDENTITY_PUBLIC_SMOKE_CLIENT_SECRET`，还要证明 `client_credentials` token 签发、携带 `token_type_hint=access_token` 的 introspection / revoke、UserInfo 拒绝、Open Platform resource access API 使用 Bearer app-only token 且对未授权随机资源返回 `fga_denied` 或对预授权 smoke 资源返回 `allowed`、revoke 后 inactive 均通过。只有显式开启 Casdoor upstream smoke 时，完成定义才要求 Casdoor discovery/JWKS 证据。
-- `smoke-check.sh`、`open-platform-production-evidence.sh` 和 `observability-smoke-check.sh` 完整通过；其中 Open Platform evidence 已包含 `openfga-resource-access-smoke.sh`。
-- `open-platform-production-evidence.sh` 生成脱敏 evidence，且 runtime token probe command 不是占位符、`.configuration.runtimeTokenProbeRequired=true`、`businessClaims=[]`、OpenFGA grant/list/list-after-revoke/revoke 断言通过。
-- 备份 timer 已启用，`postgres-backup-evidence.sh` 生成脱敏 evidence，证明至少一个本地逻辑备份存在且能从对象存储取回并通过 sha256 校验。
-- `observability-smoke-check.sh` 生成脱敏 evidence，证明 Prometheus / Grafana / Alertmanager / blackbox 探针有数据，且 Alertmanager 已接真实值班渠道。
-- 回滚命令和上一版镜像可用。
+- 本地仓库包含所有代码修复、配置模板、幂等脚本和 runbook；不存在只在生产手工修改的最终状态。
+- `sso.stuhelper.com` 是唯一公开登录认证系统和 OIDC issuer。
+- `id.stuhelper.com` 返回 404，不承载 OAuth/OIDC/账号中心/登录页。
+- `join.stuhelper.com/verify/<token>?qq=<qq>` 是唯一公开加群验证入口；`join.stuhelper.com/verify` 和主站 `/verify*` 返回 404。
+- 主站 `/health/live`、`/health/ready` 通过。
+- Admission public smoke、Web auth browser smoke、DB readiness 通过。
+- Koishi admission 插件在 OneBot/NapCat runtime 下使用 `qq` subject platform 调后端 admission API。
+- 生产日志没有 admission 401、duplicate command、pending-forward 500 循环报错。
+- 真实 QQ 小号入群 E2E 的 `admission-join-e2e-evidence.sh` 在 `flow-completed` 阶段通过，且 `admission-join-e2e-wait.sh` 在 `bot-released` 阶段通过，证明 Koishi 已执行并上报解除禁言。
+- 主站 `make prod-admission-mvp-final-evidence`、Koishi 节点 `make prod-admission-mvp-final-koishi-evidence` 均通过，并且主站聚合 evidence、join E2E 子证据、Koishi evidence 三份文件经 `make prod-admission-mvp-final-verify` 校验通过。
+- ChatLuna API key 等非 admission 报错不混入本次 admission 修复范围。

@@ -67,6 +67,22 @@ clear_rate_limit_keys() {
 
 clear_rate_limit_keys
 
+append_no_proxy() {
+  local hosts="stuhelper.com,www.stuhelper.com,join.stuhelper.com,sso.stuhelper.com,id.stuhelper.com,.stuhelper.com"
+  if [[ -n "${NO_PROXY:-}" ]]; then
+    export NO_PROXY="${NO_PROXY},${hosts}"
+  else
+    export NO_PROXY="${hosts}"
+  fi
+  if [[ -n "${no_proxy:-}" ]]; then
+    export no_proxy="${no_proxy},${hosts}"
+  else
+    export no_proxy="${hosts}"
+  fi
+}
+
+append_no_proxy
+
 export API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:${BACKEND_EXTERNAL_PORT:-28080}}"
 export WEB_BASE_URL="${WEB_BASE_URL:-${WEB_PUBLIC_URL:-https://stuhelper.com}}"
 export ADMIN_BASE_URL="${ADMIN_BASE_URL:-${WEB_PUBLIC_URL:-https://stuhelper.com}}"

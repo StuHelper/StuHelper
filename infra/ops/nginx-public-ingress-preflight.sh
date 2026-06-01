@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Validate the effective Baota/Nginx public ingress config before deployment.
 #
-# By default this audits the StuHelper app host (`stuhelper.com`, `www`, and
-# `id`). Run with NGINX_PUBLIC_INGRESS_PROFILE=sso on the external Casdoor host,
+# By default this audits the StuHelper app host (`stuhelper.com`, `www`,
+# `join`, and the disabled legacy `id` host). Run with NGINX_PUBLIC_INGRESS_PROFILE=sso on the external Casdoor host,
 # or NGINX_PUBLIC_INGRESS_PROFILE=all against a combined nginx -T dump.
 set -euo pipefail
 
@@ -297,6 +297,26 @@ def require_location_return(block: Node, label: str, modifier: str | None, path:
         )
 
 
+def require_location_return_code(block: Node, label: str, modifier: str | None, path: str, code: str) -> None:
+    loc = location(block, modifier, path)
+    rendered = f"location {modifier + ' ' if modifier else ''}{path}"
+    if loc is None:
+        raise CheckError(f"{label}: missing {rendered}")
+    values = [directive.args for directive in direct(loc, "return") if directive.args]
+    if any(args[0] == code for args in values):
+        return
+    raise CheckError(
+        f"{label}: {rendered} must return {code}; found {values or '<none>'}"
+    )
+
+
+def require_server_return_code(block: Node, label: str, code: str) -> None:
+    values = [directive.args for directive in direct(block, "return") if directive.args]
+    if any(args[0] == code for args in values):
+        return
+    raise CheckError(f"{label}: server block must return {code}; found {values or '<none>'}")
+
+
 def require_location_add_header(
     block: Node,
     label: str,
@@ -372,24 +392,8 @@ def require_common_proxy_server(block: Node, label: str) -> None:
 def validate_main(block: Node, upstreams: dict[str, str]) -> None:
     label = "stuhelper.com"
     require_common_proxy_server(block, label)
-    for path in [
-        "/identity",
-        "/account/profile",
-        "/connect",
-        "/account/security",
-        "/login",
-        "/auth/callback",
-        "/consent",
-        "/complete-profile",
-        "/user/authorized-apps",
-        "/user/identity-verification",
-        "/user/student-verification",
-        "/user/phone-binding",
-        "/user/qq-binding",
-        "/user/academic-info",
-    ]:
-        require_location_return(block, label, "=", path, "302", "https://id.stuhelper.com$request_uri")
-    require_location_return(block, label, "^~", "/developers/", "302", "https://id.stuhelper.com$request_uri")
+    require_location_return_code(block, label, "=", "/verify", "404")
+    require_location_return_code(block, label, "^~", "/verify/", "404")
     require_location_proxy(block, label, "^~", "/api/", upstreams["backend"])
     require_location_proxy(block, label, "^~", "/health/", upstreams["backend"])
     require_location_proxy(block, label, "^~", "/admin/", upstreams["admin"])
@@ -412,55 +416,24 @@ def validate_www(block: Node) -> None:
     require_tls(block, "www.stuhelper.com")
 
 
+def validate_join(block: Node, upstreams: dict[str, str]) -> None:
+    label = "join.stuhelper.com"
+    require_common_proxy_server(block, label)
+    require_location_return_code(block, label, "=", "/verify", "404")
+    require_location_proxy(block, label, "^~", "/verify/", upstreams["web"])
+    require_location_proxy(block, label, "^~", "/api/", upstreams["backend"])
+    require_location_proxy(block, label, "^~", "/health/", upstreams["backend"])
+    require_location_proxy(block, label, "^~", "/assets/", upstreams["web"])
+    require_location_proxy(block, label, None, "/", upstreams["web"])
+
+
 def validate_identity(block: Node, upstreams: dict[str, str]) -> None:
     label = "id.stuhelper.com"
-    require_common_proxy_server(block, label)
-    require_location_proxy(block, label, "^~", "/.well-known/", upstreams["backend"])
-    require_location_proxy(block, label, "^~", "/oauth2/", upstreams["backend"])
-    require_location_proxy(block, label, "^~", "/oidc/", upstreams["backend"])
-    require_location_proxy(block, label, "^~", "/api/v1/", upstreams["backend"])
-    require_location_proxy(block, label, "^~", "/api/", upstreams["casdoor"])
-    require_location_return(block, label, "=", "/", "302", "/identity")
-    require_location_add_header(block, label, "=", "/", "Cache-Control", "no-store, no-cache, must-revalidate, private")
-    require_location_add_header(block, label, "=", "/", "Pragma", "no-cache")
-    require_location_add_header(block, label, "=", "/", "Expires", "0")
-    require_location_proxy(block, label, "^~", "/login/oauth/", upstreams["casdoor"])
-    require_location_proxy(block, label, "^~", "/signup/oauth/", upstreams["casdoor"])
-    require_location_proxy(block, label, "=", "/login", upstreams["web"])
-    require_location_proxy(block, label, "=", "/auth/callback", upstreams["web"])
-    require_location_proxy(block, label, "=", "/consent", upstreams["web"])
-    require_location_proxy(block, label, "=", "/complete-profile", upstreams["web"])
-    require_location_proxy(block, label, "=", "/identity", upstreams["web"])
-    require_location_proxy(block, label, "=", "/account/profile", upstreams["web"])
-    require_location_proxy(block, label, "=", "/connect", upstreams["web"])
-    require_location_proxy(block, label, "=", "/account/security", upstreams["web"])
-    require_location_proxy(block, label, "^~", "/developers/", upstreams["web"])
-    for path in [
-        "/user/authorized-apps",
-        "/user/identity-verification",
-        "/user/student-verification",
-        "/user/phone-binding",
-        "/user/qq-binding",
-        "/user/academic-info",
-    ]:
-        require_location_proxy(block, label, "=", path, upstreams["web"])
-    require_location_proxy(block, label, "^~", "/assets/", upstreams["web"])
-    for path in ["/static/", "/img/", "/buttons/", "/flag-icons/", "/web/", "/mfa/"]:
-        require_location_proxy(block, label, "^~", path, upstreams["casdoor"])
-    require_location_proxy(block, label, "=", "/account", upstreams["casdoor"])
-    require_location_proxy(block, label, "^~", "/signup", upstreams["casdoor"])
-    require_location_proxy(block, label, "^~", "/forget", upstreams["casdoor"])
-    for path in [
-        "/favicon.ico",
-        "/favicon-32x32.png",
-        "/favicon-16x16.png",
-        "/apple-touch-icon.png",
-        "/android-chrome-192x192.png",
-        "/android-chrome-512x512.png",
-        "/site.webmanifest",
-    ]:
-        require_location_proxy(block, label, "=", path, upstreams["web"])
-    require_location_return(block, label, None, "/", "302", "https://stuhelper.com$request_uri")
+    require_tls(block, label)
+    try:
+        require_server_return_code(block, label, "404")
+    except CheckError:
+        require_location_return_code(block, label, None, "/", "404")
 
 
 def validate_sso(block: Node, upstreams: dict[str, str]) -> None:
@@ -581,6 +554,7 @@ try:
     if "stuhelper" in profiles:
         require_valid_server(servers, "stuhelper.com", lambda block: validate_main(block, upstreams))
         require_valid_server(servers, "www.stuhelper.com", validate_www)
+        require_valid_server(servers, "join.stuhelper.com", lambda block: validate_join(block, upstreams))
         require_valid_server(servers, "id.stuhelper.com", lambda block: validate_identity(block, upstreams))
     if "sso" in profiles:
         require_valid_server(servers, "sso.stuhelper.com", lambda block: validate_sso(block, upstreams))

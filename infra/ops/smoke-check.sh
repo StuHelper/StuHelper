@@ -7,6 +7,30 @@
 #   API_BASE_URL=https://stuhelper.com WEB_BASE_URL=https://stuhelper.com ADMIN_BASE_URL=https://stuhelper.com ./smoke-check.sh
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT_GUESS="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
+if [[ -z "${ENV_FILE+x}" && -f "${REPO_ROOT_GUESS}/.env.prod.shared" ]]; then
+  export ENV_FILE="${REPO_ROOT_GUESS}/.env.prod.shared"
+fi
+if [[ -z "${SECRETS_ENV_FILE+x}" ]]; then
+  if [[ -f "${REPO_ROOT_GUESS}/.env.prod.secrets.local" ]]; then
+    export SECRETS_ENV_FILE="${REPO_ROOT_GUESS}/.env.prod.secrets.local"
+  elif [[ -f "${REPO_ROOT_GUESS}/.env.prod.secrets" ]]; then
+    export SECRETS_ENV_FILE="${REPO_ROOT_GUESS}/.env.prod.secrets"
+  fi
+fi
+if [[ -z "${GENERATED_ENV_FILE+x}" && -f "${REPO_ROOT_GUESS}/.env.prod.generated" ]]; then
+  export GENERATED_ENV_FILE="${REPO_ROOT_GUESS}/.env.prod.generated"
+fi
+if [[ -z "${GENERATED_SECRET_ENV_FILE+x}" && -f "${REPO_ROOT_GUESS}/.env.prod.generated.secrets" ]]; then
+  export GENERATED_SECRET_ENV_FILE="${REPO_ROOT_GUESS}/.env.prod.generated.secrets"
+fi
+
+# shellcheck source=lib/common.sh
+source "${SCRIPT_DIR}/lib/common.sh"
+load_env
+
 API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:${BACKEND_EXTERNAL_PORT:-18080}}"
 WEB_BASE_URL="${WEB_BASE_URL:-http://127.0.0.1:${WEB_EXTERNAL_PORT:-18000}}"
 ADMIN_BASE_URL="${ADMIN_BASE_URL:-http://127.0.0.1:${ADMIN_EXTERNAL_PORT:-18001}}"
@@ -125,20 +149,23 @@ check_status "refresh 无 cookie 返回 401" "${API_BASE_URL}/api/v1/auth/refres
 
 echo ""
 echo "── 指标与观测 ──"
-if [[ "${APP_ENV:-development}" == "production" ]]; then
-  check_status "指标端点需认证" "${API_BASE_URL}/metrics" "401"
-else
-  check_status "开发指标端点可访问" "${API_BASE_URL}/metrics" "200"
-fi
+case "${APP_ENV:-development}" in
+  production|prod-parity)
+    check_status "生产指标端点需认证" "${API_BASE_URL}/metrics" "401"
+    ;;
+  *)
+    check_status "开发指标端点可访问" "${API_BASE_URL}/metrics" "200"
+    ;;
+esac
 
-# OIDC（可选）
-IDENTITY_ISSUER="${IDENTITY_ISSUER:-}"
-if [ -n "$IDENTITY_ISSUER" ]; then
+# SSO OIDC（可选）
+SSO_PUBLIC_BASE_URL="${SSO_PUBLIC_BASE_URL:-${CASDOOR_PUBLIC_AUTH_BASE_URL:-${WEB_VITE_SSO_URL:-${CASDOOR_ISSUER:-}}}}"
+if [ -n "$SSO_PUBLIC_BASE_URL" ]; then
   echo ""
-  echo "── OIDC ──"
-  check_body "Identity well-known" "${IDENTITY_ISSUER}/.well-known/openid-configuration" '"issuer":'
+  echo "── SSO OIDC ──"
+  check_body "SSO well-known" "${SSO_PUBLIC_BASE_URL%/}/.well-known/openid-configuration" '"issuer":'
 else
-  echo "  ⚠️  IDENTITY_ISSUER 未设置，跳过 OIDC 检查"
+  echo "  ⚠️  SSO_PUBLIC_BASE_URL / CASDOOR_PUBLIC_AUTH_BASE_URL / WEB_VITE_SSO_URL / CASDOOR_ISSUER 均未设置，跳过 SSO OIDC 检查"
   WARN=$((WARN + 1))
 fi
 
@@ -146,8 +173,8 @@ CASDOOR_ISSUER="${CASDOOR_ISSUER:-}"
 if [[ "${SMOKE_CHECK_CASDOOR_UPSTREAM_ENABLED:-false}" == "true" ]]; then
   if [ -n "$CASDOOR_ISSUER" ]; then
     echo ""
-    echo "── Casdoor upstream ──"
-    check_body "Casdoor upstream well-known" "${CASDOOR_ISSUER}/.well-known/openid-configuration" '"issuer":'
+    echo "── Casdoor issuer ──"
+    check_body "Casdoor issuer well-known" "${CASDOOR_ISSUER%/}/.well-known/openid-configuration" '"issuer":'
   else
     echo "  ⚠️  CASDOOR_ISSUER 未设置，跳过 Casdoor upstream 检查"
     WARN=$((WARN + 1))

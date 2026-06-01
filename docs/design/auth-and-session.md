@@ -3,24 +3,26 @@ type: design
 audience: backend-dev, frontend-dev
 status: current
 authoritative-source: server/internal/modules/auth/
-last-verified: 2026-05-18
+last-verified: 2026-05-30
 ---
 
 # 认证与 SSO
 
-> 状态：现行。公开注册、登录、手机号验证码登录由 Casdoor 页面承载；StuHelper auth 模块负责 OIDC 回调、本地会话、token 轮换和 shadow user 同步。
+> 状态：现行。公开登录认证入口和 OIDC issuer 是 `sso.stuhelper.com` 的 Casdoor。`stuhelper.com` 承载账号中心、学生认证、QQ 绑定和开放平台业务页面；`join.stuhelper.com` 承载入群验证业务闭环；`id.stuhelper.com` 是 legacy disabled host，生产入口必须返回 404。
 
 ## 登录方式
 
-### Casdoor OIDC（主要链路）
+### StuHelper Web + Casdoor（主要链路）
 
 ```
-前端请求 /api/v1/auth/login?redirect=...
-→ 后端生成 state，写 Redis + HttpOnly state cookie
-→ 跳转 Casdoor
-→ 回调 /api/v1/auth/callback?code=...&state=...
+业务页面访问 stuhelper.com、join.stuhelper.com 或受保护页面
+→ 前端进入 /login?redirect=<受保护目标>
+→ LoginPage 调用 /api/v1/auth/login?redirect=<受保护目标>
+→ 后端生成 upstream state，写 Redis + HttpOnly state cookie
+→ 跳转 https://sso.stuhelper.com/login/oauth/authorize
+→ 回调 https://stuhelper.com/api/v1/auth/callback?code=...&state=...
 → 校验 state（一次性验证后销毁）→ 交换 token → 写入 Cookie → 同步 shadow user
-→ 302 回前端
+→ 302 回原业务目标页
 → 前端请求 /api/v1/auth/me
 ```
 

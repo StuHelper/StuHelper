@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="x-apple-disable-message-reformatting">
+    <title>学生认证验证码</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f5f7fb;color:#172033;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',Arial,sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#f5f7fb;margin:0;padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:560px;background:#ffffff;border:1px solid #e3e8f2;border-radius:8px;overflow:hidden;">
+            <tr>
+              <td style="padding:28px 32px 16px 32px;border-bottom:1px solid #edf1f7;">
+                <div style="font-size:20px;line-height:28px;font-weight:700;color:#172033;">StuHelper</div>
+                <div style="margin-top:6px;font-size:14px;line-height:22px;color:#667085;">{{school_name}} 学校邮箱认证</div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px 32px 8px 32px;">
+                <div style="font-size:18px;line-height:28px;font-weight:700;color:#172033;">你的验证码</div>
+                <div style="margin-top:16px;padding:18px 20px;background:#f0f6ff;border:1px solid #b9d7ff;border-radius:8px;text-align:center;">
+                  <span style="font-size:32px;line-height:40px;font-weight:800;letter-spacing:6px;color:#175cd3;font-family:Consolas,'SFMono-Regular','Roboto Mono',Menlo,monospace;">{{code}}</span>
+                </div>
+                <p style="margin:18px 0 0 0;font-size:15px;line-height:24px;color:#344054;">
+                  你正在进行 <strong>{{purpose}}</strong>。请在 <strong>{{expire_minutes}}</strong> 分钟内回到 StuHelper 页面填写验证码。
+                </p>
+                <p style="margin:12px 0 0 0;font-size:14px;line-height:22px;color:#667085;">
+                  为保护账号安全，请不要把验证码转发或告知他人。StuHelper 工作人员不会向你索要验证码。
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 32px 28px 32px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#fff8eb;border:1px solid #fedf89;border-radius:8px;">
+                  <tr>
+                    <td style="padding:14px 16px;font-size:13px;line-height:20px;color:#7a4b00;">
+                      如果这不是你本人发起的操作，请忽略本邮件。未填写验证码不会完成任何认证或绑定。
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:18px 32px;background:#f8fafc;border-top:1px solid #edf1f7;font-size:12px;line-height:20px;color:#667085;">
+                本邮件由 StuHelper 账号与认证系统自动发送，用于学校邮箱验证码校验。请勿直接回复本邮件。
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

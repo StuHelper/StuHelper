@@ -8,6 +8,8 @@ DEPLOY_SSH_PUBKEY="${DEPLOY_SSH_PUBKEY:-}"
 CONFIGURE_UFW="${CONFIGURE_UFW:-true}"
 ALLOW_HTTP_PORTS="${ALLOW_HTTP_PORTS:-80,443}"
 INSTALL_BACKUP_TIMERS="${INSTALL_BACKUP_TIMERS:-true}"
+INSTALL_GO="${INSTALL_GO:-true}"
+GO_VERSION="${GO_VERSION:-1.26.0}"
 
 log() {
   echo "[bootstrap-ubuntu2404] $*"
@@ -157,6 +159,33 @@ configure_ufw() {
   done
 }
 
+go_arch() {
+  case "$(dpkg --print-architecture)" in
+    amd64) printf '%s\n' amd64 ;;
+    arm64) printf '%s\n' arm64 ;;
+    *) die "unsupported Go architecture: $(dpkg --print-architecture)" ;;
+  esac
+}
+
+install_go() {
+  [[ "${INSTALL_GO}" == "true" ]] || return 0
+
+  local arch tmp_tarball
+  arch="$(go_arch)"
+  tmp_tarball="$(mktemp)"
+  log "installing Go ${GO_VERSION} for linux-${arch}"
+  curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${arch}.tar.gz" -o "${tmp_tarball}"
+  rm -rf /usr/local/go
+  tar -C /usr/local -xzf "${tmp_tarball}"
+  rm -f "${tmp_tarball}"
+  ln -sf /usr/local/go/bin/go /usr/local/bin/go
+  ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt
+  cat >/etc/profile.d/stuhelper-go.sh <<'EOF'
+export PATH="/usr/local/go/bin:${HOME}/go/bin:${PATH}"
+EOF
+  chmod 0644 /etc/profile.d/stuhelper-go.sh
+}
+
 install_backup_timers() {
   [[ "${INSTALL_BACKUP_TIMERS}" == "true" ]] || return 0
 
@@ -283,6 +312,9 @@ main() {
 
   log "configuring firewall"
   configure_ufw
+
+  log "installing Go toolchain"
+  install_go
 
   install_backup_timers
 
