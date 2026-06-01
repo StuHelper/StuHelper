@@ -77,6 +77,16 @@ def write_evidence(path: Path, evidence: dict) -> None:
     path.write_text(json.dumps(evidence, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def safe_body_snippet(body: bytes, api_key: str, recipient: str, limit: int = 500) -> str:
+    text = body[:limit].decode("utf-8", "replace")
+    text = " ".join(text.split())
+    if api_key:
+        text = text.replace(api_key, "<redacted>")
+    if recipient:
+        text = text.replace(recipient, "<redacted-recipient>")
+    return text
+
+
 repo_root = Path(require_env("REPO_ROOT"))
 api_key = require_env("EMAIL_RESEND_API_KEY")
 recipient = optional_env("RESEND_EMAIL_SMOKE_TO", optional_env("EMAIL_SMOKE_TO", ""))
@@ -158,8 +168,14 @@ evidence["httpStatus"] = http_status
 try:
     result = json.loads(body.decode("utf-8")) if body.strip() else {}
 except json.JSONDecodeError as exc:
-    evidence["error"] = "invalid JSON response"
+    evidence["error"] = "invalid_json_response"
+    evidence["bodySnippet"] = safe_body_snippet(body, api_key, recipient)
     write_evidence(Path(os.environ["RESEND_EMAIL_CHANNEL_SMOKE_EVIDENCE_FILE"]), evidence)
+    if http_status < 200 or http_status >= 300:
+        raise SystemExit(
+            "[resend-email-channel-smoke][error] "
+            f"Resend API error status={http_status}: non-JSON response"
+        ) from exc
     raise SystemExit(f"[resend-email-channel-smoke][error] invalid JSON response: {exc}") from exc
 
 if http_status < 200 or http_status >= 300:
