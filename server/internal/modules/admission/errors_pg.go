@@ -34,3 +34,10 @@ func isFreshmanApplicationPendingUniqueViolation(err error) bool {
 		pgErr.Code == pgUniqueViolation &&
 		pgErr.ConstraintName == "freshman_verification_applications_pending_user_school_idx"
 }
+
+func isFreshmanCameraHandoffActiveUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) &&
+		pgErr.Code == pgUniqueViolation &&
+		pgErr.ConstraintName == "freshman_camera_handoffs_active_application_idx"
+}

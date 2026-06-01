@@ -415,6 +415,10 @@ failures(message) AS (
     )
 
   UNION ALL
+  SELECT 'freshman camera handoff table must enforce one active handoff per application'
+  WHERE to_regclass('public.freshman_camera_handoffs_active_application_idx') IS NULL
+
+  UNION ALL
   SELECT format('policy %s/%s references missing or disabled admission school %s', platform, guild_id, school_id)
   FROM policy_readiness
   WHERE school_enabled IS DISTINCT FROM true

@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS public.freshman_camera_handoffs_active_application_idx;

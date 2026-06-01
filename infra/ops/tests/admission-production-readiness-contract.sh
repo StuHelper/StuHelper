@@ -96,6 +96,8 @@ assert_contains "${READINESS_SCRIPT}" 'BUAA academic table academic\.buaa_studen
 assert_contains "${READINESS_SCRIPT}" 'BUAA academic table academic\.buaa_students must expose xh and xm columns'
 assert_contains "${READINESS_SCRIPT}" 'freshman camera handoff table is missing'
 assert_contains "${READINESS_SCRIPT}" 'freshman camera handoff table must expose token_hash, status and continue_on columns'
+assert_contains "${READINESS_SCRIPT}" 'freshman camera handoff table must enforce one active handoff per application'
+assert_contains "${READINESS_SCRIPT}" 'freshman_camera_handoffs_active_application_idx'
 assert_contains "${READINESS_SCRIPT}" 'to_regclass\(trim\(sc\.academic_db_table\)\)'
 assert_contains "${READINESS_SCRIPT}" 'NULLIF\(trim\(sc\.academic_db_table\), '\'''\''\)'
 assert_contains "${READINESS_SCRIPT}" 'references missing or disabled admission school'

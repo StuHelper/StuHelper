@@ -59,7 +59,8 @@ type Service struct {
 	projection      FreshmanProjectionGateway
 	schoolSSO       SchoolSSOExchanger
 
-	beforeFreshmanApplicationCreate func()
+	beforeFreshmanApplicationCreate   func()
+	beforeFreshmanCameraHandoffCreate func()
 }
 
 type ServiceOption func(*Service)

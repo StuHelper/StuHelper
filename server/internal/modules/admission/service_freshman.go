@@ -156,6 +156,9 @@ func (s *Service) CreateFreshmanCameraHandoff(
 	if err := s.repo.ExpirePendingFreshmanCameraHandoffs(ctx, app.ID, s.now()); err != nil {
 		return nil, err
 	}
+	if s.beforeFreshmanCameraHandoffCreate != nil {
+		s.beforeFreshmanCameraHandoffCreate()
+	}
 	token, err := s.generateToken()
 	if err != nil {
 		return nil, err
@@ -174,6 +177,9 @@ func (s *Service) CreateFreshmanCameraHandoff(
 		CreatedAt:     s.now(),
 	}
 	if err := s.repo.CreateFreshmanCameraHandoff(ctx, handoff, s.hashToken(token)); err != nil {
+		if isFreshmanCameraHandoffActiveUniqueViolation(err) {
+			return nil, ErrAdmissionCameraHandoffLocked
+		}
 		return nil, err
 	}
 	return &handoff, nil

@@ -296,6 +296,40 @@ func TestFreshmanCameraHandoffUploadsAndLocksContinuation(t *testing.T) {
 	require.ErrorIs(t, err, ErrAdmissionCameraHandoffLocked)
 }
 
+func TestFreshmanCameraHandoffRejectsConcurrentActiveHandoff(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newFreshmanTestService(t, fixture)
+	tokenIndex := 0
+	svc.generateToken = func() (string, error) {
+		tokenIndex++
+		return fmt.Sprintf("freshman-camera-race-token-%d", tokenIndex), nil
+	}
+	userID := seedLinkedAdmissionUser(t, fixture, svc, "freshman-camera-race")
+	app := createFreshmanTestApplication(t, svc, userID)
+	inserted := false
+	svc.beforeFreshmanCameraHandoffCreate = func() {
+		if inserted {
+			return
+		}
+		inserted = true
+		insertFreshmanCameraHandoff(t, fixture, freshmanCameraHandoffSeed{
+			ID:            "freshman-camera-race-existing",
+			ApplicationID: app.ID,
+			UserID:        userID,
+			TokenHash:     svc.hashToken("freshman-camera-race-existing-token"),
+			Status:        FreshmanCameraHandoffPending,
+			ExpiresAt:     fixedAdmissionNow().Add(freshmanCameraHandoffTTL),
+		})
+	}
+
+	_, err := svc.CreateFreshmanCameraHandoff(context.Background(), FreshmanCameraHandoffCreateInput{
+		UserID:        userID,
+		ApplicationID: app.ID,
+	})
+
+	require.ErrorIs(t, err, ErrAdmissionCameraHandoffLocked)
+}
+
 func TestFreshmanDesktopCaptureExpiresPendingMobileHandoff(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	store := &testAdmissionMaterialStore{}
@@ -454,6 +488,30 @@ type freshmanPendingSeed struct {
 	SchoolID      int64
 	SessionID     string
 	ApplicantName string
+}
+
+type freshmanCameraHandoffSeed struct {
+	ID            string
+	ApplicationID string
+	UserID        int64
+	TokenHash     string
+	Status        FreshmanCameraHandoffStatus
+	ExpiresAt     time.Time
+}
+
+func insertFreshmanCameraHandoff(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	seed freshmanCameraHandoffSeed,
+) {
+	t.Helper()
+	_, err := fixture.Pool.Exec(context.Background(), `
+		INSERT INTO freshman_camera_handoffs (
+			id, application_id, user_id, token_hash, status, expires_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`, seed.ID, seed.ApplicationID, seed.UserID, seed.TokenHash, seed.Status, seed.ExpiresAt)
+	require.NoError(t, err)
 }
 
 func insertFreshmanPendingApplication(
