@@ -262,6 +262,7 @@ record_fail() {
 
 check_discovery() {
   local attempt response_file headers_file error_file meta status content_type bytes curl_error snippet
+  local actual_issuer actual_authorization_endpoint actual_jwks_uri actual_token_endpoint
   response_file="$(mktemp)"
   headers_file="$(mktemp)"
   error_file="$(mktemp)"
@@ -274,6 +275,10 @@ check_discovery() {
     content_type="$(response_header "${headers_file}" "Content-Type")"
     bytes="$(wc -c <"${response_file}" | tr -d '[:space:]')"
     curl_error="$(body_snippet "${error_file}")"
+    actual_issuer="$(jq -r '.issuer // ""' "${response_file}" 2>/dev/null || true)"
+    actual_authorization_endpoint="$(jq -r '.authorization_endpoint // ""' "${response_file}" 2>/dev/null || true)"
+    actual_jwks_uri="$(jq -r '.jwks_uri // ""' "${response_file}" 2>/dev/null || true)"
+    actual_token_endpoint="$(jq -r '.token_endpoint // ""' "${response_file}" 2>/dev/null || true)"
     if [[ "${status}" == "200" ]] && jq -e --arg issuer "${expected_issuer}" '
       type == "object"
       and .issuer == $issuer
@@ -295,7 +300,7 @@ check_discovery() {
   done
   snippet="$(body_snippet "${response_file}")"
   rm -f "${response_file}" "${headers_file}" "${error_file}"
-  record_fail "SSO discovery metadata expected issuer ${expected_issuer}, got HTTP ${status:-000}" "$(json_detail url "${discovery_url}" expectedIssuer "${expected_issuer}" httpStatus "${status:-000}" contentType "${content_type:-}" bodySnippet "${snippet}" curlError "${curl_error:-}")"
+  record_fail "SSO discovery metadata expected issuer ${expected_issuer}, got ${actual_issuer:-<missing>} with HTTP ${status:-000}" "$(json_detail url "${discovery_url}" expectedIssuer "${expected_issuer}" actualIssuer "${actual_issuer:-}" actualAuthorizationEndpoint "${actual_authorization_endpoint:-}" actualJWKSURI "${actual_jwks_uri:-}" actualTokenEndpoint "${actual_token_endpoint:-}" httpStatus "${status:-000}" contentType "${content_type:-}" bodySnippet "${snippet}" curlError "${curl_error:-}")"
 }
 
 check_jwks() {

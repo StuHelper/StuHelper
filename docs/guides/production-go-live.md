@@ -251,6 +251,8 @@ curl -fsSI https://join.stuhelper.com/verify                  # 应 404
 curl -fsSI 'https://stuhelper.com/verify/__manual_probe__?qq=10000' # 应 404
 ```
 
+`sso.stuhelper.com` 的 OIDC discovery `issuer`、authorize、token 和 JWKS endpoint 必须全部是 `https://sso.stuhelper.com`。如果独立 Casdoor 宝塔 Compose 的 `conf/app.conf` 已经写入 `origin = https://sso.stuhelper.com`，但 discovery 仍返回 `http://sso.stuhelper.com`，不要只修改文件后结束；重启该 Compose 项目的 `casdoor` 容器，再运行 `./infra/ops/sso-public-smoke.sh` 留档。
+
 自动 smoke：
 
 ```bash

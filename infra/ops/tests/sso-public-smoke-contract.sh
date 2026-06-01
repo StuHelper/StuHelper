@@ -81,6 +81,9 @@ bash -n "${SMOKE_SCRIPT}"
 
 assert_contains "${SMOKE_SCRIPT}" 'SSO_PUBLIC_BASE_URL must be exactly https://sso\.stuhelper\.com'
 assert_contains "${SMOKE_SCRIPT}" 'SSO discovery metadata'
+assert_contains "${SMOKE_SCRIPT}" 'actualIssuer'
+assert_contains "${SMOKE_SCRIPT}" 'actualAuthorizationEndpoint'
+assert_contains "${SMOKE_SCRIPT}" 'actualJWKSURI'
 assert_contains "${SMOKE_SCRIPT}" 'SSO JWKS'
 assert_contains "${SMOKE_SCRIPT}" 'SSO authorize route reachable'
 assert_contains "${SMOKE_SCRIPT}" 'SSO web application exposes password signup controls'
