@@ -2,6 +2,7 @@ package admission
 
 import (
 	"context"
+	"encoding/base64"
 	"strconv"
 	"testing"
 	"time"
@@ -68,6 +69,31 @@ func TestFreshmanReviewApprovesAndRejects(t *testing.T) {
 	assert.Nil(t, rejected.ProvisionalExpiresAt)
 }
 
+func TestFreshmanReviewRequiresSubmittedMaterialBeforeDeadline(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newOperatorTestService(t, fixture)
+	operatorID := seedAdmissionUser(t, fixture, "operator-material-required")
+	bindAdmissionOperatorQQ(t, fixture, operatorBindingSeed{UserID: operatorID, QQID: "90005"})
+	svc.operatorAccess = &testOperatorAccessGateway{allowedUserID: operatorID}
+
+	unsubmitted := seedUnsubmittedFreshmanApplication(t, fixture, svc)
+	_, err := svc.ReviewFreshmanApplicationFromBot(
+		context.Background(),
+		botReviewInput(unsubmitted.ID, "90005"),
+	)
+	require.ErrorIs(t, err, ErrAdmissionInvalidStatus)
+	assertNoCredentialStored(t, fixture, unsubmitted.UserID, CredentialFreshmanMaterialManual)
+
+	expired := seedReviewableFreshmanApplication(t, fixture, svc)
+	svc.now = func() time.Time { return fixedAdmissionNow().Add(25 * time.Hour) }
+	_, err = svc.ReviewFreshmanApplicationFromBot(
+		context.Background(),
+		botReviewInput(expired.ID, "90005"),
+	)
+	require.ErrorIs(t, err, ErrAdmissionInvalidStatus)
+	assertNoCredentialStored(t, fixture, expired.UserID, CredentialFreshmanMaterialManual)
+}
+
 func TestFreshmanReviewEnforcesExtensionLimit(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newOperatorTestService(t, fixture)
@@ -93,6 +119,23 @@ func newOperatorTestService(t *testing.T, fixture *postgresfixture.Fixture) *Ser
 }
 
 func seedReviewableFreshmanApplication(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	svc *Service,
+) *FreshmanApplication {
+	t.Helper()
+	app := seedUnsubmittedFreshmanApplication(t, fixture, svc)
+	_, err := svc.SubmitCameraCapture(context.Background(), CameraCaptureInput{
+		UserID:        app.UserID,
+		ApplicationID: app.ID,
+		ContentType:   "image/png",
+		ImageBase64:   base64.StdEncoding.EncodeToString(validPNGBytes()),
+	})
+	require.NoError(t, err)
+	return app
+}
+
+func seedUnsubmittedFreshmanApplication(
 	t *testing.T,
 	fixture *postgresfixture.Fixture,
 	svc *Service,

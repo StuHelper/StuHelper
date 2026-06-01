@@ -133,6 +133,21 @@ func (r *Repository) FreshmanApplicationHasMaterial(ctx context.Context, applica
 	return exists, nil
 }
 
+func (r *Repository) FreshmanApplicationHasMaterialTx(ctx context.Context, tx pgx.Tx, applicationID string) (bool, error) {
+	var exists bool
+	err := tx.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM freshman_verification_materials
+			WHERE application_id = $1
+		)
+	`, applicationID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("FreshmanApplicationHasMaterialTx: %w", err)
+	}
+	return exists, nil
+}
+
 func (r *Repository) GetActiveFreshmanCameraHandoff(ctx context.Context, applicationID string, now time.Time) (*FreshmanCameraHandoff, error) {
 	ctx = withDBTable(ctx, "freshman_camera_handoffs")
 	handoff, err := scanFreshmanCameraHandoff(r.db.QueryRow(ctx, freshmanCameraHandoffSelectSQL()+`

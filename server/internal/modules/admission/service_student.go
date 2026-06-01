@@ -76,6 +76,9 @@ func (s *Service) VerifySchoolEmailOTP(ctx context.Context, input SchoolEmailOTP
 	if s.redisClient == nil {
 		return nil, ErrAdmissionRedisUnavailable
 	}
+	if _, err := s.requireLinkedSession(ctx, input.UserID); err != nil {
+		return nil, err
+	}
 	email, err := normalizeAdmissionEmail(input.Email)
 	if err != nil {
 		return nil, err

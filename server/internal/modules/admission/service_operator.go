@@ -108,6 +108,9 @@ func (s *Service) reviewFreshmanApplication(
 		if app.Status != FreshmanApplicationPending {
 			return ErrAdmissionInvalidStatus
 		}
+		if err := s.ensureFreshmanApplicationReviewableTx(ctx, tx, app); err != nil {
+			return err
+		}
 		update, err := s.buildFreshmanReviewUpdate(ctx, app, command)
 		if err != nil {
 			return err
@@ -123,6 +126,31 @@ func (s *Service) reviewFreshmanApplication(
 		return s.repo.InsertAuditEventTx(ctx, tx, freshmanReviewAuditEvent(ctx, reviewed, command))
 	})
 	return reviewed, err
+}
+
+func (s *Service) ensureFreshmanApplicationReviewableTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	app *FreshmanApplication,
+) error {
+	if app.AdmissionSessionID == nil {
+		return ErrAdmissionLinkedSessionRequired
+	}
+	hasMaterial, err := s.repo.FreshmanApplicationHasMaterialTx(ctx, tx, app.ID)
+	if err != nil {
+		return err
+	}
+	if !hasMaterial {
+		return ErrAdmissionInvalidStatus
+	}
+	session, err := s.repo.GetSessionByIDForUpdate(ctx, tx, *app.AdmissionSessionID)
+	if err != nil {
+		return err
+	}
+	if session.Status != StatusMaterialSubmitted {
+		return ErrAdmissionInvalidStatus
+	}
+	return s.ensureSessionAcceptsVerification(session)
 }
 
 func (s *Service) applyFreshmanApprovalTx(

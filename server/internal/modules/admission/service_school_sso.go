@@ -68,6 +68,9 @@ func (s *Service) CompleteSchoolSSO(
 	if err != nil {
 		return nil, err
 	}
+	if _, err := s.requireLinkedSession(ctx, input.UserID); err != nil {
+		return nil, err
+	}
 	input.CodeVerifier = state.CodeVerifier
 	identity, err := s.exchangeSchoolSSO(ctx, input)
 	if err != nil {
@@ -113,6 +116,9 @@ func (s *Service) storeStudentCredential(ctx context.Context, input studentCrede
 		}
 		if session == nil {
 			return ErrAdmissionLinkedSessionRequired
+		}
+		if err := s.ensureLinkedSessionAcceptsSubmission(session); err != nil {
+			return err
 		}
 		if err := s.repo.CreateVerificationCredentialTx(ctx, tx, s.newStudentCredential(input)); err != nil {
 			return err

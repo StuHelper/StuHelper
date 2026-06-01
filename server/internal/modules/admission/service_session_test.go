@@ -114,6 +114,29 @@ func TestAdmissionTokenLinkIsIdempotentForSameUser(t *testing.T) {
 	assert.Equal(t, userID, *second.UserID)
 }
 
+func TestAdmissionTokenConsumedResumeRejectsExpiredSubmissionWindow(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createLinkableSession(t, svc)
+	userID := seedAdmissionUser(t, fixture, "idempotent-link-expired")
+
+	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+
+	svc.now = func() time.Time { return fixedAdmissionNow().Add(25 * time.Hour) }
+	_, err = svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.ErrorIs(t, err, ErrAdmissionTokenExpired)
+}
+
 func TestAdmissionTokenLinkConsumedByAnotherUserStillRejected(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)
@@ -250,6 +273,49 @@ func TestAdmissionSessionStatusTransitions(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, StatusVerified, verified.Status)
 	require.NotNil(t, verified.VerifiedAt)
+}
+
+func TestLinkedSessionSubmissionDeadlineBlocksMaterialAndVerification(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createLinkableSession(t, svc)
+	userID := seedAdmissionUser(t, fixture, "status-link-expired")
+	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+
+	svc.now = func() time.Time { return fixedAdmissionNow().Add(25 * time.Hour) }
+
+	_, err = svc.MarkMaterialSubmitted(context.Background(), created.Session.ID)
+	require.ErrorIs(t, err, ErrAdmissionTokenExpired)
+
+	_, err = svc.MarkVerified(context.Background(), created.Session.ID)
+	require.ErrorIs(t, err, ErrAdmissionTokenExpired)
+}
+
+func TestMaterialSubmittedManualReviewDeadlineBlocksVerification(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createLinkableSession(t, svc)
+	userID := seedAdmissionUser(t, fixture, "manual-review-expired")
+	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+	_, err = svc.MarkMaterialSubmitted(context.Background(), created.Session.ID)
+	require.NoError(t, err)
+
+	svc.now = func() time.Time { return fixedAdmissionNow().Add(25 * time.Hour) }
+
+	_, err = svc.MarkVerified(context.Background(), created.Session.ID)
+	require.ErrorIs(t, err, ErrAdmissionInvalidStatus)
 }
 
 func TestLinkedAdmissionActionsRequirePolicyForTimeoutsButNotRelease(t *testing.T) {

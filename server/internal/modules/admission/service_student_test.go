@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -95,6 +96,41 @@ func TestSchoolEmailOTPDerivesBUAAEmailAfterAcademicNameMatch(t *testing.T) {
 		StudentName: "张三",
 	})
 	require.ErrorIs(t, err, ErrAdmissionEmailDomainNotAllowed)
+}
+
+func TestSchoolEmailOTPRejectsExpiredLinkedSession(t *testing.T) {
+	pg := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	sender := &testSchoolEmailSender{}
+	svc := newFreshmanTestService(t, pg)
+	svc.redisClient = redis.Client
+	svc.emailSender = sender
+	userID := seedLinkedAdmissionUser(t, pg, svc, "email-otp-expired")
+
+	_, err := svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
+		UserID:   userID,
+		SchoolID: 1,
+		Email:    "student@buaa.edu.cn",
+	})
+	require.NoError(t, err)
+
+	svc.now = func() time.Time { return fixedAdmissionNow().Add(25 * time.Hour) }
+
+	_, err = svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
+		UserID:   userID,
+		SchoolID: 1,
+		Email:    "student@buaa.edu.cn",
+	})
+	require.ErrorIs(t, err, ErrAdmissionTokenExpired)
+
+	_, err = svc.VerifySchoolEmailOTP(context.Background(), SchoolEmailOTPVerifyInput{
+		UserID:   userID,
+		SchoolID: 1,
+		Email:    "student@buaa.edu.cn",
+		Code:     sender.code,
+	})
+	require.ErrorIs(t, err, ErrAdmissionTokenExpired)
+	assertNoCredentialStored(t, pg, userID, CredentialSchoolEmailOTP)
 }
 
 func TestResolveSchoolIDByCodeUsesEnabledAdmissionSchoolConfig(t *testing.T) {

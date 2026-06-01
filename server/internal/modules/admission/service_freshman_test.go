@@ -19,7 +19,7 @@ func TestFreshmanApplicationRejectsClosedChannelAndReusesPendingApplication(t *t
 	svc := newFreshmanTestService(t, fixture)
 	userID := seedLinkedAdmissionUser(t, fixture, svc, "freshman-closed")
 
-	svc.now = func() time.Time { return fixedAdmissionNow().AddDate(0, 6, 0) }
+	closeFreshmanChannel(t, fixture)
 	_, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
 		UserID:        userID,
 		SchoolID:      1,
@@ -28,7 +28,7 @@ func TestFreshmanApplicationRejectsClosedChannelAndReusesPendingApplication(t *t
 	})
 	require.ErrorIs(t, err, ErrAdmissionFreshmanChannelClosed)
 
-	svc.now = fixedAdmissionNow
+	openFreshmanChannel(t, fixture)
 	app, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
 		UserID:        userID,
 		SchoolID:      1,
@@ -46,6 +46,22 @@ func TestFreshmanApplicationRejectsClosedChannelAndReusesPendingApplication(t *t
 	})
 	require.NoError(t, err)
 	assert.Equal(t, app.ID, reused.ID)
+}
+
+func TestFreshmanApplicationRejectsExpiredLinkedSession(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newFreshmanTestService(t, fixture)
+	userID := seedLinkedAdmissionUser(t, fixture, svc, "freshman-expired")
+
+	svc.now = func() time.Time { return fixedAdmissionNow().Add(25 * time.Hour) }
+
+	_, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
+		UserID:        userID,
+		SchoolID:      1,
+		ApplicantName: "Alice Applicant",
+		MaterialType:  MaterialAdmissionNotice,
+	})
+	require.ErrorIs(t, err, ErrAdmissionTokenExpired)
 }
 
 func TestFreshmanCameraCaptureValidatesAndStoresImage(t *testing.T) {
@@ -84,6 +100,26 @@ func TestFreshmanCameraCaptureValidatesAndStoresImage(t *testing.T) {
 	assert.Equal(t, "image/png", store.contentType)
 	assert.NotEmpty(t, store.objectKey)
 	assert.NotEmpty(t, store.content)
+}
+
+func TestFreshmanCameraCaptureRejectsExpiredLinkedSessionBeforeStoringMaterial(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	store := &testAdmissionMaterialStore{}
+	svc := newFreshmanTestService(t, fixture)
+	svc.materialStore = store
+	userID := seedLinkedAdmissionUser(t, fixture, svc, "freshman-camera-expired")
+	app := createFreshmanTestApplication(t, svc, userID)
+
+	svc.now = func() time.Time { return fixedAdmissionNow().Add(25 * time.Hour) }
+
+	_, err := svc.SubmitCameraCapture(context.Background(), CameraCaptureInput{
+		UserID:        userID,
+		ApplicationID: app.ID,
+		ContentType:   "image/png",
+		ImageBase64:   base64.StdEncoding.EncodeToString(validPNGBytes()),
+	})
+	require.ErrorIs(t, err, ErrAdmissionTokenExpired)
+	assert.Empty(t, store.objectKey)
 }
 
 func TestFreshmanCameraHandoffUploadsAndLocksContinuation(t *testing.T) {
@@ -299,6 +335,26 @@ func createFreshmanTestApplication(t *testing.T, svc *Service, userID int64) *Fr
 	})
 	require.NoError(t, err)
 	return app
+}
+
+func closeFreshmanChannel(t *testing.T, fixture *postgresfixture.Fixture) {
+	t.Helper()
+	_, err := fixture.Pool.Exec(context.Background(), `
+		UPDATE group_admission_policies
+		SET freshman_channel_closes_at = $1
+		WHERE platform = 'qq' AND guild_id = 'guild-1'
+	`, fixedAdmissionNow().Add(-time.Hour))
+	require.NoError(t, err)
+}
+
+func openFreshmanChannel(t *testing.T, fixture *postgresfixture.Fixture) {
+	t.Helper()
+	_, err := fixture.Pool.Exec(context.Background(), `
+		UPDATE group_admission_policies
+		SET freshman_channel_closes_at = $1
+		WHERE platform = 'qq' AND guild_id = 'guild-1'
+	`, futureTime(30))
+	require.NoError(t, err)
 }
 
 type testAdmissionMaterialStore struct {

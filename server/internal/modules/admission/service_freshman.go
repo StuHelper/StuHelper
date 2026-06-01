@@ -70,6 +70,9 @@ func (s *Service) SubmitCameraCapture(ctx context.Context, input CameraCaptureIn
 	if err := s.ensureFreshmanDesktopCaptureAllowed(ctx, app.ID); err != nil {
 		return nil, err
 	}
+	if err := s.ensureLinkedSessionAcceptsSubmission(session); err != nil {
+		return nil, err
+	}
 	material, content, err := s.buildFreshmanMaterial(input, policy.MaxMaterialBytes)
 	if err != nil {
 		return nil, err
@@ -100,7 +103,8 @@ func (s *Service) CreateFreshmanCameraHandoff(
 	if err != nil {
 		return nil, err
 	}
-	if _, _, err := s.loadApplicationSessionPolicy(ctx, app); err != nil {
+	session, _, err := s.loadApplicationSessionPolicy(ctx, app)
+	if err != nil {
 		return nil, err
 	}
 	hasMaterial, err := s.repo.FreshmanApplicationHasMaterial(ctx, app.ID)
@@ -109,6 +113,9 @@ func (s *Service) CreateFreshmanCameraHandoff(
 	}
 	if hasMaterial {
 		return nil, ErrAdmissionCameraHandoffLocked
+	}
+	if err := s.ensureLinkedSessionAcceptsSubmission(session); err != nil {
+		return nil, err
 	}
 	active, err := s.repo.GetActiveFreshmanCameraHandoff(ctx, app.ID, s.now())
 	if err != nil {
@@ -191,6 +198,9 @@ func (s *Service) SubmitFreshmanCameraHandoffCapture(
 	if err != nil {
 		return nil, err
 	}
+	if err := s.ensureLinkedSessionAcceptsSubmission(session); err != nil {
+		return nil, err
+	}
 	material, content, err := s.buildFreshmanMaterial(CameraCaptureInput{
 		ApplicationID: app.ID,
 		ContentType:   input.ContentType,
@@ -257,7 +267,40 @@ func (s *Service) requireLinkedSession(ctx context.Context, userID int64) (*Admi
 	if session == nil {
 		return nil, ErrAdmissionLinkedSessionRequired
 	}
+	if err := s.ensureLinkedSessionAcceptsSubmission(session); err != nil {
+		return nil, err
+	}
 	return session, nil
+}
+
+func (s *Service) ensureLinkedSessionAcceptsSubmission(session *AdmissionSession) error {
+	if session == nil {
+		return ErrAdmissionLinkedSessionRequired
+	}
+	if session.Status != StatusLinked {
+		return ErrAdmissionInvalidStatus
+	}
+	if s.now().After(session.SubmissionWaitDeadlineAt) {
+		return ErrAdmissionTokenExpired
+	}
+	return nil
+}
+
+func (s *Service) ensureSessionAcceptsVerification(session *AdmissionSession) error {
+	if session == nil {
+		return ErrAdmissionSessionNotFound
+	}
+	switch session.Status {
+	case StatusLinked:
+		return s.ensureLinkedSessionAcceptsSubmission(session)
+	case StatusMaterialSubmitted:
+		if session.ManualReviewDeadlineAt != nil && s.now().After(*session.ManualReviewDeadlineAt) {
+			return ErrAdmissionInvalidStatus
+		}
+		return nil
+	default:
+		return ErrAdmissionInvalidStatus
+	}
 }
 
 func (s *Service) ensureFreshmanCameraHandoffUsable(handoff *FreshmanCameraHandoff) error {
@@ -366,6 +409,9 @@ func (s *Service) recoverFreshmanCameraHandoffUpload(
 func (s *Service) ensureFreshmanMaterialSubmitted(ctx context.Context, session *AdmissionSession) error {
 	switch session.Status {
 	case StatusLinked:
+		if err := s.ensureLinkedSessionAcceptsSubmission(session); err != nil {
+			return err
+		}
 		policy, err := s.loadPolicy(ctx, session.Platform, session.GuildID)
 		if err != nil {
 			return err

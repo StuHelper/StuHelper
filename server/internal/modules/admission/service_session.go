@@ -131,6 +131,9 @@ func (s *Service) LinkTokenToUser(ctx context.Context, input AdmissionTokenLinkI
 		}
 		if err := s.validateTokenSession(session, input.QQQuery); err != nil {
 			if errors.Is(err, ErrAdmissionTokenConsumed) && sessionLinkedToUser(session, input.UserID) {
+				if err := s.ensureLinkedSessionAcceptsSubmission(session); err != nil {
+					return err
+				}
 				linked = session
 				return nil
 			}
@@ -242,6 +245,9 @@ func (s *Service) MarkMaterialSubmitted(ctx context.Context, sessionID string) (
 	if session.Status != StatusLinked {
 		return nil, ErrAdmissionInvalidStatus
 	}
+	if err := s.ensureLinkedSessionAcceptsSubmission(session); err != nil {
+		return nil, err
+	}
 	policy, err := s.loadPolicy(ctx, session.Platform, session.GuildID)
 	if err != nil {
 		return nil, err
@@ -257,6 +263,9 @@ func (s *Service) MarkVerified(ctx context.Context, sessionID string) (*Admissio
 	}
 	if session.Status != StatusLinked && session.Status != StatusMaterialSubmitted {
 		return nil, ErrAdmissionInvalidStatus
+	}
+	if err := s.ensureSessionAcceptsVerification(session); err != nil {
+		return nil, err
 	}
 	return s.repo.MarkVerified(ctx, session.ID, s.now())
 }
