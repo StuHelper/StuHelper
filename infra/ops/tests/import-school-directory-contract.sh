@@ -37,8 +37,8 @@ head -n 1 "${DIRECTORY_TSV}" | grep -Fx $'code\tname\tauthority\tlocation\teduca
   exit 1
 }
 
-assert_file_contains "${DIRECTORY_TSV}" $'^4111010006\t北京航空航天大学\t工业和信息化部\t北京市\t本科\t$'
-assert_file_contains "${DIRECTORY_TSV}" $'^4111010001\t北京大学\t教育部\t北京市\t本科\t$'
+assert_file_contains "${DIRECTORY_TSV}" $'^4111010006\t北京航空航天大学\t工业和信息化部\t北京市\t本科\t""$'
+assert_file_contains "${DIRECTORY_TSV}" $'^4111010001\t北京大学\t教育部\t北京市\t本科\t""$'
 
 school_count="$(tail -n +2 "${DIRECTORY_TSV}" | wc -l | tr -d ' ')"
 if [[ "${school_count}" -lt 2500 ]]; then
