@@ -172,6 +172,10 @@ type profileIdentitySyncGateway interface {
 	UpdatePhone(ctx context.Context, subject, phone string) error
 }
 
+type admissionVerificationProjectionGateway interface {
+	ProjectStudentVerification(ctx context.Context, userID int64, approved bool) error
+}
+
 type StudentEmailSender interface {
 	SendStudentVerificationOTP(ctx context.Context, email string, code string) error
 }
@@ -189,6 +193,7 @@ type Service struct {
 	profileFGA          profileFGAClient
 	photoStore          identityPhotoStore
 	profileIdentitySync profileIdentitySyncGateway
+	admissionProjection admissionVerificationProjectionGateway
 }
 
 // RoleSyncFunc 角色同步回调。
@@ -222,6 +227,12 @@ func WithProfileIdentitySyncGateway(gateway profileIdentitySyncGateway) ServiceO
 	}
 }
 
+func WithAdmissionVerificationProjectionGateway(gateway admissionVerificationProjectionGateway) ServiceOption {
+	return func(s *Service) {
+		s.admissionProjection = gateway
+	}
+}
+
 func WithStudentEmailOTP(client *redis.Client, sender StudentEmailSender) ServiceOption {
 	return func(s *Service) {
 		s.redisClient = client
@@ -231,6 +242,10 @@ func WithStudentEmailOTP(client *redis.Client, sender StudentEmailSender) Servic
 
 func (s *Service) SetProfileIdentitySyncGateway(gateway profileIdentitySyncGateway) {
 	s.profileIdentitySync = gateway
+}
+
+func (s *Service) SetAdmissionVerificationProjectionGateway(gateway admissionVerificationProjectionGateway) {
+	s.admissionProjection = gateway
 }
 
 func WithLDAPClientFactory(factory ldapClientFactory) ServiceOption {

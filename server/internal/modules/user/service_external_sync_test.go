@@ -50,6 +50,21 @@ func (f *fakeProfileFGAClient) DeleteTuples(_ context.Context, tuples []fga.Tupl
 	return f.deleteErr
 }
 
+type fakeAdmissionProjectionGateway struct {
+	calls []admissionProjectionCall
+	err   error
+}
+
+type admissionProjectionCall struct {
+	userID   int64
+	approved bool
+}
+
+func (f *fakeAdmissionProjectionGateway) ProjectStudentVerification(_ context.Context, userID int64, approved bool) error {
+	f.calls = append(f.calls, admissionProjectionCall{userID: userID, approved: approved})
+	return f.err
+}
+
 func TestSyncUserProfileProjection_RebuildsOwnerAndCurrentSchool(t *testing.T) {
 	schoolID := int64(10006)
 	fgaClient := &fakeProfileFGAClient{
@@ -153,6 +168,50 @@ func TestProcessExternalSyncJob_RetryOnRoleSyncFailure(t *testing.T) {
 	assert.True(t, nextRetry.Before(startedAt.Add(6*time.Second)))
 }
 
+func TestProcessExternalSyncJob_ProjectsAdmissionVerification(t *testing.T) {
+	gateway := &fakeAdmissionProjectionGateway{}
+	svc, err := NewService(
+		&mockRepo{},
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithAdmissionVerificationProjectionGateway(gateway),
+	)
+	require.NoError(t, err)
+	payload, err := json.Marshal(admissionVerificationProjectionPayload{UserID: 42, Approved: true})
+	require.NoError(t, err)
+
+	err = svc.processExternalSyncJob(context.Background(), ExternalSyncJob{
+		ID:      1,
+		JobType: externalSyncJobTypeAdmissionVerification,
+		Payload: payload,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, []admissionProjectionCall{{userID: 42, approved: true}}, gateway.calls)
+}
+
+func TestProcessExternalSyncJob_SkipsAdmissionProjectionWhenUnapproved(t *testing.T) {
+	gateway := &fakeAdmissionProjectionGateway{}
+	svc, err := NewService(
+		&mockRepo{},
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithAdmissionVerificationProjectionGateway(gateway),
+	)
+	require.NoError(t, err)
+	payload, err := json.Marshal(admissionVerificationProjectionPayload{UserID: 42, Approved: false})
+	require.NoError(t, err)
+
+	err = svc.processExternalSyncJob(context.Background(), ExternalSyncJob{
+		ID:      1,
+		JobType: externalSyncJobTypeAdmissionVerification,
+		Payload: payload,
+	})
+
+	require.NoError(t, err)
+	assert.Empty(t, gateway.calls)
+}
+
 func TestStartBackgroundJobsRequiresStarter(t *testing.T) {
 	svc, err := NewService(&mockRepo{}, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
@@ -201,7 +260,38 @@ func TestVerifyStudent_EnqueuesProjectionInsideTransaction(t *testing.T) {
 	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{SchoolID: 10006, Consent: true})
 	require.NoError(t, err)
 	assert.Contains(t, enqueued, externalSyncJobTypeUserProfileProjection+":"+userProfileProjectionKey(1))
+	assert.NotContains(t, enqueued, externalSyncJobTypeAdmissionVerification+":"+admissionVerificationProjectionKey(1))
 	assert.NotContains(t, enqueued, externalSyncJobTypeVerifiedStudentRole+":"+verifiedStudentRoleSyncKey(1))
+}
+
+func TestVerifyStudent_EnqueuesAdmissionProjectionWhenVerified(t *testing.T) {
+	var enqueued []string
+	repo := &mockRepo{
+		onGetProfileByUserID: func(_ context.Context, _ int64) (*Profile, error) { return nil, nil },
+		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
+			require.Equal(t, int64(10006), schoolID)
+			return &SchoolConfig{
+				SchoolID:           schoolID,
+				SchoolName:         "北航",
+				VerificationMethod: VerifyMethodManual,
+				ApprovalPolicy:     "auto",
+				Enabled:            true,
+			}, nil
+		},
+		onCreateProfileTx: func(_ context.Context, _ pgx.Tx, _ *Profile) error { return nil },
+		onUpsertExternalSyncJobTx: func(_ context.Context, _ pgx.Tx, jobType, dedupeKey string, _ []byte) error {
+			enqueued = append(enqueued, jobType+":"+dedupeKey)
+			return nil
+		},
+	}
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{SchoolID: 10006, Consent: true})
+	require.NoError(t, err)
+	assert.Contains(t, enqueued, externalSyncJobTypeUserProfileProjection+":"+userProfileProjectionKey(1))
+	assert.Contains(t, enqueued, externalSyncJobTypeAdmissionVerification+":"+admissionVerificationProjectionKey(1))
+	assert.Contains(t, enqueued, externalSyncJobTypeVerifiedStudentRole+":"+verifiedStudentRoleSyncKey(1))
 }
 
 func TestReconcileUserProfileProjectionsRequeuesWithinLimit(t *testing.T) {
@@ -221,12 +311,13 @@ func TestReconcileUserProfileProjectionsRequeuesWithinLimit(t *testing.T) {
 
 	requeued, err := svc.ReconcileUserProfileProjections(context.Background(), 100)
 	require.NoError(t, err)
-	assert.Equal(t, 4, requeued)
-	require.Len(t, enqueued, 4)
+	assert.Equal(t, 5, requeued)
+	require.Len(t, enqueued, 5)
 	assertProfileProjectionTestJob(t, enqueued[0], 42, true)
-	assertRoleSyncTestJob(t, enqueued[1], 42, true)
-	assertProfileProjectionTestJob(t, enqueued[2], 43, false)
-	assertRoleSyncTestJob(t, enqueued[3], 43, false)
+	assertAdmissionProjectionTestJob(t, enqueued[1], 42, true)
+	assertRoleSyncTestJob(t, enqueued[2], 42, true)
+	assertProfileProjectionTestJob(t, enqueued[3], 43, false)
+	assertRoleSyncTestJob(t, enqueued[4], 43, false)
 }
 
 func TestReconcileUserProfileProjectionsStopsAboveThreshold(t *testing.T) {
@@ -293,6 +384,16 @@ func assertProfileProjectionTestJob(t *testing.T, job externalSyncTestJob, userI
 	assert.Equal(t, externalSyncJobTypeUserProfileProjection, job.jobType)
 	assert.Equal(t, userProfileProjectionKey(userID), job.dedupeKey)
 	var payload userProfileProjectionPayload
+	require.NoError(t, json.Unmarshal(job.payload, &payload))
+	assert.Equal(t, userID, payload.UserID)
+	assert.Equal(t, approved, payload.Approved)
+}
+
+func assertAdmissionProjectionTestJob(t *testing.T, job externalSyncTestJob, userID int64, approved bool) {
+	t.Helper()
+	assert.Equal(t, externalSyncJobTypeAdmissionVerification, job.jobType)
+	assert.Equal(t, admissionVerificationProjectionKey(userID), job.dedupeKey)
+	var payload admissionVerificationProjectionPayload
 	require.NoError(t, json.Unmarshal(job.payload, &payload))
 	assert.Equal(t, userID, payload.UserID)
 	assert.Equal(t, approved, payload.Approved)

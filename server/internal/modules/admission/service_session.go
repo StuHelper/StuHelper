@@ -291,6 +291,15 @@ func (s *Service) MarkVerified(ctx context.Context, sessionID string) (*Admissio
 	return s.repo.MarkVerified(ctx, session.ID, s.now())
 }
 
+func (s *Service) ProjectStudentVerification(ctx context.Context, userID int64, approved bool) error {
+	if userID <= 0 || !approved {
+		return nil
+	}
+	return s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		return s.repo.MarkUserLinkedSessionsVerifiedTx(ctx, tx, userID, s.now())
+	})
+}
+
 func (s *Service) RecordBotEvent(ctx context.Context, sessionID string, event BotEventInput) error {
 	return s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		session, err := s.repo.GetSessionByIDForUpdate(ctx, tx, sessionID)

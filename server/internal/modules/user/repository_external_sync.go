@@ -13,7 +13,10 @@ import (
 var externalSyncOutboxStreams = []string{
 	outbox.StreamIAMCasdoorRoleSync,
 	outbox.StreamIAMOpenFGATupleSync,
+	externalSyncStreamAdmissionVerificationProjection,
 }
+
+const externalSyncStreamAdmissionVerificationProjection = "admission_verification_projection"
 
 var externalSyncJobTypesByStream = map[string][]string{
 	outbox.StreamIAMCasdoorRoleSync: {
@@ -22,6 +25,9 @@ var externalSyncJobTypesByStream = map[string][]string{
 	},
 	outbox.StreamIAMOpenFGATupleSync: {
 		externalSyncJobTypeUserProfileProjection,
+	},
+	externalSyncStreamAdmissionVerificationProjection: {
+		externalSyncJobTypeAdmissionVerification,
 	},
 }
 
@@ -182,6 +188,8 @@ func externalSyncStreamForJobType(jobType string) (string, error) {
 		return outbox.StreamIAMCasdoorRoleSync, nil
 	case externalSyncJobTypeUserProfileProjection:
 		return outbox.StreamIAMOpenFGATupleSync, nil
+	case externalSyncJobTypeAdmissionVerification:
+		return externalSyncStreamAdmissionVerificationProjection, nil
 	default:
 		return "", fmt.Errorf("unsupported external sync job type: %s", jobType)
 	}

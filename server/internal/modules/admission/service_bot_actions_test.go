@@ -131,6 +131,26 @@ func TestLinkedAdmissionSessionDoesNotReleaseBeforeStudentVerification(t *testin
 	assert.Equal(t, created.Session.ID, actions[0].SessionID)
 }
 
+func TestStudentVerificationProjectionReleasesLinkedSession(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createBotLinkedSessionForPendingActions(t, svc, fixture, "linked-main-student-proof")
+	require.NotNil(t, created.Session.UserID)
+
+	err := svc.ProjectStudentVerification(context.Background(), *created.Session.UserID, true)
+	require.NoError(t, err)
+
+	actions, err := svc.ListPendingAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
+	require.NoError(t, err)
+	require.Len(t, actions, 1)
+	assert.Equal(t, BotActionRelease, actions[0].Action)
+	assert.Equal(t, created.Session.ID, actions[0].SessionID)
+}
+
 func TestLinkedAdmissionSessionTimesOutInsteadOfReleaseWithoutStudentVerification(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)
@@ -236,12 +256,13 @@ func createBotLinkedSessionForPendingActions(
 	})
 	require.NoError(t, err)
 	userID := seedAdmissionUser(t, fixture, userSuffix)
-	_, err = svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+	linked, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
 		Token:   created.Token,
 		QQQuery: "10001",
 		UserID:  userID,
 	})
 	require.NoError(t, err)
+	created.Session = linked
 	return created
 }
 

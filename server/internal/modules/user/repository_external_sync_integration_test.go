@@ -91,12 +91,13 @@ func TestExternalSyncOutbox_ClaimSplitsAcrossIAMStreams(t *testing.T) {
 	for userID := int64(1); userID <= 4; userID++ {
 		upsertExternalSyncJob(t, repo, ctx, externalSyncJobTypeVerifiedStudentRole, verifiedStudentRoleSyncKey(userID))
 		upsertExternalSyncJob(t, repo, ctx, externalSyncJobTypeUserProfileProjection, userProfileProjectionKey(userID))
+		upsertExternalSyncJob(t, repo, ctx, externalSyncJobTypeAdmissionVerification, admissionVerificationProjectionKey(userID))
 	}
 	upsertForeignOpenFGAJob(t, fixture, ctx)
 
-	jobs, err := repo.ClaimExternalSyncJobs(ctx, 4, time.Minute)
+	jobs, err := repo.ClaimExternalSyncJobs(ctx, 6, time.Minute)
 	require.NoError(t, err)
-	require.Len(t, jobs, 4)
+	require.Len(t, jobs, 6)
 
 	counts := map[string]int{}
 	for _, job := range jobs {
@@ -104,6 +105,7 @@ func TestExternalSyncOutbox_ClaimSplitsAcrossIAMStreams(t *testing.T) {
 	}
 	assert.Equal(t, 2, counts[externalSyncJobTypeVerifiedStudentRole])
 	assert.Equal(t, 2, counts[externalSyncJobTypeUserProfileProjection])
+	assert.Equal(t, 2, counts[externalSyncJobTypeAdmissionVerification])
 	assertExternalSyncJobStatus(t, fixture, "review-relations:foreign", "pending")
 }
 

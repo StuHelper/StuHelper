@@ -19,6 +19,7 @@ const (
 	externalSyncJobTypeVerifiedStudentRole     = "verified_student_role"
 	externalSyncJobTypeFreshmanProvisionalRole = "freshman_provisional_role"
 	externalSyncJobTypeUserProfileProjection   = "user_profile_projection"
+	externalSyncJobTypeAdmissionVerification   = "admission_verification_projection"
 	verifiedStudentRoleName                    = "verified_student"
 	freshmanProvisionalRoleName                = "freshman_provisional"
 
@@ -44,6 +45,11 @@ type userProfileProjectionPayload struct {
 	Approved bool  `json:"approved"`
 }
 
+type admissionVerificationProjectionPayload struct {
+	UserID   int64 `json:"userID"`
+	Approved bool  `json:"approved"`
+}
+
 func roleSyncKey(role string, userID int64) string {
 	return fmt.Sprintf("%s-role:%d", strings.ReplaceAll(role, "_", "-"), userID)
 }
@@ -58,6 +64,10 @@ func freshmanProvisionalRoleSyncKey(userID int64) string {
 
 func userProfileProjectionKey(userID int64) string {
 	return fmt.Sprintf("user-profile-projection:%d", userID)
+}
+
+func admissionVerificationProjectionKey(userID int64) string {
+	return fmt.Sprintf("admission-verification-projection:%d", userID)
 }
 
 func (s *Service) enqueueVerifiedStudentRoleSyncTx(ctx context.Context, tx pgx.Tx, userID int64, approved bool) error {
@@ -115,10 +125,32 @@ func (s *Service) enqueueUserProfileProjectionTx(ctx context.Context, tx pgx.Tx,
 	return s.repo.UpsertExternalSyncJobTx(ctx, tx, externalSyncJobTypeUserProfileProjection, userProfileProjectionKey(userID), payload)
 }
 
+func (s *Service) enqueueAdmissionVerificationProjectionTx(ctx context.Context, tx pgx.Tx, userID int64, approved bool) error {
+	payload, err := json.Marshal(admissionVerificationProjectionPayload{
+		UserID:   userID,
+		Approved: approved,
+	})
+	if err != nil {
+		return fmt.Errorf("marshal admission verification projection payload: %w", err)
+	}
+	return s.repo.UpsertExternalSyncJobTx(
+		ctx,
+		tx,
+		externalSyncJobTypeAdmissionVerification,
+		admissionVerificationProjectionKey(userID),
+		payload,
+	)
+}
+
 func (s *Service) enqueueVerificationProjectionTx(ctx context.Context, tx pgx.Tx, userID int64, status string) error {
 	approved := status == StatusVerified
 	if err := s.enqueueUserProfileProjectionTx(ctx, tx, userID, approved); err != nil {
 		return err
+	}
+	if status == StatusVerified {
+		if err := s.enqueueAdmissionVerificationProjectionTx(ctx, tx, userID, approved); err != nil {
+			return err
+		}
 	}
 	if status == StatusVerified || status == StatusRejected {
 		if err := s.enqueueVerifiedStudentRoleSyncTx(ctx, tx, userID, approved); err != nil {
@@ -181,6 +213,12 @@ func (s *Service) processExternalSyncJob(ctx context.Context, job ExternalSyncJo
 			return fmt.Errorf("decode user profile projection payload: %w", err)
 		}
 		return s.syncUserProfileProjection(ctx, payload.UserID, payload.Approved)
+	case externalSyncJobTypeAdmissionVerification:
+		var payload admissionVerificationProjectionPayload
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return fmt.Errorf("decode admission verification projection payload: %w", err)
+		}
+		return s.syncAdmissionVerificationProjection(ctx, payload.UserID, payload.Approved)
 	default:
 		return fmt.Errorf("unsupported external sync job type: %s", job.JobType)
 	}
@@ -271,6 +309,19 @@ func (s *Service) syncUserProfileProjection(ctx context.Context, userID int64, a
 
 	if err := s.profileFGA.WriteTuples(projectionCtx, tuples); err != nil {
 		return fmt.Errorf("write projected tuples: %w", err)
+	}
+	return nil
+}
+
+func (s *Service) syncAdmissionVerificationProjection(ctx context.Context, userID int64, approved bool) error {
+	if !approved {
+		return nil
+	}
+	if s.admissionProjection == nil {
+		return errors.New("admission verification projection dependency is not configured")
+	}
+	if err := s.admissionProjection.ProjectStudentVerification(ctx, userID, approved); err != nil {
+		return fmt.Errorf("project admission student verification: %w", err)
 	}
 	return nil
 }

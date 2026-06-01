@@ -158,6 +158,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	if err != nil {
 		return fmt.Errorf("failed to initialize admission service: %w", err)
 	}
+	userService.SetAdmissionVerificationProjectionGateway(admissionService)
 	admissionHandler := admission.NewHandler(admissionService, userRepo.GetInternalUserID, botCredentialVerifier)
 	admissionHandler.RegisterRoutes(api, authMW)
 	admissionHandler.RegisterBotRoutes(api)
