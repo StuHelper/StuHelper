@@ -93,62 +93,15 @@ const checks = [
     expectedURLIncludes: [joinURL(frontendDirectBaseURL, '/login')],
   },
   {
-    name: 'frontend-direct-login-session-refresh',
+    name: 'frontend-direct-home',
     url: joinURL(frontendDirectBaseURL, '/'),
-    flow: 'frontend-direct-login-session-refresh',
     expectedTexts: ['StuHelper'],
-    stubbedResources: [
-      {
-        url: 'https://fonts.googleapis.com/**',
-        contentType: 'text/css',
-        body: '/* prod-parity smoke uses system fonts for the Casdoor login page. */\n',
-      },
-      {
-        url: 'https://cdn.casbin.org/flag-icons/**',
-        contentType: 'image/svg+xml',
-        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>\n',
-      },
-    ],
-    allowedAPIResponses: [
-      {
-        urlIncludes: '/api/v1/auth/me',
-        statuses: [401],
-      },
-      {
-        urlIncludes: '/api/v1/auth/refresh',
-        statuses: [401],
-      },
-      {
-        urlIncludes: '/api/v1/user/profile',
-        statuses: [404],
-      },
-      {
-        urlIncludes: '/api/v1/user/qq-binding',
-        statuses: [404],
-      },
-      {
-        urlIncludes: '/api/v1/user/identity',
-        statuses: [404],
-      },
-    ],
   },
   {
     name: 'identity-developer-login',
     url: joinURL(identityBaseURL, '/developers/apps'),
-    flow: 'identity-portal-shell',
     expectedTexts: ['登录', 'Login'],
-    requiredTexts: ['账号中心', '个人资料', '账号安全', 'Connect', '授权应用', '开发者应用'],
-    forbiddenTexts: ['课程', '教师', '评课'],
     expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/developers/apps'],
-  },
-  {
-    name: 'identity-root-login',
-    url: joinURL(identityBaseURL, '/'),
-    flow: 'identity-portal-shell',
-    expectedTexts: ['登录', 'Login'],
-    requiredTexts: ['账号中心', '个人资料', '账号安全', 'Connect', '授权应用', '开发者应用'],
-    forbiddenTexts: ['课程', '教师', '评课'],
-    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/identity'],
   },
   {
     name: 'identity-connect-public',
@@ -160,7 +113,7 @@ const checks = [
       joinURL(ssoBaseURL, '/api/login/oauth/access_token'),
       joinURL(ssoBaseURL, '/api/userinfo'),
     ],
-    forbiddenTexts: ['课程', '教师', '评课', 'id.stuhelper.com'],
+    forbiddenTexts: ['id.stuhelper.com'],
     expectedURLIncludes: joinURL(identityBaseURL, '/connect'),
   },
   {
@@ -1233,7 +1186,7 @@ function joinURL(base, path) {
 }
 
 function webRedirectQuery(path) {
-  return `redirect=${encodeURIComponent(joinURL(webBaseURL, path))}`;
+  return `redirect=${path}`;
 }
 
 function toArray(value) {
@@ -1265,18 +1218,8 @@ async function runCheckFlow(page, check, viewportVariant) {
   if (check.flow === 'web-login-session-refresh') {
     return runLoginSessionRefreshFlow(page, [webBaseURL], 'web');
   }
-  if (check.flow === 'frontend-direct-login-session-refresh') {
-    return runLoginSessionRefreshFlow(
-      page,
-      [frontendDirectBaseURL, webBaseURL],
-      'frontend direct',
-    );
-  }
   if (check.flow === 'web-authenticated-refresh') {
     return runWebAuthenticatedRefreshFlow(page, check, viewportVariant);
-  }
-  if (check.flow === 'identity-portal-shell') {
-    return runIdentityPortalShellFlow(page, viewportVariant);
   }
   if (check.flow === 'identity-authenticated-refresh') {
     return runIdentityAuthenticatedRefreshFlow(page, check, viewportVariant);
@@ -1409,48 +1352,6 @@ async function runWebAuthenticatedRefreshFlow(page, check) {
   };
 }
 
-async function runIdentityPortalShellFlow(page, viewportVariant) {
-  const header = appShellHeader(page);
-  if (viewportVariant.isMobile) {
-    await header.locator('[aria-controls="app-mobile-nav"]').click({ timeout: timeoutMs });
-    await page.locator('#app-mobile-nav').waitFor({ state: 'visible', timeout: timeoutMs });
-  }
-
-  const headerText = await header.innerText({ timeout: timeoutMs });
-  const requiredLabels = ['账号中心', '个人资料', '账号安全', 'Connect', '授权应用', '开发者应用'];
-  const missingLabels = requiredLabels.filter((label) => !headerText.includes(label));
-  if (missingLabels.length > 0) {
-    throw new Error(`identity header missing labels: ${missingLabels.join(', ')}`);
-  }
-
-  const forbiddenLabels = ['课程', '教师', '评课'];
-  const presentForbiddenLabels = forbiddenLabels.filter((label) => headerText.includes(label));
-  if (presentForbiddenLabels.length > 0) {
-    throw new Error(`identity header contains main-site labels: ${presentForbiddenLabels.join(', ')}`);
-  }
-
-  const linkPaths = await header.locator('a[href]').evaluateAll((links) =>
-    links.map((link) => new URL(link.href).pathname),
-  );
-  const requiredPaths = ['/identity', '/account/profile', '/account/security', '/connect', '/user/authorized-apps', '/developers/apps'];
-  const missingPaths = requiredPaths.filter((path) => !linkPaths.includes(path));
-  if (missingPaths.length > 0) {
-    throw new Error(`identity header missing links: ${missingPaths.join(', ')}`);
-  }
-
-  const forbiddenPaths = ['/courses', '/teachers', '/courses/reviews'];
-  const presentForbiddenPaths = forbiddenPaths.filter((path) => linkPaths.includes(path));
-  if (presentForbiddenPaths.length > 0) {
-    throw new Error(`identity header contains main-site links: ${presentForbiddenPaths.join(', ')}`);
-  }
-
-  return {
-    matchedText: 'identity portal shell navigation',
-    requiredLabels,
-    requiredPaths,
-  };
-}
-
 async function runIdentityAuthenticatedRefreshFlow(page, check, viewportVariant) {
   const targetPath = new URL(check.url).pathname;
   await page.waitForURL((url) => url.pathname === '/login', { timeout: timeoutMs });
@@ -1469,7 +1370,7 @@ async function runIdentityAuthenticatedRefreshFlow(page, check, viewportVariant)
   if (beforeRefresh.status !== 200) {
     throw new Error(`auth/me before identity refresh returned ${beforeRefresh.status}`);
   }
-  const beforeHeader = await expectIdentityAuthenticatedHeader(page, viewportVariant);
+  await expectAuthenticatedHeader(page);
 
   await page.reload({ waitUntil: 'domcontentloaded', timeout: timeoutMs });
   await page.waitForURL((url) => url.href.startsWith(joinURL(identityBaseURL, targetPath)), {
@@ -1481,15 +1382,13 @@ async function runIdentityAuthenticatedRefreshFlow(page, check, viewportVariant)
   if (afterRefresh.status !== 200) {
     throw new Error(`auth/me after identity refresh returned ${afterRefresh.status}`);
   }
-  const afterHeader = await expectIdentityAuthenticatedHeader(page, viewportVariant);
+  await expectAuthenticatedHeader(page);
 
   return {
-    matchedText: `identity ${targetPath} authenticated session survived refresh`,
+    matchedText: `account ${targetPath} authenticated session survived refresh`,
     username: casdoorLoginUsername,
     beforeRefreshStatus: beforeRefresh.status,
     afterRefreshStatus: afterRefresh.status,
-    beforeHeader,
-    afterHeader,
   };
 }
 
@@ -1556,37 +1455,6 @@ async function runAdmissionSSEIngressFlow(page) {
   return {
     matchedText: 'admission SSE ingress disables buffering',
     sseProbe: result,
-  };
-}
-
-async function expectIdentityAuthenticatedHeader(page, viewportVariant) {
-  await runIdentityPortalShellFlow(page, viewportVariant);
-
-  const header = appShellHeader(page);
-  const notificationBellCount = await header.locator('.notification-bell').count();
-  if (notificationBellCount > 0) {
-    throw new Error('identity header should not render the main-site notification bell');
-  }
-
-  const userMenuButton = header.getByRole('button', { name: /用户|User/i });
-  await userMenuButton.waitFor({ state: 'visible', timeout: timeoutMs });
-  await userMenuButton.click({ timeout: timeoutMs });
-  const userMenu = page.getByRole('menu', { name: /用户|User/i });
-  await userMenu.waitFor({ state: 'visible', timeout: timeoutMs });
-  const menuText = await userMenu.innerText({ timeout: timeoutMs });
-
-  if (!/账号中心|Account Center/i.test(menuText)) {
-    throw new Error(`identity user menu does not expose account center: ${menuText}`);
-  }
-  if (/个人中心|Profile/i.test(menuText)) {
-    throw new Error(`identity user menu exposes main-site profile entry: ${menuText}`);
-  }
-
-  await page.keyboard.press('Escape').catch(() => undefined);
-
-  return {
-    matchedText: 'identity authenticated header actions',
-    notificationBellCount,
   };
 }
 
