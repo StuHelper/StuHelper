@@ -205,6 +205,7 @@ const linking = ref(false)
 const activeFlow = ref<'freshman' | 'oldStudent'>('freshman')
 const projectionRefreshTimedOut = ref(false)
 let projectionRefreshAbort: AbortController | null = null
+let admissionSessionLoad: Promise<void> | null = null
 
 const token = computed(() => String(route.params.code ?? ''))
 const displayQQ = computed(() => {
@@ -355,6 +356,41 @@ async function loadAdmissionSession() {
   }
 }
 
+function queueAdmissionSessionLoad(): void {
+  if (admissionSessionLoad) {
+    return
+  }
+  admissionSessionLoad = loadAdmissionSession().finally(() => {
+    admissionSessionLoad = null
+  })
+}
+
+function shouldRefreshAfterBrowserReturn(): boolean {
+  return (
+    pageState.value === 'needsLogin' ||
+    pageState.value === 'accountMismatch' ||
+    pageState.value === 'error'
+  )
+}
+
+function refreshAfterBrowserReturn(): void {
+  if (shouldRefreshAfterBrowserReturn()) {
+    queueAdmissionSessionLoad()
+  }
+}
+
+function handlePageShow(event: PageTransitionEvent): void {
+  if (event.persisted || shouldRefreshAfterBrowserReturn()) {
+    refreshAfterBrowserReturn()
+  }
+}
+
+function handleVisibilityChange(): void {
+  if (document.visibilityState === 'visible') {
+    refreshAfterBrowserReturn()
+  }
+}
+
 async function confirmLink() {
   linking.value = true
   try {
@@ -404,18 +440,22 @@ function readErrorMessage(error: unknown, fallback: string): string {
 }
 
 onMounted(() => {
-  void loadAdmissionSession()
+  window.addEventListener('pageshow', handlePageShow)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+  queueAdmissionSessionLoad()
 })
 
 watch(
   () => route.fullPath,
   () => {
-    void loadAdmissionSession()
+    queueAdmissionSessionLoad()
   },
 )
 
 onBeforeUnmount(() => {
   projectionRefreshAbort?.abort()
+  window.removeEventListener('pageshow', handlePageShow)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 
 function isAbortError(error: unknown): boolean {

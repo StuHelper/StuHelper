@@ -2,7 +2,7 @@
 
 import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiError } from '@/api/errors'
 import type { AdmissionSession } from '@stuhelper/shared/api'
@@ -28,6 +28,7 @@ const mockVerificationStore = vi.hoisted(() => ({
 }))
 
 const mockWaitForAdmissionProjection = vi.hoisted(() => vi.fn())
+const mountedWrappers: Array<{ unmount(): void }> = []
 
 const mockRoute = vi.hoisted(() => ({
   fullPath: '/verify/ABCD?qq=123',
@@ -65,6 +66,12 @@ describe('AdmissionPage edge states', () => {
     mockRoute.query = { qq: '123' }
     mockWaitForAdmissionProjection.mockResolvedValue(false)
     mockVerificationStore.fetchSchools.mockResolvedValue(undefined)
+  })
+
+  afterEach(() => {
+    while (mountedWrappers.length > 0) {
+      mountedWrappers.pop()?.unmount()
+    }
   })
 
   it('blocks login and link actions when token QQ does not match query QQ', async () => {
@@ -194,6 +201,28 @@ describe('AdmissionPage edge states', () => {
     expect(wrapper.text()).toContain('开始认证')
   })
 
+  it('refreshes the admission state when returning from SSO through browser cache', async () => {
+    mockAuth.isAuthenticated = false
+    mockAuth.bootstrapSession
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true)
+    mockAdmissionApi.getAdmissionSession.mockResolvedValue(
+      sessionWithStatus('joined_muted'),
+    )
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+    expect(wrapper.find('[data-state="needsLogin"]').exists()).toBe(true)
+
+    window.dispatchEvent(new Event('pageshow'))
+    await settleAdmissionPage(wrapper)
+
+    expect(mockAdmissionApi.getAdmissionSession).toHaveBeenCalledTimes(2)
+    expect(mockAuth.bootstrapSession).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[data-state="ready"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('开始认证')
+  })
+
   it('keeps the linked admission page open when post-link resources fail to refresh', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
       sessionWithStatus('joined_muted'),
@@ -264,5 +293,7 @@ async function settleAdmissionPage(
 
 async function mountAdmissionPage() {
   const component = await import('../views/AdmissionPage.vue')
-  return mount(component.default)
+  const wrapper = mount(component.default)
+  mountedWrappers.push(wrapper)
+  return wrapper
 }
