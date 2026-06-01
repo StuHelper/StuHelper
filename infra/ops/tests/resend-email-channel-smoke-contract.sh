@@ -39,9 +39,10 @@ class Handler(BaseHTTPRequestHandler):
         request_file.write_text(json.dumps({
             "path": self.path,
             "headers": {key: self.headers.get(key) for key in [
-                "Authorization",
-                "Content-Type",
-                "Idempotency-Key",
+            "Authorization",
+            "Content-Type",
+            "Idempotency-Key",
+            "User-Agent",
             ]},
             "body": body.decode("utf-8"),
         }, ensure_ascii=False), encoding="utf-8")
@@ -128,6 +129,7 @@ assert request["path"] == "/emails", request
 assert request["headers"]["Authorization"] == "Bearer re_contract_secret", request
 assert request["headers"]["Content-Type"] == "application/json", request
 assert request["headers"]["Idempotency-Key"].startswith("resend-email-channel-smoke-"), request
+assert request["headers"]["User-Agent"] == "StuHelper", request
 assert body["from"] == "StuHelper 系统邮件 <noreply@notify.stuhelper.com>", body
 assert body["to"] == ["student@buaa.edu.cn"], body
 assert body["subject"] == "学生认证验证码", body
@@ -137,6 +139,7 @@ assert evidence["sent"] is True, evidence
 assert evidence["emailID"] == "email-contract", evidence
 assert evidence["recipientDomain"] == "buaa.edu.cn", evidence
 assert evidence["recipientHashPrefix"], evidence
+assert evidence["userAgent"] == "StuHelper", evidence
 assert evidence["htmlTemplate"].endswith("stuhelper-school-email-otp.html"), evidence
 PY
 

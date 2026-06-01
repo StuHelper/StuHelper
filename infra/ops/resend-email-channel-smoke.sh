@@ -101,6 +101,7 @@ subject = optional_env("EMAIL_STUDENT_VERIFICATION_SUBJECT", "学生认证验证
 code = optional_env("RESEND_EMAIL_SMOKE_CODE", "123456")
 purpose = optional_env("RESEND_EMAIL_SMOKE_PURPOSE", optional_env("EMAIL_TENCENT_TEMPLATE_PURPOSE", "学校邮箱认证"))
 school_name = optional_env("RESEND_EMAIL_SMOKE_SCHOOL_NAME", optional_env("EMAIL_TENCENT_TEMPLATE_SCHOOL_NAME", "北京航空航天大学"))
+user_agent = optional_env("RESEND_EMAIL_SMOKE_USER_AGENT", "StuHelper")
 expire_raw = optional_env("RESEND_EMAIL_SMOKE_EXPIRE_MINUTES", optional_env("EMAIL_TENCENT_TEMPLATE_EXPIRE_MINUTES", "5"))
 try:
     expire_minutes = int(expire_raw)
@@ -135,6 +136,7 @@ evidence = {
     "subject": subject,
     "fromAddress": from_address,
     "fromNamePresent": bool(from_name),
+    "userAgent": user_agent,
     "htmlTemplate": "infra/email-templates/tencent-ses/stuhelper-school-email-otp.html",
     "textTemplate": "infra/email-templates/tencent-ses/stuhelper-school-email-otp.txt",
     "htmlLength": len(rendered_html),
@@ -149,6 +151,7 @@ request = urllib.request.Request(
         "Authorization": "Bearer " + api_key,
         "Content-Type": "application/json",
         "Idempotency-Key": "resend-email-channel-smoke-" + uuid.uuid4().hex,
+        "User-Agent": user_agent,
     },
 )
 
