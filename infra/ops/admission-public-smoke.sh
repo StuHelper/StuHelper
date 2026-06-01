@@ -12,6 +12,8 @@ Usage: infra/ops/admission-public-smoke.sh
 Verifies the public production admission ingress:
 
   - ADMISSION_PUBLIC_BASE_URL /verify/<token>?qq=<qq> serves the Web SPA
+  - ADMISSION_PUBLIC_BASE_URL /verify/<token>?qq=<qq> allows camera permission for
+    desktop material capture
   - ADMISSION_PUBLIC_BASE_URL /api/v1/metrics/vitals accepts same-origin Web Vitals beacons
   - ADMISSION_PUBLIC_BASE_URL /api/v1/metrics/frontend-errors accepts same-origin frontend error beacons
   - ADMISSION_PUBLIC_BASE_URL /api/v1/admission/freshman/camera-handoffs/<id>/events reaches the backend
@@ -581,6 +583,7 @@ check_jsonl="${tmpdir}/checks.jsonl"
 : >"${check_jsonl}"
 
 check_http_status "Admission join verify token serves Web SPA" "${admission_verify_url}" "200" "true"
+check_get_status_header_contains "Admission join verify token allows camera capture" "${admission_verify_url}" "200" "Permissions-Policy" "camera=(self)"
 check_post_json_status "Admission join metrics vitals beacon returns 204" "${admission_metrics_vitals_url}" '{"name":"LCP","value":1234.5,"rating":"good"}' "204" "${admission_origin}" "${admission_verify_url}"
 check_post_json_status "Admission join metrics frontend error beacon returns 204" "${admission_metrics_frontend_errors_url}" '{"kind":"error","message":"public admission smoke"}' "204" "${admission_origin}" "${admission_verify_url}"
 check_get_status_header_contains "Admission join camera handoff SSE ingress returns 401 with buffering disabled" "${admission_camera_handoff_events_url}" "401" "X-Accel-Buffering" "no"

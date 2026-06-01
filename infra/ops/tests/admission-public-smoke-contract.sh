@@ -46,11 +46,12 @@ def require(condition, message):
         raise SystemExit(message)
 
 require(evidence.get("passed") is True, "smoke did not pass")
-require(evidence.get("summary", {}).get("passed") == 9, "passed count")
+require(evidence.get("summary", {}).get("passed") == 10, "passed count")
 require(evidence.get("summary", {}).get("failed") == 0, "failed count")
-require(len(checks) == 9, "check count")
+require(len(checks) == 10, "check count")
 for name in (
     "Admission join verify token serves Web SPA",
+    "Admission join verify token allows camera capture",
     "Admission join metrics vitals beacon returns 204",
     "Admission join metrics frontend error beacon returns 204",
     "Admission join camera handoff SSE ingress returns 401 with buffering disabled",
@@ -92,6 +93,9 @@ assert_contains "${SMOKE_SCRIPT}" '/verify/\$\{probe_token\}\?qq=\$\{probe_qq\}'
 assert_contains "${SMOKE_SCRIPT}" '/api/v1/metrics/vitals'
 assert_contains "${SMOKE_SCRIPT}" '/api/v1/metrics/frontend-errors'
 assert_contains "${SMOKE_SCRIPT}" '/api/v1/admission/freshman/camera-handoffs/'
+assert_contains "${SMOKE_SCRIPT}" 'Admission join verify token allows camera capture'
+assert_contains "${SMOKE_SCRIPT}" 'Permissions-Policy'
+assert_contains "${SMOKE_SCRIPT}" 'camera=\(self\)'
 assert_contains "${SMOKE_SCRIPT}" 'Accept: text/event-stream'
 assert_contains "${SMOKE_SCRIPT}" 'X-Accel-Buffering'
 assert_contains "${SMOKE_SCRIPT}" 'Admission join camera handoff SSE ingress returns 401 with buffering disabled'
@@ -166,7 +170,13 @@ class Handler(BaseHTTPRequestHandler):
         query = parse_qs(parsed.query)
         path = parsed.path
         if path == "/join/verify/__stuhelper_public_smoke__" and query.get("qq") == ["10000"]:
-            self.write_text(200, '<!doctype html><title>StuHelper</title><div id="app"></div>', "text/html")
+            encoded = b'<!doctype html><title>StuHelper</title><div id="app"></div>'
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Permissions-Policy", "camera=(self), microphone=(), geolocation=(), payment=()")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.end_headers()
+            self.wfile.write(encoded)
             return
         if path == "/join/api/v1/admission/freshman/camera-handoffs/__stuhelper_public_smoke__/events":
             encoded = b'{"success":false,"error":{"code":"A0010100","message":"login required"}}'
