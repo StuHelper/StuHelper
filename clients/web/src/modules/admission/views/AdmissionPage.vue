@@ -91,7 +91,7 @@
               class="flow-tab"
               :class="{ 'flow-tab--active': activeFlow === 'oldStudent' }"
               type="button"
-              @click="activeFlow = 'oldStudent'"
+              @click="selectAdmissionFlow('oldStudent')"
             >
               老生认证
             </button>
@@ -99,7 +99,7 @@
               class="flow-tab"
               :class="{ 'flow-tab--active': activeFlow === 'freshman' }"
               type="button"
-              @click="activeFlow = 'freshman'"
+              @click="selectAdmissionFlow('freshman')"
             >
               新生认证
             </button>
@@ -185,6 +185,8 @@ import {
 } from '../admissionToken'
 import {
   shouldShowFreshmanSubmission,
+  schoolHasAdmissionEmailOTP,
+  schoolHasAdmissionSSO,
   type AdmissionSchoolOption,
 } from '../oldStudentAdmission'
 import { waitForAdmissionProjection } from '../projectionRefresh'
@@ -204,6 +206,7 @@ const consumedTokenNeedsLogin = ref(false)
 const linking = ref(false)
 const activeFlow = ref<'freshman' | 'oldStudent'>('freshman')
 const projectionRefreshTimedOut = ref(false)
+const activeFlowManuallySelected = ref(false)
 let projectionRefreshAbort: AbortController | null = null
 let admissionSessionLoad: Promise<void> | null = null
 
@@ -217,6 +220,11 @@ const admissionSchools = computed(() => {
 })
 const showFreshmanSubmission = computed(() => {
   return shouldShowFreshmanSubmission(admissionMe.value)
+})
+const hasOldStudentAdmissionMethod = computed(() => {
+  return admissionSchools.value.some((school) => (
+    schoolHasAdmissionSSO(school) || schoolHasAdmissionEmailOTP(school)
+  ))
 })
 
 function applyError(error: unknown) {
@@ -244,6 +252,21 @@ async function loadLinkedResources(options?: { refreshAdmission?: boolean }): Pr
       ? admissionApi.getAdmissionMe().then(setAdmissionMe)
       : Promise.resolve(),
   ])
+  syncDefaultAdmissionFlow()
+}
+
+function syncDefaultAdmissionFlow(): void {
+  if (!showFreshmanSubmission.value) {
+    activeFlow.value = 'oldStudent'
+    return
+  }
+  if (activeFlowManuallySelected.value) return
+  activeFlow.value = hasOldStudentAdmissionMethod.value ? 'oldStudent' : 'freshman'
+}
+
+function selectAdmissionFlow(flow: 'freshman' | 'oldStudent'): void {
+  activeFlowManuallySelected.value = true
+  activeFlow.value = flow
 }
 
 function scheduleLinkedResourcesLoad(options?: { refreshAdmission?: boolean }): void {
@@ -448,6 +471,7 @@ onMounted(() => {
 watch(
   () => route.fullPath,
   () => {
+    activeFlowManuallySelected.value = false
     queueAdmissionSessionLoad()
   },
 )

@@ -65,6 +65,7 @@ describe('AdmissionPage edge states', () => {
     mockRoute.params = { code: 'ABCD' }
     mockRoute.query = { qq: '123' }
     mockWaitForAdmissionProjection.mockResolvedValue(false)
+    mockVerificationStore.schools = []
     mockVerificationStore.fetchSchools.mockResolvedValue(undefined)
   })
 
@@ -134,6 +135,46 @@ describe('AdmissionPage edge states', () => {
     expect(mockAdmissionApi.linkAdmissionSession).toHaveBeenCalledWith('ABCD', '123')
     expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledTimes(1)
     expect(mockVerificationStore.fetchSchools).toHaveBeenCalledTimes(1)
+  })
+
+  it('defaults linked users to old-student verification when a school supports it', async () => {
+    mockVerificationStore.schools = [{
+      schoolID: 10006,
+      schoolCode: '4111010006',
+      schoolName: '北京航空航天大学',
+      verificationMethod: 'manual',
+      enabled: true,
+      schoolEmailOtpEnabled: true,
+      schoolEmailIdentityPolicy: {
+        type: 'academic_student_email',
+        studentIDEmailDomain: 'buaa.edu.cn',
+        requireStudentName: true,
+      },
+    }]
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('linked'),
+    )
+    mockAdmissionApi.getAdmissionMe.mockResolvedValueOnce({
+      projectionPending: false,
+      session: sessionWithStatus('linked'),
+      status: 'linked',
+    })
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.find('[data-admission-old-student-flow]').exists()).toBe(true)
+    expect(wrapper.find('[data-school-email-otp-form]').exists()).toBe(true)
+    expect(wrapper.find('[data-admission-freshman-flow]').exists()).toBe(false)
+
+    const freshmanTab = wrapper.findAll('.flow-tab').find((button) => (
+      button.text() === '新生认证'
+    ))
+    expect(freshmanTab).toBeTruthy()
+    await freshmanTab!.trigger('click')
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.find('[data-admission-freshman-flow]').exists()).toBe(true)
   })
 
   it('asks for login without offering signup when a consumed token is reopened logged out', async () => {
