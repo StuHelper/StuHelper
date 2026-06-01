@@ -110,6 +110,12 @@ make prod-deploy
 重建容器必须用宝塔实际 Compose 根目录和实际 env file，例如：
 
 ```bash
+cd /www/server/panel/data/compose/stuhelper
+
+# 如果宝塔根 docker-compose.yml 是生成产物，里面的 image: 行可能已经固化旧 tag。
+# 先从 source/.env.prod.shared 中的非敏感 *_IMAGE_REF 刷新根 compose，并保留备份。
+./source/infra/ops/baota-compose-refresh-image-refs.sh --apply
+
 docker compose \
   --env-file source/.env.prod.shared \
   --env-file source/.env.prod.secrets.local \
@@ -117,6 +123,8 @@ docker compose \
   --env-file source/.env.prod.generated.secrets \
   up -d --no-deps --force-recreate app frontend admin
 ```
+
+`baota-compose-refresh-image-refs.sh` 默认 dry-run，只会读取 `source/.env.prod.shared` 中的 `BACKEND_IMAGE_REF`、`FRONTEND_IMAGE_REF`、`ADMIN_IMAGE_REF`，并更新根 compose 的 `migrate` / `app` / `frontend` / `admin` 镜像行。生产不应手工只改根 compose 后结束；同一个 image ref 必须同时存在于 `source/.env.prod.shared`，并记录镜像 ID、tar sha256 和根 compose 备份路径。
 
 如果这一路径中发现必须修改生产 Nginx、env 或 DB 数据，修改后的非敏感结构必须同步回仓库模板、脚本或本文档；真实 secret 只保留在生产 secret backend / env 文件中。
 
