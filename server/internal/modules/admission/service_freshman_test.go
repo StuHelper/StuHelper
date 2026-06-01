@@ -48,6 +48,60 @@ func TestFreshmanApplicationRejectsClosedChannelAndReusesPendingApplication(t *t
 	assert.Equal(t, app.ID, reused.ID)
 }
 
+func TestFreshmanApplicationReassignsPendingApplicationToCurrentSession(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newFreshmanTestService(t, fixture)
+	tokenIndex := 0
+	svc.generateToken = func() (string, error) {
+		tokenIndex++
+		return fmt.Sprintf("freshman-reassign-token-%d", tokenIndex), nil
+	}
+	userID := seedAdmissionUser(t, fixture, "freshman-reassign-session")
+	created := createLinkableSession(t, svc)
+	linked, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+
+	app, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
+		UserID:        userID,
+		SchoolID:      1,
+		ApplicantName: "Alice Applicant",
+		MaterialType:  MaterialAdmissionNotice,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, app.AdmissionSessionID)
+	assert.Equal(t, linked.ID, *app.AdmissionSessionID)
+
+	regenerated, err := svc.RegenerateBotAdmissionSession(context.Background(), BotSessionCreateInput{
+		Platform:  "qq",
+		BotSelfID: "514",
+		GuildID:   "guild-1",
+		ChannelID: "channel-1",
+		QQID:      "10001",
+	})
+	require.NoError(t, err)
+	relinked, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   regenerated.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+
+	reused, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
+		UserID:        userID,
+		SchoolID:      1,
+		ApplicantName: "Alice Applicant",
+		MaterialType:  MaterialAdmissionNotice,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, app.ID, reused.ID)
+	require.NotNil(t, reused.AdmissionSessionID)
+	assert.Equal(t, relinked.ID, *reused.AdmissionSessionID)
+}
+
 func TestFreshmanApplicationRejectsExpiredLinkedSession(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newFreshmanTestService(t, fixture)

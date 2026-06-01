@@ -43,6 +43,9 @@ func (s *Service) CreateFreshmanApplication(
 		return nil, err
 	}
 	if existing != nil {
+		if existing.AdmissionSessionID == nil || *existing.AdmissionSessionID != session.ID {
+			return s.repo.ReassignPendingFreshmanApplicationSession(ctx, existing.ID, session.ID)
+		}
 		return existing, nil
 	}
 	app, err := s.buildFreshmanApplication(input, session.ID)

@@ -89,6 +89,28 @@ func (r *Repository) GetPendingFreshmanApplication(ctx context.Context, userID, 
 	return app, nil
 }
 
+func (r *Repository) ReassignPendingFreshmanApplicationSession(
+	ctx context.Context,
+	applicationID string,
+	sessionID string,
+) (*FreshmanApplication, error) {
+	ctx = withDBTable(ctx, "freshman_verification_applications")
+	app, err := scanFreshmanApplication(r.db.QueryRow(ctx, `
+		UPDATE freshman_verification_applications
+		SET admission_session_id = $2
+		WHERE id = $1 AND status = $3
+		RETURNING id, user_id, school_id, admission_session_id, status, applicant_name, applicant_name_masked,
+		          department_or_major, material_type, provisional_expires_at, reviewed_at, created_at
+	`, applicationID, sessionID, FreshmanApplicationPending))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrAdmissionSessionNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("ReassignPendingFreshmanApplicationSession: %w", err)
+	}
+	return app, nil
+}
+
 func (r *Repository) GetFreshmanApplicationForUser(
 	ctx context.Context,
 	applicationID string,
