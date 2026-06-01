@@ -3,7 +3,7 @@ import 'element-plus/es/components/message/style/css'
 import 'element-plus/es/components/config-provider/style/css'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import router, { hasPendingExternalLocationRedirect } from './router'
+import router from './router'
 import i18n from './i18n'
 import enUS from './i18n/locales/en-US'
 import zhCN from './i18n/locales/zh-CN'
@@ -46,17 +46,6 @@ function renderBootstrapFallback(error: unknown) {
   }
 }
 
-function isExpectedExternalRedirectAbort(error: unknown) {
-  if (!hasPendingExternalLocationRedirect()) {
-    return false
-  }
-
-  if (import.meta.env.DEV) {
-    console.debug('[App] router startup interrupted by external redirect:', error)
-  }
-  return true
-}
-
 // 全局错误处理：未捕获的组件错误在此统一处理
 app.config.errorHandler = (err, instance, info) => {
   const componentName =
@@ -84,9 +73,6 @@ async function bootstrapApp() {
   try {
     await router.isReady()
   } catch (error) {
-    if (isExpectedExternalRedirectAbort(error)) {
-      return
-    }
     throw error
   }
   app.mount('#app')

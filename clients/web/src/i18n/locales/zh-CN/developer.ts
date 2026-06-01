@@ -3,10 +3,10 @@
  */
 export default {
   connect: {
-    eyebrow: 'StuHelper ID',
-    title: 'StuHelper ID Connect',
-    subtitle: '面向一方和第三方应用的 OIDC / OAuth 入口。对外 issuer 固定为 id.stuhelper.com，Casdoor 只作为后端上游登录源。',
-    backToIdentity: '返回身份中心',
+    eyebrow: 'StuHelper Open Platform',
+    title: 'StuHelper Connect',
+    subtitle: '面向一方和第三方应用的 OIDC / OAuth 入口。对外 issuer 固定为 sso.stuhelper.com，业务数据通过 StuHelper Open API 按授权 scope 获取。',
+    backToIdentity: '返回账号中心',
     developerApps: '开发者应用',
   },
   apps: {
@@ -20,8 +20,8 @@ export default {
     emptyDesc: '创建应用后会显示审核状态',
     loadFailed: '应用列表加载失败',
     connect: {
-      title: 'StuHelper ID Connect',
-      subtitle: '对外 OIDC / OAuth 端点统一以 id.stuhelper.com 为准，应用接入只使用 StuHelper ID issuer。',
+      title: 'StuHelper Connect',
+      subtitle: '对外 OIDC / OAuth issuer 使用 sso.stuhelper.com；学生认证、QQ 绑定等业务数据通过 StuHelper Open API 获取。',
       copyLabel: '复制 {endpoint}',
       copied: '端点已复制',
       copyFailed: '复制失败，请手动复制',
@@ -179,6 +179,8 @@ export default {
       identityType: '身份类型',
       studentStatus: '学生认证状态',
       studentSchool: '学校信息',
+      qqStatus: 'QQ 绑定状态',
+      qqNumber: 'QQ 号',
       resourceRead: '授权资源读取',
       resourceWrite: '授权资源写入',
       offlineAccess: '离线访问',
@@ -194,7 +196,9 @@ export default {
       identityType: '身份类型',
       studentVerified: '是否已完成学生认证',
       schoolID: '学校 ID',
-      schoolName: '学校名称',
+      campusID: '校区 ID（如已认证）',
+      qqBound: '是否已绑定 QQ',
+      qqNumber: '绑定的 QQ 号',
       resourceRead: '用户授权的资源读取权限',
       resourceWrite: '用户授权的资源写入权限',
       offlineAccess: '长期刷新登录授权',

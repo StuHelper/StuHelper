@@ -14,18 +14,38 @@
         </div>
 
         <div v-else-if="pageState === 'needsLogin'" data-state="needsLogin">
-          <h2 class="text-lg font-semibold">登录 StuHelper</h2>
-          <p class="mt-2 text-sm text-slate-600">
+          <h2 class="text-lg font-semibold">
+            {{ consumedTokenNeedsLogin ? '继续入群认证' : '登录 StuHelper' }}
+          </h2>
+          <p v-if="consumedTokenNeedsLogin" class="mt-2 text-sm text-slate-600">
+            该链接已绑定 StuHelper 账号，请使用首次绑定该链接的账号登录后继续认证。
+          </p>
+          <p v-else class="mt-2 text-sm text-slate-600">
             登录或注册后会回到当前认证链接。
           </p>
           <div class="mt-4 flex flex-wrap gap-3">
             <button class="primary-button" type="button" @click="startLogin">
               登录
             </button>
-            <button class="secondary-button" type="button" @click="startSignup">
+            <button
+              v-if="!consumedTokenNeedsLogin"
+              class="secondary-button"
+              type="button"
+              @click="startSignup"
+            >
               注册
             </button>
           </div>
+        </div>
+
+        <div v-else-if="pageState === 'accountMismatch'" data-state="accountMismatch">
+          <h2 class="text-lg font-semibold">账号不匹配</h2>
+          <p class="mt-2 text-sm text-slate-600">
+            该认证链接已绑定首次打开时登录的 StuHelper 账号。请退出当前账号后使用原账号登录，或联系管理员重新生成认证链接。
+          </p>
+          <button class="primary-button mt-4" type="button" @click="startReauthentication">
+            重新登录
+          </button>
         </div>
 
         <div v-else-if="pageState === 'qqMismatch'" data-state="qqMismatch">
@@ -52,6 +72,20 @@
 
         <div v-else-if="pageState === 'linked'" data-state="linked">
           <h2 class="text-lg font-semibold">选择认证方式</h2>
+          <div
+            v-if="linkedResourceErrorMessage"
+            class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+            data-linked-resource-error
+          >
+            <p>{{ linkedResourceErrorMessage }}</p>
+            <button
+              class="secondary-button mt-3"
+              type="button"
+              @click="retryLinkedResources"
+            >
+              重新加载
+            </button>
+          </div>
           <div class="mt-4 flex gap-2">
             <button
               class="flow-tab"
@@ -80,6 +114,7 @@
           <FreshmanCameraFlow
             v-else-if="showFreshmanSubmission"
             :max-material-bytes="session?.maxMaterialBytes"
+            :schools="admissionSchools"
             @submitted="markPendingReview"
           />
           <div
@@ -127,7 +162,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
@@ -140,7 +175,11 @@ import {
   stateFromAdmissionSession,
   type AdmissionPageState,
 } from '../admissionState'
-import { buildAdmissionReturnURL, mapAdmissionApiError } from '../admissionToken'
+import {
+  buildAdmissionReturnURL,
+  isAdmissionTokenConsumedError,
+  mapAdmissionApiError,
+} from '../admissionToken'
 import {
   shouldShowFreshmanSubmission,
   type AdmissionSchoolOption,
@@ -157,6 +196,8 @@ const pageState = ref<AdmissionPageState>('loading')
 const session = ref<AdmissionSession | null>(null)
 const admissionMe = ref<AdmissionMe | null>(null)
 const errorMessage = ref('认证链接暂时无法打开，请稍后重试。')
+const linkedResourceErrorMessage = ref('')
+const consumedTokenNeedsLogin = ref(false)
 const linking = ref(false)
 const activeFlow = ref<'freshman' | 'oldStudent'>('freshman')
 const projectionRefreshTimedOut = ref(false)
@@ -185,24 +226,72 @@ function currentAdmissionURL(): string {
   return buildAdmissionReturnURL(route.fullPath)
 }
 
-async function loadLinkedResources(): Promise<void> {
+function setAdmissionMe(nextAdmission: AdmissionMe): void {
+  admissionMe.value = nextAdmission
+  if (!showFreshmanSubmission.value) activeFlow.value = 'oldStudent'
+}
+
+async function loadLinkedResources(options?: { refreshAdmission?: boolean }): Promise<void> {
+  const refreshAdmission = options?.refreshAdmission !== false
+  linkedResourceErrorMessage.value = ''
   await Promise.all([
     verificationStore.fetchSchools(),
-    admissionApi.getAdmissionMe().then((admission) => {
-      admissionMe.value = admission
-      if (!showFreshmanSubmission.value) activeFlow.value = 'oldStudent'
-    }),
+    refreshAdmission
+      ? admissionApi.getAdmissionMe().then(setAdmissionMe)
+      : Promise.resolve(),
   ])
 }
 
-function scheduleLinkedResourcesLoad(): void {
-  loadLinkedResources().catch(applyError)
+function scheduleLinkedResourcesLoad(options?: { refreshAdmission?: boolean }): void {
+  loadLinkedResources(options).catch(handleLinkedResourcesLoadError)
+}
+
+function handleLinkedResourcesLoadError(error: unknown): void {
+  if (pageState.value === 'linked') {
+    linkedResourceErrorMessage.value = readErrorMessage(
+      error,
+      '认证资料加载失败，请稍后重试。',
+    )
+    return
+  }
+  applyError(error)
 }
 
 function handleSessionState(nextSession: AdmissionSession): void {
   pageState.value = stateFromAdmissionSession(nextSession)
   if (pageState.value === 'linked') scheduleLinkedResourcesLoad()
   if (pageState.value === 'projectionPending') scheduleProjectionRefresh()
+}
+
+function handleAdmissionMeState(nextAdmission: AdmissionMe): void {
+  setAdmissionMe(nextAdmission)
+  if (nextAdmission.session) {
+    session.value = nextAdmission.session
+  }
+  pageState.value = stateFromAdmissionMe(nextAdmission)
+  if (pageState.value === 'linked') scheduleLinkedResourcesLoad({ refreshAdmission: false })
+  if (pageState.value === 'projectionPending') scheduleProjectionRefresh()
+}
+
+async function resumeConsumedTokenSession(authenticated = auth.isAuthenticated): Promise<boolean> {
+  if (!authenticated) {
+    return false
+  }
+  const linked = await admissionApi.linkAdmissionSession(
+    token.value,
+    displayQQ.value || undefined,
+  )
+  session.value = linked
+  handleSessionState(linked)
+  return true
+}
+
+async function refreshAdmissionAuthState(): Promise<boolean> {
+  try {
+    return await auth.bootstrapSession({ force: true })
+  } catch {
+    return auth.isAuthenticated
+  }
 }
 
 function scheduleProjectionRefresh(): void {
@@ -224,15 +313,37 @@ function scheduleProjectionRefresh(): void {
 
 async function loadAdmissionSession() {
   pageState.value = 'loading'
+  consumedTokenNeedsLogin.value = false
   try {
     const preview = await admissionApi.getAdmissionSession(
       token.value,
       displayQQ.value || undefined,
     )
     session.value = preview
-    if (auth.isAuthenticated) handleSessionState(preview)
+    const authenticated = await refreshAdmissionAuthState()
+    if (authenticated) handleSessionState(preview)
     else pageState.value = 'needsLogin'
   } catch (error) {
+    if (isAdmissionTokenConsumedError(error)) {
+      const authenticated = await refreshAdmissionAuthState()
+      if (!authenticated) {
+        consumedTokenNeedsLogin.value = true
+        pageState.value = 'needsLogin'
+        return
+      }
+      try {
+        if (await resumeConsumedTokenSession(authenticated)) {
+          return
+        }
+      } catch (resumeError) {
+        if (isAdmissionTokenConsumedError(resumeError)) {
+          pageState.value = 'accountMismatch'
+          return
+        }
+        applyError(resumeError)
+        return
+      }
+    }
     applyError(error)
   }
 }
@@ -261,19 +372,36 @@ function startSignup() {
   void auth.signup(currentAdmissionURL())
 }
 
+function startReauthentication() {
+  void auth.reauthenticate(currentAdmissionURL())
+}
+
 function markPendingReview() {
   pageState.value = 'pendingReview'
 }
 
 function handleOldStudentVerified(nextAdmission: AdmissionMe) {
-  admissionMe.value = nextAdmission
-  pageState.value = stateFromAdmissionMe(nextAdmission)
-  if (pageState.value === 'projectionPending') scheduleProjectionRefresh()
+  handleAdmissionMeState(nextAdmission)
+}
+
+function retryLinkedResources() {
+  scheduleLinkedResourcesLoad()
+}
+
+function readErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback
 }
 
 onMounted(() => {
   void loadAdmissionSession()
 })
+
+watch(
+  () => route.fullPath,
+  () => {
+    void loadAdmissionSession()
+  },
+)
 
 onBeforeUnmount(() => {
   projectionRefreshAbort?.abort()

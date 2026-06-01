@@ -4,16 +4,17 @@ import { ApiError } from '@/api/errors'
 
 import {
   buildAdmissionReturnURL,
+  isAdmissionTokenConsumedError,
   mapAdmissionApiError,
 } from '../admissionToken'
 
-const sameOrigin = 'https://auth.stuhelper.com'
+const sameOrigin = 'https://join.stuhelper.com'
 
 describe('admission token return URL', () => {
   it('keeps admission return URLs same-origin and preserves QQ query', () => {
     expect(
-      buildAdmissionReturnURL('/admission/a/ABCD?qq=123', sameOrigin),
-    ).toBe('https://auth.stuhelper.com/admission/a/ABCD?qq=123')
+      buildAdmissionReturnURL('/verify/ABCD?qq=123', sameOrigin),
+    ).toBe('https://join.stuhelper.com/verify/ABCD?qq=123')
   })
 
   it('rejects protocol-relative off-origin URLs', () => {
@@ -24,7 +25,25 @@ describe('admission token return URL', () => {
 
   it('rejects non-admission paths', () => {
     expect(() => buildAdmissionReturnURL('/user/qq-binding?qq=123', sameOrigin))
-      .toThrow('Admission return URL must target /admission/a/:code')
+      .toThrow('Admission return URL must target /verify/:code')
+  })
+
+  it('rejects multi-segment verify paths', () => {
+    expect(() => buildAdmissionReturnURL('/verify/ABCD/extra?qq=123', sameOrigin))
+      .toThrow('Admission return URL must target /verify/:code')
+  })
+
+  it('detects consumed-token errors for authenticated resume logic', () => {
+    expect(
+      isAdmissionTokenConsumedError(
+        new ApiError({ code: 'admission.token_consumed', message: 'consumed' }),
+      ),
+    ).toBe(true)
+    expect(
+      isAdmissionTokenConsumedError(
+        new ApiError({ code: 'admission.token_expired', message: 'expired' }),
+      ),
+    ).toBe(false)
   })
 })
 

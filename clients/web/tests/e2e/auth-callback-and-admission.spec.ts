@@ -1,4 +1,9 @@
-import { expect, test, type Page } from './fixtures';
+import {
+    allowExpectedConsoleError,
+    expect,
+    test,
+    type Page,
+} from './fixtures';
 
 const user = {
     id: "u2",
@@ -21,7 +26,6 @@ const joinedSession = {
     guildID: "guild-1",
     channelID: "channel-1",
     qqID: "123456",
-    qqNickname: "航小伴",
     status: "joined_muted",
     tokenExpiresAt: "2026-05-24T05:00:00Z",
     linkWaitDeadlineAt: "2026-05-24T04:10:00Z",
@@ -96,7 +100,7 @@ async function mockAuthenticated(page: Page) {
 }
 
 test.describe("Auth callback and admission entry", () => {
-    test("auth callback consumes a stored OAuth state and redirects to backend callback", async ({
+    test("auth callback consumes an upstream OAuth state and redirects to backend callback", async ({
         page,
     }) => {
         let callbackURL: URL | null = null;
@@ -121,6 +125,19 @@ test.describe("Auth callback and admission entry", () => {
         await expect(page.getByText("Backend callback")).toBeVisible();
     });
 
+    test("auth callback consumes an identity OAuth state and returns to saved app redirect", async ({
+        page,
+    }) => {
+        await page.addInitScript(() => {
+            sessionStorage.setItem("identity_oauth_state", "identity-state-1");
+            sessionStorage.setItem("identity_code_verifier", "identity-verifier-1");
+            sessionStorage.setItem("post_login_redirect", "/identity");
+        });
+
+        await page.goto("/auth/callback?code=identity-code-1&state=identity-state-1");
+        await page.waitForURL(/\/identity/);
+    });
+
     test("auth callback rejects oversized parameters before reaching backend callback", async ({
         page,
     }) => {
@@ -139,37 +156,39 @@ test.describe("Auth callback and admission entry", () => {
 
         await expect(page).toHaveURL(/\/login\?error=invalid_callback/);
         await expect(
-            page.getByRole("button", { name: /Login with SSO|使用 SSO 登录/ }),
+            page.getByRole("button", {
+                name: /Continue with unified sign-in|使用统一身份认证登录/,
+            }),
         ).toBeVisible();
         expect(backendCallbackRequests).toBe(0);
     });
 
-    test("anonymous admission link starts login with the current admission return URL", async ({
+    test("anonymous admission link starts SSO with the current admission return URL", async ({
         page,
     }) => {
-        let loginURL: URL | null = null;
+        let loginRequestURL: URL | null = null;
 
         await mockUnauthenticated(page);
         await page.route("**/api/v1/admission/sessions/ADMIT-LOGIN**", (route) =>
             route.fulfill(ok(joinedSession)),
         );
         await page.route("**/api/v1/auth/login**", async (route) => {
-            loginURL = new URL(route.request().url());
+            loginRequestURL = new URL(route.request().url());
             await route.fulfill(
                 ok({
-                    state: "admission-login-state",
-                    url: "http://localhost:8085/admission-login",
+                    url: "https://sso.stuhelper.com/login/oauth/authorize?client_id=stuhelper-web&state=admission-sso-state",
+                    state: "admission-sso-state",
                 }),
             );
         });
-        await page.route("http://localhost:8085/**", (route) =>
+        await page.route("https://sso.stuhelper.com/**", (route) =>
             route.fulfill({
                 contentType: "text/html",
-                body: "<!doctype html><title>SSO</title><main>SSO login</main>",
+                body: "<!doctype html><title>SSO</title><main>SSO authorize</main>",
             }),
         );
 
-        await page.goto("/admission/a/ADMIT-LOGIN?qq=123456");
+        await page.goto("/verify/ADMIT-LOGIN?qq=123456");
 
         await expect(
             page.getByRole("heading", { name: "登录 StuHelper" }),
@@ -179,12 +198,214 @@ test.describe("Auth callback and admission entry", () => {
 
         const admissionURL = page.url();
         await page.getByRole("button", { name: "登录" }).click();
-        await page.waitForURL("http://localhost:8085/admission-login");
+        await page.waitForURL((url) => url.hostname === "sso.stuhelper.com" && url.pathname === "/login/oauth/authorize");
 
-        expect(loginURL).not.toBeNull();
-        expect(loginURL!.searchParams.get("app")).toBe("web");
-        expect(loginURL!.searchParams.get("redirect")).toBe(admissionURL);
-        await expect(page.getByText("SSO login")).toBeVisible();
+        expect(loginRequestURL).not.toBeNull();
+        expect(loginRequestURL!.searchParams.get("app")).toBe("web");
+        expect(loginRequestURL!.searchParams.get("redirect")).toBe(admissionURL);
+        const ssoURL = new URL(page.url());
+        expect(ssoURL.searchParams.get("client_id")).toBe("stuhelper-web");
+        expect(ssoURL.searchParams.get("state")).toBe("admission-sso-state");
+        await expect(page.getByText("SSO authorize")).toBeVisible();
+    });
+
+    test("anonymous admission signup starts SSO signup with the current admission return URL", async ({
+        page,
+    }) => {
+        let loginRequests = 0;
+        let signupRequestURL: URL | null = null;
+
+        await mockUnauthenticated(page);
+        await page.route("**/api/v1/admission/sessions/ADMIT-SIGNUP**", (route) =>
+            route.fulfill(ok(joinedSession)),
+        );
+        await page.route("**/api/v1/auth/login**", (route) => {
+            loginRequests += 1;
+            return route.fulfill(apiError("unexpected.login", "unexpected login", 500));
+        });
+        await page.route("**/api/v1/auth/signup**", async (route) => {
+            signupRequestURL = new URL(route.request().url());
+            await route.fulfill(
+                ok({
+                    url: "https://sso.stuhelper.com/signup/oauth/authorize?client_id=stuhelper-web&state=admission-sso-signup-state",
+                    state: "admission-sso-signup-state",
+                }),
+            );
+        });
+        await page.route("https://sso.stuhelper.com/**", (route) =>
+            route.fulfill({
+                contentType: "text/html",
+                body: "<!doctype html><title>SSO</title><main>SSO signup authorize</main>",
+            }),
+        );
+
+        await page.goto("/verify/ADMIT-SIGNUP?qq=123456");
+
+        await expect(
+            page.getByRole("heading", { name: "登录 StuHelper" }),
+        ).toBeVisible();
+        const admissionURL = page.url();
+        await page.getByRole("button", { name: "注册" }).click();
+        await page.waitForURL((url) => url.hostname === "sso.stuhelper.com" && url.pathname === "/signup/oauth/authorize");
+
+        expect(loginRequests).toBe(0);
+        expect(signupRequestURL).not.toBeNull();
+        expect(signupRequestURL!.searchParams.get("app")).toBe("web");
+        expect(signupRequestURL!.searchParams.get("redirect")).toBe(admissionURL);
+        const ssoURL = new URL(page.url());
+        expect(ssoURL.searchParams.get("client_id")).toBe("stuhelper-web");
+        expect(ssoURL.searchParams.get("state")).toBe("admission-sso-signup-state");
+        await expect(page.getByText("SSO signup authorize")).toBeVisible();
+    });
+
+    test("admission login callback returns to the verify page and resumes without a manual refresh", async ({
+        page,
+    }) => {
+        let authenticated = false;
+        let callbackURL: URL | null = null;
+        let linkQQ = "";
+
+        allowExpectedConsoleError(page, /Failed to load resource: net::ERR_NETWORK_CHANGED/);
+        allowExpectedConsoleError(
+            page,
+            /\[App\] bootstrap failed: TypeError: Failed to fetch dynamically imported module: .*AdmissionPage\.vue/,
+        );
+        await page.addInitScript(() => {
+            sessionStorage.setItem("oauth_state", "admission-sso-state");
+        });
+        await page.route("**/api/v1/auth/me", (route) =>
+            route.fulfill(
+                authenticated
+                    ? ok(user)
+                    : apiError("A0010100", "login required", 401),
+            ),
+        );
+        await page.route("**/api/v1/auth/refresh", (route) =>
+            route.fulfill(
+                authenticated
+                    ? ok({ expiresIn: 3600 })
+                    : apiError("A0010100", "login required", 401),
+            ),
+        );
+        await page.route("**/api/v1/auth/callback?*", async (route) => {
+            callbackURL = new URL(route.request().url());
+            authenticated = true;
+            await route.fulfill({
+                status: 302,
+                headers: {
+                    location: "/verify/ADMIT-RETURN?qq=123456",
+                },
+            });
+        });
+        await page.route(
+            "**/api/v1/admission/sessions/ADMIT-RETURN**",
+            async (route) => {
+                const url = new URL(route.request().url());
+                if (url.pathname.endsWith("/link")) {
+                    linkQQ = url.searchParams.get("qq") ?? "";
+                    await route.fulfill(ok(linkedSession));
+                    return;
+                }
+                await route.fulfill(ok(joinedSession));
+            },
+        );
+        await page.route("**/api/v1/admission/me", (route) =>
+            route.fulfill(ok(freshmanAdmissionMe)),
+        );
+        await page.route("**/api/v1/user/schools", (route) =>
+            route.fulfill(
+                ok([
+                    {
+                        schoolID: 10006,
+                        schoolCode: "4111010006",
+                        schoolName: "北京航空航天大学",
+                        verificationMethod: "manual",
+                        consentText: null,
+                        manualFormFields: null,
+                        enabled: true,
+                        schoolSsoEnabled: false,
+                        schoolEmailOtpEnabled: false,
+                    },
+                ]),
+            ),
+        );
+
+        await page.goto("/auth/callback?code=oauth-code-1&state=admission-sso-state");
+        await page.waitForURL(/\/verify\/ADMIT-RETURN\?qq=123456/);
+
+        await expect(
+            page.getByRole("heading", { name: "确认绑定当前 QQ" }),
+        ).toBeVisible();
+        await page.getByRole("button", { name: "开始认证" }).click();
+        await expect(
+            page.getByRole("heading", { name: "选择认证方式" }),
+        ).toBeVisible();
+
+        expect(callbackURL).not.toBeNull();
+        expect(callbackURL!.searchParams.get("code")).toBe("oauth-code-1");
+        expect(callbackURL!.searchParams.get("state")).toBe("admission-sso-state");
+        expect(linkQQ).toBe("123456");
+    });
+
+    test("reopening a consumed admission link resumes for the originally logged-in account", async ({
+        page,
+    }) => {
+        let previewRequests = 0;
+        let linkRequests = 0;
+        let linkQQ = "";
+
+        allowExpectedConsoleError(page, /Failed to load resource: net::ERR_NETWORK_CHANGED/);
+        await mockAuthenticated(page);
+        await page.route(
+            "**/api/v1/admission/sessions/ADMIT-CONSUMED**",
+            async (route) => {
+                const url = new URL(route.request().url());
+                if (url.pathname.endsWith("/link")) {
+                    linkRequests += 1;
+                    linkQQ = url.searchParams.get("qq") ?? "";
+                    await route.fulfill(ok(linkedSession));
+                    return;
+                }
+                previewRequests += 1;
+                await route.fulfill(
+                    apiError("admission.token_consumed", "consumed", 409),
+                );
+            },
+        );
+        await page.route("**/api/v1/admission/me", (route) =>
+            route.fulfill(ok(freshmanAdmissionMe)),
+        );
+        await page.route("**/api/v1/user/schools", (route) =>
+            route.fulfill(
+                ok([
+                    {
+                        schoolID: 10006,
+                        schoolCode: "4111010006",
+                        schoolName: "北京航空航天大学",
+                        verificationMethod: "manual",
+                        consentText: null,
+                        manualFormFields: null,
+                        enabled: true,
+                        schoolSsoEnabled: false,
+                        schoolEmailOtpEnabled: false,
+                    },
+                ]),
+            ),
+        );
+
+        await page.goto("/verify/ADMIT-CONSUMED?qq=123456");
+
+        const flowHeading = page.getByRole("heading", { name: "选择认证方式" });
+        await expect(flowHeading).toBeVisible({ timeout: 5_000 });
+        await expect(
+            page.getByRole("heading", { name: "链接已失效" }),
+        ).toHaveCount(0);
+        await expect(
+            page.getByRole("heading", { name: "账号不匹配" }),
+        ).toHaveCount(0);
+        expect(previewRequests).toBeGreaterThanOrEqual(1);
+        expect(linkRequests).toBeGreaterThanOrEqual(1);
+        expect(linkQQ).toBe("123456");
     });
 
     test("admission token mismatch and expired states block submission controls", async ({
@@ -195,7 +416,7 @@ test.describe("Auth callback and admission entry", () => {
         await page.route("**/api/v1/admission/sessions/ADMIT-MISMATCH**", (route) =>
             route.fulfill(apiError("admission.qq_mismatch", "mismatch", 409)),
         );
-        await page.goto("/admission/a/ADMIT-MISMATCH?qq=999999");
+        await page.goto("/verify/ADMIT-MISMATCH?qq=999999");
         await expect(
             page.getByRole("heading", { name: "链接被篡改" }),
         ).toBeVisible();
@@ -205,7 +426,7 @@ test.describe("Auth callback and admission entry", () => {
         await page.route("**/api/v1/admission/sessions/ADMIT-EXPIRED**", (route) =>
             route.fulfill(apiError("admission.token_expired", "expired", 410)),
         );
-        await page.goto("/admission/a/ADMIT-EXPIRED?qq=123456");
+        await page.goto("/verify/ADMIT-EXPIRED?qq=123456");
         await expect(
             page.getByRole("heading", { name: "链接已失效" }),
         ).toBeVisible();
@@ -247,13 +468,20 @@ test.describe("Auth callback and admission entry", () => {
             route.fulfill(
                 ok([
                     {
-                        schoolID: 1001,
-                        schoolName: "测试大学",
-                        verificationMethod: "ldap",
+                        schoolID: 10006,
+                        schoolCode: "4111010006",
+                        schoolName: "北京航空航天大学",
+                        verificationMethod: "manual",
                         consentText: null,
                         manualFormFields: null,
                         enabled: true,
                         schoolSsoEnabled: false,
+                        schoolEmailOtpEnabled: true,
+                        schoolEmailIdentityPolicy: {
+                            type: "academic_student_email",
+                            studentIDEmailDomain: "buaa.edu.cn",
+                            requireStudentName: true,
+                        },
                     },
                 ]),
             ),
@@ -262,7 +490,13 @@ test.describe("Auth callback and admission entry", () => {
             "**/api/v1/admission/school-email/request-otp",
             async (route) => {
                 otpRequestBody = route.request().postDataJSON();
-                await route.fulfill(ok());
+                await route.fulfill(
+                    ok({
+                        email: "20250001@buaa.edu.cn",
+                        studentID: "20250001",
+                        cooldownSeconds: 60,
+                    }),
+                );
             },
         );
         await page.route(
@@ -286,7 +520,7 @@ test.describe("Auth callback and admission entry", () => {
             },
         );
 
-        await page.goto("/admission/a/ADMIT-1?qq=123456");
+        await page.goto("/verify/ADMIT-1?qq=123456");
 
         await expect(page.getByText("QQ：123456")).toBeVisible();
         await expect(
@@ -302,9 +536,14 @@ test.describe("Auth callback and admission entry", () => {
         ).toBeVisible();
         expect(linkQQ).toBe("123456");
 
-        await page.locator("[data-school-select]").selectOption("1001");
-        await page.getByLabel("学校邮箱").fill("student@test.edu");
-        await page.getByRole("button", { name: "发送验证码" }).click();
+        await page.locator("[data-school-select]").selectOption("4111010006");
+        const academicEmailInput = page.locator("[data-academic-email-input]");
+        await expect(academicEmailInput).toHaveJSProperty("readOnly", true);
+        await expect(academicEmailInput).toHaveValue("");
+        await page.locator("[data-academic-student-id-input]").fill("20250001");
+        await page.locator("[data-academic-student-name-input]").fill("张三");
+        await page.getByRole("button", { name: "校验并发送验证码" }).click();
+        await expect(academicEmailInput).toHaveValue("20250001@buaa.edu.cn");
         await page.getByLabel("验证码").fill("654321");
         await page.getByRole("button", { name: "验证邮箱" }).click();
 
@@ -312,17 +551,18 @@ test.describe("Auth callback and admission entry", () => {
             page.getByRole("heading", { name: "认证已通过" }),
         ).toBeVisible();
         expect(otpRequestBody).toEqual({
-            schoolID: 1001,
-            email: "student@test.edu",
+            schoolCode: "4111010006",
+            studentID: "20250001",
+            studentName: "张三",
         });
         expect(otpVerifyBody).toEqual({
-            schoolID: 1001,
-            email: "student@test.edu",
+            schoolCode: "4111010006",
+            email: "20250001@buaa.edu.cn",
             code: "654321",
         });
     });
 
-    test("freshman admission shows the mobile camera prompt without upload controls when camera is unavailable", async ({
+    test("freshman admission offers mobile handoff when desktop camera is unavailable", async ({
         page,
     }) => {
         await page.addInitScript(() => {
@@ -342,29 +582,445 @@ test.describe("Auth callback and admission entry", () => {
             route.fulfill(
                 ok([
                     {
-                        schoolID: 1001,
-                        schoolName: "测试大学",
+                        schoolID: 10006,
+                        schoolCode: "4111010006",
+                        schoolName: "北京航空航天大学",
                         verificationMethod: "manual",
                         consentText: null,
                         manualFormFields: null,
                         enabled: true,
                         schoolSsoEnabled: false,
+                        schoolEmailOtpEnabled: false,
                     },
                 ]),
             ),
         );
 
-        await page.goto("/admission/a/ADMIT-FRESHMAN?qq=123456");
+        await page.goto("/verify/ADMIT-FRESHMAN?qq=123456");
 
         await expect(
             page.getByRole("heading", { name: "选择认证方式" }),
         ).toBeVisible();
         await expect(page.locator("[data-admission-freshman-flow]")).toBeVisible();
-        await expect(page.locator("[data-camera-unavailable]")).toContainText(
-            "请用手机浏览器打开此链接，并允许浏览器访问摄像头。",
+        await expect(
+            page.getByRole("button", { name: "当前浏览器不支持摄像头" }),
+        ).toBeDisabled();
+        await expect(
+            page.getByRole("button", { name: "手机扫码拍照" }),
+        ).toBeVisible();
+        await expect(
+            page.getByText("请用手机浏览器打开此链接，并允许浏览器访问摄像头。"),
+        ).toHaveCount(0);
+        await expect(
+            page.getByText("Permission denied"),
+        ).toHaveCount(0);
+        await expect(
+            page.locator("[data-freshman-school-select]"),
+        ).toHaveValue("4111010006");
+        await expect(
+            page.locator('input[type="file"]'),
+        ).toHaveCount(0);
+        await expect(
+            page.getByText(/相册|拖拽|PDF|文件/),
+        ).toHaveCount(0);
+    });
+
+    test("freshman admission creates a mobile camera handoff and reacts to SSE continuation", async ({
+        page,
+    }) => {
+        let applicationBody: unknown = null;
+        let handoffCreated = false;
+        let eventSourceRequested = false;
+        let pollingRequests = 0;
+
+        await mockAuthenticated(page);
+        await page.route("**/api/v1/admission/sessions/ADMIT-HANDOFF**", (route) =>
+            route.fulfill(ok(linkedSession)),
         );
-        await expect(page.locator('input[type="file"]')).toHaveCount(0);
-        await expect(page.getByText(/上传|相册|拖拽|PDF|文件/)).toHaveCount(0);
+        await page.route("**/api/v1/admission/me", (route) =>
+            route.fulfill(ok(freshmanAdmissionMe)),
+        );
+        await page.route("**/api/v1/user/schools", (route) =>
+            route.fulfill(
+                ok([
+                    {
+                        schoolID: 10006,
+                        schoolCode: "4111010006",
+                        schoolName: "北京航空航天大学",
+                        verificationMethod: "manual",
+                        consentText: null,
+                        manualFormFields: null,
+                        enabled: true,
+                        schoolSsoEnabled: false,
+                        schoolEmailOtpEnabled: false,
+                    },
+                ]),
+            ),
+        );
+        await page.route(
+            "**/api/v1/admission/freshman/applications",
+            async (route) => {
+                applicationBody = route.request().postDataJSON();
+                await route.fulfill(
+                    ok({
+                        id: "freshman-application-1",
+                        userID: user.id,
+                        status: "pending",
+                        schoolID: 10006,
+                        qqID: "123456",
+                        applicantNameMasked: "赵*",
+                        materialType: "admission_notice",
+                        failureCount: 0,
+                        createdAt: now,
+                    }),
+                );
+            },
+        );
+        await page.route(
+            "**/api/v1/admission/freshman/applications/freshman-application-1/camera-handoffs",
+            async (route) => {
+                handoffCreated = true;
+                await route.fulfill(
+                    ok({
+                        id: "handoff-1",
+                        applicationID: "freshman-application-1",
+                        userID: user.id,
+                        status: "pending",
+                        mobileURL: "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
+                        expiresAt: "2026-05-24T04:30:00Z",
+                        createdAt: now,
+                    }),
+                );
+            },
+        );
+        await page.route(
+            "**/api/v1/admission/freshman/camera-handoffs/handoff-1/events",
+            async (route) => {
+                eventSourceRequested = true;
+                const uploaded = {
+                    id: "handoff-1",
+                    applicationID: "freshman-application-1",
+                    userID: user.id,
+                    status: "uploaded",
+                    mobileURL: "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
+                    expiresAt: "2026-05-24T04:30:00Z",
+                    uploadedAt: now,
+                    createdAt: now,
+                };
+                const locked = {
+                    ...uploaded,
+                    status: "locked",
+                    continueOn: "desktop",
+                    chosenAt: now,
+                };
+                await route.fulfill({
+                    status: 200,
+                    contentType: "text/event-stream",
+                    body: [uploaded, locked]
+                        .map((handoff) => `event: handoff\ndata: ${JSON.stringify(handoff)}\n`)
+                        .join("\n") + "\n",
+                });
+            },
+        );
+        await page.route(
+            "**/api/v1/admission/freshman/camera-handoffs/handoff-1",
+            async (route) => {
+                pollingRequests += 1;
+                await route.fulfill(
+                    ok({
+                        id: "handoff-1",
+                        applicationID: "freshman-application-1",
+                        userID: user.id,
+                        status: "uploaded",
+                        mobileURL: "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
+                        expiresAt: "2026-05-24T04:30:00Z",
+                        uploadedAt: now,
+                        createdAt: now,
+                    }),
+                );
+            },
+        );
+
+        await page.goto("/verify/ADMIT-HANDOFF?qq=123456");
+
+        await expect(page.locator("[data-admission-freshman-flow]")).toBeVisible();
+        await page.locator("[data-freshman-school-select]").selectOption("4111010006");
+        await page.locator("[data-freshman-applicant-name-input]").fill("赵一");
+        await page.getByRole("button", { name: "手机扫码拍照" }).click();
+
+        await expect(
+            page.getByRole("heading", { name: "等待管理员审核" }),
+        ).toBeVisible();
+        expect(applicationBody).toEqual({
+            schoolCode: "4111010006",
+            applicantName: "赵一",
+            materialType: "admission_notice",
+        });
+        expect(handoffCreated).toBe(true);
+        expect(eventSourceRequested).toBe(true);
+        expect(pollingRequests).toBe(0);
+    });
+
+    test("freshman admission allows desktop material submission while a mobile handoff is still pending", async ({
+        page,
+    }) => {
+        let cameraCaptureBody: unknown = null;
+        let handoffCreated = false;
+
+        await page.addInitScript(() => {
+            Object.defineProperty(navigator, "mediaDevices", {
+                configurable: true,
+                value: {
+                    getUserMedia: async () => new MediaStream(),
+                },
+            });
+            Object.defineProperty(HTMLVideoElement.prototype, "videoWidth", {
+                configurable: true,
+                get: () => 2,
+            });
+            Object.defineProperty(HTMLVideoElement.prototype, "videoHeight", {
+                configurable: true,
+                get: () => 2,
+            });
+            HTMLVideoElement.prototype.play = async () => undefined;
+            HTMLCanvasElement.prototype.getContext = ((contextId: string) => {
+                if (contextId !== "2d") {
+                    return null;
+                }
+                return {
+                    drawImage: () => undefined,
+                } as unknown as CanvasRenderingContext2D;
+            }) as HTMLCanvasElement["getContext"];
+            HTMLCanvasElement.prototype.toDataURL = () =>
+                "data:image/jpeg;base64,QUJDRA==";
+        });
+        await mockAuthenticated(page);
+        await page.route("**/api/v1/admission/sessions/ADMIT-HANDOFF-DESKTOP**", (route) =>
+            route.fulfill(ok(linkedSession)),
+        );
+        await page.route("**/api/v1/admission/me", (route) =>
+            route.fulfill(ok(freshmanAdmissionMe)),
+        );
+        await page.route("**/api/v1/user/schools", (route) =>
+            route.fulfill(
+                ok([
+                    {
+                        schoolID: 10006,
+                        schoolCode: "4111010006",
+                        schoolName: "北京航空航天大学",
+                        verificationMethod: "manual",
+                        consentText: null,
+                        manualFormFields: null,
+                        enabled: true,
+                        schoolSsoEnabled: false,
+                        schoolEmailOtpEnabled: false,
+                    },
+                ]),
+            ),
+        );
+        await page.route(
+            "**/api/v1/admission/freshman/applications",
+            (route) =>
+                route.fulfill(
+                    ok({
+                        id: "freshman-application-1",
+                        userID: user.id,
+                        status: "pending",
+                        schoolID: 10006,
+                        qqID: "123456",
+                        applicantNameMasked: "赵*",
+                        materialType: "admission_notice",
+                        failureCount: 0,
+                        createdAt: now,
+                    }),
+                ),
+        );
+        await page.route(
+            "**/api/v1/admission/freshman/applications/freshman-application-1/camera-handoffs",
+            async (route) => {
+                handoffCreated = true;
+                await route.fulfill(
+                    ok({
+                        id: "handoff-pending",
+                        applicationID: "freshman-application-1",
+                        userID: user.id,
+                        status: "pending",
+                        mobileURL: "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
+                        expiresAt: "2026-05-24T04:30:00Z",
+                        createdAt: now,
+                    }),
+                );
+            },
+        );
+        await page.route(
+            "**/api/v1/admission/freshman/camera-handoffs/handoff-pending**",
+            (route) =>
+                route.fulfill(
+                    ok({
+                        id: "handoff-pending",
+                        applicationID: "freshman-application-1",
+                        userID: user.id,
+                        status: "pending",
+                        mobileURL: "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
+                        expiresAt: "2026-05-24T04:30:00Z",
+                        createdAt: now,
+                    }),
+                ),
+        );
+        await page.route(
+            "**/api/v1/admission/freshman/applications/freshman-application-1/camera-captures",
+            async (route) => {
+                cameraCaptureBody = route.request().postDataJSON();
+                await route.fulfill(
+                    ok({
+                        id: "freshman-application-1",
+                        userID: user.id,
+                        status: "pending",
+                        schoolID: 10006,
+                        qqID: "123456",
+                        applicantNameMasked: "赵*",
+                        materialType: "admission_notice",
+                        materialURL: "https://stuhelper.com/materials/freshman-application-1.jpg",
+                        failureCount: 0,
+                        createdAt: now,
+                    }),
+                );
+            },
+        );
+
+        await page.goto("/verify/ADMIT-HANDOFF-DESKTOP?qq=123456");
+
+        await expect(page.locator("[data-admission-freshman-flow]")).toBeVisible();
+        await page.locator("[data-freshman-school-select]").selectOption("4111010006");
+        await page.getByLabel("姓名").fill("赵一");
+        await page.getByRole("button", { name: "手机扫码拍照" }).click();
+        await expect(page.locator("[data-freshman-mobile-handoff]")).toBeVisible();
+        await page.getByRole("button", { name: "打开摄像头" }).click();
+        await page.getByRole("button", { name: "拍摄" }).click();
+        await expect(page.getByAltText("录取材料预览")).toBeVisible();
+        await page.getByRole("button", { name: "提交材料" }).click();
+
+        await expect(
+            page.getByRole("heading", { name: "等待管理员审核" }),
+        ).toBeVisible();
+        expect(handoffCreated).toBe(true);
+        expect(cameraCaptureBody).toMatchObject({
+            contentType: "image/jpeg",
+            imageBase64: "QUJDRA==",
+        });
+    });
+
+    test("freshman mobile camera token uploads without requiring login", async ({
+        page,
+    }) => {
+        let uploadBody: unknown = null;
+        let continuationBody: unknown = null;
+        let authRequestCount = 0;
+
+        await page.addInitScript(() => {
+            Object.defineProperty(navigator, "mediaDevices", {
+                configurable: true,
+                value: {
+                    getUserMedia: async () => new MediaStream(),
+                },
+            });
+            Object.defineProperty(HTMLVideoElement.prototype, "videoWidth", {
+                configurable: true,
+                get: () => 2,
+            });
+            Object.defineProperty(HTMLVideoElement.prototype, "videoHeight", {
+                configurable: true,
+                get: () => 2,
+            });
+            HTMLVideoElement.prototype.play = async () => undefined;
+            HTMLCanvasElement.prototype.getContext = ((contextId: string) => {
+                if (contextId !== "2d") {
+                    return null;
+                }
+                return {
+                    drawImage: () => undefined,
+                } as unknown as CanvasRenderingContext2D;
+            }) as HTMLCanvasElement["getContext"];
+            HTMLCanvasElement.prototype.toDataURL = () =>
+                "data:image/jpeg;base64,QUJDRA==";
+        });
+        await page.route("**/api/v1/auth/**", (route) => {
+            authRequestCount += 1;
+            return route.fulfill(apiError("unexpected_auth", "unexpected auth call", 500));
+        });
+        await page.route(
+            "**/api/v1/admission/freshman/mobile-camera-handoffs/mobile-token",
+            (route) =>
+                route.fulfill(
+                    ok({
+                        id: "handoff-1",
+                        applicationID: "freshman-application-1",
+                        userID: user.id,
+                        status: "pending",
+                        mobileURL: "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
+                        expiresAt: "2026-05-24T04:30:00Z",
+                        createdAt: now,
+                    }),
+                ),
+        );
+        await page.route(
+            "**/api/v1/admission/freshman/mobile-camera-handoffs/mobile-token/camera-capture",
+            async (route) => {
+                uploadBody = route.request().postDataJSON();
+                await route.fulfill(
+                    ok({
+                        id: "handoff-1",
+                        applicationID: "freshman-application-1",
+                        userID: user.id,
+                        status: "uploaded",
+                        mobileURL: "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
+                        expiresAt: "2026-05-24T04:30:00Z",
+                        uploadedAt: now,
+                        createdAt: now,
+                    }),
+                );
+            },
+        );
+        await page.route(
+            "**/api/v1/admission/freshman/mobile-camera-handoffs/mobile-token/continue",
+            async (route) => {
+                continuationBody = route.request().postDataJSON();
+                await route.fulfill(
+                    ok({
+                        id: "handoff-1",
+                        applicationID: "freshman-application-1",
+                        userID: user.id,
+                        status: "locked",
+                        continueOn: "mobile",
+                        mobileURL: "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
+                        expiresAt: "2026-05-24T04:30:00Z",
+                        uploadedAt: now,
+                        chosenAt: now,
+                        createdAt: now,
+                    }),
+                );
+            },
+        );
+
+        await page.goto("/admission/freshman/camera/mobile-token");
+
+        await expect(page.locator('[data-state="ready"]')).toBeVisible();
+        await page.getByRole("button", { name: "打开摄像头" }).click();
+        await page.getByRole("button", { name: "拍摄" }).click();
+        await page.getByRole("button", { name: "上传材料" }).click();
+        await expect(page.locator('[data-state="uploaded"]')).toBeVisible();
+        await page.getByRole("button", { name: "在手机端继续" }).click();
+        await expect(page.locator('[data-state="mobile"]')).toBeVisible();
+
+        expect(uploadBody).toMatchObject({
+            contentType: "image/jpeg",
+            imageBase64: "QUJDRA==",
+        });
+        expect(
+            typeof (uploadBody as { capturedAt?: unknown }).capturedAt,
+        ).toBe("string");
+        expect(continuationBody).toEqual({ continueOn: "mobile" });
+        expect(authRequestCount).toBe(0);
     });
 
     test("freshman admission captures camera material and submits it for manual review", async ({
@@ -413,7 +1069,21 @@ test.describe("Auth callback and admission entry", () => {
             route.fulfill(ok(freshmanAdmissionMe)),
         );
         await page.route("**/api/v1/user/schools", (route) =>
-            route.fulfill(ok([])),
+            route.fulfill(
+                ok([
+                    {
+                        schoolID: 10006,
+                        schoolCode: "4111010006",
+                        schoolName: "北京航空航天大学",
+                        verificationMethod: "manual",
+                        consentText: null,
+                        manualFormFields: null,
+                        enabled: true,
+                        schoolSsoEnabled: false,
+                        schoolEmailOtpEnabled: false,
+                    },
+                ]),
+            ),
         );
         await page.route(
             "**/api/v1/admission/freshman/applications",
@@ -424,7 +1094,7 @@ test.describe("Auth callback and admission entry", () => {
                         id: "freshman-application-1",
                         userID: user.id,
                         status: "pending",
-                        schoolID: 1001,
+                        schoolID: 10006,
                         qqID: "123456",
                         applicantNameMasked: "赵*",
                         materialType: "admission_notice",
@@ -443,7 +1113,7 @@ test.describe("Auth callback and admission entry", () => {
                         id: "freshman-application-1",
                         userID: user.id,
                         status: "pending",
-                        schoolID: 1001,
+                        schoolID: 10006,
                         qqID: "123456",
                         applicantNameMasked: "赵*",
                         materialType: "admission_notice",
@@ -455,10 +1125,10 @@ test.describe("Auth callback and admission entry", () => {
             },
         );
 
-        await page.goto("/admission/a/ADMIT-CAMERA?qq=123456");
+        await page.goto("/verify/ADMIT-CAMERA?qq=123456");
 
         await expect(page.locator("[data-admission-freshman-flow]")).toBeVisible();
-        await page.getByLabel("学校 ID").fill("1001");
+        await page.locator("[data-freshman-school-select]").selectOption("4111010006");
         await page.getByLabel("姓名").fill("赵一");
         await page.getByLabel("院系或专业").fill("软件工程");
         await page.getByRole("button", { name: "打开摄像头" }).click();
@@ -470,7 +1140,7 @@ test.describe("Auth callback and admission entry", () => {
             page.getByRole("heading", { name: "等待管理员审核" }),
         ).toBeVisible();
         expect(applicationBody).toEqual({
-            schoolID: 1001,
+            schoolCode: "4111010006",
             applicantName: "赵一",
             departmentOrMajor: "软件工程",
             materialType: "admission_notice",

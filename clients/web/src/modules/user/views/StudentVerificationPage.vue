@@ -27,32 +27,6 @@
             </div>
         </div>
 
-        <!-- Identity not verified warning -->
-        <div
-            v-else-if="!identityVerified"
-            class="bg-bg-card border border-yellow-500/30 rounded-xl p-5 shadow-card"
-        >
-            <div class="flex items-center gap-3 mb-4">
-                <div class="p-2 bg-yellow-500/10 rounded-lg">
-                    <ShieldAlert class="size-6 text-yellow-500" />
-                </div>
-                <div>
-                    <h2 class="text-base font-bold text-text-primary m-0">
-                        {{ t("user.verification.student.identityRequired") }}
-                    </h2>
-                    <p class="text-sm text-text-muted m-0 mt-1">
-                        {{ t("user.verification.student.desc") }}
-                    </p>
-                </div>
-            </div>
-            <router-link
-                to="/user/identity-verification"
-                class="block w-full py-2.5 bg-text-primary text-bg-base rounded-lg text-sm font-medium text-center no-underline transition-all duration-fast hover:bg-accent hover:text-white"
-            >
-                {{ t("user.verification.identity.title") }}
-            </router-link>
-        </div>
-
         <!-- Verified status card -->
         <div
             v-else-if="profile?.verificationStatus === 'verified' && !showForm"
@@ -146,19 +120,20 @@
                 </label>
                 <select
                     id="student-school"
-                    v-model.number="form.schoolID"
+                    v-model="form.schoolCode"
+                    data-student-school-select
                     class="w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary outline-none transition-all duration-fast focus:border-primary appearance-none cursor-pointer"
                 >
-                    <option :value="0" disabled>
+                    <option value="" disabled>
                         {{ t("user.verification.student.selectSchool") }}
                     </option>
                     <option
                         v-for="school in schools"
-                        :key="school.schoolID"
-                        :value="school.schoolID"
+                        :key="school.schoolCode"
+                        :value="school.schoolCode"
                         :disabled="!school.enabled"
                     >
-                        {{ school.schoolName }}
+                        {{ school.schoolName }}（{{ school.schoolCode }}）
                     </option>
                 </select>
             </div>
@@ -177,8 +152,92 @@
                     </p>
                 </div>
 
+                <!-- School email OTP with academic database precheck -->
+                <template v-if="selectedSchoolRequiresAcademicEmail">
+                    <div class="mb-4">
+                        <label
+                            class="block text-sm font-semibold text-text-primary mb-2"
+                            for="student-id"
+                        >
+                            {{ t("user.verification.student.studentId") }}
+                        </label>
+                        <input
+                            id="student-id"
+                            v-model="form.studentID"
+                            data-student-id-input
+                            type="text"
+                            class="w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary"
+                            :placeholder="
+                                t('user.verification.student.studentId')
+                            "
+                        />
+                    </div>
+
+                    <div class="mb-4">
+                        <label
+                            class="block text-sm font-semibold text-text-primary mb-2"
+                            for="student-name"
+                        >
+                            姓名
+                        </label>
+                        <input
+                            id="student-name"
+                            v-model="form.studentName"
+                            data-student-name-input
+                            type="text"
+                            class="w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary"
+                            placeholder="请输入学籍库中的姓名"
+                        />
+                    </div>
+
+                    <div class="mb-4">
+                        <label
+                            class="block text-sm font-semibold text-text-primary mb-2"
+                            for="student-school-email"
+                        >
+                            学号邮箱
+                        </label>
+                        <input
+                            id="student-school-email"
+                            :value="form.email"
+                            data-student-school-email-input
+                            type="email"
+                            readonly
+                            class="w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary"
+                            placeholder="学号和姓名校验通过后自动填写"
+                        />
+                    </div>
+
+                    <div class="mb-5 grid gap-3 sm:grid-cols-[1fr_auto]">
+                        <label
+                            class="block text-sm font-semibold text-text-primary"
+                            for="student-email-code"
+                        >
+                            邮箱验证码
+                            <input
+                                id="student-email-code"
+                                v-model="form.emailCode"
+                                data-student-email-code-input
+                                type="text"
+                                inputmode="numeric"
+                                class="mt-2 w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary"
+                                placeholder="请输入验证码"
+                            />
+                        </label>
+                        <button
+                            class="self-end py-2.5 px-4 bg-transparent border border-border rounded-lg text-sm font-medium text-text-primary cursor-pointer transition-all duration-fast hover:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                            type="button"
+                            data-student-email-otp-request
+                            :disabled="submitting || !canRequestEmailOTP"
+                            @click="requestEmailOTP"
+                        >
+                            发送验证码
+                        </button>
+                    </div>
+                </template>
+
                 <!-- LDAP login form -->
-                <template v-if="selectedSchool.verificationMethod === 'ldap'">
+                <template v-else-if="selectedSchool.verificationMethod === 'ldap'">
                     <div class="mb-4">
                         <label
                             class="block text-sm font-semibold text-text-primary mb-2"
@@ -293,6 +352,7 @@
                     <input
                         type="checkbox"
                         v-model="form.consent"
+                        data-student-consent-checkbox
                         class="mt-0.5 accent-primary"
                     />
                     <span>{{ t("user.verification.student.consent") }}</span>
@@ -301,6 +361,7 @@
                 <!-- Submit button -->
                 <button
                     class="w-full py-2.5 bg-text-primary text-bg-base rounded-lg text-sm font-medium cursor-pointer transition-all duration-fast hover:bg-accent hover:text-white border-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                    data-student-verification-submit
                     :disabled="!canSubmit || submitting"
                     @click="handleSubmit"
                 >
@@ -328,7 +389,6 @@ import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import {
     GraduationCap,
-    ShieldAlert,
     Clock,
     XCircle,
     ArrowLeft,
@@ -347,15 +407,17 @@ const store = useVerificationStore();
 const toast = useToast();
 
 const profile = computed(() => store.profile);
-const identityVerified = computed(() => store.identityVerified);
 const schools = computed(() => store.schools);
 const storeLoading = computed(() => store.loading);
 const showForm = ref(false);
 const submitting = ref(false);
 
 const form = reactive({
-    schoolID: 0,
+    schoolCode: "",
     studentID: "",
+    studentName: "",
+    email: "",
+    emailCode: "",
     password: "",
     manualFormData: {} as Record<string, string>,
     consent: false,
@@ -366,22 +428,33 @@ function goBack() {
 }
 
 const selectedSchool = computed(() => {
-    if (!form.schoolID) return null;
-    return schools.value.find((s) => s.schoolID === form.schoolID) ?? null;
+    if (!form.schoolCode) return null;
+    return schools.value.find((s) => s.schoolCode === form.schoolCode) ?? null;
 });
 
 function schoolName(schoolID: number): string {
     const school = schools.value.find((s) => s.schoolID === schoolID);
-    return school ? school.schoolName : String(schoolID);
+    return school ? `${school.schoolName}（${school.schoolCode}）` : String(schoolID);
 }
 
 const manualFields = computed(() =>
     normalizeManualFields(selectedSchool.value?.manualFormFields),
 );
+const selectedSchoolRequiresAcademicEmail = computed(
+    () => selectedSchool.value?.schoolEmailIdentityPolicy?.type === "academic_student_email",
+);
+const canRequestEmailOTP = computed(() => {
+    if (!selectedSchool.value || !selectedSchoolRequiresAcademicEmail.value) return false;
+    return form.studentID.trim() !== "" && form.studentName.trim() !== "";
+});
 
 const canSubmit = computed(() => {
     if (!selectedSchool.value) return false;
     if (selectedSchool.value.consentText && !form.consent) return false;
+
+    if (selectedSchoolRequiresAcademicEmail.value) {
+        return canRequestEmailOTP.value && form.email.trim() !== "" && form.emailCode.trim() !== "";
+    }
 
     if (selectedSchool.value.verificationMethod === "ldap") {
         return form.studentID.trim() !== "" && form.password !== "";
@@ -399,9 +472,20 @@ async function handleSubmit() {
 
     submitting.value = true;
     try {
+        if (selectedSchoolRequiresAcademicEmail.value) {
+            await store.verifyStudentEmailOTP({
+                schoolCode: form.schoolCode,
+                email: form.email,
+                code: form.emailCode.trim(),
+                consent: form.consent,
+            });
+            await store.fetchStatus();
+            showForm.value = false;
+            return;
+        }
         const manualFormData = normalizeManualFormData(form.manualFormData);
         await store.verifyStudent({
-            schoolID: form.schoolID,
+            schoolCode: form.schoolCode,
             studentID: form.studentID.trim() || undefined,
             password: form.password || undefined,
             manualFormData,
@@ -420,13 +504,47 @@ async function handleSubmit() {
     }
 }
 
+async function requestEmailOTP() {
+    if (!canRequestEmailOTP.value || submitting.value) return;
+
+    submitting.value = true;
+    try {
+        const result = await store.requestStudentEmailOTP({
+            schoolCode: form.schoolCode,
+            studentID: form.studentID.trim(),
+            studentName: form.studentName.trim(),
+        });
+        form.email = result.email;
+        toast.success("验证码已发送");
+    } catch (err) {
+        toast.error(
+            err instanceof Error
+                ? err.message
+                : "验证码发送失败",
+        );
+    } finally {
+        submitting.value = false;
+    }
+}
+
 watch(
-    () => form.schoolID,
+    () => form.schoolCode,
     () => {
         form.studentID = "";
+        form.studentName = "";
+        form.email = "";
+        form.emailCode = "";
         form.password = "";
         form.manualFormData = {};
         form.consent = false;
+    },
+);
+
+watch(
+    () => [form.studentID, form.studentName],
+    () => {
+        form.email = "";
+        form.emailCode = "";
     },
 );
 

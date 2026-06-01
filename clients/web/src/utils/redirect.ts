@@ -23,8 +23,7 @@ export function normalizeConfiguredHTTPOrigin(
 }
 
 export function configuredIdentityOrigin(): string | null {
-    if (typeof window === "undefined") return null;
-    return normalizeConfiguredHTTPOrigin(import.meta.env.VITE_IDENTITY_URL, window.location.origin);
+    return null;
 }
 
 export function configuredWebOrigin(): string | null {
@@ -36,6 +35,10 @@ export function isSafeRelativeRedirect(raw: string): boolean {
     return raw.startsWith("/") && !raw.startsWith("//");
 }
 
+function isAdmissionRedirectPath(pathname: string): boolean {
+    return /^\/verify\/[^/]+$/.test(pathname);
+}
+
 function allowedPostLoginRedirectOrigins(): Set<string> {
     const origins = new Set<string>();
     if (typeof window !== "undefined") {
@@ -44,9 +47,6 @@ function allowedPostLoginRedirectOrigins(): Set<string> {
 
     const webOrigin = configuredWebOrigin();
     if (webOrigin) origins.add(webOrigin);
-
-    const identityOrigin = configuredIdentityOrigin();
-    if (identityOrigin) origins.add(identityOrigin);
 
     return origins;
 }
@@ -87,9 +87,12 @@ export function resolvePostLoginRedirectTarget(redirect?: string): string | unde
         return absoluteURLOnPreferredOrigin(window.location.href, preferredPostLoginRedirectOrigin());
     }
 
-    const identityRedirect = identityPortalURLForHref(sanitized);
-    if (identityRedirect) {
-        return identityRedirect;
+    const parsed = new URL(sanitized, window.location.origin);
+    if (
+        parsed.origin === window.location.origin &&
+        isAdmissionRedirectPath(parsed.pathname)
+    ) {
+        return parsed.toString();
     }
 
     return absoluteURLOnPreferredOrigin(sanitized, preferredPostLoginRedirectOrigin());
@@ -121,7 +124,7 @@ export function absoluteURLOnCurrentOrigin(path: string): string {
 }
 
 export function identityPortalURL(path: string): string {
-    return absoluteURLOnPreferredOrigin(path, configuredIdentityOrigin());
+    return absoluteURLOnPreferredOrigin(path, configuredWebOrigin());
 }
 
 export function isIdentityPortalPath(pathname: string): boolean {
@@ -145,8 +148,8 @@ export function identityPortalURLForHref(href: string): string | null {
 
     try {
         const parsed = new URL(href, window.location.origin);
-        const identityOrigin = configuredIdentityOrigin();
-        if (identityOrigin && parsed.origin === identityOrigin) {
+        const accountOrigin = configuredWebOrigin();
+        if (accountOrigin && parsed.origin === accountOrigin) {
             return parsed.toString();
         }
         if (parsed.origin !== window.location.origin || !isIdentityPortalPath(parsed.pathname)) {
@@ -164,11 +167,6 @@ export function navigateToExternalURL(url: string): void {
 
 function preferredPostLoginRedirectOrigin(): string | null {
     if (typeof window === "undefined") return null;
-
-    const identityOrigin = configuredIdentityOrigin();
-    if (identityOrigin && window.location.origin === identityOrigin) {
-        return identityOrigin;
-    }
 
     return configuredWebOrigin();
 }

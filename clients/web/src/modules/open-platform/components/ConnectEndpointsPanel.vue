@@ -47,7 +47,6 @@ import { computed, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Check, Copy, Network } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
-import { configuredIdentityOrigin } from '@/utils/redirect'
 import {
   buildConnectEndpoints,
   normalizeIdentityIssuer,
@@ -62,7 +61,7 @@ let copiedEndpointResetTimer: ReturnType<typeof setTimeout> | null = null
 
 const identityIssuer = computed(() =>
   normalizeIdentityIssuer(
-    configuredIdentityOrigin(),
+    import.meta.env.VITE_SSO_URL,
     typeof window === 'undefined' ? undefined : window.location.origin,
   ),
 )

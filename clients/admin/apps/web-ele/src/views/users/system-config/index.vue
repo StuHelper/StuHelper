@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { SystemConfig } from '#/api/admin';
 
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 
 import { useAccessStore } from '@vben/stores';
 
@@ -11,7 +11,13 @@ import {
   ElForm,
   ElFormItem,
   ElInput,
+  ElInputNumber,
   ElMessage,
+  ElOption,
+  ElSelect,
+  ElSwitch,
+  ElTable,
+  ElTableColumn,
 } from 'element-plus';
 
 import { getSystemConfigList, updateSystemConfig } from '#/api/admin';
@@ -28,6 +34,29 @@ const configs = ref<SystemConfig[]>([]);
 const accessStore = useAccessStore();
 const canUpdateSystemConfig = () =>
   accessStore.accessCodes.includes('user:system:update');
+
+interface EmailPolicyProvider {
+  name: string;
+  enabled: boolean;
+  priority: number;
+  weight: number;
+}
+
+interface EmailDeliveryPolicy {
+  mode: 'priority' | 'weighted';
+  maxAttempts: number;
+  providers: EmailPolicyProvider[];
+}
+
+const emailPolicyKey = 'email.delivery_policy';
+const emailPolicyConfig = computed(() =>
+  configs.value.find((item) => item.key === emailPolicyKey),
+);
+const emailPolicyForm = reactive<EmailDeliveryPolicy>({
+  mode: 'priority',
+  maxAttempts: 2,
+  providers: [],
+});
 
 async function fetchData() {
   loading.value = true;
@@ -55,7 +84,46 @@ function openEdit(row: SystemConfig) {
   form.key = row.key;
   form.value = row.value;
   form.description = row.description ?? '';
+  if (row.key === emailPolicyKey) {
+    hydrateEmailPolicyForm(row.value);
+  }
   dialogVisible.value = true;
+}
+
+function hydrateEmailPolicyForm(raw: string) {
+  let parsed: Partial<EmailDeliveryPolicy> | undefined;
+  try {
+    parsed = JSON.parse(raw) as Partial<EmailDeliveryPolicy>;
+  } catch (_error) {
+    parsed = undefined;
+  }
+  emailPolicyForm.mode = parsed?.mode === 'weighted' ? 'weighted' : 'priority';
+  emailPolicyForm.maxAttempts =
+    typeof parsed?.maxAttempts === 'number' && parsed.maxAttempts > 0
+      ? parsed.maxAttempts
+      : 2;
+  const providers = Array.isArray(parsed?.providers) ? parsed.providers : [];
+  emailPolicyForm.providers = providers
+    .map((item) => ({
+      name: String((item as Partial<EmailPolicyProvider>).name ?? '').trim(),
+      enabled: Boolean((item as Partial<EmailPolicyProvider>).enabled),
+      priority: Number((item as Partial<EmailPolicyProvider>).priority ?? 100),
+      weight: Number((item as Partial<EmailPolicyProvider>).weight ?? 1),
+    }))
+    .filter((item) => item.name.length > 0);
+}
+
+function syncEmailPolicyValue() {
+  form.value = JSON.stringify({
+    mode: emailPolicyForm.mode,
+    maxAttempts: emailPolicyForm.maxAttempts,
+    providers: emailPolicyForm.providers.map((provider) => ({
+      name: provider.name,
+      enabled: provider.enabled,
+      priority: provider.priority,
+      weight: provider.weight,
+    })),
+  });
 }
 
 async function handleSubmit() {
@@ -65,6 +133,9 @@ async function handleSubmit() {
 
   submitting.value = true;
   try {
+    if (form.key === emailPolicyKey) {
+      syncEmailPolicyValue();
+    }
     await updateSystemConfig(form.key, { value: form.value });
     ElMessage.success($t('admin.users.systemConfig.updated'));
     dialogVisible.value = false;
@@ -85,6 +156,23 @@ onMounted(fetchData);
     :title="$t('admin.routes.userSystem.systemConfig')"
     :total="configs.length"
   >
+    <template v-if="emailPolicyConfig" #toolbar>
+      <div class="admin-system-config-toolbar">
+        <span class="admin-cell-muted">
+          {{ $t('admin.users.systemConfig.emailPolicySummary') }}
+        </span>
+        <ElButton
+          v-if="canUpdateSystemConfig()"
+          plain
+          size="small"
+          type="primary"
+          @click="emailPolicyConfig && openEdit(emailPolicyConfig)"
+        >
+          {{ $t('admin.users.systemConfig.editEmailPolicy') }}
+        </ElButton>
+      </div>
+    </template>
+
     <PersistentAdminTable
       table-key="users.systemConfig"
       :loading="loading"
@@ -155,7 +243,59 @@ onMounted(fetchData);
         <ElFormItem :label="$t('admin.common.description')">
           <ElInput :model-value="form.description" disabled />
         </ElFormItem>
-        <ElFormItem :label="$t('admin.users.systemConfig.value')">
+        <template v-if="form.key === emailPolicyKey">
+          <ElFormItem :label="$t('admin.users.systemConfig.emailPolicyMode')">
+            <ElSelect v-model="emailPolicyForm.mode">
+              <ElOption
+                :label="$t('admin.users.systemConfig.emailPolicyPriority')"
+                value="priority"
+              />
+              <ElOption
+                :label="$t('admin.users.systemConfig.emailPolicyWeighted')"
+                value="weighted"
+              />
+            </ElSelect>
+          </ElFormItem>
+          <ElFormItem :label="$t('admin.users.systemConfig.emailMaxAttempts')">
+            <ElInputNumber
+              v-model="emailPolicyForm.maxAttempts"
+              :min="1"
+              :max="10"
+            />
+          </ElFormItem>
+          <ElTable :data="emailPolicyForm.providers" border>
+            <ElTableColumn
+              prop="name"
+              :label="$t('admin.users.systemConfig.emailProvider')"
+              min-width="140"
+            />
+            <ElTableColumn
+              :label="$t('admin.users.systemConfig.emailProviderEnabled')"
+              width="96"
+            >
+              <template #default="{ row }">
+                <ElSwitch v-model="row.enabled" />
+              </template>
+            </ElTableColumn>
+            <ElTableColumn
+              :label="$t('admin.users.systemConfig.emailProviderPriority')"
+              width="140"
+            >
+              <template #default="{ row }">
+                <ElInputNumber v-model="row.priority" :min="0" :max="999" />
+              </template>
+            </ElTableColumn>
+            <ElTableColumn
+              :label="$t('admin.users.systemConfig.emailProviderWeight')"
+              width="140"
+            >
+              <template #default="{ row }">
+                <ElInputNumber v-model="row.weight" :min="1" :max="1000" />
+              </template>
+            </ElTableColumn>
+          </ElTable>
+        </template>
+        <ElFormItem v-else :label="$t('admin.users.systemConfig.value')">
           <ElInput
             v-model="form.value"
             :rows="4"
@@ -180,3 +320,13 @@ onMounted(fetchData);
     </ElDialog>
   </AdminContentLayout>
 </template>
+
+<style scoped>
+.admin-system-config-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+</style>

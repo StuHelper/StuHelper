@@ -2,7 +2,7 @@ import { ApiError } from '@/api/errors'
 
 export type AdmissionMappedState = 'qqMismatch' | 'expired' | 'error'
 
-const ADMISSION_PATH_PATTERN = /^\/admission\/a\/[^/]+$/
+const ADMISSION_PATH_PATTERN = /^\/verify\/[^/]+$/
 
 export function buildAdmissionReturnURL(
   pathWithQuery: string,
@@ -14,7 +14,7 @@ export function buildAdmissionReturnURL(
     throw new Error('Admission return URL must stay on the current origin')
   }
   if (!ADMISSION_PATH_PATTERN.test(url.pathname)) {
-    throw new Error('Admission return URL must target /admission/a/:code')
+    throw new Error('Admission return URL must target /verify/:code')
   }
 
   return url.toString()
@@ -36,4 +36,8 @@ export function mapAdmissionApiError(error: unknown): AdmissionMappedState {
   }
 
   return 'error'
+}
+
+export function isAdmissionTokenConsumedError(error: unknown): boolean {
+  return error instanceof ApiError && error.code === 'admission.token_consumed'
 }

@@ -26,6 +26,8 @@ const SCOPE_VALUES = new Set([
   'stu.identity.type.read',
   'stu.student.status.read',
   'stu.student.school.read',
+  'stu.qq.status.read',
+  'stu.qq.number.read',
   'resource.read',
   'resource.write',
   'offline_access',

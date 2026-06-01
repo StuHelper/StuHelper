@@ -14,9 +14,11 @@ const mockAdmissionApi = vi.hoisted(() => ({
 }))
 
 const mockAuth = vi.hoisted(() => ({
+  bootstrapSession: vi.fn(),
   fetchUser: vi.fn(),
   isAuthenticated: true,
   login: vi.fn(),
+  reauthenticate: vi.fn(),
   signup: vi.fn(),
 }))
 
@@ -28,7 +30,7 @@ const mockVerificationStore = vi.hoisted(() => ({
 const mockWaitForAdmissionProjection = vi.hoisted(() => vi.fn())
 
 const mockRoute = vi.hoisted(() => ({
-  fullPath: '/admission/a/ABCD?qq=123',
+  fullPath: '/verify/ABCD?qq=123',
   params: { code: 'ABCD' },
   query: { qq: '123' },
 }))
@@ -57,10 +59,12 @@ describe('AdmissionPage edge states', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockAuth.isAuthenticated = true
-    mockRoute.fullPath = '/admission/a/ABCD?qq=123'
+    mockAuth.bootstrapSession.mockResolvedValue(true)
+    mockRoute.fullPath = '/verify/ABCD?qq=123'
     mockRoute.params = { code: 'ABCD' }
     mockRoute.query = { qq: '123' }
     mockWaitForAdmissionProjection.mockResolvedValue(false)
+    mockVerificationStore.fetchSchools.mockResolvedValue(undefined)
   })
 
   it('blocks login and link actions when token QQ does not match query QQ', async () => {
@@ -102,6 +106,62 @@ describe('AdmissionPage edge states', () => {
     expect(wrapper.text()).toContain('等待管理员审核')
   })
 
+  it('resumes the authenticated admission flow when the URL token was already consumed', async () => {
+    mockAdmissionApi.getAdmissionSession.mockRejectedValueOnce(
+      new ApiError({ code: 'admission.token_consumed', message: 'consumed' }),
+    )
+    mockAdmissionApi.linkAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('linked'),
+    )
+    mockAdmissionApi.getAdmissionMe.mockResolvedValueOnce({
+      projectionPending: false,
+      session: sessionWithStatus('linked'),
+      status: 'linked',
+    })
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.find('[data-state="linked"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('选择认证方式')
+    expect(mockAdmissionApi.linkAdmissionSession).toHaveBeenCalledWith('ABCD', '123')
+    expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledTimes(1)
+    expect(mockVerificationStore.fetchSchools).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks for login without offering signup when a consumed token is reopened logged out', async () => {
+    mockAuth.isAuthenticated = false
+    mockAuth.bootstrapSession.mockResolvedValueOnce(false)
+    mockAdmissionApi.getAdmissionSession.mockRejectedValueOnce(
+      new ApiError({ code: 'admission.token_consumed', message: 'consumed' }),
+    )
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.find('[data-state="needsLogin"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('该链接已绑定 StuHelper 账号')
+    expect(wrapper.text()).not.toContain('注册')
+    expect(mockAdmissionApi.linkAdmissionSession).not.toHaveBeenCalled()
+  })
+
+  it('rejects a consumed token when the current login is not the originally bound account', async () => {
+    mockAdmissionApi.getAdmissionSession.mockRejectedValueOnce(
+      new ApiError({ code: 'admission.token_consumed', message: 'consumed' }),
+    )
+    mockAdmissionApi.linkAdmissionSession.mockRejectedValueOnce(
+      new ApiError({ code: 'admission.token_consumed', message: 'consumed' }),
+    )
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.find('[data-state="accountMismatch"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('账号不匹配')
+    expect(wrapper.text()).toContain('首次打开时登录的 StuHelper 账号')
+    expect(mockAdmissionApi.getAdmissionMe).not.toHaveBeenCalled()
+  })
+
   it('starts bounded auth refresh when approval waits for role projection', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce({
       ...sessionWithStatus('verified'),
@@ -117,6 +177,42 @@ describe('AdmissionPage edge states', () => {
       refreshAuth: mockAuth.fetchUser,
       signal: expect.any(AbortSignal),
     })
+  })
+
+  it('refreshes browser session before showing the logged-out admission state', async () => {
+    mockAuth.isAuthenticated = false
+    mockAuth.bootstrapSession.mockResolvedValueOnce(true)
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('joined_muted'),
+    )
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+
+    expect(mockAuth.bootstrapSession).toHaveBeenCalledWith({ force: true })
+    expect(wrapper.find('[data-state="ready"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('开始认证')
+  })
+
+  it('keeps the linked admission page open when post-link resources fail to refresh', async () => {
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('joined_muted'),
+    )
+    mockAdmissionApi.linkAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('linked'),
+    )
+    mockAdmissionApi.getAdmissionMe.mockRejectedValueOnce(new Error('admission me unavailable'))
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+    await wrapper.get('button.primary-button').trigger('click')
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.find('[data-state="linked"]').exists()).toBe(true)
+    expect(wrapper.find('[data-linked-resource-error]').text()).toContain(
+      'admission me unavailable',
+    )
+    expect(wrapper.find('[data-state="error"]').exists()).toBe(false)
   })
 })
 

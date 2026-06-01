@@ -444,6 +444,16 @@
       "value": "值",
       "dialogTitle": "编辑配置 - {key}",
       "valuePlaceholder": "请输入配置值",
+      "emailPolicySummary": "邮件发送策略支持腾讯云 SES 默认发送、Resend 故障兜底，以及同优先级权重负载均衡。",
+      "editEmailPolicy": "编辑邮件策略",
+      "emailPolicyMode": "策略模式",
+      "emailPolicyPriority": "按优先级降级",
+      "emailPolicyWeighted": "同优先级按权重",
+      "emailMaxAttempts": "最多尝试",
+      "emailProvider": "提供商",
+      "emailProviderEnabled": "启用",
+      "emailProviderPriority": "优先级",
+      "emailProviderWeight": "权重",
       "updated": "更新成功"
     }
   },

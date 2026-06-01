@@ -6,7 +6,7 @@ export default {
   authCallback: '认证中',
   openPlatformConsent: '授权确认',
   openPlatformProfileCompletion: '资料补全',
-  identityHome: '身份中心',
+  identityHome: '账号中心',
   accountProfile: '个人资料',
   accountSecurity: '账号安全',
   identityConnect: 'Connect',

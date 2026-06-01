@@ -87,14 +87,18 @@ const rejectedProfile = {
 const schools = [
     {
         schoolID: 1001,
+        schoolCode: "4111010001",
         schoolName: "测试大学",
         verificationMethod: "ldap",
         consentText: "仅用于校内身份认证",
         manualFormFields: null,
         enabled: true,
+        schoolSsoEnabled: false,
+        schoolEmailOtpEnabled: false,
     },
     {
         schoolID: 1002,
+        schoolCode: "4111010002",
         schoolName: "人工审核大学",
         verificationMethod: "manual",
         consentText: "请确认人工审核材料真实有效",
@@ -129,6 +133,24 @@ const schools = [
             },
         ],
         enabled: true,
+        schoolSsoEnabled: false,
+        schoolEmailOtpEnabled: false,
+    },
+    {
+        schoolID: 10006,
+        schoolCode: "4111010006",
+        schoolName: "北京航空航天大学",
+        verificationMethod: "manual",
+        consentText: "仅用于北航学生身份认证",
+        manualFormFields: null,
+        enabled: true,
+        schoolSsoEnabled: false,
+        schoolEmailOtpEnabled: true,
+        schoolEmailIdentityPolicy: {
+            type: "academic_student_email",
+            studentIDEmailDomain: "buaa.edu.cn",
+            requireStudentName: true,
+        },
     },
 ];
 
@@ -230,9 +252,10 @@ async function mockUserApi(page: Page, state: UserApiState) {
         route.fulfill(ok(state.profile)),
     );
     await page.route("**/api/v1/user/profile/verify", async (route) => {
+        const body = route.request().postDataJSON();
         state.profile = {
             ...verifiedProfile,
-            schoolID: route.request().postDataJSON().schoolID,
+            schoolID: body.schoolCode === "4111010002" ? 1002 : 1001,
         };
         await route.fulfill(ok(state.profile));
     });
@@ -319,7 +342,7 @@ test.describe("User verification flows", () => {
 
         await page.getByRole("button", { name: "重新提交" }).click();
         await expect(page.locator("#student-school")).toBeVisible();
-        await page.locator("#student-school").selectOption("1001");
+        await page.locator("#student-school").selectOption("4111010001");
         await expect(
             page.getByRole("button", { name: "验证" }),
         ).toBeDisabled();
@@ -338,7 +361,6 @@ test.describe("User verification flows", () => {
             qqBinding: {
                 userID: 12,
                 qqID: "123456",
-                qqNickname: "航小伴",
                 boundAt: now,
                 createdAt: now,
                 updatedAt: now,
@@ -383,7 +405,6 @@ test.describe("User verification flows", () => {
             page.getByRole("heading", { name: "已绑定" }),
         ).toBeVisible();
         await expect(page.getByText("123456")).toBeVisible();
-        await expect(page.getByText("航小伴")).toBeVisible();
 
         await gotoAuthenticatedPage(page, "/user/academic-info");
         await expect(page.getByText("20260001")).toBeVisible();
@@ -434,7 +455,7 @@ test.describe("User verification flows", () => {
         state.identity = { ...verifiedIdentity };
         await gotoAuthenticatedPage(page, "/user/student-verification");
 
-        await page.locator("#student-school").selectOption("1001");
+        await page.locator("#student-school").selectOption("4111010001");
         await page.getByLabel("学号").fill("20260001");
         await page.getByLabel("统一身份认证密码").fill("secret-pass");
         await page.getByRole("checkbox").check();
@@ -445,9 +466,80 @@ test.describe("User verification flows", () => {
         ).toBeVisible();
         await expect(page.getByText("测试大学")).toBeVisible();
         expect(studentBody).toMatchObject({
-            schoolID: 1001,
+            schoolCode: "4111010001",
             studentID: "20260001",
             password: "secret-pass",
+            consent: true,
+        });
+    });
+
+    test("BUAA student verification derives and locks the student email by school code", async ({
+        page,
+    }) => {
+        const state: UserApiState = {
+            identity: { ...verifiedIdentity },
+            profile: { ...unverifiedProfile },
+            qqBinding: null,
+        };
+        let otpRequestBody: unknown = null;
+        let otpVerifyBody: unknown = null;
+
+        await mockUserApi(page, state);
+        await page.route(
+            "**/api/v1/user/profile/school-email/request-otp",
+            async (route) => {
+                otpRequestBody = route.request().postDataJSON();
+                await route.fulfill(
+                    ok({
+                        email: "20250001@buaa.edu.cn",
+                        studentID: "20250001",
+                        cooldownSeconds: 60,
+                    }),
+                );
+            },
+        );
+        await page.route(
+            "**/api/v1/user/profile/school-email/verify-otp",
+            async (route) => {
+                otpVerifyBody = route.request().postDataJSON();
+                state.profile = {
+                    ...verifiedProfile,
+                    schoolID: 10006,
+                    studentIDs: ["20250001"],
+                    activeStudentID: "20250001",
+                    verificationMethod: "school_email_otp",
+                };
+                await route.fulfill(ok(state.profile));
+            },
+        );
+
+        await gotoAuthenticatedPage(page, "/user/student-verification");
+
+        await page.locator("#student-school").selectOption("4111010006");
+        const emailInput = page.locator("[data-student-school-email-input]");
+        await expect(emailInput).toHaveJSProperty("readOnly", true);
+        await expect(emailInput).toHaveValue("");
+        await page.locator("[data-student-id-input]").fill("20250001");
+        await page.locator("[data-student-name-input]").fill("张三");
+        await page.locator("[data-student-email-otp-request]").click();
+        await expect(emailInput).toHaveValue("20250001@buaa.edu.cn");
+        await page.locator("[data-student-email-code-input]").fill("123456");
+        await page.locator("[data-student-consent-checkbox]").check();
+        await page.locator("[data-student-verification-submit]").click();
+
+        await expect(
+            page.getByRole("heading", { name: "已认证" }),
+        ).toBeVisible();
+        await expect(page.getByText("北京航空航天大学（4111010006）")).toBeVisible();
+        expect(otpRequestBody).toEqual({
+            schoolCode: "4111010006",
+            studentID: "20250001",
+            studentName: "张三",
+        });
+        expect(otpVerifyBody).toEqual({
+            schoolCode: "4111010006",
+            email: "20250001@buaa.edu.cn",
+            code: "123456",
             consent: true,
         });
     });
@@ -493,16 +585,19 @@ test.describe("User verification flows", () => {
             ),
         };
 
+        const imagePreviews = page.locator("img");
         await page.locator('input[type="file"]').nth(0).setInputFiles(png);
+        await expect(imagePreviews).toHaveCount(1);
         await page.locator('input[type="file"]').nth(0).setInputFiles({
             ...png,
             name: "passport-back.png",
         });
+        await expect(imagePreviews).toHaveCount(2);
         await page.locator('input[type="file"]').nth(0).setInputFiles({
             ...png,
             name: "passport-selfie.png",
         });
-        await expect(page.locator("img")).toHaveCount(3);
+        await expect(imagePreviews).toHaveCount(3);
 
         await page.getByRole("button", { name: "提交认证" }).click();
 
@@ -540,7 +635,7 @@ test.describe("User verification flows", () => {
         page,
     }) => {
         const state: UserApiState = {
-            identity: { ...verifiedIdentity },
+            identity: null,
             profile: { ...unverifiedProfile },
             qqBinding: null,
         };
@@ -552,7 +647,7 @@ test.describe("User verification flows", () => {
             manualBody = body;
             state.profile = {
                 ...unverifiedProfile,
-                schoolID: body.schoolID,
+                schoolID: 1002,
                 verificationStatus: "pending",
                 verificationMethod: "manual",
                 consentGivenAt: now,
@@ -564,7 +659,7 @@ test.describe("User verification flows", () => {
 
         await gotoAuthenticatedPage(page, "/user/student-verification");
 
-        await page.locator("#student-school").selectOption("1002");
+        await page.locator("#student-school").selectOption("4111010002");
         await expect(page.locator("#manual-studentId")).toBeVisible();
         await expect(page.getByRole("button", { name: "验证" })).toBeDisabled();
 
@@ -579,7 +674,7 @@ test.describe("User verification flows", () => {
             page.getByRole("heading", { name: "审核中" }),
         ).toBeVisible();
         expect(manualBody).toMatchObject({
-            schoolID: 1002,
+            schoolCode: "4111010002",
             manualFormData: {
                 studentId: "M20260002",
                 college: "计算机学院",
@@ -621,7 +716,7 @@ test.describe("User verification flows", () => {
         await page.getByLabel("验证码").fill("123456");
         await page.getByRole("button", { name: "绑定" }).click();
 
-        await expect(page).toHaveURL(/\/user\/reviews/);
+        await expect(page).toHaveURL(/\/identity/);
         await page.waitForLoadState("networkidle");
         expect(otpBody).toEqual({ phone: "13812345678" });
         expect(phoneBody).toEqual({

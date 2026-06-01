@@ -8,7 +8,7 @@ const mockToastError = vi.fn()
 const redirectMocks = vi.hoisted(() => ({
   identityPortalURLForHref: vi.fn((href: string) =>
     href.startsWith('/user/') || href.startsWith('/developers/')
-      ? `https://id.stuhelper.com${href}`
+      ? `https://stuhelper.com${href}`
       : null,
   ),
   navigateToExternalURL: vi.fn(),
@@ -177,7 +177,7 @@ describe('useNotificationsPageController', () => {
     expect(pageTotal.value).toBe(1)
   })
 
-  it('opens identity notification hrefs on the identity portal', async () => {
+  it('opens account notification hrefs on the account center', async () => {
     const notification = makeNotification('1', false, { type: 'identity_rejected' })
     const { controller, markAsRead, push } = setupController({
       initialNotifications: [notification],
@@ -190,12 +190,12 @@ describe('useNotificationsPageController', () => {
     expect(markAsRead).toHaveBeenCalledWith('1')
     expect(redirectMocks.identityPortalURLForHref).toHaveBeenCalledWith('/user/identity-verification')
     expect(redirectMocks.navigateToExternalURL).toHaveBeenCalledWith(
-      'https://id.stuhelper.com/user/identity-verification',
+      'https://stuhelper.com/user/identity-verification',
     )
     expect(push).not.toHaveBeenCalled()
   })
 
-  it('opens identity source URLs on the identity portal', async () => {
+  it('opens account source URLs on the account center', async () => {
     const notification = makeNotification('1', false, { sourceUrl: '/developers/apps' })
     const { controller, push } = setupController({
       initialNotifications: [notification],
@@ -207,7 +207,7 @@ describe('useNotificationsPageController', () => {
 
     expect(redirectMocks.identityPortalURLForHref).toHaveBeenCalledWith('/developers/apps')
     expect(redirectMocks.navigateToExternalURL).toHaveBeenCalledWith(
-      'https://id.stuhelper.com/developers/apps',
+      'https://stuhelper.com/developers/apps',
     )
     expect(push).not.toHaveBeenCalled()
   })

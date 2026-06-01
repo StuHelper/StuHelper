@@ -137,7 +137,7 @@ describe('AppHeader', () => {
     expect(wrapper.text()).not.toContain('nav.login')
   })
 
-  it('hides main-site notifications on the identity host after authentication', () => {
+  it('keeps main-site notifications and navigation on account pages after authentication', () => {
     vi.stubEnv('VITE_IDENTITY_URL', window.location.origin)
     Object.assign(mocks.route, {
       name: 'identity-home',
@@ -151,16 +151,13 @@ describe('AppHeader', () => {
       isAuthenticated: true,
     })
 
-    expect(wrapper.find('[data-test="notification-bell"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="notification-bell"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="app-user-menu"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('nav.identityBrand')
-    expect(wrapper.text()).toContain('nav.identityTagline')
-    expect(wrapper.text()).toContain('routes.identityHome')
-    expect(wrapper.text()).toContain('routes.accountProfile')
-    expect(wrapper.text()).toContain('routes.accountSecurity')
-    expect(wrapper.text()).toContain('routes.identityConnect')
-    expect(wrapper.text()).toContain('routes.userAuthorizedApps')
-    expect(wrapper.text()).toContain('routes.openPlatformDeveloperApps')
+    expect(wrapper.text()).toContain('StuHelper')
+    expect(wrapper.text()).toContain('nav.courses')
+    expect(wrapper.text()).toContain('nav.teacher')
+    expect(wrapper.text()).not.toContain('routes.identityHome')
+    expect(wrapper.text()).not.toContain('routes.accountProfile')
   })
 
   it('shows the login entry after session bootstrap resolves anonymous', () => {
@@ -174,7 +171,7 @@ describe('AppHeader', () => {
     expect(wrapper.text()).toContain('nav.login')
   })
 
-  it('uses identity portal navigation on the configured identity host', () => {
+  it('keeps normal site navigation on the login route even if legacy identity env is present', () => {
     vi.stubEnv('VITE_IDENTITY_URL', window.location.origin)
     Object.assign(mocks.route, {
       name: 'login',
@@ -188,17 +185,15 @@ describe('AppHeader', () => {
       isAuthenticated: false,
     })
 
-    expect(wrapper.text()).toContain('nav.identityBrand')
-    expect(wrapper.text()).toContain('nav.identityTagline')
-    expect(wrapper.text()).toContain('routes.openPlatformDeveloperApps')
-    expect(wrapper.text()).toContain('routes.userAuthorizedApps')
-    expect(wrapper.text()).toContain('routes.identityConnect')
-    expect(wrapper.text()).toContain('routes.identityHome')
-    expect(wrapper.text()).toContain('routes.accountProfile')
-    expect(wrapper.text()).toContain('routes.accountSecurity')
+    expect(wrapper.text()).toContain('StuHelper')
+    expect(wrapper.text()).toContain('nav.courses')
+    expect(wrapper.text()).toContain('nav.teacher')
+    expect(wrapper.text()).not.toContain('routes.openPlatformDeveloperApps')
+    expect(wrapper.text()).not.toContain('routes.userAuthorizedApps')
+    expect(wrapper.text()).not.toContain('routes.identityConnect')
+    expect(wrapper.text()).not.toContain('routes.identityHome')
+    expect(wrapper.text()).not.toContain('routes.accountProfile')
     expect(wrapper.text()).not.toContain('routes.identityVerification')
-    expect(wrapper.text()).not.toContain('nav.courses')
-    expect(wrapper.text()).not.toContain('nav.teacher')
     expect(wrapper.text()).not.toContain('nav.login')
   })
 

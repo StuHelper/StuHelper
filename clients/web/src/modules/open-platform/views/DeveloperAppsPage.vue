@@ -1190,8 +1190,20 @@ const availableScopes = computed<ScopeOption[]>(() => [
     sensitivity: 'high',
     fields: [
       t('developer.apps.scopeFields.schoolID'),
-      t('developer.apps.scopeFields.schoolName'),
+      t('developer.apps.scopeFields.campusID'),
     ],
+  },
+  {
+    scope: 'stu.qq.status.read',
+    label: t('developer.apps.scopes.qqStatus'),
+    sensitivity: 'medium',
+    fields: [t('developer.apps.scopeFields.qqBound')],
+  },
+  {
+    scope: 'stu.qq.number.read',
+    label: t('developer.apps.scopes.qqNumber'),
+    sensitivity: 'high',
+    fields: [t('developer.apps.scopeFields.qqNumber')],
   },
   {
     scope: 'resource.read',
@@ -1739,6 +1751,8 @@ function defaultScopeReasons(): Record<ScopeValue, string> {
     'stu.identity.type.read': '',
     'stu.student.status.read': '',
     'stu.student.school.read': '',
+    'stu.qq.status.read': '',
+    'stu.qq.number.read': '',
     'resource.read': '',
     'resource.write': '',
     offline_access: '',

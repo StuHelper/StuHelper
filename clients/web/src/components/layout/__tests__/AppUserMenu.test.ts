@@ -28,7 +28,7 @@ const mocks = vi.hoisted(() => ({
   },
   routerPush: vi.fn(),
   toastError: vi.fn(),
-  identityPortalURL: vi.fn((path: string) => `https://id.stuhelper.com${path}`),
+  identityPortalURL: vi.fn((path: string) => `https://stuhelper.com${path}`),
   navigateToExternalURL: vi.fn(),
 }))
 
@@ -148,7 +148,7 @@ describe('AppUserMenu', () => {
     expect(mocks.routerPush).toHaveBeenCalledWith('/user/reviews')
   })
 
-  it('routes the profile menu item to identity home on the identity host', async () => {
+  it('keeps the profile menu item on the main user center even if legacy identity env is present', async () => {
     vi.stubEnv('VITE_IDENTITY_URL', window.location.origin)
     const wrapper = mountUserMenu({
       bootstrapCompleted: true,
@@ -158,13 +158,13 @@ describe('AppUserMenu', () => {
     await wrapper.get('[aria-haspopup="menu"]').trigger('click')
     await wrapper
       .findAll('[role="menuitem"]')
-      .find((item) => item.text().includes('routes.identityHome'))
+      .find((item) => item.text().includes('nav.profile'))
       ?.trigger('click')
 
-    expect(mocks.routerPush).toHaveBeenCalledWith('/identity')
+    expect(mocks.routerPush).toHaveBeenCalledWith('/user/reviews')
   })
 
-  it('opens account security on the identity portal from the main host', async () => {
+  it('opens account security on the account center from the main host', async () => {
     const wrapper = mountUserMenu({
       bootstrapCompleted: true,
       isAuthenticated: true,
@@ -178,12 +178,12 @@ describe('AppUserMenu', () => {
 
     expect(mocks.identityPortalURL).toHaveBeenCalledWith('/account/security')
     expect(mocks.navigateToExternalURL).toHaveBeenCalledWith(
-      'https://id.stuhelper.com/account/security',
+      'https://stuhelper.com/account/security',
     )
     expect(mocks.routerPush).not.toHaveBeenCalled()
   })
 
-  it('opens account profile on the identity portal from the main host', async () => {
+  it('opens account profile on the account center from the main host', async () => {
     const wrapper = mountUserMenu({
       bootstrapCompleted: true,
       isAuthenticated: true,
@@ -197,12 +197,12 @@ describe('AppUserMenu', () => {
 
     expect(mocks.identityPortalURL).toHaveBeenCalledWith('/account/profile')
     expect(mocks.navigateToExternalURL).toHaveBeenCalledWith(
-      'https://id.stuhelper.com/account/profile',
+      'https://stuhelper.com/account/profile',
     )
     expect(mocks.routerPush).not.toHaveBeenCalled()
   })
 
-  it('opens identity menu entries with local routes on the identity host', async () => {
+  it('opens account menu entries on the account center even if legacy identity env is present', async () => {
     vi.stubEnv('VITE_IDENTITY_URL', window.location.origin)
     const wrapper = mountUserMenu({
       bootstrapCompleted: true,
@@ -215,11 +215,13 @@ describe('AppUserMenu', () => {
       .find((item) => item.text().includes('nav.accountProfile'))
       ?.trigger('click')
 
-    expect(mocks.routerPush).toHaveBeenCalledWith('/account/profile')
-    expect(mocks.navigateToExternalURL).not.toHaveBeenCalled()
+    expect(mocks.routerPush).not.toHaveBeenCalled()
+    expect(mocks.navigateToExternalURL).toHaveBeenCalledWith(
+      'https://stuhelper.com/account/profile',
+    )
   })
 
-  it('opens developer apps on the identity portal from the main host', async () => {
+  it('opens developer apps on the account center from the main host', async () => {
     const wrapper = mountUserMenu({
       bootstrapCompleted: true,
       isAuthenticated: true,
@@ -233,11 +235,11 @@ describe('AppUserMenu', () => {
 
     expect(mocks.identityPortalURL).toHaveBeenCalledWith('/developers/apps')
     expect(mocks.navigateToExternalURL).toHaveBeenCalledWith(
-      'https://id.stuhelper.com/developers/apps',
+      'https://stuhelper.com/developers/apps',
     )
   })
 
-  it('keeps logout on the identity login flow when used from the identity host', async () => {
+  it('returns to the main site after logout even if legacy identity env is present', async () => {
     vi.stubEnv('VITE_IDENTITY_URL', window.location.origin)
     const wrapper = mountUserMenu({
       bootstrapCompleted: true,
@@ -250,9 +252,6 @@ describe('AppUserMenu', () => {
       .find((item) => item.text().includes('nav.logout'))
       ?.trigger('click')
 
-    expect(mocks.routerPush).toHaveBeenCalledWith({
-      path: '/login',
-      query: { redirect: '/identity' },
-    })
+    expect(mocks.routerPush).toHaveBeenCalledWith('/')
   })
 })

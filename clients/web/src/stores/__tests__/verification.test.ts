@@ -66,7 +66,6 @@ const profile = {
 const qqBinding = {
   userID: 42,
   qqID: '10001',
-  qqNickname: '航小伴',
   boundAt: now,
   createdAt: now,
   updatedAt: now,
@@ -263,7 +262,7 @@ describe('useVerificationStore', () => {
     await expect(
       store.submitIdentity({
         docType: 'MAINLAND_ID',
-        docNumber: '110101199001011234',
+        docNumber: '110101199001011237',
         realName: '张三',
       }),
     ).rejects.toThrow('Invalid identity response')

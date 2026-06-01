@@ -8,11 +8,11 @@ export default {
     myFavorites: "我的收藏",
     myAuthorizedApps: "授权应用",
     identityHome: {
-        eyebrow: "StuHelper ID",
-        title: "身份中心",
+        eyebrow: "账号中心",
+        title: "账号中心",
         subtitle:
             "集中管理你的 StuHelper 账号资料、认证状态、第三方授权和开发者应用。",
-        sectionsLabel: "身份中心入口",
+        sectionsLabel: "账号中心入口",
         open: "打开",
         accountProfile: {
             title: "个人资料",
@@ -45,7 +45,7 @@ export default {
             description: "查看已验证的学校、院系、专业和学籍资料。",
         },
         connect: {
-            title: "StuHelper ID Connect",
+            title: "StuHelper Connect",
             description:
                 "查看对外 OIDC / OAuth issuer、发现文档、UserInfo、JWKS 和 token 生命周期端点。",
         },
@@ -56,11 +56,11 @@ export default {
         },
     },
     accountProfile: {
-        eyebrow: "StuHelper ID",
+        eyebrow: "账号中心",
         title: "个人资料",
         subtitle:
-            "查看当前 StuHelper ID 的账号资料、联系信息、认证状态和第三方应用可申请披露的字段。",
-        backToIdentity: "返回身份中心",
+            "查看当前 StuHelper 账号的账号资料、联系信息、认证状态和第三方应用可申请披露的字段。",
+        backToIdentity: "返回账号中心",
         missing: {
             value: "暂无",
             email: "暂无邮箱",
@@ -129,10 +129,10 @@ export default {
         },
     },
     accountSecurity: {
-        eyebrow: "StuHelper ID",
+        eyebrow: "账号中心",
         title: "账号安全",
-        subtitle: "管理当前 StuHelper ID、浏览器会话和上游账号安全设置。",
-        backToIdentity: "返回身份中心",
+        subtitle: "管理当前 StuHelper 账号、浏览器会话和上游账号安全设置。",
+        backToIdentity: "返回账号中心",
         actionsLabel: "账号安全操作",
         emailMissing: "暂无邮箱",
         fields: {
@@ -141,14 +141,14 @@ export default {
         },
         session: {
             title: "当前浏览器会话",
-            description: "当前设备已通过 StuHelper ID 登录。",
+            description: "当前设备已通过 StuHelper 统一登录。",
             active: "会话有效",
             logout: "退出当前会话",
             loggingOut: "正在退出...",
         },
         provider: {
             title: "密码与上游账号",
-            description: "打开 StuHelper ID 的上游账号设置，修改密码或安全资料。",
+            description: "打开统一登录的上游账号设置，修改密码或安全资料。",
             open: "打开账号设置",
         },
         phone: {
@@ -194,7 +194,7 @@ export default {
         pageTitle: "授权应用",
         pageSubtitle:
             "查看第三方应用已经获得的授权范围、最近披露记录，并按应用或单项 scope 撤销授权。",
-        backToIdentity: "返回身份中心",
+        backToIdentity: "返回账号中心",
         empty: "暂无授权应用",
         emptyDesc: "完成第三方应用授权后会显示在这里",
         homepage: "主页",
@@ -269,11 +269,12 @@ export default {
             uploadFailed: "证件照片上传失败，请重试",
             photoTooLarge: "图片大小不能超过 {max}",
             photoInvalidType: "仅支持 JPG、PNG 或 WebP 图片",
+            invalidMainlandID: "请输入有效的大陆居民身份证号码",
             successAuto: "认证通过（自动匹配学籍）",
             successManual: "认证通过（人工审核）",
             verifiedAt: "认证时间",
             rejectionReason: "拒绝原因",
-            desc: "实名认证后可进行学生身份验证",
+            desc: "用于需要实名的敏感能力，学生认证可单独完成",
         },
         student: {
             title: "学生认证",
@@ -287,7 +288,7 @@ export default {
             consent: "我已阅读并同意",
             consentText: "风险告知书",
             verify: "验证",
-            identityRequired: "请先完成实名认证",
+            identityRequired: "该能力需要先完成实名认证",
             verifySuccess: "学生认证成功",
             verifyPending: "已提交，等待管理员审核",
             verifyFailed: "验证失败，请检查学号和密码",
@@ -326,8 +327,6 @@ export default {
             instruction: "请私聊机器人并发送下面这条命令",
             expiresAt: "过期时间",
             qqNumber: "QQ 号",
-            nickname: "QQ 昵称",
-            emptyNickname: "未上报",
             boundAt: "绑定时间",
             verifiedHint: "当前账号已完成学生认证，加入受控群时会自动放行。",
             pendingHint: "绑定完成后，还需要在 StuHelper 内完成学生认证。",

@@ -8,11 +8,11 @@ export default {
     myFavorites: "My Favorites",
     myAuthorizedApps: "Authorized Apps",
     identityHome: {
-        eyebrow: "StuHelper ID",
-        title: "Identity Hub",
+        eyebrow: "Account Center",
+        title: "Account Center",
         subtitle:
             "Manage your StuHelper profile, verification status, third-party authorizations, and developer apps.",
-        sectionsLabel: "Identity hub sections",
+        sectionsLabel: "Account center sections",
         open: "Open",
         accountProfile: {
             title: "Profile",
@@ -51,7 +51,7 @@ export default {
                 "Review verified school, department, major, and academic-status details.",
         },
         connect: {
-            title: "StuHelper ID Connect",
+            title: "StuHelper Connect",
             description:
                 "Review the public OIDC / OAuth issuer, discovery, UserInfo, JWKS, and token lifecycle endpoints.",
         },
@@ -62,11 +62,11 @@ export default {
         },
     },
     accountProfile: {
-        eyebrow: "StuHelper ID",
+        eyebrow: "Account Center",
         title: "Profile",
         subtitle:
-            "Review the account details, contact fields, verification status, and third-party disclosure fields for your current StuHelper ID.",
-        backToIdentity: "Back to Identity Hub",
+            "Review the account details, contact fields, verification status, and third-party disclosure fields for your current StuHelper account.",
+        backToIdentity: "Back to Account Center",
         missing: {
             value: "Not available",
             email: "No email",
@@ -139,11 +139,11 @@ export default {
         },
     },
     accountSecurity: {
-        eyebrow: "StuHelper ID",
+        eyebrow: "Account Center",
         title: "Account Security",
         subtitle:
-            "Manage your current StuHelper ID, browser session, and upstream account security settings.",
-        backToIdentity: "Back to Identity Hub",
+            "Manage your current StuHelper account, browser session, and upstream account security settings.",
+        backToIdentity: "Back to Account Center",
         actionsLabel: "Account security actions",
         emailMissing: "No email",
         fields: {
@@ -152,7 +152,7 @@ export default {
         },
         session: {
             title: "Current Browser Session",
-            description: "This device is signed in with StuHelper ID.",
+            description: "This device is signed in with StuHelper unified sign-in.",
             active: "Session active",
             logout: "Sign out current session",
             loggingOut: "Signing out...",
@@ -212,7 +212,7 @@ export default {
         pageTitle: "Authorized Apps",
         pageSubtitle:
             "Review third-party app scopes, recent disclosures, and revoke access by app or individual scope.",
-        backToIdentity: "Back to Identity Hub",
+        backToIdentity: "Back to Account Center",
         empty: "No authorized apps",
         emptyDesc: "Third-party app authorizations will appear here",
         homepage: "Homepage",
@@ -288,11 +288,12 @@ export default {
             uploadFailed: "Failed to upload identity photo. Please try again.",
             photoTooLarge: "Image size must not exceed {max}",
             photoInvalidType: "Only JPG, PNG, or WebP images are supported",
+            invalidMainlandID: "Enter a valid Mainland China ID number",
             successAuto: "Verified (auto-matched with academic records)",
             successManual: "Verified (manual review)",
             verifiedAt: "Verified At",
             rejectionReason: "Rejection Reason",
-            desc: "Verify identity to proceed with student verification",
+            desc: "Used for sensitive features that require real-name identity. Student verification can be completed separately.",
         },
         student: {
             title: "Student Verification",
@@ -306,7 +307,8 @@ export default {
             consent: "I have read and agree to",
             consentText: "the Risk Disclosure",
             verify: "Verify",
-            identityRequired: "Please complete identity verification first",
+            identityRequired:
+                "This capability requires identity verification first",
             verifySuccess: "Student verification successful",
             verifyPending: "Submitted, pending admin review",
             verifyFailed:
@@ -350,8 +352,6 @@ export default {
                 "Send the following command to the bot in a private chat",
             expiresAt: "Expires At",
             qqNumber: "QQ Number",
-            nickname: "QQ Nickname",
-            emptyNickname: "Not Reported",
             boundAt: "Bound At",
             verifiedHint:
                 "This account has completed student verification and will be auto-approved in protected groups.",

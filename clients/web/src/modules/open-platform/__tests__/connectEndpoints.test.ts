@@ -4,59 +4,59 @@ import enUSDeveloper from '@/i18n/locales/en-US/developer'
 import zhCNDeveloper from '@/i18n/locales/zh-CN/developer'
 import { DEFAULT_IDENTITY_ISSUER, buildConnectEndpoints, normalizeIdentityIssuer } from '../connectEndpoints'
 
-describe('StuHelper ID Connect endpoint helpers', () => {
-  it('normalizes configured identity origins to issuer origins', () => {
-    expect(normalizeIdentityIssuer('https://id.stuhelper.com/path')).toBe('https://id.stuhelper.com')
-    expect(normalizeIdentityIssuer(' http://id.stuhelper.com ')).toBe('http://id.stuhelper.com')
+describe('StuHelper Connect endpoint helpers', () => {
+  it('normalizes configured SSO origins to issuer origins', () => {
+    expect(normalizeIdentityIssuer('https://sso.stuhelper.com/path')).toBe('https://sso.stuhelper.com')
+    expect(normalizeIdentityIssuer(' http://sso.stuhelper.com ')).toBe('http://sso.stuhelper.com')
   })
 
-  it('falls back to the current origin and then the production identity issuer', () => {
-    expect(normalizeIdentityIssuer('', 'https://local-id.stuhelper.test/identity')).toBe(
-      'https://local-id.stuhelper.test',
+  it('falls back to the current origin and then the production SSO issuer', () => {
+    expect(normalizeIdentityIssuer('', 'https://local-sso.stuhelper.test/login')).toBe(
+      'https://local-sso.stuhelper.test',
     )
     expect(normalizeIdentityIssuer('not a url', 'also bad')).toBe(DEFAULT_IDENTITY_ISSUER)
   })
 
   it('builds the public OIDC and OAuth endpoint baseline from the issuer', () => {
-    expect(buildConnectEndpoints('https://id.stuhelper.com')).toEqual([
-      { key: 'issuer', value: 'https://id.stuhelper.com' },
+    expect(buildConnectEndpoints('https://sso.stuhelper.com')).toEqual([
+      { key: 'issuer', value: 'https://sso.stuhelper.com' },
       {
         key: 'discovery',
-        value: 'https://id.stuhelper.com/.well-known/openid-configuration',
+        value: 'https://sso.stuhelper.com/.well-known/openid-configuration',
       },
       {
         key: 'authorization',
-        value: 'https://id.stuhelper.com/oauth2/authorize',
+        value: 'https://sso.stuhelper.com/login/oauth/authorize',
       },
-      { key: 'token', value: 'https://id.stuhelper.com/oauth2/token' },
+      { key: 'token', value: 'https://sso.stuhelper.com/api/login/oauth/access_token' },
       {
         key: 'userinfo',
-        value: 'https://id.stuhelper.com/oidc/userinfo',
+        value: 'https://sso.stuhelper.com/api/userinfo',
       },
       {
         key: 'jwks',
-        value: 'https://id.stuhelper.com/.well-known/jwks.json',
+        value: 'https://sso.stuhelper.com/.well-known/jwks',
       },
       {
         key: 'introspection',
-        value: 'https://id.stuhelper.com/oauth2/introspect',
+        value: 'https://sso.stuhelper.com/api/login/oauth/introspect',
       },
       {
         key: 'revocation',
-        value: 'https://id.stuhelper.com/oauth2/revoke',
+        value: 'https://sso.stuhelper.com/api/login/oauth/revoke',
       },
-      { key: 'logout', value: 'https://id.stuhelper.com/oauth2/logout' },
+      { key: 'logout', value: 'https://sso.stuhelper.com/logout' },
     ])
   })
 
   it('keeps every Connect endpoint label present in Chinese and English locales', () => {
-    for (const endpoint of buildConnectEndpoints('https://id.stuhelper.com')) {
+    for (const endpoint of buildConnectEndpoints('https://sso.stuhelper.com')) {
       expect(zhCNDeveloper.apps.connect.endpoints[endpoint.key], `zh-CN ${endpoint.key}`).toEqual(expect.any(String))
       expect(enUSDeveloper.apps.connect.endpoints[endpoint.key], `en-US ${endpoint.key}`).toEqual(expect.any(String))
     }
   })
 
-  it('keeps the public Connect copy centered on the identity issuer only', () => {
+  it('keeps the public Connect copy centered on the Casdoor SSO issuer and Open API data boundary', () => {
     const publicCopy = [
       zhCNDeveloper.connect.subtitle,
       zhCNDeveloper.apps.connect.subtitle,
@@ -64,8 +64,9 @@ describe('StuHelper ID Connect endpoint helpers', () => {
       enUSDeveloper.apps.connect.subtitle,
     ].join('\n')
 
-    expect(publicCopy).toContain('id.stuhelper.com')
-    expect(publicCopy).not.toContain('sso.stuhelper.com')
+    expect(publicCopy).toContain('sso.stuhelper.com')
+    expect(publicCopy).toContain('StuHelper Open API')
+    expect(publicCopy).not.toContain('id.stuhelper.com')
     expect(publicCopy).not.toContain('StuHelper SSO')
   })
 })

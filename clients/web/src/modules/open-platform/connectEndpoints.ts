@@ -1,4 +1,4 @@
-export const DEFAULT_IDENTITY_ISSUER = 'https://id.stuhelper.com'
+export const DEFAULT_IDENTITY_ISSUER = 'https://sso.stuhelper.com'
 
 export type ConnectEndpointKey =
   | 'issuer'
@@ -21,13 +21,13 @@ const connectEndpointPaths: Array<{
   path: string
 }> = [
   { key: 'discovery', path: '/.well-known/openid-configuration' },
-  { key: 'authorization', path: '/oauth2/authorize' },
-  { key: 'token', path: '/oauth2/token' },
-  { key: 'userinfo', path: '/oidc/userinfo' },
-  { key: 'jwks', path: '/.well-known/jwks.json' },
-  { key: 'introspection', path: '/oauth2/introspect' },
-  { key: 'revocation', path: '/oauth2/revoke' },
-  { key: 'logout', path: '/oauth2/logout' },
+  { key: 'authorization', path: '/login/oauth/authorize' },
+  { key: 'token', path: '/api/login/oauth/access_token' },
+  { key: 'userinfo', path: '/api/userinfo' },
+  { key: 'jwks', path: '/.well-known/jwks' },
+  { key: 'introspection', path: '/api/login/oauth/introspect' },
+  { key: 'revocation', path: '/api/login/oauth/revoke' },
+  { key: 'logout', path: '/logout' },
 ]
 
 export function normalizeIdentityIssuer(configuredOrigin?: string | null, currentOrigin?: string | null) {

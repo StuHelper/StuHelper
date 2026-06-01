@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   clearAuth,
-  consumeOAuthState,
+  consumeIdentityOAuthState,
   isTokenExpired,
+  storeIdentityCodeVerifier,
+  storeIdentityOAuthState,
   tokenExpiry,
   userManager,
   type StoredUser,
@@ -109,28 +111,30 @@ describe('auth utilities', () => {
   it('clears auth and redirect session state together', () => {
     localStorage.setItem('stuhelper_user', JSON.stringify({ id: 'user_2', name: 'bob', displayName: 'Bob' }))
     localStorage.setItem('stuhelper_token_expiry', String(Date.now() + 60_000))
-    sessionStorage.setItem('oauth_state', 'oauth-state')
+    storeIdentityOAuthState('identity-state')
+    storeIdentityCodeVerifier('identity-verifier')
     sessionStorage.setItem('post_login_redirect', '/courses/reviews/post')
 
     clearAuth()
 
     expect(localStorage.getItem('stuhelper_user')).toBeNull()
     expect(localStorage.getItem('stuhelper_token_expiry')).toBeNull()
-    expect(sessionStorage.getItem('oauth_state')).toBeNull()
+    expect(sessionStorage.getItem('identity_oauth_state')).toBeNull()
+    expect(sessionStorage.getItem('identity_code_verifier')).toBeNull()
     expect(sessionStorage.getItem('post_login_redirect')).toBeNull()
   })
 
-  it('consumes a matching oauth state and clears it from session storage', () => {
-    sessionStorage.setItem('oauth_state', 'oauth-state')
+  it('consumes a matching identity oauth state and clears it from session storage', () => {
+    storeIdentityOAuthState('identity-state')
 
-    expect(consumeOAuthState('oauth-state')).toBe(true)
-    expect(sessionStorage.getItem('oauth_state')).toBeNull()
+    expect(consumeIdentityOAuthState('identity-state')).toBe(true)
+    expect(sessionStorage.getItem('identity_oauth_state')).toBeNull()
   })
 
-  it('rejects a mismatched oauth state and still clears it from session storage', () => {
-    sessionStorage.setItem('oauth_state', 'oauth-state')
+  it('rejects a mismatched identity oauth state and still clears it from session storage', () => {
+    storeIdentityOAuthState('identity-state')
 
-    expect(consumeOAuthState('other-state')).toBe(false)
-    expect(sessionStorage.getItem('oauth_state')).toBeNull()
+    expect(consumeIdentityOAuthState('other-state')).toBe(false)
+    expect(sessionStorage.getItem('identity_oauth_state')).toBeNull()
   })
 })

@@ -5,7 +5,10 @@ import type {
   CameraCaptureRequest,
   CreateFreshmanApplicationRequest,
   FreshmanApplication,
+  FreshmanCameraHandoff,
+  FreshmanCameraHandoffContinuationRequest,
   SchoolEmailOTPRequest,
+  SchoolEmailOTPResponse,
   SchoolEmailOTPVerifyRequest,
 } from '@stuhelper/shared/api'
 
@@ -14,6 +17,7 @@ type ApiResult<T> = {
     data?: T
   }
 }
+type FreshmanCameraContinuation = NonNullable<FreshmanCameraHandoff['continueOn']>
 
 const ADMISSION_STATUS_VALUES = new Set([
   'joined_muted',
@@ -28,6 +32,13 @@ const FRESHMAN_APPLICATION_STATUS_VALUES = new Set([
   'approved',
   'rejected',
 ])
+const FRESHMAN_CAMERA_HANDOFF_STATUS_VALUES = new Set([
+  'pending',
+  'uploaded',
+  'locked',
+  'expired',
+])
+const FRESHMAN_CAMERA_CONTINUATION_VALUES = new Set(['desktop', 'mobile'])
 const ADMISSION_CREDENTIAL_KIND_VALUES = new Set([
   'school_sso',
   'school_email_otp',
@@ -68,6 +79,36 @@ function readOptionalString(
     return undefined
   }
   if (typeof value !== 'string') {
+    throw new Error(message)
+  }
+  return value
+}
+
+function readOptionalIDString(
+  record: Record<string, unknown>,
+  key: string,
+  message: string,
+): string | undefined {
+  const value = record[key]
+  if (value === undefined) {
+    return undefined
+  }
+  if (typeof value === 'string') {
+    return value
+  }
+  if (typeof value === 'number' && Number.isInteger(value)) {
+    return String(value)
+  }
+  throw new Error(message)
+}
+
+function readIDString(
+  record: Record<string, unknown>,
+  key: string,
+  message: string,
+): string {
+  const value = readOptionalIDString(record, key, message)
+  if (value === undefined) {
     throw new Error(message)
   }
   return value
@@ -190,8 +231,7 @@ function readAdmissionSession(
     guildID: readString(payload, 'guildID', message),
     channelID: readOptionalString(payload, 'channelID', message),
     qqID: readString(payload, 'qqID', message),
-    qqNickname: readOptionalString(payload, 'qqNickname', message),
-    userID: readOptionalString(payload, 'userID', message),
+    userID: readOptionalIDString(payload, 'userID', message),
     status: readEnum<AdmissionSession['status']>(
       payload,
       'status',
@@ -260,7 +300,7 @@ function readFreshmanApplication(
 
   return {
     id: readString(payload, 'id', message),
-    userID: readString(payload, 'userID', message),
+    userID: readIDString(payload, 'userID', message),
     schoolID: readInteger(payload, 'schoolID', message),
     admissionSessionID: readOptionalString(
       payload,
@@ -296,6 +336,51 @@ function readFreshmanApplication(
     ),
     reviewedAt: readNullableString(payload, 'reviewedAt', message),
     createdAt: readString(payload, 'createdAt', message),
+  }
+}
+
+function readFreshmanCameraHandoff(
+  payload: unknown,
+  message: string,
+): FreshmanCameraHandoff {
+  if (!isRecord(payload)) {
+    throw new Error(message)
+  }
+  return {
+    id: readString(payload, 'id', message),
+    applicationID: readString(payload, 'applicationID', message),
+    userID: readIDString(payload, 'userID', message),
+    status: readEnum<FreshmanCameraHandoff['status']>(
+      payload,
+      'status',
+      FRESHMAN_CAMERA_HANDOFF_STATUS_VALUES,
+      message,
+    ),
+    continueOn: readOptionalEnum<FreshmanCameraContinuation>(
+      payload,
+      'continueOn',
+      FRESHMAN_CAMERA_CONTINUATION_VALUES,
+      message,
+    ),
+    mobileURL: readOptionalAbsoluteURL(payload, 'mobileURL', message),
+    expiresAt: readString(payload, 'expiresAt', message),
+    uploadedAt: readOptionalString(payload, 'uploadedAt', message),
+    chosenAt: readOptionalString(payload, 'chosenAt', message),
+    createdAt: readString(payload, 'createdAt', message),
+  }
+}
+
+function readSchoolEmailOTPResponse(
+  payload: unknown,
+  message: string,
+): SchoolEmailOTPResponse {
+  if (!isRecord(payload)) {
+    throw new Error(message)
+  }
+  return {
+    email: readString(payload, 'email', message),
+    studentID: readOptionalString(payload, 'studentID', message),
+    cooldownSeconds: readInteger(payload, 'cooldownSeconds', message),
   }
 }
 
@@ -345,8 +430,66 @@ export const admissionApi = {
     )
   },
 
-  async requestSchoolEmailOTP(payload: SchoolEmailOTPRequest): Promise<void> {
-    await api.admission.requestSchoolEmailOTP(payload)
+  async createFreshmanCameraHandoff(
+    applicationID: string,
+  ): Promise<FreshmanCameraHandoff> {
+    const result = await api.admission.createFreshmanCameraHandoff(applicationID)
+    return readFreshmanCameraHandoff(
+      requireData(result, 'Freshman camera handoff response is empty'),
+      'Invalid freshman camera handoff response',
+    )
+  },
+
+  async getFreshmanCameraHandoff(
+    handoffID: string,
+  ): Promise<FreshmanCameraHandoff> {
+    const result = await api.admission.getFreshmanCameraHandoff(handoffID)
+    return readFreshmanCameraHandoff(
+      requireData(result, 'Freshman camera handoff response is empty'),
+      'Invalid freshman camera handoff response',
+    )
+  },
+
+  async previewFreshmanMobileCameraHandoff(
+    token: string,
+  ): Promise<FreshmanCameraHandoff> {
+    const result = await api.admission.previewFreshmanMobileCameraHandoff(token)
+    return readFreshmanCameraHandoff(
+      requireData(result, 'Freshman camera handoff response is empty'),
+      'Invalid freshman camera handoff response',
+    )
+  },
+
+  async uploadFreshmanMobileCameraCapture(
+    token: string,
+    payload: CameraCaptureRequest,
+  ): Promise<FreshmanCameraHandoff> {
+    const result = await api.admission.uploadFreshmanMobileCameraCapture(token, payload)
+    return readFreshmanCameraHandoff(
+      requireData(result, 'Freshman camera handoff response is empty'),
+      'Invalid freshman camera handoff response',
+    )
+  },
+
+  async chooseFreshmanMobileCameraContinuation(
+    token: string,
+    payload: FreshmanCameraHandoffContinuationRequest,
+  ): Promise<FreshmanCameraHandoff> {
+    const result = await api.admission.chooseFreshmanMobileCameraContinuation(token, payload)
+    return readFreshmanCameraHandoff(
+      requireData(result, 'Freshman camera handoff response is empty'),
+      'Invalid freshman camera handoff response',
+    )
+  },
+
+  async requestSchoolEmailOTP(
+    payload: SchoolEmailOTPRequest,
+  ): Promise<SchoolEmailOTPResponse> {
+    const result = await api.admission.requestSchoolEmailOTP(payload)
+    return readSchoolEmailOTPResponse(
+      requireData(result, 'School email OTP response is empty'),
+      'Invalid school email OTP response',
+    )
   },
 
   async verifySchoolEmailOTP(

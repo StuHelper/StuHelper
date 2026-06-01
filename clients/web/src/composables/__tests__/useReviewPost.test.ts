@@ -55,7 +55,7 @@ vi.mock('@/composables/useToast', () => ({
 }))
 
 vi.mock('@/utils/redirect', () => ({
-  identityPortalURL: (path: string) => `https://id.stuhelper.com${path}`,
+  identityPortalURL: (path: string) => `https://stuhelper.com${path}`,
   navigateToExternalURL: mockNavigateToExternalURL,
 }))
 
@@ -126,7 +126,7 @@ describe('useReviewPost', () => {
     await expect(ensureCanPostReview()).resolves.toBe(false)
     expect(mockToastError).toHaveBeenCalledWith('user.verification.student.identityRequired')
     expect(mockNavigateToExternalURL).toHaveBeenCalledWith(
-      'https://id.stuhelper.com/user/identity-verification',
+      'https://stuhelper.com/user/identity-verification',
     )
   })
 
@@ -148,7 +148,7 @@ describe('useReviewPost', () => {
     await expect(ensureCanPostReview()).resolves.toBe(false)
     expect(mockToastError).toHaveBeenCalledWith('review.card.verifyToView')
     expect(mockNavigateToExternalURL).toHaveBeenCalledWith(
-      'https://id.stuhelper.com/user/student-verification',
+      'https://stuhelper.com/user/student-verification',
     )
   })
 

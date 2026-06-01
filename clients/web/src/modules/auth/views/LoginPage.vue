@@ -42,7 +42,6 @@ import { ElMessage } from "element-plus";
 import { getErrorMessage } from "@/api/errors";
 import { useAuthStore } from "@/stores/auth";
 import {
-    configuredIdentityOrigin,
     resolvePostLoginRedirectTarget,
     sanitizePostLoginRedirect,
 } from "@/utils/redirect";
@@ -55,14 +54,6 @@ const { loading } = storeToRefs(authStore);
 const isReauthRequest = () => route.query.reauth === "1";
 
 function defaultAuthenticatedRoute(): string {
-    const identityOrigin = configuredIdentityOrigin();
-    if (
-        identityOrigin &&
-        typeof window !== "undefined" &&
-        window.location.origin === identityOrigin
-    ) {
-        return new URL("/identity", window.location.origin).toString();
-    }
     return new URL("/", window.location.origin).toString();
 }
 
@@ -86,11 +77,15 @@ const saveRedirectTarget = () => {
     }
 };
 
+const startLoginForCurrentRoute = async () => {
+    saveRedirectTarget();
+    const startLogin = isReauthRequest() ? authStore.reauthenticate : authStore.login;
+    await startLogin(getRedirectTarget());
+};
+
 const handleLogin = async () => {
     try {
-        saveRedirectTarget();
-        const startLogin = isReauthRequest() ? authStore.reauthenticate : authStore.login;
-        await startLogin(getRedirectTarget());
+        await startLoginForCurrentRoute();
     } catch (e) {
         ElMessage.error(getErrorMessage(e, t("common.login.loginFailed")));
     }

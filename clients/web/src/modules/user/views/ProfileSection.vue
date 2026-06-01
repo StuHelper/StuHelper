@@ -114,15 +114,11 @@
                 </div>
                 <template v-if="!studentVerified">
                     <router-link
-                        v-if="identityVerified"
                         to="/user/student-verification"
                         class="block w-full py-2 bg-text-primary text-bg-base rounded-lg text-xs font-medium text-center no-underline transition-all duration-fast hover:bg-accent hover:text-white"
                     >
                         {{ t("user.verification.student.unverified") }}
                     </router-link>
-                    <p v-else class="text-xs text-text-muted m-0 text-center">
-                        {{ t("user.verification.student.identityRequired") }}
-                    </p>
                 </template>
                 <router-link
                     v-if="studentVerified"

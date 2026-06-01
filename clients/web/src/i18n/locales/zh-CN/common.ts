@@ -58,12 +58,12 @@ export default {
     daysAgo: '{n} 天前'
   },
   login: {
-    title: 'StuHelper ID',
-    subtitle: '统一身份、认证与开放平台入口',
+    title: 'StuHelper 统一登录',
+    subtitle: '账号登录、认证与开放平台入口',
     identityLogin: '使用统一身份认证登录',
-    signup: '注册 StuHelper ID',
+    signup: '注册账号',
     redirecting: '跳转中...',
-    hint: '使用 StuHelper ID 统一身份认证登录',
+    hint: '使用统一身份认证登录',
     loginFailed: '登录失败',
     signupFailed: '注册失败',
     networkError: '网络连接失败',
@@ -84,18 +84,18 @@ export default {
     otpSent: '验证码已发送',
     invalidPhone: '请输入正确的手机号',
     phoneHint: '使用手机号快捷登录',
-    identityHint: '通过 StuHelper ID 完成账号登录、认证与第三方应用授权'
+    identityHint: '完成账号登录、学生认证与第三方应用授权'
   },
   openPlatformConsent: {
-    loading: '正在加载 StuHelper ID Connect 授权请求...',
+    loading: '正在加载 StuHelper Connect 授权请求...',
     loadFailed: '授权请求加载失败',
-    invalidToken: '授权请求已失效或缺少 token，请返回身份中心或从发起应用重新开始授权',
+    invalidToken: '授权请求已失效或缺少 token，请返回账号中心或从发起应用重新开始授权',
     submitFailedTitle: '授权操作失败',
     submitFailed: '授权操作失败，请重试',
-    connectEyebrow: 'StuHelper ID Connect',
-    openIdentityHome: '返回身份中心',
-    title: '{app} 请求通过 StuHelper ID Connect 访问你的 StuHelper 账户',
-    identityLine: 'StuHelper ID 当前账号：{user}',
+    connectEyebrow: 'StuHelper Connect',
+    openIdentityHome: '返回账号中心',
+    title: '{app} 请求通过 StuHelper Connect 访问你的 StuHelper 账户',
+    identityLine: '当前 StuHelper 账号：{user}',
     appInfo: '接入应用',
     appName: '应用',
     description: '说明',
@@ -118,15 +118,15 @@ export default {
     }
   },
   openPlatformProfileCompletion: {
-    loading: '正在检查 StuHelper ID 账户资料...',
+    loading: '正在检查 StuHelper 账户资料...',
     loadFailed: '资料补全请求加载失败',
-    invalidToken: '资料补全请求已失效或缺少 token，请返回身份中心或从发起应用重新开始授权',
+    invalidToken: '资料补全请求已失效或缺少 token，请返回账号中心或从发起应用重新开始授权',
     submitFailedTitle: '继续授权失败',
     submitFailed: '继续授权失败，请重试',
-    connectEyebrow: 'StuHelper ID Connect',
-    openIdentityHome: '返回身份中心',
-    title: '继续登录 {app} 前需要补全 StuHelper ID 资料',
-    identityLine: 'StuHelper ID 当前账号：{user}',
+    connectEyebrow: 'StuHelper Connect',
+    openIdentityHome: '返回账号中心',
+    title: '继续登录 {app} 前需要补全 StuHelper 账号资料',
+    identityLine: '当前 StuHelper 账号：{user}',
     requiredFields: '需要补全',
     requestedPermissions: '应用请求通过 Connect 获取的信息',
     reason: '用途：{reason}',
@@ -134,7 +134,7 @@ export default {
     continue: '我已补全，继续',
     continuing: '正在继续...',
     refresh: '重新检查',
-    noMissingFields: '你的 StuHelper ID 资料已满足本次授权请求',
+    noMissingFields: '你的 StuHelper 账号资料已满足本次授权请求',
     expiresAt: '有效至 {time}'
   },
   meta: {
@@ -166,7 +166,7 @@ export default {
         },
         roadmap: {
           heading: '开发方向',
-          body: '项目采用 OpenAPI 3 Spec-First、多端共享 API 客户端和 StuHelper ID 统一身份登录，后续会继续完善教学相关模块。'
+          body: '项目采用 OpenAPI 3 Spec-First、多端共享 API 客户端和 StuHelper 统一登录，后续会继续完善教学相关模块。'
         }
       }
     },

@@ -17,6 +17,10 @@ type UploadIdentityPhotoRequest =
     components["schemas"]["UploadIdentityPhotoRequest"];
 type SubmitStudentVerificationRequest =
     components["schemas"]["SubmitStudentVerificationRequest"];
+type StudentEmailOTPRequest = components["schemas"]["StudentEmailOTPRequest"];
+type StudentEmailOTPVerifyRequest =
+    components["schemas"]["StudentEmailOTPVerifyRequest"];
+type StudentEmailOTPResponse = components["schemas"]["StudentEmailOTPResponse"];
 type BindPhoneRequest = components["schemas"]["BindPhoneRequest"];
 type QQBindingInfo = components["schemas"]["QQBinding"];
 type QQBindingCodeInfo = components["schemas"]["QQBindingCode"];
@@ -41,7 +45,7 @@ const PROFILE_VERIFICATION_STATUS_VALUES = new Set([
     "verified",
     "rejected",
 ]);
-const PROFILE_VERIFICATION_METHOD_VALUES = new Set(["ldap", "manual"]);
+const PROFILE_VERIFICATION_METHOD_VALUES = new Set(["ldap", "manual", "school_email_otp"]);
 const SCHOOL_VERIFICATION_METHOD_VALUES = new Set(["ldap", "manual"]);
 const MANUAL_FIELD_TYPE_VALUES = new Set(["text", "textarea", "select", "date"]);
 
@@ -140,6 +144,28 @@ export const useVerificationStore = defineStore("verification", () => {
         return nextProfile;
     };
 
+    const requestStudentEmailOTP = async (
+        data: StudentEmailOTPRequest,
+    ): Promise<StudentEmailOTPResponse> => {
+        const res = await api.identity.requestStudentEmailOTP(data);
+        return readStudentEmailOTPPayload(
+            res.data?.data,
+            "Invalid student email OTP response",
+        );
+    };
+
+    const verifyStudentEmailOTP = async (
+        data: StudentEmailOTPVerifyRequest,
+    ) => {
+        const res = await api.identity.verifyStudentEmailOTP(data);
+        const nextProfile = readProfilePayload(
+            res.data?.data,
+            "Invalid student verification response",
+        );
+        profile.value = nextProfile;
+        return nextProfile;
+    };
+
     // 请求绑定手机验证码
     const requestBindPhoneOTP = async (phone: string) => {
         await api.identity.requestBindPhoneOTP(phone);
@@ -212,6 +238,8 @@ export const useVerificationStore = defineStore("verification", () => {
         submitIdentity,
         uploadIdentityPhoto,
         verifyStudent,
+        requestStudentEmailOTP,
+        verifyStudentEmailOTP,
         bindPhone,
         requestBindPhoneOTP,
         reset,
@@ -482,6 +510,7 @@ function readSchoolPayload(value: unknown, message: string): SchoolConfig {
 
     return {
         schoolID: readInteger(value, "schoolID", message),
+        schoolCode: readString(value, "schoolCode", message),
         schoolName: readString(value, "schoolName", message),
         verificationMethod: readEnum<SchoolConfig["verificationMethod"]>(
             value,
@@ -496,6 +525,44 @@ function readSchoolPayload(value: unknown, message: string): SchoolConfig {
             message,
         ),
         enabled: readBoolean(value, "enabled", message),
+        schoolSsoEnabled: readBoolean(value, "schoolSsoEnabled", message),
+        schoolEmailOtpEnabled: readBoolean(
+            value,
+            "schoolEmailOtpEnabled",
+            message,
+        ),
+        schoolEmailIdentityPolicy: readNullableSchoolEmailIdentityPolicy(
+            value,
+            "schoolEmailIdentityPolicy",
+            message,
+        ),
+    };
+}
+
+function readNullableSchoolEmailIdentityPolicy(
+    record: Record<string, unknown>,
+    key: string,
+    message: string,
+): SchoolConfig["schoolEmailIdentityPolicy"] {
+    const value = record[key];
+    if (value === undefined || value === null) {
+        return undefined;
+    }
+    if (!isRecord(value)) {
+        throw new Error(message);
+    }
+    const type = readString(value, "type", message);
+    if (type !== "academic_student_email") {
+        throw new Error(message);
+    }
+    return {
+        type,
+        studentIDEmailDomain: readOptionalString(
+            value,
+            "studentIDEmailDomain",
+            message,
+        ),
+        requireStudentName: readBoolean(value, "requireStudentName", message),
     };
 }
 
@@ -506,6 +573,20 @@ function readSchoolListPayload(value: unknown, message: string): SchoolConfig[] 
     return value.map((item) => readSchoolPayload(item, message));
 }
 
+function readStudentEmailOTPPayload(
+    value: unknown,
+    message: string,
+): StudentEmailOTPResponse {
+    if (!isRecord(value)) {
+        throw new Error(message);
+    }
+    return {
+        email: readString(value, "email", message),
+        studentID: readOptionalString(value, "studentID", message),
+        cooldownSeconds: readInteger(value, "cooldownSeconds", message),
+    };
+}
+
 function readQQBindingPayload(value: unknown, message: string): QQBindingInfo {
     if (!isRecord(value)) {
         throw new Error(message);
@@ -514,7 +595,6 @@ function readQQBindingPayload(value: unknown, message: string): QQBindingInfo {
     return {
         userID: readInteger(value, "userID", message),
         qqID: readString(value, "qqID", message),
-        qqNickname: readNullableString(value, "qqNickname", message),
         boundAt: readString(value, "boundAt", message),
         createdAt: readString(value, "createdAt", message),
         updatedAt: readString(value, "updatedAt", message),

@@ -6,6 +6,8 @@
 const USER_KEY = 'stuhelper_user'
 const TOKEN_EXPIRY_KEY = 'stuhelper_token_expiry'
 const OAUTH_STATE_KEY = 'oauth_state'
+const IDENTITY_OAUTH_STATE_KEY = 'identity_oauth_state'
+const IDENTITY_CODE_VERIFIER_KEY = 'identity_code_verifier'
 
 // 用户信息类型（仅持久化最小展示字段，权限信息必须来自服务端会话）
 export interface StoredUser {
@@ -117,6 +119,17 @@ export function isTokenExpired(): boolean {
   return expiresAt < Date.now() + TOKEN_EXPIRY_BUFFER_SECONDS * 1000
 }
 
+export function consumeIdentityOAuthState(callbackState: string): boolean {
+  const expectedState = sessionStorage.getItem(IDENTITY_OAUTH_STATE_KEY) ?? ''
+  sessionStorage.removeItem(IDENTITY_OAUTH_STATE_KEY)
+
+  if (!isNonEmptyString(expectedState) || !isNonEmptyString(callbackState)) {
+    return false
+  }
+
+  return constantTimeEqual(expectedState, callbackState)
+}
+
 export function consumeOAuthState(callbackState: string): boolean {
   const expectedState = sessionStorage.getItem(OAUTH_STATE_KEY) ?? ''
   sessionStorage.removeItem(OAUTH_STATE_KEY)
@@ -128,10 +141,26 @@ export function consumeOAuthState(callbackState: string): boolean {
   return constantTimeEqual(expectedState, callbackState)
 }
 
+export function storeIdentityOAuthState(state: string): void {
+  sessionStorage.setItem(IDENTITY_OAUTH_STATE_KEY, state)
+}
+
+export function storeIdentityCodeVerifier(verifier: string): void {
+  sessionStorage.setItem(IDENTITY_CODE_VERIFIER_KEY, verifier)
+}
+
+export function consumeIdentityCodeVerifier(): string {
+  const verifier = sessionStorage.getItem(IDENTITY_CODE_VERIFIER_KEY) ?? ''
+  sessionStorage.removeItem(IDENTITY_CODE_VERIFIER_KEY)
+  return verifier
+}
+
 // 清除所有认证信息（含登录回跳状态）
 export const clearAuth = (): void => {
   userManager.removeUser()
   tokenExpiry.remove()
   sessionStorage.removeItem(OAUTH_STATE_KEY)
+  sessionStorage.removeItem(IDENTITY_OAUTH_STATE_KEY)
+  sessionStorage.removeItem(IDENTITY_CODE_VERIFIER_KEY)
   sessionStorage.removeItem('post_login_redirect')
 }

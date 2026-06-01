@@ -1,17 +1,10 @@
 import {
     createRouter,
     createWebHistory,
-    type RouteLocationNormalized,
     type RouteRecordRaw,
 } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import { isTokenExpired } from "@/utils/auth";
-import {
-    absoluteURLOnPreferredOrigin,
-    configuredIdentityOrigin,
-    configuredWebOrigin,
-    sanitizePostLoginRedirect,
-} from "@/utils/redirect";
 import { hasStoredSessionHint } from "@/utils/sessionHint";
 import { updatePageMeta } from "@/composables/usePageMeta";
 import i18n from "@/i18n";
@@ -33,7 +26,6 @@ declare module "vue-router" {
         guest?: boolean;
         titleKey?: string;
         layout?: "shell" | "none";
-        identityPortal?: boolean;
     }
 }
 
@@ -50,73 +42,6 @@ function isChunkLoadError(error: unknown): boolean {
 
 // chunk 加载失败时自动重载一次
 const CHUNK_RELOAD_KEY = "stuhelper_chunk_reload_attempted";
-
-let pendingExternalLocationRedirect: string | null = null;
-
-export function hasPendingExternalLocationRedirect(): boolean {
-    return pendingExternalLocationRedirect !== null;
-}
-
-function replaceWithExternalLocation(target: URL) {
-    pendingExternalLocationRedirect = target.toString();
-    window.location.replace(pendingExternalLocationRedirect);
-}
-
-function redirectIdentityPortalRoute(
-    to: Pick<RouteLocationNormalized, "fullPath" | "matched" | "path">,
-    from: Pick<RouteLocationNormalized, "fullPath" | "name">,
-) {
-    const isIdentityPortalRoute = to.matched.some(
-        (route) => route.meta?.identityPortal,
-    );
-    const identityOrigin = configuredIdentityOrigin();
-    const webOrigin = configuredWebOrigin();
-
-    if (isIdentityPortalRoute) {
-        if (!identityOrigin || window.location.origin === identityOrigin) {
-            return null;
-        }
-
-        const target = new URL(to.fullPath, identityOrigin);
-        if (to.path === "/login") {
-            const redirect = target.searchParams.get("redirect");
-            const sanitizedRedirect = sanitizePostLoginRedirect(redirect);
-            if (sanitizedRedirect) {
-                target.searchParams.set(
-                    "redirect",
-                    absoluteURLOnPreferredOrigin(sanitizedRedirect, webOrigin),
-                );
-            } else if (redirect) {
-                target.searchParams.delete("redirect");
-            } else if (!redirect && from.name) {
-                target.searchParams.set(
-                    "redirect",
-                    absoluteURLOnPreferredOrigin(from.fullPath, webOrigin),
-                );
-            }
-        }
-
-        replaceWithExternalLocation(target);
-        return false;
-    }
-
-    if (
-        !identityOrigin ||
-        !webOrigin ||
-        window.location.origin !== identityOrigin ||
-        webOrigin === identityOrigin
-    ) {
-        return null;
-    }
-
-    if (to.path === "/") {
-        return { path: "/identity", replace: true };
-    }
-
-    const target = new URL(to.fullPath, webOrigin);
-    replaceWithExternalLocation(target);
-    return false;
-}
 
 function lazyLoad(loader: () => Promise<unknown>) {
     return () =>
@@ -141,7 +66,7 @@ const routes: RouteRecordRaw[] = [
         path: "/login",
         name: "login",
         component: lazyLoad(() => import("@/modules/auth/views/LoginPage.vue")),
-        meta: { titleKey: "routes.login", guest: true, identityPortal: true },
+        meta: { titleKey: "routes.login", guest: true },
     },
     {
         path: "/auth/callback",
@@ -153,7 +78,6 @@ const routes: RouteRecordRaw[] = [
             titleKey: "routes.authCallback",
             guest: true,
             layout: "none",
-            identityPortal: true,
         },
     },
     {
@@ -166,7 +90,6 @@ const routes: RouteRecordRaw[] = [
             titleKey: "routes.openPlatformConsent",
             requiresAuth: true,
             layout: "none",
-            identityPortal: true,
         },
     },
     {
@@ -180,7 +103,6 @@ const routes: RouteRecordRaw[] = [
             titleKey: "routes.openPlatformProfileCompletion",
             requiresAuth: true,
             layout: "none",
-            identityPortal: true,
         },
     },
     {
@@ -192,7 +114,6 @@ const routes: RouteRecordRaw[] = [
         meta: {
             titleKey: "routes.identityHome",
             requiresAuth: true,
-            identityPortal: true,
         },
     },
     {
@@ -204,7 +125,6 @@ const routes: RouteRecordRaw[] = [
         meta: {
             titleKey: "routes.accountProfile",
             requiresAuth: true,
-            identityPortal: true,
         },
     },
     {
@@ -216,7 +136,6 @@ const routes: RouteRecordRaw[] = [
         meta: {
             titleKey: "routes.accountSecurity",
             requiresAuth: true,
-            identityPortal: true,
         },
     },
     {
@@ -227,7 +146,6 @@ const routes: RouteRecordRaw[] = [
         ),
         meta: {
             titleKey: "routes.identityConnect",
-            identityPortal: true,
         },
     },
     {
@@ -239,16 +157,26 @@ const routes: RouteRecordRaw[] = [
         meta: {
             titleKey: "routes.openPlatformDeveloperApps",
             requiresAuth: true,
-            identityPortal: true,
         },
     },
     {
-        path: "/admission/a/:code",
+        path: "/verify/:code",
         name: "admission-token",
         component: lazyLoad(
             () => import("@/modules/admission/views/AdmissionPage.vue"),
         ),
         meta: { title: "入群身份认证", layout: "none" },
+    },
+    {
+        path: "/admission/freshman/camera/:token",
+        name: "admission-freshman-mobile-camera",
+        component: lazyLoad(
+            () =>
+                import(
+                    "@/modules/admission/views/FreshmanMobileCameraPage.vue"
+                ),
+        ),
+        meta: { title: "新生材料拍照", layout: "none" },
     },
 
     // 首页
@@ -417,7 +345,6 @@ const routes: RouteRecordRaw[] = [
         meta: {
             titleKey: "routes.userAuthorizedApps",
             requiresAuth: true,
-            identityPortal: true,
         },
     },
 
@@ -431,7 +358,6 @@ const routes: RouteRecordRaw[] = [
         meta: {
             titleKey: "routes.identityVerification",
             requiresAuth: true,
-            identityPortal: true,
         },
     },
     {
@@ -443,7 +369,6 @@ const routes: RouteRecordRaw[] = [
         meta: {
             titleKey: "routes.studentVerification",
             requiresAuth: true,
-            identityPortal: true,
         },
     },
     {
@@ -455,7 +380,6 @@ const routes: RouteRecordRaw[] = [
         meta: {
             titleKey: "routes.phoneBinding",
             requiresAuth: true,
-            identityPortal: true,
         },
     },
     {
@@ -467,7 +391,6 @@ const routes: RouteRecordRaw[] = [
         meta: {
             titleKey: "routes.qqBinding",
             requiresAuth: true,
-            identityPortal: true,
         },
     },
     {
@@ -479,7 +402,6 @@ const routes: RouteRecordRaw[] = [
         meta: {
             titleKey: "routes.academicInfo",
             requiresAuth: true,
-            identityPortal: true,
         },
     },
 
@@ -509,12 +431,7 @@ const router = createRouter({
     },
 });
 
-router.beforeEach(async (to, from) => {
-    const identityPortalRedirect = redirectIdentityPortalRoute(to, from);
-    if (identityPortalRedirect !== null) {
-        return identityPortalRedirect;
-    }
-
+router.beforeEach(async (to) => {
     if (to.path === "/auth/callback") {
         const code = typeof to.query.code === "string" ? to.query.code : "";
         const state = typeof to.query.state === "string" ? to.query.state : "";
@@ -628,14 +545,6 @@ router.beforeEach(async (to, from) => {
             !redirect.startsWith("//")
         ) {
             return redirect;
-        }
-        const identityOrigin = configuredIdentityOrigin();
-        if (
-            identityOrigin &&
-            typeof window !== "undefined" &&
-            window.location.origin === identityOrigin
-        ) {
-            return { name: "identity-home" };
         }
         return { name: "home" };
     }

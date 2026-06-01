@@ -6,6 +6,11 @@ const mockAdmissionApi = vi.hoisted(() => ({
   getAdmissionMe: vi.fn(),
   submitFreshmanApplication: vi.fn(),
   uploadCameraCapture: vi.fn(),
+  createFreshmanCameraHandoff: vi.fn(),
+  getFreshmanCameraHandoff: vi.fn(),
+  previewFreshmanMobileCameraHandoff: vi.fn(),
+  uploadFreshmanMobileCameraCapture: vi.fn(),
+  chooseFreshmanMobileCameraContinuation: vi.fn(),
   requestSchoolEmailOTP: vi.fn(),
   verifySchoolEmailOTP: vi.fn(),
 }))
@@ -24,7 +29,6 @@ const session = {
   guildID: 'guild-1',
   channelID: 'channel-1',
   qqID: '123456',
-  qqNickname: 'Stu',
   userID: 'user-1',
   status: 'linked',
   tokenExpiresAt: '2026-06-01T10:00:00Z',
@@ -33,7 +37,7 @@ const session = {
   manualReviewDeadlineAt: null,
   initialMuteUntil: '2026-06-01T10:05:00Z',
   projectionPending: false,
-  authURL: 'https://stuhelper.com/admission/a/session-1',
+  authURL: 'https://join.stuhelper.com/verify/session-1',
   maxMaterialBytes: 5_242_880,
 }
 
@@ -52,6 +56,16 @@ const application = {
   status: 'pending',
   provisionalExpiresAt: null,
   reviewedAt: null,
+  createdAt: '2026-06-01T10:00:00Z',
+}
+
+const handoff = {
+  id: 'handoff-1',
+  applicationID: 'application-1',
+  userID: 'user-1',
+  status: 'pending',
+  mobileURL: 'https://join.stuhelper.com/admission/freshman/camera/token-1',
+  expiresAt: '2026-06-01T10:30:00Z',
   createdAt: '2026-06-01T10:00:00Z',
 }
 
@@ -74,6 +88,17 @@ describe('admissionApi response parsing', () => {
     await expect(admissionApi.getAdmissionSession('token')).resolves.toEqual(
       session,
     )
+  })
+
+  it('normalizes numeric admission user ids returned by the backend', async () => {
+    mockAdmissionApi.linkAdmissionSession.mockResolvedValue(ok({
+      ...session,
+      userID: 42,
+    }))
+
+    await expect(admissionApi.linkAdmissionSession('token')).resolves.toMatchObject({
+      userID: '42',
+    })
   })
 
   it('rejects malformed admission session responses', async () => {
@@ -119,10 +144,26 @@ describe('admissionApi response parsing', () => {
 
     await expect(
       admissionApi.submitFreshmanApplication({
-        schoolID: 1001,
+        schoolCode: '4111010006',
+        applicantName: '张三',
         materialType: 'admission_notice',
       }),
     ).rejects.toThrow('Invalid freshman application response')
+  })
+
+  it('normalizes numeric freshman application user ids returned by the backend', async () => {
+    mockAdmissionApi.submitFreshmanApplication.mockResolvedValue(ok({
+      ...application,
+      userID: 42,
+    }))
+
+    await expect(admissionApi.submitFreshmanApplication({
+      schoolCode: '4111010006',
+      applicantName: '张三',
+      materialType: 'admission_notice',
+    })).resolves.toMatchObject({
+      userID: '42',
+    })
   })
 
   it('rejects malformed school email OTP responses', async () => {
@@ -136,10 +177,37 @@ describe('admissionApi response parsing', () => {
 
     await expect(
       admissionApi.verifySchoolEmailOTP({
-        schoolID: 1001,
+        schoolCode: '4111010006',
         email: 'student@example.edu',
         code: '123456',
       }),
     ).rejects.toThrow('Invalid school email OTP response')
+  })
+
+  it('normalizes freshman camera handoff responses', async () => {
+    mockAdmissionApi.createFreshmanCameraHandoff.mockResolvedValue(ok({
+      ...handoff,
+      userID: 42,
+    }))
+
+    await expect(
+      admissionApi.createFreshmanCameraHandoff('application-1'),
+    ).resolves.toMatchObject({
+      id: 'handoff-1',
+      userID: '42',
+      mobileURL: 'https://join.stuhelper.com/admission/freshman/camera/token-1',
+      status: 'pending',
+    })
+  })
+
+  it('rejects malformed freshman camera handoff responses', async () => {
+    mockAdmissionApi.previewFreshmanMobileCameraHandoff.mockResolvedValue(ok({
+      ...handoff,
+      status: 'unknown',
+    }))
+
+    await expect(
+      admissionApi.previewFreshmanMobileCameraHandoff('token-1'),
+    ).rejects.toThrow('Invalid freshman camera handoff response')
   })
 })

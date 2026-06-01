@@ -1,13 +1,9 @@
 import type { components } from '@stuhelper/shared/types'
 
-const MIN_SCHOOL_ID = 1
-
 type AdmissionMe = components['schemas']['AdmissionMe']
 type SchoolConfig = components['schemas']['SchoolConfig']
 
-export type AdmissionSchoolOption = SchoolConfig & {
-  readonly schoolSsoEnabled?: boolean
-}
+export type AdmissionSchoolOption = SchoolConfig
 
 export type AdmissionCredentialState = Pick<AdmissionMe, 'credentialKind'> | null
 
@@ -15,6 +11,12 @@ export function schoolHasAdmissionSSO(
   school: AdmissionSchoolOption | null | undefined,
 ): boolean {
   return school?.enabled === true && school.schoolSsoEnabled === true
+}
+
+export function schoolHasAdmissionEmailOTP(
+  school: AdmissionSchoolOption | null | undefined,
+): boolean {
+  return school?.enabled === true && school.schoolEmailOtpEnabled === true
 }
 
 export function shouldShowFreshmanSubmission(
@@ -27,12 +29,13 @@ export function shouldShowFreshmanSubmission(
 }
 
 export function buildSchoolSSOLoginPath(
-  schoolID: number,
+  schoolCode: string,
   returnURL: string,
 ): string {
-  if (!Number.isInteger(schoolID) || schoolID < MIN_SCHOOL_ID) {
-    throw new Error('School ID is required for admission SSO')
+  const normalizedSchoolCode = schoolCode.trim()
+  if (!/^\d{10}$/.test(normalizedSchoolCode)) {
+    throw new Error('School code is required for admission SSO')
   }
   const encodedReturnURL = encodeURIComponent(returnURL)
-  return `/api/v1/admission/school-sso/${schoolID}/login?return=${encodedReturnURL}`
+  return `/api/v1/admission/school-sso/${normalizedSchoolCode}/login?return=${encodedReturnURL}`
 }

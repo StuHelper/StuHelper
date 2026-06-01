@@ -322,9 +322,7 @@ const qqBadge = computed(() =>
 )
 const qqBindingLabel = computed(() => {
   if (!qqBinding.value) return t('user.accountProfile.missing.qq')
-  return qqBinding.value.qqNickname
-    ? `${qqBinding.value.qqNickname} (${qqBinding.value.qqID})`
-    : qqBinding.value.qqID
+  return qqBinding.value.qqID
 })
 
 const identityStatus = computed(() => {

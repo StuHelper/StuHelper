@@ -42,14 +42,6 @@
         </div>
         <div class="rounded-lg bg-bg-base/60 p-4">
           <dt class="text-xs text-text-muted mb-1">
-            {{ t('user.verification.qq.nickname') }}
-          </dt>
-          <dd class="m-0 text-sm font-semibold text-text-primary">
-            {{ qqBinding.qqNickname || t('user.verification.qq.emptyNickname') }}
-          </dd>
-        </div>
-        <div class="rounded-lg bg-bg-base/60 p-4 sm:col-span-2">
-          <dt class="text-xs text-text-muted mb-1">
             {{ t('user.verification.qq.boundAt') }}
           </dt>
           <dd class="m-0 text-sm font-semibold text-text-primary">

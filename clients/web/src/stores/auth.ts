@@ -4,7 +4,11 @@
 import { defineStore, getActivePinia } from "pinia";
 import { ref, computed } from "vue";
 import { api } from "@/api";
-import { userManager, clearAuth, tokenExpiry } from "@/utils/auth";
+import {
+    userManager,
+    clearAuth,
+    tokenExpiry,
+} from "@/utils/auth";
 import { resolvePostLoginRedirectTarget } from "@/utils/redirect";
 import {
     classifyApiError,
@@ -30,8 +34,8 @@ export interface AuthError {
 }
 
 type UserInfo = components["schemas"]["UserInfo"];
-type LoginURLResponse = components["schemas"]["LoginURLResponse"];
 type RefreshResponse = components["schemas"]["RefreshResponse"];
+type LoginURLResponse = components["schemas"]["LoginURLResponse"];
 type CapabilityGrant = UserInfo["capabilityGrants"][number];
 
 // 登出结果类型
@@ -39,18 +43,9 @@ export type LogoutResult =
     | { ok: true }
     | { ok: false; reason: "network" | "server"; error: unknown };
 
-function getSSOOrigin(): string {
-    const ssoURL = import.meta.env.VITE_SSO_URL;
-    if (!ssoURL) {
-        throw new Error("VITE_SSO_URL is not configured");
-    }
-
-    const parsed = new URL(ssoURL);
-    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-        throw new Error("Invalid SSO URL protocol");
-    }
-
-    return parsed.origin;
+interface LoginAuthorizeOptions {
+    prompt?: "login";
+    maxAge?: 0;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -179,7 +174,6 @@ function readLoginURLPayload(
     if (!isRecord(payload)) {
         throw new Error(message);
     }
-
     return {
         url: readString(payload, "url", message),
         state: readString(payload, "state", message),
@@ -295,41 +289,57 @@ export const useAuthStore = defineStore("auth", () => {
         });
     };
 
-    // OAuth 跳转通用流程
-    const startOAuthFlow = async (
-        apiCall: () => Promise<{ data?: { data?: LoginURLResponse } }>,
-        errorMsg: string,
+    const startLoginFlow = async (
+        redirect?: string,
+        options?: LoginAuthorizeOptions,
     ) => {
         clearError();
         loading.value = true;
         try {
-            const res = await apiCall();
+            const redirectTarget = redirect
+                ? resolvePostLoginRedirectTarget(redirect)
+                : redirect;
+            const res = await api.auth.login(redirectTarget, undefined, "web", {
+                prompt: options?.prompt,
+                maxAge: options?.maxAge,
+            });
             const data = readLoginURLPayload(res.data?.data);
-            if (!data.url || !data.state) {
-                throw new Error("Invalid OAuth response");
-            }
-            // 校验 OAuth URL 必须指向配置的 SSO Origin
-            const oauthURL = new URL(data.url);
-            if (
-                oauthURL.protocol !== "https:" &&
-                oauthURL.protocol !== "http:"
-            ) {
-                throw new Error("Invalid OAuth URL protocol");
-            }
-            if (oauthURL.origin !== getSSOOrigin()) {
-                throw new Error(
-                    "OAuth URL must point to the configured SSO origin",
-                );
-            }
             sessionStorage.setItem("oauth_state", data.state);
             window.location.href = data.url;
-            // 跳转失败时 3 秒后清除 loading 状态
             setTimeout(() => {
                 loading.value = false;
             }, 3000);
         } catch (err) {
             loading.value = false;
-            const authErr = handleError(err, errorMsg);
+            const authErr = handleError(
+                err,
+                i18n.global.t("common.login.loginUrlFailed"),
+            );
+            setError(authErr.type, authErr.message);
+            throw err;
+        }
+    };
+
+    const startSignupFlow = async (redirect?: string) => {
+        clearError();
+        loading.value = true;
+        try {
+            const redirectTarget = redirect
+                ? resolvePostLoginRedirectTarget(redirect)
+                : redirect;
+            const res = await api.auth.signup(redirectTarget, "web", "web");
+            const data = readLoginURLPayload(res.data?.data);
+            sessionStorage.setItem("oauth_state", data.state);
+            window.location.href = data.url;
+            setTimeout(() => {
+                loading.value = false;
+            }, 3000);
+        } catch (err) {
+            loading.value = false;
+            const authErr = handleError(
+                err,
+                i18n.global.t("common.login.signupUrlFailed"),
+            );
             setError(authErr.type, authErr.message);
             throw err;
         }
@@ -337,27 +347,29 @@ export const useAuthStore = defineStore("auth", () => {
 
     // 登录
     const login = (redirect?: string) =>
-        startOAuthFlow(
-            () => api.auth.login(resolvePostLoginRedirectTarget(redirect), undefined, "web"),
-            i18n.global.t("common.login.loginUrlFailed"),
-        );
+        startLoginFlow(redirect);
+
+    const upstreamLogin = (redirect?: string) =>
+        startLoginFlow(redirect);
 
     const reauthenticate = (redirect?: string) =>
-        startOAuthFlow(
-            () =>
-                api.auth.login(resolvePostLoginRedirectTarget(redirect), undefined, "web", {
-                    prompt: "login",
-                    maxAge: 0,
-                }),
-            i18n.global.t("common.login.loginUrlFailed"),
-        );
+        startLoginFlow(redirect, {
+            prompt: "login",
+            maxAge: 0,
+        });
+
+    const upstreamReauthenticate = (redirect?: string) =>
+        startLoginFlow(redirect, {
+            prompt: "login",
+            maxAge: 0,
+        });
 
     // 注册
     const signup = (redirect?: string) =>
-        startOAuthFlow(
-            () => api.auth.signup(resolvePostLoginRedirectTarget(redirect)),
-            i18n.global.t("common.login.signupUrlFailed"),
-        );
+        startSignupFlow(redirect);
+
+    const upstreamSignup = (redirect?: string) =>
+        startSignupFlow(redirect);
 
     // 获取当前用户
     const fetchUser = async () => {
@@ -516,8 +528,11 @@ export const useAuthStore = defineStore("auth", () => {
         isAuthenticated,
         globalCapabilities,
         login,
+        upstreamLogin,
         reauthenticate,
+        upstreamReauthenticate,
         signup,
+        upstreamSignup,
         fetchUser,
         bootstrapSession,
         refreshSession,

@@ -39,6 +39,9 @@ const showShell = computed(() => {
 })
 const routeViewKey = computed(() => {
   const name = typeof route.name === 'string' ? route.name : ''
+  if (name === 'login' || name === 'auth-callback') {
+    return route.fullPath
+  }
   if (name.startsWith('user-') && ['user-reviews', 'user-votes', 'user-favorites'].includes(name)) {
     return 'user-center'
   }

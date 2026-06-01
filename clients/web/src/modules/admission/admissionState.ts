@@ -3,6 +3,7 @@ import type { AdmissionMe, AdmissionSession } from '@stuhelper/shared/api'
 export type AdmissionPageState =
   | 'loading'
   | 'needsLogin'
+  | 'accountMismatch'
   | 'qqMismatch'
   | 'ready'
   | 'linked'

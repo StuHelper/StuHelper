@@ -58,12 +58,12 @@ export default {
     daysAgo: '{n} days ago'
   },
   login: {
-    title: 'StuHelper ID',
-    subtitle: 'Identity, verification, and Open Platform access',
-    identityLogin: 'Continue with StuHelper ID',
-    signup: 'Create StuHelper ID',
+    title: 'StuHelper Sign-in',
+    subtitle: 'Account sign-in, verification, and Open Platform access',
+    identityLogin: 'Continue with unified sign-in',
+    signup: 'Create account',
     redirecting: 'Redirecting...',
-    hint: 'Sign in with StuHelper ID unified authentication',
+    hint: 'Sign in with unified authentication',
     loginFailed: 'Login failed',
     signupFailed: 'Signup failed',
     networkError: 'Network connection failed',
@@ -84,18 +84,18 @@ export default {
     otpSent: 'Verification code sent',
     invalidPhone: 'Please enter a valid phone number',
     phoneHint: 'Quick login with phone number',
-    identityHint: 'Use StuHelper ID for account sign-in, verification, and third-party app authorization'
+    identityHint: 'Use StuHelper for account sign-in, student verification, and third-party app authorization'
   },
   openPlatformConsent: {
-    loading: 'Loading StuHelper ID Connect authorization request...',
+    loading: 'Loading StuHelper Connect authorization request...',
     loadFailed: 'Failed to load authorization request',
-    invalidToken: 'The authorization request is expired or missing a token. Return to the Identity Hub or start again from the requesting app.',
+    invalidToken: 'The authorization request is expired or missing a token. Return to the account center or start again from the requesting app.',
     submitFailedTitle: 'Authorization failed',
     submitFailed: 'Authorization failed. Please retry',
-    connectEyebrow: 'StuHelper ID Connect',
-    openIdentityHome: 'Back to Identity Hub',
-    title: '{app} wants to access your StuHelper account through StuHelper ID Connect',
-    identityLine: 'Current StuHelper ID account: {user}',
+    connectEyebrow: 'StuHelper Connect',
+    openIdentityHome: 'Back to Account Center',
+    title: '{app} wants to access your StuHelper account through StuHelper Connect',
+    identityLine: 'Current StuHelper account: {user}',
     appInfo: 'Connected app',
     appName: 'App',
     description: 'Description',
@@ -118,15 +118,15 @@ export default {
     }
   },
   openPlatformProfileCompletion: {
-    loading: 'Checking StuHelper ID profile...',
+    loading: 'Checking StuHelper account profile...',
     loadFailed: 'Failed to load profile completion request',
-    invalidToken: 'The profile completion request is expired or missing a token. Return to the Identity Hub or start again from the requesting app.',
+    invalidToken: 'The profile completion request is expired or missing a token. Return to the account center or start again from the requesting app.',
     submitFailedTitle: 'Failed to continue authorization',
     submitFailed: 'Failed to continue authorization. Please retry',
-    connectEyebrow: 'StuHelper ID Connect',
-    openIdentityHome: 'Back to Identity Hub',
-    title: 'Complete your StuHelper ID profile before continuing to {app}',
-    identityLine: 'Current StuHelper ID account: {user}',
+    connectEyebrow: 'StuHelper Connect',
+    openIdentityHome: 'Back to Account Center',
+    title: 'Complete your StuHelper account profile before continuing to {app}',
+    identityLine: 'Current StuHelper account: {user}',
     requiredFields: 'Required fields',
     requestedPermissions: 'Information requested through Connect',
     reason: 'Purpose: {reason}',
@@ -134,7 +134,7 @@ export default {
     continue: 'I have completed this',
     continuing: 'Continuing...',
     refresh: 'Check again',
-    noMissingFields: 'Your StuHelper ID profile now satisfies this authorization request',
+    noMissingFields: 'Your StuHelper account profile now satisfies this authorization request',
     expiresAt: 'Valid until {time}'
   },
   meta: {
@@ -166,7 +166,7 @@ export default {
         },
         roadmap: {
           heading: 'Product Direction',
-          body: 'The project uses an OpenAPI 3 spec-first workflow, shared multi-client APIs, and StuHelper ID unified sign-in, and we will continue expanding the teaching-related product surface.'
+          body: 'The project uses an OpenAPI 3 spec-first workflow, shared multi-client APIs, and StuHelper unified sign-in, and we will continue expanding the teaching-related product surface.'
         }
       }
     },

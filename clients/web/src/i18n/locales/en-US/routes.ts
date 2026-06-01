@@ -6,7 +6,7 @@ export default {
   authCallback: 'Authenticating',
   openPlatformConsent: 'Authorize',
   openPlatformProfileCompletion: 'Complete Profile',
-  identityHome: 'Identity Hub',
+  identityHome: 'Account Center',
   accountProfile: 'Profile',
   accountSecurity: 'Account Security',
   identityConnect: 'Connect',

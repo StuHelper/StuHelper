@@ -3,7 +3,7 @@
  */
 export default {
   logo: 'StuHelper',
-  identityBrand: 'StuHelper ID',
+  identityBrand: 'Account Center',
   tagline: 'Campus learning portal',
   identityTagline: 'Account, verification, and Open Platform',
   primary: 'Primary navigation',

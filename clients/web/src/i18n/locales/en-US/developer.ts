@@ -3,10 +3,10 @@
  */
 export default {
   connect: {
-    eyebrow: 'StuHelper ID',
-    title: 'StuHelper ID Connect',
-    subtitle: 'OIDC / OAuth entrypoints for first-party and third-party apps. The public issuer is id.stuhelper.com; Casdoor stays behind it as the upstream login source.',
-    backToIdentity: 'Back to Identity Hub',
+    eyebrow: 'StuHelper Open Platform',
+    title: 'StuHelper Connect',
+    subtitle: 'OIDC / OAuth entrypoints for first-party and third-party apps. The public issuer is sso.stuhelper.com; business data is exposed through StuHelper Open API scopes.',
+    backToIdentity: 'Back to Account Center',
     developerApps: 'Developer Apps',
   },
   apps: {
@@ -20,8 +20,8 @@ export default {
     emptyDesc: 'Created applications will show their review status here',
     loadFailed: 'Failed to load applications',
     connect: {
-      title: 'StuHelper ID Connect',
-      subtitle: 'Use id.stuhelper.com as the public OIDC / OAuth issuer for new integrations.',
+      title: 'StuHelper Connect',
+      subtitle: 'Use sso.stuhelper.com as the public OIDC / OAuth issuer. Student verification, QQ binding, and other business data are fetched from StuHelper Open API.',
       copyLabel: 'Copy {endpoint}',
       copied: 'Endpoint copied',
       copyFailed: 'Copy failed. Copy it manually.',
@@ -179,6 +179,8 @@ export default {
       identityType: 'Identity Type',
       studentStatus: 'Student Verification Status',
       studentSchool: 'School Information',
+      qqStatus: 'QQ Binding Status',
+      qqNumber: 'QQ Number',
       resourceRead: 'Authorized Resource Read',
       resourceWrite: 'Authorized Resource Write',
       offlineAccess: 'Offline Access',
@@ -194,7 +196,9 @@ export default {
       identityType: 'Identity type',
       studentVerified: 'Student verification state',
       schoolID: 'School ID',
-      schoolName: 'School name',
+      campusID: 'Campus ID, if verified',
+      qqBound: 'QQ binding state',
+      qqNumber: 'Bound QQ number',
       resourceRead: 'User-authorized resource read access',
       resourceWrite: 'User-authorized resource write access',
       offlineAccess: 'Long-lived login refresh authorization',

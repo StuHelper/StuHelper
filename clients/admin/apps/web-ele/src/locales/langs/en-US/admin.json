@@ -444,6 +444,16 @@
       "value": "Value",
       "dialogTitle": "Edit config - {key}",
       "valuePlaceholder": "Enter config value",
+      "emailPolicySummary": "Email delivery supports Tencent Cloud SES as the default provider, Resend fallback, and weighted balancing within the same priority.",
+      "editEmailPolicy": "Edit Email Policy",
+      "emailPolicyMode": "Policy Mode",
+      "emailPolicyPriority": "Priority Failover",
+      "emailPolicyWeighted": "Weighted Same Priority",
+      "emailMaxAttempts": "Max Attempts",
+      "emailProvider": "Provider",
+      "emailProviderEnabled": "Enabled",
+      "emailProviderPriority": "Priority",
+      "emailProviderWeight": "Weight",
       "updated": "Updated successfully"
     }
   },

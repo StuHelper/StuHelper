@@ -40,6 +40,30 @@ export async function startCameraStream(
   return mediaDevices.getUserMedia(buildCameraConstraints())
 }
 
+export function describeCameraCaptureError(error: unknown, fallback: string): string {
+  const message = error instanceof Error ? error.message : ''
+  const name = error instanceof DOMException || error instanceof Error ? error.name : ''
+  if (name === 'NotAllowedError' || /permission|denied/i.test(message)) {
+    return '摄像头权限被浏览器拒绝。请在地址栏站点权限中允许摄像头；如果仍然失败，请确认当前页面使用 HTTPS 且没有被浏览器策略禁止摄像头。'
+  }
+  if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+    return '当前设备没有可用摄像头。可以改用另一台设备打开手机拍照链接。'
+  }
+  if (name === 'NotReadableError' || name === 'TrackStartError') {
+    return '摄像头暂时无法读取，可能正被其他应用占用。请关闭占用摄像头的应用后重试。'
+  }
+  if (name === 'OverconstrainedError' || name === 'ConstraintNotSatisfiedError') {
+    return '当前摄像头不满足拍照要求。请尝试切换设备或使用手机拍照链接。'
+  }
+  if (/getUserMedia support/i.test(message)) {
+    return '当前浏览器不支持直接拍照。请使用支持摄像头权限的浏览器，或改用手机拍照链接。'
+  }
+  if (/video frame is not ready/i.test(message)) {
+    return '摄像头画面还没有准备好，请等待画面出现后再拍摄。'
+  }
+  return message || fallback
+}
+
 export function stopCameraStream(stream: MediaStream | null | undefined): void {
   for (const track of stream?.getTracks() ?? []) {
     track.stop()

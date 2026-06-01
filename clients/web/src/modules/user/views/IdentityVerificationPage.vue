@@ -141,10 +141,7 @@
         </div>
 
         <!-- Verification form -->
-        <div
-            v-else
-            class="bg-bg-card rounded-xl p-5 shadow-card"
-        >
+        <div v-else class="bg-bg-card rounded-xl p-5 shadow-card">
             <p class="text-sm text-text-muted mb-5 m-0">
                 {{ t("user.verification.identity.desc") }}
             </p>
@@ -186,6 +183,7 @@
                 </label>
                 <input
                     id="identity-real-name"
+                    data-identity-real-name-input
                     v-model="form.realName"
                     type="text"
                     class="w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary"
@@ -203,11 +201,20 @@
                 </label>
                 <input
                     id="identity-doc-number"
+                    data-identity-doc-number-input
                     v-model="form.docNumber"
                     type="text"
                     class="w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary"
+                    :class="docNumberError ? 'border-red-500/60' : ''"
                     :placeholder="t('user.verification.identity.docNumber')"
                 />
+                <p
+                    v-if="docNumberError"
+                    data-identity-doc-number-error
+                    class="text-xs text-red-500 mt-2 mb-0"
+                >
+                    {{ docNumberError }}
+                </p>
             </div>
 
             <!-- Step 4: Photo upload (non-mainland ID only) -->
@@ -340,6 +347,7 @@
 
             <!-- Submit button -->
             <button
+                data-identity-submit
                 class="w-full py-2.5 bg-text-primary text-bg-base rounded-lg text-sm font-medium cursor-pointer transition-all duration-fast hover:bg-accent hover:text-white border-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 :disabled="!canSubmit || submitting"
                 @click="handleSubmit"
@@ -372,6 +380,10 @@ import {
 } from "lucide-vue-next";
 import { useVerificationStore } from "@/stores/verification";
 import { useToast } from "@/composables/useToast";
+import {
+    isValidMainlandIDNumber,
+    normalizeMainlandIDNumber,
+} from "@/modules/user/utils/mainlandID";
 
 const router = useRouter();
 const { t } = useI18n();
@@ -439,22 +451,30 @@ function docTypeLabel(docType: string): string {
 const canSubmit = computed(() => {
     if (!form.docType || !form.realName.trim() || !form.docNumber.trim())
         return false;
+    if (docNumberError.value) return false;
     if (form.docType !== "MAINLAND_ID") {
         if (!photos.front || !photos.selfie) return false;
     }
     return true;
 });
 
+const docNumberError = computed(() => {
+    if (form.docType !== "MAINLAND_ID" || !form.docNumber.trim()) {
+        return "";
+    }
+    return isValidMainlandIDNumber(form.docNumber)
+        ? ""
+        : t("user.verification.identity.invalidMainlandID");
+});
+
 const MAX_PHOTO_SIZE = 5 * 1024 * 1024; // 5MB
-const ALLOWED_PHOTO_TYPES = [
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-] as const;
+const ALLOWED_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 type AllowedPhotoType = (typeof ALLOWED_PHOTO_TYPES)[number];
 type IdentityPhotoFile = File & { type: AllowedPhotoType };
 
-function isAllowedPhotoType(contentType: string): contentType is AllowedPhotoType {
+function isAllowedPhotoType(
+    contentType: string,
+): contentType is AllowedPhotoType {
     return (ALLOWED_PHOTO_TYPES as readonly string[]).includes(contentType);
 }
 
@@ -464,7 +484,9 @@ function handlePhotoChange(event: Event, key: "front" | "back" | "selfie") {
     if (!file) return;
 
     if (file.size > MAX_PHOTO_SIZE) {
-        toast.error(t("user.verification.identity.photoTooLarge", { max: "5MB" }));
+        toast.error(
+            t("user.verification.identity.photoTooLarge", { max: "5MB" }),
+        );
         input.value = "";
         return;
     }
@@ -496,6 +518,10 @@ async function handleSubmit() {
 
     submitting.value = true;
     try {
+        const docNumber =
+            form.docType === "MAINLAND_ID"
+                ? normalizeMainlandIDNumber(form.docNumber)
+                : form.docNumber.trim();
         const uploaded = {
             front:
                 form.docType !== "MAINLAND_ID" && photos.front
@@ -513,7 +539,7 @@ async function handleSubmit() {
         await store.submitIdentity({
             docType: form.docType,
             realName: form.realName.trim(),
-            docNumber: form.docNumber.trim(),
+            docNumber,
             ...(form.docType !== "MAINLAND_ID" && {
                 docPhotoFront: uploaded.front,
                 docPhotoBack: uploaded.back,

@@ -53,22 +53,20 @@ describe("style entrypoint", () => {
         );
     });
 
-    it("returns identity login flows to the configured web origin", () => {
+    it("keeps protected login redirects on the current web/business origin", () => {
         const routerSource = readFileSync(
             resolve(__dirname, "../../router/index.ts"),
             "utf-8",
         );
 
-        expect(routerSource).toContain("absoluteURLOnPreferredOrigin");
+        expect(routerSource).not.toContain("absoluteURLOnPreferredOrigin");
+        expect(routerSource).not.toContain("configuredIdentityOrigin");
         expect(routerSource).toContain(
-            "absoluteURLOnPreferredOrigin(sanitizedRedirect, webOrigin)",
-        );
-        expect(routerSource).toContain(
-            "absoluteURLOnPreferredOrigin(from.fullPath, webOrigin)",
+            'return { name: "login", query: { redirect: to.fullPath } }',
         );
     });
 
-    it("sends review-triggered verification actions directly to the identity portal", () => {
+    it("sends review-triggered verification actions directly to the account center", () => {
         const reviewPostSource = readFileSync(
             resolve(__dirname, "../../composables/useReviewPost.ts"),
             "utf-8",
@@ -91,7 +89,7 @@ describe("style entrypoint", () => {
         expect(reviewPostSource).not.toContain("name: 'identity-verification'");
     });
 
-    it("does not render the bootstrap failure page for expected cross-origin route redirects", () => {
+    it("does not keep the legacy cross-origin identity redirect bootstrap exception", () => {
         const mainSource = readFileSync(
             resolve(__dirname, "../../main.ts"),
             "utf-8",
@@ -100,40 +98,26 @@ describe("style entrypoint", () => {
             resolve(__dirname, "../../router/index.ts"),
             "utf-8",
         );
-        const smokeSource = readFileSync(
-            resolve(
-                __dirname,
-                "../../../../../infra/ops/prod-parity-browser-smoke.mjs",
-            ),
-            "utf-8",
-        );
 
-        expect(routerSource).toContain("pendingExternalLocationRedirect");
-        expect(routerSource).toContain(
-            "export function hasPendingExternalLocationRedirect()",
-        );
-        expect(routerSource).toContain("replaceWithExternalLocation(target)");
-        expect(mainSource).toContain("isExpectedExternalRedirectAbort");
-        expect(mainSource).toContain("hasPendingExternalLocationRedirect()");
-        expect(mainSource).toContain(
+        expect(routerSource).not.toContain("pendingExternalLocationRedirect");
+        expect(routerSource).not.toContain("hasPendingExternalLocationRedirect");
+        expect(routerSource).not.toContain("replaceWithExternalLocation");
+        expect(mainSource).not.toContain("isExpectedExternalRedirectAbort");
+        expect(mainSource).not.toContain("hasPendingExternalLocationRedirect");
+        expect(mainSource).not.toContain(
             "router startup interrupted by external redirect",
         );
-        expect(smokeSource).toContain("bootstrapFallbackTexts");
-        expect(smokeSource).toContain("'应用启动失败'");
-        expect(smokeSource).toContain("frontend-direct-login-redirect");
     });
 
-    it("uses the identity home route as the default login return target on the identity host", () => {
+    it("uses the main site home route as the default login return target", () => {
         const loginSource = readFileSync(
             resolve(__dirname, "../../modules/auth/views/LoginPage.vue"),
             "utf-8",
         );
 
         expect(loginSource).toContain("function defaultAuthenticatedRoute()");
-        expect(loginSource).toContain("configuredIdentityOrigin");
-        expect(loginSource).toContain(
-            'return new URL("/identity", window.location.origin).toString()',
-        );
+        expect(loginSource).not.toContain("configuredIdentityOrigin");
+        expect(loginSource).not.toContain('return new URL("/identity"');
         expect(loginSource).toContain(
             'return new URL("/", window.location.origin).toString()',
         );
@@ -197,7 +181,7 @@ describe("style entrypoint", () => {
         }
     });
 
-    it("does not expose the internal SSO host in public identity or Connect surfaces", () => {
+    it("exposes Casdoor SSO as the public Connect issuer and keeps business data behind Open API", () => {
         const issuerFiles = [
             "../../i18n/locales/zh-CN/developer.ts",
             "../../i18n/locales/en-US/developer.ts",
@@ -212,16 +196,17 @@ describe("style entrypoint", () => {
 
         for (const file of issuerFiles) {
             const source = readFileSync(resolve(__dirname, file), "utf-8");
-            expect(source, file).toContain("id.stuhelper.com");
+            expect(source, file).toContain("sso.stuhelper.com");
+            expect(source, file).not.toContain("id.stuhelper.com");
         }
         for (const file of checkedFiles) {
             const source = readFileSync(resolve(__dirname, file), "utf-8");
-            expect(source, file).not.toContain("sso.stuhelper.com");
+            expect(source, file).not.toContain("id.stuhelper.com");
             expect(source, file).not.toContain("StuHelper SSO");
         }
     });
 
-    it("brands the public login page as StuHelper ID instead of a standalone SSO site", () => {
+    it("brands the public login page as StuHelper unified sign-in instead of a standalone SSO site", () => {
         const loginSource = readFileSync(
             resolve(__dirname, "../../modules/auth/views/LoginPage.vue"),
             "utf-8",
@@ -240,21 +225,21 @@ describe("style entrypoint", () => {
         expect(loginSource).toContain("common.login.identityHint");
         expect(loginSource).not.toContain("common.login.ssoLogin");
         expect(loginSource).not.toContain("common.login.ssoHint");
-        expect(zhCommonSource).toContain("title: 'StuHelper ID'");
+        expect(zhCommonSource).toContain("title: 'StuHelper 统一登录'");
         expect(zhCommonSource).toContain(
             "identityLogin: '使用统一身份认证登录'",
         );
         expect(zhCommonSource).not.toContain("使用 SSO 登录");
         expect(zhCommonSource).not.toContain("StuHelper SSO");
-        expect(enCommonSource).toContain("title: 'StuHelper ID'");
+        expect(enCommonSource).toContain("title: 'StuHelper Sign-in'");
         expect(enCommonSource).toContain(
-            "identityLogin: 'Continue with StuHelper ID'",
+            "identityLogin: 'Continue with unified sign-in'",
         );
         expect(enCommonSource).not.toContain("Login with SSO");
         expect(enCommonSource).not.toContain("StuHelper SSO");
     });
 
-    it("brands Open Platform challenge pages as StuHelper ID Connect with identity-home fallback", () => {
+    it("brands Open Platform challenge pages as StuHelper Connect with account-center fallback", () => {
         const consentSource = readFileSync(
             resolve(
                 __dirname,
@@ -285,14 +270,14 @@ describe("style entrypoint", () => {
             expect(source).not.toContain("StuHelper Identity");
         }
         expect(zhCommonSource).toContain(
-            "connectEyebrow: 'StuHelper ID Connect'",
+            "connectEyebrow: 'StuHelper Connect'",
         );
-        expect(zhCommonSource).toContain("openIdentityHome: '返回身份中心'");
+        expect(zhCommonSource).toContain("openIdentityHome: '返回账号中心'");
         expect(enCommonSource).toContain(
-            "connectEyebrow: 'StuHelper ID Connect'",
+            "connectEyebrow: 'StuHelper Connect'",
         );
         expect(enCommonSource).toContain(
-            "openIdentityHome: 'Back to Identity Hub'",
+            "openIdentityHome: 'Back to Account Center'",
         );
     });
 
@@ -307,7 +292,7 @@ describe("style entrypoint", () => {
         );
 
         expect(routerSource).toMatch(
-            /name:\s*"login"[\s\S]*meta:\s*\{\s*titleKey:\s*"routes\.login",\s*guest:\s*true,\s*identityPortal:\s*true\s*\}/,
+            /name:\s*"login"[\s\S]*meta:\s*\{\s*titleKey:\s*"routes\.login",\s*guest:\s*true\s*\}/,
         );
         expect(loginSource).not.toContain("ParticleBackground");
         expect(loginSource).not.toContain(':global([data-theme="dark"])');
@@ -430,7 +415,7 @@ describe("style entrypoint", () => {
         expect(reviewPageSource).not.toContain("<ReviewDialog");
     });
 
-    it("hides main-site floating navigation on the identity host", () => {
+    it("keeps main-site floating navigation available because account pages live on the main site", () => {
         const shellSource = readFileSync(
             resolve(__dirname, "../../components/layout/AppShell.vue"),
             "utf-8",
@@ -442,7 +427,7 @@ describe("style entrypoint", () => {
         );
     });
 
-    it("keeps the identity home route inside the identity portal", () => {
+    it("keeps account-center routes on the main web app", () => {
         const routerSource = readFileSync(
             resolve(__dirname, "../../router/index.ts"),
             "utf-8",
@@ -464,21 +449,8 @@ describe("style entrypoint", () => {
         expect(routerSource).toContain('name: "account-security"');
         expect(routerSource).toContain('path: "/connect"');
         expect(routerSource).toContain('name: "identity-connect"');
-        expect(routerSource).toMatch(
-            /path:\s*"\/identity"[\s\S]*meta:\s*\{[\s\S]*titleKey:\s*"routes\.identityHome"[\s\S]*requiresAuth:\s*true[\s\S]*identityPortal:\s*true[\s\S]*\}/,
-        );
-        expect(routerSource).toMatch(
-            /path:\s*"\/account\/profile"[\s\S]*meta:\s*\{[\s\S]*titleKey:\s*"routes\.accountProfile"[\s\S]*requiresAuth:\s*true[\s\S]*identityPortal:\s*true[\s\S]*\}/,
-        );
-        expect(routerSource).toMatch(
-            /path:\s*"\/connect"[\s\S]*meta:\s*\{[\s\S]*titleKey:\s*"routes\.identityConnect"[\s\S]*identityPortal:\s*true[\s\S]*\}/,
-        );
-        expect(routerSource).toMatch(
-            /path:\s*"\/account\/security"[\s\S]*meta:\s*\{[\s\S]*titleKey:\s*"routes\.accountSecurity"[\s\S]*requiresAuth:\s*true[\s\S]*identityPortal:\s*true[\s\S]*\}/,
-        );
-        expect(headerSource).toContain(
-            "const logoRoute = computed(() => (isIdentityPortalHost.value ? '/identity' : '/'))",
-        );
+        expect(routerSource).not.toContain("identityPortal");
+        expect(headerSource).toContain("const logoRoute = computed");
         expect(headerSource).toContain(
             "{ to: '/identity', label: t('routes.identityHome')",
         );
@@ -488,14 +460,12 @@ describe("style entrypoint", () => {
         expect(headerSource).toContain(
             "{ to: '/connect', label: t('routes.identityConnect')",
         );
-        expect(routerSource).toContain(
-            'if (to.path === "/") {\n        return { path: "/identity", replace: true }',
-        );
+        expect(routerSource).not.toContain('return { path: "/identity", replace: true }');
         expect(profileSource).toContain('to="/account/profile"');
         expect(profileSource).toContain("user.identityHome.accountProfile.title");
     });
 
-    it("serves authorized apps as a dedicated identity portal page", () => {
+    it("serves authorized apps as a dedicated account-center page", () => {
         const routerSource = readFileSync(
             resolve(__dirname, "../../router/index.ts"),
             "utf-8",
@@ -508,16 +478,14 @@ describe("style entrypoint", () => {
         expect(routerSource).toMatch(
             /path:\s*"\/user\/authorized-apps"[\s\S]*AuthorizedAppsPage\.vue/,
         );
-        expect(routerSource).toMatch(
-            /path:\s*"\/user\/authorized-apps"[\s\S]*identityPortal:\s*true/,
-        );
+        expect(routerSource).not.toContain("identityPortal");
         expect(userCenterSource).not.toContain("AuthorizedAppsTab");
         expect(userCenterSource).not.toContain("ProfileSection");
         expect(userCenterSource).not.toContain("user-authorized-apps");
         expect(userCenterSource).not.toContain("user.myAuthorizedApps");
     });
 
-    it("sends user menu identity actions directly to the identity portal", () => {
+    it("sends user menu account actions directly to the configured web origin", () => {
         const userMenuSource = readFileSync(
             resolve(__dirname, "../../components/layout/AppUserMenu.vue"),
             "utf-8",
@@ -540,7 +508,7 @@ describe("style entrypoint", () => {
         expect(userMenuSource).not.toContain("@click=\"goTo('qq-binding')\"");
     });
 
-    it("keeps profile completion actions on the identity portal", () => {
+    it("keeps profile completion actions on the account center", () => {
         const profileCompletionSource = readFileSync(
             resolve(__dirname, "../../modules/open-platform/views/ProfileCompletionPage.vue"),
             "utf-8",

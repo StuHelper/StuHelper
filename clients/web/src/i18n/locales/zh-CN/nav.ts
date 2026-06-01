@@ -3,7 +3,7 @@
  */
 export default {
   logo: 'StuHelper',
-  identityBrand: 'StuHelper ID',
+  identityBrand: '账号中心',
   tagline: '校园学习入口',
   identityTagline: '账号、认证与开放平台',
   primary: '主导航',

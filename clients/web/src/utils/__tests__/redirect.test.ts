@@ -13,7 +13,6 @@ import {
 
 describe('post-login redirect helpers', () => {
   beforeEach(() => {
-    vi.stubEnv('VITE_IDENTITY_URL', window.location.origin)
     vi.stubEnv('VITE_WEB_URL', 'http://stuhelper.com')
   })
 
@@ -21,7 +20,7 @@ describe('post-login redirect helpers', () => {
     vi.unstubAllEnvs()
   })
 
-  it('allows the configured web origin from the identity login page', () => {
+  it('allows the configured web origin from the login page', () => {
     expect(sanitizePostLoginRedirect('http://stuhelper.com/courses?tab=latest')).toBe(
       'http://stuhelper.com/courses?tab=latest',
     )
@@ -30,10 +29,10 @@ describe('post-login redirect helpers', () => {
     )
   })
 
-  it('allows identity-local relative redirects', () => {
+  it('moves account relative redirects to the configured web origin', () => {
     expect(sanitizePostLoginRedirect('/developers/apps')).toBe('/developers/apps')
     expect(resolvePostLoginRedirectTarget('/developers/apps')).toBe(
-      'http://localhost:3000/developers/apps',
+      'http://stuhelper.com/developers/apps',
     )
   })
 
@@ -44,19 +43,19 @@ describe('post-login redirect helpers', () => {
 
   it('keeps configured HTTP origins on HTTP pages', () => {
     expect(
-      normalizeConfiguredHTTPOrigin('http://id.stuhelper.com', 'http://stuhelper.com'),
-    ).toBe('http://id.stuhelper.com')
+      normalizeConfiguredHTTPOrigin('http://sso.stuhelper.com', 'http://stuhelper.com'),
+    ).toBe('http://sso.stuhelper.com')
     expect(
-      normalizeConfiguredHTTPOrigin('http://stuhelper.com', 'http://id.stuhelper.com'),
+      normalizeConfiguredHTTPOrigin('http://stuhelper.com', 'http://sso.stuhelper.com'),
     ).toBe('http://stuhelper.com')
   })
 
   it('does not downgrade configured origins from an HTTPS page', () => {
     expect(
-      normalizeConfiguredHTTPOrigin('http://id.stuhelper.com', 'https://stuhelper.com'),
-    ).toBe('https://id.stuhelper.com')
+      normalizeConfiguredHTTPOrigin('http://sso.stuhelper.com', 'https://stuhelper.com'),
+    ).toBe('https://sso.stuhelper.com')
     expect(
-      normalizeConfiguredHTTPOrigin('http://stuhelper.com', 'https://id.stuhelper.com'),
+      normalizeConfiguredHTTPOrigin('http://stuhelper.com', 'https://sso.stuhelper.com'),
     ).toBe('https://stuhelper.com')
   })
 
@@ -67,8 +66,6 @@ describe('post-login redirect helpers', () => {
   })
 
   it('moves current-origin return targets onto the configured web origin', () => {
-    vi.stubEnv('VITE_IDENTITY_URL', 'http://id.stuhelper.com')
-
     expect(
       absoluteURLOnPreferredOrigin(
         `${window.location.origin}/courses?tab=latest`,
@@ -82,17 +79,25 @@ describe('post-login redirect helpers', () => {
     ).toBe('http://stuhelper.com/courses?tab=latest')
   })
 
+  it('keeps admission verification redirects on the current business origin', () => {
+    vi.stubEnv('VITE_WEB_URL', 'https://stuhelper.com')
+
+    expect(
+      resolvePostLoginRedirectTarget(
+        `${window.location.origin}/verify/ADMIT-LOGIN?qq=123456`,
+      ),
+    ).toBe(`${window.location.origin}/verify/ADMIT-LOGIN?qq=123456`)
+  })
+
   it('falls back to the current origin when no preferred origin is configured', () => {
     expect(absoluteURLOnPreferredOrigin('/identity', null)).toBe(
       `${window.location.origin}/identity`,
     )
   })
 
-  it('builds identity portal URLs on the configured identity origin', () => {
-    vi.stubEnv('VITE_IDENTITY_URL', 'http://id.stuhelper.com')
-
+  it('builds account URLs on the configured web origin', () => {
     expect(identityPortalURL('/user/student-verification')).toBe(
-      'http://id.stuhelper.com/user/student-verification',
+      'http://stuhelper.com/user/student-verification',
     )
   })
 
@@ -106,25 +111,24 @@ describe('post-login redirect helpers', () => {
     expect(isIdentityPortalPath('/user/reviews')).toBe(false)
   })
 
-  it('resolves relative identity hrefs to the configured identity origin', () => {
-    vi.stubEnv('VITE_IDENTITY_URL', 'https://id.stuhelper.com')
+  it('resolves relative account hrefs to the configured web origin', () => {
+    vi.stubEnv('VITE_WEB_URL', 'https://stuhelper.com')
 
     expect(identityPortalURLForHref('/user/student-verification?next=1#form')).toBe(
-      'https://id.stuhelper.com/user/student-verification?next=1#form',
+      'https://stuhelper.com/user/student-verification?next=1#form',
     )
     expect(identityPortalURLForHref('/courses/1/reviews')).toBeNull()
     expect(identityPortalURLForHref('https://evil.example/user/student-verification')).toBeNull()
   })
 
-  it('resolves identity post-login redirects to the identity origin', () => {
+  it('resolves account post-login redirects to the web origin', () => {
     vi.stubEnv('VITE_WEB_URL', 'https://stuhelper.com')
-    vi.stubEnv('VITE_IDENTITY_URL', 'https://id.stuhelper.com')
 
     expect(resolvePostLoginRedirectTarget('/developers/apps')).toBe(
-      'https://id.stuhelper.com/developers/apps',
+      'https://stuhelper.com/developers/apps',
     )
     expect(resolvePostLoginRedirectTarget('/user/authorized-apps')).toBe(
-      'https://id.stuhelper.com/user/authorized-apps',
+      'https://stuhelper.com/user/authorized-apps',
     )
     expect(resolvePostLoginRedirectTarget('/courses')).toBe(
       'https://stuhelper.com/courses',
