@@ -88,6 +88,7 @@ done
 bash -n "${SMOKE_SCRIPT}"
 [[ -x "${SMOKE_SCRIPT}" ]] || fail "admission public smoke script must be executable"
 
+assert_contains "${SMOKE_SCRIPT}" 'prefer_production_env_files_if_default'
 assert_contains "${SMOKE_SCRIPT}" 'ADMISSION_PUBLIC_BASE_URL must be exactly https://join\.stuhelper\.com'
 assert_contains "${SMOKE_SCRIPT}" '/verify/\$\{probe_token\}\?qq=\$\{probe_qq\}'
 assert_contains "${SMOKE_SCRIPT}" '/api/v1/metrics/vitals'

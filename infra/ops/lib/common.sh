@@ -568,6 +568,28 @@ ensure_env_file() {
   fi
 }
 
+prefer_production_env_files_if_default() {
+  local default_env_file="${REPO_ROOT}/.env"
+  [[ "${ENV_FILE}" == "${default_env_file}" ]] || return 0
+  [[ ! -f "${ENV_FILE}" ]] || return 0
+  [[ -f "${REPO_ROOT}/.env.prod.shared" ]] || return 0
+
+  export ENV_FILE="${REPO_ROOT}/.env.prod.shared"
+  if [[ -z "${SECRETS_ENV_FILE:-}" ]]; then
+    if [[ -f "${REPO_ROOT}/.env.prod.secrets.local" ]]; then
+      export SECRETS_ENV_FILE="${REPO_ROOT}/.env.prod.secrets.local"
+    elif [[ -f "${REPO_ROOT}/.env.prod.secrets" ]]; then
+      export SECRETS_ENV_FILE="${REPO_ROOT}/.env.prod.secrets"
+    fi
+  fi
+  if [[ "${GENERATED_ENV_FILE}" == "${REPO_ROOT}/.env.generated" ]]; then
+    export GENERATED_ENV_FILE="${REPO_ROOT}/.env.prod.generated"
+  fi
+  if [[ "${GENERATED_SECRET_ENV_FILE}" == "${REPO_ROOT}/.env.generated.secrets" ]]; then
+    export GENERATED_SECRET_ENV_FILE="${REPO_ROOT}/.env.prod.generated.secrets"
+  fi
+}
+
 ensure_generated_files() {
   mkdir -p "${GENERATED_OBS_DIR}/prometheus" "${GENERATED_OBS_DIR}/alertmanager"
   touch "${GENERATED_ENV_FILE}"

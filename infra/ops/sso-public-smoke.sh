@@ -64,6 +64,7 @@ preserved_curl_insecure="${SSO_PUBLIC_SMOKE_CURL_INSECURE-__STUHELPER_UNSET__}"
 preserved_curl_no_proxy="${SSO_PUBLIC_SMOKE_CURL_NO_PROXY-__STUHELPER_UNSET__}"
 preserved_resolve_ip="${SSO_PUBLIC_SMOKE_RESOLVE_IP-__STUHELPER_UNSET__}"
 
+prefer_production_env_files_if_default
 load_env
 
 if [[ "${preserved_sso_public_base_url}" != "__STUHELPER_UNSET__" ]]; then SSO_PUBLIC_BASE_URL="${preserved_sso_public_base_url}"; fi

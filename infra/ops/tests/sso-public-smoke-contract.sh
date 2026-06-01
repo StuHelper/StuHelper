@@ -81,6 +81,7 @@ done
 bash -n "${SMOKE_SCRIPT}"
 [[ -x "${SMOKE_SCRIPT}" ]] || fail "SSO public smoke script must be executable"
 
+assert_contains "${SMOKE_SCRIPT}" 'prefer_production_env_files_if_default'
 assert_contains "${SMOKE_SCRIPT}" 'SSO_PUBLIC_BASE_URL must be exactly https://sso\.stuhelper\.com'
 assert_contains "${SMOKE_SCRIPT}" 'SSO discovery metadata'
 assert_contains "${SMOKE_SCRIPT}" 'actualIssuer'

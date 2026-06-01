@@ -88,6 +88,7 @@ preserved_allow_local_targets="${IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS-__STU
 preserved_casdoor_upstream_enabled="${IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED-__STUHELPER_UNSET__}"
 preserved_curl_insecure="${IDENTITY_PUBLIC_SMOKE_CURL_INSECURE-__STUHELPER_UNSET__}"
 
+prefer_production_env_files_if_default
 load_env
 
 if [[ "${preserved_identity_issuer}" != "__STUHELPER_UNSET__" ]]; then IDENTITY_ISSUER="${preserved_identity_issuer}"; fi

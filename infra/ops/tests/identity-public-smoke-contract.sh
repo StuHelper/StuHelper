@@ -303,6 +303,7 @@ command -v jq >/dev/null 2>&1 || fail "missing jq"
 
 bash -n "${SMOKE_SCRIPT}"
 
+assert_contains "${SMOKE_SCRIPT}" 'prefer_production_env_files_if_default'
 assert_contains "${SMOKE_SCRIPT}" 'IDENTITY_ISSUER is required'
 assert_contains "${SMOKE_SCRIPT}" 'CASDOOR_ISSUER is required'
 assert_contains "${SMOKE_SCRIPT}" 'IDENTITY_PUBLIC_SMOKE_EVIDENCE_FILE'

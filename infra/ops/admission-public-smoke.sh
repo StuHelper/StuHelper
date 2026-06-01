@@ -64,6 +64,7 @@ preserved_resolve_ip="${ADMISSION_PUBLIC_SMOKE_RESOLVE_IP-__STUHELPER_UNSET__}"
 preserved_probe_token="${ADMISSION_PUBLIC_SMOKE_PROBE_TOKEN-__STUHELPER_UNSET__}"
 preserved_probe_qq="${ADMISSION_PUBLIC_SMOKE_PROBE_QQ-__STUHELPER_UNSET__}"
 
+prefer_production_env_files_if_default
 load_env
 
 if [[ "${preserved_admission_public_base_url}" != "__STUHELPER_UNSET__" ]]; then ADMISSION_PUBLIC_BASE_URL="${preserved_admission_public_base_url}"; fi
