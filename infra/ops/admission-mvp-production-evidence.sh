@@ -43,7 +43,10 @@ Environment:
   ADMISSION_MVP_PRODUCTION_RUN_ADMISSION_SMOKE default true
   ADMISSION_MVP_PRODUCTION_RUN_BROWSER_SMOKE   default true
   ADMISSION_MVP_PRODUCTION_BROWSER_SMOKE_EVIDENCE_FILE optional pre-collected
-                                               public-web-auth-browser-smoke evidence
+                                               public-web-auth-browser-smoke evidence;
+                                               defaults to
+                                               infra/generated/public-web-auth-browser-smoke-evidence-current.json
+                                               when that file exists
   ADMISSION_MVP_PRODUCTION_BROWSER_SMOKE_MAX_AGE_MINUTES default 180
   ADMISSION_MVP_PRODUCTION_RUN_READINESS       default true
   ADMISSION_MVP_PRODUCTION_RUN_KOISHI          default true for mode koishi/all
@@ -70,7 +73,11 @@ evidence_file="${ADMISSION_MVP_PRODUCTION_EVIDENCE_FILE:-${REPO_ROOT}/infra/gene
 run_sso_smoke="${ADMISSION_MVP_PRODUCTION_RUN_SSO_SMOKE:-true}"
 run_admission_smoke="${ADMISSION_MVP_PRODUCTION_RUN_ADMISSION_SMOKE:-true}"
 run_browser_smoke="${ADMISSION_MVP_PRODUCTION_RUN_BROWSER_SMOKE:-true}"
+browser_smoke_default_evidence_file="${REPO_ROOT}/infra/generated/public-web-auth-browser-smoke-evidence-current.json"
 browser_smoke_evidence_file="${ADMISSION_MVP_PRODUCTION_BROWSER_SMOKE_EVIDENCE_FILE:-}"
+if [[ -z "${browser_smoke_evidence_file}" && -f "${browser_smoke_default_evidence_file}" ]]; then
+  browser_smoke_evidence_file="${browser_smoke_default_evidence_file}"
+fi
 browser_smoke_max_age_minutes="${ADMISSION_MVP_PRODUCTION_BROWSER_SMOKE_MAX_AGE_MINUTES:-180}"
 run_readiness="${ADMISSION_MVP_PRODUCTION_RUN_READINESS:-true}"
 run_koishi="${ADMISSION_MVP_PRODUCTION_RUN_KOISHI:-true}"

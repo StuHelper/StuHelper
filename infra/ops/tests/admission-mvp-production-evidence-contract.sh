@@ -43,6 +43,7 @@ assert_contains "${EVIDENCE_SCRIPT}" 'admission-public-smoke\.sh'
 assert_contains "${EVIDENCE_SCRIPT}" 'public-web-auth-browser-smoke\.mjs'
 assert_contains "${EVIDENCE_SCRIPT}" 'ADMISSION_MVP_PRODUCTION_BROWSER_SMOKE_EVIDENCE_FILE'
 assert_contains "${EVIDENCE_SCRIPT}" 'ADMISSION_MVP_PRODUCTION_BROWSER_SMOKE_MAX_AGE_MINUTES'
+assert_contains "${EVIDENCE_SCRIPT}" 'public-web-auth-browser-smoke-evidence-current\.json'
 assert_contains "${EVIDENCE_SCRIPT}" 'validate_public_browser_smoke_evidence'
 assert_contains "${EVIDENCE_SCRIPT}" 'join-login-click-starts-sso'
 assert_contains "${EVIDENCE_SCRIPT}" 'join-signup-click-starts-sso-signup'
@@ -218,6 +219,33 @@ if browser.get("status") != "passed":
     raise SystemExit(f"browser step did not pass: {browser}")
 if "validate_public_browser_smoke_evidence" not in browser.get("detail", ""):
     raise SystemExit(f"browser step did not use evidence validator: {browser}")
+PY
+
+default_browser_evidence_file="${fake_repo}/infra/generated/public-web-auth-browser-smoke-evidence-current.json"
+cp "${browser_evidence_file}" "${default_browser_evidence_file}"
+default_browser_bundle_file="${tmpdir}/default-browser-evidence.json"
+ADMISSION_MVP_PRODUCTION_EVIDENCE_MODE=main \
+ADMISSION_MVP_PRODUCTION_EVIDENCE_FILE="${default_browser_bundle_file}" \
+ADMISSION_MVP_PRODUCTION_RUN_SSO_SMOKE=false \
+ADMISSION_MVP_PRODUCTION_RUN_ADMISSION_SMOKE=false \
+ADMISSION_MVP_PRODUCTION_RUN_READINESS=false \
+ADMISSION_MVP_PRODUCTION_BROWSER_SMOKE_MAX_AGE_MINUTES=180 \
+"${fake_repo}/infra/ops/admission-mvp-production-evidence.sh" >/tmp/admission-mvp-production-evidence-contract-default-browser.stdout
+
+python3 - "${default_browser_bundle_file}" <<'PY' || fail "default browser evidence JSON assertion failed"
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+steps = {step.get("name"): step for step in payload.get("steps", [])}
+browser = steps.get("public Web auth browser smoke") or {}
+if payload.get("passed") is not True:
+    raise SystemExit("bundle did not pass")
+if browser.get("status") != "passed":
+    raise SystemExit(f"browser step did not pass: {browser}")
+if "validate_public_browser_smoke_evidence" not in browser.get("detail", ""):
+    raise SystemExit(f"browser step did not use default evidence validator: {browser}")
 PY
 
 stale_browser_evidence_file="${tmpdir}/stale-browser-smoke.json"
