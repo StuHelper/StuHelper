@@ -18,7 +18,7 @@ func TestCreateBotSessionRejectsActiveMemberBlacklist(t *testing.T) {
 	require.NoError(t, err)
 
 	created, err := svc.CreateBotSession(context.Background(), BotSessionCreateInput{
-		Platform: "qq", GuildID: "guild-1", ChannelID: "channel-1", QQID: "10001",
+		Platform: "qq", GuildID: "guild-1", ChannelID: "channel-1", QQID: "10001", BotSelfID: "514",
 	})
 
 	require.ErrorIs(t, err, ErrMemberBlacklisted)

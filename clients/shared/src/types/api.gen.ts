@@ -4314,7 +4314,7 @@ export interface components {
             guildID: string;
             channelID: string;
             qqID: string;
-            botSelfID?: string;
+            botSelfID: string;
         };
         BotAdmissionEventRequest: {
             /** @enum {string} */

@@ -22,12 +22,13 @@ func TestAdmissionSessionCreatePreviewAndMismatch(t *testing.T) {
 	insertAdmissionPolicy(t, fixture)
 
 	created, err := svc.CreateBotSession(context.Background(), BotSessionCreateInput{
-		Platform: "qq", GuildID: "guild-1", ChannelID: "channel-1", QQID: "10001",
+		Platform: "qq", GuildID: "guild-1", ChannelID: "channel-1", QQID: "10001", BotSelfID: "514",
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, created.Token)
 	assert.Equal(t, "https://join.stuhelper.com/verify/test-admission-token?qq=10001", created.AuthURL)
 	assert.Equal(t, StatusJoinedMuted, created.Session.Status)
+	assert.Equal(t, "514", created.Session.BotSelfID)
 	assert.Equal(t, svc.now().Add(time.Hour), created.Session.LinkWaitDeadlineAt)
 
 	preview, err := svc.PreviewToken(context.Background(), created.Token, "10001")
@@ -44,10 +45,22 @@ func TestCreateBotSessionRequiresConfiguredPolicy(t *testing.T) {
 	svc := newSessionTestService(t, fixture)
 
 	_, err := svc.CreateBotSession(context.Background(), BotSessionCreateInput{
-		Platform: "qq", GuildID: "guild-1", ChannelID: "channel-1", QQID: "10001",
+		Platform: "qq", GuildID: "guild-1", ChannelID: "channel-1", QQID: "10001", BotSelfID: "514",
 	})
 
 	require.ErrorIs(t, err, ErrAdmissionPolicyNotFound)
+}
+
+func TestCreateBotSessionRequiresBotSelfID(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+
+	_, err := svc.CreateBotSession(context.Background(), BotSessionCreateInput{
+		Platform: "qq", GuildID: "guild-1", ChannelID: "channel-1", QQID: "10001",
+	})
+
+	require.ErrorIs(t, err, ErrAdmissionInvalidInput)
 }
 
 func TestAdmissionTokenLinkIsAtomicUnderConcurrency(t *testing.T) {
@@ -284,7 +297,7 @@ func TestRegenerateBotAdmissionSessionRejectsVerifiedSession(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = svc.RegenerateBotAdmissionSession(context.Background(), BotSessionCreateInput{
-		Platform: "qq", GuildID: "guild-1", ChannelID: "channel-1", QQID: "10001",
+		Platform: "qq", GuildID: "guild-1", ChannelID: "channel-1", QQID: "10001", BotSelfID: "514",
 	})
 	require.ErrorIs(t, err, ErrAdmissionInvalidStatus)
 }
@@ -477,7 +490,7 @@ func assertExactlyOneLinkSuccess(t *testing.T, results []linkResult) {
 func createLinkableSession(t *testing.T, svc *Service) *CreatedAdmissionSession {
 	t.Helper()
 	created, err := svc.CreateBotSession(context.Background(), BotSessionCreateInput{
-		Platform: "qq", GuildID: "guild-1", ChannelID: "channel-1", QQID: "10001",
+		Platform: "qq", GuildID: "guild-1", ChannelID: "channel-1", QQID: "10001", BotSelfID: "514",
 	})
 	require.NoError(t, err)
 	return created

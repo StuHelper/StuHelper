@@ -153,7 +153,7 @@ func linkFreshmanReviewSession(t *testing.T, svc *Service, seed freshmanReviewSe
 	t.Helper()
 	svc.generateToken = func() (string, error) { return seed.Token, nil }
 	created, err := svc.CreateBotSession(context.Background(), BotSessionCreateInput{
-		Platform: "qq", GuildID: "guild-1", ChannelID: "channel-1", QQID: seed.QQID,
+		Platform: "qq", GuildID: "guild-1", ChannelID: "channel-1", QQID: seed.QQID, BotSelfID: "514",
 	})
 	require.NoError(t, err)
 	_, err = svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{

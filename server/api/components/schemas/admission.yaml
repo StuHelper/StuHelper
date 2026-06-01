@@ -228,7 +228,7 @@ BotFreshmanReviewRequest:
 
 BotAdmissionSessionCreateRequest:
   type: object
-  required: [platform, guildID, channelID, qqID]
+  required: [platform, guildID, channelID, qqID, botSelfID]
   properties:
     platform:
       type: string

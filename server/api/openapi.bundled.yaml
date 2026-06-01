@@ -10763,6 +10763,7 @@ components:
         - guildID
         - channelID
         - qqID
+        - botSelfID
       properties:
         platform:
           type: string

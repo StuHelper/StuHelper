@@ -517,7 +517,7 @@ func normalizeBotSessionSubjectInput(input BotSessionSubjectInput) BotSessionSub
 }
 
 func validateBotSessionCreateInput(input BotSessionCreateInput) error {
-	if input.Platform == "" || input.GuildID == "" || input.ChannelID == "" || input.QQID == "" {
+	if input.Platform == "" || input.GuildID == "" || input.ChannelID == "" || input.QQID == "" || input.BotSelfID == "" {
 		return ErrAdmissionInvalidInput
 	}
 	return nil

@@ -19,7 +19,7 @@ type botSessionCreateHTTPRequest struct {
 	GuildID   string `json:"guildID" binding:"required,max=128"`
 	ChannelID string `json:"channelID" binding:"required,max=128"`
 	QQID      string `json:"qqID" binding:"required,max=64"`
-	BotSelfID string `json:"botSelfID"`
+	BotSelfID string `json:"botSelfID" binding:"required,max=64"`
 }
 
 type botSessionSubjectHTTPRequest struct {
