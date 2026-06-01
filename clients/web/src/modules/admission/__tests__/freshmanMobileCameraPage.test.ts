@@ -3,6 +3,7 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "@/api/errors";
 import FreshmanMobileCameraPage from "../views/FreshmanMobileCameraPage.vue";
 
 const mockAdmissionApi = vi.hoisted(() => ({
@@ -246,5 +247,28 @@ describe("FreshmanMobileCameraPage", () => {
         await flushPromises();
 
         expect(wrapper.find('[data-state="mobile"]').exists()).toBe(true);
+    });
+
+    it("shows expired state when the admission session expires during mobile upload", async () => {
+        mockAdmissionApi.uploadFreshmanMobileCameraCapture.mockRejectedValueOnce(
+            new ApiError({ code: "admission.token_expired", message: "expired" }),
+        );
+
+        const wrapper = mount(FreshmanMobileCameraPage);
+        await flushPromises();
+
+        await wrapper.find("[data-mobile-camera-open-button]").trigger("click");
+        await flushPromises();
+        await wrapper
+            .find("[data-mobile-camera-capture-button]")
+            .trigger("click");
+        await wrapper
+            .find("[data-mobile-camera-upload-button]")
+            .trigger("click");
+        await flushPromises();
+
+        expect(wrapper.find('[data-state="expired"]').exists()).toBe(true);
+        expect(wrapper.text()).toContain("链接已过期");
+        expect(mockStopCameraStream).toHaveBeenCalledWith({ id: "stream-1" });
     });
 });

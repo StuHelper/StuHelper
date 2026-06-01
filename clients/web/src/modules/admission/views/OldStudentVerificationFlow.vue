@@ -119,6 +119,7 @@ import { computed, ref, watch } from 'vue'
 import type { AdmissionMe } from '@stuhelper/shared/api'
 
 import { admissionApi } from '../api'
+import { isAdmissionSessionExpiredError } from '../admissionToken'
 import {
   buildSchoolSSOLoginPath,
   schoolHasAdmissionEmailOTP,
@@ -133,6 +134,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
+  expired: []
   verified: [admission: AdmissionMe]
 }>()
 
@@ -222,6 +224,10 @@ async function requestEmailOTP(): Promise<void> {
       ? '学号和姓名已匹配，验证码已发送到学号邮箱。'
       : '验证码已发送。'
   } catch (error) {
+    if (isAdmissionSessionExpiredError(error)) {
+      emit('expired')
+      return
+    }
     errorMessage.value = readErrorMessage(error, '验证码发送失败。')
   } finally {
     requestingOTP.value = false
@@ -239,6 +245,10 @@ async function verifyEmailOTP(): Promise<void> {
     })
     emit('verified', admission)
   } catch (error) {
+    if (isAdmissionSessionExpiredError(error)) {
+      emit('expired')
+      return
+    }
     errorMessage.value = readErrorMessage(error, '邮箱验证失败。')
   } finally {
     submitting.value = false

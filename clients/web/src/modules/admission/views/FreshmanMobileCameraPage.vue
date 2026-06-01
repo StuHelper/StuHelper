@@ -163,6 +163,7 @@ import type {
 } from "@stuhelper/shared/api";
 
 import { admissionApi } from "../api";
+import { isAdmissionSessionExpiredError } from "../admissionToken";
 import {
     captureFrameAsBase64,
     describeCameraCaptureError,
@@ -191,11 +192,13 @@ const choosing = ref(false);
 const cameraSupported = ref(supportsCameraCapture());
 const handoff = ref<FreshmanCameraHandoff | null>(null);
 const errorMessage = ref("");
+const forceExpired = ref(false);
 
 const token = computed(() => String(route.params.token ?? ""));
 const streamActive = computed(() => stream.value !== null);
 const pageState = computed<MobilePageState>(() => {
     if (loading.value) return "loading";
+    if (forceExpired.value) return "expired";
     const current = handoff.value;
     if (!current) return "error";
     if (current.status === "expired") return "expired";
@@ -220,6 +223,7 @@ async function loadHandoff(): Promise<void> {
             token.value,
         );
     } catch (error) {
+        if (handleAdmissionExpiredError(error)) return;
         errorMessage.value = readErrorMessage(error, "拍照链接暂时无法打开。");
         handoff.value = null;
     } finally {
@@ -277,6 +281,7 @@ async function uploadCapture(): Promise<void> {
         stopCameraStream(stream.value);
         stream.value = null;
     } catch (error) {
+        if (handleAdmissionExpiredError(error)) return;
         errorMessage.value = readErrorMessage(error, "材料上传失败。");
     } finally {
         uploading.value = false;
@@ -296,6 +301,7 @@ async function chooseContinuation(
                 { continueOn },
             );
     } catch (error) {
+        if (handleAdmissionExpiredError(error)) return;
         errorMessage.value = readErrorMessage(error, "继续方式保存失败。");
     } finally {
         choosing.value = false;
@@ -304,6 +310,15 @@ async function chooseContinuation(
 
 function readErrorMessage(error: unknown, fallback: string): string {
     return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function handleAdmissionExpiredError(error: unknown): boolean {
+    if (!isAdmissionSessionExpiredError(error)) return false;
+    forceExpired.value = true;
+    errorMessage.value = "";
+    stopCameraStream(stream.value);
+    stream.value = null;
+    return true;
 }
 
 onBeforeUnmount(() => {

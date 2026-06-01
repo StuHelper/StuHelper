@@ -41,3 +41,13 @@ export function mapAdmissionApiError(error: unknown): AdmissionMappedState {
 export function isAdmissionTokenConsumedError(error: unknown): boolean {
   return error instanceof ApiError && error.code === 'admission.token_consumed'
 }
+
+export function isAdmissionSessionExpiredError(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    (
+      error.code === 'admission.token_consumed' ||
+      error.code === 'admission.token_expired'
+    )
+  )
+}

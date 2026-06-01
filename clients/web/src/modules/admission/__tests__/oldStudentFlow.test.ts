@@ -3,6 +3,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ApiError } from '@/api/errors'
 import {
   shouldShowFreshmanSubmission,
   type AdmissionSchoolOption,
@@ -125,6 +126,26 @@ describe('OldStudentVerificationFlow', () => {
       studentName: '张三',
     })
     expect(emailInput.element.value).toBe('20250001@buaa.edu.cn')
+  })
+
+  it('emits expired when the linked session has timed out during email OTP', async () => {
+    mockAdmissionApi.requestSchoolEmailOTP.mockRejectedValueOnce(
+      new ApiError({ code: 'admission.token_expired', message: 'expired' }),
+    )
+    const wrapper = mount(OldStudentVerificationFlow, {
+      props: {
+        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD?qq=123',
+        linked: true,
+        schools,
+      },
+    })
+
+    await wrapper.find('[data-academic-email-input]').setValue('student@example.edu')
+    await wrapper.find('[data-school-email-otp-request]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.emitted('expired')).toHaveLength(1)
+    expect(wrapper.text()).not.toContain('验证码发送失败')
   })
 })
 

@@ -4,6 +4,7 @@ import { ApiError } from '@/api/errors'
 
 import {
   buildAdmissionReturnURL,
+  isAdmissionSessionExpiredError,
   isAdmissionTokenConsumedError,
   mapAdmissionApiError,
 } from '../admissionToken'
@@ -42,6 +43,24 @@ describe('admission token return URL', () => {
     expect(
       isAdmissionTokenConsumedError(
         new ApiError({ code: 'admission.token_expired', message: 'expired' }),
+      ),
+    ).toBe(false)
+  })
+
+  it('detects terminal admission token errors for child flows', () => {
+    expect(
+      isAdmissionSessionExpiredError(
+        new ApiError({ code: 'admission.token_consumed', message: 'consumed' }),
+      ),
+    ).toBe(true)
+    expect(
+      isAdmissionSessionExpiredError(
+        new ApiError({ code: 'admission.token_expired', message: 'expired' }),
+      ),
+    ).toBe(true)
+    expect(
+      isAdmissionSessionExpiredError(
+        new ApiError({ code: 'A0000409', message: 'conflict' }),
       ),
     ).toBe(false)
   })

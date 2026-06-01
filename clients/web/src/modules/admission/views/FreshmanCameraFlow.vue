@@ -174,6 +174,7 @@ import type {
 } from '@stuhelper/shared/api'
 
 import { admissionApi } from '../api'
+import { isAdmissionSessionExpiredError } from '../admissionToken'
 import {
   captureFrameAsBase64,
   describeCameraCaptureError,
@@ -192,6 +193,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
+  expired: []
   submitted: [application: FreshmanApplication]
 }>()
 
@@ -342,6 +344,7 @@ async function submitFreshmanMaterial(): Promise<void> {
     )
     emit('submitted', reviewed)
   } catch (error) {
+    if (handleAdmissionExpiredError(error)) return
     errorMessage.value = readErrorMessage(error, '材料提交失败。')
   } finally {
     submitting.value = false
@@ -367,6 +370,7 @@ async function startMobileHandoff(): Promise<void> {
     await applyFreshmanCameraHandoff(nextHandoff)
     startHandoffStatusUpdates()
   } catch (error) {
+    if (handleAdmissionExpiredError(error)) return
     errorMessage.value = readErrorMessage(error, '手机拍照链接生成失败。')
   } finally {
     handoffBusy.value = false
@@ -460,8 +464,17 @@ async function refreshHandoff(): Promise<void> {
       await admissionApi.getFreshmanCameraHandoff(current.id),
     )
   } catch (error) {
+    if (handleAdmissionExpiredError(error)) return
     errorMessage.value = readErrorMessage(error, '手机拍照状态刷新失败。')
   }
+}
+
+function handleAdmissionExpiredError(error: unknown): boolean {
+  if (!isAdmissionSessionExpiredError(error)) return false
+  emit('expired')
+  stopHandoffPolling()
+  stopHandoffStatusUpdates()
+  return true
 }
 
 function buildFreshmanApplicationPayload() {

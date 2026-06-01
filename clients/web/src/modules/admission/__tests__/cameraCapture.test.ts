@@ -3,6 +3,7 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "@/api/errors";
 import {
     buildCameraConstraints,
     captureFrameAsBase64,
@@ -342,6 +343,40 @@ describe("FreshmanCameraFlow material capture UI", () => {
         );
 
         wrapper.unmount();
+    });
+
+    it("emits expired when the linked admission session expires while creating material flow", async () => {
+        mockAdmissionApi.submitFreshmanApplication.mockRejectedValueOnce(
+            new ApiError({ code: "admission.token_expired", message: "expired" }),
+        );
+        const wrapper = mount(FreshmanCameraFlow, {
+            props: {
+                maxMaterialBytes: 1024,
+                schools: [
+                    {
+                        schoolID: 1001,
+                        schoolCode: "4111010006",
+                        schoolName: "北京航空航天大学",
+                        verificationMethod: "manual",
+                        enabled: true,
+                    },
+                ],
+            },
+        });
+        await flushPromises();
+        await wrapper
+            .find("[data-freshman-school-select]")
+            .setValue("4111010006");
+        await wrapper
+            .find("[data-freshman-applicant-name-input]")
+            .setValue("张三");
+        await wrapper
+            .find("[data-freshman-mobile-handoff-button]")
+            .trigger("click");
+        await flushPromises();
+
+        expect(wrapper.emitted("expired")).toHaveLength(1);
+        expect(wrapper.text()).not.toContain("手机拍照链接生成失败");
     });
 
     it("blocks desktop submission after mobile upload while continuation is undecided", async () => {

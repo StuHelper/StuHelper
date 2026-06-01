@@ -214,6 +214,26 @@ describe('AdmissionPage edge states', () => {
     )
     expect(wrapper.find('[data-state="error"]').exists()).toBe(false)
   })
+
+  it('moves to expired when linked resources report an expired admission session', async () => {
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('joined_muted'),
+    )
+    mockAdmissionApi.linkAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('linked'),
+    )
+    mockAdmissionApi.getAdmissionMe.mockRejectedValueOnce(
+      new ApiError({ code: 'admission.token_expired', message: 'expired' }),
+    )
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+    await wrapper.get('button.primary-button').trigger('click')
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.find('[data-state="expired"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('链接已失效')
+  })
 })
 
 function sessionWithStatus(status: AdmissionSession['status']): AdmissionSession {

@@ -109,12 +109,14 @@
             :current-return-url="currentAdmissionURL()"
             :linked="pageState === 'linked'"
             :schools="admissionSchools"
+            @expired="handleAdmissionExpired"
             @verified="handleOldStudentVerified"
           />
           <FreshmanCameraFlow
             v-else-if="showFreshmanSubmission"
             :max-material-bytes="session?.maxMaterialBytes"
             :schools="admissionSchools"
+            @expired="handleAdmissionExpired"
             @submitted="markPendingReview"
           />
           <div
@@ -178,6 +180,7 @@ import {
 import {
   buildAdmissionReturnURL,
   isAdmissionTokenConsumedError,
+  isAdmissionSessionExpiredError,
   mapAdmissionApiError,
 } from '../admissionToken'
 import {
@@ -247,6 +250,10 @@ function scheduleLinkedResourcesLoad(options?: { refreshAdmission?: boolean }): 
 }
 
 function handleLinkedResourcesLoadError(error: unknown): void {
+  if (isAdmissionSessionExpiredError(error)) {
+    handleAdmissionExpired()
+    return
+  }
   if (pageState.value === 'linked') {
     linkedResourceErrorMessage.value = readErrorMessage(
       error,
@@ -378,6 +385,10 @@ function startReauthentication() {
 
 function markPendingReview() {
   pageState.value = 'pendingReview'
+}
+
+function handleAdmissionExpired() {
+  pageState.value = 'expired'
 }
 
 function handleOldStudentVerified(nextAdmission: AdmissionMe) {
