@@ -261,12 +261,13 @@ curl -fsSI 'https://stuhelper.com/verify/__manual_probe__?qq=10000' # 应 404
 ./infra/ops/admission-reviewer-readiness.sh
 ./infra/ops/admission-mvp-production-evidence.sh
 ./infra/ops/tencent-ses-template-smoke.sh
+RESEND_EMAIL_SMOKE_TO=<recipient-email> ./infra/ops/resend-email-channel-smoke.sh
 ./infra/ops/smoke-check.sh
 ./infra/ops/open-platform-production-evidence.sh
 ./infra/ops/observability-smoke-check.sh
 ```
 
-学校邮箱 OTP 邮件使用多提供商驱动。生产配置应保持 `EMAIL_DRIVER=multi`、`EMAIL_FROM=noreply@notify.stuhelper.com`、`EMAIL_FROM_NAME=StuHelper 系统邮件`、`EMAIL_STUDENT_VERIFICATION_SUBJECT=学生认证验证码`、`EMAIL_TENCENT_TEMPLATE_ID=49779`、`EMAIL_RESEND_ENDPOINT=https://api.resend.com/emails`；`EMAIL_TENCENT_SECRET_ID`、`EMAIL_TENCENT_SECRET_KEY` 与 `EMAIL_RESEND_API_KEY` 只能放在 `.env.prod.secrets.local` 或部署 secret store。默认发送策略来自 `system_configs.email.delivery_policy`：腾讯云 SES `priority=10` 先发，Resend `priority=20` 作为故障兜底；如需负载均衡，把策略 `mode` 改为 `weighted` 并把多个 provider 设为同一优先级。`tencent-ses-template-smoke.sh` 不发送邮件，只调用 `GetEmailTemplate` 确认腾讯云凭据、地域、模板 ID 和审核状态，证据写入 `infra/generated/tencent-ses-template-smoke.json`。Resend 不使用腾讯云模板，后端按 Resend Email API 直接发送 HTML/text。
+学校邮箱 OTP 邮件使用多提供商驱动。生产配置应保持 `EMAIL_DRIVER=multi`、`EMAIL_FROM=noreply@notify.stuhelper.com`、`EMAIL_FROM_NAME=StuHelper 系统邮件`、`EMAIL_STUDENT_VERIFICATION_SUBJECT=学生认证验证码`、`EMAIL_TENCENT_TEMPLATE_ID=49779`、`EMAIL_RESEND_ENDPOINT=https://api.resend.com/emails`；`EMAIL_TENCENT_SECRET_ID`、`EMAIL_TENCENT_SECRET_KEY` 与 `EMAIL_RESEND_API_KEY` 只能放在 `.env.prod.secrets.local` 或部署 secret store。默认发送策略来自 `system_configs.email.delivery_policy`：腾讯云 SES `priority=10` 先发，Resend `priority=20` 作为故障兜底；如需负载均衡，把策略 `mode` 改为 `weighted` 并把多个 provider 设为同一优先级。`tencent-ses-template-smoke.sh` 不发送邮件，只调用 `GetEmailTemplate` 确认腾讯云凭据、地域、模板 ID 和审核状态，证据写入 `infra/generated/tencent-ses-template-smoke.json`。`resend-email-channel-smoke.sh` 会真实发送一封测试邮件，必须显式传入 `RESEND_EMAIL_SMOKE_TO`；它复用 `infra/email-templates/tencent-ses/stuhelper-school-email-otp.html` 和 `.txt` 渲染 Resend `html`/`text` 字段，证据只记录收件域名、收件地址哈希前缀和 Resend email ID，不输出 API key 或完整收件地址。
 
 `sso-public-smoke.sh` 不只检查 discovery/JWKS/authorize 路由，也会读取公开 Casdoor application 元数据并断言 `admin/stuhelper-web` 仍为 `organization=stuhelper`、`enableSignUp=true`、`Password` 登录方式为 `All`、`Face ID` 为 `None`，且注册项包含必填的 `Password` 与 `Confirm password`。如果这里失败，先运行仓库内 `bootstrap-platform.sh prod` 修复 Casdoor 配置漂移，不要在 Casdoor 控制台手工改完就结束。
 

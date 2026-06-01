@@ -44,6 +44,16 @@ do not commit real values.
 Tencent template ID; StuHelper sends HTML directly through Resend and keeps
 Tencent SES as the priority provider by default.
 
+For a real Resend channel smoke, run:
+
+```bash
+RESEND_EMAIL_SMOKE_TO=<recipient-email> ./infra/ops/resend-email-channel-smoke.sh
+```
+
+The smoke sends `stuhelper-school-email-otp.html` as Resend `html` and
+`stuhelper-school-email-otp.txt` as Resend `text`. The generated evidence stores
+only the recipient domain, recipient hash prefix, and Resend email ID.
+
 Template variables:
 
 ```text
@@ -80,3 +90,4 @@ Relevant Tencent Cloud documentation:
 - `SendEmail` template example: https://cloud.tencent.com/document/api/1288/51034
 - `GetEmailTemplate` status and Base64 response fields: https://cloud.tencent.com/document/api/1288/51040
 - `UpdateEmailTemplate` example: https://cloud.tencent.com/document/api/1288/51038
+- Resend send email API: https://resend.com/docs/api-reference/emails/send-email

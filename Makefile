@@ -1,4 +1,4 @@
-.PHONY: help bootstrap-dev-ubuntu2404 dev dev-init dev-up dev-docker-up dev-down dev-reset dev-smoke dev-status dev-logs e2e e2e-web e2e-admin e2e-uni e2e-koishi obs-up obs-down obs-smoke prod-init prod-render prod-deploy prod-rollback deploy prod-down prod-reset prod-smoke prod-sso-smoke prod-tencent-ses-smoke prod-admission-reviewer-readiness prod-admission-mvp-evidence prod-admission-mvp-final-evidence prod-admission-mvp-final-koishi-evidence prod-admission-mvp-final-verify prod-open-platform-evidence prod-backup-evidence prod-parity-ingress prod-parity-up prod-parity-down prod-parity-reset prod-parity-smoke prod-parity-datastore-smoke prod-parity-browser-smoke prod-parity-admission-e2e deploy-bundle ansible-bootstrap ansible-deploy-staging ansible-deploy-prod ansible-rollback-staging ansible-rollback-prod check-docs check-admission-mvp check-infra-contracts check-semgrep-custom
+.PHONY: help bootstrap-dev-ubuntu2404 dev dev-init dev-up dev-docker-up dev-down dev-reset dev-smoke dev-status dev-logs e2e e2e-web e2e-admin e2e-uni e2e-koishi obs-up obs-down obs-smoke prod-init prod-render prod-deploy prod-rollback deploy prod-down prod-reset prod-smoke prod-sso-smoke prod-tencent-ses-smoke prod-resend-email-smoke prod-admission-reviewer-readiness prod-admission-mvp-evidence prod-admission-mvp-final-evidence prod-admission-mvp-final-koishi-evidence prod-admission-mvp-final-verify prod-open-platform-evidence prod-backup-evidence prod-parity-ingress prod-parity-up prod-parity-down prod-parity-reset prod-parity-smoke prod-parity-datastore-smoke prod-parity-browser-smoke prod-parity-admission-e2e deploy-bundle ansible-bootstrap ansible-deploy-staging ansible-deploy-prod ansible-rollback-staging ansible-rollback-prod check-docs check-admission-mvp check-infra-contracts check-semgrep-custom
 
 .DEFAULT_GOAL := help
 
@@ -47,6 +47,7 @@ help:
 	@echo "  make prod-smoke  - run app + observability smoke checks"
 	@echo "  make prod-sso-smoke - verify public sso.stuhelper.com OIDC ingress"
 	@echo "  make prod-tencent-ses-smoke - verify Tencent SES template credentials/status without sending email"
+	@echo "  make prod-resend-email-smoke - send a Resend HTML OTP smoke email with the approved StuHelper template"
 	@echo "  make prod-admission-reviewer-readiness - verify freshman reviewer QQ binding/capability without mutating data"
 	@echo "  make prod-admission-mvp-evidence - collect admission MVP production smoke evidence"
 	@echo "  make prod-admission-mvp-final-evidence - require fresh real QQ bot-released evidence"
@@ -160,6 +161,9 @@ prod-sso-smoke:
 
 prod-tencent-ses-smoke:
 	$(PROD_RUNTIME_ENV) ./infra/ops/tencent-ses-template-smoke.sh
+
+prod-resend-email-smoke:
+	$(PROD_RUNTIME_ENV) ./infra/ops/resend-email-channel-smoke.sh
 
 prod-admission-reviewer-readiness:
 	$(PROD_RUNTIME_ENV) ./infra/ops/admission-reviewer-readiness.sh
