@@ -137,6 +137,41 @@ func TestAdmissionTokenConsumedResumeRejectsExpiredSubmissionWindow(t *testing.T
 	require.ErrorIs(t, err, ErrAdmissionTokenExpired)
 }
 
+func TestAdmissionTokenConsumedResumeAllowsSubmittedAndVerifiedSessions(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createLinkableSession(t, svc)
+	userID := seedAdmissionUser(t, fixture, "idempotent-link-submitted")
+
+	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+	_, err = svc.MarkMaterialSubmitted(context.Background(), created.Session.ID)
+	require.NoError(t, err)
+
+	submitted, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, StatusMaterialSubmitted, submitted.Status)
+
+	_, err = svc.MarkVerified(context.Background(), created.Session.ID)
+	require.NoError(t, err)
+	verified, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, StatusVerified, verified.Status)
+}
+
 func TestAdmissionTokenLinkConsumedByAnotherUserStillRejected(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)
@@ -220,6 +255,9 @@ func TestRegenerateBotAdmissionSessionCancelsInProgressSession(t *testing.T) {
 	assert.Equal(t, "https://join.stuhelper.com/verify/test-admission-token-2?qq=10001", regenerated.AuthURL)
 	assert.Equal(t, StatusJoinedMuted, regenerated.Session.Status)
 	assertAdmissionSessionStatus(t, fixture, created.Session.ID, StatusCancelled)
+
+	_, err = svc.PreviewToken(context.Background(), created.Token, "10001")
+	require.ErrorIs(t, err, ErrAdmissionTokenExpired)
 
 	latest, err := svc.GetBotAdmissionSession(context.Background(), BotSessionSubjectInput{
 		Platform: "qq",

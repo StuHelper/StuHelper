@@ -133,7 +133,7 @@ func (s *Service) LinkTokenToUser(ctx context.Context, input AdmissionTokenLinkI
 		}
 		if err := s.validateTokenSession(session, input.QQQuery); err != nil {
 			if errors.Is(err, ErrAdmissionTokenConsumed) && sessionLinkedToUser(session, input.UserID) {
-				if err := s.ensureLinkedSessionAcceptsSubmission(session); err != nil {
+				if err := s.ensureConsumedSessionCanResume(session); err != nil {
 					return err
 				}
 				linked = session
@@ -236,6 +236,25 @@ func sessionLinkedToUser(session *AdmissionSession, userID int64) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func (s *Service) ensureConsumedSessionCanResume(session *AdmissionSession) error {
+	if session == nil {
+		return ErrAdmissionSessionNotFound
+	}
+	switch session.Status {
+	case StatusLinked:
+		return s.ensureLinkedSessionAcceptsSubmission(session)
+	case StatusMaterialSubmitted:
+		if session.ManualReviewDeadlineAt != nil && s.now().After(*session.ManualReviewDeadlineAt) {
+			return ErrAdmissionTokenExpired
+		}
+		return nil
+	case StatusVerified:
+		return nil
+	default:
+		return ErrAdmissionTokenExpired
 	}
 }
 
@@ -445,6 +464,9 @@ func (s *Service) validateTokenSession(session *AdmissionSession, qqQuery string
 	}
 	if query := strings.TrimSpace(qqQuery); query != "" && query != session.QQID {
 		return ErrAdmissionQQMismatch
+	}
+	if session.Status == StatusCancelled || session.Status == StatusExpiredKicked {
+		return ErrAdmissionTokenExpired
 	}
 	if session.TokenConsumedAt != nil || session.Status != StatusJoinedMuted {
 		return ErrAdmissionTokenConsumed
