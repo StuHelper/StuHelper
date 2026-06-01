@@ -235,6 +235,7 @@ async function requestEmailOTP(): Promise<void> {
 }
 
 async function verifyEmailOTP(): Promise<void> {
+  if (submitting.value) return
   errorMessage.value = ''
   submitting.value = true
   try {

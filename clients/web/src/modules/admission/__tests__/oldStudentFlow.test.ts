@@ -38,6 +38,16 @@ const schools: AdmissionSchoolOption[] = [
   },
 ]
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, reject, resolve }
+}
+
 describe('OldStudentVerificationFlow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -146,6 +156,44 @@ describe('OldStudentVerificationFlow', () => {
 
     expect(wrapper.emitted('expired')).toHaveLength(1)
     expect(wrapper.text()).not.toContain('验证码发送失败')
+  })
+
+  it('prevents duplicate email OTP verification submits while one request is pending', async () => {
+    const verifyDeferred = createDeferred({
+      status: 'verified',
+      projectionPending: false,
+      credentialKind: 'school_email_otp',
+    })
+    mockAdmissionApi.verifySchoolEmailOTP.mockReturnValue(verifyDeferred.promise)
+    const wrapper = mount(OldStudentVerificationFlow, {
+      props: {
+        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD?qq=123',
+        linked: true,
+        schools,
+      },
+    })
+    await wrapper.find('[data-academic-email-input]').setValue('student@example.edu')
+    await wrapper.findAll('input').at(-1)!.setValue('123456')
+
+    await wrapper.find('[data-school-email-otp-form]').trigger('submit')
+    await wrapper.find('[data-school-email-otp-form]').trigger('submit')
+    await flushPromises()
+
+    expect(mockAdmissionApi.verifySchoolEmailOTP).toHaveBeenCalledTimes(1)
+    expect(mockAdmissionApi.verifySchoolEmailOTP).toHaveBeenCalledWith({
+      schoolCode: '4111010006',
+      email: 'student@example.edu',
+      code: '123456',
+    })
+
+    verifyDeferred.resolve({
+      status: 'verified',
+      projectionPending: false,
+      credentialKind: 'school_email_otp',
+    })
+    await flushPromises()
+
+    expect(wrapper.emitted('verified')).toHaveLength(1)
   })
 })
 
