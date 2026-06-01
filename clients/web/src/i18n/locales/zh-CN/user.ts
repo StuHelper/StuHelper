@@ -26,7 +26,7 @@ export default {
         },
         identityVerification: {
             title: "实名认证",
-            description: "维护真实身份认证状态，作为学生认证和敏感授权的基础。",
+            description: "维护真实身份认证状态，用于需要实名的敏感能力。",
         },
         studentVerification: {
             title: "学生认证",
@@ -91,7 +91,7 @@ export default {
             actionsLabel: "认证入口",
             identity: {
                 title: "实名认证",
-                description: "维护真实身份认证状态，作为学生认证和敏感授权的基础。",
+                description: "维护真实身份认证状态，用于需要实名的敏感能力。",
             },
             student: {
                 title: "学生认证",
@@ -161,7 +161,7 @@ export default {
         },
         identity: {
             title: "实名认证",
-            description: "维护真实身份认证状态，作为学生认证和敏感授权的基础。",
+            description: "维护真实身份认证状态，用于需要实名的敏感能力。",
         },
         student: {
             title: "学生认证",
@@ -286,6 +286,7 @@ export default {
             studentId: "学号",
             password: "统一身份认证密码",
             consent: "我已阅读并同意",
+            consentPlain: "我确认提交的信息真实有效，并同意用于学生身份认证",
             consentText: "风险告知书",
             verify: "验证",
             identityRequired: "该能力需要先完成实名认证",

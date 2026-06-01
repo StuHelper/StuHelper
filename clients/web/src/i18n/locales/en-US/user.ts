@@ -28,7 +28,7 @@ export default {
         identityVerification: {
             title: "Identity Verification",
             description:
-                "Maintain real-name verification as the base for student verification and sensitive authorization.",
+                "Maintain real-name verification for sensitive features that require it.",
         },
         studentVerification: {
             title: "Student Verification",
@@ -99,7 +99,7 @@ export default {
             identity: {
                 title: "Identity Verification",
                 description:
-                    "Maintain real-name verification as the base for student verification and sensitive authorization.",
+                    "Maintain real-name verification for sensitive features that require it.",
             },
             student: {
                 title: "Student Verification",
@@ -176,7 +176,7 @@ export default {
         identity: {
             title: "Identity Verification",
             description:
-                "Maintain real-name verification as the base for student verification and sensitive authorization.",
+                "Maintain real-name verification for sensitive features that require it.",
         },
         student: {
             title: "Student Verification",
@@ -305,6 +305,8 @@ export default {
             studentId: "Student ID",
             password: "Unified Auth Password",
             consent: "I have read and agree to",
+            consentPlain:
+                "I confirm the submitted information is accurate and agree to use it for student verification",
             consentText: "the Risk Disclosure",
             verify: "Verify",
             identityRequired:

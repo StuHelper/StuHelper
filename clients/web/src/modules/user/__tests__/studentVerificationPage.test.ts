@@ -235,4 +235,67 @@ describe("StudentVerificationPage", () => {
         expect(submitButton.element.disabled).toBe(true);
         expect(mockIdentityApi.verifyStudentEmailOTP).not.toHaveBeenCalled();
     });
+
+    it("requires explicit consent even when the school has no custom consent text", async () => {
+        mockIdentityApi.listSchools.mockResolvedValueOnce({
+            data: {
+                data: [
+                    {
+                        schoolID: 10007,
+                        schoolCode: "4111010007",
+                        schoolName: "测试大学",
+                        verificationMethod: "manual",
+                        approvalPolicy: "manual",
+                        consentText: null,
+                        manualFormFields: null,
+                        enabled: true,
+                        schoolSsoEnabled: false,
+                        schoolEmailOtpEnabled: false,
+                    },
+                ],
+            },
+        });
+        mockIdentityApi.verifyStudent.mockResolvedValue({
+            data: {
+                data: {
+                    ...verifiedProfile(),
+                    schoolID: 10007,
+                    verificationStatus: "pending",
+                    verificationMethod: "manual",
+                },
+            },
+        });
+
+        const wrapper = mount(StudentVerificationPage, {
+            global: {
+                plugins: [pinia],
+            },
+        });
+        await flushPromises();
+
+        await wrapper
+            .find("[data-student-school-select]")
+            .setValue("4111010007");
+        await flushPromises();
+
+        const submitButton = wrapper.find<HTMLButtonElement>(
+            "[data-student-verification-submit]",
+        );
+        expect(wrapper.find("[data-student-consent-checkbox]").exists()).toBe(true);
+        expect(wrapper.text()).toContain("user.verification.student.consentPlain");
+        expect(submitButton.element.disabled).toBe(true);
+
+        await wrapper.find("[data-student-consent-checkbox]").setValue(true);
+        expect(submitButton.element.disabled).toBe(false);
+        await submitButton.trigger("click");
+        await flushPromises();
+
+        expect(mockIdentityApi.verifyStudent).toHaveBeenCalledWith({
+            schoolCode: "4111010007",
+            studentID: undefined,
+            password: undefined,
+            manualFormData: undefined,
+            consent: true,
+        });
+    });
 });

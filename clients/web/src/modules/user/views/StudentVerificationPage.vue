@@ -346,7 +346,6 @@
 
                 <!-- Consent checkbox -->
                 <label
-                    v-if="selectedSchool.consentText"
                     class="flex items-start gap-2 mb-5 cursor-pointer text-sm text-text-secondary"
                 >
                     <input
@@ -355,7 +354,13 @@
                         data-student-consent-checkbox
                         class="mt-0.5 accent-primary"
                     />
-                    <span>{{ t("user.verification.student.consent") }}</span>
+                    <span>
+                        {{
+                            selectedSchool.consentText
+                                ? t("user.verification.student.consent")
+                                : t("user.verification.student.consentPlain")
+                        }}
+                    </span>
                 </label>
 
                 <!-- Submit button -->
@@ -450,7 +455,7 @@ const canRequestEmailOTP = computed(() => {
 
 const canSubmit = computed(() => {
     if (!selectedSchool.value) return false;
-    if (selectedSchool.value.consentText && !form.consent) return false;
+    if (!form.consent) return false;
 
     if (selectedSchoolRequiresAcademicEmail.value) {
         return canRequestEmailOTP.value && form.email.trim() !== "" && form.emailCode.trim() !== "";
