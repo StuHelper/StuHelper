@@ -51,7 +51,9 @@ const screenshotDir =
   process.env.PROD_PARITY_BROWSER_SMOKE_SCREENSHOT_DIR || dirname(evidenceFile);
 const criticalResourceTypes = new Set(['document', 'font', 'image', 'script', 'stylesheet']);
 const telemetryRoutePattern = /\/api\/v1\/metrics\/(?:frontend-errors|vitals)(?:\?|$)/;
+const notificationSSEPath = '/api/v1/course/review/user/notifications/stream';
 const bootstrapFallbackTexts = ['应用启动失败', 'App startup failed'];
+const closeTimeoutMs = Number(process.env.PROD_PARITY_BROWSER_SMOKE_CLOSE_TIMEOUT_MS || 5000);
 const viewportVariants = [
   {
     name: 'desktop',
@@ -931,7 +933,7 @@ try {
   });
 } finally {
   if (browser) {
-    await browser.close();
+    await closeBrowser(browser);
   }
 
   const evidence = {
@@ -961,6 +963,7 @@ async function runCheck(browser, check, viewportVariant) {
     hasTouch: viewportVariant.hasTouch,
     ignoreHTTPSErrors: true,
   });
+  await installSmokeBrowserStubs(context);
   const page = await context.newPage();
   const assetFailures = [];
   const apiFailures = [];
@@ -1173,7 +1176,87 @@ async function runCheck(browser, check, viewportVariant) {
       screenshot: relative(repoRoot, screenshotFile),
     };
   } finally {
-    await context.close();
+    await closeWithTimeout(`context.close ${checkName}`, () => context.close());
+  }
+}
+
+async function installSmokeBrowserStubs(context) {
+  await context.addInitScript(({ notificationSSEPath }) => {
+    const nativeEventSource = window.EventSource;
+    if (!nativeEventSource || window.__stuhelperProdParityEventSourcePatched) {
+      return;
+    }
+
+    Object.defineProperty(window, '__stuhelperProdParityEventSourcePatched', {
+      value: true,
+      configurable: false,
+      enumerable: false,
+      writable: false,
+    });
+
+    class SmokeEventSource extends EventTarget {
+      static CONNECTING = nativeEventSource.CONNECTING ?? 0;
+      static OPEN = nativeEventSource.OPEN ?? 1;
+      static CLOSED = nativeEventSource.CLOSED ?? 2;
+
+      constructor(url, eventSourceInitDict) {
+        super();
+        const resolved = new URL(String(url), window.location.href);
+        if (resolved.pathname !== notificationSSEPath) {
+          return new nativeEventSource(url, eventSourceInitDict);
+        }
+        this.url = resolved.href;
+        this.withCredentials = Boolean(eventSourceInitDict?.withCredentials);
+        this.readyState = SmokeEventSource.CLOSED;
+        this.onopen = null;
+        this.onmessage = null;
+        this.onerror = null;
+      }
+
+      close() {
+        this.readyState = SmokeEventSource.CLOSED;
+      }
+    }
+
+    window.EventSource = SmokeEventSource;
+  }, { notificationSSEPath });
+}
+
+async function closeBrowser(browser) {
+  const browserProcess = typeof browser.process === 'function' ? browser.process() : null;
+  const closed = await closeWithTimeout('browser.close', () => browser.close());
+  if (
+    !closed &&
+    browserProcess &&
+    browserProcess.exitCode === null &&
+    !browserProcess.killed
+  ) {
+    browserProcess.kill('SIGTERM');
+  }
+}
+
+async function closeWithTimeout(label, closeFn) {
+  let timer;
+  try {
+    await Promise.race([
+      closeFn(),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error(`${label} timed out after ${closeTimeoutMs}ms`));
+        }, closeTimeoutMs);
+        timer.unref?.();
+      }),
+    ]);
+    return true;
+  } catch (error) {
+    console.warn(
+      `[prod-parity-browser-smoke] ${label} failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return false;
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 
