@@ -1,7 +1,7 @@
 ---
 type: guide
 audience: backend-dev, ops
-status: superseded
+status: deprecated
 authoritative-source: docs/design/open-platform-v1.md
 last-verified: 2026-05-30
 superseded-by: docs/design/open-platform-v1.md

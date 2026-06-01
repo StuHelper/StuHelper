@@ -47,8 +47,9 @@ last-verified: 2026-05-09
 6. [design/open-platform-v1.md](design/open-platform-v1.md) — 第三方应用接入、用户授权与最小化披露
 7. [design/storage-architecture.md](design/storage-architecture.md) — 存储抽象与驱动
 8. [design/security-model.md](design/security-model.md) — 安全措施
-9. [guides/koishi-development.md](guides/koishi-development.md) — 机器人子系统边界与开发入口
-10. [adr/](adr/) — 单项架构决策
+9. [design/admission-flow-review.md](design/admission-flow-review.md) — 入群认证审查结论、验收分层与后续决策
+10. [guides/koishi-development.md](guides/koishi-development.md) — 机器人子系统边界与开发入口
+11. [adr/](adr/) — 单项架构决策
 
 ### 我要**运维 / 发布 / 排障**
 
