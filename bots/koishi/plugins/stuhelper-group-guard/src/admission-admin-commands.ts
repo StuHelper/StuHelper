@@ -16,6 +16,7 @@ import { backendSyncUpdate } from './member-records'
 import type { GuardMemberStore } from './store'
 
 const DEFAULT_ADMISSION_COMMAND_AUTHORITY = 4
+const DUPLICATE_COMMAND_SUPPRESS_MS = 30_000
 
 interface AdmissionAdminCommandDeps {
   readonly platform: PlatformClient
@@ -35,6 +36,8 @@ interface AdmissionCommandContext {
 }
 
 export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdminCommandDeps) {
+  const commandDeduper = new AdmissionAdminCommandDeduper()
+
   ctx.command('查询入群认证 <qqID>', '查询指定 QQ 的入群认证状态')
     .action(({ session }, qqID) => runAdmissionCommand(async () => {
       const command = await resolveAdmissionCommandContext(session, qqID, deps)
@@ -47,25 +50,76 @@ export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdmi
     .action(({ session }, qqID) => runAdmissionCommand(async () => {
       const command = await resolveAdmissionCommandContext(session, qqID, deps)
       if (typeof command === 'string') return command
-      const admission = await deps.platform.resendAdmissionSessionLink(admissionSubject(command))
-      return sendAdmissionReminderForCommand(command, deps, admission)
+      const dedupeKey = admissionCommandDedupeKey('resend', command)
+      if (!commandDeduper.claim(dedupeKey)) return
+      try {
+        const admission = await deps.platform.resendAdmissionSessionLink(admissionSubject(command))
+        return sendAdmissionReminderForCommand(command, deps, admission)
+      } catch (error) {
+        commandDeduper.forget(dedupeKey)
+        throw error
+      }
     }))
 
   ctx.command('重新生成认证链接 <qqID>', '取消旧会话并重新生成入群认证链接')
     .action(({ session }, qqID) => runAdmissionCommand(async () => {
       const command = await resolveAdmissionCommandContext(session, qqID, deps)
       if (typeof command === 'string') return command
-      const created = await deps.platform.regenerateAdmissionSessionLink({
-        platform: command.platform,
-        guildID: command.guildID,
-        channelID: command.channelID,
-        qqID: command.qqID,
-        botSelfID: command.botSelfID,
-      })
-      await resetMemberMute(command.session, created.session)
-      await updateLocalAdmissionRecord(command, deps.guardStore, created)
-      return sendAdmissionReminderForCommand(command, deps, created.session)
+      const dedupeKey = admissionCommandDedupeKey('regenerate', command)
+      if (!commandDeduper.claim(dedupeKey)) return
+      try {
+        const created = await deps.platform.regenerateAdmissionSessionLink({
+          platform: command.platform,
+          guildID: command.guildID,
+          channelID: command.channelID,
+          qqID: command.qqID,
+          botSelfID: command.botSelfID,
+        })
+        await resetMemberMute(command.session, created.session)
+        await updateLocalAdmissionRecord(command, deps.guardStore, created)
+        return sendAdmissionReminderForCommand(command, deps, created.session)
+      } catch (error) {
+        commandDeduper.forget(dedupeKey)
+        throw error
+      }
     }))
+}
+
+class AdmissionAdminCommandDeduper {
+  private readonly claimedAtByKey = new Map<string, number>()
+
+  claim(key: string, now = new Date()) {
+    const current = now.getTime()
+    const claimedAt = this.claimedAtByKey.get(key)
+    if (claimedAt !== undefined && current - claimedAt <= DUPLICATE_COMMAND_SUPPRESS_MS) {
+      return false
+    }
+    this.claimedAtByKey.set(key, current)
+    this.prune(current)
+    return true
+  }
+
+  forget(key: string) {
+    this.claimedAtByKey.delete(key)
+  }
+
+  private prune(nowMs: number) {
+    for (const [key, claimedAt] of this.claimedAtByKey) {
+      if (nowMs - claimedAt > DUPLICATE_COMMAND_SUPPRESS_MS) {
+        this.claimedAtByKey.delete(key)
+      }
+    }
+  }
+}
+
+function admissionCommandDedupeKey(action: 'resend' | 'regenerate', command: AdmissionCommandContext) {
+  return JSON.stringify([
+    action,
+    command.platform,
+    command.botSelfID,
+    command.guildID,
+    command.qqID,
+  ])
 }
 
 async function resolveAdmissionCommandContext(

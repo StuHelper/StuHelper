@@ -239,6 +239,62 @@ test('入群认证管理员命令可以查询、重发和重新生成认证链�
   }
 })
 
+test('入群认证管理员命令会抑制短时间重复重新生成链接', async () => {
+  const requests: CapturedAdmissionAdminRequest[] = []
+  const server = createServer((req, res) => respondAdmissionAdminRequest(req, res, requests))
+  await new Promise<void>((resolve) => server.listen(0, resolve))
+  const address = server.address()
+  assert.ok(address && typeof address === 'object')
+
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-commands-'))
+  const muteActions: Array<{ guildId: string, memberId: string, duration: number }> = []
+
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(commands)
+  runtime.register(MockBot, { selfId: '514' })
+  runtime.register(groupGuardPlugin, createGroupGuardConfig({
+    platform: {
+      baseUrl: `http://127.0.0.1:${address.port}`,
+      serviceToken: 'test-token',
+    },
+    commands: { enabled: false },
+    moderation: { enabled: false },
+    freshmanForward: { enabled: false },
+    scheduler: { scanIntervalSeconds: 3600 },
+  }))
+
+  try {
+    await root.start()
+    await root.mock.initUser('90001', 5)
+    await root.mock.initChannel('group-1')
+    const bot = root.bots[0] as unknown as Universal.Methods & { platform?: string }
+    bot.platform = 'onebot'
+    bot.muteGuildMember = async (guildId, memberId, duration) => {
+      muteActions.push({ guildId, memberId, duration })
+    }
+
+    await root.database.create(GUARD_MEMBER_TABLE, activeAdmissionGuardRecord())
+    const client = root.mock.client('90001', 'group-1')
+
+    const firstReplies = await client.receive('重新生成认证链接 10001')
+    assert.equal(firstReplies.length, 1)
+    assert.match(firstReplies[0], /https:\/\/join\.stuhelper\.com\/verify\/token-new\?qq=10001/)
+
+    const duplicateReplies = await client.receive('重新生成认证链接 10001')
+    assert.deepEqual(duplicateReplies, [])
+
+    assert.equal(requests.filter((item) => item.path === '/api/v1/bot/admission/sessions/member/regenerate').length, 1)
+    assert.equal(requests.filter((item) => item.path.endsWith('/events')).length, 1)
+    assert.equal(muteActions.length, 1)
+  } finally {
+    runtime.dispose()
+    await closeServer(server)
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
 function createGroupGuardConfig(overrides?: Partial<ReturnType<typeof createBaseGroupGuardConfig>>) {
   return {
     ...createBaseGroupGuardConfig(),
