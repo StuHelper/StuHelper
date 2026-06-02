@@ -32,6 +32,9 @@ assert_file_not_contains() {
 [[ -f "${BOOTSTRAP_SCRIPT}" ]] || { echo "missing admission bootstrap script: ${BOOTSTRAP_SCRIPT}" >&2; exit 1; }
 [[ -f "${SCHOOL_DIRECTORY_MIGRATION}" ]] || { echo "missing school directory migration: ${SCHOOL_DIRECTORY_MIGRATION}" >&2; exit 1; }
 
+legacy_buaa_school_id='1''0006'
+legacy_school_id_env='ADMISSION_BOOTSTRAP_SCHOOL_''ID'
+
 head -n 1 "${DIRECTORY_TSV}" | grep -Fx $'code\tname\tauthority\tlocation\teducation_level\tremark' >/dev/null || {
   echo "school directory TSV header is invalid" >&2
   exit 1
@@ -50,14 +53,18 @@ assert_file_contains "${IMPORT_SCRIPT}" 'The imported directory is not an admiss
 assert_file_contains "${IMPORT_SCRIPT}" 'INSERT INTO public\.schools'
 assert_file_not_contains "${IMPORT_SCRIPT}" 'INSERT INTO public\.school_configs'
 assert_file_not_contains "${IMPORT_SCRIPT}" 'UPDATE public\.school_configs'
+assert_file_not_contains "${IMPORT_SCRIPT}" "WHERE id = ${legacy_buaa_school_id}"
 
 assert_file_contains "${BOOTSTRAP_SCRIPT}" 'ADMISSION_BOOTSTRAP_SCHOOL_CODE.*4111010006'
-assert_file_contains "${BOOTSTRAP_SCRIPT}" 'ADMISSION_BOOTSTRAP_SCHOOL_ID.*10006'
+assert_file_not_contains "${BOOTSTRAP_SCRIPT}" "${legacy_school_id_env}"
 assert_file_contains "${BOOTSTRAP_SCRIPT}" 'enabled = true'
 
 assert_file_contains "${SCHOOL_DIRECTORY_MIGRATION}" 'It is not an admission whitelist'
 assert_file_contains "${SCHOOL_DIRECTORY_MIGRATION}" "code = '4111010006'"
 assert_file_contains "${SCHOOL_DIRECTORY_MIGRATION}" "academic_db_table = 'academic.buaa_students'"
 assert_file_contains "${SCHOOL_DIRECTORY_MIGRATION}" "enabled = true"
-assert_file_contains "${SCHOOL_DIRECTORY_MIGRATION}" "school_id <> 10006"
+assert_file_contains "${SCHOOL_DIRECTORY_MIGRATION}" "school_id <> resolved_buaa_school.id"
+assert_file_not_contains "${SCHOOL_DIRECTORY_MIGRATION}" "WHERE id = ${legacy_buaa_school_id}"
+assert_file_not_contains "${SCHOOL_DIRECTORY_MIGRATION}" "WHERE school_id = ${legacy_buaa_school_id}"
+assert_file_not_contains "${SCHOOL_DIRECTORY_MIGRATION}" "school_id <> ${legacy_buaa_school_id}"
 assert_file_contains "${SCHOOL_DIRECTORY_MIGRATION}" "studentIDEmailDomain"

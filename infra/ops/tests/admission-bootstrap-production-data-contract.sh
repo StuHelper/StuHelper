@@ -29,6 +29,9 @@ for file in \
   [[ -f "${file}" ]] || fail "missing file: ${file}"
 done
 
+legacy_buaa_school_id='1''0006'
+legacy_school_id_env='ADMISSION_BOOTSTRAP_SCHOOL_''ID'
+
 bash -n "${BOOTSTRAP_SCRIPT}"
 
 assert_contains "${BOOTSTRAP_SCRIPT}" 'ADMISSION_BOOTSTRAP_DATABASE_URL'
@@ -40,7 +43,10 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'COMPOSE_PROJECT_NAME'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'REPLACE_WITH_STUHELPER_APP_DB_PASSWORD'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'urllib.parse.quote'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'ADMISSION_BOOTSTRAP_PLATFORM.*qq'
-assert_contains "${BOOTSTRAP_SCRIPT}" 'ADMISSION_BOOTSTRAP_SCHOOL_ID.*10006'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'ADMISSION_BOOTSTRAP_SCHOOL_CODE.*4111010006'
+if grep -Eq "${legacy_school_id_env}|school_id=${legacy_buaa_school_id}|internal school_id=${legacy_buaa_school_id}" "${BOOTSTRAP_SCRIPT}"; then
+  fail "bootstrap script must not expose five-digit BUAA school IDs as configuration"
+fi
 assert_contains "${BOOTSTRAP_SCRIPT}" 'ADMISSION_BOOTSTRAP_GROUP_IDS.*178037297'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'ADMISSION_BOOTSTRAP_EMAIL_DOMAINS.*buaa.edu.cn'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'ADMISSION_BOOTSTRAP_DISABLE_OTHER_SCHOOLS.*true'
@@ -52,7 +58,7 @@ assert_contains "${BOOTSTRAP_SCRIPT}" "emailIdentityPolicy"
 assert_contains "${BOOTSTRAP_SCRIPT}" "academic_student_email"
 assert_contains "${BOOTSTRAP_SCRIPT}" "academic_db_table = EXCLUDED.academic_db_table"
 assert_contains "${BOOTSTRAP_SCRIPT}" "disabled_other_school_configs"
-assert_contains "${BOOTSTRAP_SCRIPT}" "sc.school_id <> input.school_id"
+assert_contains "${BOOTSTRAP_SCRIPT}" "sc.school_id <> school_upsert.id"
 assert_contains "${BOOTSTRAP_SCRIPT}" "prune_other_group_policies"
 assert_contains "${BOOTSTRAP_SCRIPT}" "DELETE FROM public.group_admission_policies"
 assert_contains "${BOOTSTRAP_SCRIPT}" "forward_raw_material_to_qq = false"

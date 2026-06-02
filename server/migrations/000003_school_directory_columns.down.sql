@@ -1,14 +1,19 @@
 UPDATE public.schools
-SET code = '10006',
-    authority = NULL,
+SET authority = NULL,
     location = NULL,
     education_level = NULL,
     remark = NULL,
     source_name = NULL,
     source_as_of = NULL
-WHERE id = 10006;
+WHERE code = '4111010006';
 
-UPDATE public.school_configs
+WITH resolved_buaa_school AS (
+  SELECT id
+  FROM public.schools
+  WHERE code = '4111010006'
+  LIMIT 1
+)
+UPDATE public.school_configs sc
 SET verification_method = 'ldap',
     academic_db_table = 'academic.buaa_students',
     consent_text = '本功能将使用您提供的学号和密码通过学校统一身份认证系统验证您的学生身份。验证成功后，系统将读取您的姓名、院系、年级、手机号等学籍信息用于平台服务。您的密码不会被存储。',
@@ -16,7 +21,8 @@ SET verification_method = 'ldap',
     enabled = false,
     approval_policy = 'auto',
     updated_at = now()
-WHERE school_id = 10006;
+FROM resolved_buaa_school
+WHERE sc.school_id = resolved_buaa_school.id;
 
 ALTER TABLE public.user_profiles DROP CONSTRAINT IF EXISTS chk_user_profiles_method;
 ALTER TABLE public.user_profiles

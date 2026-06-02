@@ -30,7 +30,7 @@ Usage: infra/ops/admission-bootstrap-production-data.sh
 
 Idempotently prepares the minimal production data required by the admission MVP:
 
-  - BUAA admission config with school_code=4111010006 and internal school_id=10006
+  - BUAA admission config with school_code=4111010006
   - buaa.edu.cn as the only BUAA school email domain
   - qq group admission policy for 178037297
   - forward_raw_material_to_qq=false for the MVP
@@ -42,7 +42,6 @@ Input:
   GENERATED_ENV_FILE defaults to .env.prod.generated when present.
   GENERATED_SECRET_ENV_FILE defaults to .env.prod.generated.secrets when present.
   ADMISSION_BOOTSTRAP_PLATFORM defaults to qq.
-  ADMISSION_BOOTSTRAP_SCHOOL_ID defaults to 10006.
   ADMISSION_BOOTSTRAP_SCHOOL_CODE defaults to 4111010006.
   ADMISSION_BOOTSTRAP_GROUP_IDS defaults to 178037297.
   ADMISSION_BOOTSTRAP_MANAGEMENT_GUILD_IDS defaults to ADMISSION_BOOTSTRAP_GROUP_IDS.
@@ -91,7 +90,6 @@ PY
 database_url="$(materialize_database_url "${database_url}")"
 
 platform="${ADMISSION_BOOTSTRAP_PLATFORM:-qq}"
-school_id="${ADMISSION_BOOTSTRAP_SCHOOL_ID:-10006}"
 school_code="${ADMISSION_BOOTSTRAP_SCHOOL_CODE:-4111010006}"
 school_name="${ADMISSION_BOOTSTRAP_SCHOOL_NAME:-北京航空航天大学}"
 group_ids="${ADMISSION_BOOTSTRAP_GROUP_IDS:-178037297}"
@@ -103,7 +101,6 @@ freshman_channel_closes_at="${ADMISSION_BOOTSTRAP_FRESHMAN_CHANNEL_CLOSES_AT:-20
 freshman_default_expires_at="${ADMISSION_BOOTSTRAP_FRESHMAN_DEFAULT_EXPIRES_AT:-2026-10-31T23:59:59+08:00}"
 
 [[ "${platform}" == "qq" ]] || die "ADMISSION_BOOTSTRAP_PLATFORM must be qq for the current admission MVP"
-[[ "${school_id}" =~ ^[0-9]+$ ]] || die "ADMISSION_BOOTSTRAP_SCHOOL_ID must be an integer"
 [[ "${school_code}" == "4111010006" ]] || die "ADMISSION_BOOTSTRAP_SCHOOL_CODE must be 4111010006 for BUAA"
 [[ -n "${group_ids//,/}" ]] || die "ADMISSION_BOOTSTRAP_GROUP_IDS must not be empty"
 [[ -n "${management_guild_ids//,/}" ]] || die "ADMISSION_BOOTSTRAP_MANAGEMENT_GUILD_IDS must not be empty"
@@ -126,7 +123,6 @@ run_sql() {
       -X \
       -v ON_ERROR_STOP=1 \
       -v platform="${platform}" \
-      -v school_id="${school_id}" \
       -v school_code="${school_code}" \
       -v school_name="${school_name}" \
       -v group_ids="${group_ids}" \
@@ -144,7 +140,6 @@ WITH
 input AS (
   SELECT
     :'platform'::text AS platform,
-    :'school_id'::bigint AS school_id,
     :'school_code'::text AS school_code,
     :'school_name'::text AS school_name,
     ARRAY(
@@ -177,13 +172,13 @@ validated AS (
     AND email_domains = ARRAY['buaa.edu.cn']::text[]
 ),
 school_upsert AS (
-  INSERT INTO public.schools (id, code, name)
-  SELECT school_id, school_code, school_name
+  INSERT INTO public.schools (code, name)
+  SELECT school_code, school_name
   FROM input
-  ON CONFLICT (id) DO UPDATE
+  ON CONFLICT (code) DO UPDATE
   SET code = EXCLUDED.code,
       name = EXCLUDED.name
-  RETURNING id
+  RETURNING id, code
 ),
 school_config_upsert AS (
   INSERT INTO public.school_configs (
@@ -191,8 +186,8 @@ school_config_upsert AS (
     manual_form_fields, enabled, approval_policy, updated_at
   )
   SELECT
-    school_id,
-    school_name,
+    school_upsert.id,
+    validated.school_name,
     'manual',
     'academic.buaa_students',
     '本功能将使用您提供的学校账号或学校邮箱验证学生身份。认证结果用于 StuHelper 入群验证和平台服务。',
@@ -212,6 +207,7 @@ school_config_upsert AS (
     'auto',
     now()
   FROM validated
+  CROSS JOIN school_upsert
   ON CONFLICT (school_id) DO UPDATE
   SET school_name = EXCLUDED.school_name,
       academic_db_table = EXCLUDED.academic_db_table,
@@ -237,8 +233,9 @@ disabled_other_school_configs AS (
   SET enabled = false,
       updated_at = now()
   FROM input
+  CROSS JOIN school_upsert
   WHERE input.disable_other_schools
-    AND sc.school_id <> input.school_id
+    AND sc.school_id <> school_upsert.id
     AND sc.enabled
   RETURNING sc.school_id
 )
@@ -254,7 +251,7 @@ SELECT
   md5(input.platform || ':' || group_id),
   input.platform,
   group_id,
-  input.school_id,
+  school_upsert.id,
   true,
   2592000,
   3600,
@@ -272,6 +269,7 @@ SELECT
   90,
   now()
 FROM input
+CROSS JOIN school_upsert
 CROSS JOIN unnest(input.group_ids) AS group_id
 ON CONFLICT (platform, guild_id) DO UPDATE
 SET school_id = EXCLUDED.school_id,
@@ -305,8 +303,8 @@ SQL
 
 run_sql -At <<'SQL'
 SELECT format(
-  'admission bootstrap data ready: school_id=%s policies=%s groups=%s',
-  :'school_id',
+  'admission bootstrap data ready: school_code=%s policies=%s groups=%s',
+  :'school_code',
   (SELECT count(*) FROM public.group_admission_policies WHERE platform = :'platform' AND guild_id = ANY(string_to_array(:'group_ids', ','))),
   :'group_ids'
 );

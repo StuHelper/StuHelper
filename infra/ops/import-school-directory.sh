@@ -119,17 +119,6 @@ SET name = EXCLUDED.name,
     source_name = EXCLUDED.source_name,
     source_as_of = EXCLUDED.source_as_of;
 
-UPDATE public.schools
-SET code = '4111010006',
-    name = '北京航空航天大学',
-    authority = '工业和信息化部',
-    location = '北京市',
-    education_level = '本科',
-    remark = NULL,
-    source_name = '全国普通高等学校名单',
-    source_as_of = DATE '2025-06-20'
-WHERE id = 10006;
-
 SELECT pg_catalog.setval(
   'public.schools_id_seq',
   GREATEST((SELECT COALESCE(MAX(id), 1) FROM public.schools), 1),
