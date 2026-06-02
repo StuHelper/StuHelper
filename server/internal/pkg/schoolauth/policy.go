@@ -3,6 +3,7 @@ package schoolauth
 import (
 	"encoding/json"
 	"strings"
+	"unicode"
 )
 
 const EmailIdentityPolicyAcademicStudentEmail = "academic_student_email"
@@ -80,6 +81,26 @@ func NormalizeEmailDomain(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
+func NormalizeEmailAddress(value string) string {
+	email := strings.ToLower(strings.TrimSpace(value))
+	parts := strings.Split(email, "@")
+	if len(parts) != 2 {
+		return ""
+	}
+	local := strings.TrimSpace(parts[0])
+	domain := NormalizeEmailDomain(parts[1])
+	if local == "" || domain == "" {
+		return ""
+	}
+	if strings.ContainsFunc(local, unicode.IsSpace) || strings.ContainsFunc(domain, unicode.IsSpace) {
+		return ""
+	}
+	if local != parts[0] || domain != parts[1] {
+		return ""
+	}
+	return local + "@" + domain
+}
+
 func NormalizeStudentID(value string) string {
 	return strings.TrimSpace(value)
 }
@@ -98,7 +119,11 @@ func DeriveStudentEmail(studentID string, domain string) string {
 }
 
 func EmailDomainAllowed(email string, domains []string) bool {
-	parts := strings.Split(strings.ToLower(strings.TrimSpace(email)), "@")
+	normalized := NormalizeEmailAddress(email)
+	if normalized == "" {
+		return false
+	}
+	parts := strings.Split(normalized, "@")
 	if len(parts) != 2 {
 		return false
 	}

@@ -125,6 +125,18 @@ func TestStudentEmailOTPRejectsBUAAAliasEmail(t *testing.T) {
 	assert.Empty(t, sender.email)
 }
 
+func TestNormalizeStudentEmailRejectsEmptyEmailParts(t *testing.T) {
+	email, err := normalizeStudentEmail(" Student@BUAA.edu.cn ")
+	require.NoError(t, err)
+	assert.Equal(t, "student@buaa.edu.cn", email)
+
+	_, err = normalizeStudentEmail("@buaa.edu.cn")
+	require.ErrorIs(t, err, ErrStudentEmailDomainNotAllowed)
+
+	_, err = normalizeStudentEmail("student@")
+	require.ErrorIs(t, err, ErrStudentEmailDomainNotAllowed)
+}
+
 func buaaStudentEmailOTPRepo(t *testing.T, student *AcademicStudent) *mockRepo {
 	t.Helper()
 	academicTable := "academic.buaa_students"

@@ -405,8 +405,8 @@ func studentEmailOTPAttemptsKey(userID, schoolID int64) string {
 }
 
 func normalizeStudentEmail(value string) (string, error) {
-	email := strings.ToLower(strings.TrimSpace(value))
-	if email == "" || strings.Count(email, "@") != 1 {
+	email := schoolauth.NormalizeEmailAddress(value)
+	if email == "" {
 		return "", ErrStudentEmailDomainNotAllowed
 	}
 	return email, nil

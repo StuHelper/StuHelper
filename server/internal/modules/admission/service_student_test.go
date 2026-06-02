@@ -30,6 +30,14 @@ func TestSchoolEmailOTPRequiresLinkedSessionAndVerifiesCredential(t *testing.T) 
 	})
 	require.ErrorIs(t, err, ErrAdmissionEmailDomainNotAllowed)
 
+	_, err = svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
+		UserID:   userID,
+		SchoolID: 1,
+		Email:    "@buaa.edu.cn",
+	})
+	require.ErrorIs(t, err, ErrAdmissionEmailDomainNotAllowed)
+	assert.Empty(t, sender.email)
+
 	resp, err := svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
 		UserID:   userID,
 		SchoolID: 1,

@@ -321,8 +321,8 @@ func admissionEmailOTPAttemptsKey(userID, schoolID int64) string {
 }
 
 func normalizeAdmissionEmail(value string) (string, error) {
-	email := strings.ToLower(strings.TrimSpace(value))
-	if email == "" || strings.Count(email, "@") != 1 {
+	email := schoolauth.NormalizeEmailAddress(value)
+	if email == "" {
 		return "", ErrAdmissionEmailDomainNotAllowed
 	}
 	return email, nil
