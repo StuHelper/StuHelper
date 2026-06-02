@@ -294,8 +294,14 @@ func (s *Service) ChooseFreshmanCameraHandoffContinuation(
 	if handoff.Status != FreshmanCameraHandoffUploaded {
 		return nil, ErrAdmissionCameraHandoffLocked
 	}
+	if s.beforeFreshmanCameraHandoffContinuationChoose != nil {
+		s.beforeFreshmanCameraHandoffContinuationChoose()
+	}
 	updated, err := s.repo.ChooseFreshmanCameraHandoffContinuation(ctx, handoff.ID, input.ContinueOn, s.now())
 	if err != nil {
+		if errors.Is(err, ErrAdmissionCameraHandoffNotFound) {
+			return nil, ErrAdmissionCameraHandoffLocked
+		}
 		return nil, err
 	}
 	return updated, nil

@@ -321,6 +321,55 @@ func TestFreshmanCameraHandoffUploadsAndLocksContinuation(t *testing.T) {
 	require.ErrorIs(t, err, ErrAdmissionCameraHandoffLocked)
 }
 
+func TestFreshmanCameraHandoffContinuationRaceReturnsLocked(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	store := &testAdmissionMaterialStore{}
+	svc := newFreshmanTestService(t, fixture)
+	svc.materialStore = store
+	svc.generateToken = func() (string, error) {
+		return "freshman-camera-continuation-race-token", nil
+	}
+	userID := seedLinkedAdmissionUser(t, fixture, svc, "freshman-camera-continuation-race")
+	app := createFreshmanTestApplication(t, svc, userID)
+
+	handoff, err := svc.CreateFreshmanCameraHandoff(context.Background(), FreshmanCameraHandoffCreateInput{
+		UserID:        userID,
+		ApplicationID: app.ID,
+	})
+	require.NoError(t, err)
+	token := handoff.MobileURL[strings.LastIndex(handoff.MobileURL, "/")+1:]
+	uploaded, err := svc.SubmitFreshmanCameraHandoffCapture(context.Background(), FreshmanCameraHandoffCaptureInput{
+		Token:       token,
+		ContentType: "image/png",
+		ImageBase64: base64.StdEncoding.EncodeToString(validPNGBytes()),
+	})
+	require.NoError(t, err)
+
+	raced := false
+	svc.beforeFreshmanCameraHandoffContinuationChoose = func() {
+		if raced {
+			return
+		}
+		raced = true
+		locked, lockErr := svc.repo.ChooseFreshmanCameraHandoffContinuation(
+			context.Background(),
+			uploaded.ID,
+			FreshmanCameraContinueDesktop,
+			fixedAdmissionNow(),
+		)
+		require.NoError(t, lockErr)
+		assert.Equal(t, FreshmanCameraHandoffLocked, locked.Status)
+	}
+
+	_, err = svc.ChooseFreshmanCameraHandoffContinuation(context.Background(), FreshmanCameraHandoffContinuationInput{
+		Token:      token,
+		ContinueOn: FreshmanCameraContinueMobile,
+	})
+
+	require.ErrorIs(t, err, ErrAdmissionCameraHandoffLocked)
+	assert.True(t, raced)
+}
+
 func TestFreshmanCameraHandoffReusesConcurrentActiveHandoff(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newFreshmanTestService(t, fixture)
