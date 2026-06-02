@@ -466,6 +466,28 @@ func TestSuccessfulBotEventClearsLastBotError(t *testing.T) {
 	assert.Nil(t, admissionSessionLastBotError(t, fixture, kickSession.Session.ID))
 }
 
+func TestReleaseSuccessResetsAdmissionFailureCount(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	insertAdmissionFailureCount(t, fixture, DefaultFailedJoinLimit-1)
+	created := createLinkableSession(t, svc)
+	userID := seedAdmissionUser(t, fixture, "release-resets-failures")
+	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token: created.Token, QQQuery: "10001", UserID: userID,
+	})
+	require.NoError(t, err)
+	_, err = svc.MarkVerified(context.Background(), created.Session.ID)
+	require.NoError(t, err)
+
+	err = svc.RecordBotEvent(context.Background(), created.Session.ID, BotEventInput{
+		Action: BotActionRelease, Success: true,
+	})
+
+	require.NoError(t, err)
+	assertAdmissionFailureCount(t, fixture, "10001", 0)
+}
+
 func TestAdmissionFailureBlacklistFromKickEvent(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)

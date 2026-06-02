@@ -364,11 +364,22 @@ func (s *Service) applySuccessfulBotEventTx(ctx context.Context, input successfu
 			Now:     s.now(),
 		})
 	case BotActionRelease:
-		return s.repo.MarkBotReleaseCompletedTx(ctx, markBotSessionTxInput{
+		if err := s.repo.MarkBotReleaseCompletedTx(ctx, markBotSessionTxInput{
 			Tx:        input.Tx,
 			SessionID: input.Session.ID,
 			Now:       s.now(),
-		})
+		}); err != nil {
+			return err
+		}
+		_, err := s.repo.ResetAdmissionFailureCountTx(
+			ctx,
+			input.Tx,
+			input.Session.Platform,
+			input.Session.GuildID,
+			input.Session.QQID,
+			s.now(),
+		)
+		return err
 	case BotActionKick, BotActionBlacklist:
 		updated, err := s.repo.MarkBotKickCompletedTx(ctx, markBotSessionTxInput{
 			Tx:        input.Tx,
