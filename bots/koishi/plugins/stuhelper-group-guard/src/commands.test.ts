@@ -197,9 +197,14 @@ test('入群认证管理员命令可以查询、重发和重新生成认证链�
     const client = root.mock.client('90001', 'group-1')
     await root.database.create(GUARD_MEMBER_TABLE, activeAdmissionGuardRecord())
     await assertSingleReply(client, '查询入群认证 10001', /状态：已绑定 QQ，等待学生认证/)
+    await assertSingleReply(
+      client,
+      '查询入群认证 10002',
+      /QQ 绑定：已完成[\s\S]*学生认证：未通过[\s\S]*曾绑定账号但未完成学生认证/,
+    )
     await assertSingleReply(client, '重发认证链接 10001', /https:\/\/join\.stuhelper\.com\/verify\/token-current\?qq=10001/)
     await assertSingleReply(client, '重新生成认证链接 10001', /https:\/\/join\.stuhelper\.com\/verify\/token-new\?qq=10001/)
-    await waitForRequestCount(requests, 5)
+    await waitForRequestCount(requests, 6)
 
     const [record] = await root.database.get(GUARD_MEMBER_TABLE, { id: 'qq:514:group-1:10001' })
     assert.ok(record)
@@ -211,18 +216,19 @@ test('入群认证管理员命令可以查询、重发和重新生成认证链�
 
     assert.deepEqual(requests.map((item) => [item.method, item.path]), [
       ['GET', '/api/v1/bot/admission/sessions/member?platform=qq&guildID=group-1&qqID=10001'],
+      ['GET', '/api/v1/bot/admission/sessions/member?platform=qq&guildID=group-1&qqID=10002'],
       ['POST', '/api/v1/bot/admission/sessions/member/resend'],
       ['POST', '/api/v1/bot/admission/sessions/session-token-current/events'],
       ['POST', '/api/v1/bot/admission/sessions/member/regenerate'],
       ['POST', '/api/v1/bot/admission/sessions/session-token-new/events'],
     ])
     assert.ok(requests.every((item) => item.authorization === 'Bearer test-token'))
-    assert.deepEqual(requests[1].body, { platform: 'qq', guildID: 'group-1', qqID: '10001' })
-    assert.equal(requests[2].body.action, 'remind')
-    assert.equal(requests[2].body.success, true)
-    assert.equal(requests[3].body.botSelfID, '514')
-    assert.equal(requests[4].body.action, 'remind')
-    assert.equal(requests[4].body.success, true)
+    assert.deepEqual(requests[2].body, { platform: 'qq', guildID: 'group-1', qqID: '10001' })
+    assert.equal(requests[3].body.action, 'remind')
+    assert.equal(requests[3].body.success, true)
+    assert.equal(requests[4].body.botSelfID, '514')
+    assert.equal(requests[5].body.action, 'remind')
+    assert.equal(requests[5].body.success, true)
     assert.equal(muteActions[0].guildId, 'group-1')
     assert.equal(muteActions[0].memberId, '10001')
     assert.ok(muteActions[0].duration > 0)
@@ -345,6 +351,13 @@ async function respondAdmissionAdminRequest(
   })
   res.setHeader('content-type', 'application/json')
   if (req.method === 'GET' && url.pathname === '/api/v1/bot/admission/sessions/member') {
+    if (url.searchParams.get('qqID') === '10002') {
+      res.end(JSON.stringify({
+        success: true,
+        data: admissionAdminSession('expired_kicked', 'token-expired', { userID: 6 }),
+      }))
+      return
+    }
     res.end(JSON.stringify({ success: true, data: admissionAdminSession('linked', 'token-current') }))
     return
   }
@@ -376,7 +389,7 @@ async function respondAdmissionAdminRequest(
   res.end(JSON.stringify({ success: false, error: { message: 'not found' } }))
 }
 
-function admissionAdminSession(status: string, token: string) {
+function admissionAdminSession(status: string, token: string, overrides: Record<string, unknown> = {}) {
   const now = Date.now()
   return {
     id: `session-${token}`,
@@ -391,6 +404,7 @@ function admissionAdminSession(status: string, token: string) {
     submissionWaitDeadlineAt: new Date(now + 24 * 60 * 60 * 1000).toISOString(),
     initialMuteUntil: new Date(now + 30 * 24 * 60 * 60 * 1000).toISOString(),
     projectionPending: false,
+    ...overrides,
   }
 }
 

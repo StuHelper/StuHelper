@@ -165,12 +165,13 @@ function formatAdmissionSessionSummary(session: AdmissionSession) {
     `状态：${statusLabel(session.status)}`,
     `会话：${session.id}`,
     `QQ 绑定：${isQQLinked(session) ? '已完成' : '未完成'}`,
-    `学生认证：${session.status === 'verified' ? '已通过' : '未通过'}`,
+    `学生认证：${studentVerificationLabel(session)}`,
   ]
   const deadline = describeDeadline(session)
   if (deadline) {
     rows.push(deadline)
   }
+  rows.push(`下一步：${nextAdmissionStep(session)}`)
   if (session.lastBotError) {
     rows.push(`最近机器人错误：${session.lastBotError}`)
   }
@@ -281,7 +282,48 @@ function describeDeadline(session: AdmissionSession) {
 }
 
 function isQQLinked(session: AdmissionSession) {
-  return session.status === 'linked' || session.status === 'material_submitted' || session.status === 'verified'
+  return hasLinkedUser(session) ||
+    session.status === 'linked' ||
+    session.status === 'material_submitted' ||
+    session.status === 'verified'
+}
+
+function hasLinkedUser(session: AdmissionSession) {
+  return session.userID !== undefined && session.userID !== null && String(session.userID).trim() !== ''
+}
+
+function studentVerificationLabel(session: AdmissionSession) {
+  switch (session.status) {
+    case 'verified':
+      return '已通过'
+    case 'material_submitted':
+      return '新生材料待审核'
+    default:
+      return '未通过'
+  }
+}
+
+function nextAdmissionStep(session: AdmissionSession) {
+  switch (session.status) {
+    case 'joined_muted':
+      return '让成员打开认证链接登录并完成 QQ 绑定与学生认证；链接找不到时可使用“重发认证链接”。'
+    case 'linked':
+      return 'QQ 已绑定，但还没有学生认证凭据；请继续完成老生邮箱/学校 SSO 认证，或提交新生材料。'
+    case 'material_submitted':
+      return '等待具备审核权限的管理员审核新生材料；审核通过后机器人会解除禁言。'
+    case 'verified':
+      return session.lastBotError
+        ? '后端已通过学生认证，但机器人执行失败；请检查最近机器人错误和 Koishi 日志。'
+        : '后端已通过学生认证，机器人会解除禁言；若仍被禁言，请查询 Koishi release 日志。'
+    case 'expired_kicked':
+      return hasLinkedUser(session)
+        ? '旧会话已超时；该 QQ 曾绑定账号但未完成学生认证，请使用“重新生成认证链接”后重新认证。'
+        : '旧会话已超时；请使用“重新生成认证链接”后让成员重新认证。'
+    case 'cancelled':
+      return '当前会话已取消；请使用“重新生成认证链接”创建新链接。'
+    default:
+      return '按当前状态继续处理。'
+  }
 }
 
 function statusLabel(status: AdmissionSession['status']) {
