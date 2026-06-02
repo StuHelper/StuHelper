@@ -37,6 +37,13 @@ last-verified: 2026-06-02
 
 ## 验收分层
 
+### 已有本地覆盖
+
+- `make check-admission-mvp`：聚合后端 admission/auth/user 测试、Web admission/auth/user Vitest、admission/auth/user Playwright、Web build、Koishi group-guard 测试与 build、infra contracts。
+- `clients/web/tests/e2e/auth-callback-and-admission.spec.ts`：覆盖匿名 admission 登录/注册跳转、登录回调回到 verify 后无需手动刷新、已消费 token 由原账号续办、QQ mismatch/expired 阻断提交、BUAA 学号邮箱 OTP、手机 handoff SSE、桌面/手机材料提交。
+- `infra/ops/admission-prod-sim-e2e.sh`：在本机 production-parity 栈模拟完整 admission MVP，从 bot 创建 session、浏览器 SSO 登录、Join 绑定、BUAA 学号邮箱 OTP，到 bot 轮询 release action 并回写 release event。
+- `bots/koishi/plugins/stuhelper-group-guard/src/member-guard.test.ts`：覆盖 admission reminder 去重、后台 pending action 执行、release/kick/blacklist 结果回写、后端不可用时本地兜底禁言。
+
 ### 必跑生产 smoke
 
 - `admission-public-smoke.sh`：验证 join canonical 路由、错误域 404、metrics beacon、camera handoff SSE ingress。
@@ -75,9 +82,8 @@ last-verified: 2026-06-02
 ### P0: 上线前必须闭环
 
 - 完成真实 QQ 小号 `bot-released` E2E，并留存 main + Koishi final evidence。
-- 确认 consumed token 的同用户续办体验：用户登录并绑定后，刷新或重新打开原链接应展示当前 linked session，而不是无条件“链接已失效”；不同账号或 QQ 不匹配仍必须拒绝。
-- 给 admission 浏览器 E2E 增加“登录回跳后无需手动刷新”的自动化覆盖。
-- 给 freshman application 增加“重复点击 / 并发创建 / 旧 pending 重绑当前 session”的前后端集成覆盖。
+- 使用 `make prod-admission-mvp-final-evidence` 和 Koishi 节点 `make prod-admission-mvp-final-koishi-evidence` 作为最终上线证据；普通 production smoke 只能证明环境健康，不能替代真实 QQ release。
+- 复核真实 QQ final evidence 的三段证据：`join-created`、`flow-completed`、`bot-released`。其中 `flow-completed` 必须包含 QQ 绑定和有效学生认证凭据或材料审核状态；只绑定 QQ 不可放行。
 - 后端发布时减少 Koishi 轮询瞬间 502：优先做滚动或短维护窗口；不能把重启期间的短暂失败误判为 token 或 credential 问题。
 
 ### P1: 管理和恢复能力
