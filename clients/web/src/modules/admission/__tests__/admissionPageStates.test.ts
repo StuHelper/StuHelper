@@ -311,6 +311,32 @@ describe('AdmissionPage edge states', () => {
     expect(wrapper.text()).toContain('开始认证')
   })
 
+  it('ignores stale admission loads and reloads the current route token', async () => {
+    const firstLoad = createDeferred<AdmissionSession>()
+    mockAdmissionApi.getAdmissionSession
+      .mockReturnValueOnce(firstLoad.promise)
+      .mockResolvedValueOnce(sessionWithStatus('joined_muted'))
+
+    const wrapper = await mountAdmissionPage()
+    await flushPromises()
+
+    mockRoute.fullPath = '/verify/EFGH?qq=456'
+    mockRoute.params = { code: 'EFGH' }
+    mockRoute.query = { qq: '456' }
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+
+    firstLoad.resolve(sessionWithStatus('linked'))
+    await settleAdmissionPage(wrapper)
+
+    expect(mockAdmissionApi.getAdmissionSession).toHaveBeenCalledTimes(2)
+    expect(mockAdmissionApi.getAdmissionSession).toHaveBeenNthCalledWith(1, 'ABCD', '123')
+    expect(mockAdmissionApi.getAdmissionSession).toHaveBeenNthCalledWith(2, 'EFGH', '456')
+    expect(mockAdmissionApi.getAdmissionMe).not.toHaveBeenCalled()
+    expect(mockVerificationStore.fetchSchools).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-state="ready"]').exists()).toBe(true)
+  })
+
   it('keeps the linked admission page open when post-link resources fail to refresh', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
       sessionWithStatus('joined_muted'),
@@ -384,4 +410,14 @@ async function mountAdmissionPage() {
   const wrapper = mount(component.default)
   mountedWrappers.push(wrapper)
   return wrapper
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, reject, resolve }
 }
