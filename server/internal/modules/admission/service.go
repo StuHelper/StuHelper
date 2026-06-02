@@ -61,6 +61,7 @@ type Service struct {
 
 	beforeFreshmanApplicationCreate               func()
 	beforeFreshmanCameraHandoffCreate             func()
+	beforeFreshmanCameraHandoffMarkUploaded       func()
 	beforeFreshmanCameraHandoffContinuationChoose func()
 }
 

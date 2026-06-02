@@ -370,6 +370,52 @@ func TestFreshmanCameraHandoffContinuationRaceReturnsLocked(t *testing.T) {
 	assert.True(t, raced)
 }
 
+func TestFreshmanCameraHandoffUploadRaceRecoversUploadedState(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	store := &testAdmissionMaterialStore{}
+	svc := newFreshmanTestService(t, fixture)
+	svc.materialStore = store
+	svc.generateToken = func() (string, error) {
+		return "freshman-camera-upload-race-token", nil
+	}
+	userID := seedLinkedAdmissionUser(t, fixture, svc, "freshman-camera-upload-race")
+	app := createFreshmanTestApplication(t, svc, userID)
+
+	handoff, err := svc.CreateFreshmanCameraHandoff(context.Background(), FreshmanCameraHandoffCreateInput{
+		UserID:        userID,
+		ApplicationID: app.ID,
+	})
+	require.NoError(t, err)
+	token := handoff.MobileURL[strings.LastIndex(handoff.MobileURL, "/")+1:]
+	raced := false
+	svc.beforeFreshmanCameraHandoffMarkUploaded = func() {
+		if raced {
+			return
+		}
+		raced = true
+		require.NoError(
+			t,
+			svc.repo.MarkFreshmanCameraHandoffUploaded(
+				context.Background(),
+				handoff.ID,
+				fixedAdmissionNow(),
+			),
+		)
+	}
+
+	uploaded, err := svc.SubmitFreshmanCameraHandoffCapture(context.Background(), FreshmanCameraHandoffCaptureInput{
+		Token:       token,
+		ContentType: "image/png",
+		ImageBase64: base64.StdEncoding.EncodeToString(validPNGBytes()),
+	})
+
+	require.NoError(t, err)
+	assert.True(t, raced)
+	assert.Equal(t, handoff.ID, uploaded.ID)
+	assert.Equal(t, FreshmanCameraHandoffUploaded, uploaded.Status)
+	assert.NotNil(t, uploaded.UploadedAt)
+}
+
 func TestFreshmanCameraHandoffReusesConcurrentActiveHandoff(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newFreshmanTestService(t, fixture)

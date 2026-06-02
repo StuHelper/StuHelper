@@ -267,7 +267,13 @@ func (s *Service) SubmitFreshmanCameraHandoffCapture(
 		return nil, err
 	}
 	now := s.now()
+	if s.beforeFreshmanCameraHandoffMarkUploaded != nil {
+		s.beforeFreshmanCameraHandoffMarkUploaded()
+	}
 	if err := s.repo.MarkFreshmanCameraHandoffUploaded(ctx, handoff.ID, now); err != nil {
+		if errors.Is(err, ErrAdmissionCameraHandoffLocked) {
+			return s.recoverFreshmanCameraHandoffUpload(ctx, handoff)
+		}
 		return nil, err
 	}
 	handoff.Status = FreshmanCameraHandoffUploaded
