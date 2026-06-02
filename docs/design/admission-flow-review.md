@@ -32,6 +32,7 @@ last-verified: 2026-06-02
 | 并发创建新生申请导致唯一索引冲突 | 双击、刷新或网络重试可能让其中一次请求返回 409 / 500 | 捕获 pending 唯一索引冲突，重新读取 pending application 并复用或重绑 |
 | SSO / admission smoke 对错误目标过宽 | 可能误把本机或非公网入口当成公网通过 | smoke 默认拒绝 local target，证据脚本写入更严格 |
 | 邮件 smoke 没加载生产 env | 邮件 provider 检查可能与真实生产配置不一致 | 邮件 smoke 显式加载生产 env，证据不输出 secret |
+| 管理后台缺少入群会话排障入口 | 运营无法按 QQ、群号或 bot selfID 定位“链接是否消费、是否认证、bot 是否报错” | 增加 admission session 列表、运行时过滤、状态/期限/bot 错误展示和当前链接复制 |
 
 以上修复均已按提交收敛到本地仓库，并通过生产部署或对应测试验证。生产 smoke 只能证明公共入口、SSO、DB readiness 和 Koishi 配置健康，不能替代真实 QQ 端到端验收。
 
@@ -88,7 +89,7 @@ last-verified: 2026-06-02
 
 ### P1: 管理和恢复能力
 
-- 管理后台增加 admission session 搜索、重发链接、重新生成链接、强制取消、查看 bot release 记录。
+- 管理后台 admission session 搜索和当前链接复制已完成；后续继续补重发链接、重新生成链接、强制取消、查看 bot release 记录。
 - 管理后台增加 school config 页面：学校代码、校区、可用认证方式、邮箱策略、学校专属字段校验、开通状态。
 - 将 BUAA 学号姓名校验接入可导入的学籍数据表；只有 `4111010006` 先启用，不把学校对照表误当白名单。
 - QQ 昵称不作为权威业务字段；如运行时临时展示，只能作为非持久化 UI 辅助。
