@@ -236,11 +236,7 @@ func (s *Service) resolveAcademicStudentEmailOTPIdentity(
 	if policy.RequireStudentName && studentName == "" {
 		return nil, "", "", "", ErrStudentNameRequired
 	}
-	tableName, err := s.ensureAcademicTableConfigured(school)
-	if err != nil {
-		return nil, "", "", "", err
-	}
-	student, err := s.getAcademicStudentByXH(ctx, studentID, tableName)
+	student, err := s.lookupAcademicStudentForSchool(ctx, school, studentID)
 	if err != nil {
 		return nil, "", "", "", fmt.Errorf("resolveAcademicStudentEmailOTPIdentity lookup: %w", err)
 	}

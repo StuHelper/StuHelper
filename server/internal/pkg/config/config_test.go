@@ -507,6 +507,63 @@ func TestLoadAdmissionConfigFromEnv(t *testing.T) {
 	assert.Equal(t, "https://join.stuhelper.com", cfg.PublicBaseURL)
 }
 
+func TestLoadExternalDataConfigFromEnv(t *testing.T) {
+	t.Setenv("EXTERNAL_STUDENT_SOURCE_ENABLED", "true")
+	t.Setenv("EXTERNAL_STUDENT_SOURCE_PROVIDER", "oracle")
+	t.Setenv("EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE", "4111010006")
+	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_HOST", "oracle.example.test")
+	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME", "ORCLPDB1")
+	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME", "SYSTEM")
+	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD", "secret")
+	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA", "USR_JWBIZ")
+	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE", "T_XS_JBXX")
+
+	var parseErrs []string
+	cfg := loadExternalDataConfig(&parseErrs)
+
+	require.Empty(t, parseErrs)
+	require.Len(t, cfg.StudentSources, 1)
+	source := cfg.StudentSources[0]
+	assert.True(t, source.Enabled)
+	assert.Equal(t, "oracle", source.Provider)
+	assert.Equal(t, "4111010006", source.SchoolCode)
+	assert.Equal(t, "oracle.example.test", source.Oracle.Host)
+	assert.Equal(t, "ORCLPDB1", source.Oracle.ServiceName)
+	assert.Equal(t, "USR_JWBIZ", source.Oracle.Schema)
+	assert.Equal(t, "T_XS_JBXX", source.Oracle.Table)
+	assert.Equal(t, "XH", source.Oracle.StudentIDColumn)
+	assert.Equal(t, "XM", source.Oracle.StudentNameColumn)
+}
+
+func TestValidateRejectsIncompleteExternalStudentSource(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.ExternalData.StudentSources = []ExternalStudentSourceConfig{{
+		Name:       "buaa",
+		Enabled:    true,
+		Provider:   "oracle",
+		SchoolCode: "4111010006",
+		Oracle: ExternalOracleStudentSourceConfig{
+			Host:                  "oracle.example.test",
+			Port:                  1521,
+			ServiceName:           "ORCLPDB1",
+			Username:              "SYSTEM",
+			Schema:                "USR_JWBIZ",
+			Table:                 "T_XS_JBXX",
+			StudentIDColumn:       "XH",
+			StudentNameColumn:     "XM",
+			ConnectTimeoutSeconds: 5,
+			QueryTimeoutSeconds:   3,
+			MaxOpenConns:          4,
+			MaxIdleConns:          1,
+		},
+	}}
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD is required")
+}
+
 func TestValidate_RejectsInvalidIdentityRefreshTokenTTL(t *testing.T) {
 	tests := []struct {
 		name  string

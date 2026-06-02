@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/externaldata"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
 )
 
@@ -26,6 +27,19 @@ func (m *academicAwareMockRepo) GetAcademicStudentByXHFromTable(ctx context.Cont
 }
 
 type fakeLDAPAuthClient struct{}
+
+type fakeExternalStudentDirectory struct {
+	record  *externaldata.StudentRecord
+	handled bool
+}
+
+func (d fakeExternalStudentDirectory) LookupStudent(
+	context.Context,
+	string,
+	string,
+) (*externaldata.StudentRecord, bool, error) {
+	return d.record, d.handled, nil
+}
 
 func (f *fakeLDAPAuthClient) Login(context.Context, string, string) (*ldap.LoginResult, error) {
 	return &ldap.LoginResult{Authenticated: true}, nil
@@ -223,6 +237,52 @@ func TestGetAcademicInfo_UsesSchoolConfiguredAcademicTable(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, student)
 	assert.Equal(t, expectedStudent, student.XH)
+}
+
+func TestGetAcademicInfo_UsesExternalStudentDirectoryWhenConfigured(t *testing.T) {
+	const (
+		schoolID   = int64(10006)
+		schoolCode = "4111010006"
+		studentID  = "20250001"
+	)
+	repo := &academicAwareMockRepo{
+		mockRepo: &mockRepo{
+			onGetSchoolConfig: func(_ context.Context, gotSchoolID int64) (*SchoolConfig, error) {
+				assert.Equal(t, schoolID, gotSchoolID)
+				return &SchoolConfig{
+					SchoolID:   schoolID,
+					SchoolCode: schoolCode,
+					Enabled:    true,
+				}, nil
+			},
+		},
+		onGetAcademicStudentByXHFromTable: func(context.Context, string, string) (*AcademicStudent, error) {
+			t.Fatal("local academic table should not be queried when external source handles the school")
+			return nil, nil
+		},
+	}
+
+	service, err := NewService(
+		repo,
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithExternalStudentDirectory(fakeExternalStudentDirectory{
+			handled: true,
+			record: &externaldata.StudentRecord{
+				SchoolCode:  schoolCode,
+				StudentID:   studentID,
+				StudentName: "张三",
+			},
+		}),
+	)
+	require.NoError(t, err)
+
+	student, err := service.GetAcademicInfo(context.Background(), schoolID, studentID)
+	require.NoError(t, err)
+	require.NotNil(t, student)
+	assert.Equal(t, studentID, student.XH)
+	require.NotNil(t, student.XM)
+	assert.Equal(t, "张三", *student.XM)
 }
 
 func TestGetAcademicInfo_FailsWhenAcademicTableMissing(t *testing.T) {

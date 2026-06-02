@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/externaldata"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
@@ -302,12 +303,51 @@ func (s *Service) GetAcademicInfo(ctx context.Context, schoolID int64, studentID
 		return nil, fmt.Errorf("GetAcademicInfo load school config: %w", err)
 	}
 
+	student, err := s.lookupAcademicStudentForSchool(ctx, school, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("GetAcademicInfo lookup: %w", err)
+	}
+	return student, nil
+}
+
+func (s *Service) lookupAcademicStudentForSchool(
+	ctx context.Context,
+	school *SchoolConfig,
+	studentID string,
+) (*AcademicStudent, error) {
+	normalizedID := strings.TrimSpace(studentID)
+	if normalizedID == "" {
+		return nil, ErrStudentIDRequired
+	}
+	if s.studentDirectory != nil && school != nil && strings.TrimSpace(school.SchoolCode) != "" {
+		record, handled, err := s.studentDirectory.LookupStudent(ctx, school.SchoolCode, normalizedID)
+		if err != nil {
+			return nil, fmt.Errorf("external student directory lookup: %w", err)
+		}
+		if handled {
+			if record == nil {
+				return nil, nil
+			}
+			return academicStudentFromExternalRecord(record), nil
+		}
+	}
 	tableName, err := s.ensureAcademicTableConfigured(school)
 	if err != nil {
-		return nil, fmt.Errorf("GetAcademicInfo academic table: %w", err)
+		return nil, err
 	}
 
-	return s.getAcademicStudentByXH(ctx, studentID, tableName)
+	return s.getAcademicStudentByXH(ctx, normalizedID, tableName)
+}
+
+func academicStudentFromExternalRecord(record *externaldata.StudentRecord) *AcademicStudent {
+	if record == nil {
+		return nil
+	}
+	name := strings.TrimSpace(record.StudentName)
+	return &AcademicStudent{
+		XH: strings.TrimSpace(record.StudentID),
+		XM: &name,
+	}
 }
 
 // ListSchools 获取所有启用的学校列表

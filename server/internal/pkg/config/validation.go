@@ -263,6 +263,7 @@ func (c *Config) validate(parseErrs []string) error {
 		}
 	}
 	errs = append(errs, validateAdmissionPublicBaseURL(c.Admission.PublicBaseURL, productionLike)...)
+	errs = append(errs, validateExternalDataConfig(c.ExternalData)...)
 
 	if len(parseErrs) > 0 {
 		errs = append(errs, parseErrs...)
@@ -343,6 +344,80 @@ func (c *Config) validate(parseErrs []string) error {
 	}
 
 	return nil
+}
+
+func validateExternalDataConfig(cfg ExternalDataConfig) []string {
+	var errs []string
+	for i, source := range cfg.StudentSources {
+		if !source.Enabled {
+			continue
+		}
+		label := fmt.Sprintf("EXTERNAL_STUDENT_SOURCE[%d]", i)
+		if strings.TrimSpace(source.Name) == "" {
+			errs = append(errs, label+" name is required")
+		}
+		provider := strings.TrimSpace(source.Provider)
+		if provider == "" {
+			errs = append(errs, "EXTERNAL_STUDENT_SOURCE_PROVIDER is required when EXTERNAL_STUDENT_SOURCE_ENABLED=true")
+		}
+		if !isTenDigitCode(source.SchoolCode) {
+			errs = append(errs, "EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE must be a 10-digit school code")
+		}
+		switch provider {
+		case "oracle":
+			errs = append(errs, validateExternalOracleStudentSource(source.Oracle)...)
+		default:
+			errs = append(errs, "EXTERNAL_STUDENT_SOURCE_PROVIDER must be oracle when EXTERNAL_STUDENT_SOURCE_ENABLED=true")
+		}
+	}
+	return errs
+}
+
+func validateExternalOracleStudentSource(cfg ExternalOracleStudentSourceConfig) []string {
+	var errs []string
+	required := map[string]string{
+		"EXTERNAL_STUDENT_SOURCE_ORACLE_HOST":                cfg.Host,
+		"EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME":        cfg.ServiceName,
+		"EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME":            cfg.Username,
+		"EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD":            cfg.Password,
+		"EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA":              cfg.Schema,
+		"EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE":               cfg.Table,
+		"EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_ID_COLUMN":   cfg.StudentIDColumn,
+		"EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_NAME_COLUMN": cfg.StudentNameColumn,
+	}
+	for key, value := range required {
+		if strings.TrimSpace(value) == "" {
+			errs = append(errs, key+" is required when EXTERNAL_STUDENT_SOURCE_PROVIDER=oracle")
+		}
+	}
+	if cfg.Port <= 0 || cfg.Port > 65535 {
+		errs = append(errs, fmt.Sprintf("EXTERNAL_STUDENT_SOURCE_ORACLE_PORT must be between 1 and 65535 (got %d)", cfg.Port))
+	}
+	if cfg.ConnectTimeoutSeconds < 1 || cfg.ConnectTimeoutSeconds > 60 {
+		errs = append(errs, fmt.Sprintf("EXTERNAL_STUDENT_SOURCE_ORACLE_CONNECT_TIMEOUT_SECONDS must be between 1 and 60 (got %d)", cfg.ConnectTimeoutSeconds))
+	}
+	if cfg.QueryTimeoutSeconds < 1 || cfg.QueryTimeoutSeconds > 60 {
+		errs = append(errs, fmt.Sprintf("EXTERNAL_STUDENT_SOURCE_ORACLE_QUERY_TIMEOUT_SECONDS must be between 1 and 60 (got %d)", cfg.QueryTimeoutSeconds))
+	}
+	if cfg.MaxOpenConns < 1 || cfg.MaxOpenConns > 100 {
+		errs = append(errs, fmt.Sprintf("EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_OPEN_CONNS must be between 1 and 100 (got %d)", cfg.MaxOpenConns))
+	}
+	if cfg.MaxIdleConns < 0 || cfg.MaxIdleConns > cfg.MaxOpenConns {
+		errs = append(errs, "EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_IDLE_CONNS must be between 0 and EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_OPEN_CONNS")
+	}
+	return errs
+}
+
+func isTenDigitCode(value string) bool {
+	if len(value) != 10 {
+		return false
+	}
+	for _, ch := range value {
+		if ch < '0' || ch > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func validateAdmissionPublicBaseURL(raw string, productionLike bool) []string {

@@ -93,7 +93,23 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		admissionEmailSender = schoolEmailSender
 	}
 
-	userService, err := rt.initUserService(userRepo, piiCipher, fgaClient, storageService, studentEmailSender)
+	externalStudentDirectory, err := rt.initExternalStudentDirectory()
+	if err != nil {
+		return err
+	}
+	var externalStudentDirectoryOpt user.ServiceOption
+	if externalStudentDirectory != nil {
+		externalStudentDirectoryOpt = user.WithExternalStudentDirectory(externalStudentDirectory)
+	}
+
+	userService, err := rt.initUserService(
+		userRepo,
+		piiCipher,
+		fgaClient,
+		storageService,
+		studentEmailSender,
+		externalStudentDirectoryOpt,
+	)
 	if err != nil {
 		return err
 	}
@@ -237,6 +253,7 @@ func (rt *Runtime) initUserService(
 	fgaClient *fga.Client,
 	storageService *storage.Service,
 	schoolEmailSender user.StudentEmailSender,
+	extraOptions ...user.ServiceOption,
 ) (*user.Service, error) {
 	var photoStore user.ServiceOption
 	if rt.cfg.ObjectStorage.Endpoint != "" {
@@ -252,15 +269,14 @@ func (rt *Runtime) initUserService(
 	if err != nil {
 		return nil, err
 	}
-	userService, err := user.NewService(
-		userRepo,
-		crypto.GetHMACKey(),
-		piiCipher,
+	options := []user.ServiceOption{
 		user.WithProfileFGAClient(fgaClient),
 		user.WithRoleSyncFunc(roleSyncFn),
 		user.WithStudentEmailOTP(rt.redisClient.GetClient(), schoolEmailSender),
 		photoStore,
-	)
+	}
+	options = append(options, extraOptions...)
+	userService, err := user.NewService(userRepo, crypto.GetHMACKey(), piiCipher, options...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize user service: %w", err)
 	}

@@ -29,6 +29,7 @@ type Config struct {
 	Email         EmailConfig
 	Bot           BotConfig
 	Admission     AdmissionConfig
+	ExternalData  ExternalDataConfig
 	Observability ObservabilityConfig
 	OpenPlatform  OpenPlatformConfig
 }
@@ -80,6 +81,35 @@ type OpenPlatformTokenProbeConfig struct {
 // AdmissionConfig controls the public group admission verification surface.
 type AdmissionConfig struct {
 	PublicBaseURL string
+}
+
+// ExternalDataConfig controls external school/business data sources.
+type ExternalDataConfig struct {
+	StudentSources []ExternalStudentSourceConfig
+}
+
+type ExternalStudentSourceConfig struct {
+	Name       string
+	Enabled    bool
+	Provider   string
+	SchoolCode string
+	Oracle     ExternalOracleStudentSourceConfig
+}
+
+type ExternalOracleStudentSourceConfig struct {
+	Host                  string
+	Port                  int
+	ServiceName           string
+	Username              string
+	Password              string
+	Schema                string
+	Table                 string
+	StudentIDColumn       string
+	StudentNameColumn     string
+	ConnectTimeoutSeconds int
+	QueryTimeoutSeconds   int
+	MaxOpenConns          int
+	MaxIdleConns          int
 }
 
 // LogConfig 日志配置
@@ -293,6 +323,7 @@ func Load() (*Config, error) {
 		Email:         loadEmailConfig(&parseErrs),
 		Bot:           loadBotConfig(),
 		Admission:     loadAdmissionConfig(),
+		ExternalData:  loadExternalDataConfig(&parseErrs),
 		Observability: loadObservabilityConfig(&parseErrs),
 		OpenPlatform:  loadOpenPlatformConfig(&parseErrs),
 	}
@@ -544,6 +575,34 @@ func loadAdmissionConfig() AdmissionConfig {
 	return AdmissionConfig{
 		PublicBaseURL: getEnv("ADMISSION_PUBLIC_BASE_URL", ""),
 	}
+}
+
+func loadExternalDataConfig(parseErrs *[]string) ExternalDataConfig {
+	if !getEnvBool("EXTERNAL_STUDENT_SOURCE_ENABLED", false, parseErrs) {
+		return ExternalDataConfig{}
+	}
+	source := ExternalStudentSourceConfig{
+		Name:       getEnv("EXTERNAL_STUDENT_SOURCE_NAME", "buaa-academic-oracle"),
+		Enabled:    true,
+		Provider:   getEnv("EXTERNAL_STUDENT_SOURCE_PROVIDER", "oracle"),
+		SchoolCode: getEnv("EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE", ""),
+		Oracle: ExternalOracleStudentSourceConfig{
+			Host:                  getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_HOST", ""),
+			Port:                  getEnvInt("EXTERNAL_STUDENT_SOURCE_ORACLE_PORT", 1521, parseErrs),
+			ServiceName:           getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME", ""),
+			Username:              getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME", ""),
+			Password:              getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD", ""),
+			Schema:                getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA", ""),
+			Table:                 getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE", ""),
+			StudentIDColumn:       getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_ID_COLUMN", "XH"),
+			StudentNameColumn:     getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_NAME_COLUMN", "XM"),
+			ConnectTimeoutSeconds: getEnvInt("EXTERNAL_STUDENT_SOURCE_ORACLE_CONNECT_TIMEOUT_SECONDS", 5, parseErrs),
+			QueryTimeoutSeconds:   getEnvInt("EXTERNAL_STUDENT_SOURCE_ORACLE_QUERY_TIMEOUT_SECONDS", 3, parseErrs),
+			MaxOpenConns:          getEnvInt("EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_OPEN_CONNS", 4, parseErrs),
+			MaxIdleConns:          getEnvInt("EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_IDLE_CONNS", 1, parseErrs),
+		},
+	}
+	return ExternalDataConfig{StudentSources: []ExternalStudentSourceConfig{source}}
 }
 
 func loadObservabilityConfig(parseErrs *[]string) ObservabilityConfig {

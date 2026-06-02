@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/externaldata"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
@@ -180,6 +181,10 @@ type StudentEmailSender interface {
 	SendStudentVerificationOTP(ctx context.Context, email string, code string) error
 }
 
+type studentDirectoryLookup interface {
+	LookupStudent(ctx context.Context, schoolCode string, studentID string) (*externaldata.StudentRecord, bool, error)
+}
+
 // Service 用户服务层
 type Service struct {
 	repo                Repo
@@ -194,6 +199,7 @@ type Service struct {
 	photoStore          identityPhotoStore
 	profileIdentitySync profileIdentitySyncGateway
 	admissionProjection admissionVerificationProjectionGateway
+	studentDirectory    studentDirectoryLookup
 }
 
 // RoleSyncFunc 角色同步回调。
@@ -237,6 +243,12 @@ func WithStudentEmailOTP(client *redis.Client, sender StudentEmailSender) Servic
 	return func(s *Service) {
 		s.redisClient = client
 		s.studentEmailSender = sender
+	}
+}
+
+func WithExternalStudentDirectory(directory studentDirectoryLookup) ServiceOption {
+	return func(s *Service) {
+		s.studentDirectory = directory
 	}
 }
 
