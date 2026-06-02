@@ -59,6 +59,8 @@ assert_contains "${RECLAIM_SCRIPT}" '\[\[ -n "\$\{prune_baota_panel_backups_keep
 assert_contains "${RECLAIM_SCRIPT}" '\[\[ "\$\{truncate_var_log_messages\}" == "true" \]\] \|\| return 0'
 assert_contains "${RECLAIM_SCRIPT}" '\[\[ "\$\{prune_stuhelper_old_images\}" == "true" \]\] \|\| return 0'
 assert_contains "${RECLAIM_SCRIPT}" '\[\[ -n "\$\{prune_postgres_wal_archive_keep_hours\}" \]\] \|\| return 0'
+assert_contains "${RECLAIM_SCRIPT}" 'docker ps -a --format'
+assert_contains "${RECLAIM_SCRIPT}" 'container-referenced StuHelper image'
 assert_not_contains "${RECLAIM_SCRIPT}" 'rm -rf /var/lib/docker/volumes'
 assert_not_contains "${RECLAIM_SCRIPT}" 'run_or_print docker volume prune'
 

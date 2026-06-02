@@ -184,7 +184,7 @@ prune_inactive_stuhelper_images() {
   command -v docker >/dev/null 2>&1 || return
 
   active_ids="$(
-    docker ps --format '{{.Image}}' |
+    docker ps -a --format '{{.Image}}' |
       while IFS= read -r ref; do
         [[ -n "${ref}" ]] || continue
         docker image inspect --format '{{.Id}}' "${ref}" 2>/dev/null || true
@@ -198,7 +198,7 @@ prune_inactive_stuhelper_images() {
   while read -r ref image_id; do
     [[ -n "${ref}" && -n "${image_id}" ]] || continue
     if printf '%s\n' "${active_ids}" | grep -q "^sha256:${image_id}"; then
-      log "keep active StuHelper image: ${ref}"
+      log "keep container-referenced StuHelper image: ${ref}"
       continue
     fi
     remove_refs+=("${ref}")
