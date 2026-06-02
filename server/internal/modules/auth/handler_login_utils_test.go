@@ -17,14 +17,14 @@ func TestBuildAllowedRedirectHosts(t *testing.T) {
 	hosts := buildAllowedRedirectHosts([]string{
 		" https://web.example.com ",
 		"https://admin.example.com/app",
-		"https://id.stuhelper.com",
+		"https://join.stuhelper.com",
 		"not-a-url",
 		"",
 	})
 
 	assert.Contains(t, hosts, "web.example.com")
 	assert.Contains(t, hosts, "admin.example.com")
-	assert.Contains(t, hosts, "id.stuhelper.com")
+	assert.Contains(t, hosts, "join.stuhelper.com")
 	assert.Len(t, hosts, 3)
 }
 

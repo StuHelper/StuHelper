@@ -327,12 +327,10 @@ func TestResolveRedirectTarget_AllowedAbsoluteAndEmpty(t *testing.T) {
 		allowedRedirectHosts: map[string]struct{}{
 			"web.example.com":    {},
 			"admin.example.com":  {},
-			"id.stuhelper.com":   {},
 			"join.stuhelper.com": {},
 		},
 	}
 	assert.Equal(t, "https://admin.example.com/reviews", h.resolveRedirectTarget("https://admin.example.com/reviews"))
-	assert.Equal(t, "https://id.stuhelper.com/developers/apps", h.resolveRedirectTarget("https://id.stuhelper.com/developers/apps"))
 	assert.Equal(
 		t,
 		"https://join.stuhelper.com/verify/ADMIT-LOGIN?qq=123456",
