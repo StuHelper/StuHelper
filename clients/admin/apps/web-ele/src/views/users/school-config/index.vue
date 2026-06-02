@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import type { SchoolConfig, UpdateSchoolConfigPayload } from '#/api/admin';
 
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 
 import { useAccessStore } from '@vben/stores';
 
-import { ElButton, ElMessage, ElTag } from 'element-plus';
+import { ElButton, ElMessage, ElSwitch, ElTag } from 'element-plus';
 
 import { getSchoolConfigList, updateSchoolConfig } from '#/api/admin';
 import { $t } from '#/locales';
@@ -18,9 +18,13 @@ import SchoolConfigDialog from './SchoolConfigDialog.vue';
 const loading = ref(false);
 const submitting = ref(false);
 const schools = ref<SchoolConfig[]>([]);
+const updatingSchoolIds = ref(new Set<number>());
 const accessStore = useAccessStore();
 const canUpdateSchoolConfig = () =>
   accessStore.accessCodes.includes('user:school:update');
+const enabledSchoolCount = computed(
+  () => schools.value.filter((school) => school.enabled).length,
+);
 
 async function fetchData() {
   loading.value = true;
@@ -40,6 +44,7 @@ const form = reactive({
   ldapBaseDN: '',
   ldapURL: '',
   schoolID: 0,
+  schoolCode: '',
   schoolName: '',
   systemBindDN: '',
   systemBindPassword: '',
@@ -54,6 +59,7 @@ function openEdit(row: SchoolConfig) {
     return;
   }
   form.schoolID = row.schoolID;
+  form.schoolCode = row.schoolCode;
   form.schoolName = row.schoolName;
   form.verificationMethod = row.verificationMethod;
   form.enabled = row.enabled;
@@ -104,6 +110,37 @@ async function handleSubmit(submitted: SchoolConfigForm) {
   }
 }
 
+async function handleToggleEnabled(row: SchoolConfig, enabled: boolean) {
+  if (!canUpdateSchoolConfig() || isSchoolUpdating(row.schoolID)) {
+    return;
+  }
+  markSchoolUpdating(row.schoolID, true);
+  try {
+    await updateSchoolConfig(row.schoolID, { enabled });
+    row.enabled = enabled;
+    ElMessage.success($t('admin.users.schoolConfig.updated'));
+  } catch (_error) {
+    void _error;
+    // shared-result already displays the backend error message.
+  } finally {
+    markSchoolUpdating(row.schoolID, false);
+  }
+}
+
+function isSchoolUpdating(schoolID: number) {
+  return updatingSchoolIds.value.has(schoolID);
+}
+
+function markSchoolUpdating(schoolID: number, updating: boolean) {
+  const next = new Set(updatingSchoolIds.value);
+  if (updating) {
+    next.add(schoolID);
+  } else {
+    next.delete(schoolID);
+  }
+  updatingSchoolIds.value = next;
+}
+
 onMounted(fetchData);
 </script>
 
@@ -112,18 +149,29 @@ onMounted(fetchData);
     :title="$t('admin.routes.userSystem.schoolConfig')"
     :total="schools.length"
   >
+    <template #toolbar>
+      <span class="admin-cell-muted" data-school-directory-summary>
+        {{
+          $t('admin.users.schoolConfig.enabledSummary', {
+            enabled: enabledSchoolCount,
+            total: schools.length,
+          })
+        }}
+      </span>
+    </template>
+
     <PersistentAdminTable
       table-key="users.schoolConfig"
       :loading="loading"
       :data="schools"
-      row-key="schoolID"
+      row-key="schoolCode"
       stripe
     >
       <PersistentAdminTableColumn
-        column-key="schoolID"
-        :label="$t('admin.users.schoolConfig.schoolId')"
-        prop="schoolID"
-        :default-width="112"
+        column-key="schoolCode"
+        :label="$t('admin.users.schoolConfig.schoolCode')"
+        prop="schoolCode"
+        :default-width="148"
       />
       <PersistentAdminTableColumn
         column-key="schoolName"
@@ -153,10 +201,17 @@ onMounted(fetchData);
       <PersistentAdminTableColumn
         column-key="enabled"
         :label="$t('admin.users.schoolConfig.enabledStatus')"
-        :default-width="112"
+        :default-width="132"
       >
         <template #default="{ row }">
-          <ElTag :type="row.enabled ? 'success' : 'danger'" size="small">
+          <ElSwitch
+            v-if="canUpdateSchoolConfig()"
+            :model-value="row.enabled"
+            :loading="isSchoolUpdating(row.schoolID)"
+            data-school-enabled-switch
+            @change="(value) => handleToggleEnabled(row, Boolean(value))"
+          />
+          <ElTag v-else :type="row.enabled ? 'success' : 'danger'" size="small">
             {{
               row.enabled
                 ? $t('admin.users.schoolConfig.enabled')

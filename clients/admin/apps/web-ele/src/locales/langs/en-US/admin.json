@@ -412,11 +412,13 @@
     },
     "schoolConfig": {
       "schoolId": "School ID",
+      "schoolCode": "School Code",
       "schoolName": "School Name",
       "verificationMethod": "Verification Method",
       "enabledStatus": "Enabled",
       "enabled": "Enabled",
       "disabled": "Disabled",
+      "enabledSummary": "{enabled} / {total} schools enabled",
       "ldapUrl": "LDAP URL",
       "dialogTitle": "Edit school config - {schoolName}",
       "schoolNamePlaceholder": "Enter school name",

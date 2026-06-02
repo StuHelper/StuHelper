@@ -20,6 +20,7 @@ type SchoolConfigForm = {
   enabled: boolean;
   ldapBaseDN: string;
   ldapURL: string;
+  schoolCode: string;
   schoolID: number;
   schoolName: string;
   systemBindDN: string;
@@ -44,6 +45,7 @@ const draft = reactive<SchoolConfigForm>({
   enabled: true,
   ldapBaseDN: '',
   ldapURL: '',
+  schoolCode: '',
   schoolID: 0,
   schoolName: '',
   systemBindDN: '',
@@ -76,6 +78,9 @@ function submit() {
     width="620px"
   >
     <ElForm label-width="120px">
+      <ElFormItem :label="$t('admin.users.schoolConfig.schoolCode')">
+        <ElInput :model-value="draft.schoolCode" disabled />
+      </ElFormItem>
       <ElFormItem :label="$t('admin.users.schoolConfig.schoolName')">
         <ElInput
           v-model="draft.schoolName"

@@ -412,11 +412,13 @@
     },
     "schoolConfig": {
       "schoolId": "学校ID",
+      "schoolCode": "学校代码",
       "schoolName": "学校名称",
       "verificationMethod": "认证方式",
       "enabledStatus": "启用状态",
       "enabled": "已启用",
       "disabled": "已停用",
+      "enabledSummary": "已启用 {enabled} / {total} 所学校",
       "ldapUrl": "LDAP 地址",
       "dialogTitle": "编辑学校配置 - {schoolName}",
       "schoolNamePlaceholder": "请输入学校名称",
