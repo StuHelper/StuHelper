@@ -6516,6 +6516,38 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '410':
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/admission/school-email/academic-match:
+    post:
+      tags:
+        - Admission
+      operationId: matchAdmissionAcademicStudent
+      summary: 即时匹配 admission 老生学号和姓名
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SchoolEmailAcademicMatchRequest'
+      responses:
+        '200':
+          description: 学籍匹配结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SchoolEmailAcademicMatchResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/admission/school-email/request-otp:
     post:
       tags:
@@ -11069,6 +11101,44 @@ components:
           enum:
             - desktop
             - mobile
+    SchoolEmailAcademicMatchRequest:
+      type: object
+      required:
+        - schoolCode
+        - studentID
+        - studentName
+      properties:
+        schoolCode:
+          type: string
+          pattern: ^[0-9]{10}$
+          description: 教育部学校标识码；即时学籍匹配必须以此字段识别学校。
+        admissionSessionID:
+          type: string
+          description: 当前 Join 页面绑定的 admission session ID；用于确认匹配请求属于当前页面 session。
+        studentID:
+          type: string
+          description: 学号。
+        studentName:
+          type: string
+          description: 姓名。
+    SchoolEmailAcademicMatchResponse:
+      type: object
+      required:
+        - matched
+      properties:
+        matched:
+          type: boolean
+          description: 学号和姓名是否在学校学籍数据源中匹配。
+        email:
+          type: string
+          format: email
+          description: 匹配通过后由后端按学号派生出的学校邮箱。
+        studentID:
+          type: string
+          description: 规范化后的学号。
+        message:
+          type: string
+          description: 面向前端展示的匹配提示。
     SchoolEmailOTPRequest:
       type: object
       required:

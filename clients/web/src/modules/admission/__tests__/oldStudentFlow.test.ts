@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { flushPromises, mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiError } from '@/api/errors'
 import {
@@ -12,6 +12,7 @@ import {
 import OldStudentVerificationFlow from '../views/OldStudentVerificationFlow.vue'
 
 const mockAdmissionApi = vi.hoisted(() => ({
+  matchSchoolEmailAcademicStudent: vi.fn(),
   requestSchoolEmailOTP: vi.fn(),
   verifySchoolEmailOTP: vi.fn(),
 }))
@@ -52,6 +53,10 @@ function createDeferred<T>() {
 describe('OldStudentVerificationFlow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('shows official SSO only for configured schools', async () => {
@@ -109,6 +114,13 @@ describe('OldStudentVerificationFlow', () => {
   })
 
   it('fills BUAA student email only after academic name match succeeds', async () => {
+    vi.useFakeTimers()
+    mockAdmissionApi.matchSchoolEmailAcademicStudent.mockResolvedValue({
+      matched: true,
+      email: '20250001@buaa.edu.cn',
+      studentID: '20250001',
+      message: '学号和姓名已匹配。',
+    })
     mockAdmissionApi.requestSchoolEmailOTP.mockResolvedValue({
       email: '20250001@buaa.edu.cn',
       studentID: '20250001',
@@ -140,6 +152,16 @@ describe('OldStudentVerificationFlow', () => {
     await wrapper.find('[data-academic-student-id-input]').setValue('20250001')
     expect(emailInput.element.value).toBe('')
     await wrapper.find('[data-academic-student-name-input]').setValue('张三')
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+    expect(mockAdmissionApi.matchSchoolEmailAcademicStudent).toHaveBeenCalledWith({
+      schoolCode: '4111010006',
+      admissionSessionID: 'session-1',
+      studentID: '20250001',
+      studentName: '张三',
+    })
+    expect(emailInput.element.value).toBe('20250001@buaa.edu.cn')
+
     await wrapper.find('[data-school-email-otp-request]').trigger('click')
     await flushPromises()
 
@@ -151,6 +173,34 @@ describe('OldStudentVerificationFlow', () => {
       studentName: '张三',
     })
     expect(emailInput.element.value).toBe('20250001@buaa.edu.cn')
+    vi.useRealTimers()
+  })
+
+  it('requires academic match before sending BUAA student email OTP', async () => {
+    const wrapper = mount(OldStudentVerificationFlow, {
+      props: {
+        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD?qq=123',
+        admissionSessionId: 'session-1',
+        linked: true,
+        schools: [{
+          schoolID: 10006,
+          schoolCode: '4111010006',
+          schoolName: '北京航空航天大学',
+          verificationMethod: 'manual',
+          enabled: true,
+          schoolEmailOtpEnabled: true,
+          schoolEmailIdentityPolicy: {
+            type: 'academic_student_email',
+            studentIDEmailDomain: 'buaa.edu.cn',
+            requireStudentName: true,
+          },
+        }],
+      },
+    })
+
+    await wrapper.find('[data-school-email-otp-request]').trigger('click')
+    expect(wrapper.text()).toContain('请先输入学号和姓名')
+    expect(mockAdmissionApi.requestSchoolEmailOTP).not.toHaveBeenCalled()
   })
 
   it('emits expired when the linked session has timed out during email OTP', async () => {

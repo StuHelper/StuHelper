@@ -38,6 +38,42 @@ type admissionEmailOTPRecord struct {
 	StudentName string `json:"studentName,omitempty"`
 }
 
+func (s *Service) MatchSchoolEmailAcademicStudent(
+	ctx context.Context,
+	input SchoolEmailAcademicMatchInput,
+) (*SchoolEmailAcademicMatchResponse, error) {
+	if _, err := s.requireLinkedSession(ctx, input.UserID, input.AdmissionSessionID); err != nil {
+		return nil, err
+	}
+	config, err := s.loadAcademicEmailOTPConfig(ctx, input.SchoolID)
+	if err != nil {
+		return nil, err
+	}
+	email, studentID, _, err := s.resolveAcademicStudentEmail(ctx, config, SchoolEmailOTPInput{
+		UserID:             input.UserID,
+		SchoolID:           input.SchoolID,
+		AdmissionSessionID: input.AdmissionSessionID,
+		StudentID:          input.StudentID,
+		StudentName:        input.StudentName,
+	})
+	if err != nil {
+		if errors.Is(err, ErrAdmissionStudentRecordNotFound) ||
+			errors.Is(err, ErrAdmissionStudentNameMismatch) {
+			return &SchoolEmailAcademicMatchResponse{
+				Matched: false,
+				Message: "学号和姓名不匹配，请核对后再发送验证码。",
+			}, nil
+		}
+		return nil, err
+	}
+	return &SchoolEmailAcademicMatchResponse{
+		Matched:   true,
+		Email:     email,
+		StudentID: studentID,
+		Message:   "学号和姓名已匹配。",
+	}, nil
+}
+
 func (s *Service) RequestSchoolEmailOTP(
 	ctx context.Context,
 	input SchoolEmailOTPInput,
@@ -117,15 +153,9 @@ func (s *Service) loadEmailOTPConfig(
 	ctx context.Context,
 	input SchoolEmailOTPInput,
 ) (*AdmissionSchoolConfig, string, string, string, error) {
-	config, err := s.repo.GetAdmissionSchoolConfig(ctx, input.SchoolID)
+	config, err := s.loadAdmissionEmailOTPConfig(ctx, input.SchoolID)
 	if err != nil {
 		return nil, "", "", "", err
-	}
-	if config == nil {
-		return nil, "", "", "", ErrAdmissionSchoolNotFound
-	}
-	if !config.Enabled {
-		return nil, "", "", "", ErrAdmissionSchoolDisabled
 	}
 	if config.EmailIdentityPolicy != nil && strings.EqualFold(
 		strings.TrimSpace(config.EmailIdentityPolicy.Type),
@@ -142,6 +172,34 @@ func (s *Service) loadEmailOTPConfig(
 		return nil, "", "", "", err
 	}
 	return config, email, "", "", nil
+}
+
+func (s *Service) loadAdmissionEmailOTPConfig(ctx context.Context, schoolID int64) (*AdmissionSchoolConfig, error) {
+	config, err := s.repo.GetAdmissionSchoolConfig(ctx, schoolID)
+	if err != nil {
+		return nil, err
+	}
+	if config == nil {
+		return nil, ErrAdmissionSchoolNotFound
+	}
+	if !config.Enabled {
+		return nil, ErrAdmissionSchoolDisabled
+	}
+	return config, nil
+}
+
+func (s *Service) loadAcademicEmailOTPConfig(ctx context.Context, schoolID int64) (*AdmissionSchoolConfig, error) {
+	config, err := s.loadAdmissionEmailOTPConfig(ctx, schoolID)
+	if err != nil {
+		return nil, err
+	}
+	if config.EmailIdentityPolicy == nil || !strings.EqualFold(
+		strings.TrimSpace(config.EmailIdentityPolicy.Type),
+		schoolauth.EmailIdentityPolicyAcademicStudentEmail,
+	) {
+		return nil, ErrAdmissionEmailDomainNotAllowed
+	}
+	return config, nil
 }
 
 func (s *Service) resolveAcademicStudentEmail(

@@ -61,6 +61,13 @@
             >
           </label>
         </div>
+        <p
+          v-if="selectedSchoolRequiresAcademicEmail && academicMatchMessage"
+          :class="academicMatchMessageClass"
+          data-academic-match-status
+        >
+          {{ academicMatchMessage }}
+        </p>
         <label class="field-label">
           学校邮箱
           <input
@@ -76,9 +83,11 @@
         <div class="flex flex-wrap gap-3">
           <button
             class="secondary-button"
+            :class="{ 'button-disabled': selectedSchoolRequiresAcademicEmail && !canRequestEmailOTP }"
             data-school-email-otp-request
             type="button"
-            :disabled="requestingOTP || !canRequestEmailOTP"
+            :aria-disabled="selectedSchoolRequiresAcademicEmail && !canRequestEmailOTP ? 'true' : undefined"
+            :disabled="requestingOTP || (!selectedSchoolRequiresAcademicEmail && !canRequestEmailOTP)"
             @click="requestEmailOTP"
           >
             {{ selectedSchoolRequiresAcademicEmail ? '校验并发送验证码' : '发送验证码' }}
@@ -114,7 +123,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 import type { AdmissionMe } from '@stuhelper/shared/api'
 
@@ -148,6 +157,10 @@ const submitting = ref(false)
 const requestingOTP = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
+const academicMatchState = ref<'idle' | 'waiting' | 'checking' | 'matched' | 'mismatch' | 'error'>('idle')
+const academicMatchMessage = ref('')
+let academicMatchTimer: ReturnType<typeof setTimeout> | undefined
+let academicMatchRunID = 0
 
 const selectedSchool = computed(() => {
   return props.schools.find((school) => school.schoolCode === selectedSchoolCode.value)
@@ -161,9 +174,14 @@ const selectedSchoolRequiresAcademicEmail = computed(() => {
 const canRequestEmailOTP = computed(() => {
   if (!selectedSchoolHasEmailOTP.value) return false
   if (selectedSchoolRequiresAcademicEmail.value) {
-    return studentID.value.trim() !== '' && studentName.value.trim() !== ''
+    return academicMatchState.value === 'matched' && email.value.trim() !== ''
   }
   return email.value.trim() !== ''
+})
+const academicMatchMessageClass = computed(() => {
+  if (academicMatchState.value === 'matched') return 'text-sm text-green-700'
+  if (academicMatchState.value === 'checking') return 'text-sm text-slate-600'
+  return 'text-sm text-red-600'
 })
 
 watch(
@@ -187,14 +205,12 @@ function updateEmail(event: Event): void {
 
 function updateStudentID(event: Event): void {
   studentID.value = readControlValue(event).trim()
-  email.value = ''
   code.value = ''
   successMessage.value = ''
 }
 
 function updateStudentName(event: Event): void {
   studentName.value = readControlValue(event).trim()
-  email.value = ''
   code.value = ''
   successMessage.value = ''
 }
@@ -215,7 +231,13 @@ function startSchoolSSO(): void {
 async function requestEmailOTP(): Promise<void> {
   errorMessage.value = ''
   successMessage.value = ''
-  if (!canRequestEmailOTP.value || requestingOTP.value) return
+  if (requestingOTP.value) return
+  if (!canRequestEmailOTP.value) {
+    errorMessage.value = selectedSchoolRequiresAcademicEmail.value
+      ? academicRequestBlockedMessage()
+      : '请先填写学校邮箱。'
+    return
+  }
   requestingOTP.value = true
   try {
     const result = await admissionApi.requestSchoolEmailOTP({
@@ -305,6 +327,7 @@ function requireCode(): string {
 watch(
   () => selectedSchool.value?.schoolCode,
   () => {
+    resetAcademicMatch()
     email.value = ''
     studentID.value = ''
     studentName.value = ''
@@ -312,6 +335,103 @@ watch(
     successMessage.value = ''
   },
 )
+
+watch(
+  [selectedSchoolRequiresAcademicEmail, selectedSchoolCode, studentID, studentName],
+  () => {
+    scheduleAcademicMatch()
+  },
+)
+
+onBeforeUnmount(() => {
+  clearAcademicMatchTimer()
+  academicMatchRunID += 1
+})
+
+function scheduleAcademicMatch(): void {
+  clearAcademicMatchTimer()
+  academicMatchRunID += 1
+  if (!selectedSchoolRequiresAcademicEmail.value) {
+    resetAcademicMatch()
+    return
+  }
+  email.value = ''
+  const normalizedStudentID = studentID.value.trim()
+  const normalizedStudentName = studentName.value.trim()
+  if (!normalizedStudentID && !normalizedStudentName) {
+    academicMatchState.value = 'idle'
+    academicMatchMessage.value = ''
+    return
+  }
+  if (!normalizedStudentID || !normalizedStudentName) {
+    academicMatchState.value = 'waiting'
+    academicMatchMessage.value = '请先输入学号和姓名。'
+    return
+  }
+  academicMatchState.value = 'checking'
+  academicMatchMessage.value = '正在匹配学号和姓名...'
+  const runID = academicMatchRunID
+  academicMatchTimer = setTimeout(() => {
+    void runAcademicMatch(runID, normalizedStudentID, normalizedStudentName)
+  }, 300)
+}
+
+async function runAcademicMatch(
+  runID: number,
+  normalizedStudentID: string,
+  normalizedStudentName: string,
+): Promise<void> {
+  try {
+    const result = await admissionApi.matchSchoolEmailAcademicStudent({
+      schoolCode: requireSelectedSchoolCode(),
+      ...admissionSessionContext(),
+      studentID: normalizedStudentID,
+      studentName: normalizedStudentName,
+    })
+    if (runID !== academicMatchRunID) return
+    if (result.matched && result.email) {
+      academicMatchState.value = 'matched'
+      academicMatchMessage.value = result.message || '学号和姓名已匹配。'
+      email.value = result.email
+      return
+    }
+    academicMatchState.value = 'mismatch'
+    academicMatchMessage.value = result.message || '学号和姓名不匹配，请核对后再发送验证码。'
+    email.value = ''
+  } catch (error) {
+    if (runID !== academicMatchRunID) return
+    if (isAdmissionSessionExpiredError(error)) {
+      emit('expired')
+      return
+    }
+    academicMatchState.value = 'error'
+    academicMatchMessage.value = readErrorMessage(error, '学籍匹配暂时不可用，请稍后重试。')
+    email.value = ''
+  }
+}
+
+function resetAcademicMatch(): void {
+  clearAcademicMatchTimer()
+  academicMatchRunID += 1
+  academicMatchState.value = 'idle'
+  academicMatchMessage.value = ''
+}
+
+function clearAcademicMatchTimer(): void {
+  if (academicMatchTimer === undefined) return
+  clearTimeout(academicMatchTimer)
+  academicMatchTimer = undefined
+}
+
+function academicRequestBlockedMessage(): string {
+  if (!studentID.value.trim() || !studentName.value.trim()) {
+    return '请先输入学号和姓名。'
+  }
+  if (academicMatchState.value === 'checking') {
+    return '请等待学号和姓名匹配完成。'
+  }
+  return '请先通过学号和姓名匹配。'
+}
 
 function readControlValue(event: Event): string {
   const target = event.target
@@ -344,5 +464,10 @@ function readErrorMessage(error: unknown, fallback: string): string {
   color: #0f172a;
   min-height: 40px;
   padding: 8px 10px;
+}
+
+.button-disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 </style>

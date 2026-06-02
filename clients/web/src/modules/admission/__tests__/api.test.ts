@@ -11,6 +11,7 @@ const mockAdmissionApi = vi.hoisted(() => ({
   previewFreshmanMobileCameraHandoff: vi.fn(),
   uploadFreshmanMobileCameraCapture: vi.fn(),
   chooseFreshmanMobileCameraContinuation: vi.fn(),
+  matchSchoolEmailAcademicStudent: vi.fn(),
   requestSchoolEmailOTP: vi.fn(),
   verifySchoolEmailOTP: vi.fn(),
 }))
@@ -215,6 +216,31 @@ describe('admissionApi response parsing', () => {
         code: '123456',
       }),
     ).rejects.toThrow('Invalid school email OTP response')
+  })
+
+  it('parses academic student match responses', async () => {
+    mockAdmissionApi.matchSchoolEmailAcademicStudent.mockResolvedValue(
+      ok({
+        matched: true,
+        email: '20250001@buaa.edu.cn',
+        studentID: '20250001',
+        message: '学号和姓名已匹配。',
+      }),
+    )
+
+    await expect(
+      admissionApi.matchSchoolEmailAcademicStudent({
+        schoolCode: '4111010006',
+        admissionSessionID: 'session-1',
+        studentID: '20250001',
+        studentName: '张三',
+      }),
+    ).resolves.toEqual({
+      matched: true,
+      email: '20250001@buaa.edu.cn',
+      studentID: '20250001',
+      message: '学号和姓名已匹配。',
+    })
   })
 
   it('normalizes freshman camera handoff responses', async () => {

@@ -140,6 +140,60 @@ func TestSchoolEmailOTPDerivesBUAAEmailAfterAcademicNameMatch(t *testing.T) {
 	require.ErrorIs(t, err, ErrAdmissionEmailDomainNotAllowed)
 }
 
+func TestSchoolEmailAcademicMatchReturnsImmediateResult(t *testing.T) {
+	pg := postgresfixture.Start(t)
+	svc := newFreshmanTestService(t, pg)
+	svc.academicLookup = testAcademicLookupGateway{
+		student: &user.AcademicStudent{XH: "20250001", XM: stringPtr("张三")},
+	}
+	userID := seedLinkedAdmissionUser(t, pg, svc, "email-academic-match")
+
+	_, err := pg.Pool.Exec(context.Background(), `
+		UPDATE school_configs
+		SET enabled = true,
+		    manual_form_fields = '{"admission":{"emailDomains":["buaa.edu.cn"],"emailIdentityPolicy":{"type":"academic_student_email","studentIDEmailDomain":"buaa.edu.cn","requireStudentName":true}}}'::jsonb
+		WHERE school_id = 10006
+	`)
+	require.NoError(t, err)
+
+	resp, err := svc.MatchSchoolEmailAcademicStudent(context.Background(), SchoolEmailAcademicMatchInput{
+		UserID:      userID,
+		SchoolID:    10006,
+		StudentID:   "20250001",
+		StudentName: " 张 三 ",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.True(t, resp.Matched)
+	assert.Equal(t, "20250001@buaa.edu.cn", resp.Email)
+	assert.Equal(t, "20250001", resp.StudentID)
+
+	resp, err = svc.MatchSchoolEmailAcademicStudent(context.Background(), SchoolEmailAcademicMatchInput{
+		UserID:      userID,
+		SchoolID:    10006,
+		StudentID:   "20250001",
+		StudentName: "李四",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.False(t, resp.Matched)
+	assert.Empty(t, resp.Email)
+}
+
+func TestSchoolEmailAcademicMatchRequiresLinkedSession(t *testing.T) {
+	pg := postgresfixture.Start(t)
+	svc := newFreshmanTestService(t, pg)
+	userID := seedAdmissionUser(t, pg, "email-academic-match-unlinked")
+
+	_, err := svc.MatchSchoolEmailAcademicStudent(context.Background(), SchoolEmailAcademicMatchInput{
+		UserID:      userID,
+		SchoolID:    10006,
+		StudentID:   "20250001",
+		StudentName: "张三",
+	})
+	require.ErrorIs(t, err, ErrAdmissionLinkedSessionRequired)
+}
+
 func TestSchoolEmailOTPRejectsExpiredLinkedSession(t *testing.T) {
 	pg := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)

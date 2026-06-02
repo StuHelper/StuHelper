@@ -379,6 +379,8 @@ paths:
     $ref: "paths/admission.yaml#/~1api~1v1~1admission~1freshman~1mobile-camera-handoffs~1{token}~1camera-capture"
   /api/v1/admission/freshman/mobile-camera-handoffs/{token}/continue:
     $ref: "paths/admission.yaml#/~1api~1v1~1admission~1freshman~1mobile-camera-handoffs~1{token}~1continue"
+  /api/v1/admission/school-email/academic-match:
+    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1school-email~1academic-match"
   /api/v1/admission/school-email/request-otp:
     $ref: "paths/admission.yaml#/~1api~1v1~1admission~1school-email~1request-otp"
   /api/v1/admission/school-email/verify-otp:
@@ -776,6 +778,10 @@ components:
       $ref: "components/schemas/admission.yaml#/FreshmanCameraHandoff"
     FreshmanCameraHandoffContinuationRequest:
       $ref: "components/schemas/admission.yaml#/FreshmanCameraHandoffContinuationRequest"
+    SchoolEmailAcademicMatchRequest:
+      $ref: "components/schemas/admission.yaml#/SchoolEmailAcademicMatchRequest"
+    SchoolEmailAcademicMatchResponse:
+      $ref: "components/schemas/admission.yaml#/SchoolEmailAcademicMatchResponse"
     SchoolEmailOTPRequest:
       $ref: "components/schemas/admission.yaml#/SchoolEmailOTPRequest"
     SchoolEmailOTPVerifyRequest:

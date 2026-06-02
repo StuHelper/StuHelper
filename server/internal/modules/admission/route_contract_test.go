@@ -61,6 +61,7 @@ func assertAdmissionUserRoutes(t *testing.T, routes gin.RoutesInfo) {
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/admission/freshman/applications")
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/admission/freshman/applications/:id/camera-captures")
 	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/admission/freshman/camera-handoffs/:id/events")
+	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/admission/school-email/academic-match")
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/admission/school-email/request-otp")
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/admission/school-email/verify-otp")
 	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/admission/school-sso/:schoolCode/login")

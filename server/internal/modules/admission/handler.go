@@ -52,6 +52,7 @@ func (h *Handler) RegisterRoutes(api *gin.RouterGroup, authMW gin.HandlerFunc) {
 	admission.GET("/freshman/mobile-camera-handoffs/:token", h.handlePreviewFreshmanCameraHandoff)
 	admission.POST("/freshman/mobile-camera-handoffs/:token/camera-capture", h.handleUploadFreshmanCameraHandoffCapture)
 	admission.POST("/freshman/mobile-camera-handoffs/:token/continue", h.handleChooseFreshmanCameraHandoffContinuation)
+	admission.POST("/school-email/academic-match", authMW, h.handleMatchSchoolEmailAcademicStudent)
 	admission.POST("/school-email/request-otp", authMW, h.handleRequestSchoolEmailOTP)
 	admission.POST("/school-email/verify-otp", authMW, h.handleVerifySchoolEmailOTP)
 	admission.GET("/school-sso/:schoolCode/login", authMW, h.handleStartSchoolSSO)

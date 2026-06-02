@@ -40,6 +40,13 @@ type schoolEmailOTPHTTPRequest struct {
 	StudentName        string `json:"studentName"`
 }
 
+type schoolEmailAcademicMatchHTTPRequest struct {
+	SchoolCode         string `json:"schoolCode" binding:"required,numeric,len=10"`
+	AdmissionSessionID string `json:"admissionSessionID"`
+	StudentID          string `json:"studentID" binding:"required,max=50"`
+	StudentName        string `json:"studentName" binding:"required,max=80"`
+}
+
 type schoolEmailOTPVerifyHTTPRequest struct {
 	SchoolCode         string `json:"schoolCode" binding:"omitempty,numeric,len=10"`
 	SchoolID           int64  `json:"schoolID" binding:"omitempty"`
@@ -337,6 +344,34 @@ func (h *Handler) handleRequestSchoolEmailOTP(c *gin.Context) {
 		return
 	}
 	result, err := h.service.RequestSchoolEmailOTP(c.Request.Context(), schoolEmailOTPInput(userID, schoolID, req))
+	if err != nil {
+		respondAdmissionError(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
+func (h *Handler) handleMatchSchoolEmailAcademicStudent(c *gin.Context) {
+	userID, ok := h.resolveAdmissionUser(c)
+	if !ok {
+		return
+	}
+	var req schoolEmailAcademicMatchHTTPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request parameters")
+		return
+	}
+	schoolID, ok := h.resolveAdmissionRequestSchoolID(c, req.SchoolCode, 0)
+	if !ok {
+		return
+	}
+	result, err := h.service.MatchSchoolEmailAcademicStudent(c.Request.Context(), SchoolEmailAcademicMatchInput{
+		UserID:             userID,
+		SchoolID:           schoolID,
+		AdmissionSessionID: strings.TrimSpace(req.AdmissionSessionID),
+		StudentID:          req.StudentID,
+		StudentName:        req.StudentName,
+	})
 	if err != nil {
 		respondAdmissionError(c, err)
 		return

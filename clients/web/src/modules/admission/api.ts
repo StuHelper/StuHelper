@@ -7,6 +7,8 @@ import type {
   FreshmanApplication,
   FreshmanCameraHandoff,
   FreshmanCameraHandoffContinuationRequest,
+  SchoolEmailAcademicMatchRequest,
+  SchoolEmailAcademicMatchResponse,
   SchoolEmailOTPRequest,
   SchoolEmailOTPResponse,
   SchoolEmailOTPVerifyRequest,
@@ -398,6 +400,21 @@ function readSchoolEmailOTPResponse(
   }
 }
 
+function readSchoolEmailAcademicMatchResponse(
+  payload: unknown,
+  message: string,
+): SchoolEmailAcademicMatchResponse {
+  if (!isRecord(payload)) {
+    throw new Error(message)
+  }
+  return {
+    matched: readBoolean(payload, 'matched', message),
+    email: readOptionalString(payload, 'email', message),
+    studentID: readOptionalString(payload, 'studentID', message),
+    message: readOptionalString(payload, 'message', message),
+  }
+}
+
 export const admissionApi = {
   async getAdmissionSession(token: string, qq?: string): Promise<AdmissionSession> {
     const result = await api.admission.getAdmissionSession(token, qq)
@@ -495,6 +512,16 @@ export const admissionApi = {
     return readFreshmanCameraHandoff(
       requireData(result, 'Freshman camera handoff response is empty'),
       'Invalid freshman camera handoff response',
+    )
+  },
+
+  async matchSchoolEmailAcademicStudent(
+    payload: SchoolEmailAcademicMatchRequest,
+  ): Promise<SchoolEmailAcademicMatchResponse> {
+    const result = await api.admission.matchSchoolEmailAcademicStudent(payload)
+    return readSchoolEmailAcademicMatchResponse(
+      requireData(result, 'Academic match response is empty'),
+      'Invalid academic match response',
     )
   },
 

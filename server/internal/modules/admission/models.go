@@ -276,6 +276,21 @@ type SchoolEmailOTPInput struct {
 	StudentName        string
 }
 
+type SchoolEmailAcademicMatchInput struct {
+	UserID             int64
+	SchoolID           int64
+	AdmissionSessionID string
+	StudentID          string
+	StudentName        string
+}
+
+type SchoolEmailAcademicMatchResponse struct {
+	Matched   bool   `json:"matched"`
+	Email     string `json:"email,omitempty"`
+	StudentID string `json:"studentID,omitempty"`
+	Message   string `json:"message,omitempty"`
+}
+
 type SchoolEmailOTPVerifyInput struct {
 	UserID             int64
 	SchoolID           int64

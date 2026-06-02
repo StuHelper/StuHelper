@@ -18,6 +18,8 @@ type CameraCaptureRequest = components['schemas']['CameraCaptureRequest']
 type FreshmanCameraHandoff = components['schemas']['FreshmanCameraHandoff']
 type FreshmanCameraHandoffContinuationRequest =
   components['schemas']['FreshmanCameraHandoffContinuationRequest']
+type SchoolEmailAcademicMatchRequest = components['schemas']['SchoolEmailAcademicMatchRequest']
+type SchoolEmailAcademicMatchResponse = components['schemas']['SchoolEmailAcademicMatchResponse']
 type SchoolEmailOTPRequest = components['schemas']['SchoolEmailOTPRequest']
 type SchoolEmailOTPVerifyRequest = components['schemas']['SchoolEmailOTPVerifyRequest']
 type SchoolEmailOTPResponse = components['schemas']['SchoolEmailOTPResponse']
@@ -98,6 +100,9 @@ export const createAdmissionApi = (client: ApiClient) => ({
       params: { path: { token } },
       body: data,
     }),
+
+  matchSchoolEmailAcademicStudent: (data: SchoolEmailAcademicMatchRequest) =>
+    client.POST('/api/v1/admission/school-email/academic-match', { body: data }),
 
   requestSchoolEmailOTP: (data: SchoolEmailOTPRequest) =>
     client.POST('/api/v1/admission/school-email/request-otp', { body: data }),
@@ -188,6 +193,8 @@ export type {
   MemberBlacklistEntry,
   MemberBlacklistReleaseBySubjectRequest,
   MemberBlacklistReleaseRequest,
+  SchoolEmailAcademicMatchRequest,
+  SchoolEmailAcademicMatchResponse,
   SchoolEmailOTPRequest,
   SchoolEmailOTPVerifyRequest,
   SchoolEmailOTPResponse,

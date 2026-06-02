@@ -2604,6 +2604,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admission/school-email/academic-match": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 即时匹配 admission 老生学号和姓名 */
+        post: operations["matchAdmissionAcademicStudent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admission/school-email/request-otp": {
         parameters: {
             query?: never;
@@ -4434,6 +4451,29 @@ export interface components {
         FreshmanCameraHandoffContinuationRequest: {
             /** @enum {string} */
             continueOn: "desktop" | "mobile";
+        };
+        SchoolEmailAcademicMatchRequest: {
+            /** @description 教育部学校标识码；即时学籍匹配必须以此字段识别学校。 */
+            schoolCode: string;
+            /** @description 当前 Join 页面绑定的 admission session ID；用于确认匹配请求属于当前页面 session。 */
+            admissionSessionID?: string;
+            /** @description 学号。 */
+            studentID: string;
+            /** @description 姓名。 */
+            studentName: string;
+        };
+        SchoolEmailAcademicMatchResponse: {
+            /** @description 学号和姓名是否在学校学籍数据源中匹配。 */
+            matched: boolean;
+            /**
+             * Format: email
+             * @description 匹配通过后由后端按学号派生出的学校邮箱。
+             */
+            email?: string;
+            /** @description 规范化后的学号。 */
+            studentID?: string;
+            /** @description 面向前端展示的匹配提示。 */
+            message?: string;
         };
         SchoolEmailOTPRequest: {
             /** @description 教育部学校标识码；公开 admission 学校邮箱 OTP 请求必须以此字段识别学校。 */
@@ -10166,6 +10206,35 @@ export interface operations {
             400: components["responses"]["ErrorResponse"];
             409: components["responses"]["ErrorResponse"];
             410: components["responses"]["ErrorResponse"];
+        };
+    };
+    matchAdmissionAcademicStudent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SchoolEmailAcademicMatchRequest"];
+            };
+        };
+        responses: {
+            /** @description 学籍匹配结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["SchoolEmailAcademicMatchResponse"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
         };
     };
     requestAdmissionSchoolEmailOTP: {
