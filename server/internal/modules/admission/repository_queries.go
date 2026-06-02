@@ -51,9 +51,13 @@ func (r *Repository) ListSessions(
 		SELECT `+admissionSessionColumns+`, COUNT(*) OVER() AS total
 		FROM group_admission_sessions
 		WHERE ($1::text = '' OR status = $1)
+		  AND ($2::text = '' OR platform = $2)
+		  AND ($3::text = '' OR bot_self_id = $3)
+		  AND ($4::text = '' OR guild_id = $4)
+		  AND ($5::text = '' OR qq_id = $5)
 		ORDER BY created_at DESC, id ASC
-		LIMIT $2 OFFSET $3
-	`, string(filter.Status), filter.PageSize, filter.Offset)
+		LIMIT $6 OFFSET $7
+	`, string(filter.Status), filter.Platform, filter.BotSelfID, filter.GuildID, filter.QQID, filter.PageSize, filter.Offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("ListSessions: %w", err)
 	}

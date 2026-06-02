@@ -37,6 +37,60 @@ func TestAdmissionMigration(t *testing.T) {
 	require.Equal(t, 1, policyCount)
 }
 
+func TestListAdmissionSessionsFiltersByRuntimeSubject(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	ctx := context.Background()
+
+	insertAdmissionSessionForFilter(t, fixture, admissionSessionFilterSeed{
+		ID:        "adm-filter-1",
+		Platform:  "qq",
+		BotSelfID: "514",
+		GuildID:   "guild-1",
+		QQID:      "10001",
+		TokenHash: "token-hash-filter-1",
+		Status:    StatusLinked,
+	})
+	insertAdmissionSessionForFilter(t, fixture, admissionSessionFilterSeed{
+		ID:        "adm-filter-2",
+		Platform:  "qq",
+		BotSelfID: "999",
+		GuildID:   "guild-1",
+		QQID:      "10001",
+		TokenHash: "token-hash-filter-2",
+		Status:    StatusCancelled,
+	})
+	insertAdmissionSessionForFilter(t, fixture, admissionSessionFilterSeed{
+		ID:        "adm-filter-3",
+		Platform:  "qq",
+		BotSelfID: "514",
+		GuildID:   "guild-2",
+		QQID:      "10002",
+		TokenHash: "token-hash-filter-3",
+		Status:    StatusVerified,
+	})
+
+	items, total, err := repo.ListSessions(ctx, AdmissionSessionListFilter{
+		Status:    StatusLinked,
+		Platform:  "qq",
+		BotSelfID: "514",
+		GuildID:   "guild-1",
+		QQID:      "10001",
+		PageSize:  20,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, total)
+	require.Len(t, items, 1)
+	require.Equal(t, "adm-filter-1", items[0].ID)
+
+	items, total, err = repo.ListSessions(ctx, AdmissionSessionListFilter{
+		Platform: "qq", QQID: "10001", PageSize: 20,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, total)
+	require.Len(t, items, 2)
+}
+
 func seedAdmissionUser(t *testing.T, fixture *postgresfixture.Fixture, suffix string) int64 {
 	t.Helper()
 
@@ -81,6 +135,37 @@ func insertAdmissionSession(t *testing.T, fixture *postgresfixture.Fixture, seed
 	`, seed.ID, seed.QQID, seed.TokenHash, futureTime(1), seed.Status, futureTime(1), futureTime(2), futureTime(30))
 	require.NoError(t, err)
 	return seed.ID
+}
+
+type admissionSessionFilterSeed struct {
+	ID        string
+	Platform  string
+	BotSelfID string
+	GuildID   string
+	QQID      string
+	TokenHash string
+	Status    AdmissionSessionStatus
+}
+
+func insertAdmissionSessionForFilter(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	seed admissionSessionFilterSeed,
+) {
+	t.Helper()
+
+	_, err := fixture.Pool.Exec(context.Background(), `
+		INSERT INTO group_admission_sessions (
+			id, platform, bot_self_id, guild_id, channel_id, qq_id, token_hash, token_expires_at,
+			status, link_wait_deadline_at, submission_wait_deadline_at, initial_mute_until
+		)
+		VALUES ($1, $2, $3, $4, 'channel-1', $5, $6, $7, $8, $9, $10, $11)
+	`,
+		seed.ID, seed.Platform, seed.BotSelfID, seed.GuildID, seed.QQID,
+		seed.TokenHash, futureTime(1), seed.Status, futureTime(1),
+		futureTime(2), futureTime(30),
+	)
+	require.NoError(t, err)
 }
 
 func assertTokenHashUnique(t *testing.T, fixture *postgresfixture.Fixture) {

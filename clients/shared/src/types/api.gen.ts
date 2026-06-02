@@ -4227,6 +4227,7 @@ export interface components {
         AdmissionSession: {
             id: string;
             platform: string;
+            botSelfID?: string;
             guildID: string;
             channelID?: string;
             qqID: string;
@@ -4235,6 +4236,8 @@ export interface components {
             /** Format: date-time */
             tokenExpiresAt: string;
             /** Format: date-time */
+            tokenConsumedAt?: string | null;
+            /** Format: date-time */
             linkWaitDeadlineAt: string;
             /** Format: date-time */
             submissionWaitDeadlineAt: string;
@@ -4242,6 +4245,11 @@ export interface components {
             manualReviewDeadlineAt?: string | null;
             /** Format: date-time */
             initialMuteUntil: string;
+            /** Format: date-time */
+            verifiedAt?: string | null;
+            /** Format: date-time */
+            cancelledAt?: string | null;
+            lastBotError?: string | null;
             projectionPending: boolean;
             /** Format: uri */
             authURL?: string;
@@ -11060,6 +11068,10 @@ export interface operations {
         parameters: {
             query?: {
                 status?: components["schemas"]["AdmissionStatus"];
+                platform?: string;
+                botSelfID?: string;
+                guildID?: string;
+                qqID?: string;
                 /** @description 页码 */
                 page?: components["parameters"]["PageParam"];
                 /** @description 每页数量 */

@@ -79,6 +79,22 @@
         in: query
         schema:
           $ref: '../components/schemas/admission.yaml#/AdmissionStatus'
+      - name: platform
+        in: query
+        schema:
+          type: string
+      - name: botSelfID
+        in: query
+        schema:
+          type: string
+      - name: guildID
+        in: query
+        schema:
+          type: string
+      - name: qqID
+        in: query
+        schema:
+          type: string
       - $ref: '../components/parameters/common.yaml#/PageParam'
       - $ref: '../components/parameters/common.yaml#/PageSizeParam'
     responses:

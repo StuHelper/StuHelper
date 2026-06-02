@@ -49,9 +49,13 @@ type adminFreshmanApplicationRow struct {
 }
 
 type AdmissionSessionListFilter struct {
-	Status   AdmissionSessionStatus
-	PageSize int
-	Offset   int
+	Status    AdmissionSessionStatus
+	Platform  string
+	BotSelfID string
+	GuildID   string
+	QQID      string
+	PageSize  int
+	Offset    int
 }
 
 type FreshmanApplicationListFilter struct {

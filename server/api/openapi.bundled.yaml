@@ -7808,6 +7808,22 @@ paths:
           in: query
           schema:
             $ref: '#/components/schemas/AdmissionStatus'
+        - name: platform
+          in: query
+          schema:
+            type: string
+        - name: botSelfID
+          in: query
+          schema:
+            type: string
+        - name: guildID
+          in: query
+          schema:
+            type: string
+        - name: qqID
+          in: query
+          schema:
+            type: string
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
       responses:
@@ -10566,6 +10582,8 @@ components:
           type: string
         platform:
           type: string
+        botSelfID:
+          type: string
         guildID:
           type: string
         channelID:
@@ -10578,6 +10596,11 @@ components:
           $ref: '#/components/schemas/AdmissionStatus'
         tokenExpiresAt:
           type: string
+          format: date-time
+        tokenConsumedAt:
+          type:
+            - string
+            - 'null'
           format: date-time
         linkWaitDeadlineAt:
           type: string
@@ -10593,6 +10616,20 @@ components:
         initialMuteUntil:
           type: string
           format: date-time
+        verifiedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        cancelledAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        lastBotError:
+          type:
+            - string
+            - 'null'
         projectionPending:
           type: boolean
         authURL:

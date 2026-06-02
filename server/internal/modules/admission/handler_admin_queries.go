@@ -76,9 +76,13 @@ func admissionSessionListFilterFromQuery(c *gin.Context) (AdmissionSessionListFi
 		return AdmissionSessionListFilter{}, false
 	}
 	return AdmissionSessionListFilter{
-		Status:   status,
-		PageSize: pageSize,
-		Offset:   httputil.SafeOffset(page, pageSize),
+		Status:    status,
+		Platform:  strings.TrimSpace(c.Query("platform")),
+		BotSelfID: strings.TrimSpace(c.Query("botSelfID")),
+		GuildID:   strings.TrimSpace(c.Query("guildID")),
+		QQID:      strings.TrimSpace(c.Query("qqID")),
+		PageSize:  pageSize,
+		Offset:    httputil.SafeOffset(page, pageSize),
 	}, true
 }
 

@@ -24,6 +24,7 @@ export type {
   AdmissionSession,
   FreshmanApplication,
   FreshmanReviewRequest,
+  ListAdmissionSessionsParams,
   ListMemberBlacklistParams,
   MemberBlacklistCreateRequest,
   MemberBlacklistEntry,

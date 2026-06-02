@@ -24,6 +24,8 @@ AdmissionSession:
       type: string
     platform:
       type: string
+    botSelfID:
+      type: string
     guildID:
       type: string
     channelID:
@@ -36,6 +38,11 @@ AdmissionSession:
       $ref: '#/AdmissionStatus'
     tokenExpiresAt:
       type: string
+      format: date-time
+    tokenConsumedAt:
+      type:
+        - string
+        - "null"
       format: date-time
     linkWaitDeadlineAt:
       type: string
@@ -51,6 +58,20 @@ AdmissionSession:
     initialMuteUntil:
       type: string
       format: date-time
+    verifiedAt:
+      type:
+        - string
+        - "null"
+      format: date-time
+    cancelledAt:
+      type:
+        - string
+        - "null"
+      format: date-time
+    lastBotError:
+      type:
+        - string
+        - "null"
     projectionPending:
       type: boolean
     authURL:

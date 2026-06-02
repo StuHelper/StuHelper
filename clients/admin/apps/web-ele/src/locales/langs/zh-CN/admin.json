@@ -12,6 +12,7 @@
       "title": "用户系统",
       "identityReview": "实名审核",
       "studentVerification": "学生认证审核",
+      "admissionSessions": "入群认证会话",
       "freshmanVerification": "新生材料审核",
       "admissionPolicy": "入群认证策略",
       "memberBlacklist": "成员黑名单",

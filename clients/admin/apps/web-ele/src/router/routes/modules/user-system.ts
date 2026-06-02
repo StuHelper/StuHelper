@@ -14,6 +14,7 @@ const routes: RouteRecordRaw[] = [
         'user:student:review',
         'user:school:read',
         'user:system:read',
+        'admission:session:read',
         'admission:freshman:review',
         'admission:policy:update',
         'member_blacklist:read',
@@ -51,6 +52,16 @@ const routes: RouteRecordRaw[] = [
           icon: 'lucide:school',
           title: $t('admin.routes.userSystem.schoolConfig'),
           authority: ['user:school:read'],
+        },
+      },
+      {
+        name: 'AdmissionSessions',
+        path: '/users/admission-sessions',
+        component: () => import('#/views/users/admission-sessions/index.vue'),
+        meta: {
+          icon: 'lucide:list-checks',
+          title: $t('admin.routes.userSystem.admissionSessions'),
+          authority: ['admission:session:read'],
         },
       },
       {
