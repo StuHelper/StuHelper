@@ -75,6 +75,38 @@ required_school_ids="${ADMISSION_READINESS_REQUIRED_SCHOOL_IDS:-}"
 required_bot_credential_name="${ADMISSION_READINESS_REQUIRED_BOT_CREDENTIAL_NAME:-koishi-runtime}"
 required_bot_credential_audience="${ADMISSION_READINESS_REQUIRED_BOT_CREDENTIAL_AUDIENCE:-/api/v1/bot/*}"
 required_bot_credential_scopes="${ADMISSION_READINESS_REQUIRED_BOT_CREDENTIAL_SCOPES:-bot.qq_binding.consume,bot.qq_verification.read,bot.admission.session,bot.admission.event,bot.admission.review,bot.admission.forward,bot.member_blacklist.read,bot.member_blacklist.manage}"
+external_student_source_enabled="${EXTERNAL_STUDENT_SOURCE_ENABLED:-false}"
+external_student_source_provider="${EXTERNAL_STUDENT_SOURCE_PROVIDER:-}"
+external_student_source_school_code="${EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE:-}"
+buaa_external_student_source_ready="false"
+
+case "${external_student_source_enabled}" in
+  true|TRUE|1|yes|YES)
+    [[ "${external_student_source_provider}" == "oracle" ]] || \
+      die "EXTERNAL_STUDENT_SOURCE_PROVIDER must be oracle when EXTERNAL_STUDENT_SOURCE_ENABLED=true"
+    [[ "${external_student_source_school_code}" =~ ^[0-9]{10}$ ]] || \
+      die "EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE must be a 10-digit school code"
+    required_external_oracle_keys=(
+      EXTERNAL_STUDENT_SOURCE_ORACLE_HOST
+      EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME
+      EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME
+      EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD
+      EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA
+      EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE
+      EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_ID_COLUMN
+      EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_NAME_COLUMN
+    )
+    for key in "${required_external_oracle_keys[@]}"; do
+      [[ -n "${!key:-}" && "${!key}" != REPLACE_WITH_* ]] || \
+        die "${key} is required when EXTERNAL_STUDENT_SOURCE_ENABLED=true"
+    done
+    if [[ "${external_student_source_school_code}" == "4111010006" ]]; then
+      buaa_external_student_source_ready="true"
+    fi
+    ;;
+  false|FALSE|0|no|NO|"") ;;
+  *) die "EXTERNAL_STUDENT_SOURCE_ENABLED must be true or false" ;;
+esac
 
 run_readiness_sql() {
   compose --profile prod run --rm --no-deps -T \
@@ -88,6 +120,7 @@ run_readiness_sql() {
       -v required_guild_ids="${required_guild_ids}" \
       -v required_school_codes="${required_school_codes}" \
       -v required_school_ids="${required_school_ids}" \
+      -v buaa_external_student_source_ready="${buaa_external_student_source_ready}" \
       -v required_bot_credential_name="${required_bot_credential_name}" \
       -v required_bot_credential_audience="${required_bot_credential_audience}" \
       -v required_bot_credential_scopes="${required_bot_credential_scopes}" \
@@ -104,6 +137,7 @@ input AS (
     :'required_guild_ids'::text AS required_guild_ids,
     :'required_school_codes'::text AS required_school_codes,
     :'required_school_ids'::text AS required_school_ids,
+    :'buaa_external_student_source_ready'::boolean AS buaa_external_student_source_ready,
     :'required_bot_credential_name'::text AS required_bot_credential_name,
     :'required_bot_credential_audience'::text AS required_bot_credential_audience,
     :'required_bot_credential_scopes'::text AS required_bot_credential_scopes
@@ -326,6 +360,7 @@ failures(message) AS (
   UNION ALL
   SELECT 'BUAA admission config must use academic.buaa_students as academic_db_table'
   WHERE EXISTS (SELECT 1 FROM required_school_codes WHERE school_code = '4111010006')
+    AND NOT (SELECT buaa_external_student_source_ready FROM input)
     AND NOT EXISTS (
       SELECT 1
       FROM admission_schools
@@ -376,6 +411,7 @@ failures(message) AS (
   UNION ALL
   SELECT 'BUAA academic table academic.buaa_students is missing'
   WHERE EXISTS (SELECT 1 FROM required_school_codes WHERE school_code = '4111010006')
+    AND NOT (SELECT buaa_external_student_source_ready FROM input)
     AND NOT EXISTS (
       SELECT 1
       FROM admission_schools
@@ -386,6 +422,7 @@ failures(message) AS (
   UNION ALL
   SELECT 'BUAA academic table academic.buaa_students must expose xh and xm columns'
   WHERE EXISTS (SELECT 1 FROM required_school_codes WHERE school_code = '4111010006')
+    AND NOT (SELECT buaa_external_student_source_ready FROM input)
     AND NOT EXISTS (
       SELECT 1
       FROM admission_schools
@@ -397,6 +434,7 @@ failures(message) AS (
   UNION ALL
   SELECT 'BUAA academic table academic.buaa_students has no rows; import real BUAA student records before admission go-live'
   WHERE EXISTS (SELECT 1 FROM required_school_codes WHERE school_code = '4111010006')
+    AND NOT (SELECT buaa_external_student_source_ready FROM input)
     AND EXISTS (SELECT 1 FROM buaa_academic_row_stats)
     AND NOT EXISTS (
       SELECT 1
@@ -530,7 +568,7 @@ admission_schools AS (
   LEFT JOIN public.schools s ON s.id = sc.school_id
 )
 SELECT format(
-  'admission production readiness passed: schools=%s policies=%s bot_credential=%s',
+  'admission production readiness passed: schools=%s policies=%s bot_credential=%s buaa_student_source=%s',
   (
     SELECT count(*)
     FROM admission_schools
@@ -541,7 +579,8 @@ SELECT format(
     FROM public.group_admission_policies
     WHERE platform = :'required_platform'
   ),
-  :'required_bot_credential_name'
+  :'required_bot_credential_name',
+  CASE WHEN :'buaa_external_student_source_ready'::boolean THEN 'external_oracle' ELSE 'local_academic_table' END
 );
 SQL
 )" || die "admission production readiness summary query failed: ${summary//$'\n'/; }"
