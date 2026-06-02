@@ -32,6 +32,8 @@ ensure_postgres_tls_permissions() {
   [[ -f "${SERVER_CERT}" ]] && chmod 644 "${SERVER_CERT}"
 }
 
+ensure_postgres_tls_permissions
+
 if [[ "${POSTGRES_ENABLE_SSL:-off}" != "on" ]]; then
   log "POSTGRES_ENABLE_SSL=${POSTGRES_ENABLE_SSL:-off}; skipping PostgreSQL TLS material generation"
   exit 0
