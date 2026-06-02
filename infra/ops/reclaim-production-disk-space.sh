@@ -21,7 +21,7 @@ Actions with --apply:
   - when PRUNE_STUHELPER_OLD_IMAGES=true, remove inactive
     stuhelper/backend:* and stuhelper/frontend:* images
   - when PRUNE_STUHELPER_TMP_ARTIFACTS=true, remove known StuHelper /tmp
-    transfer/build tarballs
+    transfer/build tarballs, including /tmp/stuhelper-release artifacts
   - when PRUNE_BAOTA_PANEL_BACKUPS_KEEP is a positive integer, keep only that
     many newest /www/backup/panel backup entries, preserving panel/db
   - when TRUNCATE_VAR_LOG_MESSAGES=true, truncate /var/log/messages
@@ -128,6 +128,19 @@ prune_tmp_artifacts() {
       -name "stuhelper-*.log" -o \
       -name "go*.linux-amd64.tar.gz" \
     \) -print -delete
+    if [[ -d /tmp/stuhelper-release ]]; then
+      find /tmp/stuhelper-release -xdev -maxdepth 1 -type f \( \
+        -name "stuhelper-*.tar" -o \
+        -name "stuhelper-*.tar.sha256" -o \
+        -name "stuhelper-*.tar.gz" -o \
+        -name "stuhelper-*.tar.gz.sha256" -o \
+        -name "stuhelper-*.tgz" -o \
+        -name "stuhelper-*.tgz.sha256" -o \
+        -name "sha256-*.txt" -o \
+        -name "deploy-*.sh" -o \
+        -name "update-*.sh" \
+      \) -print -delete
+    fi
   '
 }
 
