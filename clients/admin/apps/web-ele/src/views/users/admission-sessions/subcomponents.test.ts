@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 import AdmissionSessionFilters from './AdmissionSessionFilters.vue';
 import AdmissionSessionTable from './AdmissionSessionTable.vue';
-import { statusLabel, statusTagType } from './options';
+import { admissionReissueCommand, statusLabel, statusTagType } from './options';
 
 const PersistentAdminTableStub = defineComponent({
   name: 'PersistentAdminTable',
@@ -134,6 +134,14 @@ describe('AdmissionSessionTable', () => {
     await copy.trigger('click');
 
     expect(wrapper.emitted('copyAuthURL')?.[0]).toEqual([baseSession.authURL]);
+
+    const copyCommand = wrapper.find('[data-action="copyReissueCommand"]');
+    expect(copyCommand.exists()).toBe(true);
+    await copyCommand.trigger('click');
+
+    expect(wrapper.emitted('copyReissueCommand')?.[0]).toEqual([
+      '重新生成认证链接 1390191645',
+    ]);
   });
 
   it('uses operator-facing status labels and tag severity', () => {
@@ -141,5 +149,8 @@ describe('AdmissionSessionTable', () => {
     expect(statusTagType('joined_muted')).toBe('danger');
     expect(statusLabel('verified')).toBe('已通过');
     expect(statusTagType('verified')).toBe('success');
+    expect(admissionReissueCommand(baseSession)).toBe(
+      '重新生成认证链接 1390191645',
+    );
   });
 });

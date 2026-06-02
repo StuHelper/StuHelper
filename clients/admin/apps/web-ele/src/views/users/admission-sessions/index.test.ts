@@ -174,4 +174,17 @@ describe('admission sessions index view orchestration', () => {
     );
     expect(messageMocks.success).toHaveBeenCalledWith('认证链接已复制');
   });
+
+  it('copies Koishi reissue commands for group operators', async () => {
+    const wrapper = mount(IndexView, { global: { stubs: childStubs } });
+    await flushPromises();
+
+    const table = wrapper.findComponent({ name: 'AdmissionSessionTable' });
+    await table.vm.$emit('copyReissueCommand', '重新生成认证链接 1390191645');
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      '重新生成认证链接 1390191645',
+    );
+    expect(messageMocks.success).toHaveBeenCalledWith('重生命令已复制');
+  });
 });

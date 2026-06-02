@@ -74,6 +74,11 @@ async function copyAuthURL(url: string) {
   ElMessage.success('认证链接已复制');
 }
 
+async function copyReissueCommand(command: string) {
+  await navigator.clipboard.writeText(command);
+  ElMessage.success('重生命令已复制');
+}
+
 onMounted(fetchData);
 </script>
 
@@ -98,6 +103,7 @@ onMounted(fetchData);
       :items="items"
       :total="total"
       @copy-auth-u-r-l="copyAuthURL"
+      @copy-reissue-command="copyReissueCommand"
       @page-change="fetchData"
       @page-size-change="onPageSizeChange"
     />

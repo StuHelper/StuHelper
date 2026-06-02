@@ -6,6 +6,7 @@ import { ElButton, ElPagination, ElTag } from 'element-plus';
 import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
 import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
 import {
+  admissionReissueCommand,
   boolLabel,
   formatDateTime,
   formatText,
@@ -21,6 +22,7 @@ defineProps<{
 
 const emit = defineEmits<{
   (e: 'copyAuthURL', url: string): void;
+  (e: 'copyReissueCommand', command: string): void;
   (e: 'pageChange'): void;
   (e: 'pageSizeChange'): void;
 }>();
@@ -90,6 +92,16 @@ const pageSize = defineModel<number>('pageSize', { required: true });
             @click="emit('copyAuthURL', row.authURL)"
           >
             复制认证链接
+          </ElButton>
+          <ElButton
+            v-if="row.status !== 'verified'"
+            data-action="copyReissueCommand"
+            link
+            size="small"
+            type="warning"
+            @click="emit('copyReissueCommand', admissionReissueCommand(row))"
+          >
+            复制重生命令
           </ElButton>
         </template>
       </PersistentAdminTableColumn>

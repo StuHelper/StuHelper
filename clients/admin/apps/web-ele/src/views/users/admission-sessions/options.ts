@@ -53,3 +53,7 @@ export function formatText(value?: null | string): string {
 export function boolLabel(value: boolean): string {
   return value ? '是' : '否';
 }
+
+export function admissionReissueCommand(session: AdmissionSession): string {
+  return `重新生成认证链接 ${session.qqID}`;
+}
