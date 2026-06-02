@@ -158,6 +158,26 @@ describe('OldStudentVerificationFlow', () => {
     expect(wrapper.text()).not.toContain('验证码发送失败')
   })
 
+  it('does not treat consumed token errors from child requests as expired links', async () => {
+    mockAdmissionApi.requestSchoolEmailOTP.mockRejectedValueOnce(
+      new ApiError({ code: 'admission.token_consumed', message: 'consumed' }),
+    )
+    const wrapper = mount(OldStudentVerificationFlow, {
+      props: {
+        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD?qq=123',
+        linked: true,
+        schools,
+      },
+    })
+
+    await wrapper.find('[data-academic-email-input]').setValue('student@example.edu')
+    await wrapper.find('[data-school-email-otp-request]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.emitted('expired')).toBeUndefined()
+    expect(wrapper.text()).toContain('consumed')
+  })
+
   it('prevents duplicate email OTP verification submits while one request is pending', async () => {
     const verifyDeferred = createDeferred({
       status: 'verified',

@@ -9,6 +9,11 @@ const TERMINAL_ADMISSION_ERROR_CODES = new Set([
   'admission.token_not_found',
   'admission.session_not_found',
 ])
+const EXPIRED_ADMISSION_SESSION_ERROR_CODES = new Set([
+  'admission.token_expired',
+  'admission.token_not_found',
+  'admission.session_not_found',
+])
 
 export function buildAdmissionReturnURL(
   pathWithQuery: string,
@@ -45,7 +50,7 @@ export function isAdmissionTokenConsumedError(error: unknown): boolean {
 
 export function isAdmissionSessionExpiredError(error: unknown): boolean {
   const code = readAdmissionErrorCode(error)
-  return Boolean(code && TERMINAL_ADMISSION_ERROR_CODES.has(code))
+  return Boolean(code && EXPIRED_ADMISSION_SESSION_ERROR_CODES.has(code))
 }
 
 function readAdmissionErrorCode(error: unknown): string | undefined {

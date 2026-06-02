@@ -47,12 +47,12 @@ describe('admission token return URL', () => {
     ).toBe(false)
   })
 
-  it('detects terminal admission token errors for child flows', () => {
+  it('detects expired admission session errors for child flows', () => {
     expect(
       isAdmissionSessionExpiredError(
         new ApiError({ code: 'admission.token_consumed', message: 'consumed' }),
       ),
-    ).toBe(true)
+    ).toBe(false)
     expect(
       isAdmissionSessionExpiredError(
         new ApiError({ code: 'admission.token_expired', message: 'expired' }),
