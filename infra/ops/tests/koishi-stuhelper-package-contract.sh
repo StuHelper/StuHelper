@@ -61,6 +61,15 @@ output_file="${tmp_dir}/stuhelper-koishi-packages.tar.gz"
 "${PACKAGE_SCRIPT}" "${output_file}" >/tmp/koishi-stuhelper-package-contract.log
 [[ -s "${output_file}" ]] || fail "expected archive to be created"
 
+relative_output_file="infra/generated/koishi-stuhelper-package-contract-relative.tar.gz"
+rm -f "${REPO_ROOT}/${relative_output_file}"
+(
+  cd "${REPO_ROOT}"
+  "${PACKAGE_SCRIPT}" "${relative_output_file}" >/tmp/koishi-stuhelper-package-contract-relative.log
+)
+[[ -s "${REPO_ROOT}/${relative_output_file}" ]] || fail "expected relative output archive to be created"
+rm -f "${REPO_ROOT}/${relative_output_file}"
+
 tar -tzf "${output_file}" >"${tmp_dir}/manifest.txt"
 
 assert_contains "${tmp_dir}/manifest.txt" '^koishi/node_modules/@stuhelper/koishi-shared/package\.json$'

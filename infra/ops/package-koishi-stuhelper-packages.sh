@@ -46,6 +46,10 @@ require_cmd find
 require_cmd awk
 
 OUTPUT_FILE="${1:-${KOISHI_STUHELPER_PACKAGE_OUTPUT:-/tmp/stuhelper-koishi-packages.tar.gz}}"
+case "${OUTPUT_FILE}" in
+  /*) ;;
+  *) OUTPUT_FILE="${PWD}/${OUTPUT_FILE}" ;;
+esac
 OUTPUT_DIR="$(dirname "${OUTPUT_FILE}")"
 
 sha256_file() {
