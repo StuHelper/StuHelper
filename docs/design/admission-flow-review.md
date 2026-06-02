@@ -36,6 +36,7 @@ last-verified: 2026-06-02
 | Join 页面缺少进度和期限提示 | 用户不知道当前卡在绑定、学生认证、审核还是机器人解禁，也不清楚各阶段截止时间 | 增加稳定进度条，区分 link、submission、manual review deadline，并提示认证通过后才提前解除禁言 |
 | 学生邮箱格式允许空 local-part | `@buaa.edu.cn` 这类异常地址可能绕过域名检查，后续 mask 时存在 panic 风险 | 在 `schoolauth` 增加统一邮箱规范化，admission 和主站学生认证都要求 local/domain 非空且无空白 |
 | Join 失效/账号不匹配页只显示重生命令 | 用户不知道如何高效把恢复动作发给群管理员 | 在 Join 页增加“复制指令”，复制 `重新生成认证链接 <QQ号>` 并给出 toast 反馈 |
+| 子流程把 consumed token 当成过期 | 如果老生邮箱 OTP 或材料子流程收到 `admission.token_consumed`，前端会误触发“链接已失效”状态，掩盖真实恢复/账号问题 | 拆分 `token_consumed` 和真正 expired/not_found/session_not_found；主页面继续用 consumed 做原账号续办和账号不匹配判断，子流程不再把 consumed 当过期 |
 | 管理后台只能复制恢复命令 | 运营仍需回到 QQ 群执行命令，无法在后台直接排队重发、重生或取消会话 | 增加 `admission:session:manage` 能力和 Admin session resend/regenerate/cancel API；重发/重生通过 `next_reminder_at` 进入 Koishi pending action 队列，不暴露 bot token |
 | linked/material 阶段可能继承入群初始提醒时间 | 如果扩展 pending reminder 查询但不清理旧 `next_reminder_at`，用户开始认证后仍可能收到重复提醒 | link、材料提交、验证、取消和重生取消旧会话时清空旧 reminder；只有管理员显式重发才把 linked/material session 放回提醒队列 |
 | `material_submitted` 未纳入同 QQ 活跃 session 唯一约束 | Koishi 本地状态丢失或重复 create 时，已提交材料待审核的用户可能被创建并行 admission session，后续 release/kick 动作互相干扰 | `group_admission_sessions_active_qq_idx` 纳入 `material_submitted`；迁移前先取消同 QQ/群/平台下较旧的重复 in-progress session；补充重复入群复用材料提交 session 的后端测试 |
@@ -78,6 +79,7 @@ last-verified: 2026-06-02
 | 登录体系 | 采用 SSO-only：`sso.stuhelper.com` 是登录和 OIDC issuer，StuHelper 主站只做业务账号中心 | 避免 `id` 与 `sso` 双登录态；后续开放平台只接 StuHelper disclosure API，不直接暴露 Casdoor 用户表 |
 | 业务流程域 | 入群流程只在 `join.stuhelper.com` 闭环 | 群内链接语义清晰，且不把业务步骤塞进 SSO 登录页 |
 | token 消费 | token 只在已登录用户 link admission 时消费；消费后只能由同一已绑定用户继续当前 session | 防止链接转发给别人，同时允许用户刷新、返回和继续未完成的认证 |
+| token 错误分类 | `admission.token_consumed` 是“已绑定账号/需续办或账号不匹配”，不是“链接过期”；只有 expired/not_found/session_not_found 才进入失效处理 | 避免用户在已消费但可恢复的链接上看到错误的“链接已失效”，也避免子流程把可排障的 consumed 错误吞成过期 |
 | 学校识别 | 对外和前端以学校代码为主，数据库外键 `school_id` 只做内部实现 | 学校名称会变，代码更适合作为开放平台和导入数据的稳定 key |
 | BUAA 老生认证 | BUAA 先校验学校代码、学号和姓名，再固定邮箱为 `学号@buaa.edu.cn` 进行 OTP | 避免别名邮箱绕过学籍身份校验；该逻辑必须做成学校专属配置，不硬编码到通用流程 |
 | 新生材料 | 允许桌面直接请求摄像头，也允许手机扫码免复杂登录上传；桌面和手机用 handoff 状态锁定继续端 | 兼顾电脑摄像头质量和移动端拍照体验，避免重复提交 |
