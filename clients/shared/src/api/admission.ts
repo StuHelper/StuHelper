@@ -51,8 +51,14 @@ export const createAdmissionApi = (client: ApiClient) => ({
       },
     }),
 
-  getAdmissionMe: () =>
-    client.GET('/api/v1/admission/me'),
+  getAdmissionMe: (admissionSessionID?: string) =>
+    admissionSessionID
+      ? client.GET('/api/v1/admission/me', {
+          params: {
+            query: { admissionSessionID },
+          },
+        })
+      : client.GET('/api/v1/admission/me'),
 
   submitFreshmanApplication: (data: CreateFreshmanApplicationRequest) =>
     client.POST('/api/v1/admission/freshman/applications', { body: data }),

@@ -45,7 +45,7 @@ func (s *Service) RequestSchoolEmailOTP(
 	if err := s.requireEmailOTPDependencies(); err != nil {
 		return nil, err
 	}
-	if _, err := s.requireLinkedSession(ctx, input.UserID); err != nil {
+	if _, err := s.requireLinkedSession(ctx, input.UserID, input.AdmissionSessionID); err != nil {
 		return nil, err
 	}
 	config, email, studentID, studentName, err := s.loadEmailOTPConfig(ctx, input)
@@ -76,7 +76,7 @@ func (s *Service) VerifySchoolEmailOTP(ctx context.Context, input SchoolEmailOTP
 	if s.redisClient == nil {
 		return nil, ErrAdmissionRedisUnavailable
 	}
-	if _, err := s.requireLinkedSession(ctx, input.UserID); err != nil {
+	if _, err := s.requireLinkedSession(ctx, input.UserID, input.AdmissionSessionID); err != nil {
 		return nil, err
 	}
 	email, err := normalizeAdmissionEmail(input.Email)
@@ -94,11 +94,12 @@ func (s *Service) VerifySchoolEmailOTP(ctx context.Context, input SchoolEmailOTP
 		return nil, err
 	}
 	return s.storeStudentCredential(ctx, studentCredentialInput{
-		UserID:         input.UserID,
-		SchoolID:       input.SchoolID,
-		Kind:           CredentialSchoolEmailOTP,
-		Subject:        email,
-		SubjectDisplay: maskAdmissionEmail(email),
+		UserID:             input.UserID,
+		SchoolID:           input.SchoolID,
+		AdmissionSessionID: input.AdmissionSessionID,
+		Kind:               CredentialSchoolEmailOTP,
+		Subject:            email,
+		SubjectDisplay:     maskAdmissionEmail(email),
 	})
 }
 

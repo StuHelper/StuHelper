@@ -76,6 +76,12 @@
     tags: [Admission]
     operationId: getAdmissionMe
     summary: 获取当前登录用户 admission 状态
+    parameters:
+      - name: admissionSessionID
+        in: query
+        schema:
+          type: string
+        description: 当前 Join 页面绑定的 admission session ID；传入后只返回该登录用户名下的指定 session 状态。
     responses:
       '200':
         description: 当前 admission 状态
@@ -114,6 +120,9 @@
                 format: int64
                 deprecated: true
                 description: StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
+              admissionSessionID:
+                type: string
+                description: 当前 Join 页面绑定的 admission session ID；用于多群/多会话时把新生申请绑定到当前页面 session。
               applicantName:
                 type: string
               departmentOrMajor:
@@ -446,6 +455,11 @@
         schema:
           type: string
           format: uri
+      - name: admissionSessionID
+        in: query
+        schema:
+          type: string
+        description: 当前 Join 页面绑定的 admission session ID；SSO 回调会用该值继续同一 admission session。
     responses:
       '302':
         description: Redirect to school SSO provider

@@ -185,6 +185,7 @@ describe("FreshmanCameraFlow material capture UI", () => {
             );
             const wrapper = mount(FreshmanCameraFlow, {
                 props: {
+                    admissionSessionId: "session-1",
                     maxMaterialBytes: 1024,
                     schools: [
                         {
@@ -214,6 +215,7 @@ describe("FreshmanCameraFlow material capture UI", () => {
                 mockAdmissionApi.submitFreshmanApplication,
             ).toHaveBeenCalledWith({
                 schoolCode: "4111010006",
+                admissionSessionID: "session-1",
                 applicantName: "张三",
                 departmentOrMajor: undefined,
                 materialType: "admission_notice",

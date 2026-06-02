@@ -188,6 +188,7 @@ const HANDOFF_POLL_INTERVAL_MS = 1500
 const QRCODE_WIDTH = 192
 
 const props = defineProps<{
+  admissionSessionId?: string
   maxMaterialBytes?: number
   schools: AdmissionSchoolOption[]
 }>()
@@ -493,6 +494,7 @@ function buildFreshmanApplicationPayload() {
   }
   return {
     schoolCode: selectedSchool.value.schoolCode,
+    ...(props.admissionSessionId ? { admissionSessionID: props.admissionSessionId } : {}),
     applicantName: applicantName.value.trim(),
     departmentOrMajor: departmentOrMajor.value.trim() || undefined,
     materialType: materialType.value,

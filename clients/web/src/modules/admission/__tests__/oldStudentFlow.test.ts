@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiError } from '@/api/errors'
 import {
+  buildSchoolSSOLoginPath,
   shouldShowFreshmanSubmission,
   type AdmissionSchoolOption,
 } from '../oldStudentAdmission'
@@ -95,6 +96,18 @@ describe('OldStudentVerificationFlow', () => {
     expect(linkedWrapper.find('[data-school-email-otp-form]').exists()).toBe(true)
   })
 
+  it('adds admission session context to school SSO login URLs', () => {
+    expect(
+      buildSchoolSSOLoginPath(
+        '4111010006',
+        'https://join.stuhelper.com/verify/ABCD?qq=123',
+        'session-1',
+      ),
+    ).toBe(
+      '/api/v1/admission/school-sso/4111010006/login?return=https%3A%2F%2Fjoin.stuhelper.com%2Fverify%2FABCD%3Fqq%3D123&admissionSessionID=session-1',
+    )
+  })
+
   it('fills BUAA student email only after academic name match succeeds', async () => {
     mockAdmissionApi.requestSchoolEmailOTP.mockResolvedValue({
       email: '20250001@buaa.edu.cn',
@@ -104,6 +117,7 @@ describe('OldStudentVerificationFlow', () => {
     const wrapper = mount(OldStudentVerificationFlow, {
       props: {
         currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD?qq=123',
+        admissionSessionId: 'session-1',
         linked: true,
         schools: [{
           schoolID: 10006,
@@ -131,6 +145,7 @@ describe('OldStudentVerificationFlow', () => {
 
     expect(mockAdmissionApi.requestSchoolEmailOTP).toHaveBeenCalledWith({
       schoolCode: '4111010006',
+      admissionSessionID: 'session-1',
       email: undefined,
       studentID: '20250001',
       studentName: '张三',
@@ -188,6 +203,7 @@ describe('OldStudentVerificationFlow', () => {
     const wrapper = mount(OldStudentVerificationFlow, {
       props: {
         currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD?qq=123',
+        admissionSessionId: 'session-verify',
         linked: true,
         schools,
       },
@@ -202,6 +218,7 @@ describe('OldStudentVerificationFlow', () => {
     expect(mockAdmissionApi.verifySchoolEmailOTP).toHaveBeenCalledTimes(1)
     expect(mockAdmissionApi.verifySchoolEmailOTP).toHaveBeenCalledWith({
       schoolCode: '4111010006',
+      admissionSessionID: 'session-verify',
       email: 'student@example.edu',
       code: '123456',
     })

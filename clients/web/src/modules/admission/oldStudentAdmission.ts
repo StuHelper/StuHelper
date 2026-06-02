@@ -31,11 +31,15 @@ export function shouldShowFreshmanSubmission(
 export function buildSchoolSSOLoginPath(
   schoolCode: string,
   returnURL: string,
+  admissionSessionID?: string,
 ): string {
   const normalizedSchoolCode = schoolCode.trim()
   if (!/^\d{10}$/.test(normalizedSchoolCode)) {
     throw new Error('School code is required for admission SSO')
   }
-  const encodedReturnURL = encodeURIComponent(returnURL)
-  return `/api/v1/admission/school-sso/${normalizedSchoolCode}/login?return=${encodedReturnURL}`
+  const params = new URLSearchParams({ return: returnURL })
+  if (admissionSessionID) {
+    params.set('admissionSessionID', admissionSessionID)
+  }
+  return `/api/v1/admission/school-sso/${normalizedSchoolCode}/login?${params.toString()}`
 }

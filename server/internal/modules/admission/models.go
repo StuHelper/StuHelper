@@ -186,11 +186,12 @@ func (app FreshmanApplication) MarshalJSON() ([]byte, error) {
 }
 
 type FreshmanApplicationCreateInput struct {
-	UserID            int64
-	SchoolID          int64
-	ApplicantName     string
-	DepartmentOrMajor *string
-	MaterialType      FreshmanMaterialType
+	UserID             int64
+	SchoolID           int64
+	AdmissionSessionID string
+	ApplicantName      string
+	DepartmentOrMajor  *string
+	MaterialType       FreshmanMaterialType
 }
 
 type FreshmanReviewAction string
@@ -267,18 +268,20 @@ type FreshmanCameraHandoffContinuationInput struct {
 }
 
 type SchoolEmailOTPInput struct {
-	UserID      int64
-	SchoolID    int64
-	Email       string
-	StudentID   string
-	StudentName string
+	UserID             int64
+	SchoolID           int64
+	AdmissionSessionID string
+	Email              string
+	StudentID          string
+	StudentName        string
 }
 
 type SchoolEmailOTPVerifyInput struct {
-	UserID   int64
-	SchoolID int64
-	Email    string
-	Code     string
+	UserID             int64
+	SchoolID           int64
+	AdmissionSessionID string
+	Email              string
+	Code               string
 }
 
 type SchoolEmailOTPResponse struct {
@@ -288,9 +291,10 @@ type SchoolEmailOTPResponse struct {
 }
 
 type SchoolSSOStartInput struct {
-	UserID    int64
-	SchoolID  int64
-	ReturnURL string
+	UserID             int64
+	SchoolID           int64
+	AdmissionSessionID string
+	ReturnURL          string
 }
 
 type SchoolSSOStartResult struct {
@@ -299,11 +303,12 @@ type SchoolSSOStartResult struct {
 }
 
 type SchoolSSOCompleteInput struct {
-	SchoolID     int64
-	State        string
-	UserID       int64
-	Code         string
-	CodeVerifier string
+	SchoolID           int64
+	State              string
+	UserID             int64
+	AdmissionSessionID string
+	Code               string
+	CodeVerifier       string
 }
 
 type SchoolSSOCompleteResult struct {

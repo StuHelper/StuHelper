@@ -415,8 +415,10 @@ export const admissionApi = {
     )
   },
 
-  async getAdmissionMe(): Promise<AdmissionMe> {
-    const result = await api.admission.getAdmissionMe()
+  async getAdmissionMe(admissionSessionID?: string): Promise<AdmissionMe> {
+    const result = admissionSessionID
+      ? await api.admission.getAdmissionMe(admissionSessionID)
+      : await api.admission.getAdmissionMe()
     return readAdmissionMe(
       requireData(result, 'Admission me response is empty'),
       'Invalid admission me response',

@@ -14,8 +14,27 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/schoolauth"
 )
 
-func (r *Repository) GetLinkedSessionByUserID(ctx context.Context, userID int64, now time.Time) (*AdmissionSession, error) {
+func (r *Repository) GetLinkedSessionByUserID(
+	ctx context.Context,
+	userID int64,
+	now time.Time,
+	admissionSessionID string,
+) (*AdmissionSession, error) {
 	ctx = withDBTable(ctx, "group_admission_sessions")
+	admissionSessionID = strings.TrimSpace(admissionSessionID)
+	if admissionSessionID != "" {
+		session, err := scanAdmissionSession(r.db.QueryRow(ctx, `
+			SELECT `+admissionSessionColumns+`
+			FROM group_admission_sessions
+			WHERE user_id = $1 AND id = $2 AND status = $3
+			  AND cancelled_at IS NULL
+			LIMIT 1
+		`, userID, admissionSessionID, StatusLinked))
+		if errors.Is(err, ErrAdmissionTokenNotFound) {
+			return nil, nil
+		}
+		return session, err
+	}
 	query := "SELECT " + admissionSessionColumns + `
 		FROM group_admission_sessions
 		WHERE user_id = $1 AND status = $2
@@ -31,7 +50,28 @@ func (r *Repository) GetLinkedSessionByUserID(ctx context.Context, userID int64,
 	return session, err
 }
 
-func (r *Repository) GetLinkedSessionByUserIDTx(ctx context.Context, tx pgx.Tx, userID int64, now time.Time) (*AdmissionSession, error) {
+func (r *Repository) GetLinkedSessionByUserIDTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	userID int64,
+	now time.Time,
+	admissionSessionID string,
+) (*AdmissionSession, error) {
+	admissionSessionID = strings.TrimSpace(admissionSessionID)
+	if admissionSessionID != "" {
+		session, err := scanAdmissionSession(tx.QueryRow(ctx, `
+			SELECT `+admissionSessionColumns+`
+			FROM group_admission_sessions
+			WHERE user_id = $1 AND id = $2 AND status = $3
+			  AND cancelled_at IS NULL
+			LIMIT 1
+			FOR UPDATE
+		`, userID, admissionSessionID, StatusLinked))
+		if errors.Is(err, ErrAdmissionTokenNotFound) {
+			return nil, nil
+		}
+		return session, err
+	}
 	query := "SELECT " + admissionSessionColumns + `
 		FROM group_admission_sessions
 		WHERE user_id = $1 AND status = $2

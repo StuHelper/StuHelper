@@ -127,6 +127,7 @@
           </div>
           <OldStudentVerificationFlow
             v-if="activeFlow === 'oldStudent'"
+            :admission-session-id="session?.id"
             :current-return-url="currentAdmissionURL()"
             :linked="pageState === 'linked'"
             :schools="admissionSchools"
@@ -135,6 +136,7 @@
           />
           <FreshmanCameraFlow
             v-else-if="showFreshmanSubmission"
+            :admission-session-id="session?.id"
             :max-material-bytes="session?.maxMaterialBytes"
             :schools="admissionSchools"
             @expired="handleAdmissionExpired"
@@ -311,7 +313,7 @@ async function loadLinkedResources(options?: { refreshAdmission?: boolean }): Pr
   const [, nextAdmission] = await Promise.all([
     verificationStore.fetchSchools(),
     refreshAdmission
-      ? admissionApi.getAdmissionMe()
+      ? admissionApi.getAdmissionMe(session.value?.id)
       : Promise.resolve<AdmissionMe | null>(null),
   ])
   if (nextAdmission) {
@@ -448,7 +450,7 @@ async function refreshPendingReviewState(): Promise<void> {
   if (pageState.value !== 'pendingReview' || pendingReviewRefreshInFlight) return
   pendingReviewRefreshInFlight = true
   try {
-    const nextAdmission = await admissionApi.getAdmissionMe()
+    const nextAdmission = await admissionApi.getAdmissionMe(session.value?.id)
     if (pageState.value === 'pendingReview') {
       handleAdmissionMeState(nextAdmission)
     }

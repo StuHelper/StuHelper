@@ -58,6 +58,40 @@ func TestSchoolEmailOTPRequiresLinkedSessionAndVerifiesCredential(t *testing.T) 
 	assertUserSessionVerified(t, pg, userID)
 }
 
+func TestSchoolEmailOTPUsesRequestedAdmissionSession(t *testing.T) {
+	pg := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	sender := &testSchoolEmailSender{}
+	svc := newFreshmanTestService(t, pg)
+	svc.redisClient = redis.Client
+	svc.emailSender = sender
+	userID := seedAdmissionUser(t, pg, "email-otp-current-session")
+	first := linkAdmissionSessionForQQ(t, svc, userID, "10021", "email-otp-current-session-first")
+	second := linkAdmissionSessionForQQ(t, svc, userID, "10022", "email-otp-current-session-second")
+	setAdmissionSessionUpdatedAt(t, pg, first.ID, fixedAdmissionNow())
+	setAdmissionSessionUpdatedAt(t, pg, second.ID, fixedAdmissionNow().Add(time.Minute))
+
+	_, err := svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
+		UserID:             userID,
+		SchoolID:           1,
+		AdmissionSessionID: first.ID,
+		Email:              "student@buaa.edu.cn",
+	})
+	require.NoError(t, err)
+	verified, err := svc.VerifySchoolEmailOTP(context.Background(), SchoolEmailOTPVerifyInput{
+		UserID:             userID,
+		SchoolID:           1,
+		AdmissionSessionID: first.ID,
+		Email:              "student@buaa.edu.cn",
+		Code:               sender.code,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, verified)
+	assert.Equal(t, first.ID, verified.ID)
+	assert.NotEqual(t, second.ID, verified.ID)
+}
+
 func TestSchoolEmailOTPDerivesBUAAEmailAfterAcademicNameMatch(t *testing.T) {
 	pg := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)

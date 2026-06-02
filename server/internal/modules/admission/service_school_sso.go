@@ -22,25 +22,27 @@ const admissionSSOStateTTL = 10 * time.Minute
 const admissionSchoolSSOStateKeyPrefix = "admission:school_sso_state:"
 
 type admissionSSOStateRecord struct {
-	UserID       int64  `json:"userID"`
-	SchoolID     int64  `json:"schoolID"`
-	ReturnURL    string `json:"returnURL"`
-	CodeVerifier string `json:"codeVerifier"`
+	UserID             int64  `json:"userID"`
+	SchoolID           int64  `json:"schoolID"`
+	AdmissionSessionID string `json:"admissionSessionID,omitempty"`
+	ReturnURL          string `json:"returnURL"`
+	CodeVerifier       string `json:"codeVerifier"`
 }
 
 type studentCredentialInput struct {
-	UserID         int64
-	SchoolID       int64
-	Kind           VerificationCredentialKind
-	Subject        string
-	SubjectDisplay string
+	UserID             int64
+	SchoolID           int64
+	AdmissionSessionID string
+	Kind               VerificationCredentialKind
+	Subject            string
+	SubjectDisplay     string
 }
 
 func (s *Service) StartSchoolSSO(ctx context.Context, input SchoolSSOStartInput) (*SchoolSSOStartResult, error) {
 	if s.redisClient == nil {
 		return nil, ErrAdmissionRedisUnavailable
 	}
-	if _, err := s.requireLinkedSession(ctx, input.UserID); err != nil {
+	if _, err := s.requireLinkedSession(ctx, input.UserID, input.AdmissionSessionID); err != nil {
 		return nil, err
 	}
 	config, err := s.loadSchoolSSOConfig(ctx, input.SchoolID)
@@ -68,7 +70,8 @@ func (s *Service) CompleteSchoolSSO(
 	if err != nil {
 		return nil, err
 	}
-	if _, err := s.requireLinkedSession(ctx, input.UserID); err != nil {
+	input.AdmissionSessionID = state.AdmissionSessionID
+	if _, err := s.requireLinkedSession(ctx, input.UserID, input.AdmissionSessionID); err != nil {
 		return nil, err
 	}
 	input.CodeVerifier = state.CodeVerifier
@@ -77,11 +80,12 @@ func (s *Service) CompleteSchoolSSO(
 		return nil, err
 	}
 	_, err = s.storeStudentCredential(ctx, studentCredentialInput{
-		UserID:         input.UserID,
-		SchoolID:       input.SchoolID,
-		Kind:           CredentialSchoolSSO,
-		Subject:        identity.Subject,
-		SubjectDisplay: identity.SubjectDisplay,
+		UserID:             input.UserID,
+		SchoolID:           input.SchoolID,
+		AdmissionSessionID: input.AdmissionSessionID,
+		Kind:               CredentialSchoolSSO,
+		Subject:            identity.Subject,
+		SubjectDisplay:     identity.SubjectDisplay,
 	})
 	if err != nil {
 		return nil, err
@@ -110,7 +114,13 @@ func (s *Service) exchangeSchoolSSO(
 func (s *Service) storeStudentCredential(ctx context.Context, input studentCredentialInput) (*AdmissionSession, error) {
 	var verified *AdmissionSession
 	err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		session, err := s.repo.GetLinkedSessionByUserIDTx(ctx, tx, input.UserID, s.now())
+		session, err := s.repo.GetLinkedSessionByUserIDTx(
+			ctx,
+			tx,
+			input.UserID,
+			s.now(),
+			input.AdmissionSessionID,
+		)
 		if err != nil {
 			return err
 		}
@@ -190,10 +200,11 @@ func (s *Service) loadSchoolSSOState(
 
 func newSchoolSSOStateRecord(input SchoolSSOStartInput) admissionSSOStateRecord {
 	return admissionSSOStateRecord{
-		UserID:       input.UserID,
-		SchoolID:     input.SchoolID,
-		ReturnURL:    strings.TrimSpace(input.ReturnURL),
-		CodeVerifier: oauth2.GenerateVerifier(),
+		UserID:             input.UserID,
+		SchoolID:           input.SchoolID,
+		AdmissionSessionID: strings.TrimSpace(input.AdmissionSessionID),
+		ReturnURL:          strings.TrimSpace(input.ReturnURL),
+		CodeVerifier:       oauth2.GenerateVerifier(),
 	}
 }
 

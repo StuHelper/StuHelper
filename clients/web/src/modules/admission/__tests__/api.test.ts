@@ -150,6 +150,21 @@ describe('admissionApi response parsing', () => {
       credentialKind: 'school_email_otp',
       provisionalExpiresAt: null,
     })
+    expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledWith()
+  })
+
+  it('passes an admission session id when loading admission me', async () => {
+    mockAdmissionApi.getAdmissionMe.mockResolvedValue(
+      ok({
+        status: 'linked',
+        projectionPending: false,
+        session,
+      }),
+    )
+
+    await admissionApi.getAdmissionMe('session-1')
+
+    expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledWith('session-1')
   })
 
   it('rejects malformed freshman application responses', async () => {

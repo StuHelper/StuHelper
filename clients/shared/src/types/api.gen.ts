@@ -4444,6 +4444,8 @@ export interface components {
              * @description StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
              */
             schoolID?: number;
+            /** @description 当前 Join 页面绑定的 admission session ID；用于多群/多会话时校验 OTP 请求属于当前页面 session。 */
+            admissionSessionID?: string;
             /**
              * Format: email
              * @description 普通学校邮箱 OTP 可直接提交邮箱；配置学籍邮箱策略时由后端按学号派生并校验不可篡改
@@ -4463,6 +4465,8 @@ export interface components {
              * @description StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
              */
             schoolID?: number;
+            /** @description 当前 Join 页面绑定的 admission session ID；用于多群/多会话时返回当前页面 session 的 admission 状态。 */
+            admissionSessionID?: string;
             /** Format: email */
             email: string;
             code: string;
@@ -9898,7 +9902,10 @@ export interface operations {
     };
     getAdmissionMe: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description 当前 Join 页面绑定的 admission session ID；传入后只返回该登录用户名下的指定 session 状态。 */
+                admissionSessionID?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -9937,6 +9944,8 @@ export interface operations {
                      * @description StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
                      */
                     schoolID?: number;
+                    /** @description 当前 Join 页面绑定的 admission session ID；用于多群/多会话时把新生申请绑定到当前页面 session。 */
+                    admissionSessionID?: string;
                     applicantName: string;
                     departmentOrMajor?: string;
                     /** @enum {string} */
@@ -10220,6 +10229,8 @@ export interface operations {
         parameters: {
             query?: {
                 return?: string;
+                /** @description 当前 Join 页面绑定的 admission session ID；SSO 回调会用该值继续同一 admission session。 */
+                admissionSessionID?: string;
             };
             header?: never;
             path: {

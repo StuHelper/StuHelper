@@ -234,6 +234,7 @@ describe('AdmissionPage edge states', () => {
     await nextTick()
 
     expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledTimes(1)
+    expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledWith('session-material_submitted')
     expect(wrapper.find('[data-state="projectionPending"]').exists()).toBe(true)
     expect(mockWaitForAdmissionProjection).toHaveBeenCalledWith({
       refreshAuth: mockAuth.fetchUser,
@@ -261,6 +262,7 @@ describe('AdmissionPage edge states', () => {
     expect(wrapper.text()).toContain('选择认证方式')
     expect(mockAdmissionApi.linkAdmissionSession).toHaveBeenCalledWith('ABCD', '123')
     expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledTimes(1)
+    expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledWith('session-linked')
     expect(mockVerificationStore.fetchSchools).toHaveBeenCalledTimes(1)
   })
 

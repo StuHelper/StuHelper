@@ -27,7 +27,7 @@ func (s *Service) CreateFreshmanApplication(
 	ctx context.Context,
 	input FreshmanApplicationCreateInput,
 ) (*FreshmanApplication, error) {
-	session, err := s.requireLinkedSession(ctx, input.UserID)
+	session, err := s.requireLinkedSession(ctx, input.UserID, input.AdmissionSessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -313,8 +313,12 @@ func (s *Service) ChooseFreshmanCameraHandoffContinuation(
 	return updated, nil
 }
 
-func (s *Service) requireLinkedSession(ctx context.Context, userID int64) (*AdmissionSession, error) {
-	session, err := s.repo.GetLinkedSessionByUserID(ctx, userID, s.now())
+func (s *Service) requireLinkedSession(
+	ctx context.Context,
+	userID int64,
+	admissionSessionID string,
+) (*AdmissionSession, error) {
+	session, err := s.repo.GetLinkedSessionByUserID(ctx, userID, s.now(), admissionSessionID)
 	if err != nil {
 		return nil, err
 	}

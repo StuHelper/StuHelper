@@ -14,11 +14,12 @@ import (
 )
 
 type freshmanApplicationCreateHTTPRequest struct {
-	SchoolCode        string               `json:"schoolCode" binding:"omitempty,numeric,len=10"`
-	SchoolID          int64                `json:"schoolID" binding:"omitempty,min=1"`
-	ApplicantName     string               `json:"applicantName" binding:"required"`
-	DepartmentOrMajor *string              `json:"departmentOrMajor"`
-	MaterialType      FreshmanMaterialType `json:"materialType" binding:"required"`
+	SchoolCode         string               `json:"schoolCode" binding:"omitempty,numeric,len=10"`
+	SchoolID           int64                `json:"schoolID" binding:"omitempty,min=1"`
+	AdmissionSessionID string               `json:"admissionSessionID"`
+	ApplicantName      string               `json:"applicantName" binding:"required"`
+	DepartmentOrMajor  *string              `json:"departmentOrMajor"`
+	MaterialType       FreshmanMaterialType `json:"materialType" binding:"required"`
 }
 
 type cameraCaptureHTTPRequest struct {
@@ -31,18 +32,20 @@ type cameraHandoffContinuationHTTPRequest struct {
 }
 
 type schoolEmailOTPHTTPRequest struct {
-	SchoolCode  string `json:"schoolCode" binding:"omitempty,numeric,len=10"`
-	SchoolID    int64  `json:"schoolID" binding:"omitempty"`
-	Email       string `json:"email"`
-	StudentID   string `json:"studentID"`
-	StudentName string `json:"studentName"`
+	SchoolCode         string `json:"schoolCode" binding:"omitempty,numeric,len=10"`
+	SchoolID           int64  `json:"schoolID" binding:"omitempty"`
+	AdmissionSessionID string `json:"admissionSessionID"`
+	Email              string `json:"email"`
+	StudentID          string `json:"studentID"`
+	StudentName        string `json:"studentName"`
 }
 
 type schoolEmailOTPVerifyHTTPRequest struct {
-	SchoolCode string `json:"schoolCode" binding:"omitempty,numeric,len=10"`
-	SchoolID   int64  `json:"schoolID" binding:"omitempty"`
-	Email      string `json:"email" binding:"required"`
-	Code       string `json:"code" binding:"required"`
+	SchoolCode         string `json:"schoolCode" binding:"omitempty,numeric,len=10"`
+	SchoolID           int64  `json:"schoolID" binding:"omitempty"`
+	AdmissionSessionID string `json:"admissionSessionID"`
+	Email              string `json:"email" binding:"required"`
+	Code               string `json:"code" binding:"required"`
 }
 
 func (h *Handler) handlePreviewAdmissionSession(c *gin.Context) {
@@ -84,7 +87,7 @@ func (h *Handler) handleAdmissionMe(c *gin.Context) {
 	if !ok {
 		return
 	}
-	me, err := h.service.GetAdmissionMe(c.Request.Context(), userID)
+	me, err := h.service.GetAdmissionMe(c.Request.Context(), userID, c.Query("admissionSessionID"))
 	if err != nil {
 		respondAdmissionError(c, err)
 		return
@@ -355,11 +358,17 @@ func (h *Handler) handleVerifySchoolEmailOTP(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if _, err := h.service.VerifySchoolEmailOTP(c.Request.Context(), schoolEmailOTPVerifyInput(userID, schoolID, req)); err != nil {
+	input := schoolEmailOTPVerifyInput(userID, schoolID, req)
+	if _, err := h.service.VerifySchoolEmailOTP(c.Request.Context(), input); err != nil {
 		respondAdmissionError(c, err)
 		return
 	}
-	h.handleAdmissionMe(c)
+	me, err := h.service.GetAdmissionMe(c.Request.Context(), userID, input.AdmissionSessionID)
+	if err != nil {
+		respondAdmissionError(c, err)
+		return
+	}
+	response.Success(c, me)
 }
 
 func (h *Handler) handleStartSchoolSSO(c *gin.Context) {
@@ -368,9 +377,10 @@ func (h *Handler) handleStartSchoolSSO(c *gin.Context) {
 		return
 	}
 	result, err := h.service.StartSchoolSSO(c.Request.Context(), SchoolSSOStartInput{
-		UserID:    userID,
-		SchoolID:  schoolID,
-		ReturnURL: c.Query("return"),
+		UserID:             userID,
+		SchoolID:           schoolID,
+		ReturnURL:          c.Query("return"),
+		AdmissionSessionID: c.Query("admissionSessionID"),
 	})
 	if err != nil {
 		respondAdmissionError(c, err)
@@ -437,26 +447,34 @@ func freshmanApplicationCreateInput(
 	req freshmanApplicationCreateHTTPRequest,
 ) FreshmanApplicationCreateInput {
 	return FreshmanApplicationCreateInput{
-		UserID:            userID,
-		SchoolID:          schoolID,
-		ApplicantName:     req.ApplicantName,
-		DepartmentOrMajor: req.DepartmentOrMajor,
-		MaterialType:      req.MaterialType,
+		UserID:             userID,
+		SchoolID:           schoolID,
+		AdmissionSessionID: strings.TrimSpace(req.AdmissionSessionID),
+		ApplicantName:      req.ApplicantName,
+		DepartmentOrMajor:  req.DepartmentOrMajor,
+		MaterialType:       req.MaterialType,
 	}
 }
 
 func schoolEmailOTPInput(userID int64, schoolID int64, req schoolEmailOTPHTTPRequest) SchoolEmailOTPInput {
 	return SchoolEmailOTPInput{
-		UserID:      userID,
-		SchoolID:    schoolID,
-		Email:       req.Email,
-		StudentID:   req.StudentID,
-		StudentName: req.StudentName,
+		UserID:             userID,
+		SchoolID:           schoolID,
+		AdmissionSessionID: strings.TrimSpace(req.AdmissionSessionID),
+		Email:              req.Email,
+		StudentID:          req.StudentID,
+		StudentName:        req.StudentName,
 	}
 }
 
 func schoolEmailOTPVerifyInput(userID int64, schoolID int64, req schoolEmailOTPVerifyHTTPRequest) SchoolEmailOTPVerifyInput {
-	return SchoolEmailOTPVerifyInput{UserID: userID, SchoolID: schoolID, Email: req.Email, Code: req.Code}
+	return SchoolEmailOTPVerifyInput{
+		UserID:             userID,
+		SchoolID:           schoolID,
+		AdmissionSessionID: strings.TrimSpace(req.AdmissionSessionID),
+		Email:              req.Email,
+		Code:               req.Code,
+	}
 }
 
 func schoolSSOCompleteInputFromQuery(c *gin.Context, userID, schoolID int64) (SchoolSSOCompleteInput, bool) {

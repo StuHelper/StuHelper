@@ -129,6 +129,7 @@ import {
 
 const props = defineProps<{
   currentReturnUrl: string
+  admissionSessionId?: string
   linked: boolean
   schools: AdmissionSchoolOption[]
 }>()
@@ -204,7 +205,11 @@ function updateCode(event: Event): void {
 
 function startSchoolSSO(): void {
   const schoolCode = requireSelectedSchoolCode()
-  window.location.href = buildSchoolSSOLoginPath(schoolCode, props.currentReturnUrl)
+  window.location.href = buildSchoolSSOLoginPath(
+    schoolCode,
+    props.currentReturnUrl,
+    props.admissionSessionId,
+  )
 }
 
 async function requestEmailOTP(): Promise<void> {
@@ -215,6 +220,7 @@ async function requestEmailOTP(): Promise<void> {
   try {
     const result = await admissionApi.requestSchoolEmailOTP({
       schoolCode: requireSelectedSchoolCode(),
+      ...admissionSessionContext(),
       email: selectedSchoolRequiresAcademicEmail.value ? undefined : requireEmail(),
       studentID: selectedSchoolRequiresAcademicEmail.value ? requireStudentID() : undefined,
       studentName: selectedSchoolRequiresAcademicEmail.value ? requireStudentName() : undefined,
@@ -241,6 +247,7 @@ async function verifyEmailOTP(): Promise<void> {
   try {
     const admission = await admissionApi.verifySchoolEmailOTP({
       schoolCode: requireSelectedSchoolCode(),
+      ...admissionSessionContext(),
       email: requireEmail(),
       code: requireCode(),
     })
@@ -261,6 +268,10 @@ function requireSelectedSchoolCode(): string {
     throw new Error('请选择学校')
   }
   return selectedSchoolCode.value
+}
+
+function admissionSessionContext(): { admissionSessionID?: string } {
+  return props.admissionSessionId ? { admissionSessionID: props.admissionSessionId } : {}
 }
 
 function requireEmail(): string {

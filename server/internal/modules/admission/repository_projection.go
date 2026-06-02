@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
@@ -16,8 +17,28 @@ const (
 	admissionVerificationProjectionDedupePrefix = "admission-verification-projection:"
 )
 
-func (r *Repository) GetLatestSessionByUserID(ctx context.Context, userID int64) (*AdmissionSession, error) {
+func (r *Repository) GetLatestSessionByUserID(
+	ctx context.Context,
+	userID int64,
+	admissionSessionID string,
+) (*AdmissionSession, error) {
 	ctx = withDBTable(ctx, "group_admission_sessions")
+	admissionSessionID = strings.TrimSpace(admissionSessionID)
+	if admissionSessionID != "" {
+		session, err := scanAdmissionSession(r.db.QueryRow(ctx, `
+			SELECT `+admissionSessionColumns+`
+			FROM group_admission_sessions
+			WHERE user_id = $1 AND id = $2
+			LIMIT 1
+		`, userID, admissionSessionID))
+		if errors.Is(err, ErrAdmissionTokenNotFound) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, fmt.Errorf("GetLatestSessionByUserID: %w", err)
+		}
+		return session, nil
+	}
 	session, err := scanAdmissionSession(r.db.QueryRow(ctx, `
 		SELECT `+admissionSessionColumns+`
 		FROM group_admission_sessions

@@ -26,7 +26,7 @@ func TestAdmissionMeShowsProjectionPendingUntilOutboxCompletes(t *testing.T) {
 	})
 	insertFreshmanProjectionOutbox(t, fixture, userID, "pending")
 
-	me, err := svc.GetAdmissionMe(context.Background(), userID)
+	me, err := svc.GetAdmissionMe(context.Background(), userID, "")
 	require.NoError(t, err)
 	assert.Equal(t, StatusVerified, me.Status)
 	assert.True(t, me.ProjectionPending)
@@ -37,7 +37,7 @@ func TestAdmissionMeShowsProjectionPendingUntilOutboxCompletes(t *testing.T) {
 	require.NotNil(t, me.ProvisionalExpiresAt)
 
 	markFreshmanProjectionOutboxCompleted(t, fixture, userID)
-	me, err = svc.GetAdmissionMe(context.Background(), userID)
+	me, err = svc.GetAdmissionMe(context.Background(), userID, "")
 	require.NoError(t, err)
 	assert.False(t, me.ProjectionPending)
 	assert.False(t, me.Session.ProjectionPending)
@@ -55,7 +55,7 @@ func TestAdmissionMeShowsStudentVerificationProjectionPending(t *testing.T) {
 	})
 	insertAdmissionVerificationProjectionOutbox(t, fixture, userID, "processing")
 
-	me, err := svc.GetAdmissionMe(context.Background(), userID)
+	me, err := svc.GetAdmissionMe(context.Background(), userID, "")
 
 	require.NoError(t, err)
 	assert.Equal(t, StatusLinked, me.Status)
@@ -77,11 +77,34 @@ func TestAdmissionMeDoesNotTreatFailedProjectionAsPending(t *testing.T) {
 	require.NoError(t, err)
 	insertFreshmanProjectionOutbox(t, fixture, userID, "failed")
 
-	me, err := svc.GetAdmissionMe(context.Background(), userID)
+	me, err := svc.GetAdmissionMe(context.Background(), userID, "")
 
 	require.NoError(t, err)
 	assert.False(t, me.ProjectionPending)
 	assert.False(t, me.Session.ProjectionPending)
+}
+
+func TestAdmissionMeCanTargetCurrentJoinSession(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newFreshmanTestService(t, fixture)
+	userID := seedAdmissionUser(t, fixture, "projection-current-session")
+	first := linkAdmissionSessionForQQ(t, svc, userID, "20011", "projection-current-session-first")
+	second := linkAdmissionSessionForQQ(t, svc, userID, "20012", "projection-current-session-second")
+	setAdmissionSessionUpdatedAt(t, fixture, first.ID, fixedAdmissionNow())
+	setAdmissionSessionUpdatedAt(t, fixture, second.ID, fixedAdmissionNow().Add(time.Minute))
+
+	latest, err := svc.GetAdmissionMe(context.Background(), userID, "")
+	require.NoError(t, err)
+	require.NotNil(t, latest.Session)
+	assert.Equal(t, second.ID, latest.Session.ID)
+
+	current, err := svc.GetAdmissionMe(context.Background(), userID, first.ID)
+	require.NoError(t, err)
+	require.NotNil(t, current.Session)
+	assert.Equal(t, first.ID, current.Session.ID)
+
+	_, err = svc.GetAdmissionMe(context.Background(), userID, second.ID+"-missing")
+	require.ErrorIs(t, err, ErrAdmissionSessionNotFound)
 }
 
 type freshmanCredentialSeed struct {

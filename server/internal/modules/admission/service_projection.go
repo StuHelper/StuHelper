@@ -1,11 +1,21 @@
 package admission
 
-import "context"
+import (
+	"context"
+	"strings"
+)
 
-func (s *Service) GetAdmissionMe(ctx context.Context, userID int64) (*AdmissionMe, error) {
-	session, err := s.repo.GetLatestSessionByUserID(ctx, userID)
+func (s *Service) GetAdmissionMe(
+	ctx context.Context,
+	userID int64,
+	admissionSessionID string,
+) (*AdmissionMe, error) {
+	session, err := s.repo.GetLatestSessionByUserID(ctx, userID, admissionSessionID)
 	if err != nil {
 		return nil, err
+	}
+	if session == nil && strings.TrimSpace(admissionSessionID) != "" {
+		return nil, ErrAdmissionSessionNotFound
 	}
 	if session == nil {
 		return &AdmissionMe{Status: StatusCancelled}, nil

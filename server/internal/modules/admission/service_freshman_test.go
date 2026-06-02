@@ -180,6 +180,29 @@ func TestFreshmanApplicationUsesValidLinkedSessionWhenExpiredLinkedSessionIsNewe
 	assert.NotEqual(t, expiredID, *app.AdmissionSessionID)
 }
 
+func TestFreshmanApplicationUsesRequestedAdmissionSession(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newFreshmanTestService(t, fixture)
+	userID := seedAdmissionUser(t, fixture, "freshman-current-session")
+	first := linkAdmissionSessionForQQ(t, svc, userID, "10011", "freshman-current-session-first")
+	second := linkAdmissionSessionForQQ(t, svc, userID, "10012", "freshman-current-session-second")
+	setAdmissionSessionUpdatedAt(t, fixture, first.ID, fixedAdmissionNow())
+	setAdmissionSessionUpdatedAt(t, fixture, second.ID, fixedAdmissionNow().Add(time.Minute))
+
+	app, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
+		UserID:             userID,
+		SchoolID:           1,
+		AdmissionSessionID: first.ID,
+		ApplicantName:      "Alice Applicant",
+		MaterialType:       MaterialAdmissionNotice,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, app.AdmissionSessionID)
+	assert.Equal(t, first.ID, *app.AdmissionSessionID)
+	assert.NotEqual(t, second.ID, *app.AdmissionSessionID)
+}
+
 func TestFreshmanCameraCaptureValidatesAndStoresImage(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	store := &testAdmissionMaterialStore{}

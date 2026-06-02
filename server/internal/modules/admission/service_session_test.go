@@ -714,6 +714,24 @@ func createLinkableSessionForQQ(t *testing.T, svc *Service, qqID string, token s
 	return created
 }
 
+func linkAdmissionSessionForQQ(
+	t *testing.T,
+	svc *Service,
+	userID int64,
+	qqID string,
+	token string,
+) *AdmissionSession {
+	t.Helper()
+	created := createLinkableSessionForQQ(t, svc, qqID, token)
+	linked, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: qqID,
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+	return linked
+}
+
 func newSessionTestService(t *testing.T, fixture *postgresfixture.Fixture) *Service {
 	t.Helper()
 	svc, err := NewService(NewRepository(fixture.DB), &testQQBindingGateway{}, []byte("test-admission-hmac-key-32-bytes!"))
@@ -797,6 +815,21 @@ func assertAdmissionSessionStatus(
 	`, sessionID).Scan(&status)
 	require.NoError(t, err)
 	assert.Equal(t, expected, status)
+}
+
+func setAdmissionSessionUpdatedAt(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	sessionID string,
+	updatedAt time.Time,
+) {
+	t.Helper()
+	_, err := fixture.Pool.Exec(context.Background(), `
+		UPDATE group_admission_sessions
+		SET updated_at = $2
+		WHERE id = $1
+	`, sessionID, updatedAt)
+	require.NoError(t, err)
 }
 
 func admissionSessionLastBotError(
