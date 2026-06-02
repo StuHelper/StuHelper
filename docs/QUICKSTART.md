@@ -171,8 +171,8 @@ make prod-down     # 停止
 
 ```bash
 make prod-parity-up      # 构建并启动本机生产等价栈
-make prod-parity-ingress # 只安装本机 stuhelper/id/sso 域名入口
-make prod-parity-smoke   # 验收 Web / Admin / API / Identity / 观测入口，并用浏览器检查生产镜像渲染
+make prod-parity-ingress # 只安装本机 stuhelper/join/sso 域名入口
+make prod-parity-smoke   # 验收 Web / Admin / API / SSO / 观测入口，并用浏览器检查生产镜像渲染
 make prod-parity-datastore-smoke # 只复跑共享 PG / 独立 Redis 隔离检查
 make prod-parity-browser-smoke # 只复跑 Web / Admin 浏览器渲染检查
 make prod-parity-down    # 停止本机生产等价栈

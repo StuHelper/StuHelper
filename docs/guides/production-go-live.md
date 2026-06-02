@@ -15,7 +15,6 @@ last-verified: 2026-05-30
 - `stuhelper.com`：主站、后台、API、账号中心、学生认证、QQ 绑定、授权应用和开发者应用。
 - `join.stuhelper.com`：加群验证业务域，唯一公开验证链接是 `https://join.stuhelper.com/verify/<token>?qq=<qq>`。
 - `sso.stuhelper.com`：Casdoor，唯一公开登录认证系统和 OIDC issuer。
-- `id.stuhelper.com`：legacy disabled host，所有路径返回 404；不得提供 discovery、OAuth endpoint、账号中心、登录页或 Casdoor 反代。
 
 主站生产 Compose 只把业务服务绑定到回环地址，公网 `80/443` 只由宝塔 Nginx 监听。
 
@@ -31,7 +30,7 @@ admin   127.0.0.1:18001
 
 | 项目 | 要求 |
 |------|------|
-| DNS | `stuhelper.com`、`www.stuhelper.com`、`join.stuhelper.com`、`sso.stuhelper.com` 指向对应公网入口；`id.stuhelper.com` 可解析到主站入口但必须 404 |
+| DNS | `stuhelper.com`、`www.stuhelper.com`、`join.stuhelper.com`、`sso.stuhelper.com` 指向对应公网入口；不再配置独立 identity 入口域名 |
 | 宝塔 Nginx | 主站机合并 `infra/nginx/baota-stuhelper.conf`；Casdoor 入口按 `infra/nginx/baota-casdoor-sso.conf` 或等价配置反代 |
 | 生产 env | 使用 `infra/ops/init-prod-env.sh` 生成模板，替换占位符；不得提交真实 `.env.prod.*` |
 | Secret backend | 生产使用非 repo 的 secret backend；真实 token、密码、对象存储密钥不写入仓库 |
@@ -76,9 +75,7 @@ ADMISSION_READINESS_REQUIRED_BOT_CREDENTIAL_SCOPES=bot.qq_binding.consume,bot.qq
 ADMISSION_PUBLIC_SMOKE_ENABLED=true
 ADMISSION_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=false
 ADMISSION_PUBLIC_SMOKE_CURL_INSECURE=false
-ADMISSION_PUBLIC_SMOKE_DISABLED_ID_URL=https://id.stuhelper.com
 PUBLIC_WEB_AUTH_BROWSER_SMOKE_ENABLED=true
-PUBLIC_WEB_AUTH_BROWSER_SMOKE_DISABLED_ID_URL=https://id.stuhelper.com
 PUBLIC_WEB_AUTH_BROWSER_SMOKE_ALLOW_LOCAL_TARGETS=false
 
 STUHELPER_FRESHMAN_MATERIAL_HOSTS=stuhelper.com,join.stuhelper.com
@@ -123,12 +120,6 @@ sso.stuhelper.com /.well-known/openid-configuration -> Casdoor
 sso.stuhelper.com /.well-known/jwks                 -> Casdoor
 sso.stuhelper.com /login/*                          -> Casdoor
 sso.stuhelper.com /api/*                            -> Casdoor
-```
-
-Legacy ID：
-
-```text
-id.stuhelper.com /* -> 404
 ```
 
 执行审计：
@@ -247,7 +238,6 @@ curl -fsS https://stuhelper.com/health/live
 curl -fsS https://stuhelper.com/health/ready
 curl -fsSI https://stuhelper.com/admin/
 curl -fsS https://sso.stuhelper.com/.well-known/openid-configuration | head
-curl -fsSI https://id.stuhelper.com/                         # 应 404
 curl -fsSI 'https://join.stuhelper.com/verify/__manual_probe__?qq=10000'
 curl -fsSI https://join.stuhelper.com/verify                  # 应 404
 curl -fsSI 'https://stuhelper.com/verify/__manual_probe__?qq=10000' # 应 404
@@ -349,7 +339,6 @@ KOISHI_ADMISSION_BOT_SELF_ID=<botSelfID> \
 
 - 本地仓库包含所有代码修复、配置模板、幂等脚本和 runbook；不存在只在生产手工修改的最终状态。
 - `sso.stuhelper.com` 是唯一公开登录认证系统和 OIDC issuer。
-- `id.stuhelper.com` 返回 404，不承载 OAuth/OIDC/账号中心/登录页。
 - `join.stuhelper.com/verify/<token>?qq=<qq>` 是唯一公开加群验证入口；`join.stuhelper.com/verify` 和主站 `/verify*` 返回 404。
 - 主站 `/health/live`、`/health/ready` 通过。
 - Admission public smoke、Web auth browser smoke、DB readiness 通过。

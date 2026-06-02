@@ -9,7 +9,7 @@ import (
 func TestBuildConsentURLUsesIdentityRoute(t *testing.T) {
 	assert.Equal(t, "/consent?token=abc", buildConsentURL("", "abc"))
 	assert.Equal(t,
-		"https://id.stuhelper.com/consent?token=abc",
-		buildConsentURL("https://id.stuhelper.com/", "abc"),
+		"https://stuhelper.com/consent?token=abc",
+		buildConsentURL("https://stuhelper.com/", "abc"),
 	)
 }

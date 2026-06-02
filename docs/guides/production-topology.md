@@ -10,7 +10,7 @@ last-verified: 2026-05-22
 
 ## 部署架构
 
-主站单机 Docker Compose 部署。StuHelper 应用、PostgreSQL、Redis、OpenFGA、对象存储与观测栈由仓库内 Compose 管理；公网入口由宝塔 Nginx 管理。公开登录认证入口和 OIDC issuer 是 `https://sso.stuhelper.com`（Casdoor）。StuHelper 账号中心、学生认证、QQ 绑定、授权应用和开发者应用当前由 `https://stuhelper.com` 主站承载；`https://join.stuhelper.com` 只承载入群验证业务闭环。`id.stuhelper.com` 是已禁用的 legacy host，不作为普通用户、第三方应用或 OIDC issuer 入口。
+主站单机 Docker Compose 部署。StuHelper 应用、PostgreSQL、Redis、OpenFGA、对象存储与观测栈由仓库内 Compose 管理；公网入口由宝塔 Nginx 管理。公开登录认证入口和 OIDC issuer 是 `https://sso.stuhelper.com`（Casdoor）。StuHelper 账号中心、学生认证、QQ 绑定、授权应用和开发者应用当前由 `https://stuhelper.com` 主站承载；`https://join.stuhelper.com` 只承载入群验证业务闭环。公网入口清单只包含 `stuhelper.com`、`join.stuhelper.com` 和 `sso.stuhelper.com`。
 
 > 生产前提：承载 `postgres_data` / `redis_data` / 对象存储数据目录的底层块设备必须开启静态加密（云盘 KMS/EBS/PD 或主机侧 LUKS）。仓库内的 Compose 只定义容器拓扑，不负责替代宿主机磁盘加密。
 
@@ -26,8 +26,7 @@ last-verified: 2026-05-22
     ├── join.stuhelper.com /verify/<token>?qq=<qq> → 127.0.0.1:18000 → web 前端
     ├── join.stuhelper.com /verify → 404
     ├── join.stuhelper.com /api/* 与 /health/* → 127.0.0.1:18080 → backend
-    ├── sso.stuhelper.com /.well-known/* /api/* /login/* → Casdoor
-    └── id.stuhelper.com /* → 404（legacy disabled）
+    └── sso.stuhelper.com /.well-known/* /api/* /login/* → Casdoor
 ```
 
 主站生产配置中 `IDENTITY_SERVER_ENABLED=false`，`IDENTITY_ISSUER=`，`WEB_VITE_IDENTITY_URL=`；不再发布 StuHelper 自研 identity issuer。`WEB_VITE_WEB_URL=https://stuhelper.com`，`WEB_VITE_SSO_URL=https://sso.stuhelper.com`，`CASDOOR_ISSUER=https://sso.stuhelper.com`，`CASDOOR_PUBLIC_AUTH_BASE_URL=https://sso.stuhelper.com`。`CASDOOR_REDIRECT_URI`、`CASDOOR_ADMIN_REDIRECT_URI` 与 `CASDOOR_UNIAPP_REDIRECT_URI` 固定回到 `https://stuhelper.com/api/v1/auth/callback`。`ADMISSION_PUBLIC_BASE_URL=https://join.stuhelper.com`。`CORS_ORIGINS` 必须包含 `https://stuhelper.com`、`https://join.stuhelper.com` 和 `https://sso.stuhelper.com`；`TOKEN_COOKIE_DOMAIN=.stuhelper.com`，让登录回调后签发的浏览器会话可用于主站和 admission 流程。
@@ -84,7 +83,6 @@ Koishi 与 NapCat 当前不纳入主站 Docker Compose 拓扑，而是作为外�
 - `stuhelper.com` 与 `www.stuhelper.com` 在宝塔面板中建站并配置证书。
 - `join.stuhelper.com` 与 `sso.stuhelper.com` 必须有公网 TLS。`join` 使用主站 Web/API 回环端口；`sso` 反代到 Casdoor。
 - 主站宝塔 Nginx 根据域名和路径反代到本机回环端口，示例见 `infra/nginx/baota-stuhelper.conf` 和 `infra/nginx/baota-casdoor-sso.conf`。
-- `id.stuhelper.com` 必须返回 404；不要把 OIDC discovery、OAuth endpoint、Casdoor 静态资源或账号中心挂回 `id`。
 - 保存或 reload 前，用 `infra/ops/nginx-public-ingress-preflight.sh` 审计实际配置；主站机器使用 `NGINX_PUBLIC_INGRESS_PROFILE=stuhelper`，SSO 机器使用 `NGINX_PUBLIC_INGRESS_PROFILE=sso`。
 - 如果 SSO discovery 报 `.well-known` 404 或 SPA HTML，检查 `sso.stuhelper.com` 的宝塔 Nginx 是否把 `/.well-known/` 正确反代到 Casdoor upstream。
 - Docker Compose 中的业务端口只绑定 `127.0.0.1`，不直接暴露公网。

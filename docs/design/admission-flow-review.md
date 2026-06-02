@@ -15,7 +15,6 @@ last-verified: 2026-06-02
 - `sso.stuhelper.com` 是唯一公开登录认证入口和 OIDC issuer。
 - `stuhelper.com` 承载账号中心、学生认证、QQ 绑定、开放平台和业务 API。
 - `join.stuhelper.com` 只承载入群认证业务闭环。
-- `id.stuhelper.com` 是 disabled legacy host，公网入口应返回 404。
 - 群内公开链接只使用 `https://join.stuhelper.com/verify/<token>?qq=<qq>`。
 - Koishi / NapCat 是 QQ 执行器；后端 admission 表里的 `platform=qq` 表示被验证账号平台，不等同于 Koishi runtime adapter 名称。
 

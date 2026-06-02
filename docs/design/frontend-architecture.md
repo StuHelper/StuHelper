@@ -65,7 +65,7 @@ server/api/openapi.bundled.yaml
   → 路由守卫按登录态和 capabilities 放行
 ```
 
-前端不再把受保护入口跨域改写到 `id.stuhelper.com`。账号中心、开发者应用、授权应用、学生认证和 QQ 绑定都在 `stuhelper.com` 主站路由内承载；入群验证只从 `join.stuhelper.com/verify/<token>?qq=<qq>` 进入。
+前端不再把受保护入口跨域改写到独立 identity host。账号中心、开发者应用、授权应用、学生认证和 QQ 绑定都在 `stuhelper.com` 主站路由内承载；入群验证只从 `join.stuhelper.com/verify/<token>?qq=<qq>` 进入。
 
 ## 状态管理
 

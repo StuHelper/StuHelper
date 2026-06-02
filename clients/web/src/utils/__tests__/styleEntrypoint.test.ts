@@ -197,11 +197,9 @@ describe("style entrypoint", () => {
         for (const file of issuerFiles) {
             const source = readFileSync(resolve(__dirname, file), "utf-8");
             expect(source, file).toContain("sso.stuhelper.com");
-            expect(source, file).not.toContain("id.stuhelper.com");
         }
         for (const file of checkedFiles) {
             const source = readFileSync(resolve(__dirname, file), "utf-8");
-            expect(source, file).not.toContain("id.stuhelper.com");
             expect(source, file).not.toContain("StuHelper SSO");
         }
     });

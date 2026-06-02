@@ -66,7 +66,6 @@ describe('StuHelper Connect endpoint helpers', () => {
 
     expect(publicCopy).toContain('sso.stuhelper.com')
     expect(publicCopy).toContain('StuHelper Open API')
-    expect(publicCopy).not.toContain('id.stuhelper.com')
     expect(publicCopy).not.toContain('StuHelper SSO')
   })
 })

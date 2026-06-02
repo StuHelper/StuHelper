@@ -63,7 +63,7 @@ assert_contains "${COMMON_LIB_FILE}" '/verify/__stuhelper_public_ingress_probe__
 assert_contains "${COMMON_LIB_FILE}" 'PUBLIC_INGRESS_CONFIG_PREFLIGHT_ENABLED'
 assert_contains "${COMMON_LIB_FILE}" 'PUBLIC_INGRESS_PREFLIGHT_ENABLED'
 assert_contains "${COMMON_LIB_FILE}" 'PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED'
-assert_contains "${COMMON_LIB_FILE}" 'PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_PUBLIC_DNS_ENABLED'
+assert_contains "${COMMON_LIB_FILE}" 'PUBLIC_INGRESS_PUBLIC_DNS_ENABLED'
 assert_contains "${COMMON_LIB_FILE}" 'public DNS preflight failed'
 assert_contains "${COMMON_LIB_FILE}" 'public OIDC discovery ready'
 assert_contains "${COMMON_LIB_FILE}" 'public JWKS ready'

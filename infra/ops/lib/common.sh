@@ -283,7 +283,7 @@ require_public_dns_resolved() {
   local name="$1"
   local url="$2"
   local timeout="${PUBLIC_INGRESS_PREFLIGHT_TIMEOUT_SECONDS:-10}"
-  local enabled="${PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_PUBLIC_DNS_ENABLED:-true}"
+  local enabled="${PUBLIC_INGRESS_PUBLIC_DNS_ENABLED:-true}"
   local host
   local a_file
   local aaaa_file
@@ -292,10 +292,10 @@ require_public_dns_resolved() {
   case "${enabled}" in
     true|TRUE|1|yes|YES) ;;
     false|FALSE|0|no|NO|"")
-      warn "${name} public DNS preflight skipped because PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_PUBLIC_DNS_ENABLED is not true"
+      warn "${name} public DNS preflight skipped because PUBLIC_INGRESS_PUBLIC_DNS_ENABLED is not true"
       return 0
       ;;
-    *) die "PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_PUBLIC_DNS_ENABLED must be true or false" ;;
+    *) die "PUBLIC_INGRESS_PUBLIC_DNS_ENABLED must be true or false" ;;
   esac
 
   host="$(_public_ingress_host "${url}")"
