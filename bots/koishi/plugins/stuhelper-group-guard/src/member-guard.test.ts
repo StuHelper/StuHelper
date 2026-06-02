@@ -312,6 +312,98 @@ test('member guard ignores duplicate join events for an active admission record'
   assert.match(sentMessages[0], /https:\/\/join\.stuhelper\.com\/verify\/token-duplicate\?qq=10001/)
 })
 
+test('member guard retries backend reminder after initial group message send fails', async () => {
+  const savedRecords: any[] = []
+  const sentMessages: string[] = []
+  const admissionEvents: unknown[] = []
+  const reminderMarks: string[] = []
+  const deduper = new AdmissionReminderDeduper()
+  const service = new MemberGuardService({
+    platform: {
+      async createAdmissionSession() {
+        return admissionResult('session-retry', 'token-retry')
+      },
+      async listPendingAdmissionActions() {
+        return [
+          action('session-retry', 'remind', {
+            authURL: 'https://join.stuhelper.com/verify/token-retry?qq=10001',
+          }),
+        ]
+      },
+      async listPendingFreshmanForwards() { return [] },
+      async recordAdmissionEvent(sessionID: string, input: unknown) {
+        admissionEvents.push({ sessionID, input })
+      },
+    },
+    guardStore: {
+      async findActiveBySubject() { return null },
+      async savePending(record: any) { savedRecords.push(record) },
+      async markMuted() {},
+      async markReminderSent(id: string, now: Date) {
+        reminderMarks.push(`reminder:${id}`)
+        const record = savedRecords.find((item) => item.id === id)
+        if (record) record.reminderSentAt = now
+      },
+      async listBackendSyncPending() { return [] },
+      async findActiveByAdmissionSessionID(sessionID: string) {
+        return savedRecords.find((item) => item.admissionSessionID === sessionID) ?? null
+      },
+      async markLastError() {},
+    },
+    policyStore: policyStoreFor(['guild-1']),
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+    reminderDeduper: deduper,
+  } as any)
+
+  await assert.rejects(() => service.handleGuildMemberAdded({
+    platform: 'onebot',
+    selfId: '514',
+    guildId: 'guild-1',
+    channelId: 'guild-1',
+    userId: '10001',
+    username: 'Alice',
+    event: { user: { nick: 'Alice' } },
+    bot: {
+      muteGuildMember: async () => {},
+      sendMessage: async (_channelId: string, content: string) => {
+        sentMessages.push(content)
+        throw new Error('send failed')
+      },
+    },
+  } as any), /send failed/)
+
+  assert.equal(savedRecords.length, 1)
+  assert.equal(savedRecords[0].admissionSessionID, 'session-retry')
+  assert.equal(sentMessages.length, 1)
+  assert.deepEqual(reminderMarks, [])
+  assert.deepEqual(admissionEvents, [])
+
+  await service.scanPendingMembers([{
+    platform: 'onebot',
+    selfId: '514',
+    sid: 'onebot:514',
+    sendMessage: async (_channelId: string, content: string) => {
+      sentMessages.push(content)
+      return ['message-retry']
+    },
+    muteGuildMember: async () => {},
+    kickGuildMember: async () => {},
+  } as any])
+
+  assert.equal(sentMessages.length, 2)
+  assert.match(sentMessages[1], /https:\/\/join\.stuhelper\.com\/verify\/token-retry\?qq=10001/)
+  assert.deepEqual(reminderMarks, ['reminder:qq:514:guild-1:10001'])
+  assert.deepEqual(admissionEvents, [{
+    sessionID: 'session-retry',
+    input: {
+      action: 'remind',
+      success: true,
+      messageID: 'message-retry',
+    },
+  }])
+})
+
 test('member guard executes pending admission actions and reports results', async () => {
   const actions = [
     action('session-remind', 'remind', {

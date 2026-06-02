@@ -108,8 +108,8 @@ export class MemberGuardService {
         muteDurationMs: muteDurationMs(new Date(admission.session.initialMuteUntil)),
       })
       await this.deps.guardStore.markMuted(record.id, new Date())
-      this.deps.reminderDeduper?.remember(admission.session.id)
       const messageID = await sendAdmissionReminder(session.bot, record, admission.authURL)
+      this.deps.reminderDeduper?.remember(admission.session.id)
       await this.deps.guardStore.markReminderSent(record.id, new Date())
       await this.recordAdmissionReminderSent(admission.session.id, messageID)
       await this.deps.moderationStore.appendEvent({
@@ -259,8 +259,8 @@ export class MemberGuardService {
       })
       const update = backendSyncUpdate(admission)
       await this.deps.guardStore.markBackendSynced(record.id, update)
-      this.deps.reminderDeduper?.remember(admission.session.id, now)
       const messageID = await sendAdmissionReminder(bot, { ...record, ...update }, admission.authURL)
+      this.deps.reminderDeduper?.remember(admission.session.id, now)
       await this.deps.guardStore.markReminderSent(record.id, now)
       await this.recordAdmissionReminderSent(admission.session.id, messageID)
     } catch (error) {
