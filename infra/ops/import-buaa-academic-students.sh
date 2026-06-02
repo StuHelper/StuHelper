@@ -37,6 +37,9 @@ Input:
 Optional:
   BUAA_ACADEMIC_DATABASE_URL defaults to DATABASE_URL.
   BUAA_ACADEMIC_MIN_ROWS defaults to 1.
+  BUAA_ACADEMIC_VALIDATE_ONLY=true validates and normalizes the TSV without
+    requiring Docker, loading production env files, or writing to the database.
+  BUAA_ACADEMIC_DRY_RUN=true is accepted as an alias for validate-only.
 
 Supported optional columns:
   sfzjlxdm, sfzjh_hash, yxdm, zydm, bjdm, xznj, rxnj, pyccdm, xslbdm, sjh,
@@ -54,14 +57,7 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   exit 0
 fi
 
-require_cmd docker
 require_cmd python3
-
-load_env
-export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-${STACK_NAME:-stuhelper}}"
-
-database_url="${BUAA_ACADEMIC_DATABASE_URL:-${DATABASE_URL:-}}"
-[[ -n "${database_url}" ]] || die "BUAA_ACADEMIC_DATABASE_URL or DATABASE_URL is required"
 
 input_tsv="${BUAA_ACADEMIC_STUDENTS_TSV:-}"
 [[ -n "${input_tsv}" ]] || die "BUAA_ACADEMIC_STUDENTS_TSV is required"
@@ -69,6 +65,20 @@ input_tsv="${BUAA_ACADEMIC_STUDENTS_TSV:-}"
 
 min_rows="${BUAA_ACADEMIC_MIN_ROWS:-1}"
 [[ "${min_rows}" =~ ^[0-9]+$ && "${min_rows}" -gt 0 ]] || die "BUAA_ACADEMIC_MIN_ROWS must be a positive integer"
+
+validate_only="${BUAA_ACADEMIC_VALIDATE_ONLY:-${BUAA_ACADEMIC_DRY_RUN:-false}}"
+
+case "${validate_only}" in
+  1|true|TRUE|True|yes|YES|Yes|on|ON|On)
+    validate_only="true"
+    ;;
+  0|false|FALSE|False|no|NO|No|off|OFF|Off|"")
+    validate_only="false"
+    ;;
+  *)
+    die "BUAA_ACADEMIC_VALIDATE_ONLY must be true or false"
+    ;;
+esac
 
 materialize_database_url() {
   local value="$1"
@@ -89,8 +99,6 @@ PY
   [[ "${value}" != *"REPLACE_WITH"* ]] || die "DATABASE_URL contains unresolved placeholder"
   printf '%s\n' "${value}"
 }
-
-database_url="$(materialize_database_url "${database_url}")"
 
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "${tmpdir}"' EXIT
@@ -176,6 +184,20 @@ with target.open("w", encoding="utf-8", newline="") as fh:
 print(len(rows))
 PY
 )"
+
+if [[ "${validate_only}" == "true" ]]; then
+  printf 'validated_buaa_academic_students=%s\n' "${normalized_count}"
+  exit 0
+fi
+
+require_cmd docker
+
+load_env
+export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-${STACK_NAME:-stuhelper}}"
+
+database_url="${BUAA_ACADEMIC_DATABASE_URL:-${DATABASE_URL:-}}"
+[[ -n "${database_url}" ]] || die "BUAA_ACADEMIC_DATABASE_URL or DATABASE_URL is required"
+database_url="$(materialize_database_url "${database_url}")"
 
 compose --profile prod run --rm --no-deps -T \
   -v "${normalized_tsv}:/tmp/buaa_academic_students.normalized.tsv:ro" \
