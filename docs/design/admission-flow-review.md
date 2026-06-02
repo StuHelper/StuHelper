@@ -42,6 +42,7 @@ last-verified: 2026-06-02
 | `material_submitted` 未纳入同 QQ 活跃 session 唯一约束 | Koishi 本地状态丢失或重复 create 时，已提交材料待审核的用户可能被创建并行 admission session，后续 release/kick 动作互相干扰 | `group_admission_sessions_active_qq_idx` 纳入 `material_submitted`；迁移前先取消同 QQ/群/平台下较旧的重复 in-progress session；补充重复入群复用材料提交 session 的后端测试 |
 | 生产 readiness 未检查 BUAA 学籍表是否有数据 | `academic.buaa_students` 空表时，北航学号姓名校验必然失败，但 production readiness 仍会误报通过 | readiness 增加 BUAA 学籍表非空检查；真实上线前必须导入并抽样校验真实北航学籍数据 |
 | 真实 QQ E2E `flow-completed` 证据过宽 | 只绑定 QQ、只创建新生申请，或异常的 `verified` 但无 active credential 状态可能被人工误读为流程完成 | `admission-join-e2e-evidence.sh` 收紧为：老生必须存在 active student verification credential；新生材料必须让 session 进入 `material_submitted`；`verified` 必须由 active credential 证明 |
+| Join 子流程按用户最新 session 推断 | 同一账号多群、多次重发或旧链接续办时，`/admission/me`、学校邮箱 OTP、学校 SSO、新生材料申请可能读写到另一个 linked session | OpenAPI 增加可选 `admissionSessionID`；Join 页面把当前 session ID 传给 `/admission/me`、邮箱 OTP、学校 SSO 和新生材料申请；后端在 `user_id + session_id` 精确校验后再写入 |
 
 以上修复均已按提交收敛到本地仓库，并通过对应测试验证；是否已进入生产必须以当次部署记录、镜像/源码 sha 和生产 evidence 为准。生产 smoke 只能证明公共入口、SSO、DB readiness 和 Koishi 配置健康，不能替代真实 QQ 端到端验收。
 
@@ -80,6 +81,7 @@ last-verified: 2026-06-02
 | 业务流程域 | 入群流程只在 `join.stuhelper.com` 闭环 | 群内链接语义清晰，且不把业务步骤塞进 SSO 登录页 |
 | token 消费 | token 只在已登录用户 link admission 时消费；消费后只能由同一已绑定用户继续当前 session | 防止链接转发给别人，同时允许用户刷新、返回和继续未完成的认证 |
 | token 错误分类 | `admission.token_consumed` 是“已绑定账号/需续办或账号不匹配”，不是“链接过期”；只有 expired/not_found/session_not_found 才进入失效处理 | 避免用户在已消费但可恢复的链接上看到错误的“链接已失效”，也避免子流程把可排障的 consumed 错误吞成过期 |
+| 子流程 session 上下文 | Join 页面进入 linked/material 后，所有 admission 子流程必须继续携带当前 `admissionSessionID` | 多群、多次重发和刷新场景不能依赖“按 user_id 取最新 session”；后端缺省保留旧行为，Join 主流程使用精确上下文 |
 | 学校识别 | 对外和前端以学校代码为主，数据库外键 `school_id` 只做内部实现 | 学校名称会变，代码更适合作为开放平台和导入数据的稳定 key |
 | BUAA 老生认证 | BUAA 先校验学校代码、学号和姓名，再固定邮箱为 `学号@buaa.edu.cn` 进行 OTP | 避免别名邮箱绕过学籍身份校验；该逻辑必须做成学校专属配置，不硬编码到通用流程 |
 | 新生材料 | 允许桌面直接请求摄像头，也允许手机扫码免复杂登录上传；桌面和手机用 handoff 状态锁定继续端 | 兼顾电脑摄像头质量和移动端拍照体验，避免重复提交 |
