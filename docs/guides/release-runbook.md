@@ -126,6 +126,8 @@ docker compose \
 
 `baota-compose-refresh-image-refs.sh` 默认 dry-run，只会读取 `source/.env.prod.shared` 中的 `BACKEND_IMAGE_REF`、`FRONTEND_IMAGE_REF`、`ADMIN_IMAGE_REF`，并更新根 compose 的 `migrate` / `app` / `frontend` / `admin` 镜像行。生产不应手工只改根 compose 后结束；同一个 image ref 必须同时存在于 `source/.env.prod.shared`，并记录镜像 ID、tar sha256 和根 compose 备份路径。
 
+不要用 shell `source source/.env.prod.shared` 作为 Compose 重建方式。生产共享 env 允许出现带空格的非敏感值，例如中文发件人别名；仓库脚本通过 `infra/ops/lib/common.sh` 解析 env，Compose 重建应使用上面的 `docker compose --env-file ...` 形式，避免 shell 把值拆成命令。
+
 如果这一路径中发现必须修改生产 Nginx、env 或 DB 数据，修改后的非敏感结构必须同步回仓库模板、脚本或本文档；真实 secret 只保留在生产 secret backend / env 文件中。
 
 ### user_hash 回填运维任务
