@@ -602,6 +602,43 @@ func TestRefreshOIDCToken_MissingIDToken(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "failed to refresh token")
 }
 
+func TestRefreshOIDCToken_MissingAccessTokenExpiresLocalSession(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	provider := newFakeOIDCProviderWithTokenPayload(t, func(issueIDToken func() string) map[string]any {
+		return map[string]any{
+			"token_type":    "Bearer",
+			"refresh_token": "provider-refresh-token",
+			"expires_in":    3600,
+			"id_token":      issueIDToken(),
+		}
+	})
+	h, _ := newOIDCTestHandlerWithProvider(t, nil, provider)
+	_, err := h.svc.CreateSession(
+		t.Context(),
+		"sid-oidc-missing-access-token",
+		"oidc-user-1",
+		"old-access-token",
+		"old-refresh-token",
+		"oidc",
+		"browser",
+	)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-oidc-missing-access-token"})
+	c.Request = req
+
+	ok := h.refreshOIDCToken(c, "old-refresh-token")
+
+	assert.False(t, ok)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Contains(t, w.Body.String(), "failed to refresh token")
+	assertNoIssuedTokenCookies(t, w)
+	assert.NotEmpty(t, w.Result().Cookies())
+}
+
 func TestHandleWebCallback_InvalidIDToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	provider := newFakeOIDCProviderWithTokenPayload(t, func(issueIDToken func() string) map[string]any {

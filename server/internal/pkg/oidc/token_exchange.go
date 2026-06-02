@@ -50,7 +50,7 @@ func (c *Client) RefreshTokenForApplication(ctx context.Context, appKey, refresh
 	token, err := tokenSource.Token()
 	metrics.ObserveExternalRequest(c.metricName, "refresh_token", start, err)
 	if err != nil {
-		return nil, fmt.Errorf("oidc: token refresh failed: %w", classifyOAuthError(err))
+		return nil, fmt.Errorf("oidc: token refresh failed: %w", classifyOAuthRefreshError(err))
 	}
 	return token, nil
 }

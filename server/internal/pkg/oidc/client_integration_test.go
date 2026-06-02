@@ -392,3 +392,11 @@ func TestClassifyOAuthErrorLeavesClientErrorsAsCredentialFailures(t *testing.T) 
 	require.Error(t, err)
 	assert.False(t, errors.Is(err, ErrProviderUnavailable))
 }
+
+func TestClassifyOAuthRefreshErrorMarksMissingAccessTokenAsInvalidRefresh(t *testing.T) {
+	err := classifyOAuthRefreshError(errors.New("oauth2: server response missing access_token"))
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidRefreshToken)
+	assert.False(t, errors.Is(err, ErrProviderUnavailable))
+}

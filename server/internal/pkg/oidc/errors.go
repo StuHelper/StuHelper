@@ -8,6 +8,7 @@ import (
 )
 
 var ErrProviderUnavailable = errors.New("oidc: provider unavailable")
+var ErrInvalidRefreshToken = errors.New("oidc: refresh token invalid")
 
 const remoteKeyFetchErrorPrefix = "fetching keys "
 
@@ -18,6 +19,20 @@ func classifyOAuthError(err error) error {
 	var retrieveErr *oauth2.RetrieveError
 	if errors.As(err, &retrieveErr) && retrieveErr.Response != nil && retrieveErr.Response.StatusCode < 500 {
 		return err
+	}
+	return errors.Join(ErrProviderUnavailable, err)
+}
+
+func classifyOAuthRefreshError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var retrieveErr *oauth2.RetrieveError
+	if errors.As(err, &retrieveErr) && retrieveErr.Response != nil && retrieveErr.Response.StatusCode < 500 {
+		return errors.Join(ErrInvalidRefreshToken, err)
+	}
+	if strings.Contains(err.Error(), "server response missing access_token") {
+		return errors.Join(ErrInvalidRefreshToken, err)
 	}
 	return errors.Join(ErrProviderUnavailable, err)
 }
