@@ -155,6 +155,31 @@ func TestFreshmanApplicationRejectsExpiredLinkedSession(t *testing.T) {
 	require.ErrorIs(t, err, ErrAdmissionTokenExpired)
 }
 
+func TestFreshmanApplicationUsesValidLinkedSessionWhenExpiredLinkedSessionIsNewer(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newFreshmanTestService(t, fixture)
+	userID := seedLinkedAdmissionUser(t, fixture, svc, "freshman-ignore-expired-linked")
+	current, err := svc.GetBotAdmissionSession(context.Background(), BotSessionSubjectInput{
+		Platform: "qq",
+		GuildID:  "guild-1",
+		QQID:     "10001",
+	})
+	require.NoError(t, err)
+	expiredID := insertExpiredLinkedAdmissionSessionForUser(t, fixture, userID)
+
+	app, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
+		UserID:        userID,
+		SchoolID:      1,
+		ApplicantName: "Alice Applicant",
+		MaterialType:  MaterialAdmissionNotice,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, app.AdmissionSessionID)
+	assert.Equal(t, current.ID, *app.AdmissionSessionID)
+	assert.NotEqual(t, expiredID, *app.AdmissionSessionID)
+}
+
 func TestFreshmanCameraCaptureValidatesAndStoresImage(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	store := &testAdmissionMaterialStore{}

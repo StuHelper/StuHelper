@@ -110,7 +110,7 @@ func (s *Service) exchangeSchoolSSO(
 func (s *Service) storeStudentCredential(ctx context.Context, input studentCredentialInput) (*AdmissionSession, error) {
 	var verified *AdmissionSession
 	err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		session, err := s.repo.GetLinkedSessionByUserIDTx(ctx, tx, input.UserID)
+		session, err := s.repo.GetLinkedSessionByUserIDTx(ctx, tx, input.UserID, s.now())
 		if err != nil {
 			return err
 		}

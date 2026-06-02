@@ -14,28 +14,34 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/schoolauth"
 )
 
-func (r *Repository) GetLinkedSessionByUserID(ctx context.Context, userID int64) (*AdmissionSession, error) {
+func (r *Repository) GetLinkedSessionByUserID(ctx context.Context, userID int64, now time.Time) (*AdmissionSession, error) {
 	ctx = withDBTable(ctx, "group_admission_sessions")
 	query := "SELECT " + admissionSessionColumns + `
 		FROM group_admission_sessions
 		WHERE user_id = $1 AND status = $2
-		ORDER BY updated_at DESC
+		  AND cancelled_at IS NULL
+		ORDER BY
+		  CASE WHEN submission_wait_deadline_at >= $3 THEN 0 ELSE 1 END,
+		  updated_at DESC
 		LIMIT 1`
-	session, err := scanAdmissionSession(r.db.QueryRow(ctx, query, userID, StatusLinked))
+	session, err := scanAdmissionSession(r.db.QueryRow(ctx, query, userID, StatusLinked, now))
 	if errors.Is(err, ErrAdmissionTokenNotFound) {
 		return nil, nil
 	}
 	return session, err
 }
 
-func (r *Repository) GetLinkedSessionByUserIDTx(ctx context.Context, tx pgx.Tx, userID int64) (*AdmissionSession, error) {
+func (r *Repository) GetLinkedSessionByUserIDTx(ctx context.Context, tx pgx.Tx, userID int64, now time.Time) (*AdmissionSession, error) {
 	query := "SELECT " + admissionSessionColumns + `
 		FROM group_admission_sessions
 		WHERE user_id = $1 AND status = $2
-		ORDER BY updated_at DESC
+		  AND cancelled_at IS NULL
+		ORDER BY
+		  CASE WHEN submission_wait_deadline_at >= $3 THEN 0 ELSE 1 END,
+		  updated_at DESC
 		LIMIT 1
 		FOR UPDATE`
-	session, err := scanAdmissionSession(tx.QueryRow(ctx, query, userID, StatusLinked))
+	session, err := scanAdmissionSession(tx.QueryRow(ctx, query, userID, StatusLinked, now))
 	if errors.Is(err, ErrAdmissionTokenNotFound) {
 		return nil, nil
 	}

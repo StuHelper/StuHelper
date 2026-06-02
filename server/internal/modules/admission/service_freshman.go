@@ -302,7 +302,7 @@ func (s *Service) ChooseFreshmanCameraHandoffContinuation(
 }
 
 func (s *Service) requireLinkedSession(ctx context.Context, userID int64) (*AdmissionSession, error) {
-	session, err := s.repo.GetLinkedSessionByUserID(ctx, userID)
+	session, err := s.repo.GetLinkedSessionByUserID(ctx, userID, s.now())
 	if err != nil {
 		return nil, err
 	}
