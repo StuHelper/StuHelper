@@ -79,7 +79,7 @@ last-verified: 2026-06-02
 | BUAA 老生认证 | BUAA 先校验学校代码、学号和姓名，再固定邮箱为 `学号@buaa.edu.cn` 进行 OTP | 避免别名邮箱绕过学籍身份校验；该逻辑必须做成学校专属配置，不硬编码到通用流程 |
 | 新生材料 | 允许桌面直接请求摄像头，也允许手机扫码免复杂登录上传；桌面和手机用 handoff 状态锁定继续端 | 兼顾电脑摄像头质量和移动端拍照体验，避免重复提交 |
 | handoff 实时性 | SSE 优先，短轮询仅作为兼容 fallback | 减少延迟和无意义请求，同时保留老浏览器/代理异常时的可用性 |
-| 邮件发送 | `EMAIL_DRIVER=multi`，腾讯云 SES 优先，Resend 兜底；两者复用同一 HTML/TXT 内容 | 保障学校邮箱 OTP 可用性，避免 provider 单点故障；Resend 不使用腾讯云模板 ID，但输出视觉保持一致 |
+| 邮件发送 | `EMAIL_DRIVER=multi`，腾讯云 SES 优先，Resend 兜底；两者复用同一 HTML/TXT 内容；管理后台系统配置已支持 provider 启用、优先级、权重和 `priority`/`weighted` 策略 | 保障学校邮箱 OTP 可用性，避免 provider 单点故障；Resend 不使用腾讯云模板 ID，但输出视觉保持一致 |
 | Koishi 命令 | 生产关闭公开群管命令和消息风控监听，保留 admission 管理命令 | 新插件不抢旧“举报 / 骰子 / 抽禁言”等命令，但管理员仍可重发/重生认证链接 |
 | 生产部署 | 本地仓库、镜像、脚本、模板和 runbook 是事实来源 | 禁止把生产手工修改当成最终状态；任何生产变更都要能从仓库复现 |
 
@@ -109,7 +109,7 @@ last-verified: 2026-06-02
 ### P3: 扩展能力
 
 - Open Platform disclosure API 按 scope 暴露 `verified_student`、学校代码、校区代码等业务数据，不把详细业务数据塞进 Casdoor token。
-- 管理后台配置邮件 provider 的启用、优先级、权重、超时、熔断和 smoke 收件箱。
+- 管理后台已支持邮件 provider 的启用、优先级、权重和发送策略模式；后续补超时、熔断窗口和 smoke 收件箱。
 - admission 风险策略增加设备/IP/频率维度，但不影响第一版“先入群禁言再认证”的主路径。
 - 对新生材料审核增加水印、只读下载代理和短期签名 URL，再考虑开启原图转发到 QQ 管理群。
 
@@ -117,6 +117,6 @@ last-verified: 2026-06-02
 
 - 缺一次真实 QQ 小号完成学生认证后的 `bot-released` final evidence。
 - BUAA 专属学籍校验接口已接入 `academic.buaa_students`，但生产仍需导入并抽样校验真实北航学籍数据后才能宣称该校老生认证完整可用。
-- 邮件 provider 的管理后台配置面尚未完成；当前主要通过 env 和 smoke 脚本验收。
+- 邮件 provider 的基础管理后台配置面已完成；超时、熔断窗口和 smoke 收件箱仍需后续补齐，当前仍主要通过 env 和 smoke 脚本验收真实凭据与模板状态。
 - 后端 app 重建仍可能让 Koishi 在短窗口内看到 502；长期应做滚动发布或让 Koishi 对短暂 5xx 做更清晰的退避和观测。
 - ChatLuna、非 admission 群管能力或其他机器人插件错误不进入 admission 上线范围，除非它们影响入群认证事件处理。
