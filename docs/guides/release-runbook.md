@@ -128,6 +128,20 @@ docker compose \
 
 如果这一路径中发现必须修改生产 Nginx、env 或 DB 数据，修改后的非敏感结构必须同步回仓库模板、脚本或本文档；真实 secret 只保留在生产 secret backend / env 文件中。
 
+### user_hash 回填运维任务
+
+后端启动日志如果出现 `users with missing user_hash detected; run backfill ops task`，不要手工拼 HMAC 或直接改表。该检查是有意保留的启动提醒；实际修复应通过仓库脚本调用后端镜像内的运维命令，复用生产容器已有 `DATABASE_URL` 和 `HMAC_SECRET`，并且不输出 secret。
+
+先 dry-run 确认缺失数量，再显式 apply：
+
+```bash
+./infra/ops/backfill-user-hashes.sh --dry-run
+./infra/ops/backfill-user-hashes.sh --apply
+./infra/ops/backfill-user-hashes.sh --dry-run
+```
+
+预期最后一次 dry-run 输出 `remaining=0`。如果生产 backend 容器名不是默认的 `stuhelper-prod-app`，通过 `USER_HASH_BACKFILL_APP_CONTAINER=<container>` 指定。该任务只填充 `users.user_hash IS NULL` 的记录，可重复执行；不修改已有 `user_hash`。
+
 ### 生产磁盘耗尽应急处理
 
 如果 Koishi 或后端日志出现 `failed to verify bot service credential` / `B0000001`，同时 PostgreSQL 日志出现 `No space left on device` / `could not write to file "pg_wal/xlogtemp.*"` 或容器反复 `Restarting`，优先按主站磁盘耗尽处理，而不是先旋转 bot token。

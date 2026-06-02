@@ -38,6 +38,11 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build \
     -o /app/bin/migrate-runtime \
     ./cmd/migrate-runtime
 
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build \
+    -ldflags="-s -w" \
+    -o /app/bin/backfill-user-hashes \
+    ./cmd/backfill-user-hashes
+
 # Final stage
 FROM ${RUNTIME_IMAGE}
 
@@ -57,6 +62,7 @@ RUN npm install --omit=dev --prefix /app playwright-core@1.58.2 \
 
 COPY --from=builder /app/bin/stuhelper /app/stuhelper
 COPY --from=builder /app/bin/migrate-runtime /app/migrate-runtime
+COPY --from=builder /app/bin/backfill-user-hashes /app/backfill-user-hashes
 COPY --from=builder /app/migrations /app/migrations
 COPY --from=builder /app/scripts/casdoor-runtime-token-probe-runner.mjs /app/casdoor-runtime-token-probe-runner.mjs
 
