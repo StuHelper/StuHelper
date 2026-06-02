@@ -53,6 +53,7 @@ type mockRepo struct {
 	onGetProfileByUserIDTx                     func(ctx context.Context, tx pgx.Tx, userID int64) (*Profile, error)
 	onCreateProfileTx                          func(ctx context.Context, tx pgx.Tx, profile *Profile) error
 	onUpdateProfileTx                          func(ctx context.Context, tx pgx.Tx, profile *Profile) error
+	onEnsureVerificationCredentialTx           func(ctx context.Context, tx pgx.Tx, credential VerificationCredentialProjection) error
 	onUpsertExternalSyncJobTx                  func(ctx context.Context, tx pgx.Tx, jobType, dedupeKey string, payload []byte) error
 	onClaimExternalSyncJobs                    func(ctx context.Context, limit int, staleAfter time.Duration) ([]ExternalSyncJob, error)
 	onMarkExternalSyncJobDone                  func(ctx context.Context, jobID int64) error
@@ -236,6 +237,13 @@ func (m *mockRepo) UpdateProfileTx(ctx context.Context, tx pgx.Tx, profile *Prof
 		return m.onUpdateProfileTx(ctx, tx, profile)
 	}
 	return m.UpdateProfile(ctx, profile)
+}
+
+func (m *mockRepo) EnsureVerificationCredentialTx(ctx context.Context, tx pgx.Tx, credential VerificationCredentialProjection) error {
+	if m.onEnsureVerificationCredentialTx != nil {
+		return m.onEnsureVerificationCredentialTx(ctx, tx, credential)
+	}
+	return nil
 }
 
 func (m *mockRepo) UpsertExternalSyncJobTx(ctx context.Context, tx pgx.Tx, jobType, dedupeKey string, payload []byte) error {

@@ -136,6 +136,7 @@ type Repo interface {
 	GetProfileByUserIDTx(ctx context.Context, tx pgx.Tx, userID int64) (*Profile, error)
 	CreateProfileTx(ctx context.Context, tx pgx.Tx, profile *Profile) error
 	UpdateProfileTx(ctx context.Context, tx pgx.Tx, profile *Profile) error
+	EnsureVerificationCredentialTx(ctx context.Context, tx pgx.Tx, credential VerificationCredentialProjection) error
 	GetQQBindingCodeByHashTx(ctx context.Context, tx pgx.Tx, codeHash string) (*QQBindingCode, error)
 	GetQQBindingByUserIDTx(ctx context.Context, tx pgx.Tx, userID int64) (*QQBinding, error)
 	GetQQBindingByQQIDTx(ctx context.Context, tx pgx.Tx, qqID string) (*QQBinding, error)

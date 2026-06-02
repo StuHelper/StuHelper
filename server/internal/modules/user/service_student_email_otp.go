@@ -2,8 +2,11 @@ package user
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +20,8 @@ import (
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/schoolauth"
 )
+
+const userVerificationCredentialKindSchoolEmailOTP = "school_email_otp"
 
 const (
 	studentEmailOTPLength          = 6
@@ -174,6 +179,9 @@ func (s *Service) VerifyStudentEmailOTP(ctx context.Context, input StudentEmailO
 			if err := s.repo.CreateProfileTx(ctx, tx, profile); err != nil {
 				return fmt.Errorf("VerifyStudentEmailOTP create profile tx: %w", err)
 			}
+		}
+		if err := s.ensureProfileVerificationCredentialTx(ctx, tx, profile); err != nil {
+			return fmt.Errorf("VerifyStudentEmailOTP ensure credential: %w", err)
 		}
 		if err := s.enqueueVerificationProjectionTx(ctx, tx, input.UserID, profile.VerificationStatus); err != nil {
 			return fmt.Errorf("VerifyStudentEmailOTP enqueue projections: %w", err)
@@ -427,6 +435,76 @@ func studentEmailManualFormData(record studentEmailOTPRecord) json.RawMessage {
 		return nil
 	}
 	return raw
+}
+
+func (s *Service) ensureProfileVerificationCredentialTx(ctx context.Context, tx pgx.Tx, profile *Profile) error {
+	if profile == nil || profile.VerificationStatus != StatusVerified {
+		return nil
+	}
+	if profile.SchoolID == nil || profile.VerificationMethod == nil {
+		return nil
+	}
+	switch *profile.VerificationMethod {
+	case VerifyMethodSchoolEmailOTP:
+		email, err := schoolEmailFromProfile(profile.ManualFormData)
+		if err != nil {
+			return err
+		}
+		if email == "" {
+			return fmt.Errorf("school email otp profile is verified but schoolEmail is missing")
+		}
+		verifiedAt := time.Now()
+		if profile.VerifiedAt != nil {
+			verifiedAt = *profile.VerifiedAt
+		}
+		return s.repo.EnsureVerificationCredentialTx(ctx, tx, VerificationCredentialProjection{
+			UserID:         profile.UserID,
+			SchoolID:       *profile.SchoolID,
+			Kind:           userVerificationCredentialKindSchoolEmailOTP,
+			SubjectHash:    s.hashVerificationCredentialSubject(*profile.SchoolID, email),
+			SubjectDisplay: maskStudentEmail(email),
+			VerifiedAt:     verifiedAt,
+		})
+	default:
+		return nil
+	}
+}
+
+func schoolEmailFromProfile(raw json.RawMessage) (string, error) {
+	if len(raw) == 0 {
+		return "", nil
+	}
+	var fields map[string]string
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return "", fmt.Errorf("decode student profile manual form data: %w", err)
+	}
+	email := strings.TrimSpace(fields["schoolEmail"])
+	if email == "" {
+		return "", nil
+	}
+	return normalizeStudentEmail(email)
+}
+
+func (s *Service) hashVerificationCredentialSubject(schoolID int64, subject string) string {
+	mac := hmac.New(sha256.New, s.hmacKey)
+	mac.Write([]byte(strconv.FormatInt(schoolID, 10) + "|" + strings.TrimSpace(subject)))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func maskStudentEmail(email string) string {
+	parts := strings.Split(email, "@")
+	if len(parts) != 2 || parts[0] == "" {
+		return email
+	}
+	return maskStudentEmailLocal(parts[0]) + "@" + parts[1]
+}
+
+func maskStudentEmailLocal(local string) string {
+	runes := []rune(local)
+	if len(runes) <= 2 {
+		return string(runes[0]) + "*"
+	}
+	return string(runes[0]) + strings.Repeat("*", len(runes)-2) + string(runes[len(runes)-1])
 }
 
 func generateStudentEmailOTPCode() (string, error) {

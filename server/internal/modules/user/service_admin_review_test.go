@@ -2,9 +2,11 @@ package user
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -76,6 +78,41 @@ func TestReviewStudentVerification_ApproveClearsRejectionReasonAndSetsReviewMeta
 	assert.NotNil(t, capturedProfile.VerifiedAt)
 	assert.Nil(t, capturedProfile.RejectionReason)
 	assert.NotNil(t, capturedProfile.ReviewedAt)
+}
+
+func TestReviewStudentVerification_ApproveSchoolEmailOTPEnsuresCredential(t *testing.T) {
+	method := VerifyMethodSchoolEmailOTP
+	schoolID := int64(10006)
+	var capturedCredential *VerificationCredentialProjection
+
+	repo := &mockRepo{
+		onGetProfileByUserID: func(_ context.Context, _ int64) (*Profile, error) {
+			return &Profile{
+				UserID:             1003,
+				SchoolID:           &schoolID,
+				VerificationStatus: StatusPending,
+				VerificationMethod: &method,
+				ManualFormData:     json.RawMessage(`{"schoolEmail":"20250001@buaa.edu.cn"}`),
+			}, nil
+		},
+		onEnsureVerificationCredentialTx: func(_ context.Context, _ pgx.Tx, credential VerificationCredentialProjection) error {
+			copy := credential
+			capturedCredential = &copy
+			return nil
+		},
+	}
+
+	service, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	err = service.ReviewStudentVerification(context.Background(), 1003, true, "")
+	require.NoError(t, err)
+	require.NotNil(t, capturedCredential)
+	assert.Equal(t, int64(1003), capturedCredential.UserID)
+	assert.Equal(t, schoolID, capturedCredential.SchoolID)
+	assert.Equal(t, userVerificationCredentialKindSchoolEmailOTP, capturedCredential.Kind)
+	assert.NotEmpty(t, capturedCredential.SubjectHash)
+	assert.Equal(t, "2******1@buaa.edu.cn", capturedCredential.SubjectDisplay)
 }
 
 func TestReviewIdentity_RejectSetsReviewedAtEvenWithoutReason(t *testing.T) {

@@ -78,6 +78,16 @@ type Profile struct {
 	UpdatedAt          time.Time
 }
 
+// VerificationCredentialProjection 是主站学生认证写入 admission 统一凭据表的投影。
+type VerificationCredentialProjection struct {
+	UserID         int64
+	SchoolID       int64
+	Kind           string
+	SubjectHash    string
+	SubjectDisplay string
+	VerifiedAt     time.Time
+}
+
 // ManualFieldDescriptor manual 模式动态字段定义
 type ManualFieldDescriptor struct {
 	Key         string   `json:"key"`

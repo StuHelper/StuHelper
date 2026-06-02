@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -14,6 +15,7 @@ import (
 func TestStudentEmailOTPDerivesBUAAEmailAndCreatesVerifiedProfile(t *testing.T) {
 	redis := redisfixture.Start(t)
 	var captured *Profile
+	var capturedCredential *VerificationCredentialProjection
 	sender := &testStudentEmailSender{}
 	academicTable := "academic.buaa_students"
 	repo := &mockRepo{
@@ -43,6 +45,11 @@ func TestStudentEmailOTPDerivesBUAAEmailAndCreatesVerifiedProfile(t *testing.T) 
 		onCreateProfile: func(_ context.Context, profile *Profile) error {
 			copy := *profile
 			captured = &copy
+			return nil
+		},
+		onEnsureVerificationCredentialTx: func(_ context.Context, _ pgx.Tx, credential VerificationCredentialProjection) error {
+			copy := credential
+			capturedCredential = &copy
 			return nil
 		},
 	}
@@ -80,6 +87,14 @@ func TestStudentEmailOTPDerivesBUAAEmailAndCreatesVerifiedProfile(t *testing.T) 
 	assert.Equal(t, VerifyMethodSchoolEmailOTP, *captured.VerificationMethod)
 	assert.Equal(t, []string{"20250001"}, captured.StudentIDs)
 	assert.JSONEq(t, `{"schoolEmail":"20250001@buaa.edu.cn","studentID":"20250001","studentName":"张三"}`, string(captured.ManualFormData))
+	require.NotNil(t, capturedCredential)
+	assert.Equal(t, int64(7), capturedCredential.UserID)
+	assert.Equal(t, int64(10006), capturedCredential.SchoolID)
+	assert.Equal(t, userVerificationCredentialKindSchoolEmailOTP, capturedCredential.Kind)
+	assert.NotEmpty(t, capturedCredential.SubjectHash)
+	assert.Equal(t, "2******1@buaa.edu.cn", capturedCredential.SubjectDisplay)
+	require.NotNil(t, captured.VerifiedAt)
+	assert.Equal(t, *captured.VerifiedAt, capturedCredential.VerifiedAt)
 }
 
 func TestStudentEmailOTPRejectsBUAAStudentNameMismatch(t *testing.T) {

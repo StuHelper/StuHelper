@@ -122,6 +122,9 @@ func (s *Service) ReviewStudentVerification(ctx context.Context, userID int64, a
 		if err := s.repo.UpdateProfileTx(ctx, tx, profile); err != nil {
 			return fmt.Errorf("ReviewStudentVerification update profile tx: %w", err)
 		}
+		if err := s.ensureProfileVerificationCredentialTx(ctx, tx, profile); err != nil {
+			return fmt.Errorf("ReviewStudentVerification ensure credential: %w", err)
+		}
 		if err := s.enqueueVerificationProjectionTx(ctx, tx, userID, profile.VerificationStatus); err != nil {
 			return fmt.Errorf("ReviewStudentVerification enqueue projections: %w", err)
 		}
