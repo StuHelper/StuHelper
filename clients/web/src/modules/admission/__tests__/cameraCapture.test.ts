@@ -856,6 +856,59 @@ describe("FreshmanCameraFlow material capture UI", () => {
         }
     });
 
+    it("moves to pending review when an existing application already has submitted material", async () => {
+        mockAdmissionApi.submitFreshmanApplication.mockResolvedValue(
+            freshmanApplication,
+        );
+        mockAdmissionApi.createFreshmanCameraHandoff.mockRejectedValueOnce(
+            new ApiError({
+                code: "A0000409",
+                message: "admission camera handoff locked",
+            }),
+        );
+        const wrapper = mount(FreshmanCameraFlow, {
+            props: {
+                admissionSessionId: "session-1",
+                maxMaterialBytes: 1024,
+                schools: [
+                    {
+                        schoolID: 1001,
+                        schoolCode: "4111010006",
+                        schoolName: "北京航空航天大学",
+                        verificationMethod: "manual",
+                        enabled: true,
+                    },
+                ],
+            },
+        });
+        await flushPromises();
+        await wrapper
+            .find("[data-freshman-school-select]")
+            .setValue("4111010006");
+        await wrapper
+            .find("[data-freshman-applicant-name-input]")
+            .setValue("张三");
+        await wrapper
+            .find("[data-freshman-mobile-handoff-button]")
+            .trigger("click");
+        await flushPromises();
+
+        expect(mockAdmissionApi.submitFreshmanApplication).toHaveBeenCalledWith({
+            schoolCode: "4111010006",
+            admissionSessionID: "session-1",
+            applicantName: "张三",
+            departmentOrMajor: undefined,
+            materialType: "admission_notice",
+        });
+        expect(mockAdmissionApi.createFreshmanCameraHandoff).toHaveBeenCalledWith(
+            "application-1",
+        );
+        expect(wrapper.emitted("submitted")?.[0]).toEqual([
+            freshmanApplication,
+        ]);
+        expect(wrapper.text()).not.toContain("手机拍照链接生成失败");
+    });
+
     it("locks desktop controls when mobile continuation is chosen", async () => {
         const originalEventSource = window.EventSource;
         class FakeEventSource {

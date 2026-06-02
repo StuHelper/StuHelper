@@ -102,6 +102,70 @@ func TestFreshmanApplicationReassignsPendingApplicationToCurrentSession(t *testi
 	assert.Equal(t, relinked.ID, *reused.AdmissionSessionID)
 }
 
+func TestFreshmanApplicationReassignsSubmittedMaterialToCurrentSession(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	store := &testAdmissionMaterialStore{}
+	svc := newFreshmanTestService(t, fixture)
+	svc.materialStore = store
+	tokenIndex := 0
+	svc.generateToken = func() (string, error) {
+		tokenIndex++
+		return fmt.Sprintf("freshman-reassign-submitted-token-%d", tokenIndex), nil
+	}
+	userID := seedAdmissionUser(t, fixture, "freshman-reassign-submitted")
+	created := createLinkableSession(t, svc)
+	linked, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+
+	app, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
+		UserID:        userID,
+		SchoolID:      1,
+		ApplicantName: "Alice Applicant",
+		MaterialType:  MaterialAdmissionNotice,
+	})
+	require.NoError(t, err)
+	_, err = svc.SubmitCameraCapture(context.Background(), CameraCaptureInput{
+		UserID:        userID,
+		ApplicationID: app.ID,
+		ContentType:   "image/png",
+		ImageBase64:   base64.StdEncoding.EncodeToString(validPNGBytes()),
+	})
+	require.NoError(t, err)
+	assertAdmissionSessionStatus(t, fixture, linked.ID, StatusMaterialSubmitted)
+
+	regenerated, err := svc.RegenerateBotAdmissionSession(context.Background(), BotSessionCreateInput{
+		Platform:  "qq",
+		BotSelfID: "514",
+		GuildID:   "guild-1",
+		ChannelID: "channel-1",
+		QQID:      "10001",
+	})
+	require.NoError(t, err)
+	relinked, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   regenerated.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+	assertAdmissionSessionStatus(t, fixture, relinked.ID, StatusLinked)
+
+	reused, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
+		UserID:        userID,
+		SchoolID:      1,
+		ApplicantName: "Alice Applicant",
+		MaterialType:  MaterialAdmissionNotice,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, app.ID, reused.ID)
+	require.NotNil(t, reused.AdmissionSessionID)
+	assert.Equal(t, relinked.ID, *reused.AdmissionSessionID)
+	assertAdmissionSessionStatus(t, fixture, relinked.ID, StatusMaterialSubmitted)
+}
+
 func TestFreshmanApplicationUniqueRaceReusesPendingApplication(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newFreshmanTestService(t, fixture)

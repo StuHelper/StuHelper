@@ -118,6 +118,20 @@ describe('AdmissionPage edge states', () => {
     expect(wrapper.find('[data-school-email-otp-form]').exists()).toBe(false)
   })
 
+  it('shows expired state for cancelled admission sessions', async () => {
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('cancelled'),
+    )
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.find('[data-state="expired"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('链接已失效')
+    expect(wrapper.find('[data-admission-freshman-flow]').exists()).toBe(false)
+    expect(wrapper.find('[data-school-email-otp-form]').exists()).toBe(false)
+  })
+
   it('shows admission progress and the link deadline before account binding', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
       sessionWithStatus('joined_muted'),
@@ -485,6 +499,29 @@ describe('AdmissionPage edge states', () => {
     expect(wrapper.find('[data-linked-resource-error]').text()).toContain(
       'admission me unavailable',
     )
+    expect(wrapper.find('[data-state="error"]').exists()).toBe(false)
+  })
+
+  it('moves to expired when linked resources report a cancelled admission session', async () => {
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('joined_muted'),
+    )
+    mockAdmissionApi.linkAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('linked'),
+    )
+    mockAdmissionApi.getAdmissionMe.mockResolvedValueOnce({
+      projectionPending: false,
+      session: sessionWithStatus('cancelled'),
+      status: 'cancelled',
+    })
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+    await wrapper.get('button.primary-button').trigger('click')
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.find('[data-state="expired"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('链接已失效')
     expect(wrapper.find('[data-state="error"]').exists()).toBe(false)
   })
 

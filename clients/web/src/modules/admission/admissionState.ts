@@ -22,6 +22,7 @@ export function stateFromAdmissionSession(
   if (session.status === 'material_submitted') return 'pendingReview'
   if (session.status === 'verified') return 'approved'
   if (session.status === 'expired_kicked') return 'expired'
+  if (session.status === 'cancelled') return 'expired'
   return 'error'
 }
 
@@ -32,5 +33,7 @@ export function stateFromAdmissionMe(
   if (admission.status === 'verified') return 'approved'
   if (admission.status === 'material_submitted') return 'pendingReview'
   if (admission.status === 'linked') return 'linked'
+  if (admission.status === 'expired_kicked') return 'expired'
+  if (admission.status === 'cancelled') return 'expired'
   return 'error'
 }

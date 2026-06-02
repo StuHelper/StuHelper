@@ -499,6 +499,11 @@ async function handleFreshmanCameraHandoffLockedError(error: unknown): Promise<b
     await refreshHandoff()
   }
   const current = handoff.value
+  if (!current && application.value) {
+    errorMessage.value = ''
+    emit('submitted', application.value)
+    return true
+  }
   if (current?.status === 'uploaded') {
     errorMessage.value = '手机端已上传材料，请先在手机上选择回到电脑端继续或在手机端继续。'
     return true

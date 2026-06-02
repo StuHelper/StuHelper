@@ -79,7 +79,14 @@ func (s *Service) usePendingFreshmanApplicationForSession(
 		return nil, ErrAdmissionLinkedSessionRequired
 	}
 	if app.AdmissionSessionID == nil || *app.AdmissionSessionID != session.ID {
-		return s.repo.ReassignPendingFreshmanApplicationSession(ctx, app.ID, session.ID)
+		reassigned, err := s.repo.ReassignPendingFreshmanApplicationSession(ctx, app.ID, session.ID)
+		if err != nil {
+			return nil, err
+		}
+		app = reassigned
+	}
+	if err := s.syncFreshmanApplicationMaterialSubmission(ctx, app, session); err != nil {
+		return nil, err
 	}
 	return app, nil
 }
@@ -390,6 +397,21 @@ func (s *Service) ensureFreshmanCameraHandoffCanStart(ctx context.Context, appli
 		return ErrAdmissionCameraHandoffLocked
 	}
 	return nil
+}
+
+func (s *Service) syncFreshmanApplicationMaterialSubmission(
+	ctx context.Context,
+	app *FreshmanApplication,
+	session *AdmissionSession,
+) error {
+	hasMaterial, err := s.repo.FreshmanApplicationHasMaterial(ctx, app.ID)
+	if err != nil {
+		return err
+	}
+	if !hasMaterial {
+		return nil
+	}
+	return s.ensureFreshmanMaterialSubmitted(ctx, session)
 }
 
 func (s *Service) ensureFreshmanDesktopCaptureAllowed(ctx context.Context, applicationID string) error {
