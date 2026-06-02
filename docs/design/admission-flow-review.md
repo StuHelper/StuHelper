@@ -40,6 +40,7 @@ last-verified: 2026-06-02
 | linked/material 阶段可能继承入群初始提醒时间 | 如果扩展 pending reminder 查询但不清理旧 `next_reminder_at`，用户开始认证后仍可能收到重复提醒 | link、材料提交、验证、取消和重生取消旧会话时清空旧 reminder；只有管理员显式重发才把 linked/material session 放回提醒队列 |
 | `material_submitted` 未纳入同 QQ 活跃 session 唯一约束 | Koishi 本地状态丢失或重复 create 时，已提交材料待审核的用户可能被创建并行 admission session，后续 release/kick 动作互相干扰 | `group_admission_sessions_active_qq_idx` 纳入 `material_submitted`；迁移前先取消同 QQ/群/平台下较旧的重复 in-progress session；补充重复入群复用材料提交 session 的后端测试 |
 | 生产 readiness 未检查 BUAA 学籍表是否有数据 | `academic.buaa_students` 空表时，北航学号姓名校验必然失败，但 production readiness 仍会误报通过 | readiness 增加 BUAA 学籍表非空检查；真实上线前必须导入并抽样校验真实北航学籍数据 |
+| 真实 QQ E2E `flow-completed` 证据过宽 | 只绑定 QQ、只创建新生申请，或异常的 `verified` 但无 active credential 状态可能被人工误读为流程完成 | `admission-join-e2e-evidence.sh` 收紧为：老生必须存在 active student verification credential；新生材料必须让 session 进入 `material_submitted`；`verified` 必须由 active credential 证明 |
 
 以上修复均已按提交收敛到本地仓库，并通过对应测试验证；是否已进入生产必须以当次部署记录、镜像/源码 sha 和生产 evidence 为准。生产 smoke 只能证明公共入口、SSO、DB readiness 和 Koishi 配置健康，不能替代真实 QQ 端到端验收。
 
@@ -68,7 +69,7 @@ last-verified: 2026-06-02
 2. `flow-completed`：用户登录、绑定 QQ，并完成正式学生认证或新生材料流程。
 3. `bot-released`：后端存在 active student verification credential，Koishi 执行解除禁言并回写 release 结果。
 
-只完成 QQ 绑定不应解除禁言；没有 active student verification credential 时，Koishi 不应 release。这个约束用于防止“绑定了 QQ 但不是学生”的用户绕过准入。
+`flow-completed` 的证据口径也不能过宽：只完成 QQ 绑定不算完成；只创建新生申请但未提交材料不算完成；`verified` 但没有 active student verification credential 是异常状态，不应作为验收通过。没有 active student verification credential 时，Koishi 不应 release。这个约束用于防止“绑定了 QQ 但不是学生”的用户绕过准入。
 
 ## 决策矩阵
 
