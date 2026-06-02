@@ -16,9 +16,9 @@ func TestReviewService_IntegrationErrorBranches(t *testing.T) {
 	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
 	ctx := context.Background()
 
-	departmentID := seedDepartment(t, fixture, 10006, "软件学院")
-	teacherID := seedTeacher(t, fixture, 10006, "李老师", departmentID)
-	courseID := seedCourse(t, fixture, 10006, departmentID, "编译原理")
+	departmentID := seedDepartment(t, fixture, 4111010006, "软件学院")
+	teacherID := seedTeacher(t, fixture, 4111010006, "李老师", departmentID)
+	courseID := seedCourse(t, fixture, 4111010006, departmentID, "编译原理")
 	reviewID := "550e8400-e29b-41d4-a716-446655440201"
 	hiddenReviewID := "550e8400-e29b-41d4-a716-446655440202"
 	missingReviewID := "550e8400-e29b-41d4-a716-446655440299"

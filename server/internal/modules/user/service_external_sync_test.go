@@ -72,7 +72,7 @@ func (f *fakeAdmissionProjectionGateway) ProjectStudentVerification(
 }
 
 func TestSyncUserProfileProjection_RebuildsOwnerAndCurrentSchool(t *testing.T) {
-	schoolID := int64(10006)
+	schoolID := int64(4111010006)
 	fgaClient := &fakeProfileFGAClient{
 		readTuples: []fga.Tuple{{User: "school:99999", Relation: "school", Object: "user_profile:123"}},
 	}
@@ -101,12 +101,12 @@ func TestSyncUserProfileProjection_RebuildsOwnerAndCurrentSchool(t *testing.T) {
 	assert.Equal(t, []fga.Tuple{{User: "school:99999", Relation: "school", Object: "user_profile:123"}}, fgaClient.deleteCalls[0])
 	assert.Equal(t, []fga.Tuple{
 		{User: "user:123", Relation: "owner", Object: "user_profile:123"},
-		{User: "school:10006", Relation: "school", Object: "user_profile:123"},
+		{User: "school:4111010006", Relation: "school", Object: "user_profile:123"},
 	}, fgaClient.writeCalls[0])
 }
 
 func TestSyncUserProfileProjectionSkipsExistingOwnerTuple(t *testing.T) {
-	schoolID := int64(10006)
+	schoolID := int64(4111010006)
 	fgaClient := &fakeProfileFGAClient{
 		readByRel: map[string][]fga.Tuple{
 			"owner": {{User: "user:123", Relation: "owner", Object: "user_profile:123"}},
@@ -176,7 +176,7 @@ func TestProcessExternalSyncJob_RetryOnRoleSyncFailure(t *testing.T) {
 
 func TestProcessExternalSyncJob_ProjectsAdmissionVerification(t *testing.T) {
 	gateway := &fakeAdmissionProjectionGateway{}
-	schoolID := int64(10006)
+	schoolID := int64(4111010006)
 	svc, err := NewService(
 		&mockRepo{
 			onGetProfileByUserIDTx: func(_ context.Context, _ pgx.Tx, userID int64) (*Profile, error) {
@@ -209,7 +209,7 @@ func TestProcessExternalSyncJob_ProjectsAdmissionVerification(t *testing.T) {
 func TestProcessExternalSyncJob_EnsuresSchoolEmailCredentialBeforeAdmissionProjection(t *testing.T) {
 	gateway := &fakeAdmissionProjectionGateway{}
 	method := VerifyMethodSchoolEmailOTP
-	schoolID := int64(10006)
+	schoolID := int64(4111010006)
 	var capturedCredential *VerificationCredentialProjection
 	repo := &mockRepo{
 		onGetProfileByUserIDTx: func(_ context.Context, _ pgx.Tx, userID int64) (*Profile, error) {
@@ -307,7 +307,7 @@ func TestVerifyStudent_EnqueuesProjectionInsideTransaction(t *testing.T) {
 			return &IdentityStatus{UserID: 1, Verified: true}, nil
 		},
 		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
-			require.Equal(t, int64(10006), schoolID)
+			require.Equal(t, int64(4111010006), schoolID)
 			return &SchoolConfig{SchoolID: schoolID, SchoolName: "北航", VerificationMethod: VerifyMethodManual, ApprovalPolicy: "manual", Enabled: true}, nil
 		},
 		onCreateProfileTx:    func(_ context.Context, _ pgx.Tx, _ *Profile) error { return nil },
@@ -320,7 +320,7 @@ func TestVerifyStudent_EnqueuesProjectionInsideTransaction(t *testing.T) {
 	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{SchoolID: 10006, Consent: true})
+	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{SchoolID: 4111010006, Consent: true})
 	require.NoError(t, err)
 	assert.Contains(t, enqueued, externalSyncJobTypeUserProfileProjection+":"+userProfileProjectionKey(1))
 	assert.NotContains(t, enqueued, externalSyncJobTypeAdmissionVerification+":"+admissionVerificationProjectionKey(1))
@@ -332,7 +332,7 @@ func TestVerifyStudent_EnqueuesAdmissionProjectionWhenVerified(t *testing.T) {
 	repo := &mockRepo{
 		onGetProfileByUserID: func(_ context.Context, _ int64) (*Profile, error) { return nil, nil },
 		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
-			require.Equal(t, int64(10006), schoolID)
+			require.Equal(t, int64(4111010006), schoolID)
 			return &SchoolConfig{
 				SchoolID:           schoolID,
 				SchoolName:         "北航",
@@ -350,7 +350,7 @@ func TestVerifyStudent_EnqueuesAdmissionProjectionWhenVerified(t *testing.T) {
 	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{SchoolID: 10006, Consent: true})
+	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{SchoolID: 4111010006, Consent: true})
 	require.NoError(t, err)
 	assert.Contains(t, enqueued, externalSyncJobTypeUserProfileProjection+":"+userProfileProjectionKey(1))
 	assert.Contains(t, enqueued, externalSyncJobTypeAdmissionVerification+":"+admissionVerificationProjectionKey(1))

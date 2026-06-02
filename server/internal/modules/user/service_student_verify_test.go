@@ -39,9 +39,9 @@ func TestVerifyStudent_ManualAllowsEmptyCredentialsAndPersistsManualData(t *test
 			return &IdentityStatus{UserID: 1, Verified: true}, nil
 		},
 		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
-			require.Equal(t, int64(10006), schoolID)
+			require.Equal(t, int64(4111010006), schoolID)
 			return &SchoolConfig{
-				SchoolID:           10006,
+				SchoolID:           4111010006,
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodManual,
 				ApprovalPolicy:     "manual",
@@ -68,7 +68,7 @@ func TestVerifyStudent_ManualAllowsEmptyCredentialsAndPersistsManualData(t *test
 	require.NoError(t, err)
 
 	profile, err := svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
-		SchoolID: 10006,
+		SchoolID: 4111010006,
 		ManualFormData: map[string]any{
 			"studentID":  "20240001",
 			"department": "计算机学院",
@@ -97,9 +97,9 @@ func TestVerifyStudent_DoesNotRequireIdentityVerification(t *testing.T) {
 			return nil, nil
 		},
 		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
-			require.Equal(t, int64(10006), schoolID)
+			require.Equal(t, int64(4111010006), schoolID)
 			return &SchoolConfig{
-				SchoolID:           10006,
+				SchoolID:           4111010006,
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodManual,
 				ApprovalPolicy:     "manual",
@@ -125,7 +125,7 @@ func TestVerifyStudent_DoesNotRequireIdentityVerification(t *testing.T) {
 	require.NoError(t, err)
 
 	profile, err := svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
-		SchoolID: 10006,
+		SchoolID: 4111010006,
 		ManualFormData: map[string]any{
 			"studentID": "20240001",
 		},

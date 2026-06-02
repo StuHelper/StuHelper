@@ -316,7 +316,7 @@ test.describe("Auth callback and admission entry", () => {
             route.fulfill(
                 ok([
                     {
-                        schoolID: 10006,
+                        schoolID: 4111010006,
                         schoolCode: "4111010006",
                         schoolName: "北京航空航天大学",
                         verificationMethod: "manual",
@@ -379,7 +379,7 @@ test.describe("Auth callback and admission entry", () => {
             route.fulfill(
                 ok([
                     {
-                        schoolID: 10006,
+                        schoolID: 4111010006,
                         schoolCode: "4111010006",
                         schoolName: "北京航空航天大学",
                         verificationMethod: "manual",
@@ -468,7 +468,7 @@ test.describe("Auth callback and admission entry", () => {
             route.fulfill(
                 ok([
                     {
-                        schoolID: 10006,
+                        schoolID: 4111010006,
                         schoolCode: "4111010006",
                         schoolName: "北京航空航天大学",
                         verificationMethod: "manual",
@@ -587,7 +587,7 @@ test.describe("Auth callback and admission entry", () => {
             route.fulfill(
                 ok([
                     {
-                        schoolID: 10006,
+                        schoolID: 4111010006,
                         schoolCode: "4111010006",
                         schoolName: "北京航空航天大学",
                         verificationMethod: "manual",
@@ -649,7 +649,7 @@ test.describe("Auth callback and admission entry", () => {
             route.fulfill(
                 ok([
                     {
-                        schoolID: 10006,
+                        schoolID: 4111010006,
                         schoolCode: "4111010006",
                         schoolName: "北京航空航天大学",
                         verificationMethod: "manual",
@@ -671,7 +671,7 @@ test.describe("Auth callback and admission entry", () => {
                         id: "freshman-application-1",
                         userID: user.id,
                         status: "pending",
-                        schoolID: 10006,
+                        schoolID: 4111010006,
                         qqID: "123456",
                         applicantNameMasked: "赵*",
                         materialType: "admission_notice",
@@ -810,7 +810,7 @@ test.describe("Auth callback and admission entry", () => {
             route.fulfill(
                 ok([
                     {
-                        schoolID: 10006,
+                        schoolID: 4111010006,
                         schoolCode: "4111010006",
                         schoolName: "北京航空航天大学",
                         verificationMethod: "manual",
@@ -831,7 +831,7 @@ test.describe("Auth callback and admission entry", () => {
                         id: "freshman-application-1",
                         userID: user.id,
                         status: "pending",
-                        schoolID: 10006,
+                        schoolID: 4111010006,
                         qqID: "123456",
                         applicantNameMasked: "赵*",
                         materialType: "admission_notice",
@@ -881,7 +881,7 @@ test.describe("Auth callback and admission entry", () => {
                         id: "freshman-application-1",
                         userID: user.id,
                         status: "pending",
-                        schoolID: 10006,
+                        schoolID: 4111010006,
                         qqID: "123456",
                         applicantNameMasked: "赵*",
                         materialType: "admission_notice",
@@ -1077,7 +1077,7 @@ test.describe("Auth callback and admission entry", () => {
             route.fulfill(
                 ok([
                     {
-                        schoolID: 10006,
+                        schoolID: 4111010006,
                         schoolCode: "4111010006",
                         schoolName: "北京航空航天大学",
                         verificationMethod: "manual",
@@ -1099,7 +1099,7 @@ test.describe("Auth callback and admission entry", () => {
                         id: "freshman-application-1",
                         userID: user.id,
                         status: "pending",
-                        schoolID: 10006,
+                        schoolID: 4111010006,
                         qqID: "123456",
                         applicantNameMasked: "赵*",
                         materialType: "admission_notice",
@@ -1118,7 +1118,7 @@ test.describe("Auth callback and admission entry", () => {
                         id: "freshman-application-1",
                         userID: user.id,
                         status: "pending",
-                        schoolID: 10006,
+                        schoolID: 4111010006,
                         qqID: "123456",
                         applicantNameMasked: "赵*",
                         materialType: "admission_notice",

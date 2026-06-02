@@ -82,7 +82,7 @@ func TestReviewStudentVerification_ApproveClearsRejectionReasonAndSetsReviewMeta
 
 func TestReviewStudentVerification_ApproveSchoolEmailOTPEnsuresCredential(t *testing.T) {
 	method := VerifyMethodSchoolEmailOTP
-	schoolID := int64(10006)
+	schoolID := int64(4111010006)
 	var capturedCredential *VerificationCredentialProjection
 
 	repo := &mockRepo{

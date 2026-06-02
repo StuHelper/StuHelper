@@ -58,11 +58,11 @@ func TestCourseHandler_IntegrationSuccessPaths(t *testing.T) {
 	userHash, err := httputil.HashUserID(userID)
 	require.NoError(t, err)
 
-	deptCS := seedCourseDepartment(t, fixture, 10006, "计算机学院", "science", 1)
-	deptMath := seedCourseDepartment(t, fixture, 10006, "数学学院", "science", 2)
-	courseDB := seedCourseRecord(t, fixture, 10006, deptCS, "CS101", "数据库系统", 3.0, "通识", 2)
-	courseAlgo := seedCourseRecord(t, fixture, 10006, deptCS, "CS102", "算法设计", 4.0, "通识", 1)
-	seedCourseRecord(t, fixture, 10006, deptMath, "MA101", "高等数学", 5.0, "数学", 0)
+	deptCS := seedCourseDepartment(t, fixture, 4111010006, "计算机学院", "science", 1)
+	deptMath := seedCourseDepartment(t, fixture, 4111010006, "数学学院", "science", 2)
+	courseDB := seedCourseRecord(t, fixture, 4111010006, deptCS, "CS101", "数据库系统", 3.0, "通识", 2)
+	courseAlgo := seedCourseRecord(t, fixture, 4111010006, deptCS, "CS102", "算法设计", 4.0, "通识", 1)
+	seedCourseRecord(t, fixture, 4111010006, deptMath, "MA101", "高等数学", 5.0, "数学", 0)
 	seedCourseFavorite(t, fixture, "33333333-3333-3333-3333-333333333333", userHash, courseDB)
 
 	// GetCourseCategories + cached path

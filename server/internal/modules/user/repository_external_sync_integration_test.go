@@ -148,7 +148,7 @@ func upsertForeignOpenFGAJob(t *testing.T, fixture *postgresfixture.Fixture, ctx
 			outbox.StreamIAMOpenFGATupleSync,
 			"review_relations",
 			"review-relations:foreign",
-			[]byte(`{"reviewID":"foreign","authorUserID":"u-1","schoolID":10006}`),
+			[]byte(`{"reviewID":"foreign","authorUserID":"u-1","schoolID":4111010006}`),
 		)
 	})
 	require.NoError(t, err)

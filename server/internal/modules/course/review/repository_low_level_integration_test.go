@@ -18,9 +18,9 @@ func TestReviewRepository_LowLevelIntegrationPaths(t *testing.T) {
 	repo := NewRepository(fixture.DB)
 	ctx := context.Background()
 
-	departmentID := seedDepartment(t, fixture, 10006, "电子信息学院")
-	teacherID := seedTeacher(t, fixture, 10006, "李老师", departmentID)
-	courseID := seedCourse(t, fixture, 10006, departmentID, "通信原理")
+	departmentID := seedDepartment(t, fixture, 4111010006, "电子信息学院")
+	teacherID := seedTeacher(t, fixture, 4111010006, "李老师", departmentID)
+	courseID := seedCourse(t, fixture, 4111010006, departmentID, "通信原理")
 	reviewID := "550e8400-e29b-41d4-a716-446655440901"
 	seedReviewWithRatings(t, fixture, reviewID, courseID, teacherID, "u-repo-1", 4.5, StatusPublished, ReviewRatings{"teaching": 5}, "原始标题", "原始内容")
 
@@ -70,7 +70,7 @@ func TestReviewRepository_LowLevelIntegrationPaths(t *testing.T) {
 		if err := repo.Create(ctx, tx, CreateParams{
 			ID:        createdReviewID,
 			CourseID:  courseID,
-			SchoolID:  10006,
+			SchoolID:  4111010006,
 			TeacherID: &teacherID,
 			TermID:    "2025-2",
 			Title:     "新建评论",
@@ -138,7 +138,7 @@ func TestReviewRepository_LowLevelIntegrationPaths(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, reported)
 
-	require.NoError(t, repo.CreateReport(ctx, CreateReportParams{ReviewID: reviewID, SchoolID: 10006, ReporterHash: "u-reporter-low-level", Reason: "spam", Description: "可疑内容"}))
+	require.NoError(t, repo.CreateReport(ctx, CreateReportParams{ReviewID: reviewID, SchoolID: 4111010006, ReporterHash: "u-reporter-low-level", Reason: "spam", Description: "可疑内容"}))
 	reported, err = repo.ReportExists(ctx, reviewID, "u-reporter-low-level")
 	require.NoError(t, err)
 	assert.True(t, reported)
@@ -190,9 +190,9 @@ func TestReviewRepository_GetVoteTypeLocksExistingVoteRow(t *testing.T) {
 	repo := NewRepository(fixture.DB)
 	ctx := context.Background()
 
-	departmentID := seedDepartment(t, fixture, 10006, "投票锁学院")
-	teacherID := seedTeacher(t, fixture, 10006, "投票锁老师", departmentID)
-	courseID := seedCourse(t, fixture, 10006, departmentID, "投票锁课程")
+	departmentID := seedDepartment(t, fixture, 4111010006, "投票锁学院")
+	teacherID := seedTeacher(t, fixture, 4111010006, "投票锁老师", departmentID)
+	courseID := seedCourse(t, fixture, 4111010006, departmentID, "投票锁课程")
 	reviewID := "550e8400-e29b-41d4-a716-446655440903"
 	seedReviewWithRatings(t, fixture, reviewID, courseID, teacherID, "u-lock-review", 4.6, StatusPublished, ReviewRatings{"teaching": 5}, "锁测试", "锁测试内容")
 	_, err := fixture.Pool.Exec(ctx, `
@@ -242,15 +242,15 @@ func TestReviewRepository_PublicListsHandleReviewsWithoutTeacher(t *testing.T) {
 	repo := NewRepository(fixture.DB)
 	ctx := context.Background()
 
-	departmentID := seedDepartment(t, fixture, 10006, "空教师学院")
-	courseID := seedCourse(t, fixture, 10006, departmentID, "无教师课程")
+	departmentID := seedDepartment(t, fixture, 4111010006, "空教师学院")
+	courseID := seedCourse(t, fixture, 4111010006, departmentID, "无教师课程")
 	reviewID := "550e8400-e29b-41d4-a716-446655440906"
 	_, err := fixture.Pool.Exec(ctx, `
 		INSERT INTO reviews (
 			id, course_id, school_id, teacher_id, term_id, user_hash,
 			title, content, grade, ratings, avg_rating, status
 		) VALUES (
-			$1, $2, 10006, NULL, '2025-2', 'u-no-teacher',
+			$1, $2, 4111010006, NULL, '2025-2', 'u-no-teacher',
 			'无教师标题', '无教师内容', 'A', '{"teaching":5}'::jsonb, 5, $3
 		)
 	`, reviewID, courseID, StatusPublished)
@@ -276,9 +276,9 @@ func TestReviewRepository_GetReplyOwnerAndReviewIDTxLocksReplyRow(t *testing.T) 
 	repo := NewRepository(fixture.DB)
 	ctx := context.Background()
 
-	departmentID := seedDepartment(t, fixture, 10006, "回复锁学院")
-	teacherID := seedTeacher(t, fixture, 10006, "回复锁老师", departmentID)
-	courseID := seedCourse(t, fixture, 10006, departmentID, "回复锁课程")
+	departmentID := seedDepartment(t, fixture, 4111010006, "回复锁学院")
+	teacherID := seedTeacher(t, fixture, 4111010006, "回复锁老师", departmentID)
+	courseID := seedCourse(t, fixture, 4111010006, departmentID, "回复锁课程")
 	reviewID := "550e8400-e29b-41d4-a716-446655440905"
 	seedReviewWithRatings(t, fixture, reviewID, courseID, teacherID, "u-lock-reply-owner", 4.5, StatusPublished, ReviewRatings{"teaching": 5}, "回复锁", "回复锁内容")
 

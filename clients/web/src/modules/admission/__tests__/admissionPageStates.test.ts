@@ -282,7 +282,7 @@ describe('AdmissionPage edge states', () => {
 
   it('defaults linked users to old-student verification when a school supports it', async () => {
     mockVerificationStore.schools = [{
-      schoolID: 10006,
+      schoolID: 4111010006,
       schoolCode: '4111010006',
       schoolName: '北京航空航天大学',
       verificationMethod: 'manual',

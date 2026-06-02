@@ -46,7 +46,7 @@ func (noopReviewSender2) SendBatch(context.Context, []notification.SendParams) e
 func TestReviewFilterRefreshAndBackgroundJobs(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)
-	schoolID := int64(10006)
+	schoolID := int64(4111010006)
 	writer := &recordingReviewFGAWriter{}
 	svc := NewService(fixture.DB, repo, noopReviewSender2{}, writer, fakeAccessReader{
 		schools: []reviewaccess.SchoolConfig{{SchoolID: schoolID}},
@@ -99,10 +99,10 @@ func TestReviewFGASyncProcessBatchAndHelpers(t *testing.T) {
 	ctx := context.Background()
 
 	err := fixture.DB.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		if err := repo.UpsertFGASyncJobTx(ctx, tx, fgaSyncJobTypeReviewRelations, reviewRelationsSyncKey("review-sync-1"), []byte(`{"reviewID":"review-sync-1","authorUserID":"user-1","schoolID":10006}`)); err != nil {
+		if err := repo.UpsertFGASyncJobTx(ctx, tx, fgaSyncJobTypeReviewRelations, reviewRelationsSyncKey("review-sync-1"), []byte(`{"reviewID":"review-sync-1","authorUserID":"user-1","schoolID":4111010006}`)); err != nil {
 			return err
 		}
-		return repo.UpsertFGASyncJobTx(ctx, tx, fgaSyncJobTypeReportRelations, reportRelationsSyncKey("report-sync-1"), []byte(`{"reportID":"report-sync-1","schoolID":10006}`))
+		return repo.UpsertFGASyncJobTx(ctx, tx, fgaSyncJobTypeReportRelations, reportRelationsSyncKey("report-sync-1"), []byte(`{"reportID":"report-sync-1","schoolID":4111010006}`))
 	})
 	require.NoError(t, err)
 

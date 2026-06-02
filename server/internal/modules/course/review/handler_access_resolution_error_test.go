@@ -29,9 +29,9 @@ func TestReviewHandler_AccessResolutionFailurePaths(t *testing.T) {
 	h := newReviewAdminHandler(t, svc)
 	ctx := context.Background()
 
-	departmentID := seedDepartment(t, fixture, 10006, "统计学院")
-	teacherID := seedTeacher(t, fixture, 10006, "冯老师", departmentID)
-	courseID := seedCourse(t, fixture, 10006, departmentID, "数理统计")
+	departmentID := seedDepartment(t, fixture, 4111010006, "统计学院")
+	teacherID := seedTeacher(t, fixture, 4111010006, "冯老师", departmentID)
+	courseID := seedCourse(t, fixture, 4111010006, departmentID, "数理统计")
 	reviewID := "550e8400-e29b-41d4-a716-446655441301"
 	seedReviewWithRatings(t, fixture, reviewID, courseID, teacherID, "u-access-fail", 4.5, StatusPublished, ReviewRatings{"teaching": 5}, "统计评论", "统计评论内容")
 	_, err := fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 1 WHERE id = $1`, courseID)

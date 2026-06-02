@@ -223,7 +223,7 @@ func enableBUAAAdmissionSchool(t *testing.T, fixture *postgresfixture.Fixture) {
 	_, err := fixture.Pool.Exec(context.Background(), `
 		UPDATE school_configs
 		SET enabled = true, updated_at = NOW()
-		WHERE school_id = 10006
+		WHERE school_id = 4111010006
 	`)
 	require.NoError(t, err)
 }

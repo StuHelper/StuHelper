@@ -108,13 +108,13 @@ func TestSchoolEmailOTPDerivesBUAAEmailAfterAcademicNameMatch(t *testing.T) {
 		UPDATE school_configs
 		SET enabled = true,
 		    manual_form_fields = '{"admission":{"emailDomains":["buaa.edu.cn"],"emailIdentityPolicy":{"type":"academic_student_email","studentIDEmailDomain":"buaa.edu.cn","requireStudentName":true}}}'::jsonb
-		WHERE school_id = 10006
+		WHERE school_id = 4111010006
 	`)
 	require.NoError(t, err)
 
 	resp, err := svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
 		UserID:      userID,
-		SchoolID:    10006,
+		SchoolID:    4111010006,
 		StudentID:   "20250001",
 		StudentName: " 张 三 ",
 	})
@@ -124,7 +124,7 @@ func TestSchoolEmailOTPDerivesBUAAEmailAfterAcademicNameMatch(t *testing.T) {
 
 	_, err = svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
 		UserID:      userID,
-		SchoolID:    10006,
+		SchoolID:    4111010006,
 		StudentID:   "20250001",
 		StudentName: "李四",
 	})
@@ -132,7 +132,7 @@ func TestSchoolEmailOTPDerivesBUAAEmailAfterAcademicNameMatch(t *testing.T) {
 
 	_, err = svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
 		UserID:      userID,
-		SchoolID:    10006,
+		SchoolID:    4111010006,
 		Email:       "alias@buaa.edu.cn",
 		StudentID:   "20250001",
 		StudentName: "张三",
@@ -152,13 +152,13 @@ func TestSchoolEmailAcademicMatchReturnsImmediateResult(t *testing.T) {
 		UPDATE school_configs
 		SET enabled = true,
 		    manual_form_fields = '{"admission":{"emailDomains":["buaa.edu.cn"],"emailIdentityPolicy":{"type":"academic_student_email","studentIDEmailDomain":"buaa.edu.cn","requireStudentName":true}}}'::jsonb
-		WHERE school_id = 10006
+		WHERE school_id = 4111010006
 	`)
 	require.NoError(t, err)
 
 	resp, err := svc.MatchSchoolEmailAcademicStudent(context.Background(), SchoolEmailAcademicMatchInput{
 		UserID:      userID,
-		SchoolID:    10006,
+		SchoolID:    4111010006,
 		StudentID:   "20250001",
 		StudentName: " 张 三 ",
 	})
@@ -170,7 +170,7 @@ func TestSchoolEmailAcademicMatchReturnsImmediateResult(t *testing.T) {
 
 	resp, err = svc.MatchSchoolEmailAcademicStudent(context.Background(), SchoolEmailAcademicMatchInput{
 		UserID:      userID,
-		SchoolID:    10006,
+		SchoolID:    4111010006,
 		StudentID:   "20250001",
 		StudentName: "李四",
 	})
@@ -187,7 +187,7 @@ func TestSchoolEmailAcademicMatchRequiresLinkedSession(t *testing.T) {
 
 	_, err := svc.MatchSchoolEmailAcademicStudent(context.Background(), SchoolEmailAcademicMatchInput{
 		UserID:      userID,
-		SchoolID:    10006,
+		SchoolID:    4111010006,
 		StudentID:   "20250001",
 		StudentName: "张三",
 	})
@@ -235,13 +235,13 @@ func TestResolveSchoolIDByCodeUsesEnabledAdmissionSchoolConfig(t *testing.T) {
 	_, err := pg.Pool.Exec(context.Background(), `
 		UPDATE school_configs
 		SET enabled = true
-		WHERE school_id = 10006
+		WHERE school_id = 4111010006
 	`)
 	require.NoError(t, err)
 
 	schoolID, err := svc.ResolveSchoolIDByCode(context.Background(), "4111010006")
 	require.NoError(t, err)
-	assert.Equal(t, int64(10006), schoolID)
+	assert.Equal(t, int64(4111010006), schoolID)
 
 	_, err = svc.ResolveSchoolIDByCode(context.Background(), "4111010001")
 	require.ErrorIs(t, err, ErrAdmissionSchoolNotFound)

@@ -17,9 +17,9 @@ func TestRefreshReviewTargetsTx_DedupesAndSkipsInvalidIDs(t *testing.T) {
 	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
 	ctx := context.Background()
 
-	departmentID := seedDepartment(t, fixture, 10006, "生物学院")
-	teacherID := seedTeacher(t, fixture, 10006, "邓老师", departmentID)
-	courseID := seedCourse(t, fixture, 10006, departmentID, "分子生物学")
+	departmentID := seedDepartment(t, fixture, 4111010006, "生物学院")
+	teacherID := seedTeacher(t, fixture, 4111010006, "邓老师", departmentID)
+	courseID := seedCourse(t, fixture, 4111010006, departmentID, "分子生物学")
 	seedReviewWithRatings(t, fixture, "550e8400-e29b-41d4-a716-446655441401", courseID, teacherID, "u-refresh-stats", 4.6, StatusPublished, ReviewRatings{"teaching": 5, "difficulty": 4}, "统计评论", "统计评论内容")
 
 	err := fixture.DB.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {

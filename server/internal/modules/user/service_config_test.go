@@ -16,11 +16,11 @@ func TestUpdateSchoolConfig_MergesPartialUpdateAndPreservesUnspecifiedFields(t *
 
 	repo := &mockRepo{
 		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
-			require.Equal(t, int64(10006), schoolID)
+			require.Equal(t, int64(4111010006), schoolID)
 			academicTable := "academic.buaa_students"
 			consentText := "原始授权文本"
 			return &SchoolConfig{
-				SchoolID:           10006,
+				SchoolID:           4111010006,
 				SchoolName:         "旧学校名",
 				VerificationMethod: VerifyMethodLDAP,
 				LDAPConfig:         json.RawMessage(`{"url":"ldap://ldap.old:389","baseDN":"ou=users,dc=example,dc=com","systemBindDN":"cn=system,dc=example,dc=com","systemBindPassword":"secret","useTLS":false,"insecureSkipVerify":false}`),
@@ -45,7 +45,7 @@ func TestUpdateSchoolConfig_MergesPartialUpdateAndPreservesUnspecifiedFields(t *
 	systemBindPassword := "new-secret"
 	useTLS := true
 
-	err = svc.UpdateSchoolConfig(context.Background(), 10006, UpdateSchoolConfigInput{
+	err = svc.UpdateSchoolConfig(context.Background(), 4111010006, UpdateSchoolConfigInput{
 		SchoolName: &schoolName,
 		LDAPConfig: &SchoolLDAPConfigInput{
 			URL:                &ldapURL,
@@ -57,7 +57,7 @@ func TestUpdateSchoolConfig_MergesPartialUpdateAndPreservesUnspecifiedFields(t *
 	require.NoError(t, err)
 	require.NotNil(t, captured)
 
-	assert.Equal(t, int64(10006), captured.SchoolID)
+	assert.Equal(t, int64(4111010006), captured.SchoolID)
 	assert.Equal(t, "新学校名", captured.SchoolName)
 	assert.Equal(t, VerifyMethodLDAP, captured.VerificationMethod, "未提供的 verificationMethod 应保留原值")
 	assert.JSONEq(t, `{"baseDN":"ou=users,dc=example,dc=com","systemBindDN":"cn=system,dc=example,dc=com","systemBindPassword":"new-secret","url":"ldaps://ldap.new:636","useTLS":true}`, string(captured.LDAPConfig))
@@ -74,10 +74,10 @@ func TestUpdateSchoolConfig_PreservesExistingLDAPPasswordWhenOmitted(t *testing.
 
 	repo := &mockRepo{
 		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
-			require.Equal(t, int64(10006), schoolID)
+			require.Equal(t, int64(4111010006), schoolID)
 			table := "academic.buaa_students"
 			return &SchoolConfig{
-				SchoolID:           10006,
+				SchoolID:           4111010006,
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodLDAP,
 				LDAPConfig:         json.RawMessage(`{"url":"ldap://ldap.old:389","baseDN":"ou=users,dc=example,dc=com","systemBindDN":"cn=system,dc=example,dc=com","systemBindPassword":"secret","useTLS":false,"insecureSkipVerify":false}`),
@@ -97,7 +97,7 @@ func TestUpdateSchoolConfig_PreservesExistingLDAPPasswordWhenOmitted(t *testing.
 
 	ldapURL := "ldaps://ldap.new:636"
 	useTLS := true
-	err = svc.UpdateSchoolConfig(context.Background(), 10006, UpdateSchoolConfigInput{
+	err = svc.UpdateSchoolConfig(context.Background(), 4111010006, UpdateSchoolConfigInput{
 		LDAPConfig: &SchoolLDAPConfigInput{
 			URL:    &ldapURL,
 			UseTLS: &useTLS,
@@ -120,7 +120,7 @@ func TestUpdateSchoolConfig_InvalidManualFieldConfigReturnsError(t *testing.T) {
 	repo := &mockRepo{
 		onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
 			return &SchoolConfig{
-				SchoolID:           10006,
+				SchoolID:           4111010006,
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodManual,
 				Enabled:            true,
@@ -132,7 +132,7 @@ func TestUpdateSchoolConfig_InvalidManualFieldConfigReturnsError(t *testing.T) {
 	require.NoError(t, err)
 
 	fields := []ManualFieldDescriptor{{Key: "", Label: "空 key", Type: "text", Required: true}}
-	err = svc.UpdateSchoolConfig(context.Background(), 10006, UpdateSchoolConfigInput{
+	err = svc.UpdateSchoolConfig(context.Background(), 4111010006, UpdateSchoolConfigInput{
 		ManualFormFields: &fields,
 	})
 	assert.ErrorIs(t, err, ErrInvalidManualFieldConfig)
@@ -142,7 +142,7 @@ func TestUpdateSchoolConfig_EnabledLDAPRequiresAcademicTable(t *testing.T) {
 	repo := &mockRepo{
 		onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
 			return &SchoolConfig{
-				SchoolID:           10006,
+				SchoolID:           4111010006,
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodManual,
 				Enabled:            false,
@@ -155,7 +155,7 @@ func TestUpdateSchoolConfig_EnabledLDAPRequiresAcademicTable(t *testing.T) {
 
 	method := VerifyMethodLDAP
 	enabled := true
-	err = svc.UpdateSchoolConfig(context.Background(), 10006, UpdateSchoolConfigInput{
+	err = svc.UpdateSchoolConfig(context.Background(), 4111010006, UpdateSchoolConfigInput{
 		VerificationMethod: &method,
 		Enabled:            &enabled,
 	})
@@ -168,7 +168,7 @@ func TestUpdateSchoolConfig_EnabledLDAPRequiresValidLDAPConfig(t *testing.T) {
 		onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
 			table := "academic.buaa_students"
 			return &SchoolConfig{
-				SchoolID:           10006,
+				SchoolID:           4111010006,
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodLDAP,
 				AcademicDBTable:    &table,
@@ -180,7 +180,7 @@ func TestUpdateSchoolConfig_EnabledLDAPRequiresValidLDAPConfig(t *testing.T) {
 	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	err = svc.UpdateSchoolConfig(context.Background(), 10006, UpdateSchoolConfigInput{})
+	err = svc.UpdateSchoolConfig(context.Background(), 4111010006, UpdateSchoolConfigInput{})
 
 	assert.ErrorIs(t, err, ErrSchoolLDAPConfigMissing)
 }
@@ -190,7 +190,7 @@ func TestUpdateSchoolConfig_ValidatesAcademicTableExists(t *testing.T) {
 		onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
 			table := "academic.buaa_students"
 			return &SchoolConfig{
-				SchoolID:           10006,
+				SchoolID:           4111010006,
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodManual,
 				AcademicDBTable:    &table,
@@ -206,7 +206,7 @@ func TestUpdateSchoolConfig_ValidatesAcademicTableExists(t *testing.T) {
 	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	err = svc.UpdateSchoolConfig(context.Background(), 10006, UpdateSchoolConfigInput{})
+	err = svc.UpdateSchoolConfig(context.Background(), 4111010006, UpdateSchoolConfigInput{})
 
 	assert.ErrorIs(t, err, ErrInvalidAcademicDBTable)
 }
@@ -215,7 +215,7 @@ func TestUpdateSystemConfig_RejectsInvalidReviewAccessSchoolIDs(t *testing.T) {
 	svc, err := NewService(&mockRepo{}, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	err = svc.UpdateSystemConfig(context.Background(), systemconfig.ReviewAccessSchoolIDsKey, `{"schoolID":"10006"}`)
+	err = svc.UpdateSystemConfig(context.Background(), systemconfig.ReviewAccessSchoolIDsKey, `{"schoolID":"4111010006"}`)
 	assert.ErrorIs(t, err, ErrInvalidSystemConfigValue)
 }
 
@@ -231,8 +231,8 @@ func TestUpdateSystemConfig_RejectsUnknownReviewAccessSchoolIDs(t *testing.T) {
 	repo := &mockRepo{
 		onListAllSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {
 			return []SchoolConfig{
-				{SchoolID: 10006},
-				{SchoolID: 10007},
+				{SchoolID: 4111010006},
+				{SchoolID: 4111010007},
 			}, nil
 		},
 	}
@@ -240,7 +240,7 @@ func TestUpdateSystemConfig_RejectsUnknownReviewAccessSchoolIDs(t *testing.T) {
 	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	err = svc.UpdateSystemConfig(context.Background(), systemconfig.ReviewAccessSchoolIDsKey, `["10006","99999"]`)
+	err = svc.UpdateSystemConfig(context.Background(), systemconfig.ReviewAccessSchoolIDsKey, `["4111010006","99999"]`)
 	assert.ErrorIs(t, err, ErrInvalidSystemConfigValue)
 }
 

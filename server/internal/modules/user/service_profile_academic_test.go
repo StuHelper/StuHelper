@@ -174,7 +174,7 @@ func TestSubmitIdentity_MainlandIDAutoMatchUsesEnabledSchoolTables(t *testing.T)
 
 func TestUpdateSchoolConfig_RejectsInvalidAcademicTable(t *testing.T) {
 	existingConfig := &SchoolConfig{
-		SchoolID:           10006,
+		SchoolID:           4111010006,
 		SchoolName:         "BUAA",
 		VerificationMethod: VerifyMethodManual,
 		Enabled:            true,
@@ -182,7 +182,7 @@ func TestUpdateSchoolConfig_RejectsInvalidAcademicTable(t *testing.T) {
 	updatedCalled := false
 	repo := &mockRepo{
 		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
-			assert.Equal(t, int64(10006), schoolID)
+			assert.Equal(t, int64(4111010006), schoolID)
 			configCopy := *existingConfig
 			return &configCopy, nil
 		},
@@ -196,7 +196,7 @@ func TestUpdateSchoolConfig_RejectsInvalidAcademicTable(t *testing.T) {
 	require.NoError(t, err)
 
 	invalidTable := "academic.students;drop table users;"
-	err = service.UpdateSchoolConfig(context.Background(), 10006, UpdateSchoolConfigInput{
+	err = service.UpdateSchoolConfig(context.Background(), 4111010006, UpdateSchoolConfigInput{
 		AcademicDBTable: &invalidTable,
 	})
 
@@ -207,7 +207,7 @@ func TestUpdateSchoolConfig_RejectsInvalidAcademicTable(t *testing.T) {
 
 func TestGetAcademicInfo_UsesSchoolConfiguredAcademicTable(t *testing.T) {
 	const (
-		schoolID        = int64(10006)
+		schoolID        = int64(4111010006)
 		expectedTable   = "academic.custom_students"
 		expectedStudent = "20240001"
 	)
@@ -241,7 +241,7 @@ func TestGetAcademicInfo_UsesSchoolConfiguredAcademicTable(t *testing.T) {
 
 func TestGetAcademicInfo_UsesExternalStudentDirectoryWhenConfigured(t *testing.T) {
 	const (
-		schoolID   = int64(10006)
+		schoolID   = int64(4111010006)
 		schoolCode = "4111010006"
 		studentID  = "20250001"
 	)
@@ -287,7 +287,7 @@ func TestGetAcademicInfo_UsesExternalStudentDirectoryWhenConfigured(t *testing.T
 
 func TestGetAcademicInfo_FailsWhenAcademicTableMissing(t *testing.T) {
 	const (
-		schoolID        = int64(10006)
+		schoolID        = int64(4111010006)
 		expectedStudent = "20240001"
 	)
 
@@ -309,7 +309,7 @@ func TestGetAcademicInfo_FailsWhenAcademicTableMissing(t *testing.T) {
 
 func TestGetAcademicInfo_FailsWhenSchoolDisabled(t *testing.T) {
 	const (
-		schoolID        = int64(10006)
+		schoolID        = int64(4111010006)
 		expectedStudent = "20240001"
 	)
 

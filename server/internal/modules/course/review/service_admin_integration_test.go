@@ -21,10 +21,10 @@ func TestReviewService_AdminAndExportIntegration(t *testing.T) {
 	h := &Handler{service: svc}
 	ctx := context.Background()
 
-	departmentID := seedDepartment(t, fixture, 10006, "自动化学院")
-	teacherID := seedTeacher(t, fixture, 10006, "赵老师", departmentID)
-	courseID := seedCourse(t, fixture, 10006, departmentID, "控制理论")
-	otherCourseID := seedCourse(t, fixture, 10006, departmentID, "信号系统")
+	departmentID := seedDepartment(t, fixture, 4111010006, "自动化学院")
+	teacherID := seedTeacher(t, fixture, 4111010006, "赵老师", departmentID)
+	courseID := seedCourse(t, fixture, 4111010006, departmentID, "控制理论")
+	otherCourseID := seedCourse(t, fixture, 4111010006, departmentID, "信号系统")
 
 	publishedID := "550e8400-e29b-41d4-a716-446655440101"
 	hiddenID := "550e8400-e29b-41d4-a716-446655440102"

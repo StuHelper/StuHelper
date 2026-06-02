@@ -79,7 +79,7 @@ user_identities (
 ```sql
 user_profiles (
   user_id            BIGINT REFERENCES users(id) UNIQUE,
-  school_id          VARCHAR(10),            -- '10006' = 北航
+  school_id          VARCHAR(10),            -- '4111010006' = 北航
   student_ids        JSONB,                  -- ['本科学号', '研究生学号']
   active_student_id  VARCHAR(50),            -- 当前有效学号
   verification_status VARCHAR(20) DEFAULT 'unverified', -- unverified/pending/verified/rejected
@@ -167,7 +167,7 @@ academic.buaa_students (xh, xm, sfzjlxdm, sfzjh, yxdm, zydm, bjdm,
 roles (id, name, display_name, description, is_system)
 permissions (
   id, name, module, action,
-  scope_school_ids  JSONB DEFAULT NULL,  -- null=不限, ['10006']=仅北航
+  scope_school_ids  JSONB DEFAULT NULL,  -- null=不限, ['4111010006']=仅北航
   scope_roles       JSONB DEFAULT NULL   -- null=不限
 )
 role_permissions (role_id, permission_id)

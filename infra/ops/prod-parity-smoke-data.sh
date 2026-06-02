@@ -114,7 +114,7 @@ DELETE FROM public.users
 WHERE casdoor_subject = :'casdoor_login_user_id';
 
 INSERT INTO public.departments (id, school_id, name, short_name, category, sort_order)
-VALUES (900001, 10006, '生产等价学院', '等价', '工科', 900001)
+VALUES (900001, 4111010006, '生产等价学院', '等价', '工科', 900001)
 ON CONFLICT (id) DO UPDATE
 SET name = EXCLUDED.name,
     short_name = EXCLUDED.short_name,
@@ -122,7 +122,7 @@ SET name = EXCLUDED.name,
     sort_order = EXCLUDED.sort_order;
 
 INSERT INTO public.teachers (id, school_id, name, department_id)
-VALUES (900001, 10006, '生产等价教师', 900001)
+VALUES (900001, 4111010006, '生产等价教师', 900001)
 ON CONFLICT (id) DO UPDATE
 SET name = EXCLUDED.name,
     department_id = EXCLUDED.department_id;
@@ -132,7 +132,7 @@ INSERT INTO public.courses (
 )
 VALUES (
     900001,
-    10006,
+    4111010006,
     '生产等价课程',
     'PARITY9001',
     900001,
@@ -158,7 +158,7 @@ INSERT INTO public.reviews (
 VALUES (
     '01999999-0001-7000-8000-000000000001',
     900001,
-    10006,
+    4111010006,
     900001,
     '2025-2',
     'prod_parity_user_hash_000000000000000000000000000001',
@@ -337,7 +337,7 @@ INSERT INTO public.school_configs (
     manual_form_fields, enabled, approval_policy
 )
 VALUES (
-    10006,
+    4111010006,
     '北京航空航天大学',
     'ldap',
     'academic.buaa_students',
@@ -392,7 +392,7 @@ VALUES (
     'prod-parity-admission-policy',
     'qq',
     'prod-parity-guild',
-    10006,
+    4111010006,
     true,
     ARRAY['prod-parity-management']::text[],
     now() + interval '30 days',
@@ -584,7 +584,7 @@ SELECT jsonb_build_object(
   'admissionSchoolConfigCount', (
       SELECT count(*)
       FROM public.school_configs
-      WHERE school_id = 10006
+      WHERE school_id = 4111010006
         AND enabled
         AND manual_form_fields #>> '{admission,ssoLoginURL}' = 'https://sso.school.example/login'
         AND manual_form_fields #> '{admission,emailDomains}' ? 'buaa.edu.cn'
@@ -605,7 +605,7 @@ SELECT jsonb_build_object(
       WHERE id = 'prod-parity-admission-policy'
         AND platform = 'qq'
         AND guild_id = 'prod-parity-guild'
-        AND school_id = 10006
+        AND school_id = 4111010006
         AND auto_approve_join
         AND 'prod-parity-management' = ANY(management_guild_ids)
         AND freshman_channel_enabled

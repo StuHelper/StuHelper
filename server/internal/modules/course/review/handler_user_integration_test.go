@@ -37,7 +37,7 @@ func TestReviewHandler_UserInteractionSuccessPaths(t *testing.T) {
 
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)
-	schoolID := int64(10006)
+	schoolID := int64(4111010006)
 	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, fakeAccessReader{
 		schools: []reviewaccess.SchoolConfig{{SchoolID: schoolID}},
 		configs: nil,
@@ -46,9 +46,9 @@ func TestReviewHandler_UserInteractionSuccessPaths(t *testing.T) {
 	h := newReviewAdminHandler(t, svc)
 	ctx := context.Background()
 
-	departmentID := seedDepartment(t, fixture, 10006, "电信学院")
-	teacherID := seedTeacher(t, fixture, 10006, "周老师", departmentID)
-	courseID := seedCourse(t, fixture, 10006, departmentID, "数字信号处理")
+	departmentID := seedDepartment(t, fixture, 4111010006, "电信学院")
+	teacherID := seedTeacher(t, fixture, 4111010006, "周老师", departmentID)
+	courseID := seedCourse(t, fixture, 4111010006, departmentID, "数字信号处理")
 	selfUserID := "user-self-1"
 	selfHash, err := httputil.HashUserID(selfUserID)
 	require.NoError(t, err)

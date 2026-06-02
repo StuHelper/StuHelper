@@ -28,7 +28,7 @@ func TestProcessFGASyncJob_ReviewRelations(t *testing.T) {
 	payload, err := json.Marshal(reviewRelationsSyncPayload{
 		ReviewID:     "review-1",
 		AuthorUserID: "user-1",
-		SchoolID:     10006,
+		SchoolID:     4111010006,
 	})
 	if err != nil {
 		t.Fatalf("marshal payload: %v", err)
@@ -44,7 +44,7 @@ func TestProcessFGASyncJob_ReviewRelations(t *testing.T) {
 		t.Fatalf("processFGASyncJob returned error: %v", err)
 	}
 
-	want := []string{"review-1", "user-1", "10006"}
+	want := []string{"review-1", "user-1", "4111010006"}
 	for i := range want {
 		if writer.reviewArgs[i] != want[i] {
 			t.Fatalf("review arg %d = %q, want %q", i, writer.reviewArgs[i], want[i])
@@ -55,7 +55,7 @@ func TestProcessFGASyncJob_ReviewRelations(t *testing.T) {
 func TestProcessFGASyncJob_ReviewRelationsWithoutAuthor(t *testing.T) {
 	payload, err := json.Marshal(reviewRelationsSyncPayload{
 		ReviewID: "review-legacy",
-		SchoolID: 10006,
+		SchoolID: 4111010006,
 	})
 	if err != nil {
 		t.Fatalf("marshal payload: %v", err)
@@ -71,7 +71,7 @@ func TestProcessFGASyncJob_ReviewRelationsWithoutAuthor(t *testing.T) {
 		t.Fatalf("processFGASyncJob returned error: %v", err)
 	}
 
-	want := []string{"review-legacy", "", "10006"}
+	want := []string{"review-legacy", "", "4111010006"}
 	for i := range want {
 		if writer.reviewArgs[i] != want[i] {
 			t.Fatalf("review arg %d = %q, want %q", i, writer.reviewArgs[i], want[i])
@@ -82,7 +82,7 @@ func TestProcessFGASyncJob_ReviewRelationsWithoutAuthor(t *testing.T) {
 func TestProcessFGASyncJob_ReportRelations(t *testing.T) {
 	payload, err := json.Marshal(reportRelationsSyncPayload{
 		ReportID: "report-1",
-		SchoolID: 10006,
+		SchoolID: 4111010006,
 	})
 	if err != nil {
 		t.Fatalf("marshal payload: %v", err)
@@ -98,7 +98,7 @@ func TestProcessFGASyncJob_ReportRelations(t *testing.T) {
 		t.Fatalf("processFGASyncJob returned error: %v", err)
 	}
 
-	want := []string{"report-1", "10006"}
+	want := []string{"report-1", "4111010006"}
 	for i := range want {
 		if writer.reportArgs[i] != want[i] {
 			t.Fatalf("report arg %d = %q, want %q", i, writer.reportArgs[i], want[i])
@@ -111,7 +111,7 @@ func TestProcessFGASyncJob_PropagatesWriterError(t *testing.T) {
 	payload, err := json.Marshal(reviewRelationsSyncPayload{
 		ReviewID:     "review-1",
 		AuthorUserID: "user-1",
-		SchoolID:     10006,
+		SchoolID:     4111010006,
 	})
 	if err != nil {
 		t.Fatalf("marshal payload: %v", err)

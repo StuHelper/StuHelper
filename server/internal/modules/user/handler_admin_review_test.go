@@ -23,7 +23,7 @@ func TestHandleAdminListStudentVerifications_IncludesReviewMeta(t *testing.T) {
 			return []Profile{
 				{
 					UserID:             101,
-					SchoolID:           ptr(int64(10006)),
+					SchoolID:           ptr(int64(4111010006)),
 					VerificationStatus: StatusRejected,
 					VerificationMethod: ptr(VerifyMethodManual),
 					ManualFormData:     json.RawMessage(`{"studentID":"20240001"}`),

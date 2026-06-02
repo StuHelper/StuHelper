@@ -25,7 +25,7 @@ func TestBuildRealtimeNotificationPayloadIncludesRealtimeFields(t *testing.T) {
 		SourceModule: "course.review",
 		SourceID:     "reply-1",
 		SourceURL:    "/reviews/1",
-		CourseID:     10006,
+		CourseID:     42,
 	}
 
 	payload := buildRealtimeNotificationPayload("notif-1", params, time.Date(2026, 4, 23, 9, 0, 0, 0, time.UTC))
@@ -38,7 +38,7 @@ func TestBuildRealtimeNotificationPayloadIncludesRealtimeFields(t *testing.T) {
 	require.NotNil(t, payload.SourceURL)
 	assert.Equal(t, "/reviews/1", *payload.SourceURL)
 	require.NotNil(t, payload.CourseID)
-	assert.Equal(t, int64(10006), *payload.CourseID)
+	assert.Equal(t, int64(42), *payload.CourseID)
 }
 
 func TestDecodeNotificationPubSubPayloadReturnsStructuredObject(t *testing.T) {

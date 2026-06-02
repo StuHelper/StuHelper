@@ -9,7 +9,7 @@ import (
 
 func TestReviewAccessPolicySnapshotCache_IsolatedCopies(t *testing.T) {
 	SetReviewAccessPolicySnapshot(ReviewAccessPolicySnapshot{
-		AllowedSchoolIDs:    []string{"10006"},
+		AllowedSchoolIDs:    []string{"4111010006"},
 		PreviewTitleRunes:   32,
 		PreviewContentRunes: 160,
 		PreviewContentPct:   50,
@@ -21,13 +21,13 @@ func TestReviewAccessPolicySnapshotCache_IsolatedCopies(t *testing.T) {
 	snapshot.AllowedSchoolIDs[0] = "mutated"
 
 	current := GetReviewAccessPolicySnapshot()
-	assert.Equal(t, []string{"10006"}, current.AllowedSchoolIDs)
+	assert.Equal(t, []string{"4111010006"}, current.AllowedSchoolIDs)
 	assert.Equal(t, 32, current.PreviewTitleRunes)
 }
 
 func TestInvalidateReviewAccessPolicySnapshot_RestoresDefaults(t *testing.T) {
 	SetReviewAccessPolicySnapshot(ReviewAccessPolicySnapshot{
-		AllowedSchoolIDs:    []string{"10006"},
+		AllowedSchoolIDs:    []string{"4111010006"},
 		PreviewTitleRunes:   32,
 		PreviewContentRunes: 160,
 		PreviewContentPct:   50,

@@ -66,7 +66,7 @@ func TestRepository_WriteListAndCleanupAdminOperations(t *testing.T) {
 		Username:     "root",
 		Action:       "update",
 		ResourceType: "school_config",
-		ResourceID:   "10006",
+		ResourceID:   "4111010006",
 		RequestID:    "req-1",
 		TraceID:      "0123456789abcdef0123456789abcdef",
 		IP:           "127.0.0.1",

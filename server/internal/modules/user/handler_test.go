@@ -382,7 +382,7 @@ func TestHandleAdminListStudentVerifications_DefaultsStatusToPending(t *testing.
 func TestHandleAdminListStudentVerifications_ScopedAdminRequiresSchoolIDForMultipleScopes(t *testing.T) {
 	repo := &mockRepo{}
 	r := setupAdminHandlerTestRouterWithRole(t, repo, []string{"school_admin"}, map[string][]string{
-		"school_admin": {"10006", "10007"},
+		"school_admin": {"4111010006", "4111010007"},
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/student-verifications", nil)
@@ -401,16 +401,16 @@ func TestHandleAdminListStudentVerifications_ScopedAdminAllowsInScopeSchool(t *t
 		},
 	}
 	r := setupAdminHandlerTestRouterWithRole(t, repo, []string{"school_admin"}, map[string][]string{
-		"school_admin": {"10006"},
+		"school_admin": {"4111010006"},
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/student-verifications?schoolID=10006", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/student-verifications?schoolID=4111010006", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	require.NotNil(t, capturedSchoolID)
-	assert.Equal(t, int64(10006), *capturedSchoolID)
+	assert.Equal(t, int64(4111010006), *capturedSchoolID)
 }
 
 func TestHandleAdminListIdentities_AllStatusClearsRepositoryFilter(t *testing.T) {
@@ -465,7 +465,7 @@ func TestHandleAdminListStudentVerifications_IncludesManualFormData(t *testing.T
 			assert.Equal(t, StatusPending, status)
 			return []Profile{{
 				UserID:             7,
-				SchoolID:           ptr(int64(10006)),
+				SchoolID:           ptr(int64(4111010006)),
 				VerificationStatus: StatusPending,
 				VerificationMethod: ptr(VerifyMethodManual),
 				ManualFormData:     json.RawMessage(`{"studentID":"20240001","department":"计算机学院"}`),
@@ -506,7 +506,7 @@ func TestHandleVerifyStudent_ManualAllowsEmptyCredentials(t *testing.T) {
 		},
 		onListSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {
 			return []SchoolConfig{{
-				SchoolID:           10006,
+				SchoolID:           4111010006,
 				SchoolCode:         "4111010006",
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodManual,
@@ -514,9 +514,9 @@ func TestHandleVerifyStudent_ManualAllowsEmptyCredentials(t *testing.T) {
 			}}, nil
 		},
 		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
-			assert.Equal(t, int64(10006), schoolID)
+			assert.Equal(t, int64(4111010006), schoolID)
 			return &SchoolConfig{
-				SchoolID:           10006,
+				SchoolID:           4111010006,
 				SchoolCode:         "4111010006",
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodManual,
@@ -536,7 +536,7 @@ func TestHandleVerifyStudent_ManualAllowsEmptyCredentials(t *testing.T) {
 			if createdProfile == nil {
 				return nil, nil
 			}
-			schoolID := int64(10006)
+			schoolID := int64(4111010006)
 			method := VerifyMethodManual
 			activeStudentID := "20240001"
 			return &Profile{
@@ -581,7 +581,7 @@ func TestHandleVerifyStudent_RejectsSchoolIDOnlyPublicRequest(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v1/user/profile/verify",
-		strings.NewReader(`{"schoolID":10006,"manualFormData":{"studentID":"20240001"},"consent":true}`),
+		strings.NewReader(`{"schoolID":4111010006,"manualFormData":{"studentID":"20240001"},"consent":true}`),
 	)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -601,17 +601,17 @@ func TestPublicStudentVerificationEndpointsRequireSchoolCode(t *testing.T) {
 		{
 			name: "manual verification",
 			path: "/api/v1/user/profile/verify",
-			body: `{"schoolID":10006,"manualFormData":{"studentID":"20240001"},"consent":true}`,
+			body: `{"schoolID":4111010006,"manualFormData":{"studentID":"20240001"},"consent":true}`,
 		},
 		{
 			name: "request school email otp",
 			path: "/api/v1/user/profile/school-email/request-otp",
-			body: `{"schoolID":10006,"studentID":"20240001","studentName":"张三"}`,
+			body: `{"schoolID":4111010006,"studentID":"20240001","studentName":"张三"}`,
 		},
 		{
 			name: "verify school email otp",
 			path: "/api/v1/user/profile/school-email/verify-otp",
-			body: `{"schoolID":10006,"email":"20240001@buaa.edu.cn","code":"123456","consent":true}`,
+			body: `{"schoolID":4111010006,"email":"20240001@buaa.edu.cn","code":"123456","consent":true}`,
 		},
 	}
 
@@ -649,17 +649,17 @@ func TestPublicStudentVerificationEndpointsRejectSchoolCodeSchoolIDMismatch(t *t
 		{
 			name: "manual verification",
 			path: "/api/v1/user/profile/verify",
-			body: `{"schoolCode":"4111010006","schoolID":99999,"manualFormData":{"studentID":"20240001"},"consent":true}`,
+			body: `{"schoolCode":"4111010006","schoolID":4111019999,"manualFormData":{"studentID":"20240001"},"consent":true}`,
 		},
 		{
 			name: "request school email otp",
 			path: "/api/v1/user/profile/school-email/request-otp",
-			body: `{"schoolCode":"4111010006","schoolID":99999,"studentID":"20240001","studentName":"张三"}`,
+			body: `{"schoolCode":"4111010006","schoolID":4111019999,"studentID":"20240001","studentName":"张三"}`,
 		},
 		{
 			name: "verify school email otp",
 			path: "/api/v1/user/profile/school-email/verify-otp",
-			body: `{"schoolCode":"4111010006","schoolID":99999,"email":"20240001@buaa.edu.cn","code":"123456","consent":true}`,
+			body: `{"schoolCode":"4111010006","schoolID":4111019999,"email":"20240001@buaa.edu.cn","code":"123456","consent":true}`,
 		},
 	}
 
@@ -671,7 +671,7 @@ func TestPublicStudentVerificationEndpointsRejectSchoolCodeSchoolIDMismatch(t *t
 				},
 				onListSchoolConfigs: func(context.Context) ([]SchoolConfig, error) {
 					return []SchoolConfig{{
-						SchoolID:   10006,
+						SchoolID:   4111010006,
 						SchoolCode: "4111010006",
 						SchoolName: "北京航空航天大学",
 						Enabled:    true,
@@ -832,7 +832,7 @@ func TestHandleAdminListSchoolConfigs_MapsToSpecShape(t *testing.T) {
 			academicTable := "academic.buaa_students"
 			consentText := "授权说明"
 			return []SchoolConfig{{
-				SchoolID:           10006,
+				SchoolID:           4111010006,
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodLDAP,
 				LDAPConfig:         json.RawMessage(`{"url":"ldaps://ldap.example:636","baseDN":"ou=users,dc=example,dc=com","systemBindDN":"cn=system,dc=example,dc=com","systemBindPassword":"secret","useTLS":true,"insecureSkipVerify":false}`),
@@ -859,7 +859,7 @@ func TestHandleAdminListSchoolConfigs_MapsToSpecShape(t *testing.T) {
 	items := resp["data"].([]any)
 	require.Len(t, items, 1)
 	item := items[0].(map[string]any)
-	assert.Equal(t, float64(10006), item["schoolID"])
+	assert.Equal(t, float64(4111010006), item["schoolID"])
 	assert.Equal(t, "北航", item["schoolName"])
 	assert.NotContains(t, item, "SchoolID")
 	assert.NotContains(t, item, "LDAPConfig")
@@ -878,7 +878,7 @@ func TestHandleAdminListSchoolConfigs_NormalizesNilManualFormFieldsToEmptySlice(
 	repo := &mockRepo{
 		onListAllSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {
 			return []SchoolConfig{{
-				SchoolID:           10006,
+				SchoolID:           4111010006,
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodManual,
 				ApprovalPolicy:     "manual",
@@ -907,14 +907,14 @@ func TestHandleAdminListSchoolConfigs_NormalizesNilManualFormFieldsToEmptySlice(
 
 func TestHandleAdminUpdateSchoolConfig_InvalidAcademicTableReturnsBusinessCode(t *testing.T) {
 	existing := &SchoolConfig{
-		SchoolID:           10006,
+		SchoolID:           4111010006,
 		SchoolName:         "北航",
 		VerificationMethod: VerifyMethodLDAP,
 		Enabled:            true,
 	}
 	repo := &mockRepo{
 		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
-			assert.Equal(t, int64(10006), schoolID)
+			assert.Equal(t, int64(4111010006), schoolID)
 			copied := *existing
 			return &copied, nil
 		},
@@ -923,7 +923,7 @@ func TestHandleAdminUpdateSchoolConfig_InvalidAcademicTableReturnsBusinessCode(t
 	r := setupAdminHandlerTestRouterWithRepo(t, repo)
 	req := httptest.NewRequest(
 		http.MethodPut,
-		"/api/v1/admin/school-configs/10006",
+		"/api/v1/admin/school-configs/4111010006",
 		strings.NewReader(`{"academicDbTable":"academic.students;drop table users;"}`),
 	)
 	req.Header.Set("Content-Type", "application/json")
@@ -942,14 +942,14 @@ func TestHandleAdminUpdateSchoolConfig_InvalidAcademicTableReturnsBusinessCode(t
 
 func TestHandleAdminUpdateSchoolConfig_MissingLDAPConfigReturnsBusinessCode(t *testing.T) {
 	existing := &SchoolConfig{
-		SchoolID:           10006,
+		SchoolID:           4111010006,
 		SchoolName:         "北航",
 		VerificationMethod: VerifyMethodManual,
 		Enabled:            false,
 	}
 	repo := &mockRepo{
 		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
-			assert.Equal(t, int64(10006), schoolID)
+			assert.Equal(t, int64(4111010006), schoolID)
 			copied := *existing
 			return &copied, nil
 		},
@@ -958,7 +958,7 @@ func TestHandleAdminUpdateSchoolConfig_MissingLDAPConfigReturnsBusinessCode(t *t
 	r := setupAdminHandlerTestRouterWithRepo(t, repo)
 	req := httptest.NewRequest(
 		http.MethodPut,
-		"/api/v1/admin/school-configs/10006",
+		"/api/v1/admin/school-configs/4111010006",
 		strings.NewReader(`{"verificationMethod":"ldap","enabled":true,"academicDbTable":"academic.buaa_students"}`),
 	)
 	req.Header.Set("Content-Type", "application/json")
@@ -978,12 +978,12 @@ func TestHandleAdminUpdateSchoolConfig_MissingLDAPConfigReturnsBusinessCode(t *t
 func TestHandleAdminUpdateSchoolConfig_ScopedAdminOutOfScopeReturns403(t *testing.T) {
 	repo := &mockRepo{}
 	r := setupAdminHandlerTestRouterWithRole(t, repo, []string{"school_admin"}, map[string][]string{
-		"school_admin": {"10006"},
+		"school_admin": {"4111010006"},
 	})
 
 	req := httptest.NewRequest(
 		http.MethodPut,
-		"/api/v1/admin/school-configs/10007",
+		"/api/v1/admin/school-configs/4111010007",
 		strings.NewReader(`{"enabled":true}`),
 	)
 	req.Header.Set("Content-Type", "application/json")
@@ -1033,7 +1033,7 @@ func TestHandleListSchools_AdmissionCapabilitiesFromSchoolConfig(t *testing.T) {
 	repo := &mockRepo{
 		onListSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {
 			return []SchoolConfig{{
-				SchoolID:           10006,
+				SchoolID:           4111010006,
 				SchoolName:         "北京航空航天大学",
 				VerificationMethod: VerifyMethodLDAP,
 				ManualFormFields: json.RawMessage(
@@ -1132,7 +1132,7 @@ func TestHandleAdminListSystemConfigs_MapsToSpecShape(t *testing.T) {
 
 func TestHandleAdminListSystemConfigs_ScopedAdminForbidden(t *testing.T) {
 	r := setupAdminHandlerTestRouterWithRole(t, nil, []string{"school_admin"}, map[string][]string{
-		"school_admin": {"10006"},
+		"school_admin": {"4111010006"},
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/system-configs", nil)

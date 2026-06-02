@@ -18,9 +18,9 @@ func TestReviewService_PostReviewPendingAndWriteEarlyReturns(t *testing.T) {
 	svc.filter = seededFilter([]SensitiveWord{{Word: "reviewword", Level: ContentFlagReview}})
 	ctx := context.Background()
 
-	departmentID := seedDepartment(t, fixture, 10006, "化学学院")
-	teacherID := seedTeacher(t, fixture, 10006, "黄老师", departmentID)
-	courseID := seedCourse(t, fixture, 10006, departmentID, "有机化学")
+	departmentID := seedDepartment(t, fixture, 4111010006, "化学学院")
+	teacherID := seedTeacher(t, fixture, 4111010006, "黄老师", departmentID)
+	courseID := seedCourse(t, fixture, 4111010006, departmentID, "有机化学")
 
 	pendingAuthorID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-u-pending-post", UserHash: "u-pending-post"})
 	posted, err := svc.PostReview(ctx, PostReviewParams{

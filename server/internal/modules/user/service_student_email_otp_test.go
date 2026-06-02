@@ -23,9 +23,9 @@ func TestStudentEmailOTPDerivesBUAAEmailAndCreatesVerifiedProfile(t *testing.T) 
 			return captured, nil
 		},
 		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
-			assert.Equal(t, int64(10006), schoolID)
+			assert.Equal(t, int64(4111010006), schoolID)
 			return &SchoolConfig{
-				SchoolID:           10006,
+				SchoolID:           4111010006,
 				SchoolCode:         "4111010006",
 				SchoolName:         "北京航空航天大学",
 				VerificationMethod: VerifyMethodManual,
@@ -64,7 +64,7 @@ func TestStudentEmailOTPDerivesBUAAEmailAndCreatesVerifiedProfile(t *testing.T) 
 
 	resp, err := svc.RequestStudentEmailOTP(context.Background(), StudentEmailOTPInput{
 		UserID:      7,
-		SchoolID:    10006,
+		SchoolID:    4111010006,
 		StudentID:   "20250001",
 		StudentName: " 张 三 ",
 	})
@@ -74,7 +74,7 @@ func TestStudentEmailOTPDerivesBUAAEmailAndCreatesVerifiedProfile(t *testing.T) 
 
 	profile, err := svc.VerifyStudentEmailOTP(context.Background(), StudentEmailOTPVerifyInput{
 		UserID:   7,
-		SchoolID: 10006,
+		SchoolID: 4111010006,
 		Email:    "20250001@buaa.edu.cn",
 		Code:     sender.code,
 		Consent:  true,
@@ -89,7 +89,7 @@ func TestStudentEmailOTPDerivesBUAAEmailAndCreatesVerifiedProfile(t *testing.T) 
 	assert.JSONEq(t, `{"schoolEmail":"20250001@buaa.edu.cn","studentID":"20250001","studentName":"张三"}`, string(captured.ManualFormData))
 	require.NotNil(t, capturedCredential)
 	assert.Equal(t, int64(7), capturedCredential.UserID)
-	assert.Equal(t, int64(10006), capturedCredential.SchoolID)
+	assert.Equal(t, int64(4111010006), capturedCredential.SchoolID)
 	assert.Equal(t, userVerificationCredentialKindSchoolEmailOTP, capturedCredential.Kind)
 	assert.NotEmpty(t, capturedCredential.SubjectHash)
 	assert.Equal(t, "2******1@buaa.edu.cn", capturedCredential.SubjectDisplay)
@@ -109,7 +109,7 @@ func TestStudentEmailOTPRejectsBUAAStudentNameMismatch(t *testing.T) {
 
 	_, err = svc.RequestStudentEmailOTP(context.Background(), StudentEmailOTPInput{
 		UserID:      7,
-		SchoolID:    10006,
+		SchoolID:    4111010006,
 		StudentID:   "20250001",
 		StudentName: "张三",
 	})
@@ -130,7 +130,7 @@ func TestStudentEmailOTPRejectsBUAAAliasEmail(t *testing.T) {
 
 	_, err = svc.RequestStudentEmailOTP(context.Background(), StudentEmailOTPInput{
 		UserID:      7,
-		SchoolID:    10006,
+		SchoolID:    4111010006,
 		Email:       "alias@buaa.edu.cn",
 		StudentID:   "20250001",
 		StudentName: "张三",
@@ -160,9 +160,9 @@ func buaaStudentEmailOTPRepo(t *testing.T, student *AcademicStudent) *mockRepo {
 			return nil, nil
 		},
 		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
-			assert.Equal(t, int64(10006), schoolID)
+			assert.Equal(t, int64(4111010006), schoolID)
 			return &SchoolConfig{
-				SchoolID:           10006,
+				SchoolID:           4111010006,
 				SchoolCode:         "4111010006",
 				SchoolName:         "北京航空航天大学",
 				VerificationMethod: VerifyMethodManual,

@@ -18,7 +18,7 @@ type fakeReviewAccessReader struct {
 }
 
 func (f fakeReviewAccessReader) ListReviewAccessSchoolConfigs(context.Context) ([]reviewaccess.SchoolConfig, error) {
-	return []reviewaccess.SchoolConfig{{SchoolID: 10006}}, nil
+	return []reviewaccess.SchoolConfig{{SchoolID: 4111010006}}, nil
 }
 
 func (f fakeReviewAccessReader) ListReviewAccessSystemConfigs(context.Context) ([]reviewaccess.SystemConfig, error) {
@@ -32,11 +32,11 @@ func (f fakeReviewAccessReader) GetReviewAccessSubject(context.Context, string) 
 func TestBuildReviewAccessPolicy_UsesConfiguredValues(t *testing.T) {
 	policy, err := buildReviewAccessPolicy(
 		[]reviewaccess.SchoolConfig{
-			{SchoolID: 10006},
-			{SchoolID: 10007},
+			{SchoolID: 4111010006},
+			{SchoolID: 4111010007},
 		},
 		[]reviewaccess.SystemConfig{
-			{Key: systemconfig.ReviewAccessSchoolIDsKey, Value: `["10007","10008"]`},
+			{Key: systemconfig.ReviewAccessSchoolIDsKey, Value: `["4111010007","4111010008"]`},
 			{Key: systemconfig.ReviewPreviewTitleCharsKey, Value: "36"},
 			{Key: systemconfig.ReviewPreviewContentCharsKey, Value: "180"},
 			{Key: systemconfig.ReviewPreviewContentPercentKey, Value: "40"},
@@ -44,9 +44,9 @@ func TestBuildReviewAccessPolicy_UsesConfiguredValues(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	assert.True(t, policy.AllowsSchool("10007"))
-	assert.True(t, policy.AllowsSchool("10008"))
-	assert.False(t, policy.AllowsSchool("10006"))
+	assert.True(t, policy.AllowsSchool("4111010007"))
+	assert.True(t, policy.AllowsSchool("4111010008"))
+	assert.False(t, policy.AllowsSchool("4111010006"))
 	assert.Equal(t, 36, policy.PreviewTitleRunes)
 	assert.Equal(t, 180, policy.PreviewContentRunes)
 	assert.Equal(t, 40, policy.PreviewContentPct)
@@ -55,8 +55,8 @@ func TestBuildReviewAccessPolicy_UsesConfiguredValues(t *testing.T) {
 func TestBuildReviewAccessPolicy_UsesEnabledSchoolsAndPreviewKeys(t *testing.T) {
 	policy, err := buildReviewAccessPolicy(
 		[]reviewaccess.SchoolConfig{
-			{SchoolID: 10006},
-			{SchoolID: 10007},
+			{SchoolID: 4111010006},
+			{SchoolID: 4111010007},
 		},
 		[]reviewaccess.SystemConfig{
 			{Key: systemconfig.ReviewPreviewContentCharsKey, Value: "96"},
@@ -65,8 +65,8 @@ func TestBuildReviewAccessPolicy_UsesEnabledSchoolsAndPreviewKeys(t *testing.T) 
 	)
 	require.NoError(t, err)
 
-	assert.True(t, policy.AllowsSchool("10006"))
-	assert.True(t, policy.AllowsSchool("10007"))
+	assert.True(t, policy.AllowsSchool("4111010006"))
+	assert.True(t, policy.AllowsSchool("4111010007"))
 	assert.Equal(t, systemconfig.DefaultReviewAccessPolicySnapshot().PreviewTitleRunes, policy.PreviewTitleRunes)
 	assert.Equal(t, 96, policy.PreviewContentRunes)
 	assert.Equal(t, 25, policy.PreviewContentPct)
@@ -125,7 +125,7 @@ func TestResolveAccessFacts_RequiresCapabilityAndVerificationFacts(t *testing.T)
 				InternalUserID:   42,
 				IdentityVerified: true,
 				StudentVerified:  true,
-				SchoolID:         int64Ptr(10006),
+				SchoolID:         int64Ptr(4111010006),
 			},
 		},
 	}

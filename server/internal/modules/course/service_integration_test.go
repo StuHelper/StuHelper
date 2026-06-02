@@ -20,11 +20,11 @@ func TestCourseService_IntegrationReadPaths(t *testing.T) {
 	svc := NewService(repo, zap.NewNop())
 	ctx := context.Background()
 
-	deptCS := seedCourseDepartment(t, fixture, 10006, "计算机学院", "science", 1)
-	deptMath := seedCourseDepartment(t, fixture, 10006, "数学学院", "science", 2)
-	courseDB := seedCourseRecord(t, fixture, 10006, deptCS, "CS101", "数据库系统", 3.0, "通识", 2)
-	courseAlgo := seedCourseRecord(t, fixture, 10006, deptCS, "CS102", "算法设计", 4.0, "通识", 1)
-	courseMath := seedCourseRecord(t, fixture, 10006, deptMath, "MA101", "高等数学", 5.0, "数学", 0)
+	deptCS := seedCourseDepartment(t, fixture, 4111010006, "计算机学院", "science", 1)
+	deptMath := seedCourseDepartment(t, fixture, 4111010006, "数学学院", "science", 2)
+	courseDB := seedCourseRecord(t, fixture, 4111010006, deptCS, "CS101", "数据库系统", 3.0, "通识", 2)
+	courseAlgo := seedCourseRecord(t, fixture, 4111010006, deptCS, "CS102", "算法设计", 4.0, "通识", 1)
+	courseMath := seedCourseRecord(t, fixture, 4111010006, deptMath, "MA101", "高等数学", 5.0, "数学", 0)
 	seedCourseFavorite(t, fixture, "11111111-1111-1111-1111-111111111111", "user-hash-1", courseDB)
 
 	departments, err := svc.GetDepartments(ctx, "science")
@@ -131,10 +131,10 @@ func TestCourseRepositoryAndHandler_FavoritesAndCounts(t *testing.T) {
 	h := &Handler{service: svc}
 	ctx := context.Background()
 
-	deptCS := seedCourseDepartment(t, fixture, 10006, "物理学院", "science", 1)
-	deptMath := seedCourseDepartment(t, fixture, 10006, "化学学院", "science", 2)
-	courseA := seedCourseRecord(t, fixture, 10006, deptCS, "PH101", "大学物理", 4.0, "通识", 0)
-	courseB := seedCourseRecord(t, fixture, 10006, deptMath, "CH101", "大学化学", 3.0, "通识", 0)
+	deptCS := seedCourseDepartment(t, fixture, 4111010006, "物理学院", "science", 1)
+	deptMath := seedCourseDepartment(t, fixture, 4111010006, "化学学院", "science", 2)
+	courseA := seedCourseRecord(t, fixture, 4111010006, deptCS, "PH101", "大学物理", 4.0, "通识", 0)
+	courseB := seedCourseRecord(t, fixture, 4111010006, deptMath, "CH101", "大学化学", 3.0, "通识", 0)
 	seedCourseFavorite(t, fixture, "22222222-2222-2222-2222-222222222222", "user-hash-batch", courseA)
 
 	courseCount, err := repo.CountCourses(ctx, 0)

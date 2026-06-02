@@ -109,9 +109,9 @@ func TestReviewHandler_AdminSuccessPaths(t *testing.T) {
 	h := newReviewAdminHandler(t, svc)
 	ctx := context.Background()
 
-	departmentID := seedDepartment(t, fixture, 10006, "计算学院")
-	teacherID := seedTeacher(t, fixture, 10006, "孙老师", departmentID)
-	courseID := seedCourse(t, fixture, 10006, departmentID, "人工智能")
+	departmentID := seedDepartment(t, fixture, 4111010006, "计算学院")
+	teacherID := seedTeacher(t, fixture, 4111010006, "孙老师", departmentID)
+	courseID := seedCourse(t, fixture, 4111010006, departmentID, "人工智能")
 	reviewID := "550e8400-e29b-41d4-a716-446655440201"
 	reviewID2 := "550e8400-e29b-41d4-a716-446655440202"
 	flaggedID := "550e8400-e29b-41d4-a716-446655440203"
@@ -254,39 +254,39 @@ func TestReviewHandler_AdminModerationHonorsSchoolScopedRoles(t *testing.T) {
 
 	_, err := fixture.Pool.Exec(context.Background(), `
 		INSERT INTO schools (id, code, name)
-		VALUES (10006, '10006', '学校A'), (10007, '10007', '学校B')
+		VALUES (4111010006, '4111010006', '学校A'), (4111010007, '4111010007', '学校B')
 		ON CONFLICT (id) DO NOTHING
 	`)
 	require.NoError(t, err)
-	departmentA := seedDepartment(t, fixture, 10006, "计算学院")
-	teacherA := seedTeacher(t, fixture, 10006, "甲老师", departmentA)
-	courseA := seedCourse(t, fixture, 10006, departmentA, "学校A课程")
+	departmentA := seedDepartment(t, fixture, 4111010006, "计算学院")
+	teacherA := seedTeacher(t, fixture, 4111010006, "甲老师", departmentA)
+	courseA := seedCourse(t, fixture, 4111010006, departmentA, "学校A课程")
 	seedReviewWithRatings(t, fixture, reviewA, courseA, teacherA, "u-admin-role-a", 4.5, StatusPublished, ReviewRatings{"teaching": 5}, "学校A评论", "学校A内容")
 
-	departmentB := seedDepartment(t, fixture, 10007, "经济学院")
-	teacherB := seedTeacher(t, fixture, 10007, "乙老师", departmentB)
-	courseB := seedCourse(t, fixture, 10007, departmentB, "学校B课程")
+	departmentB := seedDepartment(t, fixture, 4111010007, "经济学院")
+	teacherB := seedTeacher(t, fixture, 4111010007, "乙老师", departmentB)
+	courseB := seedCourse(t, fixture, 4111010007, departmentB, "学校B课程")
 	reviewB := "550e8400-e29b-41d4-a716-446655440212"
 	seedReviewWithRatings(t, fixture, reviewB, courseB, teacherB, "u-admin-role-b", 4.3, StatusPublished, ReviewRatings{"teaching": 4}, "学校B评论", "学校B内容")
 
 	w, c := withAdminContext(http.MethodPut, "/admin/reviews/"+reviewA, `{"action":"hide","reason":"spam"}`)
 	c.Params = gin.Params{{Key: "reviewID", Value: reviewA}}
 	c.Set(middleware.CtxKeyRoles, []string{"school_admin"})
-	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"school_admin": {"10006"}})
+	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"school_admin": {"4111010006"}})
 	h.AdminUpdateReview(c)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 
 	w, c = withAdminContext(http.MethodPut, "/admin/reviews/"+reviewB, `{"action":"hide","reason":"spam"}`)
 	c.Params = gin.Params{{Key: "reviewID", Value: reviewB}}
 	c.Set(middleware.CtxKeyRoles, []string{"school_admin"})
-	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"school_admin": {"10006"}})
+	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"school_admin": {"4111010006"}})
 	h.AdminUpdateReview(c)
 	require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
 
 	w, c = withAdminContext(http.MethodPost, "/admin/reviews/"+reviewA+"/edit", `{"title":"管理员修订","content":"管理员修订后的内容","reason":"规范化"}`)
 	c.Params = gin.Params{{Key: "reviewID", Value: reviewA}}
 	c.Set(middleware.CtxKeyRoles, []string{"school_admin"})
-	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"school_admin": {"10006"}})
+	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"school_admin": {"4111010006"}})
 	h.AdminEditReviewContent(c)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 
@@ -294,7 +294,7 @@ func TestReviewHandler_AdminModerationHonorsSchoolScopedRoles(t *testing.T) {
 	c.Params = gin.Params{{Key: "reviewID", Value: reviewA}}
 	c.Set(middleware.CtxKeyUserID, "section-moderator")
 	c.Set(middleware.CtxKeyRoles, []string{"section_moderator"})
-	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"section_moderator": {reviewModerationSectionID(10006)}})
+	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"section_moderator": {reviewModerationSectionID(4111010006)}})
 	h.AdminEditReviewContent(c)
 	require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
 }
@@ -311,16 +311,16 @@ func TestReviewHandler_AdminDeleteUsesFGAAdminRelation(t *testing.T) {
 	}
 	h := newReviewAdminHandlerWithAuthorizer(t, svc, authorizer)
 
-	departmentID := seedDepartment(t, fixture, 10006, "计算学院")
-	teacherID := seedTeacher(t, fixture, 10006, "甲老师", departmentID)
-	courseID := seedCourse(t, fixture, 10006, departmentID, "学校A课程")
+	departmentID := seedDepartment(t, fixture, 4111010006, "计算学院")
+	teacherID := seedTeacher(t, fixture, 4111010006, "甲老师", departmentID)
+	courseID := seedCourse(t, fixture, 4111010006, departmentID, "学校A课程")
 	reviewID := "550e8400-e29b-41d4-a716-446655440231"
 	seedReviewWithRatings(t, fixture, reviewID, courseID, teacherID, "u-admin-delete", 4.5, StatusHidden, ReviewRatings{"teaching": 5}, "标题", "内容")
 
 	w, c := withAdminContext(http.MethodPut, "/admin/reviews/"+reviewID, `{"action":"delete","reason":"admin delete"}`)
 	c.Params = gin.Params{{Key: "reviewID", Value: reviewID}}
 	c.Set(middleware.CtxKeyRoles, []string{"school_admin"})
-	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"school_admin": {"10006"}})
+	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"school_admin": {"4111010006"}})
 	h.AdminUpdateReview(c)
 
 	require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
@@ -341,19 +341,19 @@ func TestReviewHandler_ReportModerationRespectsScopedRolesAndListScope(t *testin
 
 	_, err := fixture.Pool.Exec(context.Background(), `
 		INSERT INTO schools (id, code, name)
-		VALUES (10006, '10006', '学校A'), (10007, '10007', '学校B')
+		VALUES (4111010006, '4111010006', '学校A'), (4111010007, '4111010007', '学校B')
 		ON CONFLICT (id) DO NOTHING
 	`)
 	require.NoError(t, err)
-	departmentA := seedDepartment(t, fixture, 10006, "计算学院")
-	teacherA := seedTeacher(t, fixture, 10006, "甲老师", departmentA)
-	courseA := seedCourse(t, fixture, 10006, departmentA, "学校A课程")
+	departmentA := seedDepartment(t, fixture, 4111010006, "计算学院")
+	teacherA := seedTeacher(t, fixture, 4111010006, "甲老师", departmentA)
+	courseA := seedCourse(t, fixture, 4111010006, departmentA, "学校A课程")
 	reviewA := "550e8400-e29b-41d4-a716-446655440221"
 	seedReviewWithRatings(t, fixture, reviewA, courseA, teacherA, "u-report-a", 4.4, StatusPublished, ReviewRatings{"teaching": 5}, "学校A评论", "学校A内容")
 
-	departmentB := seedDepartment(t, fixture, 10007, "经济学院")
-	teacherB := seedTeacher(t, fixture, 10007, "乙老师", departmentB)
-	courseB := seedCourse(t, fixture, 10007, departmentB, "学校B课程")
+	departmentB := seedDepartment(t, fixture, 4111010007, "经济学院")
+	teacherB := seedTeacher(t, fixture, 4111010007, "乙老师", departmentB)
+	courseB := seedCourse(t, fixture, 4111010007, departmentB, "学校B课程")
 	reviewB := "550e8400-e29b-41d4-a716-446655440222"
 	seedReviewWithRatings(t, fixture, reviewB, courseB, teacherB, "u-report-b", 4.1, StatusPublished, ReviewRatings{"teaching": 4}, "学校B评论", "学校B内容")
 
@@ -384,7 +384,7 @@ func TestReviewHandler_ReportModerationRespectsScopedRolesAndListScope(t *testin
 
 	w, c := withAdminContext(http.MethodGet, "/admin/reports?status=pending", "")
 	c.Set(middleware.CtxKeyRoles, []string{"section_moderator"})
-	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"section_moderator": {reviewModerationSectionID(10006)}})
+	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"section_moderator": {reviewModerationSectionID(4111010006)}})
 	h.ListReports(c)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 
@@ -402,14 +402,14 @@ func TestReviewHandler_ReportModerationRespectsScopedRolesAndListScope(t *testin
 	w, c = withAdminContext(http.MethodPut, "/admin/reports/"+reportA, `{"action":"reject","note":"handled"}`)
 	c.Params = gin.Params{{Key: "reportID", Value: reportA}}
 	c.Set(middleware.CtxKeyRoles, []string{"section_moderator"})
-	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"section_moderator": {reviewModerationSectionID(10006)}})
+	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"section_moderator": {reviewModerationSectionID(4111010006)}})
 	h.ProcessReport(c)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 
 	w, c = withAdminContext(http.MethodPut, "/admin/reports/"+reportB, `{"action":"reject","note":"handled"}`)
 	c.Params = gin.Params{{Key: "reportID", Value: reportB}}
 	c.Set(middleware.CtxKeyRoles, []string{"section_moderator"})
-	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"section_moderator": {reviewModerationSectionID(10006)}})
+	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"section_moderator": {reviewModerationSectionID(4111010006)}})
 	h.ProcessReport(c)
 	require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
 }

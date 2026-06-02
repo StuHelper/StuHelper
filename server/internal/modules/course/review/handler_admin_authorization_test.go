@@ -88,9 +88,9 @@ func TestReviewHandler_BatchRestoreUsesStatusAwareRelations(t *testing.T) {
 
 func seedAuthorizationReview(t *testing.T, fixture *postgresfixture.Fixture, status, label string) string {
 	t.Helper()
-	departmentID := seedDepartment(t, fixture, 10006, "授权测试学院")
-	teacherID := seedTeacher(t, fixture, 10006, "授权测试教师"+label, departmentID)
-	courseID := seedCourse(t, fixture, 10006, departmentID, "授权测试课程"+label)
+	departmentID := seedDepartment(t, fixture, 4111010006, "授权测试学院")
+	teacherID := seedTeacher(t, fixture, 4111010006, "授权测试教师"+label, departmentID)
+	courseID := seedCourse(t, fixture, 4111010006, departmentID, "授权测试课程"+label)
 	reviewID := deterministicReviewID(label)
 	seedReviewWithRatings(t, fixture, reviewID, courseID, teacherID, "u-"+label, 4.5, status, ReviewRatings{"teaching": 5}, "授权测试", "内容")
 	return reviewID

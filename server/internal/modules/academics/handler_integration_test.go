@@ -130,7 +130,7 @@ func TestAcademicsHandlers_AdminRoutesRequireGlobalCapability(t *testing.T) {
 	svc := NewService(NewRepository(fixture.DB), NewRegistry())
 	router := newAcademicsScopedTestRouter(svc, []capability.Grant{{
 		Name:           capability.UserSchoolRead,
-		ScopeSchoolIDs: []string{"10006"},
+		ScopeSchoolIDs: []string{"4111010006"},
 	}})
 
 	resp := executeAcademicsRequest(t, router, http.MethodGet, "/api/v1/admin/academics/sources", "")

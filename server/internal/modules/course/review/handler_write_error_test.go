@@ -24,7 +24,7 @@ func TestReviewHandler_WriteErrorPaths(t *testing.T) {
 
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)
-	schoolID := int64(10006)
+	schoolID := int64(4111010006)
 	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, fakeAccessReader{
 		schools: []reviewaccess.SchoolConfig{{SchoolID: schoolID}},
 		subject: &reviewaccess.Subject{SchoolID: &schoolID, StudentVerified: true, IdentityVerified: true},

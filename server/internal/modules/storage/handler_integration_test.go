@@ -122,7 +122,7 @@ func scopedSystemCapabilityMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		snapshot := capability.BuildUserAccessSnapshot([]capability.Grant{{
 			Name:           capability.UserSystemRead,
-			ScopeSchoolIDs: []string{"10006"},
+			ScopeSchoolIDs: []string{"4111010006"},
 		}})
 		c.Set(middleware.CtxKeyUserID, "scoped-admin")
 		c.Set(middleware.CtxKeyCapabilities, snapshot.Capabilities)

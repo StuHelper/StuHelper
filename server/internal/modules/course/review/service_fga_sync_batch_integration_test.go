@@ -51,7 +51,7 @@ func TestReviewService_ProcessFGASyncBatchLifecycle(t *testing.T) {
 		payload, err := json.Marshal(reviewRelationsSyncPayload{
 			ReviewID:     "review-sync-1",
 			AuthorUserID: "user-sync-1",
-			SchoolID:     10006,
+			SchoolID:     4111010006,
 		})
 		if err != nil {
 			return err
@@ -86,7 +86,7 @@ func TestReviewService_ReconcileFGARelationProjectionsRequeuesOutbox(t *testing.
 	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
 	ctx := context.Background()
 
-	schoolID := int64(10006)
+	schoolID := int64(4111010006)
 	departmentID := seedDepartment(t, fixture, schoolID, "FGA 对账学院")
 	teacherID := seedTeacher(t, fixture, schoolID, "FGA 对账老师", departmentID)
 	courseID := seedCourse(t, fixture, schoolID, departmentID, "FGA 对账课程")
@@ -120,7 +120,7 @@ func TestReviewService_ReconcileFGARelationProjectionsRequeuesReviewWithoutAutho
 	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
 	ctx := context.Background()
 
-	schoolID := int64(10006)
+	schoolID := int64(4111010006)
 	departmentID := seedDepartment(t, fixture, schoolID, "FGA 历史学院")
 	teacherID := seedTeacher(t, fixture, schoolID, "FGA 历史老师", departmentID)
 	courseID := seedCourse(t, fixture, schoolID, departmentID, "FGA 历史课程")
@@ -143,7 +143,7 @@ func TestReviewService_ReconcileFGARelationProjectionsStopsAboveThreshold(t *tes
 	ctx := context.Background()
 	before := testutil.ToFloat64(metrics.IAMDriftReconciliationThresholdExceededTotal.WithLabelValues("openfga_relation"))
 
-	schoolID := int64(10006)
+	schoolID := int64(4111010006)
 	departmentID := seedDepartment(t, fixture, schoolID, "FGA 阈值学院")
 	teacherID := seedTeacher(t, fixture, schoolID, "FGA 阈值老师", departmentID)
 	courseID := seedCourse(t, fixture, schoolID, departmentID, "FGA 阈值课程")

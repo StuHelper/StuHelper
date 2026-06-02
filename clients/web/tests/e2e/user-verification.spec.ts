@@ -137,7 +137,7 @@ const schools = [
         schoolEmailOtpEnabled: false,
     },
     {
-        schoolID: 10006,
+        schoolID: 4111010006,
         schoolCode: "4111010006",
         schoolName: "北京航空航天大学",
         verificationMethod: "manual",
@@ -504,7 +504,7 @@ test.describe("User verification flows", () => {
                 otpVerifyBody = route.request().postDataJSON();
                 state.profile = {
                     ...verifiedProfile,
-                    schoolID: 10006,
+                    schoolID: 4111010006,
                     studentIDs: ["20250001"],
                     activeStudentID: "20250001",
                     verificationMethod: "school_email_otp",

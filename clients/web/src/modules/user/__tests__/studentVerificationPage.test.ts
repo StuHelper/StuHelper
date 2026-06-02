@@ -70,7 +70,7 @@ function notFound() {
 function verifiedProfile() {
     return {
         userID: 42,
-        schoolID: 10006,
+        schoolID: 4111010006,
         studentIDs: ["20250001"],
         activeStudentID: "20250001",
         verificationStatus: "verified",
@@ -99,7 +99,7 @@ describe("StudentVerificationPage", () => {
             data: {
                 data: [
                     {
-                        schoolID: 10006,
+                        schoolID: 4111010006,
                         schoolCode: "4111010006",
                         schoolName: "北京航空航天大学",
                         verificationMethod: "manual",
@@ -241,7 +241,7 @@ describe("StudentVerificationPage", () => {
             data: {
                 data: [
                     {
-                        schoolID: 10007,
+                        schoolID: 4111010007,
                         schoolCode: "4111010007",
                         schoolName: "测试大学",
                         verificationMethod: "manual",
@@ -259,7 +259,7 @@ describe("StudentVerificationPage", () => {
             data: {
                 data: {
                     ...verifiedProfile(),
-                    schoolID: 10007,
+                    schoolID: 4111010007,
                     verificationStatus: "pending",
                     verificationMethod: "manual",
                 },

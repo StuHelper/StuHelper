@@ -14,11 +14,11 @@ func TestFailClosedAuthorizationProvider_ReturnsConfigurationError(t *testing.T)
 	assert.False(t, allowed)
 	assert.ErrorIs(t, err, errAuthorizationProviderNotConfigured)
 	assert.ErrorIs(t,
-		provider.WriteReviewRelations(context.Background(), "review-1", "user-1", "10006"),
+		provider.WriteReviewRelations(context.Background(), "review-1", "user-1", "4111010006"),
 		errAuthorizationProviderNotConfigured,
 	)
 	assert.ErrorIs(t,
-		provider.WriteReportRelations(context.Background(), "report-1", "10006"),
+		provider.WriteReportRelations(context.Background(), "report-1", "4111010006"),
 		errAuthorizationProviderNotConfigured,
 	)
 }
@@ -26,7 +26,7 @@ func TestFailClosedAuthorizationProvider_ReturnsConfigurationError(t *testing.T)
 func TestModerationScopeSectionModeratorRequiresReviewModerationSection(t *testing.T) {
 	scope := moderationScope{
 		moderatorSections: map[string]struct{}{
-			"school_10006_qa": {},
+			"school_4111010006_qa": {},
 		},
 	}
 
@@ -34,11 +34,11 @@ func TestModerationScopeSectionModeratorRequiresReviewModerationSection(t *testi
 
 	scope = moderationScope{
 		moderatorSections: map[string]struct{}{
-			reviewModerationSectionID(10006): {},
+			reviewModerationSectionID(4111010006): {},
 		},
 	}
 
-	assert.Equal(t, []int64{10006}, scope.schoolIDs())
+	assert.Equal(t, []int64{4111010006}, scope.schoolIDs())
 }
 
 func TestAdminReportsCacheKeyIncludesModerationScope(t *testing.T) {
@@ -51,7 +51,7 @@ func TestAdminReportsCacheKeyIncludesModerationScope(t *testing.T) {
 		adminReportsCacheKey("pending", 1, 20, []int64{}),
 	)
 	assert.Equal(t,
-		"status=pending:page=1:size=20:scope=schools:10006,10007",
-		adminReportsCacheKey("pending", 1, 20, []int64{10007, 10006}),
+		"status=pending:page=1:size=20:scope=schools:4111010006,4111010007",
+		adminReportsCacheKey("pending", 1, 20, []int64{4111010007, 4111010006}),
 	)
 }

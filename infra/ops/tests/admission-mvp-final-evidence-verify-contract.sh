@@ -125,7 +125,7 @@ join_payload = {
     "studentVerification": {
         "activeCredentialCount": 1,
         "kinds": ["school_email_otp"],
-        "schoolIDs": [10006],
+        "schoolIDs": [4111010006],
     },
     "freshmanApplications": {"count": 0, "statuses": []},
     "checks": [

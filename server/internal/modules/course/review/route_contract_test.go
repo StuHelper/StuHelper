@@ -67,7 +67,7 @@ func TestReviewTeacherAdminRequiresGlobalCapability(t *testing.T) {
 func scopedSectionModeratorAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roles := []string{"section_moderator"}
-		scopes := map[string][]string{"section_moderator": {reviewModerationSectionID(10006)}}
+		scopes := map[string][]string{"section_moderator": {reviewModerationSectionID(4111010006)}}
 		snapshot := capability.BuildUserAccessSnapshot(capability.ExpandRoleGrants(roles, scopes))
 		c.Set(middleware.CtxKeyUserID, "section-moderator-1")
 		c.Set(middleware.CtxKeyRoles, roles)
@@ -83,7 +83,7 @@ func scopedCapabilityAuth(capabilityName string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		snapshot := capability.BuildUserAccessSnapshot([]capability.Grant{{
 			Name:           capabilityName,
-			ScopeSchoolIDs: []string{"10006"},
+			ScopeSchoolIDs: []string{"4111010006"},
 		}})
 		c.Set(middleware.CtxKeyUserID, "scoped-admin-1")
 		c.Set(middleware.CtxKeyCapabilities, snapshot.Capabilities)

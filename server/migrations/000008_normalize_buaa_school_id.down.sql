@@ -1,0 +1,2 @@
+-- Irreversible: StuHelper now uses Ministry of Education school codes as
+-- school primary identifiers. Do not recreate legacy five-digit school IDs.

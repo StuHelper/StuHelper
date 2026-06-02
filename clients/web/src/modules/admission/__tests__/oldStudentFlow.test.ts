@@ -132,7 +132,7 @@ describe('OldStudentVerificationFlow', () => {
         admissionSessionId: 'session-1',
         linked: true,
         schools: [{
-          schoolID: 10006,
+          schoolID: 4111010006,
           schoolCode: '4111010006',
           schoolName: '北京航空航天大学',
           verificationMethod: 'manual',
@@ -183,7 +183,7 @@ describe('OldStudentVerificationFlow', () => {
         admissionSessionId: 'session-1',
         linked: true,
         schools: [{
-          schoolID: 10006,
+          schoolID: 4111010006,
           schoolCode: '4111010006',
           schoolName: '北京航空航天大学',
           verificationMethod: 'manual',

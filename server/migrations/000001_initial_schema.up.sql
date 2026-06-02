@@ -4160,35 +4160,35 @@ ALTER TABLE ONLY public.user_verification_credentials
 INSERT INTO public.schools (id, code, name)
 VALUES
     (1, 'default', '默认学校'),
-    (10006, '10006', '北京航空航天大学');
+    (4111010006, '4111010006', '北京航空航天大学');
 
-SELECT pg_catalog.setval('public.schools_id_seq', 10006, true);
+SELECT pg_catalog.setval('public.schools_id_seq', 4111010006, true);
 
 INSERT INTO public.terms (id, school_id, name, is_current)
 VALUES
-    ('2025-1', 10006, '2025 春', false),
-    ('2025-2', 10006, '2025 秋', true);
+    ('2025-1', 4111010006, '2025 春', false),
+    ('2025-2', 4111010006, '2025 秋', true);
 
 INSERT INTO public.course_categories (school_id, name, sort_order)
 VALUES
-    (10006, '通识', 0),
-    (10006, '体育', 1),
-    (10006, '英语', 2),
-    (10006, '思政', 3);
+    (4111010006, '通识', 0),
+    (4111010006, '体育', 1),
+    (4111010006, '英语', 2),
+    (4111010006, '思政', 3);
 
 INSERT INTO public.rating_dimensions (id, school_id, key, name, description, sort_order)
 VALUES
-    ('01973860-0001-7000-8000-000000000001', 10006, 'difficulty', '课程难度', '课程内容的难易程度', 1),
-    ('01973860-0002-7000-8000-000000000002', 10006, 'workload', '作业量', '课程作业和任务的工作量', 2),
-    ('01973860-0003-7000-8000-000000000003', 10006, 'usefulness', '实用性', '课程内容对未来学习或工作的帮助程度', 3),
-    ('01973860-0004-7000-8000-000000000004', 10006, 'teaching', '教学质量', '教师的授课水平和教学效果', 4),
-    ('01973860-0005-7000-8000-000000000005', 10006, 'grading', '给分情况', '课程的评分标准和给分宽松程度', 5);
+    ('01973860-0001-7000-8000-000000000001', 4111010006, 'difficulty', '课程难度', '课程内容的难易程度', 1),
+    ('01973860-0002-7000-8000-000000000002', 4111010006, 'workload', '作业量', '课程作业和任务的工作量', 2),
+    ('01973860-0003-7000-8000-000000000003', 4111010006, 'usefulness', '实用性', '课程内容对未来学习或工作的帮助程度', 3),
+    ('01973860-0004-7000-8000-000000000004', 4111010006, 'teaching', '教学质量', '教师的授课水平和教学效果', 4),
+    ('01973860-0005-7000-8000-000000000005', 4111010006, 'grading', '给分情况', '课程的评分标准和给分宽松程度', 5);
 
 INSERT INTO public.school_configs (
     school_id, school_name, verification_method, academic_db_table, consent_text, enabled, approval_policy
 )
 VALUES (
-    10006,
+    4111010006,
     '北京航空航天大学',
     'ldap',
     'academic.buaa_students',
@@ -4199,7 +4199,7 @@ VALUES (
 
 INSERT INTO public.system_configs (key, value, description)
 VALUES
-    ('review_access_school_ids', '["10006"]', '允许查看完整评课和发布评课的学校 ID 列表（JSON 数组；留空则回退到已启用学校）'),
+    ('review_access_school_ids', '["4111010006"]', '允许查看完整评课和发布评课的学校 ID 列表（JSON 数组；留空则回退到已启用学校）'),
     ('review_preview_title_chars', '24', '评课标题预览最大字符数'),
     ('review_preview_content_chars', '120', '评课正文预览最大字符数'),
     ('review_preview_content_percent', '100', '评课正文预览最大展示比例（1-100）'),

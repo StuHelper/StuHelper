@@ -32,10 +32,10 @@ func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
 	ctx := context.Background()
 
-	departmentID := seedDepartment(t, fixture, 10006, "计算机学院")
-	teacherID := seedTeacher(t, fixture, 10006, "王老师", departmentID)
-	courseID := seedCourse(t, fixture, 10006, departmentID, "数据库系统")
-	otherCourseID := seedCourse(t, fixture, 10006, departmentID, "分布式系统")
+	departmentID := seedDepartment(t, fixture, 4111010006, "计算机学院")
+	teacherID := seedTeacher(t, fixture, 4111010006, "王老师", departmentID)
+	courseID := seedCourse(t, fixture, 4111010006, departmentID, "数据库系统")
+	otherCourseID := seedCourse(t, fixture, 4111010006, departmentID, "分布式系统")
 
 	seedReviewWithRatings(t, fixture, "review-read-1", courseID, teacherID, "u-read-1", 4.5, StatusPublished, ReviewRatings{"teaching": 5, "difficulty": 4}, "数据库真不错", "内容一")
 	seedReviewWithRatings(t, fixture, "review-read-2", otherCourseID, teacherID, "u-read-2", 4.0, StatusPublished, ReviewRatings{"teaching": 4, "difficulty": 4}, "分布式很赞", "内容二")
@@ -256,9 +256,9 @@ func TestReviewService_IntegrationInteractionPaths(t *testing.T) {
 	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
 	ctx := context.Background()
 
-	departmentID := seedDepartment(t, fixture, 10006, "软件学院")
-	teacherID := seedTeacher(t, fixture, 10006, "陈老师", departmentID)
-	courseID := seedCourse(t, fixture, 10006, departmentID, "软件工程")
+	departmentID := seedDepartment(t, fixture, 4111010006, "软件学院")
+	teacherID := seedTeacher(t, fixture, 4111010006, "陈老师", departmentID)
+	courseID := seedCourse(t, fixture, 4111010006, departmentID, "软件工程")
 	seedReviewWithRatings(t, fixture, "review-owner-1", courseID, teacherID, "u-owner-1", 4.8, StatusPublished, ReviewRatings{"teaching": 5, "difficulty": 4}, "很棒", "值得推荐")
 
 	// 收藏链路
@@ -300,7 +300,7 @@ func TestReviewService_IntegrationInteractionPaths(t *testing.T) {
 	assert.Equal(t, "草稿内容", loadedDraft.Content)
 	assert.Equal(t, 4, loadedDraft.Ratings["teaching"])
 
-	otherCourseID := seedCourse(t, fixture, 10006, departmentID, "编译原理")
+	otherCourseID := seedCourse(t, fixture, 4111010006, departmentID, "编译原理")
 	overwrittenDraft, err := svc.SaveDraft(ctx, SaveDraftParams{
 		UserHash: "u-draft-1",
 		CourseID: &otherCourseID,
@@ -369,9 +369,9 @@ func TestAdminUpdateReplyPublishesPendingReplyAndRestoresCount(t *testing.T) {
 	svc.filter = seededFilter([]SensitiveWord{{Word: "reviewword", Level: ContentFlagReview}})
 	ctx := context.Background()
 
-	departmentID := seedDepartment(t, fixture, 10006, "回复审核学院")
-	teacherID := seedTeacher(t, fixture, 10006, "回复审核老师", departmentID)
-	courseID := seedCourse(t, fixture, 10006, departmentID, "回复审核课程")
+	departmentID := seedDepartment(t, fixture, 4111010006, "回复审核学院")
+	teacherID := seedTeacher(t, fixture, 4111010006, "回复审核老师", departmentID)
+	courseID := seedCourse(t, fixture, 4111010006, departmentID, "回复审核课程")
 	seedReviewWithRatings(t, fixture, "review-reply-admin-1", courseID, teacherID, "u-owner-reply-admin", 4.8, StatusPublished, ReviewRatings{"teaching": 5}, "回复审核", "原评课")
 
 	replyResult, err := svc.CreateReply(ctx, CreateReplyParams{ReviewID: "review-reply-admin-1", UserHash: "u-replier-admin", Content: "reviewword 需要审核"})
@@ -402,9 +402,9 @@ func TestCreateReplyRejectsParentFromDifferentReview(t *testing.T) {
 	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
 	ctx := context.Background()
 
-	departmentID := seedDepartment(t, fixture, 10006, "回复父级学院")
-	teacherID := seedTeacher(t, fixture, 10006, "回复父级老师", departmentID)
-	courseID := seedCourse(t, fixture, 10006, departmentID, "回复父级课程")
+	departmentID := seedDepartment(t, fixture, 4111010006, "回复父级学院")
+	teacherID := seedTeacher(t, fixture, 4111010006, "回复父级老师", departmentID)
+	courseID := seedCourse(t, fixture, 4111010006, departmentID, "回复父级课程")
 	seedReviewWithRatings(t, fixture, "review-parent-a", courseID, teacherID, "u-parent-a", 4.8, StatusPublished, ReviewRatings{"teaching": 5}, "父级 A", "原评课 A")
 	seedReviewWithRatings(t, fixture, "review-parent-b", courseID, teacherID, "u-parent-b", 4.7, StatusPublished, ReviewRatings{"teaching": 5}, "父级 B", "原评课 B")
 
@@ -424,10 +424,10 @@ func TestPostReviewRejectsTeacherFromDifferentSchool(t *testing.T) {
 	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
 	ctx := context.Background()
 
-	courseDepartmentID := seedDepartment(t, fixture, 10006, "跨校课程学院")
+	courseDepartmentID := seedDepartment(t, fixture, 4111010006, "跨校课程学院")
 	seedSchool(t, fixture, 20002, "cross", "跨校教师学校")
 	teacherDepartmentID := seedDepartment(t, fixture, 20002, "跨校教师学院")
-	courseID := seedCourse(t, fixture, 10006, courseDepartmentID, "跨校校验课程")
+	courseID := seedCourse(t, fixture, 4111010006, courseDepartmentID, "跨校校验课程")
 	teacherID := seedTeacher(t, fixture, 20002, "跨校教师", teacherDepartmentID)
 
 	crossSchoolAuthorID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-cross-school-teacher", UserHash: "u-cross-school-teacher"})
@@ -453,7 +453,7 @@ func TestPostReviewAndReportMaterializeSchoolID(t *testing.T) {
 	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
 	ctx := context.Background()
 
-	schoolID := int64(10006)
+	schoolID := int64(4111010006)
 	departmentID := seedDepartment(t, fixture, schoolID, "物化学院")
 	teacherID := seedTeacher(t, fixture, schoolID, "物化老师", departmentID)
 	courseID := seedCourse(t, fixture, schoolID, departmentID, "物化课程")
@@ -505,10 +505,10 @@ func TestSaveDraftRejectsTeacherFromDifferentSchool(t *testing.T) {
 	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
 	ctx := context.Background()
 
-	courseDepartmentID := seedDepartment(t, fixture, 10006, "草稿课程学院")
+	courseDepartmentID := seedDepartment(t, fixture, 4111010006, "草稿课程学院")
 	seedSchool(t, fixture, 20003, "dcr", "草稿跨校教师学校")
 	teacherDepartmentID := seedDepartment(t, fixture, 20003, "草稿跨校教师学院")
-	courseID := seedCourse(t, fixture, 10006, courseDepartmentID, "草稿跨校校验课程")
+	courseID := seedCourse(t, fixture, 4111010006, courseDepartmentID, "草稿跨校校验课程")
 	teacherID := seedTeacher(t, fixture, 20003, "草稿跨校教师", teacherDepartmentID)
 
 	_, err := svc.SaveDraft(ctx, SaveDraftParams{

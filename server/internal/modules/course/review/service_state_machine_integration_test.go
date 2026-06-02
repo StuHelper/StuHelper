@@ -55,9 +55,9 @@ func TestReviewService_StateTransitionsAndNotifications(t *testing.T) {
 	})
 	ctx := context.Background()
 
-	departmentID := seedDepartment(t, fixture, 10006, "数学学院")
-	teacherID := seedTeacher(t, fixture, 10006, "周老师", departmentID)
-	courseID := seedCourse(t, fixture, 10006, departmentID, "高等数学")
+	departmentID := seedDepartment(t, fixture, 4111010006, "数学学院")
+	teacherID := seedTeacher(t, fixture, 4111010006, "周老师", departmentID)
+	courseID := seedCourse(t, fixture, 4111010006, departmentID, "高等数学")
 	reviewID := "550e8400-e29b-41d4-a716-446655440951"
 	warnFlaggedID := "550e8400-e29b-41d4-a716-446655440952"
 	hiddenReviewID := "550e8400-e29b-41d4-a716-446655440953"

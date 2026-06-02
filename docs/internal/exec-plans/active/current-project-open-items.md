@@ -22,8 +22,8 @@ last-verified: 2026-06-03
 
 | 任务 | 当前状态 | 完成标准 |
 |------|----------|----------|
-| 清理独立 identity 入口 | 生产入口模板、prod parity、auth fixture 和本轮文档/ops 残留已开始清理 | 全仓库不再包含独立 identity host 域名；不再有旧迁移指南、旧 ingress diagnostic、旧 disabled-host smoke 或长期 404 契约 |
-| 移除五位学校 ID 业务事实 | admission bootstrap、school directory migration 和部分 runbook 已按 `school_code=4111010006` 收敛 | API、前端、运维脚本、测试 fixture 和 seed/migration 中不再把 `10006` 这类五位数作为学校事实；学校选择和配置以 `schoolCode` 为主 |
+| 清理独立 identity 入口 | 独立 identity issuer 代码、bootstrap、smoke、prod parity 和长期 404 契约已删除 | 全仓库不再包含独立 identity host 域名；不再有旧迁移指南、旧 ingress diagnostic、旧 disabled-host smoke 或长期 404 契约 |
+| 移除五位学校 ID 业务事实 | admission bootstrap、school directory migration、baseline seed 和部分 runbook 已按 `school_code=4111010006` 收敛 | API、前端、运维脚本、测试 fixture 和 seed/migration 中不再把旧五位学校 ID 作为学校事实；学校选择和配置以 `schoolCode` 为主 |
 | 北航老生学号姓名即时匹配 | Join 老生流程已接入学号 + 姓名匹配，匹配后固定邮箱为学号邮箱并放开发送验证码按钮 | 主站和 Join 的学生认证流程均复用同一后端规则；北航只允许学号邮箱；学籍源缺失或不匹配时前端明确禁用验证码动作 |
 | 外部学籍数据源模块 | 已新增外部数据源模块并支持 Oracle 只读查询配置 | 生产真实学籍源完成只读接入、监控、超时、失败降级和 readiness；真实 secret 只在 secret backend 中配置 |
 | 学校目录和白名单 | 管理后台学校配置页已显示学校代码、启用统计和启停开关 | 所有前端学校选择器和后端公开可选学校接口都只返回 enabled 学校；默认只启用北京航空航天大学 |
