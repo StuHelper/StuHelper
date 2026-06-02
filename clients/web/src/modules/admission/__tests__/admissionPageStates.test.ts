@@ -27,6 +27,11 @@ const mockVerificationStore = vi.hoisted(() => ({
   schools: [],
 }))
 
+const mockToast = vi.hoisted(() => ({
+  error: vi.fn(),
+  success: vi.fn(),
+}))
+
 const mockWaitForAdmissionProjection = vi.hoisted(() => vi.fn())
 const mountedWrappers: Array<{ unmount(): void }> = []
 
@@ -48,6 +53,10 @@ vi.mock('@/stores/verification', () => ({
   useVerificationStore: () => mockVerificationStore,
 }))
 
+vi.mock('@/composables/useToast', () => ({
+  useToast: () => mockToast,
+}))
+
 vi.mock('../projectionRefresh', () => ({
   waitForAdmissionProjection: mockWaitForAdmissionProjection,
 }))
@@ -67,6 +76,12 @@ describe('AdmissionPage edge states', () => {
     mockWaitForAdmissionProjection.mockResolvedValue(false)
     mockVerificationStore.schools = []
     mockVerificationStore.fetchSchools.mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: vi.fn().mockResolvedValue(undefined),
+      },
+    })
   })
 
   afterEach(() => {
@@ -161,6 +176,22 @@ describe('AdmissionPage edge states', () => {
     expect(wrapper.text()).toContain('链接已失效')
     expect(wrapper.text()).toContain('重新生成认证链接 123')
     expect(wrapper.text()).not.toContain('认证链接暂时无法打开')
+  })
+
+  it('copies the admission reissue command from expired links', async () => {
+    mockAdmissionApi.getAdmissionSession.mockRejectedValueOnce(
+      { code: 'admission.session_not_found', message: 'missing' },
+    )
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+    await wrapper.find('[data-admission-copy-reissue-command]').trigger('click')
+    await flushPromises()
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      '重新生成认证链接 123',
+    )
+    expect(mockToast.success).toHaveBeenCalledWith('重新生成指令已复制')
   })
 
   it('maps material_submitted session status to pendingReview', async () => {

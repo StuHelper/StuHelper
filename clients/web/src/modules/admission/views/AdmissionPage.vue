@@ -48,9 +48,22 @@
           <p class="mt-2 text-sm text-slate-600">
             该认证链接已绑定首次打开时登录的 StuHelper 账号。请退出当前账号后使用原账号登录，或联系管理员重新生成认证链接。
           </p>
-          <p class="mt-2 text-xs text-slate-500" data-admission-reissue-command>
-            管理员可在群内使用：{{ reissueCommand }}
-          </p>
+          <div class="mt-3 flex flex-wrap items-center gap-2">
+            <p class="text-xs text-slate-500" data-admission-reissue-command>
+              管理员可在群内使用：
+              <code class="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700">
+                {{ reissueCommand }}
+              </code>
+            </p>
+            <button
+              class="secondary-button"
+              data-admission-copy-reissue-command
+              type="button"
+              @click="copyReissueCommand"
+            >
+              复制指令
+            </button>
+          </div>
           <button class="primary-button mt-4" type="button" @click="startReauthentication">
             重新登录
           </button>
@@ -160,9 +173,22 @@
           <p class="mt-2 text-sm text-slate-600">
             请回到 QQ 群联系管理员重新生成认证链接。
           </p>
-          <p class="mt-2 text-xs text-slate-500" data-admission-reissue-command>
-            管理员可在群内使用：{{ reissueCommand }}
-          </p>
+          <div class="mt-3 flex flex-wrap items-center gap-2">
+            <p class="text-xs text-slate-500" data-admission-reissue-command>
+              管理员可在群内使用：
+              <code class="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700">
+                {{ reissueCommand }}
+              </code>
+            </p>
+            <button
+              class="secondary-button"
+              data-admission-copy-reissue-command
+              type="button"
+              @click="copyReissueCommand"
+            >
+              复制指令
+            </button>
+          </div>
         </div>
 
         <div v-else data-state="error">
@@ -178,6 +204,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
+import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { useVerificationStore } from '@/stores/verification'
 import type { AdmissionMe, AdmissionSession } from '@stuhelper/shared/api'
@@ -216,6 +243,7 @@ const PENDING_REVIEW_REFRESH_DELAYS_MS = [
 const route = useRoute()
 const auth = useAuthStore()
 const verificationStore = useVerificationStore()
+const toast = useToast()
 const pageState = ref<AdmissionPageState>('loading')
 const session = ref<AdmissionSession | null>(null)
 const admissionMe = ref<AdmissionMe | null>(null)
@@ -573,6 +601,18 @@ function startSignup() {
 
 function startReauthentication() {
   void auth.reauthenticate(currentAdmissionURL())
+}
+
+async function copyReissueCommand(): Promise<void> {
+  try {
+    if (!navigator.clipboard?.writeText) {
+      throw new Error('clipboard unavailable')
+    }
+    await navigator.clipboard.writeText(reissueCommand.value)
+    toast.success('重新生成指令已复制')
+  } catch {
+    toast.error('复制失败，请手动复制')
+  }
 }
 
 function markPendingReview() {
