@@ -24,12 +24,21 @@ SAN_LIST="${POSTGRES_SSL_SAN_LIST:-DNS:postgres,DNS:localhost,IP:127.0.0.1}"
 
 mkdir -p "${POSTGRES_TLS_DIR}"
 
+ensure_postgres_tls_permissions() {
+  chmod 755 "${POSTGRES_TLS_DIR}"
+  [[ -f "${CA_KEY}" ]] && chmod 600 "${CA_KEY}"
+  [[ -f "${SERVER_KEY}" ]] && chmod 600 "${SERVER_KEY}"
+  [[ -f "${CA_CERT}" ]] && chmod 644 "${CA_CERT}"
+  [[ -f "${SERVER_CERT}" ]] && chmod 644 "${SERVER_CERT}"
+}
+
 if [[ "${POSTGRES_ENABLE_SSL:-off}" != "on" ]]; then
   log "POSTGRES_ENABLE_SSL=${POSTGRES_ENABLE_SSL:-off}; skipping PostgreSQL TLS material generation"
   exit 0
 fi
 
 if [[ -f "${CA_KEY}" && -f "${CA_CERT}" && -f "${SERVER_KEY}" && -f "${SERVER_CERT}" ]]; then
+  ensure_postgres_tls_permissions
   log "PostgreSQL TLS material already exists: ${POSTGRES_TLS_DIR}"
   exit 0
 fi
@@ -66,7 +75,6 @@ openssl_cmd x509 \
   -sha256 \
   -extfile "${extfile}" >/dev/null 2>&1
 
-chmod 600 "${CA_KEY}" "${SERVER_KEY}"
-chmod 644 "${CA_CERT}" "${SERVER_CERT}"
+ensure_postgres_tls_permissions
 
 log "generated PostgreSQL CA/server TLS material at ${POSTGRES_TLS_DIR}"

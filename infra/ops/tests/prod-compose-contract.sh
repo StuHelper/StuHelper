@@ -118,6 +118,10 @@ assert_not_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" 'REDIS_ADDR: \$\{REDIS_
 assert_contains "${REDIS_ACL_RENDER_FILE}" '^chmod 644 "\$\{ACL_FILE\}"$'
 assert_contains "${REDIS_TLS_RENDER_FILE}" '^ensure_redis_tls_permissions\(\) \{$'
 assert_contains "${REDIS_TLS_RENDER_FILE}" 'chmod 644 "\$\{SERVER_KEY\}"'
+assert_contains "${REPO_ROOT}/infra/ops/render-postgres-tls.sh" '^ensure_postgres_tls_permissions\(\) \{$'
+assert_contains "${REPO_ROOT}/infra/ops/render-postgres-tls.sh" 'chmod 755 "\$\{POSTGRES_TLS_DIR\}"'
+assert_contains "${REPO_ROOT}/infra/ops/render-postgres-tls.sh" '\[\[ -f "\$\{CA_CERT\}" \]\] && chmod 644 "\$\{CA_CERT\}"'
+assert_contains "${REPO_ROOT}/infra/ops/render-postgres-tls.sh" 'ensure_postgres_tls_permissions'
 if grep -Eq 'sslmode=\$\{(DB_SSL_MODE|POSTGRES_INTERNAL_SSL_MODE):-disable\}' "${COMPOSE_PROD_FILE}"; then
   fail "production compose overlay must not default PostgreSQL clients to sslmode=disable"
 fi
