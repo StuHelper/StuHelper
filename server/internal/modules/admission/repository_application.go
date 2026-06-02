@@ -359,6 +359,11 @@ func (r *Repository) MarkUserLinkedSessionsVerifiedTx(ctx context.Context, tx pg
 		UPDATE group_admission_sessions
 		SET status = $2, verified_at = $3, updated_at = NOW()
 		WHERE user_id = $1 AND status IN ($4, $5)
+		  AND cancelled_at IS NULL
+		  AND (
+		    (status = $4 AND submission_wait_deadline_at >= $3)
+		    OR (status = $5 AND (manual_review_deadline_at IS NULL OR manual_review_deadline_at >= $3))
+		  )
 	`, userID, StatusVerified, now, StatusLinked, StatusMaterialSubmitted)
 	return err
 }

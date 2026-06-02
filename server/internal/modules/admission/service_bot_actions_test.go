@@ -151,6 +151,32 @@ func TestStudentVerificationProjectionReleasesLinkedSession(t *testing.T) {
 	assert.Equal(t, created.Session.ID, actions[0].SessionID)
 }
 
+func TestStudentVerificationProjectionDoesNotReleaseExpiredLinkedSessions(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createBotLinkedSessionForPendingActions(t, svc, fixture, "linked-expired-projection")
+	require.NotNil(t, created.Session.UserID)
+	expiredID := insertExpiredLinkedAdmissionSessionForUser(t, fixture, *created.Session.UserID)
+
+	err := svc.ProjectStudentVerification(context.Background(), *created.Session.UserID, true)
+	require.NoError(t, err)
+
+	assertAdmissionSessionStatus(t, fixture, created.Session.ID, StatusVerified)
+	assertAdmissionSessionStatus(t, fixture, expiredID, StatusLinked)
+
+	actions, err := svc.ListPendingAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
+	require.NoError(t, err)
+	require.Len(t, actions, 2)
+	assert.ElementsMatch(t, []BotAction{BotActionRelease, BotActionKick}, []BotAction{
+		actions[0].Action,
+		actions[1].Action,
+	})
+}
+
 func TestLinkedAdmissionSessionTimesOutInsteadOfReleaseWithoutStudentVerification(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)
@@ -275,6 +301,28 @@ func expireAdmissionLinkWait(t *testing.T, fixture *postgresfixture.Fixture, ses
 		WHERE id = $1
 	`, sessionID, fixedAdmissionNow().Add(-time.Minute))
 	require.NoError(t, err)
+}
+
+func insertExpiredLinkedAdmissionSessionForUser(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	userID int64,
+) string {
+	t.Helper()
+
+	id := "adm-expired-linked-projection"
+	_, err := fixture.Pool.Exec(context.Background(), `
+		INSERT INTO group_admission_sessions (
+			id, platform, bot_self_id, guild_id, channel_id, qq_id, user_id, token_hash,
+			token_expires_at, token_consumed_at, status, link_wait_deadline_at,
+			submission_wait_deadline_at, initial_mute_until
+		)
+		VALUES ($1, 'qq', '514', 'guild-1', 'channel-1', '10002', $2, 'token-hash-expired-linked-projection',
+			$3, $4, $5, $6, $7, $8)
+	`, id, userID, futureTime(1), fixedAdmissionNow().Add(-2*time.Hour), StatusLinked,
+		futureTime(1), fixedAdmissionNow().Add(-time.Minute), futureTime(30))
+	require.NoError(t, err)
+	return id
 }
 
 func insertAdmissionFailureCount(t *testing.T, fixture *postgresfixture.Fixture, count int) {
