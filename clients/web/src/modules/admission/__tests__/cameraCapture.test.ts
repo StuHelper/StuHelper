@@ -252,6 +252,120 @@ describe("FreshmanCameraFlow material capture UI", () => {
         }
     });
 
+    it("ignores stale SSE events after regenerating a mobile handoff", async () => {
+        const originalEventSource = window.EventSource;
+        class FakeEventSource {
+            readonly url: string;
+            readonly listeners = new Map<
+                string,
+                Array<(event: MessageEvent) => void>
+            >();
+            close = vi.fn();
+
+            constructor(url: string) {
+                this.url = url;
+                sources.push(this);
+            }
+
+            addEventListener(
+                type: string,
+                listener: (event: MessageEvent) => void,
+            ) {
+                const listeners = this.listeners.get(type) ?? [];
+                listeners.push(listener);
+                this.listeners.set(type, listeners);
+            }
+
+            emit(type: string, data: unknown) {
+                const event = new MessageEvent(type, {
+                    data: JSON.stringify(data),
+                });
+                for (const listener of this.listeners.get(type) ?? []) {
+                    listener(event);
+                }
+            }
+        }
+        const sources: FakeEventSource[] = [];
+        Object.defineProperty(window, "EventSource", {
+            configurable: true,
+            value: FakeEventSource as unknown as typeof EventSource,
+        });
+
+        try {
+            const secondHandoff = {
+                ...freshmanHandoff,
+                id: "handoff-2",
+                mobileURL:
+                    "https://join.stuhelper.com/admission/freshman/camera/mobile-token-2",
+            };
+            mockAdmissionApi.submitFreshmanApplication.mockResolvedValue(
+                freshmanApplication,
+            );
+            mockAdmissionApi.createFreshmanCameraHandoff
+                .mockResolvedValueOnce(freshmanHandoff)
+                .mockResolvedValueOnce(secondHandoff);
+            const wrapper = mount(FreshmanCameraFlow, {
+                props: {
+                    maxMaterialBytes: 1024,
+                    schools: [
+                        {
+                            schoolID: 1001,
+                            schoolCode: "4111010006",
+                            schoolName: "北京航空航天大学",
+                            verificationMethod: "manual",
+                            enabled: true,
+                        },
+                    ],
+                },
+            });
+            await flushPromises();
+            await wrapper
+                .find("[data-freshman-school-select]")
+                .setValue("4111010006");
+            await wrapper
+                .find("[data-freshman-applicant-name-input]")
+                .setValue("张三");
+            await wrapper
+                .find("[data-freshman-mobile-handoff-button]")
+                .trigger("click");
+            await flushPromises();
+
+            sources[0]?.emit("handoff", {
+                ...freshmanHandoff,
+                status: "expired",
+            });
+            await flushPromises();
+            expect(sources[0]?.close).toHaveBeenCalled();
+
+            await wrapper
+                .find("[data-freshman-mobile-handoff-button]")
+                .trigger("click");
+            await flushPromises();
+            expect(sources).toHaveLength(2);
+            expect(sources[1]?.url).toBe(
+                "/api/v1/admission/freshman/camera-handoffs/handoff-2/events",
+            );
+
+            sources[0]?.emit("handoff", {
+                ...freshmanHandoff,
+                status: "locked",
+                continueOn: "desktop",
+                uploadedAt: "2026-06-01T10:05:00Z",
+                chosenAt: "2026-06-01T10:06:00Z",
+            });
+            await flushPromises();
+
+            expect(wrapper.text()).toContain("请用手机扫描二维码");
+            expect(wrapper.text()).not.toContain("流程已切回电脑端");
+            expect(wrapper.emitted("submitted")).toBeUndefined();
+        } finally {
+            Object.defineProperty(window, "EventSource", {
+                configurable: true,
+                value: originalEventSource,
+            });
+        }
+    });
+
     it("does not create duplicate applications or handoffs while mobile handoff is pending", async () => {
         const applicationDeferred =
             createDeferred<typeof freshmanApplication>();

@@ -388,7 +388,16 @@ async function ensureFreshmanApplication(): Promise<FreshmanApplication> {
   return created
 }
 
-async function applyFreshmanCameraHandoff(nextHandoff: FreshmanCameraHandoff): Promise<void> {
+async function applyFreshmanCameraHandoff(
+  nextHandoff: FreshmanCameraHandoff,
+  expectedHandoffID?: string,
+): Promise<void> {
+  if (expectedHandoffID) {
+    const current = handoff.value
+    if (nextHandoff.id !== expectedHandoffID || current?.id !== expectedHandoffID) {
+      return
+    }
+  }
   handoff.value = nextHandoff
   if (nextHandoff.mobileURL) {
     handoffQRCodeDataURL.value = await createQRCodeDataURL(nextHandoff.mobileURL, {
@@ -425,7 +434,7 @@ function startHandoffStatusUpdates(): void {
   handoffEventSource = source
   source.addEventListener('handoff', (event) => {
     try {
-      void applyFreshmanCameraHandoff(parseHandoffEvent(event))
+      void applyFreshmanCameraHandoff(parseHandoffEvent(event), current.id)
     } catch (error) {
       errorMessage.value = readErrorMessage(error, '手机拍照状态解析失败。')
     }
@@ -462,6 +471,7 @@ async function refreshHandoff(): Promise<void> {
   try {
     await applyFreshmanCameraHandoff(
       await admissionApi.getFreshmanCameraHandoff(current.id),
+      current.id,
     )
   } catch (error) {
     if (handleAdmissionExpiredError(error)) return
