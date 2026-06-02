@@ -3,13 +3,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   api: {
     getFreshmanVerification: vi.fn(),
+    cancelAdminAdmissionSession: vi.fn(),
     createMemberBlacklist: vi.fn(),
     listAdmissionPolicies: vi.fn(),
     listAdmissionSessions: vi.fn(),
     listFreshmanVerifications: vi.fn(),
     listMemberBlacklist: vi.fn(),
+    regenerateAdminAdmissionSession: vi.fn(),
     releaseMemberBlacklist: vi.fn(),
     releaseMemberBlacklistBySubject: vi.fn(),
+    resendAdminAdmissionSession: vi.fn(),
     reviewFreshmanVerification: vi.fn(),
     updateAdmissionPolicy: vi.fn(),
   },
@@ -49,6 +52,9 @@ describe('admin admission API wrapper', () => {
     await api.listAdmissionPolicies();
     await api.updateAdmissionPolicy({ id: 'policy-1' } as never);
     await api.listAdmissionSessions({ status: 'linked' });
+    await api.resendAdminAdmissionSession('session-1');
+    await api.regenerateAdminAdmissionSession('session-1');
+    await api.cancelAdminAdmissionSession('session-1');
     await api.listMemberBlacklist({ status: 'active' });
     await api.createMemberBlacklist({ id: 'entry-1' } as never);
     await api.releaseMemberBlacklist('entry-1', {
@@ -79,6 +85,15 @@ describe('admin admission API wrapper', () => {
     expect(mocks.api.listAdmissionSessions).toHaveBeenCalledWith({
       status: 'linked',
     });
+    expect(mocks.api.resendAdminAdmissionSession).toHaveBeenCalledWith(
+      'session-1',
+    );
+    expect(mocks.api.regenerateAdminAdmissionSession).toHaveBeenCalledWith(
+      'session-1',
+    );
+    expect(mocks.api.cancelAdminAdmissionSession).toHaveBeenCalledWith(
+      'session-1',
+    );
     expect(mocks.api.listMemberBlacklist).toHaveBeenCalledWith({
       status: 'active',
     });

@@ -7854,6 +7854,130 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '403':
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/admin/admission/sessions/{id}/resend:
+    post:
+      tags:
+        - Admin
+      operationId: resendAdminAdmissionSession
+      summary: Admin 请求重发入群认证链接
+      description: |
+        将指定 admission session 标记为需要机器人提醒。后端不直接向 QQ 群发消息；
+        Koishi 会通过 pending action 扫描发送现有认证链接，并回写 remind 事件。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 入群认证会话已进入待提醒队列
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdmissionSession'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/admin/admission/sessions/{id}/regenerate:
+    post:
+      tags:
+        - Admin
+      operationId: regenerateAdminAdmissionSession
+      summary: Admin 重新生成入群认证链接
+      description: |
+        取消指定成员当前 in-progress admission session，并用原运行时上下文创建新的
+        canonical join 链接。新 session 会立即进入 Koishi 待提醒队列。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: 入群认证会话已重新生成
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CreatedAdmissionSession'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/admin/admission/sessions/{id}/cancel:
+    post:
+      tags:
+        - Admin
+      operationId: cancelAdminAdmissionSession
+      summary: Admin 取消入群认证会话
+      description: 取消指定 in-progress admission session，不会创建新链接。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 入群认证会话已取消
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdmissionSession'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/admin/freshman-verifications:
     get:
       tags:

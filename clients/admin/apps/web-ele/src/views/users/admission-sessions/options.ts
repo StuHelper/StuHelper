@@ -57,3 +57,9 @@ export function boolLabel(value: boolean): string {
 export function admissionReissueCommand(session: AdmissionSession): string {
   return `重新生成认证链接 ${session.qqID}`;
 }
+
+export function canManageAdmissionSession(
+  status: AdmissionSession['status'],
+): boolean {
+  return !['cancelled', 'expired_kicked', 'verified'].includes(status);
+}

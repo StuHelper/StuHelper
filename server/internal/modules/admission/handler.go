@@ -165,6 +165,21 @@ func (h *Handler) registerAdminAdmissionRoutes(admin *gin.RouterGroup) {
 		rbac.RequireCapability(capability.AdmissionSessionRead),
 		h.handleAdminListAdmissionSessions,
 	)
+	admin.POST(
+		"/admission/sessions/:id/resend",
+		rbac.RequireCapability(capability.AdmissionSessionManage),
+		h.handleAdminResendAdmissionSession,
+	)
+	admin.POST(
+		"/admission/sessions/:id/regenerate",
+		rbac.RequireCapability(capability.AdmissionSessionManage),
+		h.handleAdminRegenerateAdmissionSession,
+	)
+	admin.POST(
+		"/admission/sessions/:id/cancel",
+		rbac.RequireCapability(capability.AdmissionSessionManage),
+		h.handleAdminCancelAdmissionSession,
+	)
 	admin.GET(
 		"/freshman-verifications",
 		rbac.RequireCapability(capability.AdmissionFreshmanRead),

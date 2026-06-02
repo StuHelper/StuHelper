@@ -89,49 +89,95 @@ func (s *Service) ResendBotAdmissionSession(ctx context.Context, input BotSessio
 	return session, nil
 }
 
+func (s *Service) ResendAdminAdmissionSession(
+	ctx context.Context,
+	input AdminAdmissionSessionActionInput,
+) (*AdmissionSession, error) {
+	input.SessionID = strings.TrimSpace(input.SessionID)
+	if input.SessionID == "" || input.OperatorUserID <= 0 {
+		return nil, ErrAdmissionInvalidInput
+	}
+	session, err := s.getAdminActionSession(ctx, input.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.validateResendableSession(session); err != nil {
+		return nil, err
+	}
+	queued, err := s.repo.QueueAdmissionReminderNow(ctx, session.ID, s.now())
+	if err != nil {
+		if errors.Is(err, ErrAdmissionTokenNotFound) {
+			return nil, ErrAdmissionInvalidStatus
+		}
+		return nil, err
+	}
+	s.auditAdminSessionAction(ctx, "resend", queued, input.OperatorUserID, nil)
+	return queued, nil
+}
+
 func (s *Service) RegenerateBotAdmissionSession(
 	ctx context.Context,
 	input BotSessionCreateInput,
 ) (*CreatedAdmissionSession, error) {
-	input = normalizeBotSessionCreateInput(input)
-	if err := validateBotSessionCreateInput(input); err != nil {
-		return nil, err
-	}
-	subject := botSessionCreateSubject(input)
-	if err := s.ensureBotSessionMemberAllowed(ctx, input); err != nil {
-		return nil, err
-	}
-	if err := s.ensureRegeneratableSession(ctx, subject); err != nil {
-		return nil, err
-	}
-	policy, err := s.loadPolicy(ctx, input.Platform, input.GuildID)
+	created, cancelledIDs, err := s.regenerateAdmissionSession(ctx, input, nil)
 	if err != nil {
 		return nil, err
 	}
-	token, err := s.generateToken()
-	if err != nil {
-		return nil, fmt.Errorf("RegenerateBotAdmissionSession token: %w", err)
+	s.auditBotSessionRegenerated(ctx, created.Session, cancelledIDs)
+	return created, nil
+}
+
+func (s *Service) RegenerateAdminAdmissionSession(
+	ctx context.Context,
+	input AdminAdmissionSessionActionInput,
+) (*CreatedAdmissionSession, error) {
+	input.SessionID = strings.TrimSpace(input.SessionID)
+	if input.SessionID == "" || input.OperatorUserID <= 0 {
+		return nil, ErrAdmissionInvalidInput
 	}
-	session, err := s.newAdmissionSession(input, policy, token)
+	session, err := s.getAdminActionSession(ctx, input.SessionID)
 	if err != nil {
 		return nil, err
 	}
-	var cancelledIDs []string
-	if err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		cancelledIDs, err = s.repo.CancelInProgressSessionsBySubjectTx(ctx, tx, subject, s.now())
-		if err != nil {
-			return err
+	now := s.now()
+	created, cancelledIDs, err := s.regenerateAdmissionSession(ctx, BotSessionCreateInput{
+		Platform:  session.Platform,
+		GuildID:   session.GuildID,
+		ChannelID: session.ChannelID,
+		QQID:      session.QQID,
+		BotSelfID: session.BotSelfID,
+	}, &now)
+	if err != nil {
+		return nil, err
+	}
+	s.auditAdminSessionAction(ctx, "regenerate", created.Session, input.OperatorUserID, map[string]any{
+		"sourceSessionID":       session.ID,
+		"cancelledSessionIDs":   cancelledIDs,
+		"cancelledSessionCount": len(cancelledIDs),
+	})
+	return created, nil
+}
+
+func (s *Service) CancelAdminAdmissionSession(
+	ctx context.Context,
+	input AdminAdmissionSessionActionInput,
+) (*AdmissionSession, error) {
+	input.SessionID = strings.TrimSpace(input.SessionID)
+	if input.SessionID == "" || input.OperatorUserID <= 0 {
+		return nil, ErrAdmissionInvalidInput
+	}
+	if _, err := s.getAdminActionSession(ctx, input.SessionID); err != nil {
+		return nil, err
+	}
+	cancelled, err := s.repo.CancelInProgressSessionByID(ctx, input.SessionID, s.now())
+	if err != nil {
+		if errors.Is(err, ErrAdmissionTokenNotFound) {
+			return nil, ErrAdmissionInvalidStatus
 		}
-		return s.repo.CreateSessionTx(ctx, tx, session)
-	}); err != nil {
-		return nil, fmt.Errorf("RegenerateBotAdmissionSession: %w", err)
+		return nil, err
 	}
-	s.auditBotSessionRegenerated(ctx, session, cancelledIDs)
-	return &CreatedAdmissionSession{
-		Session: session,
-		Token:   token,
-		AuthURL: session.AuthURL,
-	}, nil
+	s.auditAdminSessionAction(ctx, "cancel", cancelled, input.OperatorUserID, nil)
+	return cancelled, nil
 }
 
 func (s *Service) PreviewToken(ctx context.Context, token string, qqQuery string) (*AdmissionSession, error) {
@@ -219,6 +265,65 @@ func (s *Service) ensureRegeneratableSession(ctx context.Context, subject BotSes
 	return nil
 }
 
+func (s *Service) regenerateAdmissionSession(
+	ctx context.Context,
+	input BotSessionCreateInput,
+	nextReminderAt *time.Time,
+) (*CreatedAdmissionSession, []string, error) {
+	input = normalizeBotSessionCreateInput(input)
+	if err := validateBotSessionCreateInput(input); err != nil {
+		return nil, nil, err
+	}
+	subject := botSessionCreateSubject(input)
+	if err := s.ensureBotSessionMemberAllowed(ctx, input); err != nil {
+		return nil, nil, err
+	}
+	if err := s.ensureRegeneratableSession(ctx, subject); err != nil {
+		return nil, nil, err
+	}
+	policy, err := s.loadPolicy(ctx, input.Platform, input.GuildID)
+	if err != nil {
+		return nil, nil, err
+	}
+	token, err := s.generateToken()
+	if err != nil {
+		return nil, nil, fmt.Errorf("RegenerateBotAdmissionSession token: %w", err)
+	}
+	session, err := s.newAdmissionSession(input, policy, token)
+	if err != nil {
+		return nil, nil, err
+	}
+	if nextReminderAt != nil {
+		session.nextReminderAt = nextReminderAt
+	}
+	var cancelledIDs []string
+	if err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		cancelledIDs, err = s.repo.CancelInProgressSessionsBySubjectTx(ctx, tx, subject, s.now())
+		if err != nil {
+			return err
+		}
+		return s.repo.CreateSessionTx(ctx, tx, session)
+	}); err != nil {
+		return nil, nil, fmt.Errorf("RegenerateBotAdmissionSession: %w", err)
+	}
+	return &CreatedAdmissionSession{
+		Session: session,
+		Token:   token,
+		AuthURL: session.AuthURL,
+	}, cancelledIDs, nil
+}
+
+func (s *Service) getAdminActionSession(ctx context.Context, sessionID string) (*AdmissionSession, error) {
+	session, err := s.repo.GetSessionByID(ctx, sessionID)
+	if err != nil {
+		if errors.Is(err, ErrAdmissionTokenNotFound) {
+			return nil, ErrAdmissionSessionNotFound
+		}
+		return nil, err
+	}
+	return session, nil
+}
+
 func (s *Service) auditBotSessionRegenerated(
 	ctx context.Context,
 	session *AdmissionSession,
@@ -245,6 +350,41 @@ func (s *Service) auditBotSessionRegenerated(
 			"cancelledSessionCount": len(cancelledIDs),
 		},
 		Timestamp: s.now(),
+	})
+}
+
+func (s *Service) auditAdminSessionAction(
+	ctx context.Context,
+	action string,
+	session *AdmissionSession,
+	operatorUserID int64,
+	extra map[string]any,
+) {
+	if session == nil {
+		return
+	}
+	details := map[string]any{
+		"platform":       session.Platform,
+		"guildID":        session.GuildID,
+		"qqID":           session.QQID,
+		"botSelfID":      session.BotSelfID,
+		"operatorUserID": operatorUserID,
+	}
+	for key, value := range extra {
+		details[key] = value
+	}
+	audit.LogContext(ctx, audit.Event{
+		Type:         audit.EventDataUpdate,
+		Category:     "admission",
+		ActorType:    "admin",
+		UserID:       fmt.Sprintf("%d", operatorUserID),
+		Resource:     "group_admission_sessions",
+		ResourceType: "group_admission_session",
+		ResourceID:   session.ID,
+		Action:       action,
+		Result:       "success",
+		Details:      details,
+		Timestamp:    s.now(),
 	})
 }
 

@@ -42,6 +42,8 @@ func pendingActionSessionsQuery(filter AdmissionPendingActionFilter, now time.Ti
 		WHERE %s
 		  AND (
 		    (status = $%d AND (next_reminder_at IS NULL OR next_reminder_at <= $%d))
+		    OR (status = $%d AND next_reminder_at IS NOT NULL AND next_reminder_at <= $%d)
+		    OR (status = $%d AND next_reminder_at IS NOT NULL AND next_reminder_at <= $%d)
 		    OR (status = $%d AND link_wait_deadline_at <= $%d)
 		    OR (status = $%d AND submission_wait_deadline_at <= $%d)
 		    OR (status = $%d AND manual_review_deadline_at <= $%d)
@@ -49,7 +51,8 @@ func pendingActionSessionsQuery(filter AdmissionPendingActionFilter, now time.Ti
 		  )
 		ORDER BY updated_at ASC, id ASC
 		LIMIT $%d
-		`, strings.Join(clauses, "\n		  AND "), joinedMutedParam, nowParam, joinedMutedParam, nowParam,
+		`, strings.Join(clauses, "\n		  AND "), joinedMutedParam, nowParam, linkedParam, nowParam,
+		materialSubmittedParam, nowParam, joinedMutedParam, nowParam,
 		linkedParam, nowParam, materialSubmittedParam, nowParam, verifiedParam, limitParam)
 	return query, args
 }
@@ -94,6 +97,32 @@ func (r *Repository) MarkReminderSentTx(
 			WHERE id = $1
 		`, input.Session.ID, input.Now, input.Now.Add(time.Duration(input.Policy.ReminderIntervalSeconds)*time.Second))
 	return err
+}
+
+func (r *Repository) QueueAdmissionReminderNow(
+	ctx context.Context,
+	sessionID string,
+	now time.Time,
+) (*AdmissionSession, error) {
+	ctx = withDBTable(ctx, "group_admission_sessions")
+	query := `
+		UPDATE group_admission_sessions
+		SET next_reminder_at = $2, last_bot_error = NULL, updated_at = NOW()
+		WHERE id = $1 AND status IN ($3, $4, $5)
+		RETURNING ` + admissionSessionColumns
+	session, err := scanAdmissionSession(r.db.QueryRow(
+		ctx,
+		query,
+		sessionID,
+		now,
+		StatusJoinedMuted,
+		StatusLinked,
+		StatusMaterialSubmitted,
+	))
+	if err != nil {
+		return nil, fmt.Errorf("QueueAdmissionReminderNow: %w", err)
+	}
+	return session, nil
 }
 
 func (r *Repository) MarkBotReleaseCompletedTx(ctx context.Context, input markBotSessionTxInput) error {

@@ -451,6 +451,12 @@ paths:
     $ref: "paths/admin-admission.yaml#/~1api~1v1~1admin~1admission~1policies~1{id}"
   /api/v1/admin/admission/sessions:
     $ref: "paths/admin-admission.yaml#/~1api~1v1~1admin~1admission~1sessions"
+  /api/v1/admin/admission/sessions/{id}/resend:
+    $ref: "paths/admin-admission.yaml#/~1api~1v1~1admin~1admission~1sessions~1{id}~1resend"
+  /api/v1/admin/admission/sessions/{id}/regenerate:
+    $ref: "paths/admin-admission.yaml#/~1api~1v1~1admin~1admission~1sessions~1{id}~1regenerate"
+  /api/v1/admin/admission/sessions/{id}/cancel:
+    $ref: "paths/admin-admission.yaml#/~1api~1v1~1admin~1admission~1sessions~1{id}~1cancel"
   /api/v1/admin/freshman-verifications:
     $ref: "paths/admin-admission.yaml#/~1api~1v1~1admin~1freshman-verifications"
   /api/v1/admin/freshman-verifications/{id}:

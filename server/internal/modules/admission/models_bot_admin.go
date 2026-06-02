@@ -64,6 +64,11 @@ type FreshmanApplicationListFilter struct {
 	Offset   int
 }
 
+type AdminAdmissionSessionActionInput struct {
+	SessionID      string
+	OperatorUserID int64
+}
+
 type AdmissionPendingActionFilter struct {
 	Platform  string
 	BotSelfID string

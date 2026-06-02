@@ -15,6 +15,7 @@ const routes: RouteRecordRaw[] = [
         'user:school:read',
         'user:system:read',
         'admission:session:read',
+        'admission:session:manage',
         'admission:freshman:review',
         'admission:policy:update',
         'member_blacklist:read',

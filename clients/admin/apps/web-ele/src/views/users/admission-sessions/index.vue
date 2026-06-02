@@ -1,11 +1,17 @@
 <script setup lang="ts">
 import type { ListAdmissionSessionsParams } from '#/api/admin';
 
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 
+import { useAccessStore } from '@vben/stores';
 import { ElMessage } from 'element-plus';
 
-import { listAdmissionSessions } from '#/api/admin';
+import {
+  cancelAdminAdmissionSession,
+  listAdmissionSessions,
+  regenerateAdminAdmissionSession,
+  resendAdminAdmissionSession,
+} from '#/api/admin';
 
 import AdminContentLayout from '../../shared/AdminContentLayout.vue';
 import AdmissionSessionFilters from './AdmissionSessionFilters.vue';
@@ -17,6 +23,10 @@ const items = ref<Awaited<ReturnType<typeof listAdmissionSessions>>['items']>(
   [],
 );
 const total = ref(0);
+const accessStore = useAccessStore();
+const canManage = computed(() =>
+  accessStore.accessCodes.includes('admission:session:manage'),
+);
 
 const query = reactive({
   page: 1,
@@ -79,6 +89,24 @@ async function copyReissueCommand(command: string) {
   ElMessage.success('重生命令已复制');
 }
 
+async function requestResend(id: string) {
+  await resendAdminAdmissionSession(id);
+  ElMessage.success('已加入机器人重发队列');
+  await fetchData();
+}
+
+async function requestRegenerate(id: string) {
+  await regenerateAdminAdmissionSession(id);
+  ElMessage.success('已重新生成并加入机器人提醒队列');
+  await fetchData();
+}
+
+async function requestCancel(id: string) {
+  await cancelAdminAdmissionSession(id);
+  ElMessage.success('认证会话已取消');
+  await fetchData();
+}
+
 onMounted(fetchData);
 </script>
 
@@ -99,11 +127,15 @@ onMounted(fetchData);
     <AdmissionSessionTable
       v-model:page="query.page"
       v-model:page-size="query.pageSize"
+      :can-manage="canManage"
       :loading="loading"
       :items="items"
       :total="total"
       @copy-auth-u-r-l="copyAuthURL"
       @copy-reissue-command="copyReissueCommand"
+      @request-resend="requestResend"
+      @request-regenerate="requestRegenerate"
+      @request-cancel="requestCancel"
       @page-change="fetchData"
       @page-size-change="onPageSizeChange"
     />

@@ -127,7 +127,7 @@ func (r *Repository) CancelInProgressSessionsBySubjectTx(
 ) ([]string, error) {
 	rows, err := tx.Query(ctx, `
 		UPDATE group_admission_sessions
-		SET status = $4, cancelled_at = $5, updated_at = NOW()
+		SET status = $4, cancelled_at = $5, next_reminder_at = NULL, updated_at = NOW()
 		WHERE platform = $1 AND guild_id = $2 AND qq_id = $3
 		  AND status IN ($6, $7, $8)
 		RETURNING id
@@ -152,6 +152,33 @@ func (r *Repository) CancelInProgressSessionsBySubjectTx(
 	return ids, nil
 }
 
+func (r *Repository) CancelInProgressSessionByID(
+	ctx context.Context,
+	sessionID string,
+	now time.Time,
+) (*AdmissionSession, error) {
+	ctx = withDBTable(ctx, "group_admission_sessions")
+	query := `
+		UPDATE group_admission_sessions
+		SET status = $2, cancelled_at = $3, next_reminder_at = NULL, last_bot_error = NULL, updated_at = NOW()
+		WHERE id = $1 AND status IN ($4, $5, $6)
+		RETURNING ` + admissionSessionColumns
+	session, err := scanAdmissionSession(r.db.QueryRow(
+		ctx,
+		query,
+		sessionID,
+		StatusCancelled,
+		now,
+		StatusJoinedMuted,
+		StatusLinked,
+		StatusMaterialSubmitted,
+	))
+	if err != nil {
+		return nil, fmt.Errorf("CancelInProgressSessionByID: %w", err)
+	}
+	return session, nil
+}
+
 func (r *Repository) MarkTokenConsumedAndLinked(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -163,7 +190,7 @@ func (r *Repository) MarkTokenConsumedAndLinked(
 	return r.updateSessionTx(ctx, tx, `
 		UPDATE group_admission_sessions
 		SET user_id = $2, token_consumed_at = $3, status = $4,
-		    submission_wait_deadline_at = $5, updated_at = NOW()
+		    submission_wait_deadline_at = $5, next_reminder_at = NULL, updated_at = NOW()
 		WHERE id = $1
 		RETURNING `+admissionSessionColumns, sessionID, userID, now, StatusLinked, submissionDeadline)
 }
@@ -176,7 +203,7 @@ func (r *Repository) MarkMaterialSubmitted(
 	ctx = withDBTable(ctx, "group_admission_sessions")
 	query := `
 		UPDATE group_admission_sessions
-		SET status = $2, manual_review_deadline_at = $3, updated_at = NOW()
+		SET status = $2, manual_review_deadline_at = $3, next_reminder_at = NULL, updated_at = NOW()
 		WHERE id = $1
 		RETURNING ` + admissionSessionColumns
 	session, err := scanAdmissionSession(r.db.QueryRow(ctx, query, sessionID, StatusMaterialSubmitted, manualReviewDeadline))
@@ -190,7 +217,7 @@ func (r *Repository) MarkVerified(ctx context.Context, sessionID string, now tim
 	ctx = withDBTable(ctx, "group_admission_sessions")
 	query := `
 		UPDATE group_admission_sessions
-		SET status = $2, verified_at = $3, updated_at = NOW()
+		SET status = $2, verified_at = $3, next_reminder_at = NULL, updated_at = NOW()
 		WHERE id = $1
 		RETURNING ` + admissionSessionColumns
 	session, err := scanAdmissionSession(r.db.QueryRow(ctx, query, sessionID, StatusVerified, now))

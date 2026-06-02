@@ -260,6 +260,55 @@ func TestBotAdmissionSessionQueryAndResendLinkedSession(t *testing.T) {
 	assert.Equal(t, StatusLinked, resent.Status)
 }
 
+func TestAdminAdmissionSessionActionsQueueBotReminderAndCancel(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createLinkableSession(t, svc)
+	userID := seedAdmissionUser(t, fixture, "admin-session-actions")
+	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+
+	svc.now = func() time.Time { return fixedAdmissionNow().Add(initialReminderGrace + time.Second) }
+	actions, err := svc.ListPendingAdmissionActions(context.Background(), AdmissionPendingActionFilter{
+		Platform:  "qq",
+		BotSelfID: "514",
+		Limit:     5,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, actions)
+
+	queued, err := svc.ResendAdminAdmissionSession(context.Background(), AdminAdmissionSessionActionInput{
+		SessionID:      created.Session.ID,
+		OperatorUserID: 9001,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, StatusLinked, queued.Status)
+
+	actions, err = svc.ListPendingAdmissionActions(context.Background(), AdmissionPendingActionFilter{
+		Platform:  "qq",
+		BotSelfID: "514",
+		Limit:     5,
+	})
+	require.NoError(t, err)
+	require.Len(t, actions, 1)
+	assert.Equal(t, BotActionRemind, actions[0].Action)
+	assert.Equal(t, created.Session.ID, actions[0].SessionID)
+	assert.True(t, actions[0].DeadlineAt.Equal(queued.SubmissionWaitDeadlineAt))
+
+	cancelled, err := svc.CancelAdminAdmissionSession(context.Background(), AdminAdmissionSessionActionInput{
+		SessionID:      created.Session.ID,
+		OperatorUserID: 9001,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, StatusCancelled, cancelled.Status)
+	assertAdmissionSessionStatus(t, fixture, created.Session.ID, StatusCancelled)
+}
+
 func TestRegenerateBotAdmissionSessionCancelsInProgressSession(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)
@@ -318,6 +367,47 @@ func TestRegenerateBotAdmissionSessionRejectsVerifiedSession(t *testing.T) {
 		Platform: "qq", GuildID: "guild-1", ChannelID: "channel-1", QQID: "10001", BotSelfID: "514",
 	})
 	require.ErrorIs(t, err, ErrAdmissionInvalidStatus)
+}
+
+func TestRegenerateAdminAdmissionSessionCreatesImmediateReminder(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	tokenIndex := 0
+	svc.generateToken = func() (string, error) {
+		tokenIndex++
+		return fmt.Sprintf("test-admission-token-%d", tokenIndex), nil
+	}
+	created := createLinkableSession(t, svc)
+	userID := seedAdmissionUser(t, fixture, "admin-regenerate")
+	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+
+	regenerated, err := svc.RegenerateAdminAdmissionSession(context.Background(), AdminAdmissionSessionActionInput{
+		SessionID:      created.Session.ID,
+		OperatorUserID: 9001,
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, created.Session.ID, regenerated.Session.ID)
+	assert.Equal(t, "https://join.stuhelper.com/verify/test-admission-token-2?qq=10001", regenerated.AuthURL)
+	assert.Equal(t, StatusJoinedMuted, regenerated.Session.Status)
+	assertAdmissionSessionStatus(t, fixture, created.Session.ID, StatusCancelled)
+
+	actions, err := svc.ListPendingAdmissionActions(context.Background(), AdmissionPendingActionFilter{
+		Platform:  "qq",
+		BotSelfID: "514",
+		Limit:     5,
+	})
+	require.NoError(t, err)
+	require.Len(t, actions, 1)
+	assert.Equal(t, BotActionRemind, actions[0].Action)
+	assert.Equal(t, regenerated.Session.ID, actions[0].SessionID)
+	assert.Equal(t, regenerated.AuthURL, actions[0].AuthURL)
+	assert.True(t, actions[0].DeadlineAt.Equal(regenerated.Session.LinkWaitDeadlineAt))
 }
 
 func TestAdmissionSessionStatusTransitions(t *testing.T) {

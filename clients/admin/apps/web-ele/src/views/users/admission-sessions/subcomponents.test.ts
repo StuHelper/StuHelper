@@ -9,7 +9,12 @@ import { describe, expect, it } from 'vitest';
 
 import AdmissionSessionFilters from './AdmissionSessionFilters.vue';
 import AdmissionSessionTable from './AdmissionSessionTable.vue';
-import { admissionReissueCommand, statusLabel, statusTagType } from './options';
+import {
+  admissionReissueCommand,
+  canManageAdmissionSession,
+  statusLabel,
+  statusTagType,
+} from './options';
 
 const PersistentAdminTableStub = defineComponent({
   name: 'PersistentAdminTable',
@@ -51,6 +56,17 @@ const tableStubs = {
   ElPagination: defineComponent({
     name: 'ElPagination',
     template: '<div data-stub="el-pagination" />',
+  }),
+  ElPopconfirm: defineComponent({
+    emits: ['confirm'],
+    setup(_, { emit, slots }) {
+      return () =>
+        h(
+          'span',
+          { 'data-stub': 'el-popconfirm', onClick: () => emit('confirm') },
+          slots.reference?.(),
+        );
+    },
   }),
   PersistentAdminTable: PersistentAdminTableStub,
   PersistentAdminTableColumn: PersistentAdminTableColumnStub,
@@ -115,6 +131,7 @@ describe('AdmissionSessionTable', () => {
   it('renders session diagnostics and emits copyAuthURL for canonical links', async () => {
     const wrapper = mount(AdmissionSessionTable, {
       props: {
+        canManage: true,
         items: [baseSession],
         loading: false,
         page: 1,
@@ -142,6 +159,35 @@ describe('AdmissionSessionTable', () => {
     expect(wrapper.emitted('copyReissueCommand')?.[0]).toEqual([
       '重新生成认证链接 1390191645',
     ]);
+
+    await wrapper.find('[data-action="requestResend"]').trigger('click');
+    expect(wrapper.emitted('requestResend')?.[0]).toEqual([baseSession.id]);
+
+    await wrapper.find('[data-action="requestRegenerate"]').trigger('click');
+    expect(wrapper.emitted('requestRegenerate')?.[0]).toEqual([baseSession.id]);
+
+    await wrapper.find('[data-action="requestCancel"]').trigger('click');
+    expect(wrapper.emitted('requestCancel')?.[0]).toEqual([baseSession.id]);
+  });
+
+  it('hides management actions for read-only operators', () => {
+    const wrapper = mount(AdmissionSessionTable, {
+      props: {
+        canManage: false,
+        items: [baseSession],
+        loading: false,
+        page: 1,
+        pageSize: 20,
+        total: 1,
+      },
+      global: { stubs: tableStubs },
+    });
+
+    expect(wrapper.find('[data-action="requestResend"]').exists()).toBe(false);
+    expect(wrapper.find('[data-action="requestRegenerate"]').exists()).toBe(
+      false,
+    );
+    expect(wrapper.find('[data-action="requestCancel"]').exists()).toBe(false);
   });
 
   it('uses operator-facing status labels and tag severity', () => {
@@ -152,5 +198,7 @@ describe('AdmissionSessionTable', () => {
     expect(admissionReissueCommand(baseSession)).toBe(
       '重新生成认证链接 1390191645',
     );
+    expect(canManageAdmissionSession('linked')).toBe(true);
+    expect(canManageAdmissionSession('verified')).toBe(false);
   });
 });

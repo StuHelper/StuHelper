@@ -1,6 +1,7 @@
 import type {
   AdmissionPolicy,
   AdmissionSession,
+  CreatedAdmissionSession,
   FreshmanApplication,
   FreshmanReviewRequest,
   ListAdmissionSessionsParams,
@@ -22,6 +23,7 @@ const admissionApi = createAdmissionApi(sharedApiClient);
 export type {
   AdmissionPolicy,
   AdmissionSession,
+  CreatedAdmissionSession,
   FreshmanApplication,
   FreshmanReviewRequest,
   ListAdmissionSessionsParams,
@@ -72,6 +74,24 @@ export async function listAdmissionSessions(
 ) {
   return unwrapListData<AdmissionSession>(
     await admissionApi.listAdmissionSessions(params),
+  );
+}
+
+export async function resendAdminAdmissionSession(id: string) {
+  return unwrapData<AdmissionSession>(
+    await admissionApi.resendAdminAdmissionSession(id),
+  );
+}
+
+export async function regenerateAdminAdmissionSession(id: string) {
+  return unwrapData<CreatedAdmissionSession>(
+    await admissionApi.regenerateAdminAdmissionSession(id),
+  );
+}
+
+export async function cancelAdminAdmissionSession(id: string) {
+  return unwrapData<AdmissionSession>(
+    await admissionApi.cancelAdminAdmissionSession(id),
   );
 }
 

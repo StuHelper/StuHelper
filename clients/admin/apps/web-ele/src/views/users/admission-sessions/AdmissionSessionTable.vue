@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import type { AdmissionSession } from '#/api/admin';
 
-import { ElButton, ElPagination, ElTag } from 'element-plus';
+import { ElButton, ElPagination, ElPopconfirm, ElTag } from 'element-plus';
 
 import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
 import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
 import {
   admissionReissueCommand,
   boolLabel,
+  canManageAdmissionSession,
   formatDateTime,
   formatText,
   statusLabel,
@@ -15,6 +16,7 @@ import {
 } from './options';
 
 defineProps<{
+  canManage: boolean;
   items: AdmissionSession[];
   loading: boolean;
   total: number;
@@ -23,6 +25,9 @@ defineProps<{
 const emit = defineEmits<{
   (e: 'copyAuthURL', url: string): void;
   (e: 'copyReissueCommand', command: string): void;
+  (e: 'requestResend', id: string): void;
+  (e: 'requestRegenerate', id: string): void;
+  (e: 'requestCancel', id: string): void;
   (e: 'pageChange'): void;
   (e: 'pageSizeChange'): void;
 }>();
@@ -103,6 +108,48 @@ const pageSize = defineModel<number>('pageSize', { required: true });
           >
             复制重生命令
           </ElButton>
+          <ElButton
+            v-if="canManage && canManageAdmissionSession(row.status)"
+            data-action="requestResend"
+            link
+            size="small"
+            type="primary"
+            @click="emit('requestResend', row.id)"
+          >
+            请求重发
+          </ElButton>
+          <ElPopconfirm
+            v-if="canManage && canManageAdmissionSession(row.status)"
+            title="重新生成会取消当前未完成会话，确认继续？"
+            @confirm="emit('requestRegenerate', row.id)"
+          >
+            <template #reference>
+              <ElButton
+                data-action="requestRegenerate"
+                link
+                size="small"
+                type="warning"
+              >
+                重新生成
+              </ElButton>
+            </template>
+          </ElPopconfirm>
+          <ElPopconfirm
+            v-if="canManage && canManageAdmissionSession(row.status)"
+            title="确认取消该入群认证会话？"
+            @confirm="emit('requestCancel', row.id)"
+          >
+            <template #reference>
+              <ElButton
+                data-action="requestCancel"
+                link
+                size="small"
+                type="danger"
+              >
+                取消会话
+              </ElButton>
+            </template>
+          </ElPopconfirm>
         </template>
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn

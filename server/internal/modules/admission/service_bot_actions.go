@@ -108,10 +108,16 @@ func resolvePendingAction(session *AdmissionSession, now time.Time) (BotAction, 
 		return BotActionRelease, session.InitialMuteUntil
 	case session.Status == StatusJoinedMuted && now.After(session.LinkWaitDeadlineAt):
 		return BotActionKick, session.LinkWaitDeadlineAt
+	case session.Status == StatusJoinedMuted:
+		return BotActionRemind, session.LinkWaitDeadlineAt
 	case session.Status == StatusLinked && now.After(session.SubmissionWaitDeadlineAt):
 		return BotActionKick, session.SubmissionWaitDeadlineAt
+	case session.Status == StatusLinked:
+		return BotActionRemind, session.SubmissionWaitDeadlineAt
 	case session.ManualReviewDeadlineAt != nil && now.After(*session.ManualReviewDeadlineAt):
 		return BotActionKick, *session.ManualReviewDeadlineAt
+	case session.Status == StatusMaterialSubmitted && session.ManualReviewDeadlineAt != nil:
+		return BotActionRemind, *session.ManualReviewDeadlineAt
 	default:
 		return BotActionRemind, session.LinkWaitDeadlineAt
 	}

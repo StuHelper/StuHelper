@@ -9,7 +9,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import IndexView from './index.vue';
 
 const apiMocks = vi.hoisted(() => ({
+  cancelAdminAdmissionSession: vi.fn(),
   listAdmissionSessions: vi.fn(),
+  regenerateAdminAdmissionSession: vi.fn(),
+  resendAdminAdmissionSession: vi.fn(),
+}));
+
+const accessMocks = vi.hoisted(() => ({
+  accessCodes: ['admission:session:manage'] as string[],
 }));
 
 const messageMocks = vi.hoisted(() => ({
@@ -17,7 +24,18 @@ const messageMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('#/api/admin', () => ({
+  cancelAdminAdmissionSession: apiMocks.cancelAdminAdmissionSession,
   listAdmissionSessions: apiMocks.listAdmissionSessions,
+  regenerateAdminAdmissionSession: apiMocks.regenerateAdminAdmissionSession,
+  resendAdminAdmissionSession: apiMocks.resendAdminAdmissionSession,
+}));
+
+vi.mock('@vben/stores', () => ({
+  useAccessStore: () => ({
+    get accessCodes() {
+      return accessMocks.accessCodes;
+    },
+  }),
 }));
 
 vi.mock('element-plus', async () => {
@@ -59,20 +77,39 @@ const childStubs = {
   },
   AdmissionSessionTable: {
     name: 'AdmissionSessionTable',
-    props: ['loading', 'items', 'total', 'page', 'pageSize'],
-    emits: ['copyAuthURL', 'pageChange', 'pageSizeChange'],
+    props: ['canManage', 'loading', 'items', 'total', 'page', 'pageSize'],
+    emits: [
+      'copyAuthURL',
+      'copyReissueCommand',
+      'pageChange',
+      'pageSizeChange',
+      'requestCancel',
+      'requestRegenerate',
+      'requestResend',
+    ],
     template: '<div data-stub="table" />',
   },
 };
 
 describe('admission sessions index view orchestration', () => {
   beforeEach(() => {
+    apiMocks.cancelAdminAdmissionSession.mockReset();
     apiMocks.listAdmissionSessions.mockReset();
+    apiMocks.regenerateAdminAdmissionSession.mockReset();
+    apiMocks.resendAdminAdmissionSession.mockReset();
     messageMocks.success.mockReset();
+    accessMocks.accessCodes = ['admission:session:manage'];
     apiMocks.listAdmissionSessions.mockResolvedValue({
       items: [sampleSession],
       total: 1,
     });
+    apiMocks.cancelAdminAdmissionSession.mockResolvedValue(sampleSession);
+    apiMocks.regenerateAdminAdmissionSession.mockResolvedValue({
+      authURL: sampleSession.authURL,
+      session: sampleSession,
+      token: 'redacted-test-token',
+    });
+    apiMocks.resendAdminAdmissionSession.mockResolvedValue(sampleSession);
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText: vi.fn().mockResolvedValue(undefined) },
@@ -80,7 +117,7 @@ describe('admission sessions index view orchestration', () => {
   });
 
   it('fetches qq admission sessions on mount with the default query shape', async () => {
-    mount(IndexView, { global: { stubs: childStubs } });
+    const wrapper = mount(IndexView, { global: { stubs: childStubs } });
     await flushPromises();
 
     expect(apiMocks.listAdmissionSessions).toHaveBeenCalledTimes(1);
@@ -89,6 +126,24 @@ describe('admission sessions index view orchestration', () => {
       pageSize: 20,
       platform: 'qq',
     });
+    expect(
+      wrapper.findComponent({ name: 'AdmissionSessionTable' }).props(
+        'canManage',
+      ),
+    ).toBe(true);
+  });
+
+  it('passes read-only capability state to the table', async () => {
+    accessMocks.accessCodes = ['admission:session:read'];
+
+    const wrapper = mount(IndexView, { global: { stubs: childStubs } });
+    await flushPromises();
+
+    expect(
+      wrapper.findComponent({ name: 'AdmissionSessionTable' }).props(
+        'canManage',
+      ),
+    ).toBe(false);
   });
 
   it('forwards trimmed filters into listAdmissionSessions params and resets to page 1', async () => {
@@ -186,5 +241,35 @@ describe('admission sessions index view orchestration', () => {
       '重新生成认证链接 1390191645',
     );
     expect(messageMocks.success).toHaveBeenCalledWith('重生命令已复制');
+  });
+
+  it('runs admin session actions and refreshes the table', async () => {
+    const wrapper = mount(IndexView, { global: { stubs: childStubs } });
+    await flushPromises();
+    apiMocks.listAdmissionSessions.mockClear();
+
+    const table = wrapper.findComponent({ name: 'AdmissionSessionTable' });
+    await table.vm.$emit('requestResend', sampleSession.id);
+    await flushPromises();
+    await table.vm.$emit('requestRegenerate', sampleSession.id);
+    await flushPromises();
+    await table.vm.$emit('requestCancel', sampleSession.id);
+    await flushPromises();
+
+    expect(apiMocks.resendAdminAdmissionSession).toHaveBeenCalledWith(
+      sampleSession.id,
+    );
+    expect(apiMocks.regenerateAdminAdmissionSession).toHaveBeenCalledWith(
+      sampleSession.id,
+    );
+    expect(apiMocks.cancelAdminAdmissionSession).toHaveBeenCalledWith(
+      sampleSession.id,
+    );
+    expect(apiMocks.listAdmissionSessions).toHaveBeenCalledTimes(3);
+    expect(messageMocks.success).toHaveBeenCalledWith('已加入机器人重发队列');
+    expect(messageMocks.success).toHaveBeenCalledWith(
+      '已重新生成并加入机器人提醒队列',
+    );
+    expect(messageMocks.success).toHaveBeenCalledWith('认证会话已取消');
   });
 });

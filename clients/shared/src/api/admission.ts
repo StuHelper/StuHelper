@@ -3,6 +3,7 @@ import type { components, operations } from '../types/api.gen'
 
 type AdmissionSession = components['schemas']['AdmissionSession']
 type AdmissionMe = components['schemas']['AdmissionMe']
+type CreatedAdmissionSession = components['schemas']['CreatedAdmissionSession']
 type FreshmanApplication = components['schemas']['FreshmanApplication']
 type MemberBlacklistEntry = components['schemas']['MemberBlacklistEntry']
 type MemberBlacklistCreateRequest =
@@ -112,6 +113,21 @@ export const createAdmissionApi = (client: ApiClient) => ({
       params: { query: params },
     }),
 
+  resendAdminAdmissionSession: (id: string) =>
+    client.POST('/api/v1/admin/admission/sessions/{id}/resend', {
+      params: { path: { id } },
+    }),
+
+  regenerateAdminAdmissionSession: (id: string) =>
+    client.POST('/api/v1/admin/admission/sessions/{id}/regenerate', {
+      params: { path: { id } },
+    }),
+
+  cancelAdminAdmissionSession: (id: string) =>
+    client.POST('/api/v1/admin/admission/sessions/{id}/cancel', {
+      params: { path: { id } },
+    }),
+
   listFreshmanVerifications: (params?: ListFreshmanVerificationsParams) =>
     client.GET('/api/v1/admin/freshman-verifications', {
       params: { query: params },
@@ -154,6 +170,7 @@ export type {
   AdmissionSession,
   CameraCaptureRequest,
   CreateFreshmanApplicationRequest,
+  CreatedAdmissionSession,
   FreshmanApplication,
   FreshmanCameraHandoff,
   FreshmanCameraHandoffContinuationRequest,
