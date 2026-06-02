@@ -9,6 +9,7 @@ COMPOSE_FILE="${REPO_ROOT}/docker-compose.yml"
 COMMON_LIB_FILE="${REPO_ROOT}/infra/ops/lib/common.sh"
 REDIS_ACL_RENDER_FILE="${REPO_ROOT}/infra/ops/render-redis-acl.sh"
 REDIS_TLS_RENDER_FILE="${REPO_ROOT}/infra/ops/render-redis-tls.sh"
+MINIO_CA_BUNDLE_FILE="${REPO_ROOT}/infra/ops/render-minio-ca-bundle.sh"
 PG_HBA_PROD_FILE="${REPO_ROOT}/infra/postgres/pg_hba.prod.conf"
 BAOTA_NGINX_FILE="${REPO_ROOT}/infra/nginx/baota-stuhelper.conf"
 SSO_NGINX_FILE="${REPO_ROOT}/infra/nginx/baota-casdoor-sso.conf"
@@ -123,6 +124,9 @@ assert_contains "${REPO_ROOT}/infra/ops/render-postgres-tls.sh" '^ensure_postgre
 assert_contains "${REPO_ROOT}/infra/ops/render-postgres-tls.sh" 'chmod 755 "\$\{POSTGRES_TLS_DIR\}"'
 assert_contains "${REPO_ROOT}/infra/ops/render-postgres-tls.sh" '\[\[ -f "\$\{CA_CERT\}" \]\] && chmod 644 "\$\{CA_CERT\}"'
 assert_contains "${REPO_ROOT}/infra/ops/render-postgres-tls.sh" 'ensure_postgres_tls_permissions'
+assert_contains "${MINIO_CA_BUNDLE_FILE}" '^ensure_minio_ca_permissions\(\) \{$'
+assert_contains "${MINIO_CA_BUNDLE_FILE}" 'chmod 755 "\$\{MINIO_TLS_DIR\}"'
+assert_contains "${MINIO_CA_BUNDLE_FILE}" '\[\[ -f "\$\{CA_CERT\}" \]\] && chmod 644 "\$\{CA_CERT\}"'
 if grep -Eq 'sslmode=\$\{(DB_SSL_MODE|POSTGRES_INTERNAL_SSL_MODE):-disable\}' "${COMPOSE_PROD_FILE}"; then
   fail "production compose overlay must not default PostgreSQL clients to sslmode=disable"
 fi

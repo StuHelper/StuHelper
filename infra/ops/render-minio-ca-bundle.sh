@@ -54,9 +54,16 @@ fi
 mkdir -p "${MINIO_TLS_DIR}"
 ensure_dir_owner "${MINIO_TLS_DIR}"
 
+ensure_minio_ca_permissions() {
+  chmod 755 "${MINIO_TLS_DIR}"
+  [[ -f "${CA_KEY}" ]] && chmod 600 "${CA_KEY}"
+  [[ -f "${CA_CERT}" ]] && chmod 644 "${CA_CERT}"
+}
+
+ensure_minio_ca_permissions
+
 if [[ -f "${CA_KEY}" && -f "${CA_CERT}" ]]; then
-  chmod 600 "${CA_KEY}"
-  chmod 644 "${CA_CERT}"
+  ensure_minio_ca_permissions
   log "MinIO CA bundle already exists: ${CA_CERT}"
   exit 0
 fi
@@ -72,7 +79,6 @@ openssl_cmd req \
   -subj "/CN=${COMMON_NAME}-ca" \
   -out "${CA_CERT}" >/dev/null 2>&1
 
-chmod 600 "${CA_KEY}"
-chmod 644 "${CA_CERT}"
+ensure_minio_ca_permissions
 
 log "generated MinIO CA bundle at ${CA_CERT}"
