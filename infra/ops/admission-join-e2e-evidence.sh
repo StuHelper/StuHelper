@@ -320,7 +320,11 @@ add(
 )
 add("session uses qq business platform", session.get("platform") == "qq", f"platform={session.get('platform')}")
 add("session is for expected guild", session.get("guildID") == raw.get("input", {}).get("guildID"), f"guildID={session.get('guildID')}")
-add("session is for expected qq", session.get("qqID") == raw.get("input", {}).get("qqID"), "qq matched")
+add(
+    "session is for expected qq",
+    session.get("qqID") == raw.get("input", {}).get("qqID"),
+    f"qqID={session.get('qqID')}, expectedQQID={raw.get('input', {}).get('qqID')}",
+)
 add("session records bot self id", session.get("botSelfID") == raw.get("input", {}).get("botSelfID"), f"botSelfID={session.get('botSelfID')}")
 add("session has channel id", session.get("channelIDPresent") is True)
 add("session has token hash but no raw token", session.get("tokenHashPresent") is True)

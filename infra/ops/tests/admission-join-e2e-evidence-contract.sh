@@ -238,6 +238,7 @@ fi
 jq -e '
   .passed == false
   and ([.checks[] | select(.name == "real join created an admission session" and .passed == false)] | length == 1)
+  and ([.checks[] | select(.name == "session is for expected qq" and .passed == false and .detail == "qqID=None, expectedQQID=123456789")] | length == 1)
 ' "${missing_file}" >/dev/null
 
 assert_contains "${PROD_GO_LIVE}" 'admission-join-e2e-evidence\.sh'
