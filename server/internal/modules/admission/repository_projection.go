@@ -12,6 +12,7 @@ import (
 
 const (
 	freshmanProjectionDedupePrefix              = "freshman-provisional-role:"
+	admissionVerificationProjectionStream       = "admission_verification_projection"
 	admissionVerificationProjectionDedupePrefix = "admission-verification-projection:"
 )
 
@@ -59,14 +60,18 @@ func (r *Repository) HasPendingAdmissionProjection(ctx context.Context, userID i
 		SELECT EXISTS (
 			SELECT 1
 			FROM domain_event_outbox
-			WHERE stream = $1
-			  AND dedupe_key = ANY($2)
-			  AND status IN ('pending', 'processing')
+			WHERE status IN ('pending', 'processing')
+			  AND (
+			    (stream = $1 AND dedupe_key = $2)
+			    OR (stream = $3 AND dedupe_key = $4)
+			  )
 		)
-	`, outbox.StreamIAMCasdoorRoleSync, []string{
+	`,
+		outbox.StreamIAMCasdoorRoleSync,
 		freshmanProjectionDedupeKey(userID),
+		admissionVerificationProjectionStream,
 		admissionVerificationProjectionDedupeKey(userID),
-	}).Scan(&exists)
+	).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("HasPendingAdmissionProjection: %w", err)
 	}

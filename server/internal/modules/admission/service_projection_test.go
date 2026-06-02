@@ -130,7 +130,7 @@ func insertAdmissionVerificationProjectionOutbox(
 	_, err := fixture.Pool.Exec(context.Background(), `
 		INSERT INTO domain_event_outbox (stream, job_type, dedupe_key, payload, status)
 		VALUES ($1, 'admission_verification_projection', $2, '{}'::jsonb, $3)
-	`, outbox.StreamIAMCasdoorRoleSync, admissionVerificationProjectionDedupeKey(userID), status)
+	`, admissionVerificationProjectionStream, admissionVerificationProjectionDedupeKey(userID), status)
 	require.NoError(t, err)
 }
 
