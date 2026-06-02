@@ -115,6 +115,18 @@ print(f"{parsed.scheme}://{parsed.netloc}")
 PY
 }
 
+url_host() {
+  python3 - "$1" <<'PY'
+from urllib.parse import urlparse
+import sys
+
+host = urlparse(sys.argv[1]).hostname
+if not host:
+    raise SystemExit(1)
+print(host)
+PY
+}
+
 reject_local_smoke_target() {
   local name="$1"
   local value="$2"
@@ -123,6 +135,26 @@ reject_local_smoke_target() {
       die "${name} points to a local target (${value}); admission-public-smoke verifies public production ingress. Set ADMISSION_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=true only for local contract tests or intentional local validation."
       ;;
   esac
+}
+
+reject_loopback_resolved_host() {
+  local name="$1"
+  local value="$2"
+  local host
+  local addresses
+  local address
+
+  [[ -z "${resolve_ip}" ]] || return 0
+  command -v getent >/dev/null 2>&1 || return 0
+  host="$(url_host "${value}")" || die "${name} must be a valid URL"
+  addresses="$(getent ahosts "${host}" 2>/dev/null | awk '{print $1}' | sort -u || true)"
+  while IFS= read -r address; do
+    case "${address}" in
+      127.*|::1|0:0:0:0:0:0:0:1)
+        die "${name} host ${host} resolves to loopback (${address}); admission-public-smoke verifies public production ingress. Remove local hosts overrides or set ADMISSION_PUBLIC_SMOKE_RESOLVE_IP=<public-ip>."
+        ;;
+    esac
+  done <<<"${addresses}"
 }
 
 normalize_bool() {
@@ -175,6 +207,9 @@ if [[ "${allow_local_targets}" != "true" ]]; then
   reject_local_smoke_target "ADMISSION_PUBLIC_BASE_URL" "${admission_public_base_url}"
   reject_local_smoke_target "WEB_PUBLIC_URL" "${web_public_url}"
   reject_local_smoke_target "ADMISSION_PUBLIC_SMOKE_DISABLED_ID_URL" "${disabled_id_url}"
+  reject_loopback_resolved_host "ADMISSION_PUBLIC_BASE_URL" "${admission_public_base_url}"
+  reject_loopback_resolved_host "WEB_PUBLIC_URL" "${web_public_url}"
+  reject_loopback_resolved_host "ADMISSION_PUBLIC_SMOKE_DISABLED_ID_URL" "${disabled_id_url}"
 fi
 
 admission_verify_url="${admission_public_base_url}/verify/${probe_token}?qq=${probe_qq}"

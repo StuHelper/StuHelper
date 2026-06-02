@@ -114,6 +114,9 @@ assert_contains "${SMOKE_SCRIPT}" 'ADMISSION_PUBLIC_SMOKE_CURL_NO_PROXY'
 assert_contains "${SMOKE_SCRIPT}" 'ADMISSION_PUBLIC_SMOKE_RESOLVE_IP'
 assert_contains "${SMOKE_SCRIPT}" 'join\.stuhelper\.com:443'
 assert_contains "${SMOKE_SCRIPT}" 'id\.stuhelper\.com:443'
+assert_contains "${SMOKE_SCRIPT}" 'getent ahosts'
+assert_contains "${SMOKE_SCRIPT}" 'resolves to loopback'
+assert_contains "${SMOKE_SCRIPT}" 'ADMISSION_PUBLIC_SMOKE_RESOLVE_IP=<public-ip>'
 assert_contains "${PROD_DEPLOY_SCRIPT}" 'ADMISSION_PUBLIC_SMOKE_ENABLED'
 assert_contains "${PROD_DEPLOY_SCRIPT}" 'admission-public-smoke\.sh'
 assert_contains "${PROD_PARITY_SMOKE_SCRIPT}" 'ADMISSION_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=true'
@@ -236,6 +239,20 @@ done
 
 port="$(cat "${port_file}")"
 base_url="http://127.0.0.1:${port}"
+mkdir -p "${tmpdir}/bin"
+cat >"${tmpdir}/bin/getent" <<'SH'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "ahosts" ]]; then
+  case "${2:-}" in
+    join.stuhelper.com|stuhelper.com|id.stuhelper.com)
+      printf '127.0.0.1 STREAM %s\n' "${2}"
+      exit 0
+      ;;
+  esac
+fi
+exec /usr/bin/getent "$@"
+SH
+chmod +x "${tmpdir}/bin/getent"
 cat >"${env_file}" <<ENV
 APP_ENV=production
 ADMISSION_PUBLIC_BASE_URL=${base_url}/join
@@ -256,6 +273,23 @@ local_refused_output="$(
 
 printf '%s\n' "${local_refused_output}" | grep -Eq 'ADMISSION_PUBLIC_SMOKE_DISABLED_ID_URL must be exactly https://id\.stuhelper\.com|admission-public-smoke verifies public production ingress' || \
   fail "local target refusal did not explain the public-ingress guard"
+
+loopback_refused_output="$(
+  ENV_FILE="${env_file}" \
+  GENERATED_ENV_FILE="${generated_env_file}" \
+  GENERATED_SECRET_ENV_FILE="${generated_secret_env_file}" \
+  GENERATED_OBS_DIR="${generated_obs_dir}" \
+  ADMISSION_PUBLIC_BASE_URL=https://join.stuhelper.com \
+  WEB_PUBLIC_URL=https://stuhelper.com \
+  ADMISSION_PUBLIC_SMOKE_DISABLED_ID_URL=https://id.stuhelper.com \
+  ADMISSION_PUBLIC_SMOKE_EVIDENCE_FILE="${evidence_file}" \
+  ADMISSION_PUBLIC_SMOKE_RETRIES=1 \
+  PATH="${tmpdir}/bin:${PATH}" \
+  "${SMOKE_SCRIPT}" 2>&1
+)" && fail "smoke unexpectedly allowed production hostnames that resolve to loopback"
+
+printf '%s\n' "${loopback_refused_output}" | grep -q 'ADMISSION_PUBLIC_BASE_URL host join.stuhelper.com resolves to loopback' || \
+  fail "loopback hostname refusal did not explain the local hosts override"
 
 output="$(
   ENV_FILE="${env_file}" \
