@@ -306,7 +306,7 @@ services:
       httpport: "8000"
       runmode: prod
       driverName: postgres
-      dataSourceName: "user=casdoor password=${CASDOOR_DB_PASSWORD} host=postgres port=5432 sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable} dbname=casdoor sslrootcert=/tls/ca.crt"
+      dataSourceName: "user=casdoor password=${CASDOOR_DB_PASSWORD:-} host=postgres port=5432 sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable} dbname=casdoor sslrootcert=/tls/ca.crt"
       dbName: casdoor
       origin: ${CASDOOR_ISSUER:-http://localhost:8085}
     ports:
