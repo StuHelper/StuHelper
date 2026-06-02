@@ -33,6 +33,7 @@ last-verified: 2026-06-02
 | SSO / admission smoke 对错误目标过宽 | 可能误把本机或非公网入口当成公网通过 | smoke 默认拒绝 local target，证据脚本写入更严格 |
 | 邮件 smoke 没加载生产 env | 邮件 provider 检查可能与真实生产配置不一致 | 邮件 smoke 显式加载生产 env，证据不输出 secret |
 | 管理后台缺少入群会话排障入口 | 运营无法按 QQ、群号或 bot selfID 定位“链接是否消费、是否认证、bot 是否报错” | 增加 admission session 列表、运行时过滤、状态/期限/bot 错误展示和当前链接复制 |
+| Join 页面缺少进度和期限提示 | 用户不知道当前卡在绑定、学生认证、审核还是机器人解禁，也不清楚各阶段截止时间 | 增加稳定进度条，区分 link、submission、manual review deadline，并提示认证通过后才提前解除禁言 |
 
 以上修复均已按提交收敛到本地仓库，并通过生产部署或对应测试验证。生产 smoke 只能证明公共入口、SSO、DB readiness 和 Koishi 配置健康，不能替代真实 QQ 端到端验收。
 
@@ -96,8 +97,7 @@ last-verified: 2026-06-02
 
 ### P2: 体验优化
 
-- join 页面使用稳定 stepper：登录与绑定、老生认证、新生材料、等待审核、等待机器人解禁。
-- 展示清晰倒计时：link deadline、submission deadline、manual review deadline 区分显示。
+- join 页面稳定 stepper 和阶段 deadline 已完成；后续继续按真实 E2E 观察文案是否需要收敛。
 - 摄像头权限前置检测：说明浏览器/系统权限状态，并提供手机扫码接力入口。
 - 手机接力状态做实时 UI：已扫码、拍照中、已上传、选择继续端、另一端锁定。
 - 所有失败状态给出管理员可执行的恢复动作名称，例如“重发认证链接”或“重新生成认证链接”。
