@@ -175,7 +175,7 @@ const identityReview = {
 
 const studentVerification = {
   userID: 13,
-  schoolID: 1001,
+  schoolID: 4111010006,
   activeStudentID: '20260001',
   verificationStatus: 'pending',
   verificationMethod: 'manual',
@@ -184,7 +184,7 @@ const studentVerification = {
 };
 
 const schoolConfig = {
-  schoolID: 1001,
+  schoolID: 4111010006,
   schoolName: '测试大学',
   verificationMethod: 'ldap',
   enabled: true,
@@ -201,7 +201,7 @@ const schoolConfig = {
 const freshmanApplication = {
   id: 'freshman-1',
   status: 'pending',
-  schoolID: 1001,
+  schoolID: 4111010006,
   qqID: '10001',
   applicantNameMasked: '赵*',
   materialURL: 'https://example.com/material.jpg',
@@ -807,13 +807,13 @@ test.describe('Admin management surfaces', () => {
     );
 
     await page.goto('/users/student-verification');
-    await page.getByPlaceholder('按学校ID筛选...').fill('1001');
+    await page.getByPlaceholder('按学校ID筛选...').fill('4111010006');
     await waitForAdminGetRequest(
       page,
       '/api/v1/admin/student-verifications',
       (url) =>
         url.searchParams.get('status') === 'verified' &&
-        url.searchParams.get('schoolID') === '1001' &&
+        url.searchParams.get('schoolID') === '4111010006' &&
         url.searchParams.get('page') === '1' &&
         url.searchParams.get('pageSize') === '20',
       async () => {

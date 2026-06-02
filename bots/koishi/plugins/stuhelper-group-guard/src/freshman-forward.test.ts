@@ -139,7 +139,7 @@ function freshmanForwardItem(
     application: {
       id: 'A123',
       userID: 42,
-      schoolID: 1,
+      schoolID: 4111010006,
       applicantNameMasked: '张*',
       departmentOrMajor: '计算机科学与技术',
       materialType: 'admission_notice',

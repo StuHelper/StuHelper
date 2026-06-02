@@ -67,7 +67,7 @@ async function mockAuth(page: Page) {
         data: {
           verificationStatus: 'verified',
           schoolName: '测试大学',
-          schoolID: 1,
+          schoolID: 4111010006,
         },
       }),
     }),

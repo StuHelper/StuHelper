@@ -1,7 +1,10 @@
 package user
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"io"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -152,8 +155,7 @@ func (h *Handler) handleGetProfile(c *gin.Context) {
 }
 
 type verifyStudentHTTPRequest struct {
-	SchoolCode     string         `json:"schoolCode" binding:"omitempty,numeric,len=10"`
-	SchoolID       int64          `json:"schoolID" binding:"omitempty,min=1"`
+	SchoolCode     string         `json:"schoolCode" binding:"required,numeric,len=10"`
 	StudentID      string         `json:"studentID" binding:"omitempty,max=50"`
 	Password       string         `json:"password" binding:"omitempty,max=200"`
 	ManualFormData map[string]any `json:"manualFormData"`
@@ -161,8 +163,7 @@ type verifyStudentHTTPRequest struct {
 }
 
 type studentEmailOTPHTTPRequest struct {
-	SchoolCode  string `json:"schoolCode" binding:"omitempty,numeric,len=10"`
-	SchoolID    int64  `json:"schoolID" binding:"omitempty,min=1"`
+	SchoolCode  string `json:"schoolCode" binding:"required,numeric,len=10"`
 	Email       string `json:"email" binding:"omitempty,max=320"`
 	StudentID   string `json:"studentID" binding:"omitempty,max=50"`
 	StudentName string `json:"studentName" binding:"omitempty,max=80"`
@@ -175,8 +176,7 @@ type studentEmailAcademicMatchHTTPRequest struct {
 }
 
 type studentEmailOTPVerifyHTTPRequest struct {
-	SchoolCode string `json:"schoolCode" binding:"omitempty,numeric,len=10"`
-	SchoolID   int64  `json:"schoolID" binding:"omitempty,min=1"`
+	SchoolCode string `json:"schoolCode" binding:"required,numeric,len=10"`
 	Email      string `json:"email" binding:"omitempty,max=320"`
 	Code       string `json:"code" binding:"required,min=4,max=12"`
 	Consent    bool   `json:"consent"`
@@ -189,11 +189,10 @@ func (h *Handler) handleVerifyStudent(c *gin.Context) {
 	}
 
 	var req verifyStudentHTTPRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request parameters")
+	if !bindPublicSchoolCodeJSON(c, &req) {
 		return
 	}
-	schoolID, ok := h.resolvePublicSchoolID(c, req.SchoolCode, req.SchoolID)
+	schoolID, ok := h.resolvePublicSchoolID(c, req.SchoolCode)
 	if !ok {
 		return
 	}
@@ -224,11 +223,10 @@ func (h *Handler) handleMatchStudentEmailAcademicStudent(c *gin.Context) {
 	}
 
 	var req studentEmailAcademicMatchHTTPRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request parameters")
+	if !bindPublicSchoolCodeJSON(c, &req) {
 		return
 	}
-	schoolID, ok := h.resolvePublicSchoolID(c, req.SchoolCode, 0)
+	schoolID, ok := h.resolvePublicSchoolID(c, req.SchoolCode)
 	if !ok {
 		return
 	}
@@ -256,11 +254,10 @@ func (h *Handler) handleRequestStudentEmailOTP(c *gin.Context) {
 	}
 
 	var req studentEmailOTPHTTPRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request parameters")
+	if !bindPublicSchoolCodeJSON(c, &req) {
 		return
 	}
-	schoolID, ok := h.resolvePublicSchoolID(c, req.SchoolCode, req.SchoolID)
+	schoolID, ok := h.resolvePublicSchoolID(c, req.SchoolCode)
 	if !ok {
 		return
 	}
@@ -289,11 +286,10 @@ func (h *Handler) handleVerifyStudentEmailOTP(c *gin.Context) {
 	}
 
 	var req studentEmailOTPVerifyHTTPRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request parameters")
+	if !bindPublicSchoolCodeJSON(c, &req) {
 		return
 	}
-	schoolID, ok := h.resolvePublicSchoolID(c, req.SchoolCode, req.SchoolID)
+	schoolID, ok := h.resolvePublicSchoolID(c, req.SchoolCode)
 	if !ok {
 		return
 	}
@@ -315,7 +311,7 @@ func (h *Handler) handleVerifyStudentEmailOTP(c *gin.Context) {
 	response.Success(c, profileToJSON(profile))
 }
 
-func (h *Handler) resolvePublicSchoolID(c *gin.Context, schoolCode string, schoolID int64) (int64, bool) {
+func (h *Handler) resolvePublicSchoolID(c *gin.Context, schoolCode string) (int64, bool) {
 	code := strings.TrimSpace(schoolCode)
 	if code == "" {
 		response.BadRequest(c, "schoolCode is required")
@@ -330,11 +326,30 @@ func (h *Handler) resolvePublicSchoolID(c *gin.Context, schoolCode string, schoo
 		response.InternalError(c, "failed to resolve school")
 		return 0, false
 	}
-	if schoolID > 0 && schoolID != resolvedSchoolID {
-		response.BadRequest(c, "schoolCode and schoolID mismatch")
-		return 0, false
-	}
 	return resolvedSchoolID, true
+}
+
+func bindPublicSchoolCodeJSON(c *gin.Context, target any) bool {
+	raw, err := c.GetRawData()
+	if err != nil {
+		response.BadRequest(c, "invalid request parameters")
+		return false
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		response.BadRequest(c, "invalid request parameters")
+		return false
+	}
+	if _, ok := fields["schoolID"]; ok {
+		response.BadRequest(c, "schoolID is not accepted; use schoolCode")
+		return false
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(raw))
+	if err := c.ShouldBindJSON(target); err != nil {
+		response.BadRequest(c, "invalid request parameters")
+		return false
+	}
+	return true
 }
 
 type bindPhoneHTTPRequest struct {

@@ -48,7 +48,7 @@ const identity = {
 
 const profile = {
   userID: 42,
-  schoolID: 1001,
+  schoolID: 4111010006,
   studentIDs: ['20260001'],
   activeStudentID: '20260001',
   verificationStatus: 'verified',
@@ -170,7 +170,7 @@ describe('useVerificationStore', () => {
       data: {
         data: [
           {
-            schoolID: 1001,
+            schoolID: 4111010006,
             schoolName: '测试大学',
             verificationMethod: 'manual',
             manualFormFields: [

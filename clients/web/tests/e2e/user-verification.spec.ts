@@ -65,7 +65,7 @@ const unverifiedProfile = {
 
 const verifiedProfile = {
     ...unverifiedProfile,
-    schoolID: 1001,
+    schoolID: 4111010006,
     studentIDs: ["20260001"],
     activeStudentID: "20260001",
     verificationStatus: "verified",
@@ -75,7 +75,7 @@ const verifiedProfile = {
 
 const rejectedProfile = {
     ...unverifiedProfile,
-    schoolID: 1001,
+    schoolID: 4111010006,
     studentIDs: [],
     activeStudentID: null,
     verificationStatus: "rejected",
@@ -86,7 +86,7 @@ const rejectedProfile = {
 
 const schools = [
     {
-        schoolID: 1001,
+        schoolID: 4111010006,
         schoolCode: "4111010001",
         schoolName: "测试大学",
         verificationMethod: "ldap",
@@ -97,7 +97,7 @@ const schools = [
         schoolEmailOtpEnabled: false,
     },
     {
-        schoolID: 1002,
+        schoolID: 4111010001,
         schoolCode: "4111010002",
         schoolName: "人工审核大学",
         verificationMethod: "manual",
@@ -647,7 +647,7 @@ test.describe("User verification flows", () => {
             manualBody = body;
             state.profile = {
                 ...unverifiedProfile,
-                schoolID: 1002,
+                schoolID: 4111010001,
                 verificationStatus: "pending",
                 verificationMethod: "manual",
                 consentGivenAt: now,

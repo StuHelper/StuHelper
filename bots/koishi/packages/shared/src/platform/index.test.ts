@@ -333,7 +333,7 @@ function freshmanApplication(id: string) {
   return {
     id,
     userID: 42,
-    schoolID: 1,
+    schoolID: 4111010006,
     status: 'pending',
     applicantNameMasked: 'A***',
     materialType: 'admission_notice',

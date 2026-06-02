@@ -1,8 +1,11 @@
 package admission
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -14,8 +17,7 @@ import (
 )
 
 type freshmanApplicationCreateHTTPRequest struct {
-	SchoolCode         string               `json:"schoolCode" binding:"omitempty,numeric,len=10"`
-	SchoolID           int64                `json:"schoolID" binding:"omitempty,min=1"`
+	SchoolCode         string               `json:"schoolCode" binding:"required,numeric,len=10"`
 	AdmissionSessionID string               `json:"admissionSessionID"`
 	ApplicantName      string               `json:"applicantName" binding:"required"`
 	DepartmentOrMajor  *string              `json:"departmentOrMajor"`
@@ -32,8 +34,7 @@ type cameraHandoffContinuationHTTPRequest struct {
 }
 
 type schoolEmailOTPHTTPRequest struct {
-	SchoolCode         string `json:"schoolCode" binding:"omitempty,numeric,len=10"`
-	SchoolID           int64  `json:"schoolID" binding:"omitempty"`
+	SchoolCode         string `json:"schoolCode" binding:"required,numeric,len=10"`
 	AdmissionSessionID string `json:"admissionSessionID"`
 	Email              string `json:"email"`
 	StudentID          string `json:"studentID"`
@@ -48,8 +49,7 @@ type schoolEmailAcademicMatchHTTPRequest struct {
 }
 
 type schoolEmailOTPVerifyHTTPRequest struct {
-	SchoolCode         string `json:"schoolCode" binding:"omitempty,numeric,len=10"`
-	SchoolID           int64  `json:"schoolID" binding:"omitempty"`
+	SchoolCode         string `json:"schoolCode" binding:"required,numeric,len=10"`
 	AdmissionSessionID string `json:"admissionSessionID"`
 	Email              string `json:"email" binding:"required"`
 	Code               string `json:"code" binding:"required"`
@@ -108,11 +108,10 @@ func (h *Handler) handleCreateFreshmanApplication(c *gin.Context) {
 		return
 	}
 	var req freshmanApplicationCreateHTTPRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request parameters")
+	if !bindAdmissionSchoolCodeJSON(c, &req) {
 		return
 	}
-	schoolID, ok := h.resolveAdmissionRequestSchoolID(c, req.SchoolCode, req.SchoolID)
+	schoolID, ok := h.resolveAdmissionRequestSchoolID(c, req.SchoolCode)
 	if !ok {
 		return
 	}
@@ -335,11 +334,10 @@ func (h *Handler) handleRequestSchoolEmailOTP(c *gin.Context) {
 		return
 	}
 	var req schoolEmailOTPHTTPRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request parameters")
+	if !bindAdmissionSchoolCodeJSON(c, &req) {
 		return
 	}
-	schoolID, ok := h.resolveAdmissionRequestSchoolID(c, req.SchoolCode, req.SchoolID)
+	schoolID, ok := h.resolveAdmissionRequestSchoolID(c, req.SchoolCode)
 	if !ok {
 		return
 	}
@@ -357,11 +355,10 @@ func (h *Handler) handleMatchSchoolEmailAcademicStudent(c *gin.Context) {
 		return
 	}
 	var req schoolEmailAcademicMatchHTTPRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request parameters")
+	if !bindAdmissionSchoolCodeJSON(c, &req) {
 		return
 	}
-	schoolID, ok := h.resolveAdmissionRequestSchoolID(c, req.SchoolCode, 0)
+	schoolID, ok := h.resolveAdmissionRequestSchoolID(c, req.SchoolCode)
 	if !ok {
 		return
 	}
@@ -385,11 +382,10 @@ func (h *Handler) handleVerifySchoolEmailOTP(c *gin.Context) {
 		return
 	}
 	var req schoolEmailOTPVerifyHTTPRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request parameters")
+	if !bindAdmissionSchoolCodeJSON(c, &req) {
 		return
 	}
-	schoolID, ok := h.resolveAdmissionRequestSchoolID(c, req.SchoolCode, req.SchoolID)
+	schoolID, ok := h.resolveAdmissionRequestSchoolID(c, req.SchoolCode)
 	if !ok {
 		return
 	}
@@ -454,11 +450,11 @@ func (h *Handler) resolveAdmissionUserAndSchool(c *gin.Context) (int64, int64, b
 	if !ok {
 		return 0, 0, false
 	}
-	schoolID, ok := h.resolveAdmissionRequestSchoolID(c, c.Param("schoolCode"), 0)
+	schoolID, ok := h.resolveAdmissionRequestSchoolID(c, c.Param("schoolCode"))
 	return userID, schoolID, ok
 }
 
-func (h *Handler) resolveAdmissionRequestSchoolID(c *gin.Context, schoolCode string, schoolID int64) (int64, bool) {
+func (h *Handler) resolveAdmissionRequestSchoolID(c *gin.Context, schoolCode string) (int64, bool) {
 	code := strings.TrimSpace(schoolCode)
 	if code == "" {
 		response.BadRequest(c, "schoolCode is required")
@@ -469,11 +465,30 @@ func (h *Handler) resolveAdmissionRequestSchoolID(c *gin.Context, schoolCode str
 		respondAdmissionError(c, err)
 		return 0, false
 	}
-	if schoolID > 0 && schoolID != resolvedSchoolID {
-		response.BadRequest(c, "schoolCode and schoolID mismatch")
-		return 0, false
-	}
 	return resolvedSchoolID, true
+}
+
+func bindAdmissionSchoolCodeJSON(c *gin.Context, target any) bool {
+	raw, err := c.GetRawData()
+	if err != nil {
+		response.BadRequest(c, "invalid request parameters")
+		return false
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		response.BadRequest(c, "invalid request parameters")
+		return false
+	}
+	if _, ok := fields["schoolID"]; ok {
+		response.BadRequest(c, "schoolID is not accepted; use schoolCode")
+		return false
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(raw))
+	if err := c.ShouldBindJSON(target); err != nil {
+		response.BadRequest(c, "invalid request parameters")
+		return false
+	}
+	return true
 }
 
 func freshmanApplicationCreateInput(

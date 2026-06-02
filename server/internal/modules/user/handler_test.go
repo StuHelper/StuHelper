@@ -589,7 +589,7 @@ func TestHandleVerifyStudent_RejectsSchoolIDOnlyPublicRequest(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "schoolCode is required")
+	assert.Contains(t, w.Body.String(), "schoolID is not accepted; use schoolCode")
 }
 
 func TestPublicStudentVerificationEndpointsRequireSchoolCode(t *testing.T) {
@@ -601,17 +601,22 @@ func TestPublicStudentVerificationEndpointsRequireSchoolCode(t *testing.T) {
 		{
 			name: "manual verification",
 			path: "/api/v1/user/profile/verify",
-			body: `{"schoolID":4111010006,"manualFormData":{"studentID":"20240001"},"consent":true}`,
+			body: `{"manualFormData":{"studentID":"20240001"},"consent":true}`,
 		},
 		{
 			name: "request school email otp",
 			path: "/api/v1/user/profile/school-email/request-otp",
-			body: `{"schoolID":4111010006,"studentID":"20240001","studentName":"张三"}`,
+			body: `{"studentID":"20240001","studentName":"张三"}`,
+		},
+		{
+			name: "match school email academic student",
+			path: "/api/v1/user/profile/school-email/academic-match",
+			body: `{"studentID":"20240001","studentName":"张三"}`,
 		},
 		{
 			name: "verify school email otp",
 			path: "/api/v1/user/profile/school-email/verify-otp",
-			body: `{"schoolID":4111010006,"email":"20240001@buaa.edu.cn","code":"123456","consent":true}`,
+			body: `{"email":"20240001@buaa.edu.cn","code":"123456","consent":true}`,
 		},
 	}
 
@@ -622,7 +627,7 @@ func TestPublicStudentVerificationEndpointsRequireSchoolCode(t *testing.T) {
 					return 42, nil
 				},
 				onListSchoolConfigs: func(context.Context) ([]SchoolConfig, error) {
-					t.Fatal("schoolID-only public request must fail before school lookup")
+					t.Fatal("missing schoolCode public request must fail before school lookup")
 					return nil, nil
 				},
 			}
@@ -635,12 +640,12 @@ func TestPublicStudentVerificationEndpointsRequireSchoolCode(t *testing.T) {
 			r.ServeHTTP(w, req)
 
 			require.Equal(t, http.StatusBadRequest, w.Code)
-			assert.Contains(t, w.Body.String(), "schoolCode is required")
+			assert.Contains(t, w.Body.String(), "invalid request parameters")
 		})
 	}
 }
 
-func TestPublicStudentVerificationEndpointsRejectSchoolCodeSchoolIDMismatch(t *testing.T) {
+func TestPublicStudentVerificationEndpointsRejectSchoolIDFieldEvenWithSchoolCode(t *testing.T) {
 	cases := []struct {
 		name string
 		path string
@@ -657,6 +662,11 @@ func TestPublicStudentVerificationEndpointsRejectSchoolCodeSchoolIDMismatch(t *t
 			body: `{"schoolCode":"4111010006","schoolID":4111019999,"studentID":"20240001","studentName":"张三"}`,
 		},
 		{
+			name: "match school email academic student",
+			path: "/api/v1/user/profile/school-email/academic-match",
+			body: `{"schoolCode":"4111010006","schoolID":4111019999,"studentID":"20240001","studentName":"张三"}`,
+		},
+		{
 			name: "verify school email otp",
 			path: "/api/v1/user/profile/school-email/verify-otp",
 			body: `{"schoolCode":"4111010006","schoolID":4111019999,"email":"20240001@buaa.edu.cn","code":"123456","consent":true}`,
@@ -670,15 +680,11 @@ func TestPublicStudentVerificationEndpointsRejectSchoolCodeSchoolIDMismatch(t *t
 					return 42, nil
 				},
 				onListSchoolConfigs: func(context.Context) ([]SchoolConfig, error) {
-					return []SchoolConfig{{
-						SchoolID:   4111010006,
-						SchoolCode: "4111010006",
-						SchoolName: "北京航空航天大学",
-						Enabled:    true,
-					}}, nil
+					t.Fatal("schoolID field must fail before school lookup")
+					return nil, nil
 				},
 				onGetSchoolConfig: func(context.Context, int64) (*SchoolConfig, error) {
-					t.Fatal("schoolCode/schoolID mismatch must fail before verification service")
+					t.Fatal("schoolID field must fail before verification service")
 					return nil, nil
 				},
 			}
@@ -691,7 +697,7 @@ func TestPublicStudentVerificationEndpointsRejectSchoolCodeSchoolIDMismatch(t *t
 			r.ServeHTTP(w, req)
 
 			require.Equal(t, http.StatusBadRequest, w.Code)
-			assert.Contains(t, w.Body.String(), "schoolCode and schoolID mismatch")
+			assert.Contains(t, w.Body.String(), "schoolID is not accepted; use schoolCode")
 		})
 	}
 }

@@ -3935,12 +3935,6 @@ export interface components {
         SubmitStudentVerificationRequest: {
             /** @description 教育部学校标识码；公开学生认证请求必须以此字段识别学校。 */
             schoolCode: string;
-            /**
-             * Format: int64
-             * @deprecated
-             * @description StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
-             */
-            schoolID?: number;
             studentID?: string;
             password?: string;
             /** @description manual 模式动态表单提交数据 */
@@ -3952,12 +3946,6 @@ export interface components {
         StudentEmailOTPRequest: {
             /** @description 教育部学校标识码；公开学校邮箱 OTP 请求必须以此字段识别学校。 */
             schoolCode: string;
-            /**
-             * Format: int64
-             * @deprecated
-             * @description StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
-             */
-            schoolID?: number;
             /**
              * Format: email
              * @description 普通学校邮箱 OTP 可直接提交邮箱；配置学籍邮箱策略时由后端按学号派生并校验不可篡改
@@ -3971,12 +3959,6 @@ export interface components {
         StudentEmailOTPVerifyRequest: {
             /** @description 教育部学校标识码；公开学校邮箱 OTP 校验请求必须以此字段识别学校。 */
             schoolCode: string;
-            /**
-             * Format: int64
-             * @deprecated
-             * @description StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
-             */
-            schoolID?: number;
             /** Format: email */
             email?: string;
             code: string;
@@ -4495,12 +4477,6 @@ export interface components {
         SchoolEmailOTPRequest: {
             /** @description 教育部学校标识码；公开 admission 学校邮箱 OTP 请求必须以此字段识别学校。 */
             schoolCode: string;
-            /**
-             * Format: int64
-             * @deprecated
-             * @description StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
-             */
-            schoolID?: number;
             /** @description 当前 Join 页面绑定的 admission session ID；用于多群/多会话时校验 OTP 请求属于当前页面 session。 */
             admissionSessionID?: string;
             /**
@@ -4516,12 +4492,6 @@ export interface components {
         SchoolEmailOTPVerifyRequest: {
             /** @description 教育部学校标识码；公开 admission 学校邮箱 OTP 校验请求必须以此字段识别学校。 */
             schoolCode: string;
-            /**
-             * Format: int64
-             * @deprecated
-             * @description StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
-             */
-            schoolID?: number;
             /** @description 当前 Join 页面绑定的 admission session ID；用于多群/多会话时返回当前页面 session 的 admission 状态。 */
             admissionSessionID?: string;
             /** Format: email */
@@ -10046,12 +10016,6 @@ export interface operations {
                 "application/json": {
                     /** @description 教育部学校标识码；公开新生材料申请必须以此字段识别学校。 */
                     schoolCode: string;
-                    /**
-                     * Format: int64
-                     * @deprecated
-                     * @description StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
-                     */
-                    schoolID?: number;
                     /** @description 当前 Join 页面绑定的 admission session ID；用于多群/多会话时把新生申请绑定到当前页面 session。 */
                     admissionSessionID?: string;
                     applicantName: string;

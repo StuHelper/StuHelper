@@ -23,7 +23,7 @@ vi.mock('../api', () => ({
 
 const schools: AdmissionSchoolOption[] = [
   {
-    schoolID: 1,
+    schoolID: 4111010006,
     schoolCode: '4111010006',
     schoolName: '已接入大学',
     verificationMethod: 'ldap',
@@ -32,7 +32,7 @@ const schools: AdmissionSchoolOption[] = [
     schoolEmailOtpEnabled: true,
   },
   {
-    schoolID: 2,
+    schoolID: 4111010001,
     schoolCode: '4111010002',
     schoolName: '未接入大学',
     verificationMethod: 'manual',

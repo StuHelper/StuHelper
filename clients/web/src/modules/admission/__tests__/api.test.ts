@@ -50,7 +50,7 @@ const session = {
 const application = {
   id: 'application-1',
   userID: 'user-1',
-  schoolID: 1001,
+  schoolID: 4111010006,
   admissionSessionID: 'session-1',
   applicantName: '张三',
   applicantNameMasked: '张*',

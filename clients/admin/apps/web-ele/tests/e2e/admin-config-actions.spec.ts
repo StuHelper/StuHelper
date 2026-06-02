@@ -29,7 +29,7 @@ const adminUser = {
 };
 
 const schoolConfig = {
-  schoolID: 1001,
+  schoolID: 4111010006,
   schoolName: '测试大学',
   verificationMethod: 'ldap',
   enabled: true,
@@ -173,7 +173,7 @@ test.describe('Admin configuration actions', () => {
     await expect
       .poll(() => capturedMutations)
       .toContainEqual({
-        path: '/api/v1/admin/school-configs/1001',
+        path: '/api/v1/admin/school-configs/4111010006',
         method: 'PUT',
         body: {
           academicDbTable: 'academic_records_new',

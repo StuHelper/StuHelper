@@ -89,7 +89,7 @@ const stats = {
 };
 
 const schoolConfig = {
-  schoolID: 1001,
+  schoolID: 4111010006,
   schoolName: '只读大学',
   verificationMethod: 'ldap',
   enabled: true,

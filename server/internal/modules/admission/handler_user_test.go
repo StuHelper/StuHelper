@@ -122,6 +122,54 @@ func TestFreshmanApplicationHandlerReusesPendingApplicationOnDuplicatePost(t *te
 	assert.Equal(t, "pending", secondBody.Data.Status)
 }
 
+func TestAdmissionPublicSchoolRequestsRejectSchoolIDField(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	userID := seedAdmissionUser(t, fixture, "handler-school-id-rejected")
+	router := newAdmissionHandlerTestRouter(t, svc, userID)
+
+	cases := []struct {
+		name string
+		path string
+		body string
+	}{
+		{
+			name: "freshman application",
+			path: "/api/v1/admission/freshman/applications",
+			body: `{"schoolCode":"4111010006","schoolID":4111019999,"applicantName":"张三","materialType":"admission_notice"}`,
+		},
+		{
+			name: "request school email otp",
+			path: "/api/v1/admission/school-email/request-otp",
+			body: `{"schoolCode":"4111010006","schoolID":4111019999,"studentID":"20240001","studentName":"张三"}`,
+		},
+		{
+			name: "match school email academic student",
+			path: "/api/v1/admission/school-email/academic-match",
+			body: `{"schoolCode":"4111010006","schoolID":4111019999,"studentID":"20240001","studentName":"张三"}`,
+		},
+		{
+			name: "verify school email otp",
+			path: "/api/v1/admission/school-email/verify-otp",
+			body: `{"schoolCode":"4111010006","schoolID":4111019999,"email":"20240001@buaa.edu.cn","code":"123456"}`,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			response := performAdmissionHandlerJSONRequest(
+				router,
+				http.MethodPost,
+				tt.path,
+				tt.body,
+			)
+			require.Equal(t, http.StatusBadRequest, response.Code, response.Body.String())
+			assert.Contains(t, response.Body.String(), "schoolID is not accepted; use schoolCode")
+		})
+	}
+}
+
 func newAdmissionHandlerTestRouter(t *testing.T, svc *Service, userID int64) *gin.Engine {
 	t.Helper()
 

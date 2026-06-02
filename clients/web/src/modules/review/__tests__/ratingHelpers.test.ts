@@ -46,7 +46,7 @@ describe('rating dimension helpers', () => {
   it('localizes API-provided rating dimensions without mutating input', () => {
     const dimension = {
       id: 'dim-1',
-      schoolID: 1,
+      schoolID: 4111010006,
       key: 'difficulty',
       name: 'Difficulty',
       description: 'Raw difficulty description',

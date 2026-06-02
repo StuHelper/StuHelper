@@ -12,7 +12,7 @@ import {
 
 const course = {
   id: 1,
-  schoolID: 1,
+  schoolID: 4111010006,
   departmentID: 1,
   departmentName: '计算机科学与技术学院',
   code: 'CS101',
@@ -25,7 +25,7 @@ const course = {
 
 const department = {
   id: 1,
-  schoolID: 1,
+  schoolID: 4111010006,
   name: '计算机科学与技术学院',
   shortName: '计算机学院',
   category: 'engineering',
@@ -34,7 +34,7 @@ const department = {
 
 const term = {
   id: '2026-spring',
-  schoolID: 1,
+  schoolID: 4111010006,
   name: '2026 春',
   isCurrent: true,
 }

@@ -39,7 +39,7 @@ async function mockUnauthenticated(page: Page) {
 function course(overrides: Record<string, unknown> = {}) {
   return {
     id: 77,
-    schoolID: 1,
+    schoolID: 4111010006,
     departmentID: 1,
     departmentName: '数学科学学院',
     code: 'MATH077',

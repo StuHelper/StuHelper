@@ -36,7 +36,7 @@ const adminUser = {
 const studentVerifications = [
   {
     userID: 21,
-    schoolID: 1001,
+    schoolID: 4111010006,
     activeStudentID: '20260021',
     verificationStatus: 'pending',
     verificationMethod: 'manual',
@@ -45,7 +45,7 @@ const studentVerifications = [
   },
   {
     userID: 22,
-    schoolID: 1001,
+    schoolID: 4111010006,
     activeStudentID: '20260022',
     verificationStatus: 'pending',
     verificationMethod: 'manual',
@@ -57,7 +57,7 @@ const studentVerifications = [
 const freshmanApplication = {
   id: 'freshman-action-1',
   status: 'pending',
-  schoolID: 1001,
+  schoolID: 4111010006,
   qqID: '20001',
   applicantNameMasked: '王*',
   materialURL: 'https://example.com/material.jpg',

@@ -68,7 +68,7 @@ const schools: SchoolConfig[] = [
     createdAt: '2026-06-03T00:00:00Z',
     enabled: true,
     schoolCode: '4111010006',
-    schoolID: 1,
+    schoolID: 4111010006,
     schoolName: '北京航空航天大学',
     verificationMethod: 'manual',
   },
@@ -77,7 +77,7 @@ const schools: SchoolConfig[] = [
     createdAt: '2026-06-03T00:00:00Z',
     enabled: false,
     schoolCode: '4111010001',
-    schoolID: 2,
+    schoolID: 4111010001,
     schoolName: '北京大学',
     verificationMethod: 'manual',
   },
@@ -139,7 +139,7 @@ describe('school config directory view', () => {
     };
     await vm.handleToggleEnabled(vm.schools[1]!, true);
 
-    expect(apiMocks.updateSchoolConfig).toHaveBeenCalledWith(2, {
+    expect(apiMocks.updateSchoolConfig).toHaveBeenCalledWith(4111010001, {
       enabled: true,
     });
     expect(vm.schools[1]!.enabled).toBe(true);

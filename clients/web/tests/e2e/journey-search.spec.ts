@@ -33,7 +33,7 @@ function term(id: string, name: string, isCurrent = false) {
 function course(overrides: Record<string, unknown> = {}) {
   return {
     id: 101,
-    schoolID: 1,
+    schoolID: 4111010006,
     departmentID: 1,
     departmentName: '计算机科学与技术学院',
     code: 'CS201',

@@ -281,12 +281,6 @@ SubmitStudentVerificationRequest:
       type: string
       pattern: '^[0-9]{10}$'
       description: 教育部学校标识码；公开学生认证请求必须以此字段识别学校。
-    schoolID:
-      type: integer
-      format: int64
-      minimum: 1
-      deprecated: true
-      description: StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
     studentID:
       type: string
     password:
@@ -309,12 +303,6 @@ StudentEmailOTPRequest:
       type: string
       pattern: '^[0-9]{10}$'
       description: 教育部学校标识码；公开学校邮箱 OTP 请求必须以此字段识别学校。
-    schoolID:
-      type: integer
-      format: int64
-      minimum: 1
-      deprecated: true
-      description: StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
     email:
       type: string
       format: email
@@ -367,12 +355,6 @@ StudentEmailOTPVerifyRequest:
       type: string
       pattern: '^[0-9]{10}$'
       description: 教育部学校标识码；公开学校邮箱 OTP 校验请求必须以此字段识别学校。
-    schoolID:
-      type: integer
-      format: int64
-      minimum: 1
-      deprecated: true
-      description: StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
     email:
       type: string
       format: email

@@ -30,7 +30,7 @@ vi.mock("qrcode", () => ({
 const freshmanApplication = {
     id: "application-1",
     userID: "42",
-    schoolID: 1001,
+    schoolID: 4111010006,
     applicantNameMasked: "张*",
     materialType: "admission_notice",
     status: "pending",
@@ -117,7 +117,7 @@ describe("FreshmanCameraFlow material capture UI", () => {
                 maxMaterialBytes: 1024,
                 schools: [
                     {
-                        schoolID: 1001,
+                        schoolID: 4111010006,
                         schoolCode: "4111010006",
                         schoolName: "测试大学",
                         verificationMethod: "manual",
@@ -189,7 +189,7 @@ describe("FreshmanCameraFlow material capture UI", () => {
                     maxMaterialBytes: 1024,
                     schools: [
                         {
-                            schoolID: 1001,
+                            schoolID: 4111010006,
                             schoolCode: "4111010006",
                             schoolName: "北京航空航天大学",
                             verificationMethod: "manual",
@@ -311,7 +311,7 @@ describe("FreshmanCameraFlow material capture UI", () => {
                     maxMaterialBytes: 1024,
                     schools: [
                         {
-                            schoolID: 1001,
+                            schoolID: 4111010006,
                             schoolCode: "4111010006",
                             schoolName: "北京航空航天大学",
                             verificationMethod: "manual",
@@ -383,7 +383,7 @@ describe("FreshmanCameraFlow material capture UI", () => {
                 maxMaterialBytes: 1024,
                 schools: [
                     {
-                        schoolID: 1001,
+                        schoolID: 4111010006,
                         schoolCode: "4111010006",
                         schoolName: "北京航空航天大学",
                         verificationMethod: "manual",
@@ -470,7 +470,7 @@ describe("FreshmanCameraFlow material capture UI", () => {
                 maxMaterialBytes: 1024,
                 schools: [
                     {
-                        schoolID: 1001,
+                        schoolID: 4111010006,
                         schoolCode: "4111010006",
                         schoolName: "北京航空航天大学",
                         verificationMethod: "manual",
@@ -588,7 +588,7 @@ describe("FreshmanCameraFlow material capture UI", () => {
                     maxMaterialBytes: 1024,
                     schools: [
                         {
-                            schoolID: 1001,
+                            schoolID: 4111010006,
                             schoolCode: "4111010006",
                             schoolName: "北京航空航天大学",
                             verificationMethod: "manual",
@@ -770,7 +770,7 @@ describe("FreshmanCameraFlow material capture UI", () => {
                     maxMaterialBytes: 1024,
                     schools: [
                         {
-                            schoolID: 1001,
+                            schoolID: 4111010006,
                             schoolCode: "4111010006",
                             schoolName: "北京航空航天大学",
                             verificationMethod: "manual",
@@ -872,7 +872,7 @@ describe("FreshmanCameraFlow material capture UI", () => {
                 maxMaterialBytes: 1024,
                 schools: [
                     {
-                        schoolID: 1001,
+                        schoolID: 4111010006,
                         schoolCode: "4111010006",
                         schoolName: "北京航空航天大学",
                         verificationMethod: "manual",
@@ -961,7 +961,7 @@ describe("FreshmanCameraFlow material capture UI", () => {
                     maxMaterialBytes: 1024,
                     schools: [
                         {
-                            schoolID: 1001,
+                            schoolID: 4111010006,
                             schoolCode: "4111010006",
                             schoolName: "北京航空航天大学",
                             verificationMethod: "manual",
@@ -1046,7 +1046,7 @@ describe("FreshmanCameraFlow material capture UI", () => {
                     maxMaterialBytes: 1024,
                     schools: [
                         {
-                            schoolID: 1001,
+                            schoolID: 4111010006,
                             schoolCode: "4111010006",
                             schoolName: "北京航空航天大学",
                             verificationMethod: "manual",

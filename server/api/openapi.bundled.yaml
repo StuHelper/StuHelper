@@ -6283,11 +6283,6 @@ paths:
                   type: string
                   pattern: ^[0-9]{10}$
                   description: 教育部学校标识码；公开新生材料申请必须以此字段识别学校。
-                schoolID:
-                  type: integer
-                  format: int64
-                  deprecated: true
-                  description: StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
                 admissionSessionID:
                   type: string
                   description: 当前 Join 页面绑定的 admission session ID；用于多群/多会话时把新生申请绑定到当前页面 session。
@@ -9918,12 +9913,6 @@ components:
           type: string
           pattern: ^[0-9]{10}$
           description: 教育部学校标识码；公开学生认证请求必须以此字段识别学校。
-        schoolID:
-          type: integer
-          format: int64
-          minimum: 1
-          deprecated: true
-          description: StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
         studentID:
           type: string
         password:
@@ -9946,12 +9935,6 @@ components:
           type: string
           pattern: ^[0-9]{10}$
           description: 教育部学校标识码；公开学校邮箱 OTP 请求必须以此字段识别学校。
-        schoolID:
-          type: integer
-          format: int64
-          minimum: 1
-          deprecated: true
-          description: StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
         email:
           type: string
           format: email
@@ -9973,12 +9956,6 @@ components:
           type: string
           pattern: ^[0-9]{10}$
           description: 教育部学校标识码；公开学校邮箱 OTP 校验请求必须以此字段识别学校。
-        schoolID:
-          type: integer
-          format: int64
-          minimum: 1
-          deprecated: true
-          description: StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
         email:
           type: string
           format: email
@@ -11185,11 +11162,6 @@ components:
           type: string
           pattern: ^[0-9]{10}$
           description: 教育部学校标识码；公开 admission 学校邮箱 OTP 请求必须以此字段识别学校。
-        schoolID:
-          type: integer
-          format: int64
-          deprecated: true
-          description: StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
         admissionSessionID:
           type: string
           description: 当前 Join 页面绑定的 admission session ID；用于多群/多会话时校验 OTP 请求属于当前页面 session。
@@ -11214,11 +11186,6 @@ components:
           type: string
           pattern: ^[0-9]{10}$
           description: 教育部学校标识码；公开 admission 学校邮箱 OTP 校验请求必须以此字段识别学校。
-        schoolID:
-          type: integer
-          format: int64
-          deprecated: true
-          description: StuHelper 内部学校主键，仅保留给内部兼容路径；公开请求请使用 schoolCode。
         admissionSessionID:
           type: string
           description: 当前 Join 页面绑定的 admission session ID；用于多群/多会话时返回当前页面 session 的 admission 状态。

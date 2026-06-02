@@ -73,7 +73,7 @@ async function mockAuth(page: Page) {
             contentType: "application/json",
             body: JSON.stringify({
                 success: true,
-                data: { verificationStatus: "verified", schoolID: 1 },
+                data: { verificationStatus: "verified", schoolID: 4111010006 },
             }),
         }),
     );
@@ -109,7 +109,7 @@ function requireRecord(
 function ratingDimension(key: string, name: string, sortOrder: number) {
     return {
         id: `dim-${key}`,
-        schoolID: 1,
+        schoolID: 4111010006,
         key,
         name,
         description: "",
@@ -127,7 +127,7 @@ function term(id: string, name: string, isCurrent = true) {
 function course(overrides: Record<string, unknown> = {}) {
     return {
         id: 1,
-        schoolID: 1,
+        schoolID: 4111010006,
         departmentID: 1,
         departmentName: "数学系",
         code: "MATH101",

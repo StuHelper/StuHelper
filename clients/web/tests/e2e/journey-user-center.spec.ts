@@ -101,7 +101,7 @@ async function mockAuth(page: Page, authUser = user) {
         data: {
           userID: 12,
           verificationStatus: 'verified',
-          schoolID: 1001,
+          schoolID: 4111010006,
           studentIDs: ['20260001'],
           activeStudentID: '20260001',
           verificationMethod: 'manual',
