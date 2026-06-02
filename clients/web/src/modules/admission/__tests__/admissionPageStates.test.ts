@@ -103,6 +103,52 @@ describe('AdmissionPage edge states', () => {
     expect(wrapper.find('[data-school-email-otp-form]').exists()).toBe(false)
   })
 
+  it('shows admission progress and the link deadline before account binding', async () => {
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('joined_muted'),
+    )
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.find('[data-admission-progress]').exists()).toBe(true)
+    expect(wrapper.find('[data-admission-progress-current]').text()).toContain('账号绑定')
+    expect(wrapper.find('[data-admission-active-deadline]').text()).toContain('绑定账号截止')
+    expect(wrapper.find('[data-admission-mute-deadline]').text()).toContain(
+      '学生认证通过后会提前解除',
+    )
+  })
+
+  it('shows admission progress and the submission deadline after account binding', async () => {
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('linked'),
+    )
+    mockAdmissionApi.getAdmissionMe.mockResolvedValueOnce({
+      projectionPending: false,
+      session: sessionWithStatus('linked'),
+      status: 'linked',
+    })
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.find('[data-admission-progress-current]').text()).toContain('学生认证')
+    expect(wrapper.find('[data-admission-active-deadline]').text()).toContain('提交认证截止')
+  })
+
+  it('shows the manual review deadline while waiting for freshman review', async () => {
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce({
+      ...sessionWithStatus('material_submitted'),
+      manualReviewDeadlineAt: '2026-05-06T00:00:00Z',
+    })
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.find('[data-admission-progress-current]').text()).toContain('审核同步')
+    expect(wrapper.find('[data-admission-active-deadline]').text()).toContain('审核处理截止')
+  })
+
   it('shows an expired-link state for missing admission tokens', async () => {
     mockAdmissionApi.getAdmissionSession.mockRejectedValueOnce(
       { code: 'admission.session_not_found', message: 'missing' },

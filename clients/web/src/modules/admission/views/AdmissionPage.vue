@@ -9,6 +9,11 @@
         </p>
       </header>
       <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <AdmissionProgress
+          :page-state="pageState"
+          :session="session"
+        />
+
         <div v-if="pageState === 'loading'" data-state="loading">
           <p class="text-sm text-slate-600">正在校验链接...</p>
         </div>
@@ -197,6 +202,7 @@ import {
 } from '../oldStudentAdmission'
 import { waitForAdmissionProjection } from '../projectionRefresh'
 import FreshmanCameraFlow from './FreshmanCameraFlow.vue'
+import AdmissionProgress from './AdmissionProgress.vue'
 import OldStudentVerificationFlow from './OldStudentVerificationFlow.vue'
 import ProjectionPendingNotice from './ProjectionPendingNotice.vue'
 
