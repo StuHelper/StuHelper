@@ -55,7 +55,7 @@ vi.mock('@/composables/useToast', () => ({
 }))
 
 vi.mock('@/utils/redirect', () => ({
-  identityPortalURL: (path: string) => `https://stuhelper.com${path}`,
+  accountCenterURL: (path: string) => `https://stuhelper.com${path}`,
   navigateToExternalURL: mockNavigateToExternalURL,
 }))
 

@@ -377,7 +377,6 @@ ensure_dev_default "STUHELPER_PLATFORM_BASE_URL" "${STUHELPER_PLATFORM_BASE_URL:
 ensure_dev_default "ADMISSION_PUBLIC_BASE_URL" "${ADMISSION_PUBLIC_BASE_URL:-}" "http://localhost:3000" "http://127.0.0.1:28000" "http://join.stuhelper.com" "https://join.stuhelper.com"
 ensure_dev_default "WEB_VITE_API_URL" "${WEB_VITE_API_URL:-}" "/api" ""
 ensure_dev_default "WEB_VITE_SSO_URL" "${WEB_VITE_SSO_URL:-}" "http://localhost:8085" "http://host.docker.internal:8085" "http://sso.stuhelper.com" "https://sso.stuhelper.com" "http://127.0.0.1:28085"
-ensure_value "WEB_VITE_IDENTITY_URL" "${WEB_VITE_IDENTITY_URL:-}" ""
 ensure_dev_default "WEB_VITE_WEB_URL" "${WEB_VITE_WEB_URL:-}" "http://localhost:3000" "http://stuhelper.com" "https://stuhelper.com" "http://127.0.0.1:28000"
 ensure_dev_default "PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED" "${PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED:-}" "false" "true"
 ensure_value "WEB_VITE_API_TIMEOUT_MS" "${WEB_VITE_API_TIMEOUT_MS:-}" "15000"

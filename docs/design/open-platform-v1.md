@@ -8,14 +8,14 @@ last-verified: 2026-05-30
 
 # StuHelper Open Platform v1
 
-> 当前决策：采用 B/2B 架构。`sso.stuhelper.com` 的 Casdoor 是唯一公开登录认证系统和 OIDC issuer；`stuhelper.com` 承载账号中心、开放平台、授权应用、开发者应用、学生认证和 QQ 绑定；`join.stuhelper.com` 只承载加群验证业务闭环。公开入口清单不包含独立 StuHelper identity host。
+> 当前决策：采用 B/2B 架构。`sso.stuhelper.com` 的 Casdoor 是唯一公开登录认证系统和 OIDC issuer；`stuhelper.com` 承载账号中心、开放平台、授权应用、开发者应用、学生认证和 QQ 绑定；`join.stuhelper.com` 只承载加群验证业务闭环。公开入口清单不包含独立 StuHelper 身份域。
 
 ## 核心边界
 
 | 组件 | 职责 | 不做什么 |
 |------|------|----------|
 | Casdoor / `sso.stuhelper.com` | 登录、注册、MFA、上游身份源、OIDC/OAuth issuer、token 签发、基础 scope consent | StuHelper 业务事实真源、学生认证审核、QQ 绑定真源、加群验证流程、第三方业务数据 API |
-| StuHelper API / `stuhelper.com` | 主站、账号中心、学生认证、QQ 绑定、开放平台 app registry、业务 scope 审批、用户业务授权、Open API、审计、撤销 | 签发独立公开 identity issuer、保存原始登录密码、伪装 Casdoor |
+| StuHelper API / `stuhelper.com` | 主站、账号中心、学生认证、QQ 绑定、开放平台 app registry、业务 scope 审批、用户业务授权、Open API、审计、撤销 | 签发独立公开身份 issuer、保存原始登录密码、伪装 Casdoor |
 | Join / `join.stuhelper.com` | 加群验证入口和业务闭环，唯一公开链接为 `https://join.stuhelper.com/verify/<token>?qq=<qq>` | 登录系统、第三方开放平台、旧 `/verify` 兼容入口 |
 
 ## 第三方接入模型
@@ -147,7 +147,6 @@ https://join.stuhelper.com/verify/<token>?qq=<qq>
 ## 生产配置基线
 
 ```env
-WEB_VITE_IDENTITY_URL=
 WEB_VITE_WEB_URL=https://stuhelper.com
 WEB_VITE_SSO_URL=https://sso.stuhelper.com
 CASDOOR_ISSUER=https://sso.stuhelper.com
@@ -160,4 +159,4 @@ CORS_ORIGINS=https://stuhelper.com,https://join.stuhelper.com,https://sso.stuhel
 TOKEN_COOKIE_DOMAIN=.stuhelper.com
 ```
 
-仓库、Nginx 模板、smoke 和文档不得再配置独立 StuHelper identity host；公开登录认证只通过 Casdoor SSO 域名进入。
+仓库、Nginx 模板、smoke 和文档不得再配置独立 StuHelper 身份域；公开登录认证只通过 Casdoor SSO 域名进入。

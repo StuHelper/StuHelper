@@ -313,7 +313,7 @@ import { useReviewEdit } from './useReviewEdit'
 import { useReviewDelete } from './useReviewDelete'
 import { useReviewModeration } from './useReviewModeration'
 import { ratingDimensionLabel } from '@/modules/review/ratingHelpers'
-import { identityPortalURL } from '@/utils/redirect'
+import { accountCenterURL } from '@/utils/redirect'
 
 const props = defineProps<{
   review: Review
@@ -371,7 +371,7 @@ const ratingColor = computed(() => getRatingColor(avgRating.value))
 const formattedTime = computed(() => formatRelativeTime(props.review.createdAt, locale.value, t))
 
 function goVerify() {
-  window.location.assign(identityPortalURL('/user/student-verification'))
+  window.location.assign(accountCenterURL('/user/student-verification'))
 }
 
 const {

@@ -28,7 +28,7 @@ last-verified: 2026-05-25
 - [ ] 共享配置已核对：`.env.prod.shared`。
 - [ ] secrets 已核对：`.env.prod.secrets`（本地演练可用 `.env.prod.secrets.local`）；运行时派生 secrets 必须通过 `GENERATED_ENV_SECRET_REF` 写入远端 secret backend，`.env.prod.generated.secrets` 仅保留空占位。
 - [ ] secret backend 已核对：`.deploy/remote.env` 中的 `SECRET_BACKEND` / `*_SECRET_REF` / `GENERATED_ENV_SECRET_REF` / `VAULT_ADDR` / `VAULT_TOKEN_FILE`。
-- [ ] 关键变量已核对：`POSTGRES_PASSWORD`、`REDIS_PASSWORD`、`TAG`、`OBJECT_STORAGE_*`、`OBJECT_STORAGE_TLS_CA=/minio-tls/ca.crt`、`ADMISSION_PUBLIC_BASE_URL=https://join.stuhelper.com`、`WEB_VITE_SSO_URL=https://sso.stuhelper.com`、`WEB_VITE_IDENTITY_URL=`、`WEB_VITE_WEB_URL=https://stuhelper.com`。
+- [ ] 关键变量已核对：`POSTGRES_PASSWORD`、`REDIS_PASSWORD`、`TAG`、`OBJECT_STORAGE_*`、`OBJECT_STORAGE_TLS_CA=/minio-tls/ca.crt`、`ADMISSION_PUBLIC_BASE_URL=https://join.stuhelper.com`、`WEB_VITE_SSO_URL=https://sso.stuhelper.com`、`WEB_VITE_WEB_URL=https://stuhelper.com`。
 - [ ] admission 最小生产数据已通过 `./infra/ops/import-school-directory.sh` 和 `./infra/ops/admission-bootstrap-production-data.sh` 幂等准备：学校目录包含 `school_code=4111010006` 的北京航空航天大学，当前只启用该校，公开学生认证/admission 表单以 `schoolCode=4111010006` 为主识别字段，邮箱域仅 `buaa.edu.cn`，`platform=qq` 的 `178037297` 策略存在，`forward_raw_material_to_qq=false`。
 - [ ] Koishi/NapCat 独立节点已确认：Koishi service 使用 `env_file` 或等价机制注入 `STUHELPER_PLATFORM_BASE_URL=https://stuhelper.com`、`STUHELPER_PLATFORM_SERVICE_TOKEN`、`STUHELPER_FRESHMAN_MATERIAL_HOSTS=stuhelper.com,join.stuhelper.com`；真实 token 不写入仓库或 runbook。
 - [ ] 生产 PostgreSQL TLS 已核对：默认 `POSTGRES_ENABLE_SSL=on`、`POSTGRES_INTERNAL_SSL_MODE=verify-full`（最低必须为 `verify-ca`）、`DB_SSL_MODE=verify-full`、`DB_SSL_ROOT_CERT=/tls/ca.crt`，且 `DATABASE_URL` / `BACKUP_DATABASE_URL` / `REPLICATION_DATABASE_URL` 都包含 `sslmode=verify-full&sslrootcert=/tls/ca.crt`；若生产机复用宝塔已有明文 Postgres，必须显式设置 `EXTERNAL_POSTGRES_ENABLED=true`、`EXTERNAL_DATASTORE_NETWORK=baota_net`、`EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true`，并确认外部 Postgres 已为 StuHelper / OpenFGA 创建独立数据库和独立账号、数据已从旧 StuHelper 专用库迁移到外部 Postgres。Redis 不复用全局实例，仍由 StuHelper Compose 以独立实例运行。
@@ -390,7 +390,6 @@ ADMIN_EXTERNAL_PORT=18001
 - [ ] `ADMISSION_PUBLIC_BASE_URL=https://join.stuhelper.com`
 - [ ] `CORS_ORIGINS=https://stuhelper.com,https://join.stuhelper.com,https://sso.stuhelper.com`
 - [ ] `WEB_VITE_SSO_URL=https://sso.stuhelper.com`
-- [ ] `WEB_VITE_IDENTITY_URL=`
 - [ ] `WEB_VITE_WEB_URL=https://stuhelper.com`
 - [ ] 主站生产机 `NGINX_PUBLIC_INGRESS_PROFILE=stuhelper ./infra/ops/nginx-public-ingress-preflight.sh` 通过。
 - [ ] `https://sso.stuhelper.com/.well-known/openid-configuration` 可达并返回 Casdoor discovery。

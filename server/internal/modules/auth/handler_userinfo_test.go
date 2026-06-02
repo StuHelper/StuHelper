@@ -62,7 +62,7 @@ func TestBuildUserPayload_IncludesAvatarWhenPresent(t *testing.T) {
 func TestBuildUserPayload_UsesPublicAccountSettingsURLWhenConfigured(t *testing.T) {
 	h := &Handler{
 		oidcIssuer:             " https://sso.example.com/ ",
-		accountSettingsBaseURL: " https://id.example.com/ ",
+		accountSettingsBaseURL: " https://account.example.com/ ",
 	}
 
 	payload := h.buildUserPayload(
@@ -75,7 +75,7 @@ func TestBuildUserPayload_UsesPublicAccountSettingsURLWhenConfigured(t *testing.
 		[]capability.Grant{},
 	)
 
-	assert.Equal(t, "https://id.example.com/account", payload.AccountSettingsURL)
+	assert.Equal(t, "https://account.example.com/account", payload.AccountSettingsURL)
 	assert.NotContains(t, payload.AccountSettingsURL, "sso.example.com")
 	assert.NotContains(t, payload.AccountSettingsURL, "/ui/v2/login/password/change")
 }

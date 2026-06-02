@@ -8,7 +8,6 @@ const webHost = process.env.PLAYWRIGHT_WEB_HOST ?? '127.0.0.1'
 const webOrigin = `http://${webHost}:${webPort}`
 const webServerEnv = withoutNoColorEnv({
   VITE_SSO_URL: process.env.VITE_SSO_URL ?? 'http://localhost:8085',
-  VITE_IDENTITY_URL: process.env.VITE_IDENTITY_URL ?? '',
   VITE_WEB_URL: process.env.VITE_WEB_URL ?? webOrigin,
   VITE_E2E_API_STUB: '1',
 })

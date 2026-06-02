@@ -153,7 +153,7 @@ import {
   readAuthorizationTargetPayload,
   readProfileCompletionPagePayload,
 } from '@/modules/open-platform/pagePayload'
-import { identityPortalURLForHref } from '@/utils/redirect'
+import { accountCenterURLForHref } from '@/utils/redirect'
 import type { OpenPlatformProfileCompletionPageResponse } from '@stuhelper/shared/api'
 
 const route = useRoute()
@@ -223,7 +223,7 @@ function redirectToURL(rawURL: string) {
 }
 
 function profileCompletionActionURL(actionURL: string): string {
-  return identityPortalURLForHref(actionURL) ?? actionURL
+  return accountCenterURLForHref(actionURL) ?? actionURL
 }
 
 onMounted(loadCompletion)

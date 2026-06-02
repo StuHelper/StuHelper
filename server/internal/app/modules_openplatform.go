@@ -36,7 +36,7 @@ func (rt *Runtime) initOpenPlatformModule(
 		openplatform.WithPhoneDecryptor(piiCipher),
 		openplatform.WithResourceFGAClient(rt.fgaClient),
 		openplatform.WithConsentBaseURL(rt.cfg.App.CORSOrigins[0]),
-		openplatform.WithIdentityBaseURL(rt.cfg.Casdoor.Issuer),
+		openplatform.WithAccountBaseURL(rt.cfg.App.CORSOrigins[0]),
 		openplatform.WithDisclosureRateLimits(openPlatformDisclosureRateLimitConfig(
 			rt.cfg.OpenPlatform.DisclosureRateLimit,
 		)),

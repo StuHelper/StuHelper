@@ -133,15 +133,10 @@ import { useI18n } from 'vue-i18n'
 import {
   GraduationCap,
   Home,
-  KeyRound,
   LibraryBig,
   LogIn,
-  LockKeyhole,
   Menu,
-  Network,
   PenLine,
-  ShieldCheck,
-  UserRound,
   X,
   type LucideIcon,
 } from 'lucide-vue-next'
@@ -154,7 +149,6 @@ import AppUserMenu from './AppUserMenu.vue'
 import { rememberReviewPostCourse } from '@/modules/review/reviewPostNavigation'
 import {
   absoluteURLOnPreferredOrigin,
-  configuredIdentityOrigin,
   configuredWebOrigin,
 } from '@/utils/redirect'
 
@@ -175,16 +169,11 @@ const isScrolled = ref(false)
 const mobileMenuOpen = ref(false)
 let scrollTicking = false
 
-const isIdentityPortalHost = computed(() => {
-  if (typeof window === 'undefined') return false
-  return configuredIdentityOrigin() === window.location.origin
-})
-const logoRoute = computed(() => (isIdentityPortalHost.value ? '/identity' : '/'))
-const brandTitle = computed(() => (isIdentityPortalHost.value ? t('nav.identityBrand') : 'StuHelper'))
-const brandTagline = computed(() => (isIdentityPortalHost.value ? t('nav.identityTagline') : t('nav.tagline')))
-const showCourseSearch = computed(() => !isIdentityPortalHost.value && route.path === '/courses')
+const logoRoute = computed(() => '/')
+const brandTitle = computed(() => 'StuHelper')
+const brandTagline = computed(() => t('nav.tagline'))
+const showCourseSearch = computed(() => route.path === '/courses')
 const showWriteReview = computed(() =>
-  !isIdentityPortalHost.value &&
   (route.path.startsWith('/courses') ||
     route.path.startsWith('/teachers')),
 )
@@ -192,7 +181,7 @@ const showAuthenticatedActions = computed(() =>
   authStore.bootstrapCompleted && authStore.isAuthenticated,
 )
 const showNotificationBell = computed(() =>
-  showAuthenticatedActions.value && !isIdentityPortalHost.value,
+  showAuthenticatedActions.value,
 )
 const showLoginEntry = computed(() => !authStore.isAuthenticated && route.name !== 'login')
 const loginEntryRoute = computed(() => ({
@@ -202,26 +191,17 @@ const loginEntryRoute = computed(() => ({
       ? route.fullPath
       : absoluteURLOnPreferredOrigin(
         route.fullPath,
-        isIdentityPortalHost.value ? window.location.origin : configuredWebOrigin(),
+        configuredWebOrigin(),
       ),
   },
 }))
 
 const navItems = computed<NavItem[]>(() =>
-  isIdentityPortalHost.value
-    ? [
-        { to: '/identity', label: t('routes.identityHome'), icon: UserRound },
-        { to: '/account/profile', label: t('routes.accountProfile'), icon: UserRound },
-        { to: '/account/security', label: t('routes.accountSecurity'), icon: LockKeyhole },
-        { to: '/connect', label: t('routes.identityConnect'), icon: Network },
-        { to: '/user/authorized-apps', label: t('routes.userAuthorizedApps'), icon: ShieldCheck },
-        { to: '/developers/apps', label: t('routes.openPlatformDeveloperApps'), icon: KeyRound },
-      ]
-    : [
-        { to: '/', label: t('nav.home'), icon: Home, exact: true },
-        { to: '/courses', label: t('nav.courses'), icon: LibraryBig },
-        { to: '/teachers', label: t('nav.teacher'), icon: GraduationCap },
-      ],
+  [
+    { to: '/', label: t('nav.home'), icon: Home, exact: true },
+    { to: '/courses', label: t('nav.courses'), icon: LibraryBig },
+    { to: '/teachers', label: t('nav.teacher'), icon: GraduationCap },
+  ],
 )
 
 function isNavActive(item: NavItem) {

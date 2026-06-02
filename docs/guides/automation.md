@@ -247,7 +247,6 @@ GitLab CI 至少需要以下变量：
   - `REGISTRY_USERNAME`
   - `REGISTRY_PASSWORD`
   - `WEB_VITE_SSO_URL`（前端构建单一来源；生产值指向 `https://sso.stuhelper.com`，只用于上游 Casdoor 认证，缺失即失败，不再回落到默认 SSO 域名）
-  - `WEB_VITE_IDENTITY_URL`（生产值必须为空；不再构建独立 identity portal）
   - `WEB_VITE_WEB_URL`（Web 主站浏览器 origin；生产值指向 `https://stuhelper.com`，用于登录后回到主站原路径）
 - **SSH 发布阶段（staging）**
   - `STAGING_DEPLOY_HOST`

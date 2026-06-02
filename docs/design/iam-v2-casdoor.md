@@ -31,7 +31,7 @@ scope: Casdoor-centered IAM target architecture; Open Platform scope and consent
 | **StuHelper DB** | 业务事实真相源：实名认证、学生认证、学校归属、手机号验证投影、QQ 绑定、课程/评课/资源 owner、Open Platform consent | 完整手机号真相源 |
 | **StuHelper Authorization Service** | **业务模块唯一授权入口**：组合 token 主体、DB 事实、OpenFGA 检查；统一 fail-closed | — |
 | **OpenFGA** | 资源关系权威：owner/author/school_admin/section_admin/section_moderator/section_reviewer/app→resource 关系 | 直接被业务模块调用；参与登录决策；承担粗粒度 RBAC（已在 Casdoor 解决） |
-| **Open Platform** | `stuhelper.com` 上的第三方应用元数据、业务 scope 审批、用户 consent、Disclosure/Open API、审计、限流、吊销 | 签发独立公开 issuer；恢复独立 identity 普通用户入口；把 Casdoor `Properties` 当业务数据 API |
+| **Open Platform** | `stuhelper.com` 上的第三方应用元数据、业务 scope 审批、用户 consent、Disclosure/Open API、审计、限流、吊销 | 签发独立公开 issuer；恢复独立身份普通用户入口；把 Casdoor `Properties` 当业务数据 API |
 
 ```text
 一方应用 (web / admin / uniapp)

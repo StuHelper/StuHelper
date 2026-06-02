@@ -265,7 +265,6 @@ overrides = {
     "PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED": "true",
     "STUHELPER_PLATFORM_BASE_URL": "http://stuhelper.com",
     "WEB_VITE_SSO_URL": "http://sso.stuhelper.com",
-    "WEB_VITE_IDENTITY_URL": "",
     "WEB_VITE_WEB_URL": "http://stuhelper.com",
     "OPENFGA_API_URL": "http://openfga:8080",
     "OPENFGA_HTTP_EXTERNAL_PORT": "8081",
@@ -354,7 +353,6 @@ assert_env_value "${polluted_env}" "PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_EN
 assert_file_not_contains "${polluted_env}" '^SSO_PUBLIC_'
 assert_env_value "${polluted_env}" "STUHELPER_PLATFORM_BASE_URL" "http://localhost:8080"
 assert_env_value "${polluted_env}" "WEB_VITE_SSO_URL" "http://localhost:8085"
-assert_env_value "${polluted_env}" "WEB_VITE_IDENTITY_URL" ""
 assert_env_value "${polluted_env}" "WEB_VITE_WEB_URL" "http://localhost:3000"
 assert_env_value "${polluted_env}" "OPENFGA_API_URL" "http://localhost:8081"
 assert_env_value "${polluted_env}" "OPENFGA_HTTP_EXTERNAL_PORT" "8081"

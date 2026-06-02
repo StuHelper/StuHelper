@@ -6,7 +6,7 @@ import { useNotificationsPageController } from '../useNotificationsPageControlle
 
 const mockToastError = vi.fn()
 const redirectMocks = vi.hoisted(() => ({
-  identityPortalURLForHref: vi.fn((href: string) =>
+  accountCenterURLForHref: vi.fn((href: string) =>
     href.startsWith('/user/') || href.startsWith('/developers/')
       ? `https://stuhelper.com${href}`
       : null,
@@ -33,7 +33,7 @@ vi.mock('@/i18n', () => ({
 }))
 
 vi.mock('@/utils/redirect', () => ({
-  identityPortalURLForHref: redirectMocks.identityPortalURLForHref,
+  accountCenterURLForHref: redirectMocks.accountCenterURLForHref,
   navigateToExternalURL: redirectMocks.navigateToExternalURL,
 }))
 
@@ -188,7 +188,7 @@ describe('useNotificationsPageController', () => {
     await controller.handleClick(notification)
 
     expect(markAsRead).toHaveBeenCalledWith('1')
-    expect(redirectMocks.identityPortalURLForHref).toHaveBeenCalledWith('/user/identity-verification')
+    expect(redirectMocks.accountCenterURLForHref).toHaveBeenCalledWith('/user/identity-verification')
     expect(redirectMocks.navigateToExternalURL).toHaveBeenCalledWith(
       'https://stuhelper.com/user/identity-verification',
     )
@@ -205,7 +205,7 @@ describe('useNotificationsPageController', () => {
 
     await controller.handleClick(notification)
 
-    expect(redirectMocks.identityPortalURLForHref).toHaveBeenCalledWith('/developers/apps')
+    expect(redirectMocks.accountCenterURLForHref).toHaveBeenCalledWith('/developers/apps')
     expect(redirectMocks.navigateToExternalURL).toHaveBeenCalledWith(
       'https://stuhelper.com/developers/apps',
     )

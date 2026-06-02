@@ -28,7 +28,7 @@ const mocks = vi.hoisted(() => ({
   },
   routerPush: vi.fn(),
   toastError: vi.fn(),
-  identityPortalURL: vi.fn((path: string) => `https://stuhelper.com${path}`),
+  accountCenterURL: vi.fn((path: string) => `https://stuhelper.com${path}`),
   navigateToExternalURL: vi.fn(),
 }))
 
@@ -68,7 +68,7 @@ vi.mock('@/utils/redirect', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/utils/redirect')>()
   return {
     ...actual,
-    identityPortalURL: mocks.identityPortalURL,
+    accountCenterURL: mocks.accountCenterURL,
     navigateToExternalURL: mocks.navigateToExternalURL,
   }
 })
@@ -98,7 +98,7 @@ describe('AppUserMenu', () => {
     mocks.verificationStore.fetchStatus.mockResolvedValue(undefined)
     mocks.routerPush.mockReset()
     mocks.toastError.mockReset()
-    mocks.identityPortalURL.mockClear()
+    mocks.accountCenterURL.mockClear()
     mocks.navigateToExternalURL.mockClear()
   })
 
@@ -133,23 +133,7 @@ describe('AppUserMenu', () => {
     expect(mocks.verificationStore.fetchStatus).not.toHaveBeenCalled()
   })
 
-  it('keeps the profile menu item on the main user center outside the identity host', async () => {
-    const wrapper = mountUserMenu({
-      bootstrapCompleted: true,
-      isAuthenticated: true,
-    })
-
-    await wrapper.get('[aria-haspopup="menu"]').trigger('click')
-    await wrapper
-      .findAll('[role="menuitem"]')
-      .find((item) => item.text().includes('nav.profile'))
-      ?.trigger('click')
-
-    expect(mocks.routerPush).toHaveBeenCalledWith('/user/reviews')
-  })
-
-  it('keeps the profile menu item on the main user center even if legacy identity env is present', async () => {
-    vi.stubEnv('VITE_IDENTITY_URL', window.location.origin)
+  it('keeps the profile menu item on the main user center', async () => {
     const wrapper = mountUserMenu({
       bootstrapCompleted: true,
       isAuthenticated: true,
@@ -176,7 +160,7 @@ describe('AppUserMenu', () => {
       .find((item) => item.text().includes('nav.accountSecurity'))
       ?.trigger('click')
 
-    expect(mocks.identityPortalURL).toHaveBeenCalledWith('/account/security')
+    expect(mocks.accountCenterURL).toHaveBeenCalledWith('/account/security')
     expect(mocks.navigateToExternalURL).toHaveBeenCalledWith(
       'https://stuhelper.com/account/security',
     )
@@ -195,30 +179,11 @@ describe('AppUserMenu', () => {
       .find((item) => item.text().includes('nav.accountProfile'))
       ?.trigger('click')
 
-    expect(mocks.identityPortalURL).toHaveBeenCalledWith('/account/profile')
+    expect(mocks.accountCenterURL).toHaveBeenCalledWith('/account/profile')
     expect(mocks.navigateToExternalURL).toHaveBeenCalledWith(
       'https://stuhelper.com/account/profile',
     )
     expect(mocks.routerPush).not.toHaveBeenCalled()
-  })
-
-  it('opens account menu entries on the account center even if legacy identity env is present', async () => {
-    vi.stubEnv('VITE_IDENTITY_URL', window.location.origin)
-    const wrapper = mountUserMenu({
-      bootstrapCompleted: true,
-      isAuthenticated: true,
-    })
-
-    await wrapper.get('[aria-haspopup="menu"]').trigger('click')
-    await wrapper
-      .findAll('[role="menuitem"]')
-      .find((item) => item.text().includes('nav.accountProfile'))
-      ?.trigger('click')
-
-    expect(mocks.routerPush).not.toHaveBeenCalled()
-    expect(mocks.navigateToExternalURL).toHaveBeenCalledWith(
-      'https://stuhelper.com/account/profile',
-    )
   })
 
   it('opens developer apps on the account center from the main host', async () => {
@@ -233,14 +198,13 @@ describe('AppUserMenu', () => {
       .find((item) => item.text().includes('nav.developerApps'))
       ?.trigger('click')
 
-    expect(mocks.identityPortalURL).toHaveBeenCalledWith('/developers/apps')
+    expect(mocks.accountCenterURL).toHaveBeenCalledWith('/developers/apps')
     expect(mocks.navigateToExternalURL).toHaveBeenCalledWith(
       'https://stuhelper.com/developers/apps',
     )
   })
 
-  it('returns to the main site after logout even if legacy identity env is present', async () => {
-    vi.stubEnv('VITE_IDENTITY_URL', window.location.origin)
+  it('returns to the main site after logout', async () => {
     const wrapper = mountUserMenu({
       bootstrapCompleted: true,
       isAuthenticated: true,

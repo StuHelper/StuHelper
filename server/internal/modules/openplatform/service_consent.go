@@ -195,13 +195,13 @@ func (s *Service) AcceptConsent(ctx context.Context, token, requestID string, us
 	if err := ensureConsentActor(loaded, userID); err != nil {
 		return "", err
 	}
-	keepChallenge := normalizeAuthorizeFlow(loaded.Flow) == AuthorizeFlowIdentity
+	keepChallenge := normalizeAuthorizeFlow(loaded.Flow) == AuthorizeFlowAccount
 	challenge, err := s.grantConsent(ctx, token, requestID, keepChallenge)
 	if err != nil {
 		return "", err
 	}
-	if normalizeAuthorizeFlow(challenge.Flow) == AuthorizeFlowIdentity {
-		return buildIdentityContinueURL(s.identityBaseURL, challenge.Token), nil
+	if normalizeAuthorizeFlow(challenge.Flow) == AuthorizeFlowAccount {
+		return buildAccountContinueURL(s.accountBaseURL, challenge.Token), nil
 	}
 	app, err := s.repo.GetAppByID(ctx, challenge.AppID)
 	if err != nil {

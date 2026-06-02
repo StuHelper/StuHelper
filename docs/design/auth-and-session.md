@@ -8,7 +8,7 @@ last-verified: 2026-05-30
 
 # 认证与 SSO
 
-> 状态：现行。公开登录认证入口和 OIDC issuer 是 `sso.stuhelper.com` 的 Casdoor。`stuhelper.com` 承载账号中心、学生认证、QQ 绑定和开放平台业务页面；`join.stuhelper.com` 承载入群验证业务闭环。StuHelper 不再发布独立 identity 入口域名。
+> 状态：现行。公开登录认证入口和 OIDC issuer 是 `sso.stuhelper.com` 的 Casdoor。`stuhelper.com` 承载账号中心、学生认证、QQ 绑定和开放平台业务页面；`join.stuhelper.com` 承载入群验证业务闭环。StuHelper 不再发布独立身份入口域名。
 
 ## 登录方式
 

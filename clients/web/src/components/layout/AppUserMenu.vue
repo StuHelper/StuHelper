@@ -51,7 +51,7 @@
         @click="goToUser"
       >
         <User class="size-4" />
-        {{ isIdentityPortalHost ? t('routes.identityHome') : t('nav.profile') }}
+        {{ t('nav.profile') }}
       </button>
       <button
         type="button"
@@ -167,7 +167,7 @@ import { useVerificationStore } from '@/stores/verification'
 import { useToast } from '@/composables/useToast'
 import { canShowAdminEntry } from '@/utils/adminAccess'
 import { resolveAdminConsoleURL } from '@/utils/adminUrl'
-import { configuredIdentityOrigin, identityPortalURL, navigateToExternalURL } from '@/utils/redirect'
+import { accountCenterURL, navigateToExternalURL } from '@/utils/redirect'
 
 const USER_MENU_ID = 'app-shell-user-menu'
 const adminConsoleURL = resolveAdminConsoleURL(import.meta.env.VITE_ADMIN_URL)
@@ -200,11 +200,6 @@ const showAdminEntry = computed(() => canShowAdminEntry(authStore.user))
 const canFetchVerificationStatus = computed(() =>
   authStore.bootstrapCompleted && authStore.isAuthenticated,
 )
-const isIdentityPortalHost = computed(() => {
-  if (typeof window === 'undefined') return false
-  return configuredIdentityOrigin() === window.location.origin
-})
-
 function syncUserMenuItems() {
   userMenuItems.value = userMenuRef.value
     ? Array.from(userMenuRef.value.querySelectorAll<HTMLElement>('[data-user-menu-item]'))
@@ -286,7 +281,7 @@ function handleUserMenuKeydown(event: KeyboardEvent) {
 
 function goToUser() {
   closeUserMenu()
-  void router.push(isIdentityPortalHost.value ? '/identity' : '/user/reviews')
+  void router.push('/user/reviews')
 }
 
 function goToIdentityRoute(routeName: string) {
@@ -294,12 +289,7 @@ function goToIdentityRoute(routeName: string) {
   const path = identityMenuRoutes[routeName]
   if (!path) return
 
-  if (isIdentityPortalHost.value) {
-    void router.push(path)
-    return
-  }
-
-  navigateToExternalURL(identityPortalURL(path))
+  navigateToExternalURL(accountCenterURL(path))
 }
 
 function goToAdmin() {
@@ -311,10 +301,6 @@ async function handleLogout() {
   closeUserMenu()
   const result = await authStore.logout()
   if (result.ok) {
-    if (isIdentityPortalHost.value) {
-      void router.push({ path: '/login', query: { redirect: '/identity' } })
-      return
-    }
     void router.push('/')
     return
   }

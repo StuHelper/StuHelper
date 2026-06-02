@@ -425,10 +425,10 @@ func TestPostReviewRejectsTeacherFromDifferentSchool(t *testing.T) {
 	ctx := context.Background()
 
 	courseDepartmentID := seedDepartment(t, fixture, 4111010006, "跨校课程学院")
-	seedSchool(t, fixture, 20002, "cross", "跨校教师学校")
-	teacherDepartmentID := seedDepartment(t, fixture, 20002, "跨校教师学院")
+	seedSchool(t, fixture, 4111010007, "4111010007", "跨校教师学校")
+	teacherDepartmentID := seedDepartment(t, fixture, 4111010007, "跨校教师学院")
 	courseID := seedCourse(t, fixture, 4111010006, courseDepartmentID, "跨校校验课程")
-	teacherID := seedTeacher(t, fixture, 20002, "跨校教师", teacherDepartmentID)
+	teacherID := seedTeacher(t, fixture, 4111010007, "跨校教师", teacherDepartmentID)
 
 	crossSchoolAuthorID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-cross-school-teacher", UserHash: "u-cross-school-teacher"})
 	_, err := svc.PostReview(ctx, PostReviewParams{
@@ -506,10 +506,10 @@ func TestSaveDraftRejectsTeacherFromDifferentSchool(t *testing.T) {
 	ctx := context.Background()
 
 	courseDepartmentID := seedDepartment(t, fixture, 4111010006, "草稿课程学院")
-	seedSchool(t, fixture, 20003, "dcr", "草稿跨校教师学校")
-	teacherDepartmentID := seedDepartment(t, fixture, 20003, "草稿跨校教师学院")
+	seedSchool(t, fixture, 4111010008, "4111010008", "草稿跨校教师学校")
+	teacherDepartmentID := seedDepartment(t, fixture, 4111010008, "草稿跨校教师学院")
 	courseID := seedCourse(t, fixture, 4111010006, courseDepartmentID, "草稿跨校校验课程")
-	teacherID := seedTeacher(t, fixture, 20003, "草稿跨校教师", teacherDepartmentID)
+	teacherID := seedTeacher(t, fixture, 4111010008, "草稿跨校教师", teacherDepartmentID)
 
 	_, err := svc.SaveDraft(ctx, SaveDraftParams{
 		UserHash:  "u-draft-cross-school-teacher",

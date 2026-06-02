@@ -60,7 +60,6 @@ describe("style entrypoint", () => {
         );
 
         expect(routerSource).not.toContain("absoluteURLOnPreferredOrigin");
-        expect(routerSource).not.toContain("configuredIdentityOrigin");
         expect(routerSource).toContain(
             'return { name: "login", query: { redirect: to.fullPath } }',
         );
@@ -81,7 +80,7 @@ describe("style entrypoint", () => {
         );
 
         for (const source of [reviewPostSource, courseDetailSource, reviewCardSource]) {
-            expect(source).toContain("identityPortalURL");
+            expect(source).toContain("accountCenterURL");
             expect(source).toContain("/user/student-verification");
             expect(source).not.toContain("name: 'student-verification'");
         }
@@ -116,7 +115,6 @@ describe("style entrypoint", () => {
         );
 
         expect(loginSource).toContain("function defaultAuthenticatedRoute()");
-        expect(loginSource).not.toContain("configuredIdentityOrigin");
         expect(loginSource).not.toContain('return new URL("/identity"');
         expect(loginSource).toContain(
             'return new URL("/", window.location.origin).toString()',
@@ -162,8 +160,8 @@ describe("style entrypoint", () => {
         }
     });
 
-    it("keeps verification and binding page back actions inside the identity portal", () => {
-        const identityPageFiles = [
+    it("keeps verification and binding page back actions inside the account center", () => {
+        const accountPageFiles = [
             "../../modules/user/views/IdentityVerificationPage.vue",
             "../../modules/user/views/StudentVerificationPage.vue",
             "../../modules/user/views/PhoneBindingPage.vue",
@@ -171,7 +169,7 @@ describe("style entrypoint", () => {
             "../../modules/user/views/AcademicInfoPage.vue",
         ];
 
-        for (const file of identityPageFiles) {
+        for (const file of accountPageFiles) {
             const source = readFileSync(resolve(__dirname, file), "utf-8");
             expect(source, file).toContain("function goBack");
             expect(source, file).toContain("router.push");
@@ -419,10 +417,7 @@ describe("style entrypoint", () => {
             "utf-8",
         );
 
-        expect(shellSource).toContain("configuredIdentityOrigin");
-        expect(shellSource).toContain(
-            '<FloatingModuleNav v-if="!isIdentityPortalHost" />',
-        );
+        expect(shellSource).toContain("<FloatingModuleNav />");
     });
 
     it("keeps account-center routes on the main web app", () => {
@@ -447,16 +442,15 @@ describe("style entrypoint", () => {
         expect(routerSource).toContain('name: "account-security"');
         expect(routerSource).toContain('path: "/connect"');
         expect(routerSource).toContain('name: "identity-connect"');
-        expect(routerSource).not.toContain("identityPortal");
         expect(headerSource).toContain("const logoRoute = computed");
         expect(headerSource).toContain(
-            "{ to: '/identity', label: t('routes.identityHome')",
+            "{ to: '/', label: t('nav.home'), icon: Home, exact: true }",
         );
         expect(headerSource).toContain(
-            "{ to: '/account/profile', label: t('routes.accountProfile')",
+            "{ to: '/courses', label: t('nav.courses'), icon: LibraryBig }",
         );
         expect(headerSource).toContain(
-            "{ to: '/connect', label: t('routes.identityConnect')",
+            "{ to: '/teachers', label: t('nav.teacher'), icon: GraduationCap }",
         );
         expect(routerSource).not.toContain('return { path: "/identity", replace: true }');
         expect(profileSource).toContain('to="/account/profile"');
@@ -476,7 +470,6 @@ describe("style entrypoint", () => {
         expect(routerSource).toMatch(
             /path:\s*"\/user\/authorized-apps"[\s\S]*AuthorizedAppsPage\.vue/,
         );
-        expect(routerSource).not.toContain("identityPortal");
         expect(userCenterSource).not.toContain("AuthorizedAppsTab");
         expect(userCenterSource).not.toContain("ProfileSection");
         expect(userCenterSource).not.toContain("user-authorized-apps");
@@ -489,7 +482,7 @@ describe("style entrypoint", () => {
             "utf-8",
         );
 
-        expect(userMenuSource).toContain("identityPortalURL");
+        expect(userMenuSource).toContain("accountCenterURL");
         expect(userMenuSource).toContain("navigateToExternalURL");
         expect(userMenuSource).toContain("'account-profile': '/account/profile'");
         expect(userMenuSource).toContain("'account-security': '/account/security'");
@@ -512,10 +505,10 @@ describe("style entrypoint", () => {
             "utf-8",
         );
 
-        expect(profileCompletionSource).toContain("identityPortalURLForHref");
+        expect(profileCompletionSource).toContain("accountCenterURLForHref");
         expect(profileCompletionSource).toContain("profileCompletionActionURL(field.actionURL)");
         expect(profileCompletionSource).toContain(
-            "return identityPortalURLForHref(actionURL) ?? actionURL",
+            "return accountCenterURLForHref(actionURL) ?? actionURL",
         );
     });
 

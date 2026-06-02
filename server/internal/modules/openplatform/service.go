@@ -27,8 +27,8 @@ const (
 	completionTokenTTL    = 10 * time.Minute
 	completionRedisPrefix = "open_platform:profile_completion:"
 
-	AuthorizeFlowCasdoor  = "casdoor"
-	AuthorizeFlowIdentity = "identity"
+	AuthorizeFlowCasdoor = "casdoor"
+	AuthorizeFlowAccount = "account"
 )
 
 var resourceIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
@@ -61,7 +61,7 @@ type Service struct {
 	phoneCipher        phoneDecryptor
 	resourceFGA        resourceRelationClient
 	consentBaseURL     string
-	identityBaseURL    string
+	accountBaseURL     string
 	rateLimiter        *disclosureRateLimiter
 	replayDetector     *disclosureReplayDetector
 	tokenProber        tokenMinimizationRuntimeProber
@@ -98,9 +98,9 @@ func WithConsentBaseURL(baseURL string) ServiceOption {
 	}
 }
 
-func WithIdentityBaseURL(baseURL string) ServiceOption {
+func WithAccountBaseURL(baseURL string) ServiceOption {
 	return func(s *Service) {
-		s.identityBaseURL = strings.TrimSpace(baseURL)
+		s.accountBaseURL = strings.TrimSpace(baseURL)
 	}
 }
 

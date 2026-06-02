@@ -145,7 +145,7 @@ func TestHasGrantInSchool(t *testing.T) {
 	}
 	assert.True(t, HasGrantInSchool(grants, UserStudentRead, "4111010001"))
 	assert.False(t, HasGrantInSchool(grants, UserStudentRead, "4111010002"))
-	assert.True(t, HasGrantInSchool(grants, UserSystemRead, "9999"))
+	assert.True(t, HasGrantInSchool(grants, UserSystemRead, "4111099999"))
 	assert.True(t, HasGlobalGrant(grants, UserSystemRead))
 	assert.False(t, HasGlobalGrant(grants, UserStudentRead))
 }

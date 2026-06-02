@@ -22,10 +22,6 @@ export function normalizeConfiguredHTTPOrigin(
     }
 }
 
-export function configuredIdentityOrigin(): string | null {
-    return null;
-}
-
 export function configuredWebOrigin(): string | null {
     if (typeof window === "undefined") return null;
     return normalizeConfiguredHTTPOrigin(import.meta.env.VITE_WEB_URL, window.location.origin);
@@ -123,11 +119,11 @@ export function absoluteURLOnCurrentOrigin(path: string): string {
     return absoluteURLOnPreferredOrigin(path);
 }
 
-export function identityPortalURL(path: string): string {
+export function accountCenterURL(path: string): string {
     return absoluteURLOnPreferredOrigin(path, configuredWebOrigin());
 }
 
-export function isIdentityPortalPath(pathname: string): boolean {
+export function isAccountCenterPath(pathname: string): boolean {
     return pathname === "/identity" ||
         pathname === "/connect" ||
         pathname === "/developers/apps" ||
@@ -143,7 +139,7 @@ export function isIdentityPortalPath(pathname: string): boolean {
         pathname === "/user/academic-info";
 }
 
-export function identityPortalURLForHref(href: string): string | null {
+export function accountCenterURLForHref(href: string): string | null {
     if (typeof window === "undefined") return null;
 
     try {
@@ -152,10 +148,10 @@ export function identityPortalURLForHref(href: string): string | null {
         if (accountOrigin && parsed.origin === accountOrigin) {
             return parsed.toString();
         }
-        if (parsed.origin !== window.location.origin || !isIdentityPortalPath(parsed.pathname)) {
+        if (parsed.origin !== window.location.origin || !isAccountCenterPath(parsed.pathname)) {
             return null;
         }
-        return identityPortalURL(`${parsed.pathname}${parsed.search}${parsed.hash}`);
+        return accountCenterURL(`${parsed.pathname}${parsed.search}${parsed.hash}`);
     } catch {
         return null;
     }

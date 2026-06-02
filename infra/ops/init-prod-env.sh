@@ -385,7 +385,6 @@ ensure_value "PUBLIC_WEB_AUTH_BROWSER_SMOKE_TIMEOUT_MS" "${PUBLIC_WEB_AUTH_BROWS
 ensure_prod_default "PUBLIC_WEB_AUTH_BROWSER_EXECUTABLE_PATH" "${PUBLIC_WEB_AUTH_BROWSER_EXECUTABLE_PATH:-}" "" "/usr/bin/chromium-browser" "/usr/bin/google-chrome"
 ensure_prod_default "WEB_VITE_API_URL" "${WEB_VITE_API_URL:-}" "/api" ""
 ensure_prod_default "WEB_VITE_SSO_URL" "${WEB_VITE_SSO_URL:-}" "https://sso.stuhelper.com" "REPLACE_WITH_WEB_VITE_SSO_URL" "http://localhost:8085" "http://localhost"
-ensure_prod_default "WEB_VITE_IDENTITY_URL" "${WEB_VITE_IDENTITY_URL:-}" "" "REPLACE_WITH_WEB_VITE_IDENTITY_URL" "http://localhost:3000"
 ensure_prod_default "WEB_VITE_WEB_URL" "${WEB_VITE_WEB_URL:-}" "https://stuhelper.com" "REPLACE_WITH_WEB_VITE_WEB_URL" "http://localhost:3000"
 ensure_value "WEB_VITE_API_TIMEOUT_MS" "${WEB_VITE_API_TIMEOUT_MS:-}" "15000"
 ensure_value "ADMIN_VITE_API_URL" "${ADMIN_VITE_API_URL:-}" "/api/v1"

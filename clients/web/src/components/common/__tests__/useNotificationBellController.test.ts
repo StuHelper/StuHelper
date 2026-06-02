@@ -7,7 +7,7 @@ import { useNotificationBellController, type NotificationBellStore } from '../us
 
 const mockToastError = vi.fn()
 const redirectMocks = vi.hoisted(() => ({
-  identityPortalURLForHref: vi.fn((href: string) =>
+  accountCenterURLForHref: vi.fn((href: string) =>
     href.startsWith('/user/') ? `https://stuhelper.com${href}` : null,
   ),
   navigateToExternalURL: vi.fn(),
@@ -32,7 +32,7 @@ vi.mock('@/i18n', () => ({
 }))
 
 vi.mock('@/utils/redirect', () => ({
-  identityPortalURLForHref: redirectMocks.identityPortalURLForHref,
+  accountCenterURLForHref: redirectMocks.accountCenterURLForHref,
   navigateToExternalURL: redirectMocks.navigateToExternalURL,
 }))
 
@@ -137,7 +137,7 @@ describe('useNotificationBellController', () => {
     await controller.handleNotificationClick(store.bellNotifications[0]!)
 
     expect(store.markAsRead).toHaveBeenCalledWith('1')
-    expect(redirectMocks.identityPortalURLForHref).toHaveBeenCalledWith('/user/student-verification')
+    expect(redirectMocks.accountCenterURLForHref).toHaveBeenCalledWith('/user/student-verification')
     expect(redirectMocks.navigateToExternalURL).toHaveBeenCalledWith(
       'https://stuhelper.com/user/student-verification',
     )

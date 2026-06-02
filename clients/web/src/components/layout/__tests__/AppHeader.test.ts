@@ -138,7 +138,6 @@ describe('AppHeader', () => {
   })
 
   it('keeps main-site notifications and navigation on account pages after authentication', () => {
-    vi.stubEnv('VITE_IDENTITY_URL', window.location.origin)
     Object.assign(mocks.route, {
       name: 'identity-home',
       path: '/identity',
@@ -171,8 +170,7 @@ describe('AppHeader', () => {
     expect(wrapper.text()).toContain('nav.login')
   })
 
-  it('keeps normal site navigation on the login route even if legacy identity env is present', () => {
-    vi.stubEnv('VITE_IDENTITY_URL', window.location.origin)
+  it('keeps normal site navigation on the login route', () => {
     Object.assign(mocks.route, {
       name: 'login',
       path: '/login',

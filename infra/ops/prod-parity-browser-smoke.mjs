@@ -28,9 +28,8 @@ const admissionBaseURL = normalizeBaseURL(
 const frontendDirectBaseURL = normalizeBaseURL(
   process.env.FRONTEND_DIRECT_BASE_URL || 'http://127.0.0.1:28000',
 );
-const identityBaseURL = normalizeBaseURL(
+const accountBaseURL = normalizeBaseURL(
   process.env.ACCOUNT_BASE_URL ||
-  process.env.IDENTITY_BASE_URL ||
     process.env.WEB_BASE_URL ||
     'https://stuhelper.com',
 );
@@ -100,14 +99,14 @@ const checks = [
     expectedTexts: ['StuHelper'],
   },
   {
-    name: 'identity-developer-login',
-    url: joinURL(identityBaseURL, '/developers/apps'),
+    name: 'account-developer-login',
+    url: joinURL(accountBaseURL, '/developers/apps'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/developers/apps'],
+    expectedURLIncludes: [joinURL(accountBaseURL, '/login'), 'redirect=/developers/apps'],
   },
   {
-    name: 'identity-connect-public',
-    url: joinURL(identityBaseURL, '/connect'),
+    name: 'account-connect-public',
+    url: joinURL(accountBaseURL, '/connect'),
     expectedTexts: ['StuHelper Connect'],
     requiredTexts: [
       joinURL(ssoBaseURL, '/.well-known/openid-configuration'),
@@ -115,26 +114,25 @@ const checks = [
       joinURL(ssoBaseURL, '/api/login/oauth/access_token'),
       joinURL(ssoBaseURL, '/api/userinfo'),
     ],
-    forbiddenTexts: ['WEB_VITE_IDENTITY_URL'],
-    expectedURLIncludes: joinURL(identityBaseURL, '/connect'),
+    expectedURLIncludes: joinURL(accountBaseURL, '/connect'),
   },
   {
-    name: 'web-identity-connect-redirect',
+    name: 'web-account-connect-redirect',
     url: joinURL(webBaseURL, '/connect'),
     expectedTexts: ['StuHelper Connect'],
     requiredTexts: [
       joinURL(ssoBaseURL, '/.well-known/openid-configuration'),
       joinURL(ssoBaseURL, '/api/login/oauth/access_token'),
     ],
-    expectedURLIncludes: joinURL(identityBaseURL, '/connect'),
+    expectedURLIncludes: joinURL(accountBaseURL, '/connect'),
   },
   {
     name: 'identity-home-authenticated',
-    url: joinURL(identityBaseURL, '/identity'),
-    flow: 'identity-authenticated-refresh',
+    url: joinURL(accountBaseURL, '/identity'),
+    flow: 'account-authenticated-refresh',
     expectedTexts: ['账号中心', 'Account Center'],
     requiredTexts: ['个人资料', '账号安全', 'Connect', '授权应用', '开发者应用'],
-    expectedURLIncludes: joinURL(identityBaseURL, '/identity'),
+    expectedURLIncludes: joinURL(accountBaseURL, '/identity'),
     stubbedResources: [
       {
         url: 'https://fonts.googleapis.com/**',
@@ -164,11 +162,11 @@ const checks = [
   },
   {
     name: 'identity-account-profile-authenticated',
-    url: joinURL(identityBaseURL, '/account/profile'),
-    flow: 'identity-authenticated-refresh',
+    url: joinURL(accountBaseURL, '/account/profile'),
+    flow: 'account-authenticated-refresh',
     expectedTexts: ['个人资料', 'Profile'],
     requiredTexts: ['联系信息', '授权披露字段', '实名认证'],
-    expectedURLIncludes: joinURL(identityBaseURL, '/account/profile'),
+    expectedURLIncludes: joinURL(accountBaseURL, '/account/profile'),
     stubbedResources: [
       {
         url: 'https://fonts.googleapis.com/**',
@@ -198,8 +196,8 @@ const checks = [
   },
   {
     name: 'identity-account-security-authenticated',
-    url: joinURL(identityBaseURL, '/account/security'),
-    flow: 'identity-authenticated-refresh',
+    url: joinURL(accountBaseURL, '/account/security'),
+    flow: 'account-authenticated-refresh',
     expectedTexts: ['账号安全', 'Account Security'],
     requiredTexts: [
       '当前浏览器会话',
@@ -212,7 +210,7 @@ const checks = [
       '绑定 QQ',
       '学业信息',
     ],
-    expectedURLIncludes: joinURL(identityBaseURL, '/account/security'),
+    expectedURLIncludes: joinURL(accountBaseURL, '/account/security'),
     stubbedResources: [
       {
         url: 'https://fonts.googleapis.com/**',
@@ -242,12 +240,12 @@ const checks = [
   },
   {
     name: 'identity-authorized-apps-authenticated',
-    url: joinURL(identityBaseURL, '/user/authorized-apps'),
-    flow: 'identity-authenticated-refresh',
+    url: joinURL(accountBaseURL, '/user/authorized-apps'),
+    flow: 'account-authenticated-refresh',
     expectedTexts: ['授权应用', 'Authorized Apps'],
     requiredTexts: ['授权应用'],
     forbiddenTexts: ['我的评价', '我的点赞', '我的收藏', 'My Reviews', 'My Votes', 'My Favorites'],
-    expectedURLIncludes: joinURL(identityBaseURL, '/user/authorized-apps'),
+    expectedURLIncludes: joinURL(accountBaseURL, '/user/authorized-apps'),
     stubbedResources: [
       {
         url: 'https://fonts.googleapis.com/**',
@@ -276,13 +274,13 @@ const checks = [
     ],
   },
   {
-    name: 'identity-developer-apps-authenticated',
-    url: joinURL(identityBaseURL, '/developers/apps'),
-    flow: 'identity-authenticated-refresh',
+    name: 'account-developer-apps-authenticated',
+    url: joinURL(accountBaseURL, '/developers/apps'),
+    flow: 'account-authenticated-refresh',
     expectedTexts: ['开发者应用', 'Developer Apps'],
     requiredTexts: ['创建应用'],
     forbiddenTexts: ['我的评价', '我的点赞', '我的收藏', 'My Reviews', 'My Votes', 'My Favorites'],
-    expectedURLIncludes: joinURL(identityBaseURL, '/developers/apps'),
+    expectedURLIncludes: joinURL(accountBaseURL, '/developers/apps'),
     stubbedResources: [
       {
         url: 'https://fonts.googleapis.com/**',
@@ -312,11 +310,11 @@ const checks = [
   },
   {
     name: 'identity-consent-missing-token-authenticated',
-    url: joinURL(identityBaseURL, '/consent'),
-    flow: 'identity-connect-error-refresh',
+    url: joinURL(accountBaseURL, '/consent'),
+    flow: 'account-connect-error-refresh',
     expectedTexts: ['StuHelper Connect'],
     requiredTexts: ['授权请求加载失败', '返回账号中心'],
-    expectedURLIncludes: joinURL(identityBaseURL, '/consent'),
+    expectedURLIncludes: joinURL(accountBaseURL, '/consent'),
     stubbedResources: [
       {
         url: 'https://fonts.googleapis.com/**',
@@ -332,11 +330,11 @@ const checks = [
   },
   {
     name: 'identity-profile-completion-missing-token-authenticated',
-    url: joinURL(identityBaseURL, '/complete-profile'),
-    flow: 'identity-connect-error-refresh',
+    url: joinURL(accountBaseURL, '/complete-profile'),
+    flow: 'account-connect-error-refresh',
     expectedTexts: ['StuHelper Connect'],
     requiredTexts: ['资料补全请求加载失败', '返回账号中心'],
-    expectedURLIncludes: joinURL(identityBaseURL, '/complete-profile'),
+    expectedURLIncludes: joinURL(accountBaseURL, '/complete-profile'),
     stubbedResources: [
       {
         url: 'https://fonts.googleapis.com/**',
@@ -352,12 +350,12 @@ const checks = [
   },
   {
     name: 'identity-identity-verification-authenticated',
-    url: joinURL(identityBaseURL, '/user/identity-verification'),
-    flow: 'identity-authenticated-refresh',
+    url: joinURL(accountBaseURL, '/user/identity-verification'),
+    flow: 'account-authenticated-refresh',
     expectedTexts: ['实名认证', 'Identity Verification'],
     requiredTexts: ['实名认证'],
     forbiddenTexts: ['我的评价', '我的点赞', '我的收藏', 'My Reviews', 'My Votes', 'My Favorites'],
-    expectedURLIncludes: joinURL(identityBaseURL, '/user/identity-verification'),
+    expectedURLIncludes: joinURL(accountBaseURL, '/user/identity-verification'),
     stubbedResources: [
       {
         url: 'https://fonts.googleapis.com/**',
@@ -387,12 +385,12 @@ const checks = [
   },
   {
     name: 'identity-student-verification-authenticated',
-    url: joinURL(identityBaseURL, '/user/student-verification'),
-    flow: 'identity-authenticated-refresh',
+    url: joinURL(accountBaseURL, '/user/student-verification'),
+    flow: 'account-authenticated-refresh',
     expectedTexts: ['学生认证', 'Student Verification'],
     requiredTexts: ['学生认证'],
     forbiddenTexts: ['我的评价', '我的点赞', '我的收藏', 'My Reviews', 'My Votes', 'My Favorites'],
-    expectedURLIncludes: joinURL(identityBaseURL, '/user/student-verification'),
+    expectedURLIncludes: joinURL(accountBaseURL, '/user/student-verification'),
     stubbedResources: [
       {
         url: 'https://fonts.googleapis.com/**',
@@ -422,12 +420,12 @@ const checks = [
   },
   {
     name: 'identity-phone-binding-authenticated',
-    url: joinURL(identityBaseURL, '/user/phone-binding'),
-    flow: 'identity-authenticated-refresh',
+    url: joinURL(accountBaseURL, '/user/phone-binding'),
+    flow: 'account-authenticated-refresh',
     expectedTexts: ['绑定手机', 'Phone Binding'],
     requiredTexts: ['绑定手机'],
     forbiddenTexts: ['我的评价', '我的点赞', '我的收藏', 'My Reviews', 'My Votes', 'My Favorites'],
-    expectedURLIncludes: joinURL(identityBaseURL, '/user/phone-binding'),
+    expectedURLIncludes: joinURL(accountBaseURL, '/user/phone-binding'),
     stubbedResources: [
       {
         url: 'https://fonts.googleapis.com/**',
@@ -457,12 +455,12 @@ const checks = [
   },
   {
     name: 'identity-qq-binding-authenticated',
-    url: joinURL(identityBaseURL, '/user/qq-binding'),
-    flow: 'identity-authenticated-refresh',
+    url: joinURL(accountBaseURL, '/user/qq-binding'),
+    flow: 'account-authenticated-refresh',
     expectedTexts: ['绑定 QQ', 'QQ Binding'],
     requiredTexts: ['绑定 QQ'],
     forbiddenTexts: ['我的评价', '我的点赞', '我的收藏', 'My Reviews', 'My Votes', 'My Favorites'],
-    expectedURLIncludes: joinURL(identityBaseURL, '/user/qq-binding'),
+    expectedURLIncludes: joinURL(accountBaseURL, '/user/qq-binding'),
     stubbedResources: [
       {
         url: 'https://fonts.googleapis.com/**',
@@ -492,12 +490,12 @@ const checks = [
   },
   {
     name: 'identity-academic-info-authenticated',
-    url: joinURL(identityBaseURL, '/user/academic-info'),
-    flow: 'identity-authenticated-refresh',
+    url: joinURL(accountBaseURL, '/user/academic-info'),
+    flow: 'account-authenticated-refresh',
     expectedTexts: ['学业信息', 'Academic Info'],
     requiredTexts: ['学业信息'],
     forbiddenTexts: ['我的评价', '我的点赞', '我的收藏', 'My Reviews', 'My Votes', 'My Favorites'],
-    expectedURLIncludes: joinURL(identityBaseURL, '/user/academic-info'),
+    expectedURLIncludes: joinURL(accountBaseURL, '/user/academic-info'),
     stubbedResources: [
       {
         url: 'https://fonts.googleapis.com/**',
@@ -531,7 +529,7 @@ const checks = [
   },
   {
     name: 'identity-main-route-redirect',
-    url: joinURL(identityBaseURL, '/courses'),
+    url: joinURL(accountBaseURL, '/courses'),
     expectedTexts: ['评课社区@BUAA', 'Browse Courses'],
     expectedURLIncludes: joinURL(webBaseURL, '/courses'),
   },
@@ -769,7 +767,7 @@ const checks = [
     url: joinURL(webBaseURL, '/courses/reviews/post'),
     expectedTexts: ['登录', 'Login'],
     expectedURLIncludes: [
-      joinURL(identityBaseURL, '/login'),
+      joinURL(accountBaseURL, '/login'),
       webRedirectQuery('/courses/reviews/post'),
     ],
   },
@@ -778,7 +776,7 @@ const checks = [
     url: joinURL(webBaseURL, '/user/reviews'),
     expectedTexts: ['登录', 'Login'],
     expectedURLIncludes: [
-      joinURL(identityBaseURL, '/login'),
+      joinURL(accountBaseURL, '/login'),
       webRedirectQuery('/user/reviews'),
     ],
   },
@@ -787,7 +785,7 @@ const checks = [
     url: joinURL(webBaseURL, '/user/votes'),
     expectedTexts: ['登录', 'Login'],
     expectedURLIncludes: [
-      joinURL(identityBaseURL, '/login'),
+      joinURL(accountBaseURL, '/login'),
       webRedirectQuery('/user/votes'),
     ],
   },
@@ -796,7 +794,7 @@ const checks = [
     url: joinURL(webBaseURL, '/user/favorites'),
     expectedTexts: ['登录', 'Login'],
     expectedURLIncludes: [
-      joinURL(identityBaseURL, '/login'),
+      joinURL(accountBaseURL, '/login'),
       webRedirectQuery('/user/favorites'),
     ],
   },
@@ -804,62 +802,62 @@ const checks = [
     name: 'web-protected-identity-home',
     url: joinURL(webBaseURL, '/identity'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/identity'],
+    expectedURLIncludes: [joinURL(accountBaseURL, '/login'), 'redirect=/identity'],
   },
   {
     name: 'web-protected-account-profile',
     url: joinURL(webBaseURL, '/account/profile'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/account/profile'],
+    expectedURLIncludes: [joinURL(accountBaseURL, '/login'), 'redirect=/account/profile'],
   },
   {
     name: 'web-protected-account-security',
     url: joinURL(webBaseURL, '/account/security'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/account/security'],
+    expectedURLIncludes: [joinURL(accountBaseURL, '/login'), 'redirect=/account/security'],
   },
   {
     name: 'web-protected-user-authorized-apps',
     url: joinURL(webBaseURL, '/user/authorized-apps'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/user/authorized-apps'],
+    expectedURLIncludes: [joinURL(accountBaseURL, '/login'), 'redirect=/user/authorized-apps'],
   },
   {
     name: 'web-protected-identity-verification',
     url: joinURL(webBaseURL, '/user/identity-verification'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/user/identity-verification'],
+    expectedURLIncludes: [joinURL(accountBaseURL, '/login'), 'redirect=/user/identity-verification'],
   },
   {
     name: 'web-protected-student-verification',
     url: joinURL(webBaseURL, '/user/student-verification'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/user/student-verification'],
+    expectedURLIncludes: [joinURL(accountBaseURL, '/login'), 'redirect=/user/student-verification'],
   },
   {
     name: 'web-protected-phone-binding',
     url: joinURL(webBaseURL, '/user/phone-binding'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/user/phone-binding'],
+    expectedURLIncludes: [joinURL(accountBaseURL, '/login'), 'redirect=/user/phone-binding'],
   },
   {
     name: 'web-protected-qq-binding',
     url: joinURL(webBaseURL, '/user/qq-binding'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/user/qq-binding'],
+    expectedURLIncludes: [joinURL(accountBaseURL, '/login'), 'redirect=/user/qq-binding'],
   },
   {
     name: 'web-protected-academic-info',
     url: joinURL(webBaseURL, '/user/academic-info'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/user/academic-info'],
+    expectedURLIncludes: [joinURL(accountBaseURL, '/login'), 'redirect=/user/academic-info'],
   },
   {
     name: 'web-protected-notifications',
     url: joinURL(webBaseURL, '/notifications'),
     expectedTexts: ['登录', 'Login'],
     expectedURLIncludes: [
-      joinURL(identityBaseURL, '/login'),
+      joinURL(accountBaseURL, '/login'),
       webRedirectQuery('/notifications'),
     ],
   },
@@ -867,19 +865,19 @@ const checks = [
     name: 'web-protected-developer-apps',
     url: joinURL(webBaseURL, '/developers/apps'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/developers/apps'],
+    expectedURLIncludes: [joinURL(accountBaseURL, '/login'), 'redirect=/developers/apps'],
   },
   {
     name: 'web-protected-open-platform-consent',
     url: joinURL(webBaseURL, '/consent?token=smoke'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/consent?token=smoke'],
+    expectedURLIncludes: [joinURL(accountBaseURL, '/login'), 'redirect=/consent?token=smoke'],
   },
   {
     name: 'web-protected-profile-completion',
     url: joinURL(webBaseURL, '/complete-profile?token=smoke'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: [joinURL(identityBaseURL, '/login'), 'redirect=/complete-profile?token=smoke'],
+    expectedURLIncludes: [joinURL(accountBaseURL, '/login'), 'redirect=/complete-profile?token=smoke'],
   },
   {
     name: 'web-not-found',
@@ -940,7 +938,7 @@ try {
     generatedAt: new Date().toISOString(),
     passed,
     webBaseURL,
-    identityBaseURL,
+    accountBaseURL,
     adminBaseURL,
     viewportVariants,
     checks: results,
@@ -1304,10 +1302,10 @@ async function runCheckFlow(page, check, viewportVariant) {
   if (check.flow === 'web-authenticated-refresh') {
     return runWebAuthenticatedRefreshFlow(page, check, viewportVariant);
   }
-  if (check.flow === 'identity-authenticated-refresh') {
+  if (check.flow === 'account-authenticated-refresh') {
     return runIdentityAuthenticatedRefreshFlow(page, check, viewportVariant);
   }
-  if (check.flow === 'identity-connect-error-refresh') {
+  if (check.flow === 'account-connect-error-refresh') {
     return runIdentityConnectErrorRefreshFlow(page, check);
   }
   if (check.flow === 'admission-sse-ingress') {
@@ -1444,7 +1442,7 @@ async function runIdentityAuthenticatedRefreshFlow(page, check, viewportVariant)
   });
 
   await fillCasdoorPasswordLogin(page);
-  await page.waitForURL((url) => url.href.startsWith(joinURL(identityBaseURL, targetPath)), {
+  await page.waitForURL((url) => url.href.startsWith(joinURL(accountBaseURL, targetPath)), {
     timeout: timeoutMs,
   });
   await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
@@ -1456,7 +1454,7 @@ async function runIdentityAuthenticatedRefreshFlow(page, check, viewportVariant)
   await expectAuthenticatedHeader(page);
 
   await page.reload({ waitUntil: 'domcontentloaded', timeout: timeoutMs });
-  await page.waitForURL((url) => url.href.startsWith(joinURL(identityBaseURL, targetPath)), {
+  await page.waitForURL((url) => url.href.startsWith(joinURL(accountBaseURL, targetPath)), {
     timeout: timeoutMs,
   });
   await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
@@ -1484,7 +1482,7 @@ async function runIdentityConnectErrorRefreshFlow(page, check) {
   });
 
   await fillCasdoorPasswordLogin(page);
-  await page.waitForURL((url) => url.href.startsWith(joinURL(identityBaseURL, targetPath)), {
+  await page.waitForURL((url) => url.href.startsWith(joinURL(accountBaseURL, targetPath)), {
     timeout: timeoutMs,
   });
   await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
@@ -1495,7 +1493,7 @@ async function runIdentityConnectErrorRefreshFlow(page, check) {
   }
 
   await page.reload({ waitUntil: 'domcontentloaded', timeout: timeoutMs });
-  await page.waitForURL((url) => url.href.startsWith(joinURL(identityBaseURL, targetPath)), {
+  await page.waitForURL((url) => url.href.startsWith(joinURL(accountBaseURL, targetPath)), {
     timeout: timeoutMs,
   });
   await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);

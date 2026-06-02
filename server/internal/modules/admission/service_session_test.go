@@ -36,7 +36,7 @@ func TestAdmissionSessionCreatePreviewAndMismatch(t *testing.T) {
 	assert.Equal(t, created.Session.ID, preview.ID)
 	assert.Nil(t, preview.TokenConsumedAt)
 
-	_, err = svc.PreviewToken(context.Background(), created.Token, "99999")
+	_, err = svc.PreviewToken(context.Background(), created.Token, "4111099999")
 	require.ErrorIs(t, err, ErrAdmissionQQMismatch)
 }
 

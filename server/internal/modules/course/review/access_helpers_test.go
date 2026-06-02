@@ -65,9 +65,9 @@ func TestParseReviewAccessSchoolIDs(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"4111010001", "4111010002"}, ids)
 
-	ids, err = parseReviewAccessSchoolIDs(map[string]string{}, []string{"4111010004", "4111010004", " 2002 "})
+	ids, err = parseReviewAccessSchoolIDs(map[string]string{}, []string{"4111010004", "4111010004", " 4111010005 "})
 	require.NoError(t, err)
-	assert.Equal(t, []string{"4111010004", "2002"}, ids)
+	assert.Equal(t, []string{"4111010004", "4111010005"}, ids)
 }
 
 func TestNormalizeAuthorizationProvider(t *testing.T) {

@@ -30,7 +30,7 @@ admin   127.0.0.1:18001
 
 | 项目 | 要求 |
 |------|------|
-| DNS | `stuhelper.com`、`www.stuhelper.com`、`join.stuhelper.com`、`sso.stuhelper.com` 指向对应公网入口；不再配置独立 identity 入口域名 |
+| DNS | `stuhelper.com`、`www.stuhelper.com`、`join.stuhelper.com`、`sso.stuhelper.com` 指向对应公网入口；不再配置独立身份入口域名 |
 | 宝塔 Nginx | 主站机合并 `infra/nginx/baota-stuhelper.conf`；Casdoor 入口按 `infra/nginx/baota-casdoor-sso.conf` 或等价配置反代 |
 | 生产 env | 使用 `infra/ops/init-prod-env.sh` 生成模板，替换占位符；不得提交真实 `.env.prod.*` |
 | Secret backend | 生产使用非 repo 的 secret backend；真实 token、密码、对象存储密钥不写入仓库 |
@@ -47,7 +47,6 @@ ADMIN_PUBLIC_URL=https://stuhelper.com/admin/
 ADMISSION_PUBLIC_BASE_URL=https://join.stuhelper.com
 WEB_VITE_WEB_URL=https://stuhelper.com
 WEB_VITE_SSO_URL=https://sso.stuhelper.com
-WEB_VITE_IDENTITY_URL=
 
 SSO_PUBLIC_SMOKE_ENABLED=true
 

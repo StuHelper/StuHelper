@@ -272,12 +272,12 @@ func (s *Service) ContinueProfileCompletion(ctx context.Context, token string, u
 			Scopes:     definitions,
 		}, nil
 	}
-	if normalizeAuthorizeFlow(challenge.Flow) == AuthorizeFlowIdentity {
+	if normalizeAuthorizeFlow(challenge.Flow) == AuthorizeFlowAccount {
 		consentChallenge, err := s.BuildConsentChallenge(ctx, app, challenge.UserID, challenge.Scopes, req)
 		if err != nil {
 			return nil, err
 		}
-		return &AuthorizeResult{RedirectURL: buildIdentityContinueURL(s.identityBaseURL, consentChallenge.Token)}, nil
+		return &AuthorizeResult{RedirectURL: buildAccountContinueURL(s.accountBaseURL, consentChallenge.Token)}, nil
 	}
 	redirectURL, err := s.buildOIDCRedirectURL(app, req, challenge.Scopes)
 	if err != nil {
@@ -338,15 +338,15 @@ func grantedOAuthScopes(oauthScopes, fallback []string) []string {
 }
 
 func normalizeAuthorizeFlow(flow string) string {
-	if strings.EqualFold(strings.TrimSpace(flow), AuthorizeFlowIdentity) {
-		return AuthorizeFlowIdentity
+	if strings.EqualFold(strings.TrimSpace(flow), AuthorizeFlowAccount) {
+		return AuthorizeFlowAccount
 	}
 	return AuthorizeFlowCasdoor
 }
 
 func (s *Service) consentBaseURLForFlow(flow string) string {
-	if normalizeAuthorizeFlow(flow) == AuthorizeFlowIdentity && strings.TrimSpace(s.identityBaseURL) != "" {
-		return s.identityBaseURL
+	if normalizeAuthorizeFlow(flow) == AuthorizeFlowAccount && strings.TrimSpace(s.accountBaseURL) != "" {
+		return s.accountBaseURL
 	}
 	return s.consentBaseURL
 }
@@ -359,7 +359,7 @@ func buildProfileCompletionURL(baseURL, token string) string {
 	return base + "/complete-profile?token=" + token
 }
 
-func buildIdentityContinueURL(baseURL, token string) string {
+func buildAccountContinueURL(baseURL, token string) string {
 	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if base == "" {
 		return "/oauth2/continue?token=" + token

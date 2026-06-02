@@ -3,9 +3,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   absoluteURLOnPreferredOrigin,
-  identityPortalURL,
-  identityPortalURLForHref,
-  isIdentityPortalPath,
+  accountCenterURL,
+  accountCenterURLForHref,
+  isAccountCenterPath,
   normalizeConfiguredHTTPOrigin,
   resolvePostLoginRedirectTarget,
   sanitizePostLoginRedirect,
@@ -59,7 +59,7 @@ describe('post-login redirect helpers', () => {
     ).toBe('https://stuhelper.com')
   })
 
-  it('builds login return targets on the configured web origin before entering the identity host', () => {
+  it('builds login return targets on the configured web origin', () => {
     expect(
       absoluteURLOnPreferredOrigin('/courses?tab=latest', 'http://stuhelper.com'),
     ).toBe('http://stuhelper.com/courses?tab=latest')
@@ -96,29 +96,29 @@ describe('post-login redirect helpers', () => {
   })
 
   it('builds account URLs on the configured web origin', () => {
-    expect(identityPortalURL('/user/student-verification')).toBe(
+    expect(accountCenterURL('/user/student-verification')).toBe(
       'http://stuhelper.com/user/student-verification',
     )
   })
 
-  it('detects identity portal paths', () => {
-    expect(isIdentityPortalPath('/identity')).toBe(true)
-    expect(isIdentityPortalPath('/account/profile')).toBe(true)
-    expect(isIdentityPortalPath('/developers/apps')).toBe(true)
-    expect(isIdentityPortalPath('/user/identity-verification')).toBe(true)
-    expect(isIdentityPortalPath('/user/student-verification')).toBe(true)
-    expect(isIdentityPortalPath('/courses')).toBe(false)
-    expect(isIdentityPortalPath('/user/reviews')).toBe(false)
+  it('detects account center paths', () => {
+    expect(isAccountCenterPath('/identity')).toBe(true)
+    expect(isAccountCenterPath('/account/profile')).toBe(true)
+    expect(isAccountCenterPath('/developers/apps')).toBe(true)
+    expect(isAccountCenterPath('/user/identity-verification')).toBe(true)
+    expect(isAccountCenterPath('/user/student-verification')).toBe(true)
+    expect(isAccountCenterPath('/courses')).toBe(false)
+    expect(isAccountCenterPath('/user/reviews')).toBe(false)
   })
 
   it('resolves relative account hrefs to the configured web origin', () => {
     vi.stubEnv('VITE_WEB_URL', 'https://stuhelper.com')
 
-    expect(identityPortalURLForHref('/user/student-verification?next=1#form')).toBe(
+    expect(accountCenterURLForHref('/user/student-verification?next=1#form')).toBe(
       'https://stuhelper.com/user/student-verification?next=1#form',
     )
-    expect(identityPortalURLForHref('/courses/1/reviews')).toBeNull()
-    expect(identityPortalURLForHref('https://evil.example/user/student-verification')).toBeNull()
+    expect(accountCenterURLForHref('/courses/1/reviews')).toBeNull()
+    expect(accountCenterURLForHref('https://evil.example/user/student-verification')).toBeNull()
   })
 
   it('resolves account post-login redirects to the web origin', () => {

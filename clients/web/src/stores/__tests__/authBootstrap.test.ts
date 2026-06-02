@@ -84,7 +84,7 @@ describe("auth bootstrap", () => {
                         { name: "admin:reviews:manage", global: true },
                     ],
                     canAccessAdmin: true,
-                    accountSettingsUrl: "https://id.example.com/account",
+                    accountSettingsUrl: "https://account.example.com/account",
                 },
             },
         });
@@ -99,7 +99,7 @@ describe("auth bootstrap", () => {
         expect(store.isAuthenticated).toBe(true);
         expect(store.user?.id).toBe("user_1");
         expect(store.user?.accountSettingsUrl).toBe(
-            "https://id.example.com/account",
+            "https://account.example.com/account",
         );
         expect(store.globalCapabilities).toEqual(["admin:reviews:manage"]);
         expect(mockSetUser).toHaveBeenCalledTimes(1);

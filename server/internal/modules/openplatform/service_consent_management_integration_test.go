@@ -24,7 +24,7 @@ func TestUserConsentManagementListAndRevoke(t *testing.T) {
 	postgres := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
-	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://id.example.com"))
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
 	require.NoError(t, err)
 
 	ownerID := seedOpenPlatformUser(t, postgres, "owner")
@@ -62,7 +62,7 @@ func TestUserConsentManagementListAndRevoke(t *testing.T) {
 		UserID:         userID,
 		Scopes:         []string{ScopeProfileBasicRead, ScopeEmailRead},
 		RedirectURI:    app.RedirectURIs[0],
-		ConsentBaseURL: "https://id.example.com",
+		ConsentBaseURL: "https://account.example.com",
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "viewer", payload["username"])
@@ -93,7 +93,7 @@ func TestUserConsentManagementListAndRevoke(t *testing.T) {
 		UserID:         userID,
 		Scopes:         []string{ScopeProfileBasicRead, ScopeEmailRead},
 		RedirectURI:    app.RedirectURIs[0],
-		ConsentBaseURL: "https://id.example.com",
+		ConsentBaseURL: "https://account.example.com",
 	})
 	var consentErr ConsentRequiredError
 	require.Error(t, err)
@@ -125,7 +125,7 @@ func TestOpenPlatformDisclosureRequiresRegisteredRedirectURI(t *testing.T) {
 	postgres := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
-	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://id.example.com"))
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
 	require.NoError(t, err)
 
 	ownerID := seedOpenPlatformUser(t, postgres, "redirect-owner")
@@ -158,7 +158,7 @@ func TestOpenPlatformDisclosureRejectsBearerClientMismatch(t *testing.T) {
 	postgres := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
-	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://id.example.com"))
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
 	require.NoError(t, err)
 
 	ownerID := seedOpenPlatformUser(t, postgres, "mismatch-owner")
@@ -193,7 +193,7 @@ func TestAdminUserConsentListAndTargetedRevoke(t *testing.T) {
 	postgres := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
-	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://id.example.com"))
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
 	require.NoError(t, err)
 
 	ownerID := seedOpenPlatformUser(t, postgres, "admin-consent-owner")
@@ -307,7 +307,7 @@ func TestUserConsentAuditEventsAreScopedToCurrentUser(t *testing.T) {
 	postgres := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
-	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://id.example.com"))
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
 	require.NoError(t, err)
 
 	ownerID := seedOpenPlatformUser(t, postgres, "audit-owner")
@@ -335,7 +335,7 @@ func TestUserConsentAuditEventsAreScopedToCurrentUser(t *testing.T) {
 		UserID:         userID,
 		Scopes:         []string{ScopeProfileBasicRead, ScopeEmailRead},
 		RedirectURI:    app.RedirectURIs[0],
-		ConsentBaseURL: "https://id.example.com",
+		ConsentBaseURL: "https://account.example.com",
 		RequestID:      "userinfo-user",
 	})
 	require.NoError(t, err)
@@ -406,7 +406,7 @@ func TestDenyConsentWritesUserDeveloperAndAdminAuditEvents(t *testing.T) {
 	postgres := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
-	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://id.example.com"))
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
 	require.NoError(t, err)
 
 	ownerID := seedOpenPlatformUser(t, postgres, "deny-audit-owner")
@@ -421,7 +421,7 @@ func TestDenyConsentWritesUserDeveloperAndAdminAuditEvents(t *testing.T) {
 	}, AuthorizeRequest{
 		RedirectURI: app.RedirectURIs[0],
 		State:       "deny-state",
-		Flow:        AuthorizeFlowIdentity,
+		Flow:        AuthorizeFlowAccount,
 	})
 	require.NoError(t, err)
 
@@ -491,7 +491,7 @@ func TestDenyConsentRejectsRedirectURIDriftBeforeAuditAndDeletingChallenge(t *te
 	postgres := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
-	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://id.example.com"))
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
 	require.NoError(t, err)
 
 	ownerID := seedOpenPlatformUser(t, postgres, "deny-redirect-owner")
@@ -502,7 +502,7 @@ func TestDenyConsentRejectsRedirectURIDriftBeforeAuditAndDeletingChallenge(t *te
 		ClientID:    app.ClientID,
 		RedirectURI: app.RedirectURIs[0],
 		Scopes:      []string{"openid", "email"},
-		Flow:        AuthorizeFlowIdentity,
+		Flow:        AuthorizeFlowAccount,
 	})
 	require.NoError(t, err)
 
@@ -524,7 +524,7 @@ func TestConsentAndProfileCompletionPagesIncludeScopeReasons(t *testing.T) {
 	postgres := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
-	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://id.example.com"))
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
 	require.NoError(t, err)
 
 	ownerID := seedOpenPlatformUser(t, postgres, "reason-owner")
@@ -570,7 +570,7 @@ func TestConsentPageRejectsRedirectURIDrift(t *testing.T) {
 	postgres := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
-	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://id.example.com"))
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
 	require.NoError(t, err)
 
 	ownerID := seedOpenPlatformUser(t, postgres, "consent-page-redirect-owner")
@@ -581,7 +581,7 @@ func TestConsentPageRejectsRedirectURIDrift(t *testing.T) {
 		ClientID:    app.ClientID,
 		RedirectURI: app.RedirectURIs[0],
 		Scopes:      []string{"openid", "email"},
-		Flow:        AuthorizeFlowIdentity,
+		Flow:        AuthorizeFlowAccount,
 	})
 	require.NoError(t, err)
 
@@ -602,7 +602,7 @@ func TestBuildConsentChallengeRejectsStaleAppStatus(t *testing.T) {
 	postgres := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
-	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://id.example.com"))
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
 	require.NoError(t, err)
 
 	ownerID := seedOpenPlatformUser(t, postgres, "build-consent-stale-owner")
@@ -621,7 +621,7 @@ func TestBuildConsentChallengeRejectsStaleAppStatus(t *testing.T) {
 		ClientID:    app.ClientID,
 		RedirectURI: app.RedirectURIs[0],
 		Scopes:      []string{"openid", "email"},
-		Flow:        AuthorizeFlowIdentity,
+		Flow:        AuthorizeFlowAccount,
 	})
 	require.ErrorIs(t, err, ErrAppNotActive)
 	assert.Nil(t, challenge)
@@ -636,7 +636,7 @@ func TestBuildProfileCompletionChallengeRejectsStaleRedirectURI(t *testing.T) {
 	postgres := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
-	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://id.example.com"))
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
 	require.NoError(t, err)
 
 	ownerID := seedOpenPlatformUser(t, postgres, "build-completion-redirect-owner")
@@ -651,7 +651,7 @@ func TestBuildProfileCompletionChallengeRejectsStaleRedirectURI(t *testing.T) {
 		ClientID:    app.ClientID,
 		RedirectURI: app.RedirectURIs[0],
 		Scopes:      []string{"openid", "email"},
-		Flow:        AuthorizeFlowIdentity,
+		Flow:        AuthorizeFlowAccount,
 	})
 	require.ErrorIs(t, err, ErrRedirectURINotAllowed)
 	assert.Nil(t, challenge)
@@ -666,7 +666,7 @@ func TestBuildConsentChallengeRejectsScopeApprovalDrift(t *testing.T) {
 	postgres := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
-	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://id.example.com"))
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
 	require.NoError(t, err)
 
 	ownerID := seedOpenPlatformUser(t, postgres, "build-consent-scope-owner")
@@ -682,7 +682,7 @@ func TestBuildConsentChallengeRejectsScopeApprovalDrift(t *testing.T) {
 		ClientID:    app.ClientID,
 		RedirectURI: app.RedirectURIs[0],
 		Scopes:      []string{"openid", "email"},
-		Flow:        AuthorizeFlowIdentity,
+		Flow:        AuthorizeFlowAccount,
 	})
 	require.ErrorIs(t, err, ErrScopeNotApproved)
 	assert.Nil(t, challenge)
@@ -1535,7 +1535,7 @@ func TestOpenIDOnlyAuthorizationSkipsConsentAndBusinessDisclosure(t *testing.T) 
 		ClientID:    app.ClientID,
 		RedirectURI: app.RedirectURIs[0],
 		Scopes:      []string{"openid"},
-		Flow:        AuthorizeFlowIdentity,
+		Flow:        AuthorizeFlowAccount,
 	}, userID)
 	require.NoError(t, err)
 	assert.Empty(t, decision.Scopes)
@@ -1554,7 +1554,7 @@ func TestOfflineAccessRequiresConsentAndControlsIdentityTokenActivity(t *testing
 	postgres := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
-	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://id.example.com"))
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
 	require.NoError(t, err)
 
 	ownerID := seedOpenPlatformUser(t, postgres, "offline-owner")
@@ -1565,7 +1565,7 @@ func TestOfflineAccessRequiresConsentAndControlsIdentityTokenActivity(t *testing
 		ClientID:    app.ClientID,
 		RedirectURI: app.RedirectURIs[0],
 		Scopes:      []string{"openid", ScopeOfflineAccess},
-		Flow:        AuthorizeFlowIdentity,
+		Flow:        AuthorizeFlowAccount,
 	}, userID)
 	require.NoError(t, err)
 	assert.NotEmpty(t, decision.ConsentURL)
@@ -1605,7 +1605,7 @@ func TestPromptNoneReturnsInteractionErrorsWithoutChallenges(t *testing.T) {
 	postgres := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
-	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://id.example.com"))
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
 	require.NoError(t, err)
 
 	ownerID := seedOpenPlatformUser(t, postgres, "prompt-none-owner")
@@ -1616,7 +1616,7 @@ func TestPromptNoneReturnsInteractionErrorsWithoutChallenges(t *testing.T) {
 		ClientID:    emailApp.ClientID,
 		RedirectURI: emailApp.RedirectURIs[0],
 		Scopes:      []string{"openid", "email"},
-		Flow:        AuthorizeFlowIdentity,
+		Flow:        AuthorizeFlowAccount,
 		PromptNone:  true,
 	}, userID)
 	require.NoError(t, err)
@@ -1632,7 +1632,7 @@ func TestPromptNoneReturnsInteractionErrorsWithoutChallenges(t *testing.T) {
 		ClientID:    profileApp.ClientID,
 		RedirectURI: profileApp.RedirectURIs[0],
 		Scopes:      []string{"openid", "profile"},
-		Flow:        AuthorizeFlowIdentity,
+		Flow:        AuthorizeFlowAccount,
 		PromptNone:  true,
 	}, userID)
 	require.NoError(t, err)
@@ -1655,7 +1655,7 @@ func TestPromptConsentForcesConsentChallenge(t *testing.T) {
 	postgres := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
-	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://id.example.com"))
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
 	require.NoError(t, err)
 
 	ownerID := seedOpenPlatformUser(t, postgres, "prompt-consent-owner")
@@ -1672,7 +1672,7 @@ func TestPromptConsentForcesConsentChallenge(t *testing.T) {
 		ClientID:    app.ClientID,
 		RedirectURI: app.RedirectURIs[0],
 		Scopes:      []string{"openid", "email"},
-		Flow:        AuthorizeFlowIdentity,
+		Flow:        AuthorizeFlowAccount,
 	}, userID)
 	require.NoError(t, err)
 	assert.Empty(t, alreadyConsented.ConsentURL)
@@ -1683,7 +1683,7 @@ func TestPromptConsentForcesConsentChallenge(t *testing.T) {
 		ClientID:     app.ClientID,
 		RedirectURI:  app.RedirectURIs[0],
 		Scopes:       []string{"openid", "email"},
-		Flow:         AuthorizeFlowIdentity,
+		Flow:         AuthorizeFlowAccount,
 		ForceConsent: true,
 	}, userID)
 	require.NoError(t, err)
@@ -1709,7 +1709,7 @@ func TestResourceScopesDoNotCreateUserConsent(t *testing.T) {
 	postgres := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
-	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://id.example.com"))
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
 	require.NoError(t, err)
 
 	ownerID := seedOpenPlatformUser(t, postgres, "resource-scope-owner")
@@ -1724,7 +1724,7 @@ func TestResourceScopesDoNotCreateUserConsent(t *testing.T) {
 		ClientID:    app.ClientID,
 		RedirectURI: app.RedirectURIs[0],
 		Scopes:      []string{"openid", ScopeResourceRead},
-		Flow:        AuthorizeFlowIdentity,
+		Flow:        AuthorizeFlowAccount,
 	}, userID)
 	require.NoError(t, err)
 	assert.Empty(t, decision.ConsentURL)
@@ -1747,7 +1747,7 @@ func TestResourceScopesDoNotCreateUserConsent(t *testing.T) {
 		ClientID:    app.ClientID,
 		RedirectURI: app.RedirectURIs[0],
 		Scopes:      []string{"openid", "email", ScopeResourceRead, ScopeResourceWrite},
-		Flow:        AuthorizeFlowIdentity,
+		Flow:        AuthorizeFlowAccount,
 	}, userID)
 	require.NoError(t, err)
 	require.NotEmpty(t, decision.ConsentURL)
@@ -1783,7 +1783,7 @@ func TestProfileCompletionPreservesOAuthScopesForConsentChallenge(t *testing.T) 
 	postgres := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
-	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://id.example.com"))
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
 	require.NoError(t, err)
 
 	ownerID := seedOpenPlatformUser(t, postgres, "completion-scope-owner")
@@ -1801,7 +1801,7 @@ func TestProfileCompletionPreservesOAuthScopesForConsentChallenge(t *testing.T) 
 		RedirectURI:         app.RedirectURIs[0],
 		Scopes:              []string{"openid", "email", ScopeResourceRead},
 		State:               "completion-oauth-scope-state",
-		Flow:                AuthorizeFlowIdentity,
+		Flow:                AuthorizeFlowAccount,
 		CodeChallenge:       "test-code-challenge",
 		CodeChallengeMethod: "S256",
 		Nonce:               "completion-oauth-scope-nonce",
@@ -1828,7 +1828,7 @@ func TestProfileCompletionContinueRejectsRedirectURIDrift(t *testing.T) {
 	postgres := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
-	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://id.example.com"))
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
 	require.NoError(t, err)
 
 	ownerID := seedOpenPlatformUser(t, postgres, "completion-redirect-owner")
@@ -1840,7 +1840,7 @@ func TestProfileCompletionContinueRejectsRedirectURIDrift(t *testing.T) {
 		ClientID:    app.ClientID,
 		RedirectURI: app.RedirectURIs[0],
 		Scopes:      []string{"openid", "email"},
-		Flow:        AuthorizeFlowIdentity,
+		Flow:        AuthorizeFlowAccount,
 	})
 	require.NoError(t, err)
 
@@ -1867,7 +1867,7 @@ func TestProfileCompletionContinueRejectsInactiveApp(t *testing.T) {
 	postgres := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
-	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://id.example.com"))
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
 	require.NoError(t, err)
 
 	ownerID := seedOpenPlatformUser(t, postgres, "completion-inactive-owner")
@@ -1879,7 +1879,7 @@ func TestProfileCompletionContinueRejectsInactiveApp(t *testing.T) {
 		ClientID:    app.ClientID,
 		RedirectURI: app.RedirectURIs[0],
 		Scopes:      []string{"openid", "email"},
-		Flow:        AuthorizeFlowIdentity,
+		Flow:        AuthorizeFlowAccount,
 	})
 	require.NoError(t, err)
 	_, err = service.SuspendApp(ctx, AppLifecycleActionInput{
@@ -1906,7 +1906,7 @@ func TestProfileCompletionContinueRejectsScopeApprovalDrift(t *testing.T) {
 	postgres := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
-	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://id.example.com"))
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
 	require.NoError(t, err)
 
 	ownerID := seedOpenPlatformUser(t, postgres, "completion-scope-drift-owner")
@@ -1917,7 +1917,7 @@ func TestProfileCompletionContinueRejectsScopeApprovalDrift(t *testing.T) {
 		ClientID:    app.ClientID,
 		RedirectURI: app.RedirectURIs[0],
 		Scopes:      []string{"openid", "email"},
-		Flow:        AuthorizeFlowIdentity,
+		Flow:        AuthorizeFlowAccount,
 	})
 	require.NoError(t, err)
 	_, err = postgres.DB.Exec(ctx, `
@@ -1942,7 +1942,7 @@ func TestGrantConsentRejectsRedirectURIDriftBeforePersistingConsent(t *testing.T
 	postgres := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
-	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://id.example.com"))
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
 	require.NoError(t, err)
 
 	ownerID := seedOpenPlatformUser(t, postgres, "grant-redirect-owner")
@@ -1953,7 +1953,7 @@ func TestGrantConsentRejectsRedirectURIDriftBeforePersistingConsent(t *testing.T
 		ClientID:    app.ClientID,
 		RedirectURI: app.RedirectURIs[0],
 		Scopes:      []string{"openid", "email"},
-		Flow:        AuthorizeFlowIdentity,
+		Flow:        AuthorizeFlowAccount,
 	})
 	require.NoError(t, err)
 
@@ -2466,7 +2466,7 @@ func TestDeveloperAppAuditEventsAreOwnerScopedAndSanitized(t *testing.T) {
 	postgres := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
-	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://id.example.com"))
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
 	require.NoError(t, err)
 
 	ownerID := seedOpenPlatformUser(t, postgres, "developer-audit-owner")
@@ -2643,7 +2643,7 @@ func TestOpenPlatformDisclosureAuditAndRateLimits(t *testing.T) {
 	service, err := NewService(
 		repo,
 		redis.Client,
-		WithConsentBaseURL("https://id.example.com"),
+		WithConsentBaseURL("https://account.example.com"),
 		WithDisclosureRateLimits(DisclosureRateLimitConfig{
 			AppLimit:      1,
 			AppUserLimit:  100,
@@ -2735,7 +2735,7 @@ func TestOpenPlatformDisclosureReplayDetection(t *testing.T) {
 			UserID:         userID,
 			Scopes:         []string{ScopeEmailRead},
 			RedirectURI:    app.RedirectURIs[0],
-			ConsentBaseURL: "https://id.example.com",
+			ConsentBaseURL: "https://account.example.com",
 			RequestID:      "replay-request",
 		})
 		var consentErr ConsentRequiredError
@@ -2840,7 +2840,7 @@ func TestOpenPlatformConsentChallengeRateLimit(t *testing.T) {
 	service, err := NewService(
 		repo,
 		redis.Client,
-		WithConsentBaseURL("https://id.example.com"),
+		WithConsentBaseURL("https://account.example.com"),
 		WithDisclosureRateLimits(DisclosureRateLimitConfig{
 			AppLimit:      100,
 			AppUserLimit:  100,
@@ -2860,7 +2860,7 @@ func TestOpenPlatformConsentChallengeRateLimit(t *testing.T) {
 		UserID:         userID,
 		Scopes:         []string{ScopeEmailRead},
 		RedirectURI:    app.RedirectURIs[0],
-		ConsentBaseURL: "https://id.example.com",
+		ConsentBaseURL: "https://account.example.com",
 		RequestID:      "consent-required",
 	})
 	var consentErr ConsentRequiredError
@@ -2871,7 +2871,7 @@ func TestOpenPlatformConsentChallengeRateLimit(t *testing.T) {
 		UserID:         userID,
 		Scopes:         []string{ScopeEmailRead},
 		RedirectURI:    app.RedirectURIs[0],
-		ConsentBaseURL: "https://id.example.com",
+		ConsentBaseURL: "https://account.example.com",
 		RequestID:      "consent-limited",
 	})
 	require.ErrorIs(t, err, ErrDisclosureRateLimited)

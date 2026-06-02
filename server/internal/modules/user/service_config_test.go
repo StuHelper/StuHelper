@@ -112,7 +112,7 @@ func TestUpdateSchoolConfig_SchoolNotFoundReturnsError(t *testing.T) {
 	svc, err := NewService(&mockRepo{}, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	err = svc.UpdateSchoolConfig(context.Background(), 99999, UpdateSchoolConfigInput{})
+	err = svc.UpdateSchoolConfig(context.Background(), 4111099999, UpdateSchoolConfigInput{})
 	assert.ErrorIs(t, err, ErrSchoolNotFound)
 }
 
@@ -240,7 +240,7 @@ func TestUpdateSystemConfig_RejectsUnknownReviewAccessSchoolIDs(t *testing.T) {
 	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	err = svc.UpdateSystemConfig(context.Background(), systemconfig.ReviewAccessSchoolIDsKey, `["4111010006","99999"]`)
+	err = svc.UpdateSystemConfig(context.Background(), systemconfig.ReviewAccessSchoolIDsKey, `["4111010006","4111099999"]`)
 	assert.ErrorIs(t, err, ErrInvalidSystemConfigValue)
 }
 

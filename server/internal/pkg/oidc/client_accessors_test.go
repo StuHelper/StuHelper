@@ -62,35 +62,35 @@ func TestGetSignupURLForApplicationUsesCasdoorSignupAuthorizePath(t *testing.T) 
 }
 
 func TestGetAuthURLForApplicationRewritesBrowserAuthBaseURL(t *testing.T) {
-	client := NewStubClient("https://sso.example.com/oauth2/authorize")
-	client.publicAuthBaseURL = "https://id.example.com"
+	client := NewStubClient("https://casdoor.internal/oauth2/authorize")
+	client.publicAuthBaseURL = "https://sso.example.com"
 
 	authURL, verifier, err := client.GetAuthURLForApplication(ApplicationWeb, "state-123")
 	require.NoError(t, err)
 	assert.NotEmpty(t, verifier)
-	assert.Contains(t, authURL, "https://id.example.com/oauth2/authorize")
+	assert.Contains(t, authURL, "https://sso.example.com/oauth2/authorize")
 	assert.Contains(t, authURL, "state-123")
-	assert.NotContains(t, authURL, "https://sso.example.com")
+	assert.NotContains(t, authURL, "https://casdoor.internal")
 
 	stepUpURL, _, err := client.GetStepUpAuthURLForApplication(ApplicationWeb, "step-up-state")
 	require.NoError(t, err)
-	assert.Contains(t, stepUpURL, "https://id.example.com/oauth2/authorize")
+	assert.Contains(t, stepUpURL, "https://sso.example.com/oauth2/authorize")
 	assert.Contains(t, stepUpURL, "prompt=login")
 }
 
 func TestGetAuthURLForApplicationDoesNotRewriteCasdoorLoginOAuthToDifferentHost(t *testing.T) {
-	client := NewStubClient("https://sso.example.com/login/oauth/authorize")
-	client.publicAuthBaseURL = "https://id.example.com"
+	client := NewStubClient("https://casdoor.internal/login/oauth/authorize")
+	client.publicAuthBaseURL = "https://sso.example.com"
 
 	authURL, verifier, err := client.GetAuthURLForApplication(ApplicationWeb, "state-123")
 	require.NoError(t, err)
 	assert.NotEmpty(t, verifier)
-	assert.Contains(t, authURL, "https://sso.example.com/login/oauth/authorize")
-	assert.NotContains(t, authURL, "https://id.example.com/login/oauth/authorize")
+	assert.Contains(t, authURL, "https://casdoor.internal/login/oauth/authorize")
+	assert.NotContains(t, authURL, "https://sso.example.com/login/oauth/authorize")
 
 	stepUpURL, _, err := client.GetStepUpAuthURLForApplication(ApplicationWeb, "step-up-state")
 	require.NoError(t, err)
-	assert.Contains(t, stepUpURL, "https://sso.example.com/login/oauth/authorize")
-	assert.NotContains(t, stepUpURL, "https://id.example.com/login/oauth/authorize")
+	assert.Contains(t, stepUpURL, "https://casdoor.internal/login/oauth/authorize")
+	assert.NotContains(t, stepUpURL, "https://sso.example.com/login/oauth/authorize")
 	assert.Contains(t, stepUpURL, "prompt=login")
 }
