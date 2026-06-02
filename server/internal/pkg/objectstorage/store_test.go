@@ -13,8 +13,6 @@ import (
 )
 
 func TestStoreCheckBucketUsesConfiguredTLSCAFile(t *testing.T) {
-	t.Parallel()
-
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodHead, r.Method)
 		require.Equal(t, "/stuhelper-test", r.URL.Path)
@@ -23,6 +21,7 @@ func TestStoreCheckBucketUsesConfiguredTLSCAFile(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	caPath := writeServerCertificatePEM(t, server)
+	t.Setenv("AWS_CA_BUNDLE", caPath)
 	store, err := New(context.Background(), Config{
 		Endpoint:        server.URL,
 		Region:          "us-east-1",

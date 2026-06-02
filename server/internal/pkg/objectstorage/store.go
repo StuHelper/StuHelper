@@ -3,11 +3,9 @@ package objectstorage
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -81,11 +79,11 @@ func New(ctx context.Context, cfg Config) (*Store, error) {
 		)),
 	}
 	if strings.TrimSpace(cfg.TLSCAFile) != "" {
-		httpClient, err := httpClientWithRootCA(strings.TrimSpace(cfg.TLSCAFile))
+		caBundle, err := readRootCABundle(strings.TrimSpace(cfg.TLSCAFile))
 		if err != nil {
 			return nil, wrapError("load_ca_bundle", cfg.TLSCAFile, err)
 		}
-		loadOptions = append(loadOptions, awsconfig.WithHTTPClient(httpClient))
+		loadOptions = append(loadOptions, awsconfig.WithCustomCABundle(bytes.NewReader(caBundle)))
 	}
 
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, loadOptions...)
@@ -106,7 +104,7 @@ func New(ctx context.Context, cfg Config) (*Store, error) {
 	}, nil
 }
 
-func httpClientWithRootCA(caFile string) (*http.Client, error) {
+func readRootCABundle(caFile string) ([]byte, error) {
 	caCert, err := os.ReadFile(caFile)
 	if err != nil {
 		return nil, fmt.Errorf("read ca bundle: %w", err)
@@ -115,13 +113,7 @@ func httpClientWithRootCA(caFile string) (*http.Client, error) {
 	if !caCertPool.AppendCertsFromPEM(caCert) {
 		return nil, errors.New("ca bundle does not contain PEM certificates")
 	}
-
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.TLSClientConfig = &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		RootCAs:    caCertPool,
-	}
-	return &http.Client{Transport: transport}, nil
+	return caCert, nil
 }
 
 // EnsureBucket 确保存储桶存在。
