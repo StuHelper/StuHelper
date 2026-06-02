@@ -417,6 +417,55 @@ func TestLinkedAdmissionActionsRequirePolicyForTimeoutsButNotRelease(t *testing.
 	assertAdmissionSessionCancelled(t, fixture, created.Session.ID)
 }
 
+func TestSuccessfulBotEventClearsLastBotError(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+
+	remindSession := createLinkableSessionForQQ(t, svc, "10001", "test-admission-token-remind")
+	err := svc.RecordBotEvent(context.Background(), remindSession.Session.ID, BotEventInput{
+		Action: BotActionRemind, Success: false, Error: "send failed",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "send failed", *admissionSessionLastBotError(t, fixture, remindSession.Session.ID))
+	err = svc.RecordBotEvent(context.Background(), remindSession.Session.ID, BotEventInput{
+		Action: BotActionRemind, Success: true,
+	})
+	require.NoError(t, err)
+	assert.Nil(t, admissionSessionLastBotError(t, fixture, remindSession.Session.ID))
+
+	releaseSession := createLinkableSessionForQQ(t, svc, "10002", "test-admission-token-release")
+	userID := seedAdmissionUser(t, fixture, "release-clears-bot-error")
+	_, err = svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token: releaseSession.Token, QQQuery: "10002", UserID: userID,
+	})
+	require.NoError(t, err)
+	_, err = svc.MarkVerified(context.Background(), releaseSession.Session.ID)
+	require.NoError(t, err)
+	err = svc.RecordBotEvent(context.Background(), releaseSession.Session.ID, BotEventInput{
+		Action: BotActionRelease, Success: false, Error: "unmute failed",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "unmute failed", *admissionSessionLastBotError(t, fixture, releaseSession.Session.ID))
+	err = svc.RecordBotEvent(context.Background(), releaseSession.Session.ID, BotEventInput{
+		Action: BotActionRelease, Success: true,
+	})
+	require.NoError(t, err)
+	assert.Nil(t, admissionSessionLastBotError(t, fixture, releaseSession.Session.ID))
+
+	kickSession := createLinkableSessionForQQ(t, svc, "10003", "test-admission-token-kick")
+	err = svc.RecordBotEvent(context.Background(), kickSession.Session.ID, BotEventInput{
+		Action: BotActionKick, Success: false, Error: "kick failed",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "kick failed", *admissionSessionLastBotError(t, fixture, kickSession.Session.ID))
+	err = svc.RecordBotEvent(context.Background(), kickSession.Session.ID, BotEventInput{
+		Action: BotActionKick, Success: true,
+	})
+	require.NoError(t, err)
+	assert.Nil(t, admissionSessionLastBotError(t, fixture, kickSession.Session.ID))
+}
+
 func TestAdmissionFailureBlacklistFromKickEvent(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)
@@ -514,6 +563,18 @@ func createLinkableSession(t *testing.T, svc *Service) *CreatedAdmissionSession 
 	return created
 }
 
+func createLinkableSessionForQQ(t *testing.T, svc *Service, qqID string, token string) *CreatedAdmissionSession {
+	t.Helper()
+	previousGenerateToken := svc.generateToken
+	svc.generateToken = func() (string, error) { return token, nil }
+	defer func() { svc.generateToken = previousGenerateToken }()
+	created, err := svc.CreateBotSession(context.Background(), BotSessionCreateInput{
+		Platform: "qq", GuildID: "guild-1", ChannelID: "channel-1", QQID: qqID, BotSelfID: "514",
+	})
+	require.NoError(t, err)
+	return created
+}
+
 func newSessionTestService(t *testing.T, fixture *postgresfixture.Fixture) *Service {
 	t.Helper()
 	svc, err := NewService(NewRepository(fixture.DB), &testQQBindingGateway{}, []byte("test-admission-hmac-key-32-bytes!"))
@@ -597,6 +658,22 @@ func assertAdmissionSessionStatus(
 	`, sessionID).Scan(&status)
 	require.NoError(t, err)
 	assert.Equal(t, expected, status)
+}
+
+func admissionSessionLastBotError(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	sessionID string,
+) *string {
+	t.Helper()
+	var lastBotError *string
+	err := fixture.Pool.QueryRow(context.Background(), `
+		SELECT last_bot_error
+		FROM group_admission_sessions
+		WHERE id = $1
+	`, sessionID).Scan(&lastBotError)
+	require.NoError(t, err)
+	return lastBotError
 }
 
 func deleteAdmissionPolicies(t *testing.T, fixture *postgresfixture.Fixture) {
