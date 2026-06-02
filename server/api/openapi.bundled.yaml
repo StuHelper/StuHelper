@@ -5874,6 +5874,43 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/user/profile/school-email/academic-match:
+    post:
+      tags:
+        - User
+      operationId: matchStudentEmailAcademicStudent
+      summary: 即时匹配主站学生认证学号和姓名
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentEmailAcademicMatchRequest'
+      responses:
+        '200':
+          description: 学籍匹配结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/StudentEmailAcademicMatchResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/user/profile/school-email/request-otp:
     post:
       tags:
@@ -12798,6 +12835,41 @@ components:
         updatedAt:
           type: string
           format: date-time
+    StudentEmailAcademicMatchRequest:
+      type: object
+      required:
+        - schoolCode
+        - studentID
+        - studentName
+      properties:
+        schoolCode:
+          type: string
+          pattern: ^[0-9]{10}$
+          description: 教育部学校标识码；即时学籍匹配必须以此字段识别学校。
+        studentID:
+          type: string
+          description: 学号。
+        studentName:
+          type: string
+          description: 姓名。
+    StudentEmailAcademicMatchResponse:
+      type: object
+      required:
+        - matched
+      properties:
+        matched:
+          type: boolean
+          description: 学号和姓名是否在学校学籍数据源中匹配。
+        email:
+          type: string
+          format: email
+          description: 匹配通过后由后端按学号派生出的学校邮箱。
+        studentID:
+          type: string
+          description: 规范化后的学号。
+        message:
+          type: string
+          description: 面向前端展示的匹配提示。
     ManualFieldDescriptor:
       type: object
       required:

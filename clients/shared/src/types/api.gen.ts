@@ -2298,6 +2298,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/user/profile/school-email/academic-match": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 即时匹配主站学生认证学号和姓名 */
+        post: operations["matchStudentEmailAcademicStudent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/user/profile/school-email/request-otp": {
         parameters: {
             query?: never;
@@ -5152,6 +5169,27 @@ export interface components {
             createdAt?: string;
             /** Format: date-time */
             updatedAt?: string;
+        };
+        StudentEmailAcademicMatchRequest: {
+            /** @description 教育部学校标识码；即时学籍匹配必须以此字段识别学校。 */
+            schoolCode: string;
+            /** @description 学号。 */
+            studentID: string;
+            /** @description 姓名。 */
+            studentName: string;
+        };
+        StudentEmailAcademicMatchResponse: {
+            /** @description 学号和姓名是否在学校学籍数据源中匹配。 */
+            matched: boolean;
+            /**
+             * Format: email
+             * @description 匹配通过后由后端按学号派生出的学校邮箱。
+             */
+            email?: string;
+            /** @description 规范化后的学号。 */
+            studentID?: string;
+            /** @description 面向前端展示的匹配提示。 */
+            message?: string;
         };
         ManualFieldDescriptor: {
             /** @description 动态字段唯一标识 */
@@ -9679,6 +9717,36 @@ export interface operations {
             403: components["responses"]["ErrorResponse"];
             409: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+        };
+    };
+    matchStudentEmailAcademicStudent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentEmailAcademicMatchRequest"];
+            };
+        };
+        responses: {
+            /** @description 学籍匹配结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["StudentEmailAcademicMatchResponse"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     requestStudentEmailOTP: {

@@ -3,7 +3,7 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import type { Pinia } from "pinia";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockRouterPush = vi.fn();
 const mockToastSuccess = vi.fn();
@@ -14,6 +14,7 @@ const mockIdentityApi = vi.hoisted(() => ({
     getProfile: vi.fn(),
     getQQBinding: vi.fn(),
     listSchools: vi.fn(),
+    matchStudentEmailAcademicStudent: vi.fn(),
     requestStudentEmailOTP: vi.fn(),
     verifyStudentEmailOTP: vi.fn(),
     verifyStudent: vi.fn(),
@@ -120,7 +121,22 @@ describe("StudentVerificationPage", () => {
         });
     });
 
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
     it("uses schoolCode and locks the BUAA student email after academic name match", async () => {
+        vi.useFakeTimers();
+        mockIdentityApi.matchStudentEmailAcademicStudent.mockResolvedValue({
+            data: {
+                data: {
+                    matched: true,
+                    email: "20250001@buaa.edu.cn",
+                    studentID: "20250001",
+                    message: "学号和姓名已匹配。",
+                },
+            },
+        });
         mockIdentityApi.requestStudentEmailOTP.mockResolvedValue({
             data: {
                 data: {
@@ -162,6 +178,16 @@ describe("StudentVerificationPage", () => {
 
         await wrapper.find("[data-student-id-input]").setValue("20250001");
         await wrapper.find("[data-student-name-input]").setValue("张三");
+        await vi.advanceTimersByTimeAsync(300);
+        await flushPromises();
+
+        expect(mockIdentityApi.matchStudentEmailAcademicStudent).toHaveBeenCalledWith({
+            schoolCode: "4111010006",
+            studentID: "20250001",
+            studentName: "张三",
+        });
+        expect(emailInput.element.value).toBe("20250001@buaa.edu.cn");
+
         await wrapper.find("[data-student-email-otp-request]").trigger("click");
         await flushPromises();
 
@@ -170,7 +196,6 @@ describe("StudentVerificationPage", () => {
             studentID: "20250001",
             studentName: "张三",
         });
-        expect(emailInput.element.value).toBe("20250001@buaa.edu.cn");
 
         await wrapper.find("[data-student-email-code-input]").setValue("123456");
         await wrapper.find("[data-student-consent-checkbox]").setValue(true);
@@ -187,6 +212,17 @@ describe("StudentVerificationPage", () => {
     });
 
     it("clears the derived BUAA email and code when academic identity changes", async () => {
+        vi.useFakeTimers();
+        mockIdentityApi.matchStudentEmailAcademicStudent.mockResolvedValue({
+            data: {
+                data: {
+                    matched: true,
+                    email: "20250001@buaa.edu.cn",
+                    studentID: "20250001",
+                    message: "学号和姓名已匹配。",
+                },
+            },
+        });
         mockIdentityApi.requestStudentEmailOTP.mockResolvedValue({
             data: {
                 data: {
@@ -209,6 +245,8 @@ describe("StudentVerificationPage", () => {
             .setValue("4111010006");
         await wrapper.find("[data-student-id-input]").setValue("20250001");
         await wrapper.find("[data-student-name-input]").setValue("张三");
+        await vi.advanceTimersByTimeAsync(300);
+        await flushPromises();
         await wrapper.find("[data-student-email-otp-request]").trigger("click");
         await flushPromises();
 
@@ -234,6 +272,26 @@ describe("StudentVerificationPage", () => {
         expect(codeInput.element.value).toBe("");
         expect(submitButton.element.disabled).toBe(true);
         expect(mockIdentityApi.verifyStudentEmailOTP).not.toHaveBeenCalled();
+    });
+
+    it("prompts before requesting OTP when academic identity is incomplete", async () => {
+        const wrapper = mount(StudentVerificationPage, {
+            global: {
+                plugins: [pinia],
+            },
+        });
+        await flushPromises();
+
+        await wrapper
+            .find("[data-student-school-select]")
+            .setValue("4111010006");
+        await wrapper.find("[data-student-id-input]").setValue("20250001");
+        await wrapper.find("[data-student-email-otp-request]").trigger("click");
+        await flushPromises();
+
+        expect(mockToastError).toHaveBeenCalledWith("请先输入学号和姓名。");
+        expect(mockIdentityApi.matchStudentEmailAcademicStudent).not.toHaveBeenCalled();
+        expect(mockIdentityApi.requestStudentEmailOTP).not.toHaveBeenCalled();
     });
 
     it("requires explicit consent even when the school has no custom consent text", async () => {

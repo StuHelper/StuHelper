@@ -140,6 +140,46 @@ func TestStudentEmailOTPRejectsBUAAAliasEmail(t *testing.T) {
 	assert.Empty(t, sender.email)
 }
 
+func TestStudentEmailAcademicMatchReturnsImmediateResult(t *testing.T) {
+	svc, err := NewService(
+		buaaStudentEmailOTPRepo(t, &AcademicStudent{XH: "20250001", XM: stringPtr("张三")}),
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+	)
+	require.NoError(t, err)
+
+	resp, err := svc.MatchStudentEmailAcademicStudent(context.Background(), StudentEmailAcademicMatchInput{
+		UserID:      7,
+		SchoolID:    4111010006,
+		StudentID:   "20250001",
+		StudentName: " 张 三 ",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.True(t, resp.Matched)
+	assert.Equal(t, "20250001@buaa.edu.cn", resp.Email)
+	assert.Equal(t, "20250001", resp.StudentID)
+	assert.NotEmpty(t, resp.Message)
+
+	svc, err = NewService(
+		buaaStudentEmailOTPRepo(t, &AcademicStudent{XH: "20250001", XM: stringPtr("李四")}),
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+	)
+	require.NoError(t, err)
+	resp, err = svc.MatchStudentEmailAcademicStudent(context.Background(), StudentEmailAcademicMatchInput{
+		UserID:      7,
+		SchoolID:    4111010006,
+		StudentID:   "20250001",
+		StudentName: "张三",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.False(t, resp.Matched)
+	assert.Empty(t, resp.Email)
+	assert.NotEmpty(t, resp.Message)
+}
+
 func TestNormalizeStudentEmailRejectsEmptyEmailParts(t *testing.T) {
 	email, err := normalizeStudentEmail(" Student@BUAA.edu.cn ")
 	require.NoError(t, err)

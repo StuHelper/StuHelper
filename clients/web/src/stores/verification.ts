@@ -17,6 +17,10 @@ type UploadIdentityPhotoRequest =
     components["schemas"]["UploadIdentityPhotoRequest"];
 type SubmitStudentVerificationRequest =
     components["schemas"]["SubmitStudentVerificationRequest"];
+type StudentEmailAcademicMatchRequest =
+    components["schemas"]["StudentEmailAcademicMatchRequest"];
+type StudentEmailAcademicMatchResponse =
+    components["schemas"]["StudentEmailAcademicMatchResponse"];
 type StudentEmailOTPRequest = components["schemas"]["StudentEmailOTPRequest"];
 type StudentEmailOTPVerifyRequest =
     components["schemas"]["StudentEmailOTPVerifyRequest"];
@@ -154,6 +158,16 @@ export const useVerificationStore = defineStore("verification", () => {
         );
     };
 
+    const matchStudentEmailAcademicStudent = async (
+        data: StudentEmailAcademicMatchRequest,
+    ): Promise<StudentEmailAcademicMatchResponse> => {
+        const res = await api.identity.matchStudentEmailAcademicStudent(data);
+        return readStudentEmailAcademicMatchPayload(
+            res.data?.data,
+            "Invalid student email academic match response",
+        );
+    };
+
     const verifyStudentEmailOTP = async (
         data: StudentEmailOTPVerifyRequest,
     ) => {
@@ -238,6 +252,7 @@ export const useVerificationStore = defineStore("verification", () => {
         submitIdentity,
         uploadIdentityPhoto,
         verifyStudent,
+        matchStudentEmailAcademicStudent,
         requestStudentEmailOTP,
         verifyStudentEmailOTP,
         bindPhone,
@@ -584,6 +599,21 @@ function readStudentEmailOTPPayload(
         email: readString(value, "email", message),
         studentID: readOptionalString(value, "studentID", message),
         cooldownSeconds: readInteger(value, "cooldownSeconds", message),
+    };
+}
+
+function readStudentEmailAcademicMatchPayload(
+    value: unknown,
+    message: string,
+): StudentEmailAcademicMatchResponse {
+    if (!isRecord(value)) {
+        throw new Error(message);
+    }
+    return {
+        matched: readBoolean(value, "matched", message),
+        email: readOptionalString(value, "email", message),
+        studentID: readOptionalString(value, "studentID", message),
+        message: readOptionalString(value, "message", message),
     };
 }
 

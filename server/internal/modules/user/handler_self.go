@@ -168,6 +168,12 @@ type studentEmailOTPHTTPRequest struct {
 	StudentName string `json:"studentName" binding:"omitempty,max=80"`
 }
 
+type studentEmailAcademicMatchHTTPRequest struct {
+	SchoolCode  string `json:"schoolCode" binding:"required,numeric,len=10"`
+	StudentID   string `json:"studentID" binding:"required,max=50"`
+	StudentName string `json:"studentName" binding:"required,max=80"`
+}
+
 type studentEmailOTPVerifyHTTPRequest struct {
 	SchoolCode string `json:"schoolCode" binding:"omitempty,numeric,len=10"`
 	SchoolID   int64  `json:"schoolID" binding:"omitempty,min=1"`
@@ -209,6 +215,38 @@ func (h *Handler) handleVerifyStudent(c *gin.Context) {
 	}
 
 	response.Success(c, profileToJSON(profile))
+}
+
+func (h *Handler) handleMatchStudentEmailAcademicStudent(c *gin.Context) {
+	userID, ok := h.resolveCurrentUser(c)
+	if !ok {
+		return
+	}
+
+	var req studentEmailAcademicMatchHTTPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request parameters")
+		return
+	}
+	schoolID, ok := h.resolvePublicSchoolID(c, req.SchoolCode, 0)
+	if !ok {
+		return
+	}
+	result, err := h.service.MatchStudentEmailAcademicStudent(c.Request.Context(), StudentEmailAcademicMatchInput{
+		UserID:      userID,
+		SchoolID:    schoolID,
+		StudentID:   req.StudentID,
+		StudentName: req.StudentName,
+	})
+	if err != nil {
+		if respondVerifyStudentError(c, err) {
+			return
+		}
+		logger.FromGin(c).Error("failed to match student email academic identity", zap.Error(err))
+		response.InternalError(c, "failed to match student academic identity")
+		return
+	}
+	response.Success(c, result)
 }
 
 func (h *Handler) handleRequestStudentEmailOTP(c *gin.Context) {

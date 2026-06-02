@@ -173,6 +173,14 @@
                         />
                     </div>
 
+                    <p
+                        v-if="academicMatchMessage"
+                        :class="academicMatchMessageClass"
+                        data-student-academic-match-status
+                    >
+                        {{ academicMatchMessage }}
+                    </p>
+
                     <div class="mb-4">
                         <label
                             class="block text-sm font-semibold text-text-primary mb-2"
@@ -226,9 +234,11 @@
                         </label>
                         <button
                             class="self-end py-2.5 px-4 bg-transparent border border-border rounded-lg text-sm font-medium text-text-primary cursor-pointer transition-all duration-fast hover:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                            :class="{ 'opacity-50 cursor-not-allowed': selectedSchoolRequiresAcademicEmail && !canRequestEmailOTP }"
                             type="button"
                             data-student-email-otp-request
-                            :disabled="submitting || !canRequestEmailOTP"
+                            :aria-disabled="selectedSchoolRequiresAcademicEmail && !canRequestEmailOTP ? 'true' : undefined"
+                            :disabled="submitting"
                             @click="requestEmailOTP"
                         >
                             发送验证码
@@ -389,7 +399,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from "vue";
+import { ref, reactive, computed, onBeforeUnmount, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import {
@@ -416,6 +426,10 @@ const schools = computed(() => store.schools);
 const storeLoading = computed(() => store.loading);
 const showForm = ref(false);
 const submitting = ref(false);
+const academicMatchState = ref<"idle" | "waiting" | "checking" | "matched" | "mismatch" | "error">("idle");
+const academicMatchMessage = ref("");
+let academicMatchTimer: ReturnType<typeof setTimeout> | undefined;
+let academicMatchRunID = 0;
 
 const form = reactive({
     schoolCode: "",
@@ -450,7 +464,12 @@ const selectedSchoolRequiresAcademicEmail = computed(
 );
 const canRequestEmailOTP = computed(() => {
     if (!selectedSchool.value || !selectedSchoolRequiresAcademicEmail.value) return false;
-    return form.studentID.trim() !== "" && form.studentName.trim() !== "";
+    return academicMatchState.value === "matched" && form.email.trim() !== "";
+});
+const academicMatchMessageClass = computed(() => {
+    if (academicMatchState.value === "matched") return "mb-4 text-sm text-green-700";
+    if (academicMatchState.value === "checking") return "mb-4 text-sm text-text-secondary";
+    return "mb-4 text-sm text-red-600";
 });
 
 const canSubmit = computed(() => {
@@ -510,7 +529,11 @@ async function handleSubmit() {
 }
 
 async function requestEmailOTP() {
-    if (!canRequestEmailOTP.value || submitting.value) return;
+    if (submitting.value) return;
+    if (!canRequestEmailOTP.value) {
+        toast.error(academicRequestBlockedMessage());
+        return;
+    }
 
     submitting.value = true;
     try {
@@ -535,6 +558,7 @@ async function requestEmailOTP() {
 watch(
     () => form.schoolCode,
     () => {
+        resetAcademicMatch();
         form.studentID = "";
         form.studentName = "";
         form.email = "";
@@ -553,8 +577,108 @@ watch(
     },
 );
 
+watch(
+    () => [
+        selectedSchoolRequiresAcademicEmail.value,
+        form.schoolCode,
+        form.studentID,
+        form.studentName,
+    ],
+    () => {
+        scheduleAcademicMatch();
+    },
+);
+
 onMounted(() => {
     store.fetchStatus().catch(() => {});
     store.fetchSchools().catch(() => {});
 });
+
+onBeforeUnmount(() => {
+    clearAcademicMatchTimer();
+    academicMatchRunID += 1;
+});
+
+function scheduleAcademicMatch() {
+    clearAcademicMatchTimer();
+    academicMatchRunID += 1;
+    if (!selectedSchoolRequiresAcademicEmail.value) {
+        resetAcademicMatch();
+        return;
+    }
+    form.email = "";
+    form.emailCode = "";
+    const studentID = form.studentID.trim();
+    const studentName = form.studentName.trim();
+    if (!studentID && !studentName) {
+        academicMatchState.value = "idle";
+        academicMatchMessage.value = "";
+        return;
+    }
+    if (!studentID || !studentName) {
+        academicMatchState.value = "waiting";
+        academicMatchMessage.value = "请先输入学号和姓名。";
+        return;
+    }
+    academicMatchState.value = "checking";
+    academicMatchMessage.value = "正在匹配学号和姓名...";
+    const runID = academicMatchRunID;
+    academicMatchTimer = setTimeout(() => {
+        void runAcademicMatch(runID, studentID, studentName);
+    }, 300);
+}
+
+async function runAcademicMatch(
+    runID: number,
+    studentID: string,
+    studentName: string,
+) {
+    try {
+        const result = await store.matchStudentEmailAcademicStudent({
+            schoolCode: form.schoolCode,
+            studentID,
+            studentName,
+        });
+        if (runID !== academicMatchRunID) return;
+        if (result.matched && result.email) {
+            academicMatchState.value = "matched";
+            academicMatchMessage.value = result.message || "学号和姓名已匹配。";
+            form.email = result.email;
+            return;
+        }
+        academicMatchState.value = "mismatch";
+        academicMatchMessage.value = result.message || "学号和姓名不匹配，请核对后再发送验证码。";
+        form.email = "";
+    } catch (err) {
+        if (runID !== academicMatchRunID) return;
+        academicMatchState.value = "error";
+        academicMatchMessage.value = err instanceof Error
+            ? err.message
+            : "学籍匹配暂时不可用，请稍后重试。";
+        form.email = "";
+    }
+}
+
+function resetAcademicMatch() {
+    clearAcademicMatchTimer();
+    academicMatchRunID += 1;
+    academicMatchState.value = "idle";
+    academicMatchMessage.value = "";
+}
+
+function clearAcademicMatchTimer() {
+    if (academicMatchTimer === undefined) return;
+    clearTimeout(academicMatchTimer);
+    academicMatchTimer = undefined;
+}
+
+function academicRequestBlockedMessage(): string {
+    if (!form.studentID.trim() || !form.studentName.trim()) {
+        return "请先输入学号和姓名。";
+    }
+    if (academicMatchState.value === "checking") {
+        return "请等待学号和姓名匹配完成。";
+    }
+    return "请先通过学号和姓名匹配。";
+}
 </script>

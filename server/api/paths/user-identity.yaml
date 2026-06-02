@@ -254,6 +254,42 @@
       '503':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
+/api/v1/user/profile/school-email/academic-match:
+  post:
+    tags: [User]
+    operationId: matchStudentEmailAcademicStudent
+    summary: 即时匹配主站学生认证学号和姓名
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/user-system.yaml#/StudentEmailAcademicMatchRequest'
+    responses:
+      '200':
+        description: 学籍匹配结果
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/user-system.yaml#/StudentEmailAcademicMatchResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
 /api/v1/user/profile/school-email/verify-otp:
   post:
     tags: [User]

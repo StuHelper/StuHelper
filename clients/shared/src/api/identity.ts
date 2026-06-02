@@ -4,6 +4,7 @@ import type { components } from '../types/api.gen'
 type SubmitIdentityRequest = components['schemas']['SubmitIdentityRequest']
 type UploadIdentityPhotoRequest = components['schemas']['UploadIdentityPhotoRequest']
 type SubmitStudentVerificationRequest = components['schemas']['SubmitStudentVerificationRequest']
+type StudentEmailAcademicMatchRequest = components['schemas']['StudentEmailAcademicMatchRequest']
 type StudentEmailOTPRequest = components['schemas']['StudentEmailOTPRequest']
 type StudentEmailOTPVerifyRequest = components['schemas']['StudentEmailOTPVerifyRequest']
 type BindPhoneRequest = components['schemas']['BindPhoneRequest']
@@ -26,6 +27,9 @@ export const createIdentityApi = (client: ApiClient) => ({
 
   verifyStudent: (data: SubmitStudentVerificationRequest) =>
     client.POST('/api/v1/user/profile/verify', { body: data }),
+
+  matchStudentEmailAcademicStudent: (data: StudentEmailAcademicMatchRequest) =>
+    client.POST('/api/v1/user/profile/school-email/academic-match', { body: data }),
 
   requestStudentEmailOTP: (data: StudentEmailOTPRequest) =>
     client.POST('/api/v1/user/profile/school-email/request-otp', { body: data }),

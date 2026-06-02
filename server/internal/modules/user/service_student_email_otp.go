@@ -53,6 +53,20 @@ type StudentEmailOTPVerifyInput struct {
 	Consent  bool
 }
 
+type StudentEmailAcademicMatchInput struct {
+	UserID      int64
+	SchoolID    int64
+	StudentID   string
+	StudentName string
+}
+
+type StudentEmailAcademicMatchResponse struct {
+	Matched   bool   `json:"matched"`
+	Email     string `json:"email,omitempty"`
+	StudentID string `json:"studentID,omitempty"`
+	Message   string `json:"message,omitempty"`
+}
+
 type StudentEmailOTPResponse struct {
 	Email           string `json:"email"`
 	StudentID       string `json:"studentID,omitempty"`
@@ -64,6 +78,53 @@ type studentEmailOTPRecord struct {
 	Code        string `json:"code"`
 	StudentID   string `json:"studentID,omitempty"`
 	StudentName string `json:"studentName,omitempty"`
+}
+
+func (s *Service) MatchStudentEmailAcademicStudent(
+	ctx context.Context,
+	input StudentEmailAcademicMatchInput,
+) (*StudentEmailAcademicMatchResponse, error) {
+	existing, err := s.repo.GetProfileByUserID(ctx, input.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("MatchStudentEmailAcademicStudent check existing: %w", err)
+	}
+	if err := validateStudentVerificationTransition(existing); err != nil {
+		return nil, err
+	}
+	school, err := s.loadEnabledSchoolConfig(ctx, input.SchoolID)
+	if err != nil {
+		return nil, fmt.Errorf("MatchStudentEmailAcademicStudent get school config: %w", err)
+	}
+	settings := schoolauth.ParseAdmissionSettings(school.ManualFormFields)
+	if settings.EmailIdentityPolicy == nil || !settings.EmailIdentityPolicy.IsAcademicStudentEmail() {
+		return nil, ErrStudentEmailDomainNotAllowed
+	}
+	_, email, studentID, _, err := s.resolveAcademicStudentEmailOTPIdentity(
+		ctx,
+		school,
+		settings.EmailIdentityPolicy,
+		StudentEmailOTPInput{
+			UserID:      input.UserID,
+			SchoolID:    input.SchoolID,
+			StudentID:   input.StudentID,
+			StudentName: input.StudentName,
+		},
+	)
+	if err != nil {
+		if errors.Is(err, ErrStudentNotFound) || errors.Is(err, ErrStudentNameMismatch) {
+			return &StudentEmailAcademicMatchResponse{
+				Matched: false,
+				Message: "学号和姓名不匹配，请核对后再发送验证码。",
+			}, nil
+		}
+		return nil, err
+	}
+	return &StudentEmailAcademicMatchResponse{
+		Matched:   true,
+		Email:     email,
+		StudentID: studentID,
+		Message:   "学号和姓名已匹配。",
+	}, nil
 }
 
 func (s *Service) RequestStudentEmailOTP(ctx context.Context, input StudentEmailOTPInput) (*StudentEmailOTPResponse, error) {
