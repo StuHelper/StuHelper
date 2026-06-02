@@ -50,7 +50,6 @@ var (
 		},
 	}
 	verifyStudentErrorMappings = []response.ErrorMapping{
-		response.MatchError(ErrIdentityRequired, 403, "identity verification required before student verification", errs.ErrForbidden),
 		response.MatchError(ErrProfileAlreadyVerified, 409, "student profile already verified", errs.ErrProfileAlreadyVerified),
 		response.MatchError(ErrProfilePendingReview, 409, "student profile is pending review", errs.ErrProfilePendingReview),
 		response.MatchError(ErrSchoolNotFound, 404, "school not found", errs.ErrProfileSchoolNotFound),

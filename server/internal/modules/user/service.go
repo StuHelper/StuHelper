@@ -27,7 +27,6 @@ var (
 	ErrConsentRequired               = errors.New("consent is required")
 	ErrPhotoRequired                 = errors.New("photo upload required for non-mainland documents")
 	ErrLDAPFailed                    = errors.New("LDAP verification failed")
-	ErrIdentityRequired              = errors.New("identity verification required before student verification")
 	ErrStudentIDRequired             = errors.New("student ID is required for LDAP verification")
 	ErrPasswordRequired              = errors.New("password is required for LDAP verification")
 	ErrPhoneAlreadyBound             = errors.New("phone already bound to another user")

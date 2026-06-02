@@ -21,7 +21,6 @@ func TestRespondVerifyStudentError(t *testing.T) {
 		code     errs.ErrorCode
 		contains string
 	}{
-		{name: "identity required", err: ErrIdentityRequired, status: http.StatusForbidden, code: errs.ErrForbidden, contains: "identity verification required"},
 		{name: "school missing", err: ErrSchoolNotFound, status: http.StatusNotFound, code: errs.ErrProfileSchoolNotFound, contains: "school not found"},
 		{name: "ldap failed", err: ErrLDAPFailed, status: http.StatusBadRequest, code: errs.ErrProfileLDAPFailed, contains: "LDAP verification failed"},
 	}
