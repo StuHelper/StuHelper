@@ -163,6 +163,7 @@ onMounted(fetchData);
         </span>
         <ElButton
           v-if="canUpdateSystemConfig()"
+          data-email-policy-edit-button
           plain
           size="small"
           type="primary"
@@ -245,7 +246,10 @@ onMounted(fetchData);
         </ElFormItem>
         <template v-if="form.key === emailPolicyKey">
           <ElFormItem :label="$t('admin.users.systemConfig.emailPolicyMode')">
-            <ElSelect v-model="emailPolicyForm.mode">
+            <ElSelect
+              v-model="emailPolicyForm.mode"
+              data-email-policy-mode-select
+            >
               <ElOption
                 :label="$t('admin.users.systemConfig.emailPolicyPriority')"
                 value="priority"
@@ -259,6 +263,7 @@ onMounted(fetchData);
           <ElFormItem :label="$t('admin.users.systemConfig.emailMaxAttempts')">
             <ElInputNumber
               v-model="emailPolicyForm.maxAttempts"
+              data-email-policy-max-attempts
               :min="1"
               :max="10"
             />
@@ -274,7 +279,10 @@ onMounted(fetchData);
               width="96"
             >
               <template #default="{ row }">
-                <ElSwitch v-model="row.enabled" />
+                <ElSwitch
+                  v-model="row.enabled"
+                  :data-email-policy-provider-enabled="row.name"
+                />
               </template>
             </ElTableColumn>
             <ElTableColumn
@@ -282,7 +290,12 @@ onMounted(fetchData);
               width="140"
             >
               <template #default="{ row }">
-                <ElInputNumber v-model="row.priority" :min="0" :max="999" />
+                <ElInputNumber
+                  v-model="row.priority"
+                  :data-email-policy-provider-priority="row.name"
+                  :min="0"
+                  :max="999"
+                />
               </template>
             </ElTableColumn>
             <ElTableColumn
@@ -290,7 +303,12 @@ onMounted(fetchData);
               width="140"
             >
               <template #default="{ row }">
-                <ElInputNumber v-model="row.weight" :min="1" :max="1000" />
+                <ElInputNumber
+                  v-model="row.weight"
+                  :data-email-policy-provider-weight="row.name"
+                  :min="1"
+                  :max="1000"
+                />
               </template>
             </ElTableColumn>
           </ElTable>
