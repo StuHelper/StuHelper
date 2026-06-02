@@ -113,6 +113,7 @@ describe('AdmissionPage edge states', () => {
 
     expect(wrapper.find('[data-state="expired"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('链接已失效')
+    expect(wrapper.text()).toContain('重新生成认证链接 123')
     expect(wrapper.text()).not.toContain('认证链接暂时无法打开')
   })
 
@@ -255,6 +256,7 @@ describe('AdmissionPage edge states', () => {
 
     expect(wrapper.find('[data-state="accountMismatch"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('账号不匹配')
+    expect(wrapper.text()).toContain('重新生成认证链接 123')
     expect(wrapper.text()).toContain('首次打开时登录的 StuHelper 账号')
     expect(mockAdmissionApi.getAdmissionMe).not.toHaveBeenCalled()
   })
@@ -422,6 +424,7 @@ describe('AdmissionPage edge states', () => {
 
     expect(wrapper.find('[data-state="accountMismatch"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('账号不匹配')
+    expect(wrapper.text()).toContain('重新生成认证链接 123')
     expect(wrapper.text()).not.toContain('链接已失效')
   })
 

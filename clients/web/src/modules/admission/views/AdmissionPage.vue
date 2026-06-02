@@ -43,6 +43,9 @@
           <p class="mt-2 text-sm text-slate-600">
             该认证链接已绑定首次打开时登录的 StuHelper 账号。请退出当前账号后使用原账号登录，或联系管理员重新生成认证链接。
           </p>
+          <p class="mt-2 text-xs text-slate-500" data-admission-reissue-command>
+            管理员可在群内使用：{{ reissueCommand }}
+          </p>
           <button class="primary-button mt-4" type="button" @click="startReauthentication">
             重新登录
           </button>
@@ -150,7 +153,10 @@
         <div v-else-if="pageState === 'expired'" data-state="expired">
           <h2 class="text-lg font-semibold">链接已失效</h2>
           <p class="mt-2 text-sm text-slate-600">
-            请回到 QQ 群联系管理员重新发放认证链接。
+            请回到 QQ 群联系管理员重新生成认证链接。
+          </p>
+          <p class="mt-2 text-xs text-slate-500" data-admission-reissue-command>
+            管理员可在群内使用：{{ reissueCommand }}
           </p>
         </div>
 
@@ -223,6 +229,11 @@ let pendingReviewRefreshAttempt = 0
 let pendingReviewRefreshInFlight = false
 
 const displayQQ = computed(() => readAdmissionQQ() ?? '')
+const reissueCommand = computed(() => {
+  return displayQQ.value
+    ? `重新生成认证链接 ${displayQQ.value}`
+    : '重新生成认证链接 <QQ号>'
+})
 
 function readAdmissionToken(): string {
   return String(route.params.code ?? '')
