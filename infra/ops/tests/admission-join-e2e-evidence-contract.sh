@@ -57,7 +57,8 @@ assert_contains "${EVIDENCE_SCRIPT}" 'updatedAgeSeconds'
 assert_contains "${EVIDENCE_SCRIPT}" 'latest session is fresh enough for this E2E run'
 assert_contains "${EVIDENCE_SCRIPT}" 'bot release evidence is fresh enough for this E2E run'
 assert_contains "${EVIDENCE_SCRIPT}" 'token was consumed by authenticated user'
-assert_contains "${EVIDENCE_SCRIPT}" 'student verification or freshman material flow recorded'
+assert_contains "${EVIDENCE_SCRIPT}" 'student verification credential or submitted freshman material recorded'
+assert_contains "${EVIDENCE_SCRIPT}" 'has_submitted_freshman_material'
 assert_contains "${EVIDENCE_SCRIPT}" 'release requires active student verification credential'
 assert_contains "${EVIDENCE_SCRIPT}" 'backend recorded successful bot release'
 assert_contains "${EVIDENCE_SCRIPT}" 'cancelledAtPresent'
@@ -132,6 +133,11 @@ JSON
 {"input":{"platform":"qq","guildID":"178037297","qqID":"123456789","botSelfID":"2118785781","lookbackHours":24},"sessionCount":1,"latestSession":{"id":"sess-no-credential","platform":"qq","botSelfID":"2118785781","guildID":"178037297","channelIDPresent":true,"qqID":"123456789","userIDPresent":true,"authURLHost":"join.stuhelper.com","authURLPath":"/verify/redacted","authURLHasQQQuery":true,"authURLCanonicalPrefix":true,"tokenHashPresent":true,"tokenConsumed":true,"status":"verified","verified":true,"cancelledAtPresent":true,"botReleaseRecorded":true,"lastBotErrorPresent":false,"createdAt":"2026-05-30T12:00:00Z","updatedAt":"2026-05-30T12:10:00Z","sessionAgeSeconds":600,"updatedAgeSeconds":60,"tokenExpiresAt":"2026-05-30T13:00:00Z","tokenExpired":false,"linkWaitDeadlineAt":"2026-05-30T13:00:00Z","submissionWaitDeadlineAt":"2026-05-31T12:00:00Z","initialMuteUntil":"2026-06-29T12:00:00Z"},"user":{"idPresent":true,"casdoorSubjectPresent":true,"usernamePresent":true,"emailPresent":true},"qqBinding":{"bound":true,"boundAt":"2026-05-30T12:05:00Z"},"studentVerification":{"activeCredentialCount":0,"kinds":[],"schoolIDs":[]},"freshmanApplications":{"count":1,"statuses":["pending"]},"failure":{"failureCount":0,"lastFailureAt":null},"activeBlacklistCount":0}
 JSON
     ;;
+  linked-freshman-created)
+    cat <<'JSON'
+{"input":{"platform":"qq","guildID":"178037297","qqID":"123456789","botSelfID":"2118785781","lookbackHours":24},"sessionCount":1,"latestSession":{"id":"sess-linked-freshman-created","platform":"qq","botSelfID":"2118785781","guildID":"178037297","channelIDPresent":true,"qqID":"123456789","userIDPresent":true,"authURLHost":"join.stuhelper.com","authURLPath":"/verify/redacted","authURLHasQQQuery":true,"authURLCanonicalPrefix":true,"tokenHashPresent":true,"tokenConsumed":true,"status":"linked","verified":false,"cancelledAtPresent":false,"botReleaseRecorded":false,"lastBotErrorPresent":false,"createdAt":"2026-05-30T12:00:00Z","updatedAt":"2026-05-30T12:05:00Z","sessionAgeSeconds":600,"updatedAgeSeconds":300,"tokenExpiresAt":"2026-05-30T13:00:00Z","tokenExpired":false,"linkWaitDeadlineAt":"2026-05-30T13:00:00Z","submissionWaitDeadlineAt":"2026-05-31T12:00:00Z","initialMuteUntil":"2026-06-29T12:00:00Z"},"user":{"idPresent":true,"casdoorSubjectPresent":true,"usernamePresent":true,"emailPresent":true},"qqBinding":{"bound":true,"boundAt":"2026-05-30T12:05:00Z"},"studentVerification":{"activeCredentialCount":0,"kinds":[],"schoolIDs":[]},"freshmanApplications":{"count":1,"statuses":["pending"]},"failure":{"failureCount":0,"lastFailureAt":null},"activeBlacklistCount":0}
+JSON
+    ;;
   none)
     cat <<'JSON'
 {"input":{"platform":"qq","guildID":"178037297","qqID":"123456789","botSelfID":"2118785781","lookbackHours":24},"sessionCount":0,"latestSession":null,"user":null,"qqBinding":{"bound":false,"boundAt":null},"studentVerification":{"activeCredentialCount":0,"kinds":[],"schoolIDs":[]},"freshmanApplications":{"count":0,"statuses":[]},"failure":{"failureCount":0,"lastFailureAt":null},"activeBlacklistCount":0}
@@ -200,6 +206,19 @@ jq -e '
   .passed == false
   and ([.checks[] | select(.name == "token was consumed by authenticated user" and .passed == false)] | length == 1)
 ' "${failed_file}" >/dev/null
+
+created_freshman_file="${tmpdir}/created-freshman.json"
+if run_script linked-freshman-created flow-completed "${created_freshman_file}"; then
+  fail "flow-completed evidence unexpectedly passed for a freshman application without submitted material"
+fi
+jq -e '
+  .passed == false
+  and .session.status == "linked"
+  and .qqBinding.bound == true
+  and .freshmanApplications.count == 1
+  and ([.checks[] | select(.name == "student verification credential or submitted freshman material recorded" and .passed == false)] | length == 1)
+  and ([.checks[] | select(.name == "session reached release-eligible or review-pending state" and .passed == false)] | length == 1)
+' "${created_freshman_file}" >/dev/null
 
 failed_release_file="${tmpdir}/failed-release.json"
 if run_script joined bot-released "${failed_release_file}"; then

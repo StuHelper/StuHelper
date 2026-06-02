@@ -346,15 +346,18 @@ if stage in {"flow-completed", "bot-released"}:
     add("user record exists", user.get("idPresent") is True)
     add("qq binding exists for session user", qq_binding.get("bound") is True)
     has_student_credential = int(student.get("activeCredentialCount") or 0) > 0
-    has_freshman_application = int(freshman.get("count") or 0) > 0
+    has_submitted_freshman_material = (
+        int(freshman.get("count") or 0) > 0
+        and session.get("status") in {"material_submitted", "verified"}
+    )
     add(
-        "student verification or freshman material flow recorded",
-        has_student_credential or has_freshman_application,
-        f"activeCredentialCount={student.get('activeCredentialCount')}, freshmanApplicationCount={freshman.get('count')}",
+        "student verification credential or submitted freshman material recorded",
+        has_student_credential or has_submitted_freshman_material,
+        f"activeCredentialCount={student.get('activeCredentialCount')}, freshmanApplicationCount={freshman.get('count')}, freshmanStatuses={freshman.get('statuses')}, sessionStatus={session.get('status')}",
     )
     add(
         "session reached release-eligible or review-pending state",
-        session.get("status") in {"verified", "material_submitted", "linked"},
+        session.get("status") in {"verified", "material_submitted"},
         f"status={session.get('status')}",
     )
 
