@@ -348,7 +348,7 @@ if stage in {"flow-completed", "bot-released"}:
     has_student_credential = int(student.get("activeCredentialCount") or 0) > 0
     has_submitted_freshman_material = (
         int(freshman.get("count") or 0) > 0
-        and session.get("status") in {"material_submitted", "verified"}
+        and session.get("status") == "material_submitted"
     )
     add(
         "student verification credential or submitted freshman material recorded",

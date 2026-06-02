@@ -250,6 +250,17 @@ jq -e '
   and ([.checks[] | select(.name == "release requires active student verification credential" and .passed == false)] | length == 1)
 ' "${no_credential_release_file}" >/dev/null
 
+no_credential_flow_file="${tmpdir}/no-credential-flow.json"
+if run_script released-no-credential flow-completed "${no_credential_flow_file}"; then
+  fail "flow-completed evidence unexpectedly passed for a verified session without an active credential"
+fi
+jq -e '
+  .passed == false
+  and .session.status == "verified"
+  and .studentVerification.activeCredentialCount == 0
+  and ([.checks[] | select(.name == "student verification credential or submitted freshman material recorded" and .passed == false)] | length == 1)
+' "${no_credential_flow_file}" >/dev/null
+
 missing_file="${tmpdir}/missing.json"
 if run_script none join-created "${missing_file}"; then
   fail "join-created evidence unexpectedly passed without a session"
