@@ -217,6 +217,19 @@ bot_credential_readiness AS (
   FROM public.bot_service_credentials c
   WHERE c.name = (SELECT required_bot_credential_name FROM input)
 ),
+buaa_academic_row_stats AS (
+  SELECT
+    GREATEST(
+      CASE WHEN c.reltuples < 0 THEN 0 ELSE c.reltuples::bigint END,
+      COALESCE(s.n_live_tup, 0)
+    ) AS estimated_rows
+  FROM pg_catalog.pg_class c
+  JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+  LEFT JOIN pg_catalog.pg_stat_all_tables s ON s.relid = c.oid
+  WHERE n.nspname = 'academic'
+    AND c.relname = 'buaa_students'
+    AND c.relkind IN ('r', 'p')
+),
 failures(message) AS (
   SELECT 'ADMISSION_PUBLIC_BASE_URL must be exactly https://join.stuhelper.com'
   WHERE (SELECT admission_public_base_url FROM input) <> 'https://join.stuhelper.com'
@@ -384,10 +397,11 @@ failures(message) AS (
   UNION ALL
   SELECT 'BUAA academic table academic.buaa_students has no rows; import real BUAA student records before admission go-live'
   WHERE EXISTS (SELECT 1 FROM required_school_codes WHERE school_code = '4111010006')
+    AND EXISTS (SELECT 1 FROM buaa_academic_row_stats)
     AND NOT EXISTS (
       SELECT 1
-      FROM academic.buaa_students
-      LIMIT 1
+      FROM buaa_academic_row_stats
+      WHERE estimated_rows > 0
     )
 
   UNION ALL
