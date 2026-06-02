@@ -452,12 +452,12 @@ func (s *Service) MarkVerified(ctx context.Context, sessionID string) (*Admissio
 	return s.repo.MarkVerified(ctx, session.ID, s.now())
 }
 
-func (s *Service) ProjectStudentVerification(ctx context.Context, userID int64, approved bool) error {
-	if userID <= 0 || !approved {
+func (s *Service) ProjectStudentVerification(ctx context.Context, userID int64, schoolID int64, approved bool) error {
+	if userID <= 0 || schoolID <= 0 || !approved {
 		return nil
 	}
 	return s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		return s.repo.MarkUserLinkedSessionsVerifiedTx(ctx, tx, userID, s.now())
+		return s.repo.MarkUserLinkedSessionsVerifiedTx(ctx, tx, userID, schoolID, s.now())
 	})
 }
 

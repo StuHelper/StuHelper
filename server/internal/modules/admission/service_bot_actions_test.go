@@ -138,7 +138,7 @@ func TestStudentVerificationProjectionReleasesLinkedSession(t *testing.T) {
 	created := createBotLinkedSessionForPendingActions(t, svc, fixture, "linked-main-student-proof")
 	require.NotNil(t, created.Session.UserID)
 
-	err := svc.ProjectStudentVerification(context.Background(), *created.Session.UserID, true)
+	err := svc.ProjectStudentVerification(context.Background(), *created.Session.UserID, 1, true)
 	require.NoError(t, err)
 
 	actions, err := svc.ListPendingAdmissionActions(
@@ -159,7 +159,7 @@ func TestStudentVerificationProjectionDoesNotReleaseExpiredLinkedSessions(t *tes
 	require.NotNil(t, created.Session.UserID)
 	expiredID := insertExpiredLinkedAdmissionSessionForUser(t, fixture, *created.Session.UserID)
 
-	err := svc.ProjectStudentVerification(context.Background(), *created.Session.UserID, true)
+	err := svc.ProjectStudentVerification(context.Background(), *created.Session.UserID, 1, true)
 	require.NoError(t, err)
 
 	assertAdmissionSessionStatus(t, fixture, created.Session.ID, StatusVerified)
@@ -175,6 +175,31 @@ func TestStudentVerificationProjectionDoesNotReleaseExpiredLinkedSessions(t *tes
 		actions[0].Action,
 		actions[1].Action,
 	})
+}
+
+func TestStudentVerificationProjectionDoesNotReleaseOtherSchoolSessions(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	insertAdmissionPolicyForSchool(t, fixture, "adm-policy-other-school", "guild-2", 2)
+	userID := seedAdmissionUser(t, fixture, "linked-other-school-projection")
+	sameSchool := createLinkedSessionForSubject(t, svc, userID, "guild-1", "10001", "linked-same-school-token")
+	otherSchool := createLinkedSessionForSubject(t, svc, userID, "guild-2", "10002", "linked-other-school-token")
+
+	err := svc.ProjectStudentVerification(context.Background(), userID, 1, true)
+	require.NoError(t, err)
+
+	assertAdmissionSessionStatus(t, fixture, sameSchool.ID, StatusVerified)
+	assertAdmissionSessionStatus(t, fixture, otherSchool.ID, StatusLinked)
+
+	actions, err := svc.ListPendingAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
+	require.NoError(t, err)
+	require.Len(t, actions, 1)
+	assert.Equal(t, BotActionRelease, actions[0].Action)
+	assert.Equal(t, sameSchool.ID, actions[0].SessionID)
 }
 
 func TestLinkedAdmissionSessionTimesOutInsteadOfReleaseWithoutStudentVerification(t *testing.T) {
@@ -290,6 +315,59 @@ func createBotLinkedSessionForPendingActions(
 	require.NoError(t, err)
 	created.Session = linked
 	return created
+}
+
+func createLinkedSessionForSubject(
+	t *testing.T,
+	svc *Service,
+	userID int64,
+	guildID string,
+	qqID string,
+	token string,
+) *AdmissionSession {
+	t.Helper()
+	previousGenerateToken := svc.generateToken
+	svc.generateToken = func() (string, error) { return token, nil }
+	defer func() { svc.generateToken = previousGenerateToken }()
+
+	created, err := svc.CreateBotSession(context.Background(), BotSessionCreateInput{
+		Platform:  "qq",
+		BotSelfID: "514",
+		GuildID:   guildID,
+		ChannelID: "channel-1",
+		QQID:      qqID,
+	})
+	require.NoError(t, err)
+	linked, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: qqID,
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+	return linked
+}
+
+func insertAdmissionPolicyForSchool(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	id string,
+	guildID string,
+	schoolID int64,
+) {
+	t.Helper()
+	_, err := fixture.Pool.Exec(context.Background(), `
+		INSERT INTO schools (id, code, name)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (id) DO NOTHING
+	`, schoolID, "0000000002", "Other School")
+	require.NoError(t, err)
+	_, err = fixture.Pool.Exec(context.Background(), `
+		INSERT INTO group_admission_policies (
+			id, platform, guild_id, school_id, management_guild_ids, freshman_channel_closes_at, freshman_default_expires_at
+		)
+		VALUES ($1, 'qq', $2, $3, $4, $5, $6)
+	`, id, guildID, schoolID, []string{"mgmt-1"}, futureTime(30), futureTime(180))
+	require.NoError(t, err)
 }
 
 func expireAdmissionLinkWait(t *testing.T, fixture *postgresfixture.Fixture, sessionID string) {

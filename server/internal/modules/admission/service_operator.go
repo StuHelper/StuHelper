@@ -170,7 +170,7 @@ func (s *Service) applyFreshmanApprovalTx(
 	if err := s.repo.CreateVerificationCredentialTx(ctx, input.Tx, credential); err != nil {
 		return err
 	}
-	if err := s.repo.MarkUserLinkedSessionsVerifiedTx(ctx, input.Tx, input.App.UserID, s.now()); err != nil {
+	if err := s.repo.MarkUserLinkedSessionsVerifiedTx(ctx, input.Tx, input.App.UserID, input.App.SchoolID, s.now()); err != nil {
 		return err
 	}
 	return s.projection.EnqueueFreshmanProvisionalRoleSyncTx(ctx, input.Tx, input.App.UserID, true)

@@ -400,17 +400,28 @@ func scanFreshmanCameraHandoff(row pgx.Row) (*FreshmanCameraHandoff, error) {
 	return &handoff, nil
 }
 
-func (r *Repository) MarkUserLinkedSessionsVerifiedTx(ctx context.Context, tx pgx.Tx, userID int64, now time.Time) error {
+func (r *Repository) MarkUserLinkedSessionsVerifiedTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	userID int64,
+	schoolID int64,
+	now time.Time,
+) error {
 	_, err := tx.Exec(ctx, `
-		UPDATE group_admission_sessions
+		UPDATE group_admission_sessions AS gas
 		SET status = $2, verified_at = $3, updated_at = NOW()
-		WHERE user_id = $1 AND status IN ($4, $5)
-		  AND cancelled_at IS NULL
+		FROM group_admission_policies AS gap
+		WHERE gas.user_id = $1
+		  AND gas.platform = gap.platform
+		  AND gas.guild_id = gap.guild_id
+		  AND gap.school_id = $4
+		  AND gas.status IN ($5, $6)
+		  AND gas.cancelled_at IS NULL
 		  AND (
-		    (status = $4 AND submission_wait_deadline_at >= $3)
-		    OR (status = $5 AND (manual_review_deadline_at IS NULL OR manual_review_deadline_at >= $3))
+		    (gas.status = $5 AND gas.submission_wait_deadline_at >= $3)
+		    OR (gas.status = $6 AND (gas.manual_review_deadline_at IS NULL OR gas.manual_review_deadline_at >= $3))
 		  )
-	`, userID, StatusVerified, now, StatusLinked, StatusMaterialSubmitted)
+	`, userID, StatusVerified, now, schoolID, StatusLinked, StatusMaterialSubmitted)
 	return err
 }
 

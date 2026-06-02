@@ -57,11 +57,17 @@ type fakeAdmissionProjectionGateway struct {
 
 type admissionProjectionCall struct {
 	userID   int64
+	schoolID int64
 	approved bool
 }
 
-func (f *fakeAdmissionProjectionGateway) ProjectStudentVerification(_ context.Context, userID int64, approved bool) error {
-	f.calls = append(f.calls, admissionProjectionCall{userID: userID, approved: approved})
+func (f *fakeAdmissionProjectionGateway) ProjectStudentVerification(
+	_ context.Context,
+	userID int64,
+	schoolID int64,
+	approved bool,
+) error {
+	f.calls = append(f.calls, admissionProjectionCall{userID: userID, schoolID: schoolID, approved: approved})
 	return f.err
 }
 
@@ -170,8 +176,18 @@ func TestProcessExternalSyncJob_RetryOnRoleSyncFailure(t *testing.T) {
 
 func TestProcessExternalSyncJob_ProjectsAdmissionVerification(t *testing.T) {
 	gateway := &fakeAdmissionProjectionGateway{}
+	schoolID := int64(10006)
 	svc, err := NewService(
-		&mockRepo{},
+		&mockRepo{
+			onGetProfileByUserIDTx: func(_ context.Context, _ pgx.Tx, userID int64) (*Profile, error) {
+				require.Equal(t, int64(42), userID)
+				return &Profile{
+					UserID:             userID,
+					SchoolID:           &schoolID,
+					VerificationStatus: StatusVerified,
+				}, nil
+			},
+		},
 		[]byte("test-hmac-key-at-least-32-chars!"),
 		&fakeEncryptor{},
 		WithAdmissionVerificationProjectionGateway(gateway),
@@ -187,7 +203,7 @@ func TestProcessExternalSyncJob_ProjectsAdmissionVerification(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, []admissionProjectionCall{{userID: 42, approved: true}}, gateway.calls)
+	assert.Equal(t, []admissionProjectionCall{{userID: 42, schoolID: schoolID, approved: true}}, gateway.calls)
 }
 
 func TestProcessExternalSyncJob_EnsuresSchoolEmailCredentialBeforeAdmissionProjection(t *testing.T) {
@@ -234,7 +250,7 @@ func TestProcessExternalSyncJob_EnsuresSchoolEmailCredentialBeforeAdmissionProje
 	assert.Equal(t, schoolID, capturedCredential.SchoolID)
 	assert.Equal(t, userVerificationCredentialKindSchoolEmailOTP, capturedCredential.Kind)
 	assert.Equal(t, "2******1@buaa.edu.cn", capturedCredential.SubjectDisplay)
-	assert.Equal(t, []admissionProjectionCall{{userID: 42, approved: true}}, gateway.calls)
+	assert.Equal(t, []admissionProjectionCall{{userID: 42, schoolID: schoolID, approved: true}}, gateway.calls)
 }
 
 func TestProcessExternalSyncJob_SkipsAdmissionProjectionWhenUnapproved(t *testing.T) {

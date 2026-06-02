@@ -173,7 +173,7 @@ type profileIdentitySyncGateway interface {
 }
 
 type admissionVerificationProjectionGateway interface {
-	ProjectStudentVerification(ctx context.Context, userID int64, approved bool) error
+	ProjectStudentVerification(ctx context.Context, userID int64, schoolID int64, approved bool) error
 }
 
 type StudentEmailSender interface {
