@@ -62,3 +62,18 @@ func TestBuildOracleStudentLookupQuery(t *testing.T) {
 		query,
 	)
 }
+
+func TestBuildOracleStudentProbeQuery(t *testing.T) {
+	query := buildOracleStudentProbeQuery(OracleStudentDirectoryConfig{
+		Schema:            "USR_JWBIZ",
+		Table:             "T_XS_JBXX",
+		StudentIDColumn:   "XH",
+		StudentNameColumn: "XM",
+	})
+
+	assert.Equal(
+		t,
+		"SELECT 1 FROM USR_JWBIZ.T_XS_JBXX WHERE XH IS NOT NULL AND XM IS NOT NULL FETCH FIRST 1 ROWS ONLY",
+		query,
+	)
+}

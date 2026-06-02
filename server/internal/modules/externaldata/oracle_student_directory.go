@@ -37,7 +37,12 @@ type OracleStudentDirectory struct {
 	db           *sql.DB
 	schoolCode   string
 	query        string
+	probeQuery   string
 	queryTimeout time.Duration
+}
+
+type OracleStudentDirectoryProbe struct {
+	ReadableRecordPresent bool
 }
 
 func NewOracleStudentDirectory(cfg OracleStudentDirectoryConfig) (*OracleStudentDirectory, error) {
@@ -83,8 +88,34 @@ func newOracleStudentDirectoryWithDB(
 		db:           db,
 		schoolCode:   cfg.SchoolCode,
 		query:        buildOracleStudentLookupQuery(cfg),
+		probeQuery:   buildOracleStudentProbeQuery(cfg),
 		queryTimeout: timeout,
 	}
+}
+
+func (d *OracleStudentDirectory) Probe(ctx context.Context) (OracleStudentDirectoryProbe, error) {
+	if d == nil || d.db == nil {
+		return OracleStudentDirectoryProbe{}, ErrStudentSourceNotConfigured
+	}
+	queryCtx := ctx
+	cancel := func() {}
+	if d.queryTimeout > 0 {
+		queryCtx, cancel = context.WithTimeout(ctx, d.queryTimeout)
+	}
+	defer cancel()
+
+	if err := d.db.PingContext(queryCtx); err != nil {
+		return OracleStudentDirectoryProbe{}, fmt.Errorf("ping oracle student directory: %w", err)
+	}
+
+	var marker int
+	if err := d.db.QueryRowContext(queryCtx, d.probeQuery).Scan(&marker); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return OracleStudentDirectoryProbe{ReadableRecordPresent: false}, nil
+		}
+		return OracleStudentDirectoryProbe{}, fmt.Errorf("probe oracle student directory table: %w", err)
+	}
+	return OracleStudentDirectoryProbe{ReadableRecordPresent: true}, nil
 }
 
 func (d *OracleStudentDirectory) LookupStudent(ctx context.Context, studentID string) (*StudentRecord, error) {
@@ -166,6 +197,16 @@ func buildOracleStudentLookupQuery(cfg OracleStudentDirectoryConfig) string {
 		cfg.Schema,
 		cfg.Table,
 		cfg.StudentIDColumn,
+	)
+}
+
+func buildOracleStudentProbeQuery(cfg OracleStudentDirectoryConfig) string {
+	return fmt.Sprintf(
+		"SELECT 1 FROM %s.%s WHERE %s IS NOT NULL AND %s IS NOT NULL FETCH FIRST 1 ROWS ONLY",
+		cfg.Schema,
+		cfg.Table,
+		cfg.StudentIDColumn,
+		cfg.StudentNameColumn,
 	)
 }
 
