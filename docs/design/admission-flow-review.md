@@ -39,6 +39,7 @@ last-verified: 2026-06-02
 | 管理后台只能复制恢复命令 | 运营仍需回到 QQ 群执行命令，无法在后台直接排队重发、重生或取消会话 | 增加 `admission:session:manage` 能力和 Admin session resend/regenerate/cancel API；重发/重生通过 `next_reminder_at` 进入 Koishi pending action 队列，不暴露 bot token |
 | linked/material 阶段可能继承入群初始提醒时间 | 如果扩展 pending reminder 查询但不清理旧 `next_reminder_at`，用户开始认证后仍可能收到重复提醒 | link、材料提交、验证、取消和重生取消旧会话时清空旧 reminder；只有管理员显式重发才把 linked/material session 放回提醒队列 |
 | `material_submitted` 未纳入同 QQ 活跃 session 唯一约束 | Koishi 本地状态丢失或重复 create 时，已提交材料待审核的用户可能被创建并行 admission session，后续 release/kick 动作互相干扰 | `group_admission_sessions_active_qq_idx` 纳入 `material_submitted`；迁移前先取消同 QQ/群/平台下较旧的重复 in-progress session；补充重复入群复用材料提交 session 的后端测试 |
+| 生产 readiness 未检查 BUAA 学籍表是否有数据 | `academic.buaa_students` 空表时，北航学号姓名校验必然失败，但 production readiness 仍会误报通过 | readiness 增加 BUAA 学籍表非空检查；真实上线前必须导入并抽样校验真实北航学籍数据 |
 
 以上修复均已按提交收敛到本地仓库，并通过对应测试验证；是否已进入生产必须以当次部署记录、镜像/源码 sha 和生产 evidence 为准。生产 smoke 只能证明公共入口、SSO、DB readiness 和 Koishi 配置健康，不能替代真实 QQ 端到端验收。
 
@@ -97,7 +98,7 @@ last-verified: 2026-06-02
 
 - 管理后台 admission session 搜索、当前链接复制、Koishi 重生命令复制、直接请求重发、重新生成和取消会话已完成；后续继续补查看 bot release 记录。
 - 管理后台增加 school config 页面：学校代码、校区、可用认证方式、邮箱策略、学校专属字段校验、开通状态。
-- BUAA 学号姓名校验已通过学校配置 `academic_db_table=academic.buaa_students` 接入可导入学籍表；上线前仍需导入并校验真实北航学籍数据，且只有 `4111010006` 先启用，不把学校对照表误当白名单。
+- BUAA 学号姓名校验已通过学校配置 `academic_db_table=academic.buaa_students` 接入可导入学籍表；生产 readiness 已要求该表非空。上线前仍需导入并校验真实北航学籍数据，且只有 `4111010006` 先启用，不把学校对照表误当白名单。
 - QQ 昵称不作为权威业务字段；如运行时临时展示，只能作为非持久化 UI 辅助。
 
 ### P2: 体验优化
@@ -117,7 +118,7 @@ last-verified: 2026-06-02
 ## 当前仍不能宣称完成的事项
 
 - 缺一次真实 QQ 小号完成学生认证后的 `bot-released` final evidence。
-- BUAA 专属学籍校验接口已接入 `academic.buaa_students`，但生产仍需导入并抽样校验真实北航学籍数据后才能宣称该校老生认证完整可用。
+- BUAA 专属学籍校验接口已接入 `academic.buaa_students`，但生产当前该表为空；仍需导入并抽样校验真实北航学籍数据后才能宣称该校老生认证完整可用。
 - 邮件 provider 的基础管理后台配置面已完成；超时、熔断窗口和 smoke 收件箱仍需后续补齐，当前仍主要通过 env 和 smoke 脚本验收真实凭据与模板状态。
 - 后端 app 重建仍可能让 Koishi 在短窗口内看到 502；长期应做滚动发布或让 Koishi 对短暂 5xx 做更清晰的退避和观测。
 - ChatLuna、非 admission 群管能力或其他机器人插件错误不进入 admission 上线范围，除非它们影响入群认证事件处理。

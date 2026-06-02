@@ -382,6 +382,15 @@ failures(message) AS (
     )
 
   UNION ALL
+  SELECT 'BUAA academic table academic.buaa_students has no rows; import real BUAA student records before admission go-live'
+  WHERE EXISTS (SELECT 1 FROM required_school_codes WHERE school_code = '4111010006')
+    AND NOT EXISTS (
+      SELECT 1
+      FROM academic.buaa_students
+      LIMIT 1
+    )
+
+  UNION ALL
   SELECT 'freshman camera handoff table is missing'
   WHERE NOT EXISTS (
     SELECT 1

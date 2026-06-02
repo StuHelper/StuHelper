@@ -94,6 +94,7 @@ assert_contains "${READINESS_SCRIPT}" 'BUAA admission studentIDEmailDomain must 
 assert_contains "${READINESS_SCRIPT}" 'BUAA admission must require student name before sending school email OTP'
 assert_contains "${READINESS_SCRIPT}" 'BUAA academic table academic\.buaa_students is missing'
 assert_contains "${READINESS_SCRIPT}" 'BUAA academic table academic\.buaa_students must expose xh and xm columns'
+assert_contains "${READINESS_SCRIPT}" 'BUAA academic table academic\.buaa_students has no rows; import real BUAA student records before admission go-live'
 assert_contains "${READINESS_SCRIPT}" 'freshman camera handoff table is missing'
 assert_contains "${READINESS_SCRIPT}" 'freshman camera handoff table must expose token_hash, status and continue_on columns'
 assert_contains "${READINESS_SCRIPT}" 'freshman camera handoff table must enforce one active handoff per application'
