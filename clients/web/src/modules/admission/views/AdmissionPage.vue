@@ -194,6 +194,13 @@ import FreshmanCameraFlow from './FreshmanCameraFlow.vue'
 import OldStudentVerificationFlow from './OldStudentVerificationFlow.vue'
 import ProjectionPendingNotice from './ProjectionPendingNotice.vue'
 
+const PENDING_REVIEW_REFRESH_DELAYS_MS = [
+  5000,
+  10000,
+  20000,
+  30000,
+] as const
+
 const route = useRoute()
 const auth = useAuthStore()
 const verificationStore = useVerificationStore()
@@ -211,6 +218,9 @@ let projectionRefreshAbort: AbortController | null = null
 let admissionSessionLoad: Promise<void> | null = null
 let admissionSessionReloadQueued = false
 let activeAdmissionRouteKey = ''
+let pendingReviewRefreshTimer: number | null = null
+let pendingReviewRefreshAttempt = 0
+let pendingReviewRefreshInFlight = false
 
 const displayQQ = computed(() => readAdmissionQQ() ?? '')
 
@@ -357,6 +367,58 @@ function scheduleProjectionRefresh(): void {
     })
 }
 
+function schedulePendingReviewRefresh(reset = false): void {
+  if (pageState.value !== 'pendingReview') return
+  if (reset) pendingReviewRefreshAttempt = 0
+  if (pendingReviewRefreshTimer !== null || pendingReviewRefreshInFlight) return
+  if (document.visibilityState !== 'visible') return
+  const delay = pendingReviewRefreshDelay()
+  pendingReviewRefreshAttempt += 1
+  pendingReviewRefreshTimer = window.setTimeout(() => {
+    pendingReviewRefreshTimer = null
+    void refreshPendingReviewState()
+  }, delay)
+}
+
+function pendingReviewRefreshDelay(): number {
+  const index = Math.min(
+    pendingReviewRefreshAttempt,
+    PENDING_REVIEW_REFRESH_DELAYS_MS.length - 1,
+  )
+  return PENDING_REVIEW_REFRESH_DELAYS_MS[index]
+}
+
+function clearPendingReviewRefresh(): void {
+  if (pendingReviewRefreshTimer === null) return
+  window.clearTimeout(pendingReviewRefreshTimer)
+  pendingReviewRefreshTimer = null
+}
+
+function refreshPendingReviewAfterBrowserReturn(): void {
+  clearPendingReviewRefresh()
+  void refreshPendingReviewState()
+}
+
+async function refreshPendingReviewState(): Promise<void> {
+  if (pageState.value !== 'pendingReview' || pendingReviewRefreshInFlight) return
+  pendingReviewRefreshInFlight = true
+  try {
+    const nextAdmission = await admissionApi.getAdmissionMe()
+    if (pageState.value === 'pendingReview') {
+      handleAdmissionMeState(nextAdmission)
+    }
+  } catch (error) {
+    if (pageState.value === 'pendingReview' && isAdmissionSessionExpiredError(error)) {
+      handleAdmissionExpired()
+    }
+  } finally {
+    pendingReviewRefreshInFlight = false
+    if (pageState.value === 'pendingReview') {
+      schedulePendingReviewRefresh()
+    }
+  }
+}
+
 function isCurrentAdmissionRoute(requestToken: string, requestQQ: string | undefined): boolean {
   return currentAdmissionRouteKey() === admissionRouteKey(requestToken, requestQQ)
 }
@@ -437,6 +499,10 @@ function shouldRefreshAfterBrowserReturn(): boolean {
 }
 
 function refreshAfterBrowserReturn(): void {
+  if (pageState.value === 'pendingReview') {
+    refreshPendingReviewAfterBrowserReturn()
+    return
+  }
   if (shouldRefreshAfterBrowserReturn()) {
     queueAdmissionSessionLoad()
   }
@@ -451,6 +517,8 @@ function handlePageShow(event: PageTransitionEvent): void {
 function handleVisibilityChange(): void {
   if (document.visibilityState === 'visible') {
     refreshAfterBrowserReturn()
+  } else {
+    clearPendingReviewRefresh()
   }
 }
 
@@ -521,8 +589,17 @@ watch(
   },
 )
 
+watch(pageState, (state) => {
+  if (state === 'pendingReview') {
+    schedulePendingReviewRefresh(true)
+    return
+  }
+  clearPendingReviewRefresh()
+})
+
 onBeforeUnmount(() => {
   projectionRefreshAbort?.abort()
+  clearPendingReviewRefresh()
   window.removeEventListener('pageshow', handlePageShow)
   window.removeEventListener('focus', handleWindowFocus)
   document.removeEventListener('visibilitychange', handleVisibilityChange)

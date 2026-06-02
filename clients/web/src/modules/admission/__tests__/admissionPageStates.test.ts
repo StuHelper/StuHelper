@@ -73,6 +73,7 @@ describe('AdmissionPage edge states', () => {
     while (mountedWrappers.length > 0) {
       mountedWrappers.pop()?.unmount()
     }
+    vi.useRealTimers()
   })
 
   it('blocks login and link actions when token QQ does not match query QQ', async () => {
@@ -125,6 +126,41 @@ describe('AdmissionPage edge states', () => {
 
     expect(wrapper.find('[data-state="pendingReview"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('等待管理员审核')
+  })
+
+  it('polls pending review state and advances when a freshman review is approved', async () => {
+    vi.useFakeTimers()
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('material_submitted'),
+    )
+    mockAdmissionApi.getAdmissionMe.mockResolvedValueOnce({
+      projectionPending: true,
+      session: {
+        ...sessionWithStatus('verified'),
+        projectionPending: true,
+      },
+      status: 'verified',
+    })
+
+    const wrapper = await mountAdmissionPage()
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(0)
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.find('[data-state="pendingReview"]').exists()).toBe(true)
+    expect(mockAdmissionApi.getAdmissionMe).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(5000)
+    await flushPromises()
+    await nextTick()
+
+    expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('[data-state="projectionPending"]').exists()).toBe(true)
+    expect(mockWaitForAdmissionProjection).toHaveBeenCalledWith({
+      refreshAuth: mockAuth.fetchUser,
+      signal: expect.any(AbortSignal),
+    })
   })
 
   it('resumes the authenticated admission flow when the URL token was already consumed', async () => {
