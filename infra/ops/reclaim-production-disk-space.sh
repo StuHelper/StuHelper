@@ -141,6 +141,10 @@ prune_tmp_artifacts() {
         -name "update-*.sh" \
       \) -print -delete
     fi
+    find /tmp -xdev -maxdepth 1 -type d \( \
+      -name "stuhelper-deploy-*" -o \
+      -name "stuhelper-koishi-deploy-*" \
+    \) -print -exec rm -rf {} +
   '
 }
 
