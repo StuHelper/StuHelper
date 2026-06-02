@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -55,16 +56,21 @@ func (r *Repository) GetLatestSessionByUserID(
 	return session, nil
 }
 
-func (r *Repository) GetLatestCredentialForUser(ctx context.Context, userID int64) (*VerificationCredential, error) {
+func (r *Repository) GetLatestCredentialForUser(
+	ctx context.Context,
+	userID int64,
+	now time.Time,
+) (*VerificationCredential, error) {
 	ctx = withDBTable(ctx, "user_verification_credentials")
 	credential, err := scanVerificationCredential(r.db.QueryRow(ctx, `
 		SELECT user_id, school_id, kind, subject_hash, subject_display,
 		       source_application_id, expires_at, verified_at
 		FROM user_verification_credentials
 		WHERE user_id = $1 AND revoked_at IS NULL
+		  AND (expires_at IS NULL OR expires_at > $2)
 		ORDER BY verified_at DESC
 		LIMIT 1
-	`, userID))
+	`, userID, now))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
