@@ -407,6 +407,24 @@ describe('AdmissionPage edge states', () => {
     expect(wrapper.find('[data-state="error"]').exists()).toBe(false)
   })
 
+  it('shows account mismatch when the token is consumed during explicit linking', async () => {
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('joined_muted'),
+    )
+    mockAdmissionApi.linkAdmissionSession.mockRejectedValueOnce(
+      new ApiError({ code: 'admission.token_consumed', message: 'consumed' }),
+    )
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+    await wrapper.get('button.primary-button').trigger('click')
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.find('[data-state="accountMismatch"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('账号不匹配')
+    expect(wrapper.text()).not.toContain('链接已失效')
+  })
+
   it('moves to expired when linked resources report an expired admission session', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
       sessionWithStatus('joined_muted'),

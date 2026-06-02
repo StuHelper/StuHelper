@@ -536,6 +536,10 @@ async function confirmLink() {
     session.value = linked
     handleSessionState(linked)
   } catch (error) {
+    if (isAdmissionTokenConsumedError(error)) {
+      pageState.value = 'accountMismatch'
+      return
+    }
     applyError(error)
   } finally {
     linking.value = false
