@@ -115,7 +115,7 @@ const checks = [
       joinURL(ssoBaseURL, '/api/login/oauth/access_token'),
       joinURL(ssoBaseURL, '/api/userinfo'),
     ],
-    forbiddenTexts: ['id.stuhelper.com'],
+    forbiddenTexts: ['WEB_VITE_IDENTITY_URL'],
     expectedURLIncludes: joinURL(identityBaseURL, '/connect'),
   },
   {

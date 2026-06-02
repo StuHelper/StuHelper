@@ -68,7 +68,7 @@ clear_rate_limit_keys() {
 clear_rate_limit_keys
 
 append_no_proxy() {
-  local hosts="stuhelper.com,www.stuhelper.com,join.stuhelper.com,sso.stuhelper.com,id.stuhelper.com,.stuhelper.com"
+  local hosts="stuhelper.com,www.stuhelper.com,join.stuhelper.com,sso.stuhelper.com,.stuhelper.com"
   if [[ -n "${NO_PROXY:-}" ]]; then
     export NO_PROXY="${NO_PROXY},${hosts}"
   else

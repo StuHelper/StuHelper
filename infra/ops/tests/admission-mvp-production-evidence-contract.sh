@@ -130,7 +130,6 @@ checks = [
         "browserPermissions": [{"feature": "camera", "supported": True, "allowed": True}],
         "mediaCaptures": [{"name": "camera", "supported": True, "success": True, "videoTrackCount": 1}],
     },
-    {"name": "id-host-disabled", "passed": True},
 ]
 payload = {
     "generatedAt": now,
@@ -139,7 +138,6 @@ payload = {
         "webBaseURL": "https://stuhelper.com",
         "joinBaseURL": "https://join.stuhelper.com",
         "ssoBaseURL": "https://sso.stuhelper.com",
-        "disabledIDBaseURL": "https://id.stuhelper.com",
     },
     "summary": {"passed": len(checks), "failed": 0},
     "checks": checks,

@@ -228,7 +228,6 @@ required_checks = {
     "join-login-click-starts-sso",
     "join-signup-click-starts-sso-signup",
     "join-mobile-camera-route-allows-camera",
-    "id-host-disabled",
 }
 
 
@@ -261,7 +260,6 @@ targets = payload.get("targets") or {}
 require(targets.get("webBaseURL") == "https://stuhelper.com", f"unexpected webBaseURL: {targets.get('webBaseURL')}")
 require(targets.get("joinBaseURL") == "https://join.stuhelper.com", f"unexpected joinBaseURL: {targets.get('joinBaseURL')}")
 require(targets.get("ssoBaseURL") == "https://sso.stuhelper.com", f"unexpected ssoBaseURL: {targets.get('ssoBaseURL')}")
-require(targets.get("disabledIDBaseURL") == "https://id.stuhelper.com", f"unexpected disabledIDBaseURL: {targets.get('disabledIDBaseURL')}")
 checks = {
     item.get("name"): item
     for item in payload.get("checks", [])

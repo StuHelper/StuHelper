@@ -16,8 +16,8 @@ fi
 TEMPLATE="${REPO_ROOT}/infra/nginx/prod-parity-local-ingress.conf"
 HOSTS_START="# StuHelper prod-parity local ingress BEGIN"
 HOSTS_END="# StuHelper prod-parity local ingress END"
-HOSTS_LINE="127.0.0.1 stuhelper.com www.stuhelper.com id.stuhelper.com join.stuhelper.com sso.stuhelper.com"
-PROXY_BYPASS_HOSTS=(stuhelper.com www.stuhelper.com id.stuhelper.com join.stuhelper.com sso.stuhelper.com "*.stuhelper.com")
+HOSTS_LINE="127.0.0.1 stuhelper.com www.stuhelper.com join.stuhelper.com sso.stuhelper.com"
+PROXY_BYPASS_HOSTS=(stuhelper.com www.stuhelper.com join.stuhelper.com sso.stuhelper.com "*.stuhelper.com")
 DEFAULT_BAOTA_TLS_CERT="/www/server/panel/vhost/cert/panel212.stuhelper.com/fullchain.pem"
 DEFAULT_BAOTA_TLS_KEY="/www/server/panel/vhost/cert/panel212.stuhelper.com/privkey.pem"
 DEFAULT_GENERATED_TLS_DIR="${PROD_PARITY_LOCAL_TLS_DIR:-${REPO_ROOT}/.run/prod-parity/local-tls}"
@@ -156,7 +156,7 @@ ensure_local_tls() {
     -sha256 \
     -days 825 \
     -subj "/CN=stuhelper.com" \
-    -addext "subjectAltName=DNS:stuhelper.com,DNS:www.stuhelper.com,DNS:id.stuhelper.com,DNS:join.stuhelper.com,DNS:sso.stuhelper.com" \
+    -addext "subjectAltName=DNS:stuhelper.com,DNS:www.stuhelper.com,DNS:join.stuhelper.com,DNS:sso.stuhelper.com" \
     -keyout "${key}" \
     -out "${cert}" \
     >/dev/null 2>&1
@@ -280,21 +280,6 @@ server {
     location / {
         proxy_pass http://127.0.0.1:${web_port};
         proxy_http_version 1.1;
-    }
-}
-
-server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    http2 on;
-    server_name id.stuhelper.com;
-
-    ssl_certificate ${cert};
-    ssl_certificate_key ${key};
-    ssl_protocols TLSv1.2 TLSv1.3;
-
-    location / {
-        return 404;
     }
 }
 
@@ -428,4 +413,4 @@ install_nginx_config() {
 install_hosts
 install_proxy_bypass
 install_nginx_config
-log "local prod-parity hosts: stuhelper.com, id.stuhelper.com, join.stuhelper.com, sso.stuhelper.com -> 127.0.0.1"
+log "local prod-parity hosts: stuhelper.com, join.stuhelper.com, sso.stuhelper.com -> 127.0.0.1"
