@@ -575,7 +575,7 @@ ALTER SEQUENCE public.bot_service_credentials_id_seq OWNED BY public.bot_service
 
 CREATE TABLE public.course_categories (
     id bigint NOT NULL,
-    school_id bigint DEFAULT 1 NOT NULL,
+    school_id bigint NOT NULL,
     name character varying(50) NOT NULL,
     sort_order integer DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
@@ -637,7 +637,7 @@ CREATE TABLE public.course_rating_stats (
 
 CREATE TABLE public.courses (
     id bigint NOT NULL,
-    school_id bigint DEFAULT 1 NOT NULL,
+    school_id bigint NOT NULL,
     name character varying(255) NOT NULL,
     code character varying(50),
     department_id bigint,
@@ -676,7 +676,7 @@ ALTER SEQUENCE public.courses_id_seq OWNED BY public.courses.id;
 
 CREATE TABLE public.departments (
     id bigint NOT NULL,
-    school_id bigint DEFAULT 1 NOT NULL,
+    school_id bigint NOT NULL,
     name character varying(255) NOT NULL,
     short_name character varying(50),
     category character varying(50) DEFAULT ''::character varying NOT NULL,
@@ -959,7 +959,7 @@ COMMENT ON COLUMN public.reviews.content_flag IS 'null=无标记, warn=警告级
 
 CREATE TABLE public.teachers (
     id bigint NOT NULL,
-    school_id bigint DEFAULT 1 NOT NULL,
+    school_id bigint NOT NULL,
     name character varying(255) NOT NULL,
     department_id bigint,
     created_at timestamp with time zone DEFAULT now() NOT NULL
@@ -1022,7 +1022,7 @@ CREATE TABLE public.notifications (
 
 CREATE TABLE public.rating_dimensions (
     id character varying(36) NOT NULL,
-    school_id bigint DEFAULT 1 NOT NULL,
+    school_id bigint NOT NULL,
     key character varying(50) NOT NULL,
     name character varying(100) NOT NULL,
     description text,
@@ -1360,7 +1360,7 @@ ALTER SEQUENCE public.teachers_id_seq OWNED BY public.teachers.id;
 
 CREATE TABLE public.terms (
     id character varying(20) NOT NULL,
-    school_id bigint DEFAULT 1 NOT NULL,
+    school_id bigint NOT NULL,
     name character varying(100) NOT NULL,
     is_current boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
@@ -4159,7 +4159,6 @@ ALTER TABLE ONLY public.user_verification_credentials
 
 INSERT INTO public.schools (id, code, name)
 VALUES
-    (1, 'default', '默认学校'),
     (4111010006, '4111010006', '北京航空航天大学');
 
 SELECT pg_catalog.setval('public.schools_id_seq', 4111010006, true);

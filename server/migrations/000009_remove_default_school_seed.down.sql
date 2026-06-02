@@ -1,0 +1,1 @@
+-- Irreversible: do not recreate a non-MOE default school identifier.

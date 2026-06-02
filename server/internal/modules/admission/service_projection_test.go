@@ -142,7 +142,7 @@ func insertFreshmanCredential(
 		INSERT INTO user_verification_credentials (
 			id, user_id, school_id, kind, subject_hash, subject_display, expires_at
 		)
-		VALUES ($1, $2, 1, $3, $4, $5, $6)
+		VALUES ($1, $2, 4111010006, $3, $4, $5, $6)
 	`, seed.ID, seed.UserID, CredentialFreshmanMaterialManual, "freshman-hash-"+seed.ID,
 		"freshman material A***", seed.ExpiresAt)
 	require.NoError(t, err)

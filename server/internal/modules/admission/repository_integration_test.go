@@ -213,7 +213,7 @@ func insertFreshmanApplication(t *testing.T, fixture *postgresfixture.Fixture, u
 		INSERT INTO freshman_verification_applications (
 			id, user_id, school_id, admission_session_id, applicant_name, applicant_name_masked, material_type, status
 		)
-		VALUES ('freshman-app-1', $1, 1, $2, 'Alice Applicant', 'A***', 'admission_notice', $3)
+		VALUES ('freshman-app-1', $1, 4111010006, $2, 'Alice Applicant', 'A***', 'admission_notice', $3)
 	`, userID, sessionID, FreshmanApplicationPending)
 	require.NoError(t, err)
 	return "freshman-app-1"
@@ -238,7 +238,7 @@ func assertPendingApplicationUnique(t *testing.T, fixture *postgresfixture.Fixtu
 		INSERT INTO freshman_verification_applications (
 			id, user_id, school_id, admission_session_id, applicant_name, applicant_name_masked, material_type, status
 		)
-		VALUES ('freshman-app-dup', $1, 1, $2, 'Bob Applicant', 'B***', 'admission_certificate', $3)
+		VALUES ('freshman-app-dup', $1, 4111010006, $2, 'Bob Applicant', 'B***', 'admission_certificate', $3)
 	`, userID, sessionID, FreshmanApplicationPending)
 	require.Error(t, err)
 }
@@ -248,13 +248,13 @@ func assertFreshmanCredentialRequiresExpiry(t *testing.T, fixture *postgresfixtu
 
 	_, err := fixture.Pool.Exec(context.Background(), `
 		INSERT INTO user_verification_credentials (id, user_id, school_id, kind, subject_hash, subject_display)
-		VALUES ('credential-no-expiry', $1, 1, $2, 'manual-hash-1', 'freshman material')
+		VALUES ('credential-no-expiry', $1, 4111010006, $2, 'manual-hash-1', 'freshman material')
 	`, userID, CredentialFreshmanMaterialManual)
 	require.Error(t, err)
 
 	_, err = fixture.Pool.Exec(context.Background(), `
 		INSERT INTO user_verification_credentials (id, user_id, school_id, kind, subject_hash, subject_display, expires_at)
-		VALUES ('credential-with-expiry', $1, 1, $2, 'manual-hash-2', 'freshman material', $3)
+		VALUES ('credential-with-expiry', $1, 4111010006, $2, 'manual-hash-2', 'freshman material', $3)
 	`, userID, CredentialFreshmanMaterialManual, futureTime(90))
 	require.NoError(t, err)
 }

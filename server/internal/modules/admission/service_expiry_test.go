@@ -70,7 +70,7 @@ func insertSchoolSSOCredential(t *testing.T, fixture *postgresfixture.Fixture, u
 		INSERT INTO user_verification_credentials (
 			id, user_id, school_id, kind, subject_hash, subject_display, expires_at
 		)
-		VALUES ('school-sso-expiry', $1, 1, $2, 'school-sso-hash', 'official student', $3)
+		VALUES ('school-sso-expiry', $1, 4111010006, $2, 'school-sso-hash', 'official student', $3)
 	`, userID, CredentialSchoolSSO, time.Now().Add(-time.Hour))
 	require.NoError(t, err)
 }

@@ -17,6 +17,16 @@ const selectSchoolConfigColumns = `
 	sc.enabled, sc.created_at, sc.updated_at
 `
 
+const selectSchoolDirectoryConfigColumns = `
+	s.id, s.code AS school_code, COALESCE(sc.school_name, s.name) AS school_name,
+	COALESCE(sc.verification_method, 'manual') AS verification_method,
+	COALESCE(sc.approval_policy, 'manual') AS approval_policy,
+	sc.ldap_config, sc.academic_db_table, sc.consent_text, sc.manual_form_fields,
+	COALESCE(sc.enabled, false) AS enabled,
+	COALESCE(sc.created_at, s.created_at) AS created_at,
+	COALESCE(sc.updated_at, s.created_at) AS updated_at
+`
+
 func scanSchoolConfig(row interface{ Scan(dest ...any) error }) (*SchoolConfig, error) {
 	var item SchoolConfig
 	err := row.Scan(
@@ -37,10 +47,10 @@ func scanSchoolConfig(row interface{ Scan(dest ...any) error }) (*SchoolConfig, 
 func (r *Repository) GetSchoolConfig(ctx context.Context, schoolID int64) (*SchoolConfig, error) {
 	ctx = withDBTable(ctx, "school_configs")
 	item, err := scanSchoolConfig(r.db.QueryRow(ctx, `
-		SELECT `+selectSchoolConfigColumns+`
-		FROM school_configs sc
-		LEFT JOIN schools s ON s.id = sc.school_id
-		WHERE sc.school_id = $1
+		SELECT `+selectSchoolDirectoryConfigColumns+`
+		FROM schools s
+		LEFT JOIN school_configs sc ON sc.school_id = s.id
+		WHERE s.id = $1
 	`, schoolID))
 	if err != nil {
 		return nil, fmt.Errorf("GetSchoolConfig: %w", err)
@@ -92,10 +102,10 @@ func (r *Repository) ListReviewAccessSchoolConfigs(ctx context.Context) ([]revie
 func (r *Repository) ListAllSchoolConfigs(ctx context.Context) ([]SchoolConfig, error) {
 	ctx = withDBTable(ctx, "school_configs")
 	rows, err := r.db.Query(ctx, `
-		SELECT `+selectSchoolConfigColumns+`
-		FROM school_configs sc
-		LEFT JOIN schools s ON s.id = sc.school_id
-		ORDER BY sc.school_name ASC
+		SELECT `+selectSchoolDirectoryConfigColumns+`
+		FROM schools s
+		LEFT JOIN school_configs sc ON sc.school_id = s.id
+		ORDER BY s.name ASC, s.code ASC
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("ListAllSchoolConfigs: %w", err)
@@ -119,11 +129,29 @@ func (r *Repository) ListAllSchoolConfigs(ctx context.Context) ([]SchoolConfig, 
 func (r *Repository) UpdateSchoolConfig(ctx context.Context, config *SchoolConfig) error {
 	ctx = withDBTable(ctx, "school_configs")
 	_, err := r.db.Exec(ctx, `
-		UPDATE school_configs SET
-			school_name = $2, verification_method = $3, approval_policy = $4, ldap_config = $5,
-			academic_db_table = $6, consent_text = $7, manual_form_fields = $8,
-			enabled = $9, updated_at = NOW()
-		WHERE school_id = $1
+		UPDATE schools
+		SET name = $2
+		WHERE id = $1
+	`, config.SchoolID, config.SchoolName)
+	if err != nil {
+		return fmt.Errorf("UpdateSchoolConfig update school directory: %w", err)
+	}
+	_, err = r.db.Exec(ctx, `
+		INSERT INTO school_configs (
+			school_id, school_name, verification_method, approval_policy, ldap_config,
+			academic_db_table, consent_text, manual_form_fields, enabled, updated_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+		ON CONFLICT (school_id) DO UPDATE
+		SET school_name = EXCLUDED.school_name,
+			verification_method = EXCLUDED.verification_method,
+			approval_policy = EXCLUDED.approval_policy,
+			ldap_config = EXCLUDED.ldap_config,
+			academic_db_table = EXCLUDED.academic_db_table,
+			consent_text = EXCLUDED.consent_text,
+			manual_form_fields = EXCLUDED.manual_form_fields,
+			enabled = EXCLUDED.enabled,
+			updated_at = NOW()
 	`, config.SchoolID, config.SchoolName, config.VerificationMethod, config.ApprovalPolicy, config.LDAPConfig,
 		config.AcademicDBTable, config.ConsentText, config.ManualFormFields,
 		config.Enabled,

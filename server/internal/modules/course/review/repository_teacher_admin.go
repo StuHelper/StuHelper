@@ -73,7 +73,10 @@ func (r *Repository) CreateTeacher(ctx context.Context, name string, departmentI
 	var t AdminTeacher
 	err := r.db.QueryRow(ctx, `
 		WITH inserted AS (
-			INSERT INTO teachers (name, department_id) VALUES ($1, $2)
+			INSERT INTO teachers (school_id, name, department_id)
+			SELECT d.school_id, $1, d.id
+			FROM departments d
+			WHERE d.id = $2
 			RETURNING id, name, department_id, created_at
 		)
 		SELECT i.id, i.name, i.department_id, d.name, i.created_at
@@ -90,7 +93,11 @@ func (r *Repository) CreateTeacher(ctx context.Context, name string, departmentI
 func (r *Repository) UpdateTeacher(ctx context.Context, id int64, name string, departmentID *int64) error {
 	ctx = withDBTable(ctx, "teachers")
 	result, err := r.db.Exec(ctx, `
-		UPDATE teachers SET name = $2, department_id = $3 WHERE id = $1
+		UPDATE teachers
+		SET name = $2,
+		    department_id = $3,
+		    school_id = COALESCE((SELECT d.school_id FROM departments d WHERE d.id = $3), teachers.school_id)
+		WHERE id = $1
 	`, id, name, departmentID)
 	if err != nil {
 		return fmt.Errorf("UpdateTeacher: %w", err)
