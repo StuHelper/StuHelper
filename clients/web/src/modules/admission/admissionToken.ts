@@ -53,6 +53,13 @@ export function isAdmissionSessionExpiredError(error: unknown): boolean {
   return Boolean(code && EXPIRED_ADMISSION_SESSION_ERROR_CODES.has(code))
 }
 
+export function isFreshmanCameraHandoffLockedError(error: unknown): boolean {
+  const message = readAdmissionErrorMessage(error)
+  return /admission camera handoff locked|camera handoff locked|handoff locked/i.test(
+    message ?? '',
+  )
+}
+
 function readAdmissionErrorCode(error: unknown): string | undefined {
   if (error instanceof ApiError) {
     return error.code
@@ -69,6 +76,27 @@ function readAdmissionErrorCode(error: unknown): string | undefined {
     const nestedCode = (nested as { code?: unknown }).code
     if (typeof nestedCode === 'string' && nestedCode !== '') {
       return nestedCode
+    }
+  }
+  return undefined
+}
+
+function readAdmissionErrorMessage(error: unknown): string | undefined {
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+  if (!error || typeof error !== 'object') {
+    return undefined
+  }
+  const message = (error as { message?: unknown }).message
+  if (typeof message === 'string' && message !== '') {
+    return message
+  }
+  const nested = (error as { error?: unknown }).error
+  if (nested && typeof nested === 'object') {
+    const nestedMessage = (nested as { message?: unknown }).message
+    if (typeof nestedMessage === 'string' && nestedMessage !== '') {
+      return nestedMessage
     }
   }
   return undefined

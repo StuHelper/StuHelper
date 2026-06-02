@@ -174,7 +174,10 @@ import type {
 } from '@stuhelper/shared/api'
 
 import { admissionApi } from '../api'
-import { isAdmissionSessionExpiredError } from '../admissionToken'
+import {
+  isAdmissionSessionExpiredError,
+  isFreshmanCameraHandoffLockedError,
+} from '../admissionToken'
 import {
   captureFrameAsBase64,
   describeCameraCaptureError,
@@ -346,6 +349,7 @@ async function submitFreshmanMaterial(): Promise<void> {
     emit('submitted', reviewed)
   } catch (error) {
     if (handleAdmissionExpiredError(error)) return
+    if (await handleFreshmanCameraHandoffLockedError(error)) return
     errorMessage.value = readErrorMessage(error, '材料提交失败。')
   } finally {
     submitting.value = false
@@ -372,6 +376,7 @@ async function startMobileHandoff(): Promise<void> {
     startHandoffStatusUpdates()
   } catch (error) {
     if (handleAdmissionExpiredError(error)) return
+    if (await handleFreshmanCameraHandoffLockedError(error)) return
     errorMessage.value = readErrorMessage(error, '手机拍照链接生成失败。')
   } finally {
     handoffBusy.value = false
@@ -485,6 +490,28 @@ function handleAdmissionExpiredError(error: unknown): boolean {
   emit('expired')
   stopHandoffPolling()
   stopHandoffStatusUpdates()
+  return true
+}
+
+async function handleFreshmanCameraHandoffLockedError(error: unknown): Promise<boolean> {
+  if (!isFreshmanCameraHandoffLockedError(error)) return false
+  if (handoff.value) {
+    await refreshHandoff()
+  }
+  const current = handoff.value
+  if (current?.status === 'uploaded') {
+    errorMessage.value = '手机端已上传材料，请先在手机上选择回到电脑端继续或在手机端继续。'
+    return true
+  }
+  if (current?.status === 'locked' && current.continueOn === 'desktop') {
+    errorMessage.value = ''
+    return true
+  }
+  if (current?.status === 'locked' && current.continueOn === 'mobile') {
+    errorMessage.value = '手机端已继续处理，电脑端已锁定，避免重复提交。'
+    return true
+  }
+  errorMessage.value = '当前材料流程已在另一端继续或已提交，请刷新页面确认最新状态。'
   return true
 }
 

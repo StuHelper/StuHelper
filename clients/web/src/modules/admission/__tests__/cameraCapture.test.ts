@@ -692,6 +692,170 @@ describe("FreshmanCameraFlow material capture UI", () => {
         }
     });
 
+    it("refreshes handoff state when desktop submission races with mobile upload", async () => {
+        const originalEventSource = window.EventSource;
+        const mediaDevicesDescriptor = Object.getOwnPropertyDescriptor(
+            navigator,
+            "mediaDevices",
+        );
+        const videoWidthDescriptor = Object.getOwnPropertyDescriptor(
+            HTMLVideoElement.prototype,
+            "videoWidth",
+        );
+        const videoHeightDescriptor = Object.getOwnPropertyDescriptor(
+            HTMLVideoElement.prototype,
+            "videoHeight",
+        );
+        class FakeEventSource {
+            close = vi.fn();
+            constructor() {}
+            addEventListener() {}
+        }
+        const stopTrack = vi.fn();
+        Object.defineProperty(navigator, "mediaDevices", {
+            configurable: true,
+            value: {
+                getUserMedia: vi.fn().mockResolvedValue({
+                    getTracks: () => [{ stop: stopTrack }],
+                }),
+            },
+        });
+        Object.defineProperty(HTMLVideoElement.prototype, "videoWidth", {
+            configurable: true,
+            get: () => 2,
+        });
+        Object.defineProperty(HTMLVideoElement.prototype, "videoHeight", {
+            configurable: true,
+            get: () => 2,
+        });
+        Object.defineProperty(window, "EventSource", {
+            configurable: true,
+            value: FakeEventSource as unknown as typeof EventSource,
+        });
+        const play = vi
+            .spyOn(HTMLMediaElement.prototype, "play")
+            .mockResolvedValue(undefined);
+        const getContext = vi
+            .spyOn(HTMLCanvasElement.prototype, "getContext")
+            .mockImplementation(((contextID: string) => {
+                if (contextID !== "2d") return null;
+                return {
+                    drawImage: vi.fn(),
+                } as unknown as CanvasRenderingContext2D;
+            }) as HTMLCanvasElement["getContext"]);
+        const toDataURL = vi
+            .spyOn(HTMLCanvasElement.prototype, "toDataURL")
+            .mockReturnValue("data:image/jpeg;base64,QUJDRA==");
+
+        try {
+            mockAdmissionApi.submitFreshmanApplication.mockResolvedValue(
+                freshmanApplication,
+            );
+            mockAdmissionApi.createFreshmanCameraHandoff.mockResolvedValue(
+                freshmanHandoff,
+            );
+            mockAdmissionApi.uploadCameraCapture.mockRejectedValueOnce(
+                new ApiError({
+                    code: "A0000409",
+                    message: "admission camera handoff locked",
+                }),
+            );
+            mockAdmissionApi.getFreshmanCameraHandoff.mockResolvedValue({
+                ...freshmanHandoff,
+                status: "uploaded",
+                uploadedAt: "2026-06-01T10:05:00Z",
+            });
+            const wrapper = mount(FreshmanCameraFlow, {
+                props: {
+                    maxMaterialBytes: 1024,
+                    schools: [
+                        {
+                            schoolID: 1001,
+                            schoolCode: "4111010006",
+                            schoolName: "北京航空航天大学",
+                            verificationMethod: "manual",
+                            enabled: true,
+                        },
+                    ],
+                },
+            });
+            await flushPromises();
+            await wrapper
+                .find("[data-freshman-school-select]")
+                .setValue("4111010006");
+            await wrapper
+                .find("[data-freshman-applicant-name-input]")
+                .setValue("张三");
+            await wrapper.get("button.secondary-button").trigger("click");
+            await flushPromises();
+            await wrapper.get("button.secondary-button").trigger("click");
+            await flushPromises();
+            await wrapper
+                .find("[data-freshman-mobile-handoff-button]")
+                .trigger("click");
+            await flushPromises();
+
+            await wrapper.find("form").trigger("submit");
+            await flushPromises();
+
+            expect(mockAdmissionApi.uploadCameraCapture).toHaveBeenCalledTimes(
+                1,
+            );
+            expect(
+                mockAdmissionApi.getFreshmanCameraHandoff,
+            ).toHaveBeenCalledWith("handoff-1");
+            expect(wrapper.text()).toContain("手机端已上传材料");
+            expect(wrapper.text()).not.toContain("材料提交失败");
+            expect(wrapper.emitted("submitted")).toBeUndefined();
+            wrapper.unmount();
+            expect(stopTrack).toHaveBeenCalled();
+        } finally {
+            Object.defineProperty(window, "EventSource", {
+                configurable: true,
+                value: originalEventSource,
+            });
+            if (mediaDevicesDescriptor) {
+                Object.defineProperty(
+                    navigator,
+                    "mediaDevices",
+                    mediaDevicesDescriptor,
+                );
+            } else {
+                Object.defineProperty(navigator, "mediaDevices", {
+                    configurable: true,
+                    value: undefined,
+                });
+            }
+            if (videoWidthDescriptor) {
+                Object.defineProperty(
+                    HTMLVideoElement.prototype,
+                    "videoWidth",
+                    videoWidthDescriptor,
+                );
+            } else {
+                Reflect.deleteProperty(
+                    HTMLVideoElement.prototype,
+                    "videoWidth",
+                );
+            }
+            if (videoHeightDescriptor) {
+                Object.defineProperty(
+                    HTMLVideoElement.prototype,
+                    "videoHeight",
+                    videoHeightDescriptor,
+                );
+            } else {
+                Reflect.deleteProperty(
+                    HTMLVideoElement.prototype,
+                    "videoHeight",
+                );
+            }
+            play.mockRestore();
+            getContext.mockRestore();
+            toDataURL.mockRestore();
+        }
+    });
+
     it("locks desktop controls when mobile continuation is chosen", async () => {
         const originalEventSource = window.EventSource;
         class FakeEventSource {

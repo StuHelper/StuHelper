@@ -4,6 +4,7 @@ import { ApiError } from '@/api/errors'
 
 import {
   buildAdmissionReturnURL,
+  isFreshmanCameraHandoffLockedError,
   isAdmissionSessionExpiredError,
   isAdmissionTokenConsumedError,
   mapAdmissionApiError,
@@ -70,6 +71,22 @@ describe('admission token return URL', () => {
     ).toBe(true)
     expect(
       isAdmissionSessionExpiredError(
+        new ApiError({ code: 'A0000409', message: 'conflict' }),
+      ),
+    ).toBe(false)
+  })
+
+  it('detects freshman camera handoff lock conflicts by domain message', () => {
+    expect(
+      isFreshmanCameraHandoffLockedError(
+        new ApiError({
+          code: 'A0000409',
+          message: 'admission camera handoff locked',
+        }),
+      ),
+    ).toBe(true)
+    expect(
+      isFreshmanCameraHandoffLockedError(
         new ApiError({ code: 'A0000409', message: 'conflict' }),
       ),
     ).toBe(false)
