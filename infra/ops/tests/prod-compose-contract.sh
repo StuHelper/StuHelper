@@ -117,6 +117,7 @@ assert_not_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" 'REDIS_TLS_ENABLED: \$\
 assert_not_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" 'REDIS_ADDR: \$\{REDIS_EXPORTER_ADDR:-redis://'
 assert_contains "${REDIS_ACL_RENDER_FILE}" '^chmod 644 "\$\{ACL_FILE\}"$'
 assert_contains "${REDIS_TLS_RENDER_FILE}" '^ensure_redis_tls_permissions\(\) \{$'
+assert_contains "${REDIS_TLS_RENDER_FILE}" 'chmod 755 "\$\{REDIS_TLS_DIR\}"'
 assert_contains "${REDIS_TLS_RENDER_FILE}" 'chmod 644 "\$\{SERVER_KEY\}"'
 assert_contains "${REPO_ROOT}/infra/ops/render-postgres-tls.sh" '^ensure_postgres_tls_permissions\(\) \{$'
 assert_contains "${REPO_ROOT}/infra/ops/render-postgres-tls.sh" 'chmod 755 "\$\{POSTGRES_TLS_DIR\}"'

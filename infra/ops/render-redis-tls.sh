@@ -25,12 +25,15 @@ SAN_LIST="${REDIS_SSL_SAN_LIST:-DNS:redis,DNS:localhost,IP:127.0.0.1}"
 mkdir -p "${REDIS_TLS_DIR}"
 
 ensure_redis_tls_permissions() {
+  chmod 755 "${REDIS_TLS_DIR}"
   [[ -f "${CA_KEY}" ]] && chmod 600 "${CA_KEY}"
   # Redis drops privileges before reading its TLS key from the bind mount.
   [[ -f "${SERVER_KEY}" ]] && chmod 644 "${SERVER_KEY}"
   [[ -f "${CA_CERT}" ]] && chmod 644 "${CA_CERT}"
   [[ -f "${SERVER_CERT}" ]] && chmod 644 "${SERVER_CERT}"
 }
+
+ensure_redis_tls_permissions
 
 if [[ "${REDIS_TLS_ENABLED:-false}" != "true" ]]; then
   log "REDIS_TLS_ENABLED=${REDIS_TLS_ENABLED:-false}; skipping Redis TLS material generation"
