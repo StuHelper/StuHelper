@@ -73,7 +73,7 @@ func TestFreshmanApplicationJSONMatchesOpenAPIShape(t *testing.T) {
 	app := FreshmanApplication{
 		ID:                  "freshman-1",
 		UserID:              42,
-		SchoolID:            1,
+		SchoolID:            4111010006,
 		Status:              FreshmanApplicationPending,
 		ApplicantNameMasked: "A***",
 		MaterialType:        MaterialAdmissionNotice,

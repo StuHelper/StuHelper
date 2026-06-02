@@ -36,7 +36,7 @@ func TestReviewHandlers_ServeFromCache(t *testing.T) {
 	}
 
 	mustSet("review:stats", "all", gin.H{"courseCount": 10, "reviewCount": 20, "departmentCount": 3, "userCount": 4})
-	mustSet("review:rating_dimensions", "all", []RatingDimension{{ID: "dim-1", SchoolID: 1, Key: "teaching", Name: "教学", IsActive: true}})
+	mustSet("review:rating_dimensions", "all", []RatingDimension{{ID: "dim-1", SchoolID: 4111010006, Key: "teaching", Name: "教学", IsActive: true}})
 	mustSet("review:rating_stats", "1", CourseRatingStatsResponse{CourseID: 1, Overall: TermRatingStats{TermID: "overall", TermName: "Overall", Dimensions: []DimensionStats{{Key: "teaching", Name: "教学", AvgRating: 4.5, RatingCount: 1, Distribution: map[int]int{5: 1}}}}, AllDimensionKeys: []string{"teaching"}})
 	mustSet("review:rating_trend", "1", gin.H{"trend": []RatingTrendItem{{TermID: "2024-1", AvgRating: 4.5}}})
 	mustSet("review:hot", "period=all:limit=20", gin.H{"list": []HotCourse{{CourseID: 1, CourseName: "高数"}}})

@@ -162,7 +162,7 @@ func TestBuildUserPayload_SchoolAdminScopesStayNonGlobal(t *testing.T) {
 		nil,
 		[]string{"school_admin"},
 		capability.ExpandRoleGrants([]string{"school_admin"}, map[string][]string{
-			"school_admin": {"1002", "1001"},
+			"school_admin": {"4111010002", "4111010001"},
 		}),
 	)
 
@@ -171,6 +171,6 @@ func TestBuildUserPayload_SchoolAdminScopesStayNonGlobal(t *testing.T) {
 	require.NotEmpty(t, payload.CapabilityGrants)
 	for _, grant := range payload.CapabilityGrants {
 		assert.False(t, grant.Global)
-		assert.Equal(t, []string{"1001", "1002"}, grant.ScopeSchoolIDs)
+		assert.Equal(t, []string{"4111010001", "4111010002"}, grant.ScopeSchoolIDs)
 	}
 }

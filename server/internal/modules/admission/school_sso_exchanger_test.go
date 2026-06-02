@@ -24,7 +24,7 @@ func TestOIDCSchoolSSOExchangerUsesVerifiedIDTokenClaims(t *testing.T) {
 	exchanger := NewOIDCSchoolSSOExchanger(client)
 
 	identity, err := exchanger.ExchangeSchoolSSO(context.Background(), SchoolSSOExchangeInput{
-		SchoolID:     1,
+		SchoolID:     4111010006,
 		Code:         " code-value ",
 		CodeVerifier: " verifier-value ",
 	})

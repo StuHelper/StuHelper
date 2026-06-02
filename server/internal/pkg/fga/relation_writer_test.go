@@ -31,7 +31,7 @@ func TestGroupTuplesByObjectRelationPreservesFirstSeenOrder(t *testing.T) {
 	groups := groupTuplesByObjectRelation([]Tuple{
 		{User: "user:1", Relation: "author", Object: "review:1"},
 		{User: "user:2", Relation: "author", Object: "review:1"},
-		{User: "school:1", Relation: "school", Object: "review:1"},
+		{User: "school:4111010001", Relation: "school", Object: "review:1"},
 	})
 
 	assert.Len(t, groups, 2)

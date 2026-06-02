@@ -712,7 +712,7 @@ func TestHandleVerifyStudent_LDAPMissingStudentIDReturns400(t *testing.T) {
 		},
 		onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
 			return &SchoolConfig{
-				SchoolID:           20001,
+				SchoolID:           4111010001,
 				SchoolName:         "LDAP 学校",
 				VerificationMethod: VerifyMethodLDAP,
 				Enabled:            true,
@@ -1004,7 +1004,7 @@ func TestHandleListSchools_ManualIncludesManualFormFields(t *testing.T) {
 	repo := &mockRepo{
 		onListSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {
 			return []SchoolConfig{{
-				SchoolID:           20002,
+				SchoolID:           4111010002,
 				SchoolName:         "人工审核学校",
 				VerificationMethod: VerifyMethodManual,
 				ManualFormFields:   json.RawMessage(`[{"key":"studentID","label":"学号","type":"text","required":true}]`),
@@ -1073,7 +1073,7 @@ func TestHandleListSchools_ManualWithoutFieldsReturnsEmptySlice(t *testing.T) {
 	repo := &mockRepo{
 		onListSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {
 			return []SchoolConfig{{
-				SchoolID:           20002,
+				SchoolID:           4111010002,
 				SchoolName:         "人工审核学校",
 				VerificationMethod: VerifyMethodManual,
 				Enabled:            true,

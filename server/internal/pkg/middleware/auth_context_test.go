@@ -52,7 +52,7 @@ type countingRoleScopeResolver struct {
 
 func (f *countingRoleScopeResolver) ResolveRoleScopes(context.Context, string, []string) (map[string][]string, error) {
 	f.calls++
-	return map[string][]string{"school_admin": {"1001"}}, nil
+	return map[string][]string{"school_admin": {"4111010001"}}, nil
 }
 
 func TestWithResolvedRoleScopesMergesIntoAuthResult(t *testing.T) {
@@ -60,14 +60,14 @@ func TestWithResolvedRoleScopesMergesIntoAuthResult(t *testing.T) {
 		userID: "casdoor-user-1",
 		roles:  []string{"school_admin"},
 		orgScopedRoles: map[string][]string{
-			"school_admin": {"1001"},
+			"school_admin": {"4111010001"},
 		},
 	}, fakeRoleScopeResolver{
-		scopes: map[string][]string{"school_admin": {"1002"}},
+		scopes: map[string][]string{"school_admin": {"4111010002"}},
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"1001", "1002"}, result.orgScopedRoles["school_admin"])
+	assert.Equal(t, []string{"4111010001", "4111010002"}, result.orgScopedRoles["school_admin"])
 }
 
 func TestWithResolvedRoleScopesResolvesAuthenticatedTokens(t *testing.T) {
@@ -80,7 +80,7 @@ func TestWithResolvedRoleScopesResolvesAuthenticatedTokens(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, resolver.calls)
-	assert.Equal(t, []string{"1001"}, result.orgScopedRoles["school_admin"])
+	assert.Equal(t, []string{"4111010001"}, result.orgScopedRoles["school_admin"])
 }
 
 func TestWithResolvedRoleScopesMarksBackendUnavailable(t *testing.T) {

@@ -41,16 +41,16 @@ func TestMaskHash(t *testing.T) {
 
 func TestBuildReviewAccessPolicy(t *testing.T) {
 	policy, err := buildReviewAccessPolicy(
-		[]reviewaccess.SchoolConfig{{SchoolID: 1001}, {SchoolID: 1002}},
+		[]reviewaccess.SchoolConfig{{SchoolID: 4111010001}, {SchoolID: 4111010002}},
 		[]reviewaccess.SystemConfig{
-			{Key: systemconfig.ReviewAccessSchoolIDsKey, Value: `1002,1003`},
+			{Key: systemconfig.ReviewAccessSchoolIDsKey, Value: `4111010002,4111010003`},
 			{Key: systemconfig.ReviewPreviewTitleCharsKey, Value: `12`},
 			{Key: systemconfig.ReviewPreviewContentCharsKey, Value: `80`},
 			{Key: systemconfig.ReviewPreviewContentPercentKey, Value: `60`},
 		},
 	)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"1002", "1003"}, policy.AllowedSchoolIDs)
+	assert.Equal(t, []string{"4111010002", "4111010003"}, policy.AllowedSchoolIDs)
 	assert.Equal(t, 12, policy.PreviewTitleRunes)
 	assert.Equal(t, 80, policy.PreviewContentRunes)
 	assert.Equal(t, 60, policy.PreviewContentPct)
@@ -61,13 +61,13 @@ func TestBuildReviewAccessPolicy(t *testing.T) {
 }
 
 func TestParseReviewAccessSchoolIDs(t *testing.T) {
-	ids, err := parseReviewAccessSchoolIDs(map[string]string{systemconfig.ReviewAccessSchoolIDsKey: `["1001","1002"]`}, []string{"2001"})
+	ids, err := parseReviewAccessSchoolIDs(map[string]string{systemconfig.ReviewAccessSchoolIDsKey: `["4111010001","4111010002"]`}, []string{"4111010004"})
 	require.NoError(t, err)
-	assert.Equal(t, []string{"1001", "1002"}, ids)
+	assert.Equal(t, []string{"4111010001", "4111010002"}, ids)
 
-	ids, err = parseReviewAccessSchoolIDs(map[string]string{}, []string{"2001", "2001", " 2002 "})
+	ids, err = parseReviewAccessSchoolIDs(map[string]string{}, []string{"4111010004", "4111010004", " 2002 "})
 	require.NoError(t, err)
-	assert.Equal(t, []string{"2001", "2002"}, ids)
+	assert.Equal(t, []string{"4111010004", "2002"}, ids)
 }
 
 func TestNormalizeAuthorizationProvider(t *testing.T) {
@@ -93,9 +93,9 @@ func TestResolveAccessFacts(t *testing.T) {
 	systemconfig.InvalidateReviewAccessPolicySnapshot()
 	t.Cleanup(systemconfig.InvalidateReviewAccessPolicySnapshot)
 
-	schoolID := int64(1001)
+	schoolID := int64(4111010001)
 	svc := &Service{accessReader: fakeAccessReader{
-		schools: []reviewaccess.SchoolConfig{{SchoolID: 1001}},
+		schools: []reviewaccess.SchoolConfig{{SchoolID: 4111010001}},
 		configs: []reviewaccess.SystemConfig{{Key: systemconfig.ReviewPreviewTitleCharsKey, Value: `16`}},
 		subject: &reviewaccess.Subject{InternalUserID: 42, SchoolID: &schoolID, StudentVerified: true, IdentityVerified: true},
 	}}
@@ -117,12 +117,12 @@ func TestResolveAccessFacts(t *testing.T) {
 	assert.Equal(t, int64(42), facts.InternalUserID)
 	assert.Equal(t, 16, facts.PreviewTitleRunes)
 	require.NotNil(t, facts.SchoolID)
-	assert.Equal(t, "1001", *facts.SchoolID)
+	assert.Equal(t, "4111010001", *facts.SchoolID)
 }
 
 func TestResolveAccessFacts_AnonymousAndCacheFresh(t *testing.T) {
 	systemconfig.SetReviewAccessPolicySnapshot(systemconfig.ReviewAccessPolicySnapshot{
-		AllowedSchoolIDs:    []string{"1001"},
+		AllowedSchoolIDs:    []string{"4111010001"},
 		PreviewTitleRunes:   18,
 		PreviewContentRunes: 90,
 		PreviewContentPct:   75,

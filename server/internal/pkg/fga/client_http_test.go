@@ -37,7 +37,7 @@ func TestClient_HTTPWrappers(t *testing.T) {
 			assert.Equal(t, "user:1", body["user"])
 			assert.Equal(t, "effective_admin", body["relation"])
 			assert.Equal(t, "school", body["type"])
-			_ = json.NewEncoder(w).Encode(openfga.ListObjectsResponse{Objects: []string{"school:1002", "school:1001"}})
+			_ = json.NewEncoder(w).Encode(openfga.ListObjectsResponse{Objects: []string{"school:4111010002", "school:4111010001"}})
 		case strings.HasSuffix(r.URL.Path, "/write"):
 			require.Equal(t, http.MethodPost, r.Method)
 			var body map[string]any
@@ -67,7 +67,7 @@ func TestClient_HTTPWrappers(t *testing.T) {
 
 	objects, err := client.ListObjects(context.Background(), "user:1", "effective_admin", "school")
 	require.NoError(t, err)
-	assert.Equal(t, []string{"school:1001", "school:1002"}, objects)
+	assert.Equal(t, []string{"school:4111010001", "school:4111010002"}, objects)
 
 	require.NoError(t, client.WriteReviewRelations(context.Background(), "r1", "u1", "s1"))
 	require.NoError(t, client.WriteReviewRelations(context.Background(), "legacy", "", "s1"))

@@ -89,7 +89,7 @@ func TestCanAccessAdmin(t *testing.T) {
 
 func TestExpandRoleGrants_SchoolAdminUsesScopedSchoolIDs(t *testing.T) {
 	grants := ExpandRoleGrants([]string{"school_admin"}, map[string][]string{
-		"school_admin": {"1002", "1001", "1002"},
+		"school_admin": {"4111010002", "4111010001", "4111010002"},
 	})
 	snapshot := BuildUserAccessSnapshot(grants)
 
@@ -100,7 +100,7 @@ func TestExpandRoleGrants_SchoolAdminUsesScopedSchoolIDs(t *testing.T) {
 	assert.Contains(t, snapshot.Capabilities, UserSchoolUpdate)
 	for _, grant := range snapshot.CapabilityGrants {
 		assert.False(t, grant.Global)
-		assert.Equal(t, []string{"1001", "1002"}, grant.ScopeSchoolIDs)
+		assert.Equal(t, []string{"4111010001", "4111010002"}, grant.ScopeSchoolIDs)
 	}
 }
 
@@ -140,11 +140,11 @@ func TestExpandRoleGrants_SectionAdminDoesNotManageTeachers(t *testing.T) {
 
 func TestHasGrantInSchool(t *testing.T) {
 	grants := []Grant{
-		{Name: UserStudentRead, ScopeSchoolIDs: []string{"1001"}},
+		{Name: UserStudentRead, ScopeSchoolIDs: []string{"4111010001"}},
 		{Name: UserSystemRead, Global: true},
 	}
-	assert.True(t, HasGrantInSchool(grants, UserStudentRead, "1001"))
-	assert.False(t, HasGrantInSchool(grants, UserStudentRead, "1002"))
+	assert.True(t, HasGrantInSchool(grants, UserStudentRead, "4111010001"))
+	assert.False(t, HasGrantInSchool(grants, UserStudentRead, "4111010002"))
 	assert.True(t, HasGrantInSchool(grants, UserSystemRead, "9999"))
 	assert.True(t, HasGlobalGrant(grants, UserSystemRead))
 	assert.False(t, HasGlobalGrant(grants, UserStudentRead))

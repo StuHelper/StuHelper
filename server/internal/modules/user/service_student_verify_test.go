@@ -146,7 +146,7 @@ func TestVerifyStudent_ManualWithoutStudentIDDoesNotPersistBlankIdentifiers(t *t
 		},
 		onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
 			return &SchoolConfig{
-				SchoolID:           30001,
+				SchoolID:           4111010001,
 				SchoolName:         "人工审核学校",
 				VerificationMethod: VerifyMethodManual,
 				Enabled:            true,
@@ -162,7 +162,7 @@ func TestVerifyStudent_ManualWithoutStudentIDDoesNotPersistBlankIdentifiers(t *t
 	require.NoError(t, err)
 
 	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
-		SchoolID: 30001,
+		SchoolID: 4111010001,
 		Consent:  true,
 	})
 	require.NoError(t, err)
@@ -179,7 +179,7 @@ func TestVerifyStudent_LDAPRequiresStudentID(t *testing.T) {
 		},
 		onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
 			return &SchoolConfig{
-				SchoolID:           30002,
+				SchoolID:           4111010002,
 				SchoolName:         "LDAP 学校",
 				VerificationMethod: VerifyMethodLDAP,
 				Enabled:            true,
@@ -191,7 +191,7 @@ func TestVerifyStudent_LDAPRequiresStudentID(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
-		SchoolID: 30002,
+		SchoolID: 4111010002,
 		Password: "secret",
 		Consent:  true,
 	})
@@ -205,7 +205,7 @@ func TestVerifyStudent_LDAPRequiresPassword(t *testing.T) {
 		},
 		onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
 			return &SchoolConfig{
-				SchoolID:           30002,
+				SchoolID:           4111010002,
 				SchoolName:         "LDAP 学校",
 				VerificationMethod: VerifyMethodLDAP,
 				Enabled:            true,
@@ -217,7 +217,7 @@ func TestVerifyStudent_LDAPRequiresPassword(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
-		SchoolID:  30002,
+		SchoolID:  4111010002,
 		StudentID: "20240001",
 		Consent:   true,
 	})
@@ -232,7 +232,7 @@ func TestVerifyStudent_LDAPRequiresAcademicStudentRecord(t *testing.T) {
 		},
 		onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
 			return &SchoolConfig{
-				SchoolID:           30002,
+				SchoolID:           4111010002,
 				SchoolName:         "LDAP 学校",
 				VerificationMethod: VerifyMethodLDAP,
 				LDAPConfig:         json.RawMessage(`{"url":"ldaps://ldap.example:636","baseDN":"ou=users,dc=example,dc=com","systemBindDN":"cn=system,dc=example,dc=com","systemBindPassword":"secret","useTLS":true,"insecureSkipVerify":false}`),
@@ -258,7 +258,7 @@ func TestVerifyStudent_LDAPRequiresAcademicStudentRecord(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
-		SchoolID:  30002,
+		SchoolID:  4111010002,
 		StudentID: "20240001",
 		Password:  "secret",
 		Consent:   true,

@@ -111,11 +111,11 @@ func TestAuthMiddlewareWithRoleScopeResolverBuildsScopedGrants(t *testing.T) {
 
 	r := gin.New()
 	r.Use(AuthMiddlewareWithRoleScopeResolver(oidcClient, tokenSvc, fakeRoleScopeResolver{
-		scopes: map[string][]string{"school_admin": {"1001"}},
+		scopes: map[string][]string{"school_admin": {"4111010001"}},
 	}))
 	r.GET("/me", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
-			"hasScopedStudentRead": HasCapabilityInSchool(c, capability.UserStudentRead, "1001"),
+			"hasScopedStudentRead": HasCapabilityInSchool(c, capability.UserStudentRead, "4111010001"),
 			"hasGlobalStudentRead": HasGlobalCapability(c, capability.UserStudentRead),
 		})
 	})

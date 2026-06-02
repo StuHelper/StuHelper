@@ -48,7 +48,7 @@ func TestParseProviderRolesFromRaw_InvalidRolesClaim(t *testing.T) {
 }
 
 func TestParseProviderRolesFromRaw_RejectsObjectRolesClaim(t *testing.T) {
-	_, err := ParseProviderRolesFromRaw([]byte(`{"roles":{"school_admin":["1001"]}}`), "roles")
+	_, err := ParseProviderRolesFromRaw([]byte(`{"roles":{"school_admin":["4111010001"]}}`), "roles")
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must be a string array or role object array")
@@ -71,7 +71,7 @@ func TestClaimsUnmarshalIgnoresInternalRoleFields(t *testing.T) {
 	raw := []byte(`{
 		"sub": "user-1",
 		"name": "OIDC User",
-		"roles": {"school_admin": ["1001"]},
+		"roles": {"school_admin": ["4111010001"]},
 		"orgScopedRoles": ["legacy-provider-shape"]
 	}`)
 	var claims Claims

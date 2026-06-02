@@ -192,7 +192,7 @@ describe('useAuthStore', () => {
         {
           name: 'user:student:review',
           global: false,
-          scopeSchoolIDs: ['1001'],
+          scopeSchoolIDs: ['4111010001'],
         },
       ],
       canAccessAdmin: true,
@@ -204,9 +204,9 @@ describe('useAuthStore', () => {
 
     await store.initSession();
 
-    expect(store.resolveScopedSchoolId('user:student:review', '')).toBe('1001');
-    expect(store.resolveScopedSchoolId('user:student:review', '1002')).toBe(
-      '1002',
+    expect(store.resolveScopedSchoolId('user:student:review', '')).toBe('4111010001');
+    expect(store.resolveScopedSchoolId('user:student:review', '4111010002')).toBe(
+      '4111010002',
     );
   });
 
@@ -218,7 +218,7 @@ describe('useAuthStore', () => {
         {
           name: 'user:student:review',
           global: false,
-          scopeSchoolIDs: ['1001', '1002'],
+          scopeSchoolIDs: ['4111010001', '4111010002'],
         },
       ],
       canAccessAdmin: true,
@@ -233,8 +233,8 @@ describe('useAuthStore', () => {
     expect(() =>
       store.resolveScopedSchoolId('user:student:review', ''),
     ).toThrow(SCHOOL_SCOPE_REQUIRED_ERROR);
-    expect(store.resolveScopedSchoolId('user:student:review', '1002')).toBe(
-      '1002',
+    expect(store.resolveScopedSchoolId('user:student:review', '4111010002')).toBe(
+      '4111010002',
     );
   });
 

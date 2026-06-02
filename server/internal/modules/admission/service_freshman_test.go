@@ -22,7 +22,7 @@ func TestFreshmanApplicationRejectsClosedChannelAndReusesPendingApplication(t *t
 	closeFreshmanChannel(t, fixture)
 	_, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
 		UserID:        userID,
-		SchoolID:      1,
+		SchoolID:      4111010006,
 		ApplicantName: "Alice Applicant",
 		MaterialType:  MaterialAdmissionNotice,
 	})
@@ -31,7 +31,7 @@ func TestFreshmanApplicationRejectsClosedChannelAndReusesPendingApplication(t *t
 	openFreshmanChannel(t, fixture)
 	app, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
 		UserID:        userID,
-		SchoolID:      1,
+		SchoolID:      4111010006,
 		ApplicantName: "Alice Applicant",
 		MaterialType:  MaterialAdmissionNotice,
 	})
@@ -40,7 +40,7 @@ func TestFreshmanApplicationRejectsClosedChannelAndReusesPendingApplication(t *t
 
 	reused, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
 		UserID:        userID,
-		SchoolID:      1,
+		SchoolID:      4111010006,
 		ApplicantName: "Alice Applicant",
 		MaterialType:  MaterialAdmissionNotice,
 	})
@@ -67,7 +67,7 @@ func TestFreshmanApplicationReassignsPendingApplicationToCurrentSession(t *testi
 
 	app, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
 		UserID:        userID,
-		SchoolID:      1,
+		SchoolID:      4111010006,
 		ApplicantName: "Alice Applicant",
 		MaterialType:  MaterialAdmissionNotice,
 	})
@@ -92,7 +92,7 @@ func TestFreshmanApplicationReassignsPendingApplicationToCurrentSession(t *testi
 
 	reused, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
 		UserID:        userID,
-		SchoolID:      1,
+		SchoolID:      4111010006,
 		ApplicantName: "Alice Applicant",
 		MaterialType:  MaterialAdmissionNotice,
 	})
@@ -123,7 +123,7 @@ func TestFreshmanApplicationReassignsSubmittedMaterialToCurrentSession(t *testin
 
 	app, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
 		UserID:        userID,
-		SchoolID:      1,
+		SchoolID:      4111010006,
 		ApplicantName: "Alice Applicant",
 		MaterialType:  MaterialAdmissionNotice,
 	})
@@ -155,7 +155,7 @@ func TestFreshmanApplicationReassignsSubmittedMaterialToCurrentSession(t *testin
 
 	reused, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
 		UserID:        userID,
-		SchoolID:      1,
+		SchoolID:      4111010006,
 		ApplicantName: "Alice Applicant",
 		MaterialType:  MaterialAdmissionNotice,
 	})
@@ -185,7 +185,7 @@ func TestFreshmanApplicationUniqueRaceReusesPendingApplication(t *testing.T) {
 		insertFreshmanPendingApplication(t, fixture, freshmanPendingSeed{
 			ID:            "freshman-race-existing",
 			UserID:        userID,
-			SchoolID:      1,
+			SchoolID:      4111010006,
 			SessionID:     session.ID,
 			ApplicantName: "Concurrent Applicant",
 		})
@@ -193,7 +193,7 @@ func TestFreshmanApplicationUniqueRaceReusesPendingApplication(t *testing.T) {
 
 	app, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
 		UserID:        userID,
-		SchoolID:      1,
+		SchoolID:      4111010006,
 		ApplicantName: "Alice Applicant",
 		MaterialType:  MaterialAdmissionNotice,
 	})
@@ -212,7 +212,7 @@ func TestFreshmanApplicationRejectsExpiredLinkedSession(t *testing.T) {
 
 	_, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
 		UserID:        userID,
-		SchoolID:      1,
+		SchoolID:      4111010006,
 		ApplicantName: "Alice Applicant",
 		MaterialType:  MaterialAdmissionNotice,
 	})
@@ -233,7 +233,7 @@ func TestFreshmanApplicationUsesValidLinkedSessionWhenExpiredLinkedSessionIsNewe
 
 	app, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
 		UserID:        userID,
-		SchoolID:      1,
+		SchoolID:      4111010006,
 		ApplicantName: "Alice Applicant",
 		MaterialType:  MaterialAdmissionNotice,
 	})
@@ -255,7 +255,7 @@ func TestFreshmanApplicationUsesRequestedAdmissionSession(t *testing.T) {
 
 	app, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
 		UserID:             userID,
-		SchoolID:           1,
+		SchoolID:           4111010006,
 		AdmissionSessionID: first.ID,
 		ApplicantName:      "Alice Applicant",
 		MaterialType:       MaterialAdmissionNotice,
@@ -601,7 +601,7 @@ func TestAdmissionMVPFreshmanMaterialFlowReleasesVerifiedMember(t *testing.T) {
 	require.NoError(t, err)
 	app, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
 		UserID:        userID,
-		SchoolID:      1,
+		SchoolID:      4111010006,
 		ApplicantName: "Alice Applicant",
 		MaterialType:  MaterialAdmissionNotice,
 	})
@@ -664,7 +664,7 @@ func createFreshmanTestApplication(t *testing.T, svc *Service, userID int64) *Fr
 	t.Helper()
 	app, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
 		UserID:        userID,
-		SchoolID:      1,
+		SchoolID:      4111010006,
 		ApplicantName: "Alice Applicant",
 		MaterialType:  MaterialAdmissionNotice,
 	})
@@ -779,7 +779,7 @@ func insertAdmissionSchoolConfig(t *testing.T, fixture *postgresfixture.Fixture)
 			school_id, school_name, verification_method, approval_policy, manual_form_fields, enabled
 		)
 		VALUES (
-			1, 'Admission Test University', 'manual', 'auto',
+			4111010006, '北京航空航天大学', 'manual', 'auto',
 			'{"admission":{"emailDomains":["buaa.edu.cn"],"ssoLoginURL":"https://sso.school.example/login"}}',
 			true
 		)

@@ -112,7 +112,7 @@ func insertAdmissionPolicy(t *testing.T, fixture *postgresfixture.Fixture) {
 			id, platform, guild_id, school_id, management_guild_ids, freshman_channel_closes_at, freshman_default_expires_at
 		)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`, "adm-policy-1", "qq", "guild-1", 1, []string{"mgmt-1"}, futureTime(30), futureTime(180))
+	`, "adm-policy-1", "qq", "guild-1", 4111010006, []string{"mgmt-1"}, futureTime(30), futureTime(180))
 	require.NoError(t, err)
 }
 

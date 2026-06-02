@@ -55,7 +55,7 @@ func (f *fakeScopeReader) ReadTuples(_ context.Context, object, relation string)
 func TestRoleScopeResolverResolvesSchoolAdminScopes(t *testing.T) {
 	reader := newFakeScopeReader()
 	reader.listResponses[listScopeKey("user:42", "effective_admin", "school")] = []string{
-		"school:1002", "school:1001", "bad", "school:1001",
+		"school:4111010002", "school:4111010001", "bad", "school:4111010001",
 	}
 	resolver, err := NewRoleScopeResolver(reader, func(_ context.Context, subject string) (int64, error) {
 		assert.Equal(t, "casdoor-subject-1", subject)
@@ -66,7 +66,7 @@ func TestRoleScopeResolverResolvesSchoolAdminScopes(t *testing.T) {
 	scopes, err := resolver.ResolveRoleScopes(context.Background(), "casdoor-subject-1", []string{"school_admin"})
 
 	require.NoError(t, err)
-	assert.Equal(t, map[string][]string{"school_admin": {"1001", "1002"}}, scopes)
+	assert.Equal(t, map[string][]string{"school_admin": {"4111010001", "4111010002"}}, scopes)
 	assert.Equal(t, []scopeListCall{{user: "user:42", relation: "effective_admin", objectType: "school"}}, reader.listCalls)
 	assert.Empty(t, reader.readCalls)
 }

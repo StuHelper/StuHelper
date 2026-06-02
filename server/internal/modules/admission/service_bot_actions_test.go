@@ -138,7 +138,7 @@ func TestStudentVerificationProjectionReleasesLinkedSession(t *testing.T) {
 	created := createBotLinkedSessionForPendingActions(t, svc, fixture, "linked-main-student-proof")
 	require.NotNil(t, created.Session.UserID)
 
-	err := svc.ProjectStudentVerification(context.Background(), *created.Session.UserID, 1, true)
+	err := svc.ProjectStudentVerification(context.Background(), *created.Session.UserID, 4111010006, true)
 	require.NoError(t, err)
 
 	actions, err := svc.ListPendingAdmissionActions(
@@ -159,7 +159,7 @@ func TestStudentVerificationProjectionDoesNotReleaseExpiredLinkedSessions(t *tes
 	require.NotNil(t, created.Session.UserID)
 	expiredID := insertExpiredLinkedAdmissionSessionForUser(t, fixture, *created.Session.UserID)
 
-	err := svc.ProjectStudentVerification(context.Background(), *created.Session.UserID, 1, true)
+	err := svc.ProjectStudentVerification(context.Background(), *created.Session.UserID, 4111010006, true)
 	require.NoError(t, err)
 
 	assertAdmissionSessionStatus(t, fixture, created.Session.ID, StatusVerified)
@@ -181,12 +181,12 @@ func TestStudentVerificationProjectionDoesNotReleaseOtherSchoolSessions(t *testi
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)
 	insertAdmissionPolicy(t, fixture)
-	insertAdmissionPolicyForSchool(t, fixture, "adm-policy-other-school", "guild-2", 2)
+	insertAdmissionPolicyForSchool(t, fixture, "adm-policy-other-school", "guild-2", 4111010007)
 	userID := seedAdmissionUser(t, fixture, "linked-other-school-projection")
 	sameSchool := createLinkedSessionForSubject(t, svc, userID, "guild-1", "10001", "linked-same-school-token")
 	otherSchool := createLinkedSessionForSubject(t, svc, userID, "guild-2", "10002", "linked-other-school-token")
 
-	err := svc.ProjectStudentVerification(context.Background(), userID, 1, true)
+	err := svc.ProjectStudentVerification(context.Background(), userID, 4111010006, true)
 	require.NoError(t, err)
 
 	assertAdmissionSessionStatus(t, fixture, sameSchool.ID, StatusVerified)
@@ -245,7 +245,7 @@ func TestPendingFreshmanForwardsRequireMaterialStoreWhenQueueHasItems(t *testing
 			id, user_id, school_id, admission_session_id, status, applicant_name,
 			applicant_name_masked, material_type, created_at, updated_at
 		)
-		VALUES ($1, $2, 1, $3, 'pending', 'Alice Applicant', 'A***',
+		VALUES ($1, $2, 4111010006, $3, 'pending', 'Alice Applicant', 'A***',
 			'admission_notice', NOW(), NOW())
 	`, appID, userID, created.Session.ID)
 	require.NoError(t, err)
@@ -359,7 +359,7 @@ func insertAdmissionPolicyForSchool(
 		INSERT INTO schools (id, code, name)
 		VALUES ($1, $2, $3)
 		ON CONFLICT (id) DO NOTHING
-	`, schoolID, "0000000002", "Other School")
+	`, schoolID, "4111010007", "Other School")
 	require.NoError(t, err)
 	_, err = fixture.Pool.Exec(context.Background(), `
 		INSERT INTO group_admission_policies (

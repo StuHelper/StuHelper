@@ -255,7 +255,7 @@ async function mockUserApi(page: Page, state: UserApiState) {
         const body = route.request().postDataJSON();
         state.profile = {
             ...verifiedProfile,
-            schoolID: body.schoolCode === "4111010002" ? 1002 : 1001,
+            schoolID: body.schoolCode === "4111010002" ? 4111010002 : 4111010001,
         };
         await route.fulfill(ok(state.profile));
     });

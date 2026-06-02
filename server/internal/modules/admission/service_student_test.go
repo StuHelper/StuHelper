@@ -25,14 +25,14 @@ func TestSchoolEmailOTPRequiresLinkedSessionAndVerifiesCredential(t *testing.T) 
 
 	_, err := svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
 		UserID:   userID,
-		SchoolID: 1,
+		SchoolID: 4111010006,
 		Email:    "student@other.example",
 	})
 	require.ErrorIs(t, err, ErrAdmissionEmailDomainNotAllowed)
 
 	_, err = svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
 		UserID:   userID,
-		SchoolID: 1,
+		SchoolID: 4111010006,
 		Email:    "@buaa.edu.cn",
 	})
 	require.ErrorIs(t, err, ErrAdmissionEmailDomainNotAllowed)
@@ -40,7 +40,7 @@ func TestSchoolEmailOTPRequiresLinkedSessionAndVerifiesCredential(t *testing.T) 
 
 	resp, err := svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
 		UserID:   userID,
-		SchoolID: 1,
+		SchoolID: 4111010006,
 		Email:    " Student@BUAA.edu.cn ",
 	})
 	require.NoError(t, err)
@@ -49,7 +49,7 @@ func TestSchoolEmailOTPRequiresLinkedSessionAndVerifiesCredential(t *testing.T) 
 
 	_, err = svc.VerifySchoolEmailOTP(context.Background(), SchoolEmailOTPVerifyInput{
 		UserID:   userID,
-		SchoolID: 1,
+		SchoolID: 4111010006,
 		Email:    "student@buaa.edu.cn",
 		Code:     sender.code,
 	})
@@ -73,14 +73,14 @@ func TestSchoolEmailOTPUsesRequestedAdmissionSession(t *testing.T) {
 
 	_, err := svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
 		UserID:             userID,
-		SchoolID:           1,
+		SchoolID:           4111010006,
 		AdmissionSessionID: first.ID,
 		Email:              "student@buaa.edu.cn",
 	})
 	require.NoError(t, err)
 	verified, err := svc.VerifySchoolEmailOTP(context.Background(), SchoolEmailOTPVerifyInput{
 		UserID:             userID,
-		SchoolID:           1,
+		SchoolID:           4111010006,
 		AdmissionSessionID: first.ID,
 		Email:              "student@buaa.edu.cn",
 		Code:               sender.code,
@@ -205,7 +205,7 @@ func TestSchoolEmailOTPRejectsExpiredLinkedSession(t *testing.T) {
 
 	_, err := svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
 		UserID:   userID,
-		SchoolID: 1,
+		SchoolID: 4111010006,
 		Email:    "student@buaa.edu.cn",
 	})
 	require.NoError(t, err)
@@ -214,14 +214,14 @@ func TestSchoolEmailOTPRejectsExpiredLinkedSession(t *testing.T) {
 
 	_, err = svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
 		UserID:   userID,
-		SchoolID: 1,
+		SchoolID: 4111010006,
 		Email:    "student@buaa.edu.cn",
 	})
 	require.ErrorIs(t, err, ErrAdmissionTokenExpired)
 
 	_, err = svc.VerifySchoolEmailOTP(context.Background(), SchoolEmailOTPVerifyInput{
 		UserID:   userID,
-		SchoolID: 1,
+		SchoolID: 4111010006,
 		Email:    "student@buaa.edu.cn",
 		Code:     sender.code,
 	})
@@ -275,13 +275,13 @@ func TestAdmissionMVPEmailOTPFlowReleasesVerifiedMember(t *testing.T) {
 
 	_, err = svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
 		UserID:   userID,
-		SchoolID: 1,
+		SchoolID: 4111010006,
 		Email:    "student@buaa.edu.cn",
 	})
 	require.NoError(t, err)
 	_, err = svc.VerifySchoolEmailOTP(context.Background(), SchoolEmailOTPVerifyInput{
 		UserID:   userID,
-		SchoolID: 1,
+		SchoolID: 4111010006,
 		Email:    "student@buaa.edu.cn",
 		Code:     sender.code,
 	})
@@ -335,12 +335,12 @@ func TestAdmissionMVPSchoolSSOFlowReleasesVerifiedMember(t *testing.T) {
 
 	start, err := svc.StartSchoolSSO(context.Background(), SchoolSSOStartInput{
 		UserID:    userID,
-		SchoolID:  1,
+		SchoolID:  4111010006,
 		ReturnURL: "https://join.stuhelper.com/verify/test-admission-token?qq=10001",
 	})
 	require.NoError(t, err)
 	_, err = svc.CompleteSchoolSSO(context.Background(), SchoolSSOCompleteInput{
-		SchoolID: 1,
+		SchoolID: 4111010006,
 		State:    start.State,
 		UserID:   userID,
 		Code:     "oidc-code",
@@ -375,13 +375,13 @@ func TestSchoolEmailOTPSendFailureClearsCooldown(t *testing.T) {
 	userID := seedLinkedAdmissionUser(t, pg, svc, "email-otp-send-fail")
 
 	_, err := svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
-		UserID: userID, SchoolID: 1, Email: "student@buaa.edu.cn",
+		UserID: userID, SchoolID: 4111010006, Email: "student@buaa.edu.cn",
 	})
 	require.Error(t, err)
 
 	sender.err = nil
 	_, err = svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
-		UserID: userID, SchoolID: 1, Email: "student@buaa.edu.cn",
+		UserID: userID, SchoolID: 4111010006, Email: "student@buaa.edu.cn",
 	})
 	require.NoError(t, err)
 }
@@ -398,14 +398,14 @@ func TestSchoolSSOStartAndCallback(t *testing.T) {
 
 	_, err := svc.StartSchoolSSO(context.Background(), SchoolSSOStartInput{
 		UserID:    userID,
-		SchoolID:  1,
+		SchoolID:  4111010006,
 		ReturnURL: "https://evil.example/verify/token",
 	})
 	require.ErrorIs(t, err, ErrAdmissionReturnURLNotAllowed)
 
 	start, err := svc.StartSchoolSSO(context.Background(), SchoolSSOStartInput{
 		UserID:    userID,
-		SchoolID:  1,
+		SchoolID:  4111010006,
 		ReturnURL: "https://join.stuhelper.com/verify/token?qq=10001",
 	})
 	require.NoError(t, err)
@@ -413,7 +413,7 @@ func TestSchoolSSOStartAndCallback(t *testing.T) {
 	assert.NotEmpty(t, start.State)
 
 	complete, err := svc.CompleteSchoolSSO(context.Background(), SchoolSSOCompleteInput{
-		SchoolID: 1,
+		SchoolID: 4111010006,
 		State:    start.State,
 		UserID:   userID,
 		Code:     "oidc-code",
@@ -424,7 +424,7 @@ func TestSchoolSSOStartAndCallback(t *testing.T) {
 	assertUserSessionVerified(t, pg, userID)
 
 	_, err = svc.CompleteSchoolSSO(context.Background(), SchoolSSOCompleteInput{
-		SchoolID: 1,
+		SchoolID: 4111010006,
 		State:    start.State,
 		UserID:   userID,
 		Code:     "oidc-code",
@@ -441,7 +441,7 @@ func TestSchoolSSOCallbackRequiresConfiguredExchanger(t *testing.T) {
 	start := startSchoolSSOForTest(t, svc, userID)
 
 	_, err := svc.CompleteSchoolSSO(context.Background(), SchoolSSOCompleteInput{
-		SchoolID: 1,
+		SchoolID: 4111010006,
 		State:    start.State,
 		UserID:   userID,
 		Code:     "attacker-controlled-code",
@@ -461,7 +461,7 @@ func TestSchoolSSOCallbackRejectsInvalidProviderIdentity(t *testing.T) {
 	start := startSchoolSSOForTest(t, svc, userID)
 
 	_, err := svc.CompleteSchoolSSO(context.Background(), SchoolSSOCompleteInput{
-		SchoolID: 1,
+		SchoolID: 4111010006,
 		State:    start.State,
 		UserID:   userID,
 		Code:     "oidc-code",
@@ -475,7 +475,7 @@ func startSchoolSSOForTest(t *testing.T, svc *Service, userID int64) *SchoolSSOS
 	t.Helper()
 	start, err := svc.StartSchoolSSO(context.Background(), SchoolSSOStartInput{
 		UserID:    userID,
-		SchoolID:  1,
+		SchoolID:  4111010006,
 		ReturnURL: "https://join.stuhelper.com/verify/token?qq=10001",
 	})
 	require.NoError(t, err)

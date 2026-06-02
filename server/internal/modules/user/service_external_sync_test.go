@@ -74,7 +74,7 @@ func (f *fakeAdmissionProjectionGateway) ProjectStudentVerification(
 func TestSyncUserProfileProjection_RebuildsOwnerAndCurrentSchool(t *testing.T) {
 	schoolID := int64(4111010006)
 	fgaClient := &fakeProfileFGAClient{
-		readTuples: []fga.Tuple{{User: "school:99999", Relation: "school", Object: "user_profile:123"}},
+		readTuples: []fga.Tuple{{User: "school:4111010001", Relation: "school", Object: "user_profile:123"}},
 	}
 	repo := &mockRepo{
 		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
@@ -98,7 +98,7 @@ func TestSyncUserProfileProjection_RebuildsOwnerAndCurrentSchool(t *testing.T) {
 
 	assert.Equal(t, "owner", fgaClient.readCalls[0].relation)
 	assert.Equal(t, "school", fgaClient.readCalls[1].relation)
-	assert.Equal(t, []fga.Tuple{{User: "school:99999", Relation: "school", Object: "user_profile:123"}}, fgaClient.deleteCalls[0])
+	assert.Equal(t, []fga.Tuple{{User: "school:4111010001", Relation: "school", Object: "user_profile:123"}}, fgaClient.deleteCalls[0])
 	assert.Equal(t, []fga.Tuple{
 		{User: "user:123", Relation: "owner", Object: "user_profile:123"},
 		{User: "school:4111010006", Relation: "school", Object: "user_profile:123"},

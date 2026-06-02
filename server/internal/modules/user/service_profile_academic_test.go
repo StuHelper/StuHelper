@@ -129,8 +129,8 @@ func TestSubmitIdentity_MainlandIDAutoMatchUsesEnabledSchoolTables(t *testing.T)
 				tableOne := "academic.school_a_students"
 				tableTwo := "academic.school_b_students"
 				return []SchoolConfig{
-					{SchoolID: 10001, Enabled: true, AcademicDBTable: &tableOne},
-					{SchoolID: 10002, Enabled: true, AcademicDBTable: &tableTwo},
+					{SchoolID: 4111010001, Enabled: true, AcademicDBTable: &tableOne},
+					{SchoolID: 4111010002, Enabled: true, AcademicDBTable: &tableTwo},
 				}, nil
 			},
 			onCreateIdentity: func(_ context.Context, identity *IdentityRecord) error {
