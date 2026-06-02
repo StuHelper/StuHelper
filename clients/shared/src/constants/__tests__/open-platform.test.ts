@@ -10,7 +10,6 @@ describe('Open Platform audit event constants', () => {
     const eventTypes: OpenPlatformAuditEventType[] = [
       'open_platform.app.resumed',
       'open_platform.app.approved_app_ensured',
-      'open_platform.app.identity_public_smoke_bootstrapped',
       'open_platform.resource_access.checked',
       'open_platform.resource_access.granted',
       'open_platform.resource_access.revoked',

@@ -144,7 +144,6 @@ export default {
     auditTypes: {
       appApproved: 'Application approved',
       approvedAppEnsured: 'Automation-approved application ensured',
-      identityPublicSmokeBootstrapped: 'Public Identity smoke client prepared',
       appProfileUpdated: 'Application profile updated',
       appResumed: 'Application resumed',
       appRevoked: 'Application revoked',

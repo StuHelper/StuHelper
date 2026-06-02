@@ -8,7 +8,6 @@ source "${SCRIPT_DIR}/lib/common.sh"
 require_cmd docker
 require_cmd curl
 require_cmd jq
-require_cmd openssl
 require_cmd python3
 
 PARITY_DIR="${PROD_PARITY_DIR:-${REPO_ROOT}/.run/prod-parity}"
@@ -51,19 +50,6 @@ ensure_file_secret() {
   if ! grep -Eq "^${key}=" "${file}"; then
     upsert_env_file "${file}" "${key}" "${prefix}-$(random_hex 16)"
   fi
-}
-
-ensure_identity_private_key() {
-  if grep -Eq '^IDENTITY_SIGNING_PRIVATE_KEY_PEM=' "${SECRETS_ENV_FILE}"; then
-    return
-  fi
-
-  local key_file b64
-  key_file="$(mktemp)"
-  openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "${key_file}" >/dev/null 2>&1
-  b64="$(base64 -w0 "${key_file}" 2>/dev/null || base64 <"${key_file}" | tr -d '\n')"
-  rm -f "${key_file}"
-  printf 'IDENTITY_SIGNING_PRIVATE_KEY_PEM=%s\n' "${b64}" >> "${SECRETS_ENV_FILE}"
 }
 
 ensure_bootstrap_value() {
@@ -143,8 +129,6 @@ ensure_file_value "${ENV_FILE}" "ADMISSION_READINESS_REQUIRED_PLATFORM" "qq"
 ensure_file_value "${ENV_FILE}" "ADMISSION_READINESS_REQUIRED_GUILD_IDS" "prod-parity-guild"
 ensure_file_value "${ENV_FILE}" "ADMISSION_READINESS_REQUIRED_SCHOOL_CODES" "4111010006"
 ensure_file_value "${ENV_FILE}" "ADMISSION_READINESS_REQUIRED_SCHOOL_IDS" ""
-ensure_file_value "${ENV_FILE}" "IDENTITY_SERVER_ENABLED" "false"
-ensure_file_value "${ENV_FILE}" "IDENTITY_ISSUER" ""
 ensure_file_value "${ENV_FILE}" "WEB_VITE_API_URL" "/api"
 ensure_file_value "${ENV_FILE}" "WEB_VITE_SSO_URL" "https://sso.stuhelper.com"
 ensure_file_value "${ENV_FILE}" "WEB_VITE_WEB_URL" "https://stuhelper.com"
@@ -209,9 +193,6 @@ ensure_file_value "${ENV_FILE}" "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_TIMEOUT_SECON
 ensure_file_value "${ENV_FILE}" "OPEN_PLATFORM_PRODUCTION_EVIDENCE_ALLOW_LOCAL_TARGETS" "true"
 ensure_file_value "${ENV_FILE}" "API_IP_RATE_LIMIT" "5000"
 ensure_file_value "${ENV_FILE}" "API_GLOBAL_RATE_LIMIT" "50000"
-ensure_file_value "${ENV_FILE}" "IDENTITY_SIGNING_KEY_ID" "stuhelper-identity-prod-parity-1"
-ensure_file_value "${ENV_FILE}" "IDENTITY_ACCESS_TOKEN_TTL" "900"
-ensure_file_value "${ENV_FILE}" "IDENTITY_AUTH_CODE_TTL" "300"
 ensure_file_value "${ENV_FILE}" "PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED" "true"
 ensure_file_value "${ENV_FILE}" "SSO_PUBLIC_SMOKE_ENABLED" "true"
 ensure_file_value "${ENV_FILE}" "SSO_PUBLIC_BASE_URL" "https://sso.stuhelper.com"
@@ -220,12 +201,6 @@ ensure_file_value "${ENV_FILE}" "SSO_PUBLIC_SMOKE_CLIENT_ID" "stuhelper-web"
 ensure_file_value "${ENV_FILE}" "SSO_PUBLIC_SMOKE_REDIRECT_URI" "https://stuhelper.com/api/v1/auth/callback"
 ensure_file_value "${ENV_FILE}" "SSO_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS" "true"
 ensure_file_value "${ENV_FILE}" "SSO_PUBLIC_SMOKE_CURL_INSECURE" "true"
-ensure_file_value "${ENV_FILE}" "IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS" "true"
-ensure_file_value "${ENV_FILE}" "IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED" "false"
-ensure_file_value "${ENV_FILE}" "IDENTITY_PUBLIC_SMOKE_ENABLED" "false"
-ensure_file_value "${ENV_FILE}" "IDENTITY_PUBLIC_SMOKE_BOOTSTRAP_ENABLED" "false"
-ensure_file_value "${ENV_FILE}" "IDENTITY_PUBLIC_SMOKE_HOMEPAGE_URL" "https://stuhelper.com"
-ensure_file_value "${ENV_FILE}" "IDENTITY_PUBLIC_SMOKE_PRIVACY_POLICY_URL" "https://stuhelper.com/privacy"
 ensure_file_value "${ENV_FILE}" "CORS_ORIGINS" "https://stuhelper.com,https://join.stuhelper.com,https://sso.stuhelper.com"
 ensure_file_value "${ENV_FILE}" "STUHELPER_FRESHMAN_MATERIAL_HOSTS" "stuhelper.com,join.stuhelper.com"
 ensure_file_value "${ENV_FILE}" "TRUSTED_PROXIES" "127.0.0.1/32,172.16.0.0/12,192.168.0.0/16"
@@ -298,7 +273,6 @@ ensure_file_secret "${SECRETS_ENV_FILE}" "OBJECT_STORAGE_SECRET_ACCESS_KEY" "pro
 ensure_file_secret "${SECRETS_ENV_FILE}" "BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY" "prod-parity-minio-backup"
 ensure_file_secret "${SECRETS_ENV_FILE}" "GRAFANA_ADMIN_PASSWORD" "prod-parity-grafana"
 ensure_file_secret "${SECRETS_ENV_FILE}" "BOT_SERVICE_TOKEN" "prod-parity-bot"
-ensure_identity_private_key
 
 ensure_bootstrap_value "CASDOOR_BOOTSTRAP_APPLICATION" "app-built-in"
 ensure_bootstrap_value "CASDOOR_BOOTSTRAP_CERTIFICATE" "cert-built-in"

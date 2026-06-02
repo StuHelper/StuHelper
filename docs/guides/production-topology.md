@@ -29,7 +29,7 @@ last-verified: 2026-05-22
     └── sso.stuhelper.com /.well-known/* /api/* /login/* → Casdoor
 ```
 
-主站生产配置中 `IDENTITY_SERVER_ENABLED=false`，`IDENTITY_ISSUER=`，`WEB_VITE_IDENTITY_URL=`；不再发布 StuHelper 自研 identity issuer。`WEB_VITE_WEB_URL=https://stuhelper.com`，`WEB_VITE_SSO_URL=https://sso.stuhelper.com`，`CASDOOR_ISSUER=https://sso.stuhelper.com`，`CASDOOR_PUBLIC_AUTH_BASE_URL=https://sso.stuhelper.com`。`CASDOOR_REDIRECT_URI`、`CASDOOR_ADMIN_REDIRECT_URI` 与 `CASDOOR_UNIAPP_REDIRECT_URI` 固定回到 `https://stuhelper.com/api/v1/auth/callback`。`ADMISSION_PUBLIC_BASE_URL=https://join.stuhelper.com`。`CORS_ORIGINS` 必须包含 `https://stuhelper.com`、`https://join.stuhelper.com` 和 `https://sso.stuhelper.com`；`TOKEN_COOKIE_DOMAIN=.stuhelper.com`，让登录回调后签发的浏览器会话可用于主站和 admission 流程。
+主站生产配置不再发布 StuHelper 自研 identity issuer，`WEB_VITE_IDENTITY_URL=` 保持为空。`WEB_VITE_WEB_URL=https://stuhelper.com`，`WEB_VITE_SSO_URL=https://sso.stuhelper.com`，`CASDOOR_ISSUER=https://sso.stuhelper.com`，`CASDOOR_PUBLIC_AUTH_BASE_URL=https://sso.stuhelper.com`。`CASDOOR_REDIRECT_URI`、`CASDOOR_ADMIN_REDIRECT_URI` 与 `CASDOOR_UNIAPP_REDIRECT_URI` 固定回到 `https://stuhelper.com/api/v1/auth/callback`。`ADMISSION_PUBLIC_BASE_URL=https://join.stuhelper.com`。`CORS_ORIGINS` 必须包含 `https://stuhelper.com`、`https://join.stuhelper.com` 和 `https://sso.stuhelper.com`；`TOKEN_COOKIE_DOMAIN=.stuhelper.com`，让登录回调后签发的浏览器会话可用于主站和 admission 流程。
 
 ## 外部机器人链路
 
@@ -119,4 +119,4 @@ Koishi 与 NapCat 当前不纳入主站 Docker Compose 拓扑，而是作为外�
 3. 观测链路（Grafana、指标端点）
 4. OIDC 连通性（`sso.stuhelper.com` discovery、JWKS、authorize/token/introspect/revoke/UserInfo 基础路由，按当前 Casdoor 配置验证）
 
-当前生产门禁默认关闭 legacy `identity-public-smoke.sh`。入群验证公网门禁使用 `infra/ops/admission-public-smoke.sh`：`join.stuhelper.com/verify/<token>?qq=<qq>` 必须返回 Web SPA，`join.stuhelper.com/verify`、`stuhelper.com/verify` 和 `stuhelper.com/verify/<token>` 必须返回 404。SSO 入口由 `nginx-public-ingress-preflight.sh` 的 `sso` profile 和 Casdoor discovery/JWKS 检查覆盖。
+入群验证公网门禁使用 `infra/ops/admission-public-smoke.sh`：`join.stuhelper.com/verify/<token>?qq=<qq>` 必须返回 Web SPA，`join.stuhelper.com/verify`、`stuhelper.com/verify` 和 `stuhelper.com/verify/<token>` 必须返回 404。SSO 入口由 `nginx-public-ingress-preflight.sh` 的 `sso` profile 和 Casdoor discovery/JWKS 检查覆盖。

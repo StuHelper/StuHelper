@@ -262,15 +262,7 @@ overrides = {
     "WEB_PUBLIC_URL": "http://stuhelper.com",
     "ADMIN_PUBLIC_URL": "http://stuhelper.com/admin/",
     "ADMISSION_PUBLIC_BASE_URL": "http://join.stuhelper.com",
-    "IDENTITY_SERVER_ENABLED": "false",
-    "IDENTITY_ISSUER": "",
-    "IDENTITY_SIGNING_KEY_ID": "stuhelper-identity-prod-parity-1",
-    "IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS": "true",
-    "IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED": "false",
     "PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED": "true",
-    "IDENTITY_PUBLIC_SMOKE_ENABLED": "false",
-    "IDENTITY_PUBLIC_SMOKE_HOMEPAGE_URL": "http://stuhelper.com",
-    "IDENTITY_PUBLIC_SMOKE_PRIVACY_POLICY_URL": "http://stuhelper.com/privacy",
     "STUHELPER_PLATFORM_BASE_URL": "http://stuhelper.com",
     "WEB_VITE_SSO_URL": "http://sso.stuhelper.com",
     "WEB_VITE_IDENTITY_URL": "",
@@ -358,16 +350,8 @@ assert_env_value "${polluted_env}" "ADMIN_EXTERNAL_PORT" "3001"
 assert_env_value "${polluted_env}" "WEB_PUBLIC_URL" "http://localhost:3000"
 assert_env_value "${polluted_env}" "ADMIN_PUBLIC_URL" "http://localhost:3001"
 assert_env_value "${polluted_env}" "ADMISSION_PUBLIC_BASE_URL" "http://localhost:3000"
-assert_env_value "${polluted_env}" "IDENTITY_SERVER_ENABLED" "false"
-assert_env_value "${polluted_env}" "IDENTITY_ISSUER" ""
-assert_env_value "${polluted_env}" "IDENTITY_SIGNING_KEY_ID" "stuhelper-identity-dev"
-assert_env_value "${polluted_env}" "IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS" "false"
-assert_env_value "${polluted_env}" "IDENTITY_PUBLIC_SMOKE_CASDOOR_UPSTREAM_ENABLED" "false"
 assert_env_value "${polluted_env}" "PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED" "false"
 assert_file_not_contains "${polluted_env}" '^SSO_PUBLIC_'
-assert_env_value "${polluted_env}" "IDENTITY_PUBLIC_SMOKE_ENABLED" "false"
-assert_env_value "${polluted_env}" "IDENTITY_PUBLIC_SMOKE_HOMEPAGE_URL" "http://localhost:3000"
-assert_env_value "${polluted_env}" "IDENTITY_PUBLIC_SMOKE_PRIVACY_POLICY_URL" "http://localhost:3000/privacy"
 assert_env_value "${polluted_env}" "STUHELPER_PLATFORM_BASE_URL" "http://localhost:8080"
 assert_env_value "${polluted_env}" "WEB_VITE_SSO_URL" "http://localhost:8085"
 assert_env_value "${polluted_env}" "WEB_VITE_IDENTITY_URL" ""

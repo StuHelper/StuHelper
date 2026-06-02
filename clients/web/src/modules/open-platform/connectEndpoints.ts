@@ -1,4 +1,4 @@
-export const DEFAULT_IDENTITY_ISSUER = 'https://sso.stuhelper.com'
+export const DEFAULT_SSO_ISSUER = 'https://sso.stuhelper.com'
 
 export type ConnectEndpointKey =
   | 'issuer'
@@ -30,18 +30,18 @@ const connectEndpointPaths: Array<{
   { key: 'logout', path: '/logout' },
 ]
 
-export function normalizeIdentityIssuer(configuredOrigin?: string | null, currentOrigin?: string | null) {
-  const candidate = configuredOrigin?.trim() || currentOrigin?.trim() || DEFAULT_IDENTITY_ISSUER
+export function normalizeSsoIssuer(configuredOrigin?: string | null, currentOrigin?: string | null) {
+  const candidate = configuredOrigin?.trim() || currentOrigin?.trim() || DEFAULT_SSO_ISSUER
   try {
     const url = new URL(candidate)
     return url.origin
   } catch {
-    return DEFAULT_IDENTITY_ISSUER
+    return DEFAULT_SSO_ISSUER
   }
 }
 
 export function buildConnectEndpoints(issuer: string): ConnectEndpoint[] {
-  const normalizedIssuer = normalizeIdentityIssuer(issuer)
+  const normalizedIssuer = normalizeSsoIssuer(issuer)
   return [
     { key: 'issuer', value: normalizedIssuer },
     ...connectEndpointPaths.map(({ key, path }) => ({

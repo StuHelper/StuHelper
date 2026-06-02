@@ -147,8 +147,6 @@ https://join.stuhelper.com/verify/<token>?qq=<qq>
 ## 生产配置基线
 
 ```env
-IDENTITY_SERVER_ENABLED=false
-IDENTITY_ISSUER=
 WEB_VITE_IDENTITY_URL=
 WEB_VITE_WEB_URL=https://stuhelper.com
 WEB_VITE_SSO_URL=https://sso.stuhelper.com

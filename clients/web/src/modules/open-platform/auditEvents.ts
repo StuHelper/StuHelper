@@ -7,8 +7,6 @@ export const developerOpenPlatformAuditTypeKeys: Record<
   'open_platform.app.approved': 'developer.apps.auditTypes.appApproved',
   'open_platform.app.approved_app_ensured':
     'developer.apps.auditTypes.approvedAppEnsured',
-  'open_platform.app.identity_public_smoke_bootstrapped':
-    'developer.apps.auditTypes.identityPublicSmokeBootstrapped',
   'open_platform.app.profile_updated':
     'developer.apps.auditTypes.appProfileUpdated',
   'open_platform.app.redirect_uris.approved':

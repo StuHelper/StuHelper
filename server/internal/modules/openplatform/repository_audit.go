@@ -45,7 +45,6 @@ var userConsentAuditEventTypes = []string{
 var developerAppAuditEventTypes = []string{
 	"open_platform.app.approved",
 	"open_platform.app.approved_app_ensured",
-	"open_platform.app.identity_public_smoke_bootstrapped",
 	"open_platform.app.profile_updated",
 	"open_platform.app.revoked",
 	"open_platform.app.resumed",

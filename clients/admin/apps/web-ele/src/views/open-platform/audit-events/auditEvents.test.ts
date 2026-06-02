@@ -43,9 +43,6 @@ describe('admin Open Platform audit event taxonomy', () => {
     expect(eventTagType('open_platform.app.approved_app_ensured')).toBe(
       'success',
     );
-    expect(
-      eventTagType('open_platform.app.identity_public_smoke_bootstrapped'),
-    ).toBe('info');
     expect(eventTagType('open_platform.resource_access.granted')).toBe(
       'success',
     );

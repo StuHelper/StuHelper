@@ -263,7 +263,6 @@
       "event": {
         "appApproved": "App Approved",
         "approvedAppEnsured": "Automation-Approved App Ensured",
-        "identityPublicSmokeBootstrapped": "Public Identity Smoke Client Prepared",
         "appProfileUpdated": "App Profile Updated",
         "appResumed": "App Resumed",
         "appRevoked": "App Revoked",

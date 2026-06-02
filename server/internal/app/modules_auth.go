@@ -87,17 +87,7 @@ func (rt *Runtime) initOIDCSubjectValidator() (auth.OIDCSubjectValidator, error)
 }
 
 func (rt *Runtime) authRedirectOrigins() []string {
-	origins := append([]string(nil), rt.cfg.App.CORSOrigins...)
-	identityIssuer := strings.TrimRight(strings.TrimSpace(rt.identityIssuer()), "/")
-	if identityIssuer == "" {
-		return origins
-	}
-	for _, origin := range origins {
-		if strings.TrimRight(strings.TrimSpace(origin), "/") == identityIssuer {
-			return origins
-		}
-	}
-	return append(origins, identityIssuer)
+	return append([]string(nil), rt.cfg.App.CORSOrigins...)
 }
 
 func (rt *Runtime) registerUserRoutes(api *gin.RouterGroup, userHandler *user.Handler, authMW gin.HandlerFunc) {

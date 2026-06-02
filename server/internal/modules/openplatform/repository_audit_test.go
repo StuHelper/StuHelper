@@ -13,7 +13,6 @@ func TestAuditEventTypeAllowlists(t *testing.T) {
 
 		assert.Contains(t, developerAppAuditEventTypes, "open_platform.app.approved")
 		assert.Contains(t, developerAppAuditEventTypes, "open_platform.app.approved_app_ensured")
-		assert.Contains(t, developerAppAuditEventTypes, "open_platform.app.identity_public_smoke_bootstrapped")
 		assert.Contains(t, developerAppAuditEventTypes, "open_platform.app.token_probe.runtime.failed")
 		assert.Contains(t, developerAppAuditEventTypes, "open_platform.resource_access.checked")
 		assert.Contains(t, developerAppAuditEventTypes, "open_platform.resource_access.granted")

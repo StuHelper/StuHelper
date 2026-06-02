@@ -15,8 +15,6 @@ export const openPlatformAuditEventTypeLabelKeys: Record<
   'open_platform.app.approved': 'admin.openPlatform.audit.event.appApproved',
   'open_platform.app.approved_app_ensured':
     'admin.openPlatform.audit.event.approvedAppEnsured',
-  'open_platform.app.identity_public_smoke_bootstrapped':
-    'admin.openPlatform.audit.event.identityPublicSmokeBootstrapped',
   'open_platform.app.profile_updated':
     'admin.openPlatform.audit.event.appProfileUpdated',
   'open_platform.app.redirect_uris.approved':

@@ -1,7 +1,6 @@
 export const OPEN_PLATFORM_AUDIT_EVENT_TYPES = [
   'open_platform.app.approved',
   'open_platform.app.approved_app_ensured',
-  'open_platform.app.identity_public_smoke_bootstrapped',
   'open_platform.app.profile_updated',
   'open_platform.app.redirect_uris.approved',
   'open_platform.app.redirect_uris.rejected',

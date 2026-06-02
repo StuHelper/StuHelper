@@ -49,7 +49,7 @@ import { Check, Copy, Network } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
 import {
   buildConnectEndpoints,
-  normalizeIdentityIssuer,
+  normalizeSsoIssuer,
   type ConnectEndpointKey,
 } from '../connectEndpoints'
 
@@ -60,7 +60,7 @@ const copiedEndpoint = ref<ConnectEndpointKey | null>(null)
 let copiedEndpointResetTimer: ReturnType<typeof setTimeout> | null = null
 
 const identityIssuer = computed(() =>
-  normalizeIdentityIssuer(
+  normalizeSsoIssuer(
     import.meta.env.VITE_SSO_URL,
     typeof window === 'undefined' ? undefined : window.location.origin,
   ),

@@ -43,11 +43,6 @@ describe('developer Open Platform audit event labels', () => {
       developerOpenPlatformAuditTypeKey('open_platform.app.approved_app_ensured'),
     ).toBe('developer.apps.auditTypes.approvedAppEnsured')
     expect(
-      developerOpenPlatformAuditTypeKey(
-        'open_platform.app.identity_public_smoke_bootstrapped',
-      ),
-    ).toBe('developer.apps.auditTypes.identityPublicSmokeBootstrapped')
-    expect(
       developerOpenPlatformAuditTypeKey('open_platform.resource_access.granted'),
     ).toBe('developer.apps.auditTypes.resourceGranted')
     expect(

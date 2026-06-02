@@ -176,11 +176,6 @@ func TestValidate_ProductionRequiresObservability(t *testing.T) {
 			IntrospectionClientSecret: "introspection-secret",
 			Organization:              "stuhelper",
 		},
-		Identity: IdentityConfig{
-			AccessTokenTTL:       900,
-			RefreshTokenTTL:      2592000,
-			AuthorizationCodeTTL: 300,
-		},
 		OpenFGA: OpenFGAConfig{
 			StoreID:              "store-id",
 			AuthorizationModelID: "model-id",
@@ -425,33 +420,6 @@ func TestValidate_EmailMultiAllowsProduction(t *testing.T) {
 	require.NoError(t, c.validate(nil))
 }
 
-func TestValidate_ProductionRequiresIdentityIssuerAndSigningKey(t *testing.T) {
-	c := validProductionConfigForTest()
-	c.Identity.Enabled = true
-	c.Identity.Issuer = ""
-	c.Identity.SigningPrivateKeyPEM = ""
-
-	err := c.validate(nil)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "IDENTITY_ISSUER is required in production")
-	assert.Contains(t, err.Error(), "IDENTITY_SIGNING_PRIVATE_KEY_PEM is required in production")
-}
-
-func TestValidate_ProductionAllowsDisabledLegacyIdentityServer(t *testing.T) {
-	c := validProductionConfigForTest()
-	c.Identity = IdentityConfig{
-		Enabled:              false,
-		AccessTokenTTL:       900,
-		RefreshTokenTTL:      2592000,
-		AuthorizationCodeTTL: 300,
-	}
-
-	err := c.validate(nil)
-
-	require.NoError(t, err)
-}
-
 func TestValidate_ProductionAllowsExplicitExternalPlaintextPostgres(t *testing.T) {
 	c := validProductionConfigForTest()
 	c.Database.SSLMode = "disable"
@@ -475,28 +443,6 @@ func TestValidate_ProductionRejectsImplicitPlaintextDatastores(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "DB_SSL_MODE must be 'verify-full' in production")
 	assert.Contains(t, err.Error(), "REDIS_TLS_ENABLED must be true in production")
-}
-
-func TestLoadIdentityConfigFromEnv(t *testing.T) {
-	t.Setenv("IDENTITY_SERVER_ENABLED", "true")
-	t.Setenv("IDENTITY_ISSUER", "https://id.example.com")
-	t.Setenv("IDENTITY_SIGNING_PRIVATE_KEY_PEM", "identity-signing-key")
-	t.Setenv("IDENTITY_SIGNING_KEY_ID", "identity-key-2")
-	t.Setenv("IDENTITY_ACCESS_TOKEN_TTL", "600")
-	t.Setenv("IDENTITY_REFRESH_TOKEN_TTL", "7200")
-	t.Setenv("IDENTITY_AUTH_CODE_TTL", "120")
-
-	var parseErrs []string
-	cfg := loadIdentityConfig(&parseErrs)
-
-	require.Empty(t, parseErrs)
-	assert.True(t, cfg.Enabled)
-	assert.Equal(t, "https://id.example.com", cfg.Issuer)
-	assert.Equal(t, "identity-signing-key", cfg.SigningPrivateKeyPEM)
-	assert.Equal(t, "identity-key-2", cfg.SigningKeyID)
-	assert.Equal(t, 600, cfg.AccessTokenTTL)
-	assert.Equal(t, 7200, cfg.RefreshTokenTTL)
-	assert.Equal(t, 120, cfg.AuthorizationCodeTTL)
 }
 
 func TestLoadAdmissionConfigFromEnv(t *testing.T) {
@@ -562,29 +508,6 @@ func TestValidateRejectsIncompleteExternalStudentSource(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD is required")
-}
-
-func TestValidate_RejectsInvalidIdentityRefreshTokenTTL(t *testing.T) {
-	tests := []struct {
-		name  string
-		value int
-	}{
-		{name: "too short", value: 3599},
-		{name: "too long", value: 2592001},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := validProductionConfigForTest()
-			c.Identity.Enabled = true
-			c.Identity.RefreshTokenTTL = tt.value
-
-			err := c.validate(nil)
-
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "IDENTITY_REFRESH_TOKEN_TTL must be between 3600 and 2592000 seconds")
-		})
-	}
 }
 
 func TestValidate_DevelopmentAllowsMissingBotServiceToken(t *testing.T) {
@@ -745,11 +668,6 @@ func TestValidate_SMSRequiresFullConfigWhenEnabled(t *testing.T) {
 			IntrospectionClientSecret: "introspection-secret",
 			Organization:              "stuhelper",
 		},
-		Identity: IdentityConfig{
-			AccessTokenTTL:       900,
-			RefreshTokenTTL:      2592000,
-			AuthorizationCodeTTL: 300,
-		},
 		OpenFGA: OpenFGAConfig{
 			StoreID:              "store-id",
 			AuthorizationModelID: "model-id",
@@ -812,11 +730,6 @@ func TestValidate_SMSDisabledAllowsEmptyConfig(t *testing.T) {
 			IntrospectionClientID:     "introspection-client",
 			IntrospectionClientSecret: "introspection-secret",
 			Organization:              "stuhelper",
-		},
-		Identity: IdentityConfig{
-			AccessTokenTTL:       900,
-			RefreshTokenTTL:      2592000,
-			AuthorizationCodeTTL: 300,
 		},
 		OpenFGA: OpenFGAConfig{
 			StoreID:              "store-id",
@@ -1015,15 +928,6 @@ func validProductionConfigForTest() *Config {
 			UserLookupClientID:          "user-lookup-client",
 			UserLookupClientSecret:      "user-lookup-secret",
 			UserLookupApplication:       "stuhelper-user-lookup",
-		},
-		Identity: IdentityConfig{
-			Enabled:              true,
-			Issuer:               "https://id.example.com",
-			SigningPrivateKeyPEM: "-----BEGIN RSA PRIVATE KEY-----\nplaceholder\n-----END RSA PRIVATE KEY-----",
-			SigningKeyID:         "stuhelper-identity-1",
-			AccessTokenTTL:       900,
-			RefreshTokenTTL:      2592000,
-			AuthorizationCodeTTL: 300,
 		},
 		OpenFGA: OpenFGAConfig{StoreID: "store-id", AuthorizationModelID: "model-id", APIUrl: "http://openfga:8080"},
 		OpenPlatform: OpenPlatformConfig{TokenProbe: OpenPlatformTokenProbeConfig{

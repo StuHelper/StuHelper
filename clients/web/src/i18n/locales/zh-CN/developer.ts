@@ -144,7 +144,6 @@ export default {
     auditTypes: {
       appApproved: '应用已批准',
       approvedAppEnsured: '自动准入应用已确保',
-      identityPublicSmokeBootstrapped: '公网身份 smoke 客户端已准备',
       appProfileUpdated: '应用资料已更新',
       appResumed: '应用已恢复',
       appRevoked: '应用已吊销',

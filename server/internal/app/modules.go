@@ -141,16 +141,9 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		bindPhoneSMS = userProfileGateway
 	}
 	userHandler := user.NewHandler(userService, rt.redisClient.GetClient(), bindPhoneOTP, bindPhoneSMS)
-	openPlatformHandler, openPlatformService, err := rt.initOpenPlatformModule(api, authMW, piiCipher, userRepo.GetInternalUserID)
+	openPlatformHandler, _, err := rt.initOpenPlatformModule(api, authMW, piiCipher, userRepo.GetInternalUserID)
 	if err != nil {
 		return err
-	}
-	if rt.cfg.Identity.Enabled {
-		identityService, err := rt.initIdentityServerRoutes(r, openPlatformService, authHandler, optionalAuthMW, userRepo.GetInternalUserID)
-		if err != nil {
-			return err
-		}
-		openPlatformHandler.SetResourceAccessTokenVerifier(identityService)
 	}
 	botCredentialVerifier, err := rt.initBotCredentialVerifier(bgCtx)
 	if err != nil {

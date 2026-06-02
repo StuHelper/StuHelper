@@ -2,19 +2,19 @@ import { describe, expect, it } from 'vitest'
 
 import enUSDeveloper from '@/i18n/locales/en-US/developer'
 import zhCNDeveloper from '@/i18n/locales/zh-CN/developer'
-import { DEFAULT_IDENTITY_ISSUER, buildConnectEndpoints, normalizeIdentityIssuer } from '../connectEndpoints'
+import { DEFAULT_SSO_ISSUER, buildConnectEndpoints, normalizeSsoIssuer } from '../connectEndpoints'
 
 describe('StuHelper Connect endpoint helpers', () => {
   it('normalizes configured SSO origins to issuer origins', () => {
-    expect(normalizeIdentityIssuer('https://sso.stuhelper.com/path')).toBe('https://sso.stuhelper.com')
-    expect(normalizeIdentityIssuer(' http://sso.stuhelper.com ')).toBe('http://sso.stuhelper.com')
+    expect(normalizeSsoIssuer('https://sso.stuhelper.com/path')).toBe('https://sso.stuhelper.com')
+    expect(normalizeSsoIssuer(' http://sso.stuhelper.com ')).toBe('http://sso.stuhelper.com')
   })
 
   it('falls back to the current origin and then the production SSO issuer', () => {
-    expect(normalizeIdentityIssuer('', 'https://local-sso.stuhelper.test/login')).toBe(
+    expect(normalizeSsoIssuer('', 'https://local-sso.stuhelper.test/login')).toBe(
       'https://local-sso.stuhelper.test',
     )
-    expect(normalizeIdentityIssuer('not a url', 'also bad')).toBe(DEFAULT_IDENTITY_ISSUER)
+    expect(normalizeSsoIssuer('not a url', 'also bad')).toBe(DEFAULT_SSO_ISSUER)
   })
 
   it('builds the public OIDC and OAuth endpoint baseline from the issuer', () => {

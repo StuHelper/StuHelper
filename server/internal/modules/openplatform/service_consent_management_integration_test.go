@@ -2561,16 +2561,6 @@ func TestDeveloperAppAuditEventsAreOwnerScopedAndSanitized(t *testing.T) {
 		},
 	}))
 	require.NoError(t, repo.RecordAuditEvent(ctx, auditEvent{
-		AppID:     app.ID,
-		UserID:    ownerID,
-		EventType: "open_platform.app.identity_public_smoke_bootstrapped",
-		RequestID: "developer-audit-smoke-bootstrap",
-		Metadata: map[string]any{
-			"clientID":    app.ClientID,
-			"displayName": app.DisplayName,
-		},
-	}))
-	require.NoError(t, repo.RecordAuditEvent(ctx, auditEvent{
 		AppID:     otherApp.ID,
 		UserID:    otherOwnerID,
 		EventType: "open_platform.app.secret_rotated",
@@ -2584,8 +2574,8 @@ func TestDeveloperAppAuditEventsAreOwnerScopedAndSanitized(t *testing.T) {
 		PageSize:    20,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, 7, events.Total)
-	require.Len(t, events.List, 7)
+	assert.Equal(t, 6, events.Total)
+	require.Len(t, events.List, 6)
 	for _, event := range events.List {
 		if event.RequestID != nil {
 			assert.NotEqual(t, "developer-audit-other-app", *event.RequestID)
@@ -2622,9 +2612,6 @@ func TestDeveloperAppAuditEventsAreOwnerScopedAndSanitized(t *testing.T) {
 	require.Len(t, ensured.List, 1)
 	require.NotNil(t, ensured.List[0].RequestID)
 	assert.Equal(t, "developer-audit-approved-ensured", *ensured.List[0].RequestID)
-
-	smokeBootstrap := developerAppAuditEventByRequestID(t, events.List, "developer-audit-smoke-bootstrap")
-	assert.Equal(t, "open_platform.app.identity_public_smoke_bootstrapped", smokeBootstrap.EventType)
 
 	scoped, err := service.ListDeveloperAppAuditEvents(ctx, ListDeveloperAppAuditEventsInput{
 		OwnerUserID: ownerID,
