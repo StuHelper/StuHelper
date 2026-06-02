@@ -20,14 +20,12 @@ Verifies the public production admission ingress:
     as an SSE endpoint with buffering disabled
   - ADMISSION_PUBLIC_BASE_URL /verify returns 404
   - WEB_PUBLIC_URL /verify and /verify/<token>?qq=<qq> return 404
-  - id.stuhelper.com /verify and /verify/<token>?qq=<qq> return 404
 
 Required production env:
   ADMISSION_PUBLIC_BASE_URL must be https://join.stuhelper.com
 
 Optional env:
   WEB_PUBLIC_URL                              defaults to https://stuhelper.com
-  ADMISSION_PUBLIC_SMOKE_DISABLED_ID_URL     defaults to https://id.stuhelper.com
   ADMISSION_PUBLIC_SMOKE_RETRIES             defaults to 3
   ADMISSION_PUBLIC_SMOKE_SLEEP_SECONDS       defaults to 2
   ADMISSION_PUBLIC_SMOKE_EVIDENCE_FILE       defaults to infra/generated/admission-public-smoke-evidence.json
@@ -36,7 +34,7 @@ Optional env:
                                              intentional local validation
   ADMISSION_PUBLIC_SMOKE_CURL_INSECURE       defaults to false; set true only for local self-signed TLS
   ADMISSION_PUBLIC_SMOKE_CURL_NO_PROXY       defaults to "*"; set empty to honor proxy env vars
-  ADMISSION_PUBLIC_SMOKE_RESOLVE_IP          optional diagnostic override for stuhelper.com/join/id
+  ADMISSION_PUBLIC_SMOKE_RESOLVE_IP          optional diagnostic override for stuhelper.com/join
   ADMISSION_PUBLIC_SMOKE_PROBE_TOKEN         defaults to __stuhelper_public_smoke__
   ADMISSION_PUBLIC_SMOKE_PROBE_QQ            defaults to 10000
 USAGE
@@ -53,7 +51,6 @@ require_cmd python3
 
 preserved_admission_public_base_url="${ADMISSION_PUBLIC_BASE_URL-__STUHELPER_UNSET__}"
 preserved_web_public_url="${WEB_PUBLIC_URL-__STUHELPER_UNSET__}"
-preserved_disabled_id_url="${ADMISSION_PUBLIC_SMOKE_DISABLED_ID_URL-__STUHELPER_UNSET__}"
 preserved_retries="${ADMISSION_PUBLIC_SMOKE_RETRIES-__STUHELPER_UNSET__}"
 preserved_sleep_seconds="${ADMISSION_PUBLIC_SMOKE_SLEEP_SECONDS-__STUHELPER_UNSET__}"
 preserved_evidence_file="${ADMISSION_PUBLIC_SMOKE_EVIDENCE_FILE-__STUHELPER_UNSET__}"
@@ -69,7 +66,6 @@ load_env
 
 if [[ "${preserved_admission_public_base_url}" != "__STUHELPER_UNSET__" ]]; then ADMISSION_PUBLIC_BASE_URL="${preserved_admission_public_base_url}"; fi
 if [[ "${preserved_web_public_url}" != "__STUHELPER_UNSET__" ]]; then WEB_PUBLIC_URL="${preserved_web_public_url}"; fi
-if [[ "${preserved_disabled_id_url}" != "__STUHELPER_UNSET__" ]]; then ADMISSION_PUBLIC_SMOKE_DISABLED_ID_URL="${preserved_disabled_id_url}"; fi
 if [[ "${preserved_retries}" != "__STUHELPER_UNSET__" ]]; then ADMISSION_PUBLIC_SMOKE_RETRIES="${preserved_retries}"; fi
 if [[ "${preserved_sleep_seconds}" != "__STUHELPER_UNSET__" ]]; then ADMISSION_PUBLIC_SMOKE_SLEEP_SECONDS="${preserved_sleep_seconds}"; fi
 if [[ "${preserved_evidence_file}" != "__STUHELPER_UNSET__" ]]; then ADMISSION_PUBLIC_SMOKE_EVIDENCE_FILE="${preserved_evidence_file}"; fi
@@ -92,7 +88,6 @@ curl() {
     args+=(
       --resolve "stuhelper.com:443:${ADMISSION_PUBLIC_SMOKE_RESOLVE_IP}"
       --resolve "join.stuhelper.com:443:${ADMISSION_PUBLIC_SMOKE_RESOLVE_IP}"
-      --resolve "id.stuhelper.com:443:${ADMISSION_PUBLIC_SMOKE_RESOLVE_IP}"
     )
   fi
   command curl "${args[@]}" "$@"
@@ -169,7 +164,6 @@ normalize_bool() {
 
 admission_public_base_url="$(trim_trailing_slash "${ADMISSION_PUBLIC_BASE_URL:-https://join.stuhelper.com}")"
 web_public_url="$(trim_trailing_slash "${WEB_PUBLIC_URL:-https://stuhelper.com}")"
-disabled_id_url="$(trim_trailing_slash "${ADMISSION_PUBLIC_SMOKE_DISABLED_ID_URL:-https://id.stuhelper.com}")"
 retries="${ADMISSION_PUBLIC_SMOKE_RETRIES:-3}"
 sleep_seconds="${ADMISSION_PUBLIC_SMOKE_SLEEP_SECONDS:-2}"
 evidence_file="${ADMISSION_PUBLIC_SMOKE_EVIDENCE_FILE:-${REPO_ROOT}/infra/generated/admission-public-smoke-evidence.json}"
@@ -180,7 +174,6 @@ probe_qq="${ADMISSION_PUBLIC_SMOKE_PROBE_QQ:-10000}"
 
 [[ -n "${admission_public_base_url}" ]] || die "ADMISSION_PUBLIC_BASE_URL is required"
 [[ -n "${web_public_url}" ]] || die "WEB_PUBLIC_URL is required"
-[[ -n "${disabled_id_url}" ]] || die "ADMISSION_PUBLIC_SMOKE_DISABLED_ID_URL is required"
 
 case "${probe_token}" in
   ""|*/*|*\?*|*#*|*"&"*|*=*)
@@ -202,22 +195,16 @@ fi
 if [[ "${allow_local_targets}" != "true" ]]; then
   [[ "${admission_public_base_url}" == "https://join.stuhelper.com" ]] || \
     die "ADMISSION_PUBLIC_BASE_URL must be exactly https://join.stuhelper.com for production admission public smoke"
-  [[ "${disabled_id_url}" == "https://id.stuhelper.com" ]] || \
-    die "ADMISSION_PUBLIC_SMOKE_DISABLED_ID_URL must be exactly https://id.stuhelper.com for production admission public smoke"
   reject_local_smoke_target "ADMISSION_PUBLIC_BASE_URL" "${admission_public_base_url}"
   reject_local_smoke_target "WEB_PUBLIC_URL" "${web_public_url}"
-  reject_local_smoke_target "ADMISSION_PUBLIC_SMOKE_DISABLED_ID_URL" "${disabled_id_url}"
   reject_loopback_resolved_host "ADMISSION_PUBLIC_BASE_URL" "${admission_public_base_url}"
   reject_loopback_resolved_host "WEB_PUBLIC_URL" "${web_public_url}"
-  reject_loopback_resolved_host "ADMISSION_PUBLIC_SMOKE_DISABLED_ID_URL" "${disabled_id_url}"
 fi
 
 admission_verify_url="${admission_public_base_url}/verify/${probe_token}?qq=${probe_qq}"
 admission_bare_verify_url="${admission_public_base_url}/verify"
 web_verify_url="${web_public_url}/verify/${probe_token}?qq=${probe_qq}"
 web_bare_verify_url="${web_public_url}/verify"
-disabled_id_verify_url="${disabled_id_url}/verify/${probe_token}?qq=${probe_qq}"
-disabled_id_bare_verify_url="${disabled_id_url}/verify"
 admission_metrics_vitals_url="${admission_public_base_url}/api/v1/metrics/vitals"
 admission_metrics_frontend_errors_url="${admission_public_base_url}/api/v1/metrics/frontend-errors"
 admission_camera_handoff_events_url="${admission_public_base_url}/api/v1/admission/freshman/camera-handoffs/${probe_token}/events"
@@ -536,15 +523,12 @@ write_evidence() {
       "${APP_ENV:-}" \
       "${admission_public_base_url}" \
       "${web_public_url}" \
-      "${disabled_id_url}" \
       "${probe_token}" \
       "${probe_qq}" \
       "${admission_verify_url}" \
       "${admission_bare_verify_url}" \
       "${web_verify_url}" \
       "${web_bare_verify_url}" \
-      "${disabled_id_verify_url}" \
-      "${disabled_id_bare_verify_url}" \
       "${admission_metrics_vitals_url}" \
       "${admission_metrics_frontend_errors_url}" \
       "${admission_camera_handoff_events_url}" \
@@ -557,7 +541,7 @@ import json
 import sys
 from pathlib import Path
 
-checks_path = Path(sys.argv[21])
+checks_path = Path(sys.argv[18])
 checks = []
 if checks_path.exists():
     checks = [
@@ -571,29 +555,26 @@ bundle = {
     "appEnv": sys.argv[2],
     "admissionPublicBaseURL": sys.argv[3],
     "webPublicURL": sys.argv[4],
-    "disabledIDURL": sys.argv[5],
     "probe": {
-        "token": sys.argv[6],
-        "qq": sys.argv[7],
+        "token": sys.argv[5],
+        "qq": sys.argv[6],
     },
     "endpoints": {
-        "admissionVerify": sys.argv[8],
-        "admissionBareVerify": sys.argv[9],
-        "webVerify": sys.argv[10],
-        "webBareVerify": sys.argv[11],
-        "identityVerify": sys.argv[12],
-        "identityBareVerify": sys.argv[13],
-        "admissionMetricsVitals": sys.argv[14],
-        "admissionMetricsFrontendErrors": sys.argv[15],
-        "admissionCameraHandoffEvents": sys.argv[16],
+        "admissionVerify": sys.argv[7],
+        "admissionBareVerify": sys.argv[8],
+        "webVerify": sys.argv[9],
+        "webBareVerify": sys.argv[10],
+        "admissionMetricsVitals": sys.argv[11],
+        "admissionMetricsFrontendErrors": sys.argv[12],
+        "admissionCameraHandoffEvents": sys.argv[13],
     },
-    "resolveIP": sys.argv[17],
+    "resolveIP": sys.argv[14],
     "summary": {
-        "passed": int(sys.argv[18]),
-        "failed": int(sys.argv[19]),
+        "passed": int(sys.argv[15]),
+        "failed": int(sys.argv[16]),
     },
     "checks": checks,
-    "passed": sys.argv[20] == "true",
+    "passed": sys.argv[17] == "true",
 }
 print(json.dumps(bundle, ensure_ascii=True, indent=2))
 PY
@@ -626,8 +607,6 @@ check_get_status_header_contains "Admission join camera handoff SSE ingress retu
 check_http_status "Admission join bare verify returns 404" "${admission_bare_verify_url}" "404"
 check_http_status "Web host verify token returns 404" "${web_verify_url}" "404"
 check_http_status "Web host bare verify returns 404" "${web_bare_verify_url}" "404"
-check_http_status "Identity host verify token returns 404" "${disabled_id_verify_url}" "404"
-check_http_status "Identity host bare verify returns 404" "${disabled_id_bare_verify_url}" "404"
 
 printf '%s\n' '--------------------------------'
 printf 'Result: %s passed, %s failed\n' "${pass}" "${fail}"

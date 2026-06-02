@@ -47,7 +47,7 @@ def require(condition, message):
 checks = evidence.get("checks", [])
 names = {item.get("name"): item for item in checks}
 require(evidence.get("passed") is True, "smoke did not pass")
-require(evidence.get("summary", {}).get("passed") == 10, "passed count")
+require(evidence.get("summary", {}).get("passed") == 9, "passed count")
 require(evidence.get("summary", {}).get("failed") == 0, "failed count")
 for name in (
     "web-login-page-renders",
@@ -59,7 +59,6 @@ for name in (
     "join-login-click-starts-sso",
     "join-signup-click-starts-sso-signup",
     "join-mobile-camera-route-allows-camera",
-    "id-host-disabled",
 ):
     require(name in names, f"missing {name}")
     require(names[name].get("passed") is True, f"{name} did not pass")
@@ -68,7 +67,6 @@ targets = evidence.get("targets", {})
 require(targets.get("webBaseURL", "").endswith("/web"), "web target")
 require(targets.get("joinBaseURL", "").endswith("/join"), "join target")
 require(targets.get("ssoBaseURL", "").endswith("/sso"), "sso target")
-require(targets.get("disabledIDBaseURL", "").endswith("/id"), "id target")
 
 mobile_camera = names["join-mobile-camera-route-allows-camera"]
 camera_permissions = {
@@ -105,7 +103,6 @@ assert_contains "${SMOKE_SCRIPT}" '@playwright/test'
 assert_contains "${SMOKE_SCRIPT}" 'WEB_PUBLIC_URL.*https://stuhelper\.com'
 assert_contains "${SMOKE_SCRIPT}" 'ADMISSION_PUBLIC_BASE_URL.*https://join\.stuhelper\.com'
 assert_contains "${SMOKE_SCRIPT}" 'SSO_PUBLIC_BASE_URL.*https://sso\.stuhelper\.com'
-assert_contains "${SMOKE_SCRIPT}" 'https://id\.stuhelper\.com'
 assert_contains "${SMOKE_SCRIPT}" 'developer-apps-route-redirects-to-login'
 assert_contains "${SMOKE_SCRIPT}" 'identity-route-redirects-to-login'
 assert_contains "${SMOKE_SCRIPT}" "redirect.*identity"
@@ -128,7 +125,6 @@ assert_contains "${SMOKE_SCRIPT}" 'permissions-policy'
 assert_contains "${SMOKE_SCRIPT}" 'camera=\(self\)'
 assert_contains "${SMOKE_SCRIPT}" 'Permissions policy violation'
 assert_contains "${SMOKE_SCRIPT}" 'mobile-camera-handoffs'
-assert_contains "${SMOKE_SCRIPT}" 'id-host-disabled'
 assert_contains "${SMOKE_SCRIPT}" 'PUBLIC_WEB_AUTH_BROWSER_SMOKE_ALLOW_LOCAL_TARGETS'
 assert_contains "${SMOKE_SCRIPT}" 'PUBLIC_WEB_AUTH_BROWSER_EXECUTABLE_PATH'
 assert_contains "${SMOKE_SCRIPT}" 'client_id.*stuhelper-web'
@@ -136,14 +132,12 @@ assert_contains "${SMOKE_SCRIPT}" '/login/oauth/authorize'
 assert_contains "${SMOKE_SCRIPT}" '/signup/oauth/authorize'
 assert_contains "${SMOKE_SCRIPT}" 'SSO login page does not expose password login'
 assert_contains "${SMOKE_SCRIPT}" 'SSO signup page does not expose username/password signup fields'
-assert_contains "${SMOKE_SCRIPT}" 'id\.stuhelper\.com'
 assert_contains "${PROD_DEPLOY_SCRIPT}" 'PUBLIC_WEB_AUTH_BROWSER_SMOKE_ENABLED'
 assert_contains "${PROD_DEPLOY_SCRIPT}" 'public-web-auth-browser-smoke\.mjs'
 assert_contains "${REMOTE_PREFLIGHT_SCRIPT}" 'PUBLIC_WEB_AUTH_BROWSER_SMOKE_PREFLIGHT_ENABLED'
 assert_contains "${REMOTE_PREFLIGHT_SCRIPT}" 'public-web-auth-browser-smoke\.mjs'
 assert_contains "${PROD_ENV_EXAMPLE}" '^PUBLIC_WEB_AUTH_BROWSER_SMOKE_ENABLED=true$'
 assert_contains "${PROD_ENV_EXAMPLE}" '^PUBLIC_WEB_AUTH_BROWSER_SMOKE_ALLOW_LOCAL_TARGETS=false$'
-assert_contains "${PROD_ENV_EXAMPLE}" '^PUBLIC_WEB_AUTH_BROWSER_SMOKE_DISABLED_ID_URL=https://id\.stuhelper\.com$'
 assert_contains "${RELEASE_RUNBOOK}" 'public-web-auth-browser-smoke\.mjs'
 
 tmpdir="$(mktemp -d)"
@@ -295,8 +289,6 @@ const server = http.createServer((request, response) => {
     `));
   } else if (url.pathname === '/join/admission/freshman/camera/__stuhelper_browser_smoke__') {
     result = withCameraPolicy(html('<main><h1>新生材料拍照</h1><p>无法打开拍照链接</p></main>'));
-  } else if (url.pathname === '/id/' || url.pathname === '/id') {
-    result = html('<main>not found</main>', 404);
   } else {
     result = html(`<main>unexpected ${url.pathname}</main>`, 500);
   }
@@ -325,7 +317,6 @@ local_refused_output="$(
   WEB_PUBLIC_URL="${base_url}/web" \
   ADMISSION_PUBLIC_BASE_URL="${base_url}/join" \
   SSO_PUBLIC_BASE_URL="${base_url}/sso" \
-  PUBLIC_WEB_AUTH_BROWSER_SMOKE_DISABLED_ID_URL="${base_url}/id" \
   PUBLIC_WEB_AUTH_BROWSER_SMOKE_EVIDENCE_FILE="${evidence_file}" \
   "${SMOKE_SCRIPT}" 2>&1
 )" && fail "browser smoke unexpectedly allowed local targets without explicit override"
@@ -336,7 +327,6 @@ printf '%s\n' "${local_refused_output}" | grep -Eq 'PUBLIC_WEB_AUTH_BROWSER_SMOK
 WEB_PUBLIC_URL="${base_url}/web" \
 ADMISSION_PUBLIC_BASE_URL="${base_url}/join" \
 SSO_PUBLIC_BASE_URL="${base_url}/sso" \
-PUBLIC_WEB_AUTH_BROWSER_SMOKE_DISABLED_ID_URL="${base_url}/id" \
 PUBLIC_WEB_AUTH_BROWSER_SMOKE_EVIDENCE_FILE="${evidence_file}" \
 PUBLIC_WEB_AUTH_BROWSER_SMOKE_ALLOW_LOCAL_TARGETS=true \
 PUBLIC_WEB_AUTH_BROWSER_SMOKE_TIMEOUT_MS=10000 \
@@ -349,7 +339,6 @@ bad_api_output="$(
   WEB_PUBLIC_URL="${base_url}/web" \
   ADMISSION_PUBLIC_BASE_URL="${base_url}/join" \
   SSO_PUBLIC_BASE_URL="${base_url}/sso" \
-  PUBLIC_WEB_AUTH_BROWSER_SMOKE_DISABLED_ID_URL="${base_url}/id" \
   PUBLIC_WEB_AUTH_BROWSER_SMOKE_EVIDENCE_FILE="${bad_api_evidence_file}" \
   PUBLIC_WEB_AUTH_BROWSER_SMOKE_ALLOW_LOCAL_TARGETS=true \
   PUBLIC_WEB_AUTH_BROWSER_SMOKE_TIMEOUT_MS=10000 \
@@ -383,7 +372,6 @@ bad_camera_output="$(
   WEB_PUBLIC_URL="${base_url}/web" \
   ADMISSION_PUBLIC_BASE_URL="${base_url}/join" \
   SSO_PUBLIC_BASE_URL="${base_url}/sso" \
-  PUBLIC_WEB_AUTH_BROWSER_SMOKE_DISABLED_ID_URL="${base_url}/id" \
   PUBLIC_WEB_AUTH_BROWSER_SMOKE_EVIDENCE_FILE="${bad_evidence_file}" \
   PUBLIC_WEB_AUTH_BROWSER_SMOKE_ALLOW_LOCAL_TARGETS=true \
   PUBLIC_WEB_AUTH_BROWSER_SMOKE_TIMEOUT_MS=10000 \

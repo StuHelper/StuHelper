@@ -46,9 +46,9 @@ def require(condition, message):
         raise SystemExit(message)
 
 require(evidence.get("passed") is True, "smoke did not pass")
-require(evidence.get("summary", {}).get("passed") == 10, "passed count")
+require(evidence.get("summary", {}).get("passed") == 8, "passed count")
 require(evidence.get("summary", {}).get("failed") == 0, "failed count")
-require(len(checks) == 10, "check count")
+require(len(checks) == 8, "check count")
 for name in (
     "Admission join verify token serves Web SPA",
     "Admission join verify token allows camera capture",
@@ -58,8 +58,6 @@ for name in (
     "Admission join bare verify returns 404",
     "Web host verify token returns 404",
     "Web host bare verify returns 404",
-    "Identity host verify token returns 404",
-    "Identity host bare verify returns 404",
 ):
     require(len([item for item in checks if item.get("name") == name and item.get("passed") is True]) == 1, name)
 
@@ -68,8 +66,6 @@ require(endpoints.get("admissionVerify", "").endswith("/join/verify/__stuhelper_
 require(endpoints.get("admissionBareVerify", "").endswith("/join/verify"), "admissionBareVerify endpoint")
 require(endpoints.get("webVerify", "").endswith("/web/verify/__stuhelper_public_smoke__?qq=10000"), "webVerify endpoint")
 require(endpoints.get("webBareVerify", "").endswith("/web/verify"), "webBareVerify endpoint")
-require(endpoints.get("identityVerify", "").endswith("/id/verify/__stuhelper_public_smoke__?qq=10000"), "identityVerify endpoint")
-require(endpoints.get("identityBareVerify", "").endswith("/id/verify"), "identityBareVerify endpoint")
 require(endpoints.get("admissionMetricsVitals", "").endswith("/join/api/v1/metrics/vitals"), "admissionMetricsVitals endpoint")
 require(endpoints.get("admissionMetricsFrontendErrors", "").endswith("/join/api/v1/metrics/frontend-errors"), "admissionMetricsFrontendErrors endpoint")
 require(endpoints.get("admissionCameraHandoffEvents", "").endswith("/join/api/v1/admission/freshman/camera-handoffs/__stuhelper_public_smoke__/events"), "admissionCameraHandoffEvents endpoint")
@@ -106,14 +102,10 @@ assert_contains "${SMOKE_SCRIPT}" 'Origin: \$\{origin\}'
 assert_contains "${SMOKE_SCRIPT}" 'Referer: \$\{referer\}'
 assert_contains "${SMOKE_SCRIPT}" 'Web host verify token returns 404'
 assert_contains "${SMOKE_SCRIPT}" 'WEB_PUBLIC_URL /verify'
-assert_contains "${SMOKE_SCRIPT}" 'id\.stuhelper\.com /verify'
-assert_contains "${SMOKE_SCRIPT}" 'Identity host verify token returns 404'
-assert_contains "${SMOKE_SCRIPT}" 'Identity host bare verify returns 404'
 assert_contains "${SMOKE_SCRIPT}" 'Admission join bare verify returns 404'
 assert_contains "${SMOKE_SCRIPT}" 'ADMISSION_PUBLIC_SMOKE_CURL_NO_PROXY'
 assert_contains "${SMOKE_SCRIPT}" 'ADMISSION_PUBLIC_SMOKE_RESOLVE_IP'
 assert_contains "${SMOKE_SCRIPT}" 'join\.stuhelper\.com:443'
-assert_contains "${SMOKE_SCRIPT}" 'id\.stuhelper\.com:443'
 assert_contains "${SMOKE_SCRIPT}" 'getent ahosts'
 assert_contains "${SMOKE_SCRIPT}" 'resolves to loopback'
 assert_contains "${SMOKE_SCRIPT}" 'ADMISSION_PUBLIC_SMOKE_RESOLVE_IP=<public-ip>'
@@ -125,7 +117,6 @@ assert_contains "${PROD_PARITY_SMOKE_SCRIPT}" 'admission-public-smoke\.sh'
 assert_contains "${PROD_ENV_EXAMPLE}" '^ADMISSION_PUBLIC_SMOKE_ENABLED=true$'
 assert_contains "${PROD_ENV_EXAMPLE}" '^ADMISSION_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=false$'
 assert_contains "${PROD_ENV_EXAMPLE}" '^ADMISSION_PUBLIC_SMOKE_CURL_NO_PROXY=\*$'
-assert_contains "${PROD_ENV_EXAMPLE}" '^ADMISSION_PUBLIC_SMOKE_DISABLED_ID_URL=https://id\.stuhelper\.com$'
 assert_contains "${PROD_ENV_EXAMPLE}" '^ADMISSION_PUBLIC_SMOKE_PROBE_TOKEN=__stuhelper_public_smoke__$'
 assert_contains "${PROD_ENV_EXAMPLE}" '^ADMISSION_PUBLIC_SMOKE_PROBE_QQ=10000$'
 
@@ -195,8 +186,6 @@ class Handler(BaseHTTPRequestHandler):
             "/join/verify",
             "/web/verify",
             "/web/verify/__stuhelper_public_smoke__",
-            "/id/verify",
-            "/id/verify/__stuhelper_public_smoke__",
         }:
             self.write_text(404, "not found")
             return
@@ -244,7 +233,7 @@ cat >"${tmpdir}/bin/getent" <<'SH'
 #!/usr/bin/env bash
 if [[ "${1:-}" == "ahosts" ]]; then
   case "${2:-}" in
-    join.stuhelper.com|stuhelper.com|id.stuhelper.com)
+    join.stuhelper.com|stuhelper.com)
       printf '127.0.0.1 STREAM %s\n' "${2}"
       exit 0
       ;;
@@ -257,7 +246,6 @@ cat >"${env_file}" <<ENV
 APP_ENV=production
 ADMISSION_PUBLIC_BASE_URL=${base_url}/join
 WEB_PUBLIC_URL=${base_url}/web
-ADMISSION_PUBLIC_SMOKE_DISABLED_ID_URL=${base_url}/id
 ENV
 
 local_refused_output="$(
@@ -271,7 +259,7 @@ local_refused_output="$(
   "${SMOKE_SCRIPT}" 2>&1
 )" && fail "smoke unexpectedly allowed local targets without an explicit override"
 
-printf '%s\n' "${local_refused_output}" | grep -Eq 'ADMISSION_PUBLIC_SMOKE_DISABLED_ID_URL must be exactly https://id\.stuhelper\.com|admission-public-smoke verifies public production ingress' || \
+printf '%s\n' "${local_refused_output}" | grep -Eq 'admission-public-smoke verifies public production ingress' || \
   fail "local target refusal did not explain the public-ingress guard"
 
 loopback_refused_output="$(
@@ -281,7 +269,6 @@ loopback_refused_output="$(
   GENERATED_OBS_DIR="${generated_obs_dir}" \
   ADMISSION_PUBLIC_BASE_URL=https://join.stuhelper.com \
   WEB_PUBLIC_URL=https://stuhelper.com \
-  ADMISSION_PUBLIC_SMOKE_DISABLED_ID_URL=https://id.stuhelper.com \
   ADMISSION_PUBLIC_SMOKE_EVIDENCE_FILE="${evidence_file}" \
   ADMISSION_PUBLIC_SMOKE_RETRIES=1 \
   PATH="${tmpdir}/bin:${PATH}" \

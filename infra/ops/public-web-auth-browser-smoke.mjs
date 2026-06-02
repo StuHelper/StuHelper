@@ -28,9 +28,6 @@ const ssoBaseURL = normalizeBaseURL(
     process.env.CASDOOR_PUBLIC_AUTH_BASE_URL ||
     'https://sso.stuhelper.com',
 );
-const disabledIDBaseURL = normalizeBaseURL(
-  process.env.PUBLIC_WEB_AUTH_BROWSER_SMOKE_DISABLED_ID_URL || 'https://id.stuhelper.com',
-);
 const probeToken = process.env.PUBLIC_WEB_AUTH_BROWSER_SMOKE_PROBE_TOKEN || '__stuhelper_browser_smoke__';
 const probeQQ = process.env.PUBLIC_WEB_AUTH_BROWSER_SMOKE_PROBE_QQ || '10000';
 const evidenceFile =
@@ -46,16 +43,10 @@ if (!allowLocalTargets) {
   requireExactURL('WEB_PUBLIC_URL', webBaseURL, 'https://stuhelper.com');
   requireExactURL('ADMISSION_PUBLIC_BASE_URL', joinBaseURL, 'https://join.stuhelper.com');
   requireExactURL('SSO_PUBLIC_BASE_URL', ssoBaseURL, 'https://sso.stuhelper.com');
-  requireExactURL(
-    'PUBLIC_WEB_AUTH_BROWSER_SMOKE_DISABLED_ID_URL',
-    disabledIDBaseURL,
-    'https://id.stuhelper.com',
-  );
   for (const [name, value] of [
     ['WEB_PUBLIC_URL', webBaseURL],
     ['ADMISSION_PUBLIC_BASE_URL', joinBaseURL],
     ['SSO_PUBLIC_BASE_URL', ssoBaseURL],
-    ['PUBLIC_WEB_AUTH_BROWSER_SMOKE_DISABLED_ID_URL', disabledIDBaseURL],
   ]) {
     rejectLocalTarget(name, value);
   }
@@ -78,7 +69,6 @@ try {
   await checkJoinLoginEntry(browser);
   await checkJoinSignupEntry(browser);
   await checkJoinMobileCameraRoute(browser);
-  await checkDisabledIDHost(browser);
 } finally {
   await browser.close();
 }
@@ -91,7 +81,6 @@ const evidence = {
     webBaseURL,
     joinBaseURL,
     ssoBaseURL,
-    disabledIDBaseURL,
     probeToken,
     probeQQ,
   },
@@ -327,15 +316,6 @@ async function checkJoinMobileCameraRoute(browserInstance) {
         minVideoTracks: 1,
       },
     ],
-  });
-}
-
-async function checkDisabledIDHost(browserInstance) {
-  await runCheck(browserInstance, {
-    name: 'id-host-disabled',
-    url: joinURL(disabledIDBaseURL, '/'),
-    expectedStatus: 404,
-    expectedURL: (url) => isURLAtBasePath(url, disabledIDBaseURL, '/'),
   });
 }
 

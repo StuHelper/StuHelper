@@ -310,13 +310,6 @@ def require_location_return_code(block: Node, label: str, modifier: str | None, 
     )
 
 
-def require_server_return_code(block: Node, label: str, code: str) -> None:
-    values = [directive.args for directive in direct(block, "return") if directive.args]
-    if any(args[0] == code for args in values):
-        return
-    raise CheckError(f"{label}: server block must return {code}; found {values or '<none>'}")
-
-
 def require_location_add_header(
     block: Node,
     label: str,
@@ -427,15 +420,6 @@ def validate_join(block: Node, upstreams: dict[str, str]) -> None:
     require_location_proxy(block, label, None, "/", upstreams["web"])
 
 
-def validate_identity(block: Node, upstreams: dict[str, str]) -> None:
-    label = "id.stuhelper.com"
-    require_tls(block, label)
-    try:
-        require_server_return_code(block, label, "404")
-    except CheckError:
-        require_location_return_code(block, label, None, "/", "404")
-
-
 def validate_sso(block: Node, upstreams: dict[str, str]) -> None:
     label = "sso.stuhelper.com"
     require_tls(block, label)
@@ -520,7 +504,6 @@ def selected_profiles() -> set[str]:
         "all": "all",
         "app": "stuhelper",
         "main": "stuhelper",
-        "identity": "stuhelper",
         "stuhelper": "stuhelper",
         "casdoor": "sso",
         "sso": "sso",
@@ -555,7 +538,6 @@ try:
         require_valid_server(servers, "stuhelper.com", lambda block: validate_main(block, upstreams))
         require_valid_server(servers, "www.stuhelper.com", validate_www)
         require_valid_server(servers, "join.stuhelper.com", lambda block: validate_join(block, upstreams))
-        require_valid_server(servers, "id.stuhelper.com", lambda block: validate_identity(block, upstreams))
     if "sso" in profiles:
         require_valid_server(servers, "sso.stuhelper.com", lambda block: validate_sso(block, upstreams))
 except CheckError as exc:
