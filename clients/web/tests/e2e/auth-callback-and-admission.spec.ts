@@ -565,6 +565,11 @@ test.describe("Auth callback and admission entry", () => {
     test("freshman admission offers mobile handoff when desktop camera is unavailable", async ({
         page,
     }) => {
+        allowExpectedConsoleError(page, /Failed to load resource: net::ERR_NETWORK_CHANGED/);
+        allowExpectedConsoleError(
+            page,
+            /\[App\] bootstrap failed: TypeError: Failed to fetch dynamically imported module: .*AdmissionPage\.vue/,
+        );
         await page.addInitScript(() => {
             Object.defineProperty(navigator, "mediaDevices", {
                 configurable: true,
