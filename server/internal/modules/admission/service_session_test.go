@@ -81,6 +81,33 @@ func TestCreateBotSessionReusesActiveSessionOnDuplicateJoin(t *testing.T) {
 	assert.Equal(t, 1, countAdmissionSessionsBySubject(t, fixture, "qq", "guild-1", "10001"))
 }
 
+func TestCreateBotSessionReusesMaterialSubmittedSessionOnDuplicateJoin(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	first := createLinkableSession(t, svc)
+	userID := seedAdmissionUser(t, fixture, "duplicate-material")
+	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   first.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
+	require.NoError(t, err)
+	_, err = svc.MarkMaterialSubmitted(context.Background(), first.Session.ID)
+	require.NoError(t, err)
+	svc.generateToken = func() (string, error) { return "test-admission-token-material-duplicate", nil }
+
+	second, err := svc.CreateBotSession(context.Background(), BotSessionCreateInput{
+		Platform: "qq", GuildID: "guild-1", ChannelID: "channel-1", QQID: "10001", BotSelfID: "514",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, first.Session.ID, second.Session.ID)
+	assert.Equal(t, first.AuthURL, second.AuthURL)
+	assert.Equal(t, first.Token, second.Token)
+	assert.Equal(t, 1, countAdmissionSessionsBySubject(t, fixture, "qq", "guild-1", "10001"))
+}
+
 func TestAdmissionTokenLinkIsAtomicUnderConcurrency(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)

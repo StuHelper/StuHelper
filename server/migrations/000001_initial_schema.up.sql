@@ -2846,7 +2846,7 @@ CREATE UNIQUE INDEX member_blacklist_guild_active_key ON public.member_blacklist
 -- Name: group_admission_sessions_active_qq_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX group_admission_sessions_active_qq_idx ON public.group_admission_sessions USING btree (platform, guild_id, qq_id) WHERE (status = ANY (ARRAY['joined_muted'::text, 'linked'::text]));
+CREATE UNIQUE INDEX group_admission_sessions_active_qq_idx ON public.group_admission_sessions USING btree (platform, guild_id, qq_id) WHERE (status = ANY (ARRAY['joined_muted'::text, 'linked'::text, 'material_submitted'::text]));
 
 
 --

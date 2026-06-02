@@ -38,6 +38,7 @@ last-verified: 2026-06-02
 | Join 失效/账号不匹配页只显示重生命令 | 用户不知道如何高效把恢复动作发给群管理员 | 在 Join 页增加“复制指令”，复制 `重新生成认证链接 <QQ号>` 并给出 toast 反馈 |
 | 管理后台只能复制恢复命令 | 运营仍需回到 QQ 群执行命令，无法在后台直接排队重发、重生或取消会话 | 增加 `admission:session:manage` 能力和 Admin session resend/regenerate/cancel API；重发/重生通过 `next_reminder_at` 进入 Koishi pending action 队列，不暴露 bot token |
 | linked/material 阶段可能继承入群初始提醒时间 | 如果扩展 pending reminder 查询但不清理旧 `next_reminder_at`，用户开始认证后仍可能收到重复提醒 | link、材料提交、验证、取消和重生取消旧会话时清空旧 reminder；只有管理员显式重发才把 linked/material session 放回提醒队列 |
+| `material_submitted` 未纳入同 QQ 活跃 session 唯一约束 | Koishi 本地状态丢失或重复 create 时，已提交材料待审核的用户可能被创建并行 admission session，后续 release/kick 动作互相干扰 | `group_admission_sessions_active_qq_idx` 纳入 `material_submitted`；迁移前先取消同 QQ/群/平台下较旧的重复 in-progress session；补充重复入群复用材料提交 session 的后端测试 |
 
 以上修复均已按提交收敛到本地仓库，并通过对应测试验证；是否已进入生产必须以当次部署记录、镜像/源码 sha 和生产 evidence 为准。生产 smoke 只能证明公共入口、SSO、DB readiness 和 Koishi 配置健康，不能替代真实 QQ 端到端验收。
 
