@@ -30,7 +30,9 @@ export function mapAdmissionApiError(error: unknown): AdmissionMappedState {
   }
   if (
     error.code === 'admission.token_consumed' ||
-    error.code === 'admission.token_expired'
+    error.code === 'admission.token_expired' ||
+    error.code === 'admission.token_not_found' ||
+    error.code === 'admission.session_not_found'
   ) {
     return 'expired'
   }
@@ -47,7 +49,9 @@ export function isAdmissionSessionExpiredError(error: unknown): boolean {
     error instanceof ApiError &&
     (
       error.code === 'admission.token_consumed' ||
-      error.code === 'admission.token_expired'
+      error.code === 'admission.token_expired' ||
+      error.code === 'admission.token_not_found' ||
+      error.code === 'admission.session_not_found'
     )
   )
 }

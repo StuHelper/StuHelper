@@ -16,6 +16,8 @@ const (
 	ErrCodeAdmissionQQMismatch        errs.ErrorCode = "admission.qq_mismatch"
 	ErrCodeAdmissionTokenConsumed     errs.ErrorCode = "admission.token_consumed"
 	ErrCodeAdmissionTokenExpired      errs.ErrorCode = "admission.token_expired"
+	ErrCodeAdmissionTokenNotFound     errs.ErrorCode = "admission.token_not_found"
+	ErrCodeAdmissionSessionNotFound   errs.ErrorCode = "admission.session_not_found"
 )
 
 func respondAdmissionError(c *gin.Context, err error) {
@@ -46,9 +48,9 @@ func respondAdmissionSessionError(c *gin.Context, err error) bool {
 	case errors.Is(err, ErrAdmissionTokenExpired):
 		response.Error(c, http.StatusGone, ErrCodeAdmissionTokenExpired, "admission token expired")
 	case errors.Is(err, ErrAdmissionTokenNotFound):
-		response.NotFound(c, "admission token not found")
+		response.Error(c, http.StatusNotFound, ErrCodeAdmissionTokenNotFound, "admission token not found")
 	case errors.Is(err, ErrAdmissionSessionNotFound):
-		response.NotFound(c, "admission session not found")
+		response.Error(c, http.StatusNotFound, ErrCodeAdmissionSessionNotFound, "admission session not found")
 	case errors.Is(err, ErrAdmissionInvalidInput):
 		response.BadRequest(c, "admission input invalid")
 	case errors.Is(err, ErrAdmissionInvalidStatus):

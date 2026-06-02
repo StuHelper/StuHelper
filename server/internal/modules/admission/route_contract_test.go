@@ -40,6 +40,8 @@ func TestAdmissionErrorCodes(t *testing.T) {
 	assertSchemaContains(t, schema, "admission.qq_mismatch")
 	assertSchemaContains(t, schema, "admission.token_consumed")
 	assertSchemaContains(t, schema, "admission.token_expired")
+	assertSchemaContains(t, schema, "admission.token_not_found")
+	assertSchemaContains(t, schema, "admission.session_not_found")
 }
 
 func assertSchemaContains(t *testing.T, schema string, code string) {

@@ -102,6 +102,19 @@ describe('AdmissionPage edge states', () => {
     expect(wrapper.find('[data-school-email-otp-form]').exists()).toBe(false)
   })
 
+  it('shows an expired-link state for missing admission tokens', async () => {
+    mockAdmissionApi.getAdmissionSession.mockRejectedValueOnce(
+      new ApiError({ code: 'admission.session_not_found', message: 'missing' }),
+    )
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.find('[data-state="expired"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('链接已失效')
+    expect(wrapper.text()).not.toContain('认证链接暂时无法打开')
+  })
+
   it('maps material_submitted session status to pendingReview', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
       sessionWithStatus('material_submitted'),

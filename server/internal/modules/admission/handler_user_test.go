@@ -62,6 +62,24 @@ func TestAdmissionLinkHandlerAllowsSameUserToResumeConsumedToken(t *testing.T) {
 	assert.Equal(t, fmt.Sprint(userID), resumedBody.Data.UserID)
 }
 
+func TestAdmissionPreviewHandlerReturnsDomainCodeForMissingToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	userID := seedAdmissionUser(t, fixture, "handler-preview-missing")
+	router := newAdmissionHandlerTestRouter(t, svc, userID)
+
+	response := performAdmissionHandlerRequest(
+		router,
+		http.MethodGet,
+		"/api/v1/admission/sessions/missing-token?qq=10001",
+	)
+	require.Equal(t, http.StatusNotFound, response.Code, response.Body.String())
+	body := decodeAdmissionErrorResponse(t, response)
+	assert.False(t, body.Success)
+	assert.Equal(t, "admission.token_not_found", body.Error.Code)
+}
+
 func TestFreshmanApplicationHandlerReusesPendingApplicationOnDuplicatePost(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	fixture := postgresfixture.Start(t)

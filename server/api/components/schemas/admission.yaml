@@ -8,7 +8,12 @@ FreshmanApplicationStatus:
 
 AdmissionErrorCode:
   type: string
-  enum: [admission.qq_mismatch, admission.token_consumed, admission.token_expired]
+  enum:
+    - admission.qq_mismatch
+    - admission.token_consumed
+    - admission.token_expired
+    - admission.token_not_found
+    - admission.session_not_found
 
 AdmissionSession:
   type: object

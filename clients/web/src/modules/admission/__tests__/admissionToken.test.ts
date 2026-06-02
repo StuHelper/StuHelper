@@ -60,6 +60,16 @@ describe('admission token return URL', () => {
     ).toBe(true)
     expect(
       isAdmissionSessionExpiredError(
+        new ApiError({ code: 'admission.token_not_found', message: 'missing' }),
+      ),
+    ).toBe(true)
+    expect(
+      isAdmissionSessionExpiredError(
+        new ApiError({ code: 'admission.session_not_found', message: 'missing' }),
+      ),
+    ).toBe(true)
+    expect(
+      isAdmissionSessionExpiredError(
         new ApiError({ code: 'A0000409', message: 'conflict' }),
       ),
     ).toBe(false)
@@ -71,6 +81,8 @@ describe('admission token API error mapping', () => {
     ['admission.qq_mismatch', 'qqMismatch'],
     ['admission.token_consumed', 'expired'],
     ['admission.token_expired', 'expired'],
+    ['admission.token_not_found', 'expired'],
+    ['admission.session_not_found', 'expired'],
   ] as const)('maps %s to %s', (code, state) => {
     expect(
       mapAdmissionApiError(new ApiError({ code, message: 'admission failed' })),
