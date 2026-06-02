@@ -114,6 +114,19 @@ describe('admissionApi response parsing', () => {
     )
   })
 
+  it('propagates structured admission API errors instead of rewriting them as empty data', async () => {
+    const error = {
+      success: false,
+      error: {
+        code: 'admission.token_not_found',
+        message: 'admission token not found',
+      },
+    }
+    mockAdmissionApi.getAdmissionSession.mockResolvedValue({ error })
+
+    await expect(admissionApi.getAdmissionSession('token')).rejects.toEqual(error)
+  })
+
   it('validates admission me and nested session responses', async () => {
     mockAdmissionApi.getAdmissionMe.mockResolvedValue(
       ok({

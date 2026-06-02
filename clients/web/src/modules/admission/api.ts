@@ -15,7 +15,10 @@ import type {
 type ApiResult<T> = {
   data?: {
     data?: T
+    error?: unknown
+    success?: boolean
   }
+  error?: unknown
 }
 type FreshmanCameraContinuation = NonNullable<FreshmanCameraHandoff['continueOn']>
 
@@ -54,6 +57,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function requireData<T>(result: ApiResult<T>, message: string): T {
+  if (result.error !== undefined) {
+    throw result.error
+  }
+  if (result.data?.success === false || result.data?.error !== undefined) {
+    throw result.data
+  }
   const data = result.data?.data
   if (data === undefined || data === null) {
     throw new Error(message)
