@@ -115,6 +115,7 @@ type ObjectStorageConfig struct {
 	UseSSL          bool
 	ForcePathStyle  bool
 	PresignTTL      int
+	TLSCAFile       string
 }
 
 // AppConfig 应用配置
@@ -401,6 +402,10 @@ func loadOpenFGAConfig() OpenFGAConfig {
 }
 
 func loadObjectStorageConfig(parseErrs *[]string) ObjectStorageConfig {
+	tlsCAFile := getEnv("OBJECT_STORAGE_TLS_CA", "")
+	if tlsCAFile == "" {
+		tlsCAFile = getEnv("AWS_CA_BUNDLE", "")
+	}
 	return ObjectStorageConfig{
 		Endpoint:        getEnv("OBJECT_STORAGE_ENDPOINT", ""),
 		Region:          getEnv("OBJECT_STORAGE_REGION", "us-east-1"),
@@ -410,6 +415,7 @@ func loadObjectStorageConfig(parseErrs *[]string) ObjectStorageConfig {
 		UseSSL:          getEnvBool("OBJECT_STORAGE_USE_SSL", false, parseErrs),
 		ForcePathStyle:  getEnvBool("OBJECT_STORAGE_FORCE_PATH_STYLE", true, parseErrs),
 		PresignTTL:      getEnvInt("OBJECT_STORAGE_PRESIGN_TTL", 600, parseErrs),
+		TLSCAFile:       tlsCAFile,
 	}
 }
 

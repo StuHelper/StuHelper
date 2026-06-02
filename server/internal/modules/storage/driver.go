@@ -127,6 +127,7 @@ func (d *s3Driver) newStore(ctx context.Context, mount Mount) (storeClient, erro
 		UseSSL:          d.cfg.UseSSL,
 		ForcePathStyle:  d.cfg.ForcePathStyle,
 		PresignTTL:      timeDurationSeconds(d.cfg.PresignTTL),
+		TLSCAFile:       d.cfg.TLSCAFile,
 	})
 }
 

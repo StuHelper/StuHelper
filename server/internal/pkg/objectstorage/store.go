@@ -3,7 +3,12 @@ package objectstorage
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
+	"fmt"
+	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -23,6 +28,7 @@ type Config struct {
 	UseSSL          bool
 	ForcePathStyle  bool
 	PresignTTL      time.Duration
+	TLSCAFile       string
 }
 
 // Store S3 兼容对象存储客户端。
@@ -66,15 +72,23 @@ func New(ctx context.Context, cfg Config) (*Store, error) {
 		endpoint = scheme + "://" + endpoint
 	}
 
-	awsCfg, err := awsconfig.LoadDefaultConfig(
-		ctx,
+	loadOptions := []func(*awsconfig.LoadOptions) error{
 		awsconfig.WithRegion(cfg.Region),
 		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
 			cfg.AccessKeyID,
 			cfg.SecretAccessKey,
 			"",
 		)),
-	)
+	}
+	if strings.TrimSpace(cfg.TLSCAFile) != "" {
+		httpClient, err := httpClientWithRootCA(strings.TrimSpace(cfg.TLSCAFile))
+		if err != nil {
+			return nil, wrapError("load_ca_bundle", cfg.TLSCAFile, err)
+		}
+		loadOptions = append(loadOptions, awsconfig.WithHTTPClient(httpClient))
+	}
+
+	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, loadOptions...)
 	if err != nil {
 		return nil, wrapError("load_config", cfg.Endpoint, err)
 	}
@@ -90,6 +104,24 @@ func New(ctx context.Context, cfg Config) (*Store, error) {
 		bucket:     cfg.Bucket,
 		presignTTL: cfg.PresignTTL,
 	}, nil
+}
+
+func httpClientWithRootCA(caFile string) (*http.Client, error) {
+	caCert, err := os.ReadFile(caFile)
+	if err != nil {
+		return nil, fmt.Errorf("read ca bundle: %w", err)
+	}
+	caCertPool := x509.NewCertPool()
+	if !caCertPool.AppendCertsFromPEM(caCert) {
+		return nil, errors.New("ca bundle does not contain PEM certificates")
+	}
+
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		RootCAs:    caCertPool,
+	}
+	return &http.Client{Transport: transport}, nil
 }
 
 // EnsureBucket 确保存储桶存在。

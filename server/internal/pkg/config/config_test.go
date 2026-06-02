@@ -785,6 +785,28 @@ func TestValidate_SMSDisabledAllowsEmptyConfig(t *testing.T) {
 	require.NoError(t, c.validate(nil))
 }
 
+func TestLoadObjectStorageConfig_TLSCAFilePrefersObjectStorageEnv(t *testing.T) {
+	t.Setenv("OBJECT_STORAGE_TLS_CA", "/run/secrets/object-storage-ca.crt")
+	t.Setenv("AWS_CA_BUNDLE", "/run/secrets/aws-ca-bundle.crt")
+
+	var parseErrs []string
+	cfg := loadObjectStorageConfig(&parseErrs)
+
+	require.Empty(t, parseErrs)
+	assert.Equal(t, "/run/secrets/object-storage-ca.crt", cfg.TLSCAFile)
+}
+
+func TestLoadObjectStorageConfig_TLSCAFileFallsBackToAWSBundle(t *testing.T) {
+	t.Setenv("OBJECT_STORAGE_TLS_CA", "")
+	t.Setenv("AWS_CA_BUNDLE", "/run/secrets/aws-ca-bundle.crt")
+
+	var parseErrs []string
+	cfg := loadObjectStorageConfig(&parseErrs)
+
+	require.Empty(t, parseErrs)
+	assert.Equal(t, "/run/secrets/aws-ca-bundle.crt", cfg.TLSCAFile)
+}
+
 func TestValidate_RequiresCORSOriginsInDevelopment(t *testing.T) {
 	c := &Config{
 		App: AppConfig{
