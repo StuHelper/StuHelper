@@ -320,8 +320,21 @@ func (s *Service) syncAdmissionVerificationProjection(ctx context.Context, userI
 	if s.admissionProjection == nil {
 		return errors.New("admission verification projection dependency is not configured")
 	}
+	if err := s.ensureVerifiedProfileCredential(ctx, userID); err != nil {
+		return fmt.Errorf("ensure admission verification credential: %w", err)
+	}
 	if err := s.admissionProjection.ProjectStudentVerification(ctx, userID, approved); err != nil {
 		return fmt.Errorf("project admission student verification: %w", err)
 	}
 	return nil
+}
+
+func (s *Service) ensureVerifiedProfileCredential(ctx context.Context, userID int64) error {
+	return s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		profile, err := s.repo.GetProfileByUserIDTx(ctx, tx, userID)
+		if err != nil {
+			return fmt.Errorf("get profile tx: %w", err)
+		}
+		return s.ensureProfileVerificationCredentialTx(ctx, tx, profile)
+	})
 }

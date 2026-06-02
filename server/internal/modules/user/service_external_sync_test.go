@@ -190,6 +190,53 @@ func TestProcessExternalSyncJob_ProjectsAdmissionVerification(t *testing.T) {
 	assert.Equal(t, []admissionProjectionCall{{userID: 42, approved: true}}, gateway.calls)
 }
 
+func TestProcessExternalSyncJob_EnsuresSchoolEmailCredentialBeforeAdmissionProjection(t *testing.T) {
+	gateway := &fakeAdmissionProjectionGateway{}
+	method := VerifyMethodSchoolEmailOTP
+	schoolID := int64(10006)
+	var capturedCredential *VerificationCredentialProjection
+	repo := &mockRepo{
+		onGetProfileByUserIDTx: func(_ context.Context, _ pgx.Tx, userID int64) (*Profile, error) {
+			require.Equal(t, int64(42), userID)
+			return &Profile{
+				UserID:             userID,
+				SchoolID:           &schoolID,
+				VerificationStatus: StatusVerified,
+				VerificationMethod: &method,
+				ManualFormData:     json.RawMessage(`{"schoolEmail":"20250001@buaa.edu.cn"}`),
+			}, nil
+		},
+		onEnsureVerificationCredentialTx: func(_ context.Context, _ pgx.Tx, credential VerificationCredentialProjection) error {
+			copy := credential
+			capturedCredential = &copy
+			return nil
+		},
+	}
+	svc, err := NewService(
+		repo,
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithAdmissionVerificationProjectionGateway(gateway),
+	)
+	require.NoError(t, err)
+	payload, err := json.Marshal(admissionVerificationProjectionPayload{UserID: 42, Approved: true})
+	require.NoError(t, err)
+
+	err = svc.processExternalSyncJob(context.Background(), ExternalSyncJob{
+		ID:      1,
+		JobType: externalSyncJobTypeAdmissionVerification,
+		Payload: payload,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, capturedCredential)
+	assert.Equal(t, int64(42), capturedCredential.UserID)
+	assert.Equal(t, schoolID, capturedCredential.SchoolID)
+	assert.Equal(t, userVerificationCredentialKindSchoolEmailOTP, capturedCredential.Kind)
+	assert.Equal(t, "2******1@buaa.edu.cn", capturedCredential.SubjectDisplay)
+	assert.Equal(t, []admissionProjectionCall{{userID: 42, approved: true}}, gateway.calls)
+}
+
 func TestProcessExternalSyncJob_SkipsAdmissionProjectionWhenUnapproved(t *testing.T) {
 	gateway := &fakeAdmissionProjectionGateway{}
 	svc, err := NewService(
