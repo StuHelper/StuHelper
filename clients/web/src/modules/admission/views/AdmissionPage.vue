@@ -246,13 +246,21 @@ function setAdmissionMe(nextAdmission: AdmissionMe): void {
 async function loadLinkedResources(options?: { refreshAdmission?: boolean }): Promise<void> {
   const refreshAdmission = options?.refreshAdmission !== false
   linkedResourceErrorMessage.value = ''
-  await Promise.all([
+  const [, nextAdmission] = await Promise.all([
     verificationStore.fetchSchools(),
     refreshAdmission
-      ? admissionApi.getAdmissionMe().then(setAdmissionMe)
-      : Promise.resolve(),
+      ? admissionApi.getAdmissionMe()
+      : Promise.resolve<AdmissionMe | null>(null),
   ])
-  syncDefaultAdmissionFlow()
+  if (nextAdmission) {
+    setAdmissionMe(nextAdmission)
+    if (nextAdmission.session) {
+      session.value = nextAdmission.session
+    }
+    pageState.value = stateFromAdmissionMe(nextAdmission)
+  }
+  if (pageState.value === 'linked') syncDefaultAdmissionFlow()
+  if (pageState.value === 'projectionPending') scheduleProjectionRefresh()
 }
 
 function syncDefaultAdmissionFlow(): void {

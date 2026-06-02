@@ -227,6 +227,31 @@ describe('AdmissionPage edge states', () => {
     })
   })
 
+  it('uses admission me projection state after refreshing linked resources', async () => {
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('linked'),
+    )
+    mockAdmissionApi.getAdmissionMe.mockResolvedValueOnce({
+      projectionPending: true,
+      session: {
+        ...sessionWithStatus('linked'),
+        projectionPending: true,
+      },
+      status: 'linked',
+    })
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.find('[data-state="projectionPending"]').exists()).toBe(true)
+    expect(wrapper.find('[data-projection-timeout]').exists()).toBe(true)
+    expect(mockVerificationStore.fetchSchools).toHaveBeenCalledTimes(1)
+    expect(mockWaitForAdmissionProjection).toHaveBeenCalledWith({
+      refreshAuth: mockAuth.fetchUser,
+      signal: expect.any(AbortSignal),
+    })
+  })
+
   it('refreshes browser session before showing the logged-out admission state', async () => {
     mockAuth.isAuthenticated = false
     mockAuth.bootstrapSession.mockResolvedValueOnce(true)
