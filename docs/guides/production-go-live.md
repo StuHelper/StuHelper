@@ -165,6 +165,8 @@ sudo ./infra/ops/apply-baota-nginx-templates.sh --profile sso --apply --reload -
 
 验收条件：学校目录中存在 `code=4111010006` 的北京航空航天大学；当前 admission 白名单只通过 `school_configs.enabled=true` 开放该校，对外、前端表单和运维检查使用学校代码 `4111010006`，内部 `school_id=10006` 只是数据库外键。公开学生认证、admission 邮箱 OTP、新生材料申请和学校 SSO 路径都应以 `schoolCode` 为主识别字段。`manual_form_fields.admission.emailDomains` 只有 `buaa.edu.cn`，且 `emailIdentityPolicy.type=academic_student_email`。`group_admission_policies` 至少包含 `platform=qq, guild_id=178037297, forward_raw_material_to_qq=false`，除非对象存储公开材料下载链路已完成并单独验收。手机拍照接力桌面端优先使用 `/api/v1/admission/freshman/camera-handoffs/{id}/events` SSE 获取实时状态，失败时才回退短轮询；上传后 continuation 必须锁定另一端，防止重复提交。`bot_service_credentials` 中存在 `koishi-runtime`，未吊销、未过期，audience 包含 `/api/v1/bot/*`，scopes 覆盖 QQ 绑定、admission session/event/review/forward 和 member blacklist。
 
+北航老生学号邮箱 OTP 依赖 `academic.buaa_students` 中的真实学籍数据。生产 readiness 会拒绝空表；拿到真实 TSV 后，用 `BUAA_ACADEMIC_STUDENTS_TSV=/path/to/buaa-students.tsv ./infra/ops/import-buaa-academic-students.sh` 导入。TSV 至少包含 `xh` 和 `xm` 列，也接受 `学号` 和 `姓名` 列名；可选列包括 `sfzjlxdm`、`sfzjh_hash`、`yxdm`、`zydm`、`bjdm`、`xznj`、`rxnj`、`pyccdm`、`xslbdm`、`sjh`、`dzxx`、`xjztdm`、`sfzx`、`sfzj`。脚本只做幂等 upsert，不清空旧数据，不打印学生明细。
+
 ## Koishi Admission MVP 配置
 
 生产 `stuhelper-group-guard` 的 admission 配置必须限制职责边界：
