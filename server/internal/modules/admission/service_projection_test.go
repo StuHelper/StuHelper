@@ -43,6 +43,29 @@ func TestAdmissionMeShowsProjectionPendingUntilOutboxCompletes(t *testing.T) {
 	assert.False(t, me.Session.ProjectionPending)
 }
 
+func TestAdmissionMeShowsStudentVerificationProjectionPending(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newFreshmanTestService(t, fixture)
+	userID := seedAdmissionUser(t, fixture, "projection-student-verification")
+	linkFreshmanReviewSession(t, svc, freshmanReviewSessionSeed{
+		UserID: userID, QQID: "20003", Token: "projection-student-verification-token",
+	})
+	insertFreshmanCredential(t, fixture, freshmanCredentialSeed{
+		ID: "projection-student-credential", UserID: userID, ExpiresAt: futureTime(60),
+	})
+	insertAdmissionVerificationProjectionOutbox(t, fixture, userID, "processing")
+
+	me, err := svc.GetAdmissionMe(context.Background(), userID)
+
+	require.NoError(t, err)
+	assert.Equal(t, StatusLinked, me.Status)
+	assert.True(t, me.ProjectionPending)
+	require.NotNil(t, me.Session)
+	assert.True(t, me.Session.ProjectionPending)
+	require.NotNil(t, me.CredentialKind)
+	assert.Equal(t, CredentialFreshmanMaterialManual, *me.CredentialKind)
+}
+
 func TestAdmissionMeDoesNotTreatFailedProjectionAsPending(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newFreshmanTestService(t, fixture)
@@ -94,6 +117,20 @@ func insertFreshmanProjectionOutbox(
 		INSERT INTO domain_event_outbox (stream, job_type, dedupe_key, payload, status)
 		VALUES ($1, 'freshman_provisional_role', $2, '{}'::jsonb, $3)
 	`, outbox.StreamIAMCasdoorRoleSync, freshmanProjectionDedupeKey(userID), status)
+	require.NoError(t, err)
+}
+
+func insertAdmissionVerificationProjectionOutbox(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	userID int64,
+	status string,
+) {
+	t.Helper()
+	_, err := fixture.Pool.Exec(context.Background(), `
+		INSERT INTO domain_event_outbox (stream, job_type, dedupe_key, payload, status)
+		VALUES ($1, 'admission_verification_projection', $2, '{}'::jsonb, $3)
+	`, outbox.StreamIAMCasdoorRoleSync, admissionVerificationProjectionDedupeKey(userID), status)
 	require.NoError(t, err)
 }
 

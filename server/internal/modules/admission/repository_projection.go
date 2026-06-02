@@ -10,7 +10,10 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/outbox"
 )
 
-const freshmanProjectionDedupePrefix = "freshman-provisional-role:"
+const (
+	freshmanProjectionDedupePrefix              = "freshman-provisional-role:"
+	admissionVerificationProjectionDedupePrefix = "admission-verification-projection:"
+)
 
 func (r *Repository) GetLatestSessionByUserID(ctx context.Context, userID int64) (*AdmissionSession, error) {
 	ctx = withDBTable(ctx, "group_admission_sessions")
@@ -49,7 +52,7 @@ func (r *Repository) GetLatestCredentialForUser(ctx context.Context, userID int6
 	return credential, nil
 }
 
-func (r *Repository) HasPendingFreshmanProjection(ctx context.Context, userID int64) (bool, error) {
+func (r *Repository) HasPendingAdmissionProjection(ctx context.Context, userID int64) (bool, error) {
 	ctx = withDBTable(ctx, "domain_event_outbox")
 	var exists bool
 	err := r.db.QueryRow(ctx, `
@@ -57,12 +60,15 @@ func (r *Repository) HasPendingFreshmanProjection(ctx context.Context, userID in
 			SELECT 1
 			FROM domain_event_outbox
 			WHERE stream = $1
-			  AND dedupe_key = $2
+			  AND dedupe_key = ANY($2)
 			  AND status IN ('pending', 'processing')
 		)
-	`, outbox.StreamIAMCasdoorRoleSync, freshmanProjectionDedupeKey(userID)).Scan(&exists)
+	`, outbox.StreamIAMCasdoorRoleSync, []string{
+		freshmanProjectionDedupeKey(userID),
+		admissionVerificationProjectionDedupeKey(userID),
+	}).Scan(&exists)
 	if err != nil {
-		return false, fmt.Errorf("HasPendingFreshmanProjection: %w", err)
+		return false, fmt.Errorf("HasPendingAdmissionProjection: %w", err)
 	}
 	return exists, nil
 }
@@ -87,4 +93,8 @@ func scanVerificationCredential(row pgx.Row) (*VerificationCredential, error) {
 
 func freshmanProjectionDedupeKey(userID int64) string {
 	return fmt.Sprintf("%s%d", freshmanProjectionDedupePrefix, userID)
+}
+
+func admissionVerificationProjectionDedupeKey(userID int64) string {
+	return fmt.Sprintf("%s%d", admissionVerificationProjectionDedupePrefix, userID)
 }

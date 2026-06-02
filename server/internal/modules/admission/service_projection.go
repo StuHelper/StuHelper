@@ -14,7 +14,7 @@ func (s *Service) GetAdmissionMe(ctx context.Context, userID int64) (*AdmissionM
 	if err != nil {
 		return nil, err
 	}
-	pending, err := s.repo.HasPendingFreshmanProjection(ctx, userID)
+	pending, err := s.repo.HasPendingAdmissionProjection(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
