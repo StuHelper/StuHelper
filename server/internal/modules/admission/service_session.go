@@ -40,11 +40,32 @@ func (s *Service) CreateBotSession(ctx context.Context, input BotSessionCreateIn
 		return nil, err
 	}
 	if err := s.repo.CreateSession(ctx, session); err != nil {
+		if isAdmissionSessionActiveSubjectUniqueViolation(err) {
+			return s.reuseActiveBotSessionAfterCreateConflict(ctx, input)
+		}
 		return nil, err
 	}
 	return &CreatedAdmissionSession{
 		Session: session,
 		Token:   token,
+		AuthURL: session.AuthURL,
+	}, nil
+}
+
+func (s *Service) reuseActiveBotSessionAfterCreateConflict(
+	ctx context.Context,
+	input BotSessionCreateInput,
+) (*CreatedAdmissionSession, error) {
+	session, err := s.repo.GetLatestSessionBySubject(ctx, botSessionCreateSubject(input))
+	if err != nil {
+		return nil, err
+	}
+	if err := s.validateResendableSession(session); err != nil {
+		return nil, err
+	}
+	return &CreatedAdmissionSession{
+		Session: session,
+		Token:   admissionTokenFromAuthURL(session.AuthURL),
 		AuthURL: session.AuthURL,
 	}, nil
 }
@@ -507,6 +528,22 @@ func (s *Service) buildAuthURL(token string, qqID string) string {
 	values := url.Values{}
 	values.Set("qq", qqID)
 	return s.authBaseURL + url.PathEscape(token) + "?" + values.Encode()
+}
+
+func admissionTokenFromAuthURL(authURL string) string {
+	parsed, err := url.Parse(strings.TrimSpace(authURL))
+	if err != nil {
+		return ""
+	}
+	segments := strings.Split(strings.Trim(parsed.Path, "/"), "/")
+	if len(segments) < 2 || segments[len(segments)-2] != "verify" {
+		return ""
+	}
+	token, err := url.PathUnescape(segments[len(segments)-1])
+	if err != nil {
+		return ""
+	}
+	return token
 }
 
 func normalizeBotSessionCreateInput(input BotSessionCreateInput) BotSessionCreateInput {

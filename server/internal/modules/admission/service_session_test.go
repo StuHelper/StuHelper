@@ -63,6 +63,24 @@ func TestCreateBotSessionRequiresBotSelfID(t *testing.T) {
 	require.ErrorIs(t, err, ErrAdmissionInvalidInput)
 }
 
+func TestCreateBotSessionReusesActiveSessionOnDuplicateJoin(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	first := createLinkableSession(t, svc)
+	svc.generateToken = func() (string, error) { return "test-admission-token-duplicate", nil }
+
+	second, err := svc.CreateBotSession(context.Background(), BotSessionCreateInput{
+		Platform: "qq", GuildID: "guild-1", ChannelID: "channel-1", QQID: "10001", BotSelfID: "514",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, first.Session.ID, second.Session.ID)
+	assert.Equal(t, first.AuthURL, second.AuthURL)
+	assert.Equal(t, first.Token, second.Token)
+	assert.Equal(t, 1, countAdmissionSessionsBySubject(t, fixture, "qq", "guild-1", "10001"))
+}
+
 func TestAdmissionTokenLinkIsAtomicUnderConcurrency(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)
@@ -532,6 +550,24 @@ func assertAdmissionFailureBlacklisted(t *testing.T, fixture *postgresfixture.Fi
 	`, qqID).Scan(&failureCount)
 	require.NoError(t, err)
 	assert.Equal(t, 1, failureCount)
+}
+
+func countAdmissionSessionsBySubject(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	platform string,
+	guildID string,
+	qqID string,
+) int {
+	t.Helper()
+	var count int
+	err := fixture.Pool.QueryRow(context.Background(), `
+		SELECT COUNT(*)
+		FROM group_admission_sessions
+		WHERE platform = $1 AND guild_id = $2 AND qq_id = $3
+	`, platform, guildID, qqID).Scan(&count)
+	require.NoError(t, err)
+	return count
 }
 
 func assertAdmissionFailureCount(t *testing.T, fixture *postgresfixture.Fixture, qqID string, expected int) {
