@@ -104,7 +104,7 @@ describe('AdmissionPage edge states', () => {
 
   it('shows an expired-link state for missing admission tokens', async () => {
     mockAdmissionApi.getAdmissionSession.mockRejectedValueOnce(
-      new ApiError({ code: 'admission.session_not_found', message: 'missing' }),
+      { code: 'admission.session_not_found', message: 'missing' },
     )
 
     const wrapper = await mountAdmissionPage()

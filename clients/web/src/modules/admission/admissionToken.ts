@@ -3,6 +3,12 @@ import { ApiError } from '@/api/errors'
 export type AdmissionMappedState = 'qqMismatch' | 'expired' | 'error'
 
 const ADMISSION_PATH_PATTERN = /^\/verify\/[^/]+$/
+const TERMINAL_ADMISSION_ERROR_CODES = new Set([
+  'admission.token_consumed',
+  'admission.token_expired',
+  'admission.token_not_found',
+  'admission.session_not_found',
+])
 
 export function buildAdmissionReturnURL(
   pathWithQuery: string,
@@ -21,19 +27,12 @@ export function buildAdmissionReturnURL(
 }
 
 export function mapAdmissionApiError(error: unknown): AdmissionMappedState {
-  if (!(error instanceof ApiError)) {
-    return 'error'
-  }
+  const code = readAdmissionErrorCode(error)
 
-  if (error.code === 'admission.qq_mismatch') {
+  if (code === 'admission.qq_mismatch') {
     return 'qqMismatch'
   }
-  if (
-    error.code === 'admission.token_consumed' ||
-    error.code === 'admission.token_expired' ||
-    error.code === 'admission.token_not_found' ||
-    error.code === 'admission.session_not_found'
-  ) {
+  if (code && TERMINAL_ADMISSION_ERROR_CODES.has(code)) {
     return 'expired'
   }
 
@@ -41,17 +40,31 @@ export function mapAdmissionApiError(error: unknown): AdmissionMappedState {
 }
 
 export function isAdmissionTokenConsumedError(error: unknown): boolean {
-  return error instanceof ApiError && error.code === 'admission.token_consumed'
+  return readAdmissionErrorCode(error) === 'admission.token_consumed'
 }
 
 export function isAdmissionSessionExpiredError(error: unknown): boolean {
-  return (
-    error instanceof ApiError &&
-    (
-      error.code === 'admission.token_consumed' ||
-      error.code === 'admission.token_expired' ||
-      error.code === 'admission.token_not_found' ||
-      error.code === 'admission.session_not_found'
-    )
-  )
+  const code = readAdmissionErrorCode(error)
+  return Boolean(code && TERMINAL_ADMISSION_ERROR_CODES.has(code))
+}
+
+function readAdmissionErrorCode(error: unknown): string | undefined {
+  if (error instanceof ApiError) {
+    return error.code
+  }
+  if (!error || typeof error !== 'object') {
+    return undefined
+  }
+  const code = (error as { code?: unknown }).code
+  if (typeof code === 'string' && code !== '') {
+    return code
+  }
+  const nested = (error as { error?: unknown }).error
+  if (nested && typeof nested === 'object') {
+    const nestedCode = (nested as { code?: unknown }).code
+    if (typeof nestedCode === 'string' && nestedCode !== '') {
+      return nestedCode
+    }
+  }
+  return undefined
 }

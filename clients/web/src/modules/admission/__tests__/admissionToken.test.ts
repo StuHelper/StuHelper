@@ -88,4 +88,13 @@ describe('admission token API error mapping', () => {
       mapAdmissionApiError(new ApiError({ code, message: 'admission failed' })),
     ).toBe(state)
   })
+
+  it('maps structurally equivalent admission errors without relying on instanceof', () => {
+    expect(mapAdmissionApiError({ code: 'admission.token_not_found' })).toBe('expired')
+    expect(mapAdmissionApiError({
+      error: { code: 'admission.session_not_found' },
+    })).toBe('expired')
+    expect(isAdmissionTokenConsumedError({ code: 'admission.token_consumed' })).toBe(true)
+    expect(isAdmissionSessionExpiredError({ code: 'admission.token_expired' })).toBe(true)
+  })
 })
