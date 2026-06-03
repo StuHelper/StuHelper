@@ -69,6 +69,7 @@ export default {
     networkError: '网络连接失败',
     loginUrlFailed: '获取登录链接失败',
     signupUrlFailed: '获取注册链接失败',
+    logoutFailed: '退出当前账号失败，请稍后重试',
     invalidState: '无效的认证状态',
     callbackFailed: '认证回调处理失败',
     fetchUserFailed: '获取用户信息失败',

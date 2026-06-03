@@ -52,6 +52,7 @@ interface LoginAuthorizeOptions {
 }
 
 const DEFAULT_SSO_ORIGIN = "https://sso.stuhelper.com";
+const SSO_LOGOUT_FRAME_TIMEOUT_MS = 1500;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return Boolean(value) && typeof value === "object";
@@ -196,6 +197,7 @@ function configuredSSOOrigin(): string {
 function upstreamSSOCurrentSessionLogoutURL(): string {
     const url = new URL("/api/sso-logout", configuredSSOOrigin());
     url.searchParams.set("logoutAll", "false");
+    url.searchParams.set("_", Date.now().toString());
     return url.toString();
 }
 
@@ -384,29 +386,50 @@ export const useAuthStore = defineStore("auth", () => {
         });
 
     const logoutUpstreamSSOCurrentSession = async () => {
-        if (typeof window === "undefined" || !window.fetch) return;
-        try {
-            await window.fetch(upstreamSSOCurrentSessionLogoutURL(), {
-                cache: "no-store",
-                credentials: "include",
-                method: "GET",
-                mode: "no-cors",
-            });
-        } catch {
-            // 上游 SSO 登出是切换账号的加固步骤；失败时继续 prompt=login，避免前端卡住。
+        if (
+            typeof window === "undefined" ||
+            typeof document === "undefined" ||
+            !document.body
+        ) {
+            return;
         }
+
+        await new Promise<void>((resolve) => {
+            const frame = document.createElement("iframe");
+            let settled = false;
+            const finish = () => {
+                if (settled) return;
+                settled = true;
+                window.clearTimeout(timer);
+                frame.remove();
+                resolve();
+            };
+            const timer = window.setTimeout(finish, SSO_LOGOUT_FRAME_TIMEOUT_MS);
+
+            frame.style.display = "none";
+            frame.setAttribute("aria-hidden", "true");
+            frame.addEventListener("load", finish, { once: true });
+            frame.src = upstreamSSOCurrentSessionLogoutURL();
+            document.body.appendChild(frame);
+        });
     };
 
     const switchAccount = async (redirect?: string) => {
         clearError();
         loading.value = true;
         try {
-            try {
-                await api.auth.logout();
-            } catch {
-                // 切换账号不能因为本地会话登出失败而卡死；后续登录回调会覆盖 cookie。
+            const localLogout = await logout();
+            if (!localLogout.ok) {
+                const fallback = new Error("local logout unavailable");
+                const error = localLogout.error instanceof Error
+                    ? localLogout.error
+                    : fallback;
+                setError(
+                    localLogout.reason === "server" ? "auth_failed" : "network",
+                    i18n.global.t("common.login.logoutFailed"),
+                );
+                throw error;
             }
-            resetAllStores();
             await logoutUpstreamSSOCurrentSession();
             await startLoginFlow(redirect, {
                 prompt: "login",

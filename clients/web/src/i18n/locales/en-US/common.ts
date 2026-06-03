@@ -69,6 +69,7 @@ export default {
     networkError: 'Network connection failed',
     loginUrlFailed: 'Failed to get login URL',
     signupUrlFailed: 'Failed to get signup URL',
+    logoutFailed: 'Failed to sign out. Please try again later.',
     invalidState: 'Invalid authentication state',
     callbackFailed: 'Authentication callback failed',
     fetchUserFailed: 'Failed to fetch user info',

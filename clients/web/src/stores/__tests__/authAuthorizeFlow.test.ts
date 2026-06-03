@@ -7,7 +7,13 @@ const mockLogout = vi.fn();
 const mockGetUser = vi.fn();
 const mockSetUser = vi.fn();
 const mockClearAuth = vi.fn();
-const mockFetch = vi.fn();
+const mockCreateElement = vi.fn();
+const mockAppendChild = vi.fn();
+const mockClearTimeout = vi.fn();
+const mockSetTimeout = vi.fn();
+const mockFrameRemove = vi.fn();
+const mockFrameSetAttribute = vi.fn();
+const mockFrameAddEventListener = vi.fn();
 
 vi.mock("@/api", () => ({
     api: {
@@ -80,21 +86,51 @@ describe("auth authorize flow", () => {
         mockLogin.mockReset();
         mockSignup.mockReset();
         mockLogout.mockReset();
-        mockFetch.mockReset();
         mockGetUser.mockReset();
         mockSetUser.mockReset();
         mockClearAuth.mockReset();
+        mockCreateElement.mockReset();
+        mockAppendChild.mockReset();
+        mockClearTimeout.mockReset();
+        mockSetTimeout.mockReset();
+        mockFrameRemove.mockReset();
+        mockFrameSetAttribute.mockReset();
+        mockFrameAddEventListener.mockReset();
         mockGetUser.mockReturnValue(null);
-        mockFetch.mockResolvedValue({});
         vi.stubEnv("VITE_SSO_URL", "https://sso.stuhelper.com");
         vi.stubGlobal("sessionStorage", createMemoryStorage());
+        let loadHandler: (() => void) | undefined;
+        const frame = {
+            remove: mockFrameRemove,
+            setAttribute: mockFrameSetAttribute,
+            style: {},
+            addEventListener: mockFrameAddEventListener.mockImplementation(
+                (event: string, handler: () => void) => {
+                    if (event === "load") loadHandler = handler;
+                },
+            ),
+            src: "",
+        };
+        mockCreateElement.mockReturnValue(frame);
+        mockAppendChild.mockImplementation(() => {
+            queueMicrotask(() => loadHandler?.());
+            return frame;
+        });
+        mockSetTimeout.mockReturnValue(1);
+        vi.stubGlobal("document", {
+            body: {
+                appendChild: mockAppendChild,
+            },
+            createElement: mockCreateElement,
+        });
         vi.stubGlobal("window", {
-            fetch: mockFetch,
+            clearTimeout: mockClearTimeout,
             location: {
                 href: "https://join.stuhelper.com/verify/token",
                 hash: "",
                 origin: "https://join.stuhelper.com",
             },
+            setTimeout: mockSetTimeout,
         });
     });
 
@@ -150,14 +186,13 @@ describe("auth authorize flow", () => {
 
         expect(mockLogout).toHaveBeenCalledTimes(1);
         expect(mockClearAuth).toHaveBeenCalledTimes(1);
-        expect(mockFetch).toHaveBeenCalledWith(
-            "https://sso.stuhelper.com/api/sso-logout?logoutAll=false",
-            expect.objectContaining({
-                cache: "no-store",
-                credentials: "include",
-                method: "GET",
-                mode: "no-cors",
-            }),
+        expect(mockCreateElement).toHaveBeenCalledWith("iframe");
+        expect(mockFrameSetAttribute).toHaveBeenCalledWith("aria-hidden", "true");
+        expect(mockAppendChild).toHaveBeenCalledTimes(1);
+        expect(mockFrameRemove).toHaveBeenCalledTimes(1);
+        const frame = mockCreateElement.mock.results[0]?.value as { src: string };
+        expect(frame.src).toMatch(
+            /^https:\/\/sso\.stuhelper\.com\/api\/sso-logout\?logoutAll=false&_/,
         );
         expect(mockLogin).toHaveBeenCalledWith(
             "https://join.stuhelper.com/verify/token",
@@ -168,7 +203,7 @@ describe("auth authorize flow", () => {
         expect(sessionStorage.getItem("oauth_state")).toBe("switch-state");
     });
 
-    it("still starts account switching when local logout fails", async () => {
+    it("does not start account switching when local logout fails", async () => {
         mockLogout.mockRejectedValue(new Error("local logout unavailable"));
         mockLogin.mockResolvedValue({
             data: { data: { state: "switch-state", url: "#switch" } },
@@ -177,15 +212,12 @@ describe("auth authorize flow", () => {
         const { useAuthStore } = await import("../auth");
         const store = useAuthStore();
 
-        await store.switchAccount("https://join.stuhelper.com/verify/token");
+        await expect(
+            store.switchAccount("https://join.stuhelper.com/verify/token"),
+        ).rejects.toThrow("local logout unavailable");
 
-        expect(mockClearAuth).toHaveBeenCalledTimes(1);
-        expect(mockFetch).toHaveBeenCalledTimes(1);
-        expect(mockLogin).toHaveBeenCalledWith(
-            "https://join.stuhelper.com/verify/token",
-            undefined,
-            "web",
-            { prompt: "login", maxAge: 0 },
-        );
+        expect(mockClearAuth).not.toHaveBeenCalled();
+        expect(mockAppendChild).not.toHaveBeenCalled();
+        expect(mockLogin).not.toHaveBeenCalled();
     });
 });
