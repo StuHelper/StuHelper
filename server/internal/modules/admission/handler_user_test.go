@@ -31,7 +31,7 @@ func TestAdmissionLinkHandlerAllowsSameUserToResumeConsumedToken(t *testing.T) {
 	first := performAdmissionHandlerRequest(
 		router,
 		http.MethodPost,
-		"/api/v1/admission/sessions/"+tokenPath+"/link?qq=10001",
+		"/api/v1/admission/sessions/"+tokenPath+"/link",
 	)
 	require.Equal(t, http.StatusOK, first.Code, first.Body.String())
 	firstBody := decodeAdmissionSessionResponse(t, first)
@@ -42,7 +42,7 @@ func TestAdmissionLinkHandlerAllowsSameUserToResumeConsumedToken(t *testing.T) {
 	preview := performAdmissionHandlerRequest(
 		router,
 		http.MethodGet,
-		"/api/v1/admission/sessions/"+tokenPath+"?qq=10001",
+		"/api/v1/admission/sessions/"+tokenPath,
 	)
 	require.Equal(t, http.StatusConflict, preview.Code, preview.Body.String())
 	previewBody := decodeAdmissionErrorResponse(t, preview)
@@ -52,7 +52,7 @@ func TestAdmissionLinkHandlerAllowsSameUserToResumeConsumedToken(t *testing.T) {
 	resumed := performAdmissionHandlerRequest(
 		router,
 		http.MethodPost,
-		"/api/v1/admission/sessions/"+tokenPath+"/link?qq=10001",
+		"/api/v1/admission/sessions/"+tokenPath+"/link",
 	)
 	require.Equal(t, http.StatusOK, resumed.Code, resumed.Body.String())
 	resumedBody := decodeAdmissionSessionResponse(t, resumed)
@@ -72,7 +72,7 @@ func TestAdmissionPreviewHandlerReturnsDomainCodeForMissingToken(t *testing.T) {
 	response := performAdmissionHandlerRequest(
 		router,
 		http.MethodGet,
-		"/api/v1/admission/sessions/missing-token?qq=10001",
+		"/api/v1/admission/sessions/missing-token",
 	)
 	require.Equal(t, http.StatusNotFound, response.Code, response.Body.String())
 	body := decodeAdmissionErrorResponse(t, response)
@@ -89,9 +89,8 @@ func TestFreshmanApplicationHandlerReusesPendingApplicationOnDuplicatePost(t *te
 	created := createLinkableSession(t, svc)
 	userID := seedAdmissionUser(t, fixture, "handler-freshman-reuse")
 	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 	router := newAdmissionHandlerTestRouter(t, svc, userID)

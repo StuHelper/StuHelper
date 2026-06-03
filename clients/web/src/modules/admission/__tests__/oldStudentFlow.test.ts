@@ -62,7 +62,7 @@ describe('OldStudentVerificationFlow', () => {
   it('shows official SSO only for configured schools', async () => {
     const configuredWrapper = mount(OldStudentVerificationFlow, {
       props: {
-        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD?qq=123',
+        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD',
         linked: true,
         schools: [schools[0]!],
       },
@@ -72,7 +72,7 @@ describe('OldStudentVerificationFlow', () => {
 
     const unconfiguredWrapper = mount(OldStudentVerificationFlow, {
       props: {
-        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD?qq=123',
+        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD',
         linked: true,
         schools: [schools[1]!],
       },
@@ -84,7 +84,7 @@ describe('OldStudentVerificationFlow', () => {
   it('shows email OTP form only after admission is linked', async () => {
     const pendingWrapper = mount(OldStudentVerificationFlow, {
       props: {
-        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD?qq=123',
+        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD',
         linked: false,
         schools,
       },
@@ -93,7 +93,7 @@ describe('OldStudentVerificationFlow', () => {
 
     const linkedWrapper = mount(OldStudentVerificationFlow, {
       props: {
-        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD?qq=123',
+        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD',
         linked: true,
         schools,
       },
@@ -105,11 +105,11 @@ describe('OldStudentVerificationFlow', () => {
     expect(
       buildSchoolSSOLoginPath(
         '4111010006',
-        'https://join.stuhelper.com/verify/ABCD?qq=123',
+        'https://join.stuhelper.com/verify/ABCD',
         'session-1',
       ),
     ).toBe(
-      '/api/v1/admission/school-sso/4111010006/login?return=https%3A%2F%2Fjoin.stuhelper.com%2Fverify%2FABCD%3Fqq%3D123&admissionSessionID=session-1',
+      '/api/v1/admission/school-sso/4111010006/login?return=https%3A%2F%2Fjoin.stuhelper.com%2Fverify%2FABCD&admissionSessionID=session-1',
     )
   })
 
@@ -128,7 +128,7 @@ describe('OldStudentVerificationFlow', () => {
     })
     const wrapper = mount(OldStudentVerificationFlow, {
       props: {
-        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD?qq=123',
+        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD',
         admissionSessionId: 'session-1',
         linked: true,
         schools: [{
@@ -179,7 +179,7 @@ describe('OldStudentVerificationFlow', () => {
   it('requires academic match before sending BUAA student email OTP', async () => {
     const wrapper = mount(OldStudentVerificationFlow, {
       props: {
-        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD?qq=123',
+        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD',
         admissionSessionId: 'session-1',
         linked: true,
         schools: [{
@@ -209,7 +209,7 @@ describe('OldStudentVerificationFlow', () => {
     )
     const wrapper = mount(OldStudentVerificationFlow, {
       props: {
-        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD?qq=123',
+        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD',
         linked: true,
         schools,
       },
@@ -229,7 +229,7 @@ describe('OldStudentVerificationFlow', () => {
     )
     const wrapper = mount(OldStudentVerificationFlow, {
       props: {
-        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD?qq=123',
+        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD',
         linked: true,
         schools,
       },
@@ -252,7 +252,7 @@ describe('OldStudentVerificationFlow', () => {
     mockAdmissionApi.verifySchoolEmailOTP.mockReturnValue(verifyDeferred.promise)
     const wrapper = mount(OldStudentVerificationFlow, {
       props: {
-        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD?qq=123',
+        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD',
         admissionSessionId: 'session-verify',
         linked: true,
         schools,

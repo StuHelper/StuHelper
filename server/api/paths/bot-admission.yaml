@@ -165,6 +165,39 @@
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
+/api/v1/bot/admission/join-requests/decision:
+  post:
+    tags: [Bot]
+    operationId: resolveBotAdmissionJoinRequestDecision
+    summary: 机器人获取入群申请处理策略
+    security:
+      - serviceTokenAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/admission.yaml#/BotAdmissionJoinRequestDecisionRequest'
+    responses:
+      '200':
+        description: 入群申请处理策略
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/admission.yaml#/BotAdmissionJoinRequestDecision'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
 /api/v1/bot/admission/sessions/pending:
   get:
     tags: [Bot]
@@ -230,6 +263,14 @@
                             format: date-time
                           reason:
                             type: string
+                          failureCount:
+                            type: integer
+                            minimum: 0
+                          remainingRetryCount:
+                            type: integer
+                            minimum: 0
+                          willBlacklistOnTimeout:
+                            type: boolean
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':

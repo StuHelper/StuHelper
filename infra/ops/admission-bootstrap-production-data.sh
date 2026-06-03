@@ -241,6 +241,7 @@ disabled_other_school_configs AS (
 )
 INSERT INTO public.group_admission_policies (
   id, platform, guild_id, school_id, auto_approve_join,
+  auto_approve_verified_join, auto_approve_unverified_join,
   initial_mute_duration_seconds, link_wait_seconds, submission_wait_seconds,
   manual_review_timeout_seconds, reminder_interval_seconds, failed_join_limit,
   blacklist_duration_seconds, freshman_channel_enabled, freshman_channel_closes_at,
@@ -252,6 +253,8 @@ SELECT
   input.platform,
   group_id,
   school_upsert.id,
+  true,
+  true,
   true,
   2592000,
   3600,
@@ -274,6 +277,8 @@ CROSS JOIN unnest(input.group_ids) AS group_id
 ON CONFLICT (platform, guild_id) DO UPDATE
 SET school_id = EXCLUDED.school_id,
     auto_approve_join = true,
+    auto_approve_verified_join = true,
+    auto_approve_unverified_join = true,
     freshman_channel_enabled = true,
     freshman_channel_closes_at = EXCLUDED.freshman_channel_closes_at,
     freshman_default_expires_at = EXCLUDED.freshman_default_expires_at,

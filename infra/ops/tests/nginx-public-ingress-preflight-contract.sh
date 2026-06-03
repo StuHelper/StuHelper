@@ -100,6 +100,55 @@ awk '
   !skip { print }
 ' "${MAIN_NGINX_FILE}" >"${missing_join_verify_proxy}"
 
+join_root_proxies_web="${tmpdir}/join-root-proxies-web.conf"
+python3 - "${MAIN_NGINX_FILE}" "${join_root_proxies_web}" <<'PY'
+from pathlib import Path
+import sys
+
+lines = Path(sys.argv[1]).read_text(encoding="utf-8").splitlines(keepends=True)
+
+def block_ranges():
+    index = 0
+    while index < len(lines):
+        if lines[index].strip() != "server {":
+            index += 1
+            continue
+        start = index
+        depth = 0
+        while index < len(lines):
+            depth += lines[index].count("{") - lines[index].count("}")
+            if depth == 0:
+                yield start, index + 1
+                break
+            index += 1
+        index += 1
+
+for start, end in block_ranges():
+    block = lines[start:end]
+    if not any(line.strip() == "server_name join.stuhelper.com;" for line in block):
+        continue
+    for relative, line in enumerate(block):
+        if line.strip() != "location / {":
+            continue
+        root_start = start + relative
+        depth = 0
+        root_end = root_start
+        while root_end < end:
+            depth += lines[root_end].count("{") - lines[root_end].count("}")
+            root_end += 1
+            if depth == 0:
+                break
+        replacement = [
+            "    location / {\n",
+            "        proxy_pass http://127.0.0.1:18000;\n",
+            "        proxy_http_version 1.1;\n",
+            "    }\n",
+        ]
+        Path(sys.argv[2]).write_text("".join(lines[:root_start] + replacement + lines[root_end:]), encoding="utf-8")
+        raise SystemExit(0)
+raise SystemExit("missing join root location")
+PY
+
 bad_sso_static_root="${tmpdir}/bad-sso-static-root.conf"
 cat >"${bad_sso_static_root}" <<'NGINX'
 server {
@@ -232,6 +281,7 @@ run_preflight_pass "sso" "${baota_sso_static_well_known_fixed}" "${tmpdir}" "bao
 run_preflight_pass "sso" "${baota_sso_static_well_known_with_extension}" "${tmpdir}" "baota-sso-static-well-known-with-extension"
 run_preflight_fail "stuhelper" "${missing_main_verify_reject}" "${tmpdir}" "missing-main-verify-reject" 'stuhelper\.com: no HTTPS server block satisfies the ingress contract: stuhelper\.com: missing location = /verify'
 run_preflight_fail "stuhelper" "${missing_join_verify_proxy}" "${tmpdir}" "missing-join-verify-proxy" 'join\.stuhelper\.com: no HTTPS server block satisfies the ingress contract: join\.stuhelper\.com: missing location \^~ /verify/'
+run_preflight_fail "stuhelper" "${join_root_proxies_web}" "${tmpdir}" "join-root-proxies-web" 'join\.stuhelper\.com: no HTTPS server block satisfies the ingress contract: join\.stuhelper\.com: location / must return 404'
 run_preflight_fail "sso" "${bad_sso_static_root}" "${tmpdir}" "bad-sso-static-root" 'requires exact openid-configuration and jwks'
 run_preflight_fail "sso" "${baota_sso_static_well_known_missing_jwks}" "${tmpdir}" "baota-sso-static-well-known-missing-jwks" 'requires exact openid-configuration and jwks'
 run_preflight_fail "unknown" "${combined_good}" "${tmpdir}" "unknown-profile" 'unknown NGINX_PUBLIC_INGRESS_PROFILE'

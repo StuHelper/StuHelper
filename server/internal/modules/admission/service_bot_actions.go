@@ -20,7 +20,7 @@ func (s *Service) ListPendingAdmissionActions(
 	}
 	now := s.now()
 	seeds := pendingActionSeeds(sessions, now)
-	contexts, err := s.pendingActionContexts(ctx, sessions, seeds)
+	contexts, err := s.pendingActionContexts(ctx, sessions)
 	if err != nil {
 		return nil, err
 	}
@@ -72,6 +72,9 @@ func (s *Service) pendingActionFromSession(
 	seed pendingActionSeed,
 	contexts pendingActionContexts,
 ) (AdmissionPendingAction, error) {
+	if policy := contexts.policyFor(session); policy != nil {
+		applyAdmissionFailureContext(session, contexts.failureFor(session), policy)
+	}
 	if seed.action != BotActionKick {
 		return admissionPendingAction(session, seed.action, seed.deadline), nil
 	}
@@ -172,15 +175,18 @@ func admissionPendingAction(
 	deadline time.Time,
 ) AdmissionPendingAction {
 	return AdmissionPendingAction{
-		SessionID:  session.ID,
-		Action:     action,
-		Platform:   session.Platform,
-		BotSelfID:  session.BotSelfID,
-		GuildID:    session.GuildID,
-		ChannelID:  session.ChannelID,
-		QQID:       session.QQID,
-		AuthURL:    session.AuthURL,
-		DeadlineAt: deadline,
+		SessionID:              session.ID,
+		Action:                 action,
+		Platform:               session.Platform,
+		BotSelfID:              session.BotSelfID,
+		GuildID:                session.GuildID,
+		ChannelID:              session.ChannelID,
+		QQID:                   session.QQID,
+		AuthURL:                session.AuthURL,
+		DeadlineAt:             deadline,
+		FailureCount:           session.FailureCount,
+		RemainingRetryCount:    session.RemainingRetryCount,
+		WillBlacklistOnTimeout: session.WillBlacklistOnTimeout,
 	}
 }
 

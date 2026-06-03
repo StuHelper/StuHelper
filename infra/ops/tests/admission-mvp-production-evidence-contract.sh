@@ -45,8 +45,8 @@ assert_contains "${EVIDENCE_SCRIPT}" 'ADMISSION_MVP_PRODUCTION_BROWSER_SMOKE_EVI
 assert_contains "${EVIDENCE_SCRIPT}" 'ADMISSION_MVP_PRODUCTION_BROWSER_SMOKE_MAX_AGE_MINUTES'
 assert_contains "${EVIDENCE_SCRIPT}" 'public-web-auth-browser-smoke-evidence-current\.json'
 assert_contains "${EVIDENCE_SCRIPT}" 'validate_public_browser_smoke_evidence'
-assert_contains "${EVIDENCE_SCRIPT}" 'join-login-click-starts-sso'
-assert_contains "${EVIDENCE_SCRIPT}" 'join-signup-click-starts-sso-signup'
+assert_contains "${EVIDENCE_SCRIPT}" 'join-root-route-returns-404'
+assert_contains "${EVIDENCE_SCRIPT}" 'join-main-web-route-returns-404'
 assert_contains "${EVIDENCE_SCRIPT}" 'admission-production-readiness\.sh'
 assert_contains "${EVIDENCE_SCRIPT}" 'external-student-source-smoke\.sh'
 assert_contains "${EVIDENCE_SCRIPT}" 'ADMISSION_MVP_PRODUCTION_RUN_EXTERNAL_STUDENT_SOURCE_SMOKE'
@@ -126,9 +126,9 @@ checks = [
     {"name": "identity-route-redirects-to-login", "passed": True},
     {"name": "header-login-click-starts-sso", "passed": True},
     {"name": "login-signup-click-starts-sso-signup", "passed": True},
+    {"name": "join-root-route-returns-404", "passed": True},
+    {"name": "join-main-web-route-returns-404", "passed": True},
     {"name": "join-verify-route-renders-spa", "passed": True},
-    {"name": "join-login-click-starts-sso", "passed": True},
-    {"name": "join-signup-click-starts-sso-signup", "passed": True},
     {
         "name": "join-mobile-camera-route-allows-camera",
         "passed": True,
@@ -365,9 +365,9 @@ if browser.get("status") != "failed":
     raise SystemExit(f"browser step should fail: {browser}")
 PY
 
-missing_join_login_browser_evidence_file="${tmpdir}/missing-join-login-browser-smoke.json"
-cp "${browser_evidence_file}" "${missing_join_login_browser_evidence_file}"
-python3 - "${missing_join_login_browser_evidence_file}" <<'PY'
+missing_join_root_browser_evidence_file="${tmpdir}/missing-join-root-browser-smoke.json"
+cp "${browser_evidence_file}" "${missing_join_root_browser_evidence_file}"
+python3 - "${missing_join_root_browser_evidence_file}" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -377,25 +377,25 @@ payload = json.loads(path.read_text(encoding="utf-8"))
 payload["checks"] = [
     item
     for item in payload.get("checks", [])
-    if item.get("name") != "join-login-click-starts-sso"
+    if item.get("name") != "join-root-route-returns-404"
 ]
 payload["summary"] = {"passed": len(payload["checks"]), "failed": 0}
 path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 PY
 
-missing_join_login_bundle_file="${tmpdir}/missing-join-login-browser-bundle.json"
+missing_join_root_bundle_file="${tmpdir}/missing-join-root-browser-bundle.json"
 if ADMISSION_MVP_PRODUCTION_EVIDENCE_MODE=main \
-  ADMISSION_MVP_PRODUCTION_EVIDENCE_FILE="${missing_join_login_bundle_file}" \
+  ADMISSION_MVP_PRODUCTION_EVIDENCE_FILE="${missing_join_root_bundle_file}" \
   ADMISSION_MVP_PRODUCTION_RUN_SSO_SMOKE=false \
   ADMISSION_MVP_PRODUCTION_RUN_ADMISSION_SMOKE=false \
   ADMISSION_MVP_PRODUCTION_RUN_READINESS=false \
-  ADMISSION_MVP_PRODUCTION_BROWSER_SMOKE_EVIDENCE_FILE="${missing_join_login_browser_evidence_file}" \
+  ADMISSION_MVP_PRODUCTION_BROWSER_SMOKE_EVIDENCE_FILE="${missing_join_root_browser_evidence_file}" \
   ADMISSION_MVP_PRODUCTION_BROWSER_SMOKE_MAX_AGE_MINUTES=180 \
-  "${fake_repo}/infra/ops/admission-mvp-production-evidence.sh" >/tmp/admission-mvp-production-evidence-contract-missing-join-login-browser.stdout 2>/tmp/admission-mvp-production-evidence-contract-missing-join-login-browser.stderr; then
-  fail "production evidence unexpectedly passed with pre-collected browser evidence missing the join login route check"
+  "${fake_repo}/infra/ops/admission-mvp-production-evidence.sh" >/tmp/admission-mvp-production-evidence-contract-missing-join-root-browser.stdout 2>/tmp/admission-mvp-production-evidence-contract-missing-join-root-browser.stderr; then
+  fail "production evidence unexpectedly passed with pre-collected browser evidence missing the join root denial check"
 fi
-assert_contains /tmp/admission-mvp-production-evidence-contract-missing-join-login-browser.stderr 'pre-collected browser smoke is missing checks: join-login-click-starts-sso'
-python3 - "${missing_join_login_bundle_file}" <<'PY' || fail "missing join login browser evidence JSON assertion failed"
+assert_contains /tmp/admission-mvp-production-evidence-contract-missing-join-root-browser.stderr 'pre-collected browser smoke is missing checks: join-root-route-returns-404'
+python3 - "${missing_join_root_bundle_file}" <<'PY' || fail "missing join root browser evidence JSON assertion failed"
 import json
 import sys
 from pathlib import Path

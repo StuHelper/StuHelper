@@ -85,6 +85,11 @@ func (h *Handler) registerBotAdmissionRoutes(bot *gin.RouterGroup) {
 		h.handleRegenerateBotAdmissionSession,
 	)
 	bot.POST(
+		"/join-requests/decision",
+		h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession),
+		h.handleResolveBotJoinRequestDecision,
+	)
+	bot.POST(
 		"/join-requests/events",
 		h.requireBotCredential(serviceaccount.ScopeBotAdmissionEvent),
 		h.handleRecordBotJoinRequestEvent,

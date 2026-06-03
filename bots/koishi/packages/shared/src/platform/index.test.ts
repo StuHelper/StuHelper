@@ -41,11 +41,19 @@ test('platform admission client sends expected paths and payloads', async (t) =>
     qqID: '10001',
     botSelfID: '514',
   })
+  await client.resolveJoinRequestDecision({
+    platform: 'qq',
+    guildID: 'guild-1',
+    qqID: '10001',
+    requestID: 'request-1',
+    rawEvent: { comment: '我是新生' },
+  })
   await client.recordJoinRequestEvent({
     platform: 'qq',
     guildID: 'guild-1',
     qqID: '10001',
     requestID: 'request-1',
+    decision: 'approve',
     success: false,
     error: 'permission denied',
     rawEvent: { comment: '我是新生' },
@@ -109,6 +117,7 @@ test('platform admission client sends expected paths and payloads', async (t) =>
     ['GET', '/api/v1/bot/admission/sessions/member?platform=qq&guildID=guild-1&qqID=10001'],
     ['POST', '/api/v1/bot/admission/sessions/member/resend'],
     ['POST', '/api/v1/bot/admission/sessions/member/regenerate'],
+    ['POST', '/api/v1/bot/admission/join-requests/decision'],
     ['POST', '/api/v1/bot/admission/join-requests/events'],
     ['GET', '/api/v1/bot/admission/sessions/pending?platform=qq&botSelfID=514&limit=50'],
     ['GET', '/api/v1/bot/member-blacklist/access?platform=qq&subjectType=qq_user&subjectID=10001&guildID=guild-1'],
@@ -127,12 +136,13 @@ test('platform admission client sends expected paths and payloads', async (t) =>
   assert.equal(calls[2].body.qqID, '10001')
   assert.equal(calls[3].body.botSelfID, '514')
   assert.equal(calls[4].body.rawEvent.comment, '我是新生')
-  assert.equal(calls[8].body.metadata.operatorQQID, '90001')
-  assert.equal(calls[8].body.createdFrom, 'qq_command')
-  assert.equal(calls[10].body.releaseReasonCode, 'manual_pardon')
-  assert.equal(calls[11].body.messageID, 'message-1')
-  assert.equal(calls[14].body.operatorQQID, '90001')
-  assert.equal(calls[15].body.expiresInDays, 30)
+  assert.equal(calls[5].body.decision, 'approve')
+  assert.equal(calls[9].body.metadata.operatorQQID, '90001')
+  assert.equal(calls[9].body.createdFrom, 'qq_command')
+  assert.equal(calls[11].body.releaseReasonCode, 'manual_pardon')
+  assert.equal(calls[12].body.messageID, 'message-1')
+  assert.equal(calls[15].body.operatorQQID, '90001')
+  assert.equal(calls[16].body.expiresInDays, 30)
 })
 
 test('platform client accepts empty success responses for void requests', async (t) => {
@@ -263,21 +273,31 @@ function responseDataForPath(path: string) {
   if (path.endsWith('/sessions/member/resend')) {
     return {
       ...admissionSession('session-1'),
-      authURL: 'https://join.stuhelper.com/verify/token-1?qq=10001',
+      authURL: 'https://join.stuhelper.com/verify/token-1',
     }
   }
   if (path.endsWith('/sessions/member/regenerate')) {
     return {
       session: admissionSession('session-2'),
       token: 'token-2',
-      authURL: 'https://join.stuhelper.com/verify/token-2?qq=10001',
+      authURL: 'https://join.stuhelper.com/verify/token-2',
+    }
+  }
+  if (path.endsWith('/join-requests/decision')) {
+    return {
+      decision: 'approve',
+      reason: 'unverified_auto_approve',
+      verificationState: 'unverified',
+      autoApproveVerifiedJoin: true,
+      autoApproveUnverifiedJoin: true,
+      policyID: 'policy-1',
     }
   }
   if (path.endsWith('/sessions')) {
     return {
       session: admissionSession('session-1'),
       token: 'token-1',
-      authURL: 'https://join.stuhelper.com/verify/token-1?qq=10001',
+      authURL: 'https://join.stuhelper.com/verify/token-1',
     }
   }
   if (path.endsWith('/sessions/pending')) {

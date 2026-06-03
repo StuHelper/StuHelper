@@ -188,7 +188,7 @@ test.describe("Auth callback and admission entry", () => {
             }),
         );
 
-        await page.goto("/verify/ADMIT-LOGIN?qq=123456");
+        await page.goto("/verify/ADMIT-LOGIN");
 
         await expect(
             page.getByRole("heading", { name: "登录 StuHelper" }),
@@ -239,7 +239,7 @@ test.describe("Auth callback and admission entry", () => {
             }),
         );
 
-        await page.goto("/verify/ADMIT-SIGNUP?qq=123456");
+        await page.goto("/verify/ADMIT-SIGNUP");
 
         await expect(
             page.getByRole("heading", { name: "登录 StuHelper" }),
@@ -293,7 +293,7 @@ test.describe("Auth callback and admission entry", () => {
             await route.fulfill({
                 status: 302,
                 headers: {
-                    location: "/verify/ADMIT-RETURN?qq=123456",
+                    location: "/verify/ADMIT-RETURN",
                 },
             });
         });
@@ -309,7 +309,7 @@ test.describe("Auth callback and admission entry", () => {
                 await route.fulfill(ok(joinedSession));
             },
         );
-        await page.route("**/api/v1/admission/me", (route) =>
+        await page.route("**/api/v1/admission/me**", (route) =>
             route.fulfill(ok(freshmanAdmissionMe)),
         );
         await page.route("**/api/v1/user/schools", (route) =>
@@ -331,7 +331,7 @@ test.describe("Auth callback and admission entry", () => {
         );
 
         await page.goto("/auth/callback?code=oauth-code-1&state=admission-sso-state");
-        await page.waitForURL(/\/verify\/ADMIT-RETURN\?qq=123456/);
+        await page.waitForURL(/\/verify\/ADMIT-RETURN$/);
 
         await expect(
             page.getByRole("heading", { name: "确认绑定当前 QQ" }),
@@ -344,7 +344,7 @@ test.describe("Auth callback and admission entry", () => {
         expect(callbackURL).not.toBeNull();
         expect(callbackURL!.searchParams.get("code")).toBe("oauth-code-1");
         expect(callbackURL!.searchParams.get("state")).toBe("admission-sso-state");
-        expect(linkQQ).toBe("123456");
+        expect(linkQQ).toBe("");
     });
 
     test("reopening a consumed admission link resumes for the originally logged-in account", async ({
@@ -372,7 +372,7 @@ test.describe("Auth callback and admission entry", () => {
                 );
             },
         );
-        await page.route("**/api/v1/admission/me", (route) =>
+        await page.route("**/api/v1/admission/me**", (route) =>
             route.fulfill(ok(freshmanAdmissionMe)),
         );
         await page.route("**/api/v1/user/schools", (route) =>
@@ -393,7 +393,7 @@ test.describe("Auth callback and admission entry", () => {
             ),
         );
 
-        await page.goto("/verify/ADMIT-CONSUMED?qq=123456");
+        await page.goto("/verify/ADMIT-CONSUMED");
 
         const flowHeading = page.getByRole("heading", { name: "选择认证方式" });
         await expect(flowHeading).toBeVisible({ timeout: 5_000 });
@@ -405,7 +405,7 @@ test.describe("Auth callback and admission entry", () => {
         ).toHaveCount(0);
         expect(previewRequests).toBeGreaterThanOrEqual(1);
         expect(linkRequests).toBeGreaterThanOrEqual(1);
-        expect(linkQQ).toBe("123456");
+        expect(linkQQ).toBe("");
     });
 
     test("admission token mismatch and expired states block submission controls", async ({
@@ -416,7 +416,7 @@ test.describe("Auth callback and admission entry", () => {
         await page.route("**/api/v1/admission/sessions/ADMIT-MISMATCH**", (route) =>
             route.fulfill(apiError("admission.qq_mismatch", "mismatch", 409)),
         );
-        await page.goto("/verify/ADMIT-MISMATCH?qq=999999");
+        await page.goto("/verify/ADMIT-MISMATCH");
         await expect(
             page.getByRole("heading", { name: "链接被篡改" }),
         ).toBeVisible();
@@ -426,7 +426,7 @@ test.describe("Auth callback and admission entry", () => {
         await page.route("**/api/v1/admission/sessions/ADMIT-EXPIRED**", (route) =>
             route.fulfill(apiError("admission.token_expired", "expired", 410)),
         );
-        await page.goto("/verify/ADMIT-EXPIRED?qq=123456");
+        await page.goto("/verify/ADMIT-EXPIRED");
         await expect(
             page.getByRole("heading", { name: "链接已失效" }),
         ).toBeVisible();
@@ -438,6 +438,7 @@ test.describe("Auth callback and admission entry", () => {
         page,
     }) => {
         let linkQQ = "";
+        let academicMatchBody: unknown = null;
         let otpRequestBody: unknown = null;
         let otpVerifyBody: unknown = null;
 
@@ -454,7 +455,7 @@ test.describe("Auth callback and admission entry", () => {
                 await route.fulfill(ok(joinedSession));
             },
         );
-        await page.route("**/api/v1/admission/me", (route) =>
+        await page.route("**/api/v1/admission/me**", (route) =>
             route.fulfill(
                 ok({
                     status: "linked",
@@ -485,6 +486,20 @@ test.describe("Auth callback and admission entry", () => {
                     },
                 ]),
             ),
+        );
+        await page.route(
+            "**/api/v1/admission/school-email/academic-match",
+            async (route) => {
+                academicMatchBody = route.request().postDataJSON();
+                await route.fulfill(
+                    ok({
+                        matched: true,
+                        email: "20250001@buaa.edu.cn",
+                        studentID: "20250001",
+                        message: "学号和姓名已匹配。",
+                    }),
+                );
+            },
         );
         await page.route(
             "**/api/v1/admission/school-email/request-otp",
@@ -520,7 +535,7 @@ test.describe("Auth callback and admission entry", () => {
             },
         );
 
-        await page.goto("/verify/ADMIT-1?qq=123456");
+        await page.goto("/verify/ADMIT-1");
 
         await expect(page.getByText("QQ：123456")).toBeVisible();
         await expect(
@@ -534,7 +549,7 @@ test.describe("Auth callback and admission entry", () => {
         await expect(
             page.locator("[data-admission-old-student-flow]"),
         ).toBeVisible();
-        expect(linkQQ).toBe("123456");
+        expect(linkQQ).toBe("");
 
         await page.locator("[data-school-select]").selectOption("4111010006");
         const academicEmailInput = page.locator("[data-academic-email-input]");
@@ -550,13 +565,21 @@ test.describe("Auth callback and admission entry", () => {
         await expect(
             page.getByRole("heading", { name: "认证已通过" }),
         ).toBeVisible();
+        expect(academicMatchBody).toEqual({
+            schoolCode: "4111010006",
+            admissionSessionID: "admission-session-1",
+            studentID: "20250001",
+            studentName: "张三",
+        });
         expect(otpRequestBody).toEqual({
             schoolCode: "4111010006",
+            admissionSessionID: "admission-session-1",
             studentID: "20250001",
             studentName: "张三",
         });
         expect(otpVerifyBody).toEqual({
             schoolCode: "4111010006",
+            admissionSessionID: "admission-session-1",
             email: "20250001@buaa.edu.cn",
             code: "654321",
         });
@@ -580,7 +603,7 @@ test.describe("Auth callback and admission entry", () => {
         await page.route("**/api/v1/admission/sessions/ADMIT-FRESHMAN**", (route) =>
             route.fulfill(ok(linkedSession)),
         );
-        await page.route("**/api/v1/admission/me", (route) =>
+        await page.route("**/api/v1/admission/me**", (route) =>
             route.fulfill(ok(freshmanAdmissionMe)),
         );
         await page.route("**/api/v1/user/schools", (route) =>
@@ -601,7 +624,7 @@ test.describe("Auth callback and admission entry", () => {
             ),
         );
 
-        await page.goto("/verify/ADMIT-FRESHMAN?qq=123456");
+        await page.goto("/verify/ADMIT-FRESHMAN");
 
         await expect(
             page.getByRole("heading", { name: "选择认证方式" }),
@@ -642,7 +665,7 @@ test.describe("Auth callback and admission entry", () => {
         await page.route("**/api/v1/admission/sessions/ADMIT-HANDOFF**", (route) =>
             route.fulfill(ok(linkedSession)),
         );
-        await page.route("**/api/v1/admission/me", (route) =>
+        await page.route("**/api/v1/admission/me**", (route) =>
             route.fulfill(ok(freshmanAdmissionMe)),
         );
         await page.route("**/api/v1/user/schools", (route) =>
@@ -746,7 +769,7 @@ test.describe("Auth callback and admission entry", () => {
             },
         );
 
-        await page.goto("/verify/ADMIT-HANDOFF?qq=123456");
+        await page.goto("/verify/ADMIT-HANDOFF");
 
         await expect(page.locator("[data-admission-freshman-flow]")).toBeVisible();
         await page.locator("[data-freshman-school-select]").selectOption("4111010006");
@@ -760,6 +783,7 @@ test.describe("Auth callback and admission entry", () => {
             schoolCode: "4111010006",
             applicantName: "赵一",
             materialType: "admission_notice",
+            admissionSessionID: "admission-session-1",
         });
         expect(handoffCreated).toBe(true);
         expect(eventSourceRequested).toBe(true);
@@ -803,7 +827,7 @@ test.describe("Auth callback and admission entry", () => {
         await page.route("**/api/v1/admission/sessions/ADMIT-HANDOFF-DESKTOP**", (route) =>
             route.fulfill(ok(linkedSession)),
         );
-        await page.route("**/api/v1/admission/me", (route) =>
+        await page.route("**/api/v1/admission/me**", (route) =>
             route.fulfill(ok(freshmanAdmissionMe)),
         );
         await page.route("**/api/v1/user/schools", (route) =>
@@ -893,7 +917,7 @@ test.describe("Auth callback and admission entry", () => {
             },
         );
 
-        await page.goto("/verify/ADMIT-HANDOFF-DESKTOP?qq=123456");
+        await page.goto("/verify/ADMIT-HANDOFF-DESKTOP");
 
         await expect(page.locator("[data-admission-freshman-flow]")).toBeVisible();
         await page.locator("[data-freshman-school-select]").selectOption("4111010006");
@@ -1070,7 +1094,7 @@ test.describe("Auth callback and admission entry", () => {
                 }),
             ),
         );
-        await page.route("**/api/v1/admission/me", (route) =>
+        await page.route("**/api/v1/admission/me**", (route) =>
             route.fulfill(ok(freshmanAdmissionMe)),
         );
         await page.route("**/api/v1/user/schools", (route) =>
@@ -1130,7 +1154,7 @@ test.describe("Auth callback and admission entry", () => {
             },
         );
 
-        await page.goto("/verify/ADMIT-CAMERA?qq=123456");
+        await page.goto("/verify/ADMIT-CAMERA");
 
         await expect(page.locator("[data-admission-freshman-flow]")).toBeVisible();
         await page.locator("[data-freshman-school-select]").selectOption("4111010006");
@@ -1149,6 +1173,7 @@ test.describe("Auth callback and admission entry", () => {
             applicantName: "赵一",
             departmentOrMajor: "软件工程",
             materialType: "admission_notice",
+            admissionSessionID: "admission-session-1",
         });
         expect(cameraCaptureBody).toMatchObject({
             contentType: "image/jpeg",

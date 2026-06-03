@@ -1,8 +1,10 @@
 import type { GroupConfig } from '../../types'
+import { PlatformAPIError } from '@stuhelper/koishi-shared'
 import {
   DEFAULT_LEVEL_LIMIT,
   MEMBER_BLACKLIST_ACCESS_TIMEOUT_MS,
   DEFAULT_MEMBER_REQUEST_CONFIG,
+  admissionBusinessPlatformOf,
   botInternal,
   eventLogger,
   groupConfigOf,
@@ -83,8 +85,8 @@ async function handleGuildMemberRequest(host: EventRuntimeHost, session: EventSe
     session,
     failureLog: '拒绝入群申请失败:',
   })) return
+  if (await tryAcceptByAdmissionPolicy(host, session)) return
   if (await acceptIfKeywordMatches(host, session, groupConfig)) return
-  await acceptByAdmissionPolicy(host, session)
 }
 
 async function rejectBlacklistedFriendRequest(
@@ -121,7 +123,7 @@ async function isBackendBlacklisted(host: EventRuntimeHost, session: EventSessio
   }
   try {
     const access = await host.admissionPlatform.getMemberBlacklistAccess({
-      platform: session.platform,
+      platform: admissionBusinessPlatformOf(session.platform),
       guildID: session.guildId,
       subjectType: 'qq_user',
       subjectID: session.userId,
@@ -183,36 +185,79 @@ async function acceptIfKeywordMatches(
   return true
 }
 
+async function tryAcceptByAdmissionPolicy(host: EventRuntimeHost, session: EventSession): Promise<boolean> {
+  if (!host.admissionPlatform) {
+    return false
+  }
+  try {
+    await acceptByAdmissionPolicy(host, session)
+    return true
+  } catch (error) {
+    if (isAdmissionPolicyNotFound(error)) {
+      return false
+    }
+    throw error
+  }
+}
+
 async function acceptByAdmissionPolicy(host: EventRuntimeHost, session: EventSession): Promise<void> {
   if (!host.admissionPlatform) {
     throw new Error('admission platform client is required for guild-member-request auto-approve')
   }
-
   const requestID = requestIdOf(session)
+  const platform = admissionBusinessPlatformOf(session.platform)
+  const decision = await host.admissionPlatform.resolveJoinRequestDecision({
+    platform,
+    guildID: session.guildId,
+    qqID: session.userId,
+    requestID,
+    rawEvent: rawRequestEvent(session),
+  })
+  const approve = decision.decision === 'approve'
   try {
-    await session.bot.handleGuildMemberRequest(requestID, true)
-    await recordAdmissionJoinRequest({ host, session, success: true })
+    await session.bot.handleGuildMemberRequest(requestID, approve, approve ? undefined : decision.reason)
+    await recordAdmissionJoinRequest({
+      host,
+      session,
+      platform,
+      decision: decision.decision,
+      success: true,
+    })
   } catch (error) {
-    await recordAdmissionJoinRequest({ host, session, success: false, error: errorMessage(error) })
+    await recordAdmissionJoinRequest({
+      host,
+      session,
+      platform,
+      decision: decision.decision,
+      success: false,
+      error: errorMessage(error),
+    })
     throw error
   }
+}
+
+function isAdmissionPolicyNotFound(error: unknown): boolean {
+  return error instanceof PlatformAPIError && error.status === 404
 }
 
 async function recordAdmissionJoinRequest(input: {
   readonly host: EventRuntimeHost
   readonly session: EventSession
+  readonly platform: string
+  readonly decision: 'approve' | 'reject'
   readonly success: boolean
   readonly error?: string
 }) {
-  const { host, session, success, error } = input
+  const { host, session, platform, decision, success, error } = input
   if (!host.admissionPlatform) {
     throw new Error('admission platform client is required to record join request events')
   }
   const event = {
-    platform: session.platform,
+    platform,
     guildID: session.guildId,
     qqID: session.userId,
     requestID: requestIdOf(session),
+    decision,
     success,
     rawEvent: rawRequestEvent(session),
   }

@@ -6172,10 +6172,6 @@ paths:
           required: true
           schema:
             type: string
-        - name: qq
-          in: query
-          schema:
-            type: string
       responses:
         '200':
           description: 入群认证会话
@@ -6206,10 +6202,6 @@ paths:
         - name: token
           in: path
           required: true
-          schema:
-            type: string
-        - name: qq
-          in: query
           schema:
             type: string
       responses:
@@ -6957,6 +6949,40 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '401':
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/bot/admission/join-requests/decision:
+    post:
+      tags:
+        - Bot
+      operationId: resolveBotAdmissionJoinRequestDecision
+      summary: 机器人获取入群申请处理策略
+      security:
+        - serviceTokenAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BotAdmissionJoinRequestDecisionRequest'
+      responses:
+        '200':
+          description: 入群申请处理策略
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/BotAdmissionJoinRequestDecision'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/bot/member-blacklist/access:
     get:
       tags:
@@ -7255,6 +7281,14 @@ paths:
                               format: date-time
                             reason:
                               type: string
+                            failureCount:
+                              type: integer
+                              minimum: 0
+                            remainingRetryCount:
+                              type: integer
+                              minimum: 0
+                            willBlacklistOnTimeout:
+                              type: boolean
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '401':
@@ -10816,6 +10850,14 @@ components:
             - 'null'
         projectionPending:
           type: boolean
+        failureCount:
+          type: integer
+          minimum: 0
+        remainingRetryCount:
+          type: integer
+          minimum: 0
+        willBlacklistOnTimeout:
+          type: boolean
         authURL:
           type: string
           format: uri
@@ -10852,6 +10894,8 @@ components:
         - platform
         - guildID
         - autoApproveJoin
+        - autoApproveVerifiedJoin
+        - autoApproveUnverifiedJoin
         - initialMuteDurationSeconds
         - linkWaitSeconds
         - submissionWaitSeconds
@@ -10874,6 +10918,13 @@ components:
           type: string
         autoApproveJoin:
           type: boolean
+          deprecated: true
+        autoApproveVerifiedJoin:
+          type: boolean
+          default: true
+        autoApproveUnverifiedJoin:
+          type: boolean
+          default: true
         initialMuteDurationSeconds:
           type: integer
         linkWaitSeconds:
@@ -11034,6 +11085,11 @@ components:
           type: string
         requestID:
           type: string
+        decision:
+          type: string
+          enum:
+            - approve
+            - reject
         success:
           type: boolean
         error:
@@ -12913,6 +12969,53 @@ components:
         guildID:
           type: string
         qqID:
+          type: string
+    BotAdmissionJoinRequestDecisionRequest:
+      type: object
+      required:
+        - platform
+        - guildID
+        - qqID
+        - requestID
+      properties:
+        platform:
+          type: string
+        guildID:
+          type: string
+        qqID:
+          type: string
+        requestID:
+          type: string
+        rawEvent:
+          type: object
+          additionalProperties: true
+    BotAdmissionJoinRequestDecision:
+      type: object
+      required:
+        - decision
+        - verificationState
+        - autoApproveVerifiedJoin
+        - autoApproveUnverifiedJoin
+      properties:
+        decision:
+          type: string
+          enum:
+            - approve
+            - reject
+        reason:
+          type: string
+        verificationState:
+          type: string
+          enum:
+            - verified
+            - unverified
+        autoApproveVerifiedJoin:
+          type: boolean
+        autoApproveUnverifiedJoin:
+          type: boolean
+        policyID:
+          type: string
+        userID:
           type: string
     BotFreshmanCommandContext:
       type: object

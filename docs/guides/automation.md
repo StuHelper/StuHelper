@@ -221,7 +221,7 @@ make prod-reset
 - WAL 归档目录没准备好
 - 部署 bundle 不是从已提交的干净工作区打包
 - 主站生产机的宝塔 Nginx `stuhelper.com` / `join.stuhelper.com` server block 漂移
-- `join.stuhelper.com` DNS/TLS 或 `/verify/<token>?qq=<qq>` 入口漂移
+- `join.stuhelper.com` DNS/TLS 或 `/verify/<code>` 入口漂移
 - 主站上的 `/verify` / `/verify/*` 被错误兼容或兜底到旧流程
 
 第一次准备远端服务器：

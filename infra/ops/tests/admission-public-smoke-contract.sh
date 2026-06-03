@@ -46,15 +46,17 @@ def require(condition, message):
         raise SystemExit(message)
 
 require(evidence.get("passed") is True, "smoke did not pass")
-require(evidence.get("summary", {}).get("passed") == 8, "passed count")
+require(evidence.get("summary", {}).get("passed") == 10, "passed count")
 require(evidence.get("summary", {}).get("failed") == 0, "failed count")
-require(len(checks) == 8, "check count")
+require(len(checks) == 10, "check count")
 for name in (
     "Admission join verify token serves Web SPA",
     "Admission join verify token allows camera capture",
     "Admission join metrics vitals beacon returns 204",
     "Admission join metrics frontend error beacon returns 204",
     "Admission join camera handoff SSE ingress returns 401 with buffering disabled",
+    "Admission join root returns 404",
+    "Admission join main Web route returns 404",
     "Admission join bare verify returns 404",
     "Web host verify token returns 404",
     "Web host bare verify returns 404",
@@ -62,14 +64,16 @@ for name in (
     require(len([item for item in checks if item.get("name") == name and item.get("passed") is True]) == 1, name)
 
 endpoints = evidence.get("endpoints", {})
-require(endpoints.get("admissionVerify", "").endswith("/join/verify/__stuhelper_public_smoke__?qq=10000"), "admissionVerify endpoint")
+require(endpoints.get("admissionVerify", "").endswith("/join/verify/__stuhelper_public_smoke__"), "admissionVerify endpoint")
+require(endpoints.get("admissionRoot", "").endswith("/join/"), "admissionRoot endpoint")
+require(endpoints.get("admissionMainRouteProbe", "").endswith("/join/developers/apps"), "admissionMainRouteProbe endpoint")
 require(endpoints.get("admissionBareVerify", "").endswith("/join/verify"), "admissionBareVerify endpoint")
-require(endpoints.get("webVerify", "").endswith("/web/verify/__stuhelper_public_smoke__?qq=10000"), "webVerify endpoint")
+require(endpoints.get("webVerify", "").endswith("/web/verify/__stuhelper_public_smoke__"), "webVerify endpoint")
 require(endpoints.get("webBareVerify", "").endswith("/web/verify"), "webBareVerify endpoint")
 require(endpoints.get("admissionMetricsVitals", "").endswith("/join/api/v1/metrics/vitals"), "admissionMetricsVitals endpoint")
 require(endpoints.get("admissionMetricsFrontendErrors", "").endswith("/join/api/v1/metrics/frontend-errors"), "admissionMetricsFrontendErrors endpoint")
 require(endpoints.get("admissionCameraHandoffEvents", "").endswith("/join/api/v1/admission/freshman/camera-handoffs/__stuhelper_public_smoke__/events"), "admissionCameraHandoffEvents endpoint")
-require(evidence.get("probe", {}).get("qq") == "10000", "probe qq")
+require("qq" not in evidence.get("probe", {}), "probe qq must not be emitted")
 PY
 }
 
@@ -86,7 +90,7 @@ bash -n "${SMOKE_SCRIPT}"
 
 assert_contains "${SMOKE_SCRIPT}" 'prefer_production_env_files_if_default'
 assert_contains "${SMOKE_SCRIPT}" 'ADMISSION_PUBLIC_BASE_URL must be exactly https://join\.stuhelper\.com'
-assert_contains "${SMOKE_SCRIPT}" '/verify/\$\{probe_token\}\?qq=\$\{probe_qq\}'
+assert_contains "${SMOKE_SCRIPT}" '/verify/\$\{probe_token\}'
 assert_contains "${SMOKE_SCRIPT}" '/api/v1/metrics/vitals'
 assert_contains "${SMOKE_SCRIPT}" '/api/v1/metrics/frontend-errors'
 assert_contains "${SMOKE_SCRIPT}" '/api/v1/admission/freshman/camera-handoffs/'
@@ -118,7 +122,9 @@ assert_contains "${PROD_ENV_EXAMPLE}" '^ADMISSION_PUBLIC_SMOKE_ENABLED=true$'
 assert_contains "${PROD_ENV_EXAMPLE}" '^ADMISSION_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=false$'
 assert_contains "${PROD_ENV_EXAMPLE}" '^ADMISSION_PUBLIC_SMOKE_CURL_NO_PROXY=\*$'
 assert_contains "${PROD_ENV_EXAMPLE}" '^ADMISSION_PUBLIC_SMOKE_PROBE_TOKEN=__stuhelper_public_smoke__$'
-assert_contains "${PROD_ENV_EXAMPLE}" '^ADMISSION_PUBLIC_SMOKE_PROBE_QQ=10000$'
+if grep -Eq '^ADMISSION_PUBLIC_SMOKE_PROBE_QQ=' "${PROD_ENV_EXAMPLE}"; then
+  fail "ADMISSION_PUBLIC_SMOKE_PROBE_QQ must not be configured after short admission links removed qq query"
+fi
 
 tmpdir="$(mktemp -d)"
 env_file="${tmpdir}/.env"
@@ -136,7 +142,7 @@ printf '%s\n' 'no' >"${sse_buffering_file}"
 cat >"${tmpdir}/fake-admission-server.py" <<'PY'
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 import sys
 
 port_file = Path(sys.argv[1])
@@ -162,9 +168,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
-        query = parse_qs(parsed.query)
         path = parsed.path
-        if path == "/join/verify/__stuhelper_public_smoke__" and query.get("qq") == ["10000"]:
+        if path == "/join/verify/__stuhelper_public_smoke__" and parsed.query == "":
             encoded = b'<!doctype html><title>StuHelper</title><div id="app"></div>'
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
@@ -183,6 +188,8 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(encoded)
             return
         if path in {
+            "/join/",
+            "/join/developers/apps",
             "/join/verify",
             "/web/verify",
             "/web/verify/__stuhelper_public_smoke__",
@@ -204,7 +211,7 @@ class Handler(BaseHTTPRequestHandler):
             if origin != expected_origin:
                 self.write_text(403, f"unexpected origin: {origin}")
                 return
-            if not referer.startswith(expected_origin + "/join/verify/__stuhelper_public_smoke__?qq=10000"):
+            if referer != expected_origin + "/join/verify/__stuhelper_public_smoke__":
                 self.write_text(403, f"unexpected referer: {referer}")
                 return
             self.send_response(204)

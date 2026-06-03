@@ -2,6 +2,7 @@ package admission
 
 import (
 	"context"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -115,11 +116,38 @@ func (s *Service) RecordJoinRequestEvent(ctx context.Context, input AdmissionJoi
 	})
 }
 
+func (s *Service) ResolveJoinRequestDecision(
+	ctx context.Context,
+	input AdmissionJoinRequestDecisionInput,
+) (*AdmissionJoinRequestDecision, error) {
+	input = normalizeJoinRequestDecisionInput(input)
+	if input.Platform == "" || input.GuildID == "" || input.QQID == "" || input.RequestID == "" {
+		return nil, ErrAdmissionInvalidInput
+	}
+	policy, err := s.loadPolicy(ctx, input.Platform, input.GuildID)
+	if err != nil {
+		return nil, err
+	}
+	userID, err := s.repo.GetVerifiedAdmissionUserByQQ(ctx, input.QQID, policy.SchoolID, s.now())
+	if err != nil {
+		return nil, err
+	}
+	if userID != nil {
+		return verifiedJoinRequestDecision(policy, userID), nil
+	}
+	return unverifiedJoinRequestDecision(policy), nil
+}
+
 func normalizeAdmissionPolicy(policy AdmissionPolicy) AdmissionPolicy {
 	policy.ID = strings.TrimSpace(policy.ID)
 	policy.ManagementGuildIDs = normalizeStringSlice(policy.ManagementGuildIDs)
 	policy.Platform = strings.TrimSpace(policy.Platform)
 	policy.GuildID = strings.TrimSpace(policy.GuildID)
+	if policy.AutoApproveJoin && !policy.AutoApproveVerifiedJoin && !policy.AutoApproveUnverifiedJoin {
+		policy.AutoApproveVerifiedJoin = true
+		policy.AutoApproveUnverifiedJoin = true
+	}
+	policy.AutoApproveJoin = policy.AutoApproveVerifiedJoin && policy.AutoApproveUnverifiedJoin
 	return policy
 }
 
@@ -136,8 +164,68 @@ func normalizeJoinRequestEventInput(input AdmissionJoinRequestEventInput) Admiss
 	input.GuildID = strings.TrimSpace(input.GuildID)
 	input.QQID = strings.TrimSpace(input.QQID)
 	input.RequestID = strings.TrimSpace(input.RequestID)
+	input.Decision = normalizeJoinRequestDecisionAction(input.Decision)
 	input.Error = strings.TrimSpace(input.Error)
 	return input
+}
+
+func normalizeJoinRequestDecisionInput(input AdmissionJoinRequestDecisionInput) AdmissionJoinRequestDecisionInput {
+	input.Platform = strings.TrimSpace(input.Platform)
+	input.GuildID = strings.TrimSpace(input.GuildID)
+	input.QQID = strings.TrimSpace(input.QQID)
+	input.RequestID = strings.TrimSpace(input.RequestID)
+	return input
+}
+
+func normalizeJoinRequestDecisionAction(
+	action AdmissionJoinRequestDecisionAction,
+) AdmissionJoinRequestDecisionAction {
+	switch action {
+	case AdmissionJoinRequestDecisionApprove, AdmissionJoinRequestDecisionReject:
+		return action
+	default:
+		return AdmissionJoinRequestDecisionApprove
+	}
+}
+
+func verifiedJoinRequestDecision(policy *AdmissionPolicy, userID *int64) *AdmissionJoinRequestDecision {
+	var outputUserID *string
+	if userID != nil {
+		value := strconv.FormatInt(*userID, 10)
+		outputUserID = &value
+	}
+	decision := &AdmissionJoinRequestDecision{
+		VerificationState:         AdmissionJoinRequestVerified,
+		AutoApproveVerifiedJoin:   policy.AutoApproveVerifiedJoin,
+		AutoApproveUnverifiedJoin: policy.AutoApproveUnverifiedJoin,
+		PolicyID:                  policy.ID,
+		UserID:                    outputUserID,
+	}
+	if policy.AutoApproveVerifiedJoin {
+		decision.Decision = AdmissionJoinRequestDecisionApprove
+		decision.Reason = "verified_auto_approve"
+		return decision
+	}
+	decision.Decision = AdmissionJoinRequestDecisionReject
+	decision.Reason = "verified_auto_approve_disabled"
+	return decision
+}
+
+func unverifiedJoinRequestDecision(policy *AdmissionPolicy) *AdmissionJoinRequestDecision {
+	decision := &AdmissionJoinRequestDecision{
+		VerificationState:         AdmissionJoinRequestUnverified,
+		AutoApproveVerifiedJoin:   policy.AutoApproveVerifiedJoin,
+		AutoApproveUnverifiedJoin: policy.AutoApproveUnverifiedJoin,
+		PolicyID:                  policy.ID,
+	}
+	if policy.AutoApproveUnverifiedJoin {
+		decision.Decision = AdmissionJoinRequestDecisionApprove
+		decision.Reason = "unverified_auto_approve"
+		return decision
+	}
+	decision.Decision = AdmissionJoinRequestDecisionReject
+	decision.Reason = "unverified_auto_approve_disabled"
+	return decision
 }
 
 func normalizeStringSlice(values []string) []string {

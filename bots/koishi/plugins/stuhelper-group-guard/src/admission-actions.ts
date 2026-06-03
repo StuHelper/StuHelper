@@ -62,6 +62,9 @@ async function executeReminder(
     memberId: target.qqID,
     authURL: action.authURL,
     deadlineAt: target.deadlineAt,
+    failureCount: action.failureCount,
+    remainingRetryCount: action.remainingRetryCount,
+    willBlacklistOnTimeout: action.willBlacklistOnTimeout,
   }))
   return successResult(action, 'reminder', messageID)
 }

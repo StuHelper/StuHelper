@@ -52,6 +52,8 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'ADMISSION_BOOTSTRAP_EMAIL_DOMAINS.*buaa.e
 assert_contains "${BOOTSTRAP_SCRIPT}" 'ADMISSION_BOOTSTRAP_DISABLE_OTHER_SCHOOLS.*true'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'ADMISSION_BOOTSTRAP_PRUNE_OTHER_GROUP_POLICIES.*true'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'group_admission_policies'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'auto_approve_verified_join'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'auto_approve_unverified_join'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'school_configs'
 assert_contains "${BOOTSTRAP_SCRIPT}" "emailDomains"
 assert_contains "${BOOTSTRAP_SCRIPT}" "emailIdentityPolicy"

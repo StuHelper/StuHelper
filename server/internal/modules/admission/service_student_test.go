@@ -263,13 +263,12 @@ func TestAdmissionMVPEmailOTPFlowReleasesVerifiedMember(t *testing.T) {
 		QQID:      "10001",
 	})
 	require.NoError(t, err)
-	assert.Equal(t, "https://join.stuhelper.com/verify/test-admission-token?qq=10001", created.AuthURL)
+	assert.Equal(t, "https://join.stuhelper.com/verify/test-admission-token", created.AuthURL)
 
 	userID := seedAdmissionUser(t, pg, "mvp-email-otp")
 	_, err = svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 
@@ -327,16 +326,15 @@ func TestAdmissionMVPSchoolSSOFlowReleasesVerifiedMember(t *testing.T) {
 	require.NoError(t, err)
 	userID := seedAdmissionUser(t, pg, "mvp-school-sso")
 	_, err = svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 
 	start, err := svc.StartSchoolSSO(context.Background(), SchoolSSOStartInput{
 		UserID:    userID,
 		SchoolID:  4111010006,
-		ReturnURL: "https://join.stuhelper.com/verify/test-admission-token?qq=10001",
+		ReturnURL: "https://join.stuhelper.com/verify/test-admission-token",
 	})
 	require.NoError(t, err)
 	_, err = svc.CompleteSchoolSSO(context.Background(), SchoolSSOCompleteInput{
@@ -406,7 +404,7 @@ func TestSchoolSSOStartAndCallback(t *testing.T) {
 	start, err := svc.StartSchoolSSO(context.Background(), SchoolSSOStartInput{
 		UserID:    userID,
 		SchoolID:  4111010006,
-		ReturnURL: "https://join.stuhelper.com/verify/token?qq=10001",
+		ReturnURL: "https://join.stuhelper.com/verify/token",
 	})
 	require.NoError(t, err)
 	assert.Contains(t, start.RedirectURL, "https://sso.school.example/login")
@@ -419,7 +417,7 @@ func TestSchoolSSOStartAndCallback(t *testing.T) {
 		Code:     "oidc-code",
 	})
 	require.NoError(t, err)
-	assert.Equal(t, "https://join.stuhelper.com/verify/token?qq=10001", complete.ReturnURL)
+	assert.Equal(t, "https://join.stuhelper.com/verify/token", complete.ReturnURL)
 	assertCredentialStored(t, pg, userID, CredentialSchoolSSO, "official student")
 	assertUserSessionVerified(t, pg, userID)
 
@@ -476,7 +474,7 @@ func startSchoolSSOForTest(t *testing.T, svc *Service, userID int64) *SchoolSSOS
 	start, err := svc.StartSchoolSSO(context.Background(), SchoolSSOStartInput{
 		UserID:    userID,
 		SchoolID:  4111010006,
-		ReturnURL: "https://join.stuhelper.com/verify/token?qq=10001",
+		ReturnURL: "https://join.stuhelper.com/verify/token",
 	})
 	require.NoError(t, err)
 	return start

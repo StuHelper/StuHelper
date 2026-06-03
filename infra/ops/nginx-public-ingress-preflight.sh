@@ -414,10 +414,11 @@ def validate_join(block: Node, upstreams: dict[str, str]) -> None:
     require_common_proxy_server(block, label)
     require_location_return_code(block, label, "=", "/verify", "404")
     require_location_proxy(block, label, "^~", "/verify/", upstreams["web"])
+    require_location_proxy(block, label, "^~", "/admission/freshman/camera/", upstreams["web"])
     require_location_proxy(block, label, "^~", "/api/", upstreams["backend"])
     require_location_proxy(block, label, "^~", "/health/", upstreams["backend"])
     require_location_proxy(block, label, "^~", "/assets/", upstreams["web"])
-    require_location_proxy(block, label, None, "/", upstreams["web"])
+    require_location_return_code(block, label, None, "/", "404")
 
 
 def validate_sso(block: Node, upstreams: dict[str, str]) -> None:

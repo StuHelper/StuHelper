@@ -74,6 +74,14 @@ AdmissionSession:
         - "null"
     projectionPending:
       type: boolean
+    failureCount:
+      type: integer
+      minimum: 0
+    remainingRetryCount:
+      type: integer
+      minimum: 0
+    willBlacklistOnTimeout:
+      type: boolean
     authURL:
       type: string
       format: uri
@@ -126,7 +134,7 @@ AdmissionQQAccess:
 AdmissionPolicy:
   type: object
   required:
-    [id, platform, guildID, autoApproveJoin, initialMuteDurationSeconds, linkWaitSeconds, submissionWaitSeconds, manualReviewTimeoutSeconds, reminderIntervalSeconds, failedJoinLimit, freshmanChannelEnabled, freshmanChannelClosesAt, freshmanDefaultExpiresAt, forwardRawMaterialToQQ, managementGuildIDs, maxMaterialBytes, maxExtensionDays]
+    [id, platform, guildID, autoApproveJoin, autoApproveVerifiedJoin, autoApproveUnverifiedJoin, initialMuteDurationSeconds, linkWaitSeconds, submissionWaitSeconds, manualReviewTimeoutSeconds, reminderIntervalSeconds, failedJoinLimit, freshmanChannelEnabled, freshmanChannelClosesAt, freshmanDefaultExpiresAt, forwardRawMaterialToQQ, managementGuildIDs, maxMaterialBytes, maxExtensionDays]
   properties:
     id:
       type: string
@@ -136,6 +144,13 @@ AdmissionPolicy:
       type: string
     autoApproveJoin:
       type: boolean
+      deprecated: true
+    autoApproveVerifiedJoin:
+      type: boolean
+      default: true
+    autoApproveUnverifiedJoin:
+      type: boolean
+      default: true
     initialMuteDurationSeconds:
       type: integer
     linkWaitSeconds:
@@ -304,6 +319,9 @@ BotAdmissionJoinRequestEvent:
       type: string
     requestID:
       type: string
+    decision:
+      type: string
+      enum: [approve, reject]
     success:
       type: boolean
     error:
@@ -311,6 +329,43 @@ BotAdmissionJoinRequestEvent:
     rawEvent:
       type: object
       additionalProperties: true
+
+BotAdmissionJoinRequestDecisionRequest:
+  type: object
+  required: [platform, guildID, qqID, requestID]
+  properties:
+    platform:
+      type: string
+    guildID:
+      type: string
+    qqID:
+      type: string
+    requestID:
+      type: string
+    rawEvent:
+      type: object
+      additionalProperties: true
+
+BotAdmissionJoinRequestDecision:
+  type: object
+  required: [decision, verificationState, autoApproveVerifiedJoin, autoApproveUnverifiedJoin]
+  properties:
+    decision:
+      type: string
+      enum: [approve, reject]
+    reason:
+      type: string
+    verificationState:
+      type: string
+      enum: [verified, unverified]
+    autoApproveVerifiedJoin:
+      type: boolean
+    autoApproveUnverifiedJoin:
+      type: boolean
+    policyID:
+      type: string
+    userID:
+      type: string
 
 CameraCaptureRequest:
   type: object

@@ -15,7 +15,8 @@ import (
 func (r *Repository) ListPolicies(ctx context.Context) ([]AdmissionPolicy, error) {
 	ctx = withDBTable(ctx, "group_admission_policies")
 	rows, err := r.db.Query(ctx, `
-		SELECT id, platform, guild_id, school_id, auto_approve_join, initial_mute_duration_seconds,
+		SELECT id, platform, guild_id, school_id, auto_approve_join,
+		       auto_approve_verified_join, auto_approve_unverified_join, initial_mute_duration_seconds,
 		       link_wait_seconds, submission_wait_seconds, manual_review_timeout_seconds,
 		       reminder_interval_seconds, failed_join_limit, blacklist_duration_seconds,
 		       freshman_channel_enabled, freshman_channel_closes_at, freshman_default_expires_at,
@@ -131,16 +132,18 @@ func (r *Repository) InsertAuditEventTx(ctx context.Context, tx pgx.Tx, event au
 func updateAdmissionPolicySQL() string {
 	return `
 		UPDATE group_admission_policies
-		SET auto_approve_join = $2, initial_mute_duration_seconds = $3,
-		    link_wait_seconds = $4, submission_wait_seconds = $5,
-		    manual_review_timeout_seconds = $6, reminder_interval_seconds = $7,
-		    failed_join_limit = $8, blacklist_duration_seconds = $9,
-		    freshman_channel_enabled = $10, freshman_channel_closes_at = $11,
-		    freshman_default_expires_at = $12, forward_raw_material_to_qq = $13,
-		    management_guild_ids = $14, max_material_bytes = $15,
-		    max_extension_days = $16, updated_at = NOW()
+		SET auto_approve_join = $2, auto_approve_verified_join = $3,
+		    auto_approve_unverified_join = $4, initial_mute_duration_seconds = $5,
+		    link_wait_seconds = $6, submission_wait_seconds = $7,
+		    manual_review_timeout_seconds = $8, reminder_interval_seconds = $9,
+		    failed_join_limit = $10, blacklist_duration_seconds = $11,
+		    freshman_channel_enabled = $12, freshman_channel_closes_at = $13,
+		    freshman_default_expires_at = $14, forward_raw_material_to_qq = $15,
+		    management_guild_ids = $16, max_material_bytes = $17,
+		    max_extension_days = $18, updated_at = NOW()
 		WHERE id = $1
 		RETURNING id, platform, guild_id, school_id, auto_approve_join,
+		          auto_approve_verified_join, auto_approve_unverified_join,
 		          initial_mute_duration_seconds, link_wait_seconds, submission_wait_seconds,
 		          manual_review_timeout_seconds, reminder_interval_seconds, failed_join_limit,
 		          blacklist_duration_seconds, freshman_channel_enabled, freshman_channel_closes_at,
@@ -150,13 +153,13 @@ func updateAdmissionPolicySQL() string {
 
 func updateAdmissionPolicyArgs(policy AdmissionPolicy) []any {
 	return []any{
-		policy.ID, policy.AutoApproveJoin, policy.InitialMuteDurationSeconds,
-		policy.LinkWaitSeconds, policy.SubmissionWaitSeconds,
-		policy.ManualReviewTimeoutSeconds, policy.ReminderIntervalSeconds,
-		policy.FailedJoinLimit, policy.BlacklistDurationSeconds,
-		policy.FreshmanChannelEnabled, policy.FreshmanChannelClosesAt,
-		policy.FreshmanDefaultExpiresAt, policy.ForwardRawMaterialToQQ,
-		policy.ManagementGuildIDs, policy.MaxMaterialBytes, policy.MaxExtensionDays,
+		policy.ID, policy.AutoApproveJoin, policy.AutoApproveVerifiedJoin,
+		policy.AutoApproveUnverifiedJoin, policy.InitialMuteDurationSeconds,
+		policy.LinkWaitSeconds, policy.SubmissionWaitSeconds, policy.ManualReviewTimeoutSeconds,
+		policy.ReminderIntervalSeconds, policy.FailedJoinLimit, policy.BlacklistDurationSeconds,
+		policy.FreshmanChannelEnabled, policy.FreshmanChannelClosesAt, policy.FreshmanDefaultExpiresAt,
+		policy.ForwardRawMaterialToQQ, policy.ManagementGuildIDs, policy.MaxMaterialBytes,
+		policy.MaxExtensionDays,
 	}
 }
 

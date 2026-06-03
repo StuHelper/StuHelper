@@ -23,8 +23,10 @@ last-verified: 2026-05-22
     ├── stuhelper.com /admin/*      → 127.0.0.1:18001 → admin 前端 (Nginx, :8080)
     ├── stuhelper.com /             → 127.0.0.1:18000 → web 前端 (Nginx, :80)
     ├── stuhelper.com /verify 和 /verify/* → 404（不兼容旧入口）
-    ├── join.stuhelper.com /verify/<token>?qq=<qq> → 127.0.0.1:18000 → web 前端
+    ├── join.stuhelper.com /verify/<code> → 127.0.0.1:18000 → web 前端
+    ├── join.stuhelper.com /admission/freshman/camera/* → 127.0.0.1:18000 → web 前端
     ├── join.stuhelper.com /verify → 404
+    ├── join.stuhelper.com / 和主站业务页面路径 → 404（防止串站）
     ├── join.stuhelper.com /api/* 与 /health/* → 127.0.0.1:18080 → backend
     └── sso.stuhelper.com /.well-known/* /api/* /login/* → Casdoor
 ```
@@ -119,4 +121,4 @@ Koishi 与 NapCat 当前不纳入主站 Docker Compose 拓扑，而是作为外�
 3. 观测链路（Grafana、指标端点）
 4. OIDC 连通性（`sso.stuhelper.com` discovery、JWKS、authorize/token/introspect/revoke/UserInfo 基础路由，按当前 Casdoor 配置验证）
 
-入群验证公网门禁使用 `infra/ops/admission-public-smoke.sh`：`join.stuhelper.com/verify/<token>?qq=<qq>` 必须返回 Web SPA，`join.stuhelper.com/verify`、`stuhelper.com/verify` 和 `stuhelper.com/verify/<token>` 必须返回 404。SSO 入口由 `nginx-public-ingress-preflight.sh` 的 `sso` profile 和 Casdoor discovery/JWKS 检查覆盖。
+入群验证公网门禁使用 `infra/ops/admission-public-smoke.sh`：`join.stuhelper.com/verify/<code>` 必须返回 Web SPA，`join.stuhelper.com/`、`join.stuhelper.com/developers/apps`、`join.stuhelper.com/verify`、`stuhelper.com/verify` 和 `stuhelper.com/verify/<token>` 必须返回 404。SSO 入口由 `nginx-public-ingress-preflight.sh` 的 `sso` profile 和 Casdoor discovery/JWKS 检查覆盖。

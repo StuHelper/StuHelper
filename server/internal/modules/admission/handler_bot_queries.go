@@ -17,8 +17,17 @@ type botJoinRequestEventHTTPRequest struct {
 	GuildID   string         `json:"guildID" binding:"required"`
 	QQID      string         `json:"qqID" binding:"required"`
 	RequestID string         `json:"requestID" binding:"required"`
+	Decision  string         `json:"decision"`
 	Success   bool           `json:"success"`
 	Error     string         `json:"error"`
+	RawEvent  map[string]any `json:"rawEvent"`
+}
+
+type botJoinRequestDecisionHTTPRequest struct {
+	Platform  string         `json:"platform" binding:"required"`
+	GuildID   string         `json:"guildID" binding:"required"`
+	QQID      string         `json:"qqID" binding:"required"`
+	RequestID string         `json:"requestID" binding:"required"`
 	RawEvent  map[string]any `json:"rawEvent"`
 }
 
@@ -58,6 +67,20 @@ func (h *Handler) handleRecordBotJoinRequestEvent(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"message": "admission join request event recorded"})
+}
+
+func (h *Handler) handleResolveBotJoinRequestDecision(c *gin.Context) {
+	var req botJoinRequestDecisionHTTPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request parameters")
+		return
+	}
+	decision, err := h.service.ResolveJoinRequestDecision(c.Request.Context(), botJoinRequestDecisionInput(req))
+	if err != nil {
+		respondAdmissionError(c, err)
+		return
+	}
+	response.Success(c, decision)
 }
 
 func (h *Handler) handleListBotPendingActions(c *gin.Context) {
@@ -144,7 +167,20 @@ func (h *Handler) bindBotFreshmanCommand(c *gin.Context) (BotFreshmanCommandInpu
 }
 
 func botJoinRequestEventInput(req botJoinRequestEventHTTPRequest) AdmissionJoinRequestEventInput {
-	return AdmissionJoinRequestEventInput(req)
+	return AdmissionJoinRequestEventInput{
+		Platform:  req.Platform,
+		GuildID:   req.GuildID,
+		QQID:      req.QQID,
+		RequestID: req.RequestID,
+		Decision:  AdmissionJoinRequestDecisionAction(req.Decision),
+		Success:   req.Success,
+		Error:     req.Error,
+		RawEvent:  req.RawEvent,
+	}
+}
+
+func botJoinRequestDecisionInput(req botJoinRequestDecisionHTTPRequest) AdmissionJoinRequestDecisionInput {
+	return AdmissionJoinRequestDecisionInput(req)
 }
 
 func botFreshmanCommandInput(applicationID string, req botFreshmanCommandHTTPRequest) BotFreshmanCommandInput {

@@ -117,7 +117,7 @@ test('数据库群绑定模板会驱动 admission 入群认证', async () => {
     assert.equal(muteActions[0].groupId, 'group-4')
     assert.equal(muteActions[0].memberId, '10004')
     assert.ok(muteActions[0].duration > 29 * 24 * 60 * 60 * 1000)
-    assert.match(sentMessages[0], /https:\/\/join\.stuhelper\.com\/verify\/token-10004\?qq=10004/)
+    assert.match(sentMessages[0], /https:\/\/join\.stuhelper\.com\/verify\/token-10004/)
 
     const [record] = await root.database.get(GUARD_MEMBER_TABLE, { id: 'qq:514:group-4:10004' })
     assert.ok(record)

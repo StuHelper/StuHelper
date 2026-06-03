@@ -170,9 +170,56 @@ assert_contains "${BAOTA_NGINX_FILE}" 'proxy_pass http://127\.0\.0\.1:18001;'
 assert_contains "${BAOTA_NGINX_FILE}" 'server_name join\.stuhelper\.com;'
 assert_contains "${BAOTA_NGINX_FILE}" 'location = /verify \{'
 assert_contains "${BAOTA_NGINX_FILE}" 'location \^~ /verify/ \{'
+assert_contains "${BAOTA_NGINX_FILE}" 'location \^~ /admission/freshman/camera/ \{'
 assert_contains "${BAOTA_NGINX_FILE}" 'location \^~ /api/v1/admission/freshman/camera-handoffs/ \{'
 assert_contains "${BAOTA_NGINX_FILE}" 'X-Accel-Buffering no always'
 assert_contains "${BAOTA_NGINX_FILE}" 'return 404;'
+python3 - "${BAOTA_NGINX_FILE}" <<'PY' || fail "join.stuhelper.com root must return 404 instead of proxying to the main Web SPA"
+from pathlib import Path
+import sys
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+lines = text.splitlines()
+
+def server_blocks():
+    index = 0
+    while index < len(lines):
+        if lines[index].strip() != "server {":
+            index += 1
+            continue
+        start = index
+        depth = 0
+        while index < len(lines):
+            depth += lines[index].count("{") - lines[index].count("}")
+            if depth == 0:
+                yield lines[start:index + 1]
+                break
+            index += 1
+        index += 1
+
+join_blocks = [block for block in server_blocks() if any(line.strip() == "server_name join.stuhelper.com;" for line in block)]
+if not join_blocks:
+    raise SystemExit("missing join server")
+validated_root = False
+for block in join_blocks:
+    for offset, line in enumerate(block):
+        if line.strip() != "location / {":
+            continue
+        depth = 0
+        collected = []
+        for nested in block[offset:]:
+            collected.append(nested)
+            depth += nested.count("{") - nested.count("}")
+            if depth == 0:
+                rendered = "\n".join(collected)
+                if "return 404;" not in rendered or "proxy_pass" in rendered:
+                    raise SystemExit(rendered)
+                validated_root = True
+                break
+        break
+if not validated_root:
+    raise SystemExit("missing join root location")
+PY
 assert_contains "${BAOTA_NGINX_FILE}" 'location \^~ /health/ \{'
 assert_contains "${BAOTA_NGINX_FILE}" 'location = /metrics \{'
 assert_contains "${BAOTA_NGINX_FILE}" 'location \^~ /docs/ \{'

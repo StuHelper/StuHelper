@@ -18,7 +18,7 @@ test('member guard creates admission session, mutes, and sends canonical auth li
         createSessionCalls.push(input)
         return {
           token: 'token-1',
-          authURL: 'https://join.stuhelper.com/verify/token-1?qq=10001',
+          authURL: 'https://join.stuhelper.com/verify/token-1',
           session: {
             id: 'session-1',
             platform: 'qq',
@@ -89,7 +89,7 @@ test('member guard creates admission session, mutes, and sends canonical auth li
   assert.ok(muteActions[0].duration > 29 * 24 * 60 * 60 * 1000)
   assert.equal(savedRecords.length, 1)
   assert.match(JSON.stringify(savedRecords[0]), /session-1/)
-  assert.match(sentMessages[0], /https:\/\/join\.stuhelper\.com\/verify\/token-1\?qq=10001/)
+  assert.match(sentMessages[0], /https:\/\/join\.stuhelper\.com\/verify\/token-1/)
   assert.doesNotMatch(sentMessages[0], /buaa\.team|sso\.stuhelper\.com/)
   assert.deepEqual(admissionEvents, [{
     sessionID: 'session-1',
@@ -99,6 +99,77 @@ test('member guard creates admission session, mutes, and sends canonical auth li
       messageID: 'message-join',
     },
   }])
+})
+
+test('member guard skips mute and reminder when backend marks member verified', async () => {
+  const savedRecords: unknown[] = []
+  const muteActions: unknown[] = []
+  const sentMessages: string[] = []
+  const moderationEvents: unknown[] = []
+  const service = new MemberGuardService({
+    platform: {
+      async createAdmissionSession() {
+        const now = Date.now()
+        return {
+          token: 'token-verified',
+          authURL: 'https://join.stuhelper.com/verify/token-verified',
+          session: {
+            id: 'session-verified',
+            platform: 'qq',
+            guildID: 'guild-1',
+            channelID: 'channel-1',
+            qqID: '10001',
+            status: 'verified',
+            tokenExpiresAt: new Date(now + 60 * 60 * 1000).toISOString(),
+            tokenConsumedAt: new Date(now).toISOString(),
+            linkWaitDeadlineAt: new Date(now + 60 * 60 * 1000).toISOString(),
+            submissionWaitDeadlineAt: new Date(now + 24 * 60 * 60 * 1000).toISOString(),
+            initialMuteUntil: new Date(now + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            verifiedAt: new Date(now).toISOString(),
+            cancelledAt: new Date(now).toISOString(),
+            projectionPending: false,
+          },
+        }
+      },
+    },
+    guardStore: {
+      async findActiveBySubject() { return null },
+      async savePending(record: unknown) { savedRecords.push(record) },
+    },
+    policyStore: {
+      async resolvePolicy() {
+        return {
+          source: 'static',
+          templateId: 'static',
+          exemptUsers: [],
+        }
+      },
+    },
+    moderationStore: { async appendEvent(event: unknown) { moderationEvents.push(event) } },
+    logger: { error() {}, warn() {} },
+  } as any)
+
+  await service.handleGuildMemberAdded({
+    platform: 'onebot',
+    selfId: '514',
+    guildId: 'guild-1',
+    channelId: 'channel-1',
+    userId: '10001',
+    username: 'Alice',
+    event: { user: { nick: 'Alice' } },
+    bot: {
+      muteGuildMember: async (...args: unknown[]) => { muteActions.push(args) },
+      sendMessage: async (_channelId: string, content: string) => {
+        sentMessages.push(content)
+        return ['message-join']
+      },
+    },
+  } as any)
+
+  assert.deepEqual(savedRecords, [])
+  assert.deepEqual(muteActions, [])
+  assert.deepEqual(sentMessages, [])
+  assert.match(JSON.stringify(moderationEvents[0]), /跳过入群禁言/)
 })
 
 test('member guard fail-closes when platform session creation is unavailable and syncs later', async () => {
@@ -197,7 +268,7 @@ test('member guard fail-closes when platform session creation is unavailable and
   assert.equal(updates[0].id, savedRecords[0].id)
   assert.equal(updates[0].input.admissionSessionID, 'session-synced')
   assert.equal(updates[0].input.backendSyncPending, false)
-  assert.match(sentMessages[1], /https:\/\/join\.stuhelper\.com\/verify\/token-synced\?qq=10001/)
+  assert.match(sentMessages[1], /https:\/\/join\.stuhelper\.com\/verify\/token-synced/)
   assert.deepEqual(admissionEvents, [{
     sessionID: 'session-synced',
     input: {
@@ -309,7 +380,7 @@ test('member guard ignores duplicate join events for an active admission record'
   assert.equal(muteActions.length, 1)
   assert.equal(sentMessages.length, 1)
   assert.equal(savedRecords[0].platform, 'qq')
-  assert.match(sentMessages[0], /https:\/\/join\.stuhelper\.com\/verify\/token-duplicate\?qq=10001/)
+  assert.match(sentMessages[0], /https:\/\/join\.stuhelper\.com\/verify\/token-duplicate/)
 })
 
 test('member guard retries backend reminder after initial group message send fails', async () => {
@@ -326,7 +397,7 @@ test('member guard retries backend reminder after initial group message send fai
       async listPendingAdmissionActions() {
         return [
           action('session-retry', 'remind', {
-            authURL: 'https://join.stuhelper.com/verify/token-retry?qq=10001',
+            authURL: 'https://join.stuhelper.com/verify/token-retry',
           }),
         ]
       },
@@ -392,7 +463,7 @@ test('member guard retries backend reminder after initial group message send fai
   } as any])
 
   assert.equal(sentMessages.length, 2)
-  assert.match(sentMessages[1], /https:\/\/join\.stuhelper\.com\/verify\/token-retry\?qq=10001/)
+  assert.match(sentMessages[1], /https:\/\/join\.stuhelper\.com\/verify\/token-retry/)
   assert.deepEqual(reminderMarks, ['reminder:qq:514:guild-1:10001'])
   assert.deepEqual(admissionEvents, [{
     sessionID: 'session-retry',
@@ -407,7 +478,7 @@ test('member guard retries backend reminder after initial group message send fai
 test('member guard executes pending admission actions and reports results', async () => {
   const actions = [
     action('session-remind', 'remind', {
-      authURL: 'https://join.stuhelper.com/verify/remind-token?qq=10001',
+      authURL: 'https://join.stuhelper.com/verify/remind-token',
     }),
     action('session-release', 'release'),
     action('session-kick', 'kick'),
@@ -462,7 +533,7 @@ test('member guard executes pending admission actions and reports results', asyn
   } as any])
 
   assert.deepEqual(listCalls, [{ platform: 'qq', botSelfID: '514' }])
-  assert.match(messages[0].content, /https:\/\/join\.stuhelper\.com\/verify\/remind-token\?qq=10001/)
+  assert.match(messages[0].content, /https:\/\/join\.stuhelper\.com\/verify\/remind-token/)
   assert.deepEqual(mutes, [{ guildId: 'guild-1', memberId: '10001', duration: 0 }])
   assert.deepEqual(kicks, [
     { guildId: 'guild-1', memberId: '10001', permanent: undefined },
@@ -493,7 +564,7 @@ test('member guard reports action failures, keeps errors visible, and continues 
         return [
           action('session-release', 'release'),
           action('session-remind', 'remind', {
-            authURL: 'https://join.stuhelper.com/verify/remind-token?qq=10001',
+            authURL: 'https://join.stuhelper.com/verify/remind-token',
           }),
         ]
       },
@@ -556,7 +627,7 @@ test('member guard suppresses duplicate pending reminders shortly after a local 
       async listPendingAdmissionActions() {
         return [
           action('session-remind', 'remind', {
-            authURL: 'https://join.stuhelper.com/verify/remind-token?qq=10001',
+            authURL: 'https://join.stuhelper.com/verify/remind-token',
           }),
         ]
       },
@@ -607,7 +678,7 @@ test('member guard suppresses scheduler reminder after admin command reminder ev
       async listPendingAdmissionActions() {
         return [
           action('session-remind', 'remind', {
-            authURL: 'https://join.stuhelper.com/verify/remind-token?qq=10001',
+            authURL: 'https://join.stuhelper.com/verify/remind-token',
           }),
         ]
       },
@@ -798,7 +869,7 @@ function successEvent(sessionID: string, actionName: string, messageID: string) 
 function admissionResult(sessionID: string, token: string) {
   return {
     token,
-    authURL: `https://join.stuhelper.com/verify/${token}?qq=10001`,
+    authURL: `https://join.stuhelper.com/verify/${token}`,
     session: {
       id: sessionID,
       platform: 'qq',

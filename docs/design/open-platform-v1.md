@@ -16,7 +16,7 @@ last-verified: 2026-05-30
 |------|------|----------|
 | Casdoor / `sso.stuhelper.com` | 登录、注册、MFA、上游身份源、OIDC/OAuth issuer、token 签发、基础 scope consent | StuHelper 业务事实真源、学生认证审核、QQ 绑定真源、加群验证流程、第三方业务数据 API |
 | StuHelper API / `stuhelper.com` | 主站、账号中心、学生认证、QQ 绑定、开放平台 app registry、业务 scope 审批、用户业务授权、Open API、审计、撤销 | 签发独立公开身份 issuer、保存原始登录密码、伪装 Casdoor |
-| Join / `join.stuhelper.com` | 加群验证入口和业务闭环，唯一公开链接为 `https://join.stuhelper.com/verify/<token>?qq=<qq>` | 登录系统、第三方开放平台、旧 `/verify` 兼容入口 |
+| Join / `join.stuhelper.com` | 加群验证入口和业务闭环，唯一公开链接为 `https://join.stuhelper.com/verify/<code>` | 登录系统、第三方开放平台、旧 `/verify` 兼容入口 |
 
 ## 第三方接入模型
 
@@ -137,12 +137,12 @@ Open Platform API 的权威契约是 `server/api/openapi.yaml`。实现变更必
 Open Platform 不承载入群验证入口。加群验证链路固定为：
 
 ```text
-https://join.stuhelper.com/verify/<token>?qq=<qq>
+https://join.stuhelper.com/verify/<code>
 ```
 
 未登录用户在 join 流程中跳转到主站登录入口，由后端生成 Casdoor 登录 URL；Casdoor 登录完成后回到 `stuhelper.com/api/v1/auth/callback`，写入 `.stuhelper.com` 会话 cookie，再回到原始 join admission URL 继续 QQ 绑定、学生认证或新生材料流程。
 
-`stuhelper.com/verify*` 和 `join.stuhelper.com/verify` 都不是公开入口，必须返回 404。
+`stuhelper.com/verify*`、`join.stuhelper.com/verify`、`join.stuhelper.com/` 和 join 域上的主站业务页面路径都不是公开入口，必须返回 404。
 
 ## 生产配置基线
 

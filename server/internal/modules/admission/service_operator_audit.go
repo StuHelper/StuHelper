@@ -37,7 +37,7 @@ func joinRequestAuditEvent(ctx context.Context, input AdmissionJoinRequestEventI
 		ActorType:    "system",
 		ResourceType: "admission.join_request",
 		ResourceID:   input.RequestID,
-		Action:       "approve",
+		Action:       string(input.Decision),
 		Result:       result,
 		Reason:       input.Error,
 		Details: map[string]any{

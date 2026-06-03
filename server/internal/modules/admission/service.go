@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"math/big"
 	"net/url"
 	"strings"
 	"time"
@@ -16,6 +17,8 @@ import (
 )
 
 const admissionTokenBytes = 32
+const admissionJoinTokenLength = 10
+const admissionJoinTokenAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 type QQBindingGateway interface {
 	EnsureQQBindingForUserTx(context.Context, pgx.Tx, int64, string) (*user.QQBinding, error)
@@ -42,22 +45,23 @@ type SchoolSSOExchanger interface {
 }
 
 type Service struct {
-	repo            *Repository
-	qqGateway       QQBindingGateway
-	hmacKey         []byte
-	now             func() time.Time
-	generateToken   func() (string, error)
-	generateOTP     func() (string, error)
-	generateState   func() (string, error)
-	authBaseURL     string
-	returnURLOrigin string
-	materialStore   AdmissionMaterialStore
-	redisClient     *redis.Client
-	emailSender     SchoolEmailSender
-	academicLookup  AcademicStudentLookupGateway
-	operatorAccess  OperatorAccessGateway
-	projection      FreshmanProjectionGateway
-	schoolSSO       SchoolSSOExchanger
+	repo              *Repository
+	qqGateway         QQBindingGateway
+	hmacKey           []byte
+	now               func() time.Time
+	generateToken     func() (string, error)
+	generateJoinToken func() (string, error)
+	generateOTP       func() (string, error)
+	generateState     func() (string, error)
+	authBaseURL       string
+	returnURLOrigin   string
+	materialStore     AdmissionMaterialStore
+	redisClient       *redis.Client
+	emailSender       SchoolEmailSender
+	academicLookup    AcademicStudentLookupGateway
+	operatorAccess    OperatorAccessGateway
+	projection        FreshmanProjectionGateway
+	schoolSSO         SchoolSSOExchanger
 
 	beforeFreshmanApplicationCreate               func()
 	beforeFreshmanCameraHandoffCreate             func()
@@ -117,15 +121,16 @@ func NewService(repo *Repository, qqGateway QQBindingGateway, hmacKey []byte, op
 		return nil, errors.New("admission.NewService: hmacKey must not be empty")
 	}
 	svc := &Service{
-		repo:            repo,
-		qqGateway:       qqGateway,
-		hmacKey:         hmacKey,
-		now:             time.Now,
-		generateToken:   generateAdmissionToken,
-		generateOTP:     generateAdmissionOTPCode,
-		generateState:   generateAdmissionState,
-		authBaseURL:     defaultAdmissionPublicBaseURL + "/verify/",
-		returnURLOrigin: defaultAdmissionPublicBaseURL,
+		repo:              repo,
+		qqGateway:         qqGateway,
+		hmacKey:           hmacKey,
+		now:               time.Now,
+		generateToken:     generateAdmissionToken,
+		generateJoinToken: generateAdmissionJoinToken,
+		generateOTP:       generateAdmissionOTPCode,
+		generateState:     generateAdmissionState,
+		authBaseURL:       defaultAdmissionPublicBaseURL + "/verify/",
+		returnURLOrigin:   defaultAdmissionPublicBaseURL,
 	}
 	if gateway, ok := qqGateway.(AcademicStudentLookupGateway); ok {
 		svc.academicLookup = gateway
@@ -162,6 +167,20 @@ func generateAdmissionToken() (string, error) {
 		return "", err
 	}
 	return base64.RawURLEncoding.EncodeToString(buf), nil
+}
+
+func generateAdmissionJoinToken() (string, error) {
+	var builder strings.Builder
+	builder.Grow(admissionJoinTokenLength)
+	max := big.NewInt(int64(len(admissionJoinTokenAlphabet)))
+	for i := 0; i < admissionJoinTokenLength; i++ {
+		index, err := rand.Int(rand.Reader, max)
+		if err != nil {
+			return "", err
+		}
+		builder.WriteByte(admissionJoinTokenAlphabet[index.Int64()])
+	}
+	return builder.String(), nil
 }
 
 func generateAdmissionState() (string, error) {

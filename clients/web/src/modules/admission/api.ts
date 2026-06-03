@@ -416,16 +416,16 @@ function readSchoolEmailAcademicMatchResponse(
 }
 
 export const admissionApi = {
-  async getAdmissionSession(token: string, qq?: string): Promise<AdmissionSession> {
-    const result = await api.admission.getAdmissionSession(token, qq)
+  async getAdmissionSession(token: string): Promise<AdmissionSession> {
+    const result = await api.admission.getAdmissionSession(token)
     return readAdmissionSession(
       requireData(result, 'Admission session response is empty'),
       'Invalid admission session response',
     )
   },
 
-  async linkAdmissionSession(token: string, qq?: string): Promise<AdmissionSession> {
-    const result = await api.admission.linkAdmissionSession(token, qq)
+  async linkAdmissionSession(token: string): Promise<AdmissionSession> {
+    const result = await api.admission.linkAdmissionSession(token)
     return readAdmissionSession(
       requireData(result, 'Admission link response is empty'),
       'Invalid admission link response',

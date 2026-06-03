@@ -55,9 +55,9 @@ for name in (
     "identity-route-redirects-to-login",
     "header-login-click-starts-sso",
     "login-signup-click-starts-sso-signup",
+    "join-root-route-returns-404",
+    "join-main-web-route-returns-404",
     "join-verify-route-renders-spa",
-    "join-login-click-starts-sso",
-    "join-signup-click-starts-sso-signup",
     "join-mobile-camera-route-allows-camera",
 ):
     require(name in names, f"missing {name}")
@@ -108,10 +108,13 @@ assert_contains "${SMOKE_SCRIPT}" 'identity-route-redirects-to-login'
 assert_contains "${SMOKE_SCRIPT}" "redirect.*identity"
 assert_contains "${SMOKE_SCRIPT}" 'header-login-click-starts-sso'
 assert_contains "${SMOKE_SCRIPT}" 'login-signup-click-starts-sso-signup'
+assert_contains "${SMOKE_SCRIPT}" 'join-root-route-returns-404'
+assert_contains "${SMOKE_SCRIPT}" 'join-main-web-route-returns-404'
 assert_contains "${SMOKE_SCRIPT}" 'join-verify-route-renders-spa'
-assert_contains "${SMOKE_SCRIPT}" 'join-login-click-starts-sso'
-assert_contains "${SMOKE_SCRIPT}" 'join-signup-click-starts-sso-signup'
 assert_contains "${SMOKE_SCRIPT}" 'join-mobile-camera-route-allows-camera'
+if grep -Eq 'probeQQ|PUBLIC_WEB_AUTH_BROWSER_SMOKE_PROBE_QQ' "${SMOKE_SCRIPT}" "${PROD_ENV_EXAMPLE}"; then
+  fail "browser smoke must not carry qq query probe configuration"
+fi
 assert_contains "${SMOKE_SCRIPT}" 'expectedResponseHeaders'
 assert_contains "${SMOKE_SCRIPT}" 'expectedBrowserPermissions'
 assert_contains "${SMOKE_SCRIPT}" 'expectedMediaCaptures'
@@ -260,14 +263,8 @@ const server = http.createServer((request, response) => {
         <button onclick="fetch('/web/api/v1/auth/signup?app=web&redirect=' + encodeURIComponent(new URLSearchParams(location.search).get('redirect') || '/')).then(r => r.json()).then(j => location.href = j.data.url)">注册账号</button>
       </main>
     `);
-  } else if (url.pathname === '/join/login') {
-    result = html(`
-      <main>
-        <h1>StuHelper 统一登录</h1>
-        <button onclick="fetch('/join/api/v1/auth/login?app=web&redirect=' + encodeURIComponent(new URLSearchParams(location.search).get('redirect') || '/')).then(r => r.json()).then(j => location.href = j.data.url)">使用统一身份认证登录</button>
-        <button onclick="fetch('/join/api/v1/auth/signup?app=web&redirect=' + encodeURIComponent(new URLSearchParams(location.search).get('redirect') || '/')).then(r => r.json()).then(j => location.href = j.data.url)">注册账号</button>
-      </main>
-    `);
+  } else if (url.pathname === '/join/' || url.pathname === '/join/developers/apps') {
+    result = html('<main>not found</main>', 404);
   } else if (url.pathname === '/web/developers/apps') {
     result = html('<script>location.replace("/web/login?redirect=/developers/apps")</script><main>redirecting</main>');
   } else if (url.pathname === '/web/identity') {
@@ -282,7 +279,7 @@ const server = http.createServer((request, response) => {
       headers: { 'content-type': 'application/json' },
       body: '{"ok":true}',
     };
-  } else if (url.pathname === '/join/verify/__stuhelper_browser_smoke__' && url.searchParams.get('qq') === '10000') {
+  } else if (url.pathname === '/join/verify/__stuhelper_browser_smoke__' && url.search === '') {
     result = withCameraPolicy(html(`
       <main><h1>StuHelper 加群验证</h1><button>使用统一身份认证登录</button></main>
       <script>

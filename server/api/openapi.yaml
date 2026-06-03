@@ -409,6 +409,8 @@ paths:
     $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1sessions~1member~1regenerate"
   /api/v1/bot/admission/join-requests/events:
     $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1join-requests~1events"
+  /api/v1/bot/admission/join-requests/decision:
+    $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1join-requests~1decision"
   /api/v1/bot/member-blacklist/access:
     $ref: "paths/bot-member-blacklist.yaml#/~1api~1v1~1bot~1member-blacklist~1access"
   /api/v1/bot/member-blacklist:

@@ -99,6 +99,10 @@ export class MemberGuardService {
       if (!admission) {
         return
       }
+      if (admission.session.status === 'verified') {
+        await this.reportAlreadyVerifiedJoin(session, admission, policy, admissionPlatform)
+        return
+      }
       const record = createGuardMemberRecord(session, admission, admissionPlatform)
       await this.deps.guardStore.savePending(record)
       await muteGuardedMember({
@@ -108,7 +112,7 @@ export class MemberGuardService {
         muteDurationMs: muteDurationMs(new Date(admission.session.initialMuteUntil)),
       })
       await this.deps.guardStore.markMuted(record.id, new Date())
-      const messageID = await sendAdmissionReminder(session.bot, record, admission.authURL)
+      const messageID = await sendAdmissionReminder(session.bot, record, admission.authURL, admission.session)
       this.deps.reminderDeduper?.remember(admission.session.id)
       await this.deps.guardStore.markReminderSent(record.id, new Date())
       await this.recordAdmissionReminderSent(admission.session.id, messageID)
@@ -165,6 +169,34 @@ export class MemberGuardService {
       await this.failClosedBackendUnavailableJoin(session, policy, platform, error)
       return null
     }
+  }
+
+  private async reportAlreadyVerifiedJoin(
+    session: Session,
+    admission: AdmissionSessionCreateResult,
+    policy: EffectiveGuardPolicy,
+    platform: NonNullable<ReturnType<typeof resolveAdmissionSubjectPlatform>>,
+  ) {
+    const guildId = resolveGuildID(session)
+    if (!guildId) {
+      return
+    }
+    const memberId = requireMemberID(session)
+    await this.deps.moderationStore.appendEvent({
+      platform,
+      botSelfId: session.selfId,
+      guildId,
+      channelId: session.channelId || guildId,
+      memberId,
+      type: 'join_guarded',
+      level: 'low',
+      summary: `已识别 ${memberId} 为完成学生认证的成员，跳过入群禁言`,
+      payload: {
+        admissionSessionID: admission.session.id,
+        policySource: policy.source,
+        templateId: policy.templateId,
+      },
+    })
   }
 
   private async failClosedBackendUnavailableJoin(
@@ -257,9 +289,27 @@ export class MemberGuardService {
         qqID: record.memberId,
         botSelfID: record.botSelfId,
       })
+      if (admission.session.status === 'verified') {
+        await bot.muteGuildMember(record.guildId, record.memberId, 0)
+        await this.deps.guardStore.markReleased(record.id, now)
+        await this.deps.moderationStore.appendEvent({
+          platform: record.platform,
+          botSelfId: record.botSelfId,
+          guildId: record.guildId,
+          channelId: record.channelId,
+          memberId: record.memberId,
+          type: 'join_guarded',
+          level: 'low',
+          summary: `后端同步识别 ${record.memberId} 已完成学生认证，已解除本地兜底禁言`,
+          payload: {
+            admissionSessionID: admission.session.id,
+          },
+        })
+        return
+      }
       const update = backendSyncUpdate(admission)
       await this.deps.guardStore.markBackendSynced(record.id, update)
-      const messageID = await sendAdmissionReminder(bot, { ...record, ...update }, admission.authURL)
+      const messageID = await sendAdmissionReminder(bot, { ...record, ...update }, admission.authURL, admission.session)
       this.deps.reminderDeduper?.remember(admission.session.id, now)
       await this.deps.guardStore.markReminderSent(record.id, now)
       await this.recordAdmissionReminderSent(admission.session.id, messageID)

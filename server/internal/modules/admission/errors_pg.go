@@ -48,3 +48,10 @@ func isAdmissionSessionActiveSubjectUniqueViolation(err error) bool {
 		pgErr.Code == pgUniqueViolation &&
 		pgErr.ConstraintName == "group_admission_sessions_active_qq_idx"
 }
+
+func isAdmissionSessionTokenHashUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) &&
+		pgErr.Code == pgUniqueViolation &&
+		pgErr.ConstraintName == "group_admission_sessions_token_hash_key"
+}

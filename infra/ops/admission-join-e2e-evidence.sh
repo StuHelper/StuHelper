@@ -348,15 +348,13 @@ parsed = urlparse(auth_url)
 base = os.environ["ADMISSION_PUBLIC_BASE_URL_VALUE"].rstrip("/")
 expected = urlparse(base)
 segments = [segment for segment in parsed.path.split("/") if segment]
-if parsed.scheme != expected.scheme or parsed.netloc != expected.netloc or len(segments) < 2 or segments[-2] != "verify":
+if parsed.scheme != expected.scheme or parsed.netloc != expected.netloc or parsed.query or len(segments) < 2 or segments[-2] != "verify":
     print(json.dumps({"applicable": True, "reason": "invalid_auth_url_shape"}, separators=(",", ":")))
     raise SystemExit(0)
 
 token = segments[-1]
 preview_path = f"/api/v1/admission/sessions/{quote(token, safe='')}"
 preview_url = f"{base}{preview_path}"
-if parsed.query:
-    preview_url = f"{preview_url}?{parsed.query}"
 
 print(json.dumps({
     "applicable": True,
@@ -536,7 +534,7 @@ add("session has channel id", session.get("channelIDPresent") is True)
 add("session has token hash but no raw token", session.get("tokenHashPresent") is True)
 add("session auth url uses join host", session.get("authURLHost") == "join.stuhelper.com", f"host={session.get('authURLHost')}")
 add("session auth url uses /verify token path", str(session.get("authURLPath") or "").startswith("/verify/"), f"path={session.get('authURLPath')}")
-add("session auth url carries qq query", session.get("authURLHasQQQuery") is True)
+add("session auth url does not carry qq query", session.get("authURLHasQQQuery") is False)
 add("session auth url has canonical prefix", session.get("authURLCanonicalPrefix") is True)
 add("session has no active blacklist", int(raw.get("activeBlacklistCount") or 0) == 0, f"activeBlacklistCount={raw.get('activeBlacklistCount')}")
 add("session has no bot error", session.get("lastBotErrorPresent") is False)

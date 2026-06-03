@@ -310,6 +310,11 @@ server {
         proxy_http_version 1.1;
     }
 
+    location ^~ /admission/freshman/camera/ {
+        proxy_pass http://127.0.0.1:${web_port};
+        proxy_http_version 1.1;
+    }
+
     location ^~ /api/v1/admission/freshman/camera-handoffs/ {
         proxy_pass http://127.0.0.1:${backend_port};
         proxy_http_version 1.1;
@@ -345,8 +350,7 @@ server {
     }
 
     location / {
-        proxy_pass http://127.0.0.1:${web_port};
-        proxy_http_version 1.1;
+        return 404;
     }
 }
 

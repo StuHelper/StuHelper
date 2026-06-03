@@ -11,7 +11,7 @@ last-verified: 2026-05-30
 ## 背景
 当前系统已经有 QQ 绑定码、学生认证、Koishi 入群禁言/提醒/解禁/踢出，以及对象存储。新需求是在 QQ 新生群中实现“先入群、禁言、认证、通过后解禁”的完整链路，并把老生认证、新生材料审核、QQ 绑定、Admin 后台和 QQ 管理群审批打通。
 
-后期 QQ 加群问题可写成“访问网站 `join.stuhelper.com` 完成认证”，这是为了绕开 QQ 加群问题的字数限制和文案拦截。群内提醒和系统生成链接使用后端返回的 `https://join.stuhelper.com/verify/<token>?qq=<qq>`。
+后期 QQ 加群问题可写成“访问网站 `join.stuhelper.com` 完成认证”，这是为了绕开 QQ 加群问题的字数限制和文案拦截。群内提醒和系统生成链接使用后端返回的 `https://join.stuhelper.com/verify/<code>`。
 
 当前上线审查结论、已修复问题、最终验收门禁和后续优先级见 [admission-flow-review.md](admission-flow-review.md)。
 
@@ -61,7 +61,7 @@ Admin 后台执行：
 
 ## 主流程
 
-1. 新人申请加入 QQ 群；审核制群由 bot 按 `auto_approve_join` 自动同意，非审核制群跳过该步骤；失败必须上报后端审计。
+1. 新人申请加入 QQ 群；审核制群由 bot 调后端判断该 QQ 是否已经绑定并具备目标学校有效学生身份，再分别按 `auto_approve_verified_join` / `auto_approve_unverified_join` 决定是否自动同意，非审核制群跳过该步骤；失败必须上报后端审计。
 2. 新人实际入群后，Koishi 调后端创建入群认证会话。
 3. 后端返回认证链接、禁言时长、等待截止时间、提醒间隔等策略。
 4. Koishi 默认禁言 30 天，并 @ 新人发送认证链接和截止时间。
@@ -78,7 +78,7 @@ Admin 后台执行：
 认证链接的 canonical URL 使用 StuHelper 域名，例如：
 
 ```text
-https://join.stuhelper.com/verify/<token>?qq=123456789
+https://join.stuhelper.com/verify/<code>
 ```
 
 Koishi 群内 @ 新人的短文案直接发送 canonical URL。`buaa.team` 只允许用于 QQ 加群问题，不用于群内提醒或系统生成链接。
@@ -144,7 +144,8 @@ Koishi 群内 @ 新人的短文案直接发送 canonical URL。`buaa.team` 只�
 
 默认值：
 
-- `auto_approve_join`: `true`
+- `auto_approve_verified_join`: `true`
+- `auto_approve_unverified_join`: `true`
 - `initial_mute_duration_seconds`: 30 天
 - `link_wait_seconds`: 1 小时，入群后必须点开并登录绑定。
 - `submission_wait_seconds`: 1 小时，从 token 成功 link 时重新计时，linked 后必须完成老生认证或提交新生材料。

@@ -1,5 +1,7 @@
 import type {
   AdmissionBotEventRequest,
+  AdmissionJoinRequestDecision,
+  AdmissionJoinRequestDecisionRequest,
   AdmissionJoinRequestEvent,
   AdmissionPendingAction,
   AdmissionPendingActionsRequest,
@@ -31,6 +33,7 @@ const HEALTH_PATH = '/health/live'
 const QQ_BINDING_CONSUME_PATH = '/api/v1/bot/qq-binding/consume'
 const QQ_VERIFICATION_PATH_PREFIX = '/api/v1/bot/qq-users/'
 const ADMISSION_SESSIONS_PATH = '/api/v1/bot/admission/sessions'
+const ADMISSION_JOIN_REQUEST_DECISION_PATH = '/api/v1/bot/admission/join-requests/decision'
 const ADMISSION_JOIN_REQUEST_EVENTS_PATH = '/api/v1/bot/admission/join-requests/events'
 const ADMISSION_PENDING_ACTIONS_PATH = '/api/v1/bot/admission/sessions/pending'
 const MEMBER_BLACKLIST_PATH = '/api/v1/bot/member-blacklist'
@@ -84,6 +87,7 @@ export interface PlatformClient {
   getAdmissionSessionByMember(input: AdmissionSessionSubjectRequest): Promise<AdmissionSession>
   resendAdmissionSessionLink(input: AdmissionSessionSubjectRequest): Promise<AdmissionSession>
   regenerateAdmissionSessionLink(input: AdmissionSessionCreateRequest): Promise<AdmissionSessionCreateResult>
+  resolveJoinRequestDecision(input: AdmissionJoinRequestDecisionRequest): Promise<AdmissionJoinRequestDecision>
   recordJoinRequestEvent(input: AdmissionJoinRequestEvent): Promise<void>
   listPendingAdmissionActions(input: AdmissionPendingActionsRequest): Promise<readonly AdmissionPendingAction[]>
   recordAdmissionEvent(sessionID: string, input: AdmissionBotEventRequest): Promise<void>
@@ -144,6 +148,7 @@ function createAdmissionClient(
   | 'getAdmissionSessionByMember'
   | 'resendAdmissionSessionLink'
   | 'regenerateAdmissionSessionLink'
+  | 'resolveJoinRequestDecision'
   | 'recordJoinRequestEvent'
   | 'listPendingAdmissionActions'
   | 'recordAdmissionEvent'
@@ -167,6 +172,10 @@ function createAdmissionClient(
 
     async regenerateAdmissionSessionLink(input) {
       return request<AdmissionSessionCreateResult>(`${ADMISSION_SESSIONS_PATH}/member/regenerate`, jsonPost(input))
+    },
+
+    async resolveJoinRequestDecision(input) {
+      return request<AdmissionJoinRequestDecision>(ADMISSION_JOIN_REQUEST_DECISION_PATH, jsonPost(input))
     },
 
     async recordJoinRequestEvent(input) {

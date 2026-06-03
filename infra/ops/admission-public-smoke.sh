@@ -11,15 +11,17 @@ Usage: infra/ops/admission-public-smoke.sh
 
 Verifies the public production admission ingress:
 
-  - ADMISSION_PUBLIC_BASE_URL /verify/<token>?qq=<qq> serves the Web SPA
-  - ADMISSION_PUBLIC_BASE_URL /verify/<token>?qq=<qq> allows camera permission for
+  - ADMISSION_PUBLIC_BASE_URL /verify/<token> serves the Web SPA
+  - ADMISSION_PUBLIC_BASE_URL /verify/<token> allows camera permission for
     desktop material capture
   - ADMISSION_PUBLIC_BASE_URL /api/v1/metrics/vitals accepts same-origin Web Vitals beacons
   - ADMISSION_PUBLIC_BASE_URL /api/v1/metrics/frontend-errors accepts same-origin frontend error beacons
   - ADMISSION_PUBLIC_BASE_URL /api/v1/admission/freshman/camera-handoffs/<id>/events reaches the backend
     as an SSE endpoint with buffering disabled
+  - ADMISSION_PUBLIC_BASE_URL / returns 404 and never serves the main Web SPA
+  - ADMISSION_PUBLIC_BASE_URL /developers/apps returns 404 and never serves the main Web SPA
   - ADMISSION_PUBLIC_BASE_URL /verify returns 404
-  - WEB_PUBLIC_URL /verify and /verify/<token>?qq=<qq> return 404
+  - WEB_PUBLIC_URL /verify and /verify/<token> return 404
 
 Required production env:
   ADMISSION_PUBLIC_BASE_URL must be https://join.stuhelper.com
@@ -36,7 +38,6 @@ Optional env:
   ADMISSION_PUBLIC_SMOKE_CURL_NO_PROXY       defaults to "*"; set empty to honor proxy env vars
   ADMISSION_PUBLIC_SMOKE_RESOLVE_IP          optional diagnostic override for stuhelper.com/join
   ADMISSION_PUBLIC_SMOKE_PROBE_TOKEN         defaults to __stuhelper_public_smoke__
-  ADMISSION_PUBLIC_SMOKE_PROBE_QQ            defaults to 10000
 USAGE
 }
 
@@ -59,7 +60,6 @@ preserved_curl_insecure="${ADMISSION_PUBLIC_SMOKE_CURL_INSECURE-__STUHELPER_UNSE
 preserved_curl_no_proxy="${ADMISSION_PUBLIC_SMOKE_CURL_NO_PROXY-__STUHELPER_UNSET__}"
 preserved_resolve_ip="${ADMISSION_PUBLIC_SMOKE_RESOLVE_IP-__STUHELPER_UNSET__}"
 preserved_probe_token="${ADMISSION_PUBLIC_SMOKE_PROBE_TOKEN-__STUHELPER_UNSET__}"
-preserved_probe_qq="${ADMISSION_PUBLIC_SMOKE_PROBE_QQ-__STUHELPER_UNSET__}"
 
 prefer_production_env_files_if_default
 load_env
@@ -74,7 +74,6 @@ if [[ "${preserved_curl_insecure}" != "__STUHELPER_UNSET__" ]]; then ADMISSION_P
 if [[ "${preserved_curl_no_proxy}" != "__STUHELPER_UNSET__" ]]; then ADMISSION_PUBLIC_SMOKE_CURL_NO_PROXY="${preserved_curl_no_proxy}"; fi
 if [[ "${preserved_resolve_ip}" != "__STUHELPER_UNSET__" ]]; then ADMISSION_PUBLIC_SMOKE_RESOLVE_IP="${preserved_resolve_ip}"; fi
 if [[ "${preserved_probe_token}" != "__STUHELPER_UNSET__" ]]; then ADMISSION_PUBLIC_SMOKE_PROBE_TOKEN="${preserved_probe_token}"; fi
-if [[ "${preserved_probe_qq}" != "__STUHELPER_UNSET__" ]]; then ADMISSION_PUBLIC_SMOKE_PROBE_QQ="${preserved_probe_qq}"; fi
 
 curl() {
   local args=()
@@ -170,7 +169,6 @@ evidence_file="${ADMISSION_PUBLIC_SMOKE_EVIDENCE_FILE:-${REPO_ROOT}/infra/genera
 allow_local_targets="$(normalize_bool "ADMISSION_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS" "${ADMISSION_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS:-false}")"
 resolve_ip="${ADMISSION_PUBLIC_SMOKE_RESOLVE_IP:-}"
 probe_token="${ADMISSION_PUBLIC_SMOKE_PROBE_TOKEN:-__stuhelper_public_smoke__}"
-probe_qq="${ADMISSION_PUBLIC_SMOKE_PROBE_QQ:-10000}"
 
 [[ -n "${admission_public_base_url}" ]] || die "ADMISSION_PUBLIC_BASE_URL is required"
 [[ -n "${web_public_url}" ]] || die "WEB_PUBLIC_URL is required"
@@ -178,11 +176,6 @@ probe_qq="${ADMISSION_PUBLIC_SMOKE_PROBE_QQ:-10000}"
 case "${probe_token}" in
   ""|*/*|*\?*|*#*|*"&"*|*=*)
     die "ADMISSION_PUBLIC_SMOKE_PROBE_TOKEN must be a non-empty single URL path segment"
-    ;;
-esac
-case "${probe_qq}" in
-  ""|*/*|*\?*|*#*|*"&"*|*=*)
-    die "ADMISSION_PUBLIC_SMOKE_PROBE_QQ must not be empty or contain URL separators"
     ;;
 esac
 if [[ ! "${retries}" =~ ^[0-9]+$ ]] || (( retries < 1 )); then
@@ -201,9 +194,11 @@ if [[ "${allow_local_targets}" != "true" ]]; then
   reject_loopback_resolved_host "WEB_PUBLIC_URL" "${web_public_url}"
 fi
 
-admission_verify_url="${admission_public_base_url}/verify/${probe_token}?qq=${probe_qq}"
+admission_verify_url="${admission_public_base_url}/verify/${probe_token}"
+admission_root_url="${admission_public_base_url}/"
+admission_main_route_probe_url="${admission_public_base_url}/developers/apps"
 admission_bare_verify_url="${admission_public_base_url}/verify"
-web_verify_url="${web_public_url}/verify/${probe_token}?qq=${probe_qq}"
+web_verify_url="${web_public_url}/verify/${probe_token}"
 web_bare_verify_url="${web_public_url}/verify"
 admission_metrics_vitals_url="${admission_public_base_url}/api/v1/metrics/vitals"
 admission_metrics_frontend_errors_url="${admission_public_base_url}/api/v1/metrics/frontend-errors"
@@ -524,8 +519,9 @@ write_evidence() {
       "${admission_public_base_url}" \
       "${web_public_url}" \
       "${probe_token}" \
-      "${probe_qq}" \
       "${admission_verify_url}" \
+      "${admission_root_url}" \
+      "${admission_main_route_probe_url}" \
       "${admission_bare_verify_url}" \
       "${web_verify_url}" \
       "${web_bare_verify_url}" \
@@ -541,7 +537,7 @@ import json
 import sys
 from pathlib import Path
 
-checks_path = Path(sys.argv[18])
+checks_path = Path(sys.argv[19])
 checks = []
 if checks_path.exists():
     checks = [
@@ -557,24 +553,25 @@ bundle = {
     "webPublicURL": sys.argv[4],
     "probe": {
         "token": sys.argv[5],
-        "qq": sys.argv[6],
     },
     "endpoints": {
-        "admissionVerify": sys.argv[7],
-        "admissionBareVerify": sys.argv[8],
-        "webVerify": sys.argv[9],
-        "webBareVerify": sys.argv[10],
-        "admissionMetricsVitals": sys.argv[11],
-        "admissionMetricsFrontendErrors": sys.argv[12],
-        "admissionCameraHandoffEvents": sys.argv[13],
+        "admissionVerify": sys.argv[6],
+        "admissionRoot": sys.argv[7],
+        "admissionMainRouteProbe": sys.argv[8],
+        "admissionBareVerify": sys.argv[9],
+        "webVerify": sys.argv[10],
+        "webBareVerify": sys.argv[11],
+        "admissionMetricsVitals": sys.argv[12],
+        "admissionMetricsFrontendErrors": sys.argv[13],
+        "admissionCameraHandoffEvents": sys.argv[14],
     },
-    "resolveIP": sys.argv[14],
+    "resolveIP": sys.argv[15],
     "summary": {
-        "passed": int(sys.argv[15]),
-        "failed": int(sys.argv[16]),
+        "passed": int(sys.argv[16]),
+        "failed": int(sys.argv[17]),
     },
     "checks": checks,
-    "passed": sys.argv[17] == "true",
+    "passed": sys.argv[18] == "true",
 }
 print(json.dumps(bundle, ensure_ascii=True, indent=2))
 PY
@@ -604,6 +601,8 @@ check_get_status_header_contains "Admission join verify token allows camera capt
 check_post_json_status "Admission join metrics vitals beacon returns 204" "${admission_metrics_vitals_url}" '{"name":"LCP","value":1234.5,"rating":"good"}' "204" "${admission_origin}" "${admission_verify_url}"
 check_post_json_status "Admission join metrics frontend error beacon returns 204" "${admission_metrics_frontend_errors_url}" '{"kind":"error","message":"public admission smoke"}' "204" "${admission_origin}" "${admission_verify_url}"
 check_get_status_header_contains "Admission join camera handoff SSE ingress returns 401 with buffering disabled" "${admission_camera_handoff_events_url}" "401" "X-Accel-Buffering" "no"
+check_http_status "Admission join root returns 404" "${admission_root_url}" "404"
+check_http_status "Admission join main Web route returns 404" "${admission_main_route_probe_url}" "404"
 check_http_status "Admission join bare verify returns 404" "${admission_bare_verify_url}" "404"
 check_http_status "Web host verify token returns 404" "${web_verify_url}" "404"
 check_http_status "Web host bare verify returns 404" "${web_bare_verify_url}" "404"

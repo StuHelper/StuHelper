@@ -30,10 +30,10 @@ export function respondAdmissionSession(input: {
   res.setHeader('content-type', 'application/json')
   res.end(JSON.stringify({
     success: true,
-    data: {
-      token: `token-${qqID}`,
-      authURL: `https://join.stuhelper.com/verify/token-${qqID}?qq=${qqID}`,
-      session: admissionSessionData(qqID, guildID),
+      data: {
+        token: `token-${qqID}`,
+        authURL: `https://join.stuhelper.com/verify/token-${qqID}`,
+        session: admissionSessionData(qqID, guildID),
     },
   }))
   return true
@@ -114,5 +114,8 @@ function admissionSessionData(qqID: string, guildID: string) {
     submissionWaitDeadlineAt: new Date(now + 24 * 60 * 60 * 1000).toISOString(),
     initialMuteUntil: new Date(now + 30 * 24 * 60 * 60 * 1000).toISOString(),
     projectionPending: false,
+    failureCount: 0,
+    remainingRetryCount: 2,
+    willBlacklistOnTimeout: false,
   }
 }

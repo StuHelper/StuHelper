@@ -264,7 +264,7 @@ let pendingReviewRefreshTimer: number | null = null
 let pendingReviewRefreshAttempt = 0
 let pendingReviewRefreshInFlight = false
 
-const displayQQ = computed(() => readAdmissionQQ() ?? '')
+const displayQQ = computed(() => session.value?.qqID ?? '')
 const reissueCommand = computed(() => {
   return displayQQ.value
     ? `重新生成认证链接 ${displayQQ.value}`
@@ -275,10 +275,6 @@ function readAdmissionToken(): string {
   return String(route.params.code ?? '')
 }
 
-function readAdmissionQQ(): string | undefined {
-  const qq = route.query.qq
-  return typeof qq === 'string' && qq !== '' ? qq : undefined
-}
 const admissionSchools = computed(() => {
   return verificationStore.schools as AdmissionSchoolOption[]
 })
@@ -382,7 +378,6 @@ async function resumeConsumedTokenSession(authenticated = auth.isAuthenticated):
   }
   const linked = await admissionApi.linkAdmissionSession(
     readAdmissionToken(),
-    readAdmissionQQ(),
   )
   session.value = linked
   handleSessionState(linked)
@@ -466,40 +461,36 @@ async function refreshPendingReviewState(): Promise<void> {
   }
 }
 
-function isCurrentAdmissionRoute(requestToken: string, requestQQ: string | undefined): boolean {
-  return currentAdmissionRouteKey() === admissionRouteKey(requestToken, requestQQ)
+function isCurrentAdmissionRoute(requestToken: string): boolean {
+  return currentAdmissionRouteKey() === admissionRouteKey(requestToken)
 }
 
-function admissionRouteKey(routeToken: string, qq: string | undefined): string {
-  return `${routeToken}\u0000${qq ?? ''}`
+function admissionRouteKey(routeToken: string): string {
+  return routeToken
 }
 
 function currentAdmissionRouteKey(): string {
-  return admissionRouteKey(readAdmissionToken(), readAdmissionQQ())
+  return admissionRouteKey(readAdmissionToken())
 }
 
 async function loadAdmissionSession() {
   const requestToken = readAdmissionToken()
-  const requestQQ = readAdmissionQQ()
-  activeAdmissionRouteKey = admissionRouteKey(requestToken, requestQQ)
+  activeAdmissionRouteKey = admissionRouteKey(requestToken)
   pageState.value = 'loading'
   consumedTokenNeedsLogin.value = false
   try {
-    const preview = await admissionApi.getAdmissionSession(
-      requestToken,
-      requestQQ,
-    )
-    if (!isCurrentAdmissionRoute(requestToken, requestQQ)) return
+    const preview = await admissionApi.getAdmissionSession(requestToken)
+    if (!isCurrentAdmissionRoute(requestToken)) return
     session.value = preview
     const authenticated = await refreshAdmissionAuthState()
-    if (!isCurrentAdmissionRoute(requestToken, requestQQ)) return
+    if (!isCurrentAdmissionRoute(requestToken)) return
     if (authenticated) handleSessionState(preview)
     else pageState.value = 'needsLogin'
   } catch (error) {
-    if (!isCurrentAdmissionRoute(requestToken, requestQQ)) return
+    if (!isCurrentAdmissionRoute(requestToken)) return
     if (isAdmissionTokenConsumedError(error)) {
       const authenticated = await refreshAdmissionAuthState()
-      if (!isCurrentAdmissionRoute(requestToken, requestQQ)) return
+      if (!isCurrentAdmissionRoute(requestToken)) return
       if (!authenticated) {
         consumedTokenNeedsLogin.value = true
         pageState.value = 'needsLogin'
@@ -578,7 +569,6 @@ async function confirmLink() {
   try {
     const linked = await admissionApi.linkAdmissionSession(
       readAdmissionToken(),
-      readAdmissionQQ(),
     )
     session.value = linked
     handleSessionState(linked)

@@ -26,17 +26,17 @@ func TestAdmissionSessionCreatePreviewAndMismatch(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, created.Token)
-	assert.Equal(t, "https://join.stuhelper.com/verify/test-admission-token?qq=10001", created.AuthURL)
+	assert.Equal(t, "https://join.stuhelper.com/verify/test-admission-token", created.AuthURL)
 	assert.Equal(t, StatusJoinedMuted, created.Session.Status)
 	assert.Equal(t, "514", created.Session.BotSelfID)
 	assert.Equal(t, svc.now().Add(time.Hour), created.Session.LinkWaitDeadlineAt)
 
-	preview, err := svc.PreviewToken(context.Background(), created.Token, "10001")
+	preview, err := svc.PreviewToken(context.Background(), created.Token, "")
 	require.NoError(t, err)
 	assert.Equal(t, created.Session.ID, preview.ID)
 	assert.Nil(t, preview.TokenConsumedAt)
 
-	_, err = svc.PreviewToken(context.Background(), created.Token, "4111099999")
+	_, err = svc.PreviewToken(context.Background(), created.Token, "10001")
 	require.ErrorIs(t, err, ErrAdmissionQQMismatch)
 }
 
@@ -61,6 +61,76 @@ func TestCreateBotSessionRequiresBotSelfID(t *testing.T) {
 	})
 
 	require.ErrorIs(t, err, ErrAdmissionInvalidInput)
+}
+
+func TestResolveJoinRequestDecisionUsesVerifiedAndUnverifiedPolicy(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+
+	decision, err := svc.ResolveJoinRequestDecision(context.Background(), AdmissionJoinRequestDecisionInput{
+		Platform: "qq", GuildID: "guild-1", QQID: "10001", RequestID: "request-1",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, AdmissionJoinRequestDecisionApprove, decision.Decision)
+	assert.Equal(t, AdmissionJoinRequestUnverified, decision.VerificationState)
+	assert.Equal(t, "unverified_auto_approve", decision.Reason)
+
+	setAdmissionPolicyAutoApproval(t, fixture, true, false)
+	decision, err = svc.ResolveJoinRequestDecision(context.Background(), AdmissionJoinRequestDecisionInput{
+		Platform: "qq", GuildID: "guild-1", QQID: "10001", RequestID: "request-1",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, AdmissionJoinRequestDecisionReject, decision.Decision)
+	assert.Equal(t, AdmissionJoinRequestUnverified, decision.VerificationState)
+	assert.Equal(t, "unverified_auto_approve_disabled", decision.Reason)
+
+	userID := seedAdmissionUser(t, fixture, "verified-join-decision")
+	bindVerifiedAdmissionQQ(t, fixture, userID, "10001")
+	decision, err = svc.ResolveJoinRequestDecision(context.Background(), AdmissionJoinRequestDecisionInput{
+		Platform: "qq", GuildID: "guild-1", QQID: "10001", RequestID: "request-1",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, AdmissionJoinRequestDecisionApprove, decision.Decision)
+	assert.Equal(t, AdmissionJoinRequestVerified, decision.VerificationState)
+	assert.Equal(t, "verified_auto_approve", decision.Reason)
+	require.NotNil(t, decision.UserID)
+	assert.Equal(t, fmt.Sprint(userID), *decision.UserID)
+
+	setAdmissionPolicyAutoApproval(t, fixture, false, true)
+	decision, err = svc.ResolveJoinRequestDecision(context.Background(), AdmissionJoinRequestDecisionInput{
+		Platform: "qq", GuildID: "guild-1", QQID: "10001", RequestID: "request-1",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, AdmissionJoinRequestDecisionReject, decision.Decision)
+	assert.Equal(t, AdmissionJoinRequestVerified, decision.VerificationState)
+	assert.Equal(t, "verified_auto_approve_disabled", decision.Reason)
+}
+
+func TestCreateBotSessionReturnsVerifiedForAlreadyCertifiedQQ(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	userID := seedAdmissionUser(t, fixture, "verified-create-session")
+	bindVerifiedAdmissionQQ(t, fixture, userID, "10001")
+	_, err := fixture.Pool.Exec(context.Background(), `
+		INSERT INTO group_admission_failures (platform, guild_id, qq_id, failure_count)
+		VALUES ('qq', 'guild-1', '10001', 2)
+	`)
+	require.NoError(t, err)
+
+	created, err := svc.CreateBotSession(context.Background(), BotSessionCreateInput{
+		Platform: "qq", GuildID: "guild-1", ChannelID: "channel-1", QQID: "10001", BotSelfID: "514",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, StatusVerified, created.Session.Status)
+	assert.Equal(t, fmt.Sprint(userID), admissionSessionUserID(t, created.Session))
+	assert.NotNil(t, created.Session.TokenConsumedAt)
+	assert.NotNil(t, created.Session.VerifiedAt)
+	assert.NotNil(t, created.Session.CancelledAt)
+	assert.Equal(t, "https://join.stuhelper.com/verify/test-admission-token", created.AuthURL)
+	assertAdmissionFailureCount(t, fixture, "10001", 0)
 }
 
 func TestCreateBotSessionReusesActiveSessionOnDuplicateJoin(t *testing.T) {
@@ -88,9 +158,8 @@ func TestCreateBotSessionReusesMaterialSubmittedSessionOnDuplicateJoin(t *testin
 	first := createLinkableSession(t, svc)
 	userID := seedAdmissionUser(t, fixture, "duplicate-material")
 	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   first.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  first.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 	_, err = svc.MarkMaterialSubmitted(context.Background(), first.Session.ID)
@@ -128,19 +197,18 @@ func TestAdmissionTokenExpiredAndConsumedErrors(t *testing.T) {
 	created := createLinkableSession(t, svc)
 
 	svc.now = func() time.Time { return fixedAdmissionNow().Add(2 * time.Hour) }
-	_, err := svc.PreviewToken(context.Background(), created.Token, "10001")
+	_, err := svc.PreviewToken(context.Background(), created.Token, "")
 	require.ErrorIs(t, err, ErrAdmissionTokenExpired)
 
 	svc = newSessionTestService(t, fixture)
 	linked, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  seedAdmissionUser(t, fixture, "late-link"),
+		Token:  created.Token,
+		UserID: seedAdmissionUser(t, fixture, "late-link"),
 	})
 	require.NoError(t, err)
 	assert.Equal(t, StatusLinked, linked.Status)
 
-	_, err = svc.PreviewToken(context.Background(), created.Token, "10001")
+	_, err = svc.PreviewToken(context.Background(), created.Token, "")
 	require.ErrorIs(t, err, ErrAdmissionTokenConsumed)
 }
 
@@ -152,18 +220,16 @@ func TestAdmissionTokenLinkIsIdempotentForSameUser(t *testing.T) {
 	userID := seedAdmissionUser(t, fixture, "idempotent-link")
 
 	first, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, first.UserID)
 	assert.Equal(t, StatusLinked, first.Status)
 
 	second, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, second.UserID)
@@ -180,17 +246,15 @@ func TestAdmissionTokenConsumedResumeRejectsExpiredSubmissionWindow(t *testing.T
 	userID := seedAdmissionUser(t, fixture, "idempotent-link-expired")
 
 	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 
 	svc.now = func() time.Time { return fixedAdmissionNow().Add(25 * time.Hour) }
 	_, err = svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.ErrorIs(t, err, ErrAdmissionTokenExpired)
 }
@@ -203,18 +267,16 @@ func TestAdmissionTokenConsumedResumeAllowsSubmittedAndVerifiedSessions(t *testi
 	userID := seedAdmissionUser(t, fixture, "idempotent-link-submitted")
 
 	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 	_, err = svc.MarkMaterialSubmitted(context.Background(), created.Session.ID)
 	require.NoError(t, err)
 
 	submitted, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, StatusMaterialSubmitted, submitted.Status)
@@ -222,9 +284,8 @@ func TestAdmissionTokenConsumedResumeAllowsSubmittedAndVerifiedSessions(t *testi
 	_, err = svc.MarkVerified(context.Background(), created.Session.ID)
 	require.NoError(t, err)
 	verified, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, StatusVerified, verified.Status)
@@ -239,16 +300,14 @@ func TestAdmissionTokenLinkConsumedByAnotherUserStillRejected(t *testing.T) {
 	secondUser := seedAdmissionUser(t, fixture, "second-link-owner")
 
 	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  firstUser,
+		Token:  created.Token,
+		UserID: firstUser,
 	})
 	require.NoError(t, err)
 
 	_, err = svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  secondUser,
+		Token:  created.Token,
+		UserID: secondUser,
 	})
 	require.ErrorIs(t, err, ErrAdmissionTokenConsumed)
 }
@@ -261,9 +320,8 @@ func TestBotAdmissionSessionQueryAndResendLinkedSession(t *testing.T) {
 	userID := seedAdmissionUser(t, fixture, "bot-resend-linked")
 
 	linked, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 	require.Equal(t, StatusLinked, linked.Status)
@@ -294,9 +352,8 @@ func TestAdminAdmissionSessionActionsQueueBotReminderAndCancel(t *testing.T) {
 	created := createLinkableSession(t, svc)
 	userID := seedAdmissionUser(t, fixture, "admin-session-actions")
 	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 
@@ -348,9 +405,8 @@ func TestRegenerateBotAdmissionSessionCancelsInProgressSession(t *testing.T) {
 	created := createLinkableSession(t, svc)
 	userID := seedAdmissionUser(t, fixture, "bot-regenerate")
 	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 
@@ -359,11 +415,11 @@ func TestRegenerateBotAdmissionSessionCancelsInProgressSession(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotEqual(t, created.Session.ID, regenerated.Session.ID)
-	assert.Equal(t, "https://join.stuhelper.com/verify/test-admission-token-2?qq=10001", regenerated.AuthURL)
+	assert.Equal(t, "https://join.stuhelper.com/verify/test-admission-token-2", regenerated.AuthURL)
 	assert.Equal(t, StatusJoinedMuted, regenerated.Session.Status)
 	assertAdmissionSessionStatus(t, fixture, created.Session.ID, StatusCancelled)
 
-	_, err = svc.PreviewToken(context.Background(), created.Token, "10001")
+	_, err = svc.PreviewToken(context.Background(), created.Token, "")
 	require.ErrorIs(t, err, ErrAdmissionTokenExpired)
 
 	latest, err := svc.GetBotAdmissionSession(context.Background(), BotSessionSubjectInput{
@@ -382,9 +438,8 @@ func TestRegenerateBotAdmissionSessionRejectsVerifiedSession(t *testing.T) {
 	created := createLinkableSession(t, svc)
 	userID := seedAdmissionUser(t, fixture, "bot-regenerate-verified")
 	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 	_, err = svc.MarkVerified(context.Background(), created.Session.ID)
@@ -408,9 +463,8 @@ func TestRegenerateAdminAdmissionSessionCreatesImmediateReminder(t *testing.T) {
 	created := createLinkableSession(t, svc)
 	userID := seedAdmissionUser(t, fixture, "admin-regenerate")
 	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 
@@ -420,7 +474,7 @@ func TestRegenerateAdminAdmissionSessionCreatesImmediateReminder(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotEqual(t, created.Session.ID, regenerated.Session.ID)
-	assert.Equal(t, "https://join.stuhelper.com/verify/test-admission-token-2?qq=10001", regenerated.AuthURL)
+	assert.Equal(t, "https://join.stuhelper.com/verify/test-admission-token-2", regenerated.AuthURL)
 	assert.Equal(t, StatusJoinedMuted, regenerated.Session.Status)
 	assertAdmissionSessionStatus(t, fixture, created.Session.ID, StatusCancelled)
 
@@ -444,9 +498,8 @@ func TestAdmissionSessionStatusTransitions(t *testing.T) {
 	created := createLinkableSession(t, svc)
 	userID := seedAdmissionUser(t, fixture, "status-link")
 	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 
@@ -468,9 +521,8 @@ func TestLinkedSessionSubmissionDeadlineBlocksMaterialAndVerification(t *testing
 	created := createLinkableSession(t, svc)
 	userID := seedAdmissionUser(t, fixture, "status-link-expired")
 	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 
@@ -490,9 +542,8 @@ func TestMaterialSubmittedManualReviewDeadlineBlocksVerification(t *testing.T) {
 	created := createLinkableSession(t, svc)
 	userID := seedAdmissionUser(t, fixture, "manual-review-expired")
 	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 	_, err = svc.MarkMaterialSubmitted(context.Background(), created.Session.ID)
@@ -511,9 +562,8 @@ func TestLinkedAdmissionActionsRequirePolicyForTimeoutsButNotRelease(t *testing.
 	created := createLinkableSession(t, svc)
 	userID := seedAdmissionUser(t, fixture, "missing-policy-link")
 	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 
@@ -554,7 +604,7 @@ func TestSuccessfulBotEventClearsLastBotError(t *testing.T) {
 	releaseSession := createLinkableSessionForQQ(t, svc, "10002", "test-admission-token-release")
 	userID := seedAdmissionUser(t, fixture, "release-clears-bot-error")
 	_, err = svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token: releaseSession.Token, QQQuery: "10002", UserID: userID,
+		Token: releaseSession.Token, UserID: userID,
 	})
 	require.NoError(t, err)
 	_, err = svc.MarkVerified(context.Background(), releaseSession.Session.ID)
@@ -591,7 +641,7 @@ func TestReleaseSuccessResetsAdmissionFailureCount(t *testing.T) {
 	created := createLinkableSession(t, svc)
 	userID := seedAdmissionUser(t, fixture, "release-resets-failures")
 	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token: created.Token, QQQuery: "10001", UserID: userID,
+		Token: created.Token, UserID: userID,
 	})
 	require.NoError(t, err)
 	_, err = svc.MarkVerified(context.Background(), created.Session.ID)
@@ -664,9 +714,8 @@ func linkTokenConcurrently(t *testing.T, svc *Service, token string, users ...in
 		go func(index int, id int64) {
 			defer wg.Done()
 			session, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-				Token:   token,
-				QQQuery: "10001",
-				UserID:  id,
+				Token:  token,
+				UserID: id,
 			})
 			results[index] = linkResult{session: session, err: err}
 		}(i, userID)
@@ -724,9 +773,8 @@ func linkAdmissionSessionForQQ(
 	t.Helper()
 	created := createLinkableSessionForQQ(t, svc, qqID, token)
 	linked, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: qqID,
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 	return linked
@@ -738,6 +786,7 @@ func newSessionTestService(t *testing.T, fixture *postgresfixture.Fixture) *Serv
 	require.NoError(t, err)
 	svc.now = fixedAdmissionNow
 	svc.generateToken = func() (string, error) { return "test-admission-token", nil }
+	svc.generateJoinToken = func() (string, error) { return svc.generateToken() }
 	return svc
 }
 
@@ -768,6 +817,46 @@ func assertAdmissionFailureBlacklisted(t *testing.T, fixture *postgresfixture.Fi
 	`, qqID).Scan(&failureCount)
 	require.NoError(t, err)
 	assert.Equal(t, 1, failureCount)
+}
+
+func setAdmissionPolicyAutoApproval(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	verified bool,
+	unverified bool,
+) {
+	t.Helper()
+	_, err := fixture.Pool.Exec(context.Background(), `
+		UPDATE group_admission_policies
+		SET auto_approve_verified_join = $1,
+		    auto_approve_unverified_join = $2,
+		    auto_approve_join = $1 AND $2
+		WHERE platform = 'qq' AND guild_id = 'guild-1'
+	`, verified, unverified)
+	require.NoError(t, err)
+}
+
+func bindVerifiedAdmissionQQ(t *testing.T, fixture *postgresfixture.Fixture, userID int64, qqID string) {
+	t.Helper()
+	_, err := fixture.Pool.Exec(context.Background(), `
+		INSERT INTO user_qq_bindings (user_id, qq_id, bound_at)
+		VALUES ($1, $2, $3)
+	`, userID, qqID, fixedAdmissionNow())
+	require.NoError(t, err)
+	_, err = fixture.Pool.Exec(context.Background(), `
+		INSERT INTO user_verification_credentials (
+			id, user_id, school_id, kind, subject_hash, subject_display, verified_at
+		)
+		VALUES ($1, $2, 4111010006, $3, $4, $5, $6)
+	`, "credential-"+qqID, userID, CredentialSchoolEmailOTP, "credential-hash-"+qqID, "student "+qqID, fixedAdmissionNow())
+	require.NoError(t, err)
+}
+
+func admissionSessionUserID(t *testing.T, session *AdmissionSession) string {
+	t.Helper()
+	require.NotNil(t, session)
+	require.NotNil(t, session.UserID)
+	return fmt.Sprint(*session.UserID)
 }
 
 func countAdmissionSessionsBySubject(

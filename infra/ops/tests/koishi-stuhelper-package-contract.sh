@@ -89,6 +89,6 @@ assert_contains "${RELEASE_RUNBOOK}" 'package-koishi-stuhelper-packages.sh'
 assert_contains "${RELEASE_RUNBOOK}" 'sha256'
 assert_contains "${RELEASE_RUNBOOK}" 'student-query'
 assert_contains "${RELEASE_RUNBOOK}" 'enableGroupVerify.*true'
-assert_contains "${KOISHI_README}" 'join\.stuhelper\.com/verify/<token>\?qq=<qq>'
+assert_contains "${KOISHI_README}" 'join\.stuhelper\.com/verify/<code>'
 
 echo "[koishi-stuhelper-package-contract] all assertions passed"

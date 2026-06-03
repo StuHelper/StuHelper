@@ -308,9 +308,8 @@ func createBotLinkedSessionForPendingActions(
 	require.NoError(t, err)
 	userID := seedAdmissionUser(t, fixture, userSuffix)
 	linked, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 	created.Session = linked
@@ -339,9 +338,8 @@ func createLinkedSessionForSubject(
 	})
 	require.NoError(t, err)
 	linked, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: qqID,
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 	return linked

@@ -59,9 +59,8 @@ func TestFreshmanApplicationReassignsPendingApplicationToCurrentSession(t *testi
 	userID := seedAdmissionUser(t, fixture, "freshman-reassign-session")
 	created := createLinkableSession(t, svc)
 	linked, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 
@@ -84,9 +83,8 @@ func TestFreshmanApplicationReassignsPendingApplicationToCurrentSession(t *testi
 	})
 	require.NoError(t, err)
 	relinked, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   regenerated.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  regenerated.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 
@@ -115,9 +113,8 @@ func TestFreshmanApplicationReassignsSubmittedMaterialToCurrentSession(t *testin
 	userID := seedAdmissionUser(t, fixture, "freshman-reassign-submitted")
 	created := createLinkableSession(t, svc)
 	linked, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 
@@ -146,9 +143,8 @@ func TestFreshmanApplicationReassignsSubmittedMaterialToCurrentSession(t *testin
 	})
 	require.NoError(t, err)
 	relinked, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   regenerated.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  regenerated.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 	assertAdmissionSessionStatus(t, fixture, relinked.ID, StatusLinked)
@@ -590,13 +586,12 @@ func TestAdmissionMVPFreshmanMaterialFlowReleasesVerifiedMember(t *testing.T) {
 		QQID:      "10001",
 	})
 	require.NoError(t, err)
-	assert.Equal(t, "https://join.stuhelper.com/verify/test-admission-token?qq=10001", created.AuthURL)
+	assert.Equal(t, "https://join.stuhelper.com/verify/test-admission-token", created.AuthURL)
 
 	userID := seedAdmissionUser(t, fixture, "mvp-freshman")
 	_, err = svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 	app, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
@@ -652,9 +647,8 @@ func seedLinkedAdmissionUser(t *testing.T, fixture *postgresfixture.Fixture, svc
 	userID := seedAdmissionUser(t, fixture, suffix)
 	created := createLinkableSession(t, svc)
 	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:   created.Token,
-		QQQuery: "10001",
-		UserID:  userID,
+		Token:  created.Token,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 	return userID

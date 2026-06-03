@@ -631,10 +631,7 @@ const checks = [
   },
   {
     name: 'web-admission-login',
-    url: joinURL(
-      admissionBaseURL,
-      `/verify/${encodeURIComponent(admissionToken)}?qq=${encodeURIComponent(admissionQQ)}`,
-    ),
+    url: joinURL(admissionBaseURL, `/verify/${encodeURIComponent(admissionToken)}`),
     expectedTexts: ['登录 StuHelper'],
     requiredTexts: ['入群身份认证', `QQ：${admissionQQ}`],
     expectedResponseHeaders: [
@@ -674,10 +671,7 @@ const checks = [
   },
   {
     name: 'admission-sse-ingress',
-    url: joinURL(
-      admissionBaseURL,
-      `/verify/${encodeURIComponent(admissionToken)}?qq=${encodeURIComponent(admissionQQ)}`,
-    ),
+    url: joinURL(admissionBaseURL, `/verify/${encodeURIComponent(admissionToken)}`),
     flow: 'admission-sse-ingress',
     expectedTexts: ['登录 StuHelper'],
     requiredTexts: ['入群身份认证', `QQ：${admissionQQ}`],

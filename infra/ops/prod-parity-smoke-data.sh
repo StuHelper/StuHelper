@@ -385,7 +385,8 @@ SET xm = EXCLUDED.xm,
     synced_at = now();
 
 INSERT INTO public.group_admission_policies (
-    id, platform, guild_id, school_id, auto_approve_join, management_guild_ids,
+    id, platform, guild_id, school_id, auto_approve_join,
+    auto_approve_verified_join, auto_approve_unverified_join, management_guild_ids,
     freshman_channel_closes_at, freshman_default_expires_at
 )
 VALUES (
@@ -394,6 +395,8 @@ VALUES (
     'prod-parity-guild',
     4111010006,
     true,
+    true,
+    true,
     ARRAY['prod-parity-management']::text[],
     now() + interval '30 days',
     now() + interval '180 days'
@@ -401,6 +404,8 @@ VALUES (
 ON CONFLICT (platform, guild_id) DO UPDATE
 SET school_id = EXCLUDED.school_id,
     auto_approve_join = EXCLUDED.auto_approve_join,
+    auto_approve_verified_join = EXCLUDED.auto_approve_verified_join,
+    auto_approve_unverified_join = EXCLUDED.auto_approve_unverified_join,
     management_guild_ids = EXCLUDED.management_guild_ids,
     freshman_channel_enabled = true,
     freshman_channel_closes_at = EXCLUDED.freshman_channel_closes_at,
@@ -422,7 +427,7 @@ VALUES (
     :'admission_qq',
     NULL,
     :'admission_token_hash',
-    format('%s/verify/%s?qq=%s', :'admission_public_base_url', :'admission_token', :'admission_qq'),
+    format('%s/verify/%s', :'admission_public_base_url', :'admission_token'),
     now() + interval '1 hour',
     NULL,
     'joined_muted',
@@ -606,7 +611,8 @@ SELECT jsonb_build_object(
         AND platform = 'qq'
         AND guild_id = 'prod-parity-guild'
         AND school_id = 4111010006
-        AND auto_approve_join
+        AND auto_approve_verified_join
+        AND auto_approve_unverified_join
         AND 'prod-parity-management' = ANY(management_guild_ids)
         AND freshman_channel_enabled
         AND freshman_channel_closes_at > now()

@@ -35,9 +35,8 @@ type pendingActionContexts struct {
 func (s *Service) pendingActionContexts(
 	ctx context.Context,
 	sessions []AdmissionSession,
-	seeds []pendingActionSeed,
 ) (pendingActionContexts, error) {
-	keys := pendingActionLookupKeys(sessions, seeds)
+	keys := pendingActionLookupKeys(sessions)
 	policies, err := s.repo.ListPoliciesByGuildKeys(ctx, keys.guilds)
 	if err != nil {
 		return pendingActionContexts{}, err
@@ -74,13 +73,10 @@ func (c pendingActionContexts) failureFor(session *AdmissionSession) *AdmissionF
 	return nil
 }
 
-func pendingActionLookupKeys(sessions []AdmissionSession, seeds []pendingActionSeed) pendingActionLookupKeySet {
+func pendingActionLookupKeys(sessions []AdmissionSession) pendingActionLookupKeySet {
 	guilds := map[admissionGuildKey]struct{}{}
 	failures := map[admissionFailureKey]struct{}{}
 	for i := range sessions {
-		if seeds[i].action != BotActionKick {
-			continue
-		}
 		guilds[admissionGuildKey{Platform: sessions[i].Platform, GuildID: sessions[i].GuildID}] = struct{}{}
 		failures[admissionFailureKey{
 			Platform: sessions[i].Platform,

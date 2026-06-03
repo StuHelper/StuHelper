@@ -294,9 +294,9 @@ required_checks = {
     "identity-route-redirects-to-login",
     "header-login-click-starts-sso",
     "login-signup-click-starts-sso-signup",
+    "join-root-route-returns-404",
+    "join-main-web-route-returns-404",
     "join-verify-route-renders-spa",
-    "join-login-click-starts-sso",
-    "join-signup-click-starts-sso-signup",
     "join-mobile-camera-route-allows-camera",
 }
 

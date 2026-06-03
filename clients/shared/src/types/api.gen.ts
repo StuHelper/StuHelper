@@ -2825,6 +2825,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bot/admission/join-requests/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 机器人获取入群申请处理策略 */
+        post: operations["resolveBotAdmissionJoinRequestDecision"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/bot/member-blacklist/access": {
         parameters: {
             query?: never;
@@ -4329,6 +4346,9 @@ export interface components {
             cancelledAt?: string | null;
             lastBotError?: string | null;
             projectionPending: boolean;
+            failureCount?: number;
+            remainingRetryCount?: number;
+            willBlacklistOnTimeout?: boolean;
             /** Format: uri */
             authURL?: string;
             /** Format: int64 */
@@ -4347,7 +4367,12 @@ export interface components {
             id: string;
             platform: string;
             guildID: string;
+            /** @deprecated */
             autoApproveJoin: boolean;
+            /** @default true */
+            autoApproveVerifiedJoin: boolean;
+            /** @default true */
+            autoApproveUnverifiedJoin: boolean;
             initialMuteDurationSeconds: number;
             linkWaitSeconds: number;
             submissionWaitSeconds: number;
@@ -4414,6 +4439,8 @@ export interface components {
             guildID: string;
             qqID: string;
             requestID: string;
+            /** @enum {string} */
+            decision?: "approve" | "reject";
             success: boolean;
             error?: string;
             rawEvent?: {
@@ -5188,6 +5215,26 @@ export interface components {
             platform: string;
             guildID: string;
             qqID: string;
+        };
+        BotAdmissionJoinRequestDecisionRequest: {
+            platform: string;
+            guildID: string;
+            qqID: string;
+            requestID: string;
+            rawEvent?: {
+                [key: string]: unknown;
+            };
+        };
+        BotAdmissionJoinRequestDecision: {
+            /** @enum {string} */
+            decision: "approve" | "reject";
+            reason?: string;
+            /** @enum {string} */
+            verificationState: "verified" | "unverified";
+            autoApproveVerifiedJoin: boolean;
+            autoApproveUnverifiedJoin: boolean;
+            policyID?: string;
+            userID?: string;
         };
         BotFreshmanCommandContext: {
             operatorQQID: string;
@@ -9921,9 +9968,7 @@ export interface operations {
     };
     previewAdmissionSession: {
         parameters: {
-            query?: {
-                qq?: string;
-            };
+            query?: never;
             header?: never;
             path: {
                 token: string;
@@ -9950,9 +9995,7 @@ export interface operations {
     };
     linkAdmissionSession: {
         parameters: {
-            query?: {
-                qq?: string;
-            };
+            query?: never;
             header?: never;
             path: {
                 token: string;
@@ -10581,6 +10624,35 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
         };
     };
+    resolveBotAdmissionJoinRequestDecision: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BotAdmissionJoinRequestDecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description 入群申请处理策略 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["BotAdmissionJoinRequestDecision"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
     getBotMemberBlacklistAccess: {
         parameters: {
             query: {
@@ -10773,6 +10845,9 @@ export interface operations {
                             /** Format: date-time */
                             deadlineAt?: string;
                             reason?: string;
+                            failureCount?: number;
+                            remainingRetryCount?: number;
+                            willBlacklistOnTimeout?: boolean;
                         }[];
                     };
                 };

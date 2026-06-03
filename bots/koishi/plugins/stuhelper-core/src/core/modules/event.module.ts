@@ -31,7 +31,10 @@ export class EventModule implements RuntimeModuleInstance {
   constructor(
     readonly ctx: Context,
     readonly data: DataManager,
-    readonly admissionPlatform?: Pick<PlatformClient, 'getMemberBlacklistAccess' | 'recordJoinRequestEvent'>,
+    readonly admissionPlatform?: Pick<
+      PlatformClient,
+      'getMemberBlacklistAccess' | 'resolveJoinRequestDecision' | 'recordJoinRequestEvent'
+    >,
   ) {}
 
   get config(): Config {

@@ -171,6 +171,7 @@ assert_contains "${PARITY_LOCAL_INGRESS}" 'server_name sso\.stuhelper\.com'
 assert_contains "${PARITY_LOCAL_INGRESS}" 'server_name join\.stuhelper\.com'
 assert_contains "${PARITY_LOCAL_INGRESS}" 'location = /verify'
 assert_contains "${PARITY_LOCAL_INGRESS}" 'location \^~ /verify/'
+assert_contains "${PARITY_LOCAL_INGRESS}" 'location \^~ /admission/freshman/camera/'
 assert_contains "${PARITY_LOCAL_INGRESS}" 'location \^~ /api/v1/admission/freshman/camera-handoffs/'
 assert_contains "${PARITY_LOCAL_INGRESS}" 'X-Accel-Buffering no always'
 assert_not_contains "${PARITY_LOCAL_INGRESS}" 'return 302 \$scheme://id\.stuhelper\.com\$request_uri'
@@ -183,6 +184,7 @@ assert_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'server_name join\.stuhelper\.co
 assert_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'server_name sso\.stuhelper\.com'
 assert_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'location = /verify'
 assert_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'location \^~ /verify/'
+assert_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'location \^~ /admission/freshman/camera/'
 assert_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'location \^~ /api/v1/admission/freshman/camera-handoffs/'
 assert_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'X-Accel-Buffering no always'
 assert_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'return 404'
@@ -204,6 +206,23 @@ assert_not_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'location = /site\.webmanife
 assert_not_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'return 302 /identity'
 assert_not_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'return 302 \$scheme://stuhelper\.com\$request_uri'
 assert_not_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'return 302 http://stuhelper\.com/developers/apps'
+python3 - "${PARITY_LOCAL_INGRESS}" "${PARITY_LOCAL_INGRESS_NGINX}" <<'PY' || fail "prod-parity join root must return 404 instead of proxying to Web"
+from pathlib import Path
+import re
+import sys
+
+for filename in sys.argv[1:]:
+    text = Path(filename).read_text(encoding="utf-8")
+    server = re.search(r"server \{\n(?:(?!\nserver \{).)*server_name join\.stuhelper\.com;(?:(?!\nserver \{).)*\n\}", text, re.S)
+    if not server:
+        raise SystemExit(f"{filename}: missing join server")
+    root = re.search(r"location / \{\n(?:(?!\n    \}).)*\n    \}", server.group(0), re.S)
+    if not root:
+        raise SystemExit(f"{filename}: missing join root location")
+    block = root.group(0)
+    if "return 404;" not in block or "proxy_pass" in block:
+        raise SystemExit(f"{filename}: invalid join root location: {block}")
+PY
 assert_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'location = /_app\.config\.js'
 assert_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'location \^~ /jse/'
 assert_contains "${REPO_ROOT}/docker-compose.prod.yml" 'stuhelper\.com:host-gateway'
@@ -243,7 +262,7 @@ assert_contains "${SSO_PUBLIC_SMOKE}" 'SSO JWKS'
 assert_contains "${SSO_PUBLIC_SMOKE}" 'SSO authorize route reachable'
 assert_contains "${ADMISSION_PUBLIC_SMOKE}" 'ADMISSION_PUBLIC_SMOKE_CURL_INSECURE'
 assert_contains "${ADMISSION_PUBLIC_SMOKE}" 'https://join\.stuhelper\.com'
-assert_contains "${ADMISSION_PUBLIC_SMOKE}" '/verify/\$\{probe_token\}\?qq=\$\{probe_qq\}'
+assert_contains "${ADMISSION_PUBLIC_SMOKE}" '/verify/\$\{probe_token\}'
 assert_contains "${ADMISSION_PUBLIC_SMOKE}" 'Web host verify token returns 404'
 assert_contains "${PARITY_UP}" 'EMAIL_DRIVER'
 assert_contains "${PARITY_UP}" 'blackhole'

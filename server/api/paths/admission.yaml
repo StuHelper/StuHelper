@@ -10,10 +10,6 @@
         required: true
         schema:
           type: string
-      - name: qq
-        in: query
-        schema:
-          type: string
     responses:
       '200':
         description: 入群认证会话
@@ -43,10 +39,6 @@
       - name: token
         in: path
         required: true
-        schema:
-          type: string
-      - name: qq
-        in: query
         schema:
           type: string
     responses:

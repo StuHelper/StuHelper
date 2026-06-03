@@ -91,7 +91,7 @@ const baseSession: AdmissionSession = {
   cancelledAt: null,
   lastBotError: 'unmute failed',
   projectionPending: false,
-  authURL: 'https://join.stuhelper.com/verify/token?qq=1390191645',
+  authURL: 'https://join.stuhelper.com/verify/token',
 };
 
 describe('AdmissionSessionFilters', () => {

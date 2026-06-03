@@ -44,9 +44,9 @@ corepack yarn workspaces list
 
 ## Admission 策略边界
 
-`koishi.yml` 的本地 `guard` 字段保留为运行时启用范围、数据库群绑定模板兜底、旧群管命令默认值和扫描间隔配置；新生入群认证的准入与会话策略由后端 admission policy 决定。后端负责 `auto_approve_join`、初始禁言时长、link/submission/manual-review 等待时间、提醒间隔、失败次数拉黑、黑名单期限、新生通道关闭时间、原始材料转发开关和 `management_guild_ids`。
+`koishi.yml` 的本地 `guard` 字段保留为运行时启用范围、数据库群绑定模板兜底、旧群管命令默认值和扫描间隔配置；新生入群认证的准入与会话策略由后端 admission policy 决定。后端负责 `auto_approve_verified_join`、`auto_approve_unverified_join`、初始禁言时长、link/submission/manual-review 等待时间、提醒间隔、失败次数拉黑、黑名单期限、新生通道关闭时间、原始材料转发开关和 `management_guild_ids`。
 
-Koishi 在 admission 流程中只做执行器：入群后创建后端 session，发送后端返回的 `join.stuhelper.com/verify/<token>?qq=<qq>` 认证链接，按后端 pending actions 执行提醒、解禁、踢出、拉黑和材料转发，再把执行结果回写后端。`koishi.yml` 的插件加载保持不变，不新增短链域名配置。
+Koishi 在 admission 流程中只做执行器：入群后创建后端 session，发送后端返回的 `join.stuhelper.com/verify/<code>` 认证链接，按后端 pending actions 执行提醒、解禁、踢出、拉黑和材料转发，再把执行结果回写后端。`koishi.yml` 的插件加载保持不变，不新增短链域名配置。
 
 生产 NapCat 的 Koishi runtime platform 是 `onebot`，后端 admission 表中的 `platform` 是被验证账号的 subject platform。当前 admission MVP 验证的是 QQ 号，因此 `onebot` runtime 会显式映射为后端 `platform=qq`；未来若接入官方 QQ 机器人适配器，需要重新确认事件能力和 ID 语义，不能把 Koishi 适配器名直接写入 admission 业务记录。
 

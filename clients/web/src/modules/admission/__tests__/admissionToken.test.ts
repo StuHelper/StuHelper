@@ -13,10 +13,15 @@ import {
 const sameOrigin = 'https://join.stuhelper.com'
 
 describe('admission token return URL', () => {
-  it('keeps admission return URLs same-origin and preserves QQ query', () => {
+  it('keeps admission return URLs same-origin without query parameters', () => {
     expect(
-      buildAdmissionReturnURL('/verify/ABCD?qq=123', sameOrigin),
-    ).toBe('https://join.stuhelper.com/verify/ABCD?qq=123')
+      buildAdmissionReturnURL('/verify/ABCD', sameOrigin),
+    ).toBe('https://join.stuhelper.com/verify/ABCD')
+  })
+
+  it('rejects admission return URLs with query parameters', () => {
+    expect(() => buildAdmissionReturnURL('/verify/ABCD?qq=123', sameOrigin))
+      .toThrow('Admission return URL must not include query parameters')
   })
 
   it('rejects protocol-relative off-origin URLs', () => {

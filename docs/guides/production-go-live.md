@@ -13,7 +13,7 @@ last-verified: 2026-05-30
 ## 当前入口约定
 
 - `stuhelper.com`：主站、后台、API、账号中心、学生认证、QQ 绑定、授权应用和开发者应用。
-- `join.stuhelper.com`：加群验证业务域，唯一公开验证链接是 `https://join.stuhelper.com/verify/<token>?qq=<qq>`。
+- `join.stuhelper.com`：加群验证业务域，唯一公开验证链接是 `https://join.stuhelper.com/verify/<code>`。
 - `sso.stuhelper.com`：Casdoor，唯一公开登录认证系统和 OIDC issuer。
 
 主站生产 Compose 只把业务服务绑定到回环地址，公网 `80/443` 只由宝塔 Nginx 监听。
@@ -103,8 +103,10 @@ stuhelper.com /*          -> http://127.0.0.1:18000
 Join 入口：
 
 ```text
-join.stuhelper.com /verify/<token>?qq=<qq> -> http://127.0.0.1:18000
+join.stuhelper.com /verify/<code> -> http://127.0.0.1:18000
+join.stuhelper.com /admission/freshman/camera/* -> http://127.0.0.1:18000
 join.stuhelper.com /verify                 -> 404
+join.stuhelper.com / 和主站业务页面路径   -> 404
 join.stuhelper.com /api/*                  -> http://127.0.0.1:18080
 join.stuhelper.com /health/*               -> http://127.0.0.1:18080
 ```
@@ -150,7 +152,7 @@ sudo ./infra/ops/apply-baota-nginx-templates.sh --profile sso --apply --reload -
 ./infra/ops/admission-production-readiness.sh
 ```
 
-验收条件：学校目录中存在 `code=4111010006` 的北京航空航天大学；管理后台学校配置页以 `schools` 目录为基表展示所有已录入学校，缺少 `school_configs` 的学校按默认停用配置展示，只有 `school_configs.enabled=true` 才进入学生认证和 admission 白名单。当前 admission 白名单只开放北航，对外、前端表单和运维检查使用学校代码 `4111010006`，不得再把旧五位学校 ID 作为业务事实或配置入口。公开学生认证、admission 邮箱 OTP、新生材料申请和学校 SSO 路径都应以 `schoolCode` 为主识别字段。`manual_form_fields.admission.emailDomains` 只有 `buaa.edu.cn`，且 `emailIdentityPolicy.type=academic_student_email`。`group_admission_policies` 至少包含 `platform=qq, guild_id=178037297, forward_raw_material_to_qq=false`，除非对象存储公开材料下载链路已完成并单独验收。手机拍照接力桌面端优先使用 `/api/v1/admission/freshman/camera-handoffs/{id}/events` SSE 获取实时状态，失败时才回退短轮询；上传后 continuation 必须锁定另一端，防止重复提交。`bot_service_credentials` 中存在 `koishi-runtime`，未吊销、未过期，audience 包含 `/api/v1/bot/*`，scopes 覆盖 QQ 绑定、admission session/event/review/forward 和 member blacklist。
+验收条件：学校目录中存在 `code=4111010006` 的北京航空航天大学；管理后台学校配置页以 `schools` 目录为基表展示所有已录入学校，缺少 `school_configs` 的学校按默认停用配置展示，只有 `school_configs.enabled=true` 才进入学生认证和 admission 白名单。当前 admission 白名单只开放北航，对外、前端表单和运维检查使用学校代码 `4111010006`，不得再把旧五位学校 ID 作为业务事实或配置入口。公开学生认证、admission 邮箱 OTP、新生材料申请和学校 SSO 路径都应以 `schoolCode` 为主识别字段。`manual_form_fields.admission.emailDomains` 只有 `buaa.edu.cn`，且 `emailIdentityPolicy.type=academic_student_email`。`group_admission_policies` 至少包含 `platform=qq, guild_id=178037297, auto_approve_verified_join=true, auto_approve_unverified_join=true, forward_raw_material_to_qq=false`，除非对象存储公开材料下载链路已完成并单独验收。手机拍照接力桌面端优先使用 `/api/v1/admission/freshman/camera-handoffs/{id}/events` SSE 获取实时状态，失败时才回退短轮询；上传后 continuation 必须锁定另一端，防止重复提交。`bot_service_credentials` 中存在 `koishi-runtime`，未吊销、未过期，audience 包含 `/api/v1/bot/*`，scopes 覆盖 QQ 绑定、admission session/event/review/forward 和 member blacklist。
 
 北航老生学号邮箱 OTP 的生产推荐来源是外部只读 Oracle 学籍源。生产 secret env 中启用 `EXTERNAL_STUDENT_SOURCE_ENABLED=true`，并配置 `EXTERNAL_STUDENT_SOURCE_PROVIDER=oracle`、`EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE=4111010006`、Oracle host/service/user/password/schema/table/column 等变量；真实密码只写 secret env 或 secret backend，不写入仓库。该源只读取 `USR_JWBIZ.T_XS_JBXX` 的 `XH` 和 `XM`，按学号查询并用于“学号 + 姓名”即时匹配。主站不得使用 SYSTEM/SYS 连接学籍源；在 Oracle 源端用 `EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_PASSWORD=<secret> ./infra/ops/provision-external-student-source-oracle-readonly.sh` 创建或轮换只读用户，只授予 `CREATE SESSION` 和目标表 `SELECT`。`./infra/ops/admission-student-source-go-live.sh` 是学籍源上线首选入口：外部源模式会先运行 `external-student-source-smoke.sh`，本地 TSV 模式会先校验再导入 `BUAA_ACADEMIC_STUDENTS_TSV`，最后统一运行 `admission-production-readiness.sh`。`./infra/ops/admission-production-readiness.sh` 会检查外部源配置完整性，并在 summary 中标记 `buaa_student_source=external_oracle`。真实连通验收还必须运行 `./infra/ops/external-student-source-smoke.sh`，留档 `infra/generated/external-student-source-smoke.json`；该 smoke 通过后表示 Oracle 可连接、配置表可读取且存在至少一条 `XH/XM` 非空记录。需要抽样校验时，在 secret env 中设置 `EXTERNAL_STUDENT_SOURCE_SMOKE_REQUIRE_SAMPLE=true`、`EXTERNAL_STUDENT_SOURCE_SMOKE_STUDENT_ID` 和可选 `EXTERNAL_STUDENT_SOURCE_SMOKE_EXPECTED_NAME`，evidence 只记录学号哈希前缀和匹配布尔值，不记录原始学号、姓名或密码。
 
@@ -236,9 +238,11 @@ curl -fsS https://stuhelper.com/health/live
 curl -fsS https://stuhelper.com/health/ready
 curl -fsSI https://stuhelper.com/admin/
 curl -fsS https://sso.stuhelper.com/.well-known/openid-configuration | head
-curl -fsSI 'https://join.stuhelper.com/verify/__manual_probe__?qq=10000'
+curl -fsSI 'https://join.stuhelper.com/verify/__manual_probe__'
+curl -fsSI https://join.stuhelper.com/                         # 应 404
+curl -fsSI https://join.stuhelper.com/developers/apps           # 应 404
 curl -fsSI https://join.stuhelper.com/verify                  # 应 404
-curl -fsSI 'https://stuhelper.com/verify/__manual_probe__?qq=10000' # 应 404
+curl -fsSI 'https://stuhelper.com/verify/__manual_probe__' # 应 404
 ```
 
 `sso.stuhelper.com` 的 OIDC discovery `issuer`、authorize、token 和 JWKS endpoint 必须全部是 `https://sso.stuhelper.com`。如果独立 Casdoor 宝塔 Compose 的 `conf/app.conf` 已经写入 `origin = https://sso.stuhelper.com`，但 discovery 仍返回 `http://sso.stuhelper.com`，不要只修改文件后结束；重启该 Compose 项目的 `casdoor` 容器，再运行 `./infra/ops/sso-public-smoke.sh` 留档。
@@ -267,13 +271,13 @@ RESEND_EMAIL_SMOKE_TO=<recipient-email> ./infra/ops/resend-email-channel-smoke.s
 
 `sso-public-smoke.sh` 不只检查 discovery/JWKS/authorize 路由，也会读取公开 Casdoor application 元数据并断言 `admin/stuhelper-web` 仍为 `organization=stuhelper`、`enableSignUp=true`、`Password` 登录方式为 `All`、`Face ID` 为 `None`，且注册项包含必填的 `Password` 与 `Confirm password`。如果这里失败，先运行仓库内 `bootstrap-platform.sh prod` 修复 Casdoor 配置漂移，不要在 Casdoor 控制台手工改完就结束。
 
-`admission-public-smoke.sh` 不只检查 `join.stuhelper.com/verify/<token>?qq=<qq>` 和旧入口 404，还会从 join 域向 `/api/v1/metrics/vitals`、`/api/v1/metrics/frontend-errors` 发送同源 beacon，要求返回 204，避免真实页面加载时 F12 出现红色 metrics 请求却被上线 smoke 漏掉。脚本还会无登录探测 `/api/v1/admission/freshman/camera-handoffs/<probe>/events`，要求走到后端返回 401 且 `X-Accel-Buffering: no`，防止手机拍照接力 SSE 被 Nginx 误转给 SPA 或被缓冲。
+`admission-public-smoke.sh` 不只检查 `join.stuhelper.com/verify/<code>` 和旧入口 404，还会确认 `join.stuhelper.com/` 与 `join.stuhelper.com/developers/apps` 返回 404，避免 join 域串到主站首页或开发者入口。脚本会从 join 域向 `/api/v1/metrics/vitals`、`/api/v1/metrics/frontend-errors` 发送同源 beacon，要求返回 204，避免真实页面加载时 F12 出现红色 metrics 请求却被上线 smoke 漏掉。脚本还会无登录探测 `/api/v1/admission/freshman/camera-handoffs/<probe>/events`，要求走到后端返回 401 且 `X-Accel-Buffering: no`，防止手机拍照接力 SSE 被 Nginx 误转给 SPA 或被缓冲。
 
-`public-web-auth-browser-smoke.mjs` 会用真实浏览器确认主站登录按钮进入 `sso.stuhelper.com/login/oauth/authorize` 后仍有账号密码登录和 `/signup/oauth/authorize` 注册入口，确认主站“注册账号”进入 `sso.stuhelper.com/signup/oauth/authorize` 的账号密码注册表单，并确认 `join.stuhelper.com/login?redirect=/verify/<token>?qq=<qq>` 的登录/注册按钮也分别进入 SSO 登录和注册授权页。这样 Casdoor 配置漂移成“只剩 Face ID”、注册按钮走错授权路径，或 join 入群链路的登录入口漂移时，公网浏览器 smoke 会直接失败。生产模式还会拒绝 `stuhelper.com`、`join.stuhelper.com` 或 `sso.stuhelper.com` 解析到 loopback；如果运维机 `/etc/hosts` 或浏览器代理把生产域名指向本地开发环境，先修正解析再生成 evidence。
+`public-web-auth-browser-smoke.mjs` 会用真实浏览器确认主站登录按钮进入 `sso.stuhelper.com/login/oauth/authorize` 后仍有账号密码登录和 `/signup/oauth/authorize` 注册入口，确认主站“注册账号”进入 `sso.stuhelper.com/signup/oauth/authorize` 的账号密码注册表单，并确认 `join.stuhelper.com/` 与 `join.stuhelper.com/developers/apps` 不渲染主站内容、`join.stuhelper.com/verify/<code>` 可加载、手机拍照页允许 camera。这样 Casdoor 配置漂移成“只剩 Face ID”、注册按钮走错授权路径、join 域串站或 camera permission 漂移时，公网浏览器 smoke 会直接失败。生产模式还会拒绝 `stuhelper.com`、`join.stuhelper.com` 或 `sso.stuhelper.com` 解析到 loopback；如果运维机 `/etc/hosts` 或浏览器代理把生产域名指向本地开发环境，先修正解析再生成 evidence。
 
 `admission-mvp-production-evidence.sh` 是生产 admission MVP 的聚合证据入口。主站节点默认执行 SSO public smoke、admission public smoke、Web auth browser smoke 和 admission DB readiness，并写入 `infra/generated/admission-mvp-production-evidence.json`。如果 `EXTERNAL_STUDENT_SOURCE_ENABLED=true`，聚合入口会在 `ADMISSION_MVP_PRODUCTION_RUN_EXTERNAL_STUDENT_SOURCE_SMOKE=auto` 默认模式下强制运行 `external-student-source-smoke.sh`，确保外部学籍源不只“配置完整”，而是真的可连接、可读取；未启用外部源时，本地 fallback 表仍由 readiness 检查非空。Koishi 节点用 `ADMISSION_MVP_PRODUCTION_EVIDENCE_MODE=koishi` 执行同一入口时，会运行 `koishi-admission-production-evidence.sh`。普通聚合 evidence 允许真实 QQ E2E 被记录为 skipped，只能作为生产 smoke；最终上线验收必须在主站节点使用 `make prod-admission-mvp-final-evidence`，并在 Koishi 节点使用 `make prod-admission-mvp-final-koishi-evidence`。主站 final evidence 等价于显式设置 `ADMISSION_MVP_PRODUCTION_E2E_REQUIRED=true`、`ADMISSION_MVP_PRODUCTION_E2E_WAIT=true`、`ADMISSION_E2E_QQ_ID=<small-account-qq>`、`ADMISSION_MVP_PRODUCTION_E2E_EXPECTED_STAGE=bot-released` 和 `ADMISSION_MVP_PRODUCTION_E2E_MAX_SESSION_AGE_MINUTES=180`，让聚合 evidence 把最新真实 QQ 解除禁言回写也纳入验收。
 
-如果主站生产机没有 Node/Playwright，不要跳过公网浏览器 smoke。应先在有 Playwright 的运维机或 CI 上运行 `PUBLIC_WEB_AUTH_BROWSER_SMOKE_EVIDENCE_FILE=infra/generated/public-web-auth-browser-smoke-evidence-current.json ./infra/ops/public-web-auth-browser-smoke.mjs`，把生成的脱敏 evidence 复制到主站源码目录的同一路径；聚合入口会默认读取该文件。需要使用其他文件名时，再显式设置 `ADMISSION_MVP_PRODUCTION_BROWSER_SMOKE_EVIDENCE_FILE=infra/generated/<evidence>.json`。聚合入口会校验该 evidence 新鲜、目标域名正确、浏览器检查全部通过，并确认 `/identity` 直接入口、join 登录/注册入口、camera permission 与 fake media capture 成功。预采集 evidence 的机器不能通过 hosts 把生产域名解析到 `127.0.0.1`；这种情况应失败，而不是把本地 SPA/API 当成生产结果。
+如果主站生产机没有 Node/Playwright，不要跳过公网浏览器 smoke。应先在有 Playwright 的运维机或 CI 上运行 `PUBLIC_WEB_AUTH_BROWSER_SMOKE_EVIDENCE_FILE=infra/generated/public-web-auth-browser-smoke-evidence-current.json ./infra/ops/public-web-auth-browser-smoke.mjs`，把生成的脱敏 evidence 复制到主站源码目录的同一路径；聚合入口会默认读取该文件。需要使用其他文件名时，再显式设置 `ADMISSION_MVP_PRODUCTION_BROWSER_SMOKE_EVIDENCE_FILE=infra/generated/<evidence>.json`。聚合入口会校验该 evidence 新鲜、目标域名正确、浏览器检查全部通过，并确认 `/identity` 直接入口、join 防串站 404、camera permission 与 fake media capture 成功。预采集 evidence 的机器不能通过 hosts 把生产域名解析到 `127.0.0.1`；这种情况应失败，而不是把本地 SPA/API 当成生产结果。
 
 `admission-mvp-final-evidence-verify.sh` 只校验已采集的脱敏 evidence 文件，不访问生产，也不输出 secret。最终验收时，主站节点生成 `infra/generated/admission-mvp-final-evidence.json` 和 `infra/generated/admission-join-e2e-evidence.json`，Koishi 节点生成 `infra/generated/admission-mvp-final-koishi-evidence.json`；把三份文件放在同一份仓库工作目录后运行 `make prod-admission-mvp-final-verify`。该校验要求三份 evidence 都在默认 180 分钟新鲜度窗口内，主站和 Koishi 聚合 evidence 没有 failed/skipped，主站 evidence 必须包含真实 QQ `bot-released`，Koishi evidence 必须包含 Koishi admission production evidence 且不能夹带真实 QQ E2E placeholder，join E2E 子证据必须显示 token 已消费、QQ 已绑定、存在 active student verification credential、后端记录 bot release 和 cancelled marker，并包含通过的 `release requires active student verification credential` 检查。
 
@@ -339,7 +343,7 @@ KOISHI_ADMISSION_BOT_SELF_ID=<botSelfID> \
 
 - 本地仓库包含所有代码修复、配置模板、幂等脚本和 runbook；不存在只在生产手工修改的最终状态。
 - `sso.stuhelper.com` 是唯一公开登录认证系统和 OIDC issuer。
-- `join.stuhelper.com/verify/<token>?qq=<qq>` 是唯一公开加群验证入口；`join.stuhelper.com/verify` 和主站 `/verify*` 返回 404。
+- `join.stuhelper.com/verify/<code>` 是唯一公开加群验证入口；`join.stuhelper.com/verify`、`join.stuhelper.com/`、join 域主站业务页面路径和主站 `/verify*` 返回 404。
 - 主站 `/health/live`、`/health/ready` 通过。
 - Admission public smoke、Web auth browser smoke、DB readiness 通过。
 - Koishi admission 插件在 OneBot/NapCat runtime 下使用 `qq` subject platform 调后端 admission API。

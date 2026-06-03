@@ -67,7 +67,7 @@ test('未认证成员入群后会被禁言并收到提醒，认证完成后自�
     assert.equal(muteActions[0].groupId, 'group-1')
     assert.equal(muteActions[0].memberId, '10001')
     assert.ok(muteActions[0].duration > 29 * 24 * 60 * 60 * 1000)
-    assert.match(sentMessages[0], /https:\/\/join\.stuhelper\.com\/verify\/token-10001\?qq=10001/)
+    assert.match(sentMessages[0], /https:\/\/join\.stuhelper\.com\/verify\/token-10001/)
 
     const records = await root.database.get(GUARD_MEMBER_TABLE, {})
     assert.equal(records.length, 1)
@@ -141,7 +141,7 @@ test('重复入群事件只创建一个认证链接', async () => {
     assert.equal(admissionSessionRequests, 1)
     assert.equal(muteActions.length, 1)
     assert.equal(sentMessages.length, 1)
-    assert.match(sentMessages[0], /https:\/\/join\.stuhelper\.com\/verify\/token-10004\?qq=10004/)
+    assert.match(sentMessages[0], /https:\/\/join\.stuhelper\.com\/verify\/token-10004/)
 
     const records = await root.database.get(GUARD_MEMBER_TABLE, {})
     assert.equal(records.length, 1)

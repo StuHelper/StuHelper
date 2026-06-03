@@ -30,7 +30,6 @@ const ssoBaseURL = normalizeBaseURL(
     'https://sso.stuhelper.com',
 );
 const probeToken = process.env.PUBLIC_WEB_AUTH_BROWSER_SMOKE_PROBE_TOKEN || '__stuhelper_browser_smoke__';
-const probeQQ = process.env.PUBLIC_WEB_AUTH_BROWSER_SMOKE_PROBE_QQ || '10000';
 const evidenceFile =
   process.env.PUBLIC_WEB_AUTH_BROWSER_SMOKE_EVIDENCE_FILE ||
   resolve(repoRoot, 'infra/generated/public-web-auth-browser-smoke-evidence.json');
@@ -68,9 +67,9 @@ try {
   await checkIdentityRoute(browser);
   await checkHeaderLoginEntry(browser);
   await checkLoginSignupEntry(browser);
+  await checkJoinRootDenied(browser);
+  await checkJoinMainRouteDenied(browser);
   await checkJoinVerifyRoute(browser);
-  await checkJoinLoginEntry(browser);
-  await checkJoinSignupEntry(browser);
   await checkJoinMobileCameraRoute(browser);
 } finally {
   await browser.close();
@@ -85,7 +84,6 @@ const evidence = {
     joinBaseURL,
     ssoBaseURL,
     probeToken,
-    probeQQ,
     resolvedTargets,
   },
   summary: {
@@ -223,10 +221,8 @@ async function checkLoginSignupEntry(browserInstance) {
 async function checkJoinVerifyRoute(browserInstance) {
   await runCheck(browserInstance, {
     name: 'join-verify-route-renders-spa',
-    url: joinURL(joinBaseURL, `/verify/${encodeURIComponent(probeToken)}?qq=${encodeURIComponent(probeQQ)}`),
-    expectedURL: (url) =>
-      isURLAtBasePath(url, joinBaseURL, `/verify/${probeToken}`) &&
-      url.searchParams.get('qq') === probeQQ,
+    url: joinURL(joinBaseURL, `/verify/${encodeURIComponent(probeToken)}`),
+    expectedURL: (url) => isURLAtBasePath(url, joinBaseURL, `/verify/${probeToken}`) && url.search === '',
     expectedText: /StuHelper|加群|认证|验证|统一身份认证|登录|admission|verify/i,
     expectedResponseHeaders: [
       {
@@ -237,61 +233,21 @@ async function checkJoinVerifyRoute(browserInstance) {
   });
 }
 
-async function checkJoinLoginEntry(browserInstance) {
-  const admissionRedirect = `/verify/${encodeURIComponent(probeToken)}?qq=${encodeURIComponent(probeQQ)}`;
+async function checkJoinRootDenied(browserInstance) {
   await runCheck(browserInstance, {
-    name: 'join-login-click-starts-sso',
-    url: joinURL(joinBaseURL, `/login?redirect=${encodeURIComponent(admissionRedirect)}`),
-    expectedURL: (url) =>
-      isURLAtBasePath(url, joinBaseURL, '/login') &&
-      url.searchParams.get('redirect') === admissionRedirect,
-    expectedText: /StuHelper|统一登录|Sign-in|统一身份认证/,
-    action: async (page) => {
-      await expectVisibleText(page, /使用统一身份认证登录|Continue with unified sign-in/);
-      const loginButton = page
-        .getByRole('button', { name: /使用统一身份认证登录|Continue with unified sign-in/ })
-        .first();
-      await Promise.all([
-        page.waitForURL(
-          (url) =>
-            isURLAtBasePath(url, ssoBaseURL, '/login/oauth/authorize') &&
-            url.searchParams.get('client_id') === 'stuhelper-web' &&
-            url.searchParams.get('redirect_uri') === `${webBaseURL}/api/v1/auth/callback`,
-          { timeout: timeoutMs },
-        ),
-        loginButton.click(),
-      ]);
-      await expectSSOLoginAuthorizePageReady(page);
-    },
+    name: 'join-root-route-returns-404',
+    url: joinURL(joinBaseURL, '/'),
+    expectedStatus: 404,
+    expectedURL: (url) => isURLAtBasePath(url, joinBaseURL, '/'),
   });
 }
 
-async function checkJoinSignupEntry(browserInstance) {
-  const admissionRedirect = `/verify/${encodeURIComponent(probeToken)}?qq=${encodeURIComponent(probeQQ)}`;
+async function checkJoinMainRouteDenied(browserInstance) {
   await runCheck(browserInstance, {
-    name: 'join-signup-click-starts-sso-signup',
-    url: joinURL(joinBaseURL, `/login?redirect=${encodeURIComponent(admissionRedirect)}`),
-    expectedURL: (url) =>
-      isURLAtBasePath(url, joinBaseURL, '/login') &&
-      url.searchParams.get('redirect') === admissionRedirect,
-    expectedText: /StuHelper|统一登录|Sign-in|统一身份认证/,
-    action: async (page) => {
-      await expectVisibleText(page, /注册账号|Create account|Sign up/i);
-      const signupButton = page
-        .getByRole('button', { name: /注册账号|Create account|Sign up/i })
-        .first();
-      await Promise.all([
-        page.waitForURL(
-          (url) =>
-            isURLAtBasePath(url, ssoBaseURL, '/signup/oauth/authorize') &&
-            url.searchParams.get('client_id') === 'stuhelper-web' &&
-            url.searchParams.get('redirect_uri') === `${webBaseURL}/api/v1/auth/callback`,
-          { timeout: timeoutMs },
-        ),
-        signupButton.click(),
-      ]);
-      await expectSSOSignupAuthorizePageReady(page);
-    },
+    name: 'join-main-web-route-returns-404',
+    url: joinURL(joinBaseURL, '/developers/apps'),
+    expectedStatus: 404,
+    expectedURL: (url) => isURLAtBasePath(url, joinBaseURL, '/developers/apps'),
   });
 }
 

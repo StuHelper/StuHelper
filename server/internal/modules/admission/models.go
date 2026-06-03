@@ -18,6 +18,8 @@ const (
 	DefaultMaxExtensionDays                  = 90
 )
 
+const admissionRetryCountUnset = -1
+
 type AdmissionSessionStatus string
 
 const (
@@ -95,6 +97,9 @@ type AdmissionSession struct {
 	CancelledAt              *time.Time             `json:"cancelledAt,omitempty"`
 	LastBotError             *string                `json:"lastBotError,omitempty"`
 	ProjectionPending        bool                   `json:"projectionPending"`
+	FailureCount             int                    `json:"failureCount,omitempty"`
+	RemainingRetryCount      int                    `json:"remainingRetryCount,omitempty"`
+	WillBlacklistOnTimeout   bool                   `json:"willBlacklistOnTimeout,omitempty"`
 	nextReminderAt           *time.Time
 }
 
@@ -370,6 +375,8 @@ type AdmissionPolicy struct {
 	GuildID                    string    `json:"guildID"`
 	SchoolID                   int64     `json:"-"`
 	AutoApproveJoin            bool      `json:"autoApproveJoin"`
+	AutoApproveVerifiedJoin    bool      `json:"autoApproveVerifiedJoin"`
+	AutoApproveUnverifiedJoin  bool      `json:"autoApproveUnverifiedJoin"`
 	InitialMuteDurationSeconds int       `json:"initialMuteDurationSeconds"`
 	LinkWaitSeconds            int       `json:"linkWaitSeconds"`
 	SubmissionWaitSeconds      int       `json:"submissionWaitSeconds"`

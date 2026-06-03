@@ -3,16 +3,19 @@ package admission
 import "time"
 
 type AdmissionPendingAction struct {
-	SessionID  string    `json:"sessionID"`
-	Action     BotAction `json:"action"`
-	Platform   string    `json:"platform,omitempty"`
-	BotSelfID  string    `json:"botSelfID,omitempty"`
-	GuildID    string    `json:"guildID,omitempty"`
-	ChannelID  string    `json:"channelID,omitempty"`
-	QQID       string    `json:"qqID,omitempty"`
-	AuthURL    string    `json:"authURL,omitempty"`
-	DeadlineAt time.Time `json:"deadlineAt,omitempty"`
-	Reason     string    `json:"reason,omitempty"`
+	SessionID              string    `json:"sessionID"`
+	Action                 BotAction `json:"action"`
+	Platform               string    `json:"platform,omitempty"`
+	BotSelfID              string    `json:"botSelfID,omitempty"`
+	GuildID                string    `json:"guildID,omitempty"`
+	ChannelID              string    `json:"channelID,omitempty"`
+	QQID                   string    `json:"qqID,omitempty"`
+	AuthURL                string    `json:"authURL,omitempty"`
+	DeadlineAt             time.Time `json:"deadlineAt,omitempty"`
+	Reason                 string    `json:"reason,omitempty"`
+	FailureCount           int       `json:"failureCount,omitempty"`
+	RemainingRetryCount    int       `json:"remainingRetryCount,omitempty"`
+	WillBlacklistOnTimeout bool      `json:"willBlacklistOnTimeout,omitempty"`
 }
 
 type AdmissionTokenLinkInput struct {
@@ -26,9 +29,42 @@ type AdmissionJoinRequestEventInput struct {
 	GuildID   string
 	QQID      string
 	RequestID string
+	Decision  AdmissionJoinRequestDecisionAction
 	Success   bool
 	Error     string
 	RawEvent  map[string]any
+}
+
+type AdmissionJoinRequestDecisionAction string
+
+const (
+	AdmissionJoinRequestDecisionApprove AdmissionJoinRequestDecisionAction = "approve"
+	AdmissionJoinRequestDecisionReject  AdmissionJoinRequestDecisionAction = "reject"
+)
+
+type AdmissionJoinRequestVerificationState string
+
+const (
+	AdmissionJoinRequestVerified   AdmissionJoinRequestVerificationState = "verified"
+	AdmissionJoinRequestUnverified AdmissionJoinRequestVerificationState = "unverified"
+)
+
+type AdmissionJoinRequestDecisionInput struct {
+	Platform  string
+	GuildID   string
+	QQID      string
+	RequestID string
+	RawEvent  map[string]any
+}
+
+type AdmissionJoinRequestDecision struct {
+	Decision                  AdmissionJoinRequestDecisionAction    `json:"decision"`
+	Reason                    string                                `json:"reason,omitempty"`
+	VerificationState         AdmissionJoinRequestVerificationState `json:"verificationState"`
+	AutoApproveVerifiedJoin   bool                                  `json:"autoApproveVerifiedJoin"`
+	AutoApproveUnverifiedJoin bool                                  `json:"autoApproveUnverifiedJoin"`
+	PolicyID                  string                                `json:"policyID,omitempty"`
+	UserID                    *string                               `json:"userID,omitempty"`
 }
 
 type FreshmanForwardItem struct {

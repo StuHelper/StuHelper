@@ -90,8 +90,9 @@ try {
     if (!data.authURL?.startsWith(`${admissionBaseURL}/verify/`)) {
       throw new Error(`created authURL is not canonical: ${redactAdmissionURL(data.authURL)}`);
     }
-    if (!data.authURL.includes(`?qq=${encodeURIComponent(qqID)}`)) {
-      throw new Error('created authURL does not contain the expected qq query');
+    const createdURL = new URL(data.authURL);
+    if (createdURL.searchParams.has('qq')) {
+      throw new Error('created authURL must not contain a qq query');
     }
 	    return {
 	      sessionID: data.session.id,
@@ -112,7 +113,7 @@ try {
 
 	  await step('backend previews just-created admission token', async () => {
 	    const payload = await apiFetch(
-	      `/api/v1/admission/sessions/${encodeURIComponent(created.token)}?qq=${encodeURIComponent(qqID)}`,
+	      `/api/v1/admission/sessions/${encodeURIComponent(created.token)}`,
 	    );
 	    const data = requireData(payload, 'admission preview response');
 	    if (data.id !== created.sessionID) {
@@ -682,7 +683,7 @@ function redactAdmissionURL(value) {
     return {
       host: url.host,
       path: token,
-      pathAndQuery: `${token}?qq=${url.searchParams.get('qq') || ''}`,
+      pathAndQuery: url.search ? `${token}${url.search}` : token,
       hasQQQuery: url.searchParams.has('qq'),
     };
   } catch {

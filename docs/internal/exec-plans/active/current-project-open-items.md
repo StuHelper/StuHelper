@@ -14,7 +14,7 @@ last-verified: 2026-06-03
 
 - `sso.stuhelper.com` 是唯一公开登录认证系统和 OIDC issuer。
 - `stuhelper.com` 承载账号中心、学生认证、QQ 绑定、开放平台、授权应用、开发者应用和业务 API。
-- `join.stuhelper.com` 只承载加群验证业务闭环，公开验证链接固定为 `https://join.stuhelper.com/verify/<token>?qq=<qq>`。
+- `join.stuhelper.com` 只承载加群验证业务闭环，公开验证链接固定为 `https://join.stuhelper.com/verify/<code>`。
 - 仓库、Nginx 模板、smoke、runbook 和文档不再保留独立 StuHelper 身份域。
 - 学校对外识别使用教育部 10 位学校代码；北京航空航天大学为 `4111010006`。
 

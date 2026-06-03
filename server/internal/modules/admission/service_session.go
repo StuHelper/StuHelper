@@ -18,6 +18,7 @@ import (
 )
 
 const initialReminderGrace = time.Duration(DefaultInitialReminderGraceSeconds) * time.Second
+const maxAdmissionJoinTokenCreateAttempts = 5
 
 func (s *Service) CreateBotSession(ctx context.Context, input BotSessionCreateInput) (*CreatedAdmissionSession, error) {
 	input = normalizeBotSessionCreateInput(input)
@@ -31,25 +32,89 @@ func (s *Service) CreateBotSession(ctx context.Context, input BotSessionCreateIn
 	if err != nil {
 		return nil, err
 	}
-	token, err := s.generateToken()
-	if err != nil {
-		return nil, fmt.Errorf("CreateBotSession token: %w", err)
-	}
-	session, err := s.newAdmissionSession(input, policy, token)
+	verifiedUserID, err := s.repo.GetVerifiedAdmissionUserByQQ(ctx, input.QQID, policy.SchoolID, s.now())
 	if err != nil {
 		return nil, err
 	}
-	if err := s.repo.CreateSession(ctx, session); err != nil {
-		if isAdmissionSessionActiveSubjectUniqueViolation(err) {
-			return s.reuseActiveBotSessionAfterCreateConflict(ctx, input)
+	if verifiedUserID != nil {
+		return s.createVerifiedBotSession(ctx, input, policy, *verifiedUserID)
+	}
+	return s.createPendingBotSession(ctx, input, policy)
+}
+
+func (s *Service) createPendingBotSession(
+	ctx context.Context,
+	input BotSessionCreateInput,
+	policy *AdmissionPolicy,
+) (*CreatedAdmissionSession, error) {
+	for attempt := 0; attempt < maxAdmissionJoinTokenCreateAttempts; attempt++ {
+		token, err := s.generateJoinToken()
+		if err != nil {
+			return nil, fmt.Errorf("CreateBotSession token: %w", err)
 		}
-		return nil, err
+		session, err := s.newAdmissionSession(input, policy, token)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.repo.CreateSession(ctx, session); err != nil {
+			if isAdmissionSessionActiveSubjectUniqueViolation(err) {
+				return s.reuseActiveBotSessionAfterCreateConflict(ctx, input)
+			}
+			if isAdmissionSessionTokenHashUniqueViolation(err) {
+				continue
+			}
+			return nil, err
+		}
+		if err := s.attachAdmissionFailureContext(ctx, session, policy); err != nil {
+			return nil, err
+		}
+		return &CreatedAdmissionSession{
+			Session: session,
+			Token:   token,
+			AuthURL: session.AuthURL,
+		}, nil
 	}
-	return &CreatedAdmissionSession{
-		Session: session,
-		Token:   token,
-		AuthURL: session.AuthURL,
-	}, nil
+	return nil, fmt.Errorf("CreateBotSession token: exhausted %d token attempts", maxAdmissionJoinTokenCreateAttempts)
+}
+
+func (s *Service) createVerifiedBotSession(
+	ctx context.Context,
+	input BotSessionCreateInput,
+	policy *AdmissionPolicy,
+	userID int64,
+) (*CreatedAdmissionSession, error) {
+	for attempt := 0; attempt < maxAdmissionJoinTokenCreateAttempts; attempt++ {
+		token, err := s.generateJoinToken()
+		if err != nil {
+			return nil, fmt.Errorf("CreateBotSession verified token: %w", err)
+		}
+		session, err := s.newVerifiedAdmissionSession(input, policy, token, userID)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+			if _, err := s.repo.CancelInProgressSessionsBySubjectTx(ctx, tx, botSessionCreateSubject(input), s.now()); err != nil {
+				return err
+			}
+			if err := s.repo.CreateSessionTx(ctx, tx, session); err != nil {
+				return err
+			}
+			_, err := s.repo.ResetAdmissionFailureCountTx(ctx, tx, input.Platform, input.GuildID, input.QQID, s.now())
+			return err
+		}); err != nil {
+			if isAdmissionSessionTokenHashUniqueViolation(err) {
+				continue
+			}
+			return nil, err
+		}
+		applyAdmissionFailureContext(session, nil, policy)
+		return &CreatedAdmissionSession{
+			Session: session,
+			Token:   token,
+			AuthURL: session.AuthURL,
+		}, nil
+	}
+	return nil, fmt.Errorf("CreateBotSession verified token: exhausted %d token attempts", maxAdmissionJoinTokenCreateAttempts)
 }
 
 func (s *Service) reuseActiveBotSessionAfterCreateConflict(
@@ -61,6 +126,13 @@ func (s *Service) reuseActiveBotSessionAfterCreateConflict(
 		return nil, err
 	}
 	if err := s.validateResendableSession(session); err != nil {
+		return nil, err
+	}
+	policy, err := s.loadPolicy(ctx, input.Platform, input.GuildID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.attachAdmissionFailureContext(ctx, session, policy); err != nil {
 		return nil, err
 	}
 	return &CreatedAdmissionSession{
@@ -75,7 +147,18 @@ func (s *Service) GetBotAdmissionSession(ctx context.Context, input BotSessionSu
 	if err := validateBotSessionSubjectInput(input); err != nil {
 		return nil, err
 	}
-	return s.repo.GetLatestSessionBySubject(ctx, input)
+	session, err := s.repo.GetLatestSessionBySubject(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	policy, err := s.loadPolicy(ctx, input.Platform, input.GuildID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.attachAdmissionFailureContext(ctx, session, policy); err != nil {
+		return nil, err
+	}
+	return session, nil
 }
 
 func (s *Service) ResendBotAdmissionSession(ctx context.Context, input BotSessionSubjectInput) (*AdmissionSession, error) {
@@ -285,32 +368,41 @@ func (s *Service) regenerateAdmissionSession(
 	if err != nil {
 		return nil, nil, err
 	}
-	token, err := s.generateToken()
-	if err != nil {
-		return nil, nil, fmt.Errorf("RegenerateBotAdmissionSession token: %w", err)
-	}
-	session, err := s.newAdmissionSession(input, policy, token)
-	if err != nil {
-		return nil, nil, err
-	}
-	if nextReminderAt != nil {
-		session.nextReminderAt = nextReminderAt
-	}
-	var cancelledIDs []string
-	if err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		cancelledIDs, err = s.repo.CancelInProgressSessionsBySubjectTx(ctx, tx, subject, s.now())
+	for attempt := 0; attempt < maxAdmissionJoinTokenCreateAttempts; attempt++ {
+		token, err := s.generateJoinToken()
 		if err != nil {
-			return err
+			return nil, nil, fmt.Errorf("RegenerateBotAdmissionSession token: %w", err)
 		}
-		return s.repo.CreateSessionTx(ctx, tx, session)
-	}); err != nil {
-		return nil, nil, fmt.Errorf("RegenerateBotAdmissionSession: %w", err)
+		session, err := s.newAdmissionSession(input, policy, token)
+		if err != nil {
+			return nil, nil, err
+		}
+		if nextReminderAt != nil {
+			session.nextReminderAt = nextReminderAt
+		}
+		var cancelledIDs []string
+		if err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+			cancelledIDs, err = s.repo.CancelInProgressSessionsBySubjectTx(ctx, tx, subject, s.now())
+			if err != nil {
+				return err
+			}
+			return s.repo.CreateSessionTx(ctx, tx, session)
+		}); err != nil {
+			if isAdmissionSessionTokenHashUniqueViolation(err) {
+				continue
+			}
+			return nil, nil, fmt.Errorf("RegenerateBotAdmissionSession: %w", err)
+		}
+		if err := s.attachAdmissionFailureContext(ctx, session, policy); err != nil {
+			return nil, nil, err
+		}
+		return &CreatedAdmissionSession{
+			Session: session,
+			Token:   token,
+			AuthURL: session.AuthURL,
+		}, cancelledIDs, nil
 	}
-	return &CreatedAdmissionSession{
-		Session: session,
-		Token:   token,
-		AuthURL: session.AuthURL,
-	}, cancelledIDs, nil
+	return nil, nil, fmt.Errorf("RegenerateBotAdmissionSession token: exhausted %d token attempts", maxAdmissionJoinTokenCreateAttempts)
 }
 
 func (s *Service) getAdminActionSession(ctx context.Context, sessionID string) (*AdmissionSession, error) {
@@ -618,7 +710,7 @@ func (s *Service) newAdmissionSession(
 		ChannelID:                input.ChannelID,
 		QQID:                     input.QQID,
 		TokenHash:                s.hashToken(token),
-		AuthURL:                  s.buildAuthURL(token, input.QQID),
+		AuthURL:                  s.buildAuthURL(token),
 		TokenExpiresAt:           now.Add(time.Duration(policy.LinkWaitSeconds) * time.Second),
 		Status:                   StatusJoinedMuted,
 		LinkWaitDeadlineAt:       now.Add(time.Duration(policy.LinkWaitSeconds) * time.Second),
@@ -626,6 +718,26 @@ func (s *Service) newAdmissionSession(
 		InitialMuteUntil:         now.Add(time.Duration(policy.InitialMuteDurationSeconds) * time.Second),
 		nextReminderAt:           &nextReminderAt,
 	}, nil
+}
+
+func (s *Service) newVerifiedAdmissionSession(
+	input BotSessionCreateInput,
+	policy *AdmissionPolicy,
+	token string,
+	userID int64,
+) (*AdmissionSession, error) {
+	session, err := s.newAdmissionSession(input, policy, token)
+	if err != nil {
+		return nil, err
+	}
+	now := s.now()
+	session.UserID = &userID
+	session.TokenConsumedAt = &now
+	session.Status = StatusVerified
+	session.VerifiedAt = &now
+	session.CancelledAt = &now
+	session.nextReminderAt = nil
+	return session, nil
 }
 
 func initialReminderNotBefore(now time.Time, policy *AdmissionPolicy) time.Time {
@@ -639,11 +751,48 @@ func initialReminderNotBefore(now time.Time, policy *AdmissionPolicy) time.Time 
 	return now.Add(grace)
 }
 
+func (s *Service) attachAdmissionFailureContext(
+	ctx context.Context,
+	session *AdmissionSession,
+	policy *AdmissionPolicy,
+) error {
+	if session == nil || policy == nil {
+		return nil
+	}
+	failure, err := s.repo.GetAdmissionFailure(ctx, session.Platform, session.GuildID, session.QQID)
+	if err != nil {
+		return err
+	}
+	applyAdmissionFailureContext(session, failure, policy)
+	return nil
+}
+
+func applyAdmissionFailureContext(
+	session *AdmissionSession,
+	failure *AdmissionFailure,
+	policy *AdmissionPolicy,
+) {
+	if session == nil || policy == nil {
+		return
+	}
+	count := 0
+	if failure != nil && failure.FailureCount > 0 {
+		count = failure.FailureCount
+	}
+	remaining := policy.FailedJoinLimit - count - 1
+	if remaining < 0 {
+		remaining = 0
+	}
+	session.FailureCount = count
+	session.RemainingRetryCount = remaining
+	session.WillBlacklistOnTimeout = count+1 >= policy.FailedJoinLimit
+}
+
 func (s *Service) validateTokenSession(session *AdmissionSession, qqQuery string) error {
 	if session == nil {
 		return ErrAdmissionTokenNotFound
 	}
-	if query := strings.TrimSpace(qqQuery); query != "" && query != session.QQID {
+	if query := strings.TrimSpace(qqQuery); query != "" {
 		return ErrAdmissionQQMismatch
 	}
 	if session.Status == StatusCancelled || session.Status == StatusExpiredKicked {
@@ -675,10 +824,8 @@ func (s *Service) hashToken(token string) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-func (s *Service) buildAuthURL(token string, qqID string) string {
-	values := url.Values{}
-	values.Set("qq", qqID)
-	return s.authBaseURL + url.PathEscape(token) + "?" + values.Encode()
+func (s *Service) buildAuthURL(token string) string {
+	return s.authBaseURL + url.PathEscape(token)
 }
 
 func admissionTokenFromAuthURL(authURL string) string {

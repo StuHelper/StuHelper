@@ -202,6 +202,9 @@ export interface AdmissionSession {
   readonly authURL?: string
   readonly maxMaterialBytes?: number
   readonly lastBotError?: string | null
+  readonly failureCount?: number
+  readonly remainingRetryCount?: number
+  readonly willBlacklistOnTimeout?: boolean
 }
 
 export interface AdmissionSessionCreateRequest {
@@ -229,9 +232,32 @@ export interface AdmissionJoinRequestEvent {
   readonly guildID: string
   readonly qqID: string
   readonly requestID: string
+  readonly decision?: AdmissionJoinRequestDecisionAction
   readonly success: boolean
   readonly error?: string
   readonly rawEvent?: Record<string, unknown>
+}
+
+export type AdmissionJoinRequestDecisionAction = 'approve' | 'reject'
+
+export type AdmissionJoinRequestVerificationState = 'verified' | 'unverified'
+
+export interface AdmissionJoinRequestDecisionRequest {
+  readonly platform: string
+  readonly guildID: string
+  readonly qqID: string
+  readonly requestID: string
+  readonly rawEvent?: Record<string, unknown>
+}
+
+export interface AdmissionJoinRequestDecision {
+  readonly decision: AdmissionJoinRequestDecisionAction
+  readonly reason?: string
+  readonly verificationState: AdmissionJoinRequestVerificationState
+  readonly autoApproveVerifiedJoin: boolean
+  readonly autoApproveUnverifiedJoin: boolean
+  readonly policyID?: string
+  readonly userID?: number | string | null
 }
 
 export interface AdmissionPendingActionsRequest {
@@ -251,6 +277,9 @@ export interface AdmissionPendingAction {
   readonly authURL?: string
   readonly deadlineAt?: string
   readonly reason?: string
+  readonly failureCount?: number
+  readonly remainingRetryCount?: number
+  readonly willBlacklistOnTimeout?: boolean
 }
 
 export interface AdmissionBotEventRequest {

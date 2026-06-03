@@ -27,6 +27,9 @@ export function buildAdmissionReturnURL(
   if (!ADMISSION_PATH_PATTERN.test(url.pathname)) {
     throw new Error('Admission return URL must target /verify/:code')
   }
+  if (url.search !== '') {
+    throw new Error('Admission return URL must not include query parameters')
+  }
 
   return url.toString()
 }

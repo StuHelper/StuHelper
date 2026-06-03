@@ -15,6 +15,11 @@ export const DEFAULT_MEMBER_REQUEST_CONFIG: GroupConfig = Object.freeze({
   approvalKeywords: [],
   levelLimit: DEFAULT_LEVEL_LIMIT,
 })
+
+const ADMISSION_BUSINESS_PLATFORM_ALIASES: Record<string, string> = {
+  onebot: 'qq',
+  qq: 'qq',
+}
 export const DEFAULT_LEAVE_CONFIG: GroupConfig = Object.freeze({
   leaveCooldown: DEFAULT_LEAVE_COOLDOWN_DAYS,
 })
@@ -25,7 +30,7 @@ export interface EventRuntimeHost {
   readonly config: Config
   readonly admissionPlatform?: Pick<
     PlatformClient,
-    'getMemberBlacklistAccess' | 'recordJoinRequestEvent'
+    'getMemberBlacklistAccess' | 'resolveJoinRequestDecision' | 'recordJoinRequestEvent'
   >
 }
 
@@ -52,6 +57,11 @@ export function requestIdOf(session: EventSession): string {
 
 export function botInternal(session: EventSession): any {
   return (session.bot as any).internal
+}
+
+export function admissionBusinessPlatformOf(runtimePlatform: string | undefined): string {
+  const platform = String(runtimePlatform || '').trim()
+  return ADMISSION_BUSINESS_PLATFORM_ALIASES[platform] || platform
 }
 
 export function groupConfigOf(

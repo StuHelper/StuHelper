@@ -202,8 +202,8 @@ test('入群认证管理员命令可以查询、重发和重新生成认证链�
       '查询入群认证 10002',
       /QQ 绑定：已完成[\s\S]*学生认证：未通过[\s\S]*曾绑定账号但未完成学生认证/,
     )
-    await assertSingleReply(client, '重发认证链接 10001', /https:\/\/join\.stuhelper\.com\/verify\/token-current\?qq=10001/)
-    await assertSingleReply(client, '重新生成认证链接 10001', /https:\/\/join\.stuhelper\.com\/verify\/token-new\?qq=10001/)
+    await assertSingleReply(client, '重发认证链接 10001', /https:\/\/join\.stuhelper\.com\/verify\/token-current/)
+    await assertSingleReply(client, '重新生成认证链接 10001', /https:\/\/join\.stuhelper\.com\/verify\/token-new/)
     await waitForRequestCount(requests, 6)
 
     const [record] = await root.database.get(GUARD_MEMBER_TABLE, { id: 'qq:514:group-1:10001' })
@@ -280,7 +280,7 @@ test('入群认证管理员命令会抑制短时间重复重新生成链接', as
 
     const firstReplies = await client.receive('重新生成认证链接 10001')
     assert.equal(firstReplies.length, 1)
-    assert.match(firstReplies[0], /https:\/\/join\.stuhelper\.com\/verify\/token-new\?qq=10001/)
+    assert.match(firstReplies[0], /https:\/\/join\.stuhelper\.com\/verify\/token-new/)
 
     const duplicateReplies = await client.receive('重新生成认证链接 10001')
     assert.deepEqual(duplicateReplies, [])
@@ -428,7 +428,7 @@ async function respondAdmissionAdminRequest(
       data: {
         session: admissionAdminSession('joined_muted', 'token-new'),
         token: 'token-new',
-        authURL: 'https://join.stuhelper.com/verify/token-new?qq=10001',
+        authURL: 'https://join.stuhelper.com/verify/token-new',
       },
     }))
     return
@@ -454,7 +454,7 @@ function admissionAdminSession(status: string, token: string, overrides: Record<
     channelID: 'group-1',
     qqID: '10001',
     status,
-    authURL: `https://join.stuhelper.com/verify/${token}?qq=10001`,
+    authURL: `https://join.stuhelper.com/verify/${token}`,
     tokenExpiresAt: new Date(now + 60 * 60 * 1000).toISOString(),
     linkWaitDeadlineAt: new Date(now + 60 * 60 * 1000).toISOString(),
     submissionWaitDeadlineAt: new Date(now + 24 * 60 * 60 * 1000).toISOString(),

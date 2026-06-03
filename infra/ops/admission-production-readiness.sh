@@ -490,9 +490,10 @@ failures(message) AS (
   WHERE school_enabled AND sso_login_url = '' AND NOT has_email_domain
 
   UNION ALL
-  SELECT format('policy %s/%s must keep auto_approve_join=true for admission MVP', platform, guild_id)
+  SELECT format('policy %s/%s must keep auto_approve_verified_join=true and auto_approve_unverified_join=true for admission MVP', platform, guild_id)
   FROM policy_readiness
-  WHERE auto_approve_join IS DISTINCT FROM true
+  WHERE auto_approve_verified_join IS DISTINCT FROM true
+     OR auto_approve_unverified_join IS DISTINCT FROM true
 
   UNION ALL
   SELECT format('policy %s/%s management_guild_ids must not be empty', platform, guild_id)

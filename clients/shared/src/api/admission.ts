@@ -32,24 +32,18 @@ type ListFreshmanVerificationsParams =
 type ListMemberBlacklistParams =
   operations['listAdminMemberBlacklist']['parameters']['query']
 
-function withQQQuery(qq?: string) {
-  return qq ? { qq } : undefined
-}
-
 export const createAdmissionApi = (client: ApiClient) => ({
-  getAdmissionSession: (token: string, qq?: string) =>
+  getAdmissionSession: (token: string) =>
     client.GET('/api/v1/admission/sessions/{token}', {
       params: {
         path: { token },
-        query: withQQQuery(qq),
       },
     }),
 
-  linkAdmissionSession: (token: string, qq?: string) =>
+  linkAdmissionSession: (token: string) =>
     client.POST('/api/v1/admission/sessions/{token}/link', {
       params: {
         path: { token },
-        query: withQQQuery(qq),
       },
     }),
 

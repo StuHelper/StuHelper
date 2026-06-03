@@ -84,7 +84,7 @@ describe("auth authorize flow", () => {
         vi.stubGlobal("sessionStorage", createMemoryStorage());
         vi.stubGlobal("window", {
             location: {
-                href: "https://join.stuhelper.com/verify/token?qq=123",
+                href: "https://join.stuhelper.com/verify/token",
                 hash: "",
                 origin: "https://join.stuhelper.com",
             },
@@ -99,10 +99,10 @@ describe("auth authorize flow", () => {
         const { useAuthStore } = await import("../auth");
         const store = useAuthStore();
 
-        await store.login("https://join.stuhelper.com/verify/token?qq=123");
+        await store.login("https://join.stuhelper.com/verify/token");
 
         expect(mockLogin).toHaveBeenCalledWith(
-            "https://join.stuhelper.com/verify/token?qq=123",
+            "https://join.stuhelper.com/verify/token",
             undefined,
             "web",
             { prompt: undefined, maxAge: undefined },
@@ -119,10 +119,10 @@ describe("auth authorize flow", () => {
         const { useAuthStore } = await import("../auth");
         const store = useAuthStore();
 
-        await store.signup("https://join.stuhelper.com/verify/token?qq=123");
+        await store.signup("https://join.stuhelper.com/verify/token");
 
         expect(mockSignup).toHaveBeenCalledWith(
-            "https://join.stuhelper.com/verify/token?qq=123",
+            "https://join.stuhelper.com/verify/token",
             "web",
             "web",
         );

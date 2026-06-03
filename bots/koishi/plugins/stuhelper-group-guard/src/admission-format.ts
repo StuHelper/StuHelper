@@ -14,16 +14,41 @@ export interface AdmissionReminderInput {
   readonly memberId: string
   readonly authURL: string
   readonly deadlineAt: Date
+  readonly failureCount?: number
+  readonly remainingRetryCount?: number
+  readonly willBlacklistOnTimeout?: boolean
   readonly now?: Date
 }
 
 export function formatAdmissionReminder(input: AdmissionReminderInput) {
   const minutes = minutesUntil(input.deadlineAt, input.now || new Date())
   return [
-    `${h.at(input.memberId)} 请在 ${minutes} 分钟内完成 StuHelper 学生身份认证：`,
+    `${h.at(input.memberId)} (${input.memberId})请在 ${minutes} 分钟内完成 StuHelper 学生身份认证：`,
     input.authURL,
-    '通过后自动解除禁言，超时将移出群聊。',
+    admissionTimeoutLine(input),
   ].join('\n')
+}
+
+function admissionTimeoutLine(input: AdmissionReminderInput) {
+  const failureCount = normalizedCount(input.failureCount)
+  const remainingRetryCount = normalizedCount(input.remainingRetryCount)
+  if (input.willBlacklistOnTimeout) {
+    return [
+      '通过后自动解除禁言，超时将移出群聊',
+      `您已累计${failureCount}次未认证，本次超时未认证将永久拉黑`,
+    ].join('\n')
+  }
+  if (failureCount > 0) {
+    return [
+      '通过后自动解除禁言，超时将移出群聊',
+      `您已累计${failureCount}次未认证，可重新加群认证次数：${remainingRetryCount}`,
+    ].join('\n')
+  }
+  return `通过后自动解除禁言，超时将移出群聊，可重新加群认证次数：${remainingRetryCount}。`
+}
+
+function normalizedCount(value: number | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0
 }
 
 function minutesUntil(deadlineAt: Date, now: Date) {

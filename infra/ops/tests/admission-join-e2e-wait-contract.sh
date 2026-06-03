@@ -74,7 +74,7 @@ done
 case "${FAKE_E2E_MODE:-joined}" in
   joined)
     cat <<'JSON'
-{"input":{"platform":"qq","guildID":"178037297","qqID":"123456789","botSelfID":"2118785781","lookbackHours":24},"sessionCount":1,"latestSession":{"id":"sess-1","platform":"qq","botSelfID":"2118785781","guildID":"178037297","channelIDPresent":true,"qqID":"123456789","userIDPresent":false,"authURLRaw":"https://join.stuhelper.com/verify/fake-public-preview-token?qq=123456789","authURLHost":"join.stuhelper.com","authURLPath":"/verify/redacted","authURLHasQQQuery":true,"authURLCanonicalPrefix":true,"tokenHashPresent":true,"tokenConsumed":false,"status":"joined_muted","verified":false,"cancelledAtPresent":false,"botReleaseRecorded":false,"lastBotErrorPresent":false,"createdAt":"2026-05-30T12:00:00Z","updatedAt":"2026-05-30T12:00:00Z","sessionAgeSeconds":60,"updatedAgeSeconds":60,"tokenExpiresAt":"2026-05-30T13:00:00Z","tokenExpired":false,"linkWaitDeadlineAt":"2026-05-30T13:00:00Z","submissionWaitDeadlineAt":"2026-05-31T12:00:00Z","initialMuteUntil":"2026-06-29T12:00:00Z"},"user":null,"qqBinding":{"bound":false,"boundAt":null},"studentVerification":{"activeCredentialCount":0,"kinds":[],"schoolIDs":[]},"freshmanApplications":{"count":0,"statuses":[]},"failure":{"failureCount":0,"lastFailureAt":null},"activeBlacklistCount":0}
+{"input":{"platform":"qq","guildID":"178037297","qqID":"123456789","botSelfID":"2118785781","lookbackHours":24},"sessionCount":1,"latestSession":{"id":"sess-1","platform":"qq","botSelfID":"2118785781","guildID":"178037297","channelIDPresent":true,"qqID":"123456789","userIDPresent":false,"authURLRaw":"https://join.stuhelper.com/verify/fake-public-preview-token","authURLHost":"join.stuhelper.com","authURLPath":"/verify/redacted","authURLHasQQQuery":false,"authURLCanonicalPrefix":true,"tokenHashPresent":true,"tokenConsumed":false,"status":"joined_muted","verified":false,"cancelledAtPresent":false,"botReleaseRecorded":false,"lastBotErrorPresent":false,"createdAt":"2026-05-30T12:00:00Z","updatedAt":"2026-05-30T12:00:00Z","sessionAgeSeconds":60,"updatedAgeSeconds":60,"tokenExpiresAt":"2026-05-30T13:00:00Z","tokenExpired":false,"linkWaitDeadlineAt":"2026-05-30T13:00:00Z","submissionWaitDeadlineAt":"2026-05-31T12:00:00Z","initialMuteUntil":"2026-06-29T12:00:00Z"},"user":null,"qqBinding":{"bound":false,"boundAt":null},"studentVerification":{"activeCredentialCount":0,"kinds":[],"schoolIDs":[]},"freshmanApplications":{"count":0,"statuses":[]},"failure":{"failureCount":0,"lastFailureAt":null},"activeBlacklistCount":0}
 JSON
     ;;
   none)
@@ -120,7 +120,7 @@ while (($# > 0)); do
   esac
 done
 
-[[ "${url}" == "https://join.stuhelper.com/api/v1/admission/sessions/fake-public-preview-token?qq=123456789" ]] || {
+[[ "${url}" == "https://join.stuhelper.com/api/v1/admission/sessions/fake-public-preview-token" ]] || {
   echo "unexpected curl URL: ${url}" >&2
   exit 7
 }

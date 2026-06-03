@@ -36,9 +36,9 @@ const mockWaitForAdmissionProjection = vi.hoisted(() => vi.fn())
 const mountedWrappers: Array<{ unmount(): void }> = []
 
 const mockRoute = vi.hoisted(() => ({
-  fullPath: '/verify/ABCD?qq=123',
+  fullPath: '/verify/ABCD',
   params: { code: 'ABCD' },
-  query: { qq: '123' },
+  query: {},
 }))
 
 vi.mock('../api', () => ({
@@ -70,9 +70,9 @@ describe('AdmissionPage edge states', () => {
     vi.clearAllMocks()
     mockAuth.isAuthenticated = true
     mockAuth.bootstrapSession.mockResolvedValue(true)
-    mockRoute.fullPath = '/verify/ABCD?qq=123'
+    mockRoute.fullPath = '/verify/ABCD'
     mockRoute.params = { code: 'ABCD' }
-    mockRoute.query = { qq: '123' }
+    mockRoute.query = {}
     mockWaitForAdmissionProjection.mockResolvedValue(false)
     mockVerificationStore.schools = []
     mockVerificationStore.fetchSchools.mockResolvedValue(undefined)
@@ -91,7 +91,7 @@ describe('AdmissionPage edge states', () => {
     vi.useRealTimers()
   })
 
-  it('blocks login and link actions when token QQ does not match query QQ', async () => {
+  it('blocks login and link actions when the token belongs to another account', async () => {
     mockAdmissionApi.getAdmissionSession.mockRejectedValueOnce(
       new ApiError({ code: 'admission.qq_mismatch', message: 'mismatch' }),
     )
@@ -188,7 +188,7 @@ describe('AdmissionPage edge states', () => {
 
     expect(wrapper.find('[data-state="expired"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('链接已失效')
-    expect(wrapper.text()).toContain('重新生成认证链接 123')
+    expect(wrapper.text()).toContain('重新生成认证链接 <QQ号>')
     expect(wrapper.text()).not.toContain('认证链接暂时无法打开')
   })
 
@@ -203,7 +203,7 @@ describe('AdmissionPage edge states', () => {
     await flushPromises()
 
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-      '重新生成认证链接 123',
+      '重新生成认证链接 <QQ号>',
     )
     expect(mockToast.success).toHaveBeenCalledWith('重新生成指令已复制')
   })
@@ -274,7 +274,7 @@ describe('AdmissionPage edge states', () => {
 
     expect(wrapper.find('[data-state="linked"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('选择认证方式')
-    expect(mockAdmissionApi.linkAdmissionSession).toHaveBeenCalledWith('ABCD', '123')
+    expect(mockAdmissionApi.linkAdmissionSession).toHaveBeenCalledWith('ABCD')
     expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledTimes(1)
     expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledWith('session-linked')
     expect(mockVerificationStore.fetchSchools).toHaveBeenCalledTimes(1)
@@ -349,7 +349,7 @@ describe('AdmissionPage edge states', () => {
 
     expect(wrapper.find('[data-state="accountMismatch"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('账号不匹配')
-    expect(wrapper.text()).toContain('重新生成认证链接 123')
+    expect(wrapper.text()).toContain('重新生成认证链接 <QQ号>')
     expect(wrapper.text()).toContain('首次打开时登录的 StuHelper 账号')
     expect(mockAdmissionApi.getAdmissionMe).not.toHaveBeenCalled()
   })
@@ -464,9 +464,9 @@ describe('AdmissionPage edge states', () => {
     const wrapper = await mountAdmissionPage()
     await flushPromises()
 
-    mockRoute.fullPath = '/verify/EFGH?qq=456'
+    mockRoute.fullPath = '/verify/EFGH'
     mockRoute.params = { code: 'EFGH' }
-    mockRoute.query = { qq: '456' }
+    mockRoute.query = {}
     window.dispatchEvent(new Event('focus'))
     await flushPromises()
 
@@ -474,8 +474,8 @@ describe('AdmissionPage edge states', () => {
     await settleAdmissionPage(wrapper)
 
     expect(mockAdmissionApi.getAdmissionSession).toHaveBeenCalledTimes(2)
-    expect(mockAdmissionApi.getAdmissionSession).toHaveBeenNthCalledWith(1, 'ABCD', '123')
-    expect(mockAdmissionApi.getAdmissionSession).toHaveBeenNthCalledWith(2, 'EFGH', '456')
+    expect(mockAdmissionApi.getAdmissionSession).toHaveBeenNthCalledWith(1, 'ABCD')
+    expect(mockAdmissionApi.getAdmissionSession).toHaveBeenNthCalledWith(2, 'EFGH')
     expect(mockAdmissionApi.getAdmissionMe).not.toHaveBeenCalled()
     expect(mockVerificationStore.fetchSchools).not.toHaveBeenCalled()
     expect(wrapper.find('[data-state="ready"]').exists()).toBe(true)

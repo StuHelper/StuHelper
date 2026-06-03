@@ -1,6 +1,6 @@
 import { h, type Universal } from 'koishi'
 
-import { formatAdmissionReminder } from './admission-format'
+import { formatAdmissionReminder, type AdmissionReminderInput } from './admission-format'
 import type { GuardMemberRecord } from './model'
 
 export async function muteGuardedMember(input: {
@@ -13,11 +13,24 @@ export async function muteGuardedMember(input: {
   await bot.muteGuildMember(guildId, memberId, muteDurationMs)
 }
 
-export async function sendAdmissionReminder(bot: Universal.Methods, record: GuardMemberRecord, authURL: string) {
+type ReminderContext = Pick<
+  AdmissionReminderInput,
+  'failureCount' | 'remainingRetryCount' | 'willBlacklistOnTimeout'
+>
+
+export async function sendAdmissionReminder(
+  bot: Universal.Methods,
+  record: GuardMemberRecord,
+  authURL: string,
+  context: ReminderContext = {},
+) {
   const result = await bot.sendMessage(record.channelId, formatAdmissionReminder({
     memberId: record.memberId,
     authURL,
     deadlineAt: record.deadlineAt,
+    failureCount: context.failureCount,
+    remainingRetryCount: context.remainingRetryCount,
+    willBlacklistOnTimeout: context.willBlacklistOnTimeout,
   }))
   return firstMessageID(result)
 }
