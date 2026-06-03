@@ -837,6 +837,15 @@ func fixedAdmissionNow() time.Time {
 	return time.Date(2026, 5, 3, 12, 0, 0, 0, time.UTC)
 }
 
+func TestGenerateAdmissionJoinTokenUsesShortReadableCode(t *testing.T) {
+	token, err := generateAdmissionJoinToken()
+	require.NoError(t, err)
+	assert.Len(t, token, admissionJoinTokenLength)
+	for _, char := range token {
+		assert.Contains(t, admissionJoinTokenAlphabet, string(char))
+	}
+}
+
 type testQQBindingGateway struct {
 	err error
 }
