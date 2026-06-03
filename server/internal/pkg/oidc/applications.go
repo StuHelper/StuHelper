@@ -114,6 +114,22 @@ func (c *Client) GetAuthURLForApplication(appKey, state string) (string, string,
 	return c.rewriteBrowserAuthURL(authURL), verifier, nil
 }
 
+func (c *Client) GetReauthURLForApplication(appKey, state string) (string, string, error) {
+	cfg, err := c.oauth2ConfigForApplication(appKey)
+	if err != nil {
+		return "", "", err
+	}
+	verifier := oauth2.GenerateVerifier()
+	authURL := cfg.AuthCodeURL(
+		state,
+		oauth2.AccessTypeOffline,
+		oauth2.S256ChallengeOption(verifier),
+		oauth2.SetAuthURLParam("prompt", "login"),
+		oauth2.SetAuthURLParam("max_age", "0"),
+	)
+	return c.rewriteBrowserAuthURL(authURL), verifier, nil
+}
+
 func (c *Client) GetSignupURLForApplication(appKey, state string) (string, string, error) {
 	cfg, err := c.oauth2ConfigForApplication(appKey)
 	if err != nil {

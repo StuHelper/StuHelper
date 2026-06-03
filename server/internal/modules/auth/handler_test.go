@@ -124,7 +124,23 @@ func TestGetLoginURL_WithPromptLoginReturnsReauthURL(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "prompt=login")
 	assert.Contains(t, w.Body.String(), "max_age=0")
-	assert.Contains(t, w.Body.String(), "acr_values=mfa")
+	assert.NotContains(t, w.Body.String(), "acr_values=mfa")
+}
+
+func TestGetLoginURL_WithMaxAgeZeroReturnsReauthURL(t *testing.T) {
+	h, _ := newTestHandler(t)
+
+	r := gin.New()
+	r.GET("/auth/login", h.GetLoginURL)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/login?max_age=0", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "prompt=login")
+	assert.Contains(t, w.Body.String(), "max_age=0")
+	assert.NotContains(t, w.Body.String(), "acr_values=mfa")
 }
 
 func TestAuthURLHandlersRejectRepeatedSingleValueQueryParameters(t *testing.T) {

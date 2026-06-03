@@ -36,6 +36,14 @@ func TestClaimsAccessorsAndStubClientHelpers(t *testing.T) {
 	assert.Contains(t, authURL, "state-123")
 	assert.NotEmpty(t, verifier)
 
+	reauthURL, reauthVerifier, err := client.GetReauthURLForApplication(ApplicationWeb, "reauth-state")
+	require.NoError(t, err)
+	assert.Contains(t, reauthURL, "prompt=login")
+	assert.Contains(t, reauthURL, "max_age=0")
+	assert.NotContains(t, reauthURL, "acr_values=mfa")
+	assert.Contains(t, reauthURL, "reauth-state")
+	assert.NotEmpty(t, reauthVerifier)
+
 	stepUpURL, stepUpVerifier, err := client.GetStepUpAuthURLForApplication(ApplicationWeb, "step-up-state")
 	require.NoError(t, err)
 	assert.Contains(t, stepUpURL, "prompt=login")

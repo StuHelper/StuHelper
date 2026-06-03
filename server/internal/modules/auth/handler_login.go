@@ -51,7 +51,7 @@ func (h *Handler) GetLoginURL(c *gin.Context) {
 		return
 	}
 	if forceReauthRequested(c) {
-		h.respondWithAuthURLProvider(c, h.oidcClient.GetStepUpAuthURLForApplication)
+		h.respondWithAuthURLProvider(c, h.oidcClient.GetReauthURLForApplication)
 		return
 	}
 	h.respondWithAuthURL(c)
