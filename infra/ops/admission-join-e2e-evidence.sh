@@ -45,6 +45,13 @@ Optional:
   ADMISSION_E2E_MAX_SESSION_AGE_MINUTES defaults to 180
   ADMISSION_E2E_DATABASE_URL          defaults to DATABASE_URL
   ADMISSION_E2E_EVIDENCE_FILE         defaults to infra/generated/admission-join-e2e-evidence.json
+  ADMISSION_E2E_PUBLIC_PREVIEW_PROBE_ENABLED defaults to true. When the latest
+                                   session is joined_muted and unconsumed, the
+                                   script verifies the raw auth URL through the
+                                   public join API without printing the token.
+  ADMISSION_E2E_CURL_NO_PROXY         defaults to "*"; set empty to honor proxy env vars
+  ADMISSION_E2E_CURL_INSECURE         defaults to false; local/self-signed diagnostics only
+  ADMISSION_E2E_PUBLIC_RESOLVE_IP     optional diagnostic --resolve override for join.stuhelper.com
 
 Evidence is redacted: token_hash and raw token are never printed. auth_url is
 validated by shape and then reduced to host/path/query-key booleans.
@@ -57,6 +64,7 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
 fi
 
 require_cmd docker
+require_cmd curl
 require_cmd python3
 
 load_env
@@ -72,6 +80,10 @@ max_session_age_minutes="${ADMISSION_E2E_MAX_SESSION_AGE_MINUTES:-180}"
 evidence_file="${ADMISSION_E2E_EVIDENCE_FILE:-${REPO_ROOT}/infra/generated/admission-join-e2e-evidence.json}"
 database_url="${ADMISSION_E2E_DATABASE_URL:-${DATABASE_URL:-}}"
 admission_public_base_url="${ADMISSION_PUBLIC_BASE_URL:-https://join.stuhelper.com}"
+public_preview_probe_enabled="${ADMISSION_E2E_PUBLIC_PREVIEW_PROBE_ENABLED:-true}"
+curl_no_proxy="${ADMISSION_E2E_CURL_NO_PROXY:-*}"
+curl_insecure="${ADMISSION_E2E_CURL_INSECURE:-false}"
+public_resolve_ip="${ADMISSION_E2E_PUBLIC_RESOLVE_IP:-}"
 
 [[ -n "${qq_id}" ]] || die "ADMISSION_E2E_QQ_ID is required; run this only after a real QQ small account joins 178037297, for example: ADMISSION_E2E_QQ_ID=<small-account-qq> ADMISSION_E2E_EXPECTED_STAGE=join-created ./infra/ops/admission-join-e2e-evidence.sh"
 [[ "${qq_id}" =~ ^[0-9]{5,20}$ ]] || die "ADMISSION_E2E_QQ_ID must be a QQ number"
@@ -81,6 +93,16 @@ admission_public_base_url="${ADMISSION_PUBLIC_BASE_URL:-https://join.stuhelper.c
 case "${expected_stage}" in
   join-created|flow-completed|bot-released) ;;
   *) die "ADMISSION_E2E_EXPECTED_STAGE must be join-created, flow-completed, or bot-released" ;;
+esac
+case "${public_preview_probe_enabled}" in
+  true|TRUE|1|yes|YES) public_preview_probe_enabled="true" ;;
+  false|FALSE|0|no|NO|"") public_preview_probe_enabled="false" ;;
+  *) die "ADMISSION_E2E_PUBLIC_PREVIEW_PROBE_ENABLED must be true or false" ;;
+esac
+case "${curl_insecure}" in
+  true|TRUE|1|yes|YES) curl_insecure="true" ;;
+  false|FALSE|0|no|NO|"") curl_insecure="false" ;;
+  *) die "ADMISSION_E2E_CURL_INSECURE must be true or false" ;;
 esac
 [[ "${lookback_hours}" =~ ^[0-9]+$ && "${lookback_hours}" -gt 0 ]] || die "ADMISSION_E2E_LOOKBACK_HOURS must be a positive integer"
 [[ "${max_session_age_minutes}" =~ ^[0-9]+$ && "${max_session_age_minutes}" -gt 0 ]] || die "ADMISSION_E2E_MAX_SESSION_AGE_MINUTES must be a positive integer"
@@ -109,6 +131,20 @@ PY
 }
 
 database_url="$(materialize_database_url "${database_url}")"
+
+curl_public_preview() {
+  local args=()
+  if [[ "${curl_insecure}" == "true" ]]; then
+    args+=(--insecure)
+  fi
+  if [[ -n "${curl_no_proxy}" ]]; then
+    args+=(--noproxy "${curl_no_proxy}")
+  fi
+  if [[ -n "${public_resolve_ip}" ]]; then
+    args+=(--resolve "join.stuhelper.com:443:${public_resolve_ip}")
+  fi
+  command curl "${args[@]}" "$@"
+}
 
 query_e2e_json() {
   compose --profile prod run --rm --no-deps -T \
@@ -199,6 +235,7 @@ SELECT jsonb_build_object(
       'channelIDPresent', s.channel_id <> '',
       'qqID', s.qq_id,
       'userIDPresent', s.user_id IS NOT NULL,
+      'authURLRaw', s.auth_url,
       'authURLHost', COALESCE(NULLIF(split_part(regexp_replace(s.auth_url, '^https?://', ''), '/', 1), ''), ''),
       'authURLPath', CASE
         WHEN s.auth_url LIKE 'https://join.stuhelper.com/verify/%' THEN '/verify/redacted'
@@ -271,7 +308,171 @@ SELECT jsonb_build_object(
 SQL
 }
 
+probe_public_preview_json() {
+  local raw="$1"
+  local meta_file body_file stderr_file
+  meta_file="$(mktemp)"
+  body_file="$(mktemp)"
+  stderr_file="$(mktemp)"
+
+  PUBLIC_PREVIEW_ENABLED="${public_preview_probe_enabled}" \
+  RAW_JSON="${raw}" \
+  ADMISSION_PUBLIC_BASE_URL_VALUE="${admission_public_base_url}" \
+  python3 >"${meta_file}" <<'PY'
+import json
+import os
+from urllib.parse import quote, urlparse
+
+enabled = os.environ["PUBLIC_PREVIEW_ENABLED"] == "true"
+raw = json.loads(os.environ["RAW_JSON"])
+session = raw.get("latestSession") or {}
+
+if not enabled:
+    print(json.dumps({"applicable": False, "reason": "disabled"}, separators=(",", ":")))
+    raise SystemExit(0)
+
+if not session:
+    print(json.dumps({"applicable": False, "reason": "missing_session"}, separators=(",", ":")))
+    raise SystemExit(0)
+
+if session.get("status") != "joined_muted" or session.get("tokenConsumed") is True:
+    print(json.dumps({"applicable": False, "reason": "not_unconsumed_joined_session"}, separators=(",", ":")))
+    raise SystemExit(0)
+
+auth_url = str(session.get("authURLRaw") or "").strip()
+if not auth_url:
+    print(json.dumps({"applicable": True, "reason": "missing_auth_url"}, separators=(",", ":")))
+    raise SystemExit(0)
+
+parsed = urlparse(auth_url)
+base = os.environ["ADMISSION_PUBLIC_BASE_URL_VALUE"].rstrip("/")
+expected = urlparse(base)
+segments = [segment for segment in parsed.path.split("/") if segment]
+if parsed.scheme != expected.scheme or parsed.netloc != expected.netloc or len(segments) < 2 or segments[-2] != "verify":
+    print(json.dumps({"applicable": True, "reason": "invalid_auth_url_shape"}, separators=(",", ":")))
+    raise SystemExit(0)
+
+token = segments[-1]
+preview_path = f"/api/v1/admission/sessions/{quote(token, safe='')}"
+preview_url = f"{base}{preview_path}"
+if parsed.query:
+    preview_url = f"{preview_url}?{parsed.query}"
+
+print(json.dumps({
+    "applicable": True,
+    "previewURL": preview_url,
+    "expectedSessionID": session.get("id"),
+}, separators=(",", ":")))
+PY
+
+  local applicable
+  applicable="$(python3 - "${meta_file}" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+print("true" if data.get("applicable") is True and data.get("previewURL") else "false")
+PY
+  )"
+
+  if [[ "${applicable}" != "true" ]]; then
+    python3 - "${meta_file}" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+data.pop("previewURL", None)
+data.pop("expectedSessionID", None)
+print(json.dumps(data, ensure_ascii=True, separators=(",", ":")))
+PY
+    rm -f "${meta_file}" "${body_file}" "${stderr_file}"
+    return 0
+  fi
+
+  local preview_url expected_session_id curl_output curl_status
+  preview_url="$(python3 - "${meta_file}" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    print(json.load(fh)["previewURL"])
+PY
+  )"
+  expected_session_id="$(python3 - "${meta_file}" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    print(json.load(fh).get("expectedSessionID") or "")
+PY
+  )"
+
+  set +e
+  curl_output="$(
+    curl_public_preview \
+      -sS \
+      -o "${body_file}" \
+      -w '%{http_code}\n%{remote_ip}\n%{size_download}\n' \
+      "${preview_url}" 2>"${stderr_file}"
+  )"
+  curl_status=$?
+  set -e
+
+  CURL_STATUS="${curl_status}" \
+  CURL_OUTPUT="${curl_output}" \
+  RESPONSE_BODY_FILE="${body_file}" \
+  CURL_STDERR_FILE="${stderr_file}" \
+  EXPECTED_SESSION_ID="${expected_session_id}" \
+  python3 <<'PY'
+import json
+import os
+
+lines = os.environ.get("CURL_OUTPUT", "").splitlines()
+http_status = int(lines[0]) if len(lines) > 0 and lines[0].isdigit() else 0
+remote_ip = lines[1] if len(lines) > 1 else ""
+size = int(lines[2]) if len(lines) > 2 and lines[2].isdigit() else 0
+curl_exit = int(os.environ.get("CURL_STATUS") or 0)
+expected_session_id = os.environ.get("EXPECTED_SESSION_ID") or ""
+
+body = {}
+try:
+    with open(os.environ["RESPONSE_BODY_FILE"], "r", encoding="utf-8") as fh:
+        body = json.load(fh)
+except Exception:
+    body = {}
+
+stderr = ""
+try:
+    with open(os.environ["CURL_STDERR_FILE"], "r", encoding="utf-8") as fh:
+        stderr = fh.read().strip()
+except Exception:
+    stderr = ""
+
+data = body.get("data") if isinstance(body, dict) else {}
+error = body.get("error") if isinstance(body, dict) else {}
+result = {
+    "applicable": True,
+    "curlExitCode": curl_exit,
+    "httpStatus": http_status,
+    "remoteIP": remote_ip,
+    "responseBytes": size,
+    "success": body.get("success") is True if isinstance(body, dict) else False,
+    "sessionIDMatches": bool(expected_session_id) and isinstance(data, dict) and data.get("id") == expected_session_id,
+}
+if isinstance(error, dict) and error.get("code"):
+    result["errorCode"] = error.get("code")
+if curl_exit != 0 and stderr:
+    result["curlErrorPresent"] = True
+print(json.dumps(result, ensure_ascii=True, separators=(",", ":")))
+PY
+
+  rm -f "${meta_file}" "${body_file}" "${stderr_file}"
+}
+
 raw_json="$(query_e2e_json)" || die "admission join E2E evidence query failed"
+public_preview_json="$(probe_public_preview_json "${raw_json}")" || die "admission public preview probe failed"
 
 tmp_file="$(mktemp)"
 trap 'rm -f "${tmp_file}"' EXIT
@@ -282,6 +483,7 @@ EXPECTED_STAGE="${expected_stage}" \
 MAX_SESSION_AGE_MINUTES="${max_session_age_minutes}" \
 ADMISSION_PUBLIC_BASE_URL_VALUE="${admission_public_base_url}" \
 RAW_JSON="${raw_json}" \
+PUBLIC_PREVIEW_JSON="${public_preview_json}" \
 python3 <<'PY' >"${tmp_file}"
 import json
 import os
@@ -289,6 +491,7 @@ import sys
 from urllib.parse import urlsplit
 
 raw = json.loads(os.environ["RAW_JSON"])
+public_preview = json.loads(os.environ.get("PUBLIC_PREVIEW_JSON") or "{}")
 stage = os.environ["EXPECTED_STAGE"]
 max_session_age_minutes = int(os.environ["MAX_SESSION_AGE_MINUTES"])
 max_session_age_seconds = max_session_age_minutes * 60
@@ -304,6 +507,9 @@ def add(name, passed, detail=""):
     })
 
 session = raw.get("latestSession") or {}
+if isinstance(session, dict):
+    session["authURLRawPresent"] = bool(session.get("authURLRaw"))
+    session.pop("authURLRaw", None)
 qq_binding = raw.get("qqBinding") or {}
 student = raw.get("studentVerification") or {}
 freshman = raw.get("freshmanApplications") or {}
@@ -337,6 +543,17 @@ add("session has no bot error", session.get("lastBotErrorPresent") is False)
 
 join_created_statuses = {"joined_muted", "linked", "material_submitted", "verified"}
 add("session reached admission join-created stage", session.get("status") in join_created_statuses, f"status={session.get('status')}")
+
+if session.get("status") == "joined_muted" and session.get("tokenConsumed") is False:
+    add(
+        "unconsumed session public preview API is reachable",
+        public_preview.get("applicable") is True
+        and public_preview.get("curlExitCode") == 0
+        and public_preview.get("httpStatus") == 200
+        and public_preview.get("success") is True
+        and public_preview.get("sessionIDMatches") is True,
+        f"httpStatus={public_preview.get('httpStatus')}, remoteIP={public_preview.get('remoteIP')}, responseBytes={public_preview.get('responseBytes')}, errorCode={public_preview.get('errorCode')}",
+    )
 
 if stage in {"flow-completed", "bot-released"}:
     completed_statuses = {"linked", "material_submitted", "verified"}
@@ -388,6 +605,7 @@ evidence = {
     "maxSessionAgeMinutes": max_session_age_minutes,
     "input": raw.get("input", {}),
     "session": session,
+    "publicPreview": public_preview,
     "user": user,
     "qqBinding": qq_binding,
     "studentVerification": student,

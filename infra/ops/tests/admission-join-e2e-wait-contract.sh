@@ -74,7 +74,7 @@ done
 case "${FAKE_E2E_MODE:-joined}" in
   joined)
     cat <<'JSON'
-{"input":{"platform":"qq","guildID":"178037297","qqID":"123456789","botSelfID":"2118785781","lookbackHours":24},"sessionCount":1,"latestSession":{"id":"sess-1","platform":"qq","botSelfID":"2118785781","guildID":"178037297","channelIDPresent":true,"qqID":"123456789","userIDPresent":false,"authURLHost":"join.stuhelper.com","authURLPath":"/verify/redacted","authURLHasQQQuery":true,"authURLCanonicalPrefix":true,"tokenHashPresent":true,"tokenConsumed":false,"status":"joined_muted","verified":false,"cancelledAtPresent":false,"botReleaseRecorded":false,"lastBotErrorPresent":false,"createdAt":"2026-05-30T12:00:00Z","updatedAt":"2026-05-30T12:00:00Z","sessionAgeSeconds":60,"updatedAgeSeconds":60,"tokenExpiresAt":"2026-05-30T13:00:00Z","tokenExpired":false,"linkWaitDeadlineAt":"2026-05-30T13:00:00Z","submissionWaitDeadlineAt":"2026-05-31T12:00:00Z","initialMuteUntil":"2026-06-29T12:00:00Z"},"user":null,"qqBinding":{"bound":false,"boundAt":null},"studentVerification":{"activeCredentialCount":0,"kinds":[],"schoolIDs":[]},"freshmanApplications":{"count":0,"statuses":[]},"failure":{"failureCount":0,"lastFailureAt":null},"activeBlacklistCount":0}
+{"input":{"platform":"qq","guildID":"178037297","qqID":"123456789","botSelfID":"2118785781","lookbackHours":24},"sessionCount":1,"latestSession":{"id":"sess-1","platform":"qq","botSelfID":"2118785781","guildID":"178037297","channelIDPresent":true,"qqID":"123456789","userIDPresent":false,"authURLRaw":"https://join.stuhelper.com/verify/fake-public-preview-token?qq=123456789","authURLHost":"join.stuhelper.com","authURLPath":"/verify/redacted","authURLHasQQQuery":true,"authURLCanonicalPrefix":true,"tokenHashPresent":true,"tokenConsumed":false,"status":"joined_muted","verified":false,"cancelledAtPresent":false,"botReleaseRecorded":false,"lastBotErrorPresent":false,"createdAt":"2026-05-30T12:00:00Z","updatedAt":"2026-05-30T12:00:00Z","sessionAgeSeconds":60,"updatedAgeSeconds":60,"tokenExpiresAt":"2026-05-30T13:00:00Z","tokenExpired":false,"linkWaitDeadlineAt":"2026-05-30T13:00:00Z","submissionWaitDeadlineAt":"2026-05-31T12:00:00Z","initialMuteUntil":"2026-06-29T12:00:00Z"},"user":null,"qqBinding":{"bound":false,"boundAt":null},"studentVerification":{"activeCredentialCount":0,"kinds":[],"schoolIDs":[]},"freshmanApplications":{"count":0,"statuses":[]},"failure":{"failureCount":0,"lastFailureAt":null},"activeBlacklistCount":0}
 JSON
     ;;
   none)
@@ -85,6 +85,58 @@ JSON
 esac
 SH
 chmod +x "${tmpdir}/bin/docker"
+
+cat >"${tmpdir}/bin/curl" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+
+output_file=""
+write_out=""
+url=""
+
+while (($# > 0)); do
+  case "$1" in
+    -o)
+      output_file="$2"
+      shift 2
+      ;;
+    -w)
+      write_out="$2"
+      shift 2
+      ;;
+    --noproxy|--resolve)
+      shift 2
+      ;;
+    --insecure|-s|-S|-sS)
+      shift
+      ;;
+    http://*|https://*)
+      url="$1"
+      shift
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+[[ "${url}" == "https://join.stuhelper.com/api/v1/admission/sessions/fake-public-preview-token?qq=123456789" ]] || {
+  echo "unexpected curl URL: ${url}" >&2
+  exit 7
+}
+
+body='{"success":true,"data":{"id":"sess-1"}}'
+if [[ -n "${output_file}" ]]; then
+  printf '%s' "${body}" >"${output_file}"
+else
+  printf '%s' "${body}"
+fi
+
+if [[ -n "${write_out}" ]]; then
+  printf '200\n203.0.113.10\n%s\n' "${#body}"
+fi
+SH
+chmod +x "${tmpdir}/bin/curl"
 
 final_evidence="${tmpdir}/final.json"
 wait_evidence="${tmpdir}/wait.json"
@@ -115,7 +167,10 @@ jq -e '
   .passed == true
   and .expectedStage == "join-created"
   and .maxSessionAgeMinutes == 180
+  and .publicPreview.httpStatus == 200
+  and .publicPreview.sessionIDMatches == true
   and ([.checks[] | select(.name == "latest session is fresh enough for this E2E run" and .passed == true)] | length == 1)
+  and ([.checks[] | select(.name == "unconsumed session public preview API is reachable" and .passed == true)] | length == 1)
 ' "${final_evidence}" >/dev/null
 jq -e '.passed == true and .attemptsCount == 1 and .finalEvidenceFile == "'"${final_evidence}"'"' "${wait_evidence}" >/dev/null
 

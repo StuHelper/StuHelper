@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { createRequire } from 'node:module';
+import { lookup } from 'node:dns/promises';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,6 +39,7 @@ const browserExecutablePath = process.env.PUBLIC_WEB_AUTH_BROWSER_EXECUTABLE_PAT
 const allowLocalTargets = normalizeBool(
   process.env.PUBLIC_WEB_AUTH_BROWSER_SMOKE_ALLOW_LOCAL_TARGETS || 'false',
 );
+const resolvedTargets = {};
 
 if (!allowLocalTargets) {
   requireExactURL('WEB_PUBLIC_URL', webBaseURL, 'https://stuhelper.com');
@@ -49,6 +51,7 @@ if (!allowLocalTargets) {
     ['SSO_PUBLIC_BASE_URL', ssoBaseURL],
   ]) {
     rejectLocalTarget(name, value);
+    resolvedTargets[name] = await rejectLoopbackResolvedTarget(name, value);
   }
 }
 
@@ -83,6 +86,7 @@ const evidence = {
     ssoBaseURL,
     probeToken,
     probeQQ,
+    resolvedTargets,
   },
   summary: {
     passed: checks.filter((check) => check.passed).length,
@@ -819,4 +823,39 @@ function rejectLocalTarget(name, value) {
       `${name} points to a local target (${value}); set PUBLIC_WEB_AUTH_BROWSER_SMOKE_ALLOW_LOCAL_TARGETS=true only for local contract tests.`,
     );
   }
+}
+
+async function rejectLoopbackResolvedTarget(name, value) {
+  const host = new URL(value).hostname;
+  let addresses;
+  try {
+    addresses = await lookup(host, { all: true, verbatim: false });
+  } catch (error) {
+    throw new Error(
+      `${name} host ${host} could not be resolved for production browser smoke: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+  if (addresses.length === 0) {
+    throw new Error(`${name} host ${host} resolved to no addresses for production browser smoke`);
+  }
+  for (const item of addresses) {
+    if (isLoopbackAddress(item.address)) {
+      throw new Error(
+        `${name} host ${host} resolves to loopback (${item.address}); remove local hosts overrides before running production browser smoke, or set PUBLIC_WEB_AUTH_BROWSER_SMOKE_ALLOW_LOCAL_TARGETS=true only for local contract tests.`,
+      );
+    }
+  }
+  return addresses.map((item) => ({ address: item.address, family: item.family }));
+}
+
+function isLoopbackAddress(address) {
+  const normalized = String(address).trim().toLowerCase();
+  return (
+    normalized === '::1' ||
+    normalized === '0:0:0:0:0:0:0:1' ||
+    normalized === '0.0.0.0' ||
+    normalized.startsWith('127.')
+  );
 }

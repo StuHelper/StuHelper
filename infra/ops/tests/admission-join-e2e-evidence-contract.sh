@@ -38,6 +38,8 @@ assert_contains "${EVIDENCE_SCRIPT}" 'ADMISSION_E2E_QQ_ID'
 assert_contains "${EVIDENCE_SCRIPT}" 'ADMISSION_E2E_GUILD_ID'
 assert_contains "${EVIDENCE_SCRIPT}" 'ADMISSION_E2E_EXPECTED_STAGE'
 assert_contains "${EVIDENCE_SCRIPT}" 'ADMISSION_E2E_MAX_SESSION_AGE_MINUTES'
+assert_contains "${EVIDENCE_SCRIPT}" 'ADMISSION_E2E_PUBLIC_PREVIEW_PROBE_ENABLED'
+assert_contains "${EVIDENCE_SCRIPT}" 'ADMISSION_E2E_CURL_NO_PROXY'
 assert_contains "${EVIDENCE_SCRIPT}" 'join-created'
 assert_contains "${EVIDENCE_SCRIPT}" 'flow-completed'
 assert_contains "${EVIDENCE_SCRIPT}" 'bot-released'
@@ -48,6 +50,9 @@ assert_contains "${EVIDENCE_SCRIPT}" 'freshman_verification_applications'
 assert_contains "${EVIDENCE_SCRIPT}" 'member_blacklist_entries'
 assert_contains "${EVIDENCE_SCRIPT}" 'released_at IS NULL'
 assert_contains "${EVIDENCE_SCRIPT}" 'authURLCanonicalPrefix'
+assert_contains "${EVIDENCE_SCRIPT}" 'authURLRawPresent'
+assert_contains "${EVIDENCE_SCRIPT}" 'unconsumed session public preview API is reachable'
+assert_contains "${EVIDENCE_SCRIPT}" 'publicPreview'
 assert_contains "${EVIDENCE_SCRIPT}" 'join\.stuhelper\.com'
 assert_contains "${EVIDENCE_SCRIPT}" '/verify/'
 assert_contains "${EVIDENCE_SCRIPT}" '/verify/redacted'
@@ -120,7 +125,7 @@ JSON
     ;;
   joined)
     cat <<'JSON'
-{"input":{"platform":"qq","guildID":"178037297","qqID":"123456789","botSelfID":"2118785781","lookbackHours":24},"sessionCount":1,"latestSession":{"id":"sess-1","platform":"qq","botSelfID":"2118785781","guildID":"178037297","channelIDPresent":true,"qqID":"123456789","userIDPresent":false,"authURLHost":"join.stuhelper.com","authURLPath":"/verify/redacted","authURLHasQQQuery":true,"authURLCanonicalPrefix":true,"tokenHashPresent":true,"tokenConsumed":false,"status":"joined_muted","verified":false,"cancelledAtPresent":false,"botReleaseRecorded":false,"lastBotErrorPresent":false,"createdAt":"2026-05-30T12:00:00Z","updatedAt":"2026-05-30T12:00:00Z","sessionAgeSeconds":60,"updatedAgeSeconds":60,"tokenExpiresAt":"2026-05-30T13:00:00Z","tokenExpired":false,"linkWaitDeadlineAt":"2026-05-30T13:00:00Z","submissionWaitDeadlineAt":"2026-05-31T12:00:00Z","initialMuteUntil":"2026-06-29T12:00:00Z"},"user":null,"qqBinding":{"bound":false,"boundAt":null},"studentVerification":{"activeCredentialCount":0,"kinds":[],"schoolIDs":[]},"freshmanApplications":{"count":0,"statuses":[]},"failure":{"failureCount":0,"lastFailureAt":null},"activeBlacklistCount":0}
+{"input":{"platform":"qq","guildID":"178037297","qqID":"123456789","botSelfID":"2118785781","lookbackHours":24},"sessionCount":1,"latestSession":{"id":"sess-1","platform":"qq","botSelfID":"2118785781","guildID":"178037297","channelIDPresent":true,"qqID":"123456789","userIDPresent":false,"authURLRaw":"https://join.stuhelper.com/verify/fake-public-preview-token?qq=123456789","authURLHost":"join.stuhelper.com","authURLPath":"/verify/redacted","authURLHasQQQuery":true,"authURLCanonicalPrefix":true,"tokenHashPresent":true,"tokenConsumed":false,"status":"joined_muted","verified":false,"cancelledAtPresent":false,"botReleaseRecorded":false,"lastBotErrorPresent":false,"createdAt":"2026-05-30T12:00:00Z","updatedAt":"2026-05-30T12:00:00Z","sessionAgeSeconds":60,"updatedAgeSeconds":60,"tokenExpiresAt":"2026-05-30T13:00:00Z","tokenExpired":false,"linkWaitDeadlineAt":"2026-05-30T13:00:00Z","submissionWaitDeadlineAt":"2026-05-31T12:00:00Z","initialMuteUntil":"2026-06-29T12:00:00Z"},"user":null,"qqBinding":{"bound":false,"boundAt":null},"studentVerification":{"activeCredentialCount":0,"kinds":[],"schoolIDs":[]},"freshmanApplications":{"count":0,"statuses":[]},"failure":{"failureCount":0,"lastFailureAt":null},"activeBlacklistCount":0}
 JSON
     ;;
   stale-released)
@@ -146,6 +151,58 @@ JSON
 esac
 SH
 chmod +x "${tmpdir}/bin/docker"
+
+cat >"${tmpdir}/bin/curl" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+
+output_file=""
+write_out=""
+url=""
+
+while (($# > 0)); do
+  case "$1" in
+    -o)
+      output_file="$2"
+      shift 2
+      ;;
+    -w)
+      write_out="$2"
+      shift 2
+      ;;
+    --noproxy|--resolve)
+      shift 2
+      ;;
+    --insecure|-s|-S|-sS)
+      shift
+      ;;
+    http://*|https://*)
+      url="$1"
+      shift
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+[[ "${url}" == "https://join.stuhelper.com/api/v1/admission/sessions/fake-public-preview-token?qq=123456789" ]] || {
+  echo "unexpected curl URL: ${url}" >&2
+  exit 7
+}
+
+body='{"success":true,"data":{"id":"sess-1"}}'
+if [[ -n "${output_file}" ]]; then
+  printf '%s' "${body}" >"${output_file}"
+else
+  printf '%s' "${body}"
+fi
+
+if [[ -n "${write_out}" ]]; then
+  printf '200\n203.0.113.10\n%s\n' "${#body}"
+fi
+SH
+chmod +x "${tmpdir}/bin/curl"
 
 run_script() {
   local mode="$1"
@@ -195,7 +252,13 @@ jq -e '
   .passed == true
   and .expectedStage == "join-created"
   and .session.status == "joined_muted"
+  and .session.authURLRawPresent == true
+  and (.session | has("authURLRaw") | not)
   and .qqBinding.bound == false
+  and .publicPreview.httpStatus == 200
+  and .publicPreview.success == true
+  and .publicPreview.sessionIDMatches == true
+  and ([.checks[] | select(.name == "unconsumed session public preview API is reachable" and .passed == true)] | length == 1)
 ' "${joined_file}" >/dev/null
 
 failed_file="${tmpdir}/failed.json"
