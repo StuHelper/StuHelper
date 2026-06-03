@@ -48,6 +48,9 @@ assert_contains "${EVIDENCE_SCRIPT}" 'validate_public_browser_smoke_evidence'
 assert_contains "${EVIDENCE_SCRIPT}" 'join-login-click-starts-sso'
 assert_contains "${EVIDENCE_SCRIPT}" 'join-signup-click-starts-sso-signup'
 assert_contains "${EVIDENCE_SCRIPT}" 'admission-production-readiness\.sh'
+assert_contains "${EVIDENCE_SCRIPT}" 'external-student-source-smoke\.sh'
+assert_contains "${EVIDENCE_SCRIPT}" 'ADMISSION_MVP_PRODUCTION_RUN_EXTERNAL_STUDENT_SOURCE_SMOKE'
+assert_contains "${EVIDENCE_SCRIPT}" 'EXTERNAL_STUDENT_SOURCE_ENABLED=true requires external-student-source-smoke\.sh'
 assert_contains "${EVIDENCE_SCRIPT}" 'koishi-admission-production-evidence\.sh'
 assert_contains "${EVIDENCE_SCRIPT}" 'admission-join-e2e-evidence\.sh'
 assert_contains "${EVIDENCE_SCRIPT}" 'admission-join-e2e-wait\.sh'
@@ -74,6 +77,7 @@ log() { echo "[fake] $*"; }
 warn() { echo "[fake][warn] $*" >&2; }
 die() { echo "[fake][error] $*" >&2; exit 1; }
 require_cmd() { command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"; }
+load_env() { :; }
 SH
 chmod +x "${fake_repo}/infra/ops/lib/common.sh"
 
@@ -81,6 +85,7 @@ for script in \
   sso-public-smoke.sh \
   admission-public-smoke.sh \
   admission-production-readiness.sh \
+  external-student-source-smoke.sh \
   koishi-admission-production-evidence.sh \
   admission-join-e2e-evidence.sh \
   admission-join-e2e-wait.sh; do
@@ -185,6 +190,49 @@ for name in (
 ):
     require(name in names, f"missing step {name}")
 PY
+
+external_student_source_evidence_file="${tmpdir}/external-student-source-evidence.json"
+EXTERNAL_STUDENT_SOURCE_ENABLED=true \
+ADMISSION_MVP_PRODUCTION_EVIDENCE_MODE=main \
+ADMISSION_MVP_PRODUCTION_EVIDENCE_FILE="${external_student_source_evidence_file}" \
+ADMISSION_MVP_PRODUCTION_RUN_SSO_SMOKE=false \
+ADMISSION_MVP_PRODUCTION_RUN_ADMISSION_SMOKE=false \
+ADMISSION_MVP_PRODUCTION_RUN_BROWSER_SMOKE=false \
+ADMISSION_MVP_PRODUCTION_RUN_READINESS=false \
+"${fake_repo}/infra/ops/admission-mvp-production-evidence.sh" >/tmp/admission-mvp-production-evidence-contract-external-source.stdout
+
+python3 - "${external_student_source_evidence_file}" <<'PY' || fail "external student source evidence JSON assertion failed"
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+summary = payload.get("summary", {})
+steps = {step.get("name"): step for step in payload.get("steps", [])}
+external = steps.get("external student source smoke") or {}
+if payload.get("passed") is not True:
+    raise SystemExit("bundle did not pass")
+if summary.get("passed") != 1:
+    raise SystemExit(f"expected only external smoke to pass: {summary}")
+if summary.get("failed") != 0:
+    raise SystemExit(f"failed count: {summary}")
+if external.get("status") != "passed":
+    raise SystemExit(f"external source smoke did not pass: {external}")
+PY
+
+external_student_source_disabled_smoke_file="${tmpdir}/external-student-source-disabled-smoke.json"
+if EXTERNAL_STUDENT_SOURCE_ENABLED=true \
+  ADMISSION_MVP_PRODUCTION_RUN_EXTERNAL_STUDENT_SOURCE_SMOKE=false \
+  ADMISSION_MVP_PRODUCTION_EVIDENCE_MODE=main \
+  ADMISSION_MVP_PRODUCTION_EVIDENCE_FILE="${external_student_source_disabled_smoke_file}" \
+  ADMISSION_MVP_PRODUCTION_RUN_SSO_SMOKE=false \
+  ADMISSION_MVP_PRODUCTION_RUN_ADMISSION_SMOKE=false \
+  ADMISSION_MVP_PRODUCTION_RUN_BROWSER_SMOKE=false \
+  ADMISSION_MVP_PRODUCTION_RUN_READINESS=false \
+  "${fake_repo}/infra/ops/admission-mvp-production-evidence.sh" >/tmp/admission-mvp-production-evidence-contract-external-disabled.stdout 2>/tmp/admission-mvp-production-evidence-contract-external-disabled.stderr; then
+  fail "production evidence unexpectedly passed when external student source smoke was disabled"
+fi
+assert_contains "${external_student_source_disabled_smoke_file}" 'EXTERNAL_STUDENT_SOURCE_ENABLED=true requires external-student-source-smoke\.sh'
 
 cat >"${fake_repo}/infra/ops/public-web-auth-browser-smoke.mjs" <<'JS'
 #!/usr/bin/env node
@@ -420,5 +468,6 @@ assert_contains "${PROD_ENV_EXAMPLE}" '^ADMISSION_MVP_PRODUCTION_E2E_EXPECTED_ST
 assert_contains "${PROD_ENV_EXAMPLE}" '^ADMISSION_MVP_PRODUCTION_E2E_MAX_SESSION_AGE_MINUTES=180$'
 assert_contains "${PROD_ENV_EXAMPLE}" '^ADMISSION_MVP_PRODUCTION_BROWSER_SMOKE_EVIDENCE_FILE=$'
 assert_contains "${PROD_ENV_EXAMPLE}" '^ADMISSION_MVP_PRODUCTION_BROWSER_SMOKE_MAX_AGE_MINUTES=180$'
+assert_contains "${PROD_ENV_EXAMPLE}" '^ADMISSION_MVP_PRODUCTION_RUN_EXTERNAL_STUDENT_SOURCE_SMOKE=auto$'
 
 echo "[admission-mvp-production-evidence-contract] all assertions passed"

@@ -2,6 +2,25 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT_GUESS="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
+if [[ -z "${ENV_FILE+x}" && -f "${REPO_ROOT_GUESS}/.env.prod.shared" ]]; then
+  export ENV_FILE="${REPO_ROOT_GUESS}/.env.prod.shared"
+fi
+if [[ -z "${SECRETS_ENV_FILE+x}" ]]; then
+  if [[ -f "${REPO_ROOT_GUESS}/.env.prod.secrets.local" ]]; then
+    export SECRETS_ENV_FILE="${REPO_ROOT_GUESS}/.env.prod.secrets.local"
+  elif [[ -f "${REPO_ROOT_GUESS}/.env.prod.secrets" ]]; then
+    export SECRETS_ENV_FILE="${REPO_ROOT_GUESS}/.env.prod.secrets"
+  fi
+fi
+if [[ -z "${GENERATED_ENV_FILE+x}" && -f "${REPO_ROOT_GUESS}/.env.prod.generated" ]]; then
+  export GENERATED_ENV_FILE="${REPO_ROOT_GUESS}/.env.prod.generated"
+fi
+if [[ -z "${GENERATED_SECRET_ENV_FILE+x}" && -f "${REPO_ROOT_GUESS}/.env.prod.generated.secrets" ]]; then
+  export GENERATED_SECRET_ENV_FILE="${REPO_ROOT_GUESS}/.env.prod.generated.secrets"
+fi
+
 # shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
 
@@ -23,6 +42,7 @@ Main-host checks:
   - admission-public-smoke.sh
   - public-web-auth-browser-smoke.mjs
   - admission-production-readiness.sh
+  - external-student-source-smoke.sh when EXTERNAL_STUDENT_SOURCE_ENABLED=true
 
 Koishi-node checks:
   - koishi-admission-production-evidence.sh
@@ -49,6 +69,11 @@ Environment:
                                                when that file exists
   ADMISSION_MVP_PRODUCTION_BROWSER_SMOKE_MAX_AGE_MINUTES default 180
   ADMISSION_MVP_PRODUCTION_RUN_READINESS       default true
+  ADMISSION_MVP_PRODUCTION_RUN_EXTERNAL_STUDENT_SOURCE_SMOKE
+                                               auto | true | false, default auto.
+                                               When the external student source
+                                               is enabled, auto requires
+                                               external-student-source-smoke.sh.
   ADMISSION_MVP_PRODUCTION_RUN_KOISHI          default true for mode koishi/all
   ADMISSION_MVP_PRODUCTION_E2E_REQUIRED        default false
   ADMISSION_MVP_PRODUCTION_E2E_WAIT            default false
@@ -65,6 +90,39 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   exit 0
 fi
 
+preserved_env_names=(
+  ADMISSION_MVP_PRODUCTION_EVIDENCE_MODE
+  ADMISSION_MVP_PRODUCTION_EVIDENCE_FILE
+  ADMISSION_MVP_PRODUCTION_RUN_SSO_SMOKE
+  ADMISSION_MVP_PRODUCTION_RUN_ADMISSION_SMOKE
+  ADMISSION_MVP_PRODUCTION_RUN_BROWSER_SMOKE
+  ADMISSION_MVP_PRODUCTION_BROWSER_SMOKE_EVIDENCE_FILE
+  ADMISSION_MVP_PRODUCTION_BROWSER_SMOKE_MAX_AGE_MINUTES
+  ADMISSION_MVP_PRODUCTION_RUN_READINESS
+  ADMISSION_MVP_PRODUCTION_RUN_EXTERNAL_STUDENT_SOURCE_SMOKE
+  ADMISSION_MVP_PRODUCTION_RUN_KOISHI
+  ADMISSION_MVP_PRODUCTION_E2E_REQUIRED
+  ADMISSION_MVP_PRODUCTION_E2E_WAIT
+  ADMISSION_MVP_PRODUCTION_E2E_EXPECTED_STAGE
+  ADMISSION_MVP_PRODUCTION_E2E_MAX_SESSION_AGE_MINUTES
+  ADMISSION_E2E_QQ_ID
+  ADMISSION_E2E_GUILD_ID
+  ADMISSION_E2E_EXPECTED_STAGE
+  ADMISSION_E2E_MAX_SESSION_AGE_MINUTES
+  EXTERNAL_STUDENT_SOURCE_ENABLED
+)
+declare -A preserved_env_values=()
+for preserved_env_name in "${preserved_env_names[@]}"; do
+  if [[ -v "${preserved_env_name}" ]]; then
+    preserved_env_values["${preserved_env_name}"]="${!preserved_env_name}"
+  fi
+done
+load_env
+for preserved_env_name in "${!preserved_env_values[@]}"; do
+  export "${preserved_env_name}=${preserved_env_values[${preserved_env_name}]}"
+done
+unset preserved_env_name preserved_env_names preserved_env_values
+
 require_cmd python3
 require_cmd date
 
@@ -80,6 +138,7 @@ if [[ -z "${browser_smoke_evidence_file}" && -f "${browser_smoke_default_evidenc
 fi
 browser_smoke_max_age_minutes="${ADMISSION_MVP_PRODUCTION_BROWSER_SMOKE_MAX_AGE_MINUTES:-180}"
 run_readiness="${ADMISSION_MVP_PRODUCTION_RUN_READINESS:-true}"
+run_external_student_source_smoke="${ADMISSION_MVP_PRODUCTION_RUN_EXTERNAL_STUDENT_SOURCE_SMOKE:-auto}"
 run_koishi="${ADMISSION_MVP_PRODUCTION_RUN_KOISHI:-true}"
 e2e_required="${ADMISSION_MVP_PRODUCTION_E2E_REQUIRED:-false}"
 e2e_wait="${ADMISSION_MVP_PRODUCTION_E2E_WAIT:-false}"
@@ -107,13 +166,24 @@ normalize_bool() {
   esac
 }
 
+normalize_bool_or_auto() {
+  local name="$1"
+  local value="$2"
+  case "${value}" in
+    auto|AUTO|"") printf 'auto\n' ;;
+    *) normalize_bool "${name}" "${value}" ;;
+  esac
+}
+
 run_sso_smoke="$(normalize_bool ADMISSION_MVP_PRODUCTION_RUN_SSO_SMOKE "${run_sso_smoke}")"
 run_admission_smoke="$(normalize_bool ADMISSION_MVP_PRODUCTION_RUN_ADMISSION_SMOKE "${run_admission_smoke}")"
 run_browser_smoke="$(normalize_bool ADMISSION_MVP_PRODUCTION_RUN_BROWSER_SMOKE "${run_browser_smoke}")"
 run_readiness="$(normalize_bool ADMISSION_MVP_PRODUCTION_RUN_READINESS "${run_readiness}")"
+run_external_student_source_smoke="$(normalize_bool_or_auto ADMISSION_MVP_PRODUCTION_RUN_EXTERNAL_STUDENT_SOURCE_SMOKE "${run_external_student_source_smoke}")"
 run_koishi="$(normalize_bool ADMISSION_MVP_PRODUCTION_RUN_KOISHI "${run_koishi}")"
 e2e_required="$(normalize_bool ADMISSION_MVP_PRODUCTION_E2E_REQUIRED "${e2e_required}")"
 e2e_wait="$(normalize_bool ADMISSION_MVP_PRODUCTION_E2E_WAIT "${e2e_wait}")"
+external_student_source_enabled="$(normalize_bool EXTERNAL_STUDENT_SOURCE_ENABLED "${EXTERNAL_STUDENT_SOURCE_ENABLED:-false}")"
 
 steps_jsonl="$(mktemp)"
 trap 'rm -f "${steps_jsonl}"' EXIT
@@ -316,6 +386,16 @@ if should_run_main; then
     run_step "admission production readiness" "${SCRIPT_DIR}/admission-production-readiness.sh"
   else
     record_skip "admission production readiness" "ADMISSION_MVP_PRODUCTION_RUN_READINESS=false"
+  fi
+
+  if [[ "${external_student_source_enabled}" == "true" ]]; then
+    if [[ "${run_external_student_source_smoke}" == "false" ]]; then
+      record_failure "external student source smoke" "EXTERNAL_STUDENT_SOURCE_ENABLED=true requires external-student-source-smoke.sh"
+    else
+      run_step "external student source smoke" "${SCRIPT_DIR}/external-student-source-smoke.sh"
+    fi
+  elif [[ "${run_external_student_source_smoke}" == "true" ]]; then
+    run_step "external student source smoke" "${SCRIPT_DIR}/external-student-source-smoke.sh"
   fi
 fi
 
