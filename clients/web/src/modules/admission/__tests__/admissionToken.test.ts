@@ -119,4 +119,13 @@ describe('admission token API error mapping', () => {
     expect(isAdmissionTokenConsumedError({ code: 'admission.token_consumed' })).toBe(true)
     expect(isAdmissionSessionExpiredError({ code: 'admission.token_expired' })).toBe(true)
   })
+
+  it('maps legacy qq binding conflict responses to qq mismatch', () => {
+    expect(
+      mapAdmissionApiError(new ApiError({
+        code: 'A0000409',
+        message: 'qq binding conflict',
+      })),
+    ).toBe('qqMismatch')
+  })
 })

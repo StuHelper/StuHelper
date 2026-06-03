@@ -545,6 +545,26 @@ describe('AdmissionPage edge states', () => {
     expect(wrapper.text()).not.toContain('链接已失效')
   })
 
+  it('shows qq mismatch when explicit linking finds another qq already bound', async () => {
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('joined_muted'),
+    )
+    mockAdmissionApi.linkAdmissionSession.mockRejectedValueOnce(
+      new ApiError({ code: 'admission.qq_mismatch', message: 'admission qq mismatch' }),
+    )
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+    await wrapper.get('button.primary-button').trigger('click')
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.find('[data-state="qqMismatch"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('QQ 账号不匹配')
+    expect(wrapper.text()).toContain('当前登录的 StuHelper 账号已绑定其他 QQ')
+    expect(wrapper.text()).toContain('重新生成认证链接 123')
+    expect(wrapper.find('[data-state="error"]').exists()).toBe(false)
+  })
+
   it('moves to expired when linked resources report an expired admission session', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
       sessionWithStatus('joined_muted'),

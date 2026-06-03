@@ -190,6 +190,33 @@ func TestAdmissionTokenLinkIsAtomicUnderConcurrency(t *testing.T) {
 	assertExactlyOneLinkSuccess(t, results)
 }
 
+func TestAdmissionTokenLinkMapsQQBindingConflictsToQQMismatch(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{name: "user bound to other qq", err: user.ErrQQBindingUserConflict},
+		{name: "qq bound to other user", err: user.ErrQQBindingQQAlreadyBound},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fixture := postgresfixture.Start(t)
+			svc := newSessionTestService(t, fixture)
+			svc.qqGateway = &testQQBindingGateway{err: tc.err}
+			insertAdmissionPolicy(t, fixture)
+			created := createLinkableSession(t, svc)
+			userID := seedAdmissionUser(t, fixture, "qq-binding-conflict")
+
+			_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+				Token:  created.Token,
+				UserID: userID,
+			})
+
+			require.ErrorIs(t, err, ErrAdmissionQQMismatch)
+			require.NotErrorIs(t, err, tc.err)
+		})
+	}
+}
+
 func TestAdmissionTokenExpiredAndConsumedErrors(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)
@@ -794,7 +821,9 @@ func fixedAdmissionNow() time.Time {
 	return time.Date(2026, 5, 3, 12, 0, 0, 0, time.UTC)
 }
 
-type testQQBindingGateway struct{}
+type testQQBindingGateway struct {
+	err error
+}
 
 func (g *testQQBindingGateway) EnsureQQBindingForUserTx(
 	context.Context,
@@ -802,6 +831,9 @@ func (g *testQQBindingGateway) EnsureQQBindingForUserTx(
 	int64,
 	string,
 ) (*user.QQBinding, error) {
+	if g.err != nil {
+		return nil, g.err
+	}
 	return &user.QQBinding{}, nil
 }
 

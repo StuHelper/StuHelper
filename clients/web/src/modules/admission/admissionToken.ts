@@ -37,7 +37,7 @@ export function buildAdmissionReturnURL(
 export function mapAdmissionApiError(error: unknown): AdmissionMappedState {
   const code = readAdmissionErrorCode(error)
 
-  if (code === 'admission.qq_mismatch') {
+  if (code === 'admission.qq_mismatch' || isQQBindingConflictError(error)) {
     return 'qqMismatch'
   }
   if (code && TERMINAL_ADMISSION_ERROR_CODES.has(code)) {
@@ -45,6 +45,11 @@ export function mapAdmissionApiError(error: unknown): AdmissionMappedState {
   }
 
   return 'error'
+}
+
+function isQQBindingConflictError(error: unknown): boolean {
+  const message = readAdmissionErrorMessage(error)
+  return /qq binding conflict/i.test(message ?? '')
 }
 
 export function isAdmissionTokenConsumedError(error: unknown): boolean {
