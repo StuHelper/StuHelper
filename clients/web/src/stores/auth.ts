@@ -9,7 +9,10 @@ import {
     clearAuth,
     tokenExpiry,
 } from "@/utils/auth";
-import { resolvePostLoginRedirectTarget } from "@/utils/redirect";
+import {
+    normalizeConfiguredHTTPOrigin,
+    resolvePostLoginRedirectTarget,
+} from "@/utils/redirect";
 import {
     classifyApiError,
     isApiError,
@@ -47,6 +50,8 @@ interface LoginAuthorizeOptions {
     prompt?: "login";
     maxAge?: 0;
 }
+
+const DEFAULT_SSO_ORIGIN = "https://sso.stuhelper.com";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return Boolean(value) && typeof value === "object";
@@ -178,6 +183,20 @@ function readLoginURLPayload(
         url: readString(payload, "url", message),
         state: readString(payload, "state", message),
     };
+}
+
+function configuredSSOOrigin(): string {
+    if (typeof window === "undefined") return DEFAULT_SSO_ORIGIN;
+    return normalizeConfiguredHTTPOrigin(
+        import.meta.env.VITE_SSO_URL,
+        window.location.origin,
+    ) ?? DEFAULT_SSO_ORIGIN;
+}
+
+function upstreamSSOCurrentSessionLogoutURL(): string {
+    const url = new URL("/api/sso-logout", configuredSSOOrigin());
+    url.searchParams.set("logoutAll", "false");
+    return url.toString();
 }
 
 function readUserInfoPayload(
@@ -364,6 +383,46 @@ export const useAuthStore = defineStore("auth", () => {
             maxAge: 0,
         });
 
+    const logoutUpstreamSSOCurrentSession = async () => {
+        if (typeof window === "undefined" || !window.fetch) return;
+        try {
+            await window.fetch(upstreamSSOCurrentSessionLogoutURL(), {
+                cache: "no-store",
+                credentials: "include",
+                method: "GET",
+                mode: "no-cors",
+            });
+        } catch {
+            // 上游 SSO 登出是切换账号的加固步骤；失败时继续 prompt=login，避免前端卡住。
+        }
+    };
+
+    const switchAccount = async (redirect?: string) => {
+        clearError();
+        loading.value = true;
+        try {
+            try {
+                await api.auth.logout();
+            } catch {
+                // 切换账号不能因为本地会话登出失败而卡死；后续登录回调会覆盖 cookie。
+            }
+            resetAllStores();
+            await logoutUpstreamSSOCurrentSession();
+            await startLoginFlow(redirect, {
+                prompt: "login",
+                maxAge: 0,
+            });
+        } catch (err) {
+            loading.value = false;
+            const authErr = handleError(
+                err,
+                i18n.global.t("common.login.loginUrlFailed"),
+            );
+            setError(authErr.type, authErr.message);
+            throw err;
+        }
+    };
+
     // 注册
     const signup = (redirect?: string) =>
         startSignupFlow(redirect);
@@ -531,6 +590,7 @@ export const useAuthStore = defineStore("auth", () => {
         upstreamLogin,
         reauthenticate,
         upstreamReauthenticate,
+        switchAccount,
         signup,
         upstreamSignup,
         fetchUser,

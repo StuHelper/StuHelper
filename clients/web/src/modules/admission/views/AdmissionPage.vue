@@ -64,7 +64,7 @@
               复制指令
             </button>
           </div>
-          <button class="primary-button mt-4" type="button" @click="startReauthentication">
+          <button class="primary-button mt-4" type="button" @click="startAccountSwitch">
             重新登录
           </button>
         </div>
@@ -93,7 +93,7 @@
               复制指令
             </button>
           </div>
-          <button class="primary-button mt-4" type="button" @click="startReauthentication">
+          <button class="primary-button mt-4" type="button" @click="startAccountSwitch">
             重新登录
           </button>
         </div>
@@ -105,9 +105,10 @@
           </p>
           <button
             class="primary-button mt-4"
+            data-admission-open-bind-confirmation
             type="button"
             :disabled="linking"
-            @click="confirmLink"
+            @click="openBindConfirmationDialog"
           >
             {{ linking ? '正在确认...' : '开始认证' }}
           </button>
@@ -221,13 +222,97 @@
         </div>
       </section>
     </section>
+
+    <Dialog :open="bindConfirmationDialogOpen" @update:open="handleBindConfirmationOpenChange">
+      <DialogContent
+        class="sm:max-w-[520px]"
+        data-admission-bind-confirmation-dialog
+      >
+        <DialogHeader>
+          <div class="mb-1 flex h-10 w-10 items-center justify-center rounded-md bg-amber-100 text-amber-700">
+            <ShieldAlert class="h-5 w-5" aria-hidden="true" />
+          </div>
+          <DialogTitle>确认绑定 QQ</DialogTitle>
+          <DialogDescription>
+            您正在将 StuHelper 账号
+            <span class="font-semibold text-slate-950">[{{ currentUserLabel }}]</span>
+            绑定至 QQ：
+            <span class="font-semibold text-slate-950">[{{ displayQQ || '当前入群 QQ' }}]</span>。
+            绑定后无法变更。请确认是否继续？
+          </DialogDescription>
+        </DialogHeader>
+
+        <div class="space-y-3">
+          <div class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-relaxed text-amber-900">
+            绑定后该 QQ 将用于入群验证和机器人识别。若这不是你正在入群使用的 QQ，请取消并重新登录正确账号。
+          </div>
+          <div class="grid gap-2">
+            <label
+              class="text-sm font-medium text-slate-800"
+              for="admission-bind-confirmation-qq"
+            >
+              手动输入需要绑定的 QQ 号
+            </label>
+            <Input
+              id="admission-bind-confirmation-qq"
+              v-model="bindConfirmationQQ"
+              autocomplete="off"
+              data-admission-bind-confirmation-input
+              :disabled="linking"
+              inputmode="numeric"
+              :placeholder="displayQQ || 'QQ号'"
+              @blur="bindConfirmationTouched = true"
+              @keydown.enter.prevent="submitBindConfirmation"
+            />
+            <p
+              v-if="bindConfirmationError"
+              class="text-sm text-red-600"
+              data-admission-bind-confirmation-error
+            >
+              {{ bindConfirmationError }}
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button
+            :disabled="linking"
+            type="button"
+            variant="outline"
+            @click="closeBindConfirmationDialog"
+          >
+            取消
+          </Button>
+          <Button
+            data-admission-bind-confirmation-submit
+            :disabled="!bindConfirmationMatches || linking"
+            type="button"
+            @click="submitBindConfirmation"
+          >
+            <ShieldCheck class="h-4 w-4" aria-hidden="true" />
+            {{ linking ? '正在确认...' : '确认并开始认证' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </main>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { ShieldAlert, ShieldCheck } from 'lucide-vue-next'
 
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { useVerificationStore } from '@/stores/verification'
@@ -278,6 +363,9 @@ const linking = ref(false)
 const activeFlow = ref<'freshman' | 'oldStudent'>('freshman')
 const projectionRefreshTimedOut = ref(false)
 const activeFlowManuallySelected = ref(false)
+const bindConfirmationDialogOpen = ref(false)
+const bindConfirmationQQ = ref('')
+const bindConfirmationTouched = ref(false)
 let projectionRefreshAbort: AbortController | null = null
 let admissionSessionLoad: Promise<void> | null = null
 let admissionSessionReloadQueued = false
@@ -287,6 +375,20 @@ let pendingReviewRefreshAttempt = 0
 let pendingReviewRefreshInFlight = false
 
 const displayQQ = computed(() => session.value?.qqID ?? '')
+const currentUserLabel = computed(() => (
+  auth.user?.displayName || auth.user?.name || '当前 StuHelper 账号'
+))
+const bindConfirmationExpectedQQ = computed(() => displayQQ.value.trim())
+const bindConfirmationMatches = computed(() => (
+  bindConfirmationExpectedQQ.value !== '' &&
+  bindConfirmationQQ.value === bindConfirmationExpectedQQ.value
+))
+const bindConfirmationError = computed(() => {
+  if (!bindConfirmationTouched.value || bindConfirmationQQ.value === '') {
+    return ''
+  }
+  return bindConfirmationMatches.value ? '' : '输入的 QQ 号与本次入群 QQ 不一致。'
+})
 const reissueCommand = computed(() => {
   return displayQQ.value
     ? `重新生成认证链接 ${displayQQ.value}`
@@ -592,9 +694,11 @@ async function confirmLink() {
     const linked = await admissionApi.linkAdmissionSession(
       readAdmissionToken(),
     )
+    bindConfirmationDialogOpen.value = false
     session.value = linked
     handleSessionState(linked)
   } catch (error) {
+    bindConfirmationDialogOpen.value = false
     if (isAdmissionTokenConsumedError(error)) {
       pageState.value = 'accountMismatch'
       return
@@ -605,6 +709,32 @@ async function confirmLink() {
   }
 }
 
+function openBindConfirmationDialog(): void {
+  bindConfirmationQQ.value = ''
+  bindConfirmationTouched.value = false
+  bindConfirmationDialogOpen.value = true
+}
+
+function closeBindConfirmationDialog(): void {
+  if (linking.value) return
+  bindConfirmationDialogOpen.value = false
+}
+
+function handleBindConfirmationOpenChange(open: boolean): void {
+  if (!open && linking.value) return
+  bindConfirmationDialogOpen.value = open
+  if (open) {
+    bindConfirmationQQ.value = ''
+    bindConfirmationTouched.value = false
+  }
+}
+
+async function submitBindConfirmation(): Promise<void> {
+  bindConfirmationTouched.value = true
+  if (!bindConfirmationMatches.value || linking.value) return
+  await confirmLink()
+}
+
 function startLogin() {
   void auth.login(currentAdmissionURL())
 }
@@ -613,8 +743,8 @@ function startSignup() {
   void auth.signup(currentAdmissionURL())
 }
 
-function startReauthentication() {
-  void auth.reauthenticate(currentAdmissionURL())
+function startAccountSwitch() {
+  void auth.switchAccount(currentAdmissionURL())
 }
 
 async function copyReissueCommand(): Promise<void> {
@@ -660,6 +790,9 @@ watch(
   () => route.fullPath,
   () => {
     activeFlowManuallySelected.value = false
+    bindConfirmationDialogOpen.value = false
+    bindConfirmationQQ.value = ''
+    bindConfirmationTouched.value = false
     queueAdmissionSessionLoad()
   },
 )

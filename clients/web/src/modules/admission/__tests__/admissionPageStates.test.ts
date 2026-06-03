@@ -20,6 +20,11 @@ const mockAuth = vi.hoisted(() => ({
   login: vi.fn(),
   reauthenticate: vi.fn(),
   signup: vi.fn(),
+  switchAccount: vi.fn(),
+  user: {
+    displayName: 'Alice Zhang',
+    name: 'alice',
+  },
 }))
 
 const mockVerificationStore = vi.hoisted(() => ({
@@ -69,6 +74,10 @@ describe('AdmissionPage edge states', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockAuth.isAuthenticated = true
+    mockAuth.user = {
+      displayName: 'Alice Zhang',
+      name: 'alice',
+    }
     mockAuth.bootstrapSession.mockResolvedValue(true)
     mockRoute.fullPath = '/verify/ABCD'
     mockRoute.params = { code: 'ABCD' }
@@ -88,6 +97,7 @@ describe('AdmissionPage edge states', () => {
     while (mountedWrappers.length > 0) {
       mountedWrappers.pop()?.unmount()
     }
+    document.body.innerHTML = ''
     vi.useRealTimers()
   })
 
@@ -103,6 +113,7 @@ describe('AdmissionPage edge states', () => {
     expect(wrapper.text()).toContain('当前登录的 StuHelper 账号已绑定其他 QQ')
     expect(wrapper.text()).not.toContain('开始认证')
     expect(mockAuth.login).not.toHaveBeenCalled()
+    expect(mockAuth.switchAccount).not.toHaveBeenCalled()
     expect(mockAdmissionApi.linkAdmissionSession).not.toHaveBeenCalled()
   })
 
@@ -434,6 +445,53 @@ describe('AdmissionPage edge states', () => {
     expect(wrapper.text()).toContain('开始认证')
   })
 
+  it('requires manually typing the current qq before binding the StuHelper account', async () => {
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('joined_muted'),
+    )
+    mockAdmissionApi.linkAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('linked'),
+    )
+    mockAdmissionApi.getAdmissionMe.mockResolvedValueOnce({
+      projectionPending: false,
+      session: sessionWithStatus('linked'),
+      status: 'linked',
+    })
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+    await openBindConfirmationDialog(wrapper)
+
+    const dialog = getDialogElement<HTMLElement>('[data-admission-bind-confirmation-dialog]')
+    expect(dialog.textContent).toContain('[Alice Zhang]')
+    expect(dialog.textContent).toContain('[123]')
+
+    const submit = getDialogElement<HTMLButtonElement>(
+      '[data-admission-bind-confirmation-submit]',
+    )
+    expect(submit.disabled).toBe(true)
+
+    await typeBindConfirmationQQ('124')
+    getDialogElement<HTMLInputElement>(
+      '[data-admission-bind-confirmation-input]',
+    ).dispatchEvent(new Event('blur', { bubbles: true }))
+    await nextTick()
+
+    expect(getDialogElement<HTMLElement>(
+      '[data-admission-bind-confirmation-error]',
+    ).textContent).toContain('输入的 QQ 号与本次入群 QQ 不一致')
+    expect(submit.disabled).toBe(true)
+    expect(mockAdmissionApi.linkAdmissionSession).not.toHaveBeenCalled()
+
+    await typeBindConfirmationQQ('123')
+    expect(submit.disabled).toBe(false)
+    submit.click()
+    await settleAdmissionPage(wrapper)
+
+    expect(mockAdmissionApi.linkAdmissionSession).toHaveBeenCalledWith('ABCD')
+    expect(wrapper.find('[data-state="linked"]').exists()).toBe(true)
+  })
+
   it('refreshes the admission state when the SSO tab returns focus without pageshow', async () => {
     mockAuth.isAuthenticated = false
     mockAuth.bootstrapSession
@@ -493,7 +551,7 @@ describe('AdmissionPage edge states', () => {
 
     const wrapper = await mountAdmissionPage()
     await settleAdmissionPage(wrapper)
-    await wrapper.get('button.primary-button').trigger('click')
+    await confirmCurrentQQBinding(wrapper)
     await settleAdmissionPage(wrapper)
 
     expect(wrapper.find('[data-state="linked"]').exists()).toBe(true)
@@ -518,7 +576,7 @@ describe('AdmissionPage edge states', () => {
 
     const wrapper = await mountAdmissionPage()
     await settleAdmissionPage(wrapper)
-    await wrapper.get('button.primary-button').trigger('click')
+    await confirmCurrentQQBinding(wrapper)
     await settleAdmissionPage(wrapper)
 
     expect(wrapper.find('[data-state="expired"]').exists()).toBe(true)
@@ -536,7 +594,7 @@ describe('AdmissionPage edge states', () => {
 
     const wrapper = await mountAdmissionPage()
     await settleAdmissionPage(wrapper)
-    await wrapper.get('button.primary-button').trigger('click')
+    await confirmCurrentQQBinding(wrapper)
     await settleAdmissionPage(wrapper)
 
     expect(wrapper.find('[data-state="accountMismatch"]').exists()).toBe(true)
@@ -555,12 +613,15 @@ describe('AdmissionPage edge states', () => {
 
     const wrapper = await mountAdmissionPage()
     await settleAdmissionPage(wrapper)
-    await wrapper.get('button.primary-button').trigger('click')
+    await confirmCurrentQQBinding(wrapper)
     await settleAdmissionPage(wrapper)
 
     expect(wrapper.find('[data-state="qqMismatch"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('QQ 账号不匹配')
     expect(wrapper.text()).toContain('当前登录的 StuHelper 账号已绑定其他 QQ')
+    await wrapper.get('button.primary-button').trigger('click')
+    expect(mockAuth.switchAccount).toHaveBeenCalledWith('http://localhost:3000/verify/ABCD')
+    expect(mockAuth.reauthenticate).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('重新生成认证链接 123')
     expect(wrapper.find('[data-state="error"]').exists()).toBe(false)
   })
@@ -578,7 +639,7 @@ describe('AdmissionPage edge states', () => {
 
     const wrapper = await mountAdmissionPage()
     await settleAdmissionPage(wrapper)
-    await wrapper.get('button.primary-button').trigger('click')
+    await confirmCurrentQQBinding(wrapper)
     await settleAdmissionPage(wrapper)
 
     expect(wrapper.find('[data-state="expired"]').exists()).toBe(true)
@@ -614,9 +675,51 @@ async function settleAdmissionPage(
 
 async function mountAdmissionPage() {
   const component = await import('../views/AdmissionPage.vue')
-  const wrapper = mount(component.default)
-  mountedWrappers.push(wrapper)
+  const target = document.createElement('div')
+  document.body.appendChild(target)
+  const wrapper = mount(component.default, {
+    attachTo: target,
+  })
+  mountedWrappers.push({
+    unmount() {
+      wrapper.unmount()
+      target.remove()
+    },
+  })
   return wrapper
+}
+
+async function openBindConfirmationDialog(
+  wrapper: Awaited<ReturnType<typeof mountAdmissionPage>>,
+): Promise<void> {
+  await wrapper.get('[data-admission-open-bind-confirmation]').trigger('click')
+  await settleAdmissionPage(wrapper)
+}
+
+async function confirmCurrentQQBinding(
+  wrapper: Awaited<ReturnType<typeof mountAdmissionPage>>,
+  qq = '123',
+): Promise<void> {
+  await openBindConfirmationDialog(wrapper)
+  await typeBindConfirmationQQ(qq)
+  getDialogElement<HTMLButtonElement>('[data-admission-bind-confirmation-submit]').click()
+  await settleAdmissionPage(wrapper)
+}
+
+async function typeBindConfirmationQQ(qq: string): Promise<void> {
+  const input = getDialogElement<HTMLInputElement>('[data-admission-bind-confirmation-input]')
+  input.value = qq
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+  await nextTick()
+  await flushPromises()
+}
+
+function getDialogElement<T extends Element>(selector: string): T {
+  const element = document.body.querySelector<T>(selector)
+  if (!element) {
+    throw new Error(`Missing dialog element: ${selector}`)
+  }
+  return element
 }
 
 function createDeferred<T>() {
