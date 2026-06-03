@@ -194,9 +194,9 @@ function configuredSSOOrigin(): string {
     ) ?? DEFAULT_SSO_ORIGIN;
 }
 
-function upstreamSSOCurrentSessionLogoutURL(): string {
+function upstreamSSOAccountSwitchLogoutURL(): string {
     const url = new URL("/api/sso-logout", configuredSSOOrigin());
-    url.searchParams.set("logoutAll", "false");
+    url.searchParams.set("logoutAll", "true");
     url.searchParams.set("_", Date.now().toString());
     return url.toString();
 }
@@ -385,7 +385,7 @@ export const useAuthStore = defineStore("auth", () => {
             maxAge: 0,
         });
 
-    const logoutUpstreamSSOCurrentSession = async () => {
+    const logoutUpstreamSSOForAccountSwitch = async () => {
         if (
             typeof window === "undefined" ||
             typeof document === "undefined" ||
@@ -409,7 +409,7 @@ export const useAuthStore = defineStore("auth", () => {
             frame.style.display = "none";
             frame.setAttribute("aria-hidden", "true");
             frame.addEventListener("load", finish, { once: true });
-            frame.src = upstreamSSOCurrentSessionLogoutURL();
+            frame.src = upstreamSSOAccountSwitchLogoutURL();
             document.body.appendChild(frame);
         });
     };
@@ -430,7 +430,7 @@ export const useAuthStore = defineStore("auth", () => {
                 );
                 throw error;
             }
-            await logoutUpstreamSSOCurrentSession();
+            await logoutUpstreamSSOForAccountSwitch();
             await startLoginFlow(redirect, {
                 prompt: "login",
                 maxAge: 0,

@@ -173,7 +173,7 @@ describe("auth authorize flow", () => {
         expect(sessionStorage.getItem("oauth_state")).toBe("signup-state");
     });
 
-    it("logs out local and upstream SSO sessions before switching accounts", async () => {
+    it("logs out local and upstream SSO account sessions before switching accounts", async () => {
         mockLogout.mockResolvedValue({});
         mockLogin.mockResolvedValue({
             data: { data: { state: "switch-state", url: "#switch" } },
@@ -192,7 +192,7 @@ describe("auth authorize flow", () => {
         expect(mockFrameRemove).toHaveBeenCalledTimes(1);
         const frame = mockCreateElement.mock.results[0]?.value as { src: string };
         expect(frame.src).toMatch(
-            /^https:\/\/sso\.stuhelper\.com\/api\/sso-logout\?logoutAll=false&_/,
+            /^https:\/\/sso\.stuhelper\.com\/api\/sso-logout\?logoutAll=true&_/,
         );
         expect(mockLogin).toHaveBeenCalledWith(
             "https://join.stuhelper.com/verify/token",
