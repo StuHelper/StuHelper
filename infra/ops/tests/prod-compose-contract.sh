@@ -122,6 +122,8 @@ assert_contains "${REDIS_TLS_RENDER_FILE}" '^ensure_redis_tls_permissions\(\) \{
 assert_contains "${REDIS_TLS_RENDER_FILE}" 'chmod 755 "\$\{REDIS_TLS_DIR\}"'
 assert_contains "${REDIS_TLS_RENDER_FILE}" 'chmod 644 "\$\{SERVER_KEY\}"'
 assert_contains "${REPO_ROOT}/infra/ops/render-postgres-tls.sh" '^ensure_postgres_tls_permissions\(\) \{$'
+assert_contains "${REPO_ROOT}/infra/ops/render-postgres-tls.sh" 'POSTGRES_TLS_SERVER_KEY_OWNER="\$\{POSTGRES_TLS_SERVER_KEY_OWNER:-70:70\}"'
+assert_contains "${REPO_ROOT}/infra/ops/render-postgres-tls.sh" 'chown "\$\{POSTGRES_TLS_SERVER_KEY_OWNER\}" "\$\{SERVER_KEY\}"'
 assert_contains "${REPO_ROOT}/infra/ops/render-postgres-tls.sh" 'chmod 755 "\$\{POSTGRES_TLS_DIR\}"'
 assert_contains "${REPO_ROOT}/infra/ops/render-postgres-tls.sh" '\[\[ -f "\$\{CA_CERT\}" \]\] && chmod 644 "\$\{CA_CERT\}"'
 assert_contains "${REPO_ROOT}/infra/ops/render-postgres-tls.sh" 'ensure_postgres_tls_permissions'

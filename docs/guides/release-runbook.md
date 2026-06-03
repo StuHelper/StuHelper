@@ -105,7 +105,7 @@ make prod-deploy
 
 要求：本地打包前记录当前 Git ref、`git status --short` 和源码包 `sha256sum`。源码包不得包含真实 `.env*`、`.deploy/`、`node_modules`、`dist`、临时 SSH 脚本或本地 secret。生产 `source/.env.prod.shared`、`source/.env.prod.secrets.local`、`source/.env.prod.generated`、`source/.env.prod.generated.secrets` 只从旧生产目录保留或由 secret backend 重新生成，不从源码包覆盖。
 
-如果旧生产目录已有 `source/infra/generated`，恢复到新 `source/infra/generated` 时复制整个 `generated` 目录本身，目标必须是 `source/infra/generated`，不能变成 `source/infra/generated/generated`；PostgreSQL、Redis、MinIO 的 TLS 挂载分别依赖 `source/infra/generated/*/ca.crt`，复制后必须执行 `source/infra/ops/render-postgres-tls.sh`、`source/infra/ops/render-redis-tls.sh`、`source/infra/ops/render-minio-ca-bundle.sh` 或等价权限归一化，确保 TLS 目录可进入、`ca.crt` 可被非 root 客户端读取、私钥仍保持最小权限。镜像必须在本地从当前代码构建，上传 tar 后在生产执行 `sha256sum -c`，再 `docker load`；记录 backend / web / admin 镜像 ID 和 tar sha256。数据库 bootstrap、migration、readiness、public smoke 仍运行仓库脚本。`admission-bootstrap-production-data.sh` 和 `admission-production-readiness.sh` 在宝塔 `source/` 目录下会自动识别 `.env.prod.shared`、`.env.prod.secrets.local`、`.env.prod.generated`、`.env.prod.generated.secrets`。
+如果旧生产目录已有 `source/infra/generated`，恢复到新 `source/infra/generated` 时复制整个 `generated` 目录本身，目标必须是 `source/infra/generated`，不能变成 `source/infra/generated/generated`；PostgreSQL、Redis、MinIO 的 TLS 挂载分别依赖 `source/infra/generated/*/ca.crt`，复制后必须执行 `source/infra/ops/render-postgres-tls.sh`、`source/infra/ops/render-redis-tls.sh`、`source/infra/ops/render-minio-ca-bundle.sh` 或等价权限归一化，确保 TLS 目录可进入、`ca.crt` 可被非 root 客户端读取、私钥仍保持最小权限。宝塔源码目录替换后还必须执行 `source/infra/ops/ensure-baota-runtime-permissions.sh --apply`，它会把 PostgreSQL `server.key` 调整为 `postgres:*-alpine` 容器用户可读、恢复 Redis ACL 可读权限，并在同机存在独立 Casdoor Compose 时修复 `conf/app.conf` 与 `logs/` 的 UID 1000 权限。镜像必须在本地从当前代码构建，上传 tar 后在生产执行 `sha256sum -c`，再 `docker load`；记录 backend / web / admin 镜像 ID 和 tar sha256。数据库 bootstrap、migration、readiness、public smoke 仍运行仓库脚本。`admission-bootstrap-production-data.sh` 和 `admission-production-readiness.sh` 在宝塔 `source/` 目录下会自动识别 `.env.prod.shared`、`.env.prod.secrets.local`、`.env.prod.generated`、`.env.prod.generated.secrets`。
 
 重建容器必须用宝塔实际 Compose 根目录和实际 env file，例如：
 
@@ -115,6 +115,7 @@ cd /www/server/panel/data/compose/stuhelper
 # 如果宝塔根 docker-compose.yml 是生成产物，里面的 image: 行可能已经固化旧 tag。
 # 先从 source/.env.prod.shared 中的非敏感 *_IMAGE_REF 刷新根 compose，并保留备份。
 ./source/infra/ops/baota-compose-refresh-image-refs.sh --apply
+./source/infra/ops/ensure-baota-runtime-permissions.sh --apply
 
 docker compose \
   --env-file source/.env.prod.shared \
