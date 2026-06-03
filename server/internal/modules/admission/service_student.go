@@ -136,6 +136,8 @@ func (s *Service) VerifySchoolEmailOTP(ctx context.Context, input SchoolEmailOTP
 		Kind:               CredentialSchoolEmailOTP,
 		Subject:            email,
 		SubjectDisplay:     maskAdmissionEmail(email),
+		StudentID:          record.StudentID,
+		StudentName:        record.StudentName,
 	})
 }
 

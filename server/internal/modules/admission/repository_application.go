@@ -531,6 +531,9 @@ type VerificationCredential struct {
 	Kind                VerificationCredentialKind
 	SubjectHash         string
 	SubjectDisplay      string
+	Subject             string
+	StudentID           string
+	StudentName         string
 	SourceApplicationID *string
 	ExpiresAt           *time.Time
 	VerifiedAt          time.Time

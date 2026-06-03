@@ -141,6 +141,60 @@ func TestSchoolEmailOTPDerivesBUAAEmailAfterAcademicNameMatch(t *testing.T) {
 	require.ErrorIs(t, err, ErrAdmissionEmailDomainNotAllowed)
 }
 
+func TestSchoolEmailOTPAcademicProjectionIncludesStudentProfileFields(t *testing.T) {
+	pg := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	sender := &testSchoolEmailSender{}
+	svc := newFreshmanTestService(t, pg)
+	svc.redisClient = redis.Client
+	svc.emailSender = sender
+	svc.academicLookup = testAcademicLookupGateway{
+		student: &user.AcademicStudent{XH: "20250001", XM: stringPtr("张三")},
+	}
+	userID := seedLinkedAdmissionUser(t, pg, svc, "email-otp-academic-profile")
+
+	_, err := pg.Pool.Exec(context.Background(), `
+		UPDATE school_configs
+		SET enabled = true,
+		    manual_form_fields = '{"admission":{"emailDomains":["buaa.edu.cn"],"emailIdentityPolicy":{"type":"academic_student_email","studentIDEmailDomain":"buaa.edu.cn","requireStudentName":true}}}'::jsonb
+		WHERE school_id = 4111010006
+	`)
+	require.NoError(t, err)
+
+	resp, err := svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
+		UserID:      userID,
+		SchoolID:    4111010006,
+		StudentID:   "20250001",
+		StudentName: " 张 三 ",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "20250001@buaa.edu.cn", resp.Email)
+
+	_, err = svc.VerifySchoolEmailOTP(context.Background(), SchoolEmailOTPVerifyInput{
+		UserID:   userID,
+		SchoolID: 4111010006,
+		Email:    "20250001@buaa.edu.cn",
+		Code:     sender.code,
+	})
+	require.NoError(t, err)
+
+	assertUserProfileStudentFields(
+		t,
+		pg,
+		userID,
+		`["20250001"]`,
+		"20250001",
+		`{
+			"source":"admission_credential",
+			"credentialKind":"school_email_otp",
+			"subjectDisplay":"2******1@buaa.edu.cn",
+			"schoolEmail":"20250001@buaa.edu.cn",
+			"studentID":"20250001",
+			"studentName":"张三"
+		}`,
+	)
+}
+
 func TestSchoolEmailAcademicMatchReturnsImmediateResult(t *testing.T) {
 	pg := postgresfixture.Start(t)
 	svc := newFreshmanTestService(t, pg)
@@ -572,6 +626,30 @@ func assertUserProfileVerified(
 	assert.Equal(t, "verified", status)
 	assert.Equal(t, method, gotMethod)
 	assert.Equal(t, int64(4111010006), schoolID)
+}
+
+func assertUserProfileStudentFields(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	userID int64,
+	expectedStudentIDs string,
+	expectedActiveStudentID string,
+	expectedManualFormData string,
+) {
+	t.Helper()
+	var studentIDs string
+	var activeStudentID *string
+	var manualFormData string
+	err := fixture.Pool.QueryRow(context.Background(), `
+		SELECT student_ids::text, active_student_id, manual_form_data::text
+		FROM user_profiles
+		WHERE user_id = $1
+	`, userID).Scan(&studentIDs, &activeStudentID, &manualFormData)
+	require.NoError(t, err)
+	assert.JSONEq(t, expectedStudentIDs, studentIDs)
+	require.NotNil(t, activeStudentID)
+	assert.Equal(t, expectedActiveStudentID, *activeStudentID)
+	assert.JSONEq(t, expectedManualFormData, manualFormData)
 }
 
 func assertNoCredentialStored(

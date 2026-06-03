@@ -36,6 +36,8 @@ type studentCredentialInput struct {
 	Kind               VerificationCredentialKind
 	Subject            string
 	SubjectDisplay     string
+	StudentID          string
+	StudentName        string
 }
 
 func (s *Service) StartSchoolSSO(ctx context.Context, input SchoolSSOStartInput) (*SchoolSSOStartResult, error) {
@@ -153,6 +155,9 @@ func (s *Service) newStudentCredential(input studentCredentialInput) Verificatio
 		Kind:           input.Kind,
 		SubjectHash:    s.hashCredentialSubject(input.SchoolID, input.Subject),
 		SubjectDisplay: input.SubjectDisplay,
+		Subject:        input.Subject,
+		StudentID:      input.StudentID,
+		StudentName:    input.StudentName,
 		VerifiedAt:     s.now(),
 	}
 }
