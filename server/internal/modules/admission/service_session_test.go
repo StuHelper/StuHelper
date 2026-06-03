@@ -128,9 +128,25 @@ func TestCreateBotSessionReturnsVerifiedForAlreadyCertifiedQQ(t *testing.T) {
 	assert.Equal(t, fmt.Sprint(userID), admissionSessionUserID(t, created.Session))
 	assert.NotNil(t, created.Session.TokenConsumedAt)
 	assert.NotNil(t, created.Session.VerifiedAt)
-	assert.NotNil(t, created.Session.CancelledAt)
+	assert.Nil(t, created.Session.CancelledAt)
 	assert.Equal(t, "https://join.stuhelper.com/verify/test-admission-token", created.AuthURL)
 	assertAdmissionFailureCount(t, fixture, "10001", 0)
+
+	actions, err := svc.ListPendingAdmissionActions(context.Background(), AdmissionPendingActionFilter{
+		Platform:  "qq",
+		BotSelfID: "514",
+	})
+	require.NoError(t, err)
+	require.Len(t, actions, 1)
+	assert.Equal(t, BotActionRelease, actions[0].Action)
+	assert.Equal(t, created.Session.ID, actions[0].SessionID)
+
+	err = svc.RecordBotEvent(context.Background(), actions[0].SessionID, BotEventInput{
+		Action:  actions[0].Action,
+		Success: true,
+	})
+	require.NoError(t, err)
+	assertAdmissionSessionCancelled(t, fixture, created.Session.ID)
 }
 
 func TestCreateBotSessionReusesActiveSessionOnDuplicateJoin(t *testing.T) {

@@ -744,7 +744,6 @@ func (s *Service) newVerifiedAdmissionSession(
 	session.TokenConsumedAt = &now
 	session.Status = StatusVerified
 	session.VerifiedAt = &now
-	session.CancelledAt = &now
 	session.nextReminderAt = nil
 	return session, nil
 }
