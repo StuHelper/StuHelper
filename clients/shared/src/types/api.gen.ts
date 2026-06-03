@@ -3933,7 +3933,7 @@ export interface components {
             /** @enum {string} */
             verificationStatus: "unverified" | "pending" | "verified" | "rejected";
             /** @enum {string|null} */
-            verificationMethod?: "ldap" | "manual" | "school_email_otp" | null;
+            verificationMethod?: "ldap" | "manual" | "school_email_otp" | "school_sso" | null;
             rejectionReason?: string | null;
             /** Format: date-time */
             reviewedAt?: string | null;
@@ -5257,7 +5257,7 @@ export interface components {
             /** @enum {string} */
             verificationStatus: "unverified" | "pending" | "verified" | "rejected";
             /** @enum {string|null} */
-            verificationMethod?: "ldap" | "manual" | null;
+            verificationMethod?: "ldap" | "manual" | "school_email_otp" | "school_sso" | null;
             rejectionReason?: string | null;
             /** Format: date-time */
             reviewedAt?: string | null;

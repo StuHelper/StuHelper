@@ -3,6 +3,7 @@ import type { Logger, Session, Universal } from 'koishi'
 import {
   type GuardPolicyStore,
   type AdmissionPendingAction,
+  PlatformAPIError,
   type PlatformClient,
 } from '@stuhelper/koishi-shared'
 import type { ModerationStore } from '@stuhelper/koishi-moderation-core'
@@ -62,6 +63,35 @@ export class MemberGuardService {
   private readonly activeJoinSubjects = new Set<string>()
 
   constructor(private readonly deps: MemberGuardDeps) {}
+
+  async handleGuildMemberRequest(session: Session) {
+    const guildId = resolveGuildID(session)
+    const memberId = requireMemberID(session)
+    if (!guildId) {
+      return
+    }
+    const admissionPlatform = resolveAdmissionSubjectPlatform(session.platform)
+    if (!admissionPlatform) {
+      return
+    }
+    const policy = await this.deps.policyStore.resolvePolicy(admissionPlatform, guildId)
+    if (!policy || policy.exemptUsers.includes(memberId)) {
+      return
+    }
+    try {
+      await this.resolveAndApplyJoinRequestDecision(session, admissionPlatform, guildId, memberId)
+    } catch (error) {
+      if (isAdmissionPolicyNotFound(error)) {
+        this.deps.logger.warn('group guard admission join request policy not found', {
+          platform: admissionPlatform,
+          guildId,
+          memberId,
+        })
+        return
+      }
+      throw error
+    }
+  }
 
   async handleGuildMemberAdded(session: Session) {
     const guildId = resolveGuildID(session)
@@ -168,6 +198,52 @@ export class MemberGuardService {
       }
       await this.failClosedBackendUnavailableJoin(session, policy, platform, error)
       return null
+    }
+  }
+
+  private async resolveAndApplyJoinRequestDecision(
+    session: Session,
+    platform: NonNullable<ReturnType<typeof resolveAdmissionSubjectPlatform>>,
+    guildId: string,
+    memberId: string,
+  ) {
+    const requestID = requestIDOf(session)
+    const rawEvent = rawRequestEvent(session)
+    const decision = await this.deps.platform.resolveJoinRequestDecision({
+      platform,
+      guildID: guildId,
+      qqID: memberId,
+      requestID,
+      rawEvent,
+    })
+    const approve = decision.decision === 'approve'
+    try {
+      await session.bot.handleGuildMemberRequest(
+        requestID,
+        approve,
+        approve ? undefined : decision.reason,
+      )
+      await this.recordAdmissionJoinRequest({
+        platform,
+        guildId,
+        memberId,
+        requestID,
+        decision: decision.decision,
+        success: true,
+        rawEvent,
+      })
+    } catch (error) {
+      await this.recordAdmissionJoinRequest({
+        platform,
+        guildId,
+        memberId,
+        requestID,
+        decision: decision.decision,
+        success: false,
+        error: errorMessage(error),
+        rawEvent,
+      })
+      throw error
     }
   }
 
@@ -378,6 +454,19 @@ export class MemberGuardService {
     }
   }
 
+  private async recordAdmissionJoinRequest(input: AdmissionJoinRequestRecordInput) {
+    await this.deps.platform.recordJoinRequestEvent({
+      platform: input.platform,
+      guildID: input.guildId,
+      qqID: input.memberId,
+      requestID: input.requestID,
+      decision: input.decision,
+      success: input.success,
+      rawEvent: input.rawEvent,
+      ...(input.error ? { error: input.error } : {}),
+    })
+  }
+
   private async markActionComplete(
     record: GuardMemberRecord | undefined,
     mark: 'reminder' | 'released' | 'kicked',
@@ -451,6 +540,17 @@ export class MemberGuardService {
   }
 }
 
+interface AdmissionJoinRequestRecordInput {
+  readonly platform: NonNullable<ReturnType<typeof resolveAdmissionSubjectPlatform>>
+  readonly guildId: string
+  readonly memberId: string
+  readonly requestID: string
+  readonly decision: 'approve' | 'reject'
+  readonly success: boolean
+  readonly error?: string
+  readonly rawEvent: Record<string, unknown>
+}
+
 export interface GuardBotRuntime extends Universal.Methods {
   platform?: string
   selfId: string
@@ -478,4 +578,23 @@ function isRecentDuplicateReminder(
 
 function joinSubjectKey(platform: string, botSelfId: string, guildId: string, memberId: string) {
   return JSON.stringify([platform, botSelfId, guildId, memberId])
+}
+
+function requestIDOf(session: Session) {
+  if (!session.messageId) {
+    throw new Error('admission join request event missing message id')
+  }
+  return session.messageId
+}
+
+function rawRequestEvent(session: Session) {
+  return (session.event as { _data?: Record<string, unknown> } | undefined)?._data || {}
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function isAdmissionPolicyNotFound(error: unknown) {
+  return error instanceof PlatformAPIError && error.status === 404
 }

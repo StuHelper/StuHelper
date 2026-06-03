@@ -55,6 +55,7 @@ func TestFreshmanReviewApprovesAndRejects(t *testing.T) {
 	assert.True(t, svc.now().Add(7*admissionDay).Equal(*approved.ProvisionalExpiresAt))
 	assertCredentialStored(t, fixture, approved.UserID, CredentialFreshmanMaterialManual, "freshman material A***")
 	assertUserSessionVerified(t, fixture, approved.UserID)
+	assertUserProfileVerified(t, fixture, approved.UserID, "manual")
 	assertProjectionEnqueued(t, svc, approved.UserID, true)
 	assertApplicationReviewer(t, fixture, reviewerExpectation{
 		ApplicationID: approved.ID, UserID: operatorID, QQID: "90002",

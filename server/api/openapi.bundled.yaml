@@ -9905,6 +9905,7 @@ components:
             - ldap
             - manual
             - school_email_otp
+            - school_sso
         rejectionReason:
           type:
             - string
@@ -13081,6 +13082,8 @@ components:
           enum:
             - ldap
             - manual
+            - school_email_otp
+            - school_sso
         rejectionReason:
           type:
             - string

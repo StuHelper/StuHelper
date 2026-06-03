@@ -171,7 +171,7 @@ UserProfile:
       type:
         - string
         - "null"
-      enum: [ldap, manual, school_email_otp]
+      enum: [ldap, manual, school_email_otp, school_sso]
     rejectionReason:
       type:
         - string
@@ -239,7 +239,7 @@ AdminStudentVerificationItem:
       type:
         - string
         - "null"
-      enum: [ldap, manual]
+      enum: [ldap, manual, school_email_otp, school_sso]
     rejectionReason:
       type:
         - string

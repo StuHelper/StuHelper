@@ -172,6 +172,156 @@ test('member guard skips mute and reminder when backend marks member verified', 
   assert.match(JSON.stringify(moderationEvents[0]), /跳过入群禁言/)
 })
 
+test('member guard auto-approves join request through admission policy on onebot runtime', async () => {
+  const decisions: unknown[] = []
+  const events: unknown[] = []
+  const approvals: unknown[] = []
+  const service = new MemberGuardService({
+    platform: {
+      async resolveJoinRequestDecision(input: unknown) {
+        decisions.push(input)
+        return {
+          decision: 'approve',
+          reason: 'verified_auto_approve',
+          verificationState: 'verified',
+          autoApproveVerifiedJoin: true,
+          autoApproveUnverifiedJoin: true,
+          policyID: 'policy-1',
+          userID: '6',
+        }
+      },
+      async recordJoinRequestEvent(input: unknown) {
+        events.push(input)
+      },
+    },
+    policyStore: policyStoreFor(['guild-1']),
+    guardStore: {},
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+  } as any)
+
+  await service.handleGuildMemberRequest(joinRequestSession({
+    bot: {
+      handleGuildMemberRequest: async (requestID: string, approve: boolean, reason?: string) => {
+        approvals.push({ requestID, approve, reason })
+      },
+    },
+  }))
+
+  assert.deepEqual(decisions, [{
+    platform: 'qq',
+    guildID: 'guild-1',
+    qqID: '10001',
+    requestID: 'request-1',
+    rawEvent: { comment: '申请入群' },
+  }])
+  assert.deepEqual(approvals, [{ requestID: 'request-1', approve: true, reason: undefined }])
+  assert.deepEqual(events, [{
+    platform: 'qq',
+    guildID: 'guild-1',
+    qqID: '10001',
+    requestID: 'request-1',
+    decision: 'approve',
+    success: true,
+    rawEvent: { comment: '申请入群' },
+  }])
+})
+
+test('member guard rejects join request when admission policy decision rejects', async () => {
+  const events: unknown[] = []
+  const approvals: unknown[] = []
+  const service = new MemberGuardService({
+    platform: {
+      async resolveJoinRequestDecision() {
+        return {
+          decision: 'reject',
+          reason: 'unverified_auto_approve_disabled',
+          verificationState: 'unverified',
+          autoApproveVerifiedJoin: true,
+          autoApproveUnverifiedJoin: false,
+          policyID: 'policy-1',
+        }
+      },
+      async recordJoinRequestEvent(input: unknown) {
+        events.push(input)
+      },
+    },
+    policyStore: policyStoreFor(['guild-1']),
+    guardStore: {},
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+  } as any)
+
+  await service.handleGuildMemberRequest(joinRequestSession({
+    bot: {
+      handleGuildMemberRequest: async (requestID: string, approve: boolean, reason?: string) => {
+        approvals.push({ requestID, approve, reason })
+      },
+    },
+  }))
+
+  assert.deepEqual(approvals, [{
+    requestID: 'request-1',
+    approve: false,
+    reason: 'unverified_auto_approve_disabled',
+  }])
+  assert.deepEqual(events, [{
+    platform: 'qq',
+    guildID: 'guild-1',
+    qqID: '10001',
+    requestID: 'request-1',
+    decision: 'reject',
+    success: true,
+    rawEvent: { comment: '申请入群' },
+  }])
+})
+
+test('member guard records failed join request approval attempts', async () => {
+  const events: unknown[] = []
+  const service = new MemberGuardService({
+    platform: {
+      async resolveJoinRequestDecision() {
+        return {
+          decision: 'approve',
+          reason: 'verified_auto_approve',
+          verificationState: 'verified',
+          autoApproveVerifiedJoin: true,
+          autoApproveUnverifiedJoin: true,
+        }
+      },
+      async recordJoinRequestEvent(input: unknown) {
+        events.push(input)
+      },
+    },
+    policyStore: policyStoreFor(['guild-1']),
+    guardStore: {},
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+  } as any)
+
+  await assert.rejects(
+    () => service.handleGuildMemberRequest(joinRequestSession({
+      bot: {
+        handleGuildMemberRequest: async () => {
+          throw new Error('bot permission denied')
+        },
+      },
+    })),
+    /bot permission denied/,
+  )
+
+  assert.deepEqual(events, [{
+    platform: 'qq',
+    guildID: 'guild-1',
+    qqID: '10001',
+    requestID: 'request-1',
+    decision: 'approve',
+    success: false,
+    error: 'bot permission denied',
+    rawEvent: { comment: '申请入群' },
+  }])
+})
+
 test('member guard fail-closes when platform session creation is unavailable and syncs later', async () => {
   const savedRecords: any[] = []
   const updates: Array<{ id: string, input: Record<string, unknown> }> = []
@@ -853,6 +1003,25 @@ function recordFor(sessionID: string) {
     admissionSessionID: sessionID,
     backendSyncPending: false,
   }
+}
+
+function joinRequestSession(overrides: Record<string, unknown> = {}) {
+  return {
+    platform: 'onebot',
+    selfId: '514',
+    guildId: 'guild-1',
+    channelId: 'guild-1',
+    userId: '10001',
+    messageId: 'request-1',
+    event: {
+      _data: { comment: '申请入群' },
+      user: { nick: 'Alice' },
+    },
+    bot: {
+      handleGuildMemberRequest: async () => {},
+    },
+    ...overrides,
+  } as any
 }
 
 function successEvent(sessionID: string, actionName: string, messageID: string) {

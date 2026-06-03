@@ -418,7 +418,10 @@ test.describe("Auth callback and admission entry", () => {
         );
         await page.goto("/verify/ADMIT-MISMATCH");
         await expect(
-            page.getByRole("heading", { name: "链接被篡改" }),
+            page.getByRole("heading", { name: "QQ 账号不匹配" }),
+        ).toBeVisible();
+        await expect(
+            page.getByText("当前登录的 StuHelper 账号已绑定其他 QQ"),
         ).toBeVisible();
         await expect(page.getByRole("button", { name: "开始认证" })).toHaveCount(0);
         await expect(page.locator("[data-admission-freshman-flow]")).toHaveCount(0);

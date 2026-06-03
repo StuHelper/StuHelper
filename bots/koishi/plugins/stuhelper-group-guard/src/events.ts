@@ -20,6 +20,10 @@ export function registerGroupGuardEvents(ctx: Context, deps: EventDeps) {
     return deps.memberGuard.handleGuildMemberAdded(session)
   })
 
+  ctx.on('guild-member-request', (session) => {
+    return deps.memberGuard.handleGuildMemberRequest(session)
+  })
+
   if (deps.messageGuard) {
     ctx.on('message', (session) => {
       return deps.messageGuard!.handleMessage(session)

@@ -56,6 +56,7 @@ func TestSchoolEmailOTPRequiresLinkedSessionAndVerifiesCredential(t *testing.T) 
 	require.NoError(t, err)
 	assertCredentialStored(t, pg, userID, CredentialSchoolEmailOTP, "s*****t@buaa.edu.cn")
 	assertUserSessionVerified(t, pg, userID)
+	assertUserProfileVerified(t, pg, userID, "school_email_otp")
 }
 
 func TestSchoolEmailOTPUsesRequestedAdmissionSession(t *testing.T) {
@@ -420,6 +421,7 @@ func TestSchoolSSOStartAndCallback(t *testing.T) {
 	assert.Equal(t, "https://join.stuhelper.com/verify/token", complete.ReturnURL)
 	assertCredentialStored(t, pg, userID, CredentialSchoolSSO, "official student")
 	assertUserSessionVerified(t, pg, userID)
+	assertUserProfileVerified(t, pg, userID, "school_sso")
 
 	_, err = svc.CompleteSchoolSSO(context.Background(), SchoolSSOCompleteInput{
 		SchoolID: 4111010006,
@@ -549,6 +551,27 @@ func assertUserSessionVerified(t *testing.T, fixture *postgresfixture.Fixture, u
 	`, userID).Scan(&status)
 	require.NoError(t, err)
 	assert.Equal(t, string(StatusVerified), status)
+}
+
+func assertUserProfileVerified(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	userID int64,
+	method string,
+) {
+	t.Helper()
+	var status string
+	var gotMethod string
+	var schoolID int64
+	err := fixture.Pool.QueryRow(context.Background(), `
+		SELECT verification_status, verification_method, school_id
+		FROM user_profiles
+		WHERE user_id = $1
+	`, userID).Scan(&status, &gotMethod, &schoolID)
+	require.NoError(t, err)
+	assert.Equal(t, "verified", status)
+	assert.Equal(t, method, gotMethod)
+	assert.Equal(t, int64(4111010006), schoolID)
 }
 
 func assertNoCredentialStored(

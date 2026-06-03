@@ -70,10 +70,32 @@
         </div>
 
         <div v-else-if="pageState === 'qqMismatch'" data-state="qqMismatch">
-          <h2 class="text-lg font-semibold">链接被篡改</h2>
+          <h2 class="text-lg font-semibold">QQ 账号不匹配</h2>
           <p class="mt-2 text-sm text-slate-600">
-            链接被篡改，请联系管理员重新发放。
+            这条认证链接属于 QQ {{ displayQQ || '当前入群 QQ' }}。当前登录的 StuHelper 账号已绑定其他 QQ，不能用于认证这个入群申请。
           </p>
+          <p class="mt-2 text-sm text-slate-600">
+            请退出后登录或注册属于该 QQ 的 StuHelper 账号，或联系管理员重新生成认证链接。
+          </p>
+          <div class="mt-3 flex flex-wrap items-center gap-2">
+            <p class="text-xs text-slate-500" data-admission-reissue-command>
+              管理员可在群内使用：
+              <code class="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700">
+                {{ reissueCommand }}
+              </code>
+            </p>
+            <button
+              class="secondary-button"
+              data-admission-copy-reissue-command
+              type="button"
+              @click="copyReissueCommand"
+            >
+              复制指令
+            </button>
+          </div>
+          <button class="primary-button mt-4" type="button" @click="startReauthentication">
+            重新登录
+          </button>
         </div>
 
         <div v-else-if="pageState === 'ready'" data-state="ready">

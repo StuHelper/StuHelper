@@ -130,7 +130,11 @@ func (s *Service) storeStudentCredential(ctx context.Context, input studentCrede
 		if err := s.ensureLinkedSessionAcceptsSubmission(session); err != nil {
 			return err
 		}
-		if err := s.repo.CreateVerificationCredentialTx(ctx, tx, s.newStudentCredential(input)); err != nil {
+		credential := s.newStudentCredential(input)
+		if err := s.repo.CreateVerificationCredentialTx(ctx, tx, credential); err != nil {
+			return err
+		}
+		if err := s.repo.ProjectVerifiedUserProfileTx(ctx, tx, credential); err != nil {
 			return err
 		}
 		if err := s.repo.MarkUserLinkedSessionsVerifiedTx(ctx, tx, input.UserID, input.SchoolID, s.now()); err != nil {
