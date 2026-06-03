@@ -25,6 +25,9 @@ Actions with --apply:
   - when PRUNE_BAOTA_PANEL_BACKUPS_KEEP is a positive integer, keep only that
     many newest /www/backup/panel backup entries, preserving panel/db
   - when TRUNCATE_VAR_LOG_MESSAGES=true, truncate /var/log/messages
+  - when TRUNCATE_DOCKER_JSON_LOGS_LARGER_THAN_MB is a positive integer,
+    truncate Docker json-file logs larger than that threshold and write a
+    manifest to /var/log
   - when ALLOW_POSTGRES_WAL_ARCHIVE_PRUNE=true and
     PRUNE_POSTGRES_WAL_ARCHIVE_KEEP_HOURS is positive, delete archived WAL
     segment files older than the keep window and write a manifest to /var/log
@@ -40,6 +43,7 @@ Environment:
   PRUNE_STUHELPER_TMP_ARTIFACTS defaults to false.
   PRUNE_BAOTA_PANEL_BACKUPS_KEEP defaults to empty.
   TRUNCATE_VAR_LOG_MESSAGES defaults to false.
+  TRUNCATE_DOCKER_JSON_LOGS_LARGER_THAN_MB defaults to empty.
   PRUNE_POSTGRES_WAL_ARCHIVE_KEEP_HOURS defaults to empty.
   ALLOW_POSTGRES_WAL_ARCHIVE_PRUNE defaults to false.
 USAGE
@@ -70,6 +74,7 @@ prune_stuhelper_old_images="${PRUNE_STUHELPER_OLD_IMAGES:-false}"
 prune_stuhelper_tmp_artifacts="${PRUNE_STUHELPER_TMP_ARTIFACTS:-false}"
 prune_baota_panel_backups_keep="${PRUNE_BAOTA_PANEL_BACKUPS_KEEP:-}"
 truncate_var_log_messages="${TRUNCATE_VAR_LOG_MESSAGES:-false}"
+truncate_docker_json_logs_larger_than_mb="${TRUNCATE_DOCKER_JSON_LOGS_LARGER_THAN_MB:-}"
 prune_postgres_wal_archive_keep_hours="${PRUNE_POSTGRES_WAL_ARCHIVE_KEEP_HOURS:-}"
 allow_postgres_wal_archive_prune="${ALLOW_POSTGRES_WAL_ARCHIVE_PRUNE:-false}"
 postgres_wal_archive_volume="${POSTGRES_WAL_ARCHIVE_VOLUME_NAME:-${STACK_NAME:-stuhelper}-postgres-wal-archive}"
@@ -182,6 +187,36 @@ truncate_messages_log() {
   '
 }
 
+truncate_large_docker_json_logs() {
+  [[ -n "${truncate_docker_json_logs_larger_than_mb}" ]] || return 0
+  if ! is_positive_integer "${truncate_docker_json_logs_larger_than_mb}"; then
+    die "TRUNCATE_DOCKER_JSON_LOGS_LARGER_THAN_MB must be a positive integer"
+  fi
+  run_shell_or_print "truncate Docker json-file logs larger than ${truncate_docker_json_logs_larger_than_mb} MiB" bash -lc '
+    set -euo pipefail
+    threshold_mb="$1"
+    manifest="/var/log/stuhelper-docker-json-log-truncate-$(date -u +%Y%m%dT%H%M%SZ).manifest"
+    [[ -d /var/lib/docker/containers ]] || {
+      echo "Docker container log directory not found" | tee "${manifest}"
+      exit 0
+    }
+    mapfile -t logs < <(
+      find /var/lib/docker/containers -xdev -name "*-json.log" -type f -size +"${threshold_mb}"M \
+        -printf "%s %p\n" |
+        sort -nr
+    )
+    if (( ${#logs[@]} == 0 )); then
+      echo "no Docker json logs larger than ${threshold_mb} MiB" | tee "${manifest}"
+      exit 0
+    fi
+    printf "%s\n" "${logs[@]}" | tee "${manifest}"
+    printf "%s\n" "${logs[@]}" | while IFS= read -r line; do
+      path="${line#* }"
+      : > "${path}"
+    done
+  ' _ "${truncate_docker_json_logs_larger_than_mb}"
+}
+
 prune_inactive_stuhelper_images() {
   local active_ids image_lines ref image_id remove_refs=()
   [[ "${prune_stuhelper_old_images}" == "true" ]] || return 0
@@ -288,6 +323,7 @@ show_usage
 prune_tmp_artifacts
 prune_baota_panel_backups
 truncate_messages_log
+truncate_large_docker_json_logs
 
 run_or_print journalctl "--vacuum-size=${journal_vacuum_size}"
 run_or_print apt-get clean
