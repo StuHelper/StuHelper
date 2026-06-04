@@ -208,7 +208,7 @@ describe("auth authorize flow", () => {
         await store.switchAccount("https://join.stuhelper.com/verify/token");
 
         expect(mockLogout).toHaveBeenCalledTimes(1);
-        expect(mockClearAuth).toHaveBeenCalledTimes(1);
+        expect(mockClearAuth).toHaveBeenCalledTimes(2);
         expect(mockWindowOpen).not.toHaveBeenCalled();
         expect(mockFetch).toHaveBeenCalledTimes(1);
         const [logoutURL, logoutOptions] = mockFetch.mock.calls[0];
@@ -227,6 +227,8 @@ describe("auth authorize flow", () => {
             "web",
             { prompt: "login", maxAge: 0 },
         );
+        expect(window.location.href).toBe("#switch");
+        expect(window.location.href).not.toContain("/api/sso-logout");
         expect(sessionStorage.getItem("oauth_state")).toBe("switch-state");
     });
 
@@ -243,7 +245,7 @@ describe("auth authorize flow", () => {
 
         expect(mockWindowOpen).not.toHaveBeenCalled();
         expect(mockLogout).toHaveBeenCalledTimes(1);
-        expect(mockClearAuth).toHaveBeenCalledTimes(1);
+        expect(mockClearAuth).toHaveBeenCalledTimes(2);
         expect(mockFetch).toHaveBeenCalledTimes(1);
         expect(mockLogin).toHaveBeenCalledTimes(1);
     });
@@ -261,7 +263,7 @@ describe("auth authorize flow", () => {
         await store.switchAccount("https://join.stuhelper.com/verify/token");
 
         expect(mockLogout).toHaveBeenCalledTimes(1);
-        expect(mockClearAuth).toHaveBeenCalledTimes(1);
+        expect(mockClearAuth).toHaveBeenCalledTimes(2);
         expect(mockFetch).toHaveBeenCalledTimes(1);
         expect(mockCreateElement).toHaveBeenCalledWith("iframe");
         expect(mockIframeSetAttribute).toHaveBeenCalledWith("aria-hidden", "true");
@@ -277,6 +279,8 @@ describe("auth authorize flow", () => {
             "web",
             { prompt: "login", maxAge: 0 },
         );
+        expect(window.location.href).toBe("#switch");
+        expect(window.location.href).not.toContain("/api/sso-logout");
     });
 
     it("clears local state and starts forced login when local logout fails during account switch", async () => {
@@ -290,7 +294,7 @@ describe("auth authorize flow", () => {
 
         await store.switchAccount("https://join.stuhelper.com/verify/token");
 
-        expect(mockClearAuth).toHaveBeenCalledTimes(1);
+        expect(mockClearAuth).toHaveBeenCalledTimes(2);
         expect(mockWindowOpen).not.toHaveBeenCalled();
         expect(mockFetch).toHaveBeenCalledTimes(1);
         expect(mockCreateElement).not.toHaveBeenCalled();
@@ -300,5 +304,7 @@ describe("auth authorize flow", () => {
             "web",
             { prompt: "login", maxAge: 0 },
         );
+        expect(window.location.href).toBe("#switch");
+        expect(window.location.href).not.toContain("/api/sso-logout");
     });
 });

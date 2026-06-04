@@ -478,6 +478,10 @@ export const useAuthStore = defineStore("auth", () => {
                 resetAllStores();
             }
             await logoutUpstreamSSOForAccountSwitch();
+            // Casdoor /api/sso-logout returns JSON and does not redirect.
+            // Keep the client-side state cleanup after the upstream logout step
+            // so account switching follows Casdoor single-sign-out guidance.
+            resetAllStores();
             await startLoginFlow(redirect, {
                 prompt: "login",
                 maxAge: 0,
