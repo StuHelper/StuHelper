@@ -295,6 +295,71 @@ test('入群认证管理员命令会抑制短时间重复重新生成链接', as
   }
 })
 
+test('重新生成认证链接遇到已认证 QQ 时解除禁言且不重发链接', async () => {
+  const requests: CapturedAdmissionAdminRequest[] = []
+  const server = createServer((req, res) => respondAdmissionAdminRequest(req, res, requests))
+  await new Promise<void>((resolve) => server.listen(0, resolve))
+  const address = server.address()
+  assert.ok(address && typeof address === 'object')
+
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-commands-'))
+  const muteActions: Array<{ guildId: string, memberId: string, duration: number }> = []
+
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(commands)
+  runtime.register(MockBot, { selfId: '514' })
+  runtime.register(groupGuardPlugin, createGroupGuardConfig({
+    platform: {
+      baseUrl: `http://127.0.0.1:${address.port}`,
+      serviceToken: 'test-token',
+    },
+    commands: { enabled: false },
+    moderation: { enabled: false },
+    freshmanForward: { enabled: false },
+    scheduler: { scanIntervalSeconds: 3600 },
+  }))
+
+  try {
+    await root.start()
+    await root.mock.initUser('90001', 5)
+    await root.mock.initChannel('group-1')
+    const bot = root.bots[0] as unknown as Universal.Methods & { platform?: string }
+    bot.platform = 'onebot'
+    bot.muteGuildMember = async (guildId, memberId, duration) => {
+      muteActions.push({ guildId, memberId, duration })
+    }
+
+    await root.database.create(GUARD_MEMBER_TABLE, activeAdmissionGuardRecord('10003'))
+    const client = root.mock.client('90001', 'group-1')
+
+    const replies = await client.receive('重新生成认证链接 10003')
+    assert.equal(replies.length, 1)
+    assert.match(replies[0], /10003[\s\S]*已完成 StuHelper 学生身份认证[\s\S]*已解除禁言/)
+    assert.doesNotMatch(replies[0], /https:\/\/join\.stuhelper\.com\/verify\//)
+
+    await waitForRequestCount(requests, 2)
+    assert.deepEqual(requests.map((item) => [item.method, item.path]), [
+      ['POST', '/api/v1/bot/admission/sessions/member/regenerate'],
+      ['POST', '/api/v1/bot/admission/sessions/session-token-verified/events'],
+    ])
+    assert.equal(requests[1].body.action, 'release')
+    assert.equal(requests[1].body.success, true)
+    assert.deepEqual(muteActions, [{ guildId: 'group-1', memberId: '10003', duration: 0 }])
+
+    const [record] = await root.database.get(GUARD_MEMBER_TABLE, { id: 'qq:514:group-1:10003' })
+    assert.ok(record)
+    assert.equal(record.admissionSessionID, 'session-token-verified')
+    assert.ok(record.releasedAt instanceof Date)
+    assert.equal(record.reminderSentAt, null)
+  } finally {
+    runtime.dispose()
+    await closeServer(server)
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
 function createGroupGuardConfig(overrides?: Partial<ReturnType<typeof createBaseGroupGuardConfig>>) {
   return {
     ...createBaseGroupGuardConfig(),
@@ -422,6 +487,22 @@ async function respondAdmissionAdminRequest(
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/v1/bot/admission/sessions/member/regenerate') {
+    if (body.qqID === '10003') {
+      res.statusCode = 201
+      res.end(JSON.stringify({
+        success: true,
+        data: {
+          session: admissionAdminSession('verified', 'token-verified', {
+            qqID: '10003',
+            userID: 7,
+            tokenConsumedAt: new Date().toISOString(),
+          }),
+          token: 'token-verified',
+          authURL: 'https://join.stuhelper.com/verify/token-verified',
+        },
+      }))
+      return
+    }
     res.statusCode = 201
     res.end(JSON.stringify({
       success: true,
@@ -464,16 +545,16 @@ function admissionAdminSession(status: string, token: string, overrides: Record<
   }
 }
 
-function activeAdmissionGuardRecord() {
+function activeAdmissionGuardRecord(qqID = '10001') {
   const now = new Date()
   return {
-    id: 'qq:514:group-1:10001',
+    id: `qq:514:group-1:${qqID}`,
     platform: 'qq',
     botSelfId: '514',
     guildId: 'group-1',
     channelId: 'group-1',
-    memberId: '10001',
-    memberName: '10001',
+    memberId: qqID,
+    memberName: qqID,
     verificationState: 'bound_unverified',
     admissionSessionID: 'session-token-current',
     backendSyncPending: false,

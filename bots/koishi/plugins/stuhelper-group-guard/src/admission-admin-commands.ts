@@ -1,4 +1,4 @@
-import type { Context, Session } from 'koishi'
+import { h, type Context, type Session } from 'koishi'
 
 import {
   PlatformAPIError,
@@ -75,6 +75,9 @@ export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdmi
           qqID: command.qqID,
           botSelfID: command.botSelfID,
         })
+        if (created.session.status === 'verified') {
+          return releaseVerifiedAdmissionForCommand(command, deps, created)
+        }
         await resetMemberMute(command.session, created.session)
         await updateLocalAdmissionRecord(command, deps.guardStore, created)
         return sendAdmissionReminderForCommand(command, deps, created.session)
@@ -280,6 +283,29 @@ async function resetMemberMute(session: Session, admission: AdmissionSession) {
     throw new Error('入群认证禁言期限无效，无法重置禁言。')
   }
   await session.bot.muteGuildMember(admission.guildID, admission.qqID, muteDuration)
+}
+
+async function releaseVerifiedAdmissionForCommand(
+  command: AdmissionCommandContext,
+  deps: AdmissionAdminCommandDeps,
+  created: AdmissionSessionCreateResult,
+) {
+  await command.session.bot.muteGuildMember(created.session.guildID, created.session.qqID, 0)
+  const record = await deps.guardStore.findActiveBySubject({
+    platform: command.platform,
+    botSelfId: command.botSelfID,
+    guildId: command.guildID,
+    memberId: command.qqID,
+  })
+  if (record) {
+    await deps.guardStore.markBackendSynced(record.id, backendSyncUpdate(created))
+    await deps.guardStore.markReleased(record.id, new Date())
+  }
+  await deps.platform.recordAdmissionEvent(created.session.id, {
+    action: 'release',
+    success: true,
+  })
+  return `${h.at(command.qqID)} (${command.qqID}) 已完成 StuHelper 学生身份认证，已解除禁言，无需重新生成认证链接。`
 }
 
 async function updateLocalAdmissionRecord(

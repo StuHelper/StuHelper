@@ -84,38 +84,52 @@ func (s *Service) createVerifiedBotSession(
 	policy *AdmissionPolicy,
 	userID int64,
 ) (*CreatedAdmissionSession, error) {
+	created, _, err := s.createVerifiedBotSessionWithCancelledIDs(ctx, input, policy, userID)
+	return created, err
+}
+
+func (s *Service) createVerifiedBotSessionWithCancelledIDs(
+	ctx context.Context,
+	input BotSessionCreateInput,
+	policy *AdmissionPolicy,
+	userID int64,
+) (*CreatedAdmissionSession, []string, error) {
+	subject := botSessionCreateSubject(input)
 	for attempt := 0; attempt < maxAdmissionJoinTokenCreateAttempts; attempt++ {
 		token, err := s.generateJoinToken()
 		if err != nil {
-			return nil, fmt.Errorf("CreateBotSession verified token: %w", err)
+			return nil, nil, fmt.Errorf("CreateBotSession verified token: %w", err)
 		}
 		session, err := s.newVerifiedAdmissionSession(input, policy, token, userID)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
+		var cancelledIDs []string
 		if err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-			if _, err := s.repo.CancelInProgressSessionsBySubjectTx(ctx, tx, botSessionCreateSubject(input), s.now()); err != nil {
+			var err error
+			cancelledIDs, err = s.repo.CancelInProgressSessionsBySubjectTx(ctx, tx, subject, s.now())
+			if err != nil {
 				return err
 			}
 			if err := s.repo.CreateSessionTx(ctx, tx, session); err != nil {
 				return err
 			}
-			_, err := s.repo.ResetAdmissionFailureCountTx(ctx, tx, input.Platform, input.GuildID, input.QQID, s.now())
+			_, err = s.repo.ResetAdmissionFailureCountTx(ctx, tx, input.Platform, input.GuildID, input.QQID, s.now())
 			return err
 		}); err != nil {
 			if isAdmissionSessionTokenHashUniqueViolation(err) {
 				continue
 			}
-			return nil, err
+			return nil, nil, err
 		}
 		applyAdmissionFailureContext(session, nil, policy)
 		return &CreatedAdmissionSession{
 			Session: session,
 			Token:   token,
 			AuthURL: session.AuthURL,
-		}, nil
+		}, cancelledIDs, nil
 	}
-	return nil, fmt.Errorf("CreateBotSession verified token: exhausted %d token attempts", maxAdmissionJoinTokenCreateAttempts)
+	return nil, nil, fmt.Errorf("CreateBotSession verified token: exhausted %d token attempts", maxAdmissionJoinTokenCreateAttempts)
 }
 
 func (s *Service) reuseActiveBotSessionAfterCreateConflict(
@@ -376,6 +390,13 @@ func (s *Service) regenerateAdmissionSession(
 	policy, err := s.loadPolicy(ctx, input.Platform, input.GuildID)
 	if err != nil {
 		return nil, nil, err
+	}
+	verifiedUserID, err := s.repo.GetVerifiedAdmissionUserByQQ(ctx, input.QQID, policy.SchoolID, s.now())
+	if err != nil {
+		return nil, nil, err
+	}
+	if verifiedUserID != nil {
+		return s.createVerifiedBotSessionWithCancelledIDs(ctx, input, policy, *verifiedUserID)
 	}
 	for attempt := 0; attempt < maxAdmissionJoinTokenCreateAttempts; attempt++ {
 		token, err := s.generateJoinToken()
