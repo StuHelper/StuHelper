@@ -446,13 +446,13 @@ cd ../..
 sha256sum /tmp/stuhelper-koishi-packages.tar.gz
 ```
 
-上传 `/tmp/stuhelper-koishi-packages.tar.gz` 到 Koishi 生产 Compose 目录后，生产侧先校验 sha256，再备份现有三个包目录和 `koishi.yml`，最后在 Compose 目录根部解包。归档内部路径已经固定为 `koishi/node_modules/...`，所以解包目标必须是 Koishi Compose 目录，不是 `koishi/node_modules`：
+上传 `/tmp/stuhelper-koishi-packages.tar.gz` 到 Koishi 生产 Compose 目录后，生产侧先校验 sha256，再备份现有 StuHelper 包目录和 `koishi.yml`，最后在 Compose 目录根部解包。归档内部路径已经固定为 `koishi/node_modules/...`，所以解包目标必须是 Koishi Compose 目录，不是 `koishi/node_modules`。归档必须包含 `koishi-plugin-stuhelper-core/lib` 与 `koishi-plugin-stuhelper-core/dist`，否则群管中心 admission WebUI 不会随后端 Console API 一起发布。
 
 ```bash
 sha256sum stuhelper-koishi-packages.tar.gz
 backup_dir="backups/admission-$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "${backup_dir}"
-cp -a koishi.yml koishi/node_modules/@stuhelper/koishi-shared koishi/node_modules/@stuhelper/koishi-moderation-core koishi/node_modules/koishi-plugin-stuhelper-binding koishi/node_modules/koishi-plugin-stuhelper-group-guard "${backup_dir}/"
+cp -a koishi.yml koishi/node_modules/@stuhelper/koishi-shared koishi/node_modules/@stuhelper/koishi-moderation-core koishi/node_modules/koishi-plugin-stuhelper-core koishi/node_modules/koishi-plugin-stuhelper-binding koishi/node_modules/koishi-plugin-stuhelper-group-guard "${backup_dir}/"
 tar -xzf stuhelper-koishi-packages.tar.gz
 docker compose restart koishi
 ```

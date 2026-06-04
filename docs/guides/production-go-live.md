@@ -189,6 +189,8 @@ stuhelper-group-guard:admission:
 ./infra/ops/package-koishi-stuhelper-packages.sh
 ```
 
+该包必须包含 `koishi-plugin-stuhelper-core` 的 `lib/` 和 `dist/`，以及 `koishi-plugin-stuhelper-group-guard`、`koishi-plugin-stuhelper-binding`、`@stuhelper/koishi-shared`、`@stuhelper/koishi-moderation-core` 的运行时 `lib/` 产物；否则 admission WebUI 页面或 group-guard Console API 会在生产漂移。
+
 若宝塔 Compose 环境只能手工覆盖包，也必须记录包 sha256、覆盖路径和重启步骤；源码修复必须回写到仓库。
 
 ## 发布流程

@@ -13,6 +13,7 @@ Packages the StuHelper Koishi runtime packages from the current local build:
 
   - @stuhelper/koishi-shared
   - @stuhelper/koishi-moderation-core
+  - koishi-plugin-stuhelper-core
   - koishi-plugin-stuhelper-binding
   - koishi-plugin-stuhelper-group-guard
 
@@ -92,6 +93,33 @@ copy_package_payload() {
   )
 }
 
+copy_browser_plugin_payload() {
+  local source_dir="$1"
+  local package_name="$2"
+  local destination_dir="$3"
+
+  copy_package_payload "${source_dir}" "${package_name}" "${destination_dir}"
+
+  [[ -d "${source_dir}/dist" ]] || die "${package_name} dist/ is missing; run corepack yarn build in bots/koishi"
+  [[ -f "${source_dir}/dist/index.js" ]] || die "${package_name} dist/index.js is missing; run corepack yarn build in bots/koishi"
+
+  if [[ -d "${source_dir}/client" ]]; then
+    local newer_client
+    newer_client="$(
+      find "${source_dir}/client" -type f -newer "${source_dir}/dist/index.js" -print -quit
+    )"
+    [[ -z "${newer_client}" ]] || die "${package_name} browser dist is older than ${newer_client}; run corepack yarn build in bots/koishi"
+  fi
+
+  (
+    cd "${source_dir}"
+    tar -cf - dist
+  ) | (
+    cd "${destination_dir}"
+    tar -xf -
+  )
+}
+
 mkdir -p "${OUTPUT_DIR}"
 
 tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/stuhelper-koishi-packages.XXXXXX")"
@@ -108,6 +136,11 @@ copy_package_payload \
   "@stuhelper/koishi-moderation-core" \
   "${tmp_root}/koishi/node_modules/@stuhelper/koishi-moderation-core"
 
+copy_browser_plugin_payload \
+  "${REPO_ROOT}/bots/koishi/plugins/stuhelper-core" \
+  "koishi-plugin-stuhelper-core" \
+  "${tmp_root}/koishi/node_modules/koishi-plugin-stuhelper-core"
+
 copy_package_payload \
   "${REPO_ROOT}/bots/koishi/plugins/stuhelper-binding" \
   "koishi-plugin-stuhelper-binding" \
@@ -123,6 +156,7 @@ copy_package_payload \
   tar -czf "${tmp_file}" \
     koishi/node_modules/@stuhelper/koishi-shared \
     koishi/node_modules/@stuhelper/koishi-moderation-core \
+    koishi/node_modules/koishi-plugin-stuhelper-core \
     koishi/node_modules/koishi-plugin-stuhelper-binding \
     koishi/node_modules/koishi-plugin-stuhelper-group-guard
 )
