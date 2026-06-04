@@ -116,7 +116,7 @@ Koishi 当前依赖的 StuHelper 后端机器人接口包括：
 - 当前后端机器人接口仍然是 QQ 专属契约，因此 `packages/shared/src/platform` 依旧保留 `qq-binding`、`qq-users` 命名。
 - 这种 QQ 语义不会继续向群管核心域扩散；`packages/moderation-core` 与 `plugins/stuhelper-group-guard` 内部已经收敛为平台无关成员语义。
 - admission 后端 `platform` 字段表示被验证账号的 subject platform，当前只有 `qq`。生产 NapCat / OneBot 的 Koishi runtime platform 可能是 `onebot`，插件会把它映射为 `qq` 后调用 admission API；禁言、踢人和发消息仍使用当前 runtime bot，不切换适配器。
-- 当前 admission MVP 可在生产显式设置 `commands.enabled=false`、`moderation.enabled=false`、`freshmanForward.enabled=false`，避免新插件抢旧群管命令、接管消息风控或触发原始材料转发扫描。旧 `student-query` 插件不应因为 admission 上线被整体关闭；如它也监听同一批 admission 群的同一阶段入群验证，应调整旧插件自己的目标群或功能范围。
+- 当前 admission MVP 可在生产显式设置 `commands.enabled=false`、`moderation.enabled=false`、`freshmanForward.enabled=false`，避免新插件抢旧群管命令、接管消息风控或触发原始材料转发扫描。`actionStream.enabled`、`scheduler.fallbackScanEnabled`、`commands.enabled`、`admissionCommands.enabled`、`moderation.enabled` 和 `freshmanForward.enabled` 会由群管中心 WebUI 的“入群认证”页面保存到 `stuhelper_admission_runtime_settings`，其中 action stream、兜底扫描、消息风控和材料转发可运行时切换。`platform.baseUrl`、`platform.serviceToken`、扫描间隔、重连间隔和 admission 管理命令权限仍是启动/安全配置，只在 WebUI 脱敏或汇总展示。旧 `student-query` 插件不应因为 admission 上线被整体关闭；如它也监听同一批 admission 群的同一阶段入群验证，应调整旧插件自己的目标群或功能范围。
 
 ## 测试策略
 

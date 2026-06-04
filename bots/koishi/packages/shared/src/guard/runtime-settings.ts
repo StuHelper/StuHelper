@@ -10,6 +10,7 @@ declare module 'koishi' {
 }
 
 export interface AdmissionRuntimeSettings {
+  actionStreamEnabled: boolean
   publicCommandsEnabled: boolean
   admissionCommandsEnabled: boolean
   moderationEnabled: boolean
@@ -28,6 +29,7 @@ export type AdmissionRuntimeSettingsInput = Partial<AdmissionRuntimeSettings>
 export function registerAdmissionRuntimeSettingsModel(ctx: Context) {
   ctx.model.extend(ADMISSION_RUNTIME_SETTINGS_TABLE, {
     id: 'string',
+    actionStreamEnabled: 'boolean',
     publicCommandsEnabled: 'boolean',
     admissionCommandsEnabled: 'boolean',
     moderationEnabled: 'boolean',
@@ -68,6 +70,10 @@ export class AdmissionRuntimeSettingsStore {
     return (await this.getSettings()).publicCommandsEnabled
   }
 
+  async isActionStreamEnabled() {
+    return (await this.getSettings()).actionStreamEnabled
+  }
+
   async isAdmissionCommandsEnabled() {
     return (await this.getSettings()).admissionCommandsEnabled
   }
@@ -103,6 +109,7 @@ function normalizeRecord(
 ): AdmissionRuntimeSettingsRecord {
   return {
     ...record,
+    actionStreamEnabled: booleanOrDefault(record.actionStreamEnabled, defaults.actionStreamEnabled),
     publicCommandsEnabled: booleanOrDefault(record.publicCommandsEnabled, defaults.publicCommandsEnabled),
     admissionCommandsEnabled: booleanOrDefault(record.admissionCommandsEnabled, defaults.admissionCommandsEnabled),
     moderationEnabled: booleanOrDefault(record.moderationEnabled, defaults.moderationEnabled),

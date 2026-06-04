@@ -72,7 +72,9 @@ freshmanForward:
   enabled: false
 ```
 
-这些开关只限制新插件是否接管公开命令、消息风控监听和新生材料原图转发扫描；`admissionCommands` 保留“查询入群认证 / 重发认证链接 / 重新生成认证链接”等管理员命令，便于恢复真实 QQ 入群测试。不要因此卸载或关闭旧 `student-query` 插件本身。若旧插件也在同一批目标群处理同一阶段入群验证，应在旧插件自身的目标群或功能开关中排除 admission 群，避免两个监听器双处理。
+这些值是启动默认值；Koishi Console 的 StuHelper 群管中心“入群认证”页面会把 `actionStream.enabled`、`scheduler.fallbackScanEnabled`、`commands.enabled`、`admissionCommands.enabled`、`moderation.enabled` 和 `freshmanForward.enabled` 保存到 `stuhelper_admission_runtime_settings`，并在运行时生效。`actionStream.enabled`、兜底扫描、消息风控和材料转发可以不重启切换；公开命令和 admission 管理命令只能关闭已注册命令，若启动时没有注册，则 WebUI 会提示需要重启后启用。
+
+`platform.baseUrl`、`platform.serviceToken`、`scheduler.scanIntervalSeconds`、`actionStream.reconnectDelaySeconds`、`admissionCommands.minAuthority` 和 `admissionCommands.operatorQQIDs` 仍是启动/安全配置，只在 WebUI 脱敏或汇总展示，不做浏览器侧热改。`admissionCommands` 保留“查询入群认证 / 重发认证链接 / 重新生成认证链接”等管理员命令，便于恢复真实 QQ 入群测试。不要因此卸载或关闭旧 `student-query` 插件本身。若旧插件也在同一批目标群处理同一阶段入群验证，应在旧插件自身的目标群或功能开关中排除 admission 群，避免两个监听器双处理。
 
 ## 自动化验证
 

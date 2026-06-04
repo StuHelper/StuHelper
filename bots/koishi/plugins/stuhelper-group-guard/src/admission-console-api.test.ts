@@ -95,6 +95,7 @@ test('admission runtime resend action calls backend, sends reminder, and records
 test('admission runtime settings action persists WebUI switch changes', async () => {
   const listeners = new Map<string, (input: unknown) => Promise<string>>()
   const savedInputs: unknown[] = []
+  let refreshCount = 0
   registerAdmissionConsoleAPI({
     ...fakeContext(),
     console: {
@@ -110,6 +111,7 @@ test('admission runtime settings action persists WebUI switch changes', async ()
         savedInputs.push(input)
         return {
           id: 'default',
+          actionStreamEnabled: false,
           publicCommandsEnabled: false,
           admissionCommandsEnabled: true,
           moderationEnabled: true,
@@ -122,13 +124,18 @@ test('admission runtime settings action persists WebUI switch changes', async ()
     }),
     guardStore: fakeGuardStore(),
     policyStore: fakePolicyStore(),
+    onRuntimeSettingsChanged: async () => {
+      refreshCount += 1
+    },
   })
 
   const listener = listeners.get('stuhelperGroupGuard/action/save-admission-runtime-settings')
   assert.ok(listener)
-  const result = await listener({ moderationEnabled: true, fallbackScanEnabled: false, ignored: 'x' })
+  const result = await listener({ actionStreamEnabled: false, moderationEnabled: true, fallbackScanEnabled: false, ignored: 'x' })
   assert.equal(result, '已保存入群认证运行开关。')
+  assert.equal(refreshCount, 1)
   assert.deepEqual(savedInputs, [{
+    actionStreamEnabled: false,
     publicCommandsEnabled: undefined,
     admissionCommandsEnabled: undefined,
     moderationEnabled: true,
@@ -156,6 +163,7 @@ function fakeRuntimeSettings(overrides: Partial<AdmissionRuntimeSettingsStore> =
   return {
     getSettings: async () => ({
       id: 'default',
+      actionStreamEnabled: true,
       publicCommandsEnabled: false,
       admissionCommandsEnabled: true,
       moderationEnabled: false,
@@ -166,6 +174,7 @@ function fakeRuntimeSettings(overrides: Partial<AdmissionRuntimeSettingsStore> =
     }),
     saveSettings: async () => ({
       id: 'default',
+      actionStreamEnabled: true,
       publicCommandsEnabled: false,
       admissionCommandsEnabled: true,
       moderationEnabled: false,

@@ -14,6 +14,8 @@ test('buildAdmissionRuntimeModel exposes admission runtime metrics and switch st
   assert.equal(model.metrics[1].value, 2)
   assert.equal(model.metrics[3].tone, 'danger')
   assert.equal(model.switchRows.find((row) => row.id === 'service-token')?.tone, 'success')
+  assert.equal(model.switchRows.find((row) => row.id === 'action-stream')?.editable, true)
+  assert.equal(model.switchRows.find((row) => row.id === 'action-stream')?.settingKey, 'actionStreamEnabled')
   assert.equal(model.switchRows.find((row) => row.id === 'fallback-scan')?.tone, 'warning')
   assert.deepEqual(model.activeMembers.map((member) => member.memberId), ['2001', '2002'])
   assert.deepEqual(model.activeMembers[0].availableActions, ['query', 'resend'])

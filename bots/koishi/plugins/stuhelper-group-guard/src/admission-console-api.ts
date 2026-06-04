@@ -51,6 +51,7 @@ interface AdmissionConsoleAPIDeps {
   readonly runtimeSettings: AdmissionRuntimeSettingsStore
   readonly guardStore: GuardMemberStore
   readonly policyStore: GuardPolicyStore
+  readonly onRuntimeSettingsChanged?: () => void | Promise<void>
 }
 
 declare module '@koishijs/console' {
@@ -76,6 +77,7 @@ export function registerAdmissionConsoleAPI(ctx: Context, deps: AdmissionConsole
 
   ctx.console.addListener(ADMISSION_RUNTIME_SETTINGS_EVENT, async (input) => {
     await deps.runtimeSettings.saveSettings(parseRuntimeSettingsInput(input))
+    await deps.onRuntimeSettingsChanged?.()
     return '已保存入群认证运行开关。'
   }, { authority: CONSOLE_AUTHORITY })
 }
@@ -109,7 +111,7 @@ export async function buildAdmissionRuntimePageData(ctx: Context, deps: Admissio
       scanIntervalSeconds: deps.config.scheduler.scanIntervalSeconds,
     },
     actionStream: {
-      enabled: deps.config.actionStream?.enabled !== false,
+      enabled: settings.actionStreamEnabled,
       reconnectDelaySeconds: deps.config.actionStream?.reconnectDelaySeconds,
     },
     commands: {
@@ -173,6 +175,7 @@ function parseRuntimeSettingsInput(input: unknown): AdmissionRuntimeSettingsInpu
   }
   const record = input as Record<string, unknown>
   return {
+    actionStreamEnabled: readOptionalBoolean(record.actionStreamEnabled),
     publicCommandsEnabled: readOptionalBoolean(record.publicCommandsEnabled),
     admissionCommandsEnabled: readOptionalBoolean(record.admissionCommandsEnabled),
     moderationEnabled: readOptionalBoolean(record.moderationEnabled),

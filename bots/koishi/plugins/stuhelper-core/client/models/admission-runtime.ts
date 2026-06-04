@@ -126,6 +126,7 @@ export interface AdmissionSwitchRow {
 }
 
 export type AdmissionRuntimeSettingsKey =
+  | 'actionStreamEnabled'
   | 'publicCommandsEnabled'
   | 'admissionCommandsEnabled'
   | 'moderationEnabled'
@@ -190,6 +191,8 @@ function buildSwitchRows(data: AdmissionRuntimePageData): AdmissionSwitchRow[] {
       value: data.actionStream.enabled,
       tone: data.actionStream.enabled ? 'success' : 'warning',
       note: `重连 ${data.actionStream.reconnectDelaySeconds ?? 0} 秒`,
+      editable: true,
+      settingKey: 'actionStreamEnabled',
     },
     {
       id: 'fallback-scan',

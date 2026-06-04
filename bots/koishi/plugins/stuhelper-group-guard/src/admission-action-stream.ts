@@ -22,35 +22,52 @@ interface AdmissionActionStreamDeps {
   memberGuard: MemberGuardService
   logger: AdmissionActionStreamLogger
   config?: StuhelperAdmissionActionStreamConfig
+  isEnabled?: () => boolean | Promise<boolean>
 }
 
-export function registerAdmissionActionStreams(ctx: Context, deps: AdmissionActionStreamDeps) {
-  if (deps.config?.enabled === false) {
-    return
-  }
+export interface AdmissionActionStreamController {
+  refresh(): Promise<void>
+  close(): void
+}
+
+export function registerAdmissionActionStreams(ctx: Context, deps: AdmissionActionStreamDeps): AdmissionActionStreamController {
   const streams = new AdmissionActionStreamRuntime(ctx, deps)
-  ctx.on('ready', () => streams.start())
+  ctx.on('ready', () => {
+    return streams.refresh()
+  })
   ctx.on('dispose', () => streams.close())
+  return streams
 }
 
 class AdmissionActionStreamRuntime {
   private readonly handles = new Map<string, { close(): void }>()
   private readonly reconnectTimers = new Map<string, ReturnType<typeof setTimeout>>()
-  private closed = false
+  private disposed = false
 
   constructor(
     private readonly ctx: Context,
     private readonly deps: AdmissionActionStreamDeps,
   ) {}
 
-  start() {
+  async refresh() {
+    if (this.disposed) {
+      return
+    }
+    if (!await this.readEnabled()) {
+      this.closeActiveStreams()
+      return
+    }
     for (const bot of this.ctx.bots as GuardBotRuntime[]) {
       this.ensureBotStream(bot)
     }
   }
 
   close() {
-    this.closed = true
+    this.disposed = true
+    this.closeActiveStreams()
+  }
+
+  private closeActiveStreams() {
     for (const timer of this.reconnectTimers.values()) {
       clearTimeout(timer)
     }
@@ -61,8 +78,19 @@ class AdmissionActionStreamRuntime {
     this.handles.clear()
   }
 
+  private async readEnabled() {
+    try {
+      return await (this.deps.isEnabled?.() ?? this.deps.config?.enabled !== false)
+    } catch (error) {
+      this.deps.logger.warn('admission action stream runtime setting check failed', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return false
+    }
+  }
+
   private ensureBotStream(bot: GuardBotRuntime) {
-    if (this.closed || !isAdmissionActionPlatform(bot)) {
+    if (this.disposed || !isAdmissionActionPlatform(bot)) {
       return
     }
     const key = `${requireAdmissionActionPlatform(bot)}:${bot.selfId}`
@@ -97,8 +125,11 @@ class AdmissionActionStreamRuntime {
       error: error instanceof Error ? error.message : String(error),
     })
     const delayMs = Math.max(1, this.deps.config?.reconnectDelaySeconds ?? 5) * 1000
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       this.reconnectTimers.delete(key)
+      if (this.disposed || !await this.readEnabled()) {
+        return
+      }
       this.openBotStream(key, bot)
     }, delayMs)
     this.reconnectTimers.set(key, timer)

@@ -91,11 +91,12 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
     scanIntervalSeconds: config.scheduler.scanIntervalSeconds,
   })
 
-  registerAdmissionActionStreams(ctx, {
+  const actionStreams = registerAdmissionActionStreams(ctx, {
     platform,
     memberGuard,
     logger,
     config: config.actionStream,
+    isEnabled: () => runtimeSettings.isActionStreamEnabled(),
   })
 
   if (config.moderation.enabled !== false) {
@@ -134,6 +135,7 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
     runtimeSettings,
     guardStore,
     policyStore,
+    onRuntimeSettingsChanged: () => actionStreams.refresh(),
   })
 
   ctx.on('ready', async () => {
@@ -149,6 +151,7 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
 
 function defaultAdmissionRuntimeSettings(config: StuhelperGroupGuardPluginConfig): AdmissionRuntimeSettings {
   return {
+    actionStreamEnabled: config.actionStream?.enabled !== false,
     publicCommandsEnabled: config.commands?.enabled !== false,
     admissionCommandsEnabled: config.admissionCommands?.enabled !== false,
     moderationEnabled: config.moderation.enabled !== false,
