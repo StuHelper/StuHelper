@@ -54,19 +54,66 @@ export function getAccountSettingsUrl(me: AuthApi.MeResult): string {
   return typeof value === 'string' ? value : '';
 }
 
+function normalizeAppBasePath(baseURL: string): string {
+  const trimmed = baseURL.trim();
+  if (trimmed === '') {
+    return '/';
+  }
+
+  let pathname = trimmed;
+  try {
+    pathname = new URL(trimmed, window.location.origin).pathname;
+  } catch {
+    // Vite BASE_URL is normally a path. Keep non-URL values as paths.
+  }
+
+  if (!pathname.startsWith('/')) {
+    pathname = `/${pathname}`;
+  }
+  if (!pathname.endsWith('/')) {
+    pathname = `${pathname}/`;
+  }
+  return pathname;
+}
+
+export function resolveOIDCRedirectURL(
+  redirectPath?: string,
+  appBaseURL = import.meta.env.BASE_URL,
+): string {
+  const value = redirectPath?.trim();
+  if (!value) {
+    return window.location.href;
+  }
+
+  if (!value.startsWith('/') || value.startsWith('//')) {
+    return value;
+  }
+
+  const basePath = normalizeAppBasePath(appBaseURL);
+  if (basePath === '/') {
+    return new URL(value, window.location.origin).toString();
+  }
+
+  const baseWithoutTrailingSlash = basePath.slice(0, -1);
+  const redirectPathWithBase =
+    value === baseWithoutTrailingSlash || value.startsWith(basePath)
+      ? value
+      : `${baseWithoutTrailingSlash}${value}`;
+
+  return new URL(redirectPathWithBase, window.location.origin).toString();
+}
+
 /**
  * 从后端获取 OIDC 授权 URL，然后浏览器跳转
  * 传递当前页面 URL 作为登录后回跳地址
  */
 export async function redirectToOIDCLogin(redirectPath?: string) {
-  const currentUrl =
-    redirectPath &&
-    redirectPath.startsWith('/') &&
-    !redirectPath.startsWith('//')
-      ? new URL(redirectPath, window.location.origin).toString()
-      : redirectPath || window.location.href;
   const data = unwrapData<AuthApi.LoginUrlResult>(
-    await baseAuthApi.login(currentUrl, undefined, 'admin'),
+    await baseAuthApi.login(
+      resolveOIDCRedirectURL(redirectPath),
+      undefined,
+      'admin',
+    ),
   );
   const url = data.url;
   if (url) {
