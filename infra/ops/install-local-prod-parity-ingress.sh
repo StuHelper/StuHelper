@@ -264,23 +264,19 @@ server {
     }
 
     location = /_app.config.js {
-        proxy_pass http://127.0.0.1:${admin_port};
-        proxy_http_version 1.1;
+        return 404;
     }
 
     location ^~ /css/ {
-        proxy_pass http://127.0.0.1:${admin_port};
-        proxy_http_version 1.1;
+        return 404;
     }
 
     location ^~ /js/ {
-        proxy_pass http://127.0.0.1:${admin_port};
-        proxy_http_version 1.1;
+        return 404;
     }
 
     location ^~ /jse/ {
-        proxy_pass http://127.0.0.1:${admin_port};
-        proxy_http_version 1.1;
+        return 404;
     }
 
     location ^~ /admin/ {

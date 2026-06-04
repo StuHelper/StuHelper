@@ -11,7 +11,7 @@
     "scripts/*/src/**/*.ts",
     "scripts/*/src/**/*.json"
   ],
-  "globalEnv": ["NODE_ENV"],
+  "globalEnv": ["NODE_ENV", "VITE_BASE", "VITE_GLOB_*"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

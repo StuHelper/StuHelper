@@ -10,7 +10,7 @@ ENV NODE_OPTIONS=--max-old-space-size=8192
 ENV TZ=Asia/Shanghai
 ENV CI=true
 ARG VITE_GLOB_API_URL=/api/v1
-ARG VITE_BASE=/
+ARG VITE_BASE=/admin/
 ENV VITE_GLOB_API_URL=${VITE_GLOB_API_URL}
 ENV VITE_BASE=${VITE_BASE}
 
@@ -27,6 +27,7 @@ COPY admin /app/admin
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile --filter @stuhelper/shared...
 RUN pnpm --filter @stuhelper/shared build
 RUN --mount=type=cache,id=pnpm-admin,target=/pnpm/store pnpm --dir admin install --frozen-lockfile
+RUN pnpm --dir admin --filter @vben/vite-config stub
 RUN pnpm --dir admin build:ele
 
 RUN echo "Builder Success 🎉"

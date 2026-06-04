@@ -7,6 +7,9 @@ CI_FILE="${REPO_ROOT}/.gitlab-ci.yml"
 ROOT_MAKEFILE="${REPO_ROOT}/Makefile"
 SERVER_MAKEFILE="${REPO_ROOT}/server/Makefile"
 ADMIN_DOCKERFILE="${REPO_ROOT}/clients/admin/scripts/deploy/Dockerfile"
+ADMIN_NGINX="${REPO_ROOT}/clients/admin/scripts/deploy/nginx.conf"
+ADMIN_ENV_LOADER="${REPO_ROOT}/clients/admin/internal/vite-config/src/utils/env.ts"
+ADMIN_TURBO="${REPO_ROOT}/clients/admin/turbo.json"
 CLIENTS_DOCKERIGNORE="${REPO_ROOT}/clients/.dockerignore"
 
 fail() {
@@ -61,8 +64,19 @@ assert_contains "${ROOT_MAKEFILE}" 'bash infra/ops/tests/run-infra-contracts\.sh
 assert_contains "${CI_FILE}" 'docker buildx build .*--file clients/web/Dockerfile .* \.$'
 assert_contains "${CI_FILE}" 'docker buildx build .*--file clients/admin/scripts/deploy/Dockerfile .* clients$'
 assert_contains "${ADMIN_DOCKERFILE}" '^RUN corepack enable && corepack prepare pnpm@10\.32\.1 --activate$'
+assert_contains "${ADMIN_DOCKERFILE}" '^ARG VITE_BASE=/admin/$'
 assert_contains "${ADMIN_DOCKERFILE}" '^COPY shared /app/shared$'
 assert_contains "${ADMIN_DOCKERFILE}" '^RUN pnpm --filter @stuhelper/shared build$'
+assert_contains "${ADMIN_DOCKERFILE}" '^RUN pnpm --dir admin --filter @vben/vite-config stub$'
+assert_contains "${ADMIN_ENV_LOADER}" 'Object\.entries\(process\.env\)'
+assert_contains "${ADMIN_ENV_LOADER}" '\.\.\.envConfig,'
+assert_contains "${ADMIN_TURBO}" '"globalEnv": \["NODE_ENV", "VITE_BASE", "VITE_GLOB_\*"\]'
+assert_contains "${ADMIN_NGINX}" 'location = /admin/_app\.config\.js \{'
+assert_contains "${ADMIN_NGINX}" 'add_header Cache-Control "no-store, no-cache, must-revalidate" always;'
+assert_contains "${ADMIN_NGINX}" 'location /admin/js/ \{'
+assert_contains "${ADMIN_NGINX}" 'location /admin/jse/ \{'
+assert_contains "${ADMIN_NGINX}" 'location /admin/css/ \{'
+assert_contains "${ADMIN_NGINX}" 'try_files \$uri =404;'
 assert_not_contains "${CLIENTS_DOCKERIGNORE}" '^admin$'
 assert_contains "${SERVER_MAKEFILE}" '^check-drift-ts: bundle-spec$'
 assert_contains "${SERVER_MAKEFILE}" '^check-drift-capabilities:$'
