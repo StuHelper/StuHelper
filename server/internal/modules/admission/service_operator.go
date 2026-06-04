@@ -176,6 +176,9 @@ func (s *Service) applyFreshmanApprovalTx(
 	if err := s.repo.MarkUserLinkedSessionsVerifiedTx(ctx, input.Tx, input.App.UserID, input.App.SchoolID, s.now()); err != nil {
 		return err
 	}
+	if err := s.queueVerifiedUserReleaseActionsTx(ctx, input.Tx, input.App.UserID, input.App.SchoolID, s.now()); err != nil {
+		return err
+	}
 	return s.projection.EnqueueFreshmanProvisionalRoleSyncTx(ctx, input.Tx, input.App.UserID, true)
 }
 

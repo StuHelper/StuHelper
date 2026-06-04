@@ -108,6 +108,11 @@ test('platform admission client sends expected paths and payloads', async (t) =>
     success: true,
     messageID: 'message-1',
   })
+  await client.recordAdmissionActionEvent('42', {
+    action: 'release',
+    success: true,
+    messageID: 'message-2',
+  })
   await client.listPendingFreshmanForwards()
   await client.markFreshmanForwarded('app-1')
   await client.viewFreshmanApplication('app-1', {
@@ -140,6 +145,7 @@ test('platform admission client sends expected paths and payloads', async (t) =>
     ['POST', '/api/v1/bot/member-blacklist/entry-1/release'],
     ['POST', '/api/v1/bot/member-blacklist/release-by-subject'],
     ['POST', '/api/v1/bot/admission/sessions/session-1/events'],
+    ['POST', '/api/v1/bot/admission/actions/42/events'],
     ['GET', '/api/v1/bot/admission/freshman/applications/pending-forward'],
     ['POST', '/api/v1/bot/admission/freshman/applications/app-1/forwarded'],
     ['POST', '/api/v1/bot/admission/freshman/applications/app-1/view'],
@@ -157,8 +163,9 @@ test('platform admission client sends expected paths and payloads', async (t) =>
   assert.equal(calls[11].body.createdFrom, 'qq_command')
   assert.equal(calls[13].body.releaseReasonCode, 'manual_pardon')
   assert.equal(calls[14].body.messageID, 'message-1')
-  assert.equal(calls[17].body.operatorQQID, '90001')
-  assert.equal(calls[18].body.expiresInDays, 30)
+  assert.equal(calls[15].body.messageID, 'message-2')
+  assert.equal(calls[18].body.operatorQQID, '90001')
+  assert.equal(calls[19].body.expiresInDays, 30)
 })
 
 test('platform client accepts empty success responses for void requests', async (t) => {
@@ -178,6 +185,56 @@ test('platform client accepts empty success responses for void requests', async 
     action: 'release',
     success: true,
   })
+  await client.recordAdmissionActionEvent('42', {
+    action: 'release',
+    success: true,
+  })
+})
+
+test('platform admission action stream parses action events', async (t) => {
+  const originalFetch = globalThis.fetch
+  const actions: unknown[] = []
+  let capturedPath = ''
+  let capturedAuthorization = ''
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(String(input))
+    capturedPath = url.pathname + url.search
+    capturedAuthorization = new Headers(init?.headers).get('authorization') || ''
+    return new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(
+          'event: keepalive\n' +
+          'data: 2026-06-04T00:00:00Z\n\n' +
+          'event: action\n' +
+          'data: {"actionID":"42","sessionID":"session-1","action":"release"}\n\n',
+        ))
+        controller.close()
+      },
+    }), {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+    })
+  }
+  t.after(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  const client = createPlatformClient({
+    baseUrl: 'https://api.example.test',
+    serviceToken: 'service-token',
+  })
+
+  client.streamAdmissionActions({ platform: 'qq', botSelfID: '514', limit: 50 }, {
+    onAction(action) {
+      actions.push(action)
+    },
+  })
+
+  await waitFor(() => actions.length > 0)
+
+  assert.equal(capturedPath, '/api/v1/bot/admission/actions/stream?platform=qq&botSelfID=514&limit=50')
+  assert.equal(capturedAuthorization, 'Bearer service-token')
+  assert.deepEqual(actions, [{ actionID: '42', sessionID: 'session-1', action: 'release' }])
 })
 
 test('platform admission client requires bot identity for pending actions', async () => {
@@ -358,6 +415,15 @@ function restoreEnv(name: string, value: string | undefined) {
     return
   }
   process.env[name] = value
+}
+
+async function waitFor(predicate: () => boolean, timeoutMs = 500) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (predicate()) return
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  assert.fail('condition not met before timeout')
 }
 
 function admissionSession(id: string) {

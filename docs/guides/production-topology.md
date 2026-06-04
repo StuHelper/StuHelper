@@ -46,7 +46,7 @@ Koishi 与 NapCat 当前不纳入主站 Docker Compose 拓扑，而是作为外�
    ▼
 [Koishi]
    │
-   ├── 调用 StuHelper API：QQ 绑定码消费、QQ 认证状态查询、admission session / pending action / freshman review
+   ├── 调用 StuHelper API：QQ 绑定码消费、QQ 认证状态查询、admission session / action stream / pending fallback / freshman review
    ├── 持有本地 SQLite：群规则、消息账本、处罚记录、事件日志
    └── 持有独立服务令牌：不与主站浏览器令牌共享
 ```

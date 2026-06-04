@@ -142,6 +142,9 @@ func (s *Service) storeStudentCredential(ctx context.Context, input studentCrede
 		if err := s.repo.MarkUserLinkedSessionsVerifiedTx(ctx, tx, input.UserID, input.SchoolID, s.now()); err != nil {
 			return err
 		}
+		if err := s.queueVerifiedUserReleaseActionsTx(ctx, tx, input.UserID, input.SchoolID, s.now()); err != nil {
+			return err
+		}
 		verified = markSessionVerifiedInMemory(session, s.now())
 		return nil
 	})

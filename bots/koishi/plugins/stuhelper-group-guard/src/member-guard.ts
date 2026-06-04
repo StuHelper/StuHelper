@@ -179,6 +179,10 @@ export class MemberGuardService {
     await this.forwardFreshmanMaterials(bots)
   }
 
+  async handleQueuedAdmissionAction(bot: GuardBotRuntime, action: AdmissionPendingAction) {
+    await this.handleAdmissionAction(bot, action, new Date())
+  }
+
   private async createAdmissionSessionForJoin(
     session: Session,
     policy: EffectiveGuardPolicy,
@@ -421,7 +425,7 @@ export class MemberGuardService {
         policyStore: this.deps.policyStore,
       })
       if (this.isRecentDuplicateReminder(action, record, now)) {
-        await this.deps.platform.recordAdmissionEvent(action.sessionID, {
+        await this.recordAdmissionActionResult(action, {
           action: 'remind',
           success: true,
         })
@@ -432,7 +436,7 @@ export class MemberGuardService {
       if (action.action === 'remind') {
         this.deps.reminderDeduper?.remember(action.sessionID, now)
       }
-      await this.deps.platform.recordAdmissionEvent(action.sessionID, result.event)
+      await this.recordAdmissionActionResult(action, result.event)
       await this.markActionComplete(record, result.mark, now)
     } catch (error) {
       await this.reportActionFailure({ action, record, error, now })
@@ -452,6 +456,14 @@ export class MemberGuardService {
         error: formatAdmissionActionError(error),
       })
     }
+  }
+
+  private async recordAdmissionActionResult(action: AdmissionPendingAction, event: Parameters<PlatformClient['recordAdmissionEvent']>[1]) {
+    if (action.actionID) {
+      await this.deps.platform.recordAdmissionActionEvent(action.actionID, event)
+      return
+    }
+    await this.deps.platform.recordAdmissionEvent(action.sessionID, event)
   }
 
   private async recordAdmissionJoinRequest(input: AdmissionJoinRequestRecordInput) {
@@ -495,7 +507,7 @@ export class MemberGuardService {
     if (record) {
       await this.deps.guardStore.markLastError(record.id, message, now)
     }
-    await this.deps.platform.recordAdmissionEvent(action.sessionID, {
+    await this.recordAdmissionActionResult(action, {
       action: action.action,
       success: false,
       error: message,

@@ -2,6 +2,7 @@ package admission
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -25,6 +26,39 @@ func (s *Service) ListPendingAdmissionActions(
 		return nil, err
 	}
 	return s.pendingActionsFromSessions(sessions, seeds, contexts)
+}
+
+func (s *Service) ClaimQueuedAdmissionActions(
+	ctx context.Context,
+	filter AdmissionPendingActionFilter,
+) ([]AdmissionPendingAction, error) {
+	normalized, err := normalizePendingActionFilter(filter)
+	if err != nil {
+		return nil, err
+	}
+	now := s.now()
+	rows, err := s.repo.ClaimDueBotActions(ctx, normalized, now)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return []AdmissionPendingAction{}, nil
+	}
+	actions := make([]AdmissionPendingAction, 0, len(rows))
+	for i := range rows {
+		action, stale, err := s.pendingActionFromQueuedRow(ctx, &rows[i], now)
+		if err != nil {
+			return nil, err
+		}
+		if stale {
+			if err := s.repo.MarkBotActionStale(ctx, rows[i].ID, now); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		actions = append(actions, action)
+	}
+	return actions, nil
 }
 
 func (s *Service) ListPendingFreshmanForwards(ctx context.Context) ([]FreshmanForwardItem, error) {
@@ -83,6 +117,38 @@ func (s *Service) pendingActionFromSession(
 		return AdmissionPendingAction{}, err
 	}
 	return admissionPendingAction(session, action, seed.deadline), nil
+}
+
+func (s *Service) pendingActionFromQueuedRow(
+	ctx context.Context,
+	row *AdmissionBotActionOutboxRow,
+	now time.Time,
+) (AdmissionPendingAction, bool, error) {
+	if row == nil {
+		return AdmissionPendingAction{}, true, nil
+	}
+	session := row.Session
+	seeds := pendingActionSeeds([]AdmissionSession{session}, now)
+	contexts, err := s.pendingActionContexts(ctx, []AdmissionSession{session})
+	if err != nil {
+		return AdmissionPendingAction{}, false, err
+	}
+	action, err := s.pendingActionFromSession(&session, seeds[0], contexts)
+	if err != nil {
+		return AdmissionPendingAction{}, false, err
+	}
+	if !queuedActionCanDispatch(row.Action, action.Action) {
+		return AdmissionPendingAction{}, true, nil
+	}
+	action.ActionID = strconv.FormatInt(row.ID, 10)
+	return action, false, nil
+}
+
+func queuedActionCanDispatch(queued BotAction, current BotAction) bool {
+	if queued == current {
+		return true
+	}
+	return queued == BotActionKick && current == BotActionBlacklist
 }
 
 func resolveKickAction(session *AdmissionSession, contexts pendingActionContexts) (BotAction, error) {

@@ -109,6 +109,16 @@ func (h *Handler) registerBotAdmissionRoutes(bot *gin.RouterGroup) {
 		h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession),
 		h.handleListBotPendingActions,
 	)
+	bot.GET(
+		"/actions/stream",
+		h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession),
+		h.handleStreamBotAdmissionActions,
+	)
+	bot.POST(
+		"/actions/:id/events",
+		h.requireBotCredential(serviceaccount.ScopeBotAdmissionEvent),
+		h.handleRecordBotActionEvent,
+	)
 	bot.POST("/sessions/:id/events", h.requireBotCredential(serviceaccount.ScopeBotAdmissionEvent), h.handleRecordBotEvent)
 	bot.GET(
 		"/freshman/applications/pending-forward",

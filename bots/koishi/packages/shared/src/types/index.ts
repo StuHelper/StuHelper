@@ -63,6 +63,12 @@ export interface StuhelperAdminConfig {
 
 export interface StuhelperSchedulerConfig {
   scanIntervalSeconds: number
+  fallbackScanEnabled?: boolean
+}
+
+export interface StuhelperAdmissionActionStreamConfig {
+  enabled?: boolean
+  reconnectDelaySeconds?: number
 }
 
 export type StuhelperKeywordRuleMatchMode = 'includes' | 'regex'
@@ -138,6 +144,7 @@ export interface StuhelperGroupGuardPluginConfig {
   platform: StuhelperPlatformConfig
   guard: StuhelperGuardConfig
   scheduler: StuhelperSchedulerConfig
+  actionStream?: StuhelperAdmissionActionStreamConfig
   moderation: StuhelperModerationConfig
   fun: StuhelperFunConfig
   ai: StuhelperAIConfig
@@ -278,6 +285,7 @@ export interface AdmissionPendingActionsRequest {
 }
 
 export interface AdmissionPendingAction {
+  readonly actionID?: string
   readonly sessionID: string
   readonly action: Extract<AdmissionBotAction, 'remind' | 'release' | 'kick' | 'blacklist'>
   readonly platform?: string

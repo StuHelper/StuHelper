@@ -131,6 +131,86 @@ func TestLinkedAdmissionSessionDoesNotReleaseBeforeStudentVerification(t *testin
 	assert.Equal(t, created.Session.ID, actions[0].SessionID)
 }
 
+func TestQueuedAdmissionActionReleaseAckCompletesSession(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createBotLinkedSessionForPendingActions(t, svc, fixture, "linked-queued-release")
+
+	_, err := svc.MarkVerified(context.Background(), created.Session.ID)
+	require.NoError(t, err)
+
+	actions, err := svc.ClaimQueuedAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
+	require.NoError(t, err)
+	require.Len(t, actions, 1)
+	require.NotEmpty(t, actions[0].ActionID)
+	assert.Equal(t, BotActionRelease, actions[0].Action)
+	assert.Equal(t, created.Session.ID, actions[0].SessionID)
+
+	err = svc.RecordBotActionEvent(context.Background(), actions[0].ActionID, BotEventInput{
+		Action:    BotActionRelease,
+		Success:   true,
+		MessageID: "release-msg-1",
+	})
+	require.NoError(t, err)
+
+	var status string
+	var cancelled bool
+	var messageID string
+	err = fixture.Pool.QueryRow(context.Background(), `
+		SELECT o.status, s.cancelled_at IS NOT NULL, COALESCE(o.message_id, '')
+		FROM admission_bot_action_outbox AS o
+		JOIN group_admission_sessions AS s ON s.id = o.session_id
+		WHERE o.id = $1::bigint
+	`, actions[0].ActionID).Scan(&status, &cancelled, &messageID)
+	require.NoError(t, err)
+	assert.Equal(t, "succeeded", status)
+	assert.True(t, cancelled)
+	assert.Equal(t, "release-msg-1", messageID)
+}
+
+func TestQueuedAdmissionActionSkipsStaleKickAfterLink(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created, err := svc.CreateBotSession(context.Background(), BotSessionCreateInput{
+		Platform:  "qq",
+		BotSelfID: "514",
+		GuildID:   "guild-1",
+		ChannelID: "channel-1",
+		QQID:      "10001",
+	})
+	require.NoError(t, err)
+	userID := seedAdmissionUser(t, fixture, "queued-stale-kick")
+	_, err = svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:  created.Token,
+		UserID: userID,
+	})
+	require.NoError(t, err)
+	svc.now = func() time.Time {
+		return created.Session.LinkWaitDeadlineAt.Add(time.Second)
+	}
+
+	actions, err := svc.ClaimQueuedAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
+	require.NoError(t, err)
+	assert.Empty(t, actions)
+
+	var staleCount int
+	err = fixture.Pool.QueryRow(context.Background(), `
+		SELECT COUNT(*)
+		FROM admission_bot_action_outbox
+		WHERE session_id = $1 AND action = 'kick' AND status = 'stale'
+	`, created.Session.ID).Scan(&staleCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, staleCount)
+}
+
 func TestStudentVerificationProjectionReleasesLinkedSession(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)

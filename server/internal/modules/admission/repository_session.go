@@ -249,12 +249,27 @@ func (r *Repository) MarkMaterialSubmitted(
 	manualReviewDeadline time.Time,
 ) (*AdmissionSession, error) {
 	ctx = withDBTable(ctx, "group_admission_sessions")
+	return r.MarkMaterialSubmittedTx(ctx, nil, sessionID, manualReviewDeadline)
+}
+
+func (r *Repository) MarkMaterialSubmittedTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	sessionID string,
+	manualReviewDeadline time.Time,
+) (*AdmissionSession, error) {
 	query := `
 		UPDATE group_admission_sessions
 		SET status = $2, manual_review_deadline_at = $3, next_reminder_at = NULL, updated_at = NOW()
 		WHERE id = $1
 		RETURNING ` + admissionSessionColumns
-	session, err := scanAdmissionSession(r.db.QueryRow(ctx, query, sessionID, StatusMaterialSubmitted, manualReviewDeadline))
+	var row pgx.Row
+	if tx != nil {
+		row = tx.QueryRow(ctx, query, sessionID, StatusMaterialSubmitted, manualReviewDeadline)
+	} else {
+		row = r.db.QueryRow(ctx, query, sessionID, StatusMaterialSubmitted, manualReviewDeadline)
+	}
+	session, err := scanAdmissionSession(row)
 	if err != nil {
 		return nil, fmt.Errorf("MarkMaterialSubmitted: %w", err)
 	}
@@ -263,12 +278,27 @@ func (r *Repository) MarkMaterialSubmitted(
 
 func (r *Repository) MarkVerified(ctx context.Context, sessionID string, now time.Time) (*AdmissionSession, error) {
 	ctx = withDBTable(ctx, "group_admission_sessions")
+	return r.MarkVerifiedTx(ctx, nil, sessionID, now)
+}
+
+func (r *Repository) MarkVerifiedTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	sessionID string,
+	now time.Time,
+) (*AdmissionSession, error) {
 	query := `
 		UPDATE group_admission_sessions
 		SET status = $2, verified_at = $3, next_reminder_at = NULL, updated_at = NOW()
 		WHERE id = $1
 		RETURNING ` + admissionSessionColumns
-	session, err := scanAdmissionSession(r.db.QueryRow(ctx, query, sessionID, StatusVerified, now))
+	var row pgx.Row
+	if tx != nil {
+		row = tx.QueryRow(ctx, query, sessionID, StatusVerified, now)
+	} else {
+		row = r.db.QueryRow(ctx, query, sessionID, StatusVerified, now)
+	}
+	session, err := scanAdmissionSession(row)
 	if err != nil {
 		return nil, fmt.Errorf("MarkVerified: %w", err)
 	}

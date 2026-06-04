@@ -330,6 +330,45 @@ BotAdmissionEventRequest:
     error:
       type: string
 
+BotAdmissionPendingAction:
+  type: object
+  required: [sessionID, action]
+  properties:
+    actionID:
+      type: string
+      description: 持久化 bot action outbox ID。SSE 下行动作会携带，ACK 时应提交到 actions/{id}/events。
+    sessionID:
+      type: string
+    action:
+      type: string
+      enum: [remind, release, kick, blacklist]
+    platform:
+      type: string
+    botSelfID:
+      type: string
+    guildID:
+      type: string
+    channelID:
+      type: string
+    qqID:
+      type: string
+    authURL:
+      type: string
+      format: uri
+    deadlineAt:
+      type: string
+      format: date-time
+    reason:
+      type: string
+    failureCount:
+      type: integer
+      minimum: 0
+    remainingRetryCount:
+      type: integer
+      minimum: 0
+    willBlacklistOnTimeout:
+      type: boolean
+
 BotAdmissionJoinRequestEvent:
   type: object
   required: [platform, guildID, qqID, requestID, success]

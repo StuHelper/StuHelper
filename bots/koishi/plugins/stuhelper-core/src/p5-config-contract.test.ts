@@ -38,6 +38,8 @@ test('koishi.yml keeps admission MVP production-safe defaults', async () => {
   const guardBlock = extractYamlBlock(config, 'stuhelper-group-guard:')
 
   assert.match(guardBlock, /targetGroups:\s*\n\s+- '178037297'/)
+  assert.match(guardBlock, /scheduler:\s*\n\s+fallbackScanEnabled: true\s*\n\s+scanIntervalSeconds: 300/)
+  assert.match(guardBlock, /actionStream:\s*\n\s+enabled: true\s*\n\s+reconnectDelaySeconds: 5/)
   assert.match(guardBlock, /commands:\s*\n\s+enabled: false/)
   assert.match(guardBlock, /admissionCommands:\s*\n\s+enabled: true/)
   assert.match(guardBlock, /minAuthority: 4/)

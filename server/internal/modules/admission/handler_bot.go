@@ -148,6 +148,19 @@ func (h *Handler) handleRecordBotEvent(c *gin.Context) {
 	response.Success(c, gin.H{"message": "admission event recorded"})
 }
 
+func (h *Handler) handleRecordBotActionEvent(c *gin.Context) {
+	var req botAdmissionEventHTTPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request parameters")
+		return
+	}
+	if err := h.service.RecordBotActionEvent(c.Request.Context(), c.Param("id"), botEventInput(req)); err != nil {
+		respondAdmissionError(c, err)
+		return
+	}
+	response.Success(c, gin.H{"message": "admission action event recorded"})
+}
+
 func (h *Handler) handleBotReviewFreshmanApplication(c *gin.Context) {
 	var req botFreshmanReviewHTTPRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

@@ -23,6 +23,7 @@ import { ReportService } from './report-service'
 import { registerPublicCommands } from './commands'
 import { registerAdmissionAdminCommands } from './admission-admin-commands'
 import { AdmissionReminderDeduper } from './admission-reminder-deduper'
+import { registerAdmissionActionStreams } from './admission-action-stream'
 
 export const name = 'stuhelper-group-guard'
 export const inject = ['database']
@@ -77,6 +78,14 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
     messageGuard: config.moderation.enabled === false ? undefined : messageGuard,
     logger,
     scanIntervalSeconds: config.scheduler.scanIntervalSeconds,
+    fallbackScanEnabled: config.scheduler.fallbackScanEnabled !== false,
+  })
+
+  registerAdmissionActionStreams(ctx, {
+    platform,
+    memberGuard,
+    logger,
+    config: config.actionStream,
   })
 
   if (config.moderation.enabled !== false) {
@@ -107,7 +116,7 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
     })
   }
 
-  logger.info(`群管插件已加载，目标群数量：${config.guard.targetGroups.length}，扫描间隔：${config.scheduler.scanIntervalSeconds} 秒`)
+  logger.info(`群管插件已加载，目标群数量：${config.guard.targetGroups.length}，action stream：${config.actionStream?.enabled !== false ? 'enabled' : 'disabled'}，兜底扫描间隔：${config.scheduler.scanIntervalSeconds} 秒`)
 }
 
 export default {

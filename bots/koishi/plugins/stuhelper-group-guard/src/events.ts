@@ -13,6 +13,7 @@ interface EventDeps {
   messageGuard?: MessageGuardService
   logger: EventLogger
   scanIntervalSeconds: number
+  fallbackScanEnabled?: boolean
 }
 
 export function registerGroupGuardEvents(ctx: Context, deps: EventDeps) {
@@ -32,6 +33,10 @@ export function registerGroupGuardEvents(ctx: Context, deps: EventDeps) {
     ctx.on('message-deleted', (session) => {
       return deps.messageGuard!.handleMessageDeleted(session)
     })
+  }
+
+  if (deps.fallbackScanEnabled === false) {
+    return
   }
 
   ctx.setInterval(() => {

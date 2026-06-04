@@ -3,6 +3,7 @@ package admission
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -94,6 +95,55 @@ func (h *Handler) handleListBotPendingActions(c *gin.Context) {
 		return
 	}
 	response.Success(c, actions)
+}
+
+func (h *Handler) handleStreamBotAdmissionActions(c *gin.Context) {
+	filter, ok := botPendingActionFilter(c)
+	if !ok {
+		return
+	}
+	headers := c.Writer.Header()
+	headers.Set("Content-Type", "text/event-stream")
+	headers.Set("Cache-Control", "no-cache")
+	headers.Set("Connection", "keep-alive")
+	headers.Set("X-Accel-Buffering", "no")
+
+	if !h.writeQueuedAdmissionActions(c, filter) {
+		return
+	}
+
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+	keepalive := time.NewTicker(15 * time.Second)
+	defer keepalive.Stop()
+
+	for {
+		select {
+		case <-c.Request.Context().Done():
+			return
+		case <-keepalive.C:
+			c.SSEvent("keepalive", time.Now().UTC().Format(time.RFC3339))
+			c.Writer.Flush()
+		case <-ticker.C:
+			if !h.writeQueuedAdmissionActions(c, filter) {
+				return
+			}
+		}
+	}
+}
+
+func (h *Handler) writeQueuedAdmissionActions(c *gin.Context, filter AdmissionPendingActionFilter) bool {
+	actions, err := h.service.ClaimQueuedAdmissionActions(c.Request.Context(), filter)
+	if err != nil {
+		c.SSEvent("error", "admission queued action unavailable")
+		c.Writer.Flush()
+		return false
+	}
+	for i := range actions {
+		c.SSEvent("action", actions[i])
+		c.Writer.Flush()
+	}
+	return true
 }
 
 func botPendingActionFilter(c *gin.Context) (AdmissionPendingActionFilter, bool) {

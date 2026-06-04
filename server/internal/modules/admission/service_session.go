@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -57,7 +58,12 @@ func (s *Service) createPendingBotSession(
 		if err != nil {
 			return nil, err
 		}
-		if err := s.repo.CreateSession(ctx, session); err != nil {
+		if err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+			if err := s.repo.CreateSessionTx(ctx, tx, session); err != nil {
+				return err
+			}
+			return s.queueInitialBotActionsTx(ctx, tx, session, s.now())
+		}); err != nil {
 			if isAdmissionSessionActiveSubjectUniqueViolation(err) {
 				return s.reuseActiveBotSessionAfterCreateConflict(ctx, input)
 			}
@@ -114,8 +120,10 @@ func (s *Service) createVerifiedBotSessionWithCancelledIDs(
 			if err := s.repo.CreateSessionTx(ctx, tx, session); err != nil {
 				return err
 			}
-			_, err = s.repo.ResetAdmissionFailureCountTx(ctx, tx, input.Platform, input.GuildID, input.QQID, s.now())
-			return err
+			if _, err = s.repo.ResetAdmissionFailureCountTx(ctx, tx, input.Platform, input.GuildID, input.QQID, s.now()); err != nil {
+				return err
+			}
+			return s.queueInitialBotActionsTx(ctx, tx, session, s.now())
 		}); err != nil {
 			if isAdmissionSessionTokenHashUniqueViolation(err) {
 				continue
@@ -202,7 +210,16 @@ func (s *Service) ResendAdminAdmissionSession(
 	if err := s.validateResendableSession(session); err != nil {
 		return nil, err
 	}
-	queued, err := s.repo.QueueAdmissionReminderNow(ctx, session.ID, s.now())
+	var queued *AdmissionSession
+	now := s.now()
+	err = s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		var err error
+		queued, err = s.repo.QueueAdmissionReminderNowTx(ctx, tx, session.ID, now)
+		if err != nil {
+			return err
+		}
+		return s.queueBotActionTx(ctx, tx, queued, BotActionRemind, now, now)
+	})
 	if err != nil {
 		if errors.Is(err, ErrAdmissionTokenNotFound) {
 			return nil, ErrAdmissionInvalidStatus
@@ -374,7 +391,10 @@ func (s *Service) LinkTokenToUser(ctx context.Context, input AdmissionTokenLinkI
 		}
 		deadline := s.now().Add(time.Duration(policy.SubmissionWaitSeconds) * time.Second)
 		linked, err = s.repo.MarkTokenConsumedAndLinked(ctx, tx, session.ID, input.UserID, s.now(), deadline)
-		return err
+		if err != nil {
+			return err
+		}
+		return s.queueInitialBotActionsTx(ctx, tx, linked, s.now())
 	})
 	if err != nil {
 		return nil, fmt.Errorf("LinkTokenToUser: %w", err)
@@ -475,7 +495,10 @@ func (s *Service) regenerateAdmissionSession(
 			if err != nil {
 				return err
 			}
-			return s.repo.CreateSessionTx(ctx, tx, session)
+			if err := s.repo.CreateSessionTx(ctx, tx, session); err != nil {
+				return err
+			}
+			return s.queueInitialBotActionsTx(ctx, tx, session, s.now())
 		}); err != nil {
 			if isAdmissionSessionTokenHashUniqueViolation(err) {
 				continue
@@ -687,7 +710,18 @@ func (s *Service) MarkMaterialSubmitted(ctx context.Context, sessionID string) (
 		return nil, err
 	}
 	deadline := s.now().Add(time.Duration(policy.ManualReviewTimeoutSeconds) * time.Second)
-	return s.repo.MarkMaterialSubmitted(ctx, session.ID, deadline)
+	var submitted *AdmissionSession
+	if err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		var err error
+		submitted, err = s.repo.MarkMaterialSubmittedTx(ctx, tx, session.ID, deadline)
+		if err != nil {
+			return err
+		}
+		return s.queueInitialBotActionsTx(ctx, tx, submitted, s.now())
+	}); err != nil {
+		return nil, err
+	}
+	return submitted, nil
 }
 
 func (s *Service) MarkVerified(ctx context.Context, sessionID string) (*AdmissionSession, error) {
@@ -701,7 +735,18 @@ func (s *Service) MarkVerified(ctx context.Context, sessionID string) (*Admissio
 	if err := s.ensureSessionAcceptsVerification(session); err != nil {
 		return nil, err
 	}
-	return s.repo.MarkVerified(ctx, session.ID, s.now())
+	var verified *AdmissionSession
+	if err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		var err error
+		verified, err = s.repo.MarkVerifiedTx(ctx, tx, session.ID, s.now())
+		if err != nil {
+			return err
+		}
+		return s.queueBotActionTx(ctx, tx, verified, BotActionRelease, s.now(), s.now())
+	}); err != nil {
+		return nil, err
+	}
+	return verified, nil
 }
 
 func (s *Service) ProjectStudentVerification(ctx context.Context, userID int64, schoolID int64, approved bool) error {
@@ -709,7 +754,10 @@ func (s *Service) ProjectStudentVerification(ctx context.Context, userID int64, 
 		return nil
 	}
 	return s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		return s.repo.MarkUserLinkedSessionsVerifiedTx(ctx, tx, userID, schoolID, s.now())
+		if err := s.repo.MarkUserLinkedSessionsVerifiedTx(ctx, tx, userID, schoolID, s.now()); err != nil {
+			return err
+		}
+		return s.queueVerifiedUserReleaseActionsTx(ctx, tx, userID, schoolID, s.now())
 	})
 }
 
@@ -746,15 +794,71 @@ func (s *Service) RecordBotEvent(ctx context.Context, sessionID string, event Bo
 	})
 }
 
+func (s *Service) RecordBotActionEvent(ctx context.Context, actionID string, event BotEventInput) error {
+	id, err := strconv.ParseInt(strings.TrimSpace(actionID), 10, 64)
+	if err != nil || id <= 0 {
+		return ErrAdmissionInvalidInput
+	}
+	return s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		action, err := s.repo.GetBotActionForUpdateTx(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		if event.Action == "" {
+			event.Action = action.Action
+		}
+		if event.Action != action.Action && !(action.Action == BotActionKick && event.Action == BotActionBlacklist) {
+			return ErrAdmissionInvalidStatus
+		}
+		session := &action.Session
+		if !event.Success {
+			if err := s.repo.UpdateLastBotErrorTx(ctx, updateLastBotErrorTxInput{
+				Tx:        tx,
+				SessionID: session.ID,
+				BotError:  normalizeBotEventError(event),
+			}); err != nil {
+				return err
+			}
+			return s.repo.MarkBotActionFailedTx(ctx, tx, id, event, s.now(), action.AttemptCount)
+		}
+		if event.Action == BotActionRelease {
+			if err := s.applySuccessfulBotEventTx(ctx, successfulBotEventTxInput{
+				Tx:      tx,
+				Session: session,
+				Action:  event.Action,
+			}); err != nil {
+				return err
+			}
+			return s.repo.MarkBotActionSucceededTx(ctx, tx, id, event, s.now())
+		}
+		policy, err := s.loadPolicy(ctx, session.Platform, session.GuildID)
+		if err != nil {
+			return err
+		}
+		if err := s.applySuccessfulBotEventTx(ctx, successfulBotEventTxInput{
+			Tx:      tx,
+			Session: session,
+			Policy:  policy,
+			Action:  event.Action,
+		}); err != nil {
+			return err
+		}
+		return s.repo.MarkBotActionSucceededTx(ctx, tx, id, event, s.now())
+	})
+}
+
 func (s *Service) applySuccessfulBotEventTx(ctx context.Context, input successfulBotEventTxInput) error {
 	switch input.Action {
 	case BotActionRemind:
-		return s.repo.MarkReminderSentTx(ctx, markReminderSentTxInput{
+		if err := s.repo.MarkReminderSentTx(ctx, markReminderSentTxInput{
 			Tx:      input.Tx,
 			Session: input.Session,
 			Policy:  input.Policy,
 			Now:     s.now(),
-		})
+		}); err != nil {
+			return err
+		}
+		return s.queueNextReminderTx(ctx, input.Tx, input.Session, input.Policy, s.now())
 	case BotActionRelease:
 		if err := s.repo.MarkBotReleaseCompletedTx(ctx, markBotSessionTxInput{
 			Tx:        input.Tx,

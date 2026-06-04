@@ -220,6 +220,16 @@ def section_enabled(block, section, expected):
         errors.append(f"{section}.enabled is not {expected} in stuhelper-group-guard admission block")
 
 
+def section_scalar(block, section, key, expected):
+    section_block = find_section(block, section)
+    if not section_block:
+        errors.append(f"missing {section} section in stuhelper-group-guard admission block")
+        return
+    text = "\n".join(section_block)
+    if not re.search(rf"^\s*{re.escape(key)}:\s*{re.escape(expected)}\s*(?:#.*)?$", text, re.MULTILINE):
+        errors.append(f"{section}.{key} is not {expected} in stuhelper-group-guard admission block")
+
+
 def parse_group_values(value):
     return [
         item.strip().strip("'\"")
@@ -276,6 +286,9 @@ if guard_block:
 
     section_enabled(guard_block, "commands", "false")
     section_enabled(guard_block, "admissionCommands", "true")
+    section_enabled(guard_block, "actionStream", "true")
+    section_scalar(guard_block, "scheduler", "fallbackScanEnabled", "true")
+    section_scalar(guard_block, "scheduler", "scanIntervalSeconds", "300")
     section_enabled(guard_block, "moderation", "false")
     section_enabled(guard_block, "freshmanForward", "false")
 
@@ -353,29 +366,54 @@ if (!base || !token) {
   process.exit(1)
 }
 
-const headers = new Headers()
-headers.set('Authorization', `Bearer ${token}`)
-const url = `${base}/api/v1/bot/admission/sessions/pending?platform=qq&botSelfID=${encodeURIComponent(botSelfID)}&limit=5`
+async function main() {
+  const headers = new Headers()
+  headers.set('Authorization', `Bearer ${token}`)
+  const pendingURL = `${base}/api/v1/bot/admission/sessions/pending?platform=qq&botSelfID=${encodeURIComponent(botSelfID)}&limit=5`
+  const streamURL = `${base}/api/v1/bot/admission/actions/stream?platform=qq&botSelfID=${encodeURIComponent(botSelfID)}&limit=1`
 
-fetch(url, { headers })
-  .then(async (response) => {
-    const body = await response.text()
-    console.log(JSON.stringify({ status: response.status, bodyBytes: body.length }))
-    process.exit(response.ok ? 0 : 1)
-  })
-  .catch((error) => {
-    console.log(JSON.stringify({ error: error && error.message ? error.message : String(error) }))
-    process.exit(1)
-  })
+  const pending = await fetch(pendingURL, { headers })
+  const pendingBody = await pending.text()
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 3000)
+  let streamStatus = 0
+  let streamContentType = ''
+  try {
+    const stream = await fetch(streamURL, { headers, signal: controller.signal })
+    streamStatus = stream.status
+    streamContentType = stream.headers.get('content-type') || ''
+    controller.abort()
+  } finally {
+    clearTimeout(timeout)
+  }
+
+  console.log(JSON.stringify({
+    pendingStatus: pending.status,
+    pendingBodyBytes: pendingBody.length,
+    streamStatus,
+    streamContentType,
+  }))
+  process.exit(pending.ok && streamStatus === 200 && streamContentType.includes('text/event-stream') ? 0 : 1)
+}
+
+main().catch((error) => {
+  console.log(JSON.stringify({ error: error && error.message ? error.message : String(error) }))
+  process.exit(1)
+})
 NODE
 )" && python3 - "${output}" <<'PY'
 import json
 import sys
 
 payload = json.loads(sys.argv[1])
-if payload.get("status") != 200:
+if payload.get("pendingStatus") != 200:
     raise SystemExit(1)
-if int(payload.get("bodyBytes", 0)) <= 0:
+if int(payload.get("pendingBodyBytes", 0)) <= 0:
+    raise SystemExit(1)
+if payload.get("streamStatus") != 200:
+    raise SystemExit(1)
+if "text/event-stream" not in payload.get("streamContentType", ""):
     raise SystemExit(1)
 PY
   then
@@ -480,6 +518,9 @@ done
 
 config_section_has_enabled "commands" "false"
 config_section_has_enabled "admissionCommands" "true"
+config_section_has_enabled "actionStream" "true"
+config_contains "fallback scan enabled" 'fallbackScanEnabled:[[:space:]]*true'
+config_contains "fallback scan interval 300" 'scanIntervalSeconds:[[:space:]]*300'
 config_section_has_enabled "moderation" "false"
 config_section_has_enabled "freshmanForward" "false"
 config_contains "student-query plugin remains configured" 'student-query:'

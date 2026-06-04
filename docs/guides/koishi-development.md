@@ -87,8 +87,10 @@ Koishi 当前依赖的 StuHelper 后端机器人接口包括：
 - `POST /api/v1/bot/qq-binding/consume`
 - `GET /api/v1/bot/qq-users/{qqID}/verification`
 - `POST /api/v1/bot/admission/sessions`
-- `GET /api/v1/bot/admission/sessions/pending?platform=qq&botSelfID=<botSelfID>`
-- `POST /api/v1/bot/admission/sessions/{id}/events`
+- `GET /api/v1/bot/admission/actions/stream?platform=qq&botSelfID=<botSelfID>`，主路径 admission action SSE 下行流
+- `POST /api/v1/bot/admission/actions/{id}/events`，SSE action ACK
+- `GET /api/v1/bot/admission/sessions/pending?platform=qq&botSelfID=<botSelfID>`，低频 fallback 拉取
+- `POST /api/v1/bot/admission/sessions/{id}/events`，兼容旧 pending action ACK
 - `GET /api/v1/bot/admission/freshman/applications/pending-forward`
 
 这两类接口都不是面向浏览器或普通用户的公开入口，而是面向机器人服务的内部接口：

@@ -43,12 +43,15 @@ assert_contains "${EVIDENCE_SCRIPT}" 'STUHELPER_PLATFORM_BASE_URL'
 assert_contains "${EVIDENCE_SCRIPT}" 'STUHELPER_PLATFORM_SERVICE_TOKEN'
 assert_contains "${EVIDENCE_SCRIPT}" 'STUHELPER_FRESHMAN_MATERIAL_HOSTS'
 assert_contains "${EVIDENCE_SCRIPT}" '/api/v1/bot/admission/sessions/pending'
+assert_contains "${EVIDENCE_SCRIPT}" '/api/v1/bot/admission/actions/stream'
 assert_contains "${EVIDENCE_SCRIPT}" 'platform=qq'
 assert_contains "${EVIDENCE_SCRIPT}" 'duplicate command names: 举报'
 assert_contains "${EVIDENCE_SCRIPT}" 'pending-forward'
 assert_contains "${EVIDENCE_SCRIPT}" 'B0000001'
 assert_contains "${EVIDENCE_SCRIPT}" 'enableGroupVerify'
 assert_contains "${EVIDENCE_SCRIPT}" 'commands'
+assert_contains "${EVIDENCE_SCRIPT}" 'actionStream'
+assert_contains "${EVIDENCE_SCRIPT}" 'fallbackScanEnabled'
 assert_contains "${EVIDENCE_SCRIPT}" 'moderation'
 assert_contains "${EVIDENCE_SCRIPT}" 'freshmanForward'
 assert_contains "${EVIDENCE_SCRIPT}" 'Koishi admission config semantics'
@@ -76,6 +79,12 @@ plugins:
       guard:
         targetGroups:
           - '178037297'
+      scheduler:
+        fallbackScanEnabled: true
+        scanIntervalSeconds: 300
+      actionStream:
+        enabled: true
+        reconnectDelaySeconds: 5
       commands:
         enabled: false
       admissionCommands:
@@ -112,10 +121,10 @@ case "${1:-}" in
     if [[ "${interactive}" == "true" ]]; then
       cat >/dev/null
       if [[ "${FAKE_DOCKER_MODE:-ok}" == "bad_probe" ]]; then
-        echo '{"status":500,"bodyBytes":70}'
+        echo '{"pendingStatus":500,"pendingBodyBytes":70,"streamStatus":502,"streamContentType":"text/plain"}'
         exit 1
       fi
-      echo '{"status":200,"bodyBytes":26}'
+      echo '{"pendingStatus":200,"pendingBodyBytes":26,"streamStatus":200,"streamContentType":"text/event-stream"}'
       exit 0
     fi
     if [[ "${1:-}" == "node" && "${2:-}" == "-e" ]]; then
@@ -148,7 +157,7 @@ case "${1:-}" in
         ;;
     esac
     echo '2026-05-30 19:26:15 [I] loader apply plugin stuhelper-group-guard:admission'
-    echo '2026-05-30 19:26:17 [I] stuhelper:group-guard 群管插件已加载，目标群数量：1，扫描间隔：60 秒'
+    echo '2026-05-30 19:26:17 [I] stuhelper:group-guard 群管插件已加载，目标群数量：1，action stream：enabled，兜底扫描间隔：300 秒'
     echo '2026-05-30 19:26:19 [E] chatluna Error: INVALID_API_KEY'
     ;;
   *)

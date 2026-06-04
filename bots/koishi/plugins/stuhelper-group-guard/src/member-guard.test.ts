@@ -630,12 +630,13 @@ test('member guard executes pending admission actions and reports results', asyn
     action('session-remind', 'remind', {
       authURL: 'https://join.stuhelper.com/verify/remind-token',
     }),
-    action('session-release', 'release'),
+    action('session-release', 'release', { actionID: 'action-release' }),
     action('session-kick', 'kick'),
     action('session-blacklist', 'blacklist'),
   ] as const
   const listCalls: unknown[] = []
   const events: unknown[] = []
+  const actionEvents: unknown[] = []
   const messages: Array<{ channelId: string, content: string }> = []
   const mutes: Array<{ guildId: string, memberId: string, duration: number }> = []
   const kicks: Array<{ guildId: string, memberId: string, permanent?: boolean }> = []
@@ -648,6 +649,9 @@ test('member guard executes pending admission actions and reports results', asyn
       },
       async recordAdmissionEvent(sessionID: string, input: unknown) {
         events.push({ sessionID, input })
+      },
+      async recordAdmissionActionEvent(actionID: string, input: unknown) {
+        actionEvents.push({ actionID, input })
       },
       async listPendingFreshmanForwards() { return [] },
     },
@@ -697,9 +701,11 @@ test('member guard executes pending admission actions and reports results', asyn
   ])
   assert.deepEqual(events, [
     successEvent('session-remind', 'remind', 'message-1'),
-    successEvent('session-release', 'release', 'message-1'),
     successEvent('session-kick', 'kick', 'message-1'),
     successEvent('session-blacklist', 'blacklist', 'message-1'),
+  ])
+  assert.deepEqual(actionEvents, [
+    { actionID: 'action-release', input: { action: 'release', success: true, messageID: 'message-1' } },
   ])
 })
 

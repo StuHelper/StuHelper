@@ -38,6 +38,12 @@ plugins:
       guard:
         targetGroups:
           - '178037297'
+      scheduler:
+        fallbackScanEnabled: true
+        scanIntervalSeconds: 300
+      actionStream:
+        enabled: true
+        reconnectDelaySeconds: 5
       commands:
         enabled: false
       admissionCommands:

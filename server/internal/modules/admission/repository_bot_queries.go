@@ -105,20 +105,27 @@ func (r *Repository) QueueAdmissionReminderNow(
 	now time.Time,
 ) (*AdmissionSession, error) {
 	ctx = withDBTable(ctx, "group_admission_sessions")
+	return r.QueueAdmissionReminderNowTx(ctx, nil, sessionID, now)
+}
+
+func (r *Repository) QueueAdmissionReminderNowTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	sessionID string,
+	now time.Time,
+) (*AdmissionSession, error) {
 	query := `
 		UPDATE group_admission_sessions
 		SET next_reminder_at = $2, last_bot_error = NULL, updated_at = NOW()
 		WHERE id = $1 AND status IN ($3, $4, $5)
 		RETURNING ` + admissionSessionColumns
-	session, err := scanAdmissionSession(r.db.QueryRow(
-		ctx,
-		query,
-		sessionID,
-		now,
-		StatusJoinedMuted,
-		StatusLinked,
-		StatusMaterialSubmitted,
-	))
+	var row pgx.Row
+	if tx != nil {
+		row = tx.QueryRow(ctx, query, sessionID, now, StatusJoinedMuted, StatusLinked, StatusMaterialSubmitted)
+	} else {
+		row = r.db.QueryRow(ctx, query, sessionID, now, StatusJoinedMuted, StatusLinked, StatusMaterialSubmitted)
+	}
+	session, err := scanAdmissionSession(row)
 	if err != nil {
 		return nil, fmt.Errorf("QueueAdmissionReminderNow: %w", err)
 	}

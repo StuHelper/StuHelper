@@ -7320,49 +7320,84 @@ paths:
                       data:
                         type: array
                         items:
-                          type: object
-                          required:
-                            - sessionID
-                            - action
-                          properties:
-                            sessionID:
-                              type: string
-                            action:
-                              type: string
-                              enum:
-                                - remind
-                                - release
-                                - kick
-                                - blacklist
-                            platform:
-                              type: string
-                            botSelfID:
-                              type: string
-                            guildID:
-                              type: string
-                            channelID:
-                              type: string
-                            qqID:
-                              type: string
-                            authURL:
-                              type: string
-                              format: uri
-                            deadlineAt:
-                              type: string
-                              format: date-time
-                            reason:
-                              type: string
-                            failureCount:
-                              type: integer
-                              minimum: 0
-                            remainingRetryCount:
-                              type: integer
-                              minimum: 0
-                            willBlacklistOnTimeout:
-                              type: boolean
+                          $ref: '#/components/schemas/BotAdmissionPendingAction'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '401':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/bot/admission/actions/stream:
+    get:
+      tags:
+        - Bot
+      operationId: streamBotAdmissionActions
+      summary: 机器人订阅 admission action SSE 下行流
+      description: |
+        该接口返回 `text/event-stream`。服务端会发送 `event: action`，`data` 为
+        `BotAdmissionPendingAction` JSON；机器人执行后必须调用
+        `/api/v1/bot/admission/actions/{id}/events` ACK。`event: keepalive` 用于保活。
+      security:
+        - serviceTokenAuth: []
+      parameters:
+        - name: platform
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: botSelfID
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        '200':
+          description: Admission action SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/bot/admission/actions/{id}/events:
+    post:
+      tags:
+        - Bot
+      operationId: recordBotAdmissionActionEvent
+      summary: 机器人 ACK admission action 执行结果
+      security:
+        - serviceTokenAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BotAdmissionEventRequest'
+      responses:
+        '200':
+          description: Action 事件已记录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/bot/admission/sessions/{id}/events:
     post:
@@ -13115,6 +13150,50 @@ components:
           type: string
         userID:
           type: string
+    BotAdmissionPendingAction:
+      type: object
+      required:
+        - sessionID
+        - action
+      properties:
+        actionID:
+          type: string
+          description: 持久化 bot action outbox ID。SSE 下行动作会携带，ACK 时应提交到 actions/{id}/events。
+        sessionID:
+          type: string
+        action:
+          type: string
+          enum:
+            - remind
+            - release
+            - kick
+            - blacklist
+        platform:
+          type: string
+        botSelfID:
+          type: string
+        guildID:
+          type: string
+        channelID:
+          type: string
+        qqID:
+          type: string
+        authURL:
+          type: string
+          format: uri
+        deadlineAt:
+          type: string
+          format: date-time
+        reason:
+          type: string
+        failureCount:
+          type: integer
+          minimum: 0
+        remainingRetryCount:
+          type: integer
+          minimum: 0
+        willBlacklistOnTimeout:
+          type: boolean
     BotFreshmanCommandContext:
       type: object
       required:

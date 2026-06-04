@@ -4,6 +4,7 @@ import type {
   StuhelperAdminConfig,
   StuhelperAdminPluginConfig,
   StuhelperAdmissionCommandConfig,
+  StuhelperAdmissionActionStreamConfig,
   StuhelperBindingConfig,
   StuhelperBindingPluginConfig,
   StuhelperCommandConfig,
@@ -25,7 +26,8 @@ const DEFAULT_BINDING_COMMAND = '绑定'
 const DEFAULT_CODE_TTL_MINUTES = 10
 const DEFAULT_MUTE_DURATION_SECONDS = 600
 const DEFAULT_KICK_AFTER_MINUTES = 30
-const DEFAULT_SCAN_INTERVAL_SECONDS = 60
+const DEFAULT_SCAN_INTERVAL_SECONDS = 300
+const DEFAULT_ACTION_STREAM_RECONNECT_DELAY_SECONDS = 5
 const DEFAULT_REMINDER_TEMPLATE = '请先完成 StuHelper 注册、QQ 绑定与学生认证。'
 const DEFAULT_PLATFORM_BASE_URL = 'http://127.0.0.1:8080'
 const DEFAULT_REPEAT_THRESHOLD = 3
@@ -71,7 +73,15 @@ export function createAdminConfigSchema(): Schema<StuhelperAdminConfig> {
 
 export function createSchedulerConfigSchema(): Schema<StuhelperSchedulerConfig> {
   return Schema.object({
-    scanIntervalSeconds: Schema.number().min(1).default(DEFAULT_SCAN_INTERVAL_SECONDS).description('后台扫描待认证成员的间隔，单位为秒。'),
+    scanIntervalSeconds: Schema.number().min(1).default(DEFAULT_SCAN_INTERVAL_SECONDS).description('后台兜底扫描待认证成员的间隔，单位为秒。'),
+    fallbackScanEnabled: Schema.boolean().default(true).description('是否启用低频后台兜底扫描。主路径应使用 admission action stream。'),
+  })
+}
+
+export function createAdmissionActionStreamConfigSchema(): Schema<StuhelperAdmissionActionStreamConfig> {
+  return Schema.object({
+    enabled: Schema.boolean().default(true).description('是否启用后端 admission action SSE 下行流。'),
+    reconnectDelaySeconds: Schema.number().min(1).default(DEFAULT_ACTION_STREAM_RECONNECT_DELAY_SECONDS).description('SSE 断线后的重连延迟，单位为秒。'),
   })
 }
 
@@ -166,6 +176,7 @@ export function createGroupGuardPluginConfigSchema(): Schema<StuhelperGroupGuard
     platform: createPlatformConfigSchema(),
     guard: createGuardConfigSchema(),
     scheduler: createSchedulerConfigSchema(),
+    actionStream: createAdmissionActionStreamConfigSchema(),
     moderation: createModerationConfigSchema(),
     fun: createFunConfigSchema(),
     ai: createAIConfigSchema(),

@@ -39,6 +39,8 @@ const ADMISSION_FAILURES_PATH = '/api/v1/bot/admission/failures'
 const ADMISSION_JOIN_REQUEST_DECISION_PATH = '/api/v1/bot/admission/join-requests/decision'
 const ADMISSION_JOIN_REQUEST_EVENTS_PATH = '/api/v1/bot/admission/join-requests/events'
 const ADMISSION_PENDING_ACTIONS_PATH = '/api/v1/bot/admission/sessions/pending'
+const ADMISSION_ACTION_STREAM_PATH = '/api/v1/bot/admission/actions/stream'
+const ADMISSION_ACTIONS_PATH = '/api/v1/bot/admission/actions'
 const MEMBER_BLACKLIST_PATH = '/api/v1/bot/member-blacklist'
 const AUTH_SCHEME = 'Bearer'
 const JSON_CONTENT_TYPE = 'application/json'
@@ -74,6 +76,16 @@ export interface ConsumeQQBindingResult {
   verificationState: QQVerificationStatus
 }
 
+export interface AdmissionActionStreamHandlers {
+  onAction(action: AdmissionPendingAction): void | Promise<void>
+  onError?(error: unknown): void
+  onOpen?(): void
+}
+
+export interface AdmissionActionStreamHandle {
+  close(): void
+}
+
 export interface PlatformClient {
   getHealth(): Promise<void>
   consumeQQBindingCode(input: ConsumeQQBindingRequest): Promise<ConsumeQQBindingResult>
@@ -96,6 +108,8 @@ export interface PlatformClient {
   recordJoinRequestEvent(input: AdmissionJoinRequestEvent): Promise<void>
   listPendingAdmissionActions(input: AdmissionPendingActionsRequest): Promise<readonly AdmissionPendingAction[]>
   recordAdmissionEvent(sessionID: string, input: AdmissionBotEventRequest): Promise<void>
+  streamAdmissionActions(input: AdmissionPendingActionsRequest, handlers: AdmissionActionStreamHandlers): AdmissionActionStreamHandle
+  recordAdmissionActionEvent(actionID: string, input: AdmissionBotEventRequest): Promise<void>
   listPendingFreshmanForwards(): Promise<readonly FreshmanForwardItem[]>
   markFreshmanForwarded(applicationID: string): Promise<void>
   viewFreshmanApplication(applicationID: string, input: FreshmanCommandContext): Promise<FreshmanApplication>
@@ -110,7 +124,7 @@ export function createPlatformClient(config: StuhelperPlatformConfig): PlatformC
   return {
     ...createSystemClient(request),
     ...createBindingClient(request),
-    ...createAdmissionClient(request),
+    ...createAdmissionClient(request, resolvedConfig),
     ...createMemberBlacklistClient(request),
     ...createFreshmanClient(request),
   }
@@ -148,6 +162,7 @@ function createBindingClient(
 
 function createAdmissionClient(
   request: PlatformRequest,
+  config: StuhelperPlatformConfig,
 ): Pick<PlatformClient,
   'createAdmissionSession'
   | 'getAdmissionSessionByMember'
@@ -159,6 +174,8 @@ function createAdmissionClient(
   | 'recordJoinRequestEvent'
   | 'listPendingAdmissionActions'
   | 'recordAdmissionEvent'
+  | 'streamAdmissionActions'
+  | 'recordAdmissionActionEvent'
 > {
   return {
     async createAdmissionSession(input) {
@@ -208,6 +225,15 @@ function createAdmissionClient(
 
     async recordAdmissionEvent(sessionID, input) {
       await request<void>(`${ADMISSION_SESSIONS_PATH}/${encodeURIComponent(sessionID)}/events`, jsonPost(input), true)
+    },
+
+    streamAdmissionActions(input, handlers) {
+      assertPendingAdmissionActionsRequest(input)
+      return createAdmissionActionStream(config, input, handlers)
+    },
+
+    async recordAdmissionActionEvent(actionID, input) {
+      await request<void>(`${ADMISSION_ACTIONS_PATH}/${encodeURIComponent(actionID)}/events`, jsonPost(input), true)
     },
   }
 }
@@ -262,6 +288,76 @@ function withQuery(path: string, input: object) {
   }
   const query = values.toString()
   return query ? `${path}?${query}` : path
+}
+
+function createAdmissionActionStream(
+  config: StuhelperPlatformConfig,
+  input: AdmissionPendingActionsRequest,
+  handlers: AdmissionActionStreamHandlers,
+): AdmissionActionStreamHandle {
+  const controller = new AbortController()
+  void runAdmissionActionStream(config, input, handlers, controller.signal)
+    .catch((error) => {
+      if (!controller.signal.aborted) {
+        handlers.onError?.(error)
+      }
+    })
+  return {
+    close() {
+      controller.abort()
+    },
+  }
+}
+
+async function runAdmissionActionStream(
+  config: StuhelperPlatformConfig,
+  input: AdmissionPendingActionsRequest,
+  handlers: AdmissionActionStreamHandlers,
+  signal: AbortSignal,
+) {
+  const endpoint = new URL(withQuery(ADMISSION_ACTION_STREAM_PATH, input), config.baseUrl)
+  const response = await fetch(endpoint, withAuthHeaders(config, { method: 'GET', signal }))
+  if (!response.ok) {
+    throw await buildPlatformError(response)
+  }
+  if (!response.body) {
+    throw new Error('admission action stream response missing body')
+  }
+  handlers.onOpen?.()
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  while (!signal.aborted) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const parts = buffer.split(/\r?\n\r?\n/)
+    buffer = parts.pop() ?? ''
+    for (const part of parts) {
+      await dispatchAdmissionActionStreamEvent(part, handlers)
+    }
+  }
+}
+
+async function dispatchAdmissionActionStreamEvent(
+  raw: string,
+  handlers: AdmissionActionStreamHandlers,
+) {
+  let event = 'message'
+  const data: string[] = []
+  for (const line of raw.split(/\r?\n/)) {
+    if (line.startsWith('event:')) {
+      event = line.slice('event:'.length).trim()
+      continue
+    }
+    if (line.startsWith('data:')) {
+      data.push(line.slice('data:'.length).trimStart())
+    }
+  }
+  if (event !== 'action' || data.length === 0) {
+    return
+  }
+  await handlers.onAction(JSON.parse(data.join('\n')) as AdmissionPendingAction)
 }
 
 function appendQueryValue(values: URLSearchParams, key: string, value: unknown) {

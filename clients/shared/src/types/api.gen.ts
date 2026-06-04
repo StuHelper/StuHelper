@@ -2965,6 +2965,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bot/admission/actions/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 机器人订阅 admission action SSE 下行流
+         * @description 该接口返回 `text/event-stream`。服务端会发送 `event: action`，`data` 为
+         *     `BotAdmissionPendingAction` JSON；机器人执行后必须调用
+         *     `/api/v1/bot/admission/actions/{id}/events` ACK。`event: keepalive` 用于保活。
+         */
+        get: operations["streamBotAdmissionActions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/admission/actions/{id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 机器人 ACK admission action 执行结果 */
+        post: operations["recordBotAdmissionActionEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/bot/admission/sessions/{id}/events": {
         parameters: {
             query?: never;
@@ -5281,6 +5320,26 @@ export interface components {
             autoApproveUnverifiedJoin: boolean;
             policyID?: string;
             userID?: string;
+        };
+        BotAdmissionPendingAction: {
+            /** @description 持久化 bot action outbox ID。SSE 下行动作会携带，ACK 时应提交到 actions/{id}/events。 */
+            actionID?: string;
+            sessionID: string;
+            /** @enum {string} */
+            action: "remind" | "release" | "kick" | "blacklist";
+            platform?: string;
+            botSelfID?: string;
+            guildID?: string;
+            channelID?: string;
+            qqID?: string;
+            /** Format: uri */
+            authURL?: string;
+            /** Format: date-time */
+            deadlineAt?: string;
+            reason?: string;
+            failureCount?: number;
+            remainingRetryCount?: number;
+            willBlacklistOnTimeout?: boolean;
         };
         BotFreshmanCommandContext: {
             operatorQQID: string;
@@ -10936,29 +10995,67 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: {
-                            sessionID: string;
-                            /** @enum {string} */
-                            action: "remind" | "release" | "kick" | "blacklist";
-                            platform?: string;
-                            botSelfID?: string;
-                            guildID?: string;
-                            channelID?: string;
-                            qqID?: string;
-                            /** Format: uri */
-                            authURL?: string;
-                            /** Format: date-time */
-                            deadlineAt?: string;
-                            reason?: string;
-                            failureCount?: number;
-                            remainingRetryCount?: number;
-                            willBlacklistOnTimeout?: boolean;
-                        }[];
+                        data: components["schemas"]["BotAdmissionPendingAction"][];
                     };
                 };
             };
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
+        };
+    };
+    streamBotAdmissionActions: {
+        parameters: {
+            query: {
+                platform: string;
+                botSelfID: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Admission action SSE stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    recordBotAdmissionActionEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BotAdmissionEventRequest"];
+            };
+        };
+        responses: {
+            /** @description Action 事件已记录 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
         };
     };
     recordBotAdmissionEvent: {

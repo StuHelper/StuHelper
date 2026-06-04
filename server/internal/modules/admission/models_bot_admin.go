@@ -3,6 +3,7 @@ package admission
 import "time"
 
 type AdmissionPendingAction struct {
+	ActionID               string    `json:"actionID,omitempty"`
 	SessionID              string    `json:"sessionID"`
 	Action                 BotAction `json:"action"`
 	Platform               string    `json:"platform,omitempty"`
@@ -109,6 +110,45 @@ type AdmissionPendingActionFilter struct {
 	Platform  string
 	BotSelfID string
 	Limit     int
+}
+
+type AdmissionBotActionStatus string
+
+const (
+	AdmissionBotActionPending    AdmissionBotActionStatus = "pending"
+	AdmissionBotActionDispatched AdmissionBotActionStatus = "dispatched"
+	AdmissionBotActionSucceeded  AdmissionBotActionStatus = "succeeded"
+	AdmissionBotActionFailed     AdmissionBotActionStatus = "failed"
+	AdmissionBotActionDeadLetter AdmissionBotActionStatus = "dead_letter"
+	AdmissionBotActionStale      AdmissionBotActionStatus = "stale"
+)
+
+type AdmissionBotActionOutboxRow struct {
+	ID            int64
+	ActionKey     string
+	SessionID     string
+	Action        BotAction
+	Platform      string
+	BotSelfID     string
+	GuildID       string
+	ChannelID     string
+	QQID          string
+	ScheduledAt   time.Time
+	Status        AdmissionBotActionStatus
+	AttemptCount  int
+	NextAttemptAt time.Time
+	LastError     *string
+	MessageID     *string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	Session       AdmissionSession
+}
+
+type AdmissionBotActionQueueInput struct {
+	Session     *AdmissionSession
+	Action      BotAction
+	ScheduledAt time.Time
+	Now         time.Time
 }
 
 type BotFreshmanCommandInput struct {
