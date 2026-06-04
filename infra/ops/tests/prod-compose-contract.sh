@@ -172,6 +172,7 @@ assert_contains "${BAOTA_NGINX_FILE}" 'location = /verify \{'
 assert_contains "${BAOTA_NGINX_FILE}" 'location \^~ /verify/ \{'
 assert_contains "${BAOTA_NGINX_FILE}" 'location \^~ /admission/freshman/camera/ \{'
 assert_contains "${BAOTA_NGINX_FILE}" 'location \^~ /api/v1/admission/freshman/camera-handoffs/ \{'
+assert_contains "${BAOTA_NGINX_FILE}" 'location = /api/v1/bot/admission/actions/stream \{'
 assert_contains "${BAOTA_NGINX_FILE}" 'X-Accel-Buffering no always'
 assert_contains "${BAOTA_NGINX_FILE}" 'return 404;'
 python3 - "${BAOTA_NGINX_FILE}" <<'PY' || fail "join.stuhelper.com root must return 404 instead of proxying to the main Web SPA"
