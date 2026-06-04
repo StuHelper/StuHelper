@@ -190,7 +190,6 @@ func (h *Handler) handleWatchFreshmanCameraHandoff(c *gin.Context) {
 	headers := c.Writer.Header()
 	headers.Set("Content-Type", "text/event-stream")
 	headers.Set("Cache-Control", "no-cache")
-	headers.Set("Connection", "keep-alive")
 	headers.Set("X-Accel-Buffering", "no")
 
 	if !writeFreshmanCameraHandoffEvent(c, handoff) {
