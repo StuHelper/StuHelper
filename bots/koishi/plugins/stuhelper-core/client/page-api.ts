@@ -1,6 +1,7 @@
 import { send } from '@koishijs/client'
 
 import type { EntityProfileQuery, ReviewWorkItem } from './page-types'
+import type { AdmissionRuntimePageData } from './models/admission-runtime'
 
 export const consolePageApi = {
   dashboard() {
@@ -14,6 +15,9 @@ export const consolePageApi = {
   },
   configGovernance() {
     return send('stuhelperGroupCenter/page/config-governance')
+  },
+  admissionRuntime(): Promise<AdmissionRuntimePageData> {
+    return send('stuhelperGroupGuard/page/admission-runtime')
   },
   entityProfile(query: EntityProfileQuery) {
     return send('stuhelperGroupCenter/page/entity-profile', query)

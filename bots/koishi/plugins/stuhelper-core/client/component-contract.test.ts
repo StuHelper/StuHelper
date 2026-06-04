@@ -51,6 +51,7 @@ test('page API client uses typed Koishi send events without double casts', () =>
   assert.doesNotMatch(source, /query as unknown as/)
   assert.match(source, /return send\('stuhelperGroupCenter\/page\/entity-profile', query\)/)
   assert.match(typesSource, /'stuhelperGroupCenter\/page\/dashboard'\(\): Promise<DashboardPageData>/)
+  assert.match(typesSource, /'stuhelperGroupGuard\/page\/admission-runtime'\(\): Promise<AdmissionRuntimePageData>/)
   assert.match(typesSource, /'stuhelperGroupCenter\/action\/save-guard-binding'\(input: \{/)
 })
 

@@ -5323,6 +5323,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "koishi-plugin-stuhelper-group-guard@workspace:plugins/stuhelper-group-guard"
   dependencies:
+    "@koishijs/plugin-console": "npm:^5.30.4"
     "@stuhelper/koishi-moderation-core": "workspace:*"
     "@stuhelper/koishi-shared": "workspace:*"
     koishi: "npm:^4.18.7"

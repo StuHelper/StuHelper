@@ -207,7 +207,7 @@
           <div class="sh-form-grid">
             <label class="sh-field">
               <span class="sh-field__label">平台</span>
-              <el-input v-model.trim="bindingForm.platform" class="sh-control sh-control--mono" placeholder="onebot" />
+              <el-input v-model.trim="bindingForm.platform" class="sh-control sh-control--mono" placeholder="qq" />
             </label>
             <label class="sh-field">
               <span class="sh-field__label">群号</span>

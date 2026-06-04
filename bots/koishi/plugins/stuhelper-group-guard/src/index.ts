@@ -24,9 +24,14 @@ import { registerPublicCommands } from './commands'
 import { registerAdmissionAdminCommands } from './admission-admin-commands'
 import { AdmissionReminderDeduper } from './admission-reminder-deduper'
 import { registerAdmissionActionStreams } from './admission-action-stream'
+import { registerAdmissionConsoleAPI } from './admission-console-api'
+import { bootstrapGuardPolicyFromStaticConfig } from './guard-policy-bootstrap'
 
 export const name = 'stuhelper-group-guard'
-export const inject = ['database']
+export const inject = {
+  required: ['database'],
+  optional: ['console'],
+}
 
 export type Config = StuhelperGroupGuardPluginConfig
 
@@ -115,6 +120,20 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
       reminderDeduper: admissionReminderDeduper,
     })
   }
+
+  registerAdmissionConsoleAPI(ctx, {
+    config,
+    guardStore,
+    policyStore,
+  })
+
+  ctx.on('ready', async () => {
+    try {
+      await bootstrapGuardPolicyFromStaticConfig(policyStore, config.guard, logger)
+    } catch (error) {
+      logger.error('failed to bootstrap guard policy from static targetGroups', error)
+    }
+  })
 
   logger.info(`群管插件已加载，目标群数量：${config.guard.targetGroups.length}，action stream：${config.actionStream?.enabled !== false ? 'enabled' : 'disabled'}，兜底扫描间隔：${config.scheduler.scanIntervalSeconds} 秒`)
 }

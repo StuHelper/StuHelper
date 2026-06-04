@@ -38,7 +38,7 @@ export function createTemplateForm(): TemplateFormState {
 
 export function createBindingForm(): BindingFormState {
   return {
-    platform: 'onebot',
+    platform: 'qq',
     guildId: '',
     templateId: '',
     note: '',

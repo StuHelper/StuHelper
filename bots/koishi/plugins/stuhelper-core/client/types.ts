@@ -12,6 +12,7 @@ import type {
   ReviewPageData,
   ReviewWorkItem,
 } from './page-types'
+import type { AdmissionRuntimePageData } from './models/admission-runtime'
 
 export interface RoleMember {
  id: string
@@ -313,6 +314,7 @@ declare module '@koishijs/client' {
     'stuhelperGroupCenter/page/review'(): Promise<ReviewPageData>
     'stuhelperGroupCenter/page/config-governance'(): Promise<ConfigGovernancePageData>
     'stuhelperGroupCenter/page/entity-profile'(query: EntityProfileQuery): Promise<EntityProfile>
+    'stuhelperGroupGuard/page/admission-runtime'(): Promise<AdmissionRuntimePageData>
     'stuhelperGroupCenter/action/review'(input: {
       reviewId: string
       action: 'execute' | 'reject'

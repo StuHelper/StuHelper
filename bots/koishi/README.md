@@ -14,12 +14,12 @@
 
 - `packages/shared`：共享配置、日志、平台客户端与基础类型。
 - `packages/moderation-core`：群管领域模型、SQLite 表、规则引擎与动作服务。
-- `plugins/stuhelper-core`：当前入口插件，承载完整群管中心页面、控制台 API 与 WebSocket 交互。
+- `plugins/stuhelper-core`：当前入口插件，承载完整群管中心页面、控制台 API 与 WebSocket 交互；WebUI 包含“入群认证”页面，用于查看 group-guard 实际运行态、目标群策略、受限成员队列和学生认证联动状态。
 - `plugins/stuhelper-binding`：处理私聊 `绑定 <code>` 命令，消费平台绑定码并建立 QQ 绑定。
 - `plugins/stuhelper-group-guard`：处理入群 admission session 创建、禁言、认证链接提醒、后端 pending action 执行、材料转发、关键词命中、撤回留痕、举报流和娱乐命令。
 - `plugins/stuhelper-admin`：提供文本管理员命令，用于查看待认证成员、查询警告、查看复核队列、批量禁言、提交踢人/拉黑复核申请，以及 QQ 管理群新生材料审核。
 
-Koishi 群管中心 WebUI 只由 `koishi-plugin-stuhelper-core` 注册到 Koishi Console；`stuhelper-group-guard` 不提供单独 WebUI。历史上讨论过的 `stuhelper-console` / `stuhelper-platform` 已按 ADR-0006 从运行路径移除，所以“注册 WebUI”对应的是 `stuhelper-core` 的 Console 入口，而不是 admission 插件本身。
+Koishi 群管中心 WebUI 只由 `koishi-plugin-stuhelper-core` 注册到 Koishi Console；`stuhelper-group-guard` 不提供单独前端入口，但会注册 `stuhelperGroupGuard/page/admission-runtime` Console API 供 core WebUI 消费。历史上讨论过的 `stuhelper-console` / `stuhelper-platform` 已按 ADR-0006 从运行路径移除，所以“注册 WebUI”对应的是 `stuhelper-core` 的 Console 入口，而不是 admission 插件本身。
 
 ## 本地命令
 
@@ -44,7 +44,7 @@ corepack yarn workspaces list
 
 ## Admission 策略边界
 
-`koishi.yml` 的本地 `guard` 字段保留为运行时启用范围、数据库群绑定模板兜底、旧群管命令默认值和兜底扫描配置；新生入群认证的准入与会话策略由后端 admission policy 决定。后端负责 `auto_approve_verified_join`、`auto_approve_unverified_join`、初始禁言时长、link/submission/manual-review 等待时间、提醒间隔、失败次数拉黑、黑名单期限、新生通道关闭时间、原始材料转发开关和 `management_guild_ids`。
+`koishi.yml` 的本地 `guard` 字段保留为启动兜底和首次迁移输入；`stuhelper-group-guard` 启动后会把静态 `guard.targetGroups` 幂等迁移为 WebUI 可见的数据库模板与 `platform=qq` 群绑定。运行时策略解析优先使用数据库群绑定；禁用某个数据库绑定会覆盖静态 fallback。新生入群认证的准入与会话策略由后端 admission policy 决定。后端负责 `auto_approve_verified_join`、`auto_approve_unverified_join`、初始禁言时长、link/submission/manual-review 等待时间、提醒间隔、失败次数拉黑、黑名单期限、新生通道关闭时间、原始材料转发开关和 `management_guild_ids`。
 
 Koishi 在 admission 流程中只做执行器：入群后创建后端 session，发送后端返回的 `join.stuhelper.com/verify/<code>` 认证链接，通过后端 admission action SSE 下行流接收提醒、解禁、踢出和拉黑动作，执行后按 action ID 回写 ACK。`/sessions/pending` 拉取保留为低频 fallback，不再作为生产主路径。`koishi.yml` 的插件加载保持不变，不新增短链域名配置。
 

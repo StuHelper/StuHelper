@@ -101,6 +101,7 @@ type SearchResult = ViewIntent | EntityIntent | ActionIntent
 
 const VIEW_INTENTS: readonly ViewIntent[] = [
   { id: 'v:dashboard', kind: 'view', title: '总览 · Dashboard', hint: '工作台 / 总览', view: 'dashboard', keywords: ['总览', 'dashboard', '主页', 'overview'] },
+  { id: 'v:admission', kind: 'view', title: '入群认证', hint: '工作台 / admission 运行态', view: 'admission', keywords: ['入群', '认证', 'admission', 'join', 'verify'] },
   { id: 'v:review', kind: 'view', title: '处置中心', hint: '工作台 / 复核 + 举报队列', view: 'review', keywords: ['处置', 'review', '复核', '举报', 'report'] },
   { id: 'v:identity', kind: 'view', title: '限制中', hint: '成员 / 待解除限制名单', view: 'identity', keywords: ['限制', '认证', 'identity', 'restricted', '成员'] },
   { id: 'v:warns', kind: 'view', title: '警告记录', hint: '成员 / 累计警告列表', view: 'warns', keywords: ['警告', 'warn', 'warns'] },

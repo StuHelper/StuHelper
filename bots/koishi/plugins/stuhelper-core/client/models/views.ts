@@ -1,5 +1,6 @@
 export const CONSOLE_VIEW_IDS = [
   'dashboard',
+  'admission',
   'config',
   'warns',
   'blacklist',

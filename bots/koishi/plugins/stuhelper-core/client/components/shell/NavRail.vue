@@ -101,6 +101,7 @@ const NAV_SECTIONS: readonly NavSection[] = [
     label: '工作台',
     items: [
       { view: 'dashboard', label: '总览', icon: 'stuhelperGroupCenter:octicons.apps' },
+      { view: 'admission', label: '入群认证', icon: 'stuhelperGroupCenter:octicons.personadd' },
       { view: 'review', label: '处置中心', icon: 'stuhelperGroupCenter:shield' },
     ],
   },

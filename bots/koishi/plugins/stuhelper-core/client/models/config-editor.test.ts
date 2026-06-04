@@ -31,7 +31,7 @@ test('config editor form snapshots detect dirty state per form', () => {
     enabled: true,
   })
   const binding = cloneBindingForm({
-    platform: 'onebot',
+    platform: 'qq',
     guildId: '1001',
     templateId: 'tpl-1',
     note: '主群',
@@ -60,6 +60,7 @@ test('config editor default new-record snapshots start clean', () => {
   assert.equal(isTemplateFormDirty(template, cloneTemplateForm(template)), false)
   assert.equal(isBindingFormDirty(binding, cloneBindingForm(binding)), false)
   assert.equal(isPolicyFormDirty(policy, clonePolicyForm(policy)), false)
+  assert.equal(binding.platform, 'qq')
 
   assert.equal(isTemplateFormDirty({ ...template, id: 'draft' }, template), true)
   assert.equal(isBindingFormDirty({ ...binding, guildId: '1001' }, binding), true)

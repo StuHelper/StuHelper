@@ -10,7 +10,7 @@ import type { Page } from '@playwright/test'
  * - 切 view 通过点击 NavRail 的 `<button class="sh-rail__item" :title="...">`，
  *   不用 page.goto 避免 Koishi page 注册的异步竞态。
  * - 第一个 test 验证 NavRail click → URL hash 切换工作。
- * - 11 个 per-view test 各自 click 目标 view 的 NavRail button，断言：
+ * - 12 个 per-view test 各自 click 目标 view 的 NavRail button，断言：
  *     - URL 落定后 hash 包含 view id；
  *     - view-specific anchor 元素出现（防"渲染错 view 但壳还在"）；
  *     - 无 pageerror、无 console.error/warning（按 allowlist 过滤）。
@@ -42,7 +42,7 @@ interface ViewSpec {
 }
 
 /**
- * NavRail 中可达的 11 个 view（chat 不在 rail 中，独立 dock 测）。
+ * NavRail 中可达的 12 个 view（chat 不在 rail 中，独立 dock 测）。
  *
  * label = NavRail 内显示文本 = button[title]；可能与 view 内部 H1 不同
  * （如 identity 的 nav label "限制中" vs 内部 H1 "身份认证"）。
@@ -51,6 +51,7 @@ interface ViewSpec {
  */
 const VIEWS: readonly ViewSpec[] = [
   { id: 'dashboard', label: '总览', anchor: { selector: '.sh-dashboard__title', text: '控制台总览' } },
+  { id: 'admission', label: '入群认证', anchor: { selector: '.sh-workspace-head__title', text: '入群认证' } },
   { id: 'review', label: '处置中心', anchor: { selector: '.sh-workspace-head__title', text: '处置中心' } },
   { id: 'identity', label: '限制中', anchor: { selector: '.sh-workspace-head__title', text: '身份认证' } },
   { id: 'warns', label: '警告记录', anchor: { selector: '.sh-workspace-head__title', text: '警告记录' } },
@@ -427,13 +428,13 @@ test('config governance saves template, binding, and command policy through real
 
   await page.getByRole('button', { name: '群绑定', exact: true }).click()
   await expect(page).toHaveURL(/#config\?workspace=bindings/, { timeout: 5_000 })
-  await fillLabeledInput(page, '平台', 'onebot')
+  await fillLabeledInput(page, '平台', 'qq')
   await fillLabeledInput(page, '群号', '1001')
   await selectLabeledOption(page, '模板', 'E2E 模板 (e2e-template)')
   await fillLabeledInput(page, '备注', 'E2E 绑定验证')
   await page.getByRole('button', { name: '保存绑定', exact: true }).click()
 
-  await expect(page.getByText('已保存群绑定：onebot/1001')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('已保存群绑定：qq/1001')).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText('E2E 绑定验证').first()).toBeVisible({ timeout: 10_000 })
 
   await page.getByRole('button', { name: '命令策略', exact: true }).click()
