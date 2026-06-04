@@ -106,6 +106,7 @@ func (h *Handler) handleStreamBotAdmissionActions(c *gin.Context) {
 	headers.Set("Content-Type", "text/event-stream")
 	headers.Set("Cache-Control", "no-cache")
 	headers.Set("X-Accel-Buffering", "no")
+	c.Writer.Flush()
 
 	if !h.writeQueuedAdmissionActions(c, filter) {
 		return

@@ -139,6 +139,7 @@ func (h *Handler) Stream(c *gin.Context) {
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 	c.Writer.Header().Set("X-Accel-Buffering", "no") // Nginx 反向代理兼容
+	c.Writer.Flush()
 
 	// 订阅 SSE 事件
 	ch := h.hub.Subscribe(userID)
