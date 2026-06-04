@@ -5,7 +5,10 @@ import {
   canExecuteCommand,
   type ModerationStore,
 } from '@stuhelper/koishi-moderation-core'
-import type { StuhelperGroupGuardPluginConfig } from '@stuhelper/koishi-shared'
+import type {
+  AdmissionRuntimeSettingsStore,
+  StuhelperGroupGuardPluginConfig,
+} from '@stuhelper/koishi-shared'
 
 import type { ReportService } from './report-service'
 
@@ -13,6 +16,7 @@ interface CommandDeps {
   store: ModerationStore
   reportService: ReportService
   config: StuhelperGroupGuardPluginConfig
+  runtimeSettings?: AdmissionRuntimeSettingsStore
 }
 
 export function registerPublicCommands(ctx: Context, deps: CommandDeps) {
@@ -21,6 +25,8 @@ export function registerPublicCommands(ctx: Context, deps: CommandDeps) {
       if (!session) {
         throw new Error('report command requires session')
       }
+      const disabled = await ensurePublicCommandsEnabled(deps)
+      if (disabled) return disabled
       const denial = await ensureCommandAccess(deps.store, session, COMMAND_POLICY_IDS.report)
       if (denial) {
         return denial
@@ -33,6 +39,8 @@ export function registerPublicCommands(ctx: Context, deps: CommandDeps) {
 
   ctx.command('骰子 [sides:natural]', '投掷骰子')
     .action(async ({ session }, sides) => {
+      const disabled = await ensurePublicCommandsEnabled(deps)
+      if (disabled) return disabled
       const denial = await ensureCommandAccess(deps.store, session, COMMAND_POLICY_IDS.dice)
       if (denial) {
         return denial
@@ -47,6 +55,8 @@ export function registerPublicCommands(ctx: Context, deps: CommandDeps) {
       if (!session) {
         throw new Error('mute lottery command requires session')
       }
+      const disabled = await ensurePublicCommandsEnabled(deps)
+      if (disabled) return disabled
       const denial = await ensureCommandAccess(
         deps.store,
         session,
@@ -57,6 +67,12 @@ export function registerPublicCommands(ctx: Context, deps: CommandDeps) {
       }
       return handleMuteLottery(session, deps)
     })
+}
+
+async function ensurePublicCommandsEnabled(deps: CommandDeps) {
+  if (deps.runtimeSettings && !await deps.runtimeSettings.isPublicCommandsEnabled()) {
+    return '公开命令已由 StuHelper WebUI 关闭。'
+  }
 }
 
 async function handleMuteLottery(session: Session, deps: CommandDeps) {

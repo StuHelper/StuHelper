@@ -52,6 +52,8 @@ test('page API client uses typed Koishi send events without double casts', () =>
   assert.match(source, /return send\('stuhelperGroupCenter\/page\/entity-profile', query\)/)
   assert.match(typesSource, /'stuhelperGroupCenter\/page\/dashboard'\(\): Promise<DashboardPageData>/)
   assert.match(typesSource, /'stuhelperGroupGuard\/page\/admission-runtime'\(\): Promise<AdmissionRuntimePageData>/)
+  assert.match(typesSource, /'stuhelperGroupGuard\/action\/admission-member'\(input: \{/)
+  assert.match(typesSource, /'stuhelperGroupGuard\/action\/save-admission-runtime-settings'\(input: AdmissionRuntimeSettingsPatch\): Promise<string>/)
   assert.match(typesSource, /'stuhelperGroupCenter\/action\/save-guard-binding'\(input: \{/)
 })
 

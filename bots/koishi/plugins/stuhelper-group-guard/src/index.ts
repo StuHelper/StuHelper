@@ -1,11 +1,14 @@
 import { Context, Schema } from 'koishi'
 
 import {
+  AdmissionRuntimeSettingsStore,
   GuardPolicyStore,
   createGroupGuardPluginConfigSchema,
   createPlatformClient,
   createPluginLogger,
+  registerAdmissionRuntimeSettingsModel,
   registerGuardPolicyModels,
+  type AdmissionRuntimeSettings,
   type StuhelperGroupGuardPluginConfig,
 } from '@stuhelper/koishi-shared'
 import {
@@ -45,6 +48,7 @@ export function apply(ctx: Context, config: Config) {
 export function registerGroupGuardRuntimeModels(ctx: Context) {
   registerGuardMemberModel(ctx)
   registerGuardPolicyModels(ctx)
+  registerAdmissionRuntimeSettingsModel(ctx)
   registerModerationModels(ctx)
 }
 
@@ -53,6 +57,7 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
   const platform = createPlatformClient(config.platform)
   const guardStore = new GuardMemberStore(ctx)
   const policyStore = new GuardPolicyStore(ctx, config.guard)
+  const runtimeSettings = new AdmissionRuntimeSettingsStore(ctx, defaultAdmissionRuntimeSettings(config))
   const moderationStore = new ModerationStore(ctx)
   const actions = new ModerationActionService(moderationStore)
   const admissionReminderDeduper = new AdmissionReminderDeduper()
@@ -62,7 +67,7 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
     policyStore,
     moderationStore,
     logger,
-    freshmanForwardEnabled: config.freshmanForward?.enabled !== false,
+    isFreshmanForwardEnabled: () => runtimeSettings.isFreshmanForwardEnabled(),
     reminderDeduper: admissionReminderDeduper,
   })
   const messageGuard = new MessageGuardService({
@@ -80,10 +85,10 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
 
   registerGroupGuardEvents(ctx, {
     memberGuard,
-    messageGuard: config.moderation.enabled === false ? undefined : messageGuard,
+    messageGuard,
+    runtimeSettings,
     logger,
     scanIntervalSeconds: config.scheduler.scanIntervalSeconds,
-    fallbackScanEnabled: config.scheduler.fallbackScanEnabled !== false,
   })
 
   registerAdmissionActionStreams(ctx, {
@@ -108,6 +113,7 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
       store: moderationStore,
       reportService,
       config,
+      runtimeSettings,
     })
   }
 
@@ -117,12 +123,15 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
       guardStore,
       policyStore,
       config,
+      runtimeSettings,
       reminderDeduper: admissionReminderDeduper,
     })
   }
 
   registerAdmissionConsoleAPI(ctx, {
     config,
+    platform,
+    runtimeSettings,
     guardStore,
     policyStore,
   })
@@ -136,6 +145,16 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
   })
 
   logger.info(`群管插件已加载，目标群数量：${config.guard.targetGroups.length}，action stream：${config.actionStream?.enabled !== false ? 'enabled' : 'disabled'}，兜底扫描间隔：${config.scheduler.scanIntervalSeconds} 秒`)
+}
+
+function defaultAdmissionRuntimeSettings(config: StuhelperGroupGuardPluginConfig): AdmissionRuntimeSettings {
+  return {
+    publicCommandsEnabled: config.commands?.enabled !== false,
+    admissionCommandsEnabled: config.admissionCommands?.enabled !== false,
+    moderationEnabled: config.moderation.enabled !== false,
+    freshmanForwardEnabled: config.freshmanForward?.enabled !== false,
+    fallbackScanEnabled: config.scheduler.fallbackScanEnabled !== false,
+  }
 }
 
 export default {

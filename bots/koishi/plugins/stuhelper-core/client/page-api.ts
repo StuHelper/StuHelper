@@ -1,7 +1,11 @@
 import { send } from '@koishijs/client'
 
 import type { EntityProfileQuery, ReviewWorkItem } from './page-types'
-import type { AdmissionRuntimePageData } from './models/admission-runtime'
+import type {
+  AdmissionRuntimeAction,
+  AdmissionRuntimePageData,
+  AdmissionRuntimeSettingsPatch,
+} from './models/admission-runtime'
 
 export const consolePageApi = {
   dashboard() {
@@ -18,6 +22,12 @@ export const consolePageApi = {
   },
   admissionRuntime(): Promise<AdmissionRuntimePageData> {
     return send('stuhelperGroupGuard/page/admission-runtime')
+  },
+  admissionAction(input: { recordId: string; action: AdmissionRuntimeAction }) {
+    return send('stuhelperGroupGuard/action/admission-member', input)
+  },
+  saveAdmissionRuntimeSettings(input: AdmissionRuntimeSettingsPatch) {
+    return send('stuhelperGroupGuard/action/save-admission-runtime-settings', input)
   },
   entityProfile(query: EntityProfileQuery) {
     return send('stuhelperGroupCenter/page/entity-profile', query)

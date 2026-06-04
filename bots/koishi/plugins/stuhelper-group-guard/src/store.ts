@@ -94,6 +94,15 @@ export class GuardMemberStore {
     return record as GuardMemberRecord | undefined
   }
 
+  async getActiveByID(id: string) {
+    const [record] = await this.ctx.database.get(GUARD_MEMBER_TABLE, {
+      id,
+      releasedAt: null,
+      kickedAt: null,
+    })
+    return record as GuardMemberRecord | undefined
+  }
+
   async findActiveBySubject(input: {
     readonly platform: string
     readonly botSelfId: string

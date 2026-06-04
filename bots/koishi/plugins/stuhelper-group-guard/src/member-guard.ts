@@ -55,7 +55,7 @@ interface MemberGuardDeps {
   policyStore: GuardPolicyStore
   moderationStore: ModerationStore
   logger: Logger
-  freshmanForwardEnabled?: boolean
+  isFreshmanForwardEnabled?: () => Promise<boolean> | boolean
   reminderDeduper?: AdmissionReminderDeduper
 }
 
@@ -521,7 +521,7 @@ export class MemberGuardService {
   }
 
   private async forwardFreshmanMaterials(bots: readonly GuardBotRuntime[]) {
-    if (this.deps.freshmanForwardEnabled === false) {
+    if (this.deps.isFreshmanForwardEnabled && !await this.deps.isFreshmanForwardEnabled()) {
       return
     }
     const forwardBots = bots.filter(isAdmissionActionPlatform)

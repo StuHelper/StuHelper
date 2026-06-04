@@ -910,7 +910,7 @@ test('member guard can explicitly disable freshman material forward polling', as
     policyStore: policyStoreFor(['guild-1']),
     moderationStore: { async appendEvent() {} },
     logger: { error() {}, warn() {} },
-    freshmanForwardEnabled: false,
+    isFreshmanForwardEnabled: () => false,
   } as any)
 
   await service.scanPendingMembers([{

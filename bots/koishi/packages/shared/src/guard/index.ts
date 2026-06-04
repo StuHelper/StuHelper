@@ -62,3 +62,4 @@ export function registerGuardMemberModel(ctx: Context) {
 
 export * from './policy'
 export * from './policy-store'
+export * from './runtime-settings'

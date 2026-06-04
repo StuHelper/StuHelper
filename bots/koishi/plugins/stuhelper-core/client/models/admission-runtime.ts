@@ -20,7 +20,9 @@ export interface AdmissionRuntimePageData {
     reconnectDelaySeconds?: number
   }
   commands: {
+    publicCommandsRegistered: boolean
     publicCommandsEnabled: boolean
+    admissionCommandsRegistered: boolean
     admissionCommandsEnabled: boolean
     admissionCommandMinAuthority?: number
     admissionCommandOperatorQQIDCount: number
@@ -95,7 +97,16 @@ export interface AdmissionRuntimeMember {
   mutedAt: string | null
   reminderSentAt: string | null
   lastError: string | null
+  availableActions: AdmissionRuntimeAction[]
 }
+
+export type AdmissionRuntimeAction =
+  | 'query'
+  | 'resend'
+  | 'regenerate'
+  | 'skip'
+  | 'reset-failures'
+  | 'release-blacklist'
 
 export interface AdmissionMetric {
   label: string
@@ -110,7 +121,18 @@ export interface AdmissionSwitchRow {
   value: boolean | string | number
   tone: 'success' | 'warning' | 'danger' | 'primary'
   note: string
+  editable?: boolean
+  settingKey?: AdmissionRuntimeSettingsKey
 }
+
+export type AdmissionRuntimeSettingsKey =
+  | 'publicCommandsEnabled'
+  | 'admissionCommandsEnabled'
+  | 'moderationEnabled'
+  | 'freshmanForwardEnabled'
+  | 'fallbackScanEnabled'
+
+export type AdmissionRuntimeSettingsPatch = Partial<Record<AdmissionRuntimeSettingsKey, boolean>>
 
 export function buildAdmissionRuntimeModel(data: AdmissionRuntimePageData) {
   return {
@@ -175,20 +197,26 @@ function buildSwitchRows(data: AdmissionRuntimePageData): AdmissionSwitchRow[] {
       value: data.scheduler.fallbackScanEnabled,
       tone: data.scheduler.fallbackScanEnabled ? 'warning' : 'primary',
       note: `${data.scheduler.scanIntervalSeconds} 秒`,
+      editable: true,
+      settingKey: 'fallbackScanEnabled',
     },
     {
       id: 'public-commands',
       label: '公开命令',
       value: data.commands.publicCommandsEnabled,
-      tone: data.commands.publicCommandsEnabled ? 'warning' : 'success',
-      note: '举报 / 骰子 / 抽禁言',
+      tone: data.commands.publicCommandsEnabled && data.commands.publicCommandsRegistered ? 'warning' : 'success',
+      note: data.commands.publicCommandsRegistered ? '举报 / 骰子 / 抽禁言' : '启动未注册，需重启后启用',
+      editable: data.commands.publicCommandsRegistered,
+      settingKey: 'publicCommandsEnabled',
     },
     {
       id: 'admission-commands',
       label: '准入命令',
       value: data.commands.admissionCommandsEnabled,
-      tone: data.commands.admissionCommandsEnabled ? 'success' : 'warning',
-      note: `authority ${data.commands.admissionCommandMinAuthority ?? 0}`,
+      tone: data.commands.admissionCommandsEnabled && data.commands.admissionCommandsRegistered ? 'success' : 'warning',
+      note: data.commands.admissionCommandsRegistered ? `authority ${data.commands.admissionCommandMinAuthority ?? 0}` : '启动未注册，需重启后启用',
+      editable: data.commands.admissionCommandsRegistered,
+      settingKey: 'admissionCommandsEnabled',
     },
     {
       id: 'moderation',
@@ -196,6 +224,8 @@ function buildSwitchRows(data: AdmissionRuntimePageData): AdmissionSwitchRow[] {
       value: data.moderation.enabled,
       tone: data.moderation.enabled ? 'warning' : 'success',
       note: `${data.moderation.keywordRuleCount} 条启动规则`,
+      editable: true,
+      settingKey: 'moderationEnabled',
     },
     {
       id: 'freshman-forward',
@@ -203,6 +233,8 @@ function buildSwitchRows(data: AdmissionRuntimePageData): AdmissionSwitchRow[] {
       value: data.freshmanForward.enabled,
       tone: data.freshmanForward.enabled ? 'warning' : 'success',
       note: '新生原始材料转发扫描',
+      editable: true,
+      settingKey: 'freshmanForwardEnabled',
     },
   ]
 }

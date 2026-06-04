@@ -66,8 +66,15 @@
                   <span>{{ row.note }}</span>
                 </div>
               </div>
+              <el-switch
+                v-if="row.editable && row.settingKey"
+                :model-value="Boolean(row.value)"
+                :loading="settingLoadingKey === row.settingKey"
+                @change="(value: boolean | string | number) => submitRuntimeSetting(row, Boolean(value))"
+              />
             </div>
           </div>
+          <p v-if="settingsNotice" class="sh-field__hint sh-admission__notice">{{ settingsNotice }}</p>
         </WorkspaceSection>
 
         <WorkspaceSection
@@ -242,8 +249,25 @@
                 {{ row.lastError || '无' }}
               </template>
             </el-table-column>
+            <el-table-column label="操作" width="260" fixed="right">
+              <template #default="{ row }">
+                <div class="sh-table__actions">
+                  <el-button
+                    v-for="action in row.availableActions"
+                    :key="action"
+                    size="small"
+                    :type="actionTone(action)"
+                    :disabled="actionLoadingKey === `${row.id}:${action}`"
+                    @click="submitMemberAction(row, action)"
+                  >
+                    {{ actionLabel(action) }}
+                  </el-button>
+                </div>
+              </template>
+            </el-table-column>
           </el-table>
         </div>
+        <p v-if="notice" class="sh-field__hint sh-admission__notice">{{ notice }}</p>
       </WorkspaceSection>
     </template>
   </div>
@@ -257,7 +281,10 @@ import { formatTimestamp } from '../models/formatters'
 import {
   buildAdmissionRuntimeModel,
   type AdmissionMetric,
+  type AdmissionRuntimeAction,
   type AdmissionRuntimePageData,
+  type AdmissionRuntimeMember,
+  type AdmissionRuntimeSettingsPatch,
   type AdmissionSwitchRow,
 } from '../models/admission-runtime'
 import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
@@ -268,6 +295,10 @@ import WorkspaceSection from './primitives/WorkspaceSection.vue'
 
 const loading = ref(false)
 const error = ref('')
+const notice = ref('')
+const settingsNotice = ref('')
+const actionLoadingKey = ref('')
+const settingLoadingKey = ref('')
 const data = ref<AdmissionRuntimePageData | null>(null)
 
 const model = computed(() => data.value ? buildAdmissionRuntimeModel(data.value) : null)
@@ -284,6 +315,69 @@ async function loadData() {
   } finally {
     loading.value = false
   }
+}
+
+async function submitMemberAction(
+  member: AdmissionRuntimeMember,
+  action: AdmissionRuntimeAction,
+) {
+  const label = actionLabel(action)
+  if (requiresConfirm(action) && !window.confirm(`确认要${label} ${member.memberId} 吗？`)) {
+    return
+  }
+  actionLoadingKey.value = `${member.id}:${action}`
+  error.value = ''
+  notice.value = ''
+  try {
+    notice.value = await consolePageApi.admissionAction({
+      recordId: member.id,
+      action,
+    })
+    await loadData()
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : String(cause)
+  } finally {
+    actionLoadingKey.value = ''
+  }
+}
+
+async function submitRuntimeSetting(row: AdmissionSwitchRow, enabled: boolean) {
+  if (!row.settingKey) return
+  settingLoadingKey.value = row.settingKey
+  error.value = ''
+  settingsNotice.value = ''
+  const patch: AdmissionRuntimeSettingsPatch = {
+    [row.settingKey]: enabled,
+  }
+  try {
+    settingsNotice.value = await consolePageApi.saveAdmissionRuntimeSettings(patch)
+    await loadData()
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : String(cause)
+  } finally {
+    settingLoadingKey.value = ''
+  }
+}
+
+function actionLabel(action: AdmissionRuntimeAction) {
+  return {
+    query: '查询',
+    resend: '重发',
+    regenerate: '重建',
+    skip: '跳过',
+    'reset-failures': '清次数',
+    'release-blacklist': '解拉黑',
+  }[action]
+}
+
+function actionTone(action: AdmissionRuntimeAction) {
+  if (action === 'skip' || action === 'release-blacklist') return 'warning'
+  if (action === 'regenerate') return 'primary'
+  return undefined
+}
+
+function requiresConfirm(action: AdmissionRuntimeAction) {
+  return action !== 'query'
 }
 
 function metricClass(tone: AdmissionMetric['tone']) {
@@ -322,5 +416,16 @@ function formatSwitchValue(value: AdmissionSwitchRow['value']) {
   flex-direction: column;
   gap: 3px;
   min-width: 0;
+}
+
+.sh-table__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sh-admission__notice {
+  margin: 12px 0 0;
+  color: var(--sh-success);
 }
 </style>

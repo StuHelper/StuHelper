@@ -4,6 +4,7 @@ import {
   PlatformAPIError,
   type AdmissionSession,
   type AdmissionSessionCreateResult,
+  type AdmissionRuntimeSettingsStore,
   type GuardPolicyStore,
   type PlatformClient,
   type StuhelperGroupGuardPluginConfig,
@@ -23,6 +24,7 @@ interface AdmissionAdminCommandDeps {
   readonly guardStore: GuardMemberStore
   readonly policyStore: GuardPolicyStore
   readonly config: StuhelperGroupGuardPluginConfig
+  readonly runtimeSettings?: AdmissionRuntimeSettingsStore
   readonly reminderDeduper?: AdmissionReminderDeduper
 }
 
@@ -181,6 +183,9 @@ async function resolveAdmissionCommandContext(
 ): Promise<AdmissionCommandContext | string> {
   if (!session) {
     return '入群认证命令只能在群聊中使用。'
+  }
+  if (deps.runtimeSettings && !await deps.runtimeSettings.isAdmissionCommandsEnabled()) {
+    return '入群认证管理员命令已由 StuHelper WebUI 关闭。'
   }
   const accessDenied = ensureAdmissionCommandAccess(session, deps.config)
   if (accessDenied) {

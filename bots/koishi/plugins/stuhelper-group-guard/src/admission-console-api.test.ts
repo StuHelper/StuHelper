@@ -3,17 +3,26 @@ import test from 'node:test'
 import type { Context } from 'koishi'
 
 import type {
+  AdmissionSession,
+  AdmissionRuntimeSettingsStore,
   GuardPolicyStore,
+  PlatformClient,
   StuhelperGroupGuardPluginConfig,
 } from '@stuhelper/koishi-shared'
 
-import { buildAdmissionRuntimePageData } from './admission-console-api'
+import {
+  buildAdmissionRuntimePageData,
+  handleAdmissionRuntimeAction,
+  registerAdmissionConsoleAPI,
+} from './admission-console-api'
 import type { GuardMemberRecord } from './model'
 import type { GuardMemberStore } from './store'
 
 test('admission runtime page data redacts service token and exposes guard state', async () => {
   const data = await buildAdmissionRuntimePageData(fakeContext(), {
     config: createConfig(),
+    platform: fakePlatform(),
+    runtimeSettings: fakeRuntimeSettings(),
     guardStore: fakeGuardStore(),
     policyStore: fakePolicyStore(),
   })
@@ -26,17 +35,158 @@ test('admission runtime page data redacts service token and exposes guard state'
   assert.equal(data.stats.backendSyncPendingCount, 1)
   assert.equal(data.bots[0].platform, 'onebot')
   assert.equal(data.activeMembers[0].memberId, '2001')
+  assert.deepEqual(data.activeMembers[0].availableActions, [
+    'query',
+    'reset-failures',
+    'release-blacklist',
+    'regenerate',
+    'skip',
+  ])
 })
 
-function fakeContext() {
+test('admission runtime resend action calls backend, sends reminder, and records bot event', async () => {
+  const sentMessages: Array<{ channelId: string; message: string }> = []
+  const reminderMarks: Array<{ id: string; now: Date }> = []
+  const recordedEvents: Array<{ sessionID: string; messageID?: string }> = []
+  const session = createAdmissionSession()
+  const data = await handleAdmissionRuntimeAction(
+    fakeContext(sentMessages),
+    {
+      config: createConfig(),
+      platform: fakePlatform({
+        async resendAdmissionSessionLink(input) {
+          assert.deepEqual(input, {
+            platform: 'qq',
+            guildID: '178037297',
+            qqID: '2001',
+          })
+          return session
+        },
+        async recordAdmissionEvent(sessionID, input) {
+          assert.equal(input.action, 'remind')
+          assert.equal(input.success, true)
+          recordedEvents.push({ sessionID, messageID: input.messageID })
+        },
+      }),
+      runtimeSettings: fakeRuntimeSettings(),
+      guardStore: fakeGuardStore({
+        async getActiveByID(id) {
+          assert.equal(id, 'qq:2118785781:178037297:2001')
+          return createMember({ backendSyncPending: false, admissionSessionID: 'session-1' })
+        },
+        async markReminderSent(id, now) {
+          reminderMarks.push({ id, now })
+        },
+      }),
+      policyStore: fakePolicyStore(),
+    },
+    { recordId: 'qq:2118785781:178037297:2001', action: 'resend' },
+    { auth: { id: 42 } },
+  )
+
+  assert.equal(data, '已重发 QQ 2001 的入群认证链接。')
+  assert.equal(sentMessages.length, 1)
+  assert.equal(sentMessages[0].channelId, '178037297')
+  assert.match(sentMessages[0].message, /https:\/\/join\.stuhelper\.com\/verify\/abc/)
+  assert.equal(reminderMarks[0].id, 'qq:2118785781:178037297:2001')
+  assert.deepEqual(recordedEvents, [{ sessionID: 'session-1', messageID: 'message-1' }])
+})
+
+test('admission runtime settings action persists WebUI switch changes', async () => {
+  const listeners = new Map<string, (input: unknown) => Promise<string>>()
+  const savedInputs: unknown[] = []
+  registerAdmissionConsoleAPI({
+    ...fakeContext(),
+    console: {
+      addListener(event: string, listener: (input: unknown) => Promise<string>) {
+        listeners.set(event, listener)
+      },
+    },
+  } as unknown as Context, {
+    config: createConfig(),
+    platform: fakePlatform(),
+    runtimeSettings: fakeRuntimeSettings({
+      async saveSettings(input) {
+        savedInputs.push(input)
+        return {
+          id: 'default',
+          publicCommandsEnabled: false,
+          admissionCommandsEnabled: true,
+          moderationEnabled: true,
+          freshmanForwardEnabled: false,
+          fallbackScanEnabled: false,
+          createdAt: new Date('2026-06-04T07:00:00.000Z'),
+          updatedAt: new Date('2026-06-04T08:00:00.000Z'),
+        }
+      },
+    }),
+    guardStore: fakeGuardStore(),
+    policyStore: fakePolicyStore(),
+  })
+
+  const listener = listeners.get('stuhelperGroupGuard/action/save-admission-runtime-settings')
+  assert.ok(listener)
+  const result = await listener({ moderationEnabled: true, fallbackScanEnabled: false, ignored: 'x' })
+  assert.equal(result, '已保存入群认证运行开关。')
+  assert.deepEqual(savedInputs, [{
+    publicCommandsEnabled: undefined,
+    admissionCommandsEnabled: undefined,
+    moderationEnabled: true,
+    freshmanForwardEnabled: undefined,
+    fallbackScanEnabled: false,
+  }])
+})
+
+function fakeContext(sentMessages: Array<{ channelId: string; message: string }> = []) {
   return {
-    bots: [{ platform: 'onebot', selfId: '2118785781', status: 'online' }],
+    bots: [{
+      platform: 'onebot',
+      selfId: '2118785781',
+      status: 'online',
+      async sendMessage(channelId: string, message: string) {
+        sentMessages.push({ channelId, message })
+        return 'message-1'
+      },
+      async muteGuildMember() {},
+    }],
   } as unknown as Context
 }
 
-function fakeGuardStore() {
+function fakeRuntimeSettings(overrides: Partial<AdmissionRuntimeSettingsStore> = {}) {
+  return {
+    getSettings: async () => ({
+      id: 'default',
+      publicCommandsEnabled: false,
+      admissionCommandsEnabled: true,
+      moderationEnabled: false,
+      freshmanForwardEnabled: false,
+      fallbackScanEnabled: true,
+      createdAt: new Date('2026-06-04T07:00:00.000Z'),
+      updatedAt: new Date('2026-06-04T07:00:00.000Z'),
+    }),
+    saveSettings: async () => ({
+      id: 'default',
+      publicCommandsEnabled: false,
+      admissionCommandsEnabled: true,
+      moderationEnabled: false,
+      freshmanForwardEnabled: false,
+      fallbackScanEnabled: true,
+      createdAt: new Date('2026-06-04T07:00:00.000Z'),
+      updatedAt: new Date('2026-06-04T07:00:00.000Z'),
+    }),
+    ...overrides,
+  } as unknown as AdmissionRuntimeSettingsStore
+}
+
+function fakeGuardStore(overrides: Partial<GuardMemberStore> = {}) {
   return {
     listActive: async () => [createMember()],
+    getActiveByID: async () => createMember({ backendSyncPending: false, admissionSessionID: 'session-1' }),
+    markReminderSent: async () => {},
+    markBackendSynced: async () => {},
+    markReleased: async () => {},
+    markLastError: async () => {},
+    ...overrides,
   } as unknown as GuardMemberStore
 }
 
@@ -64,6 +214,30 @@ function fakePolicyStore() {
       updatedAt: new Date('2026-06-04T07:00:00.000Z'),
     }],
   } as unknown as GuardPolicyStore
+}
+
+function fakePlatform(overrides: Partial<PlatformClient> = {}) {
+  return {
+    getAdmissionSessionByMember: async () => createAdmissionSession(),
+    resendAdmissionSessionLink: async () => createAdmissionSession(),
+    regenerateAdmissionSessionLink: async () => ({
+      session: createAdmissionSession(),
+      token: 'abc',
+      authURL: 'https://join.stuhelper.com/verify/abc',
+    }),
+    skipAdmissionSessionForMember: async () => createAdmissionSession({ status: 'verified' }),
+    resetAdmissionFailureCount: async () => ({
+      platform: 'qq',
+      guildID: '178037297',
+      qqID: '2001',
+      previousFailureCount: 2,
+    }),
+    releaseMemberBlacklistBySubject: async () => ({
+      id: 'blacklist-1',
+    }),
+    recordAdmissionEvent: async () => {},
+    ...overrides,
+  } as unknown as PlatformClient
 }
 
 function createConfig(): StuhelperGroupGuardPluginConfig {
@@ -123,7 +297,7 @@ function createConfig(): StuhelperGroupGuardPluginConfig {
   }
 }
 
-function createMember(): GuardMemberRecord {
+function createMember(overrides: Partial<GuardMemberRecord> = {}): GuardMemberRecord {
   return {
     id: 'qq:2118785781:178037297:2001',
     platform: 'qq',
@@ -146,5 +320,31 @@ function createMember(): GuardMemberRecord {
     lastError: 'backend unavailable',
     createdAt: new Date('2026-06-04T08:00:00.000Z'),
     updatedAt: new Date('2026-06-04T08:00:00.000Z'),
+    ...overrides,
+  }
+}
+
+function createAdmissionSession(overrides: Partial<AdmissionSession> = {}): AdmissionSession {
+  return {
+    id: 'session-1',
+    platform: 'qq',
+    guildID: '178037297',
+    channelID: '178037297',
+    qqID: '2001',
+    userID: null,
+    status: 'joined_muted',
+    tokenExpiresAt: '2026-06-04T09:00:00.000Z',
+    linkWaitDeadlineAt: '2026-06-04T09:00:00.000Z',
+    submissionWaitDeadlineAt: '2026-06-04T10:00:00.000Z',
+    manualReviewDeadlineAt: null,
+    initialMuteUntil: '2026-06-04T09:00:00.000Z',
+    projectionPending: false,
+    authURL: 'https://join.stuhelper.com/verify/abc',
+    maxMaterialBytes: 10_000_000,
+    lastBotError: null,
+    failureCount: 1,
+    remainingRetryCount: 1,
+    willBlacklistOnTimeout: false,
+    ...overrides,
   }
 }

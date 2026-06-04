@@ -16,6 +16,7 @@ test('buildAdmissionRuntimeModel exposes admission runtime metrics and switch st
   assert.equal(model.switchRows.find((row) => row.id === 'service-token')?.tone, 'success')
   assert.equal(model.switchRows.find((row) => row.id === 'fallback-scan')?.tone, 'warning')
   assert.deepEqual(model.activeMembers.map((member) => member.memberId), ['2001', '2002'])
+  assert.deepEqual(model.activeMembers[0].availableActions, ['query', 'resend'])
 })
 
 function createAdmissionRuntimeFixture(): AdmissionRuntimePageData {
@@ -41,7 +42,9 @@ function createAdmissionRuntimeFixture(): AdmissionRuntimePageData {
       reconnectDelaySeconds: 5,
     },
     commands: {
+      publicCommandsRegistered: true,
       publicCommandsEnabled: false,
+      admissionCommandsRegistered: true,
       admissionCommandsEnabled: true,
       admissionCommandMinAuthority: 4,
       admissionCommandOperatorQQIDCount: 0,
@@ -97,7 +100,7 @@ function createMember(
   deadlineAt: string,
   backendSyncPending: boolean,
   admissionSessionID: string | null,
-  lastError: string | null,
+    lastError: string | null,
 ) {
   return {
     id: `qq:bot:178037297:${memberId}`,
@@ -117,5 +120,6 @@ function createMember(
     mutedAt: null,
     reminderSentAt: null,
     lastError,
+    availableActions: ['query', 'resend'],
   }
 }
