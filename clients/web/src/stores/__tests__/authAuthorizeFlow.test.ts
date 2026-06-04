@@ -14,6 +14,8 @@ const mockCreateElement = vi.fn();
 const mockAppendChild = vi.fn();
 const mockIframeRemove = vi.fn();
 const mockIframeSetAttribute = vi.fn();
+const mockFetch = vi.fn();
+const mockClearTimeout = vi.fn();
 
 vi.mock("@/api", () => ({
     api: {
@@ -96,7 +98,17 @@ describe("auth authorize flow", () => {
         mockAppendChild.mockReset();
         mockIframeRemove.mockReset();
         mockIframeSetAttribute.mockReset();
+        mockFetch.mockReset();
+        mockClearTimeout.mockReset();
         mockGetUser.mockReturnValue(null);
+        mockFetch.mockResolvedValue({
+            ok: true,
+            status: 200,
+            headers: {
+                get: (key: string) => key === "content-type" ? "application/json" : null,
+            },
+            json: async () => ({ status: "ok" }),
+        });
         vi.stubEnv("VITE_SSO_URL", "https://sso.stuhelper.com");
         vi.stubGlobal("sessionStorage", createMemoryStorage());
         const popup = {
@@ -134,6 +146,8 @@ describe("auth authorize flow", () => {
                 origin: "https://join.stuhelper.com",
             },
             setTimeout: mockSetTimeout,
+            clearTimeout: mockClearTimeout,
+            fetch: mockFetch,
         });
         vi.stubGlobal("document", {
             createElement: mockCreateElement,
@@ -196,14 +210,17 @@ describe("auth authorize flow", () => {
         expect(mockLogout).toHaveBeenCalledTimes(1);
         expect(mockClearAuth).toHaveBeenCalledTimes(1);
         expect(mockWindowOpen).not.toHaveBeenCalled();
-        expect(mockCreateElement).toHaveBeenCalledWith("iframe");
-        expect(mockIframeSetAttribute).toHaveBeenCalledWith("aria-hidden", "true");
-        expect(mockAppendChild).toHaveBeenCalledTimes(1);
-        const iframe = mockCreateElement.mock.results[0]?.value as { src: string };
-        expect(iframe.src).toMatch(
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+        const [logoutURL, logoutOptions] = mockFetch.mock.calls[0];
+        expect(String(logoutURL)).toMatch(
             /^https:\/\/sso\.stuhelper\.com\/api\/sso-logout\?logoutAll=false&_/,
         );
-        expect(mockIframeRemove).toHaveBeenCalledTimes(1);
+        expect(logoutOptions).toMatchObject({
+            method: "POST",
+            credentials: "include",
+            cache: "no-store",
+        });
+        expect(mockCreateElement).not.toHaveBeenCalled();
         expect(mockLogin).toHaveBeenCalledWith(
             "https://join.stuhelper.com/verify/token",
             undefined,
@@ -227,7 +244,39 @@ describe("auth authorize flow", () => {
         expect(mockWindowOpen).not.toHaveBeenCalled();
         expect(mockLogout).toHaveBeenCalledTimes(1);
         expect(mockClearAuth).toHaveBeenCalledTimes(1);
+        expect(mockFetch).toHaveBeenCalledTimes(1);
         expect(mockLogin).toHaveBeenCalledTimes(1);
+    });
+
+    it("falls back after an upstream SSO logout fetch failure and still starts forced login", async () => {
+        mockLogout.mockResolvedValue({});
+        mockFetch.mockRejectedValue(new Error("cors blocked"));
+        mockLogin.mockResolvedValue({
+            data: { data: { state: "switch-state", url: "#switch" } },
+        });
+
+        const { useAuthStore } = await import("../auth");
+        const store = useAuthStore();
+
+        await store.switchAccount("https://join.stuhelper.com/verify/token");
+
+        expect(mockLogout).toHaveBeenCalledTimes(1);
+        expect(mockClearAuth).toHaveBeenCalledTimes(1);
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+        expect(mockCreateElement).toHaveBeenCalledWith("iframe");
+        expect(mockIframeSetAttribute).toHaveBeenCalledWith("aria-hidden", "true");
+        expect(mockAppendChild).toHaveBeenCalledTimes(1);
+        const iframe = mockCreateElement.mock.results[0]?.value as { src: string };
+        expect(iframe.src).toMatch(
+            /^https:\/\/sso\.stuhelper\.com\/api\/sso-logout\?logoutAll=false&_/,
+        );
+        expect(mockIframeRemove).toHaveBeenCalledTimes(1);
+        expect(mockLogin).toHaveBeenCalledWith(
+            "https://join.stuhelper.com/verify/token",
+            undefined,
+            "web",
+            { prompt: "login", maxAge: 0 },
+        );
     });
 
     it("does not start login when local logout fails", async () => {

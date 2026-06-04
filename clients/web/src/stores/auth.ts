@@ -53,6 +53,7 @@ interface LoginAuthorizeOptions {
 
 const DEFAULT_SSO_ORIGIN = "https://sso.stuhelper.com";
 const SSO_LOGOUT_FRAME_TIMEOUT_MS = 1500;
+const SSO_LOGOUT_REQUEST_TIMEOUT_MS = 5000;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return Boolean(value) && typeof value === "object";
@@ -199,6 +200,12 @@ function upstreamSSOAccountSwitchLogoutURL(): string {
     url.searchParams.set("logoutAll", "false");
     url.searchParams.set("_", Date.now().toString());
     return url.toString();
+}
+
+function isSuccessfulCasdoorLogoutPayload(payload: unknown): boolean {
+    if (!isRecord(payload)) return true;
+    const status = payload.status;
+    return status === undefined || status === "ok";
 }
 
 function readUserInfoPayload(
@@ -385,7 +392,39 @@ export const useAuthStore = defineStore("auth", () => {
             maxAge: 0,
         });
 
-    const logoutUpstreamSSOForAccountSwitch = async () => {
+    const logoutUpstreamSSOWithFetch = async () => {
+        if (typeof window === "undefined" || typeof window.fetch !== "function") {
+            throw new Error("SSO logout fetch unavailable");
+        }
+        const controller = new AbortController();
+        const timer = window.setTimeout(() => {
+            controller.abort();
+        }, SSO_LOGOUT_REQUEST_TIMEOUT_MS);
+        try {
+            const response = await window.fetch(upstreamSSOAccountSwitchLogoutURL(), {
+                method: "POST",
+                credentials: "include",
+                cache: "no-store",
+                headers: {
+                    Accept: "application/json",
+                },
+                signal: controller.signal,
+            });
+            if (!response.ok) {
+                throw new Error(`SSO logout failed with HTTP ${response.status}`);
+            }
+            const contentType = response.headers.get("content-type") ?? "";
+            if (!contentType.includes("application/json")) return;
+            const payload = await response.json();
+            if (!isSuccessfulCasdoorLogoutPayload(payload)) {
+                throw new Error("SSO logout returned non-ok status");
+            }
+        } finally {
+            window.clearTimeout(timer);
+        }
+    };
+
+    const logoutUpstreamSSOWithFrame = async () => {
         if (
             typeof window === "undefined" ||
             typeof document === "undefined" ||
@@ -413,6 +452,21 @@ export const useAuthStore = defineStore("auth", () => {
             frame.src = upstreamSSOAccountSwitchLogoutURL();
             document.body.appendChild(frame);
         });
+    };
+
+    const logoutUpstreamSSOForAccountSwitch = async () => {
+        try {
+            await logoutUpstreamSSOWithFetch();
+            return;
+        } catch {
+            // Casdoor 的 /api/sso-logout 返回 JSON，不负责跳回业务页。
+            // fetch 受 CORS/移动端浏览器策略影响失败时，再尝试同站隐藏 iframe。
+        }
+        try {
+            await logoutUpstreamSSOWithFrame();
+        } catch {
+            // 本地 StuHelper 会话已清理；后续 OAuth 请求仍带 prompt=login/max_age=0。
+        }
     };
 
     const switchAccount = async (redirect?: string) => {
