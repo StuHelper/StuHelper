@@ -279,7 +279,7 @@ describe("auth authorize flow", () => {
         );
     });
 
-    it("does not start login when local logout fails", async () => {
+    it("clears local state and starts forced login when local logout fails during account switch", async () => {
         mockLogout.mockRejectedValue(new Error("local logout unavailable"));
         mockLogin.mockResolvedValue({
             data: { data: { state: "switch-state", url: "#switch" } },
@@ -288,13 +288,17 @@ describe("auth authorize flow", () => {
         const { useAuthStore } = await import("../auth");
         const store = useAuthStore();
 
-        await expect(
-            store.switchAccount("https://join.stuhelper.com/verify/token"),
-        ).rejects.toThrow("local logout unavailable");
+        await store.switchAccount("https://join.stuhelper.com/verify/token");
 
-        expect(mockClearAuth).not.toHaveBeenCalled();
+        expect(mockClearAuth).toHaveBeenCalledTimes(1);
         expect(mockWindowOpen).not.toHaveBeenCalled();
+        expect(mockFetch).toHaveBeenCalledTimes(1);
         expect(mockCreateElement).not.toHaveBeenCalled();
-        expect(mockLogin).not.toHaveBeenCalled();
+        expect(mockLogin).toHaveBeenCalledWith(
+            "https://join.stuhelper.com/verify/token",
+            undefined,
+            "web",
+            { prompt: "login", maxAge: 0 },
+        );
     });
 });

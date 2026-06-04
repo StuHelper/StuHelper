@@ -475,15 +475,7 @@ export const useAuthStore = defineStore("auth", () => {
         try {
             const localLogout = await logout();
             if (!localLogout.ok) {
-                const fallback = new Error("local logout unavailable");
-                const error = localLogout.error instanceof Error
-                    ? localLogout.error
-                    : fallback;
-                setError(
-                    localLogout.reason === "server" ? "auth_failed" : "network",
-                    i18n.global.t("common.login.logoutFailed"),
-                );
-                throw error;
+                resetAllStores();
             }
             await logoutUpstreamSSOForAccountSwitch();
             await startLoginFlow(redirect, {
