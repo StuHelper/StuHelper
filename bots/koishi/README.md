@@ -21,6 +21,8 @@
 
 Koishi 群管中心 WebUI 只由 `koishi-plugin-stuhelper-core` 注册到 Koishi Console；`stuhelper-group-guard` 不提供单独前端入口，但会注册 `stuhelperGroupGuard/page/admission-runtime` Console API 供 core WebUI 消费。历史上讨论过的 `stuhelper-console` / `stuhelper-platform` 已按 ADR-0006 从运行路径移除，所以“注册 WebUI”对应的是 `stuhelper-core` 的 Console 入口，而不是 admission 插件本身。
 
+生产如果只需要 WebUI 和 Console API，应在 `stuhelper-core` 设置 `runtimeModules.enabled=false`。该模式保留 `/stuhelper` 控制台入口和 admission 运行态页面，但不初始化 core 旧群管运行时模块，避免注册 `report`、`sub`、`config`、`ai` 等命令并与生产既有插件冲突。
+
 ## 本地命令
 
 ```bash

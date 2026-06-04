@@ -162,6 +162,11 @@ test('stuhelper-core 后台任务和运行时模块保持 database/service 注�
   )
   assert.match(
     runtime,
+    /config\?\.runtimeModules\?\.enabled === false/,
+    'registerRuntimeModules 必须支持关闭旧运行时模块，避免生产 WebUI-only 模式抢占既有命令。',
+  )
+  assert.match(
+    runtime,
     /ctx\.inject\(\['database', 'stuhelperGroupCenter'\]/,
     'registerRuntimeModules 必须保持 database + stuhelperGroupCenter 注入集合。',
   )

@@ -161,6 +161,9 @@ export function createCoreConfigSchema(): Schema<StuhelperCoreConfig> {
     platform: createPlatformConfigSchema(),
     guard: createGuardConfigSchema(),
     console: createConsoleConfigSchema(),
+    runtimeModules: Schema.object({
+      enabled: Schema.boolean().default(true).description('是否启用 stuhelper-core 旧群管运行时模块。生产只需要 WebUI/API 时应关闭，避免注册旧命令与既有插件冲突。'),
+    }).description('stuhelper-core 运行时模块开关。'),
   })
 }
 

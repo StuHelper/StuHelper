@@ -434,6 +434,8 @@ stuhelper-group-guard:admission:
 
 这表示新插件只接入 admission 入群后验证，不抢“举报 / 骰子 / 抽禁言”等生产既有命令，不接管消息风控监听，也不扫描新生材料原图转发；但保留“查询入群认证 / 重发认证链接 / 重新生成认证链接 / 跳过入群认证 / 清空入群未认证次数 / 解除入群拉黑”等 admission 管理命令。“跳过入群认证”只跳过本群审核并解除禁言，不代表 StuHelper 学生认证通过；“解除入群拉黑”不隐式清空失败次数，需要重新计数时单独执行“清空入群未认证次数”。旧 `student-query` 插件不要整体关闭；如它也对 admission 目标群做同一阶段入群验证，应在旧插件自己的目标群或功能范围里排除 `178037297`。
 
+若同机启用 `stuhelper-core` 提供 Koishi 群管中心 WebUI，生产必须设置 `runtimeModules.enabled: false`。这会保留 Console 入口、WebUI 和 Console API，但不初始化 core 旧运行时模块，避免注册 `report`、`sub`、`config`、`ai` 等命令并与生产既有插件冲突。
+
 如果 Koishi 日志出现 `TypeError: Invalid URL`，并且错误里 `base` 是原样的 `${{ env.STUHELPER_PLATFORM_BASE_URL }}`，说明当前运行时没有把 Koishi 配置占位符插值成真实环境变量。不要在生产 `node_modules` 里手改源码；应确认 Compose 已通过 `.env` 或 `env_file` 注入 `STUHELPER_PLATFORM_BASE_URL` 和 `STUHELPER_PLATFORM_SERVICE_TOKEN`，然后从本地仓库构建并部署包含 `@stuhelper/koishi-shared` 平台配置环境变量回退逻辑的 StuHelper 插件包。
 
 如果当前 Koishi 生产仍通过宝塔 Compose 挂载本机 `node_modules` 运行 StuHelper 插件，插件发布包必须来自本地仓库当前构建产物，不允许在生产容器内或生产 `node_modules` 中直接改源码作为最终状态：

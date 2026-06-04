@@ -133,6 +133,9 @@ export interface StuhelperCoreConfig {
   platform: StuhelperPlatformConfig
   guard: StuhelperGuardConfig
   console: StuhelperConsoleConfig
+  runtimeModules?: {
+    enabled?: boolean
+  }
 }
 
 export interface StuhelperBindingPluginConfig {

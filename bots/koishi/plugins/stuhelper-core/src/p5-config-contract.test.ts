@@ -66,10 +66,12 @@ test('P6 core config schema only keeps fields used by core runtime', async () =>
   assert.match(coreSchemaBody, /platform: createPlatformConfigSchema\(\)/)
   assert.match(coreSchemaBody, /guard: createGuardConfigSchema\(\)/)
   assert.match(coreSchemaBody, /console: createConsoleConfigSchema\(\)/)
+  assert.match(coreSchemaBody, /runtimeModules: Schema\.object/)
   assert.doesNotMatch(coreSchemaBody, /binding|admin|scheduler|moderation|fun|ai/)
   assert.match(coreTypeBody, /platform: StuhelperPlatformConfig/)
   assert.match(coreTypeBody, /guard: StuhelperGuardConfig/)
   assert.match(coreTypeBody, /console: StuhelperConsoleConfig/)
+  assert.match(coreTypeBody, /runtimeModules\?:/)
   assert.doesNotMatch(coreTypeBody, /binding|admin|scheduler|moderation|fun|ai/)
 })
 
