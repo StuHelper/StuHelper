@@ -25,7 +25,7 @@ func TestNewRoleSyncClientRequiresDedicatedPurposes(t *testing.T) {
 
 func TestSyncRoleGrantsUserByCasdoorSubject(t *testing.T) {
 	roles := &fakeRoleAPI{role: &casdoorsdk.Role{Name: "verified_student", Users: []string{"existing"}}}
-	users := &fakeUserAPI{user: &casdoorsdk.User{Name: "alice"}}
+	users := &fakeUserAPI{user: &casdoorsdk.User{Owner: "stuhelper", Name: "alice"}}
 	client := newRoleSyncTestClient(t, roles, users)
 
 	err := client.SyncRole(context.Background(), "casdoor-subject-1", "verified_student", true)
@@ -33,13 +33,13 @@ func TestSyncRoleGrantsUserByCasdoorSubject(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "casdoor-subject-1", users.gotSubject)
 	require.NotNil(t, roles.updated)
-	assert.Equal(t, []string{"existing", "alice"}, roles.updated.Users)
+	assert.Equal(t, []string{"existing", "stuhelper/alice"}, roles.updated.Users)
 	assert.Equal(t, []string{"users"}, roles.columns)
 }
 
 func TestSyncRoleRevokesUser(t *testing.T) {
-	roles := &fakeRoleAPI{role: &casdoorsdk.Role{Name: "verified_student", Users: []string{"alice", "bob"}}}
-	users := &fakeUserAPI{user: &casdoorsdk.User{Name: "alice"}}
+	roles := &fakeRoleAPI{role: &casdoorsdk.Role{Name: "verified_student", Users: []string{"stuhelper/alice", "bob"}}}
+	users := &fakeUserAPI{user: &casdoorsdk.User{Owner: "stuhelper", Name: "alice"}}
 	client := newRoleSyncTestClient(t, roles, users)
 
 	err := client.SyncRole(context.Background(), "casdoor-subject-1", "verified_student", false)
@@ -49,9 +49,21 @@ func TestSyncRoleRevokesUser(t *testing.T) {
 	assert.Equal(t, []string{"bob"}, roles.updated.Users)
 }
 
+func TestSyncRoleCleansLegacyBareUserEntry(t *testing.T) {
+	roles := &fakeRoleAPI{role: &casdoorsdk.Role{Name: "verified_student", Users: []string{"alice", "bob"}}}
+	users := &fakeUserAPI{user: &casdoorsdk.User{Owner: "stuhelper", Name: "alice"}}
+	client := newRoleSyncTestClient(t, roles, users)
+
+	err := client.SyncRole(context.Background(), "casdoor-subject-1", "verified_student", true)
+
+	require.NoError(t, err)
+	require.NotNil(t, roles.updated)
+	assert.Equal(t, []string{"bob", "stuhelper/alice"}, roles.updated.Users)
+}
+
 func TestSyncRoleNoopsWhenRoleAlreadyMatches(t *testing.T) {
-	roles := &fakeRoleAPI{role: &casdoorsdk.Role{Name: "verified_student", Users: []string{"alice"}}}
-	users := &fakeUserAPI{user: &casdoorsdk.User{Name: "alice"}}
+	roles := &fakeRoleAPI{role: &casdoorsdk.Role{Name: "verified_student", Users: []string{"stuhelper/alice"}}}
+	users := &fakeUserAPI{user: &casdoorsdk.User{Owner: "stuhelper", Name: "alice"}}
 	client := newRoleSyncTestClient(t, roles, users)
 
 	err := client.SyncRole(context.Background(), "casdoor-subject-1", "verified_student", true)
@@ -61,8 +73,8 @@ func TestSyncRoleNoopsWhenRoleAlreadyMatches(t *testing.T) {
 }
 
 func TestUserHasRoleChecksRoleMembership(t *testing.T) {
-	roles := &fakeRoleAPI{role: &casdoorsdk.Role{Name: "super_admin", Users: []string{"alice"}}}
-	users := &fakeUserAPI{user: &casdoorsdk.User{Name: "alice"}}
+	roles := &fakeRoleAPI{role: &casdoorsdk.Role{Name: "super_admin", Users: []string{"stuhelper/alice"}}}
+	users := &fakeUserAPI{user: &casdoorsdk.User{Owner: "stuhelper", Name: "alice"}}
 	client := newRoleSyncTestClient(t, roles, users)
 
 	allowed, err := client.UserHasRole(context.Background(), "casdoor-subject-1", "super_admin")
@@ -84,7 +96,7 @@ func TestSyncRoleRejectsMissingCasdoorUser(t *testing.T) {
 
 func TestSyncRolePropagatesCasdoorUpdateFailure(t *testing.T) {
 	roles := &fakeRoleAPI{role: &casdoorsdk.Role{Name: "verified_student"}, updateErr: errors.New("casdoor down")}
-	users := &fakeUserAPI{user: &casdoorsdk.User{Name: "alice"}}
+	users := &fakeUserAPI{user: &casdoorsdk.User{Owner: "stuhelper", Name: "alice"}}
 	client := newRoleSyncTestClient(t, roles, users)
 
 	err := client.SyncRole(context.Background(), "casdoor-subject-1", "verified_student", true)
@@ -108,7 +120,7 @@ func TestBuildRoleSyncFuncRequiresConfiguredClient(t *testing.T) {
 
 func TestBuildRoleSyncFuncDelegatesToCasdoor(t *testing.T) {
 	roles := &fakeRoleAPI{role: &casdoorsdk.Role{Name: "verified_student"}}
-	users := &fakeUserAPI{user: &casdoorsdk.User{Name: "alice"}}
+	users := &fakeUserAPI{user: &casdoorsdk.User{Owner: "stuhelper", Name: "alice"}}
 	client := newRoleSyncTestClient(t, roles, users)
 	syncFn := BuildRoleSyncFunc(client, func(_ context.Context, userID int64) (string, error) {
 		assert.Equal(t, int64(7), userID)
@@ -120,12 +132,12 @@ func TestBuildRoleSyncFuncDelegatesToCasdoor(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "casdoor-subject-7", users.gotSubject)
 	require.NotNil(t, roles.updated)
-	assert.Equal(t, []string{"alice"}, roles.updated.Users)
+	assert.Equal(t, []string{"stuhelper/alice"}, roles.updated.Users)
 }
 
 func TestBuildRoleMembershipFuncDelegatesToCasdoor(t *testing.T) {
-	roles := &fakeRoleAPI{role: &casdoorsdk.Role{Name: "super_admin", Users: []string{"alice"}}}
-	users := &fakeUserAPI{user: &casdoorsdk.User{Name: "alice"}}
+	roles := &fakeRoleAPI{role: &casdoorsdk.Role{Name: "super_admin", Users: []string{"stuhelper/alice"}}}
+	users := &fakeUserAPI{user: &casdoorsdk.User{Owner: "stuhelper", Name: "alice"}}
 	client := newRoleSyncTestClient(t, roles, users)
 	check := BuildRoleMembershipFunc(client, func(_ context.Context, userID int64) (string, error) {
 		assert.Equal(t, int64(7), userID)

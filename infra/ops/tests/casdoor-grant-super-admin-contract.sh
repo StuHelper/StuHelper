@@ -28,6 +28,7 @@ bash -n "${GRANT_SCRIPT}"
 [[ -x "${GRANT_SCRIPT}" ]] || fail "grant script must be executable"
 
 assert_contains "${GRANT_SCRIPT}" 'Break-glass operation'
+assert_contains "${GRANT_SCRIPT}" 'organization/username'
 assert_contains "${GRANT_SCRIPT}" 'CASDOOR_GRANT_SUPER_ADMIN_USERS'
 assert_contains "${GRANT_SCRIPT}" 'STUHELPER_INITIAL_SUPER_ADMINS'
 assert_contains "${GRANT_SCRIPT}" 'CASDOOR_GRANT_SUPER_ADMIN_ORGANIZATION'
@@ -44,6 +45,10 @@ assert_contains "${GRANT_SCRIPT}" 'COALESCE\(u\.is_forbidden, false\) = false'
 assert_contains "${GRANT_SCRIPT}" 'FROM public\.role'
 assert_contains "${GRANT_SCRIPT}" 'FOR UPDATE'
 assert_contains "${GRANT_SCRIPT}" 'jsonb_array_elements_text'
+assert_contains "${GRANT_SCRIPT}" 'requested_members AS'
+assert_contains "${GRANT_SCRIPT}" 'AS member'
+assert_contains "${GRANT_SCRIPT}" 'value NOT IN \(SELECT name FROM requested_members\)'
+assert_contains "${GRANT_SCRIPT}" 'value NOT IN \(SELECT member FROM requested_members\)'
 assert_contains "${GRANT_SCRIPT}" 'UPDATE public\.role'
 assert_contains "${GRANT_SCRIPT}" 'SET users'
 assert_contains "${GRANT_SCRIPT}" 'sign out and sign in again'

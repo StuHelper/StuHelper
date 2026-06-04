@@ -45,7 +45,7 @@ func (c *RoleSyncClient) SyncRole(ctx context.Context, subject, role string, app
 	if err != nil {
 		return err
 	}
-	userName, err := c.lookupUserName(ctx, subject)
+	roleUser, legacyUser, err := c.lookupRoleUser(ctx, subject)
 	if err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func (c *RoleSyncClient) SyncRole(ctx context.Context, subject, role string, app
 	if err != nil {
 		return err
 	}
-	users, changed := roleUsersAfterApproval(roleObj.Users, userName, approved)
+	users, changed := roleUsersAfterApproval(roleObj.Users, roleUser, legacyUser, approved)
 	if !changed {
 		return nil
 	}
@@ -66,7 +66,7 @@ func (c *RoleSyncClient) UserHasRole(ctx context.Context, subject, role string) 
 	if err != nil {
 		return false, err
 	}
-	userName, err := c.lookupUserName(ctx, subject)
+	roleUser, legacyUser, err := c.lookupRoleUser(ctx, subject)
 	if err != nil {
 		return false, err
 	}
@@ -74,7 +74,8 @@ func (c *RoleSyncClient) UserHasRole(ctx context.Context, subject, role string) 
 	if err != nil {
 		return false, err
 	}
-	return containsString(uniqueNonBlank(roleObj.Users), userName), nil
+	users := uniqueNonBlank(roleObj.Users)
+	return containsString(users, roleUser) || containsString(users, legacyUser), nil
 }
 
 func normalizeRoleSyncInput(subject, role string) (string, string, error) {
@@ -89,7 +90,7 @@ func normalizeRoleSyncInput(subject, role string) (string, string, error) {
 	return subject, role, nil
 }
 
-func (c *RoleSyncClient) lookupUserName(ctx context.Context, subject string) (string, error) {
+func (c *RoleSyncClient) lookupRoleUser(ctx context.Context, subject string) (string, string, error) {
 	var user *casdoorsdk.User
 	err := withSDKConfig(ctx, c.userLookupCredential, "lookup user "+subject, func() error {
 		var lookupErr error
@@ -97,12 +98,20 @@ func (c *RoleSyncClient) lookupUserName(ctx context.Context, subject string) (st
 		return lookupErr
 	})
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if user == nil || strings.TrimSpace(user.Name) == "" {
-		return "", fmt.Errorf("casdoor: user subject %q not found", subject)
+		return "", "", fmt.Errorf("casdoor: user subject %q not found", subject)
 	}
-	return strings.TrimSpace(user.Name), nil
+	owner := strings.TrimSpace(user.Owner)
+	if owner == "" {
+		owner = strings.TrimSpace(c.userLookupCredential.Organization)
+	}
+	if owner == "" {
+		return "", "", fmt.Errorf("casdoor: user subject %q owner not found", subject)
+	}
+	name := strings.TrimSpace(user.Name)
+	return owner + "/" + name, name, nil
 }
 
 func (c *RoleSyncClient) getRole(ctx context.Context, role string) (*casdoorsdk.Role, error) {
@@ -127,18 +136,18 @@ func (c *RoleSyncClient) updateRoleUsers(ctx context.Context, role *casdoorsdk.R
 	})
 }
 
-func roleUsersAfterApproval(users []string, user string, approved bool) ([]string, bool) {
-	normalized := uniqueNonBlank(users)
-	contains := containsString(normalized, user)
+func roleUsersAfterApproval(users []string, roleUser, legacyUser string, approved bool) ([]string, bool) {
+	normalized := removeString(uniqueNonBlank(users), legacyUser)
+	contains := containsString(normalized, roleUser)
 	switch {
 	case approved && contains:
 		return normalized, !sameStrings(users, normalized)
 	case approved:
-		return append(normalized, user), true
+		return append(normalized, roleUser), true
 	case !contains:
 		return normalized, !sameStrings(users, normalized)
 	default:
-		return removeString(normalized, user), true
+		return removeString(normalized, roleUser), true
 	}
 }
 

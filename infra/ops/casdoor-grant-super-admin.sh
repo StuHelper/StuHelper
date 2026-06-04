@@ -16,9 +16,11 @@ Usage:
 Break-glass operation for production lockout recovery.
 
 This script idempotently adds existing users in the Casdoor organization to the
-Casdoor flat role "super_admin". StuHelper Admin reads this role from OIDC
-claims and expands it into admin capabilities. Casdoor organization admin
-is_admin=true is not enough to access StuHelper Admin.
+Casdoor flat role "super_admin". Casdoor role membership must use the
+"organization/username" member format, for example "stuhelper/alice". StuHelper
+Admin reads this role from OIDC claims and expands it into admin capabilities.
+Casdoor organization admin is_admin=true is not enough to access StuHelper
+Admin.
 
 Inputs:
   CASDOOR_GRANT_SUPER_ADMIN_USERS         Comma-separated Casdoor usernames.
@@ -135,6 +137,10 @@ WITH requested AS (
   FROM regexp_split_to_table(:'users', ',') AS value
   WHERE trim(value) <> ''
 ),
+requested_members AS (
+  SELECT name, :'organization' || '/' || name AS member
+  FROM requested
+),
 target_role AS (
   SELECT
     owner,
@@ -152,8 +158,10 @@ merged AS (
   SELECT DISTINCT value AS name
   FROM target_role, jsonb_array_elements_text(target_role.current_users) AS value
   WHERE trim(value) <> ''
+    AND value NOT IN (SELECT name FROM requested_members)
+    AND value NOT IN (SELECT member FROM requested_members)
   UNION
-  SELECT name FROM requested
+  SELECT member FROM requested_members
 ),
 next_users AS (
   SELECT jsonb_agg(name ORDER BY name)::text AS users
