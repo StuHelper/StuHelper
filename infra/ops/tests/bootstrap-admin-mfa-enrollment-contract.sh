@@ -49,6 +49,7 @@ assert_literal "${BOOTSTRAP_SCRIPT}" "member = :'organization' || '/' || :'targe
 assert_contains "${BOOTSTRAP_SCRIPT}" 'COALESCE\("webauthnCredentials"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'mfa_phone_enabled'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'totp_secret'
+assert_literal "${BOOTSTRAP_SCRIPT}" "lower(preferred_mfa_type) IN ('app', 'totp')"
 assert_literal "${BOOTSTRAP_SCRIPT}" "ARRAY[:'mfa_method']::text[]"
 assert_contains "${BOOTSTRAP_SCRIPT}" 'ON CONFLICT \(user_id\) DO UPDATE'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'iam\.mfa\.bootstrap'
@@ -60,7 +61,7 @@ assert_contains "${PROD_ENV_EXAMPLE}" '^STUHELPER_ADMIN_MFA_BOOTSTRAP_USERS=REPL
 assert_contains "${RUNBOOK}" 'bootstrap-admin-mfa-enrollment\.sh'
 assert_contains "${RUNBOOK}" 'user_mfa_enrollment'
 assert_contains "${RUNBOOK}" 'A0010204'
-assert_contains "${RUNBOOK}" 'SMS/WebAuthn/TOTP'
+assert_contains "${RUNBOOK}" 'SMS/App/WebAuthn/TOTP'
 assert_contains "${RUNBOOK}" '退出 StuHelper 和 SSO 并重新登录'
 
 echo "[bootstrap-admin-mfa-enrollment-contract] all assertions passed"

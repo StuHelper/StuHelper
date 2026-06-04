@@ -92,6 +92,7 @@ func TestClaims_MFAProofVerifiedAtRequiresMFAAMRAndAuthTime(t *testing.T) {
 	assert.Equal(t, authTime, claims.MFAProofVerifiedAt())
 	assert.True(t, HasMFAAMR([]string{" PWD ", "WebAuthn"}))
 	assert.True(t, HasMFAAMR([]string{"pwd", "sms"}))
+	assert.True(t, HasMFAAMR([]string{"pwd", "app"}))
 	assert.True(t, MFAProofVerifiedAt([]string{"mfa"}, authTime.Unix()).Equal(authTime))
 	assert.True(t, MFAProofVerifiedAt([]string{"pwd"}, authTime.Unix()).IsZero())
 	assert.True(t, MFAProofVerifiedAt([]string{"totp"}, 0).IsZero())

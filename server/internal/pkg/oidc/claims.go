@@ -235,6 +235,7 @@ const (
 	amrOTP      = "otp"
 	amrSMS      = "sms"
 	amrPhone    = "phone"
+	amrApp      = "app"
 	amrTOTP     = "totp"
 	amrWebAuthn = "webauthn"
 	amrFIDO     = "fido"
@@ -247,6 +248,7 @@ var mfaAMRMethods = map[string]struct{}{
 	amrOTP:      {},
 	amrSMS:      {},
 	amrPhone:    {},
+	amrApp:      {},
 	amrTOTP:     {},
 	amrWebAuthn: {},
 	amrFIDO:     {},

@@ -20,13 +20,13 @@ StuHelper Admin requires two facts for super_admin/school_admin users:
 
 This script idempotently writes the StuHelper DB enrollment row only after it
 confirms the Casdoor user belongs to the configured organization, has a
-privileged Casdoor role membership, and already has a Casdoor SMS/WebAuthn/TOTP
+privileged Casdoor role membership, and already has a Casdoor SMS/App/WebAuthn/TOTP
 MFA factor. It does not disable MFA and does not create a Casdoor MFA factor.
 
 Inputs:
   STUHELPER_ADMIN_MFA_BOOTSTRAP_USERS      Comma-separated Casdoor usernames.
   STUHELPER_ADMIN_MFA_BOOTSTRAP_ORG        Defaults to CASDOOR_ORGANIZATION or stuhelper.
-  STUHELPER_ADMIN_MFA_BOOTSTRAP_METHOD     auto, sms, webauthn, or totp. Defaults to auto.
+  STUHELPER_ADMIN_MFA_BOOTSTRAP_METHOD     auto, sms, app, webauthn, or totp. Defaults to auto.
   STUHELPER_ADMIN_MFA_REQUIRE_CASDOOR_MFA  Defaults to true.
   STUHELPER_APP_CONTAINER                  Defaults to stuhelper-prod-app.
   STUHELPER_DB_CONTAINER                   Defaults to stuhelper-prod-postgres.
@@ -80,8 +80,8 @@ validate_name "CASDOOR_DB_USER" "${casdoor_db_user}"
 validate_name "CASDOOR_DB_NAME" "${casdoor_db_name}"
 
 case "${method}" in
-  auto|sms|webauthn|totp) ;;
-  *) die "STUHELPER_ADMIN_MFA_BOOTSTRAP_METHOD must be auto, sms, webauthn, or totp" ;;
+  auto|sms|app|webauthn|totp) ;;
+  *) die "STUHELPER_ADMIN_MFA_BOOTSTRAP_METHOD must be auto, sms, app, webauthn, or totp" ;;
 esac
 
 case "${require_casdoor_mfa}" in
@@ -140,7 +140,7 @@ SELECT CASE
   WHEN EXISTS (
     SELECT 1
     FROM target_user
-    WHERE lower(preferred_mfa_type) = 'totp'
+    WHERE lower(preferred_mfa_type) IN ('app', 'totp')
       AND length(totp_secret) > 0
   ) THEN 'totp'
   WHEN EXISTS (
@@ -321,17 +321,24 @@ for raw_user in "${requested_users[@]}"; do
     die "Casdoor user ${organization}/${target_user} was not found, deleted, or forbidden"
   fi
   if [[ "${require_casdoor_mfa}" == "true" && "${casdoor_method}" == "none" ]]; then
-    die "Casdoor user ${organization}/${target_user} has no SMS/WebAuthn/TOTP MFA evidence; bind MFA in SSO first"
+    die "Casdoor user ${organization}/${target_user} has no SMS/App/WebAuthn/TOTP MFA evidence; bind MFA in SSO first"
   fi
 
   resolved_method="${method}"
+  if [[ "${resolved_method}" == "app" ]]; then
+    resolved_method="totp"
+  fi
   if [[ "${resolved_method}" == "auto" ]]; then
     resolved_method="${casdoor_method}"
     if [[ "${resolved_method}" == "none" ]]; then
       resolved_method="sms"
     fi
   fi
-  if [[ "${require_casdoor_mfa}" == "true" && "${method}" != "auto" && "${method}" != "${casdoor_method}" ]]; then
+  requested_method="${method}"
+  if [[ "${requested_method}" == "app" ]]; then
+    requested_method="totp"
+  fi
+  if [[ "${require_casdoor_mfa}" == "true" && "${method}" != "auto" && "${requested_method}" != "${casdoor_method}" ]]; then
     die "requested method ${method} does not match Casdoor evidence ${casdoor_method} for ${organization}/${target_user}"
   fi
 
