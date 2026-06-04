@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sse"
 )
 
 const maxBotPendingActionFilterLength = 64
@@ -102,10 +103,12 @@ func (h *Handler) handleStreamBotAdmissionActions(c *gin.Context) {
 	if !ok {
 		return
 	}
+	_ = sse.DisableWriteTimeout(c.Writer)
 	headers := c.Writer.Header()
 	headers.Set("Content-Type", "text/event-stream")
 	headers.Set("Cache-Control", "no-cache")
 	headers.Set("X-Accel-Buffering", "no")
+	_ = sse.WriteComment(c.Writer, "connected")
 	c.Writer.Flush()
 
 	if !h.writeQueuedAdmissionActions(c, filter) {

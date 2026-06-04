@@ -14,6 +14,7 @@ import (
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sse"
 )
 
 type freshmanApplicationCreateHTTPRequest struct {
@@ -187,6 +188,7 @@ func (h *Handler) handleWatchFreshmanCameraHandoff(c *gin.Context) {
 		return
 	}
 
+	_ = sse.DisableWriteTimeout(c.Writer)
 	headers := c.Writer.Header()
 	headers.Set("Content-Type", "text/event-stream")
 	headers.Set("Cache-Control", "no-cache")

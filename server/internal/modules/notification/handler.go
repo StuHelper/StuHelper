@@ -14,6 +14,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sse"
 )
 
 // Handler 通知 HTTP 处理器
@@ -135,6 +136,7 @@ func (h *Handler) Stream(c *gin.Context) {
 		return
 	}
 
+	_ = sse.DisableWriteTimeout(c.Writer)
 	// 设置 SSE 响应头
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
 	c.Writer.Header().Set("Cache-Control", "no-cache")
