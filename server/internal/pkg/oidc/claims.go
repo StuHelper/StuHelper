@@ -233,6 +233,8 @@ func nonEmptyStrings(values []string) []string {
 const (
 	amrMFA      = "mfa"
 	amrOTP      = "otp"
+	amrSMS      = "sms"
+	amrPhone    = "phone"
 	amrTOTP     = "totp"
 	amrWebAuthn = "webauthn"
 	amrFIDO     = "fido"
@@ -243,6 +245,8 @@ const (
 var mfaAMRMethods = map[string]struct{}{
 	amrMFA:      {},
 	amrOTP:      {},
+	amrSMS:      {},
+	amrPhone:    {},
 	amrTOTP:     {},
 	amrWebAuthn: {},
 	amrFIDO:     {},

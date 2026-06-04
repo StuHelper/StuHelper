@@ -15,6 +15,7 @@ import (
 const (
 	MFAMethodTOTP     = "totp"
 	MFAMethodWebAuthn = "webauthn"
+	MFAMethodSMS      = "sms"
 )
 
 var (
@@ -206,5 +207,5 @@ func normalizeMFAMethods(methods []string, active bool) ([]string, error) {
 }
 
 func validMFAMethod(method string) bool {
-	return method == MFAMethodTOTP || method == MFAMethodWebAuthn
+	return method == MFAMethodTOTP || method == MFAMethodWebAuthn || method == MFAMethodSMS
 }

@@ -1408,7 +1408,7 @@ CREATE TABLE public.user_mfa_enrollment (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT chk_user_mfa_active_requires_method CHECK (((active = false) OR (cardinality(methods) > 0))),
-    CONSTRAINT chk_user_mfa_methods_allowed CHECK ((methods <@ ARRAY['totp'::text, 'webauthn'::text]))
+    CONSTRAINT chk_user_mfa_methods_allowed CHECK ((methods <@ ARRAY['totp'::text, 'webauthn'::text, 'sms'::text]))
 );
 
 

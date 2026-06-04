@@ -21,7 +21,7 @@ func TestMFAEnrollmentRepositoryLifecycle(t *testing.T) {
 	err := repo.UpsertMFAEnrollment(ctx, MFAEnrollmentUpsert{
 		UserID:                userID,
 		Active:                true,
-		Methods:               []string{" WebAuthn ", "totp", "totp"},
+		Methods:               []string{" WebAuthn ", "sms", "totp", "totp"},
 		RecoveryCodesIssuedAt: &issuedAt,
 	})
 	require.NoError(t, err)
@@ -30,7 +30,7 @@ func TestMFAEnrollmentRepositoryLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, enrollment)
 	assert.True(t, enrollment.Active)
-	assert.Equal(t, []string{MFAMethodTOTP, MFAMethodWebAuthn}, enrollment.Methods)
+	assert.Equal(t, []string{MFAMethodSMS, MFAMethodTOTP, MFAMethodWebAuthn}, enrollment.Methods)
 	assert.NotNil(t, enrollment.LastEnrolledAt)
 	assert.Nil(t, enrollment.LastDisabledAt)
 
@@ -57,7 +57,7 @@ func TestMFAEnrollmentRepositoryRejectsInvalidState(t *testing.T) {
 	err = repo.UpsertMFAEnrollment(ctx, MFAEnrollmentUpsert{
 		UserID:  userID,
 		Active:  true,
-		Methods: []string{"sms"},
+		Methods: []string{"email"},
 	})
 	require.ErrorIs(t, err, ErrInvalidMFAMethod)
 }
