@@ -2808,6 +2808,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bot/admission/sessions/member/skip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 机器人跳过当前群成员的入群认证
+         * @description 仅取消当前群入群认证会话，不创建 StuHelper 学生认证凭据。
+         */
+        post: operations["skipBotAdmissionSessionForMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/admission/failures/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 机器人清空当前群成员的入群认证失败次数 */
+        post: operations["resetBotAdmissionFailureCount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/bot/admission/join-requests/events": {
         parameters: {
             query?: never;
@@ -5215,6 +5252,15 @@ export interface components {
             platform: string;
             guildID: string;
             qqID: string;
+        };
+        BotAdmissionSessionOperatorRequest: components["schemas"]["BotAdmissionSessionSubjectRequest"] & {
+            operatorQQID: string;
+        };
+        BotAdmissionFailureResetResult: {
+            platform: string;
+            guildID: string;
+            qqID: string;
+            previousFailureCount: number;
         };
         BotAdmissionJoinRequestDecisionRequest: {
             platform: string;
@@ -10596,6 +10642,65 @@ export interface operations {
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
             409: components["responses"]["ErrorResponse"];
+        };
+    };
+    skipBotAdmissionSessionForMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BotAdmissionSessionOperatorRequest"];
+            };
+        };
+        responses: {
+            /** @description 当前群入群认证会话已取消 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdmissionSession"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+        };
+    };
+    resetBotAdmissionFailureCount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BotAdmissionSessionOperatorRequest"];
+            };
+        };
+        responses: {
+            /** @description 失败次数已清空 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["BotAdmissionFailureResetResult"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
         };
     };
     recordBotAdmissionJoinRequestEvent: {

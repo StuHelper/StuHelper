@@ -360,6 +360,76 @@ test('重新生成认证链接遇到已认证 QQ 时解除禁言且不重发链�
   }
 })
 
+test('入群认证管理员命令可以跳过本群认证、清空失败次数和解除拉黑', async () => {
+  const requests: CapturedAdmissionAdminRequest[] = []
+  const server = createServer((req, res) => respondAdmissionAdminRequest(req, res, requests))
+  await new Promise<void>((resolve) => server.listen(0, resolve))
+  const address = server.address()
+  assert.ok(address && typeof address === 'object')
+
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-commands-'))
+  const muteActions: Array<{ guildId: string, memberId: string, duration: number }> = []
+
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(commands)
+  runtime.register(MockBot, { selfId: '514' })
+  runtime.register(groupGuardPlugin, createGroupGuardConfig({
+    platform: {
+      baseUrl: `http://127.0.0.1:${address.port}`,
+      serviceToken: 'test-token',
+    },
+    commands: { enabled: false },
+    moderation: { enabled: false },
+    freshmanForward: { enabled: false },
+    scheduler: { scanIntervalSeconds: 3600 },
+  }))
+
+  try {
+    await root.start()
+    await root.mock.initUser('90001', 5)
+    await root.mock.initChannel('group-1')
+    const bot = root.bots[0] as unknown as Universal.Methods & { platform?: string }
+    bot.platform = 'onebot'
+    bot.muteGuildMember = async (guildId, memberId, duration) => {
+      muteActions.push({ guildId, memberId, duration })
+    }
+
+    await root.database.create(GUARD_MEMBER_TABLE, activeAdmissionGuardRecord('10004'))
+    const client = root.mock.client('90001', 'group-1')
+
+    await assertSingleReply(client, '跳过入群认证 10004', /10004[\s\S]*已跳过本群入群认证[\s\S]*不代表 StuHelper 学生认证已通过/)
+    await assertSingleReply(client, '清空入群未认证次数 10004', /QQ 10004[\s\S]*原次数：2/)
+    await assertSingleReply(client, '解除入群拉黑 10004', /已解除 QQ 10004 在本群的入群拉黑状态/)
+
+    await waitForRequestCount(requests, 3)
+    assert.deepEqual(requests.map((item) => [item.method, item.path]), [
+      ['POST', '/api/v1/bot/admission/sessions/member/skip'],
+      ['POST', '/api/v1/bot/admission/failures/reset'],
+      ['POST', '/api/v1/bot/member-blacklist/release-by-subject'],
+    ])
+    assert.deepEqual(requests[0].body, {
+      platform: 'qq',
+      guildID: 'group-1',
+      qqID: '10004',
+      operatorQQID: '90001',
+    })
+    assert.equal(requests[2].body.releaseReasonCode, 'release_only')
+    assert.equal(requests[2].body.subjectID, '10004')
+    assert.deepEqual(muteActions, [{ guildId: 'group-1', memberId: '10004', duration: 0 }])
+
+    const [record] = await root.database.get(GUARD_MEMBER_TABLE, { id: 'qq:514:group-1:10004' })
+    assert.ok(record)
+    assert.equal(record.admissionSessionID, 'session-token-current')
+    assert.ok(record.releasedAt instanceof Date)
+  } finally {
+    runtime.dispose()
+    await closeServer(server)
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
 function createGroupGuardConfig(overrides?: Partial<ReturnType<typeof createBaseGroupGuardConfig>>) {
   return {
     ...createBaseGroupGuardConfig(),
@@ -510,6 +580,56 @@ async function respondAdmissionAdminRequest(
         session: admissionAdminSession('joined_muted', 'token-new'),
         token: 'token-new',
         authURL: 'https://join.stuhelper.com/verify/token-new',
+      },
+    }))
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/v1/bot/admission/sessions/member/skip') {
+    res.end(JSON.stringify({
+      success: true,
+      data: admissionAdminSession('cancelled', 'token-current', {
+        qqID: body.qqID,
+        cancelledAt: new Date().toISOString(),
+      }),
+    }))
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/v1/bot/admission/failures/reset') {
+    res.end(JSON.stringify({
+      success: true,
+      data: {
+        platform: body.platform,
+        guildID: body.guildID,
+        qqID: body.qqID,
+        previousFailureCount: 2,
+      },
+    }))
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/v1/bot/member-blacklist/release-by-subject') {
+    res.end(JSON.stringify({
+      success: true,
+      data: {
+        id: 'blacklist-1',
+        platform: body.platform,
+        subjectType: body.subjectType,
+        subjectID: body.subjectID,
+        scopeType: body.scopeType,
+        guildID: body.guildID,
+        source: 'admission_failure',
+        reasonCode: 'admission_timeout_limit',
+        reasonText: 'admission failure limit reached',
+        metadata: {},
+        createdByType: 'system',
+        createdByID: 'system',
+        createdFrom: 'admission_worker',
+        releasedAt: new Date().toISOString(),
+        releasedByType: 'qq_operator',
+        releasedByID: body.operatorQQID,
+        releaseReasonCode: body.releaseReasonCode,
+        releaseReason: body.releaseReason,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       },
     }))
     return

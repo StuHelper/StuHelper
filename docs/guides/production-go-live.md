@@ -181,7 +181,7 @@ stuhelper-group-guard:admission:
     enabled: false
 ```
 
-约束：生产 NapCat / OneBot runtime platform 可以是 `onebot`；后端 admission policy/session/action 的 subject platform 仍是 `qq`。禁言、踢人、发消息使用当前 Koishi runtime bot，不切换适配器。`student-query.enableGroupVerify` 不因 admission 上线被整体关闭；冲突应通过新插件 `commands.enabled=false`、`moderation.enabled=false` 和旧插件自己的目标群范围处理。`admissionCommands.enabled=true` 只保留入群认证管理员命令，用于“查询入群认证 / 重发认证链接 / 重新生成认证链接”。当前 MVP 默认关闭 `freshmanForward.enabled`，避免未启用材料转发时每分钟请求 `/api/v1/bot/admission/freshman/applications/pending-forward` 并报错。
+约束：生产 NapCat / OneBot runtime platform 可以是 `onebot`；后端 admission policy/session/action 的 subject platform 仍是 `qq`。禁言、踢人、发消息使用当前 Koishi runtime bot，不切换适配器。`student-query.enableGroupVerify` 不因 admission 上线被整体关闭；冲突应通过新插件 `commands.enabled=false`、`moderation.enabled=false` 和旧插件自己的目标群范围处理。`admissionCommands.enabled=true` 只保留入群认证管理员命令，用于“查询入群认证 / 重发认证链接 / 重新生成认证链接 / 跳过入群认证 / 清空入群未认证次数 / 解除入群拉黑”。其中“跳过入群认证”只跳过本群审核并解除禁言，不代表 StuHelper 学生认证通过；“解除入群拉黑”不隐式清空失败次数，需要重新计数时单独执行“清空入群未认证次数”。当前 MVP 默认关闭 `freshmanForward.enabled`，避免未启用材料转发时每分钟请求 `/api/v1/bot/admission/freshman/applications/pending-forward` 并报错。
 
 部署包必须从本地当前代码构建：
 

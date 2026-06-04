@@ -140,6 +140,75 @@
       '409':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
+/api/v1/bot/admission/sessions/member/skip:
+  post:
+    tags: [Bot]
+    operationId: skipBotAdmissionSessionForMember
+    summary: 机器人跳过当前群成员的入群认证
+    description: 仅取消当前群入群认证会话，不创建 StuHelper 学生认证凭据。
+    security:
+      - serviceTokenAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/admission.yaml#/BotAdmissionSessionOperatorRequest'
+    responses:
+      '200':
+        description: 当前群入群认证会话已取消
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/admission.yaml#/AdmissionSession'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/bot/admission/failures/reset:
+  post:
+    tags: [Bot]
+    operationId: resetBotAdmissionFailureCount
+    summary: 机器人清空当前群成员的入群认证失败次数
+    security:
+      - serviceTokenAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/admission.yaml#/BotAdmissionSessionOperatorRequest'
+    responses:
+      '200':
+        description: 失败次数已清空
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/admission.yaml#/BotAdmissionFailureResetResult'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
 /api/v1/bot/admission/join-requests/events:
   post:
     tags: [Bot]

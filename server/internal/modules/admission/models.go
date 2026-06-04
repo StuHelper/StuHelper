@@ -147,6 +147,20 @@ type BotSessionSubjectInput struct {
 	QQID     string
 }
 
+type BotSessionOperatorInput struct {
+	Platform     string
+	GuildID      string
+	QQID         string
+	OperatorQQID string
+}
+
+type AdmissionFailureResetResult struct {
+	Platform             string `json:"platform"`
+	GuildID              string `json:"guildID"`
+	QQID                 string `json:"qqID"`
+	PreviousFailureCount int    `json:"previousFailureCount"`
+}
+
 type BotEventInput struct {
 	Action    BotAction
 	Success   bool

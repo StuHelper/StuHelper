@@ -533,6 +533,86 @@ func TestRegenerateBotAdmissionSessionCreatesVerifiedSessionForCertifiedQQ(t *te
 	assert.Equal(t, BotActionRelease, actions[0].Action)
 }
 
+func TestSkipBotAdmissionSessionCancelsCurrentGroupOnlyWithoutStudentVerification(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createLinkableSession(t, svc)
+	userID := seedAdmissionUser(t, fixture, "bot-skip-admission")
+	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:  created.Token,
+		UserID: userID,
+	})
+	require.NoError(t, err)
+
+	skipped, err := svc.SkipBotAdmissionSession(context.Background(), BotSessionOperatorInput{
+		Platform:     "qq",
+		GuildID:      "guild-1",
+		QQID:         "10001",
+		OperatorQQID: "90001",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, created.Session.ID, skipped.ID)
+	assert.Equal(t, StatusCancelled, skipped.Status)
+	assert.Nil(t, skipped.VerifiedAt)
+	assertAdmissionSessionStatus(t, fixture, created.Session.ID, StatusCancelled)
+	assertUserVerificationCredentialCount(t, fixture, userID, 0)
+
+	actions, err := svc.ListPendingAdmissionActions(context.Background(), AdmissionPendingActionFilter{
+		Platform:  "qq",
+		BotSelfID: "514",
+		Limit:     10,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, actions)
+}
+
+func TestSkipBotAdmissionSessionRejectsVerifiedSession(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createLinkableSession(t, svc)
+	userID := seedAdmissionUser(t, fixture, "bot-skip-verified")
+	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:  created.Token,
+		UserID: userID,
+	})
+	require.NoError(t, err)
+	_, err = svc.MarkVerified(context.Background(), created.Session.ID)
+	require.NoError(t, err)
+
+	_, err = svc.SkipBotAdmissionSession(context.Background(), BotSessionOperatorInput{
+		Platform:     "qq",
+		GuildID:      "guild-1",
+		QQID:         "10001",
+		OperatorQQID: "90001",
+	})
+
+	require.ErrorIs(t, err, ErrAdmissionInvalidStatus)
+}
+
+func TestResetBotAdmissionFailureCount(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	insertAdmissionFailureCount(t, fixture, 2)
+
+	result, err := svc.ResetBotAdmissionFailureCount(context.Background(), BotSessionOperatorInput{
+		Platform:     "qq",
+		GuildID:      "guild-1",
+		QQID:         "10001",
+		OperatorQQID: "90001",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "qq", result.Platform)
+	assert.Equal(t, "guild-1", result.GuildID)
+	assert.Equal(t, "10001", result.QQID)
+	assert.Equal(t, 2, result.PreviousFailureCount)
+	assertAdmissionFailureCount(t, fixture, "10001", 0)
+}
+
 func TestRegenerateAdminAdmissionSessionCreatesImmediateReminder(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)
@@ -983,6 +1063,23 @@ func assertAdmissionFailureCount(t *testing.T, fixture *postgresfixture.Fixture,
 	`, qqID).Scan(&failureCount)
 	require.NoError(t, err)
 	assert.Equal(t, expected, failureCount)
+}
+
+func assertUserVerificationCredentialCount(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	userID int64,
+	expected int,
+) {
+	t.Helper()
+	var count int
+	err := fixture.Pool.QueryRow(context.Background(), `
+		SELECT COUNT(*)
+		FROM user_verification_credentials
+		WHERE user_id = $1
+	`, userID).Scan(&count)
+	require.NoError(t, err)
+	assert.Equal(t, expected, count)
 }
 
 func assertAdmissionSessionStatus(

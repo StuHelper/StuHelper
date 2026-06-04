@@ -41,6 +41,18 @@ test('platform admission client sends expected paths and payloads', async (t) =>
     qqID: '10001',
     botSelfID: '514',
   })
+  await client.skipAdmissionSessionForMember({
+    platform: 'qq',
+    guildID: 'guild-1',
+    qqID: '10001',
+    operatorQQID: '90001',
+  })
+  await client.resetAdmissionFailureCount({
+    platform: 'qq',
+    guildID: 'guild-1',
+    qqID: '10001',
+    operatorQQID: '90001',
+  })
   await client.resolveJoinRequestDecision({
     platform: 'qq',
     guildID: 'guild-1',
@@ -117,6 +129,8 @@ test('platform admission client sends expected paths and payloads', async (t) =>
     ['GET', '/api/v1/bot/admission/sessions/member?platform=qq&guildID=guild-1&qqID=10001'],
     ['POST', '/api/v1/bot/admission/sessions/member/resend'],
     ['POST', '/api/v1/bot/admission/sessions/member/regenerate'],
+    ['POST', '/api/v1/bot/admission/sessions/member/skip'],
+    ['POST', '/api/v1/bot/admission/failures/reset'],
     ['POST', '/api/v1/bot/admission/join-requests/decision'],
     ['POST', '/api/v1/bot/admission/join-requests/events'],
     ['GET', '/api/v1/bot/admission/sessions/pending?platform=qq&botSelfID=514&limit=50'],
@@ -135,14 +149,16 @@ test('platform admission client sends expected paths and payloads', async (t) =>
   assert.equal('qqNickname' in calls[0].body, false)
   assert.equal(calls[2].body.qqID, '10001')
   assert.equal(calls[3].body.botSelfID, '514')
-  assert.equal(calls[4].body.rawEvent.comment, '我是新生')
-  assert.equal(calls[5].body.decision, 'approve')
-  assert.equal(calls[9].body.metadata.operatorQQID, '90001')
-  assert.equal(calls[9].body.createdFrom, 'qq_command')
-  assert.equal(calls[11].body.releaseReasonCode, 'manual_pardon')
-  assert.equal(calls[12].body.messageID, 'message-1')
-  assert.equal(calls[15].body.operatorQQID, '90001')
-  assert.equal(calls[16].body.expiresInDays, 30)
+  assert.equal(calls[4].body.operatorQQID, '90001')
+  assert.equal(calls[5].body.operatorQQID, '90001')
+  assert.equal(calls[6].body.rawEvent.comment, '我是新生')
+  assert.equal(calls[7].body.decision, 'approve')
+  assert.equal(calls[11].body.metadata.operatorQQID, '90001')
+  assert.equal(calls[11].body.createdFrom, 'qq_command')
+  assert.equal(calls[13].body.releaseReasonCode, 'manual_pardon')
+  assert.equal(calls[14].body.messageID, 'message-1')
+  assert.equal(calls[17].body.operatorQQID, '90001')
+  assert.equal(calls[18].body.expiresInDays, 30)
 })
 
 test('platform client accepts empty success responses for void requests', async (t) => {
@@ -185,6 +201,11 @@ test('platform admission client requires member query identity', async () => {
   await assert.rejects(
     client.getAdmissionSessionByMember({ platform: 'qq', guildID: '', qqID: '10001' }),
     /platform, guildID and qqID are required/,
+  )
+
+  await assert.rejects(
+    client.resetAdmissionFailureCount({ platform: 'qq', guildID: 'guild-1', qqID: '10001', operatorQQID: '' }),
+    /operatorQQID is required/,
   )
 })
 
@@ -282,6 +303,12 @@ function responseDataForPath(path: string) {
       token: 'token-2',
       authURL: 'https://join.stuhelper.com/verify/token-2',
     }
+  }
+  if (path.endsWith('/sessions/member/skip')) {
+    return { ...admissionSession('session-3'), status: 'cancelled' }
+  }
+  if (path.endsWith('/failures/reset')) {
+    return { platform: 'qq', guildID: 'guild-1', qqID: '10001', previousFailureCount: 2 }
   }
   if (path.endsWith('/join-requests/decision')) {
     return {

@@ -221,10 +221,21 @@ export interface AdmissionSessionSubjectRequest {
   readonly qqID: string
 }
 
+export interface AdmissionSessionOperatorRequest extends AdmissionSessionSubjectRequest {
+  readonly operatorQQID: string
+}
+
 export interface AdmissionSessionCreateResult {
   readonly session: AdmissionSession
   readonly token: string
   readonly authURL: string
+}
+
+export interface AdmissionFailureResetResult {
+  readonly platform: string
+  readonly guildID: string
+  readonly qqID: string
+  readonly previousFailureCount: number
 }
 
 export interface AdmissionJoinRequestEvent {

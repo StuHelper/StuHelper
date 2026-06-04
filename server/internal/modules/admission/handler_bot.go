@@ -28,6 +28,13 @@ type botSessionSubjectHTTPRequest struct {
 	QQID     string `json:"qqID" binding:"required,max=64"`
 }
 
+type botSessionOperatorHTTPRequest struct {
+	Platform     string `json:"platform" binding:"required,max=32"`
+	GuildID      string `json:"guildID" binding:"required,max=128"`
+	QQID         string `json:"qqID" binding:"required,max=64"`
+	OperatorQQID string `json:"operatorQQID" binding:"required,max=64"`
+}
+
 type botAdmissionEventHTTPRequest struct {
 	Action    BotAction `json:"action" binding:"required"`
 	Success   bool      `json:"success"`
@@ -100,6 +107,34 @@ func (h *Handler) handleRegenerateBotAdmissionSession(c *gin.Context) {
 	response.Created(c, created)
 }
 
+func (h *Handler) handleSkipBotAdmissionSession(c *gin.Context) {
+	var req botSessionOperatorHTTPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request parameters")
+		return
+	}
+	session, err := h.service.SkipBotAdmissionSession(c.Request.Context(), botSessionOperatorInput(req))
+	if err != nil {
+		respondAdmissionError(c, err)
+		return
+	}
+	response.Success(c, session)
+}
+
+func (h *Handler) handleResetBotAdmissionFailureCount(c *gin.Context) {
+	var req botSessionOperatorHTTPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request parameters")
+		return
+	}
+	result, err := h.service.ResetBotAdmissionFailureCount(c.Request.Context(), botSessionOperatorInput(req))
+	if err != nil {
+		respondAdmissionError(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
 func (h *Handler) handleRecordBotEvent(c *gin.Context) {
 	var req botAdmissionEventHTTPRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -162,6 +197,10 @@ func botSessionCreateInput(req botSessionCreateHTTPRequest) BotSessionCreateInpu
 
 func botSessionSubjectInput(req botSessionSubjectHTTPRequest) BotSessionSubjectInput {
 	return BotSessionSubjectInput(req)
+}
+
+func botSessionOperatorInput(req botSessionOperatorHTTPRequest) BotSessionOperatorInput {
+	return BotSessionOperatorInput(req)
 }
 
 func botEventInput(req botAdmissionEventHTTPRequest) BotEventInput {

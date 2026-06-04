@@ -225,6 +225,65 @@ func (s *Service) RegenerateBotAdmissionSession(
 	return created, nil
 }
 
+func (s *Service) SkipBotAdmissionSession(
+	ctx context.Context,
+	input BotSessionOperatorInput,
+) (*AdmissionSession, error) {
+	input = normalizeBotSessionOperatorInput(input)
+	if err := validateBotSessionOperatorInput(input); err != nil {
+		return nil, err
+	}
+	subject := botSessionOperatorSubject(input)
+	if _, err := s.loadPolicy(ctx, input.Platform, input.GuildID); err != nil {
+		return nil, err
+	}
+	var skipped *AdmissionSession
+	if err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		session, err := s.repo.GetLatestSessionBySubjectForUpdateTx(ctx, tx, subject)
+		if err != nil {
+			return err
+		}
+		if err := validateSkippableBotSession(session); err != nil {
+			return err
+		}
+		skipped, err = s.repo.CancelInProgressSessionByIDTx(ctx, tx, session.ID, s.now())
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	s.auditBotSessionSkipped(ctx, skipped, input.OperatorQQID)
+	return skipped, nil
+}
+
+func (s *Service) ResetBotAdmissionFailureCount(
+	ctx context.Context,
+	input BotSessionOperatorInput,
+) (*AdmissionFailureResetResult, error) {
+	input = normalizeBotSessionOperatorInput(input)
+	if err := validateBotSessionOperatorInput(input); err != nil {
+		return nil, err
+	}
+	if _, err := s.loadPolicy(ctx, input.Platform, input.GuildID); err != nil {
+		return nil, err
+	}
+	var previous int
+	if err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		var err error
+		previous, err = s.repo.ResetAdmissionFailureCountTx(ctx, tx, input.Platform, input.GuildID, input.QQID, s.now())
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	result := &AdmissionFailureResetResult{
+		Platform:             input.Platform,
+		GuildID:              input.GuildID,
+		QQID:                 input.QQID,
+		PreviousFailureCount: previous,
+	}
+	s.auditBotAdmissionFailureCountReset(ctx, result, input.OperatorQQID)
+	return result, nil
+}
+
 func (s *Service) RegenerateAdminAdmissionSession(
 	ctx context.Context,
 	input AdminAdmissionSessionActionInput,
@@ -435,6 +494,18 @@ func (s *Service) regenerateAdmissionSession(
 	return nil, nil, fmt.Errorf("RegenerateBotAdmissionSession token: exhausted %d token attempts", maxAdmissionJoinTokenCreateAttempts)
 }
 
+func validateSkippableBotSession(session *AdmissionSession) error {
+	if session == nil {
+		return ErrAdmissionSessionNotFound
+	}
+	switch session.Status {
+	case StatusJoinedMuted, StatusLinked, StatusMaterialSubmitted:
+		return nil
+	default:
+		return ErrAdmissionInvalidStatus
+	}
+}
+
 func (s *Service) getAdminActionSession(ctx context.Context, sessionID string) (*AdmissionSession, error) {
 	session, err := s.repo.GetSessionByID(ctx, sessionID)
 	if err != nil {
@@ -470,6 +541,65 @@ func (s *Service) auditBotSessionRegenerated(
 			"botSelfID":             session.BotSelfID,
 			"cancelledSessionIDs":   cancelledIDs,
 			"cancelledSessionCount": len(cancelledIDs),
+		},
+		Timestamp: s.now(),
+	})
+}
+
+func (s *Service) auditBotSessionSkipped(
+	ctx context.Context,
+	session *AdmissionSession,
+	operatorQQID string,
+) {
+	if session == nil {
+		return
+	}
+	audit.LogContext(ctx, audit.Event{
+		Type:         audit.EventDataUpdate,
+		Category:     "admission",
+		ActorType:    "qq_operator",
+		UserID:       operatorQQID,
+		Resource:     "group_admission_sessions",
+		ResourceType: "group_admission_session",
+		ResourceID:   session.ID,
+		Action:       "skip_group_verification",
+		Result:       "success",
+		Details: map[string]any{
+			"platform":      session.Platform,
+			"guildID":       session.GuildID,
+			"qqID":          session.QQID,
+			"botSelfID":     session.BotSelfID,
+			"operatorQQID":  operatorQQID,
+			"studentStatus": "unchanged",
+		},
+		Timestamp: s.now(),
+	})
+}
+
+func (s *Service) auditBotAdmissionFailureCountReset(
+	ctx context.Context,
+	result *AdmissionFailureResetResult,
+	operatorQQID string,
+) {
+	if result == nil {
+		return
+	}
+	audit.LogContext(ctx, audit.Event{
+		Type:         audit.EventDataUpdate,
+		Category:     "admission",
+		ActorType:    "qq_operator",
+		UserID:       operatorQQID,
+		Resource:     "group_admission_failures",
+		ResourceType: "group_admission_failure",
+		ResourceID:   fmt.Sprintf("%s:%s:%s", result.Platform, result.GuildID, result.QQID),
+		Action:       "reset_failure_count",
+		Result:       "success",
+		Details: map[string]any{
+			"platform":             result.Platform,
+			"guildID":              result.GuildID,
+			"qqID":                 result.QQID,
+			"operatorQQID":         operatorQQID,
+			"previousFailureCount": result.PreviousFailureCount,
 		},
 		Timestamp: s.now(),
 	})
@@ -889,6 +1019,14 @@ func normalizeBotSessionSubjectInput(input BotSessionSubjectInput) BotSessionSub
 	return input
 }
 
+func normalizeBotSessionOperatorInput(input BotSessionOperatorInput) BotSessionOperatorInput {
+	input.Platform = strings.TrimSpace(input.Platform)
+	input.GuildID = strings.TrimSpace(input.GuildID)
+	input.QQID = strings.TrimSpace(input.QQID)
+	input.OperatorQQID = strings.TrimSpace(input.OperatorQQID)
+	return input
+}
+
 func validateBotSessionCreateInput(input BotSessionCreateInput) error {
 	if input.Platform == "" || input.GuildID == "" || input.ChannelID == "" || input.QQID == "" || input.BotSelfID == "" {
 		return ErrAdmissionInvalidInput
@@ -903,7 +1041,22 @@ func validateBotSessionSubjectInput(input BotSessionSubjectInput) error {
 	return nil
 }
 
+func validateBotSessionOperatorInput(input BotSessionOperatorInput) error {
+	if input.Platform == "" || input.GuildID == "" || input.QQID == "" || input.OperatorQQID == "" {
+		return ErrAdmissionInvalidInput
+	}
+	return nil
+}
+
 func botSessionCreateSubject(input BotSessionCreateInput) BotSessionSubjectInput {
+	return BotSessionSubjectInput{
+		Platform: input.Platform,
+		GuildID:  input.GuildID,
+		QQID:     input.QQID,
+	}
+}
+
+func botSessionOperatorSubject(input BotSessionOperatorInput) BotSessionSubjectInput {
 	return BotSessionSubjectInput{
 		Platform: input.Platform,
 		GuildID:  input.GuildID,

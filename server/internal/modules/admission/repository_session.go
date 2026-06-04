@@ -96,6 +96,29 @@ func (r *Repository) GetLatestSessionBySubject(
 	return session, nil
 }
 
+func (r *Repository) GetLatestSessionBySubjectForUpdateTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	input BotSessionSubjectInput,
+) (*AdmissionSession, error) {
+	query := `
+		SELECT ` + admissionSessionColumns + `
+		FROM group_admission_sessions
+		WHERE platform = $1 AND guild_id = $2 AND qq_id = $3
+		ORDER BY created_at DESC, updated_at DESC, id DESC
+		LIMIT 1
+		FOR UPDATE
+	`
+	session, err := scanAdmissionSession(tx.QueryRow(ctx, query, input.Platform, input.GuildID, input.QQID))
+	if err != nil {
+		if errors.Is(err, ErrAdmissionTokenNotFound) {
+			return nil, ErrAdmissionSessionNotFound
+		}
+		return nil, fmt.Errorf("GetLatestSessionBySubjectForUpdateTx: %w", err)
+	}
+	return session, nil
+}
+
 func (r *Repository) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*AdmissionSession, error) {
 	ctx = withDBTable(ctx, "group_admission_sessions")
 	query := "SELECT " + admissionSessionColumns + " FROM group_admission_sessions WHERE token_hash = $1"
@@ -158,14 +181,9 @@ func (r *Repository) CancelInProgressSessionByID(
 	now time.Time,
 ) (*AdmissionSession, error) {
 	ctx = withDBTable(ctx, "group_admission_sessions")
-	query := `
-		UPDATE group_admission_sessions
-		SET status = $2, cancelled_at = $3, next_reminder_at = NULL, last_bot_error = NULL, updated_at = NOW()
-		WHERE id = $1 AND status IN ($4, $5, $6)
-		RETURNING ` + admissionSessionColumns
 	session, err := scanAdmissionSession(r.db.QueryRow(
 		ctx,
-		query,
+		cancelInProgressSessionByIDQuery(),
 		sessionID,
 		StatusCancelled,
 		now,
@@ -177,6 +195,36 @@ func (r *Repository) CancelInProgressSessionByID(
 		return nil, fmt.Errorf("CancelInProgressSessionByID: %w", err)
 	}
 	return session, nil
+}
+
+func (r *Repository) CancelInProgressSessionByIDTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	sessionID string,
+	now time.Time,
+) (*AdmissionSession, error) {
+	session, err := scanAdmissionSession(tx.QueryRow(
+		ctx,
+		cancelInProgressSessionByIDQuery(),
+		sessionID,
+		StatusCancelled,
+		now,
+		StatusJoinedMuted,
+		StatusLinked,
+		StatusMaterialSubmitted,
+	))
+	if err != nil {
+		return nil, fmt.Errorf("CancelInProgressSessionByIDTx: %w", err)
+	}
+	return session, nil
+}
+
+func cancelInProgressSessionByIDQuery() string {
+	return `
+		UPDATE group_admission_sessions
+		SET status = $2, cancelled_at = $3, next_reminder_at = NULL, last_bot_error = NULL, updated_at = NOW()
+		WHERE id = $1 AND status IN ($4, $5, $6)
+		RETURNING ` + admissionSessionColumns
 }
 
 func (r *Repository) MarkTokenConsumedAndLinked(

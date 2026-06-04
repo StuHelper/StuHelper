@@ -75,6 +75,8 @@ func assertAdmissionBotRoutes(t *testing.T, routes gin.RoutesInfo) {
 	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/bot/admission/sessions/member")
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/bot/admission/sessions/member/resend")
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/bot/admission/sessions/member/regenerate")
+	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/bot/admission/sessions/member/skip")
+	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/bot/admission/failures/reset")
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/bot/admission/join-requests/events")
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/bot/admission/join-requests/decision")
 	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/bot/member-blacklist/access")

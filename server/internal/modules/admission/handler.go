@@ -85,6 +85,16 @@ func (h *Handler) registerBotAdmissionRoutes(bot *gin.RouterGroup) {
 		h.handleRegenerateBotAdmissionSession,
 	)
 	bot.POST(
+		"/sessions/member/skip",
+		h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession),
+		h.handleSkipBotAdmissionSession,
+	)
+	bot.POST(
+		"/failures/reset",
+		h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession),
+		h.handleResetBotAdmissionFailureCount,
+	)
+	bot.POST(
 		"/join-requests/decision",
 		h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession),
 		h.handleResolveBotJoinRequestDecision,

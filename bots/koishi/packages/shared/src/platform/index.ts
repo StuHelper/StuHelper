@@ -1,5 +1,6 @@
 import type {
   AdmissionBotEventRequest,
+  AdmissionFailureResetResult,
   AdmissionJoinRequestDecision,
   AdmissionJoinRequestDecisionRequest,
   AdmissionJoinRequestEvent,
@@ -8,6 +9,7 @@ import type {
   AdmissionSession,
   AdmissionSessionCreateRequest,
   AdmissionSessionCreateResult,
+  AdmissionSessionOperatorRequest,
   AdmissionSessionSubjectRequest,
   ConsumeQQBindingRequest,
   FreshmanApplication,
@@ -33,6 +35,7 @@ const HEALTH_PATH = '/health/live'
 const QQ_BINDING_CONSUME_PATH = '/api/v1/bot/qq-binding/consume'
 const QQ_VERIFICATION_PATH_PREFIX = '/api/v1/bot/qq-users/'
 const ADMISSION_SESSIONS_PATH = '/api/v1/bot/admission/sessions'
+const ADMISSION_FAILURES_PATH = '/api/v1/bot/admission/failures'
 const ADMISSION_JOIN_REQUEST_DECISION_PATH = '/api/v1/bot/admission/join-requests/decision'
 const ADMISSION_JOIN_REQUEST_EVENTS_PATH = '/api/v1/bot/admission/join-requests/events'
 const ADMISSION_PENDING_ACTIONS_PATH = '/api/v1/bot/admission/sessions/pending'
@@ -87,6 +90,8 @@ export interface PlatformClient {
   getAdmissionSessionByMember(input: AdmissionSessionSubjectRequest): Promise<AdmissionSession>
   resendAdmissionSessionLink(input: AdmissionSessionSubjectRequest): Promise<AdmissionSession>
   regenerateAdmissionSessionLink(input: AdmissionSessionCreateRequest): Promise<AdmissionSessionCreateResult>
+  skipAdmissionSessionForMember(input: AdmissionSessionOperatorRequest): Promise<AdmissionSession>
+  resetAdmissionFailureCount(input: AdmissionSessionOperatorRequest): Promise<AdmissionFailureResetResult>
   resolveJoinRequestDecision(input: AdmissionJoinRequestDecisionRequest): Promise<AdmissionJoinRequestDecision>
   recordJoinRequestEvent(input: AdmissionJoinRequestEvent): Promise<void>
   listPendingAdmissionActions(input: AdmissionPendingActionsRequest): Promise<readonly AdmissionPendingAction[]>
@@ -148,6 +153,8 @@ function createAdmissionClient(
   | 'getAdmissionSessionByMember'
   | 'resendAdmissionSessionLink'
   | 'regenerateAdmissionSessionLink'
+  | 'skipAdmissionSessionForMember'
+  | 'resetAdmissionFailureCount'
   | 'resolveJoinRequestDecision'
   | 'recordJoinRequestEvent'
   | 'listPendingAdmissionActions'
@@ -172,6 +179,16 @@ function createAdmissionClient(
 
     async regenerateAdmissionSessionLink(input) {
       return request<AdmissionSessionCreateResult>(`${ADMISSION_SESSIONS_PATH}/member/regenerate`, jsonPost(input))
+    },
+
+    async skipAdmissionSessionForMember(input) {
+      assertAdmissionSessionOperatorRequest(input)
+      return request<AdmissionSession>(`${ADMISSION_SESSIONS_PATH}/member/skip`, jsonPost(input))
+    },
+
+    async resetAdmissionFailureCount(input) {
+      assertAdmissionSessionOperatorRequest(input)
+      return request<AdmissionFailureResetResult>(`${ADMISSION_FAILURES_PATH}/reset`, jsonPost(input))
     },
 
     async resolveJoinRequestDecision(input) {
@@ -262,6 +279,13 @@ function assertPendingAdmissionActionsRequest(input: AdmissionPendingActionsRequ
 function assertAdmissionSessionSubjectRequest(input: AdmissionSessionSubjectRequest) {
   if (!input.platform?.trim() || !input.guildID?.trim() || !input.qqID?.trim()) {
     throw new Error('platform, guildID and qqID are required for admission session member queries')
+  }
+}
+
+function assertAdmissionSessionOperatorRequest(input: AdmissionSessionOperatorRequest) {
+  assertAdmissionSessionSubjectRequest(input)
+  if (!input.operatorQQID?.trim()) {
+    throw new Error('operatorQQID is required for admission member operations')
   }
 }
 

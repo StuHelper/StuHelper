@@ -293,6 +293,29 @@ BotAdmissionSessionSubjectRequest:
     qqID:
       type: string
 
+BotAdmissionSessionOperatorRequest:
+  allOf:
+    - $ref: '#/BotAdmissionSessionSubjectRequest'
+    - type: object
+      required: [operatorQQID]
+      properties:
+        operatorQQID:
+          type: string
+
+BotAdmissionFailureResetResult:
+  type: object
+  required: [platform, guildID, qqID, previousFailureCount]
+  properties:
+    platform:
+      type: string
+    guildID:
+      type: string
+    qqID:
+      type: string
+    previousFailureCount:
+      type: integer
+      minimum: 0
+
 BotAdmissionEventRequest:
   type: object
   required: [action, success]

@@ -86,6 +86,55 @@ export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdmi
         throw error
       }
     }))
+
+  ctx.command('跳过入群认证 <qqID>', '仅跳过当前群的入群认证，不通过 StuHelper 学生认证')
+    .action(({ session }, qqID) => runAdmissionCommand(async () => {
+      const command = await resolveAdmissionCommandContext(session, qqID, deps)
+      if (typeof command === 'string') return command
+      const dedupeKey = admissionCommandDedupeKey('skip', command)
+      if (!commandDeduper.claim(dedupeKey)) return
+      try {
+        const skipped = await deps.platform.skipAdmissionSessionForMember(admissionOperatorSubject(command))
+        await releaseMemberMuteForCommand(command)
+        await markLocalAdmissionSkipped(command, deps.guardStore, skipped)
+        return `${h.at(command.qqID)} (${command.qqID}) 已跳过本群入群认证并解除禁言。\n此操作只在本群生效，不代表 StuHelper 学生认证已通过。`
+      } catch (error) {
+        commandDeduper.forget(dedupeKey)
+        throw error
+      }
+    }))
+
+  ctx.command('清空入群未认证次数 <qqID>', '清空当前群成员的入群认证失败次数')
+    .action(({ session }, qqID) => runAdmissionCommand(async () => {
+      const command = await resolveAdmissionCommandContext(session, qqID, deps)
+      if (typeof command === 'string') return command
+      const result = await deps.platform.resetAdmissionFailureCount(admissionOperatorSubject(command))
+      return `已清空 QQ ${result.qqID} 在本群的入群未认证次数（原次数：${result.previousFailureCount}）。`
+    }))
+
+  ctx.command('解除入群拉黑 <qqID>', '解除当前群成员的入群拉黑状态')
+    .action(({ session }, qqID) => runAdmissionCommand(async () => {
+      const command = await resolveAdmissionCommandContext(session, qqID, deps)
+      if (typeof command === 'string') return command
+      try {
+        await deps.platform.releaseMemberBlacklistBySubject({
+          platform: command.platform,
+          subjectType: 'qq_user',
+          subjectID: command.qqID,
+          scopeType: 'guild',
+          guildID: command.guildID,
+          releaseReasonCode: 'release_only',
+          releaseReason: 'released by admission admin command',
+          operatorQQID: command.session.userId,
+        })
+      } catch (error) {
+        if (error instanceof PlatformAPIError && error.status === 404) {
+          return `QQ ${command.qqID} 在本群没有活动入群拉黑记录。`
+        }
+        throw error
+      }
+      return `已解除 QQ ${command.qqID} 在本群的入群拉黑状态；未认证次数未清空，如需重新计数请使用“清空入群未认证次数 ${command.qqID}”。`
+    }))
 }
 
 class AdmissionAdminCommandDeduper {
@@ -115,7 +164,7 @@ class AdmissionAdminCommandDeduper {
   }
 }
 
-function admissionCommandDedupeKey(action: 'resend' | 'regenerate', command: AdmissionCommandContext) {
+function admissionCommandDedupeKey(action: 'resend' | 'regenerate' | 'skip', command: AdmissionCommandContext) {
   return JSON.stringify([
     action,
     command.platform,
@@ -144,6 +193,9 @@ async function resolveAdmissionCommandContext(
   const targetQQID = qqID?.trim()
   if (!targetQQID) {
     return '请提供要操作的 QQ 号。'
+  }
+  if (!session.userId) {
+    return '无法识别命令执行者 QQ。'
   }
   const platform = resolveSessionAdmissionPlatform(session)
   if (!platform) {
@@ -189,6 +241,13 @@ function admissionSubject(command: AdmissionCommandContext) {
     platform: command.platform,
     guildID: command.guildID,
     qqID: command.qqID,
+  }
+}
+
+function admissionOperatorSubject(command: AdmissionCommandContext) {
+  return {
+    ...admissionSubject(command),
+    operatorQQID: command.session.userId,
   }
 }
 
@@ -285,6 +344,10 @@ async function resetMemberMute(session: Session, admission: AdmissionSession) {
   await session.bot.muteGuildMember(admission.guildID, admission.qqID, muteDuration)
 }
 
+async function releaseMemberMuteForCommand(command: AdmissionCommandContext) {
+  await command.session.bot.muteGuildMember(command.guildID, command.qqID, 0)
+}
+
 async function releaseVerifiedAdmissionForCommand(
   command: AdmissionCommandContext,
   deps: AdmissionAdminCommandDeps,
@@ -306,6 +369,28 @@ async function releaseVerifiedAdmissionForCommand(
     success: true,
   })
   return `${h.at(command.qqID)} (${command.qqID}) 已完成 StuHelper 学生身份认证，已解除禁言，无需重新生成认证链接。`
+}
+
+async function markLocalAdmissionSkipped(
+  command: AdmissionCommandContext,
+  guardStore: GuardMemberStore,
+  admission: AdmissionSession,
+) {
+  const record = await guardStore.findActiveBySubject({
+    platform: command.platform,
+    botSelfId: command.botSelfID,
+    guildId: command.guildID,
+    memberId: command.qqID,
+  })
+  if (!record) return
+  await guardStore.markBackendSynced(record.id, {
+    admissionSessionID: admission.id,
+    backendSyncPending: false,
+    deadlineAt: new Date(admission.linkWaitDeadlineAt),
+    nextReminderAt: null,
+    manualReviewDeadlineAt: admission.manualReviewDeadlineAt ? new Date(admission.manualReviewDeadlineAt) : null,
+  })
+  await guardStore.markReleased(record.id, new Date())
 }
 
 async function updateLocalAdmissionRecord(
