@@ -52,7 +52,7 @@ interface LoginAuthorizeOptions {
 }
 
 const DEFAULT_SSO_ORIGIN = "https://sso.stuhelper.com";
-const SSO_LOGOUT_FRAME_TIMEOUT_MS = 1500;
+const SSO_LOGOUT_POPUP_TIMEOUT_MS = 1500;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return Boolean(value) && typeof value === "object";
@@ -385,41 +385,55 @@ export const useAuthStore = defineStore("auth", () => {
             maxAge: 0,
         });
 
-    const logoutUpstreamSSOForAccountSwitch = async () => {
-        if (
-            typeof window === "undefined" ||
-            typeof document === "undefined" ||
-            !document.body
-        ) {
-            return;
+    const openUpstreamSSOLogoutWindow = (): Window | null => {
+        if (typeof window === "undefined" || typeof window.open !== "function") {
+            return null;
         }
+        return window.open(
+            "about:blank",
+            "stuhelper-sso-account-switch",
+            "popup,width=480,height=640",
+        );
+    };
 
+    const closeUpstreamSSOLogoutWindow = (popup: Window | null) => {
+        if (!popup) return;
+        try {
+            popup.close();
+        } catch {
+            // Cross-origin popup close can fail in hardened browsers; navigation
+            // has already been attempted, so the account switch flow can proceed.
+        }
+    };
+
+    const logoutUpstreamSSOForAccountSwitch = async (popup: Window | null) => {
+        if (!popup) {
+            throw new Error("upstream SSO logout window was blocked");
+        }
+        try {
+            popup.location.href = upstreamSSOAccountSwitchLogoutURL();
+        } catch (error) {
+            closeUpstreamSSOLogoutWindow(popup);
+            throw error;
+        }
         await new Promise<void>((resolve) => {
-            const frame = document.createElement("iframe");
-            let settled = false;
-            const finish = () => {
-                if (settled) return;
-                settled = true;
-                window.clearTimeout(timer);
-                frame.remove();
-                resolve();
-            };
-            const timer = window.setTimeout(finish, SSO_LOGOUT_FRAME_TIMEOUT_MS);
-
-            frame.style.display = "none";
-            frame.setAttribute("aria-hidden", "true");
-            frame.addEventListener("load", finish, { once: true });
-            frame.src = upstreamSSOAccountSwitchLogoutURL();
-            document.body.appendChild(frame);
+            window.setTimeout(resolve, SSO_LOGOUT_POPUP_TIMEOUT_MS);
         });
+        closeUpstreamSSOLogoutWindow(popup);
     };
 
     const switchAccount = async (redirect?: string) => {
         clearError();
         loading.value = true;
+        let upstreamLogoutWindow = openUpstreamSSOLogoutWindow();
         try {
+            if (!upstreamLogoutWindow) {
+                throw new Error("upstream SSO logout window was blocked");
+            }
             const localLogout = await logout();
             if (!localLogout.ok) {
+                closeUpstreamSSOLogoutWindow(upstreamLogoutWindow);
+                upstreamLogoutWindow = null;
                 const fallback = new Error("local logout unavailable");
                 const error = localLogout.error instanceof Error
                     ? localLogout.error
@@ -430,12 +444,14 @@ export const useAuthStore = defineStore("auth", () => {
                 );
                 throw error;
             }
-            await logoutUpstreamSSOForAccountSwitch();
+            await logoutUpstreamSSOForAccountSwitch(upstreamLogoutWindow);
+            upstreamLogoutWindow = null;
             await startLoginFlow(redirect, {
                 prompt: "login",
                 maxAge: 0,
             });
         } catch (err) {
+            closeUpstreamSSOLogoutWindow(upstreamLogoutWindow);
             loading.value = false;
             const authErr = handleError(
                 err,

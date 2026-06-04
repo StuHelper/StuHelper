@@ -7,13 +7,9 @@ const mockLogout = vi.fn();
 const mockGetUser = vi.fn();
 const mockSetUser = vi.fn();
 const mockClearAuth = vi.fn();
-const mockCreateElement = vi.fn();
-const mockAppendChild = vi.fn();
-const mockClearTimeout = vi.fn();
+const mockWindowOpen = vi.fn();
 const mockSetTimeout = vi.fn();
-const mockFrameRemove = vi.fn();
-const mockFrameSetAttribute = vi.fn();
-const mockFrameAddEventListener = vi.fn();
+const mockPopupClose = vi.fn();
 
 vi.mock("@/api", () => ({
     api: {
@@ -89,42 +85,25 @@ describe("auth authorize flow", () => {
         mockGetUser.mockReset();
         mockSetUser.mockReset();
         mockClearAuth.mockReset();
-        mockCreateElement.mockReset();
-        mockAppendChild.mockReset();
-        mockClearTimeout.mockReset();
+        mockWindowOpen.mockReset();
         mockSetTimeout.mockReset();
-        mockFrameRemove.mockReset();
-        mockFrameSetAttribute.mockReset();
-        mockFrameAddEventListener.mockReset();
+        mockPopupClose.mockReset();
         mockGetUser.mockReturnValue(null);
         vi.stubEnv("VITE_SSO_URL", "https://sso.stuhelper.com");
         vi.stubGlobal("sessionStorage", createMemoryStorage());
-        let loadHandler: (() => void) | undefined;
-        const frame = {
-            remove: mockFrameRemove,
-            setAttribute: mockFrameSetAttribute,
-            style: {},
-            addEventListener: mockFrameAddEventListener.mockImplementation(
-                (event: string, handler: () => void) => {
-                    if (event === "load") loadHandler = handler;
-                },
-            ),
-            src: "",
-        };
-        mockCreateElement.mockReturnValue(frame);
-        mockAppendChild.mockImplementation(() => {
-            queueMicrotask(() => loadHandler?.());
-            return frame;
-        });
-        mockSetTimeout.mockReturnValue(1);
-        vi.stubGlobal("document", {
-            body: {
-                appendChild: mockAppendChild,
+        const popup = {
+            close: mockPopupClose,
+            location: {
+                href: "",
             },
-            createElement: mockCreateElement,
+        };
+        mockWindowOpen.mockReturnValue(popup);
+        mockSetTimeout.mockImplementation((handler: () => void) => {
+            queueMicrotask(handler);
+            return 1;
         });
         vi.stubGlobal("window", {
-            clearTimeout: mockClearTimeout,
+            open: mockWindowOpen,
             location: {
                 href: "https://join.stuhelper.com/verify/token",
                 hash: "",
@@ -186,14 +165,16 @@ describe("auth authorize flow", () => {
 
         expect(mockLogout).toHaveBeenCalledTimes(1);
         expect(mockClearAuth).toHaveBeenCalledTimes(1);
-        expect(mockCreateElement).toHaveBeenCalledWith("iframe");
-        expect(mockFrameSetAttribute).toHaveBeenCalledWith("aria-hidden", "true");
-        expect(mockAppendChild).toHaveBeenCalledTimes(1);
-        expect(mockFrameRemove).toHaveBeenCalledTimes(1);
-        const frame = mockCreateElement.mock.results[0]?.value as { src: string };
-        expect(frame.src).toMatch(
+        expect(mockWindowOpen).toHaveBeenCalledWith(
+            "about:blank",
+            "stuhelper-sso-account-switch",
+            "popup,width=480,height=640",
+        );
+        const popup = mockWindowOpen.mock.results[0]?.value as { location: { href: string } };
+        expect(popup.location.href).toMatch(
             /^https:\/\/sso\.stuhelper\.com\/api\/sso-logout\?logoutAll=true&_/,
         );
+        expect(mockPopupClose).toHaveBeenCalledTimes(1);
         expect(mockLogin).toHaveBeenCalledWith(
             "https://join.stuhelper.com/verify/token",
             undefined,
@@ -203,7 +184,26 @@ describe("auth authorize flow", () => {
         expect(sessionStorage.getItem("oauth_state")).toBe("switch-state");
     });
 
-    it("does not start account switching when local logout fails", async () => {
+    it("does not clear local state when upstream SSO logout popup is blocked", async () => {
+        mockWindowOpen.mockReturnValueOnce(null);
+        mockLogout.mockResolvedValue({});
+        mockLogin.mockResolvedValue({
+            data: { data: { state: "switch-state", url: "#switch" } },
+        });
+
+        const { useAuthStore } = await import("../auth");
+        const store = useAuthStore();
+
+        await expect(
+            store.switchAccount("https://join.stuhelper.com/verify/token"),
+        ).rejects.toThrow("upstream SSO logout window was blocked");
+
+        expect(mockLogout).not.toHaveBeenCalled();
+        expect(mockClearAuth).not.toHaveBeenCalled();
+        expect(mockLogin).not.toHaveBeenCalled();
+    });
+
+    it("does not start login when local logout fails", async () => {
         mockLogout.mockRejectedValue(new Error("local logout unavailable"));
         mockLogin.mockResolvedValue({
             data: { data: { state: "switch-state", url: "#switch" } },
@@ -217,7 +217,8 @@ describe("auth authorize flow", () => {
         ).rejects.toThrow("local logout unavailable");
 
         expect(mockClearAuth).not.toHaveBeenCalled();
-        expect(mockAppendChild).not.toHaveBeenCalled();
+        expect(mockWindowOpen).toHaveBeenCalledTimes(1);
+        expect(mockPopupClose).toHaveBeenCalledTimes(1);
         expect(mockLogin).not.toHaveBeenCalled();
     });
 });
