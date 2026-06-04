@@ -51,6 +51,8 @@ assert_contains "${EVIDENCE_SCRIPT}" 'B0000001'
 assert_contains "${EVIDENCE_SCRIPT}" 'enableGroupVerify'
 assert_contains "${EVIDENCE_SCRIPT}" 'commands'
 assert_contains "${EVIDENCE_SCRIPT}" 'actionStream'
+assert_contains "${EVIDENCE_SCRIPT}" 'actionStreamEnabled'
+assert_contains "${EVIDENCE_SCRIPT}" 'koishi_runtime_package'
 assert_contains "${EVIDENCE_SCRIPT}" 'fallbackScanEnabled'
 assert_contains "${EVIDENCE_SCRIPT}" 'moderation'
 assert_contains "${EVIDENCE_SCRIPT}" 'freshmanForward'
@@ -68,7 +70,12 @@ cleanup() {
 trap cleanup EXIT
 
 compose_dir="${tmpdir}/koishi-napcat"
-mkdir -p "${compose_dir}/koishi" "${tmpdir}/bin"
+mkdir -p \
+  "${compose_dir}/koishi" \
+  "${compose_dir}/koishi/node_modules/@stuhelper/koishi-shared/lib" \
+  "${compose_dir}/koishi/node_modules/koishi-plugin-stuhelper-group-guard/lib" \
+  "${compose_dir}/koishi/node_modules/koishi-plugin-stuhelper-core/dist" \
+  "${tmpdir}/bin"
 cat >"${compose_dir}/koishi/koishi.yml" <<'YAML'
 plugins:
   group:stuhelper:
@@ -97,6 +104,25 @@ plugins:
     student-query:uciuxr:
       enableGroupVerify: true
 YAML
+
+cat >"${compose_dir}/koishi/node_modules/@stuhelper/koishi-shared/lib/index.js" <<'JS'
+const ADMISSION_RUNTIME_SETTINGS_TABLE = 'stuhelper_admission_runtime_settings'
+const model = { actionStreamEnabled: 'boolean' }
+exports.model = model
+JS
+
+cat >"${compose_dir}/koishi/node_modules/koishi-plugin-stuhelper-group-guard/lib/index.js" <<'JS'
+const ADMISSION_RUNTIME_SETTINGS_EVENT = 'stuhelperGroupGuard/action/save-admission-runtime-settings'
+function wire(runtimeSettings) {
+  return runtimeSettings.isActionStreamEnabled()
+}
+exports.wire = wire
+JS
+
+cat >"${compose_dir}/koishi/node_modules/koishi-plugin-stuhelper-core/dist/index.js" <<'JS'
+const settingKey = 'actionStreamEnabled'
+console.log(settingKey)
+JS
 
 cat >"${tmpdir}/bin/docker" <<'SH'
 #!/usr/bin/env bash
@@ -177,15 +203,40 @@ KOISHI_ADMISSION_LOG_SINCE="2h" \
 
 grep -q 'Koishi admission production evidence passed' "${tmpdir}/ok.stdout" || fail "evidence script did not report pass"
 [[ -f "${evidence_file}" ]] || fail "expected evidence file to be written"
-jq -e '
-  .passed == true
-  and .summary.failed == 0
-  and .targets.expectedGroupIDs == ["178037297"]
-  and ([.checks[] | select(.name == "Koishi admission config semantics" and .passed == true)] | length == 1)
-  and ([.checks[] | select(.name == "Koishi bot admission API probe" and .passed == true)] | length == 1)
-  and ([.checks[] | select(.name == "Koishi admission logs clean" and .passed == true)] | length == 1)
-  and ([.checks[] | select(.name == "Koishi non-admission ChatLuna signal" and .detail == "chatluna_error_count=1")] | length == 1)
-' "${evidence_file}" >/dev/null
+python3 - "${evidence_file}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+checks = payload["checks"]
+
+
+def require(condition, message):
+    if not condition:
+        raise SystemExit(message)
+
+
+def count_check(name, *, passed=None, detail=None):
+    matches = [item for item in checks if item.get("name") == name]
+    if passed is not None:
+        matches = [item for item in matches if item.get("passed") is passed]
+    if detail is not None:
+        matches = [item for item in matches if item.get("detail") == detail]
+    return len(matches)
+
+
+require(payload.get("passed") is True, "evidence did not pass")
+require(payload.get("summary", {}).get("failed") == 0, "evidence has failed checks")
+require(payload.get("targets", {}).get("expectedGroupIDs") == ["178037297"], "unexpected target groups")
+require(count_check("Koishi admission config semantics", passed=True) == 1, "missing config semantics check")
+require(count_check("Koishi shared runtime settings include action stream switch", passed=True) == 1, "missing shared runtime package check")
+require(count_check("Koishi group guard runtime refreshes action stream from WebUI settings", passed=True) == 1, "missing group guard runtime package check")
+require(count_check("Koishi WebUI exposes action stream runtime switch", passed=True) == 1, "missing WebUI runtime package check")
+require(count_check("Koishi bot admission API probe", passed=True) == 1, "missing bot API probe")
+require(count_check("Koishi admission logs clean", passed=True) == 1, "missing clean log check")
+require(count_check("Koishi non-admission ChatLuna signal", detail="chatluna_error_count=1") == 1, "missing ChatLuna non-admission signal")
+PY
 
 expect_log_failure() {
   local mode="$1"
@@ -240,9 +291,22 @@ PY
     "${EVIDENCE_SCRIPT}" >"${tmpdir}/${label}.stdout" 2>"${tmpdir}/${label}.stderr"; then
     fail "expected evidence script to fail for ${mutation}"
   fi
-  jq -e --arg expected "${expected_detail}" '
-    [.checks[] | select(.name == "Koishi admission config semantics" and .passed == false and (.detail | contains($expected)))] | length == 1
-  ' "${tmpdir}/${label}-evidence.json" >/dev/null || fail "missing semantic config failure detail for ${mutation}"
+  python3 - "${tmpdir}/${label}-evidence.json" "${expected_detail}" <<'PY' || fail "missing semantic config failure detail for ${mutation}"
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+expected = sys.argv[2]
+for check in payload.get("checks", []):
+    if (
+        check.get("name") == "Koishi admission config semantics"
+        and check.get("passed") is False
+        and expected in check.get("detail", "")
+    ):
+        raise SystemExit(0)
+raise SystemExit(1)
+PY
 }
 
 expect_log_failure "bad_log" "bad-log"

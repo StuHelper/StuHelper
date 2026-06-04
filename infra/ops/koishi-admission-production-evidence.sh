@@ -153,6 +153,24 @@ PY
   fi
 }
 
+runtime_file_contains() {
+  local name="$1"
+  local relative_path="$2"
+  local pattern="$3"
+  local path="${compose_dir}/${relative_path}"
+
+  if [[ ! -f "${path}" ]]; then
+    record_check "${name}" "koishi_runtime_package" "false" "missing file: ${relative_path}"
+    return
+  fi
+
+  if grep -Eq -- "${pattern}" "${path}"; then
+    record_check "${name}" "koishi_runtime_package" "true" "${relative_path}"
+  else
+    record_check "${name}" "koishi_runtime_package" "false" "missing pattern in ${relative_path}: ${pattern}"
+  fi
+}
+
 check_koishi_config_semantics() {
   local output
 
@@ -526,6 +544,19 @@ config_section_has_enabled "freshmanForward" "false"
 config_contains "student-query plugin remains configured" 'student-query:'
 config_contains "student-query group verify remains enabled" 'enableGroupVerify:[[:space:]]*true'
 check_koishi_config_semantics
+
+runtime_file_contains \
+  "Koishi shared runtime settings include action stream switch" \
+  "koishi/node_modules/@stuhelper/koishi-shared/lib/index.js" \
+  'actionStreamEnabled'
+runtime_file_contains \
+  "Koishi group guard runtime refreshes action stream from WebUI settings" \
+  "koishi/node_modules/koishi-plugin-stuhelper-group-guard/lib/index.js" \
+  'isActionStreamEnabled'
+runtime_file_contains \
+  "Koishi WebUI exposes action stream runtime switch" \
+  "koishi/node_modules/koishi-plugin-stuhelper-core/dist/index.js" \
+  'actionStreamEnabled'
 
 check_container_running
 check_container_env
