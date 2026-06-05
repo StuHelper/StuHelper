@@ -302,6 +302,7 @@
 import { message } from '@koishijs/client'
 import { computed, ref } from 'vue'
 
+import { useActionError } from '../composables/use-action-error'
 import { useConfirm } from '../composables/use-confirm'
 import { consolePageApi } from '../page-api'
 import { formatTimestamp } from '../models/formatters'
@@ -326,8 +327,21 @@ const loading = ref(false)
 const error = ref('')
 const notice = ref('')
 const settingsNotice = ref('')
-const actionError = ref('')
-const settingsError = ref('')
+const {
+  actionError,
+  setActionError,
+  clearActionError,
+} = useActionError({
+  onError: (_title, details) => message.error(details),
+})
+const {
+  actionError: settingsError,
+  setActionError: setSettingsError,
+  clearActionError: clearSettingsError,
+} = useActionError({
+  defaultTitle: '保存运行开关失败',
+  onError: (_title, details) => message.error(details),
+})
 const actionLoadingKey = ref('')
 const settingLoadingKey = ref('')
 const data = ref<AdmissionRuntimePageData | null>(null)
@@ -346,8 +360,8 @@ async function loadData() {
     const next = await consolePageApi.admissionRuntime()
     if (requestSeq !== loadRequestSeq) return
     data.value = next
-    actionError.value = ''
-    settingsError.value = ''
+    clearActionError()
+    clearSettingsError()
   } catch (cause) {
     if (requestSeq !== loadRequestSeq) return
     error.value = errorMessage(cause, '加载入群认证数据失败')
@@ -373,7 +387,7 @@ async function submitMemberAction(
     if (!confirmed) return
   }
   actionLoadingKey.value = `${member.id}:${action}`
-  actionError.value = ''
+  clearActionError()
   notice.value = ''
   try {
     notice.value = await consolePageApi.admissionAction({
@@ -382,8 +396,7 @@ async function submitMemberAction(
     })
     await loadData()
   } catch (cause) {
-    actionError.value = errorMessage(cause, '入群认证操作失败')
-    message.error(actionError.value)
+    setActionError('入群认证操作失败', cause, '入群认证操作失败')
   } finally {
     actionLoadingKey.value = ''
   }
@@ -392,7 +405,7 @@ async function submitMemberAction(
 async function submitRuntimeSetting(row: AdmissionSwitchRow, enabled: boolean) {
   if (!row.settingKey) return
   settingLoadingKey.value = row.settingKey
-  settingsError.value = ''
+  clearSettingsError()
   settingsNotice.value = ''
   const patch: AdmissionRuntimeSettingsPatch = {
     [row.settingKey]: enabled,
@@ -401,8 +414,7 @@ async function submitRuntimeSetting(row: AdmissionSwitchRow, enabled: boolean) {
     settingsNotice.value = await consolePageApi.saveAdmissionRuntimeSettings(patch)
     await loadData()
   } catch (cause) {
-    settingsError.value = errorMessage(cause, '保存入群认证运行开关失败')
-    message.error(settingsError.value)
+    setSettingsError('保存入群认证运行开关失败', cause, '保存入群认证运行开关失败')
   } finally {
     settingLoadingKey.value = ''
   }

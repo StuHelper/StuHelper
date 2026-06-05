@@ -672,23 +672,25 @@ test('AdmissionView keeps runtime action failures inside their operation section
   const source = readClientFile('./components/AdmissionView.vue')
 
   assert.match(source, /title="加载入群认证数据失败"/)
-  assert.match(source, /const actionError = ref\(''\)/)
-  assert.match(source, /const settingsError = ref\(''\)/)
+  assert.match(source, /import \{ useActionError \} from '\.\.\/composables\/use-action-error'/)
+  assert.match(source, /actionError,[\s\S]*setActionError,[\s\S]*clearActionError,[\s\S]*\} = useActionError\(\{[\s\S]*onError: \(_title, details\) => message\.error\(details\)/)
+  assert.match(source, /actionError: settingsError,[\s\S]*setActionError: setSettingsError,[\s\S]*clearActionError: clearSettingsError,[\s\S]*\} = useActionError\(\{[\s\S]*defaultTitle: '保存运行开关失败'/)
   assert.match(source, /<p v-if="actionError" class="sh-admission__error" role="alert">/)
   assert.match(source, /<p v-if="settingsError" class="sh-admission__error" role="alert">/)
   assert.match(source, /error\.value = errorMessage\(cause, '加载入群认证数据失败'\)/)
-  assert.match(source, /actionError\.value = errorMessage\(cause, '入群认证操作失败'\)/)
-  assert.match(source, /settingsError\.value = errorMessage\(cause, '保存入群认证运行开关失败'\)/)
-  assert.match(source, /message\.error\(actionError\.value\)/)
-  assert.match(source, /message\.error\(settingsError\.value\)/)
+  assert.match(source, /data\.value = next\s*clearActionError\(\)\s*clearSettingsError\(\)/)
+  assert.match(source, /clearActionError\(\)\s*notice\.value = ''/)
+  assert.match(source, /clearSettingsError\(\)\s*settingsNotice\.value = ''/)
+  assert.match(source, /setActionError\('入群认证操作失败', cause, '入群认证操作失败'\)/)
+  assert.match(source, /setSettingsError\('保存入群认证运行开关失败', cause, '保存入群认证运行开关失败'\)/)
   assert.match(source, /import \{ errorMessage \} from '\.\.\/utils\/error-message'/)
   assert.doesNotMatch(source, /function errorMessage\(cause: unknown, fallback: string\): string/)
   assert.ok(
-    source.indexOf("actionError.value = errorMessage(cause, '入群认证操作失败')") >
+    source.indexOf("setActionError('入群认证操作失败', cause, '入群认证操作失败')") >
       source.indexOf('await consolePageApi.admissionAction({'),
   )
   assert.ok(
-    source.indexOf("settingsError.value = errorMessage(cause, '保存入群认证运行开关失败')") >
+    source.indexOf("setSettingsError('保存入群认证运行开关失败', cause, '保存入群认证运行开关失败')") >
       source.indexOf('await consolePageApi.saveAdmissionRuntimeSettings(patch)'),
   )
 
@@ -702,6 +704,12 @@ test('AdmissionView keeps runtime action failures inside their operation section
   )
   assert.doesNotMatch(memberActionSource, /error\.value = cause instanceof Error/)
   assert.doesNotMatch(runtimeSettingSource, /error\.value = cause instanceof Error/)
+  assert.doesNotMatch(source, /const actionError = ref\(''\)/)
+  assert.doesNotMatch(source, /const settingsError = ref\(''\)/)
+  assert.doesNotMatch(source, /actionError\.value =/)
+  assert.doesNotMatch(source, /settingsError\.value =/)
+  assert.doesNotMatch(source, /message\.error\(actionError\.value\)/)
+  assert.doesNotMatch(source, /message\.error\(settingsError\.value\)/)
   assert.doesNotMatch(memberActionSource, /message\.error\(actionError\.value \|\|/)
   assert.doesNotMatch(runtimeSettingSource, /message\.error\(settingsError\.value \|\|/)
 })
