@@ -2260,6 +2260,52 @@ func TestOpenPlatformAppSecretLifecycleAndStatusAudit(t *testing.T) {
 	require.ErrorIs(t, err, ErrLifecycleReasonRequired)
 }
 
+func TestOpenPlatformRepositoryAppLifecycleUpdatesRequireCurrentStatus(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+
+	ownerID := seedOpenPlatformUser(t, postgres, "repo-lifecycle-owner")
+	adminID := seedOpenPlatformUser(t, postgres, "repo-lifecycle-admin")
+	app := seedApprovedOpenPlatformApp(t, ctx, repo, ownerID, []string{ScopeProfileBasicRead})
+
+	revoked, err := repo.UpdateAppStatusWithAudit(
+		ctx,
+		app.ID,
+		AppStatusRevoked,
+		[]string{AppStatusApproved},
+		adminID,
+		"open_platform.app.revoked",
+		"retire integration",
+		"repo-lifecycle-revoke",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, AppStatusRevoked, revoked.Status)
+
+	err = repo.MarkAppApproved(
+		ctx,
+		app.ID,
+		hashClientSecret("should-not-restore"),
+		adminID,
+		"repo-lifecycle-approve-revoked",
+	)
+	require.ErrorIs(t, err, ErrInvalidAppStatus)
+	assertOpenPlatformAppStatus(t, ctx, repo, app.ID, AppStatusRevoked)
+
+	_, err = repo.UpdateAppStatusWithAudit(
+		ctx,
+		app.ID,
+		AppStatusApproved,
+		[]string{AppStatusSuspended},
+		adminID,
+		"open_platform.app.resumed",
+		"cannot resume revoked",
+		"repo-lifecycle-resume-revoked",
+	)
+	require.ErrorIs(t, err, ErrInvalidAppStatus)
+	assertOpenPlatformAppStatus(t, ctx, repo, app.ID, AppStatusRevoked)
+}
+
 func TestOpenPlatformDeveloperWithdrawPendingApp(t *testing.T) {
 	ctx := context.Background()
 	postgres := postgresfixture.Start(t)
@@ -3065,6 +3111,19 @@ func queryValueFromURL(t *testing.T, rawURL string, key string) string {
 	value := parsed.Query().Get(key)
 	require.NotEmpty(t, value)
 	return value
+}
+
+func assertOpenPlatformAppStatus(
+	t *testing.T,
+	ctx context.Context,
+	repo *Repository,
+	appID int64,
+	expected string,
+) {
+	t.Helper()
+	app, err := repo.GetAppByID(ctx, appID)
+	require.NoError(t, err)
+	assert.Equal(t, expected, app.Status)
 }
 
 func seedApprovedOpenPlatformApp(

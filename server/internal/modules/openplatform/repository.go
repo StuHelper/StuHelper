@@ -422,22 +422,6 @@ func updateScopeRequestDecision(
 	return nil
 }
 
-func (r *Repository) SetAppStatus(ctx context.Context, appID int64, status string) error {
-	ctx = withDBTable(ctx, "open_platform_apps")
-	tag, err := r.db.Exec(ctx, `
-		UPDATE open_platform_apps
-		SET status = $2, updated_at = NOW()
-		WHERE id = $1
-	`, appID, status)
-	if err != nil {
-		return fmt.Errorf("SetAppStatus: %w", err)
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrAppNotFound
-	}
-	return nil
-}
-
 func (r *Repository) MarkAppApproved(ctx context.Context, appID int64, clientSecretHash string, reviewerUserID int64, requestID string) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		tag, err := tx.Exec(ctx, `
@@ -445,13 +429,13 @@ func (r *Repository) MarkAppApproved(ctx context.Context, appID int64, clientSec
 		SET status = $2,
 		    client_secret_hash = $3,
 		    updated_at = NOW()
-		WHERE id = $1
-	`, appID, AppStatusApproved, clientSecretHash)
+		WHERE id = $1 AND status = $4
+	`, appID, AppStatusApproved, clientSecretHash, AppStatusPending)
 		if err != nil {
 			return fmt.Errorf("MarkAppApproved: %w", err)
 		}
 		if tag.RowsAffected() == 0 {
-			return ErrAppNotFound
+			return ErrInvalidAppStatus
 		}
 		if reviewerUserID > 0 {
 			if err := insertAuditEvent(ctx, tx.Exec, auditEvent{
@@ -772,6 +756,7 @@ func (r *Repository) UpdateAppStatusWithAudit(
 	ctx context.Context,
 	appID int64,
 	status string,
+	allowedFrom []string,
 	actorUserID int64,
 	eventType string,
 	reason string,
@@ -784,11 +769,15 @@ func (r *Repository) UpdateAppStatusWithAudit(
 			SET status = $2,
 			    updated_at = NOW()
 			WHERE id = $1
+			  AND status = ANY($3::text[])
 			RETURNING id, casdoor_application_name, owner_user_id, client_id,
 			          client_secret_hash, display_name, description, homepage_url,
 			          privacy_policy_url, redirect_uris, status, created_at, updated_at
-		`, appID, status))
+		`, appID, status, allowedFrom))
 		if err != nil {
+			if errors.Is(err, ErrAppNotFound) {
+				return ErrInvalidAppStatus
+			}
 			return fmt.Errorf("UpdateAppStatusWithAudit update: %w", err)
 		}
 		if status == AppStatusRevoked {

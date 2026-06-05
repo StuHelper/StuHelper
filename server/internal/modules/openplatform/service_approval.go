@@ -469,6 +469,7 @@ func (s *Service) WithdrawApp(ctx context.Context, input AppWithdrawalInput) (*A
 		ctx,
 		input.AppID,
 		AppStatusRevoked,
+		[]string{AppStatusPending},
 		input.OwnerUserID,
 		"open_platform.app.withdrawn",
 		reason,
@@ -504,7 +505,16 @@ func (s *Service) updateAppLifecycleStatus(
 	if _, ok := allowedFrom[app.Status]; !ok {
 		return nil, ErrInvalidAppStatus
 	}
-	updated, err := s.repo.UpdateAppStatusWithAudit(ctx, input.AppID, status, input.ActorUserID, eventType, reason, input.RequestID)
+	updated, err := s.repo.UpdateAppStatusWithAudit(
+		ctx,
+		input.AppID,
+		status,
+		appStatusSetToSlice(allowedFrom),
+		input.ActorUserID,
+		eventType,
+		reason,
+		input.RequestID,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -514,6 +524,14 @@ func (s *Service) updateAppLifecycleStatus(
 		}
 	}
 	return &AppLifecycleResult{App: updated}, nil
+}
+
+func appStatusSetToSlice(statuses map[string]struct{}) []string {
+	values := make([]string, 0, len(statuses))
+	for status := range statuses {
+		values = append(values, status)
+	}
+	return values
 }
 
 func (s *Service) ImportCasdoorApp(ctx context.Context, input ImportCasdoorAppInput) (*ImportedApp, error) {
