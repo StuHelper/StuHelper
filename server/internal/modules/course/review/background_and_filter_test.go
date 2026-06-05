@@ -158,3 +158,31 @@ func TestReviewDispatchNotificationUsesManagedLauncher(t *testing.T) {
 		t.Fatal("expected notification task to run")
 	}
 }
+
+func TestDispatchNotificationIgnoresParentCancellation(t *testing.T) {
+	type contextKey string
+	const key contextKey = "request-id"
+	parent, cancel := context.WithCancel(context.WithValue(context.Background(), key, "req-1"))
+	cancel()
+	svc := &Service{}
+	done := make(chan error, 1)
+
+	svc.dispatchNotification(parent, func(ctx context.Context) {
+		if err := ctx.Err(); err != nil {
+			done <- err
+			return
+		}
+		if got := ctx.Value(key); got != "req-1" {
+			done <- fmt.Errorf("missing context value: %v", got)
+			return
+		}
+		done <- nil
+	})
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("expected notification task to run")
+	}
+}
