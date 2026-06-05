@@ -91,6 +91,10 @@ func NewHelperWithNamespaceAndMaxVersions(client *redis.Client, namespace string
 	}
 }
 
+func (h *Helper) disabled() bool {
+	return h == nil || h.client == nil
+}
+
 // JitteredTTL 返回带随机抖动的 TTL，防止缓存雪崩
 // 在 base ± jitterFraction 范围内随机浮动
 func JitteredTTL(base time.Duration) time.Duration {
@@ -106,6 +110,9 @@ func randFloat64() float64 {
 
 // Client 返回底层 Redis 客户端（用于需要直接访问的场景）
 func (h *Helper) Client() *redis.Client {
+	if h == nil {
+		return nil
+	}
 	return h.client
 }
 
@@ -120,7 +127,7 @@ func (h *Helper) Namespace() string {
 // 相比 Get，它避免了重复反序列化以及 float64 精度丢失问题。
 // 返回的 json.RawMessage 可直接传给 response.Success。
 func (h *Helper) GetRaw(ctx context.Context, key string) (json.RawMessage, bool) {
-	if h.client == nil {
+	if h.disabled() {
 		return nil, false
 	}
 	start := time.Now()
@@ -137,7 +144,7 @@ func (h *Helper) GetRaw(ctx context.Context, key string) (json.RawMessage, bool)
 // GetAs 获取缓存值并反序列化为指定类型（泛型版本，避免 any 类型丢失问题）
 func GetAs[T any](h *Helper, ctx context.Context, key string) (T, bool) {
 	var zero T
-	if h.client == nil {
+	if h.disabled() {
 		return zero, false
 	}
 	start := time.Now()
@@ -157,7 +164,7 @@ func GetAs[T any](h *Helper, ctx context.Context, key string) (T, bool) {
 
 // Set 设置缓存值
 func (h *Helper) Set(ctx context.Context, key string, value any, ttl time.Duration) error {
-	if h.client == nil {
+	if h.disabled() {
 		return nil
 	}
 	data, err := json.Marshal(value)
@@ -184,7 +191,7 @@ func (h *Helper) Set(ctx context.Context, key string, value any, ttl time.Durati
 
 // GetInt 获取整数缓存值
 func (h *Helper) GetInt(ctx context.Context, key string) (int, bool) {
-	if h.client == nil {
+	if h.disabled() {
 		return 0, false
 	}
 	val, err := h.client.Get(ctx, key).Int()
@@ -196,7 +203,7 @@ func (h *Helper) GetInt(ctx context.Context, key string) (int, bool) {
 
 // SetInt 设置整数缓存值
 func (h *Helper) SetInt(ctx context.Context, key string, value int, ttl time.Duration) error {
-	if h.client == nil {
+	if h.disabled() {
 		return nil
 	}
 	if err := h.client.Set(ctx, key, value, ttl).Err(); err != nil {
@@ -217,7 +224,7 @@ func VersionKey(prefix string) string {
 // GetVersion 获取缓存版本号（带本地短时缓存，减少 Redis 往返）
 // 使用 singleflight 去重并发 Redis 查询
 func (h *Helper) GetVersion(ctx context.Context, prefix string) string {
-	if h.client == nil {
+	if h.disabled() {
 		return "0"
 	}
 
@@ -323,7 +330,7 @@ func (h *Helper) evictVersionEntriesLocked(now time.Time) {
 // InvalidateByVersion 通过递增版本号使缓存失效
 // 旧的缓存 key 会根据 TTL 自然过期，避免 SCAN 操作的性能问题
 func (h *Helper) InvalidateByVersion(ctx context.Context, prefix string) error {
-	if h.client == nil {
+	if h.disabled() {
 		return nil
 	}
 
@@ -355,6 +362,9 @@ func (h *Helper) InvalidateByVersion(ctx context.Context, prefix string) error {
 // 内部使用 singleflight 去重，同一 key 的并发请求只会执行一次 loader
 func GetOrSet[T any](h *Helper, ctx context.Context, key string, ttl time.Duration, loader func(ctx context.Context) (T, error)) (T, error) {
 	var zero T
+	if h.disabled() {
+		return loader(ctx)
+	}
 
 	// 先尝试从缓存获取
 	if val, ok := GetAs[T](h, ctx, key); ok {

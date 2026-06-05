@@ -382,3 +382,34 @@ func TestNilClient_NoOps(t *testing.T) {
 	// GetVersion returns "0"
 	assert.Equal(t, "0", h.GetVersion(ctx, "prefix"))
 }
+
+func TestNilHelper_NoOps(t *testing.T) {
+	var h *Helper
+	ctx := context.Background()
+
+	assert.Nil(t, h.Client())
+	assert.Equal(t, NamespaceGeneric, h.Namespace())
+	assert.NoError(t, h.Set(ctx, "k", "v", time.Minute))
+
+	_, ok := h.GetRaw(ctx, "k")
+	assert.False(t, ok)
+
+	_, ok = GetAs[string](h, ctx, "k")
+	assert.False(t, ok)
+
+	_, ok = h.GetInt(ctx, "k")
+	assert.False(t, ok)
+	assert.NoError(t, h.SetInt(ctx, "k", 1, time.Minute))
+	assert.NoError(t, h.InvalidateByVersion(ctx, "prefix"))
+	assert.Equal(t, "0", h.GetVersion(ctx, "prefix"))
+	assert.Equal(t, "prefix:v0:k", h.BuildVersionedKey(ctx, "prefix", "k"))
+
+	calls := 0
+	got, err := GetOrSet(h, ctx, "k", time.Minute, func(_ context.Context) (string, error) {
+		calls++
+		return "loaded", nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "loaded", got)
+	assert.Equal(t, 1, calls)
+}
