@@ -54,6 +54,26 @@ func TestRepositoryUpdateSchoolConfigUpsertsDirectorySchoolConfig(t *testing.T) 
 	assert.True(t, config.Enabled)
 }
 
+func TestRepositoryUpdateSchoolConfigRollsBackDirectoryNameOnConfigFailure(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB, []byte("test-hmac-key"))
+	ctx := context.Background()
+
+	insertDirectoryOnlySchool(t, fixture, 4111010002, "4111010002", "清华大学")
+
+	err := repo.UpdateSchoolConfig(ctx, &SchoolConfig{
+		SchoolID:           4111010002,
+		SchoolName:         "清华大学（测试）",
+		VerificationMethod: "unsupported",
+		ApprovalPolicy:     "manual",
+		Enabled:            true,
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "UpdateSchoolConfig")
+	assert.Equal(t, "清华大学", schoolDirectoryName(t, fixture, 4111010002))
+}
+
 func insertDirectoryOnlySchool(
 	t *testing.T,
 	fixture *postgresfixture.Fixture,
@@ -75,6 +95,14 @@ func insertDirectoryOnlySchool(
 		WHERE school_id = $1
 	`, id)
 	require.NoError(t, err)
+}
+
+func schoolDirectoryName(t *testing.T, fixture *postgresfixture.Fixture, id int64) string {
+	t.Helper()
+	var name string
+	err := fixture.Pool.QueryRow(context.Background(), `SELECT name FROM schools WHERE id = $1`, id).Scan(&name)
+	require.NoError(t, err)
+	return name
 }
 
 func findSchoolConfig(t *testing.T, configs []SchoolConfig, schoolID int64) SchoolConfig {

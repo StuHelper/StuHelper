@@ -128,38 +128,40 @@ func (r *Repository) ListAllSchoolConfigs(ctx context.Context) ([]SchoolConfig, 
 // UpdateSchoolConfig 更新学校认证配置
 func (r *Repository) UpdateSchoolConfig(ctx context.Context, config *SchoolConfig) error {
 	ctx = withDBTable(ctx, "school_configs")
-	_, err := r.db.Exec(ctx, `
-		UPDATE schools
-		SET name = $2
-		WHERE id = $1
-	`, config.SchoolID, config.SchoolName)
-	if err != nil {
-		return fmt.Errorf("UpdateSchoolConfig update school directory: %w", err)
-	}
-	_, err = r.db.Exec(ctx, `
-		INSERT INTO school_configs (
-			school_id, school_name, verification_method, approval_policy, ldap_config,
-			academic_db_table, consent_text, manual_form_fields, enabled, updated_at
+	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			UPDATE schools
+			SET name = $2
+			WHERE id = $1
+		`, config.SchoolID, config.SchoolName)
+		if err != nil {
+			return fmt.Errorf("UpdateSchoolConfig update school directory: %w", err)
+		}
+		_, err = tx.Exec(ctx, `
+			INSERT INTO school_configs (
+				school_id, school_name, verification_method, approval_policy, ldap_config,
+				academic_db_table, consent_text, manual_form_fields, enabled, updated_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+			ON CONFLICT (school_id) DO UPDATE
+			SET school_name = EXCLUDED.school_name,
+				verification_method = EXCLUDED.verification_method,
+				approval_policy = EXCLUDED.approval_policy,
+				ldap_config = EXCLUDED.ldap_config,
+				academic_db_table = EXCLUDED.academic_db_table,
+				consent_text = EXCLUDED.consent_text,
+				manual_form_fields = EXCLUDED.manual_form_fields,
+				enabled = EXCLUDED.enabled,
+				updated_at = NOW()
+		`, config.SchoolID, config.SchoolName, config.VerificationMethod, config.ApprovalPolicy, config.LDAPConfig,
+			config.AcademicDBTable, config.ConsentText, config.ManualFormFields,
+			config.Enabled,
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
-		ON CONFLICT (school_id) DO UPDATE
-		SET school_name = EXCLUDED.school_name,
-			verification_method = EXCLUDED.verification_method,
-			approval_policy = EXCLUDED.approval_policy,
-			ldap_config = EXCLUDED.ldap_config,
-			academic_db_table = EXCLUDED.academic_db_table,
-			consent_text = EXCLUDED.consent_text,
-			manual_form_fields = EXCLUDED.manual_form_fields,
-			enabled = EXCLUDED.enabled,
-			updated_at = NOW()
-	`, config.SchoolID, config.SchoolName, config.VerificationMethod, config.ApprovalPolicy, config.LDAPConfig,
-		config.AcademicDBTable, config.ConsentText, config.ManualFormFields,
-		config.Enabled,
-	)
-	if err != nil {
-		return fmt.Errorf("UpdateSchoolConfig: %w", err)
-	}
-	return nil
+		if err != nil {
+			return fmt.Errorf("UpdateSchoolConfig: %w", err)
+		}
+		return nil
+	})
 }
 
 // ListSystemConfigs 获取所有系统配置项
