@@ -1,4 +1,5 @@
 import type { Context, Session } from 'koishi'
+import type { GuildMember, GuildRole } from '@satorijs/protocol'
 
 import { registerRuntimeCommand } from '../../runtime/command'
 import type {
@@ -7,7 +8,7 @@ import type {
   RuntimeModuleMeta,
   RuntimeModuleState,
 } from '../../runtime/types'
-import { formatDuration } from '../../utils'
+import { formatDuration, parseUserId } from '../../utils'
 
 const UNIX_MILLISECONDS_THRESHOLD = 1_000_000_000_000
 const MILLISECONDS_PER_SECOND = 1_000
@@ -84,7 +85,7 @@ function registerGetAuthCommand(ctx: Context, meta: RuntimeModuleMeta): void {
 async function handleGetAuthCommand(
   ctx: Context,
   session: Session,
-  target?: string,
+  target?: unknown,
 ): Promise<string> {
   if (!target) return '请指定要查询的成员喵'
 
@@ -105,15 +106,6 @@ async function handleGetAuthCommand(
   } catch (error) {
     return `查询失败：${getErrorMessage(error)}喵`
   }
-}
-
-function parseUserId(target: string): string | null {
-  if (!target) return null
-  if (target.startsWith('<at')) {
-    const match = target.match(/id="(\d+)"/)
-    if (match) return match[1]
-  }
-  return target.replace(/^@/, '').trim() || null
 }
 
 async function readDatabaseAuthority(
@@ -172,14 +164,14 @@ async function readOneBotMuteLine(session: Session, userId: string): Promise<str
   }
 }
 
-function formatUniversalMemberRole(member: any): string {
+function formatUniversalMemberRole(member: GuildMember | null | undefined): string {
   const roles = Array.isArray(member?.roles)
     ? member.roles.map(formatRoleName).filter(Boolean)
     : []
   return roles.join(', ') || member?.title || '未知'
 }
 
-function formatRoleName(role: any): string {
+function formatRoleName(role: string | GuildRole | null | undefined): string {
   if (typeof role === 'string') return role
   return role?.name || role?.id || ''
 }
