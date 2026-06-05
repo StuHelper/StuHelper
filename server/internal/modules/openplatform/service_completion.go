@@ -265,7 +265,7 @@ func (s *Service) ContinueProfileCompletion(ctx context.Context, token string, u
 			return nil, err
 		}
 		if err := s.deleteProfileCompletionChallenge(ctx, token); err != nil {
-			if cleanupErr := s.DeleteConsentChallenge(ctx, consentChallenge.Token); cleanupErr != nil {
+			if cleanupErr := s.deleteConsentChallengeDetached(ctx, consentChallenge.Token); cleanupErr != nil {
 				return nil, fmt.Errorf("%w; cleanup consent challenge: %v", err, cleanupErr)
 			}
 			return nil, err
@@ -281,7 +281,7 @@ func (s *Service) ContinueProfileCompletion(ctx context.Context, token string, u
 			return nil, err
 		}
 		if err := s.deleteProfileCompletionChallenge(ctx, token); err != nil {
-			if cleanupErr := s.DeleteConsentChallenge(ctx, consentChallenge.Token); cleanupErr != nil {
+			if cleanupErr := s.deleteConsentChallengeDetached(ctx, consentChallenge.Token); cleanupErr != nil {
 				return nil, fmt.Errorf("%w; cleanup consent challenge: %v", err, cleanupErr)
 			}
 			return nil, err
@@ -306,10 +306,24 @@ func (s *Service) deleteProfileCompletionChallenge(ctx context.Context, token st
 }
 
 func (s *Service) DeleteConsentChallenge(ctx context.Context, token string) error {
+	return s.deleteConsentChallenge(ctx, token)
+}
+
+func (s *Service) deleteConsentChallengeDetached(ctx context.Context, token string) error {
+	cleanupCtx, cancel := consentChallengeCleanupContext(ctx)
+	defer cancel()
+	return s.deleteConsentChallenge(cleanupCtx, token)
+}
+
+func (s *Service) deleteConsentChallenge(ctx context.Context, token string) error {
 	if err := s.rdb.Del(ctx, consentRedisPrefix+token).Err(); err != nil {
 		return fmt.Errorf("delete consent challenge: %w", err)
 	}
 	return nil
+}
+
+func consentChallengeCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), consentChallengeCleanupTimeout)
 }
 
 func ensureProfileCompletionActor(challenge *ProfileCompletionChallenge, userID int64) error {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
+	redisclient "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -1999,6 +2000,43 @@ func TestProfileCompletionPreservesOAuthScopesForConsentChallenge(t *testing.T) 
 	assert.Equal(t, "completion-oauth-scope-nonce", consentChallenge.Nonce)
 }
 
+func TestProfileCompletionConsentChallengeCleanupSurvivesRequestCancellation(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redisFixture := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	service, err := NewService(repo, redisFixture.Client, WithConsentBaseURL("https://account.example.com"))
+	require.NoError(t, err)
+
+	ownerID := seedOpenPlatformUser(t, postgres, "completion-cancel-owner")
+	userID := seedOpenPlatformUser(t, postgres, "completion-cancel-viewer")
+	app := seedApprovedOpenPlatformApp(t, ctx, repo, ownerID, []string{ScopeEmailRead})
+	completionChallenge, err := service.BuildProfileCompletionChallenge(ctx, app, userID, []string{ScopeEmailRead}, AuthorizeRequest{
+		ClientID:    app.ClientID,
+		RedirectURI: app.RedirectURIs[0],
+		Scopes:      []string{"openid", "email"},
+		State:       "completion-cancel-state",
+		Flow:        AuthorizeFlowAccount,
+	})
+	require.NoError(t, err)
+	requestCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	redisFixture.Client.AddHook(cancelAfterRedisSetHook{
+		keyPrefix: consentRedisPrefix,
+		cancel:    cancel,
+	})
+
+	result, err := service.ContinueProfileCompletion(requestCtx, completionChallenge.Token, userID)
+
+	require.Error(t, err)
+	require.Nil(t, result)
+	consentKeys, err := redisFixture.Client.Keys(context.Background(), consentRedisPrefix+"*").Result()
+	require.NoError(t, err)
+	assert.Empty(t, consentKeys)
+	_, err = service.LoadProfileCompletionChallenge(context.Background(), completionChallenge.Token)
+	require.NoError(t, err)
+}
+
 func TestProfileCompletionContinueRejectsRedirectURIDrift(t *testing.T) {
 	ctx := context.Background()
 	postgres := postgresfixture.Start(t)
@@ -3629,6 +3667,37 @@ func (f *fakeOpenPlatformAppProvisioner) DeleteApplication(ctx context.Context, 
 	}
 	f.deleted = append(f.deleted, strings.TrimSpace(name))
 	return nil
+}
+
+type cancelAfterRedisSetHook struct {
+	keyPrefix string
+	cancel    context.CancelFunc
+}
+
+func (h cancelAfterRedisSetHook) DialHook(next redisclient.DialHook) redisclient.DialHook {
+	return next
+}
+
+func (h cancelAfterRedisSetHook) ProcessHook(next redisclient.ProcessHook) redisclient.ProcessHook {
+	return func(ctx context.Context, cmd redisclient.Cmder) error {
+		err := next(ctx, cmd)
+		if err != nil || h.cancel == nil || strings.ToLower(cmd.Name()) != "set" {
+			return err
+		}
+		args := cmd.Args()
+		if len(args) < 2 {
+			return err
+		}
+		key, ok := args[1].(string)
+		if ok && strings.HasPrefix(key, h.keyPrefix) {
+			h.cancel()
+		}
+		return err
+	}
+}
+
+func (h cancelAfterRedisSetHook) ProcessPipelineHook(next redisclient.ProcessPipelineHook) redisclient.ProcessPipelineHook {
+	return next
 }
 
 type fakeRuntimeTokenProber struct {

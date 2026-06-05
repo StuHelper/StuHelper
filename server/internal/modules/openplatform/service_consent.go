@@ -12,6 +12,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const consentChallengeCleanupTimeout = 5 * time.Second
+
 type ConsentRequiredError struct {
 	ConsentURL string
 	Scopes     []ScopeDefinition
@@ -218,7 +220,7 @@ func (s *Service) AcceptConsent(ctx context.Context, token, requestID string, us
 	if err := s.grantLoadedConsent(ctx, loaded, requestID); err != nil {
 		return "", err
 	}
-	if err := s.DeleteConsentChallenge(ctx, token); err != nil {
+	if err := s.deleteConsentChallengeDetached(ctx, token); err != nil {
 		return "", err
 	}
 	return redirectURL, nil
@@ -249,7 +251,7 @@ func (s *Service) DenyConsent(ctx context.Context, token, requestID string, user
 	}); err != nil {
 		return "", fmt.Errorf("%w: consent denial audit unavailable", ErrDisclosureUnavailable)
 	}
-	if err := s.rdb.Del(ctx, consentRedisPrefix+token).Err(); err != nil {
+	if err := s.deleteConsentChallengeDetached(ctx, token); err != nil {
 		return "", fmt.Errorf("delete denied consent challenge: %w", err)
 	}
 	return appendOAuthError(challenge.RedirectURI, "access_denied", challenge.State), nil
@@ -389,7 +391,7 @@ func (s *Service) grantConsent(ctx context.Context, token, requestID string, kee
 	if keepChallenge {
 		return challenge, nil
 	}
-	if err := s.DeleteConsentChallenge(ctx, token); err != nil {
+	if err := s.deleteConsentChallengeDetached(ctx, token); err != nil {
 		return nil, err
 	}
 	return challenge, nil
