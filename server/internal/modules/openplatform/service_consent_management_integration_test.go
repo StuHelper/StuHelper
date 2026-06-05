@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
-	platformcasdoor "git.stuhelper.com/StuHelper/StuHelper/internal/platform/casdoor"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/postgresfixture"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
 )
@@ -899,7 +898,7 @@ func TestOpenPlatformScopeReasonRequiredForRegistrationAndImport(t *testing.T) {
 	assert.Equal(t, 0, apps.Total)
 
 	importService, err := NewService(repo, redis.Client, WithAppProvisioner(&fakeOpenPlatformAppProvisioner{
-		existing: platformcasdoor.ApplicationSpec{
+		existing: ProvisionedApplicationSpec{
 			Name:                 "legacy-missing-scope-reason",
 			DisplayName:          "Legacy Missing Scope Reason",
 			HomepageURL:          "https://legacy-missing-scope-reason.example.com",
@@ -1276,7 +1275,7 @@ func TestApproveAppRecordsRuntimeTokenProbeEvidence(t *testing.T) {
 	repo := NewRepository(postgres.DB)
 	provisioner := &fakeOpenPlatformAppProvisioner{}
 	runtimeProber := &fakeRuntimeTokenProber{
-		result: platformcasdoor.RuntimeTokenMinimizationProbeResult{
+		result: RuntimeTokenMinimizationProbeResult{
 			Method: "authorization_code",
 			TokenClaims: map[string][]string{
 				"id_token":     {"sub", "iss"},
@@ -1373,7 +1372,7 @@ func TestApproveAppBlocksUnsafeRuntimeTokenProbe(t *testing.T) {
 	repo := NewRepository(postgres.DB)
 	provisioner := &fakeOpenPlatformAppProvisioner{}
 	runtimeProber := &fakeRuntimeTokenProber{
-		result: platformcasdoor.RuntimeTokenMinimizationProbeResult{
+		result: RuntimeTokenMinimizationProbeResult{
 			TokenClaims: map[string][]string{
 				"id_token": {"sub", "phoneNumber"},
 			},
@@ -1482,7 +1481,7 @@ func TestImportCasdoorAppRejectsBusinessTokenFields(t *testing.T) {
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
 	provisioner := &fakeOpenPlatformAppProvisioner{
-		existing: platformcasdoor.ApplicationSpec{
+		existing: ProvisionedApplicationSpec{
 			Name:                 "legacy-bad-claims",
 			DisplayName:          "Legacy Bad Claims",
 			HomepageURL:          "https://legacy.example.com",
@@ -3301,14 +3300,14 @@ func latestOpenPlatformTokenProbeEvidence(
 }
 
 type fakeOpenPlatformAppProvisioner struct {
-	existing platformcasdoor.ApplicationSpec
-	ensured  *platformcasdoor.ApplicationSpec
+	existing ProvisionedApplicationSpec
+	ensured  *ProvisionedApplicationSpec
 	err      error
 }
 
-func (f *fakeOpenPlatformAppProvisioner) GetApplication(_ context.Context, name string) (platformcasdoor.ApplicationSpec, error) {
+func (f *fakeOpenPlatformAppProvisioner) GetApplication(_ context.Context, name string) (ProvisionedApplicationSpec, error) {
 	if f.err != nil {
-		return platformcasdoor.ApplicationSpec{}, f.err
+		return ProvisionedApplicationSpec{}, f.err
 	}
 	spec := f.existing
 	if spec.Name == "" {
@@ -3317,7 +3316,7 @@ func (f *fakeOpenPlatformAppProvisioner) GetApplication(_ context.Context, name 
 	return spec, nil
 }
 
-func (f *fakeOpenPlatformAppProvisioner) EnsureApplication(_ context.Context, spec platformcasdoor.ApplicationSpec) error {
+func (f *fakeOpenPlatformAppProvisioner) EnsureApplication(_ context.Context, spec ProvisionedApplicationSpec) error {
 	if f.err != nil {
 		return f.err
 	}
@@ -3327,19 +3326,19 @@ func (f *fakeOpenPlatformAppProvisioner) EnsureApplication(_ context.Context, sp
 }
 
 type fakeRuntimeTokenProber struct {
-	result platformcasdoor.RuntimeTokenMinimizationProbeResult
+	result RuntimeTokenMinimizationProbeResult
 	err    error
-	spec   *platformcasdoor.ApplicationSpec
+	spec   *ProvisionedApplicationSpec
 }
 
 func (f *fakeRuntimeTokenProber) ProbeTokenMinimization(
 	_ context.Context,
-	spec platformcasdoor.ApplicationSpec,
-) (platformcasdoor.RuntimeTokenMinimizationProbeResult, error) {
+	spec ProvisionedApplicationSpec,
+) (RuntimeTokenMinimizationProbeResult, error) {
 	specCopy := spec
 	f.spec = &specCopy
 	if f.err != nil {
 		return f.result, f.err
 	}
-	return platformcasdoor.NormalizeRuntimeTokenMinimizationProbeResult(f.result)
+	return normalizeRuntimeTokenMinimizationProbeResult(f.result)
 }

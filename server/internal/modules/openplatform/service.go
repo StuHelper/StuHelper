@@ -15,7 +15,6 @@ import (
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
-	platformcasdoor "git.stuhelper.com/StuHelper/StuHelper/internal/platform/casdoor"
 )
 
 const (
@@ -34,8 +33,8 @@ const (
 var resourceIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 
 type appProvisioner interface {
-	GetApplication(ctx context.Context, name string) (platformcasdoor.ApplicationSpec, error)
-	EnsureApplication(ctx context.Context, spec platformcasdoor.ApplicationSpec) error
+	GetApplication(ctx context.Context, name string) (ProvisionedApplicationSpec, error)
+	EnsureApplication(ctx context.Context, spec ProvisionedApplicationSpec) error
 }
 
 type oidcAuthURLBuilder interface {
@@ -71,7 +70,7 @@ type Service struct {
 type ServiceOption func(*Service)
 
 type tokenMinimizationRuntimeProber interface {
-	ProbeTokenMinimization(context.Context, platformcasdoor.ApplicationSpec) (platformcasdoor.RuntimeTokenMinimizationProbeResult, error)
+	ProbeTokenMinimization(context.Context, ProvisionedApplicationSpec) (RuntimeTokenMinimizationProbeResult, error)
 }
 
 func WithAppProvisioner(provisioner appProvisioner) ServiceOption {

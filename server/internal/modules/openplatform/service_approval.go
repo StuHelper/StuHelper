@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-
-	platformcasdoor "git.stuhelper.com/StuHelper/StuHelper/internal/platform/casdoor"
 )
 
 type ApproveScopeInput struct {
@@ -594,7 +592,7 @@ func (s *Service) ensureCasdoorApplicationReadyForApproval(
 			reviewerUserID,
 			requestID,
 			"failed",
-			platformcasdoor.RuntimeTokenMinimizationProbeResult{},
+			RuntimeTokenMinimizationProbeResult{},
 			err,
 		); auditErr != nil {
 			return auditErr
@@ -610,8 +608,8 @@ func (s *Service) ensureCasdoorApplicationReadyForApproval(
 	return s.ensureCasdoorRuntimeTokenMinimized(ctx, app, spec, reviewerUserID, requestID)
 }
 
-func casdoorApplicationSpecForApprovedApp(app *App, clientSecret string) platformcasdoor.ApplicationSpec {
-	return platformcasdoor.ApplicationSpec{
+func casdoorApplicationSpecForApprovedApp(app *App, clientSecret string) ProvisionedApplicationSpec {
+	return ProvisionedApplicationSpec{
 		Name:                 strings.TrimSpace(app.CasdoorApplicationName),
 		DisplayName:          strings.TrimSpace(app.DisplayName),
 		HomepageURL:          strings.TrimSpace(app.HomepageURL),
@@ -630,11 +628,11 @@ func casdoorApplicationSpecForApprovedApp(app *App, clientSecret string) platfor
 func (s *Service) ensureCasdoorTokenMinimized(
 	ctx context.Context,
 	app *App,
-	spec platformcasdoor.ApplicationSpec,
+	spec ProvisionedApplicationSpec,
 	reviewerUserID int64,
 	requestID string,
 ) error {
-	result, err := platformcasdoor.ProbeApplicationSpecTokenMinimization(spec)
+	result, err := probeApplicationSpecTokenMinimization(spec)
 	if err == nil {
 		return s.recordTokenProbeAudit(ctx, app, spec, reviewerUserID, requestID, "passed", result, nil)
 	}
@@ -647,7 +645,7 @@ func (s *Service) ensureCasdoorTokenMinimized(
 func (s *Service) ensureCasdoorRuntimeTokenMinimized(
 	ctx context.Context,
 	app *App,
-	spec platformcasdoor.ApplicationSpec,
+	spec ProvisionedApplicationSpec,
 	reviewerUserID int64,
 	requestID string,
 ) error {
@@ -663,7 +661,7 @@ func (s *Service) ensureCasdoorRuntimeTokenMinimized(
 			reviewerUserID,
 			requestID,
 			"failed",
-			platformcasdoor.RuntimeTokenMinimizationProbeResult{},
+			RuntimeTokenMinimizationProbeResult{},
 			err,
 		); auditErr != nil {
 			return auditErr
@@ -683,11 +681,11 @@ func (s *Service) ensureCasdoorRuntimeTokenMinimized(
 func (s *Service) recordRuntimeTokenProbeResult(
 	ctx context.Context,
 	app *App,
-	spec platformcasdoor.ApplicationSpec,
+	spec ProvisionedApplicationSpec,
 	reviewerUserID int64,
 	requestID string,
 	result string,
-	probeResult platformcasdoor.RuntimeTokenMinimizationProbeResult,
+	probeResult RuntimeTokenMinimizationProbeResult,
 	cause error,
 ) error {
 	appID := int64(0)
@@ -748,11 +746,11 @@ func (s *Service) recordRuntimeTokenProbeResult(
 func (s *Service) recordTokenProbeAudit(
 	ctx context.Context,
 	app *App,
-	spec platformcasdoor.ApplicationSpec,
+	spec ProvisionedApplicationSpec,
 	reviewerUserID int64,
 	requestID string,
 	result string,
-	probeResult platformcasdoor.TokenMinimizationProbeResult,
+	probeResult TokenMinimizationProbeResult,
 	cause error,
 ) error {
 	appID := int64(0)

@@ -20,7 +20,7 @@ func (rt *Runtime) initOpenPlatformModule(
 	piiCipher *pii.Cipher,
 	userIDResolver middleware.InternalUserIDResolver,
 ) (*openplatform.Handler, *openplatform.Service, error) {
-	provisioner, err := rt.newCasdoorAppProvisioningClient()
+	provisionerClient, err := rt.newCasdoorAppProvisioningClient()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -31,7 +31,7 @@ func (rt *Runtime) initOpenPlatformModule(
 	service, err := openplatform.NewService(
 		openplatform.NewRepository(rt.database),
 		rt.redisClient.GetClient(),
-		openplatform.WithAppProvisioner(provisioner),
+		openplatform.WithAppProvisioner(newCasdoorOpenPlatformProvisioner(provisionerClient)),
 		openplatform.WithOIDCAuthURLBuilder(rt.oidcClient),
 		openplatform.WithPhoneDecryptor(piiCipher),
 		openplatform.WithResourceFGAClient(rt.fgaClient),
@@ -57,16 +57,20 @@ func (rt *Runtime) initOpenPlatformModule(
 	return handler, service, nil
 }
 
-func (rt *Runtime) newOpenPlatformRuntimeTokenProber() (platformcasdoor.RuntimeTokenMinimizationProber, error) {
+func (rt *Runtime) newOpenPlatformRuntimeTokenProber() (*casdoorOpenPlatformRuntimeTokenProber, error) {
 	cfg := rt.cfg.OpenPlatform.TokenProbe
 	if cfg.RuntimeCommand == "" {
 		return nil, nil
 	}
-	return platformcasdoor.NewCommandRuntimeTokenProber(platformcasdoor.RuntimeTokenProbeCommandConfig{
+	prober, err := platformcasdoor.NewCommandRuntimeTokenProber(platformcasdoor.RuntimeTokenProbeCommandConfig{
 		Command: cfg.RuntimeCommand,
 		Issuer:  rt.cfg.Casdoor.Issuer,
 		Timeout: secondsDuration(cfg.RuntimeTimeoutSeconds),
 	})
+	if err != nil {
+		return nil, err
+	}
+	return &casdoorOpenPlatformRuntimeTokenProber{prober: prober}, nil
 }
 
 func openPlatformDisclosureRateLimitConfig(
@@ -130,6 +134,97 @@ func casdoorUserProfileCredential(cfg config.CasdoorConfig) platformcasdoor.Cred
 		Certificate:  cfg.UserProfileCertificate,
 		Organization: cfg.Organization,
 		Application:  cfg.UserProfileApplication,
+	}
+}
+
+type casdoorOpenPlatformProvisioner struct {
+	client *platformcasdoor.Client
+}
+
+func newCasdoorOpenPlatformProvisioner(client *platformcasdoor.Client) *casdoorOpenPlatformProvisioner {
+	if client == nil {
+		return nil
+	}
+	return &casdoorOpenPlatformProvisioner{client: client}
+}
+
+func (p *casdoorOpenPlatformProvisioner) GetApplication(
+	ctx context.Context,
+	name string,
+) (openplatform.ProvisionedApplicationSpec, error) {
+	if p == nil || p.client == nil {
+		return openplatform.ProvisionedApplicationSpec{}, fmt.Errorf("open platform Casdoor application reader is not configured")
+	}
+	spec, err := p.client.GetApplication(ctx, name)
+	if err != nil {
+		return openplatform.ProvisionedApplicationSpec{}, err
+	}
+	return openPlatformApplicationSpecFromCasdoor(spec), nil
+}
+
+func (p *casdoorOpenPlatformProvisioner) EnsureApplication(
+	ctx context.Context,
+	spec openplatform.ProvisionedApplicationSpec,
+) error {
+	if p == nil || p.client == nil {
+		return fmt.Errorf("open platform Casdoor application provisioner is not configured")
+	}
+	return p.client.EnsureApplication(ctx, casdoorApplicationSpecFromOpenPlatform(spec))
+}
+
+type casdoorOpenPlatformRuntimeTokenProber struct {
+	prober platformcasdoor.RuntimeTokenMinimizationProber
+}
+
+func (p *casdoorOpenPlatformRuntimeTokenProber) ProbeTokenMinimization(
+	ctx context.Context,
+	spec openplatform.ProvisionedApplicationSpec,
+) (openplatform.RuntimeTokenMinimizationProbeResult, error) {
+	if p == nil || p.prober == nil {
+		return openplatform.RuntimeTokenMinimizationProbeResult{}, fmt.Errorf("open platform runtime token prober is not configured")
+	}
+	return p.prober.ProbeTokenMinimization(ctx, casdoorApplicationSpecFromOpenPlatform(spec))
+}
+
+func openPlatformApplicationSpecFromCasdoor(
+	spec platformcasdoor.ApplicationSpec,
+) openplatform.ProvisionedApplicationSpec {
+	return openplatform.ProvisionedApplicationSpec{
+		Organization:         spec.Organization,
+		Name:                 spec.Name,
+		DisplayName:          spec.DisplayName,
+		Logo:                 spec.Logo,
+		HomepageURL:          spec.HomepageURL,
+		Description:          spec.Description,
+		ClientID:             spec.ClientID,
+		ClientSecret:         spec.ClientSecret,
+		RedirectURIs:         append([]string(nil), spec.RedirectURIs...),
+		GrantTypes:           append([]string(nil), spec.GrantTypes...),
+		TokenFormat:          spec.TokenFormat,
+		TokenFields:          append([]string(nil), spec.TokenFields...),
+		ExpireInHours:        spec.ExpireInHours,
+		RefreshExpireInHours: spec.RefreshExpireInHours,
+	}
+}
+
+func casdoorApplicationSpecFromOpenPlatform(
+	spec openplatform.ProvisionedApplicationSpec,
+) platformcasdoor.ApplicationSpec {
+	return platformcasdoor.ApplicationSpec{
+		Organization:         spec.Organization,
+		Name:                 spec.Name,
+		DisplayName:          spec.DisplayName,
+		Logo:                 spec.Logo,
+		HomepageURL:          spec.HomepageURL,
+		Description:          spec.Description,
+		ClientID:             spec.ClientID,
+		ClientSecret:         spec.ClientSecret,
+		RedirectURIs:         append([]string(nil), spec.RedirectURIs...),
+		GrantTypes:           append([]string(nil), spec.GrantTypes...),
+		TokenFormat:          spec.TokenFormat,
+		TokenFields:          append([]string(nil), spec.TokenFields...),
+		ExpireInHours:        spec.ExpireInHours,
+		RefreshExpireInHours: spec.RefreshExpireInHours,
 	}
 }
 
