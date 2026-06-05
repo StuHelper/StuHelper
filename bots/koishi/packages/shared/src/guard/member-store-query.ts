@@ -17,6 +17,14 @@ export function activeGuardMemberQuery(record: GuardMemberVersionRef) {
   }
 }
 
+export function activeGuardMemberIDQuery(id: string) {
+  return {
+    id,
+    releasedAt: null,
+    kickedAt: null,
+  }
+}
+
 export function claimedGuardMemberQuery(input: ClaimedGuardMemberVersionRef) {
   return {
     id: input.guardId,

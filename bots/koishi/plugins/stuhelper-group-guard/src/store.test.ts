@@ -17,12 +17,70 @@ test('GuardMemberStore pushes active filters into database queries', async () =>
   } as any)
 
   await store.listActive()
+  await store.listPendingByGuild('guild-1')
   await store.findActiveByAdmissionSessionID('session-1')
 
   assert.deepEqual(queries, [
     { releasedAt: null, kickedAt: null },
+    { guildId: 'guild-1', releasedAt: null, kickedAt: null },
     { admissionSessionID: 'session-1', releasedAt: null, kickedAt: null },
   ])
+})
+
+test('GuardMemberStore marks active records through active-only queries', async () => {
+  const now = new Date('2026-05-05T12:30:00Z')
+  const writes: Array<{
+    query: Record<string, unknown>
+    patch: Record<string, unknown>
+  }> = []
+  const store = new GuardMemberStore({
+    database: {
+      async set(table: string, query: Record<string, unknown>, patch: Record<string, unknown>) {
+        assert.equal(table, GUARD_MEMBER_TABLE)
+        writes.push({ query, patch })
+        return { matched: 1, modified: 1 }
+      },
+    },
+  } as any)
+
+  assert.equal(await store.markMuted('gm-1', now), true)
+  assert.equal(await store.markReminderSent('gm-1', now), true)
+  assert.equal(await store.markReleased('gm-1', now), true)
+  assert.equal(await store.markKicked('gm-1', now), true)
+  assert.equal(await store.markLastError('gm-1', 'send failed', now), true)
+  assert.equal(await store.markBackendSynced('gm-1', {
+    admissionSessionID: 'session-1',
+    backendSyncPending: false,
+    deadlineAt: now,
+    nextReminderAt: now,
+    manualReviewDeadlineAt: null,
+  }), true)
+
+  for (const write of writes) {
+    assert.deepEqual(write.query, { id: 'gm-1', releasedAt: null, kickedAt: null })
+    assert.equal('id' in write.patch, false)
+    assert.equal('platform' in write.patch, false)
+    assert.equal('botSelfId' in write.patch, false)
+    assert.equal('guildId' in write.patch, false)
+    assert.equal('memberId' in write.patch, false)
+  }
+  assert.deepEqual(writes.map((write) => write.patch), [
+    { mutedAt: now, updatedAt: now },
+    { reminderSentAt: now, updatedAt: now },
+    { releasedAt: now, lastError: null, updatedAt: now },
+    { kickedAt: now, lastError: null, updatedAt: now },
+    { lastError: 'send failed', updatedAt: now },
+    {
+      admissionSessionID: 'session-1',
+      backendSyncPending: false,
+      deadlineAt: now,
+      nextReminderAt: now,
+      manualReviewDeadlineAt: null,
+      lastError: null,
+      updatedAt: writes[5].patch.updatedAt,
+    },
+  ])
+  assert.ok(writes[5].patch.updatedAt instanceof Date)
 })
 
 test('GuardMemberStore savePending preserves the previous lastError on re-entry', async () => {

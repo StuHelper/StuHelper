@@ -1,6 +1,9 @@
 import { Context } from 'koishi'
 
-import { GUARD_MEMBER_TABLE } from '@stuhelper/koishi-shared'
+import {
+  activeGuardMemberIDQuery,
+  GUARD_MEMBER_TABLE,
+} from '@stuhelper/koishi-shared'
 
 import type { GuardMemberRecord } from './model'
 
@@ -33,40 +36,45 @@ export class GuardMemberStore {
   }
 
   async markMuted(id: string, now: Date) {
-    await this.ctx.database.set(GUARD_MEMBER_TABLE, { id }, {
+    const result = await this.ctx.database.set(GUARD_MEMBER_TABLE, activeGuardMemberIDQuery(id), {
       mutedAt: now,
       updatedAt: now,
     })
+    return result.matched === 1
   }
 
   async markReminderSent(id: string, now: Date) {
-    await this.ctx.database.set(GUARD_MEMBER_TABLE, { id }, {
+    const result = await this.ctx.database.set(GUARD_MEMBER_TABLE, activeGuardMemberIDQuery(id), {
       reminderSentAt: now,
       updatedAt: now,
     })
+    return result.matched === 1
   }
 
   async markReleased(id: string, now: Date) {
-    await this.ctx.database.set(GUARD_MEMBER_TABLE, { id }, {
+    const result = await this.ctx.database.set(GUARD_MEMBER_TABLE, activeGuardMemberIDQuery(id), {
       releasedAt: now,
       lastError: null,
       updatedAt: now,
     })
+    return result.matched === 1
   }
 
   async markKicked(id: string, now: Date) {
-    await this.ctx.database.set(GUARD_MEMBER_TABLE, { id }, {
+    const result = await this.ctx.database.set(GUARD_MEMBER_TABLE, activeGuardMemberIDQuery(id), {
       kickedAt: now,
       lastError: null,
       updatedAt: now,
     })
+    return result.matched === 1
   }
 
   async markLastError(id: string, message: string, now: Date) {
-    await this.ctx.database.set(GUARD_MEMBER_TABLE, { id }, {
+    const result = await this.ctx.database.set(GUARD_MEMBER_TABLE, activeGuardMemberIDQuery(id), {
       lastError: message,
       updatedAt: now,
     })
+    return result.matched === 1
   }
 
   async listActive() {
@@ -77,8 +85,11 @@ export class GuardMemberStore {
   }
 
   async listPendingByGuild(guildId: string) {
-    const records = await this.listActive()
-    return records.filter((record) => record.guildId === guildId)
+    return this.ctx.database.get(GUARD_MEMBER_TABLE, {
+      guildId,
+      releasedAt: null,
+      kickedAt: null,
+    }) as Promise<GuardMemberRecord[]>
   }
 
   async findActiveByAdmissionSessionID(sessionID: string) {
@@ -135,11 +146,12 @@ export class GuardMemberStore {
       'admissionSessionID' | 'deadlineAt' | 'nextReminderAt' | 'manualReviewDeadlineAt'
     > & { backendSyncPending: false },
   ) {
-    await this.ctx.database.set(GUARD_MEMBER_TABLE, { id }, {
+    const result = await this.ctx.database.set(GUARD_MEMBER_TABLE, activeGuardMemberIDQuery(id), {
       ...input,
       lastError: null,
       updatedAt: new Date(),
     })
+    return result.matched === 1
   }
 
   private async getByID(id: string) {
