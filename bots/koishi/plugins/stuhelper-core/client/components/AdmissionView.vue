@@ -15,6 +15,20 @@
       <div class="sh-workspace-head__actions">
         <el-button
           class="sh-button sh-button--ghost"
+          :disabled="!props.navigation"
+          @click="openPolicyWorkspace('bindings')"
+        >
+          编辑群绑定
+        </el-button>
+        <el-button
+          class="sh-button sh-button--ghost"
+          :disabled="!props.navigation"
+          @click="openPolicyWorkspace('templates')"
+        >
+          编辑模板
+        </el-button>
+        <el-button
+          class="sh-button sh-button--ghost"
           :disabled="loading"
           @click="loadData"
         >
@@ -302,6 +316,7 @@
 import { message } from '@koishijs/client'
 import { computed, ref } from 'vue'
 
+import type { ConsoleNavigationController } from '../composables/use-console-navigation'
 import { useActionError } from '../composables/use-action-error'
 import { useConfirm } from '../composables/use-confirm'
 import { consolePageApi } from '../page-api'
@@ -322,6 +337,12 @@ import EmptyState from './primitives/EmptyState.vue'
 import EntityChip from './primitives/EntityChip.vue'
 import SeverityTag from './primitives/SeverityTag.vue'
 import WorkspaceSection from './primitives/WorkspaceSection.vue'
+
+type GuardPolicyWorkspace = 'templates' | 'bindings'
+
+const props = defineProps<{
+  navigation?: ConsoleNavigationController
+}>()
 
 const loading = ref(false)
 const error = ref('')
@@ -351,6 +372,10 @@ const { state: confirmDialog, confirm, accept: acceptConfirm, cancel: cancelConf
 const model = computed(() => data.value ? buildAdmissionRuntimeModel(data.value) : null)
 
 loadData()
+
+function openPolicyWorkspace(workspace: GuardPolicyWorkspace) {
+  props.navigation?.selectView('config', { workspace })
+}
 
 async function loadData() {
   const requestSeq = ++loadRequestSeq

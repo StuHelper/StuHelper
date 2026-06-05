@@ -720,6 +720,18 @@ test('AdmissionView keeps runtime action failures inside their operation section
   assert.doesNotMatch(runtimeSettingSource, /message\.error\(settingsError\.value \|\|/)
 })
 
+test('AdmissionView exposes guard policy edit entry points', () => {
+  const source = readClientFile('./components/AdmissionView.vue')
+
+  assert.match(source, /import type \{ ConsoleNavigationController \} from '\.\.\/composables\/use-console-navigation'/)
+  assert.match(source, /defineProps<\{\s*navigation\?: ConsoleNavigationController\s*\}>/)
+  assert.match(source, /@click="openPolicyWorkspace\('bindings'\)"/)
+  assert.match(source, />\s*编辑群绑定\s*<\/el-button>/)
+  assert.match(source, /@click="openPolicyWorkspace\('templates'\)"/)
+  assert.match(source, />\s*编辑模板\s*<\/el-button>/)
+  assert.match(source, /function openPolicyWorkspace\(workspace: GuardPolicyWorkspace\) \{\s*props\.navigation\?\.selectView\('config', \{ workspace \}\)\s*\}/)
+})
+
 test('ConfigCenterView uses shared confirmation before discarding dirty governance forms', () => {
   const viewSource = readClientFile('./components/ConfigCenterView.vue')
   const composableSource = readClientFile('./composables/use-config-governance.ts')
