@@ -617,7 +617,8 @@ test('ReviewView keeps action failures inside the action panel instead of replac
   assert.match(source, /error\.value = errorMessage\(cause, '加载处置中心数据失败'\)/)
   assert.match(source, /actionError\.value = errorMessage\(cause, '处置失败'\)/)
   assert.match(source, /message\.error\(actionError\.value\)/)
-  assert.match(source, /function errorMessage\(cause: unknown, fallback: string\): string/)
+  assert.match(source, /import \{ errorMessage \} from '\.\.\/utils\/error-message'/)
+  assert.doesNotMatch(source, /function errorMessage\(cause: unknown, fallback: string\): string/)
   assert.ok(
     source.indexOf("actionError.value = errorMessage(cause, '处置失败')") >
       source.indexOf('await consolePageApi.workItemAction('),
@@ -641,7 +642,8 @@ test('AdmissionView keeps runtime action failures inside their operation section
   assert.match(source, /settingsError\.value = errorMessage\(cause, '保存入群认证运行开关失败'\)/)
   assert.match(source, /message\.error\(actionError\.value\)/)
   assert.match(source, /message\.error\(settingsError\.value\)/)
-  assert.match(source, /function errorMessage\(cause: unknown, fallback: string\): string/)
+  assert.match(source, /import \{ errorMessage \} from '\.\.\/utils\/error-message'/)
+  assert.doesNotMatch(source, /function errorMessage\(cause: unknown, fallback: string\): string/)
   assert.ok(
     source.indexOf("actionError.value = errorMessage(cause, '入群认证操作失败')") >
       source.indexOf('await consolePageApi.admissionAction({'),

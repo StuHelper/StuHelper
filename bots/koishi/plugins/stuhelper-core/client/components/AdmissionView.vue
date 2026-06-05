@@ -314,6 +314,7 @@ import {
   type AdmissionRuntimeSettingsPatch,
   type AdmissionSwitchRow,
 } from '../models/admission-runtime'
+import { errorMessage } from '../utils/error-message'
 import ConfirmDialog from './primitives/ConfirmDialog.vue'
 import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
 import EmptyState from './primitives/EmptyState.vue'
@@ -405,12 +406,6 @@ async function submitRuntimeSetting(row: AdmissionSwitchRow, enabled: boolean) {
   } finally {
     settingLoadingKey.value = ''
   }
-}
-
-function errorMessage(cause: unknown, fallback: string): string {
-  if (cause instanceof Error && cause.message) return cause.message
-  if (typeof cause === 'string' && cause.trim()) return cause
-  return fallback
 }
 
 function actionLabel(action: AdmissionRuntimeAction) {

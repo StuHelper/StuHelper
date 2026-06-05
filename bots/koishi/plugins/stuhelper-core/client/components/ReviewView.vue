@@ -221,6 +221,7 @@ import { consolePageApi } from '../page-api'
 import type { ReviewPageData, ReviewWorkItem } from '../page-types'
 import { formatTimestamp } from '../models/formatters'
 import { buildReviewModel, REVIEW_ACTION_LABELS, REVIEW_KIND_LABELS } from '../models/review'
+import { errorMessage } from '../utils/error-message'
 import ConfirmDialog from './primitives/ConfirmDialog.vue'
 import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
 import EmptyState from './primitives/EmptyState.vue'
@@ -378,12 +379,6 @@ async function submitAction(action: ReviewWorkItem['availableActions'][number]) 
   } finally {
     actionLoading.value = false
   }
-}
-
-function errorMessage(cause: unknown, fallback: string): string {
-  if (cause instanceof Error && cause.message) return cause.message
-  if (typeof cause === 'string' && cause.trim()) return cause
-  return fallback
 }
 
 function metricIntent(index: number, value: number): string {
