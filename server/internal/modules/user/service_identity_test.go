@@ -36,13 +36,12 @@ func TestNewService_ValidConstruction(t *testing.T) {
 	assert.NotNil(t, svc.docCipher)
 }
 
-func TestBindPhone_WritesCasdoorAndMaskedProfileProjection(t *testing.T) {
+func TestBindPhone_WritesCasdoorAndUserPhoneProjection(t *testing.T) {
 	var (
-		updatedProfile *Profile
-		syncedSubject  string
-		syncedPhone    string
-		phoneEnc       []byte
-		phoneHash      string
+		syncedSubject string
+		syncedPhone   string
+		phoneEnc      []byte
+		phoneHash     string
 	)
 	hmacKey := []byte("test-hmac-key-at-least-32-chars!")
 	expectedHash, err := phoneutil.HashLookupWithKey("13800138000", hmacKey)
@@ -57,8 +56,7 @@ func TestBindPhone_WritesCasdoorAndMaskedProfileProjection(t *testing.T) {
 			return "casdoor-subject-42", nil
 		},
 		onUpdateProfile: func(_ context.Context, profile *Profile) error {
-			cp := *profile
-			updatedProfile = &cp
+			t.Fatal("BindPhone must not update user_profiles; phone projection is stored on users")
 			return nil
 		},
 		onSetUserPhone: func(_ context.Context, userID int64, gotPhoneEnc []byte, gotPhoneHash string) error {
@@ -86,10 +84,6 @@ func TestBindPhone_WritesCasdoorAndMaskedProfileProjection(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "casdoor-subject-42", syncedSubject)
 	assert.Equal(t, "+8613800138000", syncedPhone)
-	require.NotNil(t, updatedProfile)
-	require.NotNil(t, updatedProfile.Phone)
-	assert.Equal(t, "138****8000", *updatedProfile.Phone)
-	assert.True(t, updatedProfile.PhoneVerified)
 	assert.Equal(t, []byte("encrypted:138****8000"), phoneEnc)
 	assert.Equal(t, expectedHash, phoneHash)
 }

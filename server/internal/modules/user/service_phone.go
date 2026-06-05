@@ -92,7 +92,7 @@ func (s *Service) BindPhone(ctx context.Context, userID int64, phone string) err
 		return ErrProfileNotFound
 	}
 
-	masked, phoneEnc, phoneHash, err := s.prepareAvailablePhoneProjection(ctx, userID, trimmed)
+	_, phoneEnc, phoneHash, err := s.prepareAvailablePhoneProjection(ctx, userID, trimmed)
 	if err != nil {
 		return fmt.Errorf("BindPhone check phone projection: %w", err)
 	}
@@ -105,13 +105,8 @@ func (s *Service) BindPhone(ctx context.Context, userID int64, phone string) err
 		return fmt.Errorf("BindPhone update Casdoor phone: %w", err)
 	}
 
-	profile.Phone = &masked
-	profile.PhoneVerified = true
 	if err := s.repo.SetUserPhone(ctx, userID, phoneEnc, phoneHash); err != nil {
 		return fmt.Errorf("BindPhone update phone projection: %w", err)
-	}
-	if err := s.repo.UpdateProfile(ctx, profile); err != nil {
-		return fmt.Errorf("BindPhone update profile projection: %w", err)
 	}
 	return nil
 }
