@@ -17,6 +17,7 @@ import type {
 } from '../../runtime/types'
 import { getRequiredPluginConfig } from './module-config'
 import { registerCommandLogCommands } from './log-command-commands'
+import { markCommandExecutionFailed } from './command-execution-state'
 import { registerLogEventListeners } from './log-events'
 import { registerOperationLogCommands } from './log-operation-commands'
 import { normalizeCommandLogRecords } from './command-log-records'
@@ -112,7 +113,7 @@ export class LogModule implements RuntimeModuleInstance {
 
   async logCommand(entry: LogCommandEntry): Promise<void> {
     if (entry.success === false) {
-      entry.session['_commandFailed'] = true
+      markCommandExecutionFailed(entry.session)
     }
     await this.ctx.stuhelperGroupCenter.logCommand({
       session: entry.session,

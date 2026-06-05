@@ -11,6 +11,7 @@ import type {
   RuntimeModuleMeta,
   RuntimeModuleState,
 } from '../../runtime/types'
+import { markCommandExecutionFailed } from './command-execution-state'
 import { getRequiredPluginConfig } from './module-config'
 import { registerKeywordForbiddenCommand } from './keyword-forbidden-command'
 import { registerKeywordMiddleware } from './keyword-middleware'
@@ -74,7 +75,7 @@ export class KeywordModule implements RuntimeModuleInstance {
   }): Promise<void> {
     const { session, command, target, result, success } = entry
     if (success === false) {
-      session['_commandFailed'] = true
+      markCommandExecutionFailed(session)
     }
     await this.ctx.stuhelperGroupCenter.logCommand({ session, command, target, result })
   }

@@ -16,6 +16,7 @@ import {
   scheduleAntiRecallCleanup,
 } from './antirecall-events'
 import { registerAntiRecallCommands } from './antirecall-commands'
+import { markCommandExecutionFailed } from './command-execution-state'
 import type { AntiRecallStatus } from './antirecall-formatters'
 
 export interface CachedMessage {
@@ -88,7 +89,7 @@ export class AntiRecallModule implements RuntimeModuleInstance {
 
   async logCommand(entry: AntiRecallLogEntry): Promise<void> {
     if (entry.success === false) {
-      entry.session['_commandFailed'] = true
+      markCommandExecutionFailed(entry.session)
     }
     await this.ctx.stuhelperGroupCenter.logCommand({
       session: entry.session,

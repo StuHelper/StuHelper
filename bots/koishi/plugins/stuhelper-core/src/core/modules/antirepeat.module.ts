@@ -14,6 +14,7 @@ import type {
   RuntimeModuleMeta,
   RuntimeModuleState,
 } from '../../runtime/types'
+import { markCommandExecutionFailed } from './command-execution-state'
 import { getRequiredPluginConfig } from './module-config'
 
 const DEFAULT_ANTIREPEAT_THRESHOLD = 5
@@ -174,7 +175,7 @@ function logAntirepeatAction(
   entry: AntirepeatLogEntry,
 ): void {
   if (entry.success === false) {
-    entry.session['_commandFailed'] = true
+    markCommandExecutionFailed(entry.session)
   }
   host.ctx.stuhelperGroupCenter.logCommand({
     session: entry.session,

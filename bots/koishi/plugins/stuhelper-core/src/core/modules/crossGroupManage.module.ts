@@ -15,6 +15,7 @@ import type {
   RuntimeModuleMeta,
   RuntimeModuleState,
 } from '../../runtime/types'
+import { markCommandExecutionFailed } from './command-execution-state'
 
 interface CommandLogEntry {
   readonly session: Session
@@ -170,7 +171,7 @@ function buildSendLogEntry(
 
 function logCommand(ctx: Context, entry: CommandLogEntry): void {
   if (entry.success === false) {
-    entry.session['_commandFailed'] = true
+    markCommandExecutionFailed(entry.session)
   }
   ctx.stuhelperGroupCenter.logCommand({
     session: entry.session,

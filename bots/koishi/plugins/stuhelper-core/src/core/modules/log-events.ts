@@ -1,5 +1,11 @@
 import type { Session } from 'koishi'
 
+import {
+  clearCommandExecutionState,
+  commandExecutionDuration,
+  getCommandExecutionState,
+  markCommandExecutionStarted,
+} from './command-execution-state'
 import type { CommandLogRecord, LogModule } from './log.module'
 
 const DEFAULT_USER_AUTHORITY = 1
@@ -8,29 +14,42 @@ const RANDOM_ID_START = 2
 const RANDOM_ID_LENGTH = 9
 
 interface CommandExecutionInput {
-  argv: any
+  argv: CommandArgvLike
   success: boolean
   error?: string
-  result?: any
+  result?: unknown
 }
 
 interface CommandLogRecordInput {
-  argv: any
+  argv: CommandArgvLike
   session: Session
   success: boolean
   error?: string
-  result?: any
+  result?: unknown
   userAuthority: number
+}
+
+interface CommandArgvLike {
+  readonly session?: Session
+  readonly command?: {
+    readonly name?: string
+  }
+  readonly name?: string
+  readonly args?: readonly unknown[]
+  readonly options?: unknown
 }
 
 export function registerLogEventListeners(host: LogModule): void {
   host.ctx.on('command/before-execute', (argv) => {
-    ;(argv as any)._startTime = Date.now()
+    markCommandExecutionStarted(argv)
   })
 
   host.ctx.on('command-error', (argv, error) => {
+    const commandArgv = toCommandArgv(argv)
+    if (!commandArgv) return
+
     void recordCommandExecution(host, {
-      argv,
+      argv: commandArgv,
       success: false,
       error: error?.message || 'Unknown error',
     })
@@ -38,15 +57,15 @@ export function registerLogEventListeners(host: LogModule): void {
 
   host.ctx.middleware(async (session, next) => {
     const result = await next()
-    if (session.argv?.command) {
-      const commandFailed = (session as any)._commandFailed
-      const commandError = (session as any)._commandError
+    const commandArgv = toCommandArgv(session.argv)
+    if (commandArgv?.command) {
+      const commandState = getCommandExecutionState(session)
       void recordCommandExecution(host, {
-        argv: session.argv,
-        success: !commandFailed,
-        error: commandFailed ? commandError : undefined,
+        argv: commandArgv,
+        success: !commandState.failed,
+        error: commandState.error,
         result,
-      })
+      }).finally(() => clearCommandExecutionState(session))
     }
     return result
   }, true)
@@ -83,7 +102,7 @@ async function resolveUserAuthority(host: LogModule, session: Session): Promise<
 }
 
 function buildCommandLogRecord(input: CommandLogRecordInput): CommandLogRecord {
-  const executionTime = input.argv._startTime ? Date.now() - input.argv._startTime : 0
+  const executionTime = commandExecutionDuration(input.argv)
   const session = input.session
 
   return {
@@ -93,12 +112,12 @@ function buildCommandLogRecord(input: CommandLogRecordInput): CommandLogRecord {
     username: session.username || session.author?.nickname || session.author?.username || 'unknown',
     userAuthority: input.userAuthority,
     guildId: session.guildId,
-    guildName: (session.guild as any)?.name,
+    guildName: readGuildName(session),
     channelId: session.channelId,
     platform: session.platform || 'unknown',
     command: input.argv.command?.name || input.argv.name || 'unknown',
-    args: input.argv.args || [],
-    options: input.argv.options || {},
+    args: readArgs(input.argv),
+    options: readOptions(input.argv),
     success: input.success,
     error: input.error,
     executionTime,
@@ -106,4 +125,29 @@ function buildCommandLogRecord(input: CommandLogRecordInput): CommandLogRecord {
     messageId: session.messageId,
     isPrivate: !session.guildId,
   }
+}
+
+function toCommandArgv(value: unknown): CommandArgvLike | null {
+  if (!isRecord(value)) return null
+  return value
+}
+
+function readArgs(argv: CommandArgvLike): string[] {
+  if (!Array.isArray(argv.args)) return []
+  return argv.args.map((value) => String(value))
+}
+
+function readOptions(argv: CommandArgvLike): Record<string, unknown> {
+  return isRecord(argv.options) ? argv.options : {}
+}
+
+function readGuildName(session: Session): string | undefined {
+  const guild: unknown = session.guild
+  if (!isRecord(guild)) return undefined
+
+  return typeof guild.name === 'string' ? guild.name : undefined
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
 }

@@ -11,6 +11,7 @@ import type {
   RuntimeModuleMeta,
   RuntimeModuleState,
 } from '../../runtime/types'
+import { markCommandExecutionFailed } from './command-execution-state'
 import { getRequiredPluginConfig } from './module-config'
 import { registerMemberManageCommands } from './member-manage-commands'
 
@@ -71,7 +72,7 @@ export class MemberManageModule implements RuntimeModuleInstance {
   }): void {
     const { session, command, target, result, success } = entry
     if (success === false) {
-      session['_commandFailed'] = true
+      markCommandExecutionFailed(session)
     }
     void this.ctx.stuhelperGroupCenter.logCommand({ session, command, target, result })
   }

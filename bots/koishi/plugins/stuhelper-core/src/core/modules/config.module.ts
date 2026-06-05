@@ -17,6 +17,7 @@ import type {
   RuntimeModuleMeta,
   RuntimeModuleState,
 } from '../../runtime/types'
+import { markCommandExecutionFailed } from './command-execution-state'
 import { getRequiredPluginConfig } from './module-config'
 import { registerConfigCommands } from './config-commands'
 import type { MemberBlacklistBackend } from './member-blacklist-backend'
@@ -79,7 +80,7 @@ export class ConfigModule implements RuntimeModuleInstance {
   }): Promise<void> {
     const { session, command, target, result, success } = entry
     if (success === false) {
-      session['_commandFailed'] = true
+      markCommandExecutionFailed(session)
     }
     await this.ctx.stuhelperGroupCenter.logCommand({ session, command, target, result })
   }
