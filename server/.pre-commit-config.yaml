@@ -20,5 +20,5 @@ repos:
     hooks:
       - id: go-fmt
       - id: go-imports
-        args: ['-local', 'gitea.stuhelper.com/StuHelper/StuHelper']
+        args: ['-local', 'git.stuhelper.com/StuHelper/StuHelper']
       - id: go-mod-tidy
