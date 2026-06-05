@@ -17,7 +17,8 @@ var (
 type OTPGenerator interface {
 	IssueCode(ctx context.Context, phone string, smsSender SMSSender) error
 	CooldownSeconds() int
-	Verify(ctx context.Context, phone, code string) error
+	Check(ctx context.Context, phone, code string) error
+	Consume(ctx context.Context, phone string) error
 }
 
 // SMSSender 负责向手机号发送短信，例如 OTP 验证码。

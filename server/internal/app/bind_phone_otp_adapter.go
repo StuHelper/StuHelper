@@ -24,8 +24,12 @@ func (a bindPhoneOTPAdapter) CooldownSeconds() int {
 	return a.service.CooldownSeconds()
 }
 
-func (a bindPhoneOTPAdapter) Verify(ctx context.Context, phone, code string) error {
-	return normalizeBindPhoneOTPError(a.service.Verify(ctx, phone, code))
+func (a bindPhoneOTPAdapter) Check(ctx context.Context, phone, code string) error {
+	return normalizeBindPhoneOTPError(a.service.Check(ctx, phone, code))
+}
+
+func (a bindPhoneOTPAdapter) Consume(ctx context.Context, phone string) error {
+	return normalizeBindPhoneOTPError(a.service.Consume(ctx, phone))
 }
 
 func normalizeBindPhoneOTPError(err error) error {

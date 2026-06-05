@@ -423,7 +423,7 @@ func (h *Handler) handleBindPhone(c *gin.Context) {
 		return
 	}
 
-	if err := h.otpService.Verify(c.Request.Context(), phone, req.OTPCode); err != nil {
+	if err := h.otpService.Check(c.Request.Context(), phone, req.OTPCode); err != nil {
 		switch {
 		case errors.Is(err, ErrBindPhoneOTPExpired):
 			response.Unauthorized(c, "verification code expired", errs.ErrPhoneOTPExpired)
@@ -435,7 +435,7 @@ func (h *Handler) handleBindPhone(c *gin.Context) {
 			response.Unauthorized(c, "invalid verification code", errs.ErrPhoneOTPFailed)
 			return
 		}
-		logger.FromGin(c).Error("failed to verify bind phone OTP", zap.Error(err))
+		logger.FromGin(c).Error("failed to check bind phone OTP", zap.Error(err))
 		response.InternalError(c, "verification failed")
 		return
 	}
@@ -447,6 +447,11 @@ func (h *Handler) handleBindPhone(c *gin.Context) {
 		}
 		logger.FromGin(c).Error("failed to bind phone", zap.Error(err))
 		response.InternalError(c, "failed to bind phone")
+		return
+	}
+	if err := h.otpService.Consume(c.Request.Context(), phone); err != nil {
+		logger.FromGin(c).Error("failed to consume bind phone OTP", zap.Error(err))
+		response.InternalError(c, "failed to finalize phone binding")
 		return
 	}
 

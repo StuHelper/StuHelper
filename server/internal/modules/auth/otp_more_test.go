@@ -77,6 +77,26 @@ func TestOTPService_CleanupCodeOnlyAndVerifySuccess(t *testing.T) {
 	assert.False(t, fixture.Server.Exists(attemptsKey))
 }
 
+func TestOTPService_CheckDoesNotConsumeCode(t *testing.T) {
+	svc, fixture := newOTPServiceForTest(t)
+	ctx := context.Background()
+	phone := "13800138001"
+
+	code, err := svc.Generate(ctx, phone)
+	require.NoError(t, err)
+	phoneKey, err := phoneutil.HashLookup(phone)
+	require.NoError(t, err)
+	codeKey := otpCodePrefix + phoneKey
+	attemptsKey := otpAttemptsPrefix + phoneKey
+
+	require.NoError(t, svc.Check(ctx, phone, code))
+	assert.True(t, fixture.Server.Exists(codeKey))
+
+	require.NoError(t, svc.Consume(ctx, phone))
+	assert.False(t, fixture.Server.Exists(codeKey))
+	assert.False(t, fixture.Server.Exists(attemptsKey))
+}
+
 func TestOTPService_VerifyMaxAttemptsAndGenerateNumericCode(t *testing.T) {
 	svc, fixture := newOTPServiceForTest(t)
 	ctx := context.Background()

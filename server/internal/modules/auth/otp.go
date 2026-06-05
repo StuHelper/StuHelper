@@ -247,8 +247,8 @@ func (s *OTPService) CleanupCodeOnly(ctx context.Context, phone string) error {
 	return nil
 }
 
-// Verify 验证验证码。成功后自动删除，确保一次性使用。
-func (s *OTPService) Verify(ctx context.Context, phone, code string) error {
+// Check 验证验证码是否正确；成功时不删除验证码，方便调用方在本地提交成功后再显式消费。
+func (s *OTPService) Check(ctx context.Context, phone, code string) error {
 	phoneKey, err := otpPhoneKey(phone)
 	if err != nil {
 		return err
@@ -282,11 +282,29 @@ func (s *OTPService) Verify(ctx context.Context, phone, code string) error {
 		return ErrOTPInvalidCode
 	}
 
-	// 验证成功，删除验证码和尝试计数
+	return nil
+}
+
+// Consume 删除验证码和尝试计数。调用方应在依赖该验证码的业务提交成功后调用。
+func (s *OTPService) Consume(ctx context.Context, phone string) error {
+	phoneKey, err := otpPhoneKey(phone)
+	if err != nil {
+		return err
+	}
+	codeKey := otpCodePrefix + phoneKey
+	attemptsKey := otpAttemptsPrefix + phoneKey
 	if delErr := s.rdb.Del(ctx, codeKey, attemptsKey).Err(); delErr != nil {
-		return fmt.Errorf("otp: cleanup after verify: %w", delErr)
+		return fmt.Errorf("otp: consume code: %w", delErr)
 	}
 	return nil
+}
+
+// Verify 验证验证码。成功后自动删除，确保一次性使用。
+func (s *OTPService) Verify(ctx context.Context, phone, code string) error {
+	if err := s.Check(ctx, phone, code); err != nil {
+		return err
+	}
+	return s.Consume(ctx, phone)
 }
 
 // generateNumericCode 生成指定位数的随机数字验证码

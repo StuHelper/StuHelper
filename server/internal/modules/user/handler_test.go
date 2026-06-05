@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -173,7 +174,11 @@ func setupUserHandlerTestRouterWithRuntimeDeps(
 }
 
 type stubBindPhoneOTPGenerator struct {
-	issueCalls int
+	issueCalls   int
+	checkCalls   int
+	consumeCalls int
+	checkErr     error
+	consumeErr   error
 }
 
 func (s *stubBindPhoneOTPGenerator) IssueCode(_ context.Context, _ string, _ SMSSender) error {
@@ -185,8 +190,14 @@ func (s *stubBindPhoneOTPGenerator) CooldownSeconds() int {
 	return 60
 }
 
-func (s *stubBindPhoneOTPGenerator) Verify(context.Context, string, string) error {
-	return nil
+func (s *stubBindPhoneOTPGenerator) Check(context.Context, string, string) error {
+	s.checkCalls++
+	return s.checkErr
+}
+
+func (s *stubBindPhoneOTPGenerator) Consume(context.Context, string) error {
+	s.consumeCalls++
+	return s.consumeErr
 }
 
 type stubBindPhoneSMSSender struct{}
@@ -844,6 +855,91 @@ func TestHandleRequestBindPhoneOTP_IsRateLimitedPerUserEndpoint(t *testing.T) {
 	r.ServeHTTP(w, req)
 	require.Equal(t, http.StatusTooManyRequests, w.Code)
 	assert.Equal(t, bindPhoneOTPUserLimitPerMinute, otp.issueCalls)
+}
+
+func TestHandleBindPhoneConsumesOTPOnlyAfterSuccessfulBind(t *testing.T) {
+	otp := &stubBindPhoneOTPGenerator{}
+	repo := &mockRepo{
+		onGetInternalUserID: func(_ context.Context, _ string) (int64, error) {
+			return 42, nil
+		},
+		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
+			assert.Equal(t, int64(42), userID)
+			return &Profile{UserID: userID}, nil
+		},
+		onGetCasdoorSubject: func(_ context.Context, userID int64) (string, error) {
+			assert.Equal(t, int64(42), userID)
+			return "casdoor-subject-42", nil
+		},
+	}
+	r := setupUserHandlerTestRouterWithRuntimeDeps(
+		t,
+		repo,
+		nil,
+		otp,
+		stubBindPhoneSMSSender{},
+		WithProfileIdentitySyncGateway(profileIdentitySyncFunc(func(context.Context, string, string) error {
+			return nil
+		})),
+	)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/profile/bind-phone",
+		strings.NewReader(`{"phone":"13800138000","otpCode":"123456"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, 1, otp.checkCalls)
+	assert.Equal(t, 1, otp.consumeCalls)
+}
+
+func TestHandleBindPhoneKeepsOTPWhenBindFails(t *testing.T) {
+	otp := &stubBindPhoneOTPGenerator{}
+	setPhoneErr := errors.New("phone projection unavailable")
+	repo := &mockRepo{
+		onGetInternalUserID: func(_ context.Context, _ string) (int64, error) {
+			return 42, nil
+		},
+		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
+			assert.Equal(t, int64(42), userID)
+			return &Profile{UserID: userID}, nil
+		},
+		onGetCasdoorSubject: func(_ context.Context, userID int64) (string, error) {
+			assert.Equal(t, int64(42), userID)
+			return "casdoor-subject-42", nil
+		},
+		onSetUserPhone: func(_ context.Context, userID int64, _ []byte, _ string) error {
+			assert.Equal(t, int64(42), userID)
+			return setPhoneErr
+		},
+	}
+	r := setupUserHandlerTestRouterWithRuntimeDeps(
+		t,
+		repo,
+		nil,
+		otp,
+		stubBindPhoneSMSSender{},
+		WithProfileIdentitySyncGateway(profileIdentitySyncFunc(func(context.Context, string, string) error {
+			return nil
+		})),
+	)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/profile/bind-phone",
+		strings.NewReader(`{"phone":"13800138000","otpCode":"123456"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, 1, otp.checkCalls)
+	assert.Equal(t, 0, otp.consumeCalls)
 }
 
 func TestHandleAdminListSchoolConfigs_MapsToSpecShape(t *testing.T) {
