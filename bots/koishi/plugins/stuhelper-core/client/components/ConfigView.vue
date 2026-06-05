@@ -727,10 +727,10 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { message } from '@koishijs/client'
 import { configApi } from '../api'
+import { useActionError } from '../composables/use-action-error'
 import type { ConsoleNavigationController } from '../composables/use-console-navigation'
 import { normalizeGroupConfigForEdit } from '../models/config-editor'
 import type { GroupConfig } from '../types'
-import { errorMessage } from '../utils/error-message'
 
 const props = defineProps<{
   navigation?: ConsoleNavigationController
@@ -746,8 +746,15 @@ const searchQuery = ref('')
 const viewMode = ref<'grid' | 'list'>('list')
 const configs = ref<Record<string, GroupConfig>>({})
 const loadError = ref('')
-const actionError = ref('')
-const actionErrorTitle = ref('操作失败')
+const {
+  actionError,
+  actionErrorTitle,
+  setActionError,
+  clearActionError,
+  errorMessage,
+} = useActionError({
+  onError: (_title, details) => message.error(details),
+})
 let refreshRequestSeq = 0
 
 // 过滤后的配置列表
@@ -942,18 +949,6 @@ const confirmDelete = async () => {
   } finally {
     deleting.value = false
   }
-}
-
-function setActionError(title: string, cause: unknown, fallback: string): void {
-  const details = errorMessage(cause, fallback)
-  actionErrorTitle.value = title
-  actionError.value = details
-  message.error(details)
-}
-
-function clearActionError(): void {
-  actionErrorTitle.value = '操作失败'
-  actionError.value = ''
 }
 
 const copyGuildId = async (guildId?: string) => {

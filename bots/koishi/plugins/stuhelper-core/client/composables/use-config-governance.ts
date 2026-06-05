@@ -31,7 +31,7 @@ import {
   isTemplateFormDirty,
 } from '../models/config-editor'
 import { buildConfigGovernanceModel } from '../models/config'
-import { errorMessage } from '../utils/error-message'
+import { useActionError } from './use-action-error'
 
 type WorkspaceId = 'guild-config' | 'templates' | 'bindings' | 'command-policies'
 type ConfirmDiscardChanges = (message: string) => boolean | Promise<boolean>
@@ -42,8 +42,13 @@ export function useConfigGovernance(
 ) {
   const loading = ref(false)
   const error = ref('')
-  const actionError = ref('')
-  const actionErrorTitle = ref('操作失败')
+  const {
+    actionError,
+    actionErrorTitle,
+    setActionError,
+    clearActionError,
+    errorMessage,
+  } = useActionError()
   const data = ref<ConfigGovernancePageData | null>(null)
   const currentWorkspace = ref<WorkspaceId>('guild-config')
   const notice = ref('')
@@ -283,13 +288,4 @@ export function useConfigGovernance(
     return false
   }
 
-  function setActionError(title: string, cause: unknown, fallback: string) {
-    actionErrorTitle.value = title
-    actionError.value = errorMessage(cause, fallback)
-  }
-
-  function clearActionError() {
-    actionErrorTitle.value = '操作失败'
-    actionError.value = ''
-  }
 }

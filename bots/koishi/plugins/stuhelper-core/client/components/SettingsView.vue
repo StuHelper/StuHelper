@@ -670,7 +670,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { message } from '@koishijs/client'
 import { settingsApi } from '../api'
-import { errorMessage } from '../utils/error-message'
+import { useActionError } from '../composables/use-action-error'
 
 type PlainRecord = Record<string, unknown>
 
@@ -830,8 +830,15 @@ const defaultSettings: SettingsModel = {
 const loading = ref(true)
 const saving = ref(false)
 const loadError = ref('')
-const actionError = ref('')
-const actionErrorTitle = ref('操作失败')
+const {
+  actionError,
+  actionErrorTitle,
+  setActionError,
+  clearActionError,
+  errorMessage,
+} = useActionError({
+  onError: (_title, details) => message.error(details),
+})
 const settings = ref<SettingsModel>(cloneDefaultSettings())
 const originalSettings = ref<string>('') // 原始设置的 JSON 字符串用于比较
 const activeSection = ref('warn')
@@ -1011,18 +1018,6 @@ const saveSettings = async () => {
   } finally {
     saving.value = false
   }
-}
-
-function setActionError(title: string, cause: unknown, fallback: string): void {
-  const details = errorMessage(cause, fallback)
-  actionErrorTitle.value = title
-  actionError.value = details
-  message.error(details)
-}
-
-function clearActionError(): void {
-  actionErrorTitle.value = '操作失败'
-  actionError.value = ''
 }
 
 const resetChanges = async () => {

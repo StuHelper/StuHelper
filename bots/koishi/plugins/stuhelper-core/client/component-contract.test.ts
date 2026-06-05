@@ -118,7 +118,7 @@ test('console views treat caught errors as unknown before showing messages', () 
 
   for (const source of [chatSource, configSource, settingsSource]) {
     assert.doesNotMatch(source, /catch \(e: any\)/)
-    assert.match(source, /function errorMessage\(cause: unknown\): string|const errorMessage = \(cause: unknown\)|import \{ errorMessage \} from '\.\.\/utils\/error-message'|useActionFeedback\(\)/)
+    assert.match(source, /function errorMessage\(cause: unknown\): string|const errorMessage = \(cause: unknown\)|import \{ errorMessage \} from '\.\.\/utils\/error-message'|useActionFeedback\(\)|useActionError\(/)
   }
 })
 
@@ -386,7 +386,7 @@ test('top-level console pages keep load failures retryable without hiding stale 
       } else if (logicSource.includes('function errorMessage(')) {
         assert.match(logicSource, /function errorMessage\(cause: unknown, fallback: string\): string/)
       } else {
-        assert.match(logicSource, /errorMessage,[\s\S]*\} = useActionFeedback\(\)/)
+        assert.match(logicSource, /errorMessage,[\s\S]*\} = useAction(?:Feedback|Error)\(/)
       }
       assert.match(logicSource, /let loadRequestSeq = 0/)
       assert.match(logicSource, /const requestSeq = \+\+loadRequestSeq/)
@@ -447,15 +447,16 @@ test('ConfigView keeps config list loading failures visible and retryable', () =
   assert.match(source, /message\.error\(details\)/)
   assert.match(source, /return false\s*\} finally \{\s*if \(requestSeq === refreshRequestSeq\) \{\s*loading\.value = false\s*\}/)
   assert.match(source, /void refreshConfigs\(\)\.then\(\(loaded\) => \{\s*if \(loaded\) applyNavigationState\(\)\s*\}\)/)
-  assert.match(source, /import \{ errorMessage \} from '\.\.\/utils\/error-message'/)
+  assert.match(source, /import \{ useActionError \} from '\.\.\/composables\/use-action-error'/)
   assert.doesNotMatch(source, /function errorMessage\(cause: unknown\): string/)
 })
 
 test('ConfigView keeps config operation failures visible', () => {
   const source = readClientFile('./components/ConfigView.vue')
 
-  assert.match(source, /const actionError = ref\(''\)/)
-  assert.match(source, /const actionErrorTitle = ref\('操作失败'\)/)
+  assert.match(source, /import \{ useActionError \} from '\.\.\/composables\/use-action-error'/)
+  assert.match(source, /actionError,[\s\S]*actionErrorTitle,[\s\S]*setActionError,[\s\S]*clearActionError,[\s\S]*errorMessage,[\s\S]*\} = useActionError\(\{/)
+  assert.match(source, /onError: \(_title, details\) => message\.error\(details\)/)
   assert.match(source, /<button class="btn btn-primary" @click="openCreateDialog">/)
   assert.match(source, /<div v-if="!loading && actionError" class="config-action-error" role="alert">/)
   assert.match(source, /<strong>\{\{ actionErrorTitle \}\}<\/strong>/)
@@ -463,13 +464,14 @@ test('ConfigView keeps config operation failures visible', () => {
   assert.match(source, /@click="clearActionError"/)
   assert.match(source, /<div v-if="actionError" class="config-action-error config-action-error--dialog" role="alert">/)
   assert.match(source, /const openCreateDialog = \(\) => \{\s*clearActionError\(\)\s*showCreateDialog\.value = true\s*\}/)
-  assert.match(source, /function setActionError\(title: string, cause: unknown, fallback: string\): void/)
-  assert.match(source, /const details = errorMessage\(cause, fallback\)\s*actionErrorTitle\.value = title\s*actionError\.value = details\s*message\.error\(details\)/)
-  assert.match(source, /function clearActionError\(\): void \{\s*actionErrorTitle\.value = '操作失败'\s*actionError\.value = ''\s*\}/)
   assert.match(source, /setActionError\('重新加载失败', cause, '重新加载失败'\)/)
   assert.match(source, /setActionError\('保存失败', cause, '保存失败'\)/)
   assert.match(source, /setActionError\('创建失败', cause, '创建失败'\)/)
   assert.match(source, /setActionError\('删除失败', cause, '删除失败'\)/)
+  assert.doesNotMatch(source, /const actionError = ref\(''\)/)
+  assert.doesNotMatch(source, /const actionErrorTitle = ref\('操作失败'\)/)
+  assert.doesNotMatch(source, /function setActionError\(title: string, cause: unknown, fallback: string\): void/)
+  assert.doesNotMatch(source, /function clearActionError\(\): void/)
   assert.doesNotMatch(source, /message\.error\(errorMessage\(cause\) \|\| '保存失败'\)/)
   assert.doesNotMatch(source, /message\.error\(errorMessage\(cause\) \|\| '创建失败'\)/)
   assert.doesNotMatch(source, /message\.error\(errorMessage\(cause\) \|\| '删除失败'\)/)
@@ -510,15 +512,16 @@ test('SettingsView blocks default-form edits when global settings fail to load',
   assert.match(source, /originalSettings\.value = ''/)
   assert.match(source, /return false\s*\} finally \{\s*if \(requestSeq === loadRequestSeq\) \{\s*loading\.value = false\s*\}/)
   assert.match(source, /if \(!settingsLoaded\.value\) \{\s*setActionError\('保存失败', '设置尚未加载，不能保存默认表单', '保存失败'\)/)
-  assert.match(source, /import \{ errorMessage \} from '\.\.\/utils\/error-message'/)
+  assert.match(source, /import \{ useActionError \} from '\.\.\/composables\/use-action-error'/)
   assert.doesNotMatch(source, /function errorMessage\(cause: unknown\): string/)
 })
 
 test('SettingsView keeps save failures visible and prevents duplicate submissions', () => {
   const source = readClientFile('./components/SettingsView.vue')
 
-  assert.match(source, /const actionError = ref\(''\)/)
-  assert.match(source, /const actionErrorTitle = ref\('操作失败'\)/)
+  assert.match(source, /import \{ useActionError \} from '\.\.\/composables\/use-action-error'/)
+  assert.match(source, /actionError,[\s\S]*actionErrorTitle,[\s\S]*setActionError,[\s\S]*clearActionError,[\s\S]*errorMessage,[\s\S]*\} = useActionError\(\{/)
+  assert.match(source, /onError: \(_title, details\) => message\.error\(details\)/)
   assert.match(source, /<div v-if="actionError" class="settings-action-error" role="alert">/)
   assert.match(source, /<strong>\{\{ actionErrorTitle \}\}<\/strong>/)
   assert.match(source, /<span>\{\{ actionError \}\}<\/span>/)
@@ -533,9 +536,10 @@ test('SettingsView keeps save failures visible and prevents duplicate submission
   )
   assert.match(source, /saving\.value = true\s*clearActionError\(\)\s*try \{/)
   assert.match(source, /setActionError\('保存失败', cause, '保存设置失败'\)/)
-  assert.match(source, /function setActionError\(title: string, cause: unknown, fallback: string\): void/)
-  assert.match(source, /const details = errorMessage\(cause, fallback\)\s*actionErrorTitle\.value = title\s*actionError\.value = details\s*message\.error\(details\)/)
-  assert.match(source, /function clearActionError\(\): void \{\s*actionErrorTitle\.value = '操作失败'\s*actionError\.value = ''\s*\}/)
+  assert.doesNotMatch(source, /const actionError = ref\(''\)/)
+  assert.doesNotMatch(source, /const actionErrorTitle = ref\('操作失败'\)/)
+  assert.doesNotMatch(source, /function setActionError\(title: string, cause: unknown, fallback: string\): void/)
+  assert.doesNotMatch(source, /function clearActionError\(\): void/)
   assert.doesNotMatch(source, /message\.error\(errorMessage\(cause\) \|\| '保存设置失败'\)/)
 })
 
@@ -701,8 +705,8 @@ test('ConfigCenterView keeps governance save failures separate from load failure
   const composableSource = readClientFile('./composables/use-config-governance.ts')
 
   assert.match(composableSource, /const error = ref\(''\)/)
-  assert.match(composableSource, /const actionError = ref\(''\)/)
-  assert.match(composableSource, /const actionErrorTitle = ref\('操作失败'\)/)
+  assert.match(composableSource, /import \{ useActionError \} from '\.\/use-action-error'/)
+  assert.match(composableSource, /actionError,[\s\S]*actionErrorTitle,[\s\S]*setActionError,[\s\S]*clearActionError,[\s\S]*\} = useActionError\(\)/)
   assert.match(viewSource, /<div v-if="actionError" class="sh-load-error sh-config-governance__action-error" role="alert">/)
   assert.match(viewSource, /<strong>\{\{ actionErrorTitle \}\}<\/strong>/)
   assert.match(viewSource, /<span>\{\{ actionError \}\}<\/span>/)
@@ -718,7 +722,9 @@ test('ConfigCenterView keeps governance save failures separate from load failure
   assert.match(composableSource, /await submit\('保存策略失败', async \(\) => \{/)
   assert.match(composableSource, /setActionError\(title, cause, title\)/)
   assert.match(composableSource, /function validateBeforeSubmit\(title: string, validationError: string\) \{/)
-  assert.match(composableSource, /function clearActionError\(\) \{\s*actionErrorTitle\.value = '操作失败'\s*actionError\.value = ''\s*\}/)
+  assert.doesNotMatch(composableSource, /const actionError = ref\(''\)/)
+  assert.doesNotMatch(composableSource, /const actionErrorTitle = ref\('操作失败'\)/)
+  assert.doesNotMatch(composableSource, /function clearActionError\(\) \{/)
 
   const submitSource = composableSource.slice(composableSource.indexOf('async function submit('))
   assert.doesNotMatch(submitSource, /error\.value = cause instanceof Error/)
