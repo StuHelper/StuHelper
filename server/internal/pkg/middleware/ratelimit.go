@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -66,6 +67,8 @@ return 1
 
 var rateLimitEntropyReader io.Reader = rand.Reader
 
+var errRateLimiterUnavailable = errors.New("rate limiter redis client unavailable")
+
 // RedisRateLimiter 基于 Redis 的速率限制器
 type RedisRateLimiter struct {
 	rdb    *redis.Client
@@ -84,6 +87,9 @@ func NewRedisRateLimiter(rdb *redis.Client, limit int, window time.Duration) *Re
 
 // Allow 检查是否允许请求（滑动窗口）
 func (rl *RedisRateLimiter) Allow(ctx context.Context, key string) (bool, error) {
+	if rl == nil || rl.rdb == nil {
+		return false, errRateLimiterUnavailable
+	}
 	// 检查 context 是否已取消
 	select {
 	case <-ctx.Done():
