@@ -22,6 +22,7 @@ const (
 	otpMaxAttempts = 5                // 最大验证尝试次数
 	otpPhoneLimit  = 5                // 单个手机号每小时最大请求次数
 	otpPhoneTTL    = 1 * time.Hour    // 单个手机号限流窗口
+	otpCompTimeout = 5 * time.Second  // 发送失败补偿超时
 )
 
 // OTP Redis key 前缀
@@ -143,7 +144,9 @@ func (s *OTPService) IssueCode(ctx context.Context, phone string, smsSender Phon
 
 	code, err := s.Generate(ctx, phone)
 	if err != nil {
-		if rollbackErr := s.rollbackPhoneRateLimit(ctx, phone); rollbackErr != nil {
+		rollbackCtx, cancel := otpCompensationContext(ctx)
+		defer cancel()
+		if rollbackErr := s.rollbackPhoneRateLimit(rollbackCtx, phone); rollbackErr != nil {
 			return errors.Join(err, rollbackErr)
 		}
 		return err
@@ -152,8 +155,10 @@ func (s *OTPService) IssueCode(ctx context.Context, phone string, smsSender Phon
 	internationalPhone := "+86" + phone
 	if err := smsSender.Send(ctx, internationalPhone, code); err != nil {
 		sendErr := fmt.Errorf("otp: send sms: %w", err)
-		cleanupErr := s.CleanupCodeOnly(ctx, phone)
-		rollbackErr := s.rollbackPhoneRateLimit(ctx, phone)
+		compCtx, cancel := otpCompensationContext(ctx)
+		defer cancel()
+		cleanupErr := s.CleanupCodeOnly(compCtx, phone)
+		rollbackErr := s.rollbackPhoneRateLimit(compCtx, phone)
 		if cleanupErr != nil || rollbackErr != nil {
 			joined := sendErr
 			if cleanupErr != nil {
@@ -167,6 +172,10 @@ func (s *OTPService) IssueCode(ctx context.Context, phone string, smsSender Phon
 		return sendErr
 	}
 	return nil
+}
+
+func otpCompensationContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), otpCompTimeout)
 }
 
 func (s *OTPService) rollbackPhoneRateLimit(ctx context.Context, phone string) error {
