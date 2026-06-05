@@ -217,15 +217,17 @@ test('BlacklistView keeps list load failures visible and retryable', () => {
   assert.match(source, /pushError\('加载黑名单失败', details\)/)
   assert.match(source, /finally \{\s*if \(requestSeq === refreshRequestSeq\) \{\s*loading\.value = false\s*\}\s*\}/)
   assert.match(source, /pushError\('黑名单尚未加载', '黑名单尚未加载，无法添加用户'\)/)
-  assert.match(source, /function pushError\(title: string, message: string\)/)
-  assert.match(source, /function errorMessage\(cause: unknown, fallback: string\): string/)
+  assert.match(source, /import \{ useActionFeedback \} from '\.\.\/composables\/use-action-feedback'/)
+  assert.match(source, /pushError,[\s\S]*errorMessage,[\s\S]*\} = useActionFeedback\(\)/)
+  assert.doesNotMatch(source, /function pushError\(title: string, message: string\)/)
+  assert.doesNotMatch(source, /function errorMessage\(cause: unknown, fallback: string\): string/)
 })
 
 test('BlacklistView keeps add and release failures visible after notice timeout', () => {
   const source = readClientFile('./components/BlacklistView.vue')
 
-  assert.match(source, /const actionError = ref\(''\)/)
-  assert.match(source, /const actionErrorTitle = ref\('操作失败'\)/)
+  assert.match(source, /import \{ useActionFeedback \} from '\.\.\/composables\/use-action-feedback'/)
+  assert.match(source, /actionError,[\s\S]*actionErrorTitle,[\s\S]*notices,[\s\S]*pushSuccess,[\s\S]*pushError,[\s\S]*setActionError,[\s\S]*clearActionError,[\s\S]*dismissNotice,[\s\S]*errorMessage,[\s\S]*\} = useActionFeedback\(\)/)
   assert.match(source, /class="sh-blacklist-action-error"/)
   assert.match(source, /class="sh-blacklist-action-error sh-blacklist-action-error--drawer"/)
   assert.match(source, /<strong>\{\{ actionErrorTitle \}\}<\/strong>/)
@@ -247,8 +249,8 @@ test('BlacklistView keeps add and release failures visible after notice timeout'
     source.indexOf('removingIds.value = new Set([...removingIds.value, userId])') < source.indexOf('const confirmed = await confirm({'),
   )
   assert.match(source, /finally \{\s*const nextRemoving = new Set\(removingIds\.value\)\s*nextRemoving\.delete\(userId\)\s*removingIds\.value = nextRemoving\s*\}/)
-  assert.match(source, /notices\.value\.push\(\{ id: noticeId\(\), kind: 'error', title, message \}\)/)
-  assert.match(source, /function clearActionError\(\) \{\s*actionErrorTitle\.value = '操作失败'\s*actionError\.value = ''\s*\}/)
+  assert.doesNotMatch(source, /notices\.value\.push\(\{ id: noticeId\(\), kind: 'error', title, message \}\)/)
+  assert.doesNotMatch(source, /function clearActionError\(\)/)
 })
 
 test('WarnsView keeps list load failures visible and retryable', () => {
@@ -274,15 +276,17 @@ test('WarnsView keeps list load failures visible and retryable', () => {
   assert.match(source, /pushError\('加载警告记录失败', details\)/)
   assert.match(source, /finally \{\s*if \(requestSeq === refreshRequestSeq\) \{\s*loading\.value = false\s*\}\s*\}/)
   assert.match(source, /pushError\('警告记录尚未加载', '警告记录尚未加载，无法添加警告'\)/)
-  assert.match(source, /function pushError\(title: string, message: string\)/)
-  assert.match(source, /function errorMessage\(cause: unknown, fallback: string\): string/)
+  assert.match(source, /import \{ useActionFeedback \} from '\.\.\/composables\/use-action-feedback'/)
+  assert.match(source, /pushError,[\s\S]*errorMessage,[\s\S]*\} = useActionFeedback\(\)/)
+  assert.doesNotMatch(source, /function pushError\(title: string, message: string\)/)
+  assert.doesNotMatch(source, /function errorMessage\(cause: unknown, fallback: string\): string/)
 })
 
 test('WarnsView keeps reload and mutation failures visible after notice timeout', () => {
   const source = readClientFile('./components/WarnsView.vue')
 
-  assert.match(source, /const actionError = ref\(''\)/)
-  assert.match(source, /const actionErrorTitle = ref\('操作失败'\)/)
+  assert.match(source, /import \{ useActionFeedback \} from '\.\.\/composables\/use-action-feedback'/)
+  assert.match(source, /actionError,[\s\S]*actionErrorTitle,[\s\S]*notices,[\s\S]*pushSuccess,[\s\S]*pushError,[\s\S]*setActionError,[\s\S]*clearActionError,[\s\S]*dismissNotice,[\s\S]*errorMessage,[\s\S]*\} = useActionFeedback\(\)/)
   assert.match(source, /class="sh-warns-action-error"/)
   assert.match(source, /class="sh-warns-action-error sh-warns-action-error--drawer"/)
   assert.match(source, /<strong>\{\{ actionErrorTitle \}\}<\/strong>/)
@@ -291,8 +295,8 @@ test('WarnsView keeps reload and mutation failures visible after notice timeout'
   assert.match(source, /setActionError\('重新加载失败', cause, '重新加载失败'\)/)
   assert.match(source, /setActionError\('添加失败', cause, '添加失败'\)/)
   assert.match(source, /setActionError\('更新警告失败', cause, '更新警告失败'\)/)
-  assert.match(source, /notices\.value\.push\(\{ id: noticeId\(\), kind: 'error', title, message \}\)/)
-  assert.match(source, /function clearActionError\(\) \{\s*actionErrorTitle\.value = '操作失败'\s*actionError\.value = ''\s*\}/)
+  assert.doesNotMatch(source, /notices\.value\.push\(\{ id: noticeId\(\), kind: 'error', title, message \}\)/)
+  assert.doesNotMatch(source, /function clearActionError\(\)/)
 })
 
 test('top-level console pages keep load failures retryable without hiding stale data', () => {

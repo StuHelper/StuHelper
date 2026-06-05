@@ -225,6 +225,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 
 import { warnsApi, type WarnListItem } from '../api'
+import { useActionFeedback } from '../composables/use-action-feedback'
 import { useConfirm } from '../composables/use-confirm'
 import type { ConsoleNavigationController } from '../composables/use-console-navigation'
 import { formatTimestamp } from '../models/formatters'
@@ -233,7 +234,7 @@ import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
 import Drawer from './primitives/Drawer.vue'
 import EmptyState from './primitives/EmptyState.vue'
 import EntityChip from './primitives/EntityChip.vue'
-import NoticeStack, { type NoticeItem } from './primitives/NoticeStack.vue'
+import NoticeStack from './primitives/NoticeStack.vue'
 import QueueTable, {
   type QueueTableCell,
   type QueueTableCellObject,
@@ -271,11 +272,8 @@ const addOpen = ref(false)
 const selectedGuildId = ref('')
 const guildFilter = ref('')
 const keyword = ref('')
-const notices = ref<NoticeItem[]>([])
 const lastSync = ref('')
 const loadError = ref('')
-const actionError = ref('')
-const actionErrorTitle = ref('操作失败')
 const groups = ref<Record<string, ProcessedWarn[]>>({})
 let refreshRequestSeq = 0
 const draft = reactive({ guildId: '', userId: '' })
@@ -285,6 +283,17 @@ const {
   accept: acceptConfirm,
   cancel: cancelConfirm,
 } = useConfirm()
+const {
+  actionError,
+  actionErrorTitle,
+  notices,
+  pushSuccess,
+  pushError,
+  setActionError,
+  clearActionError,
+  dismissNotice,
+  errorMessage,
+} = useActionFeedback()
 
 const filteredGroups = computed(() => filterWarnGroups(groups.value, {
   guildId: guildFilter.value,
@@ -544,49 +553,6 @@ function severityDot(count: number): string {
   if (count >= 10) return 'sh-lane__dot--danger'
   if (count >= 3) return 'sh-lane__dot--warning'
   return 'sh-lane__dot--primary'
-}
-
-function pushSuccess(message: string) {
-  notices.value.push({ id: noticeId(), kind: 'success', message })
-  scheduleDismiss()
-}
-
-function pushError(title: string, message: string) {
-  notices.value.push({ id: noticeId(), kind: 'error', title, message })
-  scheduleDismiss()
-}
-
-function setActionError(title: string, cause: unknown, fallback: string) {
-  const message = errorMessage(cause, fallback)
-  actionErrorTitle.value = title
-  actionError.value = message
-  notices.value.push({ id: noticeId(), kind: 'error', title, message })
-  scheduleDismiss()
-}
-
-function clearActionError() {
-  actionErrorTitle.value = '操作失败'
-  actionError.value = ''
-}
-
-function errorMessage(cause: unknown, fallback: string): string {
-  if (cause instanceof Error && cause.message) return cause.message
-  if (typeof cause === 'string' && cause.trim()) return cause
-  return fallback
-}
-
-function dismissNotice(id: string) {
-  notices.value = notices.value.filter((item) => item.id !== id)
-}
-
-function scheduleDismiss() {
-  const id = notices.value[notices.value.length - 1]?.id
-  if (!id) return
-  window.setTimeout(() => dismissNotice(id), 4000)
-}
-
-function noticeId(): string {
-  return `notice-${Math.random().toString(36).slice(2, 8)}-${Date.now()}`
 }
 </script>
 
