@@ -145,6 +145,8 @@ func TestValidate_ProductionRequiresObservability(t *testing.T) {
 			CORSOrigins:     []string{"https://stuhelper.example.com"},
 			TrustedProxies:  []string{"10.0.0.0/8"},
 			MetricsPassword: "metrics-password",
+			APIIPRateLimit:  100,
+			APIGlobalLimit:  10000,
 		},
 		Security: SecurityConfig{
 			DocAESActiveKeyID: 1,
@@ -639,6 +641,8 @@ func TestValidate_SMSRequiresFullConfigWhenEnabled(t *testing.T) {
 			HMACSecret:      "0123456789abcdef0123456789abcdef",
 			CORSOrigins:     []string{"http://localhost:3000"},
 			MetricsPassword: "metrics-password",
+			APIIPRateLimit:  100,
+			APIGlobalLimit:  10000,
 		},
 		Security: SecurityConfig{
 			DocAESActiveKeyID: 1,
@@ -702,6 +706,8 @@ func TestValidate_SMSDisabledAllowsEmptyConfig(t *testing.T) {
 			HMACSecret:      "0123456789abcdef0123456789abcdef",
 			CORSOrigins:     []string{"http://localhost:3000"},
 			MetricsPassword: "metrics-password",
+			APIIPRateLimit:  100,
+			APIGlobalLimit:  10000,
 		},
 		Security: SecurityConfig{
 			DocAESActiveKeyID: 1,
@@ -783,6 +789,8 @@ func TestValidate_RequiresCORSOriginsInDevelopment(t *testing.T) {
 			Env:             "development",
 			HMACSecret:      "0123456789abcdef0123456789abcdef",
 			MetricsPassword: "metrics-password",
+			APIIPRateLimit:  100,
+			APIGlobalLimit:  10000,
 		},
 		Security: SecurityConfig{
 			DocAESActiveKeyID: 1,
@@ -840,6 +848,8 @@ func TestValidate_RequiresOpenFGAInDevelopment(t *testing.T) {
 			HMACSecret:      "0123456789abcdef0123456789abcdef",
 			CORSOrigins:     []string{"http://localhost:3000"},
 			MetricsPassword: "metrics-password",
+			APIIPRateLimit:  100,
+			APIGlobalLimit:  10000,
 		},
 		Security: SecurityConfig{
 			DocAESActiveKeyID: 1,
@@ -900,6 +910,8 @@ func validProductionConfigForTest() *Config {
 			CORSOrigins:     []string{"https://stuhelper.example.com"},
 			TrustedProxies:  []string{"10.0.0.0/8"},
 			MetricsPassword: "metrics-password",
+			APIIPRateLimit:  100,
+			APIGlobalLimit:  10000,
 		},
 		Security: SecurityConfig{DocAESActiveKeyID: 1, DocAESKeys: map[uint8][]byte{1: make([]byte, 32)}},
 		Database: DatabaseConfig{URL: "postgres://user:pass@db:5432/stuhelper?sslmode=verify-full", QueryTimeout: 5, MaxConns: 20, MinConns: 2, SSLMode: "verify-full", SSLRootCert: "/run/secrets/postgres-ca.crt"},

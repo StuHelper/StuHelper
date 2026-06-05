@@ -13,6 +13,8 @@ func validConfigForValidation() *Config {
 			HMACSecret:      "0123456789abcdef0123456789abcdef",
 			CORSOrigins:     []string{"http://localhost:3000"},
 			MetricsPassword: "metrics-password",
+			APIIPRateLimit:  100,
+			APIGlobalLimit:  10000,
 		},
 		Security: SecurityConfig{
 			DocAESActiveKeyID: 1,
@@ -110,4 +112,16 @@ func TestValidate_OpenPlatformDisclosureRateLimitsRejectInvalidValues(t *testing
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "OPEN_PLATFORM_DISCLOSURE_APP_LIMIT must be between 1 and 100000 when set")
 	require.Contains(t, err.Error(), "OPEN_PLATFORM_DISCLOSURE_REPLAY_WINDOW_SECONDS must be between 1 and 86400 seconds when set")
+}
+
+func TestValidate_APIRateLimitsRejectInvalidValues(t *testing.T) {
+	cfg := validConfigForValidation()
+	cfg.App.APIIPRateLimit = 0
+	cfg.App.APIGlobalLimit = 100001
+
+	err := cfg.validate(nil)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "API_IP_RATE_LIMIT must be between 1 and 100000 (got 0)")
+	require.Contains(t, err.Error(), "API_GLOBAL_RATE_LIMIT must be between 1 and 100000 (got 100001)")
 }

@@ -291,6 +291,12 @@ func (c *Config) validate(parseErrs []string) error {
 	}
 
 	const maxRateLimit = 100000
+	if c.App.APIIPRateLimit <= 0 || c.App.APIIPRateLimit > maxRateLimit {
+		errs = append(errs, fmt.Sprintf("API_IP_RATE_LIMIT must be between 1 and %d (got %d)", maxRateLimit, c.App.APIIPRateLimit))
+	}
+	if c.App.APIGlobalLimit <= 0 || c.App.APIGlobalLimit > maxRateLimit {
+		errs = append(errs, fmt.Sprintf("API_GLOBAL_RATE_LIMIT must be between 1 and %d (got %d)", maxRateLimit, c.App.APIGlobalLimit))
+	}
 	if c.RateLimit.PostLimit <= 0 || c.RateLimit.PostLimit > maxRateLimit {
 		errs = append(errs, fmt.Sprintf("REVIEW_RATE_POST_LIMIT must be between 1 and %d (got %d)", maxRateLimit, c.RateLimit.PostLimit))
 	}
