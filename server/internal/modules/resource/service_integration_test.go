@@ -198,6 +198,27 @@ func TestUpdateAndDeletePrivateResource(t *testing.T) {
 	assert.Len(t, store.deletedKeys, 1)
 }
 
+func TestDeleteResource_EnqueuesCleanupForAllVersions(t *testing.T) {
+	ctx, mount, _, svc, store := setupResourceService(t)
+	created := createSampleResource(t, ctx, svc)
+
+	secondObjectKey := "resources/oidc-user-1/version-2.txt"
+	_, err := svc.repo.db.Exec(ctx, `
+		INSERT INTO resource_versions (
+			resource_id, version_no, mount_id, object_key, filename, content_type, size_bytes
+		) VALUES ($1, 2, $2, $3, 'version-2.txt', 'text/plain', 12)
+	`, created.ID, mount.ID, secondObjectKey)
+	require.NoError(t, err)
+
+	err = svc.DeleteResource(ctx, created.ID, "oidc-user-1")
+	require.NoError(t, err)
+	assert.Empty(t, store.deletedKeys)
+
+	err = svc.processCleanupBatch(ctx)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{created.LatestVersion.ObjectKey, secondObjectKey}, store.deletedKeys)
+}
+
 func TestDeleteResource_EnqueuesRetryWhenStorageCleanupFails(t *testing.T) {
 	ctx, _, repo, svc, store := setupResourceService(t)
 	created := createSampleResource(t, ctx, svc)

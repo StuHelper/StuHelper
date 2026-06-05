@@ -32,8 +32,8 @@ type cleanupPayload struct {
 	ObjectKey string `json:"objectKey"`
 }
 
-func resourceCleanupKey(resourceID int64) string {
-	return fmt.Sprintf("resource-cleanup:%d", resourceID)
+func resourceCleanupKey(resourceID int64, versionNo int) string {
+	return fmt.Sprintf("resource-cleanup:%d:%d", resourceID, versionNo)
 }
 
 func (s *Service) StartBackgroundJobs(ctx context.Context, start func(string, func(context.Context))) {

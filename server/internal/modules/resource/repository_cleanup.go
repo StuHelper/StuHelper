@@ -14,7 +14,10 @@ import (
 
 func (r *Repository) DeleteResource(ctx context.Context, resourceID int64, ownerUserID string) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		mountID, objectKey, err := r.lockLatestVersionForDelete(ctx, tx, resourceID, ownerUserID)
+		if err := r.lockResourceForDelete(ctx, tx, resourceID, ownerUserID); err != nil {
+			return err
+		}
+		targets, err := r.lockVersionCleanupTargetsForDelete(ctx, tx, resourceID)
 		if err != nil {
 			return err
 		}
@@ -23,19 +26,37 @@ func (r *Repository) DeleteResource(ctx context.Context, resourceID int64, owner
 			return fmt.Errorf("delete resource item: %w", err)
 		}
 
-		return r.UpsertCleanupJobTx(ctx, tx, resourceID, mountID, objectKey)
+		for _, target := range targets {
+			if err := r.UpsertCleanupJobTx(ctx, tx, resourceID, target); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 
-func (r *Repository) UpsertCleanupJobTx(ctx context.Context, tx pgx.Tx, resourceID, mountID int64, objectKey string) error {
+type cleanupTarget struct {
+	VersionNo int
+	MountID   int64
+	ObjectKey string
+}
+
+func (r *Repository) UpsertCleanupJobTx(ctx context.Context, tx pgx.Tx, resourceID int64, target cleanupTarget) error {
 	payload, err := json.Marshal(cleanupPayload{
-		MountID:   mountID,
-		ObjectKey: objectKey,
+		MountID:   target.MountID,
+		ObjectKey: target.ObjectKey,
 	})
 	if err != nil {
 		return fmt.Errorf("marshal resource cleanup payload: %w", err)
 	}
-	return outbox.UpsertJobTx(ctx, tx, resourceCleanupOutboxStream, resourceCleanupJobType, resourceCleanupKey(resourceID), payload)
+	return outbox.UpsertJobTx(
+		ctx,
+		tx,
+		resourceCleanupOutboxStream,
+		resourceCleanupJobType,
+		resourceCleanupKey(resourceID, target.VersionNo),
+		payload,
+	)
 }
 
 func (r *Repository) ClaimCleanupJobs(ctx context.Context, limit int, staleAfter time.Duration) ([]cleanupJob, error) {
@@ -80,35 +101,51 @@ func (r *Repository) MarkCleanupJobFailure(
 	return nil
 }
 
-func (r *Repository) lockLatestVersionForDelete(ctx context.Context, tx pgx.Tx, resourceID int64, ownerUserID string) (int64, string, error) {
-	var (
-		actualOwner string
-		mountID     int64
-		objectKey   string
-	)
+func (r *Repository) lockResourceForDelete(ctx context.Context, tx pgx.Tx, resourceID int64, ownerUserID string) error {
+	var actualOwner string
 	err := tx.QueryRow(ctx, `
-		SELECT ri.owner_user_id, rv.mount_id, rv.object_key
+		SELECT owner_user_id
 		FROM resource_items ri
-		JOIN LATERAL (
-			SELECT mount_id, object_key
-			FROM resource_versions
-			WHERE resource_id = ri.id
-			ORDER BY version_no DESC
-			LIMIT 1
-		) rv ON TRUE
 		WHERE ri.id = $1
 		FOR UPDATE
-	`, resourceID).Scan(&actualOwner, &mountID, &objectKey)
+	`, resourceID).Scan(&actualOwner)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, "", ErrResourceNotFound
+		return ErrResourceNotFound
 	}
 	if err != nil {
-		return 0, "", fmt.Errorf("load resource delete target: %w", err)
+		return fmt.Errorf("load resource delete target: %w", err)
 	}
 	if actualOwner != ownerUserID {
-		return 0, "", ErrResourceForbidden
+		return ErrResourceForbidden
 	}
-	return mountID, objectKey, nil
+	return nil
+}
+
+func (r *Repository) lockVersionCleanupTargetsForDelete(ctx context.Context, tx pgx.Tx, resourceID int64) ([]cleanupTarget, error) {
+	rows, err := tx.Query(ctx, `
+		SELECT version_no, mount_id, object_key
+		FROM resource_versions
+		WHERE resource_id = $1
+		ORDER BY version_no ASC
+		FOR UPDATE
+	`, resourceID)
+	if err != nil {
+		return nil, fmt.Errorf("load resource version cleanup targets: %w", err)
+	}
+	defer rows.Close()
+
+	targets := make([]cleanupTarget, 0)
+	for rows.Next() {
+		var target cleanupTarget
+		if err := rows.Scan(&target.VersionNo, &target.MountID, &target.ObjectKey); err != nil {
+			return nil, fmt.Errorf("scan resource version cleanup target: %w", err)
+		}
+		targets = append(targets, target)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("resource version cleanup target rows: %w", err)
+	}
+	return targets, nil
 }
 
 func mapCleanupJobs(jobs []outbox.Job) []cleanupJob {
