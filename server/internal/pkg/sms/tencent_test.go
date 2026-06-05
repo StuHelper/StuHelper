@@ -28,6 +28,12 @@ func TestNewService_UsesCustomRegion(t *testing.T) {
 	assert.Equal(t, "ap-shanghai", svc.cfg.Region)
 }
 
+func TestNewService_DefaultsNilLogger(t *testing.T) {
+	svc := NewService(Config{}, nil)
+
+	assert.NotNil(t, svc.logger)
+}
+
 func TestMaskPhone_ShortPhone(t *testing.T) {
 	assert.Equal(t, "***", maskPhone("123"))
 	assert.Equal(t, "***", maskPhone("1234567"))

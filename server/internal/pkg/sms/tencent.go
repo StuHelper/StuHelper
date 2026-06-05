@@ -45,6 +45,9 @@ func NewService(cfg Config, logger *zap.Logger) *Service {
 	if cfg.Region == "" {
 		cfg.Region = "ap-beijing"
 	}
+	if logger == nil {
+		logger = zap.NewNop()
+	}
 	return &Service{
 		cfg:    cfg,
 		client: observability.WrapHTTPClient(&http.Client{Timeout: 10 * time.Second}, "tencent_sms"),
