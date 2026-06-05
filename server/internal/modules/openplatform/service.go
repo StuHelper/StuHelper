@@ -35,6 +35,7 @@ var resourceIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 type appProvisioner interface {
 	GetApplication(ctx context.Context, name string) (ProvisionedApplicationSpec, error)
 	EnsureApplication(ctx context.Context, spec ProvisionedApplicationSpec) error
+	DeleteApplication(ctx context.Context, name string) error
 }
 
 type oidcAuthURLBuilder interface {

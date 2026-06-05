@@ -2,6 +2,7 @@ package openplatform
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -248,10 +249,14 @@ func (s *Service) ApproveAppWithAudit(ctx context.Context, input ApproveAppInput
 	if err != nil {
 		return nil, err
 	}
-	if err := s.ensureCasdoorApplicationReadyForApproval(ctx, app, secret, input.ReviewerUserID, input.RequestID); err != nil {
+	spec := casdoorApplicationSpecForApprovedApp(app, secret)
+	if err := s.ensureCasdoorApplicationReadyForApproval(ctx, app, spec, input.ReviewerUserID, input.RequestID); err != nil {
 		return nil, err
 	}
 	if err := s.repo.MarkAppApproved(ctx, appID, hashClientSecret(secret), input.ReviewerUserID, input.RequestID); err != nil {
+		if cleanupErr := s.deleteProvisionedCasdoorApplication(ctx, spec.Name); cleanupErr != nil {
+			return nil, errors.Join(err, cleanupErr)
+		}
 		return nil, err
 	}
 	app.Status = AppStatusApproved
@@ -593,11 +598,10 @@ func (s *Service) ImportCasdoorApp(ctx context.Context, input ImportCasdoorAppIn
 func (s *Service) ensureCasdoorApplicationReadyForApproval(
 	ctx context.Context,
 	app *App,
-	clientSecret string,
+	spec ProvisionedApplicationSpec,
 	reviewerUserID int64,
 	requestID string,
 ) error {
-	spec := casdoorApplicationSpecForApprovedApp(app, clientSecret)
 	if s.provisioner == nil {
 		if !s.tokenProbeRequired {
 			return nil
@@ -621,9 +625,32 @@ func (s *Service) ensureCasdoorApplicationReadyForApproval(
 		return fmt.Errorf("ensure Casdoor application before open platform approval: %w", err)
 	}
 	if err := s.ensureCasdoorTokenMinimized(ctx, app, spec, reviewerUserID, requestID); err != nil {
+		if cleanupErr := s.deleteProvisionedCasdoorApplication(ctx, spec.Name); cleanupErr != nil {
+			return errors.Join(err, cleanupErr)
+		}
 		return err
 	}
-	return s.ensureCasdoorRuntimeTokenMinimized(ctx, app, spec, reviewerUserID, requestID)
+	if err := s.ensureCasdoorRuntimeTokenMinimized(ctx, app, spec, reviewerUserID, requestID); err != nil {
+		if cleanupErr := s.deleteProvisionedCasdoorApplication(ctx, spec.Name); cleanupErr != nil {
+			return errors.Join(err, cleanupErr)
+		}
+		return err
+	}
+	return nil
+}
+
+func (s *Service) deleteProvisionedCasdoorApplication(ctx context.Context, name string) error {
+	if s.provisioner == nil {
+		return nil
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil
+	}
+	if err := s.provisioner.DeleteApplication(ctx, name); err != nil {
+		return fmt.Errorf("rollback Casdoor application after open platform approval failure: %w", err)
+	}
+	return nil
 }
 
 func casdoorApplicationSpecForApprovedApp(app *App, clientSecret string) ProvisionedApplicationSpec {

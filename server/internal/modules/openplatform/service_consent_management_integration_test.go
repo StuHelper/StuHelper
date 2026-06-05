@@ -1421,6 +1421,7 @@ func TestApproveAppBlocksUnsafeRuntimeTokenProbe(t *testing.T) {
 	assert.Contains(t, evidence.Error, "forbidden business claims")
 	assertOpenPlatformAuditCount(t, postgres, registered.App.ID, adminID, "open_platform.app.token_probe.runtime.failed", 1)
 	assertOpenPlatformAuditCount(t, postgres, registered.App.ID, adminID, "open_platform.app.approved", 0)
+	assert.Equal(t, []string{registered.App.CasdoorApplicationName}, provisioner.deleted)
 	app, err := repo.GetAppByID(ctx, registered.App.ID)
 	require.NoError(t, err)
 	assert.Equal(t, AppStatusPending, app.Status)
@@ -1431,10 +1432,11 @@ func TestApproveAppRequiresRuntimeTokenProbeWhenConfigured(t *testing.T) {
 	postgres := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
 	repo := NewRepository(postgres.DB)
+	provisioner := &fakeOpenPlatformAppProvisioner{}
 	service, err := NewService(
 		repo,
 		redis.Client,
-		WithAppProvisioner(&fakeOpenPlatformAppProvisioner{}),
+		WithAppProvisioner(provisioner),
 		WithRuntimeTokenProbe(nil, true),
 	)
 	require.NoError(t, err)
@@ -1473,6 +1475,58 @@ func TestApproveAppRequiresRuntimeTokenProbeWhenConfigured(t *testing.T) {
 	assert.Contains(t, evidence.Error, "runtime code-flow probe runner is not configured")
 	assertOpenPlatformAuditCount(t, postgres, registered.App.ID, adminID, "open_platform.app.token_probe.runtime.failed", 1)
 	assertOpenPlatformAuditCount(t, postgres, registered.App.ID, adminID, "open_platform.app.approved", 0)
+	assert.Equal(t, []string{registered.App.CasdoorApplicationName}, provisioner.deleted)
+}
+
+func TestApproveAppDeletesCasdoorApplicationWhenLocalApprovalFails(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	provisioner := &fakeOpenPlatformAppProvisioner{}
+	service, err := NewService(repo, redis.Client, WithAppProvisioner(provisioner))
+	require.NoError(t, err)
+
+	ownerID := seedOpenPlatformUser(t, postgres, "approval-local-fail-owner")
+	adminID := seedOpenPlatformUser(t, postgres, "approval-local-fail-admin")
+	registered, err := service.RegisterApp(ctx, RegisterAppInput{
+		OwnerUserID:      ownerID,
+		DisplayName:      "Approval Local Failure App",
+		Description:      "Local approval update fails after Casdoor provisioning.",
+		HomepageURL:      "https://approval-local-fail.example.com",
+		PrivacyPolicyURL: "https://approval-local-fail.example.com/privacy",
+		RedirectURIs:     []string{"https://approval-local-fail.example.com/callback"},
+		Scopes: []ScopeRequestInput{
+			{Scope: ScopeProfileBasicRead, Reason: "show profile"},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, service.ApproveScope(ctx, ApproveScopeInput{
+		AppID:          registered.App.ID,
+		Scope:          ScopeProfileBasicRead,
+		ReviewerUserID: adminID,
+		DecisionNote:   "profile is required",
+	}))
+	provisioner.onEnsure = func() {
+		_, updateErr := postgres.DB.Exec(ctx, `
+			UPDATE open_platform_apps
+			SET status = $1, updated_at = NOW()
+			WHERE id = $2
+		`, AppStatusRevoked, registered.App.ID)
+		require.NoError(t, updateErr)
+	}
+
+	approved, err := service.ApproveAppWithAudit(ctx, ApproveAppInput{
+		AppID:          registered.App.ID,
+		ReviewerUserID: adminID,
+		RequestID:      "approve-local-fail",
+	})
+
+	require.Nil(t, approved)
+	require.ErrorIs(t, err, ErrInvalidAppStatus)
+	assert.Equal(t, []string{registered.App.CasdoorApplicationName}, provisioner.deleted)
+	assertOpenPlatformAuditCount(t, postgres, registered.App.ID, adminID, "open_platform.app.approved", 0)
+	assertOpenPlatformAppStatus(t, ctx, repo, registered.App.ID, AppStatusRevoked)
 }
 
 func TestImportCasdoorAppRejectsBusinessTokenFields(t *testing.T) {
@@ -3361,7 +3415,9 @@ func latestOpenPlatformTokenProbeEvidence(
 type fakeOpenPlatformAppProvisioner struct {
 	existing ProvisionedApplicationSpec
 	ensured  *ProvisionedApplicationSpec
+	deleted  []string
 	err      error
+	onEnsure func()
 }
 
 func (f *fakeOpenPlatformAppProvisioner) GetApplication(_ context.Context, name string) (ProvisionedApplicationSpec, error) {
@@ -3381,6 +3437,17 @@ func (f *fakeOpenPlatformAppProvisioner) EnsureApplication(_ context.Context, sp
 	}
 	specCopy := spec
 	f.ensured = &specCopy
+	if f.onEnsure != nil {
+		f.onEnsure()
+	}
+	return nil
+}
+
+func (f *fakeOpenPlatformAppProvisioner) DeleteApplication(_ context.Context, name string) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.deleted = append(f.deleted, strings.TrimSpace(name))
 	return nil
 }
 

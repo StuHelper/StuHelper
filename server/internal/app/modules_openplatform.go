@@ -172,6 +172,13 @@ func (p *casdoorOpenPlatformProvisioner) EnsureApplication(
 	return p.client.EnsureApplication(ctx, casdoorApplicationSpecFromOpenPlatform(spec))
 }
 
+func (p *casdoorOpenPlatformProvisioner) DeleteApplication(ctx context.Context, name string) error {
+	if p == nil || p.client == nil {
+		return fmt.Errorf("open platform Casdoor application provisioner is not configured")
+	}
+	return p.client.DeleteApplication(ctx, name)
+}
+
 type casdoorOpenPlatformRuntimeTokenProber struct {
 	prober platformcasdoor.RuntimeTokenMinimizationProber
 }
