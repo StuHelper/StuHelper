@@ -1,3 +1,4 @@
+import type { Session } from 'koishi'
 import { h, Logger } from 'koishi'
 
 import { buildReportPrompt } from './report-context'
@@ -17,8 +18,12 @@ const MS_PER_MINUTE = SECONDS_PER_MINUTE * MS_PER_SECOND
 
 interface ReportCommandInput {
   readonly host: ReportModule
-  readonly session: any
-  readonly options: any
+  readonly session: Session
+  readonly options: ReportCommandOptions
+}
+
+interface ReportCommandOptions {
+  readonly verbose?: boolean
 }
 
 interface ReportTarget {
@@ -26,7 +31,18 @@ interface ReportTarget {
   readonly messageReportKey: string
   readonly reportedUserId: string
   readonly content: string
-  readonly message: any
+  readonly message: ReportedMessage
+}
+
+interface ReportedMessage {
+  readonly content: string
+  readonly user?: unknown
+  readonly userId?: unknown
+  readonly sender?: unknown
+  readonly from?: unknown
+  readonly timestamp?: unknown
+  readonly time?: unknown
+  readonly date?: unknown
 }
 
 export function registerReportCommands(host: ReportModule): void {
@@ -39,7 +55,10 @@ export function registerReportCommands(host: ReportModule): void {
     usage: '回复违规消息使用，AI自动审核处理',
   })
     .option('verbose', '-v 显示详细判断结果', { fallback: true })
-    .action(async ({ session, options }) => handleReportCommand({ host, session, options }))
+    .action(async ({ session, options }) => {
+      if (!session) return '无法读取当前会话'
+      return handleReportCommand({ host, session, options })
+    })
 }
 
 async function handleReportCommand(input: ReportCommandInput): Promise<string> {
@@ -53,7 +72,7 @@ async function handleReportCommand(input: ReportCommandInput): Promise<string> {
 
   try {
     return await processReport({ ...input, userAuthority })
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleReportFailure({ ...input, userAuthority, error })
   }
 }
@@ -121,17 +140,15 @@ function getCooldownMessage(input: ReportCommandInput, userAuthority: number): s
 }
 
 async function loadReportTarget(input: ReportCommandInput): Promise<ReportTarget | string> {
-  const quoteId = typeof input.session.quote === 'string'
-    ? input.session.quote
-    : input.session.quote.id || input.session.quote.messageId
+  const quoteId = resolveQuoteId(input.session.quote)
   if (!quoteId) return quote(input.session) + '无法读取被举报消息的 ID。'
 
   const messageReportKey = `${input.session.guildId}:${quoteId}`
   const reportedRecord = input.host.reportedMessages[messageReportKey]
   if (reportedRecord) return quote(input.session) + `该消息已被举报过，处理结果: ${reportedRecord.result}`
 
-  const reportedMessage = await input.session.bot.getMessage(input.session.guildId, quoteId)
-  if (!reportedMessage || !reportedMessage.content) return quote(input.session) + '无法获取被举报的消息内容。'
+  const reportedMessage = normalizeReportedMessage(await input.session.bot.getMessage(input.session.guildId, quoteId))
+  if (!reportedMessage) return quote(input.session) + '无法获取被举报的消息内容。'
 
   const reportedUserId = resolveReportedUserId(reportedMessage)
   if (reportedUserId === null) return '无法确定被举报消息的发送者。'
@@ -142,13 +159,40 @@ async function loadReportTarget(input: ReportCommandInput): Promise<ReportTarget
   return { quoteId, messageReportKey, reportedUserId, content: reportedMessage.content, message: reportedMessage }
 }
 
-function resolveReportedUserId(reportedMessage: any): string | null {
-  if (reportedMessage.user && typeof reportedMessage.user === 'object') return reportedMessage.user.id
+function resolveQuoteId(value: unknown): string | null {
+  if (typeof value === 'string') return value
+  if (!isRecord(value)) return null
+
+  if (typeof value.id === 'string') return value.id
+  if (typeof value.messageId === 'string') return value.messageId
+  return null
+}
+
+function normalizeReportedMessage(value: unknown): ReportedMessage | null {
+  if (!isRecord(value) || typeof value.content !== 'string' || !value.content) return null
+  return {
+    content: value.content,
+    user: value.user,
+    userId: value.userId,
+    sender: value.sender,
+    from: value.from,
+    timestamp: value.timestamp,
+    time: value.time,
+    date: value.date,
+  }
+}
+
+function resolveReportedUserId(reportedMessage: ReportedMessage): string | null {
+  const userId = identityId(reportedMessage.user)
+  if (userId) return userId
   if (typeof reportedMessage.userId === 'string') return reportedMessage.userId
 
-  const sender = reportedMessage.sender || reportedMessage.from
-  if (sender && typeof sender === 'object' && sender.id) return sender.id
-  return null
+  return identityId(reportedMessage.sender) ?? identityId(reportedMessage.from)
+}
+
+function identityId(value: unknown): string | null {
+  if (!isRecord(value) || typeof value.id !== 'string') return null
+  return value.id
 }
 
 function validateReportTime(input: ReportCommandInput & {
@@ -165,8 +209,8 @@ function validateReportTime(input: ReportCommandInput & {
   return null
 }
 
-function extractMessageTimestamp(message: any): number {
-  if (message.timestamp) return message.timestamp
+function extractMessageTimestamp(message: ReportedMessage): number {
+  if (typeof message.timestamp === 'number') return message.timestamp
   if (typeof message.time === 'number') return message.time
   if (!message.date) return 0
 
@@ -233,10 +277,10 @@ async function formatReportResult(input: ReportCommandInput & {
   await limitReporter({
     ...input,
     durationMs: durationMinutes * MS_PER_MINUTE,
-    logResult: `AI判定: ${reason}，限制${penalty?.duration}分钟`,
+    logResult: `AI判定: ${reason}，限制${durationMinutes}分钟`,
   })
   return quote(input.session) + input.result +
-    `\nAI判断理由：${input.violationInfo.reason}\n您因${reason}，已被暂时限制举报功能${penalty?.duration}分钟。`
+    `\nAI判断理由：${input.violationInfo.reason}\n您因${reason}，已被暂时限制举报功能${durationMinutes}分钟。`
 }
 
 function shouldLimitReporter(input: ReportCommandInput & {
@@ -247,16 +291,17 @@ function shouldLimitReporter(input: ReportCommandInput & {
 
 async function handleReportFailure(input: ReportCommandInput & {
   readonly userAuthority: number
-  readonly error: any
+  readonly error: unknown
 }): Promise<string> {
+  const message = errorMessage(input.error)
   logger.error('举报处理失败:', input.error)
   if (input.userAuthority < input.host.getMinUnlimitedAuthority()) {
     await limitReporter({
       ...input,
-      logResult: `举报处理失败(${input.error.message})，已限制使用`,
+      logResult: `举报处理失败(${message})，已限制使用`,
     })
   }
-  return quote(input.session) + `举报处理失败：${input.error.message}`
+  return quote(input.session) + `举报处理失败：${message}`
 }
 
 async function limitReporter(input: ReportCommandInput & {
@@ -279,6 +324,15 @@ async function limitReporter(input: ReportCommandInput & {
   })
 }
 
-function quote(session: any): string {
-  return h.quote(session.messageId) as unknown as string
+function quote(session: Session): string {
+  return session.messageId ? `${h.quote(session.messageId)}` : ''
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  return String(error)
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
 }
