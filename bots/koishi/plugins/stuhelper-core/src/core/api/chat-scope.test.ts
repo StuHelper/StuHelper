@@ -531,6 +531,61 @@ test('legacy log search falls back when named log module lookup throws', async (
   assert.equal(logs.data.list[0].result, 'loaded despite missing module lookup')
 })
 
+test('legacy log search normalizes malformed runtime params before filtering', async () => {
+  const listeners = new Map<string, Listener>()
+  const ctx = createContext(listeners)
+  const service = createService(['1001'])
+  service.getAllModules = () => []
+  service.data.commandLogs = createMapStore({
+    logs: [
+      {
+        timestamp: 1_787_803_200_000,
+        guildId: '1001',
+        userId: 'u1',
+        command: 'fallback',
+        target: 'command',
+        details: 'loaded from data store',
+      },
+      {
+        timestamp: 1_787_803_201_000,
+        guildId: '2002',
+        userId: 'u2',
+        command: 'hidden',
+        target: 'command',
+        details: 'outside scope',
+      },
+    ],
+  })
+
+  registerTestWebSocketAPI(ctx as any, service as any)
+  const listener = listeners.get('stuhelperGroupCenter/logs/search')
+  assert.ok(listener)
+
+  const missingParams = await listener.call(createConsoleClient(), undefined)
+  assert.equal(missingParams.success, true)
+  assert.equal(missingParams.data.total, 1)
+  assert.equal(missingParams.data.page, 1)
+  assert.equal(missingParams.data.pageSize, 20)
+
+  const normalized = await listener.call(createConsoleClient(), {
+    command: ' fallback ',
+    guildId: ' 1001 ',
+    startTime: 'not-a-date',
+    endTime: '',
+    page: -1,
+    pageSize: 10_000,
+  })
+  assert.equal(normalized.success, true)
+  assert.equal(normalized.data.total, 1)
+  assert.equal(normalized.data.page, 1)
+  assert.equal(normalized.data.pageSize, 100)
+  assert.deepEqual(normalized.data.list.map((item: { command: string }) => item.command), ['fallback'])
+
+  const nonObjectParams = await listener.call(createConsoleClient(), 'not an object')
+  assert.equal(nonObjectParams.success, true)
+  assert.equal(nonObjectParams.data.total, 1)
+})
+
 test('chart stats falls back to data store when log runtime module is absent', async () => {
   const listeners = new Map<string, Listener>()
   const ctx = createContext(listeners)
