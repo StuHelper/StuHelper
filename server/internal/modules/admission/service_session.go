@@ -795,19 +795,19 @@ func (s *Service) RecordBotEvent(ctx context.Context, sessionID string, event Bo
 }
 
 func (s *Service) RecordBotActionEvent(ctx context.Context, actionID string, event BotEventInput) error {
-	id, err := strconv.ParseInt(strings.TrimSpace(actionID), 10, 64)
-	if err != nil || id <= 0 {
+	botActionID, err := strconv.ParseInt(strings.TrimSpace(actionID), 10, 64)
+	if err != nil || botActionID <= 0 {
 		return ErrAdmissionInvalidInput
 	}
 	return s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		action, err := s.repo.GetBotActionForUpdateTx(ctx, tx, id)
+		action, err := s.repo.GetBotActionForUpdateTx(ctx, tx, botActionID)
 		if err != nil {
 			return err
 		}
 		if event.Action == "" {
 			event.Action = action.Action
 		}
-		if event.Action != action.Action && !(action.Action == BotActionKick && event.Action == BotActionBlacklist) {
+		if event.Action != action.Action && (action.Action != BotActionKick || event.Action != BotActionBlacklist) {
 			return ErrAdmissionInvalidStatus
 		}
 		session := &action.Session
@@ -819,7 +819,7 @@ func (s *Service) RecordBotActionEvent(ctx context.Context, actionID string, eve
 			}); err != nil {
 				return err
 			}
-			return s.repo.MarkBotActionFailedTx(ctx, tx, id, event, s.now(), action.AttemptCount)
+			return s.repo.MarkBotActionFailedTx(ctx, tx, botActionID, event, s.now(), action.AttemptCount)
 		}
 		if event.Action == BotActionRelease {
 			if err := s.applySuccessfulBotEventTx(ctx, successfulBotEventTxInput{
@@ -829,7 +829,7 @@ func (s *Service) RecordBotActionEvent(ctx context.Context, actionID string, eve
 			}); err != nil {
 				return err
 			}
-			return s.repo.MarkBotActionSucceededTx(ctx, tx, id, event, s.now())
+			return s.repo.MarkBotActionSucceededTx(ctx, tx, botActionID, event, s.now())
 		}
 		policy, err := s.loadPolicy(ctx, session.Platform, session.GuildID)
 		if err != nil {
@@ -843,7 +843,7 @@ func (s *Service) RecordBotActionEvent(ctx context.Context, actionID string, eve
 		}); err != nil {
 			return err
 		}
-		return s.repo.MarkBotActionSucceededTx(ctx, tx, id, event, s.now())
+		return s.repo.MarkBotActionSucceededTx(ctx, tx, botActionID, event, s.now())
 	})
 }
 

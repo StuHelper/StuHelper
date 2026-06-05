@@ -136,7 +136,10 @@ func (h *Handler) Stream(c *gin.Context) {
 		return
 	}
 
-	_ = sse.DisableWriteTimeout(c.Writer)
+	if err := sse.DisableWriteTimeout(c.Writer); err != nil {
+		response.InternalError(c, "failed to initialize notification stream")
+		return
+	}
 	// 设置 SSE 响应头
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
 	c.Writer.Header().Set("Cache-Control", "no-cache")

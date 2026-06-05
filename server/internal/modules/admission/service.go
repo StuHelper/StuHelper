@@ -172,9 +172,9 @@ func generateAdmissionToken() (string, error) {
 func generateAdmissionJoinToken() (string, error) {
 	var builder strings.Builder
 	builder.Grow(admissionJoinTokenLength)
-	max := big.NewInt(int64(len(admissionJoinTokenAlphabet)))
+	alphabetSize := big.NewInt(int64(len(admissionJoinTokenAlphabet)))
 	for i := 0; i < admissionJoinTokenLength; i++ {
-		index, err := rand.Int(rand.Reader, max)
+		index, err := rand.Int(rand.Reader, alphabetSize)
 		if err != nil {
 			return "", err
 		}

@@ -41,7 +41,7 @@ func isValidMainlandIDNumber(id string) bool {
 		}
 	}
 	last := id[17]
-	if !((last >= '0' && last <= '9') || last == 'X') {
+	if (last < '0' || last > '9') && last != 'X' {
 		return false
 	}
 

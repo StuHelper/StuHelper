@@ -21,6 +21,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/schoolauth"
 )
 
+// #nosec G101 -- this is a credential kind identifier, not a credential value.
 const userVerificationCredentialKindSchoolEmailOTP = "school_email_otp"
 
 const (

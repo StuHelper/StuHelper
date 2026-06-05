@@ -188,7 +188,10 @@ func (h *Handler) handleWatchFreshmanCameraHandoff(c *gin.Context) {
 		return
 	}
 
-	_ = sse.DisableWriteTimeout(c.Writer)
+	if err := sse.DisableWriteTimeout(c.Writer); err != nil {
+		response.InternalError(c, "failed to initialize freshman camera handoff stream")
+		return
+	}
 	headers := c.Writer.Header()
 	headers.Set("Content-Type", "text/event-stream")
 	headers.Set("Cache-Control", "no-cache")

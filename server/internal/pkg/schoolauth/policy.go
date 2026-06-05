@@ -51,7 +51,7 @@ func ParseAdmissionSettings(raw []byte) AdmissionSettings {
 			EmailIdentityPolicy *EmailIdentityPolicy `json:"emailIdentityPolicy"`
 		} `json:"admission"`
 	}
-	if len(strings.TrimSpace(string(raw))) == 0 || json.Unmarshal(raw, &envelope) != nil {
+	if strings.TrimSpace(string(raw)) == "" || json.Unmarshal(raw, &envelope) != nil {
 		return settings
 	}
 	settings.EmailDomains = NormalizeEmailDomains(envelope.Admission.EmailDomains)

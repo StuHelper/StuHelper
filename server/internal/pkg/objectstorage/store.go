@@ -105,6 +105,7 @@ func New(ctx context.Context, cfg Config) (*Store, error) {
 }
 
 func readRootCABundle(caFile string) ([]byte, error) {
+	// #nosec G304 -- caFile is an operator-supplied deployment configuration path.
 	caCert, err := os.ReadFile(caFile)
 	if err != nil {
 		return nil, fmt.Errorf("read ca bundle: %w", err)

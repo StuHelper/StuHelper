@@ -84,17 +84,20 @@ type schoolConfigPublicResponse struct {
 }
 
 type adminSchoolConfigResponse struct {
-	SchoolID           int64                   `json:"schoolID"`
-	SchoolCode         string                  `json:"schoolCode"`
-	SchoolName         string                  `json:"schoolName"`
-	VerificationMethod string                  `json:"verificationMethod"`
-	ApprovalPolicy     string                  `json:"approvalPolicy"`
-	AcademicDBTable    *string                 `json:"academicDbTable"`
-	ConsentText        *string                 `json:"consentText"`
-	ManualFormFields   []ManualFieldDescriptor `json:"manualFormFields"`
-	Enabled            bool                    `json:"enabled"`
-	CreatedAt          time.Time               `json:"createdAt"`
-	LDAPConfig         *SchoolLDAPConfigView   `json:"ldapConfig,omitempty"`
+	SchoolID              int64                   `json:"schoolID"`
+	SchoolCode            string                  `json:"schoolCode"`
+	SchoolName            string                  `json:"schoolName"`
+	VerificationMethod    string                  `json:"verificationMethod"`
+	ApprovalPolicy        string                  `json:"approvalPolicy"`
+	AcademicDBTable       *string                 `json:"academicDbTable"`
+	ConsentText           *string                 `json:"consentText"`
+	ManualFormFields      []ManualFieldDescriptor `json:"manualFormFields"`
+	Enabled               bool                    `json:"enabled"`
+	SchoolSSOEnabled      bool                    `json:"schoolSsoEnabled"`
+	SchoolEmailOTPEnabled bool                    `json:"schoolEmailOtpEnabled"`
+	SchoolEmailPolicy     *SchoolEmailPolicyView  `json:"schoolEmailIdentityPolicy,omitempty"`
+	CreatedAt             time.Time               `json:"createdAt"`
+	LDAPConfig            *SchoolLDAPConfigView   `json:"ldapConfig,omitempty"`
 }
 
 type adminStudentVerificationResponse struct {
@@ -243,19 +246,23 @@ func adminSchoolConfigToJSON(s *SchoolConfig) (adminSchoolConfigResponse, error)
 	if err != nil {
 		return adminSchoolConfigResponse{}, fmt.Errorf("decode manualFormFields: %w", err)
 	}
+	admissionCapabilities := schoolAdmissionCapabilities(s.ManualFormFields)
 
 	return adminSchoolConfigResponse{
-		SchoolID:           s.SchoolID,
-		SchoolCode:         s.SchoolCode,
-		SchoolName:         s.SchoolName,
-		VerificationMethod: s.VerificationMethod,
-		ApprovalPolicy:     s.ApprovalPolicy,
-		AcademicDBTable:    s.AcademicDBTable,
-		ConsentText:        s.ConsentText,
-		ManualFormFields:   nonNilManualFieldDescriptors(manualFormFields),
-		Enabled:            s.Enabled,
-		CreatedAt:          s.CreatedAt,
-		LDAPConfig:         ldapConfig,
+		SchoolID:              s.SchoolID,
+		SchoolCode:            s.SchoolCode,
+		SchoolName:            s.SchoolName,
+		VerificationMethod:    s.VerificationMethod,
+		ApprovalPolicy:        s.ApprovalPolicy,
+		AcademicDBTable:       s.AcademicDBTable,
+		ConsentText:           s.ConsentText,
+		ManualFormFields:      nonNilManualFieldDescriptors(manualFormFields),
+		Enabled:               s.Enabled,
+		SchoolSSOEnabled:      admissionCapabilities.ssoEnabled,
+		SchoolEmailOTPEnabled: admissionCapabilities.emailOTPEnabled,
+		SchoolEmailPolicy:     schoolEmailPolicyToView(admissionCapabilities.emailIdentityPolicy),
+		CreatedAt:             s.CreatedAt,
+		LDAPConfig:            ldapConfig,
 	}, nil
 }
 

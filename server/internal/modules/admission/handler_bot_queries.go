@@ -103,12 +103,17 @@ func (h *Handler) handleStreamBotAdmissionActions(c *gin.Context) {
 	if !ok {
 		return
 	}
-	_ = sse.DisableWriteTimeout(c.Writer)
+	if err := sse.DisableWriteTimeout(c.Writer); err != nil {
+		response.InternalError(c, "failed to initialize admission action stream")
+		return
+	}
 	headers := c.Writer.Header()
 	headers.Set("Content-Type", "text/event-stream")
 	headers.Set("Cache-Control", "no-cache")
 	headers.Set("X-Accel-Buffering", "no")
-	_ = sse.WriteComment(c.Writer, "connected")
+	if err := sse.WriteComment(c.Writer, "connected"); err != nil {
+		return
+	}
 	c.Writer.Flush()
 
 	if !h.writeQueuedAdmissionActions(c, filter) {

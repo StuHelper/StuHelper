@@ -10276,6 +10276,8 @@ components:
         - verificationMethod
         - approvalPolicy
         - enabled
+        - schoolSsoEnabled
+        - schoolEmailOtpEnabled
         - createdAt
       properties:
         schoolID:
@@ -10315,6 +10317,15 @@ components:
             $ref: '#/components/schemas/ManualFieldDescriptor'
         enabled:
           type: boolean
+        schoolSsoEnabled:
+          type: boolean
+          description: 该学校是否已接入加群验证用的学校官方 SSO
+        schoolEmailOtpEnabled:
+          type: boolean
+          description: 该学校是否已接入加群验证用的学校邮箱 OTP
+        schoolEmailIdentityPolicy:
+          $ref: '#/components/schemas/SchoolEmailIdentityPolicy'
+          description: 学校邮箱认证的可选身份校验策略；BUAA 使用 academic_student_email 派生学号邮箱
         createdAt:
           type: string
           format: date-time
@@ -10328,6 +10339,11 @@ components:
           type: string
           enum:
             - ldap
+            - manual
+        approvalPolicy:
+          type: string
+          enum:
+            - auto
             - manual
         ldapConfig:
           $ref: '#/components/schemas/SchoolLDAPConfigInput'

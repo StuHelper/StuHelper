@@ -80,7 +80,7 @@ func main() {
 	}
 }
 
-func run(ctx context.Context, getenv func(string) string) (smokeEvidence, error) {
+func run(ctx context.Context, getenv func(string) string) (evidence smokeEvidence, runErr error) {
 	cfg, err := smokeConfigFromEnv(getenv)
 	if err != nil {
 		return smokeEvidence{}, err
@@ -90,7 +90,11 @@ func run(ctx context.Context, getenv func(string) string) (smokeEvidence, error)
 	if err != nil {
 		return smokeEvidence{}, fmt.Errorf("initialize oracle student source: %w", err)
 	}
-	defer directory.Close()
+	defer func() {
+		if err := directory.Close(); err != nil && runErr == nil {
+			runErr = fmt.Errorf("close oracle student source: %w", err)
+		}
+	}()
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, cfg.Timeout)
 	defer cancel()
@@ -103,7 +107,7 @@ func run(ctx context.Context, getenv func(string) string) (smokeEvidence, error)
 		return smokeEvidence{}, fmt.Errorf("oracle student source has no readable record with configured student id/name columns")
 	}
 
-	evidence := smokeEvidence{
+	evidence = smokeEvidence{
 		CheckedAt:             time.Now().UTC().Truncate(time.Second).Format(time.RFC3339),
 		Provider:              cfg.Provider,
 		ReadableRecordPresent: probe.ReadableRecordPresent,

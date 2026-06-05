@@ -53,7 +53,7 @@ func NewSMTPSender(cfg SMTPConfig) (*SMTPSender, error) {
 	return &SMTPSender{cfg: cfg, from: from}, nil
 }
 
-func (s *SMTPSender) Send(ctx context.Context, to string, subject string, textBody string) error {
+func (s *SMTPSender) Send(ctx context.Context, to string, subject string, textBody string) (err error) {
 	if s == nil {
 		return errors.New("smtp sender is nil")
 	}
@@ -66,13 +66,23 @@ func (s *SMTPSender) Send(ctx context.Context, to string, subject string, textBo
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
 
 	client, err := smtp.NewClient(conn, s.cfg.Host)
 	if err != nil {
+		if closeErr := conn.Close(); closeErr != nil {
+			return fmt.Errorf("smtp client: %w; close connection: %v", err, closeErr)
+		}
 		return fmt.Errorf("smtp client: %w", err)
 	}
-	defer client.Close()
+	clientClosed := false
+	defer func() {
+		if clientClosed {
+			return
+		}
+		if closeErr := client.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("smtp close client: %w", closeErr)
+		}
+	}()
 
 	if s.cfg.StartTLS {
 		if ok, _ := client.Extension("STARTTLS"); ok {
@@ -98,9 +108,14 @@ func (s *SMTPSender) Send(ctx context.Context, to string, subject string, textBo
 	if err != nil {
 		return fmt.Errorf("smtp data: %w", err)
 	}
-	message := buildTextMessage(s.from, *recipient, subject, textBody)
+	message, err := buildTextMessage(s.from, *recipient, subject, textBody)
+	if err != nil {
+		return fmt.Errorf("build smtp message: %w", err)
+	}
 	if _, err := writer.Write(message); err != nil {
-		_ = writer.Close()
+		if closeErr := writer.Close(); closeErr != nil {
+			return fmt.Errorf("smtp write: %w; close data: %v", err, closeErr)
+		}
 		return fmt.Errorf("smtp write: %w", err)
 	}
 	if err := writer.Close(); err != nil {
@@ -109,6 +124,7 @@ func (s *SMTPSender) Send(ctx context.Context, to string, subject string, textBo
 	if err := client.Quit(); err != nil {
 		return fmt.Errorf("smtp quit: %w", err)
 	}
+	clientClosed = true
 	return nil
 }
 
@@ -132,25 +148,54 @@ func (s *SMTPSender) dial(ctx context.Context, addr string) (net.Conn, error) {
 	return conn, nil
 }
 
-func buildTextMessage(from mail.Address, to mail.Address, subject string, textBody string) []byte {
+func buildTextMessage(from mail.Address, to mail.Address, subject string, textBody string) ([]byte, error) {
 	var buffer bytes.Buffer
 	writer := bufio.NewWriter(&buffer)
-	writeHeader(writer, "From", from.String())
-	writeHeader(writer, "To", to.String())
-	writeHeader(writer, "Subject", mime.QEncoding.Encode("UTF-8", strings.TrimSpace(subject)))
-	writeHeader(writer, "MIME-Version", "1.0")
-	writeHeader(writer, "Content-Type", `text/plain; charset="UTF-8"`)
-	writeHeader(writer, "Content-Transfer-Encoding", "8bit")
-	_, _ = writer.WriteString("\r\n")
-	_, _ = writer.WriteString(strings.TrimSpace(textBody))
-	_, _ = writer.WriteString("\r\n")
-	_ = writer.Flush()
-	return buffer.Bytes()
+	if err := writeHeader(writer, "From", from.String()); err != nil {
+		return nil, err
+	}
+	if err := writeHeader(writer, "To", to.String()); err != nil {
+		return nil, err
+	}
+	if err := writeHeader(writer, "Subject", mime.QEncoding.Encode("UTF-8", strings.TrimSpace(subject))); err != nil {
+		return nil, err
+	}
+	if err := writeHeader(writer, "MIME-Version", "1.0"); err != nil {
+		return nil, err
+	}
+	if err := writeHeader(writer, "Content-Type", `text/plain; charset="UTF-8"`); err != nil {
+		return nil, err
+	}
+	if err := writeHeader(writer, "Content-Transfer-Encoding", "8bit"); err != nil {
+		return nil, err
+	}
+	if _, err := writer.WriteString("\r\n"); err != nil {
+		return nil, err
+	}
+	if _, err := writer.WriteString(strings.TrimSpace(textBody)); err != nil {
+		return nil, err
+	}
+	if _, err := writer.WriteString("\r\n"); err != nil {
+		return nil, err
+	}
+	if err := writer.Flush(); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
 }
 
-func writeHeader(writer *bufio.Writer, key string, value string) {
-	_, _ = writer.WriteString(key)
-	_, _ = writer.WriteString(": ")
-	_, _ = writer.WriteString(strings.ReplaceAll(value, "\n", " "))
-	_, _ = writer.WriteString("\r\n")
+func writeHeader(writer *bufio.Writer, key string, value string) error {
+	if _, err := writer.WriteString(key); err != nil {
+		return err
+	}
+	if _, err := writer.WriteString(": "); err != nil {
+		return err
+	}
+	if _, err := writer.WriteString(strings.ReplaceAll(value, "\n", " ")); err != nil {
+		return err
+	}
+	if _, err := writer.WriteString("\r\n"); err != nil {
+		return err
+	}
+	return nil
 }

@@ -381,24 +381,6 @@ func (s *Service) ensureFreshmanCameraHandoffUsable(handoff *FreshmanCameraHando
 	return nil
 }
 
-func (s *Service) ensureFreshmanCameraHandoffCanStart(ctx context.Context, applicationID string) error {
-	hasMaterial, err := s.repo.FreshmanApplicationHasMaterial(ctx, applicationID)
-	if err != nil {
-		return err
-	}
-	if hasMaterial {
-		return ErrAdmissionCameraHandoffLocked
-	}
-	active, err := s.repo.HasActiveFreshmanCameraHandoff(ctx, applicationID, s.now())
-	if err != nil {
-		return err
-	}
-	if active {
-		return ErrAdmissionCameraHandoffLocked
-	}
-	return nil
-}
-
 func (s *Service) syncFreshmanApplicationMaterialSubmission(
 	ctx context.Context,
 	app *FreshmanApplication,
@@ -508,17 +490,6 @@ func (s *Service) ensureFreshmanMaterialSubmitted(ctx context.Context, session *
 
 func (s *Service) buildFreshmanCameraMobileURL(token string) string {
 	return s.returnURLOrigin + "/admission/freshman/camera/" + url.PathEscape(token)
-}
-
-func (s *Service) ensureNoPendingApplication(ctx context.Context, userID, schoolID int64) error {
-	exists, err := s.repo.HasPendingFreshmanApplication(ctx, userID, schoolID)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return ErrAdmissionFreshmanPendingExists
-	}
-	return nil
 }
 
 func (s *Service) buildFreshmanApplication(

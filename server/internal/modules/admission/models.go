@@ -18,8 +18,6 @@ const (
 	DefaultMaxExtensionDays                  = 90
 )
 
-const admissionRetryCountUnset = -1
-
 type AdmissionSessionStatus string
 
 const (

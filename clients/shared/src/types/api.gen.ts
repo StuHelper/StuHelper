@@ -4151,6 +4151,12 @@ export interface components {
             consentText?: string | null;
             manualFormFields?: components["schemas"]["ManualFieldDescriptor"][] | null;
             enabled: boolean;
+            /** @description 该学校是否已接入加群验证用的学校官方 SSO */
+            schoolSsoEnabled: boolean;
+            /** @description 该学校是否已接入加群验证用的学校邮箱 OTP */
+            schoolEmailOtpEnabled: boolean;
+            /** @description 学校邮箱认证的可选身份校验策略；BUAA 使用 academic_student_email 派生学号邮箱 */
+            schoolEmailIdentityPolicy?: components["schemas"]["SchoolEmailIdentityPolicy"];
             /** Format: date-time */
             createdAt: string;
         };
@@ -4158,6 +4164,8 @@ export interface components {
             schoolName?: string;
             /** @enum {string} */
             verificationMethod?: "ldap" | "manual";
+            /** @enum {string} */
+            approvalPolicy?: "auto" | "manual";
             ldapConfig?: components["schemas"]["SchoolLDAPConfigInput"];
             academicDbTable?: string;
             consentText?: string;
