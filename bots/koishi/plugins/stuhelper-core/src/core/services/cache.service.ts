@@ -2,7 +2,7 @@
  * 缓存服务 - 用于缓存群组和用户信息
  */
 
-import { Context } from 'koishi'
+import type { Context, Logger } from 'koishi'
 import { resolve } from 'path'
 import { JsonDataStore } from '../data/json.store'
 import {
@@ -21,10 +21,10 @@ import {
 export type { GuildCacheInfo, UserCacheInfo, MemberCacheInfo }
 
 export class CacheService {
-  private store: JsonDataStore<CacheData>
-  private logger: any
+  private readonly store: JsonDataStore<CacheData>
+  private readonly logger: Logger
 
-  constructor(private ctx: Context, dataDir: string) {
+  constructor(private readonly ctx: Context, dataDir: string) {
     this.logger = ctx.logger('stuhelperGroupCenter:cache')
     const cachePath = resolve(dataDir, 'cache.json')
     
