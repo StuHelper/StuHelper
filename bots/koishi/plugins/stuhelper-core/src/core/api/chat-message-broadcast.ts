@@ -1,20 +1,87 @@
-import { h } from 'koishi'
+import { h, type Bot } from 'koishi'
 
 import type { WebSocketAPIContext } from './api-context'
 import type { ChatImageAccessRegistry } from './chat-image-fetch'
 import { deliverChatMessageToClients } from './chat-delivery'
-import { prependQuoteElement, serializeChatElements } from './chat-element-serializer'
+import { prependQuoteElement, serializeChatElements, type ChatElement } from './chat-element-serializer'
 import { toApiErrorMessage } from './api-response'
+
+interface ChatUserProfile {
+  readonly id?: unknown
+  readonly name?: unknown
+  readonly nick?: unknown
+  readonly username?: unknown
+  readonly avatar?: string
+}
+
+interface ChatGuildInfo {
+  readonly name?: string
+  readonly avatar?: string
+}
+
+interface ChatChannelInfo {
+  readonly name?: string
+}
+
+interface ChatQuote {
+  readonly id?: unknown
+  readonly messageId?: unknown
+  readonly content?: unknown
+  readonly elements?: unknown
+  readonly user?: ChatUserProfile
+}
+
+interface ChatBroadcastBot extends Pick<Bot, 'platform' | 'selfId'> {
+  readonly user?: ChatUserProfile
+  getMessage?(channelId: string, messageId: string): Promise<{ content?: string; elements?: unknown }>
+  getGuild?(guildId: string): Promise<ChatGuildInfo | undefined>
+  getGuildMember?(guildId: string, userId: string): Promise<{
+    nick?: string
+    user?: Pick<ChatUserProfile, 'name'>
+  } | undefined>
+  getLogin?(): Promise<{ user?: ChatUserProfile } | undefined>
+}
+
+interface ChatBroadcastSession {
+  readonly id?: string | number
+  readonly platform?: string
+  readonly selfId?: string
+  readonly channelId?: string
+  readonly channelName?: string
+  readonly guildId?: string
+  readonly guildName?: string
+  readonly userId?: string
+  readonly messageId?: string
+  readonly timestamp?: number
+  readonly content?: string
+  readonly elements?: unknown
+  readonly quote?: ChatQuote
+  readonly author?: {
+    readonly name?: string
+    readonly nick?: string
+    readonly avatar?: string
+  }
+  readonly event?: {
+    readonly guild?: ChatGuildInfo
+    readonly channel?: ChatChannelInfo
+  }
+  readonly bot?: ChatBroadcastBot
+}
+
+interface BotLoginInfo {
+  readonly userId: string
+  readonly nickname: string
+}
 
 interface BroadcastDeps {
   readonly api: WebSocketAPIContext
   readonly imageAccess: ChatImageAccessRegistry
-  readonly botLoginInfoCache: Map<string, { userId: string; nickname: string }>
+  readonly botLoginInfoCache: Map<string, BotLoginInfo>
 }
 
 interface MessageContent {
   content: string
-  elements: any[]
+  elements: ChatElement[]
 }
 
 interface GuildMeta {
@@ -25,6 +92,13 @@ interface GuildMeta {
 interface AuthorMeta {
   username: string
   avatar?: string
+}
+
+interface BroadcastPayloadData {
+  readonly message: MessageContent
+  readonly guild: GuildMeta
+  readonly author: AuthorMeta
+  readonly enrichedElements: ChatElement[]
 }
 
 const QUOTE_PREVIEW_LENGTH = 100
@@ -39,7 +113,7 @@ export function registerChatMessageBroadcast(
   api.ctx.on('send', (session) => broadcastMessage(deps, session, true))
 }
 
-async function broadcastMessage(deps: BroadcastDeps, session: any, isSelf = false) {
+async function broadcastMessage(deps: BroadcastDeps, session: ChatBroadcastSession, isSelf = false) {
   deps.api.ctx.logger('stuhelperGroupCenter').debug('broadcastMessage called:', {
     isSelf,
     channelId: session.channelId,
@@ -56,12 +130,16 @@ async function broadcastMessage(deps: BroadcastDeps, session: any, isSelf = fals
   })
 }
 
-async function buildMessageContent(deps: BroadcastDeps, session: any, isSelf: boolean): Promise<MessageContent> {
+async function buildMessageContent(
+  deps: BroadcastDeps,
+  session: ChatBroadcastSession,
+  isSelf: boolean,
+): Promise<MessageContent> {
   const contentState = await readSessionMessageContent(deps, session, isSelf)
   const quotePayload = buildQuotePayload(session.quote)
   const elementList = Array.isArray(contentState.elements)
     ? contentState.elements
-    : (contentState.content ? h.parse(contentState.content) : [])
+    : parseContentElements(contentState.content)
   const elementsWithQuote = prependQuoteElement(elementList, quotePayload)
   const finalElements = elementsWithQuote.length > 0
     ? elementsWithQuote
@@ -72,8 +150,11 @@ async function buildMessageContent(deps: BroadcastDeps, session: any, isSelf: bo
   }
 }
 
-async function readSessionMessageContent(deps: BroadcastDeps, session: any, isSelf: boolean) {
-  const state = { content: session.content || '', elements: session.elements }
+async function readSessionMessageContent(deps: BroadcastDeps, session: ChatBroadcastSession, isSelf: boolean) {
+  const state = {
+    content: session.content || '',
+    elements: readChatElements(session.elements),
+  }
   const messageChannelId = session.channelId || session.guildId
   if (!isSelf || !session.messageId || !messageChannelId) return state
 
@@ -83,24 +164,26 @@ async function readSessionMessageContent(deps: BroadcastDeps, session: any, isSe
   try {
     const message = await bot.getMessage(messageChannelId, session.messageId)
     if (message?.content) state.content = message.content
-    if (Array.isArray(message?.elements)) state.elements = message.elements
+    const messageElements = readChatElements(message?.elements)
+    if (messageElements) state.elements = messageElements
   } catch (cause) {
     deps.api.ctx.logger('stuhelperGroupCenter').warn('获取自身消息详情失败: %s', toApiErrorMessage(cause))
   }
   return state
 }
 
-function readFallbackElements(session: any, contentState: { content: string, elements: any }) {
-  if (Array.isArray(contentState.elements) && contentState.elements.length > 0) {
+function readFallbackElements(session: ChatBroadcastSession, contentState: { content: string; elements?: ChatElement[] }) {
+  if (contentState.elements && contentState.elements.length > 0) {
     return contentState.elements
   }
-  if (Array.isArray(session.elements) && session.elements.length > 0) {
-    return session.elements
+  const sessionElements = readChatElements(session.elements)
+  if (sessionElements && sessionElements.length > 0) {
+    return sessionElements
   }
-  return contentState.content ? h.parse(contentState.content) : []
+  return parseContentElements(contentState.content)
 }
 
-function serializeSpecialElements(isSelf: boolean, content: string, elements: any[]) {
+function serializeSpecialElements(isSelf: boolean, content: string, elements: readonly ChatElement[]) {
   if (isSelf || !Array.isArray(elements) || elements.length === 0) return content
   const hasSpecialElements = elements.some((el) => {
     return el.type === 'quote' || el.type === 'at' || el.type === 'img' || el.type === 'image' || el.type === 'face'
@@ -108,7 +191,7 @@ function serializeSpecialElements(isSelf: boolean, content: string, elements: an
   return hasSpecialElements ? serializeChatElements(elements) : content
 }
 
-async function readGuildMeta(deps: BroadcastDeps, session: any): Promise<GuildMeta> {
+async function readGuildMeta(deps: BroadcastDeps, session: ChatBroadcastSession): Promise<GuildMeta> {
   const guild = {
     guildName: session.guildName || session.event?.guild?.name,
     guildAvatar: session.event?.guild?.avatar,
@@ -122,9 +205,9 @@ async function readGuildMeta(deps: BroadcastDeps, session: any): Promise<GuildMe
   return guild
 }
 
-async function fillGuildMetaFromBot(deps: BroadcastDeps, session: any, guild: GuildMeta) {
+async function fillGuildMetaFromBot(deps: BroadcastDeps, session: ChatBroadcastSession, guild: GuildMeta) {
   const bot = session.bot || deps.api.ctx.bots.find((item) => item.platform === session.platform)
-  if (!bot) return
+  if (!bot || typeof bot.getGuild !== 'function' || !session.guildId) return
   try {
     const guildInfo = await bot.getGuild(session.guildId)
     guild.guildName ||= guildInfo?.name
@@ -134,9 +217,9 @@ async function fillGuildMetaFromBot(deps: BroadcastDeps, session: any, guild: Gu
   }
 }
 
-async function readAuthorMeta(deps: BroadcastDeps, session: any, isSelf: boolean): Promise<AuthorMeta> {
+async function readAuthorMeta(deps: BroadcastDeps, session: ChatBroadcastSession, isSelf: boolean): Promise<AuthorMeta> {
   const author = {
-    username: session.author?.name || session.author?.nick || session.userId,
+    username: session.author?.name || session.author?.nick || session.userId || '',
     avatar: session.author?.avatar,
   }
   if (isSelf) {
@@ -149,15 +232,15 @@ async function readAuthorMeta(deps: BroadcastDeps, session: any, isSelf: boolean
   return author
 }
 
-async function fillSelfAuthorMeta(deps: BroadcastDeps, session: any, author: AuthorMeta) {
+async function fillSelfAuthorMeta(deps: BroadcastDeps, session: ChatBroadcastSession, author: AuthorMeta) {
   const bot = session.bot || deps.api.ctx.bots.find((item) => item.selfId === session.selfId)
   if (!bot) return
   const loginInfo = await getBotLoginInfo(deps, bot)
-  author.username = loginInfo?.nickname || bot.user?.name || author.username || '我'
+  author.username = loginInfo?.nickname || readOptionalString(bot.user?.name) || author.username || '我'
   author.avatar = bot.user?.avatar || author.avatar
 }
 
-async function getBotLoginInfo(deps: BroadcastDeps, bot: any) {
+async function getBotLoginInfo(deps: BroadcastDeps, bot: ChatBroadcastBot) {
   const cacheKey = `${bot.platform}:${bot.selfId}`
   const cached = deps.botLoginInfoCache.get(cacheKey)
   if (cached) return cached
@@ -167,7 +250,7 @@ async function getBotLoginInfo(deps: BroadcastDeps, bot: any) {
   return loginInfo
 }
 
-async function fetchBotLoginInfo(deps: BroadcastDeps, bot: any) {
+async function fetchBotLoginInfo(deps: BroadcastDeps, bot: ChatBroadcastBot): Promise<BotLoginInfo | null> {
   if (typeof bot.getLogin === 'function') {
     try {
       const login = await bot.getLogin()
@@ -178,32 +261,39 @@ async function fetchBotLoginInfo(deps: BroadcastDeps, bot: any) {
     }
   }
   if (bot.user?.name || bot.user?.id) {
-    return { userId: bot.selfId, nickname: bot.user.name || bot.selfId }
+    return { userId: bot.selfId, nickname: readOptionalString(bot.user.name) || bot.selfId }
   }
   return null
 }
 
-function toBotLoginInfo(user: any, selfId: string) {
+function toBotLoginInfo(user: ChatUserProfile, selfId: string): BotLoginInfo {
   return {
     userId: String(user.id || selfId),
     nickname: String(user.name || user.nick || user.username || user.id || selfId),
   }
 }
 
-async function enrichAtElements(deps: BroadcastDeps, session: any, elements: any[]) {
+async function enrichAtElements(
+  deps: BroadcastDeps,
+  session: ChatBroadcastSession,
+  elements: readonly ChatElement[],
+): Promise<ChatElement[]> {
   return Promise.all(elements.map(async (element) => {
     if (element.type === 'at' && element.attrs?.id && !element.attrs.name) {
-      await fillAtElementName(deps, session, element)
+      const enriched = { ...element, attrs: { ...element.attrs } }
+      await fillAtElementName(deps, session, enriched)
+      return enriched
     }
     return element
   }))
 }
 
-async function fillAtElementName(deps: BroadcastDeps, session: any, element: any) {
+async function fillAtElementName(deps: BroadcastDeps, session: ChatBroadcastSession, element: ChatElement) {
   const bot = session.bot || deps.api.ctx.bots.find((item) => item.platform === session.platform)
-  if (!bot || !session.guildId) return
+  const userId = readOptionalString(element.attrs?.id)
+  if (!bot || typeof bot.getGuildMember !== 'function' || !session.guildId || !userId) return
   try {
-    const member = await bot.getGuildMember(session.guildId, element.attrs.id)
+    const member = await bot.getGuildMember(session.guildId, userId)
     if (member?.nick || member?.user?.name) {
       element.attrs.name = member.nick || member.user.name
     }
@@ -212,16 +302,20 @@ async function fillAtElementName(deps: BroadcastDeps, session: any, element: any
   }
 }
 
-async function sendBroadcastPayload(deps: BroadcastDeps, session: any, data: any) {
+async function sendBroadcastPayload(
+  deps: BroadcastDeps,
+  session: ChatBroadcastSession,
+  data: BroadcastPayloadData,
+) {
   await deliverChatMessageToClients({
     clients: Object.values(deps.api.ctx.console.clients),
     payload: {
-      id: session.messageId || session.id || Date.now().toString(),
+      id: readPayloadId(session),
       timestamp: session.timestamp || Date.now(),
-      userId: session.userId || session.selfId,
+      userId: session.userId || session.selfId || '',
       username: data.author.username,
       avatar: data.author.avatar,
-      content: data.message.content || session.content,
+      content: data.message.content || '',
       elements: data.enrichedElements,
       platform: session.platform,
       guildId: session.guildId,
@@ -237,31 +331,63 @@ async function sendBroadcastPayload(deps: BroadcastDeps, session: any, data: any
   })
 }
 
-function buildQuotePayload(quote: any) {
+function readPayloadId(session: ChatBroadcastSession) {
+  return readOptionalString(session.messageId) || readOptionalString(session.id) || Date.now().toString()
+}
+
+function buildQuotePayload(quote: ChatQuote | undefined) {
   const messageId = readMessageId(quote)
   if (!messageId) return undefined
 
-  const content = quote.content || readQuoteElementsPreview(quote.elements)
+  const content = readOptionalString(quote?.content) || readQuoteElementsPreview(quote?.elements)
   return {
     id: messageId,
     messageId,
-    user: quote.user?.name || quote.user?.id || '',
+    user: readOptionalString(quote?.user?.name) || readOptionalString(quote?.user?.id) || '',
     content: content.slice(0, QUOTE_PREVIEW_LENGTH),
   }
 }
 
-function readMessageId(message: any) {
-  return message?.id || message?.messageId || ''
+function readMessageId(message: ChatQuote | undefined) {
+  return readOptionalString(message?.id) || readOptionalString(message?.messageId) || ''
 }
 
-function readQuoteElementsPreview(elements: any[] | undefined) {
+function readQuoteElementsPreview(elements: unknown) {
   if (!Array.isArray(elements)) return ''
   return elements.map((element) => {
-    if (element?.type === 'text') {
-      return element.attrs?.content || element.attrs?.text || ''
+    if (!isRecord(element)) return '[unknown]'
+    const type = readOptionalString(element.type) || 'unknown'
+    if (type === 'text' && isRecord(element.attrs)) {
+      return readOptionalString(element.attrs.content) || readOptionalString(element.attrs.text) || ''
     }
-    return `[${element?.type || 'unknown'}]`
+    return `[${type}]`
   }).join('')
+}
+
+function readChatElements(value: unknown): ChatElement[] | undefined {
+  return Array.isArray(value) ? value.filter(isChatElement) : undefined
+}
+
+function parseContentElements(content: string): ChatElement[] {
+  return content ? h.parse(content).filter(isChatElement) : []
+}
+
+function isChatElement(value: unknown): value is ChatElement {
+  if (!isRecord(value)) return false
+  if (value.type !== undefined && typeof value.type !== 'string') return false
+  if (value.attrs !== undefined && !isRecord(value.attrs)) return false
+  if (value.children !== undefined && (!Array.isArray(value.children) || !value.children.every(isChatElement))) {
+    return false
+  }
+  return true
+}
+
+function readOptionalString(value: unknown): string {
+  return typeof value === 'string' || typeof value === 'number' ? String(value) : ''
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
 }
 
 function isQQPlatform(platform: string | undefined) {

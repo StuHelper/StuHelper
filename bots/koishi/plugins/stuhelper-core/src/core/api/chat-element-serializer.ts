@@ -1,4 +1,4 @@
-type ChatElement = {
+export type ChatElement = {
   type?: string
   attrs?: Record<string, unknown>
   children?: ChatElement[]
