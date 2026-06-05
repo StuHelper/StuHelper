@@ -18,6 +18,10 @@ type fakeRow struct {
 	scan func(dest ...any) error
 }
 
+func nilContextForTest() context.Context {
+	return nil
+}
+
 func (f fakeRow) Scan(dest ...any) error {
 	return f.scan(dest...)
 }
@@ -67,6 +71,29 @@ func TestTableHint_NormalizesContextValue(t *testing.T) {
 	assert.Equal(t, metrics.DBTableUnknown, TableHint(context.Background()))
 	assert.Equal(t, metrics.DBTableUnknown, TableHint(WithTableHint(context.Background(), "SELECT * FROM users")))
 	assert.Equal(t, "users", TableHint(WithTableHint(context.Background(), " Users ")))
+	assert.Equal(t, "courses", TableHint(WithTableHint(nilContextForTest(), "courses")))
+}
+
+func TestDBWithTimeout_DefaultsNilContext(t *testing.T) {
+	d := &DB{timeout: time.Second}
+
+	ctx, cancel := d.withTimeout(nilContextForTest())
+	defer cancel()
+
+	assert.NotNil(t, ctx)
+	deadline, ok := ctx.Deadline()
+	require.True(t, ok)
+	assert.WithinDuration(t, time.Now().Add(time.Second), deadline, 100*time.Millisecond)
+}
+
+func TestDBStartSpan_DefaultsNilContext(t *testing.T) {
+	d := &DB{}
+
+	ctx, span := d.startSpan(nilContextForTest(), "query", "select 1", "users")
+	defer span.End()
+
+	assert.NotNil(t, ctx)
+	assert.NotNil(t, span)
 }
 
 func TestRowWithCancelScan_RecordsTableHintMetrics(t *testing.T) {
