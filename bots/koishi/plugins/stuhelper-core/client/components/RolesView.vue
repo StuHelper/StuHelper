@@ -503,6 +503,7 @@ import type { Role, PermissionNode, RoleMember } from '../types'
 import { message } from '@koishijs/client'
 import { errorMessage } from '../utils/error-message'
 import { copyTextToClipboard } from '../utils/clipboard'
+import { useActionError } from '../composables/use-action-error'
 
 type RoleOperation = '' | 'create' | 'clone' | 'delete'
 
@@ -529,8 +530,14 @@ const currentRoleMembers = ref<RoleMember[]>([])
 const loading = ref(false)
 const memberLoading = ref(false)
 const loadError = ref('')
-const actionError = ref('')
-const actionErrorTitle = ref('操作失败')
+const {
+  actionError,
+  actionErrorTitle,
+  setActionError,
+  clearActionError,
+} = useActionError({
+  onError: (title, details) => message.error(`${title}: ${details}`),
+})
 const roleOperation = ref<RoleOperation>('')
 const savingChanges = ref(false)
 const addingMember = ref(false)
@@ -559,8 +566,15 @@ const importAuthorityLevel = ref(1)
 const importGuildId = ref('')
 const importPreviewMembers = ref<RoleMember[]>([])
 const importLoading = ref(false)
-const importError = ref('')
-const importErrorTitle = ref('导入失败')
+const {
+  actionError: importError,
+  actionErrorTitle: importErrorTitle,
+  setActionError: setImportError,
+  clearActionError: clearImportError,
+} = useActionError({
+  defaultTitle: '导入失败',
+  onError: (title, details) => message.error(`${title}: ${details}`),
+})
 const selectedImportIds = ref<Set<string>>(new Set())
 let importPreviewRequestSeq = 0
 
@@ -692,30 +706,6 @@ function setLoadError(title: string, cause: unknown, fallback: string): void {
   const details = errorMessage(cause, fallback)
   loadError.value = details
   message.error(`${title}: ${details}`)
-}
-
-function setActionError(title: string, cause: unknown, fallback: string): void {
-  const details = errorMessage(cause, fallback)
-  actionErrorTitle.value = title
-  actionError.value = details
-  message.error(`${title}: ${details}`)
-}
-
-function clearActionError(): void {
-  actionErrorTitle.value = '操作失败'
-  actionError.value = ''
-}
-
-function setImportError(title: string, cause: unknown, fallback: string): void {
-  const details = errorMessage(cause, fallback)
-  importErrorTitle.value = title
-  importError.value = details
-  message.error(`${title}: ${details}`)
-}
-
-function clearImportError(): void {
-  importErrorTitle.value = '导入失败'
-  importError.value = ''
 }
 
 // 获取数据
