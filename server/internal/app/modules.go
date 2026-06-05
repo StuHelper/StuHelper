@@ -14,11 +14,9 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/admission"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/resource"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/storage"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
@@ -125,19 +123,13 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 			academics.NewRepository(rt.database),
 			academics.NewRegistry(),
 		),
-		academics.WithAdminAuthorizers(academics.AdminAuthorizers{
-			Read:   rbac.RequireGlobalCapability(capability.UserSchoolRead),
-			Update: rbac.RequireGlobalCapability(capability.UserSchoolUpdate),
-		}),
+		academics.WithAdminAuthorizers(academicsAdminAuthorizers()),
 	)
 	academicsHandler.RegisterRoutes(api, authMW)
 
 	storage.NewHandler(
 		storageService,
-		storage.WithAdminAuthorizers(storage.AdminAuthorizers{
-			Read:   rbac.RequireGlobalCapability(capability.UserSystemRead),
-			Update: rbac.RequireGlobalCapability(capability.UserSystemUpdate),
-		}),
+		storage.WithAdminAuthorizers(storageAdminAuthorizers()),
 	).RegisterAdminRoutes(api, authMW, adminMFA...)
 
 	resourceService := resource.NewService(
@@ -159,17 +151,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		rt.redisClient.GetClient(),
 		bindPhoneOTP,
 		bindPhoneSMS,
-		user.WithAdminAuthorizers(user.AdminAuthorizers{
-			IdentityRead:   rbac.RequireGlobalCapability(capability.UserIdentityRead),
-			IdentityReview: rbac.RequireGlobalCapability(capability.UserIdentityReview),
-			StudentRead:    rbac.RequireCapability(capability.UserStudentRead),
-			StudentReview:  rbac.RequireCapability(capability.UserStudentReview),
-			SchoolRead:     rbac.RequireCapability(capability.UserSchoolRead),
-			SchoolUpdate:   rbac.RequireCapability(capability.UserSchoolUpdate),
-			SystemRead:     rbac.RequireGlobalCapability(capability.UserSystemRead),
-			SystemUpdate:   rbac.RequireGlobalCapability(capability.UserSystemUpdate),
-			StepUpMFA:      rbac.RequireStepUpMFA(),
-		}),
+		user.WithAdminAuthorizers(userAdminAuthorizers()),
 	)
 	openPlatformHandler, _, err := rt.initOpenPlatformModule(api, authMW, piiCipher, userRepo.GetInternalUserID)
 	if err != nil {
@@ -203,16 +185,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		admissionService,
 		userRepo.GetInternalUserID,
 		botCredentialVerifier,
-		admission.WithAdminAuthorizers(admission.AdminAuthorizers{
-			AdmissionPolicyRead:     rbac.RequireCapability(capability.AdmissionPolicyRead),
-			AdmissionPolicyUpdate:   rbac.RequireCapability(capability.AdmissionPolicyUpdate),
-			AdmissionSessionRead:    rbac.RequireCapability(capability.AdmissionSessionRead),
-			AdmissionSessionManage:  rbac.RequireCapability(capability.AdmissionSessionManage),
-			AdmissionFreshmanRead:   rbac.RequireCapability(capability.AdmissionFreshmanRead),
-			AdmissionFreshmanReview: rbac.RequireCapability(capability.AdmissionFreshmanReview),
-			MemberBlacklistRead:     rbac.RequireCapability(capability.MemberBlacklistRead),
-			MemberBlacklistManage:   rbac.RequireCapability(capability.MemberBlacklistManage),
-		}),
+		admission.WithAdminAuthorizers(admissionAdminAuthorizers()),
 	)
 	admissionHandler.RegisterRoutes(api, authMW)
 	admissionHandler.RegisterBotRoutes(api)

@@ -9,9 +9,7 @@ import (
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/admission"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
@@ -45,10 +43,7 @@ func (rt *Runtime) initAuthModule(
 		rt.redisClient.GetClient(),
 		rt.oidcClient,
 		userSyncRepo,
-		auth.WithAdminAuthorizers(auth.AdminAuthorizers{
-			AccountLockUpdate: rbac.RequireGlobalCapability(capability.UserSystemUpdate),
-			StepUpMFA:         rbac.RequireStepUpMFA(),
-		}),
+		auth.WithAdminAuthorizers(authAdminAuthorizers()),
 	)
 	authHandler.RegisterPublicRoutes(api)
 
@@ -109,7 +104,7 @@ func (rt *Runtime) registerAdminRoutes(
 ) {
 	adminGroup := api.Group("/admin")
 	middlewares := append([]gin.HandlerFunc{authMW}, adminMFAMiddlewares(rt.cfg.App.Env, userRepo)...)
-	middlewares = append(middlewares, rbac.RequireAnyCapability(capability.AdminEntryCapabilities...))
+	middlewares = append(middlewares, adminEntryAuthorizer())
 	adminGroup.Use(middlewares...)
 	authHandler.RegisterAdminRoutes(adminGroup)
 	userHandler.RegisterAdminRoutes(adminGroup)
@@ -129,6 +124,6 @@ func adminMFAMiddlewares(appEnv string, userRepo user.MFAContextRepository) []gi
 	}
 	return []gin.HandlerFunc{
 		user.MFAContextMiddleware(userRepo),
-		rbac.RequirePrivilegedMFA(),
+		privilegedMFAAuthorizer(),
 	}
 }
