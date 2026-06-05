@@ -543,6 +543,26 @@ test('SettingsView keeps save failures visible and prevents duplicate submission
   assert.doesNotMatch(source, /message\.error\(errorMessage\(cause\) \|\| '保存设置失败'\)/)
 })
 
+test('SettingsView uses shared confirmation before discarding local settings edits', () => {
+  const source = readClientFile('./components/SettingsView.vue')
+
+  assert.match(source, /import \{ useConfirm \} from '\.\.\/composables\/use-confirm'/)
+  assert.match(source, /import ConfirmDialog from '\.\/primitives\/ConfirmDialog\.vue'/)
+  assert.match(source, /<ConfirmDialog\b/)
+  assert.match(source, /:open="confirmDialog\.open"/)
+  assert.match(source, /:tone="confirmDialog\.tone"/)
+  assert.match(source, /@confirm="acceptConfirm"/)
+  assert.match(source, /@cancel="cancelConfirm"/)
+  assert.match(source, /state: confirmDialog,[\s\S]*confirm,[\s\S]*accept: acceptConfirm,[\s\S]*cancel: cancelConfirm,[\s\S]*\} = useConfirm\(\)/)
+  assert.match(source, /const confirmed = await confirm\(\{\s*title: '放弃更改'[\s\S]*tone: 'normal'/)
+  assert.match(source, /const confirmed = await confirm\(\{\s*title: '恢复默认设置'[\s\S]*tone: 'danger'/)
+  assert.doesNotMatch(source, /const confirmDialog = ref\(\{/)
+  assert.doesNotMatch(source, /const showConfirm =/)
+  assert.doesNotMatch(source, /const doConfirm =/)
+  assert.doesNotMatch(source, /confirmDialog\.show/)
+  assert.doesNotMatch(source, /modal-overlay|modal-dialog|fade-enter-active/)
+})
+
 test('ChatView delegates message rendering to a safe component instead of v-html', () => {
   const source = readClientFile('./components/ChatView.vue')
 

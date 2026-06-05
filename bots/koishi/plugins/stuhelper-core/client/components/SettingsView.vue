@@ -646,23 +646,16 @@
       </div>
     </transition>
 
-    <!-- Confirm Dialog -->
-    <transition name="fade">
-      <div class="modal-overlay" v-if="confirmDialog.show" @click="cancelConfirm">
-        <div class="modal-dialog" @click.stop>
-          <div class="modal-header">
-            <h3 class="modal-title">{{ confirmDialog.title }}</h3>
-          </div>
-          <div class="modal-body">
-            <p class="modal-text">{{ confirmDialog.message }}</p>
-          </div>
-          <div class="modal-footer">
-            <button class="action-btn" @click="cancelConfirm">取消</button>
-            <button :class="['action-btn', confirmDialog.type === 'danger' ? 'danger' : 'primary']" @click="doConfirm">确认</button>
-          </div>
-        </div>
-      </div>
-    </transition>
+    <ConfirmDialog
+      :open="confirmDialog.open"
+      :title="confirmDialog.title"
+      :message="confirmDialog.message"
+      :tone="confirmDialog.tone"
+      :confirm-text="confirmDialog.confirmText"
+      :cancel-text="confirmDialog.cancelText"
+      @confirm="acceptConfirm"
+      @cancel="cancelConfirm"
+    />
   </div>
 </template>
 
@@ -671,6 +664,8 @@ import { ref, onMounted, computed } from 'vue'
 import { message } from '@koishijs/client'
 import { settingsApi } from '../api'
 import { useActionError } from '../composables/use-action-error'
+import { useConfirm } from '../composables/use-confirm'
+import ConfirmDialog from './primitives/ConfirmDialog.vue'
 
 type PlainRecord = Record<string, unknown>
 
@@ -858,43 +853,12 @@ const selectSection = (id: string) => {
   sectionDropdownOpen.value = false
 }
 
-// 确认对话框状态
-const confirmDialog = ref({
-  show: false,
-  title: '确认',
-  message: '',
-  type: 'normal' as 'normal' | 'danger',
-  onConfirm: () => {},
-  onCancel: () => {}
-})
-
-// 显示确认对话框
-const showConfirm = (options: { title?: string, message: string, type?: 'normal' | 'danger' }): Promise<boolean> => {
-  return new Promise((resolve) => {
-    confirmDialog.value = {
-      show: true,
-      title: options.title || '确认',
-      message: options.message,
-      type: options.type || 'normal',
-      onConfirm: () => {
-        confirmDialog.value.show = false
-        resolve(true)
-      },
-      onCancel: () => {
-        confirmDialog.value.show = false
-        resolve(false)
-      }
-    }
-  })
-}
-
-const cancelConfirm = () => {
-  confirmDialog.value.onCancel()
-}
-
-const doConfirm = () => {
-  confirmDialog.value.onConfirm()
-}
+const {
+  state: confirmDialog,
+  confirm,
+  accept: acceptConfirm,
+  cancel: cancelConfirm,
+} = useConfirm()
 
 // 检测是否有未保存的修改
 const hasChanges = computed(() => {
@@ -1023,10 +987,10 @@ const saveSettings = async () => {
 const resetChanges = async () => {
   if (!settingsLoaded.value) return
 
-  const confirmed = await showConfirm({
+  const confirmed = await confirm({
     title: '放弃更改',
     message: '确定要放弃当前所有未保存的修改吗？',
-    type: 'normal'
+    tone: 'normal'
   })
   
   if (confirmed) {
@@ -1040,10 +1004,10 @@ const resetChanges = async () => {
 const resetToDefault = async () => {
   if (!settingsLoaded.value) return
 
-  const confirmed = await showConfirm({
+  const confirmed = await confirm({
     title: '恢复默认设置',
     message: '确定要将所有设置恢复为默认值吗？此操作将覆盖当前所有设置，需要保存后才会生效。',
-    type: 'danger'
+    tone: 'danger'
   })
   
   if (confirmed) {
@@ -1521,85 +1485,6 @@ onMounted(() => {
   opacity: 0;
 }
 
-/* Modal Dialog */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(2px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-dialog {
-  background: var(--bg1);
-  border: 1px solid var(--k-color-border);
-  border-radius: 8px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
-  min-width: 300px;
-  max-width: 400px;
-  overflow: hidden;
-}
-
-.modal-header {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--k-color-divider);
-  background: var(--bg2);
-}
-
-.modal-title {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--fg1);
-}
-
-.modal-body {
-  padding: 16px;
-}
-
-.modal-text {
-  margin: 0;
-  font-size: 13px;
-  color: var(--fg2);
-  line-height: 1.6;
-}
-
-.modal-footer {
-  padding: 12px 16px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  border-top: 1px solid var(--k-color-divider);
-  background: var(--bg2);
-}
-
-/* Fade Animation */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.15s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-.fade-enter-active .modal-dialog,
-.fade-leave-active .modal-dialog {
-  transition: transform 0.15s ease;
-}
-
-.fade-enter-from .modal-dialog,
-.fade-leave-to .modal-dialog {
-  transform: scale(0.95);
-}
-
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -1899,30 +1784,6 @@ onMounted(() => {
     padding: 0.375rem 0.75rem;
     font-size: 0.75rem;
   }
-
-  /* 模态框 */
-  .modal-dialog {
-    width: calc(100% - 32px);
-    max-width: none;
-    margin: 16px;
-  }
-
-  .modal-header {
-    padding: 0.75rem 1rem;
-  }
-
-  .modal-body {
-    padding: 1rem;
-  }
-
-  .modal-text {
-    font-size: 0.8rem;
-  }
-
-  .modal-footer {
-    padding: 0.75rem 1rem;
-  }
-
 
 }
 
