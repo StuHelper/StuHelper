@@ -9,6 +9,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
 )
 
 type mobileLDAPAuthClient struct {
@@ -294,6 +296,9 @@ func TestVerifyStudent_LDAPPhoneSyncRunsAfterProfileTransactionAndPersistsProjec
 		syncedSubject   string
 		syncedPhone     string
 	)
+	hmacKey := []byte("test-hmac-key-at-least-32-chars!")
+	expectedPhoneHash, err := phoneutil.HashLookupWithKey(rawPhone, hmacKey)
+	require.NoError(t, err)
 
 	repo := &academicAwareMockRepo{
 		mockRepo: &mockRepo{
@@ -341,7 +346,7 @@ func TestVerifyStudent_LDAPPhoneSyncRunsAfterProfileTransactionAndPersistsProjec
 			onSetUserPhone: func(_ context.Context, gotUserID int64, phoneEnc []byte, phoneHash string) error {
 				assert.Equal(t, userID, gotUserID)
 				assert.Equal(t, "encrypted:138****8000", string(phoneEnc))
-				assert.NotEmpty(t, phoneHash)
+				assert.Equal(t, expectedPhoneHash, phoneHash)
 				phoneProjection = append([]byte(nil), phoneEnc...)
 				events = append(events, "phone_projection")
 				return nil
@@ -363,7 +368,7 @@ func TestVerifyStudent_LDAPPhoneSyncRunsAfterProfileTransactionAndPersistsProjec
 
 	svc, err := NewService(
 		repo,
-		[]byte("test-hmac-key-at-least-32-chars!"),
+		hmacKey,
 		&fakeEncryptor{},
 		WithLDAPClientFactory(func(_ LDAPConfig) (LDAPAuthClient, error) {
 			return mobileLDAPAuthClient{mobile: rawPhone}, nil

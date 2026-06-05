@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
 )
 
 func TestNewService_NilRepo(t *testing.T) {
@@ -39,7 +41,12 @@ func TestBindPhone_WritesCasdoorAndMaskedProfileProjection(t *testing.T) {
 		updatedProfile *Profile
 		syncedSubject  string
 		syncedPhone    string
+		phoneEnc       []byte
+		phoneHash      string
 	)
+	hmacKey := []byte("test-hmac-key-at-least-32-chars!")
+	expectedHash, err := phoneutil.HashLookupWithKey("13800138000", hmacKey)
+	require.NoError(t, err)
 
 	repo := &mockRepo{
 		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
@@ -54,6 +61,12 @@ func TestBindPhone_WritesCasdoorAndMaskedProfileProjection(t *testing.T) {
 			updatedProfile = &cp
 			return nil
 		},
+		onSetUserPhone: func(_ context.Context, userID int64, gotPhoneEnc []byte, gotPhoneHash string) error {
+			assert.Equal(t, int64(42), userID)
+			phoneEnc = append([]byte(nil), gotPhoneEnc...)
+			phoneHash = gotPhoneHash
+			return nil
+		},
 	}
 	gateway := profileIdentitySyncFunc(func(_ context.Context, subject, phone string) error {
 		syncedSubject = subject
@@ -63,7 +76,7 @@ func TestBindPhone_WritesCasdoorAndMaskedProfileProjection(t *testing.T) {
 
 	svc, err := NewService(
 		repo,
-		[]byte("test-hmac-key-at-least-32-chars!"),
+		hmacKey,
 		&fakeEncryptor{},
 		WithProfileIdentitySyncGateway(gateway),
 	)
@@ -77,6 +90,8 @@ func TestBindPhone_WritesCasdoorAndMaskedProfileProjection(t *testing.T) {
 	require.NotNil(t, updatedProfile.Phone)
 	assert.Equal(t, "138****8000", *updatedProfile.Phone)
 	assert.True(t, updatedProfile.PhoneVerified)
+	assert.Equal(t, []byte("encrypted:138****8000"), phoneEnc)
+	assert.Equal(t, expectedHash, phoneHash)
 }
 
 func TestBindPhone_RequiresIdentitySyncGateway(t *testing.T) {

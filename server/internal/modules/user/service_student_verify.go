@@ -274,8 +274,7 @@ func (s *Service) syncVerifiedPhoneProjection(ctx context.Context, userID int64,
 		return err
 	}
 
-	masked := phoneutil.Mask(phone)
-	phoneEnc, phoneHash, err := s.encryptPhoneProjection(userID, masked)
+	_, phoneEnc, phoneHash, err := s.buildPhoneProjection(phone)
 	if err != nil {
 		return err
 	}

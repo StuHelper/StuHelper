@@ -3,14 +3,10 @@ package user
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 
-	appcrypto "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
 )
-
-const phoneProjectionHashScope = "phone_projection:"
 
 func normalizeMaskedPhone(phone *string) *string {
 	if phone == nil {
@@ -30,16 +26,18 @@ func normalizeMaskedPhone(phone *string) *string {
 	return &masked
 }
 
-func (s *Service) encryptPhoneProjection(userID int64, phone string) ([]byte, string, error) {
-	phoneEnc, err := s.docCipher.Encrypt(phone)
+func (s *Service) buildPhoneProjection(phone string) (string, []byte, string, error) {
+	trimmed := strings.TrimSpace(phone)
+	masked := phoneutil.Mask(trimmed)
+	phoneEnc, err := s.docCipher.Encrypt(masked)
 	if err != nil {
-		return nil, "", fmt.Errorf("encrypt phone: %w", err)
+		return "", nil, "", fmt.Errorf("encrypt phone: %w", err)
 	}
-	phoneHash, err := appcrypto.HMACHashWithKey(phoneProjectionHashScope+strconv.FormatInt(userID, 10), s.hmacKey)
+	phoneHash, err := phoneutil.HashLookupWithKey(trimmed, s.hmacKey)
 	if err != nil {
-		return nil, "", fmt.Errorf("hash phone projection: %w", err)
+		return "", nil, "", fmt.Errorf("hash phone projection: %w", err)
 	}
-	return phoneEnc, phoneHash, nil
+	return masked, phoneEnc, phoneHash, nil
 }
 
 func (s *Service) hydrateProfilePhone(profile *Profile) error {
@@ -91,13 +89,12 @@ func (s *Service) BindPhone(ctx context.Context, userID int64, phone string) err
 		return fmt.Errorf("BindPhone update Casdoor phone: %w", err)
 	}
 
-	masked := phoneutil.Mask(trimmed)
-	profile.Phone = &masked
-	profile.PhoneVerified = true
-	phoneEnc, phoneHash, err := s.encryptPhoneProjection(userID, masked)
+	masked, phoneEnc, phoneHash, err := s.buildPhoneProjection(trimmed)
 	if err != nil {
 		return err
 	}
+	profile.Phone = &masked
+	profile.PhoneVerified = true
 	if err := s.repo.SetUserPhone(ctx, userID, phoneEnc, phoneHash); err != nil {
 		return fmt.Errorf("BindPhone update phone projection: %w", err)
 	}
