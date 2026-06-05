@@ -118,11 +118,12 @@
 import { computed, onMounted, ref } from 'vue'
 
 import { cacheApi, type CacheStats } from '../api'
+import { useActionFeedback } from '../composables/use-action-feedback'
 import { useConfirm } from '../composables/use-confirm'
 import ConfirmDialog from './primitives/ConfirmDialog.vue'
 import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
 import EmptyState from './primitives/EmptyState.vue'
-import NoticeStack, { type NoticeItem } from './primitives/NoticeStack.vue'
+import NoticeStack from './primitives/NoticeStack.vue'
 import WorkspaceHead, { type WorkspaceHeadChip } from './primitives/WorkspaceHead.vue'
 import WorkspaceSection from './primitives/WorkspaceSection.vue'
 
@@ -131,12 +132,19 @@ const refreshing = ref(false)
 const clearing = ref(false)
 const stats = ref<CacheStats | null>(null)
 const error = ref('')
-const actionError = ref('')
-const actionErrorTitle = ref('操作失败')
-const notices = ref<NoticeItem[]>([])
 let loadRequestSeq = 0
 
 const { state: confirmState, confirm, accept, cancel } = useConfirm()
+const {
+  actionError,
+  actionErrorTitle,
+  notices,
+  pushSuccess,
+  setActionError,
+  clearActionError,
+  dismissNotice,
+  errorMessage,
+} = useActionFeedback()
 
 const headerChips = computed<WorkspaceHeadChip[]>(() => {
   const chips: WorkspaceHeadChip[] = []
@@ -214,43 +222,6 @@ async function onClear(): Promise<void> {
   }
 }
 
-function pushSuccess(message: string): void {
-  notices.value.push({ id: noticeId(), kind: 'success', message })
-  scheduleDismiss()
-}
-
-function setActionError(title: string, cause: unknown, fallback: string): void {
-  const message = errorMessage(cause, fallback)
-  actionErrorTitle.value = title
-  actionError.value = message
-  notices.value.push({ id: noticeId(), kind: 'error', title, message })
-  scheduleDismiss()
-}
-
-function clearActionError(): void {
-  actionErrorTitle.value = '操作失败'
-  actionError.value = ''
-}
-
-function errorMessage(cause: unknown, fallback: string): string {
-  if (cause instanceof Error && cause.message) return cause.message
-  if (typeof cause === 'string' && cause) return cause
-  return fallback
-}
-
-function dismissNotice(id: string): void {
-  notices.value = notices.value.filter((item) => item.id !== id)
-}
-
-function scheduleDismiss(): void {
-  const id = notices.value[notices.value.length - 1]?.id
-  if (!id) return
-  window.setTimeout(() => dismissNotice(id), 4000)
-}
-
-function noticeId(): string {
-  return `notice-${Math.random().toString(36).slice(2, 8)}-${Date.now()}`
-}
 </script>
 
 <style scoped>

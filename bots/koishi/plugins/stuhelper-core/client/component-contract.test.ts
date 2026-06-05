@@ -171,15 +171,15 @@ test('SubscriptionView keeps list load failures visible and retryable', () => {
   assert.match(source, /pushError\('加载订阅失败', details\)/)
   assert.match(source, /finally \{\s*if \(requestSeq === refreshRequestSeq\) \{\s*loading\.value = false\s*\}\s*\}/)
   assert.match(source, /pushError\('订阅尚未加载', '订阅尚未加载，无法添加订阅'\)/)
-  assert.match(source, /function pushError\(title: string, message: string\)/)
-  assert.match(source, /function errorMessage\(cause: unknown, fallback: string\): string/)
+  assert.match(source, /import \{ useActionFeedback \} from '\.\.\/composables\/use-action-feedback'/)
+  assert.match(source, /pushError,[\s\S]*errorMessage,[\s\S]*\} = useActionFeedback\(\)/)
 })
 
 test('SubscriptionView keeps mutation failures visible after notice timeout', () => {
   const source = readClientFile('./components/SubscriptionView.vue')
 
-  assert.match(source, /const actionError = ref\(''\)/)
-  assert.match(source, /const actionErrorTitle = ref\('操作失败'\)/)
+  assert.match(source, /import \{ useActionFeedback \} from '\.\.\/composables\/use-action-feedback'/)
+  assert.match(source, /actionError,[\s\S]*actionErrorTitle,[\s\S]*notices,[\s\S]*setActionError,[\s\S]*clearActionError,[\s\S]*dismissNotice,[\s\S]*\} = useActionFeedback\(\)/)
   assert.match(source, /class="sh-sub-action-error"/)
   assert.match(source, /class="sh-sub-action-error sh-sub-action-error--drawer"/)
   assert.match(source, /<strong>\{\{ actionErrorTitle \}\}<\/strong>/)
@@ -191,8 +191,8 @@ test('SubscriptionView keeps mutation failures visible after notice timeout', ()
   assert.ok(
     source.indexOf('if (!canSave.value || saving.value) return') < source.indexOf('saving.value = true'),
   )
-  assert.match(source, /notices\.value\.push\(\{ id: noticeId\(\), kind: 'error', title, message \}\)/)
-  assert.match(source, /function clearActionError\(\) \{\s*actionErrorTitle\.value = '操作失败'\s*actionError\.value = ''\s*\}/)
+  assert.doesNotMatch(source, /function setActionError\(title: string, cause: unknown, fallback: string\)/)
+  assert.doesNotMatch(source, /function clearActionError\(\)/)
 })
 
 test('BlacklistView keeps list load failures visible and retryable', () => {
@@ -373,7 +373,11 @@ test('top-level console pages keep load failures retryable without hiding stale 
     if ('loadFallback' in page) {
       const logicSource = 'helperFile' in page ? readClientFile(page.helperFile) : source
       assert.match(logicSource, page.loadFallback)
-      assert.match(logicSource, /function errorMessage\(cause: unknown, fallback: string\): string/)
+      if (logicSource.includes('function errorMessage(')) {
+        assert.match(logicSource, /function errorMessage\(cause: unknown, fallback: string\): string/)
+      } else {
+        assert.match(logicSource, /errorMessage,[\s\S]*\} = useActionFeedback\(\)/)
+      }
       assert.match(logicSource, /let loadRequestSeq = 0/)
       assert.match(logicSource, /const requestSeq = \+\+loadRequestSeq/)
       assert.match(logicSource, page.successGuard)
@@ -392,8 +396,8 @@ test('SystemView keeps cache operation failures visible', () => {
   const source = readClientFile('./components/SystemView.vue')
 
   assert.match(source, /const clearing = ref\(false\)/)
-  assert.match(source, /const actionError = ref\(''\)/)
-  assert.match(source, /const actionErrorTitle = ref\('操作失败'\)/)
+  assert.match(source, /import \{ useActionFeedback \} from '\.\.\/composables\/use-action-feedback'/)
+  assert.match(source, /actionError,[\s\S]*actionErrorTitle,[\s\S]*notices,[\s\S]*setActionError,[\s\S]*clearActionError,[\s\S]*dismissNotice,[\s\S]*errorMessage,[\s\S]*\} = useActionFeedback\(\)/)
   assert.match(source, /<div v-if="actionError" class="sh-load-error sh-system__action-error" role="alert">/)
   assert.match(source, /<strong>\{\{ actionErrorTitle \}\}<\/strong>/)
   assert.match(source, /<span>\{\{ actionError \}\}<\/span>/)
@@ -405,9 +409,8 @@ test('SystemView keeps cache operation failures visible', () => {
   assert.match(source, /clearing\.value = true\s*clearActionError\(\)\s*try \{\s*await cacheApi\.clear\(\)/)
   assert.match(source, /setActionError\('清空缓存失败', cause, '清空缓存失败'\)/)
   assert.match(source, /clearing\.value = false/)
-  assert.match(source, /function setActionError\(title: string, cause: unknown, fallback: string\): void/)
-  assert.match(source, /actionErrorTitle\.value = title\s*actionError\.value = message\s*notices\.value\.push\(\{ id: noticeId\(\), kind: 'error', title, message \}\)/)
-  assert.match(source, /function clearActionError\(\): void \{\s*actionErrorTitle\.value = '操作失败'\s*actionError\.value = ''\s*\}/)
+  assert.doesNotMatch(source, /function setActionError\(title: string, cause: unknown, fallback: string\)/)
+  assert.doesNotMatch(source, /function clearActionError\(\)/)
   assert.doesNotMatch(source, /pushError\(cause, '刷新缓存失败'\)/)
   assert.doesNotMatch(source, /pushError\(cause, '清空缓存失败'\)/)
 })

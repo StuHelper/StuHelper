@@ -206,12 +206,13 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 
 import { subscriptionApi } from '../api'
+import { useActionFeedback } from '../composables/use-action-feedback'
 import type { Subscription } from '../types'
 import { formatTimestamp } from '../models/formatters'
 import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
 import Drawer from './primitives/Drawer.vue'
 import EmptyState from './primitives/EmptyState.vue'
-import NoticeStack, { type NoticeItem } from './primitives/NoticeStack.vue'
+import NoticeStack from './primitives/NoticeStack.vue'
 import SeverityTag from './primitives/SeverityTag.vue'
 import WorkspaceHead, { type WorkspaceHeadChip } from './primitives/WorkspaceHead.vue'
 import WorkspaceSection from './primitives/WorkspaceSection.vue'
@@ -247,12 +248,9 @@ const saving = ref(false)
 const fetchNames = ref(true)
 const formOpen = ref(false)
 const subscriptions = ref<Subscription[]>([])
-const notices = ref<NoticeItem[]>([])
 const editingIndex = ref<number>(-1)
 const lastSync = ref('')
 const loadError = ref('')
-const actionError = ref('')
-const actionErrorTitle = ref('操作失败')
 let refreshRequestSeq = 0
 const draft = reactive<Subscription>({
   type: 'group',
@@ -263,6 +261,17 @@ const draft = reactive<Subscription>({
 const isEdit = computed(() => editingIndex.value >= 0)
 const canSave = computed(() => Boolean(draft.id.trim()))
 const initialLoadBlocked = computed(() => Boolean(loadError.value && subscriptions.value.length === 0))
+const {
+  actionError,
+  actionErrorTitle,
+  notices,
+  pushSuccess,
+  pushError,
+  setActionError,
+  clearActionError,
+  dismissNotice,
+  errorMessage,
+} = useActionFeedback()
 
 const headerChips = computed<WorkspaceHeadChip[]>(() => {
   const chips: WorkspaceHeadChip[] = [
@@ -372,48 +381,6 @@ async function confirmRemove() {
   }
 }
 
-function pushSuccess(message: string) {
-  notices.value.push({ id: noticeId(), kind: 'success', message })
-  scheduleDismiss()
-}
-
-function pushError(title: string, message: string) {
-  notices.value.push({ id: noticeId(), kind: 'error', title, message })
-  scheduleDismiss()
-}
-
-function setActionError(title: string, cause: unknown, fallback: string) {
-  const message = errorMessage(cause, fallback)
-  actionErrorTitle.value = title
-  actionError.value = message
-  notices.value.push({ id: noticeId(), kind: 'error', title, message })
-  scheduleDismiss()
-}
-
-function clearActionError() {
-  actionErrorTitle.value = '操作失败'
-  actionError.value = ''
-}
-
-function errorMessage(cause: unknown, fallback: string): string {
-  if (cause instanceof Error && cause.message) return cause.message
-  if (typeof cause === 'string' && cause.trim()) return cause
-  return fallback
-}
-
-function dismissNotice(id: string) {
-  notices.value = notices.value.filter((item) => item.id !== id)
-}
-
-function scheduleDismiss() {
-  const id = notices.value[notices.value.length - 1]?.id
-  if (!id) return
-  window.setTimeout(() => dismissNotice(id), 4000)
-}
-
-function noticeId(): string {
-  return `notice-${Math.random().toString(36).slice(2, 8)}-${Date.now()}`
-}
 </script>
 
 <style scoped>
