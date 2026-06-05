@@ -58,6 +58,65 @@ func TestSchoolEmailOTPRequiresLinkedSessionAndVerifiesCredential(t *testing.T) 
 	assertUserProfileVerified(t, pg, userID, "school_email_otp")
 }
 
+func TestRequestSchoolEmailOTPSendFailureKeepsCooldown(t *testing.T) {
+	pg := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	sender := &testSchoolEmailSender{err: errors.New("smtp unavailable")}
+	svc := newFreshmanTestService(t, pg)
+	svc.redisClient = redis.Client
+	svc.emailSender = sender
+	userID := seedLinkedAdmissionUser(t, pg, svc, "email-otp-send-fail")
+	input := SchoolEmailOTPInput{
+		UserID:   userID,
+		SchoolID: 4111010006,
+		Email:    "student@buaa.edu.cn",
+	}
+
+	_, err := svc.RequestSchoolEmailOTP(context.Background(), input)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "smtp unavailable")
+	assert.Equal(t, 1, sender.calls)
+
+	_, err = svc.loadEmailOTPRecord(context.Background(), input.UserID, input.SchoolID)
+	require.ErrorIs(t, err, ErrAdmissionOTPExpired)
+
+	_, err = svc.RequestSchoolEmailOTP(context.Background(), input)
+	require.ErrorIs(t, err, ErrAdmissionOTPCooldown)
+	assert.Equal(t, 1, sender.calls)
+}
+
+func TestVerifySchoolEmailOTPKeepsCodeWhenCredentialCommitFails(t *testing.T) {
+	pg := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	svc := newFreshmanTestService(t, pg)
+	svc.redisClient = redis.Client
+	userID := seedLinkedAdmissionUser(t, pg, svc, "email-otp-commit-fail")
+	missingSchoolID := int64(999999)
+	record := admissionEmailOTPRecord{
+		Email: "student@example.edu",
+		Code:  "123456",
+	}
+	require.NoError(t, svc.storeEmailOTPRecord(context.Background(), emailOTPStoreInput{
+		UserID:   userID,
+		SchoolID: missingSchoolID,
+		Record:   record,
+	}))
+
+	_, err := svc.VerifySchoolEmailOTP(context.Background(), SchoolEmailOTPVerifyInput{
+		UserID:   userID,
+		SchoolID: missingSchoolID,
+		Email:    record.Email,
+		Code:     record.Code,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "CreateVerificationCredentialTx")
+
+	loaded, err := svc.loadEmailOTPRecord(context.Background(), userID, missingSchoolID)
+	require.NoError(t, err)
+	assert.Equal(t, record, loaded)
+	assertNoCredentialStored(t, pg, userID, CredentialSchoolEmailOTP)
+}
+
 func TestSchoolEmailOTPUsesRequestedAdmissionSession(t *testing.T) {
 	pg := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
@@ -417,27 +476,6 @@ func TestAdmissionMVPSchoolSSOFlowReleasesVerifiedMember(t *testing.T) {
 	assertAdmissionSessionCancelled(t, pg, created.Session.ID)
 }
 
-func TestSchoolEmailOTPSendFailureClearsCooldown(t *testing.T) {
-	pg := postgresfixture.Start(t)
-	redis := redisfixture.Start(t)
-	sender := &testSchoolEmailSender{err: errors.New("smtp rejected")}
-	svc := newFreshmanTestService(t, pg)
-	svc.redisClient = redis.Client
-	svc.emailSender = sender
-	userID := seedLinkedAdmissionUser(t, pg, svc, "email-otp-send-fail")
-
-	_, err := svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
-		UserID: userID, SchoolID: 4111010006, Email: "student@buaa.edu.cn",
-	})
-	require.Error(t, err)
-
-	sender.err = nil
-	_, err = svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
-		UserID: userID, SchoolID: 4111010006, Email: "student@buaa.edu.cn",
-	})
-	require.NoError(t, err)
-}
-
 func TestSchoolSSOStartAndCallback(t *testing.T) {
 	pg := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
@@ -539,6 +577,7 @@ type testSchoolEmailSender struct {
 	email string
 	code  string
 	err   error
+	calls int
 }
 
 type testAcademicLookupGateway struct {
@@ -569,6 +608,7 @@ func (e *testSchoolSSOExchanger) ExchangeSchoolSSO(
 }
 
 func (s *testSchoolEmailSender) SendAdmissionOTP(_ context.Context, email string, code string) error {
+	s.calls++
 	s.email = email
 	s.code = code
 	return s.err

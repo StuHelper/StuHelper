@@ -96,7 +96,7 @@ func (s *Service) RequestSchoolEmailOTP(
 		return nil, err
 	}
 	if err := s.emailSender.SendAdmissionOTP(ctx, email, code); err != nil {
-		if cleanupErr := s.cleanupEmailOTPCode(ctx, input.UserID, input.SchoolID); cleanupErr != nil {
+		if cleanupErr := s.cleanupEmailOTPCodeOnly(ctx, input.UserID, input.SchoolID); cleanupErr != nil {
 			return nil, fmt.Errorf("RequestSchoolEmailOTP send: %w; cleanup: %w", err, cleanupErr)
 		}
 		return nil, fmt.Errorf("RequestSchoolEmailOTP send: %w", err)
@@ -129,7 +129,7 @@ func (s *Service) VerifySchoolEmailOTP(ctx context.Context, input SchoolEmailOTP
 	if err := s.checkEmailOTP(ctx, check); err != nil {
 		return nil, err
 	}
-	return s.storeStudentCredential(ctx, studentCredentialInput{
+	session, err := s.storeStudentCredential(ctx, studentCredentialInput{
 		UserID:             input.UserID,
 		SchoolID:           input.SchoolID,
 		AdmissionSessionID: input.AdmissionSessionID,
@@ -139,6 +139,13 @@ func (s *Service) VerifySchoolEmailOTP(ctx context.Context, input SchoolEmailOTP
 		StudentID:          record.StudentID,
 		StudentName:        record.StudentName,
 	})
+	if err != nil {
+		return nil, err
+	}
+	if err := s.cleanupEmailOTPCode(ctx, input.UserID, input.SchoolID); err != nil {
+		return nil, fmt.Errorf("VerifySchoolEmailOTP cleanup code: %w", err)
+	}
+	return session, nil
 }
 
 func (s *Service) requireEmailOTPDependencies() error {
@@ -327,7 +334,7 @@ func (s *Service) checkEmailOTP(ctx context.Context, input emailOTPCheckInput) e
 	if input.Record.Email != input.Email || !codeMatches {
 		return s.recordEmailOTPFailure(ctx, input.UserID, input.SchoolID)
 	}
-	return s.cleanupEmailOTPCode(ctx, input.UserID, input.SchoolID)
+	return nil
 }
 
 func (s *Service) recordEmailOTPFailure(ctx context.Context, userID, schoolID int64) error {
@@ -356,6 +363,14 @@ func (s *Service) cleanupEmailOTPCode(ctx context.Context, userID, schoolID int6
 		admissionEmailOTPKey(userID, schoolID),
 		admissionEmailOTPAttemptsKey(userID, schoolID),
 		admissionEmailOTPKey(userID, schoolID)+admissionEmailOTPCooldownSuffix,
+	).Err()
+}
+
+func (s *Service) cleanupEmailOTPCodeOnly(ctx context.Context, userID, schoolID int64) error {
+	return s.redisClient.Del(
+		ctx,
+		admissionEmailOTPKey(userID, schoolID),
+		admissionEmailOTPAttemptsKey(userID, schoolID),
 	).Err()
 }
 
