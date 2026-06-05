@@ -2,7 +2,10 @@ package db
 
 import (
 	"context"
+	"errors"
+	"net"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -89,4 +92,28 @@ func TestRowWithCancelScan_RecordsTableHintMetrics(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "ok", got)
 	assert.Equal(t, before+1, testutil.ToFloat64(metrics.DBQueryTotal.WithLabelValues("query_row", "audit_events", "ok")))
+}
+
+func TestRowWithCancelScan_SkipsRetryWhenContextCanceledDuringBackoff(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+	wantErr := &net.OpError{Op: "read", Net: "tcp", Err: errors.New("connection reset by peer")}
+
+	row := &RowWithCancel{
+		row: fakeRow{
+			scan: func(dest ...any) error {
+				return wantErr
+			},
+		},
+		cancel: func() {},
+		db:     &DB{},
+		ctx:    ctx,
+		sql:    "select 1",
+		table:  "users",
+	}
+
+	err := row.Scan(new(int))
+
+	require.ErrorIs(t, err, wantErr)
+	assert.Nil(t, row.db)
 }

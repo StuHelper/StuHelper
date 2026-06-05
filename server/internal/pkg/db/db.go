@@ -61,6 +61,20 @@ func jitteredRetryDelay() time.Duration {
 	return retryBaseDelay + time.Duration(delta)
 }
 
+func waitForRetry(ctx context.Context, delay time.Duration) bool {
+	if delay <= 0 {
+		return ctx.Err() == nil
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return ctx.Err() == nil
+	}
+}
+
 // DB 封装 pgxpool.Pool，提供带超时的查询方法
 type DB struct {
 	pool      *pgxpool.Pool
@@ -105,11 +119,12 @@ func (d *DB) Query(ctx context.Context, sql string, args ...any) (*RowsWithCance
 	// 瞬时连接错误：退避后重试一次（仅在 context 未超时时）
 	if err != nil && isConnectionError(err) && ctx.Err() == nil {
 		logger.L().Warn("query connection error, retrying once", zap.Error(err))
-		time.Sleep(jitteredRetryDelay())
-		retryStart := time.Now()
-		rows, err = d.pool.Query(ctx, sql, args...)
-		duration = time.Since(retryStart).Seconds()
-		metrics.ObserveDBQueryDuration("query_retry", table, duration)
+		if waitForRetry(ctx, jitteredRetryDelay()) {
+			retryStart := time.Now()
+			rows, err = d.pool.Query(ctx, sql, args...)
+			duration = time.Since(retryStart).Seconds()
+			metrics.ObserveDBQueryDuration("query_retry", table, duration)
+		}
 	}
 
 	status := "ok"
@@ -174,12 +189,13 @@ func (r *RowWithCancel) Scan(dest ...any) error {
 	// 瞬时连接错误：退避后重试一次
 	if err != nil && isConnectionError(err) && r.ctx.Err() == nil {
 		logger.L().Warn("query_row connection error, retrying once", zap.Error(err))
-		time.Sleep(jitteredRetryDelay())
-		retryStart := time.Now()
-		retryRow := r.db.pool.QueryRow(r.ctx, r.sql, r.args...)
-		err = retryRow.Scan(dest...)
-		duration = time.Since(retryStart).Seconds()
-		metrics.ObserveDBQueryDuration("query_row_retry", r.table, duration)
+		if waitForRetry(r.ctx, jitteredRetryDelay()) {
+			retryStart := time.Now()
+			retryRow := r.db.pool.QueryRow(r.ctx, r.sql, r.args...)
+			err = retryRow.Scan(dest...)
+			duration = time.Since(retryStart).Seconds()
+			metrics.ObserveDBQueryDuration("query_row_retry", r.table, duration)
+		}
 	}
 
 	if r.cancel != nil {
