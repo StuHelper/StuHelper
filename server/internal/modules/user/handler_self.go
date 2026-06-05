@@ -449,7 +449,7 @@ func (h *Handler) handleBindPhone(c *gin.Context) {
 		response.InternalError(c, "failed to bind phone")
 		return
 	}
-	if err := h.otpService.Consume(c.Request.Context(), phone); err != nil {
+	if err := h.otpService.Consume(c.Request.Context(), phone, req.OTPCode); err != nil {
 		logger.FromGin(c).Error("failed to consume bind phone OTP", zap.Error(err))
 		response.InternalError(c, "failed to finalize phone binding")
 		return

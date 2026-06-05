@@ -84,6 +84,18 @@ end
 return redis.call("DECR", KEYS[1])
 `)
 
+var otpConsumeCheckedScript = redis.NewScript(`
+local stored = redis.call("GET", KEYS[1])
+if not stored then
+  return 0
+end
+if stored ~= ARGV[1] then
+  return 0
+end
+redis.call("DEL", KEYS[1], KEYS[2])
+return 1
+`)
+
 // NewOTPService 创建 OTP 服务
 func NewOTPService(rdb *redis.Client) *OTPService {
 	return &OTPService{rdb: rdb}
@@ -285,15 +297,17 @@ func (s *OTPService) Check(ctx context.Context, phone, code string) error {
 	return nil
 }
 
-// Consume 删除验证码和尝试计数。调用方应在依赖该验证码的业务提交成功后调用。
-func (s *OTPService) Consume(ctx context.Context, phone string) error {
+// Consume 删除仍匹配本次验证码的 code 和尝试计数。
+// 调用方应在依赖该验证码的业务提交成功后调用；如果期间用户申请了新验证码，
+// 这里会保留新验证码，避免旧请求误删后续凭据。
+func (s *OTPService) Consume(ctx context.Context, phone, code string) error {
 	phoneKey, err := otpPhoneKey(phone)
 	if err != nil {
 		return err
 	}
 	codeKey := otpCodePrefix + phoneKey
 	attemptsKey := otpAttemptsPrefix + phoneKey
-	if delErr := s.rdb.Del(ctx, codeKey, attemptsKey).Err(); delErr != nil {
+	if _, delErr := otpConsumeCheckedScript.Run(ctx, s.rdb, []string{codeKey, attemptsKey}, code).Int64(); delErr != nil {
 		return fmt.Errorf("otp: consume code: %w", delErr)
 	}
 	return nil
@@ -304,7 +318,7 @@ func (s *OTPService) Verify(ctx context.Context, phone, code string) error {
 	if err := s.Check(ctx, phone, code); err != nil {
 		return err
 	}
-	return s.Consume(ctx, phone)
+	return s.Consume(ctx, phone, code)
 }
 
 // generateNumericCode 生成指定位数的随机数字验证码

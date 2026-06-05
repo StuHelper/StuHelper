@@ -92,9 +92,40 @@ func TestOTPService_CheckDoesNotConsumeCode(t *testing.T) {
 	require.NoError(t, svc.Check(ctx, phone, code))
 	assert.True(t, fixture.Server.Exists(codeKey))
 
-	require.NoError(t, svc.Consume(ctx, phone))
+	require.NoError(t, svc.Consume(ctx, phone, code))
 	assert.False(t, fixture.Server.Exists(codeKey))
 	assert.False(t, fixture.Server.Exists(attemptsKey))
+}
+
+func TestOTPService_ConsumeKeepsNewerCode(t *testing.T) {
+	svc, fixture := newOTPServiceForTest(t)
+	ctx := context.Background()
+	phone := "13800138002"
+
+	code, err := svc.Generate(ctx, phone)
+	require.NoError(t, err)
+	require.NoError(t, svc.Check(ctx, phone, code))
+
+	fixture.Server.FastForward(otpCooldown)
+	newCode, err := svc.Generate(ctx, phone)
+	require.NoError(t, err)
+	if newCode == code {
+		newCode = "999999"
+		if newCode == code {
+			newCode = "000000"
+		}
+		phoneKey, keyErr := phoneutil.HashLookup(phone)
+		require.NoError(t, keyErr)
+		require.NoError(t, fixture.Client.Set(ctx, otpCodePrefix+phoneKey, newCode, otpTTL).Err())
+	}
+
+	require.NoError(t, svc.Consume(ctx, phone, code))
+
+	phoneKey, err := phoneutil.HashLookup(phone)
+	require.NoError(t, err)
+	stored, err := fixture.Client.Get(ctx, otpCodePrefix+phoneKey).Result()
+	require.NoError(t, err)
+	assert.Equal(t, newCode, stored)
 }
 
 func TestOTPService_VerifyMaxAttemptsAndGenerateNumericCode(t *testing.T) {

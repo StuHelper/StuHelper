@@ -177,6 +177,8 @@ type stubBindPhoneOTPGenerator struct {
 	issueCalls   int
 	checkCalls   int
 	consumeCalls int
+	consumePhone string
+	consumeCode  string
 	checkErr     error
 	consumeErr   error
 }
@@ -195,8 +197,10 @@ func (s *stubBindPhoneOTPGenerator) Check(context.Context, string, string) error
 	return s.checkErr
 }
 
-func (s *stubBindPhoneOTPGenerator) Consume(context.Context, string) error {
+func (s *stubBindPhoneOTPGenerator) Consume(_ context.Context, phone, code string) error {
 	s.consumeCalls++
+	s.consumePhone = phone
+	s.consumeCode = code
 	return s.consumeErr
 }
 
@@ -895,6 +899,8 @@ func TestHandleBindPhoneConsumesOTPOnlyAfterSuccessfulBind(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, 1, otp.checkCalls)
 	assert.Equal(t, 1, otp.consumeCalls)
+	assert.Equal(t, "13800138000", otp.consumePhone)
+	assert.Equal(t, "123456", otp.consumeCode)
 }
 
 func TestHandleBindPhoneKeepsOTPWhenBindFails(t *testing.T) {

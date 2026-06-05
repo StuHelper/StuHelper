@@ -28,8 +28,8 @@ func (a bindPhoneOTPAdapter) Check(ctx context.Context, phone, code string) erro
 	return normalizeBindPhoneOTPError(a.service.Check(ctx, phone, code))
 }
 
-func (a bindPhoneOTPAdapter) Consume(ctx context.Context, phone string) error {
-	return normalizeBindPhoneOTPError(a.service.Consume(ctx, phone))
+func (a bindPhoneOTPAdapter) Consume(ctx context.Context, phone, code string) error {
+	return normalizeBindPhoneOTPError(a.service.Consume(ctx, phone, code))
 }
 
 func normalizeBindPhoneOTPError(err error) error {
