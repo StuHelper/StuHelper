@@ -238,9 +238,6 @@ func (s *Service) ContinueProfileCompletion(ctx context.Context, token string, u
 			Scopes:               definitions,
 		}, nil
 	}
-	if err := s.rdb.Del(ctx, completionRedisPrefix+token).Err(); err != nil {
-		return nil, fmt.Errorf("delete profile completion challenge: %w", err)
-	}
 	req := AuthorizeRequest{
 		ClientID:            app.ClientID,
 		RedirectURI:         challenge.RedirectURI,
@@ -259,12 +256,18 @@ func (s *Service) ContinueProfileCompletion(ctx context.Context, token string, u
 		}
 	}
 	if !hasConsent {
+		definitions, err := s.scopeDefinitionsForApp(ctx, app.ID, consentScopes)
+		if err != nil {
+			return nil, err
+		}
 		consentChallenge, err := s.BuildConsentChallenge(ctx, app, challenge.UserID, challenge.Scopes, req)
 		if err != nil {
 			return nil, err
 		}
-		definitions, err := s.scopeDefinitionsForApp(ctx, app.ID, consentScopes)
-		if err != nil {
+		if err := s.deleteProfileCompletionChallenge(ctx, token); err != nil {
+			if cleanupErr := s.DeleteConsentChallenge(ctx, consentChallenge.Token); cleanupErr != nil {
+				return nil, fmt.Errorf("%w; cleanup consent challenge: %v", err, cleanupErr)
+			}
 			return nil, err
 		}
 		return &AuthorizeResult{
@@ -277,13 +280,29 @@ func (s *Service) ContinueProfileCompletion(ctx context.Context, token string, u
 		if err != nil {
 			return nil, err
 		}
+		if err := s.deleteProfileCompletionChallenge(ctx, token); err != nil {
+			if cleanupErr := s.DeleteConsentChallenge(ctx, consentChallenge.Token); cleanupErr != nil {
+				return nil, fmt.Errorf("%w; cleanup consent challenge: %v", err, cleanupErr)
+			}
+			return nil, err
+		}
 		return &AuthorizeResult{RedirectURL: buildAccountContinueURL(s.accountBaseURL, consentChallenge.Token)}, nil
 	}
 	redirectURL, err := s.buildOIDCRedirectURL(app, req, challenge.Scopes)
 	if err != nil {
 		return nil, err
 	}
+	if err := s.deleteProfileCompletionChallenge(ctx, token); err != nil {
+		return nil, err
+	}
 	return &AuthorizeResult{RedirectURL: redirectURL}, nil
+}
+
+func (s *Service) deleteProfileCompletionChallenge(ctx context.Context, token string) error {
+	if err := s.rdb.Del(ctx, completionRedisPrefix+token).Err(); err != nil {
+		return fmt.Errorf("delete profile completion challenge: %w", err)
+	}
+	return nil
 }
 
 func (s *Service) DeleteConsentChallenge(ctx context.Context, token string) error {

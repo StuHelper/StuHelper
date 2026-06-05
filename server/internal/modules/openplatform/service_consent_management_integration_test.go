@@ -1990,6 +1990,44 @@ func TestProfileCompletionContinueRejectsScopeApprovalDrift(t *testing.T) {
 	assert.Empty(t, consents)
 }
 
+func TestProfileCompletionContinueKeepsChallengeWhenOIDCRedirectFails(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
+	require.NoError(t, err)
+
+	ownerID := seedOpenPlatformUser(t, postgres, "completion-oidc-owner")
+	userID := seedOpenPlatformUser(t, postgres, "completion-oidc-viewer")
+	app := seedApprovedOpenPlatformApp(t, ctx, repo, ownerID, []string{ScopeEmailRead})
+	require.NoError(t, repo.GrantConsents(ctx, Consent{
+		AppID:       app.ID,
+		UserID:      userID,
+		GrantSource: "test-seed",
+		RequestID:   "completion-oidc-existing-consent",
+	}, []string{ScopeEmailRead}))
+
+	completionChallenge, err := service.BuildProfileCompletionChallenge(ctx, app, userID, []string{ScopeEmailRead}, AuthorizeRequest{
+		ClientID:    app.ClientID,
+		RedirectURI: app.RedirectURIs[0],
+		Scopes:      []string{"openid", "email"},
+		Flow:        AuthorizeFlowCasdoor,
+	})
+	require.NoError(t, err)
+
+	result, err := service.ContinueProfileCompletion(ctx, completionChallenge.Token, userID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "OIDC URL builder")
+	assert.Nil(t, result)
+
+	_, err = service.LoadProfileCompletionChallenge(ctx, completionChallenge.Token)
+	require.NoError(t, err)
+	keys, err := redis.Client.Keys(ctx, consentRedisPrefix+"*").Result()
+	require.NoError(t, err)
+	assert.Empty(t, keys)
+}
+
 func TestGrantConsentRejectsRedirectURIDriftBeforePersistingConsent(t *testing.T) {
 	ctx := context.Background()
 	postgres := postgresfixture.Start(t)
