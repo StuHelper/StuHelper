@@ -243,6 +243,7 @@ import { consolePageApi } from '../page-api'
 import type { IdentityPageData } from '../page-types'
 import { formatTimestamp } from '../models/formatters'
 import { buildIdentityModel } from '../models/identity'
+import { errorMessage } from '../utils/error-message'
 import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
 import EmptyState from './primitives/EmptyState.vue'
 import EntityChip from './primitives/EntityChip.vue'
@@ -316,12 +317,6 @@ async function loadData() {
       loading.value = false
     }
   }
-}
-
-function errorMessage(cause: unknown, fallback: string): string {
-  if (cause instanceof Error && cause.message) return cause.message
-  if (typeof cause === 'string' && cause.trim()) return cause
-  return fallback
 }
 
 function applyNavigationState() {

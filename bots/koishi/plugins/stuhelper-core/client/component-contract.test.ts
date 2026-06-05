@@ -106,7 +106,8 @@ test('dashboard pulse exposes stable fallback errors for global badges', () => {
   assert.match(source, /pendingAdmissions: 0/)
   assert.match(source, /pendingReviews: 0/)
   assert.match(source, /state\.error = errorMessage\(cause, '脉冲数据加载失败'\)/)
-  assert.match(source, /function errorMessage\(cause: unknown, fallback: string\): string/)
+  assert.match(source, /import \{ errorMessage \} from '\.\.\/utils\/error-message'/)
+  assert.doesNotMatch(source, /function errorMessage\(cause: unknown, fallback: string\): string/)
   assert.doesNotMatch(source, /state\.error = cause instanceof Error \? cause\.message : '脉冲数据加载失败'/)
 })
 
@@ -379,7 +380,10 @@ test('top-level console pages keep load failures retryable without hiding stale 
     if ('loadFallback' in page) {
       const logicSource = 'helperFile' in page ? readClientFile(page.helperFile) : source
       assert.match(logicSource, page.loadFallback)
-      if (logicSource.includes('function errorMessage(')) {
+      if (logicSource.includes('/utils/error-message')) {
+        assert.match(logicSource, /import \{ errorMessage \} from '\.\.\/utils\/error-message'|import \{ errorMessage \} from '\.\.\/\.\.\/utils\/error-message'/)
+        assert.doesNotMatch(logicSource, /function errorMessage\(cause: unknown, fallback: string\): string/)
+      } else if (logicSource.includes('function errorMessage(')) {
         assert.match(logicSource, /function errorMessage\(cause: unknown, fallback: string\): string/)
       } else {
         assert.match(logicSource, /errorMessage,[\s\S]*\} = useActionFeedback\(\)/)
@@ -925,7 +929,8 @@ test('shell portals keep StuHelper design tokens when mounted under body', () =>
   assert.match(overlaySource, /class="stuhelperGroupCenter-portal"/)
   assert.match(overlaySource, /<strong>加载实体资料失败<\/strong>/)
   assert.match(overlaySource, /state\.error = errorMessage\(cause, '加载实体资料失败'\)/)
-  assert.match(overlaySource, /function errorMessage\(cause: unknown, fallback: string\): string/)
+  assert.match(overlaySource, /import \{ errorMessage \} from '\.\.\/\.\.\/utils\/error-message'/)
+  assert.doesNotMatch(overlaySource, /function errorMessage\(cause: unknown, fallback: string\): string/)
   assert.match(overlaySource, /<button type="button" class="sh-overlay__retry" @click="reload">重试<\/button>/)
   assert.match(dockSource, /class="stuhelperGroupCenter-portal sh-dock"/)
   assert.match(confirmSource, /modal-class="stuhelperGroupCenter-portal"/)

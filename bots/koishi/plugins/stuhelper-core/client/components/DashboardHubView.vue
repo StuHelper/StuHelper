@@ -193,6 +193,7 @@ import {
   type DashboardActivityRow,
   type DashboardTodoRow,
 } from '../models/dashboard'
+import { errorMessage } from '../utils/error-message'
 import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
 import EmptyState from './primitives/EmptyState.vue'
 import SeverityTag, { type TagIntent } from './primitives/SeverityTag.vue'
@@ -270,12 +271,6 @@ async function loadData() {
       chartLoading.value = false
     }
   }
-}
-
-function errorMessage(cause: unknown, fallback: string): string {
-  if (cause instanceof Error && cause.message) return cause.message
-  if (typeof cause === 'string' && cause.trim()) return cause
-  return fallback
 }
 
 function goToTarget(target: {

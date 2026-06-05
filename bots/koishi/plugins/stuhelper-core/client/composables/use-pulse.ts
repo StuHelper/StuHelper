@@ -1,6 +1,7 @@
 import { onBeforeUnmount, onMounted, reactive } from 'vue'
 
 import { consolePageApi } from '../page-api'
+import { errorMessage } from '../utils/error-message'
 
 export interface PulseState {
   pendingReviews: number
@@ -68,10 +69,4 @@ export function usePulse(): PulseHandle {
   onBeforeUnmount(stop)
 
   return { state, refresh, stop }
-}
-
-function errorMessage(cause: unknown, fallback: string): string {
-  if (cause instanceof Error && cause.message) return cause.message
-  if (typeof cause === 'string' && cause.trim()) return cause
-  return fallback
 }

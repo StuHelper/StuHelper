@@ -234,6 +234,7 @@ import type {
   ConsoleNavigationState,
 } from '../../composables/use-console-navigation'
 import type { ConsoleViewId } from '../../models/views'
+import { errorMessage } from '../../utils/error-message'
 
 const props = defineProps<{
   navigation: ConsoleNavigationController
@@ -359,12 +360,6 @@ async function loadProfile(target: EntityRef) {
       state.loading = false
     }
   }
-}
-
-function errorMessage(cause: unknown, fallback: string): string {
-  if (cause instanceof Error && cause.message) return cause.message
-  if (typeof cause === 'string' && cause.trim()) return cause
-  return fallback
 }
 
 function entityKey(target: EntityRef | null): string | null {

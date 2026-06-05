@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 
 import type { NoticeItem } from '../components/primitives/NoticeStack.vue'
+import { errorMessage } from '../utils/error-message'
 
 const DEFAULT_ACTION_ERROR_TITLE = '操作失败'
 const NOTICE_DISMISS_DELAY_MS = 4000
@@ -56,32 +57,8 @@ export function useActionFeedback() {
   }
 }
 
-export function errorMessage(cause: unknown, fallback: string): string {
-  if (cause instanceof Error) return normalizeMessage(cause.message) || fallback
-  if (typeof cause === 'string') return normalizeMessage(cause) || fallback
-  if (isErrorLikeRecord(cause)) {
-    return normalizeMessage(cause.message)
-      || normalizeMessage(cause.error)
-      || normalizeMessage(cause.reason)
-      || fallback
-  }
-  if (cause === undefined || cause === null) return fallback
-  return normalizeMessage(String(cause)) || fallback
-}
+export { errorMessage }
 
 function noticeId(): string {
   return `notice-${Math.random().toString(36).slice(2, 8)}-${Date.now()}`
-}
-
-function normalizeMessage(value: unknown): string {
-  if (value instanceof Error) return normalizeMessage(value.message)
-  return typeof value === 'string' && value.trim() ? value.trim() : ''
-}
-
-function isErrorLikeRecord(value: unknown): value is {
-  readonly message?: unknown
-  readonly error?: unknown
-  readonly reason?: unknown
-} {
-  return typeof value === 'object' && value !== null
 }
