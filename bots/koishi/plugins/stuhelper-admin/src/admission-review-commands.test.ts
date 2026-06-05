@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -11,6 +12,12 @@ import MockBot from '@koishijs/plugin-mock'
 
 import adminPlugin from './index.ts'
 import { createKoishiTestRuntime } from '../../test-utils/runtime.ts'
+
+test('新生审核命令不对已验证 session 做非空断言', () => {
+  const source = readFileSync(new URL('./admission-review-commands.ts', import.meta.url), 'utf8')
+
+  assert.doesNotMatch(source, /session!/)
+})
 
 test('新生审核命令会把操作者 QQ、群号、频道和原始命令发给后端', async () => {
   const requests: CapturedCommandRequest[] = []

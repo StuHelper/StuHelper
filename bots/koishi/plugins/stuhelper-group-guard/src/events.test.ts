@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 import { registerGroupGuardEvents } from './events'
+
+test('group guard events keep optional message guard narrowed without assertions', () => {
+  const source = readFileSync(new URL('./events.ts', import.meta.url), 'utf8')
+
+  assert.doesNotMatch(source, /messageGuard!/)
+})
 
 test('group guard event listeners return service promises to Koishi', () => {
   const ctx = createEventContext()

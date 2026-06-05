@@ -81,7 +81,7 @@ async function handleBlacklistRelease(deps: FreshmanReviewCommandDeps, session: 
   if ('error' in parsed) return parsed.error
   return runAdmissionCommand(async () => {
     await deps.platform.releaseMemberBlacklistBySubject({
-      platform: session!.platform,
+      platform: input.platform,
       subjectType: 'qq_user',
       subjectID: parsed.qqID,
       scopeType: parsed.scopeType,
@@ -104,6 +104,7 @@ async function commandInput(deps: FreshmanReviewCommandDeps, session: Session | 
   })
   if (denial) return { error: denial } as const
   return {
+    platform: session.platform,
     context: {
       operatorQQID: session.userId,
       guildID: session.guildId,
