@@ -168,7 +168,7 @@ function assertBlacklistInput(input: { readonly scopeType: MemberBlacklistScopeT
 }
 
 function resolveConsoleScope(ctx: Context, service: StuhelperGroupCenterService, client: unknown) {
-  return resolveRequiredConsoleGuildScope(client as never, {
+  return resolveRequiredConsoleGuildScope(client, {
     roles: service.auth.getRoles(),
     getUserRoleIds: (userId: string) => service.auth.getUserRoleIds(userId),
     listBindingsByAuthId: (authId: number) => ctx.database.get('binding', { aid: authId }),

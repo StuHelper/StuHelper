@@ -1,6 +1,7 @@
 import type { WarnModule } from './warn.module'
 
 type WarnMigrationData = Record<string, Record<string, { count: number; timestamp: number }>>
+type LegacyWarnRecord = { count: number; timestamp?: number }
 
 interface NumericWarnInput {
   migratedData: WarnMigrationData
@@ -12,28 +13,37 @@ interface NumericWarnInput {
 export function migrateWarnData(host: WarnModule): void {
   const allWarns = host.data.warns.getAll()
   const migratedData: WarnMigrationData = {}
+  const migratedKeys = new Set<string>()
   let hasMigration = false
 
   for (const [key, record] of Object.entries(allWarns)) {
     if (key.includes(':')) {
-      hasMigration = migrateCompositeKeyRecord(migratedData, key, record) || hasMigration
+      if (migrateCompositeKeyRecord(migratedData, key, record)) {
+        migratedKeys.add(key)
+        hasMigration = true
+      }
       continue
     }
-    hasMigration = migrateGuildRecord(migratedData, key, record) || hasMigration
+    if (migrateGuildRecord(migratedData, key, record)) {
+      migratedKeys.add(key)
+      hasMigration = true
+    }
   }
 
   if (!hasMigration) return
-  deleteOldWarnRecords(host, allWarns)
+  deleteOldWarnRecords(host, migratedKeys)
   writeMigratedWarnRecords(host, migratedData)
   host.data.warns.flush()
   host.ctx.logger('stuhelperGroupCenter').info('警告数据已迁移到新格式')
 }
 
-function migrateCompositeKeyRecord(migratedData: WarnMigrationData, key: string, record: any): boolean {
+function migrateCompositeKeyRecord(migratedData: WarnMigrationData, key: string, record: unknown): boolean {
   const [guildId, userId] = key.split(':')
-  if (!record?.groups?.[guildId]) return false
+  if (!guildId || !userId || !isRecord(record) || !isRecord(record.groups)) return false
 
   const oldRecord = record.groups[guildId]
+  if (!isLegacyWarnRecord(oldRecord)) return false
+
   ensureGuild(migratedData, guildId)
   migratedData[guildId][userId] = {
     count: oldRecord.count,
@@ -42,7 +52,9 @@ function migrateCompositeKeyRecord(migratedData: WarnMigrationData, key: string,
   return true
 }
 
-function migrateGuildRecord(migratedData: WarnMigrationData, guildId: string, record: any): boolean {
+function migrateGuildRecord(migratedData: WarnMigrationData, guildId: string, record: unknown): boolean {
+  if (!isRecord(record)) return false
+
   let hasMigration = false
   for (const [userId, value] of Object.entries(record)) {
     if (typeof value === 'number') {
@@ -50,9 +62,9 @@ function migrateGuildRecord(migratedData: WarnMigrationData, guildId: string, re
       hasMigration = true
       continue
     }
-    if (isWarnRecord(value)) {
+    if (isLegacyWarnRecord(value)) {
       ensureGuild(migratedData, guildId)
-      migratedData[guildId][userId] = value
+      migratedData[guildId][userId] = normalizeWarnRecord(value)
     }
   }
   return hasMigration
@@ -65,11 +77,9 @@ function migrateNumericWarn(input: NumericWarnInput): void {
   migratedData[guildId][userId] = { count, timestamp: Date.now() }
 }
 
-function deleteOldWarnRecords(host: WarnModule, allWarns: Record<string, unknown>): void {
-  for (const [key, value] of Object.entries(allWarns)) {
-    if (key.includes(':') || hasNumericWarnValue(value)) {
-      host.data.warns.delete(key)
-    }
+function deleteOldWarnRecords(host: WarnModule, migratedKeys: ReadonlySet<string>): void {
+  for (const key of migratedKeys) {
+    host.data.warns.delete(key)
   }
 }
 
@@ -83,13 +93,19 @@ function ensureGuild(migratedData: WarnMigrationData, guildId: string): void {
   if (!migratedData[guildId]) migratedData[guildId] = {}
 }
 
-function isWarnRecord(value: unknown): value is { count: number; timestamp: number } {
-  return typeof value === 'object' && value !== null && 'count' in value
+function normalizeWarnRecord(record: LegacyWarnRecord): { count: number; timestamp: number } {
+  return {
+    count: record.count,
+    timestamp: record.timestamp || Date.now(),
+  }
 }
 
-function hasNumericWarnValue(value: unknown): boolean {
-  for (const item of Object.values(value as any)) {
-    if (typeof item === 'number') return true
-  }
-  return false
+function isLegacyWarnRecord(value: unknown): value is LegacyWarnRecord {
+  return isRecord(value)
+    && typeof value.count === 'number'
+    && (value.timestamp === undefined || typeof value.timestamp === 'number')
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
 }

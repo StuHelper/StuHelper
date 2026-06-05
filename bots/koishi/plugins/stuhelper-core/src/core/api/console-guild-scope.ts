@@ -23,14 +23,15 @@ export type ConsoleGuildScope =
   | { kind: 'guilds'; guildIds: Set<string> }
 
 export async function resolveConsoleGuildScope(
-  client: ScopedConsoleClient,
+  client: unknown,
   deps: ConsoleGuildScopeDeps,
 ): Promise<ConsoleGuildScope | null> {
-  if (!client.auth || client.auth.authority < (deps.minAuthority ?? DEFAULT_MIN_AUTHORITY)) {
+  const auth = readConsoleAuth(client)
+  if (!auth || auth.authority < (deps.minAuthority ?? DEFAULT_MIN_AUTHORITY)) {
     return null
   }
 
-  const authId = client.auth.id
+  const authId = auth.id
   const bindings = await deps.listBindingsByAuthId(authId)
   const roleIds = new Set<string>()
 
@@ -68,13 +69,15 @@ export async function resolveConsoleGuildScope(
 }
 
 export async function resolveRequiredConsoleGuildScope(
-  client: ScopedConsoleClient,
+  client: unknown,
   deps: ConsoleGuildScopeDeps,
 ) {
-  const scope = await resolveConsoleGuildScope(client, deps)
-  if (!client.auth) {
+  const auth = readConsoleAuth(client)
+  if (!auth) {
     throw new Error('console auth is required')
   }
+
+  const scope = await resolveConsoleGuildScope(client, deps)
   if (!scope) {
     throw new Error(`console authority must be >= ${deps.minAuthority ?? DEFAULT_MIN_AUTHORITY}`)
   }
@@ -121,4 +124,15 @@ function collectRoleIds(
   userId: string,
 ) {
   deps.getUserRoleIds(userId).forEach((roleId) => target.add(roleId))
+}
+
+function readConsoleAuth(client: unknown): ScopedConsoleClient['auth'] | null {
+  if (!isRecord(client) || !isRecord(client.auth)) return null
+  const { id, authority } = client.auth
+  if (typeof id !== 'number' || typeof authority !== 'number') return null
+  return { id, authority }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
 }

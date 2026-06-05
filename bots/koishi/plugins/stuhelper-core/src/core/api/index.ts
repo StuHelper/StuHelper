@@ -38,7 +38,7 @@ export function registerWebSocketAPI(
     addAuthorityListener,
     platform,
     packageVersion: pkg.version,
-    resolveConsoleScope: (client: unknown) => resolveRequiredConsoleGuildScope(client as any, {
+    resolveConsoleScope: (client: unknown) => resolveRequiredConsoleGuildScope(client, {
       roles: service.auth.getRoles(),
       getUserRoleIds: (userId: string) => service.auth.getUserRoleIds(userId),
       listBindingsByAuthId: (authId: number) => ctx.database.get('binding', { aid: authId }),
