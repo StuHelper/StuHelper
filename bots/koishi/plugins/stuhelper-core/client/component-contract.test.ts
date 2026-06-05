@@ -118,7 +118,7 @@ test('console views treat caught errors as unknown before showing messages', () 
 
   for (const source of [chatSource, configSource, settingsSource]) {
     assert.doesNotMatch(source, /catch \(e: any\)/)
-    assert.match(source, /function errorMessage\(cause: unknown\): string|const errorMessage = \(cause: unknown\)/)
+    assert.match(source, /function errorMessage\(cause: unknown\): string|const errorMessage = \(cause: unknown\)|import \{ errorMessage \} from '\.\.\/utils\/error-message'/)
   }
 })
 
@@ -442,12 +442,13 @@ test('ConfigView keeps config list loading failures visible and retryable', () =
   assert.match(source, /loadError\.value = ''\s*clearActionError\(\)\s*try \{/)
   assert.match(source, /const next = await configApi\.list\(fetchNames\.value\)\s*if \(requestSeq !== refreshRequestSeq\) return false\s*configs\.value = next\s*return true/)
   assert.match(source, /catch \(cause\) \{\s*if \(requestSeq !== refreshRequestSeq\) return false/)
-  assert.match(source, /const details = errorMessage\(cause\) \|\| '加载配置失败'/)
+  assert.match(source, /const details = errorMessage\(cause, '加载配置失败'\)/)
   assert.match(source, /loadError\.value = details/)
   assert.match(source, /message\.error\(details\)/)
   assert.match(source, /return false\s*\} finally \{\s*if \(requestSeq === refreshRequestSeq\) \{\s*loading\.value = false\s*\}/)
   assert.match(source, /void refreshConfigs\(\)\.then\(\(loaded\) => \{\s*if \(loaded\) applyNavigationState\(\)\s*\}\)/)
-  assert.match(source, /if \(cause === undefined \|\| cause === null\) return ''/)
+  assert.match(source, /import \{ errorMessage \} from '\.\.\/utils\/error-message'/)
+  assert.doesNotMatch(source, /function errorMessage\(cause: unknown\): string/)
 })
 
 test('ConfigView keeps config operation failures visible', () => {
@@ -463,7 +464,7 @@ test('ConfigView keeps config operation failures visible', () => {
   assert.match(source, /<div v-if="actionError" class="config-action-error config-action-error--dialog" role="alert">/)
   assert.match(source, /const openCreateDialog = \(\) => \{\s*clearActionError\(\)\s*showCreateDialog\.value = true\s*\}/)
   assert.match(source, /function setActionError\(title: string, cause: unknown, fallback: string\): void/)
-  assert.match(source, /actionErrorTitle\.value = title\s*actionError\.value = details\s*message\.error\(details\)/)
+  assert.match(source, /const details = errorMessage\(cause, fallback\)\s*actionErrorTitle\.value = title\s*actionError\.value = details\s*message\.error\(details\)/)
   assert.match(source, /function clearActionError\(\): void \{\s*actionErrorTitle\.value = '操作失败'\s*actionError\.value = ''\s*\}/)
   assert.match(source, /setActionError\('重新加载失败', cause, '重新加载失败'\)/)
   assert.match(source, /setActionError\('保存失败', cause, '保存失败'\)/)
@@ -503,13 +504,14 @@ test('SettingsView blocks default-form edits when global settings fail to load',
   assert.match(source, /const requestSeq = \+\+loadRequestSeq/)
   assert.match(source, /loadError\.value = ''\s*clearActionError\(\)\s*try \{/)
   assert.match(source, /const data = await settingsApi\.get\(\)\s*if \(requestSeq !== loadRequestSeq\) return false/)
-  assert.match(source, /const details = errorMessage\(cause\) \|\| '加载设置失败'/)
+  assert.match(source, /const details = errorMessage\(cause, '加载设置失败'\)/)
   assert.match(source, /catch \(cause\) \{\s*if \(requestSeq !== loadRequestSeq\) return false/)
   assert.match(source, /loadError\.value = details/)
   assert.match(source, /originalSettings\.value = ''/)
   assert.match(source, /return false\s*\} finally \{\s*if \(requestSeq === loadRequestSeq\) \{\s*loading\.value = false\s*\}/)
   assert.match(source, /if \(!settingsLoaded\.value\) \{\s*setActionError\('保存失败', '设置尚未加载，不能保存默认表单', '保存失败'\)/)
-  assert.match(source, /if \(cause === undefined \|\| cause === null\) return ''/)
+  assert.match(source, /import \{ errorMessage \} from '\.\.\/utils\/error-message'/)
+  assert.doesNotMatch(source, /function errorMessage\(cause: unknown\): string/)
 })
 
 test('SettingsView keeps save failures visible and prevents duplicate submissions', () => {
@@ -532,7 +534,7 @@ test('SettingsView keeps save failures visible and prevents duplicate submission
   assert.match(source, /saving\.value = true\s*clearActionError\(\)\s*try \{/)
   assert.match(source, /setActionError\('保存失败', cause, '保存设置失败'\)/)
   assert.match(source, /function setActionError\(title: string, cause: unknown, fallback: string\): void/)
-  assert.match(source, /actionErrorTitle\.value = title\s*actionError\.value = details\s*message\.error\(details\)/)
+  assert.match(source, /const details = errorMessage\(cause, fallback\)\s*actionErrorTitle\.value = title\s*actionError\.value = details\s*message\.error\(details\)/)
   assert.match(source, /function clearActionError\(\): void \{\s*actionErrorTitle\.value = '操作失败'\s*actionError\.value = ''\s*\}/)
   assert.doesNotMatch(source, /message\.error\(errorMessage\(cause\) \|\| '保存设置失败'\)/)
 })

@@ -730,6 +730,7 @@ import { configApi } from '../api'
 import type { ConsoleNavigationController } from '../composables/use-console-navigation'
 import { normalizeGroupConfigForEdit } from '../models/config-editor'
 import type { GroupConfig } from '../types'
+import { errorMessage } from '../utils/error-message'
 
 const props = defineProps<{
   navigation?: ConsoleNavigationController
@@ -798,7 +799,7 @@ const refreshConfigs = async (): Promise<boolean> => {
     return true
   } catch (cause) {
     if (requestSeq !== refreshRequestSeq) return false
-    const details = errorMessage(cause) || '加载配置失败'
+    const details = errorMessage(cause, '加载配置失败')
     loadError.value = details
     message.error(details)
     return false
@@ -944,7 +945,7 @@ const confirmDelete = async () => {
 }
 
 function setActionError(title: string, cause: unknown, fallback: string): void {
-  const details = errorMessage(cause) || fallback
+  const details = errorMessage(cause, fallback)
   actionErrorTitle.value = title
   actionError.value = details
   message.error(details)
@@ -953,13 +954,6 @@ function setActionError(title: string, cause: unknown, fallback: string): void {
 function clearActionError(): void {
   actionErrorTitle.value = '操作失败'
   actionError.value = ''
-}
-
-function errorMessage(cause: unknown): string {
-  if (cause instanceof Error && cause.message) return cause.message
-  if (typeof cause === 'string') return cause
-  if (cause === undefined || cause === null) return ''
-  return String(cause)
 }
 
 const copyGuildId = async (guildId?: string) => {

@@ -670,6 +670,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { message } from '@koishijs/client'
 import { settingsApi } from '../api'
+import { errorMessage } from '../utils/error-message'
 
 type PlainRecord = Record<string, unknown>
 
@@ -979,7 +980,7 @@ const loadSettings = async (): Promise<boolean> => {
     return true
   } catch (cause) {
     if (requestSeq !== loadRequestSeq) return false
-    const details = errorMessage(cause) || '加载设置失败'
+    const details = errorMessage(cause, '加载设置失败')
     loadError.value = details
     originalSettings.value = ''
     message.error(details)
@@ -1013,7 +1014,7 @@ const saveSettings = async () => {
 }
 
 function setActionError(title: string, cause: unknown, fallback: string): void {
-  const details = errorMessage(cause) || fallback
+  const details = errorMessage(cause, fallback)
   actionErrorTitle.value = title
   actionError.value = details
   message.error(details)
@@ -1022,13 +1023,6 @@ function setActionError(title: string, cause: unknown, fallback: string): void {
 function clearActionError(): void {
   actionErrorTitle.value = '操作失败'
   actionError.value = ''
-}
-
-function errorMessage(cause: unknown): string {
-  if (cause instanceof Error && cause.message) return cause.message
-  if (typeof cause === 'string') return cause
-  if (cause === undefined || cause === null) return ''
-  return String(cause)
 }
 
 const resetChanges = async () => {
