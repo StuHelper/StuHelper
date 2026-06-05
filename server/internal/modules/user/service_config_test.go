@@ -280,6 +280,23 @@ func TestLoadSystemConfigSnapshots_LoadsAuthAccessTokenTTL(t *testing.T) {
 	assert.Equal(t, 900, snapshot.AccessTokenTTLSeconds)
 }
 
+func TestLoadSystemConfigSnapshots_PropagatesContextCancellation(t *testing.T) {
+	repo := &mockRepo{
+		onListSystemConfigs: func(ctx context.Context) ([]SystemConfig, error) {
+			return nil, ctx.Err()
+		},
+	}
+
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err = svc.LoadSystemConfigSnapshots(ctx)
+	assert.ErrorIs(t, err, context.Canceled)
+}
+
 func TestUpdateSystemConfig_RefreshesAuthAccessTokenTTLSnapshot(t *testing.T) {
 	t.Cleanup(systemconfig.InvalidateAuthTokenPolicySnapshot)
 

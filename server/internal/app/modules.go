@@ -104,6 +104,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	}
 
 	userService, err := rt.initUserService(
+		bgCtx,
 		userRepo,
 		piiCipher,
 		fgaClient,
@@ -260,6 +261,7 @@ func (rt *Runtime) warnPendingUserHashBackfill(ctx context.Context, repo *user.U
 }
 
 func (rt *Runtime) initUserService(
+	ctx context.Context,
 	userRepo *user.Repository,
 	piiCipher *pii.Cipher,
 	fgaClient *fga.Client,
@@ -269,7 +271,7 @@ func (rt *Runtime) initUserService(
 ) (*user.Service, error) {
 	var photoStore user.ServiceOption
 	if rt.cfg.ObjectStorage.Endpoint != "" {
-		initCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		initCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 		defer cancel()
 		if _, err := storageService.ValidateMountByKey(initCtx, storage.DefaultMountKey); err != nil {
 			return nil, fmt.Errorf("identity photo storage mount validation failed: %w", err)
@@ -293,7 +295,7 @@ func (rt *Runtime) initUserService(
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize user service: %w", err)
 	}
-	if err := userService.LoadSystemConfigSnapshots(context.Background()); err != nil {
+	if err := userService.LoadSystemConfigSnapshots(ctx); err != nil {
 		return nil, fmt.Errorf("failed to load user system config snapshots: %w", err)
 	}
 	return userService, nil
