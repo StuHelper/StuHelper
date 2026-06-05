@@ -9,23 +9,30 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/storage"
 )
 
 const maxResourceUploadSize = 10 * 1024 * 1024
 
 var (
-	ErrResourceTitleRequired       = errors.New("title is required")
-	ErrResourceFilenameRequired    = errors.New("filename is required")
-	ErrResourcePayloadRequired     = errors.New("dataBase64 is required")
-	ErrResourcePayloadInvalid      = errors.New("invalid base64 payload")
-	ErrResourcePayloadSizeInvalid  = errors.New("resource payload size is invalid")
-	ErrResourceContentTypeMismatch = errors.New("contentType does not match payload")
+	ErrResourceTitleRequired        = errors.New("title is required")
+	ErrResourceFilenameRequired     = errors.New("filename is required")
+	ErrResourcePayloadRequired      = errors.New("dataBase64 is required")
+	ErrResourcePayloadInvalid       = errors.New("invalid base64 payload")
+	ErrResourcePayloadSizeInvalid   = errors.New("resource payload size is invalid")
+	ErrResourceContentTypeMismatch  = errors.New("contentType does not match payload")
+	ErrResourceStorageMountNotFound = errors.New("resource storage mount not found")
+	ErrResourceStorageMountDisabled = errors.New("resource storage mount disabled")
+	ErrResourceStorageDriverMissing = errors.New("resource storage driver unavailable")
 )
 
+type StoredObject struct {
+	ObjectKey   string
+	SizeBytes   int64
+	ContentType string
+}
+
 type objectStore interface {
-	Put(ctx context.Context, mountKey, objectKey string, content []byte, contentType string) (*storage.Mount, *storage.StoredObject, error)
+	Put(ctx context.Context, mountKey, objectKey string, content []byte, contentType string) (int64, *StoredObject, error)
 	Delete(ctx context.Context, mountID int64, objectKey string) error
 	GetDownloadURL(ctx context.Context, mountID int64, objectKey string) (string, error)
 }
@@ -58,13 +65,13 @@ func (s *Service) CreateResource(ctx context.Context, ownerUserID string, req Cr
 	}
 	req.Visibility = normalizeVisibility(req.Visibility)
 	objectKey := fmt.Sprintf("resources/%s/%d-%s", ownerUserID, time.Now().UnixNano(), sanitizeFilename(req.Filename))
-	mount, stored, err := s.storage.Put(ctx, req.MountKey, objectKey, content, detectedType)
+	mountID, stored, err := s.storage.Put(ctx, req.MountKey, objectKey, content, detectedType)
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.repo.CreateResource(ctx, ownerUserID, req, mount.ID, stored)
+	item, err := s.repo.CreateResource(ctx, ownerUserID, req, mountID, stored)
 	if err != nil {
-		if cleanupErr := s.storage.Delete(ctx, mount.ID, stored.ObjectKey); cleanupErr != nil {
+		if cleanupErr := s.storage.Delete(ctx, mountID, stored.ObjectKey); cleanupErr != nil {
 			return nil, errors.Join(err, fmt.Errorf("cleanup uploaded resource object: %w", cleanupErr))
 		}
 		return nil, err

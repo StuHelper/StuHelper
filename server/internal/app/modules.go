@@ -128,7 +128,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 
 	resourceService := resource.NewService(
 		resource.NewRepository(rt.database),
-		storageService,
+		newResourceStorageAdapter(storageService),
 	)
 	resourceService.StartBackgroundJobs(bgCtx, startBackgroundTask)
 	resourceHandler := resource.NewHandler(resourceService)

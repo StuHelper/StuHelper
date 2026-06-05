@@ -8,7 +8,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/storage"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 )
@@ -28,7 +27,7 @@ func withDBTable(ctx context.Context, table string) context.Context {
 	return db.WithTableHint(ctx, table)
 }
 
-func (r *Repository) CreateResource(ctx context.Context, ownerUserID string, req CreateRequest, mountID int64, stored *storage.StoredObject) (*Item, error) {
+func (r *Repository) CreateResource(ctx context.Context, ownerUserID string, req CreateRequest, mountID int64, stored *StoredObject) (*Item, error) {
 	var resourceID int64
 	err := r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		if err := tx.QueryRow(ctx, `

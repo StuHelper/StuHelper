@@ -14,7 +14,7 @@ import (
 )
 
 type fakeObjectStore struct {
-	mount       *storage.Mount
+	mountID     int64
 	downloadURL string
 	deletedKeys []string
 	putErr      error
@@ -22,11 +22,11 @@ type fakeObjectStore struct {
 	downloadErr error
 }
 
-func (s *fakeObjectStore) Put(_ context.Context, _ string, objectKey string, content []byte, contentType string) (*storage.Mount, *storage.StoredObject, error) {
+func (s *fakeObjectStore) Put(_ context.Context, _ string, objectKey string, content []byte, contentType string) (int64, *StoredObject, error) {
 	if s.putErr != nil {
-		return nil, nil, s.putErr
+		return 0, nil, s.putErr
 	}
-	return s.mount, &storage.StoredObject{
+	return s.mountID, &StoredObject{
 		ObjectKey:   objectKey,
 		SizeBytes:   int64(len(content)),
 		ContentType: contentType,
@@ -155,7 +155,7 @@ func setupResourceService(t *testing.T) (context.Context, *storage.Mount, *Repos
 	require.NoError(t, err)
 
 	store := &fakeObjectStore{
-		mount:       mount,
+		mountID:     mount.ID,
 		downloadURL: "https://storage.example.test/download/resource-1",
 	}
 	repo := NewRepository(fixture.DB)

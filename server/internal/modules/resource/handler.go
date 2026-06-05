@@ -6,7 +6,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/storage"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
@@ -173,11 +172,11 @@ func (h *Handler) getDownloadURL(c *gin.Context) {
 
 func respondResourceStorageError(c *gin.Context, err error) bool {
 	switch {
-	case errors.Is(err, storage.ErrMountNotFound):
+	case errors.Is(err, ErrResourceStorageMountNotFound):
 		response.NotFound(c, "storage mount not found")
-	case errors.Is(err, storage.ErrMountDisabled):
+	case errors.Is(err, ErrResourceStorageMountDisabled):
 		response.Conflict(c, "storage mount is disabled")
-	case errors.Is(err, storage.ErrDriverNotRegistered):
+	case errors.Is(err, ErrResourceStorageDriverMissing):
 		response.ServiceUnavailable(c, "resource storage driver is unavailable")
 	case objectstorage.IsKind(err, objectstorage.ErrorKindConfig),
 		objectstorage.IsKind(err, objectstorage.ErrorKindAuthentication),
