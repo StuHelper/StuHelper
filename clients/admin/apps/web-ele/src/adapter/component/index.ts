@@ -121,12 +121,12 @@ const ElUpload = defineAsyncComponent(() =>
 const withDefaultPlaceholder = <T extends Component>(
   component: T,
   type: 'input' | 'select',
-  componentProps: Recordable<any> = {},
+  componentProps: Recordable<unknown> = {},
 ) => {
   return defineComponent({
     name: component.name,
     inheritAttrs: false,
-    setup: (props: any, { attrs, expose, slots }) => {
+    setup: (props: Record<string, unknown>, { attrs, expose, slots }) => {
       const placeholder =
         props?.placeholder ||
         attrs?.placeholder ||
