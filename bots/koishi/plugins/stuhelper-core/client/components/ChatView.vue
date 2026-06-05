@@ -350,9 +350,9 @@ import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue'
 import { receive, message } from '@koishijs/client'
 import { chatApi, GuildMember } from '../api'
 import type { ChatMessage } from '../types'
-import { errorMessage } from '../utils/error-message'
+import { useActionFeedback } from '../composables/use-action-feedback'
 import ChatMessageContent from './chat/ChatMessageContent.vue'
-import NoticeStack, { type NoticeItem } from './primitives/NoticeStack.vue'
+import NoticeStack from './primitives/NoticeStack.vue'
 
 interface Session {
   key: string
@@ -374,9 +374,16 @@ const sending = ref(false)
 const messageListRef = ref<HTMLElement | null>(null)
 const inputRef = ref<HTMLTextAreaElement | null>(null)
 const showConnectDialog = ref(false)
-const actionError = ref('')
-const actionErrorTitle = ref('操作失败')
-const notices = ref<NoticeItem[]>([])
+const {
+  actionError,
+  actionErrorTitle,
+  notices,
+  pushError,
+  setActionError,
+  clearActionError,
+  dismissNotice,
+  errorMessage,
+} = useActionFeedback()
 
 // 待发送的图片列表
 interface PendingImage {
@@ -880,37 +887,6 @@ const sendMessage = async () => {
 
 function formatBytes(value: number) {
   return `${(value / 1024 / 1024).toFixed(0)} MiB`
-}
-
-function setActionError(title: string, cause: unknown, fallback: string) {
-  const details = errorMessage(cause, fallback)
-  actionErrorTitle.value = title
-  actionError.value = details
-  pushError(title, details)
-}
-
-function clearActionError() {
-  actionError.value = ''
-  actionErrorTitle.value = '操作失败'
-}
-
-function pushError(title: string, details: string) {
-  notices.value.push({ id: noticeId(), kind: 'error', title, message: details })
-  scheduleDismiss()
-}
-
-function dismissNotice(id: string) {
-  notices.value = notices.value.filter((item) => item.id !== id)
-}
-
-function scheduleDismiss() {
-  const id = notices.value[notices.value.length - 1]?.id
-  if (!id) return
-  window.setTimeout(() => dismissNotice(id), 4000)
-}
-
-function noticeId(): string {
-  return `notice-${Math.random().toString(36).slice(2, 8)}-${Date.now()}`
 }
 
 const formatTimeShort = (ts?: number) => {

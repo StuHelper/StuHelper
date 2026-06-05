@@ -118,7 +118,7 @@ test('console views treat caught errors as unknown before showing messages', () 
 
   for (const source of [chatSource, configSource, settingsSource]) {
     assert.doesNotMatch(source, /catch \(e: any\)/)
-    assert.match(source, /function errorMessage\(cause: unknown\): string|const errorMessage = \(cause: unknown\)|import \{ errorMessage \} from '\.\.\/utils\/error-message'/)
+    assert.match(source, /function errorMessage\(cause: unknown\): string|const errorMessage = \(cause: unknown\)|import \{ errorMessage \} from '\.\.\/utils\/error-message'|useActionFeedback\(\)/)
   }
 })
 
@@ -558,9 +558,9 @@ test('ChatView uses a composite session key to avoid cross-platform collisions',
 test('ChatView keeps member and chat operation failures visible', () => {
   const source = readClientFile('./components/ChatView.vue')
 
-  assert.match(source, /import NoticeStack, \{ type NoticeItem \} from '\.\/primitives\/NoticeStack\.vue'/)
-  assert.match(source, /const actionError = ref\(''\)/)
-  assert.match(source, /const actionErrorTitle = ref\('操作失败'\)/)
+  assert.match(source, /import \{ useActionFeedback \} from '\.\.\/composables\/use-action-feedback'/)
+  assert.match(source, /import NoticeStack from '\.\/primitives\/NoticeStack\.vue'/)
+  assert.match(source, /const \{\s*actionError,\s*actionErrorTitle,\s*notices,\s*pushError,\s*setActionError,\s*clearActionError,\s*dismissNotice,\s*errorMessage,\s*\} = useActionFeedback\(\)/)
   assert.match(source, /const membersLoadError = ref\(''\)/)
   assert.match(source, /let membersLoadRequestSeq = 0/)
   assert.match(source, /<div v-if="actionError" class="chat-action-error" role="alert">/)
@@ -578,12 +578,23 @@ test('ChatView keeps member and chat operation failures visible', () => {
   assert.match(source, /setActionError\('撤回失败', cause, '撤回失败'\)/)
   assert.match(source, /setActionError\('获取会话信息失败', e, '获取会话信息失败'\)/)
   assert.match(source, /setActionError\('发送失败', cause, '发送失败'\)/)
-  assert.match(source, /import \{ errorMessage \} from '\.\.\/utils\/error-message'/)
+  assert.match(source, /errorMessage\(e, '加载群成员失败'\)/)
+  assert.match(source, /errorMessage\(e, '获取群资料失败'\)/)
+  assert.match(source, /errorMessage\(e, '获取用户资料失败'\)/)
   assert.match(source, /const sendMessage = async \(\) => \{\s*if \(sending\.value\) return/)
   assert.ok(
     source.indexOf('if (sending.value) return') < source.indexOf('sending.value = true'),
   )
-  assert.match(source, /const details = errorMessage\(cause, fallback\)/)
+  assert.doesNotMatch(source, /const actionError = ref\(''\)/)
+  assert.doesNotMatch(source, /const actionErrorTitle = ref\('操作失败'\)/)
+  assert.doesNotMatch(source, /const notices = ref<NoticeItem\[\]>\(\[\]\)/)
+  assert.doesNotMatch(source, /function setActionError\(/)
+  assert.doesNotMatch(source, /function clearActionError\(/)
+  assert.doesNotMatch(source, /function pushError\(/)
+  assert.doesNotMatch(source, /function dismissNotice\(/)
+  assert.doesNotMatch(source, /function scheduleDismiss\(/)
+  assert.doesNotMatch(source, /function noticeId\(/)
+  assert.doesNotMatch(source, /import \{ errorMessage \} from '\.\.\/utils\/error-message'/)
   assert.doesNotMatch(source, /const errorMessage = \(cause: unknown\)/)
   assert.doesNotMatch(source, /message\.error\('加载群成员失败: ' \+ errorMessage/)
 })
