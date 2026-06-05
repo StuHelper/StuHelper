@@ -179,6 +179,37 @@ func TestResourceAccessGrantRollsBackFGAWhenAuditFails(t *testing.T) {
 	assertOpenPlatformAuditCount(t, postgres, app.ID, 999_999_999, "open_platform.resource_access.granted", 0)
 }
 
+func TestResourceAccessGrantRollbackSurvivesRequestCancellationAfterFGAWrite(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	resourceFGA := newFakeResourceFGA()
+	service, err := NewService(repo, redis.Client, WithResourceFGAClient(resourceFGA))
+	require.NoError(t, err)
+
+	ownerID := seedOpenPlatformUser(t, postgres, "resource-grant-cancel-owner")
+	adminID := seedOpenPlatformUser(t, postgres, "resource-grant-cancel-admin")
+	app := seedApprovedOpenPlatformApp(t, ctx, repo, ownerID, []string{ScopeResourceRead})
+	requestCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	resourceFGA.onWrite = cancel
+
+	_, err = service.GrantResourceAccess(requestCtx, ResourceGrantInput{
+		AppID:          app.ID,
+		ReviewerUserID: adminID,
+		ResourceType:   ResourceTypeResourceItem,
+		ResourceID:     "cancelled-grant",
+		Actions:        []string{ResourceAccessActionRead},
+		Reason:         "request cancelled after fga grant",
+		RequestID:      "grant-resource-access-cancelled",
+	})
+
+	require.Error(t, err)
+	assert.Empty(t, resourceFGA.sortedTuples())
+	assertOpenPlatformAuditCount(t, postgres, app.ID, adminID, "open_platform.resource_access.granted", 0)
+}
+
 func TestResourceAccessRevokeRestoresExistingFGAWhenAuditFails(t *testing.T) {
 	ctx := context.Background()
 	postgres := postgresfixture.Start(t)
@@ -212,6 +243,43 @@ func TestResourceAccessRevokeRestoresExistingFGAWhenAuditFails(t *testing.T) {
 	require.ErrorIs(t, err, ErrResourceAccessUnavailable)
 	assert.Equal(t, []fga.Tuple{existing}, resourceFGA.sortedTuples())
 	assertOpenPlatformAuditCount(t, postgres, app.ID, 999_999_999, "open_platform.resource_access.revoked", 0)
+}
+
+func TestResourceAccessRevokeRollbackSurvivesRequestCancellationAfterFGADelete(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	resourceFGA := newFakeResourceFGA()
+	service, err := NewService(repo, redis.Client, WithResourceFGAClient(resourceFGA))
+	require.NoError(t, err)
+
+	ownerID := seedOpenPlatformUser(t, postgres, "resource-revoke-cancel-owner")
+	adminID := seedOpenPlatformUser(t, postgres, "resource-revoke-cancel-admin")
+	app := seedApprovedOpenPlatformApp(t, ctx, repo, ownerID, []string{ScopeResourceRead})
+	existing := fga.Tuple{
+		User:     openPlatformAppFGAUser(app.ID),
+		Relation: ResourceRelationReadByApp,
+		Object:   "resource_item:cancelled-revoke",
+	}
+	require.NoError(t, resourceFGA.WriteMissingTuples(ctx, []fga.Tuple{existing}))
+	requestCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	resourceFGA.onDelete = cancel
+
+	_, err = service.RevokeResourceAccess(requestCtx, ResourceGrantRevokeInput{
+		AppID:          app.ID,
+		ReviewerUserID: adminID,
+		ResourceType:   ResourceTypeResourceItem,
+		ResourceID:     "cancelled-revoke",
+		Actions:        []string{ResourceAccessActionRead},
+		Reason:         "request cancelled after fga revoke",
+		RequestID:      "revoke-resource-access-cancelled",
+	})
+
+	require.Error(t, err)
+	assert.Equal(t, []fga.Tuple{existing}, resourceFGA.sortedTuples())
+	assertOpenPlatformAuditCount(t, postgres, app.ID, adminID, "open_platform.resource_access.revoked", 0)
 }
 
 func TestResourceAccessCheckAcceptsClientCredentialsAccessTokenContext(t *testing.T) {
@@ -551,6 +619,8 @@ func assertOpenPlatformAuditNullUserCount(
 type fakeResourceFGA struct {
 	tuples    map[fga.Tuple]struct{}
 	deleteErr error
+	onWrite   func()
+	onDelete  func()
 }
 
 func newFakeResourceFGA() *fakeResourceFGA {
@@ -562,19 +632,31 @@ func (f *fakeResourceFGA) Check(_ context.Context, user, relation, object string
 	return ok, nil
 }
 
-func (f *fakeResourceFGA) WriteMissingTuples(_ context.Context, desired []fga.Tuple) error {
+func (f *fakeResourceFGA) WriteMissingTuples(ctx context.Context, desired []fga.Tuple) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	for _, tuple := range desired {
 		f.tuples[tuple] = struct{}{}
+	}
+	if f.onWrite != nil {
+		f.onWrite()
 	}
 	return nil
 }
 
-func (f *fakeResourceFGA) DeleteTuples(_ context.Context, tuples []fga.Tuple) error {
+func (f *fakeResourceFGA) DeleteTuples(ctx context.Context, tuples []fga.Tuple) error {
 	if f.deleteErr != nil {
 		return f.deleteErr
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	for _, tuple := range tuples {
 		delete(f.tuples, tuple)
+	}
+	if f.onDelete != nil {
+		f.onDelete()
 	}
 	return nil
 }

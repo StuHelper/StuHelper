@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
 )
+
+const resourceAccessRollbackTimeout = 5 * time.Second
 
 func (s *Service) GrantResourceAccess(ctx context.Context, input ResourceGrantInput) (*ResourceGrantResult, error) {
 	if err := s.ensureResourceFGAConfigured(); err != nil {
@@ -50,7 +53,7 @@ func (s *Service) GrantResourceAccess(ctx context.Context, input ResourceGrantIn
 	}
 	if err := s.recordResourceAccessAdminAudit(ctx, app.ID, input.ReviewerUserID, input.RequestID,
 		"open_platform.resource_access.granted", resourceType, resourceID, actions, reason); err != nil {
-		if rollbackErr := s.resourceFGA.DeleteTuples(ctx, tuples); rollbackErr != nil {
+		if rollbackErr := s.deleteResourceTuplesForRollback(ctx, tuples); rollbackErr != nil {
 			return nil, errors.Join(err, fmt.Errorf("%w: rollback granted resource access tuples: %v", ErrResourceAccessUnavailable, rollbackErr))
 		}
 		return nil, err
@@ -97,7 +100,7 @@ func (s *Service) RevokeResourceAccess(ctx context.Context, input ResourceGrantR
 	if err := s.recordResourceAccessAdminAudit(ctx, app.ID, input.ReviewerUserID, input.RequestID,
 		"open_platform.resource_access.revoked", resourceType, resourceID, actions, reason); err != nil {
 		if len(existingTuples) > 0 {
-			if rollbackErr := s.resourceFGA.WriteMissingTuples(ctx, existingTuples); rollbackErr != nil {
+			if rollbackErr := s.writeResourceTuplesForRollback(ctx, existingTuples); rollbackErr != nil {
 				return nil, errors.Join(err, fmt.Errorf("%w: restore revoked resource access tuples: %v", ErrResourceAccessUnavailable, rollbackErr))
 			}
 		}
@@ -291,13 +294,29 @@ func (s *Service) revokeAllResourceAccessForRevokedApp(ctx context.Context, appI
 		if err := s.recordResourceAccessAdminAuditWithSource(ctx, appID, actorUserID, requestID,
 			"open_platform.resource_access.revoked", group.resourceType, group.resourceID,
 			group.actions, reason, "app_lifecycle"); err != nil {
-			if rollbackErr := s.resourceFGA.WriteMissingTuples(ctx, tuples); rollbackErr != nil {
+			if rollbackErr := s.writeResourceTuplesForRollback(ctx, tuples); rollbackErr != nil {
 				return 0, errors.Join(err, fmt.Errorf("%w: restore revoked app resource access tuples: %v", ErrResourceAccessUnavailable, rollbackErr))
 			}
 			return 0, err
 		}
 	}
 	return len(allGrants), nil
+}
+
+func (s *Service) deleteResourceTuplesForRollback(ctx context.Context, tuples []fga.Tuple) error {
+	rollbackCtx, cancel := resourceAccessRollbackContext(ctx)
+	defer cancel()
+	return s.resourceFGA.DeleteTuples(rollbackCtx, tuples)
+}
+
+func (s *Service) writeResourceTuplesForRollback(ctx context.Context, tuples []fga.Tuple) error {
+	rollbackCtx, cancel := resourceAccessRollbackContext(ctx)
+	defer cancel()
+	return s.resourceFGA.WriteMissingTuples(rollbackCtx, tuples)
+}
+
+func resourceAccessRollbackContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), resourceAccessRollbackTimeout)
 }
 
 func (s *Service) listResourceGrantsForApp(ctx context.Context, appID int64, appUser string, resourceType string) ([]ResourceGrant, error) {
