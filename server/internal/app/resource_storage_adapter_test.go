@@ -20,6 +20,7 @@ func TestNormalizeResourceStorageErrorMapsStorageErrors(t *testing.T) {
 		{source: storage.ErrMountDisabled, want: resource.ErrResourceStorageMountDisabled},
 		{source: storage.ErrDriverNotRegistered, want: resource.ErrResourceStorageDriverMissing},
 		{source: storage.ErrStoredObjectMissing, want: resource.ErrResourceStoredObjectMissing},
+		{source: storage.ErrInvalidStoredObject, want: resource.ErrResourceStoredObjectInvalid},
 	} {
 		err := normalizeResourceStorageError(fmt.Errorf("wrapped: %w", tc.source))
 

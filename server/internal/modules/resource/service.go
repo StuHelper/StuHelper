@@ -24,6 +24,7 @@ var (
 	ErrResourceStorageMountDisabled = errors.New("resource storage mount disabled")
 	ErrResourceStorageDriverMissing = errors.New("resource storage driver unavailable")
 	ErrResourceStoredObjectMissing  = errors.New("resource storage returned no object metadata")
+	ErrResourceStoredObjectInvalid  = errors.New("resource storage returned invalid object metadata")
 )
 
 type StoredObject struct {
@@ -70,8 +71,11 @@ func (s *Service) CreateResource(ctx context.Context, ownerUserID string, req Cr
 	if err != nil {
 		return nil, err
 	}
-	if stored == nil {
-		return nil, ErrResourceStoredObjectMissing
+	if err := validateResourceStoredObject(stored); err != nil {
+		if cleanupErr := s.storage.Delete(ctx, mountID, objectKey); cleanupErr != nil {
+			return nil, errors.Join(err, fmt.Errorf("cleanup invalid resource object: %w", cleanupErr))
+		}
+		return nil, err
 	}
 	item, err := s.repo.CreateResource(ctx, ownerUserID, req, mountID, stored)
 	if err != nil {
@@ -81,6 +85,22 @@ func (s *Service) CreateResource(ctx context.Context, ownerUserID string, req Cr
 		return nil, err
 	}
 	return item, nil
+}
+
+func validateResourceStoredObject(stored *StoredObject) error {
+	if stored == nil {
+		return ErrResourceStoredObjectMissing
+	}
+	if strings.TrimSpace(stored.ObjectKey) == "" {
+		return fmt.Errorf("%w: object key is required", ErrResourceStoredObjectInvalid)
+	}
+	if strings.TrimSpace(stored.ContentType) == "" {
+		return fmt.Errorf("%w: content type is required", ErrResourceStoredObjectInvalid)
+	}
+	if stored.SizeBytes <= 0 {
+		return fmt.Errorf("%w: sizeBytes must be positive", ErrResourceStoredObjectInvalid)
+	}
+	return nil
 }
 
 func (s *Service) ListResources(ctx context.Context, filters ListFilters) ([]Item, int, error) {

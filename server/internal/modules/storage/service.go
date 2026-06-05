@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -103,10 +104,29 @@ func (s *Service) Put(ctx context.Context, mountKey, objectKey string, content [
 	if err != nil {
 		return nil, nil, err
 	}
-	if stored == nil {
-		return nil, nil, ErrStoredObjectMissing
+	if err := validateStoredObject(stored); err != nil {
+		if cleanupErr := driver.Delete(ctx, *mount, objectKey); cleanupErr != nil {
+			return nil, nil, errors.Join(err, fmt.Errorf("cleanup invalid stored object: %w", cleanupErr))
+		}
+		return nil, nil, err
 	}
 	return mount, stored, nil
+}
+
+func validateStoredObject(stored *StoredObject) error {
+	if stored == nil {
+		return ErrStoredObjectMissing
+	}
+	if strings.TrimSpace(stored.ObjectKey) == "" {
+		return fmt.Errorf("%w: object key is required", ErrInvalidStoredObject)
+	}
+	if strings.TrimSpace(stored.ContentType) == "" {
+		return fmt.Errorf("%w: content type is required", ErrInvalidStoredObject)
+	}
+	if stored.SizeBytes < 0 {
+		return fmt.Errorf("%w: sizeBytes must not be negative", ErrInvalidStoredObject)
+	}
+	return nil
 }
 
 func (s *Service) Delete(ctx context.Context, mountID int64, objectKey string) error {

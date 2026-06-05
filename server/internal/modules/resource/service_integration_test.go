@@ -19,6 +19,7 @@ type fakeObjectStore struct {
 	deletedKeys []string
 	putErr      error
 	putMissing  bool
+	putObject   *StoredObject
 	deleteErr   error
 	downloadErr error
 }
@@ -29,6 +30,9 @@ func (s *fakeObjectStore) Put(_ context.Context, _ string, objectKey string, con
 	}
 	if s.putMissing {
 		return s.mountID, nil, nil
+	}
+	if s.putObject != nil {
+		return s.mountID, s.putObject, nil
 	}
 	return s.mountID, &StoredObject{
 		ObjectKey:   objectKey,
@@ -103,11 +107,52 @@ func TestCreateResource_RejectsMissingStorageMetadata(t *testing.T) {
 		DataBase64:  base64.StdEncoding.EncodeToString([]byte("missing metadata")),
 	})
 	require.ErrorIs(t, err, ErrResourceStoredObjectMissing)
-	assert.Empty(t, store.deletedKeys)
+	assert.Len(t, store.deletedKeys, 1)
+	assert.Contains(t, store.deletedKeys[0], "broken.txt")
 
 	var count int
 	require.NoError(t, repo.db.QueryRow(ctx, `SELECT COUNT(*) FROM resource_items`).Scan(&count))
 	assert.Zero(t, count)
+}
+
+func TestCreateResource_RejectsInvalidStorageMetadata(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		stored *StoredObject
+	}{
+		{
+			name:   "blank object key",
+			stored: &StoredObject{ObjectKey: " ", SizeBytes: 16, ContentType: "text/plain"},
+		},
+		{
+			name:   "blank content type",
+			stored: &StoredObject{ObjectKey: "resources/oidc-user-1/broken.txt", SizeBytes: 16, ContentType: " "},
+		},
+		{
+			name:   "zero size",
+			stored: &StoredObject{ObjectKey: "resources/oidc-user-1/broken.txt", SizeBytes: 0, ContentType: "text/plain"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, _, repo, svc, store := setupResourceService(t)
+			store.putObject = tc.stored
+
+			_, err := svc.CreateResource(ctx, "oidc-user-1", CreateRequest{
+				Title:       "Broken Upload",
+				Visibility:  "public",
+				Filename:    "broken.txt",
+				ContentType: "text/plain",
+				DataBase64:  base64.StdEncoding.EncodeToString([]byte("missing metadata")),
+			})
+			require.ErrorIs(t, err, ErrResourceStoredObjectInvalid)
+			assert.Len(t, store.deletedKeys, 1)
+			assert.Contains(t, store.deletedKeys[0], "broken.txt")
+
+			var count int
+			require.NoError(t, repo.db.QueryRow(ctx, `SELECT COUNT(*) FROM resource_items`).Scan(&count))
+			assert.Zero(t, count)
+		})
+	}
 }
 
 func TestUpdateAndDeletePrivateResource(t *testing.T) {

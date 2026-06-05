@@ -27,7 +27,7 @@ func TestStorageHandlers_RejectUnknownDriverAndCheckMountHealth(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)
 	svc := NewService(repo, config.ObjectStorageConfig{})
-	svc.registry.drivers["s3"] = fakeDriver{healthErr: errors.New("network timeout")}
+	svc.registry.drivers["s3"] = &fakeDriver{healthErr: errors.New("network timeout")}
 
 	router := newStorageTestRouter(svc)
 	createBody := marshalStorageRequest(t, CreateMountRequest{

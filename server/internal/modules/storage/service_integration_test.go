@@ -17,32 +17,34 @@ type fakeDriver struct {
 	downloadURL string
 	putObject   *StoredObject
 	putErr      error
+	deletedKeys []string
 }
 
-func (d fakeDriver) Capabilities() CapabilitySet {
+func (d *fakeDriver) Capabilities() CapabilitySet {
 	return CapabilitySet{Put: true, Delete: true, Stat: true, PresignedDownload: true}
 }
 
-func (d fakeDriver) HealthCheck(context.Context, Mount) error {
+func (d *fakeDriver) HealthCheck(context.Context, Mount) error {
 	return d.healthErr
 }
 
-func (d fakeDriver) Put(context.Context, Mount, string, []byte, string) (*StoredObject, error) {
+func (d *fakeDriver) Put(context.Context, Mount, string, []byte, string) (*StoredObject, error) {
 	if d.putErr != nil {
 		return nil, d.putErr
 	}
 	return d.putObject, nil
 }
 
-func (d fakeDriver) Stat(context.Context, Mount, string) (*StoredObject, error) {
+func (d *fakeDriver) Stat(context.Context, Mount, string) (*StoredObject, error) {
 	return nil, errors.New("unexpected Stat call")
 }
 
-func (d fakeDriver) Delete(context.Context, Mount, string) error {
-	return errors.New("unexpected Delete call")
+func (d *fakeDriver) Delete(_ context.Context, _ Mount, objectKey string) error {
+	d.deletedKeys = append(d.deletedKeys, objectKey)
+	return nil
 }
 
-func (d fakeDriver) GetDownloadURL(context.Context, Mount, string) (string, error) {
+func (d *fakeDriver) GetDownloadURL(context.Context, Mount, string) (string, error) {
 	if d.downloadURL == "" {
 		return "", errors.New("unexpected GetDownloadURL call")
 	}
@@ -77,7 +79,7 @@ func TestCreateMountAndCheckMountHealth(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)
 	svc := NewService(repo, config.ObjectStorageConfig{})
-	svc.registry.drivers["s3"] = fakeDriver{}
+	svc.registry.drivers["s3"] = &fakeDriver{}
 	ctx := context.Background()
 
 	bucket := "resource-bucket"
@@ -98,7 +100,7 @@ func TestCreateMountAndCheckMountHealth(t *testing.T) {
 	assert.Equal(t, "healthy", *healthy.LastHealthStatus)
 	assert.Nil(t, healthy.LastHealthError)
 
-	svc.registry.drivers["s3"] = fakeDriver{healthErr: errors.New("network timeout")}
+	svc.registry.drivers["s3"] = &fakeDriver{healthErr: errors.New("network timeout")}
 	unhealthy, err := svc.CheckMountHealth(ctx, created.ID)
 	require.NoError(t, err)
 	require.NotNil(t, unhealthy.LastHealthStatus)
@@ -111,7 +113,7 @@ func TestCreateMount_NormalizesRequest(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)
 	svc := NewService(repo, config.ObjectStorageConfig{})
-	svc.registry.drivers["s3"] = fakeDriver{}
+	svc.registry.drivers["s3"] = &fakeDriver{}
 	ctx := context.Background()
 
 	bucket := "  resource-bucket  "
@@ -167,7 +169,7 @@ func TestValidateMountByKeyAndGetDownloadURLByMountKey(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)
 	svc := NewService(repo, config.ObjectStorageConfig{})
-	svc.registry.drivers["s3"] = fakeDriver{downloadURL: "https://storage.example.test/identity/front.png"}
+	svc.registry.drivers["s3"] = &fakeDriver{downloadURL: "https://storage.example.test/identity/front.png"}
 	ctx := context.Background()
 
 	created, err := repo.GetMountByKey(ctx, DefaultMountKey)
@@ -188,8 +190,42 @@ func TestPutRejectsMissingObjectMetadata(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)
 	svc := NewService(repo, config.ObjectStorageConfig{})
-	svc.registry.drivers["s3"] = fakeDriver{}
+	driver := &fakeDriver{}
+	svc.registry.drivers["s3"] = driver
 
 	_, _, err := svc.Put(context.Background(), DefaultMountKey, "resources/1/file.txt", []byte("hello"), "text/plain")
 	require.ErrorIs(t, err, ErrStoredObjectMissing)
+	assert.Equal(t, []string{"resources/1/file.txt"}, driver.deletedKeys)
+}
+
+func TestPutRejectsInvalidObjectMetadata(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		stored *StoredObject
+	}{
+		{
+			name:   "blank object key",
+			stored: &StoredObject{ObjectKey: " ", SizeBytes: 5, ContentType: "text/plain"},
+		},
+		{
+			name:   "blank content type",
+			stored: &StoredObject{ObjectKey: "resources/1/file.txt", SizeBytes: 5, ContentType: " "},
+		},
+		{
+			name:   "negative size",
+			stored: &StoredObject{ObjectKey: "resources/1/file.txt", SizeBytes: -1, ContentType: "text/plain"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fixture := postgresfixture.Start(t)
+			repo := NewRepository(fixture.DB)
+			svc := NewService(repo, config.ObjectStorageConfig{})
+			driver := &fakeDriver{putObject: tc.stored}
+			svc.registry.drivers["s3"] = driver
+
+			_, _, err := svc.Put(context.Background(), DefaultMountKey, "resources/1/file.txt", []byte("hello"), "text/plain")
+			require.ErrorIs(t, err, ErrInvalidStoredObject)
+			assert.Equal(t, []string{"resources/1/file.txt"}, driver.deletedKeys)
+		})
+	}
 }
