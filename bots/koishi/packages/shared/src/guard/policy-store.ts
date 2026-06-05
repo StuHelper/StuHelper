@@ -59,8 +59,9 @@ export class GuardPolicyStore {
     const now = new Date()
     const [existing] = await this.ctx.database.get(GUARD_TEMPLATE_TABLE, { id: input.id }) as GuardTemplateRecord[]
     if (existing) {
+      const { id: _id, ...changes } = input
       await this.ctx.database.set(GUARD_TEMPLATE_TABLE, { id: input.id }, {
-        ...input,
+        ...changes,
         updatedAt: now,
       })
       return
