@@ -145,8 +145,10 @@ test('LogsView keeps log search failures visible and retryable', () => {
   assert.match(source, /searchError\.value = message/)
   assert.match(source, /pushError\('加载日志失败', message\)/)
   assert.match(source, /finally \{\s*if \(requestSeq === searchRequestSeq\) \{\s*loading\.value = false\s*\}\s*\}/)
-  assert.match(source, /notices\.value\.push\(\{ id: noticeId\(\), kind: 'error', title, message \}\)/)
-  assert.match(source, /function errorMessage\(cause: unknown, fallback: string\): string/)
+  assert.match(source, /import \{ useActionFeedback \} from '\.\.\/composables\/use-action-feedback'/)
+  assert.match(source, /notices,[\s\S]*pushError,[\s\S]*dismissNotice,[\s\S]*errorMessage,[\s\S]*\} = useActionFeedback\(\)/)
+  assert.doesNotMatch(source, /notices\.value\.push\(\{ id: noticeId\(\), kind: 'error', title, message \}\)/)
+  assert.doesNotMatch(source, /function errorMessage\(cause: unknown, fallback: string\): string/)
 })
 
 test('SubscriptionView keeps list load failures visible and retryable', () => {
