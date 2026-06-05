@@ -1,7 +1,8 @@
 import type { Session } from 'koishi'
 
 import type { MuteRecord } from '../../types'
-import { formatDuration, parseUserId } from '../../utils'
+import { formatDuration } from '../../utils'
+import { resolveCommandUserId } from './member-manage-input'
 import type { OrderManageModule } from './orderManage.module'
 
 interface NicknameCommandInput {
@@ -109,7 +110,7 @@ async function handleNicknameCommand(input: NicknameCommandInput): Promise<strin
   const { host, session, user, nickname, group } = input
   if (!user) return '喵呜...请指定用户喵~'
 
-  const userId = resolveUserId(user)
+  const userId = resolveCommandUserId(user)
   const guildId = group || session.guildId
   if (!userId) return '喵呜...请指定正确的用户喵~'
   if (!guildId) return '喵呜...请在群聊中执行，或显式传入群号喵~'
@@ -128,11 +129,4 @@ async function handleNicknameCommand(input: NicknameCommandInput): Promise<strin
     host.logCommand({ session, command: 'nickname', target: userId, result: '失败：未知错误', success: false })
     return `喵呜...设置昵称失败了：${error.message}`
   }
-}
-
-function resolveUserId(user: unknown): string {
-  const raw = String(user || '').trim()
-  if (!raw) return ''
-  const [, platformUserId] = raw.split(':')
-  return platformUserId || parseUserId(raw)
 }
