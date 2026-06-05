@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { registerMemberManageCommands, parseKickInput } from './member-manage-commands.ts'
+import { resolveCommandUserId } from './member-manage-input'
 
 test('parseKickInput accepts command options and explicit guild id for blacklist kick', () => {
   assert.deepEqual(parseKickInput('10001', 'default-guild', { black: true }), {
@@ -17,6 +18,28 @@ test('parseKickInput accepts command options and explicit guild id for blacklist
     black: true,
     global: true,
   })
+})
+
+test('parseKickInput only treats standalone flags as kick options', () => {
+  assert.deepEqual(parseKickInput('user-b target-guild', 'default-guild'), {
+    userId: 'user-b',
+    targetGroup: 'target-guild',
+    black: false,
+    global: false,
+  })
+
+  assert.deepEqual(parseKickInput('<at id="10002"/> -b target-guild', 'default-guild'), {
+    userId: '10002',
+    targetGroup: 'target-guild',
+    black: true,
+    global: false,
+  })
+})
+
+test('resolveCommandUserId accepts structured Koishi user arguments', () => {
+  assert.equal(resolveCommandUserId('onebot:10003'), '10003')
+  assert.equal(resolveCommandUserId({ id: 'onebot:10004' }), '10004')
+  assert.equal(resolveCommandUserId({}), '')
 })
 
 test('kick -b reports partial failure when backend blacklist creation fails', async () => {

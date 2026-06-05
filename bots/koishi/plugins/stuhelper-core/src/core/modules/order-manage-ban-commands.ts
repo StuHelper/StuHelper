@@ -1,6 +1,7 @@
 import type { Session } from 'koishi'
 
-import { formatDuration, parseTimeString, parseUserId } from '../../utils'
+import { formatDuration, parseTimeString } from '../../utils'
+import { resolveCommandUserId, resolveTargetUserId, splitTargetArgs } from './member-manage-input'
 import type { OrderManageModule } from './orderManage.module'
 
 const SHORT_MUTE_MS = 600_000
@@ -162,37 +163,4 @@ async function handleUnbanCommand(host: OrderManageModule, session: Session, inp
     host.logCommand({ session, command: 'unban', target: userId, result: '失败：未知错误', success: false })
     return `喵呜...解除禁言失败了：${error.message}`
   }
-}
-
-function splitTargetArgs(input: string | undefined): string[] {
-  const source = (input || '').trim()
-  if (!source.includes('<at')) return source.split(/\s+/).filter(Boolean)
-
-  const atMatch = source.match(/<at[^>]+>/)
-  if (!atMatch) return source.split(/\s+/).filter(Boolean)
-
-  const atPart = atMatch[0]
-  const restPart = source.replace(atPart, '').trim()
-  return [atPart, ...restPart.split(/\s+/)].filter(Boolean)
-}
-
-function resolveTargetUserId(target: string | undefined): string | null {
-  try {
-    if (target?.startsWith('<at')) {
-      const match = target.match(/id="(\d+)"/)
-      if (match) return match[1]
-    } else if (target) {
-      return parseUserId(target)
-    }
-  } catch {
-    return parseUserId(target || '')
-  }
-  return null
-}
-
-function resolveCommandUserId(user: unknown): string {
-  const raw = String(user || '').trim()
-  if (!raw) return ''
-  const [, platformUserId] = raw.split(':')
-  return platformUserId || resolveTargetUserId(raw) || ''
 }
