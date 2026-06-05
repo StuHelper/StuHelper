@@ -40,6 +40,7 @@ type mockRepo struct {
 	onUpdateProfile                            func(ctx context.Context, profile *Profile) error
 	onListProfilesByStatus                     func(ctx context.Context, status string, schoolID *int64, page, pageSize int) ([]Profile, int, error)
 	onGetCasdoorSubject                        func(ctx context.Context, userID int64) (string, error)
+	onEnsureUserPhoneAvailable                 func(ctx context.Context, userID int64, phoneHash string) error
 	onSetUserPhone                             func(ctx context.Context, userID int64, phoneEnc []byte, phoneHash string) error
 	onGetSchoolConfig                          func(ctx context.Context, schoolID int64) (*SchoolConfig, error)
 	onListSchoolConfigs                        func(ctx context.Context) ([]SchoolConfig, error)
@@ -146,6 +147,13 @@ func (m *mockRepo) GetCasdoorSubject(ctx context.Context, userID int64) (string,
 		return m.onGetCasdoorSubject(ctx, userID)
 	}
 	return "casdoor-subject", nil
+}
+
+func (m *mockRepo) EnsureUserPhoneAvailable(ctx context.Context, userID int64, phoneHash string) error {
+	if m.onEnsureUserPhoneAvailable != nil {
+		return m.onEnsureUserPhoneAvailable(ctx, userID, phoneHash)
+	}
+	return nil
 }
 
 func (m *mockRepo) SetUserPhone(ctx context.Context, userID int64, phoneEnc []byte, phoneHash string) error {

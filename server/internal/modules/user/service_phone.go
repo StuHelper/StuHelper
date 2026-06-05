@@ -40,6 +40,17 @@ func (s *Service) buildPhoneProjection(phone string) (string, []byte, string, er
 	return masked, phoneEnc, phoneHash, nil
 }
 
+func (s *Service) prepareAvailablePhoneProjection(ctx context.Context, userID int64, phone string) (string, []byte, string, error) {
+	masked, phoneEnc, phoneHash, err := s.buildPhoneProjection(phone)
+	if err != nil {
+		return "", nil, "", err
+	}
+	if err := s.repo.EnsureUserPhoneAvailable(ctx, userID, phoneHash); err != nil {
+		return "", nil, "", err
+	}
+	return masked, phoneEnc, phoneHash, nil
+}
+
 func (s *Service) hydrateProfilePhone(profile *Profile) error {
 	if profile == nil {
 		return nil
@@ -81,6 +92,11 @@ func (s *Service) BindPhone(ctx context.Context, userID int64, phone string) err
 		return ErrProfileNotFound
 	}
 
+	masked, phoneEnc, phoneHash, err := s.prepareAvailablePhoneProjection(ctx, userID, trimmed)
+	if err != nil {
+		return fmt.Errorf("BindPhone check phone projection: %w", err)
+	}
+
 	subject, err := s.repo.GetCasdoorSubject(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("BindPhone get Casdoor subject: %w", err)
@@ -89,10 +105,6 @@ func (s *Service) BindPhone(ctx context.Context, userID int64, phone string) err
 		return fmt.Errorf("BindPhone update Casdoor phone: %w", err)
 	}
 
-	masked, phoneEnc, phoneHash, err := s.buildPhoneProjection(trimmed)
-	if err != nil {
-		return err
-	}
 	profile.Phone = &masked
 	profile.PhoneVerified = true
 	if err := s.repo.SetUserPhone(ctx, userID, phoneEnc, phoneHash); err != nil {

@@ -266,16 +266,15 @@ func (s *Service) syncVerifiedPhoneProjection(ctx context.Context, userID int64,
 	if s.profileIdentitySync == nil {
 		return ErrProfileIdentitySyncMissing
 	}
+	_, phoneEnc, phoneHash, err := s.prepareAvailablePhoneProjection(ctx, userID, phone)
+	if err != nil {
+		return err
+	}
 	subject, err := s.repo.GetCasdoorSubject(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("get Casdoor subject: %w", err)
 	}
 	if err := s.profileIdentitySync.UpdatePhone(ctx, subject, "+86"+phone); err != nil {
-		return err
-	}
-
-	_, phoneEnc, phoneHash, err := s.buildPhoneProjection(phone)
-	if err != nil {
 		return err
 	}
 	if err := s.repo.SetUserPhone(ctx, userID, phoneEnc, phoneHash); err != nil {

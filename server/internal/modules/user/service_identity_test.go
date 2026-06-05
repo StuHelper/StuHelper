@@ -94,6 +94,53 @@ func TestBindPhone_WritesCasdoorAndMaskedProfileProjection(t *testing.T) {
 	assert.Equal(t, expectedHash, phoneHash)
 }
 
+func TestBindPhone_DuplicateProjectionDoesNotUpdateCasdoor(t *testing.T) {
+	hmacKey := []byte("test-hmac-key-at-least-32-chars!")
+	expectedHash, err := phoneutil.HashLookupWithKey("13800138000", hmacKey)
+	require.NoError(t, err)
+	casdoorCalls := 0
+
+	repo := &mockRepo{
+		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
+			assert.Equal(t, int64(42), userID)
+			return &Profile{UserID: userID}, nil
+		},
+		onEnsureUserPhoneAvailable: func(_ context.Context, userID int64, phoneHash string) error {
+			assert.Equal(t, int64(42), userID)
+			assert.Equal(t, expectedHash, phoneHash)
+			return ErrPhoneAlreadyBound
+		},
+		onGetCasdoorSubject: func(context.Context, int64) (string, error) {
+			t.Fatal("duplicate phone must be rejected before loading Casdoor subject")
+			return "", nil
+		},
+		onSetUserPhone: func(context.Context, int64, []byte, string) error {
+			t.Fatal("duplicate phone must not update local projection")
+			return nil
+		},
+		onUpdateProfile: func(context.Context, *Profile) error {
+			t.Fatal("duplicate phone must not update profile projection")
+			return nil
+		},
+	}
+	gateway := profileIdentitySyncFunc(func(context.Context, string, string) error {
+		casdoorCalls++
+		return nil
+	})
+
+	svc, err := NewService(
+		repo,
+		hmacKey,
+		&fakeEncryptor{},
+		WithProfileIdentitySyncGateway(gateway),
+	)
+	require.NoError(t, err)
+
+	err = svc.BindPhone(context.Background(), 42, "13800138000")
+	require.ErrorIs(t, err, ErrPhoneAlreadyBound)
+	assert.Zero(t, casdoorCalls)
+}
+
 func TestBindPhone_RequiresIdentitySyncGateway(t *testing.T) {
 	repo := &mockRepo{
 		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {

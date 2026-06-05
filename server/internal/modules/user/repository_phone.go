@@ -16,7 +16,7 @@ func isUniqueViolation(err error) bool {
 
 type queryRowFn func(ctx context.Context, sql string, args ...any) rowScanner
 
-func setUserPhone(ctx context.Context, queryRow queryRowFn, exec execFn, userID int64, phoneEnc []byte, phoneHash, op string) error {
+func ensureUserPhoneAvailable(ctx context.Context, queryRow queryRowFn, userID int64, phoneHash, op string) error {
 	var conflictID int64
 	err := queryRow(ctx, `
 		SELECT id
@@ -31,8 +31,14 @@ func setUserPhone(ctx context.Context, queryRow queryRowFn, exec execFn, userID 
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("%s check conflict: %w", op, err)
 	}
+	return nil
+}
 
-	_, err = exec(ctx, `
+func setUserPhone(ctx context.Context, queryRow queryRowFn, exec execFn, userID int64, phoneEnc []byte, phoneHash, op string) error {
+	if err := ensureUserPhoneAvailable(ctx, queryRow, userID, phoneHash, op); err != nil {
+		return err
+	}
+	_, err := exec(ctx, `
 		UPDATE users
 		SET phone_enc = $2,
 		    phone_hash = $3,
@@ -46,6 +52,12 @@ func setUserPhone(ctx context.Context, queryRow queryRowFn, exec execFn, userID 
 		return fmt.Errorf("%s: %w", op, err)
 	}
 	return nil
+}
+
+// EnsureUserPhoneAvailable 检查手机号投影是否已被其他用户绑定。
+func (r *Repository) EnsureUserPhoneAvailable(ctx context.Context, userID int64, phoneHash string) error {
+	ctx = withDBTable(ctx, "users")
+	return ensureUserPhoneAvailable(ctx, func(ctx context.Context, sql string, args ...any) rowScanner { return r.db.QueryRow(ctx, sql, args...) }, userID, phoneHash, "EnsureUserPhoneAvailable")
 }
 
 // SetUserPhone 将手机号写入 users 表的加密列和哈希列。
