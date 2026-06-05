@@ -1,3 +1,5 @@
+import type { Element } from 'koishi'
+
 export interface CommandLogEntry {
   timestamp: string | number
   guildId: string
@@ -87,7 +89,7 @@ export interface RecalledMessage {
   content: string
   timestamp: number
   recallTime: number
-  elements?: any[]
+  elements?: Element[]
 }
 
 export interface RecallRecord {
