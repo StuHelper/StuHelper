@@ -23,6 +23,7 @@ import (
 
 const freshmanMaterialObjectPrefix = "admission/freshman/"
 const freshmanCameraHandoffTTL = 30 * time.Minute
+const freshmanMaterialCleanupTimeout = 5 * time.Second
 
 func (s *Service) CreateFreshmanApplication(
 	ctx context.Context,
@@ -118,7 +119,7 @@ func (s *Service) SubmitCameraCapture(ctx context.Context, input CameraCaptureIn
 		return nil, fmt.Errorf("SubmitCameraCapture store material: %w", err)
 	}
 	if err := s.createFreshmanMaterialAndSubmitSession(ctx, material, session, policy); err != nil {
-		if cleanupErr := s.materialStore.DeleteAdmissionMaterial(ctx, material.ObjectKey); cleanupErr != nil {
+		if cleanupErr := s.cleanupFreshmanMaterial(ctx, material.ObjectKey); cleanupErr != nil {
 			return nil, fmt.Errorf("SubmitCameraCapture create material: %w; cleanup: %v", err, cleanupErr)
 		}
 		if isFreshmanMaterialApplicationUniqueViolation(err) {
@@ -260,7 +261,7 @@ func (s *Service) SubmitFreshmanCameraHandoffCapture(
 		return nil, fmt.Errorf("SubmitFreshmanCameraHandoffCapture store material: %w", err)
 	}
 	if err := s.createFreshmanMaterialAndSubmitSession(ctx, material, session, policy); err != nil {
-		if cleanupErr := s.materialStore.DeleteAdmissionMaterial(ctx, material.ObjectKey); cleanupErr != nil {
+		if cleanupErr := s.cleanupFreshmanMaterial(ctx, material.ObjectKey); cleanupErr != nil {
 			return nil, fmt.Errorf("SubmitFreshmanCameraHandoffCapture create material: %w; cleanup: %v", err, cleanupErr)
 		}
 		if isFreshmanMaterialApplicationUniqueViolation(err) {
@@ -389,6 +390,16 @@ func (s *Service) syncFreshmanApplicationMaterialSubmission(
 		return nil
 	}
 	return s.ensureFreshmanMaterialSubmitted(ctx, session)
+}
+
+func (s *Service) cleanupFreshmanMaterial(ctx context.Context, objectKey string) error {
+	cleanupCtx, cancel := freshmanMaterialCleanupContext(ctx)
+	defer cancel()
+	return s.materialStore.DeleteAdmissionMaterial(cleanupCtx, objectKey)
+}
+
+func freshmanMaterialCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), freshmanMaterialCleanupTimeout)
 }
 
 func (s *Service) createFreshmanMaterialAndSubmitSession(

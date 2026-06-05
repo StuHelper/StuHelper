@@ -322,6 +322,31 @@ func TestFreshmanCameraCaptureRejectsExpiredLinkedSessionBeforeStoringMaterial(t
 	assert.Empty(t, store.objectKey)
 }
 
+func TestFreshmanCameraCaptureCleanupSurvivesRequestCancellationAfterUpload(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	store := &testAdmissionMaterialStore{}
+	svc := newFreshmanTestService(t, fixture)
+	svc.materialStore = store
+	userID := seedLinkedAdmissionUser(t, fixture, svc, "freshman-camera-cancelled")
+	app := createFreshmanTestApplication(t, svc, userID)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	store.onPut = cancel
+
+	_, err := svc.SubmitCameraCapture(ctx, CameraCaptureInput{
+		UserID:        userID,
+		ApplicationID: app.ID,
+		ContentType:   "image/png",
+		ImageBase64:   base64.StdEncoding.EncodeToString(validPNGBytes()),
+	})
+
+	require.Error(t, err)
+	assert.Empty(t, store.objectKey)
+	assertFreshmanMaterialCount(t, fixture, app.ID, 0)
+	require.NotNil(t, app.AdmissionSessionID)
+	assertAdmissionSessionStatus(t, fixture, *app.AdmissionSessionID, StatusLinked)
+}
+
 func TestFreshmanCameraHandoffUploadsAndLocksContinuation(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	store := &testAdmissionMaterialStore{}
@@ -405,6 +430,42 @@ func TestFreshmanCameraHandoffUploadsAndLocksContinuation(t *testing.T) {
 		ContinueOn: FreshmanCameraContinueMobile,
 	})
 	require.ErrorIs(t, err, ErrAdmissionCameraHandoffLocked)
+}
+
+func TestFreshmanCameraHandoffCaptureCleanupSurvivesRequestCancellationAfterUpload(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	store := &testAdmissionMaterialStore{}
+	svc := newFreshmanTestService(t, fixture)
+	svc.materialStore = store
+	svc.generateToken = func() (string, error) {
+		return "freshman-camera-handoff-cancelled-token", nil
+	}
+	userID := seedLinkedAdmissionUser(t, fixture, svc, "freshman-camera-handoff-cancelled")
+	app := createFreshmanTestApplication(t, svc, userID)
+	handoff, err := svc.CreateFreshmanCameraHandoff(context.Background(), FreshmanCameraHandoffCreateInput{
+		UserID:        userID,
+		ApplicationID: app.ID,
+	})
+	require.NoError(t, err)
+	token := handoff.MobileURL[strings.LastIndex(handoff.MobileURL, "/")+1:]
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	store.onPut = cancel
+
+	_, err = svc.SubmitFreshmanCameraHandoffCapture(ctx, FreshmanCameraHandoffCaptureInput{
+		Token:       token,
+		ContentType: "image/png",
+		ImageBase64: base64.StdEncoding.EncodeToString(validPNGBytes()),
+	})
+
+	require.Error(t, err)
+	assert.Empty(t, store.objectKey)
+	assertFreshmanMaterialCount(t, fixture, app.ID, 0)
+	require.NotNil(t, app.AdmissionSessionID)
+	assertAdmissionSessionStatus(t, fixture, *app.AdmissionSessionID, StatusLinked)
+	preview, err := svc.PreviewFreshmanCameraHandoff(context.Background(), token)
+	require.NoError(t, err)
+	assert.Equal(t, FreshmanCameraHandoffPending, preview.Status)
 }
 
 func TestFreshmanCameraHandoffContinuationRaceReturnsLocked(t *testing.T) {
@@ -742,6 +803,7 @@ type testAdmissionMaterialStore struct {
 	objectKey   string
 	content     []byte
 	contentType string
+	onPut       func()
 }
 
 func (s *testAdmissionMaterialStore) PutAdmissionMaterial(
@@ -753,10 +815,16 @@ func (s *testAdmissionMaterialStore) PutAdmissionMaterial(
 	s.objectKey = objectKey
 	s.content = content
 	s.contentType = contentType
+	if s.onPut != nil {
+		s.onPut()
+	}
 	return nil
 }
 
-func (s *testAdmissionMaterialStore) DeleteAdmissionMaterial(_ context.Context, objectKey string) error {
+func (s *testAdmissionMaterialStore) DeleteAdmissionMaterial(ctx context.Context, objectKey string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if s.objectKey == objectKey {
 		s.objectKey = ""
 		s.content = nil
@@ -816,6 +884,23 @@ func assertAdmissionQueuedActionCount(
 		FROM admission_bot_action_outbox
 		WHERE session_id = $1 AND action = $2
 	`, sessionID, string(action)).Scan(&count)
+	require.NoError(t, err)
+	assert.Equal(t, expected, count)
+}
+
+func assertFreshmanMaterialCount(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	applicationID string,
+	expected int,
+) {
+	t.Helper()
+	var count int
+	err := fixture.Pool.QueryRow(context.Background(), `
+		SELECT COUNT(*)
+		FROM freshman_verification_materials
+		WHERE application_id = $1
+	`, applicationID).Scan(&count)
 	require.NoError(t, err)
 	assert.Equal(t, expected, count)
 }
