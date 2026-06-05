@@ -28,6 +28,7 @@ type Handler struct {
 	redisClient            *redis.Client
 	refreshLimiter         *middleware.RedisRateLimiter
 	authFailureGuard       *AuthFailureGuard
+	adminAuthorizers       AdminAuthorizers
 	allowedRedirectHosts   map[string]struct{}
 	defaultRedirectURL     string
 	oidcIssuer             string
@@ -47,6 +48,19 @@ type OIDCSubjectValidator interface {
 	ValidateOIDCSubject(ctx context.Context, subject string) error
 }
 
+type AdminAuthorizers struct {
+	AccountLockUpdate gin.HandlerFunc
+	StepUpMFA         gin.HandlerFunc
+}
+
+type HandlerOption func(*Handler)
+
+func WithAdminAuthorizers(authorizers AdminAuthorizers) HandlerOption {
+	return func(h *Handler) {
+		h.adminAuthorizers = authorizers
+	}
+}
+
 // NewHandler 创建认证处理器
 func NewHandler(
 	cfg HandlerConfig,
@@ -54,6 +68,7 @@ func NewHandler(
 	rdb *redis.Client,
 	oidcClient *oidc.Client,
 	userSyncRepo UserSyncRepo,
+	opts ...HandlerOption,
 ) *Handler {
 	svc := NewService(cfg.Token, tokenService, userSyncRepo, providerTokenRevocationOptions(oidcClient, cfg)...)
 
@@ -61,7 +76,7 @@ func NewHandler(
 	redirectHosts := buildAllowedRedirectHosts(cfg.CORSOrigins)
 	defaultRedirect := buildDefaultRedirectURL(cfg.CORSOrigins)
 
-	return &Handler{
+	h := &Handler{
 		svc:                    svc,
 		oidcClient:             oidcClient,
 		oidcSubjectValidator:   cfg.OIDCSubjectValidator,
@@ -75,6 +90,12 @@ func NewHandler(
 		oidcIssuer:             cfg.OIDCIssuer,
 		accountSettingsBaseURL: cfg.AccountSettingsBaseURL,
 	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(h)
+		}
+	}
+	return h
 }
 
 func (h *Handler) SessionRevoker() *Service {

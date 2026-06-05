@@ -10,8 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
@@ -23,6 +21,7 @@ type Handler struct {
 	service                *Service
 	internalUserIDResolver middleware.InternalUserIDResolver
 	resourceTokenVerifier  ResourceAccessTokenVerifier
+	adminAuthorizers       AdminAuthorizers
 }
 
 type ResourceAccessToken struct {
@@ -34,12 +33,32 @@ type ResourceAccessTokenVerifier interface {
 	VerifyOpenPlatformResourceAccessToken(ctx context.Context, rawToken string) (ResourceAccessToken, error)
 }
 
-func NewHandler(service *Service, resolvers ...middleware.InternalUserIDResolver) *Handler {
-	var resolver middleware.InternalUserIDResolver
-	if len(resolvers) > 0 {
-		resolver = resolvers[0]
+type AdminAuthorizers struct {
+	Manage gin.HandlerFunc
+}
+
+type HandlerOption func(*Handler)
+
+func WithInternalUserIDResolver(resolver middleware.InternalUserIDResolver) HandlerOption {
+	return func(h *Handler) {
+		h.internalUserIDResolver = resolver
 	}
-	return &Handler{service: service, internalUserIDResolver: resolver}
+}
+
+func WithAdminAuthorizers(authorizers AdminAuthorizers) HandlerOption {
+	return func(h *Handler) {
+		h.adminAuthorizers = authorizers
+	}
+}
+
+func NewHandler(service *Service, opts ...HandlerOption) *Handler {
+	h := &Handler{service: service}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(h)
+		}
+	}
+	return h
 }
 
 func (h *Handler) SetResourceAccessTokenVerifier(verifier ResourceAccessTokenVerifier) {
@@ -76,82 +95,28 @@ func (h *Handler) RegisterRoutes(api *gin.RouterGroup, authMW gin.HandlerFunc) {
 
 func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
 	group := admin.Group("/open-platform")
-	group.GET("/audit-events",
-		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
-		h.listAdminAuditEvents,
-	)
-	group.GET("/consents",
-		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
-		h.listAdminConsents,
-	)
-	group.GET("/token-probe-evidence",
-		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
-		h.listAdminTokenProbeEvidence,
-	)
-	group.GET("/disclosure-report",
-		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
-		h.getAdminDisclosureReport,
-	)
-	group.GET("/apps/:appID/resource-grants",
-		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
-		h.listAdminResourceGrants,
-	)
-	group.POST("/apps/:appID/resource-grants",
-		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
-		h.grantAdminResourceAccess,
-	)
-	group.POST("/apps/:appID/resource-grants/revoke",
-		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
-		h.revokeAdminResourceAccess,
-	)
-	group.POST("/apps/:appID/consents/revoke",
-		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
-		h.revokeAdminConsent,
-	)
-	group.GET("/apps",
-		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
-		h.listAdminApps,
-	)
-	group.POST("/apps/:appID/scopes/:scope/approve",
-		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
-		h.approveScope,
-	)
-	group.POST("/apps/:appID/scopes/:scope/reject",
-		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
-		h.rejectScope,
-	)
-	group.POST("/apps/import-casdoor",
-		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
-		h.importCasdoorApp,
-	)
-	group.POST("/apps/:appID/approve",
-		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
-		h.approveApp,
-	)
-	group.POST("/apps/:appID/redirect-uri-requests/:requestID/approve",
-		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
-		h.approveRedirectURIRequest,
-	)
-	group.POST("/apps/:appID/redirect-uri-requests/:requestID/reject",
-		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
-		h.rejectRedirectURIRequest,
-	)
-	group.POST("/apps/:appID/secret/rotate",
-		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
-		h.rotateAdminAppSecret,
-	)
-	group.POST("/apps/:appID/suspend",
-		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
-		h.suspendApp,
-	)
-	group.POST("/apps/:appID/resume",
-		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
-		h.resumeApp,
-	)
-	group.POST("/apps/:appID/revoke",
-		rbac.RequireGlobalCapability(capability.OpenPlatformManage),
-		h.revokeApp,
-	)
+	if h.adminAuthorizers.Manage != nil {
+		group.Use(h.adminAuthorizers.Manage)
+	}
+	group.GET("/audit-events", h.listAdminAuditEvents)
+	group.GET("/consents", h.listAdminConsents)
+	group.GET("/token-probe-evidence", h.listAdminTokenProbeEvidence)
+	group.GET("/disclosure-report", h.getAdminDisclosureReport)
+	group.GET("/apps/:appID/resource-grants", h.listAdminResourceGrants)
+	group.POST("/apps/:appID/resource-grants", h.grantAdminResourceAccess)
+	group.POST("/apps/:appID/resource-grants/revoke", h.revokeAdminResourceAccess)
+	group.POST("/apps/:appID/consents/revoke", h.revokeAdminConsent)
+	group.GET("/apps", h.listAdminApps)
+	group.POST("/apps/:appID/scopes/:scope/approve", h.approveScope)
+	group.POST("/apps/:appID/scopes/:scope/reject", h.rejectScope)
+	group.POST("/apps/import-casdoor", h.importCasdoorApp)
+	group.POST("/apps/:appID/approve", h.approveApp)
+	group.POST("/apps/:appID/redirect-uri-requests/:requestID/approve", h.approveRedirectURIRequest)
+	group.POST("/apps/:appID/redirect-uri-requests/:requestID/reject", h.rejectRedirectURIRequest)
+	group.POST("/apps/:appID/secret/rotate", h.rotateAdminAppSecret)
+	group.POST("/apps/:appID/suspend", h.suspendApp)
+	group.POST("/apps/:appID/resume", h.resumeApp)
+	group.POST("/apps/:appID/revoke", h.revokeApp)
 }
 
 func (h *Handler) authorize(c *gin.Context) {

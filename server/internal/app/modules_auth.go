@@ -45,6 +45,10 @@ func (rt *Runtime) initAuthModule(
 		rt.redisClient.GetClient(),
 		rt.oidcClient,
 		userSyncRepo,
+		auth.WithAdminAuthorizers(auth.AdminAuthorizers{
+			AccountLockUpdate: rbac.RequireGlobalCapability(capability.UserSystemUpdate),
+			StepUpMFA:         rbac.RequireStepUpMFA(),
+		}),
 	)
 	authHandler.RegisterPublicRoutes(api)
 

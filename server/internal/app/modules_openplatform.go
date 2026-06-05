@@ -8,6 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/openplatform"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
@@ -48,7 +50,13 @@ func (rt *Runtime) initOpenPlatformModule(
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize open platform service: %w", err)
 	}
-	handler := openplatform.NewHandler(service, userIDResolver)
+	handler := openplatform.NewHandler(
+		service,
+		openplatform.WithInternalUserIDResolver(userIDResolver),
+		openplatform.WithAdminAuthorizers(openplatform.AdminAuthorizers{
+			Manage: rbac.RequireGlobalCapability(capability.OpenPlatformManage),
+		}),
+	)
 	handler.RegisterRoutes(api, authMW)
 	return handler, service, nil
 }

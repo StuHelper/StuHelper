@@ -6,9 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
@@ -21,10 +19,23 @@ type unlockAuthAccountRequest struct {
 func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
 	admin.POST(
 		"/auth/account-locks/unlock",
-		rbac.RequireGlobalCapability(capability.UserSystemUpdate),
-		rbac.RequireStepUpMFA(),
-		h.unlockAuthAccount,
+		adminRouteHandlers(
+			h.unlockAuthAccount,
+			h.adminAuthorizers.AccountLockUpdate,
+			h.adminAuthorizers.StepUpMFA,
+		)...,
 	)
+}
+
+func adminRouteHandlers(handler gin.HandlerFunc, middlewares ...gin.HandlerFunc) []gin.HandlerFunc {
+	handlers := make([]gin.HandlerFunc, 0, len(middlewares)+1)
+	for _, mw := range middlewares {
+		if mw != nil {
+			handlers = append(handlers, mw)
+		}
+	}
+	handlers = append(handlers, handler)
+	return handlers
 }
 
 func (h *Handler) unlockAuthAccount(c *gin.Context) {

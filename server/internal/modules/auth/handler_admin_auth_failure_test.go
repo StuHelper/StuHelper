@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
@@ -22,7 +23,10 @@ func TestUnlockAuthAccountClearsHardLock(t *testing.T) {
 	require.NoError(t, crypto.InitHMACKey("test-auth-admin-unlock-secret-32!", false))
 	gin.SetMode(gin.TestMode)
 	fixture := redisfixture.Start(t)
-	handler := &Handler{authFailureGuard: NewAuthFailureGuard(fixture.Client)}
+	handler := &Handler{
+		authFailureGuard: NewAuthFailureGuard(fixture.Client),
+		adminAuthorizers: authAdminAuthorizers(),
+	}
 	phone := "13800139100"
 	hardLockAuthAccount(t, fixture, handler.authFailureGuard, phone)
 
@@ -43,7 +47,7 @@ func TestUnlockAuthAccountClearsHardLock(t *testing.T) {
 
 func TestUnlockAuthAccountRequiresStepUpMFA(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	handler := &Handler{}
+	handler := &Handler{adminAuthorizers: authAdminAuthorizers()}
 
 	router := gin.New()
 	router.Use(authAdminTestContextWithoutMFAProof())
@@ -56,6 +60,13 @@ func TestUnlockAuthAccountRequiresStepUpMFA(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusPreconditionRequired, rec.Code)
+}
+
+func authAdminAuthorizers() AdminAuthorizers {
+	return AdminAuthorizers{
+		AccountLockUpdate: rbac.RequireGlobalCapability(capability.UserSystemUpdate),
+		StepUpMFA:         rbac.RequireStepUpMFA(),
+	}
 }
 
 func TestAuthAccountUnlockAuditEventMasksPhone(t *testing.T) {
