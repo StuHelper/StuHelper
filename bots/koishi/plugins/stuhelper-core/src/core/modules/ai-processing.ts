@@ -1,5 +1,6 @@
 import type { ChatMessage } from '../../types'
 import { getUserContext } from './ai-context'
+import { isRecord, toLogSnippet, unknownErrorMessage } from './ai-log-format'
 import type { AIModule } from './ai.module'
 
 const DEFAULT_MODEL = 'gpt-3.5-turbo'
@@ -51,7 +52,7 @@ export async function processAiMessage(host: AIModule, input: ProcessMessageInpu
       apiUrl: config.apiUrl || DEFAULT_API_URL,
     })
 
-    const assistantMessage = response.choices[0].message
+    const assistantMessage = extractAssistantMessage(host, response)
     host.addMessageToContext({
       userId: input.userId,
       message: assistantMessage,
@@ -59,9 +60,10 @@ export async function processAiMessage(host: AIModule, input: ProcessMessageInpu
       contextLimit: config.contextLimit || DEFAULT_CONTEXT_LIMIT,
     })
     return assistantMessage.content
-  } catch (error: any) {
-    host.data.writeLog(`[ai] AI处理消息失败: ${error}`)
-    return `处理消息时出错: ${error.message}`
+  } catch (error: unknown) {
+    const message = unknownErrorMessage(error)
+    host.data.writeLog(`[ai] AI处理消息失败: ${message}`)
+    return `处理消息时出错: ${message}`
   }
 }
 
@@ -85,10 +87,11 @@ export async function translateAiText(host: AIModule, input: TranslateTextInput)
       apiKey: config.apiKey,
       apiUrl: config.apiUrl || DEFAULT_API_URL,
     })
-    return response.choices[0].message.content
-  } catch (error: any) {
-    host.data.writeLog(`[ai] AI翻译失败: ${error}`)
-    return `翻译出错: ${error.message}`
+    return extractResponseContent(host, response)
+  } catch (error: unknown) {
+    const message = unknownErrorMessage(error)
+    host.data.writeLog(`[ai] AI翻译失败: ${message}`)
+    return `翻译出错: ${message}`
   }
 }
 
@@ -106,10 +109,11 @@ export async function callAiModeration(host: AIModule, prompt: string): Promise<
       apiKey: config.apiKey,
       apiUrl: config.apiUrl || DEFAULT_API_URL,
     })
-    return extractModerationContent(host, response)
-  } catch (error: any) {
-    host.data.writeLog(`[ai] AI内容审核失败: ${error}`)
-    throw new Error(`内容审核失败: ${error.message}`)
+    return extractResponseContent(host, response)
+  } catch (error: unknown) {
+    const message = unknownErrorMessage(error)
+    host.data.writeLog(`[ai] AI内容审核失败: ${message}`)
+    throw new Error(`内容审核失败: ${message}`)
   }
 }
 
@@ -141,16 +145,28 @@ function resolveTranslatePrompt(host: AIModule, input: TranslateTextInput): stri
   return translatePrompt
 }
 
-function extractModerationContent(host: AIModule, response: any): string {
+function extractAssistantMessage(host: AIModule, response: unknown): ChatMessage {
+  return {
+    role: 'assistant',
+    content: extractResponseContent(host, response),
+  }
+}
+
+function extractResponseContent(host: AIModule, response: unknown): string {
   if (!response) throw new Error('API 返回空响应')
-  if (!response.choices || !Array.isArray(response.choices) || response.choices.length === 0) {
-    host.data.writeLog(`[ai] API 响应格式异常: ${JSON.stringify(response)}`)
+  if (!isRecord(response) || !Array.isArray(response.choices) || response.choices.length === 0) {
+    host.data.writeLog(`[ai] API 响应格式异常: ${toLogSnippet(response)}`)
     throw new Error('API 响应格式异常，缺少 choices 字段')
   }
 
   const choice = response.choices[0]
-  if (!choice.message || !choice.message.content) {
-    host.data.writeLog(`[ai] API 响应缺少内容: ${JSON.stringify(choice)}`)
+  if (
+    !isRecord(choice) ||
+    !isRecord(choice.message) ||
+    typeof choice.message.content !== 'string' ||
+    choice.message.content.length === 0
+  ) {
+    host.data.writeLog(`[ai] API 响应缺少内容: ${toLogSnippet(choice)}`)
     throw new Error('API 响应缺少 message.content')
   }
   return choice.message.content

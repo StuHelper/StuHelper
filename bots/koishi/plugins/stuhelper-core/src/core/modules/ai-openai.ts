@@ -1,4 +1,5 @@
 import type { ChatCompletionRequest, ChatCompletionResponse, ChatMessage } from '../../types'
+import { isRecord, toLogSnippet, unknownErrorMessage } from './ai-log-format'
 import type { AIModule } from './ai.module'
 
 export interface OpenAIRequestInput {
@@ -30,13 +31,18 @@ export async function callOpenAI(
         'Authorization': `Bearer ${input.apiKey}`,
       },
     })
-    host.data.writeLog(`[ai] API 响应: ${JSON.stringify(response).substring(0, 200)}...`)
+    host.data.writeLog(`[ai] API 响应: ${toLogSnippet(response, 200)}`)
     return response as ChatCompletionResponse
-  } catch (error: any) {
-    const errorDetail = error.response?.data
-      ? JSON.stringify(error.response.data).substring(0, 500)
-      : error.message
+  } catch (error: unknown) {
+    const errorDetail = httpErrorDetail(error)
     host.data.writeLog(`[ai] OpenAI API 调用出错: ${errorDetail}`)
     throw error
   }
+}
+
+function httpErrorDetail(error: unknown): string {
+  if (isRecord(error) && isRecord(error.response) && error.response.data !== undefined) {
+    return toLogSnippet(error.response.data, 500)
+  }
+  return unknownErrorMessage(error)
 }
