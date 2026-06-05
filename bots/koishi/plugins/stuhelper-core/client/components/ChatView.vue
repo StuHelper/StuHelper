@@ -353,6 +353,7 @@ import type { ChatMessage } from '../types'
 import { useActionFeedback } from '../composables/use-action-feedback'
 import { copyTextToClipboard } from '../utils/clipboard'
 import ChatMessageContent from './chat/ChatMessageContent.vue'
+import { buildMessagePlainText } from './chat/message-content-model'
 import NoticeStack from './primitives/NoticeStack.vue'
 
 interface Session {
@@ -545,12 +546,7 @@ const handleAt = () => {
 const handleCopy = async () => {
   if (!contextMenu.targetMsg) return
   const msg = contextMenu.targetMsg
-  const text = msg.content || ''
-
-  // 移除 HTML 标签，获取纯文本
-  const tempDiv = document.createElement('div')
-  tempDiv.innerHTML = text
-  const plainText = tempDiv.textContent || tempDiv.innerText || ''
+  const plainText = buildMessagePlainText(msg, currentSession.value?.messages ?? [], members.value)
 
   try {
     if (await copyTextToClipboard(plainText)) {
@@ -1273,7 +1269,7 @@ const handleAvatarError = (e: Event) => {
   font-size: 13px;
 }
 
-/* Deep selector required for v-html content in scoped css */
+/* Deep selector required for rendered message nodes in scoped css */
 .message-bubble :deep(.msg-img) {
   max-width: 180px;
   max-height: 180px;

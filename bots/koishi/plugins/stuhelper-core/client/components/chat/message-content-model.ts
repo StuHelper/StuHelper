@@ -29,6 +29,29 @@ export function buildMessageNodes(
   )
 }
 
+export function buildMessagePlainText(
+  message: ChatMessage,
+  sessionMessages: readonly ChatMessage[],
+  members: readonly GuildMember[],
+): string {
+  return buildMessageNodes(message, sessionMessages, members)
+    .map(messageNodeToPlainText)
+    .join('')
+}
+
+function messageNodeToPlainText(node: MessageNode): string {
+  switch (node.kind) {
+    case 'text':
+    case 'at':
+    case 'face':
+      return node.text
+    case 'image':
+      return node.file ? `[图片:${node.file}]` : '[图片]'
+    case 'quote':
+      return `引用${node.user ? ` @${node.user}` : ''}: ${node.content || '[引用消息]'}`
+  }
+}
+
 function buildNodesForElement(
   element: ChatElement,
   key: string,

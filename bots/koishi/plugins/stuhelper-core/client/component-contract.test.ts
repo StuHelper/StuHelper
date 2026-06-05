@@ -567,7 +567,10 @@ test('ChatView delegates message rendering to a safe component instead of v-html
   const source = readClientFile('./components/ChatView.vue')
 
   assert.match(source, /<ChatMessageContent\b/)
+  assert.match(source, /import \{ buildMessagePlainText \} from '\.\/chat\/message-content-model'/)
+  assert.match(source, /const plainText = buildMessagePlainText\(msg, currentSession\.value\?\.messages \?\? \[\], members\.value\)/)
   assert.doesNotMatch(source, /v-html="renderMessage\(msg\)"/)
+  assert.doesNotMatch(source, /innerHTML/)
   assert.doesNotMatch(source, /onclick="window\.open\('/)
 })
 
