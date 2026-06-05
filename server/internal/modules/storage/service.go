@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -44,6 +45,10 @@ func (s *Service) ListMounts(ctx context.Context) ([]Mount, error) {
 }
 
 func (s *Service) CreateMount(ctx context.Context, req CreateMountRequest) (*Mount, error) {
+	req = normalizeCreateMountRequest(req)
+	if err := validateCreateMountRequest(req); err != nil {
+		return nil, err
+	}
 	driver, err := s.registry.Get(req.Driver)
 	if err != nil {
 		return nil, err
@@ -172,6 +177,35 @@ func (s *Service) probeMountHealth(ctx context.Context, mount *Mount) (*Mount, e
 		return nil, nil, err
 	}
 	return item, healthErr, nil
+}
+
+func normalizeCreateMountRequest(req CreateMountRequest) CreateMountRequest {
+	req.Key = strings.TrimSpace(req.Key)
+	req.Name = strings.TrimSpace(req.Name)
+	req.Driver = strings.TrimSpace(req.Driver)
+	req.BasePath = strings.Trim(strings.TrimSpace(req.BasePath), "/")
+	if req.Bucket != nil {
+		bucket := strings.TrimSpace(*req.Bucket)
+		if bucket == "" {
+			req.Bucket = nil
+		} else {
+			req.Bucket = &bucket
+		}
+	}
+	return req
+}
+
+func validateCreateMountRequest(req CreateMountRequest) error {
+	if req.Key == "" {
+		return fmt.Errorf("%w: key is required", ErrInvalidMountConfig)
+	}
+	if req.Name == "" {
+		return fmt.Errorf("%w: name is required", ErrInvalidMountConfig)
+	}
+	if req.Driver == "" {
+		return fmt.Errorf("%w: driver is required", ErrInvalidMountConfig)
+	}
+	return nil
 }
 
 func normalizeMountKey(mountKey string) string {

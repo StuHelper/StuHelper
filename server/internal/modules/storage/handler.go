@@ -91,7 +91,7 @@ func (h *Handler) createMount(c *gin.Context) {
 			Reason:       err.Error(),
 			Details:      map[string]any{"reason": err.Error(), "key": req.Key, "driver": req.Driver},
 		})
-		if errors.Is(err, ErrDriverNotRegistered) {
+		if errors.Is(err, ErrDriverNotRegistered) || errors.Is(err, ErrInvalidMountConfig) {
 			response.BadRequest(c, err.Error())
 			return
 		}

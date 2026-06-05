@@ -83,6 +83,27 @@ func TestStorageHandlers_Return404ForMissingMountHealthCheck(t *testing.T) {
 	assert.Equal(t, "storage mount not found", envelope.Error.Message)
 }
 
+func TestStorageHandlers_Return400ForInvalidMountConfig(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := postgresfixture.Start(t)
+	svc := NewService(NewRepository(fixture.DB), config.ObjectStorageConfig{})
+	router := newStorageTestRouter(svc)
+
+	createBody := marshalStorageRequest(t, CreateMountRequest{
+		Key:      " ",
+		Name:     "Blank Key",
+		Driver:   "s3",
+		BasePath: "resources",
+		Enabled:  true,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/storage/mounts", bytes.NewReader(createBody))
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusBadRequest, resp.Code)
+}
+
 func TestStorageAdminRoutesRequireGlobalSystemCapability(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

@@ -102,6 +102,32 @@ func TestCreateMountAndCheckMountHealth(t *testing.T) {
 	assert.Equal(t, "network timeout", *unhealthy.LastHealthError)
 }
 
+func TestCreateMount_NormalizesRequest(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(repo, config.ObjectStorageConfig{})
+	svc.registry.drivers["s3"] = fakeDriver{}
+	ctx := context.Background()
+
+	bucket := "  resource-bucket  "
+	created, err := svc.CreateMount(ctx, CreateMountRequest{
+		Key:      " campus-share-trimmed ",
+		Name:     " Campus Share ",
+		Driver:   " s3 ",
+		Bucket:   &bucket,
+		BasePath: " /resources/materials/ ",
+		Enabled:  true,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "campus-share-trimmed", created.Key)
+	assert.Equal(t, "Campus Share", created.Name)
+	assert.Equal(t, "s3", created.Driver)
+	require.NotNil(t, created.Bucket)
+	assert.Equal(t, "resource-bucket", *created.Bucket)
+	assert.Equal(t, "resources/materials", created.BasePath)
+}
+
 func TestCreateMount_RejectsUnknownDriver(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)
@@ -115,6 +141,21 @@ func TestCreateMount_RejectsUnknownDriver(t *testing.T) {
 		Enabled:  true,
 	})
 	require.ErrorIs(t, err, ErrDriverNotRegistered)
+}
+
+func TestCreateMount_RejectsBlankRequiredFields(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(repo, config.ObjectStorageConfig{})
+
+	_, err := svc.CreateMount(context.Background(), CreateMountRequest{
+		Key:     " ",
+		Name:    "Blank Key",
+		Driver:  "s3",
+		Enabled: true,
+	})
+
+	require.ErrorIs(t, err, ErrInvalidMountConfig)
 }
 
 func TestValidateMountByKeyAndGetDownloadURLByMountKey(t *testing.T) {
