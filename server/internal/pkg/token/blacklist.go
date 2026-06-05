@@ -115,10 +115,7 @@ func (b *Blacklist) AddByHash(ctx context.Context, tokenHash string, expiry time
 		return fmt.Errorf("blacklist TTL %v out of valid range [%v, %v]", expiry, minBlacklistTTL, maxBlacklistTTL)
 	}
 
-	b.localCache.Store(tokenHash, localCacheEntry{
-		blacklisted: true,
-		expiresAt:   time.Now().Add(localCacheTTL),
-	})
+	b.cacheRevocation(tokenHash)
 
 	if !b.cb.Allow() {
 		return fmt.Errorf("blacklist service unavailable (circuit breaker open)")
@@ -145,10 +142,7 @@ func (b *Blacklist) Add(ctx context.Context, token string, expiry time.Duration)
 	}
 
 	// 写入本地缓存（无论 Redis 是否可用，确保当前实例立即生效）
-	b.localCache.Store(hash, localCacheEntry{
-		blacklisted: true,
-		expiresAt:   time.Now().Add(localCacheTTL),
-	})
+	b.cacheRevocation(hash)
 
 	if !b.cb.Allow() {
 		return fmt.Errorf("blacklist service unavailable (circuit breaker open)")
@@ -175,11 +169,6 @@ func (b *Blacklist) TryConsumeRefreshToken(ctx context.Context, token string, ex
 		return false, fmt.Errorf("failed to hash token: %w", err)
 	}
 
-	b.localCache.Store(hash, localCacheEntry{
-		blacklisted: true,
-		expiresAt:   time.Now().Add(localCacheTTL),
-	})
-
 	if !b.cb.Allow() {
 		return false, fmt.Errorf("blacklist service unavailable (circuit breaker open)")
 	}
@@ -190,6 +179,7 @@ func (b *Blacklist) TryConsumeRefreshToken(ctx context.Context, token string, ex
 	}).Result()
 	if errors.Is(err, redis.Nil) {
 		b.cb.RecordSuccess()
+		b.cacheRevocation(hash)
 		return false, nil
 	}
 	if err != nil {
@@ -200,6 +190,7 @@ func (b *Blacklist) TryConsumeRefreshToken(ctx context.Context, token string, ex
 	if status != "OK" {
 		return false, nil
 	}
+	b.cacheRevocation(hash)
 	return true, nil
 }
 
@@ -268,15 +259,19 @@ func (b *Blacklist) IsBlacklisted(ctx context.Context, token string) (bool, erro
 	blacklisted := exists > 0
 
 	if blacklisted {
-		b.localCache.Store(hash, localCacheEntry{
-			blacklisted: true,
-			expiresAt:   time.Now().Add(localCacheTTL),
-		})
+		b.cacheRevocation(hash)
 	} else {
 		b.localCache.Delete(hash)
 	}
 
 	return blacklisted, nil
+}
+
+func (b *Blacklist) cacheRevocation(hash string) {
+	b.localCache.Store(hash, localCacheEntry{
+		blacklisted: true,
+		expiresAt:   time.Now().Add(localCacheTTL),
+	})
 }
 
 func (b *Blacklist) cachedRevocation(hash string) (bool, bool) {

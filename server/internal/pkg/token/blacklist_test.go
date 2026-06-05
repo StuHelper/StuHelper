@@ -87,6 +87,33 @@ func TestBlacklist_TryConsumeRefreshToken(t *testing.T) {
 	assert.True(t, consumed)
 }
 
+func TestBlacklist_TryConsumeRefreshTokenDoesNotCacheFailedReservation(t *testing.T) {
+	require.NoError(t, crypto.InitHMACKey("test-blacklist-secret", false))
+
+	bl := &Blacklist{
+		cb: circuitbreaker.NewNamed("token_blacklist_test_reservation_failure", circuitbreaker.Config{
+			FailureThreshold: 1,
+			SuccessThreshold: 1,
+			Timeout:          time.Hour,
+		}),
+		stopCh: make(chan struct{}),
+	}
+	bl.cb.RecordFailure()
+
+	consumed, err := bl.TryConsumeRefreshToken(context.Background(), "reservation-failure-token", time.Hour)
+	require.Error(t, err)
+	assert.False(t, consumed)
+
+	hash, err := hashToken("reservation-failure-token")
+	require.NoError(t, err)
+	_, ok := bl.cachedRevocation(hash)
+	assert.False(t, ok)
+
+	blacklisted, err := bl.IsBlacklisted(context.Background(), "reservation-failure-token")
+	require.Error(t, err)
+	assert.True(t, blacklisted)
+}
+
 func TestBlacklist_IsBlacklisted_DeniesWhenCircuitOpenAndOnlyNegativeCacheExists(t *testing.T) {
 	require.NoError(t, crypto.InitHMACKey("test-blacklist-secret", false))
 
