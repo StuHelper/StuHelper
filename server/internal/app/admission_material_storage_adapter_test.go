@@ -18,6 +18,8 @@ func TestNormalizeAdmissionMaterialStorageErrorMapsStorageErrors(t *testing.T) {
 		storage.ErrMountNotFound,
 		storage.ErrMountDisabled,
 		storage.ErrDriverNotRegistered,
+		storage.ErrStoredObjectMissing,
+		storage.ErrInvalidStoredObject,
 	} {
 		err := normalizeAdmissionMaterialStorageError(fmt.Errorf("wrapped: %w", source))
 

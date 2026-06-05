@@ -41,6 +41,8 @@ func normalizeIdentityPhotoStorageError(err error) error {
 	case errors.Is(err, storage.ErrMountNotFound),
 		errors.Is(err, storage.ErrMountDisabled),
 		errors.Is(err, storage.ErrDriverNotRegistered),
+		errors.Is(err, storage.ErrStoredObjectMissing),
+		errors.Is(err, storage.ErrInvalidStoredObject),
 		objectstorage.IsKind(err, objectstorage.ErrorKindConfig),
 		objectstorage.IsKind(err, objectstorage.ErrorKindAuthentication),
 		objectstorage.IsKind(err, objectstorage.ErrorKindPermission),
