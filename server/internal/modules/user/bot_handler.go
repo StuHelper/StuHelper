@@ -8,9 +8,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/botcredential"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/serviceaccount"
 )
 
 const bearerPrefix = "Bearer "
@@ -38,12 +38,12 @@ func (h *BotHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	bot := rg.Group("/bot")
 	bot.POST(
 		"/qq-binding/consume",
-		h.requireServiceCredential(serviceaccount.ScopeBotQQBindingConsume),
+		h.requireServiceCredential(botcredential.ScopeBotQQBindingConsume),
 		h.handleConsumeQQBindingCode,
 	)
 	bot.GET(
 		"/qq-users/:qqID/verification",
-		h.requireServiceCredential(serviceaccount.ScopeBotQQVerificationRead),
+		h.requireServiceCredential(botcredential.ScopeBotQQVerificationRead),
 		h.handleGetQQVerificationState,
 	)
 }
@@ -141,13 +141,13 @@ func parseBearerToken(authHeader string) (string, bool) {
 
 func respondBotCredentialError(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, serviceaccount.ErrCredentialNotConfigured):
+	case errors.Is(err, botcredential.ErrCredentialNotConfigured):
 		response.ServiceUnavailable(c, "bot service token is not configured")
-	case errors.Is(err, serviceaccount.ErrCredentialInvalid):
+	case errors.Is(err, botcredential.ErrCredentialInvalid):
 		response.Unauthorized(c, "unauthorized")
-	case errors.Is(err, serviceaccount.ErrCredentialForbidden):
+	case errors.Is(err, botcredential.ErrCredentialForbidden):
 		response.Forbidden(c, "forbidden")
-	case errors.Is(err, serviceaccount.ErrCredentialStoreUnavailable):
+	case errors.Is(err, botcredential.ErrCredentialStoreUnavailable):
 		logger.FromGin(c).Error("bot service credential store unavailable", zap.Error(err))
 		response.ServiceUnavailable(c, "bot service credential store unavailable")
 	default:

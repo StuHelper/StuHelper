@@ -17,6 +17,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/resource"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/storage"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/botcredential"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
@@ -323,10 +324,10 @@ func (rt *Runtime) initBotCredentialVerifier(ctx context.Context) (*serviceaccou
 		return nil, fmt.Errorf("failed to initialize bot service credential verifier: %w", err)
 	}
 	_, err = verifier.EnsureBootstrapCredential(ctx, serviceaccount.BootstrapCredential{
-		Name:     serviceaccount.KoishiRuntimeCredentialName,
+		Name:     botcredential.KoishiRuntimeCredentialName,
 		RawToken: rt.cfg.Bot.ServiceToken,
-		Audience: []string{serviceaccount.AudienceBotAPI},
-		Scopes:   serviceaccount.KoishiRuntimeScopes(),
+		Audience: []string{botcredential.AudienceBotAPI},
+		Scopes:   botcredential.KoishiRuntimeScopes(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to bootstrap bot service credential: %w", err)

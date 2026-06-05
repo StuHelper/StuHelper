@@ -6,8 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/botcredential"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/serviceaccount"
 )
 
 func memberBlacklistAccessQueryFromGin(c *gin.Context) MemberBlacklistAccessQuery {
@@ -125,7 +125,7 @@ func botMemberBlacklistActorType(req memberBlacklistCreateHTTPRequest) MemberBla
 
 func botMemberBlacklistActorID(req memberBlacklistCreateHTTPRequest) string {
 	if botMemberBlacklistActorType(req) == BlacklistActorServiceAccount {
-		return serviceaccount.KoishiRuntimeCredentialName
+		return botcredential.KoishiRuntimeCredentialName
 	}
 	return metadataString(req.Metadata, "operatorQQID")
 }
@@ -133,7 +133,7 @@ func botMemberBlacklistActorID(req memberBlacklistCreateHTTPRequest) string {
 func botMemberBlacklistReleaseActor(operatorQQID string) (MemberBlacklistActorType, string) {
 	operatorQQID = strings.TrimSpace(operatorQQID)
 	if operatorQQID == "" {
-		return BlacklistActorServiceAccount, serviceaccount.KoishiRuntimeCredentialName
+		return BlacklistActorServiceAccount, botcredential.KoishiRuntimeCredentialName
 	}
 	return BlacklistActorQQOperator, operatorQQID
 }

@@ -7,9 +7,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/botcredential"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/serviceaccount"
 )
 
 const admissionBearerPrefix = "Bearer "
@@ -249,13 +249,13 @@ func respondAdmissionBotCredentialError(c *gin.Context, err error) {
 	switch {
 	case err == nil:
 		return
-	case errors.Is(err, serviceaccount.ErrCredentialNotConfigured):
+	case errors.Is(err, botcredential.ErrCredentialNotConfigured):
 		response.ServiceUnavailable(c, "bot service token is not configured")
-	case errors.Is(err, serviceaccount.ErrCredentialInvalid):
+	case errors.Is(err, botcredential.ErrCredentialInvalid):
 		response.Unauthorized(c, "unauthorized")
-	case errors.Is(err, serviceaccount.ErrCredentialForbidden):
+	case errors.Is(err, botcredential.ErrCredentialForbidden):
 		response.Forbidden(c, "forbidden")
-	case errors.Is(err, serviceaccount.ErrCredentialStoreUnavailable):
+	case errors.Is(err, botcredential.ErrCredentialStoreUnavailable):
 		logger.FromGin(c).Error("admission bot service credential store unavailable", zap.Error(err))
 		response.ServiceUnavailable(c, "bot service credential store unavailable")
 	default:

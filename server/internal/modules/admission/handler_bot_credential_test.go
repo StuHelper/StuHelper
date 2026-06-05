@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/serviceaccount"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/botcredential"
 )
 
 type fakeAdmissionBotCredentialVerifier struct {
@@ -29,7 +29,7 @@ func TestAdmissionBotCredentialRejectsRepeatedAuthorizationHeaders(t *testing.T)
 	router := gin.New()
 	router.GET(
 		"/bot/admission/protected",
-		h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession),
+		h.requireBotCredential(botcredential.ScopeBotAdmissionSession),
 		func(c *gin.Context) { c.Status(http.StatusOK) },
 	)
 

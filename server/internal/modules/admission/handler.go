@@ -5,9 +5,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/botcredential"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/serviceaccount"
 )
 
 type BotCredentialVerifier interface {
@@ -94,76 +94,76 @@ func (h *Handler) RegisterBotRoutes(api *gin.RouterGroup) {
 }
 
 func (h *Handler) registerBotAdmissionRoutes(bot *gin.RouterGroup) {
-	bot.POST("/sessions", h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession), h.handleCreateBotSession)
+	bot.POST("/sessions", h.requireBotCredential(botcredential.ScopeBotAdmissionSession), h.handleCreateBotSession)
 	bot.GET(
 		"/sessions/member",
-		h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession),
+		h.requireBotCredential(botcredential.ScopeBotAdmissionSession),
 		h.handleGetBotAdmissionSession,
 	)
 	bot.POST(
 		"/sessions/member/resend",
-		h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession),
+		h.requireBotCredential(botcredential.ScopeBotAdmissionSession),
 		h.handleResendBotAdmissionSession,
 	)
 	bot.POST(
 		"/sessions/member/regenerate",
-		h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession),
+		h.requireBotCredential(botcredential.ScopeBotAdmissionSession),
 		h.handleRegenerateBotAdmissionSession,
 	)
 	bot.POST(
 		"/sessions/member/skip",
-		h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession),
+		h.requireBotCredential(botcredential.ScopeBotAdmissionSession),
 		h.handleSkipBotAdmissionSession,
 	)
 	bot.POST(
 		"/failures/reset",
-		h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession),
+		h.requireBotCredential(botcredential.ScopeBotAdmissionSession),
 		h.handleResetBotAdmissionFailureCount,
 	)
 	bot.POST(
 		"/join-requests/decision",
-		h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession),
+		h.requireBotCredential(botcredential.ScopeBotAdmissionSession),
 		h.handleResolveBotJoinRequestDecision,
 	)
 	bot.POST(
 		"/join-requests/events",
-		h.requireBotCredential(serviceaccount.ScopeBotAdmissionEvent),
+		h.requireBotCredential(botcredential.ScopeBotAdmissionEvent),
 		h.handleRecordBotJoinRequestEvent,
 	)
 	bot.GET(
 		"/sessions/pending",
-		h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession),
+		h.requireBotCredential(botcredential.ScopeBotAdmissionSession),
 		h.handleListBotPendingActions,
 	)
 	bot.GET(
 		"/actions/stream",
-		h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession),
+		h.requireBotCredential(botcredential.ScopeBotAdmissionSession),
 		h.handleStreamBotAdmissionActions,
 	)
 	bot.POST(
 		"/actions/:id/events",
-		h.requireBotCredential(serviceaccount.ScopeBotAdmissionEvent),
+		h.requireBotCredential(botcredential.ScopeBotAdmissionEvent),
 		h.handleRecordBotActionEvent,
 	)
-	bot.POST("/sessions/:id/events", h.requireBotCredential(serviceaccount.ScopeBotAdmissionEvent), h.handleRecordBotEvent)
+	bot.POST("/sessions/:id/events", h.requireBotCredential(botcredential.ScopeBotAdmissionEvent), h.handleRecordBotEvent)
 	bot.GET(
 		"/freshman/applications/pending-forward",
-		h.requireBotCredential(serviceaccount.ScopeBotAdmissionForward),
+		h.requireBotCredential(botcredential.ScopeBotAdmissionForward),
 		h.handleListBotPendingFreshmanForwards,
 	)
 	bot.POST(
 		"/freshman/applications/:id/forwarded",
-		h.requireBotCredential(serviceaccount.ScopeBotAdmissionForward),
+		h.requireBotCredential(botcredential.ScopeBotAdmissionForward),
 		h.handleMarkBotFreshmanApplicationForwarded,
 	)
 	bot.POST(
 		"/freshman/applications/:id/view",
-		h.requireBotCredential(serviceaccount.ScopeBotAdmissionReview),
+		h.requireBotCredential(botcredential.ScopeBotAdmissionReview),
 		h.handleBotViewFreshmanApplication,
 	)
 	bot.POST(
 		"/freshman/applications/:id/review",
-		h.requireBotCredential(serviceaccount.ScopeBotAdmissionReview),
+		h.requireBotCredential(botcredential.ScopeBotAdmissionReview),
 		h.handleBotReviewFreshmanApplication,
 	)
 }
@@ -171,27 +171,27 @@ func (h *Handler) registerBotAdmissionRoutes(bot *gin.RouterGroup) {
 func (h *Handler) registerBotMemberBlacklistRoutes(memberBlacklist *gin.RouterGroup) {
 	memberBlacklist.GET(
 		"/access",
-		h.requireBotCredential(serviceaccount.ScopeBotMemberBlacklistRead),
+		h.requireBotCredential(botcredential.ScopeBotMemberBlacklistRead),
 		h.handleGetBotMemberBlacklistAccess,
 	)
 	memberBlacklist.GET(
 		"",
-		h.requireBotCredential(serviceaccount.ScopeBotMemberBlacklistRead),
+		h.requireBotCredential(botcredential.ScopeBotMemberBlacklistRead),
 		h.handleListBotMemberBlacklist,
 	)
 	memberBlacklist.POST(
 		"",
-		h.requireBotCredential(serviceaccount.ScopeBotMemberBlacklistManage),
+		h.requireBotCredential(botcredential.ScopeBotMemberBlacklistManage),
 		h.handleCreateBotMemberBlacklist,
 	)
 	memberBlacklist.POST(
 		"/release-by-subject",
-		h.requireBotCredential(serviceaccount.ScopeBotMemberBlacklistManage),
+		h.requireBotCredential(botcredential.ScopeBotMemberBlacklistManage),
 		h.handleReleaseBotMemberBlacklistBySubject,
 	)
 	memberBlacklist.POST(
 		"/:id/release",
-		h.requireBotCredential(serviceaccount.ScopeBotMemberBlacklistManage),
+		h.requireBotCredential(botcredential.ScopeBotMemberBlacklistManage),
 		h.handleReleaseBotMemberBlacklist,
 	)
 }
