@@ -196,7 +196,7 @@ export class JsonDataStore<T extends Record<string, unknown> = Record<string, un
    * 清理旧备份
    */
   private cleanOldBackups(dir: string, basename: string): void {
-    const pattern = new RegExp(`^${basename}\\.backup\\..+\\.json$`)
+    const pattern = new RegExp(`^${escapeRegExpLiteral(basename)}\\.backup\\..+\\.json$`)
     const backups = fs.readdirSync(dir)
       .filter(file => pattern.test(file))
       .map(file => ({
@@ -240,4 +240,8 @@ export class JsonDataStore<T extends Record<string, unknown> = Record<string, un
       this.saveTimer = null
     }
   }
+}
+
+function escapeRegExpLiteral(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
