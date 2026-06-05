@@ -1,3 +1,5 @@
+import type { Session } from 'koishi'
+
 import type { ReportConfig } from '../../types'
 import type { ReportModule } from './report.module'
 
@@ -7,8 +9,17 @@ const MAX_CONTEXT_SIZE = 20
 
 interface ReportConfigInput {
   readonly host: ReportModule
-  readonly session: any
-  readonly options: any
+  readonly session: Session
+  readonly options: ReportConfigOptions
+}
+
+interface ReportConfigOptions {
+  readonly enabled?: boolean
+  readonly auto?: boolean
+  readonly authority?: number
+  readonly context?: boolean
+  readonly 'context-size'?: number
+  readonly guild?: string
 }
 
 export function registerReportConfigCommand(host: ReportModule): void {
@@ -25,7 +36,10 @@ export function registerReportConfigCommand(host: ReportModule): void {
     .option('context', '-c <context:boolean> 是否包含群聊上下文')
     .option('context-size', '-cs <size:number> 上下文消息数量')
     .option('guild', '-g <guildId:string> 配置指定群聊')
-    .action(async ({ session, options }) => handleReportConfigCommand({ host, session, options }))
+    .action(async ({ session, options }) => {
+      if (!session) return '无法读取当前会话'
+      return handleReportConfigCommand({ host, session, options })
+    })
 }
 
 async function handleReportConfigCommand(input: ReportConfigInput): Promise<string> {
@@ -85,7 +99,7 @@ function applyGuildOptions(input: ReportConfigInput, guildConfig: NonNullable<Re
   return null
 }
 
-function hasGuildConfigChanges(options: any): boolean {
+function hasGuildConfigChanges(options: ReportConfigOptions): boolean {
   return options.enabled !== undefined ||
     options.auto !== undefined ||
     options.context !== undefined ||
