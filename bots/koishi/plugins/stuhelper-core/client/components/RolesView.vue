@@ -1140,8 +1140,9 @@ const handleRemoveMember = (userId: string) => {
 
 // 导入相关的计算属性和方法
 const otherRoles = computed(() => {
-  if (!currentRole.value) return roles.value
-  return roles.value.filter(r => r.id !== currentRole.value!.id && !r.builtin)
+  const role = currentRole.value
+  if (!role) return roles.value
+  return roles.value.filter(r => r.id !== role.id && !r.builtin)
 })
 
 // 监听导入来源变化，切换时清空并自动加载

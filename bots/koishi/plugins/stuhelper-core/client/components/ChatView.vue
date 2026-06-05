@@ -655,7 +655,7 @@ const handleIncomingMessage = async (msg: ChatMessage) => {
     let displayName = msg.channelName || msg.guildName || (isGroup ? `群聊 ${msg.channelId}` : `私聊 ${msg.username}`)
     let displayAvatar = isGroup ? msg.guildAvatar : msg.avatar
 
-    session = {
+    const createdSession: Session = {
       key: sessionKey,
       id: msg.channelId,
       type: sessionType,
@@ -666,20 +666,21 @@ const handleIncomingMessage = async (msg: ChatMessage) => {
       messages: [],
       unread: 0
     }
-    sessions.value.unshift(session)
+    session = createdSession
+    sessions.value.unshift(createdSession)
 
     // 异步获取群名/用户名（不阻塞消息处理）
     if (isGroup && msg.guildId && !msg.guildName) {
       chatApi.getGuildInfo(msg.guildId).then(info => {
-        if (info?.name) session!.name = info.name
-        if (info?.avatar && !session!.avatar) session!.avatar = info.avatar
+        if (info?.name) createdSession.name = info.name
+        if (info?.avatar && !createdSession.avatar) createdSession.avatar = info.avatar
       }).catch((e) => {
         pushError('获取群资料失败', errorMessage(e, '获取群资料失败'))
       })
     } else if (!isGroup && !msg.username) {
       chatApi.getUserInfo(msg.userId).then(info => {
-        if (info?.name) session!.name = `私聊 ${info.name}`
-        if (info?.avatar && !session!.avatar) session!.avatar = info.avatar
+        if (info?.name) createdSession.name = `私聊 ${info.name}`
+        if (info?.avatar && !createdSession.avatar) createdSession.avatar = info.avatar
       }).catch((e) => {
         pushError('获取用户资料失败', errorMessage(e, '获取用户资料失败'))
       })
