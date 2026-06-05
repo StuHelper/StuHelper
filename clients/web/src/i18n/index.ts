@@ -3,6 +3,7 @@
  * 支持中文 (zh-CN) 和英文 (en-US)
  */
 import { createI18n } from 'vue-i18n'
+import { safeGetLocalStorageItem } from '@/utils/browserStorage'
 import zhCN from './locales/zh-CN'
 import enUS from './locales/en-US'
 
@@ -27,16 +28,7 @@ export function normalizeLocale(locale: string | null | undefined): SupportedLoc
 }
 
 export function readStoredLocale(): SupportedLocale | null {
-  if (typeof localStorage === 'undefined') {
-    return null
-  }
-
-  try {
-    const stored = localStorage.getItem(LOCALE_STORAGE_KEY)
-    return normalizeLocale(stored)
-  } catch (_error) { void _error;
-    return null
-  }
+  return normalizeLocale(safeGetLocalStorageItem(LOCALE_STORAGE_KEY))
 }
 
 // 语言检测：显式存储 → 默认中文

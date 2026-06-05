@@ -5,33 +5,16 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import { safeOnScopeDispose } from '@/stores/safeScopeDispose'
+import { safeGetLocalStorageItem, safeSetLocalStorageItem } from '@/utils/browserStorage'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
 const STORAGE_KEY = 'theme-mode'
 const VALID_MODES: ThemeMode[] = ['light', 'dark', 'system']
 
-// 安全读取 localStorage，隐私模式下降级
-function safeGetStorageItem(key: string): string | null {
-  try {
-    return localStorage.getItem(key)
-  } catch (_error) { void _error;
-    return null
-  }
-}
-
-// 安全写入 localStorage
-function safeSetStorageItem(key: string, value: string): void {
-  try {
-    localStorage.setItem(key, value)
-  } catch (_error) { void _error;
-    // 隐私模式或存储已满，降级为内存存储
-  }
-}
-
 export const useThemeStore = defineStore('theme', () => {
   // 安全读取，校验值有效性
-  const stored = safeGetStorageItem(STORAGE_KEY)
+  const stored = safeGetLocalStorageItem(STORAGE_KEY)
   const mode = ref<ThemeMode>(
     stored && VALID_MODES.includes(stored as ThemeMode)
       ? (stored as ThemeMode)
@@ -51,7 +34,7 @@ export const useThemeStore = defineStore('theme', () => {
 
   function setMode(newMode: ThemeMode) {
     mode.value = newMode
-    safeSetStorageItem(STORAGE_KEY, newMode)
+    safeSetLocalStorageItem(STORAGE_KEY, newMode)
   }
 
   // 合并为单一 watcher 监听 computed isDark，避免竞态

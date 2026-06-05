@@ -96,6 +96,7 @@ import { useI18n } from 'vue-i18n'
 import { Search } from 'lucide-vue-next'
 import { api } from '@/api'
 import { readCourseListPayload } from '@/modules/course/coursePayload'
+import { safeGetLocalStorageItem, safeSetLocalStorageItem } from '@/utils/browserStorage'
 import type { Course } from '@stuhelper/shared/course'
 
 interface RecentItem {
@@ -243,7 +244,7 @@ function selectRecent(item: RecentItem) {
 // 最近搜索持久化
 function loadRecent(): RecentItem[] {
   try {
-    const raw = localStorage.getItem(RECENT_KEY)
+    const raw = safeGetLocalStorageItem(RECENT_KEY)
     if (!raw) return []
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
@@ -258,11 +259,7 @@ function loadRecent(): RecentItem[] {
 function saveRecent(item: RecentItem) {
   const updated = [item, ...recentSearches.value.filter(s => s.id !== item.id)].slice(0, MAX_RECENT)
   recentSearches.value = updated
-  try {
-    localStorage.setItem(RECENT_KEY, JSON.stringify(updated))
-  } catch (_error) { void _error;
-    // localStorage 不可用时静默忽略
-  }
+  safeSetLocalStorageItem(RECENT_KEY, JSON.stringify(updated))
 }
 
 // "/" focuses the in-page course search. Ctrl/Cmd+K is reserved for the global command palette.

@@ -85,6 +85,7 @@ import {
 import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { Pencil, GraduationCap } from "lucide-vue-next";
+import { safeGetLocalStorageItem, safeSetLocalStorageItem } from "@/utils/browserStorage";
 
 interface ModuleTab {
     to: string;
@@ -138,7 +139,7 @@ function clampPosition(x: number, y: number): { x: number; y: number } {
 
 function loadPosition() {
     try {
-        const saved = localStorage.getItem(STORAGE_KEY);
+        const saved = safeGetLocalStorageItem(STORAGE_KEY);
         if (saved) {
             const parsed: unknown = JSON.parse(saved);
             if (!isValidPosition(parsed)) return;
@@ -154,11 +155,7 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 function savePosition() {
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-        try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(position.value));
-        } catch (_error) { void _error;
-            /* ignore */
-        }
+        safeSetLocalStorageItem(STORAGE_KEY, JSON.stringify(position.value));
         saveTimer = null;
     }, 200);
 }

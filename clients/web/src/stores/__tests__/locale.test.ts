@@ -4,12 +4,18 @@ import { createPinia, setActivePinia } from 'pinia'
 
 const LOCALE_STORAGE_KEY = 'locale'
 const ORIGINAL_LANGUAGE = window.navigator.language
+const ORIGINAL_LOCAL_STORAGE_DESCRIPTOR = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
 
 function setNavigatorLanguage(language: string) {
   Object.defineProperty(window.navigator, 'language', {
     value: language,
     configurable: true
   })
+}
+
+function restoreLocalStorage() {
+  if (!ORIGINAL_LOCAL_STORAGE_DESCRIPTOR) return
+  Object.defineProperty(globalThis, 'localStorage', ORIGINAL_LOCAL_STORAGE_DESCRIPTOR)
 }
 
 async function createLocaleStore() {
@@ -27,6 +33,7 @@ async function createLocaleStore() {
 
 describe('locale store', () => {
   beforeEach(() => {
+    restoreLocalStorage()
     localStorage.clear()
     document.documentElement.removeAttribute('lang')
     setNavigatorLanguage(ORIGINAL_LANGUAGE)
@@ -34,6 +41,7 @@ describe('locale store', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+    restoreLocalStorage()
     localStorage.clear()
     setNavigatorLanguage(ORIGINAL_LANGUAGE)
   })
@@ -69,5 +77,24 @@ describe('locale store', () => {
     expect(i18n.global.locale.value).toBe('zh-CN')
     expect(localStorage.getItem(LOCALE_STORAGE_KEY)).toBe('zh-CN')
     expect(document.documentElement.lang).toBe('zh-CN')
+  })
+
+  it('keeps working when localStorage is unavailable', async () => {
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new Error('localStorage unavailable')
+      }
+    })
+
+    const { store, i18n } = await createLocaleStore()
+
+    expect(store.locale).toBe('zh-CN')
+    expect(i18n.global.locale.value).toBe('zh-CN')
+
+    expect(() => store.setLocale('en-US')).not.toThrow()
+    expect(store.locale).toBe('en-US')
+    expect(i18n.global.locale.value).toBe('en-US')
+    expect(document.documentElement.lang).toBe('en-US')
   })
 })

@@ -12,6 +12,7 @@ import i18n, {
   type SupportedLocale
 } from '@/i18n'
 import { updateLocaleMeta } from '@/composables/usePageMeta'
+import { safeSetLocalStorageItem } from '@/utils/browserStorage'
 
 export const useLocaleStore = defineStore('locale', () => {
   function getI18nLocale(): SupportedLocale {
@@ -45,11 +46,7 @@ export const useLocaleStore = defineStore('locale', () => {
     }
 
     locale.value = newLocale
-    try {
-      localStorage.setItem(LOCALE_STORAGE_KEY, newLocale)
-    } catch (_error) { void _error;
-      // 隐私模式或存储已满，降级为内存存储
-    }
+    safeSetLocalStorageItem(LOCALE_STORAGE_KEY, newLocale)
     i18n.global.locale.value = newLocale
     updateMetaTags(newLocale)
   }
