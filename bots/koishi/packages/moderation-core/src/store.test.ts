@@ -67,9 +67,16 @@ test('ModerationStore updates existing records without primary key churn', async
   assert.equal(writes.length, 4)
   assertUpdatePatch(writes[0], MODERATION_MESSAGE_LEDGER_TABLE, { messageId: 'message-1' }, [
     'messageId',
+    'platform',
+    'botSelfId',
+    'guildId',
+    'channelId',
+    'memberId',
     'createdAt',
   ])
   assert.equal(writes[0].patch.content, 'new content')
+  assert.equal(writes[0].patch.normalizedContent, 'content')
+  assert.equal(writes[0].patch.quoteMessageId, null)
   assert.equal(writes[0].patch.deletedAt, updatedAt)
 
   assertUpdatePatch(writes[1], MODERATION_KEYWORD_RULE_TABLE, { id: 'rule-1' }, [

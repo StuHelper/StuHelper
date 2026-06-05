@@ -63,7 +63,12 @@ export class ModerationStore {
       await this.ctx.database.set(
         MODERATION_MESSAGE_LEDGER_TABLE,
         { messageId: record.messageId },
-        omitFields(record, ['messageId', 'createdAt']),
+        {
+          content: record.content,
+          normalizedContent: record.normalizedContent,
+          quoteMessageId: record.quoteMessageId,
+          deletedAt: record.deletedAt,
+        },
       )
       return
     }
