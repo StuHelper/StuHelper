@@ -757,11 +757,13 @@ test('RolesView keeps role permission load failures visible and retryable', () =
   assert.match(source, /permissions\.value = nextPermissions/)
   assert.match(source, /catch \(e\) \{\s*if \(requestSeq !== loadRequestSeq\) return/)
   assert.match(source, /finally \{\s*if \(requestSeq === loadRequestSeq\) \{\s*loading\.value = false/)
+  assert.match(source, /import \{ errorMessage \} from '\.\.\/utils\/error-message'/)
   assert.match(source, /function setLoadError\(title: string, cause: unknown, fallback: string\): void/)
-  assert.match(source, /const details = roleErrorMessage\(cause\) \|\| fallback\s*loadError\.value = details\s*message\.error\(`\$\{title\}: \$\{details\}`\)/)
+  assert.match(source, /const details = errorMessage\(cause, fallback\)\s*loadError\.value = details\s*message\.error\(`\$\{title\}: \$\{details\}`\)/)
   assert.match(source, /currentRole\.value \? '刷新角色权限数据失败' : '加载角色权限数据失败'/)
   assert.doesNotMatch(source, /loadError\.value = '加载数据失败: ' \+ roleErrorMessage\(e\)/)
   assert.doesNotMatch(source, /message\.error\(loadError\.value\)/)
+  assert.doesNotMatch(source, /function roleErrorMessage\(cause: unknown\): string/)
 })
 
 test('RolesView ignores stale role member loads when switching roles', () => {
@@ -897,7 +899,7 @@ test('RolesView reports role id copy failures after clipboard fallback', () => {
 test('RolesView keeps backend error details for member import preview failures', () => {
   const source = readClientFile('./components/RolesView.vue')
 
-  assert.match(source, /function roleErrorMessage\(cause: unknown\): string/)
+  assert.match(source, /const details = errorMessage\(cause, fallback\)\s*importErrorTitle\.value = title\s*importError\.value = details/)
   assert.match(source, /setImportError\('加载成员列表失败', e, '加载成员列表失败'\)/)
   assert.match(source, /setImportError\('加载用户列表失败', e, '加载用户列表失败'\)/)
   assert.match(source, /setImportError\('获取群管理员失败', e, '获取群管理员失败'\)/)

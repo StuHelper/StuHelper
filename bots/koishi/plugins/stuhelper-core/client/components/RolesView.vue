@@ -501,6 +501,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { authApi } from '../api'
 import type { Role, PermissionNode, RoleMember } from '../types'
 import { message } from '@koishijs/client'
+import { errorMessage } from '../utils/error-message'
 
 type RoleOperation = '' | 'create' | 'clone' | 'delete'
 
@@ -686,21 +687,14 @@ const doConfirm = () => {
   confirmDialog.value.onConfirm()
 }
 
-function roleErrorMessage(cause: unknown): string {
-  if (cause instanceof Error && cause.message) return cause.message
-  if (typeof cause === 'string') return cause
-  if (cause === undefined || cause === null) return '未知错误'
-  return String(cause)
-}
-
 function setLoadError(title: string, cause: unknown, fallback: string): void {
-  const details = roleErrorMessage(cause) || fallback
+  const details = errorMessage(cause, fallback)
   loadError.value = details
   message.error(`${title}: ${details}`)
 }
 
 function setActionError(title: string, cause: unknown, fallback: string): void {
-  const details = roleErrorMessage(cause) || fallback
+  const details = errorMessage(cause, fallback)
   actionErrorTitle.value = title
   actionError.value = details
   message.error(`${title}: ${details}`)
@@ -712,7 +706,7 @@ function clearActionError(): void {
 }
 
 function setImportError(title: string, cause: unknown, fallback: string): void {
-  const details = roleErrorMessage(cause) || fallback
+  const details = errorMessage(cause, fallback)
   importErrorTitle.value = title
   importError.value = details
   message.error(`${title}: ${details}`)
