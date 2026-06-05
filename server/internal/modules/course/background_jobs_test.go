@@ -9,7 +9,6 @@ import (
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/reviewaccess"
@@ -19,8 +18,9 @@ import (
 
 type noopCourseReviewSender struct{}
 
-func (noopCourseReviewSender) Send(context.Context, notification.SendParams) error        { return nil }
-func (noopCourseReviewSender) SendBatch(context.Context, []notification.SendParams) error { return nil }
+func (noopCourseReviewSender) SendReviewNotification(context.Context, review.ReviewNotification) error {
+	return nil
+}
 
 type noopCourseReviewFGA struct{}
 

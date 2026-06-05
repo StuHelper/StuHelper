@@ -1,0 +1,28 @@
+package app
+
+import (
+	"context"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
+)
+
+type reviewNotificationAdapter struct {
+	sender notification.Sender
+}
+
+func newReviewNotificationAdapter(sender notification.Sender) reviewNotificationAdapter {
+	return reviewNotificationAdapter{sender: sender}
+}
+
+func (a reviewNotificationAdapter) SendReviewNotification(ctx context.Context, params review.ReviewNotification) error {
+	return a.sender.Send(ctx, notification.SendParams{
+		UserID:       params.UserID,
+		Type:         params.Type,
+		Title:        params.Title,
+		Body:         params.Body,
+		SourceModule: params.SourceModule,
+		SourceID:     params.SourceID,
+		CourseID:     params.CourseID,
+	})
+}

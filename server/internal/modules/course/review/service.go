@@ -12,7 +12,6 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/singleflight"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
@@ -59,11 +58,25 @@ type Service struct {
 	filter         *Filter
 	dimensionCache atomic.Value // map[string]string
 	fgaWriter      reviewFGAWriter
-	notifSender    notification.Sender
+	notifSender    ReviewNotificationSender
 	accessReader   ReviewAccessReader
 	accessPolicySF singleflight.Group
 	asyncCtx       context.Context
 	asyncLaunch    func(string, func(context.Context))
+}
+
+type ReviewNotification struct {
+	UserID       int64
+	Type         string
+	Title        string
+	Body         string
+	SourceModule string
+	SourceID     string
+	CourseID     int64
+}
+
+type ReviewNotificationSender interface {
+	SendReviewNotification(ctx context.Context, params ReviewNotification) error
 }
 
 // ReviewAccessReader 访问控制策略数据源（由 user.Repository 实现）。
@@ -77,7 +90,7 @@ type ReviewAccessReader interface {
 func NewService(
 	database *db.DB,
 	repo *Repository,
-	notifSender notification.Sender,
+	notifSender ReviewNotificationSender,
 	fgaWriter reviewFGAWriter,
 	accessReader ReviewAccessReader,
 ) *Service {

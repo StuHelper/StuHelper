@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/postgresfixture"
 )
 
@@ -23,8 +22,9 @@ func (noopReviewFGAWriter) WriteReportRelations(context.Context, string, string)
 
 type noopNotificationSender struct{}
 
-func (noopNotificationSender) Send(context.Context, notification.SendParams) error        { return nil }
-func (noopNotificationSender) SendBatch(context.Context, []notification.SendParams) error { return nil }
+func (noopNotificationSender) SendReviewNotification(context.Context, ReviewNotification) error {
+	return nil
+}
 
 func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 	fixture := postgresfixture.Start(t)

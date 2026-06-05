@@ -8,31 +8,21 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/postgresfixture"
 )
 
 type recordingNotificationSender struct {
-	ch chan notification.SendParams
+	ch chan ReviewNotification
 }
 
-func (s *recordingNotificationSender) Send(_ context.Context, params notification.SendParams) error {
+func (s *recordingNotificationSender) SendReviewNotification(_ context.Context, params ReviewNotification) error {
 	if s.ch != nil {
 		s.ch <- params
 	}
 	return nil
 }
 
-func (s *recordingNotificationSender) SendBatch(_ context.Context, params []notification.SendParams) error {
-	if s.ch != nil {
-		for _, param := range params {
-			s.ch <- param
-		}
-	}
-	return nil
-}
-
-func waitNotification(t *testing.T, ch <-chan notification.SendParams, wantType string) notification.SendParams {
+func waitNotification(t *testing.T, ch <-chan ReviewNotification, wantType string) ReviewNotification {
 	t.Helper()
 	select {
 	case got := <-ch:
@@ -40,14 +30,14 @@ func waitNotification(t *testing.T, ch <-chan notification.SendParams, wantType 
 		return got
 	case <-time.After(2 * time.Second):
 		t.Fatalf("timed out waiting for %s notification", wantType)
-		return notification.SendParams{}
+		return ReviewNotification{}
 	}
 }
 
 func TestReviewService_StateTransitionsAndNotifications(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)
-	sender := &recordingNotificationSender{ch: make(chan notification.SendParams, 8)}
+	sender := &recordingNotificationSender{ch: make(chan ReviewNotification, 8)}
 	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
 	svc.filter = seededFilter([]SensitiveWord{
 		{Word: "reviewword", Level: ContentFlagReview},

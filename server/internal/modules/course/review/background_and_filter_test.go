@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/reviewaccess"
@@ -40,8 +39,9 @@ func (r *recordingReviewFGAWriter) WriteReportRelations(_ context.Context, repor
 
 type noopReviewSender2 struct{}
 
-func (noopReviewSender2) Send(context.Context, notification.SendParams) error        { return nil }
-func (noopReviewSender2) SendBatch(context.Context, []notification.SendParams) error { return nil }
+func (noopReviewSender2) SendReviewNotification(context.Context, ReviewNotification) error {
+	return nil
+}
 
 func TestReviewFilterRefreshAndBackgroundJobs(t *testing.T) {
 	fixture := postgresfixture.Start(t)

@@ -27,7 +27,7 @@ func (rt *Runtime) initCourseModule(
 	courseCache := cache.NewHelperWithNamespace(rt.redisClient.GetClient(), cache.NamespaceCourse)
 	reviewCache := cache.NewHelperWithNamespace(rt.redisClient.GetClient(), cache.NamespaceReview)
 	reviewRepo := review.NewRepository(rt.database)
-	reviewService := review.NewService(rt.database, reviewRepo, notifSender, authorizer, userRepo)
+	reviewService := review.NewService(rt.database, reviewRepo, newReviewNotificationAdapter(notifSender), authorizer, userRepo)
 	reviewHandler := review.NewHandler(review.HandlerConfig{
 		CacheHelper:            reviewCache,
 		Service:                reviewService,

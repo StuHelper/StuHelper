@@ -8,7 +8,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
@@ -382,7 +381,7 @@ func (s *Service) sendVoteNotification(ctx context.Context, reviewID, voterHash 
 	if err != nil || authorID == 0 {
 		return
 	}
-	if err := s.notifSender.Send(ctx, notification.SendParams{
+	if err := s.notifSender.SendReviewNotification(ctx, ReviewNotification{
 		UserID:       authorID,
 		Type:         "like",
 		Title:        "你的评价获得了一个赞",

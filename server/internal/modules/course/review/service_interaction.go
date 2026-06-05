@@ -9,7 +9,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sanitizer"
@@ -373,7 +372,7 @@ func (s *Service) sendReplyNotification(ctx context.Context, reviewID, replierHa
 	if err != nil || authorID == 0 {
 		return
 	}
-	if err := s.notifSender.Send(ctx, notification.SendParams{
+	if err := s.notifSender.SendReviewNotification(ctx, ReviewNotification{
 		UserID:       authorID,
 		Type:         "reply",
 		Title:        "你的评价收到了新回复",
