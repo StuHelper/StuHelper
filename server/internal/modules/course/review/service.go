@@ -86,6 +86,27 @@ type ReviewAccessReader interface {
 	GetReviewAccessSubject(ctx context.Context, externalSubject string) (*reviewaccess.Subject, error)
 }
 
+type ServiceOption func(*serviceOptions)
+
+type serviceOptions struct {
+	initialCacheContext context.Context
+}
+
+func defaultServiceOptions() serviceOptions {
+	return serviceOptions{
+		initialCacheContext: context.Background(),
+	}
+}
+
+// WithInitialCacheContext sets the context used for constructor-time cache warmup.
+func WithInitialCacheContext(ctx context.Context) ServiceOption {
+	return func(opts *serviceOptions) {
+		if ctx != nil {
+			opts.initialCacheContext = ctx
+		}
+	}
+}
+
 // NewService 创建评课服务
 func NewService(
 	database *db.DB,
@@ -93,6 +114,7 @@ func NewService(
 	notifSender ReviewNotificationSender,
 	fgaWriter reviewFGAWriter,
 	accessReader ReviewAccessReader,
+	options ...ServiceOption,
 ) *Service {
 	if database == nil {
 		panic("review.NewService: database must not be nil")
@@ -109,6 +131,13 @@ func NewService(
 	if accessReader == nil {
 		panic("review.NewService: accessReader must not be nil")
 	}
+	opts := defaultServiceOptions()
+	for _, option := range options {
+		if option != nil {
+			option(&opts)
+		}
+	}
+
 	filter := NewFilter(repo)
 	s := &Service{
 		db:           database,
@@ -119,7 +148,7 @@ func NewService(
 		accessReader: accessReader,
 	}
 	// 初始化时加载维度缓存
-	if err := s.refreshDimensionCache(context.Background()); err != nil {
+	if err := s.refreshDimensionCache(opts.initialCacheContext); err != nil {
 		logger.L().Warn("failed to initialize dimension cache", zap.Error(err))
 	}
 	return s

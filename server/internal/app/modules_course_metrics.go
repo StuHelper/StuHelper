@@ -29,6 +29,7 @@ func (rt *Runtime) registerMetricsRoutes(api *gin.RouterGroup) {
 }
 
 func (rt *Runtime) initCourseModule(
+	ctx context.Context,
 	authorizer review.AuthorizationProvider,
 	notifSender notification.Sender,
 	userRepo *user.Repository,
@@ -36,7 +37,14 @@ func (rt *Runtime) initCourseModule(
 	courseCache := cache.NewHelperWithNamespace(rt.redisClient.GetClient(), cache.NamespaceCourse)
 	reviewCache := cache.NewHelperWithNamespace(rt.redisClient.GetClient(), cache.NamespaceReview)
 	reviewRepo := review.NewRepository(rt.database)
-	reviewService := review.NewService(rt.database, reviewRepo, newReviewNotificationAdapter(notifSender), authorizer, userRepo)
+	reviewService := review.NewService(
+		rt.database,
+		reviewRepo,
+		newReviewNotificationAdapter(notifSender),
+		authorizer,
+		userRepo,
+		review.WithInitialCacheContext(ctx),
+	)
 	reviewHandler := review.NewHandler(review.HandlerConfig{
 		CacheHelper:            reviewCache,
 		Service:                reviewService,

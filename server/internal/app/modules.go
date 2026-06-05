@@ -76,7 +76,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	notifHub.StartRedisSubscriber(bgCtx, startBackgroundTask)
 	rt.addCleanup(notifHub.Stop)
 
-	courseModule := rt.initCourseModule(fgaClient, notifService, userRepo)
+	courseModule := rt.initCourseModule(bgCtx, fgaClient, notifService, userRepo)
 	courseModule.RegisterRoutes(api, authMW, optionalAuthMW, adminMFA...)
 
 	storageService := storage.NewService(storage.NewRepository(rt.database), rt.cfg.ObjectStorage)
