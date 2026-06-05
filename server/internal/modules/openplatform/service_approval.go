@@ -507,6 +507,16 @@ func (s *Service) updateAppLifecycleStatus(
 	if err != nil {
 		return nil, err
 	}
+	if status == AppStatusRevoked && app.Status == AppStatusRevoked {
+		cleaned, err := s.revokeAllResourceAccessForRevokedApp(ctx, input.AppID, input.ActorUserID, input.RequestID, reason)
+		if err != nil {
+			return nil, err
+		}
+		if cleaned == 0 {
+			return nil, ErrInvalidAppStatus
+		}
+		return &AppLifecycleResult{App: app}, nil
+	}
 	if _, ok := allowedFrom[app.Status]; !ok {
 		return nil, ErrInvalidAppStatus
 	}
@@ -524,7 +534,7 @@ func (s *Service) updateAppLifecycleStatus(
 		return nil, err
 	}
 	if status == AppStatusRevoked {
-		if err := s.revokeAllResourceAccessForRevokedApp(ctx, input.AppID, input.ActorUserID, input.RequestID, reason); err != nil {
+		if _, err := s.revokeAllResourceAccessForRevokedApp(ctx, input.AppID, input.ActorUserID, input.RequestID, reason); err != nil {
 			return nil, err
 		}
 	}

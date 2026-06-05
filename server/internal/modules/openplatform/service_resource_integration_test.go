@@ -2,6 +2,7 @@ package openplatform
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"strings"
 	"testing"
@@ -459,6 +460,56 @@ func TestRevokeAppDeletesResourceAccessTuples(t *testing.T) {
 	assert.Empty(t, userProfileGrants.Grants)
 }
 
+func TestRevokeAppCanRetryResourceAccessCleanupAfterDeleteFailure(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	resourceFGA := newFakeResourceFGA()
+	service, err := NewService(repo, redis.Client, WithResourceFGAClient(resourceFGA))
+	require.NoError(t, err)
+
+	adminID := seedOpenPlatformUser(t, postgres, "resource-cleanup-retry-admin")
+	ownerID := seedOpenPlatformUser(t, postgres, "resource-cleanup-retry-owner")
+	app := seedApprovedOpenPlatformApp(t, ctx, repo, ownerID, []string{ScopeResourceRead})
+	residualTuple := fga.Tuple{
+		User:     openPlatformAppFGAUser(app.ID),
+		Relation: ResourceRelationReadByApp,
+		Object:   resourceFGAObject(ResourceTypeResourceItem, "retry-cleanup"),
+	}
+	require.NoError(t, resourceFGA.WriteMissingTuples(ctx, []fga.Tuple{residualTuple}))
+
+	resourceFGA.deleteErr = errors.New("openfga delete unavailable")
+	_, err = service.RevokeApp(ctx, AppLifecycleActionInput{
+		AppID:       app.ID,
+		ActorUserID: adminID,
+		Reason:      "first revoke leaves resource cleanup pending",
+		RequestID:   "revoke-resource-cleanup-fail",
+	})
+	require.ErrorIs(t, err, ErrResourceAccessUnavailable)
+	assertOpenPlatformAppStatus(t, ctx, repo, app.ID, AppStatusRevoked)
+	assert.Equal(t, []fga.Tuple{residualTuple}, resourceFGA.sortedTuples())
+	assertOpenPlatformAuditCount(t, postgres, app.ID, adminID, "open_platform.app.revoked", 1)
+	assertOpenPlatformAuditCount(t, postgres, app.ID, adminID, "open_platform.resource_access.revoked", 0)
+
+	resourceFGA.deleteErr = nil
+	retried, err := service.RevokeApp(ctx, AppLifecycleActionInput{
+		AppID:       app.ID,
+		ActorUserID: adminID,
+		Reason:      "retry resource cleanup",
+		RequestID:   "revoke-resource-cleanup-retry",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, AppStatusRevoked, retried.App.Status)
+	assert.Empty(t, resourceFGA.sortedTuples())
+	assertOpenPlatformAuditCount(t, postgres, app.ID, adminID, "open_platform.app.revoked", 1)
+	assertOpenPlatformAuditCount(t, postgres, app.ID, adminID, "open_platform.resource_access.revoked", 1)
+	assertOpenPlatformAuditMetadata(t, postgres, app.ID, adminID, "open_platform.resource_access.revoked", map[string]any{
+		"reason": "retry resource cleanup",
+		"source": "app_lifecycle",
+	})
+}
+
 func TestResourceAccessFailsClosedWithoutOpenFGA(t *testing.T) {
 	ctx := context.Background()
 	postgres := postgresfixture.Start(t)
@@ -498,7 +549,8 @@ func assertOpenPlatformAuditNullUserCount(
 }
 
 type fakeResourceFGA struct {
-	tuples map[fga.Tuple]struct{}
+	tuples    map[fga.Tuple]struct{}
+	deleteErr error
 }
 
 func newFakeResourceFGA() *fakeResourceFGA {
@@ -518,6 +570,9 @@ func (f *fakeResourceFGA) WriteMissingTuples(_ context.Context, desired []fga.Tu
 }
 
 func (f *fakeResourceFGA) DeleteTuples(_ context.Context, tuples []fga.Tuple) error {
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
 	for _, tuple := range tuples {
 		delete(f.tuples, tuple)
 	}

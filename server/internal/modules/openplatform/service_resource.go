@@ -262,21 +262,21 @@ func (s *Service) existingResourceTuples(ctx context.Context, tuples []fga.Tuple
 	return existing, nil
 }
 
-func (s *Service) revokeAllResourceAccessForRevokedApp(ctx context.Context, appID int64, actorUserID int64, requestID string, reason string) error {
+func (s *Service) revokeAllResourceAccessForRevokedApp(ctx context.Context, appID int64, actorUserID int64, requestID string, reason string) (int, error) {
 	if s.resourceFGA == nil {
-		return nil
+		return 0, nil
 	}
 	appUser := openPlatformAppFGAUser(appID)
 	allGrants := make([]ResourceGrant, 0)
 	for _, resourceType := range []string{ResourceTypeResourceItem, ResourceTypeUserProfile} {
 		grants, err := s.listResourceGrantsForApp(ctx, appID, appUser, resourceType)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		allGrants = append(allGrants, grants...)
 	}
 	if len(allGrants) == 0 {
-		return nil
+		return 0, nil
 	}
 
 	tuples := make([]fga.Tuple, 0, len(allGrants))
@@ -284,17 +284,20 @@ func (s *Service) revokeAllResourceAccessForRevokedApp(ctx context.Context, appI
 		tuples = append(tuples, resourceGrantTuple(grant))
 	}
 	if err := s.resourceFGA.DeleteTuples(ctx, tuples); err != nil {
-		return fmt.Errorf("%w: delete resource access tuples for revoked app: %v", ErrResourceAccessUnavailable, err)
+		return 0, fmt.Errorf("%w: delete resource access tuples for revoked app: %v", ErrResourceAccessUnavailable, err)
 	}
 
 	for _, group := range groupResourceGrantsByTarget(allGrants) {
 		if err := s.recordResourceAccessAdminAuditWithSource(ctx, appID, actorUserID, requestID,
 			"open_platform.resource_access.revoked", group.resourceType, group.resourceID,
 			group.actions, reason, "app_lifecycle"); err != nil {
-			return err
+			if rollbackErr := s.resourceFGA.WriteMissingTuples(ctx, tuples); rollbackErr != nil {
+				return 0, errors.Join(err, fmt.Errorf("%w: restore revoked app resource access tuples: %v", ErrResourceAccessUnavailable, rollbackErr))
+			}
+			return 0, err
 		}
 	}
-	return nil
+	return len(allGrants), nil
 }
 
 func (s *Service) listResourceGrantsForApp(ctx context.Context, appID int64, appUser string, resourceType string) ([]ResourceGrant, error) {
