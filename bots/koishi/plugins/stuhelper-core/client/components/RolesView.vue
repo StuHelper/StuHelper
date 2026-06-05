@@ -502,6 +502,7 @@ import { authApi } from '../api'
 import type { Role, PermissionNode, RoleMember } from '../types'
 import { message } from '@koishijs/client'
 import { errorMessage } from '../utils/error-message'
+import { copyTextToClipboard } from '../utils/clipboard'
 
 type RoleOperation = '' | 'create' | 'clone' | 'delete'
 
@@ -1425,34 +1426,11 @@ const onDrop = async (e: DragEvent, targetRole: Role) => {
 const copyRoleId = async () => {
   if (!currentRole.value) return
   const roleId = currentRole.value.id
-  try {
-    if (!navigator.clipboard?.writeText) {
-      throw new Error('clipboard unavailable')
-    }
-    await navigator.clipboard.writeText(roleId)
+  if (await copyTextToClipboard(roleId)) {
     message.success('角色 ID 已复制到剪贴板')
     return
-  } catch {
-    if (copyTextWithFallback(roleId)) {
-      message.success('角色 ID 已复制到剪贴板')
-      return
-    }
-    message.error('复制角色 ID 失败，请手动复制')
   }
-}
-
-function copyTextWithFallback(text: string): boolean {
-  const textarea = document.createElement('textarea')
-  try {
-    textarea.value = text
-    document.body.appendChild(textarea)
-    textarea.select()
-    return document.execCommand('copy')
-  } catch {
-    return false
-  } finally {
-    textarea.parentNode?.removeChild(textarea)
-  }
+  message.error('复制角色 ID 失败，请手动复制')
 }
 
 </script>

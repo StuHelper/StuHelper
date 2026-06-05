@@ -731,6 +731,7 @@ import { useActionError } from '../composables/use-action-error'
 import type { ConsoleNavigationController } from '../composables/use-console-navigation'
 import { normalizeGroupConfigForEdit } from '../models/config-editor'
 import type { GroupConfig } from '../types'
+import { copyTextToClipboard } from '../utils/clipboard'
 
 const props = defineProps<{
   navigation?: ConsoleNavigationController
@@ -953,34 +954,11 @@ const confirmDelete = async () => {
 
 const copyGuildId = async (guildId?: string) => {
   const id = guildId || editingGuildId.value
-  try {
-    if (!navigator.clipboard?.writeText) {
-      throw new Error('当前浏览器不支持剪贴板')
-    }
-    await navigator.clipboard.writeText(id)
+  if (await copyTextToClipboard(id)) {
     message.success('已复制群号')
     return
-  } catch {
-    if (copyTextWithFallback(id)) {
-      message.success('已复制群号')
-      return
-    }
-    message.error('复制失败，请手动复制')
   }
-}
-
-function copyTextWithFallback(text: string): boolean {
-  const textarea = document.createElement('textarea')
-  try {
-    textarea.value = text
-    document.body.appendChild(textarea)
-    textarea.select()
-    return document.execCommand('copy')
-  } catch {
-    return false
-  } finally {
-    textarea.parentNode?.removeChild(textarea)
-  }
+  message.error('复制失败，请手动复制')
 }
 
 onMounted(() => {

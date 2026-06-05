@@ -351,6 +351,7 @@ import { receive, message } from '@koishijs/client'
 import { chatApi, GuildMember } from '../api'
 import type { ChatMessage } from '../types'
 import { useActionFeedback } from '../composables/use-action-feedback'
+import { copyTextToClipboard } from '../utils/clipboard'
 import ChatMessageContent from './chat/ChatMessageContent.vue'
 import NoticeStack from './primitives/NoticeStack.vue'
 
@@ -552,34 +553,13 @@ const handleCopy = async () => {
   const plainText = tempDiv.textContent || tempDiv.innerText || ''
 
   try {
-    if (!navigator.clipboard?.writeText) {
-      throw new Error('clipboard unavailable')
-    }
-    await navigator.clipboard.writeText(plainText)
-    message.success('已复制到剪贴板')
-    return
-  } catch {
-    if (copyTextWithFallback(plainText)) {
+    if (await copyTextToClipboard(plainText)) {
       message.success('已复制到剪贴板')
       return
     }
     message.error('复制失败，请手动复制')
   } finally {
     hideContextMenu()
-  }
-}
-
-function copyTextWithFallback(text: string): boolean {
-  const textarea = document.createElement('textarea')
-  try {
-    textarea.value = text
-    document.body.appendChild(textarea)
-    textarea.select()
-    return document.execCommand('copy')
-  } catch {
-    return false
-  } finally {
-    textarea.parentNode?.removeChild(textarea)
   }
 }
 

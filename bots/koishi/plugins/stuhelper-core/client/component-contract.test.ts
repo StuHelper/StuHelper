@@ -896,10 +896,12 @@ test('RolesView prevents duplicate role member mutations', () => {
 test('RolesView reports role id copy failures after clipboard fallback', () => {
   const source = readClientFile('./components/RolesView.vue')
 
-  assert.match(source, /await navigator\.clipboard\.writeText\(roleId\)/)
-  assert.match(source, /if \(copyTextWithFallback\(roleId\)\) \{/)
+  assert.match(source, /import \{ copyTextToClipboard \} from '\.\.\/utils\/clipboard'/)
+  assert.match(source, /if \(await copyTextToClipboard\(roleId\)\) \{/)
   assert.match(source, /message\.error\('复制角色 ID 失败，请手动复制'\)/)
-  assert.match(source, /return document\.execCommand\('copy'\)/)
+  assert.doesNotMatch(source, /copyTextWithFallback/)
+  assert.doesNotMatch(source, /navigator\.clipboard\.writeText/)
+  assert.doesNotMatch(source, /document\.execCommand\('copy'\)/)
 })
 
 test('RolesView keeps backend error details for member import preview failures', () => {
@@ -925,22 +927,37 @@ test('ChatView uses console API avatars instead of hard-coded QQ avatar URLs', (
 test('ChatView reports message copy failures after clipboard fallback', () => {
   const source = readClientFile('./components/ChatView.vue')
 
-  assert.match(source, /await navigator\.clipboard\.writeText\(plainText\)/)
-  assert.match(source, /if \(copyTextWithFallback\(plainText\)\) \{/)
+  assert.match(source, /import \{ copyTextToClipboard \} from '\.\.\/utils\/clipboard'/)
+  assert.match(source, /if \(await copyTextToClipboard\(plainText\)\) \{/)
   assert.match(source, /message\.error\('复制失败，请手动复制'\)/)
-  assert.match(source, /return document\.execCommand\('copy'\)/)
-  assert.match(source, /textarea\.parentNode\?\.removeChild\(textarea\)/)
+  assert.doesNotMatch(source, /copyTextWithFallback/)
+  assert.doesNotMatch(source, /navigator\.clipboard\.writeText/)
+  assert.doesNotMatch(source, /document\.execCommand\('copy'\)/)
+  assert.doesNotMatch(source, /textarea\.parentNode\?\.removeChild\(textarea\)/)
 })
 
 test('ConfigView reports guild id copy failures after clipboard fallback', () => {
   const source = readClientFile('./components/ConfigView.vue')
 
   assert.match(source, /const copyGuildId = async/)
-  assert.match(source, /await navigator\.clipboard\.writeText\(id\)/)
-  assert.match(source, /if \(copyTextWithFallback\(id\)\) \{/)
+  assert.match(source, /import \{ copyTextToClipboard \} from '\.\.\/utils\/clipboard'/)
+  assert.match(source, /if \(await copyTextToClipboard\(id\)\) \{/)
   assert.match(source, /message\.error\('复制失败，请手动复制'\)/)
-  assert.match(source, /return document\.execCommand\('copy'\)/)
-  assert.match(source, /textarea\.parentNode\?\.removeChild\(textarea\)/)
+  assert.doesNotMatch(source, /copyTextWithFallback/)
+  assert.doesNotMatch(source, /navigator\.clipboard\.writeText/)
+  assert.doesNotMatch(source, /document\.execCommand\('copy'\)/)
+  assert.doesNotMatch(source, /textarea\.parentNode\?\.removeChild\(textarea\)/)
+})
+
+test('clipboard copy fallback is shared by console views', () => {
+  const source = readClientFile('./utils/clipboard.ts')
+
+  assert.match(source, /export async function copyTextToClipboard/)
+  assert.match(source, /await clipboard\.writeText\(text\)/)
+  assert.match(source, /return copyTextWithTextarea\(text, environment\)/)
+  assert.match(source, /export function copyTextWithTextarea/)
+  assert.match(source, /document\.execCommand\('copy'\)/)
+  assert.match(source, /target\?\.remove\(\)/)
 })
 
 test('shell portals keep StuHelper design tokens when mounted under body', () => {
