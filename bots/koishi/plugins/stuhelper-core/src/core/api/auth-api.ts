@@ -1,3 +1,5 @@
+import type { Bot } from 'koishi'
+
 import type { Role } from '../../types'
 import { normalizeManagedRoleInput, requireAssignableRole } from './auth-management'
 import type { WebSocketAPIContext } from './api-context'
@@ -8,6 +10,7 @@ import {
   type ConsoleGuildScope,
 } from './console-guild-scope'
 import { assertReadableRole, filterRoleIds, filterRoles } from './scope-filters'
+import { isGuildAdminMember, type GuildAdminMember } from '../services/auth-guild-admin'
 
 const MIN_AUTHORITY_LEVEL = 1
 const MAX_AUTHORITY_LEVEL = 5
@@ -99,6 +102,29 @@ interface AuthorityQueryParams {
   readonly authority: number
 }
 
+interface RoleMemberProfile {
+  readonly id: string
+  readonly name: string
+  readonly avatar: string
+}
+
+interface AuthorityUser {
+  readonly id: number
+  readonly name?: string
+}
+
+interface UserBinding {
+  readonly aid: number
+  readonly platform: string
+  readonly pid: string
+}
+
+type SelectedUserBinding = Pick<UserBinding, 'platform' | 'pid'>
+type GuildMemberListBot = Pick<Bot, 'platform' | 'getGuildMemberList'>
+type GuildAdminListMember = GuildAdminMember & {
+  readonly userId?: string
+}
+
 async function handleRoleMembers(api: WebSocketAPIContext, client: unknown, params: RoleMembersParams) {
   try {
     const scope = await api.resolveConsoleScope(client)
@@ -179,7 +205,11 @@ function validateAuthorityLevel(authority: number): void {
   }
 }
 
-function buildAuthorityMembers(api: WebSocketAPIContext, users: any[], bindings: any[]) {
+function buildAuthorityMembers(
+  api: WebSocketAPIContext,
+  users: readonly AuthorityUser[],
+  bindings: readonly UserBinding[],
+): RoleMemberProfile[] {
   const aidToBinding = selectPreferredBindings(bindings)
   const cacheData = api.service.cache.getCachedData()
   return users.filter((user) => aidToBinding[user.id]).map((user) => {
@@ -194,8 +224,8 @@ function buildAuthorityMembers(api: WebSocketAPIContext, users: any[], bindings:
   })
 }
 
-function selectPreferredBindings(bindings: any[]) {
-  const aidToBinding: Record<number, { platform: string; pid: string }> = {}
+function selectPreferredBindings(bindings: readonly UserBinding[]): Record<number, SelectedUserBinding> {
+  const aidToBinding: Record<number, SelectedUserBinding> = {}
   for (const binding of bindings) {
     const existing = aidToBinding[binding.aid]
     const isQQPlatform = QQ_PLATFORMS.has(binding.platform)
@@ -228,7 +258,7 @@ async function fetchGuildAdmins(api: WebSocketAPIContext, scope: ConsoleGuildSco
   for (const bot of api.ctx.bots) {
     try {
       const members = await fetchAllGuildMembers(bot, guildId)
-      return success(members.filter(isGuildAdmin).map((member) => formatGuildAdmin(bot, member)))
+      return success(members.filter(isGuildAdminMember).map((member) => formatGuildAdmin(bot, member)))
     } catch (cause) {
       api.ctx.logger('stuhelperGroupCenter').warn('获取群管理员列表失败:', cause)
     }
@@ -236,8 +266,8 @@ async function fetchGuildAdmins(api: WebSocketAPIContext, scope: ConsoleGuildSco
   return error('无法获取群管理员列表')
 }
 
-async function fetchAllGuildMembers(bot: any, guildId: string) {
-  const members: any[] = []
+async function fetchAllGuildMembers(bot: GuildMemberListBot, guildId: string): Promise<GuildAdminListMember[]> {
+  const members: GuildAdminListMember[] = []
   let next: string | undefined
   do {
     const result = await bot.getGuildMemberList(guildId, next)
@@ -247,21 +277,15 @@ async function fetchAllGuildMembers(bot: any, guildId: string) {
   return members
 }
 
-function isGuildAdmin(member: any) {
-  const roles = member.roles || []
-  const role = member.role
-  return roles.includes('admin') || roles.includes('owner') || role === 'admin' || role === 'owner'
-}
-
-function formatGuildAdmin(bot: any, member: any) {
-  const userId = member.user?.id || member.userId
+function formatGuildAdmin(bot: Pick<Bot, 'platform'>, member: GuildAdminListMember): RoleMemberProfile {
+  const userId = member.user?.id || member.userId || ''
   let avatar = member.user?.avatar || member.avatar
-  if (!avatar && QQ_PLATFORMS.has(bot.platform)) {
+  if (!avatar && bot.platform && QQ_PLATFORMS.has(bot.platform)) {
     avatar = `https://q1.qlogo.cn/g?b=qq&nk=${userId}&s=640`
   }
   return {
     id: userId,
-    name: member.nick || member.user?.nick || member.user?.name || userId,
-    avatar,
+    name: member.nick || member.user?.nick || member.user?.name || member.name || userId,
+    avatar: avatar || '',
   }
 }

@@ -25,3 +25,13 @@ test('log and stats console APIs use typed log module data', () => {
   assert.match(statsSource, /readCommandLogs\(api\)/)
   assert.match(scopeFiltersSource, /filterLogs<T extends \{ guildId\?: unknown \}>/)
 })
+
+test('auth console API reuses shared guild admin role detection', () => {
+  const authSource = readApiFile('./auth-api.ts')
+
+  assert.match(authSource, /isGuildAdminMember/)
+  assert.match(authSource, /filter\(isGuildAdminMember\)/)
+  assert.doesNotMatch(authSource, /function isGuildAdmin\(/)
+  assert.doesNotMatch(authSource, /roles\.includes\('admin'\)/)
+  assert.doesNotMatch(authSource, /roles\.includes\('owner'\)/)
+})

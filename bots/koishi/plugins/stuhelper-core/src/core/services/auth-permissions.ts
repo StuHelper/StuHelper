@@ -1,16 +1,10 @@
 import type { Session } from 'koishi'
-import type { GuildMember, GuildRole } from '@satorijs/protocol'
 
 import type { Role } from '../../types'
-
-const GUILD_ADMIN_ROLE_IDS = new Set(['admin', 'owner'])
+import { isGuildAdminMember } from './auth-guild-admin'
 
 interface AuthorityHolder {
   readonly authority?: unknown
-}
-
-interface LegacyGuildRoleHolder {
-  readonly role?: unknown
 }
 
 export function collectSessionPermissions(input: {
@@ -74,27 +68,12 @@ function isRoleVisibleInGuild(role: Role, options: { guildId?: string, checkGuil
 }
 
 function isGuildAdmin(session: Session): boolean {
-  const author: (GuildMember & LegacyGuildRoleHolder) | undefined = session.author
-  if (!author) return false
-
-  const roles = author.roles || []
-  if (roles.some(isGuildAdminRole)) return true
-  return isGuildAdminRole(author.role)
+  return isGuildAdminMember(session.author)
 }
 
 function getSessionAuthority(session: Session): number {
   const authority = isAuthorityHolder(session.user) ? session.user.authority : 0
   return typeof authority === 'number' ? authority : 0
-}
-
-function isGuildAdminRole(role: unknown): boolean {
-  if (typeof role === 'string') return GUILD_ADMIN_ROLE_IDS.has(role)
-  if (!isGuildRoleLike(role)) return false
-  return GUILD_ADMIN_ROLE_IDS.has(role.id) || Boolean(role.name && GUILD_ADMIN_ROLE_IDS.has(role.name))
-}
-
-function isGuildRoleLike(role: unknown): role is Pick<GuildRole, 'id' | 'name'> {
-  return typeof role === 'object' && role !== null && typeof (role as { readonly id?: unknown }).id === 'string'
 }
 
 function isAuthorityHolder(value: unknown): value is AuthorityHolder {
