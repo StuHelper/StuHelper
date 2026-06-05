@@ -1,4 +1,4 @@
-import type { Command, Context } from 'koishi'
+import type { Command, Context, Session } from 'koishi'
 import { createPlatformClient, type PlatformClient } from '@stuhelper/koishi-shared'
 
 import type { DataManager } from '../data'
@@ -64,7 +64,7 @@ export class MemberManageModule implements RuntimeModuleInstance {
   }
 
   logCommand(entry: {
-    readonly session: any
+    readonly session: Session
     readonly command: string
     readonly target: string
     readonly result: string
