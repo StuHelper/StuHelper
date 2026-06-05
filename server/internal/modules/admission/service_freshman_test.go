@@ -160,6 +160,7 @@ func TestFreshmanApplicationReassignsSubmittedMaterialToCurrentSession(t *testin
 	require.NotNil(t, reused.AdmissionSessionID)
 	assert.Equal(t, relinked.ID, *reused.AdmissionSessionID)
 	assertAdmissionSessionStatus(t, fixture, relinked.ID, StatusMaterialSubmitted)
+	assertAdmissionQueuedActionCount(t, fixture, relinked.ID, BotActionKick, 2)
 }
 
 func TestFreshmanApplicationUniqueRaceReusesPendingApplication(t *testing.T) {
@@ -369,6 +370,8 @@ func TestFreshmanCameraHandoffUploadsAndLocksContinuation(t *testing.T) {
 	assert.Equal(t, FreshmanCameraHandoffUploaded, uploaded.Status)
 	assert.NotNil(t, uploaded.UploadedAt)
 	assert.NotEmpty(t, store.objectKey)
+	require.NotNil(t, app.AdmissionSessionID)
+	assertAdmissionQueuedActionCount(t, fixture, *app.AdmissionSessionID, BotActionKick, 2)
 
 	_, err = svc.SubmitCameraCapture(context.Background(), CameraCaptureInput{
 		UserID:        userID,
@@ -797,4 +800,22 @@ func validPNGBytes() []byte {
 		0xb0, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e,
 		0x44, 0xae, 0x42, 0x60, 0x82,
 	}
+}
+
+func assertAdmissionQueuedActionCount(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	sessionID string,
+	action BotAction,
+	expected int,
+) {
+	t.Helper()
+	var count int
+	err := fixture.Pool.QueryRow(context.Background(), `
+		SELECT COUNT(*)
+		FROM admission_bot_action_outbox
+		WHERE session_id = $1 AND action = $2
+	`, sessionID, string(action)).Scan(&count)
+	require.NoError(t, err)
+	assert.Equal(t, expected, count)
 }

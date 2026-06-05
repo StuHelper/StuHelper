@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/schoolauth"
@@ -173,7 +174,27 @@ func (r *Repository) GetFreshmanApplicationForUser(
 
 func (r *Repository) CreateFreshmanMaterial(ctx context.Context, material FreshmanMaterialRecord) error {
 	ctx = withDBTable(ctx, "freshman_verification_materials")
-	_, err := r.db.Exec(ctx, `
+	return r.createFreshmanMaterial(ctx, r.db, material)
+}
+
+func (r *Repository) CreateFreshmanMaterialTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	material FreshmanMaterialRecord,
+) error {
+	return r.createFreshmanMaterial(ctx, tx, material)
+}
+
+type freshmanMaterialCreator interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+}
+
+func (r *Repository) createFreshmanMaterial(
+	ctx context.Context,
+	exec freshmanMaterialCreator,
+	material FreshmanMaterialRecord,
+) error {
+	_, err := exec.Exec(ctx, `
 		INSERT INTO freshman_verification_materials (
 			id, application_id, object_key, content_type, size_bytes, sha256
 		)

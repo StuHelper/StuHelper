@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	_ "golang.org/x/image/webp"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
@@ -116,16 +117,13 @@ func (s *Service) SubmitCameraCapture(ctx context.Context, input CameraCaptureIn
 	if err := s.materialStore.PutAdmissionMaterial(ctx, material.ObjectKey, content, material.ContentType); err != nil {
 		return nil, fmt.Errorf("SubmitCameraCapture store material: %w", err)
 	}
-	if err := s.repo.CreateFreshmanMaterial(ctx, material); err != nil {
+	if err := s.createFreshmanMaterialAndSubmitSession(ctx, material, session, policy); err != nil {
 		if cleanupErr := s.materialStore.DeleteAdmissionMaterial(ctx, material.ObjectKey); cleanupErr != nil {
 			return nil, fmt.Errorf("SubmitCameraCapture create material: %w; cleanup: %v", err, cleanupErr)
 		}
 		if isFreshmanMaterialApplicationUniqueViolation(err) {
 			return nil, ErrAdmissionCameraHandoffLocked
 		}
-		return nil, err
-	}
-	if _, err := s.MarkMaterialSubmitted(ctx, session.ID); err != nil {
 		return nil, err
 	}
 	return app, nil
@@ -261,16 +259,13 @@ func (s *Service) SubmitFreshmanCameraHandoffCapture(
 	if err := s.materialStore.PutAdmissionMaterial(ctx, material.ObjectKey, content, material.ContentType); err != nil {
 		return nil, fmt.Errorf("SubmitFreshmanCameraHandoffCapture store material: %w", err)
 	}
-	if err := s.repo.CreateFreshmanMaterial(ctx, material); err != nil {
+	if err := s.createFreshmanMaterialAndSubmitSession(ctx, material, session, policy); err != nil {
 		if cleanupErr := s.materialStore.DeleteAdmissionMaterial(ctx, material.ObjectKey); cleanupErr != nil {
 			return nil, fmt.Errorf("SubmitFreshmanCameraHandoffCapture create material: %w; cleanup: %v", err, cleanupErr)
 		}
 		if isFreshmanMaterialApplicationUniqueViolation(err) {
 			return s.recoverFreshmanCameraHandoffUpload(ctx, handoff)
 		}
-		return nil, err
-	}
-	if err := s.ensureFreshmanMaterialSubmitted(ctx, session); err != nil {
 		return nil, err
 	}
 	now := s.now()
@@ -396,6 +391,45 @@ func (s *Service) syncFreshmanApplicationMaterialSubmission(
 	return s.ensureFreshmanMaterialSubmitted(ctx, session)
 }
 
+func (s *Service) createFreshmanMaterialAndSubmitSession(
+	ctx context.Context,
+	material FreshmanMaterialRecord,
+	session *AdmissionSession,
+	policy *AdmissionPolicy,
+) error {
+	return s.submitFreshmanSessionWithPolicy(ctx, session, policy, func(ctx context.Context, tx pgx.Tx) error {
+		return s.repo.CreateFreshmanMaterialTx(ctx, tx, material)
+	})
+}
+
+func (s *Service) submitFreshmanSessionWithPolicy(
+	ctx context.Context,
+	session *AdmissionSession,
+	policy *AdmissionPolicy,
+	beforeSubmit func(context.Context, pgx.Tx) error,
+) error {
+	if policy == nil {
+		return ErrAdmissionPolicyNotFound
+	}
+	if err := s.ensureLinkedSessionAcceptsSubmission(session); err != nil {
+		return err
+	}
+	now := s.now()
+	deadline := now.Add(time.Duration(policy.ManualReviewTimeoutSeconds) * time.Second)
+	return s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		if beforeSubmit != nil {
+			if err := beforeSubmit(ctx, tx); err != nil {
+				return err
+			}
+		}
+		submitted, err := s.repo.MarkMaterialSubmittedTx(ctx, tx, session.ID, deadline)
+		if err != nil {
+			return err
+		}
+		return s.queueInitialBotActionsTx(ctx, tx, submitted, now)
+	})
+}
+
 func (s *Service) ensureFreshmanDesktopCaptureAllowed(ctx context.Context, applicationID string) error {
 	hasMaterial, err := s.repo.FreshmanApplicationHasMaterial(ctx, applicationID)
 	if err != nil {
@@ -478,9 +512,7 @@ func (s *Service) ensureFreshmanMaterialSubmitted(ctx context.Context, session *
 		if err != nil {
 			return err
 		}
-		deadline := s.now().Add(time.Duration(policy.ManualReviewTimeoutSeconds) * time.Second)
-		_, err = s.repo.MarkMaterialSubmitted(ctx, session.ID, deadline)
-		return err
+		return s.submitFreshmanSessionWithPolicy(ctx, session, policy, nil)
 	case StatusMaterialSubmitted, StatusVerified:
 		return nil
 	default:
