@@ -52,7 +52,7 @@ func (s *Service) getReviewAccessPolicy(ctx context.Context) (systemconfig.Revie
 			return cached, nil
 		}
 
-		refreshCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		refreshCtx, cancel := s.cacheRefreshContext(ctx, 10*time.Second)
 		defer cancel()
 
 		policy, err := s.loadReviewAccessPolicy(refreshCtx)

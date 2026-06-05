@@ -104,7 +104,7 @@ func (f *Filter) applyWords(words []SensitiveWord) {
 
 // ensureFresh 确保敏感词列表是最新的
 // 使用 singleflight 去重并发刷新，避免多个 goroutine 同时查询 DB
-func (f *Filter) ensureFresh(_ context.Context) error {
+func (f *Filter) ensureFresh(ctx context.Context) error {
 	f.mu.RLock()
 	needRefresh := time.Since(f.lastRefresh) > f.refreshTTL
 	f.mu.RUnlock()
@@ -125,7 +125,7 @@ func (f *Filter) ensureFresh(_ context.Context) error {
 		f.mu.RUnlock()
 
 		// 独立 context：刷新操作不应因某个请求取消而中断
-		refreshCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		refreshCtx, cancel := detachedRefreshContext(ctx, 10*time.Second)
 		defer cancel()
 
 		// 在锁外执行 DB 查询，避免阻塞所有读操作

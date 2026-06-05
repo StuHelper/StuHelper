@@ -34,6 +34,18 @@ func (f fakeAccessReader) GetReviewAccessSubject(context.Context, string) (*revi
 	return f.subject, f.err
 }
 
+type contextAwareAccessReader struct{}
+
+func (contextAwareAccessReader) ListReviewAccessSchoolConfigs(ctx context.Context) ([]reviewaccess.SchoolConfig, error) {
+	return nil, ctx.Err()
+}
+func (contextAwareAccessReader) ListReviewAccessSystemConfigs(ctx context.Context) ([]reviewaccess.SystemConfig, error) {
+	return nil, ctx.Err()
+}
+func (contextAwareAccessReader) GetReviewAccessSubject(ctx context.Context, _ string) (*reviewaccess.Subject, error) {
+	return nil, ctx.Err()
+}
+
 func TestMaskHash(t *testing.T) {
 	assert.Equal(t, "short", maskHash("short"))
 	assert.Equal(t, "123456789012...", maskHash("12345678901234567890"))
@@ -137,6 +149,22 @@ func TestResolveAccessFacts_AnonymousAndCacheFresh(t *testing.T) {
 	assert.Equal(t, 18, facts.PreviewTitleRunes)
 	assert.Equal(t, 90, facts.PreviewContentRunes)
 	assert.Equal(t, 75, facts.PreviewContentPct)
+}
+
+func TestResolveAccessFacts_UsesServiceLifecycleForPolicyRefresh(t *testing.T) {
+	systemconfig.InvalidateReviewAccessPolicySnapshot()
+	t.Cleanup(systemconfig.InvalidateReviewAccessPolicySnapshot)
+
+	lifecycleCtx, cancelLifecycle := context.WithCancel(context.Background())
+	cancelLifecycle()
+
+	svc := &Service{
+		accessReader: contextAwareAccessReader{},
+		asyncCtx:     lifecycleCtx,
+	}
+
+	_, err := svc.ResolveAccessFacts(context.Background(), "", nil)
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestResolveUserHashHelpers(t *testing.T) {
