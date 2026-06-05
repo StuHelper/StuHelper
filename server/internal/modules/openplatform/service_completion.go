@@ -292,10 +292,16 @@ func (s *Service) ContinueProfileCompletion(ctx context.Context, token string, u
 	if err != nil {
 		return nil, err
 	}
-	if err := s.deleteProfileCompletionChallenge(ctx, token); err != nil {
+	if err := s.deleteProfileCompletionChallengeDetached(ctx, token); err != nil {
 		return nil, err
 	}
 	return &AuthorizeResult{RedirectURL: redirectURL}, nil
+}
+
+func (s *Service) deleteProfileCompletionChallengeDetached(ctx context.Context, token string) error {
+	cleanupCtx, cancel := challengeCleanupContext(ctx)
+	defer cancel()
+	return s.deleteProfileCompletionChallenge(cleanupCtx, token)
 }
 
 func (s *Service) deleteProfileCompletionChallenge(ctx context.Context, token string) error {
@@ -310,7 +316,7 @@ func (s *Service) DeleteConsentChallenge(ctx context.Context, token string) erro
 }
 
 func (s *Service) deleteConsentChallengeDetached(ctx context.Context, token string) error {
-	cleanupCtx, cancel := consentChallengeCleanupContext(ctx)
+	cleanupCtx, cancel := challengeCleanupContext(ctx)
 	defer cancel()
 	return s.deleteConsentChallenge(cleanupCtx, token)
 }
@@ -322,8 +328,8 @@ func (s *Service) deleteConsentChallenge(ctx context.Context, token string) erro
 	return nil
 }
 
-func consentChallengeCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.WithoutCancel(ctx), consentChallengeCleanupTimeout)
+func challengeCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), challengeCleanupTimeout)
 }
 
 func ensureProfileCompletionActor(challenge *ProfileCompletionChallenge, userID int64) error {

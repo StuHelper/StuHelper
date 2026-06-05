@@ -2189,6 +2189,58 @@ func TestProfileCompletionContinueKeepsChallengeWhenOIDCRedirectFails(t *testing
 	assert.Empty(t, keys)
 }
 
+func TestProfileCompletionRedirectCleanupSurvivesRequestCancellation(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redisFixture := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	builder := &recordingOIDCAuthURLBuilder{url: "https://sso.example.com/login?state=completion-redirect-cancel"}
+	service, err := NewService(
+		repo,
+		redisFixture.Client,
+		WithConsentBaseURL("https://account.example.com"),
+		WithOIDCAuthURLBuilder(builder),
+	)
+	require.NoError(t, err)
+
+	ownerID := seedOpenPlatformUser(t, postgres, "completion-redirect-cancel-owner")
+	userID := seedOpenPlatformUser(t, postgres, "completion-redirect-cancel-viewer")
+	app := seedApprovedOpenPlatformApp(t, ctx, repo, ownerID, []string{ScopeEmailRead})
+	require.NoError(t, repo.GrantConsents(ctx, Consent{
+		AppID:       app.ID,
+		UserID:      userID,
+		GrantSource: "test-seed",
+		RequestID:   "completion-redirect-cancel-existing-consent",
+	}, []string{ScopeEmailRead}))
+
+	completionChallenge, err := service.BuildProfileCompletionChallenge(ctx, app, userID, []string{ScopeEmailRead}, AuthorizeRequest{
+		ClientID:    app.ClientID,
+		RedirectURI: app.RedirectURIs[0],
+		Scopes:      []string{"openid", "email"},
+		State:       "completion-redirect-cancel",
+		Flow:        AuthorizeFlowCasdoor,
+	})
+	require.NoError(t, err)
+	requestCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	redisFixture.Client.AddHook(cancelBeforeRedisDelHook{
+		keyPrefix: completionRedisPrefix,
+		cancel:    cancel,
+	})
+
+	result, err := service.ContinueProfileCompletion(requestCtx, completionChallenge.Token, userID)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "https://sso.example.com/login?state=completion-redirect-cancel", result.RedirectURL)
+	assert.Equal(t, app.ClientID, builder.clientID)
+	assert.Equal(t, app.RedirectURIs[0], builder.redirectURI)
+	assert.Equal(t, []string{"openid", "email"}, builder.scopes)
+	assert.Equal(t, "completion-redirect-cancel", builder.state)
+	_, err = service.LoadProfileCompletionChallenge(context.Background(), completionChallenge.Token)
+	require.ErrorIs(t, err, ErrCompletionTokenInvalid)
+}
+
 func TestGrantConsentRejectsRedirectURIDriftBeforePersistingConsent(t *testing.T) {
 	ctx := context.Background()
 	postgres := postgresfixture.Start(t)
@@ -3697,6 +3749,34 @@ func (h cancelAfterRedisSetHook) ProcessHook(next redisclient.ProcessHook) redis
 }
 
 func (h cancelAfterRedisSetHook) ProcessPipelineHook(next redisclient.ProcessPipelineHook) redisclient.ProcessPipelineHook {
+	return next
+}
+
+type cancelBeforeRedisDelHook struct {
+	keyPrefix string
+	cancel    context.CancelFunc
+}
+
+func (h cancelBeforeRedisDelHook) DialHook(next redisclient.DialHook) redisclient.DialHook {
+	return next
+}
+
+func (h cancelBeforeRedisDelHook) ProcessHook(next redisclient.ProcessHook) redisclient.ProcessHook {
+	return func(ctx context.Context, cmd redisclient.Cmder) error {
+		if h.cancel != nil && strings.ToLower(cmd.Name()) == "del" {
+			for _, arg := range cmd.Args()[1:] {
+				key, ok := arg.(string)
+				if ok && strings.HasPrefix(key, h.keyPrefix) {
+					h.cancel()
+					break
+				}
+			}
+		}
+		return next(ctx, cmd)
+	}
+}
+
+func (h cancelBeforeRedisDelHook) ProcessPipelineHook(next redisclient.ProcessPipelineHook) redisclient.ProcessPipelineHook {
 	return next
 }
 

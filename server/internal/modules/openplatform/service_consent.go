@@ -12,7 +12,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-const consentChallengeCleanupTimeout = 5 * time.Second
+const challengeCleanupTimeout = 5 * time.Second
 
 type ConsentRequiredError struct {
 	ConsentURL string
