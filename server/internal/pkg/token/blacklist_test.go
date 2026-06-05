@@ -114,6 +114,68 @@ func TestBlacklist_TryConsumeRefreshTokenDoesNotCacheFailedReservation(t *testin
 	assert.True(t, blacklisted)
 }
 
+func TestBlacklist_NilRedisFailsClosedWithoutPanic(t *testing.T) {
+	require.NoError(t, crypto.InitHMACKey("test-blacklist-secret", false))
+
+	bl := NewBlacklist(nil)
+	defer bl.Close()
+	ctx := context.Background()
+
+	assert.NotPanics(t, func() {
+		err := bl.Add(ctx, "revoked-token", time.Hour)
+		require.Error(t, err)
+	})
+	blacklisted, err := bl.IsBlacklisted(ctx, "revoked-token")
+	require.NoError(t, err)
+	assert.True(t, blacklisted)
+
+	assert.NotPanics(t, func() {
+		err := bl.AddByHash(ctx, "known-hash", time.Hour)
+		require.Error(t, err)
+	})
+
+	assert.NotPanics(t, func() {
+		consumed, err := bl.TryConsumeRefreshToken(ctx, "refresh-token", time.Hour)
+		require.Error(t, err)
+		assert.False(t, consumed)
+	})
+
+	assert.NotPanics(t, func() {
+		err := bl.ReleaseConsumedRefreshToken(ctx, "refresh-token")
+		require.Error(t, err)
+	})
+
+	assert.NotPanics(t, func() {
+		blacklisted, err = bl.IsBlacklisted(ctx, "unknown-token")
+		require.Error(t, err)
+		assert.True(t, blacklisted)
+	})
+}
+
+func TestBlacklist_ReleaseFailureKeepsLocalRevocation(t *testing.T) {
+	require.NoError(t, crypto.InitHMACKey("test-blacklist-secret", false))
+
+	bl := &Blacklist{
+		cb: circuitbreaker.NewNamed("token_blacklist_test_release_failure", circuitbreaker.Config{
+			FailureThreshold: 1,
+			SuccessThreshold: 1,
+			Timeout:          time.Hour,
+		}),
+		stopCh: make(chan struct{}),
+	}
+	hash, err := hashToken("refresh-token")
+	require.NoError(t, err)
+	bl.cacheRevocation(hash)
+	bl.cb.RecordFailure()
+
+	err = bl.ReleaseConsumedRefreshToken(context.Background(), "refresh-token")
+	require.Error(t, err)
+
+	blacklisted, err := bl.IsBlacklisted(context.Background(), "refresh-token")
+	require.NoError(t, err)
+	assert.True(t, blacklisted)
+}
+
 func TestBlacklist_IsBlacklisted_DeniesWhenCircuitOpenAndOnlyNegativeCacheExists(t *testing.T) {
 	require.NoError(t, crypto.InitHMACKey("test-blacklist-secret", false))
 

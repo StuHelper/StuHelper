@@ -46,6 +46,8 @@ const (
 	maxBlacklistTTL = 30 * 24 * time.Hour
 )
 
+var errBlacklistRedisUnavailable = errors.New("blacklist redis unavailable")
+
 // Blacklist Token 黑名单服务
 type Blacklist struct {
 	rdb        *redis.Client
@@ -78,6 +80,9 @@ func NewBlacklist(rdb *redis.Client) *Blacklist {
 
 // Close 优雅关闭黑名单服务，停止后台清理 goroutine（安全支持多次调用）
 func (b *Blacklist) Close() {
+	if b == nil {
+		return
+	}
 	b.closeOnce.Do(func() {
 		close(b.stopCh)
 		b.wg.Wait()
@@ -115,7 +120,13 @@ func (b *Blacklist) AddByHash(ctx context.Context, tokenHash string, expiry time
 		return fmt.Errorf("blacklist TTL %v out of valid range [%v, %v]", expiry, minBlacklistTTL, maxBlacklistTTL)
 	}
 
+	if b == nil {
+		return errBlacklistRedisUnavailable
+	}
 	b.cacheRevocation(tokenHash)
+	if b.rdb == nil {
+		return errBlacklistRedisUnavailable
+	}
 
 	if !b.cb.Allow() {
 		return fmt.Errorf("blacklist service unavailable (circuit breaker open)")
@@ -141,8 +152,14 @@ func (b *Blacklist) Add(ctx context.Context, token string, expiry time.Duration)
 		return fmt.Errorf("failed to hash token: %w", err)
 	}
 
+	if b == nil {
+		return errBlacklistRedisUnavailable
+	}
 	// 写入本地缓存（无论 Redis 是否可用，确保当前实例立即生效）
 	b.cacheRevocation(hash)
+	if b.rdb == nil {
+		return errBlacklistRedisUnavailable
+	}
 
 	if !b.cb.Allow() {
 		return fmt.Errorf("blacklist service unavailable (circuit breaker open)")
@@ -167,6 +184,10 @@ func (b *Blacklist) TryConsumeRefreshToken(ctx context.Context, token string, ex
 	hash, err := hashToken(token)
 	if err != nil {
 		return false, fmt.Errorf("failed to hash token: %w", err)
+	}
+
+	if b == nil || b.rdb == nil {
+		return false, errBlacklistRedisUnavailable
 	}
 
 	if !b.cb.Allow() {
@@ -201,7 +222,12 @@ func (b *Blacklist) ReleaseConsumedRefreshToken(ctx context.Context, token strin
 		return fmt.Errorf("failed to hash token: %w", err)
 	}
 
-	b.localCache.Delete(hash)
+	if b == nil {
+		return errBlacklistRedisUnavailable
+	}
+	if b.rdb == nil {
+		return errBlacklistRedisUnavailable
+	}
 
 	if !b.cb.Allow() {
 		return fmt.Errorf("blacklist service unavailable (circuit breaker open)")
@@ -212,6 +238,7 @@ func (b *Blacklist) ReleaseConsumedRefreshToken(ctx context.Context, token strin
 		return fmt.Errorf("failed to release refresh token consume mark: %w", err)
 	}
 	b.cb.RecordSuccess()
+	b.localCache.Delete(hash)
 	return nil
 }
 
@@ -222,6 +249,16 @@ func (b *Blacklist) IsBlacklisted(ctx context.Context, token string) (bool, erro
 	if err != nil {
 		// 哈希失败是配置错误，不应将 token 视为已黑名单；返回 false 让调用方区分处理
 		return false, fmt.Errorf("failed to hash token: %w", err)
+	}
+
+	if b == nil {
+		return true, errBlacklistRedisUnavailable
+	}
+	if b.rdb == nil {
+		if blacklisted, ok := b.cachedRevocation(hash); ok {
+			return blacklisted, nil
+		}
+		return true, errBlacklistRedisUnavailable
 	}
 
 	// 检查熔断器状态
