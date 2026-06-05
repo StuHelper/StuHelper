@@ -344,23 +344,16 @@
       </div>
     </main>
 
-    <!-- 自定义确认对话框 -->
-    <transition name="fade">
-      <div class="modal-overlay" v-if="confirmDialog.show" @click="cancelConfirm">
-        <div class="modal-dialog" @click.stop>
-          <div class="modal-header">
-            <h3>{{ confirmDialog.title }}</h3>
-          </div>
-          <div class="modal-body">
-            <p>{{ confirmDialog.message }}</p>
-          </div>
-          <div class="modal-footer">
-            <button class="secondary-btn" @click="cancelConfirm">取消</button>
-            <button :class="confirmDialog.type === 'danger' ? 'danger-btn' : 'primary-btn'" @click="doConfirm">确认</button>
-          </div>
-        </div>
-      </div>
-    </transition>
+    <ConfirmDialog
+      :open="confirmDialog.open"
+      :title="confirmDialog.title"
+      :message="confirmDialog.message"
+      :tone="confirmDialog.tone"
+      :confirm-text="confirmDialog.confirmText"
+      :cancel-text="confirmDialog.cancelText"
+      @confirm="acceptConfirm"
+      @cancel="cancelConfirm"
+    />
 
     <!-- 导入成员对话框 -->
     <transition name="fade">
@@ -504,6 +497,8 @@ import { message } from '@koishijs/client'
 import { errorMessage } from '../utils/error-message'
 import { copyTextToClipboard } from '../utils/clipboard'
 import { useActionError } from '../composables/use-action-error'
+import { useConfirm } from '../composables/use-confirm'
+import ConfirmDialog from './primitives/ConfirmDialog.vue'
 
 type RoleOperation = '' | 'create' | 'clone' | 'delete'
 
@@ -664,43 +659,12 @@ watch(scopeMode, (newVal) => {
   }
 })
 
-// 确认对话框状态
-const confirmDialog = ref({
-  show: false,
-  title: '确认',
-  message: '',
-  type: 'normal' as 'normal' | 'danger',
-  onConfirm: () => {},
-  onCancel: () => {}
-})
-
-// 显示确认对话框
-const showConfirm = (options: { title?: string, message: string, type?: 'normal' | 'danger' }): Promise<boolean> => {
-  return new Promise((resolve) => {
-    confirmDialog.value = {
-      show: true,
-      title: options.title || '确认',
-      message: options.message,
-      type: options.type || 'normal',
-      onConfirm: () => {
-        confirmDialog.value.show = false
-        resolve(true)
-      },
-      onCancel: () => {
-        confirmDialog.value.show = false
-        resolve(false)
-      }
-    }
-  })
-}
-
-const cancelConfirm = () => {
-  confirmDialog.value.onCancel()
-}
-
-const doConfirm = () => {
-  confirmDialog.value.onConfirm()
-}
+const {
+  state: confirmDialog,
+  confirm,
+  accept: acceptConfirm,
+  cancel: cancelConfirm,
+} = useConfirm()
 
 function setLoadError(title: string, cause: unknown, fallback: string): void {
   const details = errorMessage(cause, fallback)
@@ -829,10 +793,10 @@ const fetchRoleMembers = async (roleId: string) => {
 
 const selectRole = async (role: Role) => {
   if (hasChanges.value) {
-    const confirmed = await showConfirm({
+    const confirmed = await confirm({
       title: '未保存的修改',
       message: '当前有未保存的修改，是否放弃这些更改？',
-      type: 'danger'
+      tone: 'danger'
     })
     if (!confirmed) return
   }
@@ -927,10 +891,10 @@ const saveChanges = async () => {
 const resetChanges = async () => {
   if (!currentRole.value || savingChanges.value) return
   
-  const confirmed = await showConfirm({
+  const confirmed = await confirm({
     title: '重置更改',
     message: '确定要放弃当前所有未保存的修改吗？',
-    type: 'normal'
+    tone: 'normal'
   })
   
   if (confirmed) {
@@ -963,10 +927,10 @@ const cloneRole = async () => {
   const sourceRole = currentRole.value
   roleOperation.value = 'clone'
   try {
-    const confirmed = await showConfirm({
+    const confirmed = await confirm({
       title: '克隆角色',
       message: `确定要克隆角色"${sourceRole.name}"吗？`,
-      type: 'normal'
+      tone: 'normal'
     })
     if (!confirmed) return
 
@@ -1012,10 +976,10 @@ const deleteRole = async () => {
   
   roleOperation.value = 'delete'
   try {
-    const confirmed = await showConfirm({
+    const confirmed = await confirm({
       title: '删除角色',
       message: `确定要删除角色"${roleToDelete.name}"吗？此操作不可撤销。`,
-      type: 'danger'
+      tone: 'danger'
     })
     if (!confirmed) return
 

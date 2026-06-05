@@ -857,6 +857,27 @@ test('RolesView keeps role operation failures visible', () => {
   assert.doesNotMatch(source, /message\.error\('导入失败: ' \+ \(e instanceof Error \? e\.message : String\(e\)\)\)/)
 })
 
+test('RolesView uses shared confirmation for role mutations', () => {
+  const source = readClientFile('./components/RolesView.vue')
+
+  assert.match(source, /import \{ useConfirm \} from '\.\.\/composables\/use-confirm'/)
+  assert.match(source, /import ConfirmDialog from '\.\/primitives\/ConfirmDialog\.vue'/)
+  assert.match(source, /<ConfirmDialog\b/)
+  assert.match(source, /:open="confirmDialog\.open"/)
+  assert.match(source, /:tone="confirmDialog\.tone"/)
+  assert.match(source, /@confirm="acceptConfirm"/)
+  assert.match(source, /@cancel="cancelConfirm"/)
+  assert.match(source, /state: confirmDialog,[\s\S]*confirm,[\s\S]*accept: acceptConfirm,[\s\S]*cancel: cancelConfirm,[\s\S]*\} = useConfirm\(\)/)
+  assert.match(source, /const confirmed = await confirm\(\{\s*title: '未保存的修改'[\s\S]*tone: 'danger'/)
+  assert.match(source, /const confirmed = await confirm\(\{\s*title: '重置更改'[\s\S]*tone: 'normal'/)
+  assert.match(source, /const confirmed = await confirm\(\{\s*title: '克隆角色'[\s\S]*tone: 'normal'/)
+  assert.match(source, /const confirmed = await confirm\(\{\s*title: '删除角色'[\s\S]*tone: 'danger'/)
+  assert.doesNotMatch(source, /const confirmDialog = ref\(\{/)
+  assert.doesNotMatch(source, /const showConfirm =/)
+  assert.doesNotMatch(source, /const doConfirm =/)
+  assert.doesNotMatch(source, /confirmDialog\.show/)
+})
+
 test('RolesView prevents duplicate role lifecycle mutations', () => {
   const source = readClientFile('./components/RolesView.vue')
 

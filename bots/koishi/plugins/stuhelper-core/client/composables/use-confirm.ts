@@ -34,7 +34,7 @@ export function useConfirm() {
 
   function confirm(options: ConfirmOptions): Promise<boolean> {
     if (resolvePending) {
-      throw new Error('A confirmation dialog is already open.')
+      return Promise.resolve(false)
     }
 
     state.value = {
