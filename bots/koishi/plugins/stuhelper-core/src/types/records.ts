@@ -8,7 +8,7 @@ export interface CommandLogEntry {
 }
 
 export interface CommandLogData {
-  logs: CommandLogEntry[]
+  logs: unknown[]
   [key: string]: unknown
 }
 

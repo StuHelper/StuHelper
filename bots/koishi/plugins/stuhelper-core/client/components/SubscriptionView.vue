@@ -20,6 +20,7 @@
         <el-button
           type="primary"
           class="sh-button sh-button--primary"
+          :disabled="loading || initialLoadBlocked"
           @click="openCreate"
         >
           添加订阅
@@ -29,49 +30,85 @@
 
     <ConsolePageSkeleton v-if="loading && subscriptions.length === 0" />
     <EmptyState
-      v-else-if="subscriptions.length === 0"
-      title="暂无订阅"
-      body="创建订阅后,群管事件会推送到指定的群或私聊会话。"
-    />
-    <WorkspaceSection
-      v-else
-      title="订阅目标"
-      description="点击任意卡片进入右侧编辑面板。"
-      :meta="`${subscriptions.length} 条`"
+      v-else-if="loadError && subscriptions.length === 0"
+      tone="error"
+      title="加载订阅失败"
+      :body="loadError"
     >
-      <div class="sh-sub-grid">
-        <button
-          v-for="(sub, index) in subscriptions"
-          :key="`${sub.type}-${sub.id}-${index}`"
-          type="button"
-          class="sh-sub-card"
-          :class="{ 'sh-sub-card--active': editingIndex === index }"
-          @click="openEdit(sub, index)"
-        >
-          <div class="sh-sub-card__head">
-            <div class="sh-sub-card__identity">
-              <span class="sh-sub-card__title">{{ sub.name || sub.id }}</span>
-              <span v-if="sub.name" class="sh-sub-card__id sh-mono">#{{ sub.id }}</span>
-            </div>
-            <SeverityTag
-              :label="sub.type === 'group' ? '群' : '私聊'"
-              :intent="sub.type === 'group' ? 'primary' : 'info'"
-            />
-          </div>
-          <ul class="sh-sub-card__features">
-            <li
-              v-for="feature in FEATURES"
-              :key="feature.key"
-              class="sh-sub-card__feature"
-              :data-active="Boolean(sub.features[feature.key])"
-            >
-              <span class="sh-sub-card__dot" aria-hidden="true"></span>
-              {{ feature.label }}
-            </li>
-          </ul>
-        </button>
+      <template #action>
+        <el-button class="sh-button sh-button--ghost" @click="refresh">重试</el-button>
+      </template>
+    </EmptyState>
+    <template v-else>
+      <div
+        v-if="loadError && subscriptions.length > 0"
+        class="sh-sub-load-error"
+        role="alert"
+      >
+        <div class="sh-sub-load-error__body">
+          <strong>刷新订阅失败</strong>
+          <span>{{ loadError }}</span>
+        </div>
+        <el-button class="sh-button sh-button--ghost" @click="refresh">重试</el-button>
       </div>
-    </WorkspaceSection>
+
+      <div
+        v-if="actionError"
+        class="sh-sub-action-error"
+        role="alert"
+      >
+        <div class="sh-sub-action-error__body">
+          <strong>{{ actionErrorTitle }}</strong>
+          <span>{{ actionError }}</span>
+        </div>
+        <el-button class="sh-button sh-button--ghost" @click="clearActionError">关闭</el-button>
+      </div>
+
+      <EmptyState
+        v-if="subscriptions.length === 0"
+        title="暂无订阅"
+        body="创建订阅后,群管事件会推送到指定的群或私聊会话。"
+      />
+      <WorkspaceSection
+        v-else
+        title="订阅目标"
+        description="点击任意卡片进入右侧编辑面板。"
+        :meta="`${subscriptions.length} 条`"
+      >
+        <div class="sh-sub-grid">
+          <button
+            v-for="(sub, index) in subscriptions"
+            :key="`${sub.type}-${sub.id}-${index}`"
+            type="button"
+            class="sh-sub-card"
+            :class="{ 'sh-sub-card--active': editingIndex === index }"
+            @click="openEdit(sub, index)"
+          >
+            <div class="sh-sub-card__head">
+              <div class="sh-sub-card__identity">
+                <span class="sh-sub-card__title">{{ sub.name || sub.id }}</span>
+                <span v-if="sub.name" class="sh-sub-card__id sh-mono">#{{ sub.id }}</span>
+              </div>
+              <SeverityTag
+                :label="sub.type === 'group' ? '群' : '私聊'"
+                :intent="sub.type === 'group' ? 'primary' : 'info'"
+              />
+            </div>
+            <ul class="sh-sub-card__features">
+              <li
+                v-for="feature in FEATURES"
+                :key="feature.key"
+                class="sh-sub-card__feature"
+                :data-active="Boolean(sub.features[feature.key])"
+              >
+                <span class="sh-sub-card__dot" aria-hidden="true"></span>
+                {{ feature.label }}
+              </li>
+            </ul>
+          </button>
+        </div>
+      </WorkspaceSection>
+    </template>
 
     <Drawer
       :open="formOpen"
@@ -80,6 +117,18 @@
       @close="closeForm"
       @closed="handleFormClosed"
     >
+      <div
+        v-if="actionError"
+        class="sh-sub-action-error sh-sub-action-error--drawer"
+        role="alert"
+      >
+        <div class="sh-sub-action-error__body">
+          <strong>{{ actionErrorTitle }}</strong>
+          <span>{{ actionError }}</span>
+        </div>
+        <el-button class="sh-button sh-button--ghost" @click="clearActionError">关闭</el-button>
+      </div>
+
       <section class="sh-drawer__section">
         <h4 class="sh-drawer__section-title">基本信息</h4>
         <label class="sh-field">
@@ -201,6 +250,10 @@ const subscriptions = ref<Subscription[]>([])
 const notices = ref<NoticeItem[]>([])
 const editingIndex = ref<number>(-1)
 const lastSync = ref('')
+const loadError = ref('')
+const actionError = ref('')
+const actionErrorTitle = ref('操作失败')
+let refreshRequestSeq = 0
 const draft = reactive<Subscription>({
   type: 'group',
   id: '',
@@ -209,6 +262,7 @@ const draft = reactive<Subscription>({
 
 const isEdit = computed(() => editingIndex.value >= 0)
 const canSave = computed(() => Boolean(draft.id.trim()))
+const initialLoadBlocked = computed(() => Boolean(loadError.value && subscriptions.value.length === 0))
 
 const headerChips = computed<WorkspaceHeadChip[]>(() => {
   const chips: WorkspaceHeadChip[] = [
@@ -223,18 +277,31 @@ const headerChips = computed<WorkspaceHeadChip[]>(() => {
 onMounted(refresh)
 
 async function refresh() {
+  const requestSeq = ++refreshRequestSeq
   loading.value = true
+  loadError.value = ''
   try {
-    subscriptions.value = await subscriptionApi.list(fetchNames.value)
+    const next = await subscriptionApi.list(fetchNames.value)
+    if (requestSeq !== refreshRequestSeq) return
+    subscriptions.value = next
     lastSync.value = formatTimestamp(Date.now())
   } catch (cause) {
-    pushError(cause, '加载订阅失败')
+    if (requestSeq !== refreshRequestSeq) return
+    const details = errorMessage(cause, '加载订阅失败')
+    loadError.value = details
+    pushError('加载订阅失败', details)
   } finally {
-    loading.value = false
+    if (requestSeq === refreshRequestSeq) {
+      loading.value = false
+    }
   }
 }
 
 function openCreate() {
+  if (initialLoadBlocked.value) {
+    pushError('订阅尚未加载', '订阅尚未加载，无法添加订阅')
+    return
+  }
   resetDraft()
   formOpen.value = true
 }
@@ -267,8 +334,9 @@ function toggleFeature(key: FeatureKey, value: boolean) {
 }
 
 async function save() {
-  if (!canSave.value) return
+  if (!canSave.value || saving.value) return
   saving.value = true
+  clearActionError()
   try {
     const payload: Subscription = {
       type: draft.type,
@@ -285,7 +353,7 @@ async function save() {
     formOpen.value = false
     await refresh()
   } catch (cause) {
-    pushError(cause, isEdit.value ? '更新失败' : '添加失败')
+    setActionError(isEdit.value ? '更新失败' : '添加失败', cause, isEdit.value ? '更新失败' : '添加失败')
   } finally {
     saving.value = false
   }
@@ -293,13 +361,14 @@ async function save() {
 
 async function confirmRemove() {
   if (editingIndex.value < 0) return
+  clearActionError()
   try {
     await subscriptionApi.remove(editingIndex.value)
     pushSuccess('订阅已删除')
     formOpen.value = false
     await refresh()
   } catch (cause) {
-    pushError(cause, '删除失败')
+    setActionError('删除失败', cause, '删除失败')
   }
 }
 
@@ -308,10 +377,28 @@ function pushSuccess(message: string) {
   scheduleDismiss()
 }
 
-function pushError(cause: unknown, fallback: string) {
-  const message = cause instanceof Error ? cause.message : fallback
-  notices.value.push({ id: noticeId(), kind: 'error', message })
+function pushError(title: string, message: string) {
+  notices.value.push({ id: noticeId(), kind: 'error', title, message })
   scheduleDismiss()
+}
+
+function setActionError(title: string, cause: unknown, fallback: string) {
+  const message = errorMessage(cause, fallback)
+  actionErrorTitle.value = title
+  actionError.value = message
+  notices.value.push({ id: noticeId(), kind: 'error', title, message })
+  scheduleDismiss()
+}
+
+function clearActionError() {
+  actionErrorTitle.value = '操作失败'
+  actionError.value = ''
+}
+
+function errorMessage(cause: unknown, fallback: string): string {
+  if (cause instanceof Error && cause.message) return cause.message
+  if (typeof cause === 'string' && cause.trim()) return cause
+  return fallback
 }
 
 function dismissNotice(id: string) {
@@ -330,6 +417,43 @@ function noticeId(): string {
 </script>
 
 <style scoped>
+.sh-sub-load-error,
+.sh-sub-action-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sh-s-3);
+  padding: var(--sh-s-3) var(--sh-s-4);
+  border: 1px solid rgba(248, 81, 73, 0.28);
+  border-radius: var(--sh-r-2);
+  background: rgba(248, 81, 73, 0.08);
+}
+
+.sh-sub-action-error--drawer {
+  margin-bottom: var(--sh-s-4);
+}
+
+.sh-sub-load-error__body,
+.sh-sub-action-error__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sh-sub-load-error__body strong,
+.sh-sub-action-error__body strong {
+  color: #ff8a80;
+  font-size: var(--sh-t-body);
+}
+
+.sh-sub-load-error__body span,
+.sh-sub-action-error__body span {
+  color: var(--sh-fg-2);
+  font-size: var(--sh-t-meta);
+  overflow-wrap: anywhere;
+}
+
 .sh-sub-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));

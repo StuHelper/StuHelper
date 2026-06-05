@@ -14,6 +14,9 @@ import {
   createPolicyForm,
   createTemplateForm,
   splitCommaTokens,
+  validateBindingForm,
+  validatePolicyForm,
+  validateTemplateForm,
   type BindingFormState,
   type PolicyFormState,
   type TemplateFormState,
@@ -22,7 +25,7 @@ import {
   cloneBindingForm,
   clonePolicyForm,
   cloneTemplateForm,
-  confirmDiscardChanges,
+  DISCARD_CHANGES_MESSAGE,
   isBindingFormDirty,
   isPolicyFormDirty,
   isTemplateFormDirty,
@@ -30,13 +33,20 @@ import {
 import { buildConfigGovernanceModel } from '../models/config'
 
 type WorkspaceId = 'guild-config' | 'templates' | 'bindings' | 'command-policies'
+type ConfirmDiscardChanges = (message: string) => boolean | Promise<boolean>
 
-export function useConfigGovernance(navigation?: ConsoleNavigationController) {
+export function useConfigGovernance(
+  navigation: ConsoleNavigationController | undefined,
+  confirmDiscardChanges: ConfirmDiscardChanges,
+) {
   const loading = ref(false)
   const error = ref('')
+  const actionError = ref('')
+  const actionErrorTitle = ref('操作失败')
   const data = ref<ConfigGovernancePageData | null>(null)
   const currentWorkspace = ref<WorkspaceId>('guild-config')
   const notice = ref('')
+  const confirmingDiscard = ref(false)
   const submittingTemplate = ref(false)
   const submittingBinding = ref(false)
   const submittingPolicy = ref(false)
@@ -46,6 +56,7 @@ export function useConfigGovernance(navigation?: ConsoleNavigationController) {
   const templateForm = reactive<TemplateFormState>(createTemplateForm())
   const bindingForm = reactive<BindingFormState>(createBindingForm())
   const policyForm = reactive<PolicyFormState>(createPolicyForm())
+  let loadRequestSeq = 0
 
   const configModel = computed(() => data.value ? buildConfigGovernanceModel(data.value, { workspace: currentWorkspace.value }) : null)
   const templateDirty = computed(() => isTemplateFormDirty(templateForm, templateSnapshot.value))
@@ -83,9 +94,12 @@ export function useConfigGovernance(navigation?: ConsoleNavigationController) {
   return {
     loading,
     error,
+    actionError,
+    actionErrorTitle,
     data,
     currentWorkspace,
     notice,
+    confirmingDiscard,
     submittingTemplate,
     submittingBinding,
     submittingPolicy,
@@ -102,6 +116,7 @@ export function useConfigGovernance(navigation?: ConsoleNavigationController) {
     submitTemplate,
     submitBinding,
     submitPolicy,
+    clearActionError,
   }
 
   function handleBeforeUnload(event: BeforeUnloadEvent) {
@@ -111,29 +126,46 @@ export function useConfigGovernance(navigation?: ConsoleNavigationController) {
   }
 
   async function loadData() {
+    const requestSeq = ++loadRequestSeq
     loading.value = true
     error.value = ''
+    clearActionError()
     try {
-      data.value = await consolePageApi.configGovernance()
+      const next = await consolePageApi.configGovernance()
+      if (requestSeq !== loadRequestSeq) return
+      data.value = next
     } catch (cause) {
-      error.value = cause instanceof Error ? cause.message : String(cause)
+      if (requestSeq !== loadRequestSeq) return
+      error.value = errorMessage(cause, '加载配置治理数据失败')
     } finally {
-      loading.value = false
+      if (requestSeq === loadRequestSeq) {
+        loading.value = false
+      }
     }
   }
 
-  function selectWorkspace(workspace: WorkspaceId) {
+  async function selectWorkspace(workspace: WorkspaceId) {
     if (workspace === currentWorkspace.value) return
-    if (!confirmCurrentDiscard()) return
+    if (!(await confirmCurrentDiscard())) return
     currentWorkspace.value = workspace
     navigation?.replaceState({ workspace })
   }
 
-  function confirmCurrentDiscard() {
+  async function confirmCurrentDiscard() {
     if (!currentDirty.value) return true
-    if (!confirmDiscardChanges(true, window.confirm)) return false
+    if (!(await requestDiscardConfirmation())) return false
     discardCurrentChanges()
     return true
+  }
+
+  async function requestDiscardConfirmation() {
+    if (confirmingDiscard.value) return false
+    confirmingDiscard.value = true
+    try {
+      return await confirmDiscardChanges(DISCARD_CHANGES_MESSAGE)
+    } finally {
+      confirmingDiscard.value = false
+    }
   }
 
   function discardCurrentChanges() {
@@ -157,28 +189,29 @@ export function useConfigGovernance(navigation?: ConsoleNavigationController) {
     assignPolicyFormState(policyForm, policySnapshot.value)
   }
 
-  function loadTemplate(item: ConfigGovernancePageData['templates'][number]) {
-    if (templateDirty.value && templateForm.id !== item.id && !confirmDiscardChanges(true, window.confirm)) return
+  async function loadTemplate(item: ConfigGovernancePageData['templates'][number]) {
+    if (templateDirty.value && templateForm.id !== item.id && !(await requestDiscardConfirmation())) return
     assignTemplateForm(templateForm, item)
     templateSnapshot.value = cloneTemplateForm(templateForm)
   }
 
-  function loadBinding(item: ConfigGovernancePageData['bindings'][number]) {
+  async function loadBinding(item: ConfigGovernancePageData['bindings'][number]) {
     const isSame = bindingForm.guildId === item.guildId && bindingForm.platform === item.platform
-    if (bindingDirty.value && !isSame && !confirmDiscardChanges(true, window.confirm)) return
+    if (bindingDirty.value && !isSame && !(await requestDiscardConfirmation())) return
     assignBindingForm(bindingForm, item)
     bindingSnapshot.value = cloneBindingForm(bindingForm)
   }
 
-  function loadPolicy(item: ConfigGovernancePageData['commandPolicies'][number]) {
-    if (policyDirty.value && policyForm.commandId !== item.commandId && !confirmDiscardChanges(true, window.confirm)) return
+  async function loadPolicy(item: ConfigGovernancePageData['commandPolicies'][number]) {
+    if (policyDirty.value && policyForm.commandId !== item.commandId && !(await requestDiscardConfirmation())) return
     assignPolicyForm(policyForm, item)
     policySnapshot.value = clonePolicyForm(policyForm)
   }
 
   async function submitTemplate() {
+    if (!validateBeforeSubmit('保存模板失败', validateTemplateForm(templateForm))) return
     submittingTemplate.value = true
-    await submit(async () => {
+    await submit('保存模板失败', async () => {
       notice.value = await consolePageApi.saveGuardTemplate({
         id: templateForm.id,
         name: templateForm.name,
@@ -196,8 +229,9 @@ export function useConfigGovernance(navigation?: ConsoleNavigationController) {
   }
 
   async function submitBinding() {
+    if (!validateBeforeSubmit('保存绑定失败', validateBindingForm(bindingForm))) return
     submittingBinding.value = true
-    await submit(async () => {
+    await submit('保存绑定失败', async () => {
       notice.value = await consolePageApi.saveGuardBinding({
         platform: bindingForm.platform,
         guildId: bindingForm.guildId,
@@ -213,8 +247,9 @@ export function useConfigGovernance(navigation?: ConsoleNavigationController) {
   }
 
   async function submitPolicy() {
+    if (!validateBeforeSubmit('保存策略失败', validatePolicyForm(policyForm))) return
     submittingPolicy.value = true
-    await submit(async () => {
+    await submit('保存策略失败', async () => {
       notice.value = await consolePageApi.saveCommandPolicy({
         commandId: policyForm.commandId,
         minAuthority: Number(policyForm.minAuthority),
@@ -227,15 +262,40 @@ export function useConfigGovernance(navigation?: ConsoleNavigationController) {
     })
   }
 
-  async function submit(action: () => Promise<void>, done: () => void) {
+  async function submit(title: string, action: () => Promise<void>, done: () => void) {
     notice.value = ''
-    error.value = ''
+    clearActionError()
     try {
       await action()
     } catch (cause) {
-      error.value = cause instanceof Error ? cause.message : String(cause)
+      setActionError(title, cause, title)
     } finally {
       done()
     }
+  }
+
+  function validateBeforeSubmit(title: string, validationError: string) {
+    notice.value = ''
+    clearActionError()
+    if (!validationError) return true
+    setActionError(title, validationError, title)
+    return false
+  }
+
+  function setActionError(title: string, cause: unknown, fallback: string) {
+    actionErrorTitle.value = title
+    actionError.value = errorMessage(cause, fallback)
+  }
+
+  function clearActionError() {
+    actionErrorTitle.value = '操作失败'
+    actionError.value = ''
+  }
+
+  function errorMessage(cause: unknown, fallback: string): string {
+    if (cause instanceof Error && cause.message) return cause.message
+    if (typeof cause === 'string' && cause.trim()) return cause
+    if (cause === undefined || cause === null) return fallback
+    return String(cause)
   }
 }

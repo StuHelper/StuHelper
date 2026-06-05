@@ -375,6 +375,69 @@ test('legacy log search filters records to the console scope', async () => {
   await assertRejectsScope(listeners, 'stuhelperGroupCenter/logs/search', { guildId: '2002' })
 })
 
+test('legacy log search falls back to data store when log runtime module is absent', async () => {
+  const listeners = new Map<string, Listener>()
+  const ctx = createContext(listeners)
+  const service = createService(['1001'])
+  service.getAllModules = () => []
+  service.data.commandLogs = createMapStore({
+    logs: [
+      {
+        timestamp: 1_787_803_200_000,
+        guildId: '1001',
+        userId: 'u1',
+        command: 'fallback',
+        target: 'command',
+        details: 'loaded from data store',
+      },
+      {
+        timestamp: 1_787_803_201_000,
+        guildId: '2002',
+        userId: 'u2',
+        command: 'hidden',
+        target: 'command',
+        details: 'outside scope',
+      },
+    ],
+  })
+
+  registerTestWebSocketAPI(ctx as any, service as any)
+
+  const logs = await callListener(listeners, 'stuhelperGroupCenter/logs/search', {})
+
+  assert.equal(logs.success, true)
+  assert.equal(logs.data.total, 1)
+  assert.equal(logs.data.list[0].command, 'fallback')
+  assert.equal(logs.data.list[0].result, 'loaded from data store')
+})
+
+test('chart stats falls back to data store when log runtime module is absent', async () => {
+  const listeners = new Map<string, Listener>()
+  const ctx = createContext(listeners)
+  const service = createService(['1001'])
+  service.getAllModules = () => []
+  service.data.commandLogs = createMapStore({
+    logs: [
+      {
+        timestamp: Date.now(),
+        guildId: '1001',
+        userId: 'u1',
+        command: 'fallback',
+        target: 'command',
+        details: 'loaded from data store',
+      },
+    ],
+  })
+
+  registerTestWebSocketAPI(ctx as any, service as any)
+
+  const charts = await callListener(listeners, 'stuhelperGroupCenter/stats/charts', { days: 1 })
+
+  assert.equal(charts.success, true)
+  assert.deepEqual(charts.data.distribution, [{ command: 'fallback', count: 1 }])
+  assert.deepEqual(charts.data.successRate, { success: 1, fail: 0 })
+})
+
 test('legacy auth read APIs enforce the console scope', async () => {
   const listeners = new Map<string, Listener>()
   const ctx = createContext(listeners)
@@ -648,6 +711,9 @@ function createService(guildIds: string[]) {
           { type: 'group', id: '1001', features: {} },
           { type: 'group', id: '2002', features: {} },
         ],
+      }),
+      commandLogs: createMapStore({
+        logs: [],
       }),
     },
     auth: {

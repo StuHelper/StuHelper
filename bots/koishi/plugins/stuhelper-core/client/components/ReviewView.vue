@@ -24,14 +24,26 @@
     </header>
 
     <EmptyState
-      v-if="error"
-      title="加载失败"
+      v-if="error && !data"
+      title="加载处置中心数据失败"
       :body="error"
       tone="error"
-    />
+    >
+      <template #action>
+        <el-button class="sh-button sh-button--ghost" @click="loadData">重试</el-button>
+      </template>
+    </EmptyState>
     <ConsolePageSkeleton v-else-if="loading && !data" />
 
     <template v-else-if="data">
+      <div v-if="error" class="sh-load-error" role="alert">
+        <div class="sh-load-error__body">
+          <strong>刷新处置中心数据失败</strong>
+          <span>{{ error }}</span>
+        </div>
+        <el-button class="sh-button sh-button--ghost" @click="loadData">重试</el-button>
+      </div>
+
       <section class="sh-dashboard-metrics">
         <article
           v-for="(metric, index) in metrics"
@@ -164,6 +176,10 @@
               />
             </div>
 
+            <p v-if="actionError" class="sh-review__action-error" role="alert">
+              {{ actionError }}
+            </p>
+
             <div class="sh-btn-row sh-review__actions">
               <el-button
                 v-for="(action, actionIndex) in selectedItem.availableActions"
@@ -226,6 +242,7 @@ const guildFilter = ref('')
 const keyword = ref('')
 const selectedItemId = ref('')
 const reviewNote = ref('')
+const actionError = ref('')
 const actionLoading = ref(false)
 const {
   state: confirmDialog,
@@ -247,6 +264,7 @@ const metrics = computed(() => model.value?.metrics ?? [])
 const filteredItems = computed(() => model.value?.filteredItems ?? [])
 const selectedItem = computed(() => model.value?.selectedItem ?? null)
 const relatedEvents = computed(() => model.value?.relatedEvents ?? [])
+let loadRequestSeq = 0
 
 loadData()
 
@@ -261,16 +279,23 @@ watch(
 )
 
 async function loadData() {
+  const requestSeq = ++loadRequestSeq
   loading.value = true
   error.value = ''
   try {
-    data.value = await consolePageApi.review()
+    const next = await consolePageApi.review()
+    if (requestSeq !== loadRequestSeq) return
+    data.value = next
+    actionError.value = ''
     applyNavigationState()
     syncSelection()
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : String(cause)
+    if (requestSeq !== loadRequestSeq) return
+    error.value = errorMessage(cause, '加载处置中心数据失败')
   } finally {
-    loading.value = false
+    if (requestSeq === loadRequestSeq) {
+      loading.value = false
+    }
   }
 }
 
@@ -296,6 +321,7 @@ function navigationStateKey(): string {
 
 function selectItem(itemId: string) {
   selectedItemId.value = itemId
+  actionError.value = ''
   syncSelection()
 }
 
@@ -334,7 +360,7 @@ async function submitAction(action: ReviewWorkItem['availableActions'][number]) 
   if (!confirmed) return
 
   actionLoading.value = true
-  error.value = ''
+  actionError.value = ''
   try {
     const result = await consolePageApi.workItemAction({
       kind: item.kind,
@@ -347,11 +373,17 @@ async function submitAction(action: ReviewWorkItem['availableActions'][number]) 
     await loadData()
     syncSelection()
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : String(cause)
-    message.error(error.value || '处置失败')
+    actionError.value = errorMessage(cause, '处置失败')
+    message.error(actionError.value)
   } finally {
     actionLoading.value = false
   }
+}
+
+function errorMessage(cause: unknown, fallback: string): string {
+  if (cause instanceof Error && cause.message) return cause.message
+  if (typeof cause === 'string' && cause.trim()) return cause
+  return fallback
 }
 
 function metricIntent(index: number, value: number): string {
@@ -407,6 +439,16 @@ function actionConfirmTone(action: string): ConfirmTone {
 
 .sh-review__actions {
   justify-content: flex-end;
+}
+
+.sh-review__action-error {
+  margin: 0;
+  padding: var(--sh-s-3);
+  border: 1px solid color-mix(in srgb, var(--sh-danger) 38%, transparent);
+  border-radius: var(--sh-radius-md);
+  background: color-mix(in srgb, var(--sh-danger) 10%, transparent);
+  color: var(--sh-danger);
+  font-size: var(--sh-t-body);
 }
 
 .sh-lane__body {

@@ -39,7 +39,7 @@
           </div>
 
           <div v-else-if="state.error" class="sh-overlay__error">
-            <strong>加载失败</strong>
+            <strong>加载实体资料失败</strong>
             <p>{{ state.error }}</p>
             <button type="button" class="sh-overlay__retry" @click="reload">重试</button>
           </div>
@@ -243,6 +243,7 @@ const shell = useAppShell()
 
 const open = computed(() => shell.entityTarget.value !== null)
 const display = ref<EntityRef | null>(null)
+let loadRequestSeq = 0
 
 interface ProfileState {
   loading: boolean
@@ -265,9 +266,11 @@ watch(
       display.value = next
       void loadProfile(next)
     } else {
+      const requestSeq = ++loadRequestSeq
       window.setTimeout(() => {
-        if (shell.entityTarget.value === null) {
+        if (shell.entityTarget.value === null && requestSeq === loadRequestSeq) {
           display.value = null
+          state.loading = false
           state.profile = null
           state.error = ''
           state.loadedKey = null
@@ -328,6 +331,7 @@ const jumps = computed<readonly JumpDef[]>(() => {
 })
 
 async function loadProfile(target: EntityRef) {
+  const requestSeq = ++loadRequestSeq
   const key = entityKey(target)
   state.loading = true
   state.error = ''
@@ -340,19 +344,27 @@ async function loadProfile(target: EntityRef) {
       id: target.id,
       guildId: target.guildId,
     })
+    if (requestSeq !== loadRequestSeq) return
     if (entityKey(shell.entityTarget.value) === key) {
       state.profile = profile
       state.loadedKey = key
     }
   } catch (cause) {
+    if (requestSeq !== loadRequestSeq) return
     if (entityKey(shell.entityTarget.value) === key) {
-      state.error = cause instanceof Error ? cause.message : '加载失败'
+      state.error = errorMessage(cause, '加载实体资料失败')
     }
   } finally {
-    if (entityKey(shell.entityTarget.value) === key) {
+    if (requestSeq === loadRequestSeq && entityKey(shell.entityTarget.value) === key) {
       state.loading = false
     }
   }
+}
+
+function errorMessage(cause: unknown, fallback: string): string {
+  if (cause instanceof Error && cause.message) return cause.message
+  if (typeof cause === 'string' && cause.trim()) return cause
+  return fallback
 }
 
 function entityKey(target: EntityRef | null): string | null {

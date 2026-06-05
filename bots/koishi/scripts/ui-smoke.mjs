@@ -520,7 +520,7 @@ async function seedIdentityGuardMembers(ctx) {
 
 function guardMemberRecord(input) {
   return {
-    platform: 'onebot',
+    platform: 'qq',
     botSelfId: '514',
     admissionSessionID: 'session-' + input.id,
     backendSyncPending: false,
@@ -662,6 +662,26 @@ function emitChatMessage(ctx, input) {
 
 async function seedSmokeData(dataDir) {
   await mkdir(dataDir, { recursive: true })
+  await writeFile(join(dataDir, 'group_config.json'), JSON.stringify({
+    190001: {
+      approvalKeywords: ['legacy-pass'],
+      keywords: ['legacy-spam'],
+      auto: 'false',
+      reject: '旧配置拒绝提示',
+      forbidden: {
+        autoDelete: true,
+        autoBan: false,
+        autoKick: false,
+        muteDuration: 3000,
+      },
+      banme: {
+        enabled: false,
+        baseMin: 2,
+        baseMax: 15,
+        growthRate: 10,
+      },
+    },
+  }, null, 2))
   await writeFile(join(dataDir, 'command_logs.json'), JSON.stringify([
     {
       id: 'ui-smoke-command-log-1',
@@ -748,6 +768,57 @@ function startPlatformStub() {
       return
     }
 
+    if (method === 'GET' && url.pathname === '/api/v1/bot/admission/sessions/member') {
+      writeJSON(response, admissionSessionForMember({
+        platform: url.searchParams.get('platform') || 'qq',
+        guildID: url.searchParams.get('guildID') || '1001',
+        qqID: url.searchParams.get('qqID') || '200201',
+      }))
+      return
+    }
+
+    if (method === 'POST' && url.pathname === '/api/v1/bot/admission/sessions/member/resend') {
+      const body = await readJSONBody(request)
+      writeJSON(response, admissionSessionForMember(body))
+      return
+    }
+
+    if (method === 'POST' && url.pathname === '/api/v1/bot/admission/sessions/member/regenerate') {
+      const body = await readJSONBody(request)
+      writeJSON(response, {
+        session: admissionSessionForMember(body, {
+          id: 'session-regenerated-' + (body.qqID || 'unknown'),
+          authURL: 'https://join.stuhelper.com/verify/regenerated-' + (body.qqID || 'unknown'),
+          tokenExpiresAt: '2026-05-25T01:20:00.000Z',
+          linkWaitDeadlineAt: '2026-05-25T01:20:00.000Z',
+          initialMuteUntil: '2026-06-25T00:20:00.000Z',
+        }),
+        token: 'regenerated-' + (body.qqID || 'unknown'),
+        authURL: 'https://join.stuhelper.com/verify/regenerated-' + (body.qqID || 'unknown'),
+      })
+      return
+    }
+
+    if (method === 'POST' && url.pathname === '/api/v1/bot/admission/sessions/member/skip') {
+      const body = await readJSONBody(request)
+      writeJSON(response, admissionSessionForMember(body, {
+        status: 'cancelled',
+        cancelledAt: new Date(0).toISOString(),
+      }))
+      return
+    }
+
+    if (method === 'POST' && url.pathname === '/api/v1/bot/admission/failures/reset') {
+      const body = await readJSONBody(request)
+      writeJSON(response, {
+        platform: body.platform || 'qq',
+        guildID: body.guildID || '1001',
+        qqID: body.qqID || '200201',
+        previousFailureCount: 2,
+      })
+      return
+    }
+
     if (method === 'GET' && url.pathname === '/api/v1/bot/admission/sessions/pending') {
       writeJSON(response, [])
       return
@@ -813,6 +884,37 @@ function qqVerificationStatus(qqID) {
     verificationState: 'unbound',
     profileVerificationStatus: 'unverified',
     studentVerified: false,
+  }
+}
+
+function admissionSessionForMember(input, overrides = {}) {
+  const qqID = String(input.qqID || '200201')
+  const guildID = String(input.guildID || '1001')
+  const platform = String(input.platform || 'qq')
+  const id = String(overrides.id || 'session-ui-smoke-' + qqID)
+  return {
+    id,
+    platform,
+    guildID,
+    channelID: String(input.channelID || guildID),
+    botSelfID: String(input.botSelfID || '514'),
+    qqID,
+    userID: overrides.userID ?? null,
+    status: overrides.status || 'linked',
+    authURL: overrides.authURL || 'https://join.stuhelper.com/verify/' + id,
+    tokenExpiresAt: overrides.tokenExpiresAt || '2026-05-25T01:00:00.000Z',
+    tokenConsumedAt: overrides.tokenConsumedAt ?? null,
+    linkWaitDeadlineAt: overrides.linkWaitDeadlineAt || '2026-05-25T01:00:00.000Z',
+    submissionWaitDeadlineAt: overrides.submissionWaitDeadlineAt || '2026-05-25T01:10:00.000Z',
+    manualReviewDeadlineAt: overrides.manualReviewDeadlineAt ?? null,
+    initialMuteUntil: overrides.initialMuteUntil || '2026-06-25T00:20:00.000Z',
+    verifiedAt: overrides.verifiedAt ?? null,
+    cancelledAt: overrides.cancelledAt ?? null,
+    failureCount: overrides.failureCount ?? 1,
+    remainingRetryCount: overrides.remainingRetryCount ?? 2,
+    willBlacklistOnTimeout: overrides.willBlacklistOnTimeout ?? false,
+    createdAt: overrides.createdAt || '2026-05-25T00:20:00.000Z',
+    updatedAt: overrides.updatedAt || '2026-05-25T00:20:00.000Z',
   }
 }
 

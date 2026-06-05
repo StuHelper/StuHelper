@@ -24,14 +24,26 @@
     </header>
 
     <EmptyState
-      v-if="error"
-      title="加载失败"
+      v-if="error && !data"
+      title="加载入群认证数据失败"
       :body="error"
       tone="error"
-    />
+    >
+      <template #action>
+        <el-button class="sh-button sh-button--ghost" @click="loadData">重试</el-button>
+      </template>
+    </EmptyState>
     <ConsolePageSkeleton v-else-if="loading && !data" />
 
     <template v-else-if="data && model">
+      <div v-if="error" class="sh-load-error" role="alert">
+        <div class="sh-load-error__body">
+          <strong>刷新入群认证数据失败</strong>
+          <span>{{ error }}</span>
+        </div>
+        <el-button class="sh-button sh-button--ghost" @click="loadData">重试</el-button>
+      </div>
+
       <section class="sh-dashboard-metrics">
         <article
           v-for="metric in model.metrics"
@@ -75,6 +87,7 @@
             </div>
           </div>
           <p v-if="settingsNotice" class="sh-field__hint sh-admission__notice">{{ settingsNotice }}</p>
+          <p v-if="settingsError" class="sh-admission__error" role="alert">{{ settingsError }}</p>
         </WorkspaceSection>
 
         <WorkspaceSection
@@ -268,14 +281,28 @@
           </el-table>
         </div>
         <p v-if="notice" class="sh-field__hint sh-admission__notice">{{ notice }}</p>
+        <p v-if="actionError" class="sh-admission__error" role="alert">{{ actionError }}</p>
       </WorkspaceSection>
     </template>
+
+    <ConfirmDialog
+      :open="confirmDialog.open"
+      :title="confirmDialog.title"
+      :message="confirmDialog.message"
+      :tone="confirmDialog.tone"
+      :confirm-text="confirmDialog.confirmText"
+      :cancel-text="confirmDialog.cancelText"
+      @confirm="acceptConfirm"
+      @cancel="cancelConfirm"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
+import { message } from '@koishijs/client'
 import { computed, ref } from 'vue'
 
+import { useConfirm } from '../composables/use-confirm'
 import { consolePageApi } from '../page-api'
 import { formatTimestamp } from '../models/formatters'
 import {
@@ -287,6 +314,7 @@ import {
   type AdmissionRuntimeSettingsPatch,
   type AdmissionSwitchRow,
 } from '../models/admission-runtime'
+import ConfirmDialog from './primitives/ConfirmDialog.vue'
 import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
 import EmptyState from './primitives/EmptyState.vue'
 import EntityChip from './primitives/EntityChip.vue'
@@ -297,23 +325,35 @@ const loading = ref(false)
 const error = ref('')
 const notice = ref('')
 const settingsNotice = ref('')
+const actionError = ref('')
+const settingsError = ref('')
 const actionLoadingKey = ref('')
 const settingLoadingKey = ref('')
 const data = ref<AdmissionRuntimePageData | null>(null)
+let loadRequestSeq = 0
+const { state: confirmDialog, confirm, accept: acceptConfirm, cancel: cancelConfirm } = useConfirm()
 
 const model = computed(() => data.value ? buildAdmissionRuntimeModel(data.value) : null)
 
 loadData()
 
 async function loadData() {
+  const requestSeq = ++loadRequestSeq
   loading.value = true
   error.value = ''
   try {
-    data.value = await consolePageApi.admissionRuntime()
+    const next = await consolePageApi.admissionRuntime()
+    if (requestSeq !== loadRequestSeq) return
+    data.value = next
+    actionError.value = ''
+    settingsError.value = ''
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : String(cause)
+    if (requestSeq !== loadRequestSeq) return
+    error.value = errorMessage(cause, '加载入群认证数据失败')
   } finally {
-    loading.value = false
+    if (requestSeq === loadRequestSeq) {
+      loading.value = false
+    }
   }
 }
 
@@ -322,11 +362,17 @@ async function submitMemberAction(
   action: AdmissionRuntimeAction,
 ) {
   const label = actionLabel(action)
-  if (requiresConfirm(action) && !window.confirm(`确认要${label} ${member.memberId} 吗？`)) {
-    return
+  if (requiresConfirm(action)) {
+    const confirmed = await confirm({
+      title: '确认入群认证动作',
+      message: `确定要对 QQ ${member.memberId} 执行「${label}」吗？`,
+      tone: confirmationTone(action),
+      confirmText: label,
+    })
+    if (!confirmed) return
   }
   actionLoadingKey.value = `${member.id}:${action}`
-  error.value = ''
+  actionError.value = ''
   notice.value = ''
   try {
     notice.value = await consolePageApi.admissionAction({
@@ -335,7 +381,8 @@ async function submitMemberAction(
     })
     await loadData()
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : String(cause)
+    actionError.value = errorMessage(cause, '入群认证操作失败')
+    message.error(actionError.value)
   } finally {
     actionLoadingKey.value = ''
   }
@@ -344,7 +391,7 @@ async function submitMemberAction(
 async function submitRuntimeSetting(row: AdmissionSwitchRow, enabled: boolean) {
   if (!row.settingKey) return
   settingLoadingKey.value = row.settingKey
-  error.value = ''
+  settingsError.value = ''
   settingsNotice.value = ''
   const patch: AdmissionRuntimeSettingsPatch = {
     [row.settingKey]: enabled,
@@ -353,10 +400,17 @@ async function submitRuntimeSetting(row: AdmissionSwitchRow, enabled: boolean) {
     settingsNotice.value = await consolePageApi.saveAdmissionRuntimeSettings(patch)
     await loadData()
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : String(cause)
+    settingsError.value = errorMessage(cause, '保存入群认证运行开关失败')
+    message.error(settingsError.value)
   } finally {
     settingLoadingKey.value = ''
   }
+}
+
+function errorMessage(cause: unknown, fallback: string): string {
+  if (cause instanceof Error && cause.message) return cause.message
+  if (typeof cause === 'string' && cause.trim()) return cause
+  return fallback
 }
 
 function actionLabel(action: AdmissionRuntimeAction) {
@@ -378,6 +432,10 @@ function actionTone(action: AdmissionRuntimeAction) {
 
 function requiresConfirm(action: AdmissionRuntimeAction) {
   return action !== 'query'
+}
+
+function confirmationTone(action: AdmissionRuntimeAction) {
+  return action === 'skip' || action === 'release-blacklist' ? 'danger' : 'normal'
 }
 
 function metricClass(tone: AdmissionMetric['tone']) {
@@ -427,5 +485,15 @@ function formatSwitchValue(value: AdmissionSwitchRow['value']) {
 .sh-admission__notice {
   margin: 12px 0 0;
   color: var(--sh-success);
+}
+
+.sh-admission__error {
+  margin: 12px 0 0;
+  padding: var(--sh-s-3);
+  border: 1px solid color-mix(in srgb, var(--sh-danger) 38%, transparent);
+  border-radius: var(--sh-radius-md);
+  background: color-mix(in srgb, var(--sh-danger) 10%, transparent);
+  color: var(--sh-danger);
+  font-size: var(--sh-t-body);
 }
 </style>

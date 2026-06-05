@@ -40,7 +40,7 @@
           <k-icon name="refresh-cw" />
           刷新
         </button>
-        <button class="btn btn-primary" @click="showCreateDialog = true">
+        <button class="btn btn-primary" @click="openCreateDialog">
           <k-icon name="plus" />
           新建配置
         </button>
@@ -53,9 +53,30 @@
       <span>加载中...</span>
     </div>
 
+    <div v-if="!loading && loadError" class="config-load-error" role="alert">
+      <div class="config-load-error__body">
+        <strong>加载群组配置失败</strong>
+        <span>{{ loadError }}</span>
+      </div>
+      <button class="btn btn-secondary" @click="refreshConfigs">
+        <k-icon name="refresh-cw" />
+        重试
+      </button>
+    </div>
+
+    <div v-if="!loading && actionError" class="config-action-error" role="alert">
+      <div class="config-action-error__body">
+        <strong>{{ actionErrorTitle }}</strong>
+        <span>{{ actionError }}</span>
+      </div>
+      <button class="btn btn-secondary" type="button" @click="clearActionError">
+        关闭
+      </button>
+    </div>
+
     <!-- 群组列表 -->
-    <div v-else class="config-list">
-      <div v-if="Object.keys(filteredConfigs).length === 0" class="empty-state">
+    <div v-if="!loading && (!loadError || hasFilteredConfigs)" class="config-list">
+      <div v-if="!hasFilteredConfigs" class="empty-state">
         <k-icon name="inbox" class="empty-icon" />
         <p>{{ searchQuery ? '未找到匹配的群组' : '暂无群组配置' }}</p>
       </div>
@@ -192,6 +213,15 @@
           </button>
         </div>
         <div class="dialog-body">
+          <div v-if="actionError" class="config-action-error config-action-error--dialog" role="alert">
+            <div class="config-action-error__body">
+              <strong>{{ actionErrorTitle }}</strong>
+              <span>{{ actionError }}</span>
+            </div>
+            <button class="btn btn-secondary" type="button" @click="clearActionError">
+              关闭
+            </button>
+          </div>
           <div class="form-group">
             <label>群号</label>
             <input
@@ -260,6 +290,16 @@
 
           <!-- 右侧内容区 -->
           <div class="edit-content">
+            <div v-if="actionError" class="config-action-error config-action-error--dialog" role="alert">
+              <div class="config-action-error__body">
+                <strong>{{ actionErrorTitle }}</strong>
+                <span>{{ actionError }}</span>
+              </div>
+              <button class="btn btn-secondary" type="button" @click="clearActionError">
+                关闭
+              </button>
+            </div>
+
             <!-- 入群设置 -->
             <div v-show="activeTab === 'entrance'" class="config-section">
               <div class="section-title">入群欢迎</div>
@@ -648,6 +688,15 @@
           </button>
         </div>
         <div class="dialog-body">
+          <div v-if="actionError" class="config-action-error config-action-error--dialog" role="alert">
+            <div class="config-action-error__body">
+              <strong>{{ actionErrorTitle }}</strong>
+              <span>{{ actionError }}</span>
+            </div>
+            <button class="btn btn-secondary" type="button" @click="clearActionError">
+              关闭
+            </button>
+          </div>
           <p class="warning-text">警告：此操作不可撤销！</p>
           <p class="info-text">
             请输入群号
@@ -679,6 +728,7 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { message } from '@koishijs/client'
 import { configApi } from '../api'
 import type { ConsoleNavigationController } from '../composables/use-console-navigation'
+import { normalizeGroupConfigForEdit } from '../models/config-editor'
 import type { GroupConfig } from '../types'
 
 const props = defineProps<{
@@ -694,6 +744,10 @@ const fetchNames = ref(true)
 const searchQuery = ref('')
 const viewMode = ref<'grid' | 'list'>('list')
 const configs = ref<Record<string, GroupConfig>>({})
+const loadError = ref('')
+const actionError = ref('')
+const actionErrorTitle = ref('操作失败')
+let refreshRequestSeq = 0
 
 // 过滤后的配置列表
 const filteredConfigs = computed(() => {
@@ -709,6 +763,7 @@ const filteredConfigs = computed(() => {
   }
   return result
 })
+const hasFilteredConfigs = computed(() => Object.keys(filteredConfigs.value).length > 0)
 const showEditDialog = ref(false)
 const showCreateDialog = ref(false)
 const showDeleteDialog = ref(false)
@@ -731,45 +786,52 @@ const togglePlugin = (key: string) => {
   expandedPlugins.value[key] = !expandedPlugins.value[key]
 }
 
-const refreshConfigs = async () => {
+const refreshConfigs = async (): Promise<boolean> => {
+  const requestSeq = ++refreshRequestSeq
   loading.value = true
+  loadError.value = ''
+  clearActionError()
   try {
-    configs.value = await configApi.list(fetchNames.value)
+    const next = await configApi.list(fetchNames.value)
+    if (requestSeq !== refreshRequestSeq) return false
+    configs.value = next
+    return true
   } catch (cause) {
-    message.error(errorMessage(cause) || '加载配置失败')
+    if (requestSeq !== refreshRequestSeq) return false
+    const details = errorMessage(cause) || '加载配置失败'
+    loadError.value = details
+    message.error(details)
+    return false
   } finally {
-    loading.value = false
+    if (requestSeq === refreshRequestSeq) {
+      loading.value = false
+    }
   }
 }
 
 const reloadConfigs = async () => {
   reloading.value = true
+  clearActionError()
   try {
     const result = await configApi.reload()
     message.success(`已重新加载 ${result.count} 条配置`)
     await refreshConfigs()
   } catch (cause) {
-    message.error(errorMessage(cause) || '重新加载失败')
+    setActionError('重新加载失败', cause, '重新加载失败')
   } finally {
     reloading.value = false
   }
 }
 
+const openCreateDialog = () => {
+  clearActionError()
+  showCreateDialog.value = true
+}
+
 const editConfig = (guildId: string) => {
+  clearActionError()
   editingGuildId.value = guildId
-  const config = { ...configs.value[guildId] }
-  
-  // 初始化默认值
-  if (!config.antiRecall) config.antiRecall = { enabled: false }
-  if (!config.antiRepeat) config.antiRepeat = { enabled: false, threshold: 0 }
-  if (!config.forbidden) config.forbidden = { autoDelete: false, autoBan: false, autoKick: false, muteDuration: 600000 }
-  if (!config.dice) config.dice = { enabled: true, lengthLimit: 1000 }
-  if (!config.banme) config.banme = {
-    enabled: true, baseMin: 1, baseMax: 30, growthRate: 30,
-    jackpot: { enabled: true, baseProb: 0.006, softPity: 73, hardPity: 89, upDuration: '24h', loseDuration: '12h' }
-  }
-  if (!config.openai) config.openai = { enabled: true, chatEnabled: true, translateEnabled: true }
-  if (!config.report) config.report = { enabled: true, autoProcess: true, includeContext: false, contextSize: 10 }
+  const config = normalizeGroupConfigForEdit(configs.value[guildId])
 
   editingConfig.value = config
   editingApprovalKeywords.value = (config.approvalKeywords || []).join(', ')
@@ -792,6 +854,8 @@ const handleRepeatSwitch = () => {
 
 const saveConfig = async () => {
   if (!editingConfig.value) return
+
+  clearActionError()
 
   // 验证欢迎语
   if (editingConfig.value.welcomeEnabled) {
@@ -822,13 +886,14 @@ const saveConfig = async () => {
     showEditDialog.value = false
     await refreshConfigs()
   } catch (cause) {
-    message.error(errorMessage(cause) || '保存失败')
+    setActionError('保存失败', cause, '保存失败')
   } finally {
     saving.value = false
   }
 }
 
 const createConfig = async () => {
+  clearActionError()
   const guildId = newConfig.value.guildId.trim()
   if (!guildId) {
     message.warning('请输入群号')
@@ -841,16 +906,18 @@ const createConfig = async () => {
     message.success('创建成功')
     showCreateDialog.value = false
     newConfig.value.guildId = ''
-    await refreshConfigs()
-    editConfig(guildId)
+    if (await refreshConfigs()) {
+      editConfig(guildId)
+    }
   } catch (cause) {
-    message.error(errorMessage(cause) || '创建失败')
+    setActionError('创建失败', cause, '创建失败')
   } finally {
     creating.value = false
   }
 }
 
 const deleteConfig = (guildId?: string) => {
+  clearActionError()
   if (guildId) {
     editingGuildId.value = guildId
   }
@@ -862,6 +929,7 @@ const confirmDelete = async () => {
   if (deleteConfirmId.value !== editingGuildId.value) return
 
   deleting.value = true
+  clearActionError()
   try {
     await configApi.delete(editingGuildId.value)
     message.success('删除成功')
@@ -869,24 +937,67 @@ const confirmDelete = async () => {
     showEditDialog.value = false
     await refreshConfigs()
   } catch (cause) {
-    message.error(errorMessage(cause) || '删除失败')
+    setActionError('删除失败', cause, '删除失败')
   } finally {
     deleting.value = false
   }
 }
 
-function errorMessage(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause)
+function setActionError(title: string, cause: unknown, fallback: string): void {
+  const details = errorMessage(cause) || fallback
+  actionErrorTitle.value = title
+  actionError.value = details
+  message.error(details)
 }
 
-const copyGuildId = (guildId?: string) => {
+function clearActionError(): void {
+  actionErrorTitle.value = '操作失败'
+  actionError.value = ''
+}
+
+function errorMessage(cause: unknown): string {
+  if (cause instanceof Error && cause.message) return cause.message
+  if (typeof cause === 'string') return cause
+  if (cause === undefined || cause === null) return ''
+  return String(cause)
+}
+
+const copyGuildId = async (guildId?: string) => {
   const id = guildId || editingGuildId.value
-  navigator.clipboard.writeText(id)
-  message.success('已复制群号')
+  try {
+    if (!navigator.clipboard?.writeText) {
+      throw new Error('当前浏览器不支持剪贴板')
+    }
+    await navigator.clipboard.writeText(id)
+    message.success('已复制群号')
+    return
+  } catch {
+    if (copyTextWithFallback(id)) {
+      message.success('已复制群号')
+      return
+    }
+    message.error('复制失败，请手动复制')
+  }
+}
+
+function copyTextWithFallback(text: string): boolean {
+  const textarea = document.createElement('textarea')
+  try {
+    textarea.value = text
+    document.body.appendChild(textarea)
+    textarea.select()
+    return document.execCommand('copy')
+  } catch {
+    return false
+  } finally {
+    textarea.parentNode?.removeChild(textarea)
+  }
 }
 
 onMounted(() => {
-  void refreshConfigs().then(applyNavigationState)
+  void refreshConfigs().then((loaded) => {
+    if (loaded) applyNavigationState()
+  })
 })
 
 watch(
@@ -1116,6 +1227,44 @@ function applyNavigationState(): void {
   padding: 2.5rem;
   color: var(--fg3);
   font-size: 0.875rem;
+}
+
+.config-load-error,
+.config-action-error {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1rem;
+  margin-bottom: 1rem;
+  color: var(--k-color-danger);
+  background: rgba(255, 77, 79, 0.08);
+  border: 1px solid rgba(255, 77, 79, 0.22);
+  border-radius: 6px;
+}
+
+.config-action-error--dialog {
+  margin: 0 0 1rem;
+}
+
+.config-load-error__body,
+.config-action-error__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  font-size: 0.8125rem;
+}
+
+.config-load-error__body strong,
+.config-action-error__body strong {
+  font-size: 0.875rem;
+  color: var(--fg1);
+}
+
+.config-load-error__body span,
+.config-action-error__body span {
+  overflow-wrap: anywhere;
 }
 
 .config-list {

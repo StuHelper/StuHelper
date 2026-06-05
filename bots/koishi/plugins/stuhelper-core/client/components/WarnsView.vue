@@ -27,6 +27,7 @@
         <el-button
           type="primary"
           class="sh-button sh-button--primary"
+          :disabled="loading || initialLoadBlocked"
           @click="openAdd"
         >
           添加警告
@@ -34,83 +35,120 @@
       </template>
     </WorkspaceHead>
 
-    <ConsolePageSkeleton v-if="loading && totalRecords === 0" />
+    <ConsolePageSkeleton v-if="loading && sourceRecordCount === 0" />
     <EmptyState
-      v-else-if="totalRecords === 0"
-      title="暂无警告记录"
-      body="当前没有成员累计警告记录。添加后可在此按群组检索与调整次数。"
-    />
+      v-else-if="loadError && sourceRecordCount === 0"
+      tone="error"
+      title="加载警告记录失败"
+      :body="loadError"
+    >
+      <template #action>
+        <el-button class="sh-button sh-button--ghost" @click="refresh">重试</el-button>
+      </template>
+    </EmptyState>
 
-    <div v-else class="sh-split sh-split--7-5">
-      <WorkspaceSection
-        title="群组"
-        description="按群聚合,点击切换右侧详细列表。"
-        :meta="`${guildIds.length} 群`"
-        flush
+    <template v-else>
+      <div
+        v-if="loadError && sourceRecordCount > 0"
+        class="sh-warns-load-error"
+        role="alert"
       >
-        <div class="sh-lane">
-          <button
-            v-for="guildId in guildIds"
-            :key="guildId"
-            type="button"
-            class="sh-lane__row sh-lane__row--interactive"
-            :class="{ 'sh-lane__row--active': selectedGuildId === guildId }"
-            @click="selectedGuildId = guildId"
-          >
-            <span class="sh-lane__dot" :class="severityDot(groupCount(guildId))"></span>
-            <div class="sh-lane__body">
-              <div class="sh-lane__title">{{ guildName(guildId) }}</div>
-              <div class="sh-lane__subtitle">
-                <EntityChip kind="guild" :id="guildId" inline />
-                · {{ groupCount(guildId) }} 条记录
-              </div>
-            </div>
-            <span class="sh-lane__chevron" aria-hidden="true">›</span>
-          </button>
+        <div class="sh-warns-load-error__body">
+          <strong>刷新警告记录失败</strong>
+          <span>{{ loadError }}</span>
         </div>
-      </WorkspaceSection>
+        <el-button class="sh-button sh-button--ghost" @click="refresh">重试</el-button>
+      </div>
 
-      <WorkspaceSection
-        :title="selectedGroup ? guildName(selectedGroup[0].guildId) : '详情'"
-        :description="selectedGroup ? '成员警告次数,可以直接在列上调整或一键清零。' : '请选择左侧群组查看警告列表。'"
-        :meta="selectedGroup ? `${selectedGroup.length} 条` : ''"
-        flush
+      <div
+        v-if="actionError"
+        class="sh-warns-action-error"
+        role="alert"
       >
-        <EmptyState
-          v-if="!selectedGroup"
-          title="请选择左侧群组"
-          body="选中一个群后,这里会列出该群所有仍有记录的成员。"
-        />
-        <QueueTable
-          v-else
-          :columns="COLUMNS"
-          :rows="rows"
-          empty-title="该群已无警告"
-          empty-body="这个群的警告记录已经全部清除。"
-          actions-label="操作"
-          @action="handleRowAction"
+        <div class="sh-warns-action-error__body">
+          <strong>{{ actionErrorTitle }}</strong>
+          <span>{{ actionError }}</span>
+        </div>
+        <el-button class="sh-button sh-button--ghost" @click="clearActionError">关闭</el-button>
+      </div>
+
+      <EmptyState
+        v-if="totalRecords === 0"
+        title="暂无警告记录"
+        body="当前没有成员累计警告记录。添加后可在此按群组检索与调整次数。"
+      />
+
+      <div v-else class="sh-split sh-split--7-5">
+        <WorkspaceSection
+          title="群组"
+          description="按群聚合,点击切换右侧详细列表。"
+          :meta="`${guildIds.length} 群`"
+          flush
         >
-          <template #cell-user="{ row }">
-            <EntityChip
-              kind="user"
-              :id="warnUserCell(row.cells.user).secondary"
-              :name="warnUserCell(row.cells.user).text"
-              :guild-id="selectedGuildId ?? undefined"
-            />
-          </template>
-          <template #cell-count="{ row }">
-            <el-input-number
-              :model-value="warnCountCell(row.cells.count).value"
-              :min="0"
-              :max="99"
-              size="small"
-              controls-position="right"
-              @change="(val: number | undefined) => updateCount(row.id, val)"
-            />
-          </template>
-        </QueueTable>
-      </WorkspaceSection>
-    </div>
+          <div class="sh-lane">
+            <button
+              v-for="guildId in guildIds"
+              :key="guildId"
+              type="button"
+              class="sh-lane__row sh-lane__row--interactive"
+              :class="{ 'sh-lane__row--active': selectedGuildId === guildId }"
+              @click="selectedGuildId = guildId"
+            >
+              <span class="sh-lane__dot" :class="severityDot(groupCount(guildId))"></span>
+              <div class="sh-lane__body">
+                <div class="sh-lane__title">{{ guildName(guildId) }}</div>
+                <div class="sh-lane__subtitle">
+                  <EntityChip kind="guild" :id="guildId" inline />
+                  · {{ groupCount(guildId) }} 条记录
+                </div>
+              </div>
+              <span class="sh-lane__chevron" aria-hidden="true">›</span>
+            </button>
+          </div>
+        </WorkspaceSection>
+
+        <WorkspaceSection
+          :title="selectedGroup ? guildName(selectedGroup[0].guildId) : '详情'"
+          :description="selectedGroup ? '成员警告次数,可以直接在列上调整或一键清零。' : '请选择左侧群组查看警告列表。'"
+          :meta="selectedGroup ? `${selectedGroup.length} 条` : ''"
+          flush
+        >
+          <EmptyState
+            v-if="!selectedGroup"
+            title="请选择左侧群组"
+            body="选中一个群后,这里会列出该群所有仍有记录的成员。"
+          />
+          <QueueTable
+            v-else
+            :columns="COLUMNS"
+            :rows="rows"
+            empty-title="该群已无警告"
+            empty-body="这个群的警告记录已经全部清除。"
+            actions-label="操作"
+            @action="handleRowAction"
+          >
+            <template #cell-user="{ row }">
+              <EntityChip
+                kind="user"
+                :id="warnUserCell(row.cells.user).secondary"
+                :name="warnUserCell(row.cells.user).text"
+                :guild-id="selectedGuildId ?? undefined"
+              />
+            </template>
+            <template #cell-count="{ row }">
+              <el-input-number
+                :model-value="warnCountCell(row.cells.count).value"
+                :min="0"
+                :max="99"
+                size="small"
+                controls-position="right"
+                @change="(val: number | undefined) => updateCount(row.id, val)"
+              />
+            </template>
+          </QueueTable>
+        </WorkspaceSection>
+      </div>
+    </template>
 
     <Drawer
       :open="addOpen"
@@ -118,6 +156,18 @@
       subtitle="guildId · userId"
       @close="closeAdd"
     >
+      <div
+        v-if="actionError"
+        class="sh-warns-action-error sh-warns-action-error--drawer"
+        role="alert"
+      >
+        <div class="sh-warns-action-error__body">
+          <strong>{{ actionErrorTitle }}</strong>
+          <span>{{ actionError }}</span>
+        </div>
+        <el-button class="sh-button sh-button--ghost" @click="clearActionError">关闭</el-button>
+      </div>
+
       <section class="sh-drawer__section">
         <h4 class="sh-drawer__section-title">目标</h4>
         <div class="sh-form-grid">
@@ -223,7 +273,11 @@ const guildFilter = ref('')
 const keyword = ref('')
 const notices = ref<NoticeItem[]>([])
 const lastSync = ref('')
+const loadError = ref('')
+const actionError = ref('')
+const actionErrorTitle = ref('操作失败')
 const groups = ref<Record<string, ProcessedWarn[]>>({})
+let refreshRequestSeq = 0
 const draft = reactive({ guildId: '', userId: '' })
 const {
   state: confirmDialog,
@@ -243,6 +297,10 @@ const selectedGroup = computed(() =>
 const totalRecords = computed(() =>
   Object.values(filteredGroups.value).reduce((acc, list) => acc + list.length, 0),
 )
+const sourceRecordCount = computed(() =>
+  Object.values(groups.value).reduce((acc, list) => acc + list.length, 0),
+)
+const initialLoadBlocked = computed(() => Boolean(loadError.value && sourceRecordCount.value === 0))
 
 const rows = computed<QueueTableRow[]>(() => {
   const list = selectedGroup.value ?? []
@@ -330,7 +388,9 @@ watch(
 onMounted(refresh)
 
 async function refresh() {
+  const requestSeq = ++refreshRequestSeq
   loading.value = true
+  loadError.value = ''
   try {
     const list = await warnsApi.list(fetchNames.value)
     const next: Record<string, ProcessedWarn[]> = {}
@@ -338,30 +398,41 @@ async function refresh() {
       if (!next[item.guildId]) next[item.guildId] = []
       next[item.guildId].push(item)
     }
+    if (requestSeq !== refreshRequestSeq) return
     groups.value = next
     lastSync.value = formatTimestamp(Date.now())
     applyNavigationState()
   } catch (cause) {
-    pushError(cause, '加载警告记录失败')
+    if (requestSeq !== refreshRequestSeq) return
+    const details = errorMessage(cause, '加载警告记录失败')
+    loadError.value = details
+    pushError('加载警告记录失败', details)
   } finally {
-    loading.value = false
+    if (requestSeq === refreshRequestSeq) {
+      loading.value = false
+    }
   }
 }
 
 async function reload() {
   reloading.value = true
+  clearActionError()
   try {
     await warnsApi.reload()
     pushSuccess('警告数据已重新加载')
     await refresh()
   } catch (cause) {
-    pushError(cause, '重新加载失败')
+    setActionError('重新加载失败', cause, '重新加载失败')
   } finally {
     reloading.value = false
   }
 }
 
 function openAdd() {
+  if (initialLoadBlocked.value) {
+    pushError('警告记录尚未加载', '警告记录尚未加载，无法添加警告')
+    return
+  }
   draft.guildId = ''
   draft.userId = ''
   addOpen.value = true
@@ -374,6 +445,7 @@ function closeAdd() {
 async function submitAdd() {
   if (!canSubmitAdd.value) return
   adding.value = true
+  clearActionError()
   const guildIdSnapshot = draft.guildId.trim()
   try {
     await warnsApi.add(guildIdSnapshot, draft.userId.trim())
@@ -386,7 +458,7 @@ async function submitAdd() {
       selectedGuildId.value = guildIdSnapshot
     }
   } catch (cause) {
-    pushError(cause, '添加失败')
+    setActionError('添加失败', cause, '添加失败')
   } finally {
     adding.value = false
   }
@@ -407,12 +479,13 @@ async function updateCount(key: string, next: number | undefined) {
     }
   }
 
+  clearActionError()
   try {
     await warnsApi.update(key, next)
     pushSuccess(next <= 0 ? '警告已清除' : '警告次数已更新')
     await refresh()
   } catch (cause) {
-    pushError(cause, '更新警告失败')
+    setActionError('更新警告失败', cause, '更新警告失败')
     await refresh()
   }
 }
@@ -478,10 +551,28 @@ function pushSuccess(message: string) {
   scheduleDismiss()
 }
 
-function pushError(cause: unknown, fallback: string) {
-  const message = cause instanceof Error ? cause.message : fallback
-  notices.value.push({ id: noticeId(), kind: 'error', message })
+function pushError(title: string, message: string) {
+  notices.value.push({ id: noticeId(), kind: 'error', title, message })
   scheduleDismiss()
+}
+
+function setActionError(title: string, cause: unknown, fallback: string) {
+  const message = errorMessage(cause, fallback)
+  actionErrorTitle.value = title
+  actionError.value = message
+  notices.value.push({ id: noticeId(), kind: 'error', title, message })
+  scheduleDismiss()
+}
+
+function clearActionError() {
+  actionErrorTitle.value = '操作失败'
+  actionError.value = ''
+}
+
+function errorMessage(cause: unknown, fallback: string): string {
+  if (cause instanceof Error && cause.message) return cause.message
+  if (typeof cause === 'string' && cause.trim()) return cause
+  return fallback
 }
 
 function dismissNotice(id: string) {
@@ -500,6 +591,43 @@ function noticeId(): string {
 </script>
 
 <style scoped>
+.sh-warns-load-error,
+.sh-warns-action-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sh-s-3);
+  padding: var(--sh-s-3) var(--sh-s-4);
+  border: 1px solid rgba(248, 81, 73, 0.28);
+  border-radius: var(--sh-r-2);
+  background: rgba(248, 81, 73, 0.08);
+}
+
+.sh-warns-action-error--drawer {
+  margin-bottom: var(--sh-s-4);
+}
+
+.sh-warns-load-error__body,
+.sh-warns-action-error__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sh-warns-load-error__body strong,
+.sh-warns-action-error__body strong {
+  color: #ff8a80;
+  font-size: var(--sh-t-body);
+}
+
+.sh-warns-load-error__body span,
+.sh-warns-action-error__body span {
+  color: var(--sh-fg-2);
+  font-size: var(--sh-t-meta);
+  overflow-wrap: anywhere;
+}
+
 .sh-warns__user {
   display: flex;
   flex-direction: column;

@@ -4,7 +4,14 @@
     <aside class="sidebar">
       <div class="sidebar-header">
         <h2>角色</h2>
-        <button class="icon-btn" @click="createRole" title="创建角色">＋</button>
+        <button
+          class="icon-btn"
+          :disabled="loading || Boolean(loadError) || Boolean(roleOperation)"
+          @click="createRole"
+          :title="roleOperation === 'create' ? '创建中' : '创建角色'"
+        >
+          {{ roleOperation === 'create' ? '…' : '＋' }}
+        </button>
       </div>
       
       <div class="role-list">
@@ -29,15 +36,35 @@
 
     <!-- 主内容区：编辑面板 -->
     <main class="main-content" v-if="currentRole">
+      <div v-if="loadError" class="roles-load-banner" role="alert">
+        <div class="roles-load-banner__body">
+          <strong>刷新角色权限数据失败</strong>
+          <span>{{ loadError }}</span>
+        </div>
+        <button class="secondary-btn" @click="fetchData">重试</button>
+      </div>
+
+      <div v-if="actionError" class="roles-action-banner" role="alert">
+        <div class="roles-action-banner__body">
+          <strong>{{ actionErrorTitle }}</strong>
+          <span>{{ actionError }}</span>
+        </div>
+        <button class="secondary-btn" type="button" @click="clearActionError">关闭</button>
+      </div>
+
       <div class="content-header">
         <h1>
           {{ currentRole.name }}
           <span v-if="currentRole.builtin" class="builtin-badge">内置</span>
         </h1>
         <div class="header-actions" v-if="!currentRole.builtin">
-            <button class="clone-btn" @click="cloneRole">克隆角色</button>
+            <button class="clone-btn" :disabled="Boolean(roleOperation)" @click="cloneRole">
+              {{ roleOperation === 'clone' ? '克隆中…' : '克隆角色' }}
+            </button>
             <span style="width: 12px; display: inline-block;"></span>
-           <button class="danger-btn" @click="deleteRole">删除角色</button>
+           <button class="danger-btn" :disabled="Boolean(roleOperation)" @click="deleteRole">
+             {{ roleOperation === 'delete' ? '删除中…' : '删除角色' }}
+           </button>
         </div>
       </div>
 
@@ -225,9 +252,18 @@
              <!-- 自定义角色：可以添加成员 -->
              <template v-else>
                <div class="add-member">
-                   <input type="text" v-model="newMemberId" placeholder="输入用户 ID 添加..." class="form-input" @keyup.enter="addMember">
-                   <button class="primary-btn" @click.stop="handleAddMember">添加成员</button>
-                   <button class="secondary-btn" @click.stop="showImportDialog = true">导入成员</button>
+                   <input
+                     type="text"
+                     v-model="newMemberId"
+                     placeholder="输入用户 ID 添加..."
+                     class="form-input"
+                     :disabled="addingMember || memberLoading"
+                     @keyup.enter="addMember"
+                   >
+                   <button class="primary-btn" :disabled="memberLoading || addingMember || !newMemberId.trim()" @click.stop="handleAddMember">
+                     {{ addingMember ? '添加中…' : '添加成员' }}
+                   </button>
+                   <button class="secondary-btn" :disabled="memberLoading || addingMember" @click.stop="openImportDialog">导入成员</button>
                </div>
 
                <!-- 成员搜索框 -->
@@ -246,7 +282,8 @@
                  </span>
                </div>
 
-               <div class="member-list" v-if="filteredRoleMembers.length > 0">
+               <div v-if="memberLoading" class="member-loading">加载角色成员中...</div>
+               <div class="member-list" v-else-if="filteredRoleMembers.length > 0">
                    <div v-for="member in filteredRoleMembers" :key="member.id" class="member-item">
                        <div class="member-info">
                           <img v-if="member.avatar" :src="member.avatar" class="member-avatar">
@@ -256,7 +293,13 @@
                             <span class="member-id-sub">{{ member.id }}</span>
                           </div>
                        </div>
-                       <button class="danger-btn" @click.stop="handleRemoveMember(member.id)">移除</button>
+                       <button
+                         class="danger-btn"
+                         :disabled="removingMemberIds.has(member.id)"
+                         @click.stop="handleRemoveMember(member.id)"
+                       >
+                         {{ removingMemberIds.has(member.id) ? '移除中…' : '移除' }}
+                       </button>
                    </div>
                </div>
                <div v-else-if="memberSearchQuery && currentRoleMembers.length > 0" class="empty-tip">未找到匹配的成员</div>
@@ -271,11 +314,34 @@
         <div class="save-bar" v-if="hasChanges">
           <span>检测到未保存的修改</span>
           <div class="save-actions">
-            <button class="reset-btn" @click="resetChanges">重置</button>
-            <button class="save-btn" @click="saveChanges">保存更改</button>
+            <button class="reset-btn" :disabled="savingChanges" @click="resetChanges">重置</button>
+            <button class="save-btn" :disabled="savingChanges" @click="saveChanges">
+              {{ savingChanges ? '保存中…' : '保存更改' }}
+            </button>
           </div>
         </div>
       </transition>
+    </main>
+
+    <main v-else-if="loadError" class="main-content roles-load-error" role="alert">
+      <div class="roles-load-error__body">
+        <strong>加载角色权限数据失败</strong>
+        <span>{{ loadError }}</span>
+      </div>
+      <button class="secondary-btn" @click="fetchData">重试</button>
+    </main>
+
+    <main v-else class="main-content roles-load-empty">
+      <div v-if="actionError" class="roles-action-banner" role="alert">
+        <div class="roles-action-banner__body">
+          <strong>{{ actionErrorTitle }}</strong>
+          <span>{{ actionError }}</span>
+        </div>
+        <button class="secondary-btn" type="button" @click="clearActionError">关闭</button>
+      </div>
+      <div class="empty-tip">
+        {{ loading ? '角色权限数据加载中...' : '请选择或创建一个角色' }}
+      </div>
     </main>
 
     <!-- 自定义确认对话框 -->
@@ -304,6 +370,14 @@
             <h3>导入成员</h3>
           </div>
           <div class="modal-body">
+            <div v-if="importError" class="roles-action-banner roles-action-banner--modal" role="alert">
+              <div class="roles-action-banner__body">
+                <strong>{{ importErrorTitle }}</strong>
+                <span>{{ importError }}</span>
+              </div>
+              <button class="secondary-btn" type="button" @click="clearImportError">关闭</button>
+            </div>
+
             <!-- 导入来源选择 -->
             <div class="form-group">
               <label>导入来源</label>
@@ -428,6 +502,8 @@ import { authApi } from '../api'
 import type { Role, PermissionNode, RoleMember } from '../types'
 import { message } from '@koishijs/client'
 
+type RoleOperation = '' | 'create' | 'clone' | 'delete'
+
 // 创建默认角色对象
 const createDefaultRole = (): Role => ({
   id: '',
@@ -449,7 +525,17 @@ const permSearch = ref('')
 const newMemberId = ref('')
 const currentRoleMembers = ref<RoleMember[]>([])
 const loading = ref(false)
+const memberLoading = ref(false)
+const loadError = ref('')
+const actionError = ref('')
+const actionErrorTitle = ref('操作失败')
+const roleOperation = ref<RoleOperation>('')
+const savingChanges = ref(false)
+const addingMember = ref(false)
+const removingMemberIds = ref(new Set<string>())
 const memberSearchQuery = ref('')
+let loadRequestSeq = 0
+let membersLoadRequestSeq = 0
 
 // 过滤后的角色成员列表
 const filteredRoleMembers = computed(() => {
@@ -471,7 +557,10 @@ const importAuthorityLevel = ref(1)
 const importGuildId = ref('')
 const importPreviewMembers = ref<RoleMember[]>([])
 const importLoading = ref(false)
+const importError = ref('')
+const importErrorTitle = ref('导入失败')
 const selectedImportIds = ref<Set<string>>(new Set())
+let importPreviewRequestSeq = 0
 
 // 全选状态
 const isAllSelected = computed(() => {
@@ -597,16 +686,68 @@ const doConfirm = () => {
   confirmDialog.value.onConfirm()
 }
 
+function roleErrorMessage(cause: unknown): string {
+  if (cause instanceof Error && cause.message) return cause.message
+  if (typeof cause === 'string') return cause
+  if (cause === undefined || cause === null) return '未知错误'
+  return String(cause)
+}
+
+function setLoadError(title: string, cause: unknown, fallback: string): void {
+  const details = roleErrorMessage(cause) || fallback
+  loadError.value = details
+  message.error(`${title}: ${details}`)
+}
+
+function setActionError(title: string, cause: unknown, fallback: string): void {
+  const details = roleErrorMessage(cause) || fallback
+  actionErrorTitle.value = title
+  actionError.value = details
+  message.error(`${title}: ${details}`)
+}
+
+function clearActionError(): void {
+  actionErrorTitle.value = '操作失败'
+  actionError.value = ''
+}
+
+function setImportError(title: string, cause: unknown, fallback: string): void {
+  const details = roleErrorMessage(cause) || fallback
+  importErrorTitle.value = title
+  importError.value = details
+  message.error(`${title}: ${details}`)
+}
+
+function clearImportError(): void {
+  importErrorTitle.value = '导入失败'
+  importError.value = ''
+}
+
 // 获取数据
 const fetchData = async () => {
+  const requestSeq = ++loadRequestSeq
   loading.value = true
+  loadError.value = ''
+  clearActionError()
   try {
-    roles.value = await authApi.getRoles()
-    permissions.value = await authApi.getPermissions()
+    const [nextRoles, nextPermissions] = await Promise.all([
+      authApi.getRoles(),
+      authApi.getPermissions(),
+    ])
+    if (requestSeq !== loadRequestSeq) return
+    roles.value = nextRoles
+    permissions.value = nextPermissions
   } catch (e) {
-    message.error('加载数据失败: ' + (e instanceof Error ? e.message : String(e)))
+    if (requestSeq !== loadRequestSeq) return
+    setLoadError(
+      currentRole.value ? '刷新角色权限数据失败' : '加载角色权限数据失败',
+      e,
+      '加载角色权限数据失败',
+    )
   } finally {
-    loading.value = false
+    if (requestSeq === loadRequestSeq) {
+      loading.value = false
+    }
   }
 }
 
@@ -683,10 +824,21 @@ const groupedPermissions = computed(() => {
 
 // 方法
 const fetchRoleMembers = async (roleId: string) => {
+  const requestSeq = ++membersLoadRequestSeq
+  memberLoading.value = true
+  clearActionError()
   try {
-    currentRoleMembers.value = await authApi.getRoleMembers(roleId, true)
-  } catch {
+    const nextMembers = await authApi.getRoleMembers(roleId, true)
+    if (requestSeq !== membersLoadRequestSeq || currentRole.value?.id !== roleId) return
+    currentRoleMembers.value = nextMembers
+  } catch (e) {
+    if (requestSeq !== membersLoadRequestSeq || currentRole.value?.id !== roleId) return
     currentRoleMembers.value = []
+    setActionError('加载角色成员失败', e, '加载角色成员失败')
+  } finally {
+    if (requestSeq === membersLoadRequestSeq && currentRole.value?.id === roleId) {
+      memberLoading.value = false
+    }
   }
 }
 
@@ -699,7 +851,15 @@ const selectRole = async (role: Role) => {
     })
     if (!confirmed) return
   }
+  clearActionError()
+  membersLoadRequestSeq += 1
+  importPreviewRequestSeq += 1
+  memberLoading.value = false
+  importLoading.value = false
   currentRole.value = role
+  currentRoleMembers.value = []
+  importPreviewMembers.value = []
+  selectedImportIds.value = new Set()
   // 确保 role 有所有必要的字段
   const normalizedRole: Role = {
     ...createDefaultRole(),
@@ -716,6 +876,14 @@ const selectRole = async (role: Role) => {
 }
 
 const createRole = async () => {
+  if (roleOperation.value) return
+  if (loading.value || loadError.value) {
+    message.warning('角色权限数据尚未加载，无法创建角色')
+    return
+  }
+  clearActionError()
+  roleOperation.value = 'create'
+
   const newRole: Role = {
     id: Date.now().toString(),
     name: '新角色',
@@ -735,13 +903,17 @@ const createRole = async () => {
     }
     message.success('角色创建成功')
   } catch (e) {
-    message.error('创建角色失败: ' + (e instanceof Error ? e.message : String(e)))
+    setActionError('创建角色失败', e, '创建角色失败')
+  } finally {
+    roleOperation.value = ''
   }
 }
 
 const saveChanges = async () => {
-  if (!currentRole.value) return
+  if (!currentRole.value || savingChanges.value) return
   
+  clearActionError()
+  savingChanges.value = true
   try {
     await authApi.updateRole(editingRole.value)
     message.success('保存成功')
@@ -761,12 +933,14 @@ const saveChanges = async () => {
       scopeMode.value = (updated.guildIds && updated.guildIds.length > 0) ? 'guilds' : 'global'
     }
   } catch (e) {
-    message.error('保存失败: ' + (e instanceof Error ? e.message : String(e)))
+    setActionError('保存失败', e, '保存失败')
+  } finally {
+    savingChanges.value = false
   }
 }
 
 const resetChanges = async () => {
-  if (!currentRole.value) return
+  if (!currentRole.value || savingChanges.value) return
   
   const confirmed = await showConfirm({
     title: '重置更改',
@@ -775,6 +949,7 @@ const resetChanges = async () => {
   })
   
   if (confirmed) {
+    clearActionError()
     // 直接重置 editingRole，不调用 selectRole（会触发重复确认）
     const normalizedRole: Role = {
       ...createDefaultRole(),
@@ -790,6 +965,7 @@ const resetChanges = async () => {
 }
 
 const cloneRole = async () => {
+  if (roleOperation.value) return
   if (!currentRole.value) {
     message.warning('请先选择一个角色')
     return
@@ -799,35 +975,38 @@ const cloneRole = async () => {
     return
   }
 
-  const confirmed = await showConfirm({
-    title: '克隆角色',
-    message: `确定要克隆角色"${currentRole.value.name}"吗？`,
-    type: 'normal'
-  })
-  if (!confirmed) return
-
-  const baseName = currentRole.value.name || '角色'
-  let newName = `${baseName}（克隆）`
-  const existingNames = new Set(roles.value.map(r => r.name))
-  let idx = 1
-  while (existingNames.has(newName)) {
-    idx += 1
-    newName = `${baseName}（克隆 ${idx}）`
-  }
-
-  const newRole: Role = {
-    ...createDefaultRole(),
-    ...currentRole.value,
-    id: Date.now().toString() + Math.floor(Math.random() * 10000).toString(),
-    name: newName,
-    alias: '', // 克隆时清空别名，避免冲突
-    // 确保数组被复制，避免引用同一对象
-    permissions: Array.isArray(currentRole.value.permissions) ? [...currentRole.value.permissions] : [],
-    guildIds: Array.isArray(currentRole.value.guildIds) ? [...currentRole.value.guildIds] : [],
-    builtin: false
-  }
-
+  const sourceRole = currentRole.value
+  roleOperation.value = 'clone'
   try {
+    const confirmed = await showConfirm({
+      title: '克隆角色',
+      message: `确定要克隆角色"${sourceRole.name}"吗？`,
+      type: 'normal'
+    })
+    if (!confirmed) return
+
+    clearActionError()
+    const baseName = sourceRole.name || '角色'
+    let newName = `${baseName}（克隆）`
+    const existingNames = new Set(roles.value.map(r => r.name))
+    let idx = 1
+    while (existingNames.has(newName)) {
+      idx += 1
+      newName = `${baseName}（克隆 ${idx}）`
+    }
+
+    const newRole: Role = {
+      ...createDefaultRole(),
+      ...sourceRole,
+      id: Date.now().toString() + Math.floor(Math.random() * 10000).toString(),
+      name: newName,
+      alias: '', // 克隆时清空别名，避免冲突
+      // 确保数组被复制，避免引用同一对象
+      permissions: Array.isArray(sourceRole.permissions) ? [...sourceRole.permissions] : [],
+      guildIds: Array.isArray(sourceRole.guildIds) ? [...sourceRole.guildIds] : [],
+      builtin: false
+    }
+
     await authApi.updateRole(newRole)
     message.success('克隆成功')
     await fetchData()
@@ -836,28 +1015,37 @@ const cloneRole = async () => {
       await selectRole(created)
     }
   } catch (e) {
-    message.error('克隆失败: ' + (e instanceof Error ? e.message : String(e)))
+    setActionError('克隆失败', e, '克隆失败')
+  } finally {
+    roleOperation.value = ''
   }
 }
 
 const deleteRole = async () => {
-  if (!currentRole.value) return
+  if (!currentRole.value || roleOperation.value) return
+  const roleToDelete = currentRole.value
   
-  const confirmed = await showConfirm({
-    title: '删除角色',
-    message: `确定要删除角色"${currentRole.value.name}"吗？此操作不可撤销。`,
-    type: 'danger'
-  })
-  if (!confirmed) return
-  
+  roleOperation.value = 'delete'
   try {
-    await authApi.deleteRole(currentRole.value.id)
+    const confirmed = await showConfirm({
+      title: '删除角色',
+      message: `确定要删除角色"${roleToDelete.name}"吗？此操作不可撤销。`,
+      type: 'danger'
+    })
+    if (!confirmed) return
+
+    clearActionError()
+    await authApi.deleteRole(roleToDelete.id)
     message.success('删除成功')
-    currentRole.value = null
-    editingRole.value = createDefaultRole()
+    if (currentRole.value?.id === roleToDelete.id) {
+      currentRole.value = null
+      editingRole.value = createDefaultRole()
+    }
     await fetchData()
   } catch (e) {
-    message.error('删除失败: ' + (e instanceof Error ? e.message : String(e)))
+    setActionError('删除失败', e, '删除失败')
+  } finally {
+    roleOperation.value = ''
   }
 }
 
@@ -940,6 +1128,11 @@ const clearPermissions = () => {
 
 // 成员操作
 const addMember = async () => {
+  if (addingMember.value) return
+  if (memberLoading.value) {
+    message.warning('角色成员正在加载，请稍后再操作')
+    return
+  }
   if (!newMemberId.value.trim()) {
     message.warning('请输入用户 ID')
     return
@@ -952,13 +1145,17 @@ const addMember = async () => {
   const userId = newMemberId.value.trim()
   const roleId = currentRole.value.id
   
+  clearActionError()
+  addingMember.value = true
   try {
     await authApi.assignRole(userId, roleId)
     message.success('添加成员成功')
     newMemberId.value = ''
     await fetchRoleMembers(roleId)
   } catch (e) {
-    message.error('添加成员失败: ' + (e instanceof Error ? e.message : String(e)))
+    setActionError('添加成员失败', e, '添加成员失败')
+  } finally {
+    addingMember.value = false
   }
 }
 
@@ -968,16 +1165,22 @@ const handleAddMember = () => {
 }
 
 const removeMember = async (userId: string) => {
-  if (!currentRole.value) return
+  if (!currentRole.value || removingMemberIds.value.has(userId)) return
   
   const roleId = currentRole.value.id
   
+  clearActionError()
+  removingMemberIds.value = new Set([...removingMemberIds.value, userId])
   try {
     await authApi.revokeRole(userId, roleId)
     message.success('移除成员成功')
     await fetchRoleMembers(roleId)
   } catch (e) {
-    message.error('移除成员失败: ' + (e instanceof Error ? e.message : String(e)))
+    setActionError('移除成员失败', e, '移除成员失败')
+  } finally {
+    const nextRemoving = new Set(removingMemberIds.value)
+    nextRemoving.delete(userId)
+    removingMemberIds.value = nextRemoving
   }
 }
 
@@ -995,6 +1198,9 @@ const otherRoles = computed(() => {
 // 监听导入来源变化，切换时清空并自动加载
 watch(importSource, (newSource) => {
   // 切换来源时清空预览列表
+  importPreviewRequestSeq += 1
+  importLoading.value = false
+  clearImportError()
   importPreviewMembers.value = []
   selectedImportIds.value = new Set()
   importSourceRoleId.value = ''
@@ -1006,8 +1212,19 @@ watch(importSource, (newSource) => {
   }
 })
 
+const openImportDialog = () => {
+  if (memberLoading.value) {
+    message.warning('角色成员正在加载，请稍后再导入')
+    return
+  }
+  clearImportError()
+  showImportDialog.value = true
+}
+
 const closeImportDialog = () => {
+  importPreviewRequestSeq += 1
   showImportDialog.value = false
+  clearImportError()
   importSource.value = 'role'
   importSourceRoleId.value = ''
   importAuthorityLevel.value = 1
@@ -1018,83 +1235,162 @@ const closeImportDialog = () => {
 }
 
 const loadImportPreview = async () => {
-  if (!importSourceRoleId.value) {
+  const sourceRoleId = importSourceRoleId.value
+  const targetRoleId = currentRole.value?.id ?? ''
+  const requestSeq = ++importPreviewRequestSeq
+  if (!sourceRoleId || !targetRoleId) {
     importPreviewMembers.value = []
     selectedImportIds.value = new Set()
+    importLoading.value = false
     return
   }
 
   importLoading.value = true
+  clearImportError()
   try {
-    const members = await authApi.getRoleMembers(importSourceRoleId.value, true)
+    const members = await authApi.getRoleMembers(sourceRoleId, true)
+    if (
+      requestSeq !== importPreviewRequestSeq ||
+      !showImportDialog.value ||
+      importSource.value !== 'role' ||
+      importSourceRoleId.value !== sourceRoleId ||
+      currentRole.value?.id !== targetRoleId
+    ) return
     // 过滤掉已经是当前角色成员的用户
     const existingIds = new Set(currentRoleMembers.value.map(m => m.id))
     importPreviewMembers.value = members.filter(m => !existingIds.has(m.id))
     // 默认全选
     selectedImportIds.value = new Set(importPreviewMembers.value.map(m => m.id))
   } catch (e) {
-    message.error('加载成员列表失败')
+    if (
+      requestSeq !== importPreviewRequestSeq ||
+      !showImportDialog.value ||
+      importSource.value !== 'role' ||
+      importSourceRoleId.value !== sourceRoleId ||
+      currentRole.value?.id !== targetRoleId
+    ) return
+    setImportError('加载成员列表失败', e, '加载成员列表失败')
     importPreviewMembers.value = []
     selectedImportIds.value = new Set()
   } finally {
-    importLoading.value = false
+    if (requestSeq === importPreviewRequestSeq) {
+      importLoading.value = false
+    }
   }
 }
 
 const loadAuthorityUsers = async () => {
-  importLoading.value = true
-  try {
-    const members = await authApi.getUsersByAuthority(importAuthorityLevel.value)
-    // 过滤掉已经是当前角色成员的用户
-    const existingIds = new Set(currentRoleMembers.value.map(m => m.id))
-    importPreviewMembers.value = members.filter(m => !existingIds.has(m.id))
-    // 默认全选
-    selectedImportIds.value = new Set(importPreviewMembers.value.map(m => m.id))
-  } catch (e) {
-    message.error('加载用户列表失败')
+  const authorityLevel = Number(importAuthorityLevel.value)
+  const targetRoleId = currentRole.value?.id ?? ''
+  const requestSeq = ++importPreviewRequestSeq
+  if (!targetRoleId) {
     importPreviewMembers.value = []
     selectedImportIds.value = new Set()
-  } finally {
     importLoading.value = false
-  }
-}
-
-const loadGuildAdmins = async () => {
-  if (!importGuildId.value.trim()) {
-    message.warning('请输入群号')
     return
   }
 
   importLoading.value = true
+  clearImportError()
   try {
-    const members = await authApi.getGuildAdmins(importGuildId.value.trim())
+    const members = await authApi.getUsersByAuthority(authorityLevel)
+    if (
+      requestSeq !== importPreviewRequestSeq ||
+      !showImportDialog.value ||
+      importSource.value !== 'authority' ||
+      Number(importAuthorityLevel.value) !== authorityLevel ||
+      currentRole.value?.id !== targetRoleId
+    ) return
     // 过滤掉已经是当前角色成员的用户
     const existingIds = new Set(currentRoleMembers.value.map(m => m.id))
     importPreviewMembers.value = members.filter(m => !existingIds.has(m.id))
     // 默认全选
     selectedImportIds.value = new Set(importPreviewMembers.value.map(m => m.id))
   } catch (e) {
-    message.error('获取群管理员失败')
+    if (
+      requestSeq !== importPreviewRequestSeq ||
+      !showImportDialog.value ||
+      importSource.value !== 'authority' ||
+      Number(importAuthorityLevel.value) !== authorityLevel ||
+      currentRole.value?.id !== targetRoleId
+    ) return
+    setImportError('加载用户列表失败', e, '加载用户列表失败')
     importPreviewMembers.value = []
     selectedImportIds.value = new Set()
   } finally {
+    if (requestSeq === importPreviewRequestSeq) {
+      importLoading.value = false
+    }
+  }
+}
+
+const loadGuildAdmins = async () => {
+  const guildId = importGuildId.value.trim()
+  const targetRoleId = currentRole.value?.id ?? ''
+  const requestSeq = ++importPreviewRequestSeq
+  if (!guildId) {
+    message.warning('请输入群号')
     importLoading.value = false
+    return
+  }
+  if (!targetRoleId) {
+    importPreviewMembers.value = []
+    selectedImportIds.value = new Set()
+    importLoading.value = false
+    return
+  }
+
+  importLoading.value = true
+  clearImportError()
+  try {
+    const members = await authApi.getGuildAdmins(guildId)
+    if (
+      requestSeq !== importPreviewRequestSeq ||
+      !showImportDialog.value ||
+      importSource.value !== 'guild-admin' ||
+      importGuildId.value.trim() !== guildId ||
+      currentRole.value?.id !== targetRoleId
+    ) return
+    // 过滤掉已经是当前角色成员的用户
+    const existingIds = new Set(currentRoleMembers.value.map(m => m.id))
+    importPreviewMembers.value = members.filter(m => !existingIds.has(m.id))
+    // 默认全选
+    selectedImportIds.value = new Set(importPreviewMembers.value.map(m => m.id))
+  } catch (e) {
+    if (
+      requestSeq !== importPreviewRequestSeq ||
+      !showImportDialog.value ||
+      importSource.value !== 'guild-admin' ||
+      importGuildId.value.trim() !== guildId ||
+      currentRole.value?.id !== targetRoleId
+    ) return
+    setImportError('获取群管理员失败', e, '获取群管理员失败')
+    importPreviewMembers.value = []
+    selectedImportIds.value = new Set()
+  } finally {
+    if (requestSeq === importPreviewRequestSeq) {
+      importLoading.value = false
+    }
   }
 }
 
 const doImportMembers = async () => {
   if (!currentRole.value || selectedImportIds.value.size === 0) return
+  const roleId = currentRole.value.id
 
   importLoading.value = true
+  clearImportError()
   try {
     const userIds = Array.from(selectedImportIds.value)
-    const result = await authApi.importMembers(currentRole.value.id, userIds)
+    const result = await authApi.importMembers(roleId, userIds)
     message.success(`成功导入 ${result.imported} 个成员`)
     closeImportDialog()
     // 刷新成员列表
-    await fetchRoleMembers(currentRole.value.id)
+    if (currentRole.value?.id === roleId) {
+      await fetchRoleMembers(roleId)
+    }
   } catch (e) {
-    message.error('导入失败: ' + (e instanceof Error ? e.message : String(e)))
+    setImportError('导入失败', e, '导入失败')
   } finally {
     importLoading.value = false
   }
@@ -1113,7 +1409,9 @@ const onDrop = async (e: DragEvent, targetRole: Role) => {
     if (!draggedId || draggedId === targetRole.id) return
     
     const draggedRole = roles.value.find(r => r.id === draggedId)
-    if(draggedRole) {
+    if (draggedRole) {
+      clearActionError()
+      try {
         // 交换 priority
         const temp = draggedRole.priority
         draggedRole.priority = targetRole.priority
@@ -1122,24 +1420,44 @@ const onDrop = async (e: DragEvent, targetRole: Role) => {
         await authApi.updateRole(draggedRole)
         await authApi.updateRole(targetRole)
         await fetchData()
+      } catch (error) {
+        await fetchData()
+        setActionError('角色排序失败', error, '角色排序失败')
+      }
     }
 }
 
 // 复制角色 ID
 const copyRoleId = async () => {
   if (!currentRole.value) return
+  const roleId = currentRole.value.id
   try {
-    await navigator.clipboard.writeText(currentRole.value.id)
+    if (!navigator.clipboard?.writeText) {
+      throw new Error('clipboard unavailable')
+    }
+    await navigator.clipboard.writeText(roleId)
     message.success('角色 ID 已复制到剪贴板')
-  } catch (e) {
-    // 回退方案：使用传统方式
-    const textarea = document.createElement('textarea')
-    textarea.value = currentRole.value.id
+    return
+  } catch {
+    if (copyTextWithFallback(roleId)) {
+      message.success('角色 ID 已复制到剪贴板')
+      return
+    }
+    message.error('复制角色 ID 失败，请手动复制')
+  }
+}
+
+function copyTextWithFallback(text: string): boolean {
+  const textarea = document.createElement('textarea')
+  try {
+    textarea.value = text
     document.body.appendChild(textarea)
     textarea.select()
-    document.execCommand('copy')
-    document.body.removeChild(textarea)
-    message.success('角色 ID 已复制到剪贴板')
+    return document.execCommand('copy')
+  } catch {
+    return false
+  } finally {
+    textarea.parentNode?.removeChild(textarea)
   }
 }
 
@@ -1282,6 +1600,71 @@ const copyRoleId = async () => {
   overflow: hidden;
   position: relative;
   background: var(--bg2, #252529);
+}
+
+.roles-load-banner,
+.roles-action-banner {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(248, 81, 73, 0.28);
+  background: rgba(248, 81, 73, 0.08);
+  color: var(--fg1, rgba(255, 255, 245, .9));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.roles-action-banner--modal {
+  margin-bottom: 1rem;
+  border: 1px solid rgba(248, 81, 73, 0.28);
+  border-radius: 6px;
+}
+
+.roles-load-banner__body,
+.roles-action-banner__body,
+.roles-load-error__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.roles-load-banner__body strong,
+.roles-action-banner__body strong,
+.roles-load-error__body strong {
+  font-size: 0.8rem;
+  color: #ff8a80;
+}
+
+.roles-load-banner__body span,
+.roles-action-banner__body span,
+.roles-load-error__body span {
+  color: var(--fg2, rgba(255, 255, 245, .6));
+  font-size: 0.75rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.roles-load-error {
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.roles-load-error__body {
+  max-width: 520px;
+  padding: 1rem;
+  border: 1px solid rgba(248, 81, 73, 0.28);
+  border-radius: 6px;
+  background: rgba(248, 81, 73, 0.08);
+}
+
+.roles-load-empty {
+  align-items: center;
+  justify-content: center;
 }
 
 .content-header {
@@ -1863,6 +2246,13 @@ const copyRoleId = async () => {
   white-space: nowrap;
 }
 
+.member-loading {
+  padding: 1.25rem;
+  text-align: center;
+  color: var(--fg3, rgba(255, 255, 245, .4));
+  font-size: 0.8rem;
+}
+
 .member-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -1970,6 +2360,13 @@ const copyRoleId = async () => {
   text-decoration: underline;
 }
 
+.reset-btn:disabled,
+.reset-btn:disabled:hover {
+  color: #6b7280;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
 .save-btn {
   background: #248046;
   border: none;
@@ -1984,6 +2381,12 @@ const copyRoleId = async () => {
 
 .save-btn:hover {
   background: #1a6334;
+}
+
+.save-btn:disabled,
+.save-btn:disabled:hover {
+  background: #2f4b39;
+  cursor: not-allowed;
 }
 
 .slide-up-enter-active,
@@ -2031,6 +2434,12 @@ const copyRoleId = async () => {
 
 .icon-btn:hover {
   opacity: 0.85;
+}
+
+.icon-btn:disabled,
+.icon-btn:disabled:hover {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .primary-btn {
@@ -2337,7 +2746,9 @@ const copyRoleId = async () => {
 }
 
 .primary-btn:disabled,
-.secondary-btn:disabled {
+.secondary-btn:disabled,
+.clone-btn:disabled,
+.danger-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

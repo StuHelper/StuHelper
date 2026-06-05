@@ -29,12 +29,24 @@
 
     <ConsolePageSkeleton v-if="loading && !dashboardData" />
     <EmptyState
-      v-else-if="error"
-      title="加载失败"
+      v-else-if="error && !dashboardData"
+      title="加载控制台总览失败"
       :body="error"
       tone="error"
-    />
+    >
+      <template #action>
+        <el-button class="sh-button sh-button--ghost" @click="loadData">重试</el-button>
+      </template>
+    </EmptyState>
     <template v-else-if="dashboardData">
+      <div v-if="error" class="sh-load-error" role="alert">
+        <div class="sh-load-error__body">
+          <strong>刷新控制台总览失败</strong>
+          <span>{{ error }}</span>
+        </div>
+        <el-button class="sh-button sh-button--ghost" @click="loadData">重试</el-button>
+      </div>
+
       <section class="sh-dashboard-metrics">
         <article
           v-for="(metric, index) in baseMetrics"
@@ -230,10 +242,12 @@ const pendingMetrics = computed(() => [
 const todoRows = computed(() => dashboardModel.value?.todoRows ?? [])
 const shortcuts = computed(() => dashboardModel.value?.shortcuts ?? [])
 const activityRows = computed(() => dashboardModel.value?.activityRows ?? [])
+let loadRequestSeq = 0
 
 onMounted(loadData)
 
 async function loadData() {
+  const requestSeq = ++loadRequestSeq
   loading.value = true
   chartLoading.value = true
   error.value = ''
@@ -243,15 +257,25 @@ async function loadData() {
       statsApi.dashboard(),
       statsApi.charts(7),
     ])
+    if (requestSeq !== loadRequestSeq) return
     dashboardData.value = pageData
     Object.assign(stats, dashboardStats)
     Object.assign(chartData, charts)
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : String(cause)
+    if (requestSeq !== loadRequestSeq) return
+    error.value = errorMessage(cause, '加载控制台总览失败')
   } finally {
-    loading.value = false
-    chartLoading.value = false
+    if (requestSeq === loadRequestSeq) {
+      loading.value = false
+      chartLoading.value = false
+    }
   }
+}
+
+function errorMessage(cause: unknown, fallback: string): string {
+  if (cause instanceof Error && cause.message) return cause.message
+  if (typeof cause === 'string' && cause.trim()) return cause
+  return fallback
 }
 
 function goToTarget(target: {

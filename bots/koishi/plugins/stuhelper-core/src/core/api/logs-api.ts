@@ -1,7 +1,7 @@
 import type { WebSocketAPIContext } from './api-context'
 import { error, success } from './api-response'
 import { assertConsoleGuildAccess } from './console-guild-scope'
-import { findLogModule } from './log-module-lookup'
+import { readCommandLogs } from './log-module-lookup'
 import { filterLogs } from './scope-filters'
 import type { CommandLogRecord } from '../modules/log.module'
 
@@ -33,10 +33,7 @@ async function handleLogSearch(api: WebSocketAPIContext, client: unknown, params
       assertConsoleGuildAccess(scope, params.guildId, 'log search')
     }
 
-    const logModule = findLogModule(api)
-    if (!logModule) return error('Log module not found')
-
-    const filteredLogs = filterLogs(await logModule.getAllLogs(), scope)
+    const filteredLogs = filterLogs(await readCommandLogs(api), scope)
       .filter((log) => matchesLogSearch(log, params))
     return success(paginateLogs(filteredLogs, params))
   } catch (cause) {

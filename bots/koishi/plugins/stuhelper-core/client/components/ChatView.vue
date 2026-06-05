@@ -89,6 +89,15 @@
         </div>
 
         <div class="chat-input-area">
+          <div v-if="actionError" class="chat-action-error" role="alert">
+            <div class="chat-action-error__body">
+              <strong>{{ actionErrorTitle }}</strong>
+              <span>{{ actionError }}</span>
+            </div>
+            <button type="button" class="chat-action-error__close" @click="clearActionError">
+              关闭
+            </button>
+          </div>
           <!-- 待发送图片预览 -->
           <div class="pending-images" v-if="pendingImages.length > 0">
             <div
@@ -149,8 +158,23 @@
           />
         </div>
 
+        <div v-if="membersLoadError" class="members-error" role="alert">
+          <div class="members-error__body">
+            <strong>加载群成员失败</strong>
+            <span>{{ membersLoadError }}</span>
+          </div>
+          <button
+            type="button"
+            class="members-retry-btn"
+            :disabled="loadingMembers"
+            @click="retryLoadMembers"
+          >
+            重试
+          </button>
+        </div>
+
         <!-- 成员列表 -->
-        <div class="members-list" v-if="!loadingMembers">
+        <div class="members-list" v-if="!loadingMembers && (members.length > 0 || !membersLoadError)">
           <!-- 群主分组 -->
           <template v-if="filteredOwners.length > 0">
             <div class="member-group-header">
@@ -221,7 +245,7 @@
         </div>
 
         <!-- 加载中 -->
-        <div class="members-loading" v-else>
+        <div class="members-loading" v-else-if="loadingMembers">
           <k-icon name="loader" class="spin" />
           <span>加载中...</span>
         </div>
@@ -316,15 +340,18 @@
         </div>
       </div>
     </div>
+
+    <NoticeStack :items="notices" @dismiss="dismissNotice" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue'
 import { receive, message } from '@koishijs/client'
 import { chatApi, GuildMember } from '../api'
 import type { ChatMessage } from '../types'
 import ChatMessageContent from './chat/ChatMessageContent.vue'
+import NoticeStack, { type NoticeItem } from './primitives/NoticeStack.vue'
 
 interface Session {
   key: string
@@ -346,6 +373,9 @@ const sending = ref(false)
 const messageListRef = ref<HTMLElement | null>(null)
 const inputRef = ref<HTMLTextAreaElement | null>(null)
 const showConnectDialog = ref(false)
+const actionError = ref('')
+const actionErrorTitle = ref('操作失败')
+const notices = ref<NoticeItem[]>([])
 
 // 待发送的图片列表
 interface PendingImage {
@@ -380,6 +410,9 @@ const findSessionByKey = (key: string) => {
 // 群成员相关
 const members = ref<GuildMember[]>([])
 const loadingMembers = ref(false)
+const membersLoadError = ref('')
+const membersGuildId = ref('')
+let membersLoadRequestSeq = 0
 const membersSidebarCollapsed = ref(false)
 const memberSearch = ref('')
 
@@ -401,17 +434,35 @@ const filteredNormalMembers = computed(() => filteredMembers.value.filter(m => !
 
 // 加载群成员
 const loadGuildMembers = async (guildId: string) => {
+  const requestSeq = ++membersLoadRequestSeq
   loadingMembers.value = true
-  members.value = []
-  
+  membersLoadError.value = ''
+  if (membersGuildId.value !== guildId) {
+    members.value = []
+    membersGuildId.value = guildId
+  }
+
   try {
     const result = await chatApi.getGuildMembers(guildId)
+    if (requestSeq !== membersLoadRequestSeq) return
     members.value = result.members || []
+    membersLoadError.value = ''
   } catch (e) {
-    message.error('加载群成员失败: ' + errorMessage(e))
+    if (requestSeq !== membersLoadRequestSeq) return
+    const details = errorMessage(e) || '加载群成员失败'
+    membersLoadError.value = details
+    pushError('加载群成员失败', details)
   } finally {
-    loadingMembers.value = false
+    if (requestSeq === membersLoadRequestSeq) {
+      loadingMembers.value = false
+    }
   }
+}
+
+const retryLoadMembers = () => {
+  const guildId = currentSession.value?.guildId
+  if (!guildId) return
+  void loadGuildMembers(guildId)
 }
 
 // 处理成员头像加载错误
@@ -486,26 +537,42 @@ const handleCopy = async () => {
   if (!contextMenu.targetMsg) return
   const msg = contextMenu.targetMsg
   const text = msg.content || ''
-  
+
   // 移除 HTML 标签，获取纯文本
   const tempDiv = document.createElement('div')
   tempDiv.innerHTML = text
   const plainText = tempDiv.textContent || tempDiv.innerText || ''
-  
+
   try {
+    if (!navigator.clipboard?.writeText) {
+      throw new Error('clipboard unavailable')
+    }
     await navigator.clipboard.writeText(plainText)
     message.success('已复制到剪贴板')
+    return
   } catch {
-    // 回退方案
-    const textarea = document.createElement('textarea')
-    textarea.value = plainText
+    if (copyTextWithFallback(plainText)) {
+      message.success('已复制到剪贴板')
+      return
+    }
+    message.error('复制失败，请手动复制')
+  } finally {
+    hideContextMenu()
+  }
+}
+
+function copyTextWithFallback(text: string): boolean {
+  const textarea = document.createElement('textarea')
+  try {
+    textarea.value = text
     document.body.appendChild(textarea)
     textarea.select()
-    document.execCommand('copy')
-    document.body.removeChild(textarea)
-    message.success('已复制到剪贴板')
+    return document.execCommand('copy')
+  } catch {
+    return false
+  } finally {
+    textarea.parentNode?.removeChild(textarea)
   }
-  hideContextMenu()
 }
 
 // 转发消息（暂时只是复制到输入框）
@@ -559,7 +626,8 @@ const handleRecall = async () => {
   if (!contextMenu.targetMsg || !currentSession.value) return
   const msg = contextMenu.targetMsg
   const session = currentSession.value
-  
+
+  clearActionError()
   try {
     await chatApi.recall(session.id, msg.id, session.platform, session.guildId)
     // 从本地消息列表中移除
@@ -569,7 +637,7 @@ const handleRecall = async () => {
     }
     message.success('消息已撤回')
   } catch (cause) {
-    message.error(errorMessage(cause) || '撤回失败')
+    setActionError('撤回失败', cause, '撤回失败')
   }
   hideContextMenu()
 }
@@ -622,14 +690,14 @@ const handleIncomingMessage = async (msg: ChatMessage) => {
         if (info?.name) session!.name = info.name
         if (info?.avatar && !session!.avatar) session!.avatar = info.avatar
       }).catch((e) => {
-        message.error('获取群资料失败: ' + errorMessage(e))
+        pushError('获取群资料失败', errorMessage(e) || '获取群资料失败')
       })
     } else if (!isGroup && !msg.username) {
       chatApi.getUserInfo(msg.userId).then(info => {
         if (info?.name) session!.name = `私聊 ${info.name}`
         if (info?.avatar && !session!.avatar) session!.avatar = info.avatar
       }).catch((e) => {
-        message.error('获取用户资料失败: ' + errorMessage(e))
+        pushError('获取用户资料失败', errorMessage(e) || '获取用户资料失败')
       })
     }
   } else {
@@ -671,11 +739,19 @@ watch(currentSessionId, (newId) => {
     if (session.type === 'group' && session.guildId) {
       loadGuildMembers(session.guildId)
     } else {
+      membersLoadRequestSeq += 1
+      loadingMembers.value = false
       members.value = []
+      membersLoadError.value = ''
+      membersGuildId.value = ''
     }
   } else {
+    membersLoadRequestSeq += 1
+    loadingMembers.value = false
     currentSession.value = undefined
     members.value = []
+    membersLoadError.value = ''
+    membersGuildId.value = ''
   }
 })
 
@@ -691,7 +767,8 @@ const connectToChat = async () => {
   let displayName = connectForm.name.trim()
   let displayAvatar = ''
   const isGroup = connectForm.type === 'group'
-  
+
+  clearActionError()
   try {
     if (isGroup) {
       const info = await chatApi.getGuildInfo(targetId)
@@ -703,7 +780,7 @@ const connectToChat = async () => {
       if (info?.avatar) displayAvatar = info.avatar
     }
   } catch (e) {
-    message.error('获取会话信息失败: ' + errorMessage(e))
+    setActionError('获取会话信息失败', e, '获取会话信息失败')
   }
   
   // 如果仍然没有名称，使用默认名称
@@ -762,10 +839,13 @@ const scrollToBottom = () => {
 }
 
 const errorMessage = (cause: unknown) => {
-  return cause instanceof Error ? cause.message : String(cause)
+  if (cause instanceof Error && cause.message) return cause.message
+  if (typeof cause === 'string' && cause.trim()) return cause
+  return ''
 }
 
 const sendMessage = async () => {
+  if (sending.value) return
   const text = inputText.value.trim()
   const hasImages = pendingImages.value.length > 0
   
@@ -773,6 +853,7 @@ const sendMessage = async () => {
   if (!currentSession.value) return
 
   sending.value = true
+  clearActionError()
   try {
     const session = currentSession.value
     
@@ -794,7 +875,7 @@ const sendMessage = async () => {
     inputText.value = ''
     pendingImages.value = []
   } catch (cause) {
-    message.error(errorMessage(cause) || '发送失败')
+    setActionError('发送失败', cause, '发送失败')
   } finally {
     sending.value = false
     // 聚焦回输入框
@@ -804,6 +885,37 @@ const sendMessage = async () => {
 
 function formatBytes(value: number) {
   return `${(value / 1024 / 1024).toFixed(0)} MiB`
+}
+
+function setActionError(title: string, cause: unknown, fallback: string) {
+  const details = errorMessage(cause) || fallback
+  actionErrorTitle.value = title
+  actionError.value = details
+  pushError(title, details)
+}
+
+function clearActionError() {
+  actionError.value = ''
+  actionErrorTitle.value = '操作失败'
+}
+
+function pushError(title: string, details: string) {
+  notices.value.push({ id: noticeId(), kind: 'error', title, message: details })
+  scheduleDismiss()
+}
+
+function dismissNotice(id: string) {
+  notices.value = notices.value.filter((item) => item.id !== id)
+}
+
+function scheduleDismiss() {
+  const id = notices.value[notices.value.length - 1]?.id
+  if (!id) return
+  window.setTimeout(() => dismissNotice(id), 4000)
+}
+
+function noticeId(): string {
+  return `notice-${Math.random().toString(36).slice(2, 8)}-${Date.now()}`
 }
 
 const formatTimeShort = (ts?: number) => {
@@ -1325,6 +1437,46 @@ const handleAvatarError = (e: Event) => {
   gap: 10px;
 }
 
+.chat-action-error {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--status-danger) 38%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--status-danger) 10%, transparent);
+  color: var(--status-danger);
+  font-size: 12px;
+}
+
+.chat-action-error__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.chat-action-error__body span {
+  overflow-wrap: anywhere;
+  color: color-mix(in srgb, var(--status-danger) 82%, var(--fg2));
+}
+
+.chat-action-error__close {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.chat-action-error__close:hover {
+  background: color-mix(in srgb, var(--status-danger) 14%, transparent);
+}
+
 .pending-images {
   display: flex;
   flex-wrap: wrap;
@@ -1738,6 +1890,52 @@ const handleAvatarError = (e: Event) => {
 
 .members-search .search-input::placeholder {
   color: var(--fg3);
+}
+
+.members-error {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px 10px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--status-danger) 36%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--status-danger) 9%, transparent);
+  color: var(--status-danger);
+  font-size: 11px;
+}
+
+.members-error__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.members-error__body span {
+  overflow-wrap: anywhere;
+  color: color-mix(in srgb, var(--status-danger) 82%, var(--fg2));
+}
+
+.members-retry-btn {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.members-retry-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.members-retry-btn:not(:disabled):hover {
+  background: color-mix(in srgb, var(--status-danger) 14%, transparent);
 }
 
 .members-list {

@@ -4,7 +4,11 @@
     <header class="view-header">
       <h2 class="view-title">全局设置</h2>
       <div class="header-actions">
-        <button class="action-btn danger-outline" @click="resetToDefault">
+        <button
+          class="action-btn danger-outline"
+          :disabled="!settingsLoaded || saving"
+          @click="resetToDefault"
+        >
           <k-icon name="rotate-ccw" class="btn-icon" />
           <span>恢复默认</span>
         </button>
@@ -17,8 +21,19 @@
       <span class="loading-text">Loading...</span>
     </div>
 
+    <div v-else-if="loadError" class="settings-load-error" role="alert">
+      <div class="settings-load-error__body">
+        <strong>加载全局设置失败</strong>
+        <span>{{ loadError }}</span>
+      </div>
+      <button class="action-btn" @click="loadSettings">
+        <k-icon name="refresh-cw" class="btn-icon" />
+        <span>重试</span>
+      </button>
+    </div>
+
     <!-- Settings Content -->
-    <div v-else class="settings-content">
+    <div v-else-if="settingsLoaded" class="settings-content">
       <!-- Mobile Section Selector -->
       <div class="mobile-section-selector">
         <div class="selector-current" @click="sectionDropdownOpen = !sectionDropdownOpen">
@@ -57,6 +72,16 @@
 
       <!-- Main Content -->
       <div class="settings-main">
+        <div v-if="actionError" class="settings-action-error" role="alert">
+          <div class="settings-action-error__body">
+            <strong>{{ actionErrorTitle }}</strong>
+            <span>{{ actionError }}</span>
+          </div>
+          <button class="action-btn" type="button" @click="clearActionError">
+            关闭
+          </button>
+        </div>
+
         <!-- Warn Settings -->
         <div v-show="activeSection === 'warn'" class="config-section">
           <div class="section-header">
@@ -610,11 +635,13 @@
     
     <!-- Save Bar -->
     <transition name="slide-up">
-      <div class="save-bar" v-if="hasChanges">
+      <div class="save-bar" v-if="settingsLoaded && hasChanges">
         <span class="save-bar-text">检测到未保存的修改</span>
         <div class="save-actions">
-          <button class="save-bar-btn secondary" @click="resetChanges">放弃更改</button>
-          <button class="save-bar-btn primary" @click="saveSettings">保存更改</button>
+          <button class="save-bar-btn secondary" :disabled="saving" @click="resetChanges">放弃更改</button>
+          <button class="save-bar-btn primary" :disabled="saving" @click="saveSettings">
+            {{ saving ? '保存中...' : '保存更改' }}
+          </button>
         </div>
       </div>
     </transition>
@@ -801,10 +828,15 @@ const defaultSettings: SettingsModel = {
 
 const loading = ref(true)
 const saving = ref(false)
+const loadError = ref('')
+const actionError = ref('')
+const actionErrorTitle = ref('操作失败')
 const settings = ref<SettingsModel>(cloneDefaultSettings())
 const originalSettings = ref<string>('') // 原始设置的 JSON 字符串用于比较
 const activeSection = ref('warn')
 const sectionDropdownOpen = ref(false)
+const settingsLoaded = computed(() => Boolean(originalSettings.value) && !loadError.value)
+let loadRequestSeq = 0
 
 // 当前选中的 section 标签
 const currentSectionLabel = computed(() => {
@@ -932,40 +964,76 @@ function parseSettingsSnapshot(value: string): SettingsModel {
   return deepMerge(cloneDefaultSettings(), parsed)
 }
 
-const loadSettings = async () => {
+const loadSettings = async (): Promise<boolean> => {
+  const requestSeq = ++loadRequestSeq
   loading.value = true
+  loadError.value = ''
+  clearActionError()
   try {
     const data = await settingsApi.get()
+    if (requestSeq !== loadRequestSeq) return false
     // 深度合并默认值和返回数据
     settings.value = deepMerge(cloneDefaultSettings(), data)
     // 保存原始设置用于比较
     originalSettings.value = JSON.stringify(settings.value)
+    return true
   } catch (cause) {
-    message.error(errorMessage(cause) || '加载设置失败')
+    if (requestSeq !== loadRequestSeq) return false
+    const details = errorMessage(cause) || '加载设置失败'
+    loadError.value = details
+    originalSettings.value = ''
+    message.error(details)
+    return false
   } finally {
-    loading.value = false
+    if (requestSeq === loadRequestSeq) {
+      loading.value = false
+    }
   }
 }
 
 const saveSettings = async () => {
+  if (saving.value) return
+  if (!settingsLoaded.value) {
+    setActionError('保存失败', '设置尚未加载，不能保存默认表单', '保存失败')
+    return
+  }
+
   saving.value = true
+  clearActionError()
   try {
     await settingsApi.update(settings.value)
     // 更新原始设置
     originalSettings.value = JSON.stringify(settings.value)
     message.success('设置已保存')
   } catch (cause) {
-    message.error(errorMessage(cause) || '保存设置失败')
+    setActionError('保存失败', cause, '保存设置失败')
   } finally {
     saving.value = false
   }
 }
 
+function setActionError(title: string, cause: unknown, fallback: string): void {
+  const details = errorMessage(cause) || fallback
+  actionErrorTitle.value = title
+  actionError.value = details
+  message.error(details)
+}
+
+function clearActionError(): void {
+  actionErrorTitle.value = '操作失败'
+  actionError.value = ''
+}
+
 function errorMessage(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause)
+  if (cause instanceof Error && cause.message) return cause.message
+  if (typeof cause === 'string') return cause
+  if (cause === undefined || cause === null) return ''
+  return String(cause)
 }
 
 const resetChanges = async () => {
+  if (!settingsLoaded.value) return
+
   const confirmed = await showConfirm({
     title: '放弃更改',
     message: '确定要放弃当前所有未保存的修改吗？',
@@ -973,6 +1041,7 @@ const resetChanges = async () => {
   })
   
   if (confirmed) {
+    clearActionError()
     // 从原始设置恢复
     settings.value = parseSettingsSnapshot(originalSettings.value)
     message.success('已放弃更改')
@@ -980,6 +1049,8 @@ const resetChanges = async () => {
 }
 
 const resetToDefault = async () => {
+  if (!settingsLoaded.value) return
+
   const confirmed = await showConfirm({
     title: '恢复默认设置',
     message: '确定要将所有设置恢复为默认值吗？此操作将覆盖当前所有设置，需要保存后才会生效。',
@@ -987,6 +1058,7 @@ const resetToDefault = async () => {
   })
   
   if (confirmed) {
+    clearActionError()
     // 恢复为默认设置
     settings.value = cloneDefaultSettings()
     message.success('已恢复默认设置，请保存以应用更改')
@@ -1066,6 +1138,12 @@ onMounted(() => {
   cursor: not-allowed;
 }
 
+.action-btn:disabled:hover {
+  color: var(--fg2);
+  background: var(--bg2);
+  border-color: var(--k-color-border);
+}
+
 .action-btn.primary {
   color: var(--fg0);
   background: var(--k-color-primary);
@@ -1121,6 +1199,43 @@ onMounted(() => {
 .loading-text {
   font-size: 12px;
   font-family: 'SF Mono', 'Consolas', monospace;
+}
+
+.settings-load-error,
+.settings-action-error {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  color: var(--k-color-danger);
+  background: var(--k-color-danger-fade);
+  border: 1px solid color-mix(in srgb, var(--k-color-danger) 34%, transparent);
+  border-radius: 6px;
+}
+
+.settings-action-error {
+  margin-bottom: 16px;
+}
+
+.settings-load-error__body,
+.settings-action-error__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.settings-load-error__body strong,
+.settings-action-error__body strong {
+  font-size: 14px;
+  color: var(--fg1);
+}
+
+.settings-load-error__body span,
+.settings-action-error__body span {
+  overflow-wrap: anywhere;
 }
 
 /* Settings Content */

@@ -2,6 +2,7 @@ import type { Context } from 'koishi'
 import os from 'os'
 
 import type { DataManager } from '../data'
+import { normalizeCommandLogRecords } from './command-log-records'
 
 export type StatusData = {
   readonly os: {
@@ -46,7 +47,7 @@ export async function getSystemStatusData(ctx: Context, data: DataManager): Prom
   const cpus = os.cpus()
   const pkg = require('../../../package.json')
   const groupConfigs = await data.groupConfig.getAll()
-  const commandLogs = await data.commandLogs.getAll()
+  const commandLogs = normalizeCommandLogRecords(await data.commandLogs.getAll())
 
   return {
     os: {
@@ -79,7 +80,7 @@ export async function getSystemStatusData(ctx: Context, data: DataManager): Prom
     stuhelperGroupCenter: {
       version: `${pkg.version || 'unknown'}`,
       groupCount: Object.keys(groupConfigs).length,
-      logCount: commandLogs.logs.length,
+      logCount: commandLogs.length,
     },
   }
 }

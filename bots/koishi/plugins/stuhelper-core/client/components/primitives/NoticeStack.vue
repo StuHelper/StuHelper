@@ -14,7 +14,7 @@
     >
       <span class="sh-notice__icon">{{ item.kind === 'success' ? '✓' : '!' }}</span>
       <div class="sh-notice__body">
-        <p class="sh-notice__title">{{ item.kind === 'success' ? '操作成功' : '操作失败' }}</p>
+        <p class="sh-notice__title">{{ item.title ?? (item.kind === 'success' ? '操作成功' : '操作失败') }}</p>
         <p class="sh-notice__message">{{ item.message }}</p>
       </div>
       <button
@@ -33,6 +33,7 @@
 export interface NoticeItem {
   id: string
   kind: 'success' | 'error'
+  title?: string
   message: string
 }
 

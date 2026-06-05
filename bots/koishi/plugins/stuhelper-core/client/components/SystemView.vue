@@ -18,13 +18,25 @@
 
     <ConsolePageSkeleton v-if="loading && !stats" />
     <EmptyState
-      v-else-if="error"
-      title="加载失败"
+      v-else-if="error && !stats"
+      title="加载缓存统计失败"
       :body="error"
       tone="error"
-    />
+    >
+      <template #action>
+        <el-button class="sh-button sh-button--ghost" @click="load">重试</el-button>
+      </template>
+    </EmptyState>
 
     <template v-else-if="stats">
+      <div v-if="error" class="sh-load-error" role="alert">
+        <div class="sh-load-error__body">
+          <strong>刷新缓存统计失败</strong>
+          <span>{{ error }}</span>
+        </div>
+        <el-button class="sh-button sh-button--ghost" @click="load">重试</el-button>
+      </div>
+
       <section class="sh-dashboard-metrics sh-system__metrics">
         <article class="sh-stat sh-dashboard-metric sh-stat--primary">
           <span class="sh-stat__label">群组缓存</span>
@@ -54,21 +66,29 @@
         title="缓存操作"
         description="强制刷新会从 Bot 重新拉取所有名称；清空只删除本地缓存条目。"
       >
+        <div v-if="actionError" class="sh-load-error sh-system__action-error" role="alert">
+          <div class="sh-load-error__body">
+            <strong>{{ actionErrorTitle }}</strong>
+            <span>{{ actionError }}</span>
+          </div>
+          <el-button class="sh-button sh-button--ghost" @click="clearActionError">关闭</el-button>
+        </div>
+
         <div class="sh-btn-row">
           <el-button
             type="primary"
             class="sh-button sh-button--primary"
-            :disabled="refreshing"
+            :disabled="refreshing || clearing"
             @click="onRefresh"
           >
             {{ refreshing ? '刷新中…' : '强制刷新' }}
           </el-button>
           <el-button
             class="sh-button sh-button--danger"
-            :disabled="refreshing"
+            :disabled="refreshing || clearing"
             @click="onClear"
           >
-            清空缓存
+            {{ clearing ? '清空中…' : '清空缓存' }}
           </el-button>
         </div>
         <ul class="sh-system__notes">
@@ -108,9 +128,13 @@ import WorkspaceSection from './primitives/WorkspaceSection.vue'
 
 const loading = ref(false)
 const refreshing = ref(false)
+const clearing = ref(false)
 const stats = ref<CacheStats | null>(null)
 const error = ref('')
+const actionError = ref('')
+const actionErrorTitle = ref('操作失败')
 const notices = ref<NoticeItem[]>([])
+let loadRequestSeq = 0
 
 const { state: confirmState, confirm, accept, cancel } = useConfirm()
 
@@ -129,14 +153,21 @@ const headerChips = computed<WorkspaceHeadChip[]>(() => {
 onMounted(load)
 
 async function load(): Promise<void> {
+  const requestSeq = ++loadRequestSeq
   loading.value = true
   error.value = ''
+  clearActionError()
   try {
-    stats.value = await cacheApi.stats()
+    const next = await cacheApi.stats()
+    if (requestSeq !== loadRequestSeq) return
+    stats.value = next
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : '获取缓存统计失败'
+    if (requestSeq !== loadRequestSeq) return
+    error.value = errorMessage(cause, '加载缓存统计失败')
   } finally {
-    loading.value = false
+    if (requestSeq === loadRequestSeq) {
+      loading.value = false
+    }
   }
 }
 
@@ -149,12 +180,13 @@ async function onRefresh(): Promise<void> {
   if (!confirmed) return
 
   refreshing.value = true
+  clearActionError()
   try {
     const result = await cacheApi.refresh()
     stats.value = result.stats
     pushSuccess('缓存刷新完成')
   } catch (cause) {
-    pushError(cause, '刷新缓存失败')
+    setActionError('刷新缓存失败', cause, '刷新缓存失败')
   } finally {
     refreshing.value = false
   }
@@ -169,12 +201,16 @@ async function onClear(): Promise<void> {
   })
   if (!confirmed) return
 
+  clearing.value = true
+  clearActionError()
   try {
     await cacheApi.clear()
     pushSuccess('缓存已清空')
     await load()
   } catch (cause) {
-    pushError(cause, '清空缓存失败')
+    setActionError('清空缓存失败', cause, '清空缓存失败')
+  } finally {
+    clearing.value = false
   }
 }
 
@@ -183,10 +219,23 @@ function pushSuccess(message: string): void {
   scheduleDismiss()
 }
 
-function pushError(cause: unknown, fallback: string): void {
-  const message = cause instanceof Error ? cause.message : fallback
-  notices.value.push({ id: noticeId(), kind: 'error', message })
+function setActionError(title: string, cause: unknown, fallback: string): void {
+  const message = errorMessage(cause, fallback)
+  actionErrorTitle.value = title
+  actionError.value = message
+  notices.value.push({ id: noticeId(), kind: 'error', title, message })
   scheduleDismiss()
+}
+
+function clearActionError(): void {
+  actionErrorTitle.value = '操作失败'
+  actionError.value = ''
+}
+
+function errorMessage(cause: unknown, fallback: string): string {
+  if (cause instanceof Error && cause.message) return cause.message
+  if (typeof cause === 'string' && cause) return cause
+  return fallback
 }
 
 function dismissNotice(id: string): void {
@@ -231,5 +280,9 @@ function noticeId(): string {
   font-size: var(--sh-t-meta);
   color: var(--sh-fg-2);
   line-height: var(--sh-l-loose);
+}
+
+.sh-system__action-error {
+  margin-bottom: var(--sh-s-3);
 }
 </style>

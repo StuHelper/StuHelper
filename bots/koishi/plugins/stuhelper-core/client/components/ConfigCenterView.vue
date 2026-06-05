@@ -37,14 +37,33 @@
     </nav>
 
     <EmptyState
-      v-if="error"
-      title="加载失败"
+      v-if="error && !data"
+      title="加载配置治理数据失败"
       :body="error"
       tone="error"
-    />
+    >
+      <template #action>
+        <el-button class="sh-button sh-button--ghost" @click="loadData">重试</el-button>
+      </template>
+    </EmptyState>
     <ConsolePageSkeleton v-else-if="loading && !data" />
 
     <template v-else-if="data">
+      <div v-if="error" class="sh-load-error" role="alert">
+        <div class="sh-load-error__body">
+          <strong>刷新配置治理数据失败</strong>
+          <span>{{ error }}</span>
+        </div>
+        <el-button class="sh-button sh-button--ghost" @click="loadData">重试</el-button>
+      </div>
+      <div v-if="actionError" class="sh-load-error sh-config-governance__action-error" role="alert">
+        <div class="sh-load-error__body">
+          <strong>{{ actionErrorTitle }}</strong>
+          <span>{{ actionError }}</span>
+        </div>
+        <el-button class="sh-button sh-button--ghost" @click="clearActionError">关闭</el-button>
+      </div>
+
       <LegacyConfigView v-if="currentWorkspace === 'guild-config'" :navigation="props.navigation" />
 
       <div v-else class="sh-split sh-split--1-1">
@@ -290,22 +309,43 @@
         </WorkspaceSection>
       </div>
     </template>
+
+    <ConfirmDialog
+      :open="confirmDialog.open"
+      :title="confirmDialog.title"
+      :message="confirmDialog.message"
+      :tone="confirmDialog.tone"
+      :confirm-text="confirmDialog.confirmText"
+      :cancel-text="confirmDialog.cancelText"
+      @confirm="acceptConfirm"
+      @cancel="cancelConfirm"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import type { ConsoleNavigationController } from '../composables/use-console-navigation'
 import { formatTimestamp } from '../models/formatters'
+import { useConfirm } from '../composables/use-confirm'
 import { useConfigGovernance } from '../composables/use-config-governance'
 import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
+import ConfirmDialog from './primitives/ConfirmDialog.vue'
 import EmptyState from './primitives/EmptyState.vue'
 import WorkspaceSection from './primitives/WorkspaceSection.vue'
 import LegacyConfigView from './ConfigView.vue'
 
 const props = defineProps<{ navigation?: ConsoleNavigationController }>()
 const {
+  state: confirmDialog,
+  confirm,
+  accept: acceptConfirm,
+  cancel: cancelConfirm,
+} = useConfirm()
+const {
   loading,
   error,
+  actionError,
+  actionErrorTitle,
   data,
   currentWorkspace,
   notice,
@@ -325,7 +365,17 @@ const {
   submitTemplate,
   submitBinding,
   submitPolicy,
-} = useConfigGovernance(props.navigation)
+  clearActionError,
+} = useConfigGovernance(props.navigation, confirmDiscardChanges)
+
+function confirmDiscardChanges(message: string) {
+  return confirm({
+    title: '放弃未保存更改',
+    message,
+    tone: 'danger',
+    confirmText: '放弃更改',
+  })
+}
 </script>
 
 <style scoped>

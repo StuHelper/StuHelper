@@ -1,8 +1,8 @@
 import type { WebSocketAPIContext } from './api-context'
-import { error, success } from './api-response'
+import { success } from './api-response'
 import { assertGlobalConsoleScope, type ConsoleGuildScope } from './console-guild-scope'
 import { loadScopedBlacklistTotal } from './dashboard-blacklist-stats'
-import { findLogModule } from './log-module-lookup'
+import { readCommandLogs } from './log-module-lookup'
 import { filterGuildEntries, filterLogs, filterSubscriptions } from './scope-filters'
 import type { CommandLogRecord } from '../modules/log.module'
 
@@ -61,10 +61,7 @@ function countScopedWarns(allWarns: Record<string, unknown>, scope: ConsoleGuild
 
 async function handleChartStats(api: WebSocketAPIContext, scope: ConsoleGuildScope, params?: { days?: number }) {
   const days = params?.days || DEFAULT_CHART_DAYS
-  const logModule = findLogModule(api)
-  if (!logModule) return error('Log module not found')
-
-  const logs = filterLogs(await logModule.getAllLogs(), scope)
+  const logs = filterLogs(await readCommandLogs(api), scope)
   const now = Date.now()
   const stats = collectChartStats(logs, { now, days })
   return success({

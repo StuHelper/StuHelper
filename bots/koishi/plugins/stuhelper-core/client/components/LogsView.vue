@@ -90,8 +90,22 @@
       :meta="total > 0 ? `${total.toLocaleString()} 条` : ''"
       flush
     >
+      <div v-if="searchError" class="sh-logs__error" role="alert">
+        <div class="sh-logs__error-body">
+          <strong>加载日志失败</strong>
+          <span>{{ searchError }}</span>
+        </div>
+        <el-button
+          class="sh-button sh-button--ghost"
+          size="small"
+          :disabled="loading"
+          @click="runSearch"
+        >
+          重试
+        </el-button>
+      </div>
       <EmptyState
-        v-if="logs.length === 0 && !loading"
+        v-if="logs.length === 0 && !loading && !searchError"
         title="暂无匹配记录"
         body="这段时间没有满足过滤条件的命令执行记录。"
       />
@@ -255,6 +269,7 @@ const props = defineProps<{
 const loading = ref(false)
 const logs = ref<LogRecord[]>([])
 const total = ref(0)
+const searchError = ref('')
 const dateRange = ref<[number, number] | null>(null)
 const detailLog = ref<LogRecord | null>(null)
 const notices = ref<NoticeItem[]>([])
@@ -263,6 +278,7 @@ const searchParams = reactive<LogSearchParams>({
   page: 1,
   pageSize: 20,
 })
+let searchRequestSeq = 0
 
 const headerChips = computed<WorkspaceHeadChip[]>(() => {
   const chips: WorkspaceHeadChip[] = []
@@ -312,7 +328,9 @@ function updateSearchParam<K extends keyof LogSearchParams>(
 }
 
 async function runSearch() {
+  const requestSeq = ++searchRequestSeq
   loading.value = true
+  searchError.value = ''
   try {
     const params: LogSearchParams = { ...searchParams }
     if (dateRange.value) {
@@ -320,12 +338,19 @@ async function runSearch() {
       params.endTime = dateRange.value[1]
     }
     const result = await logsApi.search(params)
+    if (requestSeq !== searchRequestSeq) return
     logs.value = result.list
     total.value = result.total
+    searchError.value = ''
   } catch (cause) {
-    pushError(cause, '加载日志失败')
+    if (requestSeq !== searchRequestSeq) return
+    const message = errorMessage(cause, '加载日志失败')
+    searchError.value = message
+    pushError('加载日志失败', message)
   } finally {
-    loading.value = false
+    if (requestSeq === searchRequestSeq) {
+      loading.value = false
+    }
   }
 }
 
@@ -362,10 +387,15 @@ function closeDetail() {
   detailLog.value = null
 }
 
-function pushError(cause: unknown, fallback: string) {
-  const message = cause instanceof Error ? cause.message : fallback
-  notices.value.push({ id: noticeId(), kind: 'error', message })
+function pushError(title: string, message: string) {
+  notices.value.push({ id: noticeId(), kind: 'error', title, message })
   scheduleDismiss()
+}
+
+function errorMessage(cause: unknown, fallback: string): string {
+  if (cause instanceof Error && cause.message) return cause.message
+  if (typeof cause === 'string' && cause.trim()) return cause
+  return fallback
 }
 
 function dismissNotice(id: string) {
@@ -411,6 +441,26 @@ function noticeId(): string {
 .sh-logs__private {
   color: var(--sh-fg-3);
   font-size: var(--sh-t-meta);
+}
+
+.sh-logs__error {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sh-s-3);
+  margin: 0 0 var(--sh-s-3);
+  padding: var(--sh-s-3);
+  border: 1px solid color-mix(in srgb, var(--sh-danger) 38%, transparent);
+  border-radius: var(--sh-radius-md);
+  background: color-mix(in srgb, var(--sh-danger) 10%, transparent);
+  color: var(--sh-danger);
+}
+
+.sh-logs__error-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .sh-logs__detail {

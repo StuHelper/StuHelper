@@ -57,12 +57,16 @@ export class AdmissionRuntimeSettingsStore {
   async saveSettings(input: AdmissionRuntimeSettingsInput) {
     const current = await this.getSettings()
     const now = new Date()
+    const changes = normalizeInput(input)
     const next = {
       ...current,
-      ...normalizeInput(input),
+      ...changes,
       updatedAt: now,
     }
-    await this.ctx.database.set(ADMISSION_RUNTIME_SETTINGS_TABLE, { id: DEFAULT_SETTINGS_ID }, next)
+    await this.ctx.database.set(ADMISSION_RUNTIME_SETTINGS_TABLE, { id: DEFAULT_SETTINGS_ID }, {
+      ...changes,
+      updatedAt: now,
+    })
     return next
   }
 

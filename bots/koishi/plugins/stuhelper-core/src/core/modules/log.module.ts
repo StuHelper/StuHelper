@@ -19,6 +19,7 @@ import { getRequiredPluginConfig } from './module-config'
 import { registerCommandLogCommands } from './log-command-commands'
 import { registerLogEventListeners } from './log-events'
 import { registerOperationLogCommands } from './log-operation-commands'
+import { normalizeCommandLogRecords } from './command-log-records'
 
 const JSON_INDENT_SPACES = 2
 const DEFAULT_RECENT_LOG_LIMIT = 100
@@ -127,10 +128,10 @@ export class LogModule implements RuntimeModuleInstance {
     }
     const content = fs.readFileSync(this.commandLogPath, 'utf-8')
     const logs = JSON.parse(content)
-    if (!Array.isArray(logs)) {
+    if (!Array.isArray(logs) && !(logs && typeof logs === 'object' && Array.isArray(logs.logs))) {
       throw new Error(`命令日志文件格式无效: ${this.commandLogPath}`)
     }
-    return logs
+    return normalizeCommandLogRecords(logs)
   }
 
   saveCommandLogs(logs: CommandLogRecord[]): void {

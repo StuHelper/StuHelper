@@ -158,6 +158,39 @@ test('identity view filters restricted members and renders verification context'
   tracker.assertClean()
 })
 
+test('admission runtime saves switches and executes member actions through real console actions', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  await clickNavRail(page, '入群认证')
+  await expect(page).toHaveURL(/#admission($|\?)/, { timeout: 5_000 })
+  await expect(page.locator('.sh-workspace-head__title', { hasText: '入群认证' }).first()).toBeVisible({
+    timeout: 10_000,
+  })
+
+  const actionStreamRow = page.locator('.sh-lane__row', { hasText: 'Action Stream' }).first()
+  await expect(actionStreamRow).toBeVisible({ timeout: 10_000 })
+  await actionStreamRow.locator('.el-switch').click()
+  await expect(page.getByText('已保存入群认证运行开关。')).toBeVisible({ timeout: 10_000 })
+  await expect(actionStreamRow.locator('.el-switch')).not.toHaveClass(/is-checked/, { timeout: 10_000 })
+
+  const memberRow = page.locator('.el-table__row', { hasText: '200201' }).first()
+  await expect(memberRow).toBeVisible({ timeout: 10_000 })
+  await memberRow.getByRole('button', { name: '查询', exact: true }).click()
+  await expect(page.getByText(/QQ 200201 的入群认证状态：linked/)).toBeVisible({ timeout: 10_000 })
+
+  await memberRow.getByRole('button', { name: '重发', exact: true }).click()
+  const resendDialog = confirmDialog(page, '确认入群认证动作')
+  await expect(resendDialog).toBeVisible({ timeout: 5_000 })
+  await expect(resendDialog.getByText('确定要对 QQ 200201 执行「重发」吗？')).toBeVisible()
+  await resendDialog.getByRole('button', { name: '重发', exact: true }).click()
+
+  await expect(page.getByText('已重发 QQ 200201 的入群认证链接。')).toBeVisible({ timeout: 10_000 })
+  const actions = await uiSmokeChatActions(page)
+  expect(actions.sentMessages.at(-1)?.content).toContain('https://join.stuhelper.com/verify/session-ui-smoke-200201')
+
+  tracker.assertClean()
+})
+
 test('chat dock opens via CommandBar and renders ChatView', async ({ loggedInPage: page }) => {
   await using tracker = createTracker(page)
 
@@ -181,6 +214,19 @@ test('chat dock opens via CommandBar and renders ChatView', async ({ loggedInPag
 
 test('chat dock receives, sends image message, and recalls through real console actions', async ({ loggedInPage: page }) => {
   await using tracker = createTracker(page)
+
+  await page.evaluate(() => {
+    const state = globalThis as unknown as { __chatClipboardWrites?: string[] }
+    state.__chatClipboardWrites = []
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: async (text: string) => {
+          state.__chatClipboardWrites?.push(text)
+        },
+      },
+    })
+  })
 
   await clickNavRail(page, VIEWS[0].label)
   await expect(page).toHaveURL(/#dashboard($|\?)/, { timeout: 5_000 })
@@ -212,6 +258,20 @@ test('chat dock receives, sends image message, and recalls through real console 
     /^data:image\/png;base64,/,
     { timeout: 10_000 },
   )
+
+  await incomingRow.click({ button: 'right' })
+  const copyMenu = page.locator('.context-menu').first()
+  await expect(copyMenu).toBeVisible({ timeout: 5_000 })
+  await copyMenu.locator('.context-menu-item', { hasText: '复制' }).click()
+  await expect(toastMessage(page, '已复制到剪贴板')).toBeVisible({ timeout: 10_000 })
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const state = globalThis as unknown as { __chatClipboardWrites?: string[] }
+        return state.__chatClipboardWrites ?? []
+      }),
+    )
+    .toContain('E2E incoming chat message')
 
   const input = dock.locator('.chat-input').first()
   await input.fill('E2E outbound chat text')
@@ -403,6 +463,264 @@ test('config governance workspace tabs render and update navigation state', asyn
     await expect(page).toHaveURL(item.hash, { timeout: 5_000 })
     await expect(page.getByText(item.anchor).first()).toBeVisible({ timeout: 10_000 })
   }
+
+  tracker.assertClean()
+})
+
+test('config governance confirms before discarding dirty workspace form', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  await clickNavRail(page, '群组配置')
+  await page.getByRole('button', { name: '模板库', exact: true }).click()
+  await expect(page).toHaveURL(/#config\?workspace=templates/, { timeout: 5_000 })
+
+  const templateIdInput = page.locator('label', { hasText: '模板 ID' }).locator('input').first()
+  await templateIdInput.fill('dirty-template-draft')
+  await expect(page.getByText('有未提交更改').first()).toBeVisible()
+
+  await page.getByRole('button', { name: '群绑定', exact: true }).click()
+  const cancelDialog = confirmDialog(page, '放弃未保存更改')
+  await expect(cancelDialog).toBeVisible({ timeout: 5_000 })
+  await expect(cancelDialog.getByText('当前有未保存的改动，继续会丢失这些修改。')).toBeVisible()
+  await cancelDialog.getByRole('button', { name: '取消', exact: true }).click()
+
+  await expect(cancelDialog).toBeHidden({ timeout: 5_000 })
+  await expect(page).toHaveURL(/#config\?workspace=templates/, { timeout: 5_000 })
+  await expect(templateIdInput).toHaveValue('dirty-template-draft')
+
+  await page.getByRole('button', { name: '群绑定', exact: true }).click()
+  const discardDialog = confirmDialog(page, '放弃未保存更改')
+  await expect(discardDialog).toBeVisible({ timeout: 5_000 })
+  await discardDialog.getByRole('button', { name: '放弃更改', exact: true }).click()
+
+  await expect(discardDialog).toBeHidden({ timeout: 5_000 })
+  await expect(page).toHaveURL(/#config\?workspace=bindings/, { timeout: 5_000 })
+  await expect(page.getByText('编辑绑定').first()).toBeVisible({ timeout: 10_000 })
+
+  tracker.assertClean()
+})
+
+test('config governance template save failures stay in the form without replacing page data', async ({
+  loggedInPage: page,
+}) => {
+  await using tracker = createTracker(page)
+
+  await clickNavRail(page, '群组配置')
+  await page.getByRole('button', { name: '模板库', exact: true }).click()
+  await expect(page).toHaveURL(/#config\?workspace=templates/, { timeout: 5_000 })
+
+  await fillLabeledInput(page, '模板 ID', 'e2e-invalid-template')
+  await fillLabeledInput(page, '模板名称', 'E2E 失败模板')
+  await fillLabeledInput(page, '禁言时长(秒)', '999999999')
+  await fillLabeledInput(page, '踢出阈值(分钟)', '15')
+  await fillLabeledInput(page, '提醒文案', 'E2E 保存失败后保留草稿')
+  await page.getByRole('button', { name: '保存模板', exact: true }).click()
+
+  const actionError = page.locator('.sh-config-governance__action-error').first()
+  await expect(actionError).toBeVisible({ timeout: 10_000 })
+  await expect(actionError).toContainText('保存模板失败')
+  await expect(actionError).toContainText('禁言时长')
+  await expect(page.locator('.sh-load-error', { hasText: '刷新配置治理数据失败' })).toHaveCount(0)
+  await expect(page.locator('label', { hasText: '模板 ID' }).locator('input').first()).toHaveValue(
+    'e2e-invalid-template',
+  )
+
+  await actionError.getByRole('button', { name: '关闭', exact: true }).click()
+  await expect(actionError).toHaveCount(0)
+
+  await fillLabeledInput(page, '禁言时长(秒)', '120')
+  await page.getByRole('button', { name: '保存模板', exact: true }).click()
+  await expect(page.getByText('已保存群模板：E2E 失败模板')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('E2E 失败模板').first()).toBeVisible({ timeout: 10_000 })
+
+  tracker.assertClean()
+})
+
+test('config governance binding and command policy validation failures keep drafts editable', async ({
+  loggedInPage: page,
+}) => {
+  await using tracker = createTracker(page)
+
+  await clickNavRail(page, '群组配置')
+  await page.getByRole('button', { name: '群绑定', exact: true }).click()
+  await expect(page).toHaveURL(/#config\?workspace=bindings/, { timeout: 5_000 })
+
+  await fillLabeledInput(page, '平台', 'qq')
+  await fillLabeledInput(page, '群号', '1002')
+  await fillLabeledInput(page, '备注', '未选择模板时保留绑定草稿')
+  await page.getByRole('button', { name: '保存绑定', exact: true }).click()
+
+  let actionError = page.locator('.sh-config-governance__action-error').first()
+  await expect(actionError).toBeVisible({ timeout: 10_000 })
+  await expect(actionError).toContainText('保存绑定失败')
+  await expect(actionError).toContainText('模板不能为空')
+  await expect(page.locator('.sh-load-error', { hasText: '刷新配置治理数据失败' })).toHaveCount(0)
+  await expect(page.locator('label', { hasText: '群号' }).locator('input').first()).toHaveValue('1002')
+
+  await actionError.getByRole('button', { name: '关闭', exact: true }).click()
+  await page.getByRole('button', { name: '命令策略', exact: true }).click()
+  const discardDialog = confirmDialog(page, '放弃未保存更改')
+  await expect(discardDialog).toBeVisible({ timeout: 5_000 })
+  await discardDialog.getByRole('button', { name: '放弃更改', exact: true }).click()
+
+  await expect(page).toHaveURL(/#config\?workspace=command-policies/, { timeout: 5_000 })
+  await fillLabeledInput(page, '角色白名单(逗号分隔)', 'admin')
+  await page.getByRole('button', { name: '保存策略', exact: true }).click()
+
+  actionError = page.locator('.sh-config-governance__action-error').first()
+  await expect(actionError).toBeVisible({ timeout: 10_000 })
+  await expect(actionError).toContainText('保存策略失败')
+  await expect(actionError).toContainText('命令不能为空')
+  await expect(page.locator('.sh-load-error', { hasText: '刷新配置治理数据失败' })).toHaveCount(0)
+  await expect(page.locator('label', { hasText: '角色白名单(逗号分隔)' }).locator('input').first()).toHaveValue(
+    'admin',
+  )
+
+  await actionError.getByRole('button', { name: '关闭', exact: true }).click()
+  await fillLabeledInput(page, '角色白名单(逗号分隔)', '')
+
+  tracker.assertClean()
+})
+
+test('legacy group config opens plugin editor and saves normalized defaults', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  await clickNavRail(page, '群组配置')
+  await page.getByRole('button', { name: '群配置', exact: true }).click()
+  await expect(page).toHaveURL(/#config($|\?)/, { timeout: 5_000 })
+  await expect(page.locator('.view-title', { hasText: '群组配置' })).toBeVisible({ timeout: 10_000 })
+
+  await page.locator('.config-view .search-input').fill('190001')
+  const row = page.locator('.config-view .list-row', { hasText: '190001' }).first()
+  await expect(row).toBeVisible({ timeout: 10_000 })
+  await expect(row.getByText('1 验证')).toBeVisible()
+  await expect(row.getByText('1 违规')).toBeVisible()
+  await row.getByRole('button', { name: '编辑', exact: true }).click()
+
+  const dialog = configEditDialog(page, '190001')
+  await expect(dialog).toBeVisible({ timeout: 5_000 })
+  await expect(configTextarea(dialog, '验证关键词')).toHaveValue('legacy-pass')
+
+  await dialog.locator('.sidebar-item', { hasText: '功能插件' }).click()
+  const banmeCard = dialog.locator('.plugin-card', { hasText: '自我禁言' }).first()
+  await expect(banmeCard).toBeVisible()
+  await banmeCard.locator('.plugin-header').click()
+  await expect(configInput(dialog, 'UP时长')).toHaveValue('24h')
+  await expect(configInput(dialog, '歪时长')).toHaveValue('12h')
+
+  await dialog.locator('.sidebar-item', { hasText: '入群设置' }).click()
+  await configTextarea(dialog, '验证关键词').fill('legacy-pass, e2e-added-pass')
+  await dialog.locator('.sidebar-item', { hasText: '违规管理' }).click()
+  await configTextarea(dialog, '禁言关键词').fill('legacy-spam, e2e-added-spam')
+  await dialog.getByRole('button', { name: '保存', exact: true }).click()
+
+  await expect(toastMessage(page, '保存成功')).toBeVisible({ timeout: 10_000 })
+  await expect(dialog).toHaveCount(0, { timeout: 10_000 })
+  await expect(row.getByText('2 验证')).toBeVisible({ timeout: 10_000 })
+  await expect(row.getByText('2 违规')).toBeVisible()
+
+  tracker.assertClean()
+})
+
+test('legacy group config creates, copies, reloads, and deletes through real console actions', async ({
+  loggedInPage: page,
+}) => {
+  await using tracker = createTracker(page)
+
+  const guildId = '190099'
+  await page.evaluate(() => {
+    const state = globalThis as unknown as { __configClipboardWrites?: string[] }
+    state.__configClipboardWrites = []
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: async (text: string) => {
+          state.__configClipboardWrites?.push(text)
+        },
+      },
+    })
+  })
+
+  await clickNavRail(page, '群组配置')
+  await page.getByRole('button', { name: '群配置', exact: true }).click()
+  await expect(page).toHaveURL(/#config($|\?)/, { timeout: 5_000 })
+  await expect(page.locator('.view-title', { hasText: '群组配置' })).toBeVisible({ timeout: 10_000 })
+
+  await page.getByRole('button', { name: '新建配置', exact: true }).click()
+  const createDialog = page.locator('.config-view .dialog-card', { hasText: '新建群组配置' }).first()
+  await expect(createDialog).toBeVisible({ timeout: 5_000 })
+  await createDialog.locator('input').fill(guildId)
+  await createDialog.getByRole('button', { name: '创建', exact: true }).click()
+
+  await expect(toastMessage(page, '创建成功')).toBeVisible({ timeout: 10_000 })
+  const editDialog = configEditDialog(page, guildId)
+  await expect(editDialog).toBeVisible({ timeout: 10_000 })
+  await editDialog.getByRole('button', { name: '取消', exact: true }).click()
+  await expect(editDialog).toHaveCount(0, { timeout: 10_000 })
+
+  await page.locator('.config-view .search-input').fill(guildId)
+  const row = page.locator('.config-view .list-row', { hasText: guildId }).first()
+  await expect(row).toBeVisible({ timeout: 10_000 })
+  await row.getByRole('button', { name: '复制', exact: true }).click()
+  await expect(toastMessage(page, '已复制群号')).toBeVisible({ timeout: 10_000 })
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const state = globalThis as unknown as { __configClipboardWrites?: string[] }
+        return state.__configClipboardWrites ?? []
+      }),
+    )
+    .toContain(guildId)
+
+  await page.evaluate(() => {
+    const state = globalThis as unknown as { __configFallbackCopies?: string[] }
+    state.__configFallbackCopies = []
+    const originalExecCommand = document.execCommand?.bind(document)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: async () => {
+          throw new Error('clipboard denied')
+        },
+      },
+    })
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: (command: string) => {
+        if (command !== 'copy') {
+          return originalExecCommand?.(command) ?? false
+        }
+        const activeElement = document.activeElement
+        state.__configFallbackCopies?.push(
+          activeElement instanceof HTMLTextAreaElement ? activeElement.value : '',
+        )
+        return true
+      },
+    })
+  })
+  await row.getByRole('button', { name: '复制', exact: true }).click()
+  await expect(toastMessage(page, '已复制群号')).toBeVisible({ timeout: 10_000 })
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const state = globalThis as unknown as { __configFallbackCopies?: string[] }
+        return state.__configFallbackCopies ?? []
+      }),
+    )
+    .toContain(guildId)
+
+  await page.getByRole('button', { name: '重载', exact: true }).click()
+  await expect(toastMessage(page, '已重新加载')).toBeVisible({ timeout: 10_000 })
+  await expect(row).toBeVisible({ timeout: 10_000 })
+
+  await row.getByRole('button', { name: '删除', exact: true }).click()
+  const deleteDialog = page.locator('.config-view .dialog-card', { hasText: '删除群组配置' }).first()
+  await expect(deleteDialog).toBeVisible({ timeout: 5_000 })
+  await deleteDialog.locator('input').fill(guildId)
+  await deleteDialog.getByRole('button', { name: '删除', exact: true }).click()
+
+  await expect(toastMessage(page, '删除成功')).toBeVisible({ timeout: 10_000 })
+  await expect(row).toHaveCount(0, { timeout: 10_000 })
 
   tracker.assertClean()
 })
@@ -663,6 +981,19 @@ test('role management creates, edits, assigns member, revokes member, and delete
   const roleAlias = `e2e-${suffix}`
   const memberId = `30${suffix}`
 
+  await page.evaluate(() => {
+    const state = globalThis as unknown as { __roleClipboardWrites?: string[] }
+    state.__roleClipboardWrites = []
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: async (text: string) => {
+          state.__roleClipboardWrites?.push(text)
+        },
+      },
+    })
+  })
+
   await clickNavRail(page, '角色权限')
   await expect(page).toHaveURL(/#roles($|\?)/, { timeout: 5_000 })
   await expect(page.locator('.roles-view-container')).toBeVisible({ timeout: 10_000 })
@@ -680,6 +1011,21 @@ test('role management creates, edits, assigns member, revokes member, and delete
   await expect(toastMessage(page, '保存成功')).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('.role-item', { hasText: roleName }).first()).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('.roles-view-container .save-bar')).toHaveCount(0, { timeout: 5_000 })
+
+  const roleId = (await page.locator('.role-id-code').textContent())?.trim()
+  if (!roleId) {
+    throw new Error('role id is not rendered')
+  }
+  await page.locator('.copy-btn').click()
+  await expect(toastMessage(page, '角色 ID 已复制到剪贴板')).toBeVisible({ timeout: 10_000 })
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const state = globalThis as unknown as { __roleClipboardWrites?: string[] }
+        return state.__roleClipboardWrites ?? []
+      }),
+    )
+    .toContain(roleId)
 
   await page.locator('.tab-item', { hasText: '成员' }).click()
   await page.locator('.add-member input[placeholder="输入用户 ID 添加..."]').fill(memberId)
@@ -939,6 +1285,22 @@ async function fillSettingsInput(page: Page, label: string, value: string): Prom
 
 function toastMessage(page: Page, text: string) {
   return page.locator('.el-message__content', { hasText: text }).last()
+}
+
+function configEditDialog(page: Page, guildId: string) {
+  return page.locator('.config-view .edit-dialog', { hasText: `编辑群组配置 - ${guildId}` }).first()
+}
+
+function configFormGroup(dialog: ReturnType<typeof configEditDialog>, label: string) {
+  return dialog.locator('.form-group', { hasText: label }).first()
+}
+
+function configInput(dialog: ReturnType<typeof configEditDialog>, label: string) {
+  return configFormGroup(dialog, label).locator('input').first()
+}
+
+function configTextarea(dialog: ReturnType<typeof configEditDialog>, label: string) {
+  return configFormGroup(dialog, label).locator('textarea').first()
 }
 
 function roleDialog(page: Page, title: string) {

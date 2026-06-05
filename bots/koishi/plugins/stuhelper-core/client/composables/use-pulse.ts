@@ -47,7 +47,7 @@ export function usePulse(): PulseHandle {
       state.generatedAt = data.generatedAt
       state.error = ''
     } catch (cause) {
-      state.error = cause instanceof Error ? cause.message : '脉冲数据加载失败'
+      state.error = errorMessage(cause, '脉冲数据加载失败')
     } finally {
       state.loading = false
     }
@@ -68,4 +68,10 @@ export function usePulse(): PulseHandle {
   onBeforeUnmount(stop)
 
   return { state, refresh, stop }
+}
+
+function errorMessage(cause: unknown, fallback: string): string {
+  if (cause instanceof Error && cause.message) return cause.message
+  if (typeof cause === 'string' && cause.trim()) return cause
+  return fallback
 }

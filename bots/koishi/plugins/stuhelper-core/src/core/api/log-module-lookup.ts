@@ -1,5 +1,6 @@
 import type { RuntimeModuleInstance } from '../../runtime/types'
 import type { CommandLogRecord, LogModule } from '../modules/log.module'
+import { normalizeCommandLogRecords } from '../modules/command-log-records'
 import type { WebSocketAPIContext } from './api-context'
 
 export interface LogModuleReader {
@@ -17,6 +18,15 @@ export function findLogModule(api: WebSocketAPIContext): LogModuleReader | undef
     : undefined
 
   return directModule ?? service.getAllModules().find(isLogModuleReader)
+}
+
+export async function readCommandLogs(api: WebSocketAPIContext): Promise<CommandLogRecord[]> {
+  const logModule = findLogModule(api)
+  if (logModule) {
+    return logModule.getAllLogs()
+  }
+
+  return normalizeCommandLogRecords(api.service.data.commandLogs.getAll()).reverse()
 }
 
 function isLogModuleReader(module: RuntimeModuleInstance): module is RuntimeModuleInstance & LogModuleReader {

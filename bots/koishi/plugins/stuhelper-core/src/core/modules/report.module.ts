@@ -25,6 +25,7 @@ import {
   handleReportViolation,
   type ReportViolationInput,
 } from './report-violation'
+import { normalizeCommandLogRecords } from './command-log-records'
 
 const logger = new Logger('stuhelperGroupCenter:report')
 const DEFAULT_REPORT_COOLDOWN_MINUTES = 60
@@ -151,23 +152,26 @@ export class ReportModule implements RuntimeModuleInstance {
   }): Promise<void> {
     const { session, command, target, details } = entry
     try {
-      const commandLogs = this.data.commandLogs.getAll()
-      if (!commandLogs.logs) commandLogs.logs = []
-
-      commandLogs.logs.push({
-        timestamp: Date.now(),
+      const commandLogs = normalizeCommandLogRecords(this.data.commandLogs.getAll())
+      commandLogs.push({
+        id: `${Date.now()}_${command}_${session.userId || 'unknown'}`,
+        timestamp: new Date().toISOString(),
         guildId: session.guildId,
-        userId: session.userId,
+        userId: session.userId || 'unknown',
+        username: session.username || session.author?.nickname || session.author?.username,
+        channelId: session.channelId,
+        platform: session.platform || 'unknown',
         command,
-        target,
-        details,
+        args: [target],
+        options: { target },
+        success: true,
+        executionTime: 0,
+        result: details,
+        messageId: session.messageId,
+        isPrivate: !session.guildId,
       })
 
-      if (commandLogs.logs.length > MAX_COMMAND_LOGS) {
-        commandLogs.logs = commandLogs.logs.slice(-MAX_COMMAND_LOGS)
-      }
-
-      this.data.commandLogs.set('logs', commandLogs.logs)
+      this.data.commandLogs.setAll({ logs: commandLogs.slice(-MAX_COMMAND_LOGS) })
     } catch (error) {
       logger.error('记录命令日志失败:', error)
     }

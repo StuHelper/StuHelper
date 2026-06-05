@@ -24,14 +24,26 @@
     </header>
 
     <EmptyState
-      v-if="error"
-      title="加载失败"
+      v-if="error && !data"
+      title="加载身份认证数据失败"
       :body="error"
       tone="error"
-    />
+    >
+      <template #action>
+        <el-button class="sh-button sh-button--ghost" @click="loadData">重试</el-button>
+      </template>
+    </EmptyState>
     <ConsolePageSkeleton v-else-if="loading && !data" />
 
     <template v-else-if="data">
+      <div v-if="error" class="sh-load-error" role="alert">
+        <div class="sh-load-error__body">
+          <strong>刷新身份认证数据失败</strong>
+          <span>{{ error }}</span>
+        </div>
+        <el-button class="sh-button sh-button--ghost" @click="loadData">重试</el-button>
+      </div>
+
       <section class="sh-dashboard-metrics">
         <article
           v-for="(metric, index) in metrics"
@@ -249,6 +261,7 @@ const data = ref<IdentityPageData | null>(null)
 const selectedGuildId = ref('')
 const selectedMemberId = ref('')
 const keyword = ref('')
+let loadRequestSeq = 0
 
 const metrics = computed(() => {
   const summary = data.value?.summary
@@ -286,17 +299,29 @@ watch(
 )
 
 async function loadData() {
+  const requestSeq = ++loadRequestSeq
   loading.value = true
   error.value = ''
   try {
-    data.value = await consolePageApi.identity()
+    const next = await consolePageApi.identity()
+    if (requestSeq !== loadRequestSeq) return
+    data.value = next
     applyNavigationState()
     syncSelection()
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : String(cause)
+    if (requestSeq !== loadRequestSeq) return
+    error.value = errorMessage(cause, '加载身份认证数据失败')
   } finally {
-    loading.value = false
+    if (requestSeq === loadRequestSeq) {
+      loading.value = false
+    }
   }
+}
+
+function errorMessage(cause: unknown, fallback: string): string {
+  if (cause instanceof Error && cause.message) return cause.message
+  if (typeof cause === 'string' && cause.trim()) return cause
+  return fallback
 }
 
 function applyNavigationState() {

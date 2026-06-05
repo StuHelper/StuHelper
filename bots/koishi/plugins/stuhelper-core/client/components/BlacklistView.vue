@@ -9,40 +9,92 @@
         <el-button class="sh-button sh-button--ghost" :disabled="loading" @click="refresh">
           {{ loading ? '刷新中…' : '刷新' }}
         </el-button>
-        <el-button type="primary" class="sh-button sh-button--primary" @click="openAdd">
+        <el-button
+          type="primary"
+          class="sh-button sh-button--primary"
+          :disabled="loading || initialLoadBlocked"
+          @click="openAdd"
+        >
           添加用户
         </el-button>
       </template>
     </WorkspaceHead>
 
-    <ConsolePageSkeleton v-if="loading && entries.length === 0" />
-
-    <WorkspaceSection
-      v-else
-      title="黑名单成员"
-      description="移除操作会立即同步到所有群,需要人工审慎判断。"
-      :meta="entries.length ? `${entries.length} 条` : ''"
-      flush
+    <ConsolePageSkeleton v-if="loading && blacklist.length === 0" />
+    <EmptyState
+      v-else-if="loadError && blacklist.length === 0"
+      tone="error"
+      title="加载黑名单失败"
+      :body="loadError"
     >
-      <QueueTable
-        v-if="entries.length > 0"
-        :columns="COLUMNS" :rows="rows"
-        empty-title="黑名单为空"
-        empty-body="这里会列出所有被加入黑名单的用户。"
-        actions-label="操作" @action="handleRowAction"
+      <template #action>
+        <el-button class="sh-button sh-button--ghost" @click="refresh">重试</el-button>
+      </template>
+    </EmptyState>
+
+    <template v-else>
+      <div
+        v-if="loadError && blacklist.length > 0"
+        class="sh-blacklist-load-error"
+        role="alert"
       >
-        <template #cell-user="{ value }">
-          <EntityChip kind="user" :id="String(value.text)" />
-        </template>
-      </QueueTable>
-      <EmptyState
-        v-else
-        title="黑名单为空"
-        body="当前没有被永久拉黑的成员,一切正常。"
-      />
-    </WorkspaceSection>
+        <div class="sh-blacklist-load-error__body">
+          <strong>刷新黑名单失败</strong>
+          <span>{{ loadError }}</span>
+        </div>
+        <el-button class="sh-button sh-button--ghost" @click="refresh">重试</el-button>
+      </div>
+
+      <div
+        v-if="actionError"
+        class="sh-blacklist-action-error"
+        role="alert"
+      >
+        <div class="sh-blacklist-action-error__body">
+          <strong>{{ actionErrorTitle }}</strong>
+          <span>{{ actionError }}</span>
+        </div>
+        <el-button class="sh-button sh-button--ghost" @click="clearActionError">关闭</el-button>
+      </div>
+
+      <WorkspaceSection
+        title="黑名单成员"
+        description="移除操作会立即同步到所有群,需要人工审慎判断。"
+        :meta="entries.length ? `${entries.length} 条` : ''"
+        flush
+      >
+        <QueueTable
+          v-if="entries.length > 0"
+          :columns="COLUMNS" :rows="rows"
+          empty-title="黑名单为空"
+          empty-body="这里会列出所有被加入黑名单的用户。"
+          actions-label="操作" @action="handleRowAction"
+        >
+          <template #cell-user="{ value }">
+            <EntityChip kind="user" :id="String(value.text)" />
+          </template>
+        </QueueTable>
+        <EmptyState
+          v-else
+          title="黑名单为空"
+          body="当前没有被永久拉黑的成员,一切正常。"
+        />
+      </WorkspaceSection>
+    </template>
 
     <Drawer :open="addOpen" title="添加黑名单用户" subtitle="用户 · 生效范围" @close="closeAdd">
+      <div
+        v-if="actionError"
+        class="sh-blacklist-action-error sh-blacklist-action-error--drawer"
+        role="alert"
+      >
+        <div class="sh-blacklist-action-error__body">
+          <strong>{{ actionErrorTitle }}</strong>
+          <span>{{ actionError }}</span>
+        </div>
+        <el-button class="sh-button sh-button--ghost" @click="clearActionError">关闭</el-button>
+      </div>
+
       <section class="sh-drawer__section">
         <h4 class="sh-drawer__section-title">用户标识</h4>
         <label class="sh-field">
@@ -130,6 +182,11 @@ const draftReason = ref('')
 const blacklist = ref<readonly MemberBlacklistEntry[]>([])
 const notices = ref<NoticeItem[]>([])
 const lastSync = ref('')
+const loadError = ref('')
+const actionError = ref('')
+const actionErrorTitle = ref('操作失败')
+const removingIds = ref(new Set<string>())
+let refreshRequestSeq = 0
 const {
   state: confirmDialog,
   confirm,
@@ -145,7 +202,14 @@ const canSubmitAdd = computed(() => canSubmitBlacklistDraft({
   guildId: draftGuildId.value,
 }))
 
-const rows = computed(() => toBlacklistRows(entries.value))
+const rows = computed(() => toBlacklistRows(entries.value).map((row) => {
+  if (!removingIds.value.has(row.id) || !row.actions?.length) return row
+  return {
+    ...row,
+    actions: row.actions.map((action) => ({ ...action, disabled: true })),
+  }
+}))
+const initialLoadBlocked = computed(() => Boolean(loadError.value && blacklist.value.length === 0))
 
 const headerChips = computed<WorkspaceHeadChip[]>(() => {
   const chips: WorkspaceHeadChip[] = [
@@ -160,18 +224,31 @@ const headerChips = computed<WorkspaceHeadChip[]>(() => {
 onMounted(refresh)
 
 async function refresh() {
+  const requestSeq = ++refreshRequestSeq
   loading.value = true
+  loadError.value = ''
   try {
-    blacklist.value = (await blacklistApi.list()).list
+    const next = await blacklistApi.list()
+    if (requestSeq !== refreshRequestSeq) return
+    blacklist.value = next.list
     lastSync.value = formatTimestamp(Date.now())
   } catch (cause) {
-    pushError(cause, '加载黑名单失败')
+    if (requestSeq !== refreshRequestSeq) return
+    const details = errorMessage(cause, '加载黑名单失败')
+    loadError.value = details
+    pushError('加载黑名单失败', details)
   } finally {
-    loading.value = false
+    if (requestSeq === refreshRequestSeq) {
+      loading.value = false
+    }
   }
 }
 
 function openAdd() {
+  if (initialLoadBlocked.value) {
+    pushError('黑名单尚未加载', '黑名单尚未加载，无法添加用户')
+    return
+  }
   draftUserId.value = ''
   draftScope.value = 'guild'
   draftGuildId.value = ''
@@ -184,11 +261,12 @@ function closeAdd() {
 }
 
 async function submitAdd() {
-  if (!canSubmitAdd.value) return
+  if (!canSubmitAdd.value || adding.value) return
   const userId = normalizeBlacklistUserID(draftUserId.value.trim())
-  if (draftScope.value === 'global' && !await confirmGlobalAdd(userId)) return
   adding.value = true
+  clearActionError()
   try {
+    if (draftScope.value === 'global' && !await confirmGlobalAdd(userId)) return
     await blacklistApi.add({
       subjectID: userId,
       scopeType: draftScope.value,
@@ -200,7 +278,7 @@ async function submitAdd() {
     resetDraft()
     await refresh()
   } catch (cause) {
-    pushError(cause, '添加失败')
+    setActionError('添加失败', cause, '添加失败')
   } finally {
     adding.value = false
   }
@@ -219,19 +297,22 @@ async function removeUser(
   releaseReasonCode: 'manual_pardon' | 'release_only',
 ) {
   const entry = blacklist.value.find((item) => item.id === userId)
-  if (!entry) return
+  if (!entry || removingIds.value.has(userId)) return
   const isForgive = releaseReasonCode === 'manual_pardon'
-  const confirmed = await confirm({
-    title: isForgive ? '宽恕黑名单成员（重置失败计数）' : '解除黑名单成员',
-    message: isForgive
-      ? `确定要宽恕 ${entry.subjectID} 的${formatBlacklistScope(entry)}黑名单吗？这会重置认证失败计数。`
-      : `确定要解除 ${entry.subjectID} 的${formatBlacklistScope(entry)}黑名单吗？认证失败计数会保留。`,
-    tone: 'danger',
-    confirmText: isForgive ? '宽恕' : '解除',
-  })
-  if (!confirmed) return
+  removingIds.value = new Set([...removingIds.value, userId])
 
   try {
+    const confirmed = await confirm({
+      title: isForgive ? '宽恕黑名单成员（重置失败计数）' : '解除黑名单成员',
+      message: isForgive
+        ? `确定要宽恕 ${entry.subjectID} 的${formatBlacklistScope(entry)}黑名单吗？这会重置认证失败计数。`
+        : `确定要解除 ${entry.subjectID} 的${formatBlacklistScope(entry)}黑名单吗？认证失败计数会保留。`,
+      tone: 'danger',
+      confirmText: isForgive ? '宽恕' : '解除',
+    })
+    if (!confirmed) return
+
+    clearActionError()
     await blacklistApi.remove({
       id: entry.id,
       releaseReasonCode,
@@ -241,7 +322,11 @@ async function removeUser(
       : `已从黑名单解除 ${entry.subjectID}`)
     await refresh()
   } catch (cause) {
-    pushError(cause, '解除失败')
+    setActionError('解除失败', cause, '解除失败')
+  } finally {
+    const nextRemoving = new Set(removingIds.value)
+    nextRemoving.delete(userId)
+    removingIds.value = nextRemoving
   }
 }
 
@@ -265,10 +350,28 @@ function pushSuccess(message: string) {
   scheduleDismiss()
 }
 
-function pushError(cause: unknown, fallback: string) {
-  const message = cause instanceof Error ? cause.message : fallback
-  notices.value.push({ id: noticeId(), kind: 'error', message })
+function pushError(title: string, message: string) {
+  notices.value.push({ id: noticeId(), kind: 'error', title, message })
   scheduleDismiss()
+}
+
+function setActionError(title: string, cause: unknown, fallback: string) {
+  const message = errorMessage(cause, fallback)
+  actionErrorTitle.value = title
+  actionError.value = message
+  notices.value.push({ id: noticeId(), kind: 'error', title, message })
+  scheduleDismiss()
+}
+
+function clearActionError() {
+  actionErrorTitle.value = '操作失败'
+  actionError.value = ''
+}
+
+function errorMessage(cause: unknown, fallback: string): string {
+  if (cause instanceof Error && cause.message) return cause.message
+  if (typeof cause === 'string' && cause.trim()) return cause
+  return fallback
 }
 
 function dismissNotice(id: string) {
@@ -285,3 +388,42 @@ function noticeId(): string {
   return `notice-${Math.random().toString(36).slice(2, 8)}-${Date.now()}`
 }
 </script>
+
+<style scoped>
+.sh-blacklist-load-error,
+.sh-blacklist-action-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sh-s-3);
+  padding: var(--sh-s-3) var(--sh-s-4);
+  border: 1px solid rgba(248, 81, 73, 0.28);
+  border-radius: var(--sh-r-2);
+  background: rgba(248, 81, 73, 0.08);
+}
+
+.sh-blacklist-action-error--drawer {
+  margin-bottom: var(--sh-s-4);
+}
+
+.sh-blacklist-load-error__body,
+.sh-blacklist-action-error__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sh-blacklist-load-error__body strong,
+.sh-blacklist-action-error__body strong {
+  color: #ff8a80;
+  font-size: var(--sh-t-body);
+}
+
+.sh-blacklist-load-error__body span,
+.sh-blacklist-action-error__body span {
+  color: var(--sh-fg-2);
+  font-size: var(--sh-t-meta);
+  overflow-wrap: anywhere;
+}
+</style>

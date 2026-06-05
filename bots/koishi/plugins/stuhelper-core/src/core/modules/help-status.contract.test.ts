@@ -22,7 +22,8 @@ test('help and status modules keep command help and status data typed', () => {
 
   assert.doesNotMatch(statusSource, /as any/)
   assert.doesNotMatch(statusSource, /logCount: unknown/)
-  assert.match(statusSource, /logCount: commandLogs\.logs\.length/)
+  assert.match(statusSource, /normalizeCommandLogRecords/)
+  assert.match(statusSource, /logCount: commandLogs\.length/)
 })
 
 test('getSystemStatusData counts command logs from the typed logs collection', async () => {
@@ -36,12 +37,10 @@ test('getSystemStatusData counts command logs from the typed logs collection', a
         }),
       },
       commandLogs: {
-        getAll: () => ({
-          logs: [
-            { timestamp: 1, guildId: 'guildA', userId: '1001', command: 'help', target: '', details: '' },
-            { timestamp: 2, guildId: 'guildB', userId: '1002', command: 'gstatus', target: '', details: '' },
-          ],
-        }),
+        getAll: () => [
+          { timestamp: 1, guildId: 'guildA', userId: '1001', command: 'help', target: '', details: '' },
+          { timestamp: 2, guildId: 'guildB', userId: '1002', command: 'gstatus', target: '', details: '' },
+        ],
       },
     } as unknown as DataManager,
   )
