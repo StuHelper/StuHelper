@@ -158,7 +158,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		admission.WithSchoolEmailSender(admissionEmailSender),
 		admission.WithAcademicStudentLookupGateway(admissionUserGateway),
 		admission.WithAdmissionMaterialStore(
-			admission.NewStorageAdmissionMaterialStore(storageService, storage.DefaultMountKey),
+			newAdmissionMaterialStorageAdapter(storageService, storage.DefaultMountKey),
 		),
 		admission.WithOperatorAccessGateway(rt.initAdmissionOperatorAccess(userRepo)),
 		admission.WithFreshmanProjectionGateway(admissionUserGateway),
