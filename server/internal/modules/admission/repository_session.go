@@ -261,16 +261,19 @@ func (r *Repository) MarkMaterialSubmittedTx(
 	query := `
 		UPDATE group_admission_sessions
 		SET status = $2, manual_review_deadline_at = $3, next_reminder_at = NULL, updated_at = NOW()
-		WHERE id = $1
+		WHERE id = $1 AND status = $4
 		RETURNING ` + admissionSessionColumns
 	var row pgx.Row
 	if tx != nil {
-		row = tx.QueryRow(ctx, query, sessionID, StatusMaterialSubmitted, manualReviewDeadline)
+		row = tx.QueryRow(ctx, query, sessionID, StatusMaterialSubmitted, manualReviewDeadline, StatusLinked)
 	} else {
-		row = r.db.QueryRow(ctx, query, sessionID, StatusMaterialSubmitted, manualReviewDeadline)
+		row = r.db.QueryRow(ctx, query, sessionID, StatusMaterialSubmitted, manualReviewDeadline, StatusLinked)
 	}
 	session, err := scanAdmissionSession(row)
 	if err != nil {
+		if errors.Is(err, ErrAdmissionTokenNotFound) {
+			return nil, ErrAdmissionInvalidStatus
+		}
 		return nil, fmt.Errorf("MarkMaterialSubmitted: %w", err)
 	}
 	return session, nil
@@ -290,16 +293,19 @@ func (r *Repository) MarkVerifiedTx(
 	query := `
 		UPDATE group_admission_sessions
 		SET status = $2, verified_at = $3, next_reminder_at = NULL, updated_at = NOW()
-		WHERE id = $1
+		WHERE id = $1 AND status IN ($4, $5)
 		RETURNING ` + admissionSessionColumns
 	var row pgx.Row
 	if tx != nil {
-		row = tx.QueryRow(ctx, query, sessionID, StatusVerified, now)
+		row = tx.QueryRow(ctx, query, sessionID, StatusVerified, now, StatusLinked, StatusMaterialSubmitted)
 	} else {
-		row = r.db.QueryRow(ctx, query, sessionID, StatusVerified, now)
+		row = r.db.QueryRow(ctx, query, sessionID, StatusVerified, now, StatusLinked, StatusMaterialSubmitted)
 	}
 	session, err := scanAdmissionSession(row)
 	if err != nil {
+		if errors.Is(err, ErrAdmissionTokenNotFound) {
+			return nil, ErrAdmissionInvalidStatus
+		}
 		return nil, fmt.Errorf("MarkVerified: %w", err)
 	}
 	return session, nil

@@ -674,6 +674,46 @@ func TestAdmissionSessionStatusTransitions(t *testing.T) {
 	require.NotNil(t, verified.VerifiedAt)
 }
 
+func TestAdmissionSessionRepositoryStateUpdatesRequireCurrentStatus(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createLinkableSession(t, svc)
+	userID := seedAdmissionUser(t, fixture, "stale-session-state")
+	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:  created.Token,
+		UserID: userID,
+	})
+	require.NoError(t, err)
+	_, err = svc.MarkVerified(context.Background(), created.Session.ID)
+	require.NoError(t, err)
+
+	_, err = svc.repo.MarkMaterialSubmitted(
+		context.Background(),
+		created.Session.ID,
+		fixedAdmissionNow().Add(time.Hour),
+	)
+	require.ErrorIs(t, err, ErrAdmissionInvalidStatus)
+	assertAdmissionSessionStatus(t, fixture, created.Session.ID, StatusVerified)
+
+	cancelled := createLinkableSessionForQQ(t, svc, "10002", "stale-session-state-cancelled")
+	cancelledUserID := seedAdmissionUser(t, fixture, "stale-session-state-cancelled")
+	_, err = svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:  cancelled.Token,
+		UserID: cancelledUserID,
+	})
+	require.NoError(t, err)
+	_, err = svc.CancelAdminAdmissionSession(context.Background(), AdminAdmissionSessionActionInput{
+		SessionID:      cancelled.Session.ID,
+		OperatorUserID: 9001,
+	})
+	require.NoError(t, err)
+
+	_, err = svc.repo.MarkVerified(context.Background(), cancelled.Session.ID, fixedAdmissionNow())
+	require.ErrorIs(t, err, ErrAdmissionInvalidStatus)
+	assertAdmissionSessionStatus(t, fixture, cancelled.Session.ID, StatusCancelled)
+}
+
 func TestLinkedSessionSubmissionDeadlineBlocksMaterialAndVerification(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)
