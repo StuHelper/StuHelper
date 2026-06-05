@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/externaldata"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
 )
 
@@ -29,7 +28,7 @@ func (m *academicAwareMockRepo) GetAcademicStudentByXHFromTable(ctx context.Cont
 type fakeLDAPAuthClient struct{}
 
 type fakeExternalStudentDirectory struct {
-	record  *externaldata.StudentRecord
+	record  *ExternalStudentRecord
 	handled bool
 }
 
@@ -37,7 +36,7 @@ func (d fakeExternalStudentDirectory) LookupStudent(
 	context.Context,
 	string,
 	string,
-) (*externaldata.StudentRecord, bool, error) {
+) (*ExternalStudentRecord, bool, error) {
 	return d.record, d.handled, nil
 }
 
@@ -268,7 +267,7 @@ func TestGetAcademicInfo_UsesExternalStudentDirectoryWhenConfigured(t *testing.T
 		&fakeEncryptor{},
 		WithExternalStudentDirectory(fakeExternalStudentDirectory{
 			handled: true,
-			record: &externaldata.StudentRecord{
+			record: &ExternalStudentRecord{
 				SchoolCode:  schoolCode,
 				StudentID:   studentID,
 				StudentName: "张三",

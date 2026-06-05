@@ -11,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/externaldata"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
@@ -183,8 +182,14 @@ type StudentEmailSender interface {
 	SendStudentVerificationOTP(ctx context.Context, email string, code string) error
 }
 
+type ExternalStudentRecord struct {
+	SchoolCode  string
+	StudentID   string
+	StudentName string
+}
+
 type studentDirectoryLookup interface {
-	LookupStudent(ctx context.Context, schoolCode string, studentID string) (*externaldata.StudentRecord, bool, error)
+	LookupStudent(ctx context.Context, schoolCode string, studentID string) (*ExternalStudentRecord, bool, error)
 }
 
 // Service 用户服务层

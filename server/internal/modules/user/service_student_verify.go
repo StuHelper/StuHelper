@@ -13,7 +13,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/externaldata"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
@@ -339,7 +338,7 @@ func (s *Service) lookupAcademicStudentForSchool(
 	return s.getAcademicStudentByXH(ctx, normalizedID, tableName)
 }
 
-func academicStudentFromExternalRecord(record *externaldata.StudentRecord) *AcademicStudent {
+func academicStudentFromExternalRecord(record *ExternalStudentRecord) *AcademicStudent {
 	if record == nil {
 		return nil
 	}

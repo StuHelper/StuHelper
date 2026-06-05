@@ -99,7 +99,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	}
 	var externalStudentDirectoryOpt user.ServiceOption
 	if externalStudentDirectory != nil {
-		externalStudentDirectoryOpt = user.WithExternalStudentDirectory(externalStudentDirectory)
+		externalStudentDirectoryOpt = user.WithExternalStudentDirectory(newExternalStudentDirectoryAdapter(externalStudentDirectory))
 	}
 
 	userService, err := rt.initUserService(
