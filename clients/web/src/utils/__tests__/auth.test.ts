@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   clearAuth,
+  consumeIdentityCodeVerifier,
   consumeIdentityOAuthState,
+  consumeOAuthState,
   isTokenExpired,
   storeIdentityCodeVerifier,
   storeIdentityOAuthState,
@@ -38,21 +40,47 @@ class MemoryStorage implements Storage {
   }
 }
 
+class ThrowingStorage implements Storage {
+  get length() {
+    return 0
+  }
+
+  clear() {
+    throw new Error('storage unavailable')
+  }
+
+  getItem() {
+    throw new Error('storage unavailable')
+  }
+
+  key() {
+    throw new Error('storage unavailable')
+  }
+
+  removeItem() {
+    throw new Error('storage unavailable')
+  }
+
+  setItem() {
+    throw new Error('storage unavailable')
+  }
+}
+
 const localStorageMock = new MemoryStorage()
 const sessionStorageMock = new MemoryStorage()
 
-Object.defineProperty(globalThis, 'localStorage', {
-  value: localStorageMock,
-  configurable: true,
-})
-
-Object.defineProperty(globalThis, 'sessionStorage', {
-  value: sessionStorageMock,
-  configurable: true,
-})
-
 describe('auth utilities', () => {
   beforeEach(() => {
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: localStorageMock,
+      configurable: true,
+    })
+
+    Object.defineProperty(globalThis, 'sessionStorage', {
+      value: sessionStorageMock,
+      configurable: true,
+    })
+
     localStorageMock.clear()
     sessionStorageMock.clear()
   })
@@ -136,5 +164,41 @@ describe('auth utilities', () => {
 
     expect(consumeIdentityOAuthState('other-state')).toBe(false)
     expect(sessionStorage.getItem('identity_oauth_state')).toBeNull()
+  })
+
+  it('degrades when localStorage is unavailable', () => {
+    const user: StoredUser = {
+      id: 'user_1',
+      name: 'alice',
+      displayName: 'Alice',
+    }
+
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: new ThrowingStorage(),
+      configurable: true,
+    })
+
+    expect(() => userManager.setUser(user)).not.toThrow()
+    expect(userManager.getUser()).toBeNull()
+    expect(userManager.isAuthenticated()).toBe(false)
+    expect(() => userManager.removeUser()).not.toThrow()
+    expect(() => tokenExpiry.set(60)).not.toThrow()
+    expect(tokenExpiry.get()).toBeNull()
+    expect(isTokenExpired()).toBe(false)
+    expect(() => tokenExpiry.remove()).not.toThrow()
+  })
+
+  it('degrades when sessionStorage is unavailable', () => {
+    Object.defineProperty(globalThis, 'sessionStorage', {
+      value: new ThrowingStorage(),
+      configurable: true,
+    })
+
+    expect(() => storeIdentityOAuthState('identity-state')).not.toThrow()
+    expect(() => storeIdentityCodeVerifier('identity-verifier')).not.toThrow()
+    expect(consumeIdentityOAuthState('identity-state')).toBe(false)
+    expect(consumeOAuthState('oauth-state')).toBe(false)
+    expect(consumeIdentityCodeVerifier()).toBe('')
+    expect(() => clearAuth()).not.toThrow()
   })
 })

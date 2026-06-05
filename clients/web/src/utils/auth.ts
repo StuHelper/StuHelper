@@ -17,6 +17,52 @@ export interface StoredUser {
   avatar?: string
 }
 
+type StorageKind = 'local' | 'session'
+
+function getBrowserStorage(kind: StorageKind): Storage | null {
+  try {
+    const storage = kind === 'local' ? globalThis.localStorage : globalThis.sessionStorage
+    return storage ?? null
+  } catch (_error) {
+    void _error
+    return null
+  }
+}
+
+function safeGetStorageItem(kind: StorageKind, key: string): string | null {
+  const storage = getBrowserStorage(kind)
+  if (!storage) return null
+
+  try {
+    return storage.getItem(key)
+  } catch (_error) {
+    void _error
+    return null
+  }
+}
+
+function safeSetStorageItem(kind: StorageKind, key: string, value: string): void {
+  const storage = getBrowserStorage(kind)
+  if (!storage) return
+
+  try {
+    storage.setItem(key, value)
+  } catch (_error) {
+    void _error
+  }
+}
+
+function safeRemoveStorageItem(kind: StorageKind, key: string): void {
+  const storage = getBrowserStorage(kind)
+  if (!storage) return
+
+  try {
+    storage.removeItem(key)
+  } catch (_error) {
+    void _error
+  }
+}
+
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0
 }
@@ -50,17 +96,18 @@ function isValidStoredUser(data: unknown): data is StoredUser {
 // 用户信息管理
 export const userManager = {
   getUser(): StoredUser | null {
-    const userStr = localStorage.getItem(USER_KEY)
+    const userStr = safeGetStorageItem('local', USER_KEY)
     if (!userStr) return null
     try {
       const parsed: unknown = JSON.parse(userStr)
       if (!isValidStoredUser(parsed)) {
-        localStorage.removeItem(USER_KEY)
+        safeRemoveStorageItem('local', USER_KEY)
         return null
       }
       return parsed
-    } catch (_error) { void _error;
-      localStorage.removeItem(USER_KEY)
+    } catch (_error) {
+      void _error
+      safeRemoveStorageItem('local', USER_KEY)
       return null
     }
   },
@@ -73,11 +120,11 @@ export const userManager = {
       displayName: user.displayName,
       ...(user.avatar !== undefined && { avatar: user.avatar }),
     }
-    localStorage.setItem(USER_KEY, JSON.stringify(minimal))
+    safeSetStorageItem('local', USER_KEY, JSON.stringify(minimal))
   },
 
   removeUser(): void {
-    localStorage.removeItem(USER_KEY)
+    safeRemoveStorageItem('local', USER_KEY)
   },
 
   isAuthenticated(): boolean {
@@ -90,19 +137,19 @@ export const tokenExpiry = {
   // 设置过期时间戳（秒级 Unix 时间戳）
   set(expiresInSeconds: number): void {
     const expiresAt = Date.now() + expiresInSeconds * 1000
-    localStorage.setItem(TOKEN_EXPIRY_KEY, String(expiresAt))
+    safeSetStorageItem('local', TOKEN_EXPIRY_KEY, String(expiresAt))
   },
 
   // 获取过期时间戳（毫秒）
   get(): number | null {
-    const val = localStorage.getItem(TOKEN_EXPIRY_KEY)
+    const val = safeGetStorageItem('local', TOKEN_EXPIRY_KEY)
     if (!val) return null
     const num = Number(val)
     return Number.isFinite(num) ? num : null
   },
 
   remove(): void {
-    localStorage.removeItem(TOKEN_EXPIRY_KEY)
+    safeRemoveStorageItem('local', TOKEN_EXPIRY_KEY)
   }
 }
 
@@ -120,8 +167,8 @@ export function isTokenExpired(): boolean {
 }
 
 export function consumeIdentityOAuthState(callbackState: string): boolean {
-  const expectedState = sessionStorage.getItem(IDENTITY_OAUTH_STATE_KEY) ?? ''
-  sessionStorage.removeItem(IDENTITY_OAUTH_STATE_KEY)
+  const expectedState = safeGetStorageItem('session', IDENTITY_OAUTH_STATE_KEY) ?? ''
+  safeRemoveStorageItem('session', IDENTITY_OAUTH_STATE_KEY)
 
   if (!isNonEmptyString(expectedState) || !isNonEmptyString(callbackState)) {
     return false
@@ -131,8 +178,8 @@ export function consumeIdentityOAuthState(callbackState: string): boolean {
 }
 
 export function consumeOAuthState(callbackState: string): boolean {
-  const expectedState = sessionStorage.getItem(OAUTH_STATE_KEY) ?? ''
-  sessionStorage.removeItem(OAUTH_STATE_KEY)
+  const expectedState = safeGetStorageItem('session', OAUTH_STATE_KEY) ?? ''
+  safeRemoveStorageItem('session', OAUTH_STATE_KEY)
 
   if (!isNonEmptyString(expectedState) || !isNonEmptyString(callbackState)) {
     return false
@@ -142,16 +189,16 @@ export function consumeOAuthState(callbackState: string): boolean {
 }
 
 export function storeIdentityOAuthState(state: string): void {
-  sessionStorage.setItem(IDENTITY_OAUTH_STATE_KEY, state)
+  safeSetStorageItem('session', IDENTITY_OAUTH_STATE_KEY, state)
 }
 
 export function storeIdentityCodeVerifier(verifier: string): void {
-  sessionStorage.setItem(IDENTITY_CODE_VERIFIER_KEY, verifier)
+  safeSetStorageItem('session', IDENTITY_CODE_VERIFIER_KEY, verifier)
 }
 
 export function consumeIdentityCodeVerifier(): string {
-  const verifier = sessionStorage.getItem(IDENTITY_CODE_VERIFIER_KEY) ?? ''
-  sessionStorage.removeItem(IDENTITY_CODE_VERIFIER_KEY)
+  const verifier = safeGetStorageItem('session', IDENTITY_CODE_VERIFIER_KEY) ?? ''
+  safeRemoveStorageItem('session', IDENTITY_CODE_VERIFIER_KEY)
   return verifier
 }
 
@@ -159,8 +206,8 @@ export function consumeIdentityCodeVerifier(): string {
 export const clearAuth = (): void => {
   userManager.removeUser()
   tokenExpiry.remove()
-  sessionStorage.removeItem(OAUTH_STATE_KEY)
-  sessionStorage.removeItem(IDENTITY_OAUTH_STATE_KEY)
-  sessionStorage.removeItem(IDENTITY_CODE_VERIFIER_KEY)
-  sessionStorage.removeItem('post_login_redirect')
+  safeRemoveStorageItem('session', OAUTH_STATE_KEY)
+  safeRemoveStorageItem('session', IDENTITY_OAUTH_STATE_KEY)
+  safeRemoveStorageItem('session', IDENTITY_CODE_VERIFIER_KEY)
+  safeRemoveStorageItem('session', 'post_login_redirect')
 }
