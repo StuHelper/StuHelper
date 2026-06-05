@@ -20,6 +20,9 @@ line_number() {
 }
 
 load_env_line="$(line_number 'load_env')"
+remote_config_load_line="$(line_number 'load_remote_deploy_config')"
+generated_secret_ref_require_line="$(line_number 'GENERATED_ENV_SECRET_REF must be configured for production deploy')"
+secret_backend_require_line="$(line_number 'production deploy requires a non-file secret backend for generated secrets')"
 source_bootstrap_line="$(line_number 'source_casdoor_bootstrap_env # load bootstrap credential env')"
 postgres_ssl_line="$(line_number 'require_production_postgres_ssl')"
 public_ingress_config_preflight_line="$(line_number 'require_public_ingress_config_preflight')"
@@ -85,6 +88,12 @@ fi
 
 if (( source_bootstrap_line <= load_env_line )); then
   fail "Casdoor bootstrap env must be sourced after load_env"
+fi
+if (( generated_secret_ref_require_line <= remote_config_load_line )); then
+  fail "production deploy must load remote.env before requiring GENERATED_ENV_SECRET_REF"
+fi
+if (( secret_backend_require_line <= remote_config_load_line )); then
+  fail "production deploy must load remote.env before requiring SECRET_BACKEND"
 fi
 if (( bootstrap_require_line <= source_bootstrap_line )); then
   fail "Casdoor bootstrap credentials must be validated after sourcing bootstrap env"

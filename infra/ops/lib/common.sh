@@ -628,7 +628,7 @@ materialize_secret_env_inputs() {
   if [[ -n "${SECRETS_ENV_SECRET_REF}" && -n "${SECRETS_ENV_FILE}" ]]; then
     materialize_secret_env_file "${SECRETS_ENV_SECRET_REF}" "${SECRETS_ENV_FILE}"
   fi
-  if [[ -n "${GENERATED_ENV_SECRET_REF}" ]] && ! should_source_generated_secret_from_backend; then
+  if [[ -n "${GENERATED_ENV_SECRET_REF:-}" ]] && ! should_source_generated_secret_from_backend; then
     materialize_secret_env_file "${GENERATED_ENV_SECRET_REF}" "${GENERATED_SECRET_ENV_FILE}"
   fi
 }

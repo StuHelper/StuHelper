@@ -11,6 +11,10 @@ require_cmd jq
 require_cmd python3
 require_cmd openssl
 
+if [[ -f "${REMOTE_DEPLOY_CONFIG_FILE}" ]]; then
+  load_remote_deploy_config
+fi
+
 [[ -n "${GENERATED_ENV_SECRET_REF:-}" ]] || die "GENERATED_ENV_SECRET_REF must be configured for production deploy"
 [[ -n "${SECRET_BACKEND:-}" && "${SECRET_BACKEND:-}" != "none" && "${SECRET_BACKEND:-}" != "file" ]] || \
   die "production deploy requires a non-file secret backend for generated secrets"

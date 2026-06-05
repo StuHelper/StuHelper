@@ -4,6 +4,7 @@
 .tools
 .worktrees
 .deploy
+.secrets
 .DS_Store
 
 .env
