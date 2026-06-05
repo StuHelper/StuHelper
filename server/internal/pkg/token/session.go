@@ -32,6 +32,7 @@ import (
 // ARGV[4] = provider refresh token ciphertext (empty string == keep current)
 // ARGV[5] = provider app key (empty string == keep current)
 // ARGV[6] = TTL seconds
+// ARGV[7] = user session set prefix
 //
 // KEYS[2] = refresh token ref key for ARGV[3] (ignored when ARGV[3] is empty)
 //
@@ -56,6 +57,11 @@ if ARGV[4] ~= '' then
 end
 if ARGV[5] ~= '' then
     data['providerAppKey'] = ARGV[5]
+end
+if data['userID'] and data['sessionID'] then
+    local userKey = ARGV[7] .. data['userID']
+    redis.call('SADD', userKey, data['sessionID'])
+    redis.call('EXPIRE', userKey, tonumber(ARGV[6]))
 end
 redis.call('SET', KEYS[1], cjson.encode(data), 'EX', tonumber(ARGV[6]))
 return 1
@@ -196,6 +202,7 @@ func (s *SessionStore) Touch(ctx context.Context, sessionID string, update Sessi
 		update.ProviderRefreshTokenEnc,
 		update.ProviderAppKey,
 		int(s.sessionTTL.Seconds()),
+		userSessionsPrefix,
 	).Int64()
 	if err != nil {
 		return fmt.Errorf("session touch: run script: %w", err)

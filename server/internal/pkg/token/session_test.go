@@ -96,6 +96,38 @@ func TestSessionStore_Touch(t *testing.T) {
 	assert.Equal(t, "user-002", newRef.UserID)
 }
 
+func TestSessionStore_TouchRestoresUserSessionIndex(t *testing.T) {
+	store, _, _ := newTestSessionStore(t)
+	ctx := context.Background()
+
+	require.NoError(t, store.Create(ctx, SessionData{
+		SessionID:        "sess-touch-index",
+		UserID:           "user-touch-index",
+		AccessTokenHash:  "old-acc",
+		RefreshTokenHash: "old-ref",
+	}))
+	require.NoError(t, store.rdb.Del(ctx, userSessionsPrefix+"user-touch-index").Err())
+
+	sessions, err := store.ListUserSessions(ctx, "user-touch-index")
+	require.NoError(t, err)
+	assert.Empty(t, sessions)
+
+	err = store.Touch(ctx, "sess-touch-index", SessionTouchUpdate{
+		AccessTokenHash:  "new-acc",
+		RefreshTokenHash: "new-ref",
+	})
+	require.NoError(t, err)
+
+	sessions, err = store.ListUserSessions(ctx, "user-touch-index")
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	assert.Equal(t, "sess-touch-index", sessions[0].SessionID)
+
+	ttl, err := store.rdb.TTL(ctx, userSessionsPrefix+"user-touch-index").Result()
+	require.NoError(t, err)
+	assert.Positive(t, ttl)
+}
+
 func TestSessionStore_LookupRefreshTokenHashHash(t *testing.T) {
 	store, _, _ := newTestSessionStore(t)
 	ctx := context.Background()
