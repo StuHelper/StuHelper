@@ -400,6 +400,83 @@ func TestUserConsentAuditEventsAreScopedToCurrentUser(t *testing.T) {
 	assert.ErrorIs(t, err, ErrInvalidAuditFilter)
 }
 
+func TestAcceptConsentKeepsChallengeAndSkipsGrantWhenOIDCRedirectFails(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	service, err := NewService(repo, redis.Client, WithConsentBaseURL("https://account.example.com"))
+	require.NoError(t, err)
+
+	ownerID := seedOpenPlatformUser(t, postgres, "accept-oidc-fail-owner")
+	userID := seedOpenPlatformUser(t, postgres, "accept-oidc-fail-viewer")
+	app := seedApprovedOpenPlatformApp(t, ctx, repo, ownerID, []string{ScopeEmailRead})
+	challenge, err := service.BuildConsentChallenge(ctx, app, userID, []string{ScopeEmailRead}, AuthorizeRequest{
+		ClientID:    app.ClientID,
+		RedirectURI: app.RedirectURIs[0],
+		Scopes:      []string{"openid", "email"},
+		State:       "accept-oidc-fail-state",
+		Flow:        AuthorizeFlowCasdoor,
+	})
+	require.NoError(t, err)
+
+	redirectURL, err := service.AcceptConsent(ctx, challenge.Token, "accept-oidc-fail", userID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "OIDC URL builder")
+	assert.Empty(t, redirectURL)
+
+	_, err = service.LoadConsentChallenge(ctx, challenge.Token)
+	require.NoError(t, err)
+	consents, err := service.ListUserConsents(ctx, userID)
+	require.NoError(t, err)
+	assert.Empty(t, consents)
+	assertOpenPlatformAuditCount(t, postgres, app.ID, userID, "open_platform.consent.granted", 0)
+}
+
+func TestAcceptConsentPersistsGrantAfterBuildingCasdoorRedirect(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	builder := &recordingOIDCAuthURLBuilder{url: "https://sso.example.com/login?state=accept-ok-state"}
+	service, err := NewService(
+		repo,
+		redis.Client,
+		WithConsentBaseURL("https://account.example.com"),
+		WithOIDCAuthURLBuilder(builder),
+	)
+	require.NoError(t, err)
+
+	ownerID := seedOpenPlatformUser(t, postgres, "accept-ok-owner")
+	userID := seedOpenPlatformUser(t, postgres, "accept-ok-viewer")
+	app := seedApprovedOpenPlatformApp(t, ctx, repo, ownerID, []string{ScopeEmailRead})
+	challenge, err := service.BuildConsentChallenge(ctx, app, userID, []string{ScopeEmailRead}, AuthorizeRequest{
+		ClientID:    app.ClientID,
+		RedirectURI: app.RedirectURIs[0],
+		Scopes:      []string{"openid", "email"},
+		State:       "accept-ok-state",
+		Flow:        AuthorizeFlowCasdoor,
+	})
+	require.NoError(t, err)
+
+	redirectURL, err := service.AcceptConsent(ctx, challenge.Token, "accept-ok", userID)
+	require.NoError(t, err)
+	assert.Equal(t, "https://sso.example.com/login?state=accept-ok-state", redirectURL)
+	assert.Equal(t, app.ClientID, builder.clientID)
+	assert.Equal(t, app.RedirectURIs[0], builder.redirectURI)
+	assert.Equal(t, []string{"openid", "email"}, builder.scopes)
+	assert.Equal(t, "accept-ok-state", builder.state)
+
+	_, err = service.LoadConsentChallenge(ctx, challenge.Token)
+	require.ErrorIs(t, err, ErrConsentTokenInvalid)
+	consents, err := service.ListUserConsents(ctx, userID)
+	require.NoError(t, err)
+	require.Len(t, consents, 1)
+	require.Len(t, consents[0].Scopes, 1)
+	assert.Equal(t, ScopeEmailRead, consents[0].Scopes[0].Scope)
+	assertOpenPlatformAuditCount(t, postgres, app.ID, userID, "open_platform.consent.granted", 1)
+}
+
 func TestDenyConsentWritesUserDeveloperAndAdminAuditEvents(t *testing.T) {
 	ctx := context.Background()
 	postgres := postgresfixture.Start(t)
@@ -3203,6 +3280,22 @@ func queryValueFromURL(t *testing.T, rawURL string, key string) string {
 	value := parsed.Query().Get(key)
 	require.NotEmpty(t, value)
 	return value
+}
+
+type recordingOIDCAuthURLBuilder struct {
+	url         string
+	clientID    string
+	redirectURI string
+	scopes      []string
+	state       string
+}
+
+func (b *recordingOIDCAuthURLBuilder) GetAuthURL(clientID string, redirectURI string, scopes []string, state string) string {
+	b.clientID = clientID
+	b.redirectURI = redirectURI
+	b.scopes = append([]string(nil), scopes...)
+	b.state = state
+	return b.url
 }
 
 func assertOpenPlatformAppStatus(

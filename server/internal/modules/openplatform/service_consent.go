@@ -195,24 +195,33 @@ func (s *Service) AcceptConsent(ctx context.Context, token, requestID string, us
 	if err := ensureConsentActor(loaded, userID); err != nil {
 		return "", err
 	}
-	keepChallenge := normalizeAuthorizeFlow(loaded.Flow) == AuthorizeFlowAccount
-	challenge, err := s.grantConsent(ctx, token, requestID, keepChallenge)
-	if err != nil {
-		return "", err
-	}
-	if normalizeAuthorizeFlow(challenge.Flow) == AuthorizeFlowAccount {
+	if normalizeAuthorizeFlow(loaded.Flow) == AuthorizeFlowAccount {
+		challenge, err := s.grantConsent(ctx, token, requestID, true)
+		if err != nil {
+			return "", err
+		}
 		return buildAccountContinueURL(s.accountBaseURL, challenge.Token), nil
 	}
-	app, err := s.repo.GetAppByID(ctx, challenge.AppID)
+	app, err := s.loadCurrentChallengeApp(ctx, loaded.AppID, loaded.RedirectURI, loaded.Scopes)
 	if err != nil {
 		return "", err
 	}
-	return s.buildOIDCRedirectURL(app, AuthorizeRequest{
+	redirectURL, err := s.buildOIDCRedirectURL(app, AuthorizeRequest{
 		ClientID:    app.ClientID,
-		RedirectURI: challenge.RedirectURI,
-		Scopes:      grantedOAuthScopes(challenge.OAuthScopes, challenge.Scopes),
-		State:       challenge.State,
-	}, challenge.Scopes)
+		RedirectURI: loaded.RedirectURI,
+		Scopes:      grantedOAuthScopes(loaded.OAuthScopes, loaded.Scopes),
+		State:       loaded.State,
+	}, loaded.Scopes)
+	if err != nil {
+		return "", err
+	}
+	if err := s.grantLoadedConsent(ctx, loaded, requestID); err != nil {
+		return "", err
+	}
+	if err := s.DeleteConsentChallenge(ctx, token); err != nil {
+		return "", err
+	}
+	return redirectURL, nil
 }
 
 func (s *Service) DenyConsent(ctx context.Context, token, requestID string, userID int64) (string, error) {
@@ -295,7 +304,7 @@ func (s *Service) buildOIDCRedirectURL(app *App, req AuthorizeRequest, scopes []
 	if s.oidc == nil {
 		return "", fmt.Errorf("open platform OIDC URL builder is not configured")
 	}
-	return s.oidc.GetAuthURL(app.ClientID, req.RedirectURI, casdoorOAuthScopes(scopes), req.State), nil
+	return s.oidc.GetAuthURL(app.ClientID, req.RedirectURI, oidcRedirectScopes(req.Scopes, scopes), req.State), nil
 }
 
 func (s *Service) BuildConsentChallenge(
@@ -374,21 +383,25 @@ func (s *Service) grantConsent(ctx context.Context, token, requestID string, kee
 	if _, err := s.loadCurrentChallengeApp(ctx, challenge.AppID, challenge.RedirectURI, challenge.Scopes); err != nil {
 		return nil, err
 	}
-	if err := s.repo.GrantConsents(ctx, Consent{
-		AppID:       challenge.AppID,
-		UserID:      challenge.UserID,
-		GrantSource: "web",
-		RequestID:   requestID,
-	}, challenge.ConsentScopes); err != nil {
+	if err := s.grantLoadedConsent(ctx, challenge, requestID); err != nil {
 		return nil, err
 	}
 	if keepChallenge {
 		return challenge, nil
 	}
-	if err := s.rdb.Del(ctx, consentRedisPrefix+token).Err(); err != nil {
-		return nil, fmt.Errorf("delete consent challenge: %w", err)
+	if err := s.DeleteConsentChallenge(ctx, token); err != nil {
+		return nil, err
 	}
 	return challenge, nil
+}
+
+func (s *Service) grantLoadedConsent(ctx context.Context, challenge *ConsentChallenge, requestID string) error {
+	return s.repo.GrantConsents(ctx, Consent{
+		AppID:       challenge.AppID,
+		UserID:      challenge.UserID,
+		GrantSource: "web",
+		RequestID:   requestID,
+	}, challenge.ConsentScopes)
 }
 
 func decodeConsentChallenge(token string, raw []byte) (*ConsentChallenge, error) {
@@ -464,6 +477,14 @@ func casdoorOAuthScopes(scopes []string) []string {
 		return []string{"openid"}
 	}
 	return oauthScopes
+}
+
+func oidcRedirectScopes(oauthScopes, fallbackScopes []string) []string {
+	normalized, err := NormalizeGrantedOAuthScopes(oauthScopes)
+	if err == nil && len(normalized) > 0 {
+		return normalized
+	}
+	return casdoorOAuthScopes(fallbackScopes)
 }
 
 func appendOAuthError(redirectURI, code, state string) string {
