@@ -5,8 +5,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/serviceaccount"
 )
@@ -19,12 +17,33 @@ type Handler struct {
 	service                *Service
 	internalUserIDResolver middleware.InternalUserIDResolver
 	botCredentialVerifier  BotCredentialVerifier
+	adminAuthorizers       AdminAuthorizers
+}
+
+type AdminAuthorizers struct {
+	AdmissionPolicyRead     gin.HandlerFunc
+	AdmissionPolicyUpdate   gin.HandlerFunc
+	AdmissionSessionRead    gin.HandlerFunc
+	AdmissionSessionManage  gin.HandlerFunc
+	AdmissionFreshmanRead   gin.HandlerFunc
+	AdmissionFreshmanReview gin.HandlerFunc
+	MemberBlacklistRead     gin.HandlerFunc
+	MemberBlacklistManage   gin.HandlerFunc
+}
+
+type HandlerOption func(*Handler)
+
+func WithAdminAuthorizers(authorizers AdminAuthorizers) HandlerOption {
+	return func(h *Handler) {
+		h.adminAuthorizers = authorizers
+	}
 }
 
 func NewHandler(
 	service *Service,
 	internalUserIDResolver middleware.InternalUserIDResolver,
 	botCredentialVerifier BotCredentialVerifier,
+	opts ...HandlerOption,
 ) *Handler {
 	if service == nil {
 		panic("admission.NewHandler: service must not be nil")
@@ -32,11 +51,17 @@ func NewHandler(
 	if internalUserIDResolver == nil {
 		panic("admission.NewHandler: internal user id resolver must not be nil")
 	}
-	return &Handler{
+	h := &Handler{
 		service:                service,
 		internalUserIDResolver: internalUserIDResolver,
 		botCredentialVerifier:  botCredentialVerifier,
 	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(h)
+		}
+	}
+	return h
 }
 
 func (h *Handler) RegisterRoutes(api *gin.RouterGroup, authMW gin.HandlerFunc) {
@@ -178,70 +203,68 @@ func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
 func (h *Handler) registerAdminAdmissionRoutes(admin *gin.RouterGroup) {
 	admin.GET(
 		"/admission/policies",
-		rbac.RequireCapability(capability.AdmissionPolicyRead),
-		h.handleAdminListAdmissionPolicies,
+		adminRouteHandlers(h.handleAdminListAdmissionPolicies, h.adminAuthorizers.AdmissionPolicyRead)...,
 	)
 	admin.PUT(
 		"/admission/policies/:id",
-		rbac.RequireCapability(capability.AdmissionPolicyUpdate),
-		h.handleAdminUpdateAdmissionPolicy,
+		adminRouteHandlers(h.handleAdminUpdateAdmissionPolicy, h.adminAuthorizers.AdmissionPolicyUpdate)...,
 	)
 	admin.GET(
 		"/admission/sessions",
-		rbac.RequireCapability(capability.AdmissionSessionRead),
-		h.handleAdminListAdmissionSessions,
+		adminRouteHandlers(h.handleAdminListAdmissionSessions, h.adminAuthorizers.AdmissionSessionRead)...,
 	)
 	admin.POST(
 		"/admission/sessions/:id/resend",
-		rbac.RequireCapability(capability.AdmissionSessionManage),
-		h.handleAdminResendAdmissionSession,
+		adminRouteHandlers(h.handleAdminResendAdmissionSession, h.adminAuthorizers.AdmissionSessionManage)...,
 	)
 	admin.POST(
 		"/admission/sessions/:id/regenerate",
-		rbac.RequireCapability(capability.AdmissionSessionManage),
-		h.handleAdminRegenerateAdmissionSession,
+		adminRouteHandlers(h.handleAdminRegenerateAdmissionSession, h.adminAuthorizers.AdmissionSessionManage)...,
 	)
 	admin.POST(
 		"/admission/sessions/:id/cancel",
-		rbac.RequireCapability(capability.AdmissionSessionManage),
-		h.handleAdminCancelAdmissionSession,
+		adminRouteHandlers(h.handleAdminCancelAdmissionSession, h.adminAuthorizers.AdmissionSessionManage)...,
 	)
 	admin.GET(
 		"/freshman-verifications",
-		rbac.RequireCapability(capability.AdmissionFreshmanRead),
-		h.handleAdminListFreshmanVerifications,
+		adminRouteHandlers(h.handleAdminListFreshmanVerifications, h.adminAuthorizers.AdmissionFreshmanRead)...,
 	)
 	admin.GET(
 		"/freshman-verifications/:id",
-		rbac.RequireCapability(capability.AdmissionFreshmanRead),
-		h.handleAdminGetFreshmanVerification,
+		adminRouteHandlers(h.handleAdminGetFreshmanVerification, h.adminAuthorizers.AdmissionFreshmanRead)...,
 	)
 	admin.PUT(
 		"/freshman-verifications/:id",
-		rbac.RequireCapability(capability.AdmissionFreshmanReview),
-		h.handleAdminReviewFreshmanVerification,
+		adminRouteHandlers(h.handleAdminReviewFreshmanVerification, h.adminAuthorizers.AdmissionFreshmanReview)...,
 	)
 }
 
 func (h *Handler) registerAdminMemberBlacklistRoutes(admin *gin.RouterGroup) {
 	admin.GET(
 		"/member-blacklist",
-		rbac.RequireCapability(capability.MemberBlacklistRead),
-		h.handleListAdminMemberBlacklist,
+		adminRouteHandlers(h.handleListAdminMemberBlacklist, h.adminAuthorizers.MemberBlacklistRead)...,
 	)
 	admin.POST(
 		"/member-blacklist",
-		rbac.RequireCapability(capability.MemberBlacklistManage),
-		h.handleCreateAdminMemberBlacklist,
+		adminRouteHandlers(h.handleCreateAdminMemberBlacklist, h.adminAuthorizers.MemberBlacklistManage)...,
 	)
 	admin.POST(
 		"/member-blacklist/release-by-subject",
-		rbac.RequireCapability(capability.MemberBlacklistManage),
-		h.handleReleaseAdminMemberBlacklistBySubject,
+		adminRouteHandlers(h.handleReleaseAdminMemberBlacklistBySubject, h.adminAuthorizers.MemberBlacklistManage)...,
 	)
 	admin.POST(
 		"/member-blacklist/:id/release",
-		rbac.RequireCapability(capability.MemberBlacklistManage),
-		h.handleReleaseAdminMemberBlacklist,
+		adminRouteHandlers(h.handleReleaseAdminMemberBlacklist, h.adminAuthorizers.MemberBlacklistManage)...,
 	)
+}
+
+func adminRouteHandlers(handler gin.HandlerFunc, middlewares ...gin.HandlerFunc) []gin.HandlerFunc {
+	handlers := make([]gin.HandlerFunc, 0, len(middlewares)+1)
+	for _, mw := range middlewares {
+		if mw != nil {
+			handlers = append(handlers, mw)
+		}
+	}
+	handlers = append(handlers, handler)
+	return handlers
 }

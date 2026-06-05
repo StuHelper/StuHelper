@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	appmiddleware "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
@@ -65,7 +66,7 @@ func setupAdminHandlerTestRouterWithRoleAndProof(
 	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	h := NewHandler(svc, nil, nil, nil)
+	h := NewHandler(svc, nil, nil, nil, WithAdminAuthorizers(userAdminAuthorizers()))
 	r := gin.New()
 	api := r.Group("/api/v1")
 	admin := api.Group("/admin")
@@ -95,6 +96,20 @@ func setupAdminHandlerTestRouterWithRoleAndProof(
 	h.RegisterAdminRoutes(admin)
 
 	return r
+}
+
+func userAdminAuthorizers() AdminAuthorizers {
+	return AdminAuthorizers{
+		IdentityRead:   rbac.RequireGlobalCapability(capability.UserIdentityRead),
+		IdentityReview: rbac.RequireGlobalCapability(capability.UserIdentityReview),
+		StudentRead:    rbac.RequireCapability(capability.UserStudentRead),
+		StudentReview:  rbac.RequireCapability(capability.UserStudentReview),
+		SchoolRead:     rbac.RequireCapability(capability.UserSchoolRead),
+		SchoolUpdate:   rbac.RequireCapability(capability.UserSchoolUpdate),
+		SystemRead:     rbac.RequireGlobalCapability(capability.UserSystemRead),
+		SystemUpdate:   rbac.RequireGlobalCapability(capability.UserSystemUpdate),
+		StepUpMFA:      rbac.RequireStepUpMFA(),
+	}
 }
 
 func setupAdminHandlerTestRouter(t *testing.T) *gin.Engine {

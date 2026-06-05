@@ -6,8 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 )
 
@@ -19,6 +17,27 @@ type Handler struct {
 	bindPhoneEndpointLimiter *middleware.RedisRateLimiter
 	otpService               OTPGenerator
 	smsService               SMSSender
+	adminAuthorizers         AdminAuthorizers
+}
+
+type AdminAuthorizers struct {
+	IdentityRead   gin.HandlerFunc
+	IdentityReview gin.HandlerFunc
+	StudentRead    gin.HandlerFunc
+	StudentReview  gin.HandlerFunc
+	SchoolRead     gin.HandlerFunc
+	SchoolUpdate   gin.HandlerFunc
+	SystemRead     gin.HandlerFunc
+	SystemUpdate   gin.HandlerFunc
+	StepUpMFA      gin.HandlerFunc
+}
+
+type HandlerOption func(*Handler)
+
+func WithAdminAuthorizers(authorizers AdminAuthorizers) HandlerOption {
+	return func(h *Handler) {
+		h.adminAuthorizers = authorizers
+	}
 }
 
 const (
@@ -28,7 +47,13 @@ const (
 )
 
 // NewHandler 创建用户处理器
-func NewHandler(service *Service, rdb *redis.Client, otpService OTPGenerator, smsService SMSSender) *Handler {
+func NewHandler(
+	service *Service,
+	rdb *redis.Client,
+	otpService OTPGenerator,
+	smsService SMSSender,
+	opts ...HandlerOption,
+) *Handler {
 	var (
 		verifyLimiter            *middleware.RedisRateLimiter
 		bindPhoneUserLimiter     *middleware.RedisRateLimiter
@@ -39,7 +64,7 @@ func NewHandler(service *Service, rdb *redis.Client, otpService OTPGenerator, sm
 		bindPhoneUserLimiter = middleware.NewRedisRateLimiter(rdb, bindPhoneOTPUserLimitPerMinute, time.Minute)
 		bindPhoneEndpointLimiter = middleware.NewRedisRateLimiter(rdb, bindPhoneOTPRouteLimitPerMinute, time.Minute)
 	}
-	return &Handler{
+	h := &Handler{
 		service:                  service,
 		verifyLimiter:            verifyLimiter,
 		bindPhoneUserLimiter:     bindPhoneUserLimiter,
@@ -47,6 +72,12 @@ func NewHandler(service *Service, rdb *redis.Client, otpService OTPGenerator, sm
 		otpService:               otpService,
 		smsService:               smsService,
 	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(h)
+		}
+	}
+	return h
 }
 
 // RegisterRoutes 注册用户中心路由（挂载到 /api/v1 级别）
@@ -93,40 +124,69 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, authMW gin.HandlerFunc) {
 func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
 	admin.GET(
 		"/identities",
-		rbac.RequireGlobalCapability(capability.UserIdentityRead),
-		rbac.RequireStepUpMFA(),
-		h.handleAdminListIdentities,
+		adminRouteHandlers(
+			h.handleAdminListIdentities,
+			h.adminAuthorizers.IdentityRead,
+			h.adminAuthorizers.StepUpMFA,
+		)...,
 	)
 	admin.PUT(
 		"/identities/:userID",
-		rbac.RequireGlobalCapability(capability.UserIdentityReview),
-		rbac.RequireStepUpMFA(),
-		h.handleAdminReviewIdentity,
+		adminRouteHandlers(
+			h.handleAdminReviewIdentity,
+			h.adminAuthorizers.IdentityReview,
+			h.adminAuthorizers.StepUpMFA,
+		)...,
 	)
 	admin.GET(
 		"/student-verifications",
-		rbac.RequireCapability(capability.UserStudentRead),
-		rbac.RequireStepUpMFA(),
-		h.handleAdminListStudentVerifications,
+		adminRouteHandlers(
+			h.handleAdminListStudentVerifications,
+			h.adminAuthorizers.StudentRead,
+			h.adminAuthorizers.StepUpMFA,
+		)...,
 	)
 	admin.PUT(
 		"/student-verifications/:userID",
-		rbac.RequireCapability(capability.UserStudentReview),
-		rbac.RequireStepUpMFA(),
-		h.handleAdminReviewStudentVerification,
+		adminRouteHandlers(
+			h.handleAdminReviewStudentVerification,
+			h.adminAuthorizers.StudentReview,
+			h.adminAuthorizers.StepUpMFA,
+		)...,
 	)
-	admin.GET("/school-configs", rbac.RequireCapability(capability.UserSchoolRead), h.handleAdminListSchoolConfigs)
+	admin.GET(
+		"/school-configs",
+		adminRouteHandlers(h.handleAdminListSchoolConfigs, h.adminAuthorizers.SchoolRead)...,
+	)
 	admin.PUT(
 		"/school-configs/:schoolID",
-		rbac.RequireCapability(capability.UserSchoolUpdate),
-		rbac.RequireStepUpMFA(),
-		h.handleAdminUpdateSchoolConfig,
+		adminRouteHandlers(
+			h.handleAdminUpdateSchoolConfig,
+			h.adminAuthorizers.SchoolUpdate,
+			h.adminAuthorizers.StepUpMFA,
+		)...,
 	)
-	admin.GET("/system-configs", rbac.RequireGlobalCapability(capability.UserSystemRead), h.handleAdminListSystemConfigs)
+	admin.GET(
+		"/system-configs",
+		adminRouteHandlers(h.handleAdminListSystemConfigs, h.adminAuthorizers.SystemRead)...,
+	)
 	admin.PUT(
 		"/system-configs/:key",
-		rbac.RequireGlobalCapability(capability.UserSystemUpdate),
-		rbac.RequireStepUpMFA(),
-		h.handleAdminUpdateSystemConfig,
+		adminRouteHandlers(
+			h.handleAdminUpdateSystemConfig,
+			h.adminAuthorizers.SystemUpdate,
+			h.adminAuthorizers.StepUpMFA,
+		)...,
 	)
+}
+
+func adminRouteHandlers(handler gin.HandlerFunc, middlewares ...gin.HandlerFunc) []gin.HandlerFunc {
+	handlers := make([]gin.HandlerFunc, 0, len(middlewares)+1)
+	for _, mw := range middlewares {
+		if mw != nil {
+			handlers = append(handlers, mw)
+		}
+	}
+	handlers = append(handlers, handler)
+	return handlers
 }

@@ -154,7 +154,23 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		bindPhoneOTP = newBindPhoneOTPAdapter(auth.NewOTPService(rt.redisClient.GetClient()))
 		bindPhoneSMS = userProfileGateway
 	}
-	userHandler := user.NewHandler(userService, rt.redisClient.GetClient(), bindPhoneOTP, bindPhoneSMS)
+	userHandler := user.NewHandler(
+		userService,
+		rt.redisClient.GetClient(),
+		bindPhoneOTP,
+		bindPhoneSMS,
+		user.WithAdminAuthorizers(user.AdminAuthorizers{
+			IdentityRead:   rbac.RequireGlobalCapability(capability.UserIdentityRead),
+			IdentityReview: rbac.RequireGlobalCapability(capability.UserIdentityReview),
+			StudentRead:    rbac.RequireCapability(capability.UserStudentRead),
+			StudentReview:  rbac.RequireCapability(capability.UserStudentReview),
+			SchoolRead:     rbac.RequireCapability(capability.UserSchoolRead),
+			SchoolUpdate:   rbac.RequireCapability(capability.UserSchoolUpdate),
+			SystemRead:     rbac.RequireGlobalCapability(capability.UserSystemRead),
+			SystemUpdate:   rbac.RequireGlobalCapability(capability.UserSystemUpdate),
+			StepUpMFA:      rbac.RequireStepUpMFA(),
+		}),
+	)
 	openPlatformHandler, _, err := rt.initOpenPlatformModule(api, authMW, piiCipher, userRepo.GetInternalUserID)
 	if err != nil {
 		return err
@@ -183,7 +199,21 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		return fmt.Errorf("failed to initialize admission service: %w", err)
 	}
 	userService.SetAdmissionVerificationProjectionGateway(admissionService)
-	admissionHandler := admission.NewHandler(admissionService, userRepo.GetInternalUserID, botCredentialVerifier)
+	admissionHandler := admission.NewHandler(
+		admissionService,
+		userRepo.GetInternalUserID,
+		botCredentialVerifier,
+		admission.WithAdminAuthorizers(admission.AdminAuthorizers{
+			AdmissionPolicyRead:     rbac.RequireCapability(capability.AdmissionPolicyRead),
+			AdmissionPolicyUpdate:   rbac.RequireCapability(capability.AdmissionPolicyUpdate),
+			AdmissionSessionRead:    rbac.RequireCapability(capability.AdmissionSessionRead),
+			AdmissionSessionManage:  rbac.RequireCapability(capability.AdmissionSessionManage),
+			AdmissionFreshmanRead:   rbac.RequireCapability(capability.AdmissionFreshmanRead),
+			AdmissionFreshmanReview: rbac.RequireCapability(capability.AdmissionFreshmanReview),
+			MemberBlacklistRead:     rbac.RequireCapability(capability.MemberBlacklistRead),
+			MemberBlacklistManage:   rbac.RequireCapability(capability.MemberBlacklistManage),
+		}),
+	)
 	admissionHandler.RegisterRoutes(api, authMW)
 	admissionHandler.RegisterBotRoutes(api)
 	admissionService.StartBackgroundJobs(bgCtx, startBackgroundTask)
