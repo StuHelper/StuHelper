@@ -411,6 +411,39 @@ test('legacy log search falls back to data store when log runtime module is abse
   assert.equal(logs.data.list[0].result, 'loaded from data store')
 })
 
+test('legacy log search falls back when named log module lookup throws', async () => {
+  const listeners = new Map<string, Listener>()
+  const ctx = createContext(listeners)
+  const service = createService(['1001'])
+  Object.assign(service, {
+    getModule(name: string) {
+      throw new Error(`${name[0].toUpperCase()}${name.slice(1)} module not found`)
+    },
+  })
+  service.getAllModules = () => []
+  service.data.commandLogs = createMapStore({
+    logs: [
+      {
+        timestamp: 1_787_803_200_000,
+        guildId: '1001',
+        userId: 'u1',
+        command: 'fallback',
+        target: 'command',
+        details: 'loaded despite missing module lookup',
+      },
+    ],
+  })
+
+  registerTestWebSocketAPI(ctx as any, service as any)
+
+  const logs = await callListener(listeners, 'stuhelperGroupCenter/logs/search', {})
+
+  assert.equal(logs.success, true)
+  assert.equal(logs.data.total, 1)
+  assert.equal(logs.data.list[0].command, 'fallback')
+  assert.equal(logs.data.list[0].result, 'loaded despite missing module lookup')
+})
+
 test('chart stats falls back to data store when log runtime module is absent', async () => {
   const listeners = new Map<string, Listener>()
   const ctx = createContext(listeners)

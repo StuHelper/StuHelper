@@ -14,7 +14,7 @@ type ServiceWithOptionalGetModule = Omit<WebSocketAPIContext['service'], 'getMod
 export function findLogModule(api: WebSocketAPIContext): LogModuleReader | undefined {
   const service = api.service as ServiceWithOptionalGetModule
   const directModule = typeof service.getModule === 'function'
-    ? service.getModule<LogModule>('log')
+    ? safeGetLogModule(service)
     : undefined
 
   return directModule ?? service.getAllModules().find(isLogModuleReader)
@@ -31,4 +31,12 @@ export async function readCommandLogs(api: WebSocketAPIContext): Promise<Command
 
 function isLogModuleReader(module: RuntimeModuleInstance): module is RuntimeModuleInstance & LogModuleReader {
   return module.meta.name === 'log' && typeof (module as { getAllLogs?: unknown }).getAllLogs === 'function'
+}
+
+function safeGetLogModule(service: ServiceWithOptionalGetModule): LogModule | undefined {
+  try {
+    return service.getModule?.<LogModule>('log')
+  } catch {
+    return undefined
+  }
 }
