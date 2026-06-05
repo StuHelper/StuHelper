@@ -2,6 +2,7 @@ import { segment, type Context } from 'koishi'
 
 import type { DataManager } from '../data'
 import type { RuntimeCommand, RuntimeCommandDef } from '../../runtime/types'
+import { commandErrorMessage } from './command-error-message'
 import { getSystemStatusData } from './status-data'
 import { renderStatusHtml } from './status-html'
 
@@ -51,6 +52,6 @@ async function renderStatusImage(host: StatusCommandHost): Promise<StatusCommand
       await page.close()
     }
   } catch (error) {
-    return `生成状态图失败：${(error as Error).message}`
+    return `生成状态图失败：${commandErrorMessage(error)}`
   }
 }
