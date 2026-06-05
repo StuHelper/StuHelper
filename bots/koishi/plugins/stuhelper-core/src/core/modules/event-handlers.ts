@@ -5,7 +5,6 @@ import {
   MEMBER_BLACKLIST_ACCESS_TIMEOUT_MS,
   DEFAULT_MEMBER_REQUEST_CONFIG,
   admissionBusinessPlatformOf,
-  botInternal,
   eventLogger,
   groupConfigOf,
   matchesAnyKeyword,
@@ -15,6 +14,7 @@ import {
   type EventSession,
   type GroupRequest,
 } from './event-support'
+import { requireOneBotInternalMethod } from '../onebot-internal'
 import {
   handleGuildMemberAdded,
   handleGuildMemberRemoved,
@@ -158,8 +158,9 @@ async function rejectBelowLevelLimit(
   if (levelLimit <= DEFAULT_LEVEL_LIMIT) return false
 
   try {
-    const userInfo = await botInternal(session).getStrangerInfo(session.userId, true)
-    if (userInfo.level >= levelLimit) return false
+    const getStrangerInfo = requireOneBotInternalMethod(session.bot, 'getStrangerInfo', 'get_stranger_info')
+    const userInfo = await getStrangerInfo(session.userId, true)
+    if (Number(userInfo.level) >= levelLimit) return false
 
     await session.bot.handleGuildMemberRequest(requestIdOf(session), false, `等级不足${levelLimit}级`)
     return true

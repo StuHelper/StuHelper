@@ -41,11 +41,34 @@ test('delmsg uses canonical quote id with legacy messageId fallback', async () =
 })
 
 test('OneBot internal group admin calls fail explicitly when unsupported', async () => {
-  const content = await readCoreFile('core/modules/member-manage-commands.ts')
+  const [commands, helper] = await Promise.all([
+    readCoreFile('core/modules/member-manage-commands.ts'),
+    readCoreFile('core/onebot-internal.ts'),
+  ])
 
-  assert.match(content, /typeof internal\?\.setGroupAdmin !== 'function'/)
-  assert.match(content, /当前适配器不支持 OneBot set_group_admin/)
-  assert.doesNotMatch(content, /internal\?\.setGroupAdmin\([^)]*\)/)
+  assert.match(commands, /requireOneBotInternalMethod\(session\.bot, 'setGroupAdmin', 'set_group_admin'\)/)
+  assert.match(helper, /当前适配器不支持 OneBot \$\{actionName\}/)
+  assert.doesNotMatch(commands, /internal\?\.setGroupAdmin\([^)]*\)/)
+})
+
+test('OneBot-only internals go through the shared internal helper', async () => {
+  const files = await Promise.all([
+    readCoreFile('core/api/chat-image-fetch.ts'),
+    readCoreFile('core/modules/crossGroupManage.module.ts'),
+    readCoreFile('core/modules/event-handlers.ts'),
+    readCoreFile('core/modules/event-support.ts'),
+    readCoreFile('core/modules/getauth.module.ts'),
+    readCoreFile('core/modules/member-manage-commands.ts'),
+    readCoreFile('core/modules/member-manage-title-commands.ts'),
+    readCoreFile('core/modules/order-manage-group-commands.ts'),
+  ])
+
+  for (const content of files) {
+    assert.doesNotMatch(content, /session\.bot\.internal/)
+    assert.doesNotMatch(content, /\(session\.bot as any\)/)
+    assert.doesNotMatch(content, /\(bot as any\)\.internal/)
+    assert.doesNotMatch(content, /botInternal\(/)
+  }
 })
 
 test('whole-guild mute uses Koishi universal channel mute API', async () => {

@@ -7,6 +7,7 @@ import {
   assertConsoleGuildAccess,
   type ConsoleGuildScope,
 } from './console-guild-scope'
+import { getOneBotInternalMethod } from '../onebot-internal'
 import type {
   ChatImageAccessRegistry,
   ChatImageFetchParams,
@@ -24,7 +25,6 @@ export type {
 } from './chat-image-types'
 
 const HASH_ALGORITHM = 'md5'
-const ONEBOT_PLATFORM = 'onebot'
 const IMAGE_DATA_URL_PREFIX = 'data:'
 const BASE64_ENCODING = 'base64'
 const DEFAULT_IMAGE_MIME_TYPE = 'image/png'
@@ -70,10 +70,11 @@ export async function fetchOneBotImage(
   const imageErrors: string[] = []
 
   for (const bot of bots) {
-    if (!isOneBotImageBot(bot)) continue
+    const getImage = getOneBotInternalMethod(bot, 'getImage')
+    if (!getImage) continue
 
     try {
-      const result = await bot.internal.getImage(request.file)
+      const result = await getImage(request.file)
       const payload = await resolveOneBotImageResult(result, request)
       if (payload) return payload
       imageErrors.push('OneBot get_image did not return an image payload')
@@ -276,10 +277,6 @@ function mimeTypeFromName(fileName: string): string {
 function isProxyableImageUrl(url: URL): boolean {
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return false
   return IMAGE_PROXY_HOST_SUFFIXES.some((suffix) => url.hostname === suffix || url.hostname.endsWith(`.${suffix}`))
-}
-
-function isOneBotImageBot(bot: Bot): bot is Bot & { internal: { getImage(file: string): Promise<unknown> } } {
-  return bot.platform === ONEBOT_PLATFORM && typeof (bot as any).internal?.getImage === 'function'
 }
 
 function accessKey(request: ChatImageFetchRequest): string {

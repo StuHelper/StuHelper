@@ -16,6 +16,7 @@ import type {
   RuntimeModuleState,
 } from '../../runtime/types'
 import { markCommandExecutionFailed } from './command-execution-state'
+import { requireOneBotInternalMethod } from '../onebot-internal'
 
 interface CommandLogEntry {
   readonly session: Session
@@ -104,7 +105,8 @@ async function handleQuitGroupCommand(
   if (!groupId) return '喵呜...请指定要退出的群聊ID喵~'
 
   try {
-    await (session.bot as any).internal.setGroupLeave(groupId, false)
+    const setGroupLeave = requireOneBotInternalMethod(session.bot, 'setGroupLeave', 'set_group_leave')
+    await setGroupLeave(groupId, false)
     logCommand(ctx, {
       session,
       command: 'quit-group',

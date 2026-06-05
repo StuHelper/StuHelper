@@ -2,6 +2,7 @@ import type { Session } from 'koishi'
 
 import type { MemberManageModule } from './memberManage.module'
 import { createKickMemberBlacklist } from './member-blacklist-backend'
+import { requireOneBotInternalMethod } from '../onebot-internal'
 import {
   parseKickInput,
   resolveCommandUserId,
@@ -144,11 +145,8 @@ async function handleAdminCommand(input: AdminCommandInput): Promise<string> {
   if (!userId) return '请指定正确的用户'
 
   try {
-    const internal = session.bot.internal
-    if (typeof internal?.setGroupAdmin !== 'function') {
-      throw new Error('当前适配器不支持 OneBot set_group_admin')
-    }
-    await internal.setGroupAdmin(session.guildId, userId, enabled)
+    const setGroupAdmin = requireOneBotInternalMethod(session.bot, 'setGroupAdmin', 'set_group_admin')
+    await setGroupAdmin(session.guildId, userId, enabled)
     host.logCommand({ session, command: commandName, target: userId, result: enabled ? '成功：已设置为管理员' : '成功：已取消管理员' })
     return enabled ? `已将 ${userId} 设置为管理员喵~` : `已取消 ${userId} 的管理员权限喵~`
   } catch (error) {
@@ -206,9 +204,10 @@ async function unbanMemberIfMuted(input: UnbanMemberInput): Promise<number> {
       return 0
     }
 
-    const memberInfo = await session.bot.internal.getGroupMemberInfo(session.guildId, userId, false)
+    const getGroupMemberInfo = requireOneBotInternalMethod(session.bot, 'getGroupMemberInfo', 'get_group_member_info')
+    const memberInfo = await getGroupMemberInfo(session.guildId, userId, false)
     delete currentMutes[userId]
-    if (memberInfo.shut_up_timestamp <= 0) return 0
+    if (Number(memberInfo.shut_up_timestamp) <= 0) return 0
 
     await session.bot.muteGuildMember(session.guildId, userId, 0)
     return 1

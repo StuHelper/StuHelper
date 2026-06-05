@@ -3,6 +3,7 @@ import type { Session } from 'koishi'
 import type { Config } from '../../types'
 import type { MemberManageModule } from './memberManage.module'
 import { resolveCommandUserId } from './member-manage-input'
+import { requireOneBotInternalMethod } from '../onebot-internal'
 
 const DEFAULT_MAX_TITLE_BYTES = 18
 
@@ -65,7 +66,8 @@ async function setSpecialTitle(input: SpecialTitleInput): Promise<string> {
   if (new TextEncoder().encode(title).length > maxLength) {
     return `喵呜...头衔太长啦！最多只能有 ${maxLength} 个字节哦~`
   }
-  await session.bot.internal.setGroupSpecialTitle(session.guildId, targetId, title)
+  const setGroupSpecialTitle = requireOneBotInternalMethod(session.bot, 'setGroupSpecialTitle', 'set_group_special_title')
+  await setGroupSpecialTitle(session.guildId, targetId, title)
   host.logCommand({ session, command: 'title', target: targetId, result: `成功：已设置头衔：${title}` })
   return `已经设置好头衔啦喵~`
 }
@@ -75,7 +77,8 @@ async function removeSpecialTitle(
   session: Session,
   targetId: string,
 ): Promise<string> {
-  await session.bot.internal.setGroupSpecialTitle(session.guildId, targetId, '')
+  const setGroupSpecialTitle = requireOneBotInternalMethod(session.bot, 'setGroupSpecialTitle', 'set_group_special_title')
+  await setGroupSpecialTitle(session.guildId, targetId, '')
   host.logCommand({ session, command: 'title', target: targetId, result: '成功：已移除头衔' })
   return `已经移除头衔啦喵~`
 }

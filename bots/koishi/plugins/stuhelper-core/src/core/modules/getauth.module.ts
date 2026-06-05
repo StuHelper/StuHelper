@@ -9,6 +9,7 @@ import type {
   RuntimeModuleState,
 } from '../../runtime/types'
 import { formatDuration, parseUserId } from '../../utils'
+import { getOneBotInternalMethod } from '../onebot-internal'
 
 const UNIX_MILLISECONDS_THRESHOLD = 1_000_000_000_000
 const MILLISECONDS_PER_SECOND = 1_000
@@ -152,12 +153,13 @@ async function readUniversalMemberRole(session: Session, userId: string): Promis
 }
 
 async function readOneBotMuteLine(session: Session, userId: string): Promise<string> {
-  if (!session.guildId || !session.bot.internal?.getGroupMemberInfo) {
+  const getGroupMemberInfo = getOneBotInternalMethod(session.bot, 'getGroupMemberInfo')
+  if (!session.guildId || !getGroupMemberInfo) {
     return '未禁言'
   }
 
   try {
-    const info = await session.bot.internal.getGroupMemberInfo(session.guildId, userId, false)
+    const info = await getGroupMemberInfo(session.guildId, userId, false)
     return formatMuteLine(info?.shut_up_timestamp)
   } catch {
     return '未禁言'

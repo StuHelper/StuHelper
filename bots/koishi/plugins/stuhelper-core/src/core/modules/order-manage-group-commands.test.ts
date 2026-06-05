@@ -30,6 +30,7 @@ test('nickname command accepts structured Koishi user arguments', async () => {
   const session = {
     guildId: 'guild-1',
     bot: {
+      platform: 'onebot',
       internal: {
         setGroupCard: async (...args: unknown[]) => groupCards.push(args),
       },

@@ -4,6 +4,7 @@ import type { MuteRecord } from '../../types'
 import { formatDuration } from '../../utils'
 import { resolveCommandUserId } from './member-manage-input'
 import type { OrderManageModule } from './orderManage.module'
+import { requireOneBotInternalMethod } from '../onebot-internal'
 
 interface NicknameCommandInput {
   host: OrderManageModule
@@ -116,13 +117,14 @@ async function handleNicknameCommand(input: NicknameCommandInput): Promise<strin
   if (!guildId) return '喵呜...请在群聊中执行，或显式传入群号喵~'
 
   try {
+    const setGroupCard = requireOneBotInternalMethod(session.bot, 'setGroupCard', 'set_group_card')
     if (nickname) {
-      await session.bot.internal.setGroupCard(guildId, userId, nickname)
+      await setGroupCard(guildId, userId, nickname)
       host.logCommand({ session, command: 'nickname', target: userId, result: `成功：已设置昵称为 ${nickname}, 群号 ${guildId}` })
       return `已将 ${userId} 的昵称设置为 "${nickname}" 喵~`
     }
 
-    await session.bot.internal.setGroupCard(guildId, userId)
+    await setGroupCard(guildId, userId)
     host.logCommand({ session, command: 'nickname', target: userId, result: `成功：已清除昵称, 群号 ${guildId}` })
     return `已将 ${userId} 的昵称清除喵~`
   } catch (error) {

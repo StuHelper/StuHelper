@@ -55,10 +55,6 @@ export function requestIdOf(session: EventSession): string {
   return session.messageId
 }
 
-export function botInternal(session: EventSession): any {
-  return (session.bot as any).internal
-}
-
 export function admissionBusinessPlatformOf(runtimePlatform: string | undefined): string {
   const platform = String(runtimePlatform || '').trim()
   return ADMISSION_BUSINESS_PLATFORM_ALIASES[platform] || platform

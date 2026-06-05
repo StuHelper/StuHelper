@@ -56,6 +56,7 @@ function createGetAuthHarness() {
     platform: 'qq',
     guildId: 'guild-1',
     bot: {
+      platform: 'onebot',
       getGuildMember: async (guildId: string, userId: string) => {
         memberLookups.push([guildId, userId])
         return { roles: [{ id: 'admin', name: '管理员' }] }
