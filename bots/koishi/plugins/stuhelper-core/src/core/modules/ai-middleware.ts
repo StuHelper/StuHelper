@@ -1,5 +1,7 @@
+import type { Session } from 'koishi'
 import { h } from 'koishi'
 
+import { unknownErrorMessage } from './ai-log-format'
 import type { AIModule } from './ai.module'
 
 export function registerAiMiddleware(host: AIModule): void {
@@ -15,15 +17,15 @@ export function registerAiMiddleware(host: AIModule): void {
 
       const response = await host.processMessage(session.userId, content, session.guildId)
       return `${h.quote(session.messageId)}${h.at(session.userId)} ${response}`
-    } catch (error) {
-      host.data.writeLog(`[ai] AI中间件处理失败: ${error}`)
+    } catch (error: unknown) {
+      host.data.writeLog(`[ai] AI中间件处理失败: ${unknownErrorMessage(error)}`)
       return next()
     }
   })
 }
 
-function isMentioningBot(session: any): boolean {
-  return session.elements?.some((el: any) => el.type === 'at' && el.attrs?.id === session.selfId)
+function isMentioningBot(session: Session): boolean {
+  return session.elements?.some((element) => element.type === 'at' && element.attrs?.id === session.selfId) ?? false
 }
 
 function stripBotMention(content: string | undefined, selfId: string): string | undefined {
