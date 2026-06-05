@@ -8,6 +8,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/email"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
 )
 
 type schoolEmailSender struct {
@@ -160,7 +161,7 @@ func newMultiProviderOTPSender(cfg config.EmailConfig, database *db.DB) (email.O
 		}
 	}
 	policy = email.NormalizeDeliveryPolicy(policy, available)
-	policyProvider := email.NewSystemConfigPolicyProvider(database, policy, available)
+	policyProvider := email.NewSystemConfigPolicyProvider(systemconfig.NewRepository(database), policy, available)
 	return email.NewFailoverOTPSender(providers, policy, policyProvider)
 }
 
