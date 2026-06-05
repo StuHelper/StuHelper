@@ -1,15 +1,18 @@
-import { Context } from 'koishi'
+import type { Argv, Context, Session } from 'koishi'
+
+type CommandOptions = Readonly<Record<string, unknown>>
+type CommandSession = Session<'authority'>
 
 export interface ExecuteCommandInput {
   readonly ctx: Context
-  readonly session: any
+  readonly session: CommandSession
   readonly commandName: string
   readonly args?: readonly string[]
-  readonly options?: Readonly<Record<string, any>>
+  readonly options?: CommandOptions
   readonly useAdmin?: boolean
 }
 
-export async function executeCommand(input: ExecuteCommandInput) {
+export async function executeCommand(input: ExecuteCommandInput): Promise<unknown> {
   const { ctx, session, commandName } = input
   const logger = ctx.logger('stuhelper-core:utils')
   try {
@@ -21,11 +24,12 @@ export async function executeCommand(input: ExecuteCommandInput) {
     if (input.useAdmin) logger.info('已临时提升权限至管理员权限(5)执行命令: %s', commandName)
 
     logger.info('正在执行命令: %s', commandName)
-    const result = await command.execute({
+    const argv: Argv<'authority', never, string[], CommandOptions> = {
       session: commandSession,
       args: [...(input.args || [])],
       options: input.options || {},
-    })
+    }
+    const result = await command.execute(argv)
     logger.info('命令 %s 执行结果: %o', commandName, result)
     return result
   } catch (error) {
@@ -41,7 +45,7 @@ function handleMissingCommand(logger: ReturnType<Context['logger']>, commandName
   return `执行失败: ${message}`
 }
 
-function createAdminCommandSession(session: any) {
+function createAdminCommandSession(session: CommandSession): CommandSession {
   return Object.assign(Object.create(Object.getPrototypeOf(session)), session, {
     user: { ...(session.user || {}), authority: 5 },
   })
