@@ -1,4 +1,4 @@
-import type { Command, Context } from 'koishi'
+import type { Command, Context, Session } from 'koishi'
 
 import type { DataManager } from '../data'
 import type { Config } from '../../types'
@@ -62,7 +62,7 @@ export class OrderManageModule implements RuntimeModuleInstance {
   }
 
   logCommand(entry: {
-    readonly session: any
+    readonly session: Session
     readonly command: string
     readonly target: string
     readonly result: string
