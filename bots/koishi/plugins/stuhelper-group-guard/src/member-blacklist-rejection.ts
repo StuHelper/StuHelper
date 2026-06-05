@@ -1,13 +1,11 @@
 import type { Logger, Session, Universal } from 'koishi'
 
-import { PlatformAPIError } from '@stuhelper/koishi-shared'
+import { PlatformAPIError, type GuardMemberRecord, type GuardMemberStore } from '@stuhelper/koishi-shared'
 import type { ModerationStore } from '@stuhelper/koishi-moderation-core'
 
 import { requireAdmissionSubjectPlatform } from './admission-subject-platform'
 import { formatAdmissionActionError } from './admission-actions'
 import { requireMemberID, resolveGuildID } from './member-records'
-import type { GuardMemberRecord } from './model'
-import type { GuardMemberStore } from './store'
 
 const MEMBER_BLACKLISTED_ERROR_CODE = 'admission.member_blacklisted'
 

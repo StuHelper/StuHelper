@@ -1,14 +1,11 @@
-import { Context } from 'koishi'
+import type { Context } from 'koishi'
 
-import {
-  activeGuardMemberIDQuery,
-  GUARD_MEMBER_TABLE,
-} from '@stuhelper/koishi-shared'
-
-import type { GuardMemberRecord } from './model'
+import { GUARD_MEMBER_TABLE } from '../types/index'
+import type { GuardMemberRecord } from './member-model'
+import { activeGuardMemberIDQuery } from './member-store-query'
 
 export class GuardMemberStore {
-  constructor(private readonly ctx: Context) {}
+  constructor(private readonly ctx: Pick<Context, 'database'>) {}
 
   async savePending(record: GuardMemberRecord) {
     const existing = await this.getByID(record.id)

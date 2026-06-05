@@ -4,10 +4,10 @@ import {
   PlatformAPIError,
   type AdmissionBotEventRequest,
   type AdmissionPendingAction,
+  type GuardMemberRecord,
 } from '@stuhelper/koishi-shared'
 
 import { formatAdmissionReminder } from './admission-format'
-import type { GuardMemberRecord } from './model'
 
 type ActionMark = 'reminder' | 'released' | 'kicked'
 

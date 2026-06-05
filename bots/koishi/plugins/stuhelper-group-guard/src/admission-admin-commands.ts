@@ -5,6 +5,7 @@ import {
   type AdmissionSession,
   type AdmissionSessionCreateResult,
   type AdmissionRuntimeSettingsStore,
+  type GuardMemberStore,
   type GuardPolicyStore,
   type PlatformClient,
   type StuhelperGroupGuardPluginConfig,
@@ -14,7 +15,6 @@ import { formatAdmissionReminder } from './admission-format'
 import { resolveAdmissionSubjectPlatform } from './admission-subject-platform'
 import type { AdmissionReminderDeduper } from './admission-reminder-deduper'
 import { backendSyncUpdate } from './member-records'
-import type { GuardMemberStore } from './store'
 
 const DEFAULT_ADMISSION_COMMAND_AUTHORITY = 4
 const DUPLICATE_COMMAND_SUPPRESS_MS = 30_000

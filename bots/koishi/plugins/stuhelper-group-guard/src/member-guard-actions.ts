@@ -1,7 +1,8 @@
 import { h, type Universal } from 'koishi'
 
+import type { GuardMemberRecord } from '@stuhelper/koishi-shared'
+
 import { formatAdmissionReminder, type AdmissionReminderInput } from './admission-format'
-import type { GuardMemberRecord } from './model'
 
 export async function muteGuardedMember(input: {
   readonly bot: Universal.Methods

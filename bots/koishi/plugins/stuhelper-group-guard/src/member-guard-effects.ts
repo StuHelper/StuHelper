@@ -1,7 +1,8 @@
 import { h, type Universal } from 'koishi'
 
+import type { GuardMemberRecord } from '@stuhelper/koishi-shared'
+
 import { formatAdmissionReminder } from './admission-format'
-import type { GuardMemberRecord } from './model'
 
 const POSITIVE_MUTE_DURATION_REQUIRED = 'admission session initialMuteUntil must be in the future'
 

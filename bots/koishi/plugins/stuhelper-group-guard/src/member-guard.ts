@@ -2,6 +2,8 @@ import type { Logger, Session, Universal } from 'koishi'
 
 import {
   type GuardPolicyStore,
+  type GuardMemberStore,
+  type GuardMemberRecord,
   type AdmissionPendingAction,
   PlatformAPIError,
   type PlatformClient,
@@ -43,8 +45,6 @@ import {
   type AdmissionSessionCreateResult,
   type EffectiveGuardPolicy,
 } from './member-records'
-import type { GuardMemberRecord } from './model'
-import type { GuardMemberStore } from './store'
 
 const POSITIVE_MUTE_DURATION_REQUIRED = 'admission session initialMuteUntil must be in the future'
 const DUPLICATE_REMINDER_SUPPRESS_MS = 30_000

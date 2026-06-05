@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { GUARD_MEMBER_TABLE } from '@stuhelper/koishi-shared'
-
-import { GuardMemberStore } from './store'
+import { GUARD_MEMBER_TABLE } from '../types/index'
+import type { GuardMemberRecord } from './member-model'
+import { GuardMemberStore } from './member-store'
 
 test('GuardMemberStore pushes active filters into database queries', async () => {
   const queries: unknown[] = []
@@ -111,7 +111,7 @@ test('GuardMemberStore savePending preserves the previous lastError on re-entry'
   assert.equal(patches[0].lastError, 'previous kick failed')
 })
 
-function guardRecord(overrides: Record<string, unknown> = {}) {
+function guardRecord(overrides: Partial<GuardMemberRecord> = {}): GuardMemberRecord {
   const now = new Date('2026-05-05T12:00:00Z')
   return {
     id: 'mock:514:guild-1:10001',

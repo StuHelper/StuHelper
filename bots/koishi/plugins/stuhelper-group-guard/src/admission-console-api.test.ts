@@ -5,6 +5,8 @@ import type { Context } from 'koishi'
 import type {
   AdmissionSession,
   AdmissionRuntimeSettingsStore,
+  GuardMemberRecord,
+  GuardMemberStore,
   GuardPolicyStore,
   PlatformClient,
   StuhelperGroupGuardPluginConfig,
@@ -15,8 +17,6 @@ import {
   handleAdmissionRuntimeAction,
   registerAdmissionConsoleAPI,
 } from './admission-console-api'
-import type { GuardMemberRecord } from './model'
-import type { GuardMemberStore } from './store'
 
 test('admission runtime page data redacts service token and exposes guard state', async () => {
   const data = await buildAdmissionRuntimePageData(fakeContext(), {

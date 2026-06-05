@@ -1,5 +1,6 @@
 import type {
   AdmissionPendingAction,
+  GuardMemberRecord,
   GuardPolicyStore,
 } from '@stuhelper/koishi-shared'
 
@@ -8,7 +9,6 @@ import {
   resolveAdmissionSubjectPlatform,
 } from './admission-subject-platform'
 import type { GuardBotRuntime } from './member-guard'
-import type { GuardMemberRecord } from './model'
 
 interface AdmissionActionBoundaryInput {
   readonly bot: GuardBotRuntime

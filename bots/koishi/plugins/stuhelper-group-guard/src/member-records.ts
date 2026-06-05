@@ -1,12 +1,12 @@
 import type { Session } from 'koishi'
 
 import {
+  type GuardMemberRecord,
   type GuardPolicyStore,
   type PlatformClient,
 } from '@stuhelper/koishi-shared'
 
 import type { AdmissionSubjectPlatform } from './admission-subject-platform'
-import type { GuardMemberRecord } from './model'
 
 const MINUTE_MS = 60_000
 

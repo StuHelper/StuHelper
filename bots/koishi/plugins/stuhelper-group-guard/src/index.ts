@@ -2,12 +2,15 @@ import { Context, Schema } from 'koishi'
 
 import {
   AdmissionRuntimeSettingsStore,
+  GuardMemberStore,
   GuardPolicyStore,
   createGroupGuardPluginConfigSchema,
   createPlatformClient,
   createPluginLogger,
   registerAdmissionRuntimeSettingsModel,
+  registerGuardMemberModel,
   registerGuardPolicyModels,
+  type GuardMemberRecord,
   type AdmissionRuntimeSettings,
   type StuhelperGroupGuardPluginConfig,
 } from '@stuhelper/koishi-shared'
@@ -17,8 +20,6 @@ import {
   registerModerationModels,
 } from '@stuhelper/koishi-moderation-core'
 
-import { registerGuardMemberModel, type GuardMemberRecord } from './model'
-import { GuardMemberStore } from './store'
 import { MemberGuardService } from './member-guard'
 import { MessageGuardService } from './message-guard'
 import { registerGroupGuardEvents } from './events'

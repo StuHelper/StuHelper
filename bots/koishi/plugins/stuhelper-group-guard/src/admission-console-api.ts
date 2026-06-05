@@ -6,6 +6,8 @@ import type {
   AdmissionSessionCreateResult,
   AdmissionRuntimeSettingsInput,
   AdmissionRuntimeSettingsStore,
+  GuardMemberRecord,
+  GuardMemberStore,
   GuardPolicyStore,
   PlatformClient,
   PlatformAPIError,
@@ -13,8 +15,6 @@ import type {
 } from '@stuhelper/koishi-shared'
 import { PlatformAPIError as PlatformAPIErrorClass } from '@stuhelper/koishi-shared'
 
-import type { GuardMemberRecord } from './model'
-import type { GuardMemberStore } from './store'
 import { formatAdmissionReminder } from './admission-format'
 import { backendSyncUpdate } from './member-records'
 import { requireAdmissionActionPlatform } from './admission-action-boundary'
