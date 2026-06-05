@@ -44,7 +44,10 @@ type MarkFailureFunc func(
 ) error
 type MetaFunc[T any] func(job T) JobMeta
 
-const defaultFinalizeTimeout = 5 * time.Second
+const (
+	defaultFinalizeTimeout = 5 * time.Second
+	defaultPollInterval    = time.Second
+)
 
 func RunPollingWorker[T any](
 	ctx context.Context,
@@ -56,7 +59,7 @@ func RunPollingWorker[T any](
 	meta MetaFunc[T],
 	truncateError func(error) string,
 ) {
-	ticker := time.NewTicker(cfg.PollInterval)
+	ticker := time.NewTicker(pollInterval(cfg))
 	defer ticker.Stop()
 
 	for {
@@ -70,6 +73,13 @@ func RunPollingWorker[T any](
 		case <-ticker.C:
 		}
 	}
+}
+
+func pollInterval(cfg WorkerConfig) time.Duration {
+	if cfg.PollInterval > 0 {
+		return cfg.PollInterval
+	}
+	return defaultPollInterval
 }
 
 func ProcessBatch[T any](

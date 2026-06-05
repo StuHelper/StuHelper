@@ -46,6 +46,32 @@ func TestProcessBatch_MarksDoneOnSuccess(t *testing.T) {
 	assert.EqualValues(t, 1, doneID)
 }
 
+func TestRunPollingWorker_DefaultsZeroPollInterval(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	claimed := 0
+
+	require.NotPanics(t, func() {
+		RunPollingWorker[testJob](
+			ctx,
+			WorkerConfig{Name: "zero poll worker", BatchSize: 1},
+			func(context.Context, int, time.Duration) ([]testJob, error) {
+				claimed++
+				cancel()
+				return nil, nil
+			},
+			func(context.Context, testJob) error { return nil },
+			func(context.Context, int64, time.Time) error { return nil },
+			func(context.Context, int64, time.Time, time.Time, string, bool) error { return nil },
+			func(job testJob) JobMeta { return JobMeta{ID: job.id, JobType: job.jobType} },
+			nil,
+		)
+	})
+	assert.Equal(t, 1, claimed)
+}
+
 func TestProcessBatch_MarkDoneSurvivesParentCancellation(t *testing.T) {
 	t.Parallel()
 
