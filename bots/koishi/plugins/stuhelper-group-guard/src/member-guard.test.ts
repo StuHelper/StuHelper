@@ -429,6 +429,62 @@ test('member guard fail-closes when platform session creation is unavailable and
   }])
 })
 
+test('member guard skips backend sync reminders when the local guard record is no longer active', async () => {
+  const backendPendingRecord = {
+    ...recordFor('session-local-pending'),
+    admissionSessionID: null,
+    backendSyncPending: true,
+    lastError: 'platform unavailable',
+  }
+  const updates: Array<{ id: string, input: Record<string, unknown> }> = []
+  const sentMessages: string[] = []
+  const admissionEvents: unknown[] = []
+  const service = new MemberGuardService({
+    platform: {
+      async createAdmissionSession() {
+        return admissionResult('session-recovered', 'token-recovered')
+      },
+      async listPendingAdmissionActions() { return [] },
+      async listPendingFreshmanForwards() { return [] },
+      async recordAdmissionEvent(sessionID: string, input: unknown) {
+        admissionEvents.push({ sessionID, input })
+      },
+    },
+    guardStore: {
+      async listBackendSyncPending() { return [backendPendingRecord] },
+      async markBackendSynced(id: string, input: Record<string, unknown>) {
+        updates.push({ id, input })
+        return false
+      },
+      async markReminderSent() {
+        throw new Error('stale backend sync should not mark reminders')
+      },
+      async markLastError() {},
+    },
+    policyStore: policyStoreFor(['guild-1']),
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+  } as any)
+
+  await service.scanPendingMembers([{
+    platform: 'qq',
+    selfId: '514',
+    sid: 'qq:514',
+    sendMessage: async (_channelId: string, content: string) => {
+      sentMessages.push(content)
+      return ['message-stale']
+    },
+    muteGuildMember: async () => {},
+    kickGuildMember: async () => {},
+  } as any])
+
+  assert.equal(updates.length, 1)
+  assert.equal(updates[0].id, backendPendingRecord.id)
+  assert.equal(updates[0].input.admissionSessionID, 'session-recovered')
+  assert.deepEqual(sentMessages, [])
+  assert.deepEqual(admissionEvents, [])
+})
+
 test('member guard kicks blacklisted members instead of pending backend sync', async () => {
   const savedRecords: unknown[] = []
   const kicks: Array<{ guildId: string, memberId: string, permanent?: boolean }> = []

@@ -371,7 +371,8 @@ export class MemberGuardService {
       })
       if (admission.session.status === 'verified') {
         await bot.muteGuildMember(record.guildId, record.memberId, 0)
-        await this.deps.guardStore.markReleased(record.id, now)
+        const released = await this.deps.guardStore.markReleased(record.id, now)
+        if (released === false) return
         await this.deps.moderationStore.appendEvent({
           platform: record.platform,
           botSelfId: record.botSelfId,
@@ -388,7 +389,8 @@ export class MemberGuardService {
         return
       }
       const update = backendSyncUpdate(admission)
-      await this.deps.guardStore.markBackendSynced(record.id, update)
+      const synced = await this.deps.guardStore.markBackendSynced(record.id, update)
+      if (synced === false) return
       const messageID = await sendAdmissionReminder(bot, { ...record, ...update }, admission.authURL, admission.session)
       this.deps.reminderDeduper?.remember(admission.session.id, now)
       await this.deps.guardStore.markReminderSent(record.id, now)
