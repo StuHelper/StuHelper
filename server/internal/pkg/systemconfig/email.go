@@ -37,6 +37,7 @@ func ValidateEmailDeliveryPolicy(value string) error {
 		return fmt.Errorf("providers must not be empty")
 	}
 	seen := make(map[string]struct{}, len(policy.Providers))
+	enabledProviders := 0
 	for _, provider := range policy.Providers {
 		name := strings.TrimSpace(provider.Name)
 		switch name {
@@ -54,6 +55,12 @@ func ValidateEmailDeliveryPolicy(value string) error {
 		if provider.Weight <= 0 || provider.Weight > 1000 {
 			return fmt.Errorf("provider %q weight must be between 1 and 1000", name)
 		}
+		if provider.Enabled {
+			enabledProviders++
+		}
+	}
+	if enabledProviders == 0 {
+		return fmt.Errorf("at least one provider must be enabled")
 	}
 	return nil
 }

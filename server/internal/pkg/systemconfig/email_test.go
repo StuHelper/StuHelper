@@ -19,3 +19,10 @@ func TestValidateEmailDeliveryPolicyRejectsUnsupportedProvider(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `provider "unknown" is not supported`)
 }
+
+func TestValidateEmailDeliveryPolicyRejectsNoEnabledProviders(t *testing.T) {
+	err := ValidateEmailDeliveryPolicy(`{"mode":"priority","maxAttempts":2,"providers":[{"name":"tencent_ses","enabled":false,"priority":10,"weight":100},{"name":"resend","enabled":false,"priority":20,"weight":100}]}`)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "at least one provider must be enabled")
+}
