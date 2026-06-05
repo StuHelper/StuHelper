@@ -215,6 +215,7 @@
 import { message } from '@koishijs/client'
 import { computed, ref, watch } from 'vue'
 
+import { useActionError } from '../composables/use-action-error'
 import { useConfirm, type ConfirmTone } from '../composables/use-confirm'
 import type { ConsoleNavigationController } from '../composables/use-console-navigation'
 import { consolePageApi } from '../page-api'
@@ -243,7 +244,13 @@ const guildFilter = ref('')
 const keyword = ref('')
 const selectedItemId = ref('')
 const reviewNote = ref('')
-const actionError = ref('')
+const {
+  actionError,
+  setActionError,
+  clearActionError,
+} = useActionError({
+  onError: (_title, details) => message.error(details),
+})
 const actionLoading = ref(false)
 const {
   state: confirmDialog,
@@ -287,7 +294,7 @@ async function loadData() {
     const next = await consolePageApi.review()
     if (requestSeq !== loadRequestSeq) return
     data.value = next
-    actionError.value = ''
+    clearActionError()
     applyNavigationState()
     syncSelection()
   } catch (cause) {
@@ -322,7 +329,7 @@ function navigationStateKey(): string {
 
 function selectItem(itemId: string) {
   selectedItemId.value = itemId
-  actionError.value = ''
+  clearActionError()
   syncSelection()
 }
 
@@ -361,7 +368,7 @@ async function submitAction(action: ReviewWorkItem['availableActions'][number]) 
   if (!confirmed) return
 
   actionLoading.value = true
-  actionError.value = ''
+  clearActionError()
   try {
     const result = await consolePageApi.workItemAction({
       kind: item.kind,
@@ -374,8 +381,7 @@ async function submitAction(action: ReviewWorkItem['availableActions'][number]) 
     await loadData()
     syncSelection()
   } catch (cause) {
-    actionError.value = errorMessage(cause, '处置失败')
-    message.error(actionError.value)
+    setActionError('处置失败', cause, '处置失败')
   } finally {
     actionLoading.value = false
   }

@@ -651,21 +651,27 @@ test('ReviewView keeps action failures inside the action panel instead of replac
   const source = readClientFile('./components/ReviewView.vue')
 
   assert.match(source, /title="加载处置中心数据失败"/)
-  assert.match(source, /const actionError = ref\(''\)/)
+  assert.match(source, /import \{ useActionError \} from '\.\.\/composables\/use-action-error'/)
+  assert.match(source, /actionError,[\s\S]*setActionError,[\s\S]*clearActionError,[\s\S]*\} = useActionError\(\{[\s\S]*onError: \(_title, details\) => message\.error\(details\)/)
   assert.match(source, /<p v-if="actionError" class="sh-review__action-error" role="alert">/)
   assert.match(source, /error\.value = errorMessage\(cause, '加载处置中心数据失败'\)/)
-  assert.match(source, /actionError\.value = errorMessage\(cause, '处置失败'\)/)
-  assert.match(source, /message\.error\(actionError\.value\)/)
+  assert.match(source, /data\.value = next\s*clearActionError\(\)/)
+  assert.match(source, /selectedItemId\.value = itemId\s*clearActionError\(\)/)
+  assert.match(source, /actionLoading\.value = true\s*clearActionError\(\)/)
+  assert.match(source, /setActionError\('处置失败', cause, '处置失败'\)/)
   assert.match(source, /import \{ errorMessage \} from '\.\.\/utils\/error-message'/)
   assert.doesNotMatch(source, /function errorMessage\(cause: unknown, fallback: string\): string/)
   assert.ok(
-    source.indexOf("actionError.value = errorMessage(cause, '处置失败')") >
+    source.indexOf("setActionError('处置失败', cause, '处置失败')") >
       source.indexOf('await consolePageApi.workItemAction('),
   )
   assert.ok(
     source.indexOf("error.value = errorMessage(cause, '加载处置中心数据失败')") <
       source.indexOf('async function submitAction'),
   )
+  assert.doesNotMatch(source, /const actionError = ref\(''\)/)
+  assert.doesNotMatch(source, /actionError\.value =/)
+  assert.doesNotMatch(source, /message\.error\(actionError\.value\)/)
 })
 
 test('AdmissionView keeps runtime action failures inside their operation sections', () => {
