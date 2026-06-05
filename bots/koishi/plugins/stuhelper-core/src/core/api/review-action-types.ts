@@ -7,6 +7,7 @@ import type {
   ReviewActionType,
   UpdatePendingReviewInput,
 } from '@stuhelper/koishi-moderation-core'
+import type { GuardMemberWorkItemStore } from '@stuhelper/koishi-shared'
 
 import type { ConsoleGuildScope } from './console-guild-scope'
 
@@ -59,6 +60,13 @@ export interface WorkItemActionDeps {
       readonly aiSummary: string | null
     }) => Promise<unknown>
   }
+  guardMemberStore: Pick<GuardMemberWorkItemStore,
+    'rollbackClaim' |
+    'tryClaimActive' |
+    'tryDeferActive' |
+    'tryKickClaimed' |
+    'tryReleaseClaimed'
+  >
   actions: {
     kickMember: (input: KickMemberInput) => Promise<unknown>
   }

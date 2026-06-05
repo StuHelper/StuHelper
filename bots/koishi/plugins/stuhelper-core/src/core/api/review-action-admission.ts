@@ -1,5 +1,5 @@
-import { h, type Context } from 'koishi'
-import { GUARD_MEMBER_TABLE, type GuardMemberRecord } from '@stuhelper/koishi-shared'
+import { h } from 'koishi'
+import { type GuardMemberRecord } from '@stuhelper/koishi-shared'
 
 import {
   createAdmissionEvent,
@@ -44,12 +44,12 @@ interface AdmissionActionRuntimeInput {
 async function approveAdmission(input: AdmissionActionRuntimeInput) {
   const { deps, record, actor, now, note } = input
   const claimAt = new Date(now)
-  await claimPendingGuardRecord(deps.ctx, record, claimAt)
+  await claimPendingGuardRecord(deps, record, claimAt)
   const bot = resolveManagedBot(deps.ctx, record.platform, record.botSelfId)
   try {
     await bot.muteGuildMember(record.guildId, record.memberId, 0)
     await bot.sendMessage(record.channelId, `${h.at(record.memberId)} 已通过人工准入，已解除限制。`)
-    await finalizeGuardRecordRelease({ ctx: deps.ctx, guardId: record.id, claimedAt: claimAt, releasedAt: now })
+    await finalizeGuardRecordRelease({ deps, guardId: record.id, claimedAt: claimAt, releasedAt: now })
     await deps.moderationStore.appendEvent(createAdmissionEvent({
       record,
       type: 'join_released',
@@ -59,7 +59,7 @@ async function approveAdmission(input: AdmissionActionRuntimeInput) {
       note,
     }))
   } catch (error) {
-    await rollbackGuardClaimSafely({ ctx: deps.ctx, guardId: record.id, claimedAt: claimAt, rolledBackAt: getNow(deps), originalError: error })
+    await rollbackGuardClaimSafely({ deps, guardId: record.id, claimedAt: claimAt, rolledBackAt: getNow(deps), originalError: error })
     throw error
   }
   return `已放行待准入成员：${record.memberId}`
@@ -68,12 +68,12 @@ async function approveAdmission(input: AdmissionActionRuntimeInput) {
 async function denyAdmission(input: AdmissionActionRuntimeInput) {
   const { deps, record, actor, now, note } = input
   const claimAt = new Date(now)
-  await claimPendingGuardRecord(deps.ctx, record, claimAt)
+  await claimPendingGuardRecord(deps, record, claimAt)
   const bot = resolveManagedBot(deps.ctx, record.platform, record.botSelfId)
   try {
     await bot.sendMessage(record.channelId, `${h.at(record.memberId)} 已被人工拒绝准入，机器人将移出群聊。`)
     await bot.kickGuildMember(record.guildId, record.memberId)
-    await finalizeGuardRecordKick({ ctx: deps.ctx, guardId: record.id, claimedAt: claimAt, kickedAt: now })
+    await finalizeGuardRecordKick({ deps, guardId: record.id, claimedAt: claimAt, kickedAt: now })
     await deps.moderationStore.appendEvent(createAdmissionEvent({
       record,
       type: 'action_executed',
@@ -84,7 +84,7 @@ async function denyAdmission(input: AdmissionActionRuntimeInput) {
       action: 'deny-admission',
     }))
   } catch (error) {
-    await rollbackGuardClaimSafely({ ctx: deps.ctx, guardId: record.id, claimedAt: claimAt, rolledBackAt: getNow(deps), originalError: error })
+    await rollbackGuardClaimSafely({ deps, guardId: record.id, claimedAt: claimAt, rolledBackAt: getNow(deps), originalError: error })
     throw error
   }
   return `已拒绝待准入成员：${record.memberId}`
@@ -93,13 +93,12 @@ async function denyAdmission(input: AdmissionActionRuntimeInput) {
 async function deferAdmission(input: AdmissionActionRuntimeInput) {
   const { deps, record, actor, now, note } = input
   const deferredDeadline = resolveDeferredDeadline(record, now)
-  const result = await deps.ctx.database.set(GUARD_MEMBER_TABLE, {
-    id: record.id,
-    updatedAt: record.updatedAt,
-    releasedAt: null,
-    kickedAt: null,
-  }, { deadlineAt: deferredDeadline, lastError: null, updatedAt: now })
-  if (result.matched !== 1) {
+  const matched = await deps.guardMemberStore.tryDeferActive({
+    record,
+    deadlineAt: deferredDeadline,
+    updatedAt: now,
+  })
+  if (!matched) {
     throw new Error(`guard member is already being processed: ${record.id}`)
   }
   await deps.moderationStore.appendEvent(createAdmissionEvent({
@@ -123,70 +122,49 @@ function resolveDeferredDeadline(record: GuardMemberRecord, now: Date) {
   return new Date(Math.max(now.getTime(), record.deadlineAt.getTime()) + initialWindowMs)
 }
 
-async function claimPendingGuardRecord(ctx: Context, record: GuardMemberRecord, claimedAt: Date) {
-  const result = await ctx.database.set(GUARD_MEMBER_TABLE, {
-    id: record.id,
-    updatedAt: record.updatedAt,
-    releasedAt: null,
-    kickedAt: null,
-  }, { updatedAt: claimedAt })
-  if (result.matched !== 1) {
+async function claimPendingGuardRecord(deps: WorkItemActionDeps, record: GuardMemberRecord, claimedAt: Date) {
+  const matched = await deps.guardMemberStore.tryClaimActive({ record, claimedAt })
+  if (!matched) {
     throw new Error(`guard member is already being processed: ${record.id}`)
   }
 }
 
 async function finalizeGuardRecordRelease(input: {
-  readonly ctx: Context
+  readonly deps: WorkItemActionDeps
   readonly guardId: string
   readonly claimedAt: Date
   readonly releasedAt: Date
 }) {
-  const result = await input.ctx.database.set(GUARD_MEMBER_TABLE, {
-    id: input.guardId,
-    updatedAt: input.claimedAt,
-    releasedAt: null,
-    kickedAt: null,
-  }, { releasedAt: input.releasedAt, lastError: null, updatedAt: input.releasedAt })
-  if (result.matched !== 1) {
+  const matched = await input.deps.guardMemberStore.tryReleaseClaimed(input)
+  if (!matched) {
     throw new Error(`guard member release lost claim: ${input.guardId}`)
   }
 }
 
 async function finalizeGuardRecordKick(input: {
-  readonly ctx: Context
+  readonly deps: WorkItemActionDeps
   readonly guardId: string
   readonly claimedAt: Date
   readonly kickedAt: Date
 }) {
-  const result = await input.ctx.database.set(GUARD_MEMBER_TABLE, {
-    id: input.guardId,
-    updatedAt: input.claimedAt,
-    releasedAt: null,
-    kickedAt: null,
-  }, { kickedAt: input.kickedAt, lastError: null, updatedAt: input.kickedAt })
-  if (result.matched !== 1) {
+  const matched = await input.deps.guardMemberStore.tryKickClaimed(input)
+  if (!matched) {
     throw new Error(`guard member kick lost claim: ${input.guardId}`)
   }
 }
 
 async function rollbackGuardRecordClaim(input: {
-  readonly ctx: Context
+  readonly deps: WorkItemActionDeps
   readonly guardId: string
   readonly claimedAt: Date
   readonly rolledBackAt: Date
   readonly error: unknown
 }) {
-  const message = input.error instanceof Error ? input.error.message : String(input.error)
-  await input.ctx.database.set(GUARD_MEMBER_TABLE, {
-    id: input.guardId,
-    updatedAt: input.claimedAt,
-    releasedAt: null,
-    kickedAt: null,
-  }, { lastError: message, updatedAt: input.rolledBackAt })
+  await input.deps.guardMemberStore.rollbackClaim(input)
 }
 
 async function rollbackGuardClaimSafely(input: {
-  readonly ctx: Context
+  readonly deps: WorkItemActionDeps
   readonly guardId: string
   readonly claimedAt: Date
   readonly rolledBackAt: Date
@@ -195,7 +173,7 @@ async function rollbackGuardClaimSafely(input: {
   try {
     await rollbackGuardRecordClaim({ ...input, error: input.originalError })
   } catch (rollbackError) {
-    input.ctx.logger('stuhelperGroupCenter').error(
+    input.deps.ctx.logger('stuhelperGroupCenter').error(
       'guard rollback failed for %s after business error: %s | original: %s',
       input.guardId,
       toErrorMessage(rollbackError),

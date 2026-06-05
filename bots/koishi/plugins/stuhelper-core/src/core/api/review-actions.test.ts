@@ -618,6 +618,105 @@ function createActionDeps(input: {
         updatedReports.push({ id, aiStatus, aiSeverity, aiSummary })
       },
     },
+    guardMemberStore: {
+      tryClaimActive: async (action: {
+        readonly record: { id: string; updatedAt: Date }
+        readonly claimedAt: Date
+      }) => {
+        guardUpdates.push({
+          query: {
+            id: action.record.id,
+            updatedAt: action.record.updatedAt,
+            releasedAt: null,
+            kickedAt: null,
+          },
+          patch: { updatedAt: action.claimedAt },
+        })
+        return true
+      },
+      tryReleaseClaimed: async (action: {
+        readonly guardId: string
+        readonly claimedAt: Date
+        readonly releasedAt: Date
+      }) => {
+        guardUpdates.push({
+          query: {
+            id: action.guardId,
+            updatedAt: action.claimedAt,
+            releasedAt: null,
+            kickedAt: null,
+          },
+          patch: {
+            releasedAt: action.releasedAt,
+            lastError: null,
+            updatedAt: action.releasedAt,
+          },
+        })
+        return true
+      },
+      tryKickClaimed: async (action: {
+        readonly guardId: string
+        readonly claimedAt: Date
+        readonly kickedAt: Date
+      }) => {
+        guardUpdates.push({
+          query: {
+            id: action.guardId,
+            updatedAt: action.claimedAt,
+            releasedAt: null,
+            kickedAt: null,
+          },
+          patch: {
+            kickedAt: action.kickedAt,
+            lastError: null,
+            updatedAt: action.kickedAt,
+          },
+        })
+        return true
+      },
+      tryDeferActive: async (action: {
+        readonly record: { id: string; updatedAt: Date }
+        readonly deadlineAt: Date
+        readonly updatedAt: Date
+      }) => {
+        guardUpdates.push({
+          query: {
+            id: action.record.id,
+            updatedAt: action.record.updatedAt,
+            releasedAt: null,
+            kickedAt: null,
+          },
+          patch: {
+            deadlineAt: action.deadlineAt,
+            lastError: null,
+            updatedAt: action.updatedAt,
+          },
+        })
+        return true
+      },
+      rollbackClaim: async (action: {
+        readonly guardId: string
+        readonly claimedAt: Date
+        readonly rolledBackAt: Date
+        readonly error: unknown
+      }) => {
+        if (input.guardRollbackError) {
+          throw input.guardRollbackError
+        }
+        guardUpdates.push({
+          query: {
+            id: action.guardId,
+            updatedAt: action.claimedAt,
+            releasedAt: null,
+            kickedAt: null,
+          },
+          patch: {
+            lastError: action.error instanceof Error ? action.error.message : String(action.error),
+            updatedAt: action.rolledBackAt,
+          },
+        })
+      },
+    },
     actions: {
       kickMember: async (actionInput: {
         readonly guildId: string

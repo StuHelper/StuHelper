@@ -3,6 +3,7 @@ import type { Client } from '@koishijs/plugin-console'
 import type {} from '@koishijs/plugin-auth'
 
 import { ModerationActionService, ModerationStore } from '@stuhelper/koishi-moderation-core'
+import { GuardMemberWorkItemStore } from '@stuhelper/koishi-shared'
 
 import {
   handleWorkItemAction,
@@ -20,8 +21,9 @@ export function registerReviewActionAPI(ctx: Context) {
   }
 
   const moderationStore = new ModerationStore(ctx)
+  const guardMemberStore = new GuardMemberWorkItemStore(ctx)
   const actions = new ModerationActionService(moderationStore)
-  const deps = { ctx, moderationStore, actions }
+  const deps = { ctx, moderationStore, guardMemberStore, actions }
 
   ctx.console.addListener('stuhelperGroupCenter/action/review', async function (input) {
     return handleWorkItemAction(
