@@ -116,4 +116,33 @@ func TestConsumeOIDCState_EdgeBranches(t *testing.T) {
 		assert.Equal(t, "verifier-native", consumed)
 		assert.Equal(t, oidc.ApplicationUniapp, consumedApp)
 	})
+
+	t.Run("native promotion preserves verifier on repeated transition", func(t *testing.T) {
+		const state = "state-native-repeat"
+		require.NoError(t, h.storeOIDCState(context.Background(), oidcStateInput{
+			state:        state,
+			redirect:     "stuhelper://auth/callback",
+			codeVerifier: "verifier-repeat",
+			application:  oidc.ApplicationUniapp,
+			native:       true,
+		}))
+		raw, err := fixture.Client.Get(context.Background(), oidcStateRedisPrefix+state).Result()
+		require.NoError(t, err)
+		payload := nativeCodeVerifierPayload{
+			CodeVerifier: "verifier-repeat",
+			Application:  oidc.ApplicationUniapp,
+		}
+
+		require.NoError(t, h.promoteOIDCStateToNativeVerifier(context.Background(), state, raw, payload))
+		assert.Equal(t, int64(0), fixture.Client.Exists(context.Background(), oidcStateRedisPrefix+state).Val())
+		stored, err := fixture.Client.Get(context.Background(), nativeCodeVerifierPrefix+state).Result()
+		require.NoError(t, err)
+
+		err = h.promoteOIDCStateToNativeVerifier(context.Background(), state, raw, payload)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "state expired or already used")
+		remaining, getErr := fixture.Client.Get(context.Background(), nativeCodeVerifierPrefix+state).Result()
+		require.NoError(t, getErr)
+		assert.Equal(t, stored, remaining)
+	})
 }

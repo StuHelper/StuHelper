@@ -263,11 +263,8 @@ func (h *Handler) consumeOIDCState(c *gin.Context, state string) (string, string
 	}
 
 	if isNative {
-		if err := h.deleteOIDCState(c.Request.Context(), state); err != nil {
-			return "", "", "", true, err
-		}
 		payload := nativeCodeVerifierPayload{CodeVerifier: codeVerifier, Application: appKey}
-		if err := h.storeNativeCodeVerifier(c.Request.Context(), state, payload); err != nil {
+		if err := h.promoteOIDCStateToNativeVerifier(c.Request.Context(), state, raw, payload); err != nil {
 			return "", "", "", true, fmt.Errorf("failed to persist code_verifier for native exchange: %w", err)
 		}
 		return redirectURL, codeVerifier, appKey, true, nil
@@ -288,6 +285,19 @@ func (h *Handler) consumeOIDCState(c *gin.Context, state string) (string, string
 
 const nativeCodeVerifierPrefix = "auth:native:verifier:"
 
+const promoteOIDCStateToNativeVerifierScript = `
+local current = redis.call("GET", KEYS[1])
+if not current then
+	return 0
+end
+if current ~= ARGV[1] then
+	return -1
+end
+redis.call("SET", KEYS[2], ARGV[2], "EX", ARGV[3])
+redis.call("DEL", KEYS[1])
+return 1
+`
+
 type nativeCodeVerifierPayload struct {
 	CodeVerifier string `json:"codeVerifier"`
 	Application  string `json:"application"`
@@ -300,6 +310,33 @@ func (h *Handler) storeNativeCodeVerifier(ctx context.Context, state string, pay
 		return fmt.Errorf("failed to marshal native code_verifier payload: %w", err)
 	}
 	return h.redisClient.Set(ctx, nativeCodeVerifierPrefix+state, data, stateMaxAge).Err()
+}
+
+func (h *Handler) promoteOIDCStateToNativeVerifier(
+	ctx context.Context,
+	state string,
+	expectedStateRaw string,
+	payload nativeCodeVerifierPayload,
+) error {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal native code_verifier payload: %w", err)
+	}
+	result, err := h.redisClient.Eval(ctx, promoteOIDCStateToNativeVerifierScript, []string{
+		oidcStateRedisPrefix + state,
+		nativeCodeVerifierPrefix + state,
+	}, expectedStateRaw, string(data), int64(stateMaxAge/time.Second)).Int()
+	if err != nil {
+		return err
+	}
+	switch result {
+	case 1:
+		return nil
+	case 0:
+		return fmt.Errorf("state expired or already used")
+	default:
+		return fmt.Errorf("state changed during native verifier promotion")
+	}
 }
 
 // consumeNativeCodeVerifier 从 Redis 取出并删除 code_verifier（一次性消费）
