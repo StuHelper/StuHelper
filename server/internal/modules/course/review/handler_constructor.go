@@ -17,6 +17,7 @@ type HandlerConfig struct {
 	RateLimit              config.ReviewRateLimitConfig
 	Authorizer             AuthorizationProvider
 	InternalUserIDResolver middleware.InternalUserIDResolver
+	AdminAuthorizers       AdminAuthorizers
 }
 
 // NewHandler 创建评课处理器。Admin mutation 授权需要 Authorizer 与
@@ -28,6 +29,7 @@ func NewHandler(cfg HandlerConfig) *Handler {
 		service:                cfg.Service,
 		fga:                    cfg.Authorizer,
 		internalUserIDResolver: cfg.InternalUserIDResolver,
+		adminAuthorizers:       cfg.AdminAuthorizers,
 		postLimiter:            middleware.NewRedisRateLimiter(cfg.Redis, cfg.RateLimit.PostLimit, time.Minute),
 		voteLimiter:            middleware.NewRedisRateLimiter(cfg.Redis, cfg.RateLimit.VoteLimit, time.Minute),
 		reportLimiter:          middleware.NewRedisRateLimiter(cfg.Redis, cfg.RateLimit.ReportLimit, time.Minute),

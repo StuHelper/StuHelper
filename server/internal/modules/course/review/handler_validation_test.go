@@ -223,7 +223,10 @@ func TestReviewHandler_MoreValidationBranches(t *testing.T) {
 	})
 
 	t.Run("batch hide of five reviews requires step-up proof", func(t *testing.T) {
-		h := &Handler{fga: NewFailClosedAuthorizationProvider()}
+		h := &Handler{
+			fga:              NewFailClosedAuthorizationProvider(),
+			adminAuthorizers: reviewAdminAuthorizers(),
+		}
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest(http.MethodPatch, "/", strings.NewReader(batchStepUpRequestBody("hide")))

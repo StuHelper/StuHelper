@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/routeassert"
@@ -40,7 +41,7 @@ func TestReviewExportRequiresGlobalReviewManageCapability(t *testing.T) {
 	r := gin.New()
 	api := r.Group("/api/v1/course/review")
 	authMW := scopedSectionModeratorAuth()
-	(&Handler{}).RegisterRoutes(api, authMW, authMW)
+	(&Handler{adminAuthorizers: reviewAdminAuthorizers()}).RegisterRoutes(api, authMW, authMW)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/course/review/admin/export", nil)
@@ -55,13 +56,25 @@ func TestReviewTeacherAdminRequiresGlobalCapability(t *testing.T) {
 	r := gin.New()
 	api := r.Group("/api/v1/course/review")
 	authMW := scopedCapabilityAuth(capability.AdminTeachersManage)
-	(&Handler{}).RegisterRoutes(api, authMW, authMW)
+	(&Handler{adminAuthorizers: reviewAdminAuthorizers()}).RegisterRoutes(api, authMW, authMW)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/course/review/admin/teachers", nil)
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func reviewAdminAuthorizers() AdminAuthorizers {
+	return AdminAuthorizers{
+		Entry:                rbac.RequireAnyCapability(capability.AdminEntryCapabilities...),
+		DashboardView:        rbac.RequireGlobalCapability(capability.AdminDashboardView),
+		LogsView:             rbac.RequireGlobalCapability(capability.AdminLogsView),
+		ReviewsManage:        rbac.RequireGlobalCapability(capability.AdminReviewsManage),
+		TeachersManage:       rbac.RequireGlobalCapability(capability.AdminTeachersManage),
+		SensitiveWordsManage: rbac.RequireGlobalCapability(capability.AdminSensitiveWordsManage),
+		StepUpVerified:       rbac.EnsureStepUpMFA,
+	}
 }
 
 func scopedSectionModeratorAuth() gin.HandlerFunc {

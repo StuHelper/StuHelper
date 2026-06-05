@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
@@ -225,7 +224,7 @@ func (h *Handler) BatchUpdateReviews(c *gin.Context) {
 	}
 
 	userID := middleware.GetUserID(c)
-	if batchReviewStepUpRequired(req) && !rbac.EnsureStepUpMFA(c) {
+	if batchReviewStepUpRequired(req) && !h.ensureBatchStepUp(c) {
 		return
 	}
 	if !h.authorizeBatchReviewModeration(c, req.IDs, req.Action) {
@@ -257,6 +256,13 @@ func (h *Handler) BatchUpdateReviews(c *gin.Context) {
 		"message":  "batch update completed",
 		"affected": result.Affected,
 	})
+}
+
+func (h *Handler) ensureBatchStepUp(c *gin.Context) bool {
+	if h.adminAuthorizers.StepUpVerified == nil {
+		return true
+	}
+	return h.adminAuthorizers.StepUpVerified(c)
 }
 
 func batchReviewStepUpRequired(req BatchUpdateReviewsRequest) bool {

@@ -7,14 +7,24 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 )
+
+type StepUpVerifier func(*gin.Context) bool
+
+type AdminAuthorizers struct {
+	Entry                gin.HandlerFunc
+	DashboardView        gin.HandlerFunc
+	LogsView             gin.HandlerFunc
+	ReviewsManage        gin.HandlerFunc
+	TeachersManage       gin.HandlerFunc
+	SensitiveWordsManage gin.HandlerFunc
+	StepUpVerified       StepUpVerifier
+}
 
 // Handler 评课社区处理器
 type Handler struct {
@@ -22,6 +32,7 @@ type Handler struct {
 	service                *Service
 	fga                    AuthorizationProvider
 	internalUserIDResolver middleware.InternalUserIDResolver
+	adminAuthorizers       AdminAuthorizers
 	postLimiter            *middleware.RedisRateLimiter
 	voteLimiter            *middleware.RedisRateLimiter
 	reportLimiter          *middleware.RedisRateLimiter
@@ -121,7 +132,7 @@ func (h *Handler) RegisterRoutes(
 	// 管理员路由组
 	admin := r.Group("/admin")
 	adminRouteMiddlewares := append([]gin.HandlerFunc{authMiddleware}, adminMiddlewares...)
-	adminRouteMiddlewares = append(adminRouteMiddlewares, rbac.RequireAnyCapability(capability.AdminEntryCapabilities...))
+	adminRouteMiddlewares = appendRouteMiddlewares(adminRouteMiddlewares, h.adminAuthorizers.Entry)
 	admin.Use(adminRouteMiddlewares...)
 	{
 		admin.GET("/reports", requireModerationRole(), h.ListReports)
@@ -130,23 +141,43 @@ func (h *Handler) RegisterRoutes(
 		admin.PUT("/reviews/:reviewID", requireModerationRole(), h.AdminUpdateReview)
 		admin.POST("/reviews/:reviewID/edit", requireSchoolAdminRole(), h.AdminEditReviewContent)
 		admin.PATCH("/reviews/batch", requireModerationRole(), h.BatchUpdateReviews)
-		admin.GET("/stats", rbac.RequireGlobalCapability(capability.AdminDashboardView), h.GetAdminStats)
-		admin.GET("/logs", rbac.RequireGlobalCapability(capability.AdminLogsView), h.GetOperationLogs)
-		admin.GET("/export", rbac.RequireGlobalCapability(capability.AdminReviewsManage), h.ExportReviews)
+		admin.GET("/stats", adminRouteHandlers(h.GetAdminStats, h.adminAuthorizers.DashboardView)...)
+		admin.GET("/logs", adminRouteHandlers(h.GetOperationLogs, h.adminAuthorizers.LogsView)...)
+		admin.GET("/export", adminRouteHandlers(h.ExportReviews, h.adminAuthorizers.ReviewsManage)...)
 
-		admin.GET("/teachers", rbac.RequireGlobalCapability(capability.AdminTeachersManage), h.ListAdminTeachers)
-		admin.POST("/teachers", rbac.RequireGlobalCapability(capability.AdminTeachersManage), h.CreateTeacher)
-		admin.PUT("/teachers/:teacherID", rbac.RequireGlobalCapability(capability.AdminTeachersManage), h.UpdateTeacher)
-		admin.DELETE("/teachers/:teacherID", rbac.RequireGlobalCapability(capability.AdminTeachersManage), h.DeleteTeacher)
+		admin.GET("/teachers", adminRouteHandlers(h.ListAdminTeachers, h.adminAuthorizers.TeachersManage)...)
+		admin.POST("/teachers", adminRouteHandlers(h.CreateTeacher, h.adminAuthorizers.TeachersManage)...)
+		admin.PUT("/teachers/:teacherID", adminRouteHandlers(h.UpdateTeacher, h.adminAuthorizers.TeachersManage)...)
+		admin.DELETE("/teachers/:teacherID", adminRouteHandlers(h.DeleteTeacher, h.adminAuthorizers.TeachersManage)...)
 
-		admin.GET("/sensitive-words", rbac.RequireGlobalCapability(capability.AdminSensitiveWordsManage), h.ListSensitiveWords)
-		admin.POST("/sensitive-words", rbac.RequireGlobalCapability(capability.AdminSensitiveWordsManage), h.CreateSensitiveWord)
-		admin.PUT("/sensitive-words/:sensitiveWordID", rbac.RequireGlobalCapability(capability.AdminSensitiveWordsManage), h.UpdateSensitiveWord)
-		admin.DELETE("/sensitive-words/:sensitiveWordID", rbac.RequireGlobalCapability(capability.AdminSensitiveWordsManage), h.DeleteSensitiveWord)
+		admin.GET("/sensitive-words", adminRouteHandlers(h.ListSensitiveWords, h.adminAuthorizers.SensitiveWordsManage)...)
+		admin.POST("/sensitive-words", adminRouteHandlers(h.CreateSensitiveWord, h.adminAuthorizers.SensitiveWordsManage)...)
+		admin.PUT("/sensitive-words/:sensitiveWordID", adminRouteHandlers(h.UpdateSensitiveWord, h.adminAuthorizers.SensitiveWordsManage)...)
+		admin.DELETE("/sensitive-words/:sensitiveWordID", adminRouteHandlers(h.DeleteSensitiveWord, h.adminAuthorizers.SensitiveWordsManage)...)
 
 		admin.GET("/content-flags", requireModerationRole(), h.ListFlaggedReviews)
 		admin.PUT("/content-flags/:reviewID/clear", requireModerationRole(), h.ClearContentFlag)
 	}
+}
+
+func appendRouteMiddlewares(existing []gin.HandlerFunc, middlewares ...gin.HandlerFunc) []gin.HandlerFunc {
+	for _, mw := range middlewares {
+		if mw != nil {
+			existing = append(existing, mw)
+		}
+	}
+	return existing
+}
+
+func adminRouteHandlers(handler gin.HandlerFunc, middlewares ...gin.HandlerFunc) []gin.HandlerFunc {
+	handlers := make([]gin.HandlerFunc, 0, len(middlewares)+1)
+	for _, mw := range middlewares {
+		if mw != nil {
+			handlers = append(handlers, mw)
+		}
+	}
+	handlers = append(handlers, handler)
+	return handlers
 }
 
 // CleanupOldLogs 清理过期操作日志（保留 90 天）

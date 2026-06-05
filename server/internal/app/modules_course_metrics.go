@@ -10,8 +10,10 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 )
@@ -44,6 +46,15 @@ func (rt *Runtime) initCourseModule(
 		RateLimit:              rt.cfg.RateLimit,
 		Authorizer:             authorizer,
 		InternalUserIDResolver: userRepo.GetInternalUserID,
+		AdminAuthorizers: review.AdminAuthorizers{
+			Entry:                rbac.RequireAnyCapability(capability.AdminEntryCapabilities...),
+			DashboardView:        rbac.RequireGlobalCapability(capability.AdminDashboardView),
+			LogsView:             rbac.RequireGlobalCapability(capability.AdminLogsView),
+			ReviewsManage:        rbac.RequireGlobalCapability(capability.AdminReviewsManage),
+			TeachersManage:       rbac.RequireGlobalCapability(capability.AdminTeachersManage),
+			SensitiveWordsManage: rbac.RequireGlobalCapability(capability.AdminSensitiveWordsManage),
+			StepUpVerified:       rbac.EnsureStepUpMFA,
+		},
 	})
 
 	courseRepo := course.NewRepository(rt.database)
