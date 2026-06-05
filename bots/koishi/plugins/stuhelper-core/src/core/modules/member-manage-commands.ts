@@ -3,6 +3,7 @@ import type { Session } from 'koishi'
 import type { MemberManageModule } from './memberManage.module'
 import { createKickMemberBlacklist } from './member-blacklist-backend'
 import { requireOneBotInternalMethod } from '../onebot-internal'
+import { commandErrorMessage } from './command-error-message'
 import {
   parseKickInput,
   resolveCommandUserId,
@@ -76,8 +77,9 @@ async function handleKickCommand(commandInput: {
     host.logCommand({ session, command: 'kick', target: kickInput.userId, result: `成功：移出群聊 ${kickInput.targetGroup}` })
     return `已把 ${kickInput.userId} 踢出去喵~`
   } catch (error) {
+    const message = commandErrorMessage(error)
     host.logCommand({ session, command: 'kick', target: kickInput.userId, result: '失败：未知错误', success: false })
-    return `喵呜...踢出失败了：${error.message}`
+    return `喵呜...踢出失败了：${message}`
   }
 }
 
@@ -97,7 +99,7 @@ async function handleBlackKick(
       global: input.global,
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
+    const message = commandErrorMessage(error)
     host.logCommand({
       session,
       command: 'kick',
@@ -150,8 +152,9 @@ async function handleAdminCommand(input: AdminCommandInput): Promise<string> {
     host.logCommand({ session, command: commandName, target: userId, result: enabled ? '成功：已设置为管理员' : '成功：已取消管理员' })
     return enabled ? `已将 ${userId} 设置为管理员喵~` : `已取消 ${userId} 的管理员权限喵~`
   } catch (error) {
+    const message = commandErrorMessage(error)
     host.logCommand({ session, command: commandName, target: userId, result: '失败：未知错误', success: enabled ? false : undefined })
-    return enabled ? `设置失败了喵...${error.message}` : `取消失败了喵...${error.message}`
+    return enabled ? `设置失败了喵...${message}` : `取消失败了喵...${message}`
   }
 }
 
@@ -173,8 +176,9 @@ async function handleUnbanAllPplCommand(host: MemberManageModule, session: Sessi
     host.logCommand({ session, command: 'unban-allppl', target: session.guildId, result: `成功：已解除 ${count} 人的禁言` })
     return count > 0 ? `已解除 ${count} 人的禁言啦！` : '当前没有被禁言的成员喵~'
   } catch (error) {
+    const message = commandErrorMessage(error)
     host.logCommand({ session, command: 'unban-allppl', target: session.guildId, result: '失败：未知错误', success: false })
-    return `出错啦喵...${error}`
+    return `出错啦喵...${message}`
   }
 }
 

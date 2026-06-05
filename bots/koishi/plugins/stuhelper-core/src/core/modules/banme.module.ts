@@ -21,6 +21,7 @@ import {
 } from './banme-similar-chars'
 import { formatBanmeMessage, formatSuccessLog } from './banme-messages'
 import type { JackpotResult } from './banme-types'
+import { commandErrorMessage } from './command-error-message'
 
 const SIMILAR_CHARS_PATH = './data/similarChars.json'
 const HOUR_MS = 3_600_000
@@ -146,8 +147,9 @@ export class BanmeModule implements RuntimeModuleInstance {
       void this.log({ session, command: 'banme', target: session.userId, result: formatSuccessLog(timeStr, jackpot, record) })
       return formatBanmeMessage({ session, isAuto, timeStr, jackpot, record })
     } catch (error) {
+      const message = commandErrorMessage(error)
       void this.log({ session, command: 'banme', target: session.userId, result: '失败：未知错误' })
-      return `喵呜...禁言失败了：${(error as Error).message}`
+      return `喵呜...禁言失败了：${message}`
     }
   }
 

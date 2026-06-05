@@ -3,6 +3,7 @@ import type { Session } from 'koishi'
 import { formatDuration, parseTimeString } from '../../utils'
 import { resolveCommandUserId, resolveTargetUserId, splitTargetArgs } from './member-manage-input'
 import type { OrderManageModule } from './orderManage.module'
+import { commandErrorMessage } from './command-error-message'
 
 const SHORT_MUTE_MS = 600_000
 
@@ -67,8 +68,9 @@ async function handleBanCommand(host: OrderManageModule, session: Session, input
     host.logCommand({ session, command: 'ban', target: parsed.userId, result: `成功：已禁言 ${timeStr}，群号：${parsed.groupId}` })
     return `已经把 ${parsed.userId} 禁言 ${parsed.duration} (${timeStr}) 啦喵~`
   } catch (error) {
+    const message = commandErrorMessage(error)
     host.logCommand({ session, command: 'ban', target: parsed.userId, result: '失败：未知错误', success: false })
-    return `喵呜...禁言失败了：${error.message}`
+    return `喵呜...禁言失败了：${message}`
   }
 }
 
@@ -119,8 +121,9 @@ async function handleStopCommand(host: OrderManageModule, session: Session, user
     host.logCommand({ session, command: 'stop', target: userId, result: `成功：已短期禁言，群号 ${session.guildId}` })
     return `已将 ${userId} 短期禁言啦喵~`
   } catch (error) {
+    const message = commandErrorMessage(error)
     host.logCommand({ session, command: 'stop', target: userId, result: '失败：未知错误', success: false })
-    return `喵呜...短期禁言失败了：${error.message}`
+    return `喵呜...短期禁言失败了：${message}`
   }
 }
 
@@ -160,7 +163,8 @@ async function handleUnbanCommand(host: OrderManageModule, session: Session, inp
     host.logCommand({ session, command: 'unban', target: userId, result: `成功：已解除禁言，群号 ${targetGroup}` })
     return `已经把 ${userId} 的禁言解除啦喵！开心~`
   } catch (error) {
+    const message = commandErrorMessage(error)
     host.logCommand({ session, command: 'unban', target: userId, result: '失败：未知错误', success: false })
-    return `喵呜...解除禁言失败了：${error.message}`
+    return `喵呜...解除禁言失败了：${message}`
   }
 }

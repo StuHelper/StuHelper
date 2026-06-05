@@ -98,3 +98,75 @@ test('kick -b reports partial failure when backend blacklist creation fails', as
     success: false,
   })
 })
+
+test('member manage commands report non-Error adapter failures without undefined output', async () => {
+  const commandActions = new Map<string, Function>()
+  const logs: unknown[] = []
+  const host = {
+    config: {},
+    memberBlacklistBackend: {
+      createMemberBlacklist: async () => undefined,
+    },
+    ctx: {
+      stuhelperGroupCenter: {
+        pushMessage: async () => undefined,
+      },
+    },
+    logCommand: (entry: unknown) => logs.push(entry),
+    registerCommand(def: { readonly name: string }) {
+      const chain = {
+        example: () => chain,
+        option: () => chain,
+        action(fn: Function) {
+          commandActions.set(def.name, fn)
+          return chain
+        },
+      }
+      return chain
+    },
+  }
+  registerMemberManageCommands(host as any)
+
+  const kickSession = {
+    guildId: 'source-guild',
+    bot: {
+      kickGuildMember: async () => {
+        throw 'adapter offline'
+      },
+    },
+  }
+  assert.equal(
+    await commandActions.get('kick')?.({ session: kickSession, options: {} }, '10001 target-guild'),
+    '喵呜...踢出失败了：adapter offline',
+  )
+  assert.deepEqual(logs.at(-1), {
+    session: kickSession,
+    command: 'kick',
+    target: '10001',
+    result: '失败：未知错误',
+    success: false,
+  })
+
+  const adminSession = {
+    guildId: 'guild-1',
+    bot: {
+      platform: 'onebot',
+      internal: {
+        setGroupAdmin: async () => {
+          throw 'adapter offline'
+        },
+      },
+    },
+  }
+  assert.equal(
+    await commandActions.get('admin')?.({ session: adminSession }, { id: 'onebot:10002' }),
+    '设置失败了喵...adapter offline',
+  )
+  assert.deepEqual(logs.at(-1), {
+    session: adminSession,
+    command: 'admin',
+    target: '10002',
+    result: '失败：未知错误',
+    success: false,
+  })
+})

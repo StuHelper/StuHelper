@@ -5,6 +5,7 @@ import { formatDuration } from '../../utils'
 import { resolveCommandUserId } from './member-manage-input'
 import type { OrderManageModule } from './orderManage.module'
 import { requireOneBotInternalMethod } from '../onebot-internal'
+import { commandErrorMessage } from './command-error-message'
 
 interface NicknameCommandInput {
   host: OrderManageModule
@@ -128,7 +129,8 @@ async function handleNicknameCommand(input: NicknameCommandInput): Promise<strin
     host.logCommand({ session, command: 'nickname', target: userId, result: `成功：已清除昵称, 群号 ${guildId}` })
     return `已将 ${userId} 的昵称清除喵~`
   } catch (error) {
+    const message = commandErrorMessage(error)
     host.logCommand({ session, command: 'nickname', target: userId, result: '失败：未知错误', success: false })
-    return `喵呜...设置昵称失败了：${error.message}`
+    return `喵呜...设置昵称失败了：${message}`
   }
 }

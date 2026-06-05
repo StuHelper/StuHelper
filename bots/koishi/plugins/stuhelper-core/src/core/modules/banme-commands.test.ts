@@ -3,12 +3,13 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Session } from 'koishi'
+import type { Context, Session } from 'koishi'
 
 import type { BanMeConfig, Config, GroupConfig } from '../../types'
 import type { DataManager } from '../data'
 import type { BanmeCommandHost } from './banme-commands.ts'
 import { registerBanmeCommands } from './banme-commands.ts'
+import { BanmeModule } from './banme.module'
 
 type CommandAction = (
   argv: { readonly session?: Session; readonly options?: unknown },
@@ -24,13 +25,16 @@ const modulesDir = dirname(fileURLToPath(import.meta.url))
 
 test('banme command source uses explicit config option boundaries', () => {
   const source = readFileSync(resolve(modulesDir, './banme-commands.ts'), 'utf8')
+  const moduleSource = readFileSync(resolve(modulesDir, './banme.module.ts'), 'utf8')
 
   assert.doesNotMatch(source, /options: any/)
   assert.doesNotMatch(source, /handleConfigCommand\(host: BanmeCommandHost, session: Session, options: any\)/)
   assert.doesNotMatch(source, /applyNumericOptions\(config: BanMeConfig, options: any\)/)
   assert.doesNotMatch(source, /applyDurationOptions\(config: BanMeConfig, options: any\)/)
+  assert.doesNotMatch(moduleSource, /\(error as Error\)\.message/)
   assert.match(source, /interface BanmeConfigCommandOptions/)
   assert.match(source, /function normalizeConfigOptions/)
+  assert.match(moduleSource, /commandErrorMessage/)
 })
 
 test('banme config command reports a missing session instead of dereferencing it', async () => {
@@ -108,6 +112,59 @@ test('banme config only treats a real reset flag as reset and trims boolean text
   assert.equal(result, '配置已更新喵~')
   assert.equal(groupConfigs.getAll()['guild-1']?.banme?.enabled, false)
 })
+
+test('banme command reports non-Error mute failures without undefined output', async () => {
+  const { module, logs } = createBanmeModule()
+  const session = {
+    guildId: 'guild-1',
+    userId: 'operator',
+    username: 'operator',
+    bot: {
+      muteGuildMember: async () => {
+        throw 'adapter offline'
+      },
+    },
+  } as unknown as Session
+
+  const result = await module.executeBanme(session)
+
+  assert.equal(result, '喵呜...禁言失败了：adapter offline')
+  assert.deepEqual(logs.at(-1), {
+    session,
+    command: 'banme',
+    target: 'operator',
+    result: '失败：未知错误',
+  })
+})
+
+function createBanmeModule(): {
+  readonly module: BanmeModule
+  readonly logs: Array<{ session: Session; command: string; target: string; result: string }>
+} {
+  const logs: Array<{ session: Session; command: string; target: string; result: string }> = []
+  const ctx = {
+    logger: {
+      info: () => {},
+      error: () => {},
+    },
+    stuhelperGroupCenter: {
+      pluginConfig: {
+        banme: createDefaultBanmeConfig(),
+      },
+      logCommand: async (entry: { session: Session; command: string; target: string; result: string }) => {
+        logs.push(entry)
+      },
+    },
+    middleware: () => {},
+  }
+  const data = {
+    groupConfig: new MemoryStore<Record<string, GroupConfig>>({}),
+    banmeRecords: new MemoryStore({}),
+    mutes: new MemoryStore({}),
+  } as unknown as DataManager
+
+  return { module: new BanmeModule(ctx as unknown as Context, data), logs }
+}
 
 function createBanmeCommandHost(initialGroupConfigs: Record<string, GroupConfig> = {}): {
   readonly actions: Map<string, CommandAction>
@@ -189,6 +246,10 @@ class MemoryStore<T extends Record<string, unknown>> {
 
   getAll(): T {
     return this.data
+  }
+
+  get<K extends keyof T>(key: K): T[K] | undefined {
+    return this.data[key]
   }
 
   setAll(data: T): void {
