@@ -540,6 +540,7 @@ func TestSchoolSSOCallbackRequiresConfiguredExchanger(t *testing.T) {
 
 	require.ErrorIs(t, err, ErrAdmissionSSONotConfigured)
 	assertNoCredentialStored(t, pg, userID, CredentialSchoolSSO)
+	assertSchoolSSOStateAvailable(t, svc, userID, start.State)
 }
 
 func TestSchoolSSOCallbackRejectsInvalidProviderIdentity(t *testing.T) {
@@ -560,6 +561,7 @@ func TestSchoolSSOCallbackRejectsInvalidProviderIdentity(t *testing.T) {
 
 	require.ErrorIs(t, err, ErrAdmissionSSOIdentityInvalid)
 	assertNoCredentialStored(t, pg, userID, CredentialSchoolSSO)
+	assertSchoolSSOStateAvailable(t, svc, userID, start.State)
 }
 
 func startSchoolSSOForTest(t *testing.T, svc *Service, userID int64) *SchoolSSOStartResult {
@@ -706,6 +708,19 @@ func assertNoCredentialStored(
 	`, userID, kind).Scan(&count)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count)
+}
+
+func assertSchoolSSOStateAvailable(t *testing.T, svc *Service, userID int64, state string) {
+	t.Helper()
+	loaded, err := svc.loadSchoolSSOState(context.Background(), SchoolSSOCompleteInput{
+		UserID:   userID,
+		SchoolID: 4111010006,
+		State:    state,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, userID, loaded.UserID)
+	assert.Equal(t, int64(4111010006), loaded.SchoolID)
+	assert.NotEmpty(t, loaded.CodeVerifier)
 }
 
 func assertAdmissionSessionCancelled(t *testing.T, fixture *postgresfixture.Fixture, sessionID string) {

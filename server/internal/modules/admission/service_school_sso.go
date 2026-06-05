@@ -92,6 +92,9 @@ func (s *Service) CompleteSchoolSSO(
 	if err != nil {
 		return nil, err
 	}
+	if err := s.deleteSchoolSSOState(ctx, input); err != nil {
+		return nil, err
+	}
 	return &SchoolSSOCompleteResult{ReturnURL: state.ReturnURL}, nil
 }
 
@@ -200,7 +203,7 @@ func (s *Service) loadSchoolSSOState(
 	ctx context.Context,
 	input SchoolSSOCompleteInput,
 ) (admissionSSOStateRecord, error) {
-	raw, err := s.redisClient.GetDel(ctx, admissionSchoolSSOStateKeyPrefix+input.State).Bytes()
+	raw, err := s.redisClient.Get(ctx, admissionSchoolSSOStateKeyPrefix+input.State).Bytes()
 	if errors.Is(err, redis.Nil) {
 		return admissionSSOStateRecord{}, ErrAdmissionSSOStateInvalid
 	}
@@ -208,6 +211,10 @@ func (s *Service) loadSchoolSSOState(
 		return admissionSSOStateRecord{}, err
 	}
 	return parseSchoolSSOState(raw, input)
+}
+
+func (s *Service) deleteSchoolSSOState(ctx context.Context, input SchoolSSOCompleteInput) error {
+	return s.redisClient.Del(ctx, admissionSchoolSSOStateKeyPrefix+input.State).Err()
 }
 
 func newSchoolSSOStateRecord(input SchoolSSOStartInput) admissionSSOStateRecord {
