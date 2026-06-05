@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -27,6 +28,7 @@ type FGASyncJob struct {
 	JobType      string
 	Payload      json.RawMessage
 	AttemptCount int
+	LockedAt     time.Time
 }
 
 type reviewRelationsSyncPayload struct {
@@ -99,7 +101,7 @@ func (s *Service) runFGASyncWorker(ctx context.Context) {
 		s.repo.MarkFGASyncJobDone,
 		s.repo.MarkFGASyncJobFailure,
 		func(job FGASyncJob) outbox.JobMeta {
-			return outbox.JobMeta{ID: job.ID, JobType: job.JobType, AttemptCount: job.AttemptCount}
+			return outbox.JobMeta{ID: job.ID, JobType: job.JobType, AttemptCount: job.AttemptCount, LockedAt: job.LockedAt}
 		},
 		truncateFGASyncError,
 	)
@@ -114,7 +116,7 @@ func (s *Service) processFGASyncBatch(ctx context.Context) error {
 		s.repo.MarkFGASyncJobDone,
 		s.repo.MarkFGASyncJobFailure,
 		func(job FGASyncJob) outbox.JobMeta {
-			return outbox.JobMeta{ID: job.ID, JobType: job.JobType, AttemptCount: job.AttemptCount}
+			return outbox.JobMeta{ID: job.ID, JobType: job.JobType, AttemptCount: job.AttemptCount, LockedAt: job.LockedAt}
 		},
 		truncateFGASyncError,
 	)

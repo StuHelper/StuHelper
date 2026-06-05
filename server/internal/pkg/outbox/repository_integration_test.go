@@ -15,9 +15,9 @@ import (
 func TestRepository_MarkJobFailureTerminalWritesDeadLetter(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	ctx := context.Background()
-	jobID := upsertAndClaimOutboxJob(t, fixture, ctx, "dead-letter-1")
+	job := upsertAndClaimOutboxJob(t, fixture, ctx, "dead-letter-1")
 
-	err := MarkJobFailure(ctx, fixture.DB, jobID, time.Time{}, "permanent failure", true)
+	err := MarkJobFailure(ctx, fixture.DB, job.ID, job.LockedAt, time.Time{}, "permanent failure", true)
 	require.NoError(t, err)
 
 	var status string
@@ -27,7 +27,7 @@ func TestRepository_MarkJobFailureTerminalWritesDeadLetter(t *testing.T) {
 		SELECT status, attempt_count, last_error
 		FROM domain_event_outbox
 		WHERE id = $1
-	`, jobID).Scan(&status, &attemptCount, &lastError)
+	`, job.ID).Scan(&status, &attemptCount, &lastError)
 	require.NoError(t, err)
 	assert.Equal(t, StatusDeadLetter, status)
 	assert.Equal(t, 1, attemptCount)
@@ -41,8 +41,8 @@ func TestRepository_MarkJobFailureTerminalWritesDeadLetter(t *testing.T) {
 func TestRepository_UpsertResetsDeadLetterJob(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	ctx := context.Background()
-	jobID := upsertAndClaimOutboxJob(t, fixture, ctx, "dead-letter-reset")
-	require.NoError(t, MarkJobFailure(ctx, fixture.DB, jobID, time.Time{}, "permanent failure", true))
+	job := upsertAndClaimOutboxJob(t, fixture, ctx, "dead-letter-reset")
+	require.NoError(t, MarkJobFailure(ctx, fixture.DB, job.ID, job.LockedAt, time.Time{}, "permanent failure", true))
 
 	require.NoError(t, fixture.DB.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		return UpsertJobTx(ctx, tx, "test_outbox", "sync", "dead-letter-reset", []byte(`{"version":2}`))
@@ -51,7 +51,7 @@ func TestRepository_UpsertResetsDeadLetterJob(t *testing.T) {
 	reclaimed, err := ClaimJobs(ctx, fixture.DB, "test_outbox", 10, time.Minute)
 	require.NoError(t, err)
 	require.Len(t, reclaimed, 1)
-	assert.Equal(t, jobID, reclaimed[0].ID)
+	assert.Equal(t, job.ID, reclaimed[0].ID)
 	assert.Equal(t, 0, reclaimed[0].AttemptCount)
 	assert.JSONEq(t, `{"version":2}`, string(reclaimed[0].Payload))
 }
@@ -59,25 +59,52 @@ func TestRepository_UpsertResetsDeadLetterJob(t *testing.T) {
 func TestRepository_RequeueDeadLetterJob(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	ctx := context.Background()
-	jobID := upsertAndClaimOutboxJob(t, fixture, ctx, "dead-letter-requeue")
-	require.NoError(t, MarkJobFailure(ctx, fixture.DB, jobID, time.Time{}, "permanent failure", true))
+	job := upsertAndClaimOutboxJob(t, fixture, ctx, "dead-letter-requeue")
+	require.NoError(t, MarkJobFailure(ctx, fixture.DB, job.ID, job.LockedAt, time.Time{}, "permanent failure", true))
 
-	requeued, err := RequeueDeadLetterJob(ctx, fixture.DB, jobID)
+	requeued, err := RequeueDeadLetterJob(ctx, fixture.DB, job.ID)
 	require.NoError(t, err)
 	assert.True(t, requeued)
 
 	jobs, err := ClaimJobs(ctx, fixture.DB, "test_outbox", 10, time.Minute)
 	require.NoError(t, err)
 	require.Len(t, jobs, 1)
-	assert.Equal(t, jobID, jobs[0].ID)
+	assert.Equal(t, job.ID, jobs[0].ID)
 	assert.Equal(t, 0, jobs[0].AttemptCount)
 
-	requeued, err = RequeueDeadLetterJob(ctx, fixture.DB, jobID)
+	requeued, err = RequeueDeadLetterJob(ctx, fixture.DB, job.ID)
 	require.NoError(t, err)
 	assert.False(t, requeued)
 }
 
-func upsertAndClaimOutboxJob(t *testing.T, fixture *postgresfixture.Fixture, ctx context.Context, dedupeKey string) int64 {
+func TestRepository_MarkDoneRejectsStaleLease(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	ctx := context.Background()
+	first := upsertAndClaimOutboxJob(t, fixture, ctx, "stale-lease")
+	require.NotZero(t, first.LockedAt)
+	_, err := fixture.Pool.Exec(ctx, `
+		UPDATE domain_event_outbox
+		SET locked_at = NOW() - INTERVAL '10 minutes'
+		WHERE id = $1
+	`, first.ID)
+	require.NoError(t, err)
+
+	reclaimed, err := ClaimJobs(ctx, fixture.DB, "test_outbox", 10, time.Minute)
+	require.NoError(t, err)
+	require.Len(t, reclaimed, 1)
+	second := reclaimed[0]
+	require.Equal(t, first.ID, second.ID)
+	require.NotEqual(t, first.LockedAt, second.LockedAt)
+
+	err = MarkJobDone(ctx, fixture.DB, first.ID, first.LockedAt)
+	require.ErrorIs(t, err, ErrJobLockLost)
+	assertOutboxStatus(t, fixture, first.ID, StatusProcessing)
+
+	require.NoError(t, MarkJobDone(ctx, fixture.DB, second.ID, second.LockedAt))
+	assertOutboxStatus(t, fixture, first.ID, StatusCompleted)
+}
+
+func upsertAndClaimOutboxJob(t *testing.T, fixture *postgresfixture.Fixture, ctx context.Context, dedupeKey string) Job {
 	t.Helper()
 	require.NoError(t, fixture.DB.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		return UpsertJobTx(ctx, tx, "test_outbox", "sync", dedupeKey, []byte(`{"version":1}`))
@@ -85,5 +112,17 @@ func upsertAndClaimOutboxJob(t *testing.T, fixture *postgresfixture.Fixture, ctx
 	jobs, err := ClaimJobs(ctx, fixture.DB, "test_outbox", 10, time.Minute)
 	require.NoError(t, err)
 	require.Len(t, jobs, 1)
-	return jobs[0].ID
+	return jobs[0]
+}
+
+func assertOutboxStatus(t *testing.T, fixture *postgresfixture.Fixture, jobID int64, expected string) {
+	t.Helper()
+	var status string
+	err := fixture.Pool.QueryRow(context.Background(), `
+		SELECT status
+		FROM domain_event_outbox
+		WHERE id = $1
+	`, jobID).Scan(&status)
+	require.NoError(t, err)
+	assert.Equal(t, expected, status)
 }

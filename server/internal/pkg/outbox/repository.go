@@ -3,6 +3,7 @@ package outbox
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"time"
@@ -21,6 +22,8 @@ const (
 	StatusFailed     = "failed"
 	StatusDeadLetter = "dead_letter"
 )
+
+var ErrJobLockLost = errors.New("outbox job lock lost")
 
 const upsertSQL = `
 	INSERT INTO ` + DomainEventOutboxTable + ` (
@@ -68,7 +71,7 @@ const claimSQL = `
 		updated_at = NOW()
 	FROM candidates
 	WHERE o.id = candidates.id
-	RETURNING o.id, o.job_type, o.payload, o.attempt_count
+	RETURNING o.id, o.job_type, o.payload, o.attempt_count, o.locked_at
 `
 
 const claimByTypesSQL = `
@@ -92,7 +95,7 @@ const claimByTypesSQL = `
 		updated_at = NOW()
 	FROM candidates
 	WHERE o.id = candidates.id
-	RETURNING o.id, o.job_type, o.payload, o.attempt_count
+	RETURNING o.id, o.job_type, o.payload, o.attempt_count, o.locked_at
 `
 
 const markDoneSQL = `
@@ -102,17 +105,21 @@ const markDoneSQL = `
 		last_error = NULL,
 		updated_at = NOW()
 	WHERE id = $1
+	  AND status = 'processing'
+	  AND locked_at = $2
 `
 
 const markRetrySQL = `
 	UPDATE ` + DomainEventOutboxTable + `
 	SET status = '` + StatusFailed + `',
 		attempt_count = attempt_count + 1,
-		available_at = $2,
+		available_at = $3,
 		locked_at = NULL,
-		last_error = $3,
+		last_error = $4,
 		updated_at = NOW()
 	WHERE id = $1
+	  AND status = 'processing'
+	  AND locked_at = $2
 `
 
 const markDeadLetterSQL = `
@@ -121,9 +128,11 @@ const markDeadLetterSQL = `
 		attempt_count = attempt_count + 1,
 		available_at = NOW(),
 		locked_at = NULL,
-		last_error = $2,
+		last_error = $3,
 		updated_at = NOW()
 	WHERE id = $1
+	  AND status = 'processing'
+	  AND locked_at = $2
 `
 
 const requeueDeadLetterSQL = `
@@ -145,6 +154,7 @@ type Job struct {
 	JobType      string
 	Payload      json.RawMessage
 	AttemptCount int
+	LockedAt     time.Time
 }
 
 func UpsertJobTx(ctx context.Context, tx pgx.Tx, stream, jobType, dedupeKey string, payload []byte) error {
@@ -212,38 +222,62 @@ func ClaimJobsByTypes(
 	return jobs, nil
 }
 
-func MarkJobDone(ctx context.Context, database *db.DB, jobID int64) error {
+func MarkJobDone(ctx context.Context, database *db.DB, jobID int64, lockedAt time.Time) error {
 	ctx = db.WithTableHint(ctx, DomainEventOutboxTable)
-	_, err := database.Exec(ctx, markDoneSQL, jobID)
+	result, err := database.Exec(ctx, markDoneSQL, jobID, lockedAt)
 	if err != nil {
 		return fmt.Errorf("mark outbox job done: %w", err)
 	}
+	if result.RowsAffected() == 0 {
+		return ErrJobLockLost
+	}
 	return nil
 }
 
-func MarkJobRetry(ctx context.Context, database *db.DB, jobID int64, nextAttemptAt time.Time, lastError string) error {
+func MarkJobRetry(
+	ctx context.Context,
+	database *db.DB,
+	jobID int64,
+	lockedAt time.Time,
+	nextAttemptAt time.Time,
+	lastError string,
+) error {
 	ctx = db.WithTableHint(ctx, DomainEventOutboxTable)
-	_, err := database.Exec(ctx, markRetrySQL, jobID, nextAttemptAt, lastError)
+	result, err := database.Exec(ctx, markRetrySQL, jobID, lockedAt, nextAttemptAt, lastError)
 	if err != nil {
 		return fmt.Errorf("mark outbox job retry: %w", err)
 	}
+	if result.RowsAffected() == 0 {
+		return ErrJobLockLost
+	}
 	return nil
 }
 
-func MarkJobDeadLetter(ctx context.Context, database *db.DB, jobID int64, lastError string) error {
+func MarkJobDeadLetter(ctx context.Context, database *db.DB, jobID int64, lockedAt time.Time, lastError string) error {
 	ctx = db.WithTableHint(ctx, DomainEventOutboxTable)
-	_, err := database.Exec(ctx, markDeadLetterSQL, jobID, lastError)
+	result, err := database.Exec(ctx, markDeadLetterSQL, jobID, lockedAt, lastError)
 	if err != nil {
 		return fmt.Errorf("mark outbox job dead letter: %w", err)
 	}
+	if result.RowsAffected() == 0 {
+		return ErrJobLockLost
+	}
 	return nil
 }
 
-func MarkJobFailure(ctx context.Context, database *db.DB, jobID int64, nextAttemptAt time.Time, lastError string, terminal bool) error {
+func MarkJobFailure(
+	ctx context.Context,
+	database *db.DB,
+	jobID int64,
+	lockedAt time.Time,
+	nextAttemptAt time.Time,
+	lastError string,
+	terminal bool,
+) error {
 	if terminal {
-		return MarkJobDeadLetter(ctx, database, jobID, lastError)
+		return MarkJobDeadLetter(ctx, database, jobID, lockedAt, lastError)
 	}
-	return MarkJobRetry(ctx, database, jobID, nextAttemptAt, lastError)
+	return MarkJobRetry(ctx, database, jobID, lockedAt, nextAttemptAt, lastError)
 }
 
 func RequeueDeadLetterJob(ctx context.Context, database *db.DB, jobID int64) (bool, error) {
@@ -259,7 +293,7 @@ func scanJobs(rows pgx.Rows, jobs *[]Job) error {
 	for rows.Next() {
 		var job Job
 		var payload json.RawMessage
-		if err := rows.Scan(&job.ID, &job.JobType, &payload, &job.AttemptCount); err != nil {
+		if err := rows.Scan(&job.ID, &job.JobType, &payload, &job.AttemptCount, &job.LockedAt); err != nil {
 			return fmt.Errorf("scan outbox job: %w", err)
 		}
 		job.Payload = append(job.Payload[:0], payload...)

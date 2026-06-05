@@ -36,7 +36,7 @@ func TestFGASyncOutbox_UpsertClaimRetryLifecycle(t *testing.T) {
 	assert.JSONEq(t, `{"reviewID":"review-1","authorUserID":"u-1","schoolID":4111010006}`, string(jobs[0].Payload))
 	assert.Equal(t, 0, jobs[0].AttemptCount)
 
-	err = repo.MarkFGASyncJobRetry(ctx, jobs[0].ID, time.Now().Add(-time.Second), "boom")
+	err = repo.MarkFGASyncJobRetry(ctx, jobs[0].ID, jobs[0].LockedAt, time.Now().Add(-time.Second), "boom")
 	require.NoError(t, err)
 
 	reclaimed, err := repo.ClaimFGASyncJobs(ctx, 10, time.Minute)
@@ -70,7 +70,7 @@ func TestFGASyncOutbox_UpsertConflictResetsCompletedJob(t *testing.T) {
 	jobs, err := repo.ClaimFGASyncJobs(ctx, 10, time.Minute)
 	require.NoError(t, err)
 	require.Len(t, jobs, 1)
-	require.NoError(t, repo.MarkFGASyncJobDone(ctx, jobs[0].ID))
+	require.NoError(t, repo.MarkFGASyncJobDone(ctx, jobs[0].ID, jobs[0].LockedAt))
 
 	upsert(`{"reportID":"report-9","schoolID":4111010007}`)
 	reclaimed, err := repo.ClaimFGASyncJobs(ctx, 10, time.Minute)

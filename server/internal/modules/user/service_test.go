@@ -57,9 +57,9 @@ type mockRepo struct {
 	onEnsureVerificationCredentialTx           func(ctx context.Context, tx pgx.Tx, credential VerificationCredentialProjection) error
 	onUpsertExternalSyncJobTx                  func(ctx context.Context, tx pgx.Tx, jobType, dedupeKey string, payload []byte) error
 	onClaimExternalSyncJobs                    func(ctx context.Context, limit int, staleAfter time.Duration) ([]ExternalSyncJob, error)
-	onMarkExternalSyncJobDone                  func(ctx context.Context, jobID int64) error
-	onMarkExternalSyncJobRetry                 func(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string) error
-	onMarkExternalSyncJobFailure               func(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string, terminal bool) error
+	onMarkExternalSyncJobDone                  func(ctx context.Context, jobID int64, lockedAt time.Time) error
+	onMarkExternalSyncJobRetry                 func(ctx context.Context, jobID int64, lockedAt time.Time, nextAttemptAt time.Time, lastError string) error
+	onMarkExternalSyncJobFailure               func(ctx context.Context, jobID int64, lockedAt time.Time, nextAttemptAt time.Time, lastError string, terminal bool) error
 	onListStudentRoleProjectionStates          func(ctx context.Context, limit int) ([]StudentRoleProjectionState, error)
 }
 
@@ -268,23 +268,36 @@ func (m *mockRepo) ClaimExternalSyncJobs(ctx context.Context, limit int, staleAf
 	return nil, nil
 }
 
-func (m *mockRepo) MarkExternalSyncJobDone(ctx context.Context, jobID int64) error {
+func (m *mockRepo) MarkExternalSyncJobDone(ctx context.Context, jobID int64, lockedAt time.Time) error {
 	if m.onMarkExternalSyncJobDone != nil {
-		return m.onMarkExternalSyncJobDone(ctx, jobID)
+		return m.onMarkExternalSyncJobDone(ctx, jobID, lockedAt)
 	}
 	return nil
 }
 
-func (m *mockRepo) MarkExternalSyncJobRetry(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string) error {
+func (m *mockRepo) MarkExternalSyncJobRetry(
+	ctx context.Context,
+	jobID int64,
+	lockedAt time.Time,
+	nextAttemptAt time.Time,
+	lastError string,
+) error {
 	if m.onMarkExternalSyncJobRetry != nil {
-		return m.onMarkExternalSyncJobRetry(ctx, jobID, nextAttemptAt, lastError)
+		return m.onMarkExternalSyncJobRetry(ctx, jobID, lockedAt, nextAttemptAt, lastError)
 	}
 	return nil
 }
 
-func (m *mockRepo) MarkExternalSyncJobFailure(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string, terminal bool) error {
+func (m *mockRepo) MarkExternalSyncJobFailure(
+	ctx context.Context,
+	jobID int64,
+	lockedAt time.Time,
+	nextAttemptAt time.Time,
+	lastError string,
+	terminal bool,
+) error {
 	if m.onMarkExternalSyncJobFailure != nil {
-		return m.onMarkExternalSyncJobFailure(ctx, jobID, nextAttemptAt, lastError, terminal)
+		return m.onMarkExternalSyncJobFailure(ctx, jobID, lockedAt, nextAttemptAt, lastError, terminal)
 	}
 	return nil
 }

@@ -24,6 +24,7 @@ type cleanupJob struct {
 	JobType      string
 	Payload      json.RawMessage
 	AttemptCount int
+	LockedAt     time.Time
 }
 
 type cleanupPayload struct {
@@ -59,7 +60,7 @@ func (s *Service) runCleanupWorker(ctx context.Context) {
 		s.repo.MarkCleanupJobDone,
 		s.repo.MarkCleanupJobFailure,
 		func(job cleanupJob) outbox.JobMeta {
-			return outbox.JobMeta{ID: job.ID, JobType: job.JobType, AttemptCount: job.AttemptCount}
+			return outbox.JobMeta{ID: job.ID, JobType: job.JobType, AttemptCount: job.AttemptCount, LockedAt: job.LockedAt}
 		},
 		truncateCleanupError,
 	)
@@ -80,7 +81,7 @@ func (s *Service) processCleanupBatch(ctx context.Context) error {
 		s.repo.MarkCleanupJobDone,
 		s.repo.MarkCleanupJobFailure,
 		func(job cleanupJob) outbox.JobMeta {
-			return outbox.JobMeta{ID: job.ID, JobType: job.JobType, AttemptCount: job.AttemptCount}
+			return outbox.JobMeta{ID: job.ID, JobType: job.JobType, AttemptCount: job.AttemptCount, LockedAt: job.LockedAt}
 		},
 		truncateCleanupError,
 	)

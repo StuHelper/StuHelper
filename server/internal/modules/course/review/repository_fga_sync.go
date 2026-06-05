@@ -33,22 +33,35 @@ func (r *Repository) ClaimFGASyncJobs(ctx context.Context, limit int, staleAfter
 	return mapFGASyncJobs(jobs), nil
 }
 
-func (r *Repository) MarkFGASyncJobDone(ctx context.Context, jobID int64) error {
-	if err := outbox.MarkJobDone(ctx, r.db, jobID); err != nil {
+func (r *Repository) MarkFGASyncJobDone(ctx context.Context, jobID int64, lockedAt time.Time) error {
+	if err := outbox.MarkJobDone(ctx, r.db, jobID, lockedAt); err != nil {
 		return fmt.Errorf("MarkFGASyncJobDone: %w", err)
 	}
 	return nil
 }
 
-func (r *Repository) MarkFGASyncJobRetry(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string) error {
-	if err := outbox.MarkJobRetry(ctx, r.db, jobID, nextAttemptAt, lastError); err != nil {
+func (r *Repository) MarkFGASyncJobRetry(
+	ctx context.Context,
+	jobID int64,
+	lockedAt time.Time,
+	nextAttemptAt time.Time,
+	lastError string,
+) error {
+	if err := outbox.MarkJobRetry(ctx, r.db, jobID, lockedAt, nextAttemptAt, lastError); err != nil {
 		return fmt.Errorf("MarkFGASyncJobRetry: %w", err)
 	}
 	return nil
 }
 
-func (r *Repository) MarkFGASyncJobFailure(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string, terminal bool) error {
-	if err := outbox.MarkJobFailure(ctx, r.db, jobID, nextAttemptAt, lastError, terminal); err != nil {
+func (r *Repository) MarkFGASyncJobFailure(
+	ctx context.Context,
+	jobID int64,
+	lockedAt time.Time,
+	nextAttemptAt time.Time,
+	lastError string,
+	terminal bool,
+) error {
+	if err := outbox.MarkJobFailure(ctx, r.db, jobID, lockedAt, nextAttemptAt, lastError, terminal); err != nil {
 		return fmt.Errorf("MarkFGASyncJobFailure: %w", err)
 	}
 	return nil
@@ -143,6 +156,7 @@ func mapFGASyncJobs(jobs []outbox.Job) []FGASyncJob {
 			JobType:      job.JobType,
 			Payload:      append([]byte(nil), job.Payload...),
 			AttemptCount: job.AttemptCount,
+			LockedAt:     job.LockedAt,
 		})
 	}
 	return items

@@ -30,11 +30,11 @@ func TestProcessBatch_MarksDoneOnSuccess(t *testing.T) {
 			return []testJob{{id: 1, jobType: "sync", attemptCount: 0}}, nil
 		},
 		func(context.Context, testJob) error { return nil },
-		func(_ context.Context, jobID int64) error {
+		func(_ context.Context, jobID int64, _ time.Time) error {
 			doneID = jobID
 			return nil
 		},
-		func(context.Context, int64, time.Time, string, bool) error {
+		func(context.Context, int64, time.Time, time.Time, string, bool) error {
 			return errors.New("should not retry")
 		},
 		func(job testJob) JobMeta {
@@ -60,10 +60,10 @@ func TestProcessBatch_MarksRetryOnFailure(t *testing.T) {
 			return []testJob{{id: 7, jobType: "sync", attemptCount: 2}}, nil
 		},
 		func(context.Context, testJob) error { return errors.New("boom") },
-		func(context.Context, int64) error {
+		func(context.Context, int64, time.Time) error {
 			return errors.New("should not mark done")
 		},
-		func(_ context.Context, jobID int64, _ time.Time, lastError string, terminal bool) error {
+		func(_ context.Context, jobID int64, _ time.Time, _ time.Time, lastError string, terminal bool) error {
 			retryID = jobID
 			retryError = lastError
 			assert.False(t, terminal)
@@ -94,14 +94,14 @@ func TestProcessBatch_ContinuesAfterMarkDoneFailure(t *testing.T) {
 			}, nil
 		},
 		func(context.Context, testJob) error { return nil },
-		func(_ context.Context, jobID int64) error {
+		func(_ context.Context, jobID int64, _ time.Time) error {
 			doneIDs = append(doneIDs, jobID)
 			if jobID == 2 {
 				return errors.New("mark done failed")
 			}
 			return nil
 		},
-		func(context.Context, int64, time.Time, string, bool) error {
+		func(context.Context, int64, time.Time, time.Time, string, bool) error {
 			return errors.New("should not retry")
 		},
 		func(job testJob) JobMeta {
@@ -135,8 +135,8 @@ func TestProcessBatch_MarksDeadLetterAfterMaxAttempts(t *testing.T) {
 			return []testJob{{id: 7, jobType: "sync", attemptCount: 2}}, nil
 		},
 		func(context.Context, testJob) error { return errors.New("boom") },
-		func(context.Context, int64) error { return errors.New("should not mark done") },
-		func(_ context.Context, _ int64, value time.Time, _ string, terminalValue bool) error {
+		func(context.Context, int64, time.Time) error { return errors.New("should not mark done") },
+		func(_ context.Context, _ int64, _ time.Time, value time.Time, _ string, terminalValue bool) error {
 			nextRetry = value
 			terminal = terminalValue
 			return nil
@@ -170,8 +170,8 @@ func TestProcessBatch_RecordsTerminalFailureMetric(t *testing.T) {
 			return []testJob{{id: 9, jobType: jobType, attemptCount: 0}}, nil
 		},
 		func(context.Context, testJob) error { return errors.New("boom") },
-		func(context.Context, int64) error { return errors.New("should not mark done") },
-		func(context.Context, int64, time.Time, string, bool) error { return nil },
+		func(context.Context, int64, time.Time) error { return errors.New("should not mark done") },
+		func(context.Context, int64, time.Time, time.Time, string, bool) error { return nil },
 		func(job testJob) JobMeta {
 			return JobMeta{ID: job.id, JobType: job.jobType, AttemptCount: job.attemptCount}
 		},

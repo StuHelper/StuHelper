@@ -32,6 +32,7 @@ type ExternalSyncJob struct {
 	JobType      string
 	Payload      json.RawMessage
 	AttemptCount int
+	LockedAt     time.Time
 }
 
 type verifiedStudentRoleSyncPayload struct {
@@ -177,7 +178,7 @@ func (s *Service) runExternalSyncWorker(ctx context.Context) {
 		s.repo.MarkExternalSyncJobDone,
 		s.repo.MarkExternalSyncJobFailure,
 		func(job ExternalSyncJob) outbox.JobMeta {
-			return outbox.JobMeta{ID: job.ID, JobType: job.JobType, AttemptCount: job.AttemptCount}
+			return outbox.JobMeta{ID: job.ID, JobType: job.JobType, AttemptCount: job.AttemptCount, LockedAt: job.LockedAt}
 		},
 		truncateExternalSyncError,
 	)
@@ -192,7 +193,7 @@ func (s *Service) processExternalSyncBatch(ctx context.Context) error {
 		s.repo.MarkExternalSyncJobDone,
 		s.repo.MarkExternalSyncJobFailure,
 		func(job ExternalSyncJob) outbox.JobMeta {
-			return outbox.JobMeta{ID: job.ID, JobType: job.JobType, AttemptCount: job.AttemptCount}
+			return outbox.JobMeta{ID: job.ID, JobType: job.JobType, AttemptCount: job.AttemptCount, LockedAt: job.LockedAt}
 		},
 		truncateExternalSyncError,
 	)

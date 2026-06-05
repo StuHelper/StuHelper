@@ -143,7 +143,7 @@ func TestProcessExternalSyncJob_RetryOnRoleSyncFailure(t *testing.T) {
 			require.NoError(t, err)
 			return []ExternalSyncJob{{ID: 1, JobType: externalSyncJobTypeVerifiedStudentRole, Payload: payload}}, nil
 		},
-		onMarkExternalSyncJobFailure: func(_ context.Context, jobID int64, nextAttemptAt time.Time, errMsg string, terminal bool) error {
+		onMarkExternalSyncJobFailure: func(_ context.Context, jobID int64, _ time.Time, nextAttemptAt time.Time, errMsg string, terminal bool) error {
 			retryMarked = true
 			assert.Equal(t, int64(1), jobID)
 			nextRetry = nextAttemptAt

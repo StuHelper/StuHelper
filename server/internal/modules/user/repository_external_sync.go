@@ -117,22 +117,35 @@ func fairExternalSyncStreamLimit(remainingLimit, remainingStreams int) int {
 	return (remainingLimit + remainingStreams - 1) / remainingStreams
 }
 
-func (r *Repository) MarkExternalSyncJobDone(ctx context.Context, jobID int64) error {
-	if err := outbox.MarkJobDone(ctx, r.db, jobID); err != nil {
+func (r *Repository) MarkExternalSyncJobDone(ctx context.Context, jobID int64, lockedAt time.Time) error {
+	if err := outbox.MarkJobDone(ctx, r.db, jobID, lockedAt); err != nil {
 		return fmt.Errorf("MarkExternalSyncJobDone: %w", err)
 	}
 	return nil
 }
 
-func (r *Repository) MarkExternalSyncJobRetry(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string) error {
-	if err := outbox.MarkJobRetry(ctx, r.db, jobID, nextAttemptAt, lastError); err != nil {
+func (r *Repository) MarkExternalSyncJobRetry(
+	ctx context.Context,
+	jobID int64,
+	lockedAt time.Time,
+	nextAttemptAt time.Time,
+	lastError string,
+) error {
+	if err := outbox.MarkJobRetry(ctx, r.db, jobID, lockedAt, nextAttemptAt, lastError); err != nil {
 		return fmt.Errorf("MarkExternalSyncJobRetry: %w", err)
 	}
 	return nil
 }
 
-func (r *Repository) MarkExternalSyncJobFailure(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string, terminal bool) error {
-	if err := outbox.MarkJobFailure(ctx, r.db, jobID, nextAttemptAt, lastError, terminal); err != nil {
+func (r *Repository) MarkExternalSyncJobFailure(
+	ctx context.Context,
+	jobID int64,
+	lockedAt time.Time,
+	nextAttemptAt time.Time,
+	lastError string,
+	terminal bool,
+) error {
+	if err := outbox.MarkJobFailure(ctx, r.db, jobID, lockedAt, nextAttemptAt, lastError, terminal); err != nil {
 		return fmt.Errorf("MarkExternalSyncJobFailure: %w", err)
 	}
 	return nil
@@ -177,6 +190,7 @@ func mapExternalSyncJobs(jobs []outbox.Job) []ExternalSyncJob {
 			JobType:      job.JobType,
 			Payload:      append([]byte(nil), job.Payload...),
 			AttemptCount: job.AttemptCount,
+			LockedAt:     job.LockedAt,
 		})
 	}
 	return items

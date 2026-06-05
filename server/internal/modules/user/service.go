@@ -146,9 +146,22 @@ type Repo interface {
 	MarkQQBindingCodeConsumedTx(ctx context.Context, tx pgx.Tx, userID int64, consumedAt time.Time) error
 	UpsertExternalSyncJobTx(ctx context.Context, tx pgx.Tx, jobType, dedupeKey string, payload []byte) error
 	ClaimExternalSyncJobs(ctx context.Context, limit int, staleAfter time.Duration) ([]ExternalSyncJob, error)
-	MarkExternalSyncJobDone(ctx context.Context, jobID int64) error
-	MarkExternalSyncJobRetry(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string) error
-	MarkExternalSyncJobFailure(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string, terminal bool) error
+	MarkExternalSyncJobDone(ctx context.Context, jobID int64, lockedAt time.Time) error
+	MarkExternalSyncJobRetry(
+		ctx context.Context,
+		jobID int64,
+		lockedAt time.Time,
+		nextAttemptAt time.Time,
+		lastError string,
+	) error
+	MarkExternalSyncJobFailure(
+		ctx context.Context,
+		jobID int64,
+		lockedAt time.Time,
+		nextAttemptAt time.Time,
+		lastError string,
+		terminal bool,
+	) error
 	ListStudentRoleProjectionStates(ctx context.Context, limit int) ([]StudentRoleProjectionState, error)
 }
 

@@ -27,12 +27,20 @@ type JobMeta struct {
 	ID           int64
 	JobType      string
 	AttemptCount int
+	LockedAt     time.Time
 }
 
 type ClaimFunc[T any] func(ctx context.Context, limit int, staleAfter time.Duration) ([]T, error)
 type ProcessFunc[T any] func(ctx context.Context, job T) error
-type MarkDoneFunc func(ctx context.Context, jobID int64) error
-type MarkFailureFunc func(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string, terminal bool) error
+type MarkDoneFunc func(ctx context.Context, jobID int64, lockedAt time.Time) error
+type MarkFailureFunc func(
+	ctx context.Context,
+	jobID int64,
+	lockedAt time.Time,
+	nextAttemptAt time.Time,
+	lastError string,
+	terminal bool,
+) error
 type MetaFunc[T any] func(job T) JobMeta
 
 func RunPollingWorker[T any](
@@ -85,7 +93,7 @@ func ProcessBatch[T any](
 			if !terminalFailed {
 				nextAttempt = nextAttemptAt(cfg, jobMeta.AttemptCount)
 			}
-			if retryErr := markFailure(ctx, jobMeta.ID, nextAttempt, truncate(truncateError, err), terminalFailed); retryErr != nil {
+			if retryErr := markFailure(ctx, jobMeta.ID, jobMeta.LockedAt, nextAttempt, truncate(truncateError, err), terminalFailed); retryErr != nil {
 				logger.L().Error("failed to mark "+cfg.Name+" job failure",
 					zap.Int64("job_id", jobMeta.ID),
 					zap.String("job_type", jobMeta.JobType),
@@ -109,7 +117,7 @@ func ProcessBatch[T any](
 		}
 
 		jobMeta := meta(job)
-		if err := markDone(ctx, jobMeta.ID); err != nil {
+		if err := markDone(ctx, jobMeta.ID, jobMeta.LockedAt); err != nil {
 			batchErr = errors.Join(batchErr, fmt.Errorf("mark %s job done: %w", cfg.Name, err))
 			metrics.ObserveOutboxJobFailure(cfg.Name, jobMeta.JobType, false)
 			logger.L().Error("failed to mark "+cfg.Name+" job done",

@@ -46,22 +46,35 @@ func (r *Repository) ClaimCleanupJobs(ctx context.Context, limit int, staleAfter
 	return mapCleanupJobs(jobs), nil
 }
 
-func (r *Repository) MarkCleanupJobDone(ctx context.Context, jobID int64) error {
-	if err := outbox.MarkJobDone(ctx, r.db, jobID); err != nil {
+func (r *Repository) MarkCleanupJobDone(ctx context.Context, jobID int64, lockedAt time.Time) error {
+	if err := outbox.MarkJobDone(ctx, r.db, jobID, lockedAt); err != nil {
 		return fmt.Errorf("mark resource cleanup job done: %w", err)
 	}
 	return nil
 }
 
-func (r *Repository) MarkCleanupJobRetry(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string) error {
-	if err := outbox.MarkJobRetry(ctx, r.db, jobID, nextAttemptAt, lastError); err != nil {
+func (r *Repository) MarkCleanupJobRetry(
+	ctx context.Context,
+	jobID int64,
+	lockedAt time.Time,
+	nextAttemptAt time.Time,
+	lastError string,
+) error {
+	if err := outbox.MarkJobRetry(ctx, r.db, jobID, lockedAt, nextAttemptAt, lastError); err != nil {
 		return fmt.Errorf("mark resource cleanup job retry: %w", err)
 	}
 	return nil
 }
 
-func (r *Repository) MarkCleanupJobFailure(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string, terminal bool) error {
-	if err := outbox.MarkJobFailure(ctx, r.db, jobID, nextAttemptAt, lastError, terminal); err != nil {
+func (r *Repository) MarkCleanupJobFailure(
+	ctx context.Context,
+	jobID int64,
+	lockedAt time.Time,
+	nextAttemptAt time.Time,
+	lastError string,
+	terminal bool,
+) error {
+	if err := outbox.MarkJobFailure(ctx, r.db, jobID, lockedAt, nextAttemptAt, lastError, terminal); err != nil {
 		return fmt.Errorf("mark resource cleanup job failure: %w", err)
 	}
 	return nil
@@ -106,6 +119,7 @@ func mapCleanupJobs(jobs []outbox.Job) []cleanupJob {
 			JobType:      job.JobType,
 			Payload:      append(json.RawMessage(nil), job.Payload...),
 			AttemptCount: job.AttemptCount,
+			LockedAt:     job.LockedAt,
 		})
 	}
 	return items

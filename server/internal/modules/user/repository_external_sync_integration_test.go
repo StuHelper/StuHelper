@@ -37,7 +37,7 @@ func TestExternalSyncOutbox_UpsertClaimRetryLifecycle(t *testing.T) {
 	assert.JSONEq(t, `{"userID":42,"approved":true}`, string(jobs[0].Payload))
 	assert.Equal(t, 0, jobs[0].AttemptCount)
 
-	err = repo.MarkExternalSyncJobRetry(ctx, jobs[0].ID, time.Now().Add(-time.Second), "boom")
+	err = repo.MarkExternalSyncJobRetry(ctx, jobs[0].ID, jobs[0].LockedAt, time.Now().Add(-time.Second), "boom")
 	require.NoError(t, err)
 
 	reclaimed, err := repo.ClaimExternalSyncJobs(ctx, 10, time.Minute)
@@ -72,7 +72,7 @@ func TestExternalSyncOutbox_UpsertConflictResetsCompletedJob(t *testing.T) {
 	jobs, err := repo.ClaimExternalSyncJobs(ctx, 10, time.Minute)
 	require.NoError(t, err)
 	require.Len(t, jobs, 1)
-	require.NoError(t, repo.MarkExternalSyncJobDone(ctx, jobs[0].ID))
+	require.NoError(t, repo.MarkExternalSyncJobDone(ctx, jobs[0].ID, jobs[0].LockedAt))
 
 	upsert(`{"userID":7,"approved":true}`)
 	reclaimed, err := repo.ClaimExternalSyncJobs(ctx, 10, time.Minute)
