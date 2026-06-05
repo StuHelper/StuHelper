@@ -48,7 +48,9 @@ export function requireOneBotInternalMethod<Name extends OneBotInternalMethodNam
 }
 
 function readInternal(bot: Bot): Record<string, unknown> | null {
-  const internal = (bot as unknown as { readonly internal?: unknown }).internal
+  if (!isRecord(bot)) return null
+
+  const internal = bot.internal
   if (!isRecord(internal)) return null
 
   return internal

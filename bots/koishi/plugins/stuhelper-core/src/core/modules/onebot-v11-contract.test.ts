@@ -48,6 +48,7 @@ test('OneBot internal group admin calls fail explicitly when unsupported', async
 
   assert.match(commands, /requireOneBotInternalMethod\(session\.bot, 'setGroupAdmin', 'set_group_admin'\)/)
   assert.match(helper, /当前适配器不支持 OneBot \$\{actionName\}/)
+  assert.doesNotMatch(helper, /unknown as/)
   assert.doesNotMatch(commands, /internal\?\.setGroupAdmin\([^)]*\)/)
 })
 
