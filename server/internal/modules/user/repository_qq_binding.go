@@ -99,7 +99,7 @@ func (r *Repository) UpsertQQBindingCode(ctx context.Context, code *QQBindingCod
 }
 
 func (r *Repository) GetQQBindingCodeByHashTx(ctx context.Context, tx pgx.Tx, codeHash string) (*QQBindingCode, error) {
-	item, err := scanQQBindingCodeRow(tx.QueryRow(ctx, selectQQBindingCodeByHashSQL, codeHash))
+	item, err := scanQQBindingCodeRow(tx.QueryRow(ctx, selectQQBindingCodeByHashSQL+" FOR UPDATE", codeHash))
 	if err != nil {
 		return nil, fmt.Errorf("GetQQBindingCodeByHashTx: %w", err)
 	}
