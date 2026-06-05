@@ -41,6 +41,7 @@ import { useI18n } from "vue-i18n";
 import { ElMessage } from "element-plus";
 import { getErrorMessage } from "@/api/errors";
 import { useAuthStore } from "@/stores/auth";
+import { storePostLoginRedirect } from "@/utils/auth";
 import {
     resolvePostLoginRedirectTarget,
     sanitizePostLoginRedirect,
@@ -73,7 +74,7 @@ const saveRedirectTarget = () => {
         typeof route.query.redirect === "string" ? route.query.redirect : undefined,
     );
     if (redirect) {
-        sessionStorage.setItem("post_login_redirect", redirect);
+        storePostLoginRedirect(redirect);
     }
 };
 

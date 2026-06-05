@@ -7,6 +7,7 @@ import { api } from "@/api";
 import {
     userManager,
     clearAuth,
+    storeOAuthState,
     tokenExpiry,
 } from "@/utils/auth";
 import {
@@ -332,7 +333,9 @@ export const useAuthStore = defineStore("auth", () => {
                 maxAge: options?.maxAge,
             });
             const data = readLoginURLPayload(res.data?.data);
-            sessionStorage.setItem("oauth_state", data.state);
+            if (!storeOAuthState(data.state)) {
+                throw new Error("OAuth state storage unavailable");
+            }
             window.location.href = data.url;
             setTimeout(() => {
                 loading.value = false;
@@ -357,7 +360,9 @@ export const useAuthStore = defineStore("auth", () => {
                 : redirect;
             const res = await api.auth.signup(redirectTarget, "web", "web");
             const data = readLoginURLPayload(res.data?.data);
-            sessionStorage.setItem("oauth_state", data.state);
+            if (!storeOAuthState(data.state)) {
+                throw new Error("OAuth state storage unavailable");
+            }
             window.location.href = data.url;
             setTimeout(() => {
                 loading.value = false;

@@ -28,7 +28,12 @@ import { useRouter, useRoute } from 'vue-router'
 import type { LocationQueryValue } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { resolveApiURL } from '@/api/client'
-import { consumeIdentityCodeVerifier, consumeIdentityOAuthState, consumeOAuthState } from '@/utils/auth'
+import {
+  consumeIdentityCodeVerifier,
+  consumeIdentityOAuthState,
+  consumeOAuthState,
+  consumePostLoginRedirect,
+} from '@/utils/auth'
 import { sanitizePostLoginRedirect } from '@/utils/redirect'
 
 const router = useRouter()
@@ -49,9 +54,8 @@ function buildBackendCallbackURL(code: string, state: string): string {
   return url.toString()
 }
 
-function consumePostLoginRedirect(): string {
-  const redirect = sanitizePostLoginRedirect(sessionStorage.getItem('post_login_redirect'))
-  sessionStorage.removeItem('post_login_redirect')
+function resolvePostLoginRedirect(): string {
+  const redirect = sanitizePostLoginRedirect(consumePostLoginRedirect())
   return redirect ?? '/identity'
 }
 
@@ -77,7 +81,7 @@ onMounted(async () => {
       loading.value = false
       return
     }
-    window.location.replace(consumePostLoginRedirect())
+    window.location.replace(resolvePostLoginRedirect())
     return
   }
 

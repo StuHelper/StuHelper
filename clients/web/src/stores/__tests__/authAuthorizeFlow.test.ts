@@ -7,6 +7,10 @@ const mockLogout = vi.fn();
 const mockGetUser = vi.fn();
 const mockSetUser = vi.fn();
 const mockClearAuth = vi.fn();
+const mockStoreOAuthState = vi.fn((state: string) => {
+    sessionStorage.setItem("oauth_state", state);
+    return true;
+});
 const mockWindowOpen = vi.fn();
 const mockSetTimeout = vi.fn();
 const mockPopupClose = vi.fn();
@@ -35,6 +39,7 @@ vi.mock("@/utils/auth", () => ({
         setUser: mockSetUser,
     },
     clearAuth: mockClearAuth,
+    storeOAuthState: mockStoreOAuthState,
     tokenExpiry: {
         set: vi.fn(),
     },
@@ -91,6 +96,7 @@ describe("auth authorize flow", () => {
         mockGetUser.mockReset();
         mockSetUser.mockReset();
         mockClearAuth.mockReset();
+        mockStoreOAuthState.mockClear();
         mockWindowOpen.mockReset();
         mockSetTimeout.mockReset();
         mockPopupClose.mockReset();
@@ -194,6 +200,24 @@ describe("auth authorize flow", () => {
         );
         expect(mockLogin).not.toHaveBeenCalled();
         expect(sessionStorage.getItem("oauth_state")).toBe("signup-state");
+    });
+
+    it("does not redirect when the oauth state cannot be stored", async () => {
+        mockLogin.mockResolvedValue({
+            data: { data: { state: "login-state", url: "#login" } },
+        });
+        mockStoreOAuthState.mockReturnValueOnce(false);
+
+        const { useAuthStore } = await import("../auth");
+        const store = useAuthStore();
+
+        await expect(
+            store.login("https://join.stuhelper.com/verify/token"),
+        ).rejects.toThrow("OAuth state storage unavailable");
+
+        expect(mockLogin).toHaveBeenCalledTimes(1);
+        expect(sessionStorage.getItem("oauth_state")).toBeNull();
+        expect(window.location.href).toBe("https://join.stuhelper.com/verify/token");
     });
 
     it("logs out local and upstream SSO account sessions before switching accounts", async () => {

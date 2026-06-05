@@ -1,6 +1,14 @@
 /**
  * 认证工具函数
  */
+import {
+  safeGetLocalStorageItem,
+  safeGetSessionStorageItem,
+  safeRemoveLocalStorageItem,
+  safeRemoveSessionStorageItem,
+  safeSetLocalStorageItem,
+  safeSetSessionStorageItem,
+} from './browserStorage'
 
 // 存储键名
 const USER_KEY = 'stuhelper_user'
@@ -8,6 +16,7 @@ const TOKEN_EXPIRY_KEY = 'stuhelper_token_expiry'
 const OAUTH_STATE_KEY = 'oauth_state'
 const IDENTITY_OAUTH_STATE_KEY = 'identity_oauth_state'
 const IDENTITY_CODE_VERIFIER_KEY = 'identity_code_verifier'
+const POST_LOGIN_REDIRECT_KEY = 'post_login_redirect'
 
 // 用户信息类型（仅持久化最小展示字段，权限信息必须来自服务端会话）
 export interface StoredUser {
@@ -15,52 +24,6 @@ export interface StoredUser {
   name: string
   displayName: string
   avatar?: string
-}
-
-type StorageKind = 'local' | 'session'
-
-function getBrowserStorage(kind: StorageKind): Storage | null {
-  try {
-    const storage = kind === 'local' ? globalThis.localStorage : globalThis.sessionStorage
-    return storage ?? null
-  } catch (_error) {
-    void _error
-    return null
-  }
-}
-
-function safeGetStorageItem(kind: StorageKind, key: string): string | null {
-  const storage = getBrowserStorage(kind)
-  if (!storage) return null
-
-  try {
-    return storage.getItem(key)
-  } catch (_error) {
-    void _error
-    return null
-  }
-}
-
-function safeSetStorageItem(kind: StorageKind, key: string, value: string): void {
-  const storage = getBrowserStorage(kind)
-  if (!storage) return
-
-  try {
-    storage.setItem(key, value)
-  } catch (_error) {
-    void _error
-  }
-}
-
-function safeRemoveStorageItem(kind: StorageKind, key: string): void {
-  const storage = getBrowserStorage(kind)
-  if (!storage) return
-
-  try {
-    storage.removeItem(key)
-  } catch (_error) {
-    void _error
-  }
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -96,18 +59,18 @@ function isValidStoredUser(data: unknown): data is StoredUser {
 // 用户信息管理
 export const userManager = {
   getUser(): StoredUser | null {
-    const userStr = safeGetStorageItem('local', USER_KEY)
+    const userStr = safeGetLocalStorageItem(USER_KEY)
     if (!userStr) return null
     try {
       const parsed: unknown = JSON.parse(userStr)
       if (!isValidStoredUser(parsed)) {
-        safeRemoveStorageItem('local', USER_KEY)
+        safeRemoveLocalStorageItem(USER_KEY)
         return null
       }
       return parsed
     } catch (_error) {
       void _error
-      safeRemoveStorageItem('local', USER_KEY)
+      safeRemoveLocalStorageItem(USER_KEY)
       return null
     }
   },
@@ -120,11 +83,11 @@ export const userManager = {
       displayName: user.displayName,
       ...(user.avatar !== undefined && { avatar: user.avatar }),
     }
-    safeSetStorageItem('local', USER_KEY, JSON.stringify(minimal))
+    safeSetLocalStorageItem(USER_KEY, JSON.stringify(minimal))
   },
 
   removeUser(): void {
-    safeRemoveStorageItem('local', USER_KEY)
+    safeRemoveLocalStorageItem(USER_KEY)
   },
 
   isAuthenticated(): boolean {
@@ -137,19 +100,19 @@ export const tokenExpiry = {
   // 设置过期时间戳（秒级 Unix 时间戳）
   set(expiresInSeconds: number): void {
     const expiresAt = Date.now() + expiresInSeconds * 1000
-    safeSetStorageItem('local', TOKEN_EXPIRY_KEY, String(expiresAt))
+    safeSetLocalStorageItem(TOKEN_EXPIRY_KEY, String(expiresAt))
   },
 
   // 获取过期时间戳（毫秒）
   get(): number | null {
-    const val = safeGetStorageItem('local', TOKEN_EXPIRY_KEY)
+    const val = safeGetLocalStorageItem(TOKEN_EXPIRY_KEY)
     if (!val) return null
     const num = Number(val)
     return Number.isFinite(num) ? num : null
   },
 
   remove(): void {
-    safeRemoveStorageItem('local', TOKEN_EXPIRY_KEY)
+    safeRemoveLocalStorageItem(TOKEN_EXPIRY_KEY)
   }
 }
 
@@ -167,19 +130,23 @@ export function isTokenExpired(): boolean {
 }
 
 export function consumeIdentityOAuthState(callbackState: string): boolean {
-  const expectedState = safeGetStorageItem('session', IDENTITY_OAUTH_STATE_KEY) ?? ''
-  safeRemoveStorageItem('session', IDENTITY_OAUTH_STATE_KEY)
+  const expectedState = safeGetSessionStorageItem(IDENTITY_OAUTH_STATE_KEY) ?? ''
+  safeRemoveSessionStorageItem(IDENTITY_OAUTH_STATE_KEY)
 
   if (!isNonEmptyString(expectedState) || !isNonEmptyString(callbackState)) {
     return false
   }
 
   return constantTimeEqual(expectedState, callbackState)
+}
+
+export function storeOAuthState(state: string): boolean {
+  return safeSetSessionStorageItem(OAUTH_STATE_KEY, state)
 }
 
 export function consumeOAuthState(callbackState: string): boolean {
-  const expectedState = safeGetStorageItem('session', OAUTH_STATE_KEY) ?? ''
-  safeRemoveStorageItem('session', OAUTH_STATE_KEY)
+  const expectedState = safeGetSessionStorageItem(OAUTH_STATE_KEY) ?? ''
+  safeRemoveSessionStorageItem(OAUTH_STATE_KEY)
 
   if (!isNonEmptyString(expectedState) || !isNonEmptyString(callbackState)) {
     return false
@@ -188,26 +155,36 @@ export function consumeOAuthState(callbackState: string): boolean {
   return constantTimeEqual(expectedState, callbackState)
 }
 
-export function storeIdentityOAuthState(state: string): void {
-  safeSetStorageItem('session', IDENTITY_OAUTH_STATE_KEY, state)
+export function storeIdentityOAuthState(state: string): boolean {
+  return safeSetSessionStorageItem(IDENTITY_OAUTH_STATE_KEY, state)
 }
 
-export function storeIdentityCodeVerifier(verifier: string): void {
-  safeSetStorageItem('session', IDENTITY_CODE_VERIFIER_KEY, verifier)
+export function storeIdentityCodeVerifier(verifier: string): boolean {
+  return safeSetSessionStorageItem(IDENTITY_CODE_VERIFIER_KEY, verifier)
 }
 
 export function consumeIdentityCodeVerifier(): string {
-  const verifier = safeGetStorageItem('session', IDENTITY_CODE_VERIFIER_KEY) ?? ''
-  safeRemoveStorageItem('session', IDENTITY_CODE_VERIFIER_KEY)
+  const verifier = safeGetSessionStorageItem(IDENTITY_CODE_VERIFIER_KEY) ?? ''
+  safeRemoveSessionStorageItem(IDENTITY_CODE_VERIFIER_KEY)
   return verifier
+}
+
+export function storePostLoginRedirect(redirect: string): boolean {
+  return safeSetSessionStorageItem(POST_LOGIN_REDIRECT_KEY, redirect)
+}
+
+export function consumePostLoginRedirect(): string {
+  const redirect = safeGetSessionStorageItem(POST_LOGIN_REDIRECT_KEY) ?? ''
+  safeRemoveSessionStorageItem(POST_LOGIN_REDIRECT_KEY)
+  return redirect
 }
 
 // 清除所有认证信息（含登录回跳状态）
 export const clearAuth = (): void => {
   userManager.removeUser()
   tokenExpiry.remove()
-  safeRemoveStorageItem('session', OAUTH_STATE_KEY)
-  safeRemoveStorageItem('session', IDENTITY_OAUTH_STATE_KEY)
-  safeRemoveStorageItem('session', IDENTITY_CODE_VERIFIER_KEY)
-  safeRemoveStorageItem('session', 'post_login_redirect')
+  safeRemoveSessionStorageItem(OAUTH_STATE_KEY)
+  safeRemoveSessionStorageItem(IDENTITY_OAUTH_STATE_KEY)
+  safeRemoveSessionStorageItem(IDENTITY_CODE_VERIFIER_KEY)
+  safeRemoveSessionStorageItem(POST_LOGIN_REDIRECT_KEY)
 }

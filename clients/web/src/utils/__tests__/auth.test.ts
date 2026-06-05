@@ -4,9 +4,12 @@ import {
   consumeIdentityCodeVerifier,
   consumeIdentityOAuthState,
   consumeOAuthState,
+  consumePostLoginRedirect,
   isTokenExpired,
   storeIdentityCodeVerifier,
   storeIdentityOAuthState,
+  storeOAuthState,
+  storePostLoginRedirect,
   tokenExpiry,
   userManager,
   type StoredUser,
@@ -139,9 +142,9 @@ describe('auth utilities', () => {
   it('clears auth and redirect session state together', () => {
     localStorage.setItem('stuhelper_user', JSON.stringify({ id: 'user_2', name: 'bob', displayName: 'Bob' }))
     localStorage.setItem('stuhelper_token_expiry', String(Date.now() + 60_000))
-    storeIdentityOAuthState('identity-state')
-    storeIdentityCodeVerifier('identity-verifier')
-    sessionStorage.setItem('post_login_redirect', '/courses/reviews/post')
+    expect(storeIdentityOAuthState('identity-state')).toBe(true)
+    expect(storeIdentityCodeVerifier('identity-verifier')).toBe(true)
+    expect(storePostLoginRedirect('/courses/reviews/post')).toBe(true)
 
     clearAuth()
 
@@ -153,17 +156,31 @@ describe('auth utilities', () => {
   })
 
   it('consumes a matching identity oauth state and clears it from session storage', () => {
-    storeIdentityOAuthState('identity-state')
+    expect(storeIdentityOAuthState('identity-state')).toBe(true)
 
     expect(consumeIdentityOAuthState('identity-state')).toBe(true)
     expect(sessionStorage.getItem('identity_oauth_state')).toBeNull()
   })
 
   it('rejects a mismatched identity oauth state and still clears it from session storage', () => {
-    storeIdentityOAuthState('identity-state')
+    expect(storeIdentityOAuthState('identity-state')).toBe(true)
 
     expect(consumeIdentityOAuthState('other-state')).toBe(false)
     expect(sessionStorage.getItem('identity_oauth_state')).toBeNull()
+  })
+
+  it('stores and consumes the normal oauth state', () => {
+    expect(storeOAuthState('oauth-state')).toBe(true)
+
+    expect(consumeOAuthState('oauth-state')).toBe(true)
+    expect(sessionStorage.getItem('oauth_state')).toBeNull()
+  })
+
+  it('stores and consumes the post-login redirect', () => {
+    expect(storePostLoginRedirect('/user/reviews')).toBe(true)
+
+    expect(consumePostLoginRedirect()).toBe('/user/reviews')
+    expect(sessionStorage.getItem('post_login_redirect')).toBeNull()
   })
 
   it('degrades when localStorage is unavailable', () => {
@@ -194,11 +211,14 @@ describe('auth utilities', () => {
       configurable: true,
     })
 
-    expect(() => storeIdentityOAuthState('identity-state')).not.toThrow()
-    expect(() => storeIdentityCodeVerifier('identity-verifier')).not.toThrow()
+    expect(storeOAuthState('oauth-state')).toBe(false)
+    expect(storeIdentityOAuthState('identity-state')).toBe(false)
+    expect(storeIdentityCodeVerifier('identity-verifier')).toBe(false)
+    expect(storePostLoginRedirect('/user/reviews')).toBe(false)
     expect(consumeIdentityOAuthState('identity-state')).toBe(false)
     expect(consumeOAuthState('oauth-state')).toBe(false)
     expect(consumeIdentityCodeVerifier()).toBe('')
+    expect(consumePostLoginRedirect()).toBe('')
     expect(() => clearAuth()).not.toThrow()
   })
 })

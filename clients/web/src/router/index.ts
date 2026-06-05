@@ -14,6 +14,11 @@ import {
     resolveProtectedRouteAuthFailure,
     shouldResolveRouteSession,
 } from "@/router/auth-guard-decision";
+import {
+    safeGetSessionStorageItem,
+    safeRemoveSessionStorageItem,
+    safeSetSessionStorageItem,
+} from "@/utils/browserStorage";
 // 静态导入，确保 chunk load 失败时仍可渲染
 import ChunkErrorPage from "@/modules/errors/views/ChunkErrorPage.vue";
 import NotFoundPage from "@/modules/errors/views/NotFoundPage.vue";
@@ -42,6 +47,22 @@ function isChunkLoadError(error: unknown): boolean {
 
 // chunk 加载失败时自动重载一次
 const CHUNK_RELOAD_KEY = "stuhelper_chunk_reload_attempted";
+let chunkReloadAttemptedInMemory = false;
+
+function hasChunkReloadAttempted(): boolean {
+    return chunkReloadAttemptedInMemory ||
+        safeGetSessionStorageItem(CHUNK_RELOAD_KEY) === "1";
+}
+
+function markChunkReloadAttempted(): boolean {
+    chunkReloadAttemptedInMemory = true;
+    return safeSetSessionStorageItem(CHUNK_RELOAD_KEY, "1");
+}
+
+function clearChunkReloadAttempted(): void {
+    chunkReloadAttemptedInMemory = false;
+    safeRemoveSessionStorageItem(CHUNK_RELOAD_KEY);
+}
 
 function lazyLoad(loader: () => Promise<unknown>) {
     return () =>
@@ -49,13 +70,12 @@ function lazyLoad(loader: () => Promise<unknown>) {
             if (!isChunkLoadError(err)) throw err;
 
             // 首次 chunk 失败时重新抛出，让 router.onError 处理目标路由
-            const hasAttempted = sessionStorage.getItem(CHUNK_RELOAD_KEY);
-            if (!hasAttempted) {
+            if (!hasChunkReloadAttempted()) {
                 throw err;
             }
 
             // 已重载过仍失败时，渲染静态错误页
-            sessionStorage.removeItem(CHUNK_RELOAD_KEY);
+            clearChunkReloadAttempted();
             return { default: ChunkErrorPage };
         });
 }
@@ -554,15 +574,18 @@ router.beforeEach(async (to) => {
 
 router.afterEach(() => {
     // 导航成功说明 chunk 加载正常，清除重试标记
-    sessionStorage.removeItem(CHUNK_RELOAD_KEY);
+    clearChunkReloadAttempted();
 });
 
 // chunk 首次加载失败时，用目标路由 fullPath 重载，而不是直接刷新当前页
 router.onError((err, to) => {
     if (!isChunkLoadError(err)) return;
-    const hasAttempted = sessionStorage.getItem(CHUNK_RELOAD_KEY);
-    if (!hasAttempted) {
-        sessionStorage.setItem(CHUNK_RELOAD_KEY, "1");
+    if (!hasChunkReloadAttempted()) {
+        const persisted = markChunkReloadAttempted();
+        if (!persisted) {
+            void router.replace(to.fullPath);
+            return;
+        }
         window.location.assign(to.fullPath);
     }
 });
