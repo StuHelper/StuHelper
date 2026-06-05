@@ -1,6 +1,5 @@
 import type { Context } from 'koishi'
 import {
-  MODERATION_REVIEW_TABLE,
   type ReviewQueueRecord,
   type ReviewStatus,
 } from '@stuhelper/koishi-moderation-core'
@@ -14,8 +13,6 @@ import {
 import { assertConsoleGuildAccess } from './console-guild-scope'
 import {
   getNow,
-  REVIEW_STATUS_APPROVED,
-  REVIEW_STATUS_EXECUTED,
   REVIEW_STATUS_PENDING,
   REVIEW_STATUS_REJECTED,
   toErrorMessage,
@@ -42,7 +39,7 @@ export async function handleReviewAction(
 
 async function rejectReview(input: ReviewActionRuntimeInput) {
   const { deps, review, actor, note } = input
-  await updatePendingReview(deps.ctx, review, {
+  await updatePendingReview(deps, review, {
     status: REVIEW_STATUS_REJECTED,
     operatorMemberId: actor.memberId,
     resolutionNote: note || null,
@@ -55,7 +52,7 @@ async function executeReview(input: ReviewActionRuntimeInput) {
   const { deps, review, actor, note } = input
   const bot = resolveManagedBot(deps.ctx, review.platform, review.botSelfId)
   const claimAt = getNow(deps)
-  await claimPendingReview({ ctx: deps.ctx, review, actor, resolutionNote: note || null, claimedAt: claimAt })
+  await claimPendingReview({ deps, review, actor, resolutionNote: note || null, claimedAt: claimAt })
   try {
     await deps.actions.kickMember({
       bot,
@@ -65,11 +62,11 @@ async function executeReview(input: ReviewActionRuntimeInput) {
       permanent: review.actionType === 'kick_and_block',
       reason: review.reason,
     })
-    await finalizeClaimedReview({ ctx: deps.ctx, reviewId: review.id, actor, resolutionNote: note || null, claimedAt: claimAt, executedAt: getNow(deps) })
+    await finalizeClaimedReview({ deps, reviewId: review.id, actor, resolutionNote: note || null, claimedAt: claimAt, executedAt: getNow(deps) })
     await deps.moderationStore.appendEvent(createReviewResolvedEvent({ review, level: 'high', actor, note }))
     await markGuardMemberKicked(deps.ctx, review, getNow(deps))
   } catch (error) {
-    await rollbackReviewClaimSafely({ ctx: deps.ctx, reviewId: review.id, claimedAt: claimAt, rolledBackAt: getNow(deps), originalError: error })
+    await rollbackReviewClaimSafely({ deps, reviewId: review.id, claimedAt: claimAt, rolledBackAt: getNow(deps), originalError: error })
     throw error
   }
   return `已执行复核动作：${review.memberId}`
@@ -83,86 +80,73 @@ interface ReviewActionRuntimeInput {
 }
 
 async function updatePendingReview(
-  ctx: Context,
+  deps: WorkItemActionDeps,
   review: ReviewQueueRecord,
   patch: { status: ReviewStatus, operatorMemberId: string, resolutionNote: string | null },
 ) {
-  const updatedAt = new Date()
-  const result = await ctx.database.set(MODERATION_REVIEW_TABLE, {
-    id: review.id,
-    status: REVIEW_STATUS_PENDING,
-    updatedAt: review.updatedAt,
-  }, { ...patch, updatedAt })
-  if (result.matched !== 1) {
+  const matched = await deps.moderationStore.tryUpdatePendingReview({
+    review,
+    ...patch,
+    updatedAt: getNow(deps),
+  })
+  if (!matched) {
     throw new Error(`review is already being processed: ${review.id}`)
   }
 }
 
 async function claimPendingReview(input: {
-  readonly ctx: Context
+  readonly deps: WorkItemActionDeps
   readonly review: ReviewQueueRecord
   readonly actor: WorkItemActionActor
   readonly resolutionNote: string | null
   readonly claimedAt: Date
 }) {
-  const result = await input.ctx.database.set(MODERATION_REVIEW_TABLE, {
-    id: input.review.id,
-    status: REVIEW_STATUS_PENDING,
-    updatedAt: input.review.updatedAt,
-  }, {
-    status: REVIEW_STATUS_APPROVED,
+  const matched = await input.deps.moderationStore.tryClaimPendingReview({
+    review: input.review,
     operatorMemberId: input.actor.memberId,
     resolutionNote: input.resolutionNote,
-    updatedAt: input.claimedAt,
+    claimedAt: input.claimedAt,
   })
-  if (result.matched !== 1) {
+  if (!matched) {
     throw new Error(`review is already being processed: ${input.review.id}`)
   }
 }
 
 async function finalizeClaimedReview(input: {
-  readonly ctx: Context
+  readonly deps: WorkItemActionDeps
   readonly reviewId: string
   readonly actor: WorkItemActionActor
   readonly resolutionNote: string | null
   readonly claimedAt: Date
   readonly executedAt: Date
 }) {
-  const result = await input.ctx.database.set(MODERATION_REVIEW_TABLE, {
-    id: input.reviewId,
-    status: REVIEW_STATUS_APPROVED,
-    updatedAt: input.claimedAt,
-  }, {
-    status: REVIEW_STATUS_EXECUTED,
+  const matched = await input.deps.moderationStore.tryFinalizeClaimedReview({
+    reviewId: input.reviewId,
     operatorMemberId: input.actor.memberId,
     resolutionNote: input.resolutionNote,
-    updatedAt: input.executedAt,
+    claimedAt: input.claimedAt,
+    executedAt: input.executedAt,
   })
-  if (result.matched !== 1) {
+  if (!matched) {
     throw new Error(`review execution lost claim: ${input.reviewId}`)
   }
 }
 
 async function rollbackClaimedReview(input: {
-  readonly ctx: Context
+  readonly deps: WorkItemActionDeps
   readonly reviewId: string
   readonly claimedAt: Date
   readonly rolledBackAt: Date
 }) {
-  await input.ctx.database.set(MODERATION_REVIEW_TABLE, {
-    id: input.reviewId,
-    status: REVIEW_STATUS_APPROVED,
-    updatedAt: input.claimedAt,
-  }, {
-    status: REVIEW_STATUS_PENDING,
-    operatorMemberId: null,
-    resolutionNote: null,
-    updatedAt: input.rolledBackAt,
+  await input.deps.moderationStore.rollbackClaimedReview({
+    reviewId: input.reviewId,
+    claimedAt: input.claimedAt,
+    rolledBackAt: input.rolledBackAt,
   })
 }
 
 async function rollbackReviewClaimSafely(input: {
-  readonly ctx: Context
+  readonly deps: WorkItemActionDeps
   readonly reviewId: string
   readonly claimedAt: Date
   readonly rolledBackAt: Date
@@ -172,7 +156,7 @@ async function rollbackReviewClaimSafely(input: {
     await rollbackClaimedReview(input)
   } catch (rollbackError) {
     logRollbackFailure({
-      ctx: input.ctx,
+      ctx: input.deps.ctx,
       scope: 'review',
       recordId: input.reviewId,
       rollbackError,

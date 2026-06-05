@@ -554,6 +554,59 @@ function createActionDeps(input: {
         return { id: 'rv-created', ...record }
       },
       listPendingReviews: async () => [],
+      tryUpdatePendingReview: async (action: {
+        readonly review: { id: string }
+        readonly status: string
+        readonly operatorMemberId: string | null
+        readonly resolutionNote: string | null
+      }) => {
+        reviewUpdates.push({
+          id: action.review.id,
+          status: action.status,
+          operatorMemberId: action.operatorMemberId,
+          resolutionNote: action.resolutionNote,
+        })
+        return true
+      },
+      tryClaimPendingReview: async (action: {
+        readonly review: { id: string }
+        readonly operatorMemberId: string
+        readonly resolutionNote: string | null
+      }) => {
+        reviewUpdates.push({
+          id: action.review.id,
+          status: 'approved',
+          operatorMemberId: action.operatorMemberId,
+          resolutionNote: action.resolutionNote,
+        })
+        return true
+      },
+      tryFinalizeClaimedReview: async (action: {
+        readonly reviewId: string
+        readonly operatorMemberId: string
+        readonly resolutionNote: string | null
+      }) => {
+        reviewUpdates.push({
+          id: action.reviewId,
+          status: 'executed',
+          operatorMemberId: action.operatorMemberId,
+          resolutionNote: action.resolutionNote,
+        })
+        return true
+      },
+      rollbackClaimedReview: async (action: {
+        readonly reviewId: string
+      }) => {
+        if (input.reviewRollbackError) {
+          throw input.reviewRollbackError
+        }
+        reviewUpdates.push({
+          id: action.reviewId,
+          status: 'pending',
+          operatorMemberId: null,
+          resolutionNote: null,
+        })
+      },
       updateReportAIResult: async (input: {
         readonly id: string
         readonly aiStatus: string

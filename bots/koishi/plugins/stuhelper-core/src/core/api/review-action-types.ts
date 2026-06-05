@@ -1,7 +1,11 @@
 import type { Context } from 'koishi'
 import type {
+  ClaimPendingReviewInput,
+  FinalizeClaimedReviewInput,
   KickMemberInput,
+  RollbackClaimedReviewInput,
   ReviewActionType,
+  UpdatePendingReviewInput,
 } from '@stuhelper/koishi-moderation-core'
 
 import type { ConsoleGuildScope } from './console-guild-scope'
@@ -43,7 +47,11 @@ export interface WorkItemActionDeps {
     appendEvent: (input: Record<string, unknown>) => Promise<unknown>
     createReview: (input: Record<string, unknown>) => Promise<{ id: string; actionType: ReviewActionType }>
     removeReport?: (id: string) => Promise<unknown>
+    rollbackClaimedReview: (input: RollbackClaimedReviewInput) => Promise<unknown>
     transact?: <T>(callback: (store: WorkItemActionDeps['moderationStore']) => Promise<T>) => Promise<T>
+    tryClaimPendingReview: (input: ClaimPendingReviewInput) => Promise<boolean>
+    tryFinalizeClaimedReview: (input: FinalizeClaimedReviewInput) => Promise<boolean>
+    tryUpdatePendingReview: (input: UpdatePendingReviewInput) => Promise<boolean>
     updateReportAIResult: (input: {
       readonly id: string
       readonly aiStatus: string

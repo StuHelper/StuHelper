@@ -6,6 +6,7 @@ import {
   MODERATION_FUN_PROFILE_TABLE,
   MODERATION_KEYWORD_RULE_TABLE,
   MODERATION_MESSAGE_LEDGER_TABLE,
+  MODERATION_REVIEW_TABLE,
 } from './constants'
 import { ModerationStore } from './store'
 import type {
@@ -13,6 +14,7 @@ import type {
   FunProfileRecord,
   KeywordRuleRecord,
   MessageLedgerRecord,
+  ReviewQueueRecord,
 } from './types'
 
 test('ModerationStore updates existing records without primary key churn', async () => {
@@ -101,6 +103,116 @@ test('ModerationStore updates existing records without primary key churn', async
   assert.equal(writes[3].patch.updatedAt, updatedAt)
 })
 
+test('ModerationStore owns optimistic review state transitions', async () => {
+  const review = createReview()
+  const rejectAt = new Date('2026-06-05T04:10:00.000Z')
+  const claimAt = new Date('2026-06-05T04:11:00.000Z')
+  const executedAt = new Date('2026-06-05T04:12:00.000Z')
+  const rolledBackAt = new Date('2026-06-05T04:13:00.000Z')
+  const writes: Array<{
+    query: Record<string, unknown>
+    patch: Record<string, unknown>
+  }> = []
+  const store = new ModerationStore({
+    database: {
+      async set(table: string, query: Record<string, unknown>, patch: Record<string, unknown>) {
+        assert.equal(table, MODERATION_REVIEW_TABLE)
+        writes.push({ query, patch })
+        return { matched: 1, modified: 1 }
+      },
+    },
+  } as never)
+
+  assert.equal(await store.tryUpdatePendingReview({
+    review,
+    status: 'rejected',
+    operatorMemberId: 'admin-42',
+    resolutionNote: '证据不足',
+    updatedAt: rejectAt,
+  }), true)
+  assert.equal(await store.tryClaimPendingReview({
+    review,
+    operatorMemberId: 'admin-42',
+    resolutionNote: '证据充分',
+    claimedAt: claimAt,
+  }), true)
+  assert.equal(await store.tryFinalizeClaimedReview({
+    reviewId: review.id,
+    operatorMemberId: 'admin-42',
+    resolutionNote: '证据充分',
+    claimedAt: claimAt,
+    executedAt,
+  }), true)
+  await store.rollbackClaimedReview({
+    reviewId: review.id,
+    claimedAt: claimAt,
+    rolledBackAt,
+  })
+
+  assert.deepEqual(writes, [
+    {
+      query: { id: 'rv-1', status: 'pending', updatedAt: review.updatedAt },
+      patch: {
+        status: 'rejected',
+        operatorMemberId: 'admin-42',
+        resolutionNote: '证据不足',
+        updatedAt: rejectAt,
+      },
+    },
+    {
+      query: { id: 'rv-1', status: 'pending', updatedAt: review.updatedAt },
+      patch: {
+        status: 'approved',
+        operatorMemberId: 'admin-42',
+        resolutionNote: '证据充分',
+        updatedAt: claimAt,
+      },
+    },
+    {
+      query: { id: 'rv-1', status: 'approved', updatedAt: claimAt },
+      patch: {
+        status: 'executed',
+        operatorMemberId: 'admin-42',
+        resolutionNote: '证据充分',
+        updatedAt: executedAt,
+      },
+    },
+    {
+      query: { id: 'rv-1', status: 'approved', updatedAt: claimAt },
+      patch: {
+        status: 'pending',
+        operatorMemberId: null,
+        resolutionNote: null,
+        updatedAt: rolledBackAt,
+      },
+    },
+  ])
+  for (const write of writes) {
+    assert.equal('id' in write.patch, false)
+    assert.equal('platform' in write.patch, false)
+    assert.equal('botSelfId' in write.patch, false)
+    assert.equal('guildId' in write.patch, false)
+    assert.equal('memberId' in write.patch, false)
+  }
+})
+
+test('ModerationStore reports lost review claims without throwing', async () => {
+  const store = new ModerationStore({
+    database: {
+      async set() {
+        return { matched: 0, modified: 0 }
+      },
+    },
+  } as never)
+
+  assert.equal(await store.tryClaimPendingReview({
+    review: createReview(),
+    operatorMemberId: 'admin-42',
+    resolutionNote: null,
+    claimedAt: new Date('2026-06-05T04:11:00.000Z'),
+  }), false)
+})
+
 function assertUpdatePatch(
   write: { table: string; query: unknown; patch: Record<string, unknown> },
   table: string,
@@ -166,6 +278,26 @@ function createFunProfile(overrides: Partial<FunProfileRecord> = {}): FunProfile
     lastDrawAt: null,
     createdAt: new Date('2026-06-05T03:00:00.000Z'),
     updatedAt: new Date('2026-06-05T03:00:00.000Z'),
+    ...overrides,
+  }
+}
+
+function createReview(overrides: Partial<ReviewQueueRecord> = {}): ReviewQueueRecord {
+  return {
+    id: 'rv-1',
+    platform: 'qq',
+    botSelfId: 'bot-1',
+    guildId: 'guild-1',
+    channelId: 'channel-1',
+    memberId: '10001',
+    actionType: 'kick',
+    status: 'pending',
+    reason: 'spam',
+    operatorMemberId: null,
+    resolutionNote: null,
+    payload: null,
+    createdAt: new Date('2026-06-05T04:00:00.000Z'),
+    updatedAt: new Date('2026-06-05T04:00:00.000Z'),
     ...overrides,
   }
 }

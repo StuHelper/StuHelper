@@ -29,13 +29,18 @@ import type {
   WarningCounterRecord,
 } from './types'
 import type {
+  ClaimPendingReviewInput,
+  FinalizeClaimedReviewInput,
   IncrementWarningInput,
+  RollbackClaimedReviewInput,
   ResolveReviewInput,
+  UpdatePendingReviewInput,
   UpdateReportAIResultInput,
 } from './store-inputs'
 
 const REVIEW_STATUS_PENDING: ReviewStatus = 'pending'
 const REVIEW_STATUS_APPROVED: ReviewStatus = 'approved'
+const REVIEW_STATUS_EXECUTED: ReviewStatus = 'executed'
 const REVIEW_STATUS_STUCK_MANUAL: ReviewStatus = 'stuck_manual'
 const ACTIONABLE_REVIEW_STATUSES = new Set<ReviewStatus>([
   REVIEW_STATUS_PENDING,
@@ -173,6 +178,61 @@ export class ModerationStore {
       operatorMemberId: input.operatorMemberId,
       resolutionNote: input.resolutionNote,
       updatedAt,
+    })
+  }
+
+  async tryUpdatePendingReview(input: UpdatePendingReviewInput) {
+    const result = await this.ctx.database.set(MODERATION_REVIEW_TABLE, {
+      id: input.review.id,
+      status: REVIEW_STATUS_PENDING,
+      updatedAt: input.review.updatedAt,
+    }, {
+      status: input.status,
+      operatorMemberId: input.operatorMemberId,
+      resolutionNote: input.resolutionNote,
+      updatedAt: input.updatedAt,
+    })
+    return result.matched === 1
+  }
+
+  async tryClaimPendingReview(input: ClaimPendingReviewInput) {
+    const result = await this.ctx.database.set(MODERATION_REVIEW_TABLE, {
+      id: input.review.id,
+      status: REVIEW_STATUS_PENDING,
+      updatedAt: input.review.updatedAt,
+    }, {
+      status: REVIEW_STATUS_APPROVED,
+      operatorMemberId: input.operatorMemberId,
+      resolutionNote: input.resolutionNote,
+      updatedAt: input.claimedAt,
+    })
+    return result.matched === 1
+  }
+
+  async tryFinalizeClaimedReview(input: FinalizeClaimedReviewInput) {
+    const result = await this.ctx.database.set(MODERATION_REVIEW_TABLE, {
+      id: input.reviewId,
+      status: REVIEW_STATUS_APPROVED,
+      updatedAt: input.claimedAt,
+    }, {
+      status: REVIEW_STATUS_EXECUTED,
+      operatorMemberId: input.operatorMemberId,
+      resolutionNote: input.resolutionNote,
+      updatedAt: input.executedAt,
+    })
+    return result.matched === 1
+  }
+
+  async rollbackClaimedReview(input: RollbackClaimedReviewInput) {
+    await this.ctx.database.set(MODERATION_REVIEW_TABLE, {
+      id: input.reviewId,
+      status: REVIEW_STATUS_APPROVED,
+      updatedAt: input.claimedAt,
+    }, {
+      status: REVIEW_STATUS_PENDING,
+      operatorMemberId: null,
+      resolutionNote: null,
+      updatedAt: input.rolledBackAt,
     })
   }
 
