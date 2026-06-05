@@ -1,10 +1,17 @@
-export function parseUserId(user: string | any): string {
+interface UserIdLike {
+  readonly id?: unknown
+  readonly userId?: unknown
+  readonly uid?: unknown
+}
+
+export function parseUserId(user: unknown): string {
   if (!user) return ''
   if (typeof user === 'string') return parseUserIdString(user)
+  if (!isUserIdLike(user)) return ''
 
-  const record = user as Record<string, unknown>
-  const rawId = record.id || record.userId || record.uid
-  return parseUserIdString(String(rawId || user))
+  const rawId = user.id ?? user.userId ?? user.uid
+  if (rawId === null || rawId === undefined) return ''
+  return parseUserIdString(String(rawId))
 }
 
 function parseUserIdString(value: string): string {
@@ -15,4 +22,8 @@ function parseUserIdString(value: string): string {
   const withoutAt = raw.replace(/^@/, '').trim()
   const [, platformUserId] = withoutAt.split(':')
   return platformUserId || withoutAt
+}
+
+function isUserIdLike(value: unknown): value is UserIdLike {
+  return typeof value === 'object' && value !== null
 }
