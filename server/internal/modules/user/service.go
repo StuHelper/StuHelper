@@ -11,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
 )
@@ -152,12 +151,35 @@ type Repo interface {
 	ListStudentRoleProjectionStates(ctx context.Context, limit int) ([]StudentRoleProjectionState, error)
 }
 
-type ldapAuthClient interface {
-	Login(ctx context.Context, uid, password string) (*ldap.LoginResult, error)
-	QueryUserByUID(ctx context.Context, uid string) (*ldap.UserInfo, error)
+type LDAPConfig struct {
+	URL                string
+	BaseDN             string
+	SystemBindDN       string
+	SystemBindPassword string
+	UseTLS             bool
 }
 
-type ldapClientFactory func(cfg ldap.Config) (ldapAuthClient, error)
+type LDAPLoginResult struct {
+	Authenticated bool
+}
+
+type LDAPUserInfo struct {
+	UID              string
+	CN               string
+	SN               string
+	EmployeeNumber   string
+	DepartmentNumber string
+	Mail             string
+	Mobile           string
+	EmployeeType     string
+}
+
+type LDAPAuthClient interface {
+	Login(ctx context.Context, uid, password string) (*LDAPLoginResult, error)
+	QueryUserByUID(ctx context.Context, uid string) (*LDAPUserInfo, error)
+}
+
+type LDAPClientFactory func(cfg LDAPConfig) (LDAPAuthClient, error)
 
 type identityPhotoStore interface {
 	Upload(ctx context.Context, key string, content []byte, contentType string) error
@@ -195,7 +217,7 @@ type studentDirectoryLookup interface {
 // Service 用户服务层
 type Service struct {
 	repo                Repo
-	ldapClientFactory   ldapClientFactory
+	ldapClientFactory   LDAPClientFactory
 	hmacKey             []byte
 	docCipher           pii.EncryptDecryptor
 	redisClient         *redis.Client
@@ -267,7 +289,7 @@ func (s *Service) SetAdmissionVerificationProjectionGateway(gateway admissionVer
 	s.admissionProjection = gateway
 }
 
-func WithLDAPClientFactory(factory ldapClientFactory) ServiceOption {
+func WithLDAPClientFactory(factory LDAPClientFactory) ServiceOption {
 	return func(s *Service) {
 		if factory != nil {
 			s.ldapClientFactory = factory
@@ -287,11 +309,10 @@ func NewService(repo Repo, hmacKey []byte, docCipher pii.EncryptDecryptor, opts 
 		return nil, errors.New("user.NewService: docCipher must not be nil")
 	}
 	svc := &Service{
-		repo:              repo,
-		ldapClientFactory: func(cfg ldap.Config) (ldapAuthClient, error) { return ldap.NewClient(cfg) },
-		hmacKey:           hmacKey,
-		docCipher:         docCipher,
-		generateOTP:       generateStudentEmailOTPCode,
+		repo:        repo,
+		hmacKey:     hmacKey,
+		docCipher:   docCipher,
+		generateOTP: generateStudentEmailOTPCode,
 	}
 	for _, opt := range opts {
 		if opt != nil {

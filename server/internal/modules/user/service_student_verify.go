@@ -13,7 +13,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
 )
@@ -107,7 +106,7 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 
 		loginResult, err := ldapClient.Login(ctx, trimmedStudentID, req.Password)
 		if err != nil {
-			if errors.Is(err, ldap.ErrInvalidUID) {
+			if errors.Is(err, ErrLDAPFailed) {
 				return nil, ErrLDAPFailed
 			}
 			return nil, fmt.Errorf("VerifyStudent LDAP login: %w", err)
@@ -435,7 +434,7 @@ func (s *Service) ensureAcademicTableConfigured(school *SchoolConfig) (string, e
 	return normalized, nil
 }
 
-func (s *Service) ensureLDAPClientForSchool(school *SchoolConfig) (ldapAuthClient, error) {
+func (s *Service) ensureLDAPClientForSchool(school *SchoolConfig) (LDAPAuthClient, error) {
 	if school == nil {
 		return nil, ErrSchoolNotFound
 	}
@@ -447,7 +446,17 @@ func (s *Service) ensureLDAPClientForSchool(school *SchoolConfig) (ldapAuthClien
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrLDAPConfigInvalid, err)
 	}
-	return s.ldapClientFactory(ldapCfg)
+	if err := validateLDAPConfig(ldapCfg); err != nil {
+		return nil, err
+	}
+	if s.ldapClientFactory == nil {
+		return nil, ErrLDAPConfigInvalid
+	}
+	client, err := s.ldapClientFactory(ldapCfg)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrLDAPConfigInvalid, err)
+	}
+	return client, nil
 }
 
 type schoolLDAPSettings struct {
@@ -494,20 +503,30 @@ func optionalTrimmedString(value string) *string {
 	return &trimmed
 }
 
-func parseSchoolLDAPConfig(raw json.RawMessage) (ldap.Config, error) {
+func parseSchoolLDAPConfig(raw json.RawMessage) (LDAPConfig, error) {
 	settings, err := decodeSchoolLDAPSettings(raw)
 	if err != nil {
-		return ldap.Config{}, err
+		return LDAPConfig{}, err
 	}
 	if isEmptySchoolLDAPSettings(settings) {
-		return ldap.Config{}, ErrSchoolLDAPConfigMissing
+		return LDAPConfig{}, ErrSchoolLDAPConfigMissing
 	}
 
-	return ldap.Config{
-		URL:                settings.URL,
-		BaseDN:             settings.BaseDN,
-		SystemBindDN:       settings.SystemBindDN,
-		SystemBindPassword: settings.SystemBindPassword,
-		UseTLS:             settings.UseTLS,
-	}, nil
+	return LDAPConfig(settings), nil
+}
+
+func validateLDAPConfig(cfg LDAPConfig) error {
+	if strings.TrimSpace(cfg.URL) == "" {
+		return fmt.Errorf("%w: URL is required", ErrLDAPConfigInvalid)
+	}
+	if strings.TrimSpace(cfg.BaseDN) == "" {
+		return fmt.Errorf("%w: BaseDN is required", ErrLDAPConfigInvalid)
+	}
+	if strings.TrimSpace(cfg.SystemBindDN) == "" {
+		return fmt.Errorf("%w: SystemBindDN is required", ErrLDAPConfigInvalid)
+	}
+	if cfg.SystemBindPassword == "" {
+		return fmt.Errorf("%w: SystemBindPassword is required", ErrLDAPConfigInvalid)
+	}
+	return nil
 }

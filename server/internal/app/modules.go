@@ -267,6 +267,7 @@ func (rt *Runtime) initUserService(
 		user.WithProfileFGAClient(fgaClient),
 		user.WithRoleSyncFunc(roleSyncFn),
 		user.WithStudentEmailOTP(rt.redisClient.GetClient(), schoolEmailSender),
+		user.WithLDAPClientFactory(newLDAPAuthClient),
 		photoStore,
 	}
 	options = append(options, extraOptions...)

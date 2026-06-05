@@ -10,7 +10,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
 )
 
@@ -272,10 +271,7 @@ func validateSchoolLDAPConfig(raw json.RawMessage) error {
 	if err != nil {
 		return err
 	}
-	if _, err := ldap.NewClient(ldapCfg); err != nil {
-		return fmt.Errorf("%w: %w", ErrLDAPConfigInvalid, err)
-	}
-	return nil
+	return validateLDAPConfig(ldapCfg)
 }
 
 // ListSystemConfigs 获取所有系统配置项

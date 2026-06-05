@@ -7,8 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
 )
 
 func TestValidateStudentVerificationTransition(t *testing.T) {
@@ -251,7 +249,7 @@ func TestVerifyStudent_LDAPRequiresAcademicStudentRecord(t *testing.T) {
 		repo,
 		[]byte("test-hmac-key-at-least-32-chars!"),
 		&fakeEncryptor{},
-		WithLDAPClientFactory(func(_ ldap.Config) (ldapAuthClient, error) {
+		WithLDAPClientFactory(func(_ LDAPConfig) (LDAPAuthClient, error) {
 			return &fakeLDAPAuthClient{}, nil
 		}),
 	)

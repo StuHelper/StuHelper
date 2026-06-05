@@ -7,8 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
 )
 
 type academicAwareMockRepo struct {
@@ -40,12 +38,12 @@ func (d fakeExternalStudentDirectory) LookupStudent(
 	return d.record, d.handled, nil
 }
 
-func (f *fakeLDAPAuthClient) Login(context.Context, string, string) (*ldap.LoginResult, error) {
-	return &ldap.LoginResult{Authenticated: true}, nil
+func (f *fakeLDAPAuthClient) Login(context.Context, string, string) (*LDAPLoginResult, error) {
+	return &LDAPLoginResult{Authenticated: true}, nil
 }
 
-func (f *fakeLDAPAuthClient) QueryUserByUID(context.Context, string) (*ldap.UserInfo, error) {
-	return &ldap.UserInfo{}, nil
+func (f *fakeLDAPAuthClient) QueryUserByUID(context.Context, string) (*LDAPUserInfo, error) {
+	return &LDAPUserInfo{}, nil
 }
 
 func (m *academicAwareMockRepo) FindAcademicStudentsByPersonUIDFromTable(ctx context.Context, sfzjlxdm string, sfzjh string, tableName string) ([]AcademicStudent, error) {
@@ -360,9 +358,9 @@ func TestEnsureLDAPClientForSchool_UsesSchoolConfig(t *testing.T) {
 	service, err := NewService(&mockRepo{}, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	var captured ldap.Config
+	var captured LDAPConfig
 	expectedClient := &fakeLDAPAuthClient{}
-	service.ldapClientFactory = func(cfg ldap.Config) (ldapAuthClient, error) {
+	service.ldapClientFactory = func(cfg LDAPConfig) (LDAPAuthClient, error) {
 		captured = cfg
 		return expectedClient, nil
 	}
