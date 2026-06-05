@@ -8,8 +8,11 @@ import type {
   RuntimeModuleState,
 } from '../../runtime/types'
 import { BUILTIN_ROLE_IDS } from '../services/auth.service'
+import { resolveCommandUserId } from './member-manage-input'
 
 type AuthRole = ReturnType<Context['stuhelperGroupCenter']['auth']['getRoles']>[number]
+
+const BUILTIN_ROLE_ID_SET: ReadonlySet<string> = new Set(BUILTIN_ROLE_IDS)
 
 interface RoleLookup {
   readonly role: AuthRole | null
@@ -126,7 +129,7 @@ function registerAuthAddCommand(ctx: Context, meta: RuntimeModuleMeta): void {
     .example('gauth.add @可爱猫娘 admin')
     .example('gauth.add @可爱猫娘 管理员')
     .example('gauth.add 123456 moderator')
-    .action(async ({ session }, target, roleIdentifier) => {
+    .action(async (_, target, roleIdentifier) => {
       return handleRoleMutation({ ctx, target, roleIdentifier, operation: 'add' })
     })
 }
@@ -145,7 +148,7 @@ function registerAuthRemoveCommand(ctx: Context, meta: RuntimeModuleMeta): void 
     .example('gauth.remove @可爱猫娘 admin')
     .example('gauth.remove @可爱猫娘 管理员')
     .example('gauth.rm 123456 moderator')
-    .action(async ({ session }, target, roleIdentifier) => {
+    .action(async (_, target, roleIdentifier) => {
       return handleRoleMutation({ ctx, target, roleIdentifier, operation: 'remove' })
     })
 }
@@ -156,7 +159,7 @@ function formatRoleList(ctx: Context): string {
 
   const lines = ['可用角色列表:']
   for (const role of roles) {
-    const isBuiltin = BUILTIN_ROLE_IDS.includes(role.id as any)
+    const isBuiltin = isBuiltinRoleId(role.id)
     const tag = isBuiltin ? '[内置]' : ''
     const memberCount = isBuiltin
       ? '-'
@@ -169,7 +172,7 @@ function formatRoleList(ctx: Context): string {
 function handleRoleInfo(ctx: Context, target: unknown): string {
   if (!target) return '请指定要查询的用户'
 
-  const userId = resolveUserId(target)
+  const userId = resolveCommandUserId(target)
   if (!userId) return '无法解析用户 ID'
 
   const userRoleIds = ctx.stuhelperGroupCenter.auth.getUserRoleIds(userId)
@@ -189,12 +192,12 @@ async function handleRoleMutation(input: RoleMutationInput): Promise<string> {
   if (!input.target) return '请指定要操作的用户'
   if (!input.roleIdentifier) return missingMessage
 
-  const userId = resolveUserId(input.target)
+  const userId = resolveCommandUserId(input.target)
   if (!userId) return '无法解析用户 ID'
 
   const lookup = findRole(input.ctx, input.roleIdentifier)
   if (!lookup.role) return formatMissingRole(input.roleIdentifier, input.operation)
-  if (BUILTIN_ROLE_IDS.includes(lookup.role.id as any)) {
+  if (isBuiltinRoleId(lookup.role.id)) {
     return `"${lookup.role.name}" 是内置角色，由系统自动分配，不支持手动${input.operation === 'add' ? '添加' : '移除'}`
   }
   return input.operation === 'add'
@@ -202,9 +205,8 @@ async function handleRoleMutation(input: RoleMutationInput): Promise<string> {
     : revokeRole(input.ctx, userId, lookup)
 }
 
-function resolveUserId(target: unknown): string | undefined {
-  const rawId = typeof target === 'string' ? target : (target as any)?.id || String(target)
-  return rawId.includes(':') ? rawId.split(':').pop() : rawId
+function isBuiltinRoleId(roleId: string): boolean {
+  return BUILTIN_ROLE_ID_SET.has(roleId)
 }
 
 function findRole(ctx: Context, roleIdentifier: string): RoleLookup {
