@@ -12,6 +12,7 @@ import (
 )
 
 const maxResourceUploadSize = 10 * 1024 * 1024
+const resourceCleanupTimeout = 5 * time.Second
 
 var (
 	ErrResourceTitleRequired        = errors.New("title is required")
@@ -72,19 +73,29 @@ func (s *Service) CreateResource(ctx context.Context, ownerUserID string, req Cr
 		return nil, err
 	}
 	if err := validateResourceStoredObject(stored); err != nil {
-		if cleanupErr := s.storage.Delete(ctx, mountID, cleanupResourceObjectKey(objectKey, stored)); cleanupErr != nil {
+		cleanupCtx, cancel := resourceCleanupContext(ctx)
+		cleanupErr := s.storage.Delete(cleanupCtx, mountID, cleanupResourceObjectKey(objectKey, stored))
+		cancel()
+		if cleanupErr != nil {
 			return nil, errors.Join(err, fmt.Errorf("cleanup invalid resource object: %w", cleanupErr))
 		}
 		return nil, err
 	}
 	item, err := s.repo.CreateResource(ctx, ownerUserID, req, mountID, stored)
 	if err != nil {
-		if cleanupErr := s.storage.Delete(ctx, mountID, stored.ObjectKey); cleanupErr != nil {
+		cleanupCtx, cancel := resourceCleanupContext(ctx)
+		cleanupErr := s.storage.Delete(cleanupCtx, mountID, stored.ObjectKey)
+		cancel()
+		if cleanupErr != nil {
 			return nil, errors.Join(err, fmt.Errorf("cleanup uploaded resource object: %w", cleanupErr))
 		}
 		return nil, err
 	}
 	return item, nil
+}
+
+func resourceCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), resourceCleanupTimeout)
 }
 
 func validateResourceStoredObject(stored *StoredObject) error {

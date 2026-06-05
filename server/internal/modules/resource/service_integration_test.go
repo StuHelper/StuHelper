@@ -22,9 +22,13 @@ type fakeObjectStore struct {
 	putObject   *StoredObject
 	deleteErr   error
 	downloadErr error
+	onPut       func()
 }
 
 func (s *fakeObjectStore) Put(_ context.Context, _ string, objectKey string, content []byte, contentType string) (int64, *StoredObject, error) {
+	if s.onPut != nil {
+		s.onPut()
+	}
 	if s.putErr != nil {
 		return 0, nil, s.putErr
 	}
@@ -41,9 +45,12 @@ func (s *fakeObjectStore) Put(_ context.Context, _ string, objectKey string, con
 	}, nil
 }
 
-func (s *fakeObjectStore) Delete(_ context.Context, _ int64, objectKey string) error {
+func (s *fakeObjectStore) Delete(ctx context.Context, _ int64, objectKey string) error {
 	if s.deleteErr != nil {
 		return s.deleteErr
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	s.deletedKeys = append(s.deletedKeys, objectKey)
 	return nil
@@ -161,6 +168,27 @@ func TestCreateResource_RejectsInvalidStorageMetadata(t *testing.T) {
 			assert.Zero(t, count)
 		})
 	}
+}
+
+func TestCreateResource_CleanupSurvivesRequestCancellationAfterUpload(t *testing.T) {
+	ctx, _, repo, svc, store := setupResourceService(t)
+	ctx, cancel := context.WithCancel(ctx)
+	store.onPut = cancel
+
+	_, err := svc.CreateResource(ctx, "oidc-user-1", CreateRequest{
+		Title:       "Cancelled Upload",
+		Visibility:  "public",
+		Filename:    "cancelled.txt",
+		ContentType: "text/plain",
+		DataBase64:  base64.StdEncoding.EncodeToString([]byte("uploaded but request cancelled")),
+	})
+	require.Error(t, err)
+	require.Len(t, store.deletedKeys, 1)
+	assert.Contains(t, store.deletedKeys[0], "cancelled.txt")
+
+	var count int
+	require.NoError(t, repo.db.QueryRow(context.Background(), `SELECT COUNT(*) FROM resource_items`).Scan(&count))
+	assert.Zero(t, count)
 }
 
 func TestUpdateAndDeletePrivateResource(t *testing.T) {
