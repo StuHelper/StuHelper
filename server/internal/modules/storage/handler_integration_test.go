@@ -108,13 +108,19 @@ func TestStorageAdminRoutesRequireGlobalSystemCapability(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	api := router.Group("/api/v1")
-	NewHandler(nil, WithAdminAuthorizers(storageAdminAuthorizers())).RegisterAdminRoutes(api, scopedSystemCapabilityMiddleware())
+	NewHandler(&Service{}, WithAdminAuthorizers(storageAdminAuthorizers())).RegisterAdminRoutes(api, scopedSystemCapabilityMiddleware())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/storage/mounts", nil)
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 
 	require.Equal(t, http.StatusForbidden, resp.Code)
+}
+
+func TestNewHandlerPanicsWhenServiceNil(t *testing.T) {
+	assert.PanicsWithValue(t, "storage.NewHandler: service must not be nil", func() {
+		NewHandler(nil)
+	})
 }
 
 func newStorageTestRouter(svc *Service) *gin.Engine {

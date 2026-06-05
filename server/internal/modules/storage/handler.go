@@ -31,6 +31,9 @@ func WithAdminAuthorizers(authorizers AdminAuthorizers) HandlerOption {
 }
 
 func NewHandler(service *Service, opts ...HandlerOption) *Handler {
+	if service == nil {
+		panic("storage.NewHandler: service must not be nil")
+	}
 	h := &Handler{service: service}
 	for _, opt := range opts {
 		if opt != nil {

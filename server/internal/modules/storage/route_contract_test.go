@@ -16,7 +16,7 @@ func TestRegisterAdminRoutes_UsesOpenAPIStoragePaths(t *testing.T) {
 	api := r.Group("/api/v1")
 	noOp := func(c *gin.Context) { c.Next() }
 
-	h := &Handler{}
+	h := NewHandler(&Service{})
 	h.RegisterAdminRoutes(api, noOp)
 
 	routes := r.Routes()
