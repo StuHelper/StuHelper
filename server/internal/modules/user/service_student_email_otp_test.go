@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -140,6 +141,37 @@ func TestStudentEmailOTPRejectsBUAAAliasEmail(t *testing.T) {
 	assert.Empty(t, sender.email)
 }
 
+func TestRequestStudentEmailOTPSendFailureKeepsCooldown(t *testing.T) {
+	ctx := context.Background()
+	redis := redisfixture.Start(t)
+	sender := &testStudentEmailSender{err: errors.New("email backend unavailable")}
+	svc, err := NewService(
+		buaaStudentEmailOTPRepo(t, &AcademicStudent{XH: "20250001", XM: stringPtr("张三")}),
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithStudentEmailOTP(redis.Client, sender),
+	)
+	require.NoError(t, err)
+	input := StudentEmailOTPInput{
+		UserID:      7,
+		SchoolID:    4111010006,
+		StudentID:   "20250001",
+		StudentName: "张三",
+	}
+
+	_, err = svc.RequestStudentEmailOTP(ctx, input)
+
+	require.ErrorContains(t, err, "email backend unavailable")
+	assert.Equal(t, 1, sender.calls)
+	_, err = svc.loadStudentEmailOTPRecord(ctx, input.UserID, input.SchoolID)
+	require.ErrorIs(t, err, ErrStudentEmailOTPExpired)
+
+	_, err = svc.RequestStudentEmailOTP(ctx, input)
+
+	require.ErrorIs(t, err, ErrStudentEmailOTPCooldown)
+	assert.Equal(t, 1, sender.calls)
+}
+
 func TestStudentEmailAcademicMatchReturnsImmediateResult(t *testing.T) {
 	svc, err := NewService(
 		buaaStudentEmailOTPRepo(t, &AcademicStudent{XH: "20250001", XM: stringPtr("张三")}),
@@ -225,10 +257,13 @@ func buaaStudentEmailOTPRepo(t *testing.T, student *AcademicStudent) *mockRepo {
 type testStudentEmailSender struct {
 	email string
 	code  string
+	err   error
+	calls int
 }
 
 func (s *testStudentEmailSender) SendStudentVerificationOTP(_ context.Context, email string, code string) error {
+	s.calls++
 	s.email = email
 	s.code = code
-	return nil
+	return s.err
 }

@@ -152,7 +152,7 @@ func (s *Service) RequestStudentEmailOTP(ctx context.Context, input StudentEmail
 		return nil, err
 	}
 	if err := s.studentEmailSender.SendStudentVerificationOTP(ctx, email, code); err != nil {
-		if cleanupErr := s.cleanupStudentEmailOTPCode(ctx, input.UserID, input.SchoolID); cleanupErr != nil {
+		if cleanupErr := s.cleanupStudentEmailOTPCodeOnly(ctx, input.UserID, input.SchoolID); cleanupErr != nil {
 			return nil, fmt.Errorf("RequestStudentEmailOTP send: %w; cleanup: %w", err, cleanupErr)
 		}
 		return nil, fmt.Errorf("RequestStudentEmailOTP send: %w", err)
@@ -445,6 +445,14 @@ func (s *Service) cleanupStudentEmailOTPCode(ctx context.Context, userID, school
 		studentEmailOTPKey(userID, schoolID),
 		studentEmailOTPAttemptsKey(userID, schoolID),
 		studentEmailOTPKey(userID, schoolID)+studentEmailOTPCooldownSuffix,
+	).Err()
+}
+
+func (s *Service) cleanupStudentEmailOTPCodeOnly(ctx context.Context, userID, schoolID int64) error {
+	return s.redisClient.Del(
+		ctx,
+		studentEmailOTPKey(userID, schoolID),
+		studentEmailOTPAttemptsKey(userID, schoolID),
 	).Err()
 }
 
