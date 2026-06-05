@@ -51,6 +51,8 @@ func normalizeResourceStorageError(err error) error {
 		return resource.ErrResourceStorageMountDisabled
 	case errors.Is(err, storage.ErrDriverNotRegistered):
 		return resource.ErrResourceStorageDriverMissing
+	case errors.Is(err, storage.ErrStoredObjectMissing):
+		return resource.ErrResourceStoredObjectMissing
 	default:
 		return err
 	}

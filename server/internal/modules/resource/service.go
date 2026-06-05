@@ -23,6 +23,7 @@ var (
 	ErrResourceStorageMountNotFound = errors.New("resource storage mount not found")
 	ErrResourceStorageMountDisabled = errors.New("resource storage mount disabled")
 	ErrResourceStorageDriverMissing = errors.New("resource storage driver unavailable")
+	ErrResourceStoredObjectMissing  = errors.New("resource storage returned no object metadata")
 )
 
 type StoredObject struct {
@@ -68,6 +69,9 @@ func (s *Service) CreateResource(ctx context.Context, ownerUserID string, req Cr
 	mountID, stored, err := s.storage.Put(ctx, req.MountKey, objectKey, content, detectedType)
 	if err != nil {
 		return nil, err
+	}
+	if stored == nil {
+		return nil, ErrResourceStoredObjectMissing
 	}
 	item, err := s.repo.CreateResource(ctx, ownerUserID, req, mountID, stored)
 	if err != nil {

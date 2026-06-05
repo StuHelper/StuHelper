@@ -103,6 +103,9 @@ func (s *Service) Put(ctx context.Context, mountKey, objectKey string, content [
 	if err != nil {
 		return nil, nil, err
 	}
+	if stored == nil {
+		return nil, nil, ErrStoredObjectMissing
+	}
 	return mount, stored, nil
 }
 

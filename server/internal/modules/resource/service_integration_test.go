@@ -18,6 +18,7 @@ type fakeObjectStore struct {
 	downloadURL string
 	deletedKeys []string
 	putErr      error
+	putMissing  bool
 	deleteErr   error
 	downloadErr error
 }
@@ -25,6 +26,9 @@ type fakeObjectStore struct {
 func (s *fakeObjectStore) Put(_ context.Context, _ string, objectKey string, content []byte, contentType string) (int64, *StoredObject, error) {
 	if s.putErr != nil {
 		return 0, nil, s.putErr
+	}
+	if s.putMissing {
+		return s.mountID, nil, nil
 	}
 	return s.mountID, &StoredObject{
 		ObjectKey:   objectKey,
@@ -85,6 +89,25 @@ func TestCreateResource_AcceptsPlainTextWithoutCharsetParameter(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, created)
 	assert.Equal(t, "Plain Text", created.Title)
+}
+
+func TestCreateResource_RejectsMissingStorageMetadata(t *testing.T) {
+	ctx, _, repo, svc, store := setupResourceService(t)
+	store.putMissing = true
+
+	_, err := svc.CreateResource(ctx, "oidc-user-1", CreateRequest{
+		Title:       "Broken Upload",
+		Visibility:  "public",
+		Filename:    "broken.txt",
+		ContentType: "text/plain",
+		DataBase64:  base64.StdEncoding.EncodeToString([]byte("missing metadata")),
+	})
+	require.ErrorIs(t, err, ErrResourceStoredObjectMissing)
+	assert.Empty(t, store.deletedKeys)
+
+	var count int
+	require.NoError(t, repo.db.QueryRow(ctx, `SELECT COUNT(*) FROM resource_items`).Scan(&count))
+	assert.Zero(t, count)
 }
 
 func TestUpdateAndDeletePrivateResource(t *testing.T) {

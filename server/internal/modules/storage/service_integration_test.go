@@ -15,6 +15,8 @@ import (
 type fakeDriver struct {
 	healthErr   error
 	downloadURL string
+	putObject   *StoredObject
+	putErr      error
 }
 
 func (d fakeDriver) Capabilities() CapabilitySet {
@@ -26,7 +28,10 @@ func (d fakeDriver) HealthCheck(context.Context, Mount) error {
 }
 
 func (d fakeDriver) Put(context.Context, Mount, string, []byte, string) (*StoredObject, error) {
-	return nil, errors.New("unexpected Put call")
+	if d.putErr != nil {
+		return nil, d.putErr
+	}
+	return d.putObject, nil
 }
 
 func (d fakeDriver) Stat(context.Context, Mount, string) (*StoredObject, error) {
@@ -177,4 +182,14 @@ func TestValidateMountByKeyAndGetDownloadURLByMountKey(t *testing.T) {
 	url, err := svc.GetDownloadURLByMountKey(ctx, DefaultMountKey, "identities/42/front.png")
 	require.NoError(t, err)
 	assert.Equal(t, "https://storage.example.test/identity/front.png", url)
+}
+
+func TestPutRejectsMissingObjectMetadata(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(repo, config.ObjectStorageConfig{})
+	svc.registry.drivers["s3"] = fakeDriver{}
+
+	_, _, err := svc.Put(context.Background(), DefaultMountKey, "resources/1/file.txt", []byte("hello"), "text/plain")
+	require.ErrorIs(t, err, ErrStoredObjectMissing)
 }
