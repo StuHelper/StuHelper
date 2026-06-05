@@ -64,71 +64,56 @@ func (r *Repository) ListMounts(ctx context.Context) ([]Mount, error) {
 		}
 		mounts = append(mounts, item)
 	}
-	return mounts, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list storage mounts: %w", err)
+	}
+	return mounts, nil
 }
 
 func (r *Repository) CreateMount(ctx context.Context, req CreateMountRequest) (*Mount, error) {
 	ctx = withDBTable(ctx, "storage_mounts")
-	rows, err := r.db.Query(ctx, `
+	item, err := scanMount(r.db.QueryRow(ctx, `
 		INSERT INTO storage_mounts (key, name, driver, bucket, base_path, credential_source, enabled)
 		VALUES ($1, $2, $3, $4, $5, 'runtime_default_object_storage', $6)
 		RETURNING id, key, name, driver, bucket, base_path, credential_source, enabled,
 		          last_health_status, last_health_error, last_health_checked_at
-	`, req.Key, req.Name, req.Driver, req.Bucket, req.BasePath, req.Enabled)
+	`, req.Key, req.Name, req.Driver, req.Bucket, req.BasePath, req.Enabled))
 	if err != nil {
 		return nil, fmt.Errorf("create storage mount: %w", err)
-	}
-	defer rows.Close()
-	if !rows.Next() {
-		return nil, fmt.Errorf("create storage mount: %w", pgx.ErrNoRows)
-	}
-	item, err := scanMount(rows)
-	if err != nil {
-		return nil, err
 	}
 	return &item, nil
 }
 
 func (r *Repository) GetMountByID(ctx context.Context, mountID int64) (*Mount, error) {
 	ctx = withDBTable(ctx, "storage_mounts")
-	rows, err := r.db.Query(ctx, `
+	item, err := scanMount(r.db.QueryRow(ctx, `
 		SELECT id, key, name, driver, bucket, base_path, credential_source, enabled,
 		       last_health_status, last_health_error, last_health_checked_at
 		FROM storage_mounts
 		WHERE id = $1
-	`, mountID)
-	if err != nil {
-		return nil, fmt.Errorf("get storage mount by id: %w", err)
-	}
-	defer rows.Close()
-	if !rows.Next() {
+	`, mountID))
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrMountNotFound
 	}
-	item, err := scanMount(rows)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get storage mount by id: %w", err)
 	}
 	return &item, nil
 }
 
 func (r *Repository) GetMountByKey(ctx context.Context, key string) (*Mount, error) {
 	ctx = withDBTable(ctx, "storage_mounts")
-	rows, err := r.db.Query(ctx, `
+	item, err := scanMount(r.db.QueryRow(ctx, `
 		SELECT id, key, name, driver, bucket, base_path, credential_source, enabled,
 		       last_health_status, last_health_error, last_health_checked_at
 		FROM storage_mounts
 		WHERE key = $1
-	`, key)
-	if err != nil {
-		return nil, fmt.Errorf("get storage mount by key: %w", err)
-	}
-	defer rows.Close()
-	if !rows.Next() {
+	`, key))
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrMountNotFound
 	}
-	item, err := scanMount(rows)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get storage mount by key: %w", err)
 	}
 	return &item, nil
 }
@@ -146,10 +131,14 @@ func (r *Repository) UpdateMountHealth(ctx context.Context, mountID int64, statu
 	return nil
 }
 
-func scanMount(rows pgx.Rows) (Mount, error) {
+type mountScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanMount(row mountScanner) (Mount, error) {
 	var item Mount
 	var checkedAt *time.Time
-	if err := rows.Scan(
+	if err := row.Scan(
 		&item.ID, &item.Key, &item.Name, &item.Driver, &item.Bucket, &item.BasePath,
 		&item.CredentialSource, &item.Enabled, &item.LastHealthStatus, &item.LastHealthError, &checkedAt,
 	); err != nil {
