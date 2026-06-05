@@ -298,3 +298,21 @@ func TestUpdateSystemConfig_RefreshesAuthAccessTokenTTLSnapshot(t *testing.T) {
 	snapshot := systemconfig.GetAuthTokenPolicySnapshot()
 	assert.Equal(t, 1200, snapshot.AccessTokenTTLSeconds)
 }
+
+func TestUpdateSystemConfig_RejectsInvalidAuthAccessTokenTTLBeforePersist(t *testing.T) {
+	repo := &mockRepo{
+		onUpdateSystemConfig: func(context.Context, string, string) error {
+			t.Fatal("UpdateSystemConfig should not be called for invalid auth token TTL")
+			return nil
+		},
+	}
+
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	err = svc.UpdateSystemConfig(context.Background(), systemconfig.AuthAccessTokenTTLSecondsKey, "59")
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidSystemConfigValue)
+	assert.Contains(t, err.Error(), systemconfig.AuthAccessTokenTTLSecondsKey)
+}

@@ -305,6 +305,10 @@ func (s *Service) validateSystemConfigValue(ctx context.Context, key, value stri
 		return fmt.Errorf("%w: %s value exceeds maximum length of 10KB", ErrInvalidSystemConfigValue, key)
 	}
 	switch key {
+	case systemconfig.AuthAccessTokenTTLSecondsKey:
+		if _, err := systemconfig.ParseAuthAccessTokenTTL(value); err != nil {
+			return fmt.Errorf("%w: %s %v", ErrInvalidSystemConfigValue, key, err)
+		}
 	case systemconfig.ReviewAccessSchoolIDsKey:
 		schoolIDs, err := systemconfig.ParseStringList(value)
 		if err != nil {
