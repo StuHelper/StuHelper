@@ -180,16 +180,18 @@ export function filterWarnsByScope(
   warnsByGuild: Record<string, Record<string, RawWarnEntry>>,
   scope: EntityProfileScope,
 ) {
-  if (scope.guildIds === null) return warnsByGuild
-  return Object.fromEntries(Object.entries(warnsByGuild).filter(([guildId]) => scope.guildIds!.has(guildId)))
+  const guildIds = scope.guildIds
+  if (guildIds === null) return warnsByGuild
+  return Object.fromEntries(Object.entries(warnsByGuild).filter(([guildId]) => guildIds.has(guildId)))
 }
 
 export function filterGuildRecords<T extends { guildId?: string | null }>(
   records: readonly T[],
   scope: EntityProfileScope,
 ): T[] {
-  if (scope.guildIds === null) return [...records]
-  return records.filter((record) => typeof record.guildId === 'string' && scope.guildIds!.has(record.guildId))
+  const guildIds = scope.guildIds
+  if (guildIds === null) return [...records]
+  return records.filter((record) => typeof record.guildId === 'string' && guildIds.has(record.guildId))
 }
 
 export function isPendingReviewStatus(status: string): boolean {

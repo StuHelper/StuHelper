@@ -126,10 +126,12 @@ export class AuthService {
     const grouped = new Map<string, RegisteredCommand[]>()
     for (const cmd of this._commands.values()) {
       const key = cmd.moduleDesc || cmd.module
-      if (!grouped.has(key)) {
-        grouped.set(key, [])
+      let commands = grouped.get(key)
+      if (!commands) {
+        commands = []
+        grouped.set(key, commands)
       }
-      grouped.get(key)!.push(cmd)
+      commands.push(cmd)
     }
     return grouped
   }

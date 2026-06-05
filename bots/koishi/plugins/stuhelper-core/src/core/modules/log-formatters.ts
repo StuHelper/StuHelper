@@ -125,10 +125,12 @@ function formatLogDetails(log: CommandLogRecord): string {
 function groupLogsByCommand(logs: CommandLogRecord[]): Map<string, CommandLogRecord[]> {
   const commandGroups = new Map<string, CommandLogRecord[]>()
   logs.forEach(log => {
-    if (!commandGroups.has(log.command)) {
-      commandGroups.set(log.command, [])
+    let commandLogs = commandGroups.get(log.command)
+    if (!commandLogs) {
+      commandLogs = []
+      commandGroups.set(log.command, commandLogs)
     }
-    commandGroups.get(log.command)!.push(log)
+    commandLogs.push(log)
   })
   return commandGroups
 }

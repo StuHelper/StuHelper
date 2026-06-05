@@ -201,8 +201,8 @@ async function handleRoleMutation(input: RoleMutationInput): Promise<string> {
     return `"${lookup.role.name}" 是内置角色，由系统自动分配，不支持手动${input.operation === 'add' ? '添加' : '移除'}`
   }
   return input.operation === 'add'
-    ? assignRole(input.ctx, userId, lookup)
-    : revokeRole(input.ctx, userId, lookup)
+    ? assignRole(input.ctx, userId, lookup.role, lookup.warning)
+    : revokeRole(input.ctx, userId, lookup.role, lookup.warning)
 }
 
 function isBuiltinRoleId(roleId: string): boolean {
@@ -246,26 +246,26 @@ function formatMissingRole(roleIdentifier: string, operation: 'add' | 'remove'):
   return `角色 "${roleIdentifier}" 不存在${suffix}`
 }
 
-async function assignRole(ctx: Context, userId: string, lookup: RoleLookup): Promise<string> {
+async function assignRole(ctx: Context, userId: string, role: AuthRole, warning?: string): Promise<string> {
   try {
-    await ctx.stuhelperGroupCenter.auth.assignRole(userId, lookup.role!.id)
-    const message = `已将用户 ${userId} 添加到角色 "${lookup.role!.name}"`
-    return lookup.warning ? `${message}\n⚠️ ${lookup.warning}` : message
+    await ctx.stuhelperGroupCenter.auth.assignRole(userId, role.id)
+    const message = `已将用户 ${userId} 添加到角色 "${role.name}"`
+    return warning ? `${message}\n⚠️ ${warning}` : message
   } catch (error) {
     return `添加失败: ${getErrorMessage(error)}`
   }
 }
 
-async function revokeRole(ctx: Context, userId: string, lookup: RoleLookup): Promise<string> {
+async function revokeRole(ctx: Context, userId: string, role: AuthRole, warning?: string): Promise<string> {
   const userRoleIds = ctx.stuhelperGroupCenter.auth.getUserRoleIds(userId)
-  if (!userRoleIds.includes(lookup.role!.id)) {
-    return `用户 ${userId} 没有角色 "${lookup.role!.name}"`
+  if (!userRoleIds.includes(role.id)) {
+    return `用户 ${userId} 没有角色 "${role.name}"`
   }
 
   try {
-    await ctx.stuhelperGroupCenter.auth.revokeRole(userId, lookup.role!.id)
-    const message = `已从用户 ${userId} 移除角色 "${lookup.role!.name}"`
-    return lookup.warning ? `${message}\n⚠️ ${lookup.warning}` : message
+    await ctx.stuhelperGroupCenter.auth.revokeRole(userId, role.id)
+    const message = `已从用户 ${userId} 移除角色 "${role.name}"`
+    return warning ? `${message}\n⚠️ ${warning}` : message
   } catch (error) {
     return `移除失败: ${getErrorMessage(error)}`
   }
