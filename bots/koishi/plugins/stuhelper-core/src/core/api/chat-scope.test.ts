@@ -73,6 +73,62 @@ test('config and role read APIs filter data to the console scope', async () => {
   assert.deepEqual((roles.data || []).map((role: { id: string }) => role.id), ['scoped-role'])
 })
 
+test('config update validates payloads before writing group config', async () => {
+  const listeners = new Map<string, Listener>()
+  const writes: Array<{ guildId: string; config: Record<string, unknown> }> = []
+  const ctx = createContext(listeners)
+  const service = createService(['1001'])
+  service.data.groupConfig.set = (guildId: string, config: Record<string, unknown>) => {
+    writes.push({ guildId, config })
+  }
+
+  registerTestWebSocketAPI(ctx as any, service as any)
+
+  const invalidArray = await callListener(listeners, 'stuhelperGroupCenter/config/update', {
+    guildId: '1001',
+    config: [],
+  })
+  assert.equal(invalidArray.success, false)
+  assert.match(invalidArray.error || '', /group config must be an object/)
+
+  const unsafeKey = await callListener(listeners, 'stuhelperGroupCenter/config/update', {
+    guildId: '1001',
+    config: { constructor: { prototype: { polluted: true } } },
+  })
+  assert.equal(unsafeKey.success, false)
+  assert.match(unsafeKey.error || '', /unsupported key: constructor/)
+
+  const valid = await callListener(listeners, 'stuhelperGroupCenter/config/update', {
+    guildId: ' 1001 ',
+    config: {
+      welcomeEnabled: true,
+      keywords: ['入群'],
+      ignoredUndefined: undefined,
+      forbidden: {
+        autoDelete: false,
+        autoBan: false,
+        autoKick: false,
+        muteDuration: 600000,
+      },
+    },
+  })
+
+  assert.equal(valid.success, true)
+  assert.deepEqual(writes, [{
+    guildId: '1001',
+    config: {
+      welcomeEnabled: true,
+      keywords: ['入群'],
+      forbidden: {
+        autoDelete: false,
+        autoBan: false,
+        autoKick: false,
+        muteDuration: 600000,
+      },
+    },
+  }])
+})
+
 test('chat write APIs reject messages outside the console scope', async () => {
   const listeners = new Map<string, Listener>()
   const ctx = createContext(listeners)

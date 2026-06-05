@@ -2,6 +2,7 @@ import { error, success } from './api-response'
 import type { WebSocketAPIContext } from './api-context'
 import { assertConsoleGuildAccess } from './console-guild-scope'
 import { filterGuildEntries } from './scope-filters'
+import type { GroupConfig } from '../../types'
 
 const DEFAULT_FORBIDDEN_MUTE_DURATION = 600000
 const DEFAULT_DICE_LENGTH_LIMIT = 1000
@@ -13,6 +14,13 @@ const DEFAULT_BANME_SOFT_PITY = 73
 const DEFAULT_BANME_HARD_PITY = 89
 const DEFAULT_BANME_UP_DURATION = '24h'
 const DEFAULT_BANME_LOSE_DURATION = '12h'
+const MAX_CONFIG_DEPTH = 8
+const FORBIDDEN_CONFIG_KEYS = new Set(['__proto__', 'prototype', 'constructor'])
+
+interface ConfigUpdateParams {
+  readonly guildId: string
+  readonly config: GroupConfig
+}
 
 export function registerConfigAPI(api: WebSocketAPIContext): void {
   api.addAuthorityListener('stuhelperGroupCenter/config/reload', async () => handleConfigReload(api))
@@ -23,12 +31,8 @@ export function registerConfigAPI(api: WebSocketAPIContext): void {
   api.addAuthorityListener('stuhelperGroupCenter/config/get', async function (params: { guildId: string }) {
     return handleConfigGet(api, this, params.guildId)
   })
-  api.addAuthorityListener('stuhelperGroupCenter/config/update', async function (params: { guildId: string, config: any }) {
-    const scope = await api.resolveConsoleScope(this)
-    assertConsoleGuildAccess(scope, params.guildId, 'group config')
-    api.service.data.groupConfig.set(params.guildId, params.config)
-    await api.service.data.groupConfig.flush()
-    return success({ success: true })
+  api.addAuthorityListener('stuhelperGroupCenter/config/update', async function (params: unknown) {
+    return handleConfigUpdate(api, this, params)
   })
   api.addAuthorityListener('stuhelperGroupCenter/config/create', async function (params: { guildId: string }) {
     return handleConfigCreate(api, this, params.guildId)
@@ -57,10 +61,10 @@ async function handleConfigReload(api: WebSocketAPIContext) {
 
 function buildConfigList(
   api: WebSocketAPIContext,
-  scopedConfigs: [string, any][],
+  scopedConfigs: [string, GroupConfig][],
   params?: { fetchNames?: boolean },
 ) {
-  const results: Record<string, any> = {}
+  const results: Record<string, GroupConfig & { guildName: string; guildAvatar: string }> = {}
   const cacheData = params?.fetchNames ? api.service.cache.getCachedData() : undefined
 
   scopedConfigs.forEach(([guildId, config]) => {
@@ -84,6 +88,19 @@ async function handleConfigGet(api: WebSocketAPIContext, client: unknown, guildI
   }
 }
 
+async function handleConfigUpdate(api: WebSocketAPIContext, client: unknown, input: unknown) {
+  try {
+    const params = parseConfigUpdateParams(input)
+    const scope = await api.resolveConsoleScope(client)
+    assertConsoleGuildAccess(scope, params.guildId, 'group config')
+    api.service.data.groupConfig.set(params.guildId, params.config)
+    await api.service.data.groupConfig.flush()
+    return success({ success: true })
+  } catch (cause) {
+    return error(cause instanceof Error ? cause.message : '更新群组配置失败')
+  }
+}
+
 async function handleConfigCreate(api: WebSocketAPIContext, client: unknown, guildId: string) {
   const scope = await api.resolveConsoleScope(client)
   assertConsoleGuildAccess(scope, guildId, 'group config')
@@ -93,6 +110,66 @@ async function handleConfigCreate(api: WebSocketAPIContext, client: unknown, gui
   api.service.data.groupConfig.set(guildId, createDefaultGroupConfig())
   await api.service.data.groupConfig.flush()
   return success({ success: true })
+}
+
+function parseConfigUpdateParams(input: unknown): ConfigUpdateParams {
+  if (!isPlainRecord(input)) {
+    throw new Error('group config update input must be an object')
+  }
+
+  const guildId = readNonEmptyString(input.guildId, 'guildId')
+  return {
+    guildId,
+    config: normalizeGroupConfig(input.config),
+  }
+}
+
+function normalizeGroupConfig(input: unknown): GroupConfig {
+  if (!isPlainRecord(input)) {
+    throw new Error('group config must be an object')
+  }
+  return normalizeConfigValue(input, 'config', 0) as GroupConfig
+}
+
+function normalizeConfigValue(input: unknown, path: string, depth: number): unknown {
+  if (depth > MAX_CONFIG_DEPTH) {
+    throw new Error(`${path} is too deeply nested`)
+  }
+  if (input === null || typeof input === 'string' || typeof input === 'boolean') {
+    return input
+  }
+  if (typeof input === 'number') {
+    if (!Number.isFinite(input)) throw new Error(`${path} must be a finite number`)
+    return input
+  }
+  if (Array.isArray(input)) {
+    return input.map((item, index) => normalizeConfigValue(item, `${path}[${index}]`, depth + 1))
+  }
+  if (isPlainRecord(input)) {
+    const result: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(input)) {
+      if (FORBIDDEN_CONFIG_KEYS.has(key)) {
+        throw new Error(`${path} contains unsupported key: ${key}`)
+      }
+      if (value === undefined) continue
+      result[key] = normalizeConfigValue(value, `${path}.${key}`, depth + 1)
+    }
+    return result
+  }
+  throw new Error(`${path} contains unsupported value type`)
+}
+
+function readNonEmptyString(value: unknown, field: string): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`${field} must be a non-empty string`)
+  }
+  return value.trim()
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const prototype = Object.getPrototypeOf(value)
+  return prototype === Object.prototype || prototype === null
 }
 
 function createDefaultGroupConfig() {
