@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import type { ReportModule } from './report.module'
+import type { ReportActionSession } from './report-session'
 import { handleReportViolation } from './report-violation.ts'
 import { ViolationLevel } from './report-types.ts'
 
@@ -41,6 +43,10 @@ function createHost() {
     logs,
     pushed,
     createdBlacklists,
+  } as unknown as ReportModule & {
+    readonly logs: unknown[]
+    readonly pushed: unknown[]
+    readonly createdBlacklists: unknown[]
   }
 }
 
@@ -59,10 +65,10 @@ test('handleReportViolation performs ban and warn directly without mutating sess
     bot: {
       muteGuildMember: async (...args: unknown[]) => muted.push(args),
     },
-  }
+  } as unknown as ReportActionSession
 
   const result = await handleReportViolation({
-    host: host as any,
+    host,
     session,
     userId: 'target-qq',
     content: 'bad content',
@@ -95,10 +101,10 @@ test('handleReportViolation creates backend member blacklist for kick_blacklist 
     bot: {
       kickGuildMember: async (...args: unknown[]) => kicked.push(args),
     },
-  }
+  } as unknown as ReportActionSession
 
   const result = await handleReportViolation({
-    host: host as any,
+    host,
     session,
     userId: 'target-qq',
     content: 'reported message',
@@ -128,5 +134,41 @@ test('handleReportViolation creates backend member blacklist for kick_blacklist 
       workItemID: 'moderation:qq:guild-1:message-1:target-qq',
       targetGuildID: 'guild-1',
     },
+  }])
+})
+
+test('handleReportViolation reports non-Error action failures without throwing again', async () => {
+  const host = createHost()
+  const session = {
+    platform: 'qq',
+    guildId: 'guild-1',
+    userId: 'operator-qq',
+    bot: {
+      kickGuildMember: async () => {
+        throw 'adapter refused kick'
+      },
+    },
+  } as unknown as ReportActionSession
+
+  const result = await handleReportViolation({
+    host,
+    session,
+    userId: 'target-qq',
+    content: 'reported message',
+    verbose: false,
+    guildConfig: { autoProcess: true },
+    violation: {
+      level: ViolationLevel.HIGH,
+      reason: 'abuse',
+      action: [{ type: 'kick' }],
+    },
+  })
+
+  assert.equal(result, '已对用户 target-qq 执行：kick操作失败，严重违规。')
+  assert.deepEqual(host.logs.at(-1), [{
+    session,
+    command: 'report-handle',
+    target: 'target-qq',
+    details: '严重违规，处理: 踢出群聊，内容: reported message',
   }])
 })

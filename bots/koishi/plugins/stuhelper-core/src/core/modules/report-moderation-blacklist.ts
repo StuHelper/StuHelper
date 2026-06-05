@@ -1,13 +1,14 @@
 import type { PlatformClient } from '@stuhelper/koishi-shared'
 
 import type { ReportModule } from './report.module'
+import type { ReportActionSession } from './report-session'
 import type { ViolationInfo } from './report-types'
 
 const BLACKLIST_REASON_MAX_LENGTH = 50
 
 interface ModerationBlacklistInput {
   readonly host: ReportModule
-  readonly session: any
+  readonly session: ReportActionSession
   readonly userId: string
   readonly violation: ViolationInfo
 }
@@ -48,7 +49,7 @@ function moderationBlacklistMetadata(
   return { reviewID: workItemID, workItemID, targetGuildID: guildID }
 }
 
-function moderationWorkItemID(session: any, userId: string): string {
+function moderationWorkItemID(session: ReportActionSession, userId: string): string {
   const messageID = String(session.messageId || 'unknown-message')
   return `moderation:${session.platform}:${session.guildId}:${messageID}:${userId}`
 }
@@ -57,14 +58,14 @@ function moderationBlacklistReason(input: ModerationBlacklistInput): string {
   return `moderation review blacklist: ${shorten(input.violation.reason, BLACKLIST_REASON_MAX_LENGTH)}`
 }
 
-function requireReportGuildID(session: any): string {
+function requireReportGuildID(session: ReportActionSession): string {
   if (!session.guildId) {
     throw new Error('moderation blacklist action requires guildId')
   }
   return session.guildId
 }
 
-function requireReportPlatform(session: any): string {
+function requireReportPlatform(session: ReportActionSession): string {
   if (!session.platform) {
     throw new Error('moderation blacklist action requires platform')
   }

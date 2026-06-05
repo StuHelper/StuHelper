@@ -2,9 +2,11 @@ import { Logger } from 'koishi'
 
 import type { ReportModule } from './report.module'
 import { kickUserWithModerationBlacklist } from './report-moderation-blacklist'
+import type { ReportActionSession } from './report-session'
 import type { ViolationAction, ViolationInfo } from './report-types'
 import { ViolationLevel } from './report-types'
 import { formatDurationSeconds, shorten } from './report-format'
+import type { ReportGuildConfig } from '../../types'
 
 const logger = new Logger('stuhelperGroupCenter:report')
 const SHORT_CONTENT_MAX_LENGTH = 30
@@ -13,18 +15,18 @@ const MS_PER_SECOND = 1000
 
 export interface ReportViolationInput {
   readonly host: ReportModule
-  readonly session: any
+  readonly session: ReportActionSession
   readonly userId: string
   readonly violation: ViolationInfo
   readonly content: string
   readonly verbose: boolean
-  readonly guildConfig: any
+  readonly guildConfig?: Pick<ReportGuildConfig, 'autoProcess'> | null
 }
 
 export async function handleReportViolation(input: ReportViolationInput): Promise<string> {
   try {
     return await executeViolation(input)
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleViolationFailure(input, error)
   }
 }
@@ -125,18 +127,19 @@ function formatAction(action: ViolationAction): string {
   }
 }
 
-async function handleViolationFailure(input: ReportViolationInput, error: any): Promise<string> {
+async function handleViolationFailure(input: ReportViolationInput, error: unknown): Promise<string> {
+  const message = errorMessage(error)
   logger.error('执行违规处理失败:', error)
-  await logViolationFailure(input, error).catch((innerError) => {
+  await logViolationFailure(input, message).catch((innerError) => {
     logger.error('记录举报错误日志失败:', innerError)
   })
   const levelText = getViolationLevelText(input.violation.level)
-  return `AI已判定该消息${levelText}违规，但自动处理失败：${error.message}\n请联系管理员手动处理。`
+  return `AI已判定该消息${levelText}违规，但自动处理失败：${message}\n请联系管理员手动处理。`
 }
 
-async function logViolationFailure(input: ReportViolationInput, error: any): Promise<void> {
+async function logViolationFailure(input: ReportViolationInput, error: string): Promise<void> {
   const levelText = getViolationLevelText(input.violation.level)
-  const message = shorten(error.message, ERROR_MESSAGE_MAX_LENGTH)
+  const message = shorten(error, ERROR_MESSAGE_MAX_LENGTH)
   await input.host.logCommand({
     session: input.session,
     command: 'report-error',
@@ -186,14 +189,15 @@ async function runReportAction(input: ReportViolationInput & {
 
 async function warnUser(input: {
   readonly host: ReportModule
-  readonly session: any
+  readonly session: ReportActionSession
   readonly userId: string
   readonly count: number
 }): Promise<void> {
-  const guildWarns = input.host.data.warns.get(input.session.guildId) || {}
+  const guildId = requireGuildID(input.session)
+  const guildWarns = input.host.data.warns.get(guildId) || {}
   const current = guildWarns[input.userId] || { count: 0, timestamp: 0 }
   guildWarns[input.userId] = { count: current.count + input.count, timestamp: Date.now() }
-  input.host.data.warns.set(input.session.guildId, guildWarns)
+  input.host.data.warns.set(guildId, guildWarns)
   input.host.data.warns.flush()
   await input.host.logCommand({
     session: input.session,
@@ -205,16 +209,17 @@ async function warnUser(input: {
 
 async function banUserBySeconds(input: {
   readonly host: ReportModule
-  readonly session: any
+  readonly session: ReportActionSession
   readonly userId: string
   readonly seconds: number
 }): Promise<void> {
   try {
+    const guildId = requireGuildID(input.session)
     const milliseconds = input.seconds * MS_PER_SECOND
-    await input.session.bot.muteGuildMember(input.session.guildId, input.userId, milliseconds)
+    await input.session.bot.muteGuildMember(guildId, input.userId, milliseconds)
     recordReportMute({
       host: input.host,
-      guildId: input.session.guildId,
+      guildId,
       userId: input.userId,
       duration: milliseconds,
     })
@@ -224,27 +229,28 @@ async function banUserBySeconds(input: {
       target: input.userId,
       details: `AI 处置禁言 ${formatDurationSeconds(input.seconds)}`,
     })
-  } catch (error: any) {
-    logger.error(`按秒数禁言用户失败: ${error.message}`)
+  } catch (error: unknown) {
+    logger.error(`按秒数禁言用户失败: ${errorMessage(error)}`)
     throw error
   }
 }
 
 async function kickUser(input: {
   readonly host: ReportModule
-  readonly session: any
+  readonly session: ReportActionSession
   readonly userId: string
 }): Promise<void> {
   try {
-    await input.session.bot.kickGuildMember(input.session.guildId, input.userId, false)
+    const guildId = requireGuildID(input.session)
+    await input.session.bot.kickGuildMember(guildId, input.userId, false)
     await input.host.logCommand({
       session: input.session,
       command: 'report-kick',
       target: input.userId,
       details: 'AI 处置踢出群聊',
     })
-  } catch (error: any) {
-    logger.error(`踢出用户失败: ${error.message}`)
+  } catch (error: unknown) {
+    logger.error(`踢出用户失败: ${errorMessage(error)}`)
     throw error
   }
 }
@@ -260,4 +266,14 @@ function recordReportMute(input: {
   guildMutes[userId] = { startTime: Date.now(), duration, remainingTime: duration }
   host.data.mutes.set(guildId, guildMutes)
   host.data.mutes.flush()
+}
+
+function requireGuildID(session: ReportActionSession): string {
+  if (!session.guildId) throw new Error('report moderation action requires guildId')
+  return session.guildId
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  return String(error || '未知错误')
 }
