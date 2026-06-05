@@ -256,7 +256,7 @@ func (rt *Runtime) initUserService(
 		if _, err := storageService.ValidateMountByKey(initCtx, storage.DefaultMountKey); err != nil {
 			return nil, fmt.Errorf("identity photo storage mount validation failed: %w", err)
 		}
-		photoStore = user.WithIdentityPhotoStorageService(storageService, storage.DefaultMountKey)
+		photoStore = user.WithIdentityPhotoStore(newIdentityPhotoStorageAdapter(storageService, storage.DefaultMountKey))
 	}
 
 	roleSyncFn, err := rt.initCasdoorRoleSync(userRepo)

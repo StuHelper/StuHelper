@@ -13,8 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/storage"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/objectstorage"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
@@ -109,7 +107,7 @@ func TestHandleUploadIdentityPhoto_Returns503WhenStoreUnavailable(t *testing.T) 
 	assert.Equal(t, "identity photo upload is not available", decodeUserErrorMessage(t, resp.Body.Bytes()))
 }
 
-func TestHandleUploadIdentityPhoto_MapsStorageErrorsTo503(t *testing.T) {
+func TestHandleUploadIdentityPhoto_MapsTemporaryStorageDomainErrorTo503(t *testing.T) {
 	repo := &mockRepo{
 		onGetInternalUserID: func(_ context.Context, casdoorSubject string) (int64, error) {
 			assert.Equal(t, "external-user-123", casdoorSubject)
@@ -117,12 +115,7 @@ func TestHandleUploadIdentityPhoto_MapsStorageErrorsTo503(t *testing.T) {
 		},
 	}
 	store := &fakeIdentityPhotoStore{
-		uploadErr: &objectstorage.StoreError{
-			Kind:     objectstorage.ErrorKindNetwork,
-			Op:       "upload",
-			Resource: "identities/42/front.png",
-			Err:      context.DeadlineExceeded,
-		},
+		uploadErr: ErrIdentityPhotoStorageTemporaryUnavailable,
 	}
 	router := setupUserHandlerTestRouterWithServiceOptions(t, repo, WithIdentityPhotoStore(store))
 	body := bytes.NewBufferString(`{"slot":"front","filename":"identity.png","contentType":"image/png","dataBase64":"` + base64.StdEncoding.EncodeToString(validPNGBytes(t)) + `"}`)
@@ -136,13 +129,13 @@ func TestHandleUploadIdentityPhoto_MapsStorageErrorsTo503(t *testing.T) {
 	assert.Equal(t, "identity photo storage is temporarily unavailable", decodeUserErrorMessage(t, resp.Body.Bytes()))
 }
 
-func TestHandleUploadIdentityPhoto_MapsDisabledMountTo503(t *testing.T) {
+func TestHandleUploadIdentityPhoto_MapsUnavailableStorageDomainErrorTo503(t *testing.T) {
 	repo := &mockRepo{
 		onGetInternalUserID: func(_ context.Context, _ string) (int64, error) {
 			return 42, nil
 		},
 	}
-	store := &fakeIdentityPhotoStore{uploadErr: storage.ErrMountDisabled}
+	store := &fakeIdentityPhotoStore{uploadErr: ErrIdentityPhotoStorageUnavailable}
 	router := setupUserHandlerTestRouterWithServiceOptions(t, repo, WithIdentityPhotoStore(store))
 	body := bytes.NewBufferString(`{"slot":"front","filename":"identity.png","contentType":"image/png","dataBase64":"` + base64.StdEncoding.EncodeToString(validPNGBytes(t)) + `"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/user/identity/uploads", body)
