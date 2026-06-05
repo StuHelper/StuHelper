@@ -24,6 +24,37 @@ test('chat guild APIs reject guilds outside the console scope', async () => {
   await assertRejectsScope(listeners, 'stuhelperGroupCenter/chat/guild-info', { guildId: '2002' })
 })
 
+test('chat guild member list recognizes universal owner and admin role objects', async () => {
+  const listeners = new Map<string, Listener>()
+  const ctx = createContext(listeners)
+  ctx.bots[0].getGuildMemberList = async () => ({
+    data: [
+      { user: { id: 'member-1', name: 'Normal' }, roles: [{ id: 'member' }] },
+      { user: { id: 'owner-1', name: 'Owner' }, roles: [{ id: 'owner' }] },
+      { user: { id: 'admin-1', name: 'Admin' }, roles: [{ id: 'admin' }] },
+    ],
+  })
+  const service = createService(['1001'])
+
+  registerTestWebSocketAPI(ctx as any, service as any)
+
+  const result = await callListener(listeners, 'stuhelperGroupCenter/chat/guild-members', { guildId: '1001' })
+
+  assert.equal(result.success, true)
+  assert.deepEqual(result.data.members.map((member: { id: string }) => member.id), ['owner-1', 'admin-1', 'member-1'])
+  assert.deepEqual(
+    result.data.members.map((member: { isOwner: boolean; isAdmin: boolean }) => ({
+      isOwner: member.isOwner,
+      isAdmin: member.isAdmin,
+    })),
+    [
+      { isOwner: true, isAdmin: true },
+      { isOwner: false, isAdmin: true },
+      { isOwner: false, isAdmin: false },
+    ],
+  )
+})
+
 test('config and role read APIs filter data to the console scope', async () => {
   const listeners = new Map<string, Listener>()
   const ctx = createContext(listeners)

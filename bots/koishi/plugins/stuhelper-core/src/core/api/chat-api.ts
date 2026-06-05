@@ -1,9 +1,16 @@
+import type { Bot } from 'koishi'
+
 import type { ChatImageFetchParams, ChatImageAccessRegistry } from './chat-image-fetch'
 import { fetchOneBotImage } from './chat-image-fetch'
 import type { WebSocketAPIContext } from './api-context'
 import { error, success, toApiErrorMessage } from './api-response'
 import { assertConsoleGuildAccess, assertGlobalConsoleScope } from './console-guild-scope'
 import { registerChatMessageBroadcast } from './chat-message-broadcast'
+import {
+  isGuildAdminMember,
+  isGuildOwnerMember,
+  type GuildAdminMember,
+} from '../services/auth-guild-admin'
 
 const QQ_PLATFORMS = new Set(['onebot', 'red', 'qq'])
 const MAX_CHAT_CONTENT_BYTES = 256 * 1024
@@ -46,6 +53,25 @@ interface ChatRecallParams {
   readonly messageId: string
   readonly platform?: string
   readonly guildId?: string
+}
+
+interface ChatGuildMemberProfile {
+  readonly id: string
+  readonly name: string
+  readonly avatar: string
+  readonly isAdmin: boolean
+  readonly isOwner: boolean
+  readonly title: string
+  readonly joinedAt?: number | string | Date
+}
+
+type GuildMemberListBot = Pick<Bot, 'platform' | 'getGuildMemberList'>
+type ChatGuildMember = GuildAdminMember & {
+  readonly userId?: string
+  readonly name?: string
+  readonly avatar?: string
+  readonly title?: string
+  readonly joinedAt?: unknown
 }
 
 async function handleGuildMembers(api: WebSocketAPIContext, client: unknown, guildId: string) {
@@ -179,8 +205,8 @@ async function handleImageFetch(input: {
   }
 }
 
-async function fetchAllGuildMembers(bot: any, guildId: string) {
-  const members: any[] = []
+async function fetchAllGuildMembers(bot: GuildMemberListBot, guildId: string): Promise<ChatGuildMember[]> {
+  const members: ChatGuildMember[] = []
   let next: string | undefined
   do {
     const result = await bot.getGuildMemberList(guildId, next)
@@ -190,20 +216,20 @@ async function fetchAllGuildMembers(bot: any, guildId: string) {
   return members
 }
 
-function formatGuildMember(bot: any, member: any) {
-  const userId = member.user?.id || member.userId
+function formatGuildMember(bot: Pick<Bot, 'platform'>, member: ChatGuildMember): ChatGuildMemberProfile {
+  const userId = member.user?.id || member.userId || ''
   return {
     id: userId,
-    name: member.nick || member.user?.nick || member.user?.name || userId,
+    name: member.nick || member.user?.nick || member.user?.name || member.name || userId,
     avatar: readUserAvatar(bot, userId, member.user?.avatar || member.avatar),
-    isAdmin: member.roles?.includes('admin') || false,
-    isOwner: member.roles?.includes('owner') || false,
+    isAdmin: isGuildAdminMember(member),
+    isOwner: isGuildOwnerMember(member),
     title: member.title || '',
-    joinedAt: member.joinedAt,
+    joinedAt: readJoinedAt(member.joinedAt),
   }
 }
 
-function compareGuildMembers(a: any, b: any) {
+function compareGuildMembers(a: ChatGuildMemberProfile, b: ChatGuildMemberProfile) {
   if (a.isOwner && !b.isOwner) return -1
   if (!a.isOwner && b.isOwner) return 1
   if (a.isAdmin && !b.isAdmin) return -1
@@ -211,14 +237,21 @@ function compareGuildMembers(a: any, b: any) {
   return (a.name || '').localeCompare(b.name || '')
 }
 
-function readGuildAvatar(bot: any, guildId: string, avatar?: string) {
-  if (avatar || !QQ_PLATFORMS.has(bot.platform)) return avatar
+function readGuildAvatar(bot: Pick<Bot, 'platform'>, guildId: string, avatar?: string) {
+  if (avatar) return avatar
+  if (!QQ_PLATFORMS.has(bot.platform)) return ''
   return `https://p.qlogo.cn/gh/${guildId}/${guildId}/640/`
 }
 
-function readUserAvatar(bot: any, userId: string, avatar?: string) {
-  if (avatar || !QQ_PLATFORMS.has(bot.platform)) return avatar
+function readUserAvatar(bot: Pick<Bot, 'platform'>, userId: string, avatar?: string) {
+  if (avatar) return avatar
+  if (!userId || !QQ_PLATFORMS.has(bot.platform)) return ''
   return `https://q1.qlogo.cn/g?b=qq&nk=${userId}&s=640`
+}
+
+function readJoinedAt(value: unknown) {
+  if (typeof value === 'number' || typeof value === 'string' || value instanceof Date) return value
+  return undefined
 }
 
 function lastFailureSuffix(failures: readonly string[]) {

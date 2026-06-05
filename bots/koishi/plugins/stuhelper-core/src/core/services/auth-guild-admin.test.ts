@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { isGuildAdminMember, isGuildAdminRole } from './auth-guild-admin'
+import { isGuildAdminMember, isGuildAdminRole, isGuildOwnerMember } from './auth-guild-admin'
 
 test('isGuildAdminRole accepts universal role objects and legacy role strings', () => {
   assert.equal(isGuildAdminRole('admin'), true)
@@ -15,4 +15,11 @@ test('isGuildAdminMember accepts universal and legacy member role fields', () =>
   assert.equal(isGuildAdminMember({ role: 'admin' }), true)
   assert.equal(isGuildAdminMember({ roles: [{ id: 'member' }] }), false)
   assert.equal(isGuildAdminMember(null), false)
+})
+
+test('isGuildOwnerMember only accepts owner role values', () => {
+  assert.equal(isGuildOwnerMember({ roles: [{ id: 'owner' }] }), true)
+  assert.equal(isGuildOwnerMember({ role: 'owner' }), true)
+  assert.equal(isGuildOwnerMember({ roles: [{ id: 'admin' }] }), false)
+  assert.equal(isGuildOwnerMember(null), false)
 })
