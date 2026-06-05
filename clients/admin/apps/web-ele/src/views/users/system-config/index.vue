@@ -6,6 +6,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useAccessStore } from '@vben/stores';
 
 import {
+  ElAlert,
   ElButton,
   ElDialog,
   ElForm,
@@ -29,9 +30,12 @@ import AdminContentLayout from '../../shared/AdminContentLayout.vue';
 import { formatAdminDateTime } from '../../shared/display';
 
 const loading = ref(false);
+const loadError = ref('');
+const actionError = ref('');
 const submitting = ref(false);
 const configs = ref<SystemConfig[]>([]);
 const accessStore = useAccessStore();
+let fetchRequestSeq = 0;
 const canUpdateSystemConfig = () =>
   accessStore.accessCodes.includes('user:system:update');
 
@@ -59,12 +63,20 @@ const emailPolicyForm = reactive<EmailDeliveryPolicy>({
 });
 
 async function fetchData() {
+  const requestSeq = ++fetchRequestSeq;
   loading.value = true;
+  loadError.value = '';
   try {
     const data = await getSystemConfigList();
+    if (requestSeq !== fetchRequestSeq) return;
     configs.value = data;
+  } catch (error) {
+    if (requestSeq !== fetchRequestSeq) return;
+    loadError.value = adminErrorMessage(error);
   } finally {
-    loading.value = false;
+    if (requestSeq === fetchRequestSeq) {
+      loading.value = false;
+    }
   }
 }
 
@@ -94,7 +106,7 @@ function hydrateEmailPolicyForm(raw: string) {
   let parsed: Partial<EmailDeliveryPolicy> | undefined;
   try {
     parsed = JSON.parse(raw) as Partial<EmailDeliveryPolicy>;
-  } catch (_error) {
+  } catch {
     parsed = undefined;
   }
   emailPolicyForm.mode = parsed?.mode === 'weighted' ? 'weighted' : 'priority';
@@ -132,6 +144,7 @@ async function handleSubmit() {
   }
 
   submitting.value = true;
+  actionError.value = '';
   try {
     if (form.key === emailPolicyKey) {
       syncEmailPolicyValue();
@@ -140,12 +153,22 @@ async function handleSubmit() {
     ElMessage.success($t('admin.users.systemConfig.updated'));
     dialogVisible.value = false;
     await fetchData();
-  } catch (_error) {
-    void _error;
-    // shared-result already displays the backend error message.
+  } catch (error) {
+    handleActionError(error);
   } finally {
     submitting.value = false;
   }
+}
+
+function handleActionError(error: unknown) {
+  actionError.value = adminErrorMessage(error);
+  ElMessage.error(actionError.value);
+}
+
+function adminErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message
+    ? error.message
+    : $t('admin.result.requestFailed');
 }
 
 onMounted(fetchData);
@@ -173,6 +196,29 @@ onMounted(fetchData);
         </ElButton>
       </div>
     </template>
+
+    <ElAlert
+      v-if="loadError"
+      class="admin-load-error"
+      type="error"
+      :closable="false"
+      show-icon
+      :title="loadError"
+    >
+      <ElButton size="small" :loading="loading" @click="fetchData">
+        {{ $t('admin.common.retry') }}
+      </ElButton>
+    </ElAlert>
+
+    <ElAlert
+      v-if="actionError"
+      class="admin-load-error"
+      type="error"
+      :closable="true"
+      show-icon
+      :title="actionError"
+      @close="actionError = ''"
+    />
 
     <PersistentAdminTable
       table-key="users.systemConfig"
@@ -342,9 +388,9 @@ onMounted(fetchData);
 <style scoped>
 .admin-system-config-toolbar {
   display: flex;
+  gap: 12px;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
   width: 100%;
 }
 </style>

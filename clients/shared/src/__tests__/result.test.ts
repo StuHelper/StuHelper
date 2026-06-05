@@ -3,6 +3,7 @@ import {
     extractOptionalResultData,
     extractResultData,
     extractResultErrorCode,
+    extractResultErrorMessage,
     extractResultList,
     isResultFailure,
     readResultStatus,
@@ -17,6 +18,33 @@ describe("shared api result helpers", () => {
         expect(
             extractResultErrorCode({ error: { error: { code: "B0000001" } } }),
         ).toBe("B0000001");
+    });
+
+    it("extracts backend error messages from data or transport error envelopes", () => {
+        expect(
+            extractResultErrorMessage(
+                {
+                    data: {
+                        error: {
+                            code: "A0040999",
+                            message: "学生认证已被其他管理员处理",
+                        },
+                    },
+                },
+                "fallback",
+            ),
+        ).toBe("学生认证已被其他管理员处理");
+        expect(
+            extractResultErrorMessage(
+                {
+                    error: {
+                        error: "admission session is already cancelled",
+                    },
+                },
+                "fallback",
+            ),
+        ).toBe("admission session is already cancelled");
+        expect(extractResultErrorMessage({}, "fallback")).toBe("fallback");
     });
 
     it("extracts payload and list data without platform wrappers", () => {

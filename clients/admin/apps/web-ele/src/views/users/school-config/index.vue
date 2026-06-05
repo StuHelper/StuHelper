@@ -5,7 +5,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 
 import { useAccessStore } from '@vben/stores';
 
-import { ElButton, ElMessage, ElSwitch, ElTag } from 'element-plus';
+import { ElAlert, ElButton, ElMessage, ElSwitch, ElTag } from 'element-plus';
 
 import { getSchoolConfigList, updateSchoolConfig } from '#/api/admin';
 import { $t } from '#/locales';
@@ -16,10 +16,13 @@ import AdminContentLayout from '../../shared/AdminContentLayout.vue';
 import SchoolConfigDialog from './SchoolConfigDialog.vue';
 
 const loading = ref(false);
+const loadError = ref('');
+const actionError = ref('');
 const submitting = ref(false);
 const schools = ref<SchoolConfig[]>([]);
 const updatingSchoolIds = ref(new Set<number>());
 const accessStore = useAccessStore();
+let fetchRequestSeq = 0;
 const canUpdateSchoolConfig = () =>
   accessStore.accessCodes.includes('user:school:update');
 const enabledSchoolCount = computed(
@@ -27,18 +30,27 @@ const enabledSchoolCount = computed(
 );
 
 async function fetchData() {
+  const requestSeq = ++fetchRequestSeq;
   loading.value = true;
+  loadError.value = '';
   try {
     const data = await getSchoolConfigList();
+    if (requestSeq !== fetchRequestSeq) return;
     schools.value = data;
+  } catch (error) {
+    if (requestSeq !== fetchRequestSeq) return;
+    loadError.value = adminErrorMessage(error);
   } finally {
-    loading.value = false;
+    if (requestSeq === fetchRequestSeq) {
+      loading.value = false;
+    }
   }
 }
 
 const dialogVisible = ref(false);
 const form = reactive({
   academicDbTable: '',
+  approvalPolicy: 'manual' as 'auto' | 'manual',
   consentText: '',
   enabled: true,
   ldapBaseDN: '',
@@ -62,6 +74,7 @@ function openEdit(row: SchoolConfig) {
   form.schoolCode = row.schoolCode;
   form.schoolName = row.schoolName;
   form.verificationMethod = row.verificationMethod;
+  form.approvalPolicy = row.approvalPolicy;
   form.enabled = row.enabled;
   form.academicDbTable = row.academicDbTable ?? '';
   form.consentText = row.consentText ?? '';
@@ -80,6 +93,7 @@ async function handleSubmit(submitted: SchoolConfigForm) {
 
   const payload: UpdateSchoolConfigPayload = {
     academicDbTable: submitted.academicDbTable || undefined,
+    approvalPolicy: submitted.approvalPolicy,
     consentText: submitted.consentText || undefined,
     enabled: submitted.enabled,
     ldapConfig:
@@ -97,14 +111,14 @@ async function handleSubmit(submitted: SchoolConfigForm) {
   };
 
   submitting.value = true;
+  actionError.value = '';
   try {
     await updateSchoolConfig(submitted.schoolID, payload);
     ElMessage.success($t('admin.users.schoolConfig.updated'));
     dialogVisible.value = false;
     await fetchData();
-  } catch (_error) {
-    void _error;
-    // shared-result already displays the backend error message.
+  } catch (error) {
+    handleActionError(error);
   } finally {
     submitting.value = false;
   }
@@ -115,13 +129,13 @@ async function handleToggleEnabled(row: SchoolConfig, enabled: boolean) {
     return;
   }
   markSchoolUpdating(row.schoolID, true);
+  actionError.value = '';
   try {
     await updateSchoolConfig(row.schoolID, { enabled });
     row.enabled = enabled;
     ElMessage.success($t('admin.users.schoolConfig.updated'));
-  } catch (_error) {
-    void _error;
-    // shared-result already displays the backend error message.
+  } catch (error) {
+    handleActionError(error);
   } finally {
     markSchoolUpdating(row.schoolID, false);
   }
@@ -139,6 +153,60 @@ function markSchoolUpdating(schoolID: number, updating: boolean) {
     next.delete(schoolID);
   }
   updatingSchoolIds.value = next;
+}
+
+type TagType = 'danger' | 'info' | 'primary' | 'success' | 'warning';
+
+function admissionCapabilityTags(row: SchoolConfig) {
+  const tags: Array<{ label: string; type: TagType }> = [];
+  if (row.schoolSsoEnabled) {
+    tags.push({
+      label: $t('admin.users.schoolConfig.schoolSso'),
+      type: 'success',
+    });
+  }
+  if (row.schoolEmailOtpEnabled) {
+    tags.push({
+      label: $t('admin.users.schoolConfig.schoolEmailOtp'),
+      type: 'primary',
+    });
+  }
+  if (tags.length === 0) {
+    tags.push({
+      label: $t('admin.users.schoolConfig.noAdmissionCapability'),
+      type: 'info',
+    });
+  }
+  return tags;
+}
+
+function emailPolicySummary(row: SchoolConfig) {
+  const policy = row.schoolEmailIdentityPolicy;
+  if (!policy) {
+    return '';
+  }
+  const parts = [
+    policy.studentIDEmailDomain
+      ? $t('admin.users.schoolConfig.emailPolicyDomain', {
+          domain: `@${policy.studentIDEmailDomain}`,
+        })
+      : '',
+    policy.requireStudentName
+      ? $t('admin.users.schoolConfig.requiresStudentName')
+      : '',
+  ].filter(Boolean);
+  return parts.join(' · ');
+}
+
+function adminErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message
+    ? error.message
+    : $t('admin.result.requestFailed');
+}
+
+function handleActionError(error: unknown) {
+  actionError.value = adminErrorMessage(error);
+  ElMessage.error(actionError.value);
 }
 
 onMounted(fetchData);
@@ -159,6 +227,29 @@ onMounted(fetchData);
         }}
       </span>
     </template>
+
+    <ElAlert
+      v-if="loadError"
+      class="admin-load-error"
+      type="error"
+      :closable="false"
+      show-icon
+      :title="loadError"
+    >
+      <ElButton size="small" :loading="loading" @click="fetchData">
+        {{ $t('admin.common.retry') }}
+      </ElButton>
+    </ElAlert>
+
+    <ElAlert
+      v-if="actionError"
+      class="admin-load-error"
+      type="error"
+      :closable="true"
+      show-icon
+      :title="actionError"
+      @close="actionError = ''"
+    />
 
     <PersistentAdminTable
       table-key="users.schoolConfig"
@@ -196,6 +287,50 @@ onMounted(fetchData);
                 : $t('admin.users.schoolConfig.methods.manual')
             }}
           </ElTag>
+        </template>
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="approvalPolicy"
+        :label="$t('admin.users.schoolConfig.approvalPolicy')"
+        :default-width="118"
+      >
+        <template #default="{ row }">
+          <ElTag
+            :type="row.approvalPolicy === 'auto' ? 'success' : 'warning'"
+            size="small"
+          >
+            {{
+              row.approvalPolicy === 'auto'
+                ? $t('admin.users.schoolConfig.approvalPolicies.auto')
+                : $t('admin.users.schoolConfig.approvalPolicies.manual')
+            }}
+          </ElTag>
+        </template>
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="admissionCapabilities"
+        :label="$t('admin.users.schoolConfig.admissionCapabilities')"
+        :default-min-width="240"
+      >
+        <template #default="{ row }">
+          <div class="school-capabilities">
+            <div class="school-capabilities__tags">
+              <ElTag
+                v-for="tag in admissionCapabilityTags(row)"
+                :key="tag.label"
+                :type="tag.type"
+                size="small"
+              >
+                {{ tag.label }}
+              </ElTag>
+            </div>
+            <span
+              v-if="emailPolicySummary(row)"
+              class="admin-cell-muted school-capabilities__policy"
+            >
+              {{ emailPolicySummary(row) }}
+            </span>
+          </div>
         </template>
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
@@ -254,3 +389,24 @@ onMounted(fetchData);
     />
   </AdminContentLayout>
 </template>
+
+<style scoped>
+.school-capabilities {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.school-capabilities__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.school-capabilities__policy {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+</style>

@@ -4,7 +4,9 @@ import type { StudentVerification } from '#/api/admin';
 import { onMounted, reactive, ref } from 'vue';
 
 import {
+  ElAlert,
   ElButton,
+  ElDialog,
   ElInput,
   ElMessage,
   ElOption,
@@ -27,12 +29,21 @@ import AdminContentLayout from '../../shared/AdminContentLayout.vue';
 import { formatAdminDateTime } from '../../shared/display';
 
 const STUDENT_REVIEW_CAPABILITY = 'user:student:review';
+type StudentReviewAction = 'approve' | 'reject';
 
 const loading = ref(false);
-const actionLoading = ref(false);
 const items = ref<StudentVerification[]>([]);
 const total = ref(0);
+const loadError = ref('');
+const actionError = ref('');
 const authStore = useAuthStore();
+const rejectDialogVisible = ref(false);
+const rejectTarget = ref<null | StudentVerification>(null);
+const rejectionReason = ref('');
+const reviewingActionsByUserId = reactive<
+  Record<number, StudentReviewAction | undefined>
+>({});
+let fetchRequestSeq = 0;
 const query = reactive({
   page: 1,
   pageSize: 20,
@@ -65,38 +76,110 @@ function normalizeScopedSchoolId(): boolean {
 }
 
 async function fetchData() {
+  const requestSeq = ++fetchRequestSeq;
   if (!normalizeScopedSchoolId()) {
     return;
   }
   loading.value = true;
+  loadError.value = '';
   try {
     const data = await getStudentVerificationList(query);
+    if (requestSeq !== fetchRequestSeq) return;
     items.value = data.items;
     total.value = data.total;
-  } catch (_error) {
-    void _error;
-    items.value = [];
-    total.value = 0;
+  } catch (error) {
+    if (requestSeq !== fetchRequestSeq) return;
+    loadError.value = adminErrorMessage(error);
   } finally {
-    loading.value = false;
+    if (requestSeq === fetchRequestSeq) {
+      loading.value = false;
+    }
   }
 }
 
-async function handleReview(userId: number, approved: boolean) {
-  if (actionLoading.value) {
+function resetPageAndFetch() {
+  query.page = 1;
+  void fetchData();
+}
+
+async function handleReview(
+  userId: number,
+  approved: boolean,
+  rejectionReason?: string,
+) {
+  const action: StudentReviewAction = approved ? 'approve' : 'reject';
+  if (userReviewing(userId)) {
+    return false;
+  }
+
+  reviewingActionsByUserId[userId] = action;
+  actionError.value = '';
+  try {
+    await reviewStudentVerification(userId, {
+      approved,
+      ...(rejectionReason ? { rejectionReason } : {}),
+    });
+    ElMessage.success(
+      $t(
+        approved
+          ? 'admin.users.studentVerification.approveSuccess'
+          : 'admin.users.studentVerification.rejectSuccess',
+      ),
+    );
+    await fetchData();
+    return true;
+  } catch (error) {
+    handleActionError(error);
+    return false;
+  } finally {
+    delete reviewingActionsByUserId[userId];
+  }
+}
+
+function openRejectDialog(row: StudentVerification) {
+  rejectTarget.value = row;
+  rejectionReason.value = '';
+  rejectDialogVisible.value = true;
+}
+
+async function submitReject() {
+  const reason = rejectionReason.value.trim();
+  if (!reason) {
+    ElMessage.error($t('admin.users.studentVerification.rejectReasonRequired'));
     return;
   }
 
-  actionLoading.value = true;
-  try {
-    await reviewStudentVerification(userId, { approved });
-    await fetchData();
-  } catch (_error) {
-    void _error;
-    // 失败提示已由 unwrapData 统一处理。
-  } finally {
-    actionLoading.value = false;
+  const target = rejectTarget.value;
+  if (!target) {
+    return;
   }
+
+  const submitted = await handleReview(target.userID, false, reason);
+  if (!submitted) {
+    return;
+  }
+
+  rejectDialogVisible.value = false;
+  rejectTarget.value = null;
+  rejectionReason.value = '';
+}
+
+function userReviewing(userId: number) {
+  return Boolean(reviewingActionsByUserId[userId]);
+}
+
+function userActionLoading(userId: number, action: StudentReviewAction) {
+  return reviewingActionsByUserId[userId] === action;
+}
+
+function rejectTargetReviewing() {
+  return rejectTarget.value ? userReviewing(rejectTarget.value.userID) : false;
+}
+
+function rejectTargetActionLoading(action: StudentReviewAction) {
+  return rejectTarget.value
+    ? userActionLoading(rejectTarget.value.userID, action)
+    : false;
 }
 
 type TagType = 'danger' | 'info' | 'success' | 'warning';
@@ -122,6 +205,17 @@ const verificationMethodLabel = (
     : $t('admin.common.notSet');
 };
 
+function handleActionError(error: unknown) {
+  actionError.value = adminErrorMessage(error);
+  ElMessage.error(actionError.value);
+}
+
+function adminErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message
+    ? error.message
+    : $t('admin.result.requestFailed');
+}
+
 onMounted(fetchData);
 </script>
 
@@ -136,7 +230,7 @@ onMounted(fetchData);
         class="admin-toolbar-control"
         :placeholder="$t('admin.users.studentVerification.statusPlaceholder')"
         :teleported="false"
-        @change="fetchData"
+        @change="resetPageAndFetch"
       >
         <ElOption :label="$t('admin.common.all')" value="all" />
         <ElOption
@@ -157,13 +251,36 @@ onMounted(fetchData);
         class="admin-toolbar-control admin-toolbar-control--wide"
         clearable
         :placeholder="$t('admin.users.studentVerification.schoolIdPlaceholder')"
-        @clear="fetchData"
-        @keyup.enter="fetchData"
+        @clear="resetPageAndFetch"
+        @keyup.enter="resetPageAndFetch"
       />
-      <ElButton type="primary" @click="fetchData">
+      <ElButton type="primary" @click="resetPageAndFetch">
         {{ $t('admin.common.query') }}
       </ElButton>
     </template>
+
+    <ElAlert
+      v-if="loadError"
+      class="admin-load-error"
+      type="error"
+      :closable="false"
+      show-icon
+      :title="loadError"
+    >
+      <ElButton size="small" :loading="loading" @click="fetchData">
+        {{ $t('admin.common.retry') }}
+      </ElButton>
+    </ElAlert>
+
+    <ElAlert
+      v-if="actionError"
+      class="admin-load-error"
+      type="error"
+      :closable="true"
+      show-icon
+      :title="actionError"
+      @close="actionError = ''"
+    />
 
     <PersistentAdminTable
       table-key="users.studentVerification"
@@ -242,27 +359,25 @@ onMounted(fetchData);
                   plain
                   size="small"
                   type="success"
-                  :disabled="actionLoading"
+                  data-action="approve"
+                  :disabled="userReviewing(row.userID)"
+                  :loading="userActionLoading(row.userID, 'approve')"
                 >
                   {{ $t('admin.users.studentVerification.approve') }}
                 </ElButton>
               </template>
             </ElPopconfirm>
-            <ElPopconfirm
-              :title="$t('admin.users.studentVerification.confirmReject')"
-              @confirm="handleReview(row.userID, false)"
+            <ElButton
+              plain
+              size="small"
+              type="danger"
+              data-action="reject"
+              :disabled="userReviewing(row.userID)"
+              :loading="userActionLoading(row.userID, 'reject')"
+              @click="openRejectDialog(row)"
             >
-              <template #reference>
-                <ElButton
-                  plain
-                  size="small"
-                  type="danger"
-                  :disabled="actionLoading"
-                >
-                  {{ $t('admin.users.studentVerification.reject') }}
-                </ElButton>
-              </template>
-            </ElPopconfirm>
+              {{ $t('admin.users.studentVerification.reject') }}
+            </ElButton>
           </div>
           <span v-else class="admin-cell-muted">—</span>
         </template>
@@ -278,5 +393,36 @@ onMounted(fetchData);
         @current-change="fetchData"
       />
     </template>
+
+    <ElDialog
+      v-model="rejectDialogVisible"
+      :title="$t('admin.users.studentVerification.rejectDialogTitle')"
+      width="420px"
+    >
+      <ElInput
+        v-model="rejectionReason"
+        :disabled="rejectTargetReviewing()"
+        :placeholder="
+          $t('admin.users.studentVerification.rejectReasonPlaceholder')
+        "
+        :rows="4"
+        type="textarea"
+      />
+      <template #footer>
+        <ElButton
+          :disabled="rejectTargetReviewing()"
+          @click="rejectDialogVisible = false"
+        >
+          {{ $t('admin.common.cancel') }}
+        </ElButton>
+        <ElButton
+          :loading="rejectTargetActionLoading('reject')"
+          type="primary"
+          @click="submitReject"
+        >
+          {{ $t('admin.common.confirm') }}
+        </ElButton>
+      </template>
+    </ElDialog>
   </AdminContentLayout>
 </template>

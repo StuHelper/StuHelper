@@ -16,6 +16,7 @@ import { $t } from '#/locales';
 
 type SchoolConfigForm = {
   academicDbTable: string;
+  approvalPolicy: 'auto' | 'manual';
   consentText: string;
   enabled: boolean;
   ldapBaseDN: string;
@@ -41,6 +42,7 @@ const emit = defineEmits<{
 const visible = defineModel<boolean>('visible', { required: true });
 const draft = reactive<SchoolConfigForm>({
   academicDbTable: '',
+  approvalPolicy: 'manual',
   consentText: '',
   enabled: true,
   ldapBaseDN: '',
@@ -95,6 +97,18 @@ function submit() {
           />
           <ElOption
             :label="$t('admin.users.schoolConfig.methods.manual')"
+            value="manual"
+          />
+        </ElSelect>
+      </ElFormItem>
+      <ElFormItem :label="$t('admin.users.schoolConfig.approvalPolicy')">
+        <ElSelect v-model="draft.approvalPolicy" style="width: 100%">
+          <ElOption
+            :label="$t('admin.users.schoolConfig.approvalPolicies.auto')"
+            value="auto"
+          />
+          <ElOption
+            :label="$t('admin.users.schoolConfig.approvalPolicies.manual')"
             value="manual"
           />
         </ElSelect>

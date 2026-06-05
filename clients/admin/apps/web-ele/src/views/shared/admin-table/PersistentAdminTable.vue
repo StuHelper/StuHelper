@@ -77,7 +77,7 @@ function normalizeWidth(width: number) {
 function readStoredWidths(key: string) {
   const storage = getLocalStorage();
   if (!storage) return {};
-  const raw = storage.getItem(key);
+  const raw = readStorageItem(storage, key);
   if (!raw) return {};
 
   let parsed: Record<string, unknown>;
@@ -85,7 +85,7 @@ function readStoredWidths(key: string) {
     parsed = JSON.parse(raw) as Record<string, unknown>;
   } catch (error) {
     void error;
-    storage.removeItem(key);
+    removeStorageItem(storage, key);
     return {};
   }
   return Object.fromEntries(
@@ -98,12 +98,40 @@ function readStoredWidths(key: string) {
 }
 
 function writeStoredWidths(key: string, widths: Record<string, number>) {
-  getLocalStorage()?.setItem(key, JSON.stringify(widths));
+  const storage = getLocalStorage();
+  if (!storage) return;
+  try {
+    storage.setItem(key, JSON.stringify(widths));
+  } catch (error) {
+    void error;
+  }
 }
 
 function getLocalStorage() {
   if (typeof window === 'undefined') return null;
-  return window.localStorage ?? null;
+  try {
+    return window.localStorage ?? null;
+  } catch (error) {
+    void error;
+    return null;
+  }
+}
+
+function readStorageItem(storage: Storage, key: string) {
+  try {
+    return storage.getItem(key);
+  } catch (error) {
+    void error;
+    return null;
+  }
+}
+
+function removeStorageItem(storage: Storage, key: string) {
+  try {
+    storage.removeItem(key);
+  } catch (error) {
+    void error;
+  }
 }
 </script>
 

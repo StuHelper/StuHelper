@@ -43,6 +43,10 @@ describe('admission policy admin view contract', () => {
       'maxExtensionDays',
       'managementGuildIDs',
       'forwardRawMaterialToQQ',
+      'POLICY_DATETIME_FORMAT',
+      ':value-format="POLICY_DATETIME_FORMAT"',
+      'ElMessage.success',
+      ':loading="savingPolicyIDs[policy.id]"',
     ]) {
       expect(source).toContain(token);
     }

@@ -7,7 +7,7 @@ import { useRouter } from 'vue-router';
 import { IconifyIcon } from '@vben/icons';
 import { useAccessStore } from '@vben/stores';
 
-import { ElButton, ElSkeleton } from 'element-plus';
+import { ElAlert, ElButton, ElSkeleton } from 'element-plus';
 
 import { getAdminStats } from '#/api/admin';
 import { $t } from '#/locales';
@@ -19,7 +19,9 @@ import './workspace.css';
 const router = useRouter();
 const accessStore = useAccessStore();
 const loading = ref(true);
+const loadError = ref('');
 const stats = ref<AdminStats | null>(null);
+let fetchRequestSeq = 0;
 
 interface WorkspaceLink {
   authority: string[];
@@ -125,16 +127,31 @@ const visibleShortcuts = computed(() =>
 );
 
 async function fetchStats() {
+  const requestSeq = ++fetchRequestSeq;
   loading.value = true;
+  loadError.value = '';
   try {
-    stats.value = await getAdminStats();
+    const data = await getAdminStats();
+    if (requestSeq !== fetchRequestSeq) return;
+    stats.value = data;
+  } catch (error) {
+    if (requestSeq !== fetchRequestSeq) return;
+    loadError.value = adminErrorMessage(error);
   } finally {
-    loading.value = false;
+    if (requestSeq === fetchRequestSeq) {
+      loading.value = false;
+    }
   }
 }
 
 async function goTo(path: string) {
   await router.push(path);
+}
+
+function adminErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message
+    ? error.message
+    : $t('admin.result.requestFailed');
 }
 
 onMounted(fetchStats);
@@ -150,6 +167,19 @@ onMounted(fetchStats);
         {{ $t('admin.common.query') }}
       </ElButton>
     </template>
+
+    <ElAlert
+      v-if="loadError"
+      class="admin-load-error"
+      type="error"
+      :closable="false"
+      show-icon
+      :title="loadError"
+    >
+      <ElButton size="small" :loading="loading" @click="fetchStats">
+        {{ $t('admin.common.retry') }}
+      </ElButton>
+    </ElAlert>
 
     <ElSkeleton :loading="loading" animated>
       <template #template>

@@ -3,7 +3,7 @@ import type { OperationLog } from '#/api/admin';
 
 import { onMounted, reactive, ref } from 'vue';
 
-import { ElPagination, ElTag } from 'element-plus';
+import { ElAlert, ElButton, ElPagination, ElTag } from 'element-plus';
 
 import { getOperationLogs } from '#/api/admin';
 import { $t } from '#/locales';
@@ -15,21 +15,31 @@ import { compactID, formatAdminDateTime } from '../../shared/display';
 
 const USER_AGENT_PREVIEW_LENGTH = 64;
 const loading = ref(false);
+const loadError = ref('');
 const logs = ref<OperationLog[]>([]);
 const total = ref(0);
 const query = reactive({
   page: 1,
   pageSize: 20,
 });
+let fetchRequestSeq = 0;
 
 async function fetchData() {
+  const requestSeq = ++fetchRequestSeq;
   loading.value = true;
+  loadError.value = '';
   try {
     const data = await getOperationLogs(query);
+    if (requestSeq !== fetchRequestSeq) return;
     logs.value = data.items;
     total.value = data.total;
+  } catch (error) {
+    if (requestSeq !== fetchRequestSeq) return;
+    loadError.value = adminErrorMessage(error);
   } finally {
-    loading.value = false;
+    if (requestSeq === fetchRequestSeq) {
+      loading.value = false;
+    }
   }
 }
 
@@ -49,11 +59,30 @@ function refreshPage(page: number) {
   void fetchData();
 }
 
+function adminErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message
+    ? error.message
+    : $t('admin.result.requestFailed');
+}
+
 onMounted(fetchData);
 </script>
 
 <template>
   <AdminContentLayout :title="$t('admin.routes.content.logs')" :total="total">
+    <ElAlert
+      v-if="loadError"
+      class="admin-load-error"
+      type="error"
+      :closable="false"
+      show-icon
+      :title="loadError"
+    >
+      <ElButton size="small" :loading="loading" @click="fetchData">
+        {{ $t('admin.common.retry') }}
+      </ElButton>
+    </ElAlert>
+
     <PersistentAdminTable
       table-key="content.operationLogs"
       :loading="loading"

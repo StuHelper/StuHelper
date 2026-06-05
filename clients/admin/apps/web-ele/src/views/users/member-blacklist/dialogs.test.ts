@@ -142,6 +142,35 @@ describe('CreateBlacklistDialog', () => {
     expect(wrapper.emitted('submit')).toBeUndefined();
   });
 
+  it('does not emit while a create request is already submitting', async () => {
+    const wrapper = mount(CreateBlacklistDialog, {
+      props: { visible: true, submitting: true },
+      global: { stubs: dialogStubs },
+    });
+
+    const vm = wrapper.vm as unknown as {
+      draft: {
+        guildID: string;
+        platform: string;
+        reasonText: string;
+        scopeType: 'global' | 'guild';
+        subjectID: string;
+      };
+    };
+    vm.draft.platform = 'qq';
+    vm.draft.subjectID = '20002';
+    vm.draft.scopeType = 'guild';
+    vm.draft.guildID = 'guild-42';
+    vm.draft.reasonText = 'spamming';
+    await wrapper.vm.$nextTick();
+
+    const submit = wrapper.find('[data-action="submitCreate"]');
+    expect((submit.element as HTMLButtonElement).disabled).toBe(true);
+    await submit.trigger('click');
+
+    expect(wrapper.emitted('submit')).toBeUndefined();
+  });
+
   it('reset() restores the draft to defaults', async () => {
     const wrapper = mount(CreateBlacklistDialog, {
       props: { visible: true, submitting: false },
@@ -225,6 +254,23 @@ describe('ReleaseBlacklistDialog', () => {
     });
 
     await wrapper.find('[data-action="submitRelease"]').trigger('click');
+    expect(wrapper.emitted('submit')).toBeUndefined();
+  });
+
+  it('does not emit while a release request is already submitting', async () => {
+    const wrapper = mount(ReleaseBlacklistDialog, {
+      props: {
+        visible: true,
+        submitting: true,
+        target: { ...baseEntry, source: 'admission_failure' },
+      },
+      global: { stubs: dialogStubs },
+    });
+
+    const submit = wrapper.find('[data-action="submitRelease"]');
+    expect((submit.element as HTMLButtonElement).disabled).toBe(true);
+    await submit.trigger('click');
+
     expect(wrapper.emitted('submit')).toBeUndefined();
   });
 

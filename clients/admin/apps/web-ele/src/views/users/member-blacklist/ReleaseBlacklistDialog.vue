@@ -57,7 +57,7 @@ watch(
 );
 
 function submit() {
-  if (!props.target) return;
+  if (props.submitting || !props.target) return;
   const request: MemberBlacklistReleaseRequest = {
     releaseReasonCode: draft.releaseReasonCode,
     ...(draft.releaseReason.trim()
@@ -108,8 +108,8 @@ function submit() {
     <template #footer>
       <ElButton @click="visible = false">取消</ElButton>
       <ElButton
-        :disabled="!target"
-        :loading="submitting"
+        :disabled="props.submitting || !target"
+        :loading="props.submitting"
         data-action="submitRelease"
         type="warning"
         @click="submit"

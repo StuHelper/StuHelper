@@ -12,13 +12,14 @@ import { computed, onMounted, reactive, ref, useTemplateRef } from 'vue';
 
 import { useAccessStore } from '@vben/stores';
 
-import { ElMessage } from 'element-plus';
+import { ElAlert, ElButton, ElMessage } from 'element-plus';
 
 import {
   createMemberBlacklist,
   listMemberBlacklist,
   releaseMemberBlacklist,
 } from '#/api/admin';
+import { $t } from '#/locales';
 
 import AdminContentLayout from '../../shared/AdminContentLayout.vue';
 import BlacklistFilters from './BlacklistFilters.vue';
@@ -27,8 +28,11 @@ import CreateBlacklistDialog from './CreateBlacklistDialog.vue';
 import ReleaseBlacklistDialog from './ReleaseBlacklistDialog.vue';
 
 const loading = ref(false);
+const loadError = ref('');
+const actionError = ref('');
 const items = ref<MemberBlacklistEntry[]>([]);
 const total = ref(0);
+let fetchRequestSeq = 0;
 
 const accessStore = useAccessStore();
 const canManage = computed(() =>
@@ -55,7 +59,9 @@ const releasing = ref(false);
 const releaseTarget = ref<MemberBlacklistEntry | null>(null);
 
 async function fetchData() {
+  const requestSeq = ++fetchRequestSeq;
   loading.value = true;
+  loadError.value = '';
   try {
     const params: ListMemberBlacklistParams = {
       page: query.page,
@@ -69,10 +75,16 @@ async function fetchData() {
     if (query.subjectID.trim()) params.subjectID = query.subjectID.trim();
 
     const data = await listMemberBlacklist(params);
+    if (requestSeq !== fetchRequestSeq) return;
     items.value = data.items;
     total.value = data.total;
+  } catch (error) {
+    if (requestSeq !== fetchRequestSeq) return;
+    loadError.value = adminErrorMessage(error);
   } finally {
-    loading.value = false;
+    if (requestSeq === fetchRequestSeq) {
+      loading.value = false;
+    }
   }
 }
 
@@ -98,24 +110,38 @@ function resetQuery() {
 }
 
 function openCreateDialog() {
+  if (!canManage.value) {
+    return;
+  }
   createDialog.value?.reset();
   createDialogVisible.value = true;
 }
 
 async function submitCreate(payload: MemberBlacklistCreateRequest) {
+  if (!canManage.value || creating.value) {
+    return;
+  }
+
   creating.value = true;
+  actionError.value = '';
   try {
     await createMemberBlacklist(payload);
     ElMessage.success(`已将 ${payload.subjectID} 加入黑名单`);
     createDialogVisible.value = false;
     query.page = 1;
     await fetchData();
+  } catch (error) {
+    handleActionError(error);
   } finally {
     creating.value = false;
   }
 }
 
 function openReleaseDialog(entry: MemberBlacklistEntry) {
+  if (!canManage.value || releasing.value) {
+    return;
+  }
+
   releaseTarget.value = entry;
   releaseDialogVisible.value = true;
 }
@@ -124,16 +150,40 @@ async function submitRelease(payload: {
   id: string;
   request: MemberBlacklistReleaseRequest;
 }) {
+  const target = releaseTarget.value;
+  if (
+    !canManage.value ||
+    releasing.value ||
+    !target ||
+    target.id !== payload.id
+  ) {
+    return;
+  }
+
   releasing.value = true;
+  actionError.value = '';
   try {
     await releaseMemberBlacklist(payload.id, payload.request);
-    ElMessage.success(`已解除黑名单：${releaseTarget.value?.subjectID ?? ''}`);
+    ElMessage.success(`已解除黑名单：${target.subjectID}`);
     releaseDialogVisible.value = false;
     releaseTarget.value = null;
     await fetchData();
+  } catch (error) {
+    handleActionError(error);
   } finally {
     releasing.value = false;
   }
+}
+
+function handleActionError(error: unknown) {
+  actionError.value = adminErrorMessage(error);
+  ElMessage.error(actionError.value);
+}
+
+function adminErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message
+    ? error.message
+    : $t('admin.result.requestFailed');
 }
 
 onMounted(fetchData);
@@ -155,6 +205,29 @@ onMounted(fetchData);
         @open-create="openCreateDialog"
       />
     </template>
+
+    <ElAlert
+      v-if="loadError"
+      class="admin-load-error"
+      type="error"
+      :closable="false"
+      show-icon
+      :title="loadError"
+    >
+      <ElButton size="small" :loading="loading" @click="fetchData">
+        {{ $t('admin.common.retry') }}
+      </ElButton>
+    </ElAlert>
+
+    <ElAlert
+      v-if="actionError"
+      class="admin-load-error"
+      type="error"
+      :closable="true"
+      show-icon
+      :title="actionError"
+      @close="actionError = ''"
+    />
 
     <BlacklistTable
       v-model:page="query.page"

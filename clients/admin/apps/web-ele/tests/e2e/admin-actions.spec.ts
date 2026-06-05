@@ -86,6 +86,14 @@ const identityReviews = [
   },
 ];
 
+let nextIdentityReviewListErrorMessage: null | string = null;
+let nextIdentityReviewActionErrorMessage: null | string = null;
+let nextIdentityReviewActionDelay: null | Promise<void> = null;
+let nextReportListErrorMessage: null | string = null;
+let nextReportActionErrorMessage: null | string = null;
+let nextReviewListErrorMessage: null | string = null;
+let nextReviewActionErrorMessage: null | string = null;
+
 interface CapturedMutation {
   body: unknown;
   method: string;
@@ -133,6 +141,20 @@ async function mockAdminApi(page: Page, capturedMutations: CapturedMutation[]) {
     }
 
     if (path === '/api/v1/course/review/admin/reviews') {
+      if (nextReviewListErrorMessage) {
+        const message = nextReviewListErrorMessage;
+        nextReviewListErrorMessage = null;
+        await route.fulfill(
+          json({
+            success: false,
+            error: {
+              code: 'E2E_REVIEW_LIST_UNAVAILABLE',
+              message,
+            },
+          }),
+        );
+        return;
+      }
       await route.fulfill(list([pendingReview, hiddenReview]));
       return;
     }
@@ -142,11 +164,39 @@ async function mockAdminApi(page: Page, capturedMutations: CapturedMutation[]) {
         method,
         body: parseJsonBody(route),
       });
+      if (nextReviewActionErrorMessage) {
+        const message = nextReviewActionErrorMessage;
+        nextReviewActionErrorMessage = null;
+        await route.fulfill(
+          json({
+            success: false,
+            error: {
+              code: 'E2E_REVIEW_ACTION_REJECTED',
+              message,
+            },
+          }),
+        );
+        return;
+      }
       await route.fulfill(ok({ ...pendingReview, status: 'published' }));
       return;
     }
 
     if (path === '/api/v1/course/review/admin/reports') {
+      if (nextReportListErrorMessage) {
+        const message = nextReportListErrorMessage;
+        nextReportListErrorMessage = null;
+        await route.fulfill(
+          json({
+            success: false,
+            error: {
+              code: 'E2E_REPORT_LIST_UNAVAILABLE',
+              message,
+            },
+          }),
+        );
+        return;
+      }
       await route.fulfill(list([pendingReport]));
       return;
     }
@@ -156,11 +206,39 @@ async function mockAdminApi(page: Page, capturedMutations: CapturedMutation[]) {
         method,
         body: parseJsonBody(route),
       });
+      if (nextReportActionErrorMessage) {
+        const message = nextReportActionErrorMessage;
+        nextReportActionErrorMessage = null;
+        await route.fulfill(
+          json({
+            success: false,
+            error: {
+              code: 'E2E_REPORT_ACTION_REJECTED',
+              message,
+            },
+          }),
+        );
+        return;
+      }
       await route.fulfill(ok({ ...pendingReport, status: 'rejected' }));
       return;
     }
 
     if (path === '/api/v1/admin/identities') {
+      if (nextIdentityReviewListErrorMessage) {
+        const message = nextIdentityReviewListErrorMessage;
+        nextIdentityReviewListErrorMessage = null;
+        await route.fulfill(
+          json({
+            success: false,
+            error: {
+              code: 'E2E_IDENTITY_REVIEW_LIST_UNAVAILABLE',
+              message,
+            },
+          }),
+        );
+        return;
+      }
       await route.fulfill(list(identityReviews));
       return;
     }
@@ -170,6 +248,24 @@ async function mockAdminApi(page: Page, capturedMutations: CapturedMutation[]) {
         method,
         body: parseJsonBody(route),
       });
+      if (nextIdentityReviewActionErrorMessage) {
+        const message = nextIdentityReviewActionErrorMessage;
+        nextIdentityReviewActionErrorMessage = null;
+        await route.fulfill(
+          json({
+            success: false,
+            error: {
+              code: 'E2E_IDENTITY_REVIEW_CONFLICT',
+              message,
+            },
+          }),
+        );
+        return;
+      }
+      if (nextIdentityReviewActionDelay) {
+        await nextIdentityReviewActionDelay;
+        nextIdentityReviewActionDelay = null;
+      }
       await route.fulfill(ok({ ...identityReviews[0], verified: true }));
       return;
     }
@@ -194,7 +290,31 @@ test.describe('Admin management actions', () => {
 
   test.beforeEach(async ({ page }) => {
     capturedMutations = [];
+    nextIdentityReviewListErrorMessage = null;
+    nextIdentityReviewActionErrorMessage = null;
+    nextIdentityReviewActionDelay = null;
+    nextReportListErrorMessage = null;
+    nextReportActionErrorMessage = null;
+    nextReviewListErrorMessage = null;
+    nextReviewActionErrorMessage = null;
     await mockAdminApi(page, capturedMutations);
+  });
+
+  test('review list failures show a persistent retry path', async ({
+    page,
+  }) => {
+    nextReviewListErrorMessage = '评课审核列表暂不可用';
+
+    await page.goto('/content/reviews');
+
+    const loadError = page.locator('.admin-load-error', {
+      hasText: '评课审核列表暂不可用',
+    });
+    await expect(loadError).toBeVisible();
+    await expect(page.getByText('待审评课标题')).toHaveCount(0);
+    await loadError.getByRole('button', { name: /重试|Retry/ }).click();
+    await expect(page.getByText('待审评课标题')).toBeVisible();
+    await expect(loadError).toHaveCount(0);
   });
 
   test('review moderation buttons send the expected update actions', async ({
@@ -224,6 +344,42 @@ test.describe('Admin management actions', () => {
         method: 'PUT',
         body: { action: 'restore' },
       });
+  });
+
+  test('review moderation failures preserve backend error detail', async ({
+    page,
+  }) => {
+    nextReviewActionErrorMessage = '评课审核状态已被其他管理员更新';
+
+    await page.goto('/content/reviews');
+
+    const pendingRow = page.getByRole('row', { name: /待审评课标题/ });
+    await expect(pendingRow).toBeVisible();
+    await pendingRow.getByRole('button', { name: /通过|Approve/ }).click();
+    await confirmPopconfirm(page);
+
+    const actionError = page.locator('.admin-load-error', {
+      hasText: '评课审核状态已被其他管理员更新',
+    });
+    await expect(actionError).toBeVisible();
+    await expect(page.getByText('请求失败，请稍后重试')).toHaveCount(0);
+  });
+
+  test('report list failures show a persistent retry path', async ({
+    page,
+  }) => {
+    nextReportListErrorMessage = '举报列表暂不可用';
+
+    await page.goto('/content/reports');
+
+    const loadError = page.locator('.admin-load-error', {
+      hasText: '举报列表暂不可用',
+    });
+    await expect(loadError).toBeVisible();
+    await expect(page.getByText('举报理由：疑似广告')).toHaveCount(0);
+    await loadError.getByRole('button', { name: /重试|Retry/ }).click();
+    await expect(page.getByText('举报理由：疑似广告')).toBeVisible();
+    await expect(loadError).toHaveCount(0);
   });
 
   test('report handling buttons send reject and review disposition actions', async ({
@@ -258,6 +414,42 @@ test.describe('Admin management actions', () => {
       });
   });
 
+  test('report handling failures preserve backend error detail', async ({
+    page,
+  }) => {
+    nextReportActionErrorMessage = '举报处理状态已被其他管理员更新';
+
+    await page.goto('/content/reports');
+
+    const reportRow = page.getByRole('row', { name: /举报理由：疑似广告/ });
+    await expect(reportRow).toBeVisible();
+    await reportRow.getByRole('button', { name: /驳回|Reject/ }).click();
+    await confirmPopconfirm(page);
+
+    const actionError = page.locator('.admin-load-error', {
+      hasText: '举报处理状态已被其他管理员更新',
+    });
+    await expect(actionError).toBeVisible();
+    await expect(page.getByText('请求失败，请稍后重试')).toHaveCount(0);
+  });
+
+  test('identity review list failures show a persistent retry path', async ({
+    page,
+  }) => {
+    nextIdentityReviewListErrorMessage = '实名认证审核列表暂不可用';
+
+    await page.goto('/users/identity-review');
+
+    const loadError = page.locator('.admin-load-error', {
+      hasText: '实名认证审核列表暂不可用',
+    });
+    await expect(loadError).toBeVisible();
+    await expect(page.getByText('张三')).toHaveCount(0);
+    await loadError.getByRole('button', { name: /重试|Retry/ }).click();
+    await expect(page.getByText('张三')).toBeVisible();
+    await expect(loadError).toHaveCount(0);
+  });
+
   test('identity review buttons submit approve and reject decisions', async ({
     page,
   }) => {
@@ -267,10 +459,18 @@ test.describe('Admin management actions', () => {
     await expect(approveRow).toBeVisible();
     await approveRow.getByRole('button', { name: /通过|Approve/ }).click();
     await confirmPopconfirm(page);
+    await expect(page.getByText('实名认证已通过')).toBeVisible();
 
     const rejectRow = page.getByRole('row', { name: /李四/ });
     await rejectRow.getByRole('button', { name: /驳回|Reject/ }).click();
-    await confirmPopconfirm(page);
+    const rejectDialog = page.getByRole('dialog', {
+      name: /驳回实名认证|Reject Identity Verification/,
+    });
+    await rejectDialog
+      .getByPlaceholder(/请输入驳回原因|Enter rejection reason/)
+      .fill('证件照片与姓名不一致');
+    await rejectDialog.getByRole('button', { name: /确定|Confirm/ }).click();
+    await expect(page.getByText('实名认证已驳回')).toBeVisible();
 
     await expect
       .poll(() => capturedMutations)
@@ -284,7 +484,102 @@ test.describe('Admin management actions', () => {
       .toContainEqual({
         path: '/api/v1/admin/identities/13',
         method: 'PUT',
-        body: { approved: false },
+        body: {
+          approved: false,
+          rejectionReason: '证件照片与姓名不一致',
+        },
+      });
+  });
+
+  test('identity review action loading stays scoped to the active row', async ({
+    page,
+  }) => {
+    let releaseReview!: () => void;
+    nextIdentityReviewActionDelay = new Promise<void>((resolve) => {
+      releaseReview = resolve;
+    });
+
+    await page.goto('/users/identity-review');
+
+    const activeRow = page.getByRole('row', { name: /张三/ });
+    const otherRow = page.getByRole('row', { name: /李四/ });
+    await expect(activeRow).toBeVisible();
+    await expect(otherRow).toBeVisible();
+
+    const activeApprove = activeRow.locator('[data-action="approve"]');
+    await activeApprove.click();
+    await confirmPopconfirm(page);
+
+    await expect(activeApprove).toBeDisabled();
+    await expect(activeRow.locator('[data-action="reject"]')).toBeDisabled();
+    await expect(otherRow.locator('[data-action="approve"]')).toBeEnabled();
+    await expect(otherRow.locator('[data-action="reject"]')).toBeEnabled();
+
+    releaseReview();
+    await expect(page.getByText('实名认证已通过')).toBeVisible();
+  });
+
+  test('identity review action failures preserve backend error detail', async ({
+    page,
+  }) => {
+    nextIdentityReviewActionErrorMessage = '实名认证已被其他管理员处理';
+
+    await page.goto('/users/identity-review');
+
+    const approveRow = page.getByRole('row', { name: /张三/ });
+    await expect(approveRow).toBeVisible();
+    await approveRow.getByRole('button', { name: /通过|Approve/ }).click();
+    await confirmPopconfirm(page);
+
+    const actionError = page.locator('.admin-load-error', {
+      hasText: '实名认证已被其他管理员处理',
+    });
+    await expect(actionError).toBeVisible();
+    await expect(page.getByText('请求失败，请稍后重试')).toHaveCount(0);
+    await expect
+      .poll(() => capturedMutations)
+      .toContainEqual({
+        path: '/api/v1/admin/identities/12',
+        method: 'PUT',
+        body: { approved: true },
+      });
+  });
+
+  test('identity review reject failures keep the rejection dialog draft', async ({
+    page,
+  }) => {
+    nextIdentityReviewActionErrorMessage = '实名认证驳回失败';
+
+    await page.goto('/users/identity-review');
+
+    const rejectRow = page.getByRole('row', { name: /李四/ });
+    await expect(rejectRow).toBeVisible();
+    await rejectRow.getByRole('button', { name: /驳回|Reject/ }).click();
+    const rejectDialog = page.getByRole('dialog', {
+      name: /驳回实名认证|Reject Identity Verification/,
+    });
+    const reasonInput = rejectDialog.getByPlaceholder(
+      /请输入驳回原因|Enter rejection reason/,
+    );
+    await reasonInput.fill('证件照片与姓名不一致');
+    await rejectDialog.getByRole('button', { name: /确定|Confirm/ }).click();
+
+    const actionError = page.locator('.admin-load-error', {
+      hasText: '实名认证驳回失败',
+    });
+    await expect(actionError).toBeVisible();
+    await expect(rejectDialog).toBeVisible();
+    await expect(reasonInput).toHaveValue('证件照片与姓名不一致');
+    await expect(page.getByText('请求失败，请稍后重试')).toHaveCount(0);
+    await expect
+      .poll(() => capturedMutations)
+      .toContainEqual({
+        path: '/api/v1/admin/identities/13',
+        method: 'PUT',
+        body: {
+          approved: false,
+          rejectionReason: '证件照片与姓名不一致',
+        },
       });
   });
 });

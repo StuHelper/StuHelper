@@ -281,9 +281,51 @@ describe('member-blacklist index view orchestration', () => {
     expect(apiMocks.listMemberBlacklist).toHaveBeenCalledTimes(1);
   });
 
+  it('ignores duplicate create submissions while the first request is pending', async () => {
+    let resolveCreate!: () => void;
+    apiMocks.createMemberBlacklist.mockReturnValueOnce(
+      new Promise<MemberBlacklistEntry>((resolve) => {
+        resolveCreate = () => resolve(sampleEntry);
+      }),
+    );
+    const wrapper = mount(IndexView, { global: { stubs: childStubs } });
+    await flushPromises();
+    apiMocks.listMemberBlacklist.mockClear();
+
+    const payload = {
+      platform: 'qq',
+      subjectType: 'qq_user',
+      subjectID: '20002',
+      scopeType: 'guild' as const,
+      guildID: 'guild-42',
+      source: 'manual_admin' as const,
+      reasonCode: 'manual_blacklist',
+      reasonText: 'spamming',
+      expiresAt: undefined,
+      metadata: { operatorInput: '20002' },
+    };
+    const dialog = wrapper.findComponent({ name: 'CreateBlacklistDialog' });
+    await dialog.vm.$emit('submit', payload);
+    await flushPromises();
+
+    expect(dialog.props('submitting')).toBe(true);
+
+    await dialog.vm.$emit('submit', payload);
+    await flushPromises();
+
+    expect(apiMocks.createMemberBlacklist).toHaveBeenCalledTimes(1);
+
+    resolveCreate();
+    await flushPromises();
+
+    expect(dialog.props('submitting')).toBe(false);
+    expect(apiMocks.listMemberBlacklist).toHaveBeenCalledTimes(1);
+  });
+
   it('forwards release-dialog submit to releaseMemberBlacklist with id and request shape', async () => {
     const wrapper = mount(IndexView, { global: { stubs: childStubs } });
     await flushPromises();
+    apiMocks.listMemberBlacklist.mockClear();
 
     const releasePayload = {
       id: 'entry-active',
@@ -292,9 +334,14 @@ describe('member-blacklist index view orchestration', () => {
         releaseReason: 'verified appeal',
       },
     };
+    const table = wrapper.findComponent({ name: 'BlacklistTable' });
+    await table.vm.$emit('release', sampleEntry);
+
     const releaseDialog = wrapper.findComponent({
       name: 'ReleaseBlacklistDialog',
     });
+    expect(releaseDialog.props('target')).toEqual(sampleEntry);
+
     await releaseDialog.vm.$emit('submit', releasePayload);
     await flushPromises();
 
@@ -302,7 +349,57 @@ describe('member-blacklist index view orchestration', () => {
       'entry-active',
       releasePayload.request,
     );
-    expect(messageMocks.success).toHaveBeenCalled();
+    expect(messageMocks.success).toHaveBeenCalledWith('已解除黑名单：10001');
+    expect(apiMocks.listMemberBlacklist).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores stale and duplicate release submissions', async () => {
+    let resolveRelease!: () => void;
+    apiMocks.releaseMemberBlacklist.mockReturnValueOnce(
+      new Promise<MemberBlacklistEntry>((resolve) => {
+        resolveRelease = () => resolve(sampleEntry);
+      }),
+    );
+    const wrapper = mount(IndexView, { global: { stubs: childStubs } });
+    await flushPromises();
+    apiMocks.listMemberBlacklist.mockClear();
+
+    const table = wrapper.findComponent({ name: 'BlacklistTable' });
+    await table.vm.$emit('release', sampleEntry);
+
+    const releaseDialog = wrapper.findComponent({
+      name: 'ReleaseBlacklistDialog',
+    });
+
+    await releaseDialog.vm.$emit('submit', {
+      id: 'stale-entry',
+      request: { releaseReasonCode: 'manual_pardon' },
+    });
+    await flushPromises();
+
+    expect(apiMocks.releaseMemberBlacklist).not.toHaveBeenCalled();
+
+    await releaseDialog.vm.$emit('submit', {
+      id: sampleEntry.id,
+      request: { releaseReasonCode: 'manual_pardon' },
+    });
+    await flushPromises();
+
+    expect(releaseDialog.props('submitting')).toBe(true);
+
+    await releaseDialog.vm.$emit('submit', {
+      id: sampleEntry.id,
+      request: { releaseReasonCode: 'manual_pardon' },
+    });
+    await flushPromises();
+
+    expect(apiMocks.releaseMemberBlacklist).toHaveBeenCalledTimes(1);
+
+    resolveRelease();
+    await flushPromises();
+
+    expect(releaseDialog.props('submitting')).toBe(false);
+    expect(apiMocks.listMemberBlacklist).toHaveBeenCalledTimes(1);
   });
 
   it('exposes canManage based on access codes', async () => {

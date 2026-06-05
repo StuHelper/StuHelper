@@ -161,4 +161,60 @@ describe('PersistentAdminTable', () => {
     ).not.toThrow();
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
+
+  it('keeps rendering when localStorage access is unavailable', () => {
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new DOMException('localStorage disabled', 'SecurityError');
+      },
+    });
+
+    expect(() =>
+      mount(PersistentAdminTable, {
+        ...mountOptions,
+        props: { tableKey: 'spec' },
+      }),
+    ).not.toThrow();
+  });
+
+  it('keeps rendering when stored widths cannot be read', () => {
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        ...createStorage(),
+        getItem() {
+          throw new DOMException('read blocked', 'SecurityError');
+        },
+      },
+    });
+
+    expect(() =>
+      mount(PersistentAdminTable, {
+        ...mountOptions,
+        props: { tableKey: 'spec' },
+      }),
+    ).not.toThrow();
+  });
+
+  it('keeps column dragging usable when stored widths cannot be written', async () => {
+    const storage = createStorage();
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        ...storage,
+        setItem() {
+          throw new DOMException('write blocked', 'QuotaExceededError');
+        },
+      },
+    });
+    const wrapper = mount(PersistentAdminTable, {
+      ...mountOptions,
+      props: { tableKey: 'spec' },
+    });
+
+    await expect(
+      wrapper.find('[data-stub="el-table"]').trigger('click'),
+    ).resolves.toBeUndefined();
+  });
 });

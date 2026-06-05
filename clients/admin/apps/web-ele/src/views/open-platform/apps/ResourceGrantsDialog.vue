@@ -56,7 +56,10 @@ const actionScopeMap: Record<
 
 const loading = ref(false);
 const actionLoading = ref(false);
+const loadError = ref('');
+const actionError = ref('');
 const grants = ref<OpenPlatformResourceGrant[]>([]);
+let fetchRequestSeq = 0;
 const selectedResourceType = ref<OpenPlatformResourceType>('resource_item');
 const draft = reactive<{
   actions: OpenPlatformResourceAccessAction[];
@@ -88,12 +91,20 @@ const canGrantResourceAccess = computed(
     props.app?.app.status === 'approved' && grantableActions.value.length > 0,
 );
 
+const canSubmitGrant = computed(
+  () => canGrantResourceAccess.value && !loadError.value,
+);
+
 watch(visible, (isVisible) => {
   if (!isVisible) {
+    fetchRequestSeq += 1;
+    loading.value = false;
     return;
   }
   selectedResourceType.value = 'resource_item';
   grants.value = [];
+  loadError.value = '';
+  actionError.value = '';
   resetDraft();
   void fetchGrants();
 });
@@ -103,6 +114,8 @@ watch(selectedResourceType, () => {
     return;
   }
   resetDraft();
+  loadError.value = '';
+  actionError.value = '';
   void fetchGrants();
 });
 
@@ -140,21 +153,28 @@ function grantUnavailableMessage() {
 }
 
 async function fetchGrants() {
+  const requestSeq = ++fetchRequestSeq;
   if (!props.app) {
     grants.value = [];
+    loading.value = false;
     return;
   }
   loading.value = true;
+  loadError.value = '';
   try {
     const result = await getOpenPlatformResourceGrants(
       props.app.app.id,
       selectedResourceType.value,
     );
+    if (requestSeq !== fetchRequestSeq) return;
     grants.value = result.grants;
-  } catch (_error) {
-    void _error;
+  } catch (error) {
+    if (requestSeq !== fetchRequestSeq) return;
+    loadError.value = adminErrorMessage(error);
   } finally {
-    loading.value = false;
+    if (requestSeq === fetchRequestSeq) {
+      loading.value = false;
+    }
   }
 }
 
@@ -162,8 +182,8 @@ async function submitGrant() {
   if (!props.app || actionLoading.value) {
     return;
   }
-  if (!canGrantResourceAccess.value) {
-    ElMessage.warning(grantUnavailableMessage());
+  if (!canSubmitGrant.value) {
+    ElMessage.warning(loadError.value || grantUnavailableMessage());
     return;
   }
   const resourceID = draft.resourceID.trim();
@@ -194,6 +214,7 @@ async function submitGrant() {
   };
 
   actionLoading.value = true;
+  actionError.value = '';
   try {
     const result = await grantOpenPlatformResourceAccess(
       props.app.app.id,
@@ -203,8 +224,8 @@ async function submitGrant() {
     ElMessage.success($t('admin.openPlatform.apps.resourceGranted'));
     resetDraft();
     await fetchGrants();
-  } catch (_error) {
-    void _error;
+  } catch (error) {
+    handleActionError(error);
   } finally {
     actionLoading.value = false;
   }
@@ -226,6 +247,7 @@ async function revokeGrant(grant: OpenPlatformResourceGrant) {
   };
 
   actionLoading.value = true;
+  actionError.value = '';
   try {
     const result = await revokeOpenPlatformResourceAccess(
       props.app.app.id,
@@ -234,11 +256,22 @@ async function revokeGrant(grant: OpenPlatformResourceGrant) {
     grants.value = result.grants;
     ElMessage.success($t('admin.openPlatform.apps.resourceRevoked'));
     await fetchGrants();
-  } catch (_error) {
-    void _error;
+  } catch (error) {
+    handleActionError(error);
   } finally {
     actionLoading.value = false;
   }
+}
+
+function handleActionError(error: unknown) {
+  actionError.value = adminErrorMessage(error);
+  ElMessage.error(actionError.value);
+}
+
+function adminErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message
+    ? error.message
+    : $t('admin.result.requestFailed');
 }
 
 async function promptRevokeReason(grant: OpenPlatformResourceGrant) {
@@ -307,11 +340,34 @@ async function promptRevokeReason(grant: OpenPlatformResourceGrant) {
         :title="grantUnavailableMessage()"
       />
 
+      <ElAlert
+        v-if="loadError"
+        class="open-platform-resource-grants__hint"
+        show-icon
+        type="error"
+        :closable="false"
+        :title="loadError"
+      >
+        <ElButton size="small" :loading="loading" @click="fetchGrants">
+          {{ $t('admin.common.retry') }}
+        </ElButton>
+      </ElAlert>
+
+      <ElAlert
+        v-if="actionError"
+        class="open-platform-resource-grants__hint"
+        show-icon
+        type="error"
+        :closable="true"
+        :title="actionError"
+        @close="actionError = ''"
+      />
+
       <ElForm class="open-platform-resource-grants__form" label-position="top">
         <ElFormItem :label="$t('admin.openPlatform.apps.resourceID')">
           <ElInput
             v-model="draft.resourceID"
-            :disabled="!canGrantResourceAccess || actionLoading"
+            :disabled="!canSubmitGrant || actionLoading"
             :placeholder="$t('admin.openPlatform.apps.resourceIDPlaceholder')"
           />
         </ElFormItem>
@@ -323,7 +379,7 @@ async function promptRevokeReason(grant: OpenPlatformResourceGrant) {
               :label="action"
               :value="action"
               :disabled="
-                !canGrantResourceAccess ||
+                !canSubmitGrant ||
                 !hasApprovedResourceScope(action) ||
                 actionLoading
               "
@@ -335,7 +391,7 @@ async function promptRevokeReason(grant: OpenPlatformResourceGrant) {
         <ElFormItem :label="$t('admin.openPlatform.apps.reasonTitle')" required>
           <ElInput
             v-model="draft.reason"
-            :disabled="!canGrantResourceAccess || actionLoading"
+            :disabled="!canSubmitGrant || actionLoading"
             :rows="2"
             :placeholder="
               $t('admin.openPlatform.apps.resourceGrantReasonPlaceholder')
@@ -346,7 +402,7 @@ async function promptRevokeReason(grant: OpenPlatformResourceGrant) {
         <ElFormItem>
           <ElButton
             type="primary"
-            :disabled="!canGrantResourceAccess"
+            :disabled="!canSubmitGrant"
             :loading="actionLoading"
             @click="submitGrant"
           >
@@ -396,7 +452,7 @@ async function promptRevokeReason(grant: OpenPlatformResourceGrant) {
               plain
               size="small"
               type="danger"
-              :disabled="actionLoading"
+              :disabled="actionLoading || Boolean(loadError)"
               @click="revokeGrant(row)"
             >
               {{ $t('admin.openPlatform.apps.revokeGrant') }}

@@ -4,22 +4,31 @@ import type { AdmissionPolicy } from '#/api/admin';
 import { onMounted, reactive, ref } from 'vue';
 
 import {
+  ElAlert,
   ElButton,
   ElDatePicker,
   ElForm,
   ElFormItem,
   ElInput,
   ElInputNumber,
+  ElMessage,
   ElSwitch,
 } from 'element-plus';
 
 import { listAdmissionPolicies, updateAdmissionPolicy } from '#/api/admin';
+import { $t } from '#/locales';
 
 import AdminContentLayout from '../../shared/AdminContentLayout.vue';
 
 const loading = ref(false);
+const loadError = ref('');
+const actionError = ref('');
 const policies = ref<AdmissionPolicy[]>([]);
 const managementGuildText = reactive<Record<string, string>>({});
+const savingPolicyIDs = reactive<Record<string, boolean>>({});
+let fetchRequestSeq = 0;
+
+const POLICY_DATETIME_FORMAT = 'YYYY-MM-DDTHH:mm:ssZ';
 
 const policyFieldLabels = {
   blacklistDurationSeconds: '自动拉黑时长（秒）',
@@ -59,15 +68,23 @@ function normalizePolicy(policy: AdmissionPolicyBoundary): AdmissionPolicy {
 }
 
 async function fetchData() {
+  const requestSeq = ++fetchRequestSeq;
   loading.value = true;
+  loadError.value = '';
   try {
     const data = await listAdmissionPolicies();
+    if (requestSeq !== fetchRequestSeq) return;
     policies.value = data.map((policy) => normalizePolicy(policy));
     for (const policy of policies.value) {
       managementGuildText[policy.id] = policy.managementGuildIDs.join('\n');
     }
+  } catch (error) {
+    if (requestSeq !== fetchRequestSeq) return;
+    loadError.value = adminErrorMessage(error);
   } finally {
-    loading.value = false;
+    if (requestSeq === fetchRequestSeq) {
+      loading.value = false;
+    }
   }
 }
 
@@ -79,11 +96,37 @@ function parseManagementGuildIDs(policyID: string) {
 }
 
 async function savePolicy(policy: AdmissionPolicy) {
-  await updateAdmissionPolicy({
-    ...policy,
-    managementGuildIDs: parseManagementGuildIDs(policy.id),
-  });
-  await fetchData();
+  if (savingPolicyIDs[policy.id]) {
+    return;
+  }
+
+  savingPolicyIDs[policy.id] = true;
+  actionError.value = '';
+  try {
+    await updateAdmissionPolicy({
+      ...policy,
+      managementGuildIDs: parseManagementGuildIDs(policy.id),
+    });
+    ElMessage.success(
+      `已保存 ${policy.platform.toUpperCase()} 群 ${policy.guildID} 入群认证策略`,
+    );
+    await fetchData();
+  } catch (error) {
+    handleActionError(error);
+  } finally {
+    savingPolicyIDs[policy.id] = false;
+  }
+}
+
+function handleActionError(error: unknown) {
+  actionError.value = adminErrorMessage(error);
+  ElMessage.error(actionError.value);
+}
+
+function adminErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message
+    ? error.message
+    : $t('admin.result.requestFailed');
 }
 
 onMounted(fetchData);
@@ -95,6 +138,29 @@ onMounted(fetchData);
     title="入群认证策略"
     :total="policies.length"
   >
+    <ElAlert
+      v-if="loadError"
+      class="admin-load-error"
+      type="error"
+      :closable="false"
+      show-icon
+      :title="loadError"
+    >
+      <ElButton size="small" :loading="loading" @click="fetchData">
+        {{ $t('admin.common.retry') }}
+      </ElButton>
+    </ElAlert>
+
+    <ElAlert
+      v-if="actionError"
+      class="admin-load-error"
+      type="error"
+      :closable="true"
+      show-icon
+      :title="actionError"
+      @close="actionError = ''"
+    />
+
     <div v-loading="loading" class="grid gap-4">
       <ElForm
         v-for="policy in policies"
@@ -117,12 +183,14 @@ onMounted(fetchData);
           <ElDatePicker
             v-model="policy.freshmanChannelClosesAt"
             type="datetime"
+            :value-format="POLICY_DATETIME_FORMAT"
           />
         </ElFormItem>
         <ElFormItem :label="policyFieldLabels.freshmanDefaultExpiresAt">
           <ElDatePicker
             v-model="policy.freshmanDefaultExpiresAt"
             type="datetime"
+            :value-format="POLICY_DATETIME_FORMAT"
           />
         </ElFormItem>
         <ElFormItem :label="policyFieldLabels.initialMuteDurationSeconds">
@@ -163,7 +231,14 @@ onMounted(fetchData);
         <ElFormItem :label="policyFieldLabels.forwardRawMaterialToQQ">
           <ElSwitch v-model="policy.forwardRawMaterialToQQ" />
         </ElFormItem>
-        <ElButton type="primary" @click="savePolicy(policy)">保存</ElButton>
+        <ElButton
+          type="primary"
+          :disabled="savingPolicyIDs[policy.id]"
+          :loading="savingPolicyIDs[policy.id]"
+          @click="savePolicy(policy)"
+        >
+          保存
+        </ElButton>
       </ElForm>
 
       <p class="text-sm text-slate-500">

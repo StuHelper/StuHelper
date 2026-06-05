@@ -3,7 +3,7 @@ import type { OpenPlatformDisclosureReport } from '#/api/admin';
 
 import { computed, onMounted, reactive, ref } from 'vue';
 
-import { ElButton, ElInputNumber, ElTag } from 'element-plus';
+import { ElAlert, ElButton, ElInputNumber, ElTag } from 'element-plus';
 
 import { getOpenPlatformDisclosureReport } from '#/api/admin';
 import { $t } from '#/locales';
@@ -29,6 +29,7 @@ const emptySummary: ReportSummary = {
 };
 
 const loading = ref(false);
+const loadError = ref('');
 const report = ref<OpenPlatformDisclosureReport>();
 const query = reactive({
   windowHours: 24,
@@ -41,6 +42,7 @@ const rateLimitDimensions = computed(
   () => report.value?.rateLimitDimensions ?? [],
 );
 const replayEvents = computed(() => report.value?.recentReplayEvents ?? []);
+let fetchRequestSeq = 0;
 
 const summaryItems = computed(() => [
   {
@@ -71,13 +73,22 @@ const summaryItems = computed(() => [
 ]);
 
 async function fetchReport() {
+  const requestSeq = ++fetchRequestSeq;
   loading.value = true;
+  loadError.value = '';
   try {
-    report.value = await getOpenPlatformDisclosureReport({
+    const data = await getOpenPlatformDisclosureReport({
       windowHours: query.windowHours,
     });
+    if (requestSeq !== fetchRequestSeq) return;
+    report.value = data;
+  } catch (error) {
+    if (requestSeq !== fetchRequestSeq) return;
+    loadError.value = adminErrorMessage(error);
   } finally {
-    loading.value = false;
+    if (requestSeq === fetchRequestSeq) {
+      loading.value = false;
+    }
   }
 }
 
@@ -121,6 +132,12 @@ function formatMetadata(metadata: Record<string, unknown>) {
   return JSON.stringify(metadata, null, 2);
 }
 
+function adminErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message
+    ? error.message
+    : $t('admin.result.requestFailed');
+}
+
 onMounted(fetchReport);
 </script>
 
@@ -142,6 +159,19 @@ onMounted(fetchReport);
         {{ $t('admin.common.query') }}
       </ElButton>
     </template>
+
+    <ElAlert
+      v-if="loadError"
+      class="admin-load-error"
+      type="error"
+      :closable="false"
+      show-icon
+      :title="loadError"
+    >
+      <ElButton size="small" :loading="loading" @click="fetchReport">
+        {{ $t('admin.common.retry') }}
+      </ElButton>
+    </ElAlert>
 
     <div v-loading="loading" class="open-platform-disclosure-report">
       <section class="open-platform-disclosure-report__summary">

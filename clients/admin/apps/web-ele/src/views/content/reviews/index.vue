@@ -4,7 +4,9 @@ import type { Review } from '#/api/admin';
 import { onMounted, reactive, ref } from 'vue';
 
 import {
+  ElAlert,
   ElButton,
+  ElMessage,
   ElOption,
   ElPagination,
   ElSelect,
@@ -28,6 +30,8 @@ const loading = ref(false);
 const actionLoading = ref(false);
 const reviews = ref<Review[]>([]);
 const total = ref(0);
+const loadError = ref('');
+const actionError = ref('');
 const query = reactive({
   page: 1,
   pageSize: 20,
@@ -38,6 +42,7 @@ const query = reactive({
     | 'pending_review'
     | 'published',
 });
+let fetchRequestSeq = 0;
 
 function averageRating(ratings: Record<string, number>) {
   const values = Object.values(ratings);
@@ -47,14 +52,27 @@ function averageRating(ratings: Record<string, number>) {
 }
 
 async function fetchData() {
+  const requestSeq = ++fetchRequestSeq;
   loading.value = true;
+  loadError.value = '';
   try {
     const data = await getReviewList(query);
+    if (requestSeq !== fetchRequestSeq) return;
     reviews.value = data.items;
     total.value = data.total;
+  } catch (error) {
+    if (requestSeq !== fetchRequestSeq) return;
+    loadError.value = adminErrorMessage(error);
   } finally {
-    loading.value = false;
+    if (requestSeq === fetchRequestSeq) {
+      loading.value = false;
+    }
   }
+}
+
+function resetPageAndFetch() {
+  query.page = 1;
+  void fetchData();
 }
 
 async function handleAction(
@@ -66,12 +84,12 @@ async function handleAction(
   }
 
   actionLoading.value = true;
+  actionError.value = '';
   try {
     await updateReview(reviewId, { action });
     await fetchData();
-  } catch (_error) {
-    void _error;
-    // 失败提示已由 unwrapData 统一处理。
+  } catch (error) {
+    handleActionError(error);
   } finally {
     actionLoading.value = false;
   }
@@ -99,6 +117,17 @@ const statusLabel = (status: string) => {
   return map[status] || status;
 };
 
+function adminErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message
+    ? error.message
+    : $t('admin.result.requestFailed');
+}
+
+function handleActionError(error: unknown) {
+  actionError.value = adminErrorMessage(error);
+  ElMessage.error(actionError.value);
+}
+
 onMounted(fetchData);
 </script>
 
@@ -113,7 +142,7 @@ onMounted(fetchData);
         class="admin-toolbar-control"
         :placeholder="$t('admin.common.status')"
         :teleported="false"
-        @change="fetchData"
+        @change="resetPageAndFetch"
       >
         <ElOption :label="$t('admin.common.all')" value="all" />
         <ElOption
@@ -133,10 +162,33 @@ onMounted(fetchData);
           value="deleted"
         />
       </ElSelect>
-      <ElButton type="primary" @click="fetchData">
+      <ElButton type="primary" @click="resetPageAndFetch">
         {{ $t('admin.common.query') }}
       </ElButton>
     </template>
+
+    <ElAlert
+      v-if="loadError"
+      class="admin-load-error"
+      type="error"
+      :closable="false"
+      show-icon
+      :title="loadError"
+    >
+      <ElButton size="small" :loading="loading" @click="fetchData">
+        {{ $t('admin.common.retry') }}
+      </ElButton>
+    </ElAlert>
+
+    <ElAlert
+      v-if="actionError"
+      class="admin-load-error"
+      type="error"
+      :closable="true"
+      show-icon
+      :title="actionError"
+      @close="actionError = ''"
+    />
 
     <PersistentAdminTable
       table-key="content.reviews"

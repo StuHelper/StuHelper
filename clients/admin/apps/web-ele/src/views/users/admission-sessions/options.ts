@@ -9,6 +9,8 @@ export type StatusFilter =
   | ''
   | NonNullable<NonNullable<ListAdmissionSessionsParams>['status']>;
 
+export type AdmissionSessionAction = 'cancel' | 'regenerate' | 'resend';
+
 export const STATUS_LABELS: Record<string, string> = {
   cancelled: '已取消',
   expired_kicked: '超时移出',

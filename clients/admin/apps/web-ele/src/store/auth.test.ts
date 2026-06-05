@@ -204,10 +204,12 @@ describe('useAuthStore', () => {
 
     await store.initSession();
 
-    expect(store.resolveScopedSchoolId('user:student:review', '')).toBe('4111010001');
-    expect(store.resolveScopedSchoolId('user:student:review', '4111010002')).toBe(
-      '4111010002',
+    expect(store.resolveScopedSchoolId('user:student:review', '')).toBe(
+      '4111010001',
     );
+    expect(
+      store.resolveScopedSchoolId('user:student:review', '4111010002'),
+    ).toBe('4111010002');
   });
 
   it('requires explicit school filters for multi-school scoped admins', async () => {
@@ -233,9 +235,9 @@ describe('useAuthStore', () => {
     expect(() =>
       store.resolveScopedSchoolId('user:student:review', ''),
     ).toThrow(SCHOOL_SCOPE_REQUIRED_ERROR);
-    expect(store.resolveScopedSchoolId('user:student:review', '4111010002')).toBe(
-      '4111010002',
-    );
+    expect(
+      store.resolveScopedSchoolId('user:student:review', '4111010002'),
+    ).toBe('4111010002');
   });
 
   it('keeps blank school filters for global student verification admins', async () => {

@@ -19,7 +19,7 @@ import {
 
 import { toIsoString } from './options';
 
-defineProps<{
+const props = defineProps<{
   submitting: boolean;
 }>();
 
@@ -77,7 +77,7 @@ function buildPayload(): MemberBlacklistCreateRequest {
 }
 
 function submit() {
-  if (!canSubmit.value) return;
+  if (props.submitting || !canSubmit.value) return;
   emit('submit', buildPayload());
 }
 </script>
@@ -130,8 +130,8 @@ function submit() {
       >
         <template #reference>
           <ElButton
-            :disabled="!canSubmit"
-            :loading="submitting"
+            :disabled="props.submitting || !canSubmit"
+            :loading="props.submitting"
             data-action="submitCreate"
             type="danger"
           >
@@ -141,8 +141,8 @@ function submit() {
       </ElPopconfirm>
       <ElButton
         v-else
-        :disabled="!canSubmit"
-        :loading="submitting"
+        :disabled="props.submitting || !canSubmit"
+        :loading="props.submitting"
         data-action="submitCreate"
         type="primary"
         @click="submit"

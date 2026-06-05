@@ -26,6 +26,7 @@ type SensitiveWordForm = {
 const props = defineProps<{
   form: SensitiveWordForm;
   isEdit: boolean;
+  loading?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -101,10 +102,10 @@ function submit() {
       </ElFormItem>
     </ElForm>
     <template #footer>
-      <ElButton @click="visible = false">
+      <ElButton :disabled="props.loading" @click="visible = false">
         {{ $t('admin.common.cancel') }}
       </ElButton>
-      <ElButton type="primary" @click="submit">
+      <ElButton type="primary" :loading="props.loading" @click="submit">
         {{ $t('admin.common.confirm') }}
       </ElButton>
     </template>

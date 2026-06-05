@@ -49,6 +49,8 @@ import ResourceGrantsDialog from './ResourceGrantsDialog.vue';
 
 const loading = ref(false);
 const actionLoading = ref(false);
+const loadError = ref('');
+const actionError = ref('');
 const importDialogVisible = ref(false);
 const importLoading = ref(false);
 const resourceGrantsDialogVisible = ref(false);
@@ -65,19 +67,28 @@ const query = reactive({
   pageSize: 20,
   status: 'pending' as OpenPlatformAppStatus,
 });
+let fetchRequestSeq = 0;
 
 const pendingApps = computed(
   () => apps.value.filter((item) => item.app.status === 'pending').length,
 );
 
 async function fetchData() {
+  const requestSeq = ++fetchRequestSeq;
   loading.value = true;
+  loadError.value = '';
   try {
     const data = await getOpenPlatformAppList(query);
+    if (requestSeq !== fetchRequestSeq) return;
     apps.value = data.items;
     total.value = data.total;
+  } catch (error) {
+    if (requestSeq !== fetchRequestSeq) return;
+    loadError.value = adminErrorMessage(error);
   } finally {
-    loading.value = false;
+    if (requestSeq === fetchRequestSeq) {
+      loading.value = false;
+    }
   }
 }
 
@@ -89,11 +100,12 @@ async function handleApproveScope(
     return;
   }
   actionLoading.value = true;
+  actionError.value = '';
   try {
     await approveOpenPlatformScope(app.app.id, scope);
     await fetchData();
-  } catch (_error) {
-    void _error;
+  } catch (error) {
+    handleActionError(error);
   } finally {
     actionLoading.value = false;
   }
@@ -111,11 +123,12 @@ async function handleRejectScope(
     return;
   }
   actionLoading.value = true;
+  actionError.value = '';
   try {
     await rejectOpenPlatformScope(app.app.id, scope, decisionNote);
     await fetchData();
-  } catch (_error) {
-    void _error;
+  } catch (error) {
+    handleActionError(error);
   } finally {
     actionLoading.value = false;
   }
@@ -126,6 +139,7 @@ async function handleApproveApp(app: OpenPlatformAppWithScopes) {
     return;
   }
   actionLoading.value = true;
+  actionError.value = '';
   try {
     const approved = await approveOpenPlatformApp(app.app.id);
     issuedSecret.value = {
@@ -134,8 +148,8 @@ async function handleApproveApp(app: OpenPlatformAppWithScopes) {
       secret: approved.clientSecret,
     };
     await fetchData();
-  } catch (_error) {
-    void _error;
+  } catch (error) {
+    handleActionError(error);
   } finally {
     actionLoading.value = false;
   }
@@ -148,6 +162,7 @@ async function handleImportCasdoorApp(
     return;
   }
   importLoading.value = true;
+  actionError.value = '';
   try {
     const imported = await importOpenPlatformCasdoorApp(payload);
     if (imported.clientSecret) {
@@ -166,8 +181,8 @@ async function handleImportCasdoorApp(
     importDialogVisible.value = false;
     query.status = 'approved';
     await fetchData();
-  } catch (_error) {
-    void _error;
+  } catch (error) {
+    handleActionError(error);
   } finally {
     importLoading.value = false;
   }
@@ -181,11 +196,12 @@ async function handleApproveRedirectURIRequest(
     return;
   }
   actionLoading.value = true;
+  actionError.value = '';
   try {
     await approveOpenPlatformRedirectURIRequest(app.app.id, requestID);
     await fetchData();
-  } catch (_error) {
-    void _error;
+  } catch (error) {
+    handleActionError(error);
   } finally {
     actionLoading.value = false;
   }
@@ -203,6 +219,7 @@ async function handleRejectRedirectURIRequest(
     return;
   }
   actionLoading.value = true;
+  actionError.value = '';
   try {
     await rejectOpenPlatformRedirectURIRequest(
       app.app.id,
@@ -210,8 +227,8 @@ async function handleRejectRedirectURIRequest(
       decisionNote,
     );
     await fetchData();
-  } catch (_error) {
-    void _error;
+  } catch (error) {
+    handleActionError(error);
   } finally {
     actionLoading.value = false;
   }
@@ -226,6 +243,7 @@ async function handleRotateSecret(app: OpenPlatformAppWithScopes) {
     return;
   }
   actionLoading.value = true;
+  actionError.value = '';
   try {
     const rotated = await rotateOpenPlatformAppSecret(app.app.id, reason);
     issuedSecret.value = {
@@ -234,8 +252,8 @@ async function handleRotateSecret(app: OpenPlatformAppWithScopes) {
       secret: rotated.clientSecret,
     };
     await fetchData();
-  } catch (_error) {
-    void _error;
+  } catch (error) {
+    handleActionError(error);
   } finally {
     actionLoading.value = false;
   }
@@ -250,11 +268,12 @@ async function handleSuspendApp(app: OpenPlatformAppWithScopes) {
     return;
   }
   actionLoading.value = true;
+  actionError.value = '';
   try {
     await suspendOpenPlatformApp(app.app.id, reason);
     await fetchData();
-  } catch (_error) {
-    void _error;
+  } catch (error) {
+    handleActionError(error);
   } finally {
     actionLoading.value = false;
   }
@@ -269,11 +288,12 @@ async function handleResumeApp(app: OpenPlatformAppWithScopes) {
     return;
   }
   actionLoading.value = true;
+  actionError.value = '';
   try {
     await resumeOpenPlatformApp(app.app.id, reason);
     await fetchData();
-  } catch (_error) {
-    void _error;
+  } catch (error) {
+    handleActionError(error);
   } finally {
     actionLoading.value = false;
   }
@@ -288,11 +308,12 @@ async function handleRevokeApp(app: OpenPlatformAppWithScopes) {
     return;
   }
   actionLoading.value = true;
+  actionError.value = '';
   try {
     await revokeOpenPlatformApp(app.app.id, reason);
     await fetchData();
-  } catch (_error) {
-    void _error;
+  } catch (error) {
+    handleActionError(error);
   } finally {
     actionLoading.value = false;
   }
@@ -301,6 +322,11 @@ async function handleRevokeApp(app: OpenPlatformAppWithScopes) {
 function handleOpenResourceGrants(app: OpenPlatformAppWithScopes) {
   resourceGrantsApp.value = app;
   resourceGrantsDialogVisible.value = true;
+}
+
+function handleActionError(error: unknown) {
+  actionError.value = adminErrorMessage(error);
+  ElMessage.error(actionError.value);
 }
 
 async function promptLifecycleReason(messageKey: string) {
@@ -342,7 +368,7 @@ async function promptDecisionNote(messageKey: string) {
   }
 }
 
-function handleStatusChange() {
+function resetPageAndFetch() {
   query.page = 1;
   void fetchData();
 }
@@ -415,6 +441,12 @@ function canManageResourceGrants(app: OpenPlatformAppWithScopes) {
   return app.app.status !== 'pending';
 }
 
+function adminErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message
+    ? error.message
+    : $t('admin.result.requestFailed');
+}
+
 function hasAvailableAction(app: OpenPlatformAppWithScopes) {
   return (
     pendingScopes(app).length > 0 ||
@@ -449,7 +481,7 @@ onMounted(fetchData);
           class="admin-toolbar-control"
           :placeholder="$t('admin.common.status')"
           :teleported="false"
-          @change="handleStatusChange"
+          @change="resetPageAndFetch"
         >
           <ElOption :label="$t('admin.common.all')" value="all" />
           <ElOption
@@ -469,7 +501,7 @@ onMounted(fetchData);
             value="revoked"
           />
         </ElSelect>
-        <ElButton type="primary" @click="fetchData">
+        <ElButton type="primary" @click="resetPageAndFetch">
           {{ $t('admin.common.query') }}
         </ElButton>
         <ElTag v-if="pendingApps > 0" type="warning">
@@ -499,6 +531,29 @@ onMounted(fetchData);
           <code>{{ issuedSecret.secret }}</code>
         </div>
       </ElAlert>
+
+      <ElAlert
+        v-if="loadError"
+        class="admin-load-error"
+        type="error"
+        :closable="false"
+        show-icon
+        :title="loadError"
+      >
+        <ElButton size="small" :loading="loading" @click="fetchData">
+          {{ $t('admin.common.retry') }}
+        </ElButton>
+      </ElAlert>
+
+      <ElAlert
+        v-if="actionError"
+        class="admin-load-error"
+        type="error"
+        :closable="true"
+        show-icon
+        :title="actionError"
+        @close="actionError = ''"
+      />
 
       <PersistentAdminTable
         table-key="open-platform.apps"

@@ -130,6 +130,10 @@ defineProps<{
   width: 200px;
 }
 
+.admin-load-error {
+  margin: 12px 20px 0;
+}
+
 @media (max-width: 768px) {
   .admin-content-page {
     padding: 12px;

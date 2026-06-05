@@ -7,6 +7,7 @@ import type {
 import { reactive, ref } from 'vue';
 
 import {
+  ElAlert,
   ElButton,
   ElInputNumber,
   ElMessage,
@@ -32,6 +33,8 @@ import {
 
 const loading = ref(false);
 const actionLoading = ref(false);
+const loadError = ref('');
+const actionError = ref('');
 const consents = ref<OpenPlatformAdminUserAuthorizedApp[]>([]);
 const total = ref(0);
 const query = reactive<{
@@ -43,17 +46,22 @@ const query = reactive<{
   page: 1,
   pageSize: 20,
 });
+let fetchRequestSeq = 0;
 
 async function fetchData() {
+  const requestSeq = ++fetchRequestSeq;
   const appID = normalizeOptionalID(query.appID);
   const userID = normalizeOptionalID(query.userID);
   if (!appID && !userID) {
+    loading.value = false;
+    loadError.value = '';
     ElMessage.warning($t('admin.openPlatform.consents.queryRequired'));
     consents.value = [];
     total.value = 0;
     return;
   }
   loading.value = true;
+  loadError.value = '';
   try {
     const data = await getOpenPlatformConsentList({
       appID,
@@ -61,10 +69,16 @@ async function fetchData() {
       pageSize: query.pageSize,
       userID,
     });
+    if (requestSeq !== fetchRequestSeq) return;
     consents.value = data.items;
     total.value = data.total;
+  } catch (error) {
+    if (requestSeq !== fetchRequestSeq) return;
+    loadError.value = adminErrorMessage(error);
   } finally {
-    loading.value = false;
+    if (requestSeq === fetchRequestSeq) {
+      loading.value = false;
+    }
   }
 }
 
@@ -124,6 +138,7 @@ async function handleRevokeConsent(
     return;
   }
   actionLoading.value = true;
+  actionError.value = '';
   try {
     await revokeOpenPlatformConsent({
       appID: item.app.id,
@@ -133,11 +148,18 @@ async function handleRevokeConsent(
     });
     ElMessage.success($t('admin.openPlatform.consents.revoked'));
     await fetchData();
-  } catch (_error) {
-    void _error;
+  } catch (error) {
+    actionError.value = adminErrorMessage(error);
+    ElMessage.error(actionError.value);
   } finally {
     actionLoading.value = false;
   }
+}
+
+function adminErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message
+    ? error.message
+    : $t('admin.result.requestFailed');
 }
 </script>
 
@@ -165,6 +187,29 @@ async function handleRevokeConsent(
         {{ $t('admin.common.query') }}
       </ElButton>
     </template>
+
+    <ElAlert
+      v-if="loadError"
+      class="admin-load-error"
+      type="error"
+      :closable="false"
+      show-icon
+      :title="loadError"
+    >
+      <ElButton size="small" :loading="loading" @click="fetchData">
+        {{ $t('admin.common.retry') }}
+      </ElButton>
+    </ElAlert>
+
+    <ElAlert
+      v-if="actionError"
+      class="admin-load-error"
+      type="error"
+      :closable="true"
+      show-icon
+      :title="actionError"
+      @close="actionError = ''"
+    />
 
     <PersistentAdminTable
       v-loading="loading"

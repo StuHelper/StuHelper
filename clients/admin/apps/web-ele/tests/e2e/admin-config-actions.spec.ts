@@ -5,6 +5,8 @@ import { expect, test } from './fixtures';
 const capabilities = [
   'user:school:read',
   'user:school:update',
+  'user:system:read',
+  'user:system:update',
   'admission:policy:update',
 ];
 
@@ -29,10 +31,19 @@ const adminUser = {
 };
 
 const schoolConfig = {
-  schoolID: 4111010006,
+  approvalPolicy: 'auto',
+  schoolID: 4_111_010_006,
+  schoolCode: '4111010006',
   schoolName: '测试大学',
   verificationMethod: 'ldap',
   enabled: true,
+  schoolSsoEnabled: true,
+  schoolEmailOtpEnabled: true,
+  schoolEmailIdentityPolicy: {
+    type: 'academic_student_email',
+    studentIDEmailDomain: 'buaa.edu.cn',
+    requireStudentName: true,
+  },
   academicDbTable: 'academic_students',
   consentText: '仅用于学生身份认证',
   ldapConfig: {
@@ -41,6 +52,13 @@ const schoolConfig = {
     systemBindDN: 'cn=reader,dc=example,dc=com',
     useTLS: true,
   },
+};
+
+const systemConfig = {
+  key: 'review.retention_days',
+  value: '90',
+  description: '评课数据保留天数',
+  updatedAt: '2026-06-03T00:00:00Z',
 };
 
 const admissionPolicy = {
@@ -68,6 +86,13 @@ interface CapturedMutation {
   method: string;
   path: string;
 }
+
+let nextSchoolConfigListErrorMessage: null | string = null;
+let nextSchoolConfigUpdateErrorMessage: null | string = null;
+let nextSystemConfigListErrorMessage: null | string = null;
+let nextSystemConfigUpdateErrorMessage: null | string = null;
+let nextAdmissionPolicyListErrorMessage: null | string = null;
+let nextAdmissionPolicyUpdateErrorMessage: null | string = null;
 
 function json(data: unknown, status = 200) {
   return {
@@ -99,21 +124,115 @@ async function mockAdminApi(page: Page, capturedMutations: CapturedMutation[]) {
     }
 
     if (path === '/api/v1/admin/school-configs') {
+      if (nextSchoolConfigListErrorMessage) {
+        const message = nextSchoolConfigListErrorMessage;
+        nextSchoolConfigListErrorMessage = null;
+        await route.fulfill(
+          json({
+            success: false,
+            error: {
+              code: 'E2E_SCHOOL_CONFIG_LIST_UNAVAILABLE',
+              message,
+            },
+          }),
+        );
+        return;
+      }
       await route.fulfill(ok([schoolConfig]));
       return;
     }
     if (path.startsWith('/api/v1/admin/school-configs/')) {
       capturedMutations.push({ path, method, body: parseJsonBody(route) });
+      if (nextSchoolConfigUpdateErrorMessage) {
+        const message = nextSchoolConfigUpdateErrorMessage;
+        nextSchoolConfigUpdateErrorMessage = null;
+        await route.fulfill(
+          json({
+            success: false,
+            error: {
+              code: 'E2E_SCHOOL_CONFIG_UPDATE_REJECTED',
+              message,
+            },
+          }),
+        );
+        return;
+      }
       await route.fulfill(ok(schoolConfig));
       return;
     }
 
+    if (path === '/api/v1/admin/system-configs') {
+      if (nextSystemConfigListErrorMessage) {
+        const message = nextSystemConfigListErrorMessage;
+        nextSystemConfigListErrorMessage = null;
+        await route.fulfill(
+          json({
+            success: false,
+            error: {
+              code: 'E2E_SYSTEM_CONFIG_LIST_UNAVAILABLE',
+              message,
+            },
+          }),
+        );
+        return;
+      }
+      await route.fulfill(ok([systemConfig]));
+      return;
+    }
+    if (path.startsWith('/api/v1/admin/system-configs/')) {
+      capturedMutations.push({ path, method, body: parseJsonBody(route) });
+      if (nextSystemConfigUpdateErrorMessage) {
+        const message = nextSystemConfigUpdateErrorMessage;
+        nextSystemConfigUpdateErrorMessage = null;
+        await route.fulfill(
+          json({
+            success: false,
+            error: {
+              code: 'E2E_SYSTEM_CONFIG_UPDATE_REJECTED',
+              message,
+            },
+          }),
+        );
+        return;
+      }
+      await route.fulfill(ok({ ...systemConfig, value: '180' }));
+      return;
+    }
+
     if (path === '/api/v1/admin/admission/policies') {
+      if (nextAdmissionPolicyListErrorMessage) {
+        const message = nextAdmissionPolicyListErrorMessage;
+        nextAdmissionPolicyListErrorMessage = null;
+        await route.fulfill(
+          json({
+            success: false,
+            error: {
+              code: 'E2E_ADMISSION_POLICY_LIST_UNAVAILABLE',
+              message,
+            },
+          }),
+        );
+        return;
+      }
       await route.fulfill(ok([admissionPolicy]));
       return;
     }
     if (path.startsWith('/api/v1/admin/admission/policies/')) {
       capturedMutations.push({ path, method, body: parseJsonBody(route) });
+      if (nextAdmissionPolicyUpdateErrorMessage) {
+        const message = nextAdmissionPolicyUpdateErrorMessage;
+        nextAdmissionPolicyUpdateErrorMessage = null;
+        await route.fulfill(
+          json({
+            success: false,
+            error: {
+              code: 'E2E_ADMISSION_POLICY_UPDATE_REJECTED',
+              message,
+            },
+          }),
+        );
+        return;
+      }
       await route.fulfill(ok(admissionPolicy));
       return;
     }
@@ -138,7 +257,30 @@ test.describe('Admin configuration actions', () => {
 
   test.beforeEach(async ({ page }) => {
     capturedMutations = [];
+    nextSchoolConfigListErrorMessage = null;
+    nextSchoolConfigUpdateErrorMessage = null;
+    nextSystemConfigListErrorMessage = null;
+    nextSystemConfigUpdateErrorMessage = null;
+    nextAdmissionPolicyListErrorMessage = null;
+    nextAdmissionPolicyUpdateErrorMessage = null;
     await mockAdminApi(page, capturedMutations);
+  });
+
+  test('school config list failures show a persistent retry path', async ({
+    page,
+  }) => {
+    nextSchoolConfigListErrorMessage = '学校配置目录暂不可用';
+
+    await page.goto('/users/school-config');
+
+    const loadError = page.locator('.admin-load-error', {
+      hasText: '学校配置目录暂不可用',
+    });
+    await expect(loadError).toBeVisible();
+    await expect(page.getByText('测试大学')).toHaveCount(0);
+    await loadError.getByRole('button', { name: /重试|Retry/ }).click();
+    await expect(page.getByText('测试大学')).toBeVisible();
+    await expect(loadError).toHaveCount(0);
   });
 
   test('school config dialog submits LDAP settings and password updates', async ({
@@ -154,6 +296,8 @@ test.describe('Admin configuration actions', () => {
 
     const dialog = page.getByRole('dialog', { name: /编辑学校配置/ });
     await dialog.getByPlaceholder('请输入学校名称').fill('测试大学新校区');
+    await dialog.locator('.el-select').nth(1).click();
+    await page.getByRole('option', { name: '人工审核' }).click();
     await dialog
       .getByPlaceholder('例如 ldaps://ldap.example.edu:636')
       .fill('ldaps://ldap.new.example.edu:636');
@@ -177,6 +321,7 @@ test.describe('Admin configuration actions', () => {
         method: 'PUT',
         body: {
           academicDbTable: 'academic_records_new',
+          approvalPolicy: 'manual',
           consentText: '新同意书文案',
           enabled: true,
           ldapConfig: {
@@ -190,6 +335,75 @@ test.describe('Admin configuration actions', () => {
           verificationMethod: 'ldap',
         },
       });
+  });
+
+  test('school config update failures preserve backend error detail', async ({
+    page,
+  }) => {
+    nextSchoolConfigUpdateErrorMessage = '学校配置保存被后台拒绝';
+
+    await page.goto('/users/school-config');
+
+    await expect(page.getByText('测试大学')).toBeVisible();
+    await page
+      .getByRole('row', { name: /测试大学/ })
+      .getByRole('button', { name: /编辑|Edit/ })
+      .click();
+
+    const dialog = page.getByRole('dialog', { name: /编辑学校配置/ });
+    await dialog.getByPlaceholder('请输入学校名称').fill('失败学校');
+    await dialog.getByRole('button', { name: /保存|Save/ }).click();
+
+    const actionError = page.locator('.admin-load-error', {
+      hasText: '学校配置保存被后台拒绝',
+    });
+    await expect(actionError).toBeVisible();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByPlaceholder('请输入学校名称')).toHaveValue(
+      '失败学校',
+    );
+    await expect(page.getByText('请求失败，请稍后重试')).toHaveCount(0);
+  });
+
+  test('system config list failures show a persistent retry path', async ({
+    page,
+  }) => {
+    nextSystemConfigListErrorMessage = '系统配置列表暂不可用';
+
+    await page.goto('/users/system-config');
+
+    const loadError = page.locator('.admin-load-error', {
+      hasText: '系统配置列表暂不可用',
+    });
+    await expect(loadError).toBeVisible();
+    await expect(page.getByText('review.retention_days')).toHaveCount(0);
+    await loadError.getByRole('button', { name: /重试|Retry/ }).click();
+    await expect(page.getByText('review.retention_days')).toBeVisible();
+    await expect(loadError).toHaveCount(0);
+  });
+
+  test('system config update failures preserve backend error detail', async ({
+    page,
+  }) => {
+    nextSystemConfigUpdateErrorMessage = '系统配置保存被后台拒绝';
+
+    await page.goto('/users/system-config');
+
+    const configRow = page.getByRole('row', { name: /review\.retention_days/ });
+    await expect(configRow).toBeVisible();
+    await configRow.getByRole('button', { name: /编辑|Edit/ }).click();
+
+    const dialog = page.getByRole('dialog', { name: /编辑配置|Edit/ });
+    await dialog.getByPlaceholder('请输入配置值').fill('180');
+    await dialog.getByRole('button', { name: /保存|Save/ }).click();
+
+    const actionError = page.locator('.admin-load-error', {
+      hasText: '系统配置保存被后台拒绝',
+    });
+    await expect(actionError).toBeVisible();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByPlaceholder('请输入配置值')).toHaveValue('180');
+    await expect(page.getByText('请求失败，请稍后重试')).toHaveCount(0);
   });
 
   test('admission policy save serializes numeric fields and guild list', async ({
@@ -215,6 +429,9 @@ test.describe('Admin configuration actions', () => {
       .getByPlaceholder('每行一个群号')
       .fill('guild-admin\nguild-ops');
     await policyForm.getByRole('button', { name: '保存' }).click();
+    await expect(
+      page.getByText('已保存 QQ 群 guild-1 入群认证策略'),
+    ).toBeVisible();
 
     await expect
       .poll(() =>
@@ -228,11 +445,57 @@ test.describe('Admin configuration actions', () => {
         method: 'PUT',
         body: expect.objectContaining({
           id: 'policy-qq-1',
+          freshmanChannelClosesAt: '2026-09-01T00:00:00Z',
+          freshmanDefaultExpiresAt: '2026-10-01T00:00:00Z',
           linkWaitSeconds: 450,
           failedJoinLimit: 5,
           maxExtensionDays: 45,
           managementGuildIDs: ['guild-admin', 'guild-ops'],
         }),
       });
+  });
+
+  test('admission policy save failures preserve backend error detail', async ({
+    page,
+  }) => {
+    nextAdmissionPolicyUpdateErrorMessage = '入群策略保存被后台拒绝';
+
+    await page.goto('/users/admission-policy');
+
+    const policyForm = page
+      .locator('form')
+      .filter({ hasText: 'QQ 群 guild-1' });
+    await expect(policyForm).toBeVisible();
+    await policyForm
+      .getByRole('spinbutton', { name: '绑定链接等待（秒）' })
+      .fill('450');
+    await policyForm.getByRole('button', { name: '保存' }).click();
+
+    const actionError = page.locator('.admin-load-error', {
+      hasText: '入群策略保存被后台拒绝',
+    });
+    await expect(actionError).toBeVisible();
+    await expect(policyForm).toBeVisible();
+    await expect(
+      policyForm.getByRole('spinbutton', { name: '绑定链接等待（秒）' }),
+    ).toHaveValue('450');
+    await expect(page.getByText('请求失败，请稍后重试')).toHaveCount(0);
+  });
+
+  test('admission policy list failures show a persistent retry path', async ({
+    page,
+  }) => {
+    nextAdmissionPolicyListErrorMessage = '入群认证策略暂不可用';
+
+    await page.goto('/users/admission-policy');
+
+    const loadError = page.locator('.admin-load-error', {
+      hasText: '入群认证策略暂不可用',
+    });
+    await expect(loadError).toBeVisible();
+    await expect(page.getByText('QQ 群 guild-1')).toHaveCount(0);
+    await loadError.getByRole('button', { name: /重试|Retry/ }).click();
+    await expect(page.getByText('QQ 群 guild-1')).toBeVisible();
+    await expect(loadError).toHaveCount(0);
   });
 });

@@ -94,6 +94,14 @@ const baseSession: AdmissionSession = {
   authURL: 'https://join.stuhelper.com/verify/token',
 };
 
+const alternateSession: AdmissionSession = {
+  ...baseSession,
+  id: 'session-2',
+  qqID: '1390191646',
+  userID: '43',
+  authURL: 'https://join.stuhelper.com/verify/token-2',
+};
+
 describe('AdmissionSessionFilters', () => {
   it('emits search/reset and includes runtime filter fields', async () => {
     const wrapper = mount(AdmissionSessionFilters, {
@@ -168,6 +176,62 @@ describe('AdmissionSessionTable', () => {
 
     await wrapper.find('[data-action="requestCancel"]').trigger('click');
     expect(wrapper.emitted('requestCancel')?.[0]).toEqual([baseSession.id]);
+  });
+
+  it('disables only the active session row while an action is running', () => {
+    const wrapper = mount(AdmissionSessionTable, {
+      props: {
+        actionLoadingById: { [baseSession.id]: 'resend' },
+        canManage: true,
+        items: [baseSession, alternateSession],
+        loading: false,
+        page: 1,
+        pageSize: 20,
+        total: 2,
+      },
+      global: { stubs: tableStubs },
+    });
+
+    const rows = wrapper.findAll('[data-stub="el-row"]');
+    const activeRow = rows[0];
+    const otherRow = rows[1];
+    if (!activeRow || !otherRow) {
+      throw new Error('expected two session rows');
+    }
+
+    const activeResend = activeRow.find('[data-action="requestResend"]');
+    expect((activeResend.element as HTMLButtonElement).disabled).toBe(true);
+    expect(activeResend.classes()).toContain('is-loading');
+    expect(
+      (
+        activeRow.find('[data-action="requestRegenerate"]')
+          .element as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (
+        activeRow.find('[data-action="requestCancel"]')
+          .element as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (
+        otherRow.find('[data-action="requestResend"]')
+          .element as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+    expect(
+      (
+        otherRow.find('[data-action="requestRegenerate"]')
+          .element as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+    expect(
+      (
+        otherRow.find('[data-action="requestCancel"]')
+          .element as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
   });
 
   it('hides management actions for read-only operators', () => {

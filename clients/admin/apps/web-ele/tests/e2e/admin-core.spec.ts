@@ -89,10 +89,14 @@ const stats = {
 };
 
 const schoolConfig = {
-  schoolID: 4111010006,
+  approvalPolicy: 'manual',
+  schoolID: 4_111_010_006,
+  schoolCode: '4111010006',
   schoolName: '只读大学',
   verificationMethod: 'ldap',
   enabled: true,
+  schoolSsoEnabled: false,
+  schoolEmailOtpEnabled: false,
   academicDbTable: 'academic_students',
   consentText: '只读认证授权说明',
   ldapConfig: {
@@ -221,6 +225,47 @@ test.describe('Admin core shell routes', () => {
     await expect(page.getByText('由身份提供商管理')).toBeVisible();
   });
 
+  test('profile route load failures show a persistent retry path', async ({
+    page,
+  }) => {
+    let authMeCalls = 0;
+    await page.route('**/api/v1/auth/me', async (route) => {
+      authMeCalls += 1;
+      if (authMeCalls === 2) {
+        await route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: false,
+            error: {
+              code: 'E2E_PROFILE_UNAVAILABLE',
+              message: 'profile temporarily unavailable',
+            },
+          }),
+        });
+        return;
+      }
+
+      await route.fulfill(ok(adminUser));
+    });
+
+    await page.goto('/profile');
+
+    const loadError = page.locator('.admin-load-error', {
+      hasText: 'profile temporarily unavailable',
+    });
+    await expect(loadError).toBeVisible();
+    await expect(
+      page.getByRole('cell', { name: 'platform-admin' }),
+    ).toHaveCount(0);
+
+    await loadError.getByRole('button', { name: /重试|Retry/ }).click();
+
+    await expect(
+      page.getByRole('cell', { name: 'platform-admin' }),
+    ).toBeVisible();
+    await expect(loadError).toHaveCount(0);
+  });
+
   test('user dropdown confirms logout and starts admin SSO login', async ({
     page,
   }) => {
@@ -338,6 +383,8 @@ test.describe('Admin user-system read-only capability boundaries', () => {
 
     await page.goto('/users/school-config');
     await expect(page.getByText('只读大学')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('人工审核')).toBeVisible();
+    await expect(page.getByText('未接入')).toBeVisible();
     await expect(page.getByText('ldap://readonly.example.com')).toBeVisible();
     await expect(page.getByRole('button', { name: /编辑|Edit/ })).toHaveCount(
       0,

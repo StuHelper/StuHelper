@@ -20,8 +20,23 @@ const accessMocks = vi.hoisted(() => ({
 }));
 
 const messageMocks = vi.hoisted(() => ({
+  error: vi.fn(),
   success: vi.fn(),
 }));
+
+function mockExecCommand(result: boolean, copiedText: string[] = []) {
+  const execCommand = vi.fn((command: string) => {
+    if (command === 'copy') {
+      copiedText.push(document.body.querySelector('textarea')?.value ?? '');
+    }
+    return result;
+  });
+  Object.defineProperty(document, 'execCommand', {
+    configurable: true,
+    value: execCommand,
+  });
+  return execCommand;
+}
 
 vi.mock('#/api/admin', () => ({
   cancelAdminAdmissionSession: apiMocks.cancelAdminAdmissionSession,
@@ -77,7 +92,15 @@ const childStubs = {
   },
   AdmissionSessionTable: {
     name: 'AdmissionSessionTable',
-    props: ['canManage', 'loading', 'items', 'total', 'page', 'pageSize'],
+    props: [
+      'actionLoadingById',
+      'canManage',
+      'loading',
+      'items',
+      'total',
+      'page',
+      'pageSize',
+    ],
     emits: [
       'copyAuthURL',
       'copyReissueCommand',
@@ -97,6 +120,7 @@ describe('admission sessions index view orchestration', () => {
     apiMocks.listAdmissionSessions.mockReset();
     apiMocks.regenerateAdminAdmissionSession.mockReset();
     apiMocks.resendAdminAdmissionSession.mockReset();
+    messageMocks.error.mockReset();
     messageMocks.success.mockReset();
     accessMocks.accessCodes = ['admission:session:manage'];
     apiMocks.listAdmissionSessions.mockResolvedValue({
@@ -114,6 +138,7 @@ describe('admission sessions index view orchestration', () => {
       configurable: true,
       value: { writeText: vi.fn().mockResolvedValue(undefined) },
     });
+    mockExecCommand(true);
   });
 
   it('fetches qq admission sessions on mount with the default query shape', async () => {
@@ -127,9 +152,9 @@ describe('admission sessions index view orchestration', () => {
       platform: 'qq',
     });
     expect(
-      wrapper.findComponent({ name: 'AdmissionSessionTable' }).props(
-        'canManage',
-      ),
+      wrapper
+        .findComponent({ name: 'AdmissionSessionTable' })
+        .props('canManage'),
     ).toBe(true);
   });
 
@@ -140,9 +165,9 @@ describe('admission sessions index view orchestration', () => {
     await flushPromises();
 
     expect(
-      wrapper.findComponent({ name: 'AdmissionSessionTable' }).props(
-        'canManage',
-      ),
+      wrapper
+        .findComponent({ name: 'AdmissionSessionTable' })
+        .props('canManage'),
     ).toBe(false);
   });
 
@@ -191,7 +216,13 @@ describe('admission sessions index view orchestration', () => {
     apiMocks.listAdmissionSessions.mockClear();
 
     const vm = wrapper.vm as unknown as {
-      query: { botSelfID: string; guildID: string; platform: string; qqID: string; status: string };
+      query: {
+        botSelfID: string;
+        guildID: string;
+        platform: string;
+        qqID: string;
+        status: string;
+      };
     };
     vm.query.platform = 'onebot';
     vm.query.botSelfID = '514';
@@ -230,6 +261,29 @@ describe('admission sessions index view orchestration', () => {
     expect(messageMocks.success).toHaveBeenCalledWith('认证链接已复制');
   });
 
+  it('falls back to execCommand when auth URL clipboard writes fail', async () => {
+    const copiedText: string[] = [];
+    const execCommand = mockExecCommand(true, copiedText);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: vi.fn().mockRejectedValue(new Error('permission denied')),
+      },
+    });
+    const wrapper = mount(IndexView, { global: { stubs: childStubs } });
+    await flushPromises();
+
+    const table = wrapper.findComponent({ name: 'AdmissionSessionTable' });
+    await table.vm.$emit('copyAuthURL', sampleSession.authURL);
+    await flushPromises();
+
+    expect(execCommand).toHaveBeenCalledWith('copy');
+    expect(copiedText).toContain(sampleSession.authURL);
+    expect(document.querySelector('textarea')).toBeNull();
+    expect(messageMocks.success).toHaveBeenCalledWith('认证链接已复制');
+    expect(messageMocks.error).not.toHaveBeenCalled();
+  });
+
   it('copies Koishi reissue commands for group operators', async () => {
     const wrapper = mount(IndexView, { global: { stubs: childStubs } });
     await flushPromises();
@@ -241,6 +295,47 @@ describe('admission sessions index view orchestration', () => {
       '重新生成认证链接 1390191645',
     );
     expect(messageMocks.success).toHaveBeenCalledWith('重生命令已复制');
+  });
+
+  it('falls back to execCommand when copying reissue commands without clipboard API', async () => {
+    const copiedText: string[] = [];
+    const execCommand = mockExecCommand(true, copiedText);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: undefined,
+    });
+    const wrapper = mount(IndexView, { global: { stubs: childStubs } });
+    await flushPromises();
+
+    const table = wrapper.findComponent({ name: 'AdmissionSessionTable' });
+    await table.vm.$emit('copyReissueCommand', '重新生成认证链接 1390191645');
+    await flushPromises();
+
+    expect(execCommand).toHaveBeenCalledWith('copy');
+    expect(copiedText).toContain('重新生成认证链接 1390191645');
+    expect(document.querySelector('textarea')).toBeNull();
+    expect(messageMocks.success).toHaveBeenCalledWith('重生命令已复制');
+    expect(messageMocks.error).not.toHaveBeenCalled();
+  });
+
+  it('reports clipboard failures when modern and fallback copy both fail', async () => {
+    mockExecCommand(false);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: vi.fn().mockRejectedValue(new Error('permission denied')),
+      },
+    });
+    const wrapper = mount(IndexView, { global: { stubs: childStubs } });
+    await flushPromises();
+
+    const table = wrapper.findComponent({ name: 'AdmissionSessionTable' });
+    await table.vm.$emit('copyReissueCommand', '重新生成认证链接 1390191645');
+    await flushPromises();
+
+    expect(messageMocks.error).toHaveBeenCalledWith('复制失败，请手动复制');
+    expect(messageMocks.success).not.toHaveBeenCalledWith('重生命令已复制');
+    expect(document.querySelector('textarea')).toBeNull();
   });
 
   it('runs admin session actions and refreshes the table', async () => {
@@ -271,5 +366,63 @@ describe('admission sessions index view orchestration', () => {
       '已重新生成并加入机器人提醒队列',
     );
     expect(messageMocks.success).toHaveBeenCalledWith('认证会话已取消');
+  });
+
+  it('keeps session action loading scoped to the current session id', async () => {
+    let resolveResend!: () => void;
+    apiMocks.resendAdminAdmissionSession.mockReturnValueOnce(
+      new Promise<AdmissionSession>((resolve) => {
+        resolveResend = () => resolve(sampleSession);
+      }),
+    );
+    const wrapper = mount(IndexView, { global: { stubs: childStubs } });
+    await flushPromises();
+    apiMocks.listAdmissionSessions.mockClear();
+
+    const table = wrapper.findComponent({ name: 'AdmissionSessionTable' });
+    await table.vm.$emit('requestResend', sampleSession.id);
+    await flushPromises();
+
+    expect(apiMocks.resendAdminAdmissionSession).toHaveBeenCalledWith(
+      sampleSession.id,
+    );
+    expect(table.props('loading')).toBe(false);
+    expect(table.props('actionLoadingById')).toMatchObject({
+      [sampleSession.id]: 'resend',
+    });
+
+    await table.vm.$emit('requestCancel', sampleSession.id);
+    await flushPromises();
+
+    expect(apiMocks.cancelAdminAdmissionSession).not.toHaveBeenCalled();
+
+    resolveResend();
+    await flushPromises();
+
+    expect(
+      (table.props('actionLoadingById') as Record<string, string | undefined>)[
+        sampleSession.id
+      ],
+    ).toBeUndefined();
+    expect(apiMocks.listAdmissionSessions).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps admin session action failures visible and does not refresh', async () => {
+    apiMocks.resendAdminAdmissionSession.mockRejectedValueOnce(
+      new Error('机器人队列写入失败'),
+    );
+    const wrapper = mount(IndexView, { global: { stubs: childStubs } });
+    await flushPromises();
+    apiMocks.listAdmissionSessions.mockClear();
+
+    const table = wrapper.findComponent({ name: 'AdmissionSessionTable' });
+    await table.vm.$emit('requestResend', sampleSession.id);
+    await flushPromises();
+
+    const actionError = wrapper.find('.admin-load-error');
+    expect(actionError.exists()).toBe(true);
+    expect(actionError.text()).toContain('机器人队列写入失败');
+    expect(messageMocks.error).toHaveBeenCalledWith('机器人队列写入失败');
+    expect(apiMocks.listAdmissionSessions).not.toHaveBeenCalled();
   });
 });

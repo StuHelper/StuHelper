@@ -1,4 +1,4 @@
-import { parseApiError } from "./errors";
+import { extractApiErrorMessage, parseApiError } from "./errors";
 
 export interface ApiEnvelope<T> {
     success?: boolean;
@@ -46,6 +46,23 @@ export function extractResultErrorCode(
     }
 
     return undefined;
+}
+
+export function extractResultErrorMessage(
+    result: ApiCallResult<unknown>,
+    fallback: string,
+): string {
+    if (result.data) {
+        const message = extractApiErrorMessage(result.data, "");
+        if (message) return message;
+    }
+
+    if (typeof result.error !== "undefined") {
+        const message = extractApiErrorMessage(result.error, "");
+        if (message) return message;
+    }
+
+    return fallback;
 }
 
 export function extractResultData<T>(result: ApiCallResult<T>): T | undefined {

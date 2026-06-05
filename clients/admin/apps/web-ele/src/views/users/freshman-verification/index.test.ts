@@ -23,8 +23,20 @@ describe('freshman verification admin view contract', () => {
       'data-action="reject"',
       'data-state="pendingReview"',
       'data-material-preview',
+      'extensionDaysById[row.id]',
+      'ElMessage.success(successMessage)',
+      "type FreshmanReviewAction = 'approve' | 'approveWithDays' | 'reject'",
+      'reviewingActionsById[row.id] = action',
+      'delete reviewingActionsById[row.id]',
+      ':disabled="rowReviewing(row)"',
+      ':loading="rowActionLoading(row, \'approve\')"',
+      ':loading="rowActionLoading(row, \'approveWithDays\')"',
+      ':loading="rowActionLoading(row, \'reject\')"',
     ]) {
       expect(source).toContain(token);
     }
+
+    expect(source).not.toContain('const actionLoading = ref(false)');
+    expect(source).not.toContain(':loading="actionLoading"');
   });
 });

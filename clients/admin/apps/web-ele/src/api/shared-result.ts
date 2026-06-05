@@ -4,7 +4,9 @@ import {
   extractOptionalResultData,
   extractResultData,
   extractResultErrorCode,
+  extractResultErrorMessage,
   extractResultList,
+  isResultFailure,
   readResultStatus,
 } from '@stuhelper/shared/api';
 import { ElMessage } from 'element-plus';
@@ -38,7 +40,7 @@ export function extractErrorMessage(result: ApiCallResult<unknown>): string {
     return $t(BUSINESS_ERROR_MESSAGE_KEYS[code]);
   }
 
-  return $t('admin.result.requestFailed');
+  return extractResultErrorMessage(result, $t('admin.result.requestFailed'));
 }
 
 export function unwrapData<T>(result: ApiCallResult<T>): T {
@@ -70,7 +72,12 @@ export function unwrapOptionalData<T>(result: ApiCallResult<T>): null | T {
 
 export function unwrapVoid(result: ApiCallResult<unknown>): void {
   const status = readResultStatus(result);
-  if (!result.error && status !== undefined && status >= 200 && status < 300) {
+  if (
+    !isResultFailure(result) &&
+    status !== undefined &&
+    status >= 200 &&
+    status < 300
+  ) {
     return;
   }
 

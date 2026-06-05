@@ -4,7 +4,9 @@ import type { Report } from '#/api/admin';
 import { onMounted, reactive, ref } from 'vue';
 
 import {
+  ElAlert,
   ElButton,
+  ElMessage,
   ElOption,
   ElPagination,
   ElPopconfirm,
@@ -28,21 +30,37 @@ const loading = ref(false);
 const actionLoading = ref(false);
 const reports = ref<Report[]>([]);
 const total = ref(0);
+const loadError = ref('');
+const actionError = ref('');
 const query = reactive({
   page: 1,
   pageSize: 20,
   status: 'all' as 'all' | 'pending' | 'rejected' | 'resolved',
 });
+let fetchRequestSeq = 0;
 
 async function fetchData() {
+  const requestSeq = ++fetchRequestSeq;
   loading.value = true;
+  loadError.value = '';
   try {
     const data = await getReportList(query);
+    if (requestSeq !== fetchRequestSeq) return;
     reports.value = data.items;
     total.value = data.total;
+  } catch (error) {
+    if (requestSeq !== fetchRequestSeq) return;
+    loadError.value = adminErrorMessage(error);
   } finally {
-    loading.value = false;
+    if (requestSeq === fetchRequestSeq) {
+      loading.value = false;
+    }
   }
+}
+
+function resetPageAndFetch() {
+  query.page = 1;
+  void fetchData();
 }
 
 async function handleAction(
@@ -54,12 +72,12 @@ async function handleAction(
   }
 
   actionLoading.value = true;
+  actionError.value = '';
   try {
     await processReport(reportId, { action });
     await fetchData();
-  } catch (_error) {
-    void _error;
-    // unwrapData already displays a toast for failed mutations.
+  } catch (error) {
+    handleActionError(error);
   } finally {
     actionLoading.value = false;
   }
@@ -89,6 +107,17 @@ const reasonLabel = (reason: Report['reason']) => {
   return label === key ? reason : label;
 };
 
+function adminErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message
+    ? error.message
+    : $t('admin.result.requestFailed');
+}
+
+function handleActionError(error: unknown) {
+  actionError.value = adminErrorMessage(error);
+  ElMessage.error(actionError.value);
+}
+
 onMounted(fetchData);
 </script>
 
@@ -103,7 +132,7 @@ onMounted(fetchData);
         class="admin-toolbar-control"
         :placeholder="$t('admin.common.status')"
         :teleported="false"
-        @change="fetchData"
+        @change="resetPageAndFetch"
       >
         <ElOption :label="$t('admin.common.all')" value="all" />
         <ElOption
@@ -119,10 +148,33 @@ onMounted(fetchData);
           value="rejected"
         />
       </ElSelect>
-      <ElButton type="primary" @click="fetchData">
+      <ElButton type="primary" @click="resetPageAndFetch">
         {{ $t('admin.common.query') }}
       </ElButton>
     </template>
+
+    <ElAlert
+      v-if="loadError"
+      class="admin-load-error"
+      type="error"
+      :closable="false"
+      show-icon
+      :title="loadError"
+    >
+      <ElButton size="small" :loading="loading" @click="fetchData">
+        {{ $t('admin.common.retry') }}
+      </ElButton>
+    </ElAlert>
+
+    <ElAlert
+      v-if="actionError"
+      class="admin-load-error"
+      type="error"
+      :closable="true"
+      show-icon
+      :title="actionError"
+      @close="actionError = ''"
+    />
 
     <PersistentAdminTable
       table-key="content.reports"

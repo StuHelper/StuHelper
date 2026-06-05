@@ -60,7 +60,10 @@ describe('admin auth redirect URL', () => {
 
   it('keeps absolute and scheme-relative redirects unchanged for backend validation', () => {
     expect(
-      resolveOIDCRedirectURL('https://stuhelper.com/admin/analytics', '/admin/'),
+      resolveOIDCRedirectURL(
+        'https://stuhelper.com/admin/analytics',
+        '/admin/',
+      ),
     ).toBe('https://stuhelper.com/admin/analytics');
     expect(resolveOIDCRedirectURL('//evil.example.com/path', '/admin/')).toBe(
       '//evil.example.com/path',
@@ -70,7 +73,9 @@ describe('admin auth redirect URL', () => {
   it('sends the admin-base URL to the backend login endpoint', async () => {
     const origin = window.location.origin;
     mocks.baseAuthApi.login.mockResolvedValue({
-      data: { data: { url: 'https://sso.stuhelper.com/login/oauth/authorize' } },
+      data: {
+        data: { url: 'https://sso.stuhelper.com/login/oauth/authorize' },
+      },
     });
 
     await redirectToOIDCLogin('/analytics');

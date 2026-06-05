@@ -23,6 +23,24 @@ describe('admin shared result helpers', () => {
     expect(mocks.error).not.toHaveBeenCalled();
   });
 
+  it('rejects business failures on 2xx void mutation responses', () => {
+    mocks.error.mockClear();
+
+    expect(() =>
+      unwrapVoid({
+        data: {
+          success: false,
+          error: {
+            code: 'A0090002',
+            message: '教师删除失败，请稍后重试',
+          },
+        },
+        response: { status: 200 },
+      }),
+    ).toThrow('教师删除失败，请稍后重试');
+    expect(mocks.error).toHaveBeenCalledWith('教师删除失败，请稍后重试');
+  });
+
   it('keeps MFA enrollment and step-up errors distinct', () => {
     expect(
       extractErrorMessage({
@@ -57,5 +75,19 @@ describe('admin shared result helpers', () => {
         response: { status: 400 },
       }),
     ).toBe('admin.result.ldapConfigRequired');
+  });
+
+  it('preserves backend error messages for unmapped admin business failures', () => {
+    expect(
+      extractErrorMessage({
+        error: {
+          error: {
+            code: 'A0090001',
+            message: '学生认证已被其他管理员处理',
+          },
+        },
+        response: { status: 409 },
+      }),
+    ).toBe('学生认证已被其他管理员处理');
   });
 });

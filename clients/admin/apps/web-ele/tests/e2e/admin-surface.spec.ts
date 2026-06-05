@@ -57,11 +57,16 @@ function ok(data: unknown) {
   return json({ success: true, data });
 }
 
-function list<T>(items: T[]) {
-  return ok({ list: items, total: items.length });
+function list<T>(items: T[], total = items.length) {
+  return ok({ list: items, total });
 }
 
 const adminApiRequests: string[] = [];
+let nextAuditEventListErrorMessage: null | string = null;
+let nextDisclosureReportErrorMessage: null | string = null;
+let nextOperationLogListErrorMessage: null | string = null;
+let nextStatsErrorMessage: null | string = null;
+let nextTokenProbeEvidenceListErrorMessage: null | string = null;
 
 function hasAdminGetRequest(pathname: string, matches: (url: URL) => boolean) {
   return adminApiRequests.some((request) => {
@@ -175,7 +180,7 @@ const identityReview = {
 
 const studentVerification = {
   userID: 13,
-  schoolID: 4111010006,
+  schoolID: 4_111_010_006,
   activeStudentID: '20260001',
   verificationStatus: 'pending',
   verificationMethod: 'manual',
@@ -184,10 +189,19 @@ const studentVerification = {
 };
 
 const schoolConfig = {
-  schoolID: 4111010006,
+  approvalPolicy: 'auto',
+  schoolID: 4_111_010_006,
+  schoolCode: '4111010006',
   schoolName: '测试大学',
   verificationMethod: 'ldap',
   enabled: true,
+  schoolSsoEnabled: true,
+  schoolEmailOtpEnabled: true,
+  schoolEmailIdentityPolicy: {
+    type: 'academic_student_email',
+    studentIDEmailDomain: 'buaa.edu.cn',
+    requireStudentName: true,
+  },
   academicDbTable: 'academic_students',
   consentText: '仅用于学生身份认证',
   ldapConfig: {
@@ -201,7 +215,7 @@ const schoolConfig = {
 const freshmanApplication = {
   id: 'freshman-1',
   status: 'pending',
-  schoolID: 4111010006,
+  schoolID: 4_111_010_006,
   qqID: '10001',
   applicantNameMasked: '赵*',
   materialURL: 'https://example.com/material.jpg',
@@ -377,12 +391,26 @@ async function mockAdminApi(page: Page) {
     }
 
     if (path === '/api/v1/course/review/admin/stats') {
+      if (nextStatsErrorMessage) {
+        const message = nextStatsErrorMessage;
+        nextStatsErrorMessage = null;
+        await route.fulfill(
+          json({
+            success: false,
+            error: {
+              code: 'E2E_ADMIN_STATS_UNAVAILABLE',
+              message,
+            },
+          }),
+        );
+        return;
+      }
       await route.fulfill(ok(stats));
       return;
     }
 
     if (path === '/api/v1/course/review/admin/reviews') {
-      await route.fulfill(list([review]));
+      await route.fulfill(list([review], 40));
       return;
     }
     if (path.startsWith('/api/v1/course/review/admin/reviews/')) {
@@ -391,7 +419,7 @@ async function mockAdminApi(page: Page) {
     }
 
     if (path === '/api/v1/course/review/admin/reports') {
-      await route.fulfill(list([report]));
+      await route.fulfill(list([report], 40));
       return;
     }
     if (path.startsWith('/api/v1/course/review/admin/reports/')) {
@@ -401,7 +429,7 @@ async function mockAdminApi(page: Page) {
 
     if (path === '/api/v1/course/review/admin/teachers') {
       await route.fulfill(
-        method === 'POST' ? ok({ ...teacher, id: 8 }) : list([teacher]),
+        method === 'POST' ? ok({ ...teacher, id: 8 }) : list([teacher], 40),
       );
       return;
     }
@@ -414,7 +442,7 @@ async function mockAdminApi(page: Page) {
       await route.fulfill(
         method === 'POST'
           ? ok({ ...sensitiveWord, id: 'word-2' })
-          : list([sensitiveWord]),
+          : list([sensitiveWord], 40),
       );
       return;
     }
@@ -424,6 +452,20 @@ async function mockAdminApi(page: Page) {
     }
 
     if (path === '/api/v1/course/review/admin/logs') {
+      if (nextOperationLogListErrorMessage) {
+        const message = nextOperationLogListErrorMessage;
+        nextOperationLogListErrorMessage = null;
+        await route.fulfill(
+          json({
+            success: false,
+            error: {
+              code: 'E2E_OPERATION_LOG_LIST_UNAVAILABLE',
+              message,
+            },
+          }),
+        );
+        return;
+      }
       const pageNumber = Number(url.searchParams.get('page') ?? '1');
       await route.fulfill(
         ok({
@@ -530,6 +572,20 @@ async function mockAdminApi(page: Page) {
     }
 
     if (path === '/api/v1/admin/open-platform/audit-events') {
+      if (nextAuditEventListErrorMessage) {
+        const message = nextAuditEventListErrorMessage;
+        nextAuditEventListErrorMessage = null;
+        await route.fulfill(
+          json({
+            success: false,
+            error: {
+              code: 'E2E_OPEN_PLATFORM_AUDIT_EVENTS_UNAVAILABLE',
+              message,
+            },
+          }),
+        );
+        return;
+      }
       await route.fulfill(list([auditEvent]));
       return;
     }
@@ -540,11 +596,39 @@ async function mockAdminApi(page: Page) {
     }
 
     if (path === '/api/v1/admin/open-platform/token-probe-evidence') {
+      if (nextTokenProbeEvidenceListErrorMessage) {
+        const message = nextTokenProbeEvidenceListErrorMessage;
+        nextTokenProbeEvidenceListErrorMessage = null;
+        await route.fulfill(
+          json({
+            success: false,
+            error: {
+              code: 'E2E_OPEN_PLATFORM_TOKEN_PROBE_UNAVAILABLE',
+              message,
+            },
+          }),
+        );
+        return;
+      }
       await route.fulfill(list([tokenProbeEvidence]));
       return;
     }
 
     if (path === '/api/v1/admin/open-platform/disclosure-report') {
+      if (nextDisclosureReportErrorMessage) {
+        const message = nextDisclosureReportErrorMessage;
+        nextDisclosureReportErrorMessage = null;
+        await route.fulfill(
+          json({
+            success: false,
+            error: {
+              code: 'E2E_OPEN_PLATFORM_DISCLOSURE_REPORT_UNAVAILABLE',
+              message,
+            },
+          }),
+        );
+        return;
+      }
       await route.fulfill(ok(disclosureReport));
       return;
     }
@@ -571,6 +655,11 @@ async function fulfillUnexpected(route: Route, path: string, method: string) {
 test.describe('Admin management surfaces', () => {
   test.beforeEach(async ({ page }) => {
     adminApiRequests.length = 0;
+    nextAuditEventListErrorMessage = null;
+    nextDisclosureReportErrorMessage = null;
+    nextOperationLogListErrorMessage = null;
+    nextStatsErrorMessage = null;
+    nextTokenProbeEvidenceListErrorMessage = null;
     await mockAdminApi(page);
   });
 
@@ -593,6 +682,39 @@ test.describe('Admin management surfaces', () => {
     await expect(page.getByText('处理队列')).toBeVisible();
     await expect(page.getByText('评课总量')).toBeVisible();
     await expect(page.getByText('待处理举报')).toBeVisible();
+  });
+
+  test('dashboard stat failures show a persistent retry path', async ({
+    page,
+  }) => {
+    nextStatsErrorMessage = '后台统计暂时不可用';
+
+    await page.goto('/analytics');
+
+    const analyticsError = page.locator('.admin-load-error', {
+      hasText: '后台统计暂时不可用',
+    });
+    await expect(analyticsError).toBeVisible();
+    await analyticsError.getByRole('button', { name: /重试|Retry/ }).click();
+    await expect(
+      page
+        .locator('.admin-dashboard__kpi')
+        .filter({ hasText: '待处理举报' })
+        .getByText('3', { exact: true }),
+    ).toBeVisible();
+    await expect(analyticsError).toHaveCount(0);
+
+    nextStatsErrorMessage = '工作台统计暂时不可用';
+
+    await page.goto('/workspace');
+
+    const workspaceError = page.locator('.admin-load-error', {
+      hasText: '工作台统计暂时不可用',
+    });
+    await expect(workspaceError).toBeVisible();
+    await workspaceError.getByRole('button', { name: /重试|Retry/ }).click();
+    await expect(page.getByText('128')).toBeVisible();
+    await expect(workspaceError).toHaveCount(0);
   });
 
   test('dashboard quick actions navigate to concrete management pages', async ({
@@ -666,6 +788,42 @@ test.describe('Admin management surfaces', () => {
       .toBe(true);
   });
 
+  test('operation logs page size changes request the first page with selected size', async ({
+    page,
+  }) => {
+    await page.goto('/content/logs');
+    await expect(page.getByText('platform-admin')).toBeVisible();
+
+    await waitForAdminGetRequest(
+      page,
+      '/api/v1/course/review/admin/logs',
+      (url) =>
+        url.searchParams.get('page') === '1' &&
+        url.searchParams.get('pageSize') === '50',
+      async () => {
+        await page.locator('.el-pagination .el-select').click();
+        await page.getByRole('option', { name: /50/ }).click();
+      },
+    );
+  });
+
+  test('operation log failures show a persistent retry path', async ({
+    page,
+  }) => {
+    nextOperationLogListErrorMessage = '操作日志暂时不可用';
+
+    await page.goto('/content/logs');
+
+    const loadError = page.locator('.admin-load-error', {
+      hasText: '操作日志暂时不可用',
+    });
+    await expect(loadError).toBeVisible();
+    await expect(page.getByText('platform-admin')).toHaveCount(0);
+    await loadError.getByRole('button', { name: /重试|Retry/ }).click();
+    await expect(page.getByText('platform-admin')).toBeVisible();
+    await expect(loadError).toHaveCount(0);
+  });
+
   test('content filters pass status, category, and level query params', async ({
     page,
   }) => {
@@ -710,6 +868,124 @@ test.describe('Admin management surfaces', () => {
       async () => {
         await page.getByRole('main').locator('.el-select').click();
         await page.getByRole('option', { name: '复核' }).click();
+      },
+    );
+  });
+
+  test('content filters request the first page after pagination changes', async ({
+    page,
+  }) => {
+    await page.goto('/content/reviews');
+    await expect(page.getByText('期末项目清晰')).toBeVisible();
+    await waitForAdminGetRequest(
+      page,
+      '/api/v1/course/review/admin/reviews',
+      (url) =>
+        url.searchParams.get('page') === '2' &&
+        url.searchParams.get('pageSize') === '20',
+      async () => {
+        await page
+          .locator('.el-pagination .el-pager li')
+          .filter({ hasText: /^2$/ })
+          .click();
+      },
+    );
+    await waitForAdminGetRequest(
+      page,
+      '/api/v1/course/review/admin/reviews',
+      (url) =>
+        url.searchParams.get('status') === 'pending_review' &&
+        url.searchParams.get('page') === '1' &&
+        url.searchParams.get('pageSize') === '20',
+      async () => {
+        await page.getByRole('main').locator('.el-select').click();
+        await page.getByRole('option', { name: '待审核' }).click();
+      },
+    );
+
+    await page.goto('/content/reports');
+    await expect(page.getByText('疑似广告内容')).toBeVisible();
+    await waitForAdminGetRequest(
+      page,
+      '/api/v1/course/review/admin/reports',
+      (url) =>
+        url.searchParams.get('page') === '2' &&
+        url.searchParams.get('pageSize') === '20',
+      async () => {
+        await page
+          .locator('.el-pagination .el-pager li')
+          .filter({ hasText: /^2$/ })
+          .click();
+      },
+    );
+    await waitForAdminGetRequest(
+      page,
+      '/api/v1/course/review/admin/reports',
+      (url) =>
+        url.searchParams.get('status') === 'resolved' &&
+        url.searchParams.get('page') === '1' &&
+        url.searchParams.get('pageSize') === '20',
+      async () => {
+        await page.getByRole('main').locator('.el-select').click();
+        await page.getByRole('option', { name: '已处理' }).click();
+      },
+    );
+
+    await page.goto('/content/sensitive-words');
+    await expect(page.getByText('违规词')).toBeVisible();
+    await waitForAdminGetRequest(
+      page,
+      '/api/v1/course/review/admin/sensitive-words',
+      (url) =>
+        url.searchParams.get('page') === '2' &&
+        url.searchParams.get('pageSize') === '20',
+      async () => {
+        await page
+          .locator('.el-pagination .el-pager li')
+          .filter({ hasText: /^2$/ })
+          .click();
+      },
+    );
+    await page.getByPlaceholder('按分类筛选...').fill('comment');
+    await waitForAdminGetRequest(
+      page,
+      '/api/v1/course/review/admin/sensitive-words',
+      (url) =>
+        url.searchParams.get('category') === 'comment' &&
+        url.searchParams.get('page') === '1' &&
+        url.searchParams.get('pageSize') === '20',
+      async () => {
+        await page.getByRole('button', { name: '查询' }).click();
+      },
+    );
+
+    await page.goto('/content/teachers');
+    await expect(page.getByText('李教授')).toBeVisible();
+    await waitForAdminGetRequest(
+      page,
+      '/api/v1/course/review/admin/teachers',
+      (url) =>
+        url.searchParams.get('page') === '2' &&
+        url.searchParams.get('pageSize') === '20',
+      async () => {
+        await page
+          .locator('.el-pagination .el-pager li')
+          .filter({ hasText: /^2$/ })
+          .click();
+      },
+    );
+    await page.getByPlaceholder('搜索教师姓名...').fill('李教授');
+    await page.getByPlaceholder('按院系 ID 筛选...').fill('1');
+    await waitForAdminGetRequest(
+      page,
+      '/api/v1/course/review/admin/teachers',
+      (url) =>
+        url.searchParams.get('search') === '李教授' &&
+        url.searchParams.get('departmentID') === '1' &&
+        url.searchParams.get('page') === '1' &&
+        url.searchParams.get('pageSize') === '20',
+      async () => {
+        await page.getByRole('button', { name: '查询' }).click();
       },
     );
   });
@@ -762,6 +1038,11 @@ test.describe('Admin management surfaces', () => {
 
     await page.goto('/users/school-config');
     await expect(page.getByText('测试大学')).toBeVisible();
+    await expect(page.getByText('自动通过')).toBeVisible();
+    await expect(page.getByText('学校 SSO')).toBeVisible();
+    await expect(page.getByText('学校邮箱 OTP')).toBeVisible();
+    await expect(page.getByText('学号邮箱 @buaa.edu.cn')).toBeVisible();
+    await expect(page.getByText('需姓名匹配')).toBeVisible();
     await expect(page.getByText('ldap://ldap.example.com')).toBeVisible();
     await page.waitForLoadState('networkidle');
 
@@ -890,6 +1171,61 @@ test.describe('Admin management surfaces', () => {
       page.getByRole('row', { name: /\/oidc\/userinfo\s+10\s+8/ }),
     ).toBeVisible();
     await expect(page.getByRole('row', { name: /fga_denied/ })).toBeVisible();
+  });
+
+  test('open platform audit event failures show a persistent retry path', async ({
+    page,
+  }) => {
+    nextAuditEventListErrorMessage = '开放平台审计事件暂时不可用';
+
+    await page.goto('/open-platform/audit-events');
+
+    const loadError = page.locator('.admin-load-error', {
+      hasText: '开放平台审计事件暂时不可用',
+    });
+    await expect(loadError).toBeVisible();
+    await expect(page.getByText('req-admin-surface')).toHaveCount(0);
+    await loadError.getByRole('button', { name: /重试|Retry/ }).click();
+    await expect(page.getByText('req-admin-surface')).toBeVisible();
+    await expect(loadError).toHaveCount(0);
+  });
+
+  test('open platform token probe failures show a persistent retry path', async ({
+    page,
+  }) => {
+    nextTokenProbeEvidenceListErrorMessage = 'Token 探针证据暂时不可用';
+
+    await page.goto('/open-platform/token-probe-evidence');
+
+    const loadError = page.locator('.admin-load-error', {
+      hasText: 'Token 探针证据暂时不可用',
+    });
+    await expect(loadError).toBeVisible();
+    await expect(page.getByText('authorization_code')).toHaveCount(0);
+    await loadError.getByRole('button', { name: /重试|Retry/ }).click();
+    await expect(page.getByText('authorization_code')).toBeVisible();
+    await expect(loadError).toHaveCount(0);
+  });
+
+  test('open platform disclosure report failures show a persistent retry path', async ({
+    page,
+  }) => {
+    nextDisclosureReportErrorMessage = '披露报表暂时不可用';
+
+    await page.goto('/open-platform/disclosure-report');
+
+    const loadError = page.locator('.admin-load-error', {
+      hasText: '披露报表暂时不可用',
+    });
+    await expect(loadError).toBeVisible();
+    await expect(
+      page.getByRole('row', { name: /\/oidc\/userinfo\s+10\s+8/ }),
+    ).toHaveCount(0);
+    await loadError.getByRole('button', { name: /重试|Retry/ }).click();
+    await expect(
+      page.getByRole('row', { name: /\/oidc\/userinfo\s+10\s+8/ }),
+    ).toBeVisible();
+    await expect(loadError).toHaveCount(0);
   });
 
   test('open platform audit and consent filters pass query params', async ({

@@ -18,6 +18,7 @@ const accessMocks = vi.hoisted(() => ({
 }));
 
 const messageMocks = vi.hoisted(() => ({
+  error: vi.fn(),
   success: vi.fn(),
 }));
 
@@ -42,6 +43,11 @@ vi.mock('element-plus', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('element-plus');
   return {
     ...actual,
+    ElAlert: {
+      name: 'ElAlert',
+      props: { title: String },
+      template: '<section><strong>{{ title }}</strong><slot /></section>',
+    },
     ElButton: {
       name: 'ElButton',
       emits: ['click'],
@@ -113,6 +119,13 @@ function systemConfigs(): SystemConfig[] {
   ];
 }
 
+function requireSystemConfig(config: SystemConfig | undefined): SystemConfig {
+  if (!config) {
+    throw new Error('Expected seeded system config');
+  }
+  return config;
+}
+
 function mountPage() {
   return mount(IndexView, {
     global: {
@@ -138,10 +151,21 @@ function mountPage() {
   });
 }
 
+function deferred<T>() {
+  let reject!: (reason?: unknown) => void;
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((innerResolve, innerReject) => {
+    resolve = innerResolve;
+    reject = innerReject;
+  });
+  return { promise, reject, resolve };
+}
+
 describe('system config index view', () => {
   beforeEach(() => {
     apiMocks.getSystemConfigList.mockReset();
     apiMocks.updateSystemConfig.mockReset();
+    messageMocks.error.mockReset();
     messageMocks.success.mockReset();
     accessMocks.accessCodes = ['user:system:update'];
     apiMocks.getSystemConfigList.mockResolvedValue(systemConfigs());
@@ -159,7 +183,76 @@ describe('system config index view', () => {
     const readOnly = mountPage();
     await flushPromises();
 
-    expect(readOnly.find('[data-email-policy-edit-button]').exists()).toBe(false);
+    expect(readOnly.find('[data-email-policy-edit-button]').exists()).toBe(
+      false,
+    );
+  });
+
+  it('ignores stale system config responses when a newer refresh finishes first', async () => {
+    const firstRequest = deferred<SystemConfig[]>();
+    const secondRequest = deferred<SystemConfig[]>();
+    const latestConfigs = [
+      {
+        ...requireSystemConfig(systemConfigs().at(0)),
+        value: JSON.stringify({
+          mode: 'weighted',
+          maxAttempts: 1,
+          providers: [
+            { name: 'resend', enabled: true, priority: 10, weight: 50 },
+          ],
+        }),
+      },
+    ];
+
+    apiMocks.getSystemConfigList.mockReset();
+    apiMocks.getSystemConfigList
+      .mockReturnValueOnce(firstRequest.promise)
+      .mockReturnValueOnce(secondRequest.promise);
+
+    const wrapper = mountPage();
+    const vm = wrapper.vm as unknown as {
+      configs: SystemConfig[];
+      fetchData: () => Promise<void>;
+    };
+    expect(apiMocks.getSystemConfigList).toHaveBeenCalledTimes(1);
+
+    const refresh = vm.fetchData();
+    expect(apiMocks.getSystemConfigList).toHaveBeenCalledTimes(2);
+
+    secondRequest.resolve(latestConfigs);
+    await refresh;
+    await flushPromises();
+
+    expect(vm.configs).toEqual(latestConfigs);
+    expect(wrapper.find('[data-email-policy-edit-button]').exists()).toBe(true);
+
+    firstRequest.resolve(systemConfigs());
+    await flushPromises();
+
+    expect(vm.configs).toEqual(latestConfigs);
+  });
+
+  it('keeps list loading failures visible and retryable', async () => {
+    apiMocks.getSystemConfigList
+      .mockRejectedValueOnce(new Error('系统配置列表暂不可用'))
+      .mockResolvedValueOnce(systemConfigs());
+
+    const wrapper = mountPage();
+    await flushPromises();
+
+    const loadError = wrapper.find('.admin-load-error');
+    expect(loadError.exists()).toBe(true);
+    expect(loadError.text()).toContain('系统配置列表暂不可用');
+    expect(wrapper.find('[data-email-policy-edit-button]').exists()).toBe(
+      false,
+    );
+
+    await loadError.find('button').trigger('click');
+    await flushPromises();
+
+    expect(apiMocks.getSystemConfigList).toHaveBeenCalledTimes(2);
+    expect(wrapper.find('.admin-load-error').exists()).toBe(false);
+    expect(wrapper.find('[data-email-policy-edit-button]').exists()).toBe(true);
   });
 
   it('serializes provider priority, weight and enabled state back to email.delivery_policy', async () => {
@@ -184,12 +277,18 @@ describe('system config index view', () => {
     const save = wrapper
       .findAll('button')
       .find((button) => button.text() === 'admin.common.save');
-    expect(save).toBeDefined();
-    await save!.trigger('click');
+    if (!save) {
+      throw new Error('Expected email policy save button');
+    }
+    await save.trigger('click');
     await flushPromises();
 
     expect(apiMocks.updateSystemConfig).toHaveBeenCalledTimes(1);
-    const [key, payload] = apiMocks.updateSystemConfig.mock.calls[0]!;
+    const firstUpdateCall = apiMocks.updateSystemConfig.mock.calls.at(0);
+    if (!firstUpdateCall) {
+      throw new Error('Expected email policy update call');
+    }
+    const [key, payload] = firstUpdateCall;
     expect(key).toBe('email.delivery_policy');
     const parsed = JSON.parse(payload.value);
     expect(parsed).toEqual({
@@ -203,5 +302,31 @@ describe('system config index view', () => {
     expect(messageMocks.success).toHaveBeenCalledWith(
       'admin.users.systemConfig.updated',
     );
+  });
+
+  it('keeps update failures visible without closing the editor', async () => {
+    apiMocks.updateSystemConfig.mockRejectedValueOnce(
+      new Error('系统配置保存失败'),
+    );
+    const wrapper = mountPage();
+    await flushPromises();
+
+    await wrapper.find('[data-email-policy-edit-button]').trigger('click');
+    await flushPromises();
+
+    const save = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'admin.common.save');
+    if (!save) {
+      throw new Error('Expected email policy save button');
+    }
+    await save.trigger('click');
+    await flushPromises();
+
+    const actionError = wrapper.find('.admin-load-error');
+    expect(actionError.exists()).toBe(true);
+    expect(actionError.text()).toContain('系统配置保存失败');
+    expect(wrapper.find('[data-dialog]').exists()).toBe(true);
+    expect(messageMocks.error).toHaveBeenCalledWith('系统配置保存失败');
   });
 });

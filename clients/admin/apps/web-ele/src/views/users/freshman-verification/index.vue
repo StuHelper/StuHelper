@@ -4,6 +4,7 @@ import type { FreshmanApplication } from '#/api/admin';
 import { onMounted, reactive, ref } from 'vue';
 
 import {
+  ElAlert,
   ElButton,
   ElDialog,
   ElImage,
@@ -32,12 +33,13 @@ type FreshmanReviewRow = FreshmanApplication & {
   materialURL?: string;
   qqID?: string;
 };
+type FreshmanReviewAction = 'approve' | 'approveWithDays' | 'reject';
 
 const loading = ref(false);
-const actionLoading = ref(false);
 const items = ref<FreshmanReviewRow[]>([]);
 const total = ref(0);
-const extensionDays = ref(0);
+const loadError = ref('');
+const actionError = ref('');
 const materialDialogVisible = ref(false);
 const materialPreviewURL = ref('');
 const query = reactive({
@@ -45,31 +47,50 @@ const query = reactive({
   pageSize: 20,
   status: 'pending' as 'approved' | 'pending' | 'rejected',
 });
+const extensionDaysById = reactive<Record<string, number | undefined>>({});
 const rejectionReasons = reactive<Record<string, string>>({});
+const reviewingActionsById = reactive<
+  Record<string, FreshmanReviewAction | undefined>
+>({});
+let fetchRequestSeq = 0;
 
 async function fetchData() {
+  const requestSeq = ++fetchRequestSeq;
   loading.value = true;
+  loadError.value = '';
   try {
     const data = await listFreshmanVerifications(query);
+    if (requestSeq !== fetchRequestSeq) return;
     items.value = data.items as FreshmanReviewRow[];
     total.value = data.total;
+    for (const item of items.value) {
+      extensionDaysById[item.id] ??= 0;
+    }
+  } catch (error) {
+    if (requestSeq !== fetchRequestSeq) return;
+    loadError.value = adminErrorMessage(error);
   } finally {
-    loading.value = false;
+    if (requestSeq === fetchRequestSeq) {
+      loading.value = false;
+    }
   }
 }
 
+function resetPageAndFetch() {
+  query.page = 1;
+  void fetchData();
+}
+
 async function approve(row: FreshmanReviewRow, expiresInDays?: number) {
-  if (actionLoading.value) return;
-  actionLoading.value = true;
-  try {
-    await reviewFreshmanVerification(row.id, {
+  await handleReview(
+    row,
+    {
       action: 'approve',
       ...(expiresInDays ? { expiresInDays } : {}),
-    });
-    await fetchData();
-  } finally {
-    actionLoading.value = false;
-  }
+    },
+    expiresInDays ? '已通过新生审核并设置临时认证期限' : '已通过新生审核',
+    expiresInDays ? 'approveWithDays' : 'approve',
+  );
 }
 
 async function reject(row: FreshmanReviewRow) {
@@ -78,8 +99,58 @@ async function reject(row: FreshmanReviewRow) {
     ElMessage.error('请填写驳回原因');
     return;
   }
-  await reviewFreshmanVerification(row.id, { action: 'reject', reason });
-  await fetchData();
+
+  const submitted = await handleReview(
+    row,
+    { action: 'reject', reason },
+    '已驳回新生审核',
+    'reject',
+  );
+  if (submitted) {
+    delete rejectionReasons[row.id];
+  }
+}
+
+async function handleReview(
+  row: FreshmanReviewRow,
+  payload: Parameters<typeof reviewFreshmanVerification>[1],
+  successMessage: string,
+  action: FreshmanReviewAction,
+) {
+  if (rowReviewing(row)) {
+    return false;
+  }
+
+  reviewingActionsById[row.id] = action;
+  actionError.value = '';
+  try {
+    await reviewFreshmanVerification(row.id, payload);
+    ElMessage.success(successMessage);
+    delete extensionDaysById[row.id];
+    await fetchData();
+    return true;
+  } catch (error) {
+    handleActionError(error);
+    return false;
+  } finally {
+    delete reviewingActionsById[row.id];
+  }
+}
+
+function rowReviewing(row: FreshmanReviewRow) {
+  return Boolean(reviewingActionsById[row.id]);
+}
+
+function rowActionLoading(
+  row: FreshmanReviewRow,
+  action: FreshmanReviewAction,
+) {
+  return reviewingActionsById[row.id] === action;
+}
+
+function rowExtensionDays(row: FreshmanReviewRow) {
+  const days = extensionDaysById[row.id];
+  return typeof days === 'number' && days > 0 ? days : undefined;
 }
 
 function openMaterial(row: FreshmanReviewRow) {
@@ -103,6 +174,17 @@ function statusLabel(status: FreshmanReviewRow['status']) {
   return '待审核';
 }
 
+function handleActionError(error: unknown) {
+  actionError.value = adminErrorMessage(error);
+  ElMessage.error(actionError.value);
+}
+
+function adminErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message
+    ? error.message
+    : $t('admin.result.requestFailed');
+}
+
 onMounted(fetchData);
 </script>
 
@@ -116,14 +198,37 @@ onMounted(fetchData);
         v-model="query.status"
         class="admin-toolbar-control"
         :teleported="false"
-        @change="fetchData"
+        @change="resetPageAndFetch"
       >
         <ElOption label="待审核" value="pending" />
         <ElOption label="已通过" value="approved" />
         <ElOption label="已驳回" value="rejected" />
       </ElSelect>
-      <ElButton type="primary" @click="fetchData">查询</ElButton>
+      <ElButton type="primary" @click="resetPageAndFetch">查询</ElButton>
     </template>
+
+    <ElAlert
+      v-if="loadError"
+      class="admin-load-error"
+      type="error"
+      :closable="false"
+      show-icon
+      :title="loadError"
+    >
+      <ElButton size="small" :loading="loading" @click="fetchData">
+        {{ $t('admin.common.retry') }}
+      </ElButton>
+    </ElAlert>
+
+    <ElAlert
+      v-if="actionError"
+      class="admin-load-error"
+      type="error"
+      :closable="true"
+      show-icon
+      :title="actionError"
+      @close="actionError = ''"
+    />
 
     <PersistentAdminTable
       table-key="users.freshmanVerification"
@@ -207,14 +312,16 @@ onMounted(fetchData);
               size="small"
               type="success"
               data-action="approve"
-              :disabled="actionLoading"
+              :disabled="rowReviewing(row)"
+              :loading="rowActionLoading(row, 'approve')"
               @click="approve(row)"
             >
               通过
             </ElButton>
             <ElInputNumber
-              v-model="extensionDays"
+              v-model="extensionDaysById[row.id]"
               class="freshman-action-number"
+              :disabled="rowReviewing(row)"
               :min="0"
               size="small"
             />
@@ -223,14 +330,16 @@ onMounted(fetchData);
               size="small"
               type="success"
               data-action="approveWithDays"
-              :disabled="actionLoading"
-              @click="approve(row, extensionDays || undefined)"
+              :disabled="rowReviewing(row)"
+              :loading="rowActionLoading(row, 'approveWithDays')"
+              @click="approve(row, rowExtensionDays(row))"
             >
               带天数通过
             </ElButton>
             <ElInput
               v-model="rejectionReasons[row.id]"
               class="freshman-action-reason"
+              :disabled="rowReviewing(row)"
               placeholder="驳回原因"
               size="small"
             />
@@ -239,6 +348,8 @@ onMounted(fetchData);
               size="small"
               type="danger"
               data-action="reject"
+              :disabled="rowReviewing(row)"
+              :loading="rowActionLoading(row, 'reject')"
               @click="reject(row)"
             >
               驳回

@@ -7,6 +7,7 @@ import type {
 import { onMounted, reactive, ref } from 'vue';
 
 import {
+  ElAlert,
   ElButton,
   ElInput,
   ElInputNumber,
@@ -29,6 +30,7 @@ import {
 } from '../../shared/display';
 
 const loading = ref(false);
+const loadError = ref('');
 const records = ref<OpenPlatformTokenProbeEvidence[]>([]);
 const total = ref(0);
 const query = reactive<{
@@ -46,9 +48,12 @@ const query = reactive<{
 });
 
 const resultOptions: OpenPlatformTokenProbeResult[] = ['passed', 'failed'];
+let fetchRequestSeq = 0;
 
 async function fetchData() {
+  const requestSeq = ++fetchRequestSeq;
   loading.value = true;
+  loadError.value = '';
   try {
     const data = await getOpenPlatformTokenProbeEvidenceList({
       appID: normalizeOptionalID(query.appID),
@@ -58,10 +63,16 @@ async function fetchData() {
       result: query.result || undefined,
       reviewerUserID: normalizeOptionalID(query.reviewerUserID),
     });
+    if (requestSeq !== fetchRequestSeq) return;
     records.value = data.items;
     total.value = data.total;
+  } catch (error) {
+    if (requestSeq !== fetchRequestSeq) return;
+    loadError.value = adminErrorMessage(error);
   } finally {
-    loading.value = false;
+    if (requestSeq === fetchRequestSeq) {
+      loading.value = false;
+    }
   }
 }
 
@@ -107,6 +118,12 @@ function hasMetadata(metadata: Record<string, unknown>) {
 
 function formatMetadata(metadata: Record<string, unknown>) {
   return JSON.stringify(metadata, null, 2);
+}
+
+function adminErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message
+    ? error.message
+    : $t('admin.result.requestFailed');
 }
 
 onMounted(fetchData);
@@ -158,6 +175,19 @@ onMounted(fetchData);
         {{ $t('admin.common.query') }}
       </ElButton>
     </template>
+
+    <ElAlert
+      v-if="loadError"
+      class="admin-load-error"
+      type="error"
+      :closable="false"
+      show-icon
+      :title="loadError"
+    >
+      <ElButton size="small" :loading="loading" @click="fetchData">
+        {{ $t('admin.common.retry') }}
+      </ElButton>
+    </ElAlert>
 
     <PersistentAdminTable
       table-key="open-platform.token-probe-evidence"

@@ -4,6 +4,7 @@ import type { OpenPlatformAuditEvent, OpenPlatformScope } from '#/api/admin';
 import { onMounted, reactive, ref } from 'vue';
 
 import {
+  ElAlert,
   ElButton,
   ElInputNumber,
   ElOption,
@@ -30,6 +31,7 @@ import {
 } from './auditEvents';
 
 const loading = ref(false);
+const loadError = ref('');
 const events = ref<OpenPlatformAuditEvent[]>([]);
 const total = ref(0);
 const query = reactive<{
@@ -60,9 +62,12 @@ const scopeOptions: OpenPlatformScope[] = [
 ];
 
 const knownEventTypes = knownOpenPlatformAuditEventTypes;
+let fetchRequestSeq = 0;
 
 async function fetchData() {
+  const requestSeq = ++fetchRequestSeq;
   loading.value = true;
+  loadError.value = '';
   try {
     const data = await getOpenPlatformAuditEventList({
       appID: normalizeOptionalID(query.appID),
@@ -72,10 +77,16 @@ async function fetchData() {
       scope: query.scope || undefined,
       userID: normalizeOptionalID(query.userID),
     });
+    if (requestSeq !== fetchRequestSeq) return;
     events.value = data.items;
     total.value = data.total;
+  } catch (error) {
+    if (requestSeq !== fetchRequestSeq) return;
+    loadError.value = adminErrorMessage(error);
   } finally {
-    loading.value = false;
+    if (requestSeq === fetchRequestSeq) {
+      loading.value = false;
+    }
   }
 }
 
@@ -113,6 +124,12 @@ function hasMetadata(metadata: Record<string, unknown>) {
 
 function formatMetadata(metadata: Record<string, unknown>) {
   return JSON.stringify(metadata, null, 2);
+}
+
+function adminErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message
+    ? error.message
+    : $t('admin.result.requestFailed');
 }
 
 onMounted(fetchData);
@@ -174,6 +191,19 @@ onMounted(fetchData);
         {{ $t('admin.common.query') }}
       </ElButton>
     </template>
+
+    <ElAlert
+      v-if="loadError"
+      class="admin-load-error"
+      type="error"
+      :closable="false"
+      show-icon
+      :title="loadError"
+    >
+      <ElButton size="small" :loading="loading" @click="fetchData">
+        {{ $t('admin.common.retry') }}
+      </ElButton>
+    </ElAlert>
 
     <PersistentAdminTable
       table-key="open-platform.audit-events"

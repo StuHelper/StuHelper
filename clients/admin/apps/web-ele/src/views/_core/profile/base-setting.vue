@@ -4,6 +4,8 @@ import type { AuthApi } from '#/api';
 import { computed, onMounted, ref } from 'vue';
 
 import {
+  ElAlert,
+  ElButton,
   ElDescriptions,
   ElDescriptionsItem,
   ElSkeleton,
@@ -14,7 +16,9 @@ import { getUserInfoApi } from '#/api';
 import { $t } from '#/locales';
 
 const loading = ref(true);
+const loadError = ref('');
 const profile = ref<AuthApi.MeResult | null>(null);
+let fetchRequestSeq = 0;
 
 const roles = computed(() => profile.value?.roles ?? []);
 
@@ -22,17 +26,47 @@ function displayValue(value: null | string | undefined) {
   return value && value.trim() ? value : '-';
 }
 
-onMounted(async () => {
+async function fetchProfile() {
+  const requestSeq = ++fetchRequestSeq;
+  loading.value = true;
+  loadError.value = '';
   try {
     const { me } = await getUserInfoApi();
+    if (requestSeq !== fetchRequestSeq) return;
     profile.value = me;
+  } catch (error) {
+    if (requestSeq !== fetchRequestSeq) return;
+    loadError.value = adminErrorMessage(error);
   } finally {
-    loading.value = false;
+    if (requestSeq === fetchRequestSeq) {
+      loading.value = false;
+    }
   }
-});
+}
+
+function adminErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message
+    ? error.message
+    : $t('admin.result.requestFailed');
+}
+
+onMounted(fetchProfile);
 </script>
 <template>
   <ElSkeleton :loading="loading" animated>
+    <ElAlert
+      v-if="loadError"
+      class="admin-load-error"
+      type="error"
+      :closable="false"
+      show-icon
+      :title="loadError"
+    >
+      <ElButton size="small" :loading="loading" @click="fetchProfile">
+        {{ $t('admin.common.retry') }}
+      </ElButton>
+    </ElAlert>
+
     <div v-if="profile" class="max-w-2xl">
       <ElDescriptions :column="1" border>
         <ElDescriptionsItem

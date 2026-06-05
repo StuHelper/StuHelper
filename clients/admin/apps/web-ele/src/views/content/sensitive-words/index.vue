@@ -4,6 +4,7 @@ import type { SensitiveWord } from '#/api/admin';
 import { onMounted, reactive, ref } from 'vue';
 
 import {
+  ElAlert,
   ElButton,
   ElInput,
   ElMessage,
@@ -33,6 +34,9 @@ import {
 import SensitiveWordDialog from './SensitiveWordDialog.vue';
 
 const loading = ref(false);
+const actionLoading = ref(false);
+const loadError = ref('');
+const actionError = ref('');
 const words = ref<SensitiveWord[]>([]);
 const total = ref(0);
 const query = reactive({
@@ -41,9 +45,12 @@ const query = reactive({
   category: '',
   level: '' as '' | 'block' | 'review' | 'warn',
 });
+let fetchRequestSeq = 0;
 
 async function fetchData() {
+  const requestSeq = ++fetchRequestSeq;
   loading.value = true;
+  loadError.value = '';
   try {
     const data = await getSensitiveWordList({
       category: query.category || undefined,
@@ -51,11 +58,22 @@ async function fetchData() {
       page: query.page,
       pageSize: query.pageSize,
     });
+    if (requestSeq !== fetchRequestSeq) return;
     words.value = data.items;
     total.value = data.total;
+  } catch (error) {
+    if (requestSeq !== fetchRequestSeq) return;
+    loadError.value = adminErrorMessage(error);
   } finally {
-    loading.value = false;
+    if (requestSeq === fetchRequestSeq) {
+      loading.value = false;
+    }
   }
+}
+
+function resetPageAndFetch() {
+  query.page = 1;
+  void fetchData();
 }
 
 // ── 弹窗 ──
@@ -97,6 +115,9 @@ function openEdit(row: SensitiveWord) {
 }
 
 async function handleSubmit(submitted: SensitiveWordForm) {
+  if (actionLoading.value) {
+    return;
+  }
   if (!submitted.word.trim()) {
     ElMessage.warning(
       $t('admin.content.sensitiveWords.validation.wordRequired'),
@@ -109,21 +130,51 @@ async function handleSubmit(submitted: SensitiveWordForm) {
     level: submitted.level,
     word: submitted.word,
   };
-  if (isEdit.value) {
-    await updateSensitiveWord(submitted.id, payload);
-    ElMessage.success($t('admin.content.sensitiveWords.updated'));
-  } else {
-    await createSensitiveWord(payload);
-    ElMessage.success($t('admin.content.sensitiveWords.created'));
+  actionLoading.value = true;
+  actionError.value = '';
+  try {
+    if (isEdit.value) {
+      await updateSensitiveWord(submitted.id, payload);
+      ElMessage.success($t('admin.content.sensitiveWords.updated'));
+    } else {
+      await createSensitiveWord(payload);
+      ElMessage.success($t('admin.content.sensitiveWords.created'));
+    }
+    dialogVisible.value = false;
+    await fetchData();
+  } catch (error) {
+    handleActionError(error);
+  } finally {
+    actionLoading.value = false;
   }
-  dialogVisible.value = false;
-  await fetchData();
 }
 
 async function handleDelete(id: string) {
-  await deleteSensitiveWord(id);
-  ElMessage.success($t('admin.content.sensitiveWords.deleted'));
-  await fetchData();
+  if (actionLoading.value) {
+    return;
+  }
+  actionLoading.value = true;
+  actionError.value = '';
+  try {
+    await deleteSensitiveWord(id);
+    ElMessage.success($t('admin.content.sensitiveWords.deleted'));
+    await fetchData();
+  } catch (error) {
+    handleActionError(error);
+  } finally {
+    actionLoading.value = false;
+  }
+}
+
+function handleActionError(error: unknown) {
+  actionError.value = adminErrorMessage(error);
+  ElMessage.error(actionError.value);
+}
+
+function adminErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message
+    ? error.message
+    : $t('admin.result.requestFailed');
 }
 
 onMounted(fetchData);
@@ -140,8 +191,8 @@ onMounted(fetchData);
         class="admin-toolbar-control"
         clearable
         :placeholder="$t('admin.content.sensitiveWords.filterByCategory')"
-        @clear="fetchData"
-        @keyup.enter="fetchData"
+        @clear="resetPageAndFetch"
+        @keyup.enter="resetPageAndFetch"
       />
       <ElSelect
         v-model="query.level"
@@ -149,7 +200,7 @@ onMounted(fetchData);
         clearable
         :placeholder="$t('admin.content.sensitiveWords.level')"
         :teleported="false"
-        @change="fetchData"
+        @change="resetPageAndFetch"
       >
         <ElOption :label="$t('admin.common.all')" value="" />
         <ElOption
@@ -165,13 +216,36 @@ onMounted(fetchData);
           value="review"
         />
       </ElSelect>
-      <ElButton type="primary" @click="fetchData">
+      <ElButton type="primary" @click="resetPageAndFetch">
         {{ $t('admin.common.query') }}
       </ElButton>
-      <ElButton type="success" @click="openCreate">
+      <ElButton type="success" :disabled="actionLoading" @click="openCreate">
         {{ $t('admin.content.sensitiveWords.create') }}
       </ElButton>
     </template>
+
+    <ElAlert
+      v-if="loadError"
+      class="admin-load-error"
+      type="error"
+      :closable="false"
+      show-icon
+      :title="loadError"
+    >
+      <ElButton size="small" :loading="loading" @click="fetchData">
+        {{ $t('admin.common.retry') }}
+      </ElButton>
+    </ElAlert>
+
+    <ElAlert
+      v-if="actionError"
+      class="admin-load-error"
+      type="error"
+      :closable="true"
+      show-icon
+      :title="actionError"
+      @close="actionError = ''"
+    />
 
     <PersistentAdminTable
       table-key="content.sensitiveWords"
@@ -244,7 +318,13 @@ onMounted(fetchData);
       >
         <template #default="{ row }">
           <div class="admin-action-group">
-            <ElButton plain size="small" type="primary" @click="openEdit(row)">
+            <ElButton
+              plain
+              size="small"
+              type="primary"
+              :disabled="actionLoading"
+              @click="openEdit(row)"
+            >
               {{ $t('admin.common.edit') }}
             </ElButton>
             <ElPopconfirm
@@ -252,7 +332,12 @@ onMounted(fetchData);
               @confirm="handleDelete(row.id)"
             >
               <template #reference>
-                <ElButton plain size="small" type="danger">
+                <ElButton
+                  plain
+                  size="small"
+                  type="danger"
+                  :disabled="actionLoading"
+                >
                   {{ $t('admin.common.delete') }}
                 </ElButton>
               </template>
@@ -276,6 +361,7 @@ onMounted(fetchData);
       v-model:visible="dialogVisible"
       :form="form"
       :is-edit="isEdit"
+      :loading="actionLoading"
       @submit="handleSubmit"
     />
   </AdminContentLayout>

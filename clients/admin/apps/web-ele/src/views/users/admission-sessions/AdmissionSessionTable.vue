@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { AdmissionSessionAction } from './options';
+
 import type { AdmissionSession } from '#/api/admin';
 
 import { ElButton, ElPagination, ElPopconfirm, ElTag } from 'element-plus';
@@ -15,12 +17,16 @@ import {
   statusTagType,
 } from './options';
 
-defineProps<{
-  canManage: boolean;
-  items: AdmissionSession[];
-  loading: boolean;
-  total: number;
-}>();
+const props = withDefaults(
+  defineProps<{
+    actionLoadingById?: Record<string, AdmissionSessionAction | undefined>;
+    canManage: boolean;
+    items: AdmissionSession[];
+    loading: boolean;
+    total: number;
+  }>(),
+  { actionLoadingById: () => ({}) },
+);
 
 const emit = defineEmits<{
   (e: 'copyAuthURL', url: string): void;
@@ -34,6 +40,21 @@ const emit = defineEmits<{
 
 const page = defineModel<number>('page', { required: true });
 const pageSize = defineModel<number>('pageSize', { required: true });
+
+function sessionActionLoading(
+  row: AdmissionSession,
+  action: AdmissionSessionAction,
+) {
+  return props.actionLoadingById[row.id] === action;
+}
+
+function sessionActionRunning(row: AdmissionSession) {
+  return Boolean(props.actionLoadingById[row.id]);
+}
+
+function sessionActionDisabled(row: AdmissionSession) {
+  return props.loading || sessionActionRunning(row);
+}
 </script>
 
 <template>
@@ -63,7 +84,9 @@ const pageSize = defineModel<number>('pageSize', { required: true });
       >
         <template #default="{ row }">
           <div class="font-mono">{{ row.qqID }}</div>
-          <div class="text-xs text-slate-500">用户 {{ formatText(row.userID) }}</div>
+          <div class="text-xs text-slate-500">
+            用户 {{ formatText(row.userID) }}
+          </div>
         </template>
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
@@ -74,7 +97,8 @@ const pageSize = defineModel<number>('pageSize', { required: true });
         <template #default="{ row }">
           <div>{{ row.platform }} / 群 {{ row.guildID }}</div>
           <div class="text-xs text-slate-500">
-            Bot {{ formatText(row.botSelfID) }} · 频道 {{ formatText(row.channelID) }}
+            Bot {{ formatText(row.botSelfID) }} · 频道
+            {{ formatText(row.channelID) }}
           </div>
         </template>
       </PersistentAdminTableColumn>
@@ -114,6 +138,8 @@ const pageSize = defineModel<number>('pageSize', { required: true });
             link
             size="small"
             type="primary"
+            :disabled="sessionActionDisabled(row)"
+            :loading="sessionActionLoading(row, 'resend')"
             @click="emit('requestResend', row.id)"
           >
             请求重发
@@ -129,6 +155,8 @@ const pageSize = defineModel<number>('pageSize', { required: true });
                 link
                 size="small"
                 type="warning"
+                :disabled="sessionActionDisabled(row)"
+                :loading="sessionActionLoading(row, 'regenerate')"
               >
                 重新生成
               </ElButton>
@@ -145,6 +173,8 @@ const pageSize = defineModel<number>('pageSize', { required: true });
                 link
                 size="small"
                 type="danger"
+                :disabled="sessionActionDisabled(row)"
+                :loading="sessionActionLoading(row, 'cancel')"
               >
                 取消会话
               </ElButton>
