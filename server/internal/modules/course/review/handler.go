@@ -9,6 +9,7 @@ import (
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
@@ -132,7 +133,7 @@ func (h *Handler) RegisterRoutes(
 	// 管理员路由组
 	admin := r.Group("/admin")
 	adminRouteMiddlewares := append([]gin.HandlerFunc{authMiddleware}, adminMiddlewares...)
-	adminRouteMiddlewares = appendRouteMiddlewares(adminRouteMiddlewares, h.adminAuthorizers.Entry)
+	adminRouteMiddlewares = httputil.AppendRouteMiddlewares(adminRouteMiddlewares, h.adminAuthorizers.Entry)
 	admin.Use(adminRouteMiddlewares...)
 	{
 		admin.GET("/reports", requireModerationRole(), h.ListReports)
@@ -141,43 +142,23 @@ func (h *Handler) RegisterRoutes(
 		admin.PUT("/reviews/:reviewID", requireModerationRole(), h.AdminUpdateReview)
 		admin.POST("/reviews/:reviewID/edit", requireSchoolAdminRole(), h.AdminEditReviewContent)
 		admin.PATCH("/reviews/batch", requireModerationRole(), h.BatchUpdateReviews)
-		admin.GET("/stats", adminRouteHandlers(h.GetAdminStats, h.adminAuthorizers.DashboardView)...)
-		admin.GET("/logs", adminRouteHandlers(h.GetOperationLogs, h.adminAuthorizers.LogsView)...)
-		admin.GET("/export", adminRouteHandlers(h.ExportReviews, h.adminAuthorizers.ReviewsManage)...)
+		admin.GET("/stats", httputil.RouteHandlers(h.GetAdminStats, h.adminAuthorizers.DashboardView)...)
+		admin.GET("/logs", httputil.RouteHandlers(h.GetOperationLogs, h.adminAuthorizers.LogsView)...)
+		admin.GET("/export", httputil.RouteHandlers(h.ExportReviews, h.adminAuthorizers.ReviewsManage)...)
 
-		admin.GET("/teachers", adminRouteHandlers(h.ListAdminTeachers, h.adminAuthorizers.TeachersManage)...)
-		admin.POST("/teachers", adminRouteHandlers(h.CreateTeacher, h.adminAuthorizers.TeachersManage)...)
-		admin.PUT("/teachers/:teacherID", adminRouteHandlers(h.UpdateTeacher, h.adminAuthorizers.TeachersManage)...)
-		admin.DELETE("/teachers/:teacherID", adminRouteHandlers(h.DeleteTeacher, h.adminAuthorizers.TeachersManage)...)
+		admin.GET("/teachers", httputil.RouteHandlers(h.ListAdminTeachers, h.adminAuthorizers.TeachersManage)...)
+		admin.POST("/teachers", httputil.RouteHandlers(h.CreateTeacher, h.adminAuthorizers.TeachersManage)...)
+		admin.PUT("/teachers/:teacherID", httputil.RouteHandlers(h.UpdateTeacher, h.adminAuthorizers.TeachersManage)...)
+		admin.DELETE("/teachers/:teacherID", httputil.RouteHandlers(h.DeleteTeacher, h.adminAuthorizers.TeachersManage)...)
 
-		admin.GET("/sensitive-words", adminRouteHandlers(h.ListSensitiveWords, h.adminAuthorizers.SensitiveWordsManage)...)
-		admin.POST("/sensitive-words", adminRouteHandlers(h.CreateSensitiveWord, h.adminAuthorizers.SensitiveWordsManage)...)
-		admin.PUT("/sensitive-words/:sensitiveWordID", adminRouteHandlers(h.UpdateSensitiveWord, h.adminAuthorizers.SensitiveWordsManage)...)
-		admin.DELETE("/sensitive-words/:sensitiveWordID", adminRouteHandlers(h.DeleteSensitiveWord, h.adminAuthorizers.SensitiveWordsManage)...)
+		admin.GET("/sensitive-words", httputil.RouteHandlers(h.ListSensitiveWords, h.adminAuthorizers.SensitiveWordsManage)...)
+		admin.POST("/sensitive-words", httputil.RouteHandlers(h.CreateSensitiveWord, h.adminAuthorizers.SensitiveWordsManage)...)
+		admin.PUT("/sensitive-words/:sensitiveWordID", httputil.RouteHandlers(h.UpdateSensitiveWord, h.adminAuthorizers.SensitiveWordsManage)...)
+		admin.DELETE("/sensitive-words/:sensitiveWordID", httputil.RouteHandlers(h.DeleteSensitiveWord, h.adminAuthorizers.SensitiveWordsManage)...)
 
 		admin.GET("/content-flags", requireModerationRole(), h.ListFlaggedReviews)
 		admin.PUT("/content-flags/:reviewID/clear", requireModerationRole(), h.ClearContentFlag)
 	}
-}
-
-func appendRouteMiddlewares(existing []gin.HandlerFunc, middlewares ...gin.HandlerFunc) []gin.HandlerFunc {
-	for _, mw := range middlewares {
-		if mw != nil {
-			existing = append(existing, mw)
-		}
-	}
-	return existing
-}
-
-func adminRouteHandlers(handler gin.HandlerFunc, middlewares ...gin.HandlerFunc) []gin.HandlerFunc {
-	handlers := make([]gin.HandlerFunc, 0, len(middlewares)+1)
-	for _, mw := range middlewares {
-		if mw != nil {
-			handlers = append(handlers, mw)
-		}
-	}
-	handlers = append(handlers, handler)
-	return handlers
 }
 
 // CleanupOldLogs 清理过期操作日志（保留 90 天）

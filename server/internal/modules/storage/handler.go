@@ -48,16 +48,9 @@ func (h *Handler) RegisterAdminRoutes(
 	admin := api.Group("/admin/storage")
 	middlewares := append([]gin.HandlerFunc{authMW}, adminMiddlewares...)
 	admin.Use(middlewares...)
-	admin.GET("/mounts", appendRouteMiddleware(h.adminAuthorizers.Read, h.listMounts)...)
-	admin.POST("/mounts", appendRouteMiddleware(h.adminAuthorizers.Update, h.createMount)...)
-	admin.POST("/mounts/:mountID/health-check", appendRouteMiddleware(h.adminAuthorizers.Update, h.checkMountHealth)...)
-}
-
-func appendRouteMiddleware(authorizer gin.HandlerFunc, handler gin.HandlerFunc) []gin.HandlerFunc {
-	if authorizer == nil {
-		return []gin.HandlerFunc{handler}
-	}
-	return []gin.HandlerFunc{authorizer, handler}
+	admin.GET("/mounts", httputil.RouteHandlers(h.listMounts, h.adminAuthorizers.Read)...)
+	admin.POST("/mounts", httputil.RouteHandlers(h.createMount, h.adminAuthorizers.Update)...)
+	admin.POST("/mounts/:mountID/health-check", httputil.RouteHandlers(h.checkMountHealth, h.adminAuthorizers.Update)...)
 }
 
 func (h *Handler) listMounts(c *gin.Context) {

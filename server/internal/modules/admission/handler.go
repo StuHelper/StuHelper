@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/serviceaccount"
 )
@@ -203,68 +204,57 @@ func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
 func (h *Handler) registerAdminAdmissionRoutes(admin *gin.RouterGroup) {
 	admin.GET(
 		"/admission/policies",
-		adminRouteHandlers(h.handleAdminListAdmissionPolicies, h.adminAuthorizers.AdmissionPolicyRead)...,
+		httputil.RouteHandlers(h.handleAdminListAdmissionPolicies, h.adminAuthorizers.AdmissionPolicyRead)...,
 	)
 	admin.PUT(
 		"/admission/policies/:id",
-		adminRouteHandlers(h.handleAdminUpdateAdmissionPolicy, h.adminAuthorizers.AdmissionPolicyUpdate)...,
+		httputil.RouteHandlers(h.handleAdminUpdateAdmissionPolicy, h.adminAuthorizers.AdmissionPolicyUpdate)...,
 	)
 	admin.GET(
 		"/admission/sessions",
-		adminRouteHandlers(h.handleAdminListAdmissionSessions, h.adminAuthorizers.AdmissionSessionRead)...,
+		httputil.RouteHandlers(h.handleAdminListAdmissionSessions, h.adminAuthorizers.AdmissionSessionRead)...,
 	)
 	admin.POST(
 		"/admission/sessions/:id/resend",
-		adminRouteHandlers(h.handleAdminResendAdmissionSession, h.adminAuthorizers.AdmissionSessionManage)...,
+		httputil.RouteHandlers(h.handleAdminResendAdmissionSession, h.adminAuthorizers.AdmissionSessionManage)...,
 	)
 	admin.POST(
 		"/admission/sessions/:id/regenerate",
-		adminRouteHandlers(h.handleAdminRegenerateAdmissionSession, h.adminAuthorizers.AdmissionSessionManage)...,
+		httputil.RouteHandlers(h.handleAdminRegenerateAdmissionSession, h.adminAuthorizers.AdmissionSessionManage)...,
 	)
 	admin.POST(
 		"/admission/sessions/:id/cancel",
-		adminRouteHandlers(h.handleAdminCancelAdmissionSession, h.adminAuthorizers.AdmissionSessionManage)...,
+		httputil.RouteHandlers(h.handleAdminCancelAdmissionSession, h.adminAuthorizers.AdmissionSessionManage)...,
 	)
 	admin.GET(
 		"/freshman-verifications",
-		adminRouteHandlers(h.handleAdminListFreshmanVerifications, h.adminAuthorizers.AdmissionFreshmanRead)...,
+		httputil.RouteHandlers(h.handleAdminListFreshmanVerifications, h.adminAuthorizers.AdmissionFreshmanRead)...,
 	)
 	admin.GET(
 		"/freshman-verifications/:id",
-		adminRouteHandlers(h.handleAdminGetFreshmanVerification, h.adminAuthorizers.AdmissionFreshmanRead)...,
+		httputil.RouteHandlers(h.handleAdminGetFreshmanVerification, h.adminAuthorizers.AdmissionFreshmanRead)...,
 	)
 	admin.PUT(
 		"/freshman-verifications/:id",
-		adminRouteHandlers(h.handleAdminReviewFreshmanVerification, h.adminAuthorizers.AdmissionFreshmanReview)...,
+		httputil.RouteHandlers(h.handleAdminReviewFreshmanVerification, h.adminAuthorizers.AdmissionFreshmanReview)...,
 	)
 }
 
 func (h *Handler) registerAdminMemberBlacklistRoutes(admin *gin.RouterGroup) {
 	admin.GET(
 		"/member-blacklist",
-		adminRouteHandlers(h.handleListAdminMemberBlacklist, h.adminAuthorizers.MemberBlacklistRead)...,
+		httputil.RouteHandlers(h.handleListAdminMemberBlacklist, h.adminAuthorizers.MemberBlacklistRead)...,
 	)
 	admin.POST(
 		"/member-blacklist",
-		adminRouteHandlers(h.handleCreateAdminMemberBlacklist, h.adminAuthorizers.MemberBlacklistManage)...,
+		httputil.RouteHandlers(h.handleCreateAdminMemberBlacklist, h.adminAuthorizers.MemberBlacklistManage)...,
 	)
 	admin.POST(
 		"/member-blacklist/release-by-subject",
-		adminRouteHandlers(h.handleReleaseAdminMemberBlacklistBySubject, h.adminAuthorizers.MemberBlacklistManage)...,
+		httputil.RouteHandlers(h.handleReleaseAdminMemberBlacklistBySubject, h.adminAuthorizers.MemberBlacklistManage)...,
 	)
 	admin.POST(
 		"/member-blacklist/:id/release",
-		adminRouteHandlers(h.handleReleaseAdminMemberBlacklist, h.adminAuthorizers.MemberBlacklistManage)...,
+		httputil.RouteHandlers(h.handleReleaseAdminMemberBlacklist, h.adminAuthorizers.MemberBlacklistManage)...,
 	)
-}
-
-func adminRouteHandlers(handler gin.HandlerFunc, middlewares ...gin.HandlerFunc) []gin.HandlerFunc {
-	handlers := make([]gin.HandlerFunc, 0, len(middlewares)+1)
-	for _, mw := range middlewares {
-		if mw != nil {
-			handlers = append(handlers, mw)
-		}
-	}
-	handlers = append(handlers, handler)
-	return handlers
 }

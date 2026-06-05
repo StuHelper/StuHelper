@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
@@ -19,23 +20,12 @@ type unlockAuthAccountRequest struct {
 func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
 	admin.POST(
 		"/auth/account-locks/unlock",
-		adminRouteHandlers(
+		httputil.RouteHandlers(
 			h.unlockAuthAccount,
 			h.adminAuthorizers.AccountLockUpdate,
 			h.adminAuthorizers.StepUpMFA,
 		)...,
 	)
-}
-
-func adminRouteHandlers(handler gin.HandlerFunc, middlewares ...gin.HandlerFunc) []gin.HandlerFunc {
-	handlers := make([]gin.HandlerFunc, 0, len(middlewares)+1)
-	for _, mw := range middlewares {
-		if mw != nil {
-			handlers = append(handlers, mw)
-		}
-	}
-	handlers = append(handlers, handler)
-	return handlers
 }
 
 func (h *Handler) unlockAuthAccount(c *gin.Context) {

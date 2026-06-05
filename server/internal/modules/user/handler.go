@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 )
 
@@ -124,7 +125,7 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, authMW gin.HandlerFunc) {
 func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
 	admin.GET(
 		"/identities",
-		adminRouteHandlers(
+		httputil.RouteHandlers(
 			h.handleAdminListIdentities,
 			h.adminAuthorizers.IdentityRead,
 			h.adminAuthorizers.StepUpMFA,
@@ -132,7 +133,7 @@ func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
 	)
 	admin.PUT(
 		"/identities/:userID",
-		adminRouteHandlers(
+		httputil.RouteHandlers(
 			h.handleAdminReviewIdentity,
 			h.adminAuthorizers.IdentityReview,
 			h.adminAuthorizers.StepUpMFA,
@@ -140,7 +141,7 @@ func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
 	)
 	admin.GET(
 		"/student-verifications",
-		adminRouteHandlers(
+		httputil.RouteHandlers(
 			h.handleAdminListStudentVerifications,
 			h.adminAuthorizers.StudentRead,
 			h.adminAuthorizers.StepUpMFA,
@@ -148,7 +149,7 @@ func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
 	)
 	admin.PUT(
 		"/student-verifications/:userID",
-		adminRouteHandlers(
+		httputil.RouteHandlers(
 			h.handleAdminReviewStudentVerification,
 			h.adminAuthorizers.StudentReview,
 			h.adminAuthorizers.StepUpMFA,
@@ -156,11 +157,11 @@ func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
 	)
 	admin.GET(
 		"/school-configs",
-		adminRouteHandlers(h.handleAdminListSchoolConfigs, h.adminAuthorizers.SchoolRead)...,
+		httputil.RouteHandlers(h.handleAdminListSchoolConfigs, h.adminAuthorizers.SchoolRead)...,
 	)
 	admin.PUT(
 		"/school-configs/:schoolID",
-		adminRouteHandlers(
+		httputil.RouteHandlers(
 			h.handleAdminUpdateSchoolConfig,
 			h.adminAuthorizers.SchoolUpdate,
 			h.adminAuthorizers.StepUpMFA,
@@ -168,25 +169,14 @@ func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
 	)
 	admin.GET(
 		"/system-configs",
-		adminRouteHandlers(h.handleAdminListSystemConfigs, h.adminAuthorizers.SystemRead)...,
+		httputil.RouteHandlers(h.handleAdminListSystemConfigs, h.adminAuthorizers.SystemRead)...,
 	)
 	admin.PUT(
 		"/system-configs/:key",
-		adminRouteHandlers(
+		httputil.RouteHandlers(
 			h.handleAdminUpdateSystemConfig,
 			h.adminAuthorizers.SystemUpdate,
 			h.adminAuthorizers.StepUpMFA,
 		)...,
 	)
-}
-
-func adminRouteHandlers(handler gin.HandlerFunc, middlewares ...gin.HandlerFunc) []gin.HandlerFunc {
-	handlers := make([]gin.HandlerFunc, 0, len(middlewares)+1)
-	for _, mw := range middlewares {
-		if mw != nil {
-			handlers = append(handlers, mw)
-		}
-	}
-	handlers = append(handlers, handler)
-	return handlers
 }

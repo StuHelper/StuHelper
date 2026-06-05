@@ -55,16 +55,9 @@ func (h *Handler) RegisterRoutes(api *gin.RouterGroup, authMW gin.HandlerFunc) {
 
 	admin := api.Group("/admin/academics")
 	admin.Use(authMW)
-	admin.GET("/sources", appendRouteMiddleware(h.adminAuthorizers.Read, h.listSources)...)
-	admin.GET("/import-jobs", appendRouteMiddleware(h.adminAuthorizers.Read, h.listImportJobs)...)
-	admin.POST("/import-jobs", appendRouteMiddleware(h.adminAuthorizers.Update, h.triggerImport)...)
-}
-
-func appendRouteMiddleware(authorizer gin.HandlerFunc, handler gin.HandlerFunc) []gin.HandlerFunc {
-	if authorizer == nil {
-		return []gin.HandlerFunc{handler}
-	}
-	return []gin.HandlerFunc{authorizer, handler}
+	admin.GET("/sources", httputil.RouteHandlers(h.listSources, h.adminAuthorizers.Read)...)
+	admin.GET("/import-jobs", httputil.RouteHandlers(h.listImportJobs, h.adminAuthorizers.Read)...)
+	admin.POST("/import-jobs", httputil.RouteHandlers(h.triggerImport, h.adminAuthorizers.Update)...)
 }
 
 func (h *Handler) listSources(c *gin.Context) {
