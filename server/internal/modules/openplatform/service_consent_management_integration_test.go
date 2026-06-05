@@ -1606,6 +1606,52 @@ func TestApproveAppDeletesCasdoorApplicationWhenLocalApprovalFails(t *testing.T)
 	assertOpenPlatformAppStatus(t, ctx, repo, registered.App.ID, AppStatusRevoked)
 }
 
+func TestApproveAppCleanupSurvivesRequestCancellationAfterCasdoorProvision(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	provisioner := &fakeOpenPlatformAppProvisioner{}
+	service, err := NewService(repo, redis.Client, WithAppProvisioner(provisioner))
+	require.NoError(t, err)
+
+	ownerID := seedOpenPlatformUser(t, postgres, "approval-cancel-owner")
+	adminID := seedOpenPlatformUser(t, postgres, "approval-cancel-admin")
+	registered, err := service.RegisterApp(ctx, RegisterAppInput{
+		OwnerUserID:      ownerID,
+		DisplayName:      "Approval Cancel App",
+		Description:      "Request is cancelled after Casdoor provisioning.",
+		HomepageURL:      "https://approval-cancel.example.com",
+		PrivacyPolicyURL: "https://approval-cancel.example.com/privacy",
+		RedirectURIs:     []string{"https://approval-cancel.example.com/callback"},
+		Scopes: []ScopeRequestInput{
+			{Scope: ScopeProfileBasicRead, Reason: "show profile"},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, service.ApproveScope(ctx, ApproveScopeInput{
+		AppID:          registered.App.ID,
+		Scope:          ScopeProfileBasicRead,
+		ReviewerUserID: adminID,
+		DecisionNote:   "profile is required",
+	}))
+	requestCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	provisioner.onEnsure = cancel
+
+	approved, err := service.ApproveAppWithAudit(requestCtx, ApproveAppInput{
+		AppID:          registered.App.ID,
+		ReviewerUserID: adminID,
+		RequestID:      "approve-cancel-after-provision",
+	})
+
+	require.Nil(t, approved)
+	require.Error(t, err)
+	assert.Equal(t, []string{registered.App.CasdoorApplicationName}, provisioner.deleted)
+	assertOpenPlatformAuditCount(t, postgres, registered.App.ID, adminID, "open_platform.app.approved", 0)
+	assertOpenPlatformAppStatus(t, context.Background(), repo, registered.App.ID, AppStatusPending)
+}
+
 func TestImportCasdoorAppRejectsBusinessTokenFields(t *testing.T) {
 	ctx := context.Background()
 	postgres := postgresfixture.Start(t)
@@ -3574,9 +3620,12 @@ func (f *fakeOpenPlatformAppProvisioner) EnsureApplication(_ context.Context, sp
 	return nil
 }
 
-func (f *fakeOpenPlatformAppProvisioner) DeleteApplication(_ context.Context, name string) error {
+func (f *fakeOpenPlatformAppProvisioner) DeleteApplication(ctx context.Context, name string) error {
 	if f.err != nil {
 		return f.err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	f.deleted = append(f.deleted, strings.TrimSpace(name))
 	return nil

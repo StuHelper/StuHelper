@@ -5,7 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
+
+const casdoorApplicationRollbackTimeout = 5 * time.Second
 
 type ApproveScopeInput struct {
 	AppID          int64
@@ -657,10 +660,16 @@ func (s *Service) deleteProvisionedCasdoorApplication(ctx context.Context, name 
 	if name == "" {
 		return nil
 	}
-	if err := s.provisioner.DeleteApplication(ctx, name); err != nil {
+	cleanupCtx, cancel := casdoorApplicationRollbackContext(ctx)
+	defer cancel()
+	if err := s.provisioner.DeleteApplication(cleanupCtx, name); err != nil {
 		return fmt.Errorf("rollback Casdoor application after open platform approval failure: %w", err)
 	}
 	return nil
+}
+
+func casdoorApplicationRollbackContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), casdoorApplicationRollbackTimeout)
 }
 
 func casdoorApplicationSpecForApprovedApp(app *App, clientSecret string) ProvisionedApplicationSpec {
