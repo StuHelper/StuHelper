@@ -18,6 +18,7 @@ import type { GuardMemberStore } from './store'
 
 const DEFAULT_ADMISSION_COMMAND_AUTHORITY = 4
 const DUPLICATE_COMMAND_SUPPRESS_MS = 30_000
+const STALE_ADMISSION_RECORD_MESSAGE = '入群认证记录已被其他任务处理，请重新查询当前状态。'
 
 interface AdmissionAdminCommandDeps {
   readonly platform: PlatformClient
@@ -81,7 +82,10 @@ export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdmi
           return releaseVerifiedAdmissionForCommand(command, deps, created)
         }
         await resetMemberMute(command.session, created.session)
-        await updateLocalAdmissionRecord(command, deps.guardStore, created)
+        const synced = await updateLocalAdmissionRecord(command, deps.guardStore, created)
+        if (synced === false) {
+          return STALE_ADMISSION_RECORD_MESSAGE
+        }
         return sendAdmissionReminderForCommand(command, deps, created.session)
       } catch (error) {
         commandDeduper.forget(dedupeKey)
@@ -98,7 +102,10 @@ export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdmi
       try {
         const skipped = await deps.platform.skipAdmissionSessionForMember(admissionOperatorSubject(command))
         await releaseMemberMuteForCommand(command)
-        await markLocalAdmissionSkipped(command, deps.guardStore, skipped)
+        const released = await markLocalAdmissionSkipped(command, deps.guardStore, skipped)
+        if (released === false) {
+          return STALE_ADMISSION_RECORD_MESSAGE
+        }
         return `${h.at(command.qqID)} (${command.qqID}) 已跳过本群入群认证并解除禁言。\n此操作只在本群生效，不代表 StuHelper 学生认证已通过。`
       } catch (error) {
         commandDeduper.forget(dedupeKey)
@@ -327,7 +334,10 @@ async function sendAdmissionReminderForCommand(
     deps.reminderDeduper?.forget(admission.id)
     throw error
   }
-  await markLocalReminderSent(command, deps.guardStore)
+  const marked = await markLocalReminderSent(command, deps.guardStore)
+  if (marked === false) {
+    return STALE_ADMISSION_RECORD_MESSAGE
+  }
   await deps.platform.recordAdmissionEvent(admission.id, {
     action: 'remind',
     success: true,
@@ -366,8 +376,14 @@ async function releaseVerifiedAdmissionForCommand(
     memberId: command.qqID,
   })
   if (record) {
-    await deps.guardStore.markBackendSynced(record.id, backendSyncUpdate(created))
-    await deps.guardStore.markReleased(record.id, new Date())
+    const synced = await deps.guardStore.markBackendSynced(record.id, backendSyncUpdate(created))
+    if (synced === false) {
+      return STALE_ADMISSION_RECORD_MESSAGE
+    }
+    const released = await deps.guardStore.markReleased(record.id, new Date())
+    if (released === false) {
+      return STALE_ADMISSION_RECORD_MESSAGE
+    }
   }
   await deps.platform.recordAdmissionEvent(created.session.id, {
     action: 'release',
@@ -387,15 +403,17 @@ async function markLocalAdmissionSkipped(
     guildId: command.guildID,
     memberId: command.qqID,
   })
-  if (!record) return
-  await guardStore.markBackendSynced(record.id, {
+  if (!record) return true
+  const synced = await guardStore.markBackendSynced(record.id, {
     admissionSessionID: admission.id,
     backendSyncPending: false,
     deadlineAt: new Date(admission.linkWaitDeadlineAt),
     nextReminderAt: null,
     manualReviewDeadlineAt: admission.manualReviewDeadlineAt ? new Date(admission.manualReviewDeadlineAt) : null,
   })
-  await guardStore.markReleased(record.id, new Date())
+  if (synced === false) return false
+  const released = await guardStore.markReleased(record.id, new Date())
+  return released !== false
 }
 
 async function updateLocalAdmissionRecord(
@@ -409,8 +427,9 @@ async function updateLocalAdmissionRecord(
     guildId: command.guildID,
     memberId: command.qqID,
   })
-  if (!record) return
-  await guardStore.markBackendSynced(record.id, backendSyncUpdate(created))
+  if (!record) return true
+  const synced = await guardStore.markBackendSynced(record.id, backendSyncUpdate(created))
+  return synced !== false
 }
 
 async function markLocalReminderSent(
@@ -423,8 +442,9 @@ async function markLocalReminderSent(
     guildId: command.guildID,
     memberId: command.qqID,
   })
-  if (!record) return
-  await guardStore.markReminderSent(record.id, new Date())
+  if (!record) return true
+  const marked = await guardStore.markReminderSent(record.id, new Date())
+  return marked !== false
 }
 
 function reminderDeadline(session: AdmissionSession) {

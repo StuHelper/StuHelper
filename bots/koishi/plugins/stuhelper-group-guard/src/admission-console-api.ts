@@ -25,6 +25,7 @@ const ADMISSION_RUNTIME_ACTION_EVENT = 'stuhelperGroupGuard/action/admission-mem
 const ADMISSION_RUNTIME_SETTINGS_EVENT = 'stuhelperGroupGuard/action/save-admission-runtime-settings'
 const CONSOLE_AUTHORITY = 4
 const ACTIVE_MEMBER_LIMIT = 100
+const STALE_ADMISSION_RECORD_MESSAGE = '入群认证记录已被其他任务处理，请刷新页面后确认当前状态。'
 
 export type AdmissionRuntimeAction =
   | 'query'
@@ -289,7 +290,10 @@ async function resendAdmissionSession(
   record: GuardMemberRecord,
 ) {
   const session = await deps.platform.resendAdmissionSessionLink(admissionSubject(record))
-  await sendReminderForRecord(ctx, deps, record, session)
+  const reminded = await sendReminderForRecord(ctx, deps, record, session)
+  if (reminded === false) {
+    return STALE_ADMISSION_RECORD_MESSAGE
+  }
   return `已重发 QQ ${record.memberId} 的入群认证链接。`
 }
 
@@ -303,20 +307,33 @@ async function regenerateAdmissionSession(
     channelID: record.channelId,
     botSelfID: record.botSelfId,
   })
-  const bot = requireBotForRecord(ctx, record)
   if (created.session.status === 'verified') {
+    const bot = requireBotForRecord(ctx, record)
     await bot.muteGuildMember(record.guildId, record.memberId, 0)
-    await deps.guardStore.markBackendSynced(record.id, backendSyncUpdate(created))
-    await deps.guardStore.markReleased(record.id, new Date())
+    const synced = await deps.guardStore.markBackendSynced(record.id, backendSyncUpdate(created))
+    if (synced === false) {
+      return STALE_ADMISSION_RECORD_MESSAGE
+    }
+    const released = await deps.guardStore.markReleased(record.id, new Date())
+    if (released === false) {
+      return STALE_ADMISSION_RECORD_MESSAGE
+    }
     await deps.platform.recordAdmissionEvent(created.session.id, {
       action: 'release',
       success: true,
     })
     return `QQ ${record.memberId} 已完成学生认证，已解除禁言。`
   }
+  const bot = requireBotForRecord(ctx, record)
   await resetMemberMute(bot, created.session)
-  await deps.guardStore.markBackendSynced(record.id, backendSyncUpdate(created))
-  await sendReminderForRecord(ctx, deps, record, created.session)
+  const synced = await deps.guardStore.markBackendSynced(record.id, backendSyncUpdate(created))
+  if (synced === false) {
+    return STALE_ADMISSION_RECORD_MESSAGE
+  }
+  const reminded = await sendReminderForRecord(ctx, deps, record, created.session)
+  if (reminded === false) {
+    return STALE_ADMISSION_RECORD_MESSAGE
+  }
   return `已重新生成 QQ ${record.memberId} 的入群认证链接并重置禁言。`
 }
 
@@ -332,14 +349,20 @@ async function skipAdmissionSession(
   })
   const bot = requireBotForRecord(ctx, record)
   await bot.muteGuildMember(record.guildId, record.memberId, 0)
-  await deps.guardStore.markBackendSynced(record.id, {
+  const synced = await deps.guardStore.markBackendSynced(record.id, {
     admissionSessionID: session.id,
     backendSyncPending: false,
     deadlineAt: new Date(session.linkWaitDeadlineAt),
     nextReminderAt: null,
     manualReviewDeadlineAt: session.manualReviewDeadlineAt ? new Date(session.manualReviewDeadlineAt) : null,
   })
-  await deps.guardStore.markReleased(record.id, new Date())
+  if (synced === false) {
+    return STALE_ADMISSION_RECORD_MESSAGE
+  }
+  const released = await deps.guardStore.markReleased(record.id, new Date())
+  if (released === false) {
+    return STALE_ADMISSION_RECORD_MESSAGE
+  }
   return `已跳过 QQ ${record.memberId} 在本群的入群认证并解除禁言。`
 }
 
@@ -391,12 +414,16 @@ async function sendReminderForRecord(
     remainingRetryCount: session.remainingRetryCount,
     willBlacklistOnTimeout: session.willBlacklistOnTimeout,
   }))
-  await deps.guardStore.markReminderSent(record.id, new Date())
+  const reminded = await deps.guardStore.markReminderSent(record.id, new Date())
+  if (reminded === false) {
+    return false
+  }
   await deps.platform.recordAdmissionEvent(session.id, {
     action: 'remind',
     success: true,
     ...(messageID ? { messageID } : {}),
   })
+  return true
 }
 
 async function resetMemberMute(bot: Universal.Methods, session: AdmissionSession) {

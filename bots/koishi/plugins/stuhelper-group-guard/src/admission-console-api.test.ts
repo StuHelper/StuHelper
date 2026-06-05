@@ -92,6 +92,79 @@ test('admission runtime resend action calls backend, sends reminder, and records
   assert.deepEqual(recordedEvents, [{ sessionID: 'session-1', messageID: 'message-1' }])
 })
 
+test('admission runtime resend does not record backend event after losing the active record', async () => {
+  const sentMessages: Array<{ channelId: string; message: string }> = []
+  let eventRecorded = false
+  const data = await handleAdmissionRuntimeAction(
+    fakeContext(sentMessages),
+    {
+      config: createConfig(),
+      platform: fakePlatform({
+        async recordAdmissionEvent() {
+          eventRecorded = true
+        },
+      }),
+      runtimeSettings: fakeRuntimeSettings(),
+      guardStore: fakeGuardStore({
+        async getActiveByID() {
+          return createMember({ backendSyncPending: false, admissionSessionID: 'session-1' })
+        },
+        async markReminderSent() {
+          return false
+        },
+      }),
+      policyStore: fakePolicyStore(),
+    },
+    { recordId: 'qq:2118785781:178037297:2001', action: 'resend' },
+    { auth: { id: 42 } },
+  )
+
+  assert.equal(data, '入群认证记录已被其他任务处理，请刷新页面后确认当前状态。')
+  assert.equal(sentMessages.length, 1)
+  assert.equal(eventRecorded, false)
+})
+
+test('admission runtime regenerate does not record verified release after losing the active record', async () => {
+  const sentMessages: Array<{ channelId: string; message: string }> = []
+  const muteActions: Array<{ guildId: string; memberId: string; duration: number }> = []
+  let eventRecorded = false
+  const data = await handleAdmissionRuntimeAction(
+    fakeContext(sentMessages, muteActions),
+    {
+      config: createConfig(),
+      platform: fakePlatform({
+        async regenerateAdmissionSessionLink() {
+          return {
+            session: createAdmissionSession({ status: 'verified' }),
+            token: 'abc',
+            authURL: 'https://join.stuhelper.com/verify/abc',
+          }
+        },
+        async recordAdmissionEvent() {
+          eventRecorded = true
+        },
+      }),
+      runtimeSettings: fakeRuntimeSettings(),
+      guardStore: fakeGuardStore({
+        async getActiveByID() {
+          return createMember({ backendSyncPending: false, admissionSessionID: 'session-1' })
+        },
+        async markBackendSynced() {
+          return false
+        },
+      }),
+      policyStore: fakePolicyStore(),
+    },
+    { recordId: 'qq:2118785781:178037297:2001', action: 'regenerate' },
+    { auth: { id: 42 } },
+  )
+
+  assert.equal(data, '入群认证记录已被其他任务处理，请刷新页面后确认当前状态。')
+  assert.equal(sentMessages.length, 0)
+  assert.deepEqual(muteActions, [{ guildId: '178037297', memberId: '2001', duration: 0 }])
+  assert.equal(eventRecorded, false)
+})
+
 test('admission runtime settings action persists WebUI switch changes', async () => {
   const listeners = new Map<string, (input: unknown) => Promise<string>>()
   const savedInputs: unknown[] = []
@@ -144,7 +217,10 @@ test('admission runtime settings action persists WebUI switch changes', async ()
   }])
 })
 
-function fakeContext(sentMessages: Array<{ channelId: string; message: string }> = []) {
+function fakeContext(
+  sentMessages: Array<{ channelId: string; message: string }> = [],
+  muteActions: Array<{ guildId: string; memberId: string; duration: number }> = [],
+) {
   return {
     bots: [{
       platform: 'onebot',
@@ -154,7 +230,9 @@ function fakeContext(sentMessages: Array<{ channelId: string; message: string }>
         sentMessages.push({ channelId, message })
         return 'message-1'
       },
-      async muteGuildMember() {},
+      async muteGuildMember(guildId: string, memberId: string, duration: number) {
+        muteActions.push({ guildId, memberId, duration })
+      },
     }],
   } as unknown as Context
 }
