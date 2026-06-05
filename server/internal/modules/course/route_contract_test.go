@@ -6,7 +6,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	reviewmodule "git.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/routeassert"
 )
 
@@ -15,9 +14,7 @@ func TestCourseRegisterRoutes_UsesOpenAPIPathParamNames(t *testing.T) {
 
 	r := gin.New()
 	api := r.Group("/api/v1")
-	h := &Handler{
-		reviewHandler: &reviewmodule.Handler{},
-	}
+	h := &Handler{}
 	noOp := func(c *gin.Context) { c.Next() }
 
 	h.RegisterRoutes(api, noOp, noOp)

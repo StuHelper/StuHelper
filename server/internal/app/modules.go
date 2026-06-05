@@ -75,8 +75,8 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	notifHub.StartRedisSubscriber(bgCtx, startBackgroundTask)
 	rt.addCleanup(notifHub.Stop)
 
-	courseHandler := rt.initCourseModule(fgaClient, notifService, userRepo)
-	courseHandler.RegisterRoutes(api, authMW, optionalAuthMW, adminMFA...)
+	courseModule := rt.initCourseModule(fgaClient, notifService, userRepo)
+	courseModule.RegisterRoutes(api, authMW, optionalAuthMW, adminMFA...)
 
 	storageService := storage.NewService(storage.NewRepository(rt.database), rt.cfg.ObjectStorage)
 	if err := storageService.EnsureDefaultMount(bgCtx); err != nil {
@@ -180,7 +180,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	botHandler.RegisterRoutes(api)
 	rt.registerAdminRoutes(api, userRepo, userHandler, authHandler, admissionHandler, openPlatformHandler, authMW)
 
-	courseHandler.StartBackgroundJobs(bgCtx, startBackgroundTask)
+	courseModule.StartBackgroundJobs(bgCtx, startBackgroundTask)
 
 	return nil
 }

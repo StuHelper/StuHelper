@@ -53,8 +53,9 @@ func TestOpenAPIRoutes_AreFullyRegistered(t *testing.T) {
 	storageHandler := &storage.Handler{}
 	storageHandler.RegisterAdminRoutes(api, noOp)
 
-	courseHandler := course.NewHandler(&cache.Helper{}, &course.Service{}, &reviewmodule.Handler{})
+	courseHandler := course.NewHandler(&cache.Helper{}, &course.Service{})
 	courseHandler.RegisterRoutes(api, noOp, noOp)
+	(&reviewmodule.Handler{}).RegisterRoutes(api.Group("/course/review"), noOp, noOp)
 
 	userHandler := &user.Handler{}
 	userHandler.RegisterRoutes(api, noOp)

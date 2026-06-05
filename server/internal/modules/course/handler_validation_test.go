@@ -77,7 +77,7 @@ func TestCourseResolveUserHashAndNoopFavoriteAnnotation(t *testing.T) {
 }
 
 func TestNewHandlerRequiresDeps(t *testing.T) {
-	assert.Panics(t, func() { NewHandler(nil, nil, nil) })
+	assert.Panics(t, func() { NewHandler(nil, nil) })
 }
 
 func repeatString(ch string, n int) string {
