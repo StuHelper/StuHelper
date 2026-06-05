@@ -86,15 +86,17 @@ const createParticles = () => {
 }
 
 const drawFrame = () => {
-  if (!ctx || !canvas.value) return
+  const context = ctx
+  const element = canvas.value
+  if (!context || !element) return
 
-  ctx.clearRect(0, 0, canvas.value.width, canvas.value.height)
+  context.clearRect(0, 0, element.width, element.height)
 
   particles.forEach(p => {
-    ctx!.beginPath()
-    ctx!.arc(p.x, p.y, p.radius, 0, Math.PI * 2)
-    ctx!.fillStyle = props.color
-    ctx!.fill()
+    context.beginPath()
+    context.arc(p.x, p.y, p.radius, 0, Math.PI * 2)
+    context.fillStyle = props.color
+    context.fill()
   })
 
   const grid = new Map<string, Particle[]>()
@@ -128,12 +130,12 @@ const drawFrame = () => {
 
           if (distance >= CONNECTION_DISTANCE) continue
 
-          ctx!.beginPath()
-          ctx!.moveTo(left.x, left.y)
-          ctx!.lineTo(right.x, right.y)
-          ctx!.strokeStyle = `${props.color}${Math.floor((1 - distance / CONNECTION_DISTANCE) * 50).toString(16).padStart(2, '0')}`
-          ctx!.lineWidth = 0.5
-          ctx!.stroke()
+          context.beginPath()
+          context.moveTo(left.x, left.y)
+          context.lineTo(right.x, right.y)
+          context.strokeStyle = `${props.color}${Math.floor((1 - distance / CONNECTION_DISTANCE) * 50).toString(16).padStart(2, '0')}`
+          context.lineWidth = 0.5
+          context.stroke()
         }
       }
     }

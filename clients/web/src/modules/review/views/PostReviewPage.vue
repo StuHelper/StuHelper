@@ -942,7 +942,8 @@ async function handleSubmit() {
     return
   }
 
-  if (!canSubmit.value) return
+  const course = selectedCourse.value
+  if (!canSubmit.value || !course) return
 
   submitting.value = true
   try {
@@ -967,7 +968,7 @@ async function handleSubmit() {
     }
 
     const payload = buildCreateReviewPayload({
-      courseID: selectedCourse.value!.id,
+      courseID: course.id,
       teacherID: selectedTeacherID.value ?? undefined,
       termID: termID.value,
       title: title.value.trim(),
@@ -984,7 +985,7 @@ async function handleSubmit() {
     toast.success(t('review.post.success'))
 
     // 发布成功后跳转到课程评测页
-    router.push({ name: 'course-reviews', params: { id: selectedCourse.value!.id } })
+    router.push({ name: 'course-reviews', params: { id: course.id } })
   } catch (error) {
     submitError.value = getErrorMessage(error, t('review.post.failed'))
     toast.error(submitError.value)
