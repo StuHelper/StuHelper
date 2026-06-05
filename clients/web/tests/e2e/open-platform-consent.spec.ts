@@ -371,7 +371,7 @@ test.describe("Open Platform consent flow", () => {
 
         expect(continueBody).toEqual({ token: "profile-token" });
         await expect.poll(() => nextConsentToken).toBe("next-consent");
-        await expect(page.getByText("将获取以下权限")).toBeVisible();
+        await expect(page.getByText("将通过 Connect 披露以下信息")).toBeVisible();
     });
 
     test("profile completion without a token shows a fail-closed error state", async ({

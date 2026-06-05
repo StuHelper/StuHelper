@@ -65,7 +65,7 @@ const unverifiedProfile = {
 
 const verifiedProfile = {
     ...unverifiedProfile,
-    schoolID: 4111010006,
+    schoolID: 4111010001,
     studentIDs: ["20260001"],
     activeStudentID: "20260001",
     verificationStatus: "verified",
@@ -75,7 +75,7 @@ const verifiedProfile = {
 
 const rejectedProfile = {
     ...unverifiedProfile,
-    schoolID: 4111010006,
+    schoolID: 4111010001,
     studentIDs: [],
     activeStudentID: null,
     verificationStatus: "rejected",
@@ -86,7 +86,7 @@ const rejectedProfile = {
 
 const schools = [
     {
-        schoolID: 4111010006,
+        schoolID: 4111010001,
         schoolCode: "4111010001",
         schoolName: "测试大学",
         verificationMethod: "ldap",
@@ -97,7 +97,7 @@ const schools = [
         schoolEmailOtpEnabled: false,
     },
     {
-        schoolID: 4111010001,
+        schoolID: 4111010002,
         schoolCode: "4111010002",
         schoolName: "人工审核大学",
         verificationMethod: "manual",
@@ -253,9 +253,10 @@ async function mockUserApi(page: Page, state: UserApiState) {
     );
     await page.route("**/api/v1/user/profile/verify", async (route) => {
         const body = route.request().postDataJSON();
+        const school = schools.find((item) => item.schoolCode === body.schoolCode);
         state.profile = {
             ...verifiedProfile,
-            schoolID: body.schoolCode === "4111010002" ? 4111010002 : 4111010001,
+            schoolID: school?.schoolID ?? null,
         };
         await route.fulfill(ok(state.profile));
     });
@@ -481,10 +482,25 @@ test.describe("User verification flows", () => {
             profile: { ...unverifiedProfile },
             qqBinding: null,
         };
+        let academicMatchBody: unknown = null;
         let otpRequestBody: unknown = null;
         let otpVerifyBody: unknown = null;
 
         await mockUserApi(page, state);
+        await page.route(
+            "**/api/v1/user/profile/school-email/academic-match",
+            async (route) => {
+                academicMatchBody = route.request().postDataJSON();
+                await route.fulfill(
+                    ok({
+                        matched: true,
+                        email: "20250001@buaa.edu.cn",
+                        studentID: "20250001",
+                        message: "学号和姓名已匹配。",
+                    }),
+                );
+            },
+        );
         await page.route(
             "**/api/v1/user/profile/school-email/request-otp",
             async (route) => {
@@ -531,6 +547,11 @@ test.describe("User verification flows", () => {
             page.getByRole("heading", { name: "已认证" }),
         ).toBeVisible();
         await expect(page.getByText("北京航空航天大学（4111010006）")).toBeVisible();
+        expect(academicMatchBody).toEqual({
+            schoolCode: "4111010006",
+            studentID: "20250001",
+            studentName: "张三",
+        });
         expect(otpRequestBody).toEqual({
             schoolCode: "4111010006",
             studentID: "20250001",

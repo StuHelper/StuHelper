@@ -70,11 +70,7 @@ async function bootstrapApp() {
     authStore.clearSession()
   }
   app.use(router)
-  try {
-    await router.isReady()
-  } catch (error) {
-    throw error
-  }
+  await router.isReady()
   app.mount('#app')
   if (hasSessionHint) {
     void authStore.bootstrapSession()

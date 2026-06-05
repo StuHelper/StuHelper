@@ -99,6 +99,14 @@ async function mockAuthenticated(page: Page) {
     );
 }
 
+async function confirmAdmissionQQBinding(page: Page, qq = "123456") {
+    await expect(
+        page.getByRole("heading", { name: "确认绑定 QQ" }),
+    ).toBeVisible();
+    await page.locator("[data-admission-bind-confirmation-input]").fill(qq);
+    await page.locator("[data-admission-bind-confirmation-submit]").click();
+}
+
 test.describe("Auth callback and admission entry", () => {
     test("auth callback consumes an upstream OAuth state and redirects to backend callback", async ({
         page,
@@ -337,6 +345,7 @@ test.describe("Auth callback and admission entry", () => {
             page.getByRole("heading", { name: "确认绑定当前 QQ" }),
         ).toBeVisible();
         await page.getByRole("button", { name: "开始认证" }).click();
+        await confirmAdmissionQQBinding(page);
         await expect(
             page.getByRole("heading", { name: "选择认证方式" }),
         ).toBeVisible();
@@ -545,6 +554,7 @@ test.describe("Auth callback and admission entry", () => {
             page.getByRole("heading", { name: "确认绑定当前 QQ" }),
         ).toBeVisible();
         await page.getByRole("button", { name: "开始认证" }).click();
+        await confirmAdmissionQQBinding(page);
 
         await expect(
             page.getByRole("heading", { name: "选择认证方式" }),
