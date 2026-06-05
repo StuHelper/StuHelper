@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
@@ -27,15 +26,6 @@ const (
 	storeUnavailableReason    = "credential store unavailable"          // #nosec G101 -- audit reason, not a secret.
 	usageTrackingReason       = "credential usage tracking unavailable" // #nosec G101 -- audit reason, not a secret.
 )
-
-type credentialRecord struct {
-	ID        int64
-	Name      string
-	Audiences []string
-	Scopes    []string
-	ExpiresAt sql.NullTime
-	RevokedAt sql.NullTime
-}
 
 type verifyInput struct {
 	Audience        string
@@ -61,14 +51,14 @@ func (v *Verifier) Verify(ctx context.Context, rawToken, audience, scope string)
 		Scope:           strings.TrimSpace(scope),
 		TokenHashPrefix: hashPrefix(tokenHash),
 	}
-	record, err := v.loadCredential(ctx, tokenHash)
+	record, err := v.store.LoadCredentialByTokenHash(ctx, tokenHash)
 	if err != nil {
 		return v.handleCredentialLoadError(ctx, input, err)
 	}
 	if err := v.validateCredential(ctx, input, record); err != nil {
 		return err
 	}
-	if err := v.touchLastUsed(ctx, record.ID); err != nil {
+	if err := v.store.TouchLastUsed(ctx, record.ID); err != nil {
 		logger.L().Warn(
 			"touch service account credential usage failed",
 			zap.Error(err),
@@ -85,28 +75,8 @@ func (v *Verifier) Verify(ctx context.Context, rawToken, audience, scope string)
 	return nil
 }
 
-func (v *Verifier) loadCredential(ctx context.Context, tokenHash string) (*credentialRecord, error) {
-	var record credentialRecord
-	err := v.db.QueryRow(ctx, `
-		SELECT id, name, audience, scopes, expires_at, revoked_at
-		FROM bot_service_credentials
-		WHERE token_hash = $1
-	`, tokenHash).Scan(
-		&record.ID,
-		&record.Name,
-		&record.Audiences,
-		&record.Scopes,
-		&record.ExpiresAt,
-		&record.RevokedAt,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &record, nil
-}
-
 func (v *Verifier) handleCredentialLoadError(ctx context.Context, input verifyInput, err error) error {
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, errCredentialRecordNotFound) {
 		logServiceAccountCall(ctx, input, nil, auditResultFailure, invalidCredentialReason)
 		return ErrCredentialInvalid
 	}
@@ -132,18 +102,6 @@ func (v *Verifier) validateCredential(ctx context.Context, input verifyInput, re
 
 func credentialAllows(record *credentialRecord, input verifyInput) bool {
 	return audienceAllowed(record.Audiences, input.Audience) && slices.Contains(record.Scopes, input.Scope)
-}
-
-func (v *Verifier) touchLastUsed(ctx context.Context, id int64) error {
-	_, err := v.db.Exec(ctx, `
-		UPDATE bot_service_credentials
-		SET last_used_at = NOW(), updated_at = NOW()
-		WHERE id = $1
-	`, id)
-	if err != nil {
-		return fmt.Errorf("touch service account credential usage: %w", err)
-	}
-	return nil
 }
 
 func logServiceAccountCall(ctx context.Context, input verifyInput, record *credentialRecord, result, reason string) {

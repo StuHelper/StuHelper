@@ -8,52 +8,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 )
 
-const (
-	wildcardSuffix         = "*"
-	bootstrapCredentialSQL = `
-		WITH existing AS (
-			SELECT token_hash
-			FROM bot_service_credentials
-			WHERE name = $1
-		), upserted AS (
-			INSERT INTO bot_service_credentials (
-				name, token_hash, audience, scopes, expires_at, created_at, updated_at
-			) VALUES (
-				$1, $2, $3, $4, $5, NOW(), NOW()
-			)
-			ON CONFLICT (name) DO UPDATE SET
-				token_hash = EXCLUDED.token_hash,
-				audience = EXCLUDED.audience,
-				scopes = EXCLUDED.scopes,
-				expires_at = EXCLUDED.expires_at,
-				revoked_at = CASE
-					WHEN bot_service_credentials.token_hash <> EXCLUDED.token_hash THEN NULL
-					ELSE bot_service_credentials.revoked_at
-				END,
-				rotated_at = CASE
-					WHEN bot_service_credentials.token_hash <> EXCLUDED.token_hash THEN NOW()
-					ELSE bot_service_credentials.rotated_at
-				END,
-				updated_at = NOW()
-			RETURNING id, name, token_hash
-		)
-		SELECT upserted.id, upserted.name,
-			CASE
-				WHEN existing.token_hash IS NULL THEN 'created'
-				WHEN existing.token_hash <> upserted.token_hash THEN 'rotated'
-				ELSE 'unchanged'
-			END AS status
-		FROM upserted
-		LEFT JOIN existing ON TRUE
-	`
-)
+const wildcardSuffix = "*"
 
 type BootstrapStatus string
 
@@ -77,8 +37,15 @@ type BootstrapResult struct {
 	Status BootstrapStatus
 }
 
+type credentialStore interface {
+	EnsureBootstrapCredential(ctx context.Context, credential BootstrapCredential, tokenHash string) (BootstrapResult, error)
+	RevokeCredential(ctx context.Context, name string) (int64, error)
+	LoadCredentialByTokenHash(ctx context.Context, tokenHash string) (*credentialRecord, error)
+	TouchLastUsed(ctx context.Context, id int64) error
+}
+
 type Verifier struct {
-	db      *db.DB
+	store   credentialStore
 	hmacKey []byte
 }
 
@@ -86,11 +53,18 @@ func NewVerifier(database *db.DB, hmacKey []byte) (*Verifier, error) {
 	if database == nil {
 		return nil, fmt.Errorf("service account verifier: database is required")
 	}
+	return newVerifier(NewRepository(database), hmacKey)
+}
+
+func newVerifier(store credentialStore, hmacKey []byte) (*Verifier, error) {
+	if store == nil {
+		return nil, fmt.Errorf("service account verifier: credential store is required")
+	}
 	if len(hmacKey) == 0 {
 		return nil, fmt.Errorf("service account verifier: HMAC key is required")
 	}
 	keyCopy := append([]byte(nil), hmacKey...)
-	return &Verifier{db: database, hmacKey: keyCopy}, nil
+	return &Verifier{store: store, hmacKey: keyCopy}, nil
 }
 
 func (v *Verifier) EnsureBootstrapCredential(ctx context.Context, input BootstrapCredential) (BootstrapResult, error) {
@@ -99,19 +73,10 @@ func (v *Verifier) EnsureBootstrapCredential(ctx context.Context, input Bootstra
 		return BootstrapResult{}, err
 	}
 
-	row := v.db.QueryRow(ctx, bootstrapCredentialSQL,
-		normalized.Name,
-		tokenHash,
-		normalized.Audience,
-		normalized.Scopes,
-		normalized.ExpiresAt,
-	)
-	var result BootstrapResult
-	var status string
-	if err := row.Scan(&result.ID, &result.Name, &status); err != nil {
-		return BootstrapResult{}, fmt.Errorf("bootstrap service account credential: %w", err)
+	result, err := v.store.EnsureBootstrapCredential(ctx, normalized, tokenHash)
+	if err != nil {
+		return BootstrapResult{}, err
 	}
-	result.Status = BootstrapStatus(status)
 	logBootstrapCredential(ctx, result)
 	return result, nil
 }
@@ -121,18 +86,12 @@ func (v *Verifier) Revoke(ctx context.Context, name string) error {
 	if normalizedName == "" {
 		return ErrCredentialNotConfigured
 	}
-	var id int64
-	err := v.db.QueryRow(ctx, `
-		UPDATE bot_service_credentials
-		SET revoked_at = NOW(), updated_at = NOW()
-		WHERE name = $1 AND revoked_at IS NULL
-		RETURNING id
-	`, normalizedName).Scan(&id)
-	if errors.Is(err, pgx.ErrNoRows) {
+	id, err := v.store.RevokeCredential(ctx, normalizedName)
+	if errors.Is(err, errCredentialRecordNotFound) {
 		return ErrCredentialInvalid
 	}
 	if err != nil {
-		return fmt.Errorf("revoke service account credential: %w", err)
+		return err
 	}
 	audit.LogContext(ctx, serviceAccountCredentialAuditEvent(normalizedName, id, "revoked"))
 	return nil
