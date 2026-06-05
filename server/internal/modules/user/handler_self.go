@@ -381,11 +381,11 @@ func (h *Handler) handleRequestBindPhoneOTP(c *gin.Context) {
 	}
 
 	if err := h.otpService.IssueCode(c.Request.Context(), phone, h.smsService); err != nil {
-		if errors.Is(err, errBindPhoneOTPPhoneRateLimited) {
+		if errors.Is(err, ErrBindPhoneOTPPhoneRateLimited) {
 			response.RateLimitExceeded(c, "too many verification code requests for this phone number")
 			return
 		}
-		if errors.Is(err, errBindPhoneOTPCooldown) {
+		if errors.Is(err, ErrBindPhoneOTPCooldown) {
 			response.RateLimitExceeded(c, "please wait before requesting a new code")
 			return
 		}
@@ -425,13 +425,13 @@ func (h *Handler) handleBindPhone(c *gin.Context) {
 
 	if err := h.otpService.Verify(c.Request.Context(), phone, req.OTPCode); err != nil {
 		switch {
-		case errors.Is(err, errBindPhoneOTPExpired):
+		case errors.Is(err, ErrBindPhoneOTPExpired):
 			response.Unauthorized(c, "verification code expired", errs.ErrPhoneOTPExpired)
 			return
-		case errors.Is(err, errBindPhoneOTPMaxAttempts):
+		case errors.Is(err, ErrBindPhoneOTPMaxAttempts):
 			response.RateLimitExceeded(c, "too many failed attempts, please request a new code")
 			return
-		case errors.Is(err, errBindPhoneOTPInvalidCode):
+		case errors.Is(err, ErrBindPhoneOTPInvalidCode):
 			response.Unauthorized(c, "invalid verification code", errs.ErrPhoneOTPFailed)
 			return
 		}
