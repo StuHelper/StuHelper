@@ -350,6 +350,7 @@ import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue'
 import { receive, message } from '@koishijs/client'
 import { chatApi, GuildMember } from '../api'
 import type { ChatMessage } from '../types'
+import { errorMessage } from '../utils/error-message'
 import ChatMessageContent from './chat/ChatMessageContent.vue'
 import NoticeStack, { type NoticeItem } from './primitives/NoticeStack.vue'
 
@@ -449,7 +450,7 @@ const loadGuildMembers = async (guildId: string) => {
     membersLoadError.value = ''
   } catch (e) {
     if (requestSeq !== membersLoadRequestSeq) return
-    const details = errorMessage(e) || '加载群成员失败'
+    const details = errorMessage(e, '加载群成员失败')
     membersLoadError.value = details
     pushError('加载群成员失败', details)
   } finally {
@@ -690,14 +691,14 @@ const handleIncomingMessage = async (msg: ChatMessage) => {
         if (info?.name) session!.name = info.name
         if (info?.avatar && !session!.avatar) session!.avatar = info.avatar
       }).catch((e) => {
-        pushError('获取群资料失败', errorMessage(e) || '获取群资料失败')
+        pushError('获取群资料失败', errorMessage(e, '获取群资料失败'))
       })
     } else if (!isGroup && !msg.username) {
       chatApi.getUserInfo(msg.userId).then(info => {
         if (info?.name) session!.name = `私聊 ${info.name}`
         if (info?.avatar && !session!.avatar) session!.avatar = info.avatar
       }).catch((e) => {
-        pushError('获取用户资料失败', errorMessage(e) || '获取用户资料失败')
+        pushError('获取用户资料失败', errorMessage(e, '获取用户资料失败'))
       })
     }
   } else {
@@ -838,12 +839,6 @@ const scrollToBottom = () => {
   }
 }
 
-const errorMessage = (cause: unknown) => {
-  if (cause instanceof Error && cause.message) return cause.message
-  if (typeof cause === 'string' && cause.trim()) return cause
-  return ''
-}
-
 const sendMessage = async () => {
   if (sending.value) return
   const text = inputText.value.trim()
@@ -888,7 +883,7 @@ function formatBytes(value: number) {
 }
 
 function setActionError(title: string, cause: unknown, fallback: string) {
-  const details = errorMessage(cause) || fallback
+  const details = errorMessage(cause, fallback)
   actionErrorTitle.value = title
   actionError.value = details
   pushError(title, details)

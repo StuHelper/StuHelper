@@ -578,11 +578,13 @@ test('ChatView keeps member and chat operation failures visible', () => {
   assert.match(source, /setActionError\('撤回失败', cause, '撤回失败'\)/)
   assert.match(source, /setActionError\('获取会话信息失败', e, '获取会话信息失败'\)/)
   assert.match(source, /setActionError\('发送失败', cause, '发送失败'\)/)
+  assert.match(source, /import \{ errorMessage \} from '\.\.\/utils\/error-message'/)
   assert.match(source, /const sendMessage = async \(\) => \{\s*if \(sending\.value\) return/)
   assert.ok(
     source.indexOf('if (sending.value) return') < source.indexOf('sending.value = true'),
   )
-  assert.match(source, /const errorMessage = \(cause: unknown\)/)
+  assert.match(source, /const details = errorMessage\(cause, fallback\)/)
+  assert.doesNotMatch(source, /const errorMessage = \(cause: unknown\)/)
   assert.doesNotMatch(source, /message\.error\('加载群成员失败: ' \+ errorMessage/)
 })
 
