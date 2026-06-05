@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
@@ -86,7 +87,7 @@ func TestStorageAdminRoutesRequireGlobalSystemCapability(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	api := router.Group("/api/v1")
-	NewHandler(nil).RegisterAdminRoutes(api, scopedSystemCapabilityMiddleware())
+	NewHandler(nil, WithAdminAuthorizers(storageAdminAuthorizers())).RegisterAdminRoutes(api, scopedSystemCapabilityMiddleware())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/storage/mounts", nil)
 	resp := httptest.NewRecorder()
@@ -98,9 +99,16 @@ func TestStorageAdminRoutesRequireGlobalSystemCapability(t *testing.T) {
 func newStorageTestRouter(svc *Service) *gin.Engine {
 	router := gin.New()
 	api := router.Group("/api/v1")
-	handler := NewHandler(svc)
+	handler := NewHandler(svc, WithAdminAuthorizers(storageAdminAuthorizers()))
 	handler.RegisterAdminRoutes(api, storageAdminMiddleware())
 	return router
+}
+
+func storageAdminAuthorizers() AdminAuthorizers {
+	return AdminAuthorizers{
+		Read:   rbac.RequireGlobalCapability(capability.UserSystemRead),
+		Update: rbac.RequireGlobalCapability(capability.UserSystemUpdate),
+	}
 }
 
 func storageAdminMiddleware() gin.HandlerFunc {

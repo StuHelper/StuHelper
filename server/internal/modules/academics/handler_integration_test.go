@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
@@ -147,9 +148,16 @@ func newAcademicsTestRouter(svc *Service) *gin.Engine {
 func newAcademicsScopedTestRouter(svc *Service, grants []capability.Grant) *gin.Engine {
 	router := gin.New()
 	api := router.Group("/api/v1")
-	handler := NewHandler(svc)
+	handler := NewHandler(svc, WithAdminAuthorizers(academicsAdminAuthorizers()))
 	handler.RegisterRoutes(api, academicsAuthMiddleware(grants))
 	return router
+}
+
+func academicsAdminAuthorizers() AdminAuthorizers {
+	return AdminAuthorizers{
+		Read:   rbac.RequireGlobalCapability(capability.UserSchoolRead),
+		Update: rbac.RequireGlobalCapability(capability.UserSchoolUpdate),
+	}
 }
 
 func academicsAuthMiddleware(grants []capability.Grant) gin.HandlerFunc {

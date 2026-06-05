@@ -7,9 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
@@ -17,11 +15,31 @@ import (
 )
 
 type Handler struct {
-	service *Service
+	service          *Service
+	adminAuthorizers AdminAuthorizers
 }
 
-func NewHandler(service *Service) *Handler {
-	return &Handler{service: service}
+type AdminAuthorizers struct {
+	Read   gin.HandlerFunc
+	Update gin.HandlerFunc
+}
+
+type HandlerOption func(*Handler)
+
+func WithAdminAuthorizers(authorizers AdminAuthorizers) HandlerOption {
+	return func(h *Handler) {
+		h.adminAuthorizers = authorizers
+	}
+}
+
+func NewHandler(service *Service, opts ...HandlerOption) *Handler {
+	h := &Handler{service: service}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(h)
+		}
+	}
+	return h
 }
 
 func (h *Handler) RegisterRoutes(api *gin.RouterGroup, authMW gin.HandlerFunc) {
@@ -37,9 +55,16 @@ func (h *Handler) RegisterRoutes(api *gin.RouterGroup, authMW gin.HandlerFunc) {
 
 	admin := api.Group("/admin/academics")
 	admin.Use(authMW)
-	admin.GET("/sources", rbac.RequireGlobalCapability(capability.UserSchoolRead), h.listSources)
-	admin.GET("/import-jobs", rbac.RequireGlobalCapability(capability.UserSchoolRead), h.listImportJobs)
-	admin.POST("/import-jobs", rbac.RequireGlobalCapability(capability.UserSchoolUpdate), h.triggerImport)
+	admin.GET("/sources", appendRouteMiddleware(h.adminAuthorizers.Read, h.listSources)...)
+	admin.GET("/import-jobs", appendRouteMiddleware(h.adminAuthorizers.Read, h.listImportJobs)...)
+	admin.POST("/import-jobs", appendRouteMiddleware(h.adminAuthorizers.Update, h.triggerImport)...)
+}
+
+func appendRouteMiddleware(authorizer gin.HandlerFunc, handler gin.HandlerFunc) []gin.HandlerFunc {
+	if authorizer == nil {
+		return []gin.HandlerFunc{handler}
+	}
+	return []gin.HandlerFunc{authorizer, handler}
 }
 
 func (h *Handler) listSources(c *gin.Context) {

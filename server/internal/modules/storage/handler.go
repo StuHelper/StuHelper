@@ -6,20 +6,38 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
 type Handler struct {
-	service *Service
+	service          *Service
+	adminAuthorizers AdminAuthorizers
 }
 
-func NewHandler(service *Service) *Handler {
-	return &Handler{service: service}
+type AdminAuthorizers struct {
+	Read   gin.HandlerFunc
+	Update gin.HandlerFunc
+}
+
+type HandlerOption func(*Handler)
+
+func WithAdminAuthorizers(authorizers AdminAuthorizers) HandlerOption {
+	return func(h *Handler) {
+		h.adminAuthorizers = authorizers
+	}
+}
+
+func NewHandler(service *Service, opts ...HandlerOption) *Handler {
+	h := &Handler{service: service}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(h)
+		}
+	}
+	return h
 }
 
 func (h *Handler) RegisterAdminRoutes(
@@ -30,9 +48,16 @@ func (h *Handler) RegisterAdminRoutes(
 	admin := api.Group("/admin/storage")
 	middlewares := append([]gin.HandlerFunc{authMW}, adminMiddlewares...)
 	admin.Use(middlewares...)
-	admin.GET("/mounts", rbac.RequireGlobalCapability(capability.UserSystemRead), h.listMounts)
-	admin.POST("/mounts", rbac.RequireGlobalCapability(capability.UserSystemUpdate), h.createMount)
-	admin.POST("/mounts/:mountID/health-check", rbac.RequireGlobalCapability(capability.UserSystemUpdate), h.checkMountHealth)
+	admin.GET("/mounts", appendRouteMiddleware(h.adminAuthorizers.Read, h.listMounts)...)
+	admin.POST("/mounts", appendRouteMiddleware(h.adminAuthorizers.Update, h.createMount)...)
+	admin.POST("/mounts/:mountID/health-check", appendRouteMiddleware(h.adminAuthorizers.Update, h.checkMountHealth)...)
+}
+
+func appendRouteMiddleware(authorizer gin.HandlerFunc, handler gin.HandlerFunc) []gin.HandlerFunc {
+	if authorizer == nil {
+		return []gin.HandlerFunc{handler}
+	}
+	return []gin.HandlerFunc{authorizer, handler}
 }
 
 func (h *Handler) listMounts(c *gin.Context) {

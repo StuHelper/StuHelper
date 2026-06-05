@@ -14,9 +14,11 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/admission"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/resource"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/storage"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
@@ -118,13 +120,25 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		return err
 	}
 	userService.SetProfileIdentitySyncGateway(userProfileGateway)
-	academicsHandler := academics.NewHandler(academics.NewService(
-		academics.NewRepository(rt.database),
-		academics.NewRegistry(),
-	))
+	academicsHandler := academics.NewHandler(
+		academics.NewService(
+			academics.NewRepository(rt.database),
+			academics.NewRegistry(),
+		),
+		academics.WithAdminAuthorizers(academics.AdminAuthorizers{
+			Read:   rbac.RequireGlobalCapability(capability.UserSchoolRead),
+			Update: rbac.RequireGlobalCapability(capability.UserSchoolUpdate),
+		}),
+	)
 	academicsHandler.RegisterRoutes(api, authMW)
 
-	storage.NewHandler(storageService).RegisterAdminRoutes(api, authMW, adminMFA...)
+	storage.NewHandler(
+		storageService,
+		storage.WithAdminAuthorizers(storage.AdminAuthorizers{
+			Read:   rbac.RequireGlobalCapability(capability.UserSystemRead),
+			Update: rbac.RequireGlobalCapability(capability.UserSystemUpdate),
+		}),
+	).RegisterAdminRoutes(api, authMW, adminMFA...)
 
 	resourceService := resource.NewService(
 		resource.NewRepository(rt.database),
