@@ -60,7 +60,11 @@ export class ModerationStore {
   async saveMessage(record: MessageLedgerRecord) {
     const [existing] = await this.ctx.database.get(MODERATION_MESSAGE_LEDGER_TABLE, { messageId: record.messageId })
     if (existing) {
-      await this.ctx.database.set(MODERATION_MESSAGE_LEDGER_TABLE, { messageId: record.messageId }, record)
+      await this.ctx.database.set(
+        MODERATION_MESSAGE_LEDGER_TABLE,
+        { messageId: record.messageId },
+        omitFields(record, ['messageId', 'createdAt']),
+      )
       return
     }
     await this.ctx.database.create(MODERATION_MESSAGE_LEDGER_TABLE, record)
@@ -121,7 +125,11 @@ export class ModerationStore {
   async upsertKeywordRule(record: KeywordRuleRecord) {
     const [existing] = await this.ctx.database.get(MODERATION_KEYWORD_RULE_TABLE, { id: record.id })
     if (existing) {
-      await this.ctx.database.set(MODERATION_KEYWORD_RULE_TABLE, { id: record.id }, record)
+      await this.ctx.database.set(
+        MODERATION_KEYWORD_RULE_TABLE,
+        { id: record.id },
+        omitFields(record, ['id', 'createdAt']),
+      )
       return
     }
     await this.ctx.database.create(MODERATION_KEYWORD_RULE_TABLE, record)
@@ -198,7 +206,11 @@ export class ModerationStore {
   async upsertCommandPolicy(record: CommandPolicyRecord) {
     const [existing] = await this.ctx.database.get(MODERATION_COMMAND_POLICY_TABLE, { commandId: record.commandId })
     if (existing) {
-      await this.ctx.database.set(MODERATION_COMMAND_POLICY_TABLE, { commandId: record.commandId }, record)
+      await this.ctx.database.set(
+        MODERATION_COMMAND_POLICY_TABLE,
+        { commandId: record.commandId },
+        omitFields(record, ['commandId', 'createdAt']),
+      )
       return
     }
     await this.ctx.database.create(MODERATION_COMMAND_POLICY_TABLE, record)
@@ -226,7 +238,11 @@ export class ModerationStore {
   async saveFunProfile(record: FunProfileRecord) {
     const [existing] = await this.ctx.database.get(MODERATION_FUN_PROFILE_TABLE, { memberId: record.memberId })
     if (existing) {
-      await this.ctx.database.set(MODERATION_FUN_PROFILE_TABLE, { memberId: record.memberId }, record)
+      await this.ctx.database.set(
+        MODERATION_FUN_PROFILE_TABLE,
+        { memberId: record.memberId },
+        omitFields(record, ['memberId', 'createdAt']),
+      )
       return
     }
     await this.ctx.database.create(MODERATION_FUN_PROFILE_TABLE, record)
@@ -287,4 +303,12 @@ function createGuildScopedID(guildId: string, memberId: string) {
 
 function sortByCreatedDesc<T extends { createdAt: Date }>(left: T, right: T) {
   return right.createdAt.getTime() - left.createdAt.getTime()
+}
+
+function omitFields<T extends object, K extends keyof T>(record: T, keys: readonly K[]): Omit<T, K> {
+  const patch = { ...record }
+  for (const key of keys) {
+    delete (patch as Partial<T>)[key]
+  }
+  return patch
 }
