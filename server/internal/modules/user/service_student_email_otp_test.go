@@ -172,6 +172,68 @@ func TestRequestStudentEmailOTPSendFailureKeepsCooldown(t *testing.T) {
 	assert.Equal(t, 1, sender.calls)
 }
 
+func TestVerifyStudentEmailOTPKeepsCodeWhenProfileCommitFails(t *testing.T) {
+	ctx := context.Background()
+	redis := redisfixture.Start(t)
+	sender := &testStudentEmailSender{}
+	var captured *Profile
+	commitErr := errors.New("profile db unavailable")
+	repo := buaaStudentEmailOTPRepo(t, &AcademicStudent{XH: "20250001", XM: stringPtr("张三")})
+	repo.onGetProfileByUserID = func(_ context.Context, _ int64) (*Profile, error) {
+		return captured, nil
+	}
+	repo.onCreateProfileTx = func(_ context.Context, _ pgx.Tx, profile *Profile) error {
+		if commitErr != nil {
+			return commitErr
+		}
+		copy := *profile
+		captured = &copy
+		return nil
+	}
+	svc, err := NewService(
+		repo,
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithStudentEmailOTP(redis.Client, sender),
+	)
+	require.NoError(t, err)
+	_, err = svc.RequestStudentEmailOTP(ctx, StudentEmailOTPInput{
+		UserID:      7,
+		SchoolID:    4111010006,
+		StudentID:   "20250001",
+		StudentName: "张三",
+	})
+	require.NoError(t, err)
+
+	_, err = svc.VerifyStudentEmailOTP(ctx, StudentEmailOTPVerifyInput{
+		UserID:   7,
+		SchoolID: 4111010006,
+		Email:    sender.email,
+		Code:     sender.code,
+		Consent:  true,
+	})
+
+	require.ErrorContains(t, err, "profile db unavailable")
+	record, err := svc.loadStudentEmailOTPRecord(ctx, 7, 4111010006)
+	require.NoError(t, err)
+	assert.Equal(t, sender.code, record.Code)
+
+	commitErr = nil
+	profile, err := svc.VerifyStudentEmailOTP(ctx, StudentEmailOTPVerifyInput{
+		UserID:   7,
+		SchoolID: 4111010006,
+		Email:    sender.email,
+		Code:     sender.code,
+		Consent:  true,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, profile)
+	assert.Equal(t, StatusVerified, profile.VerificationStatus)
+	_, err = svc.loadStudentEmailOTPRecord(ctx, 7, 4111010006)
+	require.ErrorIs(t, err, ErrStudentEmailOTPExpired)
+}
+
 func TestStudentEmailAcademicMatchReturnsImmediateResult(t *testing.T) {
 	svc, err := NewService(
 		buaaStudentEmailOTPRepo(t, &AcademicStudent{XH: "20250001", XM: stringPtr("张三")}),

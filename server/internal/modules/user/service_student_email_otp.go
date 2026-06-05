@@ -252,6 +252,9 @@ func (s *Service) VerifyStudentEmailOTP(ctx context.Context, input StudentEmailO
 	}); err != nil {
 		return nil, err
 	}
+	if err := s.cleanupStudentEmailOTPCode(ctx, input.UserID, input.SchoolID); err != nil {
+		return nil, fmt.Errorf("VerifyStudentEmailOTP cleanup code: %w", err)
+	}
 
 	result, err := s.repo.GetProfileByUserID(ctx, input.UserID)
 	if err != nil {
@@ -416,7 +419,7 @@ func (s *Service) checkStudentEmailOTP(ctx context.Context, input studentEmailOT
 	if input.Record.Email != input.Email || !codeMatches {
 		return s.recordStudentEmailOTPFailure(ctx, input.UserID, input.SchoolID)
 	}
-	return s.cleanupStudentEmailOTPCode(ctx, input.UserID, input.SchoolID)
+	return nil
 }
 
 func (s *Service) recordStudentEmailOTPFailure(ctx context.Context, userID, schoolID int64) error {
