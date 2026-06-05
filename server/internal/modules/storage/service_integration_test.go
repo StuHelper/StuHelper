@@ -200,20 +200,24 @@ func TestPutRejectsMissingObjectMetadata(t *testing.T) {
 
 func TestPutRejectsInvalidObjectMetadata(t *testing.T) {
 	for _, tc := range []struct {
-		name   string
-		stored *StoredObject
+		name       string
+		stored     *StoredObject
+		cleanupKey string
 	}{
 		{
-			name:   "blank object key",
-			stored: &StoredObject{ObjectKey: " ", SizeBytes: 5, ContentType: "text/plain"},
+			name:       "blank object key",
+			stored:     &StoredObject{ObjectKey: " ", SizeBytes: 5, ContentType: "text/plain"},
+			cleanupKey: "resources/1/file.txt",
 		},
 		{
-			name:   "blank content type",
-			stored: &StoredObject{ObjectKey: "resources/1/file.txt", SizeBytes: 5, ContentType: " "},
+			name:       "blank content type",
+			stored:     &StoredObject{ObjectKey: "resources/1/actual-upload-key.txt", SizeBytes: 5, ContentType: " "},
+			cleanupKey: "resources/1/actual-upload-key.txt",
 		},
 		{
-			name:   "negative size",
-			stored: &StoredObject{ObjectKey: "resources/1/file.txt", SizeBytes: -1, ContentType: "text/plain"},
+			name:       "negative size",
+			stored:     &StoredObject{ObjectKey: "resources/1/actual-upload-key.txt", SizeBytes: -1, ContentType: "text/plain"},
+			cleanupKey: "resources/1/actual-upload-key.txt",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -225,7 +229,7 @@ func TestPutRejectsInvalidObjectMetadata(t *testing.T) {
 
 			_, _, err := svc.Put(context.Background(), DefaultMountKey, "resources/1/file.txt", []byte("hello"), "text/plain")
 			require.ErrorIs(t, err, ErrInvalidStoredObject)
-			assert.Equal(t, []string{"resources/1/file.txt"}, driver.deletedKeys)
+			assert.Equal(t, []string{tc.cleanupKey}, driver.deletedKeys)
 		})
 	}
 }

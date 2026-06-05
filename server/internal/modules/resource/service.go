@@ -72,7 +72,7 @@ func (s *Service) CreateResource(ctx context.Context, ownerUserID string, req Cr
 		return nil, err
 	}
 	if err := validateResourceStoredObject(stored); err != nil {
-		if cleanupErr := s.storage.Delete(ctx, mountID, objectKey); cleanupErr != nil {
+		if cleanupErr := s.storage.Delete(ctx, mountID, cleanupResourceObjectKey(objectKey, stored)); cleanupErr != nil {
 			return nil, errors.Join(err, fmt.Errorf("cleanup invalid resource object: %w", cleanupErr))
 		}
 		return nil, err
@@ -101,6 +101,13 @@ func validateResourceStoredObject(stored *StoredObject) error {
 		return fmt.Errorf("%w: sizeBytes must be positive", ErrResourceStoredObjectInvalid)
 	}
 	return nil
+}
+
+func cleanupResourceObjectKey(requestedKey string, stored *StoredObject) string {
+	if stored != nil && strings.TrimSpace(stored.ObjectKey) != "" {
+		return stored.ObjectKey
+	}
+	return requestedKey
 }
 
 func (s *Service) ListResources(ctx context.Context, filters ListFilters) ([]Item, int, error) {

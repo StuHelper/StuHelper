@@ -105,7 +105,7 @@ func (s *Service) Put(ctx context.Context, mountKey, objectKey string, content [
 		return nil, nil, err
 	}
 	if err := validateStoredObject(stored); err != nil {
-		if cleanupErr := driver.Delete(ctx, *mount, objectKey); cleanupErr != nil {
+		if cleanupErr := driver.Delete(ctx, *mount, cleanupStoredObjectKey(objectKey, stored)); cleanupErr != nil {
 			return nil, nil, errors.Join(err, fmt.Errorf("cleanup invalid stored object: %w", cleanupErr))
 		}
 		return nil, nil, err
@@ -127,6 +127,13 @@ func validateStoredObject(stored *StoredObject) error {
 		return fmt.Errorf("%w: sizeBytes must not be negative", ErrInvalidStoredObject)
 	}
 	return nil
+}
+
+func cleanupStoredObjectKey(requestedKey string, stored *StoredObject) string {
+	if stored != nil && strings.TrimSpace(stored.ObjectKey) != "" {
+		return stored.ObjectKey
+	}
+	return requestedKey
 }
 
 func (s *Service) Delete(ctx context.Context, mountID int64, objectKey string) error {

@@ -117,20 +117,24 @@ func TestCreateResource_RejectsMissingStorageMetadata(t *testing.T) {
 
 func TestCreateResource_RejectsInvalidStorageMetadata(t *testing.T) {
 	for _, tc := range []struct {
-		name   string
-		stored *StoredObject
+		name       string
+		stored     *StoredObject
+		cleanupKey string
 	}{
 		{
-			name:   "blank object key",
-			stored: &StoredObject{ObjectKey: " ", SizeBytes: 16, ContentType: "text/plain"},
+			name:       "blank object key",
+			stored:     &StoredObject{ObjectKey: " ", SizeBytes: 16, ContentType: "text/plain"},
+			cleanupKey: "",
 		},
 		{
-			name:   "blank content type",
-			stored: &StoredObject{ObjectKey: "resources/oidc-user-1/broken.txt", SizeBytes: 16, ContentType: " "},
+			name:       "blank content type",
+			stored:     &StoredObject{ObjectKey: "resources/oidc-user-1/actual-upload-key.txt", SizeBytes: 16, ContentType: " "},
+			cleanupKey: "resources/oidc-user-1/actual-upload-key.txt",
 		},
 		{
-			name:   "zero size",
-			stored: &StoredObject{ObjectKey: "resources/oidc-user-1/broken.txt", SizeBytes: 0, ContentType: "text/plain"},
+			name:       "zero size",
+			stored:     &StoredObject{ObjectKey: "resources/oidc-user-1/actual-upload-key.txt", SizeBytes: 0, ContentType: "text/plain"},
+			cleanupKey: "resources/oidc-user-1/actual-upload-key.txt",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -146,7 +150,11 @@ func TestCreateResource_RejectsInvalidStorageMetadata(t *testing.T) {
 			})
 			require.ErrorIs(t, err, ErrResourceStoredObjectInvalid)
 			assert.Len(t, store.deletedKeys, 1)
-			assert.Contains(t, store.deletedKeys[0], "broken.txt")
+			if tc.cleanupKey != "" {
+				assert.Equal(t, tc.cleanupKey, store.deletedKeys[0])
+			} else {
+				assert.Contains(t, store.deletedKeys[0], "broken.txt")
+			}
 
 			var count int
 			require.NoError(t, repo.db.QueryRow(ctx, `SELECT COUNT(*) FROM resource_items`).Scan(&count))
