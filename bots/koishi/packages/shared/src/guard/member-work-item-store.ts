@@ -37,6 +37,18 @@ export interface RollbackGuardMemberClaimInput {
   readonly error: unknown
 }
 
+export interface MarkActiveGuardMemberKickedInput {
+  readonly botSelfId: string
+  readonly guildId: string
+  readonly memberId: string
+  readonly kickedAt: Date
+}
+
+interface GuardMemberLookupRecord extends GuardMemberVersionRef {
+  readonly releasedAt: Date | null
+  readonly kickedAt: Date | null
+}
+
 export class GuardMemberWorkItemStore {
   constructor(private readonly ctx: Pick<Context, 'database'>) {}
 
@@ -79,6 +91,24 @@ export class GuardMemberWorkItemStore {
       lastError: input.error instanceof Error ? input.error.message : String(input.error),
       updatedAt: input.rolledBackAt,
     })
+  }
+
+  async tryMarkActiveMemberKicked(input: MarkActiveGuardMemberKickedInput) {
+    const [record] = await this.ctx.database.get(GUARD_MEMBER_TABLE, {
+      botSelfId: input.botSelfId,
+      guildId: input.guildId,
+      memberId: input.memberId,
+      releasedAt: null,
+      kickedAt: null,
+    }) as GuardMemberLookupRecord[]
+    if (!record) return false
+
+    const result = await this.ctx.database.set(GUARD_MEMBER_TABLE, activeGuardQuery(record), {
+      kickedAt: input.kickedAt,
+      lastError: null,
+      updatedAt: input.kickedAt,
+    })
+    return result.matched === 1
   }
 }
 

@@ -90,8 +90,9 @@ test('handleWorkItemAction rejects pending reviews without executing moderation 
 
 test('handleWorkItemAction executes pending review items with the current operator identity and permanent flag', async () => {
   const review = createReviewRecord({ actionType: 'kick_and_block' })
+  const guardRecord = createGuardRecord({ memberId: review.memberId })
   const deps = createActionDeps({
-    guardRecords: [createGuardRecord({ memberId: review.memberId })],
+    guardRecords: [guardRecord],
     reports: [],
     reviews: [review],
     now: new Date('2026-04-21T08:00:00.000Z'),
@@ -117,6 +118,19 @@ test('handleWorkItemAction executes pending review items with the current operat
     status: 'executed',
     operatorMemberId: 'admin-42',
     resolutionNote: '证据充分',
+  })
+  assert.deepEqual(deps.databaseState.guardUpdates.at(-1), {
+    query: {
+      id: guardRecord.id,
+      updatedAt: guardRecord.updatedAt,
+      releasedAt: null,
+      kickedAt: null,
+    },
+    patch: {
+      kickedAt: deps.now(),
+      lastError: null,
+      updatedAt: deps.now(),
+    },
   })
   assert.equal(deps.events[0].payload.operatorMemberId, 'admin-42')
 })
@@ -715,6 +729,35 @@ function createActionDeps(input: {
             updatedAt: action.rolledBackAt,
           },
         })
+      },
+      tryMarkActiveMemberKicked: async (action: {
+        readonly botSelfId: string
+        readonly guildId: string
+        readonly memberId: string
+        readonly kickedAt: Date
+      }) => {
+        const record = input.guardRecords.find((item) =>
+          item.botSelfId === action.botSelfId
+          && item.guildId === action.guildId
+          && item.memberId === action.memberId
+          && item.releasedAt === null
+          && item.kickedAt === null
+        )
+        if (!record) return false
+        guardUpdates.push({
+          query: {
+            id: record.id,
+            updatedAt: record.updatedAt,
+            releasedAt: null,
+            kickedAt: null,
+          },
+          patch: {
+            kickedAt: action.kickedAt,
+            lastError: null,
+            updatedAt: action.kickedAt,
+          },
+        })
+        return true
       },
     },
     actions: {

@@ -3,7 +3,6 @@ import {
   type ReviewQueueRecord,
   type ReviewStatus,
 } from '@stuhelper/koishi-moderation-core'
-import { GUARD_MEMBER_TABLE, type GuardMemberRecord } from '@stuhelper/koishi-shared'
 
 import {
   createReviewResolvedEvent,
@@ -64,7 +63,7 @@ async function executeReview(input: ReviewActionRuntimeInput) {
     })
     await finalizeClaimedReview({ deps, reviewId: review.id, actor, resolutionNote: note || null, claimedAt: claimAt, executedAt: getNow(deps) })
     await deps.moderationStore.appendEvent(createReviewResolvedEvent({ review, level: 'high', actor, note }))
-    await markGuardMemberKicked(deps.ctx, review, getNow(deps))
+    await markGuardMemberKicked(deps, review, getNow(deps))
   } catch (error) {
     await rollbackReviewClaimSafely({ deps, reviewId: review.id, claimedAt: claimAt, rolledBackAt: getNow(deps), originalError: error })
     throw error
@@ -165,15 +164,13 @@ async function rollbackReviewClaimSafely(input: {
   }
 }
 
-async function markGuardMemberKicked(ctx: Context, review: ReviewQueueRecord, now: Date) {
-  const [record] = await ctx.database.get(GUARD_MEMBER_TABLE, {
-    platform: review.platform,
+async function markGuardMemberKicked(deps: WorkItemActionDeps, review: ReviewQueueRecord, now: Date) {
+  await deps.guardMemberStore.tryMarkActiveMemberKicked({
     botSelfId: review.botSelfId,
     guildId: review.guildId,
     memberId: review.memberId,
-  }) as GuardMemberRecord[]
-  if (!record) return
-  await ctx.database.set(GUARD_MEMBER_TABLE, { id: record.id }, { kickedAt: now, lastError: null, updatedAt: now })
+    kickedAt: now,
+  })
 }
 
 function logRollbackFailure(input: {

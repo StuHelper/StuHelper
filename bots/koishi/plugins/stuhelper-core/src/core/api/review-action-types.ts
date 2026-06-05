@@ -64,6 +64,7 @@ export interface WorkItemActionDeps {
     'rollbackClaim' |
     'tryClaimActive' |
     'tryDeferActive' |
+    'tryMarkActiveMemberKicked' |
     'tryKickClaimed' |
     'tryReleaseClaimed'
   >
