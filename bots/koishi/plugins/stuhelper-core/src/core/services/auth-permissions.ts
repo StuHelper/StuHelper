@@ -1,6 +1,17 @@
 import type { Session } from 'koishi'
+import type { GuildMember, GuildRole } from '@satorijs/protocol'
 
 import type { Role } from '../../types'
+
+const GUILD_ADMIN_ROLE_IDS = new Set(['admin', 'owner'])
+
+interface AuthorityHolder {
+  readonly authority?: unknown
+}
+
+interface LegacyGuildRoleHolder {
+  readonly role?: unknown
+}
 
 export function collectSessionPermissions(input: {
   readonly session: Session
@@ -9,7 +20,7 @@ export function collectSessionPermissions(input: {
 }): Set<string> {
   const perms = new Set<string>()
   const guildId = input.session.guildId
-  const authority = (input.session.user as any)?.authority || 0
+  const authority = getSessionAuthority(input.session)
 
   addAuthorityRolePermissions(perms, input.roles, authority)
   if (isGuildAdmin(input.session) && guildId) {
@@ -63,11 +74,29 @@ function isRoleVisibleInGuild(role: Role, options: { guildId?: string, checkGuil
 }
 
 function isGuildAdmin(session: Session): boolean {
-  const author = session.author || (session.event as any)?.member
+  const author: (GuildMember & LegacyGuildRoleHolder) | undefined = session.author
   if (!author) return false
 
   const roles = author.roles || []
-  if (roles.includes('admin') || roles.includes('owner')) return true
-  const role = (author as any).role
-  return role === 'admin' || role === 'owner'
+  if (roles.some(isGuildAdminRole)) return true
+  return isGuildAdminRole(author.role)
+}
+
+function getSessionAuthority(session: Session): number {
+  const authority = isAuthorityHolder(session.user) ? session.user.authority : 0
+  return typeof authority === 'number' ? authority : 0
+}
+
+function isGuildAdminRole(role: unknown): boolean {
+  if (typeof role === 'string') return GUILD_ADMIN_ROLE_IDS.has(role)
+  if (!isGuildRoleLike(role)) return false
+  return GUILD_ADMIN_ROLE_IDS.has(role.id) || Boolean(role.name && GUILD_ADMIN_ROLE_IDS.has(role.name))
+}
+
+function isGuildRoleLike(role: unknown): role is Pick<GuildRole, 'id' | 'name'> {
+  return typeof role === 'object' && role !== null && typeof (role as { readonly id?: unknown }).id === 'string'
+}
+
+function isAuthorityHolder(value: unknown): value is AuthorityHolder {
+  return typeof value === 'object' && value !== null && 'authority' in value
 }
