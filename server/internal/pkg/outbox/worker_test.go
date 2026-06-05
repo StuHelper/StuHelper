@@ -46,6 +46,39 @@ func TestProcessBatch_MarksDoneOnSuccess(t *testing.T) {
 	assert.EqualValues(t, 1, doneID)
 }
 
+func TestProcessBatch_MarkDoneSurvivesParentCancellation(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var markDoneErr error
+	err := ProcessBatch(
+		ctx,
+		WorkerConfig{Name: "test worker", BatchSize: 10, LockStaleAfter: time.Minute, RetryBaseBackoff: time.Second, MaxBackoff: time.Minute},
+		func(context.Context, int, time.Duration) ([]testJob, error) {
+			return []testJob{{id: 1, jobType: "sync", attemptCount: 0}}, nil
+		},
+		func(context.Context, testJob) error {
+			cancel()
+			return nil
+		},
+		func(ctx context.Context, _ int64, _ time.Time) error {
+			markDoneErr = ctx.Err()
+			return markDoneErr
+		},
+		func(context.Context, int64, time.Time, time.Time, string, bool) error {
+			return errors.New("should not retry")
+		},
+		func(job testJob) JobMeta {
+			return JobMeta{ID: job.id, JobType: job.jobType, AttemptCount: job.attemptCount}
+		},
+		nil,
+	)
+	require.NoError(t, err)
+	assert.NoError(t, markDoneErr)
+}
+
 func TestProcessBatch_MarksRetryOnFailure(t *testing.T) {
 	t.Parallel()
 
@@ -77,6 +110,39 @@ func TestProcessBatch_MarksRetryOnFailure(t *testing.T) {
 	require.NoError(t, err)
 	assert.EqualValues(t, 7, retryID)
 	assert.Equal(t, "trimmed:boom", retryError)
+}
+
+func TestProcessBatch_MarkFailureSurvivesParentCancellation(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var markFailureErr error
+	err := ProcessBatch(
+		ctx,
+		WorkerConfig{Name: "test worker", BatchSize: 10, LockStaleAfter: time.Minute, RetryBaseBackoff: time.Second, MaxBackoff: time.Minute},
+		func(context.Context, int, time.Duration) ([]testJob, error) {
+			return []testJob{{id: 7, jobType: "sync", attemptCount: 0}}, nil
+		},
+		func(context.Context, testJob) error {
+			cancel()
+			return errors.New("boom")
+		},
+		func(context.Context, int64, time.Time) error {
+			return errors.New("should not mark done")
+		},
+		func(ctx context.Context, _ int64, _ time.Time, _ time.Time, _ string, _ bool) error {
+			markFailureErr = ctx.Err()
+			return markFailureErr
+		},
+		func(job testJob) JobMeta {
+			return JobMeta{ID: job.id, JobType: job.jobType, AttemptCount: job.attemptCount}
+		},
+		nil,
+	)
+	require.NoError(t, err)
+	assert.NoError(t, markFailureErr)
 }
 
 func TestProcessBatch_ContinuesAfterMarkDoneFailure(t *testing.T) {

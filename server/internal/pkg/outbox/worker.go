@@ -21,6 +21,7 @@ type WorkerConfig struct {
 	RetryBaseBackoff time.Duration
 	MaxBackoff       time.Duration
 	MaxAttempts      int
+	FinalizeTimeout  time.Duration
 }
 
 type JobMeta struct {
@@ -42,6 +43,8 @@ type MarkFailureFunc func(
 	terminal bool,
 ) error
 type MetaFunc[T any] func(job T) JobMeta
+
+const defaultFinalizeTimeout = 5 * time.Second
 
 func RunPollingWorker[T any](
 	ctx context.Context,
@@ -93,7 +96,10 @@ func ProcessBatch[T any](
 			if !terminalFailed {
 				nextAttempt = nextAttemptAt(cfg, jobMeta.AttemptCount)
 			}
-			if retryErr := markFailure(ctx, jobMeta.ID, jobMeta.LockedAt, nextAttempt, truncate(truncateError, err), terminalFailed); retryErr != nil {
+			finalizeCtx, cancel := finalizeContext(ctx, cfg)
+			retryErr := markFailure(finalizeCtx, jobMeta.ID, jobMeta.LockedAt, nextAttempt, truncate(truncateError, err), terminalFailed)
+			cancel()
+			if retryErr != nil {
 				logger.L().Error("failed to mark "+cfg.Name+" job failure",
 					zap.Int64("job_id", jobMeta.ID),
 					zap.String("job_type", jobMeta.JobType),
@@ -117,7 +123,10 @@ func ProcessBatch[T any](
 		}
 
 		jobMeta := meta(job)
-		if err := markDone(ctx, jobMeta.ID, jobMeta.LockedAt); err != nil {
+		finalizeCtx, cancel := finalizeContext(ctx, cfg)
+		err := markDone(finalizeCtx, jobMeta.ID, jobMeta.LockedAt)
+		cancel()
+		if err != nil {
 			batchErr = errors.Join(batchErr, fmt.Errorf("mark %s job done: %w", cfg.Name, err))
 			metrics.ObserveOutboxJobFailure(cfg.Name, jobMeta.JobType, false)
 			logger.L().Error("failed to mark "+cfg.Name+" job done",
@@ -128,6 +137,14 @@ func ProcessBatch[T any](
 		}
 	}
 	return batchErr
+}
+
+func finalizeContext(ctx context.Context, cfg WorkerConfig) (context.Context, context.CancelFunc) {
+	timeout := cfg.FinalizeTimeout
+	if timeout <= 0 {
+		timeout = defaultFinalizeTimeout
+	}
+	return context.WithTimeout(context.WithoutCancel(ctx), timeout)
 }
 
 func nextAttemptAt(cfg WorkerConfig, attemptCount int) time.Time {
