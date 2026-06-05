@@ -172,6 +172,38 @@ func TestRequestStudentEmailOTPSendFailureKeepsCooldown(t *testing.T) {
 	assert.Equal(t, 1, sender.calls)
 }
 
+func TestRequestStudentEmailOTPSendFailureCleanupSurvivesRequestCancellation(t *testing.T) {
+	redis := redisfixture.Start(t)
+	sender := &testStudentEmailSender{err: errors.New("email backend unavailable")}
+	svc, err := NewService(
+		buaaStudentEmailOTPRepo(t, &AcademicStudent{XH: "20250001", XM: stringPtr("张三")}),
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithStudentEmailOTP(redis.Client, sender),
+	)
+	require.NoError(t, err)
+	input := StudentEmailOTPInput{
+		UserID:      7,
+		SchoolID:    4111010006,
+		StudentID:   "20250001",
+		StudentName: "张三",
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sender.onSend = cancel
+
+	_, err = svc.RequestStudentEmailOTP(ctx, input)
+
+	require.ErrorContains(t, err, "email backend unavailable")
+	assert.Equal(t, 1, sender.calls)
+	_, err = svc.loadStudentEmailOTPRecord(context.Background(), input.UserID, input.SchoolID)
+	require.ErrorIs(t, err, ErrStudentEmailOTPExpired)
+
+	_, err = svc.RequestStudentEmailOTP(context.Background(), input)
+	require.ErrorIs(t, err, ErrStudentEmailOTPCooldown)
+	assert.Equal(t, 1, sender.calls)
+}
+
 func TestVerifyStudentEmailOTPKeepsCodeWhenProfileCommitFails(t *testing.T) {
 	ctx := context.Background()
 	redis := redisfixture.Start(t)
@@ -317,15 +349,19 @@ func buaaStudentEmailOTPRepo(t *testing.T, student *AcademicStudent) *mockRepo {
 }
 
 type testStudentEmailSender struct {
-	email string
-	code  string
-	err   error
-	calls int
+	email  string
+	code   string
+	err    error
+	calls  int
+	onSend func()
 }
 
 func (s *testStudentEmailSender) SendStudentVerificationOTP(_ context.Context, email string, code string) error {
 	s.calls++
 	s.email = email
 	s.code = code
+	if s.onSend != nil {
+		s.onSend()
+	}
 	return s.err
 }

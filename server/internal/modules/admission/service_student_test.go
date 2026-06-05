@@ -85,6 +85,36 @@ func TestRequestSchoolEmailOTPSendFailureKeepsCooldown(t *testing.T) {
 	assert.Equal(t, 1, sender.calls)
 }
 
+func TestRequestSchoolEmailOTPSendFailureCleanupSurvivesRequestCancellation(t *testing.T) {
+	pg := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	sender := &testSchoolEmailSender{err: errors.New("smtp unavailable")}
+	svc := newFreshmanTestService(t, pg)
+	svc.redisClient = redis.Client
+	svc.emailSender = sender
+	userID := seedLinkedAdmissionUser(t, pg, svc, "email-otp-send-cancelled")
+	input := SchoolEmailOTPInput{
+		UserID:   userID,
+		SchoolID: 4111010006,
+		Email:    "student@buaa.edu.cn",
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sender.onSend = cancel
+
+	_, err := svc.RequestSchoolEmailOTP(ctx, input)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "smtp unavailable")
+	assert.Equal(t, 1, sender.calls)
+	_, err = svc.loadEmailOTPRecord(context.Background(), input.UserID, input.SchoolID)
+	require.ErrorIs(t, err, ErrAdmissionOTPExpired)
+
+	_, err = svc.RequestSchoolEmailOTP(context.Background(), input)
+	require.ErrorIs(t, err, ErrAdmissionOTPCooldown)
+	assert.Equal(t, 1, sender.calls)
+}
+
 func TestVerifySchoolEmailOTPKeepsCodeWhenCredentialCommitFails(t *testing.T) {
 	pg := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
@@ -576,10 +606,11 @@ func startSchoolSSOForTest(t *testing.T, svc *Service, userID int64) *SchoolSSOS
 }
 
 type testSchoolEmailSender struct {
-	email string
-	code  string
-	err   error
-	calls int
+	email  string
+	code   string
+	err    error
+	calls  int
+	onSend func()
 }
 
 type testAcademicLookupGateway struct {
@@ -613,6 +644,9 @@ func (s *testSchoolEmailSender) SendAdmissionOTP(_ context.Context, email string
 	s.calls++
 	s.email = email
 	s.code = code
+	if s.onSend != nil {
+		s.onSend()
+	}
 	return s.err
 }
 

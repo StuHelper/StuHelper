@@ -30,6 +30,7 @@ const (
 	studentEmailOTPCooldown        = time.Minute
 	studentEmailOTPCooldownSeconds = int(studentEmailOTPCooldown / time.Second)
 	studentEmailOTPMaxAttempts     = 5
+	studentEmailOTPCleanupTimeout  = 5 * time.Second
 )
 
 const (
@@ -152,7 +153,7 @@ func (s *Service) RequestStudentEmailOTP(ctx context.Context, input StudentEmail
 		return nil, err
 	}
 	if err := s.studentEmailSender.SendStudentVerificationOTP(ctx, email, code); err != nil {
-		if cleanupErr := s.cleanupStudentEmailOTPCodeOnly(ctx, input.UserID, input.SchoolID); cleanupErr != nil {
+		if cleanupErr := s.cleanupStudentEmailOTPCodeOnlyAfterSendFailure(ctx, input.UserID, input.SchoolID); cleanupErr != nil {
 			return nil, fmt.Errorf("RequestStudentEmailOTP send: %w; cleanup: %w", err, cleanupErr)
 		}
 		return nil, fmt.Errorf("RequestStudentEmailOTP send: %w", err)
@@ -457,6 +458,16 @@ func (s *Service) cleanupStudentEmailOTPCodeOnly(ctx context.Context, userID, sc
 		studentEmailOTPKey(userID, schoolID),
 		studentEmailOTPAttemptsKey(userID, schoolID),
 	).Err()
+}
+
+func (s *Service) cleanupStudentEmailOTPCodeOnlyAfterSendFailure(ctx context.Context, userID, schoolID int64) error {
+	cleanupCtx, cancel := studentEmailOTPCleanupContext(ctx)
+	defer cancel()
+	return s.cleanupStudentEmailOTPCodeOnly(cleanupCtx, userID, schoolID)
+}
+
+func studentEmailOTPCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), studentEmailOTPCleanupTimeout)
 }
 
 type studentEmailOTPStoreInput struct {
