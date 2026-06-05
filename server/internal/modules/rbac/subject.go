@@ -1,13 +1,14 @@
-package authorization
+package rbac
 
 import (
 	"github.com/gin-gonic/gin"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/authorization"
 )
 
-func SubjectFromGin(c *gin.Context) Subject {
-	return Subject{
+func subjectFromGin(c *gin.Context) authorization.Subject {
+	return authorization.Subject{
 		UserID:              middleware.GetUserID(c),
 		AppID:               middleware.GetAppID(c),
 		Roles:               middleware.GetRoles(c),

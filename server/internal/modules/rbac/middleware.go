@@ -26,7 +26,7 @@ func RequireCapabilityWithAuthorizer(authorizer authorization.AuthorizationServi
 	return func(c *gin.Context) {
 		decision := authorizer.Authorize(
 			c.Request.Context(),
-			authorization.SubjectFromGin(c),
+			subjectFromGin(c),
 			authorization.ActionCapabilityRequire,
 			authorization.CapabilityResource(capName),
 		)
@@ -46,7 +46,7 @@ func RequireAnyCapabilityWithAuthorizer(authorizer authorization.AuthorizationSe
 	return func(c *gin.Context) {
 		decision := authorizer.Authorize(
 			c.Request.Context(),
-			authorization.SubjectFromGin(c),
+			subjectFromGin(c),
 			authorization.ActionCapabilityRequireAny,
 			authorization.AnyCapabilityResource(capNames...),
 		)
@@ -67,7 +67,7 @@ func RequireGlobalCapabilityWithAuthorizer(authorizer authorization.Authorizatio
 	return func(c *gin.Context) {
 		decision := authorizer.Authorize(
 			c.Request.Context(),
-			authorization.SubjectFromGin(c),
+			subjectFromGin(c),
 			authorization.ActionCapabilityRequireGlobal,
 			authorization.GlobalCapabilityResource(capName),
 		)
@@ -125,7 +125,7 @@ func ensureMFAWithAuthorizer(
 	action authorization.Action,
 	resource authorization.Resource,
 ) bool {
-	subject := authorization.SubjectFromGin(c)
+	subject := subjectFromGin(c)
 	decision := authorizer.Authorize(c.Request.Context(), subject, action, resource)
 	logMFAGateDecision(c, subject, action, decision)
 	return !abortOnDeny(c, decision)

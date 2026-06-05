@@ -1,4 +1,4 @@
-package authorization
+package rbac
 
 import (
 	"testing"
@@ -21,7 +21,7 @@ func TestSubjectFromGinIncludesMFAState(t *testing.T) {
 		ProofVerifiedAt:  proofTime,
 	})
 
-	subject := SubjectFromGin(c)
+	subject := subjectFromGin(c)
 
 	assert.Equal(t, "user-1", subject.UserID)
 	assert.Equal(t, "stuhelper-web", subject.AppID)
