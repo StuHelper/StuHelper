@@ -10,7 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
@@ -382,11 +381,11 @@ func (h *Handler) handleRequestBindPhoneOTP(c *gin.Context) {
 	}
 
 	if err := h.otpService.IssueCode(c.Request.Context(), phone, h.smsService); err != nil {
-		if errors.Is(err, auth.ErrOTPPhoneRateLimited) {
+		if errors.Is(err, errBindPhoneOTPPhoneRateLimited) {
 			response.RateLimitExceeded(c, "too many verification code requests for this phone number")
 			return
 		}
-		if errors.Is(err, auth.ErrOTPCooldown) {
+		if errors.Is(err, errBindPhoneOTPCooldown) {
 			response.RateLimitExceeded(c, "please wait before requesting a new code")
 			return
 		}
@@ -426,13 +425,13 @@ func (h *Handler) handleBindPhone(c *gin.Context) {
 
 	if err := h.otpService.Verify(c.Request.Context(), phone, req.OTPCode); err != nil {
 		switch {
-		case errors.Is(err, auth.ErrOTPExpired):
+		case errors.Is(err, errBindPhoneOTPExpired):
 			response.Unauthorized(c, "verification code expired", errs.ErrPhoneOTPExpired)
 			return
-		case errors.Is(err, auth.ErrOTPMaxAttempts):
+		case errors.Is(err, errBindPhoneOTPMaxAttempts):
 			response.RateLimitExceeded(c, "too many failed attempts, please request a new code")
 			return
-		case errors.Is(err, auth.ErrOTPInvalidCode):
+		case errors.Is(err, errBindPhoneOTPInvalidCode):
 			response.Unauthorized(c, "invalid verification code", errs.ErrPhoneOTPFailed)
 			return
 		}
