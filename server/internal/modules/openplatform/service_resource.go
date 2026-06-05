@@ -2,6 +2,7 @@ package openplatform
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -49,6 +50,9 @@ func (s *Service) GrantResourceAccess(ctx context.Context, input ResourceGrantIn
 	}
 	if err := s.recordResourceAccessAdminAudit(ctx, app.ID, input.ReviewerUserID, input.RequestID,
 		"open_platform.resource_access.granted", resourceType, resourceID, actions, reason); err != nil {
+		if rollbackErr := s.resourceFGA.DeleteTuples(ctx, tuples); rollbackErr != nil {
+			return nil, errors.Join(err, fmt.Errorf("%w: rollback granted resource access tuples: %v", ErrResourceAccessUnavailable, rollbackErr))
+		}
 		return nil, err
 	}
 	return &ResourceGrantResult{App: app, Grants: grants}, nil
@@ -83,11 +87,20 @@ func (s *Service) RevokeResourceAccess(ctx context.Context, input ResourceGrantR
 	for _, grant := range grants {
 		tuples = append(tuples, resourceGrantTuple(grant))
 	}
+	existingTuples, err := s.existingResourceTuples(ctx, tuples)
+	if err != nil {
+		return nil, err
+	}
 	if err := s.resourceFGA.DeleteTuples(ctx, tuples); err != nil {
 		return nil, fmt.Errorf("%w: delete resource access tuples: %v", ErrResourceAccessUnavailable, err)
 	}
 	if err := s.recordResourceAccessAdminAudit(ctx, app.ID, input.ReviewerUserID, input.RequestID,
 		"open_platform.resource_access.revoked", resourceType, resourceID, actions, reason); err != nil {
+		if len(existingTuples) > 0 {
+			if rollbackErr := s.resourceFGA.WriteMissingTuples(ctx, existingTuples); rollbackErr != nil {
+				return nil, errors.Join(err, fmt.Errorf("%w: restore revoked resource access tuples: %v", ErrResourceAccessUnavailable, rollbackErr))
+			}
+		}
 		return nil, err
 	}
 	return &ResourceGrantResult{App: app, Grants: grants}, nil
@@ -233,6 +246,20 @@ func (s *Service) ensureResourceFGAConfigured() error {
 		return ErrResourceAccessUnavailable
 	}
 	return nil
+}
+
+func (s *Service) existingResourceTuples(ctx context.Context, tuples []fga.Tuple) ([]fga.Tuple, error) {
+	existing := make([]fga.Tuple, 0, len(tuples))
+	for _, tuple := range tuples {
+		ok, err := s.resourceFGA.Check(ctx, tuple.User, tuple.Relation, tuple.Object)
+		if err != nil {
+			return nil, fmt.Errorf("%w: check existing resource access tuple: %v", ErrResourceAccessUnavailable, err)
+		}
+		if ok {
+			existing = append(existing, tuple)
+		}
+	}
+	return existing, nil
 }
 
 func (s *Service) revokeAllResourceAccessForRevokedApp(ctx context.Context, appID int64, actorUserID int64, requestID string, reason string) error {

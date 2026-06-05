@@ -152,6 +152,67 @@ func TestResourceAccessGrantAndRevokeRequireReasons(t *testing.T) {
 	require.ErrorIs(t, err, ErrResourceAccessReasonRequired)
 }
 
+func TestResourceAccessGrantRollsBackFGAWhenAuditFails(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	resourceFGA := newFakeResourceFGA()
+	service, err := NewService(repo, redis.Client, WithResourceFGAClient(resourceFGA))
+	require.NoError(t, err)
+
+	ownerID := seedOpenPlatformUser(t, postgres, "resource-grant-rollback-owner")
+	app := seedApprovedOpenPlatformApp(t, ctx, repo, ownerID, []string{ScopeResourceRead})
+
+	_, err = service.GrantResourceAccess(ctx, ResourceGrantInput{
+		AppID:          app.ID,
+		ReviewerUserID: 999_999_999,
+		ResourceType:   ResourceTypeResourceItem,
+		ResourceID:     "rollback-grant",
+		Actions:        []string{ResourceAccessActionRead},
+		Reason:         "audit failure rollback",
+		RequestID:      "grant-resource-access-audit-fail",
+	})
+	require.ErrorIs(t, err, ErrResourceAccessUnavailable)
+	assert.Empty(t, resourceFGA.sortedTuples())
+	assertOpenPlatformAuditCount(t, postgres, app.ID, 999_999_999, "open_platform.resource_access.granted", 0)
+}
+
+func TestResourceAccessRevokeRestoresExistingFGAWhenAuditFails(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	resourceFGA := newFakeResourceFGA()
+	service, err := NewService(repo, redis.Client, WithResourceFGAClient(resourceFGA))
+	require.NoError(t, err)
+
+	ownerID := seedOpenPlatformUser(t, postgres, "resource-revoke-rollback-owner")
+	app := seedApprovedOpenPlatformApp(t, ctx, repo, ownerID, []string{
+		ScopeResourceRead,
+		ScopeResourceWrite,
+	})
+	existing := fga.Tuple{
+		User:     openPlatformAppFGAUser(app.ID),
+		Relation: ResourceRelationReadByApp,
+		Object:   "resource_item:rollback-revoke",
+	}
+	require.NoError(t, resourceFGA.WriteMissingTuples(ctx, []fga.Tuple{existing}))
+
+	_, err = service.RevokeResourceAccess(ctx, ResourceGrantRevokeInput{
+		AppID:          app.ID,
+		ReviewerUserID: 999_999_999,
+		ResourceType:   ResourceTypeResourceItem,
+		ResourceID:     "rollback-revoke",
+		Actions:        []string{ResourceAccessActionRead, ResourceAccessActionWrite},
+		Reason:         "audit failure restore",
+		RequestID:      "revoke-resource-access-audit-fail",
+	})
+	require.ErrorIs(t, err, ErrResourceAccessUnavailable)
+	assert.Equal(t, []fga.Tuple{existing}, resourceFGA.sortedTuples())
+	assertOpenPlatformAuditCount(t, postgres, app.ID, 999_999_999, "open_platform.resource_access.revoked", 0)
+}
+
 func TestResourceAccessCheckAcceptsClientCredentialsAccessTokenContext(t *testing.T) {
 	ctx := context.Background()
 	postgres := postgresfixture.Start(t)
