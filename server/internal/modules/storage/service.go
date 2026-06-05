@@ -16,6 +16,8 @@ type Service struct {
 	cfg      config.ObjectStorageConfig
 }
 
+const storageCleanupTimeout = 5 * time.Second
+
 func NewService(repo *Repository, cfg config.ObjectStorageConfig) *Service {
 	if repo == nil {
 		panic("storage.NewService: repo must not be nil")
@@ -105,12 +107,19 @@ func (s *Service) Put(ctx context.Context, mountKey, objectKey string, content [
 		return nil, nil, err
 	}
 	if err := validateStoredObject(stored); err != nil {
-		if cleanupErr := driver.Delete(ctx, *mount, cleanupStoredObjectKey(objectKey, stored)); cleanupErr != nil {
+		cleanupCtx, cancel := storageCleanupContext(ctx)
+		cleanupErr := driver.Delete(cleanupCtx, *mount, cleanupStoredObjectKey(objectKey, stored))
+		cancel()
+		if cleanupErr != nil {
 			return nil, nil, errors.Join(err, fmt.Errorf("cleanup invalid stored object: %w", cleanupErr))
 		}
 		return nil, nil, err
 	}
 	return mount, stored, nil
+}
+
+func storageCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), storageCleanupTimeout)
 }
 
 func validateStoredObject(stored *StoredObject) error {

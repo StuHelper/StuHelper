@@ -18,6 +18,7 @@ type fakeDriver struct {
 	putObject   *StoredObject
 	putErr      error
 	deletedKeys []string
+	onPut       func()
 }
 
 func (d *fakeDriver) Capabilities() CapabilitySet {
@@ -29,6 +30,9 @@ func (d *fakeDriver) HealthCheck(context.Context, Mount) error {
 }
 
 func (d *fakeDriver) Put(context.Context, Mount, string, []byte, string) (*StoredObject, error) {
+	if d.onPut != nil {
+		d.onPut()
+	}
 	if d.putErr != nil {
 		return nil, d.putErr
 	}
@@ -39,7 +43,10 @@ func (d *fakeDriver) Stat(context.Context, Mount, string) (*StoredObject, error)
 	return nil, errors.New("unexpected Stat call")
 }
 
-func (d *fakeDriver) Delete(_ context.Context, _ Mount, objectKey string) error {
+func (d *fakeDriver) Delete(ctx context.Context, _ Mount, objectKey string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	d.deletedKeys = append(d.deletedKeys, objectKey)
 	return nil
 }
@@ -195,6 +202,23 @@ func TestPutRejectsMissingObjectMetadata(t *testing.T) {
 
 	_, _, err := svc.Put(context.Background(), DefaultMountKey, "resources/1/file.txt", []byte("hello"), "text/plain")
 	require.ErrorIs(t, err, ErrStoredObjectMissing)
+	assert.Equal(t, []string{"resources/1/file.txt"}, driver.deletedKeys)
+}
+
+func TestPutCleanupSurvivesRequestCancellation(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(repo, config.ObjectStorageConfig{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	driver := &fakeDriver{
+		putObject: &StoredObject{ObjectKey: " ", SizeBytes: 5, ContentType: "text/plain"},
+		onPut:     cancel,
+	}
+	svc.registry.drivers["s3"] = driver
+
+	_, _, err := svc.Put(ctx, DefaultMountKey, "resources/1/file.txt", []byte("hello"), "text/plain")
+	require.ErrorIs(t, err, ErrInvalidStoredObject)
 	assert.Equal(t, []string{"resources/1/file.txt"}, driver.deletedKeys)
 }
 
