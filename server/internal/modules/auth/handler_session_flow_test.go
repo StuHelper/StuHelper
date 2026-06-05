@@ -88,6 +88,27 @@ func TestConsumeRefreshToken_ReserveReleaseAndRetry(t *testing.T) {
 	require.NotNil(t, release2)
 }
 
+func TestConsumeRefreshToken_ReleaseSurvivesRequestCancellation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, tokenSvc := newRefreshTestHandler(t, &fakeUserSyncRepo{})
+
+	reqCtx, cancelReq := context.WithCancel(context.Background())
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/refresh", nil).WithContext(reqCtx)
+
+	release, ok := h.consumeRefreshToken(c, "refresh-token-cancelled")
+	require.True(t, ok)
+	require.NotNil(t, release)
+
+	cancelReq()
+	release()
+
+	blacklisted, err := tokenSvc.GetBlacklist().IsBlacklisted(t.Context(), "refresh-token-cancelled")
+	require.NoError(t, err)
+	assert.False(t, blacklisted)
+}
+
 func TestConsumeRefreshToken_Revoked(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, _ := newRefreshTestHandler(t, &fakeUserSyncRepo{})

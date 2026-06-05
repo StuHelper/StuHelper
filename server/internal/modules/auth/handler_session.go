@@ -1,9 +1,11 @@
 package auth
 
 import (
+	"context"
 	"crypto/subtle"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -15,6 +17,8 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
+
+const refreshReservationReleaseTimeout = 2 * time.Second
 
 // Logout 登出当前设备（基于 Session 撤销）
 func (h *Handler) Logout(c *gin.Context) {
@@ -175,7 +179,9 @@ func (h *Handler) consumeRefreshToken(c *gin.Context, refreshToken string) (func
 	}
 
 	return func() {
-		if err := h.tokenService.GetBlacklist().ReleaseConsumedRefreshToken(c.Request.Context(), refreshToken); err != nil {
+		releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(c.Request.Context()), refreshReservationReleaseTimeout)
+		defer cancel()
+		if err := h.tokenService.GetBlacklist().ReleaseConsumedRefreshToken(releaseCtx, refreshToken); err != nil {
 			logger.FromGin(c).Warn("failed to release refresh token reservation", zap.Error(err))
 		}
 	}, true
