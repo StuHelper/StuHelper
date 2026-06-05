@@ -1,6 +1,7 @@
 import { Time } from 'koishi'
 
 import type { DataManager } from '../data'
+import type { PushMessageBot } from '../services'
 import { formatDuration } from '../../utils'
 import {
   DEFAULT_LEAVE_CONFIG,
@@ -14,7 +15,7 @@ import {
 
 export function setupEventScheduledTasks(host: EventRuntimeHost): void {
   host.ctx.setInterval(async () => {
-    const bot = host.ctx.bots.values().next().value
+    const bot = firstPushMessageBot(host.ctx.bots.values())
     if (bot) {
       await checkMuteExpires(host, bot)
     }
@@ -91,7 +92,7 @@ function recordRemainingMute(host: EventRuntimeHost, session: EventSession): voi
   host.data.mutes.set(session.guildId, mutes[session.guildId])
 }
 
-async function checkMuteExpires(host: EventRuntimeHost, bot: any): Promise<void> {
+export async function checkMuteExpires(host: EventRuntimeHost, bot: PushMessageBot): Promise<void> {
   try {
     const mutes = host.data.mutes.getAll()
     const expiredMutes = findExpiredMutes(mutes, Date.now())
@@ -105,6 +106,20 @@ async function checkMuteExpires(host: EventRuntimeHost, bot: any): Promise<void>
   } catch (error) {
     eventLogger.error('检查禁言到期失败:', error)
   }
+}
+
+function firstPushMessageBot(bots: Iterable<unknown>): PushMessageBot | null {
+  for (const bot of bots) {
+    if (isPushMessageBot(bot)) return bot
+  }
+  return null
+}
+
+function isPushMessageBot(value: unknown): value is PushMessageBot {
+  if (typeof value !== 'object' || value === null) return false
+
+  const bot = value as Record<string, unknown>
+  return typeof bot.sendMessage === 'function' && typeof bot.sendPrivateMessage === 'function'
 }
 
 function findExpiredMutes(

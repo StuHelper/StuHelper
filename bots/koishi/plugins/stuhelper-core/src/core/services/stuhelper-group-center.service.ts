@@ -17,7 +17,7 @@ import {
 
 const CACHE_WARM_DELAY_MS = 2_000
 
-type PushMessageBot = {
+export type PushMessageBot = {
   sendMessage(channelId: string, content: string): Promise<unknown>
   sendPrivateMessage(userId: string, content: string): Promise<unknown>
 }
