@@ -6,7 +6,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
@@ -173,8 +172,6 @@ func respondAdmissionDependencyError(c *gin.Context, err error) bool {
 		errors.Is(err, ErrAdmissionAcademicLookupUnavailable),
 		errors.Is(err, ErrAdmissionRedisUnavailable):
 		response.ServiceUnavailable(c, "admission dependency unavailable")
-	case errors.Is(err, user.ErrQQBindingQQAlreadyBound), errors.Is(err, user.ErrQQBindingUserConflict):
-		response.Conflict(c, "qq binding conflict")
 	default:
 		return false
 	}

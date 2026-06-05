@@ -149,18 +149,19 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	if err != nil {
 		return err
 	}
+	admissionUserGateway := newAdmissionUserGateway(userService)
 	admissionService, err := admission.NewService(
 		admission.NewRepository(rt.database),
-		userService,
+		admissionUserGateway,
 		crypto.GetHMACKey(),
 		admission.WithAdmissionRedisClient(rt.redisClient.GetClient()),
 		admission.WithSchoolEmailSender(admissionEmailSender),
-		admission.WithAcademicStudentLookupGateway(userService),
+		admission.WithAcademicStudentLookupGateway(admissionUserGateway),
 		admission.WithAdmissionMaterialStore(
 			admission.NewStorageAdmissionMaterialStore(storageService, storage.DefaultMountKey),
 		),
 		admission.WithOperatorAccessGateway(rt.initAdmissionOperatorAccess(userRepo)),
-		admission.WithFreshmanProjectionGateway(userService),
+		admission.WithFreshmanProjectionGateway(admissionUserGateway),
 		admission.WithSchoolSSOExchanger(admission.NewOIDCSchoolSSOExchanger(rt.oidcClient)),
 		admission.WithAdmissionPublicBaseURL(rt.cfg.Admission.PublicBaseURL),
 	)

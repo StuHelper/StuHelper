@@ -12,8 +12,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
-
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
 )
 
 const admissionTokenBytes = 32
@@ -21,7 +19,7 @@ const admissionJoinTokenLength = 10
 const admissionJoinTokenAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 type QQBindingGateway interface {
-	EnsureQQBindingForUserTx(context.Context, pgx.Tx, int64, string) (*user.QQBinding, error)
+	EnsureQQBindingForUserTx(context.Context, pgx.Tx, int64, string) error
 }
 
 type SchoolEmailSender interface {
@@ -29,7 +27,12 @@ type SchoolEmailSender interface {
 }
 
 type AcademicStudentLookupGateway interface {
-	GetAcademicInfo(ctx context.Context, schoolID int64, studentID string) (*user.AcademicStudent, error)
+	GetAcademicInfo(ctx context.Context, schoolID int64, studentID string) (*AcademicStudent, error)
+}
+
+type AcademicStudent struct {
+	StudentID string
+	Name      *string
 }
 
 type OperatorAccessGateway interface {

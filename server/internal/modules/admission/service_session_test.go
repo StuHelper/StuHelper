@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/postgresfixture"
 )
 
@@ -206,13 +205,13 @@ func TestAdmissionTokenLinkIsAtomicUnderConcurrency(t *testing.T) {
 	assertExactlyOneLinkSuccess(t, results)
 }
 
-func TestAdmissionTokenLinkMapsQQBindingConflictsToQQMismatch(t *testing.T) {
+func TestAdmissionTokenLinkReturnsGatewayQQMismatch(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		err  error
 	}{
-		{name: "user bound to other qq", err: user.ErrQQBindingUserConflict},
-		{name: "qq bound to other user", err: user.ErrQQBindingQQAlreadyBound},
+		{name: "user bound to other qq", err: ErrAdmissionQQMismatch},
+		{name: "qq bound to other user", err: ErrAdmissionQQMismatch},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fixture := postgresfixture.Start(t)
@@ -228,7 +227,6 @@ func TestAdmissionTokenLinkMapsQQBindingConflictsToQQMismatch(t *testing.T) {
 			})
 
 			require.ErrorIs(t, err, ErrAdmissionQQMismatch)
-			require.NotErrorIs(t, err, tc.err)
 		})
 	}
 }
@@ -974,11 +972,11 @@ func (g *testQQBindingGateway) EnsureQQBindingForUserTx(
 	pgx.Tx,
 	int64,
 	string,
-) (*user.QQBinding, error) {
+) error {
 	if g.err != nil {
-		return nil, g.err
+		return g.err
 	}
-	return &user.QQBinding{}, nil
+	return nil
 }
 
 func assertAdmissionFailureBlacklisted(t *testing.T, fixture *postgresfixture.Fixture, qqID string) {

@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/postgresfixture"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
 )
@@ -101,7 +100,7 @@ func TestSchoolEmailOTPDerivesBUAAEmailAfterAcademicNameMatch(t *testing.T) {
 	svc.redisClient = redis.Client
 	svc.emailSender = sender
 	svc.academicLookup = testAcademicLookupGateway{
-		student: &user.AcademicStudent{XH: "20250001", XM: stringPtr("张三")},
+		student: &AcademicStudent{StudentID: "20250001", Name: stringPtr("张三")},
 	}
 	userID := seedLinkedAdmissionUser(t, pg, svc, "email-otp-academic")
 
@@ -149,7 +148,7 @@ func TestSchoolEmailOTPAcademicProjectionIncludesStudentProfileFields(t *testing
 	svc.redisClient = redis.Client
 	svc.emailSender = sender
 	svc.academicLookup = testAcademicLookupGateway{
-		student: &user.AcademicStudent{XH: "20250001", XM: stringPtr("张三")},
+		student: &AcademicStudent{StudentID: "20250001", Name: stringPtr("张三")},
 	}
 	userID := seedLinkedAdmissionUser(t, pg, svc, "email-otp-academic-profile")
 
@@ -199,7 +198,7 @@ func TestSchoolEmailAcademicMatchReturnsImmediateResult(t *testing.T) {
 	pg := postgresfixture.Start(t)
 	svc := newFreshmanTestService(t, pg)
 	svc.academicLookup = testAcademicLookupGateway{
-		student: &user.AcademicStudent{XH: "20250001", XM: stringPtr("张三")},
+		student: &AcademicStudent{StudentID: "20250001", Name: stringPtr("张三")},
 	}
 	userID := seedLinkedAdmissionUser(t, pg, svc, "email-academic-match")
 
@@ -543,7 +542,7 @@ type testSchoolEmailSender struct {
 }
 
 type testAcademicLookupGateway struct {
-	student *user.AcademicStudent
+	student *AcademicStudent
 	err     error
 }
 
@@ -551,7 +550,7 @@ func (g testAcademicLookupGateway) GetAcademicInfo(
 	context.Context,
 	int64,
 	string,
-) (*user.AcademicStudent, error) {
+) (*AcademicStudent, error) {
 	return g.student, g.err
 }
 

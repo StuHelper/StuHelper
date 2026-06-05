@@ -14,7 +14,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
 )
@@ -386,8 +385,8 @@ func (s *Service) LinkTokenToUser(ctx context.Context, input AdmissionTokenLinkI
 		if err != nil {
 			return err
 		}
-		if _, err := s.qqGateway.EnsureQQBindingForUserTx(ctx, tx, input.UserID, session.QQID); err != nil {
-			return normalizeAdmissionQQBindingConflict(err)
+		if err := s.qqGateway.EnsureQQBindingForUserTx(ctx, tx, input.UserID, session.QQID); err != nil {
+			return err
 		}
 		deadline := s.now().Add(time.Duration(policy.SubmissionWaitSeconds) * time.Second)
 		linked, err = s.repo.MarkTokenConsumedAndLinked(ctx, tx, session.ID, input.UserID, s.now(), deadline)
@@ -400,14 +399,6 @@ func (s *Service) LinkTokenToUser(ctx context.Context, input AdmissionTokenLinkI
 		return nil, fmt.Errorf("LinkTokenToUser: %w", err)
 	}
 	return linked, nil
-}
-
-func normalizeAdmissionQQBindingConflict(err error) error {
-	if errors.Is(err, user.ErrQQBindingUserConflict) ||
-		errors.Is(err, user.ErrQQBindingQQAlreadyBound) {
-		return ErrAdmissionQQMismatch
-	}
-	return err
 }
 
 func (s *Service) validateResendableSession(session *AdmissionSession) error {

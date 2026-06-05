@@ -229,8 +229,8 @@ func (s *Service) resolveAcademicStudentEmail(
 	}
 	if config.EmailIdentityPolicy.RequireStudentName {
 		recordName := ""
-		if student.XM != nil {
-			recordName = schoolauth.NormalizeAcademicName(*student.XM)
+		if student.Name != nil {
+			recordName = schoolauth.NormalizeAcademicName(*student.Name)
 		}
 		if recordName == "" || recordName != studentName {
 			return "", "", "", ErrAdmissionStudentNameMismatch
