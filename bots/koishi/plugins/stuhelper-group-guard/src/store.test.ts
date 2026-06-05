@@ -46,6 +46,10 @@ test('GuardMemberStore savePending preserves the previous lastError on re-entry'
   }))
 
   assert.equal(patches.length, 1)
+  assert.equal('platform' in patches[0], false)
+  assert.equal('botSelfId' in patches[0], false)
+  assert.equal('guildId' in patches[0], false)
+  assert.equal('memberId' in patches[0], false)
   assert.equal(patches[0].lastError, 'previous kick failed')
 })
 

@@ -80,7 +80,8 @@ export class GuardPolicyStore {
     const [existing] = await this.ctx.database.get(GUARD_GROUP_BINDING_TABLE, { id }) as GuardGroupBindingRecord[]
     if (existing) {
       await this.ctx.database.set(GUARD_GROUP_BINDING_TABLE, { id }, {
-        ...input,
+        templateId: input.templateId,
+        enabled: input.enabled,
         note: input.note || null,
         updatedAt: now,
       })

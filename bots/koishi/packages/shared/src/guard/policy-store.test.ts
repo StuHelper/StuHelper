@@ -94,9 +94,9 @@ test('GuardPolicyStore saveBinding updates mutable fields without primary key ch
 
   assert.equal(writes.length, 1)
   assert.equal('id' in writes[0], false)
+  assert.equal('platform' in writes[0], false)
+  assert.equal('guildId' in writes[0], false)
   assert.equal('createdAt' in writes[0], false)
-  assert.equal(writes[0].platform, 'qq')
-  assert.equal(writes[0].guildId, '10001')
   assert.equal(writes[0].templateId, 'strict')
   assert.equal(writes[0].enabled, false)
   assert.equal(writes[0].note, null)

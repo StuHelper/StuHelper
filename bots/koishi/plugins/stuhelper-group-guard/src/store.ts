@@ -14,11 +14,7 @@ export class GuardMemberStore {
       return
     }
     await this.ctx.database.set(GUARD_MEMBER_TABLE, { id: record.id }, {
-      platform: record.platform,
-      botSelfId: record.botSelfId,
-      guildId: record.guildId,
       channelId: record.channelId,
-      memberId: record.memberId,
       memberName: record.memberName,
       verificationState: record.verificationState,
       admissionSessionID: record.admissionSessionID,
