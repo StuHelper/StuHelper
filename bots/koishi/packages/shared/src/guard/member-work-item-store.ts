@@ -1,11 +1,13 @@
 import type { Context } from 'koishi'
 
 import { GUARD_MEMBER_TABLE } from '../types/index'
+import {
+  activeGuardMemberQuery,
+  claimedGuardMemberQuery,
+  type GuardMemberVersionRef,
+} from './member-store-query'
 
-export interface GuardMemberVersionRef {
-  readonly id: string
-  readonly updatedAt: Date
-}
+export type { GuardMemberVersionRef } from './member-store-query'
 
 export interface ClaimActiveGuardMemberInput {
   readonly record: GuardMemberVersionRef
@@ -53,14 +55,14 @@ export class GuardMemberWorkItemStore {
   constructor(private readonly ctx: Pick<Context, 'database'>) {}
 
   async tryClaimActive(input: ClaimActiveGuardMemberInput) {
-    const result = await this.ctx.database.set(GUARD_MEMBER_TABLE, activeGuardQuery(input.record), {
+    const result = await this.ctx.database.set(GUARD_MEMBER_TABLE, activeGuardMemberQuery(input.record), {
       updatedAt: input.claimedAt,
     })
     return result.matched === 1
   }
 
   async tryReleaseClaimed(input: ReleaseClaimedGuardMemberInput) {
-    const result = await this.ctx.database.set(GUARD_MEMBER_TABLE, claimedGuardQuery(input), {
+    const result = await this.ctx.database.set(GUARD_MEMBER_TABLE, claimedGuardMemberQuery(input), {
       releasedAt: input.releasedAt,
       lastError: null,
       updatedAt: input.releasedAt,
@@ -69,7 +71,7 @@ export class GuardMemberWorkItemStore {
   }
 
   async tryKickClaimed(input: KickClaimedGuardMemberInput) {
-    const result = await this.ctx.database.set(GUARD_MEMBER_TABLE, claimedGuardQuery(input), {
+    const result = await this.ctx.database.set(GUARD_MEMBER_TABLE, claimedGuardMemberQuery(input), {
       kickedAt: input.kickedAt,
       lastError: null,
       updatedAt: input.kickedAt,
@@ -78,7 +80,7 @@ export class GuardMemberWorkItemStore {
   }
 
   async tryDeferActive(input: DeferActiveGuardMemberInput) {
-    const result = await this.ctx.database.set(GUARD_MEMBER_TABLE, activeGuardQuery(input.record), {
+    const result = await this.ctx.database.set(GUARD_MEMBER_TABLE, activeGuardMemberQuery(input.record), {
       deadlineAt: input.deadlineAt,
       lastError: null,
       updatedAt: input.updatedAt,
@@ -87,7 +89,7 @@ export class GuardMemberWorkItemStore {
   }
 
   async rollbackClaim(input: RollbackGuardMemberClaimInput) {
-    await this.ctx.database.set(GUARD_MEMBER_TABLE, claimedGuardQuery(input), {
+    await this.ctx.database.set(GUARD_MEMBER_TABLE, claimedGuardMemberQuery(input), {
       lastError: input.error instanceof Error ? input.error.message : String(input.error),
       updatedAt: input.rolledBackAt,
     })
@@ -103,29 +105,11 @@ export class GuardMemberWorkItemStore {
     }) as GuardMemberLookupRecord[]
     if (!record) return false
 
-    const result = await this.ctx.database.set(GUARD_MEMBER_TABLE, activeGuardQuery(record), {
+    const result = await this.ctx.database.set(GUARD_MEMBER_TABLE, activeGuardMemberQuery(record), {
       kickedAt: input.kickedAt,
       lastError: null,
       updatedAt: input.kickedAt,
     })
     return result.matched === 1
-  }
-}
-
-function activeGuardQuery(record: GuardMemberVersionRef) {
-  return {
-    id: record.id,
-    updatedAt: record.updatedAt,
-    releasedAt: null,
-    kickedAt: null,
-  }
-}
-
-function claimedGuardQuery(input: { readonly guardId: string; readonly claimedAt: Date }) {
-  return {
-    id: input.guardId,
-    updatedAt: input.claimedAt,
-    releasedAt: null,
-    kickedAt: null,
   }
 }

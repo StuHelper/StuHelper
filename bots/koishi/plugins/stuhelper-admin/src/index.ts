@@ -8,6 +8,7 @@ import {
   createAdminPluginConfigSchema,
   createPlatformClient,
   createPluginLogger,
+  GuardMemberAdminStore,
   registerGuardMemberModel,
   type StuhelperAdminPluginConfig,
 } from '@stuhelper/koishi-shared'
@@ -26,6 +27,7 @@ export function apply(ctx: Context, config: Config) {
   registerModerationModels(ctx)
 
   const logger = createPluginLogger(ctx, 'admin')
+  const guardMembers = new GuardMemberAdminStore(ctx)
   const moderationStore = new ModerationStore(ctx)
   const platform = createPlatformClient(config.platform)
 
@@ -35,6 +37,7 @@ export function apply(ctx: Context, config: Config) {
   }
 
   registerAdminCommands(ctx, {
+    guardMembers,
     moderationStore,
     platform,
   })

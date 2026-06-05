@@ -1,8 +1,8 @@
 import type { Context, Session } from 'koishi'
 
 import {
-  GUARD_MEMBER_TABLE,
-  type GuardMemberRecord,
+  type GuardMemberAdminRecord,
+  type GuardMemberAdminStore,
   type PlatformClient,
 } from '@stuhelper/koishi-shared'
 import {
@@ -18,6 +18,7 @@ import {
 import { registerFreshmanReviewCommands } from './admission-review-commands'
 
 interface AdminCommandDeps {
+  guardMembers: GuardMemberAdminStore
   moderationStore: ModerationStore
   platform: PlatformClient
 }
@@ -45,7 +46,7 @@ function registerStatusCommand(ctx: Context, deps: AdminCommandDeps) {
       if (denial) {
         return denial
       }
-      return formatPendingMembers(await listActiveGuardMembers(ctx, targetGuildId))
+      return formatPendingMembers(await deps.guardMembers.listActiveByGuild({ guildId: targetGuildId }))
     })
 }
 
@@ -104,11 +105,15 @@ function registerBatchMuteCommand(ctx: Context, deps: AdminCommandDeps) {
       if (!parsed) {
         return '请提供禁言秒数和成员 ID 列表，例如：群审批量禁言 120 10001,10002'
       }
-      const targets = await listActiveGuardMembers(ctx, session.guildId, parsed.memberIds)
+      const targets = await deps.guardMembers.listActiveByGuild({
+        guildId: session.guildId,
+        memberIds: parsed.memberIds,
+      })
       if (!targets.length) {
         return '没有找到可操作的待认证成员。'
       }
       for (const target of targets) {
+        const mutedAt = new Date()
         await session.bot.muteGuildMember(target.guildId, target.memberId, parsed.seconds * 1000)
         await deps.moderationStore.appendEvent({
           platform: session.platform,
@@ -121,7 +126,7 @@ function registerBatchMuteCommand(ctx: Context, deps: AdminCommandDeps) {
           summary: `管理员批量禁言了 ${target.memberId}`,
           payload: { seconds: parsed.seconds, reason: '管理员批量禁言' },
         })
-        await ctx.database.set(GUARD_MEMBER_TABLE, { id: target.id }, { mutedAt: new Date(), updatedAt: new Date() })
+        await deps.guardMembers.tryMarkActiveMuted({ record: target, mutedAt })
       }
       return `已批量禁言 ${targets.length} 名成员。`
     })
@@ -210,18 +215,7 @@ async function createReviewRequest(input: {
   return `已提交${actionLabel}复核申请：${memberId.trim()}，原因：${reason.trim()}`
 }
 
-async function listActiveGuardMembers(ctx: Context, guildId: string, memberIds?: string[]) {
-  if (!guildId) {
-    return []
-  }
-  const records = await ctx.database.get(GUARD_MEMBER_TABLE, {}) as GuardMemberRecord[]
-  return records
-    .filter((record) => record.guildId === guildId && !record.releasedAt && !record.kickedAt)
-    .filter((record) => !memberIds?.length || memberIds.includes(record.memberId))
-    .sort((left, right) => left.deadlineAt.getTime() - right.deadlineAt.getTime())
-}
-
-function formatPendingMembers(records: GuardMemberRecord[]) {
+function formatPendingMembers(records: GuardMemberAdminRecord[]) {
   if (!records.length) {
     return '当前没有待认证成员。'
   }
