@@ -19,6 +19,11 @@ type Service struct {
 
 const storageCleanupTimeout = 5 * time.Second
 
+type mountHealthProbeResult struct {
+	mount     *Mount
+	healthErr error
+}
+
 func NewService(repo *Repository, cfg config.ObjectStorageConfig) *Service {
 	if repo == nil {
 		panic("storage.NewService: repo must not be nil")
@@ -70,14 +75,11 @@ func (s *Service) CheckMountHealth(ctx context.Context, mountID int64) (*Mount, 
 	if err != nil {
 		return nil, err
 	}
-	item, healthErr, err := s.probeMountHealth(ctx, mount)
+	result, err := s.probeMountHealth(ctx, mount)
 	if err != nil {
 		return nil, err
 	}
-	if healthErr != nil {
-		return item, nil
-	}
-	return item, nil
+	return result.mount, nil
 }
 
 func (s *Service) ValidateMountByKey(ctx context.Context, mountKey string) (*Mount, error) {
@@ -88,14 +90,14 @@ func (s *Service) ValidateMountByKey(ctx context.Context, mountKey string) (*Mou
 	if !mount.Enabled {
 		return nil, ErrMountDisabled
 	}
-	item, healthErr, err := s.probeMountHealth(ctx, mount)
+	result, err := s.probeMountHealth(ctx, mount)
 	if err != nil {
 		return nil, err
 	}
-	if healthErr != nil {
-		return item, healthErr
+	if result.healthErr != nil {
+		return result.mount, result.healthErr
 	}
-	return item, nil
+	return result.mount, nil
 }
 
 func (s *Service) Put(ctx context.Context, mountKey, objectKey string, content []byte, contentType string) (*Mount, *StoredObject, error) {
@@ -209,10 +211,10 @@ func (s *Service) getMountDriver(ctx context.Context, mountKey string) (*Mount, 
 	return mount, driver, nil
 }
 
-func (s *Service) probeMountHealth(ctx context.Context, mount *Mount) (*Mount, error, error) {
+func (s *Service) probeMountHealth(ctx context.Context, mount *Mount) (mountHealthProbeResult, error) {
 	driver, err := s.registry.Get(mount.Driver)
 	if err != nil {
-		return nil, nil, err
+		return mountHealthProbeResult{}, err
 	}
 	status := "healthy"
 	var (
@@ -226,13 +228,13 @@ func (s *Service) probeMountHealth(ctx context.Context, mount *Mount) (*Mount, e
 		healthErr = err
 	}
 	if err := s.repo.UpdateMountHealth(ctx, mount.ID, status, message); err != nil {
-		return nil, nil, err
+		return mountHealthProbeResult{}, err
 	}
 	item, err := s.repo.GetMountByID(ctx, mount.ID)
 	if err != nil {
-		return nil, nil, err
+		return mountHealthProbeResult{}, err
 	}
-	return item, healthErr, nil
+	return mountHealthProbeResult{mount: item, healthErr: healthErr}, nil
 }
 
 func normalizeCreateMountRequest(req CreateMountRequest) CreateMountRequest {
