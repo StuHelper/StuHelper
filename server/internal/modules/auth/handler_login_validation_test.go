@@ -27,6 +27,12 @@ func TestHandleCallback_ValidationAndNativeBranch(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "missing authorization code")
 
 	w = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/callback?code=%20%09%0A&state=s1", nil)
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "missing authorization code")
+
+	w = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/callback?code=abc&code=def&state=s1", nil)
 	r.ServeHTTP(w, req)
 	require.Equal(t, http.StatusBadRequest, w.Code)
@@ -68,6 +74,20 @@ func TestExchangeNative_ValidationBranches(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/exchange-native", bytes.NewBufferString(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "invalid request body")
+
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/exchange-native", bytes.NewBufferString(`{"code":" \t\n ","state":"missing"}`))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "invalid request body")
+
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/exchange-native", bytes.NewBufferString(`{"code":"abc","state":" \t\n "}`))
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 	require.Equal(t, http.StatusBadRequest, w.Code)

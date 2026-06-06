@@ -76,7 +76,7 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 	if rejectRepeatedAuthQueryParameters(c, "code", "state") {
 		return
 	}
-	code := c.Query("code")
+	code := strings.TrimSpace(c.Query("code"))
 	state := c.Query("state")
 	requestID := middleware.GetRequestID(c)
 	ctx := c.Request.Context()
@@ -427,6 +427,12 @@ type exchangeNativeRequest struct {
 func (h *Handler) ExchangeNative(c *gin.Context) {
 	var req exchangeNativeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+	req.Code = strings.TrimSpace(req.Code)
+	req.State = strings.TrimSpace(req.State)
+	if req.Code == "" || req.State == "" {
 		response.BadRequest(c, "invalid request body")
 		return
 	}
