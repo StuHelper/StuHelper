@@ -75,15 +75,8 @@ func (m courseModule) RegisterRoutes(
 
 func (m courseModule) StartBackgroundJobs(ctx context.Context, start func(string, func(context.Context))) {
 	m.reviewHandler.StartBackgroundJobs(ctx, start)
-
-	launch := start
-	if launch == nil {
-		launch = func(_ string, run func(context.Context)) {
-			go run(ctx)
-		}
-	}
-	launch("course operation log cleanup", m.runLogCleanupLoop)
-	launch("course teacher public stats refresh", m.runTeacherPublicStatsRefreshLoop)
+	start("course operation log cleanup", m.runLogCleanupLoop)
+	start("course teacher public stats refresh", m.runTeacherPublicStatsRefreshLoop)
 }
 
 func (m courseModule) runLogCleanupLoop(ctx context.Context) {
