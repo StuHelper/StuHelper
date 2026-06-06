@@ -46,6 +46,22 @@ func normalizeRequiredRefreshToken(refreshToken, operation string) (string, erro
 	return refreshToken, nil
 }
 
+func normalizeRequiredAuthorizationCode(code string) (string, error) {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return "", ErrAuthorizationCodeRequired
+	}
+	return code, nil
+}
+
+func normalizeRequiredPKCEVerifier(codeVerifier string) (string, error) {
+	codeVerifier = strings.TrimSpace(codeVerifier)
+	if codeVerifier == "" {
+		return "", ErrPKCEVerifierRequired
+	}
+	return codeVerifier, nil
+}
+
 func classifyVerifierError(err error) error {
 	if err == nil {
 		return nil

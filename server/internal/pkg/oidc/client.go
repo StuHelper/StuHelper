@@ -34,9 +34,10 @@ const (
 )
 
 var (
-	ErrApplicationNotConfigured = errors.New("oidc: application is not configured")
-	ErrInvalidAudience          = errors.New("oidc: invalid token audience")
-	ErrPKCEVerifierRequired     = errors.New("oidc: pkce code_verifier is required")
+	ErrApplicationNotConfigured  = errors.New("oidc: application is not configured")
+	ErrInvalidAudience           = errors.New("oidc: invalid token audience")
+	ErrAuthorizationCodeRequired = errors.New("oidc: authorization code is required")
+	ErrPKCEVerifierRequired      = errors.New("oidc: pkce code_verifier is required")
 )
 
 // NewClient 基于 Casdoor 配置创建 OIDC 客户端。

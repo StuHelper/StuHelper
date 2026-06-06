@@ -3,7 +3,6 @@ package oidc
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -17,8 +16,14 @@ func (c *Client) ExchangeCode(ctx context.Context, code, codeVerifier string) (*
 }
 
 func (c *Client) ExchangeCodeForApplication(ctx context.Context, appKey, code, codeVerifier string) (*oauth2.Token, error) {
-	if strings.TrimSpace(codeVerifier) == "" {
-		return nil, ErrPKCEVerifierRequired
+	var err error
+	code, err = normalizeRequiredAuthorizationCode(code)
+	if err != nil {
+		return nil, err
+	}
+	codeVerifier, err = normalizeRequiredPKCEVerifier(codeVerifier)
+	if err != nil {
+		return nil, err
 	}
 	cfg, err := c.oauth2ConfigForApplication(appKey)
 	if err != nil {

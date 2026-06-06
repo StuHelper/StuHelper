@@ -154,11 +154,72 @@ func TestOIDCClient_IntegrationFlows(t *testing.T) {
 	assert.Contains(t, string(raw), "oidc-user")
 }
 
+func TestOIDCClientExchangeCodeForApplicationNormalizesInputs(t *testing.T) {
+	var seenCode string
+	var seenCodeVerifier string
+	var seenClientID string
+	var seenGrantType string
+	client, srv := newTokenEndpointOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		seenCode = r.Form.Get("code")
+		seenCodeVerifier = r.Form.Get("code_verifier")
+		seenGrantType = r.Form.Get("grant_type")
+		if user, _, ok := r.BasicAuth(); ok {
+			seenClientID = user
+		} else {
+			seenClientID = r.Form.Get("client_id")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "provider-access-token",
+			"token_type":    "Bearer",
+			"refresh_token": "provider-refresh-token",
+			"expires_in":    3600,
+		})
+	}))
+	defer srv.Close()
+	adminCfg := client.oauth2Cfg
+	adminCfg.ClientID = "admin-client"
+	adminCfg.ClientSecret = "admin-secret"
+	client.oauth2Configs[ApplicationAdmin] = adminCfg
+
+	tok, err := client.ExchangeCodeForApplication(
+		context.Background(),
+		" \t"+ApplicationAdmin+"\n ",
+		" \tauthorization-code\n ",
+		" \tpkce-verifier\n ",
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, "provider-refresh-token", tok.RefreshToken)
+	assert.Equal(t, "authorization_code", seenGrantType)
+	assert.Equal(t, "authorization-code", seenCode)
+	assert.Equal(t, "pkce-verifier", seenCodeVerifier)
+	assert.Equal(t, "admin-client", seenClientID)
+}
+
+func TestOIDCClientExchangeCodeRejectsBlankInputsWithoutProviderCall(t *testing.T) {
+	var tokenRequests atomic.Int32
+	client, srv := newTokenEndpointOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		tokenRequests.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	_, err := client.ExchangeCodeForApplication(context.Background(), ApplicationWeb, " \t\n ", "pkce-verifier")
+	require.ErrorIs(t, err, ErrAuthorizationCodeRequired)
+
+	_, err = client.ExchangeCodeForApplication(context.Background(), ApplicationWeb, "authorization-code", " \t\n ")
+	require.ErrorIs(t, err, ErrPKCEVerifierRequired)
+
+	assert.Equal(t, int32(0), tokenRequests.Load())
+}
+
 func TestOIDCClientRefreshTokenForApplicationNormalizesInputs(t *testing.T) {
 	var seenRefreshToken string
 	var seenClientID string
 	var seenGrantType string
-	client, srv := newRefreshTokenOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	client, srv := newTokenEndpointOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.NoError(t, r.ParseForm())
 		seenRefreshToken = r.Form.Get("refresh_token")
 		seenGrantType = r.Form.Get("grant_type")
@@ -196,7 +257,7 @@ func TestOIDCClientRefreshTokenForApplicationNormalizesInputs(t *testing.T) {
 
 func TestOIDCClientRefreshTokenRejectsBlankTokenWithoutProviderCall(t *testing.T) {
 	var tokenRequests atomic.Int32
-	client, srv := newRefreshTokenOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	client, srv := newTokenEndpointOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		tokenRequests.Add(1)
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -228,7 +289,7 @@ func TestOIDCClient_GetAuthURLForApplicationUsesSelectedClient(t *testing.T) {
 	assert.Contains(t, authURL, "state=state-admin")
 }
 
-func newRefreshTokenOIDCClient(t *testing.T, tokenHandler http.HandlerFunc) (*Client, *httptest.Server) {
+func newTokenEndpointOIDCClient(t *testing.T, tokenHandler http.HandlerFunc) (*Client, *httptest.Server) {
 	t.Helper()
 	const clientID = "oidc-client"
 	const clientSecret = "oidc-secret"
