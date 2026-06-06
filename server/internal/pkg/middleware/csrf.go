@@ -75,6 +75,9 @@ func CSRFMiddleware() gin.HandlerFunc {
 }
 
 func hasCookieSession(c *gin.Context) bool {
+	if c == nil || c.Request == nil {
+		return false
+	}
 	if accessToken, err := c.Cookie(CookieAccessToken); err == nil && accessToken != "" {
 		return true
 	}
@@ -87,7 +90,10 @@ func hasCookieSession(c *gin.Context) bool {
 }
 
 func hasBearerAuthorization(c *gin.Context) bool {
-	if c != nil && c.Request != nil && len(c.Request.Header.Values("Authorization")) > 1 {
+	if c == nil || c.Request == nil {
+		return false
+	}
+	if len(c.Request.Header.Values("Authorization")) > 1 {
 		return false
 	}
 	authHeader := c.GetHeader("Authorization")

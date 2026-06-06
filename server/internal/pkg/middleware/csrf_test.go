@@ -92,6 +92,14 @@ func TestCSRFMiddleware_AllowsBearerRequestWithoutCookies(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestCSRFHelpersAreNilSafe(t *testing.T) {
+	assert.False(t, hasCookieSession(nil))
+	assert.False(t, hasBearerAuthorization(nil))
+
+	assert.False(t, hasCookieSession(&gin.Context{}))
+	assert.False(t, hasBearerAuthorization(&gin.Context{}))
+}
+
 func TestCSRFMiddleware_BlocksCookieSessionWithoutCSRFToken(t *testing.T) {
 	w := httptest.NewRecorder()
 	_, r := gin.CreateTestContext(w)
