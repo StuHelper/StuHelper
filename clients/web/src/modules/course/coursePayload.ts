@@ -9,6 +9,11 @@ export interface TeacherSummaryPayload {
   courseCount: number
 }
 
+export interface GroupedCoursePayload {
+  departmentName?: string
+  courses: Course[]
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
@@ -201,6 +206,26 @@ export function readCoursePagePayload(
   message = 'Invalid courses response',
 ): { list: Course[]; total: number } {
   return readPage(payload, message, readCoursePayload)
+}
+
+export function readGroupedCourseListPayload(
+  payload: unknown,
+  message = 'Invalid grouped courses response',
+): GroupedCoursePayload[] {
+  if (!isRecord(payload) || !Array.isArray(payload.groups)) {
+    throw new Error(message)
+  }
+
+  return payload.groups.map((group) => {
+    if (!isRecord(group) || !Array.isArray(group.courses)) {
+      throw new Error(message)
+    }
+
+    return {
+      departmentName: readOptionalString(group, 'departmentName', message),
+      courses: group.courses.map(course => readCoursePayload(course, message)),
+    }
+  })
 }
 
 export function readDepartmentPayload(

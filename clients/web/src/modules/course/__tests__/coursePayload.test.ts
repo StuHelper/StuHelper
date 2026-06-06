@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   readCourseListPayload,
   readCoursePagePayload,
+  readGroupedCourseListPayload,
   readDepartmentArrayPayload,
   readTeacherStatsArrayPayload,
   readTeacherSummaryListPayload,
@@ -65,6 +66,11 @@ describe('course payload readers', () => {
       list: [course],
       total: 1,
     })
+    expect(
+      readGroupedCourseListPayload({
+        groups: [{ departmentName: '计算机科学与技术学院', courses: [course] }],
+      }),
+    ).toEqual([{ departmentName: '计算机科学与技术学院', courses: [course] }])
     expect(readDepartmentArrayPayload([department])).toEqual([department])
     expect(readTermArrayPayload([term])).toEqual([term])
     expect(readTeacherStatsArrayPayload([teacher])).toEqual([teacher])
@@ -83,6 +89,28 @@ describe('course payload readers', () => {
         list: [{ ...course, credits: '3' }],
       }),
     ).toThrow('Invalid courses response')
+  })
+
+  it('reads grouped course payloads with optional department names', () => {
+    expect(
+      readGroupedCourseListPayload({
+        groups: [{ courses: [course] }],
+      }),
+    ).toEqual([{ departmentName: undefined, courses: [course] }])
+
+    expect(
+      readGroupedCourseListPayload({
+        groups: [{ departmentName: '', courses: [course] }],
+      }),
+    ).toEqual([{ departmentName: '', courses: [course] }])
+  })
+
+  it('fails closed when grouped course payloads are malformed', () => {
+    expect(() =>
+      readGroupedCourseListPayload({
+        groups: [{ departmentName: '计算机科学与技术学院', courses: [{ ...course, id: 0 }] }],
+      }),
+    ).toThrow('Invalid grouped courses response')
   })
 
   it('fails closed when department fields are malformed', () => {

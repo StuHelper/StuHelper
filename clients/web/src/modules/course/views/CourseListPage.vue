@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp } from 'lucide-vue-next'
 import CourseThemeProvider from '@/modules/course/theme/CourseThemeProvider.vue'
 import SkeletonCard from '@/components/common/SkeletonCard.vue'
 import { api } from '@/api'
+import { readGroupedCourseListPayload } from '@/modules/course/coursePayload'
 import type { Course } from '@stuhelper/shared/types/business/course'
 
 interface DepartmentGroup {
@@ -29,124 +30,12 @@ const allCollapsed = computed(() =>
   departmentGroups.value.every((g) => !g.expanded),
 )
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
-
 function readDepartmentGroups(payload: unknown): DepartmentGroup[] {
-  if (!isRecord(payload)) {
-    throw new Error('Invalid grouped courses response')
-  }
-
-  const groups = payload.groups
-  if (!Array.isArray(groups)) {
-    throw new Error('Invalid grouped courses response')
-  }
-
-  return groups.map((group) => {
-    if (!isRecord(group)) {
-      throw new Error('Invalid grouped courses response')
-    }
-
-    const departmentName = group.departmentName
-    const courses = group.courses
-    if (!Array.isArray(courses)) {
-      throw new Error('Invalid grouped courses response')
-    }
-
-    return {
-      name: typeof departmentName === 'string' && departmentName
-        ? departmentName
-        : t('review.filters.all'),
-      courses: courses.map(readCoursePayload),
-      expanded: true,
-    }
-  })
-}
-
-function readCoursePayload(payload: unknown): Course {
-  if (!isRecord(payload)) {
-    throw new Error('Invalid grouped courses response')
-  }
-
-  return {
-    id: readInteger(payload, 'id'),
-    schoolID: readOptionalInteger(payload, 'schoolID'),
-    departmentID: readInteger(payload, 'departmentID'),
-    departmentName: readOptionalString(payload, 'departmentName'),
-    code: readOptionalString(payload, 'code'),
-    name: readString(payload, 'name'),
-    credits: readNumber(payload, 'credits'),
-    category: readOptionalString(payload, 'category'),
-    reviewCount: readInteger(payload, 'reviewCount'),
-    isFavorited: readOptionalBoolean(payload, 'isFavorited'),
-  }
-}
-
-function readString(record: Record<string, unknown>, key: string): string {
-  const value = record[key]
-  if (typeof value !== 'string') {
-    throw new Error('Invalid grouped courses response')
-  }
-  return value
-}
-
-function readOptionalString(
-  record: Record<string, unknown>,
-  key: string,
-): string | undefined {
-  const value = record[key]
-  if (value === undefined) {
-    return undefined
-  }
-  if (typeof value !== 'string') {
-    throw new Error('Invalid grouped courses response')
-  }
-  return value
-}
-
-function readInteger(record: Record<string, unknown>, key: string): number {
-  const value = record[key]
-  if (typeof value !== 'number' || !Number.isInteger(value)) {
-    throw new Error('Invalid grouped courses response')
-  }
-  return value
-}
-
-function readOptionalInteger(
-  record: Record<string, unknown>,
-  key: string,
-): number | undefined {
-  const value = record[key]
-  if (value === undefined) {
-    return undefined
-  }
-  if (typeof value !== 'number' || !Number.isInteger(value)) {
-    throw new Error('Invalid grouped courses response')
-  }
-  return value
-}
-
-function readNumber(record: Record<string, unknown>, key: string): number {
-  const value = record[key]
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    throw new Error('Invalid grouped courses response')
-  }
-  return value
-}
-
-function readOptionalBoolean(
-  record: Record<string, unknown>,
-  key: string,
-): boolean | undefined {
-  const value = record[key]
-  if (value === undefined) {
-    return undefined
-  }
-  if (typeof value !== 'boolean') {
-    throw new Error('Invalid grouped courses response')
-  }
-  return value
+  return readGroupedCourseListPayload(payload).map(group => ({
+    name: group.departmentName || t('review.filters.all'),
+    courses: group.courses,
+    expanded: true,
+  }))
 }
 
 function expandAll(): void {
