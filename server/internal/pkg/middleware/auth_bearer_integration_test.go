@@ -23,12 +23,13 @@ func newBearerOIDCClient(t *testing.T) (*oidc.Client, *httptest.Server) {
 		requireIntrospectionCredentials(t, r)
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"active":   true,
-			"sub":      "user-1",
-			"username": "school-admin",
-			"email":    "school-admin@example.com",
-			"name":     "School Admin",
-			"roles":    []string{"school_admin"},
+			"active":    true,
+			"sub":       "user-1",
+			"client_id": "client-id",
+			"username":  "school-admin",
+			"email":     "school-admin@example.com",
+			"name":      "School Admin",
+			"roles":     []string{"school_admin"},
 		})
 	})
 }
@@ -172,6 +173,63 @@ func TestAuthMiddleware_BearerProviderUnavailableReturns503(t *testing.T) {
 
 	require.Equal(t, http.StatusServiceUnavailable, w.Code)
 	assert.Contains(t, w.Body.String(), string(errs.ErrServiceUnavailable))
+}
+
+func TestAuthMiddleware_BearerRejectsForeignClientID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tokenSvc := newTokenServiceForMiddlewareTest(t)
+	oidcClient, server := newBearerOIDCClientWithIntrospection(t, func(w http.ResponseWriter, r *http.Request) {
+		requireIntrospectionCredentials(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"active":    true,
+			"sub":       "user-1",
+			"client_id": "foreign-client",
+			"roles":     []string{"school_admin"},
+		})
+	})
+	defer server.Close()
+
+	r := gin.New()
+	r.Use(AuthMiddleware(oidcClient, tokenSvc))
+	r.GET("/me", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodGet, "/me", nil)
+	req.Header.Set("Authorization", "Bearer foreign-client-token")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Contains(t, w.Body.String(), string(errs.ErrTokenInvalid))
+}
+
+func TestAuthMiddleware_BearerRejectsMissingClientID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tokenSvc := newTokenServiceForMiddlewareTest(t)
+	oidcClient, server := newBearerOIDCClientWithIntrospection(t, func(w http.ResponseWriter, r *http.Request) {
+		requireIntrospectionCredentials(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"active": true,
+			"sub":    "user-1",
+			"roles":  []string{"school_admin"},
+		})
+	})
+	defer server.Close()
+
+	r := gin.New()
+	r.Use(AuthMiddleware(oidcClient, tokenSvc))
+	r.GET("/me", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodGet, "/me", nil)
+	req.Header.Set("Authorization", "Bearer token-without-client")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Contains(t, w.Body.String(), string(errs.ErrTokenInvalid))
 }
 
 func TestOptionalAuthMiddleware_BearerProviderUnavailableMarksDiagnostic(t *testing.T) {

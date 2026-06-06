@@ -84,6 +84,10 @@ func resolveToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.S
 		if !result.Active {
 			return nil, errTokenRevoked
 		}
+		if oidcClient.ApplicationKeyForClientID(result.GetAppID()) == "" {
+			logger.L().Debug("bearer token rejected for unknown OIDC client", zap.String("client_id", result.GetAppID()))
+			return nil, fmt.Errorf("invalid token audience: %w", oidc.ErrInvalidAudience)
+		}
 		return &authResult{
 			userID:         result.Sub,
 			appID:          result.GetAppID(),
