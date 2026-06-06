@@ -88,16 +88,11 @@ func TestBuildRefreshResponse_NativeAndWeb(t *testing.T) {
 	h := &Handler{}
 	h.tokenConfig.AccessTokenTTL = 3600
 
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	resp := h.buildRefreshResponse(c, "access", "refresh")
+	resp := h.buildRefreshResponse("access", "refresh", false)
 	assert.NotContains(t, resp, "accessToken")
 	assert.NotContains(t, resp, "refreshToken")
 
-	w = httptest.NewRecorder()
-	c, _ = gin.CreateTestContext(w)
-	c.Set("refresh_from_native", true)
-	resp = h.buildRefreshResponse(c, "access", "refresh")
+	resp = h.buildRefreshResponse("access", "refresh", true)
 	assert.Equal(t, "access", resp["accessToken"])
 	assert.Equal(t, "refresh", resp["refreshToken"])
 }

@@ -76,7 +76,7 @@ func TestRefreshOIDCToken_ProviderUnavailableDoesNotClearSession(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-oidc-provider-unavailable"})
 	c.Request = req
 
-	ok := h.refreshOIDCToken(c, "old-refresh-token")
+	ok := h.refreshOIDCToken(c, "old-refresh-token", false)
 
 	assert.False(t, ok)
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)

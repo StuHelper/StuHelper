@@ -111,8 +111,6 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	// fromBody 标记请求来自原生 App（无 cookie），refresh 响应需包含 token 值
-	c.Set("refresh_from_native", fromBody)
 	if !h.requireTrackedNativeRefreshSession(c, fromBody, refreshTokenStr) {
 		return
 	}
@@ -145,7 +143,7 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 	}()
 
 	// OIDC provider refresh token
-	success = h.refreshOIDCToken(c, refreshTokenStr)
+	success = h.refreshOIDCToken(c, refreshTokenStr, fromBody)
 }
 
 func (h *Handler) validateCookieRefreshCSRF(c *gin.Context, fromBody bool) bool {
@@ -195,12 +193,12 @@ type refreshTokenRequest struct {
 // buildRefreshResponse 构建 refresh 响应。
 // 原生 App（通过请求体提交 refresh token）需要在响应中获取新 token；
 // Web 浏览器通过 cookie 自动获取，响应只需 message + expiresIn。
-func (h *Handler) buildRefreshResponse(c *gin.Context, accessToken, refreshToken string) gin.H {
+func (h *Handler) buildRefreshResponse(accessToken, refreshToken string, includeTokens bool) gin.H {
 	resp := gin.H{
 		"message":   "token refreshed successfully",
 		"expiresIn": h.currentAccessTokenTTLSeconds(),
 	}
-	if fromNative, _ := c.Get("refresh_from_native"); fromNative == true {
+	if includeTokens {
 		resp["accessToken"] = accessToken
 		resp["refreshToken"] = refreshToken
 	}

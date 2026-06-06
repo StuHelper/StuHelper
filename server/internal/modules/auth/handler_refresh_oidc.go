@@ -35,7 +35,7 @@ type oidcSessionRotation struct {
 }
 
 // refreshOIDCToken 处理 OIDC provider 的 refresh 逻辑。
-func (h *Handler) refreshOIDCToken(c *gin.Context, refreshTokenStr string) bool {
+func (h *Handler) refreshOIDCToken(c *gin.Context, refreshTokenStr string, includeTokensInResponse bool) bool {
 	sessionID := h.getSessionID(c, "")
 	appKey, ok := h.resolveOIDCRefreshApplication(c, sessionID, refreshTokenStr)
 	if !ok {
@@ -65,7 +65,7 @@ func (h *Handler) refreshOIDCToken(c *gin.Context, refreshTokenStr string) bool 
 	if sessionID != "" {
 		h.setSessionCookie(c, sessionID)
 	}
-	response.Success(c, h.buildRefreshResponse(c, payload.rawIDToken, payload.refreshToken))
+	response.Success(c, h.buildRefreshResponse(payload.rawIDToken, payload.refreshToken, includeTokensInResponse))
 	return true
 }
 

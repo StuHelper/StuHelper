@@ -319,7 +319,7 @@ func TestRefreshOIDCToken_Success(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-oidc-refresh"})
 	c.Request = req
 
-	ok := h.refreshOIDCToken(c, "old-refresh-token")
+	ok := h.refreshOIDCToken(c, "old-refresh-token", false)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "token refreshed successfully")
@@ -370,7 +370,7 @@ func TestRefreshOIDCToken_RotationFailureDoesNotIssueCookies(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-oidc-refresh-mismatch"})
 	c.Request = req
 
-	ok := h.refreshOIDCToken(c, "old-refresh-token")
+	ok := h.refreshOIDCToken(c, "old-refresh-token", false)
 
 	require.False(t, ok)
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
@@ -596,7 +596,7 @@ func TestRefreshOIDCToken_MissingIDToken(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-oidc-missing-id-token"})
 	c.Request = req
 
-	ok := h.refreshOIDCToken(c, "old-refresh-token")
+	ok := h.refreshOIDCToken(c, "old-refresh-token", false)
 	assert.False(t, ok)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), "failed to refresh token")
@@ -630,7 +630,7 @@ func TestRefreshOIDCToken_MissingAccessTokenExpiresLocalSession(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-oidc-missing-access-token"})
 	c.Request = req
 
-	ok := h.refreshOIDCToken(c, "old-refresh-token")
+	ok := h.refreshOIDCToken(c, "old-refresh-token", false)
 
 	assert.False(t, ok)
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
@@ -694,7 +694,7 @@ func assertOIDCRefreshRotationUnavailable(
 	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-oidc-unrotated-refresh"})
 	c.Request = req
 
-	ok := h.refreshOIDCToken(c, "old-refresh-token")
+	ok := h.refreshOIDCToken(c, "old-refresh-token", false)
 	assert.False(t, ok)
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 	assert.Contains(t, w.Body.String(), "refresh token rotation unavailable")
@@ -729,7 +729,7 @@ func TestRefreshOIDCToken_InvalidIDToken(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-oidc-invalid-id-token"})
 	c.Request = req
 
-	ok := h.refreshOIDCToken(c, "old-refresh-token")
+	ok := h.refreshOIDCToken(c, "old-refresh-token", false)
 	assert.False(t, ok)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), "failed to refresh token")
