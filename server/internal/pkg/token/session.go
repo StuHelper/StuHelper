@@ -225,6 +225,10 @@ func (s *SessionStore) Revoke(ctx context.Context, sessionID string, blacklist *
 		return nil, nil
 	}
 
+	return s.revokeLoadedSession(ctx, data, blacklist, accessTTL, refreshTTL)
+}
+
+func (s *SessionStore) revokeLoadedSession(ctx context.Context, data *SessionData, blacklist *Blacklist, accessTTL, refreshTTL time.Duration) (*SessionData, error) {
 	// 将 session 内的 token hash 加入黑名单
 	if data.AccessTokenHash != "" {
 		if blErr := blacklist.AddByHash(ctx, data.AccessTokenHash, accessTTL); blErr != nil {
@@ -239,11 +243,11 @@ func (s *SessionStore) Revoke(ctx context.Context, sessionID string, blacklist *
 
 	// 删除 session key 和从用户集合中移除
 	pipe := s.rdb.Pipeline()
-	pipe.Del(ctx, sessionPrefix+sessionID)
-	pipe.SRem(ctx, userSessionsPrefix+data.UserID, sessionID)
+	pipe.Del(ctx, sessionPrefix+data.SessionID)
+	pipe.SRem(ctx, userSessionsPrefix+data.UserID, data.SessionID)
 	if _, err := pipe.Exec(ctx); err != nil {
 		logger.L().Warn("session revoke: cleanup failed (tokens already blacklisted)",
-			zap.String("session_id", sessionID),
+			zap.String("session_id", data.SessionID),
 			zap.Error(err),
 		)
 	}
@@ -261,8 +265,32 @@ func (s *SessionStore) RevokeAll(ctx context.Context, userID string, blacklist *
 	}
 
 	var revokeErr error
+	staleSessionIDs := make([]string, 0)
 	for _, sid := range sessionIDs {
-		if _, rErr := s.Revoke(ctx, sid, blacklist, accessTTL, refreshTTL); rErr != nil {
+		data, err := s.Get(ctx, sid)
+		if err != nil {
+			logger.L().Warn("session revoke all: failed to revoke session",
+				zap.String("user_id", userID),
+				zap.String("session_id", sid),
+				zap.Error(err),
+			)
+			revokeErr = errors.Join(revokeErr, fmt.Errorf("session %s: %w", sid, err))
+			continue
+		}
+		if data == nil {
+			staleSessionIDs = append(staleSessionIDs, sid)
+			continue
+		}
+		if data.UserID != userID {
+			logger.L().Warn("session revoke all: stale cross-user session reference",
+				zap.String("user_id", userID),
+				zap.String("session_id", sid),
+				zap.String("session_user_id", data.UserID),
+			)
+			staleSessionIDs = append(staleSessionIDs, sid)
+			continue
+		}
+		if _, rErr := s.revokeLoadedSession(ctx, data, blacklist, accessTTL, refreshTTL); rErr != nil {
 			logger.L().Warn("session revoke all: failed to revoke session",
 				zap.String("user_id", userID),
 				zap.String("session_id", sid),
@@ -271,6 +299,7 @@ func (s *SessionStore) RevokeAll(ctx context.Context, userID string, blacklist *
 			revokeErr = errors.Join(revokeErr, fmt.Errorf("session %s: %w", sid, rErr))
 		}
 	}
+	s.removeStaleSessionRefs(ctx, userID, staleSessionIDs)
 	if revokeErr != nil {
 		return fmt.Errorf("session revoke all: revoke sessions: %w", revokeErr)
 	}

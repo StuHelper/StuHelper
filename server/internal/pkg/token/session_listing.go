@@ -20,7 +20,7 @@ func (s *SessionStore) ListUserSessions(ctx context.Context, userID string) ([]S
 		return []SessionData{}, nil
 	}
 
-	sessions, staleSessionIDs, err := s.loadUserSessions(ctx, sessionIDs)
+	sessions, staleSessionIDs, err := s.loadUserSessions(ctx, userID, sessionIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +28,7 @@ func (s *SessionStore) ListUserSessions(ctx context.Context, userID string) ([]S
 	return sessions, nil
 }
 
-func (s *SessionStore) loadUserSessions(ctx context.Context, sessionIDs []string) ([]SessionData, []string, error) {
+func (s *SessionStore) loadUserSessions(ctx context.Context, userID string, sessionIDs []string) ([]SessionData, []string, error) {
 	values, err := s.rdb.MGet(ctx, sessionKeys(sessionIDs)...).Result()
 	if err != nil {
 		return nil, nil, fmt.Errorf("list user sessions mget: %w", err)
@@ -39,6 +39,15 @@ func (s *SessionStore) loadUserSessions(ctx context.Context, sessionIDs []string
 	for i, raw := range values {
 		session, ok := decodeListedSession(sessionIDs[i], raw)
 		if !ok {
+			staleSessionIDs = append(staleSessionIDs, sessionIDs[i])
+			continue
+		}
+		if session.UserID != userID {
+			logger.L().Warn("list user sessions: stale cross-user session reference",
+				zap.String("user_id", userID),
+				zap.String("session_id", sessionIDs[i]),
+				zap.String("session_user_id", session.UserID),
+			)
 			staleSessionIDs = append(staleSessionIDs, sessionIDs[i])
 			continue
 		}
@@ -99,7 +108,7 @@ func (s *SessionStore) removeStaleSessionRefs(ctx context.Context, userID string
 		staleMembers = append(staleMembers, sid)
 	}
 	if err := s.rdb.SRem(ctx, userSessionsPrefix+userID, staleMembers...).Err(); err != nil {
-		logger.L().Warn("list user sessions: failed to remove stale session references",
+		logger.L().Warn("session index cleanup: failed to remove stale session references",
 			zap.String("user_id", userID),
 			zap.Int("stale_count", len(sessionIDs)),
 			zap.Error(err),

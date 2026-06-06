@@ -280,6 +280,80 @@ func TestSessionStore_ListUserSessions_CleansMissingSessionMembers(t *testing.T)
 	assert.ElementsMatch(t, []string{"active-session"}, sessionIDs)
 }
 
+func TestSessionStore_ListUserSessions_CleansCrossUserSessionMembers(t *testing.T) {
+	store, _, _ := newTestSessionStore(t)
+	ctx := context.Background()
+
+	require.NoError(t, store.Create(ctx, SessionData{
+		SessionID:       "session-owned",
+		UserID:          "user-owned",
+		AccessTokenHash: "acc-owned",
+	}))
+	require.NoError(t, store.Create(ctx, SessionData{
+		SessionID:       "session-other",
+		UserID:          "user-other",
+		AccessTokenHash: "acc-other",
+	}))
+	require.NoError(t, store.rdb.SAdd(ctx, userSessionsPrefix+"user-owned", "session-other").Err())
+
+	sessions, err := store.ListUserSessions(ctx, "user-owned")
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	assert.Equal(t, "session-owned", sessions[0].SessionID)
+
+	ownedSessionIDs, err := store.rdb.SMembers(ctx, userSessionsPrefix+"user-owned").Result()
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"session-owned"}, ownedSessionIDs)
+
+	other, err := store.Get(ctx, "session-other")
+	require.NoError(t, err)
+	require.NotNil(t, other)
+	assert.Equal(t, "user-other", other.UserID)
+}
+
+func TestSessionStore_RevokeAllSkipsCrossUserSessionMembers(t *testing.T) {
+	store, bl, _ := newTestSessionStore(t)
+	ctx := context.Background()
+
+	require.NoError(t, store.Create(ctx, SessionData{
+		SessionID:        "session-owned",
+		UserID:           "user-owned",
+		AccessTokenHash:  "acc-owned",
+		RefreshTokenHash: "ref-owned",
+	}))
+	require.NoError(t, store.Create(ctx, SessionData{
+		SessionID:        "session-other",
+		UserID:           "user-other",
+		AccessTokenHash:  "acc-other",
+		RefreshTokenHash: "ref-other",
+	}))
+	require.NoError(t, store.rdb.SAdd(ctx, userSessionsPrefix+"user-owned", "session-other").Err())
+
+	err := store.RevokeAll(ctx, "user-owned", bl, 5*time.Minute, 10*time.Minute)
+	require.NoError(t, err)
+
+	owned, err := store.Get(ctx, "session-owned")
+	require.NoError(t, err)
+	assert.Nil(t, owned)
+
+	other, err := store.Get(ctx, "session-other")
+	require.NoError(t, err)
+	require.NotNil(t, other)
+	assert.Equal(t, "user-other", other.UserID)
+
+	isOtherAccessBlocked, err := bl.rdb.Exists(ctx, blacklistPrefix+"acc-other").Result()
+	require.NoError(t, err)
+	assert.Zero(t, isOtherAccessBlocked)
+
+	isOtherRefreshBlocked, err := bl.rdb.Exists(ctx, blacklistPrefix+"ref-other").Result()
+	require.NoError(t, err)
+	assert.Zero(t, isOtherRefreshBlocked)
+
+	otherSessionIDs, err := store.rdb.SMembers(ctx, userSessionsPrefix+"user-other").Result()
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"session-other"}, otherSessionIDs)
+}
+
 func TestGenerateSessionID(t *testing.T) {
 	id1, err := GenerateSessionID()
 	require.NoError(t, err)
