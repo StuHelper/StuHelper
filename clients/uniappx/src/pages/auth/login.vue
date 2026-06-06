@@ -51,12 +51,12 @@ async function handleSSOLogin() {
     if (isNativeApp) {
       // 暂存 state 到本地，deep link 回调时用于校验
       persistSSOState(data.state)
-      // 原生：打开系统浏览器完成 SSO，跨应用认证跳转不能走 shared API client。
+      // 原生：打开系统浏览器完成 SSO（支持密码管理器、已保存的会话）
       plus.runtime.openURL(data.url)
       return
     }
     if (typeof window === 'undefined') throw new Error(t('auth.login.ssoInitFailed'))
-    // H5/WebView：浏览器直接跳转到上游 IdP，不能走 shared API client。
+    // H5/WebView：直接跳转
     window.location.href = data.url
   } catch (error) {
     uni.showToast({

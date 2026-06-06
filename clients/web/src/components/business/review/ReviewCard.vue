@@ -371,7 +371,6 @@ const ratingColor = computed(() => getRatingColor(avgRating.value))
 const formattedTime = computed(() => formatRelativeTime(props.review.createdAt, locale.value, t))
 
 function goVerify() {
-  // 学生认证页在账户中心 Web 页面中完成，这里是浏览器页面导航边界。
   window.location.assign(accountCenterURL('/user/student-verification'))
 }
 

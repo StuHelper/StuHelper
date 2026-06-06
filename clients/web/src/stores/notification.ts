@@ -668,7 +668,6 @@ export const useNotificationStore = defineStore("notification", () => {
 
         closeEventSource();
 
-        // 通知实时流是浏览器原生 SSE 长连接，不能通过 shared API client 表达。
         const source = new EventSource(NOTIFICATION_STREAM_PATH, {
             withCredentials: true,
         });

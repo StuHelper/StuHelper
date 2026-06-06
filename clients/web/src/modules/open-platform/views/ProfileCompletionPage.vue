@@ -219,7 +219,6 @@ function redirectToURL(rawURL: string) {
   if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
     throw new Error('Invalid redirect URL protocol')
   }
-  // Open Platform 资料补全 action URL 是页面跳转边界，不走业务 API client。
   window.location.assign(parsed.toString())
 }
 

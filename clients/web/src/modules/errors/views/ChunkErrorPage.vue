@@ -24,7 +24,6 @@ import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
 
 const reload = () => {
-  // chunk 错误页的重试依赖浏览器重载当前页面，不属于业务 API 请求。
   window.location.reload()
 }
 </script>

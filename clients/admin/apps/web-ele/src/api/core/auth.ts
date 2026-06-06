@@ -1,12 +1,9 @@
+import type { LoginRequestOptions } from '@stuhelper/shared/api';
 import type { components } from '@stuhelper/shared/types';
 
 import type { ApiCallResult } from '#/api/shared-result';
 
-import {
-  createAuthApi,
-  extractResultErrorCode,
-  type LoginRequestOptions,
-} from '@stuhelper/shared/api';
+import { createAuthApi, extractResultErrorCode } from '@stuhelper/shared/api';
 
 import { sharedApiClient, sharedBaseApiClient } from '#/api/shared-client';
 import { unwrapData } from '#/api/shared-result';
@@ -134,12 +131,9 @@ export async function redirectToOIDCLogin(
       )
     : await baseAuthApi.login(redirectURL, undefined, 'admin');
 
-  const data = unwrapData<AuthApi.LoginUrlResult>(
-    loginResult,
-  );
+  const data = unwrapData<AuthApi.LoginUrlResult>(loginResult);
   const url = data.url;
   if (url) {
-    // Admin OIDC 登录必须交给浏览器跳转到上游 IdP，不能通过业务 API client 表达。
     window.location.href = url;
   }
 }
