@@ -164,6 +164,27 @@ func (s *Service) ResolveSchoolIDByCode(ctx context.Context, schoolCode string) 
 	return config.SchoolID, nil
 }
 
+func validateAdmissionUserID(userID int64) error {
+	if userID <= 0 {
+		return ErrAdmissionInvalidInput
+	}
+	return nil
+}
+
+func validateAdmissionSchoolID(schoolID int64) error {
+	if schoolID <= 0 {
+		return ErrAdmissionInvalidInput
+	}
+	return nil
+}
+
+func validateAdmissionUserAndSchool(userID int64, schoolID int64) error {
+	if err := validateAdmissionUserID(userID); err != nil {
+		return err
+	}
+	return validateAdmissionSchoolID(schoolID)
+}
+
 func generateAdmissionToken() (string, error) {
 	buf := make([]byte, admissionTokenBytes)
 	if _, err := rand.Read(buf); err != nil {

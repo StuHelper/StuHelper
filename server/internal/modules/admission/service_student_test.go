@@ -58,6 +58,99 @@ func TestSchoolEmailOTPRequiresLinkedSessionAndVerifiesCredential(t *testing.T) 
 	assertUserProfileVerified(t, pg, userID, "school_email_otp")
 }
 
+func TestAdmissionStudentVerificationRejectsInvalidUserAndSchoolBeforeDependencies(t *testing.T) {
+	svc, err := NewService(&Repository{}, &testQQBindingGateway{}, []byte("test-admission-hmac-key-32-bytes!"))
+	require.NoError(t, err)
+
+	_, err = svc.MatchSchoolEmailAcademicStudent(context.Background(), SchoolEmailAcademicMatchInput{
+		UserID:   0,
+		SchoolID: 4111010006,
+	})
+	require.ErrorIs(t, err, ErrAdmissionInvalidInput)
+
+	_, err = svc.MatchSchoolEmailAcademicStudent(context.Background(), SchoolEmailAcademicMatchInput{
+		UserID:   42,
+		SchoolID: 0,
+	})
+	require.ErrorIs(t, err, ErrAdmissionInvalidInput)
+
+	_, err = svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
+		UserID:   -1,
+		SchoolID: 4111010006,
+		Email:    "student@buaa.edu.cn",
+	})
+	require.ErrorIs(t, err, ErrAdmissionInvalidInput)
+
+	_, err = svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
+		UserID:   42,
+		SchoolID: -1,
+		Email:    "student@buaa.edu.cn",
+	})
+	require.ErrorIs(t, err, ErrAdmissionInvalidInput)
+
+	_, err = svc.VerifySchoolEmailOTP(context.Background(), SchoolEmailOTPVerifyInput{
+		UserID:   0,
+		SchoolID: 4111010006,
+		Email:    "student@buaa.edu.cn",
+		Code:     "123456",
+	})
+	require.ErrorIs(t, err, ErrAdmissionInvalidInput)
+
+	_, err = svc.VerifySchoolEmailOTP(context.Background(), SchoolEmailOTPVerifyInput{
+		UserID:   42,
+		SchoolID: 0,
+		Email:    "student@buaa.edu.cn",
+		Code:     "123456",
+	})
+	require.ErrorIs(t, err, ErrAdmissionInvalidInput)
+
+	_, err = svc.StartSchoolSSO(context.Background(), SchoolSSOStartInput{
+		UserID:    -1,
+		SchoolID:  4111010006,
+		ReturnURL: "https://join.stuhelper.com/verify/token",
+	})
+	require.ErrorIs(t, err, ErrAdmissionInvalidInput)
+
+	_, err = svc.StartSchoolSSO(context.Background(), SchoolSSOStartInput{
+		UserID:    42,
+		SchoolID:  -1,
+		ReturnURL: "https://join.stuhelper.com/verify/token",
+	})
+	require.ErrorIs(t, err, ErrAdmissionInvalidInput)
+
+	_, err = svc.CompleteSchoolSSO(context.Background(), SchoolSSOCompleteInput{
+		UserID:   0,
+		SchoolID: 4111010006,
+		State:    "state",
+		Code:     "oidc-code",
+	})
+	require.ErrorIs(t, err, ErrAdmissionInvalidInput)
+
+	_, err = svc.CompleteSchoolSSO(context.Background(), SchoolSSOCompleteInput{
+		UserID:   42,
+		SchoolID: 0,
+		State:    "state",
+		Code:     "oidc-code",
+	})
+	require.ErrorIs(t, err, ErrAdmissionInvalidInput)
+
+	_, err = svc.storeStudentCredential(context.Background(), studentCredentialInput{
+		UserID:   -1,
+		SchoolID: 4111010006,
+		Kind:     CredentialSchoolEmailOTP,
+		Subject:  "student@buaa.edu.cn",
+	})
+	require.ErrorIs(t, err, ErrAdmissionInvalidInput)
+
+	_, err = svc.storeStudentCredential(context.Background(), studentCredentialInput{
+		UserID:   42,
+		SchoolID: -1,
+		Kind:     CredentialSchoolEmailOTP,
+		Subject:  "student@buaa.edu.cn",
+	})
+	require.ErrorIs(t, err, ErrAdmissionInvalidInput)
+}
+
 func TestVerifySchoolEmailOTPRejectsMalformedCodeWithoutConsumingAttempt(t *testing.T) {
 	pg := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)

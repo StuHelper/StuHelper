@@ -41,6 +41,9 @@ type studentCredentialInput struct {
 }
 
 func (s *Service) StartSchoolSSO(ctx context.Context, input SchoolSSOStartInput) (*SchoolSSOStartResult, error) {
+	if err := validateAdmissionUserAndSchool(input.UserID, input.SchoolID); err != nil {
+		return nil, err
+	}
 	if s.redisClient == nil {
 		return nil, ErrAdmissionRedisUnavailable
 	}
@@ -65,6 +68,9 @@ func (s *Service) CompleteSchoolSSO(
 	ctx context.Context,
 	input SchoolSSOCompleteInput,
 ) (*SchoolSSOCompleteResult, error) {
+	if err := validateAdmissionUserAndSchool(input.UserID, input.SchoolID); err != nil {
+		return nil, err
+	}
 	if s.redisClient == nil {
 		return nil, ErrAdmissionRedisUnavailable
 	}
@@ -117,6 +123,9 @@ func (s *Service) exchangeSchoolSSO(
 }
 
 func (s *Service) storeStudentCredential(ctx context.Context, input studentCredentialInput) (*AdmissionSession, error) {
+	if err := validateAdmissionUserAndSchool(input.UserID, input.SchoolID); err != nil {
+		return nil, err
+	}
 	var verified *AdmissionSession
 	err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		session, err := s.repo.GetLinkedSessionByUserIDTx(

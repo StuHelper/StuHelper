@@ -322,6 +322,9 @@ func (s *Service) requireLinkedSession(
 	userID int64,
 	admissionSessionID string,
 ) (*AdmissionSession, error) {
+	if err := validateAdmissionUserID(userID); err != nil {
+		return nil, err
+	}
 	session, err := s.repo.GetLinkedSessionByUserID(ctx, userID, s.now(), admissionSessionID)
 	if err != nil {
 		return nil, err

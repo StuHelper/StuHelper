@@ -47,6 +47,9 @@ func (s *Service) MatchSchoolEmailAcademicStudent(
 	ctx context.Context,
 	input SchoolEmailAcademicMatchInput,
 ) (*SchoolEmailAcademicMatchResponse, error) {
+	if err := validateAdmissionUserAndSchool(input.UserID, input.SchoolID); err != nil {
+		return nil, err
+	}
 	if _, err := s.requireLinkedSession(ctx, input.UserID, input.AdmissionSessionID); err != nil {
 		return nil, err
 	}
@@ -83,6 +86,9 @@ func (s *Service) RequestSchoolEmailOTP(
 	ctx context.Context,
 	input SchoolEmailOTPInput,
 ) (*SchoolEmailOTPResponse, error) {
+	if err := validateAdmissionUserAndSchool(input.UserID, input.SchoolID); err != nil {
+		return nil, err
+	}
 	if err := s.requireEmailOTPDependencies(); err != nil {
 		return nil, err
 	}
@@ -114,6 +120,9 @@ func (s *Service) RequestSchoolEmailOTP(
 }
 
 func (s *Service) VerifySchoolEmailOTP(ctx context.Context, input SchoolEmailOTPVerifyInput) (*AdmissionSession, error) {
+	if err := validateAdmissionUserAndSchool(input.UserID, input.SchoolID); err != nil {
+		return nil, err
+	}
 	if s.redisClient == nil {
 		return nil, ErrAdmissionRedisUnavailable
 	}
