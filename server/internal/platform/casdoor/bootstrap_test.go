@@ -39,9 +39,13 @@ func TestBootstrapCreatesMissingObjects(t *testing.T) {
 	require.NotNil(t, roles.added)
 	assert.Equal(t, "verified_student", roles.added.Name)
 	assert.Equal(t, "stuhelper", roles.added.Owner)
+	assert.Contains(t, roles.getProfileURL, "/users/stuhelper/")
+	assert.Contains(t, roles.addProfileURL, "/users/stuhelper/")
 	require.NotNil(t, providers.added)
 	assert.Equal(t, "stuhelper-sms", providers.added.Name)
 	assert.Equal(t, "stuhelper", providers.added.Owner)
+	assert.Contains(t, providers.getProfileURL, "/users/stuhelper/")
+	assert.Contains(t, providers.addProfileURL, "/users/stuhelper/")
 }
 
 func TestBootstrapUpdatesExistingObjects(t *testing.T) {
@@ -82,8 +86,27 @@ func TestBootstrapUsesTargetOrganizationWhenCredentialIsBuiltIn(t *testing.T) {
 	assert.Equal(t, "stuhelper", apps.added.Organization)
 	require.NotNil(t, roles.added)
 	assert.Equal(t, "stuhelper", roles.added.Owner)
+	assert.Contains(t, roles.getProfileURL, "/users/stuhelper/")
+	assert.Contains(t, roles.addProfileURL, "/users/stuhelper/")
 	require.NotNil(t, providers.added)
 	assert.Equal(t, "stuhelper", providers.added.Owner)
+	assert.Contains(t, providers.getProfileURL, "/users/stuhelper/")
+	assert.Contains(t, providers.addProfileURL, "/users/stuhelper/")
+}
+
+func TestCredentialForOrganizationScopesBootstrapObjectOwner(t *testing.T) {
+	credential := validCredential()
+	credential.Purpose = PurposeBootstrap
+	credential.Organization = "built-in"
+
+	scoped := credentialForOrganization(credential, " stuhelper ")
+
+	assert.Equal(t, "stuhelper", scoped.Organization)
+	assert.Equal(t, credential.Endpoint, scoped.Endpoint)
+	assert.Equal(t, credential.ClientID, scoped.ClientID)
+	assert.Equal(t, credential.ClientSecret, scoped.ClientSecret)
+	assert.Equal(t, credential.Application, scoped.Application)
+	assert.Equal(t, "built-in", credential.Organization)
 }
 
 func TestNewBootstrapClientRequiresBootstrapPurpose(t *testing.T) {
@@ -188,23 +211,29 @@ func (f *fakeOrganizationAPI) UpdateOrganization(org *casdoorsdk.Organization) (
 }
 
 type fakeProviderAPI struct {
-	existing *casdoorsdk.Provider
-	added    *casdoorsdk.Provider
-	updated  *casdoorsdk.Provider
-	addOK    bool
-	updateOK bool
+	existing         *casdoorsdk.Provider
+	added            *casdoorsdk.Provider
+	updated          *casdoorsdk.Provider
+	getProfileURL    string
+	addProfileURL    string
+	updateProfileURL string
+	addOK            bool
+	updateOK         bool
 }
 
 func (f *fakeProviderAPI) GetProvider(string) (*casdoorsdk.Provider, error) {
+	f.getProfileURL = casdoorsdk.GetUserProfileUrl("_probe", "")
 	return f.existing, nil
 }
 
 func (f *fakeProviderAPI) AddProvider(provider *casdoorsdk.Provider) (bool, error) {
+	f.addProfileURL = casdoorsdk.GetUserProfileUrl("_probe", "")
 	f.added = provider
 	return f.addOK, nil
 }
 
 func (f *fakeProviderAPI) UpdateProvider(provider *casdoorsdk.Provider) (bool, error) {
+	f.updateProfileURL = casdoorsdk.GetUserProfileUrl("_probe", "")
 	f.updated = provider
 	return f.updateOK, nil
 }

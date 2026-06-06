@@ -210,8 +210,20 @@ func validateCredential(credential Credential) (Credential, error) {
 	return credential, nil
 }
 
-func (c *Client) call(ctx context.Context, operation string, fn func() (bool, error)) error {
-	return callWithCredential(ctx, c.credential, operation, fn)
+func (c *Client) call(ctx context.Context, operation string, fn func() (bool, error), organization ...string) error {
+	credential := c.credential
+	if len(organization) > 0 {
+		credential = credentialForOrganization(credential, organization[0])
+	}
+	return callWithCredential(ctx, credential, operation, fn)
+}
+
+func credentialForOrganization(credential Credential, organization string) Credential {
+	organization = strings.TrimSpace(organization)
+	if organization != "" {
+		credential.Organization = organization
+	}
+	return credential
 }
 
 func callWithCredential(ctx context.Context, credential Credential, operation string, fn func() (bool, error)) error {

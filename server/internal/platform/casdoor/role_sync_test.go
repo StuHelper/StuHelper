@@ -162,14 +162,18 @@ func newRoleSyncTestClient(t *testing.T, roles *fakeRoleAPI, users *fakeUserAPI)
 }
 
 type fakeRoleAPI struct {
-	role      *casdoorsdk.Role
-	added     *casdoorsdk.Role
-	updated   *casdoorsdk.Role
-	columns   []string
-	updateErr error
+	role             *casdoorsdk.Role
+	added            *casdoorsdk.Role
+	updated          *casdoorsdk.Role
+	columns          []string
+	getProfileURL    string
+	addProfileURL    string
+	updateProfileURL string
+	updateErr        error
 }
 
 func (f *fakeRoleAPI) GetRole(name string) (*casdoorsdk.Role, error) {
+	f.getProfileURL = casdoorsdk.GetUserProfileUrl("_probe", "")
 	if f.role == nil {
 		return nil, nil
 	}
@@ -179,11 +183,13 @@ func (f *fakeRoleAPI) GetRole(name string) (*casdoorsdk.Role, error) {
 }
 
 func (f *fakeRoleAPI) AddRole(role *casdoorsdk.Role) (bool, error) {
+	f.addProfileURL = casdoorsdk.GetUserProfileUrl("_probe", "")
 	f.added = role
 	return true, nil
 }
 
 func (f *fakeRoleAPI) UpdateRoleForColumns(role *casdoorsdk.Role, columns []string) (bool, error) {
+	f.updateProfileURL = casdoorsdk.GetUserProfileUrl("_probe", "")
 	f.updated = role
 	f.columns = append([]string(nil), columns...)
 	return f.updateErr == nil, f.updateErr

@@ -118,21 +118,21 @@ func (c *Client) EnsureRole(ctx context.Context, spec RoleSpec) error {
 	if err != nil {
 		return err
 	}
-	existing, err := c.getRoleForBootstrap(ctx, role.Name)
+	existing, err := c.getRoleForBootstrap(ctx, role.Owner, role.Name)
 	if err != nil {
 		return err
 	}
 	if existing == nil {
 		return c.call(ctx, "create role "+role.Name, func() (bool, error) {
 			return c.roles.AddRole(role)
-		})
+		}, role.Owner)
 	}
 	existing.DisplayName = role.DisplayName
 	existing.Description = role.Description
 	existing.IsEnabled = role.IsEnabled
 	return c.call(ctx, "update role "+role.Name, func() (bool, error) {
 		return c.roles.UpdateRoleForColumns(existing, []string{"displayName", "description", "isEnabled"})
-	})
+	}, role.Owner)
 }
 
 func (c *Client) EnsureProvider(ctx context.Context, spec ProviderSpec) error {
@@ -140,18 +140,18 @@ func (c *Client) EnsureProvider(ctx context.Context, spec ProviderSpec) error {
 	if err != nil {
 		return err
 	}
-	existing, err := c.getProvider(ctx, provider.Name)
+	existing, err := c.getProvider(ctx, provider.Owner, provider.Name)
 	if err != nil {
 		return err
 	}
 	if existing == nil {
 		return c.call(ctx, "create provider "+provider.Name, func() (bool, error) {
 			return c.providers.AddProvider(provider)
-		})
+		}, provider.Owner)
 	}
 	return c.call(ctx, "update provider "+provider.Name, func() (bool, error) {
 		return c.providers.UpdateProvider(provider)
-	})
+	}, provider.Owner)
 }
 
 func (c *Client) buildOrganization(spec OrganizationSpec) (*casdoorsdk.Organization, error) {
@@ -298,9 +298,10 @@ func (c *Client) getOrganization(ctx context.Context, name string) (*casdoorsdk.
 	return org, err
 }
 
-func (c *Client) getRoleForBootstrap(ctx context.Context, name string) (*casdoorsdk.Role, error) {
+func (c *Client) getRoleForBootstrap(ctx context.Context, owner string, name string) (*casdoorsdk.Role, error) {
 	var role *casdoorsdk.Role
-	err := withSDKConfig(ctx, c.credential, "get role "+name, func() error {
+	credential := credentialForOrganization(c.credential, owner)
+	err := withSDKConfig(ctx, credential, "get role "+name, func() error {
 		var getErr error
 		role, getErr = c.roles.GetRole(name)
 		return getErr
@@ -308,9 +309,10 @@ func (c *Client) getRoleForBootstrap(ctx context.Context, name string) (*casdoor
 	return role, err
 }
 
-func (c *Client) getProvider(ctx context.Context, name string) (*casdoorsdk.Provider, error) {
+func (c *Client) getProvider(ctx context.Context, owner string, name string) (*casdoorsdk.Provider, error) {
 	var provider *casdoorsdk.Provider
-	err := withSDKConfig(ctx, c.credential, "get provider "+name, func() error {
+	credential := credentialForOrganization(c.credential, owner)
+	err := withSDKConfig(ctx, credential, "get provider "+name, func() error {
 		var getErr error
 		provider, getErr = c.providers.GetProvider(name)
 		return getErr
