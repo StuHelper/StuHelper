@@ -107,6 +107,10 @@ type GetUserVotesParams struct {
 
 // GetUserVotes 获取用户点赞列表
 func (s *Service) GetUserVotes(ctx context.Context, params GetUserVotesParams) (*GetCourseReviewsResult, error) {
+	if !isValidVoteType(params.VoteType) {
+		return nil, ErrInvalidAction
+	}
+
 	pageSize := httputil.ClampPageSize(params.PageSize)
 	offset := httputil.SafeOffset(params.Page, pageSize)
 	list, total, err := s.repo.ListVotedReviews(ctx, params.UserHash, params.VoteType, pageSize, offset)

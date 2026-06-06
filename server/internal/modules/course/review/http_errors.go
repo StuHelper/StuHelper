@@ -82,7 +82,10 @@ func respondPostReviewError(c *gin.Context, err error) bool {
 }
 
 func respondVoteReviewError(c *gin.Context, err error) bool {
-	return response.RespondMappedErrorGroups(c, err, reviewNotFoundErrorMappings)
+	return response.RespondMappedErrorGroups(c, err,
+		reviewNotFoundErrorMappings,
+		[]response.ErrorMapping{response.MatchError(ErrInvalidAction, 400, "invalid vote type")},
+	)
 }
 
 func respondUpdateReviewError(c *gin.Context, err error) bool {

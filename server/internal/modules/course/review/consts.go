@@ -23,6 +23,12 @@ const (
 	ReportStatusRejected = "rejected"
 )
 
+// 投票类型常量
+const (
+	voteTypeLike    = "like"
+	voteTypeDislike = "dislike"
+)
+
 // 排序选项常量
 const (
 	SortTime   = "time"
@@ -43,6 +49,15 @@ func isValidReviewStatus(s string) bool {
 func isValidReportStatus(s string) bool {
 	switch s {
 	case ReportStatusPending, ReportStatusResolved, ReportStatusRejected, StatusAll:
+		return true
+	}
+	return false
+}
+
+// isValidVoteType 校验评价投票类型是否合法
+func isValidVoteType(s string) bool {
+	switch s {
+	case voteTypeLike, voteTypeDislike:
 		return true
 	}
 	return false

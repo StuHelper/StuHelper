@@ -135,8 +135,8 @@ func (h *Handler) GetUserVotes(c *gin.Context) {
 		response.BadRequest(c, "voteType must be 'like' or 'dislike'")
 		return
 	}
-	voteType := c.DefaultQuery("voteType", "like")
-	if voteType != "like" && voteType != "dislike" {
+	voteType := c.DefaultQuery("voteType", voteTypeLike)
+	if !isValidVoteType(voteType) {
 		response.BadRequest(c, "voteType must be 'like' or 'dislike'")
 		return
 	}

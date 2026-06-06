@@ -83,3 +83,16 @@ func TestRespondAdminUpdateReviewError(t *testing.T) {
 	assert.Contains(t, w.Body.String(), string(errs.ErrInvalidTransition))
 	assert.Contains(t, w.Body.String(), "invalid status transition")
 }
+
+func TestRespondVoteReviewErrorInvalidVoteType(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	ok := respondVoteReviewError(c, ErrInvalidAction)
+
+	assert.True(t, ok)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "invalid vote type")
+}

@@ -171,6 +171,10 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 
 // VoteReview 投票
 func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) (int64, error) {
+	if !isValidVoteType(params.VoteType) {
+		return 0, ErrInvalidAction
+	}
+
 	var courseID int64
 	var shouldNotifyLike bool
 	err := s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
@@ -201,7 +205,7 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) (int6
 			if !inserted {
 				return nil
 			}
-			if params.VoteType == "like" {
+			if params.VoteType == voteTypeLike {
 				shouldNotifyLike = true
 				return s.repo.IncrementLikeCount(ctx, tx, params.ReviewID)
 			}
@@ -211,7 +215,7 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) (int6
 			if err := s.repo.DeleteVote(ctx, tx, params.ReviewID, params.UserHash); err != nil {
 				return err
 			}
-			if existing == "like" {
+			if existing == voteTypeLike {
 				return s.repo.DecrementLikeCount(ctx, tx, params.ReviewID)
 			}
 			return s.repo.DecrementDislikeCount(ctx, tx, params.ReviewID)
@@ -220,7 +224,7 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) (int6
 			if err := s.repo.UpdateVoteType(ctx, tx, params.ReviewID, params.UserHash, params.VoteType); err != nil {
 				return err
 			}
-			if params.VoteType == "like" {
+			if params.VoteType == voteTypeLike {
 				shouldNotifyLike = true
 				if err := s.repo.DecrementDislikeCount(ctx, tx, params.ReviewID); err != nil {
 					return err
@@ -383,7 +387,7 @@ func (s *Service) sendVoteNotification(ctx context.Context, reviewID, voterHash 
 	}
 	if err := s.notifSender.SendReviewNotification(ctx, ReviewNotification{
 		UserID:       authorID,
-		Type:         "like",
+		Type:         voteTypeLike,
 		Title:        "你的评价获得了一个赞",
 		Body:         "有人赞了你的评价",
 		SourceModule: "review",

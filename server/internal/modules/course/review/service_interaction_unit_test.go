@@ -26,3 +26,28 @@ func TestCreateReply_PreflightContentValidation(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrContentTooLong)
 }
+
+func TestVoteReviewRejectsInvalidVoteTypeBeforeTx(t *testing.T) {
+	svc := &Service{}
+
+	_, err := svc.VoteReview(context.Background(), VoteReviewParams{
+		ReviewID: "550e8400-e29b-41d4-a716-446655440901",
+		UserHash: "u-voter-invalid",
+		VoteType: "bookmark",
+	})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidAction)
+}
+
+func TestGetUserVotesRejectsInvalidVoteTypeBeforeQuery(t *testing.T) {
+	svc := &Service{}
+
+	_, err := svc.GetUserVotes(context.Background(), GetUserVotesParams{
+		UserHash: "u-voter-invalid",
+		VoteType: "bookmark",
+	})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidAction)
+}
