@@ -35,9 +35,6 @@ func getEnvSlice(key string, defaultValue []string) []string {
 func getEnvInt(key string, defaultValue int, parseErrs *[]string) int {
 	val := os.Getenv(key)
 	if val == "" {
-		if _, exists := os.LookupEnv(key); exists {
-			*parseErrs = append(*parseErrs, fmt.Sprintf("%s is set but empty, using default %d", key, defaultValue))
-		}
 		return defaultValue
 	}
 	if intValue, err := strconv.Atoi(val); err == nil {
@@ -53,9 +50,6 @@ func getEnvInt(key string, defaultValue int, parseErrs *[]string) int {
 func getEnvInt32(key string, defaultValue int32, parseErrs *[]string) int32 {
 	val := os.Getenv(key)
 	if val == "" {
-		if _, exists := os.LookupEnv(key); exists {
-			*parseErrs = append(*parseErrs, fmt.Sprintf("%s is set but empty, using default %d", key, defaultValue))
-		}
 		return defaultValue
 	}
 	intValue, err := strconv.ParseInt(val, 10, 32)
@@ -72,9 +66,6 @@ func getEnvInt32(key string, defaultValue int32, parseErrs *[]string) int32 {
 func getEnvBool(key string, defaultValue bool, parseErrs *[]string) bool {
 	val := os.Getenv(key)
 	if val == "" {
-		if _, exists := os.LookupEnv(key); exists {
-			*parseErrs = append(*parseErrs, fmt.Sprintf("%s is set but empty, using default %v", key, defaultValue))
-		}
 		return defaultValue
 	}
 	if boolValue, err := strconv.ParseBool(val); err == nil {
@@ -90,9 +81,6 @@ func getEnvBool(key string, defaultValue bool, parseErrs *[]string) bool {
 func getEnvInt64(key string, defaultValue int64, parseErrs *[]string) int64 {
 	val := os.Getenv(key)
 	if val == "" {
-		if _, exists := os.LookupEnv(key); exists {
-			*parseErrs = append(*parseErrs, fmt.Sprintf("%s is set but empty, using default %d", key, defaultValue))
-		}
 		return defaultValue
 	}
 	if intValue, err := strconv.ParseInt(val, 10, 64); err == nil {
@@ -108,9 +96,6 @@ func getEnvInt64(key string, defaultValue int64, parseErrs *[]string) int64 {
 func getEnvFloat64(key string, defaultValue float64, parseErrs *[]string) float64 {
 	val := os.Getenv(key)
 	if val == "" {
-		if _, exists := os.LookupEnv(key); exists {
-			*parseErrs = append(*parseErrs, fmt.Sprintf("%s is set but empty, using default %v", key, defaultValue))
-		}
 		return defaultValue
 	}
 	if floatValue, err := strconv.ParseFloat(val, 64); err == nil {

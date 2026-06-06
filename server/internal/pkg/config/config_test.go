@@ -661,6 +661,37 @@ func TestLoad_TokenCookieDomainWhitespaceOnlyKeepsEmptyDevelopmentSemantics(t *t
 	assert.Empty(t, cfg.Token.CookieDomain)
 }
 
+func TestLoad_EmptyOptionalTypedEnvUsesDefaults(t *testing.T) {
+	t.Setenv("APP_ENV", EnvDevelopment)
+	t.Setenv("APP_PORT", "8080")
+	t.Setenv("CORS_ORIGINS", "http://localhost:5173")
+	t.Setenv("DOC_AES_ACTIVE_KEY_ID", "1")
+	t.Setenv("DOC_AES_KEYS", "1:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	t.Setenv("CASDOOR_ISSUER", "http://localhost:8000")
+	t.Setenv("CASDOOR_CLIENT_ID", "client-id")
+	t.Setenv("CASDOOR_CLIENT_SECRET", "client-secret")
+	t.Setenv("CASDOOR_REDIRECT_URI", "http://localhost:8080/api/v1/auth/callback")
+	t.Setenv("CASDOOR_INTROSPECTION_CLIENT_ID", "introspection-client")
+	t.Setenv("CASDOOR_INTROSPECTION_CLIENT_SECRET", "introspection-secret")
+	t.Setenv("CASDOOR_ORGANIZATION", "stuhelper")
+	t.Setenv("OPENFGA_STORE_ID", "store-id")
+	t.Setenv("OPENFGA_MODEL_ID", "model-id")
+	t.Setenv("EMAIL_ENABLED", "")
+	t.Setenv("EMAIL_SMTP_PORT", "")
+	t.Setenv("EMAIL_TENCENT_TEMPLATE_ID", "")
+	t.Setenv("EMAIL_TENCENT_TEMPLATE_EXPIRE_MINUTES", "")
+	t.Setenv("OTEL_TRACE_SAMPLE_RATIO", "")
+
+	cfg, err := Load()
+
+	require.NoError(t, err)
+	assert.False(t, cfg.Email.Enabled)
+	assert.Equal(t, 587, cfg.Email.SMTPPort)
+	assert.Equal(t, int64(0), cfg.Email.TencentTemplateID)
+	assert.Equal(t, 5, cfg.Email.TencentTemplateExpireMinutes)
+	assert.InDelta(t, 0.2, cfg.Observability.TraceSampleRatio, 0.0001)
+}
+
 func TestValidate_ProductionRequiresSMSEnabled(t *testing.T) {
 	c := validProductionConfigForTest()
 	c.SMS.Enabled = false
