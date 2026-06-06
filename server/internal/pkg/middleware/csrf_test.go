@@ -111,6 +111,68 @@ func TestCSRFMiddleware_AllowsBearerRequestWithoutCookies(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestCSRFMiddleware_AllowsBearerRequestWithCookiesWithoutCSRF(t *testing.T) {
+	w := httptest.NewRecorder()
+	_, r := gin.CreateTestContext(w)
+
+	r.Use(CSRFMiddleware())
+	r.POST("/test", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/test", nil)
+	req.Header.Set("Authorization", "Bearer test-token")
+	req.AddCookie(&http.Cookie{Name: CookieAccessToken, Value: "access.jwt.token"})
+	req.AddCookie(&http.Cookie{Name: CookieRefreshToken, Value: "refresh.jwt.token"})
+	req.AddCookie(&http.Cookie{Name: CookieSessionID, Value: "sid-1"})
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestCSRFMiddleware_BlocksCookieSessionWithMalformedAuthorizationWithoutCSRF(t *testing.T) {
+	tests := []struct {
+		name    string
+		headers []string
+	}{
+		{
+			name:    "blank bearer",
+			headers: []string{"Bearer   "},
+		},
+		{
+			name:    "repeated authorization",
+			headers: []string{"Bearer test-token", "Bearer other-token"},
+		},
+		{
+			name:    "unsupported scheme",
+			headers: []string{"Basic Y2xpZW50OnNlY3JldA=="},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			_, r := gin.CreateTestContext(w)
+
+			r.Use(CSRFMiddleware())
+			r.POST("/test", func(c *gin.Context) {
+				c.Status(http.StatusOK)
+			})
+
+			req := httptest.NewRequest(http.MethodPost, "/test", nil)
+			for _, header := range tt.headers {
+				req.Header.Add("Authorization", header)
+			}
+			req.AddCookie(&http.Cookie{Name: CookieAccessToken, Value: "access.jwt.token"})
+			req.AddCookie(&http.Cookie{Name: CookieRefreshToken, Value: "refresh.jwt.token"})
+			req.AddCookie(&http.Cookie{Name: CookieSessionID, Value: "sid-1"})
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusForbidden, w.Code)
+		})
+	}
+}
+
 func TestCSRFHelpersAreNilSafe(t *testing.T) {
 	assert.False(t, hasCookieSession(nil))
 	assert.False(t, hasBearerAuthorization(nil))
