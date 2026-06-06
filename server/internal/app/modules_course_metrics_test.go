@@ -37,6 +37,39 @@ func TestRuntimeMetricsAllowedOriginsUsesConfiguredOrigins(t *testing.T) {
 	require.Equal(t, configuredOrigins, rt.metricsAllowedOrigins())
 }
 
+func TestRuntimeMetricsAllowedOriginsUsesFrontendMetricsOrigins(t *testing.T) {
+	rt := &Runtime{
+		cfg: &config.Config{
+			App: config.AppConfig{
+				CORSOrigins: []string{"https://api-cors.example.com"},
+				Env:         "development",
+			},
+			Observability: config.ObservabilityConfig{
+				FrontendMetricsAllowedOrigins: []string{"https://web.example.com"},
+			},
+		},
+	}
+
+	require.Equal(t, []string{"https://web.example.com"}, rt.metricsAllowedOrigins())
+}
+
+func TestRuntimeMetricsAllowedOriginsReturnsCopy(t *testing.T) {
+	rt := &Runtime{
+		cfg: &config.Config{
+			App: config.AppConfig{
+				CORSOrigins: []string{"https://stuhelper.example.com"},
+				Env:         "development",
+			},
+		},
+	}
+
+	origins := rt.metricsAllowedOrigins()
+	origins[0] = "https://mutated.example.com"
+
+	require.Equal(t, []string{"https://stuhelper.example.com"}, rt.cfg.App.CORSOrigins)
+	require.Equal(t, []string{"https://stuhelper.example.com"}, rt.metricsAllowedOrigins())
+}
+
 func TestRuntimeMetricsAllowedOriginsEmptyInProductionByDefault(t *testing.T) {
 	rt := &Runtime{
 		cfg:          &config.Config{App: config.AppConfig{Env: "production"}},

@@ -76,6 +76,11 @@ func (c *Config) validate(parseErrs []string) error {
 	if c.Observability.Enabled && c.Observability.OTLPEndpoint == "" {
 		errs = append(errs, "OTEL_EXPORTER_OTLP_ENDPOINT is required when OTEL_ENABLED=true")
 	}
+	errs = append(errs, validateOptionalHTTPOrigins(
+		"FRONTEND_METRICS_ALLOWED_ORIGINS",
+		c.Observability.FrontendMetricsAllowedOrigins,
+		productionLike,
+	)...)
 	errs = append(errs, validateCORSOrigins(c.App.CORSOrigins)...)
 
 	if c.SMS.Enabled {
@@ -463,6 +468,14 @@ func validateOpenPlatformBaseURLs(cfg OpenPlatformConfig, productionLike bool) [
 	var errs []string
 	errs = append(errs, validateOptionalHTTPOrigin("OPEN_PLATFORM_CONSENT_BASE_URL", cfg.ConsentBaseURL, productionLike)...)
 	errs = append(errs, validateOptionalHTTPOrigin("OPEN_PLATFORM_ACCOUNT_BASE_URL", cfg.AccountBaseURL, productionLike)...)
+	return errs
+}
+
+func validateOptionalHTTPOrigins(name string, origins []string, productionLike bool) []string {
+	var errs []string
+	for _, origin := range origins {
+		errs = append(errs, validateOptionalHTTPOrigin(name, origin, productionLike)...)
+	}
 	return errs
 }
 

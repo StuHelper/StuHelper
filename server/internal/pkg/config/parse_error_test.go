@@ -106,6 +106,66 @@ func TestLoadOpenPlatformConfigFromEnv(t *testing.T) {
 	require.Equal(t, 45, cfg.TokenProbe.RuntimeTimeoutSeconds)
 }
 
+func TestLoadObservabilityConfigFromEnv(t *testing.T) {
+	t.Setenv("OTEL_ENABLED", "true")
+	t.Setenv("OTEL_SERVICE_NAME", "stuhelper-test")
+	t.Setenv("OTEL_SERVICE_NAMESPACE", "stuhelper")
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://alloy:4318")
+	t.Setenv("OTEL_EXPORTER_OTLP_INSECURE", "false")
+	t.Setenv("OTEL_TRACE_SAMPLE_RATIO", "0.5")
+	t.Setenv("FRONTEND_METRICS_ALLOWED_ORIGINS", "https://web.example.com, https://admin.example.com")
+
+	var parseErrs []string
+	cfg := loadObservabilityConfig(&parseErrs)
+
+	require.Empty(t, parseErrs)
+	require.True(t, cfg.Enabled)
+	require.Equal(t, "stuhelper-test", cfg.ServiceName)
+	require.Equal(t, "stuhelper", cfg.ServiceNamespace)
+	require.Equal(t, "http://alloy:4318", cfg.OTLPEndpoint)
+	require.False(t, cfg.OTLPInsecure)
+	require.Equal(t, 0.5, cfg.TraceSampleRatio)
+	require.Equal(t, []string{"https://web.example.com", "https://admin.example.com"}, cfg.FrontendMetricsAllowedOrigins)
+}
+
+func TestValidate_FrontendMetricsAllowedOrigins(t *testing.T) {
+	t.Run("allows empty optional origins", func(t *testing.T) {
+		cfg := validConfigForValidation()
+
+		require.NoError(t, cfg.validate(nil))
+	})
+
+	t.Run("allows explicit origins", func(t *testing.T) {
+		cfg := validConfigForValidation()
+		cfg.Observability.FrontendMetricsAllowedOrigins = []string{
+			"http://localhost:3000",
+			"https://web.example.com",
+		}
+
+		require.NoError(t, cfg.validate(nil))
+	})
+
+	t.Run("rejects invalid origin", func(t *testing.T) {
+		cfg := validConfigForValidation()
+		cfg.Observability.FrontendMetricsAllowedOrigins = []string{"https://web.example.com/metrics"}
+
+		err := cfg.validate(nil)
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "FRONTEND_METRICS_ALLOWED_ORIGINS must not include a path")
+	})
+
+	t.Run("requires https in production", func(t *testing.T) {
+		cfg := validProductionConfigForTest()
+		cfg.Observability.FrontendMetricsAllowedOrigins = []string{"http://web.example.com"}
+
+		err := cfg.validate(nil)
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "FRONTEND_METRICS_ALLOWED_ORIGINS must use https in production")
+	})
+}
+
 func TestValidate_OpenPlatformDisclosureRateLimitsRejectInvalidValues(t *testing.T) {
 	cfg := validConfigForValidation()
 	cfg.OpenPlatform.DisclosureRateLimit.AppLimit = -1

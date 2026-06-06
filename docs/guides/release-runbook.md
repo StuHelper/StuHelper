@@ -392,6 +392,7 @@ ADMIN_EXTERNAL_PORT=18001
 - [ ] `CASDOOR_REDIRECT_URI=https://stuhelper.com/api/v1/auth/callback`
 - [ ] `ADMISSION_PUBLIC_BASE_URL=https://join.stuhelper.com`
 - [ ] `CORS_ORIGINS=https://stuhelper.com,https://join.stuhelper.com,https://sso.stuhelper.com`
+- [ ] `FRONTEND_METRICS_ALLOWED_ORIGINS=https://stuhelper.com`
 - [ ] `WEB_VITE_SSO_URL=https://sso.stuhelper.com`
 - [ ] `WEB_VITE_WEB_URL=https://stuhelper.com`
 - [ ] 主站生产机 `NGINX_PUBLIC_INGRESS_PROFILE=stuhelper ./infra/ops/nginx-public-ingress-preflight.sh` 通过。

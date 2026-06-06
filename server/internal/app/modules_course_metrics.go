@@ -132,8 +132,11 @@ func (m courseModule) runTeacherPublicStatsRefresh(ctx context.Context) {
 }
 
 func (rt *Runtime) metricsAllowedOrigins() []string {
+	if len(rt.cfg.Observability.FrontendMetricsAllowedOrigins) > 0 {
+		return append([]string(nil), rt.cfg.Observability.FrontendMetricsAllowedOrigins...)
+	}
 	if len(rt.cfg.App.CORSOrigins) > 0 {
-		return rt.cfg.App.CORSOrigins
+		return append([]string(nil), rt.cfg.App.CORSOrigins...)
 	}
 	if rt.isProduction {
 		return nil

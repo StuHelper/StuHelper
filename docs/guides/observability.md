@@ -86,6 +86,7 @@ make prod-deploy
 - `OTEL_ENABLED=true`
 - `OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318`
 - `OTEL_TRACE_SAMPLE_RATIO=0.2`（可按流量调整）
+- `FRONTEND_METRICS_ALLOWED_ORIGINS=https://stuhelper.com`
 
 ## 推荐告警接入
 

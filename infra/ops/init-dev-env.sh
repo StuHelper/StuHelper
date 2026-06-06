@@ -311,6 +311,7 @@ replace_legacy_env_value "ALLOW_LOCAL_ALERT_SINK" "${ALLOW_LOCAL_ALERT_SINK:-}" 
 replace_legacy_env_value "ALERTMANAGER_WEBHOOK_URL" "${ALERTMANAGER_WEBHOOK_URL:-}" "" "http://alert-webhook-sink:8080/alerts"
 load_env
 
+ensure_value "FRONTEND_METRICS_ALLOWED_ORIGINS" "${FRONTEND_METRICS_ALLOWED_ORIGINS:-}" ""
 ensure_dev_pattern_default "DATABASE_URL" "${DATABASE_URL:-}" "postgres://stuhelper_app:${STUHELPER_APP_DB_PASSWORD:-}@localhost:5432/stuhelper?sslmode=disable" "postgres://stuhelper_app:*@postgres:5432/stuhelper?sslmode=disable"
 ensure_dev_default "POSTGRES_EXTERNAL_PORT" "${POSTGRES_EXTERNAL_PORT:-}" "5432" "15432"
 ensure_value "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}" "disable"

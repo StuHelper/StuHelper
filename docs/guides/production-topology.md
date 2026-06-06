@@ -31,7 +31,7 @@ last-verified: 2026-05-22
     └── sso.stuhelper.com /.well-known/* /api/* /login/* → Casdoor
 ```
 
-主站生产配置只发布 StuHelper 主站、Join 业务域和 Casdoor SSO 入口。`WEB_VITE_WEB_URL=https://stuhelper.com`，`WEB_VITE_SSO_URL=https://sso.stuhelper.com`，`CASDOOR_ISSUER=https://sso.stuhelper.com`，`CASDOOR_PUBLIC_AUTH_BASE_URL=https://sso.stuhelper.com`。`CASDOOR_REDIRECT_URI`、`CASDOOR_ADMIN_REDIRECT_URI` 与 `CASDOOR_UNIAPP_REDIRECT_URI` 固定回到 `https://stuhelper.com/api/v1/auth/callback`。`ADMISSION_PUBLIC_BASE_URL=https://join.stuhelper.com`。`OPEN_PLATFORM_CONSENT_BASE_URL=https://stuhelper.com` 与 `OPEN_PLATFORM_ACCOUNT_BASE_URL=https://stuhelper.com` 承载开放平台用户交互入口。`CORS_ORIGINS` 必须包含 `https://stuhelper.com`、`https://join.stuhelper.com` 和 `https://sso.stuhelper.com`；`TOKEN_COOKIE_DOMAIN=.stuhelper.com`，让登录回调后签发的浏览器会话可用于主站和 admission 流程。
+主站生产配置只发布 StuHelper 主站、Join 业务域和 Casdoor SSO 入口。`WEB_VITE_WEB_URL=https://stuhelper.com`，`WEB_VITE_SSO_URL=https://sso.stuhelper.com`，`CASDOOR_ISSUER=https://sso.stuhelper.com`，`CASDOOR_PUBLIC_AUTH_BASE_URL=https://sso.stuhelper.com`。`CASDOOR_REDIRECT_URI`、`CASDOOR_ADMIN_REDIRECT_URI` 与 `CASDOOR_UNIAPP_REDIRECT_URI` 固定回到 `https://stuhelper.com/api/v1/auth/callback`。`ADMISSION_PUBLIC_BASE_URL=https://join.stuhelper.com`。`OPEN_PLATFORM_CONSENT_BASE_URL=https://stuhelper.com` 与 `OPEN_PLATFORM_ACCOUNT_BASE_URL=https://stuhelper.com` 承载开放平台用户交互入口。`FRONTEND_METRICS_ALLOWED_ORIGINS=https://stuhelper.com` 限定匿名前端指标上报来源。`CORS_ORIGINS` 必须包含 `https://stuhelper.com`、`https://join.stuhelper.com` 和 `https://sso.stuhelper.com`；`TOKEN_COOKIE_DOMAIN=.stuhelper.com`，让登录回调后签发的浏览器会话可用于主站和 admission 流程。
 
 ## 外部机器人链路
 

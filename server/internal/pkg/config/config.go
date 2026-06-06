@@ -128,12 +128,13 @@ type LogConfig struct {
 
 // ObservabilityConfig OpenTelemetry / tracing 配置
 type ObservabilityConfig struct {
-	Enabled          bool
-	ServiceName      string
-	ServiceNamespace string
-	OTLPEndpoint     string
-	OTLPInsecure     bool
-	TraceSampleRatio float64
+	Enabled                       bool
+	ServiceName                   string
+	ServiceNamespace              string
+	OTLPEndpoint                  string
+	OTLPInsecure                  bool
+	TraceSampleRatio              float64
+	FrontendMetricsAllowedOrigins []string
 }
 
 // ObjectStorageConfig 对象存储配置。
@@ -585,11 +586,12 @@ func loadExternalDataConfig(parseErrs *[]string) ExternalDataConfig {
 
 func loadObservabilityConfig(parseErrs *[]string) ObservabilityConfig {
 	return ObservabilityConfig{
-		Enabled:          getEnvBool("OTEL_ENABLED", false, parseErrs),
-		ServiceName:      getEnv("OTEL_SERVICE_NAME", "stuhelper-backend"),
-		ServiceNamespace: getEnv("OTEL_SERVICE_NAMESPACE", "stuhelper"),
-		OTLPEndpoint:     getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
-		OTLPInsecure:     getEnvBool("OTEL_EXPORTER_OTLP_INSECURE", true, parseErrs),
-		TraceSampleRatio: getEnvFloat64("OTEL_TRACE_SAMPLE_RATIO", 0.2, parseErrs),
+		Enabled:                       getEnvBool("OTEL_ENABLED", false, parseErrs),
+		ServiceName:                   getEnv("OTEL_SERVICE_NAME", "stuhelper-backend"),
+		ServiceNamespace:              getEnv("OTEL_SERVICE_NAMESPACE", "stuhelper"),
+		OTLPEndpoint:                  getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
+		OTLPInsecure:                  getEnvBool("OTEL_EXPORTER_OTLP_INSECURE", true, parseErrs),
+		TraceSampleRatio:              getEnvFloat64("OTEL_TRACE_SAMPLE_RATIO", 0.2, parseErrs),
+		FrontendMetricsAllowedOrigins: getEnvSlice("FRONTEND_METRICS_ALLOWED_ORIGINS", nil),
 	}
 }
