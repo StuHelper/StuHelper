@@ -1,6 +1,8 @@
 package audit
 
 import (
+	"context"
+
 	"github.com/gin-gonic/gin"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
@@ -10,21 +12,39 @@ import (
 
 // EventFromGin 用当前 gin 上下文补齐审计日志中的公共请求字段。
 func EventFromGin(c *gin.Context, event Event) Event {
-	event = EventFromContext(c.Request.Context(), event)
-	event.UserID = middleware.GetUserID(c)
-	event.Username = middleware.GetUsername(c)
-	event.IP = c.ClientIP()
-	event.UserAgent = httputil.TruncateUserAgent(c.GetHeader("User-Agent"))
-	event.RequestID = middleware.GetRequestID(c)
+	event = eventWithContextFields(requestContextFromGin(c), event)
+	if c == nil {
+		return normalizeEvent(event)
+	}
+	if userID := middleware.GetUserID(c); userID != "" {
+		event.UserID = userID
+	}
+	if username := middleware.GetUsername(c); username != "" {
+		event.Username = username
+	}
+	if c.Request != nil {
+		event.IP = c.ClientIP()
+		event.UserAgent = httputil.TruncateUserAgent(c.GetHeader("User-Agent"))
+	}
+	if requestID := middleware.GetRequestID(c); requestID != "" {
+		event.RequestID = requestID
+	}
 	if event.ActorType == "" {
 		event.ActorType = inferActorType(c)
 	}
-	return event
+	return normalizeEvent(event)
 }
 
 // LogFromGin 使用 gin 上下文中的公共字段记录审计日志。
 func LogFromGin(c *gin.Context, event Event) {
-	LogContext(c.Request.Context(), EventFromGin(c, event))
+	LogContext(requestContextFromGin(c), EventFromGin(c, event))
+}
+
+func requestContextFromGin(c *gin.Context) context.Context {
+	if c == nil || c.Request == nil {
+		return nil
+	}
+	return c.Request.Context()
 }
 
 func inferActorType(c *gin.Context) string {

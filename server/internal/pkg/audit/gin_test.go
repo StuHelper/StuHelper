@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 )
@@ -36,8 +37,44 @@ func TestEventFromGin(t *testing.T) {
 	assert.Equal(t, "alice", event.Username)
 	assert.Equal(t, "203.0.113.9", event.IP)
 	assert.Equal(t, "req-1", event.RequestID)
+	assert.Equal(t, "user", event.ActorType)
 	assert.NotEmpty(t, event.UserAgent)
 	assert.LessOrEqual(t, len(event.UserAgent), 512)
+}
+
+func TestEventFromGinInfersAdminActor(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest("POST", "/", nil)
+	c.Set(middleware.CtxKeyUserID, "admin-1")
+	c.Set(middleware.CtxKeyCapabilitySet, map[string]struct{}{
+		capability.AdminEntryCapabilities[0]: {},
+	})
+
+	event := EventFromGin(c, Event{Type: EventAdminConfigChange})
+
+	assert.Equal(t, "admin-1", event.UserID)
+	assert.Equal(t, "admin", event.ActorType)
+}
+
+func TestEventFromGinHandlesNilContextAndRequest(t *testing.T) {
+	var event Event
+	assert.NotPanics(t, func() {
+		event = EventFromGin(nil, Event{Type: EventDataAccess})
+	})
+	assert.Equal(t, "system", event.ActorType)
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Set(middleware.CtxKeyUserID, "user-without-request")
+	c.Set(middleware.CtxKeyRequestID, "req-without-request")
+
+	assert.NotPanics(t, func() {
+		event = EventFromGin(c, Event{Type: EventDataAccess})
+	})
+	assert.Equal(t, "user-without-request", event.UserID)
+	assert.Equal(t, "req-without-request", event.RequestID)
+	assert.Equal(t, "user", event.ActorType)
 }
 
 func TestEventFromContextUsesLoggerRequestID(t *testing.T) {

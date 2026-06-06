@@ -83,8 +83,12 @@ type Event struct {
 }
 
 func EventFromContext(ctx context.Context, event Event) Event {
+	return normalizeEvent(eventWithContextFields(ctx, event))
+}
+
+func eventWithContextFields(ctx context.Context, event Event) Event {
 	if ctx == nil {
-		return normalizeEvent(event)
+		return event
 	}
 	sc := trace.SpanContextFromContext(ctx)
 	if sc.IsValid() && event.TraceID == "" {
@@ -93,7 +97,7 @@ func EventFromContext(ctx context.Context, event Event) Event {
 	if event.RequestID == "" {
 		event.RequestID = logger.RequestIDFromContext(ctx)
 	}
-	return normalizeEvent(event)
+	return event
 }
 
 // Log 记录审计日志，并在配置仓储后持久化到 audit_events。
