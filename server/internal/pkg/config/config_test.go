@@ -1173,6 +1173,40 @@ func TestValidate_AllowsValidCORSOrigins(t *testing.T) {
 	require.NoError(t, cfg.validate(nil))
 }
 
+func TestValidate_ProductionRejectsHTTPCORSOrigins(t *testing.T) {
+	tests := []struct {
+		name string
+		env  string
+	}{
+		{name: "production", env: EnvProduction},
+		{name: "prod parity", env: EnvProdParity},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validProductionConfigForTest()
+			cfg.App.Env = tt.env
+			cfg.App.CORSOrigins = []string{"http://web.example.com"}
+
+			err := cfg.validate(nil)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), `CORS configuration error: origin "http://web.example.com" must use https in production`)
+		})
+	}
+}
+
+func TestValidate_DevelopmentAllowsLocalHTTPCORSOrigins(t *testing.T) {
+	cfg := validConfigForValidation()
+	cfg.App.CORSOrigins = []string{
+		"http://localhost:3000",
+		"http://127.0.0.1:3001",
+		"http://[::1]:3002",
+	}
+
+	require.NoError(t, cfg.validate(nil))
+}
+
 func TestValidate_RequiresOpenFGAInDevelopment(t *testing.T) {
 	c := &Config{
 		App: AppConfig{

@@ -82,7 +82,7 @@ func (c *Config) validate(parseErrs []string) error {
 		c.Observability.FrontendMetricsAllowedOrigins,
 		productionLike,
 	)...)
-	errs = append(errs, validateCORSOrigins(c.App.CORSOrigins)...)
+	errs = append(errs, validateCORSOrigins(c.App.CORSOrigins, productionLike)...)
 
 	if c.SMS.Enabled {
 		if configStringMissing(c.SMS.SecretID) {
@@ -369,28 +369,31 @@ func isAllowedAppEnv(env string) bool {
 // to gin-contrib/cors. Runtime wiring uses this as a fail-fast guard without
 // duplicating Config validation rules.
 func ValidateCORSOrigins(origins []string) error {
-	errs := validateCORSOrigins(origins)
+	errs := validateCORSOrigins(origins, false)
 	if len(errs) == 0 {
 		return nil
 	}
 	return errors.New(strings.Join(errs, "; "))
 }
 
-func validateCORSOrigins(origins []string) []string {
+func validateCORSOrigins(origins []string, productionLike bool) []string {
 	if len(origins) == 0 {
 		return []string{"CORS_ORIGINS is required"}
 	}
 
 	var errs []string
 	for _, origin := range origins {
-		errs = append(errs, validateCORSOrigin(origin)...)
+		errs = append(errs, validateCORSOrigin(origin, productionLike)...)
 	}
 	return errs
 }
 
-func validateCORSOrigin(origin string) []string {
+func validateCORSOrigin(origin string, productionLike bool) []string {
 	switch httpOriginViolation(origin) {
 	case originViolationNone:
+		if productionLike && !isHTTPSOrigin(origin) {
+			return []string{fmt.Sprintf("CORS configuration error: origin %q must use https in production", origin)}
+		}
 		return nil
 	case originViolationEmpty:
 		return []string{"CORS configuration error: empty origin is not allowed"}
