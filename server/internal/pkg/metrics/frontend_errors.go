@@ -3,11 +3,12 @@ package metrics
 import (
 	"encoding/json"
 	"io"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
 var allowedFrontendErrorKinds = map[string]bool{
@@ -33,22 +34,22 @@ func FrontendErrorHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		body, err := io.ReadAll(io.LimitReader(c.Request.Body, 1024))
 		if err != nil || len(body) == 0 {
-			c.Status(http.StatusNoContent)
+			response.NoContent(c)
 			return
 		}
 
 		var p frontendErrorPayload
 		if err := json.Unmarshal(body, &p); err != nil {
-			c.Status(http.StatusNoContent)
+			response.NoContent(c)
 			return
 		}
 
 		if !allowedFrontendErrorKinds[p.Kind] {
-			c.Status(http.StatusNoContent)
+			response.NoContent(c)
 			return
 		}
 
 		FrontendErrorsTotal.WithLabelValues(p.Kind).Inc()
-		c.Status(http.StatusNoContent)
+		response.NoContent(c)
 	}
 }

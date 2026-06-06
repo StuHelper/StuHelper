@@ -1,19 +1,24 @@
 package metrics
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
 func TestOriginValidationMiddleware_AllowsMatchingOrigin(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(OriginValidationMiddleware([]string{"http://localhost:5173"}))
-	router.POST("/metrics", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	router.POST("/metrics", func(c *gin.Context) { response.NoContent(c) })
 
 	req := httptest.NewRequest(http.MethodPost, "/metrics", nil)
 	req.Header.Set("Origin", "http://localhost:5173")
@@ -27,7 +32,7 @@ func TestOriginValidationMiddleware_AllowsRefererFallback(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(OriginValidationMiddleware([]string{"http://localhost:5173"}))
-	router.POST("/metrics", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	router.POST("/metrics", func(c *gin.Context) { response.NoContent(c) })
 
 	req := httptest.NewRequest(http.MethodPost, "/metrics", nil)
 	req.Header.Set("Referer", "http://localhost:5173/course/review")
@@ -41,7 +46,7 @@ func TestOriginValidationMiddleware_AllowsSameOriginFetchMetadataFallback(t *tes
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(OriginValidationMiddleware([]string{"https://join.stuhelper.com"}))
-	router.POST("/metrics", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	router.POST("/metrics", func(c *gin.Context) { response.NoContent(c) })
 
 	req := httptest.NewRequest(http.MethodPost, "/metrics", nil)
 	req.Host = "join.stuhelper.com"
@@ -57,7 +62,7 @@ func TestOriginValidationMiddleware_RejectsSameSiteFetchMetadataFallback(t *test
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(OriginValidationMiddleware([]string{"https://join.stuhelper.com"}))
-	router.POST("/metrics", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	router.POST("/metrics", func(c *gin.Context) { response.NoContent(c) })
 
 	req := httptest.NewRequest(http.MethodPost, "/metrics", nil)
 	req.Host = "join.stuhelper.com"
@@ -67,6 +72,7 @@ func TestOriginValidationMiddleware_RejectsSameSiteFetchMetadataFallback(t *test
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
+	assertForbiddenResponse(t, w)
 }
 
 func TestOriginValidationMiddleware_RejectsUnknownOrEmptyAllowlist(t *testing.T) {
@@ -75,7 +81,7 @@ func TestOriginValidationMiddleware_RejectsUnknownOrEmptyAllowlist(t *testing.T)
 	t.Run("unknown origin", func(t *testing.T) {
 		router := gin.New()
 		router.Use(OriginValidationMiddleware([]string{"http://localhost:5173"}))
-		router.POST("/metrics", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+		router.POST("/metrics", func(c *gin.Context) { response.NoContent(c) })
 
 		req := httptest.NewRequest(http.MethodPost, "/metrics", nil)
 		req.Header.Set("Origin", "https://evil.example.com")
@@ -83,12 +89,13 @@ func TestOriginValidationMiddleware_RejectsUnknownOrEmptyAllowlist(t *testing.T)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusForbidden, w.Code)
+		assertForbiddenResponse(t, w)
 	})
 
 	t.Run("empty allowlist", func(t *testing.T) {
 		router := gin.New()
 		router.Use(OriginValidationMiddleware(nil))
-		router.POST("/metrics", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+		router.POST("/metrics", func(c *gin.Context) { response.NoContent(c) })
 
 		req := httptest.NewRequest(http.MethodPost, "/metrics", nil)
 		req.Header.Set("Origin", "http://localhost:5173")
@@ -96,5 +103,17 @@ func TestOriginValidationMiddleware_RejectsUnknownOrEmptyAllowlist(t *testing.T)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusForbidden, w.Code)
+		assertForbiddenResponse(t, w)
 	})
+}
+
+func assertForbiddenResponse(t *testing.T, w *httptest.ResponseRecorder) {
+	t.Helper()
+
+	var body response.Response
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	require.NotNil(t, body.Error)
+	assert.False(t, body.Success)
+	assert.Equal(t, string(errs.ErrForbidden), body.Error.Code)
+	assert.Equal(t, "forbidden", body.Error.Message)
 }

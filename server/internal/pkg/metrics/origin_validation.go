@@ -1,11 +1,12 @@
 package metrics
 
 import (
-	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
 // OriginValidationMiddleware 只允许已知前端来源匿名上报指标。
@@ -22,7 +23,7 @@ func OriginValidationMiddleware(allowedOrigins []string) gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		if len(allowed) == 0 {
-			c.AbortWithStatus(http.StatusForbidden)
+			response.Forbidden(c, "forbidden")
 			return
 		}
 
@@ -31,7 +32,7 @@ func OriginValidationMiddleware(allowedOrigins []string) gin.HandlerFunc {
 				c.Next()
 				return
 			}
-			c.AbortWithStatus(http.StatusForbidden)
+			response.Forbidden(c, "forbidden")
 			return
 		}
 
@@ -49,7 +50,7 @@ func OriginValidationMiddleware(allowedOrigins []string) gin.HandlerFunc {
 			}
 		}
 
-		c.AbortWithStatus(http.StatusForbidden)
+		response.Forbidden(c, "forbidden")
 	}
 }
 

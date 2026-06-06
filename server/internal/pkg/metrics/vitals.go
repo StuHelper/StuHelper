@@ -3,7 +3,6 @@ package metrics
 import (
 	"encoding/json"
 	"io"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
@@ -52,13 +51,13 @@ func VitalsHandler() gin.HandlerFunc {
 		// sendBeacon Content-Type 可能是 text/plain，直接读 body 手动解析
 		body, err := io.ReadAll(io.LimitReader(c.Request.Body, 1024))
 		if err != nil || len(body) == 0 {
-			c.Status(http.StatusNoContent)
+			response.NoContent(c)
 			return
 		}
 
 		var p vitalsPayload
 		if err := json.Unmarshal(body, &p); err != nil {
-			c.Status(http.StatusNoContent)
+			response.NoContent(c)
 			return
 		}
 
@@ -68,6 +67,6 @@ func VitalsHandler() gin.HandlerFunc {
 		}
 
 		WebVitalsValue.WithLabelValues(p.Name, p.Rating).Observe(p.Value)
-		c.Status(http.StatusNoContent)
+		response.NoContent(c)
 	}
 }
