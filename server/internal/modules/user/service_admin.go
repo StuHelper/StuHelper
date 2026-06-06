@@ -77,6 +77,11 @@ func (s *Service) ReviewIdentity(ctx context.Context, userID int64, approved boo
 
 // ListProfiles 分页查询学生认证档案（管理端）
 func (s *Service) ListProfiles(ctx context.Context, status string, schoolID *int64, page, pageSize int) ([]Profile, int, error) {
+	if schoolID != nil {
+		if err := validateSchoolID(*schoolID); err != nil {
+			return nil, 0, err
+		}
+	}
 	list, total, err := s.repo.ListProfilesByStatus(ctx, status, schoolID, page, pageSize)
 	if err != nil {
 		return nil, 0, err
@@ -156,6 +161,10 @@ func (s *Service) ListAllSchoolConfigs(ctx context.Context) ([]SchoolConfig, err
 // UpdateSchoolConfig 更新学校认证配置
 // 使用合并更新语义，保持未提供字段的现有值。
 func (s *Service) UpdateSchoolConfig(ctx context.Context, schoolID int64, input UpdateSchoolConfigInput) error {
+	if err := validateSchoolID(schoolID); err != nil {
+		return err
+	}
+
 	config, err := s.repo.GetSchoolConfig(ctx, schoolID)
 	if err != nil {
 		return fmt.Errorf("UpdateSchoolConfig get existing: %w", err)

@@ -78,6 +78,13 @@ func validateUserID(userID int64) error {
 	return nil
 }
 
+func validateSchoolID(schoolID int64) error {
+	if schoolID <= 0 {
+		return ErrSchoolNotFound
+	}
+	return nil
+}
+
 // DocType 证件类型常量
 const (
 	DocTypeMainlandID = "MAINLAND_ID"

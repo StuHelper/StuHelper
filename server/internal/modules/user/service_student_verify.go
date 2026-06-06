@@ -429,8 +429,8 @@ func (s *Service) findAcademicStudentsByPersonUID(ctx context.Context, sfzjlxdm 
 }
 
 func (s *Service) loadEnabledSchoolConfig(ctx context.Context, schoolID int64) (*SchoolConfig, error) {
-	if schoolID == 0 {
-		return nil, ErrSchoolNotFound
+	if err := validateSchoolID(schoolID); err != nil {
+		return nil, err
 	}
 
 	school, err := s.repo.GetSchoolConfig(ctx, schoolID)
