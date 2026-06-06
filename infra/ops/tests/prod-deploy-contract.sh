@@ -65,11 +65,17 @@ token_probe_smoke_client_require_line="$(line_number 'require_nonempty CASDOOR_T
 token_probe_smoke_secret_require_line="$(line_number 'require_nonempty CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_SECRET')"
 token_probe_smoke_redirect_require_line="$(line_number 'require_nonempty CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI')"
 token_probe_command_require_line="$(line_number 'require_nonempty OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND')"
+open_platform_consent_require_line="$(line_number 'require_nonempty OPEN_PLATFORM_CONSENT_BASE_URL')"
+open_platform_account_require_line="$(line_number 'require_nonempty OPEN_PLATFORM_ACCOUNT_BASE_URL')"
 token_probe_username_require_line="$(line_number 'require_nonempty CASDOOR_TOKEN_PROBE_USERNAME')"
 token_probe_browser_require_line="$(line_number 'require_nonempty CASDOOR_TOKEN_PROBE_BROWSER_EXECUTABLE_PATH')"
 token_probe_smoke_client_reject_line="$(line_number 'reject_placeholder CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID')"
 token_probe_smoke_secret_reject_line="$(line_number 'reject_placeholder CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_SECRET')"
 token_probe_command_reject_line="$(line_number 'reject_placeholder OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND')"
+open_platform_consent_reject_line="$(line_number 'reject_placeholder OPEN_PLATFORM_CONSENT_BASE_URL')"
+open_platform_account_reject_line="$(line_number 'reject_placeholder OPEN_PLATFORM_ACCOUNT_BASE_URL')"
+open_platform_consent_local_reject_line="$(line_number 'reject_local_value OPEN_PLATFORM_CONSENT_BASE_URL')"
+open_platform_account_local_reject_line="$(line_number 'reject_local_value OPEN_PLATFORM_ACCOUNT_BASE_URL')"
 token_probe_username_reject_line="$(line_number 'reject_placeholder CASDOOR_TOKEN_PROBE_USERNAME')"
 sms_secret_require_line="$(line_number 'require_nonempty SMS_SECRET_ID')"
 admission_public_base_exact_line="$(line_number 'ADMISSION_PUBLIC_BASE_URL must be exactly https://join.stuhelper.com for production deploy')"
@@ -155,7 +161,13 @@ fi
 if (( token_probe_command_require_line <= token_probe_smoke_redirect_require_line )); then
   fail "Open Platform token probe command validation should run after Casdoor service credentials"
 fi
-if (( token_probe_username_require_line <= token_probe_command_require_line )); then
+if (( open_platform_consent_require_line <= token_probe_command_require_line )); then
+  fail "Open Platform consent base URL validation should run after token probe command validation"
+fi
+if (( open_platform_account_require_line <= open_platform_consent_require_line )); then
+  fail "Open Platform account base URL validation should run after consent base URL validation"
+fi
+if (( token_probe_username_require_line <= open_platform_account_require_line )); then
   fail "bundled token probe credentials must be validated after command validation"
 fi
 if (( token_probe_browser_require_line <= token_probe_username_require_line )); then
@@ -163,6 +175,18 @@ if (( token_probe_browser_require_line <= token_probe_username_require_line )); 
 fi
 if (( token_probe_command_reject_line <= token_probe_command_require_line )); then
   fail "Open Platform token probe command placeholder rejection must run after non-empty validation"
+fi
+if (( open_platform_consent_reject_line <= open_platform_consent_require_line )); then
+  fail "Open Platform consent base URL placeholder rejection must run after non-empty validation"
+fi
+if (( open_platform_account_reject_line <= open_platform_account_require_line )); then
+  fail "Open Platform account base URL placeholder rejection must run after non-empty validation"
+fi
+if (( open_platform_consent_local_reject_line <= open_platform_consent_reject_line )); then
+  fail "Open Platform consent base URL local endpoint rejection must run after placeholder rejection"
+fi
+if (( open_platform_account_local_reject_line <= open_platform_account_reject_line )); then
+  fail "Open Platform account base URL local endpoint rejection must run after placeholder rejection"
 fi
 if (( token_probe_username_reject_line <= token_probe_username_require_line )); then
   fail "bundled token probe credential placeholder rejection must run after non-empty validation"

@@ -560,9 +560,21 @@ func hasValidHTTPOriginPort(parsed *url.URL) bool {
 
 func validateOpenPlatformBaseURLs(cfg OpenPlatformConfig, productionLike bool) []string {
 	var errs []string
+	if productionLike {
+		errs = append(errs, validateRequiredHTTPOrigin("OPEN_PLATFORM_CONSENT_BASE_URL", cfg.ConsentBaseURL, productionLike)...)
+		errs = append(errs, validateRequiredHTTPOrigin("OPEN_PLATFORM_ACCOUNT_BASE_URL", cfg.AccountBaseURL, productionLike)...)
+		return errs
+	}
 	errs = append(errs, validateOptionalHTTPOrigin("OPEN_PLATFORM_CONSENT_BASE_URL", cfg.ConsentBaseURL, productionLike)...)
 	errs = append(errs, validateOptionalHTTPOrigin("OPEN_PLATFORM_ACCOUNT_BASE_URL", cfg.AccountBaseURL, productionLike)...)
 	return errs
+}
+
+func validateRequiredHTTPOrigin(name, origin string, productionLike bool) []string {
+	if configStringMissing(origin) {
+		return []string{fmt.Sprintf("%s is required in production", name)}
+	}
+	return validateOptionalHTTPOrigin(name, origin, productionLike)
 }
 
 func validateOptionalHTTPOrigins(name string, origins []string, productionLike bool) []string {

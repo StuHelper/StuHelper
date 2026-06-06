@@ -62,9 +62,10 @@ func TestRuntimeOpenPlatformBaseURLsPreferExplicitConfig(t *testing.T) {
 	assert.Equal(t, "https://account.example.com", rt.openPlatformAccountBaseURL(consentBaseURL))
 }
 
-func TestRuntimeOpenPlatformBaseURLsFallbackToCORSOrigin(t *testing.T) {
+func TestRuntimeOpenPlatformBaseURLsFallbackToCORSOriginInDevelopment(t *testing.T) {
 	rt := &Runtime{cfg: &config.Config{
 		App: config.AppConfig{
+			Env:         config.EnvDevelopment,
 			CORSOrigins: []string{"https://web.example.com", "https://admin.example.com"},
 		},
 	}}
@@ -73,6 +74,24 @@ func TestRuntimeOpenPlatformBaseURLsFallbackToCORSOrigin(t *testing.T) {
 
 	assert.Equal(t, "https://web.example.com", consentBaseURL)
 	assert.Equal(t, "https://web.example.com", rt.openPlatformAccountBaseURL(consentBaseURL))
+}
+
+func TestRuntimeOpenPlatformBaseURLsDoNotFallbackToCORSOriginInProductionLike(t *testing.T) {
+	for _, env := range []string{config.EnvProduction, config.EnvProdParity} {
+		t.Run(env, func(t *testing.T) {
+			rt := &Runtime{cfg: &config.Config{
+				App: config.AppConfig{
+					Env:         env,
+					CORSOrigins: []string{"https://web.example.com", "https://admin.example.com"},
+				},
+			}}
+
+			consentBaseURL := rt.openPlatformConsentBaseURL()
+
+			assert.Empty(t, consentBaseURL)
+			assert.Empty(t, rt.openPlatformAccountBaseURL(consentBaseURL))
+		})
+	}
 }
 
 func TestRuntimeOpenPlatformAccountBaseURLDefaultsToConsentBaseURL(t *testing.T) {

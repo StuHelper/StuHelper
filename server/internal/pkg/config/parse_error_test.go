@@ -182,10 +182,27 @@ func TestValidate_OpenPlatformDisclosureRateLimitsRejectInvalidValues(t *testing
 }
 
 func TestValidate_OpenPlatformBaseURLs(t *testing.T) {
-	t.Run("allows empty optional base URLs", func(t *testing.T) {
+	t.Run("allows empty development base URLs", func(t *testing.T) {
 		cfg := validConfigForValidation()
 
 		require.NoError(t, cfg.validate(nil))
+	})
+
+	t.Run("requires explicit base URLs in production-like environments", func(t *testing.T) {
+		for _, env := range []string{EnvProduction, EnvProdParity} {
+			t.Run(env, func(t *testing.T) {
+				cfg := validProductionConfigForTest()
+				cfg.App.Env = env
+				cfg.OpenPlatform.ConsentBaseURL = ""
+				cfg.OpenPlatform.AccountBaseURL = ""
+
+				err := cfg.validate(nil)
+
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "OPEN_PLATFORM_CONSENT_BASE_URL is required in production")
+				require.Contains(t, err.Error(), "OPEN_PLATFORM_ACCOUNT_BASE_URL is required in production")
+			})
+		}
 	})
 
 	t.Run("allows explicit http origins", func(t *testing.T) {

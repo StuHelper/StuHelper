@@ -65,6 +65,9 @@ func (rt *Runtime) openPlatformConsentBaseURL() string {
 	if rt.cfg.OpenPlatform.ConsentBaseURL != "" {
 		return rt.cfg.OpenPlatform.ConsentBaseURL
 	}
+	if config.IsProductionLikeEnv(rt.cfg.App.Env) {
+		return ""
+	}
 	if len(rt.cfg.App.CORSOrigins) == 0 {
 		return ""
 	}

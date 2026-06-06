@@ -1511,11 +1511,15 @@ func validProductionConfigForTest() *Config {
 			UserLookupApplication:       "stuhelper-user-lookup",
 		},
 		OpenFGA: OpenFGAConfig{StoreID: "store-id", AuthorizationModelID: "model-id", APIUrl: "http://openfga:8080"},
-		OpenPlatform: OpenPlatformConfig{TokenProbe: OpenPlatformTokenProbeConfig{
-			RuntimeRequired:       true,
-			RuntimeCommand:        "/usr/local/bin/stuhelper-token-probe",
-			RuntimeTimeoutSeconds: 30,
-		}},
+		OpenPlatform: OpenPlatformConfig{
+			ConsentBaseURL: "https://stuhelper.example.com",
+			AccountBaseURL: "https://stuhelper.example.com",
+			TokenProbe: OpenPlatformTokenProbeConfig{
+				RuntimeRequired:       true,
+				RuntimeCommand:        "/usr/local/bin/stuhelper-token-probe",
+				RuntimeTimeoutSeconds: 30,
+			},
+		},
 		Observability: ObservabilityConfig{
 			Enabled: true, ServiceName: "stuhelper-backend", OTLPEndpoint: "http://alloy:4318", TraceSampleRatio: 0.2,
 		},
