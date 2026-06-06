@@ -77,6 +77,7 @@ func (d *s3Driver) Put(ctx context.Context, mount Mount, objectKey string, conte
 	if err != nil {
 		return nil, err
 	}
+	objectKey = normalizeObjectKey(objectKey)
 	key := d.mountKey(mount, objectKey)
 	if err := store.Upload(ctx, key, content, contentType); err != nil {
 		return nil, err
@@ -90,6 +91,7 @@ func (d *s3Driver) Stat(ctx context.Context, mount Mount, objectKey string) (*St
 	if err != nil {
 		return nil, err
 	}
+	objectKey = normalizeObjectKey(objectKey)
 	info, err := store.Stat(ctx, d.mountKey(mount, objectKey))
 	if err != nil {
 		return nil, err
@@ -132,9 +134,19 @@ func (d *s3Driver) newStore(ctx context.Context, mount Mount) (storeClient, erro
 }
 
 func (d *s3Driver) mountKey(mount Mount, objectKey string) string {
-	base := strings.TrimSpace(mount.BasePath)
+	objectKey = normalizeObjectKey(objectKey)
+	base := normalizeObjectKey(mount.BasePath)
 	if base == "" {
 		return objectKey
 	}
-	return path.Clean(strings.Trim(base, "/") + "/" + strings.TrimLeft(objectKey, "/"))
+	if objectKey == "" {
+		return base
+	}
+	return base + "/" + objectKey
+}
+
+// normalizeObjectKey converts an object or base path into a mount-relative key.
+func normalizeObjectKey(key string) string {
+	key = path.Clean("/" + strings.TrimSpace(key))
+	return strings.Trim(key, "/")
 }

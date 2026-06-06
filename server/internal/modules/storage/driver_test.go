@@ -75,3 +75,66 @@ func TestS3Driver_PersistsRelativeObjectKeyAndAppliesBasePathOnce(t *testing.T) 
 	assert.Equal(t, "users/u-1/file.txt", info.ObjectKey)
 	assert.Equal(t, "resources/users/u-1/file.txt", store.statKey)
 }
+
+func TestS3Driver_NormalizesStoredObjectKey(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeStoreClient{}
+	driver := newS3Driver(config.ObjectStorageConfig{})
+	driver.storeFactory = func(context.Context, Mount) (storeClient, error) {
+		return store, nil
+	}
+
+	stored, err := driver.Put(context.Background(), Mount{BasePath: "resources"}, "../outside.txt", []byte("payload"), "text/plain")
+
+	require.NoError(t, err)
+	require.NotNil(t, stored)
+	assert.Equal(t, "outside.txt", stored.ObjectKey)
+	assert.Equal(t, "resources/outside.txt", store.uploadKey)
+}
+
+func TestS3Driver_MountKeyPreventsObjectKeyEscapingBasePath(t *testing.T) {
+	t.Parallel()
+
+	driver := newS3Driver(config.ObjectStorageConfig{})
+
+	for _, tc := range []struct {
+		name      string
+		basePath  string
+		objectKey string
+		want      string
+	}{
+		{
+			name:      "parent traversal",
+			basePath:  "resources/uploads",
+			objectKey: "../outside.txt",
+			want:      "resources/uploads/outside.txt",
+		},
+		{
+			name:      "nested parent traversal",
+			basePath:  "resources/uploads",
+			objectKey: "users/u-1/../../outside.txt",
+			want:      "resources/uploads/outside.txt",
+		},
+		{
+			name:      "absolute object key",
+			basePath:  "/resources/uploads/",
+			objectKey: "/absolute/file.txt",
+			want:      "resources/uploads/absolute/file.txt",
+		},
+		{
+			name:      "base path traversal",
+			basePath:  "/tenant/../resources/",
+			objectKey: "users/u-1/file.txt",
+			want:      "resources/users/u-1/file.txt",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := driver.mountKey(Mount{BasePath: tc.basePath}, tc.objectKey)
+
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}

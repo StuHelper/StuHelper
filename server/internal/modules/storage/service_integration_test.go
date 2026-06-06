@@ -129,7 +129,7 @@ func TestCreateMount_NormalizesRequest(t *testing.T) {
 		Name:     " Campus Share ",
 		Driver:   " s3 ",
 		Bucket:   &bucket,
-		BasePath: " /resources/materials/ ",
+		BasePath: " /tenant/../resources/materials/ ",
 		Enabled:  true,
 	})
 

@@ -223,7 +223,7 @@ func normalizeCreateMountRequest(req CreateMountRequest) CreateMountRequest {
 	req.Key = strings.TrimSpace(req.Key)
 	req.Name = strings.TrimSpace(req.Name)
 	req.Driver = strings.TrimSpace(req.Driver)
-	req.BasePath = strings.Trim(strings.TrimSpace(req.BasePath), "/")
+	req.BasePath = normalizeObjectKey(req.BasePath)
 	if req.Bucket != nil {
 		bucket := strings.TrimSpace(*req.Bucket)
 		if bucket == "" {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
 )
 
 const maxResourceUploadSize = 10 * 1024 * 1024
@@ -69,7 +70,10 @@ func (s *Service) CreateResource(ctx context.Context, ownerUserID string, req Cr
 		return nil, ErrResourceFilenameRequired
 	}
 	req.Visibility = normalizeVisibility(req.Visibility)
-	objectKey := fmt.Sprintf("resources/%s/%d-%s", ownerUserID, time.Now().UnixNano(), sanitizeFilename(req.Filename))
+	objectKey, err := newResourceObjectKey(ownerUserID, req.Filename)
+	if err != nil {
+		return nil, err
+	}
 	mountID, stored, err := s.storage.Put(ctx, req.MountKey, objectKey, content, detectedType)
 	if err != nil {
 		return nil, err
@@ -217,4 +221,20 @@ func normalizeVisibility(value string) string {
 func sanitizeFilename(name string) string {
 	replacer := strings.NewReplacer("/", "-", "\\", "-", " ", "_")
 	return replacer.Replace(strings.TrimSpace(name))
+}
+
+func newResourceObjectKey(ownerUserID, filename string) (string, error) {
+	objectID, err := id.New()
+	if err != nil {
+		return "", fmt.Errorf("generate resource object key: %w", err)
+	}
+	return fmt.Sprintf("resources/%s/%s-%s", sanitizeObjectKeySegment(ownerUserID), objectID, sanitizeFilename(filename)), nil
+}
+
+func sanitizeObjectKeySegment(value string) string {
+	value = sanitizeFilename(value)
+	if value == "" || value == "." || value == ".." {
+		return "unknown"
+	}
+	return value
 }
