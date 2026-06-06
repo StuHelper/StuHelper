@@ -98,6 +98,45 @@ func TestStudentEmailOTPDerivesBUAAEmailAndCreatesVerifiedProfile(t *testing.T) 
 	assert.Equal(t, *captured.VerifiedAt, capturedCredential.VerifiedAt)
 }
 
+func TestVerifyStudentEmailOTPRejectsMalformedCodeWithoutConsumingAttempt(t *testing.T) {
+	ctx := context.Background()
+	redis := redisfixture.Start(t)
+	svc, err := NewService(
+		buaaStudentEmailOTPRepo(t, &AcademicStudent{XH: "20250001", XM: stringPtr("张三")}),
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithStudentEmailOTP(redis.Client, &testStudentEmailSender{}),
+	)
+	require.NoError(t, err)
+	record := studentEmailOTPRecord{
+		Email: "20250001@buaa.edu.cn",
+		Code:  "123456",
+	}
+	require.NoError(t, svc.storeStudentEmailOTPRecord(ctx, studentEmailOTPStoreInput{
+		UserID:   7,
+		SchoolID: 4111010006,
+		Record:   record,
+	}))
+
+	for _, code := range []string{"123", "1234567890123"} {
+		_, err = svc.VerifyStudentEmailOTP(ctx, StudentEmailOTPVerifyInput{
+			UserID:   7,
+			SchoolID: 4111010006,
+			Email:    record.Email,
+			Code:     code,
+			Consent:  true,
+		})
+
+		require.ErrorIs(t, err, ErrStudentEmailOTPInvalid)
+	}
+	attempts, err := redis.Client.Exists(ctx, studentEmailOTPAttemptsKey(7, 4111010006)).Result()
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), attempts)
+	loaded, err := svc.loadStudentEmailOTPRecord(ctx, 7, 4111010006)
+	require.NoError(t, err)
+	assert.Equal(t, record, loaded)
+}
+
 func TestStudentEmailOTPRejectsBUAAStudentNameMismatch(t *testing.T) {
 	redis := redisfixture.Start(t)
 	svc, err := NewService(

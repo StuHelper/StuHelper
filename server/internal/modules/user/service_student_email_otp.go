@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
@@ -27,6 +28,8 @@ const userVerificationCredentialKindSchoolEmailOTP = "school_email_otp"
 
 const (
 	studentEmailOTPLength          = 6
+	studentEmailOTPMinLength       = 4
+	studentEmailOTPMaxLength       = 12
 	studentEmailOTPTTL             = 5 * time.Minute
 	studentEmailOTPCooldown        = time.Minute
 	studentEmailOTPCooldownSeconds = int(studentEmailOTPCooldown / time.Second)
@@ -197,8 +200,12 @@ func (s *Service) VerifyStudentEmailOTP(ctx context.Context, input StudentEmailO
 			return nil, err
 		}
 	}
+	code, err := normalizeStudentEmailOTPCode(input.Code)
+	if err != nil {
+		return nil, err
+	}
 	check := studentEmailOTPCheckInput{
-		UserID: input.UserID, SchoolID: input.SchoolID, Email: email, Code: input.Code, Record: record,
+		UserID: input.UserID, SchoolID: input.SchoolID, Email: email, Code: code, Record: record,
 	}
 	if err := s.checkStudentEmailOTP(ctx, check); err != nil {
 		return nil, err
@@ -499,6 +506,15 @@ func normalizeStudentEmail(value string) (string, error) {
 		return "", ErrStudentEmailDomainNotAllowed
 	}
 	return email, nil
+}
+
+func normalizeStudentEmailOTPCode(value string) (string, error) {
+	code := strings.TrimSpace(value)
+	length := utf8.RuneCountInString(code)
+	if length < studentEmailOTPMinLength || length > studentEmailOTPMaxLength {
+		return "", ErrStudentEmailOTPInvalid
+	}
+	return code, nil
 }
 
 func studentEmailManualFormData(record studentEmailOTPRecord) json.RawMessage {
