@@ -74,16 +74,26 @@ func NewClient(cfg config.RedisConfig) (*Client, error) {
 
 // GetClient 获取原始 Redis 客户端
 func (c *Client) GetClient() *redis.Client {
+	if c == nil {
+		return nil
+	}
 	return c.rdb
 }
 
 // Close 关闭连接（通过 sync.Once 保证幂等，避免重复 close(stopCh) panic）
 func (c *Client) Close() error {
+	if c == nil {
+		return nil
+	}
 	var err error
 	c.closeOnce.Do(func() {
-		close(c.stopCh)
+		if c.stopCh != nil {
+			close(c.stopCh)
+		}
 		c.wg.Wait()
-		err = c.rdb.Close()
+		if c.rdb != nil {
+			err = c.rdb.Close()
+		}
 	})
 	return err
 }
