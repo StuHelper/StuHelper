@@ -3,26 +3,31 @@ import { createPinia, setActivePinia } from "pinia";
 import { ApiError } from "@/api/errors";
 
 const mockAuthMe = vi.fn();
+const mockAuthRefresh = vi.fn();
 const mockGetUser = vi.fn();
 const mockSetUser = vi.fn();
 const mockClearAuth = vi.fn();
+const mockIsTokenExpired = vi.fn();
+const mockTokenExpirySet = vi.fn();
 
 vi.mock("@/api", () => ({
     api: {
         auth: {
             me: mockAuthMe,
+            refresh: mockAuthRefresh,
         },
     },
 }));
 
 vi.mock("@/utils/auth", () => ({
+    isTokenExpired: mockIsTokenExpired,
     userManager: {
         getUser: mockGetUser,
         setUser: mockSetUser,
     },
     clearAuth: mockClearAuth,
     tokenExpiry: {
-        set: vi.fn(),
+        set: mockTokenExpirySet,
     },
 }));
 
@@ -58,9 +63,13 @@ describe("auth bootstrap", () => {
     beforeEach(() => {
         setActivePinia(createPinia());
         mockAuthMe.mockReset();
+        mockAuthRefresh.mockReset();
         mockGetUser.mockReset();
         mockSetUser.mockReset();
         mockClearAuth.mockReset();
+        mockIsTokenExpired.mockReset();
+        mockTokenExpirySet.mockReset();
+        mockIsTokenExpired.mockReturnValue(false);
     });
 
     function muteExpectedBootstrapError() {
@@ -103,6 +112,49 @@ describe("auth bootstrap", () => {
         );
         expect(store.globalCapabilities).toEqual(["admin:reviews:manage"]);
         expect(mockSetUser).toHaveBeenCalledTimes(1);
+    });
+
+    it("refreshes expired sessions before loading the current user", async () => {
+        mockGetUser.mockReturnValue({
+            id: "cached_user",
+            name: "cached",
+            displayName: "Cached",
+        });
+        mockIsTokenExpired.mockReturnValue(true);
+        mockAuthRefresh.mockResolvedValue({
+            data: {
+                data: {
+                    expiresIn: 300,
+                },
+            },
+        });
+        mockAuthMe.mockResolvedValue({
+            data: {
+                data: {
+                    id: "user_1",
+                    name: "alice",
+                    displayName: "Alice",
+                    roles: [],
+                    isPlatformAdmin: false,
+                    capabilities: [],
+                    globalCapabilities: [],
+                    capabilityGrants: [],
+                    canAccessAdmin: false,
+                },
+            },
+        });
+
+        const { useAuthStore } = await import("../auth");
+        const store = useAuthStore();
+
+        await expect(store.bootstrapSession()).resolves.toBeTruthy();
+
+        expect(mockAuthRefresh).toHaveBeenCalledTimes(1);
+        expect(mockTokenExpirySet).toHaveBeenCalledWith(300);
+        expect(mockAuthMe).toHaveBeenCalledTimes(1);
+        expect(mockAuthRefresh.mock.invocationCallOrder[0]).toBeLessThan(
+            mockAuthMe.mock.invocationCallOrder[0],
+        );
     });
 
     it("does not clear local session on network-style bootstrap failure", async () => {

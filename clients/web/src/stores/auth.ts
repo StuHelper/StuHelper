@@ -5,6 +5,7 @@ import { defineStore, getActivePinia } from "pinia";
 import { ref, computed } from "vue";
 import { api } from "@/api";
 import {
+    isTokenExpired,
     userManager,
     clearAuth,
     storeOAuthState,
@@ -552,6 +553,9 @@ export const useAuthStore = defineStore("auth", () => {
 
         bootstrapPromise = (async () => {
             try {
+                if (isTokenExpired()) {
+                    await refreshSession();
+                }
                 const res = await api.auth.me();
                 const normalizedUser = readUserInfoPayload(res.data?.data);
                 user.value = normalizedUser;
