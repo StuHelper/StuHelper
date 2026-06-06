@@ -13,12 +13,13 @@ import (
 )
 
 type fakeDriver struct {
-	healthErr   error
-	downloadURL string
-	putObject   *StoredObject
-	putErr      error
-	deletedKeys []string
-	onPut       func()
+	healthErr     error
+	downloadURL   string
+	downloadCalls int
+	putObject     *StoredObject
+	putErr        error
+	deletedKeys   []string
+	onPut         func()
 }
 
 func (d *fakeDriver) Capabilities() CapabilitySet {
@@ -52,6 +53,7 @@ func (d *fakeDriver) Delete(ctx context.Context, _ Mount, objectKey string) erro
 }
 
 func (d *fakeDriver) GetDownloadURL(context.Context, Mount, string) (string, error) {
+	d.downloadCalls++
 	if d.downloadURL == "" {
 		return "", errors.New("unexpected GetDownloadURL call")
 	}
@@ -229,6 +231,30 @@ func TestValidateMountByKeyAndGetDownloadURLByMountKey(t *testing.T) {
 	url, err := svc.GetDownloadURLByMountKey(ctx, DefaultMountKey, "identities/42/front.png")
 	require.NoError(t, err)
 	assert.Equal(t, "https://storage.example.test/identity/front.png", url)
+}
+
+func TestGetDownloadURLRejectsDisabledMountByID(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(repo, config.ObjectStorageConfig{})
+	driver := &fakeDriver{downloadURL: "https://storage.example.test/resource.txt"}
+	svc.registry.drivers["s3"] = driver
+	ctx := context.Background()
+
+	created, err := svc.CreateMount(ctx, CreateMountRequest{
+		Key:      "disabled-download",
+		Name:     "Disabled Download",
+		Driver:   "s3",
+		BasePath: "resources",
+		Enabled:  false,
+	})
+	require.NoError(t, err)
+
+	url, err := svc.GetDownloadURL(ctx, created.ID, "resources/object.txt")
+
+	require.ErrorIs(t, err, ErrMountDisabled)
+	assert.Empty(t, url)
+	assert.Equal(t, 0, driver.downloadCalls)
 }
 
 func TestObjectOperationsRejectInvalidObjectKey(t *testing.T) {

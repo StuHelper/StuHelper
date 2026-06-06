@@ -195,6 +195,9 @@ func (s *Service) GetDownloadURL(ctx context.Context, mountID int64, objectKey s
 	if err != nil {
 		return "", err
 	}
+	if !mount.Enabled {
+		return "", ErrMountDisabled
+	}
 	driver, err := s.registry.Get(mount.Driver)
 	if err != nil {
 		return "", err
