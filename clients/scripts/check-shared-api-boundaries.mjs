@@ -64,15 +64,43 @@ const boundaryPatterns = [
   },
   {
     kind: 'window.location navigation',
-    regex: /(?:^|[^\w$.])((?:window\.)?location\.(?:href|assign|replace|reload))\s*(?:=|\()/g,
+    regex: /(?:^|[^\w$.])((?:(?:window|globalThis|self)(?:\.|\?\.)location|location)(?:\.|\?\.)(?:assign|replace|reload))\s*\(/g,
+  },
+  {
+    kind: 'window.location navigation',
+    regex: /(?:^|[^\w$.])((?:(?:window|globalThis|self)(?:\.|\?\.)location|location)(?:\.|\?\.)(?:href|pathname|search|hash))\s*=(?!=|>)/g,
+  },
+  {
+    kind: 'window.location navigation',
+    regex: /(?:^|[^\w$.])((?:window|globalThis|self)(?:\.|\?\.)location)\s*=(?!=|>)/g,
+  },
+  {
+    kind: 'window.location navigation',
+    regex: /(?:^|[;{)]\s*)(location)\s*=(?!=|>)/g,
   },
   {
     kind: 'native openURL',
-    regex: /(?:^|[^\w$.])((?:\w+\.)?runtime\.openURL)\s*\(/g,
+    regex: /(?:^|[^\w$.])((?:(?:(?:window|globalThis|self)(?:\.|\?\.))?plus|\w+)(?:\.|\?\.)runtime(?:\.|\?\.)openURL(?:\?\.)?)\s*\(/g,
   },
   {
     kind: 'uni.request',
-    regex: /(?:^|[^\w$.])(uni\.request)\s*(?:\(|as\b)/g,
+    regex: /(?:^|[^\w$.])((?:uni(?:\.|\?\.)request(?:\?\.)?|uni(?:\?\.)?\[['"]request['"]\](?:\?\.)?))\s*\(/g,
+  },
+  {
+    kind: 'uni.request',
+    regex: /(?:^|[^\w$.])(?:const|let)\s+[$A-Z_a-z][$\w]*\s*=\s*((?:uni(?:\.|\?\.)request|uni(?:\?\.)?\[['"]request['"]\]))(?=$|[^\w$])/g,
+  },
+  {
+    kind: 'uni.request',
+    regex: /(?:^|[^\w$.])((?:uni(?:\.|\?\.)request|uni(?:\?\.)?\[['"]request['"]\]))\s+as\b/g,
+  },
+  {
+    kind: 'WebSocket',
+    regex: /(?:^|[^\w$.])(new\s+(?:(?:window|globalThis|self)\.)?WebSocket)\s*\(/g,
+  },
+  {
+    kind: 'XMLHttpRequest',
+    regex: /(?:^|[^\w$.])(new\s+(?:(?:window|globalThis|self)\.)?XMLHttpRequest)\s*\(/g,
   },
   {
     kind: 'admin raw request client',
@@ -82,7 +110,7 @@ const boundaryPatterns = [
 
 const commentLookbackLines = 4;
 const boundaryCommentPattern =
-  /(?:shared API client|clients\/shared|OpenAPI|SSE|EventSource|sendBeacon|keepalive|OIDC|OAuth|SSO|IdP|Cookie|WebView|deep link|chunk|account center|admin console|browser|navigation|reload|redirect|Open Platform|业务 API|浏览器|导航|跳转|重载|刷新|认证|回调|跨站|跨端|上游|系统浏览器|页面|卸载期|授权)/i;
+  /(?:shared API client|clients\/shared|OpenAPI|SSE|EventSource|sendBeacon|keepalive|OIDC|OAuth|SSO|IdP|Cookie|WebView|deep link|chunk reload|account center|admin console|navigation|reload|redirect|Open Platform|业务 API|导航|跳转|重载|刷新|回调|跨站|跨端|上游|系统浏览器|卸载期)/i;
 
 const findings = [];
 const skippedAllowedFiles = [];
