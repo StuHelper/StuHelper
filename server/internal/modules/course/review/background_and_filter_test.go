@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
@@ -131,6 +132,20 @@ func TestStartBackgroundJobsRequiresStarter(t *testing.T) {
 	require.Panics(t, func() {
 		svc.StartBackgroundJobs(ctx, nil)
 	})
+}
+
+func TestInvalidateTeacherPublicCachesDetachedIgnoresParentCancellation(t *testing.T) {
+	redisFixture := redisfixture.Start(t)
+	h := &Handler{cache: cache.NewHelper(redisFixture.Client)}
+	ctx := context.Background()
+	teachersVersion, hotTeachersVersion := teacherPublicCacheVersions(ctx, h)
+
+	canceledCtx, cancel := context.WithCancel(ctx)
+	cancel()
+
+	h.invalidateTeacherPublicCachesDetached(canceledCtx, zap.NewNop())
+
+	assertTeacherPublicCachesBumped(t, ctx, h, teachersVersion, hotTeachersVersion)
 }
 
 func requireReviewBackgroundLaunches(t *testing.T, launches <-chan string, want ...string) {

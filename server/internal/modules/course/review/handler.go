@@ -19,9 +19,10 @@ import (
 type StepUpVerifier func(*gin.Context) bool
 
 const (
-	teacherPublicStatsRefreshTimeout = 10 * time.Second
-	teacherPublicListCacheKey        = "review:teachers"
-	teacherPublicHotCacheKey         = "review:hot_teachers"
+	teacherPublicStatsRefreshTimeout      = 10 * time.Second
+	teacherPublicCacheInvalidationTimeout = 2 * time.Second
+	teacherPublicListCacheKey             = "review:teachers"
+	teacherPublicHotCacheKey              = "review:hot_teachers"
 )
 
 type AdminAuthorizers struct {
@@ -63,7 +64,7 @@ func (h *Handler) RefreshTeacherPublicStats(ctx context.Context) error {
 	if err := h.service.RefreshTeacherPublicStats(ctx); err != nil {
 		return err
 	}
-	h.invalidateTeacherPublicCaches(ctx, logger.FromContext(ctx))
+	h.invalidateTeacherPublicCachesDetached(ctx, logger.FromContext(ctx))
 	return nil
 }
 
@@ -291,6 +292,12 @@ func (h *Handler) invalidateTeacherPublicCaches(ctx context.Context, l *zap.Logg
 				zap.Error(err))
 		}
 	}
+}
+
+func (h *Handler) invalidateTeacherPublicCachesDetached(parent context.Context, l *zap.Logger) {
+	ctx, cancel := detachedRefreshContext(parent, teacherPublicCacheInvalidationTimeout)
+	defer cancel()
+	h.invalidateTeacherPublicCaches(ctx, l)
 }
 
 func (h *Handler) invalidateCourseReviewCountCaches(c *gin.Context) {
