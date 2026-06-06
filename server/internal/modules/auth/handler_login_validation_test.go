@@ -64,6 +64,21 @@ func TestHandleCallback_ValidationAndNativeBranch(t *testing.T) {
 	assert.Contains(t, w.Header().Get("Location"), "stuhelper://auth/callback")
 	assert.Contains(t, w.Header().Get("Location"), "code=abc123")
 	assert.Contains(t, w.Header().Get("Location"), "state=native-state")
+
+	require.NoError(t, h.storeOIDCState(req.Context(), oidcStateInput{
+		state:        "native-spaced-state",
+		redirect:     "stuhelper://auth/callback",
+		codeVerifier: "verifier-1",
+		application:  oidc.ApplicationUniapp,
+		native:       true,
+	}))
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/callback?code=%20abc123%20&state=%20native-spaced-state%20", nil)
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusFound, w.Code)
+	assert.Contains(t, w.Header().Get("Location"), "code=abc123")
+	assert.Contains(t, w.Header().Get("Location"), "state=native-spaced-state")
+	assert.NotContains(t, w.Header().Get("Location"), "%20")
 }
 
 func TestExchangeNative_ValidationBranches(t *testing.T) {

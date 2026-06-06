@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,6 +13,53 @@ import (
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 )
+
+func TestStoreOIDCStateNormalizesInput(t *testing.T) {
+	h, fixture := newTestHandler(t)
+
+	require.NoError(t, h.storeOIDCState(context.Background(), oidcStateInput{
+		state:        " \tstate-normalized\n ",
+		redirect:     " \t/courses/1\n ",
+		codeVerifier: " \tverifier-1\n ",
+		application:  " \t" + oidc.ApplicationUniapp + "\n ",
+		native:       true,
+	}))
+
+	raw, err := fixture.Client.Get(context.Background(), oidcStateRedisPrefix+"state-normalized").Result()
+	require.NoError(t, err)
+	var payload oidcStatePayload
+	require.NoError(t, json.Unmarshal([]byte(raw), &payload))
+	assert.Equal(t, "/courses/1", payload.RedirectURL)
+	assert.Equal(t, "verifier-1", payload.CodeVerifier)
+	assert.Equal(t, oidc.ApplicationUniapp, payload.Application)
+	assert.True(t, payload.Native)
+}
+
+func TestStoreOIDCStateRejectsInvalidInput(t *testing.T) {
+	h, _ := newTestHandler(t)
+
+	require.ErrorContains(t, h.storeOIDCState(context.Background(), oidcStateInput{
+		state:        " \t\n ",
+		codeVerifier: "verifier-1",
+		application:  oidc.ApplicationWeb,
+	}), "empty state")
+	require.ErrorContains(t, h.storeOIDCState(context.Background(), oidcStateInput{
+		state:        "state-missing-verifier",
+		codeVerifier: " \t\n ",
+		application:  oidc.ApplicationWeb,
+	}), "code_verifier missing")
+	require.ErrorContains(t, h.storeOIDCState(context.Background(), oidcStateInput{
+		state:        "state-native-web",
+		codeVerifier: "verifier-1",
+		application:  oidc.ApplicationWeb,
+		native:       true,
+	}), "native oidc state application mismatch")
+	require.ErrorContains(t, h.storeOIDCState(context.Background(), oidcStateInput{
+		state:        "state-unknown-app",
+		codeVerifier: "verifier-1",
+		application:  "unknown",
+	}), "unknown oidc state application")
+}
 
 func TestConsumeOIDCState_EdgeBranches(t *testing.T) {
 	gin.SetMode(gin.TestMode)

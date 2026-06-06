@@ -77,7 +77,7 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 		return
 	}
 	code := strings.TrimSpace(c.Query("code"))
-	state := c.Query("state")
+	state := strings.TrimSpace(c.Query("state"))
 	requestID := middleware.GetRequestID(c)
 	ctx := c.Request.Context()
 
@@ -225,26 +225,55 @@ type oidcStateInput struct {
 }
 
 func (h *Handler) storeOIDCState(ctx context.Context, input oidcStateInput) error {
-	if input.state == "" {
-		return fmt.Errorf("empty state")
+	normalized, err := normalizeOIDCStateInput(input)
+	if err != nil {
+		return err
 	}
 	payload := oidcStatePayload{
-		RedirectURL:  input.redirect,
-		CodeVerifier: input.codeVerifier,
-		Application:  input.application,
-		Native:       input.native,
+		RedirectURL:  normalized.redirect,
+		CodeVerifier: normalized.codeVerifier,
+		Application:  normalized.application,
+		Native:       normalized.native,
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal state payload: %w", err)
 	}
-	return h.redisClient.Set(ctx, oidcStateRedisPrefix+input.state, data, stateMaxAge).Err()
+	return h.redisClient.Set(ctx, oidcStateRedisPrefix+normalized.state, data, stateMaxAge).Err()
+}
+
+func normalizeOIDCStateInput(input oidcStateInput) (oidcStateInput, error) {
+	input.state = strings.TrimSpace(input.state)
+	if input.state == "" {
+		return input, fmt.Errorf("empty state")
+	}
+	input.redirect = strings.TrimSpace(input.redirect)
+	input.codeVerifier = strings.TrimSpace(input.codeVerifier)
+	if input.codeVerifier == "" {
+		return input, fmt.Errorf("oidc state code_verifier missing")
+	}
+	appKey, err := normalizeOIDCStateApplication(input.application, input.native)
+	if err != nil {
+		return input, err
+	}
+	input.application = appKey
+	return input, nil
+}
+
+func normalizeRequiredAuthState(state string) (string, error) {
+	state = strings.TrimSpace(state)
+	if state == "" {
+		return "", fmt.Errorf("empty state")
+	}
+	return state, nil
 }
 
 func (h *Handler) consumeOIDCState(c *gin.Context, state string) (string, string, string, bool, error) {
-	if state == "" {
+	var err error
+	state, err = normalizeRequiredAuthState(state)
+	if err != nil {
 		h.clearOIDCStateCookie(c)
-		return "", "", "", false, fmt.Errorf("empty state")
+		return "", "", "", false, err
 	}
 
 	raw, err := h.redisClient.Get(c.Request.Context(), oidcStateRedisPrefix+state).Result()
@@ -305,6 +334,19 @@ type nativeCodeVerifierPayload struct {
 
 // storeNativeCodeVerifier 将 code_verifier 暂存到 Redis，供 ExchangeNative 端点消费
 func (h *Handler) storeNativeCodeVerifier(ctx context.Context, state string, payload nativeCodeVerifierPayload) error {
+	var err error
+	state, err = normalizeRequiredAuthState(state)
+	if err != nil {
+		return err
+	}
+	codeVerifier, appKey, err := normalizeNativeCodeVerifierPayload(payload)
+	if err != nil {
+		return err
+	}
+	payload = nativeCodeVerifierPayload{
+		CodeVerifier: codeVerifier,
+		Application:  appKey,
+	}
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal native code_verifier payload: %w", err)

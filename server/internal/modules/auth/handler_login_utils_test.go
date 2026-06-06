@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -60,6 +61,39 @@ func TestNativeCodeVerifierRoundTrip(t *testing.T) {
 	_, _, err = h.consumeNativeCodeVerifier(context.Background(), "state-1")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "expired or already used")
+}
+
+func TestStoreNativeCodeVerifierNormalizesPayload(t *testing.T) {
+	h, fixture := newTestHandler(t)
+
+	require.NoError(t, h.storeNativeCodeVerifier(context.Background(), " \tstate-1\n ", nativeCodeVerifierPayload{
+		CodeVerifier: " \tverifier-1\n ",
+		Application:  " \t\n ",
+	}))
+
+	raw, err := fixture.Client.Get(context.Background(), nativeCodeVerifierPrefix+"state-1").Result()
+	require.NoError(t, err)
+	var payload nativeCodeVerifierPayload
+	require.NoError(t, json.Unmarshal([]byte(raw), &payload))
+	assert.Equal(t, "verifier-1", payload.CodeVerifier)
+	assert.Equal(t, oidc.ApplicationUniapp, payload.Application)
+}
+
+func TestStoreNativeCodeVerifierRejectsInvalidPayload(t *testing.T) {
+	h, _ := newTestHandler(t)
+
+	require.ErrorContains(t, h.storeNativeCodeVerifier(context.Background(), " \t\n ", nativeCodeVerifierPayload{
+		CodeVerifier: "verifier-1",
+		Application:  oidc.ApplicationUniapp,
+	}), "empty state")
+	require.ErrorContains(t, h.storeNativeCodeVerifier(context.Background(), "state-missing-verifier", nativeCodeVerifierPayload{
+		CodeVerifier: " \t\n ",
+		Application:  oidc.ApplicationUniapp,
+	}), "native code_verifier missing")
+	require.ErrorContains(t, h.storeNativeCodeVerifier(context.Background(), "state-web-app", nativeCodeVerifierPayload{
+		CodeVerifier: "verifier-1",
+		Application:  oidc.ApplicationWeb,
+	}), "native oidc state application mismatch")
 }
 
 func TestConsumeNativeCodeVerifierRejectsInvalidPayload(t *testing.T) {
