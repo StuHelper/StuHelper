@@ -2,6 +2,7 @@ package admission
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -100,6 +101,20 @@ func TestPendingAdmissionActionsRequireBotIdentity(t *testing.T) {
 
 	_, err := svc.ListPendingAdmissionActions(context.Background(), AdmissionPendingActionFilter{})
 
+	require.ErrorIs(t, err, ErrAdmissionPendingActionFilterInvalid)
+}
+
+func TestNormalizePendingActionFilterRejectsOversizedFields(t *testing.T) {
+	_, err := normalizePendingActionFilter(AdmissionPendingActionFilter{
+		Platform:  strings.Repeat("p", maxAdmissionPendingActionFilterRunes+1),
+		BotSelfID: "514",
+	})
+	require.ErrorIs(t, err, ErrAdmissionPendingActionFilterInvalid)
+
+	_, err = normalizePendingActionFilter(AdmissionPendingActionFilter{
+		Platform:  "qq",
+		BotSelfID: strings.Repeat("b", maxAdmissionPendingActionFilterRunes+1),
+	})
 	require.ErrorIs(t, err, ErrAdmissionPendingActionFilterInvalid)
 }
 

@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+const maxAdmissionPendingActionFilterRunes = 64
+
 func (s *Service) ListPendingAdmissionActions(
 	ctx context.Context,
 	filter AdmissionPendingActionFilter,
@@ -263,6 +265,10 @@ func normalizePendingActionFilter(filter AdmissionPendingActionFilter) (Admissio
 		Limit:     normalizePendingActionLimit(filter.Limit),
 	}
 	if normalized.Platform == "" || normalized.BotSelfID == "" {
+		return AdmissionPendingActionFilter{}, ErrAdmissionPendingActionFilterInvalid
+	}
+	if isAdmissionBotFieldTooLong(normalized.Platform, maxAdmissionPendingActionFilterRunes) ||
+		isAdmissionBotFieldTooLong(normalized.BotSelfID, maxAdmissionPendingActionFilterRunes) {
 		return AdmissionPendingActionFilter{}, ErrAdmissionPendingActionFilterInvalid
 	}
 	return normalized, nil
