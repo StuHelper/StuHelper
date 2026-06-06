@@ -257,13 +257,17 @@ type AdminEditReviewParams struct {
 
 // AdminEditReview 管理员编辑评论内容
 func (s *Service) AdminEditReview(ctx context.Context, params AdminEditReviewParams) error {
+	if err := ensureSafeReviewText(params.Title, params.Content); err != nil {
+		return err
+	}
+
 	title := sanitizer.SanitizeTitle(params.Title)
 	content := sanitizer.SanitizeText(params.Content)
 	if strings.TrimSpace(title) == "" {
 		return ErrTitleEmpty
 	}
-	if sanitizer.ContainsDangerousContent(title) || sanitizer.ContainsDangerousContent(content) {
-		return ErrDangerousContent
+	if err := ensureSafeReviewText(title, content); err != nil {
+		return err
 	}
 	if strings.TrimSpace(content) == "" {
 		return ErrContentEmpty

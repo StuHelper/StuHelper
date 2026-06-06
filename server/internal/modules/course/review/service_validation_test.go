@@ -53,6 +53,14 @@ func TestReviewService_ValidateAndSanitizeReview(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrDangerousContent)
 
+	_, _, _, _, err = svc.validateAndSanitizeReview(ctx, ReviewRatings{"teaching": 5}, "title", "<script>alert(1)</script> enough text", "2025-2")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrDangerousContent)
+
+	_, _, _, _, err = svc.validateAndSanitizeReview(ctx, ReviewRatings{"teaching": 5}, "<iframe src=x></iframe>", "content", "2025-2")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrDangerousContent)
+
 	_, _, _, _, err = svc.validateAndSanitizeReview(ctx, ReviewRatings{"teaching": 5}, "title", "<b></b>", "2025-2")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrContentEmpty)
@@ -74,6 +82,21 @@ func TestReviewService_ValidateAndSanitizeReview(t *testing.T) {
 	_, _, _, _, err = svc.validateAndSanitizeReview(ctx, ReviewRatings{"teaching": 5}, "title", "blockword content", "2025-2")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrSensitiveContent)
+}
+
+func TestReviewService_AdminEditReviewRejectsDangerousContentBeforeDependencies(t *testing.T) {
+	svc := &Service{}
+
+	err := svc.AdminEditReview(context.Background(), AdminEditReviewParams{
+		ReviewID: "review-dangerous-admin-edit",
+		Title:    "title",
+		Content:  "<script>alert(1)</script> enough text",
+		Reason:   "reject dangerous content",
+		AdminID:  "admin-1",
+	})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrDangerousContent)
 }
 
 func TestReviewService_ValidateDraftRatingValues(t *testing.T) {

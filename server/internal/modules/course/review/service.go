@@ -196,14 +196,18 @@ func (s *Service) validateAndSanitizeReview(ctx context.Context, ratings ReviewR
 		return "", "", "", nil, err
 	}
 
+	if err := ensureSafeReviewText(title, content); err != nil {
+		return "", "", "", nil, err
+	}
+
 	title = sanitizer.SanitizeTitle(title)
 	content = sanitizer.SanitizeText(content)
 
 	if strings.TrimSpace(title) == "" {
 		return "", "", "", nil, ErrTitleEmpty
 	}
-	if sanitizer.ContainsDangerousContent(title) || sanitizer.ContainsDangerousContent(content) {
-		return "", "", "", nil, ErrDangerousContent
+	if err := ensureSafeReviewText(title, content); err != nil {
+		return "", "", "", nil, err
 	}
 	if strings.TrimSpace(content) == "" {
 		return "", "", "", nil, ErrContentEmpty
@@ -220,6 +224,13 @@ func (s *Service) validateAndSanitizeReview(ctx context.Context, ratings ReviewR
 	}
 
 	return title, content, decision.Status, decision.ContentFlag, nil
+}
+
+func ensureSafeReviewText(title, content string) error {
+	if sanitizer.ContainsDangerousContent(title) || sanitizer.ContainsDangerousContent(content) {
+		return ErrDangerousContent
+	}
+	return nil
 }
 
 func (s *Service) validateRatingValues(ctx context.Context, ratings ReviewRatings, requireAny bool) error {
