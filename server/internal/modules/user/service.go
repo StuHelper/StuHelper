@@ -37,6 +37,7 @@ var (
 	ErrManualFieldInvalid                       = errors.New("manual form field value is invalid")
 	ErrInvalidManualFieldConfig                 = errors.New("manual form field config is invalid")
 	ErrInvalidAcademicDBTable                   = errors.New("academic table config is invalid")
+	ErrInvalidSchoolConfigValue                 = errors.New("school config value is invalid")
 	ErrAcademicTableNotConfigured               = errors.New("academic table is not configured for the school")
 	ErrSchoolLDAPConfigMissing                  = errors.New("LDAP configuration is not provided for the school")
 	ErrLDAPConfigInvalid                        = errors.New("LDAP configuration is invalid")

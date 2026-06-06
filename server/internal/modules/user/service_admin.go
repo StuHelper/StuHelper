@@ -7,10 +7,18 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
+)
+
+const maxSchoolConfigNameRunes = 100
+
+const (
+	approvalPolicyAuto   = "auto"
+	approvalPolicyManual = "manual"
 )
 
 // GetInternalUserID 根据外部ID获取内部用户ID
@@ -148,13 +156,25 @@ func (s *Service) UpdateSchoolConfig(ctx context.Context, schoolID int64, input 
 	}
 
 	if input.SchoolName != nil {
-		config.SchoolName = *input.SchoolName
+		normalizedName, err := normalizeSchoolConfigName(*input.SchoolName)
+		if err != nil {
+			return err
+		}
+		config.SchoolName = normalizedName
 	}
 	if input.VerificationMethod != nil {
-		config.VerificationMethod = *input.VerificationMethod
+		normalizedMethod, err := normalizeSchoolVerificationMethod(*input.VerificationMethod)
+		if err != nil {
+			return err
+		}
+		config.VerificationMethod = normalizedMethod
 	}
 	if input.ApprovalPolicy != nil {
-		config.ApprovalPolicy = *input.ApprovalPolicy
+		normalizedPolicy, err := normalizeSchoolApprovalPolicy(*input.ApprovalPolicy)
+		if err != nil {
+			return err
+		}
+		config.ApprovalPolicy = normalizedPolicy
 	}
 	if input.AcademicDBTable != nil {
 		normalizedAcademicDBTable, err := normalizeConfiguredAcademicDBTable(input.AcademicDBTable)
@@ -164,7 +184,7 @@ func (s *Service) UpdateSchoolConfig(ctx context.Context, schoolID int64, input 
 		config.AcademicDBTable = normalizedAcademicDBTable
 	}
 	if input.ConsentText != nil {
-		value := *input.ConsentText
+		value := strings.TrimSpace(*input.ConsentText)
 		config.ConsentText = &value
 	}
 	if input.Enabled != nil {
@@ -242,6 +262,9 @@ func (s *Service) validateSchoolConfig(ctx context.Context, config *SchoolConfig
 	if config == nil {
 		return ErrSchoolNotFound
 	}
+	if err := validateSchoolConfigScalarFields(config); err != nil {
+		return err
+	}
 
 	if config.AcademicDBTable != nil {
 		normalizedTable, err := normalizeAcademicDBTableName(config.AcademicDBTable)
@@ -264,6 +287,64 @@ func (s *Service) validateSchoolConfig(ctx context.Context, config *SchoolConfig
 		return err
 	}
 	return nil
+}
+
+func validateSchoolConfigScalarFields(config *SchoolConfig) error {
+	normalizedName, err := normalizeSchoolConfigName(config.SchoolName)
+	if err != nil {
+		return err
+	}
+	config.SchoolName = normalizedName
+
+	normalizedMethod, err := normalizeSchoolVerificationMethod(config.VerificationMethod)
+	if err != nil {
+		if strings.TrimSpace(config.VerificationMethod) != "" {
+			return err
+		}
+		normalizedMethod = VerifyMethodManual
+	}
+	config.VerificationMethod = normalizedMethod
+
+	normalizedPolicy, err := normalizeSchoolApprovalPolicy(config.ApprovalPolicy)
+	if err != nil {
+		if strings.TrimSpace(config.ApprovalPolicy) != "" {
+			return err
+		}
+		normalizedPolicy = approvalPolicyAuto
+	}
+	config.ApprovalPolicy = normalizedPolicy
+	return nil
+}
+
+func normalizeSchoolConfigName(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", fmt.Errorf("%w: schoolName is required", ErrInvalidSchoolConfigValue)
+	}
+	if utf8.RuneCountInString(name) > maxSchoolConfigNameRunes {
+		return "", fmt.Errorf("%w: schoolName exceeds maximum length of %d", ErrInvalidSchoolConfigValue, maxSchoolConfigNameRunes)
+	}
+	return name, nil
+}
+
+func normalizeSchoolVerificationMethod(method string) (string, error) {
+	method = strings.TrimSpace(method)
+	switch method {
+	case VerifyMethodLDAP, VerifyMethodManual:
+		return method, nil
+	default:
+		return "", fmt.Errorf("%w: verificationMethod must be one of: ldap, manual", ErrInvalidSchoolConfigValue)
+	}
+}
+
+func normalizeSchoolApprovalPolicy(policy string) (string, error) {
+	policy = strings.TrimSpace(policy)
+	switch policy {
+	case approvalPolicyAuto, approvalPolicyManual:
+		return policy, nil
+	default:
+		return "", fmt.Errorf("%w: approvalPolicy must be one of: auto, manual", ErrInvalidSchoolConfigValue)
+	}
 }
 
 func validateSchoolLDAPConfig(raw json.RawMessage) error {

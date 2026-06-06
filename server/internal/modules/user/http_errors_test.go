@@ -53,3 +53,17 @@ func TestRespondAdminUpdateSystemConfigError(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	assert.Contains(t, w.Body.String(), string(errs.ErrSystemConfigNotFound))
 }
+
+func TestRespondAdminUpdateSchoolConfigErrorInvalidValue(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	ok := respondAdminUpdateSchoolConfigError(c, ErrInvalidSchoolConfigValue)
+
+	assert.True(t, ok)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), string(errs.ErrInvalidParam))
+	assert.Contains(t, w.Body.String(), "invalid school config value")
+}

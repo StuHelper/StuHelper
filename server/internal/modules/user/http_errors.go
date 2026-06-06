@@ -72,6 +72,7 @@ var (
 	}
 	adminUpdateSchoolConfigErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrSchoolNotFound, 404, "school config not found", errs.ErrProfileSchoolNotFound),
+		response.MatchError(ErrInvalidSchoolConfigValue, 400, "invalid school config value", errs.ErrInvalidParam),
 		response.MatchError(ErrInvalidManualFieldConfig, 400, "invalid manual form field configuration"),
 		response.MatchError(ErrAcademicTableNotConfigured, 400, "academic db table is required for enabled LDAP schools", errs.ErrAcademicTableNotConfigured),
 		response.MatchError(ErrInvalidAcademicDBTable, 400, "invalid academic db table configuration", errs.ErrProfileAcademicTable),
@@ -121,7 +122,8 @@ func respondAdminUpdateSystemConfigError(c *gin.Context, err error) bool {
 }
 
 func shouldWarnAdminSchoolConfigError(err error) bool {
-	return errors.Is(err, ErrInvalidManualFieldConfig) ||
+	return errors.Is(err, ErrInvalidSchoolConfigValue) ||
+		errors.Is(err, ErrInvalidManualFieldConfig) ||
 		errors.Is(err, ErrAcademicTableNotConfigured) ||
 		errors.Is(err, ErrInvalidAcademicDBTable) ||
 		errors.Is(err, ErrSchoolLDAPConfigMissing) ||

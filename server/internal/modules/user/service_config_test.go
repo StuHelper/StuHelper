@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -106,6 +107,119 @@ func TestUpdateSchoolConfig_PreservesExistingLDAPPasswordWhenOmitted(t *testing.
 	require.NoError(t, err)
 	require.NotNil(t, captured)
 	assert.JSONEq(t, `{"url":"ldaps://ldap.new:636","baseDN":"ou=users,dc=example,dc=com","systemBindDN":"cn=system,dc=example,dc=com","systemBindPassword":"secret","useTLS":true}`, string(captured.LDAPConfig))
+}
+
+func TestUpdateSchoolConfig_NormalizesScalarFieldsBeforePersist(t *testing.T) {
+	var captured *SchoolConfig
+
+	repo := &mockRepo{
+		onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
+			return &SchoolConfig{
+				SchoolID:           4111010006,
+				SchoolName:         "旧学校名",
+				VerificationMethod: VerifyMethodManual,
+				ApprovalPolicy:     approvalPolicyManual,
+				Enabled:            false,
+			}, nil
+		},
+		onUpdateSchoolConfig: func(_ context.Context, config *SchoolConfig) error {
+			copied := *config
+			captured = &copied
+			return nil
+		},
+	}
+
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	schoolName := "  新学校名  "
+	method := " manual "
+	policy := " auto "
+	consentText := "  授权文本  "
+	err = svc.UpdateSchoolConfig(context.Background(), 4111010006, UpdateSchoolConfigInput{
+		SchoolName:         &schoolName,
+		VerificationMethod: &method,
+		ApprovalPolicy:     &policy,
+		ConsentText:        &consentText,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+	assert.Equal(t, "新学校名", captured.SchoolName)
+	assert.Equal(t, VerifyMethodManual, captured.VerificationMethod)
+	assert.Equal(t, approvalPolicyAuto, captured.ApprovalPolicy)
+	require.NotNil(t, captured.ConsentText)
+	assert.Equal(t, "授权文本", *captured.ConsentText)
+}
+
+func TestUpdateSchoolConfig_RejectsInvalidScalarFieldsBeforePersist(t *testing.T) {
+	tests := []struct {
+		name  string
+		input UpdateSchoolConfigInput
+	}{
+		{
+			name: "blank school name",
+			input: UpdateSchoolConfigInput{
+				SchoolName: ptr(" "),
+			},
+		},
+		{
+			name: "school name too long",
+			input: UpdateSchoolConfigInput{
+				SchoolName: ptr(strings.Repeat("学", maxSchoolConfigNameRunes+1)),
+			},
+		},
+		{
+			name: "invalid verification method",
+			input: UpdateSchoolConfigInput{
+				VerificationMethod: ptr(VerifyMethodSchoolEmailOTP),
+			},
+		},
+		{
+			name: "blank verification method",
+			input: UpdateSchoolConfigInput{
+				VerificationMethod: ptr(" "),
+			},
+		},
+		{
+			name: "invalid approval policy",
+			input: UpdateSchoolConfigInput{
+				ApprovalPolicy: ptr("instant"),
+			},
+		},
+		{
+			name: "blank approval policy",
+			input: UpdateSchoolConfigInput{
+				ApprovalPolicy: ptr(" "),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &mockRepo{
+				onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
+					return &SchoolConfig{
+						SchoolID:           4111010006,
+						SchoolName:         "北航",
+						VerificationMethod: VerifyMethodManual,
+						ApprovalPolicy:     approvalPolicyManual,
+						Enabled:            false,
+					}, nil
+				},
+				onUpdateSchoolConfig: func(context.Context, *SchoolConfig) error {
+					t.Fatal("UpdateSchoolConfig should not persist invalid scalar fields")
+					return nil
+				},
+			}
+
+			svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+			require.NoError(t, err)
+
+			err = svc.UpdateSchoolConfig(context.Background(), 4111010006, tt.input)
+			require.Error(t, err)
+			assert.ErrorIs(t, err, ErrInvalidSchoolConfigValue)
+		})
+	}
 }
 
 func TestUpdateSchoolConfig_SchoolNotFoundReturnsError(t *testing.T) {
