@@ -125,11 +125,11 @@ func providerTokenRevocationOptions(oidcClient *oidc.Client, cfg HandlerConfig) 
 func buildAllowedRedirectHosts(corsOrigins []string) map[string]struct{} {
 	hosts := make(map[string]struct{}, len(corsOrigins))
 	for _, origin := range corsOrigins {
-		parsed, err := url.Parse(strings.TrimSpace(origin))
-		if err != nil || parsed.Host == "" {
+		_, host, ok := normalizeRedirectOrigin(origin)
+		if !ok {
 			continue
 		}
-		hosts[parsed.Host] = struct{}{}
+		hosts[host] = struct{}{}
 	}
 	return hosts
 }
@@ -140,12 +140,27 @@ func buildAllowedRedirectHosts(corsOrigins []string) map[string]struct{} {
 // fail-fast 暴露。
 func buildDefaultRedirectURL(corsOrigins []string) string {
 	for _, raw := range corsOrigins {
-		origin := strings.TrimRight(strings.TrimSpace(raw), "/")
-		if origin != "" {
+		if origin, _, ok := normalizeRedirectOrigin(raw); ok {
 			return origin
 		}
 	}
 	panic("auth.buildDefaultRedirectURL: CORS_ORIGINS must be configured (config.validate() should have caught this)")
+}
+
+func normalizeRedirectOrigin(raw string) (string, string, bool) {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return "", "", false
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return "", "", false
+	}
+	host := strings.ToLower(parsed.Host)
+	if host == "" {
+		return "", "", false
+	}
+	return scheme + "://" + host, host, true
 }
 
 // RegisterPublicRoutes 注册不需要 CSRF 保护的公开路由。

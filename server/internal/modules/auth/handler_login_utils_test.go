@@ -16,9 +16,10 @@ import (
 
 func TestBuildAllowedRedirectHosts(t *testing.T) {
 	hosts := buildAllowedRedirectHosts([]string{
-		" https://web.example.com ",
+		" https://WEB.example.com ",
 		"https://admin.example.com/app",
 		"https://join.stuhelper.com",
+		"ftp://files.example.com",
 		"not-a-url",
 		"",
 	})
@@ -30,8 +31,13 @@ func TestBuildAllowedRedirectHosts(t *testing.T) {
 }
 
 func TestBuildDefaultRedirectURL(t *testing.T) {
-	assert.Equal(t, "https://web.example.com", buildDefaultRedirectURL([]string{"  https://web.example.com/  ", "https://admin.example.com"}))
-	assert.Panics(t, func() { buildDefaultRedirectURL([]string{"  ", ""}) })
+	assert.Equal(t, "https://web.example.com", buildDefaultRedirectURL([]string{
+		"not-a-url",
+		"ftp://files.example.com",
+		"  HTTPS://WEB.example.com/app/  ",
+		"https://admin.example.com",
+	}))
+	assert.Panics(t, func() { buildDefaultRedirectURL([]string{"not-a-url", "ftp://files.example.com", "  ", ""}) })
 }
 
 func TestHandleNativeCallbackRedirect(t *testing.T) {

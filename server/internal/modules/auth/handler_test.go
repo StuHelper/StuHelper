@@ -347,6 +347,7 @@ func TestResolveRedirectTarget_AllowedAbsoluteAndEmpty(t *testing.T) {
 		},
 	}
 	assert.Equal(t, "https://admin.example.com/reviews", h.resolveRedirectTarget("https://admin.example.com/reviews"))
+	assert.Equal(t, "https://admin.example.com/reviews", h.resolveRedirectTarget(" HTTPS://ADMIN.example.com/reviews "))
 	assert.Equal(
 		t,
 		"https://join.stuhelper.com/verify/ADMIT-LOGIN",

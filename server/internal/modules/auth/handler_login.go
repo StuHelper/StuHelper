@@ -610,6 +610,7 @@ func (h *Handler) ExchangeNative(c *gin.Context) {
 // resolveRedirectTarget 根据验证后的 redirect 参数决定最终跳转地址
 func (h *Handler) resolveRedirectTarget(redirect string) string {
 	defaultRedirect := h.defaultRedirectURL
+	redirect = strings.TrimSpace(redirect)
 
 	if redirect == "" {
 		return defaultRedirect
@@ -636,13 +637,16 @@ func (h *Handler) resolveRedirectTarget(redirect string) string {
 	if err != nil {
 		return defaultRedirect
 	}
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
 		return defaultRedirect
 	}
-	if _, ok := h.allowedRedirectHosts[parsed.Host]; !ok {
+	if _, ok := h.allowedRedirectHosts[strings.ToLower(parsed.Host)]; !ok {
 		return defaultRedirect
 	}
 
+	parsed.Scheme = scheme
+	parsed.Host = strings.ToLower(parsed.Host)
 	return parsed.String()
 }
 
