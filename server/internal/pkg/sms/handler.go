@@ -4,6 +4,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 
@@ -69,8 +70,21 @@ func decodeInternalSendRequest(w http.ResponseWriter, r *http.Request) (SendRequ
 	if isFormURLEncoded(r.Header.Get("Content-Type")) {
 		return decodeCasdoorSMSForm(r)
 	}
+	return decodeJSONSendRequest(r)
+}
+
+func decodeJSONSendRequest(r *http.Request) (SendRequest, error) {
 	var req SendRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		return SendRequest{}, err
+	}
+	var extra struct{}
+	if err := decoder.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return SendRequest{}, errors.New("request body must contain a single JSON object")
+		}
 		return SendRequest{}, err
 	}
 	return req, nil
