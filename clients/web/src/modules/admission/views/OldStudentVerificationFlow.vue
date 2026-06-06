@@ -221,6 +221,7 @@ function updateCode(event: Event): void {
 
 function startSchoolSSO(): void {
   const schoolCode = requireSelectedSchoolCode()
+  // 学校官方 SSO 是跨站浏览器认证跳转，不能通过 shared API client 发起。
   window.location.href = buildSchoolSSOLoginPath(
     schoolCode,
     props.currentReturnUrl,

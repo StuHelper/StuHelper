@@ -336,6 +336,7 @@ export const useAuthStore = defineStore("auth", () => {
             if (!storeOAuthState(data.state)) {
                 throw new Error("OAuth state storage unavailable");
             }
+            // OAuth 授权入口必须交给浏览器导航到上游 IdP，不能走 shared API client。
             window.location.href = data.url;
             setTimeout(() => {
                 loading.value = false;
@@ -363,6 +364,7 @@ export const useAuthStore = defineStore("auth", () => {
             if (!storeOAuthState(data.state)) {
                 throw new Error("OAuth state storage unavailable");
             }
+            // OAuth 注册入口必须交给浏览器导航到上游 IdP，不能走 shared API client。
             window.location.href = data.url;
             setTimeout(() => {
                 loading.value = false;
@@ -406,6 +408,8 @@ export const useAuthStore = defineStore("auth", () => {
             controller.abort();
         }, SSO_LOGOUT_REQUEST_TIMEOUT_MS);
         try {
+            // 上游 Casdoor /api/sso-logout 不属于 StuHelper OpenAPI；
+            // 这里只清理 IdP Cookie，不能封装进 clients/shared 的业务 API client。
             const response = await window.fetch(upstreamSSOAccountSwitchLogoutURL(), {
                 method: "POST",
                 credentials: "include",
@@ -454,6 +458,7 @@ export const useAuthStore = defineStore("auth", () => {
             };
             frame.addEventListener("load", finish, { once: true });
             window.setTimeout(finish, SSO_LOGOUT_FRAME_TIMEOUT_MS);
+            // fetch 受跨站策略阻断时，隐藏 iframe 仍是浏览器原生 SSO Cookie 清理边界。
             frame.src = upstreamSSOAccountSwitchLogoutURL();
             document.body.appendChild(frame);
         });

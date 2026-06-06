@@ -436,6 +436,7 @@ function startHandoffStatusUpdates(): void {
     startHandoffPolling()
     return
   }
+  // 拍照交接状态是浏览器原生 SSE 长连接，shared API client 只用于轮询兜底。
   const source = new window.EventSource(buildHandoffEventsPath(current.id))
   handoffEventSource = source
   source.addEventListener('handoff', (event) => {

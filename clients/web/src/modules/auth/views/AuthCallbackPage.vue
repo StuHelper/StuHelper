@@ -48,6 +48,7 @@ function getSingleQueryValue(value: LocationQueryValue | LocationQueryValue[] | 
 }
 
 function buildBackendCallbackURL(code: string, state: string): string {
+  // OIDC callback 必须让浏览器导航到后端写入 HttpOnly Cookie，不能走 shared API client。
   const url = resolveApiURL('/api/v1/auth/callback')
   url.searchParams.set('code', code)
   url.searchParams.set('state', state)
@@ -81,6 +82,7 @@ onMounted(async () => {
       loading.value = false
       return
     }
+    // 身份认证子流程已在前端校验 state，只需要浏览器导航回原页面。
     window.location.replace(resolvePostLoginRedirect())
     return
   }
@@ -91,6 +93,7 @@ onMounted(async () => {
     return
   }
 
+  // 后端 callback 需要在完整页面导航中完成 Cookie 写入和重定向。
   window.location.replace(buildBackendCallbackURL(code, state))
 })
 

@@ -28,6 +28,9 @@ const NOTIFICATION_TYPES = new Set<NotificationType>([
     "identity_rejected",
     "student_approved",
     "student_rejected",
+    "freshman_approved",
+    "freshman_rejected",
+    "freshman_near_expiry",
     "system",
 ]);
 
@@ -665,6 +668,7 @@ export const useNotificationStore = defineStore("notification", () => {
 
         closeEventSource();
 
+        // 通知实时流是浏览器原生 SSE 长连接，不能通过 shared API client 表达。
         const source = new EventSource(NOTIFICATION_STREAM_PATH, {
             withCredentials: true,
         });

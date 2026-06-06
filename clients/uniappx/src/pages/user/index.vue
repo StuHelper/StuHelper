@@ -46,6 +46,7 @@ function goVerify(type: 'identity' | 'student') {
   }
   const targetURL = webBase + path
   // #ifdef H5
+  // 认证材料页只在 Web 端实现，这里是跨端页面导航，不是业务 API 请求。
   window.location.href = targetURL
   // #endif
   // #ifndef H5
@@ -58,6 +59,7 @@ function goVerify(type: 'identity' | 'student') {
       if (res.confirm) {
         const nativePlus = (globalThis as { plus?: { runtime?: { openURL: (url: string) => void } } }).plus
         if (nativePlus?.runtime) {
+          // 原生端需要交给系统浏览器打开 Web 认证页，不能走 shared API client。
           nativePlus.runtime.openURL(targetURL)
         } else {
           uni.showToast({ title: t('user.index.verifyOnWeb'), icon: 'none' })
