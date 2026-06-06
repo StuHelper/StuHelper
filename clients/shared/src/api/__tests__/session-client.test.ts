@@ -4,6 +4,7 @@ import {
   createSessionApiClient,
   executeSessionRefresh,
   extractRefreshSessionData,
+  normalizeSchemaPath,
   normalizeRequestHeaders,
 } from '../session-client'
 
@@ -168,6 +169,20 @@ describe('normalizeRequestHeaders', () => {
       authorization: 'Bearer top-level-token',
       'X-Trace-ID': 'trace-1',
     })
+  })
+})
+
+describe('normalizeSchemaPath', () => {
+  it('removes duplicated API version path when base URL already includes it', () => {
+    expect(
+      normalizeSchemaPath('https://example.com/api/v1', '/api/v1/user/me'),
+    ).toBe('/user/me')
+  })
+
+  it('removes duplicated API base path when base URL is /api', () => {
+    expect(
+      normalizeSchemaPath('https://example.com/api', '/api/v1/user/me'),
+    ).toBe('/v1/user/me')
   })
 })
 

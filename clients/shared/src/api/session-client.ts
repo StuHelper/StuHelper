@@ -71,14 +71,18 @@ export const SAFE_HTTP_METHODS = new Set<HttpMethod | 'HEAD' | 'OPTIONS'>([
   'OPTIONS',
 ])
 
-export function normalizeSchemaPath(baseUrl: string, schemaPath: string): string {
-  const normalizedBaseUrl = baseUrl.replace(/\/$/, '')
+const API_BASE_PREFIXES = [API_VERSION_PREFIX, '/api'] as const
 
-  if (
-    normalizedBaseUrl.endsWith(API_VERSION_PREFIX) &&
-    schemaPath.startsWith(`${API_VERSION_PREFIX}/`)
-  ) {
-    return schemaPath.slice(API_VERSION_PREFIX.length)
+export function normalizeSchemaPath(baseUrl: string, schemaPath: string): string {
+  const normalizedBaseUrl = baseUrl.replace(/\/+$/, '')
+
+  for (const prefix of API_BASE_PREFIXES) {
+    if (
+      normalizedBaseUrl.endsWith(prefix) &&
+      (schemaPath === prefix || schemaPath.startsWith(`${prefix}/`))
+    ) {
+      return schemaPath.slice(prefix.length) || '/'
+    }
   }
 
   return schemaPath

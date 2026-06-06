@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+  baseUrl: '',
   capturedTransport: null as any,
   executeSessionRefresh: vi.fn(),
   parseApiError: vi.fn((payload: unknown) => {
@@ -37,7 +38,7 @@ vi.mock('@vben/stores', () => ({
 
 vi.mock('#/api/request', () => ({
   baseRequestClient: {
-    getBaseUrl: () => '',
+    getBaseUrl: () => mocks.baseUrl,
     instance: {
       request: mocks.request,
     },
@@ -66,7 +67,18 @@ mockVirtualModule(
       };
     },
     executeSessionRefresh: mocks.executeSessionRefresh,
-    normalizeSchemaPath: (_baseUrl: string, schemaPath: string) => schemaPath,
+    normalizeSchemaPath: (baseUrl: string, schemaPath: string) => {
+      const normalizedBaseUrl = baseUrl.replace(/\/+$/, '');
+      for (const prefix of ['/api/v1', '/api']) {
+        if (
+          normalizedBaseUrl.endsWith(prefix) &&
+          (schemaPath === prefix || schemaPath.startsWith(`${prefix}/`))
+        ) {
+          return schemaPath.slice(prefix.length) || '/';
+        }
+      }
+      return schemaPath;
+    },
     normalizeRequestHeaders: (init?: {
       headers?: Record<string, unknown>;
       params?: { header?: Record<string, unknown> };
@@ -89,6 +101,7 @@ mockVirtualModule(
 describe('admin shared client reauthentication', () => {
   beforeEach(() => {
     vi.resetModules();
+    mocks.baseUrl = '';
     mocks.capturedTransport = null;
     mocks.executeSessionRefresh.mockReset();
     mocks.parseApiError.mockClear();
@@ -269,5 +282,26 @@ describe('admin shared client reauthentication', () => {
       }),
     );
     expect(result.response.status).toBe(200);
+  });
+
+  it('normalizes schema paths when the request base URL already ends with /api', async () => {
+    mocks.baseUrl = '/api';
+    mocks.request.mockResolvedValue({
+      data: {
+        data: { ok: true },
+      },
+      status: 200,
+    });
+
+    await import('./shared-client');
+
+    await mocks.capturedTransport.request('GET', '/api/v1/auth/me');
+
+    expect(mocks.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: 'GET',
+        url: '/v1/auth/me',
+      }),
+    );
   });
 });
