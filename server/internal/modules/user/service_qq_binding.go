@@ -46,7 +46,6 @@ func (s *Service) GenerateQQBindingCode(ctx context.Context, userID int64, ttl t
 
 // ConsumeQQBindingCode 将绑定码与 QQ 账号建立永久绑定。
 func (s *Service) ConsumeQQBindingCode(ctx context.Context, code, qqID string) (*QQBinding, error) {
-	trimmedCode := strings.TrimSpace(code)
 	trimmedQQID := strings.TrimSpace(qqID)
 	if trimmedQQID == "" {
 		return nil, ErrQQIDRequired
@@ -54,7 +53,7 @@ func (s *Service) ConsumeQQBindingCode(ctx context.Context, code, qqID string) (
 
 	var result *QQBinding
 	if err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		bindingCode, err := s.loadQQBindingCodeForConsume(ctx, tx, trimmedCode)
+		bindingCode, err := s.loadQQBindingCodeForConsume(ctx, tx, code)
 		if err != nil {
 			return err
 		}
@@ -131,15 +130,16 @@ func generateQQBindingCode() (string, error) {
 }
 
 func (s *Service) hashQQBindingCode(code string) string {
-	return s.computePersonUID("qq_binding_code", strings.TrimSpace(code))
+	return s.computePersonUID("qq_binding_code", normalizeQQBindingCode(code))
 }
 
 func (s *Service) loadQQBindingCodeForConsume(ctx context.Context, tx pgx.Tx, code string) (*QQBindingCode, error) {
-	if strings.TrimSpace(code) == "" {
+	normalizedCode := normalizeQQBindingCode(code)
+	if normalizedCode == "" {
 		return nil, ErrQQBindingCodeInvalid
 	}
 
-	bindingCode, err := s.repo.GetQQBindingCodeByHashTx(ctx, tx, s.hashQQBindingCode(code))
+	bindingCode, err := s.repo.GetQQBindingCodeByHashTx(ctx, tx, s.hashQQBindingCode(normalizedCode))
 	if err != nil {
 		return nil, fmt.Errorf("loadQQBindingCodeForConsume: %w", err)
 	}
@@ -150,6 +150,10 @@ func (s *Service) loadQQBindingCodeForConsume(ctx context.Context, tx pgx.Tx, co
 		return nil, ErrQQBindingCodeExpired
 	}
 	return bindingCode, nil
+}
+
+func normalizeQQBindingCode(code string) string {
+	return strings.ToUpper(strings.TrimSpace(code))
 }
 
 func (s *Service) consumeQQBindingCodeTx(ctx context.Context, tx pgx.Tx, bindingCode *QQBindingCode, qqID string) (*QQBinding, error) {

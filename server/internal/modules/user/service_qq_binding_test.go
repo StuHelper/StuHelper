@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -198,6 +199,39 @@ func TestConsumeQQBindingCode_BindsQQAndMarksCodeConsumed(t *testing.T) {
 	assert.Equal(t, int64(77), consumedUserID)
 	assert.WithinDuration(t, time.Now(), consumedAt, time.Second)
 	assert.Equal(t, createdBinding.QQID, result.QQID)
+}
+
+func TestConsumeQQBindingCode_NormalizesCodeAndQQID(t *testing.T) {
+	repo := newQQBindingMockRepo()
+	code := "ABCD1234"
+	now := time.Now()
+
+	var seenQQID string
+	repo.onWithTx = func(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx) error) error {
+		return fn(ctx, nil)
+	}
+	repo.onGetQQBindingCodeByHashTx = func(_ context.Context, _ pgx.Tx, codeHash string) (*QQBindingCode, error) {
+		assert.Equal(t, svcHashQQBindingCode(t, code), codeHash)
+		return &QQBindingCode{
+			UserID:    77,
+			CodeHash:  codeHash,
+			ExpiresAt: now.Add(5 * time.Minute),
+		}, nil
+	}
+	repo.onGetQQBindingByQQIDTx = func(_ context.Context, _ pgx.Tx, qqID string) (*QQBinding, error) {
+		seenQQID = qqID
+		return nil, nil
+	}
+
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	result, err := svc.ConsumeQQBindingCode(context.Background(), " "+strings.ToLower(code)+" ", " 123456789 ")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	assert.Equal(t, "123456789", seenQQID)
+	assert.Equal(t, "123456789", result.QQID)
 }
 
 func TestConsumeQQBindingCode_ReturnsConflictWhenQQBelongsToAnotherUser(t *testing.T) {
