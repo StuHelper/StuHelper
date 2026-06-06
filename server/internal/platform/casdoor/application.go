@@ -79,8 +79,15 @@ func (c *Client) DeleteApplication(ctx context.Context, name string) error {
 	if err := validateName("application name", name); err != nil {
 		return err
 	}
+	existing, err := c.getApplication(ctx, name)
+	if err != nil {
+		return err
+	}
+	if existing == nil {
+		return nil
+	}
 	app := &casdoorsdk.Application{Owner: "admin", Name: name}
-	err := c.call(ctx, "delete application "+name, func() (bool, error) {
+	err = c.call(ctx, "delete application "+name, func() (bool, error) {
 		return c.apps.DeleteApplication(app)
 	})
 	if err != nil {

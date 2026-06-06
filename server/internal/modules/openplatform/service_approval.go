@@ -10,7 +10,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
 )
 
-const casdoorApplicationRollbackTimeout = 5 * time.Second
+const casdoorApplicationCleanupTimeout = 5 * time.Second
 
 type ApproveScopeInput struct {
 	AppID          int64
@@ -514,10 +514,11 @@ func (s *Service) updateAppLifecycleStatus(
 	}
 	if status == AppStatusRevoked && app.Status == AppStatusRevoked {
 		cleaned, err := s.revokeAllResourceAccessForRevokedApp(ctx, input.AppID, input.ActorUserID, input.RequestID, reason)
-		if err != nil {
-			return nil, err
+		casdoorCleaned, casdoorErr := s.deleteCasdoorApplicationForRevokedApp(ctx, app.CasdoorApplicationName)
+		if err != nil || casdoorErr != nil {
+			return nil, errors.Join(err, casdoorErr)
 		}
-		if cleaned == 0 {
+		if cleaned == 0 && !casdoorCleaned {
 			return nil, ErrInvalidAppStatus
 		}
 		return &AppLifecycleResult{App: app}, nil
@@ -539,11 +540,40 @@ func (s *Service) updateAppLifecycleStatus(
 		return nil, err
 	}
 	if status == AppStatusRevoked {
+		var revokeErr error
 		if _, err := s.revokeAllResourceAccessForRevokedApp(ctx, input.AppID, input.ActorUserID, input.RequestID, reason); err != nil {
-			return nil, err
+			revokeErr = err
+		}
+		if shouldDeleteCasdoorApplicationAfterRevoke(app.Status) {
+			if _, err := s.deleteCasdoorApplicationForRevokedApp(ctx, app.CasdoorApplicationName); err != nil {
+				revokeErr = errors.Join(revokeErr, err)
+			}
+		}
+		if revokeErr != nil {
+			return nil, revokeErr
 		}
 	}
 	return &AppLifecycleResult{App: updated}, nil
+}
+
+func shouldDeleteCasdoorApplicationAfterRevoke(previousStatus string) bool {
+	return previousStatus == AppStatusApproved || previousStatus == AppStatusSuspended || previousStatus == AppStatusRevoked
+}
+
+func (s *Service) deleteCasdoorApplicationForRevokedApp(ctx context.Context, name string) (bool, error) {
+	if s.provisioner == nil {
+		return false, nil
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return false, nil
+	}
+	cleanupCtx, cancel := casdoorApplicationCleanupContext(ctx)
+	defer cancel()
+	if err := s.provisioner.DeleteApplication(cleanupCtx, name); err != nil {
+		return true, fmt.Errorf("delete Casdoor application after open platform app revoke: %w", err)
+	}
+	return true, nil
 }
 
 func appStatusSetToSlice(statuses map[string]struct{}) []string {
@@ -662,7 +692,7 @@ func (s *Service) deleteProvisionedCasdoorApplication(ctx context.Context, name 
 	if name == "" {
 		return nil
 	}
-	cleanupCtx, cancel := casdoorApplicationRollbackContext(ctx)
+	cleanupCtx, cancel := casdoorApplicationCleanupContext(ctx)
 	defer cancel()
 	if err := s.provisioner.DeleteApplication(cleanupCtx, name); err != nil {
 		return fmt.Errorf("rollback Casdoor application after open platform approval failure: %w", err)
@@ -670,8 +700,8 @@ func (s *Service) deleteProvisionedCasdoorApplication(ctx context.Context, name 
 	return nil
 }
 
-func casdoorApplicationRollbackContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return ctxutil.DetachedTimeout(ctx, casdoorApplicationRollbackTimeout)
+func casdoorApplicationCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return ctxutil.DetachedTimeout(ctx, casdoorApplicationCleanupTimeout)
 }
 
 func casdoorApplicationSpecForApprovedApp(app *App, clientSecret string) ProvisionedApplicationSpec {

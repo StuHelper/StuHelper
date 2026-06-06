@@ -79,7 +79,10 @@ func TestCasdoorApplicationAuditActionDetectsSecretRotation(t *testing.T) {
 }
 
 func TestDeleteApplicationUsesOwnedApplicationKey(t *testing.T) {
-	api := &fakeApplicationAPI{deleteOK: true}
+	api := &fakeApplicationAPI{
+		existing: &casdoorsdk.Application{Name: "third-party-demo"},
+		deleteOK: true,
+	}
 	client := newTestClient(t, api)
 
 	err := client.DeleteApplication(context.Background(), "third-party-demo")
@@ -88,6 +91,17 @@ func TestDeleteApplicationUsesOwnedApplicationKey(t *testing.T) {
 	require.NotNil(t, api.deleted)
 	assert.Equal(t, "admin", api.deleted.Owner)
 	assert.Equal(t, "third-party-demo", api.deleted.Name)
+}
+
+func TestDeleteApplicationIgnoresMissingApplication(t *testing.T) {
+	api := &fakeApplicationAPI{deleteOK: false}
+	client := newTestClient(t, api)
+
+	err := client.DeleteApplication(context.Background(), "third-party-demo")
+
+	require.NoError(t, err)
+	assert.Equal(t, "third-party-demo", api.gotName)
+	assert.Nil(t, api.deleted)
 }
 
 func TestApplicationValidationRejectsUnsafeRedirect(t *testing.T) {

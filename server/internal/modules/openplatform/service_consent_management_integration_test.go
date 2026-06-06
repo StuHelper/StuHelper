@@ -1653,6 +1653,155 @@ func TestApproveAppCleanupSurvivesRequestCancellationAfterCasdoorProvision(t *te
 	assertOpenPlatformAppStatus(t, context.Background(), repo, registered.App.ID, AppStatusPending)
 }
 
+func TestRevokePendingAppDoesNotDeleteCasdoorApplication(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	provisioner := &fakeOpenPlatformAppProvisioner{}
+	service, err := NewService(repo, redis.Client, WithAppProvisioner(provisioner))
+	require.NoError(t, err)
+
+	ownerID := seedOpenPlatformUser(t, postgres, "revoke-pending-casdoor-owner")
+	adminID := seedOpenPlatformUser(t, postgres, "revoke-pending-casdoor-admin")
+	registered, err := service.RegisterApp(ctx, RegisterAppInput{
+		OwnerUserID:      ownerID,
+		DisplayName:      "Pending Revoke App",
+		Description:      "Pending app has no provisioned Casdoor application.",
+		HomepageURL:      "https://pending-revoke.example.com",
+		PrivacyPolicyURL: "https://pending-revoke.example.com/privacy",
+		RedirectURIs:     []string{"https://pending-revoke.example.com/callback"},
+		Scopes: []ScopeRequestInput{
+			{Scope: ScopeProfileBasicRead, Reason: "show profile"},
+		},
+	})
+	require.NoError(t, err)
+
+	revoked, err := service.RevokeApp(ctx, AppLifecycleActionInput{
+		AppID:       registered.App.ID,
+		ActorUserID: adminID,
+		Reason:      "reject before provisioning",
+		RequestID:   "revoke-pending-no-casdoor-delete",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, AppStatusRevoked, revoked.App.Status)
+	assert.Empty(t, provisioner.deleted)
+	assertOpenPlatformAuditCount(t, postgres, registered.App.ID, adminID, "open_platform.app.revoked", 1)
+}
+
+func TestRevokeAppDeletesProvisionedCasdoorApplication(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	provisioner := &fakeOpenPlatformAppProvisioner{}
+	service, err := NewService(repo, redis.Client, WithAppProvisioner(provisioner))
+	require.NoError(t, err)
+
+	ownerID := seedOpenPlatformUser(t, postgres, "revoke-casdoor-owner")
+	adminID := seedOpenPlatformUser(t, postgres, "revoke-casdoor-admin")
+	registered, err := service.RegisterApp(ctx, RegisterAppInput{
+		OwnerUserID:      ownerID,
+		DisplayName:      "Revoke Casdoor App",
+		Description:      "Deletes provisioned Casdoor application on revoke.",
+		HomepageURL:      "https://revoke-casdoor.example.com",
+		PrivacyPolicyURL: "https://revoke-casdoor.example.com/privacy",
+		RedirectURIs:     []string{"https://revoke-casdoor.example.com/callback"},
+		Scopes: []ScopeRequestInput{
+			{Scope: ScopeProfileBasicRead, Reason: "show profile"},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, service.ApproveScope(ctx, ApproveScopeInput{
+		AppID:          registered.App.ID,
+		Scope:          ScopeProfileBasicRead,
+		ReviewerUserID: adminID,
+		DecisionNote:   "profile is required",
+	}))
+	_, err = service.ApproveAppWithAudit(ctx, ApproveAppInput{
+		AppID:          registered.App.ID,
+		ReviewerUserID: adminID,
+		RequestID:      "approve-before-casdoor-delete",
+	})
+	require.NoError(t, err)
+
+	revoked, err := service.RevokeApp(ctx, AppLifecycleActionInput{
+		AppID:       registered.App.ID,
+		ActorUserID: adminID,
+		Reason:      "delete provisioned Casdoor application",
+		RequestID:   "revoke-delete-casdoor",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, AppStatusRevoked, revoked.App.Status)
+	assert.Equal(t, []string{registered.App.CasdoorApplicationName}, provisioner.deleted)
+	assertOpenPlatformAuditCount(t, postgres, registered.App.ID, adminID, "open_platform.app.revoked", 1)
+}
+
+func TestRevokeAppCanRetryCasdoorApplicationCleanupAfterDeleteFailure(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	provisioner := &fakeOpenPlatformAppProvisioner{}
+	service, err := NewService(repo, redis.Client, WithAppProvisioner(provisioner))
+	require.NoError(t, err)
+
+	ownerID := seedOpenPlatformUser(t, postgres, "revoke-casdoor-retry-owner")
+	adminID := seedOpenPlatformUser(t, postgres, "revoke-casdoor-retry-admin")
+	registered, err := service.RegisterApp(ctx, RegisterAppInput{
+		OwnerUserID:      ownerID,
+		DisplayName:      "Revoke Casdoor Retry App",
+		Description:      "Retries Casdoor application cleanup after failure.",
+		HomepageURL:      "https://revoke-casdoor-retry.example.com",
+		PrivacyPolicyURL: "https://revoke-casdoor-retry.example.com/privacy",
+		RedirectURIs:     []string{"https://revoke-casdoor-retry.example.com/callback"},
+		Scopes: []ScopeRequestInput{
+			{Scope: ScopeProfileBasicRead, Reason: "show profile"},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, service.ApproveScope(ctx, ApproveScopeInput{
+		AppID:          registered.App.ID,
+		Scope:          ScopeProfileBasicRead,
+		ReviewerUserID: adminID,
+		DecisionNote:   "profile is required",
+	}))
+	_, err = service.ApproveAppWithAudit(ctx, ApproveAppInput{
+		AppID:          registered.App.ID,
+		ReviewerUserID: adminID,
+		RequestID:      "approve-before-casdoor-delete-retry",
+	})
+	require.NoError(t, err)
+
+	provisioner.deleteErr = errors.New("casdoor delete unavailable")
+	_, err = service.RevokeApp(ctx, AppLifecycleActionInput{
+		AppID:       registered.App.ID,
+		ActorUserID: adminID,
+		Reason:      "first delete fails",
+		RequestID:   "revoke-delete-casdoor-fails",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "casdoor delete unavailable")
+	assert.Empty(t, provisioner.deleted)
+	assertOpenPlatformAppStatus(t, ctx, repo, registered.App.ID, AppStatusRevoked)
+	assertOpenPlatformAuditCount(t, postgres, registered.App.ID, adminID, "open_platform.app.revoked", 1)
+
+	provisioner.deleteErr = nil
+	retried, err := service.RevokeApp(ctx, AppLifecycleActionInput{
+		AppID:       registered.App.ID,
+		ActorUserID: adminID,
+		Reason:      "retry Casdoor cleanup",
+		RequestID:   "revoke-delete-casdoor-retry",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, AppStatusRevoked, retried.App.Status)
+	assert.Equal(t, []string{registered.App.CasdoorApplicationName}, provisioner.deleted)
+	assertOpenPlatformAuditCount(t, postgres, registered.App.ID, adminID, "open_platform.app.revoked", 1)
+}
+
 func TestImportCasdoorAppRejectsBusinessTokenFields(t *testing.T) {
 	ctx := context.Background()
 	postgres := postgresfixture.Start(t)
@@ -3680,11 +3829,12 @@ func latestOpenPlatformTokenProbeEvidence(
 }
 
 type fakeOpenPlatformAppProvisioner struct {
-	existing ProvisionedApplicationSpec
-	ensured  *ProvisionedApplicationSpec
-	deleted  []string
-	err      error
-	onEnsure func()
+	existing  ProvisionedApplicationSpec
+	ensured   *ProvisionedApplicationSpec
+	deleted   []string
+	err       error
+	deleteErr error
+	onEnsure  func()
 }
 
 func (f *fakeOpenPlatformAppProvisioner) GetApplication(_ context.Context, name string) (ProvisionedApplicationSpec, error) {
@@ -3711,6 +3861,9 @@ func (f *fakeOpenPlatformAppProvisioner) EnsureApplication(_ context.Context, sp
 }
 
 func (f *fakeOpenPlatformAppProvisioner) DeleteApplication(ctx context.Context, name string) error {
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
 	if f.err != nil {
 		return f.err
 	}
