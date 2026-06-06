@@ -93,4 +93,25 @@ describe("auth session reset", () => {
         expect(mockTokenExpirySet).not.toHaveBeenCalled();
         expect(mockClearAuth).not.toHaveBeenCalled();
     });
+
+    it("does not clear local session when refresh is rejected by CSRF middleware", async () => {
+        const { ApiError } = await import("@/api/errors");
+        mockRefresh.mockRejectedValue(
+            new ApiError({
+                code: "A0010202",
+                message: "csrf invalid",
+                status: 403,
+            }),
+        );
+
+        const { useAuthStore } = await import("../auth");
+        const store = useAuthStore();
+
+        await expect(store.refreshSession()).rejects.toMatchObject({
+            code: "A0010202",
+            status: 403,
+        });
+        expect(mockTokenExpirySet).not.toHaveBeenCalled();
+        expect(mockClearAuth).not.toHaveBeenCalled();
+    });
 });

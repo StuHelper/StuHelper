@@ -28,6 +28,18 @@ vi.mock("@stuhelper/shared/api", async (importOriginal) => {
                             : undefined,
                 };
             }
+            if (payload && typeof payload === "object") {
+                const record = payload as Record<string, unknown>;
+                return {
+                    code: typeof record.code === "string" ? record.code : "",
+                    message:
+                        typeof record.message === "string" ? record.message : "",
+                    details:
+                        record.details && typeof record.details === "object"
+                            ? (record.details as Record<string, unknown>)
+                            : undefined,
+                };
+            }
             return { code: "", message: "", details: undefined };
         },
     };
@@ -259,7 +271,54 @@ describe("browser API client", () => {
 
         expect(response.status).toBe(200);
         expect(fetchMock).toHaveBeenCalledTimes(3);
+        const refreshRequest = fetchMock.mock.calls[1][0] as Request;
+        expect(refreshRequest.url).toBe(
+            "http://127.0.0.1:3000/api/v1/auth/refresh",
+        );
+        expect(refreshRequest.method).toBe("POST");
+        expect(refreshRequest.headers.get("X-CSRF-Token")).toBe("test-csrf");
         expect(mockTokenExpirySet).toHaveBeenCalledWith(120);
+        expect(mockClearSession).not.toHaveBeenCalled();
+    });
+
+    it("keeps refresh CSRF failures recoverable without clearing the local session", async () => {
+        fetchMock
+            .mockResolvedValueOnce(
+                new Response(
+                    JSON.stringify({
+                        error: { code: "A0010100", message: "login required" },
+                    }),
+                    {
+                        status: 401,
+                        headers: { "Content-Type": "application/json" },
+                    },
+                ),
+            )
+            .mockResolvedValueOnce(
+                new Response(
+                    JSON.stringify({
+                        error: { code: "A0010202", message: "csrf invalid" },
+                    }),
+                    {
+                        status: 403,
+                        headers: { "Content-Type": "application/json" },
+                    },
+                ),
+            );
+
+        const { apiClient } = await import("../client");
+
+        await expect(apiClient.GET("/api/v1/auth/me" as never)).rejects.toMatchObject({
+            code: "A0010202",
+            message: "csrf invalid",
+            status: 403,
+        });
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        const refreshRequest = fetchMock.mock.calls[1][0] as Request;
+        expect(refreshRequest.url).toBe(
+            "http://127.0.0.1:3000/api/v1/auth/refresh",
+        );
+        expect(refreshRequest.headers.get("X-CSRF-Token")).toBe("test-csrf");
         expect(mockClearSession).not.toHaveBeenCalled();
     });
 

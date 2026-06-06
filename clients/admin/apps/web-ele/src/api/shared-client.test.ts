@@ -54,8 +54,23 @@ mockVirtualModule(
   '@stuhelper/shared/api',
   () => ({
     AUTH_REFRESH_PATH: '/api/v1/auth/refresh',
-    buildSecurityHeaders: (_method: string, headers: Record<string, string>) =>
-      headers,
+    buildSecurityHeaders: (
+      method: string,
+      headers: Record<string, string>,
+      options?: { acceptLanguage?: string; csrfToken?: null | string },
+    ) => {
+      const nextHeaders = { ...headers };
+      if (
+        !['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase()) &&
+        options?.csrfToken
+      ) {
+        nextHeaders['X-CSRF-Token'] = options.csrfToken;
+      }
+      if (options?.acceptLanguage) {
+        nextHeaders['Accept-Language'] = options.acceptLanguage;
+      }
+      return nextHeaders;
+    },
     createSessionApiClient: (transport: unknown) => {
       mocks.capturedTransport = transport;
       return {
@@ -274,14 +289,65 @@ describe('admin shared client reauthentication', () => {
           resourceID: 'resource-42',
           resourceType: 'resource_item',
         },
-        headers: {
+        headers: expect.objectContaining({
           Authorization: 'Bearer resource-access-token',
-        },
+        }),
         method: 'POST',
         url: '/api/v1/open-platform/resources/access/check',
       }),
     );
     expect(result.response.status).toBe(200);
+  });
+
+  it('sends the browser CSRF header on refresh and keeps CSRF failures recoverable', async () => {
+    const csrfError = {
+      error: {
+        code: 'A0010202',
+        message: 'csrf invalid',
+      },
+    };
+    mocks.readCookie.mockReturnValue('admin-csrf-token');
+    mocks.executeSessionRefresh.mockImplementationOnce(
+      async (options: {
+        request: (init?: unknown) => Promise<{
+          error?: unknown;
+          response: { status?: number };
+        }>;
+      }) => {
+        const result = await options.request();
+        return {
+          kind: 'error',
+          error: result.error,
+          status: result.response.status,
+        };
+      },
+    );
+    mocks.request.mockRejectedValueOnce({
+      response: {
+        data: csrfError,
+        status: 403,
+      },
+    });
+
+    await import('./shared-client');
+
+    await expect(mocks.capturedTransport.refresh()).resolves.toEqual({
+      kind: 'error',
+      error: csrfError,
+      status: 403,
+    });
+    expect(mocks.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'Accept-Language': 'zh-CN',
+          'X-CSRF-Token': 'admin-csrf-token',
+        }),
+        method: 'POST',
+        url: '/api/v1/auth/refresh',
+        withCredentials: true,
+      }),
+    );
+    expect(mocks.resetAllStores).not.toHaveBeenCalled();
   });
 
   it('normalizes schema paths when the request base URL already ends with /api', async () => {

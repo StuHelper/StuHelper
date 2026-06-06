@@ -302,9 +302,69 @@ describe('uniappx api client transport', () => {
     const result = await apiClient.GET('/api/v1/auth/me' as never)
 
     expect(request).toHaveBeenCalledTimes(3)
-    expect(request.mock.calls[1][0].url).toBe('https://api.example.com/api/v1/auth/refresh')
+    expect(request.mock.calls[1][0]).toMatchObject({
+      header: {
+        'X-CSRF-Token': 'stored-csrf-token',
+      },
+      method: 'POST',
+      url: 'https://api.example.com/api/v1/auth/refresh',
+    })
     expect(result.response?.status).toBe(200)
     expect(result.data).toEqual({ data: { ok: true } })
+  })
+
+  it('returns refresh csrf failures without clearing the recoverable error', async () => {
+    const csrfError = {
+      error: {
+        code: 'A0010202',
+        message: 'csrf invalid',
+      },
+    }
+    const request = vi.fn((options: any) => {
+      if (options.url.endsWith('/api/v1/auth/refresh')) {
+        options.success?.({
+          statusCode: 403,
+          data: csrfError,
+          header: {
+            'X-CSRF-Token': 'rotated-csrf-token',
+          },
+        })
+        return { abort: vi.fn() }
+      }
+
+      options.success?.({
+        statusCode: 401,
+        data: { error: { code: 'A0010100', message: 'expired' } },
+        header: {},
+      })
+      return { abort: vi.fn() }
+    })
+    const setStorageSync = vi.fn()
+
+    vi.stubEnv('VITE_API_URL', 'https://api.example.com')
+    vi.stubGlobal('uni', {
+      request,
+      getStorageSync: vi.fn(() => 'stored-csrf-token'),
+      setStorageSync,
+    })
+
+    const { apiClient } = await import('../shared-client')
+    const result = await apiClient.GET('/api/v1/auth/me' as never)
+
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(request.mock.calls[1][0]).toMatchObject({
+      header: {
+        'X-CSRF-Token': 'stored-csrf-token',
+      },
+      method: 'POST',
+      url: 'https://api.example.com/api/v1/auth/refresh',
+    })
+    expect(setStorageSync).toHaveBeenCalledWith(
+      'stuhelper:csrf-token',
+      'rotated-csrf-token',
+    )
+    expect(result.response?.status).toBe(403)
+    expect(result.error).toEqual(csrfError)
   })
 
   it('does not refresh an anonymous 401 response without a session hint', async () => {

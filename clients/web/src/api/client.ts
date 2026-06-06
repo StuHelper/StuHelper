@@ -245,6 +245,7 @@ async function refreshSession() {
     if (
       result.kind === 'error' &&
       result.error instanceof ApiError &&
+      !isCsrfError(result.error.code) &&
       isAuthError(result.error.code)
     ) {
       return { kind: 'unauthorized', status: result.status } as const
