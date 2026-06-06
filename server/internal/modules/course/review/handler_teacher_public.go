@@ -36,7 +36,7 @@ func (h *Handler) ListTeachers(c *gin.Context) {
 	page, pageSize := httputil.ParsePage(c)
 	respondWithCachedData(h,
 		c,
-		"review:teachers",
+		teacherPublicListCacheKey,
 		"q="+httputil.SanitizeCacheKey(search)+
 			":dept="+strconv.FormatInt(departmentID, 10)+
 			":sort="+sort+
@@ -72,7 +72,7 @@ func (h *Handler) ListHotTeachers(c *gin.Context) {
 		limit = 10
 	}
 
-	respondWithCachedData(h, c, "review:hot_teachers", "limit="+strconv.Itoa(limit), func(ctx context.Context) ([]TeacherSummary, error) {
+	respondWithCachedData(h, c, teacherPublicHotCacheKey, "limit="+strconv.Itoa(limit), func(ctx context.Context) ([]TeacherSummary, error) {
 		list, err := h.service.ListHotTeachers(ctx, limit)
 		if err != nil {
 			return nil, err

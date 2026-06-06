@@ -77,7 +77,9 @@ func TestReviewFilterRefreshAndBackgroundJobs(t *testing.T) {
 		InternalUserIDResolver: staticInternalUserID(42),
 	})
 
+	teachersVersion, hotTeachersVersion := teacherPublicCacheVersions(ctx, h)
 	assert.NoError(t, h.RefreshTeacherPublicStats(ctx))
+	assertTeacherPublicCachesBumped(t, ctx, h, teachersVersion, hotTeachersVersion)
 	_, err = h.CleanupOldLogs(ctx)
 	assert.NoError(t, err)
 

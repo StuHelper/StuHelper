@@ -106,7 +106,7 @@ func courseReviewCountCacheVersions(ctx context.Context, h *Handler) (string, st
 }
 
 func teacherPublicCacheVersions(ctx context.Context, h *Handler) (string, string) {
-	return h.cache.GetVersion(ctx, "review:teachers"), h.cache.GetVersion(ctx, "review:hot_teachers")
+	return h.cache.GetVersion(ctx, teacherPublicListCacheKey), h.cache.GetVersion(ctx, teacherPublicHotCacheKey)
 }
 
 func assertCourseReviewCountCachesBumped(t *testing.T, ctx context.Context, h *Handler, previousCoursesVersion, previousCourseVersion string) (string, string) {

@@ -18,7 +18,11 @@ import (
 
 type StepUpVerifier func(*gin.Context) bool
 
-const teacherPublicStatsRefreshTimeout = 10 * time.Second
+const (
+	teacherPublicStatsRefreshTimeout = 10 * time.Second
+	teacherPublicListCacheKey        = "review:teachers"
+	teacherPublicHotCacheKey         = "review:hot_teachers"
+)
 
 type AdminAuthorizers struct {
 	Entry                gin.HandlerFunc
@@ -54,9 +58,13 @@ func (h *Handler) StartBackgroundJobs(ctx context.Context, start func(string, fu
 	h.service.StartBackgroundJobs(ctx, start)
 }
 
-// RefreshTeacherPublicStats 刷新公开教师统计物化视图。
+// RefreshTeacherPublicStats 刷新公开教师统计物化视图，并失效依赖该视图的公开教师缓存。
 func (h *Handler) RefreshTeacherPublicStats(ctx context.Context) error {
-	return h.service.RefreshTeacherPublicStats(ctx)
+	if err := h.service.RefreshTeacherPublicStats(ctx); err != nil {
+		return err
+	}
+	h.invalidateTeacherPublicCaches(ctx, logger.FromContext(ctx))
+	return nil
 }
 
 // RegisterRoutes 注册评课社区路由
@@ -269,16 +277,13 @@ func (h *Handler) refreshTeacherPublicStatsAndInvalidateCaches(c *gin.Context) {
 	defer cancel()
 
 	l := logger.FromGin(c)
-	if err := h.service.RefreshTeacherPublicStats(ctx); err != nil {
+	if err := h.RefreshTeacherPublicStats(ctx); err != nil {
 		l.Warn("failed to refresh teacher public stats", zap.Error(err))
-		return
 	}
-
-	h.invalidateTeacherPublicCaches(ctx, l)
 }
 
 func (h *Handler) invalidateTeacherPublicCaches(ctx context.Context, l *zap.Logger) {
-	for _, key := range []string{"review:teachers", "review:hot_teachers"} {
+	for _, key := range []string{teacherPublicListCacheKey, teacherPublicHotCacheKey} {
 		if err := h.cache.InvalidateByVersion(ctx, key); err != nil {
 			metrics.ObserveCacheInvalidationFailure(cache.NamespaceReview)
 			l.Warn("failed to invalidate teacher public cache",
