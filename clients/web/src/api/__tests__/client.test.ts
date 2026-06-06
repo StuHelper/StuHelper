@@ -246,6 +246,38 @@ describe("browser API client", () => {
         expect(request.headers.get("X-CSRF-Token")).toBe("test-csrf");
     });
 
+    it("uses JSON content type only for JSON request bodies", async () => {
+        fetchMock.mockResolvedValue(
+            new Response(JSON.stringify({ data: { ok: true } }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            }),
+        );
+
+        const { apiClient } = await import("../client");
+        await apiClient.POST("/api/v1/open-platform/resources/access/check" as never, {
+            body: {
+                action: "read",
+            },
+        } as never);
+
+        const jsonRequest = fetchMock.mock.calls[0][0] as Request;
+        expect(jsonRequest.headers.get("Content-Type")).toBe("application/json");
+
+        const formData = new FormData();
+        formData.set("file", new Blob(["hello"]), "hello.txt");
+        await apiClient.POST("/api/v1/admission/materials" as never, {
+            body: formData,
+        } as never);
+
+        const formRequest = fetchMock.mock.calls[1][0] as Request;
+        expect(formRequest.headers.get("Content-Type")).toMatch(
+            /^multipart\/form-data; boundary=/,
+        );
+        expect(formRequest.headers.get("Content-Type")).not.toBe("application/json");
+        expect(formRequest.headers.get("X-CSRF-Token")).toBe("test-csrf");
+    });
+
     it("refreshes once and retries the original request after a 401", async () => {
         fetchMock
             .mockResolvedValueOnce(new Response(null, { status: 401 }))

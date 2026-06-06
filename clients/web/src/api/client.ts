@@ -170,6 +170,20 @@ function normalizeRequestBody(body: unknown): BodyInit | null | undefined {
   return String(body)
 }
 
+function shouldUseDefaultJSONContentType(body: unknown): boolean {
+  if (body == null) return false
+  if (
+    body instanceof Blob ||
+    body instanceof FormData ||
+    body instanceof URLSearchParams ||
+    body instanceof ArrayBuffer ||
+    ArrayBuffer.isView(body)
+  ) {
+    return false
+  }
+  return true
+}
+
 function requestHeadersToObject(headers: Headers): Record<string, unknown> {
   return Object.fromEntries(headers.entries())
 }
@@ -229,7 +243,7 @@ async function browserRequest<T>(
   const url = resolveApiURL(path)
   const requestHeaders = new Headers(normalizeRequestHeaders(init))
   const body = normalizeRequestBody(init?.body)
-  if (body !== undefined && !requestHeaders.has('Content-Type')) {
+  if (shouldUseDefaultJSONContentType(init?.body) && !requestHeaders.has('Content-Type')) {
     requestHeaders.set('Content-Type', 'application/json')
   }
 
