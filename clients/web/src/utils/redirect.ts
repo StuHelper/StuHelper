@@ -123,6 +123,16 @@ export function accountCenterURL(path: string): string {
     return absoluteURLOnPreferredOrigin(path, configuredWebOrigin());
 }
 
+export function accountCenterURLWithRedirect(path: string, redirect: string): string {
+    if (!isSafeRelativeRedirect(redirect)) {
+        return accountCenterURL(path);
+    }
+
+    const separator = path.includes("?") ? "&" : "?";
+    const params = new URLSearchParams({ redirect });
+    return accountCenterURL(`${path}${separator}${params.toString()}`);
+}
+
 export function isAccountCenterPath(pathname: string): boolean {
     return pathname === "/identity" ||
         pathname === "/connect" ||

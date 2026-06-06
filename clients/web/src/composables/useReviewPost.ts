@@ -6,7 +6,7 @@ import { getErrorMessage } from '@/api/errors'
 import i18n from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
-import { accountCenterURL, navigateToExternalURL } from '@/utils/redirect'
+import { accountCenterURLWithRedirect, navigateToExternalURL } from '@/utils/redirect'
 
 export type UseReviewPostReturn = ReturnType<typeof useReviewPost>
 
@@ -142,11 +142,6 @@ export function useReviewPost() {
     return options?.redirect ?? router.currentRoute.value.fullPath
   }
 
-  function verificationURL(path: string, redirect: string): string {
-    const params = new URLSearchParams({ redirect })
-    return accountCenterURL(`${path}?${params.toString()}`)
-  }
-
   async function ensureCanPostReview(options?: EnsureReviewPostOptions) {
     const redirect = intendedRedirect(options)
     if (!authStore.bootstrapCompleted) {
@@ -186,9 +181,9 @@ export function useReviewPost() {
       toast.error(i18n.global.t(block.messageKey))
       if (block.routeName) {
         if (block.routeName === 'identity-verification') {
-          navigateToExternalURL(verificationURL('/user/identity-verification', redirect))
+          navigateToExternalURL(accountCenterURLWithRedirect('/user/identity-verification', redirect))
         } else if (block.routeName === 'student-verification') {
-          navigateToExternalURL(verificationURL('/user/student-verification', redirect))
+          navigateToExternalURL(accountCenterURLWithRedirect('/user/student-verification', redirect))
         } else {
           await router.push({ name: block.routeName })
         }

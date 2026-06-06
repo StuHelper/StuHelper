@@ -5,6 +5,7 @@ import {
   absoluteURLOnPreferredOrigin,
   accountCenterURL,
   accountCenterURLForHref,
+  accountCenterURLWithRedirect,
   isAccountCenterPath,
   normalizeConfiguredHTTPOrigin,
   resolvePostLoginRedirectTarget,
@@ -97,6 +98,24 @@ describe('post-login redirect helpers', () => {
 
   it('builds account URLs on the configured web origin', () => {
     expect(accountCenterURL('/user/student-verification')).toBe(
+      'http://stuhelper.com/user/student-verification',
+    )
+  })
+
+  it('builds account URLs with safe task redirects', () => {
+    expect(accountCenterURLWithRedirect('/user/student-verification', '/courses/3')).toBe(
+      'http://stuhelper.com/user/student-verification?redirect=%2Fcourses%2F3',
+    )
+    expect(accountCenterURLWithRedirect('/user/student-verification?mode=manual', '/courses/3')).toBe(
+      'http://stuhelper.com/user/student-verification?mode=manual&redirect=%2Fcourses%2F3',
+    )
+  })
+
+  it('drops unsafe account task redirects', () => {
+    expect(accountCenterURLWithRedirect('/user/student-verification', 'https://evil.example')).toBe(
+      'http://stuhelper.com/user/student-verification',
+    )
+    expect(accountCenterURLWithRedirect('/user/student-verification', '//evil.example')).toBe(
       'http://stuhelper.com/user/student-verification',
     )
   })

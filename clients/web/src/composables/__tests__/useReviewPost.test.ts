@@ -55,7 +55,8 @@ vi.mock('@/composables/useToast', () => ({
 }))
 
 vi.mock('@/utils/redirect', () => ({
-  accountCenterURL: (path: string) => `https://stuhelper.com${path}`,
+  accountCenterURLWithRedirect: (path: string, redirect: string) =>
+    `https://stuhelper.com${path}?redirect=${encodeURIComponent(redirect)}`,
   navigateToExternalURL: mockNavigateToExternalURL,
 }))
 
