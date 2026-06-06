@@ -151,7 +151,7 @@ func (c *Client) decorateIntrospectionResult(result *IntrospectionResult, rawJSO
 
 func discoveredIntrospectionEndpoint(provider *gooidc.Provider, configured string) (string, error) {
 	if endpoint := strings.TrimSpace(configured); endpoint != "" {
-		return endpoint, nil
+		return validateIntrospectionEndpoint(endpoint)
 	}
 	var providerCfg struct {
 		IntrospectionEndpoint string `json:"introspection_endpoint"`
@@ -162,6 +162,30 @@ func discoveredIntrospectionEndpoint(provider *gooidc.Provider, configured strin
 	endpoint := strings.TrimSpace(providerCfg.IntrospectionEndpoint)
 	if endpoint == "" {
 		return "", fmt.Errorf("oidc: introspection endpoint unavailable")
+	}
+	return validateIntrospectionEndpoint(endpoint)
+}
+
+func validateIntrospectionEndpoint(endpoint string) (string, error) {
+	endpoint = strings.TrimSpace(endpoint)
+	if endpoint == "" {
+		return "", fmt.Errorf("oidc: introspection endpoint unavailable")
+	}
+	parsed, err := url.Parse(endpoint)
+	if err != nil {
+		return "", fmt.Errorf("oidc: invalid introspection endpoint %q: %w", endpoint, err)
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return "", fmt.Errorf("oidc: introspection endpoint %q must be an absolute http(s) URL", endpoint)
+	}
+	if scheme := strings.ToLower(parsed.Scheme); scheme != "http" && scheme != "https" {
+		return "", fmt.Errorf("oidc: introspection endpoint %q must use http or https", endpoint)
+	}
+	if parsed.User != nil {
+		return "", fmt.Errorf("oidc: introspection endpoint %q must not include user info", endpoint)
+	}
+	if parsed.Fragment != "" {
+		return "", fmt.Errorf("oidc: introspection endpoint %q must not include a fragment", endpoint)
 	}
 	return endpoint, nil
 }

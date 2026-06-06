@@ -220,6 +220,79 @@ func TestIntrospectionOAuth2ConfigNormalizesCredentials(t *testing.T) {
 	require.ErrorIs(t, err, ErrApplicationNotConfigured)
 }
 
+func TestValidateIntrospectionEndpoint(t *testing.T) {
+	for _, endpoint := range []string{
+		"http://localhost:8080/introspect",
+		"https://sso.example.com/introspect?resource=stuhelper",
+	} {
+		t.Run(endpoint, func(t *testing.T) {
+			got, err := validateIntrospectionEndpoint(" \t" + endpoint + "\n ")
+
+			require.NoError(t, err)
+			assert.Equal(t, endpoint, got)
+		})
+	}
+
+	tests := []struct {
+		name     string
+		endpoint string
+		want     string
+	}{
+		{name: "blank", endpoint: " \t\n ", want: "introspection endpoint unavailable"},
+		{name: "relative", endpoint: "localhost:8080/introspect", want: "must be an absolute http(s) URL"},
+		{name: "unsupported scheme", endpoint: "ftp://sso.example.com/introspect", want: "must use http or https"},
+		{name: "userinfo", endpoint: "https://user:pass@sso.example.com/introspect", want: "must not include user info"},
+		{name: "fragment", endpoint: "https://sso.example.com/introspect#token", want: "must not include a fragment"},
+		{name: "invalid port", endpoint: "https://sso.example.com:bad/introspect", want: "invalid port"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := validateIntrospectionEndpoint(tt.endpoint)
+
+			require.Error(t, err)
+			assert.Empty(t, got)
+			assert.Contains(t, err.Error(), tt.want)
+		})
+	}
+}
+
+func TestNewClientRejectsInvalidConfiguredIntrospectionEndpoint(t *testing.T) {
+	var issuer string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"issuer":                 issuer,
+			"authorization_endpoint": issuer + "/authorize",
+			"token_endpoint":         issuer + "/token",
+			"jwks_uri":               issuer + "/keys",
+			"introspection_endpoint": issuer + "/introspect",
+		})
+	})
+	mux.HandleFunc("/keys", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(jose.JSONWebKeySet{})
+	})
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	issuer = srv.URL
+
+	client, err := NewClient(context.Background(), config.CasdoorConfig{
+		Issuer:                    issuer,
+		ClientID:                  "oidc-client",
+		ClientSecret:              "oidc-secret",
+		RedirectURI:               "https://web.example.com/api/v1/auth/callback",
+		IntrospectionEndpoint:     "localhost:8080/introspect",
+		IntrospectionClientID:     "introspection-client",
+		IntrospectionClientSecret: "introspection-secret",
+	})
+
+	require.Error(t, err)
+	assert.Nil(t, client)
+	assert.Contains(t, err.Error(), "must be an absolute http(s) URL")
+}
+
 func TestOIDCClientExchangeCodeForApplicationNormalizesInputs(t *testing.T) {
 	var seenCode string
 	var seenCodeVerifier string
