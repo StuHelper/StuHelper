@@ -142,6 +142,26 @@ func TestCreateMount_NormalizesRequest(t *testing.T) {
 	assert.Equal(t, "resources/materials", created.BasePath)
 }
 
+func TestCreateMount_RejectsDuplicateKey(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(repo, config.ObjectStorageConfig{})
+	svc.registry.drivers["s3"] = &fakeDriver{}
+	ctx := context.Background()
+
+	req := CreateMountRequest{
+		Key:     "campus-share-duplicate",
+		Name:    "Campus Share",
+		Driver:  "s3",
+		Enabled: true,
+	}
+	_, err := svc.CreateMount(ctx, req)
+	require.NoError(t, err)
+
+	_, err = svc.CreateMount(ctx, req)
+	require.ErrorIs(t, err, ErrMountAlreadyExists)
+}
+
 func TestCreateMount_RejectsUnknownDriver(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)

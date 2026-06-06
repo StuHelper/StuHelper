@@ -98,6 +98,10 @@ func (h *Handler) createMount(c *gin.Context) {
 			response.BadRequest(c, err.Error())
 			return
 		}
+		if errors.Is(err, ErrMountAlreadyExists) {
+			response.Conflict(c, "storage mount already exists")
+			return
+		}
 		response.InternalError(c, "failed to create storage mount")
 		return
 	}

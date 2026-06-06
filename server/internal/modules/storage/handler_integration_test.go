@@ -104,6 +104,38 @@ func TestStorageHandlers_Return400ForInvalidMountConfig(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, resp.Code)
 }
 
+func TestStorageHandlers_Return409ForDuplicateMountKey(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := postgresfixture.Start(t)
+	svc := NewService(NewRepository(fixture.DB), config.ObjectStorageConfig{})
+	svc.registry.drivers["s3"] = &fakeDriver{}
+	router := newStorageTestRouter(svc)
+
+	createBody := marshalStorageRequest(t, CreateMountRequest{
+		Key:     "duplicate-key",
+		Name:    "Duplicate Key",
+		Driver:  "s3",
+		Enabled: true,
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/storage/mounts", bytes.NewReader(createBody))
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+	require.Equal(t, http.StatusCreated, resp.Code)
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/admin/storage/mounts", bytes.NewReader(createBody))
+	req.Header.Set("Content-Type", "application/json")
+	resp = httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusConflict, resp.Code)
+	var envelope response.Response
+	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &envelope))
+	require.NotNil(t, envelope.Error)
+	assert.Equal(t, "storage mount already exists", envelope.Error.Message)
+}
+
 func TestStorageAdminRoutesRequireGlobalSystemCapability(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

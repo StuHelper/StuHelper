@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
@@ -82,6 +83,9 @@ func (r *Repository) CreateMount(ctx context.Context, req CreateMountRequest) (*
 		          last_health_status, last_health_error, last_health_checked_at
 	`, req.Key, req.Name, req.Driver, req.Bucket, req.BasePath, req.Enabled))
 	if err != nil {
+		if isStorageMountKeyUniqueViolation(err) {
+			return nil, ErrMountAlreadyExists
+		}
 		return nil, fmt.Errorf("create storage mount: %w", err)
 	}
 	return &item, nil
@@ -157,4 +161,11 @@ func formatTimePtr(value *time.Time) *string {
 	}
 	formatted := value.UTC().Format(time.RFC3339)
 	return &formatted
+}
+
+func isStorageMountKeyUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) &&
+		pgErr.Code == "23505" &&
+		pgErr.ConstraintName == "storage_mounts_key_key"
 }
