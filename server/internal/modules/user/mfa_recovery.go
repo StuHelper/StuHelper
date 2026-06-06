@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/jackc/pgx/v5"
 
@@ -234,7 +235,12 @@ func groupMFARecoveryCode(code string) string {
 }
 
 func normalizeMFARecoveryCode(code string) string {
-	code = strings.ReplaceAll(code, "-", "")
-	code = strings.ReplaceAll(code, " ", "")
-	return strings.ToUpper(strings.TrimSpace(code))
+	var builder strings.Builder
+	for _, r := range code {
+		if r == '-' || unicode.IsSpace(r) {
+			continue
+		}
+		builder.WriteRune(unicode.ToUpper(r))
+	}
+	return builder.String()
 }

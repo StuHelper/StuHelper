@@ -12,6 +12,8 @@ import (
 
 func TestNormalizeMFARecoveryCode(t *testing.T) {
 	assert.Equal(t, "ABCDEFGH", normalizeMFARecoveryCode(" abcd-efgh "))
+	assert.Equal(t, "ABCDEFGHIJKL", normalizeMFARecoveryCode("abcd\tefgh\nijkl"))
+	assert.Equal(t, "ABCDEFGH", normalizeMFARecoveryCode("ab cd\r\nef-gh"))
 }
 
 func TestGenerateMFARecoveryCodeFormat(t *testing.T) {
