@@ -137,6 +137,10 @@ func (h *Handler) handleWebCallback(c *gin.Context, ctx context.Context, input w
 	if err != nil {
 		logger.FromGin(c).Error("OIDC code exchange failed", zap.Error(err))
 		audit.LogFailureContext(ctx, audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), input.requestID, "code exchange error")
+		if errors.Is(err, oidc.ErrProviderUnavailable) {
+			response.ServiceUnavailable(c, "authentication service temporarily unavailable")
+			return
+		}
 		response.Unauthorized(c, "authentication failed", errs.ErrOAuthFailed)
 		return
 	}
@@ -536,6 +540,10 @@ func (h *Handler) ExchangeNative(c *gin.Context) {
 	if err != nil {
 		logger.FromGin(c).Error("native exchange: OIDC code exchange failed", zap.Error(err))
 		audit.LogFailureContext(ctx, audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "code exchange error")
+		if errors.Is(err, oidc.ErrProviderUnavailable) {
+			response.ServiceUnavailable(c, "authentication service temporarily unavailable")
+			return
+		}
 		response.Unauthorized(c, "authentication failed", errs.ErrOAuthFailed)
 		return
 	}

@@ -15,7 +15,7 @@ import (
 	oidcpkg "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 )
 
-func newUnavailableRefreshOIDCProvider(t *testing.T) *fakeOIDCProvider {
+func newUnavailableTokenEndpointOIDCProvider(t *testing.T) *fakeOIDCProvider {
 	t.Helper()
 	const clientID = "test-client-id"
 	const clientSecret = "test-client-secret"
@@ -47,6 +47,9 @@ func newUnavailableRefreshOIDCProvider(t *testing.T) *fakeOIDCProvider {
 		ClientID:                  clientID,
 		ClientSecret:              clientSecret,
 		RedirectURI:               "https://web.example.com/api/v1/auth/callback",
+		UniappClientID:            "uniapp-client",
+		UniappClientSecret:        "uniapp-secret",
+		UniappRedirectURI:         "stuhelper://auth/callback",
 		IntrospectionClientID:     "introspection-client",
 		IntrospectionClientSecret: "introspection-secret",
 	})
@@ -56,7 +59,7 @@ func newUnavailableRefreshOIDCProvider(t *testing.T) *fakeOIDCProvider {
 
 func TestRefreshOIDCToken_ProviderUnavailableDoesNotClearSession(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	provider := newUnavailableRefreshOIDCProvider(t)
+	provider := newUnavailableTokenEndpointOIDCProvider(t)
 	h, _ := newOIDCTestHandlerWithProvider(t, nil, provider)
 
 	_, err := h.svc.CreateSession(

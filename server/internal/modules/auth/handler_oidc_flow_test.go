@@ -668,6 +668,27 @@ func TestHandleWebCallback_InvalidIDToken(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "authentication failed")
 }
 
+func TestHandleWebCallback_ProviderUnavailable(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	provider := newUnavailableTokenEndpointOIDCProvider(t)
+	h, _ := newOIDCTestHandlerWithProvider(t, nil, provider)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/auth/callback", nil)
+
+	h.handleWebCallback(c, c.Request.Context(), webCallbackInput{
+		code:         "code-1",
+		redirect:     "/dashboard",
+		codeVerifier: "verifier-1",
+		application:  oidcpkg.ApplicationWeb,
+		requestID:    "request-1",
+	})
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Contains(t, w.Body.String(), "authentication service temporarily unavailable")
+}
+
 func assertOIDCRefreshRotationUnavailable(
 	t *testing.T,
 	payloadFn func(issueIDToken func() string) map[string]any,
@@ -761,6 +782,27 @@ func TestExchangeNative_MissingIDToken(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), "authentication failed")
+}
+
+func TestExchangeNative_ProviderUnavailable(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	provider := newUnavailableTokenEndpointOIDCProvider(t)
+	h, _ := newOIDCTestHandlerWithProvider(t, nil, provider)
+	require.NoError(t, h.storeNativeCodeVerifier(context.Background(), "native-state-provider-unavailable", nativeCodeVerifierPayload{
+		CodeVerifier: "native-verifier",
+		Application:  oidcpkg.ApplicationUniapp,
+	}))
+
+	body := bytes.NewBufferString(`{"code":"code-1","state":"native-state-provider-unavailable"}`)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/auth/exchange-native", body)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.ExchangeNative(c)
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Contains(t, w.Body.String(), "authentication service temporarily unavailable")
 }
 
 func TestExchangeNative_UserSyncFailure(t *testing.T) {

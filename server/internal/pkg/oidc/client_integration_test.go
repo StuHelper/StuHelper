@@ -693,6 +693,8 @@ func TestOIDCClientRemoteEndpointFailuresAreProviderUnavailable(t *testing.T) {
 		IntrospectionClientSecret: "introspection-secret",
 	})
 	require.NoError(t, err)
+	_, err = client.ExchangeCode(context.Background(), "authorization-code", "pkce-verifier")
+	require.ErrorIs(t, err, ErrProviderUnavailable)
 	_, err = client.RefreshToken(context.Background(), "old-refresh-token")
 	require.ErrorIs(t, err, ErrProviderUnavailable)
 	_, err = client.IntrospectToken(context.Background(), "provider-access-token")

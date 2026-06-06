@@ -35,7 +35,7 @@ func (c *Client) ExchangeCodeForApplication(ctx context.Context, appKey, code, c
 	token, err := cfg.Exchange(ctx, code, oauth2.VerifierOption(codeVerifier))
 	metrics.ObserveExternalRequest(c.metricName, "exchange_code", start, err)
 	if err != nil {
-		return nil, fmt.Errorf("oidc: code exchange failed: %w", err)
+		return nil, fmt.Errorf("oidc: code exchange failed: %w", classifyOAuthError(err))
 	}
 	return token, nil
 }
