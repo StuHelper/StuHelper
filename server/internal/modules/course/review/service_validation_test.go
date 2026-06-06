@@ -2,6 +2,7 @@ package review
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -65,6 +66,18 @@ func TestReviewService_ValidateAndSanitizeReview(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrContentEmpty)
 
+	_, _, _, _, err = svc.validateAndSanitizeReview(ctx, ReviewRatings{"teaching": 5}, strings.Repeat("题", maxReviewTitleRunes+1), "content long enough", "2025-2")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrTitleTooLong)
+
+	_, _, _, _, err = svc.validateAndSanitizeReview(ctx, ReviewRatings{"teaching": 5}, "title", "short", "2025-2")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrContentTooShort)
+
+	_, _, _, _, err = svc.validateAndSanitizeReview(ctx, ReviewRatings{"teaching": 5}, "title", strings.Repeat("内", maxReviewContentRunes+1), "2025-2")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrContentTooLong)
+
 	title, content, status, flag, err := svc.validateAndSanitizeReview(ctx, ReviewRatings{"teaching": 5}, "  <b>title</b>  ", "warnword content", "2025-2")
 	require.NoError(t, err)
 	assert.Equal(t, "title", title)
@@ -97,6 +110,40 @@ func TestReviewService_AdminEditReviewRejectsDangerousContentBeforeDependencies(
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrDangerousContent)
+}
+
+func TestReviewService_AdminEditReviewPreflightLengthValidation(t *testing.T) {
+	svc := &Service{}
+
+	err := svc.AdminEditReview(context.Background(), AdminEditReviewParams{
+		ReviewID: "review-admin-edit-title-too-long",
+		Title:    strings.Repeat("题", maxReviewTitleRunes+1),
+		Content:  "管理员编辑内容",
+		Reason:   "reject title",
+		AdminID:  "admin-1",
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrTitleTooLong)
+
+	err = svc.AdminEditReview(context.Background(), AdminEditReviewParams{
+		ReviewID: "review-admin-edit-content-too-long",
+		Title:    "title",
+		Content:  strings.Repeat("内", maxReviewContentRunes+1),
+		Reason:   "reject content",
+		AdminID:  "admin-1",
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrContentTooLong)
+
+	err = svc.AdminEditReview(context.Background(), AdminEditReviewParams{
+		ReviewID: "review-admin-edit-reason-too-long",
+		Title:    "title",
+		Content:  "管理员编辑内容",
+		Reason:   strings.Repeat("因", maxAdminEditReasonRunes+1),
+		AdminID:  "admin-1",
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrReasonTooLong)
 }
 
 func TestReviewService_ValidateDraftRatingValues(t *testing.T) {

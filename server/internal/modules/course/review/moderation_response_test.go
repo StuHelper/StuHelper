@@ -23,6 +23,9 @@ func TestRespondToModerationError(t *testing.T) {
 		{name: "sensitive content", err: ErrSensitiveContent, status: http.StatusBadRequest},
 		{name: "moderation unavailable", err: ErrModerationUnavailable, status: http.StatusServiceUnavailable},
 		{name: "content empty", err: ErrContentEmpty, status: http.StatusBadRequest},
+		{name: "content too short", err: ErrContentTooShort, status: http.StatusBadRequest},
+		{name: "content too long", err: ErrContentTooLong, status: http.StatusBadRequest},
+		{name: "reason too long", err: ErrReasonTooLong, status: http.StatusBadRequest},
 	}
 
 	for _, tc := range tests {

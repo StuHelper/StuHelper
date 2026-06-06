@@ -176,7 +176,7 @@ drainLoop:
 		ReviewID: reviewID,
 		UserHash: "u-owner-state",
 		Title:    strPtr("恢复发布"),
-		Content:  strPtr("正常内容"),
+		Content:  strPtr("正常内容用于恢复公开状态"),
 		Grade:    strPtr("A+"),
 		Ratings:  ratingsPtr(ReviewRatings{"teaching": 5, "difficulty": 4}),
 	})

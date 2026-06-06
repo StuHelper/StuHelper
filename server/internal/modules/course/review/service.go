@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"sync/atomic"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
@@ -39,7 +40,10 @@ var (
 	ErrModerationUnavailable = errors.New("content moderation unavailable")
 	ErrInvalidTermID         = errors.New("invalid term_id format, expected YYYY-S (e.g. 2024-1)")
 	ErrTitleEmpty            = errors.New("title cannot be empty after sanitization")
+	ErrTitleTooLong          = errors.New("title too long")
 	ErrContentEmpty          = errors.New("content cannot be empty after sanitization")
+	ErrContentTooShort       = errors.New("content too short")
+	ErrReasonTooLong         = errors.New("reason too long")
 	ErrInvalidRating         = errors.New("invalid rating value")
 	ErrRatingRequired        = errors.New("at least one rating dimension is required")
 	ErrNotReviewOwner        = errors.New("not the review owner")
@@ -186,6 +190,14 @@ var validTermIDFormat = regexp.MustCompile(`^\d{4}-[12]$`)
 // validRatingKey 评分维度 key 仅允许小写字母、数字、下划线（对齐 DB VARCHAR(50)）
 var validRatingKey = regexp.MustCompile(`^[a-z][a-z0-9_]{0,49}$`)
 
+const (
+	minReviewContentRunes    = 10
+	minAdminEditContentRunes = 1
+	maxReviewTitleRunes      = 200
+	maxReviewContentRunes    = 5000
+	maxAdminEditReasonRunes  = 500
+)
+
 func (s *Service) validateAndSanitizeReview(ctx context.Context, ratings ReviewRatings, title, content, termID string) (string, string, string, *string, error) {
 	// 校验 term_id 格式
 	if termID != "" && !validTermIDFormat.MatchString(termID) {
@@ -212,6 +224,9 @@ func (s *Service) validateAndSanitizeReview(ctx context.Context, ratings ReviewR
 	if strings.TrimSpace(content) == "" {
 		return "", "", "", nil, ErrContentEmpty
 	}
+	if err := validateReviewTextLengths(title, content, minReviewContentRunes); err != nil {
+		return "", "", "", nil, err
+	}
 
 	checkResult, err := s.filter.CheckContent(ctx, title+" "+content)
 	if err != nil {
@@ -229,6 +244,27 @@ func (s *Service) validateAndSanitizeReview(ctx context.Context, ratings ReviewR
 func ensureSafeReviewText(title, content string) error {
 	if sanitizer.ContainsDangerousContent(title) || sanitizer.ContainsDangerousContent(content) {
 		return ErrDangerousContent
+	}
+	return nil
+}
+
+func validateReviewTextLengths(title, content string, minContentRunes int) error {
+	if utf8.RuneCountInString(title) > maxReviewTitleRunes {
+		return ErrTitleTooLong
+	}
+	contentRunes := utf8.RuneCountInString(content)
+	if contentRunes < minContentRunes {
+		return ErrContentTooShort
+	}
+	if contentRunes > maxReviewContentRunes {
+		return ErrContentTooLong
+	}
+	return nil
+}
+
+func validateAdminEditReasonLength(reason string) error {
+	if utf8.RuneCountInString(strings.TrimSpace(reason)) > maxAdminEditReasonRunes {
+		return ErrReasonTooLong
 	}
 	return nil
 }

@@ -272,6 +272,12 @@ func (s *Service) AdminEditReview(ctx context.Context, params AdminEditReviewPar
 	if strings.TrimSpace(content) == "" {
 		return ErrContentEmpty
 	}
+	if err := validateReviewTextLengths(title, content, minAdminEditContentRunes); err != nil {
+		return err
+	}
+	if err := validateAdminEditReasonLength(params.Reason); err != nil {
+		return err
+	}
 
 	checkResult, err := s.filter.CheckContent(ctx, title+" "+content)
 	if err != nil {

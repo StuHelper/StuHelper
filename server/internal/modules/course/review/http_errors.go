@@ -13,11 +13,14 @@ import (
 var (
 	reviewModerationErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrTitleEmpty, 400, "title cannot be empty"),
+		response.MatchError(ErrTitleTooLong, 400, "title is too long", errs.ErrParamOutOfRange),
 		response.MatchError(ErrDangerousContent, 400, "content contains potentially dangerous elements"),
 		response.MatchError(ErrSensitiveContent, 400, "content contains sensitive words", errs.ErrSensitiveContent),
 		response.MatchError(ErrModerationUnavailable, 503, "content moderation is temporarily unavailable"),
 		response.MatchError(ErrContentEmpty, 400, "content cannot be empty", errs.ErrContentEmpty),
+		response.MatchError(ErrContentTooShort, 400, "content is too short", errs.ErrParamOutOfRange),
 		response.MatchError(ErrContentTooLong, 400, "content is too long", errs.ErrParamOutOfRange),
+		response.MatchError(ErrReasonTooLong, 400, "reason is too long", errs.ErrParamOutOfRange),
 	}
 	reviewCourseLookupErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrCourseNotFound, 404, "course not found", errs.ErrCourseNotFound),
