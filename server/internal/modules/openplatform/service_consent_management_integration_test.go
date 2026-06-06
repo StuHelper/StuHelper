@@ -2714,6 +2714,176 @@ func TestOpenPlatformAppSecretLifecycleAndStatusAudit(t *testing.T) {
 	require.ErrorIs(t, err, ErrLifecycleReasonRequired)
 }
 
+func TestRotateAppSecretSyncsCasdoorApplication(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	provisioner := &fakeOpenPlatformAppProvisioner{}
+	service, err := NewService(repo, redis.Client, WithAppProvisioner(provisioner))
+	require.NoError(t, err)
+
+	ownerID := seedOpenPlatformUser(t, postgres, "secret-casdoor-owner")
+	adminID := seedOpenPlatformUser(t, postgres, "secret-casdoor-admin")
+	registered, err := service.RegisterApp(ctx, RegisterAppInput{
+		OwnerUserID:      ownerID,
+		DisplayName:      "Secret Casdoor App",
+		Description:      "Secret rotation should update Casdoor.",
+		HomepageURL:      "https://secret-casdoor.example.com",
+		PrivacyPolicyURL: "https://secret-casdoor.example.com/privacy",
+		RedirectURIs:     []string{"https://secret-casdoor.example.com/callback"},
+		Scopes: []ScopeRequestInput{
+			{Scope: ScopeProfileBasicRead, Reason: "show profile"},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, service.ApproveScope(ctx, ApproveScopeInput{
+		AppID:          registered.App.ID,
+		Scope:          ScopeProfileBasicRead,
+		ReviewerUserID: adminID,
+		DecisionNote:   "profile is required",
+	}))
+	approved, err := service.ApproveAppWithAudit(ctx, ApproveAppInput{
+		AppID:          registered.App.ID,
+		ReviewerUserID: adminID,
+		RequestID:      "approve-before-secret-sync",
+	})
+	require.NoError(t, err)
+
+	rotated, err := service.RotateAppSecret(ctx, RotateAppSecretInput{
+		AppID:       registered.App.ID,
+		ActorUserID: ownerID,
+		OwnerUserID: ownerID,
+		ActorType:   "developer",
+		Reason:      "sync Casdoor secret",
+		RequestID:   "rotate-secret-sync-casdoor",
+	})
+
+	require.NoError(t, err)
+	require.NotEqual(t, approved.ClientSecret, rotated.ClientSecret)
+	require.Len(t, provisioner.ensuredSpecs, 2)
+	rotatedSpec := provisioner.ensuredSpecs[1]
+	assert.Equal(t, registered.App.CasdoorApplicationName, rotatedSpec.Name)
+	assert.Equal(t, registered.App.ClientID, rotatedSpec.ClientID)
+	assert.Equal(t, rotated.ClientSecret, rotatedSpec.ClientSecret)
+	assert.Equal(t, registered.App.RedirectURIs, rotatedSpec.RedirectURIs)
+	assertOpenPlatformAuditCount(t, postgres, registered.App.ID, ownerID, "open_platform.app.secret_rotated", 1)
+}
+
+func TestRotateAppSecretRollsBackCasdoorWhenLocalUpdateFails(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	provisioner := &fakeOpenPlatformAppProvisioner{}
+	service, err := NewService(repo, redis.Client, WithAppProvisioner(provisioner))
+	require.NoError(t, err)
+
+	ownerID := seedOpenPlatformUser(t, postgres, "secret-rollback-owner")
+	adminID := seedOpenPlatformUser(t, postgres, "secret-rollback-admin")
+	registered, err := service.RegisterApp(ctx, RegisterAppInput{
+		OwnerUserID:      ownerID,
+		DisplayName:      "Secret Rollback App",
+		Description:      "Secret rotation rollback should survive cancellation.",
+		HomepageURL:      "https://secret-rollback.example.com",
+		PrivacyPolicyURL: "https://secret-rollback.example.com/privacy",
+		RedirectURIs:     []string{"https://secret-rollback.example.com/callback"},
+		Scopes: []ScopeRequestInput{
+			{Scope: ScopeProfileBasicRead, Reason: "show profile"},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, service.ApproveScope(ctx, ApproveScopeInput{
+		AppID:          registered.App.ID,
+		Scope:          ScopeProfileBasicRead,
+		ReviewerUserID: adminID,
+		DecisionNote:   "profile is required",
+	}))
+	approved, err := service.ApproveAppWithAudit(ctx, ApproveAppInput{
+		AppID:          registered.App.ID,
+		ReviewerUserID: adminID,
+		RequestID:      "approve-before-secret-rollback",
+	})
+	require.NoError(t, err)
+
+	requestCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	provisioner.onEnsure = cancel
+	rotated, err := service.RotateAppSecret(requestCtx, RotateAppSecretInput{
+		AppID:       registered.App.ID,
+		ActorUserID: ownerID,
+		OwnerUserID: ownerID,
+		ActorType:   "developer",
+		Reason:      "local update fails after Casdoor secret rotation",
+		RequestID:   "rotate-secret-local-fail",
+	})
+
+	require.Nil(t, rotated)
+	require.Error(t, err)
+	require.Len(t, provisioner.ensuredSpecs, 3)
+	assert.NotEqual(t, approved.ClientSecret, provisioner.ensuredSpecs[1].ClientSecret)
+	assert.Equal(t, approved.ClientSecret, provisioner.ensuredSpecs[2].ClientSecret)
+	assert.Equal(t, approved.ClientSecret, provisioner.existing.ClientSecret)
+	_, err = service.VerifyClientSecret(context.Background(), registered.App.ClientID, approved.ClientSecret)
+	require.NoError(t, err)
+	assertOpenPlatformAuditCount(t, postgres, registered.App.ID, ownerID, "open_platform.app.secret_rotated", 0)
+}
+
+func TestRotateAppSecretDoesNotUpdateLocalWhenCasdoorUpdateFails(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	provisioner := &fakeOpenPlatformAppProvisioner{}
+	service, err := NewService(repo, redis.Client, WithAppProvisioner(provisioner))
+	require.NoError(t, err)
+
+	ownerID := seedOpenPlatformUser(t, postgres, "secret-casdoor-fail-owner")
+	adminID := seedOpenPlatformUser(t, postgres, "secret-casdoor-fail-admin")
+	registered, err := service.RegisterApp(ctx, RegisterAppInput{
+		OwnerUserID:      ownerID,
+		DisplayName:      "Secret Casdoor Failure App",
+		Description:      "Local secret should not change when Casdoor update fails.",
+		HomepageURL:      "https://secret-casdoor-fail.example.com",
+		PrivacyPolicyURL: "https://secret-casdoor-fail.example.com/privacy",
+		RedirectURIs:     []string{"https://secret-casdoor-fail.example.com/callback"},
+		Scopes: []ScopeRequestInput{
+			{Scope: ScopeProfileBasicRead, Reason: "show profile"},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, service.ApproveScope(ctx, ApproveScopeInput{
+		AppID:          registered.App.ID,
+		Scope:          ScopeProfileBasicRead,
+		ReviewerUserID: adminID,
+		DecisionNote:   "profile is required",
+	}))
+	approved, err := service.ApproveAppWithAudit(ctx, ApproveAppInput{
+		AppID:          registered.App.ID,
+		ReviewerUserID: adminID,
+		RequestID:      "approve-before-secret-casdoor-fail",
+	})
+	require.NoError(t, err)
+
+	provisioner.ensureErr = errors.New("casdoor update unavailable")
+	rotated, err := service.RotateAppSecret(ctx, RotateAppSecretInput{
+		AppID:       registered.App.ID,
+		ActorUserID: ownerID,
+		OwnerUserID: ownerID,
+		ActorType:   "developer",
+		Reason:      "Casdoor update fails",
+		RequestID:   "rotate-secret-casdoor-fail",
+	})
+
+	require.Nil(t, rotated)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "casdoor update unavailable")
+	require.Len(t, provisioner.ensuredSpecs, 1)
+	_, err = service.VerifyClientSecret(ctx, registered.App.ClientID, approved.ClientSecret)
+	require.NoError(t, err)
+	assertOpenPlatformAuditCount(t, postgres, registered.App.ID, ownerID, "open_platform.app.secret_rotated", 0)
+}
+
 func TestOpenPlatformRepositoryAppLifecycleUpdatesRequireCurrentStatus(t *testing.T) {
 	ctx := context.Background()
 	postgres := postgresfixture.Start(t)
@@ -3829,12 +3999,14 @@ func latestOpenPlatformTokenProbeEvidence(
 }
 
 type fakeOpenPlatformAppProvisioner struct {
-	existing  ProvisionedApplicationSpec
-	ensured   *ProvisionedApplicationSpec
-	deleted   []string
-	err       error
-	deleteErr error
-	onEnsure  func()
+	existing     ProvisionedApplicationSpec
+	ensured      *ProvisionedApplicationSpec
+	ensuredSpecs []ProvisionedApplicationSpec
+	deleted      []string
+	err          error
+	ensureErr    error
+	deleteErr    error
+	onEnsure     func()
 }
 
 func (f *fakeOpenPlatformAppProvisioner) GetApplication(_ context.Context, name string) (ProvisionedApplicationSpec, error) {
@@ -3848,12 +4020,20 @@ func (f *fakeOpenPlatformAppProvisioner) GetApplication(_ context.Context, name 
 	return spec, nil
 }
 
-func (f *fakeOpenPlatformAppProvisioner) EnsureApplication(_ context.Context, spec ProvisionedApplicationSpec) error {
+func (f *fakeOpenPlatformAppProvisioner) EnsureApplication(ctx context.Context, spec ProvisionedApplicationSpec) error {
+	if f.ensureErr != nil {
+		return f.ensureErr
+	}
 	if f.err != nil {
 		return f.err
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	specCopy := spec
 	f.ensured = &specCopy
+	f.ensuredSpecs = append(f.ensuredSpecs, specCopy)
+	f.existing = specCopy
 	if f.onEnsure != nil {
 		f.onEnsure()
 	}

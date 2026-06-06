@@ -254,7 +254,7 @@ func (s *Service) ApproveAppWithAudit(ctx context.Context, input ApproveAppInput
 	if err != nil {
 		return nil, err
 	}
-	spec := casdoorApplicationSpecForApprovedApp(app, secret)
+	spec := casdoorApplicationSpecForApp(app, secret)
 	if err := s.ensureCasdoorApplicationReadyForApproval(ctx, app, spec, input.ReviewerUserID, input.RequestID); err != nil {
 		return nil, err
 	}
@@ -293,6 +293,10 @@ func (s *Service) RotateAppSecret(ctx context.Context, input RotateAppSecretInpu
 	if err != nil {
 		return nil, err
 	}
+	rollback, err := s.ensureCasdoorApplicationSecretForRotation(ctx, app, secret)
+	if err != nil {
+		return nil, err
+	}
 	actorType := strings.TrimSpace(input.ActorType)
 	if actorType == "" {
 		actorType = "admin"
@@ -307,6 +311,9 @@ func (s *Service) RotateAppSecret(ctx context.Context, input RotateAppSecretInpu
 		input.RequestID,
 	)
 	if err != nil {
+		if rollbackErr := s.rollbackCasdoorApplicationSecretRotation(ctx, rollback); rollbackErr != nil {
+			return nil, errors.Join(err, rollbackErr)
+		}
 		return nil, err
 	}
 	return &RotatedAppSecret{App: updated, ClientSecret: secret}, nil
@@ -576,6 +583,52 @@ func (s *Service) deleteCasdoorApplicationForRevokedApp(ctx context.Context, nam
 	return true, nil
 }
 
+type casdoorApplicationSecretRollback struct {
+	spec ProvisionedApplicationSpec
+	ok   bool
+}
+
+func (s *Service) ensureCasdoorApplicationSecretForRotation(
+	ctx context.Context,
+	app *App,
+	clientSecret string,
+) (casdoorApplicationSecretRollback, error) {
+	if s.provisioner == nil {
+		return casdoorApplicationSecretRollback{}, nil
+	}
+	name := strings.TrimSpace(app.CasdoorApplicationName)
+	if name == "" {
+		return casdoorApplicationSecretRollback{}, nil
+	}
+	previous, err := s.provisioner.GetApplication(ctx, name)
+	if err != nil {
+		return casdoorApplicationSecretRollback{}, fmt.Errorf("read Casdoor application before open platform secret rotation: %w", err)
+	}
+	if strings.TrimSpace(previous.ClientSecret) == "" {
+		return casdoorApplicationSecretRollback{}, fmt.Errorf("read Casdoor application before open platform secret rotation: client secret unavailable")
+	}
+	desired := casdoorApplicationSpecForApp(app, clientSecret)
+	if err := s.provisioner.EnsureApplication(ctx, desired); err != nil {
+		return casdoorApplicationSecretRollback{}, fmt.Errorf("rotate Casdoor application secret before local update: %w", err)
+	}
+	return casdoorApplicationSecretRollback{spec: previous, ok: true}, nil
+}
+
+func (s *Service) rollbackCasdoorApplicationSecretRotation(
+	ctx context.Context,
+	rollback casdoorApplicationSecretRollback,
+) error {
+	if !rollback.ok || s.provisioner == nil {
+		return nil
+	}
+	cleanupCtx, cancel := casdoorApplicationCleanupContext(ctx)
+	defer cancel()
+	if err := s.provisioner.EnsureApplication(cleanupCtx, rollback.spec); err != nil {
+		return fmt.Errorf("rollback Casdoor application secret after local rotation failure: %w", err)
+	}
+	return nil
+}
+
 func appStatusSetToSlice(statuses map[string]struct{}) []string {
 	values := make([]string, 0, len(statuses))
 	for status := range statuses {
@@ -704,7 +757,7 @@ func casdoorApplicationCleanupContext(ctx context.Context) (context.Context, con
 	return ctxutil.DetachedTimeout(ctx, casdoorApplicationCleanupTimeout)
 }
 
-func casdoorApplicationSpecForApprovedApp(app *App, clientSecret string) ProvisionedApplicationSpec {
+func casdoorApplicationSpecForApp(app *App, clientSecret string) ProvisionedApplicationSpec {
 	return ProvisionedApplicationSpec{
 		Name:                 strings.TrimSpace(app.CasdoorApplicationName),
 		DisplayName:          strings.TrimSpace(app.DisplayName),
