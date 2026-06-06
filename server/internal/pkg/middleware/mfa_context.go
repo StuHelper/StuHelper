@@ -31,7 +31,7 @@ func SetMFAProofVerifiedAt(c *gin.Context, verifiedAt time.Time) {
 }
 
 func GetMFAEnrollmentActive(c *gin.Context) bool {
-	value, exists := c.Get(CtxKeyMFAEnrollmentActive)
+	value, exists := getContextValue(c, CtxKeyMFAEnrollmentActive)
 	if !exists {
 		return false
 	}
@@ -40,7 +40,7 @@ func GetMFAEnrollmentActive(c *gin.Context) bool {
 }
 
 func GetMFAProofVerifiedAt(c *gin.Context) time.Time {
-	value, exists := c.Get(CtxKeyMFAProofVerifiedAt)
+	value, exists := getContextValue(c, CtxKeyMFAProofVerifiedAt)
 	if !exists {
 		return time.Time{}
 	}

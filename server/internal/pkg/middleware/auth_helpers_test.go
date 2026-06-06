@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -55,6 +56,98 @@ func TestSetClaimsToContextAndGetters(t *testing.T) {
 
 	grants := GetCapabilityGrants(c)
 	require.NotEmpty(t, grants)
+}
+
+func TestAuthContextGettersAreNilSafe(t *testing.T) {
+	assert.Empty(t, GetUserID(nil))
+	assert.Empty(t, GetAppID(nil))
+	assert.Empty(t, GetUsername(nil))
+	assert.Empty(t, GetEmail(nil))
+	assert.Empty(t, GetDisplayName(nil))
+	assert.Empty(t, GetAvatar(nil))
+	assert.Nil(t, GetTokenScopes(nil))
+	assert.Nil(t, GetRoles(nil))
+	assert.Nil(t, GetCapabilities(nil))
+	assert.Nil(t, GetGlobalCapabilities(nil))
+	assert.Nil(t, GetCapabilityGrants(nil))
+	assert.False(t, HasCapability(nil, capability.UserStudentRead))
+	assert.False(t, HasGlobalCapability(nil, capability.UserStudentRead))
+	assert.False(t, HasCapabilityInSchool(nil, capability.UserSchoolRead, "school-1"))
+	assert.False(t, IsAuthenticated(nil))
+	assert.True(t, GetAuthenticationTime(nil).IsZero())
+	assert.False(t, GetMFAEnrollmentActive(nil))
+	assert.True(t, GetMFAProofVerifiedAt(nil).IsZero())
+	assert.Empty(t, GetRequestID(nil))
+	assert.Empty(t, GetAccessToken(nil))
+
+	tokenValue, source := getTokenWithSource(nil)
+	assert.Empty(t, tokenValue)
+	assert.Equal(t, tokenSourceNone, source)
+
+	tokenValue, source = getTokenWithSource(&gin.Context{})
+	assert.Empty(t, tokenValue)
+	assert.Equal(t, tokenSourceNone, source)
+}
+
+func TestAuthContextSliceGettersReturnCopies(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set(CtxKeyTokenScopes, []string{"scope:read"})
+	c.Set(CtxKeyRoles, []string{"student"})
+	c.Set(CtxKeyCapabilities, []string{capability.UserStudentRead})
+	c.Set(CtxKeyGlobalCapabilities, []string{capability.UserSystemRead})
+	c.Set(CtxKeyCapabilityGrants, []capability.Grant{{
+		Name:            capability.UserSchoolRead,
+		ScopeSchoolIDs:  []string{"school-1"},
+		ScopeSectionIDs: []string{"section-1"},
+		ScopeRoles:      []string{"school_admin"},
+	}})
+
+	tokenScopes := GetTokenScopes(c)
+	tokenScopes[0] = "changed"
+	assert.Equal(t, []string{"scope:read"}, GetTokenScopes(c))
+
+	roles := GetRoles(c)
+	roles[0] = "changed"
+	assert.Equal(t, []string{"student"}, GetRoles(c))
+
+	caps := GetCapabilities(c)
+	caps[0] = "changed"
+	assert.Equal(t, []string{capability.UserStudentRead}, GetCapabilities(c))
+
+	globalCaps := GetGlobalCapabilities(c)
+	globalCaps[0] = "changed"
+	assert.Equal(t, []string{capability.UserSystemRead}, GetGlobalCapabilities(c))
+
+	grants := GetCapabilityGrants(c)
+	grants[0].Name = "changed"
+	grants[0].ScopeSchoolIDs[0] = "changed"
+	grants[0].ScopeSectionIDs[0] = "changed"
+	grants[0].ScopeRoles[0] = "changed"
+
+	stored := GetCapabilityGrants(c)
+	require.Len(t, stored, 1)
+	assert.Equal(t, capability.UserSchoolRead, stored[0].Name)
+	assert.Equal(t, []string{"school-1"}, stored[0].ScopeSchoolIDs)
+	assert.Equal(t, []string{"section-1"}, stored[0].ScopeSectionIDs)
+	assert.Equal(t, []string{"school_admin"}, stored[0].ScopeRoles)
+}
+
+func TestAuthenticationAndMFAGetters(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	authTime := time.Date(2026, 6, 6, 10, 0, 0, 0, time.FixedZone("CST", 8*60*60))
+	mfaTime := authTime.Add(time.Minute)
+	SetAuthenticationTime(c, authTime)
+	SetMFAContext(c, MFAContext{EnrollmentActive: true, ProofVerifiedAt: mfaTime})
+
+	assert.Equal(t, authTime.UTC(), GetAuthenticationTime(c))
+	assert.True(t, GetMFAEnrollmentActive(c))
+	assert.Equal(t, mfaTime, GetMFAProofVerifiedAt(c))
 }
 
 func TestGetTokenWithSourceAndAccessToken(t *testing.T) {

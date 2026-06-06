@@ -164,7 +164,7 @@ func Recovery() gin.HandlerFunc {
 
 // GetRequestID 从 Gin context 中提取请求 ID
 func GetRequestID(c *gin.Context) string {
-	if id, exists := c.Get(CtxKeyRequestID); exists {
+	if id, exists := getContextValue(c, CtxKeyRequestID); exists {
 		if s, ok := id.(string); ok {
 			return s
 		}

@@ -41,7 +41,10 @@ func GetAccessToken(c *gin.Context) string {
 // 当客户端显式携带 Bearer token 时，应优先按 API 客户端语义处理，
 // 避免浏览器 cookie 覆盖 bearerAuth 契约。
 func getTokenWithSource(c *gin.Context) (string, tokenSource) {
-	if c != nil && c.Request != nil && len(c.Request.Header.Values("Authorization")) > 1 {
+	if c == nil || c.Request == nil {
+		return "", tokenSourceNone
+	}
+	if len(c.Request.Header.Values("Authorization")) > 1 {
 		return "", tokenSourceBearer
 	}
 	authHeader := c.GetHeader("Authorization")

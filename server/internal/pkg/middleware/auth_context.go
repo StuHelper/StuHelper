@@ -114,7 +114,7 @@ func GetAppID(c *gin.Context) string {
 }
 
 func GetTokenScopes(c *gin.Context) []string {
-	if val, exists := c.Get(CtxKeyTokenScopes); exists {
+	if val, exists := getContextValue(c, CtxKeyTokenScopes); exists {
 		if scopes, ok := val.([]string); ok {
 			return append([]string(nil), scopes...)
 		}
@@ -144,9 +144,9 @@ func GetAvatar(c *gin.Context) string {
 
 // GetRoles 从上下文获取角色列表
 func GetRoles(c *gin.Context) []string {
-	if val, exists := c.Get(CtxKeyRoles); exists {
+	if val, exists := getContextValue(c, CtxKeyRoles); exists {
 		if roles, ok := val.([]string); ok {
-			return roles
+			return append([]string(nil), roles...)
 		}
 	}
 	return nil
@@ -154,27 +154,27 @@ func GetRoles(c *gin.Context) []string {
 
 // GetCapabilities 从上下文获取能力列表（slice 形式，用于序列化）
 func GetCapabilities(c *gin.Context) []string {
-	if val, exists := c.Get(CtxKeyCapabilities); exists {
+	if val, exists := getContextValue(c, CtxKeyCapabilities); exists {
 		if caps, ok := val.([]string); ok {
-			return caps
+			return append([]string(nil), caps...)
 		}
 	}
 	return nil
 }
 
 func GetGlobalCapabilities(c *gin.Context) []string {
-	if val, exists := c.Get(CtxKeyGlobalCapabilities); exists {
+	if val, exists := getContextValue(c, CtxKeyGlobalCapabilities); exists {
 		if caps, ok := val.([]string); ok {
-			return caps
+			return append([]string(nil), caps...)
 		}
 	}
 	return nil
 }
 
 func GetCapabilityGrants(c *gin.Context) []capability.Grant {
-	if val, exists := c.Get(CtxKeyCapabilityGrants); exists {
+	if val, exists := getContextValue(c, CtxKeyCapabilityGrants); exists {
 		if grants, ok := val.([]capability.Grant); ok {
-			return grants
+			return cloneCapabilityGrants(grants)
 		}
 	}
 	return nil
@@ -182,7 +182,7 @@ func GetCapabilityGrants(c *gin.Context) []capability.Grant {
 
 // HasCapability 检查当前用户是否具有指定能力（O(1) map 查找）
 func HasCapability(c *gin.Context, capabilityName string) bool {
-	if val, exists := c.Get(CtxKeyCapabilitySet); exists {
+	if val, exists := getContextValue(c, CtxKeyCapabilitySet); exists {
 		if set, ok := val.(map[string]struct{}); ok {
 			_, found := set[capabilityName]
 			return found
@@ -212,7 +212,7 @@ func SetAuthenticationTime(c *gin.Context, authTime time.Time) {
 }
 
 func GetAuthenticationTime(c *gin.Context) time.Time {
-	value, exists := c.Get(CtxKeyAuthenticationTime)
+	value, exists := getContextValue(c, CtxKeyAuthenticationTime)
 	if !exists {
 		return time.Time{}
 	}
@@ -223,11 +223,32 @@ func GetAuthenticationTime(c *gin.Context) time.Time {
 	return authTime
 }
 
+func getContextValue(c *gin.Context, key string) (any, bool) {
+	if c == nil {
+		return nil, false
+	}
+	return c.Get(key)
+}
+
 func getContextString(c *gin.Context, key string) string {
-	if val, exists := c.Get(key); exists {
+	if val, exists := getContextValue(c, key); exists {
 		if s, ok := val.(string); ok {
 			return s
 		}
 	}
 	return ""
+}
+
+func cloneCapabilityGrants(grants []capability.Grant) []capability.Grant {
+	if grants == nil {
+		return nil
+	}
+	out := make([]capability.Grant, len(grants))
+	for i, grant := range grants {
+		out[i] = grant
+		out[i].ScopeSchoolIDs = append([]string(nil), grant.ScopeSchoolIDs...)
+		out[i].ScopeSectionIDs = append([]string(nil), grant.ScopeSectionIDs...)
+		out[i].ScopeRoles = append([]string(nil), grant.ScopeRoles...)
+	}
+	return out
 }
