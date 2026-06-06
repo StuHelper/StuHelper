@@ -385,12 +385,18 @@ func TestSubmitIdentity_RejectedIdentityAllowsResubmission(t *testing.T) {
 			return nil, nil
 		},
 	}
-	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	store := &fakeIdentityPhotoStore{presignURL: "https://storage.example.test/identity/photo.png"}
+	svc, err := NewService(
+		repo,
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithIdentityPhotoStore(store),
+	)
 	require.NoError(t, err)
 
-	front := "identities/42/2026/04/front.png"
-	back := "identities/42/2026/04/back.png"
-	selfie := "identities/42/2026/04/selfie.png"
+	front := "identities/42/2026/04/1777777777777777001-front.png"
+	back := "identities/42/2026/04/1777777777777777002-back.png"
+	selfie := "identities/42/2026/04/1777777777777777003-selfie.png"
 	result, err := svc.SubmitIdentity(context.Background(), 42, SubmitIdentityRequest{
 		DocType:        DocTypePassport,
 		DocNumber:      "P12345678",
@@ -408,6 +414,7 @@ func TestSubmitIdentity_RejectedIdentityAllowsResubmission(t *testing.T) {
 	assert.Nil(t, updated.ReviewedAt)
 	assert.Nil(t, updated.VerifiedAt)
 	assert.Nil(t, updated.RejectionReason)
+	assert.Equal(t, []string{front, back, selfie}, store.presignedKeys)
 }
 
 func TestSubmitIdentity_AlreadyVerified(t *testing.T) {

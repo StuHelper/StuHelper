@@ -202,6 +202,9 @@ func (s *Service) GetDownloadURL(ctx context.Context, mountID int64, objectKey s
 	if err != nil {
 		return "", err
 	}
+	if err := ensureObjectExists(ctx, driver, mount, objectKey); err != nil {
+		return "", err
+	}
 	return driver.GetDownloadURL(ctx, *mount, objectKey)
 }
 
@@ -214,7 +217,21 @@ func (s *Service) GetDownloadURLByMountKey(ctx context.Context, mountKey, object
 	if err != nil {
 		return "", err
 	}
+	if err := ensureObjectExists(ctx, driver, mount, objectKey); err != nil {
+		return "", err
+	}
 	return driver.GetDownloadURL(ctx, *mount, objectKey)
+}
+
+func ensureObjectExists(ctx context.Context, driver Driver, mount *Mount, objectKey string) error {
+	stored, err := driver.Stat(ctx, *mount, objectKey)
+	if err != nil {
+		return err
+	}
+	if stored == nil {
+		return ErrStoredObjectMissing
+	}
+	return nil
 }
 
 func validateMountID(mountID int64) error {

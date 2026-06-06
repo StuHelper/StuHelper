@@ -16,6 +16,9 @@ var (
 		response.MatchError(ErrIdentityAlreadyExists, 409, "identity already submitted", errs.ErrIdentityAlreadyExists),
 		response.MatchError(ErrPhotoRequired, 400, "photo upload required for non-mainland documents", errs.ErrIdentityPhotoRequired),
 		response.MatchError(ErrIdentityPhotoInvalidRef, 400, "invalid identity photo reference"),
+		response.MatchError(ErrIdentityPhotoStoreDisabled, 503, "identity photo upload is not available", errs.ErrServiceUnavailable),
+		response.MatchError(ErrIdentityPhotoStorageUnavailable, 503, "identity photo upload is not available", errs.ErrServiceUnavailable),
+		response.MatchError(ErrIdentityPhotoStorageTemporaryUnavailable, 503, "identity photo storage is temporarily unavailable", errs.ErrServiceUnavailable),
 		response.MatchError(ErrIdentityDocNumberInvalid, 400, "identity document number is invalid"),
 		response.MatchError(ErrIdentityRealNameInvalid, 400, "identity real name is invalid"),
 	}

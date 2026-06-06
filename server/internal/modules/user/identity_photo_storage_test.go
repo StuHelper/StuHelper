@@ -17,13 +17,14 @@ import (
 )
 
 type fakeIdentityPhotoStore struct {
-	uploadErr    error
-	presignErr   error
-	presignURL   string
-	uploadedKey  string
-	uploadedType string
-	uploadedData []byte
-	presignedKey string
+	uploadErr     error
+	presignErr    error
+	presignURL    string
+	uploadedKey   string
+	uploadedType  string
+	uploadedData  []byte
+	presignedKey  string
+	presignedKeys []string
 }
 
 func (f *fakeIdentityPhotoStore) Upload(_ context.Context, key string, content []byte, contentType string) error {
@@ -35,6 +36,7 @@ func (f *fakeIdentityPhotoStore) Upload(_ context.Context, key string, content [
 
 func (f *fakeIdentityPhotoStore) PresignGetURL(_ context.Context, key string) (string, error) {
 	f.presignedKey = key
+	f.presignedKeys = append(f.presignedKeys, key)
 	if f.presignErr != nil {
 		return "", f.presignErr
 	}
@@ -128,6 +130,124 @@ func TestResolveIdentityReviewItemAssets_PresignsStoredKeys(t *testing.T) {
 	require.NotNil(t, resolved.DocPhotoFront)
 	assert.Equal(t, raw, store.presignedKey)
 	assert.Equal(t, store.presignURL, *resolved.DocPhotoFront)
+}
+
+func TestSubmitIdentity_VerifiesPhotoRefsAndNormalizesKeys(t *testing.T) {
+	store := &fakeIdentityPhotoStore{presignURL: "https://storage.example.test/identity/photo.png"}
+	var capturedIdentity *IdentityRecord
+	callCount := 0
+	repo := &mockRepo{
+		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
+			callCount++
+			if callCount == 1 {
+				return nil, nil
+			}
+			return &IdentityStatus{UserID: 42, DocType: DocTypePassport, RealName: "张三"}, nil
+		},
+		onCreateIdentity: func(_ context.Context, identity *IdentityRecord) error {
+			copied := *identity
+			capturedIdentity = &copied
+			return nil
+		},
+	}
+	svc, err := NewService(
+		repo,
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithIdentityPhotoStore(store),
+	)
+	require.NoError(t, err)
+
+	front := " /identities/42/2026/04/1777777777777777001-front.png "
+	back := "identities/42/2026/04/1777777777777777002-back.png"
+	selfie := "identities/42/2026/04/1777777777777777003-selfie.webp"
+	_, err = svc.SubmitIdentity(context.Background(), 42, SubmitIdentityRequest{
+		DocType:        DocTypePassport,
+		DocNumber:      "P12345678",
+		RealName:       "张三",
+		DocPhotoFront:  &front,
+		DocPhotoBack:   &back,
+		DocPhotoSelfie: &selfie,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, capturedIdentity)
+	require.NotNil(t, capturedIdentity.DocPhotoFront)
+	require.NotNil(t, capturedIdentity.DocPhotoBack)
+	require.NotNil(t, capturedIdentity.DocPhotoSelfie)
+	assert.Equal(t, "identities/42/2026/04/1777777777777777001-front.png", *capturedIdentity.DocPhotoFront)
+	assert.Equal(t, back, *capturedIdentity.DocPhotoBack)
+	assert.Equal(t, selfie, *capturedIdentity.DocPhotoSelfie)
+	assert.Equal(t, []string{
+		"identities/42/2026/04/1777777777777777001-front.png",
+		back,
+		selfie,
+	}, store.presignedKeys)
+}
+
+func TestSubmitIdentity_RejectsPhotoRefForWrongUserOrSlot(t *testing.T) {
+	svc, err := NewService(
+		&mockRepo{},
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithIdentityPhotoStore(&fakeIdentityPhotoStore{}),
+	)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name  string
+		front string
+	}{
+		{
+			name:  "wrong user",
+			front: "identities/43/2026/04/1777777777777777001-front.png",
+		},
+		{
+			name:  "wrong slot",
+			front: "identities/42/2026/04/1777777777777777001-back.png",
+		},
+		{
+			name:  "legacy key shape",
+			front: "identities/42/2026/04/front.png",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := svc.SubmitIdentity(context.Background(), 42, SubmitIdentityRequest{
+				DocType:       DocTypePassport,
+				DocNumber:     "P12345678",
+				RealName:      "张三",
+				DocPhotoFront: &tc.front,
+			})
+			assert.ErrorIs(t, err, ErrIdentityPhotoInvalidRef)
+		})
+	}
+}
+
+func TestSubmitIdentity_RejectsPhotoRefWhenObjectCannotBeVerified(t *testing.T) {
+	store := &fakeIdentityPhotoStore{presignErr: ErrIdentityPhotoStorageUnavailable}
+	repo := &mockRepo{
+		onCreateIdentity: func(context.Context, *IdentityRecord) error {
+			t.Fatal("invalid photo reference must be rejected before identity is persisted")
+			return nil
+		},
+	}
+	svc, err := NewService(
+		repo,
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithIdentityPhotoStore(store),
+	)
+	require.NoError(t, err)
+
+	front := "identities/42/2026/04/1777777777777777001-front.png"
+	_, err = svc.SubmitIdentity(context.Background(), 42, SubmitIdentityRequest{
+		DocType:       DocTypePassport,
+		DocNumber:     "P12345678",
+		RealName:      "张三",
+		DocPhotoFront: &front,
+	})
+
+	require.ErrorIs(t, err, ErrIdentityPhotoStorageUnavailable)
+	assert.Equal(t, []string{front}, store.presignedKeys)
 }
 
 func TestHandleUploadIdentityPhoto_Returns503WhenStoreUnavailable(t *testing.T) {

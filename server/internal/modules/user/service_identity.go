@@ -9,6 +9,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -56,20 +57,13 @@ func (s *Service) SubmitIdentity(ctx context.Context, userID int64, req SubmitId
 		return nil, ErrIdentityDocNumberInvalid
 	}
 
-	if req.DocType != DocTypeMainlandID {
-		if req.DocPhotoFront == nil || *req.DocPhotoFront == "" {
-			return nil, ErrPhotoRequired
-		}
-		if err := validateSubmittedIdentityPhotoRef(userID, req.DocPhotoFront); err != nil {
-			return nil, err
-		}
-		if err := validateSubmittedIdentityPhotoRef(userID, req.DocPhotoBack); err != nil {
-			return nil, err
-		}
-		if err := validateSubmittedIdentityPhotoRef(userID, req.DocPhotoSelfie); err != nil {
-			return nil, err
-		}
+	photos, err := s.validateSubmittedIdentityPhotos(ctx, userID, req)
+	if err != nil {
+		return nil, err
 	}
+	req.DocPhotoFront = photos.front
+	req.DocPhotoBack = photos.back
+	req.DocPhotoSelfie = photos.selfie
 
 	personUID := s.computePersonUID(req.DocType, req.DocNumber)
 	docNumberEnc, err := s.docCipher.Encrypt(req.DocNumber)
@@ -237,15 +231,125 @@ func decodeAndValidateIdentityPhoto(contentType, dataBase64 string) ([]byte, str
 	return content, detectedType, nil
 }
 
-func validateSubmittedIdentityPhotoRef(userID int64, value *string) error {
-	if value == nil || strings.TrimSpace(*value) == "" {
-		return nil
+type submittedIdentityPhotos struct {
+	front  *string
+	back   *string
+	selfie *string
+}
+
+func (s *Service) validateSubmittedIdentityPhotos(
+	ctx context.Context,
+	userID int64,
+	req SubmitIdentityRequest,
+) (submittedIdentityPhotos, error) {
+	front, err := normalizeSubmittedIdentityPhotoRef(userID, IdentityPhotoSlotFront, req.DocPhotoFront)
+	if err != nil {
+		return submittedIdentityPhotos{}, err
 	}
-	raw := strings.TrimSpace(*value)
-	if !strings.HasPrefix(raw, identityPhotoPrefix(userID)) {
-		return ErrIdentityPhotoInvalidRef
+	back, err := normalizeSubmittedIdentityPhotoRef(userID, IdentityPhotoSlotBack, req.DocPhotoBack)
+	if err != nil {
+		return submittedIdentityPhotos{}, err
 	}
-	return nil
+	selfie, err := normalizeSubmittedIdentityPhotoRef(userID, IdentityPhotoSlotSelfie, req.DocPhotoSelfie)
+	if err != nil {
+		return submittedIdentityPhotos{}, err
+	}
+	if req.DocType != DocTypeMainlandID && front == nil {
+		return submittedIdentityPhotos{}, ErrPhotoRequired
+	}
+
+	photos := submittedIdentityPhotos{front: front, back: back, selfie: selfie}
+	if !photos.hasAny() {
+		return photos, nil
+	}
+	if s.photoStore == nil {
+		return submittedIdentityPhotos{}, ErrIdentityPhotoStoreDisabled
+	}
+	for _, key := range photos.keys() {
+		if _, err := s.photoStore.PresignGetURL(ctx, key); err != nil {
+			return submittedIdentityPhotos{}, fmt.Errorf("verify identity photo reference: %w", err)
+		}
+	}
+	return photos, nil
+}
+
+func (p submittedIdentityPhotos) hasAny() bool {
+	return p.front != nil || p.back != nil || p.selfie != nil
+}
+
+func (p submittedIdentityPhotos) keys() []string {
+	keys := make([]string, 0, 3)
+	for _, ref := range []*string{p.front, p.back, p.selfie} {
+		if ref != nil {
+			keys = append(keys, *ref)
+		}
+	}
+	return keys
+}
+
+func normalizeSubmittedIdentityPhotoRef(userID int64, slot string, value *string) (*string, error) {
+	if value == nil {
+		return nil, nil
+	}
+	key := normalizeIdentityPhotoKey(*value)
+	if key == "" {
+		return nil, nil
+	}
+	if !strings.HasPrefix(key, identityPhotoPrefix(userID)) || !identityPhotoKeyMatchesSlot(key, slot) {
+		return nil, ErrIdentityPhotoInvalidRef
+	}
+	return &key, nil
+}
+
+func normalizeIdentityPhotoKey(value string) string {
+	key := path.Clean("/" + strings.TrimSpace(value))
+	return strings.Trim(key, "/")
+}
+
+func identityPhotoKeyMatchesSlot(key, slot string) bool {
+	segments := strings.Split(key, "/")
+	if len(segments) != 5 ||
+		segments[0] != "identities" ||
+		!isFixedWidthDecimalString(segments[2], 4) ||
+		!isFixedWidthDecimalString(segments[3], 2) {
+		return false
+	}
+	filename := path.Base(key)
+	ext := strings.ToLower(path.Ext(filename))
+	if !isAllowedIdentityPhotoExt(ext) {
+		return false
+	}
+	name := strings.TrimSuffix(filename, ext)
+	hyphen := strings.LastIndexByte(name, '-')
+	if hyphen <= 0 || name[hyphen+1:] != slot {
+		return false
+	}
+	return isDecimalString(name[:hyphen])
+}
+
+func isAllowedIdentityPhotoExt(ext string) bool {
+	switch ext {
+	case ".jpg", ".png", ".webp":
+		return true
+	default:
+		return false
+	}
+}
+
+func isDecimalString(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, ch := range value {
+		if ch < '0' || ch > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func isFixedWidthDecimalString(value string, width int) bool {
+	return len(value) == width && isDecimalString(value)
 }
 
 func canResubmitIdentity(existing *IdentityStatus) bool {

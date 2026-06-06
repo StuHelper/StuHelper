@@ -16,6 +16,9 @@ type fakeDriver struct {
 	healthErr     error
 	downloadURL   string
 	downloadCalls int
+	statObject    *StoredObject
+	statErr       error
+	statCalls     int
 	putObject     *StoredObject
 	putErr        error
 	deletedKeys   []string
@@ -41,7 +44,14 @@ func (d *fakeDriver) Put(context.Context, Mount, string, []byte, string) (*Store
 }
 
 func (d *fakeDriver) Stat(context.Context, Mount, string) (*StoredObject, error) {
-	return nil, errors.New("unexpected Stat call")
+	d.statCalls++
+	if d.statErr != nil {
+		return nil, d.statErr
+	}
+	if d.statObject != nil {
+		return d.statObject, nil
+	}
+	return &StoredObject{ObjectKey: "object.txt", SizeBytes: 1, ContentType: "text/plain"}, nil
 }
 
 func (d *fakeDriver) Delete(ctx context.Context, _ Mount, objectKey string) error {
@@ -254,6 +264,35 @@ func TestGetDownloadURLRejectsDisabledMountByID(t *testing.T) {
 
 	require.ErrorIs(t, err, ErrMountDisabled)
 	assert.Empty(t, url)
+	assert.Equal(t, 0, driver.downloadCalls)
+	assert.Equal(t, 0, driver.statCalls)
+}
+
+func TestGetDownloadURLRequiresExistingObjectBeforePresign(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(repo, config.ObjectStorageConfig{})
+	driver := &fakeDriver{
+		downloadURL: "https://storage.example.test/resource.txt",
+		statErr:     errors.New("object missing"),
+	}
+	svc.registry.drivers["s3"] = driver
+	ctx := context.Background()
+
+	created, err := svc.CreateMount(ctx, CreateMountRequest{
+		Key:      "stat-before-presign",
+		Name:     "Stat Before Presign",
+		Driver:   "s3",
+		BasePath: "resources",
+		Enabled:  true,
+	})
+	require.NoError(t, err)
+
+	url, err := svc.GetDownloadURL(ctx, created.ID, "resources/object.txt")
+
+	require.ErrorContains(t, err, "object missing")
+	assert.Empty(t, url)
+	assert.Equal(t, 1, driver.statCalls)
 	assert.Equal(t, 0, driver.downloadCalls)
 }
 
