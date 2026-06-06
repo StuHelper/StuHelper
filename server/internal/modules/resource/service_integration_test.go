@@ -16,6 +16,7 @@ import (
 type fakeObjectStore struct {
 	mountID     int64
 	downloadURL string
+	putKeys     []string
 	deletedKeys []string
 	putErr      error
 	putMissing  bool
@@ -29,6 +30,7 @@ func (s *fakeObjectStore) Put(_ context.Context, _ string, objectKey string, con
 	if s.onPut != nil {
 		s.onPut()
 	}
+	s.putKeys = append(s.putKeys, objectKey)
 	if s.putErr != nil {
 		return 0, nil, s.putErr
 	}
@@ -112,6 +114,26 @@ func TestCreateResource_AcceptsPlainTextWithoutCharsetParameter(t *testing.T) {
 	assert.Equal(t, "Plain Text", created.Title)
 }
 
+func TestCreateResource_RejectsMissingOwnerBeforeUpload(t *testing.T) {
+	ctx, _, repo, svc, store := setupResourceService(t)
+
+	_, err := svc.CreateResource(ctx, "   ", CreateRequest{
+		Title:       "Missing Owner",
+		Visibility:  "public",
+		Filename:    "missing-owner.txt",
+		ContentType: "text/plain",
+		DataBase64:  base64.StdEncoding.EncodeToString([]byte("owner is required")),
+	})
+
+	require.ErrorIs(t, err, ErrResourceOwnerRequired)
+	assert.Empty(t, store.putKeys)
+	assert.Empty(t, store.deletedKeys)
+
+	var count int
+	require.NoError(t, repo.db.QueryRow(ctx, `SELECT COUNT(*) FROM resource_items`).Scan(&count))
+	assert.Zero(t, count)
+}
+
 func TestCreateResource_NormalizesTagsAndBindingsBeforePersist(t *testing.T) {
 	ctx, _, _, svc, _ := setupResourceService(t)
 
@@ -173,7 +195,7 @@ func TestUpdateResource_NormalizesTagsAndBindingsBeforePersist(t *testing.T) {
 	ctx, _, _, svc, _ := setupResourceService(t)
 	created := createSampleResource(t, ctx, svc)
 
-	updated, err := svc.UpdateResource(ctx, created.ID, "oidc-user-1", UpdateRequest{
+	updated, err := svc.UpdateResource(ctx, created.ID, " oidc-user-1 ", UpdateRequest{
 		Title:       "  Algorithms Notes v2  ",
 		Description: ptr("   "),
 		Category:    ptr(" updated "),
@@ -320,10 +342,19 @@ func TestUpdateAndDeletePrivateResource(t *testing.T) {
 	})
 	require.ErrorIs(t, err, ErrResourceNotFound)
 
+	_, err = svc.UpdateResource(ctx, created.ID, " ", UpdateRequest{
+		Title:      "Missing Owner",
+		Visibility: "public",
+	})
+	require.ErrorIs(t, err, ErrResourceOwnerRequired)
+
 	_, err = svc.GetResource(ctx, created.ID, "oidc-user-2")
 	require.ErrorIs(t, err, ErrResourceNotFound)
 
-	err = svc.DeleteResource(ctx, created.ID, "oidc-user-1")
+	err = svc.DeleteResource(ctx, created.ID, " ")
+	require.ErrorIs(t, err, ErrResourceOwnerRequired)
+
+	err = svc.DeleteResource(ctx, created.ID, " oidc-user-1 ")
 	require.NoError(t, err)
 	assert.Empty(t, store.deletedKeys)
 

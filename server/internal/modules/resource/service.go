@@ -29,6 +29,7 @@ var (
 	ErrResourceStorageDriverMissing = errors.New("resource storage driver unavailable")
 	ErrResourceStoredObjectMissing  = errors.New("resource storage returned no object metadata")
 	ErrResourceStoredObjectInvalid  = errors.New("resource storage returned invalid object metadata")
+	ErrResourceOwnerRequired        = errors.New("owner user id is required")
 )
 
 type StoredObject struct {
@@ -59,6 +60,10 @@ func NewService(repo *Repository, store objectStore) *Service {
 }
 
 func (s *Service) CreateResource(ctx context.Context, ownerUserID string, req CreateRequest) (*Item, error) {
+	ownerUserID, err := normalizeRequiredResourceOwner(ownerUserID)
+	if err != nil {
+		return nil, err
+	}
 	req = normalizeCreateResourceRequest(req)
 	content, detectedType, err := decodePayload(req.ContentType, req.DataBase64)
 	if err != nil {
@@ -143,6 +148,7 @@ func (s *Service) ListResources(ctx context.Context, filters ListFilters) ([]Ite
 }
 
 func (s *Service) GetResource(ctx context.Context, resourceID int64, viewerUserID string) (*Item, error) {
+	viewerUserID = strings.TrimSpace(viewerUserID)
 	item, err := s.repo.GetResourceByID(ctx, resourceID)
 	if err != nil {
 		return nil, err
@@ -154,6 +160,10 @@ func (s *Service) GetResource(ctx context.Context, resourceID int64, viewerUserI
 }
 
 func (s *Service) UpdateResource(ctx context.Context, resourceID int64, ownerUserID string, req UpdateRequest) (*Item, error) {
+	ownerUserID, err := normalizeRequiredResourceOwner(ownerUserID)
+	if err != nil {
+		return nil, err
+	}
 	req = normalizeUpdateResourceRequest(req)
 	if strings.TrimSpace(req.Title) == "" {
 		return nil, ErrResourceTitleRequired
@@ -163,6 +173,10 @@ func (s *Service) UpdateResource(ctx context.Context, resourceID int64, ownerUse
 }
 
 func (s *Service) DeleteResource(ctx context.Context, resourceID int64, ownerUserID string) error {
+	ownerUserID, err := normalizeRequiredResourceOwner(ownerUserID)
+	if err != nil {
+		return err
+	}
 	item, err := s.repo.GetResourceByID(ctx, resourceID)
 	if err != nil {
 		return err
@@ -214,8 +228,17 @@ func resourceMediaTypesMatch(provided, detected string) bool {
 	return providedType == detectedType
 }
 
+func normalizeRequiredResourceOwner(ownerUserID string) (string, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if ownerUserID == "" {
+		return "", ErrResourceOwnerRequired
+	}
+	return ownerUserID, nil
+}
+
 func isResourceBadRequestError(err error) bool {
 	return errors.Is(err, ErrResourceTitleRequired) ||
+		errors.Is(err, ErrResourceOwnerRequired) ||
 		errors.Is(err, ErrResourceFilenameRequired) ||
 		errors.Is(err, ErrResourcePayloadRequired) ||
 		errors.Is(err, ErrResourcePayloadInvalid) ||

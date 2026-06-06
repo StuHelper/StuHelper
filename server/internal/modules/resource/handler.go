@@ -149,6 +149,11 @@ func (h *Handler) deleteResource(c *gin.Context) {
 			response.NotFound(c, "resource not found")
 			return
 		}
+		if isResourceBadRequestError(err) {
+			logResourceAudit(c, audit.EventDataDelete, "delete", "failure", resourceID, map[string]any{"reason": err.Error()})
+			response.BadRequest(c, err.Error())
+			return
+		}
 		logResourceAudit(c, audit.EventDataDelete, "delete", "failure", resourceID, map[string]any{"reason": err.Error()})
 		response.InternalError(c, "failed to delete resource")
 		return
