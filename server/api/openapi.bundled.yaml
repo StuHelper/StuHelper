@@ -12927,6 +12927,9 @@ components:
         - identity_rejected
         - student_approved
         - student_rejected
+        - freshman_approved
+        - freshman_rejected
+        - freshman_near_expiry
         - system
     NotificationPayload:
       type: object

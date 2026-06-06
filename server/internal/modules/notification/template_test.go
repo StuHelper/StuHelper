@@ -2,11 +2,14 @@ package notification
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 func TestNewReviewHiddenNotification_IncludesReasonPayload(t *testing.T) {
@@ -61,4 +64,44 @@ func TestFreshmanNotificationTemplatesEncodeReviewState(t *testing.T) {
 	require.NoError(t, json.Unmarshal(approved.Payload, &payload))
 	assert.Equal(t, "app-1", payload["applicationID"])
 	assert.Equal(t, "2026-10-01T12:00:00Z", payload["expiresAt"])
+}
+
+func TestNotificationTemplateTypesMatchOpenAPIEnum(t *testing.T) {
+	openAPITypes := readOpenAPINotificationTypes(t)
+	templateTypes := []string{
+		TypeReply,
+		TypeLike,
+		TypeVote,
+		TypeReviewHidden,
+		TypeReviewRestored,
+		TypeReportResolved,
+		TypeIdentityApproved,
+		TypeIdentityRejected,
+		TypeStudentApproved,
+		TypeStudentRejected,
+		TypeFreshmanApproved,
+		TypeFreshmanRejected,
+		TypeFreshmanNearExpiry,
+		TypeSystem,
+	}
+
+	assert.ElementsMatch(t, templateTypes, openAPITypes)
+}
+
+func readOpenAPINotificationTypes(t *testing.T) []string {
+	t.Helper()
+
+	path := filepath.Join("..", "..", "..", "api", "components", "schemas", "notification.yaml")
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	var schemas struct {
+		NotificationType struct {
+			Enum []string `yaml:"enum"`
+		} `yaml:"NotificationType"`
+	}
+	require.NoError(t, yaml.Unmarshal(data, &schemas))
+
+	require.NotEmpty(t, schemas.NotificationType.Enum)
+	return schemas.NotificationType.Enum
 }

@@ -42,6 +42,7 @@ export function resolveNotificationPresentation(
     case 'review_hidden':
     case 'identity_rejected':
     case 'student_rejected':
+    case 'freshman_rejected':
       if (reason) {
         contentKey = `${prefix}.contentWithReason`
         contentParams = { reason }
@@ -86,6 +87,10 @@ export function resolveNotificationHref(notification: Notification): string | un
     case 'student_approved':
     case 'student_rejected':
       return '/user/student-verification'
+    case 'freshman_approved':
+    case 'freshman_rejected':
+    case 'freshman_near_expiry':
+      return '/admission'
     default:
       return undefined
   }
@@ -103,9 +108,12 @@ export function resolveNotificationVisualKind(type: NotificationType): Notificat
     case 'review_restored':
     case 'identity_approved':
     case 'student_approved':
+    case 'freshman_approved':
       return 'success'
     case 'identity_rejected':
     case 'student_rejected':
+    case 'freshman_rejected':
+    case 'freshman_near_expiry':
       return 'warning'
     default:
       return 'info'

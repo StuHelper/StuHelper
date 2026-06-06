@@ -5226,7 +5226,7 @@ export interface components {
             enabled: boolean;
         };
         /** @enum {string} */
-        NotificationType: "reply" | "like" | "vote" | "review_hidden" | "review_restored" | "report_resolved" | "identity_approved" | "identity_rejected" | "student_approved" | "student_rejected" | "system";
+        NotificationType: "reply" | "like" | "vote" | "review_hidden" | "review_restored" | "report_resolved" | "identity_approved" | "identity_rejected" | "student_approved" | "student_rejected" | "freshman_approved" | "freshman_rejected" | "freshman_near_expiry" | "system";
         NotificationPayload: {
             [key: string]: unknown;
         };

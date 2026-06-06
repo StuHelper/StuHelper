@@ -60,4 +60,30 @@ describe('notification helpers', () => {
 
     expect(resolveNotificationHref(notification)).toBe('/user/identity-verification')
   })
+
+  it('handles freshman admission notification types', () => {
+    const approved: Notification = {
+      id: '1',
+      type: 'freshman_approved',
+      title: 'approved',
+      isRead: false,
+      createdAt: '2026-04-08T00:00:00Z',
+    }
+    const rejected: Notification = {
+      id: '2',
+      type: 'freshman_rejected',
+      title: 'rejected',
+      content: 'fallback rejected',
+      payload: { reason: '材料不清晰' },
+      isRead: false,
+      createdAt: '2026-04-08T00:00:00Z',
+    }
+
+    expect(resolveNotificationHref(approved)).toBe('/admission')
+    expect(resolveNotificationHref({ ...approved, type: 'freshman_near_expiry' })).toBe('/admission')
+    expect(resolveNotificationVisualKind(approved.type)).toBe('success')
+    expect(resolveNotificationVisualKind(rejected.type)).toBe('warning')
+    expect(resolveNotificationVisualKind('freshman_near_expiry')).toBe('warning')
+    expect(resolveNotificationPresentation(rejected, t).content).toBe('fallback rejected')
+  })
 })

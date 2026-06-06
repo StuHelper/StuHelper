@@ -178,6 +178,27 @@ describe('useNotificationStore', () => {
       expect(store.pageTotal).toBe(1)
     })
 
+    it('accepts freshman notification types', async () => {
+      const list = [
+        makeNotification('1', { type: 'freshman_approved' }),
+        makeNotification('2', { type: 'freshman_rejected' }),
+        makeNotification('3', { type: 'freshman_near_expiry' }),
+      ]
+      mockGetNotifications.mockResolvedValue({
+        data: { data: { list, total: 3 } },
+      })
+
+      const store = useNotificationStore()
+      await store.fetchPageNotifications(1, 20)
+
+      expect(store.pageNotifications.map(item => item.type)).toEqual([
+        'freshman_approved',
+        'freshman_rejected',
+        'freshman_near_expiry',
+      ])
+      expect(store.pageFetchError).toBeNull()
+    })
+
     it('normalizes invalid page params', async () => {
       mockGetNotifications.mockResolvedValue({
         data: { data: { list: [], total: 0 } },
