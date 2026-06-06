@@ -319,6 +319,9 @@ func (s *Service) BuildConsentChallenge(
 	if app == nil {
 		return nil, ErrAppNotFound
 	}
+	if userID <= 0 {
+		return nil, ErrDisclosureUnavailable
+	}
 	currentApp, err := s.loadCurrentChallengeApp(ctx, app.ID, req.RedirectURI, scopes)
 	if err != nil {
 		return nil, err
