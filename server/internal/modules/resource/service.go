@@ -59,6 +59,7 @@ func NewService(repo *Repository, store objectStore) *Service {
 }
 
 func (s *Service) CreateResource(ctx context.Context, ownerUserID string, req CreateRequest) (*Item, error) {
+	req = normalizeCreateResourceRequest(req)
 	content, detectedType, err := decodePayload(req.ContentType, req.DataBase64)
 	if err != nil {
 		return nil, err
@@ -128,6 +129,7 @@ func cleanupResourceObjectKey(requestedKey string, stored *StoredObject) string 
 }
 
 func (s *Service) ListResources(ctx context.Context, filters ListFilters) ([]Item, int, error) {
+	filters = normalizeListFilters(filters)
 	return s.repo.ListResources(ctx, filters)
 }
 
@@ -143,6 +145,7 @@ func (s *Service) GetResource(ctx context.Context, resourceID int64, viewerUserI
 }
 
 func (s *Service) UpdateResource(ctx context.Context, resourceID int64, ownerUserID string, req UpdateRequest) (*Item, error) {
+	req = normalizeUpdateResourceRequest(req)
 	if strings.TrimSpace(req.Title) == "" {
 		return nil, ErrResourceTitleRequired
 	}
@@ -216,6 +219,89 @@ func normalizeVisibility(value string) string {
 		return "private"
 	}
 	return "public"
+}
+
+func normalizeCreateResourceRequest(req CreateRequest) CreateRequest {
+	req.Title = strings.TrimSpace(req.Title)
+	req.Description = normalizeOptionalResourceString(req.Description)
+	req.Category = normalizeOptionalResourceString(req.Category)
+	req.Filename = strings.TrimSpace(req.Filename)
+	req.ContentType = strings.TrimSpace(req.ContentType)
+	req.MountKey = strings.TrimSpace(req.MountKey)
+	req.Tags = normalizeResourceTags(req.Tags)
+	req.Bindings = normalizeResourceBindings(req.Bindings)
+	return req
+}
+
+func normalizeUpdateResourceRequest(req UpdateRequest) UpdateRequest {
+	req.Title = strings.TrimSpace(req.Title)
+	req.Description = normalizeOptionalResourceString(req.Description)
+	req.Category = normalizeOptionalResourceString(req.Category)
+	req.Tags = normalizeResourceTags(req.Tags)
+	req.Bindings = normalizeResourceBindings(req.Bindings)
+	return req
+}
+
+func normalizeListFilters(filters ListFilters) ListFilters {
+	filters.Query = strings.TrimSpace(filters.Query)
+	filters.Tag = strings.TrimSpace(filters.Tag)
+	filters.BindingType = strings.TrimSpace(filters.BindingType)
+	filters.BindingValue = strings.TrimSpace(filters.BindingValue)
+	return filters
+}
+
+func normalizeOptionalResourceString(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+func normalizeResourceTags(tags []string) []string {
+	if len(tags) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(tags))
+	normalized := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			continue
+		}
+		if _, ok := seen[tag]; ok {
+			continue
+		}
+		seen[tag] = struct{}{}
+		normalized = append(normalized, tag)
+	}
+	return normalized
+}
+
+func normalizeResourceBindings(bindings []Binding) []Binding {
+	if len(bindings) == 0 {
+		return nil
+	}
+	seen := make(map[Binding]struct{}, len(bindings))
+	normalized := make([]Binding, 0, len(bindings))
+	for _, binding := range bindings {
+		item := Binding{
+			Type:  strings.TrimSpace(binding.Type),
+			Value: strings.TrimSpace(binding.Value),
+		}
+		if item.Type == "" || item.Value == "" {
+			continue
+		}
+		if _, ok := seen[item]; ok {
+			continue
+		}
+		seen[item] = struct{}{}
+		normalized = append(normalized, item)
+	}
+	return normalized
 }
 
 func sanitizeFilename(name string) string {

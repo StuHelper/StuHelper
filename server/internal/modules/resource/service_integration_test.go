@@ -112,6 +112,70 @@ func TestCreateResource_AcceptsPlainTextWithoutCharsetParameter(t *testing.T) {
 	assert.Equal(t, "Plain Text", created.Title)
 }
 
+func TestCreateResource_NormalizesTagsAndBindingsBeforePersist(t *testing.T) {
+	ctx, _, _, svc, _ := setupResourceService(t)
+
+	created, err := svc.CreateResource(ctx, "oidc-user-1", CreateRequest{
+		Title:       "  Algorithms Notes  ",
+		Description: ptr("  Midterm summary  "),
+		Category:    ptr("  notes  "),
+		Visibility:  "public",
+		Tags:        []string{" algorithm ", "algorithm", "", " midterm "},
+		Bindings: []Binding{
+			{Type: " course ", Value: " CS101 "},
+			{Type: "course", Value: "CS101"},
+			{Type: "", Value: "ignored"},
+			{Type: "term", Value: " 2026-SPRING "},
+		},
+		Filename:    "  algo notes.txt  ",
+		ContentType: " text/plain; charset=utf-8 ",
+		DataBase64:  base64.StdEncoding.EncodeToString([]byte("hello, normalized resource")),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, created)
+	assert.Equal(t, "Algorithms Notes", created.Title)
+	require.NotNil(t, created.Description)
+	assert.Equal(t, "Midterm summary", *created.Description)
+	require.NotNil(t, created.Category)
+	assert.Equal(t, "notes", *created.Category)
+	assert.Equal(t, []string{"algorithm", "midterm"}, created.Tags)
+	assert.Equal(t, []Binding{
+		{Type: "course", Value: "CS101"},
+		{Type: "term", Value: "2026-SPRING"},
+	}, created.Bindings)
+	assert.Equal(t, "algo notes.txt", created.LatestVersion.Filename)
+}
+
+func TestUpdateResource_NormalizesTagsAndBindingsBeforePersist(t *testing.T) {
+	ctx, _, _, svc, _ := setupResourceService(t)
+	created := createSampleResource(t, ctx, svc)
+
+	updated, err := svc.UpdateResource(ctx, created.ID, "oidc-user-1", UpdateRequest{
+		Title:       "  Algorithms Notes v2  ",
+		Description: ptr("   "),
+		Category:    ptr(" updated "),
+		Visibility:  "private",
+		Tags:        []string{" updated ", "updated", "", "resource"},
+		Bindings: []Binding{
+			{Type: " course ", Value: " CS101 "},
+			{Type: "course", Value: "CS101"},
+			{Type: "term", Value: " 2026-SPRING "},
+			{Type: "term", Value: ""},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	assert.Equal(t, "Algorithms Notes v2", updated.Title)
+	assert.Nil(t, updated.Description)
+	require.NotNil(t, updated.Category)
+	assert.Equal(t, "updated", *updated.Category)
+	assert.Equal(t, []string{"resource", "updated"}, updated.Tags)
+	assert.Equal(t, []Binding{
+		{Type: "course", Value: "CS101"},
+		{Type: "term", Value: "2026-SPRING"},
+	}, updated.Bindings)
+}
+
 func TestCreateResource_RejectsMissingStorageMetadata(t *testing.T) {
 	ctx, _, repo, svc, store := setupResourceService(t)
 	store.putMissing = true
