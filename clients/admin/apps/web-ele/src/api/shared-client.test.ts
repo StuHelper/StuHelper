@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
     }
     return {};
   }),
-  readCookie: vi.fn(() => null),
+  readCookie: vi.fn((_name: string): null | string => null),
   request: vi.fn(),
   resetAllStores: vi.fn(),
 }));

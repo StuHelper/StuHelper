@@ -3,7 +3,6 @@
  */
 
 export const CSRF_COOKIE_NAME = 'csrf_token';
-export const CSRF_HEADER_NAME = 'X-CSRF-Token';
 
 export function readCookie(name: string): null | string {
   if (typeof document === 'undefined') {
