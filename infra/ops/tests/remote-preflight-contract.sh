@@ -71,6 +71,7 @@ assert_contains "${COMMON_LIB_FILE}" 'public JWKS ready'
 assert_contains "${COMMON_LIB_FILE}" 'discovery did not expose jwks_uri'
 assert_contains "${COMMON_LIB_FILE}" 'require_verified_postgres_ssl_mode "POSTGRES_INTERNAL_SSL_MODE"'
 assert_contains "${COMMON_LIB_FILE}" 'DB_SSL_MODE must be verify-full for production'
+assert_contains "${PREFLIGHT_FILE}" 'APP_ENV must be production for remote preflight'
 assert_contains "${PREFLIGHT_FILE}" 'require_production_postgres_ssl'
 assert_contains "${PREFLIGHT_FILE}" 'require_public_ingress_config_preflight'
 assert_contains "${PREFLIGHT_FILE}" 'require_public_identity_ingress_preflight'
@@ -78,6 +79,7 @@ assert_contains "${PREFLIGHT_FILE}" 'ADMISSION_PUBLIC_SMOKE_ENABLED'
 assert_contains "${PREFLIGHT_FILE}" 'ADMISSION_PUBLIC_SMOKE_PREFLIGHT_RETRIES'
 assert_contains "${PREFLIGHT_FILE}" 'admission-public-smoke\.sh'
 
+app_env_gate_line="$(line_number "${PREFLIGHT_FILE}" 'APP_ENV must be production for remote preflight')"
 ssl_gate_line="$(line_number "${PREFLIGHT_FILE}" 'require_production_postgres_ssl')"
 public_ingress_config_preflight_line="$(line_number "${PREFLIGHT_FILE}" 'require_public_ingress_config_preflight')"
 public_ingress_preflight_line="$(line_number "${PREFLIGHT_FILE}" 'require_public_identity_ingress_preflight')"
@@ -90,6 +92,9 @@ public_http_web_line="$(line_number "${COMMON_LIB_FILE}" 'require_public_http_re
 public_http_admission_line="$(line_number "${COMMON_LIB_FILE}" 'require_public_http_reachable "Admission"')"
 if (( ssl_gate_line >= docker_info_line )); then
   fail "remote preflight must validate production PostgreSQL SSL before Docker checks"
+fi
+if (( app_env_gate_line >= ssl_gate_line )); then
+  fail "remote preflight must enforce APP_ENV=production before PostgreSQL SSL config validation"
 fi
 if (( public_ingress_preflight_line <= ssl_gate_line )); then
   fail "remote preflight must validate public SSO/admission ingress after PostgreSQL SSL config validation"

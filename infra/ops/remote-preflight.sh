@@ -52,6 +52,8 @@ if [[ -n "${pending_generated_secret_ref}" ]]; then
   export GENERATED_ENV_SECRET_REF="${pending_generated_secret_ref}"
 fi
 
+[[ "${APP_ENV:-}" == "production" ]] || die "APP_ENV must be production for remote preflight"
+
 require_production_postgres_ssl
 require_public_ingress_config_preflight
 require_public_identity_ingress_preflight
