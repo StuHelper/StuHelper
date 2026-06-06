@@ -314,6 +314,9 @@ func newResourceAccessHandlerRouter(
 	verifier ResourceAccessTokenVerifier,
 ) *gin.Engine {
 	t.Helper()
+	if service == nil {
+		service = &Service{}
+	}
 	handler := NewHandler(service)
 	handler.SetResourceAccessTokenVerifier(verifier)
 	router := gin.New()

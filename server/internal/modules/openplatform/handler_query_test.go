@@ -15,7 +15,7 @@ import (
 
 func TestAuthorizeRejectsRepeatedSingleValueQueryParameters(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	handler := NewHandler(nil)
+	handler := NewHandler(&Service{})
 
 	tests := []struct {
 		name   string
@@ -56,7 +56,7 @@ func TestAuthorizeRejectsRepeatedSingleValueQueryParameters(t *testing.T) {
 
 func TestDisclosureRejectsRepeatedSingleValueQueryParameters(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	handler := NewHandler(nil)
+	handler := NewHandler(&Service{})
 
 	tests := []struct {
 		name   string
@@ -102,7 +102,7 @@ func TestDisclosureRejectsRepeatedSingleValueQueryParameters(t *testing.T) {
 
 func TestOpenPlatformListHandlersRejectAmbiguousSingleValueQueryParameters(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	handler := NewHandler(nil)
+	handler := NewHandler(&Service{})
 
 	tests := []struct {
 		name   string

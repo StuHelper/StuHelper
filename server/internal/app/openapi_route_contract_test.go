@@ -64,7 +64,7 @@ func TestOpenAPIRoutes_AreFullyRegistered(t *testing.T) {
 	admissionHandler := &admission.Handler{}
 	admissionHandler.RegisterRoutes(api, noOp)
 	admissionHandler.RegisterBotRoutes(api)
-	openPlatformHandler := openplatform.NewHandler(nil)
+	openPlatformHandler := openplatform.NewHandler(&openplatform.Service{})
 	openPlatformHandler.RegisterRoutes(api, noOp)
 	adminGroup := api.Group("/admin")
 	adminGroup.Use(noOp)

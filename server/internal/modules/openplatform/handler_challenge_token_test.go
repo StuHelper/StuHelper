@@ -61,7 +61,7 @@ func TestHandlerRejectsInvalidChallengeTokenQuery(t *testing.T) {
 func newOpenPlatformChallengeTokenRouter(t *testing.T) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
-	handler := NewHandler(nil)
+	handler := NewHandler(&Service{})
 	router := gin.New()
 	api := router.Group("/api/v1")
 	handler.RegisterRoutes(api, func(c *gin.Context) {})
