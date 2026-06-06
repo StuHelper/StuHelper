@@ -101,7 +101,7 @@ func TestOptionalAuthMiddleware_InvalidCookieClearsAndContinues(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `"authed":false`)
 
 	cookies := w.Result().Cookies()
-	require.Len(t, cookies, 3)
+	require.Len(t, cookies, 4)
 	for _, cookie := range cookies {
 		assert.Empty(t, cookie.Value)
 		assert.Less(t, cookie.MaxAge, 0)
@@ -125,7 +125,7 @@ func TestOptionalAuthMiddleware_RevokedCookieClearsAndContinues(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	cookies := w.Result().Cookies()
-	require.Len(t, cookies, 3)
+	require.Len(t, cookies, 4)
 }
 
 func TestAuthMiddleware_RevokedToken(t *testing.T) {
@@ -201,7 +201,7 @@ func TestClearAuthCookies_PathContract(t *testing.T) {
 	clearAuthCookies(c, OptionalAuthConfig{CookieDomain: "example.com", CookieSecure: true})
 
 	cookies := w.Result().Cookies()
-	require.Len(t, cookies, 3)
+	require.Len(t, cookies, 4)
 	paths := map[string]string{}
 	for _, cookie := range cookies {
 		paths[cookie.Name] = cookie.Path
@@ -209,6 +209,7 @@ func TestClearAuthCookies_PathContract(t *testing.T) {
 	assert.Equal(t, "/", paths[CookieAccessToken])
 	assert.Equal(t, "/api/v1/auth", paths[CookieRefreshToken])
 	assert.Equal(t, "/", paths[CookieSessionID])
+	assert.Equal(t, "/", paths[CSRFCookieName])
 }
 
 func TestOptionalAuthConfigMatchesTokenConfig(t *testing.T) {

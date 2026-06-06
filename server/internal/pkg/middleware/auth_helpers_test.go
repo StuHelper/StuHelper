@@ -210,7 +210,7 @@ func TestClearAuthCookies(t *testing.T) {
 	clearAuthCookies(c, OptionalAuthConfig{CookieDomain: "example.com", CookieSecure: true})
 
 	cookies := w.Result().Cookies()
-	require.Len(t, cookies, 3)
+	require.Len(t, cookies, 4)
 	for _, cookie := range cookies {
 		assert.Empty(t, cookie.Value)
 		assert.Less(t, cookie.MaxAge, 0)
@@ -225,6 +225,7 @@ func TestClearAuthCookies(t *testing.T) {
 	assert.Equal(t, CookieAccessTokenPath, paths[CookieAccessToken])
 	assert.Equal(t, CookieRefreshTokenPath, paths[CookieRefreshToken])
 	assert.Equal(t, "/", paths[CookieSessionID])
+	assert.Equal(t, "/", paths[CSRFCookieName])
 }
 
 func TestDefaultRateLimitHelpers(t *testing.T) {

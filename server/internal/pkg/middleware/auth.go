@@ -245,11 +245,12 @@ func RequireHealthyOptionalAuth() gin.HandlerFunc {
 	}
 }
 
-// clearAuthCookies 把 access / refresh cookie 清除（MaxAge=-1）。
+// clearAuthCookies 把认证相关 cookie 清除（MaxAge=-1）。
 // 浏览器匹配通过 (name, domain, path) 三元组——这里用 handler_cookies.go
 // 写入时使用的同一路径组合。
 func clearAuthCookies(c *gin.Context, cfg OptionalAuthConfig) {
 	c.SetCookie(CookieAccessToken, "", -1, CookieAccessTokenPath, cfg.CookieDomain, cfg.CookieSecure, true)
 	c.SetCookie(CookieRefreshToken, "", -1, CookieRefreshTokenPath, cfg.CookieDomain, cfg.CookieSecure, true)
 	c.SetCookie(CookieSessionID, "", -1, "/", cfg.CookieDomain, cfg.CookieSecure, true)
+	c.SetCookie(CSRFCookieName, "", -1, "/", cfg.CookieDomain, cfg.CookieSecure, false)
 }
