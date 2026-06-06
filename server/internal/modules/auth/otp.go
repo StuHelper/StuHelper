@@ -101,6 +101,33 @@ redis.call("DEL", KEYS[1], KEYS[2])
 return 1
 `)
 
+const (
+	otpVerifyResultSuccess     int64 = 1
+	otpVerifyResultExpired     int64 = 0
+	otpVerifyResultInvalid     int64 = -1
+	otpVerifyResultMaxAttempts int64 = -2
+)
+
+var otpVerifyScript = redis.NewScript(`
+local stored = redis.call("GET", KEYS[1])
+if not stored then
+  return 0
+end
+if stored ~= ARGV[1] then
+  local attempts = redis.call("INCR", KEYS[2])
+  if attempts == 1 then
+    redis.call("PEXPIRE", KEYS[2], ARGV[2])
+  end
+  if attempts >= tonumber(ARGV[3]) then
+    redis.call("DEL", KEYS[1], KEYS[2])
+    return -2
+  end
+  return -1
+end
+redis.call("DEL", KEYS[1], KEYS[2])
+return 1
+`)
+
 // NewOTPService 创建 OTP 服务
 func NewOTPService(rdb *redis.Client) *OTPService {
 	return &OTPService{rdb: rdb}
@@ -344,10 +371,41 @@ func (s *OTPService) Consume(ctx context.Context, phone, code string) error {
 
 // Verify 验证验证码。成功后自动删除，确保一次性使用。
 func (s *OTPService) Verify(ctx context.Context, phone, code string) error {
-	if err := s.Check(ctx, phone, code); err != nil {
+	phoneKey, err := otpPhoneKey(phone)
+	if err != nil {
 		return err
 	}
-	return s.Consume(ctx, phone, code)
+	normalizedCode, err := normalizeOTPCode(code)
+	if err != nil {
+		return err
+	}
+	codeKey := otpCodePrefix + phoneKey
+	attemptsKey := otpAttemptsPrefix + phoneKey
+
+	result, err := otpVerifyScript.Run(
+		ctx,
+		s.rdb,
+		[]string{codeKey, attemptsKey},
+		normalizedCode,
+		otpTTL.Milliseconds(),
+		otpMaxAttempts,
+	).Int64()
+	if err != nil {
+		return fmt.Errorf("otp: verify code: %w", err)
+	}
+
+	switch result {
+	case otpVerifyResultSuccess:
+		return nil
+	case otpVerifyResultExpired:
+		return ErrOTPExpired
+	case otpVerifyResultInvalid:
+		return ErrOTPInvalidCode
+	case otpVerifyResultMaxAttempts:
+		return ErrOTPMaxAttempts
+	default:
+		return fmt.Errorf("otp: verify code: unexpected result %d", result)
+	}
 }
 
 // generateNumericCode 生成指定位数的随机数字验证码

@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -203,6 +204,59 @@ func TestOTPService_VerifySuccessAfterPriorFailures(t *testing.T) {
 
 	phoneKey, err := phoneutil.HashLookup(phone)
 	require.NoError(t, err)
+	assert.False(t, fixture.Server.Exists(otpCodePrefix+phoneKey))
+	assert.False(t, fixture.Server.Exists(otpAttemptsPrefix+phoneKey))
+}
+
+func TestOTPService_VerifyConsumesCodeAtomically(t *testing.T) {
+	svc, fixture := newOTPServiceForTest(t)
+	ctx := context.Background()
+	phone := "13800138005"
+	code, err := svc.Generate(ctx, phone)
+	require.NoError(t, err)
+
+	wrong := "000000"
+	if wrong == code {
+		wrong = "999999"
+	}
+	require.ErrorIs(t, svc.Verify(ctx, phone, wrong), ErrOTPInvalidCode)
+
+	phoneKey, err := phoneutil.HashLookup(phone)
+	require.NoError(t, err)
+	assert.True(t, fixture.Server.Exists(otpAttemptsPrefix+phoneKey))
+
+	const callers = 16
+	start := make(chan struct{})
+	results := make(chan error, callers)
+	var wg sync.WaitGroup
+	for i := 0; i < callers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			results <- svc.Verify(ctx, phone, code)
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+	close(results)
+
+	successes := 0
+	expired := 0
+	for verifyErr := range results {
+		switch {
+		case verifyErr == nil:
+			successes++
+		case errors.Is(verifyErr, ErrOTPExpired):
+			expired++
+		default:
+			require.NoError(t, verifyErr)
+		}
+	}
+
+	assert.Equal(t, 1, successes)
+	assert.Equal(t, callers-1, expired)
 	assert.False(t, fixture.Server.Exists(otpCodePrefix+phoneKey))
 	assert.False(t, fixture.Server.Exists(otpAttemptsPrefix+phoneKey))
 }
