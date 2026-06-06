@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"go.uber.org/zap"
 
@@ -68,8 +69,10 @@ func (s *Service) CreateSessionForApplication(
 	if sessionID == "" {
 		return nil, fmt.Errorf("create session: sessionID is required")
 	}
-	if userID == "" {
-		return nil, fmt.Errorf("create session: userID is required")
+	var err error
+	userID, err = normalizeRequiredSessionUserID(userID)
+	if err != nil {
+		return nil, fmt.Errorf("create session: %w", err)
 	}
 
 	accessHash, err := hashTokenForSession(accessToken)
@@ -126,6 +129,12 @@ func (s *Service) OIDCApplicationForRefresh(ctx context.Context, sessionID, refr
 // sessionID 为空时直接失败。调用方必须先定位到被追踪的 session family，
 // 否则 refresh 不能继续签发“不受 session store 跟踪”的新 token。
 func (s *Service) RotateSession(ctx context.Context, sessionID, userID, oldRefreshToken, newAccessToken, newRefreshToken string) error {
+	var err error
+	userID, err = normalizeRequiredSessionUserID(userID)
+	if err != nil {
+		return fmt.Errorf("rotate session: %w", err)
+	}
+
 	// 黑名单旧 refresh token（强制执行，失败即返回）
 	if blErr := s.tokenService.GetBlacklist().Add(ctx, oldRefreshToken, s.tokenService.GetRefreshTokenTTL()); blErr != nil {
 		return fmt.Errorf("rotate session: blacklist old refresh token: %w", blErr)
@@ -179,6 +188,12 @@ func (s *Service) RotateSession(ctx context.Context, sessionID, userID, oldRefre
 // 优先通过 session store 撤销（将 session 内 token hash 加入黑名单）；
 // 若调用方持有 token 原文（例如 session ID 无法解析），直接按 token 原文加黑名单作兜底。
 func (s *Service) RevokeSession(ctx context.Context, sessionID, userID, accessToken, refreshToken string) error {
+	var err error
+	userID, err = normalizeRequiredSessionUserID(userID)
+	if err != nil {
+		return fmt.Errorf("revoke session: %w", err)
+	}
+
 	if sessionID != "" {
 		session, err := s.verifyTrackedSession(ctx, sessionID, trackedSessionExpectation{
 			userID:       userID,
@@ -249,6 +264,12 @@ func (s *Service) verifyTrackedSession(
 // RevokeAllSessions 撤销用户的全部 session（全设备登出）。
 // 仅依赖 session store；不再回退到旧 token 跟踪系统。
 func (s *Service) RevokeAllSessions(ctx context.Context, userID string) error {
+	var err error
+	userID, err = normalizeRequiredSessionUserID(userID)
+	if err != nil {
+		return fmt.Errorf("revoke all sessions: %w", err)
+	}
+
 	providerErr := s.revokeProviderRefreshTokensForUser(ctx, userID)
 	if err := s.tokenService.GetSessionStore().RevokeAll(
 		ctx, userID,
@@ -262,4 +283,12 @@ func (s *Service) RevokeAllSessions(ctx context.Context, userID string) error {
 		return fmt.Errorf("revoke all sessions: local sessions revoked; provider revoke failed: %w", providerErr)
 	}
 	return nil
+}
+
+func normalizeRequiredSessionUserID(userID string) (string, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return "", errSessionUserRequired
+	}
+	return userID, nil
 }

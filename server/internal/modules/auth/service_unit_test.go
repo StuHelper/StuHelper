@@ -85,6 +85,9 @@ func TestCreateSession(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "userID is required")
 
+	_, err = svc.CreateSession(ctx, "sid-1", "   ", "access", "refresh", "oidc", "browser")
+	require.ErrorIs(t, err, errSessionUserRequired)
+
 	info, err := svc.CreateSession(ctx, "sid-1", "user-1", "access-token", "refresh-token", "oidc", "browser")
 	require.NoError(t, err)
 	assert.Equal(t, "sid-1", info.SessionID)
@@ -122,6 +125,32 @@ func TestRotateSession_BlacklistsOldRefreshAndTouchesSession(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, newAccessHash, session.AccessTokenHash)
 	assert.Equal(t, newRefreshHash, session.RefreshTokenHash)
+}
+
+func TestSessionLifecycleRejectsMissingUserIDBeforeStateChanges(t *testing.T) {
+	svc, tokenSvc := newAuthServiceForTest(t)
+	ctx := context.Background()
+
+	_, err := svc.CreateSession(ctx, "sid-missing-user", "user-1", "access-1", "refresh-1", "oidc", "browser")
+	require.NoError(t, err)
+
+	err = svc.RotateSession(ctx, "sid-missing-user", "   ", "refresh-1", "new-access", "new-refresh")
+	require.ErrorIs(t, err, errSessionUserRequired)
+	blacklisted, err := tokenSvc.GetBlacklist().IsBlacklisted(ctx, "refresh-1")
+	require.NoError(t, err)
+	assert.False(t, blacklisted)
+
+	err = svc.RevokeSession(ctx, "sid-missing-user", "", "access-1", "refresh-1")
+	require.ErrorIs(t, err, errSessionUserRequired)
+	session, err := tokenSvc.GetSessionStore().Get(ctx, "sid-missing-user")
+	require.NoError(t, err)
+	require.NotNil(t, session)
+
+	err = svc.RevokeAllSessions(ctx, " ")
+	require.ErrorIs(t, err, errSessionUserRequired)
+	sessions, err := tokenSvc.GetSessionStore().ListUserSessions(ctx, "user-1")
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
 }
 
 func TestRotateSession_RejectsTrackedSessionMismatch(t *testing.T) {

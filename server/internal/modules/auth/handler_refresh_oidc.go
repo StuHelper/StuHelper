@@ -139,6 +139,7 @@ func (h *Handler) rotateOIDCSession(c *gin.Context, rotation oidcSessionRotation
 	logger.FromGin(c).Error("failed to rotate OIDC session", zap.String("session_id", rotation.sessionID), zap.Error(err))
 	h.clearTokenCookies(c)
 	if errors.Is(err, token.ErrSessionNotFound) ||
+		errors.Is(err, errSessionUserRequired) ||
 		errors.Is(err, errSessionUserMismatch) ||
 		errors.Is(err, errSessionRefreshTokenMismatch) {
 		response.Unauthorized(c, "invalid native session id", errs.ErrTokenInvalid)

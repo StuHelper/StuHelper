@@ -9,6 +9,7 @@ import (
 )
 
 var (
+	errSessionUserRequired         = errors.New("userID is required")
 	errSessionUserMismatch         = errors.New("session user mismatch")
 	errSessionAccessTokenMismatch  = errors.New("session access token mismatch")
 	errSessionRefreshTokenMismatch = errors.New("session refresh token mismatch")

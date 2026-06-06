@@ -44,6 +44,7 @@ func (h *Handler) Logout(c *gin.Context) {
 
 	if err := h.svc.RevokeSession(c.Request.Context(), sessionID, userID, accessToken, refreshToken); err != nil {
 		if errors.Is(err, token.ErrSessionNotFound) ||
+			errors.Is(err, errSessionUserRequired) ||
 			errors.Is(err, errSessionUserMismatch) ||
 			errors.Is(err, errSessionAccessTokenMismatch) ||
 			errors.Is(err, errSessionRefreshTokenMismatch) {
@@ -76,6 +77,10 @@ func (h *Handler) LogoutAll(c *gin.Context) {
 	requestID := middleware.GetRequestID(c)
 
 	if err := h.svc.RevokeAllSessions(c.Request.Context(), userID); err != nil {
+		if errors.Is(err, errSessionUserRequired) {
+			response.Unauthorized(c, "missing authentication token", errs.ErrTokenMissing)
+			return
+		}
 		logger.FromGin(c).Error("failed to revoke all sessions",
 			zap.String("user_id", userID),
 			zap.Error(err),
