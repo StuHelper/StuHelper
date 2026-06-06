@@ -61,7 +61,12 @@ func (s *Service) UserInfoForIdentityToken(ctx context.Context, clientID string,
 		metrics.ObserveOpenPlatformDisclosure(endpoint, "invalid_scope")
 		return nil, err
 	}
-	app, err := s.repo.GetAppByClientID(ctx, strings.TrimSpace(clientID))
+	normalizedClientID, err := normalizeRequiredClientID(clientID)
+	if err != nil {
+		metrics.ObserveOpenPlatformDisclosure(endpoint, "app_not_found")
+		return nil, err
+	}
+	app, err := s.repo.GetAppByClientID(ctx, normalizedClientID)
 	if err != nil {
 		metrics.ObserveOpenPlatformDisclosure(endpoint, "app_not_found")
 		return nil, err
@@ -155,7 +160,11 @@ func (s *Service) IdentityAuthorizationFingerprint(ctx context.Context, clientID
 	if userID <= 0 {
 		return "", false, nil
 	}
-	app, err := s.repo.GetAppByClientID(ctx, strings.TrimSpace(clientID))
+	clientID, err = normalizeRequiredClientID(clientID)
+	if err != nil {
+		return "", false, err
+	}
+	app, err := s.repo.GetAppByClientID(ctx, clientID)
 	if err != nil {
 		return "", false, err
 	}
@@ -189,7 +198,11 @@ func (s *Service) IdentityClientCredentialsTokenActive(ctx context.Context, clie
 			return false, nil
 		}
 	}
-	app, err := s.repo.GetAppByClientID(ctx, strings.TrimSpace(clientID))
+	clientID, err = normalizeRequiredClientID(clientID)
+	if err != nil {
+		return false, err
+	}
+	app, err := s.repo.GetAppByClientID(ctx, clientID)
 	if err != nil {
 		return false, err
 	}
@@ -273,7 +286,11 @@ func (s *Service) disclose(ctx context.Context, req DisclosureRequest) (map[stri
 }
 
 func (s *Service) loadDisclosureApp(ctx context.Context, req DisclosureRequest) (*App, error) {
-	app, err := s.repo.GetAppByClientID(ctx, strings.TrimSpace(req.ClientID))
+	clientID, err := normalizeRequiredClientID(req.ClientID)
+	if err != nil {
+		return nil, err
+	}
+	app, err := s.repo.GetAppByClientID(ctx, clientID)
 	if err != nil {
 		return nil, err
 	}

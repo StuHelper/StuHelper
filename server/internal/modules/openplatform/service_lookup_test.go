@@ -47,6 +47,38 @@ func TestVerifyClientSecretRejectsBlankCredentialsBeforeRepository(t *testing.T)
 	}
 }
 
+func TestAuthorizeAppByClientIDRejectsBlankClientIDBeforeRepository(t *testing.T) {
+	ctx := context.Background()
+	service := &Service{}
+
+	app, err := service.AuthorizeAppByClientID(ctx, " \t\n ")
+	require.ErrorIs(t, err, ErrAppNotFound)
+	assert.Nil(t, app)
+}
+
+func TestIdentityClientCredentialsTokenActiveRejectsBlankClientIDBeforeRepository(t *testing.T) {
+	ctx := context.Background()
+	service := &Service{}
+
+	active, err := service.IdentityClientCredentialsTokenActive(ctx, " \t\n ", []string{ScopeResourceRead})
+	require.ErrorIs(t, err, ErrAppNotFound)
+	assert.False(t, active)
+}
+
+func TestIdentityTokenActivityRejectsBlankClientIDBeforeRepository(t *testing.T) {
+	ctx := context.Background()
+	service := &Service{}
+
+	active, err := service.IdentityAccessTokenActive(ctx, " \t\n ", 42, []string{"openid"})
+	require.ErrorIs(t, err, ErrAppNotFound)
+	assert.False(t, active)
+
+	fingerprint, active, err := service.IdentityAuthorizationFingerprint(ctx, " \t\n ", 42, []string{"openid"})
+	require.ErrorIs(t, err, ErrAppNotFound)
+	assert.False(t, active)
+	assert.Empty(t, fingerprint)
+}
+
 func TestIdentityTokenActivityRejectsInvalidUserBeforeRepository(t *testing.T) {
 	ctx := context.Background()
 	service := &Service{}

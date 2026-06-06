@@ -258,7 +258,11 @@ func (s *Service) DenyConsent(ctx context.Context, token, requestID string, user
 }
 
 func (s *Service) loadAuthorizeApp(ctx context.Context, req AuthorizeRequest) (*App, error) {
-	app, err := s.repo.GetAppByClientID(ctx, strings.TrimSpace(req.ClientID))
+	clientID, err := normalizeRequiredClientID(req.ClientID)
+	if err != nil {
+		return nil, err
+	}
+	app, err := s.repo.GetAppByClientID(ctx, clientID)
 	if err != nil {
 		return nil, err
 	}
