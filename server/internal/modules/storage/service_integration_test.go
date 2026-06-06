@@ -96,6 +96,119 @@ func TestEnsureDefaultMountAndListMounts(t *testing.T) {
 	assert.True(t, items[0].Capabilities.PresignedDownload)
 }
 
+func TestEnsureDefaultMountBackfillsSeededDefaultBucket(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(repo, config.ObjectStorageConfig{
+		Endpoint: "minio:9000",
+		Bucket:   "stuhelper-assets",
+	})
+	ctx := context.Background()
+
+	seededMount, err := repo.GetMountByKey(ctx, DefaultMountKey)
+	require.NoError(t, err)
+	require.Nil(t, seededMount.Bucket)
+
+	err = svc.EnsureDefaultMount(ctx)
+	require.NoError(t, err)
+
+	defaultMount, err := repo.GetMountByKey(ctx, DefaultMountKey)
+	require.NoError(t, err)
+	require.NotNil(t, defaultMount.Bucket)
+	assert.Equal(t, "stuhelper-assets", *defaultMount.Bucket)
+}
+
+func TestEnsureDefaultMountAllowsSameBucketRestart(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	ctx := context.Background()
+
+	firstStart := NewService(repo, config.ObjectStorageConfig{
+		Endpoint: "minio:9000",
+		Bucket:   "stuhelper-assets",
+	})
+	require.NoError(t, firstStart.EnsureDefaultMount(ctx))
+
+	restarted := NewService(repo, config.ObjectStorageConfig{
+		Endpoint: "minio:9000",
+		Bucket:   "stuhelper-assets",
+	})
+	require.NoError(t, restarted.EnsureDefaultMount(ctx))
+
+	defaultMount, err := repo.GetMountByKey(ctx, DefaultMountKey)
+	require.NoError(t, err)
+	require.NotNil(t, defaultMount.Bucket)
+	assert.Equal(t, "stuhelper-assets", *defaultMount.Bucket)
+}
+
+func TestEnsureDefaultMountRejectsBucketDriftAndKeepsExistingBucket(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	ctx := context.Background()
+
+	firstStart := NewService(repo, config.ObjectStorageConfig{
+		Endpoint: "minio:9000",
+		Bucket:   "old-assets",
+	})
+	require.NoError(t, firstStart.EnsureDefaultMount(ctx))
+
+	driftedStart := NewService(repo, config.ObjectStorageConfig{
+		Endpoint: "minio:9000",
+		Bucket:   "new-assets",
+	})
+	err := driftedStart.EnsureDefaultMount(ctx)
+	require.ErrorIs(t, err, ErrDefaultMountBucketDrift)
+	assert.ErrorContains(t, err, "default mount bucket drift")
+	assert.ErrorContains(t, err, "explicit object migration")
+	assert.ErrorContains(t, err, "creating a new storage mount")
+
+	defaultMount, getErr := repo.GetMountByKey(ctx, DefaultMountKey)
+	require.NoError(t, getErr)
+	require.NotNil(t, defaultMount.Bucket)
+	assert.Equal(t, "old-assets", *defaultMount.Bucket)
+}
+
+func TestEnsureDefaultMountSkipsDisabledObjectStorageWithoutBucketDrift(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  config.ObjectStorageConfig
+	}{
+		{
+			name: "empty config",
+			cfg:  config.ObjectStorageConfig{},
+		},
+		{
+			name: "blank endpoint and bucket",
+			cfg: config.ObjectStorageConfig{
+				Endpoint: "  ",
+				Bucket:   "  ",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			fixture := postgresfixture.Start(t)
+			repo := NewRepository(fixture.DB)
+			ctx := context.Background()
+
+			firstStart := NewService(repo, config.ObjectStorageConfig{
+				Endpoint: "minio:9000",
+				Bucket:   "old-assets",
+			})
+			require.NoError(t, firstStart.EnsureDefaultMount(ctx))
+
+			disabledStart := NewService(repo, tc.cfg)
+			require.NoError(t, disabledStart.EnsureDefaultMount(ctx))
+
+			defaultMount, err := repo.GetMountByKey(ctx, DefaultMountKey)
+			require.NoError(t, err)
+			require.NotNil(t, defaultMount.Bucket)
+			assert.Equal(t, "old-assets", *defaultMount.Bucket)
+		})
+	}
+}
+
 func TestCreateMountAndCheckMountHealth(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)

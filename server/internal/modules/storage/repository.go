@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -31,21 +32,67 @@ func withDBTable(ctx context.Context, table string) context.Context {
 }
 
 func (r *Repository) UpsertRuntimeDefaultMount(ctx context.Context, cfg config.ObjectStorageConfig) error {
-	if cfg.Endpoint == "" && cfg.Bucket == "" {
+	endpoint := strings.TrimSpace(cfg.Endpoint)
+	bucket := strings.TrimSpace(cfg.Bucket)
+	if endpoint == "" {
 		return nil
 	}
 	ctx = withDBTable(ctx, "storage_mounts")
-	_, err := r.db.Exec(ctx, `
-		INSERT INTO storage_mounts (key, name, driver, bucket, base_path, credential_source, enabled)
-		VALUES ($2, 'Default S3 Mount', 's3', $1, '', 'runtime_default_object_storage', TRUE)
-		ON CONFLICT (key)
-		DO UPDATE SET bucket = COALESCE(NULLIF(EXCLUDED.bucket, ''), storage_mounts.bucket),
-		              updated_at = NOW()
-	`, cfg.Bucket, DefaultMountKey)
-	if err != nil {
+
+	if err := r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		var insertedBucket *string
+		err := tx.QueryRow(ctx, `
+			INSERT INTO storage_mounts (key, name, driver, bucket, base_path, credential_source, enabled)
+			VALUES ($2, 'Default S3 Mount', 's3', NULLIF($1, ''), '', 'runtime_default_object_storage', TRUE)
+			ON CONFLICT (key) DO NOTHING
+			RETURNING bucket
+		`, bucket, DefaultMountKey).Scan(&insertedBucket)
+		if err == nil {
+			return nil
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("insert runtime default mount: %w", err)
+		}
+
+		var existingBucket *string
+		if err := tx.QueryRow(ctx, `
+			SELECT bucket
+			FROM storage_mounts
+			WHERE key = $1
+			FOR UPDATE
+		`, DefaultMountKey).Scan(&existingBucket); err != nil {
+			return fmt.Errorf("lock runtime default mount: %w", err)
+		}
+
+		if existingBucket == nil || *existingBucket == "" {
+			_, err := tx.Exec(ctx, `
+				UPDATE storage_mounts
+				SET bucket = NULLIF($1, ''), updated_at = NOW()
+				WHERE key = $2
+			`, bucket, DefaultMountKey)
+			if err != nil {
+				return fmt.Errorf("backfill runtime default mount bucket: %w", err)
+			}
+			return nil
+		}
+
+		if *existingBucket != bucket {
+			return defaultMountBucketDriftError(*existingBucket, bucket)
+		}
+		return nil
+	}); err != nil {
 		return fmt.Errorf("upsert runtime default mount: %w", err)
 	}
 	return nil
+}
+
+func defaultMountBucketDriftError(existingBucket, configuredBucket string) error {
+	return fmt.Errorf(
+		"%w: existing default mount bucket %q differs from configured OBJECT_STORAGE_BUCKET %q; resolve default mount bucket drift with an explicit object migration or by creating a new storage mount instead of overriding it from startup configuration",
+		ErrDefaultMountBucketDrift,
+		existingBucket,
+		configuredBucket,
+	)
 }
 
 func (r *Repository) ListMounts(ctx context.Context) ([]Mount, error) {
