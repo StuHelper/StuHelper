@@ -190,16 +190,17 @@ func TestCreateBotSessionReturnsVerifiedForAlreadyCertifiedQQ(t *testing.T) {
 	assert.Equal(t, "https://join.stuhelper.com/verify/test-admission-token", created.AuthURL)
 	assertAdmissionFailureCount(t, fixture, "10001", 0)
 
-	actions, err := svc.ListPendingAdmissionActions(context.Background(), AdmissionPendingActionFilter{
+	actions, err := svc.ClaimQueuedAdmissionActions(context.Background(), AdmissionPendingActionFilter{
 		Platform:  "qq",
 		BotSelfID: "514",
 	})
 	require.NoError(t, err)
 	require.Len(t, actions, 1)
+	require.NotEmpty(t, actions[0].ActionID)
 	assert.Equal(t, BotActionRelease, actions[0].Action)
 	assert.Equal(t, created.Session.ID, actions[0].SessionID)
 
-	err = svc.RecordBotEvent(context.Background(), actions[0].SessionID, BotEventInput{
+	err = svc.RecordBotActionEvent(context.Background(), actions[0].ActionID, BotEventInput{
 		Action:  actions[0].Action,
 		Success: true,
 	})
@@ -579,13 +580,14 @@ func TestRegenerateBotAdmissionSessionCreatesVerifiedSessionForCertifiedQQ(t *te
 	assert.NotNil(t, regenerated.Session.TokenConsumedAt)
 	assertAdmissionSessionStatus(t, fixture, created.Session.ID, StatusCancelled)
 
-	actions, err := svc.ListPendingAdmissionActions(context.Background(), AdmissionPendingActionFilter{
+	actions, err := svc.ClaimQueuedAdmissionActions(context.Background(), AdmissionPendingActionFilter{
 		Platform:  "qq",
 		BotSelfID: "514",
 		Limit:     10,
 	})
 	require.NoError(t, err)
 	require.Len(t, actions, 1)
+	require.NotEmpty(t, actions[0].ActionID)
 	assert.Equal(t, regenerated.Session.ID, actions[0].SessionID)
 	assert.Equal(t, BotActionRelease, actions[0].Action)
 }

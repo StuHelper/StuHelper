@@ -26,6 +26,8 @@ func (s *Service) queueInitialBotActionsTx(
 			return nil
 		}
 		return s.queueBotActionTx(ctx, tx, session, BotActionKick, *session.ManualReviewDeadlineAt, now)
+	case StatusVerified:
+		return s.queueBotActionTx(ctx, tx, session, BotActionRelease, now, now)
 	default:
 		return nil
 	}
