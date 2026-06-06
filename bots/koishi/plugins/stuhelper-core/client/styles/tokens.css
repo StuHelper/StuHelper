@@ -130,6 +130,15 @@
   box-sizing: border-box;
 }
 
+.el-popper[role='tooltip']:not(.el-select__popper):not(.el-popover) {
+  pointer-events: none;
+}
+
+.el-select__popper.el-popper,
+.el-popper.el-popover {
+  z-index: 3200 !important;
+}
+
 .stuhelperGroupCenter-app h1,
 .stuhelperGroupCenter-app h2,
 .stuhelperGroupCenter-app h3,

@@ -268,10 +268,18 @@ test('chat dock receives, sends image message, and recalls through real console 
     .poll(() =>
       page.evaluate(() => {
         const state = globalThis as unknown as { __chatClipboardWrites?: string[] }
-        return state.__chatClipboardWrites ?? []
+        return state.__chatClipboardWrites?.at(-1) ?? ''
       }),
     )
     .toContain('E2E incoming chat message')
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const state = globalThis as unknown as { __chatClipboardWrites?: string[] }
+        return state.__chatClipboardWrites?.at(-1) ?? ''
+      }),
+    )
+    .toContain('[图片:ui-smoke-image.png]')
 
   const input = dock.locator('.chat-input').first()
   await input.fill('E2E outbound chat text')
@@ -313,6 +321,7 @@ test('global search opens from keyboard and navigates to a view result', async (
 
   await clickNavRail(page, '总览')
   await expect(page).toHaveURL(/#dashboard($|\?)/, { timeout: 5_000 })
+  await expect(page.locator('.sh-cmd__search')).toHaveAttribute('title', '⌘K 全站搜索')
 
   await page.keyboard.press('Control+K')
 
@@ -932,7 +941,7 @@ test('global settings discard, save, and restore defaults through real console a
   await expect(page.locator('.save-bar', { hasText: '检测到未保存的修改' })).toBeVisible()
   await page.getByRole('button', { name: '放弃更改', exact: true }).click()
 
-  const discardDialog = settingsDialog(page, '放弃更改')
+  const discardDialog = confirmDialog(page, '放弃更改')
   await expect(discardDialog).toBeVisible({ timeout: 5_000 })
   await expect(discardDialog.getByText('确定要放弃当前所有未保存的修改吗？')).toBeVisible()
   await discardDialog.getByRole('button', { name: '确认', exact: true }).click()
@@ -956,7 +965,7 @@ test('global settings discard, save, and restore defaults through real console a
   await expect(banExpressionInput).toHaveValue('{t}h')
 
   await page.getByRole('button', { name: '恢复默认', exact: true }).click()
-  const defaultDialog = settingsDialog(page, '恢复默认设置')
+  const defaultDialog = confirmDialog(page, '恢复默认设置')
   await expect(defaultDialog).toBeVisible({ timeout: 5_000 })
   await expect(defaultDialog.getByText('确定要将所有设置恢复为默认值吗？此操作将覆盖当前所有设置，需要保存后才会生效。')).toBeVisible()
   await defaultDialog.getByRole('button', { name: '确认', exact: true }).click()
@@ -1041,7 +1050,7 @@ test('role management creates, edits, assigns member, revokes member, and delete
   await expect(page.locator('.empty-tip', { hasText: '暂无成员（输入用户 QQ 号添加）' })).toBeVisible()
 
   await page.getByRole('button', { name: '删除角色', exact: true }).click()
-  const deleteDialog = roleDialog(page, '删除角色')
+  const deleteDialog = confirmDialog(page, '删除角色')
   await expect(deleteDialog).toBeVisible({ timeout: 5_000 })
   await expect(deleteDialog.getByText(`确定要删除角色"${roleName}"吗？此操作不可撤销。`)).toBeVisible()
   await deleteDialog.getByRole('button', { name: '确认', exact: true }).click()
@@ -1264,11 +1273,7 @@ async function setFeatureChecked(page: Page, label: string, checked: boolean): P
 }
 
 function confirmDialog(page: Page, title: string) {
-  return page.locator('.el-dialog.sh-confirm', { hasText: title }).first()
-}
-
-function settingsDialog(page: Page, title: string) {
-  return page.locator('.settings-view .modal-dialog', { hasText: title }).first()
+  return page.locator('.el-dialog.sh-confirm:visible', { hasText: title }).first()
 }
 
 function settingsInput(page: Page, label: string) {
@@ -1334,7 +1339,7 @@ async function createNamedRole(page: Page, name: string, alias: string): Promise
 
 async function deleteCurrentRole(page: Page, roleName: string): Promise<void> {
   await page.getByRole('button', { name: '删除角色', exact: true }).click()
-  const deleteDialog = roleDialog(page, '删除角色')
+  const deleteDialog = confirmDialog(page, '删除角色')
   await expect(deleteDialog).toBeVisible({ timeout: 5_000 })
   await expect(deleteDialog.getByText(`确定要删除角色"${roleName}"吗？此操作不可撤销。`)).toBeVisible()
   await deleteDialog.getByRole('button', { name: '确认', exact: true }).click()

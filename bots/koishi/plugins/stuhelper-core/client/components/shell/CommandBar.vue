@@ -17,7 +17,7 @@
     <button
       type="button"
       class="sh-cmd__search"
-      title="⌘K 站内搜索 (规划中)"
+      title="⌘K 全站搜索"
       @click="onSearchClick"
     >
       <span class="sh-cmd__search-icon" aria-hidden="true">⌕</span>
