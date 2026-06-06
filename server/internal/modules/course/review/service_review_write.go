@@ -61,6 +61,14 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 	var err error
 	var contentFlag *string
 	var status string
+	params.UserHash, err = normalizeRequiredUserHash(params.UserHash)
+	if err != nil {
+		return nil, err
+	}
+	authorUserID, err := formatFGAUserID(params.AuthorInternalUserID)
+	if err != nil {
+		return nil, err
+	}
 	params.Grade, err = normalizeReviewGrade(params.Grade)
 	if err != nil {
 		return nil, err
@@ -111,11 +119,6 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 		}
 		if hasReviewed {
 			return ErrAlreadyReviewed
-		}
-
-		authorUserID, err := formatFGAUserID(params.AuthorInternalUserID)
-		if err != nil {
-			return err
 		}
 
 		created, err := s.repo.CreateReturning(ctx, tx, CreateParams{
@@ -175,13 +178,18 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 
 // VoteReview 投票
 func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) (int64, error) {
+	var err error
+	params.UserHash, err = normalizeRequiredUserHash(params.UserHash)
+	if err != nil {
+		return 0, err
+	}
 	if !isValidVoteType(params.VoteType) {
 		return 0, ErrInvalidAction
 	}
 
 	var courseID int64
 	var shouldNotifyLike bool
-	err := s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+	err = s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		exists, err := s.repo.ReviewExistsTx(ctx, tx, params.ReviewID)
 		if err != nil {
 			return err
@@ -255,6 +263,11 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) (int6
 
 // UpdateReview 更新评论
 func (s *Service) UpdateReview(ctx context.Context, params UpdateReviewParams) error {
+	var err error
+	params.UserHash, err = normalizeRequiredUserHash(params.UserHash)
+	if err != nil {
+		return err
+	}
 	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		state, err := s.repo.GetReviewUpdateStateTx(ctx, tx, params.ReviewID)
 		if err != nil {
@@ -352,6 +365,11 @@ func cloneReviewRatings(source ReviewRatings) ReviewRatings {
 
 // DeleteReview 删除评论
 func (s *Service) DeleteReview(ctx context.Context, params DeleteReviewParams) error {
+	var err error
+	params.UserHash, err = normalizeRequiredUserHash(params.UserHash)
+	if err != nil {
+		return err
+	}
 	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		ownerHash, courseID, teacherID, status, err := s.repo.GetReviewOwnerCourseTeacherStatusTx(ctx, tx, params.ReviewID)
 		if err != nil {

@@ -255,6 +255,14 @@ func ensureSafeReviewText(title, content string) error {
 	return nil
 }
 
+func normalizeRequiredUserHash(userHash string) (string, error) {
+	userHash = strings.TrimSpace(userHash)
+	if userHash == "" {
+		return "", ErrUserIdentityRequired
+	}
+	return userHash, nil
+}
+
 func validateReviewTextLengths(title, content string, minContentRunes int) error {
 	if utf8.RuneCountInString(title) > maxReviewTitleRunes {
 		return ErrTitleTooLong

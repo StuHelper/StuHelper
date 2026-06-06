@@ -33,6 +33,11 @@ type AddFavoriteParams struct {
 
 // AddFavorite 添加收藏
 func (s *Service) AddFavorite(ctx context.Context, params AddFavoriteParams) error {
+	var err error
+	params.UserHash, err = normalizeRequiredUserHash(params.UserHash)
+	if err != nil {
+		return err
+	}
 	exists, err := s.repo.CourseExists(ctx, params.CourseID)
 	if err != nil {
 		return err
@@ -45,11 +50,19 @@ func (s *Service) AddFavorite(ctx context.Context, params AddFavoriteParams) err
 
 // RemoveFavorite 移除收藏
 func (s *Service) RemoveFavorite(ctx context.Context, userHash string, courseID int64) error {
+	userHash, err := normalizeRequiredUserHash(userHash)
+	if err != nil {
+		return err
+	}
 	return s.repo.DeleteFavorite(ctx, userHash, courseID)
 }
 
 // GetFavoriteStatus 获取当前用户对课程的收藏状态
 func (s *Service) GetFavoriteStatus(ctx context.Context, userHash string, courseID int64) (bool, error) {
+	userHash, err := normalizeRequiredUserHash(userHash)
+	if err != nil {
+		return false, err
+	}
 	return s.repo.FavoriteExists(ctx, userHash, courseID)
 }
 
@@ -68,6 +81,11 @@ type GetUserFavoritesResult struct {
 
 // GetUserFavorites 获取用户收藏列表
 func (s *Service) GetUserFavorites(ctx context.Context, params GetUserFavoritesParams) (*GetUserFavoritesResult, error) {
+	var err error
+	params.UserHash, err = normalizeRequiredUserHash(params.UserHash)
+	if err != nil {
+		return nil, err
+	}
 	pageSize := httputil.ClampPageSize(params.PageSize)
 	offset := httputil.SafeOffset(params.Page, pageSize)
 	list, total, err := s.repo.ListFavorites(ctx, params.UserHash, pageSize, offset)
@@ -87,6 +105,11 @@ type GetUserReviewsParams struct {
 
 // GetUserReviews 获取用户评论列表
 func (s *Service) GetUserReviews(ctx context.Context, params GetUserReviewsParams) (*GetCourseReviewsResult, error) {
+	var err error
+	params.UserHash, err = normalizeRequiredUserHash(params.UserHash)
+	if err != nil {
+		return nil, err
+	}
 	pageSize := httputil.ClampPageSize(params.PageSize)
 	offset := httputil.SafeOffset(params.Page, pageSize)
 	list, total, err := s.repo.ListByUserHash(ctx, params.UserHash, pageSize, offset)
@@ -107,6 +130,11 @@ type GetUserVotesParams struct {
 
 // GetUserVotes 获取用户点赞列表
 func (s *Service) GetUserVotes(ctx context.Context, params GetUserVotesParams) (*GetCourseReviewsResult, error) {
+	var err error
+	params.UserHash, err = normalizeRequiredUserHash(params.UserHash)
+	if err != nil {
+		return nil, err
+	}
 	if !isValidVoteType(params.VoteType) {
 		return nil, ErrInvalidAction
 	}
@@ -135,6 +163,11 @@ type SaveDraftParams struct {
 
 // SaveDraft 保存草稿（UPSERT）
 func (s *Service) SaveDraft(ctx context.Context, params SaveDraftParams) (*ReviewDraft, error) {
+	var err error
+	params.UserHash, err = normalizeRequiredUserHash(params.UserHash)
+	if err != nil {
+		return nil, err
+	}
 	if params.CourseID != nil {
 		exists, err := s.repo.CourseExists(ctx, *params.CourseID)
 		if err != nil {
@@ -221,11 +254,19 @@ func validateDraftTextLengths(title, rawContent, content string) error {
 
 // GetDraft 获取草稿
 func (s *Service) GetDraft(ctx context.Context, userHash string) (*ReviewDraft, error) {
+	userHash, err := normalizeRequiredUserHash(userHash)
+	if err != nil {
+		return nil, err
+	}
 	return s.repo.GetDraft(ctx, userHash)
 }
 
 // DeleteDraft 删除草稿
 func (s *Service) DeleteDraft(ctx context.Context, userHash string) error {
+	userHash, err := normalizeRequiredUserHash(userHash)
+	if err != nil {
+		return err
+	}
 	return s.repo.DeleteDraft(ctx, userHash)
 }
 
@@ -236,6 +277,11 @@ type CreateReplyResult struct {
 
 // CreateReply 创建回复
 func (s *Service) CreateReply(ctx context.Context, params CreateReplyParams) (*CreateReplyResult, error) {
+	var err error
+	params.UserHash, err = normalizeRequiredUserHash(params.UserHash)
+	if err != nil {
+		return nil, err
+	}
 	content, err := validateAndSanitizeReplyContent(params.Content)
 	if err != nil {
 		return nil, err
@@ -378,6 +424,11 @@ type DeleteReplyParams struct {
 
 // DeleteReply 删除回复
 func (s *Service) DeleteReply(ctx context.Context, params DeleteReplyParams) error {
+	var err error
+	params.UserHash, err = normalizeRequiredUserHash(params.UserHash)
+	if err != nil {
+		return err
+	}
 	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		// 在事务内获取回复所有者、评论ID和状态，消除 TOCTOU 竞态
 		ownerHash, reviewID, status, err := s.repo.GetReplyOwnerAndReviewIDTx(ctx, tx, params.ReplyID)

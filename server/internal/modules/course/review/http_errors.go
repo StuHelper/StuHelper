@@ -42,6 +42,9 @@ var (
 		response.MatchError(ErrTeacherDepartmentNotFound, 404, "teacher department not found", errs.ErrTeacherNotFound),
 		response.MatchError(ErrTeacherHasReviews, 409, "teacher has associated reviews"),
 	}
+	reviewUserIdentityErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrUserIdentityRequired, 401, "missing authentication token", errs.ErrTokenMissing),
+	}
 	reviewWriteValidationErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrInvalidTermID, 400, "invalid term_id format, expected YYYY-S (e.g. 2024-1)"),
 		response.MatchError(ErrRatingRequired, 400, "at least one rating dimension is required"),
@@ -85,6 +88,7 @@ func respondToModerationError(c *gin.Context, err error) bool {
 
 func respondPostReviewError(c *gin.Context, err error) bool {
 	return response.RespondMappedErrorGroups(c, err,
+		reviewUserIdentityErrorMappings,
 		reviewWriteValidationErrorMappings,
 		reviewModerationErrorMappings,
 		[]response.ErrorMapping{response.MatchError(ErrAlreadyReviewed, 409, "you have already reviewed this course", errs.ErrReviewExists)},
@@ -95,12 +99,16 @@ func respondPostReviewError(c *gin.Context, err error) bool {
 func respondVoteReviewError(c *gin.Context, err error) bool {
 	return response.RespondMappedErrorGroups(c, err,
 		reviewNotFoundErrorMappings,
-		[]response.ErrorMapping{response.MatchError(ErrInvalidAction, 400, "invalid vote type")},
+		reviewUserIdentityErrorMappings,
+		[]response.ErrorMapping{
+			response.MatchError(ErrInvalidAction, 400, "invalid vote type"),
+		},
 	)
 }
 
 func respondUpdateReviewError(c *gin.Context, err error) bool {
 	return response.RespondMappedErrorGroups(c, err,
+		reviewUserIdentityErrorMappings,
 		reviewNotFoundErrorMappings,
 		[]response.ErrorMapping{response.MatchError(ErrNotReviewOwner, 403, "you can only edit your own review", errs.ErrNotReviewOwner)},
 		reviewWriteValidationErrorMappings,
@@ -110,6 +118,7 @@ func respondUpdateReviewError(c *gin.Context, err error) bool {
 
 func respondDeleteReviewError(c *gin.Context, err error) bool {
 	return response.RespondMappedErrorGroups(c, err,
+		reviewUserIdentityErrorMappings,
 		reviewNotFoundErrorMappings,
 		[]response.ErrorMapping{response.MatchError(ErrNotReviewOwner, 403, "you can only delete your own review", errs.ErrNotReviewOwner)},
 	)
@@ -117,6 +126,7 @@ func respondDeleteReviewError(c *gin.Context, err error) bool {
 
 func respondReportReviewError(c *gin.Context, err error) bool {
 	return response.RespondMappedErrorGroups(c, err,
+		reviewUserIdentityErrorMappings,
 		reviewNotFoundErrorMappings,
 		reviewModerationErrorMappings,
 		[]response.ErrorMapping{
@@ -134,17 +144,22 @@ func respondCheckContentError(c *gin.Context, err error) bool {
 
 func respondCreateReplyError(c *gin.Context, err error) bool {
 	return response.RespondMappedErrorGroups(c, err,
+		reviewUserIdentityErrorMappings,
 		reviewNotFoundErrorMappings,
 		reviewModerationErrorMappings,
 	)
 }
 
 func respondDeleteReplyError(c *gin.Context, err error) bool {
-	return response.RespondMappedErrorGroups(c, err, reviewReplyOwnerErrorMappings)
+	return response.RespondMappedErrorGroups(c, err,
+		reviewUserIdentityErrorMappings,
+		reviewReplyOwnerErrorMappings,
+	)
 }
 
 func respondSaveDraftError(c *gin.Context, err error) bool {
 	return response.RespondMappedErrorGroups(c, err,
+		reviewUserIdentityErrorMappings,
 		reviewCourseLookupErrorMappings,
 		reviewTeacherLookupErrorMappings,
 		reviewWriteValidationErrorMappings,
@@ -153,7 +168,10 @@ func respondSaveDraftError(c *gin.Context, err error) bool {
 }
 
 func respondGetDraftError(c *gin.Context, err error) bool {
-	return response.RespondMappedErrorGroups(c, err, reviewDraftErrorMappings)
+	return response.RespondMappedErrorGroups(c, err,
+		reviewUserIdentityErrorMappings,
+		reviewDraftErrorMappings,
+	)
 }
 
 func respondProcessReportError(c *gin.Context, err error) bool {
@@ -180,7 +198,10 @@ func respondTeacherAdminError(c *gin.Context, err error) bool {
 }
 
 func respondAddFavoriteError(c *gin.Context, err error) bool {
-	return response.RespondMappedErrorGroups(c, err, reviewCourseLookupErrorMappings)
+	return response.RespondMappedErrorGroups(c, err,
+		reviewUserIdentityErrorMappings,
+		reviewCourseLookupErrorMappings,
+	)
 }
 
 func respondClearContentFlagError(c *gin.Context, err error) bool {

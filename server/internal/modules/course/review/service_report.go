@@ -55,6 +55,14 @@ var validReportStatuses = map[string]bool{
 
 // ReportReview 举报评论，返回生成的举报 ID
 func (s *Service) ReportReview(ctx context.Context, params ReportReviewParams) (string, error) {
+	var err error
+	params.UserHash, err = normalizeRequiredUserHash(params.UserHash)
+	if err != nil {
+		return "", err
+	}
+	if params.ReporterInternalUserID <= 0 {
+		return "", ErrUserIdentityRequired
+	}
 	params.Reason = strings.TrimSpace(params.Reason)
 	if !isValidReportReason(params.Reason) {
 		return "", ErrInvalidAction
@@ -86,10 +94,6 @@ func (s *Service) ReportReview(ctx context.Context, params ReportReviewParams) (
 		schoolID, err := s.repo.GetReviewSchoolIDTx(ctx, tx, params.ReviewID)
 		if err != nil {
 			return err
-		}
-
-		if params.ReporterInternalUserID <= 0 {
-			return ErrUserIdentityRequired
 		}
 
 		reportID, err = s.repo.CreateReportTx(ctx, tx, CreateReportParams{
