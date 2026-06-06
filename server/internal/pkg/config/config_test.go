@@ -140,16 +140,17 @@ func TestParseSecurityConfig_ValidConfig(t *testing.T) {
 func TestValidate_ProductionRequiresObservability(t *testing.T) {
 	c := &Config{
 		App: AppConfig{
-			Env:             "production",
-			Port:            "8080",
-			HMACSecret:      "0123456789abcdef0123456789abcdef",
-			CORSOrigins:     []string{"https://stuhelper.example.com"},
-			TrustedProxies:  []string{"10.0.0.0/8"},
-			MetricsUser:     "prometheus",
-			MetricsPassword: "metrics-password",
-			MaxBodySize:     10 << 20,
-			APIIPRateLimit:  100,
-			APIGlobalLimit:  10000,
+			Env:                "production",
+			Port:               "8080",
+			HMACSecret:         "0123456789abcdef0123456789abcdef",
+			CORSOrigins:        []string{"https://stuhelper.example.com"},
+			TrustedProxies:     []string{"10.0.0.0/8"},
+			MetricsUser:        "prometheus",
+			MetricsPassword:    "metrics-password",
+			MaxBodySize:        10 << 20,
+			APIIPRateLimit:     100,
+			APIGlobalLimit:     10000,
+			HealthCheckTimeout: 3,
 		},
 		Security: SecurityConfig{
 			DocAESActiveKeyID: 1,
@@ -294,6 +295,95 @@ func TestValidate_RejectsInvalidMaxBodySize(t *testing.T) {
 func TestValidate_AllowsValidMaxBodySize(t *testing.T) {
 	c := validProductionConfigForTest()
 	c.App.MaxBodySize = 100 << 20
+
+	require.NoError(t, c.validate(nil))
+}
+
+func TestValidate_RejectsInvalidHealthCheckTimeout(t *testing.T) {
+	tests := []struct {
+		name    string
+		timeout int
+		want    string
+	}{
+		{name: "zero", timeout: 0, want: "HEALTH_CHECK_TIMEOUT must be between 1 and 60 seconds (got 0)"},
+		{name: "negative", timeout: -1, want: "HEALTH_CHECK_TIMEOUT must be between 1 and 60 seconds (got -1)"},
+		{name: "too large", timeout: 61, want: "HEALTH_CHECK_TIMEOUT must be between 1 and 60 seconds (got 61)"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validProductionConfigForTest()
+			c.App.HealthCheckTimeout = tt.timeout
+
+			err := c.validate(nil)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.want)
+		})
+	}
+}
+
+func TestValidate_AllowsValidHealthCheckTimeout(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.App.HealthCheckTimeout = 60
+
+	require.NoError(t, c.validate(nil))
+}
+
+func TestValidate_RejectsInvalidTrustedProxies(t *testing.T) {
+	tests := []struct {
+		name    string
+		proxies []string
+		want    string
+	}{
+		{
+			name:    "empty entry",
+			proxies: []string{""},
+			want:    "TRUSTED_PROXIES contains an empty proxy entry",
+		},
+		{
+			name:    "surrounding whitespace",
+			proxies: []string{" 10.0.0.1 "},
+			want:    `TRUSTED_PROXIES entry " 10.0.0.1 " must not include leading or trailing whitespace`,
+		},
+		{
+			name:    "invalid ip",
+			proxies: []string{"192.168.1.256"},
+			want:    `TRUSTED_PROXIES entry "192.168.1.256" must be an IPv4/IPv6 address or CIDR`,
+		},
+		{
+			name:    "invalid cidr",
+			proxies: []string{"10.0.0.0/33"},
+			want:    `TRUSTED_PROXIES entry "10.0.0.0/33" must be an IPv4/IPv6 address or CIDR`,
+		},
+		{
+			name:    "hostname",
+			proxies: []string{"proxy.internal"},
+			want:    `TRUSTED_PROXIES entry "proxy.internal" must be an IPv4/IPv6 address or CIDR`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validProductionConfigForTest()
+			c.App.TrustedProxies = tt.proxies
+
+			err := c.validate(nil)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.want)
+		})
+	}
+}
+
+func TestValidate_AllowsValidTrustedProxies(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.App.TrustedProxies = []string{
+		"10.0.0.1",
+		"10.0.0.0/8",
+		"2001:db8::1",
+		"2001:db8::/32",
+	}
 
 	require.NoError(t, c.validate(nil))
 }
@@ -922,14 +1012,15 @@ func TestValidate_ObservabilityRejectsBlankRequiredFieldsWhenEnabled(t *testing.
 func TestValidate_SMSRequiresFullConfigWhenEnabled(t *testing.T) {
 	c := &Config{
 		App: AppConfig{
-			Env:             "development",
-			Port:            "8080",
-			HMACSecret:      "0123456789abcdef0123456789abcdef",
-			CORSOrigins:     []string{"http://localhost:3000"},
-			MetricsPassword: "metrics-password",
-			MaxBodySize:     10 << 20,
-			APIIPRateLimit:  100,
-			APIGlobalLimit:  10000,
+			Env:                "development",
+			Port:               "8080",
+			HMACSecret:         "0123456789abcdef0123456789abcdef",
+			CORSOrigins:        []string{"http://localhost:3000"},
+			MetricsPassword:    "metrics-password",
+			MaxBodySize:        10 << 20,
+			APIIPRateLimit:     100,
+			APIGlobalLimit:     10000,
+			HealthCheckTimeout: 3,
 		},
 		Security: SecurityConfig{
 			DocAESActiveKeyID: 1,
@@ -1012,14 +1103,15 @@ func TestValidate_SMSRejectsBlankRequiredConfigWhenEnabled(t *testing.T) {
 func TestValidate_SMSDisabledAllowsEmptyConfig(t *testing.T) {
 	c := &Config{
 		App: AppConfig{
-			Env:             "development",
-			Port:            "8080",
-			HMACSecret:      "0123456789abcdef0123456789abcdef",
-			CORSOrigins:     []string{"http://localhost:3000"},
-			MetricsPassword: "metrics-password",
-			MaxBodySize:     10 << 20,
-			APIIPRateLimit:  100,
-			APIGlobalLimit:  10000,
+			Env:                "development",
+			Port:               "8080",
+			HMACSecret:         "0123456789abcdef0123456789abcdef",
+			CORSOrigins:        []string{"http://localhost:3000"},
+			MetricsPassword:    "metrics-password",
+			MaxBodySize:        10 << 20,
+			APIIPRateLimit:     100,
+			APIGlobalLimit:     10000,
+			HealthCheckTimeout: 3,
 		},
 		Security: SecurityConfig{
 			DocAESActiveKeyID: 1,
@@ -1378,16 +1470,17 @@ func TestValidate_RejectsBlankIdentityAndAuthorizationConfig(t *testing.T) {
 func validProductionConfigForTest() *Config {
 	return &Config{
 		App: AppConfig{
-			Env:             "production",
-			Port:            "8080",
-			HMACSecret:      "0123456789abcdef0123456789abcdef",
-			CORSOrigins:     []string{"https://stuhelper.example.com"},
-			TrustedProxies:  []string{"10.0.0.0/8"},
-			MetricsUser:     "prometheus",
-			MetricsPassword: "metrics-password",
-			MaxBodySize:     10 << 20,
-			APIIPRateLimit:  100,
-			APIGlobalLimit:  10000,
+			Env:                "production",
+			Port:               "8080",
+			HMACSecret:         "0123456789abcdef0123456789abcdef",
+			CORSOrigins:        []string{"https://stuhelper.example.com"},
+			TrustedProxies:     []string{"10.0.0.0/8"},
+			MetricsUser:        "prometheus",
+			MetricsPassword:    "metrics-password",
+			MaxBodySize:        10 << 20,
+			APIIPRateLimit:     100,
+			APIGlobalLimit:     10000,
+			HealthCheckTimeout: 3,
 		},
 		Security: SecurityConfig{DocAESActiveKeyID: 1, DocAESKeys: map[uint8][]byte{1: make([]byte, 32)}},
 		Database: DatabaseConfig{URL: "postgres://user:pass@db:5432/stuhelper?sslmode=verify-full", QueryTimeout: 5, MaxConns: 20, MinConns: 2, SSLMode: "verify-full", SSLRootCert: "/run/secrets/postgres-ca.crt"},

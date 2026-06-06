@@ -9,14 +9,15 @@ import (
 func validConfigForValidation() *Config {
 	return &Config{
 		App: AppConfig{
-			Env:             "development",
-			Port:            "8080",
-			HMACSecret:      "0123456789abcdef0123456789abcdef",
-			CORSOrigins:     []string{"http://localhost:3000"},
-			MetricsPassword: "metrics-password",
-			MaxBodySize:     10 << 20,
-			APIIPRateLimit:  100,
-			APIGlobalLimit:  10000,
+			Env:                "development",
+			Port:               "8080",
+			HMACSecret:         "0123456789abcdef0123456789abcdef",
+			CORSOrigins:        []string{"http://localhost:3000"},
+			MetricsPassword:    "metrics-password",
+			MaxBodySize:        10 << 20,
+			APIIPRateLimit:     100,
+			APIGlobalLimit:     10000,
+			HealthCheckTimeout: 3,
 		},
 		Security: SecurityConfig{
 			DocAESActiveKeyID: 1,

@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"strconv"
@@ -17,6 +18,8 @@ func (c *Config) validate(parseErrs []string) error {
 	errs = append(errs, validateAppEnv(c.App.Env)...)
 	errs = append(errs, validateAppPort(c.App.Port)...)
 	errs = append(errs, validateMaxBodySize(c.App.MaxBodySize)...)
+	errs = append(errs, validateHealthCheckTimeout(c.App.HealthCheckTimeout)...)
+	errs = append(errs, validateTrustedProxies(c.App.TrustedProxies)...)
 
 	const hmacMinLen = 32
 	switch {
@@ -388,6 +391,42 @@ func validateMaxBodySize(maxBodySize int64) []string {
 	const maxAllowedBodySize = int64(100 << 20)
 	if maxBodySize < 1 || maxBodySize > maxAllowedBodySize {
 		return []string{fmt.Sprintf("MAX_BODY_SIZE must be between 1 and %d bytes (got %d)", maxAllowedBodySize, maxBodySize)}
+	}
+	return nil
+}
+
+func validateHealthCheckTimeout(timeout int) []string {
+	const maxHealthCheckTimeout = 60
+	if timeout < 1 || timeout > maxHealthCheckTimeout {
+		return []string{fmt.Sprintf("HEALTH_CHECK_TIMEOUT must be between 1 and %d seconds (got %d)", maxHealthCheckTimeout, timeout)}
+	}
+	return nil
+}
+
+func validateTrustedProxies(proxies []string) []string {
+	var errs []string
+	for _, proxy := range proxies {
+		errs = append(errs, validateTrustedProxy(proxy)...)
+	}
+	return errs
+}
+
+func validateTrustedProxy(proxy string) []string {
+	trimmed := strings.TrimSpace(proxy)
+	if trimmed == "" {
+		return []string{"TRUSTED_PROXIES contains an empty proxy entry"}
+	}
+	if trimmed != proxy {
+		return []string{fmt.Sprintf("TRUSTED_PROXIES entry %q must not include leading or trailing whitespace", proxy)}
+	}
+	if strings.Contains(proxy, "/") {
+		if _, _, err := net.ParseCIDR(proxy); err != nil {
+			return []string{fmt.Sprintf("TRUSTED_PROXIES entry %q must be an IPv4/IPv6 address or CIDR", proxy)}
+		}
+		return nil
+	}
+	if net.ParseIP(proxy) == nil {
+		return []string{fmt.Sprintf("TRUSTED_PROXIES entry %q must be an IPv4/IPv6 address or CIDR", proxy)}
 	}
 	return nil
 }
