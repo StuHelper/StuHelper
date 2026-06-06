@@ -38,6 +38,11 @@ func Created(c *gin.Context, data any) {
 	})
 }
 
+// NoContent 返回无响应体的成功响应。
+func NoContent(c *gin.Context) {
+	c.Status(http.StatusNoContent)
+}
+
 // Error 返回错误响应并中止后续 handler 链（AbortWithStatusJSON）
 func Error(c *gin.Context, status int, code errs.ErrorCode, message string) {
 	c.AbortWithStatusJSON(status, Response{

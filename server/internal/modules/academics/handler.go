@@ -2,7 +2,6 @@ package academics
 
 import (
 	"errors"
-	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -202,5 +201,5 @@ func (h *Handler) listMySchedule(c *gin.Context) {
 }
 
 func (h *Handler) Health(c *gin.Context) {
-	c.Status(http.StatusNoContent)
+	response.NoContent(c)
 }

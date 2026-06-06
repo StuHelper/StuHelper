@@ -108,6 +108,21 @@ func TestCreated(t *testing.T) {
 	assert.Nil(t, resp.Error)
 }
 
+func TestNoContent(t *testing.T) {
+	w := httptest.NewRecorder()
+	_, r := gin.CreateTestContext(w)
+
+	r.DELETE("/empty", func(c *gin.Context) {
+		NoContent(c)
+	})
+
+	req := httptest.NewRequest(http.MethodDelete, "/empty", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	assert.Empty(t, w.Body.String())
+}
+
 // ---------------------------------------------------------------------------
 // Error
 // ---------------------------------------------------------------------------
