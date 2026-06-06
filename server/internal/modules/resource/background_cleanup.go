@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/outbox"
@@ -95,7 +96,22 @@ func (s *Service) processCleanupJob(ctx context.Context, job cleanupJob) error {
 	if err := json.Unmarshal(job.Payload, &payload); err != nil {
 		return fmt.Errorf("decode resource cleanup payload: %w", err)
 	}
+	payload, err := normalizeCleanupPayload(payload)
+	if err != nil {
+		return err
+	}
 	return s.storage.Delete(ctx, payload.MountID, payload.ObjectKey)
+}
+
+func normalizeCleanupPayload(payload cleanupPayload) (cleanupPayload, error) {
+	if payload.MountID <= 0 {
+		return cleanupPayload{}, fmt.Errorf("invalid resource cleanup payload: mountID must be positive")
+	}
+	payload.ObjectKey = strings.TrimSpace(payload.ObjectKey)
+	if payload.ObjectKey == "" {
+		return cleanupPayload{}, fmt.Errorf("invalid resource cleanup payload: objectKey is required")
+	}
+	return payload, nil
 }
 
 func truncateCleanupError(err error) string {
