@@ -6,6 +6,7 @@ import {
   CSRF_COOKIE_NAME,
   createSessionApiClient,
   executeSessionRefresh,
+  normalizeRequestHeaders,
   parseApiError,
   serializePath,
   type HttpMethod,
@@ -180,15 +181,7 @@ async function browserRequest<T>(
 ) {
   const path = resolveApiPath(schemaPath, init?.params?.path, init?.params?.query)
   const url = resolveApiURL(path)
-  const requestHeaders = new Headers(
-    Object.entries(init?.params?.header ?? {}).reduce<Record<string, string>>(
-      (acc, [key, value]) => {
-        if (value != null) acc[key] = String(value)
-        return acc
-      },
-      {},
-    ),
-  )
+  const requestHeaders = new Headers(normalizeRequestHeaders(init))
   const body = normalizeRequestBody(init?.body)
   if (body !== undefined && !requestHeaders.has('Content-Type')) {
     requestHeaders.set('Content-Type', 'application/json')

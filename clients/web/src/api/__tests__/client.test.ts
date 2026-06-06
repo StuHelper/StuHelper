@@ -207,6 +207,33 @@ describe("browser API client", () => {
         expect(request.headers.get("X-CSRF-Token")).toBe("test-csrf");
     });
 
+    it("preserves top-level request headers in browser transport", async () => {
+        fetchMock.mockResolvedValueOnce(
+            new Response(JSON.stringify({ data: { ok: true } }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            }),
+        );
+
+        const { apiClient } = await import("../client");
+        await apiClient.POST("/api/v1/open-platform/resources/access/check" as never, {
+            body: {
+                action: "read",
+                resourceID: "resource-42",
+                resourceType: "resource_item",
+            },
+            headers: {
+                Authorization: "Bearer resource-access-token",
+            },
+        } as never);
+
+        const request = fetchMock.mock.calls[0][0] as Request;
+        expect(request.headers.get("Authorization")).toBe(
+            "Bearer resource-access-token",
+        );
+        expect(request.headers.get("X-CSRF-Token")).toBe("test-csrf");
+    });
+
     it("refreshes once and retries the original request after a 401", async () => {
         fetchMock
             .mockResolvedValueOnce(new Response(null, { status: 401 }))

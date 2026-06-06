@@ -9,6 +9,7 @@ import {
   createSessionApiClient,
   executeSessionRefresh,
   normalizeSchemaPath,
+  normalizeRequestHeaders,
   serializePath,
   type HttpMethod,
   type RefreshSessionData,
@@ -263,11 +264,7 @@ function performRequest<T>(
     return Promise.reject(error)
   }
 
-  const requestHeaders: Record<string, string> = {}
-  for (const [key, value] of Object.entries(init?.params?.header ?? {})) {
-    if (value == null) continue
-    requestHeaders[key] = String(value)
-  }
+  const requestHeaders = normalizeRequestHeaders(init)
   if (init?.body !== undefined && !requestHeaders['Content-Type']) {
     requestHeaders['Content-Type'] = 'application/json'
   }

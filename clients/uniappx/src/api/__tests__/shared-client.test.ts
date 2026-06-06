@@ -60,6 +60,58 @@ describe('uniappx api client transport', () => {
     expect(result.data).toEqual({ data: { ok: true } })
   })
 
+  it('preserves top-level request headers in uni request transport', async () => {
+    const request = vi.fn((options: any) => {
+      options.success?.({
+        statusCode: 200,
+        data: {
+          data: { ok: true },
+        },
+        header: {
+          'content-type': 'application/json',
+        },
+      })
+      return { abort: vi.fn() }
+    })
+
+    vi.stubEnv('VITE_API_URL', '/api')
+    vi.stubGlobal('window', {
+      location: {
+        origin: 'https://app.example',
+      },
+    })
+    vi.stubGlobal('document', {
+      cookie: 'csrf_token=test-csrf-token',
+    })
+    vi.stubGlobal('uni', {
+      request,
+    })
+
+    const { apiClient } = await import('../shared-client')
+    const result = await apiClient.POST('/api/v1/open-platform/resources/access/check' as never, {
+      body: {
+        action: 'read',
+        resourceID: 'resource-42',
+        resourceType: 'resource_item',
+      },
+      headers: {
+        Authorization: 'Bearer resource-access-token',
+      },
+    } as never)
+
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(request.mock.calls[0][0]).toMatchObject({
+      header: {
+        Authorization: 'Bearer resource-access-token',
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': 'test-csrf-token',
+      },
+      method: 'POST',
+      url: 'https://app.example/api/v1/open-platform/resources/access/check',
+    })
+    expect(result.response?.status).toBe(200)
+  })
+
   it('detects H5 session hints from browser csrf state only', async () => {
     vi.stubEnv('VITE_API_URL', '/api')
     vi.stubGlobal('window', {

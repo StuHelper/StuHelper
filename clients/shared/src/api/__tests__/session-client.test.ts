@@ -4,6 +4,7 @@ import {
   createSessionApiClient,
   executeSessionRefresh,
   extractRefreshSessionData,
+  normalizeRequestHeaders,
 } from '../session-client'
 
 describe('extractRefreshSessionData', () => {
@@ -130,6 +131,42 @@ describe('executeSessionRefresh', () => {
     ).resolves.toEqual({
       kind: 'error',
       error: networkError,
+    })
+  })
+})
+
+describe('normalizeRequestHeaders', () => {
+  it('merges top-level headers with params headers', () => {
+    expect(
+      normalizeRequestHeaders({
+        headers: {
+          Authorization: 'Bearer top-level-token',
+          'X-Null': null,
+        },
+        params: {
+          header: {
+            Authorization: 'Bearer params-token',
+            'X-Trace-ID': 'trace-1',
+          },
+        },
+      }),
+    ).toEqual({
+      Authorization: 'Bearer params-token',
+      'X-Trace-ID': 'trace-1',
+    })
+  })
+
+  it('accepts Headers and tuple header inputs', () => {
+    expect(
+      normalizeRequestHeaders({
+        headers: new Headers([['Authorization', 'Bearer top-level-token']]),
+        params: {
+          header: [['X-Trace-ID', 'trace-1']],
+        },
+      }),
+    ).toEqual({
+      authorization: 'Bearer top-level-token',
+      'X-Trace-ID': 'trace-1',
     })
   })
 })

@@ -13,6 +13,7 @@ import {
   buildSecurityHeaders,
   createSessionApiClient,
   executeSessionRefresh,
+  normalizeRequestHeaders,
   normalizeSchemaPath,
   parseApiError,
   serializePath,
@@ -182,10 +183,7 @@ async function doRequest<T>(
   try {
     const response = await baseRequestClient.instance.request<ApiEnvelope<T>>({
       data: init?.body,
-      headers: withSecurityHeaders(
-        method,
-        (init?.params?.header as Record<string, string> | undefined) ?? {},
-      ),
+      headers: withSecurityHeaders(method, normalizeRequestHeaders(init)),
       method,
       params: init?.params?.query,
       signal: init?.signal,

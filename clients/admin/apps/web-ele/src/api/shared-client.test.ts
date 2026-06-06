@@ -67,6 +67,19 @@ mockVirtualModule(
     },
     executeSessionRefresh: mocks.executeSessionRefresh,
     normalizeSchemaPath: (_baseUrl: string, schemaPath: string) => schemaPath,
+    normalizeRequestHeaders: (init?: {
+      headers?: Record<string, unknown>;
+      params?: { header?: Record<string, unknown> };
+    }) => {
+      const headers: Record<string, string> = {};
+      for (const [key, value] of Object.entries(init?.headers ?? {})) {
+        if (value !== null && value !== undefined) headers[key] = String(value);
+      }
+      for (const [key, value] of Object.entries(init?.params?.header ?? {})) {
+        if (value !== null && value !== undefined) headers[key] = String(value);
+      }
+      return headers;
+    },
     parseApiError: mocks.parseApiError,
     serializePath: (schemaPath: string) => schemaPath,
   }),
@@ -214,5 +227,47 @@ describe('admin shared client reauthentication', () => {
     expect(result.response.status).toBe(403);
 
     replaceSpy.mockRestore();
+  });
+
+  it('passes top-level request headers to the Vben transport', async () => {
+    mocks.request.mockResolvedValue({
+      data: {
+        data: { ok: true },
+      },
+      status: 200,
+    });
+
+    await import('./shared-client');
+
+    const result = await mocks.capturedTransport.request(
+      'POST',
+      '/api/v1/open-platform/resources/access/check',
+      {
+        body: {
+          action: 'read',
+          resourceID: 'resource-42',
+          resourceType: 'resource_item',
+        },
+        headers: {
+          Authorization: 'Bearer resource-access-token',
+        },
+      },
+    );
+
+    expect(mocks.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          action: 'read',
+          resourceID: 'resource-42',
+          resourceType: 'resource_item',
+        },
+        headers: {
+          Authorization: 'Bearer resource-access-token',
+        },
+        method: 'POST',
+        url: '/api/v1/open-platform/resources/access/check',
+      }),
+    );
+    expect(result.response.status).toBe(200);
   });
 });

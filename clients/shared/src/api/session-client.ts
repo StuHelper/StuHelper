@@ -4,10 +4,18 @@ import { extractResultData } from './result'
 
 export type HttpMethod = 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT'
 
+export type RequestHeadersShape =
+  | Iterable<readonly unknown[]>
+  | Record<string, unknown>
+  | {
+      forEach(callback: (value: unknown, key: string) => void): void
+    }
+
 export type RequestInitShape = {
   body?: unknown
+  headers?: RequestHeadersShape
   params?: {
-    header?: Record<string, unknown>
+    header?: RequestHeadersShape
     path?: Record<string, unknown>
     query?: Record<string, unknown>
   }
@@ -131,6 +139,55 @@ export function buildSecurityHeaders(
     nextHeaders['Accept-Language'] = options.acceptLanguage
   }
   return nextHeaders
+}
+
+function assignHeader(
+  target: Record<string, string>,
+  key: unknown,
+  value: unknown,
+): void {
+  if (key == null || value == null) return
+  const name = String(key).trim()
+  if (name === '') return
+  target[name] = String(value)
+}
+
+function appendHeaders(
+  target: Record<string, string>,
+  source?: RequestHeadersShape,
+): void {
+  if (!source) return
+
+  const maybeForEach = source as {
+    forEach?: (callback: (value: unknown, key: string) => void) => void
+  }
+  if (typeof maybeForEach.forEach === 'function' && !Array.isArray(source)) {
+    maybeForEach.forEach((value, key) => assignHeader(target, key, value))
+    return
+  }
+
+  const maybeIterable = source as {
+    [Symbol.iterator]?: () => IterableIterator<readonly unknown[]>
+  }
+  if (typeof maybeIterable[Symbol.iterator] === 'function') {
+    for (const entry of maybeIterable as Iterable<readonly unknown[]>) {
+      assignHeader(target, entry[0], entry[1])
+    }
+    return
+  }
+
+  for (const [key, value] of Object.entries(source)) {
+    assignHeader(target, key, value)
+  }
+}
+
+export function normalizeRequestHeaders(
+  init?: Pick<RequestInitShape, 'headers' | 'params'>,
+): Record<string, string> {
+  const headers: Record<string, string> = {}
+  appendHeaders(headers, init?.headers)
+  appendHeaders(headers, init?.params?.header)
+  return headers
 }
 
 export function extractRefreshSessionData(
