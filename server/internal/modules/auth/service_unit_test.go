@@ -88,6 +88,9 @@ func TestCreateSession(t *testing.T) {
 	_, err = svc.CreateSession(ctx, "sid-1", "   ", "access", "refresh", "oidc", "browser")
 	require.ErrorIs(t, err, errSessionUserRequired)
 
+	_, err = svc.CreateSession(ctx, " \t\n ", "user-1", "access", "refresh", "oidc", "browser")
+	require.ErrorIs(t, err, errSessionIDRequired)
+
 	info, err := svc.CreateSession(ctx, "sid-1", "user-1", "access-token", "refresh-token", "oidc", "browser")
 	require.NoError(t, err)
 	assert.Equal(t, "sid-1", info.SessionID)
@@ -174,10 +177,21 @@ func TestRotateSession_WithoutSessionIDRejectsRequestAndBlacklistsOldRefresh(t *
 	ctx := context.Background()
 
 	err := svc.RotateSession(ctx, "", "user-1", "old-refresh", "new-access", "new-refresh")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "sessionID is required")
+	require.ErrorIs(t, err, errSessionIDRequired)
 
 	blacklisted, err := tokenSvc.GetBlacklist().IsBlacklisted(ctx, "old-refresh")
+	require.NoError(t, err)
+	assert.True(t, blacklisted)
+}
+
+func TestRotateSession_WithBlankSessionIDRejectsRequestAndBlacklistsOldRefresh(t *testing.T) {
+	svc, tokenSvc := newAuthServiceForTest(t)
+	ctx := context.Background()
+
+	err := svc.RotateSession(ctx, " \t\n ", "user-1", "blank-sid-refresh", "new-access", "new-refresh")
+	require.ErrorIs(t, err, errSessionIDRequired)
+
+	blacklisted, err := tokenSvc.GetBlacklist().IsBlacklisted(ctx, "blank-sid-refresh")
 	require.NoError(t, err)
 	assert.True(t, blacklisted)
 }
@@ -248,6 +262,21 @@ func TestRevokeSession_FallbackBlacklistFailureWithoutSessionID(t *testing.T) {
 	err := svc.RevokeSession(ctx, "", "user-1", "access-fallback", "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "revoke access token")
+}
+
+func TestRevokeSession_BlankSessionIDUsesTokenBlacklistFallback(t *testing.T) {
+	svc, tokenSvc := newAuthServiceForTest(t)
+	ctx := context.Background()
+
+	err := svc.RevokeSession(ctx, " \t\n ", "user-1", "access-fallback", "refresh-fallback")
+	require.NoError(t, err)
+
+	accessBlacklisted, err := tokenSvc.GetBlacklist().IsBlacklisted(ctx, "access-fallback")
+	require.NoError(t, err)
+	assert.True(t, accessBlacklisted)
+	refreshBlacklisted, err := tokenSvc.GetBlacklist().IsBlacklisted(ctx, "refresh-fallback")
+	require.NoError(t, err)
+	assert.True(t, refreshBlacklisted)
 }
 
 func TestRevokeAllSessions_ContextCanceled(t *testing.T) {

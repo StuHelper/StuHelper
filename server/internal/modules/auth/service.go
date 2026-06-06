@@ -66,10 +66,11 @@ func (s *Service) CreateSessionForApplication(
 	ctx context.Context,
 	sessionID, userID, accessToken, refreshToken, loginMethod, providerAppKey, deviceInfo string,
 ) (*SessionInfo, error) {
-	if sessionID == "" {
-		return nil, fmt.Errorf("create session: sessionID is required")
-	}
 	var err error
+	sessionID, err = normalizeRequiredSessionID(sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("create session: %w", err)
+	}
 	userID, err = normalizeRequiredSessionUserID(userID)
 	if err != nil {
 		return nil, fmt.Errorf("create session: %w", err)
@@ -111,6 +112,11 @@ func (s *Service) CreateSessionForApplication(
 }
 
 func (s *Service) OIDCApplicationForRefresh(ctx context.Context, sessionID, refreshToken string) (string, error) {
+	var err error
+	sessionID, err = normalizeRequiredSessionID(sessionID)
+	if err != nil {
+		return "", fmt.Errorf("resolve oidc application: %w", err)
+	}
 	session, err := s.verifyTrackedSession(ctx, sessionID, trackedSessionExpectation{refreshToken: refreshToken})
 	if err != nil {
 		return "", fmt.Errorf("resolve oidc application: %w", err)
@@ -140,8 +146,9 @@ func (s *Service) RotateSession(ctx context.Context, sessionID, userID, oldRefre
 		return fmt.Errorf("rotate session: blacklist old refresh token: %w", blErr)
 	}
 
-	if sessionID == "" {
-		return fmt.Errorf("rotate session: sessionID is required")
+	sessionID, err = normalizeRequiredSessionID(sessionID)
+	if err != nil {
+		return fmt.Errorf("rotate session: %w", err)
 	}
 	session, err := s.verifyTrackedSession(ctx, sessionID, trackedSessionExpectation{
 		userID:       userID,
@@ -194,6 +201,7 @@ func (s *Service) RevokeSession(ctx context.Context, sessionID, userID, accessTo
 		return fmt.Errorf("revoke session: %w", err)
 	}
 
+	sessionID = strings.TrimSpace(sessionID)
 	if sessionID != "" {
 		session, err := s.verifyTrackedSession(ctx, sessionID, trackedSessionExpectation{
 			userID:       userID,

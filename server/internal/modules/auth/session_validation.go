@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
 
 var (
+	errSessionIDRequired           = errors.New("sessionID is required")
 	errSessionUserRequired         = errors.New("userID is required")
 	errSessionUserMismatch         = errors.New("session user mismatch")
 	errSessionAccessTokenMismatch  = errors.New("session access token mismatch")
@@ -19,6 +21,14 @@ type trackedSessionExpectation struct {
 	userID       string
 	accessToken  string
 	refreshToken string
+}
+
+func normalizeRequiredSessionID(sessionID string) (string, error) {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return "", errSessionIDRequired
+	}
+	return sessionID, nil
 }
 
 func loadTrackedSession(ctx context.Context, store *token.SessionStore, sessionID string) (*token.SessionData, error) {

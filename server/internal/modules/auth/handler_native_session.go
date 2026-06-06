@@ -51,7 +51,9 @@ func (h *Handler) requireTrackedSession(
 	sessionID, missingMessage, invalidMessage string,
 	expectation trackedSessionExpectation,
 ) bool {
-	if sessionID == "" {
+	var err error
+	sessionID, err = normalizeRequiredSessionID(sessionID)
+	if err != nil {
 		response.Unauthorized(c, missingMessage, errs.ErrTokenInvalid)
 		return false
 	}
