@@ -62,6 +62,10 @@ func oauth2ApplicationInputs(cfg config.CasdoorConfig) []oauth2ApplicationInput 
 }
 
 func oauth2ConfigFromInput(endpoint oauth2.Endpoint, input oauth2ApplicationInput) (oauth2.Config, bool, error) {
+	input.clientID = strings.TrimSpace(input.clientID)
+	input.clientSecret = strings.TrimSpace(input.clientSecret)
+	input.redirectURI = strings.TrimSpace(input.redirectURI)
+
 	if input.clientID == "" && input.clientSecret == "" && input.redirectURI == "" && !input.required {
 		return oauth2.Config{}, false, nil
 	}

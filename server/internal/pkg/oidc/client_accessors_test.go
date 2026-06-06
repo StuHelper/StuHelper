@@ -126,6 +126,45 @@ func TestApplicationLookupNormalizesInputs(t *testing.T) {
 	assert.Empty(t, client.ApplicationKeyForClientID(" \t\n "))
 }
 
+func TestOAuth2ConfigFromInputNormalizesConfiguredValues(t *testing.T) {
+	endpoint := oauth2.Endpoint{AuthURL: "https://sso.example.com/authorize", TokenURL: "https://sso.example.com/token"}
+
+	cfg, ok, err := oauth2ConfigFromInput(endpoint, oauth2ApplicationInput{
+		appKey:       ApplicationAdmin,
+		clientID:     " \tadmin-client\n ",
+		clientSecret: " \tadmin-secret\n ",
+		redirectURI:  " \thttps://admin.example.com/callback\n ",
+		scopes:       []string{" openid ", "profile"},
+	})
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, "admin-client", cfg.ClientID)
+	assert.Equal(t, "admin-secret", cfg.ClientSecret)
+	assert.Equal(t, "https://admin.example.com/callback", cfg.RedirectURL)
+	assert.Equal(t, endpoint, cfg.Endpoint)
+	assert.Equal(t, []string{"openid", "profile"}, cfg.Scopes)
+
+	cfg, ok, err = oauth2ConfigFromInput(endpoint, oauth2ApplicationInput{
+		appKey:       ApplicationAdmin,
+		clientID:     " \t\n ",
+		clientSecret: " \t\n ",
+		redirectURI:  " \t\n ",
+	})
+	require.NoError(t, err)
+	assert.False(t, ok)
+	assert.Empty(t, cfg.ClientID)
+
+	_, ok, err = oauth2ConfigFromInput(endpoint, oauth2ApplicationInput{
+		appKey:       ApplicationWeb,
+		clientID:     " \t\n ",
+		clientSecret: "web-secret",
+		redirectURI:  "https://web.example.com/callback",
+		required:     true,
+	})
+	assert.False(t, ok)
+	require.ErrorIs(t, err, ErrApplicationNotConfigured)
+}
+
 func TestOAuth2ScopesNormalizeConfiguredValues(t *testing.T) {
 	assert.Equal(t,
 		[]string{"openid", "profile", "email"},
