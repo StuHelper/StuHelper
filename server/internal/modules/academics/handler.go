@@ -161,6 +161,10 @@ func (h *Handler) getOffering(c *gin.Context) {
 	}
 	item, err := h.service.GetOffering(c.Request.Context(), offeringID)
 	if err != nil {
+		if errors.Is(err, ErrInvalidOfferingID) {
+			response.BadRequest(c, "invalid offeringID", errs.ErrInvalidParam)
+			return
+		}
 		if errors.Is(err, ErrOfferingNotFound) {
 			response.NotFound(c, "academic offering not found")
 			return
@@ -174,6 +178,10 @@ func (h *Handler) getOffering(c *gin.Context) {
 func (h *Handler) listMyCourses(c *gin.Context) {
 	items, err := h.service.ListMyCourses(c.Request.Context(), middleware.GetUserID(c), c.Query("termCode"))
 	if err != nil {
+		if errors.Is(err, ErrAcademicUserRequired) {
+			response.Unauthorized(c, "missing authentication token", errs.ErrTokenMissing)
+			return
+		}
 		response.InternalError(c, "failed to list my courses")
 		return
 	}
@@ -183,6 +191,10 @@ func (h *Handler) listMyCourses(c *gin.Context) {
 func (h *Handler) listMySchedule(c *gin.Context) {
 	items, err := h.service.ListMySchedule(c.Request.Context(), middleware.GetUserID(c), c.Query("termCode"))
 	if err != nil {
+		if errors.Is(err, ErrAcademicUserRequired) {
+			response.Unauthorized(c, "missing authentication token", errs.ErrTokenMissing)
+			return
+		}
 		response.InternalError(c, "failed to list my schedule")
 		return
 	}

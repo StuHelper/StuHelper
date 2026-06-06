@@ -4,7 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 )
+
+var ErrInvalidOfferingID = errors.New("academic offering id is invalid")
+var ErrAcademicUserRequired = errors.New("academic user id is required")
 
 type Service struct {
 	repo     *Repository
@@ -110,13 +114,39 @@ func (s *Service) ListOfferings(ctx context.Context, filters OfferingFilters) ([
 }
 
 func (s *Service) GetOffering(ctx context.Context, offeringID int64) (*Offering, error) {
+	if err := validateOfferingID(offeringID); err != nil {
+		return nil, err
+	}
 	return s.repo.GetOfferingByID(ctx, offeringID)
 }
 
 func (s *Service) ListMyCourses(ctx context.Context, externalUserID, termCode string) ([]Offering, error) {
+	externalUserID, err := normalizeRequiredAcademicUserID(externalUserID)
+	if err != nil {
+		return nil, err
+	}
 	return s.repo.ListMyCourses(ctx, externalUserID, termCode)
 }
 
 func (s *Service) ListMySchedule(ctx context.Context, externalUserID, termCode string) ([]Offering, error) {
+	externalUserID, err := normalizeRequiredAcademicUserID(externalUserID)
+	if err != nil {
+		return nil, err
+	}
 	return s.repo.ListMySchedule(ctx, externalUserID, termCode)
+}
+
+func validateOfferingID(offeringID int64) error {
+	if offeringID <= 0 {
+		return ErrInvalidOfferingID
+	}
+	return nil
+}
+
+func normalizeRequiredAcademicUserID(externalUserID string) (string, error) {
+	externalUserID = strings.TrimSpace(externalUserID)
+	if externalUserID == "" {
+		return "", ErrAcademicUserRequired
+	}
+	return externalUserID, nil
 }
