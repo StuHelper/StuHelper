@@ -90,3 +90,18 @@ func TestRuntimeOpenPlatformAccountBaseURLDefaultsToConsentBaseURL(t *testing.T)
 	assert.Equal(t, "https://consent.example.com", consentBaseURL)
 	assert.Equal(t, "https://consent.example.com", rt.openPlatformAccountBaseURL(consentBaseURL))
 }
+
+func TestRuntimeOpenPlatformTokenProbeTreatsBlankCommandAsNotConfigured(t *testing.T) {
+	rt := &Runtime{cfg: &config.Config{
+		OpenPlatform: config.OpenPlatformConfig{
+			TokenProbe: config.OpenPlatformTokenProbeConfig{
+				RuntimeCommand: "  ",
+			},
+		},
+	}}
+
+	prober, err := rt.newOpenPlatformRuntimeTokenProber()
+
+	require.NoError(t, err)
+	assert.Nil(t, prober)
+}

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -78,11 +79,12 @@ func (rt *Runtime) openPlatformAccountBaseURL(consentBaseURL string) string {
 
 func (rt *Runtime) newOpenPlatformRuntimeTokenProber() (*casdoorOpenPlatformRuntimeTokenProber, error) {
 	cfg := rt.cfg.OpenPlatform.TokenProbe
-	if cfg.RuntimeCommand == "" {
+	command := strings.TrimSpace(cfg.RuntimeCommand)
+	if command == "" {
 		return nil, nil
 	}
 	prober, err := platformcasdoor.NewCommandRuntimeTokenProber(platformcasdoor.RuntimeTokenProbeCommandConfig{
-		Command: cfg.RuntimeCommand,
+		Command: command,
 		Issuer:  rt.cfg.Casdoor.Issuer,
 		Timeout: secondsDuration(cfg.RuntimeTimeoutSeconds),
 	})
