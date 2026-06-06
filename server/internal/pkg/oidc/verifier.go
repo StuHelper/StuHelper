@@ -42,6 +42,9 @@ func newProviderVerifier(
 }
 
 func newProviderUnavailableKeySet(ctx context.Context, jwksURI string, ttl time.Duration) *providerUnavailableKeySet {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	return &providerUnavailableKeySet{
 		ctx:      context.WithoutCancel(ctx),
 		jwksURI:  jwksURI,
