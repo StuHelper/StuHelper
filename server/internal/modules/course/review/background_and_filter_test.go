@@ -84,13 +84,20 @@ func TestReviewFilterRefreshAndBackgroundJobs(t *testing.T) {
 	assert.NoError(t, err)
 
 	jobCtx, cancel := context.WithCancel(context.Background())
-	start := func(_ string, run func(context.Context)) {
+	defer cancel()
+	launches := make(chan string, 4)
+	start := func(name string, run func(context.Context)) {
+		launches <- name
 		go run(jobCtx)
 	}
 	h.StartBackgroundJobs(jobCtx, start)
 	svc.StartBackgroundJobs(jobCtx, start)
-	time.Sleep(20 * time.Millisecond)
-	cancel()
+	requireReviewBackgroundLaunches(t, launches,
+		"review fga sync worker",
+		"review fga sync reconciliation",
+		"review fga sync worker",
+		"review fga sync reconciliation",
+	)
 }
 
 func TestReviewFGASyncProcessBatchAndHelpers(t *testing.T) {
@@ -124,6 +131,18 @@ func TestStartBackgroundJobsRequiresStarter(t *testing.T) {
 	require.Panics(t, func() {
 		svc.StartBackgroundJobs(ctx, nil)
 	})
+}
+
+func requireReviewBackgroundLaunches(t *testing.T, launches <-chan string, want ...string) {
+	t.Helper()
+	for _, expected := range want {
+		select {
+		case name := <-launches:
+			assert.Equal(t, expected, name)
+		case <-time.After(time.Second):
+			t.Fatalf("expected background job %q to launch", expected)
+		}
+	}
 }
 
 func TestReviewDispatchNotificationUsesManagedLauncher(t *testing.T) {
