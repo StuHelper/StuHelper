@@ -525,7 +525,7 @@ router.beforeEach(async (to) => {
     });
     if (authFailureDecision !== null) {
         if (authFailureDecision === false) {
-            return true;
+            return false;
         }
         return authFailureDecision;
     }
