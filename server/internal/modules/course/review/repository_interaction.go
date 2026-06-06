@@ -167,13 +167,13 @@ func (r *Repository) GetReportByID(ctx context.Context, reportID string) (*Revie
 	return &rp, nil
 }
 
-// GetReportByIDForUpdate 在事务内获取举报并加行锁，仅返回 pending 状态的举报
+// GetReportByIDForUpdate 在事务内获取举报并加行锁。
 func (r *Repository) GetReportByIDForUpdate(ctx context.Context, tx pgx.Tx, reportID string) (*ReviewReport, error) {
 	var rp ReviewReport
 	err := tx.QueryRow(ctx, `
 		SELECT id, review_id, reason, description, status,
 		       resolved_by, resolved_at, resolution_note, created_at
-		FROM review_reports WHERE id = $1 AND status = 'pending'
+		FROM review_reports WHERE id = $1
 		FOR UPDATE
 	`, reportID).Scan(
 		&rp.ID, &rp.ReviewID, &rp.Reason, &rp.Description, &rp.Status,

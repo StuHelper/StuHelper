@@ -176,6 +176,15 @@ func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 	report, err := repo.GetReportByID(ctx, reportID)
 	require.NoError(t, err)
 	assert.Equal(t, ReportStatusRejected, report.Status)
+	err = svc.ProcessReport(ctx, ProcessReportParams{ReportID: reportID, Action: "hide", Note: "重复处理", ResolvedBy: "admin-2"})
+	require.ErrorIs(t, err, ErrInvalidTransition)
+	var postedStatus string
+	err = fixture.Pool.QueryRow(ctx, `SELECT status FROM reviews WHERE id = $1`, posted.Review.ID).Scan(&postedStatus)
+	require.NoError(t, err)
+	assert.Equal(t, StatusPublished, postedStatus)
+	report, err = repo.GetReportByID(ctx, reportID)
+	require.NoError(t, err)
+	assert.Equal(t, ReportStatusRejected, report.Status)
 
 	hideReviewID := "review-report-hide-1"
 	deleteReviewID := "review-report-delete-1"

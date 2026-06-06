@@ -3,6 +3,7 @@ package review
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -135,6 +136,9 @@ func (s *Service) ProcessReport(ctx context.Context, params ProcessReportParams)
 				return ErrReportNotFound
 			}
 			return err
+		}
+		if report.Status != ReportStatusPending {
+			return fmt.Errorf("%w: cannot %s report from %s", ErrInvalidTransition, params.Action, report.Status)
 		}
 
 		var (
