@@ -1,5 +1,7 @@
 package config
 
+import "strings"
+
 const (
 	EnvDevelopment = "development"
 	EnvProduction  = "production"
@@ -9,6 +11,7 @@ const (
 // IsProductionLikeEnv reports whether an environment should use production-grade
 // validation and runtime behavior.
 func IsProductionLikeEnv(env string) bool {
+	env = strings.TrimSpace(env)
 	return env == EnvProduction || env == EnvProdParity
 }
 

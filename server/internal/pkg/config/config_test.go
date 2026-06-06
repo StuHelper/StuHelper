@@ -202,6 +202,33 @@ func TestValidate_ProductionRequiresObservability(t *testing.T) {
 	assert.Contains(t, err.Error(), "OTEL_ENABLED must be true in production")
 }
 
+func TestIsProductionLikeEnvTrimsWhitespace(t *testing.T) {
+	assert.True(t, IsProductionLikeEnv(" production "))
+	assert.True(t, IsProductionLikeEnv("\tprod-parity\n"))
+	assert.False(t, IsProductionLikeEnv(" development "))
+}
+
+func TestValidate_RejectsAppEnvWhitespace(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.App.Env = " production "
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "APP_ENV must not include leading or trailing whitespace")
+}
+
+func TestValidate_RejectsUnknownAppEnvEvenWithSecureCookie(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.App.Env = "staging"
+	c.Token.CookieSecure = true
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "APP_ENV must be development, production, or prod-parity")
+}
+
 func TestValidate_ProductionRejectsBlankCoreRequiredConfig(t *testing.T) {
 	c := validProductionConfigForTest()
 	c.App.HMACSecret = "  "

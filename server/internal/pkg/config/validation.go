@@ -14,6 +14,7 @@ func (c *Config) validate(parseErrs []string) error {
 	var errs []string
 
 	productionLike := IsProductionLikeEnv(c.App.Env)
+	errs = append(errs, validateAppEnv(c.App.Env)...)
 
 	const hmacMinLen = 32
 	switch {
@@ -259,7 +260,7 @@ func (c *Config) validate(parseErrs []string) error {
 		errs = append(errs, parseErrs...)
 	}
 
-	if c.App.Env != EnvProduction && c.App.Env != EnvDevelopment && c.App.Env != EnvProdParity && !c.Token.CookieSecure {
+	if !isAllowedAppEnv(c.App.Env) && !c.Token.CookieSecure {
 		errs = append(errs, "TOKEN_COOKIE_SECURE can only be false in development or prod-parity")
 	}
 
@@ -345,6 +346,23 @@ func (c *Config) validate(parseErrs []string) error {
 
 func configStringMissing(value string) bool {
 	return strings.TrimSpace(value) == ""
+}
+
+func validateAppEnv(env string) []string {
+	if configStringMissing(env) {
+		return []string{"APP_ENV is required"}
+	}
+	if strings.TrimSpace(env) != env {
+		return []string{"APP_ENV must not include leading or trailing whitespace"}
+	}
+	if !isAllowedAppEnv(env) {
+		return []string{"APP_ENV must be development, production, or prod-parity"}
+	}
+	return nil
+}
+
+func isAllowedAppEnv(env string) bool {
+	return env == EnvDevelopment || env == EnvProduction || env == EnvProdParity
 }
 
 // ValidateCORSOrigins validates CORS allow-list entries before they are passed
