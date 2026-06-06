@@ -43,6 +43,7 @@ var (
 	ErrOTPExpired          = errors.New("otp: verification code expired")
 	ErrOTPMaxAttempts      = errors.New("otp: too many failed attempts")
 	ErrOTPPhoneRateLimited = errors.New("otp: too many requests for this phone number")
+	ErrOTPInvalidPhone     = errors.New("otp: invalid phone number")
 )
 
 // OTPCooldownSeconds 返回 OTP 冷却期秒数，供外部模块在响应中使用。
@@ -111,7 +112,11 @@ func (s *OTPService) CooldownSeconds() int {
 }
 
 func otpPhoneKey(phone string) (string, error) {
-	hash, err := phoneutil.HashLookup(phone)
+	normalized, err := normalizeOTPPhone(phone)
+	if err != nil {
+		return "", err
+	}
+	hash, err := phoneutil.HashLookup(normalized)
 	if err != nil {
 		return "", fmt.Errorf("otp: hash phone: %w", err)
 	}
@@ -141,27 +146,31 @@ func (s *OTPService) IssueCode(ctx context.Context, phone string, smsSender Phon
 	if smsSender == nil {
 		return errors.New("otp: sms sender is required")
 	}
-	if err := s.CheckPhoneRateLimit(ctx, phone); err != nil {
+	normalizedPhone, err := normalizeOTPPhone(phone)
+	if err != nil {
+		return err
+	}
+	if err := s.CheckPhoneRateLimit(ctx, normalizedPhone); err != nil {
 		return err
 	}
 
-	code, err := s.Generate(ctx, phone)
+	code, err := s.Generate(ctx, normalizedPhone)
 	if err != nil {
 		rollbackCtx, cancel := otpCompensationContext(ctx)
 		defer cancel()
-		if rollbackErr := s.rollbackPhoneRateLimit(rollbackCtx, phone); rollbackErr != nil {
+		if rollbackErr := s.rollbackPhoneRateLimit(rollbackCtx, normalizedPhone); rollbackErr != nil {
 			return errors.Join(err, rollbackErr)
 		}
 		return err
 	}
 
-	internationalPhone := "+86" + phone
+	internationalPhone := "+86" + normalizedPhone
 	if err := smsSender.Send(ctx, internationalPhone, code); err != nil {
 		sendErr := fmt.Errorf("otp: send sms: %w", err)
 		compCtx, cancel := otpCompensationContext(ctx)
 		defer cancel()
-		cleanupErr := s.CleanupCodeOnly(compCtx, phone)
-		rollbackErr := s.rollbackPhoneRateLimit(compCtx, phone)
+		cleanupErr := s.CleanupCodeOnly(compCtx, normalizedPhone)
+		rollbackErr := s.rollbackPhoneRateLimit(compCtx, normalizedPhone)
 		if cleanupErr != nil || rollbackErr != nil {
 			joined := sendErr
 			if cleanupErr != nil {
@@ -359,6 +368,14 @@ func normalizeOTPCode(code string) (string, error) {
 	normalized := strings.TrimSpace(code)
 	if utf8.RuneCountInString(normalized) != otpLength {
 		return "", ErrOTPInvalidCode
+	}
+	return normalized, nil
+}
+
+func normalizeOTPPhone(phone string) (string, error) {
+	normalized := strings.TrimSpace(phone)
+	if !phoneutil.IsValidMainlandPhone(normalized) {
+		return "", ErrOTPInvalidPhone
 	}
 	return normalized, nil
 }

@@ -230,6 +230,44 @@ func TestOTPService_IssueCode(t *testing.T) {
 	assert.True(t, fixture.Server.Exists(otpCooldownPrefix+phoneKey))
 }
 
+func TestOTPService_IssueCodeNormalizesPhoneBeforeSend(t *testing.T) {
+	svc, fixture := newOTPServiceForTest(t)
+	ctx := context.Background()
+	phone := "13800138000"
+	var gotPhone string
+
+	require.NoError(t, svc.IssueCode(ctx, " "+phone+" ", stubPhoneSMSSender(func(_ context.Context, smsPhone, _ string) error {
+		gotPhone = smsPhone
+		return nil
+	})))
+
+	assert.Equal(t, "+86"+phone, gotPhone)
+	phoneKey, err := phoneutil.HashLookup(phone)
+	require.NoError(t, err)
+	assert.True(t, fixture.Server.Exists(otpCodePrefix+phoneKey))
+	assert.True(t, fixture.Server.Exists(otpCooldownPrefix+phoneKey))
+}
+
+func TestOTPService_RejectsInvalidPhone(t *testing.T) {
+	svc, _ := newOTPServiceForTest(t)
+	ctx := context.Background()
+	senderCalled := false
+	sender := stubPhoneSMSSender(func(context.Context, string, string) error {
+		senderCalled = true
+		return nil
+	})
+
+	err := svc.IssueCode(ctx, "not-a-phone", sender)
+
+	require.ErrorIs(t, err, ErrOTPInvalidPhone)
+	assert.False(t, senderCalled)
+	require.ErrorIs(t, svc.CheckPhoneRateLimit(ctx, "not-a-phone"), ErrOTPInvalidPhone)
+	_, err = svc.Generate(ctx, "not-a-phone")
+	require.ErrorIs(t, err, ErrOTPInvalidPhone)
+	require.ErrorIs(t, svc.Check(ctx, "not-a-phone", "123456"), ErrOTPInvalidPhone)
+	require.ErrorIs(t, svc.Consume(ctx, "not-a-phone", "123456"), ErrOTPInvalidPhone)
+}
+
 func TestOTPService_IssueCode_SendFailureCleansCodeOnly(t *testing.T) {
 	svc, fixture := newOTPServiceForTest(t)
 	ctx := context.Background()

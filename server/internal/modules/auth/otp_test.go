@@ -19,7 +19,7 @@ func TestOTPVerify_AttemptsTTLAndGenerateClearsAttempts(t *testing.T) {
 
 	svc := NewOTPService(fixture.Client)
 	ctx := context.Background()
-	phone := "+8613800000000"
+	phone := "13800000000"
 
 	code, err := svc.Generate(ctx, phone)
 	require.NoError(t, err)
