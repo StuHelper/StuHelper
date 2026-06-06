@@ -8,6 +8,11 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 )
 
+func TestObjectStorageConfiguredTreatsBlankEndpointAsMissing(t *testing.T) {
+	assert.False(t, objectStorageConfigured(config.ObjectStorageConfig{Endpoint: "  "}))
+	assert.True(t, objectStorageConfigured(config.ObjectStorageConfig{Endpoint: "https://s3.example.com"}))
+}
+
 func TestCasdoorRoleSyncConfiguredTreatsBlankValuesAsMissing(t *testing.T) {
 	cfg := config.CasdoorConfig{
 		RoleSyncClientID:       "  ",

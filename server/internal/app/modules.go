@@ -270,7 +270,7 @@ func (rt *Runtime) initUserService(
 	extraOptions ...user.ServiceOption,
 ) (*user.Service, error) {
 	var photoStore user.ServiceOption
-	if rt.cfg.ObjectStorage.Endpoint != "" {
+	if objectStorageConfigured(rt.cfg.ObjectStorage) {
 		initCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 		defer cancel()
 		if _, err := storageService.ValidateMountByKey(initCtx, storage.DefaultMountKey); err != nil {
@@ -360,6 +360,10 @@ func casdoorRoleSyncConfigured(cfg config.CasdoorConfig) bool {
 
 func configStringMissing(value string) bool {
 	return strings.TrimSpace(value) == ""
+}
+
+func objectStorageConfigured(cfg config.ObjectStorageConfig) bool {
+	return !configStringMissing(cfg.Endpoint)
 }
 
 func casdoorRoleSyncCredential(cfg config.CasdoorConfig) platformcasdoor.Credential {

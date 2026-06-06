@@ -95,7 +95,7 @@ func (rt *Runtime) registerPlatformRoutes(r *gin.Engine) error {
 
 	metricsGroup := r.Group("/metrics")
 	if rt.isProduction {
-		if rt.cfg.App.MetricsPassword == "" {
+		if configStringMissing(rt.cfg.App.MetricsPassword) {
 			return fmt.Errorf("METRICS_PASSWORD must be set in production to protect the metrics endpoint")
 		}
 		metricsGroup.Use(gin.BasicAuth(gin.Accounts{
