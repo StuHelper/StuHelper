@@ -47,6 +47,7 @@ func (h *Handler) refreshOIDCToken(c *gin.Context, refreshTokenStr string, inclu
 	}
 	csrfToken, ok := h.prepareTokenCookies(c, sessionID)
 	if !ok {
+		h.revokeIssuedProviderRefreshToken(c, appKey, sessionID, refreshTokenStr, payload.refreshToken, "cookie preparation failed")
 		return false
 	}
 
@@ -98,6 +99,12 @@ func (h *Handler) fetchOIDCRefreshPayload(c *gin.Context, appKey, oldRefreshToke
 		response.Unauthorized(c, "failed to refresh token", errs.ErrRefreshTokenInvalid)
 		return oidcRefreshPayload{}, false
 	}
+	revokeUncommittedRefresh := true
+	defer func() {
+		if revokeUncommittedRefresh {
+			h.revokeIssuedProviderRefreshToken(c, appKey, "", oldRefreshToken, newToken.RefreshToken, "provider refresh validation failed")
+		}
+	}()
 
 	rawIDToken := oidc.ExtractIDToken(newToken)
 	if rawIDToken == "" {
@@ -120,6 +127,7 @@ func (h *Handler) fetchOIDCRefreshPayload(c *gin.Context, appKey, oldRefreshToke
 		response.InternalError(c, "failed to refresh token")
 		return oidcRefreshPayload{}, false
 	}
+	revokeUncommittedRefresh = false
 	return oidcRefreshPayload{rawIDToken: rawIDToken, refreshToken: newToken.RefreshToken, userID: newClaims.GetUserID()}, true
 }
 
@@ -136,7 +144,22 @@ func (h *Handler) rotateOIDCSession(c *gin.Context, rotation oidcSessionRotation
 		return true
 	}
 
-	h.revokeNewProviderRefreshTokenAfterRotationFailure(c, rotation)
+	if sessionRotationCommitted(err) {
+		logger.FromGin(c).Error("OIDC session rotated with post-commit cleanup failure",
+			zap.String("session_id", rotation.sessionID),
+			zap.Error(err),
+		)
+		return true
+	}
+
+	h.revokeIssuedProviderRefreshToken(
+		c,
+		rotation.appKey,
+		rotation.sessionID,
+		rotation.oldRefreshToken,
+		rotation.payload.refreshToken,
+		"local session rotation failed before commit",
+	)
 	logger.FromGin(c).Error("failed to rotate OIDC session", zap.String("session_id", rotation.sessionID), zap.Error(err))
 	h.clearTokenCookies(c)
 	if errors.Is(err, token.ErrSessionNotFound) ||
@@ -151,19 +174,39 @@ func (h *Handler) rotateOIDCSession(c *gin.Context, rotation oidcSessionRotation
 	return false
 }
 
-func (h *Handler) revokeNewProviderRefreshTokenAfterRotationFailure(c *gin.Context, rotation oidcSessionRotation) {
-	if h == nil || h.svc == nil || rotation.payload.refreshToken == "" {
+func (h *Handler) revokeIssuedProviderRefreshToken(
+	c *gin.Context,
+	appKey,
+	sessionID,
+	oldRefreshToken,
+	newRefreshToken,
+	reason string,
+) {
+	if h == nil || h.svc == nil || !shouldCompensateProviderRefreshToken(oldRefreshToken, newRefreshToken) {
 		return
 	}
 	revokeCtx, cancel := ctxutil.DetachedTimeout(c.Request.Context(), providerRefreshCompensationTimeout)
 	defer cancel()
-	if err := h.svc.revokeRawProviderRefreshToken(revokeCtx, rotation.appKey, rotation.payload.refreshToken); err != nil {
-		logger.FromGin(c).Error("failed to revoke provider refresh token after local rotation failure",
-			zap.String("session_id", rotation.sessionID),
-			zap.String("provider_app_key", rotation.appKey),
+	if err := h.svc.revokeRawProviderRefreshToken(revokeCtx, appKey, newRefreshToken); err != nil {
+		logger.FromGin(c).Error("failed to revoke uncommitted provider refresh token",
+			zap.String("session_id", sessionID),
+			zap.String("provider_app_key", appKey),
+			zap.String("reason", reason),
 			zap.Error(err),
 		)
 	}
+}
+
+func shouldCompensateProviderRefreshToken(oldRefreshToken, newRefreshToken string) bool {
+	oldRefreshToken = normalizeProviderRefreshToken(oldRefreshToken)
+	newRefreshToken = normalizeProviderRefreshToken(newRefreshToken)
+	if newRefreshToken == "" {
+		return false
+	}
+	if oldRefreshToken != "" && subtle.ConstantTimeCompare([]byte(oldRefreshToken), []byte(newRefreshToken)) == 1 {
+		return false
+	}
+	return true
 }
 
 func validateOIDCRefreshRotation(oldRefreshToken, newRefreshToken string) error {

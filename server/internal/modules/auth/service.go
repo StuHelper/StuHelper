@@ -54,6 +54,23 @@ type SessionInfo struct {
 	SessionID string
 }
 
+type sessionRotationCommittedError struct {
+	err error
+}
+
+func (e *sessionRotationCommittedError) Error() string {
+	return e.err.Error()
+}
+
+func (e *sessionRotationCommittedError) Unwrap() error {
+	return e.err
+}
+
+func sessionRotationCommitted(err error) bool {
+	var committedErr *sessionRotationCommittedError
+	return errors.As(err, &committedErr)
+}
+
 // CreateSession 在 Redis session store 中注册新 session。
 // 调用方必须在签发 JWT 前生成 sessionID（token.GenerateSessionID），
 // 并在签发 JWT 的 Sid claim 中使用同一值——否则 JWT sid 与服务端存储的
@@ -132,10 +149,11 @@ func (s *Service) OIDCApplicationForRefresh(ctx context.Context, sessionID, refr
 //  4. 撤销旧 provider refresh token
 //  5. 将旧 refresh token 加入黑名单
 //
-// 任何步骤失败都返回 error。旧 refresh token 黑名单和 provider token 撤销
-// 必须在本地 session 状态提交成功后执行；否则 provider refresh 成功但本地
-// 校验/Touch 失败时，客户端重试会被误判为 refresh reuse 或失去可重试的
-// provider refresh token。
+// 任何步骤失败都返回 error。Touch 前失败表示本地 session 未提交，调用方可
+// 补偿撤销刚签发但尚未写入 session 的 provider refresh token。Touch 后的
+// provider token 撤销和旧 refresh token 黑名单错误会以
+// sessionRotationCommitted 标记为已提交，调用方不得把新 provider refresh
+// token 当作孤儿 token 撤销。
 //
 // sessionID 为空时直接失败。调用方必须先定位到被追踪的 session family，
 // 否则 refresh 不能继续签发“不受 session store 跟踪”的新 token。
@@ -184,12 +202,16 @@ func (s *Service) RotateSession(ctx context.Context, sessionID, userID, oldRefre
 		return fmt.Errorf("rotate session: touch session: %w", touchErr)
 	}
 
+	var cleanupErr error
 	if err := s.revokeProviderRefreshTokenFromSession(ctx, session); err != nil {
-		return fmt.Errorf("rotate session: %w", err)
+		cleanupErr = errors.Join(cleanupErr, fmt.Errorf("revoke old provider refresh token: %w", err))
 	}
 
 	if blErr := s.tokenService.GetBlacklist().Add(ctx, oldRefreshToken, s.tokenService.GetRefreshTokenTTL()); blErr != nil {
-		return fmt.Errorf("rotate session: blacklist old refresh token: %w", blErr)
+		cleanupErr = errors.Join(cleanupErr, fmt.Errorf("blacklist old refresh token: %w", blErr))
+	}
+	if cleanupErr != nil {
+		return &sessionRotationCommittedError{err: fmt.Errorf("rotate session cleanup after commit: %w", cleanupErr)}
 	}
 	return nil
 }

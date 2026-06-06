@@ -42,13 +42,17 @@ type providerRefreshTokenRevokeCall struct {
 }
 
 type fakeApplicationProviderRefreshRevoker struct {
-	calls  []providerRefreshTokenRevokeCall
-	err    error
-	ctxErr error
+	calls    []providerRefreshTokenRevokeCall
+	err      error
+	ctxErr   error
+	onRevoke func(ctx context.Context, appKey, refreshToken string)
 }
 
 func (f *fakeApplicationProviderRefreshRevoker) RevokeRefreshToken(ctx context.Context, refreshToken string) error {
 	f.ctxErr = ctx.Err()
+	if f.onRevoke != nil {
+		f.onRevoke(ctx, oidc.ApplicationWeb, refreshToken)
+	}
 	f.calls = append(f.calls, providerRefreshTokenRevokeCall{
 		appKey:       oidc.ApplicationWeb,
 		refreshToken: refreshToken,
@@ -58,6 +62,9 @@ func (f *fakeApplicationProviderRefreshRevoker) RevokeRefreshToken(ctx context.C
 
 func (f *fakeApplicationProviderRefreshRevoker) RevokeRefreshTokenForApplication(ctx context.Context, appKey, refreshToken string) error {
 	f.ctxErr = ctx.Err()
+	if f.onRevoke != nil {
+		f.onRevoke(ctx, appKey, refreshToken)
+	}
 	f.calls = append(f.calls, providerRefreshTokenRevokeCall{
 		appKey:       appKey,
 		refreshToken: refreshToken,

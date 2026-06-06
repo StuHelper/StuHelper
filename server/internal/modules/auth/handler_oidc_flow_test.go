@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
 	oidcpkg "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 )
 
@@ -182,6 +183,18 @@ func newOIDCTestHandlerWithProvider(t *testing.T, repo UserSyncRepo, provider *f
 	h.allowedRedirectHosts = map[string]struct{}{"web.example.com": {}}
 	h.tokenConfig = config.TokenConfig{AccessTokenTTL: 300, RefreshTokenTTL: 600}
 	return h, recordingRepo
+}
+
+func enableProviderRefreshRevocationForOIDCTest(
+	t *testing.T,
+	h *Handler,
+	repo UserSyncRepo,
+	revoker ProviderRefreshTokenRevoker,
+) {
+	t.Helper()
+	cipher, err := pii.NewCipher(1, map[uint8][]byte{1: []byte("0123456789abcdef0123456789abcdef")})
+	require.NoError(t, err)
+	h.svc = NewService(h.tokenConfig, h.tokenService, repo, WithProviderRefreshTokenRevocation(revoker, cipher))
 }
 
 type failingOIDCUserSyncRepo struct{}
@@ -375,6 +388,98 @@ func TestRefreshOIDCToken_RotationFailureDoesNotIssueCookies(t *testing.T) {
 	require.False(t, ok)
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 	assertNoIssuedTokenCookies(t, w)
+}
+
+func TestRefreshOIDCToken_PostCommitProviderRevokeFailureKeepsNewProviderRefresh(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := &recordingUserSyncRepo{}
+	provider := newFakeOIDCProvider(t)
+	h, _ := newOIDCTestHandlerWithProvider(t, repo, provider)
+	revoker := &fakeApplicationProviderRefreshRevoker{err: errors.New("provider revoke failed")}
+	enableProviderRefreshRevocationForOIDCTest(t, h, repo, revoker)
+
+	_, err := h.svc.CreateSession(
+		t.Context(),
+		"sid-oidc-provider-revoke-fails",
+		"oidc-user-1",
+		"old-access-token",
+		"old-refresh-token",
+		"oidc",
+		"browser",
+	)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-oidc-provider-revoke-fails"})
+	c.Request = req
+
+	ok := h.refreshOIDCToken(c, "old-refresh-token", false)
+
+	require.True(t, ok)
+	assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Equal(t, []providerRefreshTokenRevokeCall{
+		{appKey: oidcpkg.ApplicationWeb, refreshToken: "old-refresh-token"},
+	}, revoker.calls)
+	session, err := h.tokenService.GetSessionStore().Get(t.Context(), "sid-oidc-provider-revoke-fails")
+	require.NoError(t, err)
+	require.NotNil(t, session)
+	newRefreshHash, err := hashTokenForSession("provider-refresh-token")
+	require.NoError(t, err)
+	assert.Equal(t, newRefreshHash, session.RefreshTokenHash)
+
+	blacklisted, err := h.tokenService.GetBlacklist().IsBlacklisted(t.Context(), "old-refresh-token")
+	require.NoError(t, err)
+	assert.True(t, blacklisted)
+}
+
+func TestRefreshOIDCToken_PostCommitBlacklistFailureKeepsNewProviderRefresh(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := &recordingUserSyncRepo{}
+	provider := newFakeOIDCProvider(t)
+	h, _ := newOIDCTestHandlerWithProvider(t, repo, provider)
+	requestCtx, cancelRequest := context.WithCancel(context.Background())
+	defer cancelRequest()
+	revoker := &fakeApplicationProviderRefreshRevoker{
+		onRevoke: func(_ context.Context, _ string, refreshToken string) {
+			if refreshToken == "old-refresh-token" {
+				cancelRequest()
+			}
+		},
+	}
+	enableProviderRefreshRevocationForOIDCTest(t, h, repo, revoker)
+
+	_, err := h.svc.CreateSession(
+		t.Context(),
+		"sid-oidc-blacklist-fails",
+		"oidc-user-1",
+		"old-access-token",
+		"old-refresh-token",
+		"oidc",
+		"browser",
+	)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil).WithContext(requestCtx)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-oidc-blacklist-fails"})
+	c.Request = req
+
+	ok := h.refreshOIDCToken(c, "old-refresh-token", false)
+
+	require.True(t, ok)
+	assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Equal(t, []providerRefreshTokenRevokeCall{
+		{appKey: oidcpkg.ApplicationWeb, refreshToken: "old-refresh-token"},
+	}, revoker.calls)
+	session, err := h.tokenService.GetSessionStore().Get(t.Context(), "sid-oidc-blacklist-fails")
+	require.NoError(t, err)
+	require.NotNil(t, session)
+	newRefreshHash, err := hashTokenForSession("provider-refresh-token")
+	require.NoError(t, err)
+	assert.Equal(t, newRefreshHash, session.RefreshTokenHash)
 }
 
 func TestRefreshOIDCToken_RejectsMissingProviderRefreshRotation(t *testing.T) {
@@ -578,7 +683,10 @@ func TestRefreshOIDCToken_MissingIDToken(t *testing.T) {
 			"expires_in":    3600,
 		}
 	})
-	h, _ := newOIDCTestHandlerWithProvider(t, nil, provider)
+	repo := &recordingUserSyncRepo{}
+	h, _ := newOIDCTestHandlerWithProvider(t, repo, provider)
+	revoker := &fakeApplicationProviderRefreshRevoker{}
+	enableProviderRefreshRevocationForOIDCTest(t, h, repo, revoker)
 	_, err := h.svc.CreateSession(
 		t.Context(),
 		"sid-oidc-missing-id-token",
@@ -600,6 +708,9 @@ func TestRefreshOIDCToken_MissingIDToken(t *testing.T) {
 	assert.False(t, ok)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), "failed to refresh token")
+	assert.Equal(t, []providerRefreshTokenRevokeCall{
+		{appKey: oidcpkg.ApplicationWeb, refreshToken: "provider-refresh-token"},
+	}, revoker.calls)
 }
 
 func TestRefreshOIDCToken_MissingAccessTokenExpiresLocalSession(t *testing.T) {
@@ -696,7 +807,10 @@ func assertOIDCRefreshRotationUnavailable(
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	provider := newFakeOIDCProviderWithTokenPayload(t, payloadFn)
-	h, _ := newOIDCTestHandlerWithProvider(t, nil, provider)
+	repo := &recordingUserSyncRepo{}
+	h, _ := newOIDCTestHandlerWithProvider(t, repo, provider)
+	revoker := &fakeApplicationProviderRefreshRevoker{}
+	enableProviderRefreshRevocationForOIDCTest(t, h, repo, revoker)
 
 	_, err := h.svc.CreateSession(
 		t.Context(),
@@ -719,6 +833,7 @@ func assertOIDCRefreshRotationUnavailable(
 	assert.False(t, ok)
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 	assert.Contains(t, w.Body.String(), "refresh token rotation unavailable")
+	assert.Empty(t, revoker.calls)
 }
 
 func TestRefreshOIDCToken_InvalidIDToken(t *testing.T) {
@@ -732,7 +847,10 @@ func TestRefreshOIDCToken_InvalidIDToken(t *testing.T) {
 			"id_token":      "bad-id-token",
 		}
 	})
-	h, _ := newOIDCTestHandlerWithProvider(t, nil, provider)
+	repo := &recordingUserSyncRepo{}
+	h, _ := newOIDCTestHandlerWithProvider(t, repo, provider)
+	revoker := &fakeApplicationProviderRefreshRevoker{}
+	enableProviderRefreshRevocationForOIDCTest(t, h, repo, revoker)
 	_, err := h.svc.CreateSession(
 		t.Context(),
 		"sid-oidc-invalid-id-token",
@@ -754,6 +872,54 @@ func TestRefreshOIDCToken_InvalidIDToken(t *testing.T) {
 	assert.False(t, ok)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), "failed to refresh token")
+	assert.Equal(t, []providerRefreshTokenRevokeCall{
+		{appKey: oidcpkg.ApplicationWeb, refreshToken: "provider-refresh-token"},
+	}, revoker.calls)
+}
+
+func TestRefreshOIDCToken_ApplicationVerificationFailureRevokesNewProviderRefresh(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	provider := newFakeOIDCProviderWithTokenPayloadForClaims(t,
+		func(issueIDTokenWithClaims func(map[string]any) string, _ func() string) map[string]any {
+			return map[string]any{
+				"access_token":  "provider-access-token",
+				"token_type":    "Bearer",
+				"refresh_token": "provider-refresh-token",
+				"expires_in":    3600,
+				"id_token": issueIDTokenWithClaims(map[string]any{
+					"aud": "other-client",
+				}),
+			}
+		},
+	)
+	repo := &recordingUserSyncRepo{}
+	h, _ := newOIDCTestHandlerWithProvider(t, repo, provider)
+	revoker := &fakeApplicationProviderRefreshRevoker{}
+	enableProviderRefreshRevocationForOIDCTest(t, h, repo, revoker)
+	_, err := h.svc.CreateSession(
+		t.Context(),
+		"sid-oidc-wrong-application",
+		"oidc-user-1",
+		"old-access-token",
+		"old-refresh-token",
+		"oidc",
+		"browser",
+	)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-oidc-wrong-application"})
+	c.Request = req
+
+	ok := h.refreshOIDCToken(c, "old-refresh-token", false)
+	assert.False(t, ok)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "failed to refresh token")
+	assert.Equal(t, []providerRefreshTokenRevokeCall{
+		{appKey: oidcpkg.ApplicationWeb, refreshToken: "provider-refresh-token"},
+	}, revoker.calls)
 }
 
 func TestExchangeNative_MissingIDToken(t *testing.T) {
