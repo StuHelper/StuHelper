@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
@@ -13,6 +15,8 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sanitizer"
 )
+
+const maxReplyContentRunes = 1000
 
 // 回复相关错误
 var (
@@ -203,11 +207,11 @@ type CreateReplyResult struct {
 
 // CreateReply 创建回复
 func (s *Service) CreateReply(ctx context.Context, params CreateReplyParams) (*CreateReplyResult, error) {
-	// XSS 防护
-	if sanitizer.ContainsDangerousContent(params.Content) {
-		return nil, ErrDangerousContent
+	content, err := validateAndSanitizeReplyContent(params.Content)
+	if err != nil {
+		return nil, err
 	}
-	params.Content = sanitizer.SanitizeText(params.Content)
+	params.Content = content
 
 	// 敏感词检查
 	checkResult, err := s.filter.CheckContent(ctx, params.Content)
@@ -284,6 +288,23 @@ func (s *Service) CreateReply(ctx context.Context, params CreateReplyParams) (*C
 			UpdatedAt: replyTS.UpdatedAt,
 		},
 	}, nil
+}
+
+func validateAndSanitizeReplyContent(content string) (string, error) {
+	if sanitizer.ContainsDangerousContent(content) {
+		return "", ErrDangerousContent
+	}
+	content = sanitizer.SanitizeText(content)
+	if sanitizer.ContainsDangerousContent(content) {
+		return "", ErrDangerousContent
+	}
+	if strings.TrimSpace(content) == "" {
+		return "", ErrContentEmpty
+	}
+	if utf8.RuneCountInString(content) > maxReplyContentRunes {
+		return "", ErrContentTooLong
+	}
+	return content, nil
 }
 
 // GetRepliesParams 获取回复列表参数

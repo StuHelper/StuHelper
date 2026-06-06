@@ -17,6 +17,7 @@ var (
 		response.MatchError(ErrSensitiveContent, 400, "content contains sensitive words", errs.ErrSensitiveContent),
 		response.MatchError(ErrModerationUnavailable, 503, "content moderation is temporarily unavailable"),
 		response.MatchError(ErrContentEmpty, 400, "content cannot be empty", errs.ErrContentEmpty),
+		response.MatchError(ErrContentTooLong, 400, "content is too long", errs.ErrParamOutOfRange),
 	}
 	reviewCourseLookupErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrCourseNotFound, 404, "course not found", errs.ErrCourseNotFound),
