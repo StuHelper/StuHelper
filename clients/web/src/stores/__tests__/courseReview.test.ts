@@ -256,8 +256,8 @@ describe('useCourseStore', () => {
       mockGetCourses.mockRejectedValue(new Error('fail'))
 
       const store = useCourseStore()
-      await store.fetchDepartments().catch(() => {})
-      await store.fetchCourses(1).catch(() => {})
+      await expect(store.fetchDepartments()).rejects.toThrow('fail')
+      await expect(store.fetchCourses(1)).rejects.toThrow('fail')
 
       expect(store.departmentsError).toBeTruthy()
       expect(store.coursesError).toBeTruthy()

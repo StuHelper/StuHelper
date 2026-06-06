@@ -24,6 +24,9 @@ const checkedExtensions = new Set([
   '.vue',
 ]);
 const emptyCatchPattern = /catch\s*(?:\([^)]*\))?\s*\{\s*\}/g;
+const emptyPromiseCatchPattern =
+  /\.catch\s*\(\s*(?:\(\s*\)|\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>\s*\{\s*\}\s*\)/g;
+const patterns = [emptyCatchPattern, emptyPromiseCatchPattern];
 
 const findings = [];
 
@@ -64,13 +67,15 @@ function walk(target) {
   }
 
   const source = readFileSync(target, 'utf8');
-  for (const match of source.matchAll(emptyCatchPattern)) {
-    const position = lineColumn(source, match.index ?? 0);
-    findings.push({
-      file: path.relative(clientsRoot, target).replaceAll(path.sep, '/'),
-      line: position.line,
-      column: position.column,
-    });
+  for (const pattern of patterns) {
+    for (const match of source.matchAll(pattern)) {
+      const position = lineColumn(source, match.index ?? 0);
+      findings.push({
+        file: path.relative(clientsRoot, target).replaceAll(path.sep, '/'),
+        line: position.line,
+        column: position.column,
+      });
+    }
   }
 }
 

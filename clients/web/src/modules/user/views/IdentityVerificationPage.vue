@@ -560,7 +560,9 @@ async function handleSubmit() {
 }
 
 onMounted(() => {
-    store.fetchStatus().catch(() => {});
+    store.fetchStatus().catch(() => {
+        toast.error(t("common.loadFailed"));
+    });
 });
 
 async function uploadPhoto(

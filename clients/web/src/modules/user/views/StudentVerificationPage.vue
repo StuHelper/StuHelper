@@ -589,9 +589,14 @@ watch(
     },
 );
 
-onMounted(() => {
-    store.fetchStatus().catch(() => {});
-    store.fetchSchools().catch(() => {});
+onMounted(async () => {
+    const results = await Promise.allSettled([
+        store.fetchStatus(),
+        store.fetchSchools(),
+    ]);
+    if (results.some((result) => result.status === "rejected")) {
+        toast.error(t("common.loadFailed"));
+    }
 });
 
 onBeforeUnmount(() => {

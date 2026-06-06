@@ -203,7 +203,9 @@ function goBack() {
 
 onMounted(() => {
   if (!verificationStore.profile) {
-    void verificationStore.fetchStatus().catch(() => {})
+    void verificationStore.fetchStatus().catch(() => {
+      toast.error(t('common.loadFailed'))
+    })
   }
 })
 
