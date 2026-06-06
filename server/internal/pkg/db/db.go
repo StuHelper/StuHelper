@@ -286,10 +286,17 @@ func (d *DB) Ping(ctx context.Context) error {
 
 // Close 关闭连接池（安全支持多次调用）
 func (d *DB) Close() {
+	if d == nil {
+		return
+	}
 	d.closeOnce.Do(func() {
-		close(d.stopCh)
+		if d.stopCh != nil {
+			close(d.stopCh)
+		}
 		d.wg.Wait()
-		d.pool.Close()
+		if d.pool != nil {
+			d.pool.Close()
+		}
 	})
 }
 

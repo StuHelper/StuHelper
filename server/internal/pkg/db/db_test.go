@@ -96,6 +96,19 @@ func TestDBStartSpan_DefaultsNilContext(t *testing.T) {
 	assert.NotNil(t, span)
 }
 
+func TestDBCloseIsNilAndZeroValueSafe(t *testing.T) {
+	var nilDB *DB
+	assert.NotPanics(t, func() {
+		nilDB.Close()
+	})
+
+	zeroDB := &DB{}
+	assert.NotPanics(t, func() {
+		zeroDB.Close()
+		zeroDB.Close()
+	})
+}
+
 func TestRowWithCancelScan_RecordsTableHintMetrics(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

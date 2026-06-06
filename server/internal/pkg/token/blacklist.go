@@ -84,7 +84,9 @@ func (b *Blacklist) Close() {
 		return
 	}
 	b.closeOnce.Do(func() {
-		close(b.stopCh)
+		if b.stopCh != nil {
+			close(b.stopCh)
+		}
 		b.wg.Wait()
 	})
 }

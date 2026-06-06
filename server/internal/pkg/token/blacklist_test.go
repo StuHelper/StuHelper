@@ -152,6 +152,19 @@ func TestBlacklist_NilRedisFailsClosedWithoutPanic(t *testing.T) {
 	})
 }
 
+func TestBlacklistCloseIsNilAndZeroValueSafe(t *testing.T) {
+	var nilBlacklist *Blacklist
+	assert.NotPanics(t, func() {
+		nilBlacklist.Close()
+	})
+
+	zeroBlacklist := &Blacklist{}
+	assert.NotPanics(t, func() {
+		zeroBlacklist.Close()
+		zeroBlacklist.Close()
+	})
+}
+
 func TestBlacklist_ReleaseFailureKeepsLocalRevocation(t *testing.T) {
 	require.NoError(t, crypto.InitHMACKey("test-blacklist-secret", false))
 
