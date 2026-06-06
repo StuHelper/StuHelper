@@ -53,6 +53,7 @@ function handleReload() {
   } else {
     retryCount = 0
     error.value = null
+    // 组件错误兜底需要浏览器重载恢复页面状态，不属于业务 API 请求。
     window.location.reload()
   }
 }

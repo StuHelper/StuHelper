@@ -158,6 +158,7 @@ export function accountCenterURLForHref(href: string): string | null {
 }
 
 export function navigateToExternalURL(url: string): void {
+    // 外部页面跳转工具只处理浏览器导航边界，不发起业务 API 请求。
     window.location.assign(url);
 }
 

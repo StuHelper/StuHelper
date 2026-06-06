@@ -15,6 +15,7 @@ const accountSettingsUrl = computed(() => authStore.accountSettingsUrl);
 
 function handleGoToAccountSettings() {
   if (accountSettingsUrl.value) {
+    // Browser navigation to the IdP account center is not a StuHelper business API request.
     window.open(accountSettingsUrl.value, '_blank', 'noopener,noreferrer');
   }
 }

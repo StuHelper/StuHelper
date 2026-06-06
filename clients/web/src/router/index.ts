@@ -586,6 +586,7 @@ router.onError((err, to) => {
             void router.replace(to.fullPath);
             return;
         }
+        // chunk 加载失败需要浏览器级页面重载，不能通过 shared API client 处理。
         window.location.assign(to.fullPath);
     }
 });

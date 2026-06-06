@@ -294,6 +294,7 @@ function goToIdentityRoute(routeName: string) {
 
 function goToAdmin() {
   closeUserMenu()
+  // 管理后台是独立 Web 应用入口，需要浏览器页面导航。
   window.location.assign(adminConsoleURL)
 }
 
