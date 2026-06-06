@@ -38,6 +38,10 @@ func (s *Service) AddFavorite(ctx context.Context, params AddFavoriteParams) err
 	if err != nil {
 		return err
 	}
+	params.CourseID, err = normalizeRequiredCourseID(params.CourseID)
+	if err != nil {
+		return err
+	}
 	exists, err := s.repo.CourseExists(ctx, params.CourseID)
 	if err != nil {
 		return err
@@ -54,12 +58,20 @@ func (s *Service) RemoveFavorite(ctx context.Context, userHash string, courseID 
 	if err != nil {
 		return err
 	}
+	courseID, err = normalizeRequiredCourseID(courseID)
+	if err != nil {
+		return err
+	}
 	return s.repo.DeleteFavorite(ctx, userHash, courseID)
 }
 
 // GetFavoriteStatus 获取当前用户对课程的收藏状态
 func (s *Service) GetFavoriteStatus(ctx context.Context, userHash string, courseID int64) (bool, error) {
 	userHash, err := normalizeRequiredUserHash(userHash)
+	if err != nil {
+		return false, err
+	}
+	courseID, err = normalizeRequiredCourseID(courseID)
 	if err != nil {
 		return false, err
 	}
@@ -169,6 +181,19 @@ func (s *Service) SaveDraft(ctx context.Context, params SaveDraftParams) (*Revie
 		return nil, err
 	}
 	if params.CourseID != nil {
+		if _, err := normalizeRequiredCourseID(*params.CourseID); err != nil {
+			return nil, err
+		}
+	}
+	if params.TeacherID != nil {
+		if params.CourseID == nil {
+			return nil, ErrTeacherNotFound
+		}
+		if _, err := normalizeRequiredTeacherID(*params.TeacherID); err != nil {
+			return nil, err
+		}
+	}
+	if params.CourseID != nil {
 		exists, err := s.repo.CourseExists(ctx, *params.CourseID)
 		if err != nil {
 			return nil, err
@@ -178,9 +203,6 @@ func (s *Service) SaveDraft(ctx context.Context, params SaveDraftParams) (*Revie
 		}
 	}
 	if params.TeacherID != nil {
-		if params.CourseID == nil {
-			return nil, ErrTeacherNotFound
-		}
 		teacherExists, err := s.repo.TeacherBelongsToCourseSchool(ctx, *params.TeacherID, *params.CourseID)
 		if err != nil {
 			return nil, err

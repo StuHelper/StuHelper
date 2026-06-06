@@ -73,6 +73,17 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 	if err != nil {
 		return nil, err
 	}
+	params.CourseID, err = normalizeRequiredCourseID(params.CourseID)
+	if err != nil {
+		return nil, err
+	}
+	if params.TeacherID != nil {
+		teacherID, err := normalizeRequiredTeacherID(*params.TeacherID)
+		if err != nil {
+			return nil, err
+		}
+		params.TeacherID = &teacherID
+	}
 	params.Title, params.Content, status, contentFlag, err = s.validateAndSanitizeReview(ctx, params.Ratings, params.Title, params.Content, params.TermID)
 	if err != nil {
 		return nil, err

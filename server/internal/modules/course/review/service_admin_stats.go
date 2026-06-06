@@ -16,6 +16,10 @@ func (s *Service) GetAdminStats(ctx context.Context) (*AdminStats, error) {
 
 // GetRatingTrend 获取课程评分趋势
 func (s *Service) GetRatingTrend(ctx context.Context, courseID int64) ([]RatingTrendItem, error) {
+	courseID, err := normalizeRequiredCourseID(courseID)
+	if err != nil {
+		return nil, err
+	}
 	return s.repo.GetRatingTrend(ctx, courseID)
 }
 
@@ -26,6 +30,11 @@ func (s *Service) GetHotCourses(ctx context.Context, period string, limit int) (
 
 // GetTeacherRatingStats 获取教师评分统计
 func (s *Service) GetTeacherRatingStats(ctx context.Context, teacherID int64) (*TeacherRatingStatsResponse, error) {
+	teacherID, err := normalizeRequiredTeacherID(teacherID)
+	if err != nil {
+		return nil, err
+	}
+
 	g, gctx := errgroup.WithContext(ctx)
 
 	var (

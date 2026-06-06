@@ -272,6 +272,20 @@ func normalizeRequiredAdminID(adminID string) (string, error) {
 	return adminID, nil
 }
 
+func normalizeRequiredCourseID(courseID int64) (int64, error) {
+	if courseID <= 0 {
+		return 0, ErrCourseNotFound
+	}
+	return courseID, nil
+}
+
+func normalizeRequiredTeacherID(teacherID int64) (int64, error) {
+	if teacherID <= 0 {
+		return 0, ErrTeacherNotFound
+	}
+	return teacherID, nil
+}
+
 func validateReviewTextLengths(title, content string, minContentRunes int) error {
 	if utf8.RuneCountInString(title) > maxReviewTitleRunes {
 		return ErrTitleTooLong
@@ -358,6 +372,19 @@ type StatsResult struct {
 
 // GetCourseReviews 获取课程评论列表
 func (s *Service) GetCourseReviews(ctx context.Context, params GetCourseReviewsParams) (*GetCourseReviewsResult, error) {
+	courseID, err := normalizeRequiredCourseID(params.CourseID)
+	if err != nil {
+		return nil, err
+	}
+	params.CourseID = courseID
+	if params.TeacherID != nil {
+		teacherID, err := normalizeRequiredTeacherID(*params.TeacherID)
+		if err != nil {
+			return nil, err
+		}
+		params.TeacherID = &teacherID
+	}
+
 	pageSize := httputil.ClampPageSize(params.PageSize)
 	offset := httputil.SafeOffset(params.Page, pageSize)
 	list, total, err := s.repo.ListByCourseWithSort(ctx, ListByCourseWithSortParams{
@@ -390,8 +417,23 @@ type BatchCourseReviewsResult struct {
 
 // GetBatchCourseReviews 批量获取多个课程的测评列表
 func (s *Service) GetBatchCourseReviews(ctx context.Context, params GetBatchCourseReviewsParams) (*BatchCourseReviewsResult, error) {
+	courseIDs := make([]int64, 0, len(params.CourseIDs))
+	for _, courseID := range params.CourseIDs {
+		normalized, err := normalizeRequiredCourseID(courseID)
+		if err != nil {
+			return nil, err
+		}
+		courseIDs = append(courseIDs, normalized)
+	}
+	if len(courseIDs) == 0 {
+		return &BatchCourseReviewsResult{
+			Reviews: map[int64][]Review{},
+			Totals:  map[int64]int{},
+		}, nil
+	}
+
 	pageSize := httputil.ClampPageSize(params.PageSize)
-	reviews, totals, err := s.repo.ListByMultipleCourses(ctx, params.CourseIDs, params.Sort, pageSize)
+	reviews, totals, err := s.repo.ListByMultipleCourses(ctx, courseIDs, params.Sort, pageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -400,6 +442,10 @@ func (s *Service) GetBatchCourseReviews(ctx context.Context, params GetBatchCour
 
 // CheckCourseExists 检查课程是否存在
 func (s *Service) CheckCourseExists(ctx context.Context, courseID int64) (bool, error) {
+	courseID, err := normalizeRequiredCourseID(courseID)
+	if err != nil {
+		return false, err
+	}
 	return s.repo.CourseExists(ctx, courseID)
 }
 
@@ -479,6 +525,11 @@ func (s *Service) GetDimensionNames(ctx context.Context) (map[string]string, err
 
 // GetCourseRatingStats 获取课程评分统计
 func (s *Service) GetCourseRatingStats(ctx context.Context, courseID int64) ([]RatingStatRow, error) {
+	courseID, err := normalizeRequiredCourseID(courseID)
+	if err != nil {
+		return nil, err
+	}
+
 	stats, err := s.repo.ListCourseRatingStats(ctx, courseID)
 	if err != nil {
 		return nil, err
@@ -503,6 +554,10 @@ func (s *Service) GetCourseRatingStats(ctx context.Context, courseID int64) ([]R
 
 // GetCourseTeachers 获取课程的授课教师列表
 func (s *Service) GetCourseTeachers(ctx context.Context, courseID int64) ([]CourseTeacherStats, error) {
+	courseID, err := normalizeRequiredCourseID(courseID)
+	if err != nil {
+		return nil, err
+	}
 	return s.repo.ListCourseTeachers(ctx, courseID)
 }
 
@@ -694,6 +749,10 @@ func (s *Service) CreateTeacher(ctx context.Context, name string, departmentID *
 }
 
 func (s *Service) UpdateTeacher(ctx context.Context, id int64, name string, departmentID *int64) error {
+	id, err := normalizeRequiredTeacherID(id)
+	if err != nil {
+		return err
+	}
 	normalizedName, err := s.validateAdminTeacherInput(ctx, name, departmentID, false)
 	if err != nil {
 		return err
@@ -705,6 +764,10 @@ func (s *Service) UpdateTeacher(ctx context.Context, id int64, name string, depa
 }
 
 func (s *Service) DeleteTeacher(ctx context.Context, id int64) error {
+	id, err := normalizeRequiredTeacherID(id)
+	if err != nil {
+		return err
+	}
 	if err := s.repo.DeleteTeacher(ctx, id); err != nil {
 		return fmt.Errorf("delete teacher %d: %w", id, err)
 	}
