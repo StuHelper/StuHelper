@@ -649,7 +649,11 @@ func normalizeScopeRequests(inputs []ScopeRequestInput) ([]ScopeRequestInput, er
 	for _, input := range inputs {
 		scope := strings.TrimSpace(input.Scope)
 		raw = append(raw, scope)
-		reasons[scope] = strings.TrimSpace(input.Reason)
+		reason := strings.TrimSpace(input.Reason)
+		if existing, ok := reasons[scope]; ok && (existing != "" || reason == "") {
+			continue
+		}
+		reasons[scope] = reason
 	}
 	scopes, err := NormalizeScopes(raw)
 	if err != nil {
