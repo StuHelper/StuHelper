@@ -1,5 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(
+  globalThis,
+  'localStorage',
+)
+
+function restoreLocalStorageDescriptor() {
+  if (originalLocalStorageDescriptor) {
+    Object.defineProperty(globalThis, 'localStorage', originalLocalStorageDescriptor)
+    return
+  }
+  Reflect.deleteProperty(globalThis, 'localStorage')
+}
+
 describe('uniappx api client transport', () => {
   beforeEach(() => {
     vi.resetModules()
@@ -10,6 +23,7 @@ describe('uniappx api client transport', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     vi.unstubAllEnvs()
+    restoreLocalStorageDescriptor()
   })
 
   it('injects csrf headers for unsafe requests in browser environments', async () => {
@@ -138,6 +152,92 @@ describe('uniappx api client transport', () => {
 
     vi.stubGlobal('plus', {})
     expect(hasStoredH5SessionHint()).toBe(false)
+  })
+
+  it('keeps H5 safe requests working when csrf storage is unavailable', async () => {
+    const request = vi.fn((options: any) => {
+      options.success?.({
+        statusCode: 200,
+        data: {
+          data: { ok: true },
+        },
+        header: {},
+      })
+      return { abort: vi.fn() }
+    })
+
+    vi.stubEnv('VITE_API_URL', '/api')
+    vi.stubGlobal('window', {
+      location: {
+        origin: 'https://app.example',
+      },
+    })
+    vi.stubGlobal('document', {
+      cookie: '',
+    })
+    vi.stubGlobal('uni', {
+      request,
+    })
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new DOMException('localStorage disabled', 'SecurityError')
+      },
+    })
+
+    const { apiClient } = await import('../shared-client')
+    const result = await apiClient.GET('/api/v1/auth/me' as never)
+
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(request.mock.calls[0][0]).toMatchObject({
+      method: 'GET',
+      url: 'https://app.example/api/v1/auth/me',
+    })
+    expect(request.mock.calls[0][0].header).not.toHaveProperty('X-CSRF-Token')
+    expect(result.response?.status).toBe(200)
+    expect(result.data).toEqual({ data: { ok: true } })
+  })
+
+  it('keeps H5 responses usable when rotated csrf storage cannot be persisted', async () => {
+    const request = vi.fn((options: any) => {
+      options.success?.({
+        statusCode: 200,
+        data: {
+          data: { ok: true },
+        },
+        header: {
+          'X-CSRF-Token': 'rotated-csrf-token',
+        },
+      })
+      return { abort: vi.fn() }
+    })
+
+    vi.stubEnv('VITE_API_URL', '/api')
+    vi.stubGlobal('window', {
+      location: {
+        origin: 'https://app.example',
+      },
+    })
+    vi.stubGlobal('document', {
+      cookie: '',
+    })
+    vi.stubGlobal('uni', {
+      request,
+    })
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new DOMException('localStorage disabled', 'SecurityError')
+      },
+    })
+
+    const { apiClient } = await import('../shared-client')
+    const result = await apiClient.GET('/api/v1/auth/me' as never)
+
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(result.response?.status).toBe(200)
+    expect(result.data).toEqual({ data: { ok: true } })
+    expect(result.error).toBeUndefined()
   })
 
   it('reuses and refreshes csrf tokens from storage for non-h5 builds', async () => {

@@ -96,6 +96,7 @@ function readStoredCSRFToken(): string | null {
       return localStorage.getItem(CSRF_STORAGE_KEY) || null
     }
   } catch (error) {
+    if (H5) return null
     throw new CSRFTokenStorageError('read', error)
   }
 
@@ -115,6 +116,7 @@ function writeStoredCSRFToken(token: string): void {
       localStorage.setItem(CSRF_STORAGE_KEY, token)
     }
   } catch (error) {
+    if (H5) return
     throw new CSRFTokenStorageError('persist', error)
   }
 }
