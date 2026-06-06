@@ -502,6 +502,58 @@ func TestVerifyIDTokenUnknownKidFetchFailureIsProviderUnavailable(t *testing.T) 
 	require.ErrorIs(t, err, ErrProviderUnavailable)
 }
 
+func TestVerifyIDTokenNormalizesInputs(t *testing.T) {
+	privateKey, err := rsa.GenerateKey(crand.Reader, 2048)
+	require.NoError(t, err)
+
+	const clientID = "oidc-client"
+	jwk := jose.JSONWebKey{Key: &privateKey.PublicKey, KeyID: "kid-normalize", Algorithm: string(jose.RS256), Use: "sig"}
+	var issuer string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"issuer":                 issuer,
+			"authorization_endpoint": issuer + "/authorize",
+			"token_endpoint":         issuer + "/token",
+			"jwks_uri":               issuer + "/keys",
+			"introspection_endpoint": issuer + "/introspect",
+		})
+	})
+	mux.HandleFunc("/keys", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(jose.JSONWebKeySet{Keys: []jose.JSONWebKey{jwk}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	issuer = srv.URL
+
+	client, err := NewClient(context.Background(), config.CasdoorConfig{
+		Issuer:                    issuer,
+		ClientID:                  clientID,
+		ClientSecret:              "oidc-secret",
+		RedirectURI:               "https://web.example.com/api/v1/auth/callback",
+		IntrospectionClientID:     "introspection-client",
+		IntrospectionClientSecret: "introspection-secret",
+	})
+	require.NoError(t, err)
+	token := issueSignedJWT(t, privateKey, jwk.KeyID, map[string]any{
+		"iss": issuer,
+		"sub": "user-oidc-1",
+		"aud": clientID,
+		"exp": time.Now().Add(time.Hour).Unix(),
+		"iat": time.Now().Unix(),
+	})
+
+	claims, err := client.VerifyIDTokenForApplication(
+		context.Background(),
+		" \t"+ApplicationWeb+"\n ",
+		" \t"+token+"\n ",
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, "user-oidc-1", claims.GetUserID())
+	assert.Equal(t, clientID, claims.GetAppID())
+}
+
 func TestProviderUnavailableKeySetExpiresCachedJWKS(t *testing.T) {
 	privateKey, err := rsa.GenerateKey(crand.Reader, 2048)
 	require.NoError(t, err)
@@ -532,7 +584,7 @@ func TestProviderUnavailableKeySetExpiresCachedJWKS(t *testing.T) {
 	assert.Equal(t, int64(2), atomic.LoadInt64(&keyRequests))
 }
 
-func TestVerifyIDTokenRejectsDisallowedAlgorithmBeforeJWKSFetch(t *testing.T) {
+func TestVerifyIDTokenRejectsInvalidInputsBeforeJWKSFetch(t *testing.T) {
 	const clientID = "oidc-client"
 	var keyRequests int64
 	var issuer string
@@ -563,6 +615,11 @@ func TestVerifyIDTokenRejectsDisallowedAlgorithmBeforeJWKSFetch(t *testing.T) {
 		IntrospectionClientSecret: "introspection-secret",
 	})
 	require.NoError(t, err)
+
+	_, err = client.VerifyIDToken(context.Background(), " \t\n ")
+	require.ErrorIs(t, err, ErrInvalidIDToken)
+	assert.Equal(t, int64(0), atomic.LoadInt64(&keyRequests))
+
 	token := issueHS256IDToken(t, issuer, clientID)
 
 	_, err = client.VerifyIDToken(context.Background(), token)

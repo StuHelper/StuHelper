@@ -3,6 +3,7 @@ package oidc
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -71,5 +72,5 @@ func ExtractIDToken(token *oauth2.Token) string {
 	if !ok {
 		return ""
 	}
-	return raw
+	return strings.TrimSpace(raw)
 }

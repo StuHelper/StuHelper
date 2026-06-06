@@ -54,8 +54,13 @@ func TestClaimsAccessorsAndStubClientHelpers(t *testing.T) {
 	assert.NotEmpty(t, stepUpVerifier)
 
 	tokenWithID := (&oauth2.Token{}).WithExtra(map[string]any{"id_token": "id-token-value"})
+	tokenWithSpacedID := (&oauth2.Token{}).WithExtra(map[string]any{"id_token": " \tid-token-value\n "})
+	tokenWithBlankID := (&oauth2.Token{}).WithExtra(map[string]any{"id_token": " \t\n "})
+	tokenWithNonStringID := (&oauth2.Token{}).WithExtra(map[string]any{"id_token": 123})
 	assert.Equal(t, "id-token-value", ExtractIDToken(tokenWithID))
-	assert.Empty(t, ExtractIDToken((&oauth2.Token{}).WithExtra(map[string]any{"id_token": 123})))
+	assert.Equal(t, "id-token-value", ExtractIDToken(tokenWithSpacedID))
+	assert.Empty(t, ExtractIDToken(tokenWithBlankID))
+	assert.Empty(t, ExtractIDToken(tokenWithNonStringID))
 	assert.Empty(t, ExtractIDToken(&oauth2.Token{}))
 }
 

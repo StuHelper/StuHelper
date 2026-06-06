@@ -25,6 +25,10 @@ func (c *Client) VerifyIDTokenForApplication(ctx context.Context, appKey, rawIDT
 }
 
 func (c *Client) verifyIDToken(ctx context.Context, expectedClientID, rawIDToken string) (*Claims, error) {
+	rawIDToken, err := normalizeRequiredIDToken(rawIDToken)
+	if err != nil {
+		return nil, err
+	}
 	if err := validateJWTSigningAlgorithm(rawIDToken); err != nil {
 		return nil, err
 	}
