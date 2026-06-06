@@ -5659,7 +5659,7 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          description: 用户实名认证信息
+          description: 用户实名认证信息；未提交实名认证时 data 为 null。
           content:
             application/json:
               schema:
@@ -5670,10 +5670,10 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: '#/components/schemas/UserIdentity'
+                        oneOf:
+                          - $ref: '#/components/schemas/UserIdentity'
+                          - type: 'null'
         '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '404':
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
@@ -5759,7 +5759,7 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          description: 用户 QQ 绑定信息
+          description: 用户 QQ 绑定信息；未绑定 QQ 时 data 为 null。
           content:
             application/json:
               schema:
@@ -5770,10 +5770,10 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: '#/components/schemas/QQBinding'
+                        oneOf:
+                          - $ref: '#/components/schemas/QQBinding'
+                          - type: 'null'
         '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '404':
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
@@ -5817,7 +5817,7 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          description: 用户学生认证信息
+          description: 用户学生认证信息；未提交学生认证时 data 为 null。
           content:
             application/json:
               schema:
@@ -5828,10 +5828,10 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: '#/components/schemas/UserProfile'
+                        oneOf:
+                          - $ref: '#/components/schemas/UserProfile'
+                          - type: 'null'
         '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '404':
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'

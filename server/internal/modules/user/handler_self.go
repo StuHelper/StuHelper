@@ -30,7 +30,7 @@ func (h *Handler) handleGetIdentity(c *gin.Context) {
 		return
 	}
 	if identity == nil {
-		response.NotFound(c, "identity not found", errs.ErrIdentityNotFound)
+		response.Success(c, (*identityStatusResponse)(nil))
 		return
 	}
 
@@ -147,7 +147,7 @@ func (h *Handler) handleGetProfile(c *gin.Context) {
 		return
 	}
 	if profile == nil {
-		response.NotFound(c, "student profile not found", errs.ErrProfileNotFound)
+		response.Success(c, (*profileResponse)(nil))
 		return
 	}
 

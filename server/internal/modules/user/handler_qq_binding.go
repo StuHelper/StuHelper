@@ -6,7 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
@@ -29,7 +28,7 @@ func (h *Handler) handleGetQQBinding(c *gin.Context) {
 		return
 	}
 	if binding == nil {
-		response.NotFound(c, "qq binding not found", errs.ErrNotFound)
+		response.Success(c, (*qqBindingResponse)(nil))
 		return
 	}
 

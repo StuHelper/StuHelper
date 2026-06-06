@@ -309,7 +309,11 @@ async function loadNullableResource<T>(
 ): Promise<T | null> {
     try {
         const response = await loader();
-        return reader(response.data?.data, message);
+        const payload = response.data?.data;
+        if (payload === null) {
+            return null;
+        }
+        return reader(payload, message);
     } catch (error) {
         if (getErrorStatus(error) === 404) {
             return null;

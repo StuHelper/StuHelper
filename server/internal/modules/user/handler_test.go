@@ -378,6 +378,33 @@ func TestHandleGetIdentity_PublicPayloadOmitsSensitiveFields(t *testing.T) {
 	assert.NotContains(t, data, "docPhotoSelfie")
 }
 
+func TestHandleGetIdentity_ReturnsNullWhenUserHasNoIdentity(t *testing.T) {
+	repo := &mockRepo{
+		onGetInternalUserID: func(_ context.Context, _ string) (int64, error) {
+			return 42, nil
+		},
+		onGetIdentityStatusByUserID: func(_ context.Context, userID int64) (*IdentityStatus, error) {
+			assert.Equal(t, int64(42), userID)
+			return nil, nil
+		},
+	}
+
+	r := setupUserHandlerTestRouterWithRepo(t, repo)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/user/identity", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.True(t, resp["success"].(bool))
+	data, exists := resp["data"]
+	assert.True(t, exists)
+	assert.Nil(t, data)
+}
+
 func TestHandleAdminListIdentities_DefaultsStatusToPending(t *testing.T) {
 	var capturedStatus string
 	repo := &mockRepo{
@@ -855,6 +882,33 @@ func TestHandleGetProfile_NormalizesNilStudentIDsToEmptySlice(t *testing.T) {
 	data := resp["data"].(map[string]any)
 	studentIDs := data["studentIDs"].([]any)
 	assert.Empty(t, studentIDs)
+}
+
+func TestHandleGetProfile_ReturnsNullWhenUserHasNoProfile(t *testing.T) {
+	repo := &mockRepo{
+		onGetInternalUserID: func(_ context.Context, _ string) (int64, error) {
+			return 42, nil
+		},
+		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
+			assert.Equal(t, int64(42), userID)
+			return nil, nil
+		},
+	}
+
+	r := setupUserHandlerTestRouterWithRepo(t, repo)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/user/profile", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.True(t, resp["success"].(bool))
+	data, exists := resp["data"]
+	assert.True(t, exists)
+	assert.Nil(t, data)
 }
 
 func TestHandleRequestBindPhoneOTP_IsRateLimitedPerUserEndpoint(t *testing.T) {

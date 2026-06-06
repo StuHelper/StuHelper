@@ -114,7 +114,32 @@ describe('useVerificationStore', () => {
     expect(store.qqBinding?.qqID).toBe('10001')
   })
 
-  it('QQ 绑定不存在时将状态归零', async () => {
+  it('状态接口返回 data:null 时将状态归零', async () => {
+    mockGetIdentity.mockResolvedValue({
+      data: {
+        data: null,
+      },
+    })
+    mockGetProfile.mockResolvedValue({
+      data: {
+        data: null,
+      },
+    })
+    mockGetQQBinding.mockResolvedValue({
+      data: {
+        data: null,
+      },
+    })
+
+    const store = useVerificationStore()
+    await store.fetchStatus()
+
+    expect(store.identity).toBeNull()
+    expect(store.profile).toBeNull()
+    expect(store.qqBinding).toBeNull()
+  })
+
+  it('兼容旧后端 404 空状态响应', async () => {
     mockGetIdentity.mockRejectedValue({ status: 404 })
     mockGetProfile.mockRejectedValue({ status: 404 })
     mockGetQQBinding.mockRejectedValue({ status: 404 })
@@ -129,9 +154,7 @@ describe('useVerificationStore', () => {
 
   it('认证状态接口成功但缺少 data 时失败关闭', async () => {
     mockGetIdentity.mockResolvedValue({
-      data: {
-        data: null,
-      },
+      data: {},
     })
     mockGetProfile.mockRejectedValue({ status: 404 })
     mockGetQQBinding.mockRejectedValue({ status: 404 })
@@ -316,7 +339,11 @@ describe('useVerificationStore', () => {
         data: userSurface,
       },
     })
-    mockGetProfile.mockRejectedValue({ status: 404 })
+    mockGetProfile.mockResolvedValue({
+      data: {
+        data: null,
+      },
+    })
 
     const store = useVerificationStore()
     const surface = await store.bindPhone({

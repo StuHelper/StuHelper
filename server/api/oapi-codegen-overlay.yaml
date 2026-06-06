@@ -52,3 +52,24 @@ actions:
       allOf:
         - $ref: '#/components/schemas/MemberBlacklistReleaseReasonCode'
       nullable: true
+  - target: "$.paths['/api/v1/user/identity'].get.responses['200'].content['application/json'].schema.allOf[1].properties.data"
+    description: Collapse nullable identity status response data for oapi-codegen.
+    update:
+      oneOf: null
+      allOf:
+        - $ref: '#/components/schemas/UserIdentity'
+      nullable: true
+  - target: "$.paths['/api/v1/user/qq-binding'].get.responses['200'].content['application/json'].schema.allOf[1].properties.data"
+    description: Collapse nullable QQ binding response data for oapi-codegen.
+    update:
+      oneOf: null
+      allOf:
+        - $ref: '#/components/schemas/QQBinding'
+      nullable: true
+  - target: "$.paths['/api/v1/user/profile'].get.responses['200'].content['application/json'].schema.allOf[1].properties.data"
+    description: Collapse nullable student profile response data for oapi-codegen.
+    update:
+      oneOf: null
+      allOf:
+        - $ref: '#/components/schemas/UserProfile'
+      nullable: true

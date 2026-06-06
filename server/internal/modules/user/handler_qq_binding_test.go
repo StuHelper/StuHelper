@@ -102,7 +102,7 @@ func TestHandleCreateQQBindingCode_ReturnsCreatedCode(t *testing.T) {
 	assert.False(t, resp.Data.ExpiresAt.IsZero())
 }
 
-func TestHandleGetQQBinding_ReturnsNotFoundWhenUserHasNoBinding(t *testing.T) {
+func TestHandleGetQQBinding_ReturnsNullWhenUserHasNoBinding(t *testing.T) {
 	repo := newQQBindingMockRepo()
 	repo.onGetInternalUserID = func(_ context.Context, _ string) (int64, error) {
 		return 42, nil
@@ -114,7 +114,15 @@ func TestHandleGetQQBinding_ReturnsNotFoundWhenUserHasNoBinding(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusNotFound, w.Code)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.True(t, resp["success"].(bool))
+	data, exists := resp["data"]
+	assert.True(t, exists)
+	assert.Nil(t, data)
 }
 
 func TestHandleGetQQBinding_ReturnsBinding(t *testing.T) {

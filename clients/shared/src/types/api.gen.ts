@@ -9670,19 +9670,18 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 用户实名认证信息 */
+            /** @description 用户实名认证信息；未提交实名认证时 data 为 null。 */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["UserIdentity"];
+                        data: components["schemas"]["UserIdentity"] | null;
                     };
                 };
             };
             401: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
         };
     };
@@ -9754,19 +9753,18 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 用户 QQ 绑定信息 */
+            /** @description 用户 QQ 绑定信息；未绑定 QQ 时 data 为 null。 */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["QQBinding"];
+                        data: components["schemas"]["QQBinding"] | null;
                     };
                 };
             };
             401: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
         };
     };
@@ -9804,19 +9802,18 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 用户学生认证信息 */
+            /** @description 用户学生认证信息；未提交学生认证时 data 为 null。 */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["UserProfile"];
+                        data: components["schemas"]["UserProfile"] | null;
                     };
                 };
             };
             401: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
         };
     };
