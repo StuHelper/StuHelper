@@ -71,6 +71,9 @@ func (s *Service) CreateMount(ctx context.Context, req CreateMountRequest) (*Mou
 }
 
 func (s *Service) CheckMountHealth(ctx context.Context, mountID int64) (*Mount, error) {
+	if err := validateMountID(mountID); err != nil {
+		return nil, err
+	}
 	mount, err := s.repo.GetMountByID(ctx, mountID)
 	if err != nil {
 		return nil, err
@@ -162,6 +165,9 @@ func cleanupStoredObjectKey(requestedKey string, stored *StoredObject) string {
 }
 
 func (s *Service) Delete(ctx context.Context, mountID int64, objectKey string) error {
+	if err := validateMountID(mountID); err != nil {
+		return err
+	}
 	objectKey, err := validateObjectKey(objectKey)
 	if err != nil {
 		return err
@@ -178,6 +184,9 @@ func (s *Service) Delete(ctx context.Context, mountID int64, objectKey string) e
 }
 
 func (s *Service) GetDownloadURL(ctx context.Context, mountID int64, objectKey string) (string, error) {
+	if err := validateMountID(mountID); err != nil {
+		return "", err
+	}
 	objectKey, err := validateObjectKey(objectKey)
 	if err != nil {
 		return "", err
@@ -203,6 +212,13 @@ func (s *Service) GetDownloadURLByMountKey(ctx context.Context, mountKey, object
 		return "", err
 	}
 	return driver.GetDownloadURL(ctx, *mount, objectKey)
+}
+
+func validateMountID(mountID int64) error {
+	if mountID <= 0 {
+		return ErrInvalidMountID
+	}
+	return nil
 }
 
 func (s *Service) getMountDriver(ctx context.Context, mountKey string) (*Mount, Driver, error) {

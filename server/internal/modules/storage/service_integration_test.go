@@ -116,6 +116,24 @@ func TestCreateMountAndCheckMountHealth(t *testing.T) {
 	assert.Equal(t, "network timeout", *unhealthy.LastHealthError)
 }
 
+func TestMountIDOperationsRejectInvalidIDBeforeDependencies(t *testing.T) {
+	ctx := context.Background()
+	svc := &Service{}
+
+	for _, mountID := range []int64{0, -1} {
+		mount, err := svc.CheckMountHealth(ctx, mountID)
+		require.ErrorIs(t, err, ErrInvalidMountID)
+		assert.Nil(t, mount)
+
+		err = svc.Delete(ctx, mountID, "resources/object.txt")
+		require.ErrorIs(t, err, ErrInvalidMountID)
+
+		url, err := svc.GetDownloadURL(ctx, mountID, "resources/object.txt")
+		require.ErrorIs(t, err, ErrInvalidMountID)
+		assert.Empty(t, url)
+	}
+}
+
 func TestCreateMount_NormalizesRequest(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)

@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -27,4 +28,26 @@ func TestSanitizeObjectKeySegmentDefaultsUnsafeEmptyValues(t *testing.T) {
 	assert.Equal(t, "unknown", sanitizeObjectKeySegment(" "))
 	assert.Equal(t, "unknown", sanitizeObjectKeySegment("."))
 	assert.Equal(t, "unknown", sanitizeObjectKeySegment(".."))
+}
+
+func TestResourceOperationsRejectInvalidResourceIDBeforeDependencies(t *testing.T) {
+	ctx := context.Background()
+	svc := &Service{}
+
+	for _, resourceID := range []int64{0, -1} {
+		item, err := svc.GetResource(ctx, resourceID, "viewer")
+		require.ErrorIs(t, err, ErrResourceIDInvalid)
+		assert.Nil(t, item)
+
+		updated, err := svc.UpdateResource(ctx, resourceID, "owner", UpdateRequest{Title: "title"})
+		require.ErrorIs(t, err, ErrResourceIDInvalid)
+		assert.Nil(t, updated)
+
+		err = svc.DeleteResource(ctx, resourceID, "owner")
+		require.ErrorIs(t, err, ErrResourceIDInvalid)
+
+		url, err := svc.GetDownloadURL(ctx, resourceID, "viewer")
+		require.ErrorIs(t, err, ErrResourceIDInvalid)
+		assert.Empty(t, url)
+	}
 }

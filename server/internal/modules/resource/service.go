@@ -30,6 +30,7 @@ var (
 	ErrResourceStoredObjectMissing  = errors.New("resource storage returned no object metadata")
 	ErrResourceStoredObjectInvalid  = errors.New("resource storage returned invalid object metadata")
 	ErrResourceOwnerRequired        = errors.New("owner user id is required")
+	ErrResourceIDInvalid            = errors.New("resource id is invalid")
 )
 
 type StoredObject struct {
@@ -148,6 +149,9 @@ func (s *Service) ListResources(ctx context.Context, filters ListFilters) ([]Ite
 }
 
 func (s *Service) GetResource(ctx context.Context, resourceID int64, viewerUserID string) (*Item, error) {
+	if err := validateResourceID(resourceID); err != nil {
+		return nil, err
+	}
 	viewerUserID = strings.TrimSpace(viewerUserID)
 	item, err := s.repo.GetResourceByID(ctx, resourceID)
 	if err != nil {
@@ -160,6 +164,9 @@ func (s *Service) GetResource(ctx context.Context, resourceID int64, viewerUserI
 }
 
 func (s *Service) UpdateResource(ctx context.Context, resourceID int64, ownerUserID string, req UpdateRequest) (*Item, error) {
+	if err := validateResourceID(resourceID); err != nil {
+		return nil, err
+	}
 	ownerUserID, err := normalizeRequiredResourceOwner(ownerUserID)
 	if err != nil {
 		return nil, err
@@ -173,6 +180,9 @@ func (s *Service) UpdateResource(ctx context.Context, resourceID int64, ownerUse
 }
 
 func (s *Service) DeleteResource(ctx context.Context, resourceID int64, ownerUserID string) error {
+	if err := validateResourceID(resourceID); err != nil {
+		return err
+	}
 	ownerUserID, err := normalizeRequiredResourceOwner(ownerUserID)
 	if err != nil {
 		return err
@@ -236,9 +246,17 @@ func normalizeRequiredResourceOwner(ownerUserID string) (string, error) {
 	return ownerUserID, nil
 }
 
+func validateResourceID(resourceID int64) error {
+	if resourceID <= 0 {
+		return ErrResourceIDInvalid
+	}
+	return nil
+}
+
 func isResourceBadRequestError(err error) bool {
 	return errors.Is(err, ErrResourceTitleRequired) ||
 		errors.Is(err, ErrResourceOwnerRequired) ||
+		errors.Is(err, ErrResourceIDInvalid) ||
 		errors.Is(err, ErrResourceFilenameRequired) ||
 		errors.Is(err, ErrResourcePayloadRequired) ||
 		errors.Is(err, ErrResourcePayloadInvalid) ||

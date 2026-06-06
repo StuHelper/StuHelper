@@ -4,6 +4,7 @@ import "errors"
 
 var ErrDriverNotRegistered = errors.New("storage driver not registered")
 var ErrInvalidMountConfig = errors.New("invalid storage mount config")
+var ErrInvalidMountID = errors.New("invalid storage mount id")
 var ErrInvalidObjectKey = errors.New("invalid storage object key")
 var ErrMountAlreadyExists = errors.New("storage mount already exists")
 var ErrMountDisabled = errors.New("storage mount disabled")

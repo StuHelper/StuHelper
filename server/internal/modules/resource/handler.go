@@ -64,6 +64,10 @@ func (h *Handler) getResource(c *gin.Context) {
 			response.NotFound(c, "resource not found")
 			return
 		}
+		if isResourceBadRequestError(err) {
+			response.BadRequest(c, err.Error())
+			return
+		}
 		response.InternalError(c, "failed to get resource")
 		return
 	}
@@ -172,6 +176,10 @@ func (h *Handler) getDownloadURL(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, ErrResourceNotFound) {
 			response.NotFound(c, "resource not found")
+			return
+		}
+		if isResourceBadRequestError(err) {
+			response.BadRequest(c, err.Error())
 			return
 		}
 		if respondResourceStorageError(c, err) {

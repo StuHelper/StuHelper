@@ -137,6 +137,21 @@ func (h *Handler) checkMountHealth(c *gin.Context) {
 	}
 	item, err := h.service.CheckMountHealth(c.Request.Context(), mountID)
 	if err != nil {
+		if errors.Is(err, ErrInvalidMountID) {
+			audit.LogFromGin(c, audit.Event{
+				Type:         audit.EventDataUpdate,
+				Category:     "admin_operation",
+				Resource:     "storage.mount",
+				ResourceType: "storage.mount",
+				ResourceID:   formatInt64(mountID),
+				Action:       "health_check",
+				Result:       "failure",
+				Reason:       "invalid mountID",
+				Details:      map[string]any{"mountID": mountID, "reason": "invalid mountID"},
+			})
+			response.BadRequest(c, "invalid mountID", errs.ErrInvalidParam)
+			return
+		}
 		if errors.Is(err, ErrMountNotFound) {
 			audit.LogFromGin(c, audit.Event{
 				Type:         audit.EventDataUpdate,
