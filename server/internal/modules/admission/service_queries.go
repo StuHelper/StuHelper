@@ -110,7 +110,11 @@ func (s *Service) MarkFreshmanApplicationForwarded(ctx context.Context, applicat
 }
 
 func (s *Service) RecordJoinRequestEvent(ctx context.Context, input AdmissionJoinRequestEventInput) error {
-	event := joinRequestAuditEvent(ctx, normalizeJoinRequestEventInput(input))
+	normalized, err := normalizeJoinRequestEventInput(input)
+	if err != nil {
+		return err
+	}
+	event := joinRequestAuditEvent(ctx, normalized)
 	return s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		return s.repo.InsertAuditEventTx(ctx, tx, event)
 	})
@@ -159,14 +163,21 @@ func normalizeAdmissionPolicyForOutput(policy AdmissionPolicy) AdmissionPolicy {
 	return policy
 }
 
-func normalizeJoinRequestEventInput(input AdmissionJoinRequestEventInput) AdmissionJoinRequestEventInput {
+func normalizeJoinRequestEventInput(input AdmissionJoinRequestEventInput) (AdmissionJoinRequestEventInput, error) {
 	input.Platform = strings.TrimSpace(input.Platform)
 	input.GuildID = strings.TrimSpace(input.GuildID)
 	input.QQID = strings.TrimSpace(input.QQID)
 	input.RequestID = strings.TrimSpace(input.RequestID)
-	input.Decision = normalizeJoinRequestDecisionAction(input.Decision)
 	input.Error = strings.TrimSpace(input.Error)
-	return input
+	if input.Platform == "" || input.GuildID == "" || input.QQID == "" || input.RequestID == "" {
+		return AdmissionJoinRequestEventInput{}, ErrAdmissionInvalidInput
+	}
+	decision, err := normalizeJoinRequestEventDecision(input.Decision)
+	if err != nil {
+		return AdmissionJoinRequestEventInput{}, err
+	}
+	input.Decision = decision
+	return input, nil
 }
 
 func normalizeJoinRequestDecisionInput(input AdmissionJoinRequestDecisionInput) AdmissionJoinRequestDecisionInput {
@@ -177,14 +188,17 @@ func normalizeJoinRequestDecisionInput(input AdmissionJoinRequestDecisionInput) 
 	return input
 }
 
-func normalizeJoinRequestDecisionAction(
+func normalizeJoinRequestEventDecision(
 	action AdmissionJoinRequestDecisionAction,
-) AdmissionJoinRequestDecisionAction {
-	switch action {
+) (AdmissionJoinRequestDecisionAction, error) {
+	normalized := AdmissionJoinRequestDecisionAction(strings.ToLower(strings.TrimSpace(string(action))))
+	switch normalized {
+	case "":
+		return "", nil
 	case AdmissionJoinRequestDecisionApprove, AdmissionJoinRequestDecisionReject:
-		return action
+		return normalized, nil
 	default:
-		return AdmissionJoinRequestDecisionApprove
+		return "", ErrAdmissionInvalidInput
 	}
 }
 
