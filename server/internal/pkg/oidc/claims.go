@@ -78,10 +78,11 @@ func (c *Claims) MFAProofVerifiedAt() time.Time {
 }
 
 func defaultRolesClaim(value string) string {
-	if value == "" {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
 		return "roles"
 	}
-	return value
+	return trimmed
 }
 
 // ParseProviderRolesFromRaw extracts roles from the provider-neutral flat roles claim.
