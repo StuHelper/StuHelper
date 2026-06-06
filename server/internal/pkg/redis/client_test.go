@@ -5,6 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 )
 
 func TestClientGetClientIsNilSafe(t *testing.T) {
@@ -21,4 +23,15 @@ func TestClientCloseIsNilAndZeroValueSafe(t *testing.T) {
 	zeroClient := &Client{}
 	require.NoError(t, zeroClient.Close())
 	require.NoError(t, zeroClient.Close())
+}
+
+func TestNewClientReturnsErrorWhenPingFails(t *testing.T) {
+	client, err := NewClient(config.RedisConfig{
+		Host: "127.0.0.1",
+		Port: "0",
+	})
+
+	require.Error(t, err)
+	assert.Nil(t, client)
+	assert.Contains(t, err.Error(), "failed to connect to redis")
 }

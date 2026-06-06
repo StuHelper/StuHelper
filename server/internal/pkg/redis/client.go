@@ -53,6 +53,9 @@ func NewClient(cfg config.RedisConfig) (*Client, error) {
 
 	rdb := redis.NewClient(opts)
 	if err := redisotel.InstrumentTracing(rdb); err != nil {
+		if closeErr := rdb.Close(); closeErr != nil {
+			return nil, fmt.Errorf("failed to instrument redis tracing: %w; additionally failed to close redis client: %v", err, closeErr)
+		}
 		return nil, fmt.Errorf("failed to instrument redis tracing: %w", err)
 	}
 
@@ -60,6 +63,9 @@ func NewClient(cfg config.RedisConfig) (*Client, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	if err := rdb.Ping(ctx).Err(); err != nil {
+		if closeErr := rdb.Close(); closeErr != nil {
+			return nil, fmt.Errorf("failed to connect to redis: %w; additionally failed to close redis client: %v", err, closeErr)
+		}
 		return nil, fmt.Errorf("failed to connect to redis: %w", err)
 	}
 
