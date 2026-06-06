@@ -52,6 +52,7 @@ SSO_PUBLIC_SMOKE_ENABLED=true
 
 CASDOOR_ISSUER=https://sso.stuhelper.com
 CASDOOR_PUBLIC_AUTH_BASE_URL=https://sso.stuhelper.com
+CASDOOR_INTERNAL_ADDRESS=
 CASDOOR_REDIRECT_URI=https://stuhelper.com/api/v1/auth/callback
 CASDOOR_ADMIN_REDIRECT_URI=https://stuhelper.com/api/v1/auth/callback
 CASDOOR_UNIAPP_REDIRECT_URI=https://stuhelper.com/api/v1/auth/callback
@@ -78,7 +79,16 @@ PUBLIC_WEB_AUTH_BROWSER_SMOKE_ENABLED=true
 PUBLIC_WEB_AUTH_BROWSER_SMOKE_ALLOW_LOCAL_TARGETS=false
 
 STUHELPER_FRESHMAN_MATERIAL_HOSTS=stuhelper.com,join.stuhelper.com
+
+OPENFGA_API_URL=http://openfga:8080
+OPENFGA_RESOURCE_SMOKE_MODE=container
+OPENFGA_STORE_ID=
+OPENFGA_MODEL_ID=
 ```
+
+OpenFGA 生产 `STORE_ID` / `MODEL_ID` 不在共享样例中手填占位符，必须保持为空。`bootstrap-platform.sh` / OpenFGA bootstrap 创建 store 和 authorization model 后，把真实 `OPENFGA_STORE_ID`、`OPENFGA_MODEL_ID` 写入 `GENERATED_ENV_FILE`；`GENERATED_ENV_SECRET_REF` 只承载 generated secret env，不承载这两个非 secret runtime ID。生产部署脚本允许空值等待 bootstrap 写入，但会拒绝 `REPLACE_WITH_OPENFGA_*` 这类共享样例占位符进入部署。
+
+`CASDOOR_INTERNAL_ADDRESS` 生产默认必须为空，让后端按公开 issuer / public auth base URL 校验 OIDC 行为；不要沿用本地开发的 `host.docker.internal:8085` 或旧 Compose 内网地址。只有在有明确同机内网反代设计、并完成 SSO public smoke 验证 issuer 仍为 `https://sso.stuhelper.com` 时，才允许在非 repo secret/env 中覆盖。
 
 Koishi 独立节点必须注入：
 
@@ -88,7 +98,9 @@ STUHELPER_PLATFORM_SERVICE_TOKEN=<redacted>
 STUHELPER_FRESHMAN_MATERIAL_HOSTS=stuhelper.com,join.stuhelper.com
 ```
 
-`STUHELPER_PLATFORM_SERVICE_TOKEN` 的值必须对应后端 `BOT_SERVICE_TOKEN` bootstrap 出来的 bot service credential。不要把真实值写入 runbook、脚本或 git。
+`STUHELPER_PLATFORM_SERVICE_TOKEN` 的值必须与后端生产 env 中真实 `BOT_SERVICE_TOKEN` 完全一致。该真实 token 不由 `init-prod-env.sh`、`bootstrap-platform.sh` 或 `prod-deploy.sh` 自动创建；它应来自已创建的 bot service credential、secret backend 或受控运维注入流程。不要把真实值写入 runbook、脚本或 git。
+
+`BOT_SERVICE_TOKEN=REPLACE_WITH_BOT_SERVICE_TOKEN_BOOTSTRAP` 只允许出现在生产样例和 fresh init 生成的占位状态；legacy init 会保持 `BOT_SERVICE_TOKEN` 为空。运行 `prod-deploy.sh` 前，运维必须把真实 bot service credential 注入后端生产 env 或 secret backend，并把同一个值同步给 Koishi 节点的 `STUHELPER_PLATFORM_SERVICE_TOKEN`。`prod-deploy.sh` 会要求 `BOT_SERVICE_TOKEN` 非空并拒绝占位符，避免 Koishi admission 运行时以样例 token 调后端导致 401。
 
 ## Nginx 入口契约
 

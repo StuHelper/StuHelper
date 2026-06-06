@@ -38,8 +38,10 @@ assert_contains "${EVIDENCE_SCRIPT}" 'OPEN_PLATFORM_PRODUCTION_EVIDENCE_FILE'
 assert_contains "${EVIDENCE_SCRIPT}" 'OPEN_PLATFORM_PRODUCTION_EVIDENCE_ALLOW_LOCAL_TARGETS'
 assert_contains "${EVIDENCE_SCRIPT}" 'CASDOOR_ISSUER is required'
 assert_contains "${EVIDENCE_SCRIPT}" 'OPENFGA_API_URL is required'
-assert_contains "${EVIDENCE_SCRIPT}" 'OPENFGA_STORE_ID is required'
-assert_contains "${EVIDENCE_SCRIPT}" 'OPENFGA_MODEL_ID is required'
+assert_contains "${EVIDENCE_SCRIPT}" 'reject_placeholder_if_set OPENFGA_STORE_ID "\$\{expected_openfga_store_id\}" "REPLACE_WITH_OPENFGA_STORE_ID"'
+assert_contains "${EVIDENCE_SCRIPT}" 'reject_placeholder_if_set OPENFGA_MODEL_ID "\$\{expected_openfga_model_id\}" "REPLACE_WITH_OPENFGA_MODEL_ID"'
+assert_contains "${EVIDENCE_SCRIPT}" '\(\(\$store_id \| length\) == 0 or \.storeID == \$store_id\)'
+assert_contains "${EVIDENCE_SCRIPT}" '\(\(\$model_id \| length\) == 0 or \.modelID == \$model_id\)'
 assert_contains "${EVIDENCE_SCRIPT}" 'OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED must be true for Open Platform production evidence'
 assert_contains "${EVIDENCE_SCRIPT}" 'OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND is required for Open Platform production evidence'
 assert_contains "${EVIDENCE_SCRIPT}" 'OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND is still the placeholder value'
@@ -69,10 +71,16 @@ env_file="${tmpdir}/.env"
 local_env_file="${tmpdir}/.env.local-targets"
 runtime_probe_disabled_env_file="${tmpdir}/.env.runtime-probe-disabled"
 runtime_probe_placeholder_env_file="${tmpdir}/.env.runtime-probe-placeholder"
+openfga_ids_empty_env_file="${tmpdir}/.env.openfga-ids-empty"
+openfga_store_placeholder_env_file="${tmpdir}/.env.openfga-store-placeholder"
+openfga_model_placeholder_env_file="${tmpdir}/.env.openfga-model-placeholder"
 generated_env_file="${tmpdir}/.env.generated"
 generated_secret_env_file="${tmpdir}/.env.generated.secrets"
 generated_obs_dir="${tmpdir}/generated/observability"
 evidence_file="${tmpdir}/evidence/open-platform-production-evidence.json"
+empty_openfga_ids_evidence_file="${tmpdir}/evidence/open-platform-production-evidence-empty-openfga-ids.json"
+openfga_store_placeholder_evidence_file="${tmpdir}/evidence/open-platform-production-evidence-openfga-store-placeholder.json"
+openfga_model_placeholder_evidence_file="${tmpdir}/evidence/open-platform-production-evidence-openfga-model-placeholder.json"
 leaky_evidence_file="${tmpdir}/evidence/open-platform-production-evidence-leaky.json"
 broken_openfga_evidence_file="${tmpdir}/evidence/open-platform-production-evidence-broken-openfga.json"
 local_refused_evidence_file="${tmpdir}/evidence/open-platform-production-evidence-local-refused.json"
@@ -238,6 +246,36 @@ OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED=true
 OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND=REPLACE_WITH_OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND
 ENV
 
+cat >"${openfga_ids_empty_env_file}" <<'ENV'
+APP_ENV=production
+CASDOOR_ISSUER=https://sso.stuhelper.com
+OPENFGA_API_URL=http://openfga:8080
+OPENFGA_STORE_ID=
+OPENFGA_MODEL_ID=
+OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED=true
+OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND=/app/casdoor-runtime-token-probe-runner.mjs
+ENV
+
+cat >"${openfga_store_placeholder_env_file}" <<'ENV'
+APP_ENV=production
+CASDOOR_ISSUER=https://sso.stuhelper.com
+OPENFGA_API_URL=http://openfga:8080
+OPENFGA_STORE_ID=REPLACE_WITH_OPENFGA_STORE_ID
+OPENFGA_MODEL_ID=model-1
+OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED=true
+OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND=/app/casdoor-runtime-token-probe-runner.mjs
+ENV
+
+cat >"${openfga_model_placeholder_env_file}" <<'ENV'
+APP_ENV=production
+CASDOOR_ISSUER=https://sso.stuhelper.com
+OPENFGA_API_URL=http://openfga:8080
+OPENFGA_STORE_ID=store-1
+OPENFGA_MODEL_ID=REPLACE_WITH_OPENFGA_MODEL_ID
+OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED=true
+OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND=/app/casdoor-runtime-token-probe-runner.mjs
+ENV
+
 output="$(
   ENV_FILE="${env_file}" \
   GENERATED_ENV_FILE="${generated_env_file}" \
@@ -280,6 +318,64 @@ assert data["openfgaResourceAccessSmoke"]["writeAfterRevoke"] is False
 PY
 
 jq -e '.generatedAt and .casdoorRuntimeTokenProbe and .openfgaResourceAccessSmoke' "${evidence_file}" >/dev/null
+
+empty_openfga_ids_output="$(
+  ENV_FILE="${openfga_ids_empty_env_file}" \
+  GENERATED_ENV_FILE="${generated_env_file}" \
+  GENERATED_SECRET_ENV_FILE="${generated_secret_env_file}" \
+  GENERATED_OBS_DIR="${generated_obs_dir}" \
+  OPEN_PLATFORM_EVIDENCE_CASDOOR_SMOKE_COMMAND="${fake_casdoor}" \
+  OPEN_PLATFORM_EVIDENCE_OPENFGA_SMOKE_COMMAND="${fake_openfga}" \
+  OPEN_PLATFORM_PRODUCTION_EVIDENCE_FILE="${empty_openfga_ids_evidence_file}" \
+  "${EVIDENCE_SCRIPT}"
+)"
+
+[[ -f "${empty_openfga_ids_evidence_file}" ]] || fail "empty expected OpenFGA IDs should still allow evidence bundle when child smoke returns concrete IDs"
+OUTPUT_JSON="${empty_openfga_ids_output}" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUTPUT_JSON"])
+assert data["passed"] is True
+assert data["openfgaResourceAccessSmoke"]["storeID"] == "store-1"
+assert data["openfgaResourceAccessSmoke"]["modelID"] == "model-1"
+PY
+
+openfga_store_placeholder_output="$(
+  ENV_FILE="${openfga_store_placeholder_env_file}" \
+  GENERATED_ENV_FILE="${generated_env_file}" \
+  GENERATED_SECRET_ENV_FILE="${generated_secret_env_file}" \
+  GENERATED_OBS_DIR="${generated_obs_dir}" \
+  OPEN_PLATFORM_EVIDENCE_CASDOOR_SMOKE_COMMAND="${fake_casdoor}" \
+  OPEN_PLATFORM_EVIDENCE_OPENFGA_SMOKE_COMMAND="${fake_openfga}" \
+  OPEN_PLATFORM_PRODUCTION_EVIDENCE_FILE="${openfga_store_placeholder_evidence_file}" \
+  "${EVIDENCE_SCRIPT}" 2>&1
+)" && fail "production evidence script passed despite placeholder OpenFGA store ID"
+
+[[ ! -f "${openfga_store_placeholder_evidence_file}" ]] || fail "placeholder OpenFGA store ID evidence must not be written"
+printf '%s\n' "${openfga_store_placeholder_output}" | grep -q 'OPENFGA_STORE_ID is using placeholder/default value (REPLACE_WITH_OPENFGA_STORE_ID)' || \
+  fail "placeholder OpenFGA store ID evidence did not fail with the expected gate"
+if [[ "${openfga_store_placeholder_output}" == *"running Casdoor runtime token minimization smoke"* ]]; then
+  fail "placeholder OpenFGA store ID gate should fail before child smokes run"
+fi
+
+openfga_model_placeholder_output="$(
+  ENV_FILE="${openfga_model_placeholder_env_file}" \
+  GENERATED_ENV_FILE="${generated_env_file}" \
+  GENERATED_SECRET_ENV_FILE="${generated_secret_env_file}" \
+  GENERATED_OBS_DIR="${generated_obs_dir}" \
+  OPEN_PLATFORM_EVIDENCE_CASDOOR_SMOKE_COMMAND="${fake_casdoor}" \
+  OPEN_PLATFORM_EVIDENCE_OPENFGA_SMOKE_COMMAND="${fake_openfga}" \
+  OPEN_PLATFORM_PRODUCTION_EVIDENCE_FILE="${openfga_model_placeholder_evidence_file}" \
+  "${EVIDENCE_SCRIPT}" 2>&1
+)" && fail "production evidence script passed despite placeholder OpenFGA model ID"
+
+[[ ! -f "${openfga_model_placeholder_evidence_file}" ]] || fail "placeholder OpenFGA model ID evidence must not be written"
+printf '%s\n' "${openfga_model_placeholder_output}" | grep -q 'OPENFGA_MODEL_ID is using placeholder/default value (REPLACE_WITH_OPENFGA_MODEL_ID)' || \
+  fail "placeholder OpenFGA model ID evidence did not fail with the expected gate"
+if [[ "${openfga_model_placeholder_output}" == *"running Casdoor runtime token minimization smoke"* ]]; then
+  fail "placeholder OpenFGA model ID gate should fail before child smokes run"
+fi
 
 runtime_probe_disabled_output="$(
   ENV_FILE="${runtime_probe_disabled_env_file}" \

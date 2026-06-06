@@ -41,6 +41,9 @@ assert_contains "${EVIDENCE_SCRIPT}" 'KOISHI_ADMISSION_EXPECTED_GROUP_IDS'
 assert_contains "${EVIDENCE_SCRIPT}" 'KOISHI_ADMISSION_BOT_SELF_ID'
 assert_contains "${EVIDENCE_SCRIPT}" 'STUHELPER_PLATFORM_BASE_URL'
 assert_contains "${EVIDENCE_SCRIPT}" 'STUHELPER_PLATFORM_SERVICE_TOKEN'
+assert_contains "${EVIDENCE_SCRIPT}" '\^REPLACE_WITH_'
+assert_contains "${EVIDENCE_SCRIPT}" 'serviceTokenPlaceholder'
+assert_contains "${EVIDENCE_SCRIPT}" 'missing_or_placeholder_env'
 assert_contains "${EVIDENCE_SCRIPT}" 'STUHELPER_FRESHMAN_MATERIAL_HOSTS'
 assert_contains "${EVIDENCE_SCRIPT}" '/api/v1/bot/admission/sessions/pending'
 assert_contains "${EVIDENCE_SCRIPT}" '/api/v1/bot/admission/actions/stream'
@@ -155,10 +158,14 @@ case "${1:-}" in
     fi
     if [[ "${1:-}" == "node" && "${2:-}" == "-e" ]]; then
       if [[ "${FAKE_DOCKER_MODE:-ok}" == "missing_env" ]]; then
-        echo '{"baseURL":"https://stuhelper.com","hasServiceToken":false,"hasFreshmanHosts":false,"freshmanHosts":""}'
+        echo '{"baseURL":"https://stuhelper.com","hasServiceToken":false,"serviceTokenPlaceholder":false,"hasFreshmanHosts":false,"freshmanHosts":""}'
         exit 0
       fi
-      echo '{"baseURL":"https://stuhelper.com","hasServiceToken":true,"hasFreshmanHosts":true,"freshmanHosts":"stuhelper.com,join.stuhelper.com"}'
+      if [[ "${FAKE_DOCKER_MODE:-ok}" == "placeholder_env" ]]; then
+        echo '{"baseURL":"https://stuhelper.com","hasServiceToken":true,"serviceTokenPlaceholder":true,"hasFreshmanHosts":true,"freshmanHosts":"stuhelper.com,join.stuhelper.com"}'
+        exit 0
+      fi
+      echo '{"baseURL":"https://stuhelper.com","hasServiceToken":true,"serviceTokenPlaceholder":false,"hasFreshmanHosts":true,"freshmanHosts":"stuhelper.com,join.stuhelper.com"}'
       exit 0
     fi
     exit 5
@@ -313,6 +320,38 @@ expect_log_failure "bad_log" "bad-log"
 expect_log_failure "bad_b0000001" "bad-b0000001"
 expect_log_failure "bad_pending_forward" "bad-pending-forward"
 expect_log_failure "bad_duplicate_command" "bad-duplicate-command"
+
+if PATH="${tmpdir}/bin:${PATH}" \
+  KOISHI_COMPOSE_DIR="${compose_dir}" \
+  KOISHI_CONTAINER_NAME="koishi" \
+  KOISHI_ADMISSION_EVIDENCE_FILE="${tmpdir}/placeholder-env-evidence.json" \
+  FAKE_DOCKER_MODE="placeholder_env" \
+  "${EVIDENCE_SCRIPT}" >"${tmpdir}/placeholder-env.stdout" 2>"${tmpdir}/placeholder-env.stderr"; then
+  fail "expected evidence script to fail for placeholder service token"
+fi
+grep -q 'Koishi admission production evidence failed' "${tmpdir}/placeholder-env.stderr" || fail "missing placeholder token failure message"
+python3 - "${tmpdir}/placeholder-env-evidence.json" <<'PY' || fail "missing placeholder token env failure detail"
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+for check in payload.get("checks", []):
+    if (
+        check.get("name") == "Koishi container StuHelper env"
+        and check.get("passed") is False
+        and '"serviceTokenPlaceholder":true' in check.get("detail", "")
+        and "REPLACE_WITH_STUHELPER_PLATFORM_SERVICE_TOKEN" not in check.get("detail", "")
+    ):
+        raise SystemExit(0)
+raise SystemExit(1)
+PY
+if grep -R -q 'REPLACE_WITH_STUHELPER_PLATFORM_SERVICE_TOKEN' \
+  "${tmpdir}/placeholder-env.stdout" \
+  "${tmpdir}/placeholder-env.stderr" \
+  "${tmpdir}/placeholder-env-evidence.json"; then
+  fail "placeholder token value leaked in evidence output"
+fi
 
 expect_config_failure "wrong_target_group" "do not match expected"
 expect_config_failure "commands_enabled" "commands.enabled is not false"

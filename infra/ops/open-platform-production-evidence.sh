@@ -76,14 +76,27 @@ reject_local_evidence_target() {
   esac
 }
 
+reject_placeholder_if_set() {
+  local key="$1"
+  local value="${2:-}"
+  shift 2 || true
+  [[ -n "${value}" ]] || return 0
+  local placeholder
+  for placeholder in "$@"; do
+    if [[ "${value}" == "${placeholder}" ]]; then
+      die "${key} is using placeholder/default value (${placeholder}); set a real value first"
+    fi
+  done
+}
+
 if [[ "${allow_local_targets}" != "true" ]]; then
   reject_local_evidence_target "CASDOOR_ISSUER" "${expected_casdoor_issuer}"
   reject_local_evidence_target "CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI" "${CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI:-}"
   reject_local_evidence_target "OPENFGA_API_URL" "${expected_openfga_api_url}"
 fi
 
-[[ -n "${expected_openfga_store_id}" ]] || die "OPENFGA_STORE_ID is required"
-[[ -n "${expected_openfga_model_id}" ]] || die "OPENFGA_MODEL_ID is required"
+reject_placeholder_if_set OPENFGA_STORE_ID "${expected_openfga_store_id}" "REPLACE_WITH_OPENFGA_STORE_ID"
+reject_placeholder_if_set OPENFGA_MODEL_ID "${expected_openfga_model_id}" "REPLACE_WITH_OPENFGA_MODEL_ID"
 [[ "${expected_runtime_probe_required}" == "true" ]] || die "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED must be true for Open Platform production evidence"
 [[ -n "${expected_runtime_probe_command}" ]] || die "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND is required for Open Platform production evidence"
 [[ "${expected_runtime_probe_command}" != "REPLACE_WITH_OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND" ]] || die "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND is still the placeholder value (REPLACE_WITH_OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND); set the real production runtime token probe runner before generating Open Platform production evidence"
@@ -134,8 +147,10 @@ validate_openfga_evidence() {
     and .readAfterRevoke == false
     and .writeAfterRevoke == false
     and (.apiURL | type == "string" and rtrimstr("/") == $api_url)
-    and .storeID == $store_id
-    and .modelID == $model_id
+    and (.storeID | type == "string" and length > 0)
+    and (.modelID | type == "string" and length > 0)
+    and (($store_id | length) == 0 or .storeID == $store_id)
+    and (($model_id | length) == 0 or .modelID == $model_id)
   ' >/dev/null
 }
 

@@ -52,6 +52,14 @@ reject_placeholder() {
   done
 }
 
+reject_placeholder_if_set() {
+  local key="$1"
+  local value="${2:-}"
+  shift 2 || true
+  [[ -n "${value}" ]] || return 0
+  reject_placeholder "${key}" "${value}" "$@"
+}
+
 reject_local_value() {
   local key="$1"
   local value="${2:-}"
@@ -172,6 +180,7 @@ require_nonempty SMS_SIGN_NAME "${SMS_SIGN_NAME:-}"
 require_nonempty SMS_TEMPLATE_ID "${SMS_TEMPLATE_ID:-}"
 require_nonempty SMS_REGION "${SMS_REGION:-}"
 require_nonempty SMS_INTERNAL_KEY "${SMS_INTERNAL_KEY:-}"
+require_nonempty BOT_SERVICE_TOKEN "${BOT_SERVICE_TOKEN:-}"
 require_nonempty WEB_PUBLIC_URL "${WEB_PUBLIC_URL:-}"
 require_nonempty ADMIN_PUBLIC_URL "${ADMIN_PUBLIC_URL:-}"
 require_nonempty ADMISSION_PUBLIC_BASE_URL "${ADMISSION_PUBLIC_BASE_URL:-}"
@@ -180,6 +189,8 @@ require_nonempty STUHELPER_FRESHMAN_MATERIAL_HOSTS "${STUHELPER_FRESHMAN_MATERIA
 require_nonempty WEB_VITE_SSO_URL "${WEB_VITE_SSO_URL:-}"
 require_nonempty WEB_VITE_WEB_URL "${WEB_VITE_WEB_URL:-}"
 require_nonempty OPENFGA_API_URL "${OPENFGA_API_URL:-}"
+reject_placeholder_if_set OPENFGA_STORE_ID "${OPENFGA_STORE_ID:-}" "REPLACE_WITH_OPENFGA_STORE_ID"
+reject_placeholder_if_set OPENFGA_MODEL_ID "${OPENFGA_MODEL_ID:-}" "REPLACE_WITH_OPENFGA_MODEL_ID"
 require_nonempty OBJECT_STORAGE_ENDPOINT "${OBJECT_STORAGE_ENDPOINT:-}"
 require_nonempty OBJECT_STORAGE_BUCKET "${OBJECT_STORAGE_BUCKET:-}"
 require_nonempty MINIO_ROOT_USER "${MINIO_ROOT_USER:-}"
@@ -241,6 +252,7 @@ reject_placeholder SMS_APP_ID "${SMS_APP_ID:-}" "REPLACE_WITH_SMS_APP_ID"
 reject_placeholder SMS_SIGN_NAME "${SMS_SIGN_NAME:-}" "REPLACE_WITH_SMS_SIGN_NAME"
 reject_placeholder SMS_TEMPLATE_ID "${SMS_TEMPLATE_ID:-}" "REPLACE_WITH_SMS_TEMPLATE_ID"
 reject_placeholder SMS_INTERNAL_KEY "${SMS_INTERNAL_KEY:-}" "REPLACE_WITH_SMS_INTERNAL_KEY"
+reject_placeholder BOT_SERVICE_TOKEN "${BOT_SERVICE_TOKEN:-}" "REPLACE_WITH_BOT_SERVICE_TOKEN_BOOTSTRAP"
 reject_placeholder WEB_PUBLIC_URL "${WEB_PUBLIC_URL:-}" "REPLACE_WITH_WEB_PUBLIC_URL"
 reject_placeholder ADMIN_PUBLIC_URL "${ADMIN_PUBLIC_URL:-}" "REPLACE_WITH_ADMIN_PUBLIC_URL"
 reject_placeholder ADMISSION_PUBLIC_BASE_URL "${ADMISSION_PUBLIC_BASE_URL:-}" "REPLACE_WITH_ADMISSION_PUBLIC_BASE_URL"

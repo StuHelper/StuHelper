@@ -114,6 +114,19 @@ require_casdoor_bootstrap_config() {
   done
 }
 
+reject_placeholder_if_set() {
+  local key="$1"
+  local value="${2:-}"
+  shift 2 || true
+  [[ -n "${value}" ]] || return 0
+  local placeholder
+  for placeholder in "$@"; do
+    if [[ "${value}" == "${placeholder}" ]]; then
+      die "${key} is using placeholder/default value (${placeholder}); set a real value first"
+    fi
+  done
+}
+
 casdoor_internal_endpoint() {
   local address="${CASDOOR_INTERNAL_ADDRESS:-}"
   [[ -n "${address}" ]] || return 1
@@ -276,6 +289,8 @@ else
   warn "Casdoor bootstrap skipped because CASDOOR_BOOTSTRAP_ENABLED is not true"
 fi
 
+reject_placeholder_if_set OPENFGA_STORE_ID "${OPENFGA_STORE_ID:-}" "REPLACE_WITH_OPENFGA_STORE_ID"
+reject_placeholder_if_set OPENFGA_MODEL_ID "${OPENFGA_MODEL_ID:-}" "REPLACE_WITH_OPENFGA_MODEL_ID"
 log "bootstrapping OpenFGA store and model"
 if command -v go >/dev/null 2>&1; then
   FGA_OUTPUT="$(

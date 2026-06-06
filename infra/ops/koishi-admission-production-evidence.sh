@@ -345,9 +345,11 @@ check_container_running() {
 check_container_env() {
   local output
   if output="$(docker exec "${container_name}" node -e '
+const serviceToken = process.env.STUHELPER_PLATFORM_SERVICE_TOKEN || ""
 const payload = {
   baseURL: process.env.STUHELPER_PLATFORM_BASE_URL || "",
-  hasServiceToken: Boolean(process.env.STUHELPER_PLATFORM_SERVICE_TOKEN),
+  hasServiceToken: Boolean(serviceToken),
+  serviceTokenPlaceholder: /^REPLACE_WITH_/.test(serviceToken),
   hasFreshmanHosts: Boolean(process.env.STUHELPER_FRESHMAN_MATERIAL_HOSTS),
   freshmanHosts: process.env.STUHELPER_FRESHMAN_MATERIAL_HOSTS || "",
 }
@@ -360,6 +362,8 @@ payload = json.loads(sys.argv[1])
 if payload.get("baseURL") != "https://stuhelper.com":
     raise SystemExit(1)
 if not payload.get("hasServiceToken"):
+    raise SystemExit(1)
+if payload.get("serviceTokenPlaceholder"):
     raise SystemExit(1)
 hosts = {item.strip() for item in payload.get("freshmanHosts", "").split(",") if item.strip()}
 if not {"stuhelper.com", "join.stuhelper.com"}.issubset(hosts):
@@ -378,9 +382,15 @@ check_bot_api_probe() {
 const botSelfID = process.argv[2] || '2118785781'
 const base = (process.env.STUHELPER_PLATFORM_BASE_URL || '').replace(/\/+$/, '')
 const token = process.env.STUHELPER_PLATFORM_SERVICE_TOKEN || ''
+const tokenPlaceholder = /^REPLACE_WITH_/.test(token)
 
-if (!base || !token) {
-  console.log(JSON.stringify({ error: 'missing_env', hasBase: Boolean(base), hasToken: Boolean(token) }))
+if (!base || !token || tokenPlaceholder) {
+  console.log(JSON.stringify({
+    error: 'missing_or_placeholder_env',
+    hasBase: Boolean(base),
+    hasToken: Boolean(token),
+    tokenPlaceholder,
+  }))
   process.exit(1)
 }
 

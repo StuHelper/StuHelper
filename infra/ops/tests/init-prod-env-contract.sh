@@ -93,6 +93,10 @@ fresh_bootstrap_env="${fresh_dir}/.env.casdoor-bootstrap.local"
 
 assert_file_contains "${fresh_dir}/stdout.log" 'from \.env\.prod\.example'
 assert_file_contains "${fresh_env}" '^# StuHelper 生产环境配置样板$'
+assert_file_contains "${REPO_ROOT}/.env.prod.example" '^# 生成期占位：不是生产凭据。init-prod-env 只复制该占位符；prod-deploy 前必须从真实 bot service credential 或 secret backend 注入。$'
+assert_file_contains "${REPO_ROOT}/.env.prod.example" '^BOT_SERVICE_TOKEN=REPLACE_WITH_BOT_SERVICE_TOKEN_BOOTSTRAP$'
+assert_file_not_contains "${REPO_ROOT}/.env.prod.example" 'init-prod-env/bootstrap 会创建真实 bot service credential'
+assert_file_not_contains "${REPO_ROOT}/docs/guides/production-go-live.md" 'bootstrap 出来的 bot service credential'
 assert_env_value "${fresh_env}" "CORS_ORIGINS" "https://stuhelper.com,https://join.stuhelper.com,https://sso.stuhelper.com"
 assert_env_value "${fresh_env}" "FRONTEND_METRICS_ALLOWED_ORIGINS" "https://stuhelper.com"
 assert_env_value "${fresh_env}" "ADMISSION_PUBLIC_BASE_URL" "https://join.stuhelper.com"
@@ -113,8 +117,10 @@ assert_env_value "${fresh_env}" "PUBLIC_WEB_AUTH_BROWSER_SMOKE_HEADLESS" "true"
 assert_env_value "${fresh_env}" "PUBLIC_WEB_AUTH_BROWSER_SMOKE_TIMEOUT_MS" "30000"
 assert_env_value "${fresh_env}" "PUBLIC_WEB_AUTH_BROWSER_EXECUTABLE_PATH" ""
 assert_env_value "${fresh_env}" "STUHELPER_FRESHMAN_MATERIAL_HOSTS" "stuhelper.com,join.stuhelper.com"
+assert_env_value "${fresh_env}" "BOT_SERVICE_TOKEN" "REPLACE_WITH_BOT_SERVICE_TOKEN_BOOTSTRAP"
 assert_env_value "${fresh_env}" "TOKEN_COOKIE_DOMAIN" ".stuhelper.com"
 assert_env_value "${fresh_env}" "CASDOOR_ISSUER" "https://sso.stuhelper.com"
+assert_env_value "${fresh_env}" "CASDOOR_INTERNAL_ADDRESS" ""
 assert_env_value "${fresh_env}" "CASDOOR_PUBLIC_AUTH_BASE_URL" "https://sso.stuhelper.com"
 assert_env_value "${fresh_env}" "CASDOOR_REDIRECT_URI" "https://stuhelper.com/api/v1/auth/callback"
 assert_env_value "${fresh_env}" "CASDOOR_CLIENT_ID" "REPLACE_WITH_CASDOOR_CLIENT_ID"
@@ -241,6 +247,10 @@ assert_env_value "${fresh_env}" "WEB_EXTERNAL_PORT" "18000"
 assert_env_value "${fresh_env}" "ADMIN_EXTERNAL_PORT" "18001"
 assert_env_value "${fresh_env}" "OPENFGA_API_URL" "http://openfga:8080"
 assert_env_value "${fresh_env}" "OPENFGA_RESOURCE_SMOKE_MODE" "container"
+assert_env_value "${fresh_env}" "OPENFGA_STORE_ID" ""
+assert_env_value "${fresh_env}" "OPENFGA_MODEL_ID" ""
+assert_file_not_contains "${fresh_env}" '^OPENFGA_STORE_ID=REPLACE_WITH_OPENFGA_STORE_ID$'
+assert_file_not_contains "${fresh_env}" '^OPENFGA_MODEL_ID=REPLACE_WITH_OPENFGA_MODEL_ID$'
 assert_env_value "${fresh_env}" "OBJECT_STORAGE_ENDPOINT" "REPLACE_WITH_OBJECT_STORAGE_ENDPOINT"
 assert_env_value "${fresh_env}" "OBJECT_STORAGE_USE_SSL" "true"
 assert_env_value "${fresh_env}" "OBJECT_STORAGE_FORCE_PATH_STYLE" "false"
@@ -319,6 +329,8 @@ assert_env_value "${legacy_env}" "ADMISSION_READINESS_REQUIRED_GUILD_IDS" ""
 assert_env_value "${legacy_env}" "ADMISSION_READINESS_REQUIRED_SCHOOL_CODES" ""
 assert_env_value "${legacy_env}" "ADMISSION_READINESS_REQUIRED_SCHOOL_IDS" ""
 assert_env_value "${legacy_env}" "STUHELPER_FRESHMAN_MATERIAL_HOSTS" "stuhelper.com,join.stuhelper.com"
+assert_env_value "${legacy_env}" "BOT_SERVICE_TOKEN" ""
+assert_file_not_contains "${legacy_env}" '^BOT_SERVICE_TOKEN=REPLACE_WITH_BOT_SERVICE_TOKEN_BOOTSTRAP$'
 assert_env_value "${legacy_env}" "TOKEN_COOKIE_DOMAIN" ".stuhelper.com"
 assert_env_value "${legacy_env}" "CASDOOR_ISSUER" "https://sso.stuhelper.com"
 assert_env_value "${legacy_env}" "CASDOOR_INTERNAL_ADDRESS" ""
@@ -407,6 +419,10 @@ assert_env_value "${legacy_env}" "WEB_EXTERNAL_PORT" "18000"
 assert_env_value "${legacy_env}" "ADMIN_EXTERNAL_PORT" "18001"
 assert_env_value "${legacy_env}" "OPENFGA_API_URL" "http://openfga:8080"
 assert_env_value "${legacy_env}" "OPENFGA_RESOURCE_SMOKE_MODE" "container"
+assert_env_value "${legacy_env}" "OPENFGA_STORE_ID" ""
+assert_env_value "${legacy_env}" "OPENFGA_MODEL_ID" ""
+assert_file_not_contains "${legacy_env}" '^OPENFGA_STORE_ID=REPLACE_WITH_OPENFGA_STORE_ID$'
+assert_file_not_contains "${legacy_env}" '^OPENFGA_MODEL_ID=REPLACE_WITH_OPENFGA_MODEL_ID$'
 assert_env_value "${legacy_env}" "OBJECT_STORAGE_ENDPOINT" "REPLACE_WITH_OBJECT_STORAGE_ENDPOINT"
 assert_env_value "${legacy_env}" "OBJECT_STORAGE_USE_SSL" "true"
 assert_env_value "${legacy_env}" "OBJECT_STORAGE_FORCE_PATH_STYLE" "false"

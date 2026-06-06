@@ -53,11 +53,18 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'CALLER_OPENFGA_BOOTSTRAP_API_URL'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'CALLER_OPENFGA_BOOTSTRAP_DATABASE_URL'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'OPENFGA_BOOTSTRAP_API_URL:-\$\{OPENFGA_API_URL:-http://localhost:8081\}'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'DATABASE_URL="\$\{OPENFGA_BOOTSTRAP_DATABASE_URL:-\$\{DATABASE_URL:-\}\}"'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'reject_placeholder_if_set OPENFGA_STORE_ID "\$\{OPENFGA_STORE_ID:-\}" "REPLACE_WITH_OPENFGA_STORE_ID"'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'reject_placeholder_if_set OPENFGA_MODEL_ID "\$\{OPENFGA_MODEL_ID:-\}" "REPLACE_WITH_OPENFGA_MODEL_ID"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'set -a'
 casdoor_required_line="$(line_number '^if casdoor_bootstrap_required; then$')"
 casdoor_wait_line="$(line_number '^[[:space:]]+wait_for_casdoor$')"
+openfga_store_placeholder_line="$(line_number 'reject_placeholder_if_set OPENFGA_STORE_ID')"
+openfga_bootstrap_line="$(line_number '^log "bootstrapping OpenFGA store and model"$')"
 if (( casdoor_wait_line <= casdoor_required_line )); then
   fail "wait_for_casdoor must only run inside the Casdoor bootstrap-required branch"
+fi
+if (( openfga_store_placeholder_line >= openfga_bootstrap_line )); then
+  fail "OpenFGA placeholder IDs must be rejected before fga-setup runs"
 fi
 retired_idp_prefix='ZITA''DEL_'
 assert_not_contains "${BOOTSTRAP_SCRIPT}" "${retired_idp_prefix}"

@@ -78,6 +78,10 @@ open_platform_consent_local_reject_line="$(line_number 'reject_local_value OPEN_
 open_platform_account_local_reject_line="$(line_number 'reject_local_value OPEN_PLATFORM_ACCOUNT_BASE_URL')"
 token_probe_username_reject_line="$(line_number 'reject_placeholder CASDOOR_TOKEN_PROBE_USERNAME')"
 sms_secret_require_line="$(line_number 'require_nonempty SMS_SECRET_ID')"
+bot_service_token_require_line="$(line_number 'require_nonempty BOT_SERVICE_TOKEN')"
+openfga_store_placeholder_reject_line="$(line_number 'reject_placeholder_if_set OPENFGA_STORE_ID')"
+openfga_model_placeholder_reject_line="$(line_number 'reject_placeholder_if_set OPENFGA_MODEL_ID')"
+bot_service_token_reject_line="$(line_number 'reject_placeholder BOT_SERVICE_TOKEN')"
 admission_public_base_exact_line="$(line_number 'ADMISSION_PUBLIC_BASE_URL must be exactly https://join.stuhelper.com for production deploy')"
 casdoor_sms_enabled_line="$(line_number 'CASDOOR_SMS_PROVIDER_ENABLED must be true for production deploy')"
 casdoor_sms_type_line="$(line_number 'CASDOOR_SMS_PROVIDER_TYPE must be CustomHTTP for production deploy')"
@@ -199,6 +203,18 @@ if (( token_probe_smoke_secret_reject_line <= token_probe_smoke_secret_require_l
 fi
 if (( sms_secret_require_line <= token_probe_browser_require_line )); then
   fail "SMS runtime credentials must be validated after Open Platform token probe configuration"
+fi
+if (( bot_service_token_require_line <= sms_secret_require_line )); then
+  fail "BOT_SERVICE_TOKEN validation must be grouped after SMS runtime credentials"
+fi
+if (( openfga_store_placeholder_reject_line <= bot_service_token_require_line )); then
+  fail "OpenFGA store ID placeholder rejection must run after required runtime credentials"
+fi
+if (( openfga_model_placeholder_reject_line <= openfga_store_placeholder_reject_line )); then
+  fail "OpenFGA model ID placeholder rejection must run after store ID placeholder rejection"
+fi
+if (( bot_service_token_reject_line <= bot_service_token_require_line )); then
+  fail "BOT_SERVICE_TOKEN placeholder rejection must run after non-empty validation"
 fi
 if (( casdoor_sms_enabled_line <= sms_secret_require_line )); then
   fail "Casdoor SMS provider production gate must run after SMS credentials are validated"

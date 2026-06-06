@@ -28,13 +28,20 @@ export GENERATED_ENV_FILE="$(parity_default_path "${GENERATED_ENV_FILE:-}" "${RE
 export GENERATED_SECRET_ENV_FILE="$(parity_default_path "${GENERATED_SECRET_ENV_FILE:-}" "${REPO_ROOT}/.env.generated.secrets" "${PARITY_DIR}/.env.prod.generated.secrets")"
 export DEPLOY_STATE_DIR="$(parity_default_path "${DEPLOY_STATE_DIR:-}" "${REPO_ROOT}/.deploy" "${PARITY_DIR}/deploy-state")"
 
+preserved_app_env="${APP_ENV-__STUHELPER_UNSET__}"
 load_env
+if [[ "${preserved_app_env}" != "__STUHELPER_UNSET__" ]]; then
+  export APP_ENV="${preserved_app_env}"
+elif [[ "${APP_ENV:-}" == "production" && "${ENV_FILE}" == "${PARITY_DIR}/.env.prod.shared" ]]; then
+  export APP_ENV=prod-parity
+else
+  export APP_ENV="${APP_ENV:-prod-parity}"
+fi
 
 export API_BASE_URL="http://127.0.0.1:${BACKEND_EXTERNAL_PORT:-28080}"
 export WEB_BASE_URL="${WEB_PUBLIC_URL:-https://stuhelper.com}"
 export ADMIN_BASE_URL="${WEB_PUBLIC_URL:-https://stuhelper.com}"
 export CHECK_ADMIN=true
-export APP_ENV=production
 export SMOKE_CHECK_CURL_INSECURE=true
 
 "${SCRIPT_DIR}/prod-parity-datastore-smoke.sh"
