@@ -34,6 +34,7 @@ var (
 		response.MatchError(ErrSchoolDisabled, 400, "school verification is not enabled", errs.ErrProfileSchoolDisabled),
 		response.MatchError(ErrConsentRequired, 400, "consent is required for verification", errs.ErrProfileConsentRequired),
 		response.MatchError(ErrStudentIDRequired, 400, "student ID is required for this verification method"),
+		response.MatchError(ErrStudentIDInvalid, 400, "student ID is invalid"),
 		response.MatchError(ErrStudentNameRequired, 400, "student name is required for this verification method"),
 		response.MatchError(ErrStudentNameMismatch, 400, "student name does not match academic database"),
 		response.MatchError(ErrStudentEmailDomainNotAllowed, 400, "student school email is not allowed"),

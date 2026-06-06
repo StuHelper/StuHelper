@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -184,6 +185,44 @@ func TestVerifyStudent_ManualWithoutStudentIDDoesNotPersistBlankIdentifiers(t *t
 	assert.Nil(t, captured.StudentIDs)
 	assert.Nil(t, captured.ActiveStudentID)
 	assert.Nil(t, captured.ManualFormData)
+}
+
+func TestVerifyStudent_RejectsStudentIDTooLong(t *testing.T) {
+	repo := &mockRepo{
+		onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
+			return &SchoolConfig{
+				SchoolID:           4111010001,
+				SchoolName:         "人工审核学校",
+				VerificationMethod: VerifyMethodManual,
+				ManualFormFields: json.RawMessage(`[
+					{"key":"studentID","label":"学号","type":"text","required":false}
+				]`),
+				Enabled: true,
+			}, nil
+		},
+		onCreateProfile: func(context.Context, *Profile) error {
+			t.Fatal("invalid student ID must be rejected before profile persistence")
+			return nil
+		},
+	}
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
+		SchoolID:  4111010001,
+		StudentID: strings.Repeat("1", maxStudentIDRunes+1),
+		Consent:   true,
+	})
+	assert.ErrorIs(t, err, ErrStudentIDInvalid)
+
+	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
+		SchoolID: 4111010001,
+		ManualFormData: map[string]any{
+			"studentID": strings.Repeat("2", maxStudentIDRunes+1),
+		},
+		Consent: true,
+	})
+	assert.ErrorIs(t, err, ErrStudentIDInvalid)
 }
 
 func TestVerifyStudent_LDAPRequiresStudentID(t *testing.T) {

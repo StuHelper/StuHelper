@@ -27,6 +27,7 @@ var (
 	ErrPhotoRequired                            = errors.New("photo upload required for non-mainland documents")
 	ErrLDAPFailed                               = errors.New("LDAP verification failed")
 	ErrStudentIDRequired                        = errors.New("student ID is required for LDAP verification")
+	ErrStudentIDInvalid                         = errors.New("student ID is invalid")
 	ErrPasswordRequired                         = errors.New("password is required for LDAP verification")
 	ErrPhoneAlreadyBound                        = errors.New("phone already bound to another user")
 	ErrStudentNotFound                          = errors.New("student record not found in academic database")

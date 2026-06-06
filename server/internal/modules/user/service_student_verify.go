@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
@@ -16,6 +17,8 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
 )
+
+const maxStudentIDRunes = 50
 
 // VerifyStudent 学生认证（LDAP 方式）
 func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStudentRequest) (*Profile, error) {
@@ -36,6 +39,9 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 	}
 
 	trimmedStudentID := strings.TrimSpace(req.StudentID)
+	if err := validateOptionalStudentID(trimmedStudentID); err != nil {
+		return nil, err
+	}
 	manualFormData := sanitizeManualFormData(req.ManualFormData)
 	manualFieldDescriptors, err := decodeManualFieldDescriptors(school.ManualFormFields)
 	if err != nil {
@@ -78,6 +84,9 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 		}
 		if trimmedStudentID == "" {
 			trimmedStudentID = getManualFormValueAsString(manualFormData, "studentID")
+			if err := validateOptionalStudentID(trimmedStudentID); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -260,6 +269,16 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 	}
 
 	return result, nil
+}
+
+func validateOptionalStudentID(studentID string) error {
+	if studentID == "" {
+		return nil
+	}
+	if utf8.RuneCountInString(studentID) > maxStudentIDRunes {
+		return ErrStudentIDInvalid
+	}
+	return nil
 }
 
 func (s *Service) syncVerifiedPhoneProjection(ctx context.Context, userID int64, phone string) error {
