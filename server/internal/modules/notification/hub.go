@@ -146,11 +146,14 @@ func (h *Hub) Broadcast(userID int64, event SSEEvent) {
 }
 
 // StartRedisSubscriber 启动 Redis Pub/Sub 订阅。
-// 调用方可传入 start 以统一托管 goroutine 生命周期。
+// 调用方必须传入 start，以统一托管 goroutine 生命周期。
 func (h *Hub) StartRedisSubscriber(ctx context.Context, start func(string, func(context.Context))) {
 	if h == nil || h.rdb == nil {
 		logger.L().Warn("notification redis subscriber not started: redis client is not configured")
 		return
+	}
+	if start == nil {
+		panic("notification.Hub.StartRedisSubscriber: starter is required")
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -194,10 +197,6 @@ func (h *Hub) StartRedisSubscriber(ctx context.Context, start func(string, func(
 		}
 	}
 
-	if start == nil {
-		go run(ctx)
-		return
-	}
 	start("notification redis subscriber", run)
 }
 

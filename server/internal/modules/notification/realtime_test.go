@@ -95,6 +95,16 @@ func TestHubStartRedisSubscriberSkipsMissingRedis(t *testing.T) {
 	assert.False(t, called)
 }
 
+func TestHubStartRedisSubscriberRequiresStarter(t *testing.T) {
+	client := redis.NewClient(&redis.Options{Addr: "127.0.0.1:0"})
+	t.Cleanup(func() { _ = client.Close() })
+	hub := NewHub(client)
+
+	assert.PanicsWithValue(t, "notification.Hub.StartRedisSubscriber: starter is required", func() {
+		hub.StartRedisSubscriber(context.Background(), nil)
+	})
+}
+
 func nilContextForNotificationTest() context.Context {
 	return nil
 }
