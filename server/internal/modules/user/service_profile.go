@@ -9,6 +9,9 @@ import (
 // GetUserSurface 聚合当前用户的身份认证、学生认证、手机绑定和能力信息。
 // displayName 和 avatarURL 由 auth 中间件注入，capabilities 由角色展开得到。
 func (s *Service) GetUserSurface(ctx context.Context, userID int64, displayName, avatarURL string, capabilities []string) (*UserSurface, error) {
+	if err := validateUserID(userID); err != nil {
+		return nil, err
+	}
 	identity, err := s.repo.GetIdentityStatusByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("GetUserSurface identity: %w", err)
@@ -65,6 +68,9 @@ func deriveVerificationStatus(profile *Profile) string {
 
 // GetProfile 获取学生认证档案
 func (s *Service) GetProfile(ctx context.Context, userID int64) (*Profile, error) {
+	if err := validateUserID(userID); err != nil {
+		return nil, err
+	}
 	profile, err := s.repo.GetProfileByUserID(ctx, userID)
 	if err != nil || profile == nil {
 		return profile, err

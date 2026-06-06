@@ -9,9 +9,11 @@ import (
 
 var (
 	qqBindingErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrUserIDInvalid, 400, "user id is invalid", errs.ErrInvalidParam),
 		response.MatchError(ErrQQBindingAlreadyExists, 409, "qq binding already exists", errs.ErrConflict),
 	}
 	qqBindingCodeErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrUserIDInvalid, 400, "user id is invalid", errs.ErrInvalidParam),
 		response.MatchError(ErrQQBindingAlreadyExists, 409, "qq binding already exists", errs.ErrConflict),
 	}
 	qqBindingConsumeErrorMappings = []response.ErrorMapping{

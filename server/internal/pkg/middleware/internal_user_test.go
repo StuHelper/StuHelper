@@ -79,6 +79,26 @@ func TestResolveRequiredInternalUserID(t *testing.T) {
 		assert.Equal(t, string(errs.ErrUserNotFound), body.Error.Code)
 	})
 
+	t.Run("invalid resolved user id returns forbidden", func(t *testing.T) {
+		c, w := newContext()
+		c.Set(CtxKeyUserID, "external-1")
+
+		userID, ok := ResolveRequiredInternalUserID(c, func(context.Context, string) (int64, error) {
+			return 0, nil
+		}, "failed to resolve user")
+
+		assert.False(t, ok)
+		assert.Zero(t, userID)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+
+		var body struct {
+			Error response.APIError `json:"error"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		assert.Equal(t, "user has not completed provisioning", body.Error.Message)
+		assert.Equal(t, string(errs.ErrUserNotFound), body.Error.Code)
+	})
+
 	t.Run("success returns internal user id", func(t *testing.T) {
 		c, w := newContext()
 		c.Set(CtxKeyUserID, "external-1")

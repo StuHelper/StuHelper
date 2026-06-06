@@ -176,6 +176,33 @@ func TestComputePersonUID_Consistency(t *testing.T) {
 // SubmitIdentity — 加密回归测试（调用真实 Service 方法）
 // ---------------------------------------------------------------------------
 
+func TestIdentityService_RejectsInvalidUserIDBeforeRepositoryAccess(t *testing.T) {
+	enc := &fakeEncryptor{}
+	repo := &mockRepo{
+		onGetIdentityStatusByUserID: func(context.Context, int64) (*IdentityStatus, error) {
+			t.Fatal("invalid user ID must be rejected before repository access")
+			return nil, nil
+		},
+		onCreateIdentity: func(context.Context, *IdentityRecord) error {
+			t.Fatal("invalid user ID must not create identity records")
+			return nil
+		},
+	}
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), enc)
+	require.NoError(t, err)
+
+	_, err = svc.GetIdentity(context.Background(), 0)
+	assert.ErrorIs(t, err, ErrUserIDInvalid)
+
+	_, err = svc.SubmitIdentity(context.Background(), -1, SubmitIdentityRequest{
+		DocType:   DocTypeMainlandID,
+		DocNumber: "11010519491231002X",
+		RealName:  "张三",
+	})
+	assert.ErrorIs(t, err, ErrUserIDInvalid)
+	assert.False(t, enc.called)
+}
+
 func TestSubmitIdentity_EncryptAndWriteCiphertext(t *testing.T) {
 	enc := &fakeEncryptor{}
 	var capturedIdentity *IdentityRecord

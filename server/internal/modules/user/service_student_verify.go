@@ -22,6 +22,9 @@ const maxStudentIDRunes = 50
 
 // VerifyStudent 学生认证（LDAP 方式）
 func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStudentRequest) (*Profile, error) {
+	if err := validateUserID(userID); err != nil {
+		return nil, err
+	}
 	existing, err := s.repo.GetProfileByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("VerifyStudent check existing: %w", err)

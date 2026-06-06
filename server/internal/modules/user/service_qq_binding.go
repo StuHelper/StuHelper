@@ -14,6 +14,9 @@ const qqBindingCodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 // GetQQBinding 获取当前用户的 QQ 绑定状态。
 func (s *Service) GetQQBinding(ctx context.Context, userID int64) (*QQBinding, error) {
+	if err := validateUserID(userID); err != nil {
+		return nil, err
+	}
 	binding, err := s.repo.GetQQBindingByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("GetQQBinding: %w", err)
@@ -23,6 +26,9 @@ func (s *Service) GetQQBinding(ctx context.Context, userID int64) (*QQBinding, e
 
 // GenerateQQBindingCode 生成用户私聊机器人时使用的一次性绑定码。
 func (s *Service) GenerateQQBindingCode(ctx context.Context, userID int64, ttl time.Duration) (*GeneratedQQBindingCode, error) {
+	if err := validateUserID(userID); err != nil {
+		return nil, err
+	}
 	if err := s.ensureQQBindingAbsent(ctx, userID); err != nil {
 		return nil, err
 	}
@@ -72,6 +78,9 @@ func (s *Service) EnsureQQBindingForUserTx(
 	userID int64,
 	qqID string,
 ) (*QQBinding, error) {
+	if err := validateUserID(userID); err != nil {
+		return nil, err
+	}
 	trimmedQQID := strings.TrimSpace(qqID)
 	if trimmedQQID == "" {
 		return nil, ErrQQIDRequired
@@ -108,6 +117,9 @@ func (s *Service) GetQQVerificationStateByQQID(ctx context.Context, qqID string)
 }
 
 func (s *Service) ensureQQBindingAbsent(ctx context.Context, userID int64) error {
+	if err := validateUserID(userID); err != nil {
+		return err
+	}
 	binding, err := s.repo.GetQQBindingByUserID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("ensureQQBindingAbsent: %w", err)
@@ -201,6 +213,9 @@ func (s *Service) ensureQQBindingForUserTx(
 	userID int64,
 	qqID string,
 ) (*QQBinding, error) {
+	if err := validateUserID(userID); err != nil {
+		return nil, err
+	}
 	userBinding, err := s.repo.GetQQBindingByUserIDTx(ctx, tx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("ensureQQBindingForUserTx user binding: %w", err)

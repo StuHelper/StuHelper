@@ -63,6 +63,17 @@ func TestMFAContextMiddlewareRejectsUnprovisionedUser(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, w.Code)
 }
 
+func TestMFAContextMiddlewareRejectsInvalidResolvedUserID(t *testing.T) {
+	repo := &fakeMFAContextRepo{userID: 0}
+
+	w := exerciseMFAContextMiddleware(t, repo, "casdoor-admin", time.Time{}, func(c *gin.Context) {
+		t.Fatal("handler must not run")
+	})
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+	assert.Zero(t, repo.enrollmentCalls)
+}
+
 func TestMFAContextMiddlewareReturns503OnEnrollmentError(t *testing.T) {
 	repo := &fakeMFAContextRepo{
 		userID:        42,
@@ -118,6 +129,7 @@ type fakeMFAContextRepo struct {
 	enrollmentErr        error
 	seenSubject          string
 	seenEnrollmentUserID int64
+	enrollmentCalls      int
 }
 
 func (f *fakeMFAContextRepo) GetInternalUserID(_ context.Context, casdoorSubject string) (int64, error) {
@@ -129,6 +141,7 @@ func (f *fakeMFAContextRepo) GetInternalUserID(_ context.Context, casdoorSubject
 }
 
 func (f *fakeMFAContextRepo) GetMFAEnrollment(_ context.Context, userID int64) (*MFAEnrollment, error) {
+	f.enrollmentCalls++
 	f.seenEnrollmentUserID = userID
 	if f.enrollmentErr != nil {
 		return nil, f.enrollmentErr

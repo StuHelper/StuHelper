@@ -66,6 +66,26 @@ func TestUploadIdentityPhoto_UsesConfiguredStore(t *testing.T) {
 	assert.True(t, strings.HasSuffix(key, "-front.png"))
 }
 
+func TestUploadIdentityPhoto_RejectsInvalidUserIDBeforeUpload(t *testing.T) {
+	store := &fakeIdentityPhotoStore{}
+	svc, err := NewService(
+		&mockRepo{},
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithIdentityPhotoStore(store),
+	)
+	require.NoError(t, err)
+
+	_, err = svc.UploadIdentityPhoto(context.Background(), 0, UploadIdentityPhotoRequest{
+		Slot:        IdentityPhotoSlotFront,
+		Filename:    "identity.png",
+		ContentType: "image/png",
+		DataBase64:  base64.StdEncoding.EncodeToString(validPNGBytes(t)),
+	})
+	assert.ErrorIs(t, err, ErrUserIDInvalid)
+	assert.Empty(t, store.uploadedKey)
+}
+
 func TestUploadIdentityPhoto_RequiresMatchingContentType(t *testing.T) {
 	store := &fakeIdentityPhotoStore{}
 	svc, err := NewService(

@@ -42,6 +42,15 @@ func loadMFAContext(c *gin.Context, repo MFAContextRepository) bool {
 	if err != nil {
 		return respondMFAContextUserError(c, casdoorSubject, err)
 	}
+	if userID <= 0 {
+		logger.FromGin(c).Warn("resolved invalid MFA internal user ID",
+			zap.String("casdoor_subject", casdoorSubject),
+			zap.Int64("user_id", userID),
+		)
+		response.Forbidden(c, "user has not completed provisioning", errs.ErrUserNotFound)
+		c.Abort()
+		return false
+	}
 	enrollment, err := repo.GetMFAEnrollment(c.Request.Context(), userID)
 	if err != nil {
 		logger.FromGin(c).Error("failed to load MFA enrollment",

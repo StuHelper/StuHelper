@@ -19,6 +19,7 @@ import (
 var (
 	ErrIdentityAlreadyExists                    = errors.New("identity already exists")
 	ErrIdentityAlreadyVerified                  = errors.New("identity already verified")
+	ErrUserIDInvalid                            = errors.New("user id is invalid")
 	ErrProfileAlreadyVerified                   = errors.New("profile already verified")
 	ErrProfilePendingReview                     = errors.New("profile is pending review, please wait for admin approval")
 	ErrSchoolNotFound                           = errors.New("school not found")
@@ -69,6 +70,13 @@ var (
 	ErrStudentNameRequired                      = errors.New("student name is required")
 	ErrStudentNameMismatch                      = errors.New("student name does not match academic database")
 )
+
+func validateUserID(userID int64) error {
+	if userID <= 0 {
+		return ErrUserIDInvalid
+	}
+	return nil
+}
 
 // DocType 证件类型常量
 const (

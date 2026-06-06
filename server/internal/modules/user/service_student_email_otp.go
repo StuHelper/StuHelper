@@ -90,6 +90,9 @@ func (s *Service) MatchStudentEmailAcademicStudent(
 	ctx context.Context,
 	input StudentEmailAcademicMatchInput,
 ) (*StudentEmailAcademicMatchResponse, error) {
+	if err := validateUserID(input.UserID); err != nil {
+		return nil, err
+	}
 	existing, err := s.repo.GetProfileByUserID(ctx, input.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("MatchStudentEmailAcademicStudent check existing: %w", err)
@@ -134,6 +137,9 @@ func (s *Service) MatchStudentEmailAcademicStudent(
 }
 
 func (s *Service) RequestStudentEmailOTP(ctx context.Context, input StudentEmailOTPInput) (*StudentEmailOTPResponse, error) {
+	if err := validateUserID(input.UserID); err != nil {
+		return nil, err
+	}
 	if err := s.requireStudentEmailOTPDependencies(); err != nil {
 		return nil, err
 	}
@@ -170,6 +176,9 @@ func (s *Service) RequestStudentEmailOTP(ctx context.Context, input StudentEmail
 }
 
 func (s *Service) VerifyStudentEmailOTP(ctx context.Context, input StudentEmailOTPVerifyInput) (*Profile, error) {
+	if err := validateUserID(input.UserID); err != nil {
+		return nil, err
+	}
 	if s.redisClient == nil {
 		return nil, ErrStudentEmailRedisUnavailable
 	}

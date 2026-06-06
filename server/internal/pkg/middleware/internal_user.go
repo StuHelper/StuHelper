@@ -42,6 +42,14 @@ func ResolveRequiredInternalUserID(
 		response.InternalError(c, failureMessage)
 		return 0, false
 	}
+	if userID <= 0 {
+		logger.FromGin(c).Warn("resolved invalid internal user ID",
+			zap.String("casdoor_subject", casdoorSubject),
+			zap.Int64("user_id", userID),
+		)
+		response.Forbidden(c, "user has not completed provisioning", errs.ErrUserNotFound)
+		return 0, false
+	}
 
 	return userID, true
 }

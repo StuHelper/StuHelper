@@ -23,11 +23,17 @@ const (
 
 // GetIdentity 获取实名认证状态信息（不含敏感字段）
 func (s *Service) GetIdentity(ctx context.Context, userID int64) (*IdentityStatus, error) {
+	if err := validateUserID(userID); err != nil {
+		return nil, err
+	}
 	return s.repo.GetIdentityStatusByUserID(ctx, userID)
 }
 
 // SubmitIdentity 提交实名认证
 func (s *Service) SubmitIdentity(ctx context.Context, userID int64, req SubmitIdentityRequest) (*IdentityStatus, error) {
+	if err := validateUserID(userID); err != nil {
+		return nil, err
+	}
 	existing, err := s.repo.GetIdentityStatusByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("SubmitIdentity check existing: %w", err)
@@ -115,6 +121,9 @@ func (s *Service) SubmitIdentity(ctx context.Context, userID int64, req SubmitId
 
 // UploadIdentityPhoto 上传实名认证照片到对象存储。
 func (s *Service) UploadIdentityPhoto(ctx context.Context, userID int64, req UploadIdentityPhotoRequest) (string, error) {
+	if err := validateUserID(userID); err != nil {
+		return "", err
+	}
 	if s.photoStore == nil {
 		return "", ErrIdentityPhotoStoreDisabled
 	}

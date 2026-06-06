@@ -11,6 +11,7 @@ import (
 
 var (
 	submitIdentityErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrUserIDInvalid, 400, "user id is invalid", errs.ErrInvalidParam),
 		response.MatchError(ErrIdentityAlreadyVerified, 409, "identity already verified", errs.ErrIdentityAlreadyVerified),
 		response.MatchError(ErrIdentityAlreadyExists, 409, "identity already submitted", errs.ErrIdentityAlreadyExists),
 		response.MatchError(ErrPhotoRequired, 400, "photo upload required for non-mainland documents", errs.ErrIdentityPhotoRequired),
@@ -19,6 +20,7 @@ var (
 		response.MatchError(ErrIdentityRealNameInvalid, 400, "identity real name is invalid"),
 	}
 	uploadIdentityPhotoErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrUserIDInvalid, 400, "user id is invalid", errs.ErrInvalidParam),
 		response.MatchError(ErrIdentityPhotoStoreDisabled, 503, "identity photo upload is not available", errs.ErrServiceUnavailable),
 		response.MatchError(ErrIdentityPhotoTooLarge, 400, "identity photo is too large"),
 		response.MatchError(ErrIdentityPhotoInvalidType, 400, "identity photo content type is invalid"),
@@ -28,6 +30,7 @@ var (
 		response.MatchError(ErrIdentityPhotoStorageTemporaryUnavailable, 503, "identity photo storage is temporarily unavailable", errs.ErrServiceUnavailable),
 	}
 	verifyStudentErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrUserIDInvalid, 400, "user id is invalid", errs.ErrInvalidParam),
 		response.MatchError(ErrProfileAlreadyVerified, 409, "student profile already verified", errs.ErrProfileAlreadyVerified),
 		response.MatchError(ErrProfilePendingReview, 409, "student profile is pending review", errs.ErrProfilePendingReview),
 		response.MatchError(ErrSchoolNotFound, 404, "school not found", errs.ErrProfileSchoolNotFound),
@@ -54,6 +57,7 @@ var (
 		response.MatchError(ErrLDAPFailed, 400, "LDAP verification failed, please check your credentials", errs.ErrProfileLDAPFailed),
 	}
 	bindPhoneErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrUserIDInvalid, 400, "user id is invalid", errs.ErrInvalidParam),
 		response.MatchError(ErrInvalidPhoneFormat, 400, "invalid phone number format"),
 		response.MatchError(ErrPhoneAlreadyBound, 409, "phone number already bound"),
 		response.MatchError(ErrProfileNotFound, 404, "student profile not found", errs.ErrProfileNotFound),
@@ -65,9 +69,11 @@ var (
 		response.MatchError(ErrInvalidAcademicDBTable, 400, "academic table configuration is invalid", errs.ErrProfileAcademicTable),
 	}
 	adminReviewIdentityErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrUserIDInvalid, 400, "user id is invalid", errs.ErrInvalidParam),
 		response.MatchError(ErrIdentityNotFound, 404, "identity not found", errs.ErrIdentityNotFound),
 	}
 	adminReviewStudentVerificationErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrUserIDInvalid, 400, "user id is invalid", errs.ErrInvalidParam),
 		response.MatchError(ErrProfileNotFound, 404, "student profile not found", errs.ErrProfileNotFound),
 	}
 	adminUpdateSchoolConfigErrorMappings = []response.ErrorMapping{

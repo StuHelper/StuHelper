@@ -41,6 +41,9 @@ func (s *Service) buildPhoneProjection(phone string) (string, []byte, string, er
 }
 
 func (s *Service) prepareAvailablePhoneProjection(ctx context.Context, userID int64, phone string) (string, []byte, string, error) {
+	if err := validateUserID(userID); err != nil {
+		return "", nil, "", err
+	}
 	masked, phoneEnc, phoneHash, err := s.buildPhoneProjection(phone)
 	if err != nil {
 		return "", nil, "", err
@@ -76,6 +79,9 @@ func (s *Service) hydrateProfilePhone(profile *Profile) error {
 // Casdoor 是手机号真相源；StuHelper 只在本地 profile 上保存 masked projection，
 // 用于业务页面快速判断是否已绑定。
 func (s *Service) BindPhone(ctx context.Context, userID int64, phone string) error {
+	if err := validateUserID(userID); err != nil {
+		return err
+	}
 	trimmed := strings.TrimSpace(phone)
 	if !phoneutil.IsValidMainlandPhone(trimmed) {
 		return ErrInvalidPhoneFormat

@@ -34,6 +34,9 @@ func (s *Service) ListIdentities(ctx context.Context, status string, page, pageS
 // ReviewIdentity 管理员审核实名认证（通过/驳回）
 // 使用精准更新，不读取也不回写敏感字段
 func (s *Service) ReviewIdentity(ctx context.Context, userID int64, approved bool, reason string) error {
+	if err := validateUserID(userID); err != nil {
+		return err
+	}
 	identityStatus, err := s.repo.GetIdentityStatusByUserID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("ReviewIdentity get: %w", err)
@@ -87,6 +90,9 @@ func (s *Service) ListProfiles(ctx context.Context, status string, schoolID *int
 }
 
 func (s *Service) GetProfileSchoolID(ctx context.Context, userID int64) (*int64, error) {
+	if err := validateUserID(userID); err != nil {
+		return nil, err
+	}
 	profile, err := s.repo.GetProfileByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("GetProfileSchoolID get: %w", err)
@@ -99,6 +105,9 @@ func (s *Service) GetProfileSchoolID(ctx context.Context, userID int64) (*int64,
 
 // ReviewStudentVerification 管理员审核学生认证（通过/驳回）
 func (s *Service) ReviewStudentVerification(ctx context.Context, userID int64, approved bool, reason string) error {
+	if err := validateUserID(userID); err != nil {
+		return err
+	}
 	trimmedReason := strings.TrimSpace(reason)
 
 	profile, err := s.repo.GetProfileByUserID(ctx, userID)
