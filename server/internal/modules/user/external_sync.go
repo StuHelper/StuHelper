@@ -201,7 +201,18 @@ func (s *Service) processExternalSyncBatch(ctx context.Context) error {
 
 func (s *Service) processExternalSyncJob(ctx context.Context, job ExternalSyncJob) error {
 	switch job.JobType {
-	case externalSyncJobTypeVerifiedStudentRole, externalSyncJobTypeFreshmanProvisionalRole:
+	case externalSyncJobTypeVerifiedStudentRole:
+		var payload verifiedStudentRoleSyncPayload
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return fmt.Errorf("decode role sync payload: %w", err)
+		}
+		payload.Role = defaultRoleSyncPayloadRole(job.JobType, payload.Role)
+		approved, err := s.currentProfileApproved(ctx, payload.UserID)
+		if err != nil {
+			return err
+		}
+		return s.syncVerifiedStudentRole(ctx, payload.UserID, payload.Role, approved)
+	case externalSyncJobTypeFreshmanProvisionalRole:
 		var payload verifiedStudentRoleSyncPayload
 		if err := json.Unmarshal(job.Payload, &payload); err != nil {
 			return fmt.Errorf("decode role sync payload: %w", err)
@@ -219,7 +230,7 @@ func (s *Service) processExternalSyncJob(ctx context.Context, job ExternalSyncJo
 		if err := json.Unmarshal(job.Payload, &payload); err != nil {
 			return fmt.Errorf("decode admission verification projection payload: %w", err)
 		}
-		return s.syncAdmissionVerificationProjection(ctx, payload.UserID, payload.Approved)
+		return s.syncAdmissionVerificationProjection(ctx, payload.UserID)
 	default:
 		return fmt.Errorf("unsupported external sync job type: %s", job.JobType)
 	}
@@ -244,6 +255,14 @@ func truncateExternalSyncError(err error) string {
 		return msg
 	}
 	return msg[:1000]
+}
+
+func (s *Service) currentProfileApproved(ctx context.Context, userID int64) (bool, error) {
+	profile, err := s.repo.GetProfileByUserID(ctx, userID)
+	if err != nil {
+		return false, fmt.Errorf("get profile: %w", err)
+	}
+	return profile != nil && profile.VerificationStatus == StatusVerified, nil
 }
 
 func (s *Service) syncVerifiedStudentRole(ctx context.Context, userID int64, role string, approved bool) error {
@@ -313,6 +332,12 @@ func (s *Service) syncUserProfileProjection(ctx context.Context, userID int64) e
 		return fmt.Errorf("write projected tuples: %w", err)
 	}
 
+	staleOwnerTuples := staleFGATuples(existingOwnerTuples, desiredOwnerTuples)
+	if len(staleOwnerTuples) > 0 {
+		if err := s.profileFGA.DeleteTuples(projectionCtx, staleOwnerTuples); err != nil {
+			return fmt.Errorf("delete stale owner tuples: %w", err)
+		}
+	}
 	staleSchoolTuples := staleFGATuples(existingSchoolTuples, desiredSchoolTuples)
 	if len(staleSchoolTuples) > 0 {
 		if err := s.profileFGA.DeleteTuples(projectionCtx, staleSchoolTuples); err != nil {
@@ -326,7 +351,13 @@ func staleFGATuples(existing, desired []fga.Tuple) []fga.Tuple {
 	return fga.MissingTuples(desired, existing)
 }
 
-func (s *Service) syncAdmissionVerificationProjection(ctx context.Context, userID int64, approved bool) error {
+var errAdmissionProjectionProfileNotVerified = errors.New("verified profile is not available for admission projection")
+
+func (s *Service) syncAdmissionVerificationProjection(ctx context.Context, userID int64) error {
+	approved, err := s.currentProfileApproved(ctx, userID)
+	if err != nil {
+		return err
+	}
 	if !approved {
 		return nil
 	}
@@ -334,10 +365,13 @@ func (s *Service) syncAdmissionVerificationProjection(ctx context.Context, userI
 		return errors.New("admission verification projection dependency is not configured")
 	}
 	schoolID, err := s.ensureVerifiedProfileCredential(ctx, userID)
+	if errors.Is(err, errAdmissionProjectionProfileNotVerified) {
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("ensure admission verification credential: %w", err)
 	}
-	if err := s.admissionProjection.ProjectStudentVerification(ctx, userID, schoolID, approved); err != nil {
+	if err := s.admissionProjection.ProjectStudentVerification(ctx, userID, schoolID, true); err != nil {
 		return fmt.Errorf("project admission student verification: %w", err)
 	}
 	return nil
@@ -351,7 +385,7 @@ func (s *Service) ensureVerifiedProfileCredential(ctx context.Context, userID in
 			return fmt.Errorf("get profile tx: %w", err)
 		}
 		if profile == nil || profile.VerificationStatus != StatusVerified {
-			return fmt.Errorf("verified profile %d is not available for admission projection", userID)
+			return errAdmissionProjectionProfileNotVerified
 		}
 		if profile.SchoolID == nil || *profile.SchoolID <= 0 {
 			return fmt.Errorf("verified profile %d has no school ID for admission projection", userID)

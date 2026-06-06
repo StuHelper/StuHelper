@@ -74,7 +74,9 @@ func (f *fakeAdmissionProjectionGateway) ProjectStudentVerification(
 func TestSyncUserProfileProjection_RebuildsOwnerAndCurrentSchool(t *testing.T) {
 	schoolID := int64(4111010006)
 	fgaClient := &fakeProfileFGAClient{
-		readTuples: []fga.Tuple{{User: "school:4111010001", Relation: "school", Object: "user_profile:123"}},
+		readByRel: map[string][]fga.Tuple{
+			"school": {{User: "school:4111010001", Relation: "school", Object: "user_profile:123"}},
+		},
 	}
 	repo := &mockRepo{
 		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
@@ -192,6 +194,37 @@ func TestSyncUserProfileProjectionSkipsExistingOwnerTuple(t *testing.T) {
 	assert.Empty(t, fgaClient.writeCalls[0])
 }
 
+func TestSyncUserProfileProjectionDeletesStaleOwnerTuple(t *testing.T) {
+	fgaClient := &fakeProfileFGAClient{
+		readByRel: map[string][]fga.Tuple{
+			"owner": {
+				{User: "user:456", Relation: "owner", Object: "user_profile:123"},
+				{User: "user:123", Relation: "owner", Object: "user_profile:123"},
+			},
+		},
+	}
+	repo := &mockRepo{
+		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
+			require.Equal(t, int64(123), userID)
+			return &Profile{UserID: userID, VerificationStatus: StatusPending}, nil
+		},
+	}
+	svc, err := NewService(
+		repo,
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithProfileFGAClient(fgaClient),
+	)
+	require.NoError(t, err)
+
+	err = svc.syncUserProfileProjection(context.Background(), 123)
+	require.NoError(t, err)
+	require.Len(t, fgaClient.writeCalls, 1)
+	assert.Empty(t, fgaClient.writeCalls[0])
+	require.Len(t, fgaClient.deleteCalls, 1)
+	assert.Equal(t, []fga.Tuple{{User: "user:456", Relation: "owner", Object: "user_profile:123"}}, fgaClient.deleteCalls[0])
+}
+
 func TestProcessExternalSyncJob_UserProfileProjectionUsesCurrentVerifiedState(t *testing.T) {
 	schoolID := int64(4111010006)
 	fgaClient := &fakeProfileFGAClient{}
@@ -257,11 +290,83 @@ func TestProcessExternalSyncJob_UserProfileProjectionUsesCurrentRejectedState(t 
 	assert.Equal(t, []fga.Tuple{{User: "school:4111010006", Relation: "school", Object: "user_profile:123"}}, fgaClient.deleteCalls[0])
 }
 
+func TestProcessExternalSyncJob_VerifiedStudentRoleUsesCurrentProfileState(t *testing.T) {
+	var synced externalSyncRoleCall
+	repo := &mockRepo{
+		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
+			require.Equal(t, int64(42), userID)
+			return &Profile{UserID: userID, VerificationStatus: StatusRejected}, nil
+		},
+	}
+	svc, err := NewService(
+		repo,
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithRoleSyncFunc(func(_ context.Context, userID int64, role string, approved bool) error {
+			synced = externalSyncRoleCall{UserID: userID, Role: role, Approved: approved}
+			return nil
+		}),
+	)
+	require.NoError(t, err)
+	payload, err := json.Marshal(verifiedStudentRoleSyncPayload{
+		UserID:   42,
+		Role:     verifiedStudentRoleName,
+		Approved: true,
+	})
+	require.NoError(t, err)
+
+	err = svc.processExternalSyncJob(context.Background(), ExternalSyncJob{
+		JobType: externalSyncJobTypeVerifiedStudentRole,
+		Payload: payload,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, externalSyncRoleCall{UserID: 42, Role: verifiedStudentRoleName, Approved: false}, synced)
+}
+
+func TestProcessExternalSyncJob_VerifiedStudentRoleKeepsCurrentVerifiedState(t *testing.T) {
+	var synced externalSyncRoleCall
+	repo := &mockRepo{
+		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
+			require.Equal(t, int64(42), userID)
+			return &Profile{UserID: userID, VerificationStatus: StatusVerified}, nil
+		},
+	}
+	svc, err := NewService(
+		repo,
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithRoleSyncFunc(func(_ context.Context, userID int64, role string, approved bool) error {
+			synced = externalSyncRoleCall{UserID: userID, Role: role, Approved: approved}
+			return nil
+		}),
+	)
+	require.NoError(t, err)
+	payload, err := json.Marshal(verifiedStudentRoleSyncPayload{
+		UserID:   42,
+		Role:     verifiedStudentRoleName,
+		Approved: false,
+	})
+	require.NoError(t, err)
+
+	err = svc.processExternalSyncJob(context.Background(), ExternalSyncJob{
+		JobType: externalSyncJobTypeVerifiedStudentRole,
+		Payload: payload,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, externalSyncRoleCall{UserID: 42, Role: verifiedStudentRoleName, Approved: true}, synced)
+}
+
 func TestProcessExternalSyncJob_RetryOnRoleSyncFailure(t *testing.T) {
 	retryMarked := false
 	nextRetry := time.Time{}
 	var lastError string
 	repo := &mockRepo{
+		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
+			require.Equal(t, int64(42), userID)
+			return &Profile{UserID: userID, VerificationStatus: StatusVerified}, nil
+		},
 		onClaimExternalSyncJobs: func(_ context.Context, limit int, _ time.Duration) ([]ExternalSyncJob, error) {
 			require.Equal(t, externalSyncBatchSize, limit)
 			payload, err := json.Marshal(verifiedStudentRoleSyncPayload{UserID: 42, Role: verifiedStudentRoleName, Approved: true})
@@ -304,6 +409,14 @@ func TestProcessExternalSyncJob_ProjectsAdmissionVerification(t *testing.T) {
 	schoolID := int64(4111010006)
 	svc, err := NewService(
 		&mockRepo{
+			onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
+				require.Equal(t, int64(42), userID)
+				return &Profile{
+					UserID:             userID,
+					SchoolID:           &schoolID,
+					VerificationStatus: StatusVerified,
+				}, nil
+			},
 			onGetProfileByUserIDTx: func(_ context.Context, _ pgx.Tx, userID int64) (*Profile, error) {
 				require.Equal(t, int64(42), userID)
 				return &Profile{
@@ -337,6 +450,14 @@ func TestProcessExternalSyncJob_EnsuresSchoolEmailCredentialBeforeAdmissionProje
 	schoolID := int64(4111010006)
 	var capturedCredential *VerificationCredentialProjection
 	repo := &mockRepo{
+		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
+			require.Equal(t, int64(42), userID)
+			return &Profile{
+				UserID:             userID,
+				SchoolID:           &schoolID,
+				VerificationStatus: StatusVerified,
+			}, nil
+		},
 		onGetProfileByUserIDTx: func(_ context.Context, _ pgx.Tx, userID int64) (*Profile, error) {
 			require.Equal(t, int64(42), userID)
 			return &Profile{
@@ -378,16 +499,21 @@ func TestProcessExternalSyncJob_EnsuresSchoolEmailCredentialBeforeAdmissionProje
 	assert.Equal(t, []admissionProjectionCall{{userID: 42, schoolID: schoolID, approved: true}}, gateway.calls)
 }
 
-func TestProcessExternalSyncJob_SkipsAdmissionProjectionWhenUnapproved(t *testing.T) {
+func TestProcessExternalSyncJob_AdmissionProjectionSkipsCurrentRejectedProfile(t *testing.T) {
 	gateway := &fakeAdmissionProjectionGateway{}
 	svc, err := NewService(
-		&mockRepo{},
+		&mockRepo{
+			onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
+				require.Equal(t, int64(42), userID)
+				return &Profile{UserID: userID, VerificationStatus: StatusRejected}, nil
+			},
+		},
 		[]byte("test-hmac-key-at-least-32-chars!"),
 		&fakeEncryptor{},
 		WithAdmissionVerificationProjectionGateway(gateway),
 	)
 	require.NoError(t, err)
-	payload, err := json.Marshal(admissionVerificationProjectionPayload{UserID: 42, Approved: false})
+	payload, err := json.Marshal(admissionVerificationProjectionPayload{UserID: 42, Approved: true})
 	require.NoError(t, err)
 
 	err = svc.processExternalSyncJob(context.Background(), ExternalSyncJob{
@@ -397,6 +523,65 @@ func TestProcessExternalSyncJob_SkipsAdmissionProjectionWhenUnapproved(t *testin
 	})
 
 	require.NoError(t, err)
+	assert.Empty(t, gateway.calls)
+}
+
+func TestProcessExternalSyncJob_AdmissionProjectionSkipsMissingCurrentProfile(t *testing.T) {
+	gateway := &fakeAdmissionProjectionGateway{}
+	svc, err := NewService(
+		&mockRepo{
+			onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
+				require.Equal(t, int64(42), userID)
+				return nil, nil
+			},
+		},
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithAdmissionVerificationProjectionGateway(gateway),
+	)
+	require.NoError(t, err)
+	payload, err := json.Marshal(admissionVerificationProjectionPayload{UserID: 42, Approved: true})
+	require.NoError(t, err)
+
+	err = svc.processExternalSyncJob(context.Background(), ExternalSyncJob{
+		ID:      1,
+		JobType: externalSyncJobTypeAdmissionVerification,
+		Payload: payload,
+	})
+
+	require.NoError(t, err)
+	assert.Empty(t, gateway.calls)
+}
+
+func TestProcessExternalSyncJob_AdmissionProjectionErrorsForVerifiedProfileWithoutSchool(t *testing.T) {
+	gateway := &fakeAdmissionProjectionGateway{}
+	svc, err := NewService(
+		&mockRepo{
+			onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
+				require.Equal(t, int64(42), userID)
+				return &Profile{UserID: userID, VerificationStatus: StatusVerified}, nil
+			},
+			onGetProfileByUserIDTx: func(_ context.Context, _ pgx.Tx, userID int64) (*Profile, error) {
+				require.Equal(t, int64(42), userID)
+				return &Profile{UserID: userID, VerificationStatus: StatusVerified}, nil
+			},
+		},
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithAdmissionVerificationProjectionGateway(gateway),
+	)
+	require.NoError(t, err)
+	payload, err := json.Marshal(admissionVerificationProjectionPayload{UserID: 42, Approved: true})
+	require.NoError(t, err)
+
+	err = svc.processExternalSyncJob(context.Background(), ExternalSyncJob{
+		ID:      1,
+		JobType: externalSyncJobTypeAdmissionVerification,
+		Payload: payload,
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "has no school ID for admission projection")
 	assert.Empty(t, gateway.calls)
 }
 

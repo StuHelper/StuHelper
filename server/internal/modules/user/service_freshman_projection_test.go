@@ -33,7 +33,12 @@ func TestEnqueueFreshmanProvisionalRoleSyncTx(t *testing.T) {
 func TestProcessExternalSyncJob_SyncsFreshmanProvisionalRole(t *testing.T) {
 	var synced externalSyncRoleCall
 	svc, err := NewService(
-		&mockRepo{},
+		&mockRepo{
+			onGetProfileByUserID: func(context.Context, int64) (*Profile, error) {
+				t.Fatal("freshman provisional role sync must not read user profile state")
+				return nil, nil
+			},
+		},
 		[]byte("test-hmac-key-at-least-32-chars!"),
 		&fakeEncryptor{},
 		WithRoleSyncFunc(func(_ context.Context, userID int64, role string, approved bool) error {
@@ -42,7 +47,7 @@ func TestProcessExternalSyncJob_SyncsFreshmanProvisionalRole(t *testing.T) {
 		}),
 	)
 	require.NoError(t, err)
-	payload := []byte(`{"userID":42,"approved":false}`)
+	payload := []byte(`{"userID":42,"approved":true}`)
 
 	err = svc.processExternalSyncJob(context.Background(), ExternalSyncJob{
 		JobType: externalSyncJobTypeFreshmanProvisionalRole,
@@ -50,7 +55,7 @@ func TestProcessExternalSyncJob_SyncsFreshmanProvisionalRole(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, externalSyncRoleCall{UserID: 42, Role: freshmanProvisionalRoleName}, synced)
+	assert.Equal(t, externalSyncRoleCall{UserID: 42, Role: freshmanProvisionalRoleName, Approved: true}, synced)
 }
 
 type externalSyncRoleCall struct {
