@@ -146,6 +146,29 @@ func TestCreateResource_NormalizesTagsAndBindingsBeforePersist(t *testing.T) {
 	assert.Equal(t, "algo notes.txt", created.LatestVersion.Filename)
 }
 
+func TestCreateResource_NormalizesStoredObjectMetadataBeforePersist(t *testing.T) {
+	ctx, _, _, svc, store := setupResourceService(t)
+	store.putObject = &StoredObject{
+		ObjectKey:   " resources/oidc-user-1/actual-upload-key.txt ",
+		SizeBytes:   16,
+		ContentType: " text/plain ",
+	}
+
+	created, err := svc.CreateResource(ctx, "oidc-user-1", CreateRequest{
+		Title:       "Stored Metadata",
+		Visibility:  "public",
+		Filename:    "stored.txt",
+		ContentType: "text/plain",
+		DataBase64:  base64.StdEncoding.EncodeToString([]byte("stored metadata")),
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, created)
+	assert.Equal(t, "resources/oidc-user-1/actual-upload-key.txt", created.LatestVersion.ObjectKey)
+	assert.Equal(t, "text/plain", created.LatestVersion.ContentType)
+	assert.Empty(t, store.deletedKeys)
+}
+
 func TestUpdateResource_NormalizesTagsAndBindingsBeforePersist(t *testing.T) {
 	ctx, _, _, svc, _ := setupResourceService(t)
 	created := createSampleResource(t, ctx, svc)

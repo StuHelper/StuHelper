@@ -113,7 +113,8 @@ func (s *Service) Put(ctx context.Context, mountKey, objectKey string, content [
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := validateStoredObject(stored); err != nil {
+	normalizedStored, err := normalizeStoredObject(stored)
+	if err != nil {
 		cleanupCtx, cancel := storageCleanupContext(ctx)
 		cleanupErr := driver.Delete(cleanupCtx, *mount, cleanupStoredObjectKey(objectKey, stored))
 		cancel()
@@ -122,32 +123,40 @@ func (s *Service) Put(ctx context.Context, mountKey, objectKey string, content [
 		}
 		return nil, nil, err
 	}
-	return mount, stored, nil
+	return mount, normalizedStored, nil
 }
 
 func storageCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	return ctxutil.DetachedTimeout(ctx, storageCleanupTimeout)
 }
 
-func validateStoredObject(stored *StoredObject) error {
+func normalizeStoredObject(stored *StoredObject) (*StoredObject, error) {
 	if stored == nil {
-		return ErrStoredObjectMissing
+		return nil, ErrStoredObjectMissing
 	}
-	if strings.TrimSpace(stored.ObjectKey) == "" {
-		return fmt.Errorf("%w: object key is required", ErrInvalidStoredObject)
+	objectKey := strings.TrimSpace(stored.ObjectKey)
+	if objectKey == "" {
+		return nil, fmt.Errorf("%w: object key is required", ErrInvalidStoredObject)
 	}
-	if strings.TrimSpace(stored.ContentType) == "" {
-		return fmt.Errorf("%w: content type is required", ErrInvalidStoredObject)
+	contentType := strings.TrimSpace(stored.ContentType)
+	if contentType == "" {
+		return nil, fmt.Errorf("%w: content type is required", ErrInvalidStoredObject)
 	}
 	if stored.SizeBytes < 0 {
-		return fmt.Errorf("%w: sizeBytes must not be negative", ErrInvalidStoredObject)
+		return nil, fmt.Errorf("%w: sizeBytes must not be negative", ErrInvalidStoredObject)
 	}
-	return nil
+	return &StoredObject{
+		ObjectKey:   objectKey,
+		SizeBytes:   stored.SizeBytes,
+		ContentType: contentType,
+	}, nil
 }
 
 func cleanupStoredObjectKey(requestedKey string, stored *StoredObject) string {
-	if stored != nil && strings.TrimSpace(stored.ObjectKey) != "" {
-		return stored.ObjectKey
+	if stored != nil {
+		if objectKey := strings.TrimSpace(stored.ObjectKey); objectKey != "" {
+			return objectKey
+		}
 	}
 	return requestedKey
 }

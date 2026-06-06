@@ -262,6 +262,28 @@ func TestPutRejectsMissingObjectMetadata(t *testing.T) {
 	assert.Equal(t, []string{"resources/1/file.txt"}, driver.deletedKeys)
 }
 
+func TestPutNormalizesStoredObjectMetadata(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(repo, config.ObjectStorageConfig{})
+	driver := &fakeDriver{
+		putObject: &StoredObject{
+			ObjectKey:   " resources/1/actual-upload-key.txt ",
+			SizeBytes:   5,
+			ContentType: " text/plain ",
+		},
+	}
+	svc.registry.drivers["s3"] = driver
+
+	_, stored, err := svc.Put(context.Background(), DefaultMountKey, "resources/1/file.txt", []byte("hello"), "text/plain")
+
+	require.NoError(t, err)
+	require.NotNil(t, stored)
+	assert.Equal(t, "resources/1/actual-upload-key.txt", stored.ObjectKey)
+	assert.Equal(t, "text/plain", stored.ContentType)
+	assert.Empty(t, driver.deletedKeys)
+}
+
 func TestPutCleanupSurvivesRequestCancellation(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)

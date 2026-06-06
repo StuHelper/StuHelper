@@ -79,7 +79,8 @@ func (s *Service) CreateResource(ctx context.Context, ownerUserID string, req Cr
 	if err != nil {
 		return nil, err
 	}
-	if err := validateResourceStoredObject(stored); err != nil {
+	normalizedStored, err := normalizeResourceStoredObject(stored)
+	if err != nil {
 		cleanupCtx, cancel := resourceCleanupContext(ctx)
 		cleanupErr := s.storage.Delete(cleanupCtx, mountID, cleanupResourceObjectKey(objectKey, stored))
 		cancel()
@@ -88,10 +89,10 @@ func (s *Service) CreateResource(ctx context.Context, ownerUserID string, req Cr
 		}
 		return nil, err
 	}
-	item, err := s.repo.CreateResource(ctx, ownerUserID, req, mountID, stored)
+	item, err := s.repo.CreateResource(ctx, ownerUserID, req, mountID, normalizedStored)
 	if err != nil {
 		cleanupCtx, cancel := resourceCleanupContext(ctx)
-		cleanupErr := s.storage.Delete(cleanupCtx, mountID, stored.ObjectKey)
+		cleanupErr := s.storage.Delete(cleanupCtx, mountID, normalizedStored.ObjectKey)
 		cancel()
 		if cleanupErr != nil {
 			return nil, errors.Join(err, fmt.Errorf("cleanup uploaded resource object: %w", cleanupErr))
@@ -105,25 +106,33 @@ func resourceCleanupContext(ctx context.Context) (context.Context, context.Cance
 	return ctxutil.DetachedTimeout(ctx, resourceCleanupTimeout)
 }
 
-func validateResourceStoredObject(stored *StoredObject) error {
+func normalizeResourceStoredObject(stored *StoredObject) (*StoredObject, error) {
 	if stored == nil {
-		return ErrResourceStoredObjectMissing
+		return nil, ErrResourceStoredObjectMissing
 	}
-	if strings.TrimSpace(stored.ObjectKey) == "" {
-		return fmt.Errorf("%w: object key is required", ErrResourceStoredObjectInvalid)
+	objectKey := strings.TrimSpace(stored.ObjectKey)
+	if objectKey == "" {
+		return nil, fmt.Errorf("%w: object key is required", ErrResourceStoredObjectInvalid)
 	}
-	if strings.TrimSpace(stored.ContentType) == "" {
-		return fmt.Errorf("%w: content type is required", ErrResourceStoredObjectInvalid)
+	contentType := strings.TrimSpace(stored.ContentType)
+	if contentType == "" {
+		return nil, fmt.Errorf("%w: content type is required", ErrResourceStoredObjectInvalid)
 	}
 	if stored.SizeBytes <= 0 {
-		return fmt.Errorf("%w: sizeBytes must be positive", ErrResourceStoredObjectInvalid)
+		return nil, fmt.Errorf("%w: sizeBytes must be positive", ErrResourceStoredObjectInvalid)
 	}
-	return nil
+	return &StoredObject{
+		ObjectKey:   objectKey,
+		SizeBytes:   stored.SizeBytes,
+		ContentType: contentType,
+	}, nil
 }
 
 func cleanupResourceObjectKey(requestedKey string, stored *StoredObject) string {
-	if stored != nil && strings.TrimSpace(stored.ObjectKey) != "" {
-		return stored.ObjectKey
+	if stored != nil {
+		if objectKey := strings.TrimSpace(stored.ObjectKey); objectKey != "" {
+			return objectKey
+		}
 	}
 	return requestedKey
 }
