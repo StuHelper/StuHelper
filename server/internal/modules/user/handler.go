@@ -55,6 +55,9 @@ func NewHandler(
 	smsService SMSSender,
 	opts ...HandlerOption,
 ) *Handler {
+	if service == nil {
+		panic("user.NewHandler: service must not be nil")
+	}
 	var (
 		verifyLimiter            *middleware.RedisRateLimiter
 		bindPhoneUserLimiter     *middleware.RedisRateLimiter

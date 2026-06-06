@@ -113,6 +113,12 @@ func userAdminAuthorizers() AdminAuthorizers {
 	}
 }
 
+func TestNewHandlerRequiresService(t *testing.T) {
+	assert.PanicsWithValue(t, "user.NewHandler: service must not be nil", func() {
+		NewHandler(nil, nil, nil, nil)
+	})
+}
+
 func setupAdminHandlerTestRouter(t *testing.T) *gin.Engine {
 	t.Helper()
 	return setupAdminHandlerTestRouterWithRepo(t, nil)
