@@ -103,11 +103,14 @@ func validateLocalCasdoorConfig(cfg config.CasdoorConfig) (config.CasdoorConfig,
 	}
 	cfg.Issuer = issuer
 
-	publicAuthBaseURL, err := validateCasdoorURL("public auth base URL", cfg.PublicAuthBaseURL, false)
-	if err != nil {
-		return cfg, err
+	if err := config.ValidateCasdoorInternalAddress(cfg.InternalAddress); err != nil {
+		return cfg, fmt.Errorf("oidc: invalid internal address: %w", err)
 	}
-	cfg.PublicAuthBaseURL = publicAuthBaseURL
+
+	if err := config.ValidateOptionalHTTPOrigin("public auth base URL", cfg.PublicAuthBaseURL, false); err != nil {
+		return cfg, fmt.Errorf("oidc: invalid public auth base URL: %w", err)
+	}
+	cfg.PublicAuthBaseURL = strings.TrimSpace(cfg.PublicAuthBaseURL)
 
 	if err := validateOAuth2ApplicationConfig(cfg); err != nil {
 		return cfg, err

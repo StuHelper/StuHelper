@@ -526,6 +526,141 @@ func TestValidate_ProductionRejectsInsecureCookies(t *testing.T) {
 	assert.Contains(t, err.Error(), "TOKEN_COOKIE_SECURE must be true in production")
 }
 
+func TestValidate_AllowsValidTokenCookieDomain(t *testing.T) {
+	tests := []struct {
+		name   string
+		env    string
+		domain string
+	}{
+		{name: "production root domain", env: EnvProduction, domain: "stuhelper.com"},
+		{name: "production legacy leading dot", env: EnvProduction, domain: ".stuhelper.com"},
+		{name: "production subdomain", env: EnvProduction, domain: "auth.stuhelper.com"},
+		{name: "prod parity", env: EnvProdParity, domain: "stuhelper.com"},
+		{name: "development empty", env: EnvDevelopment, domain: ""},
+		{name: "development hostname", env: EnvDevelopment, domain: "dev.stuhelper.test"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validProductionConfigForTest()
+			c.App.Env = tt.env
+			c.Token.CookieDomain = tt.domain
+
+			require.NoError(t, c.validate(nil))
+		})
+	}
+}
+
+func TestValidate_RejectsInvalidTokenCookieDomain(t *testing.T) {
+	tests := []struct {
+		name   string
+		domain string
+	}{
+		{name: "scheme", domain: "https://stuhelper.com"},
+		{name: "port", domain: "stuhelper.com:443"},
+		{name: "path", domain: "stuhelper.com/auth"},
+		{name: "wildcard", domain: "*.stuhelper.com"},
+		{name: "ipv4", domain: "192.0.2.10"},
+		{name: "ipv6", domain: "2001:db8::1"},
+		{name: "localhost", domain: "localhost"},
+		{name: "multiple leading empty labels", domain: "..stuhelper.com"},
+		{name: "trailing empty label", domain: "stuhelper.com."},
+		{name: "middle empty label", domain: "stuhelper..com"},
+		{name: "single label", domain: "stuhelper"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validProductionConfigForTest()
+			c.Token.CookieDomain = tt.domain
+
+			err := c.validate(nil)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "TOKEN_COOKIE_DOMAIN must be a hostname usable as a cookie Domain in production")
+		})
+	}
+}
+
+func TestValidate_RejectsTokenCookieDomainWhitespaceWhenNotTrimmed(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.Token.CookieDomain = " stuhelper.com "
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "TOKEN_COOKIE_DOMAIN must not include leading or trailing whitespace")
+}
+
+func TestLoad_TrimsTokenCookieDomain(t *testing.T) {
+	t.Setenv("APP_ENV", EnvDevelopment)
+	t.Setenv("APP_PORT", "8080")
+	t.Setenv("CORS_ORIGINS", "http://localhost:5173")
+	t.Setenv("DOC_AES_ACTIVE_KEY_ID", "1")
+	t.Setenv("DOC_AES_KEYS", "1:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	t.Setenv("CASDOOR_ISSUER", "http://localhost:8000")
+	t.Setenv("CASDOOR_CLIENT_ID", "client-id")
+	t.Setenv("CASDOOR_CLIENT_SECRET", "client-secret")
+	t.Setenv("CASDOOR_REDIRECT_URI", "http://localhost:8080/api/v1/auth/callback")
+	t.Setenv("CASDOOR_INTROSPECTION_CLIENT_ID", "introspection-client")
+	t.Setenv("CASDOOR_INTROSPECTION_CLIENT_SECRET", "introspection-secret")
+	t.Setenv("CASDOOR_ORGANIZATION", "stuhelper")
+	t.Setenv("OPENFGA_STORE_ID", "store-id")
+	t.Setenv("OPENFGA_MODEL_ID", "model-id")
+	t.Setenv("TOKEN_COOKIE_DOMAIN", "  stuhelper.test  ")
+
+	cfg, err := Load()
+
+	require.NoError(t, err)
+	assert.Equal(t, "stuhelper.test", cfg.Token.CookieDomain)
+}
+
+func TestLoad_NormalizesLegacyLeadingDotTokenCookieDomain(t *testing.T) {
+	t.Setenv("APP_ENV", EnvDevelopment)
+	t.Setenv("APP_PORT", "8080")
+	t.Setenv("CORS_ORIGINS", "http://localhost:5173")
+	t.Setenv("DOC_AES_ACTIVE_KEY_ID", "1")
+	t.Setenv("DOC_AES_KEYS", "1:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	t.Setenv("CASDOOR_ISSUER", "http://localhost:8000")
+	t.Setenv("CASDOOR_CLIENT_ID", "client-id")
+	t.Setenv("CASDOOR_CLIENT_SECRET", "client-secret")
+	t.Setenv("CASDOOR_REDIRECT_URI", "http://localhost:8080/api/v1/auth/callback")
+	t.Setenv("CASDOOR_INTROSPECTION_CLIENT_ID", "introspection-client")
+	t.Setenv("CASDOOR_INTROSPECTION_CLIENT_SECRET", "introspection-secret")
+	t.Setenv("CASDOOR_ORGANIZATION", "stuhelper")
+	t.Setenv("OPENFGA_STORE_ID", "store-id")
+	t.Setenv("OPENFGA_MODEL_ID", "model-id")
+	t.Setenv("TOKEN_COOKIE_DOMAIN", ".stuhelper.test")
+
+	cfg, err := Load()
+
+	require.NoError(t, err)
+	assert.Equal(t, "stuhelper.test", cfg.Token.CookieDomain)
+}
+
+func TestLoad_TokenCookieDomainWhitespaceOnlyKeepsEmptyDevelopmentSemantics(t *testing.T) {
+	t.Setenv("APP_ENV", EnvDevelopment)
+	t.Setenv("APP_PORT", "8080")
+	t.Setenv("CORS_ORIGINS", "http://localhost:5173")
+	t.Setenv("DOC_AES_ACTIVE_KEY_ID", "1")
+	t.Setenv("DOC_AES_KEYS", "1:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	t.Setenv("CASDOOR_ISSUER", "http://localhost:8000")
+	t.Setenv("CASDOOR_CLIENT_ID", "client-id")
+	t.Setenv("CASDOOR_CLIENT_SECRET", "client-secret")
+	t.Setenv("CASDOOR_REDIRECT_URI", "http://localhost:8080/api/v1/auth/callback")
+	t.Setenv("CASDOOR_INTROSPECTION_CLIENT_ID", "introspection-client")
+	t.Setenv("CASDOOR_INTROSPECTION_CLIENT_SECRET", "introspection-secret")
+	t.Setenv("CASDOOR_ORGANIZATION", "stuhelper")
+	t.Setenv("OPENFGA_STORE_ID", "store-id")
+	t.Setenv("OPENFGA_MODEL_ID", "model-id")
+	t.Setenv("TOKEN_COOKIE_DOMAIN", "   ")
+
+	cfg, err := Load()
+
+	require.NoError(t, err)
+	assert.Empty(t, cfg.Token.CookieDomain)
+}
+
 func TestValidate_ProductionRequiresSMSEnabled(t *testing.T) {
 	c := validProductionConfigForTest()
 	c.SMS.Enabled = false
@@ -896,6 +1031,136 @@ func TestValidate_ProductionRejectsBlankCasdoorAdminCredentials(t *testing.T) {
 	} {
 		assert.Contains(t, err.Error(), message)
 	}
+}
+
+func TestValidate_CasdoorEndpointConfig(t *testing.T) {
+	t.Run("requires explicit public auth base URL in production-like environments", func(t *testing.T) {
+		for _, env := range []string{EnvProduction, EnvProdParity} {
+			t.Run(env, func(t *testing.T) {
+				c := validProductionConfigForTest()
+				c.App.Env = env
+				c.Casdoor.PublicAuthBaseURL = ""
+
+				err := c.validate(nil)
+
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "CASDOOR_PUBLIC_AUTH_BASE_URL is required in production")
+			})
+		}
+	})
+
+	t.Run("requires https public auth origin in production-like environments", func(t *testing.T) {
+		for _, env := range []string{EnvProduction, EnvProdParity} {
+			t.Run(env, func(t *testing.T) {
+				c := validProductionConfigForTest()
+				c.App.Env = env
+				c.Casdoor.PublicAuthBaseURL = "http://sso.example.com"
+
+				err := c.validate(nil)
+
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "CASDOOR_PUBLIC_AUTH_BASE_URL must use https in production")
+			})
+		}
+	})
+
+	t.Run("requires public auth base URL to be an origin", func(t *testing.T) {
+		tests := []struct {
+			name    string
+			value   string
+			message string
+		}{
+			{name: "trailing slash", value: "https://sso.example.com/", message: "CASDOOR_PUBLIC_AUTH_BASE_URL must not have a trailing slash"},
+			{name: "path", value: "https://sso.example.com/login", message: "CASDOOR_PUBLIC_AUTH_BASE_URL must not include a path"},
+			{name: "query", value: "https://sso.example.com?next=1", message: "CASDOOR_PUBLIC_AUTH_BASE_URL must not include query or fragment"},
+			{name: "fragment", value: "https://sso.example.com#login", message: "CASDOOR_PUBLIC_AUTH_BASE_URL must not include query or fragment"},
+			{name: "userinfo", value: "https://user@sso.example.com", message: "CASDOOR_PUBLIC_AUTH_BASE_URL must not include user info"},
+			{name: "invalid port", value: "https://sso.example.com:bad", message: "CASDOOR_PUBLIC_AUTH_BASE_URL must include a valid port when a port is specified"},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				c := validProductionConfigForTest()
+				c.Casdoor.PublicAuthBaseURL = tt.value
+
+				err := c.validate(nil)
+
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.message)
+			})
+		}
+	})
+
+	t.Run("allows empty public auth base URL in development", func(t *testing.T) {
+		c := validConfigForValidation()
+		c.Casdoor.PublicAuthBaseURL = ""
+
+		require.NoError(t, c.validate(nil))
+	})
+
+	t.Run("allows local http public auth origin in development", func(t *testing.T) {
+		c := validConfigForValidation()
+		c.Casdoor.PublicAuthBaseURL = "http://localhost:8000"
+
+		require.NoError(t, c.validate(nil))
+	})
+
+	t.Run("rejects URL internal address", func(t *testing.T) {
+		c := validConfigForValidation()
+		c.Casdoor.InternalAddress = "http://casdoor:8000"
+
+		err := c.validate(nil)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "CASDOOR_INTERNAL_ADDRESS must be a host or host:port dial address, not a URL")
+	})
+
+	t.Run("rejects invalid internal address port", func(t *testing.T) {
+		for _, address := range []string{"casdoor:", "casdoor:bad", "casdoor:0", "casdoor:65536", "[::1]:bad"} {
+			t.Run(address, func(t *testing.T) {
+				c := validConfigForValidation()
+				c.Casdoor.InternalAddress = address
+
+				err := c.validate(nil)
+
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "CASDOOR_INTERNAL_ADDRESS must include a valid port when a port is specified")
+			})
+		}
+	})
+
+	t.Run("rejects malformed internal address", func(t *testing.T) {
+		for _, address := range []string{":8000", "[::1", "cas door:8000"} {
+			t.Run(address, func(t *testing.T) {
+				c := validConfigForValidation()
+				c.Casdoor.InternalAddress = address
+
+				err := c.validate(nil)
+
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "CASDOOR_INTERNAL_ADDRESS must be a host or host:port dial address")
+			})
+		}
+	})
+
+	t.Run("allows dial internal addresses", func(t *testing.T) {
+		for _, address := range []string{
+			"casdoor",
+			"casdoor:8000",
+			"127.0.0.1",
+			"127.0.0.1:8000",
+			"::1",
+			"[::1]",
+			"[::1]:8000",
+		} {
+			t.Run(address, func(t *testing.T) {
+				c := validConfigForValidation()
+				c.Casdoor.InternalAddress = address
+
+				require.NoError(t, c.validate(nil))
+			})
+		}
+	})
 }
 
 func TestValidate_ProductionRequiresOpenPlatformRuntimeTokenProbe(t *testing.T) {
@@ -1491,6 +1756,7 @@ func validProductionConfigForTest() *Config {
 		},
 		Casdoor: CasdoorConfig{
 			Issuer:                      "https://sso.example.com",
+			PublicAuthBaseURL:           "https://sso.example.com",
 			ClientID:                    "client-id",
 			ClientSecret:                "client-secret",
 			RedirectURI:                 "https://api.example.com/api/v1/auth/callback",

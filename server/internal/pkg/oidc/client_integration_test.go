@@ -315,6 +315,121 @@ func TestNewClientRejectsLocalConfigBeforeDiscovery(t *testing.T) {
 	assert.Equal(t, int32(0), discoveryRequests.Load())
 }
 
+func TestNewClientRejectsInvalidInternalAddressBeforeDiscovery(t *testing.T) {
+	tests := []struct {
+		name    string
+		address string
+		message string
+	}{
+		{
+			name:    "url",
+			address: "http://casdoor:8000",
+			message: "must be a host or host:port dial address, not a URL",
+		},
+		{
+			name:    "bad port",
+			address: "casdoor:bad",
+			message: "must include a valid port when a port is specified",
+		},
+		{
+			name:    "empty host",
+			address: ":8000",
+			message: "must be a host or host:port dial address",
+		},
+		{
+			name:    "bad bracketed ipv6",
+			address: "[::1]:bad",
+			message: "must include a valid port when a port is specified",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var discoveryRequests atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				discoveryRequests.Add(1)
+				w.WriteHeader(http.StatusInternalServerError)
+			}))
+			defer srv.Close()
+
+			client, err := NewClient(context.Background(), config.CasdoorConfig{
+				Issuer:                    srv.URL,
+				InternalAddress:           tt.address,
+				ClientID:                  "oidc-client",
+				ClientSecret:              "oidc-secret",
+				RedirectURI:               "https://web.example.com/api/v1/auth/callback",
+				IntrospectionClientID:     "introspection-client",
+				IntrospectionClientSecret: "introspection-secret",
+			})
+
+			require.Error(t, err)
+			assert.Nil(t, client)
+			assert.Contains(t, err.Error(), tt.message)
+			assert.Equal(t, int32(0), discoveryRequests.Load())
+		})
+	}
+}
+
+func TestNewClientRejectsInvalidPublicAuthBaseURLBeforeDiscovery(t *testing.T) {
+	tests := []struct {
+		name    string
+		baseURL string
+		message string
+	}{
+		{
+			name:    "trailing slash",
+			baseURL: "https://sso.example.com/",
+			message: "must not have a trailing slash",
+		},
+		{
+			name:    "path",
+			baseURL: "https://sso.example.com/login",
+			message: "must not include a path",
+		},
+		{
+			name:    "query",
+			baseURL: "https://sso.example.com?next=1",
+			message: "must not include query or fragment",
+		},
+		{
+			name:    "userinfo",
+			baseURL: "https://user@sso.example.com",
+			message: "must not include user info",
+		},
+		{
+			name:    "invalid port",
+			baseURL: "https://sso.example.com:bad",
+			message: "must include a valid port when a port is specified",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var discoveryRequests atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				discoveryRequests.Add(1)
+				w.WriteHeader(http.StatusInternalServerError)
+			}))
+			defer srv.Close()
+
+			client, err := NewClient(context.Background(), config.CasdoorConfig{
+				Issuer:                    srv.URL,
+				PublicAuthBaseURL:         tt.baseURL,
+				ClientID:                  "oidc-client",
+				ClientSecret:              "oidc-secret",
+				RedirectURI:               "https://web.example.com/api/v1/auth/callback",
+				IntrospectionClientID:     "introspection-client",
+				IntrospectionClientSecret: "introspection-secret",
+			})
+
+			require.Error(t, err)
+			assert.Nil(t, client)
+			assert.Contains(t, err.Error(), tt.message)
+			assert.Equal(t, int32(0), discoveryRequests.Load())
+		})
+	}
+}
+
 func TestOIDCClientExchangeCodeForApplicationNormalizesInputs(t *testing.T) {
 	var seenCode string
 	var seenCodeVerifier string

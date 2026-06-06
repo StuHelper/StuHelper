@@ -15,6 +15,14 @@ func IsProductionLikeEnv(env string) bool {
 	return env == EnvProduction || env == EnvProdParity
 }
 
+func normalizeCookieDomain(domain string) string {
+	domain = strings.TrimSpace(domain)
+	if strings.HasPrefix(domain, ".") && !strings.HasPrefix(domain, "..") {
+		return strings.TrimPrefix(domain, ".")
+	}
+	return domain
+}
+
 // Config 应用配置
 type Config struct {
 	App           AppConfig
@@ -451,7 +459,7 @@ func loadTokenConfig(parseErrs *[]string) TokenConfig {
 		AccessTokenTTL:  getEnvInt("TOKEN_ACCESS_TTL", 300, parseErrs),
 		RefreshTokenTTL: getEnvInt("TOKEN_REFRESH_TTL", 604800, parseErrs),
 		CookieSecure:    getEnvBool("TOKEN_COOKIE_SECURE", true, parseErrs),
-		CookieDomain:    getEnv("TOKEN_COOKIE_DOMAIN", ""),
+		CookieDomain:    normalizeCookieDomain(getEnv("TOKEN_COOKIE_DOMAIN", "")),
 	}
 }
 

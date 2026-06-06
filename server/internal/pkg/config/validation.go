@@ -70,6 +70,7 @@ func (c *Config) validate(parseErrs []string) error {
 	if c.Token.RefreshTokenTTL < 3600 || c.Token.RefreshTokenTTL > 2592000 {
 		errs = append(errs, fmt.Sprintf("TOKEN_REFRESH_TTL must be between 3600 and 2592000 seconds (got %d)", c.Token.RefreshTokenTTL))
 	}
+	errs = append(errs, validateTokenCookieDomain(c.Token.CookieDomain, productionLike)...)
 	if c.Observability.TraceSampleRatio < 0 || c.Observability.TraceSampleRatio > 1 {
 		errs = append(errs, fmt.Sprintf("OTEL_TRACE_SAMPLE_RATIO must be between 0 and 1 (got %.4f)", c.Observability.TraceSampleRatio))
 	}
@@ -291,6 +292,7 @@ func (c *Config) validate(parseErrs []string) error {
 	if configStringMissing(c.Casdoor.Organization) {
 		errs = append(errs, "CASDOOR_ORGANIZATION is required")
 	}
+	errs = append(errs, validateCasdoorEndpointConfig(c.Casdoor, productionLike)...)
 	errs = append(errs, validateCasdoorAdminCredentials(c.Casdoor, productionLike)...)
 
 	// OpenFGA 是应用运行时必需依赖，所有环境都需要完整配置。
@@ -429,6 +431,69 @@ func validateTrustedProxy(proxy string) []string {
 		return []string{fmt.Sprintf("TRUSTED_PROXIES entry %q must be an IPv4/IPv6 address or CIDR", proxy)}
 	}
 	return nil
+}
+
+func validateTokenCookieDomain(domain string, productionLike bool) []string {
+	trimmed := strings.TrimSpace(domain)
+	if trimmed == "" {
+		return nil
+	}
+	if trimmed != domain {
+		return []string{"TOKEN_COOKIE_DOMAIN must not include leading or trailing whitespace"}
+	}
+	if !isCookieDomainHostname(normalizeCookieDomain(domain)) {
+		if productionLike {
+			return []string{"TOKEN_COOKIE_DOMAIN must be a hostname usable as a cookie Domain in production"}
+		}
+		return []string{"TOKEN_COOKIE_DOMAIN must be a hostname usable as a cookie Domain"}
+	}
+	return nil
+}
+
+func isCookieDomainHostname(domain string) bool {
+	if domain == "*" || strings.Contains(domain, "*") {
+		return false
+	}
+	if strings.ContainsAny(domain, "/?#") || strings.Contains(domain, ":") || strings.Contains(domain, "@") {
+		return false
+	}
+	if net.ParseIP(domain) != nil {
+		return false
+	}
+	if strings.EqualFold(domain, "localhost") {
+		return false
+	}
+	if len(domain) > 253 || strings.HasPrefix(domain, ".") || strings.HasSuffix(domain, ".") || strings.Contains(domain, "..") {
+		return false
+	}
+
+	labels := strings.Split(domain, ".")
+	if len(labels) < 2 {
+		return false
+	}
+	for _, label := range labels {
+		if !isCookieDomainLabel(label) {
+			return false
+		}
+	}
+	return true
+}
+
+func isCookieDomainLabel(label string) bool {
+	if label == "" || len(label) > 63 || strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") {
+		return false
+	}
+	for _, ch := range label {
+		switch {
+		case ch >= 'a' && ch <= 'z':
+		case ch >= 'A' && ch <= 'Z':
+		case ch >= '0' && ch <= '9':
+		case ch == '-':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // ValidateCORSOrigins validates CORS allow-list entries before they are passed
@@ -570,6 +635,101 @@ func validateOpenPlatformBaseURLs(cfg OpenPlatformConfig, productionLike bool) [
 	return errs
 }
 
+func validateCasdoorEndpointConfig(cfg CasdoorConfig, productionLike bool) []string {
+	var errs []string
+	errs = append(errs, validateCasdoorInternalAddress(cfg.InternalAddress)...)
+	if productionLike {
+		errs = append(errs, validateRequiredHTTPOrigin("CASDOOR_PUBLIC_AUTH_BASE_URL", cfg.PublicAuthBaseURL, productionLike)...)
+		return errs
+	}
+	errs = append(errs, validateOptionalHTTPOrigin("CASDOOR_PUBLIC_AUTH_BASE_URL", cfg.PublicAuthBaseURL, productionLike)...)
+	return errs
+}
+
+// ValidateCasdoorInternalAddress validates a host or host:port dial address for
+// callers that construct Casdoor clients without going through Config.Load.
+func ValidateCasdoorInternalAddress(address string) error {
+	return validationErrors(validateCasdoorInternalAddress(address))
+}
+
+func validateCasdoorInternalAddress(address string) []string {
+	trimmed := strings.TrimSpace(address)
+	if trimmed == "" {
+		return nil
+	}
+	if trimmed != address {
+		return []string{"CASDOOR_INTERNAL_ADDRESS must not include leading or trailing whitespace"}
+	}
+	if strings.Contains(address, "://") {
+		return []string{"CASDOOR_INTERNAL_ADDRESS must be a host or host:port dial address, not a URL"}
+	}
+	if strings.ContainsAny(address, "/?#") {
+		return []string{"CASDOOR_INTERNAL_ADDRESS must not include a path, query, or fragment"}
+	}
+	if strings.Contains(address, "@") {
+		return []string{"CASDOOR_INTERNAL_ADDRESS must not include user info"}
+	}
+
+	host, port, hasPort, ok := splitOptionalPort(address)
+	if !ok || host == "" {
+		return []string{"CASDOOR_INTERNAL_ADDRESS must be a host or host:port dial address"}
+	}
+	if strings.Contains(host, ":") && net.ParseIP(host) == nil {
+		return []string{"CASDOOR_INTERNAL_ADDRESS must be a host or host:port dial address"}
+	}
+	if containsWhitespace(host) {
+		return []string{"CASDOOR_INTERNAL_ADDRESS must be a host or host:port dial address"}
+	}
+	if hasPort && !validPortNumber(port) {
+		return []string{"CASDOOR_INTERNAL_ADDRESS must include a valid port when a port is specified"}
+	}
+	return nil
+}
+
+func splitOptionalPort(address string) (host string, port string, hasPort bool, ok bool) {
+	if host, port, err := net.SplitHostPort(address); err == nil {
+		return strings.Trim(host, "[]"), port, true, true
+	}
+
+	if strings.HasPrefix(address, "[") {
+		end := strings.LastIndex(address, "]")
+		if end < 0 {
+			return "", "", false, false
+		}
+		host := strings.Trim(address[:end+1], "[]")
+		suffix := address[end+1:]
+		if suffix == "" {
+			return host, "", false, true
+		}
+		if !strings.HasPrefix(suffix, ":") {
+			return "", "", false, false
+		}
+		return host, strings.TrimPrefix(suffix, ":"), true, true
+	}
+
+	if strings.Count(address, ":") == 1 {
+		host, port, _ := strings.Cut(address, ":")
+		return host, port, true, true
+	}
+	return address, "", false, true
+}
+
+func validPortNumber(port string) bool {
+	portNumber, err := strconv.Atoi(port)
+	return err == nil && portNumber >= 1 && portNumber <= 65535
+}
+
+func containsWhitespace(value string) bool {
+	return strings.ContainsAny(value, " \t\r\n")
+}
+
+func validationErrors(errs []string) error {
+	if len(errs) == 0 {
+		return nil
+	}
+	return errors.New(strings.Join(errs, "; "))
+}
+
 func validateRequiredHTTPOrigin(name, origin string, productionLike bool) []string {
 	if configStringMissing(origin) {
 		return []string{fmt.Sprintf("%s is required in production", name)}
@@ -610,6 +770,12 @@ func validateOptionalHTTPOrigin(name, origin string, productionLike bool) []stri
 	default:
 		return []string{fmt.Sprintf("%s must be an absolute http(s) origin", name)}
 	}
+}
+
+// ValidateOptionalHTTPOrigin validates an optional absolute http(s) origin for
+// callers that construct local clients without going through Config.Load.
+func ValidateOptionalHTTPOrigin(name, origin string, productionLike bool) error {
+	return validationErrors(validateOptionalHTTPOrigin(name, origin, productionLike))
 }
 
 func isHTTPSOrigin(origin string) bool {
