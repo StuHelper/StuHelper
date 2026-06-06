@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -60,6 +61,64 @@ func TestCreateBotSessionRequiresBotSelfID(t *testing.T) {
 	})
 
 	require.ErrorIs(t, err, ErrAdmissionInvalidInput)
+}
+
+func TestValidateBotSessionInputsRejectOversizedFields(t *testing.T) {
+	validCreate := BotSessionCreateInput{
+		Platform:  "qq",
+		GuildID:   "guild-1",
+		ChannelID: "channel-1",
+		QQID:      "10001",
+		BotSelfID: "514",
+	}
+
+	createCases := []struct {
+		name  string
+		mut   func(*BotSessionCreateInput)
+		valid bool
+	}{
+		{name: "valid create input", valid: true},
+		{name: "platform too long", mut: func(input *BotSessionCreateInput) {
+			input.Platform = strings.Repeat("p", maxAdmissionBotPlatformRunes+1)
+		}},
+		{name: "guild too long", mut: func(input *BotSessionCreateInput) { input.GuildID = strings.Repeat("g", maxAdmissionBotGuildIDRunes+1) }},
+		{name: "channel too long", mut: func(input *BotSessionCreateInput) {
+			input.ChannelID = strings.Repeat("c", maxAdmissionBotChannelIDRunes+1)
+		}},
+		{name: "qq too long", mut: func(input *BotSessionCreateInput) { input.QQID = strings.Repeat("q", maxAdmissionBotQQIDRunes+1) }},
+		{name: "bot self id too long", mut: func(input *BotSessionCreateInput) {
+			input.BotSelfID = strings.Repeat("b", maxAdmissionBotSelfIDRunes+1)
+		}},
+	}
+	for _, tc := range createCases {
+		t.Run(tc.name, func(t *testing.T) {
+			input := validCreate
+			if tc.mut != nil {
+				tc.mut(&input)
+			}
+
+			err := validateBotSessionCreateInput(input)
+
+			if tc.valid {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, ErrAdmissionInvalidInput)
+			}
+		})
+	}
+
+	require.ErrorIs(t, validateBotSessionSubjectInput(BotSessionSubjectInput{
+		Platform: "qq",
+		GuildID:  strings.Repeat("g", maxAdmissionBotGuildIDRunes+1),
+		QQID:     "10001",
+	}), ErrAdmissionInvalidInput)
+
+	require.ErrorIs(t, validateBotSessionOperatorInput(BotSessionOperatorInput{
+		Platform:     "qq",
+		GuildID:      "guild-1",
+		QQID:         "10001",
+		OperatorQQID: strings.Repeat("o", maxAdmissionBotQQIDRunes+1),
+	}), ErrAdmissionInvalidInput)
 }
 
 func TestResolveJoinRequestDecisionUsesVerifiedAndUnverifiedPolicy(t *testing.T) {

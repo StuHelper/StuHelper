@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 
@@ -20,6 +21,14 @@ import (
 
 const initialReminderGrace = time.Duration(DefaultInitialReminderGraceSeconds) * time.Second
 const maxAdmissionJoinTokenCreateAttempts = 5
+
+const (
+	maxAdmissionBotPlatformRunes  = 32
+	maxAdmissionBotGuildIDRunes   = 128
+	maxAdmissionBotChannelIDRunes = 128
+	maxAdmissionBotQQIDRunes      = 64
+	maxAdmissionBotSelfIDRunes    = 64
+)
 
 func (s *Service) CreateBotSession(ctx context.Context, input BotSessionCreateInput) (*CreatedAdmissionSession, error) {
 	input = normalizeBotSessionCreateInput(input)
@@ -1126,11 +1135,23 @@ func validateBotSessionCreateInput(input BotSessionCreateInput) error {
 	if input.Platform == "" || input.GuildID == "" || input.ChannelID == "" || input.QQID == "" || input.BotSelfID == "" {
 		return ErrAdmissionInvalidInput
 	}
+	if isAdmissionBotFieldTooLong(input.Platform, maxAdmissionBotPlatformRunes) ||
+		isAdmissionBotFieldTooLong(input.GuildID, maxAdmissionBotGuildIDRunes) ||
+		isAdmissionBotFieldTooLong(input.ChannelID, maxAdmissionBotChannelIDRunes) ||
+		isAdmissionBotFieldTooLong(input.QQID, maxAdmissionBotQQIDRunes) ||
+		isAdmissionBotFieldTooLong(input.BotSelfID, maxAdmissionBotSelfIDRunes) {
+		return ErrAdmissionInvalidInput
+	}
 	return nil
 }
 
 func validateBotSessionSubjectInput(input BotSessionSubjectInput) error {
 	if input.Platform == "" || input.GuildID == "" || input.QQID == "" {
+		return ErrAdmissionInvalidInput
+	}
+	if isAdmissionBotFieldTooLong(input.Platform, maxAdmissionBotPlatformRunes) ||
+		isAdmissionBotFieldTooLong(input.GuildID, maxAdmissionBotGuildIDRunes) ||
+		isAdmissionBotFieldTooLong(input.QQID, maxAdmissionBotQQIDRunes) {
 		return ErrAdmissionInvalidInput
 	}
 	return nil
@@ -1140,7 +1161,17 @@ func validateBotSessionOperatorInput(input BotSessionOperatorInput) error {
 	if input.Platform == "" || input.GuildID == "" || input.QQID == "" || input.OperatorQQID == "" {
 		return ErrAdmissionInvalidInput
 	}
+	if isAdmissionBotFieldTooLong(input.Platform, maxAdmissionBotPlatformRunes) ||
+		isAdmissionBotFieldTooLong(input.GuildID, maxAdmissionBotGuildIDRunes) ||
+		isAdmissionBotFieldTooLong(input.QQID, maxAdmissionBotQQIDRunes) ||
+		isAdmissionBotFieldTooLong(input.OperatorQQID, maxAdmissionBotQQIDRunes) {
+		return ErrAdmissionInvalidInput
+	}
 	return nil
+}
+
+func isAdmissionBotFieldTooLong(value string, maxRunes int) bool {
+	return utf8.RuneCountInString(value) > maxRunes
 }
 
 func botSessionCreateSubject(input BotSessionCreateInput) BotSessionSubjectInput {
