@@ -4,10 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/jackc/pgx/v5"
-
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/admission"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 )
 
 type admissionUserGateway struct {
@@ -20,7 +19,7 @@ func newAdmissionUserGateway(service *user.Service) admissionUserGateway {
 
 func (g admissionUserGateway) EnsureQQBindingForUserTx(
 	ctx context.Context,
-	tx pgx.Tx,
+	tx db.Tx,
 	userID int64,
 	qqID string,
 ) error {
@@ -53,7 +52,7 @@ func (g admissionUserGateway) GetAcademicInfo(
 
 func (g admissionUserGateway) EnqueueFreshmanProvisionalRoleSyncTx(
 	ctx context.Context,
-	tx pgx.Tx,
+	tx db.Tx,
 	userID int64,
 	approved bool,
 ) error {

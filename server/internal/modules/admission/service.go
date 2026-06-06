@@ -10,8 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 )
 
 const admissionTokenBytes = 32
@@ -19,7 +20,7 @@ const admissionJoinTokenLength = 10
 const admissionJoinTokenAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 type QQBindingGateway interface {
-	EnsureQQBindingForUserTx(context.Context, pgx.Tx, int64, string) error
+	EnsureQQBindingForUserTx(context.Context, db.Tx, int64, string) error
 }
 
 type SchoolEmailSender interface {
@@ -40,7 +41,7 @@ type OperatorAccessGateway interface {
 }
 
 type FreshmanProjectionGateway interface {
-	EnqueueFreshmanProvisionalRoleSyncTx(ctx context.Context, tx pgx.Tx, userID int64, approved bool) error
+	EnqueueFreshmanProvisionalRoleSyncTx(ctx context.Context, tx db.Tx, userID int64, approved bool) error
 }
 
 type SchoolSSOExchanger interface {
