@@ -5,7 +5,7 @@ export default {
   connect: {
     eyebrow: 'StuHelper Open Platform',
     title: 'StuHelper Connect',
-    subtitle: '面向一方和第三方应用的 OIDC / OAuth 入口。对外 issuer 固定为 sso.stuhelper.com，业务数据通过 StuHelper Open API 按授权 scope 获取。',
+    subtitle: '面向一方和第三方应用的 OIDC / OAuth 入口。当前 issuer 为 {issuer}，业务数据通过 StuHelper Open API 按授权 scope 获取。',
     backToIdentity: '返回账号中心',
     developerApps: '开发者应用',
   },
@@ -21,7 +21,7 @@ export default {
     loadFailed: '应用列表加载失败',
     connect: {
       title: 'StuHelper Connect',
-      subtitle: '对外 OIDC / OAuth issuer 使用 sso.stuhelper.com；学生认证、QQ 绑定等业务数据通过 StuHelper Open API 获取。',
+      subtitle: '对外 OIDC / OAuth issuer 使用 {issuer}；学生认证、QQ 绑定等业务数据通过 StuHelper Open API 获取。',
       copyLabel: '复制 {endpoint}',
       copied: '端点已复制',
       copyFailed: '复制失败，请手动复制',

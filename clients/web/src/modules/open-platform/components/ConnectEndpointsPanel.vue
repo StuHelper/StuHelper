@@ -9,7 +9,7 @@
           {{ t('developer.apps.connect.title') }}
         </h2>
         <p class="m-0 mt-1 text-sm leading-relaxed text-text-secondary">
-          {{ t('developer.apps.connect.subtitle') }}
+          {{ t('developer.apps.connect.subtitle', { issuer: identityIssuer }) }}
         </p>
       </div>
     </header>

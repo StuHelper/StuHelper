@@ -842,9 +842,7 @@
         </section>
       </aside>
     </div>
-  </main>
-
-  <Teleport to="body">
+    <Teleport to="body">
     <div
       v-if="reasonDialog.open"
       class="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4"
@@ -918,7 +916,8 @@
         </div>
       </form>
     </div>
-  </Teleport>
+    </Teleport>
+  </main>
 </template>
 
 <script setup lang="ts">

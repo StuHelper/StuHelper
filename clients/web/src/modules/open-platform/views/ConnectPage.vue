@@ -9,7 +9,7 @@
           {{ t('developer.connect.title') }}
         </h1>
         <p class="m-0 mt-2 max-w-[720px] text-sm leading-relaxed text-text-secondary">
-          {{ t('developer.connect.subtitle') }}
+          {{ t('developer.connect.subtitle', { issuer: identityIssuer }) }}
         </p>
       </div>
 
@@ -36,9 +36,18 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { ArrowLeft, KeyRound } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import ConnectEndpointsPanel from '../components/ConnectEndpointsPanel.vue'
+import { normalizeSsoIssuer } from '../connectEndpoints'
 
 const { t } = useI18n()
+
+const identityIssuer = computed(() =>
+  normalizeSsoIssuer(
+    import.meta.env.VITE_SSO_URL,
+    typeof window === 'undefined' ? undefined : window.location.origin,
+  ),
+)
 </script>

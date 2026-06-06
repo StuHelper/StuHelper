@@ -5,7 +5,7 @@ export default {
   connect: {
     eyebrow: 'StuHelper Open Platform',
     title: 'StuHelper Connect',
-    subtitle: 'OIDC / OAuth entrypoints for first-party and third-party apps. The public issuer is sso.stuhelper.com; business data is exposed through StuHelper Open API scopes.',
+    subtitle: 'OIDC / OAuth entrypoints for first-party and third-party apps. The current issuer is {issuer}; business data is exposed through StuHelper Open API scopes.',
     backToIdentity: 'Back to Account Center',
     developerApps: 'Developer Apps',
   },
@@ -21,7 +21,7 @@ export default {
     loadFailed: 'Failed to load applications',
     connect: {
       title: 'StuHelper Connect',
-      subtitle: 'Use sso.stuhelper.com as the public OIDC / OAuth issuer. Student verification, QQ binding, and other business data are fetched from StuHelper Open API.',
+      subtitle: 'Use {issuer} as the OIDC / OAuth issuer. Student verification, QQ binding, and other business data are fetched from StuHelper Open API.',
       copyLabel: 'Copy {endpoint}',
       copied: 'Endpoint copied',
       copyFailed: 'Copy failed. Copy it manually.',

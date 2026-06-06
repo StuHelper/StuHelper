@@ -56,7 +56,7 @@ describe('StuHelper Connect endpoint helpers', () => {
     }
   })
 
-  it('keeps the public Connect copy centered on the Casdoor SSO issuer and Open API data boundary', () => {
+  it('keeps the public Connect copy centered on the configured issuer and Open API data boundary', () => {
     const publicCopy = [
       zhCNDeveloper.connect.subtitle,
       zhCNDeveloper.apps.connect.subtitle,
@@ -64,7 +64,7 @@ describe('StuHelper Connect endpoint helpers', () => {
       enUSDeveloper.apps.connect.subtitle,
     ].join('\n')
 
-    expect(publicCopy).toContain('sso.stuhelper.com')
+    expect(publicCopy).toContain('{issuer}')
     expect(publicCopy).toContain('StuHelper Open API')
     expect(publicCopy).not.toContain('StuHelper SSO')
   })
