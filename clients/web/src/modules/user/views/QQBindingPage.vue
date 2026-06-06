@@ -143,6 +143,8 @@ const DEFAULT_QQ_BIND_COMMAND = '绑定'
 const QQ_BINDING_STATUS_POLL_INTERVAL_MS = 3000
 const COPY_FEEDBACK_RESET_MS = 1600
 const configuredBotEntry = import.meta.env.VITE_QQ_BOT_ENTRY?.trim() || ''
+const configuredBindCommand =
+  import.meta.env.VITE_QQ_BIND_COMMAND?.trim() || DEFAULT_QQ_BIND_COMMAND
 
 const { t } = useI18n()
 const router = useRouter()
@@ -177,7 +179,7 @@ const bindingCommand = computed(() => {
   if (!qqBindingCode.value) {
     return ''
   }
-  return `${DEFAULT_QQ_BIND_COMMAND} ${qqBindingCode.value.code}`
+  return `${configuredBindCommand} ${qqBindingCode.value.code}`
 })
 const botEntryLabel = computed(() => {
   if (configuredBotEntry) {

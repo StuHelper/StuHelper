@@ -491,6 +491,8 @@ services:
     - VITE_WEB_URL=${WEB_VITE_WEB_URL:-http://localhost:3000}
     - VITE_ADMIN_URL=${ADMIN_PUBLIC_URL:-http://localhost:3001}
     - VITE_API_TIMEOUT_MS=${WEB_VITE_API_TIMEOUT_MS:-15000}
+    - VITE_QQ_BOT_ENTRY=${WEB_VITE_QQ_BOT_ENTRY:-StuHelper QQ Bot}
+    - VITE_QQ_BIND_COMMAND=${WEB_VITE_QQ_BIND_COMMAND:-绑定}
     - VITE_DEV_PROXY_TARGET=http://app-dev:8080
     extra_hosts:
     - "host.docker.internal:host-gateway"

@@ -133,6 +133,8 @@ ensure_file_value "${ENV_FILE}" "WEB_VITE_API_URL" "/api"
 ensure_file_value "${ENV_FILE}" "WEB_VITE_SSO_URL" "https://sso.stuhelper.com"
 ensure_file_value "${ENV_FILE}" "WEB_VITE_WEB_URL" "https://stuhelper.com"
 ensure_file_value "${ENV_FILE}" "WEB_VITE_API_TIMEOUT_MS" "15000"
+ensure_file_value "${ENV_FILE}" "WEB_VITE_QQ_BOT_ENTRY" "StuHelper QQ Bot"
+ensure_file_value "${ENV_FILE}" "WEB_VITE_QQ_BIND_COMMAND" "绑定"
 ensure_file_value "${ENV_FILE}" "ADMIN_VITE_API_URL" "/api/v1"
 ensure_file_value "${ENV_FILE}" "ADMIN_VITE_BASE" "/admin/"
 ensure_file_value "${ENV_FILE}" "BACKEND_EXTERNAL_PORT" "28080"
@@ -325,6 +327,8 @@ docker build \
   --build-arg VITE_WEB_URL="${WEB_VITE_WEB_URL}" \
   --build-arg VITE_ADMIN_URL="${ADMIN_PUBLIC_URL}" \
   --build-arg VITE_API_TIMEOUT_MS="${WEB_VITE_API_TIMEOUT_MS}" \
+  --build-arg VITE_QQ_BOT_ENTRY="${WEB_VITE_QQ_BOT_ENTRY}" \
+  --build-arg VITE_QQ_BIND_COMMAND="${WEB_VITE_QQ_BIND_COMMAND}" \
   -f "${REPO_ROOT}/clients/web/Dockerfile" \
   -t "${FRONTEND_IMAGE_REF}" \
   "${REPO_ROOT}"
