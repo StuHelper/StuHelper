@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
@@ -47,6 +48,7 @@ func (c providerTokenCoordinator) enabled() bool {
 }
 
 func (s *Service) encryptProviderRefreshToken(loginMethod, refreshToken string) (string, error) {
+	refreshToken = normalizeProviderRefreshToken(refreshToken)
 	if !s.providerTokens.enabled() || !providerRefreshTokenTracked(loginMethod) || refreshToken == "" {
 		return "", nil
 	}
@@ -98,16 +100,15 @@ func (s *Service) decryptProviderRefreshToken(encoded string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("decrypt provider refresh token: %w", err)
 	}
-	if rawToken == "" {
-		return "", errors.New("provider refresh token decrypted to empty value")
-	}
-	return rawToken, nil
+	return normalizeProviderRefreshToken(rawToken), nil
 }
 
 func (s *Service) revokeRawProviderRefreshToken(ctx context.Context, appKey, refreshToken string) error {
+	refreshToken = normalizeProviderRefreshToken(refreshToken)
 	if !s.providerTokens.enabled() || refreshToken == "" {
 		return nil
 	}
+	appKey = strings.TrimSpace(appKey)
 	if revoker, ok := s.providerTokens.revoker.(applicationProviderRefreshTokenRevoker); ok {
 		if err := revoker.RevokeRefreshTokenForApplication(ctx, appKey, refreshToken); err != nil {
 			return fmt.Errorf("revoke provider refresh token: %w", err)
@@ -121,10 +122,13 @@ func (s *Service) revokeRawProviderRefreshToken(ctx context.Context, appKey, ref
 }
 
 func providerRefreshTokenTracked(loginMethod string) bool {
+	loginMethod = strings.TrimSpace(loginMethod)
 	return loginMethod == "oidc" || loginMethod == "oidc-native"
 }
 
 func providerAppKeyForSession(loginMethod, appKey string) string {
+	loginMethod = strings.TrimSpace(loginMethod)
+	appKey = strings.TrimSpace(appKey)
 	if !providerRefreshTokenTracked(loginMethod) {
 		return ""
 	}
@@ -135,4 +139,8 @@ func providerAppKeyForSession(loginMethod, appKey string) string {
 		return oidc.ApplicationUniapp
 	}
 	return oidc.ApplicationWeb
+}
+
+func normalizeProviderRefreshToken(refreshToken string) string {
+	return strings.TrimSpace(refreshToken)
 }

@@ -30,9 +30,38 @@ func (f *fakeProviderRefreshRevoker) RevokeRefreshToken(ctx context.Context, ref
 	return f.err
 }
 
+type providerRefreshTokenRevokeCall struct {
+	appKey       string
+	refreshToken string
+}
+
+type fakeApplicationProviderRefreshRevoker struct {
+	calls  []providerRefreshTokenRevokeCall
+	err    error
+	ctxErr error
+}
+
+func (f *fakeApplicationProviderRefreshRevoker) RevokeRefreshToken(ctx context.Context, refreshToken string) error {
+	f.ctxErr = ctx.Err()
+	f.calls = append(f.calls, providerRefreshTokenRevokeCall{
+		appKey:       oidc.ApplicationWeb,
+		refreshToken: refreshToken,
+	})
+	return f.err
+}
+
+func (f *fakeApplicationProviderRefreshRevoker) RevokeRefreshTokenForApplication(ctx context.Context, appKey, refreshToken string) error {
+	f.ctxErr = ctx.Err()
+	f.calls = append(f.calls, providerRefreshTokenRevokeCall{
+		appKey:       appKey,
+		refreshToken: refreshToken,
+	})
+	return f.err
+}
+
 func newAuthServiceWithProviderRevoker(
 	t *testing.T,
-	revoker *fakeProviderRefreshRevoker,
+	revoker ProviderRefreshTokenRevoker,
 ) (*Service, *token.Service) {
 	t.Helper()
 	fixture := redisfixture.Start(t)
@@ -65,6 +94,81 @@ func TestProviderRefreshTokenRevokedOnSessionLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"old-refresh", "new-refresh"}, revoker.tokens)
 	assert.Nil(t, requireSession(t, tokenSvc, "sid-oidc"))
+}
+
+func TestProviderRefreshTokenInputsAreNormalized(t *testing.T) {
+	revoker := &fakeApplicationProviderRefreshRevoker{}
+	svc, tokenSvc := newAuthServiceWithProviderRevoker(t, revoker)
+
+	_, err := svc.CreateSessionForApplication(
+		t.Context(),
+		"sid-provider-trim",
+		"user-1",
+		"access-token",
+		" \tprovider-refresh\n ",
+		"oidc-native",
+		" \t"+oidc.ApplicationUniapp+"\n ",
+		"ios",
+	)
+	require.NoError(t, err)
+
+	session := requireSession(t, tokenSvc, "sid-provider-trim")
+	require.NotEmpty(t, session.ProviderRefreshTokenEnc)
+	assert.Equal(t, oidc.ApplicationUniapp, session.ProviderAppKey)
+
+	rawProviderRefresh, err := svc.decryptProviderRefreshToken(session.ProviderRefreshTokenEnc)
+	require.NoError(t, err)
+	assert.Equal(t, "provider-refresh", rawProviderRefresh)
+
+	appKey, err := svc.OIDCApplicationForRefresh(t.Context(), "sid-provider-trim", " \tprovider-refresh\n ")
+	require.NoError(t, err)
+	assert.Equal(t, oidc.ApplicationUniapp, appKey)
+
+	err = svc.RevokeSession(t.Context(), "sid-provider-trim", "user-1", "access-token", " \tprovider-refresh\n ")
+	require.NoError(t, err)
+	assert.Equal(t, []providerRefreshTokenRevokeCall{
+		{appKey: oidc.ApplicationUniapp, refreshToken: "provider-refresh"},
+	}, revoker.calls)
+}
+
+func TestProviderRefreshTokenWhitespaceOnlySkipped(t *testing.T) {
+	revoker := &fakeApplicationProviderRefreshRevoker{}
+	svc, tokenSvc := newAuthServiceWithProviderRevoker(t, revoker)
+
+	_, err := svc.CreateSessionForApplication(
+		t.Context(),
+		"sid-provider-blank",
+		"user-1",
+		"access-token",
+		" \t\n ",
+		"oidc-native",
+		" \t\n ",
+		"ios",
+	)
+	require.NoError(t, err)
+
+	session := requireSession(t, tokenSvc, "sid-provider-blank")
+	assert.Empty(t, session.ProviderRefreshTokenEnc)
+	assert.Equal(t, oidc.ApplicationUniapp, session.ProviderAppKey)
+
+	err = svc.RevokeSession(t.Context(), "sid-provider-blank", "user-1", "access-token", " \t\n ")
+	require.NoError(t, err)
+	assert.Empty(t, revoker.calls)
+}
+
+func TestRevokeRawProviderRefreshTokenNormalizesInputs(t *testing.T) {
+	revoker := &fakeApplicationProviderRefreshRevoker{}
+	svc, _ := newAuthServiceWithProviderRevoker(t, revoker)
+
+	err := svc.revokeRawProviderRefreshToken(t.Context(), " \t"+oidc.ApplicationUniapp+"\n ", " \tprovider-refresh\n ")
+	require.NoError(t, err)
+	assert.Equal(t, []providerRefreshTokenRevokeCall{
+		{appKey: oidc.ApplicationUniapp, refreshToken: "provider-refresh"},
+	}, revoker.calls)
+
+	err = svc.revokeRawProviderRefreshToken(t.Context(), oidc.ApplicationWeb, " \t\n ")
+	require.NoError(t, err)
+	assert.Len(t, revoker.calls, 1)
 }
 
 func TestRevokeAllSessionsRevokesProviderRefreshTokens(t *testing.T) {
