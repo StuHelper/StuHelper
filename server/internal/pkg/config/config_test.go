@@ -147,6 +147,7 @@ func TestValidate_ProductionRequiresObservability(t *testing.T) {
 			TrustedProxies:  []string{"10.0.0.0/8"},
 			MetricsUser:     "prometheus",
 			MetricsPassword: "metrics-password",
+			MaxBodySize:     10 << 20,
 			APIIPRateLimit:  100,
 			APIGlobalLimit:  10000,
 		},
@@ -261,6 +262,38 @@ func TestValidate_RejectsInvalidAppPort(t *testing.T) {
 func TestValidate_AllowsValidAppPort(t *testing.T) {
 	c := validProductionConfigForTest()
 	c.App.Port = "65535"
+
+	require.NoError(t, c.validate(nil))
+}
+
+func TestValidate_RejectsInvalidMaxBodySize(t *testing.T) {
+	const maxAllowedBodySize = int64(100 << 20)
+	tests := []struct {
+		name string
+		size int64
+		want string
+	}{
+		{name: "zero", size: 0, want: "MAX_BODY_SIZE must be between 1 and 104857600 bytes (got 0)"},
+		{name: "negative", size: -1, want: "MAX_BODY_SIZE must be between 1 and 104857600 bytes (got -1)"},
+		{name: "too large", size: maxAllowedBodySize + 1, want: "MAX_BODY_SIZE must be between 1 and 104857600 bytes (got 104857601)"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validProductionConfigForTest()
+			c.App.MaxBodySize = tt.size
+
+			err := c.validate(nil)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.want)
+		})
+	}
+}
+
+func TestValidate_AllowsValidMaxBodySize(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.App.MaxBodySize = 100 << 20
 
 	require.NoError(t, c.validate(nil))
 }
@@ -894,6 +927,7 @@ func TestValidate_SMSRequiresFullConfigWhenEnabled(t *testing.T) {
 			HMACSecret:      "0123456789abcdef0123456789abcdef",
 			CORSOrigins:     []string{"http://localhost:3000"},
 			MetricsPassword: "metrics-password",
+			MaxBodySize:     10 << 20,
 			APIIPRateLimit:  100,
 			APIGlobalLimit:  10000,
 		},
@@ -983,6 +1017,7 @@ func TestValidate_SMSDisabledAllowsEmptyConfig(t *testing.T) {
 			HMACSecret:      "0123456789abcdef0123456789abcdef",
 			CORSOrigins:     []string{"http://localhost:3000"},
 			MetricsPassword: "metrics-password",
+			MaxBodySize:     10 << 20,
 			APIIPRateLimit:  100,
 			APIGlobalLimit:  10000,
 		},
@@ -1350,6 +1385,7 @@ func validProductionConfigForTest() *Config {
 			TrustedProxies:  []string{"10.0.0.0/8"},
 			MetricsUser:     "prometheus",
 			MetricsPassword: "metrics-password",
+			MaxBodySize:     10 << 20,
 			APIIPRateLimit:  100,
 			APIGlobalLimit:  10000,
 		},

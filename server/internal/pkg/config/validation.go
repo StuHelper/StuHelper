@@ -16,6 +16,7 @@ func (c *Config) validate(parseErrs []string) error {
 	productionLike := IsProductionLikeEnv(c.App.Env)
 	errs = append(errs, validateAppEnv(c.App.Env)...)
 	errs = append(errs, validateAppPort(c.App.Port)...)
+	errs = append(errs, validateMaxBodySize(c.App.MaxBodySize)...)
 
 	const hmacMinLen = 32
 	switch {
@@ -379,6 +380,14 @@ func validateAppPort(port string) []string {
 	}
 	if value < 1 || value > 65535 {
 		return []string{fmt.Sprintf("APP_PORT must be between 1 and 65535 (got %d)", value)}
+	}
+	return nil
+}
+
+func validateMaxBodySize(maxBodySize int64) []string {
+	const maxAllowedBodySize = int64(100 << 20)
+	if maxBodySize < 1 || maxBodySize > maxAllowedBodySize {
+		return []string{fmt.Sprintf("MAX_BODY_SIZE must be between 1 and %d bytes (got %d)", maxAllowedBodySize, maxBodySize)}
 	}
 	return nil
 }
