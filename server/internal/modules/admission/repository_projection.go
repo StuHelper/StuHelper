@@ -64,22 +64,74 @@ func (r *Repository) GetLatestCredentialForUser(
 	now time.Time,
 ) (*VerificationCredential, error) {
 	ctx = withDBTable(ctx, "user_verification_credentials")
-	credential, err := scanVerificationCredential(r.db.QueryRow(ctx, `
+	query, args := latestCredentialForUserQuery(userID, 0, now)
+	credential, err := scanVerificationCredential(r.db.QueryRow(ctx, query, args...))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("GetLatestCredentialForUser: %w", err)
+	}
+	return credential, nil
+}
+
+func (r *Repository) GetLatestCredentialForUserSchool(
+	ctx context.Context,
+	userID int64,
+	schoolID int64,
+	now time.Time,
+) (*VerificationCredential, error) {
+	ctx = withDBTable(ctx, "user_verification_credentials")
+	query, args := latestCredentialForUserQuery(userID, schoolID, now)
+	credential, err := scanVerificationCredential(r.db.QueryRow(ctx, query, args...))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("GetLatestCredentialForUserSchool: %w", err)
+	}
+	return credential, nil
+}
+
+func (r *Repository) GetLatestCredentialForUserSchoolTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	userID int64,
+	schoolID int64,
+	now time.Time,
+) (*VerificationCredential, error) {
+	query, args := latestCredentialForUserQuery(userID, schoolID, now)
+	credential, err := scanVerificationCredential(tx.QueryRow(ctx, query, args...))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("GetLatestCredentialForUserSchoolTx: %w", err)
+	}
+	return credential, nil
+}
+
+func latestCredentialForUserQuery(
+	userID int64,
+	schoolID int64,
+	now time.Time,
+) (string, []any) {
+	schoolClause := ""
+	args := []any{userID, now}
+	if schoolID > 0 {
+		schoolClause = " AND school_id = $3"
+		args = append(args, schoolID)
+	}
+	return `
 		SELECT user_id, school_id, kind, subject_hash, subject_display,
 		       source_application_id, expires_at, verified_at
 		FROM user_verification_credentials
 		WHERE user_id = $1 AND revoked_at IS NULL
 		  AND (expires_at IS NULL OR expires_at > $2)
+		  ` + schoolClause + `
 		ORDER BY verified_at DESC
 		LIMIT 1
-	`, userID, now))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("GetLatestCredentialForUser: %w", err)
-	}
-	return credential, nil
+	`, args
 }
 
 func (r *Repository) HasPendingAdmissionProjection(ctx context.Context, userID int64) (bool, error) {

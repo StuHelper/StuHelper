@@ -339,6 +339,62 @@ func TestAdmissionTokenLinkIsIdempotentForSameUser(t *testing.T) {
 	assert.Equal(t, userID, *second.UserID)
 }
 
+func TestAdmissionTokenLinkVerifiesExistingSchoolCredential(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createLinkableSession(t, svc)
+	userID := seedAdmissionUser(t, fixture, "link-existing-credential")
+	insertAdmissionVerificationCredential(t, fixture, userID, 4111010006, "link-existing-credential")
+
+	linked, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:  created.Token,
+		UserID: userID,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, linked.UserID)
+	assert.Equal(t, userID, *linked.UserID)
+	assert.Equal(t, StatusVerified, linked.Status)
+	require.NotNil(t, linked.VerifiedAt)
+
+	actions, err := svc.ClaimQueuedAdmissionActions(context.Background(), AdmissionPendingActionFilter{
+		Platform:  "qq",
+		BotSelfID: "514",
+		Limit:     10,
+	})
+	require.NoError(t, err)
+	require.Len(t, actions, 1)
+	assert.Equal(t, BotActionRelease, actions[0].Action)
+	assert.Equal(t, linked.ID, actions[0].SessionID)
+}
+
+func TestAdmissionTokenLinkDoesNotVerifyOtherSchoolCredential(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	insertAdmissionPolicyForSchool(t, fixture, "adm-policy-link-other-school", "guild-2", 4111010007)
+	created := createLinkableSession(t, svc)
+	userID := seedAdmissionUser(t, fixture, "link-other-school-credential")
+	insertAdmissionVerificationCredential(t, fixture, userID, 4111010007, "link-other-school-credential")
+
+	linked, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:  created.Token,
+		UserID: userID,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, StatusLinked, linked.Status)
+
+	actions, err := svc.ClaimQueuedAdmissionActions(context.Background(), AdmissionPendingActionFilter{
+		Platform:  "qq",
+		BotSelfID: "514",
+		Limit:     10,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, actions)
+}
+
 func TestAdmissionTokenConsumedResumeRejectsExpiredSubmissionWindow(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)
@@ -1124,6 +1180,24 @@ func bindVerifiedAdmissionQQ(t *testing.T, fixture *postgresfixture.Fixture, use
 		)
 		VALUES ($1, $2, 4111010006, $3, $4, $5, $6)
 	`, "credential-"+qqID, userID, CredentialSchoolEmailOTP, "credential-hash-"+qqID, "student "+qqID, fixedAdmissionNow())
+	require.NoError(t, err)
+}
+
+func insertAdmissionVerificationCredential(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	userID int64,
+	schoolID int64,
+	suffix string,
+) {
+	t.Helper()
+	_, err := fixture.Pool.Exec(context.Background(), `
+		INSERT INTO user_verification_credentials (
+			id, user_id, school_id, kind, subject_hash, subject_display, verified_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, fmt.Sprintf("credential-%d", userID), userID, schoolID, CredentialSchoolEmailOTP,
+		"credential-hash-"+suffix, "student "+suffix, fixedAdmissionNow())
 	require.NoError(t, err)
 }
 

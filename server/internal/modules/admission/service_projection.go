@@ -20,7 +20,11 @@ func (s *Service) GetAdmissionMe(
 	if session == nil {
 		return &AdmissionMe{Status: StatusCancelled}, nil
 	}
-	credential, err := s.repo.GetLatestCredentialForUser(ctx, userID, s.now())
+	policy, err := s.loadPolicy(ctx, session.Platform, session.GuildID)
+	if err != nil {
+		return nil, err
+	}
+	credential, err := s.repo.GetLatestCredentialForUserSchool(ctx, userID, policy.SchoolID, s.now())
 	if err != nil {
 		return nil, err
 	}

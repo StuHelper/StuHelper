@@ -132,6 +132,24 @@ func TestAdmissionMeIgnoresExpiredUnprocessedCredential(t *testing.T) {
 	assert.Nil(t, me.ProvisionalExpiresAt)
 }
 
+func TestAdmissionMeIgnoresOtherSchoolCredential(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newFreshmanTestService(t, fixture)
+	insertAdmissionPolicyForSchool(t, fixture, "adm-policy-projection-other-school", "guild-2", 4111010007)
+	userID := seedAdmissionUser(t, fixture, "projection-other-school-credential")
+	linkFreshmanReviewSession(t, svc, freshmanReviewSessionSeed{
+		UserID: userID, QQID: "20014", Token: "projection-other-school-credential-token",
+	})
+	insertAdmissionVerificationCredential(t, fixture, userID, 4111010007, "projection-other-school-credential")
+
+	me, err := svc.GetAdmissionMe(context.Background(), userID, "")
+
+	require.NoError(t, err)
+	assert.Equal(t, StatusLinked, me.Status)
+	assert.Nil(t, me.CredentialKind)
+	assert.Nil(t, me.ProvisionalExpiresAt)
+}
+
 func TestAdmissionMeDoesNotTreatFailedProjectionAsPending(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newFreshmanTestService(t, fixture)

@@ -397,17 +397,44 @@ func (s *Service) LinkTokenToUser(ctx context.Context, input AdmissionTokenLinkI
 		if err := s.qqGateway.EnsureQQBindingForUserTx(ctx, tx, input.UserID, session.QQID); err != nil {
 			return err
 		}
-		deadline := s.now().Add(time.Duration(policy.SubmissionWaitSeconds) * time.Second)
-		linked, err = s.repo.MarkTokenConsumedAndLinked(ctx, tx, session.ID, input.UserID, s.now(), deadline)
+		now := s.now()
+		deadline := now.Add(time.Duration(policy.SubmissionWaitSeconds) * time.Second)
+		linked, err = s.repo.MarkTokenConsumedAndLinked(ctx, tx, session.ID, input.UserID, now, deadline)
 		if err != nil {
 			return err
 		}
-		return s.queueInitialBotActionsTx(ctx, tx, linked, s.now())
+		linked, err = s.resolveLinkedSessionVerificationTx(ctx, tx, linked, input.UserID, policy, now)
+		return err
 	})
 	if err != nil {
 		return nil, fmt.Errorf("LinkTokenToUser: %w", err)
 	}
 	return linked, nil
+}
+
+func (s *Service) resolveLinkedSessionVerificationTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	linked *AdmissionSession,
+	userID int64,
+	policy *AdmissionPolicy,
+	now time.Time,
+) (*AdmissionSession, error) {
+	if linked == nil || policy == nil {
+		return linked, ErrAdmissionInvalidInput
+	}
+	credential, err := s.repo.GetLatestCredentialForUserSchoolTx(ctx, tx, userID, policy.SchoolID, now)
+	if err != nil {
+		return nil, err
+	}
+	if credential == nil {
+		return linked, s.queueInitialBotActionsTx(ctx, tx, linked, now)
+	}
+	verified, err := s.repo.MarkVerifiedTx(ctx, tx, linked.ID, now)
+	if err != nil {
+		return nil, err
+	}
+	return verified, s.queueBotActionTx(ctx, tx, verified, BotActionRelease, now, now)
 }
 
 func (s *Service) validateResendableSession(session *AdmissionSession) error {
