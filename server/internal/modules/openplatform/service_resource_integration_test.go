@@ -310,7 +310,7 @@ func TestResourceAccessCheckAcceptsClientCredentialsAccessTokenContext(t *testin
 
 	decision, err := service.CheckResourceAccess(ctx, ResourceAccessCheckInput{
 		AccessTokenClientID: app.ClientID,
-		AccessTokenScopes:   []string{ScopeResourceRead},
+		AccessTokenScopes:   []string{"openid", "profile", ScopeResourceRead},
 		ResourceType:        ResourceTypeResourceItem,
 		ResourceID:          "token-42",
 		Action:              ResourceAccessActionRead,
@@ -322,7 +322,19 @@ func TestResourceAccessCheckAcceptsClientCredentialsAccessTokenContext(t *testin
 
 	decision, err = service.CheckResourceAccess(ctx, ResourceAccessCheckInput{
 		AccessTokenClientID: app.ClientID,
-		AccessTokenScopes:   []string{ScopeResourceRead},
+		AccessTokenScopes:   []string{"openid", "profile"},
+		ResourceType:        ResourceTypeResourceItem,
+		ResourceID:          "token-42",
+		Action:              ResourceAccessActionRead,
+		RequestID:           "check-resource-token-standard-scope-only",
+	})
+	require.NoError(t, err)
+	assert.False(t, decision.Allowed)
+	assert.Equal(t, "token_scope_missing", decision.Reason)
+
+	decision, err = service.CheckResourceAccess(ctx, ResourceAccessCheckInput{
+		AccessTokenClientID: app.ClientID,
+		AccessTokenScopes:   []string{"openid", ScopeResourceRead},
 		ResourceType:        ResourceTypeResourceItem,
 		ResourceID:          "token-42",
 		Action:              ResourceAccessActionWrite,

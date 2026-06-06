@@ -201,7 +201,7 @@ func (s *Service) resourceAccessApp(ctx context.Context, input ResourceAccessChe
 		if strings.TrimSpace(input.ClientID) != "" || strings.TrimSpace(input.ClientSecret) != "" {
 			return nil, nil, false, ErrInvalidResourceAccess
 		}
-		scopes, err := NormalizeScopes(input.AccessTokenScopes)
+		scopes, err := NormalizeGrantedOAuthScopes(input.AccessTokenScopes)
 		if err != nil {
 			return nil, nil, false, ErrInvalidResourceAccess
 		}
