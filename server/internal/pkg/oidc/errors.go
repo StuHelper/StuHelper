@@ -2,6 +2,7 @@ package oidc
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"golang.org/x/oauth2"
@@ -35,6 +36,14 @@ func classifyOAuthRefreshError(err error) error {
 		return errors.Join(ErrInvalidRefreshToken, err)
 	}
 	return errors.Join(ErrProviderUnavailable, err)
+}
+
+func normalizeRequiredRefreshToken(refreshToken, operation string) (string, error) {
+	refreshToken = strings.TrimSpace(refreshToken)
+	if refreshToken == "" {
+		return "", fmt.Errorf("oidc: refresh token is required for %s: %w", operation, ErrInvalidRefreshToken)
+	}
+	return refreshToken, nil
 }
 
 func classifyVerifierError(err error) error {

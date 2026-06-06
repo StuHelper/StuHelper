@@ -23,8 +23,9 @@ func (c *Client) RevokeRefreshToken(ctx context.Context, refreshToken string) (e
 }
 
 func (c *Client) RevokeRefreshTokenForApplication(ctx context.Context, appKey, refreshToken string) (err error) {
-	if strings.TrimSpace(refreshToken) == "" {
-		return errors.New("oidc: refresh token is required for revocation")
+	refreshToken, err = normalizeRequiredRefreshToken(refreshToken, "revocation")
+	if err != nil {
+		return err
 	}
 	cfg, err := c.oauth2ConfigForApplication(appKey)
 	if err != nil {

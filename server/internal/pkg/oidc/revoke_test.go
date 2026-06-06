@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 )
@@ -35,6 +36,44 @@ func TestRevokeRefreshTokenUsesDiscoveredRevocationEndpoint(t *testing.T) {
 	assert.Equal(t, "refresh_token", seenHint)
 	assert.Equal(t, "oidc-client", seenUser)
 	assert.Equal(t, "oidc-secret", seenPass)
+}
+
+func TestRevokeRefreshTokenForApplicationNormalizesInputs(t *testing.T) {
+	var seenToken string
+	var seenUser string
+	var seenPass string
+	client, server := newRevocationOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenUser, seenPass, _ = r.BasicAuth()
+		require.NoError(t, r.ParseForm())
+		seenToken = r.Form.Get("token")
+		w.WriteHeader(http.StatusOK)
+	}), true)
+	defer server.Close()
+
+	err := client.RevokeRefreshTokenForApplication(
+		context.Background(),
+		" \t"+ApplicationAdmin+"\n ",
+		" \tprovider-refresh-token\n ",
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, "provider-refresh-token", seenToken)
+	assert.Equal(t, "admin-client", seenUser)
+	assert.Equal(t, "admin-secret", seenPass)
+}
+
+func TestRevokeRefreshTokenRejectsBlankTokenWithoutProviderCall(t *testing.T) {
+	var calls int
+	client, server := newRevocationOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusOK)
+	}), true)
+	defer server.Close()
+
+	err := client.RevokeRefreshToken(context.Background(), " \t\n ")
+
+	require.ErrorIs(t, err, ErrInvalidRefreshToken)
+	assert.Equal(t, 0, calls)
 }
 
 func TestRevokeRefreshTokenProviderFailureIsUnavailable(t *testing.T) {
@@ -118,5 +157,11 @@ func newRevocationOIDCClient(
 		IntrospectionClientSecret: "introspection-secret",
 	})
 	require.NoError(t, err)
+	client.oauth2Configs[ApplicationAdmin] = oauth2.Config{
+		ClientID:     "admin-client",
+		ClientSecret: "admin-secret",
+		Endpoint:     client.oauth2Cfg.Endpoint,
+		Scopes:       client.oauth2Cfg.Scopes,
+	}
 	return client, server
 }

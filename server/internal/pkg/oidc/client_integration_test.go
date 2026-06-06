@@ -154,6 +154,60 @@ func TestOIDCClient_IntegrationFlows(t *testing.T) {
 	assert.Contains(t, string(raw), "oidc-user")
 }
 
+func TestOIDCClientRefreshTokenForApplicationNormalizesInputs(t *testing.T) {
+	var seenRefreshToken string
+	var seenClientID string
+	var seenGrantType string
+	client, srv := newRefreshTokenOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		seenRefreshToken = r.Form.Get("refresh_token")
+		seenGrantType = r.Form.Get("grant_type")
+		if user, _, ok := r.BasicAuth(); ok {
+			seenClientID = user
+		} else {
+			seenClientID = r.Form.Get("client_id")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "provider-access-token",
+			"token_type":    "Bearer",
+			"refresh_token": "next-refresh-token",
+			"expires_in":    3600,
+		})
+	}))
+	defer srv.Close()
+	adminCfg := client.oauth2Cfg
+	adminCfg.ClientID = "admin-client"
+	adminCfg.ClientSecret = "admin-secret"
+	client.oauth2Configs[ApplicationAdmin] = adminCfg
+
+	tok, err := client.RefreshTokenForApplication(
+		context.Background(),
+		" \t"+ApplicationAdmin+"\n ",
+		" \tprovider-refresh-token\n ",
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, "next-refresh-token", tok.RefreshToken)
+	assert.Equal(t, "refresh_token", seenGrantType)
+	assert.Equal(t, "provider-refresh-token", seenRefreshToken)
+	assert.Equal(t, "admin-client", seenClientID)
+}
+
+func TestOIDCClientRefreshTokenRejectsBlankTokenWithoutProviderCall(t *testing.T) {
+	var tokenRequests atomic.Int32
+	client, srv := newRefreshTokenOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		tokenRequests.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	_, err := client.RefreshTokenForApplication(context.Background(), " \t"+ApplicationWeb+"\n ", " \t\n ")
+
+	require.ErrorIs(t, err, ErrInvalidRefreshToken)
+	assert.Equal(t, int32(0), tokenRequests.Load())
+}
+
 func TestOIDCClient_GetAuthURLForApplicationUsesSelectedClient(t *testing.T) {
 	client, srv := newTestOIDCClient(t)
 	defer srv.Close()
@@ -172,6 +226,43 @@ func TestOIDCClient_GetAuthURLForApplicationUsesSelectedClient(t *testing.T) {
 	assert.Contains(t, authURL, "client_id=admin-client")
 	assert.Contains(t, authURL, "redirect_uri=https%3A%2F%2Fadmin.example.com%2Fapi%2Fv1%2Fauth%2Fcallback")
 	assert.Contains(t, authURL, "state=state-admin")
+}
+
+func newRefreshTokenOIDCClient(t *testing.T, tokenHandler http.HandlerFunc) (*Client, *httptest.Server) {
+	t.Helper()
+	const clientID = "oidc-client"
+	const clientSecret = "oidc-secret"
+	var issuer string
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"issuer":                 issuer,
+			"authorization_endpoint": issuer + "/authorize",
+			"token_endpoint":         issuer + "/token",
+			"jwks_uri":               issuer + "/keys",
+			"introspection_endpoint": issuer + "/introspect",
+		})
+	})
+	mux.HandleFunc("/keys", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(jose.JSONWebKeySet{Keys: []jose.JSONWebKey{}})
+	})
+	mux.HandleFunc("/token", tokenHandler)
+
+	srv := httptest.NewServer(mux)
+	issuer = srv.URL
+	client, err := NewClient(context.Background(), config.CasdoorConfig{
+		Issuer:                    issuer,
+		ClientID:                  clientID,
+		ClientSecret:              clientSecret,
+		RedirectURI:               "https://web.example.com/api/v1/auth/callback",
+		IntrospectionClientID:     "introspection-client",
+		IntrospectionClientSecret: "introspection-secret",
+	})
+	require.NoError(t, err)
+	return client, srv
 }
 
 func TestVerifyIDTokenUnknownKidFetchFailureIsProviderUnavailable(t *testing.T) {

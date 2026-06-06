@@ -103,6 +103,7 @@ func normalizeOAuth2Scopes(scopes []string) []string {
 }
 
 func (c *Client) oauth2ConfigForApplication(appKey string) (oauth2.Config, error) {
+	appKey = strings.TrimSpace(appKey)
 	if appKey == "" {
 		appKey = ApplicationWeb
 	}
@@ -114,6 +115,10 @@ func (c *Client) oauth2ConfigForApplication(appKey string) (oauth2.Config, error
 }
 
 func (c *Client) ApplicationKeyForClientID(clientID string) string {
+	clientID = strings.TrimSpace(clientID)
+	if clientID == "" {
+		return ""
+	}
 	for appKey, cfg := range c.oauth2Configs {
 		if cfg.ClientID == clientID {
 			return appKey

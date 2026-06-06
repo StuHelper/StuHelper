@@ -40,6 +40,11 @@ func (c *Client) RefreshToken(ctx context.Context, refreshToken string) (*oauth2
 }
 
 func (c *Client) RefreshTokenForApplication(ctx context.Context, appKey, refreshToken string) (*oauth2.Token, error) {
+	var err error
+	refreshToken, err = normalizeRequiredRefreshToken(refreshToken, "refresh")
+	if err != nil {
+		return nil, err
+	}
 	cfg, err := c.oauth2ConfigForApplication(appKey)
 	if err != nil {
 		return nil, err

@@ -104,6 +104,23 @@ func TestGetAuthURLForApplicationDoesNotRewriteCasdoorLoginOAuthToDifferentHost(
 	assert.Contains(t, stepUpURL, "prompt=login")
 }
 
+func TestApplicationLookupNormalizesInputs(t *testing.T) {
+	client := NewStubClient("https://sso.example.com/login/oauth/authorize")
+
+	authURL, verifier, err := client.GetAuthURLForApplication(" \t"+ApplicationAdmin+"\n ", "state-admin")
+	require.NoError(t, err)
+	assert.NotEmpty(t, verifier)
+	assert.Contains(t, authURL, "client_id=test-admin-client-id")
+
+	authURL, verifier, err = client.GetAuthURLForApplication(" \t\n ", "state-web")
+	require.NoError(t, err)
+	assert.NotEmpty(t, verifier)
+	assert.Contains(t, authURL, "client_id=test-client-id")
+
+	assert.Equal(t, ApplicationAdmin, client.ApplicationKeyForClientID(" \ttest-admin-client-id\n "))
+	assert.Empty(t, client.ApplicationKeyForClientID(" \t\n "))
+}
+
 func TestOAuth2ScopesNormalizeConfiguredValues(t *testing.T) {
 	assert.Equal(t,
 		[]string{"openid", "profile", "email"},
