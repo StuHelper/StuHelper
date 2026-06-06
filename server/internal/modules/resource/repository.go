@@ -56,7 +56,8 @@ func (r *Repository) CreateResource(ctx context.Context, ownerUserID string, req
 
 func (r *Repository) ListResources(ctx context.Context, filters ListFilters) ([]Item, int, error) {
 	ctx = withDBTable(ctx, "resource_items")
-	offset := httputil.SafeOffset(filters.Page, filters.PageSize)
+	pageSize := httputil.ClampPageSize(filters.PageSize)
+	offset := httputil.SafeOffset(filters.Page, pageSize)
 	queryPattern := "%" + httputil.EscapeLikePattern(filters.Query) + "%"
 	rows, err := r.db.Query(ctx, `
 		SELECT ri.id, ri.owner_user_id, ri.title, ri.description, ri.category, ri.visibility, ri.created_at, ri.updated_at,
@@ -84,7 +85,7 @@ func (r *Repository) ListResources(ctx context.Context, filters ListFilters) ([]
 		  ))
 		ORDER BY ri.created_at DESC, ri.id DESC
 		LIMIT $5 OFFSET $6
-	`, queryPattern, filters.Tag, filters.BindingType, filters.BindingValue, filters.PageSize, offset)
+	`, queryPattern, filters.Tag, filters.BindingType, filters.BindingValue, pageSize, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list resources: %w", err)
 	}

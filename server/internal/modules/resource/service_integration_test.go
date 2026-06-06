@@ -82,6 +82,16 @@ func TestCreateAndQueryResource(t *testing.T) {
 	require.Len(t, items, 1)
 	assert.Equal(t, created.ID, items[0].ID)
 
+	items, total, err = svc.ListResources(ctx, ListFilters{
+		Query:    "Algorithms",
+		Page:     0,
+		PageSize: 0,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, total)
+	require.Len(t, items, 1)
+	assert.Equal(t, created.ID, items[0].ID)
+
 	url, err := svc.GetDownloadURL(ctx, created.ID, "")
 	require.NoError(t, err)
 	assert.Equal(t, store.downloadURL, url)
