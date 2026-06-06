@@ -70,10 +70,10 @@ func (c *Config) validate(parseErrs []string) error {
 	if c.ObjectStorage.PresignTTL < 60 || c.ObjectStorage.PresignTTL > 86400 {
 		errs = append(errs, fmt.Sprintf("OBJECT_STORAGE_PRESIGN_TTL must be between 60 and 86400 seconds (got %d)", c.ObjectStorage.PresignTTL))
 	}
-	if c.Observability.Enabled && c.Observability.ServiceName == "" {
+	if c.Observability.Enabled && configStringMissing(c.Observability.ServiceName) {
 		errs = append(errs, "OTEL_SERVICE_NAME is required when OTEL_ENABLED=true")
 	}
-	if c.Observability.Enabled && c.Observability.OTLPEndpoint == "" {
+	if c.Observability.Enabled && configStringMissing(c.Observability.OTLPEndpoint) {
 		errs = append(errs, "OTEL_EXPORTER_OTLP_ENDPOINT is required when OTEL_ENABLED=true")
 	}
 	errs = append(errs, validateOptionalHTTPOrigins(
@@ -84,22 +84,22 @@ func (c *Config) validate(parseErrs []string) error {
 	errs = append(errs, validateCORSOrigins(c.App.CORSOrigins)...)
 
 	if c.SMS.Enabled {
-		if c.SMS.SecretID == "" {
+		if configStringMissing(c.SMS.SecretID) {
 			errs = append(errs, "SMS_SECRET_ID is required when SMS_ENABLED=true")
 		}
-		if c.SMS.SecretKey == "" {
+		if configStringMissing(c.SMS.SecretKey) {
 			errs = append(errs, "SMS_SECRET_KEY is required when SMS_ENABLED=true")
 		}
-		if c.SMS.AppID == "" {
+		if configStringMissing(c.SMS.AppID) {
 			errs = append(errs, "SMS_APP_ID is required when SMS_ENABLED=true")
 		}
-		if c.SMS.SignName == "" {
+		if configStringMissing(c.SMS.SignName) {
 			errs = append(errs, "SMS_SIGN_NAME is required when SMS_ENABLED=true")
 		}
-		if c.SMS.TemplateID == "" {
+		if configStringMissing(c.SMS.TemplateID) {
 			errs = append(errs, "SMS_TEMPLATE_ID is required when SMS_ENABLED=true")
 		}
-		if c.SMS.InternalKey == "" {
+		if configStringMissing(c.SMS.InternalKey) {
 			errs = append(errs, "SMS_INTERNAL_KEY is required when SMS_ENABLED=true")
 		}
 	}
@@ -110,13 +110,13 @@ func (c *Config) validate(parseErrs []string) error {
 		}
 		switch driver {
 		case "smtp":
-			if c.Email.SMTPHost == "" {
+			if configStringMissing(c.Email.SMTPHost) {
 				errs = append(errs, "EMAIL_SMTP_HOST is required when EMAIL_ENABLED=true and EMAIL_DRIVER=smtp")
 			}
 			if c.Email.SMTPPort <= 0 || c.Email.SMTPPort > 65535 {
 				errs = append(errs, fmt.Sprintf("EMAIL_SMTP_PORT must be between 1 and 65535 when EMAIL_ENABLED=true and EMAIL_DRIVER=smtp (got %d)", c.Email.SMTPPort))
 			}
-			if c.Email.From == "" {
+			if configStringMissing(c.Email.From) {
 				errs = append(errs, "EMAIL_FROM is required when EMAIL_ENABLED=true and EMAIL_DRIVER=smtp")
 			}
 		case "blackhole":
@@ -124,19 +124,19 @@ func (c *Config) validate(parseErrs []string) error {
 				errs = append(errs, "EMAIL_DRIVER=blackhole is only allowed outside production")
 			}
 		case "tencent_ses":
-			if c.Email.From == "" {
+			if configStringMissing(c.Email.From) {
 				errs = append(errs, "EMAIL_FROM is required when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses")
 			}
-			if c.Email.TencentSecretID == "" {
+			if configStringMissing(c.Email.TencentSecretID) {
 				errs = append(errs, "EMAIL_TENCENT_SECRET_ID is required when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses")
 			}
-			if c.Email.TencentSecretKey == "" {
+			if configStringMissing(c.Email.TencentSecretKey) {
 				errs = append(errs, "EMAIL_TENCENT_SECRET_KEY is required when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses")
 			}
-			if c.Email.TencentRegion == "" {
+			if configStringMissing(c.Email.TencentRegion) {
 				errs = append(errs, "EMAIL_TENCENT_REGION is required when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses")
 			}
-			if c.Email.TencentEndpoint == "" {
+			if configStringMissing(c.Email.TencentEndpoint) {
 				errs = append(errs, "EMAIL_TENCENT_ENDPOINT is required when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses")
 			}
 			if c.Email.TencentTemplateID <= 0 {
@@ -146,29 +146,29 @@ func (c *Config) validate(parseErrs []string) error {
 				errs = append(errs, "EMAIL_TENCENT_TEMPLATE_EXPIRE_MINUTES must be greater than 0 when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses")
 			}
 		case "resend":
-			if c.Email.From == "" {
+			if configStringMissing(c.Email.From) {
 				errs = append(errs, "EMAIL_FROM is required when EMAIL_ENABLED=true and EMAIL_DRIVER=resend")
 			}
-			if c.Email.ResendAPIKey == "" {
+			if configStringMissing(c.Email.ResendAPIKey) {
 				errs = append(errs, "EMAIL_RESEND_API_KEY is required when EMAIL_ENABLED=true and EMAIL_DRIVER=resend")
 			}
-			if c.Email.ResendEndpoint == "" {
+			if configStringMissing(c.Email.ResendEndpoint) {
 				errs = append(errs, "EMAIL_RESEND_ENDPOINT is required when EMAIL_ENABLED=true and EMAIL_DRIVER=resend")
 			}
 		case "multi":
-			if c.Email.From == "" {
+			if configStringMissing(c.Email.From) {
 				errs = append(errs, "EMAIL_FROM is required when EMAIL_ENABLED=true and EMAIL_DRIVER=multi")
 			}
-			if c.Email.TencentSecretID == "" {
+			if configStringMissing(c.Email.TencentSecretID) {
 				errs = append(errs, "EMAIL_TENCENT_SECRET_ID is required when EMAIL_ENABLED=true and EMAIL_DRIVER=multi")
 			}
-			if c.Email.TencentSecretKey == "" {
+			if configStringMissing(c.Email.TencentSecretKey) {
 				errs = append(errs, "EMAIL_TENCENT_SECRET_KEY is required when EMAIL_ENABLED=true and EMAIL_DRIVER=multi")
 			}
-			if c.Email.TencentRegion == "" {
+			if configStringMissing(c.Email.TencentRegion) {
 				errs = append(errs, "EMAIL_TENCENT_REGION is required when EMAIL_ENABLED=true and EMAIL_DRIVER=multi")
 			}
-			if c.Email.TencentEndpoint == "" {
+			if configStringMissing(c.Email.TencentEndpoint) {
 				errs = append(errs, "EMAIL_TENCENT_ENDPOINT is required when EMAIL_ENABLED=true and EMAIL_DRIVER=multi")
 			}
 			if c.Email.TencentTemplateID <= 0 {
@@ -177,10 +177,10 @@ func (c *Config) validate(parseErrs []string) error {
 			if c.Email.TencentTemplateExpireMinutes <= 0 {
 				errs = append(errs, "EMAIL_TENCENT_TEMPLATE_EXPIRE_MINUTES must be greater than 0 when EMAIL_ENABLED=true and EMAIL_DRIVER=multi")
 			}
-			if c.Email.ResendAPIKey == "" {
+			if configStringMissing(c.Email.ResendAPIKey) {
 				errs = append(errs, "EMAIL_RESEND_API_KEY is required when EMAIL_ENABLED=true and EMAIL_DRIVER=multi")
 			}
-			if c.Email.ResendEndpoint == "" {
+			if configStringMissing(c.Email.ResendEndpoint) {
 				errs = append(errs, "EMAIL_RESEND_ENDPOINT is required when EMAIL_ENABLED=true and EMAIL_DRIVER=multi")
 			}
 		default:
@@ -228,7 +228,7 @@ func (c *Config) validate(parseErrs []string) error {
 		if !c.Observability.Enabled {
 			errs = append(errs, "OTEL_ENABLED must be true in production")
 		}
-		if c.Observability.OTLPEndpoint == "" {
+		if configStringMissing(c.Observability.OTLPEndpoint) {
 			errs = append(errs, "OTEL_EXPORTER_OTLP_ENDPOINT is required in production")
 		}
 
@@ -338,6 +338,10 @@ func (c *Config) validate(parseErrs []string) error {
 	}
 
 	return nil
+}
+
+func configStringMissing(value string) bool {
+	return strings.TrimSpace(value) == ""
 }
 
 // ValidateCORSOrigins validates CORS allow-list entries before they are passed

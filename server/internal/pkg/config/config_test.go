@@ -403,6 +403,104 @@ func TestValidate_EmailResendRequiresProviderConfig(t *testing.T) {
 	assert.Contains(t, err.Error(), "EMAIL_RESEND_ENDPOINT is required when EMAIL_ENABLED=true and EMAIL_DRIVER=resend")
 }
 
+func TestValidate_EmailRejectsBlankRequiredProviderConfig(t *testing.T) {
+	tests := []struct {
+		name     string
+		email    EmailConfig
+		expected []string
+	}{
+		{
+			name: "smtp",
+			email: EmailConfig{
+				Enabled:  true,
+				Driver:   "smtp",
+				SMTPHost: "  ",
+				SMTPPort: 587,
+				From:     "  ",
+			},
+			expected: []string{
+				"EMAIL_SMTP_HOST is required when EMAIL_ENABLED=true and EMAIL_DRIVER=smtp",
+				"EMAIL_FROM is required when EMAIL_ENABLED=true and EMAIL_DRIVER=smtp",
+			},
+		},
+		{
+			name: "tencent_ses",
+			email: EmailConfig{
+				Enabled:                      true,
+				Driver:                       "tencent_ses",
+				From:                         "  ",
+				TencentSecretID:              "  ",
+				TencentSecretKey:             "  ",
+				TencentRegion:                "  ",
+				TencentEndpoint:              "  ",
+				TencentTemplateID:            49779,
+				TencentTemplateExpireMinutes: 5,
+			},
+			expected: []string{
+				"EMAIL_FROM is required when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses",
+				"EMAIL_TENCENT_SECRET_ID is required when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses",
+				"EMAIL_TENCENT_SECRET_KEY is required when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses",
+				"EMAIL_TENCENT_REGION is required when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses",
+				"EMAIL_TENCENT_ENDPOINT is required when EMAIL_ENABLED=true and EMAIL_DRIVER=tencent_ses",
+			},
+		},
+		{
+			name: "resend",
+			email: EmailConfig{
+				Enabled:        true,
+				Driver:         "resend",
+				From:           "  ",
+				ResendAPIKey:   "  ",
+				ResendEndpoint: "  ",
+			},
+			expected: []string{
+				"EMAIL_FROM is required when EMAIL_ENABLED=true and EMAIL_DRIVER=resend",
+				"EMAIL_RESEND_API_KEY is required when EMAIL_ENABLED=true and EMAIL_DRIVER=resend",
+				"EMAIL_RESEND_ENDPOINT is required when EMAIL_ENABLED=true and EMAIL_DRIVER=resend",
+			},
+		},
+		{
+			name: "multi",
+			email: EmailConfig{
+				Enabled:                      true,
+				Driver:                       "multi",
+				From:                         "  ",
+				TencentSecretID:              "  ",
+				TencentSecretKey:             "  ",
+				TencentRegion:                "  ",
+				TencentEndpoint:              "  ",
+				TencentTemplateID:            49779,
+				TencentTemplateExpireMinutes: 5,
+				ResendAPIKey:                 "  ",
+				ResendEndpoint:               "  ",
+			},
+			expected: []string{
+				"EMAIL_FROM is required when EMAIL_ENABLED=true and EMAIL_DRIVER=multi",
+				"EMAIL_TENCENT_SECRET_ID is required when EMAIL_ENABLED=true and EMAIL_DRIVER=multi",
+				"EMAIL_TENCENT_SECRET_KEY is required when EMAIL_ENABLED=true and EMAIL_DRIVER=multi",
+				"EMAIL_TENCENT_REGION is required when EMAIL_ENABLED=true and EMAIL_DRIVER=multi",
+				"EMAIL_TENCENT_ENDPOINT is required when EMAIL_ENABLED=true and EMAIL_DRIVER=multi",
+				"EMAIL_RESEND_API_KEY is required when EMAIL_ENABLED=true and EMAIL_DRIVER=multi",
+				"EMAIL_RESEND_ENDPOINT is required when EMAIL_ENABLED=true and EMAIL_DRIVER=multi",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validProductionConfigForTest()
+			c.Email = tt.email
+
+			err := c.validate(nil)
+
+			require.Error(t, err)
+			for _, message := range tt.expected {
+				assert.Contains(t, err.Error(), message)
+			}
+		})
+	}
+}
+
 func TestValidate_EmailMultiAllowsProduction(t *testing.T) {
 	c := validProductionConfigForTest()
 	c.Email = EmailConfig{
@@ -634,6 +732,22 @@ func TestValidate_RejectsInvalidTraceSampleRatio(t *testing.T) {
 	assert.Contains(t, err.Error(), "OTEL_TRACE_SAMPLE_RATIO must be between 0 and 1")
 }
 
+func TestValidate_ObservabilityRejectsBlankRequiredFieldsWhenEnabled(t *testing.T) {
+	c := &Config{
+		Observability: ObservabilityConfig{
+			Enabled:      true,
+			ServiceName:  "  ",
+			OTLPEndpoint: "  ",
+		},
+	}
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "OTEL_SERVICE_NAME is required when OTEL_ENABLED=true")
+	assert.Contains(t, err.Error(), "OTEL_EXPORTER_OTLP_ENDPOINT is required when OTEL_ENABLED=true")
+}
+
 func TestValidate_SMSRequiresFullConfigWhenEnabled(t *testing.T) {
 	c := &Config{
 		App: AppConfig{
@@ -696,6 +810,29 @@ func TestValidate_SMSRequiresFullConfigWhenEnabled(t *testing.T) {
 	err := c.validate(nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "SMS_SECRET_ID is required when SMS_ENABLED=true")
+	assert.Contains(t, err.Error(), "SMS_INTERNAL_KEY is required when SMS_ENABLED=true")
+}
+
+func TestValidate_SMSRejectsBlankRequiredConfigWhenEnabled(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.SMS = SMSConfig{
+		Enabled:     true,
+		SecretID:    "  ",
+		SecretKey:   "  ",
+		AppID:       "  ",
+		SignName:    "  ",
+		TemplateID:  "  ",
+		InternalKey: "  ",
+	}
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "SMS_SECRET_ID is required when SMS_ENABLED=true")
+	assert.Contains(t, err.Error(), "SMS_SECRET_KEY is required when SMS_ENABLED=true")
+	assert.Contains(t, err.Error(), "SMS_APP_ID is required when SMS_ENABLED=true")
+	assert.Contains(t, err.Error(), "SMS_SIGN_NAME is required when SMS_ENABLED=true")
+	assert.Contains(t, err.Error(), "SMS_TEMPLATE_ID is required when SMS_ENABLED=true")
 	assert.Contains(t, err.Error(), "SMS_INTERNAL_KEY is required when SMS_ENABLED=true")
 }
 
