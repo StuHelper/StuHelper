@@ -593,7 +593,12 @@ func (s *Service) RevokeAdminUserConsent(ctx context.Context, input AdminRevokeC
 }
 
 func (s *Service) VerifyClientSecret(ctx context.Context, clientID, clientSecret string) (*App, error) {
-	app, err := s.repo.VerifyClientSecret(ctx, strings.TrimSpace(clientID), strings.TrimSpace(clientSecret))
+	clientID = strings.TrimSpace(clientID)
+	clientSecret = strings.TrimSpace(clientSecret)
+	if clientID == "" || clientSecret == "" {
+		return nil, ErrAppNotFound
+	}
+	app, err := s.repo.VerifyClientSecret(ctx, clientID, clientSecret)
 	if err != nil {
 		return nil, err
 	}

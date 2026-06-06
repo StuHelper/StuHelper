@@ -24,3 +24,41 @@ func TestServiceLookupMethodsRejectInvalidIDsBeforeRepository(t *testing.T) {
 		assert.Nil(t, projection)
 	}
 }
+
+func TestVerifyClientSecretRejectsBlankCredentialsBeforeRepository(t *testing.T) {
+	ctx := context.Background()
+	service := &Service{}
+
+	tests := []struct {
+		name         string
+		clientID     string
+		clientSecret string
+	}{
+		{name: "blank client id", clientID: " \t\n ", clientSecret: "secret"},
+		{name: "blank client secret", clientID: "client-id", clientSecret: " \t\n "},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app, err := service.VerifyClientSecret(ctx, tt.clientID, tt.clientSecret)
+			require.ErrorIs(t, err, ErrAppNotFound)
+			assert.Nil(t, app)
+		})
+	}
+}
+
+func TestIdentityTokenActivityRejectsInvalidUserBeforeRepository(t *testing.T) {
+	ctx := context.Background()
+	service := &Service{}
+
+	for _, userID := range []int64{0, -1} {
+		active, err := service.IdentityAccessTokenActive(ctx, "client-id", userID, []string{"openid"})
+		require.NoError(t, err)
+		assert.False(t, active)
+
+		fingerprint, active, err := service.IdentityAuthorizationFingerprint(ctx, "client-id", userID, []string{"openid"})
+		require.NoError(t, err)
+		assert.False(t, active)
+		assert.Empty(t, fingerprint)
+	}
+}

@@ -152,11 +152,14 @@ func (s *Service) IdentityAuthorizationFingerprint(ctx context.Context, clientID
 	if err != nil {
 		return "", false, err
 	}
+	if userID <= 0 {
+		return "", false, nil
+	}
 	app, err := s.repo.GetAppByClientID(ctx, strings.TrimSpace(clientID))
 	if err != nil {
 		return "", false, err
 	}
-	if app.Status != AppStatusApproved || userID <= 0 {
+	if app.Status != AppStatusApproved {
 		return "", false, nil
 	}
 	if err := s.ensureScopesApproved(ctx, app.ID, normalized); err != nil {
