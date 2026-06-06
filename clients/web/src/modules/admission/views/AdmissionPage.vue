@@ -326,9 +326,12 @@ import {
 } from '../admissionState'
 import {
   buildAdmissionReturnURL,
+  forgetLinkedAdmissionSession,
   isAdmissionTokenConsumedError,
   isAdmissionSessionExpiredError,
   mapAdmissionApiError,
+  readLinkedAdmissionSessionID,
+  rememberLinkedAdmissionSession,
 } from '../admissionToken'
 import {
   shouldShowFreshmanSubmission,
@@ -424,6 +427,9 @@ function currentAdmissionURL(): string {
 
 function setAdmissionMe(nextAdmission: AdmissionMe): void {
   admissionMe.value = nextAdmission
+  if (nextAdmission.session?.id) {
+    rememberLinkedAdmissionSession(readAdmissionToken(), nextAdmission.session.id)
+  }
   if (!showFreshmanSubmission.value) activeFlow.value = 'oldStudent'
 }
 
@@ -504,8 +510,38 @@ async function resumeConsumedTokenSession(authenticated = auth.isAuthenticated):
     readAdmissionToken(),
   )
   session.value = linked
+  rememberLinkedAdmissionSession(readAdmissionToken(), linked.id)
   handleSessionState(linked)
   return true
+}
+
+async function resumeRememberedAdmissionSession(requestToken: string): Promise<boolean> {
+  const rememberedSessionID = readLinkedAdmissionSessionID(requestToken)
+  if (!rememberedSessionID) {
+    return false
+  }
+
+  const authenticated = await refreshAdmissionAuthState()
+  if (!isCurrentAdmissionRoute(requestToken)) return true
+  if (!authenticated) {
+    consumedTokenNeedsLogin.value = true
+    pageState.value = 'needsLogin'
+    return true
+  }
+
+  try {
+    const nextAdmission = await admissionApi.getAdmissionMe(rememberedSessionID)
+    if (!isCurrentAdmissionRoute(requestToken)) return true
+    handleAdmissionMeState(nextAdmission)
+    return true
+  } catch (error) {
+    forgetLinkedAdmissionSession(requestToken)
+    if (isAdmissionSessionExpiredError(error)) {
+      handleAdmissionExpired()
+      return true
+    }
+    return false
+  }
 }
 
 async function refreshAdmissionAuthState(): Promise<boolean> {
@@ -603,6 +639,10 @@ async function loadAdmissionSession() {
   pageState.value = 'loading'
   consumedTokenNeedsLogin.value = false
   try {
+    if (await resumeRememberedAdmissionSession(requestToken)) {
+      return
+    }
+
     const preview = await admissionApi.getAdmissionSession(requestToken)
     if (!isCurrentAdmissionRoute(requestToken)) return
     session.value = preview
@@ -696,6 +736,7 @@ async function confirmLink() {
     )
     bindConfirmationDialogOpen.value = false
     session.value = linked
+    rememberLinkedAdmissionSession(readAdmissionToken(), linked.id)
     handleSessionState(linked)
   } catch (error) {
     bindConfirmationDialogOpen.value = false

@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/errors'
 import type { AdmissionSession } from '@stuhelper/shared/api'
 
+import { rememberLinkedAdmissionSession } from '../admissionToken'
+
 const mockAdmissionApi = vi.hoisted(() => ({
   getAdmissionMe: vi.fn(),
   getAdmissionSession: vi.fn(),
@@ -82,6 +84,7 @@ describe('AdmissionPage edge states', () => {
     mockRoute.fullPath = '/verify/ABCD'
     mockRoute.params = { code: 'ABCD' }
     mockRoute.query = {}
+    sessionStorage.clear()
     mockWaitForAdmissionProjection.mockResolvedValue(false)
     mockVerificationStore.schools = []
     mockVerificationStore.fetchSchools.mockResolvedValue(undefined)
@@ -290,6 +293,26 @@ describe('AdmissionPage edge states', () => {
     expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledTimes(1)
     expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledWith('session-linked')
     expect(mockVerificationStore.fetchSchools).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses the remembered linked session before reloading a consumed admission token', async () => {
+    rememberLinkedAdmissionSession('ABCD', 'session-linked')
+    mockAdmissionApi.getAdmissionMe.mockResolvedValueOnce({
+      projectionPending: false,
+      session: sessionWithStatus('material_submitted'),
+      status: 'material_submitted',
+    })
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+
+    expect(mockAuth.bootstrapSession).toHaveBeenCalledWith({ force: true })
+    expect(mockAdmissionApi.getAdmissionSession).not.toHaveBeenCalled()
+    expect(mockAdmissionApi.linkAdmissionSession).not.toHaveBeenCalled()
+    expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledTimes(1)
+    expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledWith('session-linked')
+    expect(wrapper.find('[data-state="pendingReview"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('等待管理员审核')
   })
 
   it('defaults linked users to old-student verification when a school supports it', async () => {

@@ -1,18 +1,27 @@
-import { describe, expect, it } from 'vitest'
+// @vitest-environment jsdom
+
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import { ApiError } from '@/api/errors'
 
 import {
   buildAdmissionReturnURL,
+  forgetLinkedAdmissionSession,
   isFreshmanCameraHandoffLockedError,
   isAdmissionSessionExpiredError,
   isAdmissionTokenConsumedError,
   mapAdmissionApiError,
+  readLinkedAdmissionSessionID,
+  rememberLinkedAdmissionSession,
 } from '../admissionToken'
 
 const sameOrigin = 'https://join.stuhelper.com'
 
 describe('admission token return URL', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+  })
+
   it('keeps admission return URLs same-origin without query parameters', () => {
     expect(
       buildAdmissionReturnURL('/verify/ABCD', sameOrigin),
@@ -95,6 +104,18 @@ describe('admission token return URL', () => {
         new ApiError({ code: 'A0000409', message: 'conflict' }),
       ),
     ).toBe(false)
+  })
+
+  it('remembers linked admission sessions for consumed token reloads', () => {
+    expect(readLinkedAdmissionSessionID('ABCD')).toBeNull()
+
+    rememberLinkedAdmissionSession('ABCD', 'session-1')
+
+    expect(readLinkedAdmissionSessionID('ABCD')).toBe('session-1')
+
+    forgetLinkedAdmissionSession('ABCD')
+
+    expect(readLinkedAdmissionSessionID('ABCD')).toBeNull()
   })
 })
 

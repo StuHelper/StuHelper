@@ -1,4 +1,9 @@
 import { ApiError } from '@/api/errors'
+import {
+  safeGetSessionStorageItem,
+  safeRemoveSessionStorageItem,
+  safeSetSessionStorageItem,
+} from '@/utils/browserStorage'
 
 export type AdmissionMappedState = 'qqMismatch' | 'expired' | 'error'
 
@@ -14,6 +19,7 @@ const EXPIRED_ADMISSION_SESSION_ERROR_CODES = new Set([
   'admission.token_not_found',
   'admission.session_not_found',
 ])
+const LINKED_ADMISSION_SESSION_KEY_PREFIX = 'admission_linked_session:'
 
 export function buildAdmissionReturnURL(
   pathWithQuery: string,
@@ -66,6 +72,28 @@ export function isFreshmanCameraHandoffLockedError(error: unknown): boolean {
   return /admission camera handoff locked|camera handoff locked|handoff locked/i.test(
     message ?? '',
   )
+}
+
+export function rememberLinkedAdmissionSession(
+  token: string,
+  admissionSessionID: string,
+): void {
+  if (!token || !admissionSessionID) return
+  safeSetSessionStorageItem(linkedAdmissionSessionKey(token), admissionSessionID)
+}
+
+export function readLinkedAdmissionSessionID(token: string): string | null {
+  if (!token) return null
+  return safeGetSessionStorageItem(linkedAdmissionSessionKey(token))
+}
+
+export function forgetLinkedAdmissionSession(token: string): void {
+  if (!token) return
+  safeRemoveSessionStorageItem(linkedAdmissionSessionKey(token))
+}
+
+function linkedAdmissionSessionKey(token: string): string {
+  return `${LINKED_ADMISSION_SESSION_KEY_PREFIX}${token}`
 }
 
 function readAdmissionErrorCode(error: unknown): string | undefined {
