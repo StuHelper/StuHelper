@@ -3,16 +3,20 @@ package auth
 import (
 	"crypto/subtle"
 	"errors"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
+
+const providerRefreshCompensationTimeout = 2 * time.Second
 
 var errOIDCRefreshTokenNotRotated = errors.New("oidc refresh token was not rotated")
 
@@ -24,6 +28,7 @@ type oidcRefreshPayload struct {
 
 type oidcSessionRotation struct {
 	sessionID       string
+	appKey          string
 	userID          string
 	oldRefreshToken string
 	payload         oidcRefreshPayload
@@ -47,6 +52,7 @@ func (h *Handler) refreshOIDCToken(c *gin.Context, refreshTokenStr string) bool 
 
 	rotation := oidcSessionRotation{
 		sessionID:       sessionID,
+		appKey:          appKey,
 		userID:          payload.userID,
 		oldRefreshToken: refreshTokenStr,
 		payload:         payload,
@@ -129,6 +135,7 @@ func (h *Handler) rotateOIDCSession(c *gin.Context, rotation oidcSessionRotation
 		return true
 	}
 
+	h.revokeNewProviderRefreshTokenAfterRotationFailure(c, rotation)
 	logger.FromGin(c).Error("failed to rotate OIDC session", zap.String("session_id", rotation.sessionID), zap.Error(err))
 	h.clearTokenCookies(c)
 	if errors.Is(err, token.ErrSessionNotFound) ||
@@ -139,6 +146,21 @@ func (h *Handler) rotateOIDCSession(c *gin.Context, rotation oidcSessionRotation
 	}
 	response.InternalError(c, "failed to refresh token")
 	return false
+}
+
+func (h *Handler) revokeNewProviderRefreshTokenAfterRotationFailure(c *gin.Context, rotation oidcSessionRotation) {
+	if h == nil || h.svc == nil || rotation.payload.refreshToken == "" {
+		return
+	}
+	revokeCtx, cancel := ctxutil.DetachedTimeout(c.Request.Context(), providerRefreshCompensationTimeout)
+	defer cancel()
+	if err := h.svc.revokeRawProviderRefreshToken(revokeCtx, rotation.appKey, rotation.payload.refreshToken); err != nil {
+		logger.FromGin(c).Error("failed to revoke provider refresh token after local rotation failure",
+			zap.String("session_id", rotation.sessionID),
+			zap.String("provider_app_key", rotation.appKey),
+			zap.Error(err),
+		)
+	}
 }
 
 func validateOIDCRefreshRotation(oldRefreshToken, newRefreshToken string) error {

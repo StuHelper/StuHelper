@@ -3,13 +3,17 @@ package auth
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
 )
@@ -17,9 +21,11 @@ import (
 type fakeProviderRefreshRevoker struct {
 	tokens []string
 	err    error
+	ctxErr error
 }
 
-func (f *fakeProviderRefreshRevoker) RevokeRefreshToken(_ context.Context, refreshToken string) error {
+func (f *fakeProviderRefreshRevoker) RevokeRefreshToken(ctx context.Context, refreshToken string) error {
+	f.ctxErr = ctx.Err()
 	f.tokens = append(f.tokens, refreshToken)
 	return f.err
 }
@@ -110,6 +116,70 @@ func TestRevokeSessionRevokesLocalSessionWhenProviderRevokeFails(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "provider revoke failed")
 	assert.Nil(t, requireSession(t, tokenSvc, "sid-a"))
+}
+
+func TestRotateOIDCSessionRevokesNewProviderRefreshOnLocalFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	revoker := &fakeProviderRefreshRevoker{}
+	svc, _ := newAuthServiceWithProviderRevoker(t, revoker)
+	createTrackedSession(t, svc, trackedSessionSeed{
+		SessionID: "sid-local-failure", UserID: "other-user", RefreshToken: "old-provider-refresh", LoginMethod: "oidc",
+	})
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
+	h := &Handler{svc: svc}
+
+	ok := h.rotateOIDCSession(c, oidcSessionRotation{
+		sessionID:       "sid-local-failure",
+		appKey:          oidc.ApplicationWeb,
+		userID:          "oidc-user-1",
+		oldRefreshToken: "old-provider-refresh",
+		payload: oidcRefreshPayload{
+			rawIDToken:   "new-id-token",
+			refreshToken: "new-provider-refresh",
+			userID:       "oidc-user-1",
+		},
+	})
+
+	require.False(t, ok)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Equal(t, []string{"new-provider-refresh"}, revoker.tokens)
+	assertNoIssuedTokenCookies(t, w)
+}
+
+func TestRotateOIDCSessionProviderRefreshCompensationSurvivesRequestCancellation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	revoker := &fakeProviderRefreshRevoker{}
+	svc, _ := newAuthServiceWithProviderRevoker(t, revoker)
+	createTrackedSession(t, svc, trackedSessionSeed{
+		SessionID: "sid-canceled-rotation", UserID: "oidc-user-1", RefreshToken: "old-provider-refresh", LoginMethod: "oidc",
+	})
+
+	reqCtx, cancelReq := context.WithCancel(context.Background())
+	cancelReq()
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil).WithContext(reqCtx)
+	h := &Handler{svc: svc}
+
+	ok := h.rotateOIDCSession(c, oidcSessionRotation{
+		sessionID:       "sid-canceled-rotation",
+		appKey:          oidc.ApplicationWeb,
+		userID:          "oidc-user-1",
+		oldRefreshToken: "old-provider-refresh",
+		payload: oidcRefreshPayload{
+			rawIDToken:   "new-id-token",
+			refreshToken: "new-provider-refresh",
+			userID:       "oidc-user-1",
+		},
+	})
+
+	require.False(t, ok)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, []string{"new-provider-refresh"}, revoker.tokens)
+	assert.NoError(t, revoker.ctxErr)
 }
 
 type trackedSessionSeed struct {
