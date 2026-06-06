@@ -273,6 +273,16 @@ func TestDeleteResource_EnqueuesRetryWhenStorageCleanupFails(t *testing.T) {
 	assert.Contains(t, lastError, "storage unavailable")
 }
 
+func TestStartBackgroundJobsRequiresStarter(t *testing.T) {
+	_, _, _, svc, _ := setupResourceService(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	require.Panics(t, func() {
+		svc.StartBackgroundJobs(ctx, nil)
+	})
+}
+
 func setupResourceService(t *testing.T) (context.Context, *storage.Mount, *Repository, *Service, *fakeObjectStore) {
 	fixture := postgresfixture.Start(t)
 	ctx := context.Background()

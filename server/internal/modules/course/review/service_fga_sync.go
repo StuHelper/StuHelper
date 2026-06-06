@@ -81,13 +81,11 @@ func (s *Service) enqueueReportFGASyncTx(ctx context.Context, tx pgx.Tx, reportI
 }
 
 func (s *Service) StartBackgroundJobs(ctx context.Context, start func(string, func(context.Context))) {
+	if start == nil {
+		panic("review.Service.StartBackgroundJobs: starter is required")
+	}
 	s.asyncCtx = ctx
 	s.asyncLaunch = start
-	if start == nil {
-		go s.runFGASyncWorker(ctx)
-		go s.runFGASyncReconciliationLoop(ctx)
-		return
-	}
 	start("review fga sync worker", s.runFGASyncWorker)
 	start("review fga sync reconciliation", s.runFGASyncReconciliationLoop)
 }

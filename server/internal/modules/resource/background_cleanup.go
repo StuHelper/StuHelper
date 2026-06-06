@@ -38,8 +38,7 @@ func resourceCleanupKey(resourceID int64, versionNo int) string {
 
 func (s *Service) StartBackgroundJobs(ctx context.Context, start func(string, func(context.Context))) {
 	if start == nil {
-		go s.runCleanupWorker(ctx)
-		return
+		panic("resource.Service.StartBackgroundJobs: starter is required")
 	}
 	start("resource cleanup worker", s.runCleanupWorker)
 }

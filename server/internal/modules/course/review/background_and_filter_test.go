@@ -112,6 +112,18 @@ func TestReviewFGASyncProcessBatchAndHelpers(t *testing.T) {
 	assert.Contains(t, truncateFGASyncError(fmt.Errorf("%s", strings.Repeat("x", 300))), "xxx")
 }
 
+func TestStartBackgroundJobsRequiresStarter(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(fixture.DB, repo, noopReviewSender2{}, &recordingReviewFGAWriter{}, fakeAccessReader{})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	require.Panics(t, func() {
+		svc.StartBackgroundJobs(ctx, nil)
+	})
+}
+
 func TestReviewDispatchNotificationUsesManagedLauncher(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)
