@@ -13,7 +13,6 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 // Config 对象存储配置。
@@ -115,32 +114,6 @@ func readRootCABundle(caFile string) ([]byte, error) {
 		return nil, errors.New("ca bundle does not contain PEM certificates")
 	}
 	return caCert, nil
-}
-
-// EnsureBucket 确保存储桶存在。
-//
-// Deprecated: 生产环境中 bucket 应由 infra 预置，使用 CheckBucket 代替。
-func (s *Store) EnsureBucket(ctx context.Context) error {
-	_, err := s.client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: &s.bucket})
-	if err == nil {
-		return nil
-	}
-
-	var apiErr *types.NotFound
-	if !errors.As(err, &apiErr) {
-		lower := strings.ToLower(err.Error())
-		if !strings.Contains(lower, "not found") && !strings.Contains(lower, "no such bucket") {
-			return wrapError("head_bucket", s.bucket, err)
-		}
-	}
-
-	_, createErr := s.client.CreateBucket(ctx, &s3.CreateBucketInput{
-		Bucket: &s.bucket,
-	})
-	if createErr != nil && !strings.Contains(strings.ToLower(createErr.Error()), "bucket already owned") {
-		return wrapError("create_bucket", s.bucket, createErr)
-	}
-	return nil
 }
 
 // CheckBucket 验证存储桶存在且可访问，不会自动创建。
