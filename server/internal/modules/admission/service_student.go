@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/redis/go-redis/v9"
 
@@ -20,6 +21,8 @@ import (
 
 const (
 	admissionEmailOTPLength          = 6
+	admissionEmailOTPMinLength       = 4
+	admissionEmailOTPMaxLength       = 12
 	admissionEmailOTPTTL             = 5 * time.Minute
 	admissionEmailOTPCooldown        = time.Minute
 	admissionEmailOTPCooldownSeconds = int(admissionEmailOTPCooldown / time.Second)
@@ -121,12 +124,16 @@ func (s *Service) VerifySchoolEmailOTP(ctx context.Context, input SchoolEmailOTP
 	if err != nil {
 		return nil, err
 	}
+	code, err := normalizeAdmissionOTPCode(input.Code)
+	if err != nil {
+		return nil, err
+	}
 	record, err := s.loadEmailOTPRecord(ctx, input.UserID, input.SchoolID)
 	if err != nil {
 		return nil, err
 	}
 	check := emailOTPCheckInput{
-		UserID: input.UserID, SchoolID: input.SchoolID, Email: email, Code: input.Code, Record: record,
+		UserID: input.UserID, SchoolID: input.SchoolID, Email: email, Code: code, Record: record,
 	}
 	if err := s.checkEmailOTP(ctx, check); err != nil {
 		return nil, err
@@ -414,6 +421,15 @@ func normalizeAdmissionEmail(value string) (string, error) {
 		return "", ErrAdmissionEmailDomainNotAllowed
 	}
 	return email, nil
+}
+
+func normalizeAdmissionOTPCode(value string) (string, error) {
+	code := strings.TrimSpace(value)
+	length := utf8.RuneCountInString(code)
+	if length < admissionEmailOTPMinLength || length > admissionEmailOTPMaxLength {
+		return "", ErrAdmissionInvalidInput
+	}
+	return code, nil
 }
 
 func maskAdmissionEmail(email string) string {

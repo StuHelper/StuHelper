@@ -58,6 +58,43 @@ func TestSchoolEmailOTPRequiresLinkedSessionAndVerifiesCredential(t *testing.T) 
 	assertUserProfileVerified(t, pg, userID, "school_email_otp")
 }
 
+func TestVerifySchoolEmailOTPRejectsMalformedCodeWithoutConsumingAttempt(t *testing.T) {
+	pg := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	svc := newFreshmanTestService(t, pg)
+	svc.redisClient = redis.Client
+	userID := seedLinkedAdmissionUser(t, pg, svc, "email-otp-code-format")
+	record := admissionEmailOTPRecord{
+		Email: "student@buaa.edu.cn",
+		Code:  "123456",
+	}
+	require.NoError(t, svc.storeEmailOTPRecord(context.Background(), emailOTPStoreInput{
+		UserID:   userID,
+		SchoolID: 4111010006,
+		Record:   record,
+	}))
+
+	for _, code := range []string{"123", "1234567890123"} {
+		_, err := svc.VerifySchoolEmailOTP(context.Background(), SchoolEmailOTPVerifyInput{
+			UserID:   userID,
+			SchoolID: 4111010006,
+			Email:    record.Email,
+			Code:     code,
+		})
+
+		require.ErrorIs(t, err, ErrAdmissionInvalidInput)
+	}
+	attempts, err := redis.Client.Exists(
+		context.Background(),
+		admissionEmailOTPAttemptsKey(userID, 4111010006),
+	).Result()
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), attempts)
+	loaded, err := svc.loadEmailOTPRecord(context.Background(), userID, 4111010006)
+	require.NoError(t, err)
+	assert.Equal(t, record, loaded)
+}
+
 func TestRequestSchoolEmailOTPSendFailureKeepsCooldown(t *testing.T) {
 	pg := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)
