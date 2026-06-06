@@ -337,6 +337,9 @@ async function runAdmissionActionStream(
       await dispatchAdmissionActionStreamEvent(part, handlers)
     }
   }
+  if (!signal.aborted) {
+    throw new Error('admission action stream closed')
+  }
 }
 
 async function dispatchAdmissionActionStreamEvent(

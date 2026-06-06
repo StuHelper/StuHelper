@@ -82,6 +82,37 @@ test('admission action stream respects static disabled default without runtime o
   controller.close()
 })
 
+test('admission action stream reconnects after stream disconnects', async () => {
+  const opened: unknown[] = []
+  let onError: ((error: unknown) => void) | undefined
+  const controller = registerAdmissionActionStreams(fakeContext(), {
+    platform: {
+      streamAdmissionActions(input, handlers) {
+        opened.push(input)
+        onError = handlers.onError
+        return {
+          close() {},
+        }
+      },
+    } as unknown as PlatformClient,
+    memberGuard: {} as MemberGuardService,
+    logger: fakeLogger(),
+    config: {
+      reconnectDelaySeconds: 1,
+    },
+  })
+
+  await controller.refresh()
+  assert.equal(opened.length, 1)
+
+  onError?.(new Error('stream closed'))
+  await waitFor(() => opened.length > 1)
+
+  assert.equal(opened.length, 2)
+
+  controller.close()
+})
+
 function fakeContext() {
   return {
     bots: [{
@@ -97,4 +128,15 @@ function fakeLogger() {
     info() {},
     warn() {},
   }
+}
+
+async function waitFor(condition: () => boolean | Promise<boolean>, timeoutMs = 1500) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (await condition()) {
+      return
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  assert.fail('condition was not met before timeout')
 }

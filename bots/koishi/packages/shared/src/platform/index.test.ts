@@ -237,6 +237,37 @@ test('platform admission action stream parses action events', async (t) => {
   assert.deepEqual(actions, [{ actionID: '42', sessionID: 'session-1', action: 'release' }])
 })
 
+test('platform admission action stream reports normal close as reconnectable error', async (t) => {
+  const originalFetch = globalThis.fetch
+  let streamError: unknown
+  globalThis.fetch = async () => new Response(new ReadableStream({
+    start(controller) {
+      controller.close()
+    },
+  }), {
+    status: 200,
+    headers: { 'content-type': 'text/event-stream' },
+  })
+  t.after(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  const client = createPlatformClient({
+    baseUrl: 'https://api.example.test',
+    serviceToken: 'service-token',
+  })
+
+  client.streamAdmissionActions({ platform: 'qq', botSelfID: '514', limit: 50 }, {
+    onError(error) {
+      streamError = error
+    },
+  })
+
+  await waitFor(() => streamError !== undefined)
+
+  assert.match(String(streamError instanceof Error ? streamError.message : streamError), /stream closed/)
+})
+
 test('platform admission client requires bot identity for pending actions', async () => {
   const client = createPlatformClient({
     baseUrl: 'https://api.example.test',
