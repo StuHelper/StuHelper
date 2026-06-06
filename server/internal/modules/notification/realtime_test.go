@@ -57,6 +57,48 @@ func TestDecodeNotificationPubSubPayloadReturnsStructuredObject(t *testing.T) {
 	assert.Equal(t, "2026-04-23T09:00:00Z", data["createdAt"])
 }
 
+func TestNewHubPanicsWhenRedisNil(t *testing.T) {
+	assert.PanicsWithValue(t, "notification.NewHub: redis client must not be nil", func() {
+		NewHub(nil)
+	})
+}
+
+func TestHubStopIsNilAndZeroValueSafe(t *testing.T) {
+	var nilHub *Hub
+	assert.NotPanics(t, func() {
+		nilHub.Stop()
+	})
+
+	zeroHub := &Hub{}
+	assert.NotPanics(t, func() {
+		zeroHub.Stop()
+		zeroHub.Stop()
+	})
+}
+
+func TestHubStartRedisSubscriberSkipsMissingRedis(t *testing.T) {
+	called := false
+	start := func(string, func(context.Context)) {
+		called = true
+	}
+
+	var nilHub *Hub
+	assert.NotPanics(t, func() {
+		nilHub.StartRedisSubscriber(context.Background(), start)
+	})
+	assert.False(t, called)
+
+	zeroHub := &Hub{}
+	assert.NotPanics(t, func() {
+		zeroHub.StartRedisSubscriber(nilContextForNotificationTest(), start)
+	})
+	assert.False(t, called)
+}
+
+func nilContextForNotificationTest() context.Context {
+	return nil
+}
+
 func TestServiceMarkReadBroadcastsNotificationRead(t *testing.T) {
 	t.Parallel()
 

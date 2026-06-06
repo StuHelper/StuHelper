@@ -79,6 +79,9 @@ const sseBufferSize = 32
 
 // NewHub 创建通知 Hub
 func NewHub(rdb *redis.Client) *Hub {
+	if rdb == nil {
+		panic("notification.NewHub: redis client must not be nil")
+	}
 	return &Hub{
 		rdb:         rdb,
 		connections: make(map[int64]*userConnections),
@@ -145,6 +148,13 @@ func (h *Hub) Broadcast(userID int64, event SSEEvent) {
 // StartRedisSubscriber 启动 Redis Pub/Sub 订阅。
 // 调用方可传入 start 以统一托管 goroutine 生命周期。
 func (h *Hub) StartRedisSubscriber(ctx context.Context, start func(string, func(context.Context))) {
+	if h == nil || h.rdb == nil {
+		logger.L().Warn("notification redis subscriber not started: redis client is not configured")
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	pubsub := h.rdb.PSubscribe(ctx, "notify:*")
 
 	run := func(ctx context.Context) {
@@ -193,8 +203,13 @@ func (h *Hub) StartRedisSubscriber(ctx context.Context, start func(string, func(
 
 // Stop 停止 Hub
 func (h *Hub) Stop() {
+	if h == nil {
+		return
+	}
 	h.stopOnce.Do(func() {
-		close(h.stopCh)
+		if h.stopCh != nil {
+			close(h.stopCh)
+		}
 	})
 }
 
