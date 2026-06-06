@@ -74,7 +74,7 @@ func TestBlacklist_TryConsumeRefreshToken(t *testing.T) {
 
 	isBlacklisted, err := bl.IsBlacklisted(ctx, "refresh-token")
 	require.NoError(t, err)
-	assert.True(t, isBlacklisted)
+	assert.False(t, isBlacklisted)
 
 	require.NoError(t, bl.ReleaseConsumedRefreshToken(ctx, "refresh-token"))
 
@@ -85,6 +85,39 @@ func TestBlacklist_TryConsumeRefreshToken(t *testing.T) {
 	consumed, err = bl.TryConsumeRefreshToken(ctx, "refresh-token", time.Hour)
 	require.NoError(t, err)
 	assert.True(t, consumed)
+}
+
+func TestBlacklist_TryConsumeRefreshTokenDoesNotPolluteRevocationCache(t *testing.T) {
+	require.NoError(t, crypto.InitHMACKey("test-blacklist-secret", false))
+
+	fixture := setupTestRedis(t)
+	bl := NewBlacklist(fixture.Client)
+	ctx := context.Background()
+
+	consumed, err := bl.TryConsumeRefreshToken(ctx, "reserved-refresh-token", time.Hour)
+	require.NoError(t, err)
+	require.True(t, consumed)
+
+	hash, err := hashToken("reserved-refresh-token")
+	require.NoError(t, err)
+	_, ok := bl.cachedRevocation(hash)
+	assert.False(t, ok)
+
+	isBlacklisted, err := bl.IsBlacklisted(ctx, "reserved-refresh-token")
+	require.NoError(t, err)
+	assert.False(t, isBlacklisted)
+
+	require.NoError(t, bl.Add(ctx, "reserved-refresh-token", time.Hour))
+
+	isBlacklisted, err = bl.IsBlacklisted(ctx, "reserved-refresh-token")
+	require.NoError(t, err)
+	assert.True(t, isBlacklisted)
+
+	require.NoError(t, bl.ReleaseConsumedRefreshToken(ctx, "reserved-refresh-token"))
+
+	isBlacklisted, err = bl.IsBlacklisted(ctx, "reserved-refresh-token")
+	require.NoError(t, err)
+	assert.True(t, isBlacklisted)
 }
 
 func TestBlacklist_TryConsumeRefreshTokenDoesNotCacheFailedReservation(t *testing.T) {

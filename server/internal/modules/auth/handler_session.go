@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"crypto/subtle"
 	"errors"
 	"net/http"
 	"time"
@@ -18,7 +17,10 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
 
-const refreshReservationReleaseTimeout = 2 * time.Second
+const (
+	refreshReservationTTL            = 2 * time.Minute
+	refreshReservationReleaseTimeout = 2 * time.Second
+)
 
 // Logout 登出当前设备（基于 Session 撤销）
 func (h *Handler) Logout(c *gin.Context) {
@@ -113,7 +115,8 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 		response.Unauthorized(c, "unsupported refresh token", errs.ErrRefreshTokenInvalid)
 		return
 	}
-	if _, ok := h.resolveSessionID(c); !ok {
+	sessionID, ok := h.resolveSessionID(c)
+	if !ok {
 		return
 	}
 
@@ -121,7 +124,7 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	if !h.validateCookieRefreshCSRF(c, fromBody) {
+	if !h.validateCookieRefreshCSRF(c, fromBody, sessionID) {
 		return
 	}
 
@@ -152,7 +155,7 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 	success = h.refreshOIDCToken(c, refreshTokenStr, fromBody)
 }
 
-func (h *Handler) validateCookieRefreshCSRF(c *gin.Context, fromBody bool) bool {
+func (h *Handler) validateCookieRefreshCSRF(c *gin.Context, fromBody bool, sessionID string) bool {
 	if fromBody {
 		return true
 	}
@@ -163,7 +166,11 @@ func (h *Handler) validateCookieRefreshCSRF(c *gin.Context, fromBody bool) bool 
 		return false
 	}
 	headerCSRF := c.GetHeader(middleware.CSRFHeaderName)
-	if headerCSRF == "" || subtle.ConstantTimeCompare([]byte(headerCSRF), []byte(cookieCSRF)) != 1 {
+	if err := middleware.ValidateCSRFDoubleSubmit(cookieCSRF, headerCSRF, sessionID); err != nil {
+		if errors.Is(err, middleware.ErrCSRFTokenMissing) {
+			response.Error(c, http.StatusForbidden, errs.ErrCSRFTokenMissing, "csrf token missing for cookie-based refresh")
+			return false
+		}
 		response.Error(c, http.StatusForbidden, errs.ErrCSRFTokenInvalid, "csrf token invalid for cookie-based refresh")
 		return false
 	}
@@ -171,14 +178,14 @@ func (h *Handler) validateCookieRefreshCSRF(c *gin.Context, fromBody bool) bool 
 }
 
 func (h *Handler) consumeRefreshToken(c *gin.Context, refreshToken string) (func(), bool) {
-	consumed, err := h.tokenService.GetBlacklist().TryConsumeRefreshToken(c.Request.Context(), refreshToken, h.tokenService.GetRefreshTokenTTL())
+	consumed, err := h.tokenService.GetBlacklist().TryConsumeRefreshToken(c.Request.Context(), refreshToken, refreshReservationTTL)
 	if err != nil {
 		logger.FromGin(c).Warn("failed to reserve refresh token for rotation", zap.Error(err))
 		response.ServiceUnavailable(c, "service temporarily unavailable")
 		return nil, false
 	}
 	if !consumed {
-		h.rejectRefreshReuse(c, refreshToken)
+		response.Unauthorized(c, "refresh token rotation already in progress", errs.ErrRefreshTokenInvalid)
 		return nil, false
 	}
 

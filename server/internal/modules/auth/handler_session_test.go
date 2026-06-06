@@ -42,7 +42,7 @@ func TestLogout_ReceivesRefreshCookieAndRevokesCurrentSession(t *testing.T) {
 		c.Next()
 	})
 	r.GET("/api/v1/auth/issue", func(c *gin.Context) {
-		if err := h.setTokenCookies(c, "access-token", "refresh-token"); err != nil {
+		if err := h.setTokenCookies(c, "access-token", "refresh-token", "sid-logout"); err != nil {
 			c.Status(http.StatusInternalServerError)
 			return
 		}

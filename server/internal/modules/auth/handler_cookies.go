@@ -36,8 +36,8 @@ func (h *Handler) writeCookie(c *gin.Context, name, value string, maxAge int, pa
 
 // setTokenCookies 设置 Token Cookie（OIDC 登录，含 access + refresh）
 // 返回 error 而非直接写响应，由调用方统一处理错误响应，避免双重 HTTP 写入
-func (h *Handler) setTokenCookies(c *gin.Context, accessToken, refreshToken string) error {
-	csrfToken, err := middleware.GenerateCSRFToken()
+func (h *Handler) setTokenCookies(c *gin.Context, accessToken, refreshToken, sessionID string) error {
+	csrfToken, err := middleware.GenerateCSRFToken(sessionID)
 	if err != nil {
 		logger.FromGin(c).Error("failed to generate CSRF token", zap.Error(err))
 		return err
@@ -47,8 +47,8 @@ func (h *Handler) setTokenCookies(c *gin.Context, accessToken, refreshToken stri
 	return nil
 }
 
-func (h *Handler) prepareTokenCookies(c *gin.Context) (string, bool) {
-	csrfToken, err := middleware.GenerateCSRFToken()
+func (h *Handler) prepareTokenCookies(c *gin.Context, sessionID string) (string, bool) {
+	csrfToken, err := middleware.GenerateCSRFToken(sessionID)
 	if err != nil {
 		logger.FromGin(c).Error("failed to generate CSRF token", zap.Error(err))
 		response.InternalError(c, "failed to refresh token")

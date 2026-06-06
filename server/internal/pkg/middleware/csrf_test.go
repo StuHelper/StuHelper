@@ -3,10 +3,14 @@ package middleware
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 )
 
 func init() {
@@ -14,13 +18,28 @@ func init() {
 }
 
 func TestGenerateCSRFToken(t *testing.T) {
-	token1, err := GenerateCSRFToken()
-	assert.NoError(t, err)
-	assert.Len(t, token1, 43) // base64 编码的 32 字节
+	require.NoError(t, crypto.InitHMACKey("test-middleware-csrf-secret-32char", false))
 
-	token2, err := GenerateCSRFToken()
-	assert.NoError(t, err)
+	token1, err := GenerateCSRFToken("sid-1")
+	require.NoError(t, err)
+	assert.True(t, strings.HasPrefix(token1, "v1."))
+
+	token2, err := GenerateCSRFToken("sid-1")
+	require.NoError(t, err)
 	assert.NotEqual(t, token1, token2, "每次生成的 token 应该不同")
+}
+
+func TestValidateCSRFDoubleSubmit_BindsTokenToSession(t *testing.T) {
+	require.NoError(t, crypto.InitHMACKey("test-middleware-csrf-secret-32char", false))
+
+	token, err := GenerateCSRFToken("sid-1")
+	require.NoError(t, err)
+
+	assert.NoError(t, ValidateCSRFDoubleSubmit(token, token, "sid-1"))
+	assert.ErrorIs(t, ValidateCSRFDoubleSubmit(token, token, "sid-2"), ErrCSRFTokenInvalid)
+	assert.ErrorIs(t, ValidateCSRFDoubleSubmit(token, "", "sid-1"), ErrCSRFTokenMissing)
+	assert.ErrorIs(t, ValidateCSRFDoubleSubmit(token, token, ""), ErrCSRFTokenInvalid)
+	assert.ErrorIs(t, ValidateCSRFDoubleSubmit("csrf-legacy", "csrf-legacy", "sid-1"), ErrCSRFTokenInvalid)
 }
 
 func TestCSRFMiddleware_AllowsSafeMethod(t *testing.T) {
@@ -111,6 +130,74 @@ func TestCSRFMiddleware_BlocksCookieSessionWithoutCSRFToken(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/test", nil)
 	req.AddCookie(&http.Cookie{Name: CookieAccessToken, Value: "access.jwt.token"})
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestCSRFMiddleware_AllowsSignedCookieSessionCSRF(t *testing.T) {
+	require.NoError(t, crypto.InitHMACKey("test-middleware-csrf-secret-32char", false))
+
+	w := httptest.NewRecorder()
+	_, r := gin.CreateTestContext(w)
+
+	r.Use(CSRFMiddleware())
+	r.POST("/test", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	csrfToken, err := GenerateCSRFToken("sid-1")
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/test", nil)
+	req.AddCookie(&http.Cookie{Name: CookieAccessToken, Value: "access.jwt.token"})
+	req.AddCookie(&http.Cookie{Name: CookieSessionID, Value: "sid-1"})
+	req.AddCookie(&http.Cookie{Name: CSRFCookieName, Value: csrfToken})
+	req.Header.Set(CSRFHeaderName, csrfToken)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestCSRFMiddleware_BlocksSignedCSRFForDifferentSession(t *testing.T) {
+	require.NoError(t, crypto.InitHMACKey("test-middleware-csrf-secret-32char", false))
+
+	w := httptest.NewRecorder()
+	_, r := gin.CreateTestContext(w)
+
+	r.Use(CSRFMiddleware())
+	r.POST("/test", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	csrfToken, err := GenerateCSRFToken("sid-1")
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/test", nil)
+	req.AddCookie(&http.Cookie{Name: CookieAccessToken, Value: "access.jwt.token"})
+	req.AddCookie(&http.Cookie{Name: CookieSessionID, Value: "sid-2"})
+	req.AddCookie(&http.Cookie{Name: CSRFCookieName, Value: csrfToken})
+	req.Header.Set(CSRFHeaderName, csrfToken)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestCSRFMiddleware_BlocksCookieSessionWithoutSessionID(t *testing.T) {
+	require.NoError(t, crypto.InitHMACKey("test-middleware-csrf-secret-32char", false))
+
+	w := httptest.NewRecorder()
+	_, r := gin.CreateTestContext(w)
+
+	r.Use(CSRFMiddleware())
+	r.POST("/test", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	csrfToken, err := GenerateCSRFToken("sid-1")
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/test", nil)
+	req.AddCookie(&http.Cookie{Name: CookieAccessToken, Value: "access.jwt.token"})
+	req.AddCookie(&http.Cookie{Name: CSRFCookieName, Value: csrfToken})
+	req.Header.Set(CSRFHeaderName, csrfToken)
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusForbidden, w.Code)

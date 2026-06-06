@@ -16,12 +16,19 @@ import (
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
 )
 
 func newRefreshTestHandler(t *testing.T, repo UserSyncRepo) (*Handler, *token.Service) {
+	t.Helper()
+	h, tokenSvc, _ := newRefreshTestHandlerWithFixture(t, repo)
+	return h, tokenSvc
+}
+
+func newRefreshTestHandlerWithFixture(t *testing.T, repo UserSyncRepo) (*Handler, *token.Service, *redisfixture.Fixture) {
 	t.Helper()
 	require.NoError(t, crypto.InitHMACKey("test-auth-refresh-secret-32-bytes!!", false))
 
@@ -39,7 +46,7 @@ func newRefreshTestHandler(t *testing.T, repo UserSyncRepo) (*Handler, *token.Se
 		redisClient:      fixture.Client,
 		tokenConfig:      tokenCfg,
 		authFailureGuard: NewAuthFailureGuard(fixture.Client),
-	}, tokenSvc
+	}, tokenSvc, fixture
 }
 
 func marshalRefreshBody(t *testing.T, refreshToken string) *bytes.Buffer {
@@ -61,6 +68,16 @@ func assertNoIssuedTokenCookies(t *testing.T, recorder *httptest.ResponseRecorde
 	}
 }
 
+func assertNoClearedTokenCookies(t *testing.T, recorder *httptest.ResponseRecorder) {
+	t.Helper()
+	for _, header := range recorder.Header().Values("Set-Cookie") {
+		assert.False(t, strings.HasPrefix(header, middleware.CookieAccessToken+"=;"), header)
+		assert.False(t, strings.HasPrefix(header, middleware.CookieRefreshToken+"=;"), header)
+		assert.False(t, strings.HasPrefix(header, middleware.CSRFCookieName+"=;"), header)
+		assert.False(t, strings.HasPrefix(header, sessionCookieName+"=;"), header)
+	}
+}
+
 func TestConsumeRefreshToken_ReserveReleaseAndRetry(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, tokenSvc := newRefreshTestHandler(t, &fakeUserSyncRepo{})
@@ -75,7 +92,7 @@ func TestConsumeRefreshToken_ReserveReleaseAndRetry(t *testing.T) {
 
 	blacklisted, err := tokenSvc.GetBlacklist().IsBlacklisted(t.Context(), "refresh-token-1")
 	require.NoError(t, err)
-	assert.True(t, blacklisted)
+	assert.False(t, blacklisted)
 
 	release()
 
@@ -86,6 +103,27 @@ func TestConsumeRefreshToken_ReserveReleaseAndRetry(t *testing.T) {
 	release2, ok := h.consumeRefreshToken(c, "refresh-token-1")
 	require.True(t, ok)
 	require.NotNil(t, release2)
+}
+
+func TestConsumeRefreshToken_ReservationUsesShortTTL(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, tokenSvc, fixture := newRefreshTestHandlerWithFixture(t, &fakeUserSyncRepo{})
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/refresh", nil)
+
+	release, ok := h.consumeRefreshToken(c, "refresh-token-short-reservation")
+	require.True(t, ok)
+	require.NotNil(t, release)
+	t.Cleanup(release)
+
+	reservationKey := refreshReservationRedisKey(t, "refresh-token-short-reservation")
+	ttl := fixture.Server.TTL(reservationKey)
+	assert.Greater(t, ttl, time.Duration(0))
+	assert.LessOrEqual(t, ttl, refreshReservationTTL)
+	assert.Greater(t, ttl, refreshReservationTTL-5*time.Second)
+	assert.Less(t, ttl, tokenSvc.GetRefreshTokenTTL())
 }
 
 func TestConsumeRefreshToken_ReleaseSurvivesRequestCancellation(t *testing.T) {
@@ -109,7 +147,7 @@ func TestConsumeRefreshToken_ReleaseSurvivesRequestCancellation(t *testing.T) {
 	assert.False(t, blacklisted)
 }
 
-func TestConsumeRefreshToken_Revoked(t *testing.T) {
+func TestConsumeRefreshToken_InFlightReservationRejectedWithoutReuse(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, _ := newRefreshTestHandler(t, &fakeUserSyncRepo{})
 
@@ -128,7 +166,123 @@ func TestConsumeRefreshToken_Revoked(t *testing.T) {
 	require.False(t, ok)
 	assert.Nil(t, release2)
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
-	assert.Contains(t, w.Body.String(), "refresh token revoked")
+	assert.Contains(t, w.Body.String(), "refresh token rotation already in progress")
+	assert.Contains(t, w.Body.String(), string(errs.ErrRefreshTokenInvalid))
+}
+
+func TestRefreshToken_InFlightReservationDoesNotRevokeSessionsOrClearCookies(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, tokenSvc := newRefreshTestHandler(t, &fakeUserSyncRepo{})
+
+	_, err := h.svc.CreateSession(
+		t.Context(),
+		"sid-refresh-reserved",
+		"user-refresh-reserved",
+		"old-access-token",
+		"reserved-refresh-token",
+		"oidc-native",
+		"ios",
+	)
+	require.NoError(t, err)
+
+	consumed, err := tokenSvc.GetBlacklist().TryConsumeRefreshToken(t.Context(), "reserved-refresh-token", refreshReservationTTL)
+	require.NoError(t, err)
+	require.True(t, consumed)
+
+	r := gin.New()
+	r.POST("/refresh", h.RefreshToken)
+
+	req := httptest.NewRequest(http.MethodPost, "/refresh", marshalRefreshBody(t, "reserved-refresh-token"))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(nativeSessionIDHeader, "sid-refresh-reserved")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), "refresh token rotation already in progress")
+	assert.Contains(t, w.Body.String(), string(errs.ErrRefreshTokenInvalid))
+	assertNoClearedTokenCookies(t, w)
+
+	session, err := tokenSvc.GetSessionStore().Get(t.Context(), "sid-refresh-reserved")
+	require.NoError(t, err)
+	require.NotNil(t, session)
+	assert.Equal(t, "user-refresh-reserved", session.UserID)
+
+	blacklisted, err := tokenSvc.GetBlacklist().IsBlacklisted(t.Context(), "reserved-refresh-token")
+	require.NoError(t, err)
+	assert.False(t, blacklisted)
+}
+
+func TestRefreshToken_RejectsLegacyCSRFWithoutReservingRefreshToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, tokenSvc, fixture := newRefreshTestHandlerWithFixture(t, &fakeUserSyncRepo{})
+
+	r := gin.New()
+	r.POST("/refresh", h.RefreshToken)
+
+	req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: middleware.CookieRefreshToken, Value: "legacy-csrf-refresh-token"})
+	req.AddCookie(&http.Cookie{Name: middleware.CSRFCookieName, Value: "legacy-csrf-token"})
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-legacy-csrf"})
+	req.Header.Set(middleware.CSRFHeaderName, "legacy-csrf-token")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), string(errs.ErrCSRFTokenInvalid))
+	assertNoClearedTokenCookies(t, w)
+
+	blacklisted, err := tokenSvc.GetBlacklist().IsBlacklisted(t.Context(), "legacy-csrf-refresh-token")
+	require.NoError(t, err)
+	assert.False(t, blacklisted)
+	assert.False(t, fixture.Server.Exists(refreshReservationRedisKey(t, "legacy-csrf-refresh-token")))
+}
+
+func TestRefreshToken_BlacklistedRefreshReuseRevokesAllSessions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, tokenSvc := newRefreshTestHandler(t, &fakeUserSyncRepo{})
+
+	_, err := h.svc.CreateSession(
+		t.Context(),
+		"sid-refresh-reuse-a",
+		"user-refresh-reuse",
+		"old-access-token",
+		"reused-refresh-token",
+		"oidc",
+		"browser",
+	)
+	require.NoError(t, err)
+	_, err = h.svc.CreateSession(
+		t.Context(),
+		"sid-refresh-reuse-b",
+		"user-refresh-reuse",
+		"other-access-token",
+		"other-refresh-token",
+		"oidc",
+		"browser",
+	)
+	require.NoError(t, err)
+	require.NoError(t, tokenSvc.GetBlacklist().Add(t.Context(), "reused-refresh-token", tokenSvc.GetRefreshTokenTTL()))
+
+	r := gin.New()
+	r.POST("/refresh", h.RefreshToken)
+
+	csrfToken := mustGenerateCSRFTokenForSession(t, "sid-refresh-reuse-a")
+	req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: middleware.CookieRefreshToken, Value: "reused-refresh-token"})
+	req.AddCookie(&http.Cookie{Name: middleware.CSRFCookieName, Value: csrfToken})
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-refresh-reuse-a"})
+	req.Header.Set(middleware.CSRFHeaderName, csrfToken)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), "refresh token reuse detected")
+	assert.Contains(t, w.Body.String(), string(errs.ErrTokenRevoked))
+
+	sessions, err := tokenSvc.GetSessionStore().ListUserSessions(t.Context(), "user-refresh-reuse")
+	require.NoError(t, err)
+	assert.Empty(t, sessions)
 }
 
 func TestRefreshToken_RejectsSelfSignedRefreshToken(t *testing.T) {
@@ -213,4 +367,11 @@ func mustSignRefreshToken(t *testing.T, userID, sessionID string) string {
 	}, time.Minute)
 	require.NoError(t, err)
 	return tok
+}
+
+func refreshReservationRedisKey(t *testing.T, refreshToken string) string {
+	t.Helper()
+	hash, err := crypto.HMACHash(refreshToken)
+	require.NoError(t, err)
+	return "token:refresh:consumed:" + hash
 }

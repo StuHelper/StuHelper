@@ -26,7 +26,7 @@ func TestSetTokenCookies(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 
-	err := h.setTokenCookies(c, "access-token", "refresh-token")
+	err := h.setTokenCookies(c, "access-token", "refresh-token", "session-123")
 	require.NoError(t, err)
 
 	cookies := cookieMap(w.Result().Cookies())
@@ -48,6 +48,7 @@ func TestSetTokenCookies(t *testing.T) {
 
 	assert.False(t, cookies[middleware.CSRFCookieName].HttpOnly)
 	assert.NotEmpty(t, cookies[middleware.CSRFCookieName].Value)
+	assert.Contains(t, cookies[middleware.CSRFCookieName].Value, "v1.")
 	assert.Equal(t, cookies[middleware.CSRFCookieName].Value, w.Header().Get(middleware.CSRFHeaderName))
 }
 

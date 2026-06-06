@@ -177,7 +177,8 @@ func (b *Blacklist) Add(ctx context.Context, token string, expiry time.Duration)
 }
 
 // TryConsumeRefreshToken 原子标记 refresh token 已被使用（一次性使用）。
-// 返回 true 表示本次成功占用；false 表示该 token 已被并发请求或历史请求消费。
+// 返回 true 表示本次成功占用；false 表示该 token 已被其他 refresh 请求占用。
+// reservation 只用于 refresh in-flight 互斥，不代表正式撤销，不得污染 IsBlacklisted 或本地撤销缓存。
 func (b *Blacklist) TryConsumeRefreshToken(ctx context.Context, token string, expiry time.Duration) (bool, error) {
 	if expiry < minBlacklistTTL || expiry > maxBlacklistTTL {
 		return false, fmt.Errorf("refresh consume TTL %v out of valid range [%v, %v]", expiry, minBlacklistTTL, maxBlacklistTTL)
@@ -202,7 +203,6 @@ func (b *Blacklist) TryConsumeRefreshToken(ctx context.Context, token string, ex
 	}).Result()
 	if errors.Is(err, redis.Nil) {
 		b.cb.RecordSuccess()
-		b.cacheRevocation(hash)
 		return false, nil
 	}
 	if err != nil {
@@ -213,7 +213,6 @@ func (b *Blacklist) TryConsumeRefreshToken(ctx context.Context, token string, ex
 	if status != "OK" {
 		return false, nil
 	}
-	b.cacheRevocation(hash)
 	return true, nil
 }
 
@@ -240,7 +239,6 @@ func (b *Blacklist) ReleaseConsumedRefreshToken(ctx context.Context, token strin
 		return fmt.Errorf("failed to release refresh token consume mark: %w", err)
 	}
 	b.cb.RecordSuccess()
-	b.localCache.Delete(hash)
 	return nil
 }
 
@@ -278,7 +276,7 @@ func (b *Blacklist) IsBlacklisted(ctx context.Context, token string) (bool, erro
 		return true, fmt.Errorf("blacklist service unavailable (circuit breaker open)")
 	}
 
-	exists, err := b.rdb.Exists(ctx, blacklistPrefix+hash, refreshConsumedPrefix+hash).Result()
+	exists, err := b.rdb.Exists(ctx, blacklistPrefix+hash).Result()
 	if err != nil {
 		b.cb.RecordFailure()
 		logger.L().Warn("redis unavailable for blacklist check",

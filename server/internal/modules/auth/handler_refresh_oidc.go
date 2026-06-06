@@ -45,7 +45,7 @@ func (h *Handler) refreshOIDCToken(c *gin.Context, refreshTokenStr string, inclu
 	if !ok {
 		return false
 	}
-	csrfToken, ok := h.prepareTokenCookies(c)
+	csrfToken, ok := h.prepareTokenCookies(c, sessionID)
 	if !ok {
 		return false
 	}

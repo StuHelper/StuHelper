@@ -127,10 +127,12 @@ func TestRefreshToken_RejectsRevokedCookieRefresh(t *testing.T) {
 	r := gin.New()
 	r.POST("/refresh", h.RefreshToken)
 
+	csrfToken := mustGenerateCSRFTokenForSession(t, "sid-revoked-cookie-refresh")
 	req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
 	req.AddCookie(&http.Cookie{Name: middleware.CookieRefreshToken, Value: "revoked-cookie-refresh"})
-	req.AddCookie(&http.Cookie{Name: middleware.CSRFCookieName, Value: "csrf-123"})
-	req.Header.Set(middleware.CSRFHeaderName, "csrf-123")
+	req.AddCookie(&http.Cookie{Name: middleware.CSRFCookieName, Value: csrfToken})
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-revoked-cookie-refresh"})
+	req.Header.Set(middleware.CSRFHeaderName, csrfToken)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -145,9 +147,11 @@ func TestRefreshToken_RejectsInvalidCSRFMismatch(t *testing.T) {
 	r := gin.New()
 	r.POST("/refresh", h.RefreshToken)
 
+	csrfToken := mustGenerateCSRFTokenForSession(t, "sid-csrf-mismatch")
 	req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
 	req.AddCookie(&http.Cookie{Name: middleware.CookieRefreshToken, Value: "cookie-refresh"})
-	req.AddCookie(&http.Cookie{Name: middleware.CSRFCookieName, Value: "csrf-cookie"})
+	req.AddCookie(&http.Cookie{Name: middleware.CSRFCookieName, Value: csrfToken})
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-csrf-mismatch"})
 	req.Header.Set(middleware.CSRFHeaderName, "csrf-header")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -180,11 +184,12 @@ func TestRefreshToken_RejectsAmbiguousOrRepeatedSessionIDSource(t *testing.T) {
 	})
 
 	t.Run("native session header and browser session cookie", func(t *testing.T) {
+		csrfToken := mustGenerateCSRFTokenForSession(t, "sid-cookie")
 		req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
 		req.AddCookie(&http.Cookie{Name: middleware.CookieRefreshToken, Value: "refresh-ambiguous-session"})
-		req.AddCookie(&http.Cookie{Name: middleware.CSRFCookieName, Value: "csrf-123"})
+		req.AddCookie(&http.Cookie{Name: middleware.CSRFCookieName, Value: csrfToken})
 		req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-cookie"})
-		req.Header.Set(middleware.CSRFHeaderName, "csrf-123")
+		req.Header.Set(middleware.CSRFHeaderName, csrfToken)
 		req.Header.Set(nativeSessionIDHeader, "sid-header")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -379,6 +384,14 @@ func mustSignAccessTokenForHandler(t *testing.T, userID, sessionID string) strin
 	}, time.Minute)
 	require.NoError(t, err)
 	return tok
+}
+
+func mustGenerateCSRFTokenForSession(t *testing.T, sessionID string) string {
+	t.Helper()
+	require.NoError(t, crypto.InitHMACKey("test-auth-refresh-secret-32-bytes!!", false))
+	csrfToken, err := middleware.GenerateCSRFToken(sessionID)
+	require.NoError(t, err)
+	return csrfToken
 }
 
 func canceledContext() context.Context {

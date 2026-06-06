@@ -206,7 +206,7 @@ func (h *Handler) handleWebCallback(c *gin.Context, ctx context.Context, input w
 	}
 
 	// 将 ID Token 作为 access_token 写入 Cookie
-	if err := h.setTokenCookies(c, rawIDToken, oauthToken.RefreshToken); err != nil {
+	if err := h.setTokenCookies(c, rawIDToken, oauthToken.RefreshToken, sessInfo.SessionID); err != nil {
 		response.InternalError(c, "authentication failed")
 		return
 	}
