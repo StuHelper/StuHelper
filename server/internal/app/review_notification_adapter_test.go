@@ -48,3 +48,9 @@ func TestReviewNotificationAdapterMapsReviewNotification(t *testing.T) {
 		CourseID:     7,
 	}, sender.params)
 }
+
+func TestNewReviewNotificationAdapterRequiresSender(t *testing.T) {
+	require.PanicsWithValue(t, "app.newReviewNotificationAdapter: sender must not be nil", func() {
+		newReviewNotificationAdapter(nil)
+	})
+}

@@ -12,6 +12,9 @@ type reviewNotificationAdapter struct {
 }
 
 func newReviewNotificationAdapter(sender notification.Sender) reviewNotificationAdapter {
+	if sender == nil {
+		panic("app.newReviewNotificationAdapter: sender must not be nil")
+	}
 	return reviewNotificationAdapter{sender: sender}
 }
 
