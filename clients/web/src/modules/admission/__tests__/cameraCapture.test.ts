@@ -997,7 +997,9 @@ describe("FreshmanCameraFlow material capture UI", () => {
                     "[data-freshman-mobile-handoff-button]",
                 ).element.disabled,
             ).toBe(true);
-            expect(wrapper.emitted("submitted")).toBeUndefined();
+            expect(wrapper.emitted("submitted")?.[0]).toEqual([
+                freshmanApplication,
+            ]);
         } finally {
             Object.defineProperty(window, "EventSource", {
                 configurable: true,

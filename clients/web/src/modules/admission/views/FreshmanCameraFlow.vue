@@ -218,7 +218,7 @@ const handoff = ref<FreshmanCameraHandoff | null>(null)
 const handoffQRCodeDataURL = ref('')
 let handoffPollingID: number | undefined
 let handoffEventSource: EventSource | undefined
-let desktopContinueEmitted = false
+let submissionEmitted = false
 
 type CameraMaterialType = 'admission_notice' | 'admission_certificate'
 
@@ -414,11 +414,10 @@ async function applyFreshmanCameraHandoff(
   }
   if (
     nextHandoff.status === 'locked' &&
-    nextHandoff.continueOn === 'desktop' &&
     application.value &&
-    !desktopContinueEmitted
+    !submissionEmitted
   ) {
-    desktopContinueEmitted = true
+    submissionEmitted = true
     emit('submitted', application.value)
   }
   if (nextHandoff.status === 'locked' || nextHandoff.status === 'expired') {
