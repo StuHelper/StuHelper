@@ -97,6 +97,7 @@ interface CrumbDef {
 
 const VIEW_CRUMBS: Readonly<Record<ConsoleViewId, CrumbDef>> = {
   dashboard: { section: '工作台', page: '总览' },
+  admission: { section: '工作台', page: '入群认证' },
   review: { section: '工作台', page: '处置中心' },
   identity: { section: '成员', page: '限制中' },
   warns: { section: '成员', page: '警告记录' },
