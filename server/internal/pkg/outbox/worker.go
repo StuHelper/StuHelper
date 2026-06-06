@@ -59,6 +59,7 @@ func RunPollingWorker[T any](
 	meta MetaFunc[T],
 	truncateError func(error) string,
 ) {
+	ctx = workerContext(ctx)
 	ticker := time.NewTicker(pollInterval(cfg))
 	defer ticker.Stop()
 
@@ -92,6 +93,7 @@ func ProcessBatch[T any](
 	meta MetaFunc[T],
 	truncateError func(error) string,
 ) error {
+	ctx = workerContext(ctx)
 	jobs, err := claim(ctx, cfg.BatchSize, cfg.LockStaleAfter)
 	if err != nil {
 		return fmt.Errorf("claim %s jobs: %w", cfg.Name, err)
@@ -154,7 +156,14 @@ func finalizeContext(ctx context.Context, cfg WorkerConfig) (context.Context, co
 	if timeout <= 0 {
 		timeout = defaultFinalizeTimeout
 	}
-	return context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	return context.WithTimeout(context.WithoutCancel(workerContext(ctx)), timeout)
+}
+
+func workerContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return ctx
 }
 
 func nextAttemptAt(cfg WorkerConfig, attemptCount int) time.Time {

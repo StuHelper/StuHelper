@@ -46,6 +46,47 @@ func TestProcessBatch_MarksDoneOnSuccess(t *testing.T) {
 	assert.EqualValues(t, 1, doneID)
 }
 
+func TestProcessBatch_DefaultsNilContext(t *testing.T) {
+	t.Parallel()
+
+	var input context.Context
+	var seenClaimCtx context.Context
+	var seenProcessCtx context.Context
+	var seenDoneCtx context.Context
+	var seenDoneErr error
+
+	err := ProcessBatch(
+		input,
+		WorkerConfig{Name: "test worker", BatchSize: 10, LockStaleAfter: time.Minute},
+		func(ctx context.Context, _ int, _ time.Duration) ([]testJob, error) {
+			seenClaimCtx = ctx
+			return []testJob{{id: 1, jobType: "sync", attemptCount: 0}}, nil
+		},
+		func(ctx context.Context, _ testJob) error {
+			seenProcessCtx = ctx
+			return nil
+		},
+		func(ctx context.Context, _ int64, _ time.Time) error {
+			seenDoneCtx = ctx
+			seenDoneErr = ctx.Err()
+			return nil
+		},
+		func(context.Context, int64, time.Time, time.Time, string, bool) error {
+			return errors.New("should not retry")
+		},
+		func(job testJob) JobMeta {
+			return JobMeta{ID: job.id, JobType: job.jobType, AttemptCount: job.attemptCount}
+		},
+		nil,
+	)
+
+	require.NoError(t, err)
+	assert.NotNil(t, seenClaimCtx)
+	assert.NotNil(t, seenProcessCtx)
+	assert.NotNil(t, seenDoneCtx)
+	assert.NoError(t, seenDoneErr)
+}
+
 func TestRunPollingWorker_DefaultsZeroPollInterval(t *testing.T) {
 	t.Parallel()
 
