@@ -729,7 +729,7 @@ test('AdmissionView exposes guard policy edit entry points', () => {
   assert.match(source, /import type \{ ConsoleNavigationController \} from '\.\.\/composables\/use-console-navigation'/)
   assert.match(source, /defineProps<\{\s*navigation\?: ConsoleNavigationController\s*\}>/)
   assert.match(source, /@click="openPolicyWorkspace\('bindings'\)"/)
-  assert.match(source, />\s*编辑群绑定\s*<\/el-button>/)
+  assert.match(source, />\s*管理群绑定\s*<\/el-button>/)
   assert.match(source, /@click="openPolicyWorkspace\('templates'\)"/)
   assert.match(source, />\s*编辑模板\s*<\/el-button>/)
   assert.match(source, /function openPolicyWorkspace\(workspace: GuardPolicyWorkspace\) \{\s*props\.navigation\?\.selectView\('config', \{ workspace \}\)\s*\}/)

@@ -18,7 +18,7 @@
           :disabled="!props.navigation"
           @click="openPolicyWorkspace('bindings')"
         >
-          编辑群绑定
+          管理群绑定
         </el-button>
         <el-button
           class="sh-button sh-button--ghost"

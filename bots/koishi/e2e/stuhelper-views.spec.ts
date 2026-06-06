@@ -463,7 +463,7 @@ test('config governance workspace tabs render and update navigation state', asyn
   const workspaceCases = [
     { label: '群配置', hash: /#config($|\?)/, anchor: '群组配置' },
     { label: '模板库', hash: /#config\?workspace=templates/, anchor: '编辑模板' },
-    { label: '群绑定', hash: /#config\?workspace=bindings/, anchor: '编辑绑定' },
+    { label: '群绑定', hash: /#config\?workspace=bindings/, anchor: '新建 / 编辑绑定' },
     { label: '命令策略', hash: /#config\?workspace=command-policies/, anchor: '编辑命令策略' },
   ] as const
 
@@ -504,7 +504,7 @@ test('config governance confirms before discarding dirty workspace form', async 
 
   await expect(discardDialog).toBeHidden({ timeout: 5_000 })
   await expect(page).toHaveURL(/#config\?workspace=bindings/, { timeout: 5_000 })
-  await expect(page.getByText('编辑绑定').first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('新建 / 编辑绑定').first()).toBeVisible({ timeout: 10_000 })
 
   tracker.assertClean()
 })

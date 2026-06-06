@@ -111,7 +111,7 @@
           <EmptyState
             v-if="(configModel?.bindingRows.length ?? 0) === 0"
             title="暂无群绑定"
-            body="在右侧选择目标群和模板,保存绑定后治理策略会立即生效。"
+            body="填写右侧表单新建群绑定；保存后治理策略会立即生效。"
           />
           <div v-else class="sh-lane">
             <button
@@ -220,8 +220,8 @@
 
         <WorkspaceSection
           v-else-if="currentWorkspace === 'bindings'"
-          title="编辑绑定"
-          description="把群号绑定到模板,立即改变 guard 行为。"
+          title="新建 / 编辑绑定"
+          description="选择左侧已有绑定进行编辑，或填写右侧表单新建群到模板的映射关系。"
         >
           <div class="sh-form-grid">
             <label class="sh-field">
