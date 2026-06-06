@@ -201,6 +201,42 @@ func TestValidate_ProductionRequiresObservability(t *testing.T) {
 	assert.Contains(t, err.Error(), "OTEL_ENABLED must be true in production")
 }
 
+func TestValidate_ProductionRejectsBlankCoreRequiredConfig(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.App.HMACSecret = "  "
+	c.App.MetricsPassword = "  "
+	c.Database.URL = "  "
+	c.Database.SSLRootCert = "  "
+	c.Redis.Password = "  "
+	c.Redis.TLSCAFile = "  "
+	c.ObjectStorage.Endpoint = "  "
+	c.ObjectStorage.Bucket = "  "
+	c.ObjectStorage.AccessKeyID = "  "
+	c.ObjectStorage.SecretAccessKey = "  "
+	c.Bot.ServiceToken = "  "
+	c.Admission.PublicBaseURL = "  "
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	for _, message := range []string{
+		"HMAC_SECRET is required in production",
+		"DATABASE_URL is required in production",
+		"METRICS_PASSWORD is required in production",
+		"REDIS_PASSWORD is required in production",
+		"OBJECT_STORAGE_ENDPOINT is required in production",
+		"OBJECT_STORAGE_BUCKET is required in production",
+		"OBJECT_STORAGE_ACCESS_KEY_ID is required in production",
+		"OBJECT_STORAGE_SECRET_ACCESS_KEY is required in production",
+		"BOT_SERVICE_TOKEN is required in production",
+		"ADMISSION_PUBLIC_BASE_URL is required in production",
+		"DB_SSL_ROOT_CERT is required in production",
+		"REDIS_TLS_CA is required in production",
+	} {
+		assert.Contains(t, err.Error(), message)
+	}
+}
+
 func TestValidate_ProductionRequiresBotServiceToken(t *testing.T) {
 	c := validProductionConfigForTest()
 	c.Bot.ServiceToken = ""
@@ -635,6 +671,42 @@ func TestValidate_ProductionRequiresCasdoorAdminCredentials(t *testing.T) {
 	assert.Contains(t, err.Error(), "CASDOOR_USER_PROFILE_CLIENT_SECRET is required")
 	assert.Contains(t, err.Error(), "CASDOOR_ROLE_SYNC_CLIENT_SECRET is required")
 	assert.Contains(t, err.Error(), "CASDOOR_USER_LOOKUP_APPLICATION is required")
+}
+
+func TestValidate_ProductionRejectsBlankCasdoorAdminCredentials(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.Casdoor.AppProvisioningClientID = "  "
+	c.Casdoor.AppProvisioningClientSecret = "  "
+	c.Casdoor.AppProvisioningApplication = "  "
+	c.Casdoor.UserProfileClientID = "  "
+	c.Casdoor.UserProfileClientSecret = "  "
+	c.Casdoor.UserProfileApplication = "  "
+	c.Casdoor.RoleSyncClientID = "  "
+	c.Casdoor.RoleSyncClientSecret = "  "
+	c.Casdoor.RoleSyncApplication = "  "
+	c.Casdoor.UserLookupClientID = "  "
+	c.Casdoor.UserLookupClientSecret = "  "
+	c.Casdoor.UserLookupApplication = "  "
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	for _, message := range []string{
+		"CASDOOR_APP_PROVISIONING_CLIENT_ID is required",
+		"CASDOOR_APP_PROVISIONING_CLIENT_SECRET is required",
+		"CASDOOR_APP_PROVISIONING_APPLICATION is required",
+		"CASDOOR_USER_PROFILE_CLIENT_ID is required",
+		"CASDOOR_USER_PROFILE_CLIENT_SECRET is required",
+		"CASDOOR_USER_PROFILE_APPLICATION is required",
+		"CASDOOR_ROLE_SYNC_CLIENT_ID is required",
+		"CASDOOR_ROLE_SYNC_CLIENT_SECRET is required",
+		"CASDOOR_ROLE_SYNC_APPLICATION is required",
+		"CASDOOR_USER_LOOKUP_CLIENT_ID is required",
+		"CASDOOR_USER_LOOKUP_CLIENT_SECRET is required",
+		"CASDOOR_USER_LOOKUP_APPLICATION is required",
+	} {
+		assert.Contains(t, err.Error(), message)
+	}
 }
 
 func TestValidate_ProductionRequiresOpenPlatformRuntimeTokenProbe(t *testing.T) {
@@ -1130,6 +1202,40 @@ func TestValidate_RequiresOpenFGAInDevelopment(t *testing.T) {
 	assert.Contains(t, err.Error(), "OPENFGA_STORE_ID is required")
 	assert.Contains(t, err.Error(), "OPENFGA_MODEL_ID is required")
 	assert.Contains(t, err.Error(), "OPENFGA_API_URL is required")
+}
+
+func TestValidate_RejectsBlankIdentityAndAuthorizationConfig(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.App.Env = "development"
+	c.Token.CookieSecure = false
+	c.Casdoor.Issuer = "  "
+	c.Casdoor.ClientID = "  "
+	c.Casdoor.ClientSecret = "  "
+	c.Casdoor.RedirectURI = "  "
+	c.Casdoor.IntrospectionClientID = "  "
+	c.Casdoor.IntrospectionClientSecret = "  "
+	c.Casdoor.Organization = "  "
+	c.OpenFGA.StoreID = "  "
+	c.OpenFGA.AuthorizationModelID = "  "
+	c.OpenFGA.APIUrl = "  "
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	for _, message := range []string{
+		"CASDOOR_ISSUER is required",
+		"CASDOOR_CLIENT_ID is required",
+		"CASDOOR_CLIENT_SECRET is required",
+		"CASDOOR_REDIRECT_URI is required",
+		"CASDOOR_INTROSPECTION_CLIENT_ID is required",
+		"CASDOOR_INTROSPECTION_CLIENT_SECRET is required",
+		"CASDOOR_ORGANIZATION is required",
+		"OPENFGA_STORE_ID is required",
+		"OPENFGA_MODEL_ID is required",
+		"OPENFGA_API_URL is required",
+	} {
+		assert.Contains(t, err.Error(), message)
+	}
 }
 
 func validProductionConfigForTest() *Config {

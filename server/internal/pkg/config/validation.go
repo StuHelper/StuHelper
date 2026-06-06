@@ -17,7 +17,7 @@ func (c *Config) validate(parseErrs []string) error {
 
 	const hmacMinLen = 32
 	switch {
-	case c.App.HMACSecret == "":
+	case configStringMissing(c.App.HMACSecret):
 		if productionLike {
 			errs = append(errs, "HMAC_SECRET is required in production")
 		}
@@ -189,7 +189,7 @@ func (c *Config) validate(parseErrs []string) error {
 	}
 
 	if productionLike {
-		if c.Database.URL == "" {
+		if configStringMissing(c.Database.URL) {
 			errs = append(errs, "DATABASE_URL is required in production")
 		}
 		if c.App.Env == EnvProduction && !c.Token.CookieSecure {
@@ -198,28 +198,28 @@ func (c *Config) validate(parseErrs []string) error {
 		if len(c.App.TrustedProxies) == 0 {
 			errs = append(errs, "TRUSTED_PROXIES is required in production for secure IP detection")
 		}
-		if c.App.MetricsPassword == "" {
+		if configStringMissing(c.App.MetricsPassword) {
 			errs = append(errs, "METRICS_PASSWORD is required in production")
 		}
-		if c.Redis.Password == "" {
+		if configStringMissing(c.Redis.Password) {
 			errs = append(errs, "REDIS_PASSWORD is required in production")
 		}
-		if c.ObjectStorage.Endpoint == "" {
+		if configStringMissing(c.ObjectStorage.Endpoint) {
 			errs = append(errs, "OBJECT_STORAGE_ENDPOINT is required in production")
 		}
-		if c.ObjectStorage.Bucket == "" {
+		if configStringMissing(c.ObjectStorage.Bucket) {
 			errs = append(errs, "OBJECT_STORAGE_BUCKET is required in production")
 		}
-		if c.ObjectStorage.AccessKeyID == "" {
+		if configStringMissing(c.ObjectStorage.AccessKeyID) {
 			errs = append(errs, "OBJECT_STORAGE_ACCESS_KEY_ID is required in production")
 		}
-		if c.ObjectStorage.SecretAccessKey == "" {
+		if configStringMissing(c.ObjectStorage.SecretAccessKey) {
 			errs = append(errs, "OBJECT_STORAGE_SECRET_ACCESS_KEY is required in production")
 		}
-		if c.Bot.ServiceToken == "" {
+		if configStringMissing(c.Bot.ServiceToken) {
 			errs = append(errs, "BOT_SERVICE_TOKEN is required in production")
 		}
-		if c.Admission.PublicBaseURL == "" {
+		if configStringMissing(c.Admission.PublicBaseURL) {
 			errs = append(errs, "ADMISSION_PUBLIC_BASE_URL is required in production")
 		}
 		if !c.SMS.Enabled {
@@ -236,13 +236,13 @@ func (c *Config) validate(parseErrs []string) error {
 		if c.Database.SSLMode != "verify-full" && !plaintextPostgresAllowed {
 			errs = append(errs, "DB_SSL_MODE must be 'verify-full' in production")
 		}
-		if c.Database.SSLMode != "disable" && c.Database.SSLRootCert == "" {
+		if c.Database.SSLMode != "disable" && configStringMissing(c.Database.SSLRootCert) {
 			errs = append(errs, "DB_SSL_ROOT_CERT is required in production")
 		}
 		if !c.Redis.TLSEnabled {
 			errs = append(errs, "REDIS_TLS_ENABLED must be true in production")
 		}
-		if c.Redis.TLSEnabled && c.Redis.TLSCAFile == "" {
+		if c.Redis.TLSEnabled && configStringMissing(c.Redis.TLSCAFile) {
 			errs = append(errs, "REDIS_TLS_CA is required in production")
 		}
 		if !c.ObjectStorage.UseSSL {
@@ -261,37 +261,37 @@ func (c *Config) validate(parseErrs []string) error {
 	}
 
 	// Casdoor OIDC 配置校验
-	if c.Casdoor.Issuer == "" {
+	if configStringMissing(c.Casdoor.Issuer) {
 		errs = append(errs, "CASDOOR_ISSUER is required")
 	}
-	if c.Casdoor.ClientID == "" {
+	if configStringMissing(c.Casdoor.ClientID) {
 		errs = append(errs, "CASDOOR_CLIENT_ID is required")
 	}
-	if c.Casdoor.ClientSecret == "" {
+	if configStringMissing(c.Casdoor.ClientSecret) {
 		errs = append(errs, "CASDOOR_CLIENT_SECRET is required")
 	}
-	if c.Casdoor.RedirectURI == "" {
+	if configStringMissing(c.Casdoor.RedirectURI) {
 		errs = append(errs, "CASDOOR_REDIRECT_URI is required")
 	}
-	if c.Casdoor.IntrospectionClientID == "" {
+	if configStringMissing(c.Casdoor.IntrospectionClientID) {
 		errs = append(errs, "CASDOOR_INTROSPECTION_CLIENT_ID is required")
 	}
-	if c.Casdoor.IntrospectionClientSecret == "" {
+	if configStringMissing(c.Casdoor.IntrospectionClientSecret) {
 		errs = append(errs, "CASDOOR_INTROSPECTION_CLIENT_SECRET is required")
 	}
-	if c.Casdoor.Organization == "" {
+	if configStringMissing(c.Casdoor.Organization) {
 		errs = append(errs, "CASDOOR_ORGANIZATION is required")
 	}
 	errs = append(errs, validateCasdoorAdminCredentials(c.Casdoor, productionLike)...)
 
 	// OpenFGA 是应用运行时必需依赖，所有环境都需要完整配置。
-	if c.OpenFGA.StoreID == "" {
+	if configStringMissing(c.OpenFGA.StoreID) {
 		errs = append(errs, "OPENFGA_STORE_ID is required")
 	}
-	if c.OpenFGA.AuthorizationModelID == "" {
+	if configStringMissing(c.OpenFGA.AuthorizationModelID) {
 		errs = append(errs, "OPENFGA_MODEL_ID is required")
 	}
-	if c.OpenFGA.APIUrl == "" {
+	if configStringMissing(c.OpenFGA.APIUrl) {
 		errs = append(errs, "OPENFGA_API_URL is required")
 	}
 
@@ -688,19 +688,27 @@ func validateCasdoorAdminCredentials(cfg CasdoorConfig, required bool) []string 
 }
 
 func appProvisioningCredentialConfigured(cfg CasdoorConfig) bool {
-	return cfg.AppProvisioningClientID != "" || cfg.AppProvisioningClientSecret != "" || cfg.AppProvisioningApplication != ""
+	return !configStringMissing(cfg.AppProvisioningClientID) ||
+		!configStringMissing(cfg.AppProvisioningClientSecret) ||
+		!configStringMissing(cfg.AppProvisioningApplication)
 }
 
 func userProfileCredentialConfigured(cfg CasdoorConfig) bool {
-	return cfg.UserProfileClientID != "" || cfg.UserProfileClientSecret != "" || cfg.UserProfileApplication != ""
+	return !configStringMissing(cfg.UserProfileClientID) ||
+		!configStringMissing(cfg.UserProfileClientSecret) ||
+		!configStringMissing(cfg.UserProfileApplication)
 }
 
 func roleSyncCredentialConfigured(cfg CasdoorConfig) bool {
-	return cfg.RoleSyncClientID != "" || cfg.RoleSyncClientSecret != "" || cfg.RoleSyncApplication != ""
+	return !configStringMissing(cfg.RoleSyncClientID) ||
+		!configStringMissing(cfg.RoleSyncClientSecret) ||
+		!configStringMissing(cfg.RoleSyncApplication)
 }
 
 func userLookupCredentialConfigured(cfg CasdoorConfig) bool {
-	return cfg.UserLookupClientID != "" || cfg.UserLookupClientSecret != "" || cfg.UserLookupApplication != ""
+	return !configStringMissing(cfg.UserLookupClientID) ||
+		!configStringMissing(cfg.UserLookupClientSecret) ||
+		!configStringMissing(cfg.UserLookupApplication)
 }
 
 func validateCasdoorCredentialSet(required bool, prefix, clientID, clientSecret, application string) []string {
@@ -708,13 +716,13 @@ func validateCasdoorCredentialSet(required bool, prefix, clientID, clientSecret,
 		return nil
 	}
 	var errs []string
-	if clientID == "" {
+	if configStringMissing(clientID) {
 		errs = append(errs, "CASDOOR_"+prefix+"_CLIENT_ID is required")
 	}
-	if clientSecret == "" {
+	if configStringMissing(clientSecret) {
 		errs = append(errs, "CASDOOR_"+prefix+"_CLIENT_SECRET is required")
 	}
-	if application == "" {
+	if configStringMissing(application) {
 		errs = append(errs, "CASDOOR_"+prefix+"_APPLICATION is required")
 	}
 	return errs
