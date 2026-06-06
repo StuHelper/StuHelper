@@ -3,6 +3,7 @@ package oidc
 import (
 	"testing"
 
+	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -101,4 +102,15 @@ func TestGetAuthURLForApplicationDoesNotRewriteCasdoorLoginOAuthToDifferentHost(
 	assert.Contains(t, stepUpURL, "https://casdoor.internal/login/oauth/authorize")
 	assert.NotContains(t, stepUpURL, "https://sso.example.com/login/oauth/authorize")
 	assert.Contains(t, stepUpURL, "prompt=login")
+}
+
+func TestOAuth2ScopesNormalizeConfiguredValues(t *testing.T) {
+	assert.Equal(t,
+		[]string{"openid", "profile", "email"},
+		oauth2Scopes([]string{" openid ", "", "profile", "openid", " email "}),
+	)
+	assert.Equal(t,
+		[]string{gooidc.ScopeOpenID, "profile", "email", "offline_access"},
+		oauth2Scopes([]string{" ", ""}),
+	)
 }

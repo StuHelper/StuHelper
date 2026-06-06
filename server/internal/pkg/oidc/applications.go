@@ -78,10 +78,28 @@ func oauth2ConfigFromInput(endpoint oauth2.Endpoint, input oauth2ApplicationInpu
 }
 
 func oauth2Scopes(configured []string) []string {
-	if len(configured) > 0 {
-		return configured
+	scopes := normalizeOAuth2Scopes(configured)
+	if len(scopes) > 0 {
+		return scopes
 	}
 	return []string{gooidc.ScopeOpenID, "profile", "email", "offline_access"}
+}
+
+func normalizeOAuth2Scopes(scopes []string) []string {
+	out := make([]string, 0, len(scopes))
+	seen := make(map[string]struct{}, len(scopes))
+	for _, scope := range scopes {
+		trimmed := strings.TrimSpace(scope)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
+	}
+	return out
 }
 
 func (c *Client) oauth2ConfigForApplication(appKey string) (oauth2.Config, error) {
