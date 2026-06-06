@@ -41,7 +41,9 @@ func NewService(
 		userSyncRepo: userSyncRepo,
 	}
 	for _, opt := range opts {
-		opt(svc)
+		if opt != nil {
+			opt(svc)
+		}
 	}
 	return svc
 }

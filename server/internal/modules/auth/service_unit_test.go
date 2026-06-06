@@ -21,7 +21,7 @@ func (f *fakeUserSyncRepo) ExistsByCasdoorSubject(ctx context.Context, casdoorSu
 	return casdoorSubject != "", nil
 }
 
-func newAuthServiceForTest(t *testing.T) (*Service, *token.Service) {
+func newAuthServiceForTest(t *testing.T, opts ...ServiceOption) (*Service, *token.Service) {
 	t.Helper()
 	require.NoError(t, crypto.InitHMACKey("test-auth-service-secret-32-bytes!", false))
 
@@ -32,7 +32,7 @@ func newAuthServiceForTest(t *testing.T) (*Service, *token.Service) {
 	t.Cleanup(tokenSvc.Close)
 
 	tokenCfg := config.TokenConfig{AccessTokenTTL: 300, RefreshTokenTTL: 600}
-	return NewService(tokenCfg, tokenSvc, &fakeUserSyncRepo{}), tokenSvc
+	return NewService(tokenCfg, tokenSvc, &fakeUserSyncRepo{}, opts...), tokenSvc
 }
 
 func TestSyncOIDCUser_ForwardsRoles(t *testing.T) {
@@ -65,6 +65,11 @@ func TestNewService(t *testing.T) {
 		require.NotNil(t, svc)
 		assert.Equal(t, 300, svc.tokenConfig.AccessTokenTTL)
 		assert.Equal(t, 600, svc.tokenConfig.RefreshTokenTTL)
+	})
+
+	t.Run("ignores nil options", func(t *testing.T) {
+		svc, _ := newAuthServiceForTest(t, nil)
+		require.NotNil(t, svc)
 	})
 }
 
