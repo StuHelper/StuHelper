@@ -199,6 +199,23 @@ func TestDispatchNotificationIgnoresParentCancellation(t *testing.T) {
 	}
 }
 
+func TestDispatchNotificationDefaultsNilParentContext(t *testing.T) {
+	svc := &Service{}
+	done := make(chan error, 1)
+	var parent context.Context
+
+	svc.dispatchNotification(parent, func(ctx context.Context) {
+		done <- ctx.Err()
+	})
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("expected notification task to run")
+	}
+}
+
 func TestDispatchNotificationRecoversPanic(t *testing.T) {
 	t.Run("managed launcher", func(t *testing.T) {
 		svc := &Service{
