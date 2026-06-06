@@ -174,6 +174,10 @@ func (s *Service) BuildProfileCompletionChallenge(
 }
 
 func (s *Service) LoadProfileCompletionChallenge(ctx context.Context, token string) (*ProfileCompletionChallenge, error) {
+	token = normalizeChallengeToken(token)
+	if token == "" {
+		return nil, ErrCompletionTokenInvalid
+	}
 	raw, err := s.rdb.Get(ctx, completionRedisPrefix+token).Result()
 	if errors.Is(err, redis.Nil) {
 		return nil, ErrCompletionTokenInvalid
@@ -310,6 +314,10 @@ func (s *Service) deleteProfileCompletionChallengeDetached(ctx context.Context, 
 }
 
 func (s *Service) deleteProfileCompletionChallenge(ctx context.Context, token string) error {
+	token = normalizeChallengeToken(token)
+	if token == "" {
+		return ErrCompletionTokenInvalid
+	}
 	if err := s.rdb.Del(ctx, completionRedisPrefix+token).Err(); err != nil {
 		return fmt.Errorf("delete profile completion challenge: %w", err)
 	}
@@ -327,10 +335,18 @@ func (s *Service) deleteConsentChallengeDetached(ctx context.Context, token stri
 }
 
 func (s *Service) deleteConsentChallenge(ctx context.Context, token string) error {
+	token = normalizeChallengeToken(token)
+	if token == "" {
+		return ErrConsentTokenInvalid
+	}
 	if err := s.rdb.Del(ctx, consentRedisPrefix+token).Err(); err != nil {
 		return fmt.Errorf("delete consent challenge: %w", err)
 	}
 	return nil
+}
+
+func normalizeChallengeToken(token string) string {
+	return strings.TrimSpace(token)
 }
 
 func challengeCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {

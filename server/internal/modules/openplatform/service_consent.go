@@ -366,6 +366,10 @@ func (s *Service) BuildConsentChallenge(
 }
 
 func (s *Service) LoadConsentChallenge(ctx context.Context, token string) (*ConsentChallenge, error) {
+	token = normalizeChallengeToken(token)
+	if token == "" {
+		return nil, ErrConsentTokenInvalid
+	}
 	raw, err := s.rdb.Get(ctx, consentRedisPrefix+token).Result()
 	if errors.Is(err, redis.Nil) {
 		return nil, ErrConsentTokenInvalid
