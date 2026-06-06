@@ -21,11 +21,14 @@ func decodeManualFieldDescriptors(raw json.RawMessage) ([]ManualFieldDescriptor,
 		return nil, nil
 	}
 	if strings.HasPrefix(trimmed, "{") {
-		var envelope struct {
-			Admission json.RawMessage `json:"admission"`
-		}
-		if err := json.Unmarshal([]byte(trimmed), &envelope); err == nil && len(envelope.Admission) > 0 {
-			return nil, nil
+		var object map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(trimmed), &object); err == nil {
+			if len(object) == 0 {
+				return nil, nil
+			}
+			if _, ok := object["admission"]; ok {
+				return nil, nil
+			}
 		}
 	}
 

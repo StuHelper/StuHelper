@@ -1247,6 +1247,39 @@ func TestHandleListSchools_ManualWithoutFieldsReturnsEmptySlice(t *testing.T) {
 	assert.Equal(t, false, item["schoolEmailOtpEnabled"])
 }
 
+func TestHandleListSchools_ManualEmptyObjectFieldsReturnsEmptySlice(t *testing.T) {
+	repo := &mockRepo{
+		onListSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {
+			return []SchoolConfig{{
+				SchoolID:           4111010006,
+				SchoolName:         "北京航空航天大学",
+				VerificationMethod: VerifyMethodManual,
+				ManualFormFields:   json.RawMessage(`{}`),
+				Enabled:            true,
+			}}, nil
+		},
+	}
+
+	r := setupUserHandlerTestRouterWithRepo(t, repo)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/user/schools", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+
+	list := resp["data"].([]any)
+	require.Len(t, list, 1)
+	item := list[0].(map[string]any)
+	manualFormFields := item["manualFormFields"].([]any)
+	assert.Empty(t, manualFormFields)
+	assert.Equal(t, false, item["schoolSsoEnabled"])
+	assert.Equal(t, false, item["schoolEmailOtpEnabled"])
+}
+
 func TestHandleAdminListSystemConfigs_MapsToSpecShape(t *testing.T) {
 	now := time.Date(2026, 3, 14, 12, 0, 0, 0, time.UTC)
 	repo := &mockRepo{
