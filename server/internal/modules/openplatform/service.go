@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -356,11 +357,63 @@ func (s *Service) UpdateAppProfile(ctx context.Context, input UpdateAppProfileIn
 		return nil, err
 	}
 
-	saved, err := s.repo.UpdateAppProfileWithAudit(ctx, &updated, input.OwnerUserID, reason, input.RequestID)
+	rollback, err := s.ensureCasdoorApplicationProfileForUpdate(ctx, app, &updated)
 	if err != nil {
 		return nil, err
 	}
+	saved, err := s.repo.UpdateAppProfileWithAudit(ctx, &updated, input.OwnerUserID, reason, input.RequestID)
+	if err != nil {
+		if rollbackErr := s.rollbackCasdoorApplicationProfileUpdate(ctx, rollback); rollbackErr != nil {
+			return nil, errors.Join(err, rollbackErr)
+		}
+		return nil, err
+	}
 	return &AppLifecycleResult{App: saved}, nil
+}
+
+func (s *Service) ensureCasdoorApplicationProfileForUpdate(
+	ctx context.Context,
+	current *App,
+	updated *App,
+) (casdoorApplicationSpecRollback, error) {
+	if s.provisioner == nil || !casdoorApplicationProfileNeedsSync(current, updated) {
+		return casdoorApplicationSpecRollback{}, nil
+	}
+	name := strings.TrimSpace(current.CasdoorApplicationName)
+	if name == "" {
+		return casdoorApplicationSpecRollback{}, nil
+	}
+	previous, err := s.provisioner.GetApplication(ctx, name)
+	if err != nil {
+		return casdoorApplicationSpecRollback{}, fmt.Errorf("read Casdoor application before open platform profile update: %w", err)
+	}
+	if strings.TrimSpace(previous.ClientSecret) == "" {
+		return casdoorApplicationSpecRollback{}, fmt.Errorf("read Casdoor application before open platform profile update: client secret unavailable")
+	}
+	desired := previous
+	desired.DisplayName = strings.TrimSpace(updated.DisplayName)
+	desired.Description = strings.TrimSpace(updated.Description)
+	desired.HomepageURL = strings.TrimSpace(updated.HomepageURL)
+	if err := s.provisioner.EnsureApplication(ctx, desired); err != nil {
+		return casdoorApplicationSpecRollback{}, fmt.Errorf("sync Casdoor application profile before local update: %w", err)
+	}
+	return casdoorApplicationSpecRollback{spec: previous, ok: true}, nil
+}
+
+func casdoorApplicationProfileNeedsSync(current *App, updated *App) bool {
+	if current.Status != AppStatusApproved && current.Status != AppStatusSuspended {
+		return false
+	}
+	return strings.TrimSpace(current.DisplayName) != strings.TrimSpace(updated.DisplayName) ||
+		strings.TrimSpace(current.Description) != strings.TrimSpace(updated.Description) ||
+		strings.TrimSpace(current.HomepageURL) != strings.TrimSpace(updated.HomepageURL)
+}
+
+func (s *Service) rollbackCasdoorApplicationProfileUpdate(
+	ctx context.Context,
+	rollback casdoorApplicationSpecRollback,
+) error {
+	return s.rollbackCasdoorApplicationSpec(ctx, rollback, "rollback Casdoor application profile after local update failure")
 }
 
 func (s *Service) ListAuditEvents(ctx context.Context, input ListAuditEventsInput) (AuditEventListResult, error) {

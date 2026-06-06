@@ -1141,6 +1141,149 @@ func TestOpenPlatformDeveloperUpdatesAppProfile(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidAppStatus)
 }
 
+func TestApprovedAppProfileUpdateSyncsCasdoorApplication(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	provisioner := &fakeOpenPlatformAppProvisioner{}
+	service, err := NewService(repo, redis.Client, WithAppProvisioner(provisioner))
+	require.NoError(t, err)
+
+	fixture := setupApprovedCasdoorOpenPlatformApp(t, ctx, postgres, service, "profile-sync")
+	registered := fixture.registered
+	updated, err := service.UpdateAppProfile(ctx, UpdateAppProfileInput{
+		AppID:            registered.App.ID,
+		OwnerUserID:      fixture.ownerID,
+		DisplayName:      "Synced Profile App",
+		Description:      "Public profile metadata synchronized to Casdoor.",
+		HomepageURL:      "https://profile-sync-new.example.com",
+		PrivacyPolicyURL: "https://profile-sync-new.example.com/privacy",
+		Reason:           "public metadata changed",
+		RequestID:        "profile-sync-update",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "Synced Profile App", updated.App.DisplayName)
+	assert.Equal(t, "https://profile-sync-new.example.com/privacy", updated.App.PrivacyPolicyURL)
+	require.Len(t, provisioner.ensuredSpecs, 2)
+	profileSpec := provisioner.ensuredSpecs[1]
+	assert.Equal(t, registered.App.CasdoorApplicationName, profileSpec.Name)
+	assert.Equal(t, "Synced Profile App", profileSpec.DisplayName)
+	assert.Equal(t, "Public profile metadata synchronized to Casdoor.", profileSpec.Description)
+	assert.Equal(t, "https://profile-sync-new.example.com", profileSpec.HomepageURL)
+	assert.Equal(t, fixture.initialRedirectURIs, profileSpec.RedirectURIs)
+	assert.Equal(t, provisioner.ensuredSpecs[0].ClientSecret, profileSpec.ClientSecret)
+	assertOpenPlatformAuditCount(t, postgres, registered.App.ID, fixture.ownerID, "open_platform.app.profile_updated", 1)
+}
+
+func TestApprovedAppProfileUpdateDoesNotWriteLocalWhenCasdoorSyncFails(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	provisioner := &fakeOpenPlatformAppProvisioner{}
+	service, err := NewService(repo, redis.Client, WithAppProvisioner(provisioner))
+	require.NoError(t, err)
+
+	fixture := setupApprovedCasdoorOpenPlatformApp(t, ctx, postgres, service, "profile-fail")
+	registered := fixture.registered
+	provisioner.ensureErr = errors.New("casdoor profile update unavailable")
+	updated, err := service.UpdateAppProfile(ctx, UpdateAppProfileInput{
+		AppID:            registered.App.ID,
+		OwnerUserID:      fixture.ownerID,
+		DisplayName:      "Unsaved Profile App",
+		Description:      "This update should not be persisted.",
+		HomepageURL:      "https://profile-fail-new.example.com",
+		PrivacyPolicyURL: "https://profile-fail-new.example.com/privacy",
+		Reason:           "public metadata changed",
+		RequestID:        "profile-sync-fail",
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "casdoor profile update unavailable")
+	assert.Nil(t, updated)
+	app, err := repo.GetAppByID(ctx, registered.App.ID)
+	require.NoError(t, err)
+	assert.Equal(t, registered.App.DisplayName, app.DisplayName)
+	assert.Equal(t, registered.App.Description, app.Description)
+	assert.Equal(t, registered.App.HomepageURL, app.HomepageURL)
+	assert.Equal(t, registered.App.PrivacyPolicyURL, app.PrivacyPolicyURL)
+	assertOpenPlatformAuditCount(t, postgres, registered.App.ID, fixture.ownerID, "open_platform.app.profile_updated", 0)
+}
+
+func TestApprovedAppProfileUpdateRollsBackCasdoorWhenLocalUpdateFails(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	provisioner := &fakeOpenPlatformAppProvisioner{}
+	service, err := NewService(repo, redis.Client, WithAppProvisioner(provisioner))
+	require.NoError(t, err)
+
+	fixture := setupApprovedCasdoorOpenPlatformApp(t, ctx, postgres, service, "profile-rollback")
+	registered := fixture.registered
+	requestCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	provisioner.onEnsure = cancel
+	updated, err := service.UpdateAppProfile(requestCtx, UpdateAppProfileInput{
+		AppID:            registered.App.ID,
+		OwnerUserID:      fixture.ownerID,
+		DisplayName:      "Rolled Back Profile App",
+		Description:      "Local write cancellation should roll Casdoor back.",
+		HomepageURL:      "https://profile-rollback-new.example.com",
+		PrivacyPolicyURL: "https://profile-rollback-new.example.com/privacy",
+		Reason:           "public metadata changed",
+		RequestID:        "profile-sync-rollback",
+	})
+
+	require.Error(t, err)
+	assert.Nil(t, updated)
+	require.Len(t, provisioner.ensuredSpecs, 3)
+	assert.Equal(t, "Rolled Back Profile App", provisioner.ensuredSpecs[1].DisplayName)
+	assert.Equal(t, registered.App.DisplayName, provisioner.ensuredSpecs[2].DisplayName)
+	assert.Equal(t, registered.App.Description, provisioner.ensuredSpecs[2].Description)
+	assert.Equal(t, registered.App.HomepageURL, provisioner.ensuredSpecs[2].HomepageURL)
+	assert.Equal(t, registered.App.DisplayName, provisioner.existing.DisplayName)
+	app, err := repo.GetAppByID(context.Background(), registered.App.ID)
+	require.NoError(t, err)
+	assert.Equal(t, registered.App.DisplayName, app.DisplayName)
+	assert.Equal(t, registered.App.Description, app.Description)
+	assert.Equal(t, registered.App.HomepageURL, app.HomepageURL)
+	assert.Equal(t, registered.App.PrivacyPolicyURL, app.PrivacyPolicyURL)
+	assertOpenPlatformAuditCount(t, postgres, registered.App.ID, fixture.ownerID, "open_platform.app.profile_updated", 0)
+}
+
+func TestPrivacyOnlyProfileUpdateDoesNotRequireCasdoorSync(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	provisioner := &fakeOpenPlatformAppProvisioner{}
+	service, err := NewService(repo, redis.Client, WithAppProvisioner(provisioner))
+	require.NoError(t, err)
+
+	fixture := setupApprovedCasdoorOpenPlatformApp(t, ctx, postgres, service, "privacy-only")
+	registered := fixture.registered
+	provisioner.ensureErr = errors.New("casdoor should not be called")
+	updated, err := service.UpdateAppProfile(ctx, UpdateAppProfileInput{
+		AppID:            registered.App.ID,
+		OwnerUserID:      fixture.ownerID,
+		DisplayName:      registered.App.DisplayName,
+		Description:      registered.App.Description,
+		HomepageURL:      registered.App.HomepageURL,
+		PrivacyPolicyURL: "https://privacy-only-new.example.com/privacy",
+		Reason:           "privacy policy moved",
+		RequestID:        "profile-privacy-only",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "https://privacy-only-new.example.com/privacy", updated.App.PrivacyPolicyURL)
+	require.Len(t, provisioner.ensuredSpecs, 1)
+	assert.Equal(t, registered.App.DisplayName, provisioner.existing.DisplayName)
+	assertOpenPlatformAuditCount(t, postgres, registered.App.ID, fixture.ownerID, "open_platform.app.profile_updated", 1)
+}
+
 func TestOpenPlatformScopeChangeReviewAndResubmit(t *testing.T) {
 	ctx := context.Background()
 	postgres := postgresfixture.Start(t)
@@ -3725,7 +3868,7 @@ func TestApproveRedirectURIRequestSyncsCasdoorApplication(t *testing.T) {
 	service, err := NewService(repo, redis.Client, WithAppProvisioner(provisioner))
 	require.NoError(t, err)
 
-	fixture := setupApprovedCasdoorRedirectApp(t, ctx, postgres, service, "casdoor-sync")
+	fixture := setupApprovedCasdoorOpenPlatformApp(t, ctx, postgres, service, "casdoor-sync")
 	registered := fixture.registered
 	newRedirectURIs := []string{"https://new-redirect-casdoor.example.com/callback"}
 	requested, err := service.RequestRedirectURIChange(ctx, RedirectURIChangeInput{
@@ -3767,7 +3910,7 @@ func TestApproveRedirectURIRequestDoesNotUpdateLocalWhenCasdoorSyncFails(t *test
 	service, err := NewService(repo, redis.Client, WithAppProvisioner(provisioner))
 	require.NoError(t, err)
 
-	fixture := setupApprovedCasdoorRedirectApp(t, ctx, postgres, service, "casdoor-fail")
+	fixture := setupApprovedCasdoorOpenPlatformApp(t, ctx, postgres, service, "casdoor-fail")
 	registered := fixture.registered
 	requested, err := service.RequestRedirectURIChange(ctx, RedirectURIChangeInput{
 		AppID:        registered.App.ID,
@@ -3805,7 +3948,7 @@ func TestApproveRedirectURIRequestRollsBackCasdoorWhenLocalUpdateFails(t *testin
 	service, err := NewService(repo, redis.Client, WithAppProvisioner(provisioner))
 	require.NoError(t, err)
 
-	fixture := setupApprovedCasdoorRedirectApp(t, ctx, postgres, service, "rollback")
+	fixture := setupApprovedCasdoorOpenPlatformApp(t, ctx, postgres, service, "rollback")
 	registered := fixture.registered
 	newRedirectURIs := []string{"https://new-redirect-rollback.example.com/callback"}
 	requested, err := service.RequestRedirectURIChange(ctx, RedirectURIChangeInput{
@@ -3840,20 +3983,20 @@ func TestApproveRedirectURIRequestRollsBackCasdoorWhenLocalUpdateFails(t *testin
 	assertOpenPlatformAuditCount(t, postgres, registered.App.ID, fixture.adminID, "open_platform.app.redirect_uris.approved", 0)
 }
 
-type casdoorRedirectAppFixture struct {
+type casdoorOpenPlatformAppFixture struct {
 	registered          *RegisteredApp
 	ownerID             int64
 	adminID             int64
 	initialRedirectURIs []string
 }
 
-func setupApprovedCasdoorRedirectApp(
+func setupApprovedCasdoorOpenPlatformApp(
 	t *testing.T,
 	ctx context.Context,
 	postgres *postgresfixture.Fixture,
 	service *Service,
 	suffix string,
-) casdoorRedirectAppFixture {
+) casdoorOpenPlatformAppFixture {
 	t.Helper()
 	ownerID := seedOpenPlatformUser(t, postgres, "redirect-"+suffix+"-owner")
 	adminID := seedOpenPlatformUser(t, postgres, "redirect-"+suffix+"-admin")
@@ -3882,7 +4025,7 @@ func setupApprovedCasdoorRedirectApp(
 		RequestID:      "approve-before-redirect-" + suffix,
 	})
 	require.NoError(t, err)
-	return casdoorRedirectAppFixture{
+	return casdoorOpenPlatformAppFixture{
 		registered:          registered,
 		ownerID:             ownerID,
 		adminID:             adminID,
