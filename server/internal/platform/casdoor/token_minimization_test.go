@@ -130,6 +130,42 @@ printf '%s\n' '{"method":"authorization_code","tokenClaims":{"id_token":["sub","
 	assert.Equal(t, "test", result.Metadata["source"])
 }
 
+func TestCommandRuntimeTokenProberRejectsMissingRedirectURI(t *testing.T) {
+	script := filepath.Join(t.TempDir(), "probe")
+	require.NoError(t, os.WriteFile(script, []byte(`#!/usr/bin/env bash
+exit 23
+`), 0o700))
+	prober, err := NewCommandRuntimeTokenProber(RuntimeTokenProbeCommandConfig{
+		Command: script,
+		Issuer:  "https://sso.example.com",
+		Timeout: time.Second,
+	})
+	require.NoError(t, err)
+
+	_, err = prober.ProbeTokenMinimization(context.Background(), ApplicationSpec{
+		Name:         "runtime-app",
+		ClientID:     "runtime-client",
+		ClientSecret: "runtime-secret",
+	})
+
+	require.ErrorIs(t, err, ErrTokenMinimizationProbeFailed)
+	assert.Contains(t, err.Error(), "redirect URI is required")
+}
+
+func TestRuntimeTokenProbeRedirectURITrimsConfiguredRedirect(t *testing.T) {
+	redirectURI, err := runtimeTokenProbeRedirectURI([]string{" https://client.example.com/callback "})
+
+	require.NoError(t, err)
+	assert.Equal(t, "https://client.example.com/callback", redirectURI)
+}
+
+func TestRuntimeTokenProbeRedirectURIRejectsBlankRedirect(t *testing.T) {
+	_, err := runtimeTokenProbeRedirectURI([]string{"  "})
+
+	require.ErrorIs(t, err, ErrTokenMinimizationProbeFailed)
+	assert.Contains(t, err.Error(), "redirect URI is required")
+}
+
 func TestCreateApplicationRejectsBusinessTokenField(t *testing.T) {
 	client := newTestClient(t, &fakeApplicationAPI{addOK: true})
 	spec := validApplicationSpec()

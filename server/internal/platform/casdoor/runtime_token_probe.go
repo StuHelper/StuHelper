@@ -63,9 +63,9 @@ func (p *CommandRuntimeTokenProber) ProbeTokenMinimization(
 	if p == nil {
 		return RuntimeTokenMinimizationProbeResult{}, errorsNewTokenProbe("runtime token probe command is not configured")
 	}
-	redirectURI := ""
-	if len(spec.RedirectURIs) > 0 {
-		redirectURI = spec.RedirectURIs[0]
+	redirectURI, err := runtimeTokenProbeRedirectURI(spec.RedirectURIs)
+	if err != nil {
+		return RuntimeTokenMinimizationProbeResult{}, err
 	}
 	payload, err := json.Marshal(runtimeTokenProbeCommandInput{
 		Issuer:                 p.issuer,
@@ -111,6 +111,17 @@ func (p *CommandRuntimeTokenProber) ProbeTokenMinimization(
 			ErrTokenMinimizationProbeFailed, err, truncateProbeOutput(stdout.String()))
 	}
 	return NormalizeRuntimeTokenMinimizationProbeResult(result)
+}
+
+func runtimeTokenProbeRedirectURI(redirectURIs []string) (string, error) {
+	if len(redirectURIs) == 0 {
+		return "", errorsNewTokenProbe("runtime code-flow probe redirect URI is required")
+	}
+	redirectURI := strings.TrimSpace(redirectURIs[0])
+	if redirectURI == "" {
+		return "", errorsNewTokenProbe("runtime code-flow probe redirect URI is required")
+	}
+	return redirectURI, nil
 }
 
 func truncateProbeOutput(value string) string {
