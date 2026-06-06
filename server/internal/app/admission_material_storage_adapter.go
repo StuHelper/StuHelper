@@ -54,6 +54,7 @@ func normalizeAdmissionMaterialStorageError(err error) error {
 	case errors.Is(err, storage.ErrMountNotFound),
 		errors.Is(err, storage.ErrMountDisabled),
 		errors.Is(err, storage.ErrDriverNotRegistered),
+		errors.Is(err, storage.ErrInvalidObjectKey),
 		errors.Is(err, storage.ErrStoredObjectMissing),
 		errors.Is(err, storage.ErrInvalidStoredObject),
 		objectstorage.IsKind(err, objectstorage.ErrorKindConfig),

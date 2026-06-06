@@ -93,6 +93,29 @@ func TestS3Driver_NormalizesStoredObjectKey(t *testing.T) {
 	assert.Equal(t, "resources/outside.txt", store.uploadKey)
 }
 
+func TestS3DriverRejectsInvalidObjectKeyBeforeOpeningStore(t *testing.T) {
+	t.Parallel()
+
+	driver := newS3Driver(config.ObjectStorageConfig{})
+	driver.storeFactory = func(context.Context, Mount) (storeClient, error) {
+		t.Fatal("storeFactory must not be called for invalid object key")
+		return nil, nil
+	}
+	mount := Mount{BasePath: "resources"}
+
+	_, err := driver.Put(context.Background(), mount, "../", []byte("payload"), "text/plain")
+	require.ErrorIs(t, err, ErrInvalidObjectKey)
+
+	_, err = driver.Stat(context.Background(), mount, "../")
+	require.ErrorIs(t, err, ErrInvalidObjectKey)
+
+	err = driver.Delete(context.Background(), mount, "../")
+	require.ErrorIs(t, err, ErrInvalidObjectKey)
+
+	_, err = driver.GetDownloadURL(context.Background(), mount, "../")
+	require.ErrorIs(t, err, ErrInvalidObjectKey)
+}
+
 func TestS3Driver_MountKeyPreventsObjectKeyEscapingBasePath(t *testing.T) {
 	t.Parallel()
 

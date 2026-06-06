@@ -18,6 +18,7 @@ func TestNormalizeAdmissionMaterialStorageErrorMapsStorageErrors(t *testing.T) {
 		storage.ErrMountNotFound,
 		storage.ErrMountDisabled,
 		storage.ErrDriverNotRegistered,
+		storage.ErrInvalidObjectKey,
 		storage.ErrStoredObjectMissing,
 		storage.ErrInvalidStoredObject,
 	} {

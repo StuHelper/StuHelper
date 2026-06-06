@@ -73,11 +73,14 @@ func (d *s3Driver) HealthCheck(ctx context.Context, mount Mount) error {
 }
 
 func (d *s3Driver) Put(ctx context.Context, mount Mount, objectKey string, content []byte, contentType string) (*StoredObject, error) {
+	objectKey, err := validateObjectKey(objectKey)
+	if err != nil {
+		return nil, err
+	}
 	store, err := d.storeFactory(ctx, mount)
 	if err != nil {
 		return nil, err
 	}
-	objectKey = normalizeObjectKey(objectKey)
 	key := d.mountKey(mount, objectKey)
 	if err := store.Upload(ctx, key, content, contentType); err != nil {
 		return nil, err
@@ -87,11 +90,14 @@ func (d *s3Driver) Put(ctx context.Context, mount Mount, objectKey string, conte
 }
 
 func (d *s3Driver) Stat(ctx context.Context, mount Mount, objectKey string) (*StoredObject, error) {
+	objectKey, err := validateObjectKey(objectKey)
+	if err != nil {
+		return nil, err
+	}
 	store, err := d.storeFactory(ctx, mount)
 	if err != nil {
 		return nil, err
 	}
-	objectKey = normalizeObjectKey(objectKey)
 	info, err := store.Stat(ctx, d.mountKey(mount, objectKey))
 	if err != nil {
 		return nil, err
@@ -100,6 +106,10 @@ func (d *s3Driver) Stat(ctx context.Context, mount Mount, objectKey string) (*St
 }
 
 func (d *s3Driver) Delete(ctx context.Context, mount Mount, objectKey string) error {
+	objectKey, err := validateObjectKey(objectKey)
+	if err != nil {
+		return err
+	}
 	store, err := d.storeFactory(ctx, mount)
 	if err != nil {
 		return err
@@ -108,6 +118,10 @@ func (d *s3Driver) Delete(ctx context.Context, mount Mount, objectKey string) er
 }
 
 func (d *s3Driver) GetDownloadURL(ctx context.Context, mount Mount, objectKey string) (string, error) {
+	objectKey, err := validateObjectKey(objectKey)
+	if err != nil {
+		return "", err
+	}
 	store, err := d.storeFactory(ctx, mount)
 	if err != nil {
 		return "", err
@@ -149,4 +163,12 @@ func (d *s3Driver) mountKey(mount Mount, objectKey string) string {
 func normalizeObjectKey(key string) string {
 	key = path.Clean("/" + strings.TrimSpace(key))
 	return strings.Trim(key, "/")
+}
+
+func validateObjectKey(key string) (string, error) {
+	key = normalizeObjectKey(key)
+	if key == "" {
+		return "", fmt.Errorf("%w: object key is required", ErrInvalidObjectKey)
+	}
+	return key, nil
 }

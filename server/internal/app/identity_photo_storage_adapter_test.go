@@ -21,6 +21,7 @@ func TestNormalizeIdentityPhotoStorageErrorMapsStorageErrors(t *testing.T) {
 		{source: storage.ErrMountNotFound, want: user.ErrIdentityPhotoStorageUnavailable},
 		{source: storage.ErrMountDisabled, want: user.ErrIdentityPhotoStorageUnavailable},
 		{source: storage.ErrDriverNotRegistered, want: user.ErrIdentityPhotoStorageUnavailable},
+		{source: storage.ErrInvalidObjectKey, want: user.ErrIdentityPhotoStorageUnavailable},
 		{source: storage.ErrStoredObjectMissing, want: user.ErrIdentityPhotoStorageUnavailable},
 		{source: storage.ErrInvalidStoredObject, want: user.ErrIdentityPhotoStorageUnavailable},
 	} {

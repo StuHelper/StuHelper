@@ -193,6 +193,43 @@ func TestValidateMountByKeyAndGetDownloadURLByMountKey(t *testing.T) {
 	assert.Equal(t, "https://storage.example.test/identity/front.png", url)
 }
 
+func TestObjectOperationsRejectInvalidObjectKey(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(repo, config.ObjectStorageConfig{})
+	svc.registry.drivers["s3"] = &fakeDriver{
+		onPut: func() {
+			t.Fatal("driver Put must not be called for invalid object key")
+		},
+	}
+
+	mount, err := repo.GetMountByKey(context.Background(), DefaultMountKey)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name string
+		key  string
+	}{
+		{name: "blank", key: " "},
+		{name: "root", key: "/"},
+		{name: "parent only", key: "../"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, _, err := svc.Put(context.Background(), DefaultMountKey, tc.key, []byte("hello"), "text/plain")
+			require.ErrorIs(t, err, ErrInvalidObjectKey)
+
+			err = svc.Delete(context.Background(), mount.ID, tc.key)
+			require.ErrorIs(t, err, ErrInvalidObjectKey)
+
+			_, err = svc.GetDownloadURL(context.Background(), mount.ID, tc.key)
+			require.ErrorIs(t, err, ErrInvalidObjectKey)
+
+			_, err = svc.GetDownloadURLByMountKey(context.Background(), DefaultMountKey, tc.key)
+			require.ErrorIs(t, err, ErrInvalidObjectKey)
+		})
+	}
+}
+
 func TestPutRejectsMissingObjectMetadata(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)

@@ -99,6 +99,10 @@ func (s *Service) ValidateMountByKey(ctx context.Context, mountKey string) (*Mou
 }
 
 func (s *Service) Put(ctx context.Context, mountKey, objectKey string, content []byte, contentType string) (*Mount, *StoredObject, error) {
+	objectKey, err := validateObjectKey(objectKey)
+	if err != nil {
+		return nil, nil, err
+	}
 	mount, driver, err := s.getMountDriver(ctx, mountKey)
 	if err != nil {
 		return nil, nil, err
@@ -147,6 +151,10 @@ func cleanupStoredObjectKey(requestedKey string, stored *StoredObject) string {
 }
 
 func (s *Service) Delete(ctx context.Context, mountID int64, objectKey string) error {
+	objectKey, err := validateObjectKey(objectKey)
+	if err != nil {
+		return err
+	}
 	mount, err := s.repo.GetMountByID(ctx, mountID)
 	if err != nil {
 		return err
@@ -159,6 +167,10 @@ func (s *Service) Delete(ctx context.Context, mountID int64, objectKey string) e
 }
 
 func (s *Service) GetDownloadURL(ctx context.Context, mountID int64, objectKey string) (string, error) {
+	objectKey, err := validateObjectKey(objectKey)
+	if err != nil {
+		return "", err
+	}
 	mount, err := s.repo.GetMountByID(ctx, mountID)
 	if err != nil {
 		return "", err
@@ -171,6 +183,10 @@ func (s *Service) GetDownloadURL(ctx context.Context, mountID int64, objectKey s
 }
 
 func (s *Service) GetDownloadURLByMountKey(ctx context.Context, mountKey, objectKey string) (string, error) {
+	objectKey, err := validateObjectKey(objectKey)
+	if err != nil {
+		return "", err
+	}
 	mount, driver, err := s.getMountDriver(ctx, mountKey)
 	if err != nil {
 		return "", err
