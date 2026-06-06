@@ -3,6 +3,8 @@ package middleware
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -64,13 +66,53 @@ func mergeRoleScopes(base, overlay map[string][]string) map[string][]string {
 	for role, values := range overlay {
 		merged[role] = append(merged[role], values...)
 	}
-	return merged
+	return normalizeOrgScopedRoles(merged)
+}
+
+func normalizeOrgScopedRoles(scopedRoles map[string][]string) map[string][]string {
+	if len(scopedRoles) == 0 {
+		return nil
+	}
+
+	normalized := make(map[string][]string, len(scopedRoles))
+	seenByRole := make(map[string]map[string]struct{}, len(scopedRoles))
+	for rawRole, values := range scopedRoles {
+		role := strings.TrimSpace(rawRole)
+		if role == "" {
+			continue
+		}
+		seen := seenByRole[role]
+		if seen == nil {
+			seen = make(map[string]struct{}, len(values))
+			seenByRole[role] = seen
+		}
+		for _, rawValue := range values {
+			value := strings.TrimSpace(rawValue)
+			if value == "" {
+				continue
+			}
+			if _, ok := seen[value]; ok {
+				continue
+			}
+			seen[value] = struct{}{}
+			normalized[role] = append(normalized[role], value)
+		}
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	for role, values := range normalized {
+		sort.Strings(values)
+		normalized[role] = values
+	}
+	return normalized
 }
 
 // setClaimsToContext 将用户信息、角色和能力集合注入 Gin context。
 // 同时构建 capability set（map）供 HasCapability 进行 O(1) 查找。
 func setClaimsToContext(c *gin.Context, auth *authResult) {
-	grants := capability.ExpandRoleGrants(auth.roles, auth.orgScopedRoles)
+	orgScopedRoles := normalizeOrgScopedRoles(auth.orgScopedRoles)
+	grants := capability.ExpandRoleGrants(auth.roles, orgScopedRoles)
 	snapshot := capability.BuildUserAccessSnapshot(grants)
 	capSet := make(map[string]struct{}, len(snapshot.Capabilities))
 	for _, cap := range snapshot.Capabilities {
@@ -85,8 +127,8 @@ func setClaimsToContext(c *gin.Context, auth *authResult) {
 	setAvatarContext(c, auth.avatar)
 	c.Set(CtxKeyTokenScopes, append([]string(nil), auth.tokenScopes...))
 	c.Set(CtxKeyRoles, auth.roles)
-	if auth.orgScopedRoles != nil {
-		c.Set(CtxKeyOrgScopedRoles, auth.orgScopedRoles)
+	if orgScopedRoles != nil {
+		c.Set(CtxKeyOrgScopedRoles, orgScopedRoles)
 	}
 	c.Set(CtxKeyCapabilities, snapshot.Capabilities)
 	c.Set(CtxKeyGlobalCapabilities, snapshot.GlobalCapabilities)

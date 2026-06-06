@@ -37,6 +37,27 @@ func TestSetClaimsToContextPropagatesAuthTimeAndMFAProof(t *testing.T) {
 	assert.False(t, GetMFAEnrollmentActive(c))
 }
 
+func TestSetClaimsToContextNormalizesOrgScopedRoles(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	setClaimsToContext(c, &authResult{
+		userID: "casdoor-user-1",
+		roles:  []string{"school_admin"},
+		orgScopedRoles: map[string][]string{
+			" school_admin ": {" 4111010002 ", "4111010001", "4111010002", " "},
+			" ":              {"ignored"},
+		},
+	})
+
+	value, exists := c.Get(CtxKeyOrgScopedRoles)
+	require.True(t, exists)
+	assert.Equal(t, map[string][]string{
+		"school_admin": {"4111010001", "4111010002"},
+	}, value)
+}
+
 type fakeRoleScopeResolver struct {
 	scopes map[string][]string
 	err    error
@@ -60,14 +81,19 @@ func TestWithResolvedRoleScopesMergesIntoAuthResult(t *testing.T) {
 		userID: "casdoor-user-1",
 		roles:  []string{"school_admin"},
 		orgScopedRoles: map[string][]string{
-			"school_admin": {"4111010001"},
+			" school_admin ": {"4111010002", " 4111010001 ", "4111010002", ""},
 		},
 	}, fakeRoleScopeResolver{
-		scopes: map[string][]string{"school_admin": {"4111010002"}},
+		scopes: map[string][]string{
+			"school_admin": {"4111010003", " 4111010002 "},
+			" ":            {"ignored"},
+		},
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"4111010001", "4111010002"}, result.orgScopedRoles["school_admin"])
+	assert.Equal(t, map[string][]string{
+		"school_admin": {"4111010001", "4111010002", "4111010003"},
+	}, result.orgScopedRoles)
 }
 
 func TestWithResolvedRoleScopesResolvesAuthenticatedTokens(t *testing.T) {
