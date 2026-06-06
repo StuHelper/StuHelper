@@ -699,7 +699,6 @@ func resourceAccessDecisionToJSON(decision ResourceAccessDecision) resourceAcces
 }
 
 func scopeRequestToJSON(scope ScopeRequest) scopeRequestResponse {
-	definition := ScopeDefinitions([]string{scope.Scope})
 	response := scopeRequestResponse{
 		ID:             scope.ID,
 		Scope:          scope.Scope,
@@ -711,10 +710,10 @@ func scopeRequestToJSON(scope ScopeRequest) scopeRequestResponse {
 		CreatedAt:      scope.CreatedAt,
 		UpdatedAt:      scope.UpdatedAt,
 	}
-	if len(definition) == 1 {
-		response.DisplayName = definition[0].DisplayName
-		response.Sensitivity = definition[0].Sensitivity
-		response.Fields = append([]string(nil), definition[0].Fields...)
+	if definition, ok := scopeDefinitionForResponse(scope.Scope); ok {
+		response.DisplayName = definition.DisplayName
+		response.Sensitivity = definition.Sensitivity
+		response.Fields = definition.Fields
 	}
 	return response
 }
@@ -738,7 +737,6 @@ func userConsentsToJSON(consents []UserAuthorizedApp) userConsentsResponse {
 	for _, consent := range consents {
 		scopes := make([]userConsentScopeResponse, 0, len(consent.Scopes))
 		for _, scope := range consent.Scopes {
-			definition := ScopeDefinitions([]string{scope.Scope})
 			scopeResponse := userConsentScopeResponse{
 				Scope:       scope.Scope,
 				GrantedAt:   scope.GrantedAt,
@@ -746,10 +744,10 @@ func userConsentsToJSON(consents []UserAuthorizedApp) userConsentsResponse {
 				GrantSource: scope.GrantSource,
 				Reason:      scope.Reason,
 			}
-			if len(definition) == 1 {
-				scopeResponse.DisplayName = definition[0].DisplayName
-				scopeResponse.Sensitivity = definition[0].Sensitivity
-				scopeResponse.Fields = append([]string(nil), definition[0].Fields...)
+			if definition, ok := scopeDefinitionForResponse(scope.Scope); ok {
+				scopeResponse.DisplayName = definition.DisplayName
+				scopeResponse.Sensitivity = definition.Sensitivity
+				scopeResponse.Fields = definition.Fields
 			}
 			scopes = append(scopes, scopeResponse)
 		}
@@ -766,7 +764,6 @@ func adminUserConsentListToJSON(result AdminUserConsentListResult) adminUserCons
 	for _, consent := range result.List {
 		scopes := make([]userConsentScopeResponse, 0, len(consent.Scopes))
 		for _, scope := range consent.Scopes {
-			definition := ScopeDefinitions([]string{scope.Scope})
 			scopeResponse := userConsentScopeResponse{
 				Scope:       scope.Scope,
 				GrantedAt:   scope.GrantedAt,
@@ -774,10 +771,10 @@ func adminUserConsentListToJSON(result AdminUserConsentListResult) adminUserCons
 				GrantSource: scope.GrantSource,
 				Reason:      scope.Reason,
 			}
-			if len(definition) == 1 {
-				scopeResponse.DisplayName = definition[0].DisplayName
-				scopeResponse.Sensitivity = definition[0].Sensitivity
-				scopeResponse.Fields = append([]string(nil), definition[0].Fields...)
+			if definition, ok := scopeDefinitionForResponse(scope.Scope); ok {
+				scopeResponse.DisplayName = definition.DisplayName
+				scopeResponse.Sensitivity = definition.Sensitivity
+				scopeResponse.Fields = definition.Fields
 			}
 			scopes = append(scopes, scopeResponse)
 		}
@@ -788,6 +785,16 @@ func adminUserConsentListToJSON(result AdminUserConsentListResult) adminUserCons
 		})
 	}
 	return adminUserConsentListResponse{List: list, Total: result.Total}
+}
+
+func scopeDefinitionForResponse(scope string) (ScopeDefinition, bool) {
+	definitions := ScopeDefinitions([]string{scope})
+	if len(definitions) != 1 {
+		return ScopeDefinition{}, false
+	}
+	definition := definitions[0]
+	definition.Fields = append([]string(nil), definition.Fields...)
+	return definition, true
 }
 
 func approvedAppToJSON(approved *ApprovedApp) approvedAppResponse {
