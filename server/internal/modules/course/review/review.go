@@ -73,6 +73,7 @@ func (h *Handler) PostReview(c *gin.Context) {
 
 	h.invalidateReviewAggregateCaches(c)
 	h.invalidateCourseReviewCountCaches(c)
+	h.refreshTeacherPublicStatsAndInvalidateCaches(c)
 
 	response.Created(c, result.Review)
 }
@@ -175,6 +176,7 @@ func (h *Handler) UpdateReview(c *gin.Context) {
 
 	h.invalidateReviewAggregateCaches(c)
 	h.invalidateCourseReviewCountCaches(c)
+	h.refreshTeacherPublicStatsAndInvalidateCaches(c)
 	response.Success(c, gin.H{"message": "review updated successfully"})
 }
 
@@ -219,6 +221,7 @@ func (h *Handler) DeleteReview(c *gin.Context) {
 
 	h.invalidateReviewAggregateCaches(c)
 	h.invalidateCourseReviewCountCaches(c)
+	h.refreshTeacherPublicStatsAndInvalidateCaches(c)
 	response.Success(c, gin.H{"message": "review deleted successfully"})
 }
 

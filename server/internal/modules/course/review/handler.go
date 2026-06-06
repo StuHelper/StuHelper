@@ -3,6 +3,7 @@ package review
 import (
 	"context"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -16,6 +17,8 @@ import (
 )
 
 type StepUpVerifier func(*gin.Context) bool
+
+const teacherPublicStatsRefreshTimeout = 10 * time.Second
 
 type AdminAuthorizers struct {
 	Entry                gin.HandlerFunc
@@ -259,6 +262,30 @@ func (h *Handler) invalidateReviewAggregateCaches(c *gin.Context) {
 		"review:teacher_stats",
 		"review:admin:stats",
 	)
+}
+
+func (h *Handler) refreshTeacherPublicStatsAndInvalidateCaches(c *gin.Context) {
+	ctx, cancel := detachedRefreshContext(c.Request.Context(), teacherPublicStatsRefreshTimeout)
+	defer cancel()
+
+	l := logger.FromGin(c)
+	if err := h.service.RefreshTeacherPublicStats(ctx); err != nil {
+		l.Warn("failed to refresh teacher public stats", zap.Error(err))
+		return
+	}
+
+	h.invalidateTeacherPublicCaches(ctx, l)
+}
+
+func (h *Handler) invalidateTeacherPublicCaches(ctx context.Context, l *zap.Logger) {
+	for _, key := range []string{"review:teachers", "review:hot_teachers"} {
+		if err := h.cache.InvalidateByVersion(ctx, key); err != nil {
+			metrics.ObserveCacheInvalidationFailure(cache.NamespaceReview)
+			l.Warn("failed to invalidate teacher public cache",
+				zap.String("cache_key", key),
+				zap.Error(err))
+		}
+	}
 }
 
 func (h *Handler) invalidateCourseReviewCountCaches(c *gin.Context) {

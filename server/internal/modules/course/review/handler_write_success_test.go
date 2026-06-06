@@ -63,6 +63,7 @@ func TestReviewHandler_WriteAndStatsSuccessPaths(t *testing.T) {
 
 	coursesVersion := h.courseCache.GetVersion(ctx, "course:courses")
 	courseVersion := h.courseCache.GetVersion(ctx, "course:course")
+	teachersVersion, hotTeachersVersion := teacherPublicCacheVersions(ctx, h)
 
 	w, c := withUserContext(http.MethodPost, "/reviews", `{"courseID":`+strconv.FormatInt(courseID, 10)+`,"teacherID":`+strconv.FormatInt(teacherID, 10)+`,"termID":"2025-2","title":"新评论标题","content":"新评论内容足够长用于通过校验","grade":"A","ratings":{"teaching":5,"difficulty":4}}`, viewerID)
 	setWriteAccess(c, viewerID)
@@ -70,6 +71,7 @@ func TestReviewHandler_WriteAndStatsSuccessPaths(t *testing.T) {
 	require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
 	assert.Contains(t, w.Body.String(), "新评论标题")
 	coursesVersion, courseVersion = assertCourseCacheBumped(t, coursesVersion, courseVersion)
+	teachersVersion, hotTeachersVersion = assertTeacherPublicCachesBumped(t, ctx, h, teachersVersion, hotTeachersVersion)
 
 	var createdReviewID string
 	err = fixture.Pool.QueryRow(ctx, `SELECT id FROM reviews WHERE user_hash = $1 AND title = $2 LIMIT 1`, viewerHash, "新评论标题").Scan(&createdReviewID)
@@ -81,6 +83,7 @@ func TestReviewHandler_WriteAndStatsSuccessPaths(t *testing.T) {
 	h.UpdateReview(c)
 	assert.Equal(t, http.StatusOK, w.Code)
 	coursesVersion, courseVersion = assertCourseCacheBumped(t, coursesVersion, courseVersion)
+	teachersVersion, hotTeachersVersion = assertTeacherPublicCachesBumped(t, ctx, h, teachersVersion, hotTeachersVersion)
 
 	w, c = withUserContext(http.MethodPut, "/reviews/"+createdReviewID, `{"content":"仅更新内容也足够长用于通过校验"}`, viewerID)
 	c.Params = gin.Params{{Key: "reviewID", Value: createdReviewID}}
@@ -88,6 +91,7 @@ func TestReviewHandler_WriteAndStatsSuccessPaths(t *testing.T) {
 	h.UpdateReview(c)
 	assert.Equal(t, http.StatusOK, w.Code)
 	coursesVersion, courseVersion = assertCourseCacheBumped(t, coursesVersion, courseVersion)
+	teachersVersion, hotTeachersVersion = assertTeacherPublicCachesBumped(t, ctx, h, teachersVersion, hotTeachersVersion)
 
 	var (
 		title   string
@@ -108,6 +112,7 @@ func TestReviewHandler_WriteAndStatsSuccessPaths(t *testing.T) {
 	h.DeleteReview(c)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assertCourseCacheBumped(t, coursesVersion, courseVersion)
+	assertTeacherPublicCachesBumped(t, ctx, h, teachersVersion, hotTeachersVersion)
 
 	w, c = withUserContext(http.MethodGet, "/courses/1/rating-stats", "", viewerID)
 	c.Params = gin.Params{{Key: "courseID", Value: strconv.FormatInt(courseID, 10)}}
@@ -126,4 +131,51 @@ func TestReviewHandler_WriteAndStatsSuccessPaths(t *testing.T) {
 	h.ListHotTeachers(c)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "吴老师")
+}
+
+func TestReviewHandler_PostReviewRefreshesTeacherPublicStatsBeforeHotTeacherCacheReuse(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	require.NoError(t, crypto.InitHMACKey("test-review-teacher-hot-cache-32b", false))
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	schoolID := int64(4111010006)
+	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, fakeAccessReader{
+		schools: []reviewaccess.SchoolConfig{{SchoolID: schoolID}},
+		subject: &reviewaccess.Subject{InternalUserID: 42, SchoolID: &schoolID, StudentVerified: true, IdentityVerified: true},
+	})
+	h := newReviewAdminHandler(t, svc)
+	ctx := context.Background()
+
+	departmentID := seedDepartment(t, fixture, schoolID, "热榜学院")
+	teacherID := seedTeacher(t, fixture, schoolID, "热榜老师", departmentID)
+	courseID := seedCourse(t, fixture, schoolID, departmentID, "热榜课程")
+	viewerID := "hot-cache-writer"
+	viewerHash, err := httputil.HashUserID(viewerID)
+	require.NoError(t, err)
+	seedUser(t, fixture, seedUserParams{CasdoorSubject: viewerID, UserHash: viewerHash})
+
+	require.NoError(t, svc.RefreshTeacherPublicStats(ctx))
+	w, c := withUserContext(http.MethodGet, "/teachers/hot", "", viewerID)
+	h.ListHotTeachers(c)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.NotContains(t, w.Body.String(), "热榜老师")
+
+	teachersVersion, hotTeachersVersion := teacherPublicCacheVersions(ctx, h)
+
+	w, c = withUserContext(http.MethodPost, "/reviews", `{"courseID":`+strconv.FormatInt(courseID, 10)+`,"teacherID":`+strconv.FormatInt(teacherID, 10)+`,"termID":"2025-2","title":"热榜评论","content":"热榜评论内容足够长用于通过校验","grade":"A","ratings":{"teaching":5,"difficulty":4}}`, viewerID)
+	c.Set(middleware.CtxKeyCapabilities, []string{
+		capability.ReviewListFull,
+		capability.ReviewCreate,
+		capability.ReviewEditOwn,
+		capability.ReviewDeleteOwn,
+	})
+	h.PostReview(c)
+	require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
+	assertTeacherPublicCachesBumped(t, ctx, h, teachersVersion, hotTeachersVersion)
+
+	w, c = withUserContext(http.MethodGet, "/teachers/hot", "", viewerID)
+	h.ListHotTeachers(c)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), "热榜老师")
+	assert.Contains(t, w.Body.String(), `"reviewCount":1`)
 }
