@@ -126,11 +126,16 @@ func (s *Service) OIDCApplicationForRefresh(ctx context.Context, sessionID, refr
 
 // RotateSession 在 refresh 流程中轮换 session 内的 token 对（Token Family 模式）。
 // 步骤：
-//  1. 将旧 refresh token 加入黑名单
-//  2. 计算新 token 的 HMAC hash 并原子更新 session store
+//  1. 校验旧 refresh token 仍属于该 tracked session
+//  2. 计算新 token 的 HMAC hash
+//  3. 原子更新 session store
+//  4. 撤销旧 provider refresh token
+//  5. 将旧 refresh token 加入黑名单
 //
-// 任何步骤失败都返回 error——若静默吞错，过期 hash 会覆盖 session 中
-// 已经轮换的值，黑名单失去对旧 token 的追踪（安全退化）。
+// 任何步骤失败都返回 error。旧 refresh token 黑名单和 provider token 撤销
+// 必须在本地 session 状态提交成功后执行；否则 provider refresh 成功但本地
+// 校验/Touch 失败时，客户端重试会被误判为 refresh reuse 或失去可重试的
+// provider refresh token。
 //
 // sessionID 为空时直接失败。调用方必须先定位到被追踪的 session family，
 // 否则 refresh 不能继续签发“不受 session store 跟踪”的新 token。
@@ -139,11 +144,6 @@ func (s *Service) RotateSession(ctx context.Context, sessionID, userID, oldRefre
 	userID, err = normalizeRequiredSessionUserID(userID)
 	if err != nil {
 		return fmt.Errorf("rotate session: %w", err)
-	}
-
-	// 黑名单旧 refresh token（强制执行，失败即返回）
-	if blErr := s.tokenService.GetBlacklist().Add(ctx, oldRefreshToken, s.tokenService.GetRefreshTokenTTL()); blErr != nil {
-		return fmt.Errorf("rotate session: blacklist old refresh token: %w", blErr)
 	}
 
 	sessionID, err = normalizeRequiredSessionID(sessionID)
@@ -155,9 +155,6 @@ func (s *Service) RotateSession(ctx context.Context, sessionID, userID, oldRefre
 		refreshToken: oldRefreshToken,
 	})
 	if err != nil {
-		return fmt.Errorf("rotate session: %w", err)
-	}
-	if err := s.revokeProviderRefreshTokenFromSession(ctx, session); err != nil {
 		return fmt.Errorf("rotate session: %w", err)
 	}
 
@@ -185,6 +182,14 @@ func (s *Service) RotateSession(ctx context.Context, sessionID, userID, oldRefre
 	}
 	if touchErr := s.tokenService.GetSessionStore().Touch(ctx, sessionID, update); touchErr != nil {
 		return fmt.Errorf("rotate session: touch session: %w", touchErr)
+	}
+
+	if err := s.revokeProviderRefreshTokenFromSession(ctx, session); err != nil {
+		return fmt.Errorf("rotate session: %w", err)
+	}
+
+	if blErr := s.tokenService.GetBlacklist().Add(ctx, oldRefreshToken, s.tokenService.GetRefreshTokenTTL()); blErr != nil {
+		return fmt.Errorf("rotate session: blacklist old refresh token: %w", blErr)
 	}
 	return nil
 }

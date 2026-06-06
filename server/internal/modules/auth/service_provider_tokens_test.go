@@ -30,6 +30,12 @@ func (f *fakeProviderRefreshRevoker) RevokeRefreshToken(ctx context.Context, ref
 	return f.err
 }
 
+type providerRefreshRevokerFunc func(ctx context.Context, refreshToken string) error
+
+func (f providerRefreshRevokerFunc) RevokeRefreshToken(ctx context.Context, refreshToken string) error {
+	return f(ctx, refreshToken)
+}
+
 type providerRefreshTokenRevokeCall struct {
 	appKey       string
 	refreshToken string
@@ -94,6 +100,37 @@ func TestProviderRefreshTokenRevokedOnSessionLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"old-refresh", "new-refresh"}, revoker.tokens)
 	assert.Nil(t, requireSession(t, tokenSvc, "sid-oidc"))
+}
+
+func TestProviderRefreshTokenRevokedAfterSessionTouch(t *testing.T) {
+	var tokenSvc *token.Service
+	revoker := providerRefreshRevokerFunc(func(ctx context.Context, refreshToken string) error {
+		assert.Equal(t, "old-refresh", refreshToken)
+		session := requireSession(t, tokenSvc, "sid-provider-order")
+		newRefreshHash, err := hashTokenForSession("new-refresh")
+		require.NoError(t, err)
+		assert.Equal(t, newRefreshHash, session.RefreshTokenHash)
+		return nil
+	})
+	svc, tokenSvc := newAuthServiceWithProviderRevoker(t, revoker)
+
+	_, err := svc.CreateSession(t.Context(), "sid-provider-order", "user-1", "old-access", "old-refresh", "oidc", "browser")
+	require.NoError(t, err)
+
+	err = svc.RotateSession(t.Context(), "sid-provider-order", "user-1", "old-refresh", "new-access", "new-refresh")
+	require.NoError(t, err)
+}
+
+func TestProviderRefreshTokenNotRevokedWhenRotationValidationFails(t *testing.T) {
+	revoker := &fakeProviderRefreshRevoker{}
+	svc, _ := newAuthServiceWithProviderRevoker(t, revoker)
+
+	_, err := svc.CreateSession(t.Context(), "sid-oidc-mismatch", "user-1", "old-access", "old-refresh", "oidc", "browser")
+	require.NoError(t, err)
+
+	err = svc.RotateSession(t.Context(), "sid-oidc-mismatch", "user-1", "other-refresh", "new-access", "new-refresh")
+	require.ErrorIs(t, err, errSessionRefreshTokenMismatch)
+	assert.Empty(t, revoker.tokens)
 }
 
 func TestProviderRefreshTokenInputsAreNormalized(t *testing.T) {

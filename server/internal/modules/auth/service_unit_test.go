@@ -157,7 +157,7 @@ func TestSessionLifecycleRejectsMissingUserIDBeforeStateChanges(t *testing.T) {
 }
 
 func TestRotateSession_RejectsTrackedSessionMismatch(t *testing.T) {
-	svc, _ := newAuthServiceForTest(t)
+	svc, tokenSvc := newAuthServiceForTest(t)
 	ctx := context.Background()
 
 	_, err := svc.CreateSession(ctx, "sid-1", "user-1", "old-access", "old-refresh", "oidc", "browser")
@@ -170,9 +170,17 @@ func TestRotateSession_RejectsTrackedSessionMismatch(t *testing.T) {
 	err = svc.RotateSession(ctx, "sid-1", "user-1", "other-refresh", "new-access", "new-refresh")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errSessionRefreshTokenMismatch)
+
+	blacklisted, err := tokenSvc.GetBlacklist().IsBlacklisted(ctx, "old-refresh")
+	require.NoError(t, err)
+	assert.False(t, blacklisted)
+
+	blacklisted, err = tokenSvc.GetBlacklist().IsBlacklisted(ctx, "other-refresh")
+	require.NoError(t, err)
+	assert.False(t, blacklisted)
 }
 
-func TestRotateSession_WithoutSessionIDRejectsRequestAndBlacklistsOldRefresh(t *testing.T) {
+func TestRotateSession_WithoutSessionIDRejectsRequestWithoutBlacklistingOldRefresh(t *testing.T) {
 	svc, tokenSvc := newAuthServiceForTest(t)
 	ctx := context.Background()
 
@@ -181,10 +189,10 @@ func TestRotateSession_WithoutSessionIDRejectsRequestAndBlacklistsOldRefresh(t *
 
 	blacklisted, err := tokenSvc.GetBlacklist().IsBlacklisted(ctx, "old-refresh")
 	require.NoError(t, err)
-	assert.True(t, blacklisted)
+	assert.False(t, blacklisted)
 }
 
-func TestRotateSession_WithBlankSessionIDRejectsRequestAndBlacklistsOldRefresh(t *testing.T) {
+func TestRotateSession_WithBlankSessionIDRejectsRequestWithoutBlacklistingOldRefresh(t *testing.T) {
 	svc, tokenSvc := newAuthServiceForTest(t)
 	ctx := context.Background()
 
@@ -193,7 +201,7 @@ func TestRotateSession_WithBlankSessionIDRejectsRequestAndBlacklistsOldRefresh(t
 
 	blacklisted, err := tokenSvc.GetBlacklist().IsBlacklisted(ctx, "blank-sid-refresh")
 	require.NoError(t, err)
-	assert.True(t, blacklisted)
+	assert.False(t, blacklisted)
 }
 
 func TestHashTokenForSession(t *testing.T) {
@@ -251,7 +259,7 @@ func TestRotateSession_ContextCanceled(t *testing.T) {
 
 	err := svc.RotateSession(ctx, "sid-canceled", "user-1", "old-refresh", "new-access", "new-refresh")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "blacklist old refresh token")
+	assert.Contains(t, err.Error(), "load session")
 }
 
 func TestRevokeSession_FallbackBlacklistFailureWithoutSessionID(t *testing.T) {
