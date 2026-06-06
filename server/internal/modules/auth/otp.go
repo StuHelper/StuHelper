@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/redis/go-redis/v9"
 
@@ -275,6 +277,10 @@ func (s *OTPService) Check(ctx context.Context, phone, code string) error {
 	if err != nil {
 		return err
 	}
+	normalizedCode, err := normalizeOTPCode(code)
+	if err != nil {
+		return err
+	}
 	attemptsKey := otpAttemptsPrefix + phoneKey
 	codeKey := otpCodePrefix + phoneKey
 
@@ -287,7 +293,7 @@ func (s *OTPService) Check(ctx context.Context, phone, code string) error {
 		return fmt.Errorf("otp: get code: %w", err)
 	}
 
-	if subtle.ConstantTimeCompare([]byte(stored), []byte(code)) != 1 {
+	if subtle.ConstantTimeCompare([]byte(stored), []byte(normalizedCode)) != 1 {
 		attempts, attemptErr := otpFailureScript.Run(
 			ctx,
 			s.rdb,
@@ -315,9 +321,13 @@ func (s *OTPService) Consume(ctx context.Context, phone, code string) error {
 	if err != nil {
 		return err
 	}
+	normalizedCode, err := normalizeOTPCode(code)
+	if err != nil {
+		return err
+	}
 	codeKey := otpCodePrefix + phoneKey
 	attemptsKey := otpAttemptsPrefix + phoneKey
-	if _, delErr := otpConsumeCheckedScript.Run(ctx, s.rdb, []string{codeKey, attemptsKey}, code).Int64(); delErr != nil {
+	if _, delErr := otpConsumeCheckedScript.Run(ctx, s.rdb, []string{codeKey, attemptsKey}, normalizedCode).Int64(); delErr != nil {
 		return fmt.Errorf("otp: consume code: %w", delErr)
 	}
 	return nil
@@ -343,4 +353,12 @@ func generateNumericCode(length int) (string, error) {
 	// 补齐前导零
 	format := fmt.Sprintf("%%0%dd", length)
 	return fmt.Sprintf(format, n), nil
+}
+
+func normalizeOTPCode(code string) (string, error) {
+	normalized := strings.TrimSpace(code)
+	if utf8.RuneCountInString(normalized) != otpLength {
+		return "", ErrOTPInvalidCode
+	}
+	return normalized, nil
 }

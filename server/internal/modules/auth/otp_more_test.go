@@ -97,6 +97,31 @@ func TestOTPService_CheckDoesNotConsumeCode(t *testing.T) {
 	assert.False(t, fixture.Server.Exists(attemptsKey))
 }
 
+func TestOTPService_CheckRejectsMalformedCodeWithoutConsumingAttempt(t *testing.T) {
+	svc, fixture := newOTPServiceForTest(t)
+	ctx := context.Background()
+	phone := "13800138004"
+
+	code, err := svc.Generate(ctx, phone)
+	require.NoError(t, err)
+	phoneKey, err := phoneutil.HashLookup(phone)
+	require.NoError(t, err)
+	codeKey := otpCodePrefix + phoneKey
+	attemptsKey := otpAttemptsPrefix + phoneKey
+
+	for _, malformed := range []string{"12345", "1234567"} {
+		err = svc.Check(ctx, phone, malformed)
+
+		require.ErrorIs(t, err, ErrOTPInvalidCode)
+	}
+	assert.True(t, fixture.Server.Exists(codeKey))
+	assert.False(t, fixture.Server.Exists(attemptsKey))
+	require.NoError(t, svc.Check(ctx, phone, " "+code+" "))
+	require.NoError(t, svc.Consume(ctx, phone, " "+code+" "))
+	assert.False(t, fixture.Server.Exists(codeKey))
+	assert.False(t, fixture.Server.Exists(attemptsKey))
+}
+
 func TestOTPService_ConsumeKeepsNewerCode(t *testing.T) {
 	svc, fixture := newOTPServiceForTest(t)
 	ctx := context.Background()
