@@ -10,10 +10,16 @@ import (
 )
 
 func seededFilter(words []SensitiveWord) *Filter {
-	f := NewFilter(nil)
+	f := &Filter{}
 	f.applyWords(words)
 	f.refreshTTL = time.Hour
 	return f
+}
+
+func TestNewFilterRequiresRepo(t *testing.T) {
+	assert.PanicsWithValue(t, "review.NewFilter: repo must not be nil", func() {
+		NewFilter(nil)
+	})
 }
 
 func TestReviewFilterHelpers(t *testing.T) {

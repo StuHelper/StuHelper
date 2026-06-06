@@ -46,6 +46,9 @@ type Filter struct {
 
 // NewFilter 创建敏感词过滤器
 func NewFilter(repo *Repository) *Filter {
+	if repo == nil {
+		panic("review.NewFilter: repo must not be nil")
+	}
 	return &Filter{
 		repo:       repo,
 		refreshTTL: 5 * time.Minute,

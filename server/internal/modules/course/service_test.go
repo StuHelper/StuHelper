@@ -85,3 +85,9 @@ func TestErrCourseNotFound_IsSentinel(t *testing.T) {
 	assert.True(t, errors.Is(ErrCourseNotFound, ErrCourseNotFound))
 	assert.False(t, errors.Is(ErrCourseNotFound, errors.New("course not found")))
 }
+
+func TestNewServiceRequiresRepo(t *testing.T) {
+	assert.PanicsWithValue(t, "course.NewService: repo must not be nil", func() {
+		NewService(nil, nil)
+	})
+}

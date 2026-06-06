@@ -23,6 +23,9 @@ type Service struct {
 
 // NewService 创建课程服务
 func NewService(repo *Repository, log *zap.Logger) *Service {
+	if repo == nil {
+		panic("course.NewService: repo must not be nil")
+	}
 	if log == nil {
 		log = zap.NewNop()
 	}
