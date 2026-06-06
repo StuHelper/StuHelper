@@ -126,6 +126,7 @@
       "created": "创建成功",
       "deleted": "删除成功",
       "validation": {
+        "departmentRequired": "请输入所属院系 ID",
         "nameRequired": "请输入教师姓名"
       }
     },

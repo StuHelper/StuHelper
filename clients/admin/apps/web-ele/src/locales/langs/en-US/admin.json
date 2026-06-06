@@ -126,6 +126,7 @@
       "created": "Created successfully",
       "deleted": "Deleted successfully",
       "validation": {
+        "departmentRequired": "Please enter a department ID",
         "nameRequired": "Please enter a teacher name"
       }
     },

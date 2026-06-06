@@ -81,6 +81,17 @@ const form = reactive({
   departmentID: null as null | number,
 });
 
+type TeacherSubmitAction =
+  | {
+      data: { departmentID: null | number; name: string };
+      id: number;
+      kind: 'edit';
+    }
+  | {
+      data: { departmentID: number; name: string };
+      kind: 'create';
+    };
+
 function resetForm() {
   form.id = 0;
   form.name = '';
@@ -109,18 +120,40 @@ async function handleSubmit() {
     ElMessage.warning($t('admin.content.teachers.validation.nameRequired'));
     return;
   }
-  const payload = {
-    departmentID: form.departmentID || undefined,
-    name: form.name,
-  };
+  let action: TeacherSubmitAction;
+  if (isEdit.value) {
+    action = {
+      data: {
+        departmentID: form.departmentID,
+        name: form.name,
+      },
+      id: form.id,
+      kind: 'edit',
+    };
+  } else {
+    const departmentID = form.departmentID;
+    if (departmentID === null) {
+      ElMessage.warning(
+        $t('admin.content.teachers.validation.departmentRequired'),
+      );
+      return;
+    }
+    action = {
+      data: {
+        departmentID,
+        name: form.name,
+      },
+      kind: 'create',
+    };
+  }
   actionLoading.value = true;
   actionError.value = '';
   try {
-    if (isEdit.value) {
-      await updateTeacher(form.id, payload);
+    if (action.kind === 'edit') {
+      await updateTeacher(action.id, action.data);
       ElMessage.success($t('admin.content.teachers.updated'));
     } else {
-      await createTeacher(payload);
+      await createTeacher(action.data);
       ElMessage.success($t('admin.content.teachers.created'));
     }
     dialogVisible.value = false;

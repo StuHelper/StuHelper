@@ -92,7 +92,7 @@ export async function getTeacherList(params: TeacherListParams) {
 }
 
 export async function createTeacher(data: {
-  departmentID?: number;
+  departmentID: number;
   name: string;
 }) {
   return unwrapData(await adminApi.createTeacher(data));
