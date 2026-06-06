@@ -37,11 +37,7 @@ func (a admissionMaterialStorageAdapter) PutAdmissionMaterial(
 }
 
 func (a admissionMaterialStorageAdapter) DeleteAdmissionMaterial(ctx context.Context, objectKey string) error {
-	mount, err := a.service.ValidateMountByKey(ctx, a.mountKey)
-	if err != nil {
-		return normalizeAdmissionMaterialStorageError(err)
-	}
-	return normalizeAdmissionMaterialStorageError(a.service.Delete(ctx, mount.ID, objectKey))
+	return normalizeAdmissionMaterialStorageError(a.service.DeleteByMountKey(ctx, a.mountKey, objectKey))
 }
 
 func (a admissionMaterialStorageAdapter) GetAdmissionMaterialURL(ctx context.Context, objectKey string) (string, error) {

@@ -14,6 +14,7 @@ import (
 
 type fakeDriver struct {
 	healthErr     error
+	healthCalls   int
 	downloadURL   string
 	downloadCalls int
 	statObject    *StoredObject
@@ -30,6 +31,7 @@ func (d *fakeDriver) Capabilities() CapabilitySet {
 }
 
 func (d *fakeDriver) HealthCheck(context.Context, Mount) error {
+	d.healthCalls++
 	return d.healthErr
 }
 
@@ -226,7 +228,8 @@ func TestValidateMountByKeyAndGetDownloadURLByMountKey(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)
 	svc := NewService(repo, config.ObjectStorageConfig{})
-	svc.registry.drivers["s3"] = &fakeDriver{downloadURL: "https://storage.example.test/identity/front.png"}
+	driver := &fakeDriver{downloadURL: "https://storage.example.test/identity/front.png"}
+	svc.registry.drivers["s3"] = driver
 	ctx := context.Background()
 
 	created, err := repo.GetMountByKey(ctx, DefaultMountKey)
@@ -237,10 +240,26 @@ func TestValidateMountByKeyAndGetDownloadURLByMountKey(t *testing.T) {
 	require.NotNil(t, validated.LastHealthStatus)
 	assert.Equal(t, created.ID, validated.ID)
 	assert.Equal(t, "healthy", *validated.LastHealthStatus)
+	assert.Equal(t, 1, driver.healthCalls)
 
 	url, err := svc.GetDownloadURLByMountKey(ctx, DefaultMountKey, "identities/42/front.png")
 	require.NoError(t, err)
 	assert.Equal(t, "https://storage.example.test/identity/front.png", url)
+}
+
+func TestDeleteByMountKeySkipsHealthProbe(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(repo, config.ObjectStorageConfig{})
+	driver := &fakeDriver{}
+	svc.registry.drivers["s3"] = driver
+	ctx := context.Background()
+
+	err := svc.DeleteByMountKey(ctx, DefaultMountKey, "admission/materials/id-card.png")
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"admission/materials/id-card.png"}, driver.deletedKeys)
+	assert.Equal(t, 0, driver.healthCalls)
 }
 
 func TestGetDownloadURLRejectsDisabledMountByID(t *testing.T) {
@@ -322,6 +341,9 @@ func TestObjectOperationsRejectInvalidObjectKey(t *testing.T) {
 			require.ErrorIs(t, err, ErrInvalidObjectKey)
 
 			err = svc.Delete(context.Background(), mount.ID, tc.key)
+			require.ErrorIs(t, err, ErrInvalidObjectKey)
+
+			err = svc.DeleteByMountKey(context.Background(), DefaultMountKey, tc.key)
 			require.ErrorIs(t, err, ErrInvalidObjectKey)
 
 			_, err = svc.GetDownloadURL(context.Background(), mount.ID, tc.key)

@@ -183,6 +183,18 @@ func (s *Service) Delete(ctx context.Context, mountID int64, objectKey string) e
 	return driver.Delete(ctx, *mount, objectKey)
 }
 
+func (s *Service) DeleteByMountKey(ctx context.Context, mountKey, objectKey string) error {
+	objectKey, err := validateObjectKey(objectKey)
+	if err != nil {
+		return err
+	}
+	mount, driver, err := s.getMountDriver(ctx, mountKey)
+	if err != nil {
+		return err
+	}
+	return driver.Delete(ctx, *mount, objectKey)
+}
+
 func (s *Service) GetDownloadURL(ctx context.Context, mountID int64, objectKey string) (string, error) {
 	if err := validateMountID(mountID); err != nil {
 		return "", err
