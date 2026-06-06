@@ -301,6 +301,7 @@ frontend_cmd="
   export VITE_WEB_URL='${WEB_VITE_WEB_URL:-http://localhost:3000}' && \
   export VITE_ADMIN_URL='http://localhost:${ADMIN_DEV_PORT_SELECTED}' && \
   export VITE_API_TIMEOUT_MS='${WEB_VITE_API_TIMEOUT_MS:-15000}' && \
+  export VITE_QQ_BOT_ENTRY='${WEB_VITE_QQ_BOT_ENTRY:-StuHelper QQ Bot}' && \
   export VITE_DEV_PROXY_TARGET='http://127.0.0.1:8080' && \
   exec pnpm --filter @stuhelper/web exec vite --host 127.0.0.1 --strictPort --port ${WEB_DEV_PORT_SELECTED}
 "

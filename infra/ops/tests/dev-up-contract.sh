@@ -74,6 +74,7 @@ assert_contains "${DEV_UP}" 'upsert_env_file "\$\{ENV_FILE\}" "ADMISSION_PUBLIC_
 assert_contains "${DEV_UP}" 'upsert_env_file "\$\{ENV_FILE\}" "ADMIN_PUBLIC_URL" "http://localhost:\$\{admin_port\}/admin/"'
 assert_contains "${DEV_UP}" 'upsert_env_file "\$\{ENV_FILE\}" "CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI" "http://localhost:\$\{web_port\}/open-platform/token-probe/callback"'
 assert_contains "${DEV_UP}" 'upsert_env_file "\$\{ENV_FILE\}" "CORS_ORIGINS" "http://localhost:\$\{web_port\},http://127\.0\.0\.1:\$\{web_port\},http://localhost:\$\{admin_port\},http://127\.0\.0\.1:\$\{admin_port\}"'
+assert_contains "${DEV_UP}" 'export VITE_QQ_BOT_ENTRY=.*WEB_VITE_QQ_BOT_ENTRY'
 assert_contains "${DEV_UP}" 'dev-backend-run\.sh'
 assert_contains "${DEV_BACKEND_RUN}" 'localhost:\$\{POSTGRES_EXTERNAL_PORT:-5432\}'
 assert_contains "${DEV_BACKEND_RUN}" 'REDIS_PORT="\$\{REDIS_EXTERNAL_PORT:-6379\}"'

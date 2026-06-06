@@ -160,6 +160,31 @@ type UserApiState = {
     qqBinding?: null | Record<string, unknown>;
 };
 
+function statusToSurfaceStatus(value: unknown) {
+    if (value === "verified") return "approved";
+    if (value === "pending") return "pending";
+    if (value === "rejected") return "rejected";
+    return "none";
+}
+
+function buildUserSurface(state: UserApiState) {
+    return {
+        displayName: user.displayName,
+        phone: state.profile.phone ?? null,
+        identityStatus:
+            state.identity && state.identity.verified === true
+                ? "approved"
+                : "none",
+        verificationStatus: statusToSurfaceStatus(
+            state.profile.verificationStatus,
+        ),
+        phoneBound:
+            state.profile.phoneVerified === true ||
+            typeof state.profile.phone === "string",
+        capabilities: user.capabilities,
+    };
+}
+
 function json(data: unknown, status = 200) {
     return {
         status,
@@ -207,6 +232,9 @@ async function mockUserApi(page: Page, state: UserApiState) {
     }, user);
 
     await page.route("**/api/v1/auth/me", (route) => route.fulfill(ok(user)));
+    await page.route("**/api/v1/user/me", (route) =>
+        route.fulfill(ok(buildUserSurface(state))),
+    );
     await page.route("**/api/v1/auth/refresh", (route) =>
         route.fulfill(ok({ expiresIn: 3600 })),
     );
@@ -723,6 +751,20 @@ test.describe("User verification flows", () => {
     test("user updates SSO-synced phone, creates QQ binding code, and views academic info", async ({
         page,
     }) => {
+        await page.addInitScript(() => {
+            Object.defineProperty(navigator, "clipboard", {
+                configurable: true,
+                value: {
+                    writeText: (value: string) => {
+                        window.sessionStorage.setItem(
+                            "lastCopiedText",
+                            value,
+                        );
+                        return Promise.resolve();
+                    },
+                },
+            });
+        });
         const state: UserApiState = {
             identity: { ...verifiedIdentity },
             profile: {
@@ -758,7 +800,16 @@ test.describe("User verification flows", () => {
         await page.getByLabel("手机号码").fill("13912345678");
         await page.getByRole("button", { name: "发送验证码" }).click();
         await page.getByLabel("验证码").fill("123456");
+        const phoneUpdated = page.waitForResponse((response) => {
+            const url = new URL(response.url());
+            return (
+                response.request().method() === "POST" &&
+                url.pathname === "/api/v1/user/profile/bind-phone" &&
+                response.status() === 200
+            );
+        });
         await page.getByRole("button", { name: "更新手机号" }).click();
+        await phoneUpdated;
 
         await expect(page).toHaveURL(/\/user\/phone-binding/);
         await expect(page.getByText("139****5678")).toBeVisible();
@@ -776,7 +827,21 @@ test.describe("User verification flows", () => {
         await expect(
             page.getByText("请私聊机器人并发送下面这条命令"),
         ).toBeVisible();
+        await expect(page.getByText("StuHelper QQ Bot")).toBeVisible();
         await expect(page.getByText("绑定 QQ-CODE-1")).toBeVisible();
+        await page
+            .getByRole("button", { name: "复制绑定命令" })
+            .click();
+        await expect
+            .poll(() =>
+                page.evaluate(() =>
+                    window.sessionStorage.getItem("lastCopiedText"),
+                ),
+            )
+            .toBe("绑定 QQ-CODE-1");
+        await expect(
+            page.getByRole("alert").filter({ hasText: "绑定命令已复制" }),
+        ).toBeVisible();
         await expect(
             page.getByRole("button", { name: "刷新状态" }),
         ).toBeVisible();

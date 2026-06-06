@@ -10,11 +10,13 @@ ARG VITE_SSO_URL=https://sso.stuhelper.com
 ARG VITE_WEB_URL=https://stuhelper.com
 ARG VITE_ADMIN_URL=https://stuhelper.com/admin/
 ARG VITE_API_TIMEOUT_MS=15000
+ARG VITE_QQ_BOT_ENTRY="StuHelper QQ Bot"
 ENV VITE_API_URL=${VITE_API_URL}
 ENV VITE_SSO_URL=${VITE_SSO_URL}
 ENV VITE_WEB_URL=${VITE_WEB_URL}
 ENV VITE_ADMIN_URL=${VITE_ADMIN_URL}
 ENV VITE_API_TIMEOUT_MS=${VITE_API_TIMEOUT_MS}
+ENV VITE_QQ_BOT_ENTRY=${VITE_QQ_BOT_ENTRY}
 COPY clients/package.json clients/pnpm-lock.yaml clients/pnpm-workspace.yaml ./
 COPY clients/web/package.json ./web/
 COPY clients/shared/package.json ./shared/

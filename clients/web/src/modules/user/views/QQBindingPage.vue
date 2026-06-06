@@ -82,11 +82,31 @@
         v-if="qqBindingCode"
         class="mt-5 rounded-xl border border-border bg-bg-base/60 p-4"
       >
-        <p class="text-sm font-semibold text-text-primary m-0">
-          {{ t('user.verification.qq.instruction') }}
-        </p>
-        <div class="mt-3 rounded-lg bg-bg-card px-4 py-3 font-mono text-sm text-text-primary break-all">
-          {{ bindingCommand }}
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <p class="text-sm font-semibold text-text-primary m-0">
+            {{ t('user.verification.qq.instruction') }}
+          </p>
+          <span
+            class="inline-flex items-center gap-2 rounded-md border border-border bg-bg-card px-2.5 py-1 text-xs font-medium text-text-muted"
+          >
+            <Bot class="size-3.5" aria-hidden="true" />
+            {{ botEntryLabel }}
+          </span>
+        </div>
+        <div class="mt-3 flex items-stretch overflow-hidden rounded-lg border border-border bg-bg-card">
+          <code class="min-w-0 flex-1 px-4 py-3 font-mono text-sm text-text-primary break-all">
+            {{ bindingCommand }}
+          </code>
+          <button
+            type="button"
+            class="inline-flex w-12 shrink-0 items-center justify-center border-0 border-l border-solid border-border bg-bg-card text-text-muted transition-colors duration-fast hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+            :aria-label="t('user.verification.qq.copyCommand')"
+            :disabled="copying"
+            @click="copyBindingCommand"
+          >
+            <Check v-if="commandCopied" class="size-4 text-green-500" aria-hidden="true" />
+            <Clipboard v-else class="size-4" aria-hidden="true" />
+          </button>
         </div>
         <p class="text-xs text-text-muted m-0 mt-3">
           {{ t('user.verification.qq.expiresAt') }}：{{ formatTime(qqBindingCode.expiresAt) }}
@@ -113,7 +133,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Bot, RefreshCw } from 'lucide-vue-next'
+import { ArrowLeft, Bot, Check, Clipboard, RefreshCw } from 'lucide-vue-next'
 
 import { getErrorStatus } from '@/api/errors'
 import { useToast } from '@/composables/useToast'
@@ -121,6 +141,8 @@ import { useVerificationStore } from '@/stores/verification'
 
 const DEFAULT_QQ_BIND_COMMAND = '绑定'
 const QQ_BINDING_STATUS_POLL_INTERVAL_MS = 3000
+const COPY_FEEDBACK_RESET_MS = 1600
+const configuredBotEntry = import.meta.env.VITE_QQ_BOT_ENTRY?.trim() || ''
 
 const { t } = useI18n()
 const router = useRouter()
@@ -129,7 +151,10 @@ const verificationStore = useVerificationStore()
 
 const creating = ref(false)
 const checking = ref(false)
+const copying = ref(false)
+const commandCopied = ref(false)
 let statusPollTimer: ReturnType<typeof setInterval> | null = null
+let copyFeedbackTimer: ReturnType<typeof setTimeout> | null = null
 
 const qqBinding = computed(() => verificationStore.qqBinding)
 const qqBindingCode = computed(() => verificationStore.qqBindingCode)
@@ -153,6 +178,12 @@ const bindingCommand = computed(() => {
     return ''
   }
   return `${DEFAULT_QQ_BIND_COMMAND} ${qqBindingCode.value.code}`
+})
+const botEntryLabel = computed(() => {
+  if (configuredBotEntry) {
+    return configuredBotEntry
+  }
+  return t('user.verification.qq.botEntryUnavailable')
 })
 
 async function onCreateCode() {
@@ -202,6 +233,31 @@ function onRefreshStatus() {
   void refreshQQBindingStatus()
 }
 
+async function copyBindingCommand() {
+  if (!bindingCommand.value || copying.value) {
+    return
+  }
+  copying.value = true
+  try {
+    if (!navigator.clipboard?.writeText) {
+      throw new Error('clipboard unavailable')
+    }
+    await navigator.clipboard.writeText(bindingCommand.value)
+    commandCopied.value = true
+    if (copyFeedbackTimer) {
+      clearTimeout(copyFeedbackTimer)
+    }
+    copyFeedbackTimer = setTimeout(() => {
+      commandCopied.value = false
+    }, COPY_FEEDBACK_RESET_MS)
+    toast.success(t('user.verification.qq.commandCopied'))
+  } catch {
+    toast.error(t('user.verification.qq.copyCommandFailed'))
+  } finally {
+    copying.value = false
+  }
+}
+
 function startStatusPolling() {
   stopStatusPolling()
   statusPollTimer = setInterval(() => {
@@ -235,5 +291,9 @@ onMounted(() => {
 
 onUnmounted(() => {
   stopStatusPolling()
+  if (copyFeedbackTimer) {
+    clearTimeout(copyFeedbackTimer)
+    copyFeedbackTimer = null
+  }
 })
 </script>
