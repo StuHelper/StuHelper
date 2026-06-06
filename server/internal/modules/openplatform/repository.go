@@ -154,17 +154,6 @@ func (r *Repository) GetAppByClientID(ctx context.Context, clientID string) (*Ap
 	return app, nil
 }
 
-func (r *Repository) VerifyClientSecret(ctx context.Context, clientID, clientSecret string) (*App, error) {
-	app, err := r.GetAppByClientID(ctx, clientID)
-	if err != nil {
-		return nil, err
-	}
-	if app.ClientSecretHash == "" || hashClientSecret(clientSecret) != app.ClientSecretHash {
-		return nil, ErrAppNotFound
-	}
-	return app, nil
-}
-
 func scanApp(row rowScanner) (*App, error) {
 	var app App
 	var redirects []byte

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -601,9 +602,12 @@ func (s *Service) VerifyClientSecret(ctx context.Context, clientID, clientSecret
 	if clientSecret == "" {
 		return nil, ErrAppNotFound
 	}
-	app, err := s.repo.VerifyClientSecret(ctx, clientID, clientSecret)
+	app, err := s.repo.GetAppByClientID(ctx, clientID)
 	if err != nil {
 		return nil, err
+	}
+	if !clientSecretHashMatches(app.ClientSecretHash, clientSecret) {
+		return nil, ErrAppNotFound
 	}
 	if app.Status != AppStatusApproved {
 		return nil, ErrAppNotActive
@@ -663,6 +667,17 @@ func buildNewApp(input RegisterAppInput) (*App, string, error) {
 func hashClientSecret(secret string) string {
 	sum := sha256.Sum256([]byte(secret))
 	return hex.EncodeToString(sum[:])
+}
+
+func clientSecretHashMatches(storedHash, secret string) bool {
+	if storedHash == "" {
+		return false
+	}
+	expectedHash := hashClientSecret(secret)
+	if len(storedHash) != len(expectedHash) {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(storedHash), []byte(expectedHash)) == 1
 }
 
 func normalizeScopeRequests(inputs []ScopeRequestInput) ([]ScopeRequestInput, error) {

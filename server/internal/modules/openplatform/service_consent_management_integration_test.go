@@ -2795,8 +2795,9 @@ func TestOpenPlatformAppSecretLifecycleAndStatusAudit(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, adminRotated.ClientSecret)
 	assertOpenPlatformAuditCount(t, postgres, app.ID, adminID, "open_platform.app.secret_rotated", 1)
-	_, err = repo.VerifyClientSecret(ctx, app.ClientID, adminRotated.ClientSecret)
+	updatedApp, err := repo.GetAppByClientID(ctx, app.ClientID)
 	require.NoError(t, err)
+	assert.True(t, clientSecretHashMatches(updatedApp.ClientSecretHash, adminRotated.ClientSecret))
 
 	_, err = service.RevokeApp(ctx, AppLifecycleActionInput{
 		AppID:       app.ID,

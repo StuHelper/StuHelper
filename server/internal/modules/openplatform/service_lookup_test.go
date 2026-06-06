@@ -47,6 +47,16 @@ func TestVerifyClientSecretRejectsBlankCredentialsBeforeRepository(t *testing.T)
 	}
 }
 
+func TestClientSecretHashMatches(t *testing.T) {
+	secret := "client-secret"
+	hash := hashClientSecret(secret)
+
+	assert.True(t, clientSecretHashMatches(hash, secret))
+	assert.False(t, clientSecretHashMatches(hash, "wrong-secret"))
+	assert.False(t, clientSecretHashMatches("", secret))
+	assert.False(t, clientSecretHashMatches("not-a-valid-sha256-hex", secret))
+}
+
 func TestAuthorizeAppByClientIDRejectsBlankClientIDBeforeRepository(t *testing.T) {
 	ctx := context.Background()
 	service := &Service{}
