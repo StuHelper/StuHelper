@@ -18,6 +18,7 @@ const (
 	resourceCleanupPollInterval   = 2 * time.Second
 	resourceCleanupLockStaleAfter = 2 * time.Minute
 	resourceCleanupMaxBackoff     = 5 * time.Minute
+	resourceCleanupMaxAttempts    = 5
 )
 
 type cleanupJob struct {
@@ -47,14 +48,7 @@ func (s *Service) StartBackgroundJobs(ctx context.Context, start func(string, fu
 func (s *Service) runCleanupWorker(ctx context.Context) {
 	outbox.RunPollingWorker(
 		ctx,
-		outbox.WorkerConfig{
-			Name:             "resource cleanup",
-			BatchSize:        resourceCleanupBatchSize,
-			PollInterval:     resourceCleanupPollInterval,
-			LockStaleAfter:   resourceCleanupLockStaleAfter,
-			RetryBaseBackoff: 5 * time.Second,
-			MaxBackoff:       resourceCleanupMaxBackoff,
-		},
+		resourceCleanupWorkerConfig(),
 		s.repo.ClaimCleanupJobs,
 		s.processCleanupJob,
 		s.repo.MarkCleanupJobDone,
@@ -69,13 +63,7 @@ func (s *Service) runCleanupWorker(ctx context.Context) {
 func (s *Service) processCleanupBatch(ctx context.Context) error {
 	return outbox.ProcessBatch(
 		ctx,
-		outbox.WorkerConfig{
-			Name:             "resource cleanup",
-			BatchSize:        resourceCleanupBatchSize,
-			LockStaleAfter:   resourceCleanupLockStaleAfter,
-			RetryBaseBackoff: 5 * time.Second,
-			MaxBackoff:       resourceCleanupMaxBackoff,
-		},
+		resourceCleanupWorkerConfig(),
 		s.repo.ClaimCleanupJobs,
 		s.processCleanupJob,
 		s.repo.MarkCleanupJobDone,
@@ -85,6 +73,18 @@ func (s *Service) processCleanupBatch(ctx context.Context) error {
 		},
 		truncateCleanupError,
 	)
+}
+
+func resourceCleanupWorkerConfig() outbox.WorkerConfig {
+	return outbox.WorkerConfig{
+		Name:             "resource cleanup",
+		BatchSize:        resourceCleanupBatchSize,
+		PollInterval:     resourceCleanupPollInterval,
+		LockStaleAfter:   resourceCleanupLockStaleAfter,
+		RetryBaseBackoff: 5 * time.Second,
+		MaxBackoff:       resourceCleanupMaxBackoff,
+		MaxAttempts:      resourceCleanupMaxAttempts,
+	}
 }
 
 func (s *Service) processCleanupJob(ctx context.Context, job cleanupJob) error {
