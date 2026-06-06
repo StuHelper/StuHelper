@@ -352,19 +352,58 @@ func (h *Handler) consumeNativeCodeVerifier(ctx context.Context, state string) (
 	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
 		return "", "", fmt.Errorf("invalid native code_verifier payload: %w", err)
 	}
-	return payload.CodeVerifier, payload.Application, nil
+	codeVerifier, appKey, err := normalizeNativeCodeVerifierPayload(payload)
+	if err != nil {
+		return "", "", err
+	}
+	return codeVerifier, appKey, nil
 }
 
 func decodeOIDCStatePayload(raw string) (string, string, string, bool, error) {
 	var payload oidcStatePayload
 	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
-		return raw, "", oidc.ApplicationWeb, false, nil
+		return "", "", "", false, fmt.Errorf("invalid oidc state payload: %w", err)
 	}
-	appKey := payload.Application
+	codeVerifier := strings.TrimSpace(payload.CodeVerifier)
+	if codeVerifier == "" {
+		return "", "", "", false, fmt.Errorf("oidc state code_verifier missing")
+	}
+	appKey, err := normalizeOIDCStateApplication(payload.Application, payload.Native)
+	if err != nil {
+		return "", "", "", false, err
+	}
+	return strings.TrimSpace(payload.RedirectURL), codeVerifier, appKey, payload.Native, nil
+}
+
+func normalizeNativeCodeVerifierPayload(payload nativeCodeVerifierPayload) (string, string, error) {
+	codeVerifier := strings.TrimSpace(payload.CodeVerifier)
+	if codeVerifier == "" {
+		return "", "", fmt.Errorf("native code_verifier missing")
+	}
+	appKey, err := normalizeOIDCStateApplication(payload.Application, true)
+	if err != nil {
+		return "", "", err
+	}
+	return codeVerifier, appKey, nil
+}
+
+func normalizeOIDCStateApplication(rawApp string, native bool) (string, error) {
+	appKey := strings.TrimSpace(rawApp)
+	if appKey == "" && native {
+		return oidc.ApplicationUniapp, nil
+	}
 	if appKey == "" {
-		appKey = oidc.ApplicationWeb
+		return oidc.ApplicationWeb, nil
 	}
-	return payload.RedirectURL, payload.CodeVerifier, appKey, payload.Native, nil
+	if native && appKey != oidc.ApplicationUniapp {
+		return "", fmt.Errorf("native oidc state application mismatch")
+	}
+	switch appKey {
+	case oidc.ApplicationWeb, oidc.ApplicationAdmin, oidc.ApplicationUniapp:
+		return appKey, nil
+	default:
+		return "", fmt.Errorf("unknown oidc state application")
+	}
 }
 
 func (h *Handler) validateOIDCStateCookie(c *gin.Context, state string) error {

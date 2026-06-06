@@ -61,3 +61,27 @@ func TestNativeCodeVerifierRoundTrip(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "expired or already used")
 }
+
+func TestConsumeNativeCodeVerifierRejectsInvalidPayload(t *testing.T) {
+	h, fixture := newTestHandler(t)
+
+	require.NoError(t, fixture.Client.Set(
+		context.Background(),
+		nativeCodeVerifierPrefix+"state-missing-verifier",
+		`{"codeVerifier":" \t\n ","application":"uniapp"}`,
+		stateMaxAge,
+	).Err())
+	_, _, err := h.consumeNativeCodeVerifier(context.Background(), "state-missing-verifier")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "native code_verifier missing")
+
+	require.NoError(t, fixture.Client.Set(
+		context.Background(),
+		nativeCodeVerifierPrefix+"state-web-app",
+		`{"codeVerifier":"verifier-1","application":"web"}`,
+		stateMaxAge,
+	).Err())
+	_, _, err = h.consumeNativeCodeVerifier(context.Background(), "state-web-app")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "native oidc state application mismatch")
+}
