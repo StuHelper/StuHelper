@@ -604,10 +604,16 @@ func (s *Service) VerifyClientSecret(ctx context.Context, clientID, clientSecret
 }
 
 func (s *Service) AppByID(ctx context.Context, appID int64) (*App, error) {
+	if appID <= 0 {
+		return nil, ErrAppNotFound
+	}
 	return s.repo.GetAppByID(ctx, appID)
 }
 
 func (s *Service) UserProjection(ctx context.Context, userID int64) (*UserProjection, error) {
+	if userID <= 0 {
+		return nil, ErrDisclosureUnavailable
+	}
 	return s.repo.GetUserProjection(ctx, userID)
 }
 
