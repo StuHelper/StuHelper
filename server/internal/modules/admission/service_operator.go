@@ -254,6 +254,9 @@ func (s *Service) resolveFreshmanCredentialExpiry(
 		expires := policy.FreshmanDefaultExpiresAt
 		return &expires, nil
 	}
+	if *expiresInDays <= 0 {
+		return nil, ErrAdmissionInvalidInput
+	}
 	if *expiresInDays > policy.MaxExtensionDays {
 		return nil, ErrAdmissionReviewExtensionTooLong
 	}

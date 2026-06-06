@@ -101,14 +101,29 @@ func TestFreshmanReviewEnforcesExtensionLimit(t *testing.T) {
 	operatorID := seedAdmissionUser(t, fixture, "operator-extension")
 	bindAdmissionOperatorQQ(t, fixture, operatorBindingSeed{UserID: operatorID, QQID: "90003"})
 	svc.operatorAccess = &testOperatorAccessGateway{allowedUserID: operatorID}
-	app := seedReviewableFreshmanApplication(t, fixture, svc)
 
-	tooLong := DefaultMaxExtensionDays + 1
-	_, err := svc.ReviewFreshmanApplicationFromBot(
-		context.Background(),
-		botReviewInputWithExpiry(app.ID, "90003", tooLong),
-	)
-	require.ErrorIs(t, err, ErrAdmissionReviewExtensionTooLong)
+	cases := []struct {
+		name          string
+		expiresInDays int
+		wantErr       error
+	}{
+		{name: "negative", expiresInDays: -1, wantErr: ErrAdmissionInvalidInput},
+		{name: "zero", expiresInDays: 0, wantErr: ErrAdmissionInvalidInput},
+		{name: "too long", expiresInDays: DefaultMaxExtensionDays + 1, wantErr: ErrAdmissionReviewExtensionTooLong},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			app := seedReviewableFreshmanApplication(t, fixture, svc)
+
+			_, err := svc.ReviewFreshmanApplicationFromBot(
+				context.Background(),
+				botReviewInputWithExpiry(app.ID, "90003", tc.expiresInDays),
+			)
+
+			require.ErrorIs(t, err, tc.wantErr)
+			assertNoCredentialStored(t, fixture, app.UserID, CredentialFreshmanMaterialManual)
+		})
+	}
 }
 
 func newOperatorTestService(t *testing.T, fixture *postgresfixture.Fixture) *Service {
