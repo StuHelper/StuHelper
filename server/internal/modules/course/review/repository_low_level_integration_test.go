@@ -143,18 +143,32 @@ func TestReviewRepository_LowLevelIntegrationPaths(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, reported)
 
+	var courseCountBeforeRestore int
+	err = fixture.Pool.QueryRow(ctx, `SELECT review_count FROM courses WHERE id = $1`, courseID).Scan(&courseCountBeforeRestore)
+	require.NoError(t, err)
+
 	err = fixture.DB.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		if err := repo.ClearModerationTx(ctx, tx, createdReviewID); err != nil {
 			return err
 		}
-		return repo.AdjustCourseCountsForBatchRestore(ctx, tx, []string{createdReviewID})
+		if err := repo.UpdateReviewStatus(ctx, tx, createdReviewID, StatusPublished); err != nil {
+			return err
+		}
+		return repo.IncrementCourseReviewCount(ctx, tx, courseID)
 	})
 	require.NoError(t, err)
 
 	var restoredCourseCount int
-	err = fixture.Pool.QueryRow(ctx, `SELECT review_count FROM courses WHERE id = $1`, courseID).Scan(&restoredCourseCount)
+	var restoredReviewStatus string
+	err = fixture.Pool.QueryRow(ctx, `
+		SELECT c.review_count, r.status
+		FROM courses c
+		JOIN reviews r ON r.course_id = c.id
+		WHERE c.id = $1 AND r.id = $2
+	`, courseID, createdReviewID).Scan(&restoredCourseCount, &restoredReviewStatus)
 	require.NoError(t, err)
-	assert.GreaterOrEqual(t, restoredCourseCount, 1)
+	assert.Equal(t, courseCountBeforeRestore+1, restoredCourseCount)
+	assert.Equal(t, StatusPublished, restoredReviewStatus)
 
 	var replyID string
 	err = fixture.Pool.QueryRow(ctx, `SELECT id FROM review_replies WHERE review_id = $1 LIMIT 1`, reviewID).Scan(&replyID)
