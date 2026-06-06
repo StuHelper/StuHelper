@@ -10,6 +10,7 @@ func validConfigForValidation() *Config {
 	return &Config{
 		App: AppConfig{
 			Env:             "development",
+			Port:            "8080",
 			HMACSecret:      "0123456789abcdef0123456789abcdef",
 			CORSOrigins:     []string{"http://localhost:3000"},
 			MetricsPassword: "metrics-password",

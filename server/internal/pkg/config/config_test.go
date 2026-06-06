@@ -141,6 +141,7 @@ func TestValidate_ProductionRequiresObservability(t *testing.T) {
 	c := &Config{
 		App: AppConfig{
 			Env:             "production",
+			Port:            "8080",
 			HMACSecret:      "0123456789abcdef0123456789abcdef",
 			CORSOrigins:     []string{"https://stuhelper.example.com"},
 			TrustedProxies:  []string{"10.0.0.0/8"},
@@ -227,6 +228,41 @@ func TestValidate_RejectsUnknownAppEnvEvenWithSecureCookie(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "APP_ENV must be development, production, or prod-parity")
+}
+
+func TestValidate_RejectsInvalidAppPort(t *testing.T) {
+	tests := []struct {
+		name string
+		port string
+		want string
+	}{
+		{name: "empty", port: "", want: "APP_PORT is required"},
+		{name: "blank", port: " \t\n ", want: "APP_PORT is required"},
+		{name: "surrounding whitespace", port: " 8080 ", want: "APP_PORT must not include leading or trailing whitespace"},
+		{name: "non numeric", port: "abc", want: "APP_PORT must be an integer between 1 and 65535"},
+		{name: "zero", port: "0", want: "APP_PORT must be between 1 and 65535 (got 0)"},
+		{name: "negative", port: "-1", want: "APP_PORT must be between 1 and 65535 (got -1)"},
+		{name: "too large", port: "65536", want: "APP_PORT must be between 1 and 65535 (got 65536)"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validProductionConfigForTest()
+			c.App.Port = tt.port
+
+			err := c.validate(nil)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.want)
+		})
+	}
+}
+
+func TestValidate_AllowsValidAppPort(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.App.Port = "65535"
+
+	require.NoError(t, c.validate(nil))
 }
 
 func TestValidate_ProductionRejectsBlankCoreRequiredConfig(t *testing.T) {
@@ -854,6 +890,7 @@ func TestValidate_SMSRequiresFullConfigWhenEnabled(t *testing.T) {
 	c := &Config{
 		App: AppConfig{
 			Env:             "development",
+			Port:            "8080",
 			HMACSecret:      "0123456789abcdef0123456789abcdef",
 			CORSOrigins:     []string{"http://localhost:3000"},
 			MetricsPassword: "metrics-password",
@@ -942,6 +979,7 @@ func TestValidate_SMSDisabledAllowsEmptyConfig(t *testing.T) {
 	c := &Config{
 		App: AppConfig{
 			Env:             "development",
+			Port:            "8080",
 			HMACSecret:      "0123456789abcdef0123456789abcdef",
 			CORSOrigins:     []string{"http://localhost:3000"},
 			MetricsPassword: "metrics-password",
@@ -1306,6 +1344,7 @@ func validProductionConfigForTest() *Config {
 	return &Config{
 		App: AppConfig{
 			Env:             "production",
+			Port:            "8080",
 			HMACSecret:      "0123456789abcdef0123456789abcdef",
 			CORSOrigins:     []string{"https://stuhelper.example.com"},
 			TrustedProxies:  []string{"10.0.0.0/8"},

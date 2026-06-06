@@ -15,6 +15,7 @@ func (c *Config) validate(parseErrs []string) error {
 
 	productionLike := IsProductionLikeEnv(c.App.Env)
 	errs = append(errs, validateAppEnv(c.App.Env)...)
+	errs = append(errs, validateAppPort(c.App.Port)...)
 
 	const hmacMinLen = 32
 	switch {
@@ -363,6 +364,23 @@ func validateAppEnv(env string) []string {
 
 func isAllowedAppEnv(env string) bool {
 	return env == EnvDevelopment || env == EnvProduction || env == EnvProdParity
+}
+
+func validateAppPort(port string) []string {
+	if configStringMissing(port) {
+		return []string{"APP_PORT is required"}
+	}
+	if strings.TrimSpace(port) != port {
+		return []string{"APP_PORT must not include leading or trailing whitespace"}
+	}
+	value, err := strconv.Atoi(port)
+	if err != nil {
+		return []string{"APP_PORT must be an integer between 1 and 65535"}
+	}
+	if value < 1 || value > 65535 {
+		return []string{fmt.Sprintf("APP_PORT must be between 1 and 65535 (got %d)", value)}
+	}
+	return nil
 }
 
 // ValidateCORSOrigins validates CORS allow-list entries before they are passed
