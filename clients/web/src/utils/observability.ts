@@ -1,39 +1,18 @@
 import { onCLS, onFCP, onINP, onLCP, onTTFB, type Metric } from "web-vitals";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
+import { buildSecurityHeaders, CSRF_COOKIE_NAME } from "@stuhelper/shared/api";
+import { resolveApiURL } from "@/api/client";
+import { readCookie } from "@/utils/sessionHint";
+
 const VITALS_PATH = "/api/v1/metrics/vitals";
 const FRONTEND_ERRORS_PATH = "/api/v1/metrics/frontend-errors";
-const CSRF_COOKIE_NAME = "csrf_token";
-const CSRF_HEADER_NAME = "X-CSRF-Token";
 
 type FrontendErrorKind = "error" | "unhandledrejection";
-
-function resolveApiURL(path: string): string {
-    const base = /^https?:\/\//.test(API_BASE_URL)
-        ? API_BASE_URL
-        : window.location.origin;
-    return new URL(path, base).toString();
-}
-
-function readCookie(name: string): string | null {
-    const cookies = document.cookie ? document.cookie.split(";") : [];
-    const target = `${encodeURIComponent(name)}=`;
-    for (const raw of cookies) {
-        const cookie = raw.trim();
-        if (!cookie.startsWith(target)) continue;
-        try {
-            return decodeURIComponent(cookie.slice(target.length));
-        } catch (_error) { void _error;
-            return null;
-        }
-    }
-    return null;
-}
 
 function sendBeaconJSON(path: string, payload: unknown) {
     if (typeof window === "undefined") return;
     const body = JSON.stringify(payload);
-    const url = resolveApiURL(path);
+    const url = resolveApiURL(path).toString();
     if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
         const accepted = navigator.sendBeacon(
             url,
@@ -42,13 +21,11 @@ function sendBeaconJSON(path: string, payload: unknown) {
         if (accepted) return;
     }
 
-    const csrfToken = readCookie(CSRF_COOKIE_NAME);
-    const headers: Record<string, string> = {
+    const headers = buildSecurityHeaders("POST", {
         "Content-Type": "application/json",
-    };
-    if (csrfToken) {
-        headers[CSRF_HEADER_NAME] = csrfToken;
-    }
+    }, {
+        csrfToken: readCookie(CSRF_COOKIE_NAME),
+    });
 
     void fetch(url, {
         method: "POST",
