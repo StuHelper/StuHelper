@@ -69,12 +69,7 @@ func originFromReferer(raw string) string {
 }
 
 func isBrowserSameOriginFetch(raw string) bool {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "same-origin", "same-site":
-		return true
-	default:
-		return false
-	}
+	return strings.EqualFold(strings.TrimSpace(raw), "same-origin")
 }
 
 func requestOrigin(c *gin.Context) string {
