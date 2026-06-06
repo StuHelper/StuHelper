@@ -45,13 +45,17 @@ func NewCommandRuntimeTokenProber(cfg RuntimeTokenProbeCommandConfig) (*CommandR
 	if command == "" {
 		return nil, errorsNewTokenProbe("runtime token probe command is required")
 	}
+	issuer := strings.TrimSpace(cfg.Issuer)
+	if issuer == "" {
+		return nil, errorsNewTokenProbe("runtime token probe issuer is required")
+	}
 	timeout := cfg.Timeout
 	if timeout <= 0 {
 		timeout = defaultRuntimeTokenProbeTimeout
 	}
 	return &CommandRuntimeTokenProber{
 		command: command,
-		issuer:  strings.TrimSpace(cfg.Issuer),
+		issuer:  issuer,
 		timeout: timeout,
 	}, nil
 }
@@ -67,11 +71,16 @@ func (p *CommandRuntimeTokenProber) ProbeTokenMinimization(
 	if err != nil {
 		return RuntimeTokenMinimizationProbeResult{}, err
 	}
+	clientID, err := runtimeTokenProbeClientID(spec.ClientID)
+	if err != nil {
+		return RuntimeTokenMinimizationProbeResult{}, err
+	}
+	clientSecret := strings.TrimSpace(spec.ClientSecret)
 	payload, err := json.Marshal(runtimeTokenProbeCommandInput{
 		Issuer:                 p.issuer,
 		CasdoorApplicationName: strings.TrimSpace(spec.Name),
-		ClientID:               strings.TrimSpace(spec.ClientID),
-		ClientSecret:           strings.TrimSpace(spec.ClientSecret),
+		ClientID:               clientID,
+		ClientSecret:           clientSecret,
 		RedirectURIs:           append([]string(nil), spec.RedirectURIs...),
 		Scope:                  "openid",
 	})
@@ -86,8 +95,8 @@ func (p *CommandRuntimeTokenProber) ProbeTokenMinimization(
 	cmd.Stdin = bytes.NewReader(payload)
 	cmd.Env = append(os.Environ(),
 		"CASDOOR_ISSUER="+p.issuer,
-		"CASDOOR_TOKEN_PROBE_CLIENT_ID="+strings.TrimSpace(spec.ClientID),
-		"CASDOOR_TOKEN_PROBE_CLIENT_SECRET="+strings.TrimSpace(spec.ClientSecret),
+		"CASDOOR_TOKEN_PROBE_CLIENT_ID="+clientID,
+		"CASDOOR_TOKEN_PROBE_CLIENT_SECRET="+clientSecret,
 		"CASDOOR_TOKEN_PROBE_REDIRECT_URI="+redirectURI,
 		"CASDOOR_TOKEN_PROBE_SCOPE=openid",
 		"CASDOOR_TOKEN_PROBE_OUTPUT=json",
@@ -122,6 +131,14 @@ func runtimeTokenProbeRedirectURI(redirectURIs []string) (string, error) {
 		return "", errorsNewTokenProbe("runtime code-flow probe redirect URI is required")
 	}
 	return redirectURI, nil
+}
+
+func runtimeTokenProbeClientID(clientID string) (string, error) {
+	clientID = strings.TrimSpace(clientID)
+	if clientID == "" {
+		return "", errorsNewTokenProbe("runtime code-flow probe client ID is required")
+	}
+	return clientID, nil
 }
 
 func truncateProbeOutput(value string) string {

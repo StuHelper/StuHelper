@@ -130,6 +130,37 @@ printf '%s\n' '{"method":"authorization_code","tokenClaims":{"id_token":["sub","
 	assert.Equal(t, "test", result.Metadata["source"])
 }
 
+func TestNewCommandRuntimeTokenProberRejectsMissingIssuer(t *testing.T) {
+	_, err := NewCommandRuntimeTokenProber(RuntimeTokenProbeCommandConfig{
+		Command: "probe",
+	})
+
+	require.ErrorIs(t, err, ErrTokenMinimizationProbeFailed)
+	assert.Contains(t, err.Error(), "issuer is required")
+}
+
+func TestCommandRuntimeTokenProberRejectsMissingClientID(t *testing.T) {
+	script := filepath.Join(t.TempDir(), "probe")
+	require.NoError(t, os.WriteFile(script, []byte(`#!/usr/bin/env bash
+exit 23
+`), 0o700))
+	prober, err := NewCommandRuntimeTokenProber(RuntimeTokenProbeCommandConfig{
+		Command: script,
+		Issuer:  "https://sso.example.com",
+		Timeout: time.Second,
+	})
+	require.NoError(t, err)
+
+	_, err = prober.ProbeTokenMinimization(context.Background(), ApplicationSpec{
+		Name:         "runtime-app",
+		ClientSecret: "runtime-secret",
+		RedirectURIs: []string{"https://client.example.com/callback"},
+	})
+
+	require.ErrorIs(t, err, ErrTokenMinimizationProbeFailed)
+	assert.Contains(t, err.Error(), "client ID is required")
+}
+
 func TestCommandRuntimeTokenProberRejectsMissingRedirectURI(t *testing.T) {
 	script := filepath.Join(t.TempDir(), "probe")
 	require.NoError(t, os.WriteFile(script, []byte(`#!/usr/bin/env bash
@@ -164,6 +195,20 @@ func TestRuntimeTokenProbeRedirectURIRejectsBlankRedirect(t *testing.T) {
 
 	require.ErrorIs(t, err, ErrTokenMinimizationProbeFailed)
 	assert.Contains(t, err.Error(), "redirect URI is required")
+}
+
+func TestRuntimeTokenProbeClientIDTrimsConfiguredClientID(t *testing.T) {
+	clientID, err := runtimeTokenProbeClientID(" runtime-client ")
+
+	require.NoError(t, err)
+	assert.Equal(t, "runtime-client", clientID)
+}
+
+func TestRuntimeTokenProbeClientIDRejectsBlankClientID(t *testing.T) {
+	_, err := runtimeTokenProbeClientID("  ")
+
+	require.ErrorIs(t, err, ErrTokenMinimizationProbeFailed)
+	assert.Contains(t, err.Error(), "client ID is required")
 }
 
 func TestCreateApplicationRejectsBusinessTokenField(t *testing.T) {
