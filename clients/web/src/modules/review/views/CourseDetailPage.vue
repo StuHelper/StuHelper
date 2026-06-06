@@ -729,10 +729,11 @@ function goVerify() {
 }
 
 async function goToPostPage() {
-  if (!(await ensureCanPostReview())) {
+  rememberReviewPostCourse(courseID.value)
+  const postRoute = router.resolve({ name: 'course-review-post' })
+  if (!(await ensureCanPostReview({ redirect: postRoute.fullPath }))) {
     return
   }
-  rememberReviewPostCourse(courseID.value)
   await router.push({ name: 'course-review-post' })
 }
 

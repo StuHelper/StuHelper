@@ -16,13 +16,14 @@ const mocks = vi.hoisted(() => ({
         params: {} as Record<string, string>,
     },
     routerPush: vi.fn(),
+    routerResolve: vi.fn(),
     ensureCanPostReview: vi.fn(),
     rememberReviewPostCourse: vi.fn(),
 }));
 
 vi.mock("vue-router", () => ({
     useRoute: () => mocks.route,
-    useRouter: () => ({ push: mocks.routerPush }),
+    useRouter: () => ({ push: mocks.routerPush, resolve: mocks.routerResolve }),
 }));
 
 vi.mock("vue-i18n", () => ({
@@ -115,6 +116,11 @@ describe("AppHeader", () => {
             params: {},
         });
         mocks.routerPush.mockReset();
+        mocks.routerResolve.mockReset();
+        mocks.routerResolve.mockReturnValue({
+            name: "course-review-post",
+            fullPath: "/courses/reviews/post",
+        });
         mocks.ensureCanPostReview.mockResolvedValue(true);
         mocks.rememberReviewPostCourse.mockReset();
     });
@@ -259,5 +265,31 @@ describe("AppHeader", () => {
         expect(
             courseListWrapper.find('[data-test="inline-search"]').exists(),
         ).toBe(false);
+    });
+
+    it("keeps the write-review target through review access checks", async () => {
+        Object.assign(mocks.route, {
+            name: "course-detail",
+            path: "/courses/42",
+            fullPath: "/courses/42",
+            params: { id: "42" },
+        });
+
+        const wrapper = mountHeader({
+            bootstrapCompleted: true,
+            isAuthenticated: true,
+        });
+
+        await wrapper
+            .get('button[aria-label="review.topBar.writeReview"]')
+            .trigger("click");
+
+        expect(mocks.rememberReviewPostCourse).toHaveBeenCalledWith(42);
+        expect(mocks.ensureCanPostReview).toHaveBeenCalledWith({
+            redirect: "/courses/reviews/post",
+        });
+        expect(mocks.routerPush).toHaveBeenCalledWith({
+            name: "course-review-post",
+        });
     });
 });

@@ -254,13 +254,15 @@ function isNavActive(item: NavItem) {
 }
 
 async function handleWriteReview() {
-    if (!(await ensureCanPostReview())) {
-        return;
-    }
-
     const courseID =
         typeof route.params.id === "string" ? Number(route.params.id) : NaN;
     rememberReviewPostCourse(courseID);
+
+    const postRoute = router.resolve({ name: "course-review-post" });
+    if (!(await ensureCanPostReview({ redirect: postRoute.fullPath }))) {
+        return;
+    }
+
     await router.push({ name: "course-review-post" });
 }
 

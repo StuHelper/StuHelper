@@ -8,6 +8,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockRouterPush = vi.fn();
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
+const mockRoute = vi.hoisted(() => ({
+    query: {} as Record<string, string>,
+}));
 
 const mockIdentityApi = vi.hoisted(() => ({
     getIdentity: vi.fn(),
@@ -31,6 +34,7 @@ vi.mock("@/api", () => ({
 }));
 
 vi.mock("vue-router", () => ({
+    useRoute: () => mockRoute,
     useRouter: () => ({
         push: mockRouterPush,
     }),
@@ -82,6 +86,15 @@ function submittedIdentity(docNumber: string) {
     };
 }
 
+function verifiedIdentity(docNumber: string) {
+    return {
+        ...submittedIdentity(docNumber),
+        verified: true,
+        verifyMethod: "academic_db_match",
+        verifiedAt: now,
+    };
+}
+
 function mountPage() {
     return mount(IdentityVerificationPage, {
         global: {
@@ -95,6 +108,7 @@ describe("IdentityVerificationPage", () => {
         pinia = createPinia();
         setActivePinia(pinia);
         vi.clearAllMocks();
+        mockRoute.query = {};
 
         mockIdentityApi.getIdentity.mockImplementation(notFound);
         mockIdentityApi.getProfile.mockImplementation(notFound);
@@ -157,5 +171,35 @@ describe("IdentityVerificationPage", () => {
             realName: "张三",
             docNumber: "11010519491231002X",
         });
+    });
+
+    it("returns to the intended page after successful identity verification", async () => {
+        mockRoute.query = { redirect: "/courses/reviews/post" };
+        mockIdentityApi.getIdentity
+            .mockImplementationOnce(notFound)
+            .mockResolvedValue({
+                data: {
+                    data: verifiedIdentity("11010519491231002X"),
+                },
+            });
+        mockIdentityApi.submitIdentity.mockResolvedValue({
+            data: {
+                data: verifiedIdentity("11010519491231002X"),
+            },
+        });
+
+        const wrapper = mountPage();
+        await flushPromises();
+
+        await wrapper.find("[data-identity-real-name-input]").setValue("张三");
+        await wrapper
+            .find("[data-identity-doc-number-input]")
+            .setValue("11010519491231002X");
+        await flushPromises();
+
+        await wrapper.find("[data-identity-submit]").trigger("click");
+        await flushPromises();
+
+        expect(mockRouterPush).toHaveBeenCalledWith("/courses/reviews/post");
     });
 });

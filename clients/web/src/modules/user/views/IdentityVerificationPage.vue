@@ -368,7 +368,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import {
     ShieldCheck,
@@ -384,8 +384,10 @@ import {
     isValidMainlandIDNumber,
     normalizeMainlandIDNumber,
 } from "@/modules/user/utils/mainlandID";
+import { isSafeRelativeRedirect } from "@/utils/redirect";
 
 const router = useRouter();
+const route = useRoute();
 const { t } = useI18n();
 const store = useVerificationStore();
 const toast = useToast();
@@ -441,6 +443,21 @@ const previews = reactive<{
 
 function goBack() {
     void router.push("/identity");
+}
+
+function verificationRedirectTarget(): string | null {
+    const redirect = route.query.redirect;
+    if (typeof redirect === "string" && isSafeRelativeRedirect(redirect)) {
+        return redirect;
+    }
+    return null;
+}
+
+async function navigateAfterVerification() {
+    const redirect = verificationRedirectTarget();
+    if (redirect) {
+        await router.push(redirect);
+    }
 }
 
 function docTypeLabel(docType: string): string {
@@ -548,6 +565,9 @@ async function handleSubmit() {
         });
         await store.fetchStatus();
         showForm.value = false;
+        if (store.identityVerified) {
+            await navigateAfterVerification();
+        }
     } catch (err) {
         toast.error(
             err instanceof Error

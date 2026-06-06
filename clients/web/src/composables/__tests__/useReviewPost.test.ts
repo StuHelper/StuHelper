@@ -126,7 +126,30 @@ describe('useReviewPost', () => {
     await expect(ensureCanPostReview()).resolves.toBe(false)
     expect(mockToastError).toHaveBeenCalledWith('user.verification.student.identityRequired')
     expect(mockNavigateToExternalURL).toHaveBeenCalledWith(
-      'https://stuhelper.com/user/identity-verification',
+      'https://stuhelper.com/user/identity-verification?redirect=%2Fcourses%2Freviews',
+    )
+  })
+
+  it('preserves the intended post-review redirect when identity verification is required', async () => {
+    mockGetUserSurface.mockResolvedValue({
+      data: {
+        data: {
+          displayName: 'Alice',
+          identityStatus: 'pending',
+          verificationStatus: 'approved',
+          phoneBound: true,
+          capabilities: [REVIEW_CREATE],
+        },
+      },
+    })
+
+    const { ensureCanPostReview } = useReviewPost()
+
+    await expect(
+      ensureCanPostReview({ redirect: '/courses/reviews/post' }),
+    ).resolves.toBe(false)
+    expect(mockNavigateToExternalURL).toHaveBeenCalledWith(
+      'https://stuhelper.com/user/identity-verification?redirect=%2Fcourses%2Freviews%2Fpost',
     )
   })
 
@@ -148,7 +171,7 @@ describe('useReviewPost', () => {
     await expect(ensureCanPostReview()).resolves.toBe(false)
     expect(mockToastError).toHaveBeenCalledWith('review.card.verifyToView')
     expect(mockNavigateToExternalURL).toHaveBeenCalledWith(
-      'https://stuhelper.com/user/student-verification',
+      'https://stuhelper.com/user/student-verification?redirect=%2Fcourses%2Freviews',
     )
   })
 

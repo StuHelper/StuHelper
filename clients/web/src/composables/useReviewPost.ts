@@ -17,6 +17,10 @@ interface ReviewPostBlock {
   routeName: null | 'home' | 'identity-verification' | 'student-verification'
 }
 
+interface EnsureReviewPostOptions {
+  redirect?: string
+}
+
 const USER_SURFACE_STATUS_VALUES = new Set([
   'none',
   'pending',
@@ -134,7 +138,17 @@ export function useReviewPost() {
   const authStore = useAuthStore()
   const toast = useToast()
 
-  async function ensureCanPostReview() {
+  function intendedRedirect(options?: EnsureReviewPostOptions): string {
+    return options?.redirect ?? router.currentRoute.value.fullPath
+  }
+
+  function verificationURL(path: string, redirect: string): string {
+    const params = new URLSearchParams({ redirect })
+    return accountCenterURL(`${path}?${params.toString()}`)
+  }
+
+  async function ensureCanPostReview(options?: EnsureReviewPostOptions) {
+    const redirect = intendedRedirect(options)
     if (!authStore.bootstrapCompleted) {
       try {
         await authStore.bootstrapSession()
@@ -142,7 +156,7 @@ export function useReviewPost() {
         if (!authStore.isAuthenticated) {
           await router.push({
             name: 'login',
-            query: { redirect: router.currentRoute.value.fullPath },
+            query: { redirect },
           })
           return false
         }
@@ -154,7 +168,7 @@ export function useReviewPost() {
     if (!authStore.isAuthenticated) {
       await router.push({
         name: 'login',
-        query: { redirect: router.currentRoute.value.fullPath },
+        query: { redirect },
       })
       return false
     }
@@ -172,9 +186,9 @@ export function useReviewPost() {
       toast.error(i18n.global.t(block.messageKey))
       if (block.routeName) {
         if (block.routeName === 'identity-verification') {
-          navigateToExternalURL(accountCenterURL('/user/identity-verification'))
+          navigateToExternalURL(verificationURL('/user/identity-verification', redirect))
         } else if (block.routeName === 'student-verification') {
-          navigateToExternalURL(accountCenterURL('/user/student-verification'))
+          navigateToExternalURL(verificationURL('/user/student-verification', redirect))
         } else {
           await router.push({ name: block.routeName })
         }

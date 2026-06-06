@@ -8,6 +8,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mockRouterPush = vi.fn();
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
+const mockRoute = vi.hoisted(() => ({
+    query: {} as Record<string, string>,
+}));
 
 const mockIdentityApi = vi.hoisted(() => ({
     getIdentity: vi.fn(),
@@ -32,6 +35,7 @@ vi.mock("@/api", () => ({
 }));
 
 vi.mock("vue-router", () => ({
+    useRoute: () => mockRoute,
     useRouter: () => ({
         push: mockRouterPush,
     }),
@@ -91,6 +95,7 @@ describe("StudentVerificationPage", () => {
         pinia = createPinia();
         setActivePinia(pinia);
         vi.clearAllMocks();
+        mockRoute.query = {};
 
         mockIdentityApi.getIdentity.mockImplementation(notFound);
         mockIdentityApi.getProfile.mockImplementation(notFound);
@@ -309,6 +314,70 @@ describe("StudentVerificationPage", () => {
         expect(codeInput.element.value).toBe("");
         expect(submitButton.element.disabled).toBe(true);
         expect(mockIdentityApi.verifyStudentEmailOTP).not.toHaveBeenCalled();
+    });
+
+    it("returns to the intended page after successful student verification", async () => {
+        vi.useFakeTimers();
+        mockRoute.query = { redirect: "/courses/reviews/post" };
+        mockIdentityApi.getProfile
+            .mockImplementationOnce(notFound)
+            .mockResolvedValue({
+                data: {
+                    data: verifiedProfile(),
+                },
+            });
+        mockIdentityApi.matchStudentEmailAcademicStudent.mockResolvedValue({
+            data: {
+                data: {
+                    matched: true,
+                    email: "20250001@buaa.edu.cn",
+                    studentID: "20250001",
+                    message: "学号和姓名已匹配。",
+                },
+            },
+        });
+        mockIdentityApi.requestStudentEmailOTP.mockResolvedValue({
+            data: {
+                data: {
+                    email: "20250001@buaa.edu.cn",
+                    studentID: "20250001",
+                    cooldownSeconds: 60,
+                },
+            },
+        });
+        mockIdentityApi.verifyStudentEmailOTP.mockResolvedValue({
+            data: {
+                data: verifiedProfile(),
+            },
+        });
+
+        const wrapper = mount(StudentVerificationPage, {
+            global: {
+                plugins: [pinia],
+            },
+        });
+        await flushPromises();
+
+        await wrapper
+            .find("[data-student-school-select]")
+            .setValue("4111010006");
+        await wrapper.find("[data-student-id-input]").setValue("20250001");
+        await wrapper.find("[data-student-name-input]").setValue("张三");
+        await vi.advanceTimersByTimeAsync(300);
+        await flushPromises();
+        await wrapper.find("[data-student-email-otp-request]").trigger("click");
+        await flushPromises();
+
+        await wrapper
+            .find("[data-student-email-code-input]")
+            .setValue("123456");
+        await wrapper.find("[data-student-consent-checkbox]").setValue(true);
+        await wrapper
+            .find("[data-student-verification-submit]")
+            .trigger("click");
+        await flushPromises();
+
+        expect(mockRouterPush).toHaveBeenCalledWith("/courses/reviews/post");
     });
 
     it("prompts before requesting OTP when academic identity is incomplete", async () => {
