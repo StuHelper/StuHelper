@@ -107,7 +107,11 @@ func respondDeleteReviewError(c *gin.Context, err error) bool {
 func respondReportReviewError(c *gin.Context, err error) bool {
 	return response.RespondMappedErrorGroups(c, err,
 		reviewNotFoundErrorMappings,
-		[]response.ErrorMapping{response.MatchError(ErrAlreadyReported, 409, "you have already reported this review", errs.ErrAlreadyReported)},
+		reviewModerationErrorMappings,
+		[]response.ErrorMapping{
+			response.MatchError(ErrInvalidAction, 400, "invalid report reason"),
+			response.MatchError(ErrAlreadyReported, 409, "you have already reported this review", errs.ErrAlreadyReported),
+		},
 	)
 }
 

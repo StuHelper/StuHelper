@@ -194,7 +194,7 @@ func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 	require.NoError(t, err)
 
 	hideReporterID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-u-reporter-hide", UserHash: "u-reporter-hide"})
-	hideReportID, err := svc.ReportReview(ctx, ReportReviewParams{ReviewID: hideReviewID, UserHash: "u-reporter-hide", ReporterInternalUserID: hideReporterID, Reason: "abuse", Description: "需要隐藏"})
+	hideReportID, err := svc.ReportReview(ctx, ReportReviewParams{ReviewID: hideReviewID, UserHash: "u-reporter-hide", ReporterInternalUserID: hideReporterID, Reason: reportReasonInappropriate, Description: "需要隐藏"})
 	require.NoError(t, err)
 	require.NoError(t, svc.ProcessReport(ctx, ProcessReportParams{ReportID: hideReportID, Action: "hide", Note: "隐藏处理", ResolvedBy: "admin-2"}))
 
@@ -207,7 +207,7 @@ func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 	assert.Equal(t, ReportStatusResolved, hideReport.Status)
 
 	deleteReporterID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-u-reporter-delete", UserHash: "u-reporter-delete"})
-	deleteReportID, err := svc.ReportReview(ctx, ReportReviewParams{ReviewID: deleteReviewID, UserHash: "u-reporter-delete", ReporterInternalUserID: deleteReporterID, Reason: "illegal", Description: "需要删除"})
+	deleteReportID, err := svc.ReportReview(ctx, ReportReviewParams{ReviewID: deleteReviewID, UserHash: "u-reporter-delete", ReporterInternalUserID: deleteReporterID, Reason: reportReasonOther, Description: "需要删除"})
 	require.NoError(t, err)
 	require.NoError(t, svc.ProcessReport(ctx, ProcessReportParams{ReportID: deleteReportID, Action: "delete", Note: "删除处理", ResolvedBy: "admin-3"}))
 

@@ -23,6 +23,15 @@ const (
 	ReportStatusRejected = "rejected"
 )
 
+// 举报原因常量
+const (
+	reportReasonSpam          = "spam"
+	reportReasonInappropriate = "inappropriate"
+	reportReasonHarassment    = "harassment"
+	reportReasonFalseInfo     = "false_info"
+	reportReasonOther         = "other"
+)
+
 // 投票类型常量
 const (
 	voteTypeLike    = "like"
@@ -49,6 +58,15 @@ func isValidReviewStatus(s string) bool {
 func isValidReportStatus(s string) bool {
 	switch s {
 	case ReportStatusPending, ReportStatusResolved, ReportStatusRejected, StatusAll:
+		return true
+	}
+	return false
+}
+
+// isValidReportReason 校验举报原因是否合法
+func isValidReportReason(s string) bool {
+	switch s {
+	case reportReasonSpam, reportReasonInappropriate, reportReasonHarassment, reportReasonFalseInfo, reportReasonOther:
 		return true
 	}
 	return false

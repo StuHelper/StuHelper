@@ -25,6 +25,17 @@ func TestReviewConstValidators(t *testing.T) {
 		}
 	}
 
+	for _, reason := range []string{reportReasonSpam, reportReasonInappropriate, reportReasonHarassment, reportReasonFalseInfo, reportReasonOther} {
+		if !isValidReportReason(reason) {
+			t.Fatalf("expected valid report reason: %s", reason)
+		}
+	}
+	for _, reason := range []string{"", "abuse", "illegal"} {
+		if isValidReportReason(reason) {
+			t.Fatalf("expected invalid report reason: %s", reason)
+		}
+	}
+
 	for _, sort := range []string{SortTime, SortLikes, SortRating} {
 		if !isValidSort(sort) {
 			t.Fatalf("expected valid sort: %s", sort)

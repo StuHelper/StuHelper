@@ -5,12 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sanitizer"
 )
+
+const maxReportDescriptionRunes = 500
 
 // ReportReviewParams 举报评论参数
 type ReportReviewParams struct {
@@ -52,17 +55,19 @@ var validReportStatuses = map[string]bool{
 
 // ReportReview 举报评论，返回生成的举报 ID
 func (s *Service) ReportReview(ctx context.Context, params ReportReviewParams) (string, error) {
-	if strings.TrimSpace(params.Reason) == "" {
+	params.Reason = strings.TrimSpace(params.Reason)
+	if !isValidReportReason(params.Reason) {
 		return "", ErrInvalidAction
 	}
 
-	if sanitizer.ContainsDangerousContent(params.Description) {
-		return "", ErrDangerousContent
+	description, err := validateAndSanitizeReportDescription(params.Description)
+	if err != nil {
+		return "", err
 	}
-	params.Description = sanitizer.SanitizeText(params.Description)
+	params.Description = description
 
 	var reportID string
-	err := s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+	err = s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		exists, err := s.repo.ReviewExistsTx(ctx, tx, params.ReviewID)
 		if err != nil {
 			return err
@@ -103,6 +108,20 @@ func (s *Service) ReportReview(ctx context.Context, params ReportReviewParams) (
 		return s.enqueueReportFGASyncTx(ctx, tx, reportID, schoolID)
 	})
 	return reportID, err
+}
+
+func validateAndSanitizeReportDescription(description string) (string, error) {
+	if utf8.RuneCountInString(description) > maxReportDescriptionRunes {
+		return "", ErrContentTooLong
+	}
+	if sanitizer.ContainsDangerousContent(description) {
+		return "", ErrDangerousContent
+	}
+	description = sanitizer.SanitizeText(description)
+	if sanitizer.ContainsDangerousContent(description) {
+		return "", ErrDangerousContent
+	}
+	return description, nil
 }
 
 // ListReports 获取举报列表

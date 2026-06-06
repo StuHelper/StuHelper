@@ -96,3 +96,30 @@ func TestRespondVoteReviewErrorInvalidVoteType(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), "invalid vote type")
 }
+
+func TestRespondReportReviewErrorValidation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name     string
+		err      error
+		contains string
+	}{
+		{name: "invalid reason", err: ErrInvalidAction, contains: "invalid report reason"},
+		{name: "dangerous description", err: ErrDangerousContent, contains: "potentially dangerous"},
+		{name: "description too long", err: ErrContentTooLong, contains: "content is too long"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+
+			ok := respondReportReviewError(c, tt.err)
+
+			assert.True(t, ok)
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+			assert.Contains(t, w.Body.String(), tt.contains)
+		})
+	}
+}
