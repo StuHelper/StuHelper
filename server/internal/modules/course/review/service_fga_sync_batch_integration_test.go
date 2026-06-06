@@ -163,6 +163,14 @@ func TestReviewService_ReconcileFGARelationProjectionsStopsAboveThreshold(t *tes
 	assert.Equal(t, before+1, after)
 }
 
+func TestRunFGASyncReconciliationRecoversPanic(t *testing.T) {
+	svc := &Service{}
+
+	require.NotPanics(t, func() {
+		svc.runFGASyncReconciliation(context.Background())
+	})
+}
+
 func TestNextFGASyncReconciliationDelay(t *testing.T) {
 	location := time.FixedZone("test", 8*60*60)
 	cases := []struct {

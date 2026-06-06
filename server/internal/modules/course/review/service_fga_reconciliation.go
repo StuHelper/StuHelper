@@ -56,6 +56,16 @@ func nextFGASyncReconciliationDelay(now time.Time) time.Duration {
 }
 
 func (s *Service) runFGASyncReconciliation(ctx context.Context) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			logger.L().Error(
+				"review FGA reconciliation panicked",
+				zap.Any("panic", recovered),
+				zap.Stack("stack"),
+			)
+		}
+	}()
+
 	requeued, err := s.ReconcileFGARelationProjections(ctx, fgaReconciliationRepairLimit)
 	if err != nil {
 		logger.L().Warn("review FGA reconciliation failed", zap.Error(err))
