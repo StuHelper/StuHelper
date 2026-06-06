@@ -87,8 +87,9 @@ type ListCoursesResult struct {
 
 // GetCourses 获取课程列表
 func (s *Service) GetCourses(ctx context.Context, params ListCoursesParams) (*ListCoursesResult, error) {
-	offset := httputil.SafeOffset(params.Page, params.PageSize)
-	list, total, err := s.repo.ListCourses(ctx, params.Query, params.DepartmentID, params.Category, normalizeCourseSort(params.Sort), params.PageSize, offset)
+	pageSize := httputil.ClampPageSize(params.PageSize)
+	offset := httputil.SafeOffset(params.Page, pageSize)
+	list, total, err := s.repo.ListCourses(ctx, params.Query, params.DepartmentID, params.Category, normalizeCourseSort(params.Sort), pageSize, offset)
 	if err != nil {
 		s.log.Error("failed to list courses", zap.Error(err))
 		return nil, err
@@ -108,8 +109,9 @@ type SearchCoursesParams struct {
 func (s *Service) SearchCourses(ctx context.Context, params SearchCoursesParams) (*ListCoursesResult, error) {
 	query := params.Query
 
-	offset := httputil.SafeOffset(params.Page, params.PageSize)
-	list, total, err := s.repo.SearchCourses(ctx, query, params.PageSize, offset)
+	pageSize := httputil.ClampPageSize(params.PageSize)
+	offset := httputil.SafeOffset(params.Page, pageSize)
+	list, total, err := s.repo.SearchCourses(ctx, query, pageSize, offset)
 	if err != nil {
 		s.log.Error("failed to search courses", zap.String("query", params.Query), zap.Error(err))
 		return nil, err

@@ -35,6 +35,15 @@ func TestTriggerImportAndQueryReadModel(t *testing.T) {
 	require.NotEmpty(t, offerings)
 	assert.GreaterOrEqual(t, total, 1)
 
+	offerings, total, err = svc.ListOfferings(ctx, OfferingFilters{
+		TermCode: "2026-SPRING",
+		Page:     0,
+		PageSize: 0,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, offerings)
+	assert.GreaterOrEqual(t, total, 1)
+
 	detail, err := svc.GetOffering(ctx, offerings[0].ID)
 	require.NoError(t, err)
 	require.NotNil(t, detail)

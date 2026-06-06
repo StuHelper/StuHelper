@@ -43,7 +43,18 @@ func TestCourseService_IntegrationReadPaths(t *testing.T) {
 	assert.Equal(t, courseDB, courses.List[0].ID)
 	assert.Equal(t, 1, courses.Total)
 
+	courses, err = svc.GetCourses(ctx, ListCoursesParams{Query: "系统", DepartmentID: deptCS, Category: "通识", Sort: CourseSortCredits, Page: 0, PageSize: 0})
+	require.NoError(t, err)
+	require.Len(t, courses.List, 1)
+	assert.Equal(t, courseDB, courses.List[0].ID)
+	assert.Equal(t, 1, courses.Total)
+
 	searched, err := svc.SearchCourses(ctx, SearchCoursesParams{Query: "CS1", Page: 1, PageSize: 10})
+	require.NoError(t, err)
+	require.Len(t, searched.List, 2)
+	assert.Equal(t, 2, searched.Total)
+
+	searched, err = svc.SearchCourses(ctx, SearchCoursesParams{Query: "CS1", Page: 0, PageSize: 0})
 	require.NoError(t, err)
 	require.Len(t, searched.List, 2)
 	assert.Equal(t, 2, searched.Total)

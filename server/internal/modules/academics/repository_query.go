@@ -39,7 +39,8 @@ func (r *Repository) ListTerms(ctx context.Context) ([]Term, error) {
 
 func (r *Repository) ListOfferings(ctx context.Context, filters OfferingFilters) ([]Offering, int, error) {
 	ctx = withDBTable(ctx, "academic_offerings")
-	offset := httputil.SafeOffset(filters.Page, filters.PageSize)
+	pageSize := httputil.ClampPageSize(filters.PageSize)
+	offset := httputil.SafeOffset(filters.Page, pageSize)
 	pattern := "%" + httputil.EscapeLikePattern(filters.CourseQuery) + "%"
 	teacherPattern := "%" + httputil.EscapeLikePattern(filters.TeacherQuery) + "%"
 	schoolPattern := "%" + httputil.EscapeLikePattern(filters.SchoolName) + "%"
@@ -68,7 +69,7 @@ func (r *Repository) ListOfferings(ctx context.Context, filters OfferingFilters)
 		  ))
 		ORDER BY t.code DESC, c.name ASC, o.section_code ASC, o.id ASC
 		LIMIT $6 OFFSET $7
-	`, filters.TermCode, schoolPattern, departmentPattern, pattern, teacherPattern, filters.PageSize, offset)
+	`, filters.TermCode, schoolPattern, departmentPattern, pattern, teacherPattern, pageSize, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list academic offerings: %w", err)
 	}

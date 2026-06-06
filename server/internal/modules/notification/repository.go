@@ -75,8 +75,9 @@ func (r *Repository) Create(ctx context.Context, p CreateParams) (string, error)
 // List 获取通知列表
 func (r *Repository) List(ctx context.Context, p ListParams) (*ListResult, error) {
 	ctx = withDBTable(ctx, "notifications")
-	offset := httputil.SafeOffset(p.Page, p.PageSize)
-	result := &ListResult{List: make([]Notification, 0, p.PageSize)}
+	pageSize := httputil.ClampPageSize(p.PageSize)
+	offset := httputil.SafeOffset(p.Page, pageSize)
+	result := &ListResult{List: make([]Notification, 0, pageSize)}
 	if err := r.db.QueryRow(ctx, `
 		SELECT COUNT(*), COUNT(*) FILTER (WHERE is_read = false)
 		FROM notifications
@@ -94,7 +95,7 @@ func (r *Repository) List(ctx context.Context, p ListParams) (*ListResult, error
 		WHERE user_id = $1
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3
-	`, p.UserID, p.PageSize, offset)
+	`, p.UserID, pageSize, offset)
 	if err != nil {
 		return nil, fmt.Errorf("notification list data: %w", err)
 	}
