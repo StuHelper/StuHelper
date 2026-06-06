@@ -68,13 +68,14 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	}
 
 	adminMFA := adminMFAMiddlewares(rt.cfg.App.Env, userRepo)
-	notifHub := notification.NewHub(rt.redisClient.GetClient())
+	notifHub := notification.NewHub()
+	notifRealtime := notification.NewRealtime(rt.redisClient.GetClient(), notifHub)
 	notifRepo := notification.NewRepository(rt.database)
-	notifService := notification.NewService(notifRepo, notifHub, rt.redisClient.GetClient())
+	notifService := notification.NewService(notifRepo, notifRealtime)
 	notifHandler := notification.NewHandler(notifService, notifHub, userRepo.GetInternalUserID)
 	notifHandler.RegisterRoutes(api, authMW)
-	notifHub.StartRedisSubscriber(bgCtx, startBackgroundTask)
-	rt.addCleanup(notifHub.Stop)
+	notifRealtime.StartSubscriber(bgCtx, startBackgroundTask)
+	rt.addCleanup(notifRealtime.Stop)
 
 	courseModule := rt.initCourseModule(bgCtx, fgaClient, notifService, userRepo)
 	courseModule.RegisterRoutes(api, authMW, optionalAuthMW, adminMFA...)

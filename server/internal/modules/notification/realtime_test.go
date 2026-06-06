@@ -3,22 +3,52 @@ package notification
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/postgresfixture"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
 )
+
+type recordedRealtimeEvent struct {
+	userID int64
+	event  SSEEvent
+}
+
+type recordingRealtimePublisher struct {
+	mu     sync.Mutex
+	events []recordedRealtimeEvent
+	err    error
+}
+
+func (p *recordingRealtimePublisher) Publish(_ context.Context, userID int64, event SSEEvent) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.events = append(p.events, recordedRealtimeEvent{
+		userID: userID,
+		event:  event,
+	})
+	return p.err
+}
+
+func (p *recordingRealtimePublisher) snapshot() []recordedRealtimeEvent {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	events := make([]recordedRealtimeEvent, len(p.events))
+	copy(events, p.events)
+	return events
+}
 
 func TestBuildRealtimeNotificationPayloadIncludesRealtimeFields(t *testing.T) {
 	t.Parallel()
 
 	params := SendParams{
 		UserID:       42,
-		Type:         "review_reply",
+		Type:         TypeReply,
 		Title:        "新的回复",
 		Body:         "你收到了一条新的回复",
 		Payload:      json.RawMessage(`{"replyId":"r-1"}`),
@@ -41,15 +71,17 @@ func TestBuildRealtimeNotificationPayloadIncludesRealtimeFields(t *testing.T) {
 	assert.Equal(t, int64(42), *payload.CourseID)
 }
 
-func TestDecodeNotificationPubSubPayloadReturnsStructuredObject(t *testing.T) {
+func TestDecodeRealtimeEnvelopeReturnsStructuredObject(t *testing.T) {
 	t.Parallel()
 
-	raw := `{"id":"notif-1","userId":42,"type":"review_reply","title":"新的回复","body":"body","content":"body","payload":{"replyId":"r-1"},"sourceModule":"course.review","sourceId":"reply-1","isRead":false,"createdAt":"2026-04-23T09:00:00Z"}`
+	raw := `{"userId":42,"event":{"event":"notification","data":{"id":"notif-1","userId":42,"type":"reply","title":"新的回复","body":"body","content":"body","payload":{"replyId":"r-1"},"sourceModule":"course.review","sourceId":"reply-1","isRead":false,"createdAt":"2026-04-23T09:00:00Z"}}}`
 
-	payload, err := decodeNotificationPubSubPayload(raw)
+	envelope, err := decodeRealtimeEnvelope(raw)
 	require.NoError(t, err)
 
-	data, ok := payload.(map[string]any)
+	assert.Equal(t, int64(42), envelope.UserID)
+	assert.Equal(t, "notification", envelope.Event.Event)
+	data, ok := envelope.Event.Data.(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "notif-1", data["id"])
 	assert.Equal(t, float64(42), data["userId"])
@@ -57,9 +89,32 @@ func TestDecodeNotificationPubSubPayloadReturnsStructuredObject(t *testing.T) {
 	assert.Equal(t, "2026-04-23T09:00:00Z", data["createdAt"])
 }
 
-func TestNewHubPanicsWhenRedisNil(t *testing.T) {
-	assert.PanicsWithValue(t, "notification.NewHub: redis client must not be nil", func() {
-		NewHub(nil)
+func TestDecodeRealtimePayloadAcceptsLegacyNotificationPayload(t *testing.T) {
+	t.Parallel()
+
+	raw := `{"id":"notif-1","userId":42,"type":"reply","title":"新的回复","body":"body","content":"body","payload":{"replyId":"r-1"},"sourceModule":"course.review","sourceId":"reply-1","isRead":false,"createdAt":"2026-04-23T09:00:00Z"}`
+
+	envelope, err := decodeRealtimePayload(raw, 42)
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(42), envelope.UserID)
+	assert.Equal(t, "notification", envelope.Event.Event)
+	data, ok := envelope.Event.Data.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "notif-1", data["id"])
+	assert.Equal(t, TypeReply, data["type"])
+	assert.Equal(t, float64(42), data["userId"])
+	assert.Equal(t, false, data["isRead"])
+	assert.Equal(t, "2026-04-23T09:00:00Z", data["createdAt"])
+}
+
+func TestNewRealtimePanicsOnNilDependencies(t *testing.T) {
+	fixture := redisfixture.Start(t)
+	assert.PanicsWithValue(t, "notification.NewRealtime: redis client must not be nil", func() {
+		NewRealtime(nil, NewHub())
+	})
+	assert.PanicsWithValue(t, "notification.NewRealtime: hub must not be nil", func() {
+		NewRealtime(fixture.Client, nil)
 	})
 }
 
@@ -76,37 +131,163 @@ func TestHubStopIsNilAndZeroValueSafe(t *testing.T) {
 	})
 }
 
-func TestHubStartRedisSubscriberSkipsMissingRedis(t *testing.T) {
+func TestRealtimeStartSubscriberSkipsMissingRedis(t *testing.T) {
 	called := false
 	start := func(string, func(context.Context)) {
 		called = true
 	}
 
-	var nilHub *Hub
+	var nilRealtime *Realtime
 	assert.NotPanics(t, func() {
-		nilHub.StartRedisSubscriber(context.Background(), start)
+		nilRealtime.StartSubscriber(context.Background(), start)
 	})
 	assert.False(t, called)
 
-	zeroHub := &Hub{}
+	zeroRealtime := &Realtime{}
 	assert.NotPanics(t, func() {
-		zeroHub.StartRedisSubscriber(nilContextForNotificationTest(), start)
+		zeroRealtime.StartSubscriber(nilContextForNotificationTest(), start)
 	})
 	assert.False(t, called)
 }
 
-func TestHubStartRedisSubscriberRequiresStarter(t *testing.T) {
-	client := redis.NewClient(&redis.Options{Addr: "127.0.0.1:0"})
-	t.Cleanup(func() { _ = client.Close() })
-	hub := NewHub(client)
+func TestRealtimeStartSubscriberRequiresStarter(t *testing.T) {
+	fixture := redisfixture.Start(t)
+	realtime := NewRealtime(fixture.Client, NewHub())
 
-	assert.PanicsWithValue(t, "notification.Hub.StartRedisSubscriber: starter is required", func() {
-		hub.StartRedisSubscriber(context.Background(), nil)
+	assert.PanicsWithValue(t, "notification.Realtime.StartSubscriber: starter is required", func() {
+		realtime.StartSubscriber(context.Background(), nil)
 	})
 }
 
 func nilContextForNotificationTest() context.Context {
 	return nil
+}
+
+func TestRealtimePublishesEnvelopeAndSubscriberBroadcastsToHub(t *testing.T) {
+	t.Parallel()
+
+	fixture := redisfixture.Start(t)
+	hub := NewHub()
+	realtime := NewRealtime(fixture.Client, hub)
+	userID := int64(42)
+
+	ch := hub.Subscribe(userID)
+	defer hub.Unsubscribe(userID, ch)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	started := make(chan struct{})
+	realtime.StartSubscriber(ctx, func(name string, run func(context.Context)) {
+		assert.Equal(t, notificationRealtimeSubscriberName, name)
+		close(started)
+		go run(ctx)
+	})
+	defer realtime.Stop()
+
+	<-started
+	require.Eventually(t, func() bool {
+		return fixture.Server.PubSubNumPat() == 1
+	}, time.Second, 10*time.Millisecond)
+
+	require.NoError(t, realtime.Publish(ctx, userID, SSEEvent{
+		Event: "unread_count",
+		Data:  map[string]int{"count": 0},
+	}))
+
+	select {
+	case event := <-ch:
+		assert.Equal(t, "unread_count", event.Event)
+		data, ok := event.Data.(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, float64(0), data["count"])
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected realtime event")
+	}
+}
+
+func TestRealtimeSubscriberBroadcastsLegacyNotificationPayload(t *testing.T) {
+	t.Parallel()
+
+	fixture := redisfixture.Start(t)
+	hub := NewHub()
+	realtime := NewRealtime(fixture.Client, hub)
+	userID := int64(42)
+
+	ch := hub.Subscribe(userID)
+	defer hub.Unsubscribe(userID, ch)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	started := make(chan struct{})
+	realtime.StartSubscriber(ctx, func(name string, run func(context.Context)) {
+		assert.Equal(t, notificationRealtimeSubscriberName, name)
+		close(started)
+		go run(ctx)
+	})
+	defer realtime.Stop()
+
+	<-started
+	require.Eventually(t, func() bool {
+		return fixture.Server.PubSubNumPat() == 1
+	}, time.Second, 10*time.Millisecond)
+
+	raw := `{"id":"notif-1","userId":42,"type":"reply","title":"新的回复","body":"body","content":"body","sourceModule":"course.review","sourceId":"reply-1","isRead":false,"createdAt":"2026-04-23T09:00:00Z"}`
+	require.NoError(t, fixture.Client.Publish(ctx, notificationRealtimeChannel(userID), raw).Err())
+
+	select {
+	case event := <-ch:
+		assert.Equal(t, "notification", event.Event)
+		data, ok := event.Data.(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "notif-1", data["id"])
+		assert.Equal(t, TypeReply, data["type"])
+		assert.Equal(t, float64(42), data["userId"])
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected legacy realtime event")
+	}
+}
+
+func TestRealtimeSubscriberDropsEnvelopeUserMismatch(t *testing.T) {
+	t.Parallel()
+
+	fixture := redisfixture.Start(t)
+	hub := NewHub()
+	realtime := NewRealtime(fixture.Client, hub)
+	channelUserID := int64(42)
+
+	ch := hub.Subscribe(channelUserID)
+	defer hub.Unsubscribe(channelUserID, ch)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	started := make(chan struct{})
+	realtime.StartSubscriber(ctx, func(name string, run func(context.Context)) {
+		assert.Equal(t, notificationRealtimeSubscriberName, name)
+		close(started)
+		go run(ctx)
+	})
+	defer realtime.Stop()
+
+	<-started
+	require.Eventually(t, func() bool {
+		return fixture.Server.PubSubNumPat() == 1
+	}, time.Second, 10*time.Millisecond)
+
+	mismatch := `{"userId":43,"event":{"event":"notification","data":{"id":"notif-mismatch","userId":43,"type":"reply","title":"新的回复","sourceModule":"course.review","sourceId":"reply-1","isRead":false,"createdAt":"2026-04-23T09:00:00Z"}}}`
+	require.NoError(t, fixture.Client.Publish(ctx, notificationRealtimeChannel(channelUserID), mismatch).Err())
+	valid := `{"userId":42,"event":{"event":"notification","data":{"id":"notif-valid","userId":42,"type":"reply","title":"新的回复","sourceModule":"course.review","sourceId":"reply-2","isRead":false,"createdAt":"2026-04-23T09:00:00Z"}}}`
+	require.NoError(t, fixture.Client.Publish(ctx, notificationRealtimeChannel(channelUserID), valid).Err())
+
+	select {
+	case event := <-ch:
+		assert.Equal(t, "notification", event.Event)
+		data, ok := event.Data.(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "notif-valid", data["id"])
+		assert.Equal(t, float64(42), data["userId"])
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected valid realtime event after mismatched envelope")
+	}
 }
 
 func TestServiceMarkReadBroadcastsNotificationRead(t *testing.T) {
@@ -115,13 +296,13 @@ func TestServiceMarkReadBroadcastsNotificationRead(t *testing.T) {
 	ctx := context.Background()
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)
-	hub := NewHub(redis.NewClient(&redis.Options{Addr: "127.0.0.1:0"}))
-	service := NewService(repo, hub, redis.NewClient(&redis.Options{Addr: "127.0.0.1:0"}))
+	realtime := &recordingRealtimePublisher{}
+	service := NewService(repo, realtime)
 
 	userID := seedNotificationUser(t, fixture, "notif-read-user")
 	notifID, err := repo.Create(ctx, CreateParams{
 		UserID:       userID,
-		Type:         "review_reply",
+		Type:         TypeReply,
 		Title:        "新的回复",
 		Body:         "reply body",
 		SourceModule: "course.review",
@@ -129,22 +310,17 @@ func TestServiceMarkReadBroadcastsNotificationRead(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ch := hub.Subscribe(userID)
-	defer hub.Unsubscribe(userID, ch)
-
 	require.NoError(t, service.MarkRead(ctx, notifID, userID))
 
-	select {
-	case event := <-ch:
-		assert.Equal(t, "notification_read", event.Event)
-		data, ok := event.Data.(map[string]any)
-		require.True(t, ok)
-		assert.Equal(t, notifID, data["id"])
-		assert.Equal(t, userID, data["userId"])
-		assert.Equal(t, true, data["isRead"])
-	case <-time.After(2 * time.Second):
-		t.Fatal("expected notification_read event")
-	}
+	events := realtime.snapshot()
+	require.Len(t, events, 1)
+	assert.Equal(t, userID, events[0].userID)
+	assert.Equal(t, "notification_read", events[0].event.Event)
+	data, ok := events[0].event.Data.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, notifID, data["id"])
+	assert.Equal(t, userID, data["userId"])
+	assert.Equal(t, true, data["isRead"])
 }
 
 func TestServiceMarkReadMissingNotificationIsNoop(t *testing.T) {
@@ -153,20 +329,13 @@ func TestServiceMarkReadMissingNotificationIsNoop(t *testing.T) {
 	ctx := context.Background()
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)
-	hub := NewHub(redis.NewClient(&redis.Options{Addr: "127.0.0.1:0"}))
-	service := NewService(repo, hub, redis.NewClient(&redis.Options{Addr: "127.0.0.1:0"}))
+	realtime := &recordingRealtimePublisher{}
+	service := NewService(repo, realtime)
 
 	userID := seedNotificationUser(t, fixture, "notif-read-missing-user")
-	ch := hub.Subscribe(userID)
-	defer hub.Unsubscribe(userID, ch)
 
 	require.NoError(t, service.MarkRead(ctx, "550e8400-e29b-41d4-a716-446655440999", userID))
-
-	select {
-	case event := <-ch:
-		t.Fatalf("unexpected event for noop mark read: %+v", event)
-	case <-time.After(150 * time.Millisecond):
-	}
+	assert.Empty(t, realtime.snapshot())
 }
 
 func TestServiceMarkAllReadBroadcastsReadAllAndUnreadCount(t *testing.T) {
@@ -175,13 +344,13 @@ func TestServiceMarkAllReadBroadcastsReadAllAndUnreadCount(t *testing.T) {
 	ctx := context.Background()
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)
-	hub := NewHub(redis.NewClient(&redis.Options{Addr: "127.0.0.1:0"}))
-	service := NewService(repo, hub, redis.NewClient(&redis.Options{Addr: "127.0.0.1:0"}))
+	realtime := &recordingRealtimePublisher{}
+	service := NewService(repo, realtime)
 
 	userID := seedNotificationUser(t, fixture, "notif-read-all-user")
 	_, err := repo.Create(ctx, CreateParams{
 		UserID:       userID,
-		Type:         "review_reply",
+		Type:         TypeReply,
 		Title:        "新的回复",
 		Body:         "reply body",
 		SourceModule: "course.review",
@@ -198,31 +367,26 @@ func TestServiceMarkAllReadBroadcastsReadAllAndUnreadCount(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ch := hub.Subscribe(userID)
-	defer hub.Unsubscribe(userID, ch)
-
 	require.NoError(t, service.MarkAllRead(ctx, userID))
 
 	var sawReadAll bool
 	var sawUnreadCount bool
-	for i := 0; i < 2; i++ {
-		select {
-		case event := <-ch:
-			switch event.Event {
-			case "notification_read_all":
-				sawReadAll = true
-				data, ok := event.Data.(map[string]any)
-				require.True(t, ok)
-				assert.Equal(t, userID, data["userId"])
-				assert.Equal(t, true, data["isRead"])
-			case "unread_count":
-				sawUnreadCount = true
-				data, ok := event.Data.(map[string]int)
-				require.True(t, ok)
-				assert.Equal(t, 0, data["count"])
-			}
-		case <-time.After(2 * time.Second):
-			t.Fatal("expected notification_read_all and unread_count events")
+	events := realtime.snapshot()
+	require.Len(t, events, 2)
+	for _, recorded := range events {
+		assert.Equal(t, userID, recorded.userID)
+		switch recorded.event.Event {
+		case "notification_read_all":
+			sawReadAll = true
+			data, ok := recorded.event.Data.(map[string]any)
+			require.True(t, ok)
+			assert.Equal(t, userID, data["userId"])
+			assert.Equal(t, true, data["isRead"])
+		case "unread_count":
+			sawUnreadCount = true
+			data, ok := recorded.event.Data.(map[string]int)
+			require.True(t, ok)
+			assert.Equal(t, 0, data["count"])
 		}
 	}
 

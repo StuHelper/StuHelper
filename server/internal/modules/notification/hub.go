@@ -3,10 +3,8 @@ package notification
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"sync"
 
-	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
@@ -50,13 +48,10 @@ type Notification struct {
 	CreatedAt    string          `json:"createdAt"`
 }
 
-// Hub 管理 SSE 连接和 Redis Pub/Sub
+// Hub 管理本进程 SSE 连接。
 type Hub struct {
-	rdb         *redis.Client
 	mu          sync.RWMutex
 	connections map[int64]*userConnections // userID -> ordered connections
-	stopCh      chan struct{}
-	stopOnce    sync.Once
 }
 
 type userConnections struct {
@@ -78,14 +73,9 @@ const maxConnsPerUser = 5
 const sseBufferSize = 32
 
 // NewHub 创建通知 Hub
-func NewHub(rdb *redis.Client) *Hub {
-	if rdb == nil {
-		panic("notification.NewHub: redis client must not be nil")
-	}
+func NewHub() *Hub {
 	return &Hub{
-		rdb:         rdb,
 		connections: make(map[int64]*userConnections),
-		stopCh:      make(chan struct{}),
 	}
 }
 
@@ -145,71 +135,8 @@ func (h *Hub) Broadcast(userID int64, event SSEEvent) {
 	}
 }
 
-// StartRedisSubscriber 启动 Redis Pub/Sub 订阅。
-// 调用方必须传入 start，以统一托管 goroutine 生命周期。
-func (h *Hub) StartRedisSubscriber(ctx context.Context, start func(string, func(context.Context))) {
-	if h == nil || h.rdb == nil {
-		logger.L().Warn("notification redis subscriber not started: redis client is not configured")
-		return
-	}
-	if start == nil {
-		panic("notification.Hub.StartRedisSubscriber: starter is required")
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	pubsub := h.rdb.PSubscribe(ctx, "notify:*")
-
-	run := func(ctx context.Context) {
-		defer func() {
-			if err := pubsub.Close(); err != nil {
-				logger.L().Warn("failed to close notification pubsub", zap.Error(err))
-			}
-		}()
-		ch := pubsub.Channel()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-h.stopCh:
-				return
-			case msg, ok := <-ch:
-				if !ok {
-					return
-				}
-				var userID int64
-				if _, err := fmt.Sscanf(msg.Channel, "notify:%d", &userID); err != nil {
-					continue
-				}
-				payload, err := decodeNotificationPubSubPayload(msg.Payload)
-				if err != nil {
-					logger.L().Warn("failed to decode notification pubsub payload",
-						zap.Int64("user_id", userID),
-						zap.Error(err),
-					)
-					continue
-				}
-				h.Broadcast(userID, SSEEvent{
-					Event: "notification",
-					Data:  payload,
-				})
-			}
-		}
-	}
-
-	start("notification redis subscriber", run)
-}
-
 // Stop 停止 Hub
 func (h *Hub) Stop() {
-	if h == nil {
-		return
-	}
-	h.stopOnce.Do(func() {
-		if h.stopCh != nil {
-			close(h.stopCh)
-		}
-	})
 }
 
 func (u *userConnections) remove(ch chan SSEEvent) bool {
@@ -221,12 +148,4 @@ func (u *userConnections) remove(ch chan SSEEvent) bool {
 		return true
 	}
 	return false
-}
-
-func decodeNotificationPubSubPayload(raw string) (any, error) {
-	var payload map[string]any
-	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
-		return nil, err
-	}
-	return payload, nil
 }

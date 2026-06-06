@@ -2,13 +2,11 @@ package notification
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
@@ -23,25 +21,21 @@ var (
 
 // Service 通知服务
 type Service struct {
-	repo *Repository
-	hub  *Hub
-	rdb  *redis.Client
+	repo     *Repository
+	realtime RealtimePublisher
 }
 
 var _ Sender = (*Service)(nil)
 
 // NewService 创建通知服务
-func NewService(repo *Repository, hub *Hub, rdb *redis.Client) *Service {
+func NewService(repo *Repository, realtime RealtimePublisher) *Service {
 	if repo == nil {
 		panic("notification.NewService: repo must not be nil")
 	}
-	if hub == nil {
-		panic("notification.NewService: hub must not be nil")
+	if realtime == nil {
+		panic("notification.NewService: realtime must not be nil")
 	}
-	if rdb == nil {
-		panic("notification.NewService: rdb must not be nil")
-	}
-	return &Service{repo: repo, hub: hub, rdb: rdb}
+	return &Service{repo: repo, realtime: realtime}
 }
 
 // Send 发送通知（实现 Sender 接口）
@@ -68,8 +62,10 @@ func (s *Service) Send(ctx context.Context, params SendParams) error {
 		return fmt.Errorf("notification send: %w", err)
 	}
 
-	// 通过 Redis Pub/Sub 广播给 SSE 连接
-	s.publishToRedis(ctx, params.UserID, notifID, params)
+	s.publishRealtime(ctx, params.UserID, SSEEvent{
+		Event: "notification",
+		Data:  buildRealtimeNotificationPayload(notifID, params, time.Now().UTC()),
+	})
 
 	return nil
 }
@@ -130,7 +126,7 @@ func (s *Service) MarkRead(ctx context.Context, notifID string, userID int64) er
 		return nil
 	}
 
-	s.hub.Broadcast(userID, SSEEvent{
+	s.publishRealtime(ctx, userID, SSEEvent{
 		Event: "notification_read",
 		Data: map[string]any{
 			"id":     notifID,
@@ -151,7 +147,7 @@ func (s *Service) MarkAllRead(ctx context.Context, userID int64) error {
 		return err
 	}
 
-	s.hub.Broadcast(userID, SSEEvent{
+	s.publishRealtime(ctx, userID, SSEEvent{
 		Event: "notification_read_all",
 		Data: map[string]any{
 			"userId": userID,
@@ -160,7 +156,7 @@ func (s *Service) MarkAllRead(ctx context.Context, userID int64) error {
 	})
 
 	// 推送未读数更新
-	s.hub.Broadcast(userID, SSEEvent{
+	s.publishRealtime(ctx, userID, SSEEvent{
 		Event: "unread_count",
 		Data:  map[string]int{"count": 0},
 	})
@@ -175,19 +171,11 @@ func validateNotificationUserID(userID int64) error {
 	return nil
 }
 
-// publishToRedis 通过 Redis Pub/Sub 广播通知
-func (s *Service) publishToRedis(ctx context.Context, userID int64, notifID string, params SendParams) {
-	payload := buildRealtimeNotificationPayload(notifID, params, time.Now().UTC())
-	data, err := json.Marshal(payload)
-	if err != nil {
-		logger.L().Warn("failed to marshal notification payload", zap.Error(err))
-		return
-	}
-
-	channel := fmt.Sprintf("notify:%d", userID)
-	if err := s.rdb.Publish(ctx, channel, data).Err(); err != nil {
-		logger.L().Warn("failed to publish notification",
+func (s *Service) publishRealtime(ctx context.Context, userID int64, event SSEEvent) {
+	if err := s.realtime.Publish(ctx, userID, event); err != nil {
+		logger.L().Warn("failed to publish notification realtime event",
 			zap.Int64("user_id", userID),
+			zap.String("event", event.Event),
 			zap.Error(err),
 		)
 	}

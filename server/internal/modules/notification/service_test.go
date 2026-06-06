@@ -2,22 +2,31 @@ package notification
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 )
 
+type stubRealtimePublisher struct {
+	err error
+}
+
+func (p stubRealtimePublisher) Publish(context.Context, int64, SSEEvent) error {
+	if p.err != nil {
+		return p.err
+	}
+	return nil
+}
+
 func TestNewServicePanicsOnNilDependencies(t *testing.T) {
 	tests := []struct {
-		name string
-		repo *Repository
-		hub  *Hub
-		rdb  *redis.Client
+		name     string
+		repo     *Repository
+		realtime RealtimePublisher
 	}{
-		{name: "nil repo", hub: &Hub{}, rdb: redis.NewClient(&redis.Options{Addr: "127.0.0.1:0"})},
-		{name: "nil hub", repo: &Repository{}, rdb: redis.NewClient(&redis.Options{Addr: "127.0.0.1:0"})},
-		{name: "nil redis", repo: &Repository{}, hub: &Hub{}},
+		{name: "nil repo", realtime: stubRealtimePublisher{}},
+		{name: "nil realtime", repo: &Repository{}},
 	}
 
 	for _, tt := range tests {
@@ -27,7 +36,7 @@ func TestNewServicePanicsOnNilDependencies(t *testing.T) {
 					t.Fatalf("expected panic")
 				}
 			}()
-			_ = NewService(tt.repo, tt.hub, tt.rdb)
+			_ = NewService(tt.repo, tt.realtime)
 		})
 	}
 }
@@ -36,8 +45,7 @@ func TestServiceRejectsInvalidUserIDBeforeDependencies(t *testing.T) {
 	ctx := context.Background()
 	service := NewService(
 		&Repository{},
-		&Hub{},
-		redis.NewClient(&redis.Options{Addr: "127.0.0.1:0"}),
+		stubRealtimePublisher{},
 	)
 
 	err := service.Send(ctx, SendParams{
@@ -65,8 +73,7 @@ func TestServiceSendBatchReturnsInvalidUserID(t *testing.T) {
 	ctx := context.Background()
 	service := NewService(
 		&Repository{},
-		&Hub{},
-		redis.NewClient(&redis.Options{Addr: "127.0.0.1:0"}),
+		stubRealtimePublisher{},
 	)
 
 	err := service.SendBatch(ctx, []SendParams{{
@@ -77,4 +84,17 @@ func TestServiceSendBatchReturnsInvalidUserID(t *testing.T) {
 	}})
 
 	assert.ErrorIs(t, err, ErrInvalidUserID)
+}
+
+func TestServicePublishRealtimeSwallowsPublisherError(t *testing.T) {
+	t.Parallel()
+
+	service := NewService(
+		&Repository{},
+		stubRealtimePublisher{err: fmt.Errorf("redis unavailable")},
+	)
+
+	assert.NotPanics(t, func() {
+		service.publishRealtime(context.Background(), 1, SSEEvent{Event: "unread_count"})
+	})
 }
