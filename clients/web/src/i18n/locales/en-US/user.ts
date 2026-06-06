@@ -370,6 +370,10 @@ export default {
             regenerateCode: "Regenerate Binding Code",
             creating: "Creating...",
             codeCreated: "Binding code created",
+            refreshStatus: "Refresh Status",
+            checkingStatus: "Checking...",
+            statusUpdated: "QQ binding status updated",
+            notYetBound: "No QQ binding result detected yet",
             alreadyBound: "This account is already bound to a QQ number",
             instruction:
                 "Send the following command to the bot in a private chat",

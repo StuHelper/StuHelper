@@ -777,6 +777,22 @@ test.describe("User verification flows", () => {
             page.getByText("请私聊机器人并发送下面这条命令"),
         ).toBeVisible();
         await expect(page.getByText("绑定 QQ-CODE-1")).toBeVisible();
+        await expect(
+            page.getByRole("button", { name: "刷新状态" }),
+        ).toBeVisible();
+
+        state.qqBinding = {
+            userID: 12,
+            qqID: "10001",
+            boundAt: now,
+            createdAt: now,
+            updatedAt: now,
+        };
+        await page.getByRole("button", { name: "刷新状态" }).click();
+        await expect(
+            page.getByRole("heading", { name: "已绑定" }),
+        ).toBeVisible();
+        await expect(page.getByText("10001")).toBeVisible();
 
         await page.goto("/user/academic-info");
         await expect(page.getByText("20260001")).toBeVisible();

@@ -91,22 +91,36 @@
         <p class="text-xs text-text-muted m-0 mt-3">
           {{ t('user.verification.qq.expiresAt') }}：{{ formatTime(qqBindingCode.expiresAt) }}
         </p>
+        <button
+          type="button"
+          class="mt-4 inline-flex items-center gap-2 rounded-lg border border-border bg-bg-card px-3 py-2 text-sm font-medium text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="checking"
+          @click="onRefreshStatus"
+        >
+          <RefreshCw class="size-4" :class="{ 'animate-spin': checking }" aria-hidden="true" />
+          {{
+            checking
+              ? t('user.verification.qq.checkingStatus')
+              : t('user.verification.qq.refreshStatus')
+          }}
+        </button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Bot } from 'lucide-vue-next'
+import { ArrowLeft, Bot, RefreshCw } from 'lucide-vue-next'
 
 import { getErrorStatus } from '@/api/errors'
 import { useToast } from '@/composables/useToast'
 import { useVerificationStore } from '@/stores/verification'
 
 const DEFAULT_QQ_BIND_COMMAND = '绑定'
+const QQ_BINDING_STATUS_POLL_INTERVAL_MS = 3000
 
 const { t } = useI18n()
 const router = useRouter()
@@ -114,6 +128,8 @@ const toast = useToast()
 const verificationStore = useVerificationStore()
 
 const creating = ref(false)
+const checking = ref(false)
+let statusPollTimer: ReturnType<typeof setInterval> | null = null
 
 const qqBinding = computed(() => verificationStore.qqBinding)
 const qqBindingCode = computed(() => verificationStore.qqBindingCode)
@@ -143,9 +159,11 @@ async function onCreateCode() {
   creating.value = true
   try {
     await verificationStore.createQQBindingCode()
+    startStatusPolling()
     toast.success(t('user.verification.qq.codeCreated'))
   } catch (error) {
     if (getErrorStatus(error) === 409) {
+      stopStatusPolling()
       await verificationStore.fetchQQBinding()
       toast.error(t('user.verification.qq.alreadyBound'))
       return
@@ -153,6 +171,48 @@ async function onCreateCode() {
     toast.error(t('common.actions.operationFailed'))
   } finally {
     creating.value = false
+  }
+}
+
+async function refreshQQBindingStatus(options: { silent?: boolean } = {}) {
+  if (checking.value) {
+    return
+  }
+  checking.value = true
+  try {
+    const binding = await verificationStore.fetchQQBinding()
+    if (binding) {
+      stopStatusPolling()
+      toast.success(t('user.verification.qq.statusUpdated'))
+      return
+    }
+    if (!options.silent) {
+      toast.info(t('user.verification.qq.notYetBound'))
+    }
+  } catch {
+    if (!options.silent) {
+      toast.error(t('common.loadFailed'))
+    }
+  } finally {
+    checking.value = false
+  }
+}
+
+function onRefreshStatus() {
+  void refreshQQBindingStatus()
+}
+
+function startStatusPolling() {
+  stopStatusPolling()
+  statusPollTimer = setInterval(() => {
+    void refreshQQBindingStatus({ silent: true })
+  }, QQ_BINDING_STATUS_POLL_INTERVAL_MS)
+}
+
+function stopStatusPolling() {
+  if (statusPollTimer) {
+    clearInterval(statusPollTimer)
+    statusPollTimer = null
   }
 }
 
@@ -171,5 +231,9 @@ onMounted(() => {
   void verificationStore.fetchStatus().catch(() => {
     toast.error(t('common.loadFailed'))
   })
+})
+
+onUnmounted(() => {
+  stopStatusPolling()
 })
 </script>
