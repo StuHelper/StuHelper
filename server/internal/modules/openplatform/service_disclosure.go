@@ -66,6 +66,11 @@ func (s *Service) UserInfoForIdentityToken(ctx context.Context, clientID string,
 		metrics.ObserveOpenPlatformDisclosure(endpoint, "app_not_found")
 		return nil, err
 	}
+	normalizedSubject, err := normalizeRequiredIdentitySubject(subject)
+	if err != nil {
+		metrics.ObserveOpenPlatformDisclosure(endpoint, "unavailable")
+		return nil, err
+	}
 	app, err := s.repo.GetAppByClientID(ctx, normalizedClientID)
 	if err != nil {
 		metrics.ObserveOpenPlatformDisclosure(endpoint, "app_not_found")
@@ -143,8 +148,16 @@ func (s *Service) UserInfoForIdentityToken(ctx context.Context, clientID string,
 	}, disclosureScopes); err != nil {
 		return nil, err
 	}
-	payload["sub"] = strings.TrimSpace(subject)
+	payload["sub"] = normalizedSubject
 	return payload, nil
+}
+
+func normalizeRequiredIdentitySubject(subject string) (string, error) {
+	subject = strings.TrimSpace(subject)
+	if subject == "" {
+		return "", ErrDisclosureUnavailable
+	}
+	return subject, nil
 }
 
 func (s *Service) IdentityAccessTokenActive(ctx context.Context, clientID string, userID int64, scopes []string) (bool, error) {

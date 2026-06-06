@@ -79,6 +79,15 @@ func TestIdentityTokenActivityRejectsBlankClientIDBeforeRepository(t *testing.T)
 	assert.Empty(t, fingerprint)
 }
 
+func TestUserInfoForIdentityTokenRejectsBlankSubjectBeforeRepository(t *testing.T) {
+	ctx := context.Background()
+	service := &Service{}
+
+	payload, err := service.UserInfoForIdentityToken(ctx, "client-id", 42, " \t\n ", []string{"openid"})
+	require.ErrorIs(t, err, ErrDisclosureUnavailable)
+	assert.Nil(t, payload)
+}
+
 func TestIdentityTokenActivityRejectsInvalidUserBeforeRepository(t *testing.T) {
 	ctx := context.Background()
 	service := &Service{}
