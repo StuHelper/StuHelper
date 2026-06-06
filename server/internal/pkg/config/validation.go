@@ -198,6 +198,9 @@ func (c *Config) validate(parseErrs []string) error {
 		if len(c.App.TrustedProxies) == 0 {
 			errs = append(errs, "TRUSTED_PROXIES is required in production for secure IP detection")
 		}
+		if configStringMissing(c.App.MetricsUser) {
+			errs = append(errs, "METRICS_USER is required in production")
+		}
 		if configStringMissing(c.App.MetricsPassword) {
 			errs = append(errs, "METRICS_PASSWORD is required in production")
 		}

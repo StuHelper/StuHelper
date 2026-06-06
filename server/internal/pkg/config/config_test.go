@@ -144,6 +144,7 @@ func TestValidate_ProductionRequiresObservability(t *testing.T) {
 			HMACSecret:      "0123456789abcdef0123456789abcdef",
 			CORSOrigins:     []string{"https://stuhelper.example.com"},
 			TrustedProxies:  []string{"10.0.0.0/8"},
+			MetricsUser:     "prometheus",
 			MetricsPassword: "metrics-password",
 			APIIPRateLimit:  100,
 			APIGlobalLimit:  10000,
@@ -204,6 +205,7 @@ func TestValidate_ProductionRequiresObservability(t *testing.T) {
 func TestValidate_ProductionRejectsBlankCoreRequiredConfig(t *testing.T) {
 	c := validProductionConfigForTest()
 	c.App.HMACSecret = "  "
+	c.App.MetricsUser = "  "
 	c.App.MetricsPassword = "  "
 	c.Database.URL = "  "
 	c.Database.SSLRootCert = "  "
@@ -222,6 +224,7 @@ func TestValidate_ProductionRejectsBlankCoreRequiredConfig(t *testing.T) {
 	for _, message := range []string{
 		"HMAC_SECRET is required in production",
 		"DATABASE_URL is required in production",
+		"METRICS_USER is required in production",
 		"METRICS_PASSWORD is required in production",
 		"REDIS_PASSWORD is required in production",
 		"OBJECT_STORAGE_ENDPOINT is required in production",
@@ -1245,6 +1248,7 @@ func validProductionConfigForTest() *Config {
 			HMACSecret:      "0123456789abcdef0123456789abcdef",
 			CORSOrigins:     []string{"https://stuhelper.example.com"},
 			TrustedProxies:  []string{"10.0.0.0/8"},
+			MetricsUser:     "prometheus",
 			MetricsPassword: "metrics-password",
 			APIIPRateLimit:  100,
 			APIGlobalLimit:  10000,

@@ -57,3 +57,29 @@ func TestRegisterPlatformRoutes_RejectsBlankMetricsPasswordInProduction(t *testi
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "METRICS_PASSWORD")
 }
+
+func TestRegisterPlatformRoutes_RejectsBlankMetricsUserInProduction(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rt := &Runtime{
+		cfg: &config.Config{
+			App: config.AppConfig{
+				Env:                "production",
+				CORSOrigins:        []string{"https://stuhelper.example.com"},
+				MetricsUser:        "  ",
+				MetricsPassword:    "metrics-password",
+				HealthCheckTimeout: 3,
+			},
+			Observability: config.ObservabilityConfig{
+				ServiceName: "stuhelper-test",
+			},
+		},
+		isProduction: true,
+		redisClient:  &redisclient.Client{},
+	}
+
+	err := rt.registerPlatformRoutes(gin.New())
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "METRICS_USER")
+}
