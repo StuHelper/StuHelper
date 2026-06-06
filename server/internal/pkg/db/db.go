@@ -240,13 +240,29 @@ func (r *RowsWithCancel) Values() ([]any, error) { return r.rows.Values() }
 func (r *RowsWithCancel) RawValues() [][]byte    { return r.rows.RawValues() }
 func (r *RowsWithCancel) Conn() *pgx.Conn        { return r.rows.Conn() }
 func (r *RowsWithCancel) Close() {
-	r.rows.Close()
-	r.cancel()
-	if r.span != nil {
-		if err := r.rows.Err(); err != nil {
-			recordSpanError(r.span, err)
+	if r == nil {
+		return
+	}
+	rows := r.rows
+	cancel := r.cancel
+	span := r.span
+	r.rows = nil
+	r.cancel = nil
+	r.span = nil
+
+	if rows != nil {
+		rows.Close()
+	}
+	if cancel != nil {
+		cancel()
+	}
+	if span != nil {
+		if rows != nil {
+			if err := rows.Err(); err != nil {
+				recordSpanError(span, err)
+			}
 		}
-		r.span.End()
+		span.End()
 	}
 }
 

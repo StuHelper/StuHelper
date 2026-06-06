@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +20,11 @@ type fakeRow struct {
 	scan func(dest ...any) error
 }
 
+type fakeRows struct {
+	closeCount int
+	err        error
+}
+
 func nilContextForTest() context.Context {
 	return nil
 }
@@ -25,6 +32,16 @@ func nilContextForTest() context.Context {
 func (f fakeRow) Scan(dest ...any) error {
 	return f.scan(dest...)
 }
+
+func (f *fakeRows) Close()                                       { f.closeCount++ }
+func (f *fakeRows) Next() bool                                   { return false }
+func (f *fakeRows) Scan(...any) error                            { return nil }
+func (f *fakeRows) Err() error                                   { return f.err }
+func (f *fakeRows) CommandTag() pgconn.CommandTag                { return pgconn.CommandTag{} }
+func (f *fakeRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
+func (f *fakeRows) Values() ([]any, error)                       { return nil, nil }
+func (f *fakeRows) RawValues() [][]byte                          { return nil }
+func (f *fakeRows) Conn() *pgx.Conn                              { return nil }
 
 func TestRowWithCancelScan_ReleasesRetainedReferences(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -107,6 +124,37 @@ func TestDBCloseIsNilAndZeroValueSafe(t *testing.T) {
 		zeroDB.Close()
 		zeroDB.Close()
 	})
+}
+
+func TestRowsWithCancelCloseIsNilZeroValueAndRepeatSafe(t *testing.T) {
+	var nilRows *RowsWithCancel
+	assert.NotPanics(t, func() {
+		nilRows.Close()
+	})
+
+	zeroRows := &RowsWithCancel{}
+	assert.NotPanics(t, func() {
+		zeroRows.Close()
+		zeroRows.Close()
+	})
+
+	rows := &fakeRows{}
+	cancelCount := 0
+	wrapped := &RowsWithCancel{
+		rows: rows,
+		cancel: func() {
+			cancelCount++
+		},
+	}
+	assert.NotPanics(t, func() {
+		wrapped.Close()
+		wrapped.Close()
+	})
+	assert.Equal(t, 1, rows.closeCount)
+	assert.Equal(t, 1, cancelCount)
+	assert.Nil(t, wrapped.rows)
+	assert.Nil(t, wrapped.cancel)
+	assert.Nil(t, wrapped.span)
 }
 
 func TestRowWithCancelScan_RecordsTableHintMetrics(t *testing.T) {
