@@ -16,7 +16,7 @@ func TestRegisterRoutes_UsesOpenAPIAcademicsPaths(t *testing.T) {
 	api := r.Group("/api/v1")
 	noOp := func(c *gin.Context) { c.Next() }
 
-	h := &Handler{}
+	h := NewHandler(&Service{})
 	h.RegisterRoutes(api, noOp)
 
 	routes := r.Routes()

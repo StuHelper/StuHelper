@@ -19,6 +19,9 @@ type Handler struct {
 }
 
 func NewHandler(service *Service) *Handler {
+	if service == nil {
+		panic("resource.NewHandler: service must not be nil")
+	}
 	return &Handler{service: service}
 }
 
