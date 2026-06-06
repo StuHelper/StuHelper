@@ -9,8 +9,11 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-const admissionBotActionOutboxTable = "admission_bot_action_outbox"
-const botActionDispatchRetryAfter = 30 * time.Second
+const (
+	admissionBotActionOutboxTable = "admission_bot_action_outbox"
+	admissionBotActionMaxAttempts = 5
+	botActionDispatchRetryAfter   = 30 * time.Second
+)
 
 func (r *Repository) QueueBotActionTx(
 	ctx context.Context,
@@ -79,7 +82,16 @@ func (r *Repository) ClaimDueBotActions(
 	ctx = withDBTable(ctx, admissionBotActionOutboxTable)
 	var rows []AdmissionBotActionOutboxRow
 	err := r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		claimed, err := tx.Query(ctx, claimDueBotActionsSQL(), filter.Platform, filter.BotSelfID, now, filter.Limit, now.Add(botActionDispatchRetryAfter))
+		claimed, err := tx.Query(
+			ctx,
+			claimDueBotActionsSQL(),
+			filter.Platform,
+			filter.BotSelfID,
+			now,
+			filter.Limit,
+			now.Add(botActionDispatchRetryAfter),
+			admissionBotActionMaxAttempts,
+		)
 		if err != nil {
 			return fmt.Errorf("ClaimDueBotActions query: %w", err)
 		}
@@ -95,7 +107,23 @@ func (r *Repository) ClaimDueBotActions(
 
 func claimDueBotActionsSQL() string {
 	return `
-		WITH candidates AS (
+		WITH terminal AS (
+			UPDATE admission_bot_action_outbox
+			SET status = 'dead_letter',
+			    last_error = CASE
+			      WHEN status = 'dispatched' THEN 'bot action dispatch timed out'
+			      ELSE COALESCE(last_error, 'bot action exceeded max attempts')
+			    END,
+			    updated_at = $3
+			WHERE platform = $1
+			  AND bot_self_id = $2
+			  AND scheduled_at <= $3
+			  AND next_attempt_at <= $3
+			  AND status IN ('pending', 'failed', 'dispatched')
+			  AND attempt_count >= $6
+			RETURNING id
+		),
+		candidates AS (
 			SELECT id
 			FROM admission_bot_action_outbox
 			WHERE platform = $1
@@ -103,6 +131,7 @@ func claimDueBotActionsSQL() string {
 			  AND scheduled_at <= $3
 			  AND next_attempt_at <= $3
 			  AND status IN ('pending', 'failed', 'dispatched')
+			  AND attempt_count < $6
 			ORDER BY scheduled_at ASC, id ASC
 			LIMIT $4
 			FOR UPDATE SKIP LOCKED
@@ -175,12 +204,12 @@ func (r *Repository) MarkBotActionFailedTx(
 	errMsg := normalizeBotEventError(event)
 	_, err := tx.Exec(ctx, `
 		UPDATE admission_bot_action_outbox
-		SET status = CASE WHEN attempt_count >= 5 THEN 'dead_letter' ELSE 'failed' END,
+		SET status = CASE WHEN attempt_count >= $5 THEN 'dead_letter' ELSE 'failed' END,
 		    last_error = $2,
 		    next_attempt_at = $3,
 		    updated_at = $4
 		WHERE id = $1
-	`, actionID, errMsg, now.Add(botActionRetryBackoff(attemptCount)), now)
+	`, actionID, errMsg, now.Add(botActionRetryBackoff(attemptCount)), now, admissionBotActionMaxAttempts)
 	if err != nil {
 		return fmt.Errorf("MarkBotActionFailedTx: %w", err)
 	}

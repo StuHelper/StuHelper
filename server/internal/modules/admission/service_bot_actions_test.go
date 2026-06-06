@@ -187,6 +187,54 @@ func TestQueuedAdmissionActionReleaseAckCompletesSession(t *testing.T) {
 	assert.Equal(t, "release-msg-1", messageID)
 }
 
+func TestQueuedAdmissionActionDeadLettersTimedOutDispatchAfterMaxAttempts(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createBotLinkedSessionForPendingActions(t, svc, fixture, "linked-queued-release-timeout")
+
+	_, err := svc.MarkVerified(context.Background(), created.Session.ID)
+	require.NoError(t, err)
+
+	actions, err := svc.ClaimQueuedAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
+	require.NoError(t, err)
+	require.Len(t, actions, 1)
+	require.NotEmpty(t, actions[0].ActionID)
+	actionID := actions[0].ActionID
+
+	_, err = fixture.Pool.Exec(context.Background(), `
+		UPDATE admission_bot_action_outbox
+		SET attempt_count = $2,
+		    next_attempt_at = $3,
+		    updated_at = $3
+		WHERE id = $1::bigint
+	`, actionID, admissionBotActionMaxAttempts, fixedAdmissionNow().Add(-time.Second))
+	require.NoError(t, err)
+
+	actions, err = svc.ClaimQueuedAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
+	require.NoError(t, err)
+	assert.Empty(t, actions)
+
+	var status string
+	var attemptCount int
+	var lastError string
+	err = fixture.Pool.QueryRow(context.Background(), `
+		SELECT status, attempt_count, COALESCE(last_error, '')
+		FROM admission_bot_action_outbox
+		WHERE id = $1::bigint
+	`, actionID).Scan(&status, &attemptCount, &lastError)
+	require.NoError(t, err)
+	assert.Equal(t, "dead_letter", status)
+	assert.Equal(t, admissionBotActionMaxAttempts, attemptCount)
+	assert.Equal(t, "bot action dispatch timed out", lastError)
+}
+
 func TestQueuedAdmissionActionSkipsStaleKickAfterLink(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)
