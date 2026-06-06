@@ -429,7 +429,11 @@ func (s *Service) reviewRedirectURIRequest(
 	if app.Status != AppStatusApproved && app.Status != AppStatusSuspended {
 		return RedirectURIRequest{}, ErrInvalidAppStatus
 	}
-	return s.repo.ReviewRedirectURIRequestWithAudit(
+	rollback, err := s.ensureCasdoorApplicationRedirectURIsForReview(ctx, app, input.RedirectURIRequestID, status)
+	if err != nil {
+		return RedirectURIRequest{}, err
+	}
+	reviewed, err := s.repo.ReviewRedirectURIRequestWithAudit(
 		ctx,
 		input.AppID,
 		input.RedirectURIRequestID,
@@ -439,6 +443,13 @@ func (s *Service) reviewRedirectURIRequest(
 		eventType,
 		input.RequestID,
 	)
+	if err != nil {
+		if rollbackErr := s.rollbackCasdoorApplicationRedirectURIs(ctx, rollback); rollbackErr != nil {
+			return RedirectURIRequest{}, errors.Join(err, rollbackErr)
+		}
+		return RedirectURIRequest{}, err
+	}
+	return reviewed, nil
 }
 
 func (s *Service) SuspendApp(ctx context.Context, input AppLifecycleActionInput) (*AppLifecycleResult, error) {
@@ -583,7 +594,7 @@ func (s *Service) deleteCasdoorApplicationForRevokedApp(ctx context.Context, nam
 	return true, nil
 }
 
-type casdoorApplicationSecretRollback struct {
+type casdoorApplicationSpecRollback struct {
 	spec ProvisionedApplicationSpec
 	ok   bool
 }
@@ -592,31 +603,81 @@ func (s *Service) ensureCasdoorApplicationSecretForRotation(
 	ctx context.Context,
 	app *App,
 	clientSecret string,
-) (casdoorApplicationSecretRollback, error) {
+) (casdoorApplicationSpecRollback, error) {
 	if s.provisioner == nil {
-		return casdoorApplicationSecretRollback{}, nil
+		return casdoorApplicationSpecRollback{}, nil
 	}
 	name := strings.TrimSpace(app.CasdoorApplicationName)
 	if name == "" {
-		return casdoorApplicationSecretRollback{}, nil
+		return casdoorApplicationSpecRollback{}, nil
 	}
 	previous, err := s.provisioner.GetApplication(ctx, name)
 	if err != nil {
-		return casdoorApplicationSecretRollback{}, fmt.Errorf("read Casdoor application before open platform secret rotation: %w", err)
+		return casdoorApplicationSpecRollback{}, fmt.Errorf("read Casdoor application before open platform secret rotation: %w", err)
 	}
 	if strings.TrimSpace(previous.ClientSecret) == "" {
-		return casdoorApplicationSecretRollback{}, fmt.Errorf("read Casdoor application before open platform secret rotation: client secret unavailable")
+		return casdoorApplicationSpecRollback{}, fmt.Errorf("read Casdoor application before open platform secret rotation: client secret unavailable")
 	}
 	desired := casdoorApplicationSpecForApp(app, clientSecret)
 	if err := s.provisioner.EnsureApplication(ctx, desired); err != nil {
-		return casdoorApplicationSecretRollback{}, fmt.Errorf("rotate Casdoor application secret before local update: %w", err)
+		return casdoorApplicationSpecRollback{}, fmt.Errorf("rotate Casdoor application secret before local update: %w", err)
 	}
-	return casdoorApplicationSecretRollback{spec: previous, ok: true}, nil
+	return casdoorApplicationSpecRollback{spec: previous, ok: true}, nil
+}
+
+func (s *Service) ensureCasdoorApplicationRedirectURIsForReview(
+	ctx context.Context,
+	app *App,
+	redirectURIRequestID int64,
+	status string,
+) (casdoorApplicationSpecRollback, error) {
+	if status != ScopeStatusApproved || s.provisioner == nil {
+		return casdoorApplicationSpecRollback{}, nil
+	}
+	name := strings.TrimSpace(app.CasdoorApplicationName)
+	if name == "" {
+		return casdoorApplicationSpecRollback{}, nil
+	}
+	request, err := s.repo.GetRedirectURIRequest(ctx, app.ID, redirectURIRequestID)
+	if err != nil {
+		return casdoorApplicationSpecRollback{}, err
+	}
+	if request.Status != ScopeStatusPending {
+		return casdoorApplicationSpecRollback{}, ErrRedirectURIRequestNotFound
+	}
+	previous, err := s.provisioner.GetApplication(ctx, name)
+	if err != nil {
+		return casdoorApplicationSpecRollback{}, fmt.Errorf("read Casdoor application before redirect URI approval: %w", err)
+	}
+	if strings.TrimSpace(previous.ClientSecret) == "" {
+		return casdoorApplicationSpecRollback{}, fmt.Errorf("read Casdoor application before redirect URI approval: client secret unavailable")
+	}
+	desired := previous
+	desired.RedirectURIs = append([]string(nil), request.RedirectURIs...)
+	if err := s.provisioner.EnsureApplication(ctx, desired); err != nil {
+		return casdoorApplicationSpecRollback{}, fmt.Errorf("sync Casdoor redirect URIs before local approval: %w", err)
+	}
+	return casdoorApplicationSpecRollback{spec: previous, ok: true}, nil
 }
 
 func (s *Service) rollbackCasdoorApplicationSecretRotation(
 	ctx context.Context,
-	rollback casdoorApplicationSecretRollback,
+	rollback casdoorApplicationSpecRollback,
+) error {
+	return s.rollbackCasdoorApplicationSpec(ctx, rollback, "rollback Casdoor application secret after local rotation failure")
+}
+
+func (s *Service) rollbackCasdoorApplicationRedirectURIs(
+	ctx context.Context,
+	rollback casdoorApplicationSpecRollback,
+) error {
+	return s.rollbackCasdoorApplicationSpec(ctx, rollback, "rollback Casdoor redirect URIs after local approval failure")
+}
+
+func (s *Service) rollbackCasdoorApplicationSpec(
+	ctx context.Context,
+	rollback casdoorApplicationSpecRollback,
+	message string,
 ) error {
 	if !rollback.ok || s.provisioner == nil {
 		return nil
@@ -624,7 +685,7 @@ func (s *Service) rollbackCasdoorApplicationSecretRotation(
 	cleanupCtx, cancel := casdoorApplicationCleanupContext(ctx)
 	defer cancel()
 	if err := s.provisioner.EnsureApplication(cleanupCtx, rollback.spec); err != nil {
-		return fmt.Errorf("rollback Casdoor application secret after local rotation failure: %w", err)
+		return fmt.Errorf("%s: %w", message, err)
 	}
 	return nil
 }

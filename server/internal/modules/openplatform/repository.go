@@ -703,6 +703,16 @@ func (r *Repository) ReviewRedirectURIRequestWithAudit(
 	return reviewed, nil
 }
 
+func (r *Repository) GetRedirectURIRequest(ctx context.Context, appID int64, redirectURIRequestID int64) (RedirectURIRequest, error) {
+	return scanRedirectURIRequest(r.db.QueryRow(ctx, `
+		SELECT id, app_id, redirect_uris, reason, status, reviewer_user_id,
+		       reviewed_at, decision_note, created_at, updated_at
+		FROM open_platform_redirect_uri_requests
+		WHERE app_id = $1
+		  AND id = $2
+	`, appID, redirectURIRequestID))
+}
+
 func (r *Repository) WithdrawRedirectURIRequestWithAudit(
 	ctx context.Context,
 	appID int64,

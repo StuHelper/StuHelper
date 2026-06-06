@@ -3716,6 +3716,180 @@ func TestOpenPlatformRedirectURIChangeReview(t *testing.T) {
 	require.ErrorIs(t, err, ErrRedirectURIRequestNotFound)
 }
 
+func TestApproveRedirectURIRequestSyncsCasdoorApplication(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	provisioner := &fakeOpenPlatformAppProvisioner{}
+	service, err := NewService(repo, redis.Client, WithAppProvisioner(provisioner))
+	require.NoError(t, err)
+
+	fixture := setupApprovedCasdoorRedirectApp(t, ctx, postgres, service, "casdoor-sync")
+	registered := fixture.registered
+	newRedirectURIs := []string{"https://new-redirect-casdoor.example.com/callback"}
+	requested, err := service.RequestRedirectURIChange(ctx, RedirectURIChangeInput{
+		AppID:        registered.App.ID,
+		OwnerUserID:  fixture.ownerID,
+		RedirectURIs: newRedirectURIs,
+		Reason:       "move callback host",
+		RequestID:    "redirect-sync-request",
+	})
+	require.NoError(t, err)
+
+	reviewed, err := service.ApproveRedirectURIRequest(ctx, RedirectURIReviewInput{
+		AppID:                registered.App.ID,
+		RedirectURIRequestID: requested.ID,
+		ReviewerUserID:       fixture.adminID,
+		DecisionNote:         "domain verified",
+		RequestID:            "redirect-sync-approve",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, ScopeStatusApproved, reviewed.Status)
+	require.Len(t, provisioner.ensuredSpecs, 2)
+	redirectSpec := provisioner.ensuredSpecs[1]
+	assert.Equal(t, registered.App.CasdoorApplicationName, redirectSpec.Name)
+	assert.Equal(t, newRedirectURIs, redirectSpec.RedirectURIs)
+	assert.NotEmpty(t, redirectSpec.ClientSecret)
+	app, err := repo.GetAppByID(ctx, registered.App.ID)
+	require.NoError(t, err)
+	assert.Equal(t, newRedirectURIs, app.RedirectURIs)
+	assertOpenPlatformAuditCount(t, postgres, registered.App.ID, fixture.adminID, "open_platform.app.redirect_uris.approved", 1)
+}
+
+func TestApproveRedirectURIRequestDoesNotUpdateLocalWhenCasdoorSyncFails(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	provisioner := &fakeOpenPlatformAppProvisioner{}
+	service, err := NewService(repo, redis.Client, WithAppProvisioner(provisioner))
+	require.NoError(t, err)
+
+	fixture := setupApprovedCasdoorRedirectApp(t, ctx, postgres, service, "casdoor-fail")
+	registered := fixture.registered
+	requested, err := service.RequestRedirectURIChange(ctx, RedirectURIChangeInput{
+		AppID:        registered.App.ID,
+		OwnerUserID:  fixture.ownerID,
+		RedirectURIs: []string{"https://new-redirect-casdoor-fail.example.com/callback"},
+		Reason:       "move callback host",
+		RequestID:    "redirect-casdoor-fail-request",
+	})
+	require.NoError(t, err)
+
+	provisioner.ensureErr = errors.New("casdoor redirect update unavailable")
+	reviewed, err := service.ApproveRedirectURIRequest(ctx, RedirectURIReviewInput{
+		AppID:                registered.App.ID,
+		RedirectURIRequestID: requested.ID,
+		ReviewerUserID:       fixture.adminID,
+		DecisionNote:         "domain verified",
+		RequestID:            "redirect-casdoor-fail-approve",
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "casdoor redirect update unavailable")
+	assert.Equal(t, RedirectURIRequest{}, reviewed)
+	app, err := repo.GetAppByID(ctx, registered.App.ID)
+	require.NoError(t, err)
+	assert.Equal(t, fixture.initialRedirectURIs, app.RedirectURIs)
+	assertOpenPlatformAuditCount(t, postgres, registered.App.ID, fixture.adminID, "open_platform.app.redirect_uris.approved", 0)
+}
+
+func TestApproveRedirectURIRequestRollsBackCasdoorWhenLocalUpdateFails(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	provisioner := &fakeOpenPlatformAppProvisioner{}
+	service, err := NewService(repo, redis.Client, WithAppProvisioner(provisioner))
+	require.NoError(t, err)
+
+	fixture := setupApprovedCasdoorRedirectApp(t, ctx, postgres, service, "rollback")
+	registered := fixture.registered
+	newRedirectURIs := []string{"https://new-redirect-rollback.example.com/callback"}
+	requested, err := service.RequestRedirectURIChange(ctx, RedirectURIChangeInput{
+		AppID:        registered.App.ID,
+		OwnerUserID:  fixture.ownerID,
+		RedirectURIs: newRedirectURIs,
+		Reason:       "move callback host",
+		RequestID:    "redirect-rollback-request",
+	})
+	require.NoError(t, err)
+
+	requestCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	provisioner.onEnsure = cancel
+	reviewed, err := service.ApproveRedirectURIRequest(requestCtx, RedirectURIReviewInput{
+		AppID:                registered.App.ID,
+		RedirectURIRequestID: requested.ID,
+		ReviewerUserID:       fixture.adminID,
+		DecisionNote:         "domain verified",
+		RequestID:            "redirect-rollback-approve",
+	})
+
+	require.Error(t, err)
+	assert.Equal(t, RedirectURIRequest{}, reviewed)
+	require.Len(t, provisioner.ensuredSpecs, 3)
+	assert.Equal(t, newRedirectURIs, provisioner.ensuredSpecs[1].RedirectURIs)
+	assert.Equal(t, fixture.initialRedirectURIs, provisioner.ensuredSpecs[2].RedirectURIs)
+	assert.Equal(t, fixture.initialRedirectURIs, provisioner.existing.RedirectURIs)
+	app, err := repo.GetAppByID(context.Background(), registered.App.ID)
+	require.NoError(t, err)
+	assert.Equal(t, fixture.initialRedirectURIs, app.RedirectURIs)
+	assertOpenPlatformAuditCount(t, postgres, registered.App.ID, fixture.adminID, "open_platform.app.redirect_uris.approved", 0)
+}
+
+type casdoorRedirectAppFixture struct {
+	registered          *RegisteredApp
+	ownerID             int64
+	adminID             int64
+	initialRedirectURIs []string
+}
+
+func setupApprovedCasdoorRedirectApp(
+	t *testing.T,
+	ctx context.Context,
+	postgres *postgresfixture.Fixture,
+	service *Service,
+	suffix string,
+) casdoorRedirectAppFixture {
+	t.Helper()
+	ownerID := seedOpenPlatformUser(t, postgres, "redirect-"+suffix+"-owner")
+	adminID := seedOpenPlatformUser(t, postgres, "redirect-"+suffix+"-admin")
+	host := "redirect-" + suffix + ".example.com"
+	registered, err := service.RegisterApp(ctx, RegisterAppInput{
+		OwnerUserID:      ownerID,
+		DisplayName:      "Redirect " + suffix + " App",
+		Description:      "Used by redirect URI Casdoor synchronization tests.",
+		HomepageURL:      "https://" + host,
+		PrivacyPolicyURL: "https://" + host + "/privacy",
+		RedirectURIs:     []string{"https://" + host + "/callback"},
+		Scopes: []ScopeRequestInput{
+			{Scope: ScopeProfileBasicRead, Reason: "show profile"},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, service.ApproveScope(ctx, ApproveScopeInput{
+		AppID:          registered.App.ID,
+		Scope:          ScopeProfileBasicRead,
+		ReviewerUserID: adminID,
+		DecisionNote:   "profile is required",
+	}))
+	_, err = service.ApproveAppWithAudit(ctx, ApproveAppInput{
+		AppID:          registered.App.ID,
+		ReviewerUserID: adminID,
+		RequestID:      "approve-before-redirect-" + suffix,
+	})
+	require.NoError(t, err)
+	return casdoorRedirectAppFixture{
+		registered:          registered,
+		ownerID:             ownerID,
+		adminID:             adminID,
+		initialRedirectURIs: append([]string(nil), registered.App.RedirectURIs...),
+	}
+}
+
 func seedOpenPlatformUser(t *testing.T, fixture *postgresfixture.Fixture, suffix string) int64 {
 	t.Helper()
 	var id int64
