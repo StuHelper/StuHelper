@@ -762,6 +762,7 @@ func (s *Service) ProjectStudentVerification(ctx context.Context, userID int64, 
 }
 
 func (s *Service) RecordBotEvent(ctx context.Context, sessionID string, event BotEventInput) error {
+	event = normalizeBotEventInput(event)
 	return s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		session, err := s.repo.GetSessionByIDForUpdate(ctx, tx, sessionID)
 		if err != nil {
@@ -795,6 +796,7 @@ func (s *Service) RecordBotEvent(ctx context.Context, sessionID string, event Bo
 }
 
 func (s *Service) RecordBotActionEvent(ctx context.Context, actionID string, event BotEventInput) error {
+	event = normalizeBotEventInput(event)
 	botActionID, err := strconv.ParseInt(strings.TrimSpace(actionID), 10, 64)
 	if err != nil || botActionID <= 0 {
 		return ErrAdmissionInvalidInput
@@ -1199,6 +1201,15 @@ func normalizeStringPtr(value *string) *string {
 		return nil
 	}
 	return &trimmed
+}
+
+func normalizeBotEventInput(event BotEventInput) BotEventInput {
+	return BotEventInput{
+		Action:    BotAction(strings.TrimSpace(string(event.Action))),
+		Success:   event.Success,
+		MessageID: strings.TrimSpace(event.MessageID),
+		Error:     strings.TrimSpace(event.Error),
+	}
 }
 
 func normalizeBotEventError(event BotEventInput) string {

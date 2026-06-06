@@ -166,9 +166,9 @@ func TestQueuedAdmissionActionReleaseAckCompletesSession(t *testing.T) {
 	assert.Equal(t, created.Session.ID, actions[0].SessionID)
 
 	err = svc.RecordBotActionEvent(context.Background(), actions[0].ActionID, BotEventInput{
-		Action:    BotActionRelease,
+		Action:    BotAction(" release "),
 		Success:   true,
-		MessageID: "release-msg-1",
+		MessageID: " release-msg-1 ",
 	})
 	require.NoError(t, err)
 
