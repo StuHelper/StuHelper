@@ -193,66 +193,36 @@ function isSSOAuthorizeURL(url: URL) {
 // ---- Tests ----
 
 test.describe("Auth Flow", () => {
-    test("unauthenticated login route starts SSO automatically", async ({
-        page,
-    }) => {
+    test("unauthenticated user sees login page", async ({ page }) => {
         await mockUnauthenticated(page);
-        let loginRequestURL: URL | null = null;
-        await page.route("**/api/v1/auth/login*", (route) => {
-            loginRequestURL = new URL(route.request().url());
-            return route.fulfill({
-                contentType: "application/json",
-                body: JSON.stringify({
-                    success: true,
-                    data: {
-                        url: "https://sso.stuhelper.com/login/oauth/authorize?client_id=stuhelper-web&state=login-page-state",
-                        state: "login-page-state",
-                    },
-                }),
-            });
-        });
-        await mockSSOAuthPage(page);
-
-        const ssoNavigation = page.waitForURL(isSSOAuthorizeURL);
         await page.goto("/login");
-        await ssoNavigation;
 
-        expect(loginRequestURL).not.toBeNull();
-        expect(loginRequestURL!.searchParams.get("app")).toBe("web");
-        expect(loginRequestURL!.searchParams.get("redirect")).toBe(
-            new URL("/", loginRequestURL!.origin).toString(),
-        );
+        await expect(page).toHaveURL(/\/login/);
+        await expect(
+            page.getByRole("heading", {
+                name: /StuHelper Sign-in|StuHelper 统一登录/,
+            }),
+        ).toBeVisible();
+        await expect(
+            page.getByRole("button", {
+                name: /Continue with unified sign-in|使用统一身份认证登录/,
+            }),
+        ).toBeVisible();
+        await expect(
+            page.getByRole("button", { name: /Create account|注册账号/ }),
+        ).toBeVisible();
     });
 
-    test("auth-protected route starts SSO with the protected route as redirect target", async ({
+    test("auth-protected route redirects to login with redirect param", async ({
         page,
     }) => {
         await mockUnauthenticated(page);
-        let loginRequestURL: URL | null = null;
-        await page.route("**/api/v1/auth/login*", (route) => {
-            loginRequestURL = new URL(route.request().url());
-            return route.fulfill({
-                contentType: "application/json",
-                body: JSON.stringify({
-                    success: true,
-                    data: {
-                        url: "https://sso.stuhelper.com/login/oauth/authorize?client_id=stuhelper-web&state=protected-state",
-                        state: "protected-state",
-                    },
-                }),
-            });
-        });
-        await mockSSOAuthPage(page);
 
-        const ssoNavigation = page.waitForURL(isSSOAuthorizeURL);
         await page.goto("/user/reviews");
-        await ssoNavigation;
 
-        expect(loginRequestURL).not.toBeNull();
-        const redirectURL = new URL(
-            loginRequestURL!.searchParams.get("redirect") ?? "",
-        );
-        expect(redirectURL.pathname).toBe("/user/reviews");
+        await expect(page).toHaveURL(/\/login/);
+        const url = new URL(page.url());
+        expect(url.searchParams.get("redirect")).toBe("/user/reviews");
     });
 
     test("unauthenticated review post route redirects before loading drafts", async ({
@@ -260,7 +230,6 @@ test.describe("Auth Flow", () => {
     }) => {
         await mockUnauthenticated(page);
         let draftRequestCount = 0;
-        let loginRequestURL: URL | null = null;
         await page.route("**/api/v1/course/review/drafts**", (route) => {
             draftRequestCount += 1;
             return route.fulfill({
@@ -275,32 +244,15 @@ test.describe("Auth Flow", () => {
                 }),
             });
         });
-        await page.route("**/api/v1/auth/login*", (route) => {
-            loginRequestURL = new URL(route.request().url());
-            return route.fulfill({
-                contentType: "application/json",
-                body: JSON.stringify({
-                    success: true,
-                    data: {
-                        url: "https://sso.stuhelper.com/login/oauth/authorize?client_id=stuhelper-web&state=review-post-state",
-                        state: "review-post-state",
-                    },
-                }),
-            });
-        });
-        await mockSSOAuthPage(page);
 
-        const ssoNavigation = page.waitForURL(isSSOAuthorizeURL);
         await page.goto("/courses/reviews/post?from=e2e");
-        await ssoNavigation;
 
-        expect(loginRequestURL).not.toBeNull();
-        const redirectURL = new URL(
-            loginRequestURL!.searchParams.get("redirect") ?? "",
-        );
-        expect(`${redirectURL.pathname}${redirectURL.search}`).toBe(
+        await expect(page).toHaveURL(/\/login/);
+        const url = new URL(page.url());
+        expect(url.searchParams.get("redirect")).toBe(
             "/courses/reviews/post?from=e2e",
         );
+        await page.waitForLoadState("networkidle");
         expect(draftRequestCount).toBe(0);
     });
 
@@ -333,18 +285,26 @@ test.describe("Auth Flow", () => {
         });
         await mockSSOAuthPage(page, "Mock SSO Reauth");
 
-        const ssoNavigation = page.waitForURL(isSSOAuthorizeURL);
         await page.goto("/login?reauth=1&redirect=/user/reviews");
-        await ssoNavigation;
+        const appOrigin = new URL(page.url()).origin;
+        await expect(page).toHaveURL(/\/login\?/);
+
+        await Promise.all([
+            page.waitForURL(isSSOAuthorizeURL),
+            page
+                .getByRole("button", {
+                    name: /Continue with unified sign-in|使用统一身份认证登录/,
+                })
+                .click(),
+        ]);
 
         expect(loginRequestURL).not.toBeNull();
         expect(loginRequestURL!.searchParams.get("app")).toBe("web");
         expect(loginRequestURL!.searchParams.get("prompt")).toBe("login");
         expect(loginRequestURL!.searchParams.get("max_age")).toBe("0");
-        const redirectURL = new URL(
-            loginRequestURL!.searchParams.get("redirect") ?? "",
+        expect(loginRequestURL!.searchParams.get("redirect")).toBe(
+            `${appOrigin}/user/reviews`,
         );
-        expect(redirectURL.pathname).toBe("/user/reviews");
         await expect(page.getByText("Mock SSO Reauth")).toBeVisible();
     });
 
@@ -369,19 +329,41 @@ test.describe("Auth Flow", () => {
         });
         await mockSSOAuthPage(page, "Mock SSO Developer Apps");
 
-        const ssoNavigation = page.waitForURL(isSSOAuthorizeURL);
         await page.goto("/developers/apps");
-        await ssoNavigation;
+        const appOrigin = new URL(page.url()).origin;
+        await expect(page).toHaveURL(
+            (url) =>
+                url.pathname === "/login" &&
+                url.searchParams.get("redirect") === "/developers/apps",
+        );
+        await expect(
+            page.getByRole("heading", {
+                name: /StuHelper Sign-in|StuHelper 统一登录/,
+            }),
+        ).toBeVisible();
+        await expect(
+            page.getByRole("button", {
+                name: /Continue with unified sign-in|使用统一身份认证登录/,
+            }),
+        ).toBeVisible();
+
+        await Promise.all([
+            page.waitForURL(isSSOAuthorizeURL),
+            page
+                .getByRole("button", {
+                    name: /Continue with unified sign-in|使用统一身份认证登录/,
+                })
+                .click(),
+        ]);
 
         expect(loginRequestURL).not.toBeNull();
         expect(loginRequestURL!.searchParams.get("app")).toBe("web");
-        const redirectURL = new URL(
-            loginRequestURL!.searchParams.get("redirect") ?? "",
+        expect(loginRequestURL!.searchParams.get("redirect")).toBe(
+            `${appOrigin}/developers/apps`,
         );
-        expect(redirectURL.pathname).toBe("/developers/apps");
     });
 
-    test("login route starts SSO and preserves redirect target", async ({
+    test("login button starts SSO and preserves redirect target", async ({
         page,
     }) => {
         await mockUnauthenticated(page);
@@ -405,16 +387,28 @@ test.describe("Auth Flow", () => {
         });
         await mockSSOAuthPage(page);
 
-        const ssoNavigation = page.waitForURL(isSSOAuthorizeURL);
         await page.goto("/login?redirect=/user/reviews");
-        await ssoNavigation;
+        const appOrigin = new URL(page.url()).origin;
+        await expect(
+            page.getByRole("button", {
+                name: /Continue with unified sign-in|使用统一身份认证登录/,
+            }),
+        ).toBeVisible();
+
+        await Promise.all([
+            page.waitForURL(isSSOAuthorizeURL),
+            page
+                .getByRole("button", {
+                    name: /Continue with unified sign-in|使用统一身份认证登录/,
+                })
+                .click(),
+        ]);
 
         expect(loginRequestURL).not.toBeNull();
         expect(loginRequestURL!.searchParams.get("app")).toBe("web");
-        const redirectURL = new URL(
-            loginRequestURL!.searchParams.get("redirect") ?? "",
+        expect(loginRequestURL!.searchParams.get("redirect")).toBe(
+            `${appOrigin}/user/reviews`,
         );
-        expect(redirectURL.pathname).toBe("/user/reviews");
         const ssoURL = new URL(page.url());
         expect(ssoURL.origin).toBe("https://sso.stuhelper.com");
         expect(ssoURL.searchParams.get("client_id")).toBe("stuhelper-web");
@@ -422,18 +416,30 @@ test.describe("Auth Flow", () => {
         expect(storedRedirectAtLogin).toBe("/user/reviews");
     });
 
-    test("login route does not expose standalone signup and uses SSO login", async ({
+    test("signup button starts SSO signup and preserves redirect target", async ({
         page,
     }) => {
         await mockUnauthenticated(page);
         let loginRequests = 0;
-        let loginRequestURL: URL | null = null;
-        let signupRequests = 0;
-        let storedRedirectAtLogin: string | null = null;
+        let signupRequestURL: URL | null = null;
+        let storedRedirectAtSignup: string | null = null;
         await page.route("**/api/v1/auth/login*", async (route) => {
             loginRequests += 1;
-            loginRequestURL = new URL(route.request().url());
-            storedRedirectAtLogin = await page.evaluate(() =>
+            await route.fulfill({
+                status: 500,
+                contentType: "application/json",
+                body: JSON.stringify({
+                    success: false,
+                    error: {
+                        code: "E0050000",
+                        message: "unexpected login endpoint",
+                    },
+                }),
+            });
+        });
+        await page.route("**/api/v1/auth/signup*", async (route) => {
+            signupRequestURL = new URL(route.request().url());
+            storedRedirectAtSignup = await page.evaluate(() =>
                 sessionStorage.getItem("post_login_redirect"),
             );
             return route.fulfill({
@@ -441,41 +447,44 @@ test.describe("Auth Flow", () => {
                 body: JSON.stringify({
                     success: true,
                     data: {
-                        url: "https://sso.stuhelper.com/login/oauth/authorize?client_id=stuhelper-web&state=no-signup-state",
-                        state: "no-signup-state",
+                        url: "https://sso.stuhelper.com/signup/oauth/authorize?client_id=stuhelper-web&state=signup-state",
+                        state: "signup-state",
                     },
                 }),
             });
         });
-        await page.route("**/api/v1/auth/signup*", async (route) => {
-            signupRequests += 1;
-            await route.fulfill({
-                status: 500,
-                contentType: "application/json",
-                body: JSON.stringify({ success: false }),
-            });
-        });
-        await mockSSOAuthPage(page, "Mock SSO Login");
+        await mockSSOAuthPage(page, "Mock SSO Signup");
 
-        const ssoNavigation = page.waitForURL(isSSOAuthorizeURL);
         await page.goto("/login?redirect=/developers/apps");
-        await ssoNavigation;
+        const appOrigin = new URL(page.url()).origin;
+        await expect(
+            page.getByRole("button", { name: /Create account|注册账号/ }),
+        ).toBeVisible();
 
-        expect(loginRequests).toBe(1);
-        expect(signupRequests).toBe(0);
-        expect(loginRequestURL).not.toBeNull();
-        expect(loginRequestURL!.searchParams.get("app")).toBe("web");
-        const redirectURL = new URL(
-            loginRequestURL!.searchParams.get("redirect") ?? "",
+        await Promise.all([
+            page.waitForURL(
+                (url) =>
+                    url.hostname === "sso.stuhelper.com" &&
+                    url.pathname === "/signup/oauth/authorize",
+            ),
+            page
+                .getByRole("button", { name: /Create account|注册账号/ })
+                .click(),
+        ]);
+
+        expect(loginRequests).toBe(0);
+        expect(signupRequestURL).not.toBeNull();
+        expect(signupRequestURL!.searchParams.get("app")).toBe("web");
+        expect(signupRequestURL!.searchParams.get("redirect")).toBe(
+            `${appOrigin}/developers/apps`,
         );
-        expect(redirectURL.pathname).toBe("/developers/apps");
         const ssoURL = new URL(page.url());
         expect(ssoURL.origin).toBe("https://sso.stuhelper.com");
-        expect(ssoURL.pathname).toBe("/login/oauth/authorize");
+        expect(ssoURL.pathname).toBe("/signup/oauth/authorize");
         expect(ssoURL.searchParams.get("client_id")).toBe("stuhelper-web");
-        expect(ssoURL.searchParams.get("state")).toBe("no-signup-state");
-        expect(storedRedirectAtLogin).toBe("/developers/apps");
-        await expect(page.getByText("Mock SSO Login")).toBeVisible();
+        expect(ssoURL.searchParams.get("state")).toBe("signup-state");
+        expect(storedRedirectAtSignup).toBe("/developers/apps");
+        await expect(page.getByText("Mock SSO Signup")).toBeVisible();
     });
 
     test("authenticated user can access user center", async ({ page }) => {

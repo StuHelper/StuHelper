@@ -62,8 +62,13 @@ export default {
         daysAgo: "{n} days ago",
     },
     login: {
+        title: "StuHelper Sign-in",
+        subtitle: "Account sign-in, verification, and Open Platform access",
+        identityLogin: "Continue with unified sign-in",
+        signup: "Create account",
         redirecting: "Redirecting...",
         loginFailed: "Login failed",
+        signupFailed: "Signup failed",
         networkError: "Network connection failed",
         loginUrlFailed: "Failed to get login URL",
         signupUrlFailed: "Failed to get signup URL",
@@ -83,6 +88,8 @@ export default {
         otpSent: "Verification code sent",
         invalidPhone: "Please enter a valid phone number",
         phoneHint: "Quick login with phone number",
+        identityHint:
+            "Use StuHelper for account sign-in, student verification, and third-party app authorization",
     },
     openPlatformConsent: {
         loading: "Loading StuHelper Connect authorization request...",

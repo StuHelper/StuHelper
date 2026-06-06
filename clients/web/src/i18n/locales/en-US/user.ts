@@ -336,7 +336,10 @@ export default {
         },
         phone: {
             title: "Phone Binding",
+            bindTitle: "Bind phone number",
+            updateTitle: "Update phone number",
             bind: "Bind",
+            update: "Update phone number",
             phoneNumber: "Phone Number",
             verifyCode: "Verification Code",
             sendCode: "Send Code",
@@ -354,11 +357,9 @@ export default {
                 "Too many failed attempts, please request a new code",
             serviceUnavailable:
                 "Phone binding is not configured, so verification codes cannot be sent or checked right now",
-            ssoManaged:
-                "Phone numbers belong to the unified sign-in account profile. StuHelper only reads the synchronized masked phone and verification state; the main site does not store or edit the raw phone number separately.",
-            openSSOSettings: "Open unified sign-in profile",
-            ssoSettingsUnavailable:
-                "This account did not return a unified sign-in profile URL. Open the account profile center from the unified sign-in page.",
+            ssoEquivalent:
+                "Binding or updating a phone number here verifies the SMS code and syncs the change to the unified sign-in account. StuHelper only keeps the synchronized masked phone and verification state.",
+            updateSuccess: "Phone number synchronized",
         },
         qq: {
             title: "QQ Binding",

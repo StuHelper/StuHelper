@@ -62,8 +62,13 @@ export default {
         daysAgo: "{n} 天前",
     },
     login: {
+        title: "StuHelper 统一登录",
+        subtitle: "账号登录、认证与开放平台入口",
+        identityLogin: "使用统一身份认证登录",
+        signup: "注册账号",
         redirecting: "跳转中...",
         loginFailed: "登录失败",
+        signupFailed: "注册失败",
         networkError: "网络连接失败",
         loginUrlFailed: "获取登录链接失败",
         signupUrlFailed: "获取注册链接失败",
@@ -83,6 +88,7 @@ export default {
         otpSent: "验证码已发送",
         invalidPhone: "请输入正确的手机号",
         phoneHint: "使用手机号快捷登录",
+        identityHint: "完成账号登录、学生认证与第三方应用授权",
     },
     openPlatformConsent: {
         loading: "正在加载 StuHelper Connect 授权请求...",

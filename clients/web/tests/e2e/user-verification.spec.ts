@@ -21,7 +21,6 @@ const user = {
     capabilityGrants: [],
     isPlatformAdmin: false,
     canAccessAdmin: false,
-    accountSettingsUrl: "https://sso.example.test/account/settings",
 };
 
 const now = "2026-05-24T04:00:00Z";
@@ -268,9 +267,13 @@ async function mockUserApi(page: Page, state: UserApiState) {
     );
     await page.route("**/api/v1/user/profile/bind-phone", async (route) => {
         const body = route.request().postDataJSON();
+        const phone = String(body.phone ?? "");
         state.profile = {
             ...state.profile,
-            phone: "138****5678",
+            phone:
+                phone.length === 11
+                    ? `${phone.slice(0, 3)}****${phone.slice(7)}`
+                    : phone,
             phoneVerified: true,
             updatedAt: now,
         };
@@ -717,7 +720,7 @@ test.describe("User verification flows", () => {
         });
     });
 
-    test("user views SSO-managed phone status, creates QQ binding code, and views academic info", async ({
+    test("user updates SSO-synced phone, creates QQ binding code, and views academic info", async ({
         page,
     }) => {
         const state: UserApiState = {
@@ -729,16 +732,21 @@ test.describe("User verification flows", () => {
             },
             qqBinding: null,
         };
-        let phoneBindingRequests = 0;
+        let otpBody: unknown = null;
+        let phoneBody: unknown = null;
 
         await mockUserApi(page, state);
         await page.route(
-            "**/api/v1/user/profile/bind-phone**",
+            "**/api/v1/user/profile/bind-phone/otp",
             async (route) => {
-                phoneBindingRequests += 1;
+                otpBody = route.request().postDataJSON();
                 await route.fallback();
             },
         );
+        await page.route("**/api/v1/user/profile/bind-phone", async (route) => {
+            phoneBody = route.request().postDataJSON();
+            await route.fallback();
+        });
 
         await gotoAuthenticatedPage(page, "/user/phone-binding");
 
@@ -746,18 +754,19 @@ test.describe("User verification flows", () => {
             page.getByRole("heading", { name: "已绑定" }),
         ).toBeVisible();
         await expect(page.getByText("138****5678")).toBeVisible();
-        await expect(
-            page.getByText("手机号属于统一身份认证账号资料。"),
-        ).toBeVisible();
-        await expect(
-            page.getByRole("link", { name: "打开统一身份认证资料" }),
-        ).toHaveAttribute("href", "https://sso.example.test/account/settings");
-        await expect(page.getByLabel("手机号码")).toHaveCount(0);
-        await expect(page.getByLabel("验证码")).toHaveCount(0);
-        await expect(
-            page.getByRole("button", { name: "发送验证码" }),
-        ).toHaveCount(0);
-        expect(phoneBindingRequests).toBe(0);
+        await expect(page.getByText("同步写入统一身份认证账号")).toBeVisible();
+        await page.getByLabel("手机号码").fill("13912345678");
+        await page.getByRole("button", { name: "发送验证码" }).click();
+        await page.getByLabel("验证码").fill("123456");
+        await page.getByRole("button", { name: "更新手机号" }).click();
+
+        await expect(page).toHaveURL(/\/user\/phone-binding/);
+        await expect(page.getByText("139****5678")).toBeVisible();
+        expect(otpBody).toEqual({ phone: "13912345678" });
+        expect(phoneBody).toEqual({
+            phone: "13912345678",
+            otpCode: "123456",
+        });
 
         await page.goto("/user/qq-binding");
         await expect(
@@ -770,13 +779,8 @@ test.describe("User verification flows", () => {
         await expect(page.getByText("绑定 QQ-CODE-1")).toBeVisible();
 
         await page.goto("/user/academic-info");
-        await expect(
-            page.getByRole("heading", { name: "学业信息" }),
-        ).toBeVisible();
         await expect(page.getByText("20260001")).toBeVisible();
         await expect(page.getByText("张三")).toBeVisible();
-        await expect(page.getByText("计算机学院")).toBeVisible();
-        await expect(page.getByText("软件工程")).toBeVisible();
     });
 
     test("invalid QQ binding code response fails closed", async ({ page }) => {

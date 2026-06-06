@@ -311,7 +311,10 @@ export default {
         },
         phone: {
             title: "绑定手机",
+            bindTitle: "绑定手机号",
+            updateTitle: "修改手机号",
             bind: "绑定",
+            update: "更新手机号",
             phoneNumber: "手机号码",
             verifyCode: "验证码",
             sendCode: "发送验证码",
@@ -327,11 +330,9 @@ export default {
             tooManyRequests: "请求过于频繁，请稍后再试",
             tooManyAttempts: "尝试次数过多，请重新获取验证码",
             serviceUnavailable: "手机绑定服务未配置，暂时无法发送或校验验证码",
-            ssoManaged:
-                "手机号属于统一身份认证账号资料。StuHelper 只读取同步后的掩码手机号和验证状态，不在主站单独保存或编辑原始手机号。",
-            openSSOSettings: "打开统一身份认证资料",
-            ssoSettingsUnavailable:
-                "当前账号没有返回统一身份认证资料入口，请从统一登录页面进入账号资料中心。",
+            ssoEquivalent:
+                "此处绑定或修改手机号会校验短信验证码，并同步写入统一身份认证账号；StuHelper 仅保留同步后的掩码手机号和验证状态。",
+            updateSuccess: "手机号已同步更新",
         },
         qq: {
             title: "绑定 QQ",

@@ -146,7 +146,6 @@ test.describe("Auth callback and admission entry", () => {
         page,
     }) => {
         let backendCallbackRequests = 0;
-        let loginRequestURL: URL | null = null;
         await page.route("**/api/v1/auth/callback?*", async (route) => {
             backendCallbackRequests += 1;
             await route.fulfill({
@@ -154,34 +153,17 @@ test.describe("Auth callback and admission entry", () => {
                 body: "<!doctype html><title>Unexpected backend callback</title>",
             });
         });
-        await page.route("**/api/v1/auth/login**", async (route) => {
-            loginRequestURL = new URL(route.request().url());
-            await route.fulfill(
-                ok({
-                    url: "https://sso.stuhelper.com/login/oauth/authorize?client_id=stuhelper-web&state=invalid-callback-state",
-                    state: "invalid-callback-state",
-                }),
-            );
-        });
-        await page.route("https://sso.stuhelper.com/**", (route) =>
-            route.fulfill({
-                contentType: "text/html",
-                body: "<!doctype html><title>Mock SSO</title><main>Mock SSO</main>",
-            }),
-        );
 
-        const ssoNavigation = page.waitForURL(
-            (url) =>
-                url.hostname === "sso.stuhelper.com" &&
-                url.pathname === "/login/oauth/authorize",
-        );
         await page.goto(
             `/auth/callback?code=oauth-code-1&state=${"s".repeat(4097)}`,
         );
-        await ssoNavigation;
 
-        expect(loginRequestURL).not.toBeNull();
-        expect(loginRequestURL!.searchParams.get("app")).toBe("web");
+        await expect(page).toHaveURL(/\/login\?error=invalid_callback/);
+        await expect(
+            page.getByRole("button", {
+                name: /Continue with unified sign-in|使用统一身份认证登录/,
+            }),
+        ).toBeVisible();
         expect(backendCallbackRequests).toBe(0);
     });
 

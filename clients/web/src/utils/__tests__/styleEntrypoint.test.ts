@@ -224,51 +224,6 @@ describe("style entrypoint", () => {
         }
     });
 
-    it("keeps the public login page as an automatic unified sign-in redirect without the old account card", () => {
-        const loginSource = readFileSync(
-            resolve(__dirname, "../../modules/auth/views/LoginPage.vue"),
-            "utf-8",
-        );
-        const zhCommonSource = readFileSync(
-            resolve(__dirname, "../../i18n/locales/zh-CN/common.ts"),
-            "utf-8",
-        );
-        const enCommonSource = readFileSync(
-            resolve(__dirname, "../../i18n/locales/en-US/common.ts"),
-            "utf-8",
-        );
-
-        expect(loginSource).toContain("onMounted");
-        expect(loginSource).toContain("startLoginForCurrentRoute");
-        expect(loginSource).toContain("common.login.redirecting");
-        expect(loginSource).toContain("common.actions.retry");
-        expect(loginSource).not.toContain("common.login.title");
-        expect(loginSource).not.toContain("common.login.subtitle");
-        expect(loginSource).not.toContain("common.login.identityLogin");
-        expect(loginSource).not.toContain("common.login.signup");
-        expect(loginSource).not.toContain("common.login.identityHint");
-        expect(loginSource).not.toContain("handleSignup");
-        expect(loginSource).not.toContain("login-grid");
-        expect(loginSource).not.toContain("login-sheen");
-        expect(loginSource).not.toContain("common.login.ssoLogin");
-        expect(loginSource).not.toContain("common.login.ssoHint");
-        expect(zhCommonSource).not.toContain("title: 'StuHelper 统一登录'");
-        expect(zhCommonSource).not.toContain("账号登录、认证与开放平台入口");
-        expect(zhCommonSource).not.toContain("注册账号");
-        expect(zhCommonSource).not.toContain(
-            "完成账号登录、学生认证与第三方应用授权",
-        );
-        expect(zhCommonSource).not.toContain("使用 SSO 登录");
-        expect(zhCommonSource).not.toContain("StuHelper SSO");
-        expect(enCommonSource).not.toContain("StuHelper Sign-in");
-        expect(enCommonSource).not.toContain(
-            "Account sign-in, verification, and Open Platform access",
-        );
-        expect(enCommonSource).not.toContain("Create account");
-        expect(enCommonSource).not.toContain("Login with SSO");
-        expect(enCommonSource).not.toContain("StuHelper SSO");
-    });
-
     it("brands Open Platform challenge pages as StuHelper Connect with account-center fallback", () => {
         const consentSource = readFileSync(
             resolve(
@@ -640,32 +595,5 @@ describe("style entrypoint", () => {
         expect(searchSource).toContain('id="advanced-course-name"');
         expect(searchSource).toContain('for="advanced-teacher-name"');
         expect(searchSource).toContain('id="advanced-teacher-name"');
-    });
-
-    it("treats phone binding as an SSO-managed profile projection", () => {
-        const phoneBindingSource = readFileSync(
-            resolve(__dirname, "../../modules/user/views/PhoneBindingPage.vue"),
-            "utf-8",
-        );
-        const zhUserSource = readFileSync(
-            resolve(__dirname, "../../i18n/locales/zh-CN/user.ts"),
-            "utf-8",
-        );
-        const enUserSource = readFileSync(
-            resolve(__dirname, "../../i18n/locales/en-US/user.ts"),
-            "utf-8",
-        );
-
-        expect(phoneBindingSource).toContain(
-            "user.verification.phone.ssoManaged",
-        );
-        expect(phoneBindingSource).toContain("accountSettingsUrl");
-        expect(phoneBindingSource).not.toContain("requestBindPhoneOTP");
-        expect(phoneBindingSource).not.toContain("bindPhone(");
-        expect(phoneBindingSource).not.toContain("status === 503");
-        expect(zhUserSource).toContain("ssoManaged");
-        expect(zhUserSource).toContain("openSSOSettings");
-        expect(enUserSource).toContain("ssoManaged");
-        expect(enUserSource).toContain("openSSOSettings");
     });
 });
