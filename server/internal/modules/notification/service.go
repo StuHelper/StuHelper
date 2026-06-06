@@ -17,7 +17,8 @@ import (
 
 // 业务错误
 var (
-	ErrNotFound = errors.New("notification not found")
+	ErrNotFound      = errors.New("notification not found")
+	ErrInvalidUserID = errors.New("notification user id is invalid")
 )
 
 // Service 通知服务
@@ -45,6 +46,9 @@ func NewService(repo *Repository, hub *Hub, rdb *redis.Client) *Service {
 
 // Send 发送通知（实现 Sender 接口）
 func (s *Service) Send(ctx context.Context, params SendParams) error {
+	if err := validateNotificationUserID(params.UserID); err != nil {
+		return err
+	}
 	body := params.Body
 	if body == "" {
 		body = params.Content
@@ -99,16 +103,25 @@ func (s *Service) SendBatch(ctx context.Context, params []SendParams) error {
 
 // List 获取通知列表
 func (s *Service) List(ctx context.Context, userID int64, page, pageSize int) (*ListResult, error) {
+	if err := validateNotificationUserID(userID); err != nil {
+		return nil, err
+	}
 	return s.repo.List(ctx, ListParams{UserID: userID, Page: page, PageSize: pageSize})
 }
 
 // CountUnread 获取未读通知数量
 func (s *Service) CountUnread(ctx context.Context, userID int64) (int, error) {
+	if err := validateNotificationUserID(userID); err != nil {
+		return 0, err
+	}
 	return s.repo.CountUnread(ctx, userID)
 }
 
 // MarkRead 标记通知已读
 func (s *Service) MarkRead(ctx context.Context, notifID string, userID int64) error {
+	if err := validateNotificationUserID(userID); err != nil {
+		return err
+	}
 	marked, err := s.repo.MarkRead(ctx, notifID, userID)
 	if err != nil {
 		return err
@@ -131,6 +144,9 @@ func (s *Service) MarkRead(ctx context.Context, notifID string, userID int64) er
 
 // MarkAllRead 标记所有通知已读
 func (s *Service) MarkAllRead(ctx context.Context, userID int64) error {
+	if err := validateNotificationUserID(userID); err != nil {
+		return err
+	}
 	if err := s.repo.MarkAllRead(ctx, userID); err != nil {
 		return err
 	}
@@ -149,6 +165,13 @@ func (s *Service) MarkAllRead(ctx context.Context, userID int64) error {
 		Data:  map[string]int{"count": 0},
 	})
 
+	return nil
+}
+
+func validateNotificationUserID(userID int64) error {
+	if userID <= 0 {
+		return ErrInvalidUserID
+	}
 	return nil
 }
 
