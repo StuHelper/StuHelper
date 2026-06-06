@@ -293,6 +293,28 @@ func TestNewClientRejectsInvalidConfiguredIntrospectionEndpoint(t *testing.T) {
 	assert.Contains(t, err.Error(), "must be an absolute http(s) URL")
 }
 
+func TestNewClientRejectsLocalConfigBeforeDiscovery(t *testing.T) {
+	var discoveryRequests atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		discoveryRequests.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	client, err := NewClient(context.Background(), config.CasdoorConfig{
+		Issuer:                    srv.URL,
+		ClientID:                  " \t\n ",
+		ClientSecret:              "oidc-secret",
+		RedirectURI:               "https://web.example.com/api/v1/auth/callback",
+		IntrospectionClientID:     "introspection-client",
+		IntrospectionClientSecret: "introspection-secret",
+	})
+
+	require.ErrorIs(t, err, ErrApplicationNotConfigured)
+	assert.Nil(t, client)
+	assert.Equal(t, int32(0), discoveryRequests.Load())
+}
+
 func TestOIDCClientExchangeCodeForApplicationNormalizesInputs(t *testing.T) {
 	var seenCode string
 	var seenCodeVerifier string

@@ -25,11 +25,7 @@ func newOIDCHTTPClient(cfg config.CasdoorConfig, clientName string) *http.Client
 	internalAddr := strings.TrimSpace(cfg.InternalAddress)
 	issuerAddr := issuerDialAddress(cfg.Issuer)
 	if internalAddr != "" && issuerAddr != "" {
-		if !strings.Contains(internalAddr, ":") {
-			if _, port, err := net.SplitHostPort(issuerAddr); err == nil && port != "" {
-				internalAddr = net.JoinHostPort(internalAddr, port)
-			}
-		}
+		internalAddr = internalDialAddress(internalAddr, issuerAddr)
 
 		dialer := &net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}
 		transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
@@ -54,13 +50,28 @@ func issuerDialAddress(issuer string) string {
 	if err != nil || u.Host == "" {
 		return ""
 	}
-	if _, _, err := net.SplitHostPort(u.Host); err == nil {
-		return u.Host
+	if port := u.Port(); port != "" {
+		return net.JoinHostPort(u.Hostname(), port)
 	}
 	switch strings.ToLower(u.Scheme) {
 	case "https":
-		return net.JoinHostPort(u.Host, "443")
+		return net.JoinHostPort(u.Hostname(), "443")
 	default:
-		return net.JoinHostPort(u.Host, "80")
+		return net.JoinHostPort(u.Hostname(), "80")
 	}
+}
+
+func internalDialAddress(internalAddr, issuerAddr string) string {
+	internalAddr = strings.TrimSpace(internalAddr)
+	if internalAddr == "" {
+		return ""
+	}
+	if _, _, err := net.SplitHostPort(internalAddr); err == nil {
+		return internalAddr
+	}
+	_, issuerPort, err := net.SplitHostPort(issuerAddr)
+	if err != nil || issuerPort == "" {
+		return internalAddr
+	}
+	return net.JoinHostPort(strings.Trim(internalAddr, "[]"), issuerPort)
 }

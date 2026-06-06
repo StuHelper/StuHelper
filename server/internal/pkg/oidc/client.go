@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
@@ -45,6 +47,12 @@ var (
 // NewClient 基于 Casdoor 配置创建 OIDC 客户端。
 // 自动发现 issuer 的 OIDC 配置（JWKS、授权端点、Token 端点等）。
 func NewClient(ctx context.Context, cfg config.CasdoorConfig) (*Client, error) {
+	var err error
+	cfg, err = validateLocalCasdoorConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	httpClient := newOIDCHTTPClient(cfg, "casdoor_oidc")
 
 	// 将自定义 HTTP 客户端注入到 OIDC Provider 发现过程
@@ -86,4 +94,72 @@ func NewClient(ctx context.Context, cfg config.CasdoorConfig) (*Client, error) {
 		introspectionCfg:  introspectionCfg,
 		publicAuthBaseURL: cfg.PublicAuthBaseURL,
 	}, nil
+}
+
+func validateLocalCasdoorConfig(cfg config.CasdoorConfig) (config.CasdoorConfig, error) {
+	issuer, err := validateCasdoorURL("issuer", cfg.Issuer, true)
+	if err != nil {
+		return cfg, err
+	}
+	cfg.Issuer = issuer
+
+	publicAuthBaseURL, err := validateCasdoorURL("public auth base URL", cfg.PublicAuthBaseURL, false)
+	if err != nil {
+		return cfg, err
+	}
+	cfg.PublicAuthBaseURL = publicAuthBaseURL
+
+	if err := validateOAuth2ApplicationConfig(cfg); err != nil {
+		return cfg, err
+	}
+	if _, err := introspectionOAuth2Config(oauth2.Endpoint{}, cfg); err != nil {
+		return cfg, err
+	}
+	if endpoint := strings.TrimSpace(cfg.IntrospectionEndpoint); endpoint != "" {
+		endpoint, err = validateIntrospectionEndpoint(endpoint)
+		if err != nil {
+			return cfg, err
+		}
+		cfg.IntrospectionEndpoint = endpoint
+	}
+	return cfg, nil
+}
+
+func validateOAuth2ApplicationConfig(cfg config.CasdoorConfig) error {
+	for _, input := range oauth2ApplicationInputs(cfg) {
+		if _, _, err := oauth2ConfigFromInput(oauth2.Endpoint{}, input); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateCasdoorURL(name, raw string, required bool) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		if !required {
+			return "", nil
+		}
+		return "", fmt.Errorf("%w: %s is required", ErrApplicationNotConfigured, name)
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return "", fmt.Errorf("oidc: invalid %s %q: %w", name, raw, err)
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return "", fmt.Errorf("oidc: %s %q must be an absolute http(s) URL", name, raw)
+	}
+	if scheme := strings.ToLower(parsed.Scheme); scheme != "http" && scheme != "https" {
+		return "", fmt.Errorf("oidc: %s %q must use http or https", name, raw)
+	}
+	if parsed.User != nil {
+		return "", fmt.Errorf("oidc: %s %q must not include user info", name, raw)
+	}
+	if parsed.RawQuery != "" {
+		return "", fmt.Errorf("oidc: %s %q must not include a query", name, raw)
+	}
+	if parsed.Fragment != "" {
+		return "", fmt.Errorf("oidc: %s %q must not include a fragment", name, raw)
+	}
+	return raw, nil
 }
