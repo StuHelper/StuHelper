@@ -867,6 +867,29 @@ func TestHandleRequestBindPhoneOTP_IsRateLimitedPerUserEndpoint(t *testing.T) {
 	assert.Equal(t, bindPhoneOTPUserLimitPerMinute, otp.issueCalls)
 }
 
+func TestHandleRequestBindPhoneOTP_ServiceUnavailableWithoutRuntimeDeps(t *testing.T) {
+	otp := &stubBindPhoneOTPGenerator{}
+	repo := &mockRepo{
+		onGetInternalUserID: func(_ context.Context, _ string) (int64, error) {
+			return 42, nil
+		},
+	}
+
+	r := setupUserHandlerTestRouterWithRuntimeDeps(t, repo, nil, otp, nil)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/profile/bind-phone/otp",
+		strings.NewReader(`{"phone":"13800138000"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Equal(t, 0, otp.issueCalls)
+}
+
 func TestHandleBindPhoneConsumesOTPOnlyAfterSuccessfulBind(t *testing.T) {
 	otp := &stubBindPhoneOTPGenerator{}
 	repo := &mockRepo{

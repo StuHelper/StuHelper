@@ -59,6 +59,32 @@ func TestBuildUserPayload_IncludesAvatarWhenPresent(t *testing.T) {
 	assert.Equal(t, "alice@example.com", decoded["email"])
 }
 
+func TestBuildUserPayload_EncodesNilCollectionsAsEmptyArrays(t *testing.T) {
+	h := &Handler{}
+
+	payload := h.buildUserPayload(
+		"user-1",
+		"alice",
+		"Alice",
+		"",
+		nil,
+		nil,
+		nil,
+	)
+
+	raw, err := json.Marshal(payload)
+	require.NoError(t, err)
+	assert.NotContains(t, string(raw), "null")
+
+	var body map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(raw, &body))
+	for _, key := range []string{"roles", "capabilities", "globalCapabilities", "capabilityGrants"} {
+		var values []any
+		require.NoError(t, json.Unmarshal(body[key], &values), key)
+		assert.Empty(t, values, key)
+	}
+}
+
 func TestBuildUserPayload_UsesPublicAccountSettingsURLWhenConfigured(t *testing.T) {
 	h := &Handler{
 		oidcIssuer:             " https://sso.example.com/ ",

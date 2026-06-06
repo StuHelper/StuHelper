@@ -48,6 +48,8 @@ func (h *Handler) buildUserPayload(
 	roles []string,
 	grants []capability.Grant,
 ) currentUserPayload {
+	roles = nonNilStringSlice(roles)
+	grants = nonNilCapabilityGrants(grants)
 	snapshot := capability.BuildUserAccessSnapshot(grants)
 
 	return currentUserPayload{
@@ -57,9 +59,9 @@ func (h *Handler) buildUserPayload(
 		Avatar:             avatar,
 		Email:              email,
 		Roles:              roles,
-		Capabilities:       snapshot.Capabilities,
-		GlobalCapabilities: snapshot.GlobalCapabilities,
-		CapabilityGrants:   snapshot.CapabilityGrants,
+		Capabilities:       nonNilStringSlice(snapshot.Capabilities),
+		GlobalCapabilities: nonNilStringSlice(snapshot.GlobalCapabilities),
+		CapabilityGrants:   nonNilCapabilityGrants(snapshot.CapabilityGrants),
 		IsPlatformAdmin:    hasRole(roles, "super_admin"),
 		CanAccessAdmin:     capability.CanAccessAdmin(snapshot.Capabilities),
 		AccountSettingsURL: buildAccountSettingsURL(h.accountSettingsURLBase()),
@@ -102,4 +104,18 @@ func nullableString(value string) *string {
 		return nil
 	}
 	return &value
+}
+
+func nonNilStringSlice(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
+}
+
+func nonNilCapabilityGrants(values []capability.Grant) []capability.Grant {
+	if values == nil {
+		return []capability.Grant{}
+	}
+	return values
 }
