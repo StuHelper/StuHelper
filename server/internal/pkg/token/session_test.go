@@ -182,6 +182,36 @@ func TestSessionStore_Revoke(t *testing.T) {
 	assert.Equal(t, int64(1), isBlocked2)
 }
 
+func TestSessionStore_RevokeExtendsRefreshRefToBlacklistTTL(t *testing.T) {
+	store, bl, _ := newTestSessionStore(t)
+	ctx := context.Background()
+	refreshTTL := 10 * time.Minute
+	refreshHash := "ref-hash-revoke-ttl"
+
+	require.NoError(t, store.Create(ctx, SessionData{
+		SessionID:        "sess-revoke-ttl",
+		UserID:           "user-revoke-ttl",
+		AccessTokenHash:  "acc-revoke-ttl",
+		RefreshTokenHash: refreshHash,
+	}))
+	require.NoError(t, store.rdb.PExpire(ctx, refreshTokenRefKey(refreshHash), 50*time.Millisecond).Err())
+
+	revoked, err := store.Revoke(ctx, "sess-revoke-ttl", bl, 5*time.Minute, refreshTTL)
+	require.NoError(t, err)
+	require.NotNil(t, revoked)
+
+	ref, err := store.LookupRefreshTokenHash(ctx, refreshHash)
+	require.NoError(t, err)
+	require.NotNil(t, ref)
+	assert.Equal(t, "sess-revoke-ttl", ref.SessionID)
+	assert.Equal(t, "user-revoke-ttl", ref.UserID)
+
+	refTTL, err := store.rdb.TTL(ctx, refreshTokenRefKey(refreshHash)).Result()
+	require.NoError(t, err)
+	assert.Greater(t, refTTL, refreshTTL-5*time.Second)
+	assert.LessOrEqual(t, refTTL, refreshTTL)
+}
+
 func TestSessionStore_RevokeAll(t *testing.T) {
 	store, bl, _ := newTestSessionStore(t)
 	ctx := context.Background()

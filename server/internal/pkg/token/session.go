@@ -236,6 +236,12 @@ func (s *SessionStore) revokeLoadedSession(ctx context.Context, data *SessionDat
 		}
 	}
 	if data.RefreshTokenHash != "" {
+		if err := s.RememberRefreshTokenHash(ctx, data.RefreshTokenHash, RefreshTokenRef{
+			SessionID: data.SessionID,
+			UserID:    data.UserID,
+		}, refreshTTL); err != nil {
+			return nil, fmt.Errorf("session revoke: remember refresh token ref: %w", err)
+		}
 		if blErr := blacklist.AddByHash(ctx, data.RefreshTokenHash, refreshTTL); blErr != nil {
 			return nil, fmt.Errorf("session revoke: blacklist refresh token: %w", blErr)
 		}

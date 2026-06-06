@@ -23,6 +23,12 @@ func (f *fakeUserSyncRepo) ExistsByCasdoorSubject(ctx context.Context, casdoorSu
 
 func newAuthServiceForTest(t *testing.T, opts ...ServiceOption) (*Service, *token.Service) {
 	t.Helper()
+	svc, tokenSvc, _ := newAuthServiceForTestWithFixture(t, opts...)
+	return svc, tokenSvc
+}
+
+func newAuthServiceForTestWithFixture(t *testing.T, opts ...ServiceOption) (*Service, *token.Service, *redisfixture.Fixture) {
+	t.Helper()
 	require.NoError(t, crypto.InitHMACKey("test-auth-service-secret-32-bytes!", false))
 
 	fixture := redisfixture.Start(t)
@@ -32,7 +38,11 @@ func newAuthServiceForTest(t *testing.T, opts ...ServiceOption) (*Service, *toke
 	t.Cleanup(tokenSvc.Close)
 
 	tokenCfg := config.TokenConfig{AccessTokenTTL: 300, RefreshTokenTTL: 600}
-	return NewService(tokenCfg, tokenSvc, &fakeUserSyncRepo{}, opts...), tokenSvc
+	return NewService(tokenCfg, tokenSvc, &fakeUserSyncRepo{}, opts...), tokenSvc, fixture
+}
+
+func refreshTokenRefKeyForTest(refreshHash string) string {
+	return "session:refresh:" + refreshHash
 }
 
 func TestSyncOIDCUser_ForwardsRoles(t *testing.T) {
@@ -128,6 +138,34 @@ func TestRotateSession_BlacklistsOldRefreshAndTouchesSession(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, newAccessHash, session.AccessTokenHash)
 	assert.Equal(t, newRefreshHash, session.RefreshTokenHash)
+}
+
+func TestRotateSession_ExtendsOldRefreshRefTTLToBlacklistTTL(t *testing.T) {
+	svc, tokenSvc, fixture := newAuthServiceForTestWithFixture(t)
+	ctx := context.Background()
+	oldRefresh := "old-refresh-ttl"
+	refreshTTL := tokenSvc.GetRefreshTokenTTL()
+
+	_, err := svc.CreateSession(ctx, "sid-ttl", "user-ttl", "old-access", oldRefresh, "oidc", "browser")
+	require.NoError(t, err)
+	oldRefreshHash, err := hashTokenForSession(oldRefresh)
+	require.NoError(t, err)
+	oldRefKey := refreshTokenRefKeyForTest(oldRefreshHash)
+	require.NoError(t, fixture.Client.PExpire(ctx, oldRefKey, 50*time.Millisecond).Err())
+
+	err = svc.RotateSession(ctx, "sid-ttl", "user-ttl", oldRefresh, "new-access", "new-refresh")
+	require.NoError(t, err)
+
+	ref, err := tokenSvc.GetSessionStore().LookupRefreshTokenHash(ctx, oldRefreshHash)
+	require.NoError(t, err)
+	require.NotNil(t, ref)
+	assert.Equal(t, "sid-ttl", ref.SessionID)
+	assert.Equal(t, "user-ttl", ref.UserID)
+
+	refTTL, err := fixture.Client.TTL(ctx, oldRefKey).Result()
+	require.NoError(t, err)
+	assert.Greater(t, refTTL, refreshTTL-5*time.Second)
+	assert.LessOrEqual(t, refTTL, refreshTTL)
 }
 
 func TestSessionLifecycleRejectsMissingUserIDBeforeStateChanges(t *testing.T) {

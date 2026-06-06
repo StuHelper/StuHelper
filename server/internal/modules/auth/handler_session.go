@@ -20,6 +20,7 @@ import (
 const (
 	refreshReservationTTL            = 2 * time.Minute
 	refreshReservationReleaseTimeout = 2 * time.Second
+	logoutCleanupTimeout             = 3 * time.Second
 )
 
 // Logout 登出当前设备（基于 Session 撤销）
@@ -44,7 +45,9 @@ func (h *Handler) Logout(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.RevokeSession(c.Request.Context(), sessionID, userID, accessToken, refreshToken); err != nil {
+	cleanupCtx, cancel := ctxutil.DetachedTimeout(c.Request.Context(), logoutCleanupTimeout)
+	defer cancel()
+	if err := h.svc.RevokeSession(cleanupCtx, sessionID, userID, accessToken, refreshToken); err != nil {
 		if errors.Is(err, token.ErrSessionNotFound) ||
 			errors.Is(err, errSessionIDRequired) ||
 			errors.Is(err, errSessionUserRequired) ||
@@ -79,7 +82,9 @@ func (h *Handler) LogoutAll(c *gin.Context) {
 	username := middleware.GetUsername(c)
 	requestID := middleware.GetRequestID(c)
 
-	if err := h.svc.RevokeAllSessions(c.Request.Context(), userID); err != nil {
+	cleanupCtx, cancel := ctxutil.DetachedTimeout(c.Request.Context(), logoutCleanupTimeout)
+	defer cancel()
+	if err := h.svc.RevokeAllSessions(cleanupCtx, userID); err != nil {
 		if errors.Is(err, errSessionUserRequired) {
 			response.Unauthorized(c, "missing authentication token", errs.ErrTokenMissing)
 			return

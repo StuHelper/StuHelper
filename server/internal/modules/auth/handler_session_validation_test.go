@@ -233,14 +233,28 @@ func TestLogout_SuccessAndFailureBranches(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, session)
 
+	canceledAccessToken := mustSignAccessTokenForHandler(t, "user-logout", "sid-logout-canceled")
+	canceledRefreshToken := "refresh-logout-canceled"
+	_, err = h.svc.CreateSession(t.Context(), "sid-logout-canceled", "user-logout", canceledAccessToken, canceledRefreshToken, "oidc", "browser")
+	require.NoError(t, err)
+
 	req = httptest.NewRequest(http.MethodPost, "/logout", nil).WithContext(canceledContext())
-	req.AddCookie(&http.Cookie{Name: middleware.CookieRefreshToken, Value: "refresh-logout-fail"})
-	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-logout"})
-	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.AddCookie(&http.Cookie{Name: middleware.CookieRefreshToken, Value: canceledRefreshToken})
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-logout-canceled"})
+	req.Header.Set("Authorization", "Bearer "+canceledAccessToken)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	require.Equal(t, http.StatusInternalServerError, w.Code)
-	assert.Contains(t, w.Body.String(), "logout partially failed")
+	require.Equal(t, http.StatusOK, w.Code)
+
+	session, err = tokenSvc.GetSessionStore().Get(t.Context(), "sid-logout-canceled")
+	require.NoError(t, err)
+	assert.Nil(t, session)
+	blacklisted, err := tokenSvc.GetBlacklist().IsBlacklisted(t.Context(), canceledAccessToken)
+	require.NoError(t, err)
+	assert.True(t, blacklisted)
+	blacklisted, err = tokenSvc.GetBlacklist().IsBlacklisted(t.Context(), canceledRefreshToken)
+	require.NoError(t, err)
+	assert.True(t, blacklisted)
 }
 
 func TestLogout_UsesNativeSessionHeaderForOIDCSession(t *testing.T) {

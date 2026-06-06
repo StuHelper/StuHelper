@@ -285,6 +285,115 @@ func TestRefreshToken_BlacklistedRefreshReuseRevokesAllSessions(t *testing.T) {
 	assert.Empty(t, sessions)
 }
 
+func TestRefreshToken_BlacklistedRefreshReuseRevokesAllSessionsAfterOldRefTTLWasNearExpiry(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, tokenSvc, fixture := newRefreshTestHandlerWithFixture(t, &fakeUserSyncRepo{})
+	ctx := t.Context()
+	oldRefresh := "old-refresh-near-expiry"
+
+	_, err := h.svc.CreateSession(
+		ctx,
+		"sid-refresh-near-expiry-a",
+		"user-refresh-near-expiry",
+		"old-access-token",
+		oldRefresh,
+		"oidc",
+		"browser",
+	)
+	require.NoError(t, err)
+	_, err = h.svc.CreateSession(
+		ctx,
+		"sid-refresh-near-expiry-b",
+		"user-refresh-near-expiry",
+		"other-access-token",
+		"other-refresh-token",
+		"oidc",
+		"browser",
+	)
+	require.NoError(t, err)
+
+	oldRefreshHash, err := hashTokenForSession(oldRefresh)
+	require.NoError(t, err)
+	require.NoError(t, fixture.Client.PExpire(ctx, refreshTokenRefKeyForTest(oldRefreshHash), 50*time.Millisecond).Err())
+
+	err = h.svc.RotateSession(ctx, "sid-refresh-near-expiry-a", "user-refresh-near-expiry", oldRefresh, "new-access-token", "new-refresh-token")
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+
+	r := gin.New()
+	r.POST("/refresh", h.RefreshToken)
+
+	csrfToken := mustGenerateCSRFTokenForSession(t, "sid-refresh-near-expiry-a")
+	req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: middleware.CookieRefreshToken, Value: oldRefresh})
+	req.AddCookie(&http.Cookie{Name: middleware.CSRFCookieName, Value: csrfToken})
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-refresh-near-expiry-a"})
+	req.Header.Set(middleware.CSRFHeaderName, csrfToken)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), "refresh token reuse detected")
+	assert.Contains(t, w.Body.String(), string(errs.ErrTokenRevoked))
+
+	sessions, err := tokenSvc.GetSessionStore().ListUserSessions(ctx, "user-refresh-near-expiry")
+	require.NoError(t, err)
+	assert.Empty(t, sessions)
+}
+
+func TestRefreshToken_BlacklistedRefreshWithoutAttributionRemainsRevoked(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, tokenSvc, fixture := newRefreshTestHandlerWithFixture(t, &fakeUserSyncRepo{})
+	ctx := t.Context()
+	refreshToken := "legacy-revoked-refresh"
+
+	_, err := h.svc.CreateSession(
+		ctx,
+		"sid-legacy-revoked-a",
+		"user-legacy-revoked",
+		"legacy-access-a",
+		refreshToken,
+		"oidc",
+		"browser",
+	)
+	require.NoError(t, err)
+	_, err = h.svc.CreateSession(
+		ctx,
+		"sid-legacy-revoked-b",
+		"user-legacy-revoked",
+		"legacy-access-b",
+		"legacy-refresh-b",
+		"oidc",
+		"browser",
+	)
+	require.NoError(t, err)
+	require.NoError(t, tokenSvc.GetBlacklist().Add(ctx, refreshToken, tokenSvc.GetRefreshTokenTTL()))
+
+	refreshHash, err := hashTokenForSession(refreshToken)
+	require.NoError(t, err)
+	require.NoError(t, fixture.Client.Del(ctx, refreshTokenRefKeyForTest(refreshHash)).Err())
+
+	r := gin.New()
+	r.POST("/refresh", h.RefreshToken)
+
+	csrfToken := mustGenerateCSRFTokenForSession(t, "sid-legacy-revoked-a")
+	req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: middleware.CookieRefreshToken, Value: refreshToken})
+	req.AddCookie(&http.Cookie{Name: middleware.CSRFCookieName, Value: csrfToken})
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-legacy-revoked-a"})
+	req.Header.Set(middleware.CSRFHeaderName, csrfToken)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), "refresh token revoked")
+	assert.NotContains(t, w.Body.String(), "refresh token reuse detected")
+
+	sessions, err := tokenSvc.GetSessionStore().ListUserSessions(ctx, "user-legacy-revoked")
+	require.NoError(t, err)
+	require.Len(t, sessions, 2)
+}
+
 func TestRefreshToken_RejectsSelfSignedRefreshToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, tokenSvc := newRefreshTestHandler(t, &fakeUserSyncRepo{})
@@ -334,13 +443,18 @@ func TestLogoutAll_RevokesAllSessions(t *testing.T) {
 	assert.Empty(t, sessions)
 }
 
-func TestLogoutAll_FailureBranch(t *testing.T) {
+func TestLogoutAll_UsesDetachedContextAfterRequestCancellation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	h, _ := newRefreshTestHandler(t, &fakeUserSyncRepo{})
+	h, tokenSvc := newRefreshTestHandler(t, &fakeUserSyncRepo{})
+
+	_, err := h.svc.CreateSession(t.Context(), "sid-canceled-a", "user-logout-all-canceled", "access-canceled-a", "refresh-canceled-a", "oidc", "browser")
+	require.NoError(t, err)
+	_, err = h.svc.CreateSession(t.Context(), "sid-canceled-b", "user-logout-all-canceled", "access-canceled-b", "refresh-canceled-b", "oidc", "browser")
+	require.NoError(t, err)
 
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
-		c.Set(middleware.CtxKeyUserID, "user-logout-all")
+		c.Set(middleware.CtxKeyUserID, "user-logout-all-canceled")
 		c.Set(middleware.CtxKeyUsername, "logout-all-tester")
 		c.Next()
 	})
@@ -352,8 +466,10 @@ func TestLogoutAll_FailureBranch(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	require.Equal(t, http.StatusInternalServerError, w.Code)
-	assert.Contains(t, w.Body.String(), "failed to logout from all devices")
+	require.Equal(t, http.StatusOK, w.Code)
+	sessions, err := tokenSvc.GetSessionStore().ListUserSessions(t.Context(), "user-logout-all-canceled")
+	require.NoError(t, err)
+	assert.Empty(t, sessions)
 }
 
 func mustSignRefreshToken(t *testing.T, userID, sessionID string) string {

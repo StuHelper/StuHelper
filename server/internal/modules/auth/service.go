@@ -207,7 +207,16 @@ func (s *Service) RotateSession(ctx context.Context, sessionID, userID, oldRefre
 		cleanupErr = errors.Join(cleanupErr, fmt.Errorf("revoke old provider refresh token: %w", err))
 	}
 
-	if blErr := s.tokenService.GetBlacklist().Add(ctx, oldRefreshToken, s.tokenService.GetRefreshTokenTTL()); blErr != nil {
+	refreshTTL := s.tokenService.GetRefreshTokenTTL()
+	if session.RefreshTokenHash != "" {
+		if err := s.tokenService.GetSessionStore().RememberRefreshTokenHash(ctx, session.RefreshTokenHash, token.RefreshTokenRef{
+			SessionID: session.SessionID,
+			UserID:    session.UserID,
+		}, refreshTTL); err != nil {
+			cleanupErr = errors.Join(cleanupErr, fmt.Errorf("remember old refresh token ref: %w", err))
+		}
+	}
+	if blErr := s.tokenService.GetBlacklist().Add(ctx, oldRefreshToken, refreshTTL); blErr != nil {
 		cleanupErr = errors.Join(cleanupErr, fmt.Errorf("blacklist old refresh token: %w", blErr))
 	}
 	if cleanupErr != nil {
