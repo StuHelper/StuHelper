@@ -30,30 +30,35 @@ func maskHash(hash string) string {
 
 // 业务错误定义
 var (
-	ErrCourseNotFound        = errors.New("course not found")
-	ErrReviewNotFound        = errors.New("review not found")
-	ErrTeacherNotFound       = errors.New("teacher not found")
-	ErrAlreadyVoted          = errors.New("already voted")
-	ErrAlreadyReviewed       = errors.New("already reviewed this course")
-	ErrDangerousContent      = errors.New("content contains dangerous elements")
-	ErrSensitiveContent      = errors.New("content contains sensitive words")
-	ErrModerationUnavailable = errors.New("content moderation unavailable")
-	ErrInvalidTermID         = errors.New("invalid term_id format, expected YYYY-S (e.g. 2024-1)")
-	ErrTitleEmpty            = errors.New("title cannot be empty after sanitization")
-	ErrTitleTooLong          = errors.New("title too long")
-	ErrContentEmpty          = errors.New("content cannot be empty after sanitization")
-	ErrContentTooShort       = errors.New("content too short")
-	ErrReasonTooLong         = errors.New("reason too long")
-	ErrInvalidRating         = errors.New("invalid rating value")
-	ErrInvalidGrade          = errors.New("invalid grade")
-	ErrRatingRequired        = errors.New("at least one rating dimension is required")
-	ErrNotReviewOwner        = errors.New("not the review owner")
-	ErrAlreadyReported       = errors.New("already reported this review")
-	ErrReportNotFound        = errors.New("report not found")
-	ErrDraftNotFound         = errors.New("draft not found")
-	ErrInvalidAction         = errors.New("invalid action")
-	ErrInvalidTransition     = errors.New("invalid status transition")
-	ErrUserIdentityRequired  = errors.New("internal user identity required")
+	ErrCourseNotFound            = errors.New("course not found")
+	ErrReviewNotFound            = errors.New("review not found")
+	ErrTeacherNotFound           = errors.New("teacher not found")
+	ErrTeacherNameInvalid        = errors.New("teacher name is invalid")
+	ErrTeacherDepartmentRequired = errors.New("teacher department is required")
+	ErrTeacherDepartmentNotFound = errors.New("teacher department not found")
+	ErrTeacherHasReviews         = errors.New("teacher has associated reviews")
+	ErrAlreadyVoted              = errors.New("already voted")
+	ErrAlreadyReviewed           = errors.New("already reviewed this course")
+	ErrDangerousContent          = errors.New("content contains dangerous elements")
+	ErrSensitiveContent          = errors.New("content contains sensitive words")
+	ErrSensitiveWordInvalid      = errors.New("sensitive word input is invalid")
+	ErrModerationUnavailable     = errors.New("content moderation unavailable")
+	ErrInvalidTermID             = errors.New("invalid term_id format, expected YYYY-S (e.g. 2024-1)")
+	ErrTitleEmpty                = errors.New("title cannot be empty after sanitization")
+	ErrTitleTooLong              = errors.New("title too long")
+	ErrContentEmpty              = errors.New("content cannot be empty after sanitization")
+	ErrContentTooShort           = errors.New("content too short")
+	ErrReasonTooLong             = errors.New("reason too long")
+	ErrInvalidRating             = errors.New("invalid rating value")
+	ErrInvalidGrade              = errors.New("invalid grade")
+	ErrRatingRequired            = errors.New("at least one rating dimension is required")
+	ErrNotReviewOwner            = errors.New("not the review owner")
+	ErrAlreadyReported           = errors.New("already reported this review")
+	ErrReportNotFound            = errors.New("report not found")
+	ErrDraftNotFound             = errors.New("draft not found")
+	ErrInvalidAction             = errors.New("invalid action")
+	ErrInvalidTransition         = errors.New("invalid status transition")
+	ErrUserIdentityRequired      = errors.New("internal user identity required")
 )
 
 // Service 评课服务层
@@ -197,6 +202,7 @@ const (
 	maxReviewTitleRunes      = 200
 	maxReviewContentRunes    = 5000
 	maxAdminEditReasonRunes  = 500
+	maxAdminTeacherNameRunes = 100
 )
 
 func (s *Service) validateAndSanitizeReview(ctx context.Context, ratings ReviewRatings, title, content, termID string) (string, string, string, *string, error) {
@@ -564,7 +570,20 @@ func (s *Service) ListSensitiveWords(ctx context.Context, category, level string
 }
 
 func (s *Service) CreateSensitiveWord(ctx context.Context, word, category, level string) (SensitiveWord, error) {
-	sw, err := s.repo.CreateSensitiveWord(ctx, word, category, level)
+	normalizedWord, err := validateSensitiveWordText(word)
+	if err != nil {
+		return SensitiveWord{}, err
+	}
+	category = strings.TrimSpace(category)
+	if err := validateSensitiveWordCategory(category); err != nil {
+		return SensitiveWord{}, err
+	}
+	level = strings.TrimSpace(level)
+	if err := validateSensitiveWordLevel(level); err != nil {
+		return SensitiveWord{}, err
+	}
+
+	sw, err := s.repo.CreateSensitiveWord(ctx, normalizedWord, category, level)
 	if err != nil {
 		return SensitiveWord{}, fmt.Errorf("create sensitive word: %w", err)
 	}
@@ -572,6 +591,28 @@ func (s *Service) CreateSensitiveWord(ctx context.Context, word, category, level
 }
 
 func (s *Service) UpdateSensitiveWord(ctx context.Context, wordID string, word, category, level *string, isActive *bool) error {
+	if word != nil {
+		normalizedWord, err := validateSensitiveWordText(*word)
+		if err != nil {
+			return err
+		}
+		word = &normalizedWord
+	}
+	if category != nil {
+		normalizedCategory := strings.TrimSpace(*category)
+		if err := validateSensitiveWordCategory(normalizedCategory); err != nil {
+			return err
+		}
+		category = &normalizedCategory
+	}
+	if level != nil {
+		normalizedLevel := strings.TrimSpace(*level)
+		if err := validateSensitiveWordLevel(normalizedLevel); err != nil {
+			return err
+		}
+		level = &normalizedLevel
+	}
+
 	if err := s.repo.UpdateSensitiveWord(ctx, wordID, word, category, level, isActive); err != nil {
 		return fmt.Errorf("update sensitive word %s: %w", wordID, err)
 	}
@@ -618,15 +659,24 @@ func (s *Service) ListAdminTeachers(ctx context.Context, search string, departme
 }
 
 func (s *Service) CreateTeacher(ctx context.Context, name string, departmentID *int64) (*AdminTeacher, error) {
-	t, err := s.repo.CreateTeacher(ctx, name, departmentID)
+	normalizedName, err := s.validateAdminTeacherInput(ctx, name, departmentID, true)
+	if err != nil {
+		return nil, err
+	}
+	t, err := s.repo.CreateTeacher(ctx, normalizedName, departmentID)
 	if err != nil {
 		return nil, fmt.Errorf("create teacher: %w", err)
 	}
+	t.Name = normalizedName
 	return t, nil
 }
 
 func (s *Service) UpdateTeacher(ctx context.Context, id int64, name string, departmentID *int64) error {
-	if err := s.repo.UpdateTeacher(ctx, id, name, departmentID); err != nil {
+	normalizedName, err := s.validateAdminTeacherInput(ctx, name, departmentID, false)
+	if err != nil {
+		return err
+	}
+	if err := s.repo.UpdateTeacher(ctx, id, normalizedName, departmentID); err != nil {
 		return fmt.Errorf("update teacher %d: %w", id, err)
 	}
 	return nil
@@ -637,4 +687,28 @@ func (s *Service) DeleteTeacher(ctx context.Context, id int64) error {
 		return fmt.Errorf("delete teacher %d: %w", id, err)
 	}
 	return nil
+}
+
+func (s *Service) validateAdminTeacherInput(ctx context.Context, name string, departmentID *int64, requireDepartment bool) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" || utf8.RuneCountInString(name) > maxAdminTeacherNameRunes {
+		return "", ErrTeacherNameInvalid
+	}
+	if departmentID == nil {
+		if requireDepartment {
+			return "", ErrTeacherDepartmentRequired
+		}
+		return name, nil
+	}
+	if *departmentID <= 0 {
+		return "", ErrTeacherDepartmentNotFound
+	}
+	exists, err := s.repo.DepartmentExists(ctx, *departmentID)
+	if err != nil {
+		return "", err
+	}
+	if !exists {
+		return "", ErrTeacherDepartmentNotFound
+	}
+	return name, nil
 }

@@ -88,6 +88,47 @@ func TestRespondAdminUpdateReviewError(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "invalid status transition")
 }
 
+func TestRespondTeacherAdminError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name     string
+		err      error
+		status   int
+		contains string
+	}{
+		{name: "missing department", err: ErrTeacherDepartmentRequired, status: http.StatusBadRequest, contains: "teacher department is required"},
+		{name: "department not found", err: ErrTeacherDepartmentNotFound, status: http.StatusNotFound, contains: "teacher department not found"},
+		{name: "has reviews", err: ErrTeacherHasReviews, status: http.StatusConflict, contains: "teacher has associated reviews"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+
+			ok := respondTeacherAdminError(c, tt.err)
+
+			assert.True(t, ok)
+			assert.Equal(t, tt.status, w.Code)
+			assert.Contains(t, w.Body.String(), tt.contains)
+		})
+	}
+}
+
+func TestRespondSensitiveWordAdminErrorValidation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	ok := respondSensitiveWordAdminError(c, ErrSensitiveWordInvalid)
+
+	assert.True(t, ok)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "sensitive word input is invalid")
+}
+
 func TestRespondVoteReviewErrorInvalidVoteType(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

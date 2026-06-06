@@ -124,7 +124,7 @@ func (r *Repository) DeleteTeacher(ctx context.Context, id int64) error {
 			return fmt.Errorf("DeleteTeacher check: %w", err)
 		}
 		if reviewCount > 0 {
-			return fmt.Errorf("teacher has %d associated reviews, cannot delete", reviewCount)
+			return fmt.Errorf("%w: %d associated reviews", ErrTeacherHasReviews, reviewCount)
 		}
 
 		result, err := tx.Exec(ctx, `DELETE FROM teachers WHERE id = $1`, lockedTeacherID)

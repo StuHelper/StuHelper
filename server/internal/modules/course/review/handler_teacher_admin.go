@@ -14,7 +14,7 @@ import (
 // CreateTeacherRequest 创建教师请求
 type CreateTeacherRequest struct {
 	Name         string `json:"name" binding:"required,min=1,max=100"`
-	DepartmentID *int64 `json:"departmentID"`
+	DepartmentID *int64 `json:"departmentID" binding:"required"`
 }
 
 // UpdateTeacherRequest 更新教师请求
@@ -54,6 +54,9 @@ func (h *Handler) CreateTeacher(c *gin.Context) {
 
 	teacher, err := h.service.CreateTeacher(c.Request.Context(), req.Name, req.DepartmentID)
 	if err != nil {
+		if respondTeacherAdminError(c, err) {
+			return
+		}
 		logger.FromGin(c).Error("failed to create teacher", zap.Error(err))
 		response.InternalError(c, "failed to create teacher")
 		return
@@ -82,7 +85,7 @@ func (h *Handler) UpdateTeacher(c *gin.Context) {
 	}
 
 	if err := h.service.UpdateTeacher(c.Request.Context(), id, req.Name, req.DepartmentID); err != nil {
-		if respondTeacherLookupError(c, err) {
+		if respondTeacherAdminError(c, err) {
 			return
 		}
 		logger.FromGin(c).Error("failed to update teacher", zap.Error(err))
@@ -106,7 +109,7 @@ func (h *Handler) DeleteTeacher(c *gin.Context) {
 	}
 
 	if err := h.service.DeleteTeacher(c.Request.Context(), id); err != nil {
-		if respondTeacherLookupError(c, err) {
+		if respondTeacherAdminError(c, err) {
 			return
 		}
 		logger.FromGin(c).Error("failed to delete teacher", zap.Error(err))

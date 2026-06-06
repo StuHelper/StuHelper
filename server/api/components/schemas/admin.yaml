@@ -146,7 +146,7 @@ AdminTeacher:
 
 CreateTeacherRequest:
   type: object
-  required: [name]
+  required: [name, departmentID]
   properties:
     name:
       type: string

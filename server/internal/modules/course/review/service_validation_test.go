@@ -146,6 +146,27 @@ func TestReviewService_AdminEditReviewPreflightLengthValidation(t *testing.T) {
 	assert.ErrorIs(t, err, ErrReasonTooLong)
 }
 
+func TestReviewService_SensitiveWordPreflightValidation(t *testing.T) {
+	svc := &Service{}
+	ctx := context.Background()
+
+	_, err := svc.CreateSensitiveWord(ctx, "   ", "", "")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrSensitiveWordInvalid)
+
+	_, err = svc.CreateSensitiveWord(ctx, strings.Repeat("敏", maxSensitiveWordRunes+1), "", "")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrSensitiveWordInvalid)
+
+	_, err = svc.CreateSensitiveWord(ctx, "敏感词", "Invalid Category", "")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrSensitiveWordInvalid)
+
+	err = svc.UpdateSensitiveWord(ctx, "missing", nil, nil, strPtr("fatal"), nil)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrSensitiveWordInvalid)
+}
+
 func TestReviewService_ValidateDraftRatingValues(t *testing.T) {
 	ctx := context.Background()
 	svc := newValidationService(nil)

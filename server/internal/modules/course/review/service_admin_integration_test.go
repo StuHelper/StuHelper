@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -251,6 +252,18 @@ func TestReviewService_AdminAndExportIntegration(t *testing.T) {
 	assert.GreaterOrEqual(t, totalTeachers, 1)
 	require.NotEmpty(t, adminTeachers)
 	assert.Equal(t, teacherID, adminTeachers[0].ID)
+
+	_, err = svc.CreateTeacher(ctx, "无部门老师", nil)
+	require.ErrorIs(t, err, ErrTeacherDepartmentRequired)
+
+	missingDepartmentID := departmentID + 999999
+	_, err = svc.CreateTeacher(ctx, "缺失院系老师", &missingDepartmentID)
+	require.ErrorIs(t, err, ErrTeacherDepartmentNotFound)
+
+	_, err = svc.CreateTeacher(ctx, strings.Repeat("师", maxAdminTeacherNameRunes+1), &departmentID)
+	require.ErrorIs(t, err, ErrTeacherNameInvalid)
+
+	require.ErrorIs(t, svc.DeleteTeacher(ctx, teacherID), ErrTeacherHasReviews)
 
 	createdTeacher, err := svc.CreateTeacher(ctx, "新老师", &departmentID)
 	require.NoError(t, err)

@@ -1,21 +1,12 @@
 package review
 
 import (
-	"errors"
-	"regexp"
-	"strings"
-
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
-)
-
-var (
-	sensitiveWordCategoryPattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,49}$`)
-	allowedSensitiveWordLevels   = map[string]struct{}{"block": {}, "warn": {}, "review": {}}
 )
 
 // CreateSensitiveWordRequest 创建敏感词请求
@@ -68,6 +59,9 @@ func (h *Handler) CreateSensitiveWord(c *gin.Context) {
 
 	w, err := h.service.CreateSensitiveWord(c.Request.Context(), req.Word, req.Category, req.Level)
 	if err != nil {
+		if respondSensitiveWordAdminError(c, err) {
+			return
+		}
 		logger.FromGin(c).Error("failed to create sensitive word", zap.Error(err))
 		response.InternalError(c, "failed to create sensitive word")
 		return
@@ -140,26 +134,4 @@ func (h *Handler) DeleteSensitiveWord(c *gin.Context) {
 	h.logAdminOp(c, "delete_sensitive_word", "sensitive_word", wordID, nil, nil)
 
 	response.Success(c, gin.H{"message": "sensitive word deleted"})
-}
-
-func validateSensitiveWordCategory(category string) error {
-	trimmed := strings.TrimSpace(category)
-	if trimmed == "" {
-		return nil
-	}
-	if !sensitiveWordCategoryPattern.MatchString(trimmed) {
-		return errors.New("category must match ^[a-z][a-z0-9_-]{0,49}$")
-	}
-	return nil
-}
-
-func validateSensitiveWordLevel(level string) error {
-	trimmed := strings.TrimSpace(level)
-	if trimmed == "" {
-		return nil
-	}
-	if _, ok := allowedSensitiveWordLevels[trimmed]; !ok {
-		return errors.New("level must be one of: block, warn, review")
-	}
-	return nil
 }

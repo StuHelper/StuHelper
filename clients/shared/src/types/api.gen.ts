@@ -3916,7 +3916,7 @@ export interface components {
         CreateTeacherRequest: {
             name: string;
             /** Format: int64 */
-            departmentID?: number;
+            departmentID: number;
         };
         UpdateTeacherRequest: {
             name: string;

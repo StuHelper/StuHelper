@@ -9743,6 +9743,7 @@ components:
       type: object
       required:
         - name
+        - departmentID
       properties:
         name:
           type: string

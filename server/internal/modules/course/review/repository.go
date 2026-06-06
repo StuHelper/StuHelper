@@ -36,6 +36,14 @@ func (r *Repository) CourseExists(ctx context.Context, courseID int64) (bool, er
 	return exists, err
 }
 
+// DepartmentExists 检查院系是否存在
+func (r *Repository) DepartmentExists(ctx context.Context, departmentID int64) (bool, error) {
+	ctx = withDBTable(ctx, "departments")
+	var exists bool
+	err := r.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM departments WHERE id = $1)`, departmentID).Scan(&exists)
+	return exists, err
+}
+
 // ReviewExists 检查已发布的评论是否存在（用于用户侧操作：投票、举报、回复）
 func (r *Repository) ReviewExists(ctx context.Context, reviewID string) (bool, error) {
 	ctx = withDBTable(ctx, "reviews")

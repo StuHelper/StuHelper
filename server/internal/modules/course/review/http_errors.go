@@ -36,6 +36,12 @@ var (
 			Message: "teacher not found",
 		},
 	}
+	reviewTeacherAdminErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrTeacherNameInvalid, 400, "teacher name is invalid", errs.ErrInvalidParam),
+		response.MatchError(ErrTeacherDepartmentRequired, 400, "teacher department is required", errs.ErrInvalidParam),
+		response.MatchError(ErrTeacherDepartmentNotFound, 404, "teacher department not found", errs.ErrTeacherNotFound),
+		response.MatchError(ErrTeacherHasReviews, 409, "teacher has associated reviews"),
+	}
 	reviewWriteValidationErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrInvalidTermID, 400, "invalid term_id format, expected YYYY-S (e.g. 2024-1)"),
 		response.MatchError(ErrRatingRequired, 400, "at least one rating dimension is required"),
@@ -61,6 +67,7 @@ var (
 		response.MatchError(ErrInvalidTransition, 400, "invalid status transition for this action", errs.ErrInvalidTransition),
 	}
 	reviewSensitiveWordErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrSensitiveWordInvalid, 400, "sensitive word input is invalid", errs.ErrInvalidParam),
 		{
 			Match: func(err error) bool {
 				return errors.Is(err, pgx.ErrNoRows)
@@ -163,6 +170,13 @@ func respondAdminEditReviewError(c *gin.Context, err error) bool {
 
 func respondTeacherLookupError(c *gin.Context, err error) bool {
 	return response.RespondMappedErrorGroups(c, err, reviewTeacherLookupErrorMappings)
+}
+
+func respondTeacherAdminError(c *gin.Context, err error) bool {
+	return response.RespondMappedErrorGroups(c, err,
+		reviewTeacherAdminErrorMappings,
+		reviewTeacherLookupErrorMappings,
+	)
 }
 
 func respondAddFavoriteError(c *gin.Context, err error) bool {
