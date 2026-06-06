@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { Component } from 'vue'
+import { RouterLink } from 'vue-router'
 
 interface Props {
   title: string
@@ -8,6 +9,7 @@ interface Props {
   icon: Component
   color: string
   stats?: string
+  to?: string
 }
 
 defineProps<Props>()
@@ -24,8 +26,9 @@ const cardStyle = ref<Record<string, string>>({
 })
 
 const onHover = (e: MouseEvent) => {
-  if (tiltDisabled || !cardRef.value) return
-  const rect = cardRef.value.getBoundingClientRect()
+  const target = e.currentTarget
+  if (tiltDisabled || !(target instanceof HTMLElement)) return
+  const rect = target.getBoundingClientRect()
   const x = e.clientX - rect.left
   const y = e.clientY - rect.top
   const centerX = rect.width / 2
@@ -46,10 +49,13 @@ const onLeave = () => {
 </script>
 
 <template>
-  <div
+  <component
+    :is="to ? RouterLink : 'div'"
     ref="cardRef"
     class="feature-card"
+    :class="{ 'feature-card--link': to }"
     :style="{ '--gradient-color': color, ...cardStyle }"
+    :to="to"
     @mouseenter="onHover"
     @mousemove="onHover"
     @mouseleave="onLeave"
@@ -60,7 +66,7 @@ const onLeave = () => {
     <h3 class="feature-card__title">{{ title }}</h3>
     <p class="feature-card__description">{{ description }}</p>
     <div v-if="stats" class="feature-card__stats">{{ stats }}</div>
-  </div>
+  </component>
 </template>
 
 <style scoped>
@@ -73,9 +79,20 @@ const onLeave = () => {
   border-radius: 1rem;
   border: 1px solid transparent;
   background-clip: padding-box;
-  cursor: pointer;
   transform-style: preserve-3d;
   transition: all 0.3s ease;
+}
+
+.feature-card--link {
+  display: block;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.feature-card--link:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 4px;
 }
 
 .feature-card::before {

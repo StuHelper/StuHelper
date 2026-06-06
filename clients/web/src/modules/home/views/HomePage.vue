@@ -94,6 +94,7 @@ const features = computed(() => [
     title: t('home.landing.features.reviewCenter.title'),
     description: t('home.landing.features.reviewCenter.description'),
     color: 'var(--color-secondary)',
+    to: '/courses/reviews',
     stats: reviewCount.value > 0
       ? t('home.landing.features.reviewCenter.statsCount', { count: reviewCount.value })
       : t('home.landing.features.reviewCenter.stats')
@@ -103,6 +104,7 @@ const features = computed(() => [
     title: t('home.landing.features.teacherProfile.title'),
     description: t('home.landing.features.teacherProfile.description'),
     color: 'var(--color-primary)',
+    to: '/teachers',
     stats: t('home.landing.features.teacherProfile.stats')
   },
 ])
