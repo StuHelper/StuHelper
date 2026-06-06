@@ -88,6 +88,34 @@ func TestRespondAdminUpdateReviewError(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "invalid status transition")
 }
 
+func TestRespondAdminErrorsMapMissingAdminIdentity(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name string
+		run  func(*gin.Context) bool
+	}{
+		{name: "process report", run: func(c *gin.Context) bool { return respondProcessReportError(c, ErrAdminIdentityRequired) }},
+		{name: "update review", run: func(c *gin.Context) bool { return respondAdminUpdateReviewError(c, ErrAdminIdentityRequired) }},
+		{name: "edit review", run: func(c *gin.Context) bool { return respondAdminEditReviewError(c, ErrAdminIdentityRequired) }},
+		{name: "clear content flag", run: func(c *gin.Context) bool { return respondClearContentFlagError(c, ErrAdminIdentityRequired) }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+
+			ok := tt.run(c)
+
+			assert.True(t, ok)
+			assert.Equal(t, http.StatusUnauthorized, w.Code)
+			assert.Contains(t, w.Body.String(), string(errs.ErrTokenMissing))
+			assert.Contains(t, w.Body.String(), "missing authentication token")
+		})
+	}
+}
+
 func TestRespondTeacherAdminError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

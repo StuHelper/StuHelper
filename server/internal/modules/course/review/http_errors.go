@@ -45,6 +45,9 @@ var (
 	reviewUserIdentityErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrUserIdentityRequired, 401, "missing authentication token", errs.ErrTokenMissing),
 	}
+	reviewAdminIdentityErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrAdminIdentityRequired, 401, "missing authentication token", errs.ErrTokenMissing),
+	}
 	reviewWriteValidationErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrInvalidTermID, 400, "invalid term_id format, expected YYYY-S (e.g. 2024-1)"),
 		response.MatchError(ErrRatingRequired, 400, "at least one rating dimension is required"),
@@ -175,15 +178,15 @@ func respondGetDraftError(c *gin.Context, err error) bool {
 }
 
 func respondProcessReportError(c *gin.Context, err error) bool {
-	return response.RespondMappedErrorGroups(c, err, reviewReportErrorMappings, reviewAdminActionErrorMappings)
+	return response.RespondMappedErrorGroups(c, err, reviewAdminIdentityErrorMappings, reviewReportErrorMappings, reviewAdminActionErrorMappings)
 }
 
 func respondAdminUpdateReviewError(c *gin.Context, err error) bool {
-	return response.RespondMappedErrorGroups(c, err, reviewNotFoundErrorMappings, reviewAdminActionErrorMappings)
+	return response.RespondMappedErrorGroups(c, err, reviewAdminIdentityErrorMappings, reviewNotFoundErrorMappings, reviewAdminActionErrorMappings)
 }
 
 func respondAdminEditReviewError(c *gin.Context, err error) bool {
-	return response.RespondMappedErrorGroups(c, err, reviewNotFoundErrorMappings, reviewModerationErrorMappings)
+	return response.RespondMappedErrorGroups(c, err, reviewAdminIdentityErrorMappings, reviewNotFoundErrorMappings, reviewModerationErrorMappings)
 }
 
 func respondTeacherLookupError(c *gin.Context, err error) bool {
@@ -205,7 +208,7 @@ func respondAddFavoriteError(c *gin.Context, err error) bool {
 }
 
 func respondClearContentFlagError(c *gin.Context, err error) bool {
-	return response.RespondMappedErrorGroups(c, err, reviewNotFoundErrorMappings)
+	return response.RespondMappedErrorGroups(c, err, reviewAdminIdentityErrorMappings, reviewNotFoundErrorMappings)
 }
 
 func respondSensitiveWordAdminError(c *gin.Context, err error) bool {

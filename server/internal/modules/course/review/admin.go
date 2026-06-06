@@ -72,7 +72,7 @@ func (h *Handler) ProcessReport(c *gin.Context) {
 		ReportID:   reportID,
 		Action:     req.Action,
 		Note:       req.Note,
-		ResolvedBy: middleware.GetUsername(c),
+		ResolvedBy: middleware.GetUserID(c),
 	})
 	if err != nil {
 		if respondProcessReportError(c, err) {
@@ -237,7 +237,7 @@ func (h *Handler) BatchUpdateReviews(c *gin.Context) {
 		AdminID: userID,
 	})
 	if err != nil {
-		if response.RespondMappedErrorGroups(c, err, reviewAdminActionErrorMappings) {
+		if response.RespondMappedErrorGroups(c, err, reviewAdminIdentityErrorMappings, reviewAdminActionErrorMappings) {
 			return
 		}
 		logger.FromGin(c).Error("failed to batch update reviews", zap.Error(err))

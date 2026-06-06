@@ -19,7 +19,7 @@ type AdminUpdateReviewParams struct {
 	ReviewID string
 	Action   string
 	Reason   string // 可选，hide 时记录屏蔽原因
-	AdminID  string // 可选，hide/restore 时记录操作人
+	AdminID  string // 必填，记录操作人
 }
 
 // validTransitions 定义合法的状态转移白名单
@@ -55,6 +55,12 @@ type adminReviewTransition struct {
 // AdminUpdateReview 管理员更新评论，返回事务内读取的旧状态。
 // restore 对 pending_review 表示审核通过并发布。
 func (s *Service) AdminUpdateReview(ctx context.Context, params AdminUpdateReviewParams) (*AdminUpdateReviewResult, error) {
+	adminID, err := normalizeRequiredAdminID(params.AdminID)
+	if err != nil {
+		return nil, err
+	}
+	params.AdminID = adminID
+
 	transition, err := s.applyAdminUpdateReview(ctx, params)
 	if err != nil {
 		return nil, err
@@ -63,8 +69,14 @@ func (s *Service) AdminUpdateReview(ctx context.Context, params AdminUpdateRevie
 }
 
 func (s *Service) AdminUpdateReply(ctx context.Context, params AdminUpdateReplyParams) (*AdminUpdateReplyResult, error) {
+	adminID, err := normalizeRequiredAdminID(params.AdminID)
+	if err != nil {
+		return nil, err
+	}
+	params.AdminID = adminID
+
 	var oldStatus string
-	err := s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+	err = s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		_, reviewID, currentStatus, err := s.repo.GetReplyOwnerAndReviewIDTx(ctx, tx, params.ReplyID)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
@@ -257,6 +269,12 @@ type AdminEditReviewParams struct {
 
 // AdminEditReview 管理员编辑评论内容
 func (s *Service) AdminEditReview(ctx context.Context, params AdminEditReviewParams) error {
+	adminID, err := normalizeRequiredAdminID(params.AdminID)
+	if err != nil {
+		return err
+	}
+	params.AdminID = adminID
+
 	if err := ensureSafeReviewText(params.Title, params.Content); err != nil {
 		return err
 	}
@@ -339,6 +357,12 @@ type BatchUpdateReviewsResult struct {
 
 // BatchUpdateReviews 批量更新评论状态（管理员）
 func (s *Service) BatchUpdateReviews(ctx context.Context, params BatchUpdateReviewsParams) (*BatchUpdateReviewsResult, error) {
+	adminID, err := normalizeRequiredAdminID(params.AdminID)
+	if err != nil {
+		return nil, err
+	}
+	params.AdminID = adminID
+
 	// 纵深防御：service 层也校验批量上限，防止绕过 handler 直接调用
 	if len(params.IDs) > maxBatchSize {
 		return nil, fmt.Errorf("batch size %d exceeds limit of %d", len(params.IDs), maxBatchSize)
@@ -441,8 +465,13 @@ type LogOperationParams struct {
 
 // LogOperation 记录操作日志
 func (s *Service) LogOperation(ctx context.Context, params LogOperationParams) error {
+	adminUserID, err := normalizeRequiredAdminID(params.AdminUserID)
+	if err != nil {
+		return err
+	}
+	params.AdminUserID = adminUserID
+
 	var oldValue, newValue []byte
-	var err error
 
 	if params.OldValue != nil {
 		oldValue, err = json.Marshal(params.OldValue)

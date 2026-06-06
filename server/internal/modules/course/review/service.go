@@ -59,6 +59,7 @@ var (
 	ErrInvalidAction             = errors.New("invalid action")
 	ErrInvalidTransition         = errors.New("invalid status transition")
 	ErrUserIdentityRequired      = errors.New("internal user identity required")
+	ErrAdminIdentityRequired     = errors.New("admin identity required")
 )
 
 // Service 评课服务层
@@ -261,6 +262,14 @@ func normalizeRequiredUserHash(userHash string) (string, error) {
 		return "", ErrUserIdentityRequired
 	}
 	return userHash, nil
+}
+
+func normalizeRequiredAdminID(adminID string) (string, error) {
+	adminID = strings.TrimSpace(adminID)
+	if adminID == "" {
+		return "", ErrAdminIdentityRequired
+	}
+	return adminID, nil
 }
 
 func validateReviewTextLengths(title, content string, minContentRunes int) error {
@@ -520,6 +529,11 @@ func (s *Service) ListFlaggedReviews(ctx context.Context, limit, offset int, sch
 
 // ClearContentFlag 管理员复核通过，必要时发布 pending_review 并清除 content_flag。
 func (s *Service) ClearContentFlag(ctx context.Context, reviewID, adminUserID string) error {
+	adminUserID, err := normalizeRequiredAdminID(adminUserID)
+	if err != nil {
+		return err
+	}
+
 	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		status, contentFlag, courseID, teacherID, err := s.repo.GetReviewContentFlagStateTx(ctx, tx, reviewID)
 		if err != nil {

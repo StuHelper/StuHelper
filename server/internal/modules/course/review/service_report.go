@@ -146,6 +146,12 @@ func (s *Service) ListReports(ctx context.Context, params ListReportsParams) (*L
 
 // ProcessReport 处理举报
 func (s *Service) ProcessReport(ctx context.Context, params ProcessReportParams) error {
+	resolvedBy, err := normalizeRequiredAdminID(params.ResolvedBy)
+	if err != nil {
+		return err
+	}
+	params.ResolvedBy = resolvedBy
+
 	switch params.Action {
 	case "reject", "hide", "delete":
 	default:

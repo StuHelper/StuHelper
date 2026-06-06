@@ -70,7 +70,17 @@ func TestReportReviewRejectsMissingUserIdentityBeforeDependencies(t *testing.T) 
 
 func TestProcessReport_InvalidAction(t *testing.T) {
 	svc := &Service{}
-	err := svc.ProcessReport(context.Background(), ProcessReportParams{Action: "archive"})
+	err := svc.ProcessReport(context.Background(), ProcessReportParams{Action: "archive", ResolvedBy: "admin-1"})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrInvalidAction)
+}
+
+func TestProcessReportRejectsMissingAdminIdentityBeforeDependencies(t *testing.T) {
+	svc := &Service{}
+
+	err := svc.ProcessReport(context.Background(), ProcessReportParams{
+		Action:     "reject",
+		ResolvedBy: "   ",
+	})
+	require.ErrorIs(t, err, ErrAdminIdentityRequired)
 }
