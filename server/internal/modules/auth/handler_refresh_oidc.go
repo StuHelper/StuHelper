@@ -24,6 +24,7 @@ type oidcRefreshPayload struct {
 	rawIDToken   string
 	refreshToken string
 	userID       string
+	userSync     UserSyncInput
 }
 
 type oidcSessionRotation struct {
@@ -43,6 +44,9 @@ func (h *Handler) refreshOIDCToken(c *gin.Context, refreshTokenStr string, inclu
 	}
 	payload, ok := h.fetchOIDCRefreshPayload(c, appKey, refreshTokenStr)
 	if !ok {
+		return false
+	}
+	if !h.syncOIDCRefreshUser(c, appKey, sessionID, refreshTokenStr, payload) {
 		return false
 	}
 	csrfToken, ok := h.prepareTokenCookies(c, sessionID)
@@ -128,7 +132,45 @@ func (h *Handler) fetchOIDCRefreshPayload(c *gin.Context, appKey, oldRefreshToke
 		return oidcRefreshPayload{}, false
 	}
 	revokeUncommittedRefresh = false
-	return oidcRefreshPayload{rawIDToken: rawIDToken, refreshToken: newToken.RefreshToken, userID: newClaims.GetUserID()}, true
+	return oidcRefreshPayload{
+		rawIDToken:   rawIDToken,
+		refreshToken: newToken.RefreshToken,
+		userID:       newClaims.GetUserID(),
+		userSync: UserSyncInput{
+			CasdoorSubject: newClaims.GetUserID(),
+			Username:       newClaims.GetUsername(),
+			Email:          newClaims.GetEmail(),
+			AvatarURL:      newClaims.GetAvatar(),
+			Roles:          newClaims.Roles,
+		},
+	}, true
+}
+
+func (h *Handler) syncOIDCRefreshUser(
+	c *gin.Context,
+	appKey,
+	sessionID,
+	oldRefreshToken string,
+	payload oidcRefreshPayload,
+) bool {
+	if err := h.svc.SyncOIDCUser(c.Request.Context(), payload.userSync); err != nil {
+		h.revokeIssuedProviderRefreshToken(
+			c,
+			appKey,
+			sessionID,
+			oldRefreshToken,
+			payload.refreshToken,
+			"user sync failed",
+		)
+		logger.FromGin(c).Error("user sync failed during OIDC refresh",
+			zap.String("user_id", payload.userID),
+			zap.Error(err),
+		)
+		h.clearTokenCookies(c)
+		response.InternalError(c, "failed to refresh token")
+		return false
+	}
+	return true
 }
 
 func (h *Handler) rotateOIDCSession(c *gin.Context, rotation oidcSessionRotation) bool {

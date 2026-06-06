@@ -320,7 +320,7 @@ func TestHandleWebCallback_RejectsTokenForDifferentAuthorizedParty(t *testing.T)
 
 func TestRefreshOIDCToken_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	h, _ := newOIDCTestHandler(t, &recordingUserSyncRepo{})
+	h, repo := newOIDCTestHandler(t, &recordingUserSyncRepo{})
 	ctx := context.Background()
 
 	_, err := h.svc.CreateSession(ctx, "sid-oidc-refresh", "oidc-user-1", "old-access-token", "old-refresh-token", "oidc", "browser")
@@ -361,6 +361,45 @@ func TestRefreshOIDCToken_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "sid-oidc-refresh", session.SessionID)
 	assert.NotEmpty(t, session.RefreshTokenHash)
+	avatarURL := "https://cdn.example.com/oidc.png"
+	assert.Equal(t, UserSyncInput{
+		CasdoorSubject: "oidc-user-1",
+		Username:       "oidc-tester",
+		Email:          "oidc@example.com",
+		AvatarURL:      &avatarURL,
+		Roles:          []string{"school_admin"},
+	}, repo.upsertInput)
+}
+
+func TestRefreshOIDCToken_UserSyncFailureDoesNotRotateSession(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, _ := newOIDCTestHandler(t, failingOIDCUserSyncRepo{})
+	ctx := context.Background()
+
+	_, err := h.svc.CreateSession(ctx, "sid-oidc-sync-fail", "oidc-user-1", "old-access-token", "old-refresh-token", "oidc", "browser")
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-oidc-sync-fail"})
+	c.Request = req
+
+	ok := h.refreshOIDCToken(c, "old-refresh-token", false)
+
+	require.False(t, ok)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assertNoIssuedTokenCookies(t, w)
+
+	session, err := h.tokenService.GetSessionStore().Get(ctx, "sid-oidc-sync-fail")
+	require.NoError(t, err)
+	oldRefreshHash, err := hashTokenForSession("old-refresh-token")
+	require.NoError(t, err)
+	assert.Equal(t, oldRefreshHash, session.RefreshTokenHash)
+
+	blacklisted, err := h.tokenService.GetBlacklist().IsBlacklisted(ctx, "old-refresh-token")
+	require.NoError(t, err)
+	assert.False(t, blacklisted)
 }
 
 func TestRefreshOIDCToken_RotationFailureDoesNotIssueCookies(t *testing.T) {
