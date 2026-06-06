@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
 )
 
 const (
@@ -329,7 +331,7 @@ func (s *Service) deleteConsentChallenge(ctx context.Context, token string) erro
 }
 
 func challengeCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.WithoutCancel(ctx), challengeCleanupTimeout)
+	return ctxutil.DetachedTimeout(ctx, challengeCleanupTimeout)
 }
 
 func ensureProfileCompletionActor(challenge *ProfileCompletionChallenge, userID int64) error {

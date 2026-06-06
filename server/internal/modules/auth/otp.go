@@ -11,6 +11,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
 )
 
@@ -175,7 +176,7 @@ func (s *OTPService) IssueCode(ctx context.Context, phone string, smsSender Phon
 }
 
 func otpCompensationContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.WithoutCancel(ctx), otpCompTimeout)
+	return ctxutil.DetachedTimeout(ctx, otpCompTimeout)
 }
 
 func (s *OTPService) rollbackPhoneRateLimit(ctx context.Context, phone string) error {

@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
 )
 
 const maxResourceUploadSize = 10 * 1024 * 1024
@@ -95,7 +97,7 @@ func (s *Service) CreateResource(ctx context.Context, ownerUserID string, req Cr
 }
 
 func resourceCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.WithoutCancel(ctx), resourceCleanupTimeout)
+	return ctxutil.DetachedTimeout(ctx, resourceCleanupTimeout)
 }
 
 func validateResourceStoredObject(stored *StoredObject) error {

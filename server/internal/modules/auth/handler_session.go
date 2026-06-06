@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"crypto/subtle"
 	"errors"
 	"net/http"
@@ -11,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
@@ -179,7 +179,7 @@ func (h *Handler) consumeRefreshToken(c *gin.Context, refreshToken string) (func
 	}
 
 	return func() {
-		releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(c.Request.Context()), refreshReservationReleaseTimeout)
+		releaseCtx, cancel := ctxutil.DetachedTimeout(c.Request.Context(), refreshReservationReleaseTimeout)
 		defer cancel()
 		if err := h.tokenService.GetBlacklist().ReleaseConsumedRefreshToken(releaseCtx, refreshToken); err != nil {
 			logger.FromGin(c).Warn("failed to release refresh token reservation", zap.Error(err))

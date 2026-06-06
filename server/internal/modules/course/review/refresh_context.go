@@ -3,13 +3,12 @@ package review
 import (
 	"context"
 	"time"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
 )
 
 func detachedRefreshContext(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
-	if parent == nil {
-		parent = context.Background()
-	}
-	return context.WithTimeout(context.WithoutCancel(parent), timeout)
+	return ctxutil.DetachedTimeout(parent, timeout)
 }
 
 func (s *Service) cacheRefreshContext(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {

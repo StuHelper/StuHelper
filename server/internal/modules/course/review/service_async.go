@@ -6,16 +6,14 @@ import (
 
 	"go.uber.org/zap"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
 const asyncNotificationTimeout = 5 * time.Second
 
 func (s *Service) dispatchNotification(parent context.Context, fn func(context.Context)) {
-	if parent == nil {
-		parent = context.Background()
-	}
-	baseCtx := context.WithoutCancel(parent)
+	baseCtx := ctxutil.WithoutCancel(parent)
 	if s.asyncCtx != nil {
 		baseCtx = s.asyncCtx
 	}
@@ -31,7 +29,7 @@ func (s *Service) dispatchNotification(parent context.Context, fn func(context.C
 			}
 		}()
 
-		notifCtx, cancel := context.WithTimeout(ctx, asyncNotificationTimeout)
+		notifCtx, cancel := ctxutil.Timeout(ctx, asyncNotificationTimeout)
 		defer cancel()
 		fn(notifCtx)
 	}

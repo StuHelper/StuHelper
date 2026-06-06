@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
 )
 
 type Service struct {
@@ -119,7 +120,7 @@ func (s *Service) Put(ctx context.Context, mountKey, objectKey string, content [
 }
 
 func storageCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.WithoutCancel(ctx), storageCleanupTimeout)
+	return ctxutil.DetachedTimeout(ctx, storageCleanupTimeout)
 }
 
 func validateStoredObject(stored *StoredObject) error {

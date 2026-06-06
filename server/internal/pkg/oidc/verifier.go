@@ -9,6 +9,7 @@ import (
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
 )
 
 const defaultJWKSCacheTTL = 5 * time.Minute
@@ -42,11 +43,8 @@ func newProviderVerifier(
 }
 
 func newProviderUnavailableKeySet(ctx context.Context, jwksURI string, ttl time.Duration) *providerUnavailableKeySet {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	return &providerUnavailableKeySet{
-		ctx:      context.WithoutCancel(ctx),
+		ctx:      ctxutil.WithoutCancel(ctx),
 		jwksURI:  jwksURI,
 		cacheTTL: ttl,
 		now:      time.Now,

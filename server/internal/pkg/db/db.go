@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 )
@@ -33,18 +34,11 @@ const retryBaseDelay = 100 * time.Millisecond
 
 type tableHintContextKey struct{}
 
-func normalizeContext(ctx context.Context) context.Context {
-	if ctx == nil {
-		return context.Background()
-	}
-	return ctx
-}
-
 // WithTableHint attaches explicit repository table metadata for DB metrics.
 // The value is normalized before storage so downstream instrumentation never
 // needs to inspect SQL text or accept high-cardinality fragments.
 func WithTableHint(ctx context.Context, table string) context.Context {
-	return context.WithValue(normalizeContext(ctx), tableHintContextKey{}, metrics.NormalizeDBTable(table))
+	return context.WithValue(ctxutil.Normalize(ctx), tableHintContextKey{}, metrics.NormalizeDBTable(table))
 }
 
 // TableHint returns the normalized DB metrics table label stored on ctx.
@@ -105,7 +99,7 @@ func NewDB(pool *pgxpool.Pool, timeout time.Duration) *DB {
 
 // withTimeout 创建带超时的 context
 func (d *DB) withTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(normalizeContext(ctx), d.timeout)
+	return context.WithTimeout(ctxutil.Normalize(ctx), d.timeout)
 }
 
 // Query 执行带超时的查询
@@ -295,7 +289,7 @@ const pingTimeout = 3 * time.Second
 // 使用 min(查询超时, pingTimeout) 避免健康检查挂起过久
 func (d *DB) Ping(ctx context.Context) error {
 	timeout := min(d.timeout, pingTimeout)
-	ctx, cancel := context.WithTimeout(normalizeContext(ctx), timeout)
+	ctx, cancel := context.WithTimeout(ctxutil.Normalize(ctx), timeout)
 	defer cancel()
 	return d.pool.Ping(ctx)
 }
@@ -341,7 +335,7 @@ func (d *DB) collectPoolMetrics() {
 }
 
 func (d *DB) startSpan(ctx context.Context, operation, sql, table string) (context.Context, trace.Span) {
-	return tracer.Start(normalizeContext(ctx), "postgres."+operation,
+	return tracer.Start(ctxutil.Normalize(ctx), "postgres."+operation,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
@@ -369,7 +363,7 @@ func recordSpanError(span trace.Span, err error) {
 
 // Begin 开始事务（事务内的操作由调用者控制超时）
 func (d *DB) Begin(ctx context.Context) (pgx.Tx, error) {
-	return d.pool.Begin(normalizeContext(ctx))
+	return d.pool.Begin(ctxutil.Normalize(ctx))
 }
 
 // WithTx 事务包装函数，自动处理提交和回滚
@@ -377,7 +371,7 @@ func (d *DB) Begin(ctx context.Context) (pgx.Tx, error) {
 // 如果 fn 返回 error，事务会回滚；否则提交
 func (d *DB) WithTx(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx) error) error {
 	txTimeout := d.timeout * txTimeoutMultiplier
-	ctx, cancel := context.WithTimeout(normalizeContext(ctx), txTimeout)
+	ctx, cancel := context.WithTimeout(ctxutil.Normalize(ctx), txTimeout)
 	defer cancel()
 
 	tx, err := d.pool.Begin(ctx)

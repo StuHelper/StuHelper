@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
 )
 
 const casdoorApplicationRollbackTimeout = 5 * time.Second
@@ -669,7 +671,7 @@ func (s *Service) deleteProvisionedCasdoorApplication(ctx context.Context, name 
 }
 
 func casdoorApplicationRollbackContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.WithoutCancel(ctx), casdoorApplicationRollbackTimeout)
+	return ctxutil.DetachedTimeout(ctx, casdoorApplicationRollbackTimeout)
 }
 
 func casdoorApplicationSpecForApprovedApp(app *App, clientSecret string) ProvisionedApplicationSpec {

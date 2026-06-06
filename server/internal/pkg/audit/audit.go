@@ -7,6 +7,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
@@ -161,10 +162,7 @@ func LogContext(ctx context.Context, e Event) {
 }
 
 func auditWriteContext(ctx context.Context) context.Context {
-	if ctx == nil {
-		return context.Background()
-	}
-	return context.WithoutCancel(ctx)
+	return ctxutil.WithoutCancel(ctx)
 }
 
 // LogSuccess 记录成功的审计事件

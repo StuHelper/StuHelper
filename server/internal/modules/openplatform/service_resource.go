@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
 )
 
@@ -316,7 +317,7 @@ func (s *Service) writeResourceTuplesForRollback(ctx context.Context, tuples []f
 }
 
 func resourceAccessRollbackContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.WithoutCancel(ctx), resourceAccessRollbackTimeout)
+	return ctxutil.DetachedTimeout(ctx, resourceAccessRollbackTimeout)
 }
 
 func (s *Service) listResourceGrantsForApp(ctx context.Context, appID int64, appUser string, resourceType string) ([]ResourceGrant, error) {

@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	_ "golang.org/x/image/webp"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
 )
 
@@ -399,7 +400,7 @@ func (s *Service) cleanupFreshmanMaterial(ctx context.Context, objectKey string)
 }
 
 func freshmanMaterialCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.WithoutCancel(ctx), freshmanMaterialCleanupTimeout)
+	return ctxutil.DetachedTimeout(ctx, freshmanMaterialCleanupTimeout)
 }
 
 func (s *Service) createFreshmanMaterialAndSubmitSession(

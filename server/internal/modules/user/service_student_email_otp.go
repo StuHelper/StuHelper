@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/schoolauth"
 )
 
@@ -467,7 +468,7 @@ func (s *Service) cleanupStudentEmailOTPCodeOnlyAfterSendFailure(ctx context.Con
 }
 
 func studentEmailOTPCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.WithoutCancel(ctx), studentEmailOTPCleanupTimeout)
+	return ctxutil.DetachedTimeout(ctx, studentEmailOTPCleanupTimeout)
 }
 
 type studentEmailOTPStoreInput struct {
