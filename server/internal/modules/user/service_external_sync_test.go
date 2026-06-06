@@ -105,6 +105,67 @@ func TestSyncUserProfileProjection_RebuildsOwnerAndCurrentSchool(t *testing.T) {
 	}, fgaClient.writeCalls[0])
 }
 
+func TestSyncUserProfileProjectionValidatesSchoolBeforeFGAMutation(t *testing.T) {
+	fgaClient := &fakeProfileFGAClient{
+		readByRel: map[string][]fga.Tuple{
+			"school": {{User: "school:4111010001", Relation: "school", Object: "user_profile:123"}},
+		},
+	}
+	repo := &mockRepo{
+		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
+			require.Equal(t, int64(123), userID)
+			return &Profile{UserID: userID, VerificationStatus: StatusVerified}, nil
+		},
+	}
+	svc, err := NewService(
+		repo,
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithProfileFGAClient(fgaClient),
+	)
+	require.NoError(t, err)
+
+	err = svc.syncUserProfileProjection(context.Background(), 123, true)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "has no school ID")
+	assert.Empty(t, fgaClient.readCalls)
+	assert.Empty(t, fgaClient.writeCalls)
+	assert.Empty(t, fgaClient.deleteCalls)
+}
+
+func TestSyncUserProfileProjectionKeepsExistingSchoolTupleWhenWriteFails(t *testing.T) {
+	schoolID := int64(4111010006)
+	writeErr := errors.New("openfga write unavailable")
+	fgaClient := &fakeProfileFGAClient{
+		readByRel: map[string][]fga.Tuple{
+			"school": {{User: "school:4111010001", Relation: "school", Object: "user_profile:123"}},
+		},
+		writeErr: writeErr,
+	}
+	repo := &mockRepo{
+		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
+			require.Equal(t, int64(123), userID)
+			return &Profile{UserID: userID, SchoolID: &schoolID, VerificationStatus: StatusVerified}, nil
+		},
+	}
+	svc, err := NewService(
+		repo,
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithProfileFGAClient(fgaClient),
+	)
+	require.NoError(t, err)
+
+	err = svc.syncUserProfileProjection(context.Background(), 123, true)
+	require.ErrorIs(t, err, writeErr)
+	require.Len(t, fgaClient.writeCalls, 1)
+	assert.Equal(t, []fga.Tuple{
+		{User: "user:123", Relation: "owner", Object: "user_profile:123"},
+		{User: "school:4111010006", Relation: "school", Object: "user_profile:123"},
+	}, fgaClient.writeCalls[0])
+	assert.Empty(t, fgaClient.deleteCalls)
+}
+
 func TestSyncUserProfileProjectionSkipsExistingOwnerTuple(t *testing.T) {
 	schoolID := int64(4111010006)
 	fgaClient := &fakeProfileFGAClient{

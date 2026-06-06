@@ -277,6 +277,24 @@ func (s *Service) syncUserProfileProjection(ctx context.Context, userID int64, a
 	}
 
 	profileObj := "user_profile:" + strconv.FormatInt(userID, 10)
+	ownerTuple := fga.Tuple{
+		User:     "user:" + strconv.FormatInt(userID, 10),
+		Relation: "owner",
+		Object:   profileObj,
+	}
+	desiredOwnerTuples := []fga.Tuple{ownerTuple}
+	desiredSchoolTuples := make([]fga.Tuple, 0, 1)
+	if approved {
+		if profile.SchoolID == nil {
+			return fmt.Errorf("verified profile %d has no school ID", userID)
+		}
+		desiredSchoolTuples = append(desiredSchoolTuples, fga.Tuple{
+			User:     "school:" + strconv.FormatInt(*profile.SchoolID, 10),
+			Relation: "school",
+			Object:   profileObj,
+		})
+	}
+
 	existingOwnerTuples, err := s.profileFGA.ReadTuples(projectionCtx, profileObj, "owner")
 	if err != nil {
 		return fmt.Errorf("read existing owner tuples: %w", err)
@@ -285,33 +303,24 @@ func (s *Service) syncUserProfileProjection(ctx context.Context, userID int64, a
 	if err != nil {
 		return fmt.Errorf("read existing school tuples: %w", err)
 	}
-	if len(existingSchoolTuples) > 0 {
-		if err := s.profileFGA.DeleteTuples(projectionCtx, existingSchoolTuples); err != nil {
-			return fmt.Errorf("delete existing school tuples: %w", err)
-		}
-	}
 
-	ownerTuple := fga.Tuple{
-		User:     "user:" + strconv.FormatInt(userID, 10),
-		Relation: "owner",
-		Object:   profileObj,
-	}
-	tuples := fga.MissingTuples(existingOwnerTuples, []fga.Tuple{ownerTuple})
-	if approved {
-		if profile.SchoolID == nil {
-			return fmt.Errorf("verified profile %d has no school ID", userID)
-		}
-		tuples = append(tuples, fga.Tuple{
-			User:     "school:" + strconv.FormatInt(*profile.SchoolID, 10),
-			Relation: "school",
-			Object:   profileObj,
-		})
-	}
-
+	tuples := fga.MissingTuples(existingOwnerTuples, desiredOwnerTuples)
+	tuples = append(tuples, fga.MissingTuples(existingSchoolTuples, desiredSchoolTuples)...)
 	if err := s.profileFGA.WriteTuples(projectionCtx, tuples); err != nil {
 		return fmt.Errorf("write projected tuples: %w", err)
 	}
+
+	staleSchoolTuples := staleFGATuples(existingSchoolTuples, desiredSchoolTuples)
+	if len(staleSchoolTuples) > 0 {
+		if err := s.profileFGA.DeleteTuples(projectionCtx, staleSchoolTuples); err != nil {
+			return fmt.Errorf("delete stale school tuples: %w", err)
+		}
+	}
 	return nil
+}
+
+func staleFGATuples(existing, desired []fga.Tuple) []fga.Tuple {
+	return fga.MissingTuples(desired, existing)
 }
 
 func (s *Service) syncAdmissionVerificationProjection(ctx context.Context, userID int64, approved bool) error {
