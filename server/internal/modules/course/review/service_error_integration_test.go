@@ -21,10 +21,12 @@ func TestReviewService_IntegrationErrorBranches(t *testing.T) {
 	courseID := seedCourse(t, fixture, 4111010006, departmentID, "编译原理")
 	reviewID := "550e8400-e29b-41d4-a716-446655440201"
 	hiddenReviewID := "550e8400-e29b-41d4-a716-446655440202"
+	deletedReviewID := "550e8400-e29b-41d4-a716-446655440203"
 	missingReviewID := "550e8400-e29b-41d4-a716-446655440299"
 
 	seedReviewWithRatings(t, fixture, reviewID, courseID, teacherID, "u-review-owner", 4.5, StatusPublished, ReviewRatings{"teaching": 5}, "主评课", "主评课内容")
 	seedReviewWithRatings(t, fixture, hiddenReviewID, courseID, teacherID, "u-hidden-owner", 4.0, StatusHidden, ReviewRatings{"teaching": 4}, "隐藏评课", "隐藏评课内容")
+	seedReviewWithRatings(t, fixture, deletedReviewID, courseID, teacherID, "u-deleted-owner", 3.0, StatusDeleted, ReviewRatings{"teaching": 3}, "已删评课", "已删评课内容")
 
 	err := svc.AddFavorite(ctx, AddFavoriteParams{UserHash: "u-fav", CourseID: 999999})
 	require.Error(t, err)
@@ -115,6 +117,20 @@ func TestReviewService_IntegrationErrorBranches(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrInvalidTransition)
+
+	err = svc.AdminEditReview(ctx, AdminEditReviewParams{
+		ReviewID: deletedReviewID,
+		Title:    "不应修改",
+		Content:  "已删除评论不应再被编辑",
+		Reason:   "状态错误",
+		AdminID:  "admin",
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidTransition)
+	var deletedTitle string
+	err = fixture.Pool.QueryRow(ctx, `SELECT title FROM reviews WHERE id = $1`, deletedReviewID).Scan(&deletedTitle)
+	require.NoError(t, err)
+	assert.Equal(t, "已删评课", deletedTitle)
 
 	err = svc.ClearContentFlag(ctx, missingReviewID, "admin")
 	require.Error(t, err)

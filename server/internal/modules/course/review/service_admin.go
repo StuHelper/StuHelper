@@ -281,12 +281,15 @@ func (s *Service) AdminEditReview(ctx context.Context, params AdminEditReviewPar
 
 	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		// 确认评论存在
-		_, _, err := s.repo.GetReviewStatusAndCourseIDTx(ctx, tx, params.ReviewID)
+		status, _, err := s.repo.GetReviewStatusAndCourseIDTx(ctx, tx, params.ReviewID)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrReviewNotFound
 			}
 			return err
+		}
+		if status == StatusDeleted {
+			return fmt.Errorf("%w: cannot edit from %s", ErrInvalidTransition, status)
 		}
 		return s.repo.AdminEditReviewContentTx(ctx, tx, params.ReviewID, title, content, params.Reason, params.AdminID, decision.ContentFlag)
 	})
