@@ -292,4 +292,30 @@ describe("AppHeader", () => {
             name: "course-review-post",
         });
     });
+
+    it("does not treat teacher profile ids as review course preselection", async () => {
+        Object.assign(mocks.route, {
+            name: "teacher-profile",
+            path: "/teachers/42",
+            fullPath: "/teachers/42",
+            params: { id: "42" },
+        });
+
+        const wrapper = mountHeader({
+            bootstrapCompleted: true,
+            isAuthenticated: true,
+        });
+
+        await wrapper
+            .get('button[aria-label="review.topBar.writeReview"]')
+            .trigger("click");
+
+        expect(mocks.rememberReviewPostCourse).toHaveBeenCalledWith(NaN);
+        expect(mocks.ensureCanPostReview).toHaveBeenCalledWith({
+            redirect: "/courses/reviews/post",
+        });
+        expect(mocks.routerPush).toHaveBeenCalledWith({
+            name: "course-review-post",
+        });
+    });
 });

@@ -253,10 +253,15 @@ function isNavActive(item: NavItem) {
     return route.path === item.to || route.path.startsWith(`${item.to}/`);
 }
 
+function currentCourseDetailID(): number {
+    if (!/^\/courses\/\d+$/.test(route.path)) {
+        return NaN;
+    }
+    return typeof route.params.id === "string" ? Number(route.params.id) : NaN;
+}
+
 async function handleWriteReview() {
-    const courseID =
-        typeof route.params.id === "string" ? Number(route.params.id) : NaN;
-    rememberReviewPostCourse(courseID);
+    rememberReviewPostCourse(currentCourseDetailID());
 
     const postRoute = router.resolve({ name: "course-review-post" });
     if (!(await ensureCanPostReview({ redirect: postRoute.fullPath }))) {
