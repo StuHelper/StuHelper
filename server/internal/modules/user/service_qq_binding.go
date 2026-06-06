@@ -59,10 +59,14 @@ func (s *Service) ConsumeQQBindingCode(ctx context.Context, code, qqID string) (
 	if trimmedQQID == "" {
 		return nil, ErrQQIDRequired
 	}
+	normalizedCode := normalizeQQBindingCode(code)
+	if normalizedCode == "" {
+		return nil, ErrQQBindingCodeInvalid
+	}
 
 	var result *QQBinding
 	if err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		bindingCode, err := s.loadQQBindingCodeForConsume(ctx, tx, code)
+		bindingCode, err := s.loadQQBindingCodeForConsume(ctx, tx, normalizedCode)
 		if err != nil {
 			return err
 		}

@@ -300,6 +300,23 @@ func TestConsumeQQBindingCode_ReturnsExpiredForTimedOutCode(t *testing.T) {
 	assert.Nil(t, result)
 }
 
+func TestConsumeQQBindingCode_RejectsBlankCodeBeforeTx(t *testing.T) {
+	repo := newQQBindingMockRepo()
+	repo.onWithTx = func(context.Context, func(context.Context, pgx.Tx) error) error {
+		t.Fatal("ConsumeQQBindingCode must reject blank code before opening a transaction")
+		return nil
+	}
+
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	for _, code := range []string{"", " \t\n "} {
+		result, err := svc.ConsumeQQBindingCode(context.Background(), code, "123456789")
+		require.ErrorIs(t, err, ErrQQBindingCodeInvalid)
+		assert.Nil(t, result)
+	}
+}
+
 func TestGetQQVerificationStateByQQID_ReturnsUnboundWhenMissingBinding(t *testing.T) {
 	repo := newQQBindingMockRepo()
 	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
