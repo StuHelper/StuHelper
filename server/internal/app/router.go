@@ -79,8 +79,8 @@ func (rt *Runtime) registerPlatformRoutes(r *gin.Engine) error {
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     corsOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-CSRF-Token", "X-Request-ID"},
-		ExposeHeaders:    []string{"Content-Length", "X-CSRF-Token"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", middleware.CSRFHeaderName, middleware.HeaderRequestID},
+		ExposeHeaders:    []string{"Content-Length", middleware.CSRFHeaderName, middleware.HeaderRequestID},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))

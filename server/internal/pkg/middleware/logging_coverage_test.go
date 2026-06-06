@@ -22,12 +22,12 @@ func TestLoggingMiddlewaresAndHelpers(t *testing.T) {
 		})
 
 		req := httptest.NewRequest(http.MethodGet, "/ping?token=secret&plain=value", nil)
-		req.Header.Set("X-Request-ID", "valid-request-id")
+		req.Header.Set(HeaderRequestID, "valid-request-id")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNoContent, w.Code)
-		assert.Equal(t, "valid-request-id", w.Header().Get("X-Request-ID"))
+		assert.Equal(t, "valid-request-id", w.Header().Get(HeaderRequestID))
 		assert.Equal(t, "", GetRequestID(&gin.Context{}))
 	})
 
@@ -37,13 +37,13 @@ func TestLoggingMiddlewaresAndHelpers(t *testing.T) {
 		r.GET("/ping", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 
 		req := httptest.NewRequest(http.MethodGet, "/ping", nil)
-		req.Header.Set("X-Request-ID", "bad id with spaces")
+		req.Header.Set(HeaderRequestID, "bad id with spaces")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNoContent, w.Code)
-		assert.NotEmpty(t, w.Header().Get("X-Request-ID"))
-		assert.NotEqual(t, "bad id with spaces", w.Header().Get("X-Request-ID"))
+		assert.NotEmpty(t, w.Header().Get(HeaderRequestID))
+		assert.NotEqual(t, "bad id with spaces", w.Header().Get(HeaderRequestID))
 	})
 
 	t.Run("recovery catches panic", func(t *testing.T) {

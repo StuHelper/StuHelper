@@ -20,6 +20,7 @@ import (
 
 const (
 	CtxKeyRequestID = "request_id"
+	HeaderRequestID = "X-Request-ID"
 	// maxRequestIDLen X-Request-ID 最大允许长度
 	maxRequestIDLen = 128
 )
@@ -54,13 +55,13 @@ var sensitiveQueryParams = map[string]bool{
 // 客户端提供的 X-Request-ID 必须通过长度和字符校验，否则生成新 UUID
 func RequestIDMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		requestID := c.GetHeader("X-Request-ID")
+		requestID := c.GetHeader(HeaderRequestID)
 		if requestID == "" || len(requestID) > maxRequestIDLen || !validRequestID.MatchString(requestID) {
 			requestID = uuid.NewString()
 		}
 		c.Set(CtxKeyRequestID, requestID)
 		c.Request = c.Request.WithContext(logger.WithRequestID(c.Request.Context(), requestID))
-		c.Header("X-Request-ID", requestID)
+		c.Header(HeaderRequestID, requestID)
 		c.Next()
 	}
 }
