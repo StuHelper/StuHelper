@@ -59,6 +59,76 @@ sync_dev_casdoor_builtin_bootstrap_credentials() {
   die "failed to read local Casdoor built-in bootstrap credentials from ${STACK_NAME:-stuhelper-dev}-postgres"
 }
 
+ensure_dev_casdoor_web_login_user() {
+  local target_org="${CASDOOR_ORGANIZATION:-stuhelper}"
+  local target_app="${CASDOOR_CLIENT_ID:-stuhelper-web}"
+
+  [[ "${target_org}" =~ ^[A-Za-z0-9_.-]+$ ]] || die "CASDOOR_ORGANIZATION contains unsupported characters"
+  [[ "${target_app}" =~ ^[A-Za-z0-9_.-]+$ ]] || die "CASDOOR_CLIENT_ID contains unsupported characters"
+
+  docker exec -i "${STACK_NAME:-stuhelper-dev}-postgres" \
+    psql -v ON_ERROR_STOP=1 \
+      -U "${POSTGRES_USER:-stuhelper}" \
+      -d "${CASDOOR_DB_NAME:-casdoor}" <<SQL
+DO \$\$
+DECLARE
+  target_org text := '${target_org}';
+  target_app text := '${target_app}';
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public."user"
+    WHERE owner = 'built-in'
+      AND name = 'admin'
+  ) THEN
+    RAISE EXCEPTION 'built-in/admin Casdoor user is required before dev web login bootstrap';
+  END IF;
+
+  INSERT INTO public."user" AS target (
+    owner, name, created_time, updated_time, id, type,
+    password, password_salt, password_type,
+    display_name, email, email_verified, phone,
+    language, is_admin, is_forbidden, is_deleted, is_verified,
+    signup_application, register_type, register_source,
+    score, karma, ranking, balance, balance_credit, currency, balance_currency,
+    properties, roles, permissions, groups
+  )
+  SELECT
+    target_org, name, created_time, updated_time, id, type,
+    password, password_salt, password_type,
+    display_name, email, true, phone,
+    COALESCE(NULLIF(language, ''), 'zh'),
+    is_admin, false, false, true,
+    target_app, register_type, register_source,
+    score, karma, ranking, balance, balance_credit, currency, balance_currency,
+    COALESCE(properties, '{}'), roles, permissions, groups
+  FROM public."user"
+  WHERE owner = 'built-in'
+    AND name = 'admin'
+  ON CONFLICT (owner, name) DO UPDATE
+  SET id = COALESCE(NULLIF(target.id, ''), EXCLUDED.id),
+      type = COALESCE(NULLIF(target.type, ''), EXCLUDED.type),
+      password = EXCLUDED.password,
+      password_salt = EXCLUDED.password_salt,
+      password_type = EXCLUDED.password_type,
+      email_verified = true,
+      language = COALESCE(NULLIF(target.language, ''), EXCLUDED.language),
+      is_admin = EXCLUDED.is_admin,
+      is_forbidden = false,
+      is_deleted = false,
+      is_verified = true,
+      signup_application = EXCLUDED.signup_application,
+      properties = COALESCE(target.properties, EXCLUDED.properties),
+      roles = COALESCE(target.roles, EXCLUDED.roles),
+      permissions = COALESCE(target.permissions, EXCLUDED.permissions),
+      groups = COALESCE(target.groups, EXCLUDED.groups);
+END
+\$\$;
+SQL
+
+  log "ensured local Casdoor ${target_org}/admin user for web login smoke"
+}
+
 sync_dev_browser_public_urls() {
   local web_port="$1"
   local admin_port="$2"
@@ -177,6 +247,7 @@ load_env
 log "bootstrapping platform identities and authorization model"
 sync_dev_casdoor_builtin_bootstrap_credentials
 CASDOOR_BOOTSTRAP_ENABLED=true "${SCRIPT_DIR}/bootstrap-platform.sh" dev
+ensure_dev_casdoor_web_login_user
 
 if [[ "${WITH_OBSERVABILITY:-false}" == "true" ]]; then
   log "starting observability stack for development"
