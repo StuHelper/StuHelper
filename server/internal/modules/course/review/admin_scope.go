@@ -105,14 +105,7 @@ func scopedSchoolSet(c *gin.Context, role string) map[int64]struct{} {
 }
 
 func scopedStringSet(c *gin.Context, role string) map[string]struct{} {
-	value, exists := c.Get(middleware.CtxKeyOrgScopedRoles)
-	if !exists {
-		return nil
-	}
-	scopedRoles, ok := value.(map[string][]string)
-	if !ok {
-		return nil
-	}
+	scopedRoles := middleware.GetOrgScopedRoles(c)
 	rawSchoolIDs := scopedRoles[role]
 	if len(rawSchoolIDs) == 0 {
 		return nil

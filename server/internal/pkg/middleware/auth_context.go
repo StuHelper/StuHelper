@@ -164,6 +164,15 @@ func GetTokenScopes(c *gin.Context) []string {
 	return nil
 }
 
+func GetOrgScopedRoles(c *gin.Context) map[string][]string {
+	if val, exists := getContextValue(c, CtxKeyOrgScopedRoles); exists {
+		if scopedRoles, ok := val.(map[string][]string); ok {
+			return normalizeOrgScopedRoles(scopedRoles)
+		}
+	}
+	return nil
+}
+
 // GetUsername 从上下文获取用户名
 func GetUsername(c *gin.Context) string {
 	return getContextString(c, CtxKeyUsername)
