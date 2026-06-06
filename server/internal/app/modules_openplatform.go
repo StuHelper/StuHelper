@@ -56,6 +56,7 @@ func (rt *Runtime) initOpenPlatformModule(
 		openplatform.WithInternalUserIDResolver(userIDResolver),
 		openplatform.WithAdminAuthorizers(openPlatformAdminAuthorizers()),
 	)
+	handler.SetResourceAccessTokenVerifier(newOpenPlatformResourceAccessTokenVerifier(rt.oidcClient))
 	handler.RegisterRoutes(api, authMW)
 	return handler, service, nil
 }

@@ -128,6 +128,26 @@ func TestCheckResourceAccessHandlerRejectsInvalidBearerToken(t *testing.T) {
 	assert.Equal(t, []string{"expired-token"}, verifier.rawTokens)
 }
 
+func TestCheckResourceAccessHandlerMapsBearerVerifierOutageToServiceUnavailable(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	verifier := &fakeResourceAccessTokenVerifier{err: ErrResourceAccessUnavailable}
+	router := newResourceAccessHandlerRouter(t, nil, verifier)
+
+	resp := performResourceAccessCheck(t, router, "Bearer app-only-token", map[string]any{
+		"resourceType": ResourceTypeResourceItem,
+		"resourceID":   "handler-token-42",
+		"action":       ResourceAccessActionRead,
+	})
+
+	require.Equal(t, http.StatusServiceUnavailable, resp.Code, resp.Body.String())
+	envelope := decodeOpenPlatformHandlerEnvelope(t, resp)
+	require.False(t, envelope.Success)
+	require.NotNil(t, envelope.Error)
+	assert.Equal(t, string(errs.ErrServiceUnavailable), envelope.Error.Code)
+	assert.Equal(t, "open platform resource authorization unavailable", envelope.Error.Message)
+	assert.Equal(t, []string{"app-only-token"}, verifier.rawTokens)
+}
+
 func TestCheckResourceAccessHandlerRejectsUnsupportedAuthorizationScheme(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	verifier := &fakeResourceAccessTokenVerifier{

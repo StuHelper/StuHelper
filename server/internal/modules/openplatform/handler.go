@@ -282,6 +282,10 @@ func (h *Handler) checkResourceAccess(c *gin.Context) {
 		}
 		token, err := h.resourceTokenVerifier.VerifyOpenPlatformResourceAccessToken(c.Request.Context(), rawToken)
 		if err != nil {
+			if errors.Is(err, ErrResourceAccessUnavailable) {
+				h.respondError(c, err)
+				return
+			}
 			h.respondError(c, ErrInvalidResourceAccessToken)
 			return
 		}
