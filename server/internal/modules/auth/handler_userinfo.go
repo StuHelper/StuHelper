@@ -4,8 +4,10 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
@@ -31,15 +33,48 @@ type currentUserPayload struct {
 func (h *Handler) GetCurrentUser(c *gin.Context) {
 	roles := middleware.GetRoles(c)
 	avatar := middleware.GetAvatar(c)
+	userID := middleware.GetUserID(c)
+	username := middleware.GetUsername(c)
+	displayName := middleware.GetDisplayName(c)
+	email := middleware.GetEmail(c)
+	avatarURL := nullableString(avatar)
+	if !h.syncCurrentUser(c, userID, username, email, avatarURL, roles) {
+		return
+	}
 	response.Success(c, h.buildUserPayload(
-		middleware.GetUserID(c),
-		middleware.GetUsername(c),
-		middleware.GetDisplayName(c),
-		middleware.GetEmail(c),
-		nullableString(avatar),
+		userID,
+		username,
+		displayName,
+		email,
+		avatarURL,
 		roles,
 		middleware.GetCapabilityGrants(c),
 	))
+}
+
+func (h *Handler) syncCurrentUser(
+	c *gin.Context,
+	userID,
+	username,
+	email string,
+	avatarURL *string,
+	roles []string,
+) bool {
+	if err := h.svc.SyncOIDCUser(c.Request.Context(), UserSyncInput{
+		CasdoorSubject: userID,
+		Username:       username,
+		Email:          email,
+		AvatarURL:      avatarURL,
+		Roles:          roles,
+	}); err != nil {
+		logger.FromGin(c).Error("failed to sync current user",
+			zap.String("user_id", userID),
+			zap.Error(err),
+		)
+		response.InternalError(c, "failed to synchronize user")
+		return false
+	}
+	return true
 }
 
 func (h *Handler) buildUserPayload(

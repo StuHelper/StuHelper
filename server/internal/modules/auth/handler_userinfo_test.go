@@ -1,7 +1,9 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -147,7 +149,7 @@ func TestBuildUserPayload_OmitsAccountSettingsURLWithoutIssuer(t *testing.T) {
 func TestGetCurrentUser_HTTPContract_OmitsNilAvatar(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	h := &Handler{}
+	h := &Handler{svc: &Service{userSyncRepo: &recordingUserSyncRepo{}}}
 	r := gin.New()
 	r.GET("/api/v1/auth/me", func(c *gin.Context) {
 		c.Set(middleware.CtxKeyUserID, "user-1")
@@ -177,6 +179,64 @@ func TestGetCurrentUser_HTTPContract_OmitsNilAvatar(t *testing.T) {
 	assert.NotContains(t, resp.Data, "email")
 }
 
+func TestGetCurrentUser_SyncsLocalUser(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &recordingUserSyncRepo{}
+	h := &Handler{svc: &Service{userSyncRepo: repo}}
+	r := gin.New()
+	r.GET("/api/v1/auth/me", func(c *gin.Context) {
+		c.Set(middleware.CtxKeyUserID, "oidc-user-1")
+		c.Set(middleware.CtxKeyUsername, "alice")
+		c.Set(middleware.CtxKeyDisplayName, "Alice")
+		c.Set(middleware.CtxKeyEmail, "alice@example.com")
+		c.Set(middleware.CtxKeyAvatar, "https://cdn.example.com/avatar.png")
+		c.Set(middleware.CtxKeyRoles, []string{"school_admin"})
+		c.Set(middleware.CtxKeyCapabilityGrants, []capability.Grant{{Name: "admin:dashboard:view", ScopeSchoolIDs: []string{"4111010006"}}})
+		h.GetCurrentUser(c)
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	avatarURL := "https://cdn.example.com/avatar.png"
+	assert.Equal(t, UserSyncInput{
+		CasdoorSubject: "oidc-user-1",
+		Username:       "alice",
+		Email:          "alice@example.com",
+		AvatarURL:      &avatarURL,
+		Roles:          []string{"school_admin"},
+	}, repo.upsertInput)
+}
+
+func TestGetCurrentUser_UserSyncFailureDoesNotReturnSuccess(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h := &Handler{svc: &Service{userSyncRepo: failingUserInfoSyncRepo{}}}
+	r := gin.New()
+	r.GET("/api/v1/auth/me", func(c *gin.Context) {
+		c.Set(middleware.CtxKeyUserID, "oidc-user-1")
+		c.Set(middleware.CtxKeyUsername, "alice")
+		c.Set(middleware.CtxKeyDisplayName, "Alice")
+		c.Set(middleware.CtxKeyEmail, "alice@example.com")
+		c.Set(middleware.CtxKeyRoles, []string{"user"})
+		h.GetCurrentUser(c)
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	var resp struct {
+		Success bool `json:"success"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.False(t, resp.Success)
+}
+
 func TestBuildUserPayload_SchoolAdminScopesStayNonGlobal(t *testing.T) {
 	h := &Handler{}
 
@@ -199,4 +259,14 @@ func TestBuildUserPayload_SchoolAdminScopesStayNonGlobal(t *testing.T) {
 		assert.False(t, grant.Global)
 		assert.Equal(t, []string{"4111010001", "4111010002"}, grant.ScopeSchoolIDs)
 	}
+}
+
+type failingUserInfoSyncRepo struct{}
+
+func (failingUserInfoSyncRepo) UpsertUser(context.Context, UserSyncInput) error {
+	return errors.New("sync failed")
+}
+
+func (failingUserInfoSyncRepo) ExistsByCasdoorSubject(context.Context, string) (bool, error) {
+	return false, nil
 }
