@@ -73,6 +73,8 @@ func TestValidate_RejectsParseErrorsInDevelopment(t *testing.T) {
 }
 
 func TestLoadOpenPlatformConfigFromEnv(t *testing.T) {
+	t.Setenv("OPEN_PLATFORM_CONSENT_BASE_URL", "https://stuhelper.example.com")
+	t.Setenv("OPEN_PLATFORM_ACCOUNT_BASE_URL", "https://account.example.com")
 	t.Setenv("OPEN_PLATFORM_DISCLOSURE_APP_LIMIT", "700")
 	t.Setenv("OPEN_PLATFORM_DISCLOSURE_APP_USER_LIMIT", "140")
 	t.Setenv("OPEN_PLATFORM_DISCLOSURE_ENDPOINT_LIMIT", "1400")
@@ -89,6 +91,8 @@ func TestLoadOpenPlatformConfigFromEnv(t *testing.T) {
 	cfg := loadOpenPlatformConfig(&parseErrs)
 
 	require.Empty(t, parseErrs)
+	require.Equal(t, "https://stuhelper.example.com", cfg.ConsentBaseURL)
+	require.Equal(t, "https://account.example.com", cfg.AccountBaseURL)
 	require.Equal(t, 700, cfg.DisclosureRateLimit.AppLimit)
 	require.Equal(t, 140, cfg.DisclosureRateLimit.AppUserLimit)
 	require.Equal(t, 1400, cfg.DisclosureRateLimit.EndpointLimit)
@@ -112,6 +116,54 @@ func TestValidate_OpenPlatformDisclosureRateLimitsRejectInvalidValues(t *testing
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "OPEN_PLATFORM_DISCLOSURE_APP_LIMIT must be between 1 and 100000 when set")
 	require.Contains(t, err.Error(), "OPEN_PLATFORM_DISCLOSURE_REPLAY_WINDOW_SECONDS must be between 1 and 86400 seconds when set")
+}
+
+func TestValidate_OpenPlatformBaseURLs(t *testing.T) {
+	t.Run("allows empty optional base URLs", func(t *testing.T) {
+		cfg := validConfigForValidation()
+
+		require.NoError(t, cfg.validate(nil))
+	})
+
+	t.Run("allows explicit http origins", func(t *testing.T) {
+		cfg := validConfigForValidation()
+		cfg.OpenPlatform.ConsentBaseURL = "https://stuhelper.example.com"
+		cfg.OpenPlatform.AccountBaseURL = "http://localhost:3000"
+
+		require.NoError(t, cfg.validate(nil))
+	})
+
+	t.Run("rejects invalid consent base URL", func(t *testing.T) {
+		cfg := validConfigForValidation()
+		cfg.OpenPlatform.ConsentBaseURL = "https://stuhelper.example.com/consent"
+
+		err := cfg.validate(nil)
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "OPEN_PLATFORM_CONSENT_BASE_URL must not include a path")
+	})
+
+	t.Run("rejects invalid account base URL", func(t *testing.T) {
+		cfg := validConfigForValidation()
+		cfg.OpenPlatform.AccountBaseURL = "https://account.example.com:bad"
+
+		err := cfg.validate(nil)
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "OPEN_PLATFORM_ACCOUNT_BASE_URL must include a valid port")
+	})
+
+	t.Run("requires https in production", func(t *testing.T) {
+		cfg := validProductionConfigForTest()
+		cfg.OpenPlatform.ConsentBaseURL = "http://stuhelper.example.com"
+		cfg.OpenPlatform.AccountBaseURL = "http://account.example.com"
+
+		err := cfg.validate(nil)
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "OPEN_PLATFORM_CONSENT_BASE_URL must use https in production")
+		require.Contains(t, err.Error(), "OPEN_PLATFORM_ACCOUNT_BASE_URL must use https in production")
+	})
 }
 
 func TestValidate_APIRateLimitsRejectInvalidValues(t *testing.T) {

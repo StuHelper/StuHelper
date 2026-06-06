@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
@@ -42,4 +43,50 @@ func TestOpenPlatformDisclosureRateLimitConfigLeavesZeroDefaultsToService(t *tes
 	require.Zero(t, cfg.Window)
 	require.Zero(t, cfg.ReplayWindow)
 	require.Zero(t, cfg.ReplayAuditCooldown)
+}
+
+func TestRuntimeOpenPlatformBaseURLsPreferExplicitConfig(t *testing.T) {
+	rt := &Runtime{cfg: &config.Config{
+		App: config.AppConfig{
+			CORSOrigins: []string{"https://cors.example.com"},
+		},
+		OpenPlatform: config.OpenPlatformConfig{
+			ConsentBaseURL: "https://consent.example.com",
+			AccountBaseURL: "https://account.example.com",
+		},
+	}}
+
+	consentBaseURL := rt.openPlatformConsentBaseURL()
+
+	assert.Equal(t, "https://consent.example.com", consentBaseURL)
+	assert.Equal(t, "https://account.example.com", rt.openPlatformAccountBaseURL(consentBaseURL))
+}
+
+func TestRuntimeOpenPlatformBaseURLsFallbackToCORSOrigin(t *testing.T) {
+	rt := &Runtime{cfg: &config.Config{
+		App: config.AppConfig{
+			CORSOrigins: []string{"https://web.example.com", "https://admin.example.com"},
+		},
+	}}
+
+	consentBaseURL := rt.openPlatformConsentBaseURL()
+
+	assert.Equal(t, "https://web.example.com", consentBaseURL)
+	assert.Equal(t, "https://web.example.com", rt.openPlatformAccountBaseURL(consentBaseURL))
+}
+
+func TestRuntimeOpenPlatformAccountBaseURLDefaultsToConsentBaseURL(t *testing.T) {
+	rt := &Runtime{cfg: &config.Config{
+		App: config.AppConfig{
+			CORSOrigins: []string{"https://web.example.com"},
+		},
+		OpenPlatform: config.OpenPlatformConfig{
+			ConsentBaseURL: "https://consent.example.com",
+		},
+	}}
+
+	consentBaseURL := rt.openPlatformConsentBaseURL()
+
+	assert.Equal(t, "https://consent.example.com", consentBaseURL)
+	assert.Equal(t, "https://consent.example.com", rt.openPlatformAccountBaseURL(consentBaseURL))
 }

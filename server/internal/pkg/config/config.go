@@ -56,6 +56,8 @@ type ReviewRateLimitConfig struct {
 type OpenPlatformConfig struct {
 	DisclosureRateLimit OpenPlatformDisclosureRateLimitConfig
 	TokenProbe          OpenPlatformTokenProbeConfig
+	ConsentBaseURL      string
+	AccountBaseURL      string
 }
 
 // OpenPlatformDisclosureRateLimitConfig 控制 disclosure 路径限流和异常重放检测阈值。
@@ -479,6 +481,8 @@ func loadReviewRateLimitConfig(parseErrs *[]string) ReviewRateLimitConfig {
 
 func loadOpenPlatformConfig(parseErrs *[]string) OpenPlatformConfig {
 	return OpenPlatformConfig{
+		ConsentBaseURL: getEnv("OPEN_PLATFORM_CONSENT_BASE_URL", ""),
+		AccountBaseURL: getEnv("OPEN_PLATFORM_ACCOUNT_BASE_URL", ""),
 		DisclosureRateLimit: OpenPlatformDisclosureRateLimitConfig{
 			AppLimit:                   getEnvInt("OPEN_PLATFORM_DISCLOSURE_APP_LIMIT", 600, parseErrs),
 			AppUserLimit:               getEnvInt("OPEN_PLATFORM_DISCLOSURE_APP_USER_LIMIT", 120, parseErrs),

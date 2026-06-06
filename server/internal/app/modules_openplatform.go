@@ -28,6 +28,8 @@ func (rt *Runtime) initOpenPlatformModule(
 	if err != nil {
 		return nil, nil, err
 	}
+	consentBaseURL := rt.openPlatformConsentBaseURL()
+	accountBaseURL := rt.openPlatformAccountBaseURL(consentBaseURL)
 	service, err := openplatform.NewService(
 		openplatform.NewRepository(rt.database),
 		rt.redisClient.GetClient(),
@@ -35,8 +37,8 @@ func (rt *Runtime) initOpenPlatformModule(
 		openplatform.WithOIDCAuthURLBuilder(rt.oidcClient),
 		openplatform.WithPhoneDecryptor(piiCipher),
 		openplatform.WithResourceFGAClient(rt.fgaClient),
-		openplatform.WithConsentBaseURL(rt.cfg.App.CORSOrigins[0]),
-		openplatform.WithAccountBaseURL(rt.cfg.App.CORSOrigins[0]),
+		openplatform.WithConsentBaseURL(consentBaseURL),
+		openplatform.WithAccountBaseURL(accountBaseURL),
 		openplatform.WithDisclosureRateLimits(openPlatformDisclosureRateLimitConfig(
 			rt.cfg.OpenPlatform.DisclosureRateLimit,
 		)),
@@ -55,6 +57,23 @@ func (rt *Runtime) initOpenPlatformModule(
 	)
 	handler.RegisterRoutes(api, authMW)
 	return handler, service, nil
+}
+
+func (rt *Runtime) openPlatformConsentBaseURL() string {
+	if rt.cfg.OpenPlatform.ConsentBaseURL != "" {
+		return rt.cfg.OpenPlatform.ConsentBaseURL
+	}
+	if len(rt.cfg.App.CORSOrigins) == 0 {
+		return ""
+	}
+	return rt.cfg.App.CORSOrigins[0]
+}
+
+func (rt *Runtime) openPlatformAccountBaseURL(consentBaseURL string) string {
+	if rt.cfg.OpenPlatform.AccountBaseURL != "" {
+		return rt.cfg.OpenPlatform.AccountBaseURL
+	}
+	return consentBaseURL
 }
 
 func (rt *Runtime) newOpenPlatformRuntimeTokenProber() (*casdoorOpenPlatformRuntimeTokenProber, error) {

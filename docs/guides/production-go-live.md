@@ -57,6 +57,8 @@ CASDOOR_ADMIN_REDIRECT_URI=https://stuhelper.com/api/v1/auth/callback
 CASDOOR_UNIAPP_REDIRECT_URI=https://stuhelper.com/api/v1/auth/callback
 
 CORS_ORIGINS=https://stuhelper.com,https://join.stuhelper.com,https://sso.stuhelper.com
+OPEN_PLATFORM_CONSENT_BASE_URL=https://stuhelper.com
+OPEN_PLATFORM_ACCOUNT_BASE_URL=https://stuhelper.com
 TOKEN_COOKIE_SECURE=true
 TOKEN_COOKIE_DOMAIN=.stuhelper.com
 

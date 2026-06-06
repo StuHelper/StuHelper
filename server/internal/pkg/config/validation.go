@@ -326,6 +326,7 @@ func (c *Config) validate(parseErrs []string) error {
 	}
 	errs = append(errs, validateOpenPlatformDisclosureRateLimits(c.OpenPlatform.DisclosureRateLimit)...)
 	errs = append(errs, validateOpenPlatformTokenProbe(c.OpenPlatform.TokenProbe, productionLike)...)
+	errs = append(errs, validateOpenPlatformBaseURLs(c.OpenPlatform, productionLike)...)
 
 	if len(errs) > 0 {
 		return fmt.Errorf("config validation failed: %s", strings.Join(errs, "; "))
@@ -358,51 +359,92 @@ func validateCORSOrigins(origins []string) []string {
 }
 
 func validateCORSOrigin(origin string) []string {
+	switch httpOriginViolation(origin) {
+	case originViolationNone:
+		return nil
+	case originViolationEmpty:
+		return []string{"CORS configuration error: empty origin is not allowed"}
+	case originViolationWhitespace:
+		return []string{fmt.Sprintf("CORS configuration error: origin %q must not include leading or trailing whitespace", origin)}
+	case originViolationWildcard:
+		return []string{"CORS configuration error: wildcard '*' is not allowed when AllowCredentials is true"}
+	case originViolationInvalid:
+		return []string{fmt.Sprintf("CORS configuration error: origin %q must be an absolute http(s) origin", origin)}
+	case originViolationUserInfo:
+		return []string{fmt.Sprintf("CORS configuration error: origin %q must not include user info", origin)}
+	case originViolationPort:
+		return []string{fmt.Sprintf("CORS configuration error: origin %q must include a valid port when a port is specified", origin)}
+	case originViolationTrailingSlash:
+		return []string{fmt.Sprintf("CORS configuration error: origin %q must not have a trailing slash", origin)}
+	case originViolationPath:
+		return []string{fmt.Sprintf("CORS configuration error: origin %q must not include a path", origin)}
+	case originViolationQueryFragment:
+		return []string{fmt.Sprintf("CORS configuration error: origin %q must not include query or fragment", origin)}
+	default:
+		return []string{fmt.Sprintf("CORS configuration error: origin %q must be an absolute http(s) origin", origin)}
+	}
+}
+
+type originViolation string
+
+const (
+	originViolationNone          originViolation = ""
+	originViolationEmpty         originViolation = "empty"
+	originViolationWhitespace    originViolation = "whitespace"
+	originViolationWildcard      originViolation = "wildcard"
+	originViolationInvalid       originViolation = "invalid"
+	originViolationUserInfo      originViolation = "user_info"
+	originViolationPort          originViolation = "port"
+	originViolationTrailingSlash originViolation = "trailing_slash"
+	originViolationPath          originViolation = "path"
+	originViolationQueryFragment originViolation = "query_fragment"
+)
+
+func httpOriginViolation(origin string) originViolation {
 	trimmed := strings.TrimSpace(origin)
 	if trimmed == "" {
-		return []string{"CORS configuration error: empty origin is not allowed"}
+		return originViolationEmpty
 	}
 	if trimmed != origin {
-		return []string{fmt.Sprintf("CORS configuration error: origin %q must not include leading or trailing whitespace", origin)}
+		return originViolationWhitespace
 	}
 	if origin == "*" {
-		return []string{"CORS configuration error: wildcard '*' is not allowed when AllowCredentials is true"}
+		return originViolationWildcard
 	}
 
 	parsed, err := url.Parse(origin)
 	if err != nil {
 		if strings.Contains(err.Error(), "invalid port") {
-			return []string{fmt.Sprintf("CORS configuration error: origin %q must include a valid port when a port is specified", origin)}
+			return originViolationPort
 		}
-		return []string{fmt.Sprintf("CORS configuration error: origin %q must be an absolute http(s) origin", origin)}
+		return originViolationInvalid
 	}
 	if parsed.Scheme == "" || parsed.Host == "" {
-		return []string{fmt.Sprintf("CORS configuration error: origin %q must be an absolute http(s) origin", origin)}
+		return originViolationInvalid
 	}
 	scheme := strings.ToLower(parsed.Scheme)
 	if scheme != "http" && scheme != "https" {
-		return []string{fmt.Sprintf("CORS configuration error: origin %q must be an absolute http(s) origin", origin)}
+		return originViolationInvalid
 	}
 	if parsed.User != nil {
-		return []string{fmt.Sprintf("CORS configuration error: origin %q must not include user info", origin)}
+		return originViolationUserInfo
 	}
-	if !hasValidCORSOriginPort(parsed) {
-		return []string{fmt.Sprintf("CORS configuration error: origin %q must include a valid port when a port is specified", origin)}
+	if !hasValidHTTPOriginPort(parsed) {
+		return originViolationPort
 	}
 	if parsed.Path == "/" {
-		return []string{fmt.Sprintf("CORS configuration error: origin %q must not have a trailing slash", origin)}
+		return originViolationTrailingSlash
 	}
 	if parsed.Path != "" {
-		return []string{fmt.Sprintf("CORS configuration error: origin %q must not include a path", origin)}
+		return originViolationPath
 	}
 	if parsed.RawQuery != "" || parsed.Fragment != "" {
-		return []string{fmt.Sprintf("CORS configuration error: origin %q must not include query or fragment", origin)}
+		return originViolationQueryFragment
 	}
-
-	return nil
+	return originViolationNone
 }
 
-func hasValidCORSOriginPort(parsed *url.URL) bool {
+func hasValidHTTPOriginPort(parsed *url.URL) bool {
 	port := parsed.Port()
 	if port == "" {
 		host := parsed.Host
@@ -415,6 +457,45 @@ func hasValidCORSOriginPort(parsed *url.URL) bool {
 
 	portNumber, err := strconv.Atoi(port)
 	return err == nil && portNumber >= 1 && portNumber <= 65535
+}
+
+func validateOpenPlatformBaseURLs(cfg OpenPlatformConfig, productionLike bool) []string {
+	var errs []string
+	errs = append(errs, validateOptionalHTTPOrigin("OPEN_PLATFORM_CONSENT_BASE_URL", cfg.ConsentBaseURL, productionLike)...)
+	errs = append(errs, validateOptionalHTTPOrigin("OPEN_PLATFORM_ACCOUNT_BASE_URL", cfg.AccountBaseURL, productionLike)...)
+	return errs
+}
+
+func validateOptionalHTTPOrigin(name, origin string, productionLike bool) []string {
+	if origin == "" {
+		return nil
+	}
+	switch httpOriginViolation(origin) {
+	case originViolationNone:
+		if productionLike && !isHTTPSOrigin(origin) {
+			return []string{fmt.Sprintf("%s must use https in production", name)}
+		}
+		return nil
+	case originViolationWhitespace:
+		return []string{fmt.Sprintf("%s must not include leading or trailing whitespace", name)}
+	case originViolationPort:
+		return []string{fmt.Sprintf("%s must include a valid port when a port is specified", name)}
+	case originViolationUserInfo:
+		return []string{fmt.Sprintf("%s must not include user info", name)}
+	case originViolationTrailingSlash:
+		return []string{fmt.Sprintf("%s must not have a trailing slash", name)}
+	case originViolationPath:
+		return []string{fmt.Sprintf("%s must not include a path", name)}
+	case originViolationQueryFragment:
+		return []string{fmt.Sprintf("%s must not include query or fragment", name)}
+	default:
+		return []string{fmt.Sprintf("%s must be an absolute http(s) origin", name)}
+	}
+}
+
+func isHTTPSOrigin(origin string) bool {
+	parsed, err := url.Parse(origin)
+	return err == nil && strings.EqualFold(parsed.Scheme, "https")
 }
 
 func validateExternalDataConfig(cfg ExternalDataConfig) []string {
