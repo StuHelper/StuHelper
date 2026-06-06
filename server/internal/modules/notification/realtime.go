@@ -15,9 +15,11 @@ import (
 )
 
 const (
-	notificationRealtimeChannelPrefix  = "notify:"
-	notificationRealtimeChannelPattern = notificationRealtimeChannelPrefix + "*"
-	notificationRealtimeSubscriberName = "notification redis subscriber"
+	notificationRealtimeChannelPrefix    = "notify:"
+	notificationRealtimeChannelPattern   = notificationRealtimeChannelPrefix + "*"
+	notificationRealtimeV2ChannelPrefix  = "notification:v2:"
+	notificationRealtimeV2ChannelPattern = notificationRealtimeV2ChannelPrefix + "*"
+	notificationRealtimeSubscriberName   = "notification redis subscriber"
 )
 
 // RealtimePublisher publishes notification realtime events after durable writes.
@@ -39,6 +41,13 @@ type realtimeEnvelope struct {
 	Event  SSEEvent `json:"event"`
 }
 
+type realtimePayloadFormat int
+
+const (
+	realtimePayloadLegacy realtimePayloadFormat = iota
+	realtimePayloadEnvelope
+)
+
 // NewRealtime 创建通知实时组件。
 func NewRealtime(rdb *redis.Client, hub *Hub) *Realtime {
 	if rdb == nil {
@@ -59,14 +68,11 @@ func (r *Realtime) Publish(ctx context.Context, userID int64, event SSEEvent) er
 	if r == nil || r.rdb == nil {
 		return fmt.Errorf("notification realtime publish: redis client is not configured")
 	}
-	data, err := json.Marshal(realtimeEnvelope{
-		UserID: userID,
-		Event:  event,
-	})
+	channel, data, err := encodeRealtimePublish(userID, event)
 	if err != nil {
 		return fmt.Errorf("notification realtime marshal: %w", err)
 	}
-	if err := r.rdb.Publish(ctx, notificationRealtimeChannel(userID), data).Err(); err != nil {
+	if err := r.rdb.Publish(ctx, channel, data).Err(); err != nil {
 		return fmt.Errorf("notification realtime publish: %w", err)
 	}
 	return nil
@@ -85,7 +91,7 @@ func (r *Realtime) StartSubscriber(ctx context.Context, start func(string, func(
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	pubsub := r.rdb.PSubscribe(ctx, notificationRealtimeChannelPattern)
+	pubsub := r.rdb.PSubscribe(ctx, notificationRealtimeChannelPattern, notificationRealtimeV2ChannelPattern)
 
 	run := func(ctx context.Context) {
 		defer func() {
@@ -104,11 +110,11 @@ func (r *Realtime) StartSubscriber(ctx context.Context, start func(string, func(
 				if !ok {
 					return
 				}
-				userID, ok := notificationRealtimeUserIDFromChannel(msg.Channel)
+				userID, payloadFormat, ok := notificationRealtimePayloadFromChannel(msg.Channel)
 				if !ok {
 					continue
 				}
-				envelope, err := decodeRealtimePayload(msg.Payload, userID)
+				envelope, err := decodeRealtimePayload(msg.Payload, userID, payloadFormat)
 				if err != nil {
 					logger.L().Warn("failed to decode notification realtime payload",
 						zap.Int64("user_id", userID),
@@ -147,16 +153,40 @@ func notificationRealtimeChannel(userID int64) string {
 	return notificationRealtimeChannelPrefix + strconv.FormatInt(userID, 10)
 }
 
-func notificationRealtimeUserIDFromChannel(channel string) (int64, bool) {
-	raw, ok := strings.CutPrefix(channel, notificationRealtimeChannelPrefix)
-	if !ok {
-		return 0, false
+func notificationRealtimeV2Channel(userID int64) string {
+	return notificationRealtimeV2ChannelPrefix + strconv.FormatInt(userID, 10)
+}
+
+func notificationRealtimePayloadFromChannel(channel string) (int64, realtimePayloadFormat, bool) {
+	if raw, ok := strings.CutPrefix(channel, notificationRealtimeChannelPrefix); ok {
+		userID, ok := parseNotificationRealtimeUserID(raw)
+		return userID, realtimePayloadLegacy, ok
 	}
+	if raw, ok := strings.CutPrefix(channel, notificationRealtimeV2ChannelPrefix); ok {
+		userID, ok := parseNotificationRealtimeUserID(raw)
+		return userID, realtimePayloadEnvelope, ok
+	}
+	return 0, 0, false
+}
+
+func parseNotificationRealtimeUserID(raw string) (int64, bool) {
 	userID, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil || userID <= 0 {
 		return 0, false
 	}
 	return userID, true
+}
+
+func encodeRealtimePublish(userID int64, event SSEEvent) (string, []byte, error) {
+	if event.Event == "notification" {
+		data, err := json.Marshal(event.Data)
+		return notificationRealtimeChannel(userID), data, err
+	}
+	data, err := json.Marshal(realtimeEnvelope{
+		UserID: userID,
+		Event:  event,
+	})
+	return notificationRealtimeV2Channel(userID), data, err
 }
 
 func decodeRealtimeEnvelope(raw string) (realtimeEnvelope, error) {
@@ -170,21 +200,27 @@ func decodeRealtimeEnvelope(raw string) (realtimeEnvelope, error) {
 	return envelope, nil
 }
 
-func decodeRealtimePayload(raw string, channelUserID int64) (realtimeEnvelope, error) {
-	envelope, err := decodeRealtimeEnvelope(raw)
-	if err == nil {
-		return envelope, nil
+func decodeRealtimePayload(raw string, channelUserID int64, payloadFormat realtimePayloadFormat) (realtimeEnvelope, error) {
+	switch payloadFormat {
+	case realtimePayloadEnvelope:
+		return decodeRealtimeEnvelope(raw)
+	case realtimePayloadLegacy:
+		return decodeLegacyRealtimePayload(raw, channelUserID)
+	default:
+		return realtimeEnvelope{}, fmt.Errorf("unknown realtime payload format")
 	}
+}
 
+func decodeLegacyRealtimePayload(raw string, channelUserID int64) (realtimeEnvelope, error) {
 	var legacyPayload map[string]any
-	if legacyErr := json.Unmarshal([]byte(raw), &legacyPayload); legacyErr != nil {
+	if err := json.Unmarshal([]byte(raw), &legacyPayload); err != nil {
 		return realtimeEnvelope{}, err
 	}
 	if legacyPayload["event"] != nil {
-		return realtimeEnvelope{}, err
+		return realtimeEnvelope{}, fmt.Errorf("legacy realtime payload must not contain event envelope")
 	}
 	if legacyPayload["id"] == nil || legacyPayload["type"] == nil {
-		return realtimeEnvelope{}, err
+		return realtimeEnvelope{}, fmt.Errorf("legacy realtime notification payload is missing notification fields")
 	}
 	return realtimeEnvelope{
 		UserID: channelUserID,

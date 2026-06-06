@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -32,10 +33,23 @@ func NewService(repo *Repository, realtime RealtimePublisher) *Service {
 	if repo == nil {
 		panic("notification.NewService: repo must not be nil")
 	}
-	if realtime == nil {
+	if isNilRealtimePublisher(realtime) {
 		panic("notification.NewService: realtime must not be nil")
 	}
 	return &Service{repo: repo, realtime: realtime}
+}
+
+func isNilRealtimePublisher(realtime RealtimePublisher) bool {
+	if realtime == nil {
+		return true
+	}
+	value := reflect.ValueOf(realtime)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
 }
 
 // Send 发送通知（实现 Sender 接口）

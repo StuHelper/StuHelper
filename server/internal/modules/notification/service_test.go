@@ -20,23 +20,23 @@ func (p stubRealtimePublisher) Publish(context.Context, int64, SSEEvent) error {
 }
 
 func TestNewServicePanicsOnNilDependencies(t *testing.T) {
+	var nilRealtime *Realtime
 	tests := []struct {
 		name     string
 		repo     *Repository
 		realtime RealtimePublisher
+		want     string
 	}{
-		{name: "nil repo", realtime: stubRealtimePublisher{}},
-		{name: "nil realtime", repo: &Repository{}},
+		{name: "nil repo", realtime: stubRealtimePublisher{}, want: "notification.NewService: repo must not be nil"},
+		{name: "nil realtime", repo: &Repository{}, want: "notification.NewService: realtime must not be nil"},
+		{name: "typed nil realtime", repo: &Repository{}, realtime: nilRealtime, want: "notification.NewService: realtime must not be nil"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defer func() {
-				if r := recover(); r == nil {
-					t.Fatalf("expected panic")
-				}
-			}()
-			_ = NewService(tt.repo, tt.realtime)
+			assert.PanicsWithValue(t, tt.want, func() {
+				_ = NewService(tt.repo, tt.realtime)
+			})
 		})
 	}
 }

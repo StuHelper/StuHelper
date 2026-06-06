@@ -94,7 +94,7 @@ func TestDecodeRealtimePayloadAcceptsLegacyNotificationPayload(t *testing.T) {
 
 	raw := `{"id":"notif-1","userId":42,"type":"reply","title":"新的回复","body":"body","content":"body","payload":{"replyId":"r-1"},"sourceModule":"course.review","sourceId":"reply-1","isRead":false,"createdAt":"2026-04-23T09:00:00Z"}`
 
-	envelope, err := decodeRealtimePayload(raw, 42)
+	envelope, err := decodeRealtimePayload(raw, 42, realtimePayloadLegacy)
 	require.NoError(t, err)
 
 	assert.Equal(t, int64(42), envelope.UserID)
@@ -163,7 +163,95 @@ func nilContextForNotificationTest() context.Context {
 	return nil
 }
 
-func TestRealtimePublishesEnvelopeAndSubscriberBroadcastsToHub(t *testing.T) {
+func TestRealtimePublishNotificationUsesLegacyPayload(t *testing.T) {
+	t.Parallel()
+
+	fixture := redisfixture.Start(t)
+	realtime := NewRealtime(fixture.Client, NewHub())
+	userID := int64(42)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	legacySub := fixture.Client.Subscribe(ctx, notificationRealtimeChannel(userID))
+	defer legacySub.Close()
+	_, err := legacySub.Receive(ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, realtime.Publish(ctx, userID, SSEEvent{
+		Event: "notification",
+		Data: Notification{
+			ID:           "notif-1",
+			UserID:       userID,
+			Type:         TypeReply,
+			Title:        "新的回复",
+			Body:         "body",
+			Content:      "body",
+			SourceModule: "course.review",
+			SourceID:     "reply-1",
+			IsRead:       false,
+			CreatedAt:    "2026-04-23T09:00:00Z",
+		},
+	}))
+
+	msg, err := legacySub.ReceiveMessage(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, notificationRealtimeChannel(userID), msg.Channel)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal([]byte(msg.Payload), &payload))
+	assert.Equal(t, "notif-1", payload["id"])
+	assert.Equal(t, TypeReply, payload["type"])
+	assert.Equal(t, float64(userID), payload["userId"])
+	assert.NotContains(t, payload, "event")
+}
+
+func TestRealtimePublishNonNotificationUsesV2Only(t *testing.T) {
+	t.Parallel()
+
+	fixture := redisfixture.Start(t)
+	realtime := NewRealtime(fixture.Client, NewHub())
+	userID := int64(42)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	legacySub := fixture.Client.PSubscribe(ctx, notificationRealtimeChannelPattern)
+	defer legacySub.Close()
+	_, err := legacySub.Receive(ctx)
+	require.NoError(t, err)
+
+	v2Sub := fixture.Client.Subscribe(ctx, notificationRealtimeV2Channel(userID))
+	defer v2Sub.Close()
+	_, err = v2Sub.Receive(ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, realtime.Publish(ctx, userID, SSEEvent{
+		Event: "unread_count",
+		Data:  map[string]int{"count": 3},
+	}))
+
+	msg, err := v2Sub.ReceiveMessage(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, notificationRealtimeV2Channel(userID), msg.Channel)
+
+	envelope, err := decodeRealtimeEnvelope(msg.Payload)
+	require.NoError(t, err)
+	assert.Equal(t, userID, envelope.UserID)
+	assert.Equal(t, "unread_count", envelope.Event.Event)
+	data, ok := envelope.Event.Data.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, float64(3), data["count"])
+
+	legacyCtx, legacyCancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer legacyCancel()
+	legacyMsg, err := legacySub.ReceiveMessage(legacyCtx)
+	if err == nil {
+		t.Fatalf("expected no legacy notify:* message, got channel=%s payload=%s", legacyMsg.Channel, legacyMsg.Payload)
+	}
+}
+
+func TestRealtimePublishesV2EnvelopeAndSubscriberBroadcastsToHub(t *testing.T) {
 	t.Parallel()
 
 	fixture := redisfixture.Start(t)
@@ -186,7 +274,7 @@ func TestRealtimePublishesEnvelopeAndSubscriberBroadcastsToHub(t *testing.T) {
 
 	<-started
 	require.Eventually(t, func() bool {
-		return fixture.Server.PubSubNumPat() == 1
+		return fixture.Server.PubSubNumPat() >= 2
 	}, time.Second, 10*time.Millisecond)
 
 	require.NoError(t, realtime.Publish(ctx, userID, SSEEvent{
@@ -228,7 +316,7 @@ func TestRealtimeSubscriberBroadcastsLegacyNotificationPayload(t *testing.T) {
 
 	<-started
 	require.Eventually(t, func() bool {
-		return fixture.Server.PubSubNumPat() == 1
+		return fixture.Server.PubSubNumPat() >= 2
 	}, time.Second, 10*time.Millisecond)
 
 	raw := `{"id":"notif-1","userId":42,"type":"reply","title":"新的回复","body":"body","content":"body","sourceModule":"course.review","sourceId":"reply-1","isRead":false,"createdAt":"2026-04-23T09:00:00Z"}`
@@ -247,7 +335,7 @@ func TestRealtimeSubscriberBroadcastsLegacyNotificationPayload(t *testing.T) {
 	}
 }
 
-func TestRealtimeSubscriberDropsEnvelopeUserMismatch(t *testing.T) {
+func TestRealtimeSubscriberDropsEnvelopeOnLegacyChannel(t *testing.T) {
 	t.Parallel()
 
 	fixture := redisfixture.Start(t)
@@ -270,12 +358,12 @@ func TestRealtimeSubscriberDropsEnvelopeUserMismatch(t *testing.T) {
 
 	<-started
 	require.Eventually(t, func() bool {
-		return fixture.Server.PubSubNumPat() == 1
+		return fixture.Server.PubSubNumPat() >= 2
 	}, time.Second, 10*time.Millisecond)
 
 	mismatch := `{"userId":43,"event":{"event":"notification","data":{"id":"notif-mismatch","userId":43,"type":"reply","title":"新的回复","sourceModule":"course.review","sourceId":"reply-1","isRead":false,"createdAt":"2026-04-23T09:00:00Z"}}}`
 	require.NoError(t, fixture.Client.Publish(ctx, notificationRealtimeChannel(channelUserID), mismatch).Err())
-	valid := `{"userId":42,"event":{"event":"notification","data":{"id":"notif-valid","userId":42,"type":"reply","title":"新的回复","sourceModule":"course.review","sourceId":"reply-2","isRead":false,"createdAt":"2026-04-23T09:00:00Z"}}}`
+	valid := `{"id":"notif-valid","userId":42,"type":"reply","title":"新的回复","body":"body","content":"body","sourceModule":"course.review","sourceId":"reply-2","isRead":false,"createdAt":"2026-04-23T09:00:00Z"}`
 	require.NoError(t, fixture.Client.Publish(ctx, notificationRealtimeChannel(channelUserID), valid).Err())
 
 	select {
