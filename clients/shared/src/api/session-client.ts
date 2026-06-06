@@ -253,6 +253,12 @@ function isReauthenticationStatus(status: number): boolean {
   return status === 401
 }
 
+function refreshFailureStatus(originalStatus: number, refreshStatus?: number): number {
+  return refreshStatus !== undefined && refreshStatus >= 400
+    ? refreshStatus
+    : originalStatus
+}
+
 export function createSessionApiClient(
   transport: SessionTransport,
   options: SessionClientOptions = {},
@@ -305,21 +311,23 @@ export function createSessionApiClient(
     }
 
     if (refreshed.kind === 'unauthorized') {
-      await maybeHandleUnauthorized(refreshed.status ?? status)
+      const failureStatus = refreshFailureStatus(status, refreshed.status)
+      await maybeHandleUnauthorized(failureStatus)
       return {
         ...result,
         response: {
           ...result.response,
-          status: refreshed.status ?? status,
+          status: failureStatus,
         },
       }
     }
 
+    const failureStatus = refreshFailureStatus(status, refreshed.status)
     return {
       error: refreshed.error,
       response: {
         ...result.response,
-        status: refreshed.status ?? status,
+        status: failureStatus,
       },
     }
   }

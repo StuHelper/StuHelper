@@ -262,4 +262,45 @@ describe('createSessionApiClient', () => {
 
     expect(onUnauthorized).not.toHaveBeenCalled()
   })
+
+  it('does not expose semantic refresh failures as HTTP 200 request results', async () => {
+    const request = vi.fn().mockResolvedValue({
+      error: { code: 'TOKEN_EXPIRED' },
+      response: { status: 401 },
+    })
+
+    const client = createSessionApiClient({
+      refresh: vi.fn().mockResolvedValue({
+        error: new Error('invalid refresh response'),
+        kind: 'error',
+        status: 200,
+      }),
+      request,
+    })
+
+    const result = await client.GET('/api/v1/user/me' as never)
+
+    expect(result.error).toBeInstanceOf(Error)
+    expect(result.response?.status).toBe(401)
+    expect(request).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserves refresh failure statuses when they are real HTTP errors', async () => {
+    const client = createSessionApiClient({
+      refresh: vi.fn().mockResolvedValue({
+        error: { code: 'SERVICE_UNAVAILABLE' },
+        kind: 'error',
+        status: 503,
+      }),
+      request: vi.fn().mockResolvedValue({
+        error: { code: 'TOKEN_EXPIRED' },
+        response: { status: 401 },
+      }),
+    })
+
+    const result = await client.GET('/api/v1/user/me' as never)
+
+    expect(result.error).toEqual({ code: 'SERVICE_UNAVAILABLE' })
+    expect(result.response?.status).toBe(503)
+  })
 })

@@ -322,6 +322,49 @@ describe("browser API client", () => {
         expect(mockClearSession).not.toHaveBeenCalled();
     });
 
+    it("returns a real fetch Response when automatic refresh fails", async () => {
+        fetchMock
+            .mockResolvedValueOnce(
+                new Response(
+                    JSON.stringify({
+                        error: { code: "A0010100", message: "login required" },
+                    }),
+                    {
+                        status: 401,
+                        headers: { "Content-Type": "application/json" },
+                    },
+                ),
+            )
+            .mockResolvedValueOnce(
+                new Response(
+                    JSON.stringify({
+                        error: { code: "A0010202", message: "csrf invalid" },
+                    }),
+                    {
+                        status: 403,
+                        headers: { "Content-Type": "application/json" },
+                    },
+                ),
+            );
+
+        const { apiClientOptions } = await import("../client");
+        const response = await apiClientOptions.fetch(
+            new Request("http://127.0.0.1:3000/api/v1/user/profile", {
+                method: "GET",
+            }),
+        );
+
+        expect(response).toBeInstanceOf(Response);
+        expect(response.status).toBe(403);
+        await expect(response.json()).resolves.toEqual({
+            error: {
+                code: "A0010202",
+                message: "csrf invalid",
+            },
+        });
+        expect(mockClearSession).not.toHaveBeenCalled();
+    });
+
     it("does not refresh a 401 response without a stored browser session hint", async () => {
         mockHasStoredSessionHint.mockReturnValue(false);
         fetchMock.mockResolvedValueOnce(

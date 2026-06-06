@@ -1,4 +1,4 @@
-import type { ApiClient } from '@stuhelper/shared/api'
+import type { ApiCallResult, ApiClient } from '@stuhelper/shared/api'
 import {
   AUTH_REFRESH_PATH,
   appendQuery,
@@ -174,6 +174,52 @@ function requestHeadersToObject(headers: Headers): Record<string, unknown> {
   return Object.fromEntries(headers.entries())
 }
 
+function isFetchResponse(response: unknown): response is Response {
+  return typeof Response !== 'undefined' && response instanceof Response
+}
+
+function syntheticResponseStatus(status?: number): number {
+  return typeof status === 'number' && status >= 200 && status <= 599
+    ? status
+    : 500
+}
+
+function serializeSyntheticError(error: unknown): unknown {
+  if (error instanceof ApiError) {
+    return {
+      error: {
+        code: error.code,
+        details: error.details,
+        message: error.message,
+        requestID: error.requestID,
+      },
+    }
+  }
+  if (error instanceof Error) {
+    return {
+      error: {
+        message: error.message,
+      },
+    }
+  }
+  return error
+}
+
+function buildSyntheticFetchResponse(
+  result: ApiCallResult<unknown>,
+): Response {
+  const payload =
+    result.error !== undefined
+      ? serializeSyntheticError(result.error)
+      : result.data ?? null
+  return new Response(JSON.stringify(payload), {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    status: syntheticResponseStatus(result.response?.status),
+  })
+}
+
 async function browserRequest<T>(
   method: HttpMethod,
   schemaPath: string,
@@ -336,6 +382,9 @@ async function authenticatedFetch(input: Request): Promise<Response> {
 
   if (!result.response) {
     throw normalizeClientError(result.error)
+  }
+  if (!isFetchResponse(result.response)) {
+    return buildSyntheticFetchResponse(result)
   }
   return result.response as Response
 }
