@@ -40,6 +40,15 @@ type ReviewAccessFacts struct {
 	PreviewContentPct   int
 }
 
+func (facts ReviewAccessFacts) WriteAccess() ReviewWriteAccess {
+	return ReviewWriteAccess{
+		InternalUserID: facts.InternalUserID,
+		CanPostReview:  facts.CanPostReview,
+		CanEditOwn:     facts.CanEditOwn,
+		CanDeleteOwn:   facts.CanDeleteOwn,
+	}
+}
+
 func (s *Service) getReviewAccessPolicy(ctx context.Context) (systemconfig.ReviewAccessPolicySnapshot, error) {
 	cached := s.readReviewAccessPolicy()
 	if policyFresh(cached) {

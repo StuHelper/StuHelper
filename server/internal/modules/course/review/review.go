@@ -58,6 +58,7 @@ func (h *Handler) PostReview(c *gin.Context) {
 		Ratings:              req.Ratings,
 		UserHash:             userHash,
 		AuthorInternalUserID: facts.InternalUserID,
+		Access:               facts.WriteAccess(),
 		IPAddress:            c.ClientIP(),
 		RequestID:            middleware.GetRequestID(c),
 	})
@@ -71,6 +72,7 @@ func (h *Handler) PostReview(c *gin.Context) {
 	}
 
 	h.invalidateReviewAggregateCaches(c)
+	h.invalidateCourseReviewCountCaches(c)
 
 	response.Created(c, result.Review)
 }
@@ -148,10 +150,15 @@ func (h *Handler) UpdateReview(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if facts.InternalUserID <= 0 {
+		response.Forbidden(c, "user has not completed provisioning", errs.ErrUserNotFound)
+		return
+	}
 
 	err = h.service.UpdateReview(c.Request.Context(), UpdateReviewParams{
 		ReviewID: reviewID,
 		UserHash: userHash,
+		Access:   facts.WriteAccess(),
 		Title:    req.Title,
 		Content:  req.Content,
 		Grade:    req.Grade,
@@ -167,6 +174,7 @@ func (h *Handler) UpdateReview(c *gin.Context) {
 	}
 
 	h.invalidateReviewAggregateCaches(c)
+	h.invalidateCourseReviewCountCaches(c)
 	response.Success(c, gin.H{"message": "review updated successfully"})
 }
 
@@ -190,10 +198,15 @@ func (h *Handler) DeleteReview(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if facts.InternalUserID <= 0 {
+		response.Forbidden(c, "user has not completed provisioning", errs.ErrUserNotFound)
+		return
+	}
 
 	err = h.service.DeleteReview(c.Request.Context(), DeleteReviewParams{
 		ReviewID: reviewID,
 		UserHash: userHash,
+		Access:   facts.WriteAccess(),
 	})
 	if err != nil {
 		if respondDeleteReviewError(c, err) {
@@ -205,6 +218,7 @@ func (h *Handler) DeleteReview(c *gin.Context) {
 	}
 
 	h.invalidateReviewAggregateCaches(c)
+	h.invalidateCourseReviewCountCaches(c)
 	response.Success(c, gin.H{"message": "review deleted successfully"})
 }
 

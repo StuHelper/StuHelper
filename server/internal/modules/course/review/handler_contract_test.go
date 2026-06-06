@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
@@ -147,15 +148,19 @@ func TestContract_429_RateLimited(t *testing.T) {
 	r := setupContractRouter(t, redisFixture, tokenSvc)
 
 	validToken := "test-valid-token"
-	csrfToken := "test-csrf-token"
+	sessionID := "sid-contract-rate-limited"
+	require.NoError(t, crypto.InitHMACKey("test-review-contract-csrf-secret-32!", false))
+	csrfToken, err := middleware.GenerateCSRFToken(sessionID)
+	require.NoError(t, err)
 
 	// 发送请求直到触发限流（PostLimit=2）
 	for i := range 3 {
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/course/review/reviews", nil)
 		req.AddCookie(&http.Cookie{Name: middleware.CookieAccessToken, Value: validToken})
-		req.Header.Set("X-CSRF-Token", csrfToken)
-		req.AddCookie(&http.Cookie{Name: "csrf_token", Value: csrfToken})
+		req.AddCookie(&http.Cookie{Name: middleware.CookieSessionID, Value: sessionID})
+		req.Header.Set(middleware.CSRFHeaderName, csrfToken)
+		req.AddCookie(&http.Cookie{Name: middleware.CSRFCookieName, Value: csrfToken})
 		r.ServeHTTP(w, req)
 
 		if i < 2 {

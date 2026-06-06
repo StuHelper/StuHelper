@@ -63,6 +63,7 @@ func TestReviewService_StateTransitionsAndNotifications(t *testing.T) {
 		RETURNING id
 	`).Scan(&ownerUserID)
 	require.NoError(t, err)
+	ownerAccess := fullReviewWriteAccess(ownerUserID)
 	_, err = fixture.Pool.Exec(ctx, `
 		INSERT INTO users (casdoor_subject, username, email, user_hash)
 		VALUES ('ext-owner-flagged', 'owner-flagged', 'owner-flagged@example.com', 'u-owner-flagged')
@@ -153,6 +154,7 @@ drainLoop:
 	err = svc.UpdateReview(ctx, UpdateReviewParams{
 		ReviewID: reviewID,
 		UserHash: "u-owner-state",
+		Access:   ownerAccess,
 		Title:    strPtr("需要复核"),
 		Content:  strPtr("reviewword content"),
 		Grade:    strPtr("A"),
@@ -175,6 +177,7 @@ drainLoop:
 	err = svc.UpdateReview(ctx, UpdateReviewParams{
 		ReviewID: reviewID,
 		UserHash: "u-owner-state",
+		Access:   ownerAccess,
 		Title:    strPtr("恢复发布"),
 		Content:  strPtr("正常内容用于恢复公开状态"),
 		Grade:    strPtr("A+"),
@@ -190,7 +193,7 @@ drainLoop:
 	assert.Equal(t, 1, reviewCount)
 
 	// 隐藏评论删除不再重复扣减课程计数。
-	require.NoError(t, svc.DeleteReview(ctx, DeleteReviewParams{ReviewID: hiddenReviewID, UserHash: "u-owner-hidden"}))
+	require.NoError(t, svc.DeleteReview(ctx, DeleteReviewParams{ReviewID: hiddenReviewID, UserHash: "u-owner-hidden", Access: ownerAccess}))
 	err = fixture.Pool.QueryRow(ctx, `SELECT review_count FROM courses WHERE id = $1`, courseID).Scan(&reviewCount)
 	require.NoError(t, err)
 	assert.Equal(t, 1, reviewCount)

@@ -46,6 +46,15 @@ func (contextAwareAccessReader) GetReviewAccessSubject(ctx context.Context, _ st
 	return nil, ctx.Err()
 }
 
+func fullReviewWriteAccess(userID int64) ReviewWriteAccess {
+	return ReviewWriteAccess{
+		InternalUserID: userID,
+		CanPostReview:  true,
+		CanEditOwn:     true,
+		CanDeleteOwn:   true,
+	}
+}
+
 func TestMaskHash(t *testing.T) {
 	assert.Equal(t, "short", maskHash("short"))
 	assert.Equal(t, "123456789012...", maskHash("12345678901234567890"))

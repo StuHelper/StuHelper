@@ -101,6 +101,18 @@ func withAdminContext(method, target, body string) (*httptest.ResponseRecorder, 
 	return w, c
 }
 
+func courseReviewCountCacheVersions(ctx context.Context, h *Handler) (string, string) {
+	return h.courseCache.GetVersion(ctx, "course:courses"), h.courseCache.GetVersion(ctx, "course:course")
+}
+
+func assertCourseReviewCountCachesBumped(t *testing.T, ctx context.Context, h *Handler, previousCoursesVersion, previousCourseVersion string) (string, string) {
+	t.Helper()
+	nextCoursesVersion, nextCourseVersion := courseReviewCountCacheVersions(ctx, h)
+	assert.NotEqual(t, previousCoursesVersion, nextCoursesVersion)
+	assert.NotEqual(t, previousCourseVersion, nextCourseVersion)
+	return nextCoursesVersion, nextCourseVersion
+}
+
 func TestReviewHandler_AdminSuccessPaths(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	fixture := postgresfixture.Start(t)
@@ -125,6 +137,8 @@ func TestReviewHandler_AdminSuccessPaths(t *testing.T) {
 	_, err = fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 2 WHERE id = $1`, courseID)
 	require.NoError(t, err)
 
+	coursesVersion, courseVersion := courseReviewCountCacheVersions(ctx, h)
+
 	// ListAllReviews
 	w, c := withAdminContext(http.MethodGet, "/admin/reviews?status=all", "")
 	h.ListAllReviews(c)
@@ -140,12 +154,14 @@ func TestReviewHandler_AdminSuccessPaths(t *testing.T) {
 	err = fixture.Pool.QueryRow(ctx, `SELECT status FROM reviews WHERE id = $1`, reviewID).Scan(&status)
 	require.NoError(t, err)
 	assert.Equal(t, StatusHidden, status)
+	coursesVersion, courseVersion = assertCourseReviewCountCachesBumped(t, ctx, h, coursesVersion, courseVersion)
 
 	// BatchUpdateReviews success
 	w, c = withAdminContext(http.MethodPatch, "/admin/reviews/batch", `{"ids":["`+reviewID2+`"],"action":"hide"}`)
 	h.BatchUpdateReviews(c)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), `"affected":1`)
+	coursesVersion, courseVersion = assertCourseReviewCountCachesBumped(t, ctx, h, coursesVersion, courseVersion)
 
 	// Sensitive word CRUD handlers
 	w, c = withAdminContext(http.MethodPost, "/admin/sensitive-words", `{"word":"测试敏感词","category":"custom","level":"warn"}`)
@@ -208,16 +224,18 @@ func TestReviewHandler_AdminSuccessPaths(t *testing.T) {
 	c.Params = gin.Params{{Key: "reviewID", Value: flaggedID}}
 	h.ClearContentFlag(c)
 	assert.Equal(t, http.StatusOK, w.Code)
+	coursesVersion, courseVersion = assertCourseReviewCountCachesBumped(t, ctx, h, coursesVersion, courseVersion)
 
 	// Process report through handler
 	handlerReporterID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-handler-reporter", UserHash: "u-handler-reporter"})
 	var handlerReportID string
 	handlerReportID, err = svc.ReportReview(ctx, ReportReviewParams{ReviewID: reportableID, UserHash: "u-handler-reporter", ReporterInternalUserID: handlerReporterID, Reason: "spam", Description: "handler report"})
 	require.NoError(t, err)
-	w, c = withAdminContext(http.MethodPut, "/admin/reports/"+handlerReportID, `{"action":"reject","note":"handled"}`)
+	w, c = withAdminContext(http.MethodPut, "/admin/reports/"+handlerReportID, `{"action":"hide","note":"handled"}`)
 	c.Params = gin.Params{{Key: "reportID", Value: handlerReportID}}
 	h.ProcessReport(c)
 	assert.Equal(t, http.StatusOK, w.Code)
+	assertCourseReviewCountCachesBumped(t, ctx, h, coursesVersion, courseVersion)
 
 	// Admin edit review content through handler
 	w, c = withAdminContext(http.MethodPost, "/admin/reviews/"+flaggedID+"/edit", `{"title":"处理后标题","content":"处理后内容","reason":"规范化"}`)
@@ -230,6 +248,164 @@ func TestReviewHandler_AdminSuccessPaths(t *testing.T) {
 	h.GetOperationLogs(c)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "create_teacher")
+}
+
+func TestReviewHandler_AdminReviewCountCacheInvalidationPaths(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	newHandlerFixture := func(t *testing.T) (*postgresfixture.Fixture, *Service, *Handler, context.Context, int64, int64) {
+		t.Helper()
+		fixture := postgresfixture.Start(t)
+		repo := NewRepository(fixture.DB)
+		svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
+		h := newReviewAdminHandler(t, svc)
+		ctx := context.Background()
+		departmentID := seedDepartment(t, fixture, 4111010006, "缓存学院")
+		teacherID := seedTeacher(t, fixture, 4111010006, "缓存老师", departmentID)
+		courseID := seedCourse(t, fixture, 4111010006, departmentID, "缓存课程")
+		return fixture, svc, h, ctx, courseID, teacherID
+	}
+
+	t.Run("admin update restore hidden and pending reviews bumps course caches from fresh baselines", func(t *testing.T) {
+		fixture, _, h, ctx, courseID, teacherID := newHandlerFixture(t)
+		hiddenReviewID := "550e8400-e29b-41d4-a716-446655440301"
+		pendingReviewID := "550e8400-e29b-41d4-a716-446655440307"
+		seedReviewWithRatings(t, fixture, hiddenReviewID, courseID, teacherID, "u-cache-restore", 4.0, StatusHidden, ReviewRatings{"teaching": 4}, "待恢复", "待恢复内容")
+		seedReviewWithRatings(t, fixture, pendingReviewID, courseID, teacherID, "u-cache-pending-restore", 4.0, StatusPendingReview, ReviewRatings{"teaching": 4}, "待审核通过", "待审核内容")
+		_, err := fixture.Pool.Exec(ctx, `UPDATE reviews SET content_flag = $2 WHERE id = $1`, pendingReviewID, ContentFlagReview)
+		require.NoError(t, err)
+		_, err = fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 0 WHERE id = $1`, courseID)
+		require.NoError(t, err)
+
+		coursesVersion, courseVersion := courseReviewCountCacheVersions(ctx, h)
+		w, c := withAdminContext(http.MethodPut, "/admin/reviews/"+hiddenReviewID, `{"action":"restore","reason":"恢复展示"}`)
+		c.Params = gin.Params{{Key: "reviewID", Value: hiddenReviewID}}
+		h.AdminUpdateReview(c)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		coursesVersion, courseVersion = assertCourseReviewCountCachesBumped(t, ctx, h, coursesVersion, courseVersion)
+
+		w, c = withAdminContext(http.MethodPut, "/admin/reviews/"+pendingReviewID, `{"action":"restore","reason":"审核通过"}`)
+		c.Params = gin.Params{{Key: "reviewID", Value: pendingReviewID}}
+		h.AdminUpdateReview(c)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		assertCourseReviewCountCachesBumped(t, ctx, h, coursesVersion, courseVersion)
+
+		var hiddenStatus, pendingStatus string
+		var pendingContentFlag *string
+		err = fixture.Pool.QueryRow(ctx, `SELECT status FROM reviews WHERE id = $1`, hiddenReviewID).Scan(&hiddenStatus)
+		require.NoError(t, err)
+		err = fixture.Pool.QueryRow(ctx, `SELECT status, content_flag FROM reviews WHERE id = $1`, pendingReviewID).Scan(&pendingStatus, &pendingContentFlag)
+		require.NoError(t, err)
+		assert.Equal(t, StatusPublished, hiddenStatus)
+		assert.Equal(t, StatusPublished, pendingStatus)
+		require.NotNil(t, pendingContentFlag)
+		assert.Equal(t, "cleared", *pendingContentFlag)
+	})
+
+	t.Run("admin update delete published bumps course caches", func(t *testing.T) {
+		fixture, _, h, ctx, courseID, teacherID := newHandlerFixture(t)
+		reviewID := "550e8400-e29b-41d4-a716-446655440302"
+		seedReviewWithRatings(t, fixture, reviewID, courseID, teacherID, "u-cache-delete", 4.0, StatusPublished, ReviewRatings{"teaching": 4}, "待删除", "待删除内容")
+		_, err := fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 1 WHERE id = $1`, courseID)
+		require.NoError(t, err)
+
+		coursesVersion, courseVersion := courseReviewCountCacheVersions(ctx, h)
+		w, c := withAdminContext(http.MethodPut, "/admin/reviews/"+reviewID, `{"action":"delete","reason":"违规"}`)
+		c.Params = gin.Params{{Key: "reviewID", Value: reviewID}}
+		h.AdminUpdateReview(c)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		assertCourseReviewCountCachesBumped(t, ctx, h, coursesVersion, courseVersion)
+
+		var status string
+		err = fixture.Pool.QueryRow(ctx, `SELECT status FROM reviews WHERE id = $1`, reviewID).Scan(&status)
+		require.NoError(t, err)
+		assert.Equal(t, StatusDeleted, status)
+	})
+
+	t.Run("batch restore and delete each bump course caches from fresh baselines", func(t *testing.T) {
+		fixture, _, h, ctx, courseID, teacherID := newHandlerFixture(t)
+		restoreID := "550e8400-e29b-41d4-a716-446655440303"
+		deleteID := "550e8400-e29b-41d4-a716-446655440304"
+		seedReviewWithRatings(t, fixture, restoreID, courseID, teacherID, "u-cache-batch-restore", 4.0, StatusHidden, ReviewRatings{"teaching": 4}, "批量恢复", "批量恢复内容")
+		seedReviewWithRatings(t, fixture, deleteID, courseID, teacherID, "u-cache-batch-delete", 4.0, StatusPublished, ReviewRatings{"teaching": 4}, "批量删除", "批量删除内容")
+		_, err := fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 1 WHERE id = $1`, courseID)
+		require.NoError(t, err)
+
+		coursesVersion, courseVersion := courseReviewCountCacheVersions(ctx, h)
+		w, c := withAdminContext(http.MethodPatch, "/admin/reviews/batch", `{"ids":["`+restoreID+`"],"action":"restore"}`)
+		h.BatchUpdateReviews(c)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		assert.Contains(t, w.Body.String(), `"affected":1`)
+		coursesVersion, courseVersion = assertCourseReviewCountCachesBumped(t, ctx, h, coursesVersion, courseVersion)
+
+		w, c = withAdminContext(http.MethodPatch, "/admin/reviews/batch", `{"ids":["`+deleteID+`"],"action":"delete"}`)
+		h.BatchUpdateReviews(c)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		assert.Contains(t, w.Body.String(), `"affected":1`)
+		assertCourseReviewCountCachesBumped(t, ctx, h, coursesVersion, courseVersion)
+
+		var restoredStatus, deletedStatus string
+		err = fixture.Pool.QueryRow(ctx, `SELECT status FROM reviews WHERE id = $1`, restoreID).Scan(&restoredStatus)
+		require.NoError(t, err)
+		err = fixture.Pool.QueryRow(ctx, `SELECT status FROM reviews WHERE id = $1`, deleteID).Scan(&deletedStatus)
+		require.NoError(t, err)
+		assert.Equal(t, StatusPublished, restoredStatus)
+		assert.Equal(t, StatusDeleted, deletedStatus)
+	})
+
+	t.Run("process report delete bumps course caches", func(t *testing.T) {
+		fixture, svc, h, ctx, courseID, teacherID := newHandlerFixture(t)
+		reviewID := "550e8400-e29b-41d4-a716-446655440305"
+		seedReviewWithRatings(t, fixture, reviewID, courseID, teacherID, "u-cache-report-delete", 4.0, StatusPublished, ReviewRatings{"teaching": 4}, "举报删除", "举报删除内容")
+		_, err := fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 1 WHERE id = $1`, courseID)
+		require.NoError(t, err)
+		reporterID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-cache-report-delete", UserHash: "u-cache-report-delete-user"})
+		reportID, err := svc.ReportReview(ctx, ReportReviewParams{
+			ReviewID:               reviewID,
+			UserHash:               "u-cache-report-delete-user",
+			ReporterInternalUserID: reporterID,
+			Reason:                 reportReasonOther,
+			Description:            "需要删除",
+		})
+		require.NoError(t, err)
+
+		coursesVersion, courseVersion := courseReviewCountCacheVersions(ctx, h)
+		w, c := withAdminContext(http.MethodPut, "/admin/reports/"+reportID, `{"action":"delete","note":"handled"}`)
+		c.Params = gin.Params{{Key: "reportID", Value: reportID}}
+		h.ProcessReport(c)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		assertCourseReviewCountCachesBumped(t, ctx, h, coursesVersion, courseVersion)
+
+		var status string
+		err = fixture.Pool.QueryRow(ctx, `SELECT status FROM reviews WHERE id = $1`, reviewID).Scan(&status)
+		require.NoError(t, err)
+		assert.Equal(t, StatusDeleted, status)
+	})
+
+	t.Run("clear pending review content flag bumps course caches", func(t *testing.T) {
+		fixture, _, h, ctx, courseID, teacherID := newHandlerFixture(t)
+		reviewID := "550e8400-e29b-41d4-a716-446655440306"
+		seedReviewWithRatings(t, fixture, reviewID, courseID, teacherID, "u-cache-clear-flag", 4.0, StatusPendingReview, ReviewRatings{"teaching": 4}, "待复核", "待复核内容")
+		_, err := fixture.Pool.Exec(ctx, `UPDATE reviews SET content_flag = $2 WHERE id = $1`, reviewID, ContentFlagReview)
+		require.NoError(t, err)
+		_, err = fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 0 WHERE id = $1`, courseID)
+		require.NoError(t, err)
+
+		coursesVersion, courseVersion := courseReviewCountCacheVersions(ctx, h)
+		w, c := withAdminContext(http.MethodPut, "/admin/content-flags/"+reviewID+"/clear", "")
+		c.Params = gin.Params{{Key: "reviewID", Value: reviewID}}
+		h.ClearContentFlag(c)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		assertCourseReviewCountCachesBumped(t, ctx, h, coursesVersion, courseVersion)
+
+		var status string
+		var contentFlag *string
+		err = fixture.Pool.QueryRow(ctx, `SELECT status, content_flag FROM reviews WHERE id = $1`, reviewID).Scan(&status, &contentFlag)
+		require.NoError(t, err)
+		assert.Equal(t, StatusPublished, status)
+		require.NotNil(t, contentFlag)
+		assert.Equal(t, "cleared", *contentFlag)
+	})
 }
 
 func TestReviewHandler_AdminModerationHonorsSchoolScopedRoles(t *testing.T) {

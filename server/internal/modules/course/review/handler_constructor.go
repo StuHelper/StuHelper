@@ -12,6 +12,7 @@ import (
 
 type HandlerConfig struct {
 	CacheHelper            *cache.Helper
+	CourseCacheHelper      *cache.Helper
 	Service                *Service
 	Redis                  *redis.Client
 	RateLimit              config.ReviewRateLimitConfig
@@ -24,8 +25,13 @@ type HandlerConfig struct {
 // InternalUserIDResolver 同时配置，缺一即启动失败。
 func NewHandler(cfg HandlerConfig) *Handler {
 	validateHandlerConfig(cfg)
+	courseCache := cfg.CourseCacheHelper
+	if courseCache == nil {
+		courseCache = cfg.CacheHelper
+	}
 	return &Handler{
 		cache:                  cfg.CacheHelper,
+		courseCache:            courseCache,
 		service:                cfg.Service,
 		fga:                    cfg.Authorizer,
 		internalUserIDResolver: cfg.InternalUserIDResolver,

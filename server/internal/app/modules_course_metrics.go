@@ -47,6 +47,7 @@ func (rt *Runtime) initCourseModule(
 	)
 	reviewHandler := review.NewHandler(review.HandlerConfig{
 		CacheHelper:            reviewCache,
+		CourseCacheHelper:      courseCache,
 		Service:                reviewService,
 		Redis:                  rt.redisClient.GetClient(),
 		RateLimit:              rt.cfg.RateLimit,

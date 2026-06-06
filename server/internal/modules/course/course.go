@@ -25,6 +25,11 @@ const (
 	CourseSortReviewCount = "reviewCount"
 )
 
+const (
+	courseCoursesCachePrefix = "course:courses"
+	courseCourseCachePrefix  = "course:course"
+)
+
 func normalizeCourseSort(sort string) string {
 	switch sort {
 	case CourseSortCredits, CourseSortReviewCount:
@@ -115,16 +120,17 @@ func (h *Handler) GetCourses(c *gin.Context) {
 	userHash := h.resolveUserHash(c)
 
 	// 未登录用户：走 raw cache 快速路径
-	cacheKey := "course:courses:q=" + httputil.SanitizeCacheKey(query) + ":dept=" + strconv.FormatInt(departmentID, 10) + ":cat=" + httputil.SanitizeCacheKey(category) + ":sort=" + sort + ":page=" + strconv.Itoa(page) + ":size=" + strconv.Itoa(pageSize)
+	logicalCacheKey := "course:courses:q=" + httputil.SanitizeCacheKey(query) + ":dept=" + strconv.FormatInt(departmentID, 10) + ":cat=" + httputil.SanitizeCacheKey(category) + ":sort=" + sort + ":page=" + strconv.Itoa(page) + ":size=" + strconv.Itoa(pageSize)
+	ctx := c.Request.Context()
+	cacheKey := h.cache.BuildVersionedKey(ctx, courseCoursesCachePrefix, logicalCacheKey)
 	if userHash == "" {
-		if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
+		if cached, ok := h.cache.GetRaw(ctx, cacheKey); ok {
 			response.Success(c, cached)
 			return
 		}
 	}
 
 	// 已登录用户或缓存未命中：使用类型化缓存
-	ctx := c.Request.Context()
 	result, cacheHit := cache.GetAs[ListCoursesResult](h.cache, ctx, cacheKey)
 	if !cacheHit {
 		fetched, fetchErr := h.service.GetCourses(ctx, ListCoursesParams{
@@ -155,20 +161,21 @@ func (h *Handler) GetCourses(c *gin.Context) {
 
 // GetCoursesGrouped 按院系分组返回课程目录
 func (h *Handler) GetCoursesGrouped(c *gin.Context) {
-	cacheKey := "course:courses:grouped"
-	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
+	ctx := c.Request.Context()
+	cacheKey := h.cache.BuildVersionedKey(ctx, courseCoursesCachePrefix, "course:courses:grouped")
+	if cached, ok := h.cache.GetRaw(ctx, cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
 
-	groups, err := h.service.GetCoursesGrouped(c.Request.Context())
+	groups, err := h.service.GetCoursesGrouped(ctx)
 	if err != nil {
 		response.InternalError(c, "failed to get grouped courses")
 		return
 	}
 
 	data := gin.H{"groups": groups}
-	if cacheErr := h.cache.Set(c.Request.Context(), cacheKey, data, cache.JitteredTTL(cache.DefaultTTL)); cacheErr != nil {
+	if cacheErr := h.cache.Set(ctx, cacheKey, data, cache.JitteredTTL(cache.DefaultTTL)); cacheErr != nil {
 		logger.FromGin(c).Warn("缓存写入失败", zap.Error(cacheErr))
 	}
 	response.Success(c, data)
@@ -189,15 +196,16 @@ func (h *Handler) SearchCourses(c *gin.Context) {
 
 	userHash := h.resolveUserHash(c)
 
-	cacheKey := "course:courses:search:" + httputil.SanitizeCacheKey(q) + ":page=" + strconv.Itoa(page) + ":size=" + strconv.Itoa(pageSize)
+	logicalCacheKey := "course:courses:search:" + httputil.SanitizeCacheKey(q) + ":page=" + strconv.Itoa(page) + ":size=" + strconv.Itoa(pageSize)
+	ctx := c.Request.Context()
+	cacheKey := h.cache.BuildVersionedKey(ctx, courseCoursesCachePrefix, logicalCacheKey)
 	if userHash == "" {
-		if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
+		if cached, ok := h.cache.GetRaw(ctx, cacheKey); ok {
 			response.Success(c, cached)
 			return
 		}
 	}
 
-	ctx := c.Request.Context()
 	result, cacheHit := cache.GetAs[ListCoursesResult](h.cache, ctx, cacheKey)
 	if !cacheHit {
 		fetched, err := h.service.SearchCourses(ctx, SearchCoursesParams{
@@ -233,17 +241,18 @@ func (h *Handler) GetCourse(c *gin.Context) {
 
 	userHash := h.resolveUserHash(c)
 
-	cacheKey := "course:course:" + strconv.FormatInt(courseID, 10)
+	ctx := c.Request.Context()
+	logicalCacheKey := "course:course:" + strconv.FormatInt(courseID, 10)
+	cacheKey := h.cache.BuildVersionedKey(ctx, courseCourseCachePrefix, logicalCacheKey)
 
 	// 未登录用户：走 raw cache 快速路径
 	if userHash == "" {
-		if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
+		if cached, ok := h.cache.GetRaw(ctx, cacheKey); ok {
 			response.Success(c, cached)
 			return
 		}
 	}
 
-	ctx := c.Request.Context()
 	course, cacheHit := cache.GetAs[Course](h.cache, ctx, cacheKey)
 	if !cacheHit {
 		fetched, fetchErr := h.service.GetCourse(ctx, courseID)

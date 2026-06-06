@@ -60,6 +60,7 @@ var (
 	ErrInvalidTransition         = errors.New("invalid status transition")
 	ErrUserIdentityRequired      = errors.New("internal user identity required")
 	ErrAdminIdentityRequired     = errors.New("admin identity required")
+	ErrReviewWriteAccessDenied   = errors.New("review write access denied")
 )
 
 // Service 评课服务层

@@ -23,6 +23,7 @@ func TestReviewService_PostReviewPendingAndWriteEarlyReturns(t *testing.T) {
 	courseID := seedCourse(t, fixture, 4111010006, departmentID, "有机化学")
 
 	pendingAuthorID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-u-pending-post", UserHash: "u-pending-post"})
+	pendingAccess := fullReviewWriteAccess(pendingAuthorID)
 	posted, err := svc.PostReview(ctx, PostReviewParams{
 		CourseID:             courseID,
 		TeacherID:            &teacherID,
@@ -33,6 +34,7 @@ func TestReviewService_PostReviewPendingAndWriteEarlyReturns(t *testing.T) {
 		Ratings:              ReviewRatings{"teaching": 5, "difficulty": 4},
 		UserHash:             "u-pending-post",
 		AuthorInternalUserID: pendingAuthorID,
+		Access:               pendingAccess,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, StatusPendingReview, posted.Review.Status)
@@ -59,6 +61,7 @@ func TestReviewService_PostReviewPendingAndWriteEarlyReturns(t *testing.T) {
 		Ratings:              ReviewRatings{"teaching": 5},
 		UserHash:             "u-missing-course",
 		AuthorInternalUserID: pendingAuthorID,
+		Access:               pendingAccess,
 	})
 	require.ErrorIs(t, err, ErrCourseNotFound)
 
@@ -73,6 +76,7 @@ func TestReviewService_PostReviewPendingAndWriteEarlyReturns(t *testing.T) {
 		Ratings:              ReviewRatings{"teaching": 5},
 		UserHash:             "u-missing-teacher",
 		AuthorInternalUserID: pendingAuthorID,
+		Access:               pendingAccess,
 	})
 	require.ErrorIs(t, err, ErrTeacherNotFound)
 
@@ -86,6 +90,7 @@ func TestReviewService_PostReviewPendingAndWriteEarlyReturns(t *testing.T) {
 	err = svc.UpdateReview(ctx, UpdateReviewParams{
 		ReviewID: "550e8400-e29b-41d4-a716-446655449997",
 		UserHash: "u-owner-write",
+		Access:   pendingAccess,
 		Title:    strPtr("缺失评论"),
 		Content:  strPtr("缺失评论内容"),
 		Grade:    strPtr("A"),
@@ -96,6 +101,7 @@ func TestReviewService_PostReviewPendingAndWriteEarlyReturns(t *testing.T) {
 	err = svc.UpdateReview(ctx, UpdateReviewParams{
 		ReviewID: hiddenID,
 		UserHash: "u-hidden-write",
+		Access:   pendingAccess,
 		Title:    strPtr("更新隐藏评论"),
 		Content:  strPtr("更新后的隐藏评论内容"),
 		Grade:    strPtr("A"),
@@ -106,6 +112,7 @@ func TestReviewService_PostReviewPendingAndWriteEarlyReturns(t *testing.T) {
 	err = svc.UpdateReview(ctx, UpdateReviewParams{
 		ReviewID: publishedID,
 		UserHash: "u-other-write",
+		Access:   pendingAccess,
 		Title:    strPtr("越权更新"),
 		Content:  strPtr("越权更新内容"),
 		Grade:    strPtr("A"),
@@ -116,6 +123,7 @@ func TestReviewService_PostReviewPendingAndWriteEarlyReturns(t *testing.T) {
 	err = svc.UpdateReview(ctx, UpdateReviewParams{
 		ReviewID: publishedID,
 		UserHash: "u-owner-write",
+		Access:   pendingAccess,
 		Title:    strPtr("非法成绩"),
 		Content:  strPtr("非法成绩内容足够长用于通过其他校验"),
 		Grade:    strPtr("S"),
@@ -133,15 +141,16 @@ func TestReviewService_PostReviewPendingAndWriteEarlyReturns(t *testing.T) {
 		Ratings:              ReviewRatings{"teaching": 5},
 		UserHash:             "u-owner-write",
 		AuthorInternalUserID: pendingAuthorID,
+		Access:               pendingAccess,
 	})
 	require.ErrorIs(t, err, ErrAlreadyReviewed)
 
 	_, err = svc.VoteReview(ctx, VoteReviewParams{ReviewID: "550e8400-e29b-41d4-a716-446655449996", UserHash: "u-vote-write", VoteType: "like"})
 	require.ErrorIs(t, err, ErrReviewNotFound)
 
-	err = svc.DeleteReview(ctx, DeleteReviewParams{ReviewID: publishedID, UserHash: "u-other-write"})
+	err = svc.DeleteReview(ctx, DeleteReviewParams{ReviewID: publishedID, UserHash: "u-other-write", Access: pendingAccess})
 	require.ErrorIs(t, err, ErrNotReviewOwner)
 
-	err = svc.DeleteReview(ctx, DeleteReviewParams{ReviewID: deletedID, UserHash: "u-deleted-write"})
+	err = svc.DeleteReview(ctx, DeleteReviewParams{ReviewID: deletedID, UserHash: "u-deleted-write", Access: pendingAccess})
 	require.ErrorIs(t, err, ErrReviewNotFound)
 }

@@ -66,6 +66,7 @@ func TestPostReviewRejectsInvalidGradeBeforeDependencies(t *testing.T) {
 	_, err := svc.PostReview(context.Background(), PostReviewParams{
 		UserHash:             "u-post",
 		AuthorInternalUserID: 1,
+		Access:               fullReviewWriteAccess(1),
 		Grade:                "S",
 	})
 
@@ -139,25 +140,78 @@ func TestReviewWriteOperationsRejectMissingUserIdentityBeforeDependencies(t *tes
 		AuthorInternalUserID: 1,
 		Grade:                "S",
 	})
-	require.ErrorIs(t, err, ErrUserIdentityRequired)
+	require.ErrorIs(t, err, ErrReviewWriteAccessDenied)
 	assert.Nil(t, posted)
 
 	posted, err = svc.PostReview(ctx, PostReviewParams{
 		UserHash:             "u-post",
 		AuthorInternalUserID: 0,
+		Access:               fullReviewWriteAccess(1),
 		Grade:                "S",
 	})
-	require.ErrorIs(t, err, ErrUserIdentityRequired)
+	require.ErrorIs(t, err, ErrReviewWriteAccessDenied)
 	assert.Nil(t, posted)
 
 	_, err = svc.VoteReview(ctx, VoteReviewParams{VoteType: "bookmark"})
 	require.ErrorIs(t, err, ErrUserIdentityRequired)
 
 	err = svc.UpdateReview(ctx, UpdateReviewParams{})
-	require.ErrorIs(t, err, ErrUserIdentityRequired)
+	require.ErrorIs(t, err, ErrReviewWriteAccessDenied)
 
 	err = svc.DeleteReview(ctx, DeleteReviewParams{})
-	require.ErrorIs(t, err, ErrUserIdentityRequired)
+	require.ErrorIs(t, err, ErrReviewWriteAccessDenied)
+}
+
+func TestReviewWriteOperationsFailClosedOnAccessFacts(t *testing.T) {
+	ctx := context.Background()
+	svc := &Service{}
+
+	_, err := svc.PostReview(ctx, PostReviewParams{
+		UserHash:             "u-post-denied",
+		AuthorInternalUserID: 1,
+		Access: ReviewWriteAccess{
+			InternalUserID: 1,
+			CanPostReview:  false,
+		},
+	})
+	require.ErrorIs(t, err, ErrReviewWriteAccessDenied)
+
+	_, err = svc.PostReview(ctx, PostReviewParams{
+		UserHash:             "u-post-mismatch",
+		AuthorInternalUserID: 2,
+		Access: ReviewWriteAccess{
+			InternalUserID: 1,
+			CanPostReview:  true,
+		},
+	})
+	require.ErrorIs(t, err, ErrReviewWriteAccessDenied)
+
+	err = svc.UpdateReview(ctx, UpdateReviewParams{
+		UserHash: "u-edit-denied",
+		Access: ReviewWriteAccess{
+			InternalUserID: 1,
+			CanEditOwn:     false,
+		},
+	})
+	require.ErrorIs(t, err, ErrReviewWriteAccessDenied)
+
+	err = svc.DeleteReview(ctx, DeleteReviewParams{
+		UserHash: "u-delete-denied",
+		Access: ReviewWriteAccess{
+			InternalUserID: 1,
+			CanDeleteOwn:   false,
+		},
+	})
+	require.ErrorIs(t, err, ErrReviewWriteAccessDenied)
+
+	err = svc.UpdateReview(ctx, UpdateReviewParams{
+		UserHash: "u-edit-no-internal-id",
+		Access: ReviewWriteAccess{
+			InternalUserID: 0,
+			CanEditOwn:     true,
+		},
+	})
+	require.ErrorIs(t, err, ErrReviewWriteAccessDenied)
 }
 
 func TestGetUserVotesRejectsInvalidVoteTypeBeforeQuery(t *testing.T) {

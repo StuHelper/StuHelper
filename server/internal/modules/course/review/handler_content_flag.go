@@ -48,5 +48,7 @@ func (h *Handler) ClearContentFlag(c *gin.Context) {
 	}
 
 	h.logAdminOp(c, "clear_content_flag", "review", reviewID, nil, nil)
+	h.invalidateReviewAggregateCaches(c)
+	h.invalidateCourseReviewCountCaches(c)
 	response.Success(c, gin.H{"message": "content flag cleared"})
 }

@@ -30,6 +30,7 @@ type AdminAuthorizers struct {
 // Handler 评课社区处理器
 type Handler struct {
 	cache                  *cache.Helper
+	courseCache            *cache.Helper
 	service                *Service
 	fga                    AuthorizationProvider
 	internalUserIDResolver middleware.InternalUserIDResolver
@@ -258,4 +259,21 @@ func (h *Handler) invalidateReviewAggregateCaches(c *gin.Context) {
 		"review:teacher_stats",
 		"review:admin:stats",
 	)
+}
+
+func (h *Handler) invalidateCourseReviewCountCaches(c *gin.Context) {
+	ctx := c.Request.Context()
+	l := logger.FromGin(c)
+	courseCache := h.courseCache
+	if courseCache == nil {
+		courseCache = h.cache
+	}
+	for _, key := range []string{"course:courses", "course:course"} {
+		if err := courseCache.InvalidateByVersion(ctx, key); err != nil {
+			metrics.ObserveCacheInvalidationFailure(cache.NamespaceCourse)
+			l.Warn("failed to invalidate course review count cache",
+				zap.String("cache_key", key),
+				zap.Error(err))
+		}
+	}
 }

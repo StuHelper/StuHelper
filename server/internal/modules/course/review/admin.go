@@ -94,6 +94,9 @@ func (h *Handler) ProcessReport(c *gin.Context) {
 		logger.FromGin(c).Warn("failed to invalidate cache", zap.Error(err))
 	}
 	h.invalidateReviewAggregateCaches(c)
+	if req.Action == "hide" || req.Action == "delete" {
+		h.invalidateCourseReviewCountCaches(c)
+	}
 
 	response.Success(c, gin.H{"message": "report processed successfully"})
 }
@@ -192,6 +195,7 @@ func (h *Handler) AdminUpdateReview(c *gin.Context) {
 	}
 
 	h.invalidateReviewAggregateCaches(c)
+	h.invalidateCourseReviewCountCaches(c)
 
 	response.Success(c, gin.H{"message": "review updated successfully"})
 }
@@ -251,6 +255,7 @@ func (h *Handler) BatchUpdateReviews(c *gin.Context) {
 		map[string]interface{}{"ids": req.IDs, "action": req.Action, "affected": result.Affected})
 
 	h.invalidateReviewAggregateCaches(c)
+	h.invalidateCourseReviewCountCaches(c)
 
 	response.Success(c, gin.H{
 		"message":  "batch update completed",

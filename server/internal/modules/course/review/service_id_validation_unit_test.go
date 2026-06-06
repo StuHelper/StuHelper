@@ -49,6 +49,7 @@ func TestReviewService_CourseIDInputsRejectInvalidIDsBeforeDependencies(t *testi
 		CourseID:             0,
 		UserHash:             "u-course-id",
 		AuthorInternalUserID: 1,
+		Access:               fullReviewWriteAccess(1),
 	})
 	require.ErrorIs(t, err, ErrCourseNotFound)
 }
@@ -78,6 +79,7 @@ func TestReviewService_TeacherIDInputsRejectInvalidIDsBeforeDependencies(t *test
 		TeacherID:            int64Ptr(0),
 		UserHash:             "u-teacher-id",
 		AuthorInternalUserID: 1,
+		Access:               fullReviewWriteAccess(1),
 	})
 	require.ErrorIs(t, err, ErrTeacherNotFound)
 

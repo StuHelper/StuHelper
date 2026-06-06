@@ -13,6 +13,35 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
+// ReviewWriteAccess 是用户写操作进入 Service 的最终准入事实。
+type ReviewWriteAccess struct {
+	InternalUserID int64
+	CanPostReview  bool
+	CanEditOwn     bool
+	CanDeleteOwn   bool
+}
+
+func (access ReviewWriteAccess) requirePostReview(authorInternalUserID int64) error {
+	if !access.CanPostReview || access.InternalUserID <= 0 || authorInternalUserID <= 0 || authorInternalUserID != access.InternalUserID {
+		return ErrReviewWriteAccessDenied
+	}
+	return nil
+}
+
+func (access ReviewWriteAccess) requireEditOwn() error {
+	if !access.CanEditOwn || access.InternalUserID <= 0 {
+		return ErrReviewWriteAccessDenied
+	}
+	return nil
+}
+
+func (access ReviewWriteAccess) requireDeleteOwn() error {
+	if !access.CanDeleteOwn || access.InternalUserID <= 0 {
+		return ErrReviewWriteAccessDenied
+	}
+	return nil
+}
+
 // PostReviewParams 发布评论参数
 type PostReviewParams struct {
 	CourseID             int64
@@ -24,6 +53,7 @@ type PostReviewParams struct {
 	Ratings              ReviewRatings
 	UserHash             string
 	AuthorInternalUserID int64
+	Access               ReviewWriteAccess
 	IPAddress            string
 	RequestID            string
 }
@@ -44,6 +74,7 @@ type VoteReviewParams struct {
 type UpdateReviewParams struct {
 	ReviewID string
 	UserHash string
+	Access   ReviewWriteAccess
 	Title    *string
 	Content  *string
 	Grade    *string
@@ -54,6 +85,7 @@ type UpdateReviewParams struct {
 type DeleteReviewParams struct {
 	ReviewID string
 	UserHash string
+	Access   ReviewWriteAccess
 }
 
 // PostReview 发布评论
@@ -61,6 +93,9 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 	var err error
 	var contentFlag *string
 	var status string
+	if err := params.Access.requirePostReview(params.AuthorInternalUserID); err != nil {
+		return nil, err
+	}
 	params.UserHash, err = normalizeRequiredUserHash(params.UserHash)
 	if err != nil {
 		return nil, err
@@ -275,6 +310,9 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) (int6
 // UpdateReview 更新评论
 func (s *Service) UpdateReview(ctx context.Context, params UpdateReviewParams) error {
 	var err error
+	if err := params.Access.requireEditOwn(); err != nil {
+		return err
+	}
 	params.UserHash, err = normalizeRequiredUserHash(params.UserHash)
 	if err != nil {
 		return err
@@ -377,6 +415,9 @@ func cloneReviewRatings(source ReviewRatings) ReviewRatings {
 // DeleteReview 删除评论
 func (s *Service) DeleteReview(ctx context.Context, params DeleteReviewParams) error {
 	var err error
+	if err := params.Access.requireDeleteOwn(); err != nil {
+		return err
+	}
 	params.UserHash, err = normalizeRequiredUserHash(params.UserHash)
 	if err != nil {
 		return err

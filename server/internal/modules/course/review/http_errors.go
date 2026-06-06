@@ -45,6 +45,9 @@ var (
 	reviewUserIdentityErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrUserIdentityRequired, 401, "missing authentication token", errs.ErrTokenMissing),
 	}
+	reviewWriteAccessErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrReviewWriteAccessDenied, 403, "review write access denied", errs.ErrAccessDenied),
+	}
 	reviewAdminIdentityErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrAdminIdentityRequired, 401, "missing authentication token", errs.ErrTokenMissing),
 	}
@@ -91,6 +94,7 @@ func respondToModerationError(c *gin.Context, err error) bool {
 
 func respondPostReviewError(c *gin.Context, err error) bool {
 	return response.RespondMappedErrorGroups(c, err,
+		reviewWriteAccessErrorMappings,
 		reviewUserIdentityErrorMappings,
 		reviewWriteValidationErrorMappings,
 		reviewModerationErrorMappings,
@@ -111,6 +115,7 @@ func respondVoteReviewError(c *gin.Context, err error) bool {
 
 func respondUpdateReviewError(c *gin.Context, err error) bool {
 	return response.RespondMappedErrorGroups(c, err,
+		reviewWriteAccessErrorMappings,
 		reviewUserIdentityErrorMappings,
 		reviewNotFoundErrorMappings,
 		[]response.ErrorMapping{response.MatchError(ErrNotReviewOwner, 403, "you can only edit your own review", errs.ErrNotReviewOwner)},
@@ -121,6 +126,7 @@ func respondUpdateReviewError(c *gin.Context, err error) bool {
 
 func respondDeleteReviewError(c *gin.Context, err error) bool {
 	return response.RespondMappedErrorGroups(c, err,
+		reviewWriteAccessErrorMappings,
 		reviewUserIdentityErrorMappings,
 		reviewNotFoundErrorMappings,
 		[]response.ErrorMapping{response.MatchError(ErrNotReviewOwner, 403, "you can only delete your own review", errs.ErrNotReviewOwner)},

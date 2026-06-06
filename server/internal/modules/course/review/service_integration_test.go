@@ -121,6 +121,7 @@ func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 	assert.NotEmpty(t, teacherStats.Courses)
 
 	postUserID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-u-post-1", UserHash: "u-post-1"})
+	postAccess := fullReviewWriteAccess(postUserID)
 	posted, err := svc.PostReview(ctx, PostReviewParams{
 		CourseID:             courseID,
 		TeacherID:            &teacherID,
@@ -131,6 +132,7 @@ func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 		Ratings:              ReviewRatings{"teaching": 5, "difficulty": 4},
 		UserHash:             "u-post-1",
 		AuthorInternalUserID: postUserID,
+		Access:               postAccess,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, StatusPublished, posted.Review.Status)
@@ -145,6 +147,7 @@ func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 		Ratings:              ReviewRatings{"teaching": 5},
 		UserHash:             "u-post-1",
 		AuthorInternalUserID: postUserID,
+		Access:               postAccess,
 	})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrAlreadyReviewed)
@@ -152,6 +155,7 @@ func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 	require.NoError(t, svc.UpdateReview(ctx, UpdateReviewParams{
 		ReviewID: posted.Review.ID,
 		UserHash: "u-post-1",
+		Access:   postAccess,
 		Title:    strPtr("更新后标题"),
 		Content:  strPtr("更新后内容用于满足正文长度"),
 		Grade:    strPtr("A+"),
@@ -219,7 +223,7 @@ func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, ReportStatusResolved, deleteReport.Status)
 
-	require.NoError(t, svc.DeleteReview(ctx, DeleteReviewParams{ReviewID: posted.Review.ID, UserHash: "u-post-1"}))
+	require.NoError(t, svc.DeleteReview(ctx, DeleteReviewParams{ReviewID: posted.Review.ID, UserHash: "u-post-1", Access: postAccess}))
 	var deletedStatus string
 	err = fixture.Pool.QueryRow(ctx, `SELECT status FROM reviews WHERE id = $1`, posted.Review.ID).Scan(&deletedStatus)
 	require.NoError(t, err)
@@ -450,6 +454,7 @@ func TestPostReviewRejectsTeacherFromDifferentSchool(t *testing.T) {
 		Ratings:              ReviewRatings{"teaching": 5},
 		UserHash:             "u-cross-school-teacher",
 		AuthorInternalUserID: crossSchoolAuthorID,
+		Access:               fullReviewWriteAccess(crossSchoolAuthorID),
 	})
 
 	require.Error(t, err)
@@ -467,6 +472,7 @@ func TestPostReviewAndReportMaterializeSchoolID(t *testing.T) {
 	teacherID := seedTeacher(t, fixture, schoolID, "物化老师", departmentID)
 	courseID := seedCourse(t, fixture, schoolID, departmentID, "物化课程")
 	authorID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-materialized-review", UserHash: "u-materialized-review"})
+	authorAccess := fullReviewWriteAccess(authorID)
 
 	created, err := svc.PostReview(ctx, PostReviewParams{
 		CourseID:             courseID,
@@ -478,6 +484,7 @@ func TestPostReviewAndReportMaterializeSchoolID(t *testing.T) {
 		Ratings:              ReviewRatings{"teaching": 5},
 		UserHash:             "u-materialized-review",
 		AuthorInternalUserID: authorID,
+		Access:               authorAccess,
 	})
 	require.NoError(t, err)
 

@@ -42,6 +42,15 @@ func TestReviewHandler_WriteAndStatsSuccessPaths(t *testing.T) {
 	_, err = fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 1 WHERE id = $1`, courseID)
 	require.NoError(t, err)
 
+	assertCourseCacheBumped := func(t *testing.T, previousCoursesVersion, previousCourseVersion string) (string, string) {
+		t.Helper()
+		nextCoursesVersion := h.courseCache.GetVersion(ctx, "course:courses")
+		nextCourseVersion := h.courseCache.GetVersion(ctx, "course:course")
+		assert.NotEqual(t, previousCoursesVersion, nextCoursesVersion)
+		assert.NotEqual(t, previousCourseVersion, nextCourseVersion)
+		return nextCoursesVersion, nextCourseVersion
+	}
+
 	setWriteAccess := func(c *gin.Context, userID string) {
 		c.Set(middleware.CtxKeyUserID, userID)
 		c.Set(middleware.CtxKeyCapabilities, []string{
@@ -52,11 +61,15 @@ func TestReviewHandler_WriteAndStatsSuccessPaths(t *testing.T) {
 		})
 	}
 
+	coursesVersion := h.courseCache.GetVersion(ctx, "course:courses")
+	courseVersion := h.courseCache.GetVersion(ctx, "course:course")
+
 	w, c := withUserContext(http.MethodPost, "/reviews", `{"courseID":`+strconv.FormatInt(courseID, 10)+`,"teacherID":`+strconv.FormatInt(teacherID, 10)+`,"termID":"2025-2","title":"新评论标题","content":"新评论内容足够长用于通过校验","grade":"A","ratings":{"teaching":5,"difficulty":4}}`, viewerID)
 	setWriteAccess(c, viewerID)
 	h.PostReview(c)
 	require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
 	assert.Contains(t, w.Body.String(), "新评论标题")
+	coursesVersion, courseVersion = assertCourseCacheBumped(t, coursesVersion, courseVersion)
 
 	var createdReviewID string
 	err = fixture.Pool.QueryRow(ctx, `SELECT id FROM reviews WHERE user_hash = $1 AND title = $2 LIMIT 1`, viewerHash, "新评论标题").Scan(&createdReviewID)
@@ -67,12 +80,14 @@ func TestReviewHandler_WriteAndStatsSuccessPaths(t *testing.T) {
 	setWriteAccess(c, viewerID)
 	h.UpdateReview(c)
 	assert.Equal(t, http.StatusOK, w.Code)
+	coursesVersion, courseVersion = assertCourseCacheBumped(t, coursesVersion, courseVersion)
 
 	w, c = withUserContext(http.MethodPut, "/reviews/"+createdReviewID, `{"content":"仅更新内容也足够长用于通过校验"}`, viewerID)
 	c.Params = gin.Params{{Key: "reviewID", Value: createdReviewID}}
 	setWriteAccess(c, viewerID)
 	h.UpdateReview(c)
 	assert.Equal(t, http.StatusOK, w.Code)
+	coursesVersion, courseVersion = assertCourseCacheBumped(t, coursesVersion, courseVersion)
 
 	var (
 		title   string
@@ -92,6 +107,7 @@ func TestReviewHandler_WriteAndStatsSuccessPaths(t *testing.T) {
 	setWriteAccess(c, viewerID)
 	h.DeleteReview(c)
 	assert.Equal(t, http.StatusOK, w.Code)
+	assertCourseCacheBumped(t, coursesVersion, courseVersion)
 
 	w, c = withUserContext(http.MethodGet, "/courses/1/rating-stats", "", viewerID)
 	c.Params = gin.Params{{Key: "courseID", Value: strconv.FormatInt(courseID, 10)}}
