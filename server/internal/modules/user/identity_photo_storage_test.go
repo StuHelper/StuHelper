@@ -66,6 +66,28 @@ func TestUploadIdentityPhoto_UsesConfiguredStore(t *testing.T) {
 	assert.True(t, strings.HasSuffix(key, "-front.png"))
 }
 
+func TestUploadIdentityPhoto_RequiresMatchingContentType(t *testing.T) {
+	store := &fakeIdentityPhotoStore{}
+	svc, err := NewService(
+		&mockRepo{},
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithIdentityPhotoStore(store),
+	)
+	require.NoError(t, err)
+
+	for _, contentType := range []string{"", "text/plain", "image/jpeg"} {
+		_, err = svc.UploadIdentityPhoto(context.Background(), 42, UploadIdentityPhotoRequest{
+			Slot:        IdentityPhotoSlotFront,
+			Filename:    "identity.png",
+			ContentType: contentType,
+			DataBase64:  base64.StdEncoding.EncodeToString(validPNGBytes(t)),
+		})
+		assert.ErrorIs(t, err, ErrIdentityPhotoInvalidType)
+	}
+	assert.Empty(t, store.uploadedKey)
+}
+
 func TestResolveIdentityReviewItemAssets_PresignsStoredKeys(t *testing.T) {
 	store := &fakeIdentityPhotoStore{presignURL: "https://storage.example.test/identity/front.png"}
 	svc, err := NewService(

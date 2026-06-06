@@ -11,11 +11,15 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	_ "golang.org/x/image/webp"
 )
 
-const maxIdentityPhotoSize = 5 * 1024 * 1024
+const (
+	maxIdentityPhotoSize     = 5 * 1024 * 1024
+	maxIdentityRealNameRunes = 100
+)
 
 // GetIdentity 获取实名认证状态信息（不含敏感字段）
 func (s *Service) GetIdentity(ctx context.Context, userID int64) (*IdentityStatus, error) {
@@ -39,7 +43,7 @@ func (s *Service) SubmitIdentity(ctx context.Context, userID int64, req SubmitId
 
 	req.RealName = strings.TrimSpace(req.RealName)
 	req.DocNumber = normalizeIdentityDocNumber(req.DocType, req.DocNumber)
-	if req.RealName == "" {
+	if req.RealName == "" || utf8.RuneCountInString(req.RealName) > maxIdentityRealNameRunes {
 		return nil, ErrIdentityRealNameInvalid
 	}
 	if !isValidIdentityDocNumber(req.DocType, req.DocNumber) {
@@ -214,7 +218,8 @@ func decodeAndValidateIdentityPhoto(contentType, dataBase64 string) ([]byte, str
 	if !isAllowedIdentityPhotoType(detectedType) {
 		return nil, "", ErrIdentityPhotoInvalidType
 	}
-	if provided := strings.TrimSpace(contentType); provided != "" && provided != detectedType {
+	provided := strings.TrimSpace(contentType)
+	if !isAllowedIdentityPhotoType(provided) || provided != detectedType {
 		return nil, "", ErrIdentityPhotoInvalidType
 	}
 	if _, _, err := image.DecodeConfig(bytes.NewReader(content)); err != nil {

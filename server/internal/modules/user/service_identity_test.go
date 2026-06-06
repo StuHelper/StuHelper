@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -251,6 +252,25 @@ func TestSubmitIdentity_RejectsInvalidMainlandIDNumber(t *testing.T) {
 		RealName:  "张三",
 	})
 	assert.ErrorIs(t, err, ErrIdentityDocNumberInvalid)
+}
+
+func TestSubmitIdentity_RejectsInvalidRealName(t *testing.T) {
+	svc, err := NewService(&mockRepo{}, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	_, err = svc.SubmitIdentity(context.Background(), 42, SubmitIdentityRequest{
+		DocType:   DocTypeMainlandID,
+		DocNumber: "11010519491231002X",
+		RealName:  "   ",
+	})
+	assert.ErrorIs(t, err, ErrIdentityRealNameInvalid)
+
+	_, err = svc.SubmitIdentity(context.Background(), 42, SubmitIdentityRequest{
+		DocType:   DocTypeMainlandID,
+		DocNumber: "11010519491231002X",
+		RealName:  strings.Repeat("名", maxIdentityRealNameRunes+1),
+	})
+	assert.ErrorIs(t, err, ErrIdentityRealNameInvalid)
 }
 
 func TestSubmitIdentity_NormalizesMainlandIDAndRealName(t *testing.T) {
