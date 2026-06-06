@@ -18,6 +18,9 @@ type Repository struct {
 
 // NewRepository 创建通知仓储
 func NewRepository(database *db.DB) *Repository {
+	if database == nil {
+		panic("notification.NewRepository: database must not be nil")
+	}
 	return &Repository{db: database}
 }
 

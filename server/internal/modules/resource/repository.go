@@ -20,6 +20,9 @@ type Repository struct {
 }
 
 func NewRepository(database *db.DB) *Repository {
+	if database == nil {
+		panic("resource.NewRepository: database must not be nil")
+	}
 	return &Repository{db: database}
 }
 

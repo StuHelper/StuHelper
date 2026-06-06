@@ -18,6 +18,9 @@ type Repository struct {
 
 // NewRepository 创建数据访问层
 func NewRepository(database *db.DB) *Repository {
+	if database == nil {
+		panic("review.NewRepository: database must not be nil")
+	}
 	return &Repository{db: database}
 }
 
