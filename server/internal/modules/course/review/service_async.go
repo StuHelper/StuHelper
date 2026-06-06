@@ -3,6 +3,10 @@ package review
 import (
 	"context"
 	"time"
+
+	"go.uber.org/zap"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
 const asyncNotificationTimeout = 5 * time.Second
@@ -14,6 +18,16 @@ func (s *Service) dispatchNotification(parent context.Context, fn func(context.C
 	}
 
 	run := func(ctx context.Context) {
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				logger.L().Error(
+					"review async notification panicked",
+					zap.Any("panic", recovered),
+					zap.Stack("stack"),
+				)
+			}
+		}()
+
 		notifCtx, cancel := context.WithTimeout(ctx, asyncNotificationTimeout)
 		defer cancel()
 		fn(notifCtx)

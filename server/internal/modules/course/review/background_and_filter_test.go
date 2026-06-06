@@ -198,3 +198,36 @@ func TestDispatchNotificationIgnoresParentCancellation(t *testing.T) {
 		t.Fatal("expected notification task to run")
 	}
 }
+
+func TestDispatchNotificationRecoversPanic(t *testing.T) {
+	t.Run("managed launcher", func(t *testing.T) {
+		svc := &Service{
+			asyncCtx: context.Background(),
+			asyncLaunch: func(_ string, run func(context.Context)) {
+				run(context.Background())
+			},
+		}
+
+		require.NotPanics(t, func() {
+			svc.dispatchNotification(context.Background(), func(context.Context) {
+				panic("notification panic")
+			})
+		})
+	})
+
+	t.Run("fallback goroutine", func(t *testing.T) {
+		svc := &Service{}
+		done := make(chan struct{})
+
+		svc.dispatchNotification(context.Background(), func(context.Context) {
+			close(done)
+			panic("notification panic")
+		})
+
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("expected notification task to run")
+		}
+	})
+}
