@@ -213,7 +213,7 @@ func (s *Service) processExternalSyncJob(ctx context.Context, job ExternalSyncJo
 		if err := json.Unmarshal(job.Payload, &payload); err != nil {
 			return fmt.Errorf("decode user profile projection payload: %w", err)
 		}
-		return s.syncUserProfileProjection(ctx, payload.UserID, payload.Approved)
+		return s.syncUserProfileProjection(ctx, payload.UserID)
 	case externalSyncJobTypeAdmissionVerification:
 		var payload admissionVerificationProjectionPayload
 		if err := json.Unmarshal(job.Payload, &payload); err != nil {
@@ -260,7 +260,7 @@ func (s *Service) syncVerifiedStudentRole(ctx context.Context, userID int64, rol
 	return nil
 }
 
-func (s *Service) syncUserProfileProjection(ctx context.Context, userID int64, approved bool) error {
+func (s *Service) syncUserProfileProjection(ctx context.Context, userID int64) error {
 	if s.profileFGA == nil {
 		return errors.New("profile FGA dependency is not configured")
 	}
@@ -284,9 +284,12 @@ func (s *Service) syncUserProfileProjection(ctx context.Context, userID int64, a
 	}
 	desiredOwnerTuples := []fga.Tuple{ownerTuple}
 	desiredSchoolTuples := make([]fga.Tuple, 0, 1)
-	if approved {
+	if profile.VerificationStatus == StatusVerified {
 		if profile.SchoolID == nil {
 			return fmt.Errorf("verified profile %d has no school ID", userID)
+		}
+		if err := validateSchoolID(*profile.SchoolID); err != nil {
+			return fmt.Errorf("verified profile %d has invalid school ID: %w", userID, err)
 		}
 		desiredSchoolTuples = append(desiredSchoolTuples, fga.Tuple{
 			User:     "school:" + strconv.FormatInt(*profile.SchoolID, 10),
