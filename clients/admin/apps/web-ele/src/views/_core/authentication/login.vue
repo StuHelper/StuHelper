@@ -28,9 +28,7 @@ onMounted(async () => {
 });
 
 async function handleTryDifferentAccount() {
-  // 先清掉当前被拒绝的会话，再重新发起登录。
-  await authStore.logout(false);
-  await authStore.redirectToLogin(preferences.app.defaultHomePath);
+  await authStore.switchAccount(preferences.app.defaultHomePath);
 }
 </script>
 

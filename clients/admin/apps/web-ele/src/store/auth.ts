@@ -1,6 +1,6 @@
 import type { UserInfo } from '@vben/types';
 
-import type { AuthApi } from '#/api/core/auth';
+import type { AdminLoginRedirectOptions, AuthApi } from '#/api/core/auth';
 
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -8,7 +8,6 @@ import { useRouter } from 'vue-router';
 import { preferences } from '@vben/preferences';
 import { resetAllStores, useAccessStore, useUserStore } from '@vben/stores';
 
-import { ElNotification } from 'element-plus';
 import { defineStore } from 'pinia';
 
 import {
@@ -20,6 +19,8 @@ import {
 import { getUserInfoApi, mapMeToUserInfo } from '#/api/core/user';
 import { $t } from '#/locales';
 import { adminLogger } from '#/utils/admin-logger';
+
+import { showAuthNotification } from './auth-notification';
 
 export const SCHOOL_SCOPE_REQUIRED_ERROR = 'school scope required';
 
@@ -102,8 +103,19 @@ export const useAuthStore = defineStore('auth', () => {
   /**
    * OIDC 登录：调用后端获取授权 URL，然后浏览器跳转到外部身份提供方
    */
-  async function redirectToLogin(redirectPath?: string) {
-    await redirectToOIDCLogin(redirectPath);
+  async function redirectToLogin(
+    redirectPath?: string,
+    options?: AdminLoginRedirectOptions,
+  ) {
+    await redirectToOIDCLogin(redirectPath, options);
+  }
+
+  function clearLocalSessionState() {
+    sessionForbidden.value = false;
+    resetAllStores();
+    accessStore.setLoginExpired(false);
+    clearCapabilityGrants();
+    accountSettingsUrl.value = '';
   }
 
   /**
@@ -140,7 +152,7 @@ export const useAuthStore = defineStore('auth', () => {
 
       if (probe.kind === 'retryable_error' || probe.kind === 'fatal_error') {
         clearAccess();
-        ElNotification({
+        showAuthNotification({
           message: $t(probe.message),
           title: $t('authentication.loginFailed'),
           type: 'error',
@@ -171,7 +183,7 @@ export const useAuthStore = defineStore('auth', () => {
       }
 
       if (userInfo.realName) {
-        ElNotification({
+        showAuthNotification({
           message: `${$t('authentication.loginSuccessDesc')}:${userInfo.realName}`,
           title: $t('authentication.loginSuccess'),
           type: 'success',
@@ -218,7 +230,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function logout(redirect: boolean = true) {
     const result = await logoutApi();
     if (result.kind === 'error') {
-      ElNotification({
+      showAuthNotification({
         message: $t(result.message),
         title: $t('common.logout'),
         type: 'error',
@@ -226,13 +238,33 @@ export const useAuthStore = defineStore('auth', () => {
       throw new Error($t(result.message));
     }
 
-    sessionForbidden.value = false;
-    resetAllStores();
-    accessStore.setLoginExpired(false);
+    clearLocalSessionState();
 
     if (redirect) {
       await redirectToLogin(router.currentRoute.value.fullPath);
     }
+  }
+
+  async function switchAccount(
+    redirectPath: string = preferences.app.defaultHomePath,
+  ) {
+    try {
+      const result = await logoutApi();
+      if (result.kind === 'error') {
+        adminLogger.warn(
+          'admin switch account local logout returned an error before forced re-auth',
+          result.message,
+        );
+      }
+    } catch (error) {
+      adminLogger.warn(
+        'admin switch account local logout failed before forced re-auth',
+        error,
+      );
+    }
+
+    clearLocalSessionState();
+    await redirectToLogin(redirectPath, { forceReauth: true });
   }
 
   async function fetchUserInfo() {
@@ -262,6 +294,7 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     resolveScopedSchoolId,
     sessionForbidden,
+    switchAccount,
     redirectToLogin,
   };
 });

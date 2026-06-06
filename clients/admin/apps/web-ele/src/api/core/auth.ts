@@ -2,7 +2,11 @@ import type { components } from '@stuhelper/shared/types';
 
 import type { ApiCallResult } from '#/api/shared-result';
 
-import { createAuthApi, extractResultErrorCode } from '@stuhelper/shared/api';
+import {
+  createAuthApi,
+  extractResultErrorCode,
+  type LoginRequestOptions,
+} from '@stuhelper/shared/api';
 
 import { sharedApiClient, sharedBaseApiClient } from '#/api/shared-client';
 import { unwrapData } from '#/api/shared-result';
@@ -26,6 +30,15 @@ export type LogoutResult =
   | { kind: 'error'; message: string }
   | { kind: 'ok' }
   | { kind: 'unauthenticated' };
+
+export interface AdminLoginRedirectOptions {
+  forceReauth?: boolean;
+}
+
+const FORCE_REAUTH_LOGIN_OPTIONS = {
+  maxAge: 0,
+  prompt: 'login',
+} satisfies LoginRequestOptions;
 
 function classifySessionProbe(
   result: ApiCallResult<AuthApi.MeResult>,
@@ -107,13 +120,22 @@ export function resolveOIDCRedirectURL(
  * 从后端获取 OIDC 授权 URL，然后浏览器跳转
  * 传递当前页面 URL 作为登录后回跳地址
  */
-export async function redirectToOIDCLogin(redirectPath?: string) {
+export async function redirectToOIDCLogin(
+  redirectPath?: string,
+  options: AdminLoginRedirectOptions = {},
+) {
+  const redirectURL = resolveOIDCRedirectURL(redirectPath);
+  const loginResult = options.forceReauth
+    ? await baseAuthApi.login(
+        redirectURL,
+        undefined,
+        'admin',
+        FORCE_REAUTH_LOGIN_OPTIONS,
+      )
+    : await baseAuthApi.login(redirectURL, undefined, 'admin');
+
   const data = unwrapData<AuthApi.LoginUrlResult>(
-    await baseAuthApi.login(
-      resolveOIDCRedirectURL(redirectPath),
-      undefined,
-      'admin',
-    ),
+    loginResult,
   );
   const url = data.url;
   if (url) {

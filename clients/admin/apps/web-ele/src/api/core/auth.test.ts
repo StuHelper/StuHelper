@@ -86,4 +86,25 @@ describe('admin auth redirect URL', () => {
       'admin',
     );
   });
+
+  it('requests forced upstream reauthentication when switching accounts', async () => {
+    const origin = window.location.origin;
+    mocks.baseAuthApi.login.mockResolvedValue({
+      data: {
+        data: { url: 'https://sso.stuhelper.com/login/oauth/authorize' },
+      },
+    });
+
+    await redirectToOIDCLogin('/analytics', { forceReauth: true });
+
+    expect(mocks.baseAuthApi.login).toHaveBeenCalledWith(
+      `${origin}/admin/analytics`,
+      undefined,
+      'admin',
+      {
+        maxAge: 0,
+        prompt: 'login',
+      },
+    );
+  });
 });

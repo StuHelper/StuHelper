@@ -1,18 +1,21 @@
+// @vitest-environment happy-dom
+
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { SCHOOL_SCOPE_REQUIRED_ERROR, useAuthStore } from './auth';
-
 const mocks = vi.hoisted(() => ({
-  ElNotification: vi.fn(),
   accessStore: null as any,
   getAccountSettingsUrl: vi.fn(() => ''),
   getUserInfoApi: vi.fn(),
   logoutApi: vi.fn(),
   mapMeToUserInfo: vi.fn(),
+  adminLogger: {
+    warn: vi.fn(),
+  },
   redirectToOIDCLogin: vi.fn(),
   resetAllStores: vi.fn(),
   router: null as any,
+  showAuthNotification: vi.fn(),
   tryGetMe: vi.fn(),
   userStore: null as any,
 }));
@@ -29,12 +32,16 @@ vi.mock('#/api/core/user', () => ({
   mapMeToUserInfo: mocks.mapMeToUserInfo,
 }));
 
-vi.mock('element-plus', () => ({
-  ElNotification: mocks.ElNotification,
+vi.mock('./auth-notification', () => ({
+  showAuthNotification: mocks.showAuthNotification,
 }));
 
 vi.mock('#/locales', () => ({
   $t: (value: string) => value,
+}));
+
+vi.mock('#/utils/admin-logger', () => ({
+  adminLogger: mocks.adminLogger,
 }));
 
 vi.mock('vue-router', () => ({
@@ -54,6 +61,8 @@ vi.mock('@vben/stores', () => ({
   useAccessStore: () => mocks.accessStore,
   useUserStore: () => mocks.userStore,
 }));
+
+const { SCHOOL_SCOPE_REQUIRED_ERROR, useAuthStore } = await import('./auth');
 
 function createAccessStoreState() {
   const state: any = {
@@ -113,7 +122,8 @@ describe('useAuthStore', () => {
     mocks.getAccountSettingsUrl.mockReturnValue('');
     mocks.getUserInfoApi.mockReset();
     mocks.mapMeToUserInfo.mockReset();
-    mocks.ElNotification.mockReset();
+    mocks.showAuthNotification.mockReset();
+    mocks.adminLogger.warn.mockReset();
     mocks.resetAllStores.mockReset();
   });
 
@@ -134,7 +144,7 @@ describe('useAuthStore', () => {
     expect(mocks.accessStore.accessRoutes).toEqual([]);
     expect(mocks.accessStore.isAccessChecked).toBe(false);
     expect(mocks.userStore.userInfo).toBeNull();
-    expect(mocks.ElNotification).toHaveBeenCalledTimes(1);
+    expect(mocks.showAuthNotification).toHaveBeenCalledTimes(1);
   });
 
   it('does not clear local session or redirect when server logout fails', async () => {
@@ -150,6 +160,61 @@ describe('useAuthStore', () => {
     expect(mocks.redirectToOIDCLogin).not.toHaveBeenCalled();
     expect(mocks.accessStore.accessToken).toBe('legacy-token');
     expect(mocks.userStore.userInfo).toEqual({ homePath: '/dashboard' });
+  });
+
+  it('switches accounts with forced upstream reauthentication', async () => {
+    mocks.logoutApi.mockResolvedValue({ kind: 'ok' });
+
+    const store = useAuthStore();
+    store.sessionForbidden = true;
+
+    await store.switchAccount('/dashboard');
+
+    expect(mocks.logoutApi).toHaveBeenCalledTimes(1);
+    expect(mocks.resetAllStores).toHaveBeenCalledTimes(1);
+    expect(mocks.accessStore.loginExpired).toBe(false);
+    expect(store.sessionForbidden).toBe(false);
+    expect(mocks.redirectToOIDCLogin).toHaveBeenCalledWith('/dashboard', {
+      forceReauth: true,
+    });
+  });
+
+  it('continues forced account switching when local logout returns an error', async () => {
+    mocks.logoutApi.mockResolvedValue({
+      kind: 'error',
+      message: 'admin.result.requestFailed',
+    });
+
+    const store = useAuthStore();
+
+    await store.switchAccount('/dashboard');
+
+    expect(mocks.adminLogger.warn).toHaveBeenCalledWith(
+      'admin switch account local logout returned an error before forced re-auth',
+      'admin.result.requestFailed',
+    );
+    expect(mocks.resetAllStores).toHaveBeenCalledTimes(1);
+    expect(mocks.redirectToOIDCLogin).toHaveBeenCalledWith('/dashboard', {
+      forceReauth: true,
+    });
+  });
+
+  it('continues forced account switching when local logout rejects', async () => {
+    const logoutError = new Error('network failed');
+    mocks.logoutApi.mockRejectedValue(logoutError);
+
+    const store = useAuthStore();
+
+    await store.switchAccount('/dashboard');
+
+    expect(mocks.adminLogger.warn).toHaveBeenCalledWith(
+      'admin switch account local logout failed before forced re-auth',
+      logoutError,
+    );
+    expect(mocks.resetAllStores).toHaveBeenCalledTimes(1);
+    expect(mocks.redirectToOIDCLogin).toHaveBeenCalledWith('/dashboard', {
+      forceReauth: true,
+    });
   });
 
   it('uses full capabilities instead of globalCapabilities during session bootstrap', async () => {
