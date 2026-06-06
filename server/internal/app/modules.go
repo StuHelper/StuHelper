@@ -350,8 +350,16 @@ func (rt *Runtime) newCasdoorRoleSyncClient() (*platformcasdoor.RoleSyncClient, 
 }
 
 func casdoorRoleSyncConfigured(cfg config.CasdoorConfig) bool {
-	return cfg.RoleSyncClientID != "" || cfg.RoleSyncClientSecret != "" ||
-		cfg.UserLookupClientID != "" || cfg.UserLookupClientSecret != ""
+	return !configStringMissing(cfg.RoleSyncClientID) ||
+		!configStringMissing(cfg.RoleSyncClientSecret) ||
+		!configStringMissing(cfg.RoleSyncApplication) ||
+		!configStringMissing(cfg.UserLookupClientID) ||
+		!configStringMissing(cfg.UserLookupClientSecret) ||
+		!configStringMissing(cfg.UserLookupApplication)
+}
+
+func configStringMissing(value string) bool {
+	return strings.TrimSpace(value) == ""
 }
 
 func casdoorRoleSyncCredential(cfg config.CasdoorConfig) platformcasdoor.Credential {

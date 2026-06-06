@@ -1,0 +1,31 @@
+package app
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
+)
+
+func TestCasdoorRoleSyncConfiguredTreatsBlankValuesAsMissing(t *testing.T) {
+	cfg := config.CasdoorConfig{
+		RoleSyncClientID:       "  ",
+		RoleSyncClientSecret:   "  ",
+		RoleSyncApplication:    "  ",
+		UserLookupClientID:     "  ",
+		UserLookupClientSecret: "  ",
+		UserLookupApplication:  "  ",
+	}
+
+	assert.False(t, casdoorRoleSyncConfigured(cfg))
+}
+
+func TestCasdoorRoleSyncConfiguredIncludesApplicationFields(t *testing.T) {
+	assert.True(t, casdoorRoleSyncConfigured(config.CasdoorConfig{
+		RoleSyncApplication: "casdoor-admin-role-sync",
+	}))
+	assert.True(t, casdoorRoleSyncConfigured(config.CasdoorConfig{
+		UserLookupApplication: "casdoor-admin-user-lookup",
+	}))
+}
