@@ -29,6 +29,9 @@ func (s *Service) GenerateQQBindingCode(ctx context.Context, userID int64, ttl t
 	if err := validateUserID(userID); err != nil {
 		return nil, err
 	}
+	if ttl <= 0 {
+		return nil, ErrQQBindingCodeTTLInvalid
+	}
 	if err := s.ensureQQBindingAbsent(ctx, userID); err != nil {
 		return nil, err
 	}

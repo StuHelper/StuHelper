@@ -156,6 +156,27 @@ func TestGenerateQQBindingCode_RejectsAlreadyBoundUser(t *testing.T) {
 	assert.Nil(t, result)
 }
 
+func TestGenerateQQBindingCode_RejectsNonPositiveTTLBeforeRepo(t *testing.T) {
+	repo := newQQBindingMockRepo()
+	repo.onGetQQBindingByUserID = func(context.Context, int64) (*QQBinding, error) {
+		t.Fatal("GenerateQQBindingCode must reject non-positive ttl before checking existing bindings")
+		return nil, nil
+	}
+	repo.onUpsertQQBindingCode = func(context.Context, *QQBindingCode) error {
+		t.Fatal("GenerateQQBindingCode must reject non-positive ttl before storing a binding code")
+		return nil
+	}
+
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	for _, ttl := range []time.Duration{0, -time.Second} {
+		result, err := svc.GenerateQQBindingCode(context.Background(), 42, ttl)
+		require.ErrorIs(t, err, ErrQQBindingCodeTTLInvalid)
+		assert.Nil(t, result)
+	}
+}
+
 func TestConsumeQQBindingCode_BindsQQAndMarksCodeConsumed(t *testing.T) {
 	repo := newQQBindingMockRepo()
 	code := "ABCD1234"

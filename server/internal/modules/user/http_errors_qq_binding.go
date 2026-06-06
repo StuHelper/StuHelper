@@ -14,6 +14,7 @@ var (
 	}
 	qqBindingCodeErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrUserIDInvalid, 400, "user id is invalid", errs.ErrInvalidParam),
+		response.MatchError(ErrQQBindingCodeTTLInvalid, 400, "qq binding code ttl is invalid", errs.ErrInvalidParam),
 		response.MatchError(ErrQQBindingAlreadyExists, 409, "qq binding already exists", errs.ErrConflict),
 	}
 	qqBindingConsumeErrorMappings = []response.ErrorMapping{

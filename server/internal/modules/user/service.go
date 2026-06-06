@@ -56,6 +56,7 @@ var (
 	ErrQQBindingAlreadyExists                   = errors.New("qq binding already exists")
 	ErrQQBindingCodeInvalid                     = errors.New("qq binding code is invalid")
 	ErrQQBindingCodeExpired                     = errors.New("qq binding code has expired")
+	ErrQQBindingCodeTTLInvalid                  = errors.New("qq binding code ttl is invalid")
 	ErrQQBindingQQAlreadyBound                  = errors.New("qq account already bound to another user")
 	ErrQQBindingUserConflict                    = errors.New("user already bound to another qq account")
 	ErrQQIDRequired                             = errors.New("qq id is required")
