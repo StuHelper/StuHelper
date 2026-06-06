@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -37,6 +38,52 @@ func TestAdmissionMeShowsProjectionPendingUntilOutboxCompletes(t *testing.T) {
 	require.NotNil(t, me.ProvisionalExpiresAt)
 
 	markFreshmanProjectionOutboxCompleted(t, fixture, userID)
+	me, err = svc.GetAdmissionMe(context.Background(), userID, "")
+	require.NoError(t, err)
+	assert.False(t, me.ProjectionPending)
+	assert.False(t, me.Session.ProjectionPending)
+}
+
+func TestAdmissionMeTracksVerifiedProfileProjectionJobs(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newFreshmanTestService(t, fixture)
+	userID := seedAdmissionUser(t, fixture, "projection-verified-profile")
+	linkFreshmanReviewSession(t, svc, freshmanReviewSessionSeed{
+		UserID: userID, QQID: "20002", Token: "projection-verified-profile-token",
+	})
+	expiresAt := futureTime(60)
+	credential := VerificationCredential{
+		UserID:         userID,
+		SchoolID:       4111010006,
+		Kind:           CredentialSchoolEmailOTP,
+		SubjectHash:    "school-email-hash",
+		SubjectDisplay: "s*****t@buaa.edu.cn",
+		Subject:        "student@buaa.edu.cn",
+		StudentID:      "20260001",
+		StudentName:    "投影测试",
+		ExpiresAt:      &expiresAt,
+		VerifiedAt:     fixedAdmissionNow(),
+	}
+	err := svc.repo.WithTx(context.Background(), func(ctx context.Context, tx pgx.Tx) error {
+		if err := svc.repo.CreateVerificationCredentialTx(ctx, tx, credential); err != nil {
+			return err
+		}
+		return svc.repo.ProjectVerifiedUserProfileTx(ctx, tx, credential)
+	})
+	require.NoError(t, err)
+
+	me, err := svc.GetAdmissionMe(context.Background(), userID, "")
+
+	require.NoError(t, err)
+	assert.True(t, me.ProjectionPending)
+	require.NotNil(t, me.Session)
+	assert.True(t, me.Session.ProjectionPending)
+	require.NotNil(t, me.CredentialKind)
+	assert.Equal(t, CredentialSchoolEmailOTP, *me.CredentialKind)
+	assertOutboxJobStatus(t, fixture, outbox.StreamIAMOpenFGATupleSync, admissionProfileProjectionDedupeKey(userID), "pending")
+	assertOutboxJobStatus(t, fixture, outbox.StreamIAMCasdoorRoleSync, admissionVerifiedStudentRoleDedupeKey(userID), "pending")
+
+	markVerifiedProfileProjectionOutboxCompleted(t, fixture, userID)
 	me, err = svc.GetAdmissionMe(context.Background(), userID, "")
 	require.NoError(t, err)
 	assert.False(t, me.ProjectionPending)
@@ -188,6 +235,40 @@ func markFreshmanProjectionOutboxCompleted(
 		WHERE stream = $1 AND dedupe_key = $2
 	`, outbox.StreamIAMCasdoorRoleSync, freshmanProjectionDedupeKey(userID))
 	require.NoError(t, err)
+}
+
+func markVerifiedProfileProjectionOutboxCompleted(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	userID int64,
+) {
+	t.Helper()
+	_, err := fixture.Pool.Exec(context.Background(), `
+		UPDATE domain_event_outbox
+		SET status = 'completed', updated_at = NOW()
+		WHERE (stream = $1 AND dedupe_key = $2)
+		   OR (stream = $3 AND dedupe_key = $4)
+	`, outbox.StreamIAMOpenFGATupleSync, admissionProfileProjectionDedupeKey(userID),
+		outbox.StreamIAMCasdoorRoleSync, admissionVerifiedStudentRoleDedupeKey(userID))
+	require.NoError(t, err)
+}
+
+func assertOutboxJobStatus(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	stream string,
+	dedupeKey string,
+	expected string,
+) {
+	t.Helper()
+	var status string
+	err := fixture.Pool.QueryRow(context.Background(), `
+		SELECT status
+		FROM domain_event_outbox
+		WHERE stream = $1 AND dedupe_key = $2
+	`, stream, dedupeKey).Scan(&status)
+	require.NoError(t, err)
+	assert.Equal(t, expected, status)
 }
 
 func latestAdmissionSessionID(

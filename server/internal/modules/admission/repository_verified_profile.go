@@ -130,7 +130,7 @@ func (r *Repository) upsertVerifiedUserProfileProjectionJobsTx(ctx context.Conte
 		tx,
 		outbox.StreamIAMOpenFGATupleSync,
 		admissionProfileProjectionJobType,
-		fmt.Sprintf("user-profile-projection:%d", userID),
+		admissionProfileProjectionDedupeKey(userID),
 		profilePayload,
 	); err != nil {
 		return fmt.Errorf("upsert profile projection job: %w", err)
@@ -149,7 +149,7 @@ func (r *Repository) upsertVerifiedUserProfileProjectionJobsTx(ctx context.Conte
 		tx,
 		outbox.StreamIAMCasdoorRoleSync,
 		admissionVerifiedStudentRoleJobType,
-		fmt.Sprintf("verified-student-role:%d", userID),
+		admissionVerifiedStudentRoleDedupeKey(userID),
 		rolePayload,
 	); err != nil {
 		return fmt.Errorf("upsert verified student role job: %w", err)
