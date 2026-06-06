@@ -248,6 +248,10 @@ func (h *Handler) GetCourse(c *gin.Context) {
 	if !cacheHit {
 		fetched, fetchErr := h.service.GetCourse(ctx, courseID)
 		if fetchErr != nil {
+			if errors.Is(fetchErr, ErrInvalidCourseID) {
+				response.BadRequest(c, "invalid course id", errs.ErrInvalidParam)
+				return
+			}
 			if errors.Is(fetchErr, ErrCourseNotFound) {
 				response.NotFound(c, "course not found", errs.ErrCourseNotFound)
 				return

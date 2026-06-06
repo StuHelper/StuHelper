@@ -1,10 +1,12 @@
 package course
 
 import (
+	"context"
 	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // ---- sortTermsForResponse: real sorting behavior ----
@@ -84,6 +86,29 @@ func TestErrCourseNotFound_IsSentinel(t *testing.T) {
 	// Verify it's a distinct sentinel error usable with errors.Is
 	assert.True(t, errors.Is(ErrCourseNotFound, ErrCourseNotFound))
 	assert.False(t, errors.Is(ErrCourseNotFound, errors.New("course not found")))
+}
+
+func TestCourseIDOperationsRejectInvalidIDBeforeDependencies(t *testing.T) {
+	ctx := context.Background()
+	svc := &Service{}
+
+	for _, courseID := range []int64{0, -1} {
+		course, err := svc.GetCourse(ctx, courseID)
+		require.ErrorIs(t, err, ErrInvalidCourseID)
+		assert.Nil(t, course)
+
+		exists, err := svc.FavoriteExists(ctx, "user-hash", courseID)
+		require.ErrorIs(t, err, ErrInvalidCourseID)
+		assert.False(t, exists)
+
+		favorites, err := svc.BatchFavoritedCourseIDs(ctx, "user-hash", []int64{1, courseID})
+		require.ErrorIs(t, err, ErrInvalidCourseID)
+		assert.Nil(t, favorites)
+	}
+
+	favorites, err := svc.BatchFavoritedCourseIDs(ctx, "user-hash", nil)
+	require.NoError(t, err)
+	assert.Empty(t, favorites)
 }
 
 func TestNewServiceRequiresRepo(t *testing.T) {

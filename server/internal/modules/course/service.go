@@ -12,7 +12,8 @@ import (
 
 // 业务错误定义
 var (
-	ErrCourseNotFound = errors.New("course not found")
+	ErrCourseNotFound  = errors.New("course not found")
+	ErrInvalidCourseID = errors.New("invalid course id")
 )
 
 // Service 课程服务层
@@ -37,11 +38,20 @@ func NewService(repo *Repository, log *zap.Logger) *Service {
 
 // FavoriteExists 检查单个课程是否被用户收藏
 func (s *Service) FavoriteExists(ctx context.Context, userHash string, courseID int64) (bool, error) {
+	if err := validateCourseID(courseID); err != nil {
+		return false, err
+	}
 	return s.repo.FavoriteExists(ctx, userHash, courseID)
 }
 
 // BatchFavoritedCourseIDs 批量查询用户已收藏的课程 ID 集合
 func (s *Service) BatchFavoritedCourseIDs(ctx context.Context, userHash string, courseIDs []int64) (map[int64]bool, error) {
+	if len(courseIDs) == 0 {
+		return map[int64]bool{}, nil
+	}
+	if err := validateCourseIDs(courseIDs); err != nil {
+		return nil, err
+	}
 	return s.repo.BatchFavoritedCourseIDs(ctx, userHash, courseIDs)
 }
 
@@ -122,6 +132,9 @@ func (s *Service) SearchCourses(ctx context.Context, params SearchCoursesParams)
 
 // GetCourse 获取课程详情
 func (s *Service) GetCourse(ctx context.Context, id int64) (*Course, error) {
+	if err := validateCourseID(id); err != nil {
+		return nil, err
+	}
 	course, err := s.repo.GetCourseByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -131,6 +144,22 @@ func (s *Service) GetCourse(ctx context.Context, id int64) (*Course, error) {
 		return nil, err
 	}
 	return course, nil
+}
+
+func validateCourseID(id int64) error {
+	if id <= 0 {
+		return ErrInvalidCourseID
+	}
+	return nil
+}
+
+func validateCourseIDs(ids []int64) error {
+	for _, id := range ids {
+		if err := validateCourseID(id); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // GetCourseCategories 获取课程分类列表
