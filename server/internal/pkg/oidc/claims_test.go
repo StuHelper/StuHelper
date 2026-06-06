@@ -15,6 +15,12 @@ func TestParseProviderRolesFromRaw_CasdoorFlatRoles(t *testing.T) {
 	assert.Equal(t, []string{"school_admin", "verified_student"}, roles)
 }
 
+func TestParseProviderRolesFromRaw_TrimsAndDedupesRoleNames(t *testing.T) {
+	roles, err := ParseProviderRolesFromRaw([]byte(`{"roles":[" super_admin ","super_admin"," ","school_admin"]}`), "roles")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"school_admin", "super_admin"}, roles)
+}
+
 func TestParseProviderRolesFromRaw_CustomRolesClaim(t *testing.T) {
 	raw := []byte(`{"stuhelper_roles":["super_admin","user"]}`)
 
@@ -26,7 +32,7 @@ func TestParseProviderRolesFromRaw_CustomRolesClaim(t *testing.T) {
 
 func TestParseProviderRolesFromRaw_CasdoorRoleObjects(t *testing.T) {
 	raw := []byte(`{"roles":[
-		{"owner":"stuhelper","name":"super_admin"},
+		{"owner":"stuhelper","name":" super_admin "},
 		{"owner":"stuhelper","name":"verified_student"},
 		{"owner":"stuhelper","name":"super_admin"}
 	]}`)

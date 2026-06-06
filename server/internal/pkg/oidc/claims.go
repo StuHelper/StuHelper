@@ -146,24 +146,26 @@ func rolesFromClaimItems(items []any, rolesClaim string) ([]string, error) {
 
 func roleNameFromClaimObject(value map[string]any, rolesClaim string) (string, error) {
 	name, ok := value["name"].(string)
-	if !ok || strings.TrimSpace(name) == "" {
+	trimmed := strings.TrimSpace(name)
+	if !ok || trimmed == "" {
 		return "", fmt.Errorf("roles claim %q contains role object without string name", rolesClaim)
 	}
-	return name, nil
+	return trimmed, nil
 }
 
 func dedupeRoles(roles []string) []string {
 	seen := make(map[string]struct{}, len(roles))
 	out := make([]string, 0, len(roles))
 	for _, role := range roles {
-		if role == "" {
+		trimmed := strings.TrimSpace(role)
+		if trimmed == "" {
 			continue
 		}
-		if _, ok := seen[role]; ok {
+		if _, ok := seen[trimmed]; ok {
 			continue
 		}
-		seen[role] = struct{}{}
-		out = append(out, role)
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
 	}
 	return out
 }
