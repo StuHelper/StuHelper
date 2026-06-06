@@ -38,6 +38,21 @@ const (
 	voteTypeDislike = "dislike"
 )
 
+// 成绩等级常量
+const (
+	gradeAPlus  = "A+"
+	gradeA      = "A"
+	gradeAMinus = "A-"
+	gradeBPlus  = "B+"
+	gradeB      = "B"
+	gradeBMinus = "B-"
+	gradeCPlus  = "C+"
+	gradeC      = "C"
+	gradeCMinus = "C-"
+	gradeD      = "D"
+	gradeF      = "F"
+)
+
 // 排序选项常量
 const (
 	SortTime   = "time"
@@ -76,6 +91,15 @@ func isValidReportReason(s string) bool {
 func isValidVoteType(s string) bool {
 	switch s {
 	case voteTypeLike, voteTypeDislike:
+		return true
+	}
+	return false
+}
+
+// isValidGrade 校验可选成绩是否合法。空字符串表示未填写。
+func isValidGrade(s string) bool {
+	switch s {
+	case "", gradeAPlus, gradeA, gradeAMinus, gradeBPlus, gradeB, gradeBMinus, gradeCPlus, gradeC, gradeCMinus, gradeD, gradeF:
 		return true
 	}
 	return false

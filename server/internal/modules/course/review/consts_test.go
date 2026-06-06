@@ -46,4 +46,15 @@ func TestReviewConstValidators(t *testing.T) {
 			t.Fatalf("expected invalid sort: %s", sort)
 		}
 	}
+
+	for _, grade := range []string{"", gradeAPlus, gradeA, gradeAMinus, gradeBPlus, gradeB, gradeBMinus, gradeCPlus, gradeC, gradeCMinus, gradeD, gradeF} {
+		if !isValidGrade(grade) {
+			t.Fatalf("expected valid grade: %s", grade)
+		}
+	}
+	for _, grade := range []string{"S", "优秀", "A +", "a"} {
+		if isValidGrade(grade) {
+			t.Fatalf("expected invalid grade: %s", grade)
+		}
+	}
 }

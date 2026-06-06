@@ -113,6 +113,16 @@ func TestReviewService_PostReviewPendingAndWriteEarlyReturns(t *testing.T) {
 	})
 	require.ErrorIs(t, err, ErrNotReviewOwner)
 
+	err = svc.UpdateReview(ctx, UpdateReviewParams{
+		ReviewID: publishedID,
+		UserHash: "u-owner-write",
+		Title:    strPtr("非法成绩"),
+		Content:  strPtr("非法成绩内容足够长用于通过其他校验"),
+		Grade:    strPtr("S"),
+		Ratings:  ratingsPtr(ReviewRatings{"teaching": 4}),
+	})
+	require.ErrorIs(t, err, ErrInvalidGrade)
+
 	_, err = svc.PostReview(ctx, PostReviewParams{
 		CourseID:             courseID,
 		TeacherID:            &teacherID,

@@ -27,6 +27,45 @@ func TestCreateReply_PreflightContentValidation(t *testing.T) {
 	assert.ErrorIs(t, err, ErrContentTooLong)
 }
 
+func TestSaveDraftPreflightValidation(t *testing.T) {
+	svc := &Service{}
+
+	_, err := svc.SaveDraft(context.Background(), SaveDraftParams{
+		Title: strings.Repeat("题", maxReviewTitleRunes+1),
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrTitleTooLong)
+
+	_, err = svc.SaveDraft(context.Background(), SaveDraftParams{
+		Content: "   ",
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrContentEmpty)
+
+	_, err = svc.SaveDraft(context.Background(), SaveDraftParams{
+		Content: strings.Repeat("内", maxReviewContentRunes+1),
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrContentTooLong)
+
+	_, err = svc.SaveDraft(context.Background(), SaveDraftParams{
+		Grade: "S",
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidGrade)
+}
+
+func TestPostReviewRejectsInvalidGradeBeforeDependencies(t *testing.T) {
+	svc := &Service{}
+
+	_, err := svc.PostReview(context.Background(), PostReviewParams{
+		Grade: "S",
+	})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidGrade)
+}
+
 func TestVoteReviewRejectsInvalidVoteTypeBeforeTx(t *testing.T) {
 	svc := &Service{}
 

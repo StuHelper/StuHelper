@@ -40,6 +40,7 @@ var (
 		response.MatchError(ErrInvalidTermID, 400, "invalid term_id format, expected YYYY-S (e.g. 2024-1)"),
 		response.MatchError(ErrRatingRequired, 400, "at least one rating dimension is required"),
 		response.MatchError(ErrInvalidRating, 400, "rating must be between 1 and 5"),
+		response.MatchError(ErrInvalidGrade, 400, "invalid grade"),
 	}
 	reviewNotFoundErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrReviewNotFound, 404, "review not found", errs.ErrReviewNotFound),
@@ -140,7 +141,7 @@ func respondSaveDraftError(c *gin.Context, err error) bool {
 		reviewCourseLookupErrorMappings,
 		reviewTeacherLookupErrorMappings,
 		reviewWriteValidationErrorMappings,
-		[]response.ErrorMapping{response.MatchError(ErrDangerousContent, 400, "content contains potentially dangerous elements")},
+		reviewModerationErrorMappings,
 	)
 }
 

@@ -24,6 +24,7 @@ func TestRespondPostReviewError(t *testing.T) {
 		{name: "already reviewed", err: ErrAlreadyReviewed, status: http.StatusConflict, code: errs.ErrReviewExists, contains: "already reviewed"},
 		{name: "invalid term", err: ErrInvalidTermID, status: http.StatusBadRequest, code: errs.ErrBadRequest, contains: "invalid term_id format"},
 		{name: "invalid rating", err: ErrInvalidRating, status: http.StatusBadRequest, code: errs.ErrBadRequest, contains: "rating must be between 1 and 5"},
+		{name: "invalid grade", err: ErrInvalidGrade, status: http.StatusBadRequest, code: errs.ErrBadRequest, contains: "invalid grade"},
 		{name: "sensitive content", err: ErrSensitiveContent, status: http.StatusBadRequest, code: errs.ErrSensitiveContent, contains: "sensitive words"},
 	}
 
@@ -53,6 +54,9 @@ func TestRespondSaveDraftError(t *testing.T) {
 	}{
 		{name: "invalid term", err: ErrInvalidTermID, status: http.StatusBadRequest, contains: "invalid term_id format"},
 		{name: "invalid rating", err: ErrInvalidRating, status: http.StatusBadRequest, contains: "rating must be between 1 and 5"},
+		{name: "invalid grade", err: ErrInvalidGrade, status: http.StatusBadRequest, contains: "invalid grade"},
+		{name: "content empty", err: ErrContentEmpty, status: http.StatusBadRequest, contains: "content cannot be empty"},
+		{name: "content too long", err: ErrContentTooLong, status: http.StatusBadRequest, contains: "content is too long"},
 		{name: "teacher not found", err: ErrTeacherNotFound, status: http.StatusNotFound, contains: "teacher not found"},
 	}
 

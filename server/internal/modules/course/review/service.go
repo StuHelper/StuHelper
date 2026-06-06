@@ -45,6 +45,7 @@ var (
 	ErrContentTooShort       = errors.New("content too short")
 	ErrReasonTooLong         = errors.New("reason too long")
 	ErrInvalidRating         = errors.New("invalid rating value")
+	ErrInvalidGrade          = errors.New("invalid grade")
 	ErrRatingRequired        = errors.New("at least one rating dimension is required")
 	ErrNotReviewOwner        = errors.New("not the review owner")
 	ErrAlreadyReported       = errors.New("already reported this review")
@@ -267,6 +268,14 @@ func validateAdminEditReasonLength(reason string) error {
 		return ErrReasonTooLong
 	}
 	return nil
+}
+
+func normalizeReviewGrade(grade string) (string, error) {
+	grade = strings.TrimSpace(grade)
+	if !isValidGrade(grade) {
+		return "", ErrInvalidGrade
+	}
+	return grade, nil
 }
 
 func (s *Service) validateRatingValues(ctx context.Context, ratings ReviewRatings, requireAny bool) error {

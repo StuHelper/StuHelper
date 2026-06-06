@@ -61,6 +61,10 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 	var err error
 	var contentFlag *string
 	var status string
+	params.Grade, err = normalizeReviewGrade(params.Grade)
+	if err != nil {
+		return nil, err
+	}
 	params.Title, params.Content, status, contentFlag, err = s.validateAndSanitizeReview(ctx, params.Ratings, params.Title, params.Content, params.TermID)
 	if err != nil {
 		return nil, err
@@ -267,6 +271,10 @@ func (s *Service) UpdateReview(ctx context.Context, params UpdateReviewParams) e
 		}
 
 		title, content, grade, ratings := mergeReviewUpdate(state, params)
+		grade, err = normalizeReviewGrade(grade)
+		if err != nil {
+			return err
+		}
 		sanitizedTitle, sanitizedContent, nextStatus, contentFlag, err := s.validateAndSanitizeReview(ctx, ratings, title, content, "")
 		if err != nil {
 			return err

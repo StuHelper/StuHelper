@@ -166,8 +166,17 @@ func (s *Service) SaveDraft(ctx context.Context, params SaveDraftParams) (*Revie
 	if sanitizer.ContainsDangerousContent(params.Title) || sanitizer.ContainsDangerousContent(params.Content) {
 		return nil, ErrDangerousContent
 	}
+	rawContent := params.Content
 	params.Title = sanitizer.SanitizeTitle(params.Title)
 	params.Content = sanitizer.SanitizeText(params.Content)
+	if err := validateDraftTextLengths(params.Title, rawContent, params.Content); err != nil {
+		return nil, err
+	}
+	grade, err := normalizeReviewGrade(params.Grade)
+	if err != nil {
+		return nil, err
+	}
+	params.Grade = grade
 
 	// 序列化评分数据
 	ratings := params.Ratings
@@ -192,6 +201,22 @@ func (s *Service) SaveDraft(ctx context.Context, params SaveDraftParams) (*Revie
 		Grade:     params.Grade,
 		Ratings:   ratingsData,
 	})
+}
+
+func validateDraftTextLengths(title, rawContent, content string) error {
+	if utf8.RuneCountInString(title) > maxReviewTitleRunes {
+		return ErrTitleTooLong
+	}
+	if rawContent == "" {
+		return nil
+	}
+	if strings.TrimSpace(content) == "" {
+		return ErrContentEmpty
+	}
+	if utf8.RuneCountInString(content) > maxReviewContentRunes {
+		return ErrContentTooLong
+	}
+	return nil
 }
 
 // GetDraft 获取草稿
