@@ -421,7 +421,60 @@ INSERT INTO academic.buaa_students (xh, xm, sfzjlxdm, sfzjh_enc, sfzjh_hash, yxd
 ON CONFLICT (xh) DO NOTHING;
 
 -- ============================================
--- 11. 开发环境：测试用户认证数据
+-- 11. 开发环境：入群认证最小策略数据
+-- ============================================
+UPDATE school_configs
+SET enabled = TRUE,
+    manual_form_fields = jsonb_set(
+        COALESCE(manual_form_fields, '{}'::jsonb),
+        '{admission}',
+        COALESCE(manual_form_fields->'admission', '{}'::jsonb)
+            || '{"emailDomains":["buaa.edu.cn"],"emailIdentityPolicy":{"type":"academic_student_email","studentIDEmailDomain":"buaa.edu.cn","requireStudentName":true}}'::jsonb,
+        TRUE
+    ),
+    updated_at = NOW()
+WHERE school_id = 4111010006;
+
+INSERT INTO group_admission_policies (
+    id, platform, guild_id, school_id, auto_approve_join,
+    auto_approve_verified_join, auto_approve_unverified_join,
+    initial_mute_duration_seconds, link_wait_seconds, submission_wait_seconds,
+    manual_review_timeout_seconds, reminder_interval_seconds, failed_join_limit,
+    blacklist_duration_seconds, freshman_channel_enabled, freshman_channel_closes_at,
+    freshman_default_expires_at, forward_raw_material_to_qq, management_guild_ids,
+    max_material_bytes, max_extension_days, updated_at
+) VALUES (
+    'dev-admission-policy-178037297', 'qq', '178037297', 4111010006, TRUE,
+    TRUE, TRUE,
+    2592000, 3600, 86400,
+    86400, 900, 3,
+    NULL, TRUE, '2026-12-31T23:59:59+08:00',
+    '2026-10-31T23:59:59+08:00', FALSE, ARRAY['178037297'],
+    10485760, 90, NOW()
+)
+ON CONFLICT (platform, guild_id) DO UPDATE
+SET school_id = EXCLUDED.school_id,
+    auto_approve_join = EXCLUDED.auto_approve_join,
+    auto_approve_verified_join = EXCLUDED.auto_approve_verified_join,
+    auto_approve_unverified_join = EXCLUDED.auto_approve_unverified_join,
+    initial_mute_duration_seconds = EXCLUDED.initial_mute_duration_seconds,
+    link_wait_seconds = EXCLUDED.link_wait_seconds,
+    submission_wait_seconds = EXCLUDED.submission_wait_seconds,
+    manual_review_timeout_seconds = EXCLUDED.manual_review_timeout_seconds,
+    reminder_interval_seconds = EXCLUDED.reminder_interval_seconds,
+    failed_join_limit = EXCLUDED.failed_join_limit,
+    blacklist_duration_seconds = EXCLUDED.blacklist_duration_seconds,
+    freshman_channel_enabled = EXCLUDED.freshman_channel_enabled,
+    freshman_channel_closes_at = EXCLUDED.freshman_channel_closes_at,
+    freshman_default_expires_at = EXCLUDED.freshman_default_expires_at,
+    forward_raw_material_to_qq = EXCLUDED.forward_raw_material_to_qq,
+    management_guild_ids = EXCLUDED.management_guild_ids,
+    max_material_bytes = EXCLUDED.max_material_bytes,
+    max_extension_days = EXCLUDED.max_extension_days,
+    updated_at = NOW();
+
+-- ============================================
+-- 12. 开发环境：测试用户认证数据
 -- ============================================
 -- 为测试用户1设置实名认证（已通过）和学生认证（已通过）
 INSERT INTO user_identities (user_id, doc_type, doc_number_enc, person_uid, real_name, verified, verify_method, verified_at)
