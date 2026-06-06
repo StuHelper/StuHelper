@@ -109,6 +109,11 @@ func (h *Handler) updateResource(c *gin.Context) {
 	}
 	item, err := h.service.UpdateResource(c.Request.Context(), resourceID, middleware.GetUserID(c), req)
 	if err != nil {
+		if errors.Is(err, ErrResourceNotFound) {
+			logResourceAudit(c, audit.EventDataUpdate, "update", "failure", resourceID, map[string]any{"reason": "resource not found"})
+			response.NotFound(c, "resource not found")
+			return
+		}
 		if errors.Is(err, ErrResourceForbidden) {
 			logResourceAudit(c, audit.EventDataUpdate, "update", "failure", resourceID, map[string]any{"reason": "resource owner mismatch"})
 			response.Forbidden(c, "resource owner mismatch")

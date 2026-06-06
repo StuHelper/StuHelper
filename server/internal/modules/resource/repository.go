@@ -133,6 +133,13 @@ func (r *Repository) UpdateResource(ctx context.Context, resourceID int64, owner
 			return fmt.Errorf("update resource item: %w", err)
 		}
 		if tag.RowsAffected() == 0 {
+			exists, err := resourceExistsTx(ctx, tx, resourceID)
+			if err != nil {
+				return err
+			}
+			if !exists {
+				return ErrResourceNotFound
+			}
 			return ErrResourceForbidden
 		}
 		return replaceTagsAndBindingsTx(ctx, tx, resourceID, req.Tags, req.Bindings)
@@ -141,6 +148,14 @@ func (r *Repository) UpdateResource(ctx context.Context, resourceID int64, owner
 		return nil, err
 	}
 	return r.GetResourceByID(ctx, resourceID)
+}
+
+func resourceExistsTx(ctx context.Context, tx pgx.Tx, resourceID int64) (bool, error) {
+	var exists bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM resource_items WHERE id = $1)`, resourceID).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check resource exists: %w", err)
+	}
+	return exists, nil
 }
 
 func (r *Repository) scanItems(ctx context.Context, rows pgx.Rows) ([]Item, int, error) {

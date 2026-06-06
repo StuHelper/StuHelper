@@ -211,6 +211,18 @@ func TestUpdateAndDeletePrivateResource(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, updated.ID, ownerView.ID)
 
+	_, err = svc.UpdateResource(ctx, created.ID, "oidc-user-2", UpdateRequest{
+		Title:      "Not Mine",
+		Visibility: "public",
+	})
+	require.ErrorIs(t, err, ErrResourceForbidden)
+
+	_, err = svc.UpdateResource(ctx, 999999, "oidc-user-1", UpdateRequest{
+		Title:      "Missing",
+		Visibility: "public",
+	})
+	require.ErrorIs(t, err, ErrResourceNotFound)
+
 	_, err = svc.GetResource(ctx, created.ID, "oidc-user-2")
 	require.ErrorIs(t, err, ErrResourceNotFound)
 

@@ -138,6 +138,29 @@ func TestResourceHandlers_OptionalAuthBackendFailureReturns503(t *testing.T) {
 	assert.Contains(t, resp.Body.String(), string(errs.ErrServiceUnavailable))
 }
 
+func TestResourceHandlers_UpdateMissingResourceReturns404(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	_, _, _, svc, _ := setupResourceService(t)
+
+	router := newResourceTestRouter(svc)
+	body, err := json.Marshal(UpdateRequest{
+		Title:      "Missing",
+		Visibility: "public",
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/resources/999999", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-User-ID", "oidc-user-1")
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusNotFound, resp.Code)
+	parsed := decodeEnvelope(t, resp.Body.Bytes())
+	require.NotNil(t, parsed.Error)
+	assert.Equal(t, "resource not found", parsed.Error.Message)
+}
+
 func newResourceTestRouter(svc *Service) *gin.Engine {
 	router := gin.New()
 	api := router.Group("/api/v1")
