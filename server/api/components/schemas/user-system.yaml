@@ -759,6 +759,11 @@ UserSurface:
       type: string
     avatarURL:
       type: string
+    phone:
+      type:
+        - string
+        - "null"
+      description: 账号侧已验证手机号的脱敏展示值；未绑定时为空。
     identityStatus:
       type: string
       enum: [none, pending, approved, rejected]

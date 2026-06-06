@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 
 const mockGetIdentity = vi.fn()
 const mockGetProfile = vi.fn()
+const mockGetUserSurface = vi.fn()
 const mockGetQQBinding = vi.fn()
 const mockCreateQQBindingCode = vi.fn()
 const mockListSchools = vi.fn()
@@ -17,6 +18,7 @@ vi.mock('@/api', () => ({
     identity: {
       getIdentity: mockGetIdentity,
       getProfile: mockGetProfile,
+      getUserSurface: mockGetUserSurface,
       getQQBinding: mockGetQQBinding,
       createQQBindingCode: mockCreateQQBindingCode,
       listSchools: mockListSchools,
@@ -61,6 +63,16 @@ const profile = {
   verifiedAt: now,
   createdAt: now,
   updatedAt: now,
+}
+
+const userSurface = {
+  displayName: '张三',
+  avatarURL: '',
+  phone: '138****5678',
+  identityStatus: 'approved',
+  verificationStatus: 'approved',
+  phoneBound: true,
+  capabilities: ['review:read_full'],
 }
 
 const qqBinding = {
@@ -271,6 +283,11 @@ describe('useVerificationStore', () => {
 
   it('绑定手机刷新资料成功但响应字段畸形时失败关闭', async () => {
     mockBindPhone.mockResolvedValue({})
+    mockGetUserSurface.mockResolvedValue({
+      data: {
+        data: userSurface,
+      },
+    })
     mockGetProfile.mockResolvedValue({
       data: {
         data: {
@@ -288,6 +305,51 @@ describe('useVerificationStore', () => {
         otpCode: '123456',
       }),
     ).rejects.toThrow('Invalid profile response after phone binding')
+    expect(store.profile).toBeNull()
+    expect(store.userSurface).toBeNull()
+  })
+
+  it('绑定手机成功后通过账号聚合状态展示手机号，不要求学生档案存在', async () => {
+    mockBindPhone.mockResolvedValue({})
+    mockGetUserSurface.mockResolvedValue({
+      data: {
+        data: userSurface,
+      },
+    })
+    mockGetProfile.mockRejectedValue({ status: 404 })
+
+    const store = useVerificationStore()
+    const surface = await store.bindPhone({
+      phone: '13812345678',
+      otpCode: '123456',
+    })
+
+    expect(surface.phoneBound).toBe(true)
+    expect(store.userSurface?.phone).toBe('138****5678')
+    expect(store.profile).toBeNull()
+  })
+
+  it('绑定手机成功但账号聚合响应畸形时失败关闭', async () => {
+    mockBindPhone.mockResolvedValue({})
+    mockGetUserSurface.mockResolvedValue({
+      data: {
+        data: {
+          ...userSurface,
+          phoneBound: 'yes',
+        },
+      },
+    })
+    mockGetProfile.mockRejectedValue({ status: 404 })
+
+    const store = useVerificationStore()
+
+    await expect(
+      store.bindPhone({
+        phone: '13812345678',
+        otpCode: '123456',
+      }),
+    ).rejects.toThrow('Invalid user surface response after phone binding')
+    expect(store.userSurface).toBeNull()
     expect(store.profile).toBeNull()
   })
 

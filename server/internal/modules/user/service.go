@@ -134,6 +134,7 @@ type Repo interface {
 	UpdateProfile(ctx context.Context, profile *Profile) error
 	ListProfilesByStatus(ctx context.Context, status string, schoolID *int64, page, pageSize int) ([]Profile, int, error)
 	GetCasdoorSubject(ctx context.Context, userID int64) (string, error)
+	GetUserPhoneProjection(ctx context.Context, userID int64) ([]byte, error)
 	EnsureUserPhoneAvailable(ctx context.Context, userID int64, phoneHash string) error
 	SetUserPhone(ctx context.Context, userID int64, phoneEnc []byte, phoneHash string) error
 	GetQQBindingByUserID(ctx context.Context, userID int64) (*QQBinding, error)

@@ -4175,6 +4175,8 @@ export interface components {
         UserSurface: {
             displayName: string;
             avatarURL?: string;
+            /** @description 账号侧已验证手机号的脱敏展示值；未绑定时为空。 */
+            phone?: string | null;
             /** @enum {string} */
             identityStatus: "none" | "pending" | "approved" | "rejected";
             /** @enum {string} */

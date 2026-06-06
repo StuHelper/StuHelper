@@ -57,6 +57,7 @@ func (h *Handler) handleGetUserSurface(c *gin.Context) {
 	response.Success(c, userSurfaceResponse{
 		DisplayName:        surface.DisplayName,
 		AvatarURL:          surface.AvatarURL,
+		Phone:              surface.Phone,
 		IdentityStatus:     surface.IdentityStatus,
 		VerificationStatus: surface.VerificationStatus,
 		PhoneBound:         surface.PhoneBound,

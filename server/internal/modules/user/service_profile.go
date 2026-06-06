@@ -21,16 +21,18 @@ func (s *Service) GetUserSurface(ctx context.Context, userID int64, displayName,
 	if err != nil {
 		return nil, fmt.Errorf("GetUserSurface profile: %w", err)
 	}
-	if err := s.hydrateProfilePhone(profile); err != nil {
-		return nil, fmt.Errorf("GetUserSurface hydrate profile phone: %w", err)
+	phone, err := s.getAccountPhoneProjection(ctx, userID, profile)
+	if err != nil {
+		return nil, fmt.Errorf("GetUserSurface phone projection: %w", err)
 	}
 
 	return &UserSurface{
 		DisplayName:        displayName,
 		AvatarURL:          avatarURL,
+		Phone:              phone,
 		IdentityStatus:     deriveIdentityStatus(identity),
 		VerificationStatus: deriveVerificationStatus(profile),
-		PhoneBound:         profile != nil && profile.PhoneVerified,
+		PhoneBound:         phone != nil,
 		Capabilities:       capabilities,
 	}, nil
 }

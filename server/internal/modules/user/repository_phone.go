@@ -54,6 +54,24 @@ func setUserPhone(ctx context.Context, queryRow queryRowFn, exec execFn, userID 
 	return nil
 }
 
+// GetUserPhoneProjection 读取账号侧脱敏手机号投影。
+func (r *Repository) GetUserPhoneProjection(ctx context.Context, userID int64) ([]byte, error) {
+	ctx = withDBTable(ctx, "users")
+	var phoneEnc []byte
+	err := r.db.QueryRow(ctx, `
+		SELECT COALESCE(phone_enc, ''::bytea)
+		FROM users
+		WHERE id = $1
+	`, userID).Scan(&phoneEnc)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("GetUserPhoneProjection: %w", err)
+	}
+	return phoneEnc, nil
+}
+
 // EnsureUserPhoneAvailable 检查手机号投影是否已被其他用户绑定。
 func (r *Repository) EnsureUserPhoneAvailable(ctx context.Context, userID int64, phoneHash string) error {
 	ctx = withDBTable(ctx, "users")

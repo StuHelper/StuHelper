@@ -145,9 +145,15 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 
 	var bindPhoneOTP user.OTPGenerator
 	var bindPhoneSMS user.SMSSender
-	if userProfileGateway != nil && rt.cfg.SMS.Enabled {
-		bindPhoneOTP = newBindPhoneOTPAdapter(auth.NewOTPService(rt.redisClient.GetClient()))
-		bindPhoneSMS = userProfileGateway
+	if userProfileGateway != nil {
+		if rt.cfg.SMS.Enabled {
+			bindPhoneSMS = userProfileGateway
+		} else if rt.cfg.App.Env == config.EnvDevelopment {
+			bindPhoneSMS = newDevBindPhoneSMSSender(rt.redisClient.GetClient())
+		}
+		if bindPhoneSMS != nil {
+			bindPhoneOTP = newBindPhoneOTPAdapter(auth.NewOTPService(rt.redisClient.GetClient()))
+		}
 	}
 	userHandler := user.NewHandler(
 		userService,

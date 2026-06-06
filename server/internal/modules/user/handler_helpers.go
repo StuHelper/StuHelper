@@ -128,6 +128,7 @@ type systemConfigResponse struct {
 type userSurfaceResponse struct {
 	DisplayName        string   `json:"displayName"`
 	AvatarURL          string   `json:"avatarURL,omitempty"`
+	Phone              *string  `json:"phone,omitempty"`
 	IdentityStatus     string   `json:"identityStatus"`
 	VerificationStatus string   `json:"verificationStatus"`
 	PhoneBound         bool     `json:"phoneBound"`

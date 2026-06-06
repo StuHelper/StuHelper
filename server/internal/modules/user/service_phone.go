@@ -65,18 +65,46 @@ func (s *Service) hydrateProfilePhone(profile *Profile) error {
 		return nil
 	}
 
-	plaintext, err := s.decryptPIIBytes(profile.PhoneEnc)
+	phone, err := s.phoneProjectionFromCiphertext(profile.PhoneEnc)
 	if err != nil {
-		return fmt.Errorf("decrypt phone_enc: %w", err)
+		return err
 	}
 
-	profile.Phone = normalizeMaskedPhone(&plaintext)
+	profile.Phone = phone
 	profile.PhoneVerified = profile.Phone != nil
 	return nil
 }
 
+func (s *Service) phoneProjectionFromCiphertext(phoneEnc []byte) (*string, error) {
+	if len(phoneEnc) == 0 {
+		return nil, nil
+	}
+	plaintext, err := s.decryptPIIBytes(phoneEnc)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt phone_enc: %w", err)
+	}
+	return normalizeMaskedPhone(&plaintext), nil
+}
+
+func (s *Service) getAccountPhoneProjection(ctx context.Context, userID int64, profile *Profile) (*string, error) {
+	if profile != nil {
+		if err := s.hydrateProfilePhone(profile); err != nil {
+			return nil, err
+		}
+		if profile.Phone != nil {
+			return profile.Phone, nil
+		}
+	}
+
+	phoneEnc, err := s.repo.GetUserPhoneProjection(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("get user phone projection: %w", err)
+	}
+	return s.phoneProjectionFromCiphertext(phoneEnc)
+}
+
 // BindPhone 绑定手机号。
-// Casdoor 是手机号真相源；StuHelper 只在本地 profile 上保存 masked projection，
+// Casdoor 是手机号真相源；StuHelper 只在本地 users 上保存 masked projection，
 // 用于业务页面快速判断是否已绑定。
 func (s *Service) BindPhone(ctx context.Context, userID int64, phone string) error {
 	if err := validateUserID(userID); err != nil {
@@ -88,14 +116,6 @@ func (s *Service) BindPhone(ctx context.Context, userID int64, phone string) err
 	}
 	if s.profileIdentitySync == nil {
 		return ErrProfileIdentitySyncMissing
-	}
-
-	profile, err := s.repo.GetProfileByUserID(ctx, userID)
-	if err != nil {
-		return fmt.Errorf("BindPhone get profile: %w", err)
-	}
-	if profile == nil {
-		return ErrProfileNotFound
 	}
 
 	_, phoneEnc, phoneHash, err := s.prepareAvailablePhoneProjection(ctx, userID, trimmed)

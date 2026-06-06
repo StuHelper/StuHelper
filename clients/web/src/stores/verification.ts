@@ -26,6 +26,7 @@ type StudentEmailOTPVerifyRequest =
     components["schemas"]["StudentEmailOTPVerifyRequest"];
 type StudentEmailOTPResponse = components["schemas"]["StudentEmailOTPResponse"];
 type BindPhoneRequest = components["schemas"]["BindPhoneRequest"];
+type UserSurfaceInfo = components["schemas"]["UserSurface"];
 type QQBindingInfo = components["schemas"]["QQBinding"];
 type QQBindingCodeInfo = components["schemas"]["QQBindingCode"];
 type IdentityPhotoUploadResult =
@@ -56,6 +57,12 @@ const PROFILE_VERIFICATION_METHOD_VALUES = new Set([
     "school_sso",
 ]);
 const SCHOOL_VERIFICATION_METHOD_VALUES = new Set(["ldap", "manual"]);
+const USER_SURFACE_STATUS_VALUES = new Set([
+    "none",
+    "pending",
+    "approved",
+    "rejected",
+]);
 const MANUAL_FIELD_TYPE_VALUES = new Set([
     "text",
     "textarea",
@@ -72,6 +79,7 @@ export const useVerificationStore = defineStore("verification", () => {
     // 状态
     const identity = ref<IdentityInfo | null>(null);
     const profile = ref<ProfileInfo | null>(null);
+    const userSurface = ref<UserSurfaceInfo | null>(null);
     const qqBinding = ref<QQBindingInfo | null>(null);
     const qqBindingCode = ref<QQBindingCodeInfo | null>(null);
     const schools = ref<SchoolConfig[]>([]);
@@ -196,15 +204,34 @@ export const useVerificationStore = defineStore("verification", () => {
         await api.identity.requestBindPhoneOTP(phone);
     };
 
+    const fetchUserSurface = async () => {
+        const res = await api.identity.getUserSurface();
+        const nextSurface = readUserSurfacePayload(
+            res.data?.data,
+            "Invalid user surface response",
+        );
+        userSurface.value = nextSurface;
+        return nextSurface;
+    };
+
     // 绑定手机
     const bindPhone = async (data: BindPhoneRequest) => {
         await api.identity.bindPhone(data);
-        // 绑定成功后必须刷新 profile；刷新失败应显式抛出，避免 UI 误判为已绑定。
-        const profileRes = await api.identity.getProfile();
-        profile.value = readProfilePayload(
-            profileRes.data?.data,
-            "Invalid profile response after phone binding",
+        const [surfaceRes, profileData] = await Promise.all([
+            api.identity.getUserSurface(),
+            loadNullableResource(
+                () => api.identity.getProfile(),
+                readProfilePayload,
+                "Invalid profile response after phone binding",
+            ),
+        ]);
+        const nextSurface = readUserSurfacePayload(
+            surfaceRes.data?.data,
+            "Invalid user surface response after phone binding",
         );
+        userSurface.value = nextSurface;
+        profile.value = profileData;
+        return nextSurface;
     };
 
     const fetchQQBinding = async () => {
@@ -232,6 +259,7 @@ export const useVerificationStore = defineStore("verification", () => {
     const reset = () => {
         identity.value = null;
         profile.value = null;
+        userSurface.value = null;
         qqBinding.value = null;
         qqBindingCode.value = null;
         schools.value = [];
@@ -248,6 +276,7 @@ export const useVerificationStore = defineStore("verification", () => {
     return {
         identity,
         profile,
+        userSurface,
         qqBinding,
         qqBindingCode,
         schools,
@@ -257,6 +286,7 @@ export const useVerificationStore = defineStore("verification", () => {
         qqBound,
         canViewFullReviews,
         fetchStatus,
+        fetchUserSurface,
         fetchQQBinding,
         fetchSchools,
         createQQBindingCode,
@@ -406,6 +436,21 @@ function readStringArrayOrNull(
     return value;
 }
 
+function readStringArray(
+    record: Record<string, unknown>,
+    key: string,
+    message: string,
+): string[] {
+    const value = record[key];
+    if (
+        !Array.isArray(value) ||
+        value.some((item) => typeof item !== "string")
+    ) {
+        throw new Error(message);
+    }
+    return value;
+}
+
 function readEnum<T extends string>(
     record: Record<string, unknown>,
     key: string,
@@ -493,6 +538,35 @@ function readProfilePayload(value: unknown, message: string): ProfileInfo {
         verifiedAt: readNullableString(value, "verifiedAt", message),
         createdAt: readString(value, "createdAt", message),
         updatedAt: readString(value, "updatedAt", message),
+    };
+}
+
+function readUserSurfacePayload(
+    value: unknown,
+    message: string,
+): UserSurfaceInfo {
+    if (!isRecord(value)) {
+        throw new Error(message);
+    }
+
+    return {
+        displayName: readString(value, "displayName", message),
+        avatarURL: readOptionalString(value, "avatarURL", message),
+        phone: readNullableString(value, "phone", message),
+        identityStatus: readEnum<UserSurfaceInfo["identityStatus"]>(
+            value,
+            "identityStatus",
+            USER_SURFACE_STATUS_VALUES,
+            message,
+        ),
+        verificationStatus: readEnum<UserSurfaceInfo["verificationStatus"]>(
+            value,
+            "verificationStatus",
+            USER_SURFACE_STATUS_VALUES,
+            message,
+        ),
+        phoneBound: readBoolean(value, "phoneBound", message),
+        capabilities: readStringArray(value, "capabilities", message),
     };
 }
 

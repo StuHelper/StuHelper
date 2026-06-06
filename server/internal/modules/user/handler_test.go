@@ -794,6 +794,39 @@ func TestHandleGetUserSurface_NormalizesNilCapabilitiesToEmptySlice(t *testing.T
 	assert.Empty(t, capabilities)
 }
 
+func TestHandleGetUserSurface_IncludesAccountPhoneWithoutStudentProfile(t *testing.T) {
+	repo := &mockRepo{
+		onGetInternalUserID: func(_ context.Context, casdoorSubject string) (int64, error) {
+			assert.Equal(t, "external-user-123", casdoorSubject)
+			return 42, nil
+		},
+		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
+			assert.Equal(t, int64(42), userID)
+			return nil, nil
+		},
+		onGetUserPhoneProjection: func(_ context.Context, userID int64) ([]byte, error) {
+			assert.Equal(t, int64(42), userID)
+			return []byte("138****8000"), nil
+		},
+	}
+
+	r := setupUserHandlerTestRouterWithRepo(t, repo)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/user/me", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+
+	data := resp["data"].(map[string]any)
+	assert.Equal(t, true, data["phoneBound"])
+	assert.Equal(t, "138****8000", data["phone"])
+	assert.Equal(t, "none", data["verificationStatus"])
+}
+
 func TestHandleGetProfile_NormalizesNilStudentIDsToEmptySlice(t *testing.T) {
 	repo := &mockRepo{
 		onGetInternalUserID: func(_ context.Context, _ string) (int64, error) {
@@ -897,8 +930,8 @@ func TestHandleBindPhoneConsumesOTPOnlyAfterSuccessfulBind(t *testing.T) {
 			return 42, nil
 		},
 		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
-			assert.Equal(t, int64(42), userID)
-			return &Profile{UserID: userID}, nil
+			t.Fatalf("BindPhone must not require student profile, got userID %d", userID)
+			return nil, nil
 		},
 		onGetCasdoorSubject: func(_ context.Context, userID int64) (string, error) {
 			assert.Equal(t, int64(42), userID)
@@ -940,8 +973,8 @@ func TestHandleBindPhoneKeepsOTPWhenBindFails(t *testing.T) {
 			return 42, nil
 		},
 		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
-			assert.Equal(t, int64(42), userID)
-			return &Profile{UserID: userID}, nil
+			t.Fatalf("BindPhone must not require student profile, got userID %d", userID)
+			return nil, nil
 		},
 		onGetCasdoorSubject: func(_ context.Context, userID int64) (string, error) {
 			assert.Equal(t, int64(42), userID)

@@ -50,7 +50,8 @@ func TestBindPhone_WritesCasdoorAndUserPhoneProjection(t *testing.T) {
 
 	repo := &mockRepo{
 		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
-			return &Profile{UserID: userID}, nil
+			t.Fatalf("BindPhone must not require student profile, got userID %d", userID)
+			return nil, nil
 		},
 		onGetCasdoorSubject: func(_ context.Context, userID int64) (string, error) {
 			assert.Equal(t, int64(42), userID)
@@ -97,8 +98,8 @@ func TestBindPhone_DuplicateProjectionDoesNotUpdateCasdoor(t *testing.T) {
 
 	repo := &mockRepo{
 		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
-			assert.Equal(t, int64(42), userID)
-			return &Profile{UserID: userID}, nil
+			t.Fatalf("BindPhone must reject duplicate projection before loading profile, got userID %d", userID)
+			return nil, nil
 		},
 		onEnsureUserPhoneAvailable: func(_ context.Context, userID int64, phoneHash string) error {
 			assert.Equal(t, int64(42), userID)
@@ -139,7 +140,8 @@ func TestBindPhone_DuplicateProjectionDoesNotUpdateCasdoor(t *testing.T) {
 func TestBindPhone_RequiresIdentitySyncGateway(t *testing.T) {
 	repo := &mockRepo{
 		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
-			return &Profile{UserID: userID}, nil
+			t.Fatalf("BindPhone must reject missing identity sync gateway before loading profile, got userID %d", userID)
+			return nil, nil
 		},
 	}
 

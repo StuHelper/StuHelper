@@ -162,9 +162,16 @@ let cooldownTimer: ReturnType<typeof setInterval> | null = null;
 const phonePattern = /^1[3-9]\d{9}$/;
 
 const alreadyBound = computed(
-    () => verificationStore.profile?.phoneVerified === true,
+    () =>
+        verificationStore.profile?.phoneVerified === true ||
+        verificationStore.userSurface?.phoneBound === true,
 );
-const maskedPhone = computed(() => verificationStore.profile?.phone ?? "");
+const maskedPhone = computed(
+    () =>
+        verificationStore.profile?.phone ??
+        verificationStore.userSurface?.phone ??
+        "",
+);
 
 const isPhoneValid = computed(() => phonePattern.test(phone.value));
 const isCodeValid = computed(() => /^\d{6}$/.test(otpCode.value));
@@ -265,11 +272,12 @@ function goBack() {
 }
 
 onMounted(() => {
-    if (!verificationStore.profile) {
-        void verificationStore.fetchStatus().catch(() => {
-            toast.error(t("common.loadFailed"));
-        });
-    }
+    void Promise.all([
+        verificationStore.fetchStatus(),
+        verificationStore.fetchUserSurface(),
+    ]).catch(() => {
+        toast.error(t("common.loadFailed"));
+    });
 });
 
 onUnmounted(() => {
