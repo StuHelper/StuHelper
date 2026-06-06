@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 )
 
 var ErrStudentSourceNotConfigured = errors.New("student source not configured")
@@ -27,14 +28,20 @@ type StudentSource struct {
 }
 
 type StudentDirectoryRegistry struct {
-	sources map[string]StudentSource
-	closers []io.Closer
+	sources   map[string]StudentSource
+	closers   []io.Closer
+	closeOnce sync.Once
 }
 
-func NewStudentDirectoryRegistry(sources []StudentSource) (*StudentDirectoryRegistry, error) {
+func NewStudentDirectoryRegistry(sources []StudentSource) (_ *StudentDirectoryRegistry, err error) {
 	registry := &StudentDirectoryRegistry{
 		sources: map[string]StudentSource{},
 	}
+	defer func() {
+		if err != nil {
+			err = errors.Join(err, registry.Close())
+		}
+	}()
 	for _, source := range sources {
 		normalized, err := normalizeSchoolCode(source.SchoolCode)
 		if err != nil {
@@ -89,11 +96,18 @@ func (r *StudentDirectoryRegistry) Close() error {
 		return nil
 	}
 	var joined error
-	for _, closer := range r.closers {
-		if err := closer.Close(); err != nil {
-			joined = errors.Join(joined, err)
+	r.closeOnce.Do(func() {
+		for _, closer := range r.closers {
+			if closer == nil {
+				continue
+			}
+			if err := closer.Close(); err != nil {
+				joined = errors.Join(joined, err)
+			}
 		}
-	}
+		r.sources = nil
+		r.closers = nil
+	})
 	return joined
 }
 

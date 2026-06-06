@@ -2,6 +2,7 @@ package externaldata
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,8 +13,19 @@ type fakeStudentDirectory struct {
 	record *StudentRecord
 }
 
+type fakeClosingStudentDirectory struct {
+	fakeStudentDirectory
+	closeCount int
+	closeErr   error
+}
+
 func (d fakeStudentDirectory) LookupStudent(context.Context, string) (*StudentRecord, error) {
 	return d.record, nil
+}
+
+func (d *fakeClosingStudentDirectory) Close() error {
+	d.closeCount++
+	return d.closeErr
 }
 
 func TestStudentDirectoryRegistryRoutesBySchoolCode(t *testing.T) {
@@ -47,4 +59,46 @@ func TestStudentDirectoryRegistryRejectsDuplicateSchools(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "duplicate student source")
+}
+
+func TestStudentDirectoryRegistryCloseIsIdempotent(t *testing.T) {
+	source := &fakeClosingStudentDirectory{}
+	registry, err := NewStudentDirectoryRegistry([]StudentSource{{
+		Name:       "buaa",
+		SchoolCode: "4111010006",
+		Directory:  source,
+	}})
+	require.NoError(t, err)
+
+	require.NoError(t, registry.Close())
+	require.NoError(t, registry.Close())
+	assert.Equal(t, 1, source.closeCount)
+}
+
+func TestStudentDirectoryRegistryClosesOwnedSourcesOnBuildFailure(t *testing.T) {
+	source := &fakeClosingStudentDirectory{}
+
+	_, err := NewStudentDirectoryRegistry([]StudentSource{
+		{Name: "first", SchoolCode: "4111010006", Directory: source},
+		{Name: "duplicate", SchoolCode: "4111010006", Directory: fakeStudentDirectory{}},
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "duplicate student source")
+	assert.Equal(t, 1, source.closeCount)
+}
+
+func TestStudentDirectoryRegistryBuildFailureIncludesCloseError(t *testing.T) {
+	closeErr := errors.New("close failed")
+	source := &fakeClosingStudentDirectory{closeErr: closeErr}
+
+	_, err := NewStudentDirectoryRegistry([]StudentSource{
+		{Name: "first", SchoolCode: "4111010006", Directory: source},
+		{Name: "duplicate", SchoolCode: "4111010006", Directory: fakeStudentDirectory{}},
+	})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, closeErr)
+	assert.Contains(t, err.Error(), "duplicate student source")
+	assert.Equal(t, 1, source.closeCount)
 }
