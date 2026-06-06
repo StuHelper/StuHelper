@@ -140,6 +140,19 @@ func (h *Handler) handleStreamBotAdmissionActions(c *gin.Context) {
 	}
 }
 
+func (h *Handler) handleClaimBotAdmissionActions(c *gin.Context) {
+	filter, ok := botPendingActionFilter(c)
+	if !ok {
+		return
+	}
+	actions, err := h.service.ClaimQueuedAdmissionActions(c.Request.Context(), filter)
+	if err != nil {
+		respondAdmissionError(c, err)
+		return
+	}
+	response.Success(c, actions)
+}
+
 func (h *Handler) writeQueuedAdmissionActions(c *gin.Context, filter AdmissionPendingActionFilter) bool {
 	actions, err := h.service.ClaimQueuedAdmissionActions(c.Request.Context(), filter)
 	if err != nil {

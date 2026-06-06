@@ -141,6 +141,11 @@ func (h *Handler) registerBotAdmissionRoutes(bot *gin.RouterGroup) {
 		h.handleStreamBotAdmissionActions,
 	)
 	bot.POST(
+		"/actions/claim",
+		h.requireBotCredential(botcredential.ScopeBotAdmissionSession),
+		h.handleClaimBotAdmissionActions,
+	)
+	bot.POST(
 		"/actions/:id/events",
 		h.requireBotCredential(botcredential.ScopeBotAdmissionEvent),
 		h.handleRecordBotActionEvent,

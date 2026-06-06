@@ -2987,6 +2987,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bot/admission/actions/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 机器人短轮询领取 admission action
+         * @description 该接口用于无法保持 SSE 长连接的机器人运行时或兜底扫描。服务端会从
+         *     `admission_bot_action_outbox` 领取到期 action，并返回带 `actionID` 的
+         *     `BotAdmissionPendingAction`；机器人执行后必须调用
+         *     `/api/v1/bot/admission/actions/{id}/events` ACK。
+         */
+        post: operations["claimBotAdmissionActions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/bot/admission/actions/{id}/events": {
         parameters: {
             query?: never;
@@ -11030,6 +11053,34 @@ export interface operations {
                 };
                 content: {
                     "text/event-stream": string;
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    claimBotAdmissionActions: {
+        parameters: {
+            query: {
+                platform: string;
+                botSelfID: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已领取的待执行 action 列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["BotAdmissionPendingAction"][];
+                    };
                 };
             };
             400: components["responses"]["ErrorResponse"];

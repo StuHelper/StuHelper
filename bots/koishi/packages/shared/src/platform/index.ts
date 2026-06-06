@@ -40,6 +40,7 @@ const ADMISSION_JOIN_REQUEST_DECISION_PATH = '/api/v1/bot/admission/join-request
 const ADMISSION_JOIN_REQUEST_EVENTS_PATH = '/api/v1/bot/admission/join-requests/events'
 const ADMISSION_PENDING_ACTIONS_PATH = '/api/v1/bot/admission/sessions/pending'
 const ADMISSION_ACTION_STREAM_PATH = '/api/v1/bot/admission/actions/stream'
+const ADMISSION_ACTION_CLAIM_PATH = '/api/v1/bot/admission/actions/claim'
 const ADMISSION_ACTIONS_PATH = '/api/v1/bot/admission/actions'
 const MEMBER_BLACKLIST_PATH = '/api/v1/bot/member-blacklist'
 const AUTH_SCHEME = 'Bearer'
@@ -107,6 +108,7 @@ export interface PlatformClient {
   resolveJoinRequestDecision(input: AdmissionJoinRequestDecisionRequest): Promise<AdmissionJoinRequestDecision>
   recordJoinRequestEvent(input: AdmissionJoinRequestEvent): Promise<void>
   listPendingAdmissionActions(input: AdmissionPendingActionsRequest): Promise<readonly AdmissionPendingAction[]>
+  claimQueuedAdmissionActions(input: AdmissionPendingActionsRequest): Promise<readonly AdmissionPendingAction[]>
   recordAdmissionEvent(sessionID: string, input: AdmissionBotEventRequest): Promise<void>
   streamAdmissionActions(input: AdmissionPendingActionsRequest, handlers: AdmissionActionStreamHandlers): AdmissionActionStreamHandle
   recordAdmissionActionEvent(actionID: string, input: AdmissionBotEventRequest): Promise<void>
@@ -173,6 +175,7 @@ function createAdmissionClient(
   | 'resolveJoinRequestDecision'
   | 'recordJoinRequestEvent'
   | 'listPendingAdmissionActions'
+  | 'claimQueuedAdmissionActions'
   | 'recordAdmissionEvent'
   | 'streamAdmissionActions'
   | 'recordAdmissionActionEvent'
@@ -220,6 +223,13 @@ function createAdmissionClient(
       assertPendingAdmissionActionsRequest(input)
       return request<readonly AdmissionPendingAction[]>(withQuery(ADMISSION_PENDING_ACTIONS_PATH, input), {
         method: 'GET',
+      })
+    },
+
+    async claimQueuedAdmissionActions(input) {
+      assertPendingAdmissionActionsRequest(input)
+      return request<readonly AdmissionPendingAction[]>(withQuery(ADMISSION_ACTION_CLAIM_PATH, input), {
+        method: 'POST',
       })
     },
 

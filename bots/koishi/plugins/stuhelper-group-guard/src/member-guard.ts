@@ -340,10 +340,13 @@ export class MemberGuardService {
     }
 
     const platform = requireAdmissionActionPlatform(bot)
-    const actions = await this.deps.platform.listPendingAdmissionActions({
+    const input = {
       platform,
       botSelfID: bot.selfId,
-    })
+    }
+    const actions = this.deps.platform.claimQueuedAdmissionActions
+      ? await this.deps.platform.claimQueuedAdmissionActions(input)
+      : await this.deps.platform.listPendingAdmissionActions(input)
     for (const action of actions) {
       await this.handleAdmissionAction(bot, action, now)
     }

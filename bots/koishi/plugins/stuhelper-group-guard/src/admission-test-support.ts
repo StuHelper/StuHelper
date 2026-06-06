@@ -45,7 +45,9 @@ export function respondPendingActions(
   actions: unknown[] | ((url: URL) => unknown[]),
 ) {
   const url = new URL(req.url || '/', 'http://127.0.0.1')
-  if (req.method !== 'GET' || url.pathname !== '/api/v1/bot/admission/sessions/pending') return false
+  const isSessionPendingList = req.method === 'GET' && url.pathname === '/api/v1/bot/admission/sessions/pending'
+  const isQueuedActionClaim = req.method === 'POST' && url.pathname === '/api/v1/bot/admission/actions/claim'
+  if (!isSessionPendingList && !isQueuedActionClaim) return false
   assert.equal(req.headers.authorization, 'Bearer test-token')
   const data = typeof actions === 'function' ? actions(url) : actions
   res.setHeader('content-type', 'application/json')

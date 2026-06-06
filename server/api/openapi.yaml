@@ -427,6 +427,8 @@ paths:
     $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1sessions~1pending"
   /api/v1/bot/admission/actions/stream:
     $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1actions~1stream"
+  /api/v1/bot/admission/actions/claim:
+    $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1actions~1claim"
   /api/v1/bot/admission/actions/{id}/events:
     $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1actions~1{id}~1events"
   /api/v1/bot/admission/sessions/{id}/events:

@@ -681,7 +681,7 @@ test('member guard retries backend reminder after initial group message send fai
   }])
 })
 
-test('member guard executes pending admission actions and reports results', async () => {
+test('member guard claims pending admission actions and reports results', async () => {
   const actions = [
     action('session-remind', 'remind', {
       authURL: 'https://join.stuhelper.com/verify/remind-token',
@@ -690,7 +690,7 @@ test('member guard executes pending admission actions and reports results', asyn
     action('session-kick', 'kick'),
     action('session-blacklist', 'blacklist'),
   ] as const
-  const listCalls: unknown[] = []
+  const claimCalls: unknown[] = []
   const events: unknown[] = []
   const actionEvents: unknown[] = []
   const messages: Array<{ channelId: string, content: string }> = []
@@ -699,9 +699,12 @@ test('member guard executes pending admission actions and reports results', asyn
   const marks: string[] = []
   const service = new MemberGuardService({
     platform: {
-      async listPendingAdmissionActions(input: unknown) {
-        listCalls.push(input)
+      async claimQueuedAdmissionActions(input: unknown) {
+        claimCalls.push(input)
         return actions
+      },
+      async listPendingAdmissionActions() {
+        throw new Error('fallback must claim queued admission actions before session-derived actions')
       },
       async recordAdmissionEvent(sessionID: string, input: unknown) {
         events.push({ sessionID, input })
@@ -742,7 +745,7 @@ test('member guard executes pending admission actions and reports results', asyn
     },
   } as any])
 
-  assert.deepEqual(listCalls, [{ platform: 'qq', botSelfID: '514' }])
+  assert.deepEqual(claimCalls, [{ platform: 'qq', botSelfID: '514' }])
   assert.match(messages[0].content, /https:\/\/join\.stuhelper\.com\/verify\/remind-token/)
   assert.deepEqual(mutes, [{ guildId: 'guild-1', memberId: '10001', duration: 0 }])
   assert.deepEqual(kicks, [

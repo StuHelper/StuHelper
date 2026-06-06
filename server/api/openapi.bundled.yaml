@@ -7366,6 +7366,57 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '401':
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/bot/admission/actions/claim:
+    post:
+      tags:
+        - Bot
+      operationId: claimBotAdmissionActions
+      summary: 机器人短轮询领取 admission action
+      description: |
+        该接口用于无法保持 SSE 长连接的机器人运行时或兜底扫描。服务端会从
+        `admission_bot_action_outbox` 领取到期 action，并返回带 `actionID` 的
+        `BotAdmissionPendingAction`；机器人执行后必须调用
+        `/api/v1/bot/admission/actions/{id}/events` ACK。
+      security:
+        - serviceTokenAuth: []
+      parameters:
+        - name: platform
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: botSelfID
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        '200':
+          description: 已领取的待执行 action 列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/BotAdmissionPendingAction'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/bot/admission/actions/{id}/events:
     post:
       tags:
