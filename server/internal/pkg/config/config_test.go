@@ -841,6 +841,99 @@ func TestValidate_RequiresCORSOriginsInDevelopment(t *testing.T) {
 	assert.Contains(t, err.Error(), "CORS_ORIGINS is required")
 }
 
+func TestValidate_RejectsInvalidCORSOrigins(t *testing.T) {
+	tests := []struct {
+		name    string
+		origins []string
+		want    string
+	}{
+		{
+			name:    "empty entry",
+			origins: []string{""},
+			want:    "empty origin is not allowed",
+		},
+		{
+			name:    "surrounding whitespace",
+			origins: []string{" https://stuhelper.example.com"},
+			want:    "must not include leading or trailing whitespace",
+		},
+		{
+			name:    "wildcard",
+			origins: []string{"*"},
+			want:    "wildcard '*' is not allowed",
+		},
+		{
+			name:    "relative URL",
+			origins: []string{"localhost:3000"},
+			want:    "must be an absolute http(s) origin",
+		},
+		{
+			name:    "unsupported scheme",
+			origins: []string{"ftp://files.example.com"},
+			want:    "must be an absolute http(s) origin",
+		},
+		{
+			name:    "userinfo",
+			origins: []string{"https://user:pass@stuhelper.example.com"},
+			want:    "must not include user info",
+		},
+		{
+			name:    "non-numeric port",
+			origins: []string{"https://stuhelper.example.com:bad"},
+			want:    "must include a valid port",
+		},
+		{
+			name:    "port out of range",
+			origins: []string{"https://stuhelper.example.com:65536"},
+			want:    "must include a valid port",
+		},
+		{
+			name:    "trailing slash",
+			origins: []string{"https://stuhelper.example.com/"},
+			want:    "must not have a trailing slash",
+		},
+		{
+			name:    "path",
+			origins: []string{"https://stuhelper.example.com/app"},
+			want:    "must not include a path",
+		},
+		{
+			name:    "query",
+			origins: []string{"https://stuhelper.example.com?next=/app"},
+			want:    "must not include query or fragment",
+		},
+		{
+			name:    "fragment",
+			origins: []string{"https://stuhelper.example.com#app"},
+			want:    "must not include query or fragment",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validConfigForValidation()
+			cfg.App.CORSOrigins = tt.origins
+
+			err := cfg.validate(nil)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.want)
+		})
+	}
+}
+
+func TestValidate_AllowsValidCORSOrigins(t *testing.T) {
+	cfg := validConfigForValidation()
+	cfg.App.CORSOrigins = []string{
+		"http://localhost:3000",
+		"http://127.0.0.1:3001",
+		"http://[::1]:3002",
+		"https://stuhelper.example.com",
+	}
+
+	require.NoError(t, cfg.validate(nil))
+}
+
 func TestValidate_RequiresOpenFGAInDevelopment(t *testing.T) {
 	c := &Config{
 		App: AppConfig{

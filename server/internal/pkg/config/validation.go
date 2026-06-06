@@ -1,9 +1,11 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -74,9 +76,7 @@ func (c *Config) validate(parseErrs []string) error {
 	if c.Observability.Enabled && c.Observability.OTLPEndpoint == "" {
 		errs = append(errs, "OTEL_EXPORTER_OTLP_ENDPOINT is required when OTEL_ENABLED=true")
 	}
-	if len(c.App.CORSOrigins) == 0 {
-		errs = append(errs, "CORS_ORIGINS is required")
-	}
+	errs = append(errs, validateCORSOrigins(c.App.CORSOrigins)...)
 
 	if c.SMS.Enabled {
 		if c.SMS.SecretID == "" {
@@ -332,6 +332,89 @@ func (c *Config) validate(parseErrs []string) error {
 	}
 
 	return nil
+}
+
+// ValidateCORSOrigins validates CORS allow-list entries before they are passed
+// to gin-contrib/cors. Runtime wiring uses this as a fail-fast guard without
+// duplicating Config validation rules.
+func ValidateCORSOrigins(origins []string) error {
+	errs := validateCORSOrigins(origins)
+	if len(errs) == 0 {
+		return nil
+	}
+	return errors.New(strings.Join(errs, "; "))
+}
+
+func validateCORSOrigins(origins []string) []string {
+	if len(origins) == 0 {
+		return []string{"CORS_ORIGINS is required"}
+	}
+
+	var errs []string
+	for _, origin := range origins {
+		errs = append(errs, validateCORSOrigin(origin)...)
+	}
+	return errs
+}
+
+func validateCORSOrigin(origin string) []string {
+	trimmed := strings.TrimSpace(origin)
+	if trimmed == "" {
+		return []string{"CORS configuration error: empty origin is not allowed"}
+	}
+	if trimmed != origin {
+		return []string{fmt.Sprintf("CORS configuration error: origin %q must not include leading or trailing whitespace", origin)}
+	}
+	if origin == "*" {
+		return []string{"CORS configuration error: wildcard '*' is not allowed when AllowCredentials is true"}
+	}
+
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		if strings.Contains(err.Error(), "invalid port") {
+			return []string{fmt.Sprintf("CORS configuration error: origin %q must include a valid port when a port is specified", origin)}
+		}
+		return []string{fmt.Sprintf("CORS configuration error: origin %q must be an absolute http(s) origin", origin)}
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return []string{fmt.Sprintf("CORS configuration error: origin %q must be an absolute http(s) origin", origin)}
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return []string{fmt.Sprintf("CORS configuration error: origin %q must be an absolute http(s) origin", origin)}
+	}
+	if parsed.User != nil {
+		return []string{fmt.Sprintf("CORS configuration error: origin %q must not include user info", origin)}
+	}
+	if !hasValidCORSOriginPort(parsed) {
+		return []string{fmt.Sprintf("CORS configuration error: origin %q must include a valid port when a port is specified", origin)}
+	}
+	if parsed.Path == "/" {
+		return []string{fmt.Sprintf("CORS configuration error: origin %q must not have a trailing slash", origin)}
+	}
+	if parsed.Path != "" {
+		return []string{fmt.Sprintf("CORS configuration error: origin %q must not include a path", origin)}
+	}
+	if parsed.RawQuery != "" || parsed.Fragment != "" {
+		return []string{fmt.Sprintf("CORS configuration error: origin %q must not include query or fragment", origin)}
+	}
+
+	return nil
+}
+
+func hasValidCORSOriginPort(parsed *url.URL) bool {
+	port := parsed.Port()
+	if port == "" {
+		host := parsed.Host
+		if strings.HasPrefix(host, "[") {
+			end := strings.LastIndex(host, "]")
+			return end >= 0 && host[end+1:] == ""
+		}
+		return !strings.Contains(host, ":")
+	}
+
+	portNumber, err := strconv.Atoi(port)
+	return err == nil && portNumber >= 1 && portNumber <= 65535
 }
 
 func validateExternalDataConfig(cfg ExternalDataConfig) []string {

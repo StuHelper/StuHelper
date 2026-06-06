@@ -2,9 +2,7 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -14,6 +12,7 @@ import (
 	gozap "go.uber.org/zap"
 
 	apidocs "git.stuhelper.com/StuHelper/StuHelper/api"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/health"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
@@ -74,20 +73,8 @@ func (rt *Runtime) registerGlobalMiddleware(r *gin.Engine) {
 
 func (rt *Runtime) registerPlatformRoutes(r *gin.Engine) error {
 	corsOrigins := rt.cfg.App.CORSOrigins
-	if len(corsOrigins) == 0 {
-		return errors.New("CORS_ORIGINS is required")
-	}
-	for _, origin := range corsOrigins {
-		trimmed := strings.TrimSpace(origin)
-		if trimmed == "*" {
-			return errors.New("CORS configuration error: wildcard '*' is not allowed when AllowCredentials is true")
-		}
-		if trimmed == "" {
-			return errors.New("CORS configuration error: empty origin is not allowed")
-		}
-		if strings.HasSuffix(trimmed, "/") {
-			return fmt.Errorf("CORS configuration error: origin %q must not have a trailing slash", trimmed)
-		}
+	if err := config.ValidateCORSOrigins(corsOrigins); err != nil {
+		return err
 	}
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     corsOrigins,
