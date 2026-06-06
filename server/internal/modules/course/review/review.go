@@ -48,9 +48,6 @@ func (h *Handler) PostReview(c *gin.Context) {
 		return
 	}
 
-	requestID, _ := c.Get(middleware.CtxKeyRequestID)
-	requestIDStr, _ := requestID.(string) //nolint:errcheck // gin context value, empty string is safe fallback
-
 	result, err := h.service.PostReview(c.Request.Context(), PostReviewParams{
 		CourseID:             req.CourseID,
 		TeacherID:            req.TeacherID,
@@ -62,7 +59,7 @@ func (h *Handler) PostReview(c *gin.Context) {
 		UserHash:             userHash,
 		AuthorInternalUserID: facts.InternalUserID,
 		IPAddress:            c.ClientIP(),
-		RequestID:            requestIDStr,
+		RequestID:            middleware.GetRequestID(c),
 	})
 	if err != nil {
 		if respondPostReviewError(c, err) {
