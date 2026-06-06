@@ -71,15 +71,25 @@ describe("style entrypoint", () => {
             "utf-8",
         );
         const courseDetailSource = readFileSync(
-            resolve(__dirname, "../../modules/review/views/CourseDetailPage.vue"),
+            resolve(
+                __dirname,
+                "../../modules/review/views/CourseDetailPage.vue",
+            ),
             "utf-8",
         );
         const reviewCardSource = readFileSync(
-            resolve(__dirname, "../../components/business/review/ReviewCard.vue"),
+            resolve(
+                __dirname,
+                "../../components/business/review/ReviewCard.vue",
+            ),
             "utf-8",
         );
 
-        for (const source of [reviewPostSource, courseDetailSource, reviewCardSource]) {
+        for (const source of [
+            reviewPostSource,
+            courseDetailSource,
+            reviewCardSource,
+        ]) {
             expect(source).toContain("accountCenterURL");
             expect(source).toContain("/user/student-verification");
             expect(source).not.toContain("name: 'student-verification'");
@@ -99,7 +109,9 @@ describe("style entrypoint", () => {
         );
 
         expect(routerSource).not.toContain("pendingExternalLocationRedirect");
-        expect(routerSource).not.toContain("hasPendingExternalLocationRedirect");
+        expect(routerSource).not.toContain(
+            "hasPendingExternalLocationRedirect",
+        );
         expect(routerSource).not.toContain("replaceWithExternalLocation");
         expect(mainSource).not.toContain("isExpectedExternalRedirectAbort");
         expect(mainSource).not.toContain("hasPendingExternalLocationRedirect");
@@ -148,6 +160,16 @@ describe("style entrypoint", () => {
         ]) {
             expect(accountSecuritySource).toContain(`to="${path}"`);
         }
+        expect(accountSecuritySource).toContain(
+            "user.accountSecurity.accountSummary",
+        );
+        expect(accountSecuritySource).not.toContain("user?.id");
+        expect(accountSecuritySource).not.toContain("user?.name");
+        expect(accountSecuritySource).not.toContain("user.value?.name");
+        expect(accountSecuritySource).not.toContain("accountSettingsUrl");
+        expect(accountSecuritySource).not.toContain(
+            "user.accountSecurity.provider",
+        );
         for (const label of [
             "绑定手机",
             "授权应用",
@@ -202,7 +224,7 @@ describe("style entrypoint", () => {
         }
     });
 
-    it("brands the public login page as StuHelper unified sign-in instead of a standalone SSO site", () => {
+    it("keeps the public login page as an automatic unified sign-in redirect without the old account card", () => {
         const loginSource = readFileSync(
             resolve(__dirname, "../../modules/auth/views/LoginPage.vue"),
             "utf-8",
@@ -216,21 +238,33 @@ describe("style entrypoint", () => {
             "utf-8",
         );
 
-        expect(loginSource).toContain("common.login.title");
-        expect(loginSource).toContain("common.login.identityLogin");
-        expect(loginSource).toContain("common.login.identityHint");
+        expect(loginSource).toContain("onMounted");
+        expect(loginSource).toContain("startLoginForCurrentRoute");
+        expect(loginSource).toContain("common.login.redirecting");
+        expect(loginSource).toContain("common.actions.retry");
+        expect(loginSource).not.toContain("common.login.title");
+        expect(loginSource).not.toContain("common.login.subtitle");
+        expect(loginSource).not.toContain("common.login.identityLogin");
+        expect(loginSource).not.toContain("common.login.signup");
+        expect(loginSource).not.toContain("common.login.identityHint");
+        expect(loginSource).not.toContain("handleSignup");
+        expect(loginSource).not.toContain("login-grid");
+        expect(loginSource).not.toContain("login-sheen");
         expect(loginSource).not.toContain("common.login.ssoLogin");
         expect(loginSource).not.toContain("common.login.ssoHint");
-        expect(zhCommonSource).toContain("title: 'StuHelper 统一登录'");
-        expect(zhCommonSource).toContain(
-            "identityLogin: '使用统一身份认证登录'",
+        expect(zhCommonSource).not.toContain("title: 'StuHelper 统一登录'");
+        expect(zhCommonSource).not.toContain("账号登录、认证与开放平台入口");
+        expect(zhCommonSource).not.toContain("注册账号");
+        expect(zhCommonSource).not.toContain(
+            "完成账号登录、学生认证与第三方应用授权",
         );
         expect(zhCommonSource).not.toContain("使用 SSO 登录");
         expect(zhCommonSource).not.toContain("StuHelper SSO");
-        expect(enCommonSource).toContain("title: 'StuHelper Sign-in'");
-        expect(enCommonSource).toContain(
-            "identityLogin: 'Continue with unified sign-in'",
+        expect(enCommonSource).not.toContain("StuHelper Sign-in");
+        expect(enCommonSource).not.toContain(
+            "Account sign-in, verification, and Open Platform access",
         );
+        expect(enCommonSource).not.toContain("Create account");
         expect(enCommonSource).not.toContain("Login with SSO");
         expect(enCommonSource).not.toContain("StuHelper SSO");
     });
@@ -265,15 +299,11 @@ describe("style entrypoint", () => {
             expect(source).toContain('to="/identity"');
             expect(source).not.toContain("StuHelper Identity");
         }
-        expect(zhCommonSource).toContain(
-            "connectEyebrow: 'StuHelper Connect'",
-        );
-        expect(zhCommonSource).toContain("openIdentityHome: '返回账号中心'");
+        expect(zhCommonSource).toContain('connectEyebrow: "StuHelper Connect"');
+        expect(zhCommonSource).toContain('openIdentityHome: "返回账号中心"');
+        expect(enCommonSource).toContain('connectEyebrow: "StuHelper Connect"');
         expect(enCommonSource).toContain(
-            "connectEyebrow: 'StuHelper Connect'",
-        );
-        expect(enCommonSource).toContain(
-            "openIdentityHome: 'Back to Account Center'",
+            'openIdentityHome: "Back to Account Center"',
         );
     });
 
@@ -364,10 +394,10 @@ describe("style entrypoint", () => {
         expect(routerSource).not.toContain('path: "/review/');
         expect(routerSource).not.toContain('path: "/course"');
         expect(routerSource).not.toContain('path: "/course/');
-        expect(headerSource).toContain("route.path === '/courses'");
+        expect(headerSource).toContain('route.path === "/courses"');
         expect(headerSource).not.toContain("route.path.startsWith('/review')");
         expect(headerSource).toContain(
-            "{ to: '/courses', label: t('nav.courses')",
+            '{ to: "/courses", label: t("nav.courses")',
         );
         expect(headerSource).not.toContain(
             "{ to: '/course', label: t('nav.review')",
@@ -400,7 +430,7 @@ describe("style entrypoint", () => {
         expect(shellSource).not.toContain("ReviewDialog");
         expect(shellSource).not.toContain("showPostModal");
         expect(headerSource).toContain(
-            "router.push({ name: 'course-review-post' })",
+            'router.push({ name: "course-review-post" })',
         );
         expect(headerSource).not.toContain("openPostModal");
         expect(routerSource).toContain('path: "/courses/reviews/post"');
@@ -429,8 +459,15 @@ describe("style entrypoint", () => {
             resolve(__dirname, "../../components/layout/AppHeader.vue"),
             "utf-8",
         );
-        const profileSource = readFileSync(
-            resolve(__dirname, "../../modules/user/views/ProfileSection.vue"),
+        const identityHomeSource = readFileSync(
+            resolve(__dirname, "../../modules/user/views/IdentityHomePage.vue"),
+            "utf-8",
+        );
+        const accountProfileSource = readFileSync(
+            resolve(
+                __dirname,
+                "../../modules/user/views/AccountProfilePage.vue",
+            ),
             "utf-8",
         );
 
@@ -444,17 +481,25 @@ describe("style entrypoint", () => {
         expect(routerSource).toContain('name: "identity-connect"');
         expect(headerSource).toContain("const logoRoute = computed");
         expect(headerSource).toContain(
-            "{ to: '/', label: t('nav.home'), icon: Home, exact: true }",
+            '{ to: "/", label: t("nav.home"), icon: Home, exact: true }',
         );
         expect(headerSource).toContain(
-            "{ to: '/courses', label: t('nav.courses'), icon: LibraryBig }",
+            '{ to: "/courses", label: t("nav.courses"), icon: LibraryBig }',
         );
         expect(headerSource).toContain(
-            "{ to: '/teachers', label: t('nav.teacher'), icon: GraduationCap }",
+            '{ to: "/teachers", label: t("nav.teacher"), icon: GraduationCap }',
         );
-        expect(routerSource).not.toContain('return { path: "/identity", replace: true }');
-        expect(profileSource).toContain('to="/account/profile"');
-        expect(profileSource).toContain("user.identityHome.accountProfile.title");
+        expect(routerSource).not.toContain(
+            'return { path: "/identity", replace: true }',
+        );
+        expect(identityHomeSource).not.toContain("ProfileSection");
+        expect(identityHomeSource).toContain(
+            "user.identityHome.accountProfile.title",
+        );
+        expect(identityHomeSource).toContain('to: "/account/profile"');
+        expect(accountProfileSource).toContain(
+            "user.accountProfile.fields.accountId",
+        );
     });
 
     it("serves authorized apps as a dedicated account-center page", () => {
@@ -483,29 +528,56 @@ describe("style entrypoint", () => {
 
         expect(userMenuSource).toContain("accountCenterURL");
         expect(userMenuSource).toContain("navigateToExternalURL");
-        expect(userMenuSource).toContain("'account-profile': '/account/profile'");
-        expect(userMenuSource).toContain("'account-security': '/account/security'");
-        expect(userMenuSource).toContain("'open-platform-developer-apps': '/developers/apps'");
-        expect(userMenuSource).toContain("'identity-verification': '/user/identity-verification'");
-        expect(userMenuSource).toContain("'student-verification': '/user/student-verification'");
+        expect(userMenuSource).toContain(
+            "'account-profile': '/account/profile'",
+        );
+        expect(userMenuSource).toContain(
+            "'account-security': '/account/security'",
+        );
+        expect(userMenuSource).toContain(
+            "'open-platform-developer-apps': '/developers/apps'",
+        );
+        expect(userMenuSource).toContain(
+            "'identity-verification': '/user/identity-verification'",
+        );
+        expect(userMenuSource).toContain(
+            "'student-verification': '/user/student-verification'",
+        );
         expect(userMenuSource).toContain("'qq-binding': '/user/qq-binding'");
-        expect(userMenuSource).not.toContain("void router.push({ name: routeName })");
-        expect(userMenuSource).not.toContain("@click=\"goTo('account-profile')\"");
-        expect(userMenuSource).not.toContain("@click=\"goTo('account-security')\"");
-        expect(userMenuSource).not.toContain("@click=\"goTo('open-platform-developer-apps')\"");
-        expect(userMenuSource).not.toContain("@click=\"goTo('identity-verification')\"");
-        expect(userMenuSource).not.toContain("@click=\"goTo('student-verification')\"");
+        expect(userMenuSource).not.toContain(
+            "void router.push({ name: routeName })",
+        );
+        expect(userMenuSource).not.toContain(
+            "@click=\"goTo('account-profile')\"",
+        );
+        expect(userMenuSource).not.toContain(
+            "@click=\"goTo('account-security')\"",
+        );
+        expect(userMenuSource).not.toContain(
+            "@click=\"goTo('open-platform-developer-apps')\"",
+        );
+        expect(userMenuSource).not.toContain(
+            "@click=\"goTo('identity-verification')\"",
+        );
+        expect(userMenuSource).not.toContain(
+            "@click=\"goTo('student-verification')\"",
+        );
         expect(userMenuSource).not.toContain("@click=\"goTo('qq-binding')\"");
     });
 
     it("keeps profile completion actions on the account center", () => {
         const profileCompletionSource = readFileSync(
-            resolve(__dirname, "../../modules/open-platform/views/ProfileCompletionPage.vue"),
+            resolve(
+                __dirname,
+                "../../modules/open-platform/views/ProfileCompletionPage.vue",
+            ),
             "utf-8",
         );
 
         expect(profileCompletionSource).toContain("accountCenterURLForHref");
-        expect(profileCompletionSource).toContain("profileCompletionActionURL(field.actionURL)");
+        expect(profileCompletionSource).toContain(
+            "profileCompletionActionURL(field.actionURL)",
+        );
         expect(profileCompletionSource).toContain(
             "return accountCenterURLForHref(actionURL) ?? actionURL",
         );
@@ -570,7 +642,7 @@ describe("style entrypoint", () => {
         expect(searchSource).toContain('id="advanced-teacher-name"');
     });
 
-    it("shows explicit phone binding configuration errors", () => {
+    it("treats phone binding as an SSO-managed profile projection", () => {
         const phoneBindingSource = readFileSync(
             resolve(__dirname, "../../modules/user/views/PhoneBindingPage.vue"),
             "utf-8",
@@ -584,11 +656,16 @@ describe("style entrypoint", () => {
             "utf-8",
         );
 
-        expect(phoneBindingSource).toContain("status === 503");
         expect(phoneBindingSource).toContain(
-            "user.verification.phone.serviceUnavailable",
+            "user.verification.phone.ssoManaged",
         );
-        expect(zhUserSource).toContain("serviceUnavailable");
-        expect(enUserSource).toContain("serviceUnavailable");
+        expect(phoneBindingSource).toContain("accountSettingsUrl");
+        expect(phoneBindingSource).not.toContain("requestBindPhoneOTP");
+        expect(phoneBindingSource).not.toContain("bindPhone(");
+        expect(phoneBindingSource).not.toContain("status === 503");
+        expect(zhUserSource).toContain("ssoManaged");
+        expect(zhUserSource).toContain("openSSOSettings");
+        expect(enUserSource).toContain("ssoManaged");
+        expect(enUserSource).toContain("openSSOSettings");
     });
 });

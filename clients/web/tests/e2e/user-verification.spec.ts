@@ -1,4 +1,4 @@
-import { expect, mockNotificationStream, test, type Page } from './fixtures';
+import { expect, mockNotificationStream, test, type Page } from "./fixtures";
 
 const user = {
     id: "u2",
@@ -21,6 +21,7 @@ const user = {
     capabilityGrants: [],
     isPlatformAdmin: false,
     canAccessAdmin: false,
+    accountSettingsUrl: "https://sso.example.test/account/settings",
 };
 
 const now = "2026-05-24T04:00:00Z";
@@ -253,7 +254,9 @@ async function mockUserApi(page: Page, state: UserApiState) {
     );
     await page.route("**/api/v1/user/profile/verify", async (route) => {
         const body = route.request().postDataJSON();
-        const school = schools.find((item) => item.schoolCode === body.schoolCode);
+        const school = schools.find(
+            (item) => item.schoolCode === body.schoolCode,
+        );
         state.profile = {
             ...verifiedProfile,
             schoolID: school?.schoolID ?? null,
@@ -339,14 +342,14 @@ test.describe("User verification flows", () => {
         await expect(
             page.getByRole("heading", { name: "已拒绝" }),
         ).toBeVisible();
-        await expect(page.getByText("验证失败，请检查学号和密码")).toBeVisible();
+        await expect(
+            page.getByText("验证失败，请检查学号和密码"),
+        ).toBeVisible();
 
         await page.getByRole("button", { name: "重新提交" }).click();
         await expect(page.locator("#student-school")).toBeVisible();
         await page.locator("#student-school").selectOption("4111010001");
-        await expect(
-            page.getByRole("button", { name: "验证" }),
-        ).toBeDisabled();
+        await expect(page.getByRole("button", { name: "验证" })).toBeDisabled();
     });
 
     test("verified and bound account detail pages render persisted status", async ({
@@ -546,7 +549,9 @@ test.describe("User verification flows", () => {
         await expect(
             page.getByRole("heading", { name: "已认证" }),
         ).toBeVisible();
-        await expect(page.getByText("北京航空航天大学（4111010006）")).toBeVisible();
+        await expect(
+            page.getByText("北京航空航天大学（4111010006）"),
+        ).toBeVisible();
         expect(academicMatchBody).toEqual({
             schoolCode: "4111010006",
             studentID: "20250001",
@@ -609,15 +614,21 @@ test.describe("User verification flows", () => {
         const imagePreviews = page.locator("img");
         await page.locator('input[type="file"]').nth(0).setInputFiles(png);
         await expect(imagePreviews).toHaveCount(1);
-        await page.locator('input[type="file"]').nth(0).setInputFiles({
-            ...png,
-            name: "passport-back.png",
-        });
+        await page
+            .locator('input[type="file"]')
+            .nth(0)
+            .setInputFiles({
+                ...png,
+                name: "passport-back.png",
+            });
         await expect(imagePreviews).toHaveCount(2);
-        await page.locator('input[type="file"]').nth(0).setInputFiles({
-            ...png,
-            name: "passport-selfie.png",
-        });
+        await page
+            .locator('input[type="file"]')
+            .nth(0)
+            .setInputFiles({
+                ...png,
+                name: "passport-selfie.png",
+            });
         await expect(imagePreviews).toHaveCount(3);
 
         await page.getByRole("button", { name: "提交认证" }).click();
@@ -706,53 +717,62 @@ test.describe("User verification flows", () => {
         });
     });
 
-    test("user binds phone, creates QQ binding code, and views academic info", async ({
+    test("user views SSO-managed phone status, creates QQ binding code, and views academic info", async ({
         page,
     }) => {
         const state: UserApiState = {
             identity: { ...verifiedIdentity },
-            profile: { ...verifiedProfile, phone: null, phoneVerified: false },
+            profile: {
+                ...verifiedProfile,
+                phone: "138****5678",
+                phoneVerified: true,
+            },
             qqBinding: null,
         };
-        let otpBody: unknown = null;
-        let phoneBody: unknown = null;
+        let phoneBindingRequests = 0;
 
         await mockUserApi(page, state);
         await page.route(
-            "**/api/v1/user/profile/bind-phone/otp",
+            "**/api/v1/user/profile/bind-phone**",
             async (route) => {
-                otpBody = route.request().postDataJSON();
+                phoneBindingRequests += 1;
                 await route.fallback();
             },
         );
-        await page.route("**/api/v1/user/profile/bind-phone", async (route) => {
-            phoneBody = route.request().postDataJSON();
-            await route.fallback();
-        });
 
         await gotoAuthenticatedPage(page, "/user/phone-binding");
 
-        await page.getByLabel("手机号码").fill("13812345678");
-        await page.getByRole("button", { name: "发送验证码" }).click();
-        await page.getByLabel("验证码").fill("123456");
-        await page.getByRole("button", { name: "绑定" }).click();
+        await expect(
+            page.getByRole("heading", { name: "已绑定" }),
+        ).toBeVisible();
+        await expect(page.getByText("138****5678")).toBeVisible();
+        await expect(
+            page.getByText("手机号属于统一身份认证账号资料。"),
+        ).toBeVisible();
+        await expect(
+            page.getByRole("link", { name: "打开统一身份认证资料" }),
+        ).toHaveAttribute("href", "https://sso.example.test/account/settings");
+        await expect(page.getByLabel("手机号码")).toHaveCount(0);
+        await expect(page.getByLabel("验证码")).toHaveCount(0);
+        await expect(
+            page.getByRole("button", { name: "发送验证码" }),
+        ).toHaveCount(0);
+        expect(phoneBindingRequests).toBe(0);
 
-        await expect(page).toHaveURL(/\/identity/);
-        await page.waitForLoadState("networkidle");
-        expect(otpBody).toEqual({ phone: "13812345678" });
-        expect(phoneBody).toEqual({
-            phone: "13812345678",
-            otpCode: "123456",
-        });
-
-        await gotoAuthenticatedPage(page, "/user/qq-binding");
+        await page.goto("/user/qq-binding");
+        await expect(
+            page.getByRole("heading", { name: "绑定 QQ" }),
+        ).toBeVisible();
         await page.getByRole("button", { name: "生成绑定码" }).click();
         await expect(
             page.getByText("请私聊机器人并发送下面这条命令"),
         ).toBeVisible();
         await expect(page.getByText("绑定 QQ-CODE-1")).toBeVisible();
 
-        await gotoAuthenticatedPage(page, "/user/academic-info");
+        await page.goto("/user/academic-info");
+        await expect(
+            page.getByRole("heading", { name: "学业信息" }),
+        ).toBeVisible();
         await expect(page.getByText("20260001")).toBeVisible();
         await expect(page.getByText("张三")).toBeVisible();
         await expect(page.getByText("计算机学院")).toBeVisible();
@@ -859,9 +879,7 @@ test.describe("User verification flows", () => {
 
         await gotoAuthenticatedPage(page, "/user/academic-info");
         await expect(page.getByText("加载失败")).toBeVisible();
-        await expect(
-            page.getByRole("button", { name: "重试" }),
-        ).toBeVisible();
+        await expect(page.getByRole("button", { name: "重试" })).toBeVisible();
         await expect(page.getByText("暂无学籍数据")).toHaveCount(0);
 
         malformedAcademicInfo = false;

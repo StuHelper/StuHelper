@@ -57,9 +57,8 @@ vi.mock("@/composables/useToast", () => ({
     }),
 }));
 
-const { default: StudentVerificationPage } = await import(
-    "../views/StudentVerificationPage.vue"
-);
+const { default: StudentVerificationPage } =
+    await import("../views/StudentVerificationPage.vue");
 
 const now = "2026-05-31T00:00:00Z";
 let pinia: Pinia;
@@ -125,6 +124,38 @@ describe("StudentVerificationPage", () => {
         vi.useRealTimers();
     });
 
+    it("shows bound student information when verification is already complete", async () => {
+        mockIdentityApi.getProfile.mockResolvedValue({
+            data: {
+                data: {
+                    ...verifiedProfile(),
+                    studentIDs: ["20250001", "20250002"],
+                    verificationMethod: "school_sso",
+                },
+            },
+        });
+
+        const wrapper = mount(StudentVerificationPage, {
+            global: {
+                plugins: [pinia],
+            },
+        });
+        await flushPromises();
+
+        const verifiedProfileDetails = wrapper.get(
+            "[data-student-verified-profile]",
+        );
+        expect(verifiedProfileDetails.text()).toContain("北京航空航天大学");
+        expect(verifiedProfileDetails.text()).toContain("20250001");
+        expect(verifiedProfileDetails.text()).toContain("20250002");
+        expect(verifiedProfileDetails.text()).toContain(
+            "user.verification.student.methods.school_sso",
+        );
+        expect(wrapper.find("[data-student-school-select]").exists()).toBe(
+            false,
+        );
+    });
+
     it("uses schoolCode and locks the BUAA student email after academic name match", async () => {
         vi.useFakeTimers();
         mockIdentityApi.matchStudentEmailAcademicStudent.mockResolvedValue({
@@ -181,7 +212,9 @@ describe("StudentVerificationPage", () => {
         await vi.advanceTimersByTimeAsync(300);
         await flushPromises();
 
-        expect(mockIdentityApi.matchStudentEmailAcademicStudent).toHaveBeenCalledWith({
+        expect(
+            mockIdentityApi.matchStudentEmailAcademicStudent,
+        ).toHaveBeenCalledWith({
             schoolCode: "4111010006",
             studentID: "20250001",
             studentName: "张三",
@@ -197,9 +230,13 @@ describe("StudentVerificationPage", () => {
             studentName: "张三",
         });
 
-        await wrapper.find("[data-student-email-code-input]").setValue("123456");
+        await wrapper
+            .find("[data-student-email-code-input]")
+            .setValue("123456");
         await wrapper.find("[data-student-consent-checkbox]").setValue(true);
-        await wrapper.find("[data-student-verification-submit]").trigger("click");
+        await wrapper
+            .find("[data-student-verification-submit]")
+            .trigger("click");
         await flushPromises();
 
         expect(mockIdentityApi.verifyStudentEmailOTP).toHaveBeenCalledWith({
@@ -290,7 +327,9 @@ describe("StudentVerificationPage", () => {
         await flushPromises();
 
         expect(mockToastError).toHaveBeenCalledWith("请先输入学号和姓名。");
-        expect(mockIdentityApi.matchStudentEmailAcademicStudent).not.toHaveBeenCalled();
+        expect(
+            mockIdentityApi.matchStudentEmailAcademicStudent,
+        ).not.toHaveBeenCalled();
         expect(mockIdentityApi.requestStudentEmailOTP).not.toHaveBeenCalled();
     });
 
@@ -339,8 +378,12 @@ describe("StudentVerificationPage", () => {
         const submitButton = wrapper.find<HTMLButtonElement>(
             "[data-student-verification-submit]",
         );
-        expect(wrapper.find("[data-student-consent-checkbox]").exists()).toBe(true);
-        expect(wrapper.text()).toContain("user.verification.student.consentPlain");
+        expect(wrapper.find("[data-student-consent-checkbox]").exists()).toBe(
+            true,
+        );
+        expect(wrapper.text()).toContain(
+            "user.verification.student.consentPlain",
+        );
         expect(submitButton.element.disabled).toBe(true);
 
         await wrapper.find("[data-student-consent-checkbox]").setValue(true);

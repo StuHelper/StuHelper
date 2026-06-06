@@ -45,12 +45,20 @@
                     </p>
                 </div>
             </div>
-            <div v-if="profile.schoolID" class="text-sm text-text-secondary">
-                <div class="flex justify-between">
-                    <span class="text-text-muted">{{
-                        t("user.verification.student.selectSchool")
+            <div
+                v-if="verifiedStudentRows.length > 0"
+                class="divide-y divide-border border-y border-border text-sm text-text-secondary"
+                data-student-verified-profile
+            >
+                <div
+                    v-for="row in verifiedStudentRows"
+                    :key="row.label"
+                    class="grid gap-1 py-3 sm:grid-cols-[120px_1fr] sm:gap-4"
+                >
+                    <span class="text-text-muted">{{ row.label }}</span>
+                    <span class="break-all text-text-primary">{{
+                        row.value
                     }}</span>
-                    <span>{{ schoolName(profile.schoolID) }}</span>
                 </div>
             </div>
         </div>
@@ -102,10 +110,7 @@
         </div>
 
         <!-- Verification form -->
-        <div
-            v-else
-            class="bg-bg-card rounded-xl p-5 shadow-card"
-        >
+        <div v-else class="bg-bg-card rounded-xl p-5 shadow-card">
             <p class="text-sm text-text-muted mb-5 m-0">
                 {{ t("user.verification.student.desc") }}
             </p>
@@ -234,10 +239,19 @@
                         </label>
                         <button
                             class="self-end py-2.5 px-4 bg-transparent border border-border rounded-lg text-sm font-medium text-text-primary cursor-pointer transition-all duration-fast hover:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                            :class="{ 'opacity-50 cursor-not-allowed': selectedSchoolRequiresAcademicEmail && !canRequestEmailOTP }"
+                            :class="{
+                                'opacity-50 cursor-not-allowed':
+                                    selectedSchoolRequiresAcademicEmail &&
+                                    !canRequestEmailOTP,
+                            }"
                             type="button"
                             data-student-email-otp-request
-                            :aria-disabled="selectedSchoolRequiresAcademicEmail && !canRequestEmailOTP ? 'true' : undefined"
+                            :aria-disabled="
+                                selectedSchoolRequiresAcademicEmail &&
+                                !canRequestEmailOTP
+                                    ? 'true'
+                                    : undefined
+                            "
                             :disabled="submitting"
                             @click="requestEmailOTP"
                         >
@@ -247,7 +261,9 @@
                 </template>
 
                 <!-- LDAP login form -->
-                <template v-else-if="selectedSchool.verificationMethod === 'ldap'">
+                <template
+                    v-else-if="selectedSchool.verificationMethod === 'ldap'"
+                >
                     <div class="mb-4">
                         <label
                             class="block text-sm font-semibold text-text-primary mb-2"
@@ -339,10 +355,7 @@
                         </div>
                     </div>
 
-                    <div
-                        v-else
-                        class="mb-5 p-4 bg-bg-card rounded-lg"
-                    >
+                    <div v-else class="mb-5 p-4 bg-bg-card rounded-lg">
                         <div
                             class="flex items-center gap-2 text-sm text-text-muted"
                         >
@@ -399,15 +412,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onBeforeUnmount, onMounted, watch } from "vue";
+import {
+    ref,
+    reactive,
+    computed,
+    onBeforeUnmount,
+    onMounted,
+    watch,
+} from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
-import {
-    GraduationCap,
-    Clock,
-    XCircle,
-    ArrowLeft,
-} from "lucide-vue-next";
+import { GraduationCap, Clock, XCircle, ArrowLeft } from "lucide-vue-next";
 import { useVerificationStore } from "@/stores/verification";
 import { useToast } from "@/composables/useToast";
 import {
@@ -426,7 +441,9 @@ const schools = computed(() => store.schools);
 const storeLoading = computed(() => store.loading);
 const showForm = ref(false);
 const submitting = ref(false);
-const academicMatchState = ref<"idle" | "waiting" | "checking" | "matched" | "mismatch" | "error">("idle");
+const academicMatchState = ref<
+    "idle" | "waiting" | "checking" | "matched" | "mismatch" | "error"
+>("idle");
 const academicMatchMessage = ref("");
 let academicMatchTimer: ReturnType<typeof setTimeout> | undefined;
 let academicMatchRunID = 0;
@@ -451,24 +468,71 @@ const selectedSchool = computed(() => {
     return schools.value.find((s) => s.schoolCode === form.schoolCode) ?? null;
 });
 
+const verifiedStudentRows = computed(() => {
+    if (!profile.value || profile.value.verificationStatus !== "verified")
+        return [];
+    const rows: Array<{ label: string; value: string }> = [];
+    if (profile.value.schoolID) {
+        rows.push({
+            label: t("user.verification.student.boundSchool"),
+            value: schoolName(profile.value.schoolID),
+        });
+    }
+    if (profile.value.activeStudentID) {
+        rows.push({
+            label: t("user.verification.student.activeStudentId"),
+            value: profile.value.activeStudentID,
+        });
+    }
+    const studentIDs = profile.value.studentIDs?.filter(Boolean) ?? [];
+    if (studentIDs.length > 0) {
+        rows.push({
+            label: t("user.verification.student.studentIds"),
+            value: studentIDs.join(" / "),
+        });
+    }
+    if (profile.value.verificationMethod) {
+        rows.push({
+            label: t("user.verification.student.method"),
+            value: t(
+                `user.verification.student.methods.${profile.value.verificationMethod}`,
+            ),
+        });
+    }
+    if (profile.value.verifiedAt) {
+        rows.push({
+            label: t("user.verification.student.verifiedAt"),
+            value: new Date(profile.value.verifiedAt).toLocaleString(),
+        });
+    }
+    return rows;
+});
+
 function schoolName(schoolID: number): string {
     const school = schools.value.find((s) => s.schoolID === schoolID);
-    return school ? `${school.schoolName}（${school.schoolCode}）` : String(schoolID);
+    return school
+        ? `${school.schoolName}（${school.schoolCode}）`
+        : String(schoolID);
 }
 
 const manualFields = computed(() =>
     normalizeManualFields(selectedSchool.value?.manualFormFields),
 );
 const selectedSchoolRequiresAcademicEmail = computed(
-    () => selectedSchool.value?.schoolEmailIdentityPolicy?.type === "academic_student_email",
+    () =>
+        selectedSchool.value?.schoolEmailIdentityPolicy?.type ===
+        "academic_student_email",
 );
 const canRequestEmailOTP = computed(() => {
-    if (!selectedSchool.value || !selectedSchoolRequiresAcademicEmail.value) return false;
+    if (!selectedSchool.value || !selectedSchoolRequiresAcademicEmail.value)
+        return false;
     return academicMatchState.value === "matched" && form.email.trim() !== "";
 });
 const academicMatchMessageClass = computed(() => {
-    if (academicMatchState.value === "matched") return "mb-4 text-sm text-green-700";
-    if (academicMatchState.value === "checking") return "mb-4 text-sm text-text-secondary";
+    if (academicMatchState.value === "matched")
+        return "mb-4 text-sm text-green-700";
+    if (academicMatchState.value === "checking")
+        return "mb-4 text-sm text-text-secondary";
     return "mb-4 text-sm text-red-600";
 });
 
@@ -477,7 +541,11 @@ const canSubmit = computed(() => {
     if (!form.consent) return false;
 
     if (selectedSchoolRequiresAcademicEmail.value) {
-        return canRequestEmailOTP.value && form.email.trim() !== "" && form.emailCode.trim() !== "";
+        return (
+            canRequestEmailOTP.value &&
+            form.email.trim() !== "" &&
+            form.emailCode.trim() !== ""
+        );
     }
 
     if (selectedSchool.value.verificationMethod === "ldap") {
@@ -545,11 +613,7 @@ async function requestEmailOTP() {
         form.email = result.email;
         toast.success("验证码已发送");
     } catch (err) {
-        toast.error(
-            err instanceof Error
-                ? err.message
-                : "验证码发送失败",
-        );
+        toast.error(err instanceof Error ? err.message : "验证码发送失败");
     } finally {
         submitting.value = false;
     }
@@ -652,14 +716,16 @@ async function runAcademicMatch(
             return;
         }
         academicMatchState.value = "mismatch";
-        academicMatchMessage.value = result.message || "学号和姓名不匹配，请核对后再发送验证码。";
+        academicMatchMessage.value =
+            result.message || "学号和姓名不匹配，请核对后再发送验证码。";
         form.email = "";
     } catch (err) {
         if (runID !== academicMatchRunID) return;
         academicMatchState.value = "error";
-        academicMatchMessage.value = err instanceof Error
-            ? err.message
-            : "学籍匹配暂时不可用，请稍后重试。";
+        academicMatchMessage.value =
+            err instanceof Error
+                ? err.message
+                : "学籍匹配暂时不可用，请稍后重试。";
         form.email = "";
     }
 }

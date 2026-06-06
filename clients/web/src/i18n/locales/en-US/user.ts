@@ -134,7 +134,8 @@ export default {
             },
             student: {
                 title: "Student Status",
-                description: "Student verification status and school information.",
+                description:
+                    "Student verification status and school information.",
             },
         },
     },
@@ -142,17 +143,20 @@ export default {
         eyebrow: "Account Center",
         title: "Account Security",
         subtitle:
-            "Manage your current StuHelper account, browser session, and upstream account security settings.",
+            "Manage the current browser session, authorized apps, and in-app identity security entries.",
         backToIdentity: "Back to Account Center",
         actionsLabel: "Account security actions",
         emailMissing: "No email",
+        accountSummary:
+            "This page only shows the current sign-in state and in-app security entries. It does not display internal account IDs, usernames, or upstream account security details.",
         fields: {
             accountId: "Account ID",
             username: "Username",
         },
         session: {
             title: "Current Browser Session",
-            description: "This device is signed in with StuHelper unified sign-in.",
+            description:
+                "This device is signed in with StuHelper unified sign-in.",
             active: "Session active",
             logout: "Sign out current session",
             loggingOut: "Signing out...",
@@ -318,6 +322,17 @@ export default {
             manualHint:
                 "Fill in the required information and submit it for manual review",
             desc: "Student verification unlocks full review access",
+            boundSchool: "Bound School",
+            activeStudentId: "Current Student ID",
+            studentIds: "Bound Student IDs",
+            method: "Verification Method",
+            verifiedAt: "Verified At",
+            methods: {
+                ldap: "Unified School Login",
+                manual: "Manual Review",
+                school_email_otp: "School Email Code",
+                school_sso: "School SSO",
+            },
         },
         phone: {
             title: "Phone Binding",
@@ -339,6 +354,11 @@ export default {
                 "Too many failed attempts, please request a new code",
             serviceUnavailable:
                 "Phone binding is not configured, so verification codes cannot be sent or checked right now",
+            ssoManaged:
+                "Phone numbers belong to the unified sign-in account profile. StuHelper only reads the synchronized masked phone and verification state; the main site does not store or edit the raw phone number separately.",
+            openSSOSettings: "Open unified sign-in profile",
+            ssoSettingsUnavailable:
+                "This account did not return a unified sign-in profile URL. Open the account profile center from the unified sign-in page.",
         },
         qq: {
             title: "QQ Binding",

@@ -1,9 +1,4 @@
-import {
-    allowExpectedConsoleError,
-    expect,
-    test,
-    type Page,
-} from './fixtures';
+import { allowExpectedConsoleError, expect, test, type Page } from "./fixtures";
 
 const user = {
     id: "u2",
@@ -73,14 +68,10 @@ function apiError(code: string, message: string, status = 400) {
 
 async function mockUnauthenticated(page: Page) {
     await page.route("**/api/v1/auth/me", (route) =>
-        route.fulfill(
-            apiError("A0010100", "login required", 401),
-        ),
+        route.fulfill(apiError("A0010100", "login required", 401)),
     );
     await page.route("**/api/v1/auth/refresh", (route) =>
-        route.fulfill(
-            apiError("A0010100", "login required", 401),
-        ),
+        route.fulfill(apiError("A0010100", "login required", 401)),
     );
 }
 
@@ -138,11 +129,16 @@ test.describe("Auth callback and admission entry", () => {
     }) => {
         await page.addInitScript(() => {
             sessionStorage.setItem("identity_oauth_state", "identity-state-1");
-            sessionStorage.setItem("identity_code_verifier", "identity-verifier-1");
+            sessionStorage.setItem(
+                "identity_code_verifier",
+                "identity-verifier-1",
+            );
             sessionStorage.setItem("post_login_redirect", "/identity");
         });
 
-        await page.goto("/auth/callback?code=identity-code-1&state=identity-state-1");
+        await page.goto(
+            "/auth/callback?code=identity-code-1&state=identity-state-1",
+        );
         await page.waitForURL(/\/identity/);
     });
 
@@ -150,6 +146,7 @@ test.describe("Auth callback and admission entry", () => {
         page,
     }) => {
         let backendCallbackRequests = 0;
+        let loginRequestURL: URL | null = null;
         await page.route("**/api/v1/auth/callback?*", async (route) => {
             backendCallbackRequests += 1;
             await route.fulfill({
@@ -157,17 +154,34 @@ test.describe("Auth callback and admission entry", () => {
                 body: "<!doctype html><title>Unexpected backend callback</title>",
             });
         });
+        await page.route("**/api/v1/auth/login**", async (route) => {
+            loginRequestURL = new URL(route.request().url());
+            await route.fulfill(
+                ok({
+                    url: "https://sso.stuhelper.com/login/oauth/authorize?client_id=stuhelper-web&state=invalid-callback-state",
+                    state: "invalid-callback-state",
+                }),
+            );
+        });
+        await page.route("https://sso.stuhelper.com/**", (route) =>
+            route.fulfill({
+                contentType: "text/html",
+                body: "<!doctype html><title>Mock SSO</title><main>Mock SSO</main>",
+            }),
+        );
 
+        const ssoNavigation = page.waitForURL(
+            (url) =>
+                url.hostname === "sso.stuhelper.com" &&
+                url.pathname === "/login/oauth/authorize",
+        );
         await page.goto(
             `/auth/callback?code=oauth-code-1&state=${"s".repeat(4097)}`,
         );
+        await ssoNavigation;
 
-        await expect(page).toHaveURL(/\/login\?error=invalid_callback/);
-        await expect(
-            page.getByRole("button", {
-                name: /Continue with unified sign-in|使用统一身份认证登录/,
-            }),
-        ).toBeVisible();
+        expect(loginRequestURL).not.toBeNull();
+        expect(loginRequestURL!.searchParams.get("app")).toBe("web");
         expect(backendCallbackRequests).toBe(0);
     });
 
@@ -177,8 +191,9 @@ test.describe("Auth callback and admission entry", () => {
         let loginRequestURL: URL | null = null;
 
         await mockUnauthenticated(page);
-        await page.route("**/api/v1/admission/sessions/ADMIT-LOGIN**", (route) =>
-            route.fulfill(ok(joinedSession)),
+        await page.route(
+            "**/api/v1/admission/sessions/ADMIT-LOGIN**",
+            (route) => route.fulfill(ok(joinedSession)),
         );
         await page.route("**/api/v1/auth/login**", async (route) => {
             loginRequestURL = new URL(route.request().url());
@@ -206,11 +221,17 @@ test.describe("Auth callback and admission entry", () => {
 
         const admissionURL = page.url();
         await page.getByRole("button", { name: "登录" }).click();
-        await page.waitForURL((url) => url.hostname === "sso.stuhelper.com" && url.pathname === "/login/oauth/authorize");
+        await page.waitForURL(
+            (url) =>
+                url.hostname === "sso.stuhelper.com" &&
+                url.pathname === "/login/oauth/authorize",
+        );
 
         expect(loginRequestURL).not.toBeNull();
         expect(loginRequestURL!.searchParams.get("app")).toBe("web");
-        expect(loginRequestURL!.searchParams.get("redirect")).toBe(admissionURL);
+        expect(loginRequestURL!.searchParams.get("redirect")).toBe(
+            admissionURL,
+        );
         const ssoURL = new URL(page.url());
         expect(ssoURL.searchParams.get("client_id")).toBe("stuhelper-web");
         expect(ssoURL.searchParams.get("state")).toBe("admission-sso-state");
@@ -224,12 +245,15 @@ test.describe("Auth callback and admission entry", () => {
         let signupRequestURL: URL | null = null;
 
         await mockUnauthenticated(page);
-        await page.route("**/api/v1/admission/sessions/ADMIT-SIGNUP**", (route) =>
-            route.fulfill(ok(joinedSession)),
+        await page.route(
+            "**/api/v1/admission/sessions/ADMIT-SIGNUP**",
+            (route) => route.fulfill(ok(joinedSession)),
         );
         await page.route("**/api/v1/auth/login**", (route) => {
             loginRequests += 1;
-            return route.fulfill(apiError("unexpected.login", "unexpected login", 500));
+            return route.fulfill(
+                apiError("unexpected.login", "unexpected login", 500),
+            );
         });
         await page.route("**/api/v1/auth/signup**", async (route) => {
             signupRequestURL = new URL(route.request().url());
@@ -254,15 +278,23 @@ test.describe("Auth callback and admission entry", () => {
         ).toBeVisible();
         const admissionURL = page.url();
         await page.getByRole("button", { name: "注册" }).click();
-        await page.waitForURL((url) => url.hostname === "sso.stuhelper.com" && url.pathname === "/signup/oauth/authorize");
+        await page.waitForURL(
+            (url) =>
+                url.hostname === "sso.stuhelper.com" &&
+                url.pathname === "/signup/oauth/authorize",
+        );
 
         expect(loginRequests).toBe(0);
         expect(signupRequestURL).not.toBeNull();
         expect(signupRequestURL!.searchParams.get("app")).toBe("web");
-        expect(signupRequestURL!.searchParams.get("redirect")).toBe(admissionURL);
+        expect(signupRequestURL!.searchParams.get("redirect")).toBe(
+            admissionURL,
+        );
         const ssoURL = new URL(page.url());
         expect(ssoURL.searchParams.get("client_id")).toBe("stuhelper-web");
-        expect(ssoURL.searchParams.get("state")).toBe("admission-sso-signup-state");
+        expect(ssoURL.searchParams.get("state")).toBe(
+            "admission-sso-signup-state",
+        );
         await expect(page.getByText("SSO signup authorize")).toBeVisible();
     });
 
@@ -273,7 +305,10 @@ test.describe("Auth callback and admission entry", () => {
         let callbackURL: URL | null = null;
         let linkQQ = "";
 
-        allowExpectedConsoleError(page, /Failed to load resource: net::ERR_NETWORK_CHANGED/);
+        allowExpectedConsoleError(
+            page,
+            /Failed to load resource: net::ERR_NETWORK_CHANGED/,
+        );
         allowExpectedConsoleError(
             page,
             /\[App\] bootstrap failed: TypeError: Failed to fetch dynamically imported module: .*AdmissionPage\.vue/,
@@ -338,7 +373,9 @@ test.describe("Auth callback and admission entry", () => {
             ),
         );
 
-        await page.goto("/auth/callback?code=oauth-code-1&state=admission-sso-state");
+        await page.goto(
+            "/auth/callback?code=oauth-code-1&state=admission-sso-state",
+        );
         await page.waitForURL(/\/verify\/ADMIT-RETURN$/);
 
         await expect(
@@ -352,7 +389,9 @@ test.describe("Auth callback and admission entry", () => {
 
         expect(callbackURL).not.toBeNull();
         expect(callbackURL!.searchParams.get("code")).toBe("oauth-code-1");
-        expect(callbackURL!.searchParams.get("state")).toBe("admission-sso-state");
+        expect(callbackURL!.searchParams.get("state")).toBe(
+            "admission-sso-state",
+        );
         expect(linkQQ).toBe("");
     });
 
@@ -363,7 +402,10 @@ test.describe("Auth callback and admission entry", () => {
         let linkRequests = 0;
         let linkQQ = "";
 
-        allowExpectedConsoleError(page, /Failed to load resource: net::ERR_NETWORK_CHANGED/);
+        allowExpectedConsoleError(
+            page,
+            /Failed to load resource: net::ERR_NETWORK_CHANGED/,
+        );
         await mockAuthenticated(page);
         await page.route(
             "**/api/v1/admission/sessions/ADMIT-CONSUMED**",
@@ -422,8 +464,12 @@ test.describe("Auth callback and admission entry", () => {
     }) => {
         await mockAuthenticated(page);
 
-        await page.route("**/api/v1/admission/sessions/ADMIT-MISMATCH**", (route) =>
-            route.fulfill(apiError("admission.qq_mismatch", "mismatch", 409)),
+        await page.route(
+            "**/api/v1/admission/sessions/ADMIT-MISMATCH**",
+            (route) =>
+                route.fulfill(
+                    apiError("admission.qq_mismatch", "mismatch", 409),
+                ),
         );
         await page.goto("/verify/ADMIT-MISMATCH");
         await expect(
@@ -432,18 +478,30 @@ test.describe("Auth callback and admission entry", () => {
         await expect(
             page.getByText("当前登录的 StuHelper 账号已绑定其他 QQ"),
         ).toBeVisible();
-        await expect(page.getByRole("button", { name: "开始认证" })).toHaveCount(0);
-        await expect(page.locator("[data-admission-freshman-flow]")).toHaveCount(0);
+        await expect(
+            page.getByRole("button", { name: "开始认证" }),
+        ).toHaveCount(0);
+        await expect(
+            page.locator("[data-admission-freshman-flow]"),
+        ).toHaveCount(0);
 
-        await page.route("**/api/v1/admission/sessions/ADMIT-EXPIRED**", (route) =>
-            route.fulfill(apiError("admission.token_expired", "expired", 410)),
+        await page.route(
+            "**/api/v1/admission/sessions/ADMIT-EXPIRED**",
+            (route) =>
+                route.fulfill(
+                    apiError("admission.token_expired", "expired", 410),
+                ),
         );
         await page.goto("/verify/ADMIT-EXPIRED");
         await expect(
             page.getByRole("heading", { name: "链接已失效" }),
         ).toBeVisible();
-        await expect(page.getByRole("button", { name: "开始认证" })).toHaveCount(0);
-        await expect(page.locator("[data-admission-freshman-flow]")).toHaveCount(0);
+        await expect(
+            page.getByRole("button", { name: "开始认证" }),
+        ).toHaveCount(0);
+        await expect(
+            page.locator("[data-admission-freshman-flow]"),
+        ).toHaveCount(0);
     });
 
     test("logged-in user links an admission session and verifies school email OTP", async ({
@@ -601,7 +659,10 @@ test.describe("Auth callback and admission entry", () => {
     test("freshman admission offers mobile handoff when desktop camera is unavailable", async ({
         page,
     }) => {
-        allowExpectedConsoleError(page, /Failed to load resource: net::ERR_NETWORK_CHANGED/);
+        allowExpectedConsoleError(
+            page,
+            /Failed to load resource: net::ERR_NETWORK_CHANGED/,
+        );
         allowExpectedConsoleError(
             page,
             /\[App\] bootstrap failed: TypeError: Failed to fetch dynamically imported module: .*AdmissionPage\.vue/,
@@ -613,8 +674,9 @@ test.describe("Auth callback and admission entry", () => {
             });
         });
         await mockAuthenticated(page);
-        await page.route("**/api/v1/admission/sessions/ADMIT-FRESHMAN**", (route) =>
-            route.fulfill(ok(linkedSession)),
+        await page.route(
+            "**/api/v1/admission/sessions/ADMIT-FRESHMAN**",
+            (route) => route.fulfill(ok(linkedSession)),
         );
         await page.route("**/api/v1/admission/me**", (route) =>
             route.fulfill(ok(freshmanAdmissionMe)),
@@ -642,7 +704,9 @@ test.describe("Auth callback and admission entry", () => {
         await expect(
             page.getByRole("heading", { name: "选择认证方式" }),
         ).toBeVisible();
-        await expect(page.locator("[data-admission-freshman-flow]")).toBeVisible();
+        await expect(
+            page.locator("[data-admission-freshman-flow]"),
+        ).toBeVisible();
         await expect(
             page.getByRole("button", { name: "当前浏览器不支持摄像头" }),
         ).toBeDisabled();
@@ -650,20 +714,16 @@ test.describe("Auth callback and admission entry", () => {
             page.getByRole("button", { name: "手机扫码拍照" }),
         ).toBeVisible();
         await expect(
-            page.getByText("请用手机浏览器打开此链接，并允许浏览器访问摄像头。"),
+            page.getByText(
+                "请用手机浏览器打开此链接，并允许浏览器访问摄像头。",
+            ),
         ).toHaveCount(0);
-        await expect(
-            page.getByText("Permission denied"),
-        ).toHaveCount(0);
-        await expect(
-            page.locator("[data-freshman-school-select]"),
-        ).toHaveValue("4111010006");
-        await expect(
-            page.locator('input[type="file"]'),
-        ).toHaveCount(0);
-        await expect(
-            page.getByText(/相册|拖拽|PDF|文件/),
-        ).toHaveCount(0);
+        await expect(page.getByText("Permission denied")).toHaveCount(0);
+        await expect(page.locator("[data-freshman-school-select]")).toHaveValue(
+            "4111010006",
+        );
+        await expect(page.locator('input[type="file"]')).toHaveCount(0);
+        await expect(page.getByText(/相册|拖拽|PDF|文件/)).toHaveCount(0);
     });
 
     test("freshman admission creates a mobile camera handoff and reacts to SSE continuation", async ({
@@ -675,8 +735,9 @@ test.describe("Auth callback and admission entry", () => {
         let pollingRequests = 0;
 
         await mockAuthenticated(page);
-        await page.route("**/api/v1/admission/sessions/ADMIT-HANDOFF**", (route) =>
-            route.fulfill(ok(linkedSession)),
+        await page.route(
+            "**/api/v1/admission/sessions/ADMIT-HANDOFF**",
+            (route) => route.fulfill(ok(linkedSession)),
         );
         await page.route("**/api/v1/admission/me**", (route) =>
             route.fulfill(ok(freshmanAdmissionMe)),
@@ -727,7 +788,8 @@ test.describe("Auth callback and admission entry", () => {
                         applicationID: "freshman-application-1",
                         userID: user.id,
                         status: "pending",
-                        mobileURL: "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
+                        mobileURL:
+                            "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
                         expiresAt: "2026-05-24T04:30:00Z",
                         createdAt: now,
                     }),
@@ -743,7 +805,8 @@ test.describe("Auth callback and admission entry", () => {
                     applicationID: "freshman-application-1",
                     userID: user.id,
                     status: "uploaded",
-                    mobileURL: "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
+                    mobileURL:
+                        "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
                     expiresAt: "2026-05-24T04:30:00Z",
                     uploadedAt: now,
                     createdAt: now,
@@ -757,9 +820,13 @@ test.describe("Auth callback and admission entry", () => {
                 await route.fulfill({
                     status: 200,
                     contentType: "text/event-stream",
-                    body: [uploaded, locked]
-                        .map((handoff) => `event: handoff\ndata: ${JSON.stringify(handoff)}\n`)
-                        .join("\n") + "\n",
+                    body:
+                        [uploaded, locked]
+                            .map(
+                                (handoff) =>
+                                    `event: handoff\ndata: ${JSON.stringify(handoff)}\n`,
+                            )
+                            .join("\n") + "\n",
                 });
             },
         );
@@ -773,7 +840,8 @@ test.describe("Auth callback and admission entry", () => {
                         applicationID: "freshman-application-1",
                         userID: user.id,
                         status: "uploaded",
-                        mobileURL: "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
+                        mobileURL:
+                            "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
                         expiresAt: "2026-05-24T04:30:00Z",
                         uploadedAt: now,
                         createdAt: now,
@@ -784,8 +852,12 @@ test.describe("Auth callback and admission entry", () => {
 
         await page.goto("/verify/ADMIT-HANDOFF");
 
-        await expect(page.locator("[data-admission-freshman-flow]")).toBeVisible();
-        await page.locator("[data-freshman-school-select]").selectOption("4111010006");
+        await expect(
+            page.locator("[data-admission-freshman-flow]"),
+        ).toBeVisible();
+        await page
+            .locator("[data-freshman-school-select]")
+            .selectOption("4111010006");
         await page.locator("[data-freshman-applicant-name-input]").fill("赵一");
         await page.getByRole("button", { name: "手机扫码拍照" }).click();
 
@@ -837,8 +909,9 @@ test.describe("Auth callback and admission entry", () => {
                 "data:image/jpeg;base64,QUJDRA==";
         });
         await mockAuthenticated(page);
-        await page.route("**/api/v1/admission/sessions/ADMIT-HANDOFF-DESKTOP**", (route) =>
-            route.fulfill(ok(linkedSession)),
+        await page.route(
+            "**/api/v1/admission/sessions/ADMIT-HANDOFF-DESKTOP**",
+            (route) => route.fulfill(ok(linkedSession)),
         );
         await page.route("**/api/v1/admission/me**", (route) =>
             route.fulfill(ok(freshmanAdmissionMe)),
@@ -860,22 +933,20 @@ test.describe("Auth callback and admission entry", () => {
                 ]),
             ),
         );
-        await page.route(
-            "**/api/v1/admission/freshman/applications",
-            (route) =>
-                route.fulfill(
-                    ok({
-                        id: "freshman-application-1",
-                        userID: user.id,
-                        status: "pending",
-                        schoolID: 4111010006,
-                        qqID: "123456",
-                        applicantNameMasked: "赵*",
-                        materialType: "admission_notice",
-                        failureCount: 0,
-                        createdAt: now,
-                    }),
-                ),
+        await page.route("**/api/v1/admission/freshman/applications", (route) =>
+            route.fulfill(
+                ok({
+                    id: "freshman-application-1",
+                    userID: user.id,
+                    status: "pending",
+                    schoolID: 4111010006,
+                    qqID: "123456",
+                    applicantNameMasked: "赵*",
+                    materialType: "admission_notice",
+                    failureCount: 0,
+                    createdAt: now,
+                }),
+            ),
         );
         await page.route(
             "**/api/v1/admission/freshman/applications/freshman-application-1/camera-handoffs",
@@ -887,7 +958,8 @@ test.describe("Auth callback and admission entry", () => {
                         applicationID: "freshman-application-1",
                         userID: user.id,
                         status: "pending",
-                        mobileURL: "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
+                        mobileURL:
+                            "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
                         expiresAt: "2026-05-24T04:30:00Z",
                         createdAt: now,
                     }),
@@ -903,7 +975,8 @@ test.describe("Auth callback and admission entry", () => {
                         applicationID: "freshman-application-1",
                         userID: user.id,
                         status: "pending",
-                        mobileURL: "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
+                        mobileURL:
+                            "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
                         expiresAt: "2026-05-24T04:30:00Z",
                         createdAt: now,
                     }),
@@ -922,7 +995,8 @@ test.describe("Auth callback and admission entry", () => {
                         qqID: "123456",
                         applicantNameMasked: "赵*",
                         materialType: "admission_notice",
-                        materialURL: "https://stuhelper.com/materials/freshman-application-1.jpg",
+                        materialURL:
+                            "https://stuhelper.com/materials/freshman-application-1.jpg",
                         failureCount: 0,
                         createdAt: now,
                     }),
@@ -932,11 +1006,17 @@ test.describe("Auth callback and admission entry", () => {
 
         await page.goto("/verify/ADMIT-HANDOFF-DESKTOP");
 
-        await expect(page.locator("[data-admission-freshman-flow]")).toBeVisible();
-        await page.locator("[data-freshman-school-select]").selectOption("4111010006");
+        await expect(
+            page.locator("[data-admission-freshman-flow]"),
+        ).toBeVisible();
+        await page
+            .locator("[data-freshman-school-select]")
+            .selectOption("4111010006");
         await page.getByLabel("姓名").fill("赵一");
         await page.getByRole("button", { name: "手机扫码拍照" }).click();
-        await expect(page.locator("[data-freshman-mobile-handoff]")).toBeVisible();
+        await expect(
+            page.locator("[data-freshman-mobile-handoff]"),
+        ).toBeVisible();
         await page.getByRole("button", { name: "打开摄像头" }).click();
         await page.getByRole("button", { name: "拍摄" }).click();
         await expect(page.getByAltText("录取材料预览")).toBeVisible();
@@ -988,7 +1068,9 @@ test.describe("Auth callback and admission entry", () => {
         });
         await page.route("**/api/v1/auth/**", (route) => {
             authRequestCount += 1;
-            return route.fulfill(apiError("unexpected_auth", "unexpected auth call", 500));
+            return route.fulfill(
+                apiError("unexpected_auth", "unexpected auth call", 500),
+            );
         });
         await page.route(
             "**/api/v1/admission/freshman/mobile-camera-handoffs/mobile-token",
@@ -999,7 +1081,8 @@ test.describe("Auth callback and admission entry", () => {
                         applicationID: "freshman-application-1",
                         userID: user.id,
                         status: "pending",
-                        mobileURL: "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
+                        mobileURL:
+                            "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
                         expiresAt: "2026-05-24T04:30:00Z",
                         createdAt: now,
                     }),
@@ -1015,7 +1098,8 @@ test.describe("Auth callback and admission entry", () => {
                         applicationID: "freshman-application-1",
                         userID: user.id,
                         status: "uploaded",
-                        mobileURL: "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
+                        mobileURL:
+                            "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
                         expiresAt: "2026-05-24T04:30:00Z",
                         uploadedAt: now,
                         createdAt: now,
@@ -1034,7 +1118,8 @@ test.describe("Auth callback and admission entry", () => {
                         userID: user.id,
                         status: "locked",
                         continueOn: "mobile",
-                        mobileURL: "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
+                        mobileURL:
+                            "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
                         expiresAt: "2026-05-24T04:30:00Z",
                         uploadedAt: now,
                         chosenAt: now,
@@ -1058,9 +1143,9 @@ test.describe("Auth callback and admission entry", () => {
             contentType: "image/jpeg",
             imageBase64: "QUJDRA==",
         });
-        expect(
-            typeof (uploadBody as { capturedAt?: unknown }).capturedAt,
-        ).toBe("string");
+        expect(typeof (uploadBody as { capturedAt?: unknown }).capturedAt).toBe(
+            "string",
+        );
         expect(continuationBody).toEqual({ continueOn: "mobile" });
         expect(authRequestCount).toBe(0);
     });
@@ -1099,13 +1184,15 @@ test.describe("Auth callback and admission entry", () => {
                 "data:image/jpeg;base64,QUJDRA==";
         });
         await mockAuthenticated(page);
-        await page.route("**/api/v1/admission/sessions/ADMIT-CAMERA**", (route) =>
-            route.fulfill(
-                ok({
-                    ...linkedSession,
-                    maxMaterialBytes: 1024,
-                }),
-            ),
+        await page.route(
+            "**/api/v1/admission/sessions/ADMIT-CAMERA**",
+            (route) =>
+                route.fulfill(
+                    ok({
+                        ...linkedSession,
+                        maxMaterialBytes: 1024,
+                    }),
+                ),
         );
         await page.route("**/api/v1/admission/me**", (route) =>
             route.fulfill(ok(freshmanAdmissionMe)),
@@ -1159,7 +1246,8 @@ test.describe("Auth callback and admission entry", () => {
                         qqID: "123456",
                         applicantNameMasked: "赵*",
                         materialType: "admission_notice",
-                        materialURL: "https://stuhelper.com/materials/freshman-application-1.jpg",
+                        materialURL:
+                            "https://stuhelper.com/materials/freshman-application-1.jpg",
                         failureCount: 0,
                         createdAt: now,
                     }),
@@ -1169,8 +1257,12 @@ test.describe("Auth callback and admission entry", () => {
 
         await page.goto("/verify/ADMIT-CAMERA");
 
-        await expect(page.locator("[data-admission-freshman-flow]")).toBeVisible();
-        await page.locator("[data-freshman-school-select]").selectOption("4111010006");
+        await expect(
+            page.locator("[data-admission-freshman-flow]"),
+        ).toBeVisible();
+        await page
+            .locator("[data-freshman-school-select]")
+            .selectOption("4111010006");
         await page.getByLabel("姓名").fill("赵一");
         await page.getByLabel("院系或专业").fill("软件工程");
         await page.getByRole("button", { name: "打开摄像头" }).click();

@@ -49,9 +49,19 @@ const PROFILE_VERIFICATION_STATUS_VALUES = new Set([
     "verified",
     "rejected",
 ]);
-const PROFILE_VERIFICATION_METHOD_VALUES = new Set(["ldap", "manual", "school_email_otp"]);
+const PROFILE_VERIFICATION_METHOD_VALUES = new Set([
+    "ldap",
+    "manual",
+    "school_email_otp",
+    "school_sso",
+]);
 const SCHOOL_VERIFICATION_METHOD_VALUES = new Set(["ldap", "manual"]);
-const MANUAL_FIELD_TYPE_VALUES = new Set(["text", "textarea", "select", "date"]);
+const MANUAL_FIELD_TYPE_VALUES = new Set([
+    "text",
+    "textarea",
+    "select",
+    "date",
+]);
 
 export const useVerificationStore = defineStore("verification", () => {
     const pinia = getActivePinia();
@@ -79,23 +89,24 @@ export const useVerificationStore = defineStore("verification", () => {
     const fetchStatus = async () => {
         loading.value = true;
         try {
-            const [identityData, profileData, qqBindingData] = await Promise.all([
-                loadNullableResource(
-                    () => api.identity.getIdentity(),
-                    readIdentityPayload,
-                    "Invalid identity response",
-                ),
-                loadNullableResource(
-                    () => api.identity.getProfile(),
-                    readProfilePayload,
-                    "Invalid profile response",
-                ),
-                loadNullableResource(
-                    () => api.identity.getQQBinding(),
-                    readQQBindingPayload,
-                    "Invalid QQ binding response",
-                ),
-            ]);
+            const [identityData, profileData, qqBindingData] =
+                await Promise.all([
+                    loadNullableResource(
+                        () => api.identity.getIdentity(),
+                        readIdentityPayload,
+                        "Invalid identity response",
+                    ),
+                    loadNullableResource(
+                        () => api.identity.getProfile(),
+                        readProfilePayload,
+                        "Invalid profile response",
+                    ),
+                    loadNullableResource(
+                        () => api.identity.getQQBinding(),
+                        readQQBindingPayload,
+                        "Invalid QQ binding response",
+                    ),
+                ]);
 
             identity.value = identityData;
             profile.value = profileData;
@@ -386,7 +397,10 @@ function readStringArrayOrNull(
     if (value === undefined || value === null) {
         return value;
     }
-    if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
+    if (
+        !Array.isArray(value) ||
+        value.some((item) => typeof item !== "string")
+    ) {
         throw new Error(message);
     }
     return value;
@@ -436,12 +450,9 @@ function readIdentityPayload(value: unknown, message: string): IdentityInfo {
         ),
         realName: readString(value, "realName", message),
         verified: readBoolean(value, "verified", message),
-        verifyMethod: readNullableEnum<NonNullable<IdentityInfo["verifyMethod"]>>(
-            value,
-            "verifyMethod",
-            IDENTITY_VERIFY_METHOD_VALUES,
-            message,
-        ),
+        verifyMethod: readNullableEnum<
+            NonNullable<IdentityInfo["verifyMethod"]>
+        >(value, "verifyMethod", IDENTITY_VERIFY_METHOD_VALUES, message),
         reviewedAt: readNullableString(value, "reviewedAt", message),
         verifiedAt: readNullableString(value, "verifiedAt", message),
         rejectionReason: readNullableString(value, "rejectionReason", message),
@@ -468,7 +479,12 @@ function readProfilePayload(value: unknown, message: string): ProfileInfo {
         ),
         verificationMethod: readNullableEnum<
             NonNullable<ProfileInfo["verificationMethod"]>
-        >(value, "verificationMethod", PROFILE_VERIFICATION_METHOD_VALUES, message),
+        >(
+            value,
+            "verificationMethod",
+            PROFILE_VERIFICATION_METHOD_VALUES,
+            message,
+        ),
         rejectionReason: readNullableString(value, "rejectionReason", message),
         reviewedAt: readNullableString(value, "reviewedAt", message),
         phone: readNullableString(value, "phone", message),
@@ -581,7 +597,10 @@ function readNullableSchoolEmailIdentityPolicy(
     };
 }
 
-function readSchoolListPayload(value: unknown, message: string): SchoolConfig[] {
+function readSchoolListPayload(
+    value: unknown,
+    message: string,
+): SchoolConfig[] {
     if (!Array.isArray(value)) {
         throw new Error(message);
     }
@@ -631,7 +650,10 @@ function readQQBindingPayload(value: unknown, message: string): QQBindingInfo {
     };
 }
 
-function readQQBindingCodePayload(value: unknown, message: string): QQBindingCodeInfo {
+function readQQBindingCodePayload(
+    value: unknown,
+    message: string,
+): QQBindingCodeInfo {
     if (!isRecord(value)) {
         throw new Error(message);
     }

@@ -131,10 +131,12 @@ export default {
     accountSecurity: {
         eyebrow: "账号中心",
         title: "账号安全",
-        subtitle: "管理当前 StuHelper 账号、浏览器会话和上游账号安全设置。",
+        subtitle: "管理当前浏览器会话、授权应用和站内身份安全入口。",
         backToIdentity: "返回账号中心",
         actionsLabel: "账号安全操作",
         emailMissing: "暂无邮箱",
+        accountSummary:
+            "此页面只展示当前登录状态和站内安全入口，不展示内部账号 ID、用户名或上游账号安全资料。",
         fields: {
             accountId: "账号 ID",
             username: "用户名",
@@ -295,6 +297,17 @@ export default {
             verifyFailed: "验证失败，请检查学号和密码",
             manualHint: "请填写学校要求的信息后提交，管理员会进行人工审核",
             desc: "学生认证后可查看完整评课信息",
+            boundSchool: "绑定学校",
+            activeStudentId: "当前学号",
+            studentIds: "绑定学号",
+            method: "认证方式",
+            verifiedAt: "认证时间",
+            methods: {
+                ldap: "统一身份认证",
+                manual: "人工审核",
+                school_email_otp: "学校邮箱验证码",
+                school_sso: "学校 SSO",
+            },
         },
         phone: {
             title: "绑定手机",
@@ -314,6 +327,11 @@ export default {
             tooManyRequests: "请求过于频繁，请稍后再试",
             tooManyAttempts: "尝试次数过多，请重新获取验证码",
             serviceUnavailable: "手机绑定服务未配置，暂时无法发送或校验验证码",
+            ssoManaged:
+                "手机号属于统一身份认证账号资料。StuHelper 只读取同步后的掩码手机号和验证状态，不在主站单独保存或编辑原始手机号。",
+            openSSOSettings: "打开统一身份认证资料",
+            ssoSettingsUnavailable:
+                "当前账号没有返回统一身份认证资料入口，请从统一登录页面进入账号资料中心。",
         },
         qq: {
             title: "绑定 QQ",
