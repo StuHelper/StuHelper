@@ -27,6 +27,9 @@ type BotHandler struct {
 
 // NewBotHandler 创建机器人内部接口处理器。
 func NewBotHandler(service *Service, credentialVerifier BotCredentialVerifier) *BotHandler {
+	if service == nil {
+		panic("user.NewBotHandler: service must not be nil")
+	}
 	return &BotHandler{
 		service:            service,
 		credentialVerifier: credentialVerifier,

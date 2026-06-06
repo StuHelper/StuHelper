@@ -50,6 +50,12 @@ func (f *fakeBotCredentialVerifier) Verify(_ context.Context, rawToken, audience
 	return f.err
 }
 
+func TestNewBotHandlerRequiresService(t *testing.T) {
+	assert.PanicsWithValue(t, "user.NewBotHandler: service must not be nil", func() {
+		NewBotHandler(nil, nil)
+	})
+}
+
 func setupQQBindingBotRouter(t *testing.T, repo Repo, verifier BotCredentialVerifier) *gin.Engine {
 	t.Helper()
 
