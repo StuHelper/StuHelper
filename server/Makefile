@@ -1,7 +1,7 @@
 # StuHelper Server Makefile
 
 .PHONY: help tidy fmt lint test test-coverage build run clean security ci check-casdoor-boundary \
-       bundle-spec lint-spec generate generate-go generate-ts check-drift check-drift-go check-drift-ts check-drift-all \
+       bundle-spec lint-spec generate generate-go generate-ts check-drift check-bundled-drift check-drift-go check-drift-ts check-drift-all \
        check-drift-capabilities check-doc-sync check-coverage-threshold \
        migrate-up migrate-down-one migrate-status migrate-verify seed-dev
 
@@ -115,6 +115,16 @@ generate: generate-go generate-ts
 
 check-drift: check-drift-all
 
+check-bundled-drift:
+	@set -e; \
+	tmp=$$(mktemp "$${TMPDIR:-/tmp}/stuhelper-openapi-bundle.XXXXXX.yaml"); \
+	trap 'rm -f "$$tmp"' EXIT; \
+	$(REDOCLY) bundle --config redocly.yaml api/openapi.yaml -o "$$tmp"; \
+	if ! cmp -s "$$tmp" api/openapi.bundled.yaml; then \
+		echo "ERROR: api/openapi.bundled.yaml is out of sync with api/openapi.yaml. Run 'make bundle-spec' and commit."; \
+		exit 1; \
+	fi
+
 check-drift-go: generate-go
 	@git diff --exit-code -- internal/api/gen/ || (echo "ERROR: Generated Go code is out of sync with OpenAPI spec. Run 'make generate-go' and commit." && exit 1)
 
@@ -124,7 +134,7 @@ check-drift-ts: bundle-spec
 check-drift-capabilities:
 	cd ../clients && npx --yes pnpm@10.32.1 run check:capabilities-drift
 
-check-drift-all: check-drift-go check-drift-ts check-drift-capabilities
+check-drift-all: check-bundled-drift check-drift-go check-drift-ts check-drift-capabilities
 
 check-doc-sync: bundle-spec
 	node --test scripts/check-api-overview-sync.test.mjs

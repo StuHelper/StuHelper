@@ -48,6 +48,7 @@ openapi_contract:
   script:
   - cd server
   - make lint-spec
+  - make check-bundled-drift
   - make check-drift-go
   - make check-doc-sync
   - cd ../clients
