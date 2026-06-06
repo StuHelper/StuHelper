@@ -215,9 +215,14 @@ export async function executeSessionRefresh(
 
     if (!result.error && status >= 200 && status < 300) {
       const payload = extractRefreshSessionData(result)
-      if (payload) {
-        await options.onSuccess?.(payload)
+      if (!payload) {
+        return {
+          kind: 'error',
+          error: new Error('invalid refresh response'),
+          status,
+        }
       }
+      await options.onSuccess?.(payload)
       return { kind: 'ok' }
     }
 

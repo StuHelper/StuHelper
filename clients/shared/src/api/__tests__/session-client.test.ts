@@ -71,6 +71,32 @@ describe('executeSessionRefresh', () => {
     })
   })
 
+  it('rejects successful refresh responses without required metadata', async () => {
+    const onSuccess = vi.fn()
+
+    const result = await executeSessionRefresh({
+      onSuccess,
+      request: vi.fn().mockResolvedValue({
+        data: {
+          data: {
+            message: 'token refreshed successfully',
+          },
+        },
+        response: { status: 200 },
+      }),
+    })
+
+    expect(result).toMatchObject({
+      kind: 'error',
+      status: 200,
+    })
+    expect(result.kind === 'error' ? result.error : undefined).toBeInstanceOf(Error)
+    expect(result.kind === 'error' ? (result.error as Error).message : '').toBe(
+      'invalid refresh response',
+    )
+    expect(onSuccess).not.toHaveBeenCalled()
+  })
+
   it('maps 401 responses to unauthorized', async () => {
     const unauthorized401 = await executeSessionRefresh({
       request: vi.fn().mockResolvedValue({
