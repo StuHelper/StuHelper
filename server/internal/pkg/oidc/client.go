@@ -36,6 +36,7 @@ const (
 var (
 	ErrApplicationNotConfigured  = errors.New("oidc: application is not configured")
 	ErrInvalidAudience           = errors.New("oidc: invalid token audience")
+	ErrInvalidAccessToken        = errors.New("oidc: access token invalid")
 	ErrAuthorizationCodeRequired = errors.New("oidc: authorization code is required")
 	ErrPKCEVerifierRequired      = errors.New("oidc: pkce code_verifier is required")
 )

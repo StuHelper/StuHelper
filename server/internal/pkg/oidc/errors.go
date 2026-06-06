@@ -46,6 +46,14 @@ func normalizeRequiredRefreshToken(refreshToken, operation string) (string, erro
 	return refreshToken, nil
 }
 
+func normalizeRequiredAccessToken(accessToken, operation string) (string, error) {
+	accessToken = strings.TrimSpace(accessToken)
+	if accessToken == "" {
+		return "", fmt.Errorf("oidc: access token is required for %s: %w", operation, ErrInvalidAccessToken)
+	}
+	return accessToken, nil
+}
+
 func normalizeRequiredAuthorizationCode(code string) (string, error) {
 	code = strings.TrimSpace(code)
 	if code == "" {

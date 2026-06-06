@@ -154,6 +154,72 @@ func TestOIDCClient_IntegrationFlows(t *testing.T) {
 	assert.Contains(t, string(raw), "oidc-user")
 }
 
+func TestOIDCClientIntrospectTokenNormalizesInputs(t *testing.T) {
+	var seenToken string
+	var seenUser string
+	var seenPass string
+	client, srv := newIntrospectionOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenUser, seenPass, _ = r.BasicAuth()
+		require.NoError(t, r.ParseForm())
+		seenToken = r.Form.Get("token")
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"active":    true,
+			"client_id": "oidc-client",
+			"sub":       "user-oidc-1",
+		})
+	}), func(cfg *config.CasdoorConfig) {
+		cfg.IntrospectionClientID = " \tintrospection-client\n "
+		cfg.IntrospectionClientSecret = " \tintrospection-secret\n "
+	})
+	defer srv.Close()
+
+	result, err := client.IntrospectToken(context.Background(), " \tprovider-access-token\n ")
+
+	require.NoError(t, err)
+	assert.True(t, result.Active)
+	assert.Equal(t, "oidc-client", result.GetAppID())
+	assert.Equal(t, "provider-access-token", seenToken)
+	assert.Equal(t, "introspection-client", seenUser)
+	assert.Equal(t, "introspection-secret", seenPass)
+}
+
+func TestOIDCClientIntrospectTokenRejectsBlankTokenWithoutProviderCall(t *testing.T) {
+	var introspectionRequests atomic.Int32
+	client, srv := newIntrospectionOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		introspectionRequests.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}), nil)
+	defer srv.Close()
+
+	_, err := client.IntrospectToken(context.Background(), " \t\n ")
+
+	require.ErrorIs(t, err, ErrInvalidAccessToken)
+	assert.Equal(t, int32(0), introspectionRequests.Load())
+}
+
+func TestIntrospectionOAuth2ConfigNormalizesCredentials(t *testing.T) {
+	cfg, err := introspectionOAuth2Config(oauth2.Endpoint{}, config.CasdoorConfig{
+		IntrospectionClientID:     " \tclient-id\n ",
+		IntrospectionClientSecret: " \tclient-secret\n ",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "client-id", cfg.ClientID)
+	assert.Equal(t, "client-secret", cfg.ClientSecret)
+
+	_, err = introspectionOAuth2Config(oauth2.Endpoint{}, config.CasdoorConfig{
+		IntrospectionClientID:     " \t\n ",
+		IntrospectionClientSecret: "client-secret",
+	})
+	require.ErrorIs(t, err, ErrApplicationNotConfigured)
+
+	_, err = introspectionOAuth2Config(oauth2.Endpoint{}, config.CasdoorConfig{
+		IntrospectionClientID:     "client-id",
+		IntrospectionClientSecret: " \t\n ",
+	})
+	require.ErrorIs(t, err, ErrApplicationNotConfigured)
+}
+
 func TestOIDCClientExchangeCodeForApplicationNormalizesInputs(t *testing.T) {
 	var seenCode string
 	var seenCodeVerifier string
@@ -322,6 +388,51 @@ func newTokenEndpointOIDCClient(t *testing.T, tokenHandler http.HandlerFunc) (*C
 		IntrospectionClientID:     "introspection-client",
 		IntrospectionClientSecret: "introspection-secret",
 	})
+	require.NoError(t, err)
+	return client, srv
+}
+
+func newIntrospectionOIDCClient(
+	t *testing.T,
+	introspectionHandler http.HandlerFunc,
+	configure func(*config.CasdoorConfig),
+) (*Client, *httptest.Server) {
+	t.Helper()
+	const clientID = "oidc-client"
+	const clientSecret = "oidc-secret"
+	var issuer string
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"issuer":                 issuer,
+			"authorization_endpoint": issuer + "/authorize",
+			"token_endpoint":         issuer + "/token",
+			"jwks_uri":               issuer + "/keys",
+			"introspection_endpoint": issuer + "/introspect",
+		})
+	})
+	mux.HandleFunc("/keys", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(jose.JSONWebKeySet{Keys: []jose.JSONWebKey{}})
+	})
+	mux.HandleFunc("/introspect", introspectionHandler)
+
+	srv := httptest.NewServer(mux)
+	issuer = srv.URL
+	cfg := config.CasdoorConfig{
+		Issuer:                    issuer,
+		ClientID:                  clientID,
+		ClientSecret:              clientSecret,
+		RedirectURI:               "https://web.example.com/api/v1/auth/callback",
+		IntrospectionClientID:     "introspection-client",
+		IntrospectionClientSecret: "introspection-secret",
+	}
+	if configure != nil {
+		configure(&cfg)
+	}
+	client, err := NewClient(context.Background(), cfg)
 	require.NoError(t, err)
 	return client, srv
 }

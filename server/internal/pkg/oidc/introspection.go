@@ -60,6 +60,11 @@ func (r *IntrospectionResult) MFAProofVerifiedAt() time.Time {
 // 用于 Bearer token 的即时吊销验证（IDP 端吊销后立即生效）。
 // Cookie 端仍用本地 JWKS 验证（性能优先），Bearer 端用 introspection（安全优先）。
 func (c *Client) IntrospectToken(ctx context.Context, accessToken string) (_ *IntrospectionResult, err error) {
+	accessToken, err = normalizeRequiredAccessToken(accessToken, "introspection")
+	if err != nil {
+		return nil, err
+	}
+
 	start := time.Now()
 	defer func() {
 		metrics.ObserveExternalRequest(c.metricName, "introspect_token", start, err)
@@ -162,12 +167,14 @@ func discoveredIntrospectionEndpoint(provider *gooidc.Provider, configured strin
 }
 
 func introspectionOAuth2Config(endpoint oauth2.Endpoint, cfg config.CasdoorConfig) (oauth2.Config, error) {
-	if cfg.IntrospectionClientID == "" || cfg.IntrospectionClientSecret == "" {
+	clientID := strings.TrimSpace(cfg.IntrospectionClientID)
+	clientSecret := strings.TrimSpace(cfg.IntrospectionClientSecret)
+	if clientID == "" || clientSecret == "" {
 		return oauth2.Config{}, fmt.Errorf("%w: introspection requires client id and secret", ErrApplicationNotConfigured)
 	}
 	return oauth2.Config{
-		ClientID:     cfg.IntrospectionClientID,
-		ClientSecret: cfg.IntrospectionClientSecret,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
 		Endpoint:     endpoint,
 	}, nil
 }
