@@ -153,7 +153,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 
 import type {
@@ -193,6 +193,7 @@ const cameraSupported = ref(supportsCameraCapture());
 const handoff = ref<FreshmanCameraHandoff | null>(null);
 const errorMessage = ref("");
 const forceExpired = ref(false);
+let handoffLoadSeq = 0;
 
 const token = computed(() => String(route.params.token ?? ""));
 const streamActive = computed(() => stream.value !== null);
@@ -211,37 +212,63 @@ const pageState = computed<MobilePageState>(() => {
     return "error";
 });
 
-onMounted(() => {
-    void loadHandoff();
-});
+watch(
+    token,
+    (nextToken) => {
+        void loadHandoff(nextToken);
+    },
+    { immediate: true },
+);
 
-async function loadHandoff(): Promise<void> {
+async function loadHandoff(requestToken: string): Promise<void> {
+    const requestSeq = ++handoffLoadSeq;
     loading.value = true;
+    resetHandoffStateForTokenLoad();
     errorMessage.value = "";
     try {
-        handoff.value = await admissionApi.previewFreshmanMobileCameraHandoff(
-            token.value,
-        );
+        const nextHandoff =
+            await admissionApi.previewFreshmanMobileCameraHandoff(requestToken);
+        if (!isCurrentHandoffLoad(requestSeq, requestToken)) {
+            return;
+        }
+        handoff.value = nextHandoff;
     } catch (error) {
-        if (handleAdmissionExpiredError(error)) return;
+        if (!isCurrentHandoffLoad(requestSeq, requestToken)) {
+            return;
+        }
+        if (handleAdmissionExpiredError(error, requestToken)) return;
         errorMessage.value = readErrorMessage(error, "拍照链接暂时无法打开。");
         handoff.value = null;
     } finally {
-        loading.value = false;
+        if (isCurrentHandoffLoad(requestSeq, requestToken)) {
+            loading.value = false;
+        }
     }
 }
 
 async function openCamera(): Promise<void> {
+    const requestToken = token.value;
     errorMessage.value = "";
     let openedStream: MediaStream | null = null;
     try {
         openedStream = await startCameraStream();
+        if (
+            !isCurrentMobileToken(requestToken) ||
+            pageState.value !== "ready"
+        ) {
+            stopCameraStream(openedStream);
+            return;
+        }
         stream.value = openedStream;
         if (videoRef.value) {
             videoRef.value.srcObject = stream.value;
             await videoRef.value.play();
         }
     } catch (error) {
+        if (!isCurrentMobileToken(requestToken)) {
+            if (openedStream) stopCameraStream(openedStream);
+            return;
+        }
         if (openedStream) {
             stopCameraStream(openedStream);
             stream.value = null;
@@ -279,20 +306,31 @@ function retake(): void {
 
 async function uploadCapture(): Promise<void> {
     if (uploading.value || !capturedPayload.value) return;
+    const requestToken = token.value;
     uploading.value = true;
     errorMessage.value = "";
     try {
-        handoff.value = await admissionApi.uploadFreshmanMobileCameraCapture(
-            token.value,
-            capturedPayload.value,
-        );
+        const nextHandoff =
+            await admissionApi.uploadFreshmanMobileCameraCapture(
+                requestToken,
+                capturedPayload.value,
+            );
+        if (!isCurrentMobileToken(requestToken)) {
+            return;
+        }
+        handoff.value = nextHandoff;
         stopCameraStream(stream.value);
         stream.value = null;
     } catch (error) {
-        if (handleAdmissionExpiredError(error)) return;
+        if (!isCurrentMobileToken(requestToken)) {
+            return;
+        }
+        if (handleAdmissionExpiredError(error, requestToken)) return;
         errorMessage.value = readErrorMessage(error, "材料上传失败。");
     } finally {
-        uploading.value = false;
+        if (isCurrentMobileToken(requestToken)) {
+            uploading.value = false;
+        }
     }
 }
 
@@ -300,28 +338,64 @@ async function chooseContinuation(
     continueOn: FreshmanCameraHandoffContinuationRequest["continueOn"],
 ): Promise<void> {
     if (choosing.value) return;
+    const requestToken = token.value;
     choosing.value = true;
     errorMessage.value = "";
     try {
-        handoff.value =
+        const nextHandoff =
             await admissionApi.chooseFreshmanMobileCameraContinuation(
-                token.value,
+                requestToken,
                 { continueOn },
             );
+        if (!isCurrentMobileToken(requestToken)) {
+            return;
+        }
+        handoff.value = nextHandoff;
     } catch (error) {
-        if (handleAdmissionExpiredError(error)) return;
+        if (!isCurrentMobileToken(requestToken)) {
+            return;
+        }
+        if (handleAdmissionExpiredError(error, requestToken)) return;
         errorMessage.value = readErrorMessage(error, "继续方式保存失败。");
     } finally {
-        choosing.value = false;
+        if (isCurrentMobileToken(requestToken)) {
+            choosing.value = false;
+        }
     }
+}
+
+function resetHandoffStateForTokenLoad(): void {
+    forceExpired.value = false;
+    handoff.value = null;
+    capturedPayload.value = null;
+    previewDataURL.value = "";
+    uploading.value = false;
+    choosing.value = false;
+    stopCameraStream(stream.value);
+    stream.value = null;
+}
+
+function isCurrentHandoffLoad(
+    requestSeq: number,
+    requestToken: string,
+): boolean {
+    return handoffLoadSeq === requestSeq && isCurrentMobileToken(requestToken);
+}
+
+function isCurrentMobileToken(requestToken: string): boolean {
+    return token.value === requestToken;
 }
 
 function readErrorMessage(error: unknown, fallback: string): string {
     return error instanceof Error && error.message ? error.message : fallback;
 }
 
-function handleAdmissionExpiredError(error: unknown): boolean {
+function handleAdmissionExpiredError(
+    error: unknown,
+    requestToken = token.value,
+): boolean {
     if (!isAdmissionSessionExpiredError(error)) return false;
+    if (!isCurrentMobileToken(requestToken)) return true;
     forceExpired.value = true;
     errorMessage.value = "";
     stopCameraStream(stream.value);
@@ -330,6 +404,7 @@ function handleAdmissionExpiredError(error: unknown): boolean {
 }
 
 onBeforeUnmount(() => {
+    handoffLoadSeq += 1;
     stopCameraStream(stream.value);
 });
 </script>

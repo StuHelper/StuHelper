@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { flushPromises, mount } from "@vue/test-utils";
+import { nextTick, reactive } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/api/errors";
@@ -15,18 +16,25 @@ const mockAdmissionApi = vi.hoisted(() => ({
 const mockCaptureFrameAsBase64 = vi.hoisted(() => vi.fn());
 const mockStartCameraStream = vi.hoisted(() => vi.fn());
 const mockStopCameraStream = vi.hoisted(() => vi.fn());
+const mockRouteContainer = vi.hoisted(() => ({
+    route: null as null | { params: { token: string } },
+}));
 
 vi.mock("../api", () => ({
     admissionApi: mockAdmissionApi,
 }));
 
-vi.mock("vue-router", () => ({
-    useRoute: () => ({
+vi.mock("vue-router", async () => {
+    const { reactive } = await vi.importActual<typeof import("vue")>("vue");
+    mockRouteContainer.route = reactive({
         params: {
             token: "mobile-token",
         },
-    }),
-}));
+    });
+    return {
+        useRoute: () => mockRouteContainer.route,
+    };
+});
 
 vi.mock("../cameraCapture", () => ({
     captureFrameAsBase64: mockCaptureFrameAsBase64,
@@ -70,9 +78,21 @@ function createDeferred<T>() {
     return { promise, reject, resolve };
 }
 
+function setRouteToken(token: string): void {
+    if (!mockRouteContainer.route) {
+        throw new Error("Route mock is not initialized");
+    }
+    mockRouteContainer.route.params.token = token;
+}
+
 describe("FreshmanMobileCameraPage", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mockRouteContainer.route = reactive({
+            params: {
+                token: "mobile-token",
+            },
+        });
         mockAdmissionApi.previewFreshmanMobileCameraHandoff.mockResolvedValue(
             pendingHandoff,
         );
@@ -203,6 +223,89 @@ describe("FreshmanMobileCameraPage", () => {
         await flushPromises();
 
         expect(wrapper.find('[data-state="uploaded"]').exists()).toBe(true);
+    });
+
+    it("reloads the current mobile token and ignores stale preview responses", async () => {
+        const stalePreview = createDeferred<typeof pendingHandoff>();
+        const currentPreview = createDeferred<typeof uploadedHandoff>();
+        mockAdmissionApi.previewFreshmanMobileCameraHandoff
+            .mockReturnValueOnce(stalePreview.promise)
+            .mockReturnValueOnce(currentPreview.promise);
+
+        const wrapper = mount(FreshmanMobileCameraPage);
+        await flushPromises();
+
+        expect(
+            mockAdmissionApi.previewFreshmanMobileCameraHandoff,
+        ).toHaveBeenCalledWith("mobile-token");
+
+        setRouteToken("next-token");
+        await nextTick();
+
+        expect(
+            mockAdmissionApi.previewFreshmanMobileCameraHandoff,
+        ).toHaveBeenCalledWith("next-token");
+
+        currentPreview.resolve({
+            ...uploadedHandoff,
+            id: "handoff-next",
+            mobileURL:
+                "https://join.stuhelper.com/admission/freshman/camera/next-token",
+        });
+        await flushPromises();
+
+        expect(wrapper.find('[data-state="uploaded"]').exists()).toBe(true);
+
+        stalePreview.resolve({
+            ...pendingHandoff,
+            id: "handoff-stale",
+        });
+        await flushPromises();
+
+        expect(wrapper.find('[data-state="uploaded"]').exists()).toBe(true);
+        expect(wrapper.find('[data-state="ready"]').exists()).toBe(false);
+    });
+
+    it("ignores stale mobile upload responses after switching tokens", async () => {
+        const uploadDeferred = createDeferred<typeof uploadedHandoff>();
+        mockAdmissionApi.uploadFreshmanMobileCameraCapture.mockReturnValueOnce(
+            uploadDeferred.promise,
+        );
+
+        const wrapper = mount(FreshmanMobileCameraPage);
+        await flushPromises();
+
+        await wrapper.find("[data-mobile-camera-open-button]").trigger("click");
+        await flushPromises();
+        await wrapper
+            .find("[data-mobile-camera-capture-button]")
+            .trigger("click");
+        await wrapper
+            .find("[data-mobile-camera-upload-button]")
+            .trigger("click");
+        await flushPromises();
+
+        expect(
+            mockAdmissionApi.uploadFreshmanMobileCameraCapture,
+        ).toHaveBeenCalledWith("mobile-token", {
+            contentType: "image/jpeg",
+            imageBase64: "AA==",
+        });
+
+        setRouteToken("next-token");
+        await nextTick();
+        await flushPromises();
+
+        expect(
+            mockAdmissionApi.previewFreshmanMobileCameraHandoff,
+        ).toHaveBeenCalledWith("next-token");
+        expect(wrapper.find('[data-state="ready"]').exists()).toBe(true);
+
+        uploadDeferred.resolve(uploadedHandoff);
+        await flushPromises();
+
+        expect(wrapper.find('[data-state="ready"]').exists()).toBe(true);
+        expect(wrapper.find('[data-state="uploaded"]').exists()).toBe(false);
     });
 
     it("closes the acquired camera stream when video playback fails", async () => {

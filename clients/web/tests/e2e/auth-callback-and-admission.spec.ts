@@ -105,6 +105,16 @@ function joinAdmissionURL(testInfo: TestInfo, path: string): string {
     return url.toString();
 }
 
+function createDeferred<T = void>() {
+    let resolve!: (value: T) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((promiseResolve, promiseReject) => {
+        resolve = promiseResolve;
+        reject = promiseReject;
+    });
+    return { promise, reject, resolve };
+}
+
 test.describe("Auth callback and admission entry", () => {
     test("auth callback consumes an upstream OAuth state and redirects to backend callback", async ({
         page,
@@ -1270,6 +1280,82 @@ test.describe("Auth callback and admission entry", () => {
             "string",
         );
         expect(continuationBody).toEqual({ continueOn: "mobile" });
+        expect(authRequestCount).toBe(0);
+    });
+
+    test("freshman mobile camera ignores stale previews after token changes", async ({
+        page,
+    }, testInfo) => {
+        const stalePreview = createDeferred();
+        let authRequestCount = 0;
+        let stalePreviewRequested = false;
+
+        await page.route("**/api/v1/auth/**", (route) => {
+            authRequestCount += 1;
+            return route.fulfill(
+                apiError("unexpected_auth", "unexpected auth call", 500),
+            );
+        });
+        await page.route(
+            "**/api/v1/admission/freshman/mobile-camera-handoffs/stale-token",
+            async (route) => {
+                stalePreviewRequested = true;
+                await stalePreview.promise;
+                await route.fulfill(
+                    ok({
+                        id: "handoff-stale",
+                        applicationID: "freshman-application-stale",
+                        userID: user.id,
+                        status: "pending",
+                        maxMaterialBytes: 5_242_880,
+                        mobileURL:
+                            "https://join.stuhelper.com/admission/freshman/camera/stale-token",
+                        expiresAt: "2026-05-24T04:30:00Z",
+                        createdAt: now,
+                    }),
+                );
+            },
+        );
+        await page.route(
+            "**/api/v1/admission/freshman/mobile-camera-handoffs/current-token",
+            (route) =>
+                route.fulfill(
+                    ok({
+                        id: "handoff-current",
+                        applicationID: "freshman-application-current",
+                        userID: user.id,
+                        status: "uploaded",
+                        maxMaterialBytes: 5_242_880,
+                        mobileURL:
+                            "https://join.stuhelper.com/admission/freshman/camera/current-token",
+                        expiresAt: "2026-05-24T04:30:00Z",
+                        uploadedAt: now,
+                        createdAt: now,
+                    }),
+                ),
+        );
+
+        await page.goto(
+            joinAdmissionURL(
+                testInfo,
+                "/admission/freshman/camera/stale-token",
+            ),
+        );
+        await expect.poll(() => stalePreviewRequested).toBe(true);
+
+        await page.evaluate(() => {
+            window.history.pushState(
+                {},
+                "",
+                "/admission/freshman/camera/current-token",
+            );
+            window.dispatchEvent(new PopStateEvent("popstate"));
+        });
+
+        await expect(page.locator('[data-state="uploaded"]')).toBeVisible();
+        stalePreview.resolve();
+        await expect(page.locator('[data-state="uploaded"]')).toBeVisible();
+        await expect(page.locator('[data-state="ready"]')).toHaveCount(0);
         expect(authRequestCount).toBe(0);
     });
 
