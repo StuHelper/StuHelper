@@ -177,7 +177,7 @@
       <button
         class="w-full bg-primary hover:bg-primary-dark text-white rounded-xl py-3 font-semibold text-base flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         :disabled="searching"
-        @click="handleSearch"
+        @click="handleSearch()"
       >
         <Search :size="18" />
         {{ searching ? t('common.actions.loading') : t('review.search.searchBtn') }}
@@ -361,7 +361,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, onMounted, computed, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ArrowLeft, RefreshCw, Search, SearchX } from 'lucide-vue-next'
@@ -455,6 +455,8 @@ async function backToForm() {
   showResults.value = false
   resultCourses.value = []
   resultReviews.value = []
+  searchError.value = ''
+  validationError.value = ''
   resetSearchPagination()
   updateSearchFormPageMeta()
   await nextTick()
@@ -627,9 +629,9 @@ async function fetchReviewResults(nextPage: number, signal?: AbortSignal) {
   )
 }
 
-async function handleSearch() {
+async function handleSearch(options: { restart?: boolean } = {}) {
   if (!validateForm()) return
-  if (searching.value) return
+  if (searching.value && !options.restart) return
 
   // 新搜索开始前取消上一次未完成请求
   if (abortController) {
@@ -690,6 +692,21 @@ async function handleSearch() {
   }
 }
 
+async function syncSearchFromRoute() {
+  const shouldSearch = hydrateSearchFormFromRoute()
+  if (shouldSearch) {
+    await handleSearch({ restart: true })
+    return
+  }
+
+  if (abortController) {
+    abortController.abort()
+    abortController = null
+  }
+  searching.value = false
+  await backToForm()
+}
+
 async function loadMoreCourses() {
   if (!hasMoreCourses.value || coursesLoadingMore.value || searching.value) return
   const nextPage = coursePage.value + 1
@@ -734,12 +751,16 @@ async function loadMoreReviews() {
 
 onMounted(async () => {
   updateSearchFormPageMeta()
-  const shouldSearch = hydrateSearchFormFromRoute()
   await Promise.all([loadDepartments(), loadTerms()])
-  if (shouldSearch) {
-    await handleSearch()
-  }
+  await syncSearchFromRoute()
 })
+
+watch(
+  () => route.query,
+  () => {
+    void syncSearchFromRoute()
+  },
+)
 
 onUnmounted(() => {
   if (abortController) {

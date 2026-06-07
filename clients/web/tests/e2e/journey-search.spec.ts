@@ -366,6 +366,114 @@ test.describe('User Journey: Search', () => {
     await expect(page.getByText('URL 参数命中的评价')).toBeVisible()
   })
 
+  test('course name query param changes refresh results within the same search page', async ({
+    page,
+  }) => {
+    await page.route('**/api/v1/course/courses/search*', (route) => {
+      recordApiRequest(route)
+      const url = new URL(route.request().url())
+      const query = url.searchParams.get('q')
+      const matchedCourse = query === '编译原理'
+        ? course({
+            id: 102,
+            name: '编译原理',
+            code: 'CS301',
+            reviewCount: 9,
+          })
+        : course()
+
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            list: [matchedCourse],
+            total: 1,
+          },
+        }),
+      })
+    })
+
+    await page.route('**/api/v1/course/review/reviews/search*', (route) => {
+      recordApiRequest(route)
+      const url = new URL(route.request().url())
+      const query = url.searchParams.get('q')
+      const isCompilerSearch = query === '编译原理'
+
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            list: [
+              {
+                id: isCompilerSearch
+                  ? 'search-rev-query-param-compiler'
+                  : 'search-rev-query-param-data-structure',
+                courseID: isCompilerSearch ? 102 : 101,
+                courseName: isCompilerSearch ? '编译原理' : '数据结构与算法',
+                termID: '2026-spring',
+                title: isCompilerSearch ? '切换参数后的评价' : '初始参数命中的评价',
+                content: isCompilerSearch
+                  ? '同一搜索页面切换 URL 参数后应刷新结果。'
+                  : '高级搜索可以从地址栏参数直接发起搜索。',
+                ratings: { recommendation: 4 },
+                likeCount: 3,
+                dislikeCount: 0,
+                replyCount: 0,
+                status: 'published',
+                createdAt: '2026-03-20T10:00:00Z',
+              },
+            ],
+            total: 1,
+          },
+        }),
+      })
+    })
+
+    await page.goto('/search?courseName=数据结构')
+    await expect(page.getByText('数据结构与算法').first()).toBeVisible({
+      timeout: 10_000,
+    })
+    await expect(page.getByText('初始参数命中的评价')).toBeVisible()
+
+    const coursesSearchResponse = page.waitForResponse((resp) => {
+      const url = new URL(resp.url())
+      return (
+        url.pathname === '/api/v1/course/courses/search' &&
+        url.searchParams.get('q') === '编译原理' &&
+        resp.status() === 200
+      )
+    })
+    const reviewsSearchResponse = page.waitForResponse((resp) => {
+      const url = new URL(resp.url())
+      return (
+        url.pathname === '/api/v1/course/review/reviews/search' &&
+        url.searchParams.get('q') === '编译原理' &&
+        resp.status() === 200
+      )
+    })
+
+    await page.evaluate(() => {
+      window.history.pushState(
+        {},
+        '',
+        `/search?courseName=${encodeURIComponent('编译原理')}`,
+      )
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+
+    await Promise.all([coursesSearchResponse, reviewsSearchResponse])
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get('courseName'))
+      .toBe('编译原理')
+    await expect(page.getByText('编译原理').first()).toBeVisible({
+      timeout: 10_000,
+    })
+    await expect(page.getByText('切换参数后的评价')).toBeVisible()
+    await expect(page.getByText('初始参数命中的评价')).toHaveCount(0)
+  })
+
   test('user searches by department, teacher, and term query params', async ({
     page,
   }) => {
