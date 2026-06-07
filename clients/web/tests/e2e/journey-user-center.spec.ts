@@ -385,6 +385,71 @@ test.describe('User Journey: User Center', () => {
     ).toBeVisible()
   })
 
+  test('user reviews keep existing results when loading more fails', async ({
+    page,
+  }) => {
+    const reviewQueries: QueryRecord[] = []
+
+    await page.route('**/api/v1/course/review/user/reviews*', async (route) => {
+      const query = captureQuery(route.request().url())
+      reviewQueries.push(query)
+
+      if (query.page === '2') {
+        await route.fulfill(
+          ok({
+            list: null,
+            total: 11,
+            page: 2,
+            pageSize: 10,
+          }),
+        )
+        return
+      }
+
+      await route.fulfill(
+        ok({
+          list: [
+            {
+              id: 'owned-review-page-1',
+              courseID: 101,
+              courseName: '数据结构与算法',
+              termID: '2026-spring',
+              title: '第一页保留评价',
+              content: '加载下一页失败后，这条评价仍应留在当前列表中。',
+              ratings: { recommendation: 5 },
+              likeCount: 6,
+              dislikeCount: 0,
+              replyCount: 0,
+              status: 'published',
+              createdAt: '2026-03-28T08:00:00Z',
+            },
+          ],
+          total: 11,
+          page: 1,
+          pageSize: 10,
+        }),
+      )
+    })
+
+    await page.goto('/user/reviews')
+
+    await expect(page.getByText('第一页保留评价')).toBeVisible({
+      timeout: 10_000,
+    })
+
+    await page.getByRole('button', { name: '加载更多' }).click()
+
+    await expect.poll(() => reviewQueries).toContainEqual({
+      page: '2',
+      pageSize: '10',
+    })
+    await expect(page.getByText('第一页保留评价')).toBeVisible()
+    await expect(
+      page.getByRole('alert').filter({ hasText: '加载失败' }),
+    ).toBeVisible()
+    await expect(page.getByRole('button', { name: '加载更多' })).toBeVisible()
+  })
+
   test('user views their voted reviews', async ({ page }) => {
     await page.route('**/api/v1/course/review/user/votes*', (route) =>
       route.fulfill({

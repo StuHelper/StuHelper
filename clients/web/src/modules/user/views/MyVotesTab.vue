@@ -28,8 +28,12 @@
         class="animate-fade-in-up opacity-0"
       />
 
-      <div v-if="total > votes.length" class="flex justify-center p-4">
+      <div v-if="total > votes.length || loadMoreError" class="flex flex-col items-center gap-3 p-4">
+        <p v-if="loadMoreError" role="alert" class="m-0 text-sm text-danger">
+          {{ loadMoreError }}
+        </p>
         <button
+          v-if="total > votes.length"
           class="px-6 py-2 bg-transparent rounded-sm text-text-secondary text-sm cursor-pointer transition-all duration-fast hover:not-disabled:border-text-primary hover:not-disabled:text-text-primary"
           @click="loadMore"
           :disabled="loadingMore"
@@ -66,10 +70,12 @@ const votes = ref<Review[]>([])
 const total = ref(0)
 const page = ref(1)
 const errorMessage = ref('')
+const loadMoreError = ref('')
 
 async function loadInitial() {
   loading.value = true
   errorMessage.value = ''
+  loadMoreError.value = ''
   try {
     const res = await api.user.getMyVotes(1, 10)
     const pageData = readReviewPagePayload(
@@ -90,7 +96,7 @@ onMounted(loadInitial)
 
 const loadMore = async () => {
   loadingMore.value = true
-  errorMessage.value = ''
+  loadMoreError.value = ''
   const nextPage = page.value + 1
   try {
     const res = await api.user.getMyVotes(nextPage, 10)
@@ -102,7 +108,7 @@ const loadMore = async () => {
     total.value = pageData.total
     page.value = nextPage
   } catch (err) {
-    errorMessage.value = getErrorMessage(err, t('common.loadFailed'))
+    loadMoreError.value = getErrorMessage(err, t('common.loadFailed'))
   } finally {
     loadingMore.value = false
   }

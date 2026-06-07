@@ -29,8 +29,12 @@
         class="animate-fade-in-up opacity-0"
       />
 
-      <div v-if="total > favorites.length" class="col-span-full flex justify-center p-4">
+      <div v-if="total > favorites.length || loadMoreError" class="col-span-full flex flex-col items-center gap-3 p-4">
+        <p v-if="loadMoreError" role="alert" class="m-0 text-sm text-danger">
+          {{ loadMoreError }}
+        </p>
         <button
+          v-if="total > favorites.length"
           class="px-6 py-2 bg-transparent rounded-sm text-text-secondary text-sm cursor-pointer transition-all duration-fast hover:not-disabled:border-text-primary hover:not-disabled:text-text-primary"
           @click="loadMore"
           :disabled="loadingMore"
@@ -74,6 +78,7 @@ const loading = ref(true)
 const loadingMore = ref(false)
 const page = ref(1)
 const errorMessage = ref('')
+const loadMoreError = ref('')
 
 const favorites = computed(() => store.myFavorites)
 const total = computed(() => store.myFavoritesTotal)
@@ -81,6 +86,7 @@ const total = computed(() => store.myFavoritesTotal)
 async function loadInitial() {
   loading.value = true
   errorMessage.value = ''
+  loadMoreError.value = ''
   try {
     await store.fetchMyFavorites(1)
     page.value = 1
@@ -95,13 +101,13 @@ onMounted(loadInitial)
 
 const loadMore = async () => {
   loadingMore.value = true
-  errorMessage.value = ''
+  loadMoreError.value = ''
   const nextPage = page.value + 1
   try {
     await store.fetchMyFavorites(nextPage)
     page.value = nextPage
   } catch (err) {
-    errorMessage.value = getErrorMessage(err, t('common.loadFailed'))
+    loadMoreError.value = getErrorMessage(err, t('common.loadFailed'))
   } finally {
     loadingMore.value = false
   }
