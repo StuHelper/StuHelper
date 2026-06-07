@@ -65,7 +65,35 @@
       <!-- Rating Trend Chart -->
       <section class="bg-bg-card rounded-lg p-5 mb-6">
         <h2 class="text-base font-semibold text-text-primary m-0 mb-4">{{ t('teaching.profile.ratingTrend') }}</h2>
-        <div ref="chartRef" class="h-[250px]" role="img" :aria-label="t('teaching.profile.ratingTrendChartAria')"></div>
+        <div
+          v-if="teacher.ratingTrend.length > 0"
+          class="flex h-[250px] items-end gap-2 rounded-lg border border-border-light bg-bg-elevated/40 p-4"
+          role="img"
+          :aria-label="t('teaching.profile.ratingTrendChartAria')"
+        >
+          <div
+            v-for="point in teacher.ratingTrend"
+            :key="point.termID || point.termName"
+            class="flex min-w-0 flex-1 flex-col items-center gap-2"
+          >
+            <div class="flex h-[170px] w-full max-w-20 items-end rounded-lg bg-bg-card px-2 py-1">
+              <div
+                class="w-full rounded-md bg-gradient-to-t from-primary/70 to-accent transition-all duration-base"
+                :style="{ height: `${ratingTrendHeight(point.avgRating)}%` }"
+                aria-hidden="true"
+              />
+            </div>
+            <span class="text-xs font-semibold tabular-nums text-text-primary">
+              {{ formatRating(point.avgRating) }}
+            </span>
+            <span class="max-w-full truncate text-center text-[11px] text-text-muted">
+              {{ point.termName }}
+            </span>
+          </div>
+        </div>
+        <div v-else class="rounded-lg border border-border-light bg-bg-elevated/40 p-8 text-center text-sm text-text-muted">
+          {{ t('common.empty.data') }}
+        </div>
       </section>
 
       <!-- Courses List -->
@@ -110,23 +138,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { init as echartsInit, graphic } from 'echarts/core'
-import { LineChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent } from 'echarts/components'
-import { CanvasRenderer } from 'echarts/renderers'
-import type { ECharts } from 'echarts/core'
-
-// 注册按需组件
-import { use } from 'echarts/core'
-use([LineChart, GridComponent, TooltipComponent, CanvasRenderer])
 import { api } from '@/api'
-import { useThemeStore } from '@/stores/theme'
 import RatingCircle from '@/components/common/RatingCircle.vue'
 import EmojiRating from '@/components/business/review/EmojiRating.vue'
-import { withAlpha } from '@stuhelper/shared/utils'
 import { User, BookOpen, MessageSquare, TrendingUp } from 'lucide-vue-next'
 
 interface TeacherCourse {
@@ -156,37 +173,11 @@ interface TeacherDetail {
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
-const themeStore = useThemeStore()
 const teacherID = computed(() => Number(route.params.id))
 
 const loading = ref(true)
 const teacher = ref<TeacherDetail | null>(null)
 const loadError = ref('')
-const chartRef = ref<HTMLElement>()
-let chartInstance: ECharts | null = null
-
-// 缓存 CSS 变量值，避免每次 initChart 时调用 getComputedStyle
-function readCssVars() {
-  const style = getComputedStyle(document.documentElement)
-  return {
-    border: style.getPropertyValue('--color-border').trim(),
-    borderLight: style.getPropertyValue('--color-border-light').trim(),
-    textMuted: style.getPropertyValue('--color-text-muted').trim(),
-    accent: style.getPropertyValue('--color-accent').trim(),
-  }
-}
-
-const cssVarCache = ref(readCssVars())
-
-// 主题切换时刷新缓存并重绘图表
-watch(() => themeStore.resolvedTheme, () => {
-  nextTick(() => {
-    cssVarCache.value = readCssVars()
-    if (chartInstance) {
-      initChart()
-    }
-  })
-})
 
 const trendText = computed(() => {
   if (!teacher.value?.ratingTrend?.length) return '-'
@@ -315,68 +306,13 @@ const fetchTeacher = async () => {
   }
 }
 
-// 解析 CSS 变量为实际颜色值（ECharts 不支持 CSS 变量）— 使用缓存
-const initChart = () => {
-  if (!chartRef.value || !teacher.value?.ratingTrend?.length) return
-
-  // 销毁旧实例，防止内存泄漏
-  chartInstance?.dispose()
-  chartInstance = echartsInit(chartRef.value)
-  const trend = teacher.value.ratingTrend
-
-  const cv = cssVarCache.value
-
-  chartInstance.setOption({
-    grid: { top: 20, right: 20, bottom: 30, left: 40 },
-    xAxis: {
-      type: 'category',
-      data: trend.map(item => item.termName),
-      axisLine: { lineStyle: { color: cv.border } },
-      axisLabel: { color: cv.textMuted, fontSize: 12 }
-    },
-    yAxis: {
-      type: 'value',
-      min: 0,
-      max: 5,
-      axisLine: { show: false },
-      splitLine: { lineStyle: { color: cv.borderLight } },
-      axisLabel: { show: false }
-    },
-    series: [{
-      type: 'line',
-      data: trend.map(item => item.avgRating),
-      smooth: true,
-      symbol: 'circle',
-      symbolSize: 8,
-      lineStyle: { color: cv.accent, width: 2 },
-      itemStyle: { color: cv.accent },
-      areaStyle: {
-        color: new graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: withAlpha(cv.accent, 0.3) },
-          { offset: 1, color: withAlpha(cv.accent, 0) }
-        ])
-      }
-    }],
-    tooltip: {
-      trigger: 'axis',
-      formatter: (params: { name: string; value: number }[]) => {
-        if (!params || params.length === 0) return ''
-        const p = params[0]
-        return `${p.name}<br/>${t('teaching.profile.ratingLabel')}`
-      }
-    }
-  })
+function formatRating(value: number): string {
+  return value.toFixed(1)
 }
 
-const handleResize = () => {
-  chartInstance?.resize()
+function ratingTrendHeight(value: number): number {
+  return Math.max(8, Math.min(100, (value / 5) * 100))
 }
-
-watch(() => teacher.value, () => {
-  if (teacher.value) {
-    nextTick(initChart)
-  }
-})
 
 onMounted(async () => {
   if (isNaN(teacherID.value) || teacherID.value <= 0) {
@@ -384,19 +320,11 @@ onMounted(async () => {
     return
   }
   await fetchTeacher()
-  window.addEventListener('resize', handleResize)
 })
 
 // 路由参数变化时重新加载数据
 watch(teacherID, async (newID, oldID) => {
   if (newID === oldID || isNaN(newID) || newID <= 0) return
-  chartInstance?.dispose()
-  chartInstance = null
   await fetchTeacher()
-})
-
-onUnmounted(() => {
-  chartInstance?.dispose()
-  window.removeEventListener('resize', handleResize)
 })
 </script>

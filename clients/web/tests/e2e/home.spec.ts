@@ -148,7 +148,7 @@ async function mockTeacherProfile(page: Page, teacherId: number) {
             { id: 101, name: '数据结构与算法', avgRating: 4.4, reviewCount: 23 },
           ],
           ratingTrend: [
-            { termID: '2025-spring', termName: '2025 春', avgRating: 4.3 },
+            { termID: '2025-spring', termName: '2025 春', avgRating: 4.3, count: 0 },
           ],
         },
       }),
@@ -432,6 +432,12 @@ test('command palette searches teachers from keyboard and opens teacher profile'
   await expect(page.getByText('张教授').first()).toBeVisible({
     timeout: 10_000,
   })
+  const trendChart = page.getByRole('img', {
+    name: /教师评分趋势折线图|Teacher rating trend line chart/i,
+  })
+  await expect(trendChart).toBeVisible()
+  await expect(trendChart).toContainText('2025 春')
+  await expect(trendChart).toContainText('4.3')
   await expect(dialog).toBeHidden()
 })
 
