@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   clearAuth,
+  consumeAdmissionAuthReturn,
   consumeIdentityCodeVerifier,
   consumeIdentityOAuthState,
   consumeOAuthState,
   consumePostLoginRedirect,
   isTokenExpired,
+  rememberAdmissionAuthReturn,
   storeIdentityCodeVerifier,
   storeIdentityOAuthState,
   storeOAuthState,
@@ -145,6 +147,7 @@ describe('auth utilities', () => {
     expect(storeIdentityOAuthState('identity-state')).toBe(true)
     expect(storeIdentityCodeVerifier('identity-verifier')).toBe(true)
     expect(storePostLoginRedirect('/courses/reviews/post')).toBe(true)
+    expect(rememberAdmissionAuthReturn('/verify/ABCD')).toBe(true)
 
     clearAuth()
 
@@ -153,6 +156,7 @@ describe('auth utilities', () => {
     expect(sessionStorage.getItem('identity_oauth_state')).toBeNull()
     expect(sessionStorage.getItem('identity_code_verifier')).toBeNull()
     expect(sessionStorage.getItem('post_login_redirect')).toBeNull()
+    expect(sessionStorage.getItem('admission_auth_return')).toBeNull()
   })
 
   it('consumes a matching identity oauth state and clears it from session storage', () => {
@@ -181,6 +185,21 @@ describe('auth utilities', () => {
 
     expect(consumePostLoginRedirect()).toBe('/user/reviews')
     expect(sessionStorage.getItem('post_login_redirect')).toBeNull()
+  })
+
+  it('stores and consumes same-origin admission auth returns', () => {
+    expect(rememberAdmissionAuthReturn('/verify/ADMIT-RETURN')).toBe(true)
+
+    expect(consumeAdmissionAuthReturn('http://localhost/verify/ADMIT-RETURN')).toBe(true)
+    expect(sessionStorage.getItem('admission_auth_return')).toBeNull()
+  })
+
+  it('does not store non-admission auth returns', () => {
+    expect(rememberAdmissionAuthReturn('/courses')).toBe(true)
+    expect(sessionStorage.getItem('admission_auth_return')).toBeNull()
+
+    expect(rememberAdmissionAuthReturn('https://evil.example/verify/ABCD')).toBe(true)
+    expect(sessionStorage.getItem('admission_auth_return')).toBeNull()
   })
 
   it('degrades when localStorage is unavailable', () => {
@@ -215,10 +234,12 @@ describe('auth utilities', () => {
     expect(storeIdentityOAuthState('identity-state')).toBe(false)
     expect(storeIdentityCodeVerifier('identity-verifier')).toBe(false)
     expect(storePostLoginRedirect('/user/reviews')).toBe(false)
+    expect(rememberAdmissionAuthReturn('/verify/ABCD')).toBe(false)
     expect(consumeIdentityOAuthState('identity-state')).toBe(false)
     expect(consumeOAuthState('oauth-state')).toBe(false)
     expect(consumeIdentityCodeVerifier()).toBe('')
     expect(consumePostLoginRedirect()).toBe('')
+    expect(consumeAdmissionAuthReturn('http://localhost/verify/ABCD')).toBe(false)
     expect(() => clearAuth()).not.toThrow()
   })
 })

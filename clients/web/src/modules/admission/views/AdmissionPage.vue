@@ -193,6 +193,32 @@
           </p>
         </div>
 
+        <div v-else-if="pageState === 'invalid'" data-state="invalid">
+          <h2 class="text-lg font-semibold">认证链接无效</h2>
+          <p class="mt-2 text-sm text-slate-600">
+            这个链接不存在、已经被替换，或不是群内机器人/管理员生成的最新认证链接。请回到 QQ 群使用最新链接。
+          </p>
+          <p class="mt-2 text-sm text-slate-600">
+            如果仍无法打开，请联系管理员重新生成认证链接。
+          </p>
+          <div class="mt-3 flex flex-wrap items-center gap-2">
+            <p class="text-xs text-slate-500" data-admission-reissue-command>
+              管理员可在群内使用：
+              <code class="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700">
+                {{ reissueCommand }}
+              </code>
+            </p>
+            <button
+              class="secondary-button"
+              data-admission-copy-reissue-command
+              type="button"
+              @click="copyReissueCommand"
+            >
+              复制指令
+            </button>
+          </div>
+        </div>
+
         <div v-else-if="pageState === 'expired'" data-state="expired">
           <h2 class="text-lg font-semibold">链接已失效</h2>
           <p class="mt-2 text-sm text-slate-600">
@@ -316,6 +342,7 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { useVerificationStore } from '@/stores/verification'
+import { consumeAdmissionAuthReturn } from '@/utils/auth'
 import { hasStoredSessionHint } from '@/utils/sessionHint'
 import type { AdmissionMe, AdmissionSession } from '@stuhelper/shared/api'
 
@@ -563,7 +590,12 @@ async function resumeRememberedAdmissionSession(requestToken: string): Promise<b
 }
 
 async function refreshAdmissionAuthState(): Promise<boolean> {
-  if (!auth.isAuthenticated && !hasStoredSessionHint()) {
+  const shouldProbeAuth = (
+    auth.isAuthenticated ||
+    hasStoredSessionHint() ||
+    consumeAdmissionAuthReturn(currentAdmissionURL())
+  )
+  if (!shouldProbeAuth) {
     return false
   }
   try {

@@ -17,6 +17,8 @@ const OAUTH_STATE_KEY = 'oauth_state'
 const IDENTITY_OAUTH_STATE_KEY = 'identity_oauth_state'
 const IDENTITY_CODE_VERIFIER_KEY = 'identity_code_verifier'
 const POST_LOGIN_REDIRECT_KEY = 'post_login_redirect'
+const ADMISSION_AUTH_RETURN_KEY = 'admission_auth_return'
+const ADMISSION_VERIFY_PATH_PATTERN = /^\/verify\/[^/]+$/
 
 // 用户信息类型（仅持久化最小展示字段，权限信息必须来自服务端会话）
 export interface StoredUser {
@@ -179,6 +181,47 @@ export function consumePostLoginRedirect(): string {
   return redirect
 }
 
+function currentOrigin(): string {
+  return typeof window === 'undefined' ? 'http://localhost' : window.location.origin
+}
+
+function currentLocationHref(): string {
+  return typeof window === 'undefined' ? currentOrigin() : window.location.href
+}
+
+function normalizeAdmissionReturnURL(value: string, origin = currentOrigin()): string | null {
+  try {
+    const url = new URL(value, origin)
+    if (url.origin !== origin) return null
+    if (url.search !== '' || url.hash !== '') return null
+    if (!ADMISSION_VERIFY_PATH_PATTERN.test(url.pathname)) return null
+    return url.toString()
+  } catch {
+    return null
+  }
+}
+
+export function rememberAdmissionAuthReturn(redirect: string | undefined): boolean {
+  if (!redirect) {
+    safeRemoveSessionStorageItem(ADMISSION_AUTH_RETURN_KEY)
+    return true
+  }
+  const normalized = normalizeAdmissionReturnURL(redirect)
+  if (!normalized) {
+    safeRemoveSessionStorageItem(ADMISSION_AUTH_RETURN_KEY)
+    return true
+  }
+  return safeSetSessionStorageItem(ADMISSION_AUTH_RETURN_KEY, normalized)
+}
+
+export function consumeAdmissionAuthReturn(currentURL = currentLocationHref()): boolean {
+  const expected = safeGetSessionStorageItem(ADMISSION_AUTH_RETURN_KEY)
+  safeRemoveSessionStorageItem(ADMISSION_AUTH_RETURN_KEY)
+  if (!expected) return false
+  const normalizedCurrent = normalizeAdmissionReturnURL(currentURL)
+  return normalizedCurrent === expected
+}
+
 // 清除所有认证信息（含登录回跳状态）
 export const clearAuth = (): void => {
   userManager.removeUser()
@@ -187,4 +230,5 @@ export const clearAuth = (): void => {
   safeRemoveSessionStorageItem(IDENTITY_OAUTH_STATE_KEY)
   safeRemoveSessionStorageItem(IDENTITY_CODE_VERIFIER_KEY)
   safeRemoveSessionStorageItem(POST_LOGIN_REDIRECT_KEY)
+  safeRemoveSessionStorageItem(ADMISSION_AUTH_RETURN_KEY)
 }

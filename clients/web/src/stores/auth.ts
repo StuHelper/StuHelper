@@ -8,6 +8,7 @@ import {
     isTokenExpired,
     userManager,
     clearAuth,
+    rememberAdmissionAuthReturn,
     storeOAuthState,
     tokenExpiry,
 } from "@/utils/auth";
@@ -329,6 +330,7 @@ export const useAuthStore = defineStore("auth", () => {
             const redirectTarget = redirect
                 ? resolvePostLoginRedirectTarget(redirect)
                 : redirect;
+            rememberAdmissionAuthReturn(redirectTarget);
             const res = await api.auth.login(redirectTarget, undefined, "web", {
                 prompt: options?.prompt,
                 maxAge: options?.maxAge,
@@ -359,6 +361,7 @@ export const useAuthStore = defineStore("auth", () => {
             const redirectTarget = redirect
                 ? resolvePostLoginRedirectTarget(redirect)
                 : redirect;
+            rememberAdmissionAuthReturn(redirectTarget);
             const res = await api.auth.signup(redirectTarget, "web", "web");
             const data = readLoginURLPayload(res.data?.data);
             if (!storeOAuthState(data.state)) {

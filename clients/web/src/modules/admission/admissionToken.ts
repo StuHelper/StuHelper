@@ -5,12 +5,14 @@ import {
   safeSetSessionStorageItem,
 } from '@/utils/browserStorage'
 
-export type AdmissionMappedState = 'qqMismatch' | 'expired' | 'error'
+export type AdmissionMappedState = 'qqMismatch' | 'invalid' | 'expired' | 'error'
 
 const ADMISSION_PATH_PATTERN = /^\/verify\/[^/]+$/
 const TERMINAL_ADMISSION_ERROR_CODES = new Set([
   'admission.token_consumed',
   'admission.token_expired',
+])
+const INVALID_ADMISSION_LINK_ERROR_CODES = new Set([
   'admission.token_not_found',
   'admission.session_not_found',
 ])
@@ -45,6 +47,9 @@ export function mapAdmissionApiError(error: unknown): AdmissionMappedState {
 
   if (code === 'admission.qq_mismatch' || isQQBindingConflictError(error)) {
     return 'qqMismatch'
+  }
+  if (code && INVALID_ADMISSION_LINK_ERROR_CODES.has(code)) {
+    return 'invalid'
   }
   if (code && TERMINAL_ADMISSION_ERROR_CODES.has(code)) {
     return 'expired'

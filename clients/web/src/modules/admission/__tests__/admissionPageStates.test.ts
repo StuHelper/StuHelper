@@ -5,6 +5,7 @@ import { nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiError } from '@/api/errors'
+import { rememberAdmissionAuthReturn } from '@/utils/auth'
 import type { AdmissionSession } from '@stuhelper/shared/api'
 
 import { rememberLinkedAdmissionSession } from '../admissionToken'
@@ -222,7 +223,7 @@ describe('AdmissionPage edge states', () => {
     expect(wrapper.find('[data-admission-active-deadline]').text()).toContain('审核处理截止')
   })
 
-  it('shows an expired-link state for missing admission tokens', async () => {
+  it('shows an invalid-link state for missing admission tokens', async () => {
     mockAdmissionApi.getAdmissionSession.mockRejectedValueOnce(
       { code: 'admission.session_not_found', message: 'missing' },
     )
@@ -230,13 +231,15 @@ describe('AdmissionPage edge states', () => {
     const wrapper = await mountAdmissionPage()
     await settleAdmissionPage(wrapper)
 
-    expect(wrapper.find('[data-state="expired"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('链接已失效')
+    expect(wrapper.find('[data-state="invalid"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('认证链接无效')
+    expect(wrapper.text()).toContain('请回到 QQ 群使用最新链接')
     expect(wrapper.text()).toContain('重新生成认证链接 <QQ号>')
+    expect(wrapper.text()).not.toContain('链接已失效')
     expect(wrapper.text()).not.toContain('认证链接暂时无法打开')
   })
 
-  it('copies the admission reissue command from expired links', async () => {
+  it('copies the admission reissue command from invalid links', async () => {
     mockAdmissionApi.getAdmissionSession.mockRejectedValueOnce(
       { code: 'admission.session_not_found', message: 'missing' },
     )
@@ -488,6 +491,23 @@ describe('AdmissionPage edge states', () => {
     expect(mockAuth.bootstrapSession).not.toHaveBeenCalled()
     expect(wrapper.find('[data-state="needsLogin"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('登录 StuHelper')
+  })
+
+  it('refreshes browser session after an admission oauth callback even without a session hint', async () => {
+    mockAuth.isAuthenticated = false
+    mockHasStoredSessionHint.mockReturnValue(false)
+    mockAuth.bootstrapSession.mockResolvedValueOnce(true)
+    rememberAdmissionAuthReturn('/verify/ABCD')
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('joined_muted'),
+    )
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+
+    expect(mockAuth.bootstrapSession).toHaveBeenCalledWith({ force: true })
+    expect(wrapper.find('[data-state="ready"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('开始认证')
   })
 
   it('refreshes the admission state when returning from SSO through browser cache', async () => {

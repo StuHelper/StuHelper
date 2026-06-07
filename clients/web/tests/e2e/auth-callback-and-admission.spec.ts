@@ -285,6 +285,7 @@ test.describe("Auth callback and admission entry", () => {
     }) => {
         let authenticated = false;
         let callbackURL: URL | null = null;
+        let loginRequestURL: URL | null = null;
         let linkQQ = "";
 
         allowExpectedConsoleError(
@@ -295,9 +296,6 @@ test.describe("Auth callback and admission entry", () => {
             page,
             /\[App\] bootstrap failed: TypeError: Failed to fetch dynamically imported module: .*AdmissionPage\.vue/,
         );
-        await page.addInitScript(() => {
-            sessionStorage.setItem("oauth_state", "admission-sso-state");
-        });
         await page.route("**/api/v1/auth/me", (route) =>
             route.fulfill(
                 authenticated
@@ -312,6 +310,15 @@ test.describe("Auth callback and admission entry", () => {
                     : apiError("A0010100", "login required", 401),
             ),
         );
+        await page.route("**/api/v1/auth/login**", async (route) => {
+            loginRequestURL = new URL(route.request().url());
+            await route.fulfill(
+                ok({
+                    url: "https://sso.stuhelper.com/login/oauth/authorize?client_id=stuhelper-web&state=admission-sso-state",
+                    state: "admission-sso-state",
+                }),
+            );
+        });
         await page.route("**/api/v1/auth/callback?*", async (route) => {
             callbackURL = new URL(route.request().url());
             authenticated = true;
@@ -322,6 +329,15 @@ test.describe("Auth callback and admission entry", () => {
                 },
             });
         });
+        await page.route("**/api/v1/user/qq-binding", (route) =>
+            route.fulfill(ok(null)),
+        );
+        await page.route("https://sso.stuhelper.com/**", (route) =>
+            route.fulfill({
+                contentType: "text/html",
+                body: "<!doctype html><title>SSO</title><main>SSO authorize</main>",
+            }),
+        );
         await page.route(
             "**/api/v1/admission/sessions/ADMIT-RETURN**",
             async (route) => {
@@ -355,6 +371,19 @@ test.describe("Auth callback and admission entry", () => {
             ),
         );
 
+        await page.goto("/verify/ADMIT-RETURN");
+        await expect(
+            page.getByRole("heading", { name: "登录 StuHelper" }),
+        ).toBeVisible();
+        const admissionURL = page.url();
+        await page.getByRole("button", { name: "登录" }).click();
+        await page.waitForURL(
+            (url) =>
+                url.hostname === "sso.stuhelper.com" &&
+                url.pathname === "/login/oauth/authorize",
+        );
+        await expect(page.getByText("SSO authorize")).toBeVisible();
+
         await page.goto(
             "/auth/callback?code=oauth-code-1&state=admission-sso-state",
         );
@@ -373,6 +402,10 @@ test.describe("Auth callback and admission entry", () => {
         expect(callbackURL!.searchParams.get("code")).toBe("oauth-code-1");
         expect(callbackURL!.searchParams.get("state")).toBe(
             "admission-sso-state",
+        );
+        expect(loginRequestURL).not.toBeNull();
+        expect(loginRequestURL!.searchParams.get("redirect")).toBe(
+            admissionURL,
         );
         expect(linkQQ).toBe("");
     });
@@ -465,6 +498,27 @@ test.describe("Auth callback and admission entry", () => {
         ).toHaveCount(0);
         await expect(
             page.locator("[data-admission-freshman-flow]"),
+        ).toHaveCount(0);
+
+        await page.route(
+            "**/api/v1/admission/sessions/ADMIT-MISSING**",
+            (route) =>
+                route.fulfill(
+                    apiError("admission.token_not_found", "missing", 404),
+                ),
+        );
+        await page.goto("/verify/ADMIT-MISSING");
+        await expect(
+            page.getByRole("heading", { name: "认证链接无效" }),
+        ).toBeVisible();
+        await expect(
+            page.getByText("请回到 QQ 群使用最新链接"),
+        ).toBeVisible();
+        await expect(
+            page.getByRole("heading", { name: "链接已失效" }),
+        ).toHaveCount(0);
+        await expect(
+            page.getByRole("button", { name: "开始认证" }),
         ).toHaveCount(0);
 
         await page.route(

@@ -10,6 +10,7 @@ export type AdmissionPageState =
   | 'pendingReview'
   | 'projectionPending'
   | 'approved'
+  | 'invalid'
   | 'expired'
   | 'error'
 
