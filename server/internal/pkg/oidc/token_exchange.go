@@ -17,6 +17,13 @@ func (c *Client) ExchangeCode(ctx context.Context, code, codeVerifier string) (*
 }
 
 func (c *Client) ExchangeCodeForApplication(ctx context.Context, appKey, code, codeVerifier string) (*oauth2.Token, error) {
+	return c.ExchangeCodeForApplicationWithRedirectURI(ctx, appKey, code, codeVerifier, "")
+}
+
+func (c *Client) ExchangeCodeForApplicationWithRedirectURI(
+	ctx context.Context,
+	appKey, code, codeVerifier, redirectURI string,
+) (*oauth2.Token, error) {
 	var err error
 	code, err = normalizeRequiredAuthorizationCode(code)
 	if err != nil {
@@ -26,7 +33,7 @@ func (c *Client) ExchangeCodeForApplication(ctx context.Context, appKey, code, c
 	if err != nil {
 		return nil, err
 	}
-	cfg, err := c.oauth2ConfigForApplication(appKey)
+	cfg, err := c.oauth2ConfigForApplicationWithRedirectURI(appKey, redirectURI)
 	if err != nil {
 		return nil, err
 	}

@@ -18,7 +18,7 @@ var (
 	errUnknownOIDCApplication        = errors.New("unknown OIDC application")
 )
 
-type authURLProvider func(appKey, state string) (string, string, error)
+type authURLProvider func(appKey, state, callbackRedirectURI string) (string, string, error)
 
 type authURLRequest struct {
 	provider authURLProvider
@@ -66,7 +66,8 @@ func (h *Handler) respondWithResolvedAuthURL(c *gin.Context, req authURLRequest)
 		return
 	}
 
-	authURL, verifier, err := req.provider(req.appKey, state)
+	callbackRedirectURI := h.resolveOIDCCallbackRedirectURI(req)
+	authURL, verifier, err := req.provider(req.appKey, state, callbackRedirectURI)
 	if err != nil {
 		logger.FromGin(c).Error("failed to generate oidc authorization URL", zap.String("app", req.appKey), zap.Error(err))
 		response.InternalError(c, "failed to generate login URL")
@@ -77,6 +78,7 @@ func (h *Handler) respondWithResolvedAuthURL(c *gin.Context, req authURLRequest)
 		redirect:     req.redirect,
 		codeVerifier: verifier,
 		application:  req.appKey,
+		callbackURI:  callbackRedirectURI,
 		native:       req.native,
 	}); err != nil {
 		logger.FromGin(c).Error("failed to persist oidc state", zap.Error(err))

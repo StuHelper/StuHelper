@@ -14,5 +14,5 @@ func (h *Handler) GetStepUpURL(c *gin.Context) {
 	if appKey == "" {
 		appKey = oidc.ApplicationWeb
 	}
-	h.respondWithFixedApplicationAuthURL(c, appKey, h.oidcClient.GetStepUpAuthURLForApplication)
+	h.respondWithFixedApplicationAuthURL(c, appKey, h.oidcClient.GetStepUpAuthURLForApplicationWithRedirectURI)
 }

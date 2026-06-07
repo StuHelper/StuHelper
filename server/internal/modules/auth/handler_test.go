@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -237,6 +238,72 @@ func TestGetLoginURL_StoresRequestedApplicationInState(t *testing.T) {
 	assert.Equal(t, "admin", payload.Application)
 }
 
+func TestGetLoginURL_UsesAllowedRedirectOriginForHostOnlyStateCookie(t *testing.T) {
+	h, fixture := newTestHandler(t)
+	h.allowedRedirectHosts["join.localhost:3000"] = struct{}{}
+
+	r := gin.New()
+	r.GET("/auth/login", h.GetLoginURL)
+
+	target := "/auth/login?redirect=" + url.QueryEscape("http://join.localhost:3000/verify/ADMIT1234")
+	req := httptest.NewRequest(http.MethodGet, target, nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var envelope struct {
+		Data struct {
+			URL   string `json:"url"`
+			State string `json:"state"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &envelope))
+	require.NotEmpty(t, envelope.Data.URL)
+	require.NotEmpty(t, envelope.Data.State)
+
+	authURL, err := url.Parse(envelope.Data.URL)
+	require.NoError(t, err)
+	assert.Equal(t, "http://join.localhost:3000/api/v1/auth/callback", authURL.Query().Get("redirect_uri"))
+
+	raw, err := fixture.Client.Get(context.Background(), oidcStateRedisPrefix+envelope.Data.State).Result()
+	require.NoError(t, err)
+	var payload oidcStatePayload
+	require.NoError(t, json.Unmarshal([]byte(raw), &payload))
+	assert.Equal(t, "http://join.localhost:3000/api/v1/auth/callback", payload.CallbackRedirectURI)
+}
+
+func TestGetLoginURL_KeepsConfiguredCallbackWhenCookieDomainCoversRedirectHost(t *testing.T) {
+	h, fixture := newTestHandler(t)
+	h.tokenConfig.CookieDomain = ".stuhelper.com"
+	h.allowedRedirectHosts["join.stuhelper.com"] = struct{}{}
+
+	r := gin.New()
+	r.GET("/auth/login", h.GetLoginURL)
+
+	target := "/auth/login?redirect=" + url.QueryEscape("https://join.stuhelper.com/verify/ADMIT1234")
+	req := httptest.NewRequest(http.MethodGet, target, nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var envelope struct {
+		Data struct {
+			URL   string `json:"url"`
+			State string `json:"state"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &envelope))
+	authURL, err := url.Parse(envelope.Data.URL)
+	require.NoError(t, err)
+	assert.Equal(t, "http://localhost:3000/callback", authURL.Query().Get("redirect_uri"))
+
+	raw, err := fixture.Client.Get(context.Background(), oidcStateRedisPrefix+envelope.Data.State).Result()
+	require.NoError(t, err)
+	var payload oidcStatePayload
+	require.NoError(t, json.Unmarshal([]byte(raw), &payload))
+	assert.Empty(t, payload.CallbackRedirectURI)
+}
+
 func TestGetLoginURL_SetsCookie(t *testing.T) {
 	h, _ := newTestHandler(t)
 
@@ -299,11 +366,12 @@ func TestConsumeOIDCState_OneTimeAndCookieBound(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: state})
 	c.Request = req
 
-	redirect, codeVerifier, appKey, isNative, err := h.consumeOIDCState(c, state)
+	redirect, codeVerifier, appKey, callbackURI, isNative, err := h.consumeOIDCState(c, state)
 	require.NoError(t, err)
 	assert.Equal(t, "/courses/1", redirect)
 	assert.Equal(t, "test-verifier", codeVerifier)
 	assert.Equal(t, oidc.ApplicationWeb, appKey)
+	assert.Empty(t, callbackURI)
 	assert.False(t, isNative)
 
 	w2 := httptest.NewRecorder()
@@ -312,7 +380,7 @@ func TestConsumeOIDCState_OneTimeAndCookieBound(t *testing.T) {
 	req2.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: state})
 	c2.Request = req2
 
-	_, _, _, _, err = h.consumeOIDCState(c2, state)
+	_, _, _, _, _, err = h.consumeOIDCState(c2, state)
 	require.Error(t, err)
 }
 

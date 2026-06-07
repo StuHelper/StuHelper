@@ -215,12 +215,13 @@ func flatRoleCatalog() []casdoor.RoleSpec {
 }
 
 type appEnv struct {
-	name        string
-	displayName string
-	logoKey     string
-	clientIDKey string
-	secretKey   string
-	redirectKey string
+	name                  string
+	displayName           string
+	logoKey               string
+	clientIDKey           string
+	secretKey             string
+	redirectKey           string
+	additionalRedirectKey string
 }
 
 type serviceAppEnv struct {
@@ -230,23 +231,25 @@ type serviceAppEnv struct {
 
 func webAppEnv() appEnv {
 	return appEnv{
-		name:        "stuhelper-web",
-		displayName: "StuHelper Web",
-		logoKey:     "CASDOOR_LOGO",
-		clientIDKey: "CASDOOR_CLIENT_ID",
-		secretKey:   "CASDOOR_CLIENT_SECRET", // #nosec G101 -- env key name, not a secret value.
-		redirectKey: "CASDOOR_REDIRECT_URI",
+		name:                  "stuhelper-web",
+		displayName:           "StuHelper Web",
+		logoKey:               "CASDOOR_LOGO",
+		clientIDKey:           "CASDOOR_CLIENT_ID",
+		secretKey:             "CASDOOR_CLIENT_SECRET", // #nosec G101 -- env key name, not a secret value.
+		redirectKey:           "CASDOOR_REDIRECT_URI",
+		additionalRedirectKey: "CASDOOR_ADDITIONAL_REDIRECT_URIS",
 	}
 }
 
 func prefixedAppEnv(prefix, name, displayName string) appEnv {
 	return appEnv{
-		name:        name,
-		displayName: displayName,
-		logoKey:     prefix + "_LOGO",
-		clientIDKey: prefix + "_CLIENT_ID",
-		secretKey:   prefix + "_CLIENT_SECRET",
-		redirectKey: prefix + "_REDIRECT_URI",
+		name:                  name,
+		displayName:           displayName,
+		logoKey:               prefix + "_LOGO",
+		clientIDKey:           prefix + "_CLIENT_ID",
+		secretKey:             prefix + "_CLIENT_SECRET",
+		redirectKey:           prefix + "_REDIRECT_URI",
+		additionalRedirectKey: prefix + "_ADDITIONAL_REDIRECT_URIS",
 	}
 }
 
@@ -255,6 +258,7 @@ func appSpec(getenv envReader, env appEnv) (casdoor.ApplicationSpec, error) {
 	if err != nil {
 		return casdoor.ApplicationSpec{}, err
 	}
+	redirects = append(redirects, optionalList(getenv, env.additionalRedirectKey)...)
 	clientID, err := requiredValue(getenv, env.clientIDKey)
 	if err != nil {
 		return casdoor.ApplicationSpec{}, err
@@ -363,7 +367,26 @@ func requiredList(getenv envReader, key string) ([]string, error) {
 	if value == "" {
 		return nil, fmt.Errorf("%s is required", key)
 	}
-	return strings.Split(value, ","), nil
+	return splitList(value), nil
+}
+
+func optionalList(getenv envReader, key string) []string {
+	if strings.TrimSpace(key) == "" {
+		return nil
+	}
+	value := required(getenv, key)
+	if value == "" {
+		return nil
+	}
+	return splitList(value)
+}
+
+func splitList(value string) []string {
+	parts := strings.Split(value, ",")
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
+	}
+	return parts
 }
 
 func valueOrDefault(raw, fallback string) string {

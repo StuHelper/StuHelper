@@ -37,9 +37,10 @@ const (
 
 // oidcStatePayload 存储在 Redis 中的 OIDC state 关联数据
 type oidcStatePayload struct {
-	RedirectURL  string `json:"redirectURL"`
-	CodeVerifier string `json:"codeVerifier"`
-	Application  string `json:"application"`
+	RedirectURL         string `json:"redirectURL"`
+	CodeVerifier        string `json:"codeVerifier"`
+	Application         string `json:"application"`
+	CallbackRedirectURI string `json:"callbackRedirectURI,omitempty"`
 	// Native 标记该 state 来自原生 App（deep link 回调流程）
 	Native bool `json:"native,omitempty"`
 }
@@ -51,7 +52,7 @@ func (h *Handler) GetLoginURL(c *gin.Context) {
 		return
 	}
 	if forceReauthRequested(c) {
-		h.respondWithAuthURLProvider(c, h.oidcClient.GetReauthURLForApplication)
+		h.respondWithAuthURLProvider(c, h.oidcClient.GetReauthURLForApplicationWithRedirectURI)
 		return
 	}
 	h.respondWithAuthURL(c)
@@ -63,11 +64,11 @@ func forceReauthRequested(c *gin.Context) bool {
 
 // GetSignupURL 生成 OIDC 注册 URL。
 func (h *Handler) GetSignupURL(c *gin.Context) {
-	h.respondWithAuthURLProvider(c, h.oidcClient.GetSignupURLForApplication)
+	h.respondWithAuthURLProvider(c, h.oidcClient.GetSignupURLForApplicationWithRedirectURI)
 }
 
 func (h *Handler) respondWithAuthURL(c *gin.Context) {
-	h.respondWithAuthURLProvider(c, h.oidcClient.GetAuthURLForApplication)
+	h.respondWithAuthURLProvider(c, h.oidcClient.GetAuthURLForApplicationWithRedirectURI)
 }
 
 // HandleCallback 处理 OIDC 授权回调
@@ -87,7 +88,7 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 	}
 
 	// 服务端一次性 state 校验（Redis + HttpOnly cookie 绑定浏览器）
-	redirect, codeVerifier, appKey, isNative, err := h.consumeOIDCState(c, state)
+	redirect, codeVerifier, appKey, callbackRedirectURI, isNative, err := h.consumeOIDCState(c, state)
 	if err != nil {
 		logger.FromGin(c).Warn("OIDC state verification failed", zap.Error(err))
 		audit.LogFailureContext(ctx, audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "invalid state")
@@ -108,6 +109,7 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 		redirect:     redirect,
 		codeVerifier: codeVerifier,
 		application:  appKey,
+		callbackURI:  callbackRedirectURI,
 		requestID:    requestID,
 	})
 }
@@ -127,13 +129,20 @@ type webCallbackInput struct {
 	redirect     string
 	codeVerifier string
 	application  string
+	callbackURI  string
 	requestID    string
 }
 
 func (h *Handler) handleWebCallback(c *gin.Context, ctx context.Context, input webCallbackInput) {
 
 	// 用授权码 + PKCE code_verifier 交换 Token
-	oauthToken, err := h.oidcClient.ExchangeCodeForApplication(ctx, input.application, input.code, input.codeVerifier)
+	oauthToken, err := h.oidcClient.ExchangeCodeForApplicationWithRedirectURI(
+		ctx,
+		input.application,
+		input.code,
+		input.codeVerifier,
+		input.callbackURI,
+	)
 	if err != nil {
 		logger.FromGin(c).Error("OIDC code exchange failed", zap.Error(err))
 		audit.LogFailureContext(ctx, audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), input.requestID, "code exchange error")
@@ -225,6 +234,7 @@ type oidcStateInput struct {
 	redirect     string
 	codeVerifier string
 	application  string
+	callbackURI  string
 	native       bool
 }
 
@@ -234,10 +244,11 @@ func (h *Handler) storeOIDCState(ctx context.Context, input oidcStateInput) erro
 		return err
 	}
 	payload := oidcStatePayload{
-		RedirectURL:  normalized.redirect,
-		CodeVerifier: normalized.codeVerifier,
-		Application:  normalized.application,
-		Native:       normalized.native,
+		RedirectURL:         normalized.redirect,
+		CodeVerifier:        normalized.codeVerifier,
+		Application:         normalized.application,
+		CallbackRedirectURI: normalized.callbackURI,
+		Native:              normalized.native,
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -256,6 +267,11 @@ func normalizeOIDCStateInput(input oidcStateInput) (oidcStateInput, error) {
 	if input.codeVerifier == "" {
 		return input, fmt.Errorf("oidc state code_verifier missing")
 	}
+	callbackURI, err := normalizeOIDCCallbackRedirectURI(input.callbackURI)
+	if err != nil {
+		return input, err
+	}
+	input.callbackURI = callbackURI
 	appKey, err := normalizeOIDCStateApplication(input.application, input.native)
 	if err != nil {
 		return input, err
@@ -272,48 +288,70 @@ func normalizeRequiredAuthState(state string) (string, error) {
 	return state, nil
 }
 
-func (h *Handler) consumeOIDCState(c *gin.Context, state string) (string, string, string, bool, error) {
+func normalizeOIDCCallbackRedirectURI(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", nil
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return "", fmt.Errorf("invalid oidc callback redirect uri")
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return "", fmt.Errorf("invalid oidc callback redirect uri")
+	}
+	host := strings.ToLower(parsed.Host)
+	if host == "" || parsed.User != nil || parsed.Path != oidcStateCookiePath || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", fmt.Errorf("invalid oidc callback redirect uri")
+	}
+	parsed.Scheme = scheme
+	parsed.Host = host
+	return parsed.String(), nil
+}
+
+func (h *Handler) consumeOIDCState(c *gin.Context, state string) (string, string, string, string, bool, error) {
 	var err error
 	state, err = normalizeRequiredAuthState(state)
 	if err != nil {
 		h.clearOIDCStateCookie(c)
-		return "", "", "", false, err
+		return "", "", "", "", false, err
 	}
 
 	raw, err := h.redisClient.Get(c.Request.Context(), oidcStateRedisPrefix+state).Result()
 	if err != nil {
 		h.clearOIDCStateCookie(c)
 		if errors.Is(err, redis.Nil) {
-			return "", "", "", false, fmt.Errorf("state expired or already used")
+			return "", "", "", "", false, fmt.Errorf("state expired or already used")
 		}
-		return "", "", "", false, err
+		return "", "", "", "", false, err
 	}
 
-	redirectURL, codeVerifier, appKey, isNative, err := decodeOIDCStatePayload(raw)
+	redirectURL, codeVerifier, appKey, callbackRedirectURI, isNative, err := decodeOIDCStatePayload(raw)
 	if err != nil {
 		h.clearOIDCStateCookie(c)
-		return "", "", "", false, err
+		return "", "", "", "", false, err
 	}
 
 	if isNative {
 		payload := nativeCodeVerifierPayload{CodeVerifier: codeVerifier, Application: appKey}
 		if err := h.promoteOIDCStateToNativeVerifier(c.Request.Context(), state, raw, payload); err != nil {
-			return "", "", "", true, fmt.Errorf("failed to persist code_verifier for native exchange: %w", err)
+			return "", "", "", "", true, fmt.Errorf("failed to persist code_verifier for native exchange: %w", err)
 		}
-		return redirectURL, codeVerifier, appKey, true, nil
+		return redirectURL, codeVerifier, appKey, callbackRedirectURI, true, nil
 	}
 
 	if err := h.validateOIDCStateCookie(c, state); err != nil {
 		h.clearOIDCStateCookie(c)
-		return "", "", "", false, err
+		return "", "", "", "", false, err
 	}
 	if err := h.deleteOIDCState(c.Request.Context(), state); err != nil {
 		h.clearOIDCStateCookie(c)
-		return "", "", "", false, err
+		return "", "", "", "", false, err
 	}
 
 	h.clearOIDCStateCookie(c)
-	return redirectURL, codeVerifier, appKey, false, nil
+	return redirectURL, codeVerifier, appKey, callbackRedirectURI, false, nil
 }
 
 const nativeCodeVerifierPrefix = "auth:native:verifier:"
@@ -405,20 +443,24 @@ func (h *Handler) consumeNativeCodeVerifier(ctx context.Context, state string) (
 	return codeVerifier, appKey, nil
 }
 
-func decodeOIDCStatePayload(raw string) (string, string, string, bool, error) {
+func decodeOIDCStatePayload(raw string) (string, string, string, string, bool, error) {
 	var payload oidcStatePayload
 	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
-		return "", "", "", false, fmt.Errorf("invalid oidc state payload: %w", err)
+		return "", "", "", "", false, fmt.Errorf("invalid oidc state payload: %w", err)
 	}
 	codeVerifier := strings.TrimSpace(payload.CodeVerifier)
 	if codeVerifier == "" {
-		return "", "", "", false, fmt.Errorf("oidc state code_verifier missing")
+		return "", "", "", "", false, fmt.Errorf("oidc state code_verifier missing")
 	}
 	appKey, err := normalizeOIDCStateApplication(payload.Application, payload.Native)
 	if err != nil {
-		return "", "", "", false, err
+		return "", "", "", "", false, err
 	}
-	return strings.TrimSpace(payload.RedirectURL), codeVerifier, appKey, payload.Native, nil
+	callbackURI, err := normalizeOIDCCallbackRedirectURI(payload.CallbackRedirectURI)
+	if err != nil {
+		return "", "", "", "", false, err
+	}
+	return strings.TrimSpace(payload.RedirectURL), codeVerifier, appKey, callbackURI, payload.Native, nil
 }
 
 func normalizeNativeCodeVerifierPayload(payload nativeCodeVerifierPayload) (string, string, error) {
@@ -656,6 +698,45 @@ func (h *Handler) resolveRedirectTarget(redirect string) string {
 	parsed.Scheme = scheme
 	parsed.Host = strings.ToLower(parsed.Host)
 	return parsed.String()
+}
+
+func (h *Handler) resolveOIDCCallbackRedirectURI(req authURLRequest) string {
+	if req.native || strings.TrimSpace(h.tokenConfig.CookieDomain) != "" {
+		return ""
+	}
+	switch strings.TrimSpace(req.appKey) {
+	case oidc.ApplicationWeb, oidc.ApplicationAdmin:
+	default:
+		return ""
+	}
+	origin, ok := h.allowedAbsoluteRedirectOrigin(req.redirect)
+	if !ok {
+		return ""
+	}
+	return origin + oidcStateCookiePath
+}
+
+func (h *Handler) allowedAbsoluteRedirectOrigin(redirect string) (string, bool) {
+	redirect = strings.TrimSpace(redirect)
+	if redirect == "" || strings.HasPrefix(redirect, "/") {
+		return "", false
+	}
+	parsed, err := url.Parse(redirect)
+	if err != nil {
+		return "", false
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return "", false
+	}
+	host := strings.ToLower(parsed.Host)
+	if host == "" {
+		return "", false
+	}
+	if _, ok := h.allowedRedirectHosts[host]; !ok {
+		return "", false
+	}
+	return scheme + "://" + host, true
 }
 
 // generateNonce 生成 16 字节随机 nonce

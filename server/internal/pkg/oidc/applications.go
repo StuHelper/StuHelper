@@ -118,6 +118,17 @@ func (c *Client) oauth2ConfigForApplication(appKey string) (oauth2.Config, error
 	return cfg, nil
 }
 
+func (c *Client) oauth2ConfigForApplicationWithRedirectURI(appKey, redirectURI string) (oauth2.Config, error) {
+	cfg, err := c.oauth2ConfigForApplication(appKey)
+	if err != nil {
+		return oauth2.Config{}, err
+	}
+	if redirectURI = strings.TrimSpace(redirectURI); redirectURI != "" {
+		cfg.RedirectURL = redirectURI
+	}
+	return cfg, nil
+}
+
 func (c *Client) ApplicationKeyForClientID(clientID string) string {
 	clientID = strings.TrimSpace(clientID)
 	if clientID == "" {
@@ -132,7 +143,11 @@ func (c *Client) ApplicationKeyForClientID(clientID string) string {
 }
 
 func (c *Client) GetAuthURLForApplication(appKey, state string) (string, string, error) {
-	cfg, err := c.oauth2ConfigForApplication(appKey)
+	return c.GetAuthURLForApplicationWithRedirectURI(appKey, state, "")
+}
+
+func (c *Client) GetAuthURLForApplicationWithRedirectURI(appKey, state, redirectURI string) (string, string, error) {
+	cfg, err := c.oauth2ConfigForApplicationWithRedirectURI(appKey, redirectURI)
 	if err != nil {
 		return "", "", err
 	}
@@ -142,7 +157,11 @@ func (c *Client) GetAuthURLForApplication(appKey, state string) (string, string,
 }
 
 func (c *Client) GetReauthURLForApplication(appKey, state string) (string, string, error) {
-	cfg, err := c.oauth2ConfigForApplication(appKey)
+	return c.GetReauthURLForApplicationWithRedirectURI(appKey, state, "")
+}
+
+func (c *Client) GetReauthURLForApplicationWithRedirectURI(appKey, state, redirectURI string) (string, string, error) {
+	cfg, err := c.oauth2ConfigForApplicationWithRedirectURI(appKey, redirectURI)
 	if err != nil {
 		return "", "", err
 	}
@@ -158,7 +177,11 @@ func (c *Client) GetReauthURLForApplication(appKey, state string) (string, strin
 }
 
 func (c *Client) GetSignupURLForApplication(appKey, state string) (string, string, error) {
-	cfg, err := c.oauth2ConfigForApplication(appKey)
+	return c.GetSignupURLForApplicationWithRedirectURI(appKey, state, "")
+}
+
+func (c *Client) GetSignupURLForApplicationWithRedirectURI(appKey, state, redirectURI string) (string, string, error) {
+	cfg, err := c.oauth2ConfigForApplicationWithRedirectURI(appKey, redirectURI)
 	if err != nil {
 		return "", "", err
 	}
@@ -168,7 +191,11 @@ func (c *Client) GetSignupURLForApplication(appKey, state string) (string, strin
 }
 
 func (c *Client) GetStepUpAuthURLForApplication(appKey, state string) (string, string, error) {
-	cfg, err := c.oauth2ConfigForApplication(appKey)
+	return c.GetStepUpAuthURLForApplicationWithRedirectURI(appKey, state, "")
+}
+
+func (c *Client) GetStepUpAuthURLForApplicationWithRedirectURI(appKey, state, redirectURI string) (string, string, error) {
+	cfg, err := c.oauth2ConfigForApplicationWithRedirectURI(appKey, redirectURI)
 	if err != nil {
 		return "", "", err
 	}

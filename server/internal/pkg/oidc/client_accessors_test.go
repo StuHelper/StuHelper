@@ -1,6 +1,7 @@
 package oidc
 
 import (
+	"net/url"
 	"testing"
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
@@ -73,6 +74,23 @@ func TestGetSignupURLForApplicationUsesCasdoorSignupAuthorizePath(t *testing.T) 
 	assert.Contains(t, signupURL, "https://sso.example.com/signup/oauth/authorize")
 	assert.Contains(t, signupURL, "state=signup-state")
 	assert.NotContains(t, signupURL, "/login/oauth/authorize")
+}
+
+func TestGetAuthURLForApplicationWithRedirectURIUsesOverride(t *testing.T) {
+	client := NewStubClient("https://sso.example.com/login/oauth/authorize")
+
+	authURL, verifier, err := client.GetAuthURLForApplicationWithRedirectURI(
+		ApplicationWeb,
+		"state-join",
+		" http://join.localhost:3000/api/v1/auth/callback ",
+	)
+	require.NoError(t, err)
+	assert.NotEmpty(t, verifier)
+
+	parsed, err := url.Parse(authURL)
+	require.NoError(t, err)
+	assert.Equal(t, "http://join.localhost:3000/api/v1/auth/callback", parsed.Query().Get("redirect_uri"))
+	assert.Equal(t, "state-join", parsed.Query().Get("state"))
 }
 
 func TestGetAuthURLForApplicationRewritesBrowserAuthBaseURL(t *testing.T) {

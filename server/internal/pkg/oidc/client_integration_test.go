@@ -474,6 +474,34 @@ func TestOIDCClientExchangeCodeForApplicationNormalizesInputs(t *testing.T) {
 	assert.Equal(t, "admin-client", seenClientID)
 }
 
+func TestOIDCClientExchangeCodeForApplicationWithRedirectURIUsesOverride(t *testing.T) {
+	var seenRedirectURI string
+	client, srv := newTokenEndpointOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		seenRedirectURI = r.Form.Get("redirect_uri")
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "provider-access-token",
+			"token_type":    "Bearer",
+			"refresh_token": "provider-refresh-token",
+			"expires_in":    3600,
+		})
+	}))
+	defer srv.Close()
+
+	tok, err := client.ExchangeCodeForApplicationWithRedirectURI(
+		context.Background(),
+		ApplicationWeb,
+		"authorization-code",
+		"pkce-verifier",
+		" http://join.localhost:3000/api/v1/auth/callback ",
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, "provider-refresh-token", tok.RefreshToken)
+	assert.Equal(t, "http://join.localhost:3000/api/v1/auth/callback", seenRedirectURI)
+}
+
 func TestOIDCClientExchangeCodeRejectsBlankInputsWithoutProviderCall(t *testing.T) {
 	var tokenRequests atomic.Int32
 	client, srv := newTokenEndpointOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

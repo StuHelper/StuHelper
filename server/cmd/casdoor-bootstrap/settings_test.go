@@ -36,6 +36,7 @@ func TestLoadSettingsBuildsBootstrapPlan(t *testing.T) {
 	assert.Equal(t, []string{"client_credentials"}, settings.plan.Applications[3].GrantTypes)
 	assert.Equal(t, []string{"client_credentials"}, settings.plan.Applications[4].GrantTypes)
 	assert.Equal(t, []string{"client_credentials"}, settings.plan.Applications[5].GrantTypes)
+	assert.Equal(t, []string{"https://api.example.com/api/v1/auth/callback"}, settings.plan.Applications[0].RedirectURIs)
 	assert.Equal(t, []string{"authorization_code", "refresh_token"}, settings.plan.Applications[8].GrantTypes)
 	assert.Equal(t, []string{"https://www.example.com/open-platform/token-probe/callback"}, settings.plan.Applications[8].RedirectURIs)
 	assert.Equal(t, "JWT-Custom", settings.plan.Applications[8].TokenFormat)
@@ -68,6 +69,25 @@ func TestLoadSettingsAllowsApplicationLogoOverride(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "https://static.example.com/admin-logo.png", settings.plan.Applications[1].Logo)
+}
+
+func TestLoadSettingsAppendsAdditionalApplicationRedirectURIs(t *testing.T) {
+	env := completeEnv()
+	env["CASDOOR_ADDITIONAL_REDIRECT_URIS"] = "https://www.example.com/api/v1/auth/callback, https://join.example.com/api/v1/auth/callback"
+	env["CASDOOR_ADMIN_ADDITIONAL_REDIRECT_URIS"] = "https://admin.example.com/api/v1/auth/callback"
+
+	settings, err := loadSettings(testEnv(env))
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		"https://api.example.com/api/v1/auth/callback",
+		"https://www.example.com/api/v1/auth/callback",
+		"https://join.example.com/api/v1/auth/callback",
+	}, settings.plan.Applications[0].RedirectURIs)
+	assert.Equal(t, []string{
+		"https://api.example.com/api/v1/auth/callback",
+		"https://admin.example.com/api/v1/auth/callback",
+	}, settings.plan.Applications[1].RedirectURIs)
 }
 
 func TestLoadApplicationBootstrapSettingsUsesAppProvisioningCredential(t *testing.T) {
