@@ -88,7 +88,7 @@
 
             <div class="flex-1" />
 
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 max-sm:gap-1">
                 <button
                     type="button"
                     class="hidden size-11 items-center justify-center rounded-xl border border-transparent text-text-secondary transition-all duration-fast hover:border-white/20 hover:bg-bg-card hover:text-text-primary max-lg:inline-flex"
@@ -109,7 +109,7 @@
                 <router-link
                     v-else-if="showLoginEntry"
                     :to="loginEntryRoute"
-                    class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-text-primary px-4 text-sm font-semibold text-bg-base no-underline whitespace-nowrap shadow-sm transition-all duration-fast hover:-translate-y-px hover:bg-primary hover:text-white hover:shadow-glow-primary max-sm:w-11 max-sm:px-0"
+                    class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-text-primary px-4 text-sm font-semibold text-bg-base no-underline whitespace-nowrap shadow-sm transition-all duration-fast hover:-translate-y-px hover:bg-primary hover:text-white hover:shadow-glow-primary max-sm:hidden"
                     :aria-label="t('nav.login')"
                     :title="t('nav.login')"
                 >
@@ -158,6 +158,19 @@
                         />
                     </span>
                     <span>{{ item.label }}</span>
+                </router-link>
+
+                <router-link
+                    v-if="showLoginEntry"
+                    :to="loginEntryRoute"
+                    class="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-text-secondary no-underline transition-colors duration-fast hover:bg-bg-hover hover:text-text-primary sm:hidden"
+                >
+                    <span
+                        class="grid size-8 place-items-center rounded-md bg-bg-secondary text-text-muted"
+                    >
+                        <LogIn :size="17" aria-hidden="true" />
+                    </span>
+                    <span>{{ t("nav.login") }}</span>
                 </router-link>
             </nav>
         </div>

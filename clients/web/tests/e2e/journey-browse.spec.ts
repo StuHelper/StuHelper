@@ -179,6 +179,42 @@ function setupCommonMocks(page: Page) {
   ])
 }
 
+async function expectHeaderControlsInsideViewport(page: Page) {
+  const clippedControls = await page.locator('header a, header button').evaluateAll(
+    (elements) => {
+      const viewportWidth = window.innerWidth
+      return elements
+        .map((element) => {
+          const control = element as HTMLElement
+          const rect = control.getBoundingClientRect()
+          const style = window.getComputedStyle(control)
+          return {
+            label:
+              control.getAttribute('aria-label') ||
+              control.getAttribute('title') ||
+              control.textContent?.trim() ||
+              control.tagName,
+            visible:
+              style.display !== 'none' &&
+              style.visibility !== 'hidden' &&
+              rect.width > 0 &&
+              rect.height > 0,
+            left: rect.left,
+            right: rect.right,
+            viewportWidth,
+          }
+        })
+        .filter(
+          (control) =>
+            control.visible &&
+            (control.left < -1 || control.right > control.viewportWidth + 1),
+        )
+    },
+  )
+
+  expect(clippedControls).toEqual([])
+}
+
 test.describe('User Journey: Browse Platform', () => {
   test.beforeEach(async ({ page }) => {
     await mockUnauthenticated(page)
@@ -209,6 +245,7 @@ test.describe('User Journey: Browse Platform', () => {
     // Navigate to course catalog
     await page.goto('/courses/list')
     await page.waitForLoadState('networkidle')
+    await expectHeaderControlsInsideViewport(page)
 
     // Course names from mock data appear
     await expect(page.getByText('数据结构与算法')).toBeVisible({
@@ -237,6 +274,7 @@ test.describe('User Journey: Browse Platform', () => {
         .locator('#app-mobile-nav')
         .getByRole('navigation', { name: '主导航' })
       await expect(mobileNav).toBeVisible()
+      await expect(mobileNav.getByRole('link', { name: '登录' })).toBeVisible()
       await mobileNav.getByRole('link', { name: '课程' }).click()
       await expect(page.locator('#app-mobile-nav')).toHaveCount(0)
     } else {
