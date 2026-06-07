@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/jackc/pgx/v5"
 
@@ -151,20 +152,35 @@ func (r *Repository) GetPortalStats(ctx context.Context) (courseCount, reviewCou
 	return
 }
 
+// ListLatestParams 获取最新评论列表参数
+type ListLatestParams struct {
+	Limit     int
+	Offset    int
+	Sort      string
+	TeacherID *int64
+}
+
 // ListLatest 获取最新评论列表（含总数）
-func (r *Repository) ListLatest(ctx context.Context, limit, offset int, sort string) ([]Review, int, error) {
+func (r *Repository) ListLatest(ctx context.Context, p ListLatestParams) ([]Review, int, error) {
 	ctx = withDBTable(ctx, "reviews")
 	// SQL 注入安全保证：orderClause 的值 **仅** 来自 allowedSortOrders 硬编码 map，
 	// 不包含任何用户输入。即使 sort 参数被篡改，最坏情况也只会命中默认排序。
-	orderClause, ok := allowedSortOrders[sort]
+	orderClause, ok := allowedSortOrders[p.Sort]
 	if !ok {
 		orderClause = allowedSortOrders[SortTime]
 	}
 
+	baseWhere := ` WHERE r.status = 'published'`
+	args := []interface{}{}
+	argIdx := 1
+	if p.TeacherID != nil {
+		baseWhere += ` AND r.teacher_id = $` + strconv.Itoa(argIdx)
+		args = append(args, *p.TeacherID)
+		argIdx++
+	}
+
 	var total int
-	if err := r.db.QueryRow(ctx, `
-		SELECT COUNT(*) FROM reviews WHERE status = 'published'
-	`).Scan(&total); err != nil {
+	if err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM reviews r`+baseWhere, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	if total == 0 {
@@ -180,10 +196,10 @@ func (r *Repository) ListLatest(ctx context.Context, limit, offset int, sort str
 		FROM reviews r
 		LEFT JOIN courses c ON c.id = r.course_id
 		LEFT JOIN teachers t ON t.id = r.teacher_id
-		WHERE r.status = 'published'
+		`+baseWhere+`
 		ORDER BY `+orderClause+`
-		LIMIT $1 OFFSET $2
-	`, limit, offset)
+		LIMIT $`+strconv.Itoa(argIdx)+` OFFSET $`+strconv.Itoa(argIdx+1),
+		append(args, p.Limit, p.Offset)...)
 	if err != nil {
 		return nil, 0, err
 	}

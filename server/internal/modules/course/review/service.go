@@ -452,16 +452,29 @@ func (s *Service) CheckCourseExists(ctx context.Context, courseID int64) (bool, 
 
 // GetLatestReviewsParams 获取最新评论参数
 type GetLatestReviewsParams struct {
-	Page     int
-	PageSize int
-	Sort     string
+	Page      int
+	PageSize  int
+	Sort      string
+	TeacherID *int64
 }
 
 // GetLatestReviews 获取最新评论列表
 func (s *Service) GetLatestReviews(ctx context.Context, params GetLatestReviewsParams) (*GetCourseReviewsResult, error) {
+	if params.TeacherID != nil {
+		teacherID, err := normalizeRequiredTeacherID(*params.TeacherID)
+		if err != nil {
+			return nil, err
+		}
+		params.TeacherID = &teacherID
+	}
 	pageSize := httputil.ClampPageSize(params.PageSize)
 	offset := httputil.SafeOffset(params.Page, pageSize)
-	list, total, err := s.repo.ListLatest(ctx, pageSize, offset, params.Sort)
+	list, total, err := s.repo.ListLatest(ctx, ListLatestParams{
+		Limit:     pageSize,
+		Offset:    offset,
+		Sort:      params.Sort,
+		TeacherID: params.TeacherID,
+	})
 	if err != nil {
 		return nil, err
 	}

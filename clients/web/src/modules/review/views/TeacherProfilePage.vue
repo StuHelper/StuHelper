@@ -125,6 +125,76 @@
           </router-link>
         </div>
       </section>
+
+      <!-- Teacher Reviews -->
+      <section class="mt-6">
+        <div class="mb-4 flex items-center justify-between gap-3">
+          <h2 class="text-base font-semibold text-text-primary m-0">{{ t('teaching.profile.latestReviews') }}</h2>
+          <span
+            v-if="teacherReviewsTotal > 0"
+            class="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary"
+          >
+            {{ t('teaching.profile.reviewsCount', { count: teacherReviewsTotal }) }}
+          </span>
+        </div>
+
+        <div
+          v-if="teacherReviewsLoading && teacherReviews.length === 0"
+          class="flex flex-col gap-4"
+          role="status"
+          :aria-label="t('teaching.profile.reviewsLoading')"
+        >
+          <div
+            v-for="i in 2"
+            :key="i"
+            class="h-40 rounded-xl bg-[length:200%_100%] animate-shimmer"
+            :style="{ backgroundImage: 'linear-gradient(90deg, var(--color-bg-secondary) 25%, var(--color-bg-tertiary) 50%, var(--color-bg-secondary) 75%)' }"
+          />
+        </div>
+
+        <div
+          v-else-if="teacherReviewsError"
+          role="alert"
+          class="rounded-lg border border-warning/20 bg-warning/5 p-6 text-center text-sm text-text-muted"
+        >
+          <p class="m-0 mb-3">{{ teacherReviewsError }}</p>
+          <button
+            type="button"
+            class="rounded-lg bg-primary px-4 py-2 text-white hover:bg-primary/90 cursor-pointer"
+            @click="fetchTeacherReviews(true)"
+          >
+            {{ t('common.actions.retry') }}
+          </button>
+        </div>
+
+        <div
+          v-else-if="teacherReviews.length === 0"
+          class="rounded-lg border border-border-light bg-bg-elevated/40 p-8 text-center text-sm text-text-muted"
+        >
+          {{ t('teaching.profile.reviewsEmpty') }}
+        </div>
+
+        <div v-else class="flex flex-col gap-4">
+          <ReviewCard
+            v-for="(review, index) in teacherReviews"
+            :key="review.id"
+            :review="review"
+            class="stagger-item"
+            :style="{ animationDelay: `${Math.min(index, 8) * 60}ms` }"
+            @moderated="() => fetchTeacherReviews(true)"
+          />
+          <div v-if="teacherReviewsHasMore" class="flex justify-center pt-1">
+            <button
+              type="button"
+              class="rounded-lg border border-border-light px-4 py-2 text-sm font-semibold text-text-secondary transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="teacherReviewsLoading"
+              @click="fetchTeacherReviews(false)"
+            >
+              {{ teacherReviewsLoading ? t('common.actions.loading') : t('common.actions.loadMore') }}
+            </button>
+          </div>
+        </div>
+      </section>
     </template>
 
     <!-- Error State -->
@@ -153,7 +223,9 @@ import { api } from '@/api'
 import { updatePageMeta } from '@/composables/usePageMeta'
 import RatingCircle from '@/components/common/RatingCircle.vue'
 import EmojiRating from '@/components/business/review/EmojiRating.vue'
+import ReviewCard from '@/components/business/review/ReviewCard.vue'
 import { User, BookOpen, MessageSquare, TrendingUp } from 'lucide-vue-next'
+import type { Review } from '@stuhelper/shared/review'
 
 interface TeacherCourse {
   id: number
@@ -187,6 +259,12 @@ const teacherID = computed(() => Number(route.params.id))
 const loading = ref(true)
 const teacher = ref<TeacherDetail | null>(null)
 const loadError = ref('')
+const teacherReviews = ref<Review[]>([])
+const teacherReviewsLoading = ref(false)
+const teacherReviewsError = ref('')
+const teacherReviewsTotal = ref(0)
+const teacherReviewsPage = ref(1)
+const teacherReviewsPageSize = 6
 
 const trendText = computed(() => {
   if (!teacher.value?.ratingTrend?.length) return '-'
@@ -197,6 +275,7 @@ const trendText = computed(() => {
   if (diff < -0.2) return t('teaching.profile.trend.down')
   return t('teaching.profile.trend.stable')
 })
+const teacherReviewsHasMore = computed(() => teacherReviews.value.length < teacherReviewsTotal.value)
 
 function isNonNegativeNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
@@ -317,15 +396,52 @@ function updateTeacherPageMeta() {
 const fetchTeacher = async () => {
   loading.value = true
   loadError.value = ''
+  teacherReviews.value = []
+  teacherReviewsError.value = ''
+  teacherReviewsTotal.value = 0
+  teacherReviewsPage.value = 1
   try {
     const res = await api.rating.getTeacherStats(teacherID.value)
     teacher.value = readTeacherPayload(res.data?.data)
     updateTeacherPageMeta()
+    await fetchTeacherReviews(true)
   } catch (_error) { void _error;
     teacher.value = null
     loadError.value = t('common.loadFailed')
   } finally {
     loading.value = false
+  }
+}
+
+async function fetchTeacherReviews(reset: boolean) {
+  if (teacherReviewsLoading.value) return
+  if (reset) {
+    teacherReviews.value = []
+    teacherReviewsTotal.value = 0
+    teacherReviewsPage.value = 1
+  }
+
+  teacherReviewsLoading.value = true
+  teacherReviewsError.value = ''
+  try {
+    const pageData = await api.review.getLatestReviewsPage({
+      page: teacherReviewsPage.value,
+      pageSize: teacherReviewsPageSize,
+      sort: 'time',
+      teacherID: teacherID.value,
+    })
+    if (reset) {
+      teacherReviews.value = pageData.list
+    } else {
+      const existingIDs = new Set(teacherReviews.value.map(review => review.id))
+      teacherReviews.value.push(...pageData.list.filter(review => !existingIDs.has(review.id)))
+    }
+    teacherReviewsTotal.value = pageData.total
+    teacherReviewsPage.value += 1
+  } catch (_error) { void _error;
+    teacherReviewsError.value = t('teaching.profile.reviewsLoadFailed')
+  } finally {
+    teacherReviewsLoading.value = false
   }
 }
 

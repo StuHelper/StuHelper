@@ -96,6 +96,15 @@ const ratedReview = {
     ratings: { recommendation: 5, content_quality: 5, workload: 4 },
 };
 
+const teacherProfileReview = {
+    ...latestReview,
+    id: "teacher-profile-review-1",
+    teacherID: 21,
+    teacherName: "陈老师",
+    title: "教师详情页评价",
+    courseName: "编译原理",
+};
+
 const popularTeachers = [
     {
         teacherID: 21,
@@ -213,6 +222,14 @@ async function mockTeacherStatsApi(page: Page) {
                     },
                 ],
             }),
+        );
+    });
+    await page.route("**/api/v1/course/review/reviews/latest*", (route) => {
+        recordApiRequest(route);
+        const url = new URL(route.request().url());
+        const teacherID = url.searchParams.get("teacherID");
+        return route.fulfill(
+            list(teacherID === "21" ? [teacherProfileReview] : []),
         );
     });
 }
@@ -581,6 +598,20 @@ test.describe("Course community surfaces", () => {
         await expect(
             page.getByRole("link", { name: /编译原理/ }),
         ).toBeVisible();
+        await expect(page.getByText("最新评价")).toBeVisible();
+        await expect(page.getByText("教师详情页评价")).toBeVisible();
+        await expect
+            .poll(() =>
+                hasWebGetRequest(
+                    "/api/v1/course/review/reviews/latest",
+                    (url) =>
+                        url.searchParams.get("teacherID") === "21" &&
+                        url.searchParams.get("sort") === "time" &&
+                        url.searchParams.get("page") === "1" &&
+                        url.searchParams.get("pageSize") === "6",
+                ),
+            )
+            .toBe(true);
         await expect(page).toHaveTitle(/陈老师 - StuHelper/);
     });
 

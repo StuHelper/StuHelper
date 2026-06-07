@@ -270,7 +270,7 @@ func TestReviewRepository_PublicListsHandleReviewsWithoutTeacher(t *testing.T) {
 	`, reviewID, courseID, StatusPublished)
 	require.NoError(t, err)
 
-	latest, total, err := repo.ListLatest(ctx, 10, 0, SortTime)
+	latest, total, err := repo.ListLatest(ctx, ListLatestParams{Limit: 10, Offset: 0, Sort: SortTime})
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, total, 1)
 	require.NotEmpty(t, latest)

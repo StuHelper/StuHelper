@@ -8140,6 +8140,8 @@ export interface operations {
                 /** @description 每页数量 */
                 pageSize?: components["parameters"]["PageSizeParam"];
                 sort?: "time" | "likes" | "rating";
+                /** @description 按教师筛选 */
+                teacherID?: number;
             };
             header?: never;
             path?: never;

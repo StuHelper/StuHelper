@@ -34,11 +34,14 @@ func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 
 	departmentID := seedDepartment(t, fixture, 4111010006, "计算机学院")
 	teacherID := seedTeacher(t, fixture, 4111010006, "王老师", departmentID)
+	otherTeacherID := seedTeacher(t, fixture, 4111010006, "刘老师", departmentID)
 	courseID := seedCourse(t, fixture, 4111010006, departmentID, "数据库系统")
 	otherCourseID := seedCourse(t, fixture, 4111010006, departmentID, "分布式系统")
+	thirdCourseID := seedCourse(t, fixture, 4111010006, departmentID, "软件工程")
 
 	seedReviewWithRatings(t, fixture, "review-read-1", courseID, teacherID, "u-read-1", 4.5, StatusPublished, ReviewRatings{"teaching": 5, "difficulty": 4}, "数据库真不错", "内容一")
 	seedReviewWithRatings(t, fixture, "review-read-2", otherCourseID, teacherID, "u-read-2", 4.0, StatusPublished, ReviewRatings{"teaching": 4, "difficulty": 4}, "分布式很赞", "内容二")
+	seedReviewWithRatings(t, fixture, "review-read-other-teacher", thirdCourseID, otherTeacherID, "u-read-other", 4.1, StatusPublished, ReviewRatings{"teaching": 4, "difficulty": 4}, "其他教师评论", "内容三")
 
 	courseReviews, err := svc.GetCourseReviews(ctx, GetCourseReviewsParams{CourseID: courseID, Page: 1, PageSize: 10, Sort: SortTime})
 	require.NoError(t, err)
@@ -57,6 +60,15 @@ func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 	latest, err := svc.GetLatestReviews(ctx, GetLatestReviewsParams{Page: 1, PageSize: 10, Sort: SortTime})
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, latest.Total, 2)
+
+	teacherLatest, err := svc.GetLatestReviews(ctx, GetLatestReviewsParams{Page: 1, PageSize: 10, Sort: SortTime, TeacherID: &teacherID})
+	require.NoError(t, err)
+	require.Len(t, teacherLatest.List, 2)
+	assert.Equal(t, 2, teacherLatest.Total)
+	for _, item := range teacherLatest.List {
+		require.NotNil(t, item.TeacherID)
+		assert.Equal(t, teacherID, *item.TeacherID)
+	}
 
 	searched, err := svc.SearchReviews(ctx, SearchReviewsParams{Query: "数据库", DepartmentID: departmentID, TeacherName: "王老师", TermID: "2025-2", Page: 1, PageSize: 10, Sort: SortTime})
 	require.NoError(t, err)

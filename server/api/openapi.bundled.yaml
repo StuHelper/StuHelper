@@ -3694,6 +3694,12 @@ paths:
               - likes
               - rating
             default: time
+        - name: teacherID
+          in: query
+          schema:
+            type: integer
+            format: int64
+          description: 按教师筛选
       responses:
         '200':
           description: 最新测评分页列表

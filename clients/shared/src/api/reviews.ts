@@ -36,7 +36,7 @@ export const createReviewApi = (client: ApiClient) => ({
       params: { path: { courseID: courseId }, query: params }
     }),
 
-  getLatestReviews: (params?: { page?: number; pageSize?: number; sort?: 'time' | 'likes' | 'rating' }) =>
+  getLatestReviews: (params?: { page?: number; pageSize?: number; sort?: 'time' | 'likes' | 'rating'; teacherID?: number }) =>
     client.GET('/api/v1/course/review/reviews/latest', { params: { query: params } }),
 
   getBatchCourseReviews: (courseIDs: number[], params?: { pageSize?: number; sort?: 'time' | 'likes' | 'rating' }) =>

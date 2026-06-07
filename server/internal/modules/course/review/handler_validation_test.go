@@ -29,6 +29,7 @@ func TestReviewHandlerValidationPaths(t *testing.T) {
 		{name: "GetCourseReviews invalid course id", url: "/", prep: func(c *gin.Context) { c.Params = gin.Params{{Key: "courseID", Value: "bad"}} }, run: func(h *Handler, c *gin.Context) { h.GetCourseReviews(c) }},
 		{name: "GetCourseReviews invalid term", url: "/?termID=2024-3", prep: func(c *gin.Context) { c.Params = gin.Params{{Key: "courseID", Value: "1"}} }, run: func(h *Handler, c *gin.Context) { h.GetCourseReviews(c) }},
 		{name: "GetCourseReviews invalid teacher", url: "/?teacherID=bad", prep: func(c *gin.Context) { c.Params = gin.Params{{Key: "courseID", Value: "1"}} }, run: func(h *Handler, c *gin.Context) { h.GetCourseReviews(c) }},
+		{name: "GetLatestReviews invalid teacher", url: "/?teacherID=bad", run: func(h *Handler, c *gin.Context) { h.GetLatestReviews(c) }},
 		{name: "SearchReviews empty conditions", url: "/", run: func(h *Handler, c *gin.Context) { h.SearchReviews(c) }},
 		{name: "SearchReviews invalid term", url: "/?q=math&termID=2024-3", run: func(h *Handler, c *gin.Context) { h.SearchReviews(c) }},
 		{name: "SearchReviews invalid department", url: "/?q=math&departmentID=bad", run: func(h *Handler, c *gin.Context) { h.SearchReviews(c) }},

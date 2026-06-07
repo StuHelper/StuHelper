@@ -73,10 +73,22 @@ func (h *Handler) GetLatestReviews(c *gin.Context) {
 		sort = SortTime
 	}
 
+	var teacherID *int64
+	tid := c.Query("teacherID")
+	if tid != "" {
+		id, err := strconv.ParseInt(tid, 10, 64)
+		if err != nil || id <= 0 {
+			response.BadRequest(c, "invalid teacher_id parameter")
+			return
+		}
+		teacherID = &id
+	}
+
 	result, err := h.service.GetLatestReviews(c.Request.Context(), GetLatestReviewsParams{
-		Page:     page,
-		PageSize: pageSize,
-		Sort:     sort,
+		Page:      page,
+		PageSize:  pageSize,
+		Sort:      sort,
+		TeacherID: teacherID,
 	})
 	if err != nil {
 		logger.FromGin(c).Error("failed to get latest reviews", zap.Error(err))
