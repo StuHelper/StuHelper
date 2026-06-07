@@ -493,6 +493,22 @@ function handleSessionState(nextSession: AdmissionSession): void {
   if (pageState.value === 'projectionPending') scheduleProjectionRefresh()
 }
 
+async function applyKnownQQMismatch(nextSession: AdmissionSession): Promise<boolean> {
+  if (nextSession.status !== 'joined_muted' || !nextSession.qqID) {
+    return false
+  }
+  try {
+    const currentBinding = await verificationStore.fetchQQBinding()
+    if (currentBinding && currentBinding.qqID !== nextSession.qqID) {
+      pageState.value = 'qqMismatch'
+      return true
+    }
+  } catch {
+    return false
+  }
+  return false
+}
+
 function handleAdmissionMeState(nextAdmission: AdmissionMe): void {
   setAdmissionMe(nextAdmission)
   if (nextAdmission.session) {
@@ -652,8 +668,12 @@ async function loadAdmissionSession() {
     session.value = preview
     const authenticated = await refreshAdmissionAuthState()
     if (!isCurrentAdmissionRoute(requestToken)) return
-    if (authenticated) handleSessionState(preview)
-    else pageState.value = 'needsLogin'
+    if (!authenticated) {
+      pageState.value = 'needsLogin'
+      return
+    }
+    if (await applyKnownQQMismatch(preview)) return
+    handleSessionState(preview)
   } catch (error) {
     if (!isCurrentAdmissionRoute(requestToken)) return
     if (isAdmissionTokenConsumedError(error)) {

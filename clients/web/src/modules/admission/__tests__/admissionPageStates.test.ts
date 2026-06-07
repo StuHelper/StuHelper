@@ -30,7 +30,9 @@ const mockAuth = vi.hoisted(() => ({
 }))
 
 const mockVerificationStore = vi.hoisted(() => ({
+  fetchQQBinding: vi.fn(),
   fetchSchools: vi.fn(),
+  qqBinding: null as null | { qqID: string },
   schools: [],
 }))
 
@@ -92,6 +94,8 @@ describe('AdmissionPage edge states', () => {
     sessionStorage.clear()
     mockHasStoredSessionHint.mockReturnValue(true)
     mockWaitForAdmissionProjection.mockResolvedValue(false)
+    mockVerificationStore.qqBinding = null
+    mockVerificationStore.fetchQQBinding.mockResolvedValue(null)
     mockVerificationStore.schools = []
     mockVerificationStore.fetchSchools.mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
@@ -167,6 +171,25 @@ describe('AdmissionPage edge states', () => {
     expect(wrapper.find('[data-admission-mute-deadline]').text()).toContain(
       '学生认证通过后会提前解除',
     )
+  })
+
+  it('shows QQ mismatch before link confirmation when the signed-in account is already bound to another QQ', async () => {
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce({
+      ...sessionWithStatus('joined_muted'),
+      qqID: '990060607888',
+    })
+    mockVerificationStore.fetchQQBinding.mockResolvedValueOnce({
+      qqID: '990060607003',
+    })
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.find('[data-state="qqMismatch"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('这条认证链接属于 QQ 990060607888')
+    expect(wrapper.text()).toContain('当前登录的 StuHelper 账号已绑定其他 QQ')
+    expect(wrapper.text()).not.toContain('开始认证')
+    expect(mockAdmissionApi.linkAdmissionSession).not.toHaveBeenCalled()
   })
 
   it('shows admission progress and the submission deadline after account binding', async () => {
