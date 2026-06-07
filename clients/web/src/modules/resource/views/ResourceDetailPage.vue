@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { RouterLink, useRoute } from 'vue-router'
 import { ArrowLeft, Download, FileText, Link2, RefreshCw, Tag } from 'lucide-vue-next'
 import { api } from '@/api'
+import { updatePageMeta } from '@/composables/usePageMeta'
 import {
   readResourceDownloadURLPayload,
   readResourceItemPayload,
@@ -68,6 +69,10 @@ async function loadResource() {
     downloadLoading.value = false
     errorMessage.value = t('resource.detail.notFound')
     downloadError.value = ''
+    updatePageMeta({
+      title: t('resource.detail.titleFallback'),
+      description: t('resource.detail.notFound'),
+    })
     return
   }
 
@@ -82,11 +87,19 @@ async function loadResource() {
     )
     if (requestSeq !== loadRequestSeq) return
     resource.value = nextResource
+    updatePageMeta({
+      title: nextResource.title || t('resource.detail.titleFallback'),
+      description: nextResource.description || t('resource.detail.noDescription'),
+    })
   } catch (_error) {
     void _error
     if (requestSeq !== loadRequestSeq) return
     resource.value = null
     errorMessage.value = t('resource.detail.loadFailed')
+    updatePageMeta({
+      title: t('resource.detail.titleFallback'),
+      description: t('resource.detail.loadFailed'),
+    })
   } finally {
     if (requestSeq === loadRequestSeq) {
       loading.value = false

@@ -275,6 +275,7 @@ test.describe('Resource sharing', () => {
     await expect(
       page.getByRole('heading', { name: '高等数学A 期末复习讲义' }),
     ).toBeVisible()
+    await expect(page).toHaveTitle(/高等数学A 期末复习讲义 - StuHelper/)
     await expect(page.getByText('math-final.pdf')).toBeVisible()
     await expect(page.getByText('application/pdf')).toBeVisible()
     await expect(page.getByText('course: 8')).toBeVisible()
@@ -337,6 +338,7 @@ test.describe('Resource sharing', () => {
     await expect(
       page.getByRole('heading', { name: '线性代数习题集' }),
     ).toBeVisible()
+    await expect(page).toHaveTitle(/线性代数习题集 - StuHelper/)
     await expect(page.getByText('linear-algebra.pdf')).toBeVisible()
     await expect(page.getByText('math-final.pdf')).toHaveCount(0)
     await expect.poll(() => firstResourceRequests).toBe(1)
