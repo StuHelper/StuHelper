@@ -24,7 +24,24 @@ export function normalizeConfiguredHTTPOrigin(
 
 export function configuredWebOrigin(): string | null {
     if (typeof window === "undefined") return null;
-    return normalizeConfiguredHTTPOrigin(import.meta.env.VITE_WEB_URL, window.location.origin);
+    return normalizeConfiguredHTTPOrigin(import.meta.env.VITE_WEB_URL, window.location.origin) ??
+        deriveWebOriginFromCurrentLocation();
+}
+
+function deriveWebOriginFromCurrentLocation(): string | null {
+    if (typeof window === "undefined") return null;
+
+    try {
+        const current = new URL(window.location.href);
+        const hostname = current.hostname.toLowerCase();
+        if (hostname !== "join.localhost" && hostname !== "join.stuhelper.com") {
+            return null;
+        }
+        current.hostname = hostname.replace(/^join\./, "");
+        return current.origin;
+    } catch {
+        return null;
+    }
 }
 
 export function isSafeRelativeRedirect(raw: string): boolean {

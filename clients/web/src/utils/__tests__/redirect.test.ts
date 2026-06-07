@@ -19,6 +19,7 @@ describe('post-login redirect helpers', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
   })
 
   it('allows the configured web origin from the login page', () => {
@@ -105,6 +106,33 @@ describe('post-login redirect helpers', () => {
     expect(accountCenterURL('/user/student-verification')).toBe(
       'http://stuhelper.com/user/student-verification',
     )
+  })
+
+  it('moves join-domain home links to the main web origin when unconfigured locally', () => {
+    vi.stubEnv('VITE_WEB_URL', '')
+    vi.stubGlobal('window', {
+      location: {
+        href: 'http://join.localhost:3000/courses',
+        origin: 'http://join.localhost:3000',
+      },
+    })
+
+    expect(accountCenterURL('/')).toBe('http://localhost:3000/')
+    expect(accountCenterURL('/user/student-verification')).toBe(
+      'http://localhost:3000/user/student-verification',
+    )
+  })
+
+  it('moves production join-domain links to the main web origin when unconfigured', () => {
+    vi.stubEnv('VITE_WEB_URL', '')
+    vi.stubGlobal('window', {
+      location: {
+        href: 'https://join.stuhelper.com/verify/ABCD',
+        origin: 'https://join.stuhelper.com',
+      },
+    })
+
+    expect(accountCenterURL('/')).toBe('https://stuhelper.com/')
   })
 
   it('builds account URLs with safe task redirects', () => {
