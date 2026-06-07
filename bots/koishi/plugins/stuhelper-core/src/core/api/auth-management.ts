@@ -10,6 +10,11 @@ interface RoleCatalog {
   getRoles: () => Role[]
 }
 
+interface RoleReorderInput {
+  readonly sourceRoleId: string
+  readonly targetRoleId: string
+}
+
 export function normalizeManagedRoleInput(
   catalog: RoleCatalog,
   scope: ConsoleGuildScope,
@@ -55,6 +60,32 @@ export function requireAssignableRole(
   }
 
   return role
+}
+
+export function buildManagedRoleReorder(
+  catalog: RoleCatalog,
+  scope: ConsoleGuildScope,
+  input: RoleReorderInput,
+): [Role, Role] {
+  const sourceRoleId = normalizeRoleId(input.sourceRoleId, 'source role')
+  const targetRoleId = normalizeRoleId(input.targetRoleId, 'target role')
+  if (sourceRoleId === targetRoleId) {
+    throw new Error('source and target roles must be different')
+  }
+
+  const sourceRole = requireAssignableRole(catalog, scope, sourceRoleId)
+  const targetRole = requireAssignableRole(catalog, scope, targetRoleId)
+  return [
+    { ...sourceRole, priority: targetRole.priority },
+    { ...targetRole, priority: sourceRole.priority },
+  ]
+}
+
+function normalizeRoleId(value: string, label: string) {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`invalid ${label}`)
+  }
+  return value.trim()
 }
 
 function normalizeGuildIds(guildIds: readonly string[] | undefined) {

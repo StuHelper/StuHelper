@@ -281,6 +281,8 @@ export const cacheApi = {
 export const authApi = {
   getRoles: () => call<Role[]>('stuhelperGroupCenter/auth/role/list'),
   updateRole: (role: Role) => call<{ success: boolean }>('stuhelperGroupCenter/auth/role/update', { role }),
+  reorderRoles: (sourceRoleId: string, targetRoleId: string) =>
+    call<{ success: boolean }>('stuhelperGroupCenter/auth/role/reorder', { sourceRoleId, targetRoleId }),
   deleteRole: (roleId: string) => call<{ success: boolean }>('stuhelperGroupCenter/auth/role/delete', { roleId }),
   getUserRoles: (userId: string) => call<string[]>('stuhelperGroupCenter/auth/user/get', { userId }),
   assignRole: (userId: string, roleId: string) => call<{ success: boolean }>('stuhelperGroupCenter/auth/user/assign', { userId, roleId }),

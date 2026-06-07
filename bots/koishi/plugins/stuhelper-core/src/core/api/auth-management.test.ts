@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  buildManagedRoleReorder,
   normalizeManagedRoleInput,
   requireAssignableRole,
 } from './auth-management'
@@ -61,6 +62,35 @@ test('requireAssignableRole rejects global roles for guild-scoped operators', ()
 test('requireAssignableRole allows scoped roles within the current guild scope', () => {
   const role = requireAssignableRole(createCatalog(), GUILD_SCOPE, 'guild-1001-ops')
   assert.equal(role.id, 'guild-1001-ops')
+})
+
+test('buildManagedRoleReorder swaps custom role priorities', () => {
+  const [source, target] = buildManagedRoleReorder(createCatalog(), GLOBAL_SCOPE, {
+    sourceRoleId: 'global-ops',
+    targetRoleId: 'guild-1001-ops',
+  })
+
+  assert.equal(source.id, 'global-ops')
+  assert.equal(source.priority, 120)
+  assert.equal(target.id, 'guild-1001-ops')
+  assert.equal(target.priority, 200)
+})
+
+test('buildManagedRoleReorder rejects builtin source or target roles', () => {
+  assert.throws(
+    () => buildManagedRoleReorder(createCatalog(), GLOBAL_SCOPE, {
+      sourceRoleId: 'authority4+',
+      targetRoleId: 'global-ops',
+    }),
+    /builtin role cannot be modified/,
+  )
+  assert.throws(
+    () => buildManagedRoleReorder(createCatalog(), GLOBAL_SCOPE, {
+      sourceRoleId: 'global-ops',
+      targetRoleId: 'authority4+',
+    }),
+    /builtin role cannot be modified/,
+  )
 })
 
 function createCatalog() {

@@ -277,6 +277,7 @@ declare module '@koishijs/client' {
     // 权限管理 API
     'stuhelperGroupCenter/auth/role/list'(): Promise<Role[]>
     'stuhelperGroupCenter/auth/role/update'(params: { role: Role }): Promise<{ success: boolean }>
+    'stuhelperGroupCenter/auth/role/reorder'(params: { sourceRoleId: string; targetRoleId: string }): Promise<{ success: boolean }>
     'stuhelperGroupCenter/auth/role/delete'(params: { roleId: string }): Promise<{ success: boolean }>
     'stuhelperGroupCenter/auth/user/get'(params: { userId: string }): Promise<string[]>
     'stuhelperGroupCenter/auth/user/assign'(params: { userId: string, roleId: string }): Promise<{ success: boolean }>

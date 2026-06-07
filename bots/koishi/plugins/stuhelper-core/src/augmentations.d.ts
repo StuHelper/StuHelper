@@ -136,6 +136,7 @@ declare module '@koishijs/console' {
 
     'stuhelperGroupCenter/auth/role/list'(): Promise<ApiResponse<Role[]>>
     'stuhelperGroupCenter/auth/role/update'(params: { role: Role }): Promise<ApiResponse<{ success: boolean }>>
+    'stuhelperGroupCenter/auth/role/reorder'(params: { sourceRoleId: string; targetRoleId: string }): Promise<ApiResponse<{ success: boolean }>>
     'stuhelperGroupCenter/auth/role/delete'(params: { roleId: string }): Promise<ApiResponse<{ success: boolean }>>
     'stuhelperGroupCenter/auth/user/get'(params: { userId: string }): Promise<ApiResponse<string[]>>
     'stuhelperGroupCenter/auth/role/members'(params: { roleId: string; fetchNames?: boolean }): Promise<ApiResponse<RoleMemberSnapshot[]>>

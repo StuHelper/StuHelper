@@ -19,12 +19,16 @@
           v-for="role in roles"
           :key="role.id"
           class="role-item"
-          :class="{ active: currentRole?.id === role.id }"
+          :class="{
+            active: currentRole?.id === role.id,
+            locked: !canDragRole(role),
+          }"
           @click="selectRole(role)"
-          draggable="true"
+          :draggable="canDragRole(role)"
           @dragstart="onDragStart($event, role)"
-          @dragover.prevent
+          @dragover="onDragOver($event, role)"
           @drop="onDrop($event, role)"
+          @dragend="onDragEnd"
         >
           <span class="role-color" :style="{ backgroundColor: role.color || '#999' }"></span>
           <span class="role-name">{{ role.name }}</span>
@@ -498,6 +502,10 @@ import { errorMessage } from '../utils/error-message'
 import { copyTextToClipboard } from '../utils/clipboard'
 import { useActionError } from '../composables/use-action-error'
 import { useConfirm } from '../composables/use-confirm'
+import {
+  canDragRoleForReorder,
+  canDropRoleForReorder,
+} from '../models/roles'
 import ConfirmDialog from './primitives/ConfirmDialog.vue'
 
 type RoleOperation = '' | 'create' | 'clone' | 'delete'
@@ -572,6 +580,7 @@ const {
 })
 const selectedImportIds = ref<Set<string>>(new Set())
 let importPreviewRequestSeq = 0
+const draggedRoleId = ref('')
 
 // 全选状态
 const isAllSelected = computed(() => {
@@ -1347,34 +1356,61 @@ const doImportMembers = async () => {
 }
 
 // 拖拽排序
+const roleReorderState = () => ({
+  roleOperation: roleOperation.value,
+  savingChanges: savingChanges.value,
+  loading: loading.value,
+  hasLoadError: Boolean(loadError.value),
+  hasChanges: hasChanges.value,
+})
+
+const canDragRole = (role: Role) => canDragRoleForReorder(role, roleReorderState())
+
+const canDropOnRole = (targetRole: Role) => {
+  const sourceRole = roles.value.find(role => role.id === draggedRoleId.value)
+  return canDropRoleForReorder(sourceRole, targetRole, roleReorderState())
+}
+
 const onDragStart = (e: DragEvent, role: Role) => {
+  if (!canDragRole(role)) {
+    e.preventDefault()
+    return
+  }
+  draggedRoleId.value = role.id
+  if (e.dataTransfer) {
+    e.dataTransfer.setData('text/plain', role.id)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+}
+
+const onDragOver = (e: DragEvent, targetRole: Role) => {
+  if (canDropOnRole(targetRole)) {
+    e.preventDefault()
     if (e.dataTransfer) {
-        e.dataTransfer.setData('text/plain', role.id)
-        e.dataTransfer.effectAllowed = 'move'
+      e.dataTransfer.dropEffect = 'move'
     }
+  }
+}
+
+const onDragEnd = () => {
+  draggedRoleId.value = ''
 }
 
 const onDrop = async (e: DragEvent, targetRole: Role) => {
-    const draggedId = e.dataTransfer?.getData('text/plain')
-    if (!draggedId || draggedId === targetRole.id) return
-    
-    const draggedRole = roles.value.find(r => r.id === draggedId)
-    if (draggedRole) {
-      clearActionError()
-      try {
-        // 交换 priority
-        const temp = draggedRole.priority
-        draggedRole.priority = targetRole.priority
-        targetRole.priority = temp
-        
-        await authApi.updateRole(draggedRole)
-        await authApi.updateRole(targetRole)
-        await fetchData()
-      } catch (error) {
-        await fetchData()
-        setActionError('角色排序失败', error, '角色排序失败')
-      }
-    }
+  const draggedId = e.dataTransfer?.getData('text/plain') || draggedRoleId.value
+  const draggedRole = roles.value.find(r => r.id === draggedId)
+  draggedRoleId.value = ''
+  if (!draggedRole || !canDropRoleForReorder(draggedRole, targetRole, roleReorderState())) return
+
+  e.preventDefault()
+  clearActionError()
+  try {
+    await authApi.reorderRoles(draggedRole.id, targetRole.id)
+    await fetchData()
+  } catch (error) {
+    await fetchData()
+    setActionError('角色排序失败', error, '角色排序失败')
+  }
 }
 
 // 复制角色 ID
@@ -1473,6 +1509,10 @@ const copyRoleId = async () => {
   background: var(--bg3, #313136);
 }
 
+.role-item.locked {
+  cursor: default;
+}
+
 .role-item.active {
   background: var(--k-color-primary-fade, rgba(116, 89, 255, 0.1));
   border-left: 2px solid var(--k-color-primary, #7459ff);
@@ -1517,6 +1557,11 @@ const copyRoleId = async () => {
 
 .role-item:hover .drag-handle {
   opacity: 1;
+}
+
+.role-item.locked .drag-handle {
+  cursor: default;
+  opacity: 0;
 }
 
 /* 主内容区 */

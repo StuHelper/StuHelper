@@ -1,7 +1,7 @@
 import type { Bot } from 'koishi'
 
 import type { Role } from '../../types'
-import { normalizeManagedRoleInput, requireAssignableRole } from './auth-management'
+import { buildManagedRoleReorder, normalizeManagedRoleInput, requireAssignableRole } from './auth-management'
 import type { WebSocketAPIContext } from './api-context'
 import { error, success } from './api-response'
 import {
@@ -34,6 +34,14 @@ function registerRoleAPI(api: WebSocketAPIContext): void {
     const scope = await api.resolveConsoleScope(this)
     const role = normalizeManagedRoleInput(api.service.auth, scope, params.role)
     await api.service.auth.saveRole(role)
+    await api.service.data.authRoles.flush()
+    return success({ success: true })
+  })
+  api.addAuthorityListener('stuhelperGroupCenter/auth/role/reorder', async function (params: RoleReorderParams) {
+    const scope = await api.resolveConsoleScope(this)
+    const [sourceRole, targetRole] = buildManagedRoleReorder(api.service.auth, scope, params)
+    await api.service.auth.saveRole(sourceRole)
+    await api.service.auth.saveRole(targetRole)
     await api.service.data.authRoles.flush()
     return success({ success: true })
   })
@@ -86,6 +94,11 @@ function registerAuthQueryAPI(api: WebSocketAPIContext): void {
 interface RoleMembersParams {
   readonly roleId: string
   readonly fetchNames?: boolean
+}
+
+interface RoleReorderParams {
+  readonly sourceRoleId: string
+  readonly targetRoleId: string
 }
 
 interface ImportMembersParams {
