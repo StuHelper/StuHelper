@@ -69,8 +69,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter, type LocationQueryRaw, type LocationQueryValue } from 'vue-router'
 import { api } from '@/api'
 import type { Review } from '@stuhelper/shared/review'
 import TabBar from '@/components/common/TabBar.vue'
@@ -80,6 +81,11 @@ import InfiniteScroll from '@/components/common/InfiniteScroll.vue'
 import SkeletonCard from '@/components/common/SkeletonCard.vue'
 
 const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
+
+const reviewSortValues = ['time', 'likes', 'rating'] as const
+type ReviewSort = (typeof reviewSortValues)[number]
 
 const reviews = ref<Review[]>([])
 const loading = ref(false)
@@ -87,7 +93,7 @@ const hasMore = ref(true)
 const error = ref<string | null>(null)
 const page = ref(1)
 const pageSize = 10
-const activeSort = ref('time')
+const activeSort = ref<ReviewSort>(readRouteSort())
 const isFirstLoad = ref(true)
 
 // 用于取消进行中的请求，防止组件卸载后状态更新
@@ -100,6 +106,34 @@ const sortTabs = computed(() => [
   { label: t('review.filters.hottest'), value: 'likes' },
   { label: t('review.filters.featured'), value: 'rating' }
 ])
+
+function isReviewSort(value: string): value is ReviewSort {
+  return reviewSortValues.includes(value as ReviewSort)
+}
+
+function firstRouteQueryValue(value: LocationQueryValue | LocationQueryValue[] | undefined): string | null {
+  if (Array.isArray(value)) {
+    return value.find((item): item is string => typeof item === 'string') ?? null
+  }
+  return typeof value === 'string' ? value : null
+}
+
+function readRouteSort(): ReviewSort {
+  const raw = firstRouteQueryValue(route.query.sort)
+  return raw && isReviewSort(raw) ? raw : 'time'
+}
+
+function reviewFeedQueryWithSort(sort: ReviewSort): LocationQueryRaw {
+  const nextQuery: LocationQueryRaw = {}
+  for (const [key, value] of Object.entries(route.query)) {
+    if (key === 'sort') continue
+    nextQuery[key] = value
+  }
+  if (sort !== 'time') {
+    nextQuery.sort = sort
+  }
+  return nextQuery
+}
 
 async function loadReviews(reset = false) {
   if (loading.value && !reset) return
@@ -122,7 +156,11 @@ async function loadReviews(reset = false) {
   loading.value = true
   error.value = null
   try {
-    const pageData = await api.review.getLatestReviewsPage({ page: page.value, pageSize, sort: activeSort.value as 'time' | 'likes' | 'rating' })
+    const pageData = await api.review.getLatestReviewsPage({
+      page: page.value,
+      pageSize,
+      sort: activeSort.value,
+    })
     // 请求被取消或版本过期则忽略结果
     if (signal.aborted || currentVersion !== requestVersion) return
     const list = pageData.list
@@ -151,8 +189,11 @@ function loadMore() {
 }
 
 function handleSortChange(sort: string) {
-  activeSort.value = sort
-  loadReviews(true)
+  if (!isReviewSort(sort) || activeSort.value === sort) return
+  void router.push({
+    path: route.path,
+    query: reviewFeedQueryWithSort(sort),
+  })
 }
 
 // 重试时清除错误状态，不重置 hasMore，直接重试当前页
@@ -164,6 +205,16 @@ function handleRetry() {
 onMounted(() => {
   loadReviews()
 })
+
+watch(
+  () => route.query.sort,
+  () => {
+    const nextSort = readRouteSort()
+    if (activeSort.value === nextSort) return
+    activeSort.value = nextSort
+    loadReviews(true)
+  },
+)
 
 onUnmounted(() => {
   if (abortController) {

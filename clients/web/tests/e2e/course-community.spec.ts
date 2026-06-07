@@ -329,6 +329,10 @@ test.describe("Course community surfaces", () => {
         );
 
         await page.getByRole("tab", { name: "最热" }).click();
+        await expect(page).toHaveURL((url) =>
+            url.pathname === "/courses/reviews" &&
+            url.searchParams.get("sort") === "likes",
+        );
         await expect(page.getByText("最热排序测评")).toBeVisible();
         await expect
             .poll(() =>
@@ -347,6 +351,10 @@ test.describe("Course community surfaces", () => {
         );
 
         await page.getByRole("tab", { name: "精选" }).click();
+        await expect(page).toHaveURL((url) =>
+            url.pathname === "/courses/reviews" &&
+            url.searchParams.get("sort") === "rating",
+        );
         await expect(page.getByText("高分排序测评")).toBeVisible();
         await expect
             .poll(() =>
@@ -359,6 +367,40 @@ test.describe("Course community surfaces", () => {
                 ),
             )
             .toBe(true);
+
+        const requestsBeforeReload = webApiRequests.length;
+        await page.reload();
+
+        await expect(page).toHaveURL((url) =>
+            url.pathname === "/courses/reviews" &&
+            url.searchParams.get("sort") === "rating",
+        );
+        await expect(page.getByRole("tab", { name: "精选" })).toHaveAttribute(
+            "aria-selected",
+            "true",
+        );
+        await expect(page.getByText("高分排序测评")).toBeVisible();
+        await expect
+            .poll(() =>
+                webApiRequests.slice(requestsBeforeReload).some((request) => {
+                    if (!request.startsWith("GET ")) return false;
+                    const url = new URL(request.slice("GET ".length), "http://web.e2e");
+                    return (
+                        url.pathname ===
+                            "/api/v1/course/review/reviews/latest" &&
+                        url.searchParams.get("sort") === "rating" &&
+                        url.searchParams.get("page") === "1" &&
+                        url.searchParams.get("pageSize") === "10"
+                    );
+                }),
+            )
+            .toBe(true);
+
+        await page.getByRole("tab", { name: "最新" }).click();
+        await expect(page).toHaveURL((url) =>
+            url.pathname === "/courses/reviews" &&
+            !url.searchParams.has("sort"),
+        );
 
         await openCourseListDrawerIfNeeded(page);
         await page
