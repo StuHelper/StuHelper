@@ -141,7 +141,7 @@ watch(resourceID, () => {
   <div class="min-h-screen bg-bg-base">
     <section class="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <RouterLink
-        :to="{ name: 'resource-list' }"
+        :to="{ name: 'resource-list', query: route.query }"
         class="mb-6 inline-flex items-center gap-2 rounded-lg px-0 text-sm font-semibold text-text-secondary no-underline transition-colors hover:text-primary"
       >
         <ArrowLeft :size="16" />

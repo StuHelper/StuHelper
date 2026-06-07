@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute, useRouter, type LocationQueryRaw, type LocationQueryValue } from 'vue-router'
 import { Download, FileText, RefreshCw, Search, Tag, X } from 'lucide-vue-next'
 import { api } from '@/api'
 import {
@@ -10,6 +10,8 @@ import {
 } from '@/modules/resource/resourcePayload'
 
 const { t, locale } = useI18n()
+const route = useRoute()
+const router = useRouter()
 
 const query = ref('')
 const tag = ref('')
@@ -24,7 +26,15 @@ const errorMessage = ref('')
 const loadMoreError = ref('')
 const hasSearched = ref(false)
 const PAGE_SIZE = 24
+const RESOURCE_FILTER_KEYS = ['query', 'tag', 'bindingType', 'bindingValue'] as const
 let resourceRequestSeq = 0
+
+interface ResourceFilters {
+  query: string
+  tag: string
+  bindingType: string
+  bindingValue: string
+}
 
 const hasFilters = computed(() =>
   Boolean(
@@ -35,6 +45,7 @@ const hasFilters = computed(() =>
   ),
 )
 const hasMore = computed(() => resources.value.length < total.value)
+const resourceListQuery = computed(() => resourceFiltersToQuery(routeResourceFilters()))
 
 function formatDate(value: string) {
   const date = new Date(value)
@@ -129,6 +140,68 @@ function loadResources() {
   return loadResourcePage(1)
 }
 
+function inputResourceFilters(): ResourceFilters {
+  return {
+    query: query.value.trim(),
+    tag: tag.value.trim(),
+    bindingType: bindingType.value.trim(),
+    bindingValue: bindingValue.value.trim(),
+  }
+}
+
+function routeResourceFilters(): ResourceFilters {
+  return {
+    query: readRouteFilter('query'),
+    tag: readRouteFilter('tag'),
+    bindingType: readRouteFilter('bindingType'),
+    bindingValue: readRouteFilter('bindingValue'),
+  }
+}
+
+function readRouteFilter(key: keyof ResourceFilters): string {
+  return firstRouteQueryValue(route.query[key])?.trim() ?? ''
+}
+
+function firstRouteQueryValue(value: LocationQueryValue | LocationQueryValue[] | undefined): string | null {
+  if (Array.isArray(value)) {
+    return value.find((item): item is string => typeof item === 'string') ?? null
+  }
+  return typeof value === 'string' ? value : null
+}
+
+function applyResourceFilters(filters: ResourceFilters): void {
+  query.value = filters.query
+  tag.value = filters.tag
+  bindingType.value = filters.bindingType
+  bindingValue.value = filters.bindingValue
+}
+
+function resourceFiltersToQuery(filters: ResourceFilters): LocationQueryRaw {
+  const nextQuery: LocationQueryRaw = {}
+  for (const [key, value] of Object.entries(route.query)) {
+    if (RESOURCE_FILTER_KEYS.includes(key as (typeof RESOURCE_FILTER_KEYS)[number])) continue
+    nextQuery[key] = value
+  }
+  if (filters.query) nextQuery.query = filters.query
+  if (filters.tag) nextQuery.tag = filters.tag
+  if (filters.bindingType) nextQuery.bindingType = filters.bindingType
+  if (filters.bindingValue) nextQuery.bindingValue = filters.bindingValue
+  return nextQuery
+}
+
+function sameResourceFilters(left: ResourceFilters, right: ResourceFilters): boolean {
+  return RESOURCE_FILTER_KEYS.every((key) => left[key] === right[key])
+}
+
+async function submitFilters(): Promise<void> {
+  const filters = inputResourceFilters()
+  if (sameResourceFilters(filters, routeResourceFilters())) {
+    await loadResources()
+    return
+  }
+  await router.push({ name: 'resource-list', query: resourceFiltersToQuery(filters) })
+}
+
 function loadMoreResources() {
   if (loadingMore.value || loading.value || !hasMore.value) return
   return loadResourcePage(page.value + 1, true)
@@ -139,12 +212,21 @@ function clearFilters() {
   tag.value = ''
   bindingType.value = ''
   bindingValue.value = ''
-  void loadResources()
+  void router.push({ name: 'resource-list', query: resourceFiltersToQuery(inputResourceFilters()) })
 }
 
 onMounted(() => {
+  applyResourceFilters(routeResourceFilters())
   void loadResources()
 })
+
+watch(
+  () => route.query,
+  () => {
+    applyResourceFilters(routeResourceFilters())
+    void loadResources()
+  },
+)
 </script>
 
 <template>
@@ -161,7 +243,7 @@ onMounted(() => {
 
       <form
         class="mb-6 grid gap-3 rounded-lg border border-border-light bg-bg-card p-4 shadow-xs md:grid-cols-[minmax(0,2fr)_minmax(140px,1fr)_minmax(140px,1fr)_minmax(140px,1fr)_auto]"
-        @submit.prevent="loadResources"
+        @submit.prevent="submitFilters"
       >
         <label class="grid gap-1 text-xs font-semibold text-text-secondary">
           {{ t('resource.list.searchLabel') }}
@@ -290,7 +372,7 @@ onMounted(() => {
           <RouterLink
             v-for="resource in resources"
             :key="resource.id"
-            :to="{ name: 'resource-detail', params: { id: resource.id } }"
+            :to="{ name: 'resource-detail', params: { id: resource.id }, query: resourceListQuery }"
             class="group flex min-h-44 flex-col rounded-lg border border-border-light bg-bg-card p-5 no-underline shadow-xs transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
           >
             <div class="mb-3 flex items-start justify-between gap-3">

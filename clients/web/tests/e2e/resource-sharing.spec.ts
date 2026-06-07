@@ -95,6 +95,12 @@ test.describe('Resource sharing', () => {
         }),
       })
     })
+    await page.route('**/api/v1/resources/42', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: sampleResource }),
+      }),
+    )
 
     await page.goto('/')
     await openResourceListFromNavigation(page)
@@ -118,9 +124,77 @@ test.describe('Resource sharing', () => {
     expect(requestURL.searchParams.get('tag')).toBe('期末')
     expect(requestURL.searchParams.get('bindingType')).toBe('course')
     expect(requestURL.searchParams.get('bindingValue')).toBe('8')
+    await expect(page).toHaveURL((url) =>
+      url.pathname === '/resources' &&
+      url.searchParams.get('query') === '高数' &&
+      url.searchParams.get('tag') === '期末' &&
+      url.searchParams.get('bindingType') === 'course' &&
+      url.searchParams.get('bindingValue') === '8',
+    )
 
     await page.getByRole('link', { name: /高等数学A 期末复习讲义/ }).click()
-    await expect(page).toHaveURL(/\/resources\/42$/)
+    await expect(page).toHaveURL((url) =>
+      url.pathname === '/resources/42' &&
+      url.searchParams.get('query') === '高数' &&
+      url.searchParams.get('tag') === '期末' &&
+      url.searchParams.get('bindingType') === 'course' &&
+      url.searchParams.get('bindingValue') === '8',
+    )
+    await expect(page.getByRole('heading', { name: '高等数学A 期末复习讲义' })).toBeVisible()
+
+    await page.getByRole('link', { name: '返回资料列表' }).click()
+    await expect(page).toHaveURL((url) =>
+      url.pathname === '/resources' &&
+      url.searchParams.get('query') === '高数' &&
+      url.searchParams.get('tag') === '期末' &&
+      url.searchParams.get('bindingType') === 'course' &&
+      url.searchParams.get('bindingValue') === '8',
+    )
+    await expect(page.getByRole('searchbox', { name: /搜索资料/ })).toHaveValue('高数')
+    await expect(page.getByLabel('标签')).toHaveValue('期末')
+    await expect(page.getByLabel('绑定类型')).toHaveValue('course')
+    await expect(page.getByLabel('绑定值')).toHaveValue('8')
+  })
+
+  test('resource list restores filters from a shared URL', async ({
+    page,
+  }) => {
+    let requestedURL = ''
+
+    await page.route('**/api/v1/resources?*', (route) => {
+      requestedURL = route.request().url()
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { items: [sampleResource], total: 1, page: 1, pageSize: 24 },
+        }),
+      })
+    })
+
+    await page.goto('/resources?query=高数&tag=期末&bindingType=course&bindingValue=8')
+
+    await expect(page.getByRole('heading', { name: '资料共享' })).toBeVisible()
+    await expect(page.getByRole('searchbox', { name: /搜索资料/ })).toHaveValue('高数')
+    await expect(page.getByLabel('标签')).toHaveValue('期末')
+    await expect(page.getByLabel('绑定类型')).toHaveValue('course')
+    await expect(page.getByLabel('绑定值')).toHaveValue('8')
+    await expect(page.getByText('高等数学A 期末复习讲义')).toBeVisible()
+
+    await expect
+      .poll(() => new URL(requestedURL).searchParams.get('query'))
+      .toBe('高数')
+    const requestURL = new URL(requestedURL)
+    expect(requestURL.searchParams.get('tag')).toBe('期末')
+    expect(requestURL.searchParams.get('bindingType')).toBe('course')
+    expect(requestURL.searchParams.get('bindingValue')).toBe('8')
+
+    await page.getByRole('button', { name: '清空筛选' }).click()
+    await expect(page).toHaveURL(/\/resources$/)
+    await expect(page.getByRole('searchbox', { name: /搜索资料/ })).toHaveValue('')
+    await expect(page.getByLabel('标签')).toHaveValue('')
+    await expect(page.getByLabel('绑定类型')).toHaveValue('')
+    await expect(page.getByLabel('绑定值')).toHaveValue('')
   })
 
   test('resource list ignores stale search failures after filters are cleared', async ({
