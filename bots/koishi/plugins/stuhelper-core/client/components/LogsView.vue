@@ -368,6 +368,12 @@ function resetFilters() {
   searchParams.guildId = undefined
   searchParams.details = undefined
   searchParams.page = 1
+  props.navigation?.replaceState({
+    guildId: null,
+    memberId: null,
+    itemId: null,
+    keyword: '',
+  })
   void runSearch()
 }
 

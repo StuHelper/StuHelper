@@ -634,6 +634,33 @@ test('log search filters seeded command log and opens detail drawer', async ({ l
   await expect(page.locator('label', { hasText: '命令' }).locator('input').first()).toHaveValue('')
   await expect(page.locator('label', { hasText: '用户 ID' }).locator('input').first()).toHaveValue('')
   await expect(page.locator('label', { hasText: '详情关键字' }).locator('input').first()).toHaveValue('')
+  await expect(page).toHaveURL(/#logs($|\?)/, { timeout: 5_000 })
+
+  tracker.assertClean()
+})
+
+test('log filter reset clears deep-link navigation context', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  await page.goto('/stuhelper#logs?guildId=2002&keyword=100000', { waitUntil: 'domcontentloaded' })
+  await expect(page.locator('.sh-workspace-head__title', { hasText: '日志检索' }).first()).toBeVisible({
+    timeout: 10_000,
+  })
+  await expect(page.locator('label', { hasText: '用户 ID' }).locator('input').first()).toHaveValue('100000')
+  await expect(page.locator('label', { hasText: '群组 ID' }).locator('input').first()).toHaveValue('2002')
+
+  await page.getByRole('button', { name: '重置', exact: true }).click()
+
+  await expect(page.locator('label', { hasText: '用户 ID' }).locator('input').first()).toHaveValue('')
+  await expect(page.locator('label', { hasText: '群组 ID' }).locator('input').first()).toHaveValue('')
+  await expect(page).toHaveURL(/#logs$/, { timeout: 5_000 })
+
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await expect(page.locator('.sh-workspace-head__title', { hasText: '日志检索' }).first()).toBeVisible({
+    timeout: 10_000,
+  })
+  await expect(page.locator('label', { hasText: '用户 ID' }).locator('input').first()).toHaveValue('')
+  await expect(page.locator('label', { hasText: '群组 ID' }).locator('input').first()).toHaveValue('')
 
   tracker.assertClean()
 })
