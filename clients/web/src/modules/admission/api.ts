@@ -372,6 +372,7 @@ function readFreshmanCameraHandoff(
       FRESHMAN_CAMERA_HANDOFF_STATUS_VALUES,
       message,
     ),
+    maxMaterialBytes: readInteger(payload, 'maxMaterialBytes', message),
     continueOn: readOptionalEnum<FreshmanCameraContinuation>(
       payload,
       'continueOn',

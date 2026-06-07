@@ -368,6 +368,7 @@ func TestFreshmanCameraHandoffUploadsAndLocksContinuation(t *testing.T) {
 	require.NotEmpty(t, handoff.ID)
 	assert.Equal(t, FreshmanCameraHandoffPending, handoff.Status)
 	assert.Contains(t, handoff.MobileURL, "/admission/freshman/camera/")
+	assert.Equal(t, DefaultMaxMaterialBytes, handoff.MaxMaterialBytes)
 	token := handoff.MobileURL[strings.LastIndex(handoff.MobileURL, "/")+1:]
 
 	preview, err := svc.PreviewFreshmanCameraHandoff(
@@ -376,6 +377,7 @@ func TestFreshmanCameraHandoffUploadsAndLocksContinuation(t *testing.T) {
 	)
 	require.NoError(t, err)
 	assert.Equal(t, handoff.ID, preview.ID)
+	assert.Equal(t, DefaultMaxMaterialBytes, preview.MaxMaterialBytes)
 
 	regenerated, err := svc.CreateFreshmanCameraHandoff(context.Background(), FreshmanCameraHandoffCreateInput{
 		UserID:        userID,
@@ -393,6 +395,7 @@ func TestFreshmanCameraHandoffUploadsAndLocksContinuation(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, FreshmanCameraHandoffUploaded, uploaded.Status)
+	assert.Equal(t, DefaultMaxMaterialBytes, uploaded.MaxMaterialBytes)
 	assert.NotNil(t, uploaded.UploadedAt)
 	assert.NotEmpty(t, store.objectKey)
 	require.NotNil(t, app.AdmissionSessionID)
@@ -421,6 +424,7 @@ func TestFreshmanCameraHandoffUploadsAndLocksContinuation(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, FreshmanCameraHandoffLocked, locked.Status)
+	assert.Equal(t, DefaultMaxMaterialBytes, locked.MaxMaterialBytes)
 	require.NotNil(t, locked.ContinueOn)
 	assert.Equal(t, FreshmanCameraContinueDesktop, *locked.ContinueOn)
 	require.NotNil(t, locked.ChosenAt)

@@ -70,6 +70,7 @@ const handoff = {
   applicationID: 'application-1',
   userID: 'user-1',
   status: 'pending',
+  maxMaterialBytes: 5_242_880,
   mobileURL: 'https://join.stuhelper.com/admission/freshman/camera/token-1',
   expiresAt: '2026-06-01T10:30:00Z',
   createdAt: '2026-06-01T10:00:00Z',
@@ -255,6 +256,7 @@ describe('admissionApi response parsing', () => {
       id: 'handoff-1',
       userID: '42',
       mobileURL: 'https://join.stuhelper.com/admission/freshman/camera/token-1',
+      maxMaterialBytes: 5_242_880,
       status: 'pending',
     })
   })

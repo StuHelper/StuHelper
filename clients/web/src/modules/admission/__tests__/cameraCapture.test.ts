@@ -42,6 +42,7 @@ const freshmanHandoff = {
     applicationID: "application-1",
     userID: "42",
     status: "pending",
+    maxMaterialBytes: 1024,
     mobileURL:
         "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
     expiresAt: "2026-06-01T10:30:00Z",
@@ -81,6 +82,17 @@ describe("camera capture helpers", () => {
                 "无法打开摄像头。",
             ),
         ).toContain("摄像头权限被浏览器拒绝");
+    });
+
+    it("maps material size errors to actionable Chinese copy", () => {
+        expect(
+            describeCameraCaptureError(
+                new Error(
+                    "Camera capture exceeds the admission material size limit",
+                ),
+                "拍摄失败，请重试。",
+            ),
+        ).toContain("拍摄图片超过材料大小限制");
     });
 
     it("fails when the browser cannot provide a canvas 2D context", () => {

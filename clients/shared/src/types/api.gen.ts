@@ -4582,6 +4582,8 @@ export interface components {
             chosenAt?: string;
             /** Format: date-time */
             createdAt: string;
+            /** Format: int64 */
+            maxMaterialBytes: number;
         };
         FreshmanCameraHandoffContinuationRequest: {
             /** @enum {string} */

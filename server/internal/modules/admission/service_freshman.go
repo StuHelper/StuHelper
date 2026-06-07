@@ -139,7 +139,7 @@ func (s *Service) CreateFreshmanCameraHandoff(
 	if err != nil {
 		return nil, err
 	}
-	session, _, err := s.loadApplicationSessionPolicy(ctx, app)
+	session, policy, err := s.loadApplicationSessionPolicy(ctx, app)
 	if err != nil {
 		return nil, err
 	}
@@ -175,13 +175,14 @@ func (s *Service) CreateFreshmanCameraHandoff(
 		return nil, err
 	}
 	handoff := FreshmanCameraHandoff{
-		ID:            handoffID,
-		ApplicationID: app.ID,
-		UserID:        input.UserID,
-		Status:        FreshmanCameraHandoffPending,
-		MobileURL:     s.buildFreshmanCameraMobileURL(token),
-		ExpiresAt:     s.now().Add(freshmanCameraHandoffTTL),
-		CreatedAt:     s.now(),
+		ID:               handoffID,
+		ApplicationID:    app.ID,
+		UserID:           input.UserID,
+		Status:           FreshmanCameraHandoffPending,
+		MobileURL:        s.buildFreshmanCameraMobileURL(token),
+		ExpiresAt:        s.now().Add(freshmanCameraHandoffTTL),
+		CreatedAt:        s.now(),
+		MaxMaterialBytes: policy.MaxMaterialBytes,
 	}
 	if err := s.repo.CreateFreshmanCameraHandoff(ctx, handoff, s.hashToken(token)); err != nil {
 		if isFreshmanCameraHandoffActiveUniqueViolation(err) {
@@ -282,6 +283,7 @@ func (s *Service) SubmitFreshmanCameraHandoffCapture(
 	}
 	handoff.Status = FreshmanCameraHandoffUploaded
 	handoff.UploadedAt = &now
+	handoff.MaxMaterialBytes = policy.MaxMaterialBytes
 	return handoff, nil
 }
 
@@ -314,7 +316,7 @@ func (s *Service) ChooseFreshmanCameraHandoffContinuation(
 		}
 		return nil, err
 	}
-	return updated, nil
+	return s.hydrateFreshmanCameraHandoff(ctx, updated)
 }
 
 func (s *Service) requireLinkedSession(
@@ -470,7 +472,7 @@ func (s *Service) ensureFreshmanDesktopCaptureAllowed(ctx context.Context, appli
 }
 
 func (s *Service) hydrateFreshmanCameraHandoff(
-	_ context.Context,
+	ctx context.Context,
 	handoff *FreshmanCameraHandoff,
 ) (*FreshmanCameraHandoff, error) {
 	if handoff == nil {
@@ -479,6 +481,15 @@ func (s *Service) hydrateFreshmanCameraHandoff(
 	if s.now().After(handoff.ExpiresAt) && handoff.Status == FreshmanCameraHandoffPending {
 		handoff.Status = FreshmanCameraHandoffExpired
 	}
+	app, err := s.repo.GetFreshmanApplicationByID(ctx, handoff.ApplicationID)
+	if err != nil {
+		return nil, err
+	}
+	_, policy, err := s.loadApplicationSessionPolicy(ctx, app)
+	if err != nil {
+		return nil, err
+	}
+	handoff.MaxMaterialBytes = policy.MaxMaterialBytes
 	return handoff, nil
 }
 

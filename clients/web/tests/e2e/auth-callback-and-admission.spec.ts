@@ -833,6 +833,7 @@ test.describe("Auth callback and admission entry", () => {
                         applicationID: "freshman-application-1",
                         userID: user.id,
                         status: "pending",
+                        maxMaterialBytes: 5_242_880,
                         mobileURL:
                             "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
                         expiresAt: "2026-05-24T04:30:00Z",
@@ -850,6 +851,7 @@ test.describe("Auth callback and admission entry", () => {
                     applicationID: "freshman-application-1",
                     userID: user.id,
                     status: "uploaded",
+                    maxMaterialBytes: 5_242_880,
                     mobileURL:
                         "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
                     expiresAt: "2026-05-24T04:30:00Z",
@@ -885,6 +887,7 @@ test.describe("Auth callback and admission entry", () => {
                         applicationID: "freshman-application-1",
                         userID: user.id,
                         status: "uploaded",
+                        maxMaterialBytes: 5_242_880,
                         mobileURL:
                             "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
                         expiresAt: "2026-05-24T04:30:00Z",
@@ -1003,6 +1006,7 @@ test.describe("Auth callback and admission entry", () => {
                         applicationID: "freshman-application-1",
                         userID: user.id,
                         status: "pending",
+                        maxMaterialBytes: 5_242_880,
                         mobileURL:
                             "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
                         expiresAt: "2026-05-24T04:30:00Z",
@@ -1020,6 +1024,7 @@ test.describe("Auth callback and admission entry", () => {
                         applicationID: "freshman-application-1",
                         userID: user.id,
                         status: "pending",
+                        maxMaterialBytes: 5_242_880,
                         mobileURL:
                             "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
                         expiresAt: "2026-05-24T04:30:00Z",
@@ -1126,6 +1131,7 @@ test.describe("Auth callback and admission entry", () => {
                         applicationID: "freshman-application-1",
                         userID: user.id,
                         status: "pending",
+                        maxMaterialBytes: 5_242_880,
                         mobileURL:
                             "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
                         expiresAt: "2026-05-24T04:30:00Z",
@@ -1143,6 +1149,7 @@ test.describe("Auth callback and admission entry", () => {
                         applicationID: "freshman-application-1",
                         userID: user.id,
                         status: "uploaded",
+                        maxMaterialBytes: 5_242_880,
                         mobileURL:
                             "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
                         expiresAt: "2026-05-24T04:30:00Z",
@@ -1163,6 +1170,7 @@ test.describe("Auth callback and admission entry", () => {
                         userID: user.id,
                         status: "locked",
                         continueOn: "mobile",
+                        maxMaterialBytes: 5_242_880,
                         mobileURL:
                             "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
                         expiresAt: "2026-05-24T04:30:00Z",
@@ -1192,6 +1200,86 @@ test.describe("Auth callback and admission entry", () => {
             "string",
         );
         expect(continuationBody).toEqual({ continueOn: "mobile" });
+        expect(authRequestCount).toBe(0);
+    });
+
+    test("freshman mobile camera enforces the handoff material size limit before upload", async ({
+        page,
+    }) => {
+        let uploadRequests = 0;
+        let authRequestCount = 0;
+
+        await page.addInitScript(() => {
+            Object.defineProperty(navigator, "mediaDevices", {
+                configurable: true,
+                value: {
+                    getUserMedia: async () => new MediaStream(),
+                },
+            });
+            Object.defineProperty(HTMLVideoElement.prototype, "videoWidth", {
+                configurable: true,
+                get: () => 2,
+            });
+            Object.defineProperty(HTMLVideoElement.prototype, "videoHeight", {
+                configurable: true,
+                get: () => 2,
+            });
+            HTMLVideoElement.prototype.play = async () => undefined;
+            HTMLCanvasElement.prototype.getContext = ((contextId: string) => {
+                if (contextId !== "2d") {
+                    return null;
+                }
+                return {
+                    drawImage: () => undefined,
+                } as unknown as CanvasRenderingContext2D;
+            }) as HTMLCanvasElement["getContext"];
+            HTMLCanvasElement.prototype.toDataURL = () =>
+                "data:image/jpeg;base64,QUJDRA==";
+        });
+        await page.route("**/api/v1/auth/**", (route) => {
+            authRequestCount += 1;
+            return route.fulfill(
+                apiError("unexpected_auth", "unexpected auth call", 500),
+            );
+        });
+        await page.route(
+            "**/api/v1/admission/freshman/mobile-camera-handoffs/mobile-token",
+            (route) =>
+                route.fulfill(
+                    ok({
+                        id: "handoff-1",
+                        applicationID: "freshman-application-1",
+                        userID: user.id,
+                        status: "pending",
+                        maxMaterialBytes: 1,
+                        mobileURL:
+                            "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
+                        expiresAt: "2026-05-24T04:30:00Z",
+                        createdAt: now,
+                    }),
+                ),
+        );
+        await page.route(
+            "**/api/v1/admission/freshman/mobile-camera-handoffs/mobile-token/camera-capture",
+            (route) => {
+                uploadRequests += 1;
+                return route.fulfill(
+                    apiError("unexpected_upload", "unexpected upload", 500),
+                );
+            },
+        );
+
+        await page.goto("/admission/freshman/camera/mobile-token");
+
+        await expect(page.locator('[data-state="ready"]')).toBeVisible();
+        await page.getByRole("button", { name: "打开摄像头" }).click();
+        await page.getByRole("button", { name: "拍摄" }).click();
+
+        await expect(page.getByText("拍摄图片超过材料大小限制")).toBeVisible();
+        await expect(
+            page.getByRole("button", { name: "上传材料" }),
+        ).toBeDisabled();
+        expect(uploadRequests).toBe(0);
         expect(authRequestCount).toBe(0);
     });
 
@@ -1243,6 +1331,7 @@ test.describe("Auth callback and admission entry", () => {
                         applicationID: "freshman-application-1",
                         userID: user.id,
                         status: "pending",
+                        maxMaterialBytes: 5_242_880,
                         mobileURL:
                             "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
                         expiresAt: "2026-05-24T04:30:00Z",

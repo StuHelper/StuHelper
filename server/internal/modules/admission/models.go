@@ -245,16 +245,17 @@ type CameraCaptureInput struct {
 }
 
 type FreshmanCameraHandoff struct {
-	ID            string                      `json:"id"`
-	ApplicationID string                      `json:"applicationID"`
-	UserID        int64                       `json:"userID"`
-	Status        FreshmanCameraHandoffStatus `json:"status"`
-	ContinueOn    *FreshmanCameraContinuation `json:"continueOn,omitempty"`
-	MobileURL     string                      `json:"mobileURL,omitempty"`
-	ExpiresAt     time.Time                   `json:"expiresAt"`
-	UploadedAt    *time.Time                  `json:"uploadedAt,omitempty"`
-	ChosenAt      *time.Time                  `json:"chosenAt,omitempty"`
-	CreatedAt     time.Time                   `json:"createdAt"`
+	ID               string                      `json:"id"`
+	ApplicationID    string                      `json:"applicationID"`
+	UserID           int64                       `json:"userID"`
+	Status           FreshmanCameraHandoffStatus `json:"status"`
+	ContinueOn       *FreshmanCameraContinuation `json:"continueOn,omitempty"`
+	MobileURL        string                      `json:"mobileURL,omitempty"`
+	ExpiresAt        time.Time                   `json:"expiresAt"`
+	UploadedAt       *time.Time                  `json:"uploadedAt,omitempty"`
+	ChosenAt         *time.Time                  `json:"chosenAt,omitempty"`
+	CreatedAt        time.Time                   `json:"createdAt"`
+	MaxMaterialBytes int64                       `json:"maxMaterialBytes"`
 }
 
 func (h FreshmanCameraHandoff) MarshalJSON() ([]byte, error) {

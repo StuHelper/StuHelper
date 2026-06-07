@@ -30,8 +30,13 @@ vi.mock("vue-router", () => ({
 
 vi.mock("../cameraCapture", () => ({
     captureFrameAsBase64: mockCaptureFrameAsBase64,
-    describeCameraCaptureError: (error: unknown, fallback: string) =>
-        error instanceof Error && error.message ? error.message : fallback,
+    describeCameraCaptureError: (error: unknown, fallback: string) => {
+        const message = error instanceof Error ? error.message : "";
+        if (/capture exceeds the admission material size limit/i.test(message)) {
+            return "拍摄图片超过材料大小限制。请调整距离重新拍摄，或使用更低分辨率的设备重试。";
+        }
+        return message || fallback;
+    },
     startCameraStream: mockStartCameraStream,
     stopCameraStream: mockStopCameraStream,
     supportsCameraCapture: () => true,
@@ -42,6 +47,7 @@ const pendingHandoff = {
     applicationID: "application-1",
     userID: "42",
     status: "pending",
+    maxMaterialBytes: 1024,
     mobileURL:
         "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
     expiresAt: "2026-06-01T10:30:00Z",
@@ -294,5 +300,33 @@ describe("FreshmanMobileCameraPage", () => {
         expect(wrapper.find('[data-state="expired"]').exists()).toBe(true);
         expect(wrapper.text()).toContain("链接已过期");
         expect(mockStopCameraStream).toHaveBeenCalledWith({ id: "stream-1" });
+    });
+
+    it("uses the handoff material size limit when capturing on mobile", async () => {
+        mockCaptureFrameAsBase64.mockImplementationOnce(() => {
+            throw new Error(
+                "Camera capture exceeds the admission material size limit",
+            );
+        });
+
+        const wrapper = mount(FreshmanMobileCameraPage);
+        await flushPromises();
+
+        await wrapper.find("[data-mobile-camera-open-button]").trigger("click");
+        await flushPromises();
+        await wrapper
+            .find("[data-mobile-camera-capture-button]")
+            .trigger("click");
+
+        expect(mockCaptureFrameAsBase64).toHaveBeenCalledWith(
+            expect.any(HTMLVideoElement),
+            { maxBytes: 1024 },
+        );
+        expect(wrapper.text()).toContain("拍摄图片超过材料大小限制");
+        expect(
+            wrapper.find<HTMLButtonElement>(
+                "[data-mobile-camera-upload-button]",
+            ).element.disabled,
+        ).toBe(true);
     });
 });

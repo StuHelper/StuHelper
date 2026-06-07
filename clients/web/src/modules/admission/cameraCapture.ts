@@ -61,6 +61,9 @@ export function describeCameraCaptureError(error: unknown, fallback: string): st
   if (/video frame is not ready/i.test(message)) {
     return '摄像头画面还没有准备好，请等待画面出现后再拍摄。'
   }
+  if (/capture exceeds the admission material size limit/i.test(message)) {
+    return '拍摄图片超过材料大小限制。请调整距离重新拍摄，或使用更低分辨率的设备重试。'
+  }
   return message || fallback
 }
 

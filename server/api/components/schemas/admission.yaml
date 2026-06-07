@@ -444,7 +444,7 @@ CameraCaptureRequest:
 
 FreshmanCameraHandoff:
   type: object
-  required: [id, applicationID, userID, status, expiresAt, createdAt]
+  required: [id, applicationID, userID, status, expiresAt, createdAt, maxMaterialBytes]
   properties:
     id:
       type: string
@@ -473,6 +473,9 @@ FreshmanCameraHandoff:
     createdAt:
       type: string
       format: date-time
+    maxMaterialBytes:
+      type: integer
+      format: int64
 
 FreshmanCameraHandoffContinuationRequest:
   type: object

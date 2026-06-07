@@ -11313,6 +11313,7 @@ components:
         - status
         - expiresAt
         - createdAt
+        - maxMaterialBytes
       properties:
         id:
           type: string
@@ -11347,6 +11348,9 @@ components:
         createdAt:
           type: string
           format: date-time
+        maxMaterialBytes:
+          type: integer
+          format: int64
     FreshmanCameraHandoffContinuationRequest:
       type: object
       required:

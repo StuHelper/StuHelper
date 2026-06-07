@@ -259,7 +259,9 @@ function captureMaterial(): void {
         throw new Error("Camera video element is not mounted");
     }
     try {
-        const payload = captureFrameAsBase64(videoRef.value);
+        const payload = captureFrameAsBase64(videoRef.value, {
+            maxBytes: handoff.value?.maxMaterialBytes,
+        });
         capturedPayload.value = payload;
         previewDataURL.value = `data:${payload.contentType};base64,${payload.imageBase64}`;
     } catch (error) {
