@@ -156,7 +156,7 @@ func applicationSpecFromCasdoor(app *casdoorsdk.Application) ApplicationSpec {
 		RedirectURIs:         append([]string(nil), app.RedirectUris...),
 		GrantTypes:           append([]string(nil), app.GrantTypes...),
 		TokenFormat:          app.TokenFormat,
-		TokenFields:          append([]string(nil), app.TokenFields...),
+		TokenFields:          cloneExplicitStringSlice(app.TokenFields),
 		ExpireInHours:        app.ExpireInHours,
 		RefreshExpireInHours: app.RefreshExpireInHours,
 	}
@@ -356,4 +356,11 @@ func normalizeTokenFields(fields []string) ([]string, error) {
 		return nil, err
 	}
 	return normalized, nil
+}
+
+func cloneExplicitStringSlice(values []string) []string {
+	if values == nil {
+		return nil
+	}
+	return append([]string{}, values...)
 }

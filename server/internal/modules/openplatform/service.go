@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"reflect"
 	"regexp"
 	"strings"
 	"time"
@@ -115,8 +116,24 @@ func WithDisclosureRateLimits(cfg DisclosureRateLimitConfig) ServiceOption {
 
 func WithRuntimeTokenProbe(prober tokenMinimizationRuntimeProber, required bool) ServiceOption {
 	return func(s *Service) {
+		if isNilRuntimeTokenProber(prober) {
+			prober = nil
+		}
 		s.tokenProber = prober
 		s.tokenProbeRequired = required
+	}
+}
+
+func isNilRuntimeTokenProber(prober tokenMinimizationRuntimeProber) bool {
+	if prober == nil {
+		return true
+	}
+	value := reflect.ValueOf(prober)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
 	}
 }
 

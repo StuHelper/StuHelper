@@ -47,6 +47,20 @@ func TestCreateApplicationMapsSpec(t *testing.T) {
 	assert.NotNil(t, api.added.SamlAttributes)
 }
 
+func TestApplicationSpecFromCasdoorPreservesExplicitEmptyTokenFields(t *testing.T) {
+	spec := applicationSpecFromCasdoor(&casdoorsdk.Application{
+		TokenFields: []string{},
+	})
+
+	require.NotNil(t, spec.TokenFields)
+	assert.Empty(t, spec.TokenFields)
+	_, err := ProbeApplicationSpecTokenMinimization(ApplicationSpec{
+		TokenFormat: "JWT-Custom",
+		TokenFields: spec.TokenFields,
+	})
+	require.NoError(t, err)
+}
+
 func TestUpdateApplicationDelegatesToSDK(t *testing.T) {
 	api := &fakeApplicationAPI{updateOK: true}
 	client := newTestClient(t, api)

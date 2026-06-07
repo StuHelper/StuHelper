@@ -233,7 +233,7 @@ func openPlatformApplicationSpecFromCasdoor(
 		RedirectURIs:         append([]string(nil), spec.RedirectURIs...),
 		GrantTypes:           append([]string(nil), spec.GrantTypes...),
 		TokenFormat:          spec.TokenFormat,
-		TokenFields:          append([]string(nil), spec.TokenFields...),
+		TokenFields:          cloneExplicitStringSlice(spec.TokenFields),
 		ExpireInHours:        spec.ExpireInHours,
 		RefreshExpireInHours: spec.RefreshExpireInHours,
 	}
@@ -254,10 +254,17 @@ func casdoorApplicationSpecFromOpenPlatform(
 		RedirectURIs:         append([]string(nil), spec.RedirectURIs...),
 		GrantTypes:           append([]string(nil), spec.GrantTypes...),
 		TokenFormat:          spec.TokenFormat,
-		TokenFields:          append([]string(nil), spec.TokenFields...),
+		TokenFields:          cloneExplicitStringSlice(spec.TokenFields),
 		ExpireInHours:        spec.ExpireInHours,
 		RefreshExpireInHours: spec.RefreshExpireInHours,
 	}
+}
+
+func cloneExplicitStringSlice(values []string) []string {
+	if values == nil {
+		return nil
+	}
+	return append([]string{}, values...)
 }
 
 type casdoorUserProfileGateway struct {

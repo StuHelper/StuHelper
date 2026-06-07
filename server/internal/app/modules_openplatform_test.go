@@ -7,7 +7,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/openplatform"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/tokenprobe"
+	platformcasdoor "git.stuhelper.com/StuHelper/StuHelper/internal/platform/casdoor"
 )
 
 func TestOpenPlatformDisclosureRateLimitConfigMapsRuntimeConfig(t *testing.T) {
@@ -123,4 +126,26 @@ func TestRuntimeOpenPlatformTokenProbeTreatsBlankCommandAsNotConfigured(t *testi
 
 	require.NoError(t, err)
 	assert.Nil(t, prober)
+}
+
+func TestOpenPlatformCasdoorSpecMappingPreservesExplicitEmptyTokenFields(t *testing.T) {
+	fromOpenPlatform := casdoorApplicationSpecFromOpenPlatform(openplatform.ProvisionedApplicationSpec{
+		TokenFormat: "JWT-Custom",
+		TokenFields: []string{},
+	})
+
+	require.NotNil(t, fromOpenPlatform.TokenFields)
+	assert.Empty(t, fromOpenPlatform.TokenFields)
+	_, err := platformcasdoor.ProbeApplicationSpecTokenMinimization(fromOpenPlatform)
+	require.NoError(t, err)
+
+	fromCasdoor := openPlatformApplicationSpecFromCasdoor(platformcasdoor.ApplicationSpec{
+		TokenFormat: "JWT-Custom",
+		TokenFields: []string{},
+	})
+
+	require.NotNil(t, fromCasdoor.TokenFields)
+	assert.Empty(t, fromCasdoor.TokenFields)
+	_, err = tokenprobe.ProbeApplicationTokenFieldsMinimized(fromCasdoor.TokenFormat, fromCasdoor.TokenFields)
+	require.NoError(t, err)
 }
