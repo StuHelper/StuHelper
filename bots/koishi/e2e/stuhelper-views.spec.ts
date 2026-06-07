@@ -106,6 +106,22 @@ test('active NavRail click does not duplicate browser history entries', async ({
   tracker.assertClean()
 })
 
+test('active NavRail click keeps current view context', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  await clickNavRail(page, '群组配置')
+  await expect(page).toHaveURL(/#config($|\?)/, { timeout: 5_000 })
+  await page.getByRole('button', { name: '模板库', exact: true }).click()
+  await expect(page).toHaveURL(/#config\?workspace=templates/, { timeout: 5_000 })
+
+  await clickNavRail(page, '群组配置')
+
+  await expect(page).toHaveURL(/#config\?workspace=templates/, { timeout: 5_000 })
+  await expect(page.getByText('编辑模板').first()).toBeVisible({ timeout: 10_000 })
+
+  tracker.assertClean()
+})
+
 test('unknown view deep link falls back to dashboard without blanking the app', async ({ loggedInPage: page }) => {
   await using tracker = createTracker(page)
 
@@ -449,6 +465,8 @@ test('global search opens a Koishi command management result', async ({ loggedIn
 
   await clickNavRail(page, '总览')
   await expect(page).toHaveURL(/#dashboard($|\?)/, { timeout: 5_000 })
+  await page.locator('.sh-cmd__chat').first().click()
+  await expect(page.locator('.sh-dock[data-open="true"]').first()).toBeVisible({ timeout: 10_000 })
 
   await page.locator('.sh-cmd__search').click()
 
@@ -467,7 +485,31 @@ test('global search opens a Koishi command management result', async ({ loggedIn
     .toContain('/commands/群审状态')
   await expect(page.getByText('指令管理 - 群审状态')).toBeVisible({ timeout: 10_000 })
   await expect(searchDialog).toBeHidden({ timeout: 5_000 })
+  await expect(page.locator('.sh-dock[data-open="true"]')).toHaveCount(0, { timeout: 5_000 })
   await returnToStuhelperShell(page)
+
+  tracker.assertClean()
+})
+
+test('global search closes chat dock before opening an entity overlay', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  await clickNavRail(page, '总览')
+  await expect(page).toHaveURL(/#dashboard($|\?)/, { timeout: 5_000 })
+
+  await page.locator('.sh-cmd__chat').click()
+  await expect(page.locator('.sh-dock[data-open="true"]').first()).toBeVisible({ timeout: 10_000 })
+
+  await page.locator('.sh-cmd__search').click()
+  const searchDialog = page.getByRole('dialog', { name: '全站搜索' })
+  await expect(searchDialog).toBeVisible({ timeout: 5_000 })
+  await searchDialog.getByPlaceholder('输入用户 ID / 群号 / 视图名 / 命令…').fill('100000')
+  await searchDialog.getByText('查看用户 100000').click()
+
+  await expect(page.locator('.sh-overlay[data-open="true"]')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.sh-dock[data-open="true"]')).toHaveCount(0, { timeout: 5_000 })
+  await page.locator('.sh-overlay[data-open="true"] .sh-overlay__close').click()
+  await expect(page.locator('.sh-overlay[data-open="true"]')).toHaveCount(0, { timeout: 5_000 })
 
   tracker.assertClean()
 })
@@ -526,6 +568,28 @@ test('global search guild overlay distinguishes admission policy from group conf
 
   await overlay.getByRole('button', { name: '关闭' }).click()
   await expect(page.locator('.sh-overlay[data-open="true"]')).toHaveCount(0, { timeout: 5_000 })
+
+  tracker.assertClean()
+})
+
+test('mobile rail closes from the scrim', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  await clickNavRail(page, '总览')
+  await expect(page).toHaveURL(/#dashboard($|\?)/, { timeout: 5_000 })
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  try {
+    await expect(page.locator('.sh-shell')).toHaveAttribute('data-rail-expanded', 'false')
+    await page.locator('.sh-cmd__menu').click()
+    await expect(page.locator('.sh-shell')).toHaveAttribute('data-rail-expanded', 'true')
+    await expect(page.locator('.sh-shell__rail-scrim')).toBeVisible({ timeout: 5_000 })
+
+    await page.locator('.sh-shell__rail-scrim').click()
+    await expect(page.locator('.sh-shell')).toHaveAttribute('data-rail-expanded', 'false')
+  } finally {
+    await page.setViewportSize({ width: 1280, height: 720 })
+  }
 
   tracker.assertClean()
 })
@@ -1512,9 +1576,13 @@ async function shellSearchShortcut(page: Page): Promise<{ label: string; key: st
 }
 
 async function returnToStuhelperShell(page: Page): Promise<void> {
-  await page.goto('/stuhelper', { waitUntil: 'domcontentloaded' })
+  const stuhelperEntry = page.locator('a[href="/stuhelper"]').first()
+  await expect(stuhelperEntry).toBeVisible({ timeout: 10_000 })
+  await stuhelperEntry.click()
   await expect(page.locator('.stuhelperGroupCenter-app')).toBeVisible({ timeout: 15_000 })
   await expect(page.locator('.sh-rail__item').first()).toBeVisible({ timeout: 10_000 })
+  await expect(page).toHaveURL(/\/stuhelper#dashboard($|\?)/, { timeout: 5_000 })
+  await expect(page).toHaveTitle(/^总览 · StuHelper 群管中心 \| Koishi 控制台$/)
 }
 
 async function fillLabeledInput(page: Page, label: string, value: string): Promise<void> {

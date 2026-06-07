@@ -1,0 +1,1 @@
+export const MOBILE_RAIL_BREAKPOINT = 720

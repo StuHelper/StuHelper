@@ -73,6 +73,7 @@ import { useAppShell } from '../../composables/use-app-shell'
 import type { ConsoleNavigationController } from '../../composables/use-console-navigation'
 import type { ConsoleViewId } from '../../models/views'
 import type { PulseState } from '../../composables/use-pulse'
+import { MOBILE_RAIL_BREAKPOINT } from './breakpoints'
 
 const props = defineProps<{
   navigation: ConsoleNavigationController
@@ -81,7 +82,6 @@ const props = defineProps<{
 }>()
 
 const shell = useAppShell()
-const MOBILE_RAIL_BREAKPOINT = 720
 
 interface NavItem {
   readonly view: ConsoleViewId
@@ -168,13 +168,13 @@ function badgeToneFor(view: ConsoleViewId): 'danger' | 'warning' | 'primary' {
 }
 
 function onHoverIn(): void {
-  if (!shell.railPinned.value) {
+  if (!shell.railPinned.value && props.navigation.viewportWidth.value > MOBILE_RAIL_BREAKPOINT) {
     shell.railExpanded.value = true
   }
 }
 
 function onHoverOut(): void {
-  if (!shell.railPinned.value) {
+  if (!shell.railPinned.value && props.navigation.viewportWidth.value > MOBILE_RAIL_BREAKPOINT) {
     shell.railExpanded.value = false
   }
 }

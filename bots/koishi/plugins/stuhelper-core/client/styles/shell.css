@@ -45,6 +45,10 @@
   background: var(--sh-surface-1);
 }
 
+.sh-shell__rail-scrim {
+  display: none;
+}
+
 @media (max-width: 1080px) {
   .sh-shell__main {
     padding: var(--sh-s-4) var(--sh-s-4);
@@ -68,6 +72,20 @@
     z-index: var(--sh-z-overlay);
     transform: translateX(-100%);
     transition: transform var(--sh-dur-base) var(--sh-ease);
+  }
+
+  .sh-shell__rail-scrim {
+    display: block;
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: var(--sh-rail-w-expanded);
+    z-index: calc(var(--sh-z-overlay) - 1);
+    padding: 0;
+    border: 0;
+    background: rgba(0, 0, 0, 0.28);
+    cursor: pointer;
   }
 
   .sh-shell[data-rail-expanded='true'] .sh-shell__rail {

@@ -14,6 +14,7 @@ export interface AppShellController {
   readonly railExpanded: Ref<boolean>
   readonly railPinned: Ref<boolean>
   toggleRail(): void
+  closeRail(): void
   pinRail(value: boolean): void
 
   readonly chatOpen: Ref<boolean>
@@ -48,12 +49,19 @@ export function createAppShellController(): AppShellController {
     railExpanded.value = !railExpanded.value
   }
 
+  function closeRail() {
+    if (!railPinned.value) {
+      railExpanded.value = false
+    }
+  }
+
   function pinRail(value: boolean) {
     railPinned.value = value
     railExpanded.value = value
   }
 
   function openChat() {
+    entityTarget.value = null
     chatOpen.value = true
     chatMinimized.value = false
   }
@@ -76,6 +84,7 @@ export function createAppShellController(): AppShellController {
   }
 
   function openEntity(target: EntityRef) {
+    closeChat()
     entityTarget.value = target
   }
 
@@ -105,6 +114,7 @@ export function createAppShellController(): AppShellController {
     railExpanded,
     railPinned,
     toggleRail,
+    closeRail,
     pinRail,
     chatOpen,
     chatMinimized,

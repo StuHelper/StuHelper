@@ -10,6 +10,7 @@ import type { ConsoleViewId } from '../models/views'
 export interface ConsoleNavigationController {
   state: Ref<ConsoleNavigationState>
   viewportWidth: Ref<number>
+  syncFromLocation: () => void
   selectView: (view: ConsoleViewId, context?: Partial<ConsoleNavigationState>) => void
   replaceState: (patch: Partial<ConsoleNavigationState>) => void
   pushState: (patch: Partial<ConsoleNavigationState>) => void
@@ -69,6 +70,10 @@ export function useConsoleNavigation(win = window): ConsoleNavigationController 
   }
 
   const selectView = (view: ConsoleViewId, context: Partial<ConsoleNavigationState> = {}) => {
+    if (view === state.value.view && Object.keys(context).length === 0) {
+      replaceLocationIfNeeded(state.value)
+      return
+    }
     updateHistory({ view, ...EMPTY_CONTEXT, ...context }, 'pushState')
   }
 
@@ -96,6 +101,7 @@ export function useConsoleNavigation(win = window): ConsoleNavigationController 
   return {
     state,
     viewportWidth,
+    syncFromLocation,
     selectView,
     replaceState,
     pushState,

@@ -6,6 +6,7 @@
         class="sh-cmd__menu"
         :title="shell.railExpanded.value ? '收起导航' : '展开导航'"
         @click="shell.toggleRail()"
+        @keydown.escape.stop.prevent="shell.closeRail()"
       >
         <k-icon name="stuhelperGroupCenter:octicons.three-bars" />
       </button>
