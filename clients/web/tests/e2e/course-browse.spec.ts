@@ -681,6 +681,11 @@ test.describe('Course Browse Flow', () => {
 
     await page.getByRole('button', { name: '李老师' }).click()
 
+    await expect(page).toHaveURL((url) =>
+      url.pathname === '/courses/8/reviews' &&
+      url.searchParams.get('teacherID') === '2',
+    )
+    await expect(page.getByRole('button', { name: '李老师' })).toHaveAttribute('aria-pressed', 'true')
     await expect(page.getByText('李老师第一页评价')).toBeVisible()
     await expect(page.getByText('王老师评价')).toHaveCount(0)
     await expect
@@ -705,6 +710,33 @@ test.describe('Course Browse Flow', () => {
         ),
       )
       .toBe(true)
+
+    const requestsBeforeReload = reviewRequests.length
+    await page.reload()
+
+    await expect(page).toHaveURL((url) =>
+      url.pathname === '/courses/8/reviews' &&
+      url.searchParams.get('teacherID') === '2',
+    )
+    await expect(page.getByRole('button', { name: '李老师' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByText('李老师第一页评价')).toBeVisible()
+    await expect
+      .poll(() =>
+        reviewRequests.slice(requestsBeforeReload).some(
+          (url) =>
+            url.searchParams.get('teacherID') === '2' &&
+            url.searchParams.get('page') === '1',
+        ),
+      )
+      .toBe(true)
+
+    await page.getByRole('button', { name: '全部' }).click()
+
+    await expect(page).toHaveURL((url) =>
+      url.pathname === '/courses/8/reviews' &&
+      !url.searchParams.has('teacherID'),
+    )
+    await expect(page.getByRole('button', { name: '全部' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   test('course detail review list failure is retryable and not shown as empty', async ({

@@ -182,6 +182,7 @@
               v-for="teacher in teacherChips"
               :key="teacher.teacherID ?? 'all'"
               class="rounded-full px-3 py-1 text-[0.8125rem] font-semibold transition-all duration-base"
+              :aria-pressed="selectedTeacherID === teacher.teacherID"
               :class="selectedTeacherID === teacher.teacherID
                 ? 'bg-primary text-white shadow-glow-primary scale-105'
                 : 'bg-bg-elevated text-text-secondary hover:scale-[1.02] hover:shadow-sm'"
@@ -446,7 +447,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onUnmounted, watch, nextTick } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, type LocationQueryRaw, type LocationQueryValue } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
   ThumbsUp,
@@ -553,12 +554,38 @@ const teacherChips = computed(() => [
   })),
 ])
 
+function firstRouteQueryValue(value: LocationQueryValue | LocationQueryValue[] | undefined): string | null {
+  if (Array.isArray(value)) {
+    return value.find((item): item is string => typeof item === 'string') ?? null
+  }
+  return typeof value === 'string' ? value : null
+}
+
+function readRouteTeacherID(): number | null {
+  const raw = firstRouteQueryValue(route.query.teacherID)
+  if (!raw || !/^[1-9]\d*$/.test(raw)) return null
+  const id = Number(raw)
+  return Number.isSafeInteger(id) ? id : null
+}
+
+function courseReviewQueryWithTeacher(teacherID: number | null): LocationQueryRaw {
+  const nextQuery: LocationQueryRaw = {}
+  for (const [key, value] of Object.entries(route.query)) {
+    if (key === 'teacherID') continue
+    nextQuery[key] = value
+  }
+  if (teacherID !== null) {
+    nextQuery.teacherID = String(teacherID)
+  }
+  return nextQuery
+}
+
 function selectTeacher(teacher: { teacherID: number | null }) {
   if (selectedTeacherID.value === teacher.teacherID) return
-  selectedTeacherID.value = teacher.teacherID
-  page.value = 1
-  const version = ++loadVersion
-  void fetchReviews(false, version)
+  void router.push({
+    path: route.path,
+    query: courseReviewQueryWithTeacher(teacher.teacherID),
+  })
 }
 
 // ── Voting state (per-review) ──
@@ -860,7 +887,7 @@ const fetchAll = async () => {
   reviewsLoadError.value = false
   total.value = 0
   page.value = 1
-  selectedTeacherID.value = null
+  selectedTeacherID.value = readRouteTeacherID()
   contentReady.value = false
   loading.value = true
   error.value = false
@@ -870,7 +897,12 @@ const fetchAll = async () => {
     const [courseRes, statsRes, reviewsRes, teachersRes, trendRes] = await Promise.allSettled([
       api.course.getCourse(id),
       api.rating.getCourseStats(id),
-      api.review.getReviewsPage(id, { page: 1, pageSize: limit, sort: 'time' }),
+      api.review.getReviewsPage(id, {
+        page: 1,
+        pageSize: limit,
+        sort: 'time',
+        teacherID: selectedTeacherID.value ?? undefined,
+      }),
       api.rating.getCourseTeachers(id),
       api.rating.getRatingTrend(id),
     ])
@@ -967,4 +999,16 @@ watch(courseID, async (newID, oldID) => {
   if (oldID !== undefined && (newID === oldID || isNaN(newID) || newID <= 0)) return
   await fetchAll()
 }, { immediate: true })
+
+watch(
+  () => route.query.teacherID,
+  () => {
+    const nextTeacherID = readRouteTeacherID()
+    if (selectedTeacherID.value === nextTeacherID) return
+    selectedTeacherID.value = nextTeacherID
+    page.value = 1
+    const version = ++loadVersion
+    void fetchReviews(false, version)
+  },
+)
 </script>
