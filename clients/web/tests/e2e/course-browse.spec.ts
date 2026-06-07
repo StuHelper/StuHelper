@@ -278,6 +278,136 @@ test.describe('Course Browse Flow', () => {
     await expect(page.getByText('数学科学学院')).toBeVisible()
   })
 
+  test('guest readers can view replies without seeing a reply editor', async ({
+    page,
+  }) => {
+    await page.route('**/api/v1/course/courses/7', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            id: 7,
+            name: '数据结构',
+            code: 'CS201',
+            departmentID: 1,
+            departmentName: '计算机科学与技术学院',
+            credits: 4,
+            reviewCount: 1,
+          },
+        }),
+      }),
+    )
+
+    await page.route('**/api/v1/course/review/courses/7/reviews*', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            list: [
+              {
+                id: 'guest-reply-review',
+                courseID: 7,
+                courseName: '数据结构',
+                teacherID: 11,
+                teacherName: '张老师',
+                termID: '2026-spring',
+                termName: '2026 春',
+                title: '有回复的评价',
+                content: '游客可看到预览，但不能直接编辑回复。',
+                ratings: { recommendation: 5, workload: 3 },
+                likeCount: 3,
+                dislikeCount: 0,
+                replyCount: 1,
+                status: 'published',
+                createdAt: '2026-05-24T04:00:00Z',
+              },
+            ],
+            total: 1,
+          },
+        }),
+      }),
+    )
+
+    await page.route(
+      '**/api/v1/course/review/reviews/guest-reply-review/replies',
+      (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: {
+              list: [
+                {
+                  id: 'guest-visible-reply',
+                  reviewID: 'guest-reply-review',
+                  parentID: null,
+                  content: '这条回复游客应该可以直接阅读。',
+                  likeCount: 0,
+                  status: 'published',
+                  isOwner: false,
+                  createdAt: '2026-05-24T04:05:00Z',
+                  updatedAt: '2026-05-24T04:05:00Z',
+                },
+              ],
+              total: 1,
+              page: 1,
+              pageSize: 20,
+            },
+          }),
+        }),
+    )
+
+    await page.route(
+      '**/api/v1/course/review/courses/7/rating-stats*',
+      (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: {
+              courseID: 7,
+              overall: { termName: '总体', dimensions: [] },
+              byTerm: [],
+              allDimensionKeys: [],
+            },
+          }),
+        }),
+    )
+
+    await page.route(
+      '**/api/v1/course/review/courses/7/teachers*',
+      (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: [] }),
+        }),
+    )
+
+    await page.route(
+      '**/api/v1/course/review/courses/7/rating-trend*',
+      (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: { trend: [] } }),
+        }),
+    )
+
+    await page.goto('/courses/7/reviews')
+    await page.waitForLoadState('networkidle')
+
+    await page.getByRole('button', { name: '查看回复' }).click()
+
+    await expect(page.getByText('这条回复游客应该可以直接阅读。')).toBeVisible()
+    await expect(
+      page.getByText('登录后参与讨论，回复会保留在当前测评下。'),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('textbox', { name: '回复内容' }),
+    ).toHaveCount(0)
+  })
+
   test('empty course detail shows one review prompt without duplicate rating CTA', async ({
     page,
   }) => {
@@ -683,7 +813,7 @@ test.describe('Course Browse Flow', () => {
     await page.goto(protectedRoute)
     await expect(page.getByText('游客操作保护验证')).toBeVisible()
     await page.getByRole('button', { name: /^(发布测评|Post Review)$/ }).click()
-    await expectLoginRedirect(page, protectedRoute)
+    await expectLoginRedirect(page, '/courses/reviews/post')
     expect(mutations).toEqual([])
 
     await page.goto(protectedRoute)
@@ -693,9 +823,10 @@ test.describe('Course Browse Flow', () => {
 
     await page.goto(protectedRoute)
     await page.getByRole('button', { name: /^(查看回复|View replies)$/ }).click()
-    await page.getByRole('textbox', { name: /^(回复内容|Reply content)$/ }).fill('游客回复内容')
-    await page.getByRole('button', { name: /^(发送|Send)$/ }).click()
-    await expectLoginRedirect(page, protectedRoute)
+    await expect(page.getByTestId('review-reply-login-prompt')).toBeVisible()
+    await expect(
+      page.getByRole('textbox', { name: /^(回复内容|Reply content)$/ }),
+    ).toHaveCount(0)
     expect(mutations).toEqual([])
   })
 })

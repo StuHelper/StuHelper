@@ -374,7 +374,12 @@
                   {{ t('review.review.noReplies') }}
                 </div>
 
+                <ReplyLoginPrompt
+                  v-if="!isAuthenticated"
+                  @login="handleLogin"
+                />
                 <ReplyForm
+                  v-else
                   ref="replyFormRef"
                   :submitting="replySubmitting"
                   @submit="(content: string) => handleReplySubmit(r.id, content)"
@@ -446,6 +451,7 @@ import FavoriteButton from '@/components/business/review/FavoriteButton.vue'
 import LockedReviewContent from '@/components/business/review/LockedReviewContent.vue'
 import ReplyCard from '@/components/business/review/ReplyCard.vue'
 import ReplyForm from '@/components/business/review/ReplyForm.vue'
+import ReplyLoginPrompt from '@/components/business/review/ReplyLoginPrompt.vue'
 import ModerationDialog from '@/components/business/review/ModerationDialog.vue'
 import AdminEditDialog from '@/components/business/review/AdminEditDialog.vue'
 import { useReviewAdmin } from '@/modules/review/useReviewAdmin'

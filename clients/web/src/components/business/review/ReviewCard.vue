@@ -263,7 +263,12 @@
         {{ t('review.review.noReplies') }}
       </div>
 
+      <ReplyLoginPrompt
+        v-if="!isAuthenticated"
+        @login="handleLogin"
+      />
       <ReplyForm
+        v-else
         ref="replyFormRef"
         :submitting="replySubmitting"
         @submit="handleReplySubmit"
@@ -302,6 +307,7 @@ import { formatRelativeTime } from '@/utils/date'
 import { use3DTilt } from '@/composables/use3DTilt'
 import ReplyCard from './ReplyCard.vue'
 import ReplyForm from './ReplyForm.vue'
+import ReplyLoginPrompt from './ReplyLoginPrompt.vue'
 import LockedReviewContent from './LockedReviewContent.vue'
 import EmojiRating from './EmojiRating.vue'
 import ModerationDialog from './ModerationDialog.vue'

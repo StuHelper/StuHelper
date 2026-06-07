@@ -143,6 +143,8 @@ export default {
   reply: {
     count: '{count} 条回复',
     placeholder: '写下你的回复...',
+    loginPrompt: '登录后参与讨论，回复会保留在当前测评下。',
+    loginAction: '立即登录',
     emptyTitle: '暂无回复',
     emptyDesc: '成为第一个回复的人',
     sendFailed: '发送失败，请稍后重试',

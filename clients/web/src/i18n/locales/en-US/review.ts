@@ -152,6 +152,8 @@ export default {
   reply: {
     count: '{count} replies',
     placeholder: 'Write your reply...',
+    loginPrompt: 'Log in to join the discussion. Your reply will stay with this review.',
+    loginAction: 'Log in',
     emptyTitle: 'No replies yet',
     emptyDesc: 'Be the first to reply',
     sendFailed: 'Send failed, please retry later',
