@@ -416,7 +416,7 @@ describe('useNotificationStore', () => {
       })
     })
 
-    it('falls back to polling when the active SSE connection errors', () => {
+    it('falls back quietly when the active SSE connection errors', () => {
       const store = useNotificationStore()
 
       store.connectSSE()
@@ -427,9 +427,7 @@ describe('useNotificationStore', () => {
         'notification SSE connection lost',
       )
       expect(source.readyState).toBe(FakeEventSource.CLOSED)
-      expect(warnSpy).toHaveBeenCalledWith(
-        '[Notification] notification SSE connection lost',
-      )
+      expect(warnSpy).not.toHaveBeenCalled()
     })
 
     it('ignores late SSE errors after monitoring has stopped', () => {

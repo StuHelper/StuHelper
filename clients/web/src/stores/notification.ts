@@ -309,9 +309,16 @@ export const useNotificationStore = defineStore("notification", () => {
         lastSSEEvent.value = { seq: sseSequence, type, data };
     };
 
-    const setStreamError = (message: string, err?: unknown) => {
+    const setStreamError = (
+        message: string,
+        err?: unknown,
+        options: { log?: boolean } = {},
+    ) => {
         streamError.value =
             err instanceof Error ? err : new Error(message);
+        if (options.log === false) {
+            return;
+        }
         if (err === undefined) {
             console.warn(`[Notification] ${message}`);
             return;
@@ -768,7 +775,9 @@ export const useNotificationStore = defineStore("notification", () => {
             if (!monitoringActive || eventSource !== source) {
                 return;
             }
-            setStreamError("notification SSE connection lost");
+            setStreamError("notification SSE connection lost", undefined, {
+                log: false,
+            });
             closeEventSource(source);
             startPollingFallback();
             scheduleReconnect();
