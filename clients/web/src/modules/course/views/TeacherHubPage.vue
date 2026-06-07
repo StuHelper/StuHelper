@@ -34,6 +34,7 @@ const popularTeachers = ref<TeacherEntry[]>([])
 const TEACHER_SEARCH_PAGE_SIZE = 30
 
 let searchTimer: ReturnType<typeof setTimeout> | undefined
+let searchRequestSeq = 0
 
 async function loadPopularTeachers() {
   loading.value = true
@@ -66,12 +67,15 @@ function mapTeacher(raw: TeacherSummaryPayload): TeacherEntry {
 
 function handleSearchInput() {
   if (searchTimer) clearTimeout(searchTimer)
+  searchRequestSeq += 1
   if (!searchQuery.value.trim()) {
     searchResults.value = []
     searchTotal.value = 0
     searchPage.value = 1
     errorMessage.value = ''
     loadMoreError.value = ''
+    searching.value = false
+    searchLoadingMore.value = false
     return
   }
   searchTimer = setTimeout(() => { void doSearch() }, 350)
@@ -80,6 +84,7 @@ function handleSearchInput() {
 async function doSearch(nextPage = 1, append = false) {
   const q = searchQuery.value.trim()
   if (!q) return
+  const requestSeq = ++searchRequestSeq
 
   if (append) {
     searchLoadingMore.value = true
@@ -100,7 +105,7 @@ async function doSearch(nextPage = 1, append = false) {
       res.data?.data,
       'Invalid teacher search response',
     )
-    if (searchQuery.value.trim() !== q) return
+    if (requestSeq !== searchRequestSeq || searchQuery.value.trim() !== q) return
     const nextTeachers = data.list.map(mapTeacher)
     searchResults.value = append
       ? [...searchResults.value, ...nextTeachers]
@@ -108,6 +113,7 @@ async function doSearch(nextPage = 1, append = false) {
     searchTotal.value = data.total
     searchPage.value = nextPage
   } catch (_error) { void _error;
+    if (requestSeq !== searchRequestSeq || searchQuery.value.trim() !== q) return
     if (append) {
       loadMoreError.value = t('teaching.hub.loadMoreFailed')
     } else {
@@ -117,10 +123,12 @@ async function doSearch(nextPage = 1, append = false) {
       errorMessage.value = t('common.loadFailed')
     }
   } finally {
-    if (append) {
-      searchLoadingMore.value = false
-    } else {
-      searching.value = false
+    if (requestSeq === searchRequestSeq && searchQuery.value.trim() === q) {
+      if (append) {
+        searchLoadingMore.value = false
+      } else {
+        searching.value = false
+      }
     }
   }
 }

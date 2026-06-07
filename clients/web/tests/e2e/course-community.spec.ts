@@ -581,6 +581,46 @@ test.describe("Course community surfaces", () => {
             .toBe(true);
     });
 
+    test("teacher hub ignores stale search failures after the query is cleared", async ({
+        page,
+    }) => {
+        let releaseSearch!: () => void;
+        let markSearchRequested!: () => void;
+        const searchRequested = new Promise<void>((resolve) => {
+            markSearchRequested = resolve;
+        });
+        const searchRelease = new Promise<void>((resolve) => {
+            releaseSearch = resolve;
+        });
+
+        await page.route("**/api/v1/course/review/teachers/hot*", (route) => {
+            recordApiRequest(route);
+            return route.fulfill(list(popularTeachers));
+        });
+        await page.route("**/api/v1/course/review/teachers?*", async (route) => {
+            recordApiRequest(route);
+            markSearchRequested();
+            await searchRelease;
+            return route.fulfill(list([{ ...searchedTeachers[0], courseCount: -1 }]));
+        });
+
+        await page.goto("/teachers");
+        await expect(page.getByRole("link", { name: /陈老师/ })).toBeVisible({
+            timeout: 10_000,
+        });
+
+        const searchInput = page.getByLabel("输入教师姓名搜索...");
+        await searchInput.fill("王");
+        await searchRequested;
+        await searchInput.fill("");
+        releaseSearch();
+
+        await expect(page.getByText("热门教师")).toBeVisible();
+        await expect(page.getByRole("link", { name: /陈老师/ })).toBeVisible();
+        await expect(page.getByText("加载失败")).toHaveCount(0);
+        await expect(page.getByText("未找到匹配的教师，换个名字试试。")).toHaveCount(0);
+    });
+
     test("teacher hub loads additional search pages when more teachers match", async ({
         page,
     }) => {
