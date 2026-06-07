@@ -671,6 +671,126 @@ test.describe("Course community surfaces", () => {
         await expect(page).toHaveTitle(/陈老师 - StuHelper/);
     });
 
+    test("teacher profile keeps the newest teacher when an older stats request finishes late", async ({
+        page,
+    }) => {
+        let releaseSlowStats!: () => void;
+        let markSlowStatsRequested!: () => void;
+        let slowStatsFulfilled = false;
+        const slowStatsRequested = new Promise<void>((resolve) => {
+            markSlowStatsRequested = resolve;
+        });
+        const slowStatsRelease = new Promise<void>((resolve) => {
+            releaseSlowStats = resolve;
+        });
+        const nextTeacherReview = {
+            ...teacherProfileReview,
+            id: "teacher-profile-review-2",
+            teacherID: 22,
+            teacherName: "李老师",
+            title: "李老师详情页评价",
+            courseName: "高等数学A",
+        };
+
+        await page.route(
+            "**/api/v1/course/review/teachers/21/stats",
+            async (route) => {
+                recordApiRequest(route);
+                markSlowStatsRequested();
+                await slowStatsRelease;
+                await route.fulfill(
+                    ok({
+                        teacherID: 21,
+                        teacherName: "陈老师",
+                        departmentName: "计算机科学与技术学院",
+                        avgRating: 4.2,
+                        courseCount: 2,
+                        reviewCount: 18,
+                        courses: [
+                            {
+                                id: 301,
+                                name: "编译原理",
+                                avgRating: 4.2,
+                                reviewCount: 9,
+                            },
+                        ],
+                        ratingTrend: [
+                            {
+                                termID: "2026-spring",
+                                termName: "2026 春",
+                                avgRating: 4.2,
+                            },
+                        ],
+                    }),
+                );
+                slowStatsFulfilled = true;
+            },
+        );
+        await page.route("**/api/v1/course/review/teachers/22/stats", (route) => {
+            recordApiRequest(route);
+            return route.fulfill(
+                ok({
+                    teacherID: 22,
+                    teacherName: "李老师",
+                    departmentName: "数学科学学院",
+                    avgRating: 4.6,
+                    courseCount: 1,
+                    reviewCount: 11,
+                    courses: [
+                        {
+                            id: 302,
+                            name: "高等数学A",
+                            avgRating: 4.6,
+                            reviewCount: 11,
+                        },
+                    ],
+                    ratingTrend: [
+                        {
+                            termID: "2026-spring",
+                            termName: "2026 春",
+                            avgRating: 4.6,
+                        },
+                    ],
+                }),
+            );
+        });
+        await page.route("**/api/v1/course/review/reviews/latest*", (route) => {
+            recordApiRequest(route);
+            const url = new URL(route.request().url());
+            return route.fulfill(
+                list(
+                    url.searchParams.get("teacherID") === "22"
+                        ? [nextTeacherReview]
+                        : [teacherProfileReview],
+                ),
+            );
+        });
+
+        await page.goto("/teachers/21");
+        await slowStatsRequested;
+        await page.evaluate(() => {
+            window.history.pushState(null, "", "/teachers/22");
+            window.dispatchEvent(new PopStateEvent("popstate"));
+        });
+
+        await expect(
+            page.getByRole("heading", { name: "李老师" }),
+        ).toBeVisible({ timeout: 10_000 });
+        releaseSlowStats();
+        await expect.poll(() => slowStatsFulfilled).toBe(true);
+        await page.waitForLoadState("networkidle");
+
+        await expect(
+            page.getByRole("heading", { name: "李老师" }),
+        ).toBeVisible();
+        await expect(
+            page.getByRole("heading", { name: "陈老师" }),
+        ).toHaveCount(0);
+        await expect(page.getByText("高等数学A")).toBeVisible();
+        await expect(page.getByText("李老师详情页评价")).toBeVisible();
+        await expect(page.getByText("教师详情页评价")).toHaveCount(0);
+    });
+
     test("invalid popular teachers response fails closed and can retry", async ({
         page,
     }) => {

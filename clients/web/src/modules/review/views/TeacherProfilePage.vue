@@ -203,7 +203,7 @@
       <button
         type="button"
         class="mt-4 rounded-lg bg-primary px-4 py-2 text-white hover:bg-primary/90 cursor-pointer"
-        @click="fetchTeacher"
+        @click="() => fetchTeacher()"
       >
         {{ t('common.actions.retry') }}
       </button>
@@ -216,7 +216,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
@@ -265,6 +265,8 @@ const teacherReviewsError = ref('')
 const teacherReviewsTotal = ref(0)
 const teacherReviewsPage = ref(1)
 const teacherReviewsPageSize = 6
+let teacherRequestSeq = 0
+let teacherReviewsRequestSeq = 0
 
 const trendText = computed(() => {
   if (!teacher.value?.ratingTrend?.length) return '-'
@@ -380,20 +382,23 @@ function readTeacherPayload(payload: unknown): TeacherDetail {
   }
 }
 
-function updateTeacherPageMeta() {
-  if (!teacher.value) return
-
+function updateTeacherPageMeta(detail: TeacherDetail) {
   updatePageMeta({
-    title: teacher.value.teacherName,
+    title: detail.teacherName,
     description: [
-      teacher.value.teacherName,
-      teacher.value.departmentName,
-      t('teaching.profile.reviewsCount', { count: teacher.value.reviewCount }),
+      detail.teacherName,
+      detail.departmentName,
+      t('teaching.profile.reviewsCount', { count: detail.reviewCount }),
     ].join(' · '),
   })
 }
 
-const fetchTeacher = async () => {
+function isValidTeacherID(value: number) {
+  return Number.isInteger(value) && value > 0
+}
+
+const fetchTeacher = async (id = teacherID.value) => {
+  const requestSeq = ++teacherRequestSeq
   loading.value = true
   loadError.value = ''
   teacherReviews.value = []
@@ -401,20 +406,27 @@ const fetchTeacher = async () => {
   teacherReviewsTotal.value = 0
   teacherReviewsPage.value = 1
   try {
-    const res = await api.rating.getTeacherStats(teacherID.value)
-    teacher.value = readTeacherPayload(res.data?.data)
-    updateTeacherPageMeta()
-    await fetchTeacherReviews(true)
+    const res = await api.rating.getTeacherStats(id)
+    const nextTeacher = readTeacherPayload(res.data?.data)
+    if (requestSeq !== teacherRequestSeq || teacherID.value !== id) return
+    teacher.value = nextTeacher
+    updateTeacherPageMeta(nextTeacher)
+    await fetchTeacherReviews(true, id)
   } catch (_error) { void _error;
+    if (requestSeq !== teacherRequestSeq || teacherID.value !== id) return
     teacher.value = null
     loadError.value = t('common.loadFailed')
   } finally {
-    loading.value = false
+    if (requestSeq === teacherRequestSeq && teacherID.value === id) {
+      loading.value = false
+    }
   }
 }
 
-async function fetchTeacherReviews(reset: boolean) {
-  if (teacherReviewsLoading.value) return
+async function fetchTeacherReviews(reset: boolean, id = teacherID.value) {
+  if (!isValidTeacherID(id)) return
+  if (!reset && teacherReviewsLoading.value) return
+  const requestSeq = ++teacherReviewsRequestSeq
   if (reset) {
     teacherReviews.value = []
     teacherReviewsTotal.value = 0
@@ -424,12 +436,14 @@ async function fetchTeacherReviews(reset: boolean) {
   teacherReviewsLoading.value = true
   teacherReviewsError.value = ''
   try {
+    const page = teacherReviewsPage.value
     const pageData = await api.review.getLatestReviewsPage({
-      page: teacherReviewsPage.value,
+      page,
       pageSize: teacherReviewsPageSize,
       sort: 'time',
-      teacherID: teacherID.value,
+      teacherID: id,
     })
+    if (requestSeq !== teacherReviewsRequestSeq || teacherID.value !== id) return
     if (reset) {
       teacherReviews.value = pageData.list
     } else {
@@ -437,11 +451,14 @@ async function fetchTeacherReviews(reset: boolean) {
       teacherReviews.value.push(...pageData.list.filter(review => !existingIDs.has(review.id)))
     }
     teacherReviewsTotal.value = pageData.total
-    teacherReviewsPage.value += 1
+    teacherReviewsPage.value = page + 1
   } catch (_error) { void _error;
+    if (requestSeq !== teacherReviewsRequestSeq || teacherID.value !== id) return
     teacherReviewsError.value = t('teaching.profile.reviewsLoadFailed')
   } finally {
-    teacherReviewsLoading.value = false
+    if (requestSeq === teacherReviewsRequestSeq && teacherID.value === id) {
+      teacherReviewsLoading.value = false
+    }
   }
 }
 
@@ -453,17 +470,14 @@ function ratingTrendHeight(value: number): number {
   return Math.max(8, Math.min(100, (value / 5) * 100))
 }
 
-onMounted(async () => {
-  if (isNaN(teacherID.value) || teacherID.value <= 0) {
-    router.replace({ name: 'course-hub' })
+watch(teacherID, async (newID, oldID) => {
+  if (newID === oldID) return
+  if (!isValidTeacherID(newID)) {
+    teacherRequestSeq += 1
+    teacherReviewsRequestSeq += 1
+    await router.replace({ name: 'course-hub' })
     return
   }
-  await fetchTeacher()
-})
-
-// 路由参数变化时重新加载数据
-watch(teacherID, async (newID, oldID) => {
-  if (newID === oldID || isNaN(newID) || newID <= 0) return
-  await fetchTeacher()
-})
+  await fetchTeacher(newID)
+}, { immediate: true })
 </script>
