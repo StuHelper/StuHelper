@@ -143,7 +143,7 @@
             {{ t('review.home.postReviewDesc') }}
           </p>
           <router-link
-            to="/courses/reviews"
+            :to="{ name: 'course-review-post' }"
             class="inline-block no-underline text-sm font-medium
                    px-5 py-2.5 rounded-lg
                    bg-accent text-white

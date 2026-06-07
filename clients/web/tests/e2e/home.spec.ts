@@ -430,6 +430,28 @@ test('course hub slash shortcut focuses inline search and opens a course result'
   })
 })
 
+test('course hub write review card opens the post review flow', async ({
+  page,
+}) => {
+  await mockUnauthenticated(page)
+  await mockCourseHub(page)
+
+  await page.goto('/courses')
+  await expect(page.getByRole('heading', { name: '评课社区@BUAA' })).toBeVisible({
+    timeout: 10_000,
+  })
+
+  await page.getByRole('link', { name: '写一条评价' }).click()
+
+  await expect(page).toHaveURL((url) => (
+    url.pathname === '/login' &&
+    url.searchParams.get('redirect') === '/courses/reviews/post'
+  ))
+  await expect(
+    page.getByRole('heading', { name: 'StuHelper 统一登录' }),
+  ).toBeVisible()
+})
+
 test('inline course search fails closed when response is malformed', async ({
   page,
 }) => {
