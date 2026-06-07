@@ -58,6 +58,7 @@ export default {
     popular: 'Popular Teachers',
     searchResults: 'Search Results',
     reviewUnit: ' reviews',
+    loadMoreFailed: 'Failed to load more teachers. Please try again later.',
     noResults: 'No teachers found. Try a different name.',
     noTeachers: 'No teacher data available yet.'
   }

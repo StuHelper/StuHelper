@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Search, X, User, BookOpen } from 'lucide-vue-next'
+import { Search, X, User, BookOpen, RefreshCw } from 'lucide-vue-next'
 import { api } from '@/api'
 import {
   readTeacherSummaryListPayload,
@@ -24,10 +24,14 @@ const { t } = useI18n()
 const searchQuery = ref('')
 const searchResults = ref<TeacherEntry[]>([])
 const searchTotal = ref(0)
+const searchPage = ref(1)
 const searching = ref(false)
+const searchLoadingMore = ref(false)
 const loading = ref(true)
 const errorMessage = ref('')
+const loadMoreError = ref('')
 const popularTeachers = ref<TeacherEntry[]>([])
+const TEACHER_SEARCH_PAGE_SIZE = 30
 
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -65,40 +69,74 @@ function handleSearchInput() {
   if (!searchQuery.value.trim()) {
     searchResults.value = []
     searchTotal.value = 0
+    searchPage.value = 1
     errorMessage.value = ''
+    loadMoreError.value = ''
     return
   }
-  searchTimer = setTimeout(() => doSearch(), 350)
+  searchTimer = setTimeout(() => { void doSearch() }, 350)
 }
 
-async function doSearch() {
+async function doSearch(nextPage = 1, append = false) {
   const q = searchQuery.value.trim()
   if (!q) return
 
-  searching.value = true
-  errorMessage.value = ''
+  if (append) {
+    searchLoadingMore.value = true
+    loadMoreError.value = ''
+  } else {
+    searching.value = true
+    errorMessage.value = ''
+    loadMoreError.value = ''
+  }
   try {
-    const res = await api.rating.listTeachers({ q, sort: 'reviews', pageSize: 30 })
+    const res = await api.rating.listTeachers({
+      q,
+      sort: 'reviews',
+      page: nextPage,
+      pageSize: TEACHER_SEARCH_PAGE_SIZE,
+    })
     const data = readTeacherSummaryPagePayload(
       res.data?.data,
       'Invalid teacher search response',
     )
-    searchResults.value = data.list.map(mapTeacher)
+    if (searchQuery.value.trim() !== q) return
+    const nextTeachers = data.list.map(mapTeacher)
+    searchResults.value = append
+      ? [...searchResults.value, ...nextTeachers]
+      : nextTeachers
     searchTotal.value = data.total
+    searchPage.value = nextPage
   } catch (_error) { void _error;
-    searchResults.value = []
-    searchTotal.value = 0
-    errorMessage.value = t('common.loadFailed')
+    if (append) {
+      loadMoreError.value = t('teaching.hub.loadMoreFailed')
+    } else {
+      searchResults.value = []
+      searchTotal.value = 0
+      searchPage.value = 1
+      errorMessage.value = t('common.loadFailed')
+    }
   } finally {
-    searching.value = false
+    if (append) {
+      searchLoadingMore.value = false
+    } else {
+      searching.value = false
+    }
   }
+}
+
+function loadMoreSearchResults() {
+  if (!hasMoreSearchResults.value || searchLoadingMore.value || searching.value) return
+  return doSearch(searchPage.value + 1, true)
 }
 
 function clearSearch() {
   searchQuery.value = ''
   searchResults.value = []
   searchTotal.value = 0
+  searchPage.value = 1
   errorMessage.value = ''
+  loadMoreError.value = ''
 }
 
 onMounted(loadPopularTeachers)
@@ -109,6 +147,9 @@ onBeforeUnmount(() => {
 
 const displayTeachers = computed(() =>
   searchQuery.value.trim() ? searchResults.value : popularTeachers.value,
+)
+const hasMoreSearchResults = computed(() =>
+  Boolean(searchQuery.value.trim()) && searchResults.value.length < searchTotal.value,
 )
 
 const showEmpty = computed(
@@ -196,36 +237,61 @@ const showEmpty = computed(
       </div>
 
       <!-- Teacher cards -->
-      <div v-else-if="displayTeachers.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <router-link
-          v-for="(teacher, idx) in displayTeachers"
-          :key="teacher.teacherID"
-          :to="`/teachers/${teacher.teacherID}`"
-          class="glass-card shadow-card rounded-xl p-5 cursor-pointer hover-lift stagger-item no-underline block"
-          :style="{ animationDelay: `${idx * 60}ms` }"
-        >
-          <div class="flex items-center gap-3 mb-3">
-            <div class="p-[3px] bg-gradient-to-br from-primary to-accent rounded-full shrink-0">
-              <div class="w-10 h-10 bg-bg-card rounded-full flex items-center justify-center">
-                <User :size="18" class="text-text-muted" />
+      <template v-else-if="displayTeachers.length > 0">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <router-link
+            v-for="(teacher, idx) in displayTeachers"
+            :key="teacher.teacherID"
+            :to="`/teachers/${teacher.teacherID}`"
+            class="glass-card shadow-card rounded-xl p-5 cursor-pointer hover-lift stagger-item no-underline block"
+            :style="{ animationDelay: `${idx * 60}ms` }"
+          >
+            <div class="flex items-center gap-3 mb-3">
+              <div class="p-[3px] bg-gradient-to-br from-primary to-accent rounded-full shrink-0">
+                <div class="w-10 h-10 bg-bg-card rounded-full flex items-center justify-center">
+                  <User :size="18" class="text-text-muted" />
+                </div>
+              </div>
+              <div class="min-w-0">
+                <h3 class="text-sm font-bold text-text-primary m-0 truncate">{{ teacher.teacherName }}</h3>
+                <span v-if="teacher.departmentName" class="text-xs text-text-muted">{{ teacher.departmentName }}</span>
               </div>
             </div>
-            <div class="min-w-0">
-              <h3 class="text-sm font-bold text-text-primary m-0 truncate">{{ teacher.teacherName }}</h3>
-              <span v-if="teacher.departmentName" class="text-xs text-text-muted">{{ teacher.departmentName }}</span>
+            <div class="flex items-center gap-4 text-xs text-text-secondary">
+              <span v-if="teacher.avgRating" class="flex items-center gap-1 font-semibold text-primary">
+                <EmojiRating :value="teacher.avgRating" size="sm" />
+              </span>
+              <span class="flex items-center gap-1">
+                <BookOpen :size="12" />
+                {{ teacher.reviewCount }} {{ t('teaching.hub.reviewUnit') }}
+              </span>
             </div>
-          </div>
-          <div class="flex items-center gap-4 text-xs text-text-secondary">
-            <span v-if="teacher.avgRating" class="flex items-center gap-1 font-semibold text-primary">
-              <EmojiRating :value="teacher.avgRating" size="sm" />
-            </span>
-            <span class="flex items-center gap-1">
-              <BookOpen :size="12" />
-              {{ teacher.reviewCount }} {{ t('teaching.hub.reviewUnit') }}
-            </span>
-          </div>
-        </router-link>
-      </div>
+          </router-link>
+        </div>
+
+        <div
+          v-if="hasMoreSearchResults || loadMoreError"
+          class="mt-6 flex flex-col items-center gap-3"
+        >
+          <p
+            v-if="loadMoreError"
+            role="alert"
+            class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
+          >
+            {{ loadMoreError }}
+          </p>
+          <button
+            v-if="hasMoreSearchResults"
+            type="button"
+            class="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border-light bg-bg-card px-5 text-sm font-semibold text-text-secondary transition-colors hover:bg-bg-elevated hover:text-text-primary disabled:cursor-wait disabled:opacity-70"
+            :disabled="searchLoadingMore"
+            @click="loadMoreSearchResults"
+          >
+            <RefreshCw v-if="searchLoadingMore" :size="16" class="animate-spin" />
+            <span>{{ searchLoadingMore ? t('common.actions.loading') : t('common.actions.loadMore') }}</span>
+          </button>
+        </div>
+      </template>
 
       <!-- Empty -->
       <div v-else-if="showEmpty" class="text-center py-12 text-text-muted">

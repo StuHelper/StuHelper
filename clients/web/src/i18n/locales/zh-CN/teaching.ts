@@ -58,6 +58,7 @@ export default {
     popular: '热门教师',
     searchResults: '搜索结果',
     reviewUnit: ' 条评价',
+    loadMoreFailed: '更多教师加载失败，请稍后重试。',
     noResults: '未找到匹配的教师，换个名字试试。',
     noTeachers: '暂无教师数据。'
   }

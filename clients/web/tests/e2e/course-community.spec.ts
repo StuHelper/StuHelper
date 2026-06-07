@@ -581,6 +581,62 @@ test.describe("Course community surfaces", () => {
             .toBe(true);
     });
 
+    test("teacher hub loads additional search pages when more teachers match", async ({
+        page,
+    }) => {
+        const makeTeacher = (id: number) => ({
+            ...searchedTeachers[0],
+            teacherID: id,
+            teacherName: `王老师 ${id}`,
+            reviewCount: id,
+        });
+
+        await page.route("**/api/v1/course/review/teachers/hot*", (route) => {
+            recordApiRequest(route);
+            return route.fulfill(list(popularTeachers));
+        });
+        await page.route("**/api/v1/course/review/teachers?*", (route) => {
+            recordApiRequest(route);
+            const url = new URL(route.request().url());
+            const requestedPage = url.searchParams.get("page") ?? "1";
+            const teachers =
+                requestedPage === "2"
+                    ? [makeTeacher(31)]
+                    : Array.from({ length: 30 }, (_, index) =>
+                          makeTeacher(index + 1),
+                      );
+            return route.fulfill(ok({ list: teachers, total: 31 }));
+        });
+
+        await page.goto("/teachers");
+        await expect(page.getByRole("link", { name: /陈老师/ })).toBeVisible({
+            timeout: 10_000,
+        });
+
+        await page.getByLabel("输入教师姓名搜索...").fill("王");
+        await expect(page.getByRole("link", { name: /王老师 30\b/ })).toBeVisible({
+            timeout: 10_000,
+        });
+        await expect(page.getByRole("link", { name: /王老师 31\b/ })).toHaveCount(0);
+
+        await page.getByRole("button", { name: "加载更多" }).click();
+
+        await expect(page.getByRole("link", { name: /王老师 31\b/ })).toBeVisible();
+        await expect
+            .poll(() =>
+                hasWebGetRequest("/api/v1/course/review/teachers", (url) =>
+                    (
+                        url.searchParams.get("q") === "王" &&
+                        url.searchParams.get("sort") === "reviews" &&
+                        url.searchParams.get("page") === "2" &&
+                        url.searchParams.get("pageSize") === "30"
+                    ),
+                ),
+            )
+            .toBe(true);
+        await expect(page.getByRole("button", { name: "加载更多" })).toHaveCount(0);
+    });
+
     test("teacher profile shows readable overall rating and course context", async ({
         page,
     }) => {
