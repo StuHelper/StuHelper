@@ -388,6 +388,33 @@ test('global search opens from keyboard and navigates to a view result', async (
   tracker.assertClean()
 })
 
+test('global search finds admission by operations synonyms', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  await clickNavRail(page, '处置中心')
+  await expect(page).toHaveURL(/#review($|\?)/, { timeout: 5_000 })
+
+  await page.locator('.sh-cmd__search').click()
+
+  const searchDialog = page.getByRole('dialog', { name: '全站搜索' })
+  await expect(searchDialog).toBeVisible({ timeout: 5_000 })
+  await searchDialog.getByPlaceholder('输入用户 ID / 群号 / 视图名 / 命令…').fill('准入')
+
+  const admissionRow = searchDialog.locator('.sh-search__row', { hasText: '入群认证' }).first()
+  await expect(admissionRow.locator('.sh-search__row-kind')).toHaveText('视图')
+  await expect(admissionRow).toContainText('工作台 / admission 运行态')
+
+  await admissionRow.click()
+
+  await expect(page).toHaveURL(/#admission($|\?)/, { timeout: 5_000 })
+  await expect(page.locator('.sh-workspace-head__title', { hasText: '入群认证' }).first()).toBeVisible({
+    timeout: 10_000,
+  })
+  await expect(searchDialog).toBeHidden({ timeout: 5_000 })
+
+  tracker.assertClean()
+})
+
 test('global search opens a Koishi command management result', async ({ loggedInPage: page }) => {
   await using tracker = createTracker(page)
 
