@@ -15,6 +15,7 @@ const { t, locale } = useI18n()
 const route = useRoute()
 
 const resource = ref<ResourceItem | null>(null)
+const loadedResourceID = ref<string | null>(null)
 const loading = ref(true)
 const downloadLoading = ref(false)
 const errorMessage = ref('')
@@ -25,8 +26,10 @@ let downloadRequestSeq = 0
 const resourceID = computed(() => {
   const raw = route.params.id
   const value = Array.isArray(raw) ? raw[0] : raw
-  const id = typeof value === 'string' ? Number(value) : NaN
-  return Number.isInteger(id) && id > 0 ? id : null
+  if (typeof value !== 'string' || !/^[1-9]\d*$/.test(value)) {
+    return null
+  }
+  return value
 })
 
 function formatDate(value: string) {
@@ -65,6 +68,7 @@ async function loadResource() {
 
   if (id === null) {
     resource.value = null
+    loadedResourceID.value = null
     loading.value = false
     downloadLoading.value = false
     errorMessage.value = t('resource.detail.notFound')
@@ -87,6 +91,7 @@ async function loadResource() {
     )
     if (requestSeq !== loadRequestSeq) return
     resource.value = nextResource
+    loadedResourceID.value = id
     updatePageMeta({
       title: nextResource.title || t('resource.detail.titleFallback'),
       description: nextResource.description || t('resource.detail.noDescription'),
@@ -95,6 +100,7 @@ async function loadResource() {
     void _error
     if (requestSeq !== loadRequestSeq) return
     resource.value = null
+    loadedResourceID.value = null
     errorMessage.value = t('resource.detail.loadFailed')
     updatePageMeta({
       title: t('resource.detail.titleFallback'),
@@ -109,7 +115,8 @@ async function loadResource() {
 
 async function downloadResource() {
   if (!resource.value) return
-  const resourceID = resource.value.id
+  const resourceID = loadedResourceID.value
+  if (resourceID === null) return
   const requestSeq = ++downloadRequestSeq
   downloadLoading.value = true
   downloadError.value = ''
@@ -119,14 +126,14 @@ async function downloadResource() {
       res.data?.data,
       'Invalid resource download response',
     )
-    if (requestSeq !== downloadRequestSeq || resource.value?.id !== resourceID) return
+    if (requestSeq !== downloadRequestSeq || loadedResourceID.value !== resourceID) return
     window.location.assign(data.url)
   } catch (_error) {
     void _error
-    if (requestSeq !== downloadRequestSeq || resource.value?.id !== resourceID) return
+    if (requestSeq !== downloadRequestSeq || loadedResourceID.value !== resourceID) return
     downloadError.value = t('resource.detail.downloadFailed')
   } finally {
-    if (requestSeq === downloadRequestSeq && resource.value?.id === resourceID) {
+    if (requestSeq === downloadRequestSeq && loadedResourceID.value === resourceID) {
       downloadLoading.value = false
     }
   }

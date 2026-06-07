@@ -41,22 +41,22 @@ describe('createResourceApi', () => {
     })
   })
 
-  it('loads detail and download URLs with path params', () => {
+  it('loads detail and download URLs with string path params', () => {
     const client = createMockClient()
     const api = createResourceApi(client)
 
-    api.getResource(42)
-    api.getDownloadURL(42)
+    api.getResource('42')
+    api.getDownloadURL('9007199254740993')
 
     expect(client.GET).toHaveBeenNthCalledWith(
       1,
       '/api/v1/resources/{resourceID}',
-      { params: { path: { resourceID: 42 } } },
+      { params: { path: { resourceID: '42' } } },
     )
     expect(client.GET).toHaveBeenNthCalledWith(
       2,
       '/api/v1/resources/{resourceID}/download-url',
-      { params: { path: { resourceID: 42 } } },
+      { params: { path: { resourceID: '9007199254740993' } } },
     )
   })
 
@@ -76,13 +76,13 @@ describe('createResourceApi', () => {
     }
 
     api.createResource(payload)
-    api.updateResource(42, {
+    api.updateResource('42', {
       title: '高等数学A 期末复习讲义 v2',
       visibility: 'public',
       tags: ['期末'],
       bindings: [{ type: 'course', value: '8' }],
     })
-    api.deleteResource(42)
+    api.deleteResource('42')
 
     expect(client.POST).toHaveBeenCalledWith('/api/v1/resources', {
       body: payload,
@@ -90,7 +90,7 @@ describe('createResourceApi', () => {
     expect(client.PATCH).toHaveBeenCalledWith(
       '/api/v1/resources/{resourceID}',
       {
-        params: { path: { resourceID: 42 } },
+        params: { path: { resourceID: '42' } },
         body: {
           title: '高等数学A 期末复习讲义 v2',
           visibility: 'public',
@@ -101,7 +101,7 @@ describe('createResourceApi', () => {
     )
     expect(client.DELETE).toHaveBeenCalledWith(
       '/api/v1/resources/{resourceID}',
-      { params: { path: { resourceID: 42 } } },
+      { params: { path: { resourceID: '42' } } },
     )
   })
 })

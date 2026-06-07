@@ -372,7 +372,7 @@ watch(
           <RouterLink
             v-for="resource in resources"
             :key="resource.id"
-            :to="{ name: 'resource-detail', params: { id: resource.id }, query: resourceListQuery }"
+            :to="{ name: 'resource-detail', params: { id: String(resource.id) }, query: resourceListQuery }"
             class="group flex min-h-44 flex-col rounded-lg border border-border-light bg-bg-card p-5 no-underline shadow-xs transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
           >
             <div class="mb-3 flex items-start justify-between gap-3">

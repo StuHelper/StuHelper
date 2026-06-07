@@ -362,6 +362,86 @@ test.describe('Resource sharing', () => {
     await expect.poll(() => downloadDocumentRequests).toBe(1)
   })
 
+  test('resource detail preserves int64 path ids when loading and downloading', async ({
+    page,
+  }) => {
+    const bigResourceID = '9007199254740993'
+    const bigResource = {
+      ...sampleResource,
+      title: '资源 ID 精度测试资料',
+      latestVersion: {
+        ...sampleResource.latestVersion,
+        filename: 'big-resource.pdf',
+      },
+    }
+    const detailRequests: string[] = []
+    const downloadURLRequests: string[] = []
+    const unexpectedResourceRequests: string[] = []
+    let downloadDocumentRequests = 0
+
+    allowExpectedCriticalResourceFailure(
+      page,
+      /\/resource-downloads\/big-resource\.pdf$/,
+    )
+    await page.route('**/api/v1/resources/**', (route) => {
+      const url = new URL(route.request().url())
+      if (url.pathname === `/api/v1/resources/${bigResourceID}`) {
+        detailRequests.push(url.pathname)
+        return route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: bigResource }),
+        })
+      }
+      if (url.pathname === `/api/v1/resources/${bigResourceID}/download-url`) {
+        downloadURLRequests.push(url.pathname)
+        return route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: { url: '/resource-downloads/big-resource.pdf' },
+          }),
+        })
+      }
+      unexpectedResourceRequests.push(url.pathname)
+      return route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'not found' },
+        }),
+      })
+    })
+    await page.route('**/resource-downloads/big-resource.pdf', (route) => {
+      downloadDocumentRequests += 1
+      return route.fulfill({
+        contentType: 'application/pdf',
+        body: 'demo',
+      })
+    })
+
+    await page.goto(`/resources/${bigResourceID}`)
+
+    await expect(
+      page.getByRole('heading', { name: '资源 ID 精度测试资料' }),
+    ).toBeVisible()
+    await expect.poll(() => detailRequests).toEqual([
+      `/api/v1/resources/${bigResourceID}`,
+    ])
+
+    const downloadRequest = page.waitForRequest(
+      '**/resource-downloads/big-resource.pdf',
+    )
+    await page.getByRole('button', { name: '下载资料' }).click()
+    await downloadRequest
+
+    await expect.poll(() => downloadURLRequests).toEqual([
+      `/api/v1/resources/${bigResourceID}/download-url`,
+    ])
+    await expect.poll(() => downloadDocumentRequests).toBe(1)
+    expect(unexpectedResourceRequests).toEqual([])
+  })
+
   test('resource detail reloads when navigating between resource ids in the SPA', async ({
     page,
   }) => {
