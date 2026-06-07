@@ -373,7 +373,20 @@ test.describe("Course community surfaces", () => {
         await mockCourseCommunityApi(page);
 
         await page.goto("/courses");
-        await page.getByTestId("floating-module-nav-active").tap();
+        const activeNav = page.getByTestId("floating-module-nav-active");
+        await expect(activeNav).toBeVisible();
+
+        const box = await activeNav.boundingBox();
+        const viewport = page.viewportSize();
+        if (!box || !viewport) {
+            throw new Error("floating module nav must have a visible mobile box");
+        }
+        expect(box.x).toBeGreaterThan(viewport.width - 72);
+        expect(box.y).toBeGreaterThan(viewport.height - 96);
+        expect(box.x + box.width).toBeLessThanOrEqual(viewport.width - 8);
+        expect(box.y + box.height).toBeLessThanOrEqual(viewport.height - 8);
+
+        await activeNav.tap();
 
         await expect(page).toHaveURL(/\/courses\/reviews$/);
         await expect(page.getByText("最新聚合测评")).toBeVisible({

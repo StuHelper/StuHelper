@@ -2,7 +2,7 @@
     <div
         class="fixed z-[var(--z-sticky)] flex flex-col items-center gap-1.5 transition-opacity duration-base"
         :style="positionStyle"
-        :class="isDragging ? 'cursor-grabbing' : 'cursor-grab'"
+        :class="dragCursorClass"
         @click.capture="suppressClickAfterDrag"
         @mouseenter="expanded = true"
         @mouseleave="expanded = false"
@@ -42,7 +42,7 @@
             leave-from-class="opacity-100 scale-100"
             leave-to-class="opacity-0 scale-75"
         >
-            <template v-if="expanded">
+            <template v-if="showExpandedTabs">
                 <div
                     v-for="tab in otherTabs"
                     :key="tab.to"
@@ -111,11 +111,14 @@ const tabs = computed(() =>
 const route = useRoute();
 const expanded = ref(false);
 const isDragging = ref(false);
+const viewportWidth = ref(window.innerWidth);
 
 // 位置状态
 const STORAGE_KEY = "floating-nav-position";
 const DRAG_THRESHOLD = 5;
+const MOBILE_BREAKPOINT = 768;
 const position = ref({ x: 16, y: Math.round(window.innerHeight / 2 - 20) });
+const isMobileViewport = computed(() => viewportWidth.value < MOBILE_BREAKPOINT);
 
 // 验证位置值是否合法
 function isValidPosition(v: unknown): v is { x: number; y: number } {
@@ -160,10 +163,23 @@ function savePosition() {
     }, 200);
 }
 
-const positionStyle = computed(() => ({
-    right: `${position.value.x}px`,
-    top: `${position.value.y}px`,
-}));
+const positionStyle = computed(() => {
+    if (isMobileViewport.value) {
+        return {
+            right: "calc(16px + env(safe-area-inset-right))",
+            bottom: "calc(16px + env(safe-area-inset-bottom))",
+        };
+    }
+    return {
+        right: `${position.value.x}px`,
+        top: `${position.value.y}px`,
+    };
+});
+
+const dragCursorClass = computed(() => {
+    if (isMobileViewport.value) return "cursor-default";
+    return isDragging.value ? "cursor-grabbing" : "cursor-grab";
+});
 
 const activeTab = computed(() => {
     return tabs.value.find((t) => route.path.startsWith(t.to)) || tabs.value[0];
@@ -172,6 +188,7 @@ const activeTab = computed(() => {
 const otherTabs = computed(() => {
     return tabs.value.filter((t) => t !== activeTab.value);
 });
+const showExpandedTabs = computed(() => expanded.value && !isMobileViewport.value);
 
 // 拖拽逻辑
 let dragStartX = 0;
@@ -182,6 +199,8 @@ let hasMoved = false;
 let dragController: AbortController | null = null;
 
 function startDrag(e: MouseEvent | TouchEvent) {
+    if (isMobileViewport.value) return;
+
     // 清理之前可能残留的监听器，防止重复注册
     dragController?.abort();
 
@@ -243,8 +262,16 @@ function suppressClickAfterDrag(e: MouseEvent) {
     hasMoved = false;
 }
 
-onMounted(loadPosition);
+function updateViewportWidth() {
+    viewportWidth.value = window.innerWidth;
+}
+
+onMounted(() => {
+    loadPosition();
+    window.addEventListener("resize", updateViewportWidth);
+});
 onUnmounted(() => {
+    window.removeEventListener("resize", updateViewportWidth);
     dragController?.abort();
     dragController = null;
     if (saveTimer) {
