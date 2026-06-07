@@ -30,6 +30,7 @@ export default {
   profile: {
     overallRating: '综合评分',
     avgRating: '平均评分',
+    noRating: '暂无评分',
     courseCount: '授课数',
     reviewCount: '评价数',
     viewDetail: '查看详情',

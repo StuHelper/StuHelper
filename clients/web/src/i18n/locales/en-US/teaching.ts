@@ -30,6 +30,7 @@ export default {
   profile: {
     overallRating: 'Overall Rating',
     avgRating: 'Average Rating',
+    noRating: 'No rating',
     courseCount: 'Courses',
     reviewCount: 'Reviews',
     viewDetail: 'View Details',

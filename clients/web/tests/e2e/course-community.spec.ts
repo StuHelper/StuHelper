@@ -186,6 +186,37 @@ async function mockTeacherApi(page: Page) {
     });
 }
 
+async function mockTeacherStatsApi(page: Page) {
+    await page.route("**/api/v1/course/review/teachers/21/stats", (route) => {
+        recordApiRequest(route);
+        return route.fulfill(
+            ok({
+                teacherID: 21,
+                teacherName: "陈老师",
+                departmentName: "计算机科学与技术学院",
+                avgRating: 4.2,
+                courseCount: 2,
+                reviewCount: 18,
+                courses: [
+                    {
+                        id: 301,
+                        name: "编译原理",
+                        avgRating: 4.2,
+                        reviewCount: 9,
+                    },
+                ],
+                ratingTrend: [
+                    {
+                        termID: "2026-spring",
+                        termName: "2026 春",
+                        avgRating: 4.2,
+                    },
+                ],
+            }),
+        );
+    });
+}
+
 async function fulfillUnexpected(route: Route) {
     await route.fulfill(
         json(
@@ -496,6 +527,25 @@ test.describe("Course community surfaces", () => {
                 ),
             )
             .toBe(true);
+    });
+
+    test("teacher profile shows readable overall rating and course context", async ({
+        page,
+    }) => {
+        await mockTeacherStatsApi(page);
+
+        await page.goto("/teachers/21");
+
+        await expect(
+            page.getByRole("heading", { name: "陈老师" }),
+        ).toBeVisible({ timeout: 10_000 });
+        await expect(page.getByText("计算机科学与技术学院")).toBeVisible();
+        await expect(page.getByText("4.2 / 5")).toBeVisible();
+        await expect(page.getByText("综合评分")).toBeVisible();
+        await expect(page.getByText("2026 春")).toBeVisible();
+        await expect(
+            page.getByRole("link", { name: /编译原理/ }),
+        ).toBeVisible();
     });
 
     test("invalid popular teachers response fails closed and can retry", async ({

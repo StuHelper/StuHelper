@@ -25,15 +25,23 @@
           <h1 class="text-xl font-extrabold tracking-tight text-text-primary m-0 mb-2">{{ teacher.teacherName }}</h1>
           <span class="inline-block text-xs text-text-secondary bg-bg-secondary py-0.5 px-2.5 rounded-full">{{ teacher.departmentName }}</span>
         </div>
-        <div class="shrink-0 max-sm:w-full">
+        <div class="flex shrink-0 flex-col items-center gap-1 max-sm:w-full">
           <RatingCircle
             :value="teacher.avgRating || 0"
             :size="72"
             :stroke-width="5"
-            :subtitle="t('teaching.profile.overallRating')"
           >
-            <EmojiRating v-if="teacher.avgRating" :value="teacher.avgRating" size="md" />
+            <template v-if="teacher.avgRating !== null">
+              <EmojiRating :value="teacher.avgRating" size="md" />
+            </template>
+            <span v-else class="text-base font-semibold text-text-muted">
+              -
+            </span>
           </RatingCircle>
+          <span class="text-sm font-semibold tabular-nums text-text-primary">
+            {{ teacher.avgRating !== null ? `${formatRating(teacher.avgRating)} / 5` : t('teaching.profile.noRating') }}
+          </span>
+          <span class="text-xs text-text-muted">{{ t('teaching.profile.overallRating') }}</span>
         </div>
       </header>
 
