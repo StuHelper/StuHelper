@@ -671,7 +671,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, toRaw, watch } from 'vue'
 import { message } from '@koishijs/client'
 import { settingsApi } from '../api'
 import { useActionError } from '../composables/use-action-error'
@@ -987,7 +987,7 @@ function stripOpenAIApiKeyMetadata(model: SettingsModel) {
 }
 
 function buildSettingsUpdatePayload(): PlainRecord {
-  const payload = structuredClone(settings.value) as unknown as PlainRecord
+  const payload = structuredClone(toRaw(settings.value)) as unknown as PlainRecord
   const openai = isPlainRecord(payload.openai) ? { ...payload.openai } : {}
   const newApiKey = openAIApiKeyDraft.value.trim()
 
@@ -1078,7 +1078,7 @@ const resetToDefault = async () => {
 
   const confirmed = await confirm({
     title: '恢复默认设置',
-    message: '确定要将所有设置恢复为默认值吗？此操作将覆盖当前所有设置，并会在保存时清除 AI API 密钥。',
+    message: '确定要将所有设置恢复为默认值吗？此操作将覆盖当前所有设置；如果当前已配置 AI API 密钥，保存时也会清除。',
     tone: 'danger'
   })
   

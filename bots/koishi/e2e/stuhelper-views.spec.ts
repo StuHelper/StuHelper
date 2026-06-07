@@ -972,7 +972,7 @@ test('global settings discard, save, and restore defaults through real console a
   await page.getByRole('button', { name: '恢复默认', exact: true }).click()
   const defaultDialog = confirmDialog(page, '恢复默认设置')
   await expect(defaultDialog).toBeVisible({ timeout: 5_000 })
-  await expect(defaultDialog.getByText('确定要将所有设置恢复为默认值吗？此操作将覆盖当前所有设置，需要保存后才会生效。')).toBeVisible()
+  await expect(defaultDialog.getByText('确定要将所有设置恢复为默认值吗？此操作将覆盖当前所有设置；如果当前已配置 AI API 密钥，保存时也会清除。')).toBeVisible()
   await defaultDialog.getByRole('button', { name: '确认', exact: true }).click()
 
   await expect(page.getByText('已恢复默认设置，请保存以应用更改')).toBeVisible({ timeout: 10_000 })
