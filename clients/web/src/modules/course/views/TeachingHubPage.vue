@@ -289,6 +289,22 @@ function onSearchKeyDown(e: KeyboardEvent) {
     showDropdown.value = false
     return
   }
+
+  if (e.key === 'Enter') {
+    const selected = displayedResults.value[selectedIndex.value]
+    const term = query.value.trim()
+    if (!selected && !term) return
+
+    e.preventDefault()
+    if (selected) {
+      navigateToCourse(selected.id)
+    } else {
+      showDropdown.value = false
+      void router.push(advancedSearchRoute.value)
+    }
+    return
+  }
+
   if (!displayedResults.value.length) return
 
   if (e.key === 'ArrowDown') {
@@ -303,13 +319,6 @@ function onSearchKeyDown(e: KeyboardEvent) {
     return
   }
 
-  if (e.key === 'Enter') {
-    e.preventDefault()
-    const selected = displayedResults.value[selectedIndex.value]
-    if (selected) {
-      navigateToCourse(selected.id)
-    }
-  }
 }
 
 function navigateToCourse(courseId: number) {
