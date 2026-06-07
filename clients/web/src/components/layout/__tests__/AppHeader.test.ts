@@ -293,6 +293,32 @@ describe("AppHeader", () => {
         });
     });
 
+    it("preselects the course from the course reviews detail route", async () => {
+        Object.assign(mocks.route, {
+            name: "course-reviews",
+            path: "/courses/42/reviews",
+            fullPath: "/courses/42/reviews",
+            params: { id: "42" },
+        });
+
+        const wrapper = mountHeader({
+            bootstrapCompleted: true,
+            isAuthenticated: true,
+        });
+
+        await wrapper
+            .get('button[aria-label="review.topBar.writeReview"]')
+            .trigger("click");
+
+        expect(mocks.rememberReviewPostCourse).toHaveBeenCalledWith(42);
+        expect(mocks.ensureCanPostReview).toHaveBeenCalledWith({
+            redirect: "/courses/reviews/post",
+        });
+        expect(mocks.routerPush).toHaveBeenCalledWith({
+            name: "course-review-post",
+        });
+    });
+
     it("does not treat teacher profile ids as review course preselection", async () => {
         Object.assign(mocks.route, {
             name: "teacher-profile",

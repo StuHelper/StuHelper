@@ -254,10 +254,12 @@ function isNavActive(item: NavItem) {
 }
 
 function currentCourseDetailID(): number {
-    if (!/^\/courses\/\d+$/.test(route.path)) {
+    if (route.name !== "course-detail" && route.name !== "course-reviews") {
         return NaN;
     }
-    return typeof route.params.id === "string" ? Number(route.params.id) : NaN;
+    const id = route.params.id;
+    const normalizedID = Array.isArray(id) ? id[0] : id;
+    return typeof normalizedID === "string" ? Number(normalizedID) : NaN;
 }
 
 async function handleWriteReview() {

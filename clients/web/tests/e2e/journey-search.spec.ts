@@ -235,6 +235,14 @@ test.describe('User Journey: Search', () => {
     // Wait for the search to complete and results view to render.
     await Promise.all([coursesSearchResponse, reviewsSearchResponse])
 
+    await expect(
+      page.getByRole('heading', {
+        level: 1,
+        name: /Search Results|搜索结果/i,
+      }),
+    ).toBeVisible()
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(8)
+
     await expect
       .poll(() =>
         hasWebGetRequest('/api/v1/course/courses/search', (url) =>

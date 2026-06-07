@@ -209,110 +209,114 @@
       </div>
 
       <div
-        v-if="searchError"
-        role="alert"
-        class="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning"
+        v-else
       >
-        {{ searchError }}
-      </div>
+        <div
+          v-if="searchError"
+          role="alert"
+          class="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning"
+        >
+          {{ searchError }}
+        </div>
 
-      <!-- No Results -->
-      <div
-        v-else-if="resultCourses.length === 0 && resultReviews.length === 0"
-        class="text-center py-16 text-text-muted"
-      >
-        <SearchX :size="48" class="mx-auto mb-4 opacity-50" />
-        <p class="text-base">{{ t('review.search.noResults') }}</p>
-      </div>
+        <!-- No Results -->
+        <div
+          v-if="resultCourses.length === 0 && resultReviews.length === 0 && !searchError"
+          class="text-center py-16 text-text-muted"
+        >
+          <SearchX :size="48" class="mx-auto mb-4 opacity-50" />
+          <p class="text-base">{{ t('review.search.noResults') }}</p>
+        </div>
 
-      <!-- Results Content -->
-      <template v-else>
-        <!-- Courses With Reviews -->
-        <section v-if="coursesWithReviews.length > 0" class="mb-8">
-          <h2 class="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
-            <span class="w-1 h-5 bg-primary rounded-full" />
-            {{ t('review.search.coursesWithReviews') }}
-            <span class="text-xs font-bold bg-primary/15 text-primary px-2 py-0.5 rounded-full">
-              {{ coursesWithReviews.length }}
-            </span>
-          </h2>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <router-link
-              v-for="(course, idx) in coursesWithReviews"
-              :key="course.id"
-              :to="`/courses/${course.id}/reviews`"
-              class="bg-bg-card rounded-xl shadow-card p-4 no-underline flex items-center justify-between text-text-primary border border-transparent hover:border-primary/50 hover:shadow-md transition-all stagger-item"
-              :style="{ animationDelay: `${Math.min(idx, 8) * 60}ms` }"
-            >
-              <div class="min-w-0 flex-1">
-                <div class="font-semibold text-sm truncate">{{ course.name }}</div>
-                <div class="text-xs mt-1 flex items-center gap-2 text-text-muted">
-                  <span v-if="course.code" class="font-mono">{{ course.code }}</span>
-                  <span v-if="course.departmentName">{{ course.departmentName }}</span>
+        <!-- Results Content -->
+        <template v-else-if="resultCourses.length > 0 || resultReviews.length > 0">
+          <!-- Courses With Reviews -->
+          <section v-if="coursesWithReviews.length > 0" class="mb-8">
+            <h2 class="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
+              <span class="w-1 h-5 bg-primary rounded-full" />
+              {{ t('review.search.coursesWithReviews') }}
+              <span class="text-xs font-bold bg-primary/15 text-primary px-2 py-0.5 rounded-full">
+                {{ coursesWithReviews.length }}
+              </span>
+            </h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <router-link
+                v-for="(course, idx) in coursesWithReviews"
+                :key="course.id"
+                :to="`/courses/${course.id}/reviews`"
+                class="bg-bg-card rounded-xl shadow-card p-4 no-underline flex items-center justify-between text-text-primary border border-transparent hover:border-primary/50 hover:shadow-md transition-all stagger-item"
+                :style="{ animationDelay: `${Math.min(idx, 8) * 60}ms` }"
+              >
+                <div class="min-w-0 flex-1">
+                  <div class="font-semibold text-sm truncate">{{ course.name }}</div>
+                  <div class="text-xs mt-1 flex items-center gap-2 text-text-muted">
+                    <span v-if="course.code" class="font-mono">{{ course.code }}</span>
+                    <span v-if="course.departmentName">{{ course.departmentName }}</span>
+                  </div>
                 </div>
-              </div>
-              <div class="flex items-center gap-2 shrink-0 ml-3">
-                <span class="text-xs font-bold border border-secondary text-secondary px-2 py-0.5 rounded-full">
-                  {{ course.reviewCount }} {{ t('review.course.reviewUnit') }}
-                </span>
-              </div>
-            </router-link>
-          </div>
-        </section>
-
-        <!-- Courses Without Reviews -->
-        <section v-if="coursesWithoutReviews.length > 0" class="mb-8">
-          <h2 class="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
-            <span class="w-1 h-5 bg-border rounded-full" />
-            {{ t('review.search.coursesWithoutReviews') }}
-            <span class="text-xs font-bold bg-bg-elevated text-text-secondary px-2 py-0.5 rounded-full">
-              {{ coursesWithoutReviews.length }}
-            </span>
-          </h2>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <router-link
-              v-for="course in coursesWithoutReviews"
-              :key="course.id"
-              :to="`/courses/${course.id}`"
-              class="bg-bg-card rounded-xl p-4 no-underline flex items-center justify-between text-text-primary border border-transparent hover:border-primary/50 transition-all"
-            >
-              <div class="min-w-0 flex-1">
-                <div class="font-semibold text-sm truncate">{{ course.name }}</div>
-                <div class="text-xs mt-1 flex items-center gap-2 text-text-muted">
-                  <span v-if="course.code" class="font-mono">{{ course.code }}</span>
-                  <span v-if="course.departmentName">{{ course.departmentName }}</span>
+                <div class="flex items-center gap-2 shrink-0 ml-3">
+                  <span class="text-xs font-bold border border-secondary text-secondary px-2 py-0.5 rounded-full">
+                    {{ course.reviewCount }} {{ t('review.course.reviewUnit') }}
+                  </span>
                 </div>
-              </div>
-            </router-link>
-          </div>
-        </section>
+              </router-link>
+            </div>
+          </section>
 
-        <!-- Review Results -->
-        <section v-if="resultReviews.length > 0">
-          <h2 class="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
-            <span class="w-1 h-5 bg-secondary rounded-full" />
-            {{ t('review.search.reviewResults') }}
-            <span class="text-xs font-bold bg-primary/15 text-primary px-2 py-0.5 rounded-full">
-              {{ resultReviews.length }}
-            </span>
-          </h2>
-          <div class="flex flex-col gap-4">
-            <ReviewCard
-              v-for="(review, idx) in resultReviews"
-              :key="review.id"
-              :review="review"
-              class="stagger-item"
-              :style="{ animationDelay: `${Math.min(idx, 8) * 60}ms` }"
-            />
-          </div>
-        </section>
-      </template>
+          <!-- Courses Without Reviews -->
+          <section v-if="coursesWithoutReviews.length > 0" class="mb-8">
+            <h2 class="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
+              <span class="w-1 h-5 bg-border rounded-full" />
+              {{ t('review.search.coursesWithoutReviews') }}
+              <span class="text-xs font-bold bg-bg-elevated text-text-secondary px-2 py-0.5 rounded-full">
+                {{ coursesWithoutReviews.length }}
+              </span>
+            </h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <router-link
+                v-for="course in coursesWithoutReviews"
+                :key="course.id"
+                :to="`/courses/${course.id}`"
+                class="bg-bg-card rounded-xl p-4 no-underline flex items-center justify-between text-text-primary border border-transparent hover:border-primary/50 transition-all"
+              >
+                <div class="min-w-0 flex-1">
+                  <div class="font-semibold text-sm truncate">{{ course.name }}</div>
+                  <div class="text-xs mt-1 flex items-center gap-2 text-text-muted">
+                    <span v-if="course.code" class="font-mono">{{ course.code }}</span>
+                    <span v-if="course.departmentName">{{ course.departmentName }}</span>
+                  </div>
+                </div>
+              </router-link>
+            </div>
+          </section>
+
+          <!-- Review Results -->
+          <section v-if="resultReviews.length > 0">
+            <h2 class="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
+              <span class="w-1 h-5 bg-secondary rounded-full" />
+              {{ t('review.search.reviewResults') }}
+              <span class="text-xs font-bold bg-primary/15 text-primary px-2 py-0.5 rounded-full">
+                {{ resultReviews.length }}
+              </span>
+            </h2>
+            <div class="flex flex-col gap-4">
+              <ReviewCard
+                v-for="(review, idx) in resultReviews"
+                :key="review.id"
+                :review="review"
+                class="stagger-item"
+                :style="{ animationDelay: `${Math.min(idx, 8) * 60}ms` }"
+              />
+            </div>
+          </section>
+        </template>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, onUnmounted } from 'vue'
+import { ref, reactive, onMounted, computed, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ArrowLeft, Search, SearchX } from 'lucide-vue-next'
@@ -378,10 +382,16 @@ function goHome() {
   router.push({ name: 'home' })
 }
 
-function backToForm() {
+function scrollSearchPageToTop() {
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+}
+
+async function backToForm() {
   showResults.value = false
   resultCourses.value = []
   resultReviews.value = []
+  await nextTick()
+  scrollSearchPageToTop()
 }
 
 // --- Data loading ---
@@ -452,6 +462,8 @@ async function handleSearch() {
   resultCourses.value = []
   resultReviews.value = []
   searchError.value = ''
+  await nextTick()
+  scrollSearchPageToTop()
 
   try {
     // 根据表单内容构造课程与评测查询条件
