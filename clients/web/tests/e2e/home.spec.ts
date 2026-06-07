@@ -51,6 +51,18 @@ function course(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function teacher(overrides: Record<string, unknown> = {}) {
+  return {
+    teacherID: 10,
+    teacherName: '张教授',
+    departmentName: '计算机科学与技术学院',
+    avgRating: 4.5,
+    reviewCount: 28,
+    courseCount: 3,
+    ...overrides,
+  }
+}
+
 async function mockCourseDetail(
   page: Page,
   courseId: number,
@@ -121,6 +133,26 @@ async function mockCourseDetail(
         contentType: 'application/json',
         body: JSON.stringify({ success: true, data: { trend: [] } }),
       }),
+  )
+}
+
+async function mockTeacherProfile(page: Page, teacherId: number) {
+  await page.route(`**/api/v1/course/review/teachers/${teacherId}/stats*`, (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          ...teacher({ teacherID: teacherId }),
+          courses: [
+            { id: 101, name: '数据结构与算法', avgRating: 4.4, reviewCount: 23 },
+          ],
+          ratingTrend: [
+            { termID: '2025-spring', termName: '2025 春', avgRating: 4.3 },
+          ],
+        },
+      }),
+    }),
   )
 }
 
@@ -280,6 +312,7 @@ test('command palette searches courses from keyboard and opens course detail', a
   await mockCourseDetail(page, 77)
 
   const searchRequests: URL[] = []
+  const teacherRequests: URL[] = []
   await page.route('**/api/v1/course/courses/search*', (route) => {
     searchRequests.push(new URL(route.request().url()))
     return route.fulfill({
@@ -290,6 +323,16 @@ test('command palette searches courses from keyboard and opens course detail', a
           list: [course()],
           total: 1,
         },
+      }),
+    })
+  })
+  await page.route('**/api/v1/course/review/teachers?*', (route) => {
+    teacherRequests.push(new URL(route.request().url()))
+    return route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { list: [], total: 0 },
       }),
     })
   })
@@ -312,11 +355,81 @@ test('command palette searches courses from keyboard and opens course detail', a
   const searchRequest = searchRequests.at(-1)
   expect(searchRequest?.searchParams.get('q')).toBe('math')
   expect(searchRequest?.searchParams.get('pageSize')).toBe('10')
+  const teacherRequest = teacherRequests.at(-1)
+  expect(teacherRequest?.searchParams.get('q')).toBe('math')
+  expect(teacherRequest?.searchParams.get('pageSize')).toBe('10')
+  expect(teacherRequest?.searchParams.get('sort')).toBe('reviews')
 
   await result.click()
 
   await expect(page).toHaveURL(/\/courses\/77$/)
   await expect(page.getByText('线性代数').first()).toBeVisible({
+    timeout: 10_000,
+  })
+  await expect(dialog).toBeHidden()
+})
+
+test('command palette searches teachers from keyboard and opens teacher profile', async ({
+  page,
+}) => {
+  await mockUnauthenticated(page)
+  await mockTeacherProfile(page, 10)
+
+  const courseRequests: URL[] = []
+  const teacherRequests: URL[] = []
+  await page.route('**/api/v1/course/courses/search*', (route) => {
+    courseRequests.push(new URL(route.request().url()))
+    return route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { list: [], total: 0 },
+      }),
+    })
+  })
+  await page.route('**/api/v1/course/review/teachers?*', (route) => {
+    teacherRequests.push(new URL(route.request().url()))
+    return route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          list: [teacher()],
+          total: 1,
+        },
+      }),
+    })
+  })
+
+  await page.goto('/')
+  await expect(
+    page.getByRole('link', { name: /StuHelper/i }).first(),
+  ).toBeVisible()
+
+  await page.keyboard.press('Control+K')
+  const dialog = page.getByRole('dialog', {
+    name: /搜索课程名称、教师|Search course name, teacher/i,
+  })
+  await expect(dialog).toBeVisible()
+
+  await dialog.getByRole('combobox').fill('张教授')
+  const result = dialog.getByRole('option', { name: /张教授/ })
+  await expect(result).toBeVisible({ timeout: 10_000 })
+  await expect(result).toContainText('教师')
+  await expect(result).toContainText('计算机科学与技术学院')
+
+  const courseRequest = courseRequests.at(-1)
+  expect(courseRequest?.searchParams.get('q')).toBe('张教授')
+  expect(courseRequest?.searchParams.get('pageSize')).toBe('10')
+  const teacherRequest = teacherRequests.at(-1)
+  expect(teacherRequest?.searchParams.get('q')).toBe('张教授')
+  expect(teacherRequest?.searchParams.get('pageSize')).toBe('10')
+  expect(teacherRequest?.searchParams.get('sort')).toBe('reviews')
+
+  await result.click()
+
+  await expect(page).toHaveURL(/\/teachers\/10$/)
+  await expect(page.getByText('张教授').first()).toBeVisible({
     timeout: 10_000,
   })
   await expect(dialog).toBeHidden()
@@ -336,6 +449,15 @@ test('command palette fails closed when course search response is malformed', as
           list: [course({ reviewCount: '12' })],
           total: 1,
         },
+      }),
+    }),
+  )
+  await page.route('**/api/v1/course/review/teachers?*', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { list: [], total: 0 },
       }),
     }),
   )

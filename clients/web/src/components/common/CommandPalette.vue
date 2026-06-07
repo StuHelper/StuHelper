@@ -51,7 +51,7 @@
                 <div role="listbox" id="palette-listbox">
                   <button
                     v-for="(item, idx) in results"
-                    :key="item.id"
+                    :key="`${item.type}-${item.id}`"
                     :id="`palette-option-${idx}`"
                     class="flex items-center gap-3 w-full py-2.5 px-5 text-left text-text-primary text-sm cursor-pointer transition-colors duration-fast ease-smooth hover:bg-bg-hover"
                     :class="{ '!bg-bg-hover': activeIndex === idx }"
@@ -60,13 +60,14 @@
                     @click="selectItem(item)"
                     @mouseenter="activeIndex = idx"
                   >
-                  <div class="flex-1 flex items-center gap-2 min-w-0">
-                    <span class="font-medium whitespace-nowrap overflow-hidden text-ellipsis">{{ item.name }}</span>
-                  </div>
-                  <span v-if="item.departmentName" class="text-xs text-text-muted py-px px-2 bg-bg-secondary rounded-full whitespace-nowrap shrink-0">
-                    {{ item.departmentName }}
-                  </span>
-                </button>
+                    <div class="flex-1 flex items-center gap-2 min-w-0">
+                      <span class="font-medium whitespace-nowrap overflow-hidden text-ellipsis">{{ item.name }}</span>
+                      <span v-if="item.detail" class="text-xs text-text-muted whitespace-nowrap overflow-hidden text-ellipsis">{{ item.detail }}</span>
+                    </div>
+                    <span class="text-xs text-text-muted py-px px-2 bg-bg-secondary rounded-full whitespace-nowrap shrink-0">
+                      {{ item.badge }}
+                    </span>
+                  </button>
                 </div>
               </div>
             </template>
@@ -101,7 +102,11 @@ import { useI18n } from 'vue-i18n'
 import { Search, Clock } from 'lucide-vue-next'
 import { useCommandPalette } from '@/composables/useCommandPalette'
 import { api } from '@/api'
-import { readCourseListPayload } from '@/modules/course/coursePayload'
+import {
+  readCourseListPayload,
+  readTeacherSummaryPagePayload,
+  type TeacherSummaryPayload,
+} from '@/modules/course/coursePayload'
 import { safeGetLocalStorageItem, safeSetLocalStorageItem } from '@/utils/browserStorage'
 import type { Course } from '@stuhelper/shared/course'
 
@@ -111,7 +116,24 @@ const { isOpen, searchQuery, close } = useCommandPalette()
 
 const inputRef = ref<HTMLInputElement | null>(null)
 const modalRef = ref<HTMLElement | null>(null)
-const results = ref<Course[]>([])
+
+type PaletteResult =
+  | {
+      type: 'course'
+      id: number
+      name: string
+      detail: string
+      badge: string
+    }
+  | {
+      type: 'teacher'
+      id: number
+      name: string
+      detail: string
+      badge: string
+    }
+
+const results = ref<PaletteResult[]>([])
 const loading = ref(false)
 const searchError = ref('')
 const activeIndex = ref(0)
@@ -142,6 +164,26 @@ function saveRecent(term: string) {
 
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 let searchController: AbortController | undefined
+
+function courseResult(course: Course): PaletteResult {
+  return {
+    type: 'course',
+    id: course.id,
+    name: course.name,
+    detail: [course.code, course.departmentName].filter(Boolean).join(' · '),
+    badge: t('nav.courses'),
+  }
+}
+
+function teacherResult(teacher: TeacherSummaryPayload): PaletteResult {
+  return {
+    type: 'teacher',
+    id: teacher.teacherID,
+    name: teacher.teacherName,
+    detail: teacher.departmentName ?? '',
+    badge: t('nav.teacher'),
+  }
+}
 
 // 焦点陷阱：Tab/Shift+Tab 在对话框内循环
 function trapFocus(e: KeyboardEvent) {
@@ -179,30 +221,74 @@ watch(searchQuery, (val) => {
     const controller = new AbortController()
     searchController = controller
 
-    try {
-      const res = await api.course.searchCourses(q, 10, { signal: controller.signal })
-      if (controller.signal.aborted) return
-      // 按 ID 去重，防止后端返回重复课程
-      const list = readCourseListPayload(
-        res.data?.data,
-        'Invalid course search response',
-      )
-      const seen = new Set<number>()
-      results.value = list.filter((c: Course) => {
-        if (seen.has(c.id)) return false
-        seen.add(c.id)
-        return true
-      })
-    } catch (_error) { void _error;
-      if (controller.signal.aborted) return
-      if (searchQuery.value.trim() === q) {
-        results.value = []
-        searchError.value = t('common.loadFailed')
+    const [courseResponse, teacherResponse] = await Promise.allSettled([
+      api.course.searchCourses(q, 10, { signal: controller.signal }),
+      api.rating.listTeachers(
+        { q, sort: 'reviews', pageSize: 10 },
+        { signal: controller.signal },
+      ),
+    ])
+
+    if (controller.signal.aborted) return
+
+    let failed = false
+    const nextResults: PaletteResult[] = []
+
+    if (courseResponse.status === 'fulfilled') {
+      try {
+        const list = readCourseListPayload(
+          courseResponse.value.data?.data,
+          'Invalid course search response',
+        )
+        const seen = new Set<number>()
+        nextResults.push(
+          ...list
+            .filter((c: Course) => {
+              if (seen.has(c.id)) return false
+              seen.add(c.id)
+              return true
+            })
+            .map(courseResult),
+        )
+      } catch (_error) { void _error;
+        failed = true
       }
-    } finally {
-      if (!controller.signal.aborted && searchQuery.value.trim() === q) {
-        loading.value = false
+    } else {
+      failed = !controller.signal.aborted
+    }
+
+    if (teacherResponse.status === 'fulfilled') {
+      try {
+        const page = readTeacherSummaryPagePayload(
+          teacherResponse.value.data?.data,
+          'Invalid teacher search response',
+        )
+        const seen = new Set<number>()
+        nextResults.push(
+          ...page.list
+            .filter((teacher) => {
+              if (seen.has(teacher.teacherID)) return false
+              seen.add(teacher.teacherID)
+              return true
+            })
+            .map(teacherResult),
+        )
+      } catch (_error) { void _error;
+        failed = true
       }
+    } else {
+      failed = !controller.signal.aborted
+    }
+
+    if (searchQuery.value.trim() === q) {
+      results.value = nextResults
+      searchError.value = failed && nextResults.length === 0
+        ? t('common.loadFailed')
+        : ''
+    }
+
+    if (!controller.signal.aborted && searchQuery.value.trim() === q) {
+      loading.value = false
     }
   }, 300)
 })
@@ -256,10 +342,10 @@ function selectCurrent() {
   }
 }
 
-function selectItem(course: Course) {
-  saveRecent(course.name)
+function selectItem(item: PaletteResult) {
+  saveRecent(item.name)
   close()
-  router.push(`/courses/${course.id}`)
+  router.push(item.type === 'teacher' ? `/teachers/${item.id}` : `/courses/${item.id}`)
 }
 </script>
 

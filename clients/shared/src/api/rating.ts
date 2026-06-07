@@ -24,9 +24,13 @@ export const createRatingApi = (client: ApiClient) => ({
       params: { path: { teacherID: teacherId } }
     }),
 
-  listTeachers: (opts?: { q?: string; departmentID?: number; sort?: 'reviews' | 'rating' | 'name'; page?: number; pageSize?: number }) =>
+  listTeachers: (
+    opts?: { q?: string; departmentID?: number; sort?: 'reviews' | 'rating' | 'name'; page?: number; pageSize?: number },
+    options?: { signal?: AbortSignal },
+  ) =>
     client.GET('/api/v1/course/review/teachers', {
-      params: { query: opts }
+      params: { query: opts },
+      signal: options?.signal,
     }),
 
   listHotTeachers: (limit = 10) =>
