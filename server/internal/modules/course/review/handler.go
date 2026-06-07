@@ -23,6 +23,7 @@ const (
 	teacherPublicCacheInvalidationTimeout = 2 * time.Second
 	teacherPublicListCacheKey             = "review:teachers"
 	teacherPublicHotCacheKey              = "review:hot_teachers"
+	courseRatingStatsCacheKey             = "review:rating_stats:v2"
 )
 
 type AdminAuthorizers struct {
@@ -264,7 +265,7 @@ func (h *Handler) invalidateCachePrefixes(c *gin.Context, keys ...string) {
 func (h *Handler) invalidateReviewAggregateCaches(c *gin.Context) {
 	h.invalidateCachePrefixes(c,
 		"review:stats",
-		"review:rating_stats",
+		courseRatingStatsCacheKey,
 		"review:rating_trend",
 		"review:hot",
 		"review:course_teachers",

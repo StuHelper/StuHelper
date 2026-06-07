@@ -1,6 +1,7 @@
 package review
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -70,6 +71,10 @@ func (h *Handler) GetDraft(c *gin.Context) {
 
 	draft, err := h.service.GetDraft(c.Request.Context(), userHash)
 	if err != nil {
+		if errors.Is(err, ErrDraftNotFound) {
+			response.Success(c, (*ReviewDraft)(nil))
+			return
+		}
 		if respondGetDraftError(c, err) {
 			return
 		}

@@ -64,9 +64,6 @@ var (
 		response.MatchError(ErrReplyNotFound, 404, "reply not found", errs.ErrReplyNotFound),
 		response.MatchError(ErrNotReplyOwner, 403, "you can only delete your own reply", errs.ErrNotReplyOwner),
 	}
-	reviewDraftErrorMappings = []response.ErrorMapping{
-		response.MatchError(ErrDraftNotFound, 404, "draft not found", errs.ErrDraftNotFound),
-	}
 	reviewReportErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrAlreadyReported, 409, "you have already reported this review", errs.ErrAlreadyReported),
 		response.MatchError(ErrReportNotFound, 404, "report not found", errs.ErrReportNotFound),
@@ -179,7 +176,6 @@ func respondSaveDraftError(c *gin.Context, err error) bool {
 func respondGetDraftError(c *gin.Context, err error) bool {
 	return response.RespondMappedErrorGroups(c, err,
 		reviewUserIdentityErrorMappings,
-		reviewDraftErrorMappings,
 	)
 }
 

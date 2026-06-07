@@ -120,6 +120,7 @@ func TestReviewHandler_WriteAndStatsSuccessPaths(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "allDimensionKeys")
 	assert.Contains(t, w.Body.String(), "teaching")
+	assert.NotContains(t, w.Body.String(), `"dimensions":null`)
 
 	w, c = withUserContext(http.MethodGet, "/stats", "", viewerID)
 	h.GetStats(c)

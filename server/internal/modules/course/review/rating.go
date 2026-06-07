@@ -27,7 +27,7 @@ func (h *Handler) GetCourseRatingStats(c *gin.Context) {
 		return
 	}
 
-	respondWithCachedData(h, c, "review:rating_stats", strconv.FormatInt(courseID, 10), func(ctx context.Context) (CourseRatingStatsResponse, error) {
+	respondWithCachedData(h, c, courseRatingStatsCacheKey, strconv.FormatInt(courseID, 10), func(ctx context.Context) (CourseRatingStatsResponse, error) {
 		dimensionNames, err := h.service.GetDimensionNames(ctx)
 		if err != nil {
 			return CourseRatingStatsResponse{}, err
@@ -39,7 +39,7 @@ func (h *Handler) GetCourseRatingStats(c *gin.Context) {
 		}
 
 		byTerm := make(map[string]*TermRatingStats)
-		var overall TermRatingStats
+		overall := TermRatingStats{Dimensions: []DimensionStats{}}
 		allKeysSet := make(map[string]bool)
 
 		for _, s := range stats {

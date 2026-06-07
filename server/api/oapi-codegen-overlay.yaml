@@ -73,3 +73,10 @@ actions:
       allOf:
         - $ref: '#/components/schemas/UserProfile'
       nullable: true
+  - target: "$.paths['/api/v1/course/review/drafts'].get.responses['200'].content['application/json'].schema.allOf[1].properties.data"
+    description: Collapse nullable review draft response data for oapi-codegen.
+    update:
+      oneOf: null
+      allOf:
+        - $ref: '#/components/schemas/ReviewDraft'
+      nullable: true

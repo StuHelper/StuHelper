@@ -172,7 +172,27 @@ describe('useDraftStore', () => {
       expect(cached?.title).toBe('First')
     })
 
-    it('returns null and clears cached draft on 404', async () => {
+    it('returns null and clears cached draft when API returns an empty draft', async () => {
+      mockSaveDraft.mockResolvedValue({
+        data: {
+          data: {
+            id: 'd1',
+            title: 'x',
+            updatedAt: '2026-04-05T00:00:00Z',
+          },
+        },
+      })
+      mockGetDraft.mockResolvedValue({ data: { data: null } })
+
+      const store = useDraftStore()
+      await store.saveDraft({ title: 'x' })
+      const result = await store.loadDraft(true)
+
+      expect(result).toBeNull()
+      expect(store.hasDraft).toBe(false)
+    })
+
+    it('keeps accepting legacy 404 empty-draft responses', async () => {
       mockSaveDraft.mockResolvedValue({
         data: {
           data: {

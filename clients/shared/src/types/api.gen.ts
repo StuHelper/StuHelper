@@ -8932,19 +8932,18 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 草稿内容 */
+            /** @description 草稿内容；当前用户没有草稿时 data 为 null。 */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["ReviewDraft"];
+                        data: components["schemas"]["ReviewDraft"] | null;
                     };
                 };
             };
             401: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
         };
     };

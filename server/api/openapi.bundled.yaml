@@ -4722,7 +4722,7 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          description: 草稿内容
+          description: 草稿内容；当前用户没有草稿时 data 为 null。
           content:
             application/json:
               schema:
@@ -4733,10 +4733,10 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: '#/components/schemas/ReviewDraft'
+                        oneOf:
+                          - $ref: '#/components/schemas/ReviewDraft'
+                          - type: 'null'
         '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '404':
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'

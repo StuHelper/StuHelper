@@ -147,6 +147,11 @@ export const useDraftStore = defineStore("draft", () => {
 
         try {
             const res = await api.draft.getDraft();
+            if (res.data?.data === null) {
+                draft.value = null;
+                cacheTimestamp.value = Date.now();
+                return null;
+            }
             const nextDraft = normalizeDraft(res.data?.data);
             cacheDraft(nextDraft);
             return nextDraft;

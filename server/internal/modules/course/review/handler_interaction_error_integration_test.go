@@ -58,11 +58,11 @@ func TestReviewHandler_InteractionErrorPaths(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, w.Code)
 	assert.Contains(t, w.Body.String(), "course not found")
 
-	// GetDraft → draft not found
+	// GetDraft → no draft is a normal empty state
 	w, c = withUserContext(http.MethodGet, "/drafts", "", selfUserID)
 	h.GetDraft(c)
-	require.Equal(t, http.StatusNotFound, w.Code)
-	assert.Contains(t, w.Body.String(), "draft not found")
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"data":null`)
 
 	// CreateReply → review not found
 	w, c = withUserContext(http.MethodPost, "/reviews/replies", `{"content":"reply content"}`, selfUserID)
