@@ -118,6 +118,51 @@ describe('useNotificationBellController', () => {
     expect(controller.showPanel.value).toBe(false)
   })
 
+  it('routes already-read notifications without redundant mark-read calls', async () => {
+    const push = vi.fn().mockResolvedValue(undefined)
+    const store = makeStore({
+      bellNotifications: [
+        makeNotification('1', { isRead: true, sourceUrl: '/target' }),
+      ],
+    })
+    const rootRef = ref<HTMLElement | null>(document.createElement('div'))
+
+    const controller = useNotificationBellController({
+      rootRef,
+      store,
+      router: { push },
+    })
+
+    controller.showPanel.value = true
+    await controller.handleNotificationClick(store.bellNotifications[0]!)
+
+    expect(store.markAsRead).not.toHaveBeenCalled()
+    expect(push).toHaveBeenCalledWith('/target')
+    expect(controller.showPanel.value).toBe(false)
+  })
+
+  it('keeps notification navigation as the primary action when mark-read fails', async () => {
+    const push = vi.fn().mockResolvedValue(undefined)
+    const store = makeStore({
+      bellNotifications: [makeNotification('1', { sourceUrl: '/target' })],
+      markAsRead: vi.fn().mockRejectedValue(new Error('mark failed')),
+    })
+    const rootRef = ref<HTMLElement | null>(document.createElement('div'))
+
+    const controller = useNotificationBellController({
+      rootRef,
+      store,
+      router: { push },
+    })
+
+    controller.showPanel.value = true
+    await controller.handleNotificationClick(store.bellNotifications[0]!)
+
+    expect(mockToastError).toHaveBeenCalledWith('notification-error')
+    expect(push).toHaveBeenCalledWith('/target')
+    expect(controller.showPanel.value).toBe(false)
+  })
+
   it('opens account notification hrefs on the account center', async () => {
     const push = vi.fn().mockResolvedValue(undefined)
     const store = makeStore({

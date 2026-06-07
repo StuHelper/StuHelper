@@ -1311,12 +1311,7 @@ test.describe('User Journey: User Center', () => {
 
     await bellPanel.getByRole('button', { name: /顶部提醒/ }).click()
 
-    await expect
-      .poll(() => markReadRequest)
-      .toEqual({
-        method: 'PUT',
-        path: '/api/v1/course/review/user/notifications/bell-notif-1/read',
-      })
+    expect(markReadRequest).toBeNull()
     await expect(page).toHaveURL(/\/about$/)
   })
 

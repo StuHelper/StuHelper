@@ -61,7 +61,17 @@ export function useNotificationsPageController({
   })
 
   const loading = computed(() => pageLoading.value)
-  const hasMore = computed(() => activeFilter.value === 'all' && pageHasMore.value)
+  const hasMore = computed(() => {
+    if (!pageHasMore.value) return false
+    switch (activeFilter.value) {
+      case 'unread':
+        return visibleNotifications.value.length < unreadCount.value
+      case 'read':
+        return true
+      default:
+        return true
+    }
+  })
 
   const init = async () => {
     page.value = 1
@@ -89,21 +99,31 @@ export function useNotificationsPageController({
     })
   }
 
-  const handleClick = async (notification: Notification) => {
-    try {
-      await markAsRead(notification.id)
-    } catch (err) {
-      toast.error(getErrorMessage(err, i18n.global.t('common.actions.operationFailed')))
+  const navigateNotification = async (notification: Notification) => {
+    const href = resolveNotificationHref(notification)
+    if (!href) return
+
+    const accountCenterURL = accountCenterURLForHref(href)
+    if (accountCenterURL) {
+      navigateToExternalURL(accountCenterURL)
       return
     }
-    const href = resolveNotificationHref(notification)
-    if (href) {
-      const accountCenterURL = accountCenterURLForHref(href)
-      if (accountCenterURL) {
-        navigateToExternalURL(accountCenterURL)
-        return
+    await push(href)
+  }
+
+  const handleClick = async (notification: Notification) => {
+    try {
+      if (!notification.isRead) {
+        await markAsRead(notification.id)
       }
-      await push(href)
+    } catch (err) {
+      toast.error(getErrorMessage(err, i18n.global.t('common.actions.operationFailed')))
+    }
+
+    try {
+      await navigateNotification(notification)
+    } catch (err) {
+      toast.error(getErrorMessage(err, i18n.global.t('common.actions.operationFailed')))
     }
   }
 

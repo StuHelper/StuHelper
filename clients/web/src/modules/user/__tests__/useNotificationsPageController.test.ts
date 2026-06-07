@@ -52,11 +52,12 @@ function setupController(options: {
   initialNotifications?: Notification[]
   total?: number
   unreadCount?: number
+  pageHasMore?: boolean
 }) {
   const pageNotifications = ref(options.initialNotifications ?? [])
   const pageTotal = ref(options.total ?? pageNotifications.value.length)
   const pageLoading = ref(false)
-  const pageHasMore = ref(false)
+  const pageHasMore = ref(options.pageHasMore ?? false)
   const unreadCount = ref(options.unreadCount ?? 0)
   const hasUnread = ref(unreadCount.value > 0)
   const lastSSEEvent = ref<SSENotificationEvent>({ seq: 0, type: 'notification', data: null })
@@ -177,6 +178,25 @@ describe('useNotificationsPageController', () => {
     expect(pageTotal.value).toBe(1)
   })
 
+  it('continues loading unread filter pages while unread items may be beyond loaded pages', async () => {
+    const { controller, fetchPageNotifications } = setupController({
+      initialNotifications: [makeNotification('read-page-1', true)],
+      total: 41,
+      unreadCount: 1,
+      pageHasMore: true,
+    })
+
+    controller.activeFilter.value = 'unread'
+    await nextTick()
+
+    expect(controller.visibleNotifications.value).toEqual([])
+    expect(controller.hasMore.value).toBe(true)
+
+    await controller.loadMore()
+
+    expect(fetchPageNotifications).toHaveBeenCalledWith(2)
+  })
+
   it('opens account notification hrefs on the account center', async () => {
     const notification = makeNotification('1', false, { type: 'identity_rejected' })
     const { controller, markAsRead, push } = setupController({
@@ -212,7 +232,7 @@ describe('useNotificationsPageController', () => {
     expect(push).not.toHaveBeenCalled()
   })
 
-  it('surfaces init/load-more/interaction failures via toast', async () => {
+  it('surfaces init/load-more/interaction failures via toast without blocking navigation', async () => {
     const pageNotifications = ref([makeNotification('1', false, { sourceUrl: '/target' })])
     const pageTotal = ref(2)
     const pageLoading = ref(false)
@@ -249,6 +269,20 @@ describe('useNotificationsPageController', () => {
     await controller.handleClick(pageNotifications.value[0]!)
 
     expect(mockToastError).toHaveBeenCalledTimes(4)
-    expect(push).not.toHaveBeenCalled()
+    expect(push).toHaveBeenCalledWith('/target')
+  })
+
+  it('opens already-read notifications without redundant mark-read calls', async () => {
+    const notification = makeNotification('1', true, { sourceUrl: '/target' })
+    const { controller, markAsRead, push } = setupController({
+      initialNotifications: [notification],
+      total: 1,
+      unreadCount: 0,
+    })
+
+    await controller.handleClick(notification)
+
+    expect(markAsRead).not.toHaveBeenCalled()
+    expect(push).toHaveBeenCalledWith('/target')
   })
 })

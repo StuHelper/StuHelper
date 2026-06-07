@@ -139,9 +139,10 @@
                     :to="item.to"
                     class="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-text-secondary no-underline transition-colors duration-fast hover:bg-bg-hover hover:text-text-primary"
                     :class="
-                        isNavActive(item) &&
-                        'bg-bg-card text-text-primary shadow-xs'
+                            isNavActive(item) &&
+                            'bg-bg-card text-text-primary shadow-xs'
                     "
+                    @click="closeMobileMenu"
                 >
                     <span
                         class="grid size-8 place-items-center rounded-md"
@@ -164,6 +165,7 @@
                     v-if="showLoginEntry"
                     :to="loginEntryRoute"
                     class="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-text-secondary no-underline transition-colors duration-fast hover:bg-bg-hover hover:text-text-primary sm:hidden"
+                    @click="closeMobileMenu"
                 >
                     <span
                         class="grid size-8 place-items-center rounded-md bg-bg-secondary text-text-muted"
@@ -295,6 +297,10 @@ function handleScroll() {
         isScrolled.value = window.scrollY > 10;
         scrollTicking = false;
     });
+}
+
+function closeMobileMenu() {
+    mobileMenuOpen.value = false;
 }
 
 onMounted(() => {

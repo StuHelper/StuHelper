@@ -67,17 +67,24 @@ export function useNotificationBellController({
     if (!notification) return
 
     try {
-      await store.markAsRead(notification.id)
-      showPanel.value = false
-      const href = resolveNotificationHref(notification)
-      if (href) {
-        const accountCenterURL = accountCenterURLForHref(href)
-        if (accountCenterURL) {
-          navigateToExternalURL(accountCenterURL)
-          return
-        }
-        await router.push(href)
+      if (!notification.isRead) {
+        await store.markAsRead(notification.id)
       }
+    } catch (err) {
+      toast.error(getErrorMessage(err, i18n.global.t('common.actions.operationFailed')))
+    }
+
+    showPanel.value = false
+    const href = resolveNotificationHref(notification)
+    if (!href) return
+
+    try {
+      const accountCenterURL = accountCenterURLForHref(href)
+      if (accountCenterURL) {
+        navigateToExternalURL(accountCenterURL)
+        return
+      }
+      await router.push(href)
     } catch (err) {
       toast.error(getErrorMessage(err, i18n.global.t('common.actions.operationFailed')))
     }

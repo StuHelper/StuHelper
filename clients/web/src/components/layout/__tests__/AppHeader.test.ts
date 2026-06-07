@@ -239,6 +239,24 @@ describe("AppHeader", () => {
         expect(wrapper.text()).not.toContain("nav.review");
     });
 
+    it("closes the mobile menu when clicking the current route item", async () => {
+        const wrapper = mountHeader({
+            bootstrapCompleted: true,
+            isAuthenticated: false,
+        });
+
+        await wrapper
+            .get('button[aria-controls="app-mobile-nav"]')
+            .trigger("click");
+        expect(wrapper.find("#app-mobile-nav").exists()).toBe(true);
+
+        await wrapper
+            .get('#app-mobile-nav [data-test="router-link"]')
+            .trigger("click");
+
+        expect(wrapper.find("#app-mobile-nav").exists()).toBe(false);
+    });
+
     it("shows the header course search only on the course hub", () => {
         Object.assign(mocks.route, {
             path: "/courses",
