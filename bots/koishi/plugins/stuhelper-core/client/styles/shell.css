@@ -781,16 +781,20 @@
   z-index: var(--sh-z-dock);
   transform: translateY(8px);
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
   transition:
     transform var(--sh-dur-base) var(--sh-ease),
-    opacity var(--sh-dur-base) var(--sh-ease);
+    opacity var(--sh-dur-base) var(--sh-ease),
+    visibility 0s linear var(--sh-dur-base);
 }
 
 .sh-dock[data-open='true'] {
   transform: translateY(0);
   opacity: 1;
+  visibility: visible;
   pointer-events: auto;
+  transition-delay: 0s;
 }
 
 .sh-dock[data-minimized='true'] {

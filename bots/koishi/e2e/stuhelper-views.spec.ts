@@ -211,6 +211,7 @@ test('chat dock opens via CommandBar and renders ChatView', async ({ loggedInPag
 
   await page.locator('.sh-dock[data-open="true"] .sh-dock__action[title="关闭"]').click()
   await expect(page.locator('.sh-dock[data-open="true"]')).toHaveCount(0, { timeout: 5_000 })
+  await expect(page.getByRole('dialog', { name: '实时聊天' })).toHaveCount(0)
 
   tracker.assertClean()
 })
@@ -315,6 +316,7 @@ test('chat dock receives, sends image message, and recalls through real console 
 
   await dock.locator('.sh-dock__action[title="关闭"]').click()
   await expect(page.locator('.sh-dock[data-open="true"]')).toHaveCount(0, { timeout: 5_000 })
+  await expect(page.getByRole('dialog', { name: '实时聊天' })).toHaveCount(0)
 
   tracker.assertClean()
 })
