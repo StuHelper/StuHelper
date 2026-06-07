@@ -260,6 +260,7 @@ log "ensuring dockerized dev app containers are stopped"
 compose --profile dev-full stop app-dev frontend-dev admin-dev >/dev/null 2>&1 || true
 compose --profile dev-full rm -f app-dev frontend-dev admin-dev >/dev/null 2>&1 || true
 kill_all_dev_processes
+kill_listener_if_matches 8080 "${REPO_ROOT}/server/tmp/stuhelper"
 kill_listener_if_matches 5140 "${REPO_ROOT}/bots/koishi"
 
 WEB_DEV_PORT_SELECTED="$(pick_available_port "${WEB_DEV_PORT:-3000}" 30 "${POSTGRES_EXTERNAL_PORT_SELECTED}" "${REDIS_EXTERNAL_PORT_SELECTED}" "${OPENFGA_HTTP_EXTERNAL_PORT_SELECTED}" "${OPENFGA_GRPC_EXTERNAL_PORT_SELECTED}" "${OPENFGA_PLAYGROUND_EXTERNAL_PORT_SELECTED}" "${MINIO_API_EXTERNAL_PORT_SELECTED}" "${MINIO_CONSOLE_EXTERNAL_PORT_SELECTED}" "${MAILPIT_SMTP_EXTERNAL_PORT_SELECTED}" "${MAILPIT_WEB_EXTERNAL_PORT_SELECTED}" "${observability_reserved_ports[@]}")"
