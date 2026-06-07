@@ -1,4 +1,4 @@
-import type { Router } from 'vue-router';
+import type { RouteRecordRaw, Router } from 'vue-router';
 
 import { LOGIN_PATH } from '@vben/constants';
 import { preferences } from '@vben/preferences';
@@ -10,6 +10,57 @@ import { accessRoutes, coreRouteNames } from '#/router/routes';
 import { useAuthStore } from '#/store';
 
 import { generateAccess } from './access';
+
+const fallbackNotFoundRouteName = 'FallbackNotFound';
+
+function normalizeRoutePath(path: string) {
+  if (!path || path === '/') {
+    return '/';
+  }
+  return path.endsWith('/') ? path.slice(0, -1) : path;
+}
+
+function resolveRoutePath(parentPath: string, routePath: string) {
+  if (routePath.startsWith('/')) {
+    return normalizeRoutePath(routePath);
+  }
+  if (!parentPath || parentPath === '/') {
+    return normalizeRoutePath(`/${routePath}`);
+  }
+  return normalizeRoutePath(`${parentPath}/${routePath}`);
+}
+
+function collectAbsoluteRoutePaths(routes: RouteRecordRaw[]) {
+  const paths = new Set<string>();
+
+  function visit(route: RouteRecordRaw, parentPath = '') {
+    let currentPath = parentPath;
+    if (typeof route.path === 'string') {
+      currentPath = resolveRoutePath(parentPath, route.path);
+      paths.add(currentPath);
+    }
+    route.children?.forEach(child => visit(child, currentPath));
+  }
+
+  routes.forEach(route => visit(route));
+  return paths;
+}
+
+const protectedRoutePaths = collectAbsoluteRoutePaths(accessRoutes);
+
+function isKnownProtectedRoutePath(path: string) {
+  const normalizedPath = normalizeRoutePath(path);
+  for (const protectedPath of protectedRoutePaths) {
+    if (
+      protectedPath !== '/' &&
+      (normalizedPath === protectedPath ||
+        normalizedPath.startsWith(`${protectedPath}/`))
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
 
 /**
  * 通用守卫配置
@@ -54,6 +105,14 @@ function setupAccessGuard(router: Router) {
             preferences.app.defaultHomePath,
         );
       }
+      return true;
+    }
+
+    // 未知路径命中 catch-all 时直接显示 404；已知受保护路由仍继续走登录/权限流程。
+    if (
+      to.name === fallbackNotFoundRouteName &&
+      !isKnownProtectedRoutePath(to.path)
+    ) {
       return true;
     }
 
