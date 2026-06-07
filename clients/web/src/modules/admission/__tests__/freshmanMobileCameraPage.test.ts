@@ -405,6 +405,25 @@ describe("FreshmanMobileCameraPage", () => {
         expect(mockStopCameraStream).toHaveBeenCalledWith({ id: "stream-1" });
     });
 
+    it("shows a friendly message when the mobile camera handoff is missing", async () => {
+        mockAdmissionApi.previewFreshmanMobileCameraHandoff.mockRejectedValueOnce(
+            new ApiError({
+                code: "A0040404",
+                message: "admission camera handoff not found",
+                status: 404,
+            }),
+        );
+
+        const wrapper = mount(FreshmanMobileCameraPage);
+        await flushPromises();
+
+        expect(wrapper.find('[data-state="error"]').exists()).toBe(true);
+        expect(wrapper.text()).toContain(
+            "拍照链接不存在或已失效。请回到电脑端重新生成手机拍照二维码。",
+        );
+        expect(wrapper.text()).not.toContain("admission camera handoff not found");
+    });
+
     it("uses the handoff material size limit when capturing on mobile", async () => {
         mockCaptureFrameAsBase64.mockImplementationOnce(() => {
             throw new Error(

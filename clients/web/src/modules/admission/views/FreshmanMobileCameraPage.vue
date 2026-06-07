@@ -387,7 +387,20 @@ function isCurrentMobileToken(requestToken: string): boolean {
 }
 
 function readErrorMessage(error: unknown, fallback: string): string {
+    if (isMobileCameraHandoffNotFoundError(error)) {
+        return "拍照链接不存在或已失效。请回到电脑端重新生成手机拍照二维码。";
+    }
     return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function isMobileCameraHandoffNotFoundError(error: unknown): boolean {
+    if (!(error instanceof Error)) return false;
+    const status =
+        "status" in error ? (error as { status?: unknown }).status : undefined;
+    if (status === 404) return true;
+    return /admission camera handoff not found|camera handoff not found|handoff not found/i.test(
+        error.message,
+    );
 }
 
 function handleAdmissionExpiredError(
