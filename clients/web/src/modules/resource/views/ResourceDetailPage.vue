@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Download, FileText, Link2, Pencil, RefreshCw, Tag, Trash2 } from 'lucide-vue-next'
 import { api } from '@/api'
+import { getErrorStatus, isApiError } from '@/api/errors'
 import { updatePageMeta } from '@/composables/usePageMeta'
 import {
   readResourceDownloadURLPayload,
@@ -23,6 +24,7 @@ const loading = ref(true)
 const downloadLoading = ref(false)
 const deleteLoading = ref(false)
 const errorMessage = ref('')
+const canRetryLoad = ref(false)
 const downloadError = ref('')
 const deleteError = ref('')
 let loadRequestSeq = 0
@@ -74,6 +76,10 @@ function formatFileSize(bytes: number) {
   return `${size.toFixed(size >= 10 ? 0 : 1)} ${units[unitIndex]}`
 }
 
+function isResourceNotFoundError(error: unknown) {
+  return getErrorStatus(error) === 404 || (isApiError(error) && error.code === 'A0000404')
+}
+
 async function loadResource() {
   const requestSeq = ++loadRequestSeq
   downloadRequestSeq += 1
@@ -86,6 +92,7 @@ async function loadResource() {
     downloadLoading.value = false
     deleteLoading.value = false
     errorMessage.value = t('resource.detail.notFound')
+    canRetryLoad.value = false
     downloadError.value = ''
     deleteError.value = ''
     updatePageMeta({
@@ -97,6 +104,7 @@ async function loadResource() {
 
   loading.value = true
   errorMessage.value = ''
+  canRetryLoad.value = false
   downloadError.value = ''
   deleteError.value = ''
   deleteLoading.value = false
@@ -113,15 +121,18 @@ async function loadResource() {
       title: nextResource.title || t('resource.detail.titleFallback'),
       description: nextResource.description || t('resource.detail.noDescription'),
     })
-  } catch (_error) {
-    void _error
+  } catch (error) {
     if (requestSeq !== loadRequestSeq) return
     resource.value = null
     loadedResourceID.value = null
-    errorMessage.value = t('resource.detail.loadFailed')
+    const messageKey = isResourceNotFoundError(error)
+      ? 'resource.detail.notFound'
+      : 'resource.detail.loadFailed'
+    errorMessage.value = t(messageKey)
+    canRetryLoad.value = messageKey === 'resource.detail.loadFailed'
     updatePageMeta({
       title: t('resource.detail.titleFallback'),
-      description: t('resource.detail.loadFailed'),
+      description: t(messageKey),
     })
   } finally {
     if (requestSeq === loadRequestSeq) {
@@ -209,8 +220,10 @@ watch(resourceID, () => {
         <FileText :size="42" class="text-text-muted" />
         <p class="text-sm font-medium text-danger">{{ errorMessage }}</p>
         <button
+          v-if="canRetryLoad"
           type="button"
           class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary/90"
+          data-resource-detail-retry-button
           @click="loadResource"
         >
           <RefreshCw :size="16" />
