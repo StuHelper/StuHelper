@@ -520,6 +520,12 @@ test.describe("Auth callback and admission entry", () => {
         await expect(
             page.getByRole("button", { name: "开始认证" }),
         ).toHaveCount(0);
+        await page
+            .locator("[data-admission-copy-reissue-command]")
+            .click();
+        await expect(
+            page.getByText(/重新生成指令已复制|复制失败，请手动复制/),
+        ).toBeVisible();
 
         await page.route(
             "**/api/v1/admission/sessions/ADMIT-EXPIRED**",

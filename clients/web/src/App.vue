@@ -13,6 +13,7 @@
           <component :is="Component" :key="routeViewKey" />
         </Transition>
       </router-view>
+      <Toast />
     </ErrorBoundary>
   </el-config-provider>
 </template>
@@ -27,6 +28,7 @@ import en from 'element-plus/es/locale/lang/en'
 import { useThemeStore } from '@/stores/theme'
 import AppShell from '@/components/layout/AppShell.vue'
 import ErrorBoundary from '@/components/common/ErrorBoundary.vue'
+import Toast from '@/components/common/Toast.vue'
 
 const route = useRoute()
 const { locale } = useI18n()

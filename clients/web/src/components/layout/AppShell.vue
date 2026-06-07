@@ -7,7 +7,6 @@
     </main>
 
     <CommandPalette />
-    <Toast />
     <FloatingModuleNav />
   </div>
 </template>
@@ -18,7 +17,6 @@ import { useRoute } from 'vue-router'
 import AppHeader from './AppHeader.vue'
 import FloatingModuleNav from './FloatingModuleNav.vue'
 import CommandPalette from '@/components/common/CommandPalette.vue'
-import Toast from '@/components/common/Toast.vue'
 
 const route = useRoute()
 
