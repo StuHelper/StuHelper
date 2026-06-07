@@ -31,9 +31,10 @@ describe('admission token return URL', () => {
     ).toBe('https://join.stuhelper.com/verify/ABCD/')
   })
 
-  it('rejects admission return URLs with query parameters', () => {
-    expect(() => buildAdmissionReturnURL('/verify/ABCD?qq=123', sameOrigin))
-      .toThrow('Admission return URL must not include query parameters')
+  it('normalizes admission return URLs by discarding source query and hash', () => {
+    expect(
+      buildAdmissionReturnURL('/verify/ABCD?from=qq&return=https://evil.example#step', sameOrigin),
+    ).toBe('https://join.stuhelper.com/verify/ABCD')
   })
 
   it('rejects protocol-relative off-origin URLs', () => {

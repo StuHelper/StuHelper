@@ -309,6 +309,63 @@ test.describe("Auth callback and admission entry", () => {
         );
     });
 
+    test("join admission link with source query opens and uses normalized return URL", async ({
+        page,
+    }, testInfo) => {
+        let loginRequestURL: URL | null = null;
+
+        await mockUnauthenticated(page);
+        await page.route(
+            "**/api/v1/admission/sessions/ADMIT-SOURCE**",
+            (route) => route.fulfill(ok(joinedSession)),
+        );
+        await page.route("**/api/v1/auth/login**", async (route) => {
+            loginRequestURL = new URL(route.request().url());
+            await route.fulfill(
+                ok({
+                    url: "https://sso.stuhelper.com/login/oauth/authorize?client_id=stuhelper-web&state=admission-source-state",
+                    state: "admission-source-state",
+                }),
+            );
+        });
+        await page.route("https://sso.stuhelper.com/**", (route) =>
+            route.fulfill({
+                contentType: "text/html",
+                body: "<!doctype html><title>SSO</title><main>SSO authorize</main>",
+            }),
+        );
+
+        const joinURL = new URL(
+            "/verify/ADMIT-SOURCE?from=qq",
+            String(testInfo.project.use.baseURL),
+        );
+        joinURL.hostname = "join.localhost";
+        const normalizedJoinURL = new URL(
+            "/verify/ADMIT-SOURCE",
+            String(testInfo.project.use.baseURL),
+        );
+        normalizedJoinURL.hostname = "join.localhost";
+
+        await page.goto(joinURL.toString());
+
+        await expect(
+            page.getByRole("heading", { name: "登录 StuHelper" }),
+        ).toBeVisible();
+        await expect(page.getByText("QQ：123456")).toBeVisible();
+
+        await page.getByRole("button", { name: "登录" }).click();
+        await page.waitForURL(
+            (url) =>
+                url.hostname === "sso.stuhelper.com" &&
+                url.pathname === "/login/oauth/authorize",
+        );
+
+        expect(loginRequestURL).not.toBeNull();
+        expect(loginRequestURL!.searchParams.get("redirect")).toBe(
+            normalizedJoinURL.toString(),
+        );
+    });
+
     test("anonymous admission signup starts SSO signup with the current admission return URL", async ({
         page,
     }, testInfo) => {
