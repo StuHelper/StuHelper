@@ -31,6 +31,7 @@ export interface AppShellController {
   openSearch(): void
   closeSearch(): void
   toggleSearch(): void
+  closeTransientOverlays(): void
 }
 
 const KEY: InjectionKey<AppShellController> = Symbol('stuhelper:app-shell')
@@ -94,6 +95,12 @@ export function createAppShellController(): AppShellController {
     searchOpen.value = !searchOpen.value
   }
 
+  function closeTransientOverlays() {
+    closeSearch()
+    closeEntity()
+    closeChat()
+  }
+
   return {
     railExpanded,
     railPinned,
@@ -112,6 +119,7 @@ export function createAppShellController(): AppShellController {
     openSearch,
     closeSearch,
     toggleSearch,
+    closeTransientOverlays,
   }
 }
 

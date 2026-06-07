@@ -28,6 +28,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 
 import { provideAppShell } from '../../composables/use-app-shell'
 import { useConsoleNavigation } from '../../composables/use-console-navigation'
@@ -45,6 +46,7 @@ defineProps<{
 }>()
 
 const shell = provideAppShell()
+const route = useRoute()
 const navigation = useConsoleNavigation()
 const pages = useConsolePages()
 const pulse = usePulse()
@@ -57,6 +59,16 @@ watch(
   pageTitle,
   (title) => {
     document.title = title
+  },
+  { immediate: true },
+)
+
+watch(
+  () => route.path,
+  (path) => {
+    if (!isStuhelperShellPath(path)) {
+      shell.closeTransientOverlays()
+    }
   },
   { immediate: true },
 )
@@ -96,8 +108,13 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
+  shell.closeTransientOverlays()
   document.title = baseTitle
 })
+
+function isStuhelperShellPath(path: string): boolean {
+  return path === '/stuhelper' || path.startsWith('/stuhelper/')
+}
 
 function normalizeBaseTitle(title: string): string {
   const marker = 'StuHelper 群管中心'
