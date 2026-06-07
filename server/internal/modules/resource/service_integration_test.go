@@ -99,6 +99,53 @@ func TestCreateAndQueryResource(t *testing.T) {
 	assert.Equal(t, store.downloadURL, url)
 }
 
+func TestListResourcesQueryMatchesVisibleMetadata(t *testing.T) {
+	ctx, _, _, svc, _ := setupResourceService(t)
+
+	created, err := svc.CreateResource(ctx, "oidc-user-1", CreateRequest{
+		Title:       "期末复习资料",
+		Description: ptr("积分专题"),
+		Category:    ptr("数学资料"),
+		Visibility:  "public",
+		Tags:        []string{"高数", "期末"},
+		Filename:    "course-8-final-review-guide.md",
+		ContentType: "text/plain",
+		DataBase64:  base64.StdEncoding.EncodeToString([]byte("calculus final review")),
+	})
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name  string
+		query string
+	}{
+		{name: "tag", query: "高数"},
+		{name: "category", query: "数学资料"},
+		{name: "filename", query: "course-8-final"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			items, total, err := svc.ListResources(ctx, ListFilters{
+				Query:    tc.query,
+				Page:     1,
+				PageSize: 20,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, 1, total)
+			require.Len(t, items, 1)
+			assert.Equal(t, created.ID, items[0].ID)
+
+			owned, ownedTotal, err := svc.ListMyResources(ctx, "oidc-user-1", ListFilters{
+				Query:    tc.query,
+				Page:     1,
+				PageSize: 20,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, 1, ownedTotal)
+			require.Len(t, owned, 1)
+			assert.Equal(t, created.ID, owned[0].ID)
+		})
+	}
+}
+
 func TestListMyResourcesIncludesPrivateAndExcludesOtherOwners(t *testing.T) {
 	ctx, _, _, svc, _ := setupResourceService(t)
 

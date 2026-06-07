@@ -3,7 +3,7 @@ export default {
     title: 'Resources',
     subtitle: 'Find slides, notes, past exams, and study materials',
     searchLabel: 'Search resources',
-    searchPlaceholder: 'Search title or description',
+    searchPlaceholder: 'Search title, description, category, filename, or tag',
     tagLabel: 'Tag',
     tagPlaceholder: 'e.g. final, notes, slides',
     bindingTypeLabel: 'Binding type',
@@ -47,7 +47,7 @@ export default {
   mine: {
     title: 'My Resources',
     subtitle: 'Manage the public and private resources you published',
-    searchPlaceholder: 'Search your resource titles or descriptions',
+    searchPlaceholder: 'Search your resource keywords',
     visibilityAll: 'All visibility',
     total: '{count} of my resources',
     emptyTitle: 'No resources published yet',

@@ -3,7 +3,7 @@ export default {
     title: '资料共享',
     subtitle: '查找课件、笔记、往年题和学习资料',
     searchLabel: '搜索资料',
-    searchPlaceholder: '搜索标题或描述',
+    searchPlaceholder: '搜索标题、描述、分类、文件名或标签',
     tagLabel: '标签',
     tagPlaceholder: '如：期末、笔记、课件',
     bindingTypeLabel: '绑定类型',
@@ -47,7 +47,7 @@ export default {
   mine: {
     title: '我的资料',
     subtitle: '管理你发布的公开和私有学习资料',
-    searchPlaceholder: '搜索我的资料标题或描述',
+    searchPlaceholder: '搜索我的资料关键词',
     visibilityAll: '全部可见性',
     total: '共 {count} 份我的资料',
     emptyTitle: '还没有发布资料',

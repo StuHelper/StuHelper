@@ -72,7 +72,16 @@ func (r *Repository) ListResources(ctx context.Context, filters ListFilters) ([]
 			LIMIT 1
 		) rv ON TRUE
 		WHERE ri.visibility = 'public'
-		  AND ($1 = '%%' OR ri.title ILIKE $1 ESCAPE '\' OR COALESCE(ri.description, '') ILIKE $1 ESCAPE '\')
+		  AND (
+			$1 = '%%'
+			OR ri.title ILIKE $1 ESCAPE '\'
+			OR COALESCE(ri.description, '') ILIKE $1 ESCAPE '\'
+			OR COALESCE(ri.category, '') ILIKE $1 ESCAPE '\'
+			OR rv.filename ILIKE $1 ESCAPE '\'
+			OR EXISTS (
+				SELECT 1 FROM resource_tags rt WHERE rt.resource_id = ri.id AND rt.tag ILIKE $1 ESCAPE '\'
+			)
+		  )
 		  AND ($2 = '' OR EXISTS (
 			SELECT 1 FROM resource_tags rt WHERE rt.resource_id = ri.id AND rt.tag = $2
 		  ))
@@ -112,7 +121,16 @@ func (r *Repository) ListResourcesByOwner(ctx context.Context, ownerUserID strin
 		) rv ON TRUE
 		WHERE ri.owner_user_id = $1
 		  AND ($2 = '' OR ri.visibility = $2)
-		  AND ($3 = '%%' OR ri.title ILIKE $3 ESCAPE '\' OR COALESCE(ri.description, '') ILIKE $3 ESCAPE '\')
+		  AND (
+			$3 = '%%'
+			OR ri.title ILIKE $3 ESCAPE '\'
+			OR COALESCE(ri.description, '') ILIKE $3 ESCAPE '\'
+			OR COALESCE(ri.category, '') ILIKE $3 ESCAPE '\'
+			OR rv.filename ILIKE $3 ESCAPE '\'
+			OR EXISTS (
+				SELECT 1 FROM resource_tags rt WHERE rt.resource_id = ri.id AND rt.tag ILIKE $3 ESCAPE '\'
+			)
+		  )
 		  AND ($4 = '' OR EXISTS (
 			SELECT 1 FROM resource_tags rt WHERE rt.resource_id = ri.id AND rt.tag = $4
 		  ))
