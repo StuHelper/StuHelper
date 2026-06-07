@@ -68,14 +68,18 @@ test.describe('Course Browse Flow', () => {
                 id: 1,
                 name: '高等数学A',
                 code: 'MATH101',
+                departmentID: 2,
                 departmentName: '数学科学学院',
+                credits: 4,
                 reviewCount: 15,
               },
               {
                 id: 2,
                 name: '数据结构',
                 code: 'CS201',
+                departmentID: 1,
                 departmentName: '计算机科学与技术学院',
+                credits: 4,
                 reviewCount: 23,
               },
             ],
@@ -136,6 +140,25 @@ test.describe('Course Browse Flow', () => {
     // Assert actual rendered content from mocked data
     await expect(page.getByText('高等数学A')).toBeVisible({ timeout: 10_000 })
     await expect(page.getByText('数据结构')).toBeVisible()
+  })
+
+  test('course hub search finds courses by common Chinese abbreviations', async ({
+    page,
+  }) => {
+    await page.goto('/courses')
+    await page.waitForLoadState('networkidle')
+
+    await page
+      .getByRole('textbox', {
+        name: /搜索课程名称、拼音或首字母/,
+      })
+      .fill('高数')
+
+    await expect(
+      page.getByRole('option', {
+        name: /高等数学A.*数学科学学院.*15条测评/,
+      }),
+    ).toBeVisible()
   })
 
   test('invalid grouped course response fails closed and can retry', async ({

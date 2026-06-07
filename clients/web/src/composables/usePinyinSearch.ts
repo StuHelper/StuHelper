@@ -22,6 +22,18 @@ interface SearchTokens {
 
 const SEARCH_TOKEN_CACHE_LIMIT = 500
 const searchTokenCache = new Map<string, SearchTokens>()
+const cjkPattern = /[\u3400-\u9fff]/
+
+function isSubsequence(query: string, target: string): boolean {
+  let queryIndex = 0
+  for (const char of target) {
+    if (char === query[queryIndex]) {
+      queryIndex += 1
+      if (queryIndex === query.length) return true
+    }
+  }
+  return false
+}
 
 function getSearchTokens(name: string): SearchTokens {
   const cacheKey = name.trim().toLowerCase()
@@ -73,7 +85,9 @@ export function usePinyinSearch<T extends PinyinSearchItem>(options: UsePinyinSe
     }
 
     const filtered = indexedItems.value.filter((item) => {
-      if (item.name.toLowerCase().includes(q)) return true
+      const normalizedName = item.name.toLowerCase()
+      if (normalizedName.includes(q)) return true
+      if (q.length >= 2 && cjkPattern.test(q) && isSubsequence(q, normalizedName)) return true
       if (item._pinyin?.includes(q)) return true
       if (item._firstLetters?.includes(q)) return true
       return false
