@@ -497,7 +497,18 @@
             <div class="form-row">
               <label class="form-label">API 密钥</label>
               <div class="form-control">
-                <el-input v-model="settings.openai.apiKey" type="password" show-password placeholder="sk-..." size="small" />
+                <el-input
+                  v-model="openAIApiKeyDraft"
+                  type="password"
+                  :disabled="clearOpenAIApiKey"
+                  placeholder="输入新密钥；留空保留当前密钥"
+                  size="small"
+                />
+                <span class="form-hint">{{ openAIApiKeyStatusText }}</span>
+                <label v-if="openAIApiKeyConfigured" class="inline-checkbox">
+                  <input v-model="clearOpenAIApiKey" type="checkbox" />
+                  <span>保存时清除当前密钥</span>
+                </label>
               </div>
             </div>
             <div class="form-row">
@@ -660,7 +671,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { message } from '@koishijs/client'
 import { settingsApi } from '../api'
 import { useActionError } from '../composables/use-action-error'
@@ -836,6 +847,10 @@ const {
 })
 const settings = ref<SettingsModel>(cloneDefaultSettings())
 const originalSettings = ref<string>('') // 原始设置的 JSON 字符串用于比较
+const openAIApiKeyDraft = ref('')
+const openAIApiKeyConfigured = ref(false)
+const openAIApiKeyMasked = ref('')
+const clearOpenAIApiKey = ref(false)
 const activeSection = ref('warn')
 const sectionDropdownOpen = ref(false)
 const settingsLoaded = computed(() => Boolean(originalSettings.value) && !loadError.value)
@@ -845,6 +860,14 @@ let loadRequestSeq = 0
 const currentSectionLabel = computed(() => {
   const section = sections.find(s => s.id === activeSection.value)
   return section ? section.label : '警告设置'
+})
+
+const openAIApiKeyStatusText = computed(() => {
+  if (clearOpenAIApiKey.value) return '保存后将清除当前密钥'
+  if (!openAIApiKeyConfigured.value) return '当前未配置密钥'
+  return openAIApiKeyMasked.value
+    ? `当前已配置：${openAIApiKeyMasked.value}`
+    : '当前已配置密钥'
 })
 
 // 选择 section（移动端下拉使用）
@@ -863,7 +886,17 @@ const {
 // 检测是否有未保存的修改
 const hasChanges = computed(() => {
   if (!originalSettings.value) return false
-  return JSON.stringify(settings.value) !== originalSettings.value
+  return (
+    JSON.stringify(settings.value) !== originalSettings.value ||
+    openAIApiKeyDraft.value.trim() !== '' ||
+    clearOpenAIApiKey.value
+  )
+})
+
+watch(clearOpenAIApiKey, (clear) => {
+  if (clear) {
+    openAIApiKeyDraft.value = ''
+  }
 })
 
 // 将数组转换为文本
@@ -936,6 +969,41 @@ function parseSettingsSnapshot(value: string): SettingsModel {
   return deepMerge(cloneDefaultSettings(), parsed)
 }
 
+function applyOpenAIApiKeyMetadata(data: unknown) {
+  const openai = isPlainRecord(data) && isPlainRecord(data.openai) ? data.openai : {}
+  openAIApiKeyConfigured.value = openai.apiKeyConfigured === true
+  openAIApiKeyMasked.value = typeof openai.apiKeyMasked === 'string' ? openai.apiKeyMasked : ''
+  openAIApiKeyDraft.value = ''
+  clearOpenAIApiKey.value = false
+}
+
+function stripOpenAIApiKeyMetadata(model: SettingsModel) {
+  const openai = model.openai as unknown as PlainRecord
+  delete openai.apiKeyConfigured
+  delete openai.apiKeyMasked
+  delete openai.newApiKey
+  delete openai.clearApiKey
+  model.openai.apiKey = ''
+}
+
+function buildSettingsUpdatePayload(): PlainRecord {
+  const payload = structuredClone(settings.value) as unknown as PlainRecord
+  const openai = isPlainRecord(payload.openai) ? { ...payload.openai } : {}
+  const newApiKey = openAIApiKeyDraft.value.trim()
+
+  delete openai.apiKey
+  delete openai.apiKeyConfigured
+  delete openai.apiKeyMasked
+  if (clearOpenAIApiKey.value) {
+    openai.clearApiKey = true
+  } else if (newApiKey) {
+    openai.newApiKey = newApiKey
+  }
+
+  payload.openai = openai
+  return payload
+}
+
 const loadSettings = async (): Promise<boolean> => {
   const requestSeq = ++loadRequestSeq
   loading.value = true
@@ -945,7 +1013,10 @@ const loadSettings = async (): Promise<boolean> => {
     const data = await settingsApi.get()
     if (requestSeq !== loadRequestSeq) return false
     // 深度合并默认值和返回数据
-    settings.value = deepMerge(cloneDefaultSettings(), data)
+    const merged = deepMerge(cloneDefaultSettings(), data)
+    applyOpenAIApiKeyMetadata(data)
+    stripOpenAIApiKeyMetadata(merged)
+    settings.value = merged
     // 保存原始设置用于比较
     originalSettings.value = JSON.stringify(settings.value)
     return true
@@ -973,10 +1044,9 @@ const saveSettings = async () => {
   saving.value = true
   clearActionError()
   try {
-    await settingsApi.update(settings.value)
-    // 更新原始设置
-    originalSettings.value = JSON.stringify(settings.value)
+    await settingsApi.update(buildSettingsUpdatePayload())
     message.success('设置已保存')
+    await loadSettings()
   } catch (cause) {
     setActionError('保存失败', cause, '保存设置失败')
   } finally {
@@ -997,6 +1067,8 @@ const resetChanges = async () => {
     clearActionError()
     // 从原始设置恢复
     settings.value = parseSettingsSnapshot(originalSettings.value)
+    openAIApiKeyDraft.value = ''
+    clearOpenAIApiKey.value = false
     message.success('已放弃更改')
   }
 }
@@ -1006,7 +1078,7 @@ const resetToDefault = async () => {
 
   const confirmed = await confirm({
     title: '恢复默认设置',
-    message: '确定要将所有设置恢复为默认值吗？此操作将覆盖当前所有设置，需要保存后才会生效。',
+    message: '确定要将所有设置恢复为默认值吗？此操作将覆盖当前所有设置，并会在保存时清除 AI API 密钥。',
     tone: 'danger'
   })
   
@@ -1014,6 +1086,8 @@ const resetToDefault = async () => {
     clearActionError()
     // 恢复为默认设置
     settings.value = cloneDefaultSettings()
+    openAIApiKeyDraft.value = ''
+    clearOpenAIApiKey.value = openAIApiKeyConfigured.value
     message.success('已恢复默认设置，请保存以应用更改')
   }
 }
@@ -1327,6 +1401,19 @@ onMounted(() => {
 .form-hint {
   font-size: 11px;
   color: var(--fg3);
+}
+
+.inline-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--fg2);
+  cursor: pointer;
+}
+
+.inline-checkbox input {
+  margin: 0;
 }
 
 .form-textarea {

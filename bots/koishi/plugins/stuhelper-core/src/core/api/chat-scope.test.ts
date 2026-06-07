@@ -448,6 +448,143 @@ test('legacy settings APIs require global console scope', async () => {
   await assertRejectsGlobalScope(listeners, 'stuhelperGroupCenter/settings/reset', {})
 })
 
+test('settings API does not expose existing OpenAI API key', async () => {
+  const listeners = new Map<string, Listener>()
+  const ctx = createContext(listeners)
+  const service = createService(['1001'])
+  grantGlobalConsoleScope(service)
+  const secret = 'sk-live-secret-123456789'
+  service.settings.settings = {
+    openai: {
+      enabled: true,
+      apiKey: secret,
+      model: 'gpt-4.1-mini',
+    },
+  }
+
+  registerTestWebSocketAPI(ctx as any, service as any)
+
+  const result = await callListener(listeners, 'stuhelperGroupCenter/settings/get', {})
+
+  assert.equal(result.success, true)
+  assert.equal(result.data.openai.apiKey, undefined)
+  assert.equal(result.data.openai.apiKeyConfigured, true)
+  assert.notEqual(result.data.openai.apiKeyMasked, secret)
+  assert.doesNotMatch(JSON.stringify(result.data), new RegExp(secret))
+})
+
+test('settings API preserves existing OpenAI API key when no new key is provided', async () => {
+  const listeners = new Map<string, Listener>()
+  const ctx = createContext(listeners)
+  const service = createService(['1001'])
+  grantGlobalConsoleScope(service)
+  const updates: Array<Record<string, any>> = []
+  service.settings.settings = {
+    openai: {
+      apiKey: 'old-secret',
+      model: 'gpt-3.5-turbo',
+    },
+  }
+  service.settings.update = async (patch: Record<string, any>) => {
+    updates.push(patch)
+    service.settings.settings.openai = {
+      ...service.settings.settings.openai,
+      ...patch.openai,
+    }
+  }
+
+  registerTestWebSocketAPI(ctx as any, service as any)
+
+  const result = await callListener(listeners, 'stuhelperGroupCenter/settings/update', {
+    settings: {
+      openai: {
+        model: 'gpt-4.1-mini',
+        apiKey: '',
+        apiKeyConfigured: true,
+        apiKeyMasked: 'sk-l...6789',
+      },
+    },
+  })
+
+  assert.equal(result.success, true)
+  assert.equal(updates.length, 1)
+  assert.equal(Object.hasOwn(updates[0].openai, 'apiKey'), false)
+  assert.equal(service.settings.settings.openai.apiKey, 'old-secret')
+  assert.equal(service.settings.settings.openai.model, 'gpt-4.1-mini')
+})
+
+test('settings API replaces and clears OpenAI API key through explicit secret fields', async () => {
+  const listeners = new Map<string, Listener>()
+  const ctx = createContext(listeners)
+  const service = createService(['1001'])
+  grantGlobalConsoleScope(service)
+  service.settings.settings = {
+    openai: {
+      apiKey: 'old-secret',
+      model: 'gpt-3.5-turbo',
+    },
+  }
+  service.settings.update = async (patch: Record<string, any>) => {
+    service.settings.settings.openai = {
+      ...service.settings.settings.openai,
+      ...patch.openai,
+    }
+  }
+
+  registerTestWebSocketAPI(ctx as any, service as any)
+
+  const legacyReplace = await callListener(listeners, 'stuhelperGroupCenter/settings/update', {
+    settings: {
+      openai: {
+        apiKey: ' legacy-secret ',
+      },
+    },
+  })
+  assert.equal(legacyReplace.success, true)
+  assert.equal(service.settings.settings.openai.apiKey, 'legacy-secret')
+
+  const replace = await callListener(listeners, 'stuhelperGroupCenter/settings/update', {
+    settings: {
+      openai: {
+        newApiKey: ' new-secret ',
+      },
+    },
+  })
+  assert.equal(replace.success, true)
+  assert.equal(service.settings.settings.openai.apiKey, 'new-secret')
+
+  const afterReplace = await callListener(listeners, 'stuhelperGroupCenter/settings/get', {})
+  assert.equal(afterReplace.success, true)
+  assert.doesNotMatch(JSON.stringify(afterReplace.data), /new-secret/)
+
+  const conflict = await callListener(listeners, 'stuhelperGroupCenter/settings/update', {
+    settings: {
+      openai: {
+        newApiKey: 'conflicting-secret',
+        clearApiKey: true,
+      },
+    },
+  })
+  assert.equal(conflict.success, false)
+  assert.match(conflict.error || '', /不能同时清除和替换 API Key/)
+  assert.equal(service.settings.settings.openai.apiKey, 'new-secret')
+
+  const clear = await callListener(listeners, 'stuhelperGroupCenter/settings/update', {
+    settings: {
+      openai: {
+        clearApiKey: true,
+      },
+    },
+  })
+  assert.equal(clear.success, true)
+  assert.equal(service.settings.settings.openai.apiKey, '')
+
+  const afterClear = await callListener(listeners, 'stuhelperGroupCenter/settings/get', {})
+  assert.equal(afterClear.success, true)
+  assert.equal(afterClear.data.openai.apiKeyConfigured, false)
+  assert.equal(afterClear.data.openai.apiKeyMasked, '')
+})
+
 test('legacy log search filters records to the console scope', async () => {
   const listeners = new Map<string, Listener>()
   const ctx = createContext(listeners)
@@ -787,6 +924,14 @@ function createConsoleClient() {
       id: 42,
       authority: 4,
     },
+  }
+}
+
+function grantGlobalConsoleScope(service: ReturnType<typeof createService>) {
+  const originalGetUserRoleIds = service.auth.getUserRoleIds
+  service.auth.getUserRoleIds = (userId: string) => {
+    if (userId === '42') return ['global-role']
+    return originalGetUserRoleIds(userId)
   }
 }
 

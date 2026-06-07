@@ -26,6 +26,20 @@ import type {
 } from './core/services/page-types'
 import type { CommandLogRecord } from './core/modules/log.module'
 
+type PublicSettings = Omit<Config, 'openai'> & {
+  openai: Omit<Config['openai'], 'apiKey'> & {
+    apiKeyConfigured: boolean
+    apiKeyMasked: string
+  }
+}
+
+type SettingsUpdatePayload = Partial<Config> & {
+  openai?: Partial<Omit<Config['openai'], 'apiKey'>> & {
+    newApiKey?: string
+    clearApiKey?: boolean
+  }
+}
+
 declare module 'koishi' {
   interface Context {
     puppeteer: Puppeteer
@@ -169,8 +183,8 @@ declare module '@koishijs/console' {
       pageSize: number
     }>>
 
-    'stuhelperGroupCenter/settings/get'(): Promise<ApiResponse<Config>>
-    'stuhelperGroupCenter/settings/update'(params: { settings: Config }): Promise<ApiResponse<{ success: boolean }>>
+    'stuhelperGroupCenter/settings/get'(): Promise<ApiResponse<PublicSettings>>
+    'stuhelperGroupCenter/settings/update'(params: { settings: SettingsUpdatePayload }): Promise<ApiResponse<{ success: boolean }>>
     'stuhelperGroupCenter/settings/reset'(): Promise<ApiResponse<{ success: boolean }>>
 
     'stuhelperGroupCenter/cache/stats'(): Promise<ApiResponse<unknown>>
