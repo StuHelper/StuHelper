@@ -272,6 +272,28 @@ test.describe("Course community surfaces", () => {
         await expect(
             page.getByText("所有的课程，尤其是尚无测评的课程。"),
         ).toBeVisible();
+
+        await page
+            .getByRole("button", {
+                name: "3. 为什么仍然强调文字内容，而不是只看评分？",
+            })
+            .click();
+        await expect(
+            page.getByText("当前社区会展示课程和教师的维度评分、综合评分与趋势"),
+        ).toBeVisible();
+
+        await page
+            .getByRole("button", {
+                name: "5. 我会因为在这里发表信息而被约谈吗？",
+            })
+            .click();
+        await expect(
+            page.getByText("游客可以浏览公开摘要，发布测评、互动和查看完整内容需要满足相应权限"),
+        ).toBeVisible();
+        await expect(page.getByText("本站不设登录验证")).toHaveCount(0);
+        await expect(
+            page.getByText("为什么本站不收集和展示课程评分？"),
+        ).toHaveCount(0);
     });
 
     test("course review feed renders latest reviews, sort tabs, and department courses", async ({
