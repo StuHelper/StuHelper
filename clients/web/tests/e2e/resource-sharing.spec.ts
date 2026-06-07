@@ -343,6 +343,88 @@ test.describe('Resource sharing', () => {
     await expect.poll(() => nextResourceRequests).toBe(1)
   })
 
+  test('resource detail ignores stale download URLs after navigating to another resource', async ({
+    page,
+  }) => {
+    const nextResource = {
+      ...sampleResource,
+      id: 43,
+      title: '线性代数习题集',
+      description: '矩阵、行列式与线性空间练习。',
+      latestVersion: {
+        ...sampleResource.latestVersion,
+        id: 10,
+        filename: 'linear-algebra.pdf',
+        objectKey: 'resources/demo/linear-algebra.pdf',
+      },
+      updatedAt: '2026-05-03T08:00:00Z',
+    }
+    let releaseDownload!: () => void
+    let markDownloadRequested!: () => void
+    const downloadRequested = new Promise<void>((resolve) => {
+      markDownloadRequested = resolve
+    })
+    const downloadRelease = new Promise<void>((resolve) => {
+      releaseDownload = resolve
+    })
+    let staleDownloadDocumentRequests = 0
+
+    await page.route('**/api/v1/resources/42', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: sampleResource }),
+      }),
+    )
+    await page.route('**/api/v1/resources/43', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: nextResource }),
+      }),
+    )
+    await page.route('**/api/v1/resources/42/download-url', async (route) => {
+      markDownloadRequested()
+      await downloadRelease
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { url: '/resource-downloads/math-final.pdf' },
+        }),
+      })
+    })
+    await page.route('**/resource-downloads/math-final.pdf', (route) => {
+      staleDownloadDocumentRequests += 1
+      return route.fulfill({
+        contentType: 'application/pdf',
+        body: 'stale',
+      })
+    })
+
+    await page.goto('/resources/42')
+    await expect(
+      page.getByRole('heading', { name: '高等数学A 期末复习讲义' }),
+    ).toBeVisible()
+
+    await page.getByRole('button', { name: '下载资料' }).click()
+    await downloadRequested
+
+    await page.evaluate(() => {
+      window.history.pushState(null, '', '/resources/43')
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+    await expect(
+      page.getByRole('heading', { name: '线性代数习题集' }),
+    ).toBeVisible()
+
+    releaseDownload()
+    await page.waitForTimeout(500)
+
+    await expect(page).toHaveURL(/\/resources\/43$/)
+    await expect(page.getByText('linear-algebra.pdf')).toBeVisible()
+    await expect(page.getByText('math-final.pdf')).toHaveCount(0)
+    await expect.poll(() => staleDownloadDocumentRequests).toBe(0)
+  })
+
   test('resource detail rejects unsafe download URLs before navigation', async ({
     page,
   }) => {

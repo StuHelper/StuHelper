@@ -19,6 +19,7 @@ const downloadLoading = ref(false)
 const errorMessage = ref('')
 const downloadError = ref('')
 let loadRequestSeq = 0
+let downloadRequestSeq = 0
 
 const resourceID = computed(() => {
   const raw = route.params.id
@@ -58,11 +59,13 @@ function formatFileSize(bytes: number) {
 
 async function loadResource() {
   const requestSeq = ++loadRequestSeq
+  downloadRequestSeq += 1
   const id = resourceID.value
 
   if (id === null) {
     resource.value = null
     loading.value = false
+    downloadLoading.value = false
     errorMessage.value = t('resource.detail.notFound')
     downloadError.value = ''
     return
@@ -93,20 +96,26 @@ async function loadResource() {
 
 async function downloadResource() {
   if (!resource.value) return
+  const resourceID = resource.value.id
+  const requestSeq = ++downloadRequestSeq
   downloadLoading.value = true
   downloadError.value = ''
   try {
-    const res = await api.resource.getDownloadURL(resource.value.id)
+    const res = await api.resource.getDownloadURL(resourceID)
     const data = readResourceDownloadURLPayload(
       res.data?.data,
       'Invalid resource download response',
     )
+    if (requestSeq !== downloadRequestSeq || resource.value?.id !== resourceID) return
     window.location.assign(data.url)
   } catch (_error) {
     void _error
+    if (requestSeq !== downloadRequestSeq || resource.value?.id !== resourceID) return
     downloadError.value = t('resource.detail.downloadFailed')
   } finally {
-    downloadLoading.value = false
+    if (requestSeq === downloadRequestSeq && resource.value?.id === resourceID) {
+      downloadLoading.value = false
+    }
   }
 }
 
