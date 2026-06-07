@@ -9,7 +9,7 @@
         <p v-if="reviewStats" class="mt-2 text-base text-text-secondary">
           {{ t('review.home.subtitle', { count: reviewStats.reviewCount }) }}
         </p>
-        <p class="mt-1 text-sm font-medium text-secondary">
+        <p v-if="currentTerm" class="mt-1 text-sm font-medium text-secondary">
           {{ t('review.home.dataUpdated', { term: currentTerm }) }}
         </p>
       </header>

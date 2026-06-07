@@ -289,6 +289,28 @@ test.describe('User Journey: Browse Platform', () => {
     })
   })
 
+  test('course hub hides the data update line when no current term is available', async ({
+    page,
+  }) => {
+    await page.unroute('**/api/v1/course/terms*')
+    await page.route('**/api/v1/course/terms*', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: [] }),
+      }),
+    )
+
+    await page.goto('/courses')
+
+    await expect(page.getByRole('heading', { name: '评课社区@BUAA' })).toBeVisible({
+      timeout: 10_000,
+    })
+    await expect(page.getByRole('link', { name: '查看所有课程' })).toBeVisible()
+    await expect(
+      page.getByText(/课程数据已更新至|Course data updated to/i),
+    ).toHaveCount(0)
+  })
+
   test('visitor browses course list and clicks into course detail with reviews', async ({
     page,
   }) => {
@@ -401,6 +423,20 @@ test.describe('User Journey: Browse Platform', () => {
         }),
       }),
     )
+    await page.route('**/api/v1/course/review/reviews/latest*', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            list: sampleReviews,
+            total: sampleReviews.length,
+            page: 1,
+            pageSize: 6,
+          },
+        }),
+      }),
+    )
 
     await page.goto('/teachers/10')
     await page.waitForLoadState('networkidle')
@@ -417,6 +453,7 @@ test.describe('User Journey: Browse Platform', () => {
 
     // Course in teacher's course list
     await expect(page.getByText('数据结构与算法').first()).toBeVisible()
+    await expect(page.getByText('干货满满，强烈推荐')).toBeVisible()
   })
 
   test('teacher profile fails closed when stats response is malformed', async ({
