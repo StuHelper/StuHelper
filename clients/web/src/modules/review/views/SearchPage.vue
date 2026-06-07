@@ -1,10 +1,15 @@
 <template>
   <div class="min-h-screen bg-bg-base">
     <!-- Search Form View -->
-    <div v-if="!showResults" class="max-w-2xl mx-auto px-6 py-8 animate-fade-in">
+    <form
+      v-if="!showResults"
+      class="max-w-2xl mx-auto px-6 py-8 animate-fade-in"
+      @submit.prevent="handleSearch()"
+    >
       <!-- Header -->
       <div class="flex items-center gap-3 mb-2">
         <button
+          type="button"
           class="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg text-text-secondary hover:text-primary hover:bg-bg-elevated transition-colors"
           @click="goHome"
         >
@@ -175,14 +180,14 @@
 
       <!-- Search Button -->
       <button
+        type="submit"
         class="w-full bg-primary hover:bg-primary-dark text-white rounded-xl py-3 font-semibold text-base flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         :disabled="searching"
-        @click="handleSearch()"
       >
         <Search :size="18" />
         {{ searching ? t('common.actions.loading') : t('review.search.searchBtn') }}
       </button>
-    </div>
+    </form>
 
     <!-- Results View -->
     <div v-else class="max-w-[900px] mx-auto px-6 py-8 animate-fade-in">
