@@ -241,6 +241,7 @@ test.describe('User Journey: Search', () => {
         name: /Search Results|搜索结果/i,
       }),
     ).toBeVisible()
+    await expect(page).toHaveTitle(/数据结构.*搜索结果.*StuHelper/)
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(8)
 
     await expect

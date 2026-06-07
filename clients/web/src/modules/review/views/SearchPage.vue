@@ -324,6 +324,7 @@ import ReviewCard from '@/components/business/review/ReviewCard.vue'
 import { api } from '@/api'
 import { getErrorMessage } from '@/api/errors'
 import { useToast } from '@/composables/useToast'
+import { updatePageMeta } from '@/composables/usePageMeta'
 import {
   readCourseListPayload,
   readDepartmentArrayPayload,
@@ -386,10 +387,18 @@ function scrollSearchPageToTop() {
   window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
 }
 
+function updateSearchFormPageMeta() {
+  updatePageMeta({
+    title: t('review.search.title'),
+    description: t('review.search.subtitle'),
+  })
+}
+
 async function backToForm() {
   showResults.value = false
   resultCourses.value = []
   resultReviews.value = []
+  updateSearchFormPageMeta()
   await nextTick()
   scrollSearchPageToTop()
 }
@@ -446,6 +455,30 @@ function validateForm(): boolean {
   return true
 }
 
+function buildSearchCriteriaSummary() {
+  const criteria = [
+    form.courseName.trim(),
+    form.courseCode.trim(),
+    departments.value.find(dept => dept.id === form.departmentID)?.name,
+    form.teacherName.trim(),
+    terms.value.find(term => term.id === form.termID)?.name,
+  ].filter((part): part is string => Boolean(part))
+
+  return criteria.slice(0, 3).join(' · ')
+}
+
+function updateSearchResultsPageMeta() {
+  const summary = buildSearchCriteriaSummary()
+  updatePageMeta({
+    title: summary
+      ? `${summary} · ${t('review.search.results')}`
+      : t('review.search.results'),
+    description: summary
+      ? `${t('review.search.results')} · ${summary}`
+      : t('review.search.results'),
+  })
+}
+
 async function handleSearch() {
   if (!validateForm()) return
   if (searching.value) return
@@ -462,6 +495,7 @@ async function handleSearch() {
   resultCourses.value = []
   resultReviews.value = []
   searchError.value = ''
+  updateSearchResultsPageMeta()
   await nextTick()
   scrollSearchPageToTop()
 
@@ -532,6 +566,7 @@ async function handleSearch() {
 // --- Lifecycle ---
 
 onMounted(() => {
+  updateSearchFormPageMeta()
   loadDepartments()
   loadTerms()
 })
