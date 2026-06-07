@@ -219,7 +219,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import { getErrorStatus, isApiError } from '@/api/errors'
@@ -255,7 +255,6 @@ interface TeacherDetail {
 }
 
 const route = useRoute()
-const router = useRouter()
 const { t } = useI18n()
 const teacherID = computed(() => Number(route.params.id))
 
@@ -398,7 +397,7 @@ function updateTeacherPageMeta(detail: TeacherDetail) {
 }
 
 function isValidTeacherID(value: number) {
-  return Number.isInteger(value) && value > 0
+  return Number.isSafeInteger(value) && value > 0
 }
 
 function isTeacherNotFoundError(error: unknown) {
@@ -411,6 +410,7 @@ const fetchTeacher = async (id = teacherID.value) => {
   loadError.value = ''
   canRetryTeacherLoad.value = false
   teacherReviews.value = []
+  teacherReviewsLoading.value = false
   teacherReviewsError.value = ''
   teacherReviewsTotal.value = 0
   teacherReviewsPage.value = 1
@@ -440,6 +440,22 @@ const fetchTeacher = async (id = teacherID.value) => {
       loading.value = false
     }
   }
+}
+
+function showTeacherNotFound() {
+  loading.value = false
+  teacher.value = null
+  loadError.value = t('teaching.profile.notFound')
+  canRetryTeacherLoad.value = false
+  teacherReviews.value = []
+  teacherReviewsLoading.value = false
+  teacherReviewsError.value = ''
+  teacherReviewsTotal.value = 0
+  teacherReviewsPage.value = 1
+  updatePageMeta({
+    title: t('teaching.profile.notFound'),
+    description: t('teaching.profile.notFound'),
+  })
 }
 
 async function fetchTeacherReviews(reset: boolean, id = teacherID.value) {
@@ -494,7 +510,7 @@ watch(teacherID, async (newID, oldID) => {
   if (!isValidTeacherID(newID)) {
     teacherRequestSeq += 1
     teacherReviewsRequestSeq += 1
-    await router.replace({ name: 'course-hub' })
+    showTeacherNotFound()
     return
   }
   await fetchTeacher(newID)

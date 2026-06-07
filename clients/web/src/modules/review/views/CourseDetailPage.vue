@@ -781,6 +781,10 @@ function isCourseNotFoundError(error: unknown) {
   return getErrorStatus(error) === 404 || (isApiError(error) && error.code === 'A0100001')
 }
 
+function isValidCourseID(value: number) {
+  return Number.isSafeInteger(value) && value > 0
+}
+
 function updateCoursePageMeta() {
   if (!course.value) return
 
@@ -819,6 +823,32 @@ async function goToPostPage() {
 
 // ── Data fetching ──
 let loadVersion = 0
+
+function resetCourseDetailData() {
+  course.value = null
+  ratingStats.value = null
+  courseTeachers.value = []
+  ratingTrend.value = []
+  reviews.value = []
+  reviewsLoading.value = false
+  reviewsLoadError.value = false
+  total.value = 0
+  page.value = 1
+}
+
+function showCourseNotFound() {
+  resetCourseDetailData()
+  loading.value = false
+  error.value = true
+  courseLoadErrorMessage.value = t('review.course.notFound')
+  canRetryCourseLoad.value = false
+  partialLoadError.value = false
+  contentReady.value = true
+  updatePageMeta({
+    title: t('review.courseDetail'),
+    description: t('review.course.notFound'),
+  })
+}
 
 const fetchReviews = async (append = false, expectedVersion?: number) => {
   reviewsLoading.value = true
@@ -882,19 +912,8 @@ const fetchRatingStats = async () => {
 
 const fetchAll = async () => {
   const id = courseID.value
-  if (isNaN(id) || id <= 0) {
-    router.replace({ name: 'course-hub' })
-    return
-  }
-
   const version = ++loadVersion
-  course.value = null
-  ratingStats.value = null
-  courseTeachers.value = []
-  reviews.value = []
-  reviewsLoadError.value = false
-  total.value = 0
-  page.value = 1
+  resetCourseDetailData()
   selectedTeacherID.value = readRouteTeacherID()
   contentReady.value = false
   loading.value = true
@@ -903,9 +922,31 @@ const fetchAll = async () => {
   canRetryCourseLoad.value = false
   partialLoadError.value = false
 
+  if (!isValidCourseID(id)) {
+    showCourseNotFound()
+    return
+  }
+
   try {
-    const [courseRes, statsRes, reviewsRes, teachersRes, trendRes] = await Promise.allSettled([
-      api.course.getCourse(id),
+    try {
+      const courseRes = await api.course.getCourse(id)
+      if (version !== loadVersion) return
+      course.value = readCoursePayload(courseRes.data?.data, 'Invalid course response')
+    } catch (courseError) {
+      if (version !== loadVersion) return
+      if (isCourseNotFoundError(courseError)) {
+        showCourseNotFound()
+      } else {
+        course.value = null
+        error.value = true
+        courseLoadErrorMessage.value = t('common.loadFailed')
+        canRetryCourseLoad.value = true
+        toast.error(getErrorMessage(courseError, t('common.loadFailed')))
+      }
+      return
+    }
+
+    const [statsRes, reviewsRes, teachersRes, trendRes] = await Promise.allSettled([
       api.rating.getCourseStats(id),
       api.review.getReviewsPage(id, {
         page: 1,
@@ -918,35 +959,6 @@ const fetchAll = async () => {
     ])
 
     if (version !== loadVersion) return
-
-    if (courseRes.status === 'fulfilled') {
-      try {
-        course.value = readCoursePayload(courseRes.value.data?.data, 'Invalid course response')
-      } catch (err) {
-        course.value = null
-        error.value = true
-        courseLoadErrorMessage.value = t('common.loadFailed')
-        canRetryCourseLoad.value = true
-        toast.error(getErrorMessage(err, t('common.loadFailed')))
-        return
-      }
-    } else {
-      course.value = null
-      error.value = true
-      if (isCourseNotFoundError(courseRes.reason)) {
-        courseLoadErrorMessage.value = t('review.course.notFound')
-        canRetryCourseLoad.value = false
-        updatePageMeta({
-          title: t('review.courseDetail'),
-          description: t('review.course.notFound'),
-        })
-      } else {
-        courseLoadErrorMessage.value = t('common.loadFailed')
-        canRetryCourseLoad.value = true
-        toast.error(getErrorMessage(courseRes.reason, t('common.loadFailed')))
-      }
-      return
-    }
 
     let hasPartialError = [statsRes, reviewsRes].some(item => item.status === 'rejected')
 
@@ -1019,7 +1031,7 @@ onUnmounted(() => {
 
 // 课程切换后重新加载主数据
 watch(courseID, async (newID, oldID) => {
-  if (oldID !== undefined && (newID === oldID || isNaN(newID) || newID <= 0)) return
+  if (oldID !== undefined && newID === oldID) return
   await fetchAll()
 }, { immediate: true })
 

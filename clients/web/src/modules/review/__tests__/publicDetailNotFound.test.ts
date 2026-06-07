@@ -253,12 +253,12 @@ vi.mock('@/components/business/review/ReviewCard.vue', () => ({
 const { default: CourseDetailPage } = await import('../views/CourseDetailPage.vue')
 const { default: TeacherProfilePage } = await import('../views/TeacherProfilePage.vue')
 
-function setRoute(path: string) {
+function setRoute(path: string, id = '999999') {
   mockRouteContainer.route = reactive({
     fullPath: path,
     matched: [],
     params: {
-      id: '999999',
+      id,
     },
     path,
     query: {},
@@ -330,8 +330,26 @@ describe('public detail not-found states', () => {
     await flushPromises()
 
     expect(mockCourseApi.getCourse).toHaveBeenCalledWith(999999)
+    expect(mockRatingApi.getCourseStats).not.toHaveBeenCalled()
+    expect(mockReviewApi.getReviewsPage).not.toHaveBeenCalled()
+    expect(mockRatingApi.getCourseTeachers).not.toHaveBeenCalled()
+    expect(mockRatingApi.getRatingTrend).not.toHaveBeenCalled()
     expect(wrapper.get('[role="alert"]').text()).toContain('课程不存在或已被移除。')
     expect(wrapper.text()).not.toContain('加载失败')
+    expect(wrapper.find('[data-course-detail-retry-button]').exists()).toBe(false)
+  })
+
+  it('shows course not-found for invalid course ids without routing away', async () => {
+    setRoute('/courses/not-a-number', 'not-a-number')
+
+    const wrapper = mountPage(CourseDetailPage)
+    await flushPromises()
+
+    expect(mockRouter.replace).not.toHaveBeenCalled()
+    expect(mockCourseApi.getCourse).not.toHaveBeenCalled()
+    expect(mockRatingApi.getCourseStats).not.toHaveBeenCalled()
+    expect(mockReviewApi.getReviewsPage).not.toHaveBeenCalled()
+    expect(wrapper.get('[role="alert"]').text()).toContain('课程不存在或已被移除。')
     expect(wrapper.find('[data-course-detail-retry-button]').exists()).toBe(false)
   })
 
@@ -361,6 +379,19 @@ describe('public detail not-found states', () => {
     expect(wrapper.text()).not.toContain('加载失败')
     expect(wrapper.find('[data-teacher-profile-retry-button]').exists()).toBe(false)
     expect(mockReviewApi.getLatestReviewsPage).not.toHaveBeenCalled()
+  })
+
+  it('shows teacher not-found for invalid teacher ids without routing away', async () => {
+    setRoute('/teachers/not-a-number', 'not-a-number')
+
+    const wrapper = mountPage(TeacherProfilePage)
+    await flushPromises()
+
+    expect(mockRouter.replace).not.toHaveBeenCalled()
+    expect(mockRatingApi.getTeacherStats).not.toHaveBeenCalled()
+    expect(mockReviewApi.getLatestReviewsPage).not.toHaveBeenCalled()
+    expect(wrapper.get('[role="alert"]').text()).toContain('未找到教师信息')
+    expect(wrapper.find('[data-teacher-profile-retry-button]').exists()).toBe(false)
   })
 
   it('keeps teacher retry available for transient detail failures', async () => {

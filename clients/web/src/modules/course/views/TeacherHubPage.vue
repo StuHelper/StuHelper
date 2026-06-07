@@ -38,6 +38,7 @@ const TEACHER_SEARCH_PAGE_SIZE = 30
 
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 let searchRequestSeq = 0
+let popularTeachersLoaded = false
 
 function firstRouteQueryValue(value: LocationQueryValue | LocationQueryValue[] | undefined): string | null {
   if (Array.isArray(value)) {
@@ -82,12 +83,18 @@ async function loadPopularTeachers() {
       'Invalid popular teachers response',
     )
     popularTeachers.value = list.map(mapTeacher)
+    popularTeachersLoaded = true
   } catch (_error) { void _error;
     popularTeachers.value = []
     errorMessage.value = t('common.loadFailed')
   } finally {
     loading.value = false
   }
+}
+
+function ensurePopularTeachersLoaded() {
+  if (popularTeachersLoaded || loading.value) return
+  void loadPopularTeachers()
 }
 
 function mapTeacher(raw: TeacherSummaryPayload): TeacherEntry {
@@ -181,10 +188,12 @@ function clearSearch() {
 }
 
 onMounted(() => {
-  void loadPopularTeachers()
   if (searchQuery.value.trim()) {
+    loading.value = false
     void doSearch()
+    return
   }
+  void loadPopularTeachers()
 })
 
 watch(
@@ -198,6 +207,7 @@ watch(
     }
     if (!q) {
       resetSearchState()
+      ensurePopularTeachersLoaded()
       return
     }
     void doSearch()
