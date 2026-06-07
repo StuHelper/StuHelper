@@ -217,11 +217,14 @@
                     </div>
                 </div>
                 <router-link
-                    v-if="!phoneBound"
                     to="/user/phone-binding"
                     class="block w-full py-2 bg-text-primary text-bg-base rounded-lg text-xs font-medium text-center no-underline transition-all duration-fast hover:bg-accent hover:text-white"
                 >
-                    {{ t("user.verification.phone.bind") }}
+                    {{
+                        phoneBound
+                            ? t("user.verification.phone.update")
+                            : t("user.verification.phone.bind")
+                    }}
                 </router-link>
             </div>
         </div>

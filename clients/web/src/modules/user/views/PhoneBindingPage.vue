@@ -128,7 +128,7 @@
             >
                 {{
                     loading
-                        ? t("common.actions.submit")
+                        ? t("user.verification.phone.submitting")
                         : alreadyBound
                           ? t("user.verification.phone.update")
                           : t("user.verification.phone.bind")

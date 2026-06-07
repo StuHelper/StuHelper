@@ -321,6 +321,7 @@ export default {
             bound: "已绑定",
             unbound: "未绑定",
             sending: "发送中...",
+            submitting: "处理中...",
             resend: "{seconds}秒后重新发送",
             codeSent: "验证码已发送",
             bindSuccess: "手机号绑定成功",
