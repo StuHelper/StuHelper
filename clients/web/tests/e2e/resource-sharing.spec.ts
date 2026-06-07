@@ -123,6 +123,79 @@ test.describe('Resource sharing', () => {
     await expect(page).toHaveURL(/\/resources\/42$/)
   })
 
+  test('resource list ignores stale search failures after filters are cleared', async ({
+    page,
+  }) => {
+    let releaseSearch!: () => void
+    let markSearchRequested!: () => void
+    const searchRequested = new Promise<void>((resolve) => {
+      markSearchRequested = resolve
+    })
+    const searchRelease = new Promise<void>((resolve) => {
+      releaseSearch = resolve
+    })
+
+    await page.route('**/api/v1/resources?*', async (route) => {
+      const url = new URL(route.request().url())
+      const query = url.searchParams.get('query')
+
+      if (query === '旧搜索') {
+        markSearchRequested()
+        await searchRelease
+        return route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: {
+              items: [
+                {
+                  ...sampleResource,
+                  latestVersion: {
+                    ...sampleResource.latestVersion,
+                    sizeBytes: '204800',
+                  },
+                },
+              ],
+              total: 1,
+              page: 1,
+              pageSize: 24,
+            },
+          }),
+        })
+      }
+
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { items: [sampleResource], total: 1, page: 1, pageSize: 24 },
+        }),
+      })
+    })
+
+    await page.goto('/resources')
+    await expect(
+      page.getByRole('link', { name: /高等数学A 期末复习讲义/ }),
+    ).toBeVisible({ timeout: 10_000 })
+
+    await page.getByRole('searchbox', { name: /搜索资料/ }).fill('旧搜索')
+    await page.getByRole('button', { name: '搜索资料' }).click()
+    await searchRequested
+
+    await page.getByRole('button', { name: '清空筛选' }).click()
+    await expect(
+      page.getByRole('link', { name: /高等数学A 期末复习讲义/ }),
+    ).toBeVisible({ timeout: 10_000 })
+
+    releaseSearch()
+
+    await expect(
+      page.getByRole('link', { name: /高等数学A 期末复习讲义/ }),
+    ).toBeVisible()
+    await expect(page.getByRole('alert')).toHaveCount(0)
+    await expect(page.getByText('资料列表加载失败，请稍后重试。')).toHaveCount(0)
+  })
+
   test('resource list loads additional pages when more resources exist', async ({
     page,
   }) => {

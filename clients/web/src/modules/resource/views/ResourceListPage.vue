@@ -24,6 +24,7 @@ const errorMessage = ref('')
 const loadMoreError = ref('')
 const hasSearched = ref(false)
 const PAGE_SIZE = 24
+let resourceRequestSeq = 0
 
 const hasFilters = computed(() =>
   Boolean(
@@ -71,6 +72,14 @@ function resourceMeta(resource: ResourceItem) {
 }
 
 async function loadResourcePage(nextPage: number, append = false) {
+  const requestSeq = ++resourceRequestSeq
+  const filters = {
+    query: query.value.trim() || undefined,
+    tag: tag.value.trim() || undefined,
+    bindingType: bindingType.value.trim() || undefined,
+    bindingValue: bindingValue.value.trim() || undefined,
+  }
+
   if (append) {
     loadingMore.value = true
     loadMoreError.value = ''
@@ -84,20 +93,19 @@ async function loadResourcePage(nextPage: number, append = false) {
     const res = await api.resource.listResources({
       page: nextPage,
       pageSize: PAGE_SIZE,
-      query: query.value.trim() || undefined,
-      tag: tag.value.trim() || undefined,
-      bindingType: bindingType.value.trim() || undefined,
-      bindingValue: bindingValue.value.trim() || undefined,
+      ...filters,
     })
     const data = readResourcePagePayload(
       res.data?.data,
       'Invalid resource list response',
     )
+    if (requestSeq !== resourceRequestSeq) return
     resources.value = append ? [...resources.value, ...data.items] : data.items
     total.value = data.total
     page.value = data.page
   } catch (_error) {
     void _error
+    if (requestSeq !== resourceRequestSeq) return
     if (append) {
       loadMoreError.value = t('resource.list.loadMoreFailed')
     } else {
@@ -107,10 +115,12 @@ async function loadResourcePage(nextPage: number, append = false) {
       errorMessage.value = t('resource.list.loadFailed')
     }
   } finally {
-    if (append) {
-      loadingMore.value = false
-    } else {
-      loading.value = false
+    if (requestSeq === resourceRequestSeq) {
+      if (append) {
+        loadingMore.value = false
+      } else {
+        loading.value = false
+      }
     }
   }
 }
