@@ -17,6 +17,7 @@ import { useAuthStore } from './stores/auth'
 import { useLocaleStore } from './stores/locale'
 import { vRipple } from './directives/ripple'
 import { initObservability } from './utils/observability'
+import { shouldInitObservability } from './utils/observabilityBootstrap'
 import { hasStoredSessionHint } from './utils/sessionHint'
 
 const app = createApp(App)
@@ -63,7 +64,11 @@ app.config.errorHandler = (err, instance, info) => {
 app.use(pinia)
 app.use(i18n)
 app.directive('ripple', vRipple)
-if (import.meta.env.VITE_E2E_API_STUB !== '1') {
+if (shouldInitObservability({
+  apiBaseUrl: import.meta.env.VITE_API_URL,
+  e2eApiStub: import.meta.env.VITE_E2E_API_STUB,
+  hostname: currentHostname(),
+})) {
   initObservability()
 }
 
