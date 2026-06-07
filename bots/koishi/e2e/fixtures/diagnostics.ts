@@ -23,13 +23,11 @@ export interface Tracker extends AsyncDisposable {
 }
 
 /**
- * Koishi Console 的 activity 路由由各插件异步 addRoute 注册。直连动态页面时，
- * Vue Router 会在 entry 注册完成前打印一次 "No match found"。这些路径随后由
- * RouterService 的 loader warm-up 正常解析；其他路径的同类 warning 仍然失败。
+ * Koishi Console 的登录页由 AUTH 插件异步注册，直连登录页时可能先于路由注册
+ * 打印一次 "No match found"。StuHelper 自有入口应保持无同类告警。
  */
 const CONSOLE_ALLOWLIST: readonly RegExp[] = [
   /^\[Vue Router warn\]: No match found for location with path "\/login"$/,
-  /^\[Vue Router warn\]: No match found for location with path "\/stuhelper(\?[^"]*)?"$/,
 ]
 
 const CRITICAL_RESOURCE_TYPES = new Set(['document', 'font', 'image', 'script', 'stylesheet'])

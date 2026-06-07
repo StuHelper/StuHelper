@@ -1331,7 +1331,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@koishijs/plugin-console@npm:^5.30.4":
+"@koishijs/plugin-console@npm:5.30.11":
   version: 5.30.11
   resolution: "@koishijs/plugin-console@npm:5.30.11"
   dependencies:
@@ -1346,6 +1346,24 @@ __metadata:
     "@koishijs/client":
       optional: true
   checksum: 10c0/aee281801f6ea10d526a25a5d3e438f6d5a4dafaaad1334d9812014910f4e6c0c0f11a86e858db77d73167c39947477e46acabd80145868f619bc3b897659a1c
+  languageName: node
+  linkType: hard
+
+"@koishijs/plugin-console@patch:@koishijs/plugin-console@npm%3A5.30.11#~/.yarn/patches/@koishijs-plugin-console-npm-5.30.11-fa58ce5155.patch":
+  version: 5.30.11
+  resolution: "@koishijs/plugin-console@patch:@koishijs/plugin-console@npm%3A5.30.11#~/.yarn/patches/@koishijs-plugin-console-npm-5.30.11-fa58ce5155.patch::version=5.30.11&hash=3c39c4"
+  dependencies:
+    "@koishijs/console": "npm:^5.30.11"
+    open: "npm:^8.4.2"
+    uuid: "npm:^8.3.2"
+    ws: "npm:^8.16.0"
+  peerDependencies:
+    "@koishijs/client": ^5.30.11
+    koishi: ^4.18.9
+  peerDependenciesMeta:
+    "@koishijs/client":
+      optional: true
+  checksum: 10c0/6a8870c4242e4dc2303a91fbe86a32b5754dde60931a74c9ffdefb10c4a6f6b60af72a88a62e97295fae2eb823a31403699123801669f5ee6c7385fb34eaee04
   languageName: node
   linkType: hard
 

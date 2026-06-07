@@ -61,7 +61,8 @@
     "yml-register": "^1.2.5"
   },
   "resolutions": {
-    "@koishijs/client@npm:^5.30.4": "patch:@koishijs/client@npm%3A5.30.11#~/.yarn/patches/@koishijs-client-npm-5.30.11-f4fd28fbc1.patch"
+    "@koishijs/client@npm:^5.30.4": "patch:@koishijs/client@npm%3A5.30.11#~/.yarn/patches/@koishijs-client-npm-5.30.11-f4fd28fbc1.patch",
+    "@koishijs/plugin-console@npm:^5.30.4": "patch:@koishijs/plugin-console@npm%3A5.30.11#~/.yarn/patches/@koishijs-plugin-console-npm-5.30.11-fa58ce5155.patch"
   },
   "dependencies": {
     "@koishijs/core": "4.18.11",
