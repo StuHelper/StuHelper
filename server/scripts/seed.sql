@@ -100,6 +100,71 @@ ON CONFLICT (id) DO NOTHING;
 SELECT setval('users_id_seq', 5, true);
 
 -- ============================================
+-- 4.1 资料共享数据
+-- ============================================
+INSERT INTO resource_items AS ri (
+    id, owner_user_id, title, description, category, visibility, created_at, updated_at
+) VALUES (
+    100001,
+    'oidc_user_001',
+    '高等数学A期末复习资料',
+    '开发环境样例资料，用于验证资料共享列表、详情和下载链路。',
+    '课程资料',
+    'public',
+    NOW() - INTERVAL '2 days',
+    NOW() - INTERVAL '2 days'
+)
+ON CONFLICT (id) DO UPDATE
+SET owner_user_id = EXCLUDED.owner_user_id,
+    title = EXCLUDED.title,
+    description = EXCLUDED.description,
+    category = EXCLUDED.category,
+    visibility = EXCLUDED.visibility,
+    updated_at = NOW();
+
+INSERT INTO resource_versions AS rv (
+    id, resource_id, version_no, mount_id, object_key, filename, content_type, size_bytes, created_at
+) VALUES (
+    100001,
+    100001,
+    1,
+    (SELECT id FROM storage_mounts WHERE key = 'default-s3'),
+    'resources/dev-seed/course-8-final-review-guide.md',
+    '高等数学A期末复习资料.md',
+    'text/markdown; charset=utf-8',
+    457,
+    NOW() - INTERVAL '2 days'
+)
+ON CONFLICT (resource_id, version_no) DO UPDATE
+SET mount_id = EXCLUDED.mount_id,
+    object_key = EXCLUDED.object_key,
+    filename = EXCLUDED.filename,
+    content_type = EXCLUDED.content_type,
+    size_bytes = EXCLUDED.size_bytes;
+
+DELETE FROM resource_tags WHERE resource_id = 100001;
+INSERT INTO resource_tags (resource_id, tag) VALUES
+    (100001, '期末'),
+    (100001, '笔记'),
+    (100001, '高数');
+
+DELETE FROM resource_bindings WHERE resource_id = 100001;
+INSERT INTO resource_bindings (resource_id, binding_type, binding_value) VALUES
+    (100001, 'course', '8'),
+    (100001, 'term', '2025-2');
+
+SELECT setval(
+    'resource_items_id_seq',
+    GREATEST((SELECT COALESCE(MAX(id), 1) FROM resource_items), 1),
+    true
+);
+SELECT setval(
+    'resource_versions_id_seq',
+    GREATEST((SELECT COALESCE(MAX(id), 1) FROM resource_versions), 1),
+    true
+);
+
+-- ============================================
 -- 5. 测评数据
 -- ============================================
 -- user_hash 使用固定的测试哈希值

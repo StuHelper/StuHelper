@@ -255,6 +255,7 @@ base_services=(
 log "starting development infrastructure (Docker)"
 compose up -d "${base_services[@]}"
 compose up --no-deps minio-init
+compose up --no-deps resource-seed-dev
 
 log "ensuring dockerized dev app containers are stopped"
 compose --profile dev-full stop app-dev frontend-dev admin-dev >/dev/null 2>&1 || true
