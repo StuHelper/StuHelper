@@ -102,7 +102,13 @@ export default {
     title: '页面不存在',
     description: '你访问的页面可能已被移除或地址有误',
     backHome: '返回首页',
-    goBack: '返回上页'
+    goBack: '返回上页',
+    joinAdmission: {
+      title: '入群认证链接无效',
+      description: 'join.stuhelper.com 只用于打开群内机器人或管理员生成的入群认证链接。请回到 QQ 群获取新的认证链接。',
+      backHome: '前往 StuHelper 主站',
+      goBack: '返回上一页'
+    }
   },
   loadError: {
     title: '加载失败',

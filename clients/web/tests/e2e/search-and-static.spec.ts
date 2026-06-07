@@ -113,11 +113,14 @@ test.describe('Static Pages', () => {
     await page.goto(joinURL.toString())
 
     await expect(
-      page.getByRole('heading', { name: /Page Not Found|页面不存在/i }),
+      page.getByRole('heading', { name: /Admission Link Required|入群认证链接无效/i }),
     ).toBeVisible({ timeout: 10_000 })
+    await expect(
+      page.getByText(/join domain only opens admission verification links|只用于打开群内机器人或管理员生成的入群认证链接/i),
+    ).toBeVisible()
 
     const homeLink = page.getByRole('link', {
-      name: /Back Home|返回首页/i,
+      name: /Go to StuHelper|前往 StuHelper 主站/i,
     })
     const homeHref = await homeLink.getAttribute('href')
     expect(homeHref).toBeTruthy()
