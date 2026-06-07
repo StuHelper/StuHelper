@@ -148,12 +148,13 @@ export function buildAdmissionRuntimeModel(data: AdmissionRuntimePageData) {
 }
 
 function buildMetrics(data: AdmissionRuntimePageData): AdmissionMetric[] {
+  const activeTargetGuildCount = countActiveTargetGuilds(data)
   return [
     {
       label: '目标群',
-      value: data.stats.targetGroupCount,
-      note: `${data.stats.enabledBindingCount} 个数据库绑定已启用`,
-      tone: data.stats.targetGroupCount > 0 || data.stats.enabledBindingCount > 0 ? 'success' : 'warning',
+      value: activeTargetGuildCount,
+      note: `${data.stats.targetGroupCount} 个静态目标群，${data.stats.enabledBindingCount} 个启用绑定`,
+      tone: activeTargetGuildCount > 0 ? 'success' : 'warning',
     },
     {
       label: '受限成员',
@@ -174,6 +175,16 @@ function buildMetrics(data: AdmissionRuntimePageData): AdmissionMetric[] {
       tone: data.stats.membersWithLastErrorCount > 0 ? 'danger' : 'success',
     },
   ]
+}
+
+function countActiveTargetGuilds(data: AdmissionRuntimePageData): number {
+  const guildIds = new Set(data.guard.targetGroups.map((guildId) => guildId.trim()).filter(Boolean))
+  for (const binding of data.bindings) {
+    if (binding.enabled && binding.guildId.trim()) {
+      guildIds.add(binding.guildId.trim())
+    }
+  }
+  return guildIds.size
 }
 
 function buildSwitchRows(data: AdmissionRuntimePageData): AdmissionSwitchRow[] {

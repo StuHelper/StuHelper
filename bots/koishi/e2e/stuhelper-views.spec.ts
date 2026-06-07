@@ -166,6 +166,9 @@ test('admission runtime saves switches and executes member actions through real 
   await expect(page.locator('.sh-workspace-head__title', { hasText: '入群认证' }).first()).toBeVisible({
     timeout: 10_000,
   })
+  const targetMetric = page.locator('.sh-stat', { hasText: '目标群' }).first()
+  await expect(targetMetric.locator('.sh-stat__value')).toHaveText('1')
+  await expect(targetMetric).toContainText('1 个静态目标群，1 个启用绑定')
 
   const actionStreamRow = page.locator('.sh-lane__row', { hasText: 'Action Stream' }).first()
   await expect(actionStreamRow).toBeVisible({ timeout: 10_000 })

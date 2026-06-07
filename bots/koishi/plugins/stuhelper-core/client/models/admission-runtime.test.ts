@@ -10,7 +10,8 @@ test('buildAdmissionRuntimeModel exposes admission runtime metrics and switch st
   const model = buildAdmissionRuntimeModel(createAdmissionRuntimeFixture())
 
   assert.equal(model.metrics[0].label, '目标群')
-  assert.equal(model.metrics[0].value, 1)
+  assert.equal(model.metrics[0].value, 2)
+  assert.equal(model.metrics[0].note, '1 个静态目标群，2 个启用绑定')
   assert.equal(model.metrics[1].value, 2)
   assert.equal(model.metrics[3].tone, 'danger')
   assert.equal(model.switchRows.find((row) => row.id === 'service-token')?.tone, 'success')
@@ -65,8 +66,8 @@ function createAdmissionRuntimeFixture(): AdmissionRuntimePageData {
     stats: {
       targetGroupCount: 1,
       templateCount: 1,
-      bindingCount: 1,
-      enabledBindingCount: 1,
+      bindingCount: 2,
+      enabledBindingCount: 2,
       activeMemberCount: 2,
       backendSyncPendingCount: 1,
       membersWithAdmissionSessionCount: 1,
@@ -81,15 +82,26 @@ function createAdmissionRuntimeFixture(): AdmissionRuntimePageData {
       exemptUserCount: 0,
       updatedAt: '2026-06-04T07:00:00.000Z',
     }],
-    bindings: [{
-      id: 'qq:178037297',
-      platform: 'qq',
-      guildId: '178037297',
-      templateId: 'default',
-      enabled: true,
-      note: null,
-      updatedAt: '2026-06-04T07:00:00.000Z',
-    }],
+    bindings: [
+      {
+        id: 'qq:178037297',
+        platform: 'qq',
+        guildId: '178037297',
+        templateId: 'default',
+        enabled: true,
+        note: null,
+        updatedAt: '2026-06-04T07:00:00.000Z',
+      },
+      {
+        id: 'qq:1001',
+        platform: 'qq',
+        guildId: '1001',
+        templateId: 'default',
+        enabled: true,
+        note: null,
+        updatedAt: '2026-06-04T07:00:00.000Z',
+      },
+    ],
     activeMembers: [
       createMember('2002', '2026-06-04T08:20:00.000Z', true, null, 'failed'),
       createMember('2001', '2026-06-04T08:10:00.000Z', false, 'session-1', null),
