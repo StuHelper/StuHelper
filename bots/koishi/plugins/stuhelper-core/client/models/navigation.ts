@@ -47,12 +47,10 @@ export function parseConsoleHash(hash: string): ConsoleNavigationState | null {
   const separatorIndex = fragment.indexOf('?')
   const rawView = separatorIndex >= 0 ? fragment.slice(0, separatorIndex) : fragment
   const view = rawView.replace(/^\/+/, '')
-  if (!isConsoleViewId(view)) {
-    throw new Error(`unknown console view: ${view}`)
-  }
+  const normalizedView = isConsoleViewId(view) ? view : DEFAULT_CONSOLE_VIEW
 
   const params = new URLSearchParams(separatorIndex >= 0 ? fragment.slice(separatorIndex + 1) : '')
-  params.set('view', view)
+  params.set('view', normalizedView)
   return parseConsoleQuery(params)
 }
 
@@ -128,7 +126,7 @@ function parseConsoleView(value: string | null) {
     return DEFAULT_CONSOLE_VIEW
   }
   if (!isConsoleViewId(value)) {
-    throw new Error(`unknown console view: ${value}`)
+    return DEFAULT_CONSOLE_VIEW
   }
   return value
 }

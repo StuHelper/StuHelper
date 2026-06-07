@@ -61,15 +61,24 @@ test('parseConsoleLocation prefers hash state while keeping query as legacy fall
   assert.equal(legacyState.view, 'config')
 })
 
-test('parseConsoleLocation rejects explicit unknown view ids instead of silently falling back', () => {
-  assert.throws(
-    () => parseConsoleLocation(new URL('http://127.0.0.1:5140/stuhelper?view=missing')),
-    /unknown console view: missing/,
+test('parseConsoleLocation falls back to dashboard for explicit unknown view ids', () => {
+  const legacyState = parseConsoleLocation(new URL('http://127.0.0.1:5140/stuhelper?view=missing'))
+  const hashState = parseConsoleLocation(new URL('http://127.0.0.1:5140/stuhelper#missing'))
+  const contextualHashState = parseConsoleLocation(
+    new URL('http://127.0.0.1:5140/stuhelper#missing?workspace=pending&keyword=kick'),
   )
-  assert.throws(
-    () => parseConsoleLocation(new URL('http://127.0.0.1:5140/stuhelper#missing')),
-    /unknown console view: missing/,
-  )
+
+  assert.equal(legacyState.view, 'dashboard')
+  assert.equal(hashState.view, 'dashboard')
+  assert.deepEqual(contextualHashState, {
+    view: 'dashboard',
+    workspace: 'pending',
+    guildId: null,
+    memberId: null,
+    itemId: null,
+    tab: null,
+    keyword: 'kick',
+  })
 })
 
 test('createConsoleHash omits empty optional fields', () => {

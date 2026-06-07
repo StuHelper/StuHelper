@@ -31,8 +31,17 @@ export function useConsoleNavigation(win = window): ConsoleNavigationController 
   const state = ref(parseConsoleLocation(new URL(win.location.href)))
   const viewportWidth = ref(win.innerWidth)
 
+  const replaceLocationIfNeeded = (nextState: ConsoleNavigationState) => {
+    const normalized = mergeConsoleLocation(new URL(win.location.href), nextState)
+    if (normalized.href !== win.location.href) {
+      win.history.replaceState({}, '', `${normalized.pathname}${normalized.search}${normalized.hash}`)
+    }
+  }
+
   const syncFromLocation = () => {
-    state.value = parseConsoleLocation(new URL(win.location.href))
+    const nextState = parseConsoleLocation(new URL(win.location.href))
+    state.value = nextState
+    replaceLocationIfNeeded(nextState)
   }
 
   const syncViewportWidth = () => {
@@ -72,11 +81,7 @@ export function useConsoleNavigation(win = window): ConsoleNavigationController 
     win.addEventListener('popstate', syncFromLocation)
     win.addEventListener('hashchange', syncFromLocation)
     win.addEventListener('resize', syncViewportWidth)
-
-    const normalized = mergeConsoleLocation(new URL(win.location.href), state.value)
-    if (normalized.href !== win.location.href) {
-      updateHistory(state.value, 'replaceState')
-    }
+    replaceLocationIfNeeded(state.value)
   })
 
   onBeforeUnmount(() => {

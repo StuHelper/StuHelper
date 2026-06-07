@@ -78,6 +78,20 @@ test('NavRail click switches between views', async ({ loggedInPage: page }) => {
   tracker.assertClean()
 })
 
+test('unknown view deep link falls back to dashboard without blanking the app', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  await page.goto('/stuhelper#missing', { waitUntil: 'domcontentloaded' })
+
+  await expect(page).toHaveURL(/#dashboard($|\?)/, { timeout: 5_000 })
+  await expect(page.locator('.stuhelperGroupCenter-app')).toBeVisible({ timeout: 15_000 })
+  await expect(page.locator('.sh-dashboard__title', { hasText: '控制台总览' }).first()).toBeVisible({
+    timeout: 10_000,
+  })
+
+  tracker.assertClean()
+})
+
 for (const view of VIEWS) {
   test(`view "${view.id}" renders with view-specific anchor`, async ({ loggedInPage: page }) => {
     await using tracker = createTracker(page)
