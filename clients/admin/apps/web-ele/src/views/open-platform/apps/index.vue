@@ -8,6 +8,8 @@ import type {
 
 import { computed, onMounted, reactive, ref } from 'vue';
 
+import { IconifyIcon } from '@vben/icons';
+
 import {
   ElAlert,
   ElButton,
@@ -152,6 +154,49 @@ async function handleApproveApp(app: OpenPlatformAppWithScopes) {
     handleActionError(error);
   } finally {
     actionLoading.value = false;
+  }
+}
+
+async function copyIssuedSecret() {
+  if (!issuedSecret.value) {
+    return;
+  }
+  await copyToClipboard(
+    issuedSecret.value.secret,
+    $t('admin.openPlatform.apps.secretCopied'),
+  );
+}
+
+async function copyToClipboard(text: string, successMessage: string) {
+  try {
+    if (!navigator.clipboard?.writeText) {
+      throw new Error('clipboard unavailable');
+    }
+    await navigator.clipboard.writeText(text);
+    ElMessage.success(successMessage);
+    return true;
+  } catch {
+    if (copyTextWithFallback(text)) {
+      ElMessage.success(successMessage);
+      return true;
+    }
+    ElMessage.error($t('admin.openPlatform.apps.secretCopyFailed'));
+    return false;
+  }
+}
+
+function copyTextWithFallback(text: string): boolean {
+  const textarea = document.createElement('textarea');
+  try {
+    textarea.value = text;
+    document.body.append(textarea);
+    textarea.focus();
+    textarea.select();
+    return document.execCommand('copy');
+  } catch {
+    return false;
+  } finally {
+    textarea.remove();
   }
 }
 
@@ -527,8 +572,17 @@ onMounted(fetchData);
           }}
         </template>
         <div class="open-platform-secret-alert__body">
+          <p class="open-platform-secret-alert__notice">
+            {{ $t('admin.openPlatform.apps.secretOneTimeNotice') }}
+          </p>
           <span>{{ issuedSecret.clientID }}</span>
-          <code>{{ issuedSecret.secret }}</code>
+          <div class="open-platform-secret-alert__secret">
+            <code>{{ issuedSecret.secret }}</code>
+            <ElButton plain size="small" type="primary" @click="copyIssuedSecret">
+              <IconifyIcon icon="lucide:copy" />
+              {{ $t('admin.openPlatform.apps.copySecret') }}
+            </ElButton>
+          </div>
         </div>
       </ElAlert>
 
@@ -891,12 +945,33 @@ onMounted(fetchData);
   font-size: 12px;
 }
 
-.open-platform-secret-alert__body code {
+.open-platform-secret-alert__notice {
+  margin: 0;
+  color: var(--el-text-color-secondary);
+}
+
+.open-platform-secret-alert__secret {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.open-platform-secret-alert__secret code {
+  flex: 1 1 260px;
+  min-width: 0;
   padding: 6px 8px;
   color: var(--el-color-success-dark-2);
   overflow-wrap: anywhere;
   background: var(--el-fill-color-light);
   border-radius: 6px;
+}
+
+.open-platform-secret-alert__secret .el-button {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
 }
 
 .open-platform-link-group,
