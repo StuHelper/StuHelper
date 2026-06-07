@@ -93,6 +93,46 @@ func (r *Repository) ListResources(ctx context.Context, filters ListFilters) ([]
 	return r.scanItems(ctx, rows)
 }
 
+func (r *Repository) ListResourcesByOwner(ctx context.Context, ownerUserID string, filters ListFilters) ([]Item, int, error) {
+	ctx = withDBTable(ctx, "resource_items")
+	pageSize := httputil.ClampPageSize(filters.PageSize)
+	offset := httputil.SafeOffset(filters.Page, pageSize)
+	queryPattern := "%" + httputil.EscapeLikePattern(filters.Query) + "%"
+	rows, err := r.db.Query(ctx, `
+		SELECT ri.id, ri.owner_user_id, ri.title, ri.description, ri.category, ri.visibility, ri.created_at, ri.updated_at,
+		       rv.id, rv.version_no, rv.mount_id, rv.object_key, rv.filename, rv.content_type, rv.size_bytes, rv.created_at,
+		       COUNT(*) OVER()
+		FROM resource_items ri
+		JOIN LATERAL (
+			SELECT id, version_no, mount_id, object_key, filename, content_type, size_bytes, created_at
+			FROM resource_versions
+			WHERE resource_id = ri.id
+			ORDER BY version_no DESC
+			LIMIT 1
+		) rv ON TRUE
+		WHERE ri.owner_user_id = $1
+		  AND ($2 = '' OR ri.visibility = $2)
+		  AND ($3 = '%%' OR ri.title ILIKE $3 ESCAPE '\' OR COALESCE(ri.description, '') ILIKE $3 ESCAPE '\')
+		  AND ($4 = '' OR EXISTS (
+			SELECT 1 FROM resource_tags rt WHERE rt.resource_id = ri.id AND rt.tag = $4
+		  ))
+		  AND (($5 = '' AND $6 = '') OR EXISTS (
+			SELECT 1
+			FROM resource_bindings rb
+			WHERE rb.resource_id = ri.id
+			  AND ($5 = '' OR rb.binding_type = $5)
+			  AND ($6 = '' OR rb.binding_value = $6)
+		  ))
+		ORDER BY ri.created_at DESC, ri.id DESC
+		LIMIT $7 OFFSET $8
+	`, ownerUserID, filters.Visibility, queryPattern, filters.Tag, filters.BindingType, filters.BindingValue, pageSize, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list resources by owner: %w", err)
+	}
+	defer rows.Close()
+	return r.scanItems(ctx, rows)
+}
+
 func (r *Repository) GetResourceByID(ctx context.Context, resourceID int64) (*Item, error) {
 	ctx = withDBTable(ctx, "resource_items")
 	rows, err := r.db.Query(ctx, `

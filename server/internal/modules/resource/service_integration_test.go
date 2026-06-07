@@ -99,6 +99,75 @@ func TestCreateAndQueryResource(t *testing.T) {
 	assert.Equal(t, store.downloadURL, url)
 }
 
+func TestListMyResourcesIncludesPrivateAndExcludesOtherOwners(t *testing.T) {
+	ctx, _, _, svc, _ := setupResourceService(t)
+
+	publicOwned, err := svc.CreateResource(ctx, "oidc-user-1", CreateRequest{
+		Title:       "Owned Public Resource",
+		Visibility:  "public",
+		Tags:        []string{"owned"},
+		Bindings:    []Binding{{Type: "course", Value: "CS101"}},
+		Filename:    "owned-public.txt",
+		ContentType: "text/plain",
+		DataBase64:  base64.StdEncoding.EncodeToString([]byte("owned public")),
+	})
+	require.NoError(t, err)
+	privateOwned, err := svc.CreateResource(ctx, "oidc-user-1", CreateRequest{
+		Title:       "Owned Private Resource",
+		Visibility:  "private",
+		Tags:        []string{"owned"},
+		Bindings:    []Binding{{Type: "course", Value: "CS101"}},
+		Filename:    "owned-private.txt",
+		ContentType: "text/plain",
+		DataBase64:  base64.StdEncoding.EncodeToString([]byte("owned private")),
+	})
+	require.NoError(t, err)
+	otherOwned, err := svc.CreateResource(ctx, "oidc-user-2", CreateRequest{
+		Title:       "Other User Resource",
+		Visibility:  "public",
+		Tags:        []string{"owned"},
+		Bindings:    []Binding{{Type: "course", Value: "CS101"}},
+		Filename:    "other-public.txt",
+		ContentType: "text/plain",
+		DataBase64:  base64.StdEncoding.EncodeToString([]byte("other public")),
+	})
+	require.NoError(t, err)
+
+	items, total, err := svc.ListMyResources(ctx, " oidc-user-1 ", ListFilters{
+		Query:        "Resource",
+		Tag:          "owned",
+		BindingType:  "course",
+		BindingValue: "CS101",
+		Page:         1,
+		PageSize:     20,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 2, total)
+	assert.ElementsMatch(t, []int64{publicOwned.ID, privateOwned.ID}, resourceItemIDs(items))
+
+	items, total, err = svc.ListMyResources(ctx, "oidc-user-1", ListFilters{
+		Visibility: "private",
+		Page:       1,
+		PageSize:   20,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, total)
+	require.Len(t, items, 1)
+	assert.Equal(t, privateOwned.ID, items[0].ID)
+
+	items, total, err = svc.ListResources(ctx, ListFilters{
+		Query:    "Resource",
+		Page:     1,
+		PageSize: 20,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 2, total)
+	assert.ElementsMatch(t, []int64{publicOwned.ID, otherOwned.ID}, resourceItemIDs(items))
+
+	_, _, err = svc.ListMyResources(ctx, "   ", ListFilters{Page: 1, PageSize: 20})
+	require.ErrorIs(t, err, ErrResourceOwnerRequired)
+}
+
 func TestCreateResource_AcceptsPlainTextWithoutCharsetParameter(t *testing.T) {
 	ctx, _, _, svc, _ := setupResourceService(t)
 
@@ -458,6 +527,14 @@ func createSampleResource(t *testing.T, ctx context.Context, svc *Service) *Item
 	assert.Equal(t, "public", created.Visibility)
 	assert.Equal(t, []string{"algorithm", "midterm"}, created.Tags)
 	return created
+}
+
+func resourceItemIDs(items []Item) []int64 {
+	ids := make([]int64, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	return ids
 }
 
 func ptr(value string) *string {

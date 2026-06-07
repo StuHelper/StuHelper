@@ -2984,6 +2984,75 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '401':
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/resources/mine:
+    get:
+      tags:
+        - Resource
+      operationId: listMyResources
+      summary: 查询当前用户发布的资源列表
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: query
+          in: query
+          schema:
+            type: string
+        - name: tag
+          in: query
+          schema:
+            type: string
+        - name: bindingType
+          in: query
+          schema:
+            type: string
+        - name: bindingValue
+          in: query
+          schema:
+            type: string
+        - name: visibility
+          in: query
+          schema:
+            type: string
+            enum:
+              - public
+              - private
+      responses:
+        '200':
+          description: 当前用户资源列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                          - total
+                          - page
+                          - pageSize
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/ResourceItem'
+                          total:
+                            type: integer
+                          page:
+                            type: integer
+                          pageSize:
+                            type: integer
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/resources/{resourceID}:
     get:
       tags:

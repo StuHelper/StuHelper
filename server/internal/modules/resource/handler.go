@@ -28,6 +28,7 @@ func NewHandler(service *Service) *Handler {
 func (h *Handler) RegisterRoutes(api *gin.RouterGroup, authMW, optionalAuthMW gin.HandlerFunc) {
 	resources := api.Group("/resources")
 	resources.GET("", optionalAuthMW, middleware.RequireHealthyOptionalAuth(), h.listResources)
+	resources.GET("/mine", authMW, h.listMyResources)
 	resources.GET("/:resourceID", optionalAuthMW, middleware.RequireHealthyOptionalAuth(), h.getResource)
 	resources.GET("/:resourceID/download-url", optionalAuthMW, middleware.RequireHealthyOptionalAuth(), h.getDownloadURL)
 	resources.POST("", authMW, h.createResource)
@@ -47,6 +48,28 @@ func (h *Handler) listResources(c *gin.Context) {
 	})
 	if err != nil {
 		response.InternalError(c, "failed to list resources")
+		return
+	}
+	response.Success(c, gin.H{"items": items, "total": total, "page": page, "pageSize": pageSize})
+}
+
+func (h *Handler) listMyResources(c *gin.Context) {
+	page, pageSize := httputil.ParsePage(c)
+	items, total, err := h.service.ListMyResources(c.Request.Context(), middleware.GetUserID(c), ListFilters{
+		Query:        c.Query("query"),
+		Tag:          c.Query("tag"),
+		BindingType:  c.Query("bindingType"),
+		BindingValue: c.Query("bindingValue"),
+		Visibility:   c.Query("visibility"),
+		Page:         page,
+		PageSize:     pageSize,
+	})
+	if err != nil {
+		if isResourceBadRequestError(err) {
+			response.BadRequest(c, err.Error())
+			return
+		}
+		response.InternalError(c, "failed to list my resources")
 		return
 	}
 	response.Success(c, gin.H{"items": items, "total": total, "page": page, "pageSize": pageSize})

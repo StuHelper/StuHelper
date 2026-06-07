@@ -148,6 +148,15 @@ func (s *Service) ListResources(ctx context.Context, filters ListFilters) ([]Ite
 	return s.repo.ListResources(ctx, filters)
 }
 
+func (s *Service) ListMyResources(ctx context.Context, ownerUserID string, filters ListFilters) ([]Item, int, error) {
+	ownerUserID, err := normalizeRequiredResourceOwner(ownerUserID)
+	if err != nil {
+		return nil, 0, err
+	}
+	filters = normalizeListFilters(filters)
+	return s.repo.ListResourcesByOwner(ctx, ownerUserID, filters)
+}
+
 func (s *Service) GetResource(ctx context.Context, resourceID int64, viewerUserID string) (*Item, error) {
 	if err := validateResourceID(resourceID); err != nil {
 		return nil, err
@@ -297,7 +306,19 @@ func normalizeListFilters(filters ListFilters) ListFilters {
 	filters.Tag = strings.TrimSpace(filters.Tag)
 	filters.BindingType = strings.TrimSpace(filters.BindingType)
 	filters.BindingValue = strings.TrimSpace(filters.BindingValue)
+	filters.Visibility = normalizeListVisibility(filters.Visibility)
 	return filters
+}
+
+func normalizeListVisibility(value string) string {
+	switch strings.TrimSpace(value) {
+	case "public":
+		return "public"
+	case "private":
+		return "private"
+	default:
+		return ""
+	}
 }
 
 func normalizeOptionalResourceString(value *string) *string {

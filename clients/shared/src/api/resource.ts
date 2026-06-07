@@ -2,6 +2,7 @@ import type { ApiClient } from './client'
 import type { components, operations } from '../types/api.gen'
 
 export type ResourceListParams = operations['listResources']['parameters']['query']
+export type ResourceMineListParams = operations['listMyResources']['parameters']['query']
 export type ResourceItem = components['schemas']['ResourceItem']
 export type CreateResourceRequest = components['schemas']['CreateResourceRequest']
 export type UpdateResourceRequest = components['schemas']['UpdateResourceRequest']
@@ -19,6 +20,9 @@ function resourcePath(resourceID: ResourceID): GeneratedResourcePath {
 export const createResourceApi = (client: ApiClient) => ({
   listResources: (params?: ResourceListParams) =>
     client.GET('/api/v1/resources', { params: { query: params } }),
+
+  listMyResources: (params?: ResourceMineListParams) =>
+    client.GET('/api/v1/resources/mine', { params: { query: params } }),
 
   getResource: (resourceID: ResourceID) =>
     client.GET('/api/v1/resources/{resourceID}', {

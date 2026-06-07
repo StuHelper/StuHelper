@@ -57,6 +57,7 @@ type ListFilters struct {
 	Tag          string
 	BindingType  string
 	BindingValue string
+	Visibility   string
 	Page         int
 	PageSize     int
 }

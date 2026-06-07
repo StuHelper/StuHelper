@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RouterLink, useRoute } from 'vue-router'
-import { ArrowLeft, Download, FileText, Link2, RefreshCw, Tag } from 'lucide-vue-next'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { ArrowLeft, Download, FileText, Link2, Pencil, RefreshCw, Tag, Trash2 } from 'lucide-vue-next'
 import { api } from '@/api'
 import { updatePageMeta } from '@/composables/usePageMeta'
 import {
@@ -10,16 +10,21 @@ import {
   readResourceItemPayload,
   type ResourceItem,
 } from '@/modules/resource/resourcePayload'
+import { useAuthStore } from '@/stores/auth'
 
 const { t, locale } = useI18n()
 const route = useRoute()
+const router = useRouter()
+const authStore = useAuthStore()
 
 const resource = ref<ResourceItem | null>(null)
 const loadedResourceID = ref<string | null>(null)
 const loading = ref(true)
 const downloadLoading = ref(false)
+const deleteLoading = ref(false)
 const errorMessage = ref('')
 const downloadError = ref('')
+const deleteError = ref('')
 let loadRequestSeq = 0
 let downloadRequestSeq = 0
 
@@ -31,6 +36,14 @@ const resourceID = computed(() => {
   }
   return value
 })
+
+const canEditResource = computed(() =>
+  Boolean(
+    resource.value?.ownerUserID &&
+      authStore.user?.id &&
+      resource.value.ownerUserID === authStore.user.id,
+  ),
+)
 
 function formatDate(value: string) {
   const date = new Date(value)
@@ -71,8 +84,10 @@ async function loadResource() {
     loadedResourceID.value = null
     loading.value = false
     downloadLoading.value = false
+    deleteLoading.value = false
     errorMessage.value = t('resource.detail.notFound')
     downloadError.value = ''
+    deleteError.value = ''
     updatePageMeta({
       title: t('resource.detail.titleFallback'),
       description: t('resource.detail.notFound'),
@@ -83,6 +98,8 @@ async function loadResource() {
   loading.value = true
   errorMessage.value = ''
   downloadError.value = ''
+  deleteError.value = ''
+  deleteLoading.value = false
   try {
     const res = await api.resource.getResource(id)
     const nextResource = readResourceItemPayload(
@@ -110,6 +127,27 @@ async function loadResource() {
     if (requestSeq === loadRequestSeq) {
       loading.value = false
     }
+  }
+}
+
+async function deleteResource() {
+  if (!resource.value) return
+  const resourceID = loadedResourceID.value
+  if (resourceID === null) return
+  if (!window.confirm(t('resource.detail.deleteConfirm', { title: resource.value.title }))) {
+    return
+  }
+
+  deleteLoading.value = true
+  deleteError.value = ''
+  try {
+    await api.resource.deleteResource(resourceID)
+    await router.push({ name: 'resource-mine' })
+  } catch (_error) {
+    void _error
+    deleteError.value = t('resource.detail.deleteFailed')
+  } finally {
+    deleteLoading.value = false
   }
 }
 
@@ -197,15 +235,36 @@ watch(resourceID, () => {
                 {{ resource.description || t('resource.detail.noDescription') }}
               </p>
             </div>
-            <button
-              type="button"
-              class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-wait disabled:opacity-70"
-              :disabled="downloadLoading"
-              @click="downloadResource"
-            >
-              <Download :size="16" />
-              {{ downloadLoading ? t('resource.detail.downloading') : t('resource.detail.download') }}
-            </button>
+            <div class="flex shrink-0 flex-wrap gap-2">
+              <RouterLink
+                v-if="canEditResource && loadedResourceID"
+                :to="{ name: 'resource-edit', params: { id: loadedResourceID } }"
+                class="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border-light bg-bg-base px-4 text-sm font-semibold text-text-secondary no-underline transition-colors hover:bg-bg-elevated hover:text-text-primary"
+              >
+                <Pencil :size="16" />
+                {{ t('common.actions.edit') }}
+              </RouterLink>
+              <button
+                v-if="canEditResource"
+                type="button"
+                class="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-danger/30 px-4 text-sm font-semibold text-danger transition-colors hover:bg-danger/10 disabled:cursor-wait disabled:opacity-70"
+                :disabled="deleteLoading"
+                @click="deleteResource"
+              >
+                <RefreshCw v-if="deleteLoading" :size="16" class="animate-spin" />
+                <Trash2 v-else :size="16" />
+                {{ deleteLoading ? t('common.actions.deleting') : t('common.actions.delete') }}
+              </button>
+              <button
+                type="button"
+                class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-wait disabled:opacity-70"
+                :disabled="downloadLoading"
+                @click="downloadResource"
+              >
+                <Download :size="16" />
+                {{ downloadLoading ? t('resource.detail.downloading') : t('resource.detail.download') }}
+              </button>
+            </div>
           </div>
           <p
             v-if="downloadError"
@@ -213,6 +272,13 @@ watch(resourceID, () => {
             class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
           >
             {{ downloadError }}
+          </p>
+          <p
+            v-if="deleteError"
+            role="alert"
+            class="mt-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
+          >
+            {{ deleteError }}
           </p>
         </header>
 

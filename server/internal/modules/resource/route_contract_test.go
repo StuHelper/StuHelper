@@ -21,6 +21,7 @@ func TestRegisterRoutes_UsesOpenAPIResourcePaths(t *testing.T) {
 
 	routes := r.Routes()
 	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/resources")
+	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/resources/mine")
 	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/resources/:resourceID")
 	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/resources/:resourceID/download-url")
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/resources")

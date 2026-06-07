@@ -1,5 +1,6 @@
 import {
   allowExpectedCriticalResourceFailure,
+  mockNotificationStream,
   test,
   expect,
   type Page,
@@ -41,6 +42,97 @@ const sampleResource = {
   updatedAt: '2026-05-02T08:00:00Z',
 }
 
+const authenticatedUser = {
+  id: 'seed-user',
+  name: 'seed',
+  displayName: 'Seed User',
+  email: 'seed@example.com',
+  roles: ['verified_student'],
+  capabilities: [],
+  globalCapabilities: [],
+  capabilityGrants: [],
+  isPlatformAdmin: false,
+  canAccessAdmin: false,
+}
+
+function ok(data: unknown = null) {
+  return {
+    contentType: 'application/json',
+    body: JSON.stringify({ success: true, data }),
+  }
+}
+
+function requireSubmittedPayload(
+  payload: Record<string, unknown> | null,
+): Record<string, unknown> {
+  expect(payload).not.toBeNull()
+  return payload as Record<string, unknown>
+}
+
+async function mockAuthenticated(page: Page) {
+  await page.unroute('**/api/v1/auth/me')
+  await page.addInitScript((user) => {
+    localStorage.setItem('stuhelper_user', JSON.stringify(user))
+    localStorage.setItem(
+      'stuhelper_token_expiry',
+      String(Date.now() + 60 * 60 * 1000),
+    )
+  }, authenticatedUser)
+
+  await page.route('**/api/v1/auth/me', (route) =>
+    route.fulfill(ok(authenticatedUser)),
+  )
+  await page.route('**/api/v1/auth/refresh', (route) =>
+    route.fulfill(ok({ expiresIn: 3600 })),
+  )
+  await page.route(
+    '**/api/v1/course/review/user/notifications/unread-count*',
+    (route) => route.fulfill(ok({ count: 0 })),
+  )
+  await page.route('**/api/v1/user/identity', (route) =>
+    route.fulfill(ok({
+      userID: 1,
+      realName: 'Seed User',
+      verified: true,
+      verifyMethod: 'manual',
+      reviewedAt: '2026-05-01T08:00:00Z',
+      verifiedAt: '2026-05-01T08:00:00Z',
+      rejectionReason: null,
+      createdAt: '2026-05-01T08:00:00Z',
+      updatedAt: '2026-05-01T08:00:00Z',
+    })),
+  )
+  await page.route('**/api/v1/user/profile', (route) =>
+    route.fulfill(ok({
+      userID: 1,
+      schoolID: null,
+      studentIDs: [],
+      activeStudentID: null,
+      verificationStatus: 'verified',
+      verificationMethod: 'manual',
+      rejectionReason: null,
+      reviewedAt: '2026-05-01T08:00:00Z',
+      phone: null,
+      phoneVerified: false,
+      consentGivenAt: null,
+      verifiedAt: '2026-05-01T08:00:00Z',
+      createdAt: '2026-05-01T08:00:00Z',
+      updatedAt: '2026-05-01T08:00:00Z',
+    })),
+  )
+  await page.route('**/api/v1/user/qq-binding', (route) =>
+    route.fulfill({
+      status: 404,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: false,
+        error: { code: 'A0020001', message: 'QQ binding not found' },
+      }),
+    }),
+  )
+  await mockNotificationStream(page)
+}
+
 async function openResourceListFromNavigation(page: Page) {
   const primaryResourceLink = page.getByRole('link', { name: /^资源$/ }).first()
   try {
@@ -55,6 +147,23 @@ async function openResourceListFromNavigation(page: Page) {
 test.describe('Resource sharing', () => {
   test.beforeEach(async ({ page }) => {
     await mockUnauthenticated(page)
+  })
+
+  test('resource authoring routes require sign-in', async ({ page }) => {
+    await page.goto('/resources/new')
+    await expect(page).toHaveURL((url) =>
+      url.pathname === '/login' && url.searchParams.get('redirect') === '/resources/new',
+    )
+
+    await page.goto('/resources/mine')
+    await expect(page).toHaveURL((url) =>
+      url.pathname === '/login' && url.searchParams.get('redirect') === '/resources/mine',
+    )
+
+    await page.goto('/resources/42/edit')
+    await expect(page).toHaveURL((url) =>
+      url.pathname === '/login' && url.searchParams.get('redirect') === '/resources/42/edit',
+    )
   })
 
   test('resource list can be reached from navigation and filters resources', async ({
@@ -109,6 +218,8 @@ test.describe('Resource sharing', () => {
     await expect(
       page.getByRole('heading', { name: '资料共享' }),
     ).toBeVisible()
+    await expect(page.getByRole('link', { name: '发布资料' })).toBeVisible()
+    await expect(page.getByRole('link', { name: '我的资料' })).toBeVisible()
     await expect(page.getByText('高等数学A 期末复习讲义')).toBeVisible()
 
     await page.getByRole('searchbox', { name: /搜索资料/ }).fill('高数')
@@ -313,6 +424,116 @@ test.describe('Resource sharing', () => {
     await expect(page.getByRole('button', { name: '加载更多' })).toHaveCount(0)
   })
 
+  test('authenticated user can publish a resource', async ({ page }) => {
+    await mockAuthenticated(page)
+
+    const createdResource = {
+      ...sampleResource,
+      id: 99,
+      title: '线性代数课堂笔记',
+      description: '矩阵与线性空间。',
+      category: '笔记',
+      visibility: 'private',
+      tags: ['线代', '笔记'],
+      bindings: [{ type: 'course', value: '12' }],
+      latestVersion: {
+        ...sampleResource.latestVersion,
+        id: 99,
+        filename: 'linear-notes.txt',
+        contentType: 'text/plain; charset=utf-8',
+      },
+    }
+    let submittedPayload: Record<string, unknown> | null = null
+
+    await page.route('**/api/v1/resources', async (route) => {
+      if (route.request().method() !== 'POST') {
+        return route.fulfill(ok({ items: [], total: 0, page: 1, pageSize: 24 }))
+      }
+      submittedPayload = route.request().postDataJSON() as Record<string, unknown>
+      return route.fulfill({ status: 201, ...ok(createdResource) })
+    })
+    await page.route('**/api/v1/resources/99', (route) =>
+      route.fulfill(ok(createdResource)),
+    )
+
+    await page.goto('/resources/new')
+
+    await expect(page.getByRole('heading', { name: '发布资料' })).toBeVisible()
+    await page.getByLabel('标题').fill('线性代数课堂笔记')
+    await page.getByLabel('描述').fill('矩阵与线性空间。')
+    await page.getByLabel('分类').fill('笔记')
+    await page.getByLabel('可见性').selectOption('private')
+    await page.getByLabel('标签').fill('线代, 笔记')
+    await page.getByLabel('绑定关系').fill('course: 12')
+    await page.getByLabel('文件').setInputFiles({
+      name: 'linear-notes.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('linear algebra notes'),
+    })
+    await page.getByRole('button', { name: '发布' }).click()
+
+    await expect(page).toHaveURL(/\/resources\/99$/)
+    await expect
+      .poll(() => submittedPayload?.title)
+      .toBe('线性代数课堂笔记')
+    const payload = requireSubmittedPayload(submittedPayload)
+    expect(payload.visibility).toBe('private')
+    expect(payload.tags).toEqual(['线代', '笔记'])
+    expect(payload.bindings).toEqual([{ type: 'course', value: '12' }])
+    expect(payload.filename).toBe('linear-notes.txt')
+    expect(String(payload.dataBase64)).toContain('base64,')
+  })
+
+  test('my resources page includes private resources and persists filters', async ({
+    page,
+  }) => {
+    await mockAuthenticated(page)
+
+    const privateResource = {
+      ...sampleResource,
+      id: 43,
+      title: '私有实验报告',
+      visibility: 'private',
+      latestVersion: {
+        ...sampleResource.latestVersion,
+        id: 43,
+        filename: 'lab-report.pdf',
+      },
+    }
+    let requestedURL = ''
+
+    await page.route('**/api/v1/resources/mine?*', (route) => {
+      requestedURL = route.request().url()
+      return route.fulfill(ok({
+        items: [sampleResource, privateResource],
+        total: 2,
+        page: 1,
+        pageSize: 24,
+      }))
+    })
+
+    await page.goto('/resources/mine')
+
+    await expect(page.getByRole('heading', { name: '我的资料' })).toBeVisible()
+    await expect(page.getByText('高等数学A 期末复习讲义')).toBeVisible()
+    await expect(page.getByText('私有实验报告')).toBeVisible()
+    await expect(page.getByText('私有').first()).toBeVisible()
+
+    await page.getByRole('searchbox', { name: /搜索资料/ }).fill('实验')
+    await page.getByLabel('可见性').selectOption('private')
+    await page.getByRole('button', { name: '搜索资料' }).click()
+
+    await expect
+      .poll(() => new URL(requestedURL).searchParams.get('query'))
+      .toBe('实验')
+    expect(new URL(requestedURL).searchParams.get('visibility')).toBe('private')
+    await expect(page).toHaveURL((url) =>
+      url.pathname === '/resources/mine' &&
+      url.searchParams.get('query') === '实验' &&
+      url.searchParams.get('visibility') === 'private',
+    )
+  })
+
   test('resource detail displays metadata and opens download URL', async ({
     page,
   }) => {
@@ -360,6 +581,81 @@ test.describe('Resource sharing', () => {
     await page.getByRole('button', { name: '下载资料' }).click()
     await downloadRequest
     await expect.poll(() => downloadDocumentRequests).toBe(1)
+  })
+
+  test('authenticated owner can edit resource metadata', async ({ page }) => {
+    await mockAuthenticated(page)
+
+    let currentResource = { ...sampleResource }
+    let submittedPayload: Record<string, unknown> | null = null
+
+    await page.route('**/api/v1/resources/42', (route) => {
+      if (route.request().method() === 'PATCH') {
+        submittedPayload = route.request().postDataJSON() as Record<string, unknown>
+        currentResource = {
+          ...currentResource,
+          title: String(submittedPayload.title),
+          description: String(submittedPayload.description),
+          category: String(submittedPayload.category),
+          visibility: submittedPayload.visibility as 'public' | 'private',
+          tags: submittedPayload.tags as string[],
+          bindings: submittedPayload.bindings as typeof sampleResource.bindings,
+        }
+        return route.fulfill(ok(currentResource))
+      }
+      return route.fulfill(ok(currentResource))
+    })
+
+    await page.goto('/resources/42/edit')
+
+    await expect(page.getByRole('heading', { name: '编辑资料' })).toBeVisible()
+    await expect(page.getByLabel('标题')).toHaveValue('高等数学A 期末复习讲义')
+    await page.getByLabel('标题').fill('高等数学A 期末复习讲义 v2')
+    await page.getByLabel('描述').fill('更新后的复习重点。')
+    await page.getByLabel('分类').fill('复习资料')
+    await page.getByLabel('可见性').selectOption('private')
+    await page.getByLabel('标签').fill('高数, 期末, 重点')
+    await page.getByLabel('绑定关系').fill('course: 8')
+    await page.getByRole('button', { name: '保存修改' }).click()
+
+    await expect(page).toHaveURL(/\/resources\/42$/)
+    await expect
+      .poll(() => submittedPayload?.title)
+      .toBe('高等数学A 期末复习讲义 v2')
+    const payload = requireSubmittedPayload(submittedPayload)
+    expect(payload.visibility).toBe('private')
+    expect(payload.tags).toEqual(['高数', '期末', '重点'])
+    await expect(
+      page.getByRole('heading', { name: '高等数学A 期末复习讲义 v2' }),
+    ).toBeVisible()
+  })
+
+  test('authenticated owner can delete a resource from detail', async ({ page }) => {
+    await mockAuthenticated(page)
+
+    let deleted = false
+    await page.route('**/api/v1/resources/42', (route) => {
+      if (route.request().method() === 'DELETE') {
+        deleted = true
+        return route.fulfill(ok({ message: 'resource deleted' }))
+      }
+      return route.fulfill(ok(sampleResource))
+    })
+    await page.route('**/api/v1/resources/mine?*', (route) =>
+      route.fulfill(ok({ items: [], total: 0, page: 1, pageSize: 24 })),
+    )
+    page.on('dialog', (dialog) => dialog.accept())
+
+    await page.goto('/resources/42')
+
+    await expect(
+      page.getByRole('heading', { name: '高等数学A 期末复习讲义' }),
+    ).toBeVisible()
+    await expect(page.getByRole('link', { name: '编辑' })).toBeVisible()
+    await page.getByRole('button', { name: '删除' }).click()
+
+    await expect.poll(() => deleted).toBe(true)
+    await expect(page).toHaveURL(/\/resources\/mine$/)
   })
 
   test('resource detail preserves int64 path ids when loading and downloading', async ({

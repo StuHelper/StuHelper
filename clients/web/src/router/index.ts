@@ -278,6 +278,30 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: "routes.resource" },
     },
     {
+        path: "/resources/new",
+        name: "resource-new",
+        component: lazyLoad(
+            () => import("@/modules/resource/views/ResourceEditPage.vue"),
+        ),
+        meta: { titleKey: "routes.resourceCreate", requiresAuth: true },
+    },
+    {
+        path: "/resources/mine",
+        name: "resource-mine",
+        component: lazyLoad(
+            () => import("@/modules/resource/views/ResourceMinePage.vue"),
+        ),
+        meta: { titleKey: "routes.resourceMine", requiresAuth: true },
+    },
+    {
+        path: "/resources/:id/edit",
+        name: "resource-edit",
+        component: lazyLoad(
+            () => import("@/modules/resource/views/ResourceEditPage.vue"),
+        ),
+        meta: { titleKey: "routes.resourceEdit", requiresAuth: true },
+    },
+    {
         path: "/resources/:id",
         name: "resource-detail",
         component: lazyLoad(

@@ -1207,6 +1207,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/resources/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询当前用户发布的资源列表 */
+        get: operations["listMyResources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/resources/{resourceID}": {
         parameters: {
             query?: never;
@@ -7554,6 +7571,45 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SuccessResponse"] & {
                         data: components["schemas"]["ResourceItem"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    listMyResources: {
+        parameters: {
+            query?: {
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+                query?: string;
+                tag?: string;
+                bindingType?: string;
+                bindingValue?: string;
+                visibility?: "public" | "private";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前用户资源列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            items: components["schemas"]["ResourceItem"][];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
                     };
                 };
             };

@@ -41,6 +41,35 @@ describe('createResourceApi', () => {
     })
   })
 
+  it('lists current user resources with owner-only filters', () => {
+    const client = createMockClient()
+    const api = createResourceApi(client)
+
+    api.listMyResources({
+      page: 1,
+      pageSize: 24,
+      query: '草稿',
+      tag: '笔记',
+      bindingType: 'course',
+      bindingValue: '8',
+      visibility: 'private',
+    })
+
+    expect(client.GET).toHaveBeenCalledWith('/api/v1/resources/mine', {
+      params: {
+        query: {
+          page: 1,
+          pageSize: 24,
+          query: '草稿',
+          tag: '笔记',
+          bindingType: 'course',
+          bindingValue: '8',
+          visibility: 'private',
+        },
+      },
+    })
+  })
+
   it('loads detail and download URLs with string path params', () => {
     const client = createMockClient()
     const api = createResourceApi(client)

@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink, useRoute, useRouter, type LocationQueryRaw, type LocationQueryValue } from 'vue-router'
-import { Download, FileText, FolderOpen, PlusCircle, RefreshCw, Search, Tag, X } from 'lucide-vue-next'
+import { Eye, EyeOff, FileText, Pencil, PlusCircle, RefreshCw, Search, Tag, Trash2, X } from 'lucide-vue-next'
 import { api } from '@/api'
 import {
   readResourcePagePayload,
@@ -13,10 +13,10 @@ const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 
+type ResourceMineVisibility = '' | 'public' | 'private'
+
 const query = ref('')
-const tag = ref('')
-const bindingType = ref('')
-const bindingValue = ref('')
+const visibility = ref<ResourceMineVisibility>('')
 const resources = ref<ResourceItem[]>([])
 const total = ref(0)
 const page = ref(1)
@@ -24,28 +24,22 @@ const loading = ref(false)
 const loadingMore = ref(false)
 const errorMessage = ref('')
 const loadMoreError = ref('')
+const deleteError = ref('')
+const deletingIDs = ref<Set<string>>(new Set())
 const hasSearched = ref(false)
 const PAGE_SIZE = 24
-const RESOURCE_FILTER_KEYS = ['query', 'tag', 'bindingType', 'bindingValue'] as const
+const RESOURCE_MINE_FILTER_KEYS = ['query', 'visibility'] as const
 let resourceRequestSeq = 0
 
-interface ResourceFilters {
+interface ResourceMineFilters {
   query: string
-  tag: string
-  bindingType: string
-  bindingValue: string
+  visibility: ResourceMineVisibility
 }
 
 const hasFilters = computed(() =>
-  Boolean(
-    query.value.trim() ||
-      tag.value.trim() ||
-      bindingType.value.trim() ||
-      bindingValue.value.trim(),
-  ),
+  Boolean(query.value.trim() || visibility.value),
 )
 const hasMore = computed(() => resources.value.length < total.value)
-const resourceListQuery = computed(() => resourceFiltersToQuery(routeResourceFilters()))
 
 function formatDate(value: string) {
   const date = new Date(value)
@@ -86,9 +80,7 @@ async function loadResourcePage(nextPage: number, append = false) {
   const requestSeq = ++resourceRequestSeq
   const filters = {
     query: query.value.trim() || undefined,
-    tag: tag.value.trim() || undefined,
-    bindingType: bindingType.value.trim() || undefined,
-    bindingValue: bindingValue.value.trim() || undefined,
+    visibility: visibility.value || undefined,
   }
 
   if (append) {
@@ -98,10 +90,11 @@ async function loadResourcePage(nextPage: number, append = false) {
     loading.value = true
     errorMessage.value = ''
     loadMoreError.value = ''
+    deleteError.value = ''
     hasSearched.value = true
   }
   try {
-    const res = await api.resource.listResources({
+    const res = await api.resource.listMyResources({
       page: nextPage,
       pageSize: PAGE_SIZE,
       ...filters,
@@ -118,12 +111,12 @@ async function loadResourcePage(nextPage: number, append = false) {
     void _error
     if (requestSeq !== resourceRequestSeq) return
     if (append) {
-      loadMoreError.value = t('resource.list.loadMoreFailed')
+      loadMoreError.value = t('resource.mine.loadMoreFailed')
     } else {
       resources.value = []
       total.value = 0
       page.value = 1
-      errorMessage.value = t('resource.list.loadFailed')
+      errorMessage.value = t('resource.mine.loadFailed')
     }
   } finally {
     if (requestSeq === resourceRequestSeq) {
@@ -140,26 +133,27 @@ function loadResources() {
   return loadResourcePage(1)
 }
 
-function inputResourceFilters(): ResourceFilters {
+function inputResourceFilters(): ResourceMineFilters {
   return {
     query: query.value.trim(),
-    tag: tag.value.trim(),
-    bindingType: bindingType.value.trim(),
-    bindingValue: bindingValue.value.trim(),
+    visibility: visibility.value,
   }
 }
 
-function routeResourceFilters(): ResourceFilters {
+function routeResourceFilters(): ResourceMineFilters {
   return {
     query: readRouteFilter('query'),
-    tag: readRouteFilter('tag'),
-    bindingType: readRouteFilter('bindingType'),
-    bindingValue: readRouteFilter('bindingValue'),
+    visibility: readRouteVisibility(),
   }
 }
 
-function readRouteFilter(key: keyof ResourceFilters): string {
+function readRouteFilter(key: keyof Pick<ResourceMineFilters, 'query'>): string {
   return firstRouteQueryValue(route.query[key])?.trim() ?? ''
+}
+
+function readRouteVisibility(): ResourceMineVisibility {
+  const value = firstRouteQueryValue(route.query.visibility)?.trim()
+  return value === 'public' || value === 'private' ? value : ''
 }
 
 function firstRouteQueryValue(value: LocationQueryValue | LocationQueryValue[] | undefined): string | null {
@@ -169,28 +163,24 @@ function firstRouteQueryValue(value: LocationQueryValue | LocationQueryValue[] |
   return typeof value === 'string' ? value : null
 }
 
-function applyResourceFilters(filters: ResourceFilters): void {
+function applyResourceFilters(filters: ResourceMineFilters): void {
   query.value = filters.query
-  tag.value = filters.tag
-  bindingType.value = filters.bindingType
-  bindingValue.value = filters.bindingValue
+  visibility.value = filters.visibility
 }
 
-function resourceFiltersToQuery(filters: ResourceFilters): LocationQueryRaw {
+function resourceFiltersToQuery(filters: ResourceMineFilters): LocationQueryRaw {
   const nextQuery: LocationQueryRaw = {}
   for (const [key, value] of Object.entries(route.query)) {
-    if (RESOURCE_FILTER_KEYS.includes(key as (typeof RESOURCE_FILTER_KEYS)[number])) continue
+    if (RESOURCE_MINE_FILTER_KEYS.includes(key as (typeof RESOURCE_MINE_FILTER_KEYS)[number])) continue
     nextQuery[key] = value
   }
   if (filters.query) nextQuery.query = filters.query
-  if (filters.tag) nextQuery.tag = filters.tag
-  if (filters.bindingType) nextQuery.bindingType = filters.bindingType
-  if (filters.bindingValue) nextQuery.bindingValue = filters.bindingValue
+  if (filters.visibility) nextQuery.visibility = filters.visibility
   return nextQuery
 }
 
-function sameResourceFilters(left: ResourceFilters, right: ResourceFilters): boolean {
-  return RESOURCE_FILTER_KEYS.every((key) => left[key] === right[key])
+function sameResourceFilters(left: ResourceMineFilters, right: ResourceMineFilters): boolean {
+  return RESOURCE_MINE_FILTER_KEYS.every((key) => left[key] === right[key])
 }
 
 async function submitFilters(): Promise<void> {
@@ -199,7 +189,7 @@ async function submitFilters(): Promise<void> {
     await loadResources()
     return
   }
-  await router.push({ name: 'resource-list', query: resourceFiltersToQuery(filters) })
+  await router.push({ name: 'resource-mine', query: resourceFiltersToQuery(filters) })
 }
 
 function loadMoreResources() {
@@ -209,10 +199,43 @@ function loadMoreResources() {
 
 function clearFilters() {
   query.value = ''
-  tag.value = ''
-  bindingType.value = ''
-  bindingValue.value = ''
-  void router.push({ name: 'resource-list', query: resourceFiltersToQuery(inputResourceFilters()) })
+  visibility.value = ''
+  void router.push({ name: 'resource-mine', query: resourceFiltersToQuery(inputResourceFilters()) })
+}
+
+function isDeleting(resource: ResourceItem): boolean {
+  return deletingIDs.value.has(String(resource.id))
+}
+
+function setDeleting(resource: ResourceItem, value: boolean): void {
+  const next = new Set(deletingIDs.value)
+  const id = String(resource.id)
+  if (value) {
+    next.add(id)
+  } else {
+    next.delete(id)
+  }
+  deletingIDs.value = next
+}
+
+async function deleteResource(resource: ResourceItem): Promise<void> {
+  if (isDeleting(resource)) return
+  if (!window.confirm(t('resource.mine.deleteConfirm', { title: resource.title }))) {
+    return
+  }
+
+  deleteError.value = ''
+  setDeleting(resource, true)
+  try {
+    await api.resource.deleteResource(String(resource.id))
+    resources.value = resources.value.filter(item => item.id !== resource.id)
+    total.value = Math.max(0, total.value - 1)
+  } catch (_error) {
+    void _error
+    deleteError.value = t('resource.mine.deleteFailed')
+  } finally {
+    setDeleting(resource, false)
+  }
 }
 
 onMounted(() => {
@@ -235,32 +258,23 @@ watch(
       <header class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 class="text-3xl font-extrabold tracking-tight text-text-primary">
-            {{ t('resource.list.title') }}
+            {{ t('resource.mine.title') }}
           </h1>
           <p class="mt-2 text-sm text-text-secondary">
-            {{ t('resource.list.subtitle') }}
+            {{ t('resource.mine.subtitle') }}
           </p>
         </div>
-        <div class="flex flex-wrap gap-2">
-          <RouterLink
-            :to="{ name: 'resource-mine' }"
-            class="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border-light bg-bg-card px-4 text-sm font-semibold text-text-secondary no-underline transition-colors hover:bg-bg-elevated hover:text-text-primary"
-          >
-            <FolderOpen :size="16" />
-            {{ t('resource.list.mine') }}
-          </RouterLink>
-          <RouterLink
-            :to="{ name: 'resource-new' }"
-            class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-white no-underline transition-colors hover:bg-primary/90"
-          >
-            <PlusCircle :size="16" />
-            {{ t('resource.list.publish') }}
-          </RouterLink>
-        </div>
+        <RouterLink
+          :to="{ name: 'resource-new' }"
+          class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-white no-underline transition-colors hover:bg-primary/90"
+        >
+          <PlusCircle :size="16" />
+          {{ t('resource.list.publish') }}
+        </RouterLink>
       </header>
 
       <form
-        class="mb-6 grid gap-3 rounded-lg border border-border-light bg-bg-card p-4 shadow-xs md:grid-cols-[minmax(0,2fr)_minmax(140px,1fr)_minmax(140px,1fr)_minmax(140px,1fr)_auto]"
+        class="mb-6 grid gap-3 rounded-lg border border-border-light bg-bg-card p-4 shadow-xs md:grid-cols-[minmax(0,2fr)_minmax(160px,1fr)_auto]"
         @submit.prevent="submitFilters"
       >
         <label class="grid gap-1 text-xs font-semibold text-text-secondary">
@@ -278,42 +292,21 @@ watch(
               data-lpignore="true"
               data-form-type="other"
               class="h-11 w-full rounded-lg border border-border-light bg-bg-base pl-9 pr-3 text-sm text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-primary"
-              :placeholder="t('resource.list.searchPlaceholder')"
+              :placeholder="t('resource.mine.searchPlaceholder')"
             />
           </span>
         </label>
 
         <label class="grid gap-1 text-xs font-semibold text-text-secondary">
-          {{ t('resource.list.tagLabel') }}
-          <input
-            v-model="tag"
-            type="text"
-            autocomplete="off"
-            class="h-11 rounded-lg border border-border-light bg-bg-base px-3 text-sm text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-primary"
-            :placeholder="t('resource.list.tagPlaceholder')"
-          />
-        </label>
-
-        <label class="grid gap-1 text-xs font-semibold text-text-secondary">
-          {{ t('resource.list.bindingTypeLabel') }}
-          <input
-            v-model="bindingType"
-            type="text"
-            autocomplete="off"
-            class="h-11 rounded-lg border border-border-light bg-bg-base px-3 text-sm text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-primary"
-            :placeholder="t('resource.list.bindingTypePlaceholder')"
-          />
-        </label>
-
-        <label class="grid gap-1 text-xs font-semibold text-text-secondary">
-          {{ t('resource.list.bindingValueLabel') }}
-          <input
-            v-model="bindingValue"
-            type="text"
-            autocomplete="off"
-            class="h-11 rounded-lg border border-border-light bg-bg-base px-3 text-sm text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-primary"
-            :placeholder="t('resource.list.bindingValuePlaceholder')"
-          />
+          {{ t('resource.detail.visibility') }}
+          <select
+            v-model="visibility"
+            class="h-11 rounded-lg border border-border-light bg-bg-base px-3 text-sm text-text-primary outline-none transition-colors focus:border-primary"
+          >
+            <option value="">{{ t('resource.mine.visibilityAll') }}</option>
+            <option value="public">{{ t('resource.visibility.public') }}</option>
+            <option value="private">{{ t('resource.visibility.private') }}</option>
+          </select>
         </label>
 
         <div class="flex items-end gap-2">
@@ -338,9 +331,17 @@ watch(
         </div>
       </form>
 
+      <p
+        v-if="deleteError"
+        role="alert"
+        class="mb-4 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
+      >
+        {{ deleteError }}
+      </p>
+
       <div class="mb-4 flex min-h-6 items-center justify-between text-sm text-text-muted">
         <span v-if="!errorMessage && !loading">
-          {{ t('resource.list.total', { count: total }) }}
+          {{ t('resource.mine.total', { count: total }) }}
         </span>
       </div>
 
@@ -351,7 +352,7 @@ watch(
         <div
           v-for="i in 6"
           :key="i"
-          class="h-44 rounded-lg bg-bg-card shadow-xs animate-pulse"
+          class="h-48 rounded-lg bg-bg-card shadow-xs animate-pulse"
         />
       </div>
 
@@ -378,31 +379,44 @@ watch(
       >
         <FileText :size="40" class="text-text-muted" />
         <h2 class="text-lg font-bold text-text-primary">
-          {{ t('resource.list.emptyTitle') }}
+          {{ t('resource.mine.emptyTitle') }}
         </h2>
         <p class="text-sm text-text-secondary">
-          {{ t('resource.list.emptyDesc') }}
+          {{ t('resource.mine.emptyDesc') }}
         </p>
+        <RouterLink
+          :to="{ name: 'resource-new' }"
+          class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-white no-underline transition-colors hover:bg-primary/90"
+        >
+          <PlusCircle :size="16" />
+          {{ t('resource.list.publish') }}
+        </RouterLink>
       </div>
 
       <template v-else>
         <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <RouterLink
+          <article
             v-for="resource in resources"
             :key="resource.id"
-            :to="{ name: 'resource-detail', params: { id: String(resource.id) }, query: resourceListQuery }"
-            class="group flex min-h-44 flex-col rounded-lg border border-border-light bg-bg-card p-5 no-underline shadow-xs transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+            class="flex min-h-48 flex-col rounded-lg border border-border-light bg-bg-card p-5 shadow-xs"
           >
             <div class="mb-3 flex items-start justify-between gap-3">
               <div class="min-w-0">
-                <h2 class="truncate text-base font-bold text-text-primary group-hover:text-primary">
+                <RouterLink
+                  :to="{ name: 'resource-detail', params: { id: String(resource.id) } }"
+                  class="text-base font-bold text-text-primary no-underline transition-colors hover:text-primary"
+                >
                   {{ resource.title }}
-                </h2>
+                </RouterLink>
                 <p class="mt-1 truncate text-xs text-text-muted">
                   {{ resourceMeta(resource) }}
                 </p>
               </div>
-              <Download :size="18" class="shrink-0 text-text-muted group-hover:text-primary" />
+              <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-bg-elevated px-2.5 py-1 text-xs font-medium text-text-secondary">
+                <Eye v-if="resource.visibility === 'public'" :size="12" />
+                <EyeOff v-else :size="12" />
+                {{ t('resource.visibility.' + resource.visibility) }}
+              </span>
             </div>
 
             <p class="line-clamp-3 min-h-[3.75rem] text-sm leading-5 text-text-secondary">
@@ -420,10 +434,31 @@ watch(
               </span>
             </div>
 
-            <div class="mt-auto pt-4 text-xs text-text-muted">
-              {{ formatDate(resource.updatedAt) }}
+            <div class="mt-auto flex items-center justify-between gap-3 pt-4">
+              <span class="text-xs text-text-muted">
+                {{ formatDate(resource.updatedAt) }}
+              </span>
+              <div class="flex items-center gap-2">
+                <RouterLink
+                  :to="{ name: 'resource-edit', params: { id: String(resource.id) } }"
+                  class="inline-flex h-9 items-center justify-center gap-1 rounded-lg border border-border-light px-3 text-xs font-semibold text-text-secondary no-underline transition-colors hover:bg-bg-elevated hover:text-text-primary"
+                >
+                  <Pencil :size="14" />
+                  {{ t('common.actions.edit') }}
+                </RouterLink>
+                <button
+                  type="button"
+                  class="inline-flex h-9 items-center justify-center gap-1 rounded-lg border border-danger/30 px-3 text-xs font-semibold text-danger transition-colors hover:bg-danger/10 disabled:cursor-wait disabled:opacity-70"
+                  :disabled="isDeleting(resource)"
+                  @click="deleteResource(resource)"
+                >
+                  <RefreshCw v-if="isDeleting(resource)" :size="14" class="animate-spin" />
+                  <Trash2 v-else :size="14" />
+                  {{ t('common.actions.delete') }}
+                </button>
+              </div>
             </div>
-          </RouterLink>
+          </article>
         </div>
 
         <div

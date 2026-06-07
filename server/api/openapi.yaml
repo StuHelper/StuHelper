@@ -189,6 +189,8 @@ paths:
   # ── Resource ──
   /api/v1/resources:
     $ref: "paths/resource.yaml#/~1api~1v1~1resources"
+  /api/v1/resources/mine:
+    $ref: "paths/resource.yaml#/~1api~1v1~1resources~1mine"
   /api/v1/resources/{resourceID}:
     $ref: "paths/resource.yaml#/~1api~1v1~1resources~1{resourceID}"
   /api/v1/resources/{resourceID}/download-url:
