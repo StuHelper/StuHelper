@@ -6,7 +6,15 @@
         class="stuhelperGroupCenter-portal sh-search"
         @click.self="close"
       >
-        <div class="sh-search__panel" role="dialog" aria-modal="true" aria-label="全站搜索">
+        <div
+          ref="panelRef"
+          class="sh-search__panel"
+          role="dialog"
+          aria-modal="true"
+          aria-label="全站搜索"
+          @keydown.tab="trapFocus"
+          @keydown.escape.stop.prevent="close"
+        >
           <div class="sh-search__head">
             <span class="sh-search__icon" aria-hidden="true">⌕</span>
             <input
@@ -29,21 +37,28 @@
             <span class="sh-search__hint-line">{{ shortcuts.search }} 打开 · {{ shortcuts.chat }} 实时聊天 · Esc 关闭</span>
           </div>
 
-          <ul class="sh-search__list" v-if="results.length > 0">
+          <ul class="sh-search__list" v-if="results.length > 0" role="list">
             <li
               v-for="(result, index) in results"
               :key="result.id"
-              class="sh-search__row"
-              :class="{ 'sh-search__row--active': index === activeIndex }"
-              @mouseenter="activeIndex = index"
-              @click="execute(result)"
+              class="sh-search__item"
             >
-              <span class="sh-search__row-kind" :data-kind="result.kind">{{ kindLabel(result.kind) }}</span>
-              <div class="sh-search__row-body">
-                <span class="sh-search__row-title">{{ result.title }}</span>
-                <span class="sh-search__row-hint">{{ result.hint }}</span>
-              </div>
-              <span class="sh-search__row-arrow" aria-hidden="true">↵</span>
+              <button
+                type="button"
+                class="sh-search__row"
+                :aria-label="`${kindLabel(result.kind)}：${result.title}，${result.hint}`"
+                :class="{ 'sh-search__row--active': index === activeIndex }"
+                @mouseenter="activeIndex = index"
+                @focus="activeIndex = index"
+                @click="execute(result)"
+              >
+                <span class="sh-search__row-kind" :data-kind="result.kind">{{ kindLabel(result.kind) }}</span>
+                <div class="sh-search__row-body">
+                  <span class="sh-search__row-title">{{ result.title }}</span>
+                  <span class="sh-search__row-hint">{{ result.hint }}</span>
+                </div>
+                <span class="sh-search__row-arrow" aria-hidden="true">↵</span>
+              </button>
             </li>
           </ul>
 
@@ -73,9 +88,11 @@ const props = defineProps<{
 const shell = useAppShell()
 const shortcuts = getShellShortcutLabels()
 const router = useRouter()
+const panelRef = ref<HTMLElement | null>(null)
 const inputRef = ref<HTMLInputElement | null>(null)
 const query = ref('')
 const activeIndex = ref(0)
+const restoreFocusTarget = ref<HTMLElement | null>(null)
 
 interface ViewIntent {
   readonly id: string
@@ -194,6 +211,9 @@ watch(
   () => shell.searchOpen.value,
   (open) => {
     if (open) {
+      restoreFocusTarget.value = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null
       query.value = ''
       activeIndex.value = 0
       void nextTick(() => inputRef.value?.focus())
@@ -212,6 +232,7 @@ watch(
 
 function close(): void {
   shell.closeSearch()
+  void nextTick(() => restoreFocus())
 }
 
 function moveFocus(delta: number): void {
@@ -223,6 +244,39 @@ function moveFocus(delta: number): void {
 function executeActive(): void {
   const result = results.value[activeIndex.value]
   if (result) execute(result)
+}
+
+function trapFocus(event: KeyboardEvent): void {
+  const panel = panelRef.value
+  if (!panel) return
+
+  const focusable = Array.from(
+    panel.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((element) => element.offsetParent !== null)
+
+  if (focusable.length === 0) return
+
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  const active = document.activeElement
+
+  if (event.shiftKey && active === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && active === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
+function restoreFocus(): void {
+  const target = restoreFocusTarget.value
+  restoreFocusTarget.value = null
+  if (target?.isConnected) {
+    target.focus({ preventScroll: true })
+  }
 }
 
 function execute(result: SearchResult): void {
@@ -331,12 +385,23 @@ function kindLabel(kind: SearchResult['kind']): string {
   flex: 1 1 auto;
 }
 
+.sh-search__item {
+  margin: 0;
+  padding: 0;
+}
+
 .sh-search__row {
   display: grid;
   grid-template-columns: auto 1fr auto;
+  width: 100%;
   gap: var(--sh-s-3);
   align-items: center;
   padding: 8px var(--sh-s-4);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
   transition: background var(--sh-dur-fast) var(--sh-ease);
 }
@@ -344,6 +409,11 @@ function kindLabel(kind: SearchResult['kind']): string {
 .sh-search__row--active,
 .sh-search__row:hover {
   background: var(--sh-primary-soft);
+}
+
+.sh-search__row:focus-visible {
+  outline: 2px solid var(--sh-primary);
+  outline-offset: -2px;
 }
 
 .sh-search__row-kind {

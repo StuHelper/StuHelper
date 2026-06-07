@@ -422,7 +422,10 @@ test('global search opens from keyboard and navigates to a view result', async (
   const searchDialog = page.getByRole('dialog', { name: '全站搜索' })
   await expect(searchDialog).toBeVisible({ timeout: 5_000 })
   await searchDialog.getByPlaceholder('输入用户 ID / 群号 / 视图名 / 命令…').fill('logs')
-  await searchDialog.getByText('日志检索').click()
+  await page.keyboard.press('Tab')
+  const focusedResult = searchDialog.locator('.sh-search__row:focus').first()
+  await expect(focusedResult).toContainText('日志检索')
+  await page.keyboard.press('Enter')
 
   await expect(page).toHaveURL(/#logs($|\?)/, { timeout: 5_000 })
   await expect(page.locator('.sh-workspace-head__title', { hasText: '日志检索' }).first()).toBeVisible({
