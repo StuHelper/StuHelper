@@ -216,7 +216,7 @@ test('chat dock opens via CommandBar and renders ChatView', async ({ loggedInPag
   tracker.assertClean()
 })
 
-test('chat dock receives, sends image message, and recalls through real console actions', async ({ loggedInPage: page }) => {
+test('chat dock receives, forwards, sends image message, and recalls through real console actions', async ({ loggedInPage: page }) => {
   await using tracker = createTracker(page)
 
   await page.evaluate(() => {
@@ -284,6 +284,35 @@ test('chat dock receives, sends image message, and recalls through real console 
       }),
     )
     .toContain('[图片:ui-smoke-image.png]')
+
+  await dock.locator('.connect-btn').click()
+  const connectDialog = page.locator('.connect-dialog').first()
+  await expect(connectDialog).toBeVisible({ timeout: 5_000 })
+  await connectDialog.locator('.form-group', { hasText: '群号 / 频道ID' }).locator('input').fill('2002')
+  await connectDialog.locator('.form-group', { hasText: '显示名称' }).locator('input').fill('E2E 目标频道')
+  await connectDialog.getByRole('button', { name: '连接' }).click()
+
+  const targetSessionItem = dock.locator('.session-item', { hasText: 'E2E 目标频道' }).first()
+  await expect(targetSessionItem).toBeVisible({ timeout: 10_000 })
+  await sessionItem.click()
+  await expect(dock.locator('.chat-header', { hasText: 'E2E 聊天频道' })).toBeVisible({ timeout: 10_000 })
+
+  await incomingRow.click({ button: 'right' })
+  const forwardMenu = page.locator('.context-menu').first()
+  await expect(forwardMenu).toBeVisible({ timeout: 5_000 })
+  await forwardMenu.locator('.context-menu-item', { hasText: '转发' }).click()
+
+  const forwardDialog = page.getByRole('dialog', { name: '转发消息' })
+  await expect(forwardDialog).toBeVisible({ timeout: 5_000 })
+  await expect(forwardDialog.getByText('E2E incoming chat message')).toBeVisible()
+  await forwardDialog.locator('.forward-session-option', { hasText: 'E2E 目标频道' }).click()
+  await forwardDialog.getByRole('button', { name: '转发', exact: true }).click()
+  await expect(toastMessage(page, '已转发到 E2E 目标频道')).toBeVisible({ timeout: 10_000 })
+
+  const forwarded = await uiSmokeChatActions(page)
+  expect(forwarded.sentMessages.at(-1)?.channelId).toBe('2002')
+  expect(forwarded.sentMessages.at(-1)?.guildId).toBe('2002')
+  expect(forwarded.sentMessages.at(-1)?.content).toContain('E2E incoming chat message')
 
   const input = dock.locator('.chat-input').first()
   await input.fill('E2E outbound chat text')

@@ -273,7 +273,7 @@
           <span>复制</span>
         </div>
         <div class="context-menu-divider"></div>
-        <div class="context-menu-item" @click="handleForward">
+        <div class="context-menu-item" @click="openForwardDialog">
           <span class="menu-icon">📤</span>
           <span>转发</span>
         </div>
@@ -284,6 +284,68 @@
       </div>
       <div v-if="contextMenu.visible" class="context-menu-overlay" @click="hideContextMenu"></div>
     </Teleport>
+
+    <!-- 转发消息对话框 -->
+    <div class="forward-dialog-overlay" v-if="forwardDialogOpen" @click.self="closeForwardDialog">
+      <div
+        class="forward-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="forward-dialog-title"
+      >
+        <div class="dialog-header">
+          <h3 id="forward-dialog-title">转发消息</h3>
+          <button class="close-btn" :disabled="forwarding" @click="closeForwardDialog">×</button>
+        </div>
+        <div class="dialog-body">
+          <div class="forward-preview">
+            <div class="forward-label">消息预览</div>
+            <p>{{ forwardPreview }}</p>
+          </div>
+
+          <div class="forward-targets">
+            <div class="forward-label">选择目标会话</div>
+            <div v-if="forwardTargetSessions.length === 0" class="forward-empty">
+              暂无可转发会话，请先新建或等待会话接入。
+            </div>
+            <label
+              v-for="session in forwardTargetSessions"
+              :key="session.key"
+              class="forward-session-option"
+              :class="{ active: forwardTargetSessionKey === session.key }"
+            >
+              <input
+                v-model="forwardTargetSessionKey"
+                type="radio"
+                :value="session.key"
+                :disabled="forwarding"
+              />
+              <span class="forward-session-main">
+                <span class="forward-session-name">{{ session.name }}</span>
+                <span class="forward-session-id">{{ session.id }}</span>
+              </span>
+              <span class="forward-session-platform">{{ session.platform }}</span>
+            </label>
+          </div>
+
+          <div v-if="forwardError" class="forward-error" role="alert">
+            {{ forwardError }}
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="cancel-btn" :disabled="forwarding" @click="closeForwardDialog">
+            取消
+          </button>
+          <button
+            class="confirm-btn"
+            :disabled="!forwardTargetSessionKey || forwarding"
+            @click="confirmForward"
+          >
+            {{ forwarding ? '转发中...' : '转发' }}
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- 连接群聊对话框 -->
     <div class="connect-dialog-overlay" v-if="showConnectDialog" @click.self="showConnectDialog = false">
@@ -499,6 +561,11 @@ const contextMenu = reactive({
   y: 0,
   targetMsg: null as ChatMessage | null
 })
+const forwardDialogOpen = ref(false)
+const forwardMessage = ref<ChatMessage | null>(null)
+const forwardTargetSessionKey = ref('')
+const forwarding = ref(false)
+const forwardError = ref('')
 
 // 计算是否可以撤回（只有自己发的消息可以撤回）
 const canRecall = computed(() => {
@@ -517,6 +584,12 @@ const hideContextMenu = () => {
   contextMenu.visible = false
   contextMenu.targetMsg = null
 }
+
+const forwardTargetSessions = computed(() => sessions.value)
+const forwardPreview = computed(() => {
+  if (!forwardMessage.value) return ''
+  return buildForwardPreview(forwardMessage.value)
+})
 
 // 回复消息
 const handleReply = () => {
@@ -559,13 +632,69 @@ const handleCopy = async () => {
   }
 }
 
-// 转发消息（暂时只是复制到输入框）
-const handleForward = () => {
+// 转发消息到指定会话
+const openForwardDialog = () => {
   if (!contextMenu.targetMsg) return
-  const msg = contextMenu.targetMsg
-  inputText.value = msg.content || ''
+  forwardMessage.value = contextMenu.targetMsg
+  forwardTargetSessionKey.value = defaultForwardTargetSessionKey()
+  forwardError.value = ''
+  forwardDialogOpen.value = true
   hideContextMenu()
-  message.info('消息已复制到输入框，选择其他会话发送即可转发')
+}
+
+const defaultForwardTargetSessionKey = () => {
+  const otherSession = sessions.value.find(session => session.key !== currentSessionId.value)
+  return otherSession?.key || currentSessionId.value || sessions.value[0]?.key || ''
+}
+
+const closeForwardDialog = () => {
+  if (forwarding.value) return
+  resetForwardDialog()
+}
+
+const resetForwardDialog = () => {
+  forwardDialogOpen.value = false
+  forwardMessage.value = null
+  forwardTargetSessionKey.value = ''
+  forwardError.value = ''
+}
+
+const buildForwardPreview = (msg: ChatMessage) => {
+  return buildMessagePlainText(msg, currentSession.value?.messages ?? [], members.value).trim() ||
+    msg.content.trim() ||
+    '[无法预览的消息]'
+}
+
+const buildForwardContent = (msg: ChatMessage) => {
+  return msg.content.trim() ||
+    buildMessagePlainText(msg, currentSession.value?.messages ?? [], members.value).trim()
+}
+
+const confirmForward = async () => {
+  if (!forwardMessage.value || !forwardTargetSessionKey.value || forwarding.value) return
+  const targetSession = findSessionByKey(forwardTargetSessionKey.value)
+  if (!targetSession) {
+    forwardError.value = '请选择有效的目标会话'
+    return
+  }
+
+  const content = buildForwardContent(forwardMessage.value)
+  if (!content) {
+    forwardError.value = '这条消息没有可转发的内容'
+    return
+  }
+
+  forwarding.value = true
+  forwardError.value = ''
+  try {
+    await chatApi.send(targetSession.id, content, targetSession.platform, targetSession.guildId)
+    message.success(`已转发到 ${targetSession.name}`)
+    resetForwardDialog()
+  } catch (cause) {
+    forwardError.value = errorMessage(cause, '转发失败')
+  } finally {
+    forwarding.value = false
+  }
 }
 
 // 处理粘贴事件
@@ -1744,6 +1873,132 @@ const handleAvatarError = (e: Event) => {
   cursor: not-allowed;
 }
 
+/* Forward Dialog */
+.forward-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
+
+.forward-dialog {
+  width: 420px;
+  max-width: 92%;
+  overflow: hidden;
+  border: 1px solid var(--k-color-divider);
+  border-radius: var(--radius-lg);
+  background: var(--bg2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.forward-label {
+  color: var(--fg2);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.forward-preview {
+  display: grid;
+  gap: 8px;
+}
+
+.forward-preview p {
+  max-height: 96px;
+  margin: 0;
+  overflow-y: auto;
+  border: 1px solid var(--k-color-divider);
+  border-radius: var(--radius-md);
+  background: var(--bg1);
+  color: var(--fg1);
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.forward-targets {
+  display: grid;
+  gap: 8px;
+}
+
+.forward-empty {
+  border: 1px dashed var(--k-color-divider);
+  border-radius: var(--radius-md);
+  color: var(--fg3);
+  padding: 12px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.forward-session-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--k-color-divider);
+  border-radius: var(--radius-md);
+  background: var(--bg1);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.forward-session-option:hover,
+.forward-session-option.active {
+  border-color: var(--k-color-primary);
+  background: var(--k-color-primary-fade);
+}
+
+.forward-session-option input {
+  accent-color: var(--k-color-primary);
+}
+
+.forward-session-main {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.forward-session-name {
+  overflow: hidden;
+  color: var(--fg1);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forward-session-id,
+.forward-session-platform {
+  color: var(--fg3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.forward-session-platform {
+  border: 1px solid var(--k-color-divider);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  text-transform: uppercase;
+}
+
+.forward-error {
+  border: 1px solid color-mix(in srgb, var(--status-danger) 38%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--status-danger) 10%, transparent);
+  color: var(--status-danger);
+  padding: 9px 10px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 /* Members Sidebar */
 .members-sidebar {
   width: 200px;
@@ -2236,8 +2491,9 @@ const handleAvatarError = (e: Event) => {
     display: none;
   }
 
-  /* Connect dialog */
-  .connect-dialog {
+  /* Dialogs */
+  .connect-dialog,
+  .forward-dialog {
     width: 95%;
     max-width: none;
     margin: 16px;
