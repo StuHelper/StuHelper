@@ -312,6 +312,10 @@ export const useNotificationStore = defineStore("notification", () => {
     const setStreamError = (message: string, err?: unknown) => {
         streamError.value =
             err instanceof Error ? err : new Error(message);
+        if (err === undefined) {
+            console.warn(`[Notification] ${message}`);
+            return;
+        }
         console.warn(`[Notification] ${message}`, err);
     };
 
@@ -761,17 +765,27 @@ export const useNotificationStore = defineStore("notification", () => {
         });
 
         source.onerror = () => {
-            setStreamError("notification SSE connection lost");
-            closeEventSource(source);
-            if (!monitoringActive) {
+            if (!monitoringActive || eventSource !== source) {
                 return;
             }
+            setStreamError("notification SSE connection lost");
+            closeEventSource(source);
             startPollingFallback();
             scheduleReconnect();
         };
     };
 
     safeOnScopeDispose(stopPolling);
+
+    if (typeof window !== "undefined") {
+        const stopOnPageHide = () => {
+            stopPolling();
+        };
+        window.addEventListener("pagehide", stopOnPageHide);
+        safeOnScopeDispose(() => {
+            window.removeEventListener("pagehide", stopOnPageHide);
+        });
+    }
 
     const reset = () => {
         stopPolling();

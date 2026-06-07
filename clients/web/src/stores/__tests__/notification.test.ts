@@ -8,6 +8,7 @@ const mockMarkAsRead = vi.fn()
 const mockMarkAllAsRead = vi.fn()
 
 vi.mock('@/api', () => ({
+  NOTIFICATION_STREAM_PATH: '/api/v1/course/review/user/notifications/stream',
   api: {
     notification: {
       getNotifications: mockGetNotifications,
@@ -352,6 +353,96 @@ describe('useNotificationStore', () => {
 
       expect(store.pageNotifications.every(n => n.isRead)).toBe(true)
       expect(store.unreadCount).toBe(0)
+    })
+  })
+
+  describe('connectSSE lifecycle', () => {
+    const originalEventSource = globalThis.EventSource
+    let warnSpy: ReturnType<typeof vi.spyOn>
+
+    class FakeEventSource {
+      static readonly CLOSED = 2
+      static instances: FakeEventSource[] = []
+
+      readonly url: string
+      readonly withCredentials: boolean
+      readyState = 0
+      onopen: ((event: Event) => void) | null = null
+      onerror: ((event: Event) => void) | null = null
+      private readonly listeners = new Map<string, EventListener[]>()
+
+      constructor(url: string | URL, init?: EventSourceInit) {
+        this.url = String(url)
+        this.withCredentials = init?.withCredentials === true
+        FakeEventSource.instances.push(this)
+      }
+
+      addEventListener(type: string, listener: EventListenerOrEventListenerObject) {
+        const callback = typeof listener === 'function'
+          ? listener
+          : listener.handleEvent.bind(listener)
+        this.listeners.set(type, [
+          ...(this.listeners.get(type) ?? []),
+          callback,
+        ])
+      }
+
+      close() {
+        this.readyState = FakeEventSource.CLOSED
+      }
+
+      emitError() {
+        this.onerror?.(new Event('error'))
+      }
+    }
+
+    beforeEach(() => {
+      FakeEventSource.instances = []
+      Object.defineProperty(globalThis, 'EventSource', {
+        configurable: true,
+        value: FakeEventSource,
+      })
+      warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+      mockGetUnreadCount.mockResolvedValue({
+        data: { data: { count: 0 } },
+      })
+    })
+
+    afterEach(() => {
+      warnSpy.mockRestore()
+      Object.defineProperty(globalThis, 'EventSource', {
+        configurable: true,
+        value: originalEventSource,
+      })
+    })
+
+    it('falls back to polling when the active SSE connection errors', () => {
+      const store = useNotificationStore()
+
+      store.connectSSE()
+      const source = FakeEventSource.instances[0]
+      source.emitError()
+
+      expect(store.streamError?.message).toBe(
+        'notification SSE connection lost',
+      )
+      expect(source.readyState).toBe(FakeEventSource.CLOSED)
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[Notification] notification SSE connection lost',
+      )
+    })
+
+    it('ignores late SSE errors after monitoring has stopped', () => {
+      const store = useNotificationStore()
+
+      store.connectSSE()
+      const source = FakeEventSource.instances[0]
+      store.stopPolling()
+      source.emitError()
+
+      expect(store.streamError).toBeNull()
+      expect(source.readyState).toBe(FakeEventSource.CLOSED)
+      expect(warnSpy).not.toHaveBeenCalled()
     })
   })
 
