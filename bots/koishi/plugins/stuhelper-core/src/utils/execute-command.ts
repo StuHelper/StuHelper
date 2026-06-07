@@ -1,4 +1,5 @@
 import type { Argv, Context, Session } from 'koishi'
+import { redactCommandArgs, redactSensitiveText, redactSensitiveValue } from '../core/modules/log-redaction'
 
 type CommandOptions = Readonly<Record<string, unknown>>
 type CommandSession = Session<'authority'>
@@ -16,7 +17,7 @@ export async function executeCommand(input: ExecuteCommandInput): Promise<unknow
   const { ctx, session, commandName } = input
   const logger = ctx.logger('stuhelper-core:utils')
   try {
-    logger.info('准备执行命令: %s，参数: %s', commandName, JSON.stringify(input.args || []))
+    logger.info('准备执行命令: %s，参数: %s', commandName, JSON.stringify(redactCommandArgs(input.args || [])))
     const command = ctx.$commander.get(commandName, session)
     if (!command) return handleMissingCommand(logger, commandName)
 
@@ -30,11 +31,11 @@ export async function executeCommand(input: ExecuteCommandInput): Promise<unknow
       options: input.options || {},
     }
     const result = await command.execute(argv)
-    logger.info('命令 %s 执行结果: %o', commandName, result)
+    logger.info('命令 %s 执行结果: %o', commandName, redactSensitiveValue(result))
     return result
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    logger.error('%s %o', `执行命令 ${commandName} 失败: ${message}`, error)
+    const message = redactSensitiveText(error instanceof Error ? error.message : String(error))
+    logger.error('%s %o', `执行命令 ${commandName} 失败: ${message}`, redactSensitiveValue(error))
     return `执行失败: ${message || '未知错误'}`
   }
 }

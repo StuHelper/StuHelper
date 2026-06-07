@@ -4,6 +4,7 @@ import { assertConsoleGuildAccess } from './console-guild-scope'
 import { readCommandLogs } from './log-module-lookup'
 import { filterLogs } from './scope-filters'
 import type { CommandLogRecord } from '../modules/log.module'
+import { redactCommandLogRecord } from '../modules/log-redaction'
 
 const DEFAULT_LOG_PAGE = 1
 const DEFAULT_LOG_PAGE_SIZE = 20
@@ -48,6 +49,7 @@ async function handleLogSearch(api: WebSocketAPIContext, client: unknown, params
     }
 
     const filteredLogs = filterLogs(await readCommandLogs(api), scope)
+      .map(redactCommandLogRecord)
       .filter((log) => matchesLogSearch(log, normalizedParams))
     return success(paginateLogs(filteredLogs, normalizedParams))
   } catch (cause) {

@@ -1,4 +1,5 @@
 import type { CommandLogRecord } from './log.module'
+import { redactCommandLogRecord } from './log-redaction'
 
 export interface LogFilterOptions {
   readonly user?: string
@@ -93,18 +94,19 @@ function filterUntil(logs: CommandLogRecord[], until: string): CommandLogRecord[
 }
 
 function formatLogItem(log: CommandLogRecord, index: number): string {
-  const status = log.success ? '✅' : '❌'
-  const time = new Date(log.timestamp).toLocaleString('zh-CN')
-  const location = log.isPrivate ? '私聊' : `群(${log.guildId})`
-  const execTime = log.executionTime > 0 ? ` (${log.executionTime}ms)` : ''
-  const authority = log.userAuthority ? ` [权限:${log.userAuthority}]` : ''
-  let message = `${index + 1}. ${status} ${log.command}${execTime}\n`
+  const safeLog = redactCommandLogRecord(log)
+  const status = safeLog.success ? '✅' : '❌'
+  const time = new Date(safeLog.timestamp).toLocaleString('zh-CN')
+  const location = safeLog.isPrivate ? '私聊' : `群(${safeLog.guildId})`
+  const execTime = safeLog.executionTime > 0 ? ` (${safeLog.executionTime}ms)` : ''
+  const authority = safeLog.userAuthority ? ` [权限:${safeLog.userAuthority}]` : ''
+  let message = `${index + 1}. ${status} ${safeLog.command}${execTime}\n`
 
-  message += `   用户: ${log.username}(${log.userId})${authority}\n`
+  message += `   用户: ${safeLog.username}(${safeLog.userId})${authority}\n`
   message += `   位置: ${location}\n`
-  message += `   平台: ${log.platform}\n`
+  message += `   平台: ${safeLog.platform}\n`
   message += `   时间: ${time}\n`
-  message += formatLogDetails(log)
+  message += formatLogDetails(safeLog)
   return `${message}\n`
 }
 

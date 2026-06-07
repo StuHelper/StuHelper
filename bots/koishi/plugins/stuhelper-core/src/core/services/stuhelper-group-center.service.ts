@@ -14,6 +14,7 @@ import {
   formatShanghaiTimestamp,
   toErrorMessage,
 } from './stuhelper-group-center.utils'
+import { redactSensitiveText } from '../modules/log-redaction'
 
 const CACHE_WARM_DELAY_MS = 2_000
 
@@ -230,9 +231,10 @@ export class StuhelperGroupCenterService extends Service {
     const user = session.userId || session.username
     const group = session.guildId || 'private'
     const time = formatShanghaiTimestamp(new Date())
-    this._data.writeLog(`[${command}] 用户(${user}) 群(${group}) 目标(${target}): ${result}`)
+    const message = redactSensitiveText(`[${command}] 用户(${user}) 群(${group}) 目标(${target}): ${result}`)
+    this._data.writeLog(message)
 
-    await this.pushMessage(session.bot, `[${time}] [${command}] 用户(${user}) 群(${group}) 目标(${target}): ${result}`, 'log')
+    await this.pushMessage(session.bot, `[${time}] ${message}`, 'log')
   }
 
   /**

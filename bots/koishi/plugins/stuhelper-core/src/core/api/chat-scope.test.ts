@@ -635,6 +635,52 @@ test('legacy log search falls back to data store when log runtime module is abse
   assert.equal(logs.data.list[0].result, 'loaded from data store')
 })
 
+test('legacy log search redacts sensitive command fields before returning to WebUI', async () => {
+  const listeners = new Map<string, Listener>()
+  const ctx = createContext(listeners)
+  const service = createService(['1001'])
+  service.getAllModules = () => []
+  service.data.commandLogs = createMapStore({
+    logs: [
+      {
+        timestamp: 1_787_803_200_000,
+        guildId: '1001',
+        userId: 'u1',
+        command: 'secret',
+        args: ['--token', 'tok_webui_secret'],
+        options: {
+          authorization: 'Bearer webui_auth_secret',
+          headers: {
+            cookie: 'sid=webui_cookie_secret',
+          },
+          apiKey: 'sk-webui-secret',
+        },
+        error: 'Authorization: Bearer webui_error_secret',
+        result: 'callback?refresh_token=webui_result_secret',
+      },
+    ],
+  })
+
+  registerTestWebSocketAPI(ctx as any, service as any)
+
+  const logs = await callListener(listeners, 'stuhelperGroupCenter/logs/search', {})
+  const payload = JSON.stringify(logs.data)
+
+  assert.equal(logs.success, true)
+  assert.equal(logs.data.total, 1)
+  for (const secret of [
+    'tok_webui_secret',
+    'webui_auth_secret',
+    'webui_cookie_secret',
+    'sk-webui-secret',
+    'webui_error_secret',
+    'webui_result_secret',
+  ]) {
+    assert.doesNotMatch(payload, new RegExp(secret))
+  }
+  assert.match(payload, /\[REDACTED\]/)
+})
+
 test('legacy log search falls back when named log module lookup throws', async () => {
   const listeners = new Map<string, Listener>()
   const ctx = createContext(listeners)

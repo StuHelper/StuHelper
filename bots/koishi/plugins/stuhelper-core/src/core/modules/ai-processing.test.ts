@@ -101,7 +101,7 @@ test('processAiMessage reports malformed circular responses without throwing aga
   })
 
   assert.equal(result, '处理消息时出错: API 响应格式异常，缺少 choices 字段')
-  assert.match(host.logs[0], /^\[ai\] API 响应格式异常: \[unserializable value:/)
+  assert.equal(host.logs[0], '[ai] API 响应格式异常: {"self":"[Circular]"}')
   assert.equal(host.logs[1], '[ai] AI处理消息失败: API 响应格式异常，缺少 choices 字段')
 })
 

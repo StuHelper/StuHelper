@@ -1,4 +1,5 @@
 import type { CommandLogRecord } from './log.module'
+import { redactCommandLogRecord } from './log-redaction'
 
 type RecordLike = Record<string, unknown>
 
@@ -22,7 +23,7 @@ function normalizeCommandLogRecord(entry: RecordLike, index: number): CommandLog
   const userId = stringValue(entry.userId, '')
   const timestamp = normalizeTimestamp(entry.timestamp)
 
-  return {
+  return redactCommandLogRecord({
     id: stringValue(entry.id, `${timestamp}:${command}:${userId}:${index}`),
     timestamp,
     userId,
@@ -41,7 +42,7 @@ function normalizeCommandLogRecord(entry: RecordLike, index: number): CommandLog
     result,
     messageId: optionalString(entry.messageId),
     isPrivate: typeof entry.isPrivate === 'boolean' ? entry.isPrivate : !guildId,
-  }
+  })
 }
 
 function normalizeTimestamp(value: unknown): string {

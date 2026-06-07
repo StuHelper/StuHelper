@@ -7,6 +7,7 @@ import {
   markCommandExecutionStarted,
 } from './command-execution-state'
 import type { CommandLogRecord, LogModule } from './log.module'
+import { redactCommandLogRecord } from './log-redaction'
 
 const DEFAULT_USER_AUTHORITY = 1
 const RANDOM_ID_RADIX = 36
@@ -105,7 +106,7 @@ function buildCommandLogRecord(input: CommandLogRecordInput): CommandLogRecord {
   const executionTime = commandExecutionDuration(input.argv)
   const session = input.session
 
-  return {
+  return redactCommandLogRecord({
     id: `${Date.now()}_${Math.random().toString(RANDOM_ID_RADIX).substr(RANDOM_ID_START, RANDOM_ID_LENGTH)}`,
     timestamp: new Date().toISOString(),
     userId: session.userId || 'unknown',
@@ -124,7 +125,7 @@ function buildCommandLogRecord(input: CommandLogRecordInput): CommandLogRecord {
     result: typeof input.result === 'string' ? input.result : undefined,
     messageId: session.messageId,
     isPrivate: !session.guildId,
-  }
+  })
 }
 
 function toCommandArgv(value: unknown): CommandArgvLike | null {

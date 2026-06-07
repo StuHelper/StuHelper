@@ -21,6 +21,7 @@ import { markCommandExecutionFailed } from './command-execution-state'
 import { registerLogEventListeners } from './log-events'
 import { registerOperationLogCommands } from './log-operation-commands'
 import { normalizeCommandLogRecords } from './command-log-records'
+import { redactCommandLogRecords } from './log-redaction'
 
 const JSON_INDENT_SPACES = 2
 const DEFAULT_RECENT_LOG_LIMIT = 100
@@ -136,7 +137,7 @@ export class LogModule implements RuntimeModuleInstance {
   }
 
   saveCommandLogs(logs: CommandLogRecord[]): void {
-    fs.writeFileSync(this.commandLogPath, JSON.stringify(logs, null, JSON_INDENT_SPACES), 'utf-8')
+    fs.writeFileSync(this.commandLogPath, JSON.stringify(redactCommandLogRecords(logs), null, JSON_INDENT_SPACES), 'utf-8')
   }
 
   loadStats(): void {

@@ -2,6 +2,7 @@ import type { Session } from 'koishi'
 
 import type { CommandLogRecord, LogModule } from './log.module'
 import { filterLogs, formatLogList, formatStats, type LogFilterOptions, type LogStatsOptions } from './log-formatters'
+import { redactCommandLogRecords } from './log-redaction'
 
 const DEFAULT_COMMAND_LOG_LIMIT = 10
 const COMMAND_LOG_SAMPLE_MULTIPLIER = 10
@@ -172,7 +173,7 @@ function handleExportCommand(host: LogModule, options: CommandLogExportOptions):
     if (options.format === 'csv') {
       return formatCsvExport(filteredLogs)
     }
-    return `JSON格式日志 (${filteredLogs.length} 条记录)\n\n${JSON.stringify(filteredLogs, null, JSON_INDENT_SPACES)}`
+    return `JSON格式日志 (${filteredLogs.length} 条记录)\n\n${JSON.stringify(redactCommandLogRecords(filteredLogs), null, JSON_INDENT_SPACES)}`
   } catch (error) {
     return `导出日志失败: ${errorMessage(error)}`
   }
@@ -200,7 +201,7 @@ function cleanOldLogs(host: LogModule, daysToKeep: number): number {
 
 function formatCsvExport(logs: CommandLogRecord[]): string {
   const csvHeader = 'timestamp,userId,username,userAuthority,guildId,platform,command,success,executionTime,error\n'
-  const csvRows = logs.map(log =>
+  const csvRows = redactCommandLogRecords(logs).map(log =>
     `"${log.timestamp}","${log.userId}","${log.username}","${log.userAuthority || ''}","${log.guildId || ''}","${log.platform}","${log.command}","${log.success}","${log.executionTime}","${log.error || ''}"`,
   ).join('\n')
 

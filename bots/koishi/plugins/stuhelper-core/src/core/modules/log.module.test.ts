@@ -38,6 +38,37 @@ test('LogModule reads legacy object command log data', () => {
   assert.equal(logs[0].guildId, '1001')
 })
 
+test('LogModule redacts sensitive legacy command log data on read', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stuhelper-log-module-'))
+  fs.writeFileSync(path.join(dir, 'command_logs.json'), JSON.stringify({
+    logs: [
+      {
+        timestamp: 1_787_803_200_000,
+        guildId: '1001',
+        userId: 'u1',
+        command: 'secret',
+        args: ['--token', 'tok_legacy_secret'],
+        options: {
+          headers: {
+            authorization: 'Bearer legacy_auth_secret',
+          },
+          apiKey: 'sk-legacy-secret',
+        },
+        details: 'Cookie: sid=legacy_cookie_secret',
+      },
+    ],
+  }), 'utf8')
+  const module = createLogModule(dir)
+
+  const payload = JSON.stringify(module.readCommandLogs())
+
+  assert.doesNotMatch(payload, /tok_legacy_secret/)
+  assert.doesNotMatch(payload, /legacy_auth_secret/)
+  assert.doesNotMatch(payload, /sk-legacy-secret/)
+  assert.doesNotMatch(payload, /legacy_cookie_secret/)
+  assert.match(payload, /\[REDACTED\]/)
+})
+
 test('LogModule preserves array command log data', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stuhelper-log-module-'))
   fs.writeFileSync(path.join(dir, 'command_logs.json'), JSON.stringify([
