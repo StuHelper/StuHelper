@@ -52,8 +52,11 @@ export function useConsoleNavigation(win = window): ConsoleNavigationController 
     nextState: ConsoleNavigationState,
     method: 'pushState' | 'replaceState',
   ) => {
-    state.value = nextState
     const nextUrl = mergeConsoleLocation(new URL(win.location.href), nextState)
+    state.value = parseConsoleLocation(nextUrl)
+    if (nextUrl.href === win.location.href) {
+      return
+    }
     win.history[method]({}, '', `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`)
   }
 

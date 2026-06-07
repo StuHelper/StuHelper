@@ -41,6 +41,14 @@ interface ViewSpec {
   readonly anchor: ViewAnchor
 }
 
+interface HistoryProbeWindow extends Window {
+  __stuhelperHistoryProbe?: {
+    push: string[]
+    replace: string[]
+  }
+  __stuhelperRestoreHistoryProbe?: () => void
+}
+
 /**
  * NavRail 中可达的 12 个 view（chat 不在 rail 中，独立 dock 测）。
  *
@@ -74,6 +82,26 @@ test('NavRail click switches between views', async ({ loggedInPage: page }) => {
   // 切到下一个 view，验证 NavRail 真的能切
   await clickNavRail(page, VIEWS[1].label)
   await expect(page).toHaveURL(new RegExp(`#${VIEWS[1].id}($|\\?)`), { timeout: 5_000 })
+
+  tracker.assertClean()
+})
+
+test('active NavRail click does not duplicate browser history entries', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  await clickNavRail(page, '入群认证')
+  await expect(page).toHaveURL(/#admission($|\?)/, { timeout: 5_000 })
+
+  await installHistoryProbe(page)
+  try {
+    await clickNavRail(page, '入群认证')
+    await clickNavRail(page, '入群认证')
+
+    await expect(page).toHaveURL(/#admission($|\?)/, { timeout: 5_000 })
+    await expect(await readHistoryProbe(page)).toEqual({ push: [], replace: [] })
+  } finally {
+    await restoreHistoryProbe(page)
+  }
 
   tracker.assertClean()
 })
@@ -1401,6 +1429,49 @@ async function clickNavRail(page: Page, label: string): Promise<void> {
   const button = page.locator(`.sh-rail__item[title="${label}"]`)
   await expect(button.first()).toBeAttached({ timeout: 5_000 })
   await button.first().click()
+}
+
+async function installHistoryProbe(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const win = window as HistoryProbeWindow
+    win.__stuhelperRestoreHistoryProbe?.()
+
+    const originalPushState = win.history.pushState
+    const originalReplaceState = win.history.replaceState
+
+    win.__stuhelperHistoryProbe = { push: [], replace: [] }
+    win.__stuhelperRestoreHistoryProbe = () => {
+      win.history.pushState = originalPushState
+      win.history.replaceState = originalReplaceState
+      delete win.__stuhelperHistoryProbe
+      delete win.__stuhelperRestoreHistoryProbe
+    }
+    win.history.pushState = ((data: unknown, unused: string, url?: string | URL | null) => {
+      win.__stuhelperHistoryProbe?.push.push(String(url ?? ''))
+      return originalPushState.call(win.history, data, unused, url)
+    }) as History['pushState']
+    win.history.replaceState = ((data: unknown, unused: string, url?: string | URL | null) => {
+      win.__stuhelperHistoryProbe?.replace.push(String(url ?? ''))
+      return originalReplaceState.call(win.history, data, unused, url)
+    }) as History['replaceState']
+  })
+}
+
+async function readHistoryProbe(page: Page): Promise<{ push: string[]; replace: string[] }> {
+  return page.evaluate(() => {
+    const win = window as HistoryProbeWindow
+    return {
+      push: [...(win.__stuhelperHistoryProbe?.push ?? [])],
+      replace: [...(win.__stuhelperHistoryProbe?.replace ?? [])],
+    }
+  })
+}
+
+async function restoreHistoryProbe(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const win = window as HistoryProbeWindow
+    win.__stuhelperRestoreHistoryProbe?.()
+  })
 }
 
 async function shellSearchShortcut(page: Page): Promise<{ label: string; key: string }> {
