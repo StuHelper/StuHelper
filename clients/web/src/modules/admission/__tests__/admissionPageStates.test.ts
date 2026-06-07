@@ -559,6 +559,28 @@ describe('AdmissionPage edge states', () => {
     expect(wrapper.find('[data-state="linked"]').exists()).toBe(true)
   })
 
+  it('accepts copied qq confirmation input with surrounding whitespace', async () => {
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('joined_muted'),
+    )
+    mockAdmissionApi.linkAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('linked'),
+    )
+    mockAdmissionApi.getAdmissionMe.mockResolvedValueOnce({
+      projectionPending: false,
+      session: sessionWithStatus('linked'),
+      status: 'linked',
+    })
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+    await confirmCurrentQQBinding(wrapper, ' 123 ')
+    await settleAdmissionPage(wrapper)
+
+    expect(mockAdmissionApi.linkAdmissionSession).toHaveBeenCalledWith('ABCD')
+    expect(wrapper.find('[data-state="linked"]').exists()).toBe(true)
+  })
+
   it('refreshes the admission state when the SSO tab returns focus without pageshow', async () => {
     mockAuth.isAuthenticated = false
     mockAuth.bootstrapSession

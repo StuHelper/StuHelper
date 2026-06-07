@@ -383,12 +383,13 @@ const currentUserLabel = computed(() => (
   auth.user?.displayName || auth.user?.name || '当前 StuHelper 账号'
 ))
 const bindConfirmationExpectedQQ = computed(() => displayQQ.value.trim())
+const normalizedBindConfirmationQQ = computed(() => bindConfirmationQQ.value.trim())
 const bindConfirmationMatches = computed(() => (
   bindConfirmationExpectedQQ.value !== '' &&
-  bindConfirmationQQ.value === bindConfirmationExpectedQQ.value
+  normalizedBindConfirmationQQ.value === bindConfirmationExpectedQQ.value
 ))
 const bindConfirmationError = computed(() => {
-  if (!bindConfirmationTouched.value || bindConfirmationQQ.value === '') {
+  if (!bindConfirmationTouched.value || normalizedBindConfirmationQQ.value === '') {
     return ''
   }
   return bindConfirmationMatches.value ? '' : '输入的 QQ 号与本次入群 QQ 不一致。'

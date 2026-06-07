@@ -495,6 +495,9 @@ test.describe("Auth callback and admission entry", () => {
         let otpVerifyBody: unknown = null;
 
         await mockAuthenticated(page);
+        await page.route("**/api/v1/user/qq-binding", (route) =>
+            route.fulfill(ok(null)),
+        );
         await page.route(
             "**/api/v1/admission/sessions/ADMIT-1**",
             async (route) => {
@@ -594,7 +597,7 @@ test.describe("Auth callback and admission entry", () => {
             page.getByRole("heading", { name: "确认绑定当前 QQ" }),
         ).toBeVisible();
         await page.getByRole("button", { name: "开始认证" }).click();
-        await confirmAdmissionQQBinding(page);
+        await confirmAdmissionQQBinding(page, " 123456 ");
 
         await expect(
             page.getByRole("heading", { name: "选择认证方式" }),
