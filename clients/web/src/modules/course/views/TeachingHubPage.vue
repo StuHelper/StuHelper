@@ -272,9 +272,8 @@ const displayedResults = computed(() => {
 })
 
 const visibleSearchError = computed(() => {
-  if (searchCatalogError.value) return searchCatalogError.value
   if (displayedResults.value.length > 0) return ''
-  return remoteSearchError.value
+  return remoteSearchError.value || searchCatalogError.value
 })
 
 const advancedSearchRoute = computed(() => {
@@ -420,7 +419,7 @@ watch(query, (value) => {
   }
 
   const term = value.trim()
-  if (!term || searchCatalogError.value) {
+  if (!term) {
     remoteResults.value = []
     remoteSearchLoading.value = false
     return

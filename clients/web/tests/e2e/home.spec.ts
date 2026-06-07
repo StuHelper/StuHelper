@@ -154,6 +154,12 @@ async function mockTeacherProfile(page: Page, teacherId: number) {
       }),
     }),
   )
+  await page.route('**/api/v1/course/review/reviews/latest*', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, data: { list: [], total: 0 } }),
+    }),
+  )
 }
 
 async function mockCourseHub(page: Page) {
@@ -620,7 +626,7 @@ test('inline course search fails closed when response is malformed', async ({
   ).toHaveCount(0)
 })
 
-test('course hub local catalog fails closed when course catalog response is malformed', async ({
+test('course hub remote search still works when local catalog response is malformed', async ({
   page,
 }) => {
   await mockUnauthenticated(page)
@@ -637,6 +643,32 @@ test('course hub local catalog fails closed when course catalog response is malf
       }),
     }),
   )
+  await page.route('**/api/v1/course/courses/search*', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          list: [
+            course({
+              id: 88,
+              name: '高等数学A',
+              code: 'MATH101',
+              credits: 5,
+              reviewCount: 32,
+            }),
+          ],
+          total: 1,
+        },
+      }),
+    }),
+  )
+  await mockCourseDetail(page, 88, {
+    name: '高等数学A',
+    code: 'MATH101',
+    departmentName: '数学科学学院',
+    credits: 5,
+  })
   await page.route('**/api/v1/course/review/stats', (route) =>
     route.fulfill({
       contentType: 'application/json',
@@ -677,13 +709,17 @@ test('course hub local catalog fails closed when course catalog response is malf
     .getByRole('textbox', {
       name: /搜索课程名称、拼音|Search by course name/i,
     })
-  await localSearch.fill('missing')
+  await localSearch.fill('高等数学')
 
   const dropdown = page.locator('#course-hub-search-listbox')
   await expect(
-    dropdown.getByRole('alert').filter({ hasText: /Load failed|加载失败/i }),
+    dropdown.getByRole('option', { name: /高等数学A.*数学科学学院.*32条测评/ }),
   ).toBeVisible({ timeout: 10_000 })
-  await expect(
-    dropdown.getByText(/暂未被收录|not listed/i),
-  ).toHaveCount(0)
+
+  await dropdown.getByRole('option', { name: /高等数学A/ }).click()
+
+  await expect(page).toHaveURL(/\/courses\/88$/)
+  await expect(page.getByText('高等数学A').first()).toBeVisible({
+    timeout: 10_000,
+  })
 })
