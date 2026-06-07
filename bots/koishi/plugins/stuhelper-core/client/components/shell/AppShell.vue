@@ -27,12 +27,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 
 import { provideAppShell } from '../../composables/use-app-shell'
 import { useConsoleNavigation } from '../../composables/use-console-navigation'
 import { useConsolePages } from '../../composables/use-console-pages'
 import { usePulse } from '../../composables/use-pulse'
+import { consoleViewTitle } from '../../models/views'
 import NavRail from './NavRail.vue'
 import CommandBar from './CommandBar.vue'
 import EntityOverlay from './EntityOverlay.vue'
@@ -47,8 +48,18 @@ const shell = provideAppShell()
 const navigation = useConsoleNavigation()
 const pages = useConsolePages()
 const pulse = usePulse()
+const baseTitle = normalizeBaseTitle(document.title)
 
 const activeComponent = computed(() => pages.resolve(navigation.state.value.view))
+const pageTitle = computed(() => `${consoleViewTitle(navigation.state.value.view)} · ${baseTitle}`)
+
+watch(
+  pageTitle,
+  (title) => {
+    document.title = title
+  },
+  { immediate: true },
+)
 
 function onKeydown(event: KeyboardEvent): void {
   if (event.defaultPrevented) return
@@ -85,5 +96,12 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
+  document.title = baseTitle
 })
+
+function normalizeBaseTitle(title: string): string {
+  const marker = 'StuHelper 群管中心'
+  const index = title.indexOf(marker)
+  return index >= 0 ? title.slice(index) : title
+}
 </script>

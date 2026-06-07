@@ -139,6 +139,7 @@ for (const view of VIEWS) {
       await expect(page.getByText('已配置群组').first()).toBeVisible({ timeout: 10_000 })
       await expect(page.getByText('加载失败')).toHaveCount(0)
     }
+    await expect(page).toHaveTitle(new RegExp(`^${escapeRegExp(view.label)} · StuHelper 群管中心 \\| Koishi 控制台$`))
 
     tracker.assertClean()
   })
@@ -1499,6 +1500,10 @@ async function restoreHistoryProbe(page: Page): Promise<void> {
     const win = window as HistoryProbeWindow
     win.__stuhelperRestoreHistoryProbe?.()
   })
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 async function shellSearchShortcut(page: Page): Promise<{ label: string; key: string }> {
