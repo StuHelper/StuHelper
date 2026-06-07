@@ -18,12 +18,12 @@
       type="button"
       class="sh-cmd__search"
       aria-label="打开全站搜索"
-      title="⌘K 全站搜索"
+      :title="`${shortcuts.search} 全站搜索`"
       @click="onSearchClick"
     >
       <span class="sh-cmd__search-icon" aria-hidden="true">⌕</span>
       <span class="sh-cmd__search-text">搜索成员 / 群 / 命令…</span>
-      <span class="sh-cmd__kbd">⌘K</span>
+      <span class="sh-cmd__kbd">{{ shortcuts.search }}</span>
     </button>
 
     <div class="sh-cmd__right">
@@ -69,12 +69,12 @@
         class="sh-cmd__chat"
         :data-active="shell.chatOpen.value && !shell.chatMinimized.value ? 'true' : 'false'"
         :aria-label="shell.chatOpen.value ? '关闭实时聊天' : '打开实时聊天'"
-        :title="shell.chatOpen.value ? '关闭实时聊天 (⌘/)' : '打开实时聊天 (⌘/)'"
+        :title="shell.chatOpen.value ? `关闭实时聊天 (${shortcuts.chat})` : `打开实时聊天 (${shortcuts.chat})`"
         @click="shell.toggleChat()"
       >
         <k-icon name="stuhelperGroupCenter:octicons.discussion" />
         <span class="sh-cmd__chat-label">聊天</span>
-        <span class="sh-cmd__kbd">⌘/</span>
+        <span class="sh-cmd__kbd">{{ shortcuts.chat }}</span>
       </button>
     </div>
   </header>
@@ -87,6 +87,7 @@ import { useAppShell } from '../../composables/use-app-shell'
 import type { ConsoleNavigationController } from '../../composables/use-console-navigation'
 import type { ConsoleViewId } from '../../models/views'
 import type { PulseState } from '../../composables/use-pulse'
+import { getShellShortcutLabels } from './shortcut-labels'
 
 const props = defineProps<{
   navigation: ConsoleNavigationController
@@ -94,6 +95,7 @@ const props = defineProps<{
 }>()
 
 const shell = useAppShell()
+const shortcuts = getShellShortcutLabels()
 
 interface CrumbDef {
   readonly section: string

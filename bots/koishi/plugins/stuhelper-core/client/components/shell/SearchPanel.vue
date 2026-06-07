@@ -26,7 +26,7 @@
           <div class="sh-search__hint" v-if="!query.trim()">
             <span class="sh-search__hint-line">数字 = 查看用户 / 群组上下文</span>
             <span class="sh-search__hint-line">文字 = 跳转视图或快捷指令</span>
-            <span class="sh-search__hint-line">⌘K 打开 · ⌘/ 实时聊天 · Esc 关闭</span>
+            <span class="sh-search__hint-line">{{ shortcuts.search }} 打开 · {{ shortcuts.chat }} 实时聊天 · Esc 关闭</span>
           </div>
 
           <ul class="sh-search__list" v-if="results.length > 0">
@@ -62,12 +62,14 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useAppShell } from '../../composables/use-app-shell'
 import type { ConsoleNavigationController } from '../../composables/use-console-navigation'
 import type { ConsoleViewId } from '../../models/views'
+import { getShellShortcutLabels } from './shortcut-labels'
 
 const props = defineProps<{
   navigation: ConsoleNavigationController
 }>()
 
 const shell = useAppShell()
+const shortcuts = getShellShortcutLabels()
 const inputRef = ref<HTMLInputElement | null>(null)
 const query = ref('')
 const activeIndex = ref(0)
@@ -119,7 +121,7 @@ const ACTION_INTENTS: readonly ActionIntent[] = [
     id: 'a:chat',
     kind: 'action',
     title: '打开实时聊天',
-    hint: '浮窗 · ⌘/',
+    hint: `浮窗 · ${shortcuts.chat}`,
     run: () => shell.openChat(),
   },
   {
