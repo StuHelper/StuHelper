@@ -568,6 +568,7 @@ test.describe("Course community surfaces", () => {
         await expect(
             page.getByRole("link", { name: /编译原理/ }),
         ).toBeVisible();
+        await expect(page).toHaveTitle(/陈老师 - StuHelper/);
     });
 
     test("invalid popular teachers response fails closed and can retry", async ({

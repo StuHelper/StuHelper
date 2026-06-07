@@ -150,6 +150,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
+import { updatePageMeta } from '@/composables/usePageMeta'
 import RatingCircle from '@/components/common/RatingCircle.vue'
 import EmojiRating from '@/components/business/review/EmojiRating.vue'
 import { User, BookOpen, MessageSquare, TrendingUp } from 'lucide-vue-next'
@@ -300,12 +301,26 @@ function readTeacherPayload(payload: unknown): TeacherDetail {
   }
 }
 
+function updateTeacherPageMeta() {
+  if (!teacher.value) return
+
+  updatePageMeta({
+    title: teacher.value.teacherName,
+    description: [
+      teacher.value.teacherName,
+      teacher.value.departmentName,
+      t('teaching.profile.reviewsCount', { count: teacher.value.reviewCount }),
+    ].join(' · '),
+  })
+}
+
 const fetchTeacher = async () => {
   loading.value = true
   loadError.value = ''
   try {
     const res = await api.rating.getTeacherStats(teacherID.value)
     teacher.value = readTeacherPayload(res.data?.data)
+    updateTeacherPageMeta()
   } catch (_error) { void _error;
     teacher.value = null
     loadError.value = t('common.loadFailed')
