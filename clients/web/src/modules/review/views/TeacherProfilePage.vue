@@ -201,8 +201,10 @@
     <div v-else-if="loadError" role="alert" class="flex flex-col items-center justify-center p-12 text-center text-text-muted">
       <p>{{ loadError }}</p>
       <button
+        v-if="canRetryTeacherLoad"
         type="button"
         class="mt-4 rounded-lg bg-primary px-4 py-2 text-white hover:bg-primary/90 cursor-pointer"
+        data-teacher-profile-retry-button
         @click="() => fetchTeacher()"
       >
         {{ t('common.actions.retry') }}
@@ -220,6 +222,7 @@ import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
+import { getErrorStatus, isApiError } from '@/api/errors'
 import { updatePageMeta } from '@/composables/usePageMeta'
 import RatingCircle from '@/components/common/RatingCircle.vue'
 import EmojiRating from '@/components/business/review/EmojiRating.vue'
@@ -259,6 +262,7 @@ const teacherID = computed(() => Number(route.params.id))
 const loading = ref(true)
 const teacher = ref<TeacherDetail | null>(null)
 const loadError = ref('')
+const canRetryTeacherLoad = ref(false)
 const teacherReviews = ref<Review[]>([])
 const teacherReviewsLoading = ref(false)
 const teacherReviewsError = ref('')
@@ -397,10 +401,15 @@ function isValidTeacherID(value: number) {
   return Number.isInteger(value) && value > 0
 }
 
+function isTeacherNotFoundError(error: unknown) {
+  return getErrorStatus(error) === 404 || (isApiError(error) && error.code === 'A0100003')
+}
+
 const fetchTeacher = async (id = teacherID.value) => {
   const requestSeq = ++teacherRequestSeq
   loading.value = true
   loadError.value = ''
+  canRetryTeacherLoad.value = false
   teacherReviews.value = []
   teacherReviewsError.value = ''
   teacherReviewsTotal.value = 0
@@ -412,10 +421,20 @@ const fetchTeacher = async (id = teacherID.value) => {
     teacher.value = nextTeacher
     updateTeacherPageMeta(nextTeacher)
     await fetchTeacherReviews(true, id)
-  } catch (_error) { void _error;
+  } catch (error) {
     if (requestSeq !== teacherRequestSeq || teacherID.value !== id) return
     teacher.value = null
-    loadError.value = t('common.loadFailed')
+    if (isTeacherNotFoundError(error)) {
+      loadError.value = t('teaching.profile.notFound')
+      canRetryTeacherLoad.value = false
+      updatePageMeta({
+        title: t('teaching.profile.notFound'),
+        description: t('teaching.profile.notFound'),
+      })
+    } else {
+      loadError.value = t('common.loadFailed')
+      canRetryTeacherLoad.value = true
+    }
   } finally {
     if (requestSeq === teacherRequestSeq && teacherID.value === id) {
       loading.value = false

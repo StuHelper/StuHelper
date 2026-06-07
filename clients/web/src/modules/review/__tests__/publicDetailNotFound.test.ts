@@ -1,0 +1,376 @@
+// @vitest-environment jsdom
+
+import { flushPromises, mount } from '@vue/test-utils'
+import { reactive } from 'vue'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mockCourseApi = vi.hoisted(() => ({
+  getCourse: vi.fn(),
+}))
+
+const mockRatingApi = vi.hoisted(() => ({
+  getCourseStats: vi.fn(),
+  getCourseTeachers: vi.fn(),
+  getRatingTrend: vi.fn(),
+  getTeacherStats: vi.fn(),
+}))
+
+const mockReviewApi = vi.hoisted(() => ({
+  getLatestReviewsPage: vi.fn(),
+  getReviewsPage: vi.fn(),
+}))
+
+const mockRouteContainer = vi.hoisted(() => ({
+  route: null as null | {
+    fullPath: string
+    matched: Array<{ name: string }>
+    params: { id: string }
+    path: string
+    query: Record<string, string>
+  },
+}))
+
+const mockRouter = vi.hoisted(() => ({
+  push: vi.fn(),
+  replace: vi.fn(),
+  resolve: vi.fn(() => ({ fullPath: '/courses/reviews/post' })),
+}))
+
+const mockToastError = vi.hoisted(() => vi.fn())
+
+const translations: Record<string, string> = {
+  'common.actions.loading': '加载中...',
+  'common.actions.retry': '重试',
+  'common.loadFailed': '加载失败',
+  'review.course.notFound': '课程不存在或已被移除。',
+  'review.courseDetail': '课程详情',
+  'teaching.profile.notFound': '未找到教师信息',
+}
+
+vi.mock('@/api', () => ({
+  api: {
+    course: mockCourseApi,
+    rating: mockRatingApi,
+    review: mockReviewApi,
+  },
+}))
+
+vi.mock('vue-router', () => {
+  mockRouteContainer.route = reactive({
+    fullPath: '/courses/999999',
+    matched: [],
+    params: {
+      id: '999999',
+    },
+    path: '/courses/999999',
+    query: {},
+  })
+
+  return {
+    useRoute: () => mockRouteContainer.route,
+    useRouter: () => mockRouter,
+  }
+})
+
+vi.mock('vue-i18n', () => {
+  const t = (key: string) => translations[key] ?? key
+
+  return {
+    createI18n: () => ({
+      global: {
+        t,
+        te: (key: string) => key in translations,
+      },
+      install: vi.fn(),
+    }),
+    useI18n: () => ({
+      locale: {
+        value: 'zh-CN',
+      },
+      t,
+    }),
+  }
+})
+
+vi.mock('@/composables/useToast', () => ({
+  useToast: () => ({
+    error: mockToastError,
+  }),
+}))
+
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => ({
+    isAuthenticated: false,
+    login: vi.fn(),
+    user: null,
+  }),
+}))
+
+vi.mock('@/stores/verification', () => ({
+  useVerificationStore: () => ({
+    canViewFullReviews: false,
+  }),
+}))
+
+vi.mock('@/utils/adminAccess', () => ({
+  canListFullReviews: () => false,
+}))
+
+vi.mock('@/composables/useReviewPost', () => ({
+  useReviewPost: () => ({
+    ensureCanPostReview: vi.fn(),
+  }),
+}))
+
+vi.mock('@/modules/review/reviewPostNavigation', () => ({
+  rememberReviewPostCourse: vi.fn(),
+}))
+
+vi.mock('@/modules/review/useReviewAdmin', () => ({
+  useReviewAdmin: () => ({
+    canManageReviews: false,
+    editingReview: null,
+    handleAdminEdit: vi.fn(),
+    handleModerate: vi.fn(),
+    handleRestore: vi.fn(),
+    moderatingReviewID: null,
+    openEdit: vi.fn(),
+    openModeration: vi.fn(),
+    showEditDialog: false,
+    showModerationDialog: false,
+  }),
+}))
+
+vi.mock('@/modules/review/useReviewReplies', () => ({
+  useReviewReplies: () => ({
+    expandedReviewID: null,
+    handleDeleteReply: vi.fn(),
+    handleReplySubmit: vi.fn(),
+    loadReplies: vi.fn(),
+    replies: [],
+    repliesError: false,
+    repliesLoading: false,
+    replyCountMap: {},
+    replyFormRef: null,
+    replySubmitting: false,
+    toggleExpand: vi.fn(),
+  }),
+}))
+
+vi.mock('@/modules/review/useReviewVoting', () => ({
+  useReviewVoting: () => ({
+    displayDislikeCount: vi.fn(() => 0),
+    displayLikeCount: vi.fn(() => 0),
+    handleVote: vi.fn(),
+    reviewVotes: {},
+  }),
+}))
+
+vi.mock('@/modules/course/theme/CourseThemeProvider.vue', () => ({
+  default: {
+    name: 'CourseThemeProvider',
+    template: '<div><slot /></div>',
+  },
+}))
+
+vi.mock('@/components/business/review/EmojiRating.vue', () => ({
+  default: {
+    name: 'EmojiRating',
+    template: '<div data-stubbed-child />',
+  },
+}))
+
+vi.mock('@/components/business/review/ControversialBadge.vue', () => ({
+  default: {
+    name: 'ControversialBadge',
+    template: '<div data-stubbed-child />',
+  },
+}))
+
+vi.mock('@/components/business/review/FavoriteButton.vue', () => ({
+  default: {
+    name: 'FavoriteButton',
+    template: '<div data-stubbed-child />',
+  },
+}))
+
+vi.mock('@/components/business/review/LockedReviewContent.vue', () => ({
+  default: {
+    name: 'LockedReviewContent',
+    template: '<div data-stubbed-child />',
+  },
+}))
+
+vi.mock('@/components/business/review/ReplyCard.vue', () => ({
+  default: {
+    name: 'ReplyCard',
+    template: '<div data-stubbed-child />',
+  },
+}))
+
+vi.mock('@/components/business/review/ReplyForm.vue', () => ({
+  default: {
+    name: 'ReplyForm',
+    template: '<div data-stubbed-child />',
+  },
+}))
+
+vi.mock('@/components/business/review/ReplyLoginPrompt.vue', () => ({
+  default: {
+    name: 'ReplyLoginPrompt',
+    template: '<div data-stubbed-child />',
+  },
+}))
+
+vi.mock('@/components/business/review/ModerationDialog.vue', () => ({
+  default: {
+    name: 'ModerationDialog',
+    template: '<div data-stubbed-child />',
+  },
+}))
+
+vi.mock('@/components/business/review/AdminEditDialog.vue', () => ({
+  default: {
+    name: 'AdminEditDialog',
+    template: '<div data-stubbed-child />',
+  },
+}))
+
+vi.mock('@/components/common/RatingCircle.vue', () => ({
+  default: {
+    name: 'RatingCircle',
+    template: '<div data-stubbed-child><slot /></div>',
+  },
+}))
+
+vi.mock('@/components/business/review/ReviewCard.vue', () => ({
+  default: {
+    name: 'ReviewCard',
+    template: '<div data-stubbed-child />',
+  },
+}))
+
+const { default: CourseDetailPage } = await import('../views/CourseDetailPage.vue')
+const { default: TeacherProfilePage } = await import('../views/TeacherProfilePage.vue')
+
+function setRoute(path: string) {
+  mockRouteContainer.route = reactive({
+    fullPath: path,
+    matched: [],
+    params: {
+      id: '999999',
+    },
+    path,
+    query: {},
+  })
+}
+
+function mountPage(component: unknown) {
+  return mount(component, {
+    global: {
+      stubs: {
+        RouterLink: true,
+        'router-link': true,
+      },
+    },
+  })
+}
+
+function resolveCourseSideRequests() {
+  mockRatingApi.getCourseStats.mockResolvedValue({
+    data: {
+      data: {
+        allDimensionKeys: [],
+        byTerm: [],
+        courseID: 999999,
+        overall: {
+          dimensions: [],
+          termName: '总体',
+        },
+      },
+    },
+  })
+  mockRatingApi.getCourseTeachers.mockResolvedValue({
+    data: {
+      data: [],
+    },
+  })
+  mockRatingApi.getRatingTrend.mockResolvedValue({
+    data: {
+      data: {
+        trend: [],
+      },
+    },
+  })
+  mockReviewApi.getReviewsPage.mockResolvedValue({
+    list: [],
+    total: 0,
+  })
+}
+
+describe('public detail not-found states', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setRoute('/courses/999999')
+    resolveCourseSideRequests()
+    mockReviewApi.getLatestReviewsPage.mockResolvedValue({
+      list: [],
+      total: 0,
+    })
+  })
+
+  it('shows a stable course not-found state without retry affordance', async () => {
+    mockCourseApi.getCourse.mockRejectedValueOnce({
+      code: 'A0100001',
+      message: 'course not found',
+      status: 404,
+    })
+
+    const wrapper = mountPage(CourseDetailPage)
+    await flushPromises()
+
+    expect(mockCourseApi.getCourse).toHaveBeenCalledWith(999999)
+    expect(wrapper.get('[role="alert"]').text()).toContain('课程不存在或已被移除。')
+    expect(wrapper.text()).not.toContain('加载失败')
+    expect(wrapper.find('[data-course-detail-retry-button]').exists()).toBe(false)
+  })
+
+  it('keeps course retry available for transient detail failures', async () => {
+    mockCourseApi.getCourse.mockRejectedValueOnce(new Error('backend unavailable'))
+
+    const wrapper = mountPage(CourseDetailPage)
+    await flushPromises()
+
+    expect(wrapper.get('[role="alert"]').text()).toContain('加载失败')
+    expect(wrapper.get('[data-course-detail-retry-button]').text()).toContain('重试')
+  })
+
+  it('shows a stable teacher not-found state without retry affordance', async () => {
+    setRoute('/teachers/999999')
+    mockRatingApi.getTeacherStats.mockRejectedValueOnce({
+      code: 'A0100003',
+      message: 'teacher not found',
+      status: 404,
+    })
+
+    const wrapper = mountPage(TeacherProfilePage)
+    await flushPromises()
+
+    expect(mockRatingApi.getTeacherStats).toHaveBeenCalledWith(999999)
+    expect(wrapper.get('[role="alert"]').text()).toContain('未找到教师信息')
+    expect(wrapper.text()).not.toContain('加载失败')
+    expect(wrapper.find('[data-teacher-profile-retry-button]').exists()).toBe(false)
+    expect(mockReviewApi.getLatestReviewsPage).not.toHaveBeenCalled()
+  })
+
+  it('keeps teacher retry available for transient detail failures', async () => {
+    setRoute('/teachers/999999')
+    mockRatingApi.getTeacherStats.mockRejectedValueOnce(new Error('backend unavailable'))
+
+    const wrapper = mountPage(TeacherProfilePage)
+    await flushPromises()
+
+    expect(wrapper.get('[role="alert"]').text()).toContain('加载失败')
+    expect(wrapper.get('[data-teacher-profile-retry-button]').text()).toContain('重试')
+  })
+})

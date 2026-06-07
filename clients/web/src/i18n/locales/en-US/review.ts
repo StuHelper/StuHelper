@@ -46,7 +46,8 @@ export default {
     noTeacherData: 'No teacher data available',
     creditsBadge: '{n} cr',
     reviewCountBadge: '{count} rev',
-    fallbackTitle: 'Course #{id}'
+    fallbackTitle: 'Course #{id}',
+    notFound: 'This course does not exist or has been removed.'
   },
   review: {
     anonymous: 'Anonymous',

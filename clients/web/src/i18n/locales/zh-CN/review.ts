@@ -31,7 +31,8 @@ export default {
     noTeacherData: '暂无教师数据',
     creditsBadge: '{n}学分',
     reviewCountBadge: '{count}评',
-    fallbackTitle: '课程 #{id}'
+    fallbackTitle: '课程 #{id}',
+    notFound: '课程不存在或已被移除。'
   },
   review: {
     anonymous: '匿名用户',

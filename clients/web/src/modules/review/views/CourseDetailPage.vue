@@ -15,10 +15,12 @@
       </div>
 
       <!-- Error -->
-      <div v-else-if="error" class="text-center py-12">
-        <p class="mb-4 text-text-muted">{{ t('common.loadFailed') }}</p>
+      <div v-else-if="error" class="text-center py-12" role="alert">
+        <p class="mb-4 text-text-muted">{{ courseLoadErrorMessage }}</p>
         <button
+          v-if="canRetryCourseLoad"
           class="py-2 px-6 text-sm font-medium text-white bg-primary rounded-full transition-opacity duration-fast hover:opacity-90"
+          data-course-detail-retry-button
           @click="fetchAll()"
         >
           {{ t('common.actions.retry') }}
@@ -474,7 +476,7 @@ import { useReviewReplies } from '@/modules/review/useReviewReplies'
 import { useReviewVoting } from '@/modules/review/useReviewVoting'
 
 import { api } from '@/api'
-import { getErrorMessage } from '@/api/errors'
+import { getErrorMessage, getErrorStatus, isApiError } from '@/api/errors'
 import { updatePageMeta } from '@/composables/usePageMeta'
 import { useToast } from '@/composables/useToast'
 import { formatRelativeTime } from '@/utils/date'
@@ -520,6 +522,8 @@ const isPanelMode = computed(() => {
 // ── Page state ──
 const loading = ref(false)
 const error = ref(false)
+const courseLoadErrorMessage = ref('')
+const canRetryCourseLoad = ref(false)
 const partialLoadError = ref(false)
 const contentReady = ref(false)
 const course = ref<Course | null>(null)
@@ -773,6 +777,10 @@ function readRatingStatsPayload(payload: unknown): CourseRatingStatsResponse {
   }
 }
 
+function isCourseNotFoundError(error: unknown) {
+  return getErrorStatus(error) === 404 || (isApiError(error) && error.code === 'A0100001')
+}
+
 function updateCoursePageMeta() {
   if (!course.value) return
 
@@ -891,6 +899,8 @@ const fetchAll = async () => {
   contentReady.value = false
   loading.value = true
   error.value = false
+  courseLoadErrorMessage.value = ''
+  canRetryCourseLoad.value = false
   partialLoadError.value = false
 
   try {
@@ -915,13 +925,26 @@ const fetchAll = async () => {
       } catch (err) {
         course.value = null
         error.value = true
+        courseLoadErrorMessage.value = t('common.loadFailed')
+        canRetryCourseLoad.value = true
         toast.error(getErrorMessage(err, t('common.loadFailed')))
         return
       }
     } else {
       course.value = null
       error.value = true
-      toast.error(getErrorMessage(courseRes.reason, t('common.loadFailed')))
+      if (isCourseNotFoundError(courseRes.reason)) {
+        courseLoadErrorMessage.value = t('review.course.notFound')
+        canRetryCourseLoad.value = false
+        updatePageMeta({
+          title: t('review.courseDetail'),
+          description: t('review.course.notFound'),
+        })
+      } else {
+        courseLoadErrorMessage.value = t('common.loadFailed')
+        canRetryCourseLoad.value = true
+        toast.error(getErrorMessage(courseRes.reason, t('common.loadFailed')))
+      }
       return
     }
 
