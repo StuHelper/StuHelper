@@ -460,6 +460,7 @@ import { useReviewVoting } from '@/modules/review/useReviewVoting'
 
 import { api } from '@/api'
 import { getErrorMessage } from '@/api/errors'
+import { updatePageMeta } from '@/composables/usePageMeta'
 import { useToast } from '@/composables/useToast'
 import { formatRelativeTime } from '@/utils/date'
 import { useReviewPost } from '@/composables/useReviewPost'
@@ -725,6 +726,24 @@ function readRatingStatsPayload(payload: unknown): CourseRatingStatsResponse {
   }
 }
 
+function updateCoursePageMeta() {
+  if (!course.value) return
+
+  const detailParts = [
+    course.value.departmentName,
+    total.value > 0
+      ? `${total.value} ${t('review.course.reviewUnit')}`
+      : undefined,
+  ].filter((part): part is string => Boolean(part))
+
+  updatePageMeta({
+    title: course.value.name,
+    description: detailParts.length > 0
+      ? `${course.value.name} · ${detailParts.join(' · ')}`
+      : course.value.name,
+  })
+}
+
 // ── Navigation ──
 function handleLogin() {
   void authStore.login()
@@ -888,6 +907,7 @@ const fetchAll = async () => {
     }
 
     partialLoadError.value = hasPartialError
+    updateCoursePageMeta()
     if (partialLoadError.value) {
       toast.error(t('common.loadFailed'))
     }

@@ -276,6 +276,7 @@ test.describe('Course Browse Flow', () => {
     // Assert course name and department rendered from mocked data
     await expect(page.getByText('高等数学A')).toBeVisible({ timeout: 10_000 })
     await expect(page.getByText('数学科学学院')).toBeVisible()
+    await expect(page).toHaveTitle(/高等数学A - StuHelper/)
   })
 
   test('guest readers can view replies without seeing a reply editor', async ({
