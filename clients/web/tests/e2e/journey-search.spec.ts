@@ -381,6 +381,97 @@ test.describe('User Journey: Search', () => {
     await expect(page.getByText('按老师和学期命中的评价')).toBeVisible()
   })
 
+  test('course keyword search keeps the selected department filter', async ({
+    page,
+  }) => {
+    let legacyCourseSearchRequests = 0
+    await page.route('**/api/v1/course/courses/search*', (route) => {
+      legacyCourseSearchRequests += 1
+      recordApiRequest(route)
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { list: [], total: 0 },
+        }),
+      })
+    })
+    await page.route('**/api/v1/course/courses?*', (route) => {
+      recordApiRequest(route)
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            list: [
+              course({
+                id: 202,
+                departmentID: 2,
+                departmentName: '数学科学学院',
+                code: 'MATH202',
+                name: '数学结构',
+                reviewCount: 5,
+              }),
+            ],
+            total: 1,
+          },
+        }),
+      })
+    })
+    await page.route('**/api/v1/course/review/reviews/search*', (route) => {
+      recordApiRequest(route)
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { list: [], total: 0 },
+        }),
+      })
+    })
+
+    await page.goto('/search')
+    await page.waitForLoadState('networkidle')
+
+    await page.locator('#advanced-department').selectOption('2')
+    await page.locator('#advanced-course-name').fill('结构')
+
+    const coursesResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/v1/course/courses?') &&
+        resp.status() === 200,
+    )
+    const reviewsResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/v1/course/review/reviews/search') &&
+        resp.status() === 200,
+    )
+
+    await page
+      .getByRole('button', { name: /^Search$|^搜索$/ })
+      .first()
+      .click()
+
+    await Promise.all([coursesResponse, reviewsResponse])
+
+    await expect
+      .poll(() =>
+        hasWebGetRequest('/api/v1/course/courses', (url) =>
+          (
+            url.searchParams.get('q') === '结构' &&
+            url.searchParams.get('departmentID') === '2' &&
+            url.searchParams.get('pageSize') === '50'
+          ),
+        ),
+      )
+      .toBe(true)
+    expect(legacyCourseSearchRequests).toBe(0)
+
+    await expect(page.getByText('数学结构').first()).toBeVisible({
+      timeout: 10_000,
+    })
+    await expect(page.getByText('数学科学学院').first()).toBeVisible()
+  })
+
   test('search with no results shows empty state', async ({ page }) => {
     await page.route('**/api/v1/course/courses/search*', (route) => {
       recordApiRequest(route)

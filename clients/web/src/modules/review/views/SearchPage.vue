@@ -504,7 +504,13 @@ async function handleSearch() {
     const courseQuery = form.courseName.trim() || form.courseCode.trim()
 
     const coursePromise = courseQuery
-      ? api.course.searchCourses(courseQuery, { pageSize: 50 }, { signal })
+      ? form.departmentID > 0
+        ? api.course.getCourses({
+            q: courseQuery,
+            departmentID: form.departmentID,
+            pageSize: 50,
+          })
+        : api.course.searchCourses(courseQuery, { pageSize: 50 }, { signal })
       : form.departmentID > 0
         ? api.course.getCourses({ departmentID: form.departmentID, pageSize: 50 })
         : Promise.resolve(null)
