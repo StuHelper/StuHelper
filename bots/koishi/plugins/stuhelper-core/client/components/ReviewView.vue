@@ -221,7 +221,12 @@ import type { ConsoleNavigationController } from '../composables/use-console-nav
 import { consolePageApi } from '../page-api'
 import type { ReviewPageData, ReviewWorkItem } from '../page-types'
 import { formatTimestamp } from '../models/formatters'
-import { buildReviewModel, REVIEW_ACTION_LABELS, REVIEW_KIND_LABELS } from '../models/review'
+import {
+  buildReviewModel,
+  buildReviewSelectionPatch,
+  REVIEW_ACTION_LABELS,
+  REVIEW_KIND_LABELS,
+} from '../models/review'
 import { errorMessage } from '../utils/error-message'
 import ConfirmDialog from './primitives/ConfirmDialog.vue'
 import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
@@ -334,25 +339,15 @@ function selectItem(itemId: string) {
 }
 
 function syncSelection() {
-  const item = filteredItems.value.find((entry) => entry.id === selectedItemId.value) ?? filteredItems.value[0] ?? null
-  if (!item) {
-    props.navigation?.replaceState({
-      workspace: kindFilter.value || null,
-      guildId: null,
-      memberId: null,
-      itemId: null,
-      keyword: keyword.value,
-    })
-    return
-  }
-  selectedItemId.value = item.id
-  props.navigation?.replaceState({
-    workspace: item.kind,
-    guildId: item.guildId,
-    memberId: item.memberId,
-    itemId: item.id,
+  const patch = buildReviewSelectionPatch({
+    workspace: kindFilter.value,
+    guildId: guildFilter.value,
     keyword: keyword.value,
+    itemId: selectedItemId.value,
+    items: filteredItems.value,
   })
+  selectedItemId.value = patch.itemId || ''
+  props.navigation?.replaceState(patch)
 }
 
 async function submitAction(action: ReviewWorkItem['availableActions'][number]) {

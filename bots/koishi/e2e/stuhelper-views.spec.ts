@@ -374,6 +374,30 @@ test('global search opens entity overlay and entity jump updates navigation stat
   tracker.assertClean()
 })
 
+test('review center keeps filters separate from selected item context', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  await clickNavRail(page, '处置中心')
+  await expect(page).toHaveURL(/#review($|\?)/, { timeout: 5_000 })
+  await expect(page.locator('.sh-workspace-head__title', { hasText: '处置中心' }).first()).toBeVisible({
+    timeout: 10_000,
+  })
+
+  await selectLabeledOption(page, '类型', '举报')
+  await fillLabeledInput(page, '检索', 'dismiss-report-token')
+  await expect(page).toHaveURL(/#review\?workspace=report/, { timeout: 5_000 })
+
+  const reportRow = page.locator('.sh-lane__row', { hasText: 'dismiss-report-token' }).first()
+  await expect(reportRow).toBeVisible({ timeout: 10_000 })
+  await reportRow.click()
+
+  await selectLabeledOption(page, '类型', '全部类型')
+  await expect.poll(() => new URL(page.url()).hash).not.toContain('workspace=')
+  await expect(reportRow).toBeVisible()
+
+  tracker.assertClean()
+})
+
 test('review center dismisses a seeded report through real console action', async ({ loggedInPage: page }) => {
   await using tracker = createTracker(page)
 

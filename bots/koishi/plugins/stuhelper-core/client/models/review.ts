@@ -7,6 +7,22 @@ export interface ReviewModelOptions {
   itemId?: string | null
 }
 
+export interface ReviewSelectionPatchOptions {
+  workspace?: string | null
+  guildId?: string | null
+  keyword?: string
+  itemId?: string | null
+  items: readonly ReviewWorkItem[]
+}
+
+export interface ReviewSelectionPatch {
+  workspace: string | null
+  guildId: string | null
+  memberId: string | null
+  itemId: string | null
+  keyword: string
+}
+
 export const REVIEW_KIND_LABELS: Record<ReviewWorkItem['kind'], string> = {
   review: '复核',
   admission: '准入',
@@ -55,5 +71,30 @@ export function buildReviewModel(data: ReviewPageData, options: ReviewModelOptio
       { label: '待准入', value: data.items.filter((item) => item.kind === 'admission').length, note: '仍在限制中的准入成员。' },
       { label: '举报项', value: data.items.filter((item) => item.kind === 'report').length, note: '尚需继续处理的举报记录。' },
     ],
+  }
+}
+
+export function buildReviewSelectionPatch(options: ReviewSelectionPatchOptions): ReviewSelectionPatch {
+  const selectedItem = options.items.find((item) => item.id === options.itemId) ?? options.items[0] ?? null
+  const workspace = options.workspace || null
+  const guildId = options.guildId || null
+  const keyword = options.keyword || ''
+
+  if (!selectedItem) {
+    return {
+      workspace,
+      guildId,
+      memberId: null,
+      itemId: null,
+      keyword,
+    }
+  }
+
+  return {
+    workspace,
+    guildId,
+    memberId: selectedItem.memberId,
+    itemId: selectedItem.id,
+    keyword,
   }
 }
