@@ -135,7 +135,7 @@ sync_dev_browser_public_urls() {
 
   upsert_env_file "${ENV_FILE}" "WEB_PUBLIC_URL" "http://localhost:${web_port}"
   upsert_env_file "${ENV_FILE}" "WEB_VITE_WEB_URL" "http://localhost:${web_port}"
-  upsert_env_file "${ENV_FILE}" "ADMISSION_PUBLIC_BASE_URL" "http://localhost:${web_port}"
+  upsert_env_file "${ENV_FILE}" "ADMISSION_PUBLIC_BASE_URL" "http://join.localhost:${web_port}"
   upsert_env_file "${ENV_FILE}" "ADMIN_PUBLIC_URL" "http://localhost:${admin_port}/admin/"
   upsert_env_file "${ENV_FILE}" "CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI" "http://localhost:${web_port}/open-platform/token-probe/callback"
   upsert_env_file "${ENV_FILE}" "CORS_ORIGINS" "http://localhost:${web_port},http://127.0.0.1:${web_port},http://join.localhost:${web_port},http://localhost:${admin_port},http://127.0.0.1:${admin_port}"

@@ -377,7 +377,7 @@ ensure_dev_default "ADMIN_EXTERNAL_PORT" "${ADMIN_EXTERNAL_PORT:-}" "3001" "1800
 ensure_dev_default "WEB_PUBLIC_URL" "${WEB_PUBLIC_URL:-}" "http://localhost:3000" "http://127.0.0.1:28000" "http://stuhelper.com" "https://stuhelper.com"
 ensure_dev_default "ADMIN_PUBLIC_URL" "${ADMIN_PUBLIC_URL:-}" "http://localhost:3001" "http://127.0.0.1:28001/admin/" "http://stuhelper.com/admin/" "https://stuhelper.com/admin/"
 ensure_dev_default "STUHELPER_PLATFORM_BASE_URL" "${STUHELPER_PLATFORM_BASE_URL:-}" "http://localhost:8080" "http://127.0.0.1:28080" "http://stuhelper.com" "https://stuhelper.com"
-ensure_dev_default "ADMISSION_PUBLIC_BASE_URL" "${ADMISSION_PUBLIC_BASE_URL:-}" "http://localhost:3000" "http://127.0.0.1:28000" "http://join.stuhelper.com" "https://join.stuhelper.com"
+ensure_dev_default "ADMISSION_PUBLIC_BASE_URL" "${ADMISSION_PUBLIC_BASE_URL:-}" "http://join.localhost:3000" "http://localhost:3000" "http://127.0.0.1:28000" "http://join.stuhelper.com" "https://join.stuhelper.com"
 ensure_dev_default "WEB_VITE_API_URL" "${WEB_VITE_API_URL:-}" "/api" ""
 ensure_dev_default "WEB_VITE_SSO_URL" "${WEB_VITE_SSO_URL:-}" "http://localhost:8085" "http://host.docker.internal:8085" "http://sso.stuhelper.com" "https://sso.stuhelper.com" "http://127.0.0.1:28085"
 ensure_dev_default "WEB_VITE_WEB_URL" "${WEB_VITE_WEB_URL:-}" "http://localhost:3000" "http://stuhelper.com" "https://stuhelper.com" "http://127.0.0.1:28000"
