@@ -16,7 +16,11 @@
       <div class="header-actions">
         <div class="toggle-wrapper" title="自动获取群名称和头像">
           <label>解析群名</label>
-          <el-switch v-model="fetchNames" @change="refreshConfigs" />
+          <el-switch
+            v-model="fetchNames"
+            aria-label="切换群组配置解析群名"
+            @change="refreshConfigs"
+          />
         </div>
         <!-- 视图切换 -->
         <div class="view-toggle">

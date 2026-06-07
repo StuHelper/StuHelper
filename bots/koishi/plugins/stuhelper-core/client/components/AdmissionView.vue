@@ -96,6 +96,7 @@
                 v-if="row.editable && row.settingKey"
                 :model-value="Boolean(row.value)"
                 :loading="settingLoadingKey === row.settingKey"
+                :aria-label="runtimeSwitchLabel(row)"
                 @change="(value: boolean | string | number) => submitRuntimeSetting(row, Boolean(value))"
               />
             </div>
@@ -485,6 +486,10 @@ function switchDotClass(tone: AdmissionSwitchRow['tone']) {
 function formatSwitchValue(value: AdmissionSwitchRow['value']) {
   if (typeof value === 'boolean') return value ? '启用' : '关闭'
   return String(value)
+}
+
+function runtimeSwitchLabel(row: AdmissionSwitchRow) {
+  return `切换入群认证运行开关：${row.label}`
 }
 </script>
 

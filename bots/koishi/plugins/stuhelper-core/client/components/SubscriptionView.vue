@@ -8,7 +8,12 @@
       <template #actions>
         <label class="sh-warns__toggle">
           <span class="sh-warns__toggle-label">解析名称</span>
-          <el-switch v-model="fetchNames" size="small" @change="refresh" />
+          <el-switch
+            v-model="fetchNames"
+            size="small"
+            aria-label="切换订阅目标解析名称"
+            @change="refresh"
+          />
         </label>
         <el-button
           class="sh-button sh-button--ghost"
