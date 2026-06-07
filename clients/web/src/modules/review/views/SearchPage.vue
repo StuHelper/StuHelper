@@ -362,7 +362,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, onUnmounted, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ArrowLeft, RefreshCw, Search, SearchX } from 'lucide-vue-next'
 import ReviewCard from '@/components/business/review/ReviewCard.vue'
@@ -379,6 +379,7 @@ import type { Department, Term, Course } from '@stuhelper/shared/course'
 import type { Review } from '@stuhelper/shared/review'
 
 const { t } = useI18n()
+const route = useRoute()
 const router = useRouter()
 const toast = useToast()
 
@@ -510,6 +511,41 @@ function validateForm(): boolean {
     return false
   }
   return true
+}
+
+function readQueryString(...keys: string[]): string {
+  for (const key of keys) {
+    const value = route.query[key]
+    const text = Array.isArray(value) ? value[0] : value
+    if (typeof text === 'string' && text.trim()) {
+      return text.trim()
+    }
+  }
+  return ''
+}
+
+function readQueryPositiveInteger(key: string): number {
+  const value = readQueryString(key)
+  if (!value) return 0
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 0
+}
+
+function hydrateSearchFormFromRoute(): boolean {
+  const courseName = readQueryString('courseName', 'q')
+  form.courseName = courseName
+  form.courseCode = courseName ? '' : readQueryString('courseCode', 'code')
+  form.departmentID = readQueryPositiveInteger('departmentID')
+  form.teacherName = readQueryString('teacherName')
+  form.termID = readQueryString('termID')
+
+  return (
+    form.courseName !== '' ||
+    form.courseCode !== '' ||
+    form.departmentID > 0 ||
+    form.teacherName !== '' ||
+    form.termID !== ''
+  )
 }
 
 function buildSearchCriteriaSummary() {
@@ -696,10 +732,13 @@ async function loadMoreReviews() {
 
 // --- Lifecycle ---
 
-onMounted(() => {
+onMounted(async () => {
   updateSearchFormPageMeta()
-  loadDepartments()
-  loadTerms()
+  const shouldSearch = hydrateSearchFormFromRoute()
+  await Promise.all([loadDepartments(), loadTerms()])
+  if (shouldSearch) {
+    await handleSearch()
+  }
 })
 
 onUnmounted(() => {

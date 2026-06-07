@@ -98,7 +98,7 @@
               </router-link>
               {{ t('review.home.contactFeedback') }}
               {{ t('review.home.tryAdvancedSearch') }}
-              <router-link to="/search" class="text-primary hover:text-primary-light" @click="showDropdown = false">
+              <router-link :to="advancedSearchRoute" class="text-primary hover:text-primary-light" @click="showDropdown = false">
                 {{ t('review.home.advancedSearch') }}
               </router-link>
             </p>
@@ -275,6 +275,13 @@ const visibleSearchError = computed(() => {
   if (searchCatalogError.value) return searchCatalogError.value
   if (displayedResults.value.length > 0) return ''
   return remoteSearchError.value
+})
+
+const advancedSearchRoute = computed(() => {
+  const courseName = query.value.trim()
+  return courseName
+    ? { name: 'search', query: { courseName } }
+    : { name: 'search' }
 })
 
 function onSearchKeyDown(e: KeyboardEvent) {

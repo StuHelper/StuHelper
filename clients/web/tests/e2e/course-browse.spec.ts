@@ -307,6 +307,56 @@ test.describe('Course Browse Flow', () => {
     await expect(page.getByText('深度学习导论')).toBeVisible({ timeout: 10_000 })
   })
 
+  test('course hub no-result advanced search keeps the typed course name', async ({
+    page,
+  }) => {
+    await page.route('**/api/v1/course/review/reviews/search*', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: { list: [], total: 0 } }),
+      }),
+    )
+
+    await page.goto('/courses')
+    await page.waitForLoadState('networkidle')
+
+    await page
+      .getByRole('textbox', {
+        name: /搜索课程名称、拼音或首字母/,
+      })
+      .fill('深度学习导论')
+
+    await expect(
+      page.getByRole('link', { name: /Advanced Search|高级搜索/i }),
+    ).toBeVisible({ timeout: 10_000 })
+
+    const advancedCourseSearchRequest = page.waitForRequest((request) => {
+      const url = new URL(request.url())
+      return (
+        url.pathname === '/api/v1/course/courses/search' &&
+        url.searchParams.get('q') === '深度学习导论' &&
+        url.searchParams.get('pageSize') === '50'
+      )
+    })
+    const advancedReviewSearchRequest = page.waitForRequest((request) => {
+      const url = new URL(request.url())
+      return (
+        url.pathname === '/api/v1/course/review/reviews/search' &&
+        url.searchParams.get('q') === '深度学习导论' &&
+        url.searchParams.get('pageSize') === '50' &&
+        url.searchParams.get('sort') === 'time'
+      )
+    })
+
+    await page.getByRole('link', { name: /Advanced Search|高级搜索/i }).click()
+
+    await Promise.all([advancedCourseSearchRequest, advancedReviewSearchRequest])
+    await expect(page).toHaveURL(/\/search\?/)
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get('courseName'))
+      .toBe('深度学习导论')
+  })
+
   test('invalid grouped course response fails closed and can retry', async ({
     page,
   }) => {

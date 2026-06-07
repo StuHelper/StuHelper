@@ -272,6 +272,100 @@ test.describe('User Journey: Search', () => {
     })
   })
 
+  test('course name query param preloads and executes search', async ({
+    page,
+  }) => {
+    await page.route('**/api/v1/course/courses/search*', (route) => {
+      recordApiRequest(route)
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            list: [course()],
+            total: 1,
+          },
+        }),
+      })
+    })
+
+    await page.route('**/api/v1/course/review/reviews/search*', (route) => {
+      recordApiRequest(route)
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            list: [
+              {
+                id: 'search-rev-query-param',
+                courseID: 101,
+                courseName: '数据结构与算法',
+                termID: '2026-spring',
+                title: 'URL 参数命中的评价',
+                content: '高级搜索可以从地址栏参数直接发起搜索。',
+                ratings: { recommendation: 4 },
+                likeCount: 3,
+                dislikeCount: 0,
+                replyCount: 0,
+                status: 'published',
+                createdAt: '2026-03-20T10:00:00Z',
+              },
+            ],
+            total: 1,
+          },
+        }),
+      })
+    })
+
+    const coursesSearchResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/v1/course/courses/search') &&
+        resp.status() === 200,
+    )
+    const reviewsSearchResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/v1/course/review/reviews/search') &&
+        resp.status() === 200,
+    )
+
+    await page.goto('/search?courseName=数据结构')
+    await Promise.all([coursesSearchResponse, reviewsSearchResponse])
+
+    await expect(
+      page.getByRole('heading', {
+        level: 1,
+        name: /Search Results|搜索结果/i,
+      }),
+    ).toBeVisible()
+    await expect
+      .poll(() =>
+        hasWebGetRequest('/api/v1/course/courses/search', (url) =>
+          (
+            url.searchParams.get('q') === '数据结构' &&
+            url.searchParams.get('pageSize') === '50'
+          ),
+        ),
+      )
+      .toBe(true)
+    await expect
+      .poll(() =>
+        hasWebGetRequest('/api/v1/course/review/reviews/search', (url) =>
+          (
+            url.searchParams.get('q') === '数据结构' &&
+            url.searchParams.get('pageSize') === '50' &&
+            url.searchParams.get('sort') === 'time'
+          ),
+        ),
+      )
+      .toBe(true)
+
+    await expect(page.getByText('数据结构与算法').first()).toBeVisible({
+      timeout: 10_000,
+    })
+    await expect(page.getByText('URL 参数命中的评价')).toBeVisible()
+  })
+
   test('user searches by department, teacher, and term query params', async ({
     page,
   }) => {
