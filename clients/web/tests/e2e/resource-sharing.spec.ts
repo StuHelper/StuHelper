@@ -214,6 +214,62 @@ test.describe('Resource sharing', () => {
     await expect.poll(() => downloadDocumentRequests).toBe(1)
   })
 
+  test('resource detail reloads when navigating between resource ids in the SPA', async ({
+    page,
+  }) => {
+    const nextResource = {
+      ...sampleResource,
+      id: 43,
+      title: '线性代数习题集',
+      description: '矩阵、行列式与线性空间练习。',
+      latestVersion: {
+        ...sampleResource.latestVersion,
+        id: 10,
+        filename: 'linear-algebra.pdf',
+        objectKey: 'resources/demo/linear-algebra.pdf',
+      },
+      updatedAt: '2026-05-03T08:00:00Z',
+    }
+    let firstResourceRequests = 0
+    let nextResourceRequests = 0
+
+    await page.route('**/api/v1/resources/42', (route) => {
+      firstResourceRequests += 1
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: sampleResource }),
+      })
+    })
+    await page.route('**/api/v1/resources/43', (route) => {
+      nextResourceRequests += 1
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: nextResource }),
+      })
+    })
+
+    await page.goto('/resources/42')
+
+    await expect(
+      page.getByRole('heading', { name: '高等数学A 期末复习讲义' }),
+    ).toBeVisible()
+    await expect(page.getByText('math-final.pdf')).toBeVisible()
+
+    await page.evaluate(() => {
+      window.history.pushState(null, '', '/resources/43')
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+
+    await expect(page).toHaveURL(/\/resources\/43$/)
+    await expect(
+      page.getByRole('heading', { name: '线性代数习题集' }),
+    ).toBeVisible()
+    await expect(page.getByText('linear-algebra.pdf')).toBeVisible()
+    await expect(page.getByText('math-final.pdf')).toHaveCount(0)
+    await expect.poll(() => firstResourceRequests).toBe(1)
+    await expect.poll(() => nextResourceRequests).toBe(1)
+  })
+
   test('resource detail rejects unsafe download URLs before navigation', async ({
     page,
   }) => {

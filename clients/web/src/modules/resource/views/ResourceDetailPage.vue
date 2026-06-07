@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink, useRoute } from 'vue-router'
 import { ArrowLeft, Download, FileText, Link2, RefreshCw, Tag } from 'lucide-vue-next'
@@ -18,6 +18,7 @@ const loading = ref(true)
 const downloadLoading = ref(false)
 const errorMessage = ref('')
 const downloadError = ref('')
+let loadRequestSeq = 0
 
 const resourceID = computed(() => {
   const raw = route.params.id
@@ -56,10 +57,14 @@ function formatFileSize(bytes: number) {
 }
 
 async function loadResource() {
-  if (resourceID.value === null) {
+  const requestSeq = ++loadRequestSeq
+  const id = resourceID.value
+
+  if (id === null) {
     resource.value = null
     loading.value = false
     errorMessage.value = t('resource.detail.notFound')
+    downloadError.value = ''
     return
   }
 
@@ -67,17 +72,22 @@ async function loadResource() {
   errorMessage.value = ''
   downloadError.value = ''
   try {
-    const res = await api.resource.getResource(resourceID.value)
-    resource.value = readResourceItemPayload(
+    const res = await api.resource.getResource(id)
+    const nextResource = readResourceItemPayload(
       res.data?.data,
       'Invalid resource response',
     )
+    if (requestSeq !== loadRequestSeq) return
+    resource.value = nextResource
   } catch (_error) {
     void _error
+    if (requestSeq !== loadRequestSeq) return
     resource.value = null
     errorMessage.value = t('resource.detail.loadFailed')
   } finally {
-    loading.value = false
+    if (requestSeq === loadRequestSeq) {
+      loading.value = false
+    }
   }
 }
 
@@ -100,9 +110,9 @@ async function downloadResource() {
   }
 }
 
-onMounted(() => {
+watch(resourceID, () => {
   void loadResource()
-})
+}, { immediate: true })
 </script>
 
 <template>
