@@ -1,6 +1,8 @@
 import {
     createRouter,
     createWebHistory,
+    type RouteLocationNormalized,
+    type RouteLocationRaw,
     type RouteRecordRaw,
 } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
@@ -14,6 +16,10 @@ import {
     resolveProtectedRouteAuthFailure,
     shouldResolveRouteSession,
 } from "@/router/auth-guard-decision";
+import {
+    currentHostname,
+    shouldBlockJoinHostRoute,
+} from "@/router/join-domain";
 import {
     safeGetSessionStorageItem,
     safeRemoveSessionStorageItem,
@@ -451,7 +457,25 @@ const router = createRouter({
     },
 });
 
+function buildNotFoundRoute(to: RouteLocationNormalized): RouteLocationRaw {
+    const pathMatch = to.path.replace(/^\/+/, "").split("/").filter(Boolean);
+    return {
+        name: "not-found",
+        params: pathMatch.length > 0 ? { pathMatch } : {},
+        query: to.query,
+        hash: to.hash,
+        replace: true,
+    };
+}
+
 router.beforeEach(async (to) => {
+    if (
+        to.name !== "not-found" &&
+        shouldBlockJoinHostRoute(currentHostname(), to.path)
+    ) {
+        return buildNotFoundRoute(to);
+    }
+
     if (to.path === "/auth/callback") {
         const code = typeof to.query.code === "string" ? to.query.code : "";
         const state = typeof to.query.state === "string" ? to.query.state : "";

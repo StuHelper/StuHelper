@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   let beforeEachGuard: ((to: Record<string, unknown>) => unknown) | undefined
@@ -81,6 +81,20 @@ function protectedRoute() {
   }
 }
 
+function publicRoute(path: string, name = 'home') {
+  const meta = { titleKey: 'routes.home' }
+
+  return {
+    fullPath: path,
+    hash: '',
+    matched: [{ meta }],
+    meta,
+    name,
+    path,
+    query: {},
+  }
+}
+
 describe('router auth guard', () => {
   beforeEach(() => {
     mocks.authStore.bootstrapCompleted = false
@@ -97,11 +111,35 @@ describe('router auth guard', () => {
     mocks.updatePageMeta.mockReset()
   })
 
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   it('cancels protected navigation when session bootstrap remains unresolved', async () => {
     const guard = mocks.getBeforeEachGuard()
 
     expect(guard).toBeDefined()
     await expect(guard?.(protectedRoute())).resolves.toBe(false)
     expect(mocks.authStore.bootstrapSession).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders not found for main-site routes on the join admission host', async () => {
+    vi.stubGlobal('window', { location: { hostname: 'join.localhost' } })
+    const guard = mocks.getBeforeEachGuard()
+
+    await expect(guard?.(publicRoute('/courses', 'course-hub'))).resolves.toEqual({
+      hash: '',
+      name: 'not-found',
+      params: { pathMatch: ['courses'] },
+      query: {},
+      replace: true,
+    })
+  })
+
+  it('allows admission verification routes on the join admission host', async () => {
+    vi.stubGlobal('window', { location: { hostname: 'join.localhost' } })
+    const guard = mocks.getBeforeEachGuard()
+
+    await expect(guard?.(publicRoute('/verify/LOCALJOINSMOKE', 'admission-token'))).resolves.toBe(true)
   })
 })

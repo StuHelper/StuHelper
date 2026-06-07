@@ -284,7 +284,7 @@ ensure_value "CASDOOR_TOKEN_PROBE_LOGIN_TIMEOUT_SECONDS" "${CASDOOR_TOKEN_PROBE_
 ensure_dev_default \
   "CORS_ORIGINS" \
   "${CORS_ORIGINS:-}" \
-  "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001" \
+  "http://localhost:3000,http://127.0.0.1:3000,http://join.localhost:3000,http://localhost:3001,http://127.0.0.1:3001" \
   "http://localhost:3000,http://localhost:3001" \
   "http://localhost:5173,http://localhost:3001" \
   "http://127.0.0.1:28000,http://127.0.0.1:28001" \

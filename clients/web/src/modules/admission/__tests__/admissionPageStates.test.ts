@@ -39,6 +39,7 @@ const mockToast = vi.hoisted(() => ({
   success: vi.fn(),
 }))
 
+const mockHasStoredSessionHint = vi.hoisted(() => vi.fn())
 const mockWaitForAdmissionProjection = vi.hoisted(() => vi.fn())
 const mountedWrappers: Array<{ unmount(): void }> = []
 
@@ -64,6 +65,10 @@ vi.mock('@/composables/useToast', () => ({
   useToast: () => mockToast,
 }))
 
+vi.mock('@/utils/sessionHint', () => ({
+  hasStoredSessionHint: mockHasStoredSessionHint,
+}))
+
 vi.mock('../projectionRefresh', () => ({
   waitForAdmissionProjection: mockWaitForAdmissionProjection,
 }))
@@ -85,6 +90,7 @@ describe('AdmissionPage edge states', () => {
     mockRoute.params = { code: 'ABCD' }
     mockRoute.query = {}
     sessionStorage.clear()
+    mockHasStoredSessionHint.mockReturnValue(true)
     mockWaitForAdmissionProjection.mockResolvedValue(false)
     mockVerificationStore.schools = []
     mockVerificationStore.fetchSchools.mockResolvedValue(undefined)
@@ -444,6 +450,21 @@ describe('AdmissionPage edge states', () => {
     expect(mockAuth.bootstrapSession).toHaveBeenCalledWith({ force: true })
     expect(wrapper.find('[data-state="ready"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('开始认证')
+  })
+
+  it('shows login without probing auth state when no local session hint exists', async () => {
+    mockAuth.isAuthenticated = false
+    mockHasStoredSessionHint.mockReturnValue(false)
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('joined_muted'),
+    )
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+
+    expect(mockAuth.bootstrapSession).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-state="needsLogin"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('登录 StuHelper')
   })
 
   it('refreshes the admission state when returning from SSO through browser cache', async () => {

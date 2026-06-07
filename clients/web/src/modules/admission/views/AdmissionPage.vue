@@ -316,6 +316,7 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { useVerificationStore } from '@/stores/verification'
+import { hasStoredSessionHint } from '@/utils/sessionHint'
 import type { AdmissionMe, AdmissionSession } from '@stuhelper/shared/api'
 
 import { admissionApi } from '../api'
@@ -545,6 +546,9 @@ async function resumeRememberedAdmissionSession(requestToken: string): Promise<b
 }
 
 async function refreshAdmissionAuthState(): Promise<boolean> {
+  if (!auth.isAuthenticated && !hasStoredSessionHint()) {
+    return false
+  }
   try {
     return await auth.bootstrapSession({ force: true })
   } catch {
