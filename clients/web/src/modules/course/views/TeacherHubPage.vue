@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter, type LocationQueryRaw, type LocationQueryValue } from 'vue-router'
 import { Search, X, User, BookOpen, RefreshCw } from 'lucide-vue-next'
 import { api } from '@/api'
 import {
@@ -20,8 +21,10 @@ interface TeacherEntry {
 }
 
 const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 
-const searchQuery = ref('')
+const searchQuery = ref(readRouteSearchQuery())
 const searchResults = ref<TeacherEntry[]>([])
 const searchTotal = ref(0)
 const searchPage = ref(1)
@@ -35,6 +38,39 @@ const TEACHER_SEARCH_PAGE_SIZE = 30
 
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 let searchRequestSeq = 0
+
+function firstRouteQueryValue(value: LocationQueryValue | LocationQueryValue[] | undefined): string | null {
+  if (Array.isArray(value)) {
+    return value.find((item): item is string => typeof item === 'string') ?? null
+  }
+  return typeof value === 'string' ? value : null
+}
+
+function readRouteSearchQuery(): string {
+  return firstRouteQueryValue(route.query.q)?.trim() ?? ''
+}
+
+function teacherHubQueryWithSearch(q: string): LocationQueryRaw {
+  const nextQuery: LocationQueryRaw = {}
+  for (const [key, value] of Object.entries(route.query)) {
+    if (key === 'q') continue
+    nextQuery[key] = value
+  }
+  if (q) {
+    nextQuery.q = q
+  }
+  return nextQuery
+}
+
+function resetSearchState(): void {
+  searchResults.value = []
+  searchTotal.value = 0
+  searchPage.value = 1
+  errorMessage.value = ''
+  loadMoreError.value = ''
+  searching.value = false
+  searchLoadingMore.value = false
+}
 
 async function loadPopularTeachers() {
   loading.value = true
@@ -68,17 +104,15 @@ function mapTeacher(raw: TeacherSummaryPayload): TeacherEntry {
 function handleSearchInput() {
   if (searchTimer) clearTimeout(searchTimer)
   searchRequestSeq += 1
-  if (!searchQuery.value.trim()) {
-    searchResults.value = []
-    searchTotal.value = 0
-    searchPage.value = 1
-    errorMessage.value = ''
-    loadMoreError.value = ''
-    searching.value = false
-    searchLoadingMore.value = false
+  const q = searchQuery.value.trim()
+  if (!q) {
+    resetSearchState()
+    void router.replace({ path: route.path, query: teacherHubQueryWithSearch('') })
     return
   }
-  searchTimer = setTimeout(() => { void doSearch() }, 350)
+  searchTimer = setTimeout(() => {
+    void router.replace({ path: route.path, query: teacherHubQueryWithSearch(q) })
+  }, 350)
 }
 
 async function doSearch(nextPage = 1, append = false) {
@@ -140,14 +174,35 @@ function loadMoreSearchResults() {
 
 function clearSearch() {
   searchQuery.value = ''
-  searchResults.value = []
-  searchTotal.value = 0
-  searchPage.value = 1
-  errorMessage.value = ''
-  loadMoreError.value = ''
+  if (searchTimer) clearTimeout(searchTimer)
+  searchRequestSeq += 1
+  resetSearchState()
+  void router.replace({ path: route.path, query: teacherHubQueryWithSearch('') })
 }
 
-onMounted(loadPopularTeachers)
+onMounted(() => {
+  void loadPopularTeachers()
+  if (searchQuery.value.trim()) {
+    void doSearch()
+  }
+})
+
+watch(
+  () => route.query.q,
+  () => {
+    const q = readRouteSearchQuery()
+    if (searchTimer) clearTimeout(searchTimer)
+    searchRequestSeq += 1
+    if (searchQuery.value !== q) {
+      searchQuery.value = q
+    }
+    if (!q) {
+      resetSearchState()
+      return
+    }
+    void doSearch()
+  },
+)
 
 onBeforeUnmount(() => {
   if (searchTimer) clearTimeout(searchTimer)

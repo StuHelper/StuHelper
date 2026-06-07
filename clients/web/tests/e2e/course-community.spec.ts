@@ -606,6 +606,9 @@ test.describe("Course community surfaces", () => {
         });
 
         await page.getByLabel("输入教师姓名搜索...").fill("王");
+        await expect(page).toHaveURL((url) =>
+            url.pathname === "/teachers" && url.searchParams.get("q") === "王",
+        );
         await expect(page.getByText("搜索结果")).toBeVisible();
         await expect(page.getByRole("link", { name: /王老师/ })).toBeVisible({
             timeout: 10_000,
@@ -621,6 +624,40 @@ test.describe("Course community surfaces", () => {
                 ),
             )
             .toBe(true);
+
+        const requestsBeforeReload = webApiRequests.length;
+        await page.reload();
+
+        await expect(page).toHaveURL((url) =>
+            url.pathname === "/teachers" && url.searchParams.get("q") === "王",
+        );
+        await expect(page.getByLabel("输入教师姓名搜索...")).toHaveValue("王");
+        await expect(page.getByText("搜索结果")).toBeVisible();
+        await expect(page.getByRole("link", { name: /王老师/ })).toBeVisible({
+            timeout: 10_000,
+        });
+        await expect
+            .poll(() =>
+                webApiRequests.slice(requestsBeforeReload).some((request) => {
+                    if (!request.startsWith("GET ")) return false;
+                    const url = new URL(request.slice("GET ".length), "http://web.e2e");
+                    return (
+                        url.pathname === "/api/v1/course/review/teachers" &&
+                        url.searchParams.get("q") === "王" &&
+                        url.searchParams.get("sort") === "reviews" &&
+                        url.searchParams.get("pageSize") === "30"
+                    );
+                }),
+            )
+            .toBe(true);
+
+        await page.getByRole("button", { name: "清除" }).click();
+        await expect(page).toHaveURL((url) =>
+            url.pathname === "/teachers" && !url.searchParams.has("q"),
+        );
+        await expect(page.getByLabel("输入教师姓名搜索...")).toHaveValue("");
+        await expect(page.getByText("热门教师")).toBeVisible();
+        await expect(page.getByRole("link", { name: /陈老师/ })).toBeVisible();
     });
 
     test("teacher hub ignores stale search failures after the query is cleared", async ({
