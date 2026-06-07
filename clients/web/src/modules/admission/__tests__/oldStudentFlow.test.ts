@@ -243,6 +243,24 @@ describe('OldStudentVerificationFlow', () => {
     expect(wrapper.text()).toContain('consumed')
   })
 
+  it('keeps email OTP verification disabled until email and code are ready', async () => {
+    const wrapper = mount(OldStudentVerificationFlow, {
+      props: {
+        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD',
+        linked: true,
+        schools,
+      },
+    })
+    const verifyButton = wrapper.find<HTMLButtonElement>('[data-school-email-otp-verify]')
+
+    expect(verifyButton.element.disabled).toBe(true)
+    await wrapper.find('[data-academic-email-input]').setValue('student@example.edu')
+    expect(verifyButton.element.disabled).toBe(true)
+    await wrapper.findAll('input').at(-1)!.setValue('123456')
+
+    expect(verifyButton.element.disabled).toBe(false)
+  })
+
   it('prevents duplicate email OTP verification submits while one request is pending', async () => {
     const verifyDeferred = createDeferred({
       status: 'verified',

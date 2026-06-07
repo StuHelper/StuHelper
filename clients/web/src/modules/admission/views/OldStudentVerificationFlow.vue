@@ -104,7 +104,12 @@
             @input="updateCode"
           >
         </label>
-        <button class="primary-button" type="submit" :disabled="submitting">
+        <button
+          class="primary-button"
+          data-school-email-otp-verify
+          type="submit"
+          :disabled="!canVerifyEmailOTP"
+        >
           {{ submitting ? '校验中...' : '验证邮箱' }}
         </button>
       </form>
@@ -177,6 +182,9 @@ const canRequestEmailOTP = computed(() => {
     return academicMatchState.value === 'matched' && email.value.trim() !== ''
   }
   return email.value.trim() !== ''
+})
+const canVerifyEmailOTP = computed(() => {
+  return !submitting.value && email.value.trim() !== '' && code.value.trim() !== ''
 })
 const academicMatchMessageClass = computed(() => {
   if (academicMatchState.value === 'matched') return 'text-sm text-green-700'
@@ -469,5 +477,11 @@ function readErrorMessage(error: unknown, fallback: string): string {
 .button-disabled {
   cursor: not-allowed;
   opacity: 0.55;
+}
+
+.primary-button:disabled,
+.secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 </style>
