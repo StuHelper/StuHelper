@@ -32,7 +32,7 @@ export function isSafeRelativeRedirect(raw: string): boolean {
 }
 
 function isAdmissionRedirectPath(pathname: string): boolean {
-    return /^\/verify\/[^/]+$/.test(pathname);
+    return /^\/verify\/[^/]+\/?$/.test(pathname);
 }
 
 function allowedPostLoginRedirectOrigins(): Set<string> {

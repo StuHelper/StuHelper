@@ -4,8 +4,8 @@ const JOIN_ADMISSION_HOSTS = new Set([
 ])
 
 const JOIN_ADMISSION_PATH_PATTERNS = [
-  /^\/verify\/[^/]+$/,
-  /^\/admission\/freshman\/camera\/[^/]+$/,
+  /^\/verify\/[^/]+\/?$/,
+  /^\/admission\/freshman\/camera\/[^/]+\/?$/,
 ]
 
 export function currentHostname(): string {

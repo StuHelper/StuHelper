@@ -7,7 +7,7 @@ import {
 
 export type AdmissionMappedState = 'qqMismatch' | 'invalid' | 'expired' | 'error'
 
-const ADMISSION_PATH_PATTERN = /^\/verify\/[^/]+$/
+const ADMISSION_PATH_PATTERN = /^\/verify\/[^/]+\/?$/
 const TERMINAL_ADMISSION_ERROR_CODES = new Set([
   'admission.token_consumed',
   'admission.token_expired',

@@ -88,6 +88,11 @@ describe('post-login redirect helpers', () => {
         `${window.location.origin}/verify/ADMIT-LOGIN`,
       ),
     ).toBe(`${window.location.origin}/verify/ADMIT-LOGIN`)
+    expect(
+      resolvePostLoginRedirectTarget(
+        `${window.location.origin}/verify/ADMIT-LOGIN/`,
+      ),
+    ).toBe(`${window.location.origin}/verify/ADMIT-LOGIN/`)
   })
 
   it('falls back to the current origin when no preferred origin is configured', () => {

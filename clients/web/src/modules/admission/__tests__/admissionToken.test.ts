@@ -26,6 +26,9 @@ describe('admission token return URL', () => {
     expect(
       buildAdmissionReturnURL('/verify/ABCD', sameOrigin),
     ).toBe('https://join.stuhelper.com/verify/ABCD')
+    expect(
+      buildAdmissionReturnURL('/verify/ABCD/', sameOrigin),
+    ).toBe('https://join.stuhelper.com/verify/ABCD/')
   })
 
   it('rejects admission return URLs with query parameters', () => {

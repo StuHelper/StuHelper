@@ -220,6 +220,63 @@ test.describe("Auth callback and admission entry", () => {
         await expect(page.getByText("SSO authorize")).toBeVisible();
     });
 
+    test("join admission link with a trailing slash opens and keeps the join return URL", async ({
+        page,
+    }, testInfo) => {
+        let previewRequests = 0;
+        let loginRequestURL: URL | null = null;
+
+        await mockUnauthenticated(page);
+        await page.route(
+            "**/api/v1/admission/sessions/ADMIT-TRAILING",
+            (route) => {
+                previewRequests += 1;
+                return route.fulfill(ok(joinedSession));
+            },
+        );
+        await page.route("**/api/v1/auth/login**", async (route) => {
+            loginRequestURL = new URL(route.request().url());
+            await route.fulfill(
+                ok({
+                    url: "https://sso.stuhelper.com/login/oauth/authorize?client_id=stuhelper-web&state=admission-trailing-state",
+                    state: "admission-trailing-state",
+                }),
+            );
+        });
+        await page.route("https://sso.stuhelper.com/**", (route) =>
+            route.fulfill({
+                contentType: "text/html",
+                body: "<!doctype html><title>SSO</title><main>SSO authorize</main>",
+            }),
+        );
+
+        const joinURL = new URL(
+            "/verify/ADMIT-TRAILING/",
+            String(testInfo.project.use.baseURL),
+        );
+        joinURL.hostname = "join.localhost";
+
+        await page.goto(joinURL.toString());
+
+        await expect(
+            page.getByRole("heading", { name: "登录 StuHelper" }),
+        ).toBeVisible();
+        await expect(page.getByText("QQ：123456")).toBeVisible();
+        expect(previewRequests).toBe(1);
+
+        await page.getByRole("button", { name: "登录" }).click();
+        await page.waitForURL(
+            (url) =>
+                url.hostname === "sso.stuhelper.com" &&
+                url.pathname === "/login/oauth/authorize",
+        );
+
+        expect(loginRequestURL).not.toBeNull();
+        expect(loginRequestURL!.searchParams.get("redirect")).toBe(
+            joinURL.toString(),
+        );
+    });
+
     test("anonymous admission signup starts SSO signup with the current admission return URL", async ({
         page,
     }) => {
