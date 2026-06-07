@@ -233,13 +233,19 @@ async function loadHandoff(): Promise<void> {
 
 async function openCamera(): Promise<void> {
     errorMessage.value = "";
+    let openedStream: MediaStream | null = null;
     try {
-        stream.value = await startCameraStream();
+        openedStream = await startCameraStream();
+        stream.value = openedStream;
         if (videoRef.value) {
             videoRef.value.srcObject = stream.value;
             await videoRef.value.play();
         }
     } catch (error) {
+        if (openedStream) {
+            stopCameraStream(openedStream);
+            stream.value = null;
+        }
         errorMessage.value = describeCameraCaptureError(
             error,
             "无法打开摄像头。",

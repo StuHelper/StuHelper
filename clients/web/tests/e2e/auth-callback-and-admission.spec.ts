@@ -1195,6 +1195,85 @@ test.describe("Auth callback and admission entry", () => {
         expect(authRequestCount).toBe(0);
     });
 
+    test("freshman mobile camera closes the stream when preview playback fails", async ({
+        page,
+    }) => {
+        let authRequestCount = 0;
+
+        await page.addInitScript(() => {
+            const state = globalThis as unknown as { __cameraStopCount?: number };
+            state.__cameraStopCount = 0;
+
+            Object.defineProperty(navigator, "mediaDevices", {
+                configurable: true,
+                value: {
+                    getUserMedia: async () => {
+                        const stream = new MediaStream();
+                        Object.defineProperty(stream, "getTracks", {
+                            configurable: true,
+                            value: () => [
+                                {
+                                    stop: () => {
+                                        state.__cameraStopCount =
+                                            (state.__cameraStopCount ?? 0) + 1;
+                                    },
+                                },
+                            ],
+                        });
+                        return stream;
+                    },
+                },
+            });
+            HTMLVideoElement.prototype.play = async () => {
+                throw new Error("Preview playback failed");
+            };
+        });
+        await page.route("**/api/v1/auth/**", (route) => {
+            authRequestCount += 1;
+            return route.fulfill(
+                apiError("unexpected_auth", "unexpected auth call", 500),
+            );
+        });
+        await page.route(
+            "**/api/v1/admission/freshman/mobile-camera-handoffs/mobile-token",
+            (route) =>
+                route.fulfill(
+                    ok({
+                        id: "handoff-1",
+                        applicationID: "freshman-application-1",
+                        userID: user.id,
+                        status: "pending",
+                        mobileURL:
+                            "https://join.stuhelper.com/admission/freshman/camera/mobile-token",
+                        expiresAt: "2026-05-24T04:30:00Z",
+                        createdAt: now,
+                    }),
+                ),
+        );
+
+        await page.goto("/admission/freshman/camera/mobile-token");
+
+        await expect(page.locator('[data-state="ready"]')).toBeVisible();
+        await page.getByRole("button", { name: "打开摄像头" }).click();
+
+        await expect(page.getByText("Preview playback failed")).toBeVisible();
+        await expect(
+            page.getByRole("button", { name: "打开摄像头" }),
+        ).toBeVisible();
+        await expect(page.getByRole("button", { name: "拍摄" })).toHaveCount(0);
+        await expect
+            .poll(() =>
+                page.evaluate(() => {
+                    const state = globalThis as unknown as {
+                        __cameraStopCount?: number;
+                    };
+                    return state.__cameraStopCount ?? 0;
+                }),
+            )
+            .toBe(1);
+        expect(authRequestCount).toBe(0);
+    });
+
     test("freshman admission captures camera material and submits it for manual review", async ({
         page,
     }) => {

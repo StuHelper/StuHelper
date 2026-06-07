@@ -30,6 +30,8 @@ vi.mock("vue-router", () => ({
 
 vi.mock("../cameraCapture", () => ({
     captureFrameAsBase64: mockCaptureFrameAsBase64,
+    describeCameraCaptureError: (error: unknown, fallback: string) =>
+        error instanceof Error && error.message ? error.message : fallback,
     startCameraStream: mockStartCameraStream,
     stopCameraStream: mockStopCameraStream,
     supportsCameraCapture: () => true,
@@ -195,6 +197,28 @@ describe("FreshmanMobileCameraPage", () => {
         await flushPromises();
 
         expect(wrapper.find('[data-state="uploaded"]').exists()).toBe(true);
+    });
+
+    it("closes the acquired camera stream when video playback fails", async () => {
+        vi.spyOn(HTMLMediaElement.prototype, "play").mockRejectedValueOnce(
+            new Error("play blocked"),
+        );
+
+        const wrapper = mount(FreshmanMobileCameraPage);
+        await flushPromises();
+
+        await wrapper.find("[data-mobile-camera-open-button]").trigger("click");
+        await flushPromises();
+
+        expect(mockStartCameraStream).toHaveBeenCalledTimes(1);
+        expect(mockStopCameraStream).toHaveBeenCalledWith({ id: "stream-1" });
+        expect(wrapper.find("[data-mobile-camera-open-button]").exists()).toBe(
+            true,
+        );
+        expect(
+            wrapper.find("[data-mobile-camera-capture-button]").exists(),
+        ).toBe(false);
+        expect(wrapper.text()).toContain("play blocked");
     });
 
     it("prevents duplicate continuation choices while the first choice is pending", async () => {
