@@ -41,6 +41,17 @@ const sampleResource = {
   updatedAt: '2026-05-02T08:00:00Z',
 }
 
+async function openResourceListFromNavigation(page: Page) {
+  const primaryResourceLink = page.getByRole('link', { name: /^资源$/ }).first()
+  try {
+    await primaryResourceLink.click({ timeout: 2_000 })
+    return
+  } catch {
+    await page.getByRole('button', { name: /菜单|Menu/i }).click()
+    await page.getByRole('link', { name: /^资源$/ }).click()
+  }
+}
+
 test.describe('Resource sharing', () => {
   test.beforeEach(async ({ page }) => {
     await mockUnauthenticated(page)
@@ -86,7 +97,7 @@ test.describe('Resource sharing', () => {
     })
 
     await page.goto('/')
-    await page.getByRole('link', { name: /^资源$/ }).click()
+    await openResourceListFromNavigation(page)
 
     await expect(page).toHaveURL(/\/resources$/)
     await expect(
@@ -158,5 +169,37 @@ test.describe('Resource sharing', () => {
     await page.getByRole('button', { name: '下载资料' }).click()
     await downloadRequest
     await expect.poll(() => downloadDocumentRequests).toBe(1)
+  })
+
+  test('resource detail rejects unsafe download URLs before navigation', async ({
+    page,
+  }) => {
+    await page.route('**/api/v1/resources/42', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: sampleResource }),
+      }),
+    )
+    await page.route('**/api/v1/resources/42/download-url', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { url: 'javascript:alert(1)' },
+        }),
+      }),
+    )
+
+    await page.goto('/resources/42')
+
+    await expect(
+      page.getByRole('heading', { name: '高等数学A 期末复习讲义' }),
+    ).toBeVisible()
+    const detailURL = page.url()
+
+    await page.getByRole('button', { name: '下载资料' }).click()
+
+    await expect(page.getByRole('alert')).toContainText('下载链接获取失败')
+    await expect.poll(() => page.url()).toBe(detailURL)
   })
 })

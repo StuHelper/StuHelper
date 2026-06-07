@@ -24,6 +24,22 @@ function readString(record: Record<string, unknown>, key: string, message: strin
   return value
 }
 
+function readDownloadURL(record: Record<string, unknown>, key: string, message: string): string {
+  const value = readString(record, key, message)
+  if (value.startsWith('//')) {
+    throw new Error(message)
+  }
+  try {
+    const url = new URL(value, 'https://stuhelper.local')
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      throw new Error(message)
+    }
+  } catch {
+    throw new Error(message)
+  }
+  return value
+}
+
 function readOptionalString(
   record: Record<string, unknown>,
   key: string,
@@ -152,5 +168,5 @@ export function readResourceDownloadURLPayload(
   if (!isRecord(payload)) {
     throw new Error(message)
   }
-  return { url: readString(payload, 'url', message) }
+  return { url: readDownloadURL(payload, 'url', message) }
 }
