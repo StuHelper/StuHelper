@@ -13,7 +13,19 @@ export function errorMessage(cause: unknown, fallback: string): string {
 
 function normalizeMessage(value: unknown): string {
   if (value instanceof Error) return normalizeMessage(value.message)
-  return typeof value === 'string' && value.trim() ? value.trim() : ''
+  if (typeof value !== 'string') return ''
+  const message = value.trim()
+  if (!message) return ''
+  if (isNetworkFailureMessage(message)) {
+    return 'StuHelper 平台服务暂时不可用，请检查后端地址、网络或服务令牌配置。'
+  }
+  return message
+}
+
+function isNetworkFailureMessage(message: string): boolean {
+  return /(?:^|\b)(?:fetch failed|failed to fetch|networkerror|econnrefused|und_err_socket|socket hang up|connect econnrefused)(?:\b|$)/i.test(
+    message,
+  )
 }
 
 function isErrorLikeRecord(value: unknown): value is {
