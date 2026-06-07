@@ -193,6 +193,77 @@ test.describe('Static Pages', () => {
       .toBe(0)
   })
 
+  test('join host admission links do not bootstrap stale sessions before validating the token', async ({
+    page,
+  }, testInfo) => {
+    let authMeRequests = 0
+    let refreshRequests = 0
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        'stuhelper_user',
+        JSON.stringify({
+          id: 'stale-admission-user',
+          name: 'stale-admission-user',
+          displayName: 'Stale Admission User',
+        }),
+      )
+      window.localStorage.setItem(
+        'stuhelper_token_expiry',
+        String(Date.now() - 60_000),
+      )
+    })
+    await page.route('**/api/v1/auth/me', (route) => {
+      authMeRequests += 1
+      return route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: false,
+          error: { code: 'A0010100', message: 'login required' },
+        }),
+      })
+    })
+    await page.route('**/api/v1/auth/refresh', (route) => {
+      refreshRequests += 1
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { expiresIn: 3600 },
+        }),
+      })
+    })
+    await page.route('**/api/v1/admission/sessions/stale-link-token', (route) =>
+      route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: false,
+          error: { code: 'admission.token_not_found', message: 'missing' },
+        }),
+      }),
+    )
+
+    const baseURL = String(testInfo.project.use.baseURL)
+    const joinURL = new URL('/verify/stale-link-token', baseURL)
+    joinURL.hostname = 'join.localhost'
+
+    await page.goto(joinURL.toString())
+
+    await expect(
+      page.getByRole('heading', { name: /认证链接无效|Invalid admission link/i }),
+    ).toBeVisible({ timeout: 10_000 })
+    await page.waitForLoadState('networkidle')
+    await expect
+      .poll(() => authMeRequests, {
+        message: 'public admission token validation should not call auth/me first',
+        timeout: 1_000,
+      })
+      .toBe(0)
+    expect(refreshRequests).toBe(0)
+  })
+
   test('chunk load failure retries once and renders static load error page', async ({ page }) => {
     await mockUnauthenticated(page)
 
