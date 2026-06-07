@@ -184,6 +184,7 @@
         <ProjectionPendingNotice
           v-else-if="pageState === 'projectionPending'"
           :timed-out="projectionRefreshTimedOut"
+          @retry="retryProjectionRefresh"
         />
 
         <div v-else-if="pageState === 'approved'" data-state="approved">
@@ -620,6 +621,11 @@ function scheduleProjectionRefresh(): void {
     .catch((error) => {
       if (!isAbortError(error)) applyError(error)
     })
+}
+
+function retryProjectionRefresh(): void {
+  if (pageState.value !== 'projectionPending') return
+  scheduleProjectionRefresh()
 }
 
 function schedulePendingReviewRefresh(reset = false): void {

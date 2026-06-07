@@ -438,6 +438,31 @@ describe('AdmissionPage edge states', () => {
     })
   })
 
+  it('lets users retry role projection checks after the bounded wait times out', async () => {
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce({
+      ...sessionWithStatus('verified'),
+      projectionPending: true,
+    })
+    mockWaitForAdmissionProjection
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true)
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.find('[data-state="projectionPending"]').exists()).toBe(true)
+    expect(wrapper.find('[data-projection-timeout]').exists()).toBe(true)
+    const retry = wrapper.get('[data-projection-retry]')
+    expect(retry.text()).toBe('重新检查状态')
+
+    await retry.trigger('click')
+    await settleAdmissionPage(wrapper)
+
+    expect(mockWaitForAdmissionProjection).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[data-state="approved"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('认证已通过')
+  })
+
   it('uses admission me projection state after refreshing linked resources', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
       sessionWithStatus('linked'),
