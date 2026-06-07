@@ -59,6 +59,7 @@ export interface EntityPageServiceDeps {
   loadReports(): Promise<ModerationReportRecord[]>
   loadEvents(limit: number): Promise<ModerationEventRecord[]>
   hasGuildConfig(guildId: string): Promise<boolean>
+  hasAdmissionPolicy(guildId: string): Promise<boolean>
   resolveGuildName: GuildNameLookup
   resolveUserName: UserNameLookup
 }
@@ -149,13 +150,14 @@ export class EntityPageService {
   }
 
   private async getGuildProfile(guildId: string): Promise<GuildEntityProfile> {
-    const [warnsByGuild, guardRecords, reviews, reports, events, configured] = await Promise.all([
+    const [warnsByGuild, guardRecords, reviews, reports, events, configured, admissionConfigured] = await Promise.all([
       this.deps.loadWarns(),
       this.deps.loadGuardRecords(),
       this.deps.loadReviews(),
       this.deps.loadReports(),
       this.deps.loadEvents(EVENT_FETCH_LIMIT),
       this.deps.hasGuildConfig(guildId),
+      this.deps.hasAdmissionPolicy(guildId),
     ])
 
     return buildGuildProfile({
@@ -167,6 +169,7 @@ export class EntityPageService {
       reports,
       events,
       configured,
+      admissionConfigured,
     })
   }
 

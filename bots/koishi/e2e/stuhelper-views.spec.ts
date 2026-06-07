@@ -374,6 +374,34 @@ test('global search opens entity overlay and entity jump updates navigation stat
   tracker.assertClean()
 })
 
+test('global search guild overlay distinguishes admission policy from group config', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  await clickNavRail(page, '入群认证')
+  await expect(page).toHaveURL(/#admission($|\?)/, { timeout: 5_000 })
+  await expect(page.locator('.sh-workspace-head__title', { hasText: '入群认证' }).first()).toBeVisible({
+    timeout: 10_000,
+  })
+
+  await page.locator('.sh-cmd__search').click()
+  const searchDialog = page.getByRole('dialog', { name: '全站搜索' })
+  await expect(searchDialog).toBeVisible({ timeout: 5_000 })
+  await searchDialog.getByPlaceholder('输入用户 ID / 群号 / 视图名 / 命令…').fill('178037297')
+  await searchDialog.getByText('查看群组 178037297').click()
+
+  const overlay = page.locator('.sh-overlay[data-open="true"]')
+  await expect(overlay).toBeVisible({ timeout: 10_000 })
+  await expect(overlay.locator('.sh-overlay__kind')).toHaveText('GUILD')
+  await expect(overlay.locator('.sh-overlay__title')).toHaveText('178037297')
+  await expect(overlay.locator('.sh-overlay__metric', { hasText: '群组配置' })).toContainText('未配置')
+  await expect(overlay.locator('.sh-overlay__metric', { hasText: '入群认证' })).toContainText('已启用')
+
+  await overlay.getByRole('button', { name: '关闭' }).click()
+  await expect(page.locator('.sh-overlay[data-open="true"]')).toHaveCount(0, { timeout: 5_000 })
+
+  tracker.assertClean()
+})
+
 test('review center keeps filters separate from selected item context', async ({ loggedInPage: page }) => {
   await using tracker = createTracker(page)
 

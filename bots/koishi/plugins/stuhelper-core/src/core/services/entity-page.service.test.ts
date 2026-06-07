@@ -42,6 +42,21 @@ test('EntityPageService keeps global profile requests unfiltered', async () => {
   assert.equal(profile.summary.totalWarns, 5)
 })
 
+test('EntityPageService reports admission policy separately from group config', async () => {
+  const service = createEntityPageService()
+
+  const staticAdmission = await service.getProfile({ kind: 'guild', id: '2002' })
+  const configuredAdmission = await service.getProfile({ kind: 'guild', id: '1001' })
+
+  assert.equal(staticAdmission.kind, 'guild')
+  assert.equal(staticAdmission.summary.configured, false)
+  assert.equal(staticAdmission.summary.admissionConfigured, true)
+
+  assert.equal(configuredAdmission.kind, 'guild')
+  assert.equal(configuredAdmission.summary.configured, true)
+  assert.equal(configuredAdmission.summary.admissionConfigured, false)
+})
+
 function createEntityPageService() {
   return new EntityPageService(createDeps())
 }
@@ -72,6 +87,7 @@ function createDeps(): EntityPageServiceDeps {
       createEvent('ev-2002', '2002'),
     ],
     hasGuildConfig: async (guildId) => guildId === '1001',
+    hasAdmissionPolicy: async (guildId) => guildId === '2002',
     resolveGuildName: (guildId) => ({ name: `Guild ${guildId}`, avatar: null }),
     resolveUserName: (userId) => ({ name: `User ${userId}`, avatar: null }),
   }

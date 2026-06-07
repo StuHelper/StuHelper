@@ -40,6 +40,7 @@ interface GuildProfileInput {
   readonly reports: ModerationReportRecord[]
   readonly events: ModerationEventRecord[]
   readonly configured: boolean
+  readonly admissionConfigured: boolean
 }
 
 export function assertScopeGuildAccess(
@@ -69,6 +70,7 @@ export function buildGuildProfile(input: GuildProfileInput): GuildEntityProfile 
     avatar: meta?.avatar ?? null,
     summary: {
       configured: input.configured,
+      admissionConfigured: input.admissionConfigured,
       pendingMembers: countPendingMembers(guildGuardRecords),
       warnedUsers: countWarnedUsers(guildWarnsRecord),
       pendingReviews: reviews.filter((review) => isPendingReviewStatus(review.status)).length,

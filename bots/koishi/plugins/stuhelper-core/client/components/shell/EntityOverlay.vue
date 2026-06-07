@@ -74,6 +74,10 @@
                   <span class="sh-overlay__metric-value">{{ state.profile.summary.configured ? '已配置' : '未配置' }}</span>
                   <span class="sh-overlay__metric-label">群组配置</span>
                 </div>
+                <div class="sh-overlay__metric" :data-tone="state.profile.summary.admissionConfigured ? 'primary' : 'neutral'">
+                  <span class="sh-overlay__metric-value">{{ state.profile.summary.admissionConfigured ? '已启用' : '未启用' }}</span>
+                  <span class="sh-overlay__metric-label">入群认证</span>
+                </div>
                 <div class="sh-overlay__metric">
                   <span class="sh-overlay__metric-value sh-num">{{ state.profile.summary.warnedUsers }}</span>
                   <span class="sh-overlay__metric-label">被警告用户</span>

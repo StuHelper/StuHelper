@@ -81,6 +81,8 @@ export function createPageApiRuntime(ctx: Context, options: PageApiOptions): Pag
       service: options.service,
       moderationStore,
       platform,
+      guard: options.guard,
+      guardPolicyStore,
     })),
   }
 }
@@ -153,8 +155,10 @@ function createEntityDeps(input: {
   readonly service: StuhelperGroupCenterService
   readonly moderationStore: ModerationStore
   readonly platform: ReturnType<typeof createPlatformClient>
+  readonly guard: StuhelperGuardConfig
+  readonly guardPolicyStore: GuardPolicyStore
 }) {
-  const { ctx, service, moderationStore, platform } = input
+  const { ctx, service, moderationStore, platform, guard, guardPolicyStore } = input
   return {
     loadWarns: async () => service.data.warns.getAll() as Record<string, Record<string, { count: number; timestamp: number }>>,
     loadBlacklist: async () => readMemberBlacklistMap(platform),
@@ -163,6 +167,15 @@ function createEntityDeps(input: {
     loadReports: () => moderationStore.listOpenReports(),
     loadEvents: (limit: number) => moderationStore.listRecentEvents(limit),
     hasGuildConfig: async (guildId: string) => Boolean((await service.data.groupConfig.getAll() as Record<string, unknown>)[guildId]),
+    hasAdmissionPolicy: async (guildId: string) => {
+      const normalizedGuildId = guildId.trim()
+      if (!normalizedGuildId) return false
+      if (guard.targetGroups.some((targetGuildId) => targetGuildId.trim() === normalizedGuildId)) {
+        return true
+      }
+      const bindings = await guardPolicyStore.listBindings()
+      return bindings.some((binding) => binding.guildId === normalizedGuildId && binding.enabled)
+    },
     resolveGuildName: (guildId: string) => readCachedGuildName(service, guildId),
     resolveUserName: (userId: string) => readCachedUserName(service, userId),
   }

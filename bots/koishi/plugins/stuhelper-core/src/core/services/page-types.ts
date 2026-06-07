@@ -268,6 +268,7 @@ export interface UserEntityProfile {
 
 export interface GuildEntityProfileSummary {
   configured: boolean
+  admissionConfigured: boolean
   pendingMembers: number
   warnedUsers: number
   pendingReviews: number
