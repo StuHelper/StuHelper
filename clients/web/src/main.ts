@@ -4,6 +4,7 @@ import 'element-plus/es/components/config-provider/style/css'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import router from './router'
+import { currentHostname, shouldBlockJoinHostRoute } from './router/join-domain'
 import i18n from './i18n'
 import enUS from './i18n/locales/en-US'
 import zhCN from './i18n/locales/zh-CN'
@@ -72,7 +73,10 @@ async function bootstrapApp() {
   app.use(router)
   await router.isReady()
   app.mount('#app')
-  if (hasSessionHint) {
+  if (
+    hasSessionHint &&
+    !shouldBlockJoinHostRoute(currentHostname(), router.currentRoute.value.path)
+  ) {
     void authStore.bootstrapSession()
   }
 }

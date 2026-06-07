@@ -142,4 +142,14 @@ describe('router auth guard', () => {
 
     await expect(guard?.(publicRoute('/verify/LOCALJOINSMOKE', 'admission-token'))).resolves.toBe(true)
   })
+
+  it('does not refresh expired local auth state on public routes', async () => {
+    const guard = mocks.getBeforeEachGuard()
+    mocks.authStore.isAuthenticated = true
+    mocks.hasStoredSessionHint.mockReturnValue(true)
+    mocks.isTokenExpired.mockReturnValue(true)
+
+    await expect(guard?.(publicRoute('/about', 'about'))).resolves.toBe(true)
+    expect(mocks.authStore.refreshSession).not.toHaveBeenCalled()
+  })
 })

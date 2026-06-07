@@ -143,6 +143,56 @@ test.describe('Static Pages', () => {
       })
   })
 
+  test('join host public error page does not refresh stale sessions', async ({
+    page,
+  }, testInfo) => {
+    await mockUnauthenticated(page)
+
+    let refreshRequests = 0
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        'stuhelper_user',
+        JSON.stringify({
+          id: 'stale-e2e-user',
+          name: 'stale-e2e-user',
+          displayName: 'Stale E2E User',
+        }),
+      )
+      window.localStorage.setItem(
+        'stuhelper_token_expiry',
+        String(Date.now() - 60_000),
+      )
+    })
+    await page.route('**/api/v1/auth/refresh', (route) => {
+      refreshRequests += 1
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { expiresIn: 3600 },
+        }),
+      })
+    })
+
+    const baseURL = String(testInfo.project.use.baseURL)
+    const joinURL = new URL('/', baseURL)
+    joinURL.hostname = 'join.localhost'
+
+    await page.goto(joinURL.toString())
+
+    await expect(
+      page.getByRole('heading', { name: /Admission Link Required|入群认证链接无效/i }),
+    ).toBeVisible({ timeout: 10_000 })
+    await page.waitForLoadState('networkidle')
+    await expect
+      .poll(() => refreshRequests, {
+        message: 'public join-domain guidance should not refresh auth state',
+        timeout: 1_000,
+      })
+      .toBe(0)
+  })
+
   test('chunk load failure retries once and renders static load error page', async ({ page }) => {
     await mockUnauthenticated(page)
 

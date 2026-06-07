@@ -522,7 +522,7 @@ router.beforeEach(async (to) => {
     }
 
     let refreshFailed = false;
-    if (authStore.isAuthenticated && isTokenExpired()) {
+    if (needsResolvedSession && authStore.isAuthenticated && isTokenExpired()) {
         try {
             await authStore.refreshSession();
         } catch (err) {
