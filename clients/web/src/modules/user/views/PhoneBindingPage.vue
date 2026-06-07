@@ -87,7 +87,7 @@
                     inputmode="numeric"
                     :placeholder="t('user.verification.phone.phoneNumber')"
                     :disabled="loading"
-                    class="w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-colors duration-fast focus:border-primary"
+                    class="w-full rounded-lg border border-border bg-bg-base/60 px-3 py-2.5 text-sm text-text-primary outline-none transition-colors duration-fast placeholder-text-muted focus:border-primary focus:ring-2 focus:ring-primary/15"
                 />
             </div>
 
@@ -107,7 +107,7 @@
                         maxlength="6"
                         :placeholder="t('user.verification.phone.verifyCode')"
                         :disabled="loading"
-                        class="flex-1 px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-colors duration-fast focus:border-primary"
+                        class="min-w-0 flex-1 rounded-lg border border-border bg-bg-base/60 px-3 py-2.5 text-sm text-text-primary outline-none transition-colors duration-fast placeholder-text-muted focus:border-primary focus:ring-2 focus:ring-primary/15"
                     />
                     <button
                         type="button"
