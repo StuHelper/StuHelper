@@ -510,9 +510,66 @@
 }
 
 @media (max-width: 720px) {
+  .sh-cmd {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: var(--sh-s-2);
+    padding: 0 var(--sh-s-3);
+  }
+
   .sh-cmd__menu {
     display: inline-grid;
     flex: 0 0 auto;
+  }
+
+  .sh-cmd__crumb {
+    gap: var(--sh-s-2);
+  }
+
+  .sh-cmd__crumb-section,
+  .sh-cmd__crumb-sep {
+    display: none;
+  }
+
+  .sh-cmd__search {
+    display: inline-flex;
+    width: 30px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .sh-cmd__search-text,
+  .sh-cmd__search .sh-cmd__kbd {
+    display: none;
+  }
+
+  .sh-cmd__right {
+    gap: var(--sh-s-2);
+  }
+
+  .sh-cmd__pulse {
+    width: 30px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .sh-cmd__pulse-dot {
+    display: none;
+  }
+
+  .sh-cmd__pulse-num {
+    min-width: 0;
+    text-align: center;
+  }
+
+  .sh-cmd__chat {
+    width: 30px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .sh-cmd__chat-label,
+  .sh-cmd__chat .sh-cmd__kbd {
+    display: none;
   }
 }
 

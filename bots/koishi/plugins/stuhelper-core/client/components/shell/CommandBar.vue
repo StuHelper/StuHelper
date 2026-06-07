@@ -17,6 +17,7 @@
     <button
       type="button"
       class="sh-cmd__search"
+      aria-label="打开全站搜索"
       title="⌘K 全站搜索"
       @click="onSearchClick"
     >
@@ -30,6 +31,7 @@
         type="button"
         class="sh-cmd__pulse"
         :data-tone="reviewTone"
+        :aria-label="`待处理复核 ${pulse.pendingReviews} 条，进入处置中心`"
         :title="`待处理复核 ${pulse.pendingReviews} 条 — 进入处置中心`"
         @click="goPulse('review')"
       >
@@ -41,6 +43,7 @@
         type="button"
         class="sh-cmd__pulse"
         :data-tone="admissionTone"
+        :aria-label="`待认证成员 ${pulse.pendingAdmissions} 条，进入限制中`"
         :title="`待认证成员 ${pulse.pendingAdmissions} 条 — 进入限制中`"
         @click="goPulse('identity')"
       >
@@ -52,6 +55,7 @@
         type="button"
         class="sh-cmd__pulse"
         :data-tone="reportTone"
+        :aria-label="`未处理举报 ${pulse.openReports} 条，进入处置中心`"
         :title="`未处理举报 ${pulse.openReports} 条 — 进入处置中心`"
         @click="goPulse('review')"
       >
@@ -64,11 +68,12 @@
         type="button"
         class="sh-cmd__chat"
         :data-active="shell.chatOpen.value && !shell.chatMinimized.value ? 'true' : 'false'"
+        :aria-label="shell.chatOpen.value ? '关闭实时聊天' : '打开实时聊天'"
         :title="shell.chatOpen.value ? '关闭实时聊天 (⌘/)' : '打开实时聊天 (⌘/)'"
         @click="shell.toggleChat()"
       >
         <k-icon name="stuhelperGroupCenter:octicons.discussion" />
-        <span>聊天</span>
+        <span class="sh-cmd__chat-label">聊天</span>
         <span class="sh-cmd__kbd">⌘/</span>
       </button>
     </div>
