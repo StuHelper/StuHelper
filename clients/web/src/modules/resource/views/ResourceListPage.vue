@@ -17,9 +17,13 @@ const bindingType = ref('')
 const bindingValue = ref('')
 const resources = ref<ResourceItem[]>([])
 const total = ref(0)
+const page = ref(1)
 const loading = ref(false)
+const loadingMore = ref(false)
 const errorMessage = ref('')
+const loadMoreError = ref('')
 const hasSearched = ref(false)
+const PAGE_SIZE = 24
 
 const hasFilters = computed(() =>
   Boolean(
@@ -29,6 +33,7 @@ const hasFilters = computed(() =>
       bindingValue.value.trim(),
   ),
 )
+const hasMore = computed(() => resources.value.length < total.value)
 
 function formatDate(value: string) {
   const date = new Date(value)
@@ -65,14 +70,20 @@ function resourceMeta(resource: ResourceItem) {
   ].filter(Boolean).join(' · ')
 }
 
-async function loadResources() {
-  loading.value = true
-  errorMessage.value = ''
-  hasSearched.value = true
+async function loadResourcePage(nextPage: number, append = false) {
+  if (append) {
+    loadingMore.value = true
+    loadMoreError.value = ''
+  } else {
+    loading.value = true
+    errorMessage.value = ''
+    loadMoreError.value = ''
+    hasSearched.value = true
+  }
   try {
     const res = await api.resource.listResources({
-      page: 1,
-      pageSize: 24,
+      page: nextPage,
+      pageSize: PAGE_SIZE,
       query: query.value.trim() || undefined,
       tag: tag.value.trim() || undefined,
       bindingType: bindingType.value.trim() || undefined,
@@ -82,16 +93,35 @@ async function loadResources() {
       res.data?.data,
       'Invalid resource list response',
     )
-    resources.value = data.items
+    resources.value = append ? [...resources.value, ...data.items] : data.items
     total.value = data.total
+    page.value = data.page
   } catch (_error) {
     void _error
-    resources.value = []
-    total.value = 0
-    errorMessage.value = t('resource.list.loadFailed')
+    if (append) {
+      loadMoreError.value = t('resource.list.loadMoreFailed')
+    } else {
+      resources.value = []
+      total.value = 0
+      page.value = 1
+      errorMessage.value = t('resource.list.loadFailed')
+    }
   } finally {
-    loading.value = false
+    if (append) {
+      loadingMore.value = false
+    } else {
+      loading.value = false
+    }
   }
+}
+
+function loadResources() {
+  return loadResourcePage(1)
+}
+
+function loadMoreResources() {
+  if (loadingMore.value || loading.value || !hasMore.value) return
+  return loadResourcePage(page.value + 1, true)
 }
 
 function clearFilters() {
@@ -245,48 +275,70 @@ onMounted(() => {
         </p>
       </div>
 
-      <div
-        v-else
-        class="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
-      >
-        <RouterLink
-          v-for="resource in resources"
-          :key="resource.id"
-          :to="{ name: 'resource-detail', params: { id: resource.id } }"
-          class="group flex min-h-44 flex-col rounded-lg border border-border-light bg-bg-card p-5 no-underline shadow-xs transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
-        >
-          <div class="mb-3 flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <h2 class="truncate text-base font-bold text-text-primary group-hover:text-primary">
-                {{ resource.title }}
-              </h2>
-              <p class="mt-1 truncate text-xs text-text-muted">
-                {{ resourceMeta(resource) }}
-              </p>
+      <template v-else>
+        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <RouterLink
+            v-for="resource in resources"
+            :key="resource.id"
+            :to="{ name: 'resource-detail', params: { id: resource.id } }"
+            class="group flex min-h-44 flex-col rounded-lg border border-border-light bg-bg-card p-5 no-underline shadow-xs transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+          >
+            <div class="mb-3 flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <h2 class="truncate text-base font-bold text-text-primary group-hover:text-primary">
+                  {{ resource.title }}
+                </h2>
+                <p class="mt-1 truncate text-xs text-text-muted">
+                  {{ resourceMeta(resource) }}
+                </p>
+              </div>
+              <Download :size="18" class="shrink-0 text-text-muted group-hover:text-primary" />
             </div>
-            <Download :size="18" class="shrink-0 text-text-muted group-hover:text-primary" />
-          </div>
 
-          <p class="line-clamp-3 min-h-[3.75rem] text-sm leading-5 text-text-secondary">
-            {{ resource.description || t('resource.detail.noDescription') }}
+            <p class="line-clamp-3 min-h-[3.75rem] text-sm leading-5 text-text-secondary">
+              {{ resource.description || t('resource.detail.noDescription') }}
+            </p>
+
+            <div class="mt-4 flex flex-wrap gap-2">
+              <span
+                v-for="item in resource.tags"
+                :key="item"
+                class="inline-flex items-center gap-1 rounded-full bg-primary-alpha px-2.5 py-1 text-xs font-medium text-primary"
+              >
+                <Tag :size="12" />
+                {{ item }}
+              </span>
+            </div>
+
+            <div class="mt-auto pt-4 text-xs text-text-muted">
+              {{ formatDate(resource.updatedAt) }}
+            </div>
+          </RouterLink>
+        </div>
+
+        <div
+          v-if="hasMore || loadMoreError"
+          class="mt-6 flex flex-col items-center gap-3"
+        >
+          <p
+            v-if="loadMoreError"
+            role="alert"
+            class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
+          >
+            {{ loadMoreError }}
           </p>
-
-          <div class="mt-4 flex flex-wrap gap-2">
-            <span
-              v-for="item in resource.tags"
-              :key="item"
-              class="inline-flex items-center gap-1 rounded-full bg-primary-alpha px-2.5 py-1 text-xs font-medium text-primary"
-            >
-              <Tag :size="12" />
-              {{ item }}
-            </span>
-          </div>
-
-          <div class="mt-auto pt-4 text-xs text-text-muted">
-            {{ formatDate(resource.updatedAt) }}
-          </div>
-        </RouterLink>
-      </div>
+          <button
+            v-if="hasMore"
+            type="button"
+            class="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border-light bg-bg-card px-5 text-sm font-semibold text-text-secondary transition-colors hover:bg-bg-elevated hover:text-text-primary disabled:cursor-wait disabled:opacity-70"
+            :disabled="loadingMore"
+            @click="loadMoreResources"
+          >
+            <RefreshCw v-if="loadingMore" :size="16" class="animate-spin" />
+            <span>{{ loadingMore ? t('common.actions.loading') : t('common.actions.loadMore') }}</span>
+          </button>
+        </div>
+      </template>
     </section>
   </div>
 </template>

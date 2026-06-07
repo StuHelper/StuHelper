@@ -16,6 +16,7 @@ export default {
     emptyTitle: 'No matching resources',
     emptyDesc: 'Try another keyword or clear the filters.',
     loadFailed: 'Failed to load resources. Please try again later.',
+    loadMoreFailed: 'Failed to load more resources. Please try again later.',
     retry: 'Reload',
   },
   detail: {

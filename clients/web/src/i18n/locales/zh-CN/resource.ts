@@ -16,6 +16,7 @@ export default {
     emptyTitle: '暂无匹配资料',
     emptyDesc: '换一个关键词或清空筛选条件后再试。',
     loadFailed: '资料列表加载失败，请稍后重试。',
+    loadMoreFailed: '更多资料加载失败，请稍后重试。',
     retry: '重新加载',
   },
   detail: {

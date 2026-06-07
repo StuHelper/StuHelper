@@ -123,6 +123,49 @@ test.describe('Resource sharing', () => {
     await expect(page).toHaveURL(/\/resources\/42$/)
   })
 
+  test('resource list loads additional pages when more resources exist', async ({
+    page,
+  }) => {
+    const requestedPages: string[] = []
+    const makeResource = (id: number) => ({
+      ...sampleResource,
+      id,
+      title: `资料 ${id}`,
+      latestVersion: {
+        ...sampleResource.latestVersion,
+        id,
+        filename: `resource-${id}.pdf`,
+      },
+    })
+
+    await page.route('**/api/v1/resources?*', (route) => {
+      const url = new URL(route.request().url())
+      const requestedPage = url.searchParams.get('page') ?? '1'
+      requestedPages.push(requestedPage)
+      const items =
+        requestedPage === '2'
+          ? [makeResource(25)]
+          : Array.from({ length: 24 }, (_, index) => makeResource(index + 1))
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { items, total: 25, page: Number(requestedPage), pageSize: 24 },
+        }),
+      })
+    })
+
+    await page.goto('/resources')
+
+    await expect(page.getByRole('link', { name: /资料 1\b/ })).toBeVisible()
+    await expect(page.getByRole('link', { name: /资料 25\b/ })).toHaveCount(0)
+    await page.getByRole('button', { name: '加载更多' }).click()
+
+    await expect(page.getByRole('link', { name: /资料 25\b/ })).toBeVisible()
+    await expect.poll(() => requestedPages).toEqual(['1', '2'])
+    await expect(page.getByRole('button', { name: '加载更多' })).toHaveCount(0)
+  })
+
   test('resource detail displays metadata and opens download URL', async ({
     page,
   }) => {
