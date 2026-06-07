@@ -37,6 +37,11 @@ export default {
         description: '了解教师的教学风格和学生评价',
         stats: '500+ 位教师'
       },
+      resourceHub: {
+        title: '资料共享',
+        description: '查找课程资料、往年题、笔记和学习文件',
+        stats: '公开资料库'
+      },
       toolbox: {
         title: '工具箱',
         description: '实用的校园工具，让学习生活更便捷',

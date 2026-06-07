@@ -37,6 +37,11 @@ export default {
         description: 'Understand teaching styles and student feedback before enrolling',
         stats: '500+ teachers'
       },
+      resourceHub: {
+        title: 'Resources',
+        description: 'Find course materials, past exams, notes, and study files',
+        stats: 'Public library'
+      },
       toolbox: {
         title: 'Toolbox',
         description: 'Useful campus tools to make study life more convenient',

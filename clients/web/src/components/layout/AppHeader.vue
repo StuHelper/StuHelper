@@ -186,6 +186,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import {
+    FileText,
     GraduationCap,
     Home,
     LibraryBig,
@@ -257,6 +258,7 @@ const navItems = computed<NavItem[]>(() => [
     { to: "/", label: t("nav.home"), icon: Home, exact: true },
     { to: "/courses", label: t("nav.courses"), icon: LibraryBig },
     { to: "/teachers", label: t("nav.teacher"), icon: GraduationCap },
+    { to: "/resources", label: t("nav.resource"), icon: FileText },
 ]);
 
 function isNavActive(item: NavItem) {

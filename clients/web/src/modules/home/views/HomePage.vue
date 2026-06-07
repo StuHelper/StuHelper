@@ -9,6 +9,7 @@ import CountUp from '@/components/animated/CountUp.vue'
 import ScrollReveal from '@/components/animated/ScrollReveal.vue'
 import {
   AcademicCapIcon,
+  DocumentTextIcon,
   UserGroupIcon,
 } from '@heroicons/vue/24/outline'
 
@@ -107,6 +108,14 @@ const features = computed(() => [
     to: '/teachers',
     stats: t('home.landing.features.teacherProfile.stats')
   },
+  {
+    icon: DocumentTextIcon,
+    title: t('home.landing.features.resourceHub.title'),
+    description: t('home.landing.features.resourceHub.description'),
+    color: 'var(--color-accent)',
+    to: '/resources',
+    stats: t('home.landing.features.resourceHub.stats')
+  },
 ])
 
 const stats = computed(() => [
@@ -134,7 +143,7 @@ const onLearnMore = () => {
     />
 
     <section class="py-16 px-6 max-w-[1200px] mx-auto">
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-8 max-w-[700px] mx-auto">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 max-w-[1000px] mx-auto">
         <ScrollReveal
           v-for="(feature, i) in features"
           :key="feature.title"

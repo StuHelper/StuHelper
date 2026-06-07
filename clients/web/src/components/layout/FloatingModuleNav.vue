@@ -84,7 +84,7 @@ import {
 } from "vue";
 import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
-import { Pencil, GraduationCap } from "lucide-vue-next";
+import { FileText, Pencil, GraduationCap } from "lucide-vue-next";
 import { safeGetLocalStorageItem, safeSetLocalStorageItem } from "@/utils/browserStorage";
 
 interface ModuleTab {
@@ -98,6 +98,7 @@ const { t } = useI18n();
 const tabDefs: ModuleTab[] = [
     { to: "/courses/reviews", icon: markRaw(Pencil), labelKey: "nav.review" },
     { to: "/teachers", icon: markRaw(GraduationCap), labelKey: "nav.teacher" },
+    { to: "/resources", icon: markRaw(FileText), labelKey: "nav.resource" },
 ];
 
 const tabs = computed(() =>

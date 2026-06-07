@@ -26,6 +26,7 @@ export default {
   teacherHub: 'Teacher Profile',
   spoc: 'SPOC',
   resource: 'Resources',
+  resourceDetail: 'Resource Detail',
   userReviews: 'My Reviews',
   userVotes: 'My Votes',
   userFavorites: 'My Favorites',

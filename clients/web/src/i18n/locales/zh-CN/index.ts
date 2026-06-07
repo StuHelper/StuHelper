@@ -10,6 +10,7 @@ import routes from './routes'
 import user from './user'
 import teaching from './teaching'
 import developer from './developer'
+import resource from './resource'
 
 export default {
   common,
@@ -20,5 +21,6 @@ export default {
   routes,
   user,
   teaching,
-  developer
+  developer,
+  resource
 }

@@ -267,6 +267,24 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: "routes.courseAbout" },
     },
 
+    // 资料共享
+    {
+        path: "/resources",
+        name: "resource-list",
+        component: lazyLoad(
+            () => import("@/modules/resource/views/ResourceListPage.vue"),
+        ),
+        meta: { titleKey: "routes.resource" },
+    },
+    {
+        path: "/resources/:id",
+        name: "resource-detail",
+        component: lazyLoad(
+            () => import("@/modules/resource/views/ResourceDetailPage.vue"),
+        ),
+        meta: { titleKey: "routes.resourceDetail" },
+    },
+
     // 评测模块
     {
         path: "/courses/reviews",

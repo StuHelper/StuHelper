@@ -26,6 +26,7 @@ export default {
   teacherHub: '教师主页',
   spoc: '智学北航',
   resource: '资源',
+  resourceDetail: '资料详情',
   userReviews: '我的测评',
   userVotes: '我的投票',
   userFavorites: '我的收藏',
