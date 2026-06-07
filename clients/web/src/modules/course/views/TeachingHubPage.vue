@@ -59,9 +59,9 @@
                  bg-bg-card shadow-lg
                  max-h-[360px] overflow-y-auto"
         >
-          <template v-if="results.length > 0">
+          <template v-if="displayedResults.length > 0">
             <div
-              v-for="(course, idx) in results"
+              v-for="(course, idx) in displayedResults"
               :key="course.id"
               role="option"
               :aria-selected="idx === selectedIndex"
@@ -84,8 +84,11 @@
               </span>
             </div>
           </template>
-          <div v-else-if="searchCatalogError" role="alert" class="px-4 py-6 text-center text-sm text-danger">
-            {{ searchCatalogError }}
+          <div v-else-if="remoteSearchLoading" class="px-4 py-6 text-center text-sm text-text-muted">
+            {{ t('common.actions.loading') }}
+          </div>
+          <div v-else-if="visibleSearchError" role="alert" class="px-4 py-6 text-center text-sm text-danger">
+            {{ visibleSearchError }}
           </div>
           <div v-else class="px-4 py-6 text-center text-sm text-text-muted">
             <p>{{ t('review.home.courseNotFound') }}</p>
@@ -198,12 +201,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { Search, X, BookOpen, PenLine } from 'lucide-vue-next'
 import { api } from '@/api'
-import { readCoursePagePayload, readTermArrayPayload } from '@/modules/course/coursePayload'
+import { readCourseListPayload, readCoursePagePayload, readTermArrayPayload } from '@/modules/course/coursePayload'
 import { usePinyinSearch, type PinyinSearchItem } from '@/composables/usePinyinSearch'
 import ScrollReveal from '@/components/animated/ScrollReveal.vue'
 import type { Course } from '@stuhelper/shared/course'
@@ -233,20 +236,45 @@ const { t } = useI18n()
 const router = useRouter()
 
 const allCourses = ref<CourseItem[]>([])
+const remoteResults = ref<CourseItem[]>([])
 const hotCourses = ref<HotCourse[]>([])
 const reviewStats = ref<ReviewStats | null>(null)
 const errorMessage = ref('')
 const searchCatalogError = ref('')
+const remoteSearchError = ref('')
+const remoteSearchLoading = ref(false)
 const showDropdown = ref(false)
 const searchInputRef = ref<HTMLInputElement | null>(null)
 const currentTerm = ref('')
 
 let errorTimer: ReturnType<typeof setTimeout> | undefined
+let remoteSearchTimer: ReturnType<typeof setTimeout> | undefined
+let remoteSearchController: AbortController | undefined
 
-const { query, results, selectedIndex, handleKeyDown, clear } = usePinyinSearch<CourseItem>({
+const { query, results: localResults, selectedIndex, clear } = usePinyinSearch<CourseItem>({
   items: allCourses,
   maxResults: 10,
   sortBy: (a, b) => b.reviewCount - a.reviewCount,
+})
+
+const displayedResults = computed(() => {
+  const seen = new Set<number>()
+  const merged: CourseItem[] = []
+
+  for (const course of [...localResults.value, ...remoteResults.value]) {
+    if (seen.has(course.id)) continue
+    seen.add(course.id)
+    merged.push(course)
+    if (merged.length >= 10) break
+  }
+
+  return merged
+})
+
+const visibleSearchError = computed(() => {
+  if (searchCatalogError.value) return searchCatalogError.value
+  if (displayedResults.value.length > 0) return ''
+  return remoteSearchError.value
 })
 
 function onSearchKeyDown(e: KeyboardEvent) {
@@ -254,9 +282,26 @@ function onSearchKeyDown(e: KeyboardEvent) {
     showDropdown.value = false
     return
   }
-  const selected = handleKeyDown(e)
-  if (selected) {
-    navigateToCourse(selected.id)
+  if (!displayedResults.value.length) return
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    selectedIndex.value = Math.min(selectedIndex.value + 1, displayedResults.value.length - 1)
+    return
+  }
+
+  if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    selectedIndex.value = Math.max(selectedIndex.value - 1, 0)
+    return
+  }
+
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    const selected = displayedResults.value[selectedIndex.value]
+    if (selected) {
+      navigateToCourse(selected.id)
+    }
   }
 }
 
@@ -267,6 +312,7 @@ function navigateToCourse(courseId: number) {
 }
 
 function clearSearch() {
+  resetRemoteSearch()
   clear()
   showDropdown.value = false
   searchInputRef.value?.focus()
@@ -303,6 +349,77 @@ function mapCourseItem(raw: Course): CourseItem {
     reviewCount: raw.reviewCount,
   }
 }
+
+function resetRemoteSearch() {
+  if (remoteSearchTimer) {
+    clearTimeout(remoteSearchTimer)
+    remoteSearchTimer = undefined
+  }
+  if (remoteSearchController) {
+    remoteSearchController.abort()
+    remoteSearchController = undefined
+  }
+  remoteResults.value = []
+  remoteSearchError.value = ''
+  remoteSearchLoading.value = false
+}
+
+async function searchRemoteCourses(term: string) {
+  const controller = new AbortController()
+  remoteSearchController = controller
+  remoteSearchLoading.value = true
+  remoteSearchError.value = ''
+
+  try {
+    const res = await api.course.searchCourses(term, { pageSize: 10 }, { signal: controller.signal })
+    if (controller.signal.aborted) return
+    remoteResults.value = readCourseListPayload(
+      res.data?.data,
+      'Invalid course search response',
+    ).map(mapCourseItem)
+  } catch (_error: unknown) {
+    void _error
+    if (controller.signal.aborted) return
+    remoteResults.value = []
+    remoteSearchError.value = t('common.loadFailed')
+  } finally {
+    if (remoteSearchController === controller) {
+      remoteSearchController = undefined
+      remoteSearchLoading.value = false
+    }
+  }
+}
+
+watch(query, (value) => {
+  selectedIndex.value = 0
+  remoteSearchError.value = ''
+
+  if (remoteSearchTimer) {
+    clearTimeout(remoteSearchTimer)
+    remoteSearchTimer = undefined
+  }
+  if (remoteSearchController) {
+    remoteSearchController.abort()
+    remoteSearchController = undefined
+  }
+
+  const term = value.trim()
+  if (!term || searchCatalogError.value) {
+    remoteResults.value = []
+    remoteSearchLoading.value = false
+    return
+  }
+
+  remoteSearchLoading.value = true
+  remoteSearchTimer = setTimeout(() => {
+    remoteSearchTimer = undefined
+    void searchRemoteCourses(term)
+  }, 300)
+})
+
+watch(displayedResults, () => {
+  selectedIndex.value = 0
+})
 
 function mapHotCourse(raw: unknown): HotCourse {
   if (!isRecord(raw)) {
@@ -430,6 +547,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleClickOutside)
   if (errorTimer) clearTimeout(errorTimer)
+  resetRemoteSearch()
 })
 </script>
 

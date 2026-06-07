@@ -20,8 +20,102 @@ async function expectLoginRedirect(page: Page, redirect: string) {
   expect(url.searchParams.get('redirect')).toBe(redirect)
 }
 
+interface CourseFixture {
+  id: number
+  name: string
+  code: string
+  departmentID: number
+  departmentName: string
+  credits: number
+  reviewCount: number
+}
+
+function course(overrides: Partial<CourseFixture> = {}): CourseFixture {
+  return {
+    id: 1,
+    name: '高等数学A',
+    code: 'MATH101',
+    departmentID: 2,
+    departmentName: '数学科学学院',
+    credits: 4,
+    reviewCount: 15,
+    ...overrides,
+  }
+}
+
+function coursePage(list: CourseFixture[], total = list.length) {
+  return {
+    success: true,
+    data: { list, total },
+  }
+}
+
+async function mockCourseDetailShell(page: Page, courseData: CourseFixture) {
+  await page.route(`**/api/v1/course/courses/${courseData.id}`, (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, data: courseData }),
+    }),
+  )
+
+  await page.route(
+    `**/api/v1/course/review/courses/${courseData.id}/reviews*`,
+    (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: { list: [], total: 0 } }),
+      }),
+  )
+
+  await page.route(
+    `**/api/v1/course/review/courses/${courseData.id}/rating-stats*`,
+    (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            courseID: courseData.id,
+            overall: { termName: '总体', dimensions: [] },
+            byTerm: [],
+            allDimensionKeys: [],
+          },
+        }),
+      }),
+  )
+
+  await page.route(
+    `**/api/v1/course/review/courses/${courseData.id}/teachers*`,
+    (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: [] }),
+      }),
+  )
+
+  await page.route(
+    `**/api/v1/course/review/courses/${courseData.id}/rating-trend*`,
+    (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: { trend: [] } }),
+      }),
+  )
+}
+
 test.describe('Course Browse Flow', () => {
   test.beforeEach(async ({ page }) => {
+    const defaultMathCourse = course()
+    const defaultCsCourse = course({
+      id: 2,
+      name: '数据结构',
+      code: 'CS201',
+      departmentID: 1,
+      departmentName: '计算机科学与技术学院',
+      reviewCount: 23,
+    })
+    const defaultCourses = [defaultMathCourse, defaultCsCourse]
+
     await mockUnauthenticated(page)
 
     await page.route('**/api/v1/course/departments*', (route) =>
@@ -57,37 +151,50 @@ test.describe('Course Browse Flow', () => {
       }),
     )
 
-    await page.route('**/api/v1/course/courses?*', (route) =>
+    await page.route('**/api/v1/course/review/stats', (route) =>
       route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({
           success: true,
           data: {
-            list: [
-              {
-                id: 1,
-                name: '高等数学A',
-                code: 'MATH101',
-                departmentID: 2,
-                departmentName: '数学科学学院',
-                credits: 4,
-                reviewCount: 15,
-              },
-              {
-                id: 2,
-                name: '数据结构',
-                code: 'CS201',
-                departmentID: 1,
-                departmentName: '计算机科学与技术学院',
-                credits: 4,
-                reviewCount: 23,
-              },
-            ],
-            total: 2,
+            courseCount: 2,
+            reviewCount: 38,
+            departmentCount: 2,
+            userCount: 12,
           },
         }),
       }),
     )
+
+    await page.route('**/api/v1/course/review/rankings/hot*', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: { list: [] } }),
+      }),
+    )
+
+    await page.route('**/api/v1/course/courses?*', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify(coursePage(defaultCourses)),
+      }),
+    )
+
+    await page.route('**/api/v1/course/courses/search?*', (route) => {
+      const url = new URL(route.request().url())
+      const query = url.searchParams.get('q')?.trim().toLowerCase() ?? ''
+      const list = defaultCourses.filter(
+        (course) =>
+          query &&
+          (course.name.toLowerCase().includes(query) ||
+            course.code.toLowerCase().includes(query)),
+      )
+
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify(coursePage(list)),
+      })
+    })
 
     await page.route('**/api/v1/course/courses/grouped', (route) =>
       route.fulfill({
@@ -99,32 +206,12 @@ test.describe('Course Browse Flow', () => {
               {
                 departmentID: 2,
                 departmentName: '数学科学学院',
-                courses: [
-                  {
-                    id: 1,
-                    name: '高等数学A',
-                    code: 'MATH101',
-                    departmentID: 2,
-                    departmentName: '数学科学学院',
-                    credits: 4,
-                    reviewCount: 15,
-                  },
-                ],
+                courses: [defaultMathCourse],
               },
               {
                 departmentID: 1,
                 departmentName: '计算机科学与技术学院',
-                courses: [
-                  {
-                    id: 2,
-                    name: '数据结构',
-                    code: 'CS201',
-                    departmentID: 1,
-                    departmentName: '计算机科学与技术学院',
-                    credits: 4,
-                    reviewCount: 23,
-                  },
-                ],
+                courses: [defaultCsCourse],
               },
             ],
           },
@@ -159,6 +246,65 @@ test.describe('Course Browse Flow', () => {
         name: /高等数学A.*数学科学学院.*15条测评/,
       }),
     ).toBeVisible()
+  })
+
+  test('course hub search falls back to server catalog beyond the first page', async ({
+    page,
+  }) => {
+    const searchUrls: URL[] = []
+    const remoteCourse = course({
+      id: 101,
+      name: '深度学习导论',
+      code: 'AI101',
+      departmentID: 3,
+      departmentName: '人工智能学院',
+      credits: 2,
+      reviewCount: 7,
+    })
+
+    await page.route('**/api/v1/course/courses?*', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify(coursePage([course()], 101)),
+      }),
+    )
+
+    await page.route('**/api/v1/course/courses/search?*', (route) => {
+      searchUrls.push(new URL(route.request().url()))
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify(coursePage([remoteCourse])),
+      })
+    })
+
+    await mockCourseDetailShell(page, remoteCourse)
+
+    await page.goto('/courses')
+    await page.waitForLoadState('networkidle')
+
+    await page
+      .getByRole('textbox', {
+        name: /搜索课程名称、拼音或首字母/,
+      })
+      .fill('深度学习导论')
+
+    await expect
+      .poll(() =>
+        searchUrls.some(
+          (url) =>
+            url.searchParams.get('q') === '深度学习导论' &&
+            url.searchParams.get('pageSize') === '10',
+        ),
+      )
+      .toBe(true)
+    await page
+      .getByRole('option', {
+        name: /深度学习导论.*人工智能学院.*7条测评/,
+      })
+      .click()
+
+    await expect(page).toHaveURL(/\/courses\/101$/)
+    await expect(page.getByText('深度学习导论')).toBeVisible({ timeout: 10_000 })
   })
 
   test('invalid grouped course response fails closed and can retry', async ({
