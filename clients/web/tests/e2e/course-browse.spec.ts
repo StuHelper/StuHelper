@@ -302,6 +302,277 @@ test.describe('Course Browse Flow', () => {
     await expect(page).toHaveTitle(/高等数学A - StuHelper/)
   })
 
+  test('course detail teacher filter requests server pages with teacher id', async ({
+    page,
+  }) => {
+    const reviewRequests: URL[] = []
+    const wangReview = {
+      id: 'teacher-filter-wang',
+      courseID: 8,
+      courseName: '教师筛选课程',
+      teacherID: 1,
+      teacherName: '王老师',
+      termID: '2026-spring',
+      termName: '2026 春',
+      title: '王老师评价',
+      content: '第一页只有王老师，不能代表所有教师筛选结果。',
+      ratings: { recommendation: 4, workload: 3 },
+      likeCount: 1,
+      dislikeCount: 0,
+      replyCount: 0,
+      status: 'published',
+      createdAt: '2026-05-24T04:00:00Z',
+    }
+    const liReviewPageOne = {
+      ...wangReview,
+      id: 'teacher-filter-li-1',
+      teacherID: 2,
+      teacherName: '李老师',
+      title: '李老师第一页评价',
+    }
+    const liReviewPageTwo = {
+      ...liReviewPageOne,
+      id: 'teacher-filter-li-2',
+      title: '李老师第二页评价',
+    }
+
+    await page.route('**/api/v1/course/courses/8', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            id: 8,
+            name: '教师筛选课程',
+            code: 'FILTER101',
+            departmentID: 1,
+            departmentName: '测试学院',
+            credits: 2,
+            reviewCount: 3,
+          },
+        }),
+      }),
+    )
+
+    await page.route('**/api/v1/course/review/courses/8/reviews*', (route) => {
+      const url = new URL(route.request().url())
+      reviewRequests.push(url)
+      const teacherID = url.searchParams.get('teacherID')
+      const pageNo = url.searchParams.get('page')
+      const list =
+        teacherID === '2'
+          ? pageNo === '2'
+            ? [liReviewPageTwo]
+            : [liReviewPageOne]
+          : [wangReview]
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { list, total: teacherID === '2' ? 2 : 3 },
+        }),
+      })
+    })
+
+    await page.route(
+      '**/api/v1/course/review/courses/8/rating-stats*',
+      (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: {
+              courseID: 8,
+              overall: { termName: '总体', dimensions: [] },
+              byTerm: [],
+              allDimensionKeys: [],
+            },
+          }),
+        }),
+    )
+
+    await page.route(
+      '**/api/v1/course/review/courses/8/teachers*',
+      (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: [
+              {
+                teacherID: 1,
+                teacherName: '王老师',
+                departmentName: '测试学院',
+                courseCount: 1,
+                reviewCount: 1,
+              },
+              {
+                teacherID: 2,
+                teacherName: '李老师',
+                departmentName: '测试学院',
+                courseCount: 1,
+                reviewCount: 2,
+              },
+            ],
+          }),
+        }),
+    )
+
+    await page.route(
+      '**/api/v1/course/review/courses/8/rating-trend*',
+      (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: { trend: [] } }),
+        }),
+    )
+
+    await page.goto('/courses/8/reviews')
+    await page.waitForLoadState('networkidle')
+
+    await expect(page.getByText('王老师评价')).toBeVisible({
+      timeout: 10_000,
+    })
+
+    await page.getByRole('button', { name: '李老师' }).click()
+
+    await expect(page.getByText('李老师第一页评价')).toBeVisible()
+    await expect(page.getByText('王老师评价')).toHaveCount(0)
+    await expect
+      .poll(() =>
+        reviewRequests.some(
+          (url) =>
+            url.searchParams.get('teacherID') === '2' &&
+            url.searchParams.get('page') === '1',
+        ),
+      )
+      .toBe(true)
+
+    await page.getByRole('button', { name: /加载更多|Load more/ }).click()
+
+    await expect(page.getByText('李老师第二页评价')).toBeVisible()
+    await expect
+      .poll(() =>
+        reviewRequests.some(
+          (url) =>
+            url.searchParams.get('teacherID') === '2' &&
+            url.searchParams.get('page') === '2',
+        ),
+      )
+      .toBe(true)
+  })
+
+  test('course detail review list failure is retryable and not shown as empty', async ({
+    page,
+  }) => {
+    let reviewLoads = 0
+
+    await page.route('**/api/v1/course/courses/9', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            id: 9,
+            name: '评课失败测试课',
+            code: 'FAIL101',
+            departmentID: 1,
+            departmentName: '测试学院',
+            credits: 2,
+            reviewCount: 1,
+          },
+        }),
+      }),
+    )
+
+    await page.route('**/api/v1/course/review/courses/9/reviews*', (route) => {
+      reviewLoads += 1
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify(
+          reviewLoads === 1
+            ? { success: true, data: { list: null, total: 1 } }
+            : {
+                success: true,
+                data: {
+                  list: [
+                    {
+                      id: 'review-retry-success',
+                      courseID: 9,
+                      courseName: '评课失败测试课',
+                      teacherID: 3,
+                      teacherName: '周老师',
+                      termID: '2026-spring',
+                      termName: '2026 春',
+                      title: '重试后出现的评价',
+                      content: '评课列表失败后应能单独重试恢复。',
+                      ratings: { recommendation: 5, workload: 3 },
+                      likeCount: 0,
+                      dislikeCount: 0,
+                      replyCount: 0,
+                      status: 'published',
+                      createdAt: '2026-05-24T04:00:00Z',
+                    },
+                  ],
+                  total: 1,
+                },
+              },
+        ),
+      })
+    })
+
+    await page.route(
+      '**/api/v1/course/review/courses/9/rating-stats*',
+      (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: {
+              courseID: 9,
+              overall: { termName: '总体', dimensions: [] },
+              byTerm: [],
+              allDimensionKeys: [],
+            },
+          }),
+        }),
+    )
+
+    await page.route(
+      '**/api/v1/course/review/courses/9/teachers*',
+      (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: [] }),
+        }),
+    )
+
+    await page.route(
+      '**/api/v1/course/review/courses/9/rating-trend*',
+      (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: { trend: [] } }),
+        }),
+    )
+
+    await page.goto('/courses/9/reviews')
+    await page.waitForLoadState('networkidle')
+
+    await expect(page.getByText('评课失败测试课')).toBeVisible({
+      timeout: 10_000,
+    })
+    await expect(
+      page.getByRole('alert').filter({ hasText: /Load failed|加载失败/i }).first(),
+    ).toBeVisible()
+    await expect(page.getByText(/^(暂无测评|No reviews yet)$/)).toHaveCount(0)
+
+    await page.getByRole('button', { name: /重试|Retry/ }).click()
+
+    await expect.poll(() => reviewLoads).toBe(2)
+    await expect(page.getByText('重试后出现的评价')).toBeVisible()
+  })
+
   test('guest readers can view replies without seeing a reply editor', async ({
     page,
   }) => {

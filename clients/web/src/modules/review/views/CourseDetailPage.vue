@@ -173,21 +173,21 @@
         </section>
 
         <!-- ========== 3. Teacher Filter Chips ========== -->
-        <section v-if="uniqueTeachers.length > 0" class="mb-6">
+        <section v-if="teacherChips.length > 1" class="mb-6">
           <h3 class="text-sm font-semibold uppercase tracking-wider text-text-muted mb-3">
             {{ t('review.detail.teacherTitle') }} &gt;
           </h3>
           <div class="flex flex-wrap gap-2">
             <button
               v-for="teacher in teacherChips"
-              :key="teacher"
+              :key="teacher.teacherID ?? 'all'"
               class="rounded-full px-3 py-1 text-[0.8125rem] font-semibold transition-all duration-base"
-              :class="selectedTeacher === teacher
+              :class="selectedTeacherID === teacher.teacherID
                 ? 'bg-primary text-white shadow-glow-primary scale-105'
                 : 'bg-bg-elevated text-text-secondary hover:scale-[1.02] hover:shadow-sm'"
               @click="selectTeacher(teacher)"
             >
-              {{ teacher === '' ? t('review.filter.all') : teacher }}
+              {{ teacher.teacherName }}
             </button>
           </div>
         </section>
@@ -196,7 +196,7 @@
         <section>
           <div class="flex flex-col gap-4 mb-4">
             <div
-              v-for="r in filteredReviews"
+              v-for="r in reviews"
               :key="r.id"
               class="relative bg-bg-card rounded-xl shadow-card p-5 transition-all duration-slow hover:-translate-y-0.5 hover:shadow-lg"
               :class="reviewCardBorderClass(r)"
@@ -391,14 +391,28 @@
 
           <!-- Empty state -->
           <div
-            v-if="!reviewsLoading && reviews.length === 0"
+            v-if="reviewsLoadError"
+            role="alert"
+            class="bg-bg-card rounded-xl shadow-card p-8 text-center"
+          >
+            <p class="mb-4 text-danger">{{ t('common.loadFailed') }}</p>
+            <button
+              class="py-2 px-6 text-sm font-medium text-white bg-primary rounded-full transition-opacity duration-fast hover:opacity-90 disabled:opacity-50"
+              :disabled="reviewsLoading"
+              @click="retryReviews"
+            >
+              {{ reviewsLoading ? t('common.actions.loading') : t('common.actions.retry') }}
+            </button>
+          </div>
+          <div
+            v-else-if="!reviewsLoading && reviews.length === 0"
             class="bg-bg-card rounded-xl shadow-card p-8 text-center"
           >
             <p class="text-text-muted">{{ t('review.course.noReviews') }}</p>
           </div>
 
           <!-- Load more -->
-          <div v-if="hasMore" class="flex justify-center py-6">
+          <div v-if="hasMore && !reviewsLoadError" class="flex justify-center py-6">
             <button
               class="py-2 px-6 text-sm font-medium text-white bg-primary rounded-full opacity-90 transition-opacity duration-fast hover:opacity-100 disabled:opacity-50"
               :disabled="reviewsLoading"
@@ -514,6 +528,7 @@ const ratingTrend = ref<RatingTrendPoint[]>([])
 // ── Reviews ──
 const reviews = ref<Review[]>([])
 const reviewsLoading = ref(false)
+const reviewsLoadError = ref(false)
 const page = ref(1)
 const limit = 20
 const total = ref(0)
@@ -523,22 +538,27 @@ const hasRatingTerms = computed(() => ratingTerms.value.length > 0)
 const showRatingUnavailable = computed(() => !hasRatingTerms.value && total.value > 0)
 
 // ── Teacher filter ──
-const selectedTeacher = ref('')
-const uniqueTeachers = computed(() => {
+const selectedTeacherID = ref<number | null>(null)
+const sortedTeachers = computed(() => {
   return courseTeachers.value
-    .map(t => t.teacherName)
-    .filter(Boolean)
-    .sort()
+    .filter(t => t.teacherID > 0 && t.teacherName.trim())
+    .slice()
+    .sort((a, b) => a.teacherName.localeCompare(b.teacherName))
 })
-const teacherChips = computed(() => ['', ...uniqueTeachers.value])
+const teacherChips = computed(() => [
+  { teacherID: null, teacherName: t('review.filter.all') },
+  ...sortedTeachers.value.map(teacher => ({
+    teacherID: teacher.teacherID,
+    teacherName: teacher.teacherName,
+  })),
+])
 
-const filteredReviews = computed(() => {
-  if (!selectedTeacher.value) return reviews.value
-  return reviews.value.filter(r => r.teacherName === selectedTeacher.value)
-})
-
-function selectTeacher(name: string) {
-  selectedTeacher.value = name
+function selectTeacher(teacher: { teacherID: number | null }) {
+  if (selectedTeacherID.value === teacher.teacherID) return
+  selectedTeacherID.value = teacher.teacherID
+  page.value = 1
+  const version = ++loadVersion
+  void fetchReviews(false, version)
 }
 
 // ── Voting state (per-review) ──
@@ -772,12 +792,21 @@ const fetchReviews = async (append = false, expectedVersion?: number) => {
       page: page.value,
       pageSize: limit,
       sort: 'time',
+      teacherID: selectedTeacherID.value ?? undefined,
     })
     if (expectedVersion !== undefined && expectedVersion !== loadVersion) return
     reviews.value = append ? [...reviews.value, ...pageData.list] : pageData.list
     total.value = pageData.total
+    reviewsLoadError.value = false
   } catch (error) {
     if (expectedVersion === undefined || expectedVersion === loadVersion) {
+      if (!append) {
+        reviews.value = []
+        total.value = 0
+      } else {
+        page.value = Math.max(1, page.value - 1)
+      }
+      reviewsLoadError.value = true
       toast.error(getErrorMessage(error, t('common.loadFailed')))
     }
   } finally {
@@ -798,6 +827,12 @@ function refreshReviews() {
   const version = ++loadVersion
   fetchReviews(false, version)
   fetchRatingStats()
+}
+
+function retryReviews() {
+  page.value = 1
+  const version = ++loadVersion
+  void fetchReviews(false, version)
 }
 
 const fetchRatingStats = async () => {
@@ -822,9 +857,10 @@ const fetchAll = async () => {
   ratingStats.value = null
   courseTeachers.value = []
   reviews.value = []
+  reviewsLoadError.value = false
   total.value = 0
   page.value = 1
-  selectedTeacher.value = ''
+  selectedTeacherID.value = null
   contentReady.value = false
   loading.value = true
   error.value = false
@@ -874,9 +910,11 @@ const fetchAll = async () => {
     if (reviewsRes.status === 'fulfilled') {
       reviews.value = reviewsRes.value.list
       total.value = reviewsRes.value.total
+      reviewsLoadError.value = false
     } else {
       reviews.value = []
       total.value = 0
+      reviewsLoadError.value = true
     }
 
     if (teachersRes.status === 'fulfilled') {
