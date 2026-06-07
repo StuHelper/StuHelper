@@ -293,9 +293,15 @@ export default {
     title: '课程列表',
     expandAll: '展开全部',
     collapseAll: '收起全部',
+    searchLabel: '搜索课程',
+    searchPlaceholder: '搜索课程名、代码、院系或拼音',
+    clearSearch: '清除课程搜索',
+    searchCount: '找到 {count} 门课程',
     courseCount: '{count} 门课程',
     reviewCount: '{count} 条评价',
     noCourses: '没有获取到任何课程数据',
+    noSearchResults: '没有找到匹配的课程',
+    advancedSearch: '去高级搜索',
     loadFailed: '获取课程列表失败，请稍后重试'
   },
   detail: {

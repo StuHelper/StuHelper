@@ -229,6 +229,44 @@ test.describe('Course Browse Flow', () => {
     await expect(page.getByText('数据结构')).toBeVisible()
   })
 
+  test('course list filters courses from URL and search input', async ({
+    page,
+  }) => {
+    await page.goto('/courses/list?q=数据结构')
+
+    const searchBox = page.getByRole('searchbox', { name: '搜索课程' })
+    await expect(searchBox).toHaveValue('数据结构')
+    await expect(page.getByText('找到 1 门课程')).toBeVisible()
+    await expect(page.getByText('数据结构')).toBeVisible()
+    await expect(page.getByText('高等数学A')).toHaveCount(0)
+
+    await page.getByRole('button', { name: '清除课程搜索' }).click()
+    await expect(page).toHaveURL((url) =>
+      url.pathname === '/courses/list' && !url.searchParams.has('q'),
+    )
+    await expect(searchBox).toHaveValue('')
+    await expect(page.getByText('高等数学A')).toBeVisible()
+    await expect(page.getByText('数据结构')).toBeVisible()
+
+    await searchBox.fill('CS201')
+    await expect(page).toHaveURL((url) =>
+      url.pathname === '/courses/list' && url.searchParams.get('q') === 'CS201',
+    )
+    await expect(page.getByText('数据结构')).toBeVisible()
+    await expect(page.getByText('高等数学A')).toHaveCount(0)
+
+    await searchBox.fill('不存在课程')
+    await expect(page).toHaveURL((url) =>
+      url.pathname === '/courses/list' && url.searchParams.get('q') === '不存在课程',
+    )
+    await expect(page.getByText('没有找到匹配的课程')).toBeVisible()
+    await page.getByRole('link', { name: '去高级搜索' }).click()
+    await expect(page).toHaveURL((url) =>
+      url.pathname === '/search' &&
+      url.searchParams.get('courseName') === '不存在课程',
+    )
+  })
+
   test('course hub search finds courses by common Chinese abbreviations', async ({
     page,
   }) => {
