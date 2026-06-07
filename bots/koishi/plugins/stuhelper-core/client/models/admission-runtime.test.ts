@@ -11,7 +11,7 @@ test('buildAdmissionRuntimeModel exposes admission runtime metrics and switch st
 
   assert.equal(model.metrics[0].label, '目标群')
   assert.equal(model.metrics[0].value, 2)
-  assert.equal(model.metrics[0].note, '1 个静态目标群，2 个启用绑定')
+  assert.equal(model.metrics[0].note, '1 个静态目标群，2 个启用绑定，去重后 2 个有效目标群')
   assert.equal(model.metrics[1].value, 2)
   assert.equal(model.metrics[3].tone, 'danger')
   assert.equal(model.switchRows.find((row) => row.id === 'service-token')?.tone, 'success')

@@ -153,7 +153,7 @@ function buildMetrics(data: AdmissionRuntimePageData): AdmissionMetric[] {
     {
       label: '目标群',
       value: activeTargetGuildCount,
-      note: `${data.stats.targetGroupCount} 个静态目标群，${data.stats.enabledBindingCount} 个启用绑定`,
+      note: `${data.stats.targetGroupCount} 个静态目标群，${data.stats.enabledBindingCount} 个启用绑定，去重后 ${activeTargetGuildCount} 个有效目标群`,
       tone: activeTargetGuildCount > 0 ? 'success' : 'warning',
     },
     {
