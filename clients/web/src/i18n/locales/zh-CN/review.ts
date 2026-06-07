@@ -377,6 +377,8 @@ export default {
     coursesWithReviews: '有测评的课程',
     coursesWithoutReviews: '无测评的课程',
     reviewResults: '测评结果',
+    loadMoreCoursesFailed: '更多课程加载失败，请稍后重试。',
+    loadMoreReviewsFailed: '更多测评加载失败，请稍后重试。',
     noResults: '未找到任何符合条件的结果，请尝试其他搜索条件',
     noCoursesFound: '未找到符合条件的课程，请尝试其他关键词',
     noReviewsFound: '未找到符合条件的测评'

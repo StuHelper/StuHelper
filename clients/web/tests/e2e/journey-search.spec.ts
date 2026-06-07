@@ -381,6 +381,87 @@ test.describe('User Journey: Search', () => {
     await expect(page.getByText('按老师和学期命中的评价')).toBeVisible()
   })
 
+  test('search results load additional review pages when more reviews match', async ({
+    page,
+  }) => {
+    const makeReview = (id: number) => ({
+      id: `advanced-review-${id}`,
+      courseID: 101,
+      courseName: '数据结构与算法',
+      teacherID: 21,
+      teacherName: '王老师',
+      termID: '2026-spring',
+      termName: '2026 春',
+      title: `高级搜索评价 ${id}`,
+      content: '用于验证高级搜索评价分页。',
+      ratings: { recommendation: 4 },
+      likeCount: id,
+      dislikeCount: 0,
+      replyCount: 0,
+      status: 'published',
+      createdAt: '2026-03-20T10:00:00Z',
+    })
+
+    await page.route('**/api/v1/course/courses/search*', (route) => {
+      recordApiRequest(route)
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { list: [], total: 0 },
+        }),
+      })
+    })
+
+    await page.route('**/api/v1/course/review/reviews/search*', (route) => {
+      recordApiRequest(route)
+      const url = new URL(route.request().url())
+      const requestedPage = url.searchParams.get('page') ?? '1'
+      const reviews =
+        requestedPage === '2'
+          ? [makeReview(51)]
+          : Array.from({ length: 50 }, (_, index) => makeReview(index + 1))
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { list: reviews, total: 51 },
+        }),
+      })
+    })
+
+    await page.goto('/search')
+    await page.waitForLoadState('networkidle')
+    await page.locator('#advanced-course-name').fill('数据结构')
+
+    await page
+      .getByRole('button', { name: /^Search$|^搜索$/ })
+      .first()
+      .click()
+
+    await expect(page.getByText('高级搜索评价 50')).toBeVisible({
+      timeout: 10_000,
+    })
+    await expect(page.getByText('高级搜索评价 51')).toHaveCount(0)
+
+    await page.getByRole('button', { name: /Load More|加载更多/ }).click()
+
+    await expect(page.getByText('高级搜索评价 51')).toBeVisible()
+    await expect
+      .poll(() =>
+        hasWebGetRequest('/api/v1/course/review/reviews/search', (url) =>
+          (
+            url.searchParams.get('q') === '数据结构' &&
+            url.searchParams.get('page') === '2' &&
+            url.searchParams.get('pageSize') === '50' &&
+            url.searchParams.get('sort') === 'time'
+          ),
+        ),
+      )
+      .toBe(true)
+    await expect(page.getByRole('button', { name: /Load More|加载更多/ })).toHaveCount(0)
+  })
+
   test('course keyword search keeps the selected department filter', async ({
     page,
   }) => {

@@ -421,6 +421,8 @@ export default {
     coursesWithReviews: 'Courses with Reviews',
     coursesWithoutReviews: 'Courses without Reviews',
     reviewResults: 'Review Results',
+    loadMoreCoursesFailed: 'Failed to load more courses. Please try again later.',
+    loadMoreReviewsFailed: 'Failed to load more reviews. Please try again later.',
     noResults: 'No results found. Please try different search conditions.',
     noCoursesFound: 'No matching courses found. Try different keywords.',
     noReviewsFound: 'No matching reviews found'

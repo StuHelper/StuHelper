@@ -290,6 +290,29 @@
             </div>
           </section>
 
+          <div
+            v-if="resultCourses.length > 0 && (hasMoreCourses || coursesLoadMoreError)"
+            class="mb-8 flex flex-col items-center gap-3"
+          >
+            <p
+              v-if="coursesLoadMoreError"
+              role="alert"
+              class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
+            >
+              {{ coursesLoadMoreError }}
+            </p>
+            <button
+              v-if="hasMoreCourses"
+              type="button"
+              class="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border-light bg-bg-card px-5 text-sm font-semibold text-text-secondary transition-colors hover:bg-bg-elevated hover:text-text-primary disabled:cursor-wait disabled:opacity-70"
+              :disabled="coursesLoadingMore"
+              @click="loadMoreCourses"
+            >
+              <RefreshCw v-if="coursesLoadingMore" :size="16" class="animate-spin" />
+              <span>{{ coursesLoadingMore ? t('common.actions.loading') : t('common.actions.loadMore') }}</span>
+            </button>
+          </div>
+
           <!-- Review Results -->
           <section v-if="resultReviews.length > 0">
             <h2 class="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
@@ -308,6 +331,28 @@
                 :style="{ animationDelay: `${Math.min(idx, 8) * 60}ms` }"
               />
             </div>
+            <div
+              v-if="hasMoreReviews || reviewsLoadMoreError"
+              class="mt-5 flex flex-col items-center gap-3"
+            >
+              <p
+                v-if="reviewsLoadMoreError"
+                role="alert"
+                class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
+              >
+                {{ reviewsLoadMoreError }}
+              </p>
+              <button
+                v-if="hasMoreReviews"
+                type="button"
+                class="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border-light bg-bg-card px-5 text-sm font-semibold text-text-secondary transition-colors hover:bg-bg-elevated hover:text-text-primary disabled:cursor-wait disabled:opacity-70"
+                :disabled="reviewsLoadingMore"
+                @click="loadMoreReviews"
+              >
+                <RefreshCw v-if="reviewsLoadingMore" :size="16" class="animate-spin" />
+                <span>{{ reviewsLoadingMore ? t('common.actions.loading') : t('common.actions.loadMore') }}</span>
+              </button>
+            </div>
           </section>
         </template>
       </div>
@@ -319,14 +364,14 @@
 import { ref, reactive, onMounted, computed, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Search, SearchX } from 'lucide-vue-next'
+import { ArrowLeft, RefreshCw, Search, SearchX } from 'lucide-vue-next'
 import ReviewCard from '@/components/business/review/ReviewCard.vue'
 import { api } from '@/api'
 import { getErrorMessage } from '@/api/errors'
 import { useToast } from '@/composables/useToast'
 import { updatePageMeta } from '@/composables/usePageMeta'
 import {
-  readCourseListPayload,
+  readCoursePagePayload,
   readDepartmentArrayPayload,
   readTermArrayPayload,
 } from '@/modules/course/coursePayload'
@@ -362,8 +407,17 @@ const showResults = ref(false)
 const validationError = ref('')
 const resultCourses = ref<Course[]>([])
 const resultReviews = ref<Review[]>([])
+const courseTotal = ref(0)
+const reviewTotal = ref(0)
+const coursePage = ref(1)
+const reviewPage = ref(1)
+const coursesLoadingMore = ref(false)
+const reviewsLoadingMore = ref(false)
 const searchError = ref('')
+const coursesLoadMoreError = ref('')
+const reviewsLoadMoreError = ref('')
 const referenceError = ref('')
+const SEARCH_PAGE_SIZE = 50
 
 let abortController: AbortController | null = null
 
@@ -376,6 +430,8 @@ const coursesWithReviews = computed(() =>
 const coursesWithoutReviews = computed(() =>
   resultCourses.value.filter(c => c.reviewCount === 0)
 )
+const hasMoreCourses = computed(() => resultCourses.value.length < courseTotal.value)
+const hasMoreReviews = computed(() => resultReviews.value.length < reviewTotal.value)
 
 // --- Navigation ---
 
@@ -398,6 +454,7 @@ async function backToForm() {
   showResults.value = false
   resultCourses.value = []
   resultReviews.value = []
+  resetSearchPagination()
   updateSearchFormPageMeta()
   await nextTick()
   scrollSearchPageToTop()
@@ -479,6 +536,61 @@ function updateSearchResultsPageMeta() {
   })
 }
 
+function resetSearchPagination() {
+  courseTotal.value = 0
+  reviewTotal.value = 0
+  coursePage.value = 1
+  reviewPage.value = 1
+  coursesLoadMoreError.value = ''
+  reviewsLoadMoreError.value = ''
+}
+
+async function fetchCourseResults(nextPage: number, signal?: AbortSignal) {
+  const courseQuery = form.courseName.trim() || form.courseCode.trim()
+  if (!courseQuery && form.departmentID <= 0) {
+    return { list: [] as Course[], total: 0 }
+  }
+
+  const result = courseQuery
+    ? form.departmentID > 0
+      ? await api.course.getCourses({
+          q: courseQuery,
+          departmentID: form.departmentID,
+          page: nextPage,
+          pageSize: SEARCH_PAGE_SIZE,
+        })
+      : await api.course.searchCourses(
+          courseQuery,
+          { page: nextPage, pageSize: SEARCH_PAGE_SIZE },
+          { signal },
+        )
+    : await api.course.getCourses({
+        departmentID: form.departmentID,
+        page: nextPage,
+        pageSize: SEARCH_PAGE_SIZE,
+      })
+
+  return readCoursePagePayload(
+    result.data?.data,
+    'Invalid course search response',
+  )
+}
+
+async function fetchReviewResults(nextPage: number, signal?: AbortSignal) {
+  return api.review.searchReviewsPage(
+    {
+      q: form.courseName.trim() || form.courseCode.trim() || undefined,
+      departmentID: form.departmentID > 0 ? form.departmentID : undefined,
+      teacherName: form.teacherName.trim() || undefined,
+      termID: form.termID || undefined,
+      page: nextPage,
+      pageSize: SEARCH_PAGE_SIZE,
+      sort: 'time',
+    },
+    { signal },
+  )
+}
+
 async function handleSearch() {
   if (!validateForm()) return
   if (searching.value) return
@@ -494,59 +606,32 @@ async function handleSearch() {
   showResults.value = true
   resultCourses.value = []
   resultReviews.value = []
+  resetSearchPagination()
   searchError.value = ''
   updateSearchResultsPageMeta()
   await nextTick()
   scrollSearchPageToTop()
 
   try {
-    // 根据表单内容构造课程与评测查询条件
-    const courseQuery = form.courseName.trim() || form.courseCode.trim()
-
-    const coursePromise = courseQuery
-      ? form.departmentID > 0
-        ? api.course.getCourses({
-            q: courseQuery,
-            departmentID: form.departmentID,
-            pageSize: 50,
-          })
-        : api.course.searchCourses(courseQuery, { pageSize: 50 }, { signal })
-      : form.departmentID > 0
-        ? api.course.getCourses({ departmentID: form.departmentID, pageSize: 50 })
-        : Promise.resolve(null)
-
-    const reviewPromise = api.review.searchReviewsPage(
-      {
-        q: courseQuery || undefined,
-        departmentID: form.departmentID > 0 ? form.departmentID : undefined,
-        teacherName: form.teacherName.trim() || undefined,
-        termID: form.termID || undefined,
-        pageSize: 50,
-        sort: 'time',
-      },
-      { signal },
-    )
-
-    const [courseRes, reviewRes] = await Promise.allSettled([coursePromise, reviewPromise])
+    const [courseRes, reviewRes] = await Promise.allSettled([
+      fetchCourseResults(1, signal),
+      fetchReviewResults(1, signal),
+    ])
 
     if (signal.aborted) return
 
-    if (courseRes.status === 'fulfilled' && courseRes.value) {
-      try {
-        resultCourses.value = readCourseListPayload(
-          courseRes.value.data?.data,
-          'Invalid course search response',
-        )
-      } catch (error) {
-        resultCourses.value = []
-        searchError.value = getErrorMessage(error, t('common.loadFailed'))
-      }
+    if (courseRes.status === 'fulfilled') {
+      resultCourses.value = courseRes.value.list
+      courseTotal.value = courseRes.value.total
+      coursePage.value = 1
     } else if (courseRes.status === 'rejected') {
       searchError.value = getErrorMessage(courseRes.reason, t('common.loadFailed'))
     }
 
     if (reviewRes.status === 'fulfilled') {
       resultReviews.value = reviewRes.value.list
+      reviewTotal.value = reviewRes.value.total
+      reviewPage.value = 1
     } else {
       const message = getErrorMessage(reviewRes.reason, t('common.loadFailed'))
       searchError.value = searchError.value || message
@@ -566,6 +651,46 @@ async function handleSearch() {
     if (!signal.aborted) {
       searching.value = false
     }
+  }
+}
+
+async function loadMoreCourses() {
+  if (!hasMoreCourses.value || coursesLoadingMore.value || searching.value) return
+  const nextPage = coursePage.value + 1
+  coursesLoadingMore.value = true
+  coursesLoadMoreError.value = ''
+  try {
+    const data = await fetchCourseResults(nextPage)
+    resultCourses.value = [...resultCourses.value, ...data.list]
+    courseTotal.value = data.total
+    coursePage.value = nextPage
+  } catch (error) {
+    coursesLoadMoreError.value = getErrorMessage(
+      error,
+      t('review.search.loadMoreCoursesFailed'),
+    )
+  } finally {
+    coursesLoadingMore.value = false
+  }
+}
+
+async function loadMoreReviews() {
+  if (!hasMoreReviews.value || reviewsLoadingMore.value || searching.value) return
+  const nextPage = reviewPage.value + 1
+  reviewsLoadingMore.value = true
+  reviewsLoadMoreError.value = ''
+  try {
+    const data = await fetchReviewResults(nextPage)
+    resultReviews.value = [...resultReviews.value, ...data.list]
+    reviewTotal.value = data.total
+    reviewPage.value = nextPage
+  } catch (error) {
+    reviewsLoadMoreError.value = getErrorMessage(
+      error,
+      t('review.search.loadMoreReviewsFailed'),
+    )
+  } finally {
+    reviewsLoadingMore.value = false
   }
 }
 
