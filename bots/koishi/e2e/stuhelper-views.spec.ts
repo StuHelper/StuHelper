@@ -326,9 +326,10 @@ test('global search opens from keyboard and navigates to a view result', async (
 
   await clickNavRail(page, '总览')
   await expect(page).toHaveURL(/#dashboard($|\?)/, { timeout: 5_000 })
-  await expect(page.locator('.sh-cmd__search')).toHaveAttribute('title', '⌘K 全站搜索')
+  const searchShortcut = await shellSearchShortcut(page)
+  await expect(page.locator('.sh-cmd__search')).toHaveAttribute('title', `${searchShortcut.label} 全站搜索`)
 
-  await page.keyboard.press('Control+K')
+  await page.keyboard.press(searchShortcut.key)
 
   const searchDialog = page.getByRole('dialog', { name: '全站搜索' })
   await expect(searchDialog).toBeVisible({ timeout: 5_000 })
@@ -340,6 +341,34 @@ test('global search opens from keyboard and navigates to a view result', async (
     timeout: 10_000,
   })
   await expect(searchDialog).toBeHidden({ timeout: 5_000 })
+
+  tracker.assertClean()
+})
+
+test('global search opens a Koishi command management result', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  await clickNavRail(page, '总览')
+  await expect(page).toHaveURL(/#dashboard($|\?)/, { timeout: 5_000 })
+
+  await page.locator('.sh-cmd__search').click()
+
+  const searchDialog = page.getByRole('dialog', { name: '全站搜索' })
+  await expect(searchDialog).toBeVisible({ timeout: 5_000 })
+  await searchDialog.getByPlaceholder('输入用户 ID / 群号 / 视图名 / 命令…').fill('群审状态')
+
+  const commandRow = searchDialog.locator('.sh-search__row', { hasText: '群审状态 [guildId]' }).first()
+  await expect(commandRow.locator('.sh-search__row-kind')).toHaveText('命令')
+  await expect(commandRow).toContainText('群审管理 / 查看当前群待认证成员')
+
+  await commandRow.click()
+
+  await expect
+    .poll(() => decodeURI(page.url()))
+    .toContain('/commands/群审状态')
+  await expect(page.getByText('指令管理 - 群审状态')).toBeVisible({ timeout: 10_000 })
+  await expect(searchDialog).toBeHidden({ timeout: 5_000 })
+  await returnToStuhelperShell(page)
 
   tracker.assertClean()
 })
@@ -1302,6 +1331,17 @@ async function clickNavRail(page: Page, label: string): Promise<void> {
   const button = page.locator(`.sh-rail__item[title="${label}"]`)
   await expect(button.first()).toBeAttached({ timeout: 5_000 })
   await button.first().click()
+}
+
+async function shellSearchShortcut(page: Page): Promise<{ label: string; key: string }> {
+  const isMac = await page.evaluate(() => navigator.platform.toLowerCase().includes('mac'))
+  return isMac ? { label: '⌘K', key: 'Meta+K' } : { label: 'Ctrl+K', key: 'Control+K' }
+}
+
+async function returnToStuhelperShell(page: Page): Promise<void> {
+  await page.goto('/stuhelper', { waitUntil: 'domcontentloaded' })
+  await expect(page.locator('.stuhelperGroupCenter-app')).toBeVisible({ timeout: 15_000 })
+  await expect(page.locator('.sh-rail__item').first()).toBeVisible({ timeout: 10_000 })
 }
 
 async function fillLabeledInput(page: Page, label: string, value: string): Promise<void> {

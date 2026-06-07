@@ -25,7 +25,7 @@
 
           <div class="sh-search__hint" v-if="!query.trim()">
             <span class="sh-search__hint-line">数字 = 查看用户 / 群组上下文</span>
-            <span class="sh-search__hint-line">文字 = 跳转视图或快捷指令</span>
+            <span class="sh-search__hint-line">文字 = 跳转视图、命令或快捷动作</span>
             <span class="sh-search__hint-line">{{ shortcuts.search }} 打开 · {{ shortcuts.chat }} 实时聊天 · Esc 关闭</span>
           </div>
 
@@ -48,7 +48,7 @@
           </ul>
 
           <div class="sh-search__empty" v-else-if="query.trim()">
-            未找到匹配项。试试输入纯数字（用户 / 群号）或视图名。
+            未找到匹配项。试试输入纯数字（用户 / 群号）、视图名或命令名。
           </div>
         </div>
       </div>
@@ -58,10 +58,12 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 
 import { useAppShell } from '../../composables/use-app-shell'
 import type { ConsoleNavigationController } from '../../composables/use-console-navigation'
 import type { ConsoleViewId } from '../../models/views'
+import { searchCommandIntents, type ShellCommandIntent } from './command-intents'
 import { getShellShortcutLabels } from './shortcut-labels'
 
 const props = defineProps<{
@@ -70,6 +72,7 @@ const props = defineProps<{
 
 const shell = useAppShell()
 const shortcuts = getShellShortcutLabels()
+const router = useRouter()
 const inputRef = ref<HTMLInputElement | null>(null)
 const query = ref('')
 const activeIndex = ref(0)
@@ -99,7 +102,7 @@ interface ActionIntent {
   readonly run: () => void
 }
 
-type SearchResult = ViewIntent | EntityIntent | ActionIntent
+type SearchResult = ViewIntent | EntityIntent | ActionIntent | ShellCommandIntent
 
 const VIEW_INTENTS: readonly ViewIntent[] = [
   { id: 'v:dashboard', kind: 'view', title: '总览 · Dashboard', hint: '工作台 / 总览', view: 'dashboard', keywords: ['总览', 'dashboard', '主页', 'overview'] },
@@ -182,6 +185,8 @@ const results = computed<readonly SearchResult[]>(() => {
     }
   }
 
+  matched.push(...searchCommandIntents(raw))
+
   return matched
 })
 
@@ -225,6 +230,8 @@ function execute(result: SearchResult): void {
     props.navigation.selectView(result.view)
   } else if (result.kind === 'user' || result.kind === 'guild') {
     shell.openEntity({ kind: result.kind, id: result.entityId })
+  } else if (result.kind === 'command') {
+    void router.push(result.path)
   } else {
     result.run()
   }
@@ -239,6 +246,8 @@ function kindLabel(kind: SearchResult['kind']): string {
       return '用户'
     case 'guild':
       return '群组'
+    case 'command':
+      return '命令'
     case 'action':
       return '动作'
   }
@@ -351,6 +360,7 @@ function kindLabel(kind: SearchResult['kind']): string {
 .sh-search__row-kind[data-kind='user']   { background: var(--sh-info-soft);    color: var(--sh-info); }
 .sh-search__row-kind[data-kind='guild']  { background: var(--sh-success-soft); color: var(--sh-success); }
 .sh-search__row-kind[data-kind='action'] { background: var(--sh-warning-soft); color: var(--sh-warning); }
+.sh-search__row-kind[data-kind='command'] { background: var(--sh-danger-soft); color: var(--sh-danger); }
 
 .sh-search__row-body {
   display: flex;
