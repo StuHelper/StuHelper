@@ -152,7 +152,12 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 			bindPhoneSMS = newDevBindPhoneSMSSender(rt.redisClient.GetClient())
 		}
 		if bindPhoneSMS != nil {
-			bindPhoneOTP = newBindPhoneOTPAdapter(auth.NewOTPService(rt.redisClient.GetClient()))
+			baseBindPhoneOTP := newBindPhoneOTPAdapter(auth.NewOTPService(rt.redisClient.GetClient()))
+			if _, ok := bindPhoneSMS.(*devBindPhoneSMSSender); ok {
+				bindPhoneOTP = newDevBindPhoneOTPGenerator(baseBindPhoneOTP, rt.redisClient.GetClient())
+			} else {
+				bindPhoneOTP = baseBindPhoneOTP
+			}
 		}
 	}
 	userHandler := user.NewHandler(
