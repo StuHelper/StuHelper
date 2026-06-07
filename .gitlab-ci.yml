@@ -304,7 +304,7 @@ frontend_build:
   - export VITE_SSO_URL="${WEB_VITE_SSO_URL}"
   - export VITE_WEB_URL="${WEB_VITE_WEB_URL:-${WEB_PUBLIC_URL:-https://stuhelper.com}}"
   - export VITE_ADMIN_URL="${ADMIN_PUBLIC_URL:-/admin/}"
-  - export VITE_QQ_BOT_ENTRY="${WEB_VITE_QQ_BOT_ENTRY:-StuHelper QQ Bot}"
+  - export VITE_QQ_BOT_ENTRY="${WEB_VITE_QQ_BOT_ENTRY:-}"
   - export VITE_QQ_BIND_COMMAND="${WEB_VITE_QQ_BIND_COMMAND:-绑定}"
   - pnpm run build:web
 
@@ -332,7 +332,7 @@ docker_build_frontend:
   - export BUILD_TIME="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
   - docker buildx create --use --name "gitlab-builder-${CI_JOB_ID}"
   - ': "${WEB_VITE_SSO_URL:?WEB_VITE_SSO_URL must be set for frontend builds}"'
-  - docker buildx build --push --platform linux/amd64 --file clients/web/Dockerfile --tag "${FRONTEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" --build-arg "VITE_API_URL=${WEB_VITE_API_URL:-/api}" --build-arg "VITE_SSO_URL=${WEB_VITE_SSO_URL}" --build-arg "VITE_WEB_URL=${WEB_VITE_WEB_URL:-${WEB_PUBLIC_URL:-https://stuhelper.com}}" --build-arg "VITE_ADMIN_URL=${ADMIN_PUBLIC_URL:-/admin/}" --build-arg "VITE_API_TIMEOUT_MS=${WEB_VITE_API_TIMEOUT_MS:-15000}" --build-arg "VITE_QQ_BOT_ENTRY=${WEB_VITE_QQ_BOT_ENTRY:-StuHelper QQ Bot}" --build-arg "VITE_QQ_BIND_COMMAND=${WEB_VITE_QQ_BIND_COMMAND:-绑定}" --cache-from "type=registry,ref=${FRONTEND_IMAGE}:buildcache" --cache-to "type=registry,ref=${FRONTEND_IMAGE}:buildcache,mode=max" .
+  - docker buildx build --push --platform linux/amd64 --file clients/web/Dockerfile --tag "${FRONTEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" --build-arg "VITE_API_URL=${WEB_VITE_API_URL:-/api}" --build-arg "VITE_SSO_URL=${WEB_VITE_SSO_URL}" --build-arg "VITE_WEB_URL=${WEB_VITE_WEB_URL:-${WEB_PUBLIC_URL:-https://stuhelper.com}}" --build-arg "VITE_ADMIN_URL=${ADMIN_PUBLIC_URL:-/admin/}" --build-arg "VITE_API_TIMEOUT_MS=${WEB_VITE_API_TIMEOUT_MS:-15000}" --build-arg "VITE_QQ_BOT_ENTRY=${WEB_VITE_QQ_BOT_ENTRY:-}" --build-arg "VITE_QQ_BIND_COMMAND=${WEB_VITE_QQ_BIND_COMMAND:-绑定}" --cache-from "type=registry,ref=${FRONTEND_IMAGE}:buildcache" --cache-to "type=registry,ref=${FRONTEND_IMAGE}:buildcache,mode=max" .
 docker_build_admin:
   extends: .docker_job
   stage: build

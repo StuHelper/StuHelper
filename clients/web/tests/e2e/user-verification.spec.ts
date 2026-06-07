@@ -825,9 +825,9 @@ test.describe("User verification flows", () => {
         ).toBeVisible();
         await page.getByRole("button", { name: "生成绑定码" }).click();
         await expect(
-            page.getByText("请私聊机器人并发送下面这条命令"),
+            page.getByText("机器人入口未配置。已有绑定码可用于已部署的机器人，请联系管理员补充入口信息。"),
         ).toBeVisible();
-        await expect(page.getByText("StuHelper QQ Bot")).toBeVisible();
+        await expect(page.getByText("未配置机器人入口")).toBeVisible();
         await expect(page.getByText("绑定 QQ-CODE-1")).toBeVisible();
         await page
             .getByRole("button", { name: "复制绑定命令" })

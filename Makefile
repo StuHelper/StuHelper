@@ -17,7 +17,7 @@ help:
 	@echo "  make bootstrap-dev-ubuntu2404 - install Ubuntu 24.04 local dev prerequisites"
 	@echo "  make dev        - alias for dev-up"
 	@echo "  make dev-init   - generate runnable local .env and derived files"
-	@echo "  make dev-up     - one-click start local hot-reload dev (Vite + air) with Docker infra"
+	@echo "  make dev-up     - one-click start local hot-reload dev (Vite + air + Koishi) with Docker infra"
 	@echo "  make dev-docker-up - start full dockerized dev stack (legacy/CI style)"
 	@echo "  make dev-down   - stop dev stack"
 	@echo "  make dev-reset  - stop dev stack and remove volumes"

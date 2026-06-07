@@ -66,6 +66,12 @@
           <p class="text-sm text-text-muted m-0 mt-2">
             {{ verificationHint }}
           </p>
+          <p
+            v-if="!botEntryConfigured"
+            class="text-sm text-amber-600 dark:text-amber-400 m-0 mt-2"
+          >
+            {{ t('user.verification.qq.botEntryMissingHint') }}
+          </p>
         </div>
       </div>
 
@@ -84,10 +90,13 @@
       >
         <div class="flex flex-wrap items-center justify-between gap-3">
           <p class="text-sm font-semibold text-text-primary m-0">
-            {{ t('user.verification.qq.instruction') }}
+            {{ instructionText }}
           </p>
           <span
-            class="inline-flex items-center gap-2 rounded-md border border-border bg-bg-card px-2.5 py-1 text-xs font-medium text-text-muted"
+            class="inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-medium"
+            :class="botEntryConfigured
+              ? 'border-border bg-bg-card text-text-muted'
+              : 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300'"
           >
             <Bot class="size-3.5" aria-hidden="true" />
             {{ botEntryLabel }}
@@ -140,9 +149,13 @@ import { useToast } from '@/composables/useToast'
 import { useVerificationStore } from '@/stores/verification'
 
 const DEFAULT_QQ_BIND_COMMAND = '绑定'
+const PLACEHOLDER_QQ_BOT_ENTRIES = new Set(['StuHelper QQ Bot'])
 const QQ_BINDING_STATUS_POLL_INTERVAL_MS = 3000
 const COPY_FEEDBACK_RESET_MS = 1600
-const configuredBotEntry = import.meta.env.VITE_QQ_BOT_ENTRY?.trim() || ''
+const rawConfiguredBotEntry = import.meta.env.VITE_QQ_BOT_ENTRY?.trim() || ''
+const configuredBotEntry = PLACEHOLDER_QQ_BOT_ENTRIES.has(rawConfiguredBotEntry)
+  ? ''
+  : rawConfiguredBotEntry
 const configuredBindCommand =
   import.meta.env.VITE_QQ_BIND_COMMAND?.trim() || DEFAULT_QQ_BIND_COMMAND
 
@@ -180,6 +193,13 @@ const bindingCommand = computed(() => {
     return ''
   }
   return `${configuredBindCommand} ${qqBindingCode.value.code}`
+})
+const botEntryConfigured = computed(() => configuredBotEntry.length > 0)
+const instructionText = computed(() => {
+  if (botEntryConfigured.value) {
+    return t('user.verification.qq.instruction')
+  }
+  return t('user.verification.qq.instructionWithoutEntry')
 })
 const botEntryLabel = computed(() => {
   if (configuredBotEntry) {

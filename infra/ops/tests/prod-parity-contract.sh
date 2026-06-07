@@ -114,7 +114,7 @@ assert_contains "${PARITY_UP}" 'OPEN_PLATFORM_ACCOUNT_BASE_URL.*https://stuhelpe
 assert_contains "${PARITY_UP}" 'STUHELPER_FRESHMAN_MATERIAL_HOSTS.*stuhelper\.com,join\.stuhelper\.com'
 assert_contains "${PARITY_UP}" 'WEB_VITE_SSO_URL.*https://sso\.stuhelper\.com'
 assert_contains "${PARITY_UP}" 'WEB_VITE_WEB_URL.*https://stuhelper\.com'
-assert_contains "${PARITY_UP}" 'WEB_VITE_QQ_BOT_ENTRY.*StuHelper QQ Bot'
+assert_contains "${PARITY_UP}" 'WEB_VITE_QQ_BOT_ENTRY.*""'
 assert_contains "${PARITY_UP}" 'WEB_VITE_QQ_BIND_COMMAND.*绑定'
 assert_contains "${PARITY_UP}" 'VITE_QQ_BOT_ENTRY="\$\{WEB_VITE_QQ_BOT_ENTRY\}"'
 assert_contains "${PARITY_UP}" 'VITE_QQ_BIND_COMMAND="\$\{WEB_VITE_QQ_BIND_COMMAND\}"'

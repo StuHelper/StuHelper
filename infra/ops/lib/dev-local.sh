@@ -157,6 +157,32 @@ ensure_pnpm_workspace() {
   echo "${desired_hash}" >"$(stamp_file "${stamp_name}")"
 }
 
+ensure_yarn_workspace() {
+  local workdir="$1"
+  local lockfile="$2"
+  local stamp_name="$3"
+  local install_cmd="$4"
+
+  local desired_hash
+  local current_hash=""
+  desired_hash="$(sha256_file_portable "${lockfile}")"
+  if [[ -f "$(stamp_file "${stamp_name}")" ]]; then
+    current_hash="$(cat "$(stamp_file "${stamp_name}")")"
+  fi
+
+  if [[ "${desired_hash}" == "${current_hash}" ]]; then
+    log "yarn workspace cache is current: ${workdir}"
+    return 0
+  fi
+
+  log "installing yarn dependencies in ${workdir}"
+  (
+    cd "${workdir}"
+    bash -lc "${install_cmd}"
+  )
+  echo "${desired_hash}" >"$(stamp_file "${stamp_name}")"
+}
+
 ensure_air() {
   local air_bin="${TOOLS_BIN_DIR}/air"
   if [[ ! -x "${air_bin}" ]]; then
@@ -173,6 +199,7 @@ kill_all_dev_processes() {
   stop_managed_process backend
   stop_managed_process frontend
   stop_managed_process admin
+  stop_managed_process koishi
 }
 
 kill_listener_if_matches() {
@@ -350,6 +377,7 @@ write_dev_runtime_env() {
 API_BASE_URL=http://localhost:8080
 WEB_BASE_URL=http://localhost:${web_port}
 ADMIN_BASE_URL=http://localhost:${admin_port}
+KOISHI_BASE_URL=http://127.0.0.1:5140
 ADMIN_SMOKE_PATH=/admin/
 WEB_DEV_PORT=${web_port}
 ADMIN_EXTERNAL_PORT=${admin_port}

@@ -31,8 +31,9 @@ echo "[stuhelper] managed local dev processes"
 report_process backend
 report_process frontend
 report_process admin
+report_process koishi
 if [[ -n "${WEB_BASE_URL:-}" ]]; then
-  printf '\nweb url:    %s\nadmin url:  %s%s\nbackend:    %s\n' "${WEB_BASE_URL}" "${ADMIN_BASE_URL:-}" "${ADMIN_SMOKE_PATH:-/admin/}" "${API_BASE_URL:-http://127.0.0.1:8080}"
+  printf '\nweb url:    %s\nadmin url:  %s%s\nbackend:    %s\nkoishi:     %s\n' "${WEB_BASE_URL}" "${ADMIN_BASE_URL:-}" "${ADMIN_SMOKE_PATH:-/admin/}" "${API_BASE_URL:-http://127.0.0.1:8080}" "${KOISHI_BASE_URL:-http://127.0.0.1:5140}"
 fi
 echo
 echo "[stuhelper] docker services"

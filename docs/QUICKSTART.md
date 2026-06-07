@@ -121,12 +121,13 @@ corepack yarn dev
 
 说明：
 
-- Koishi 工作区与主站开发环境分离启动。
+- `make dev-up` 会随主站开发环境启动 Koishi Console 和 StuHelper 机器人插件；以下命令用于单独调试 Koishi 工作区或运行 Koishi 专项测试。
 - 本地 `koishi.yml` 固定监听 `5140`；启动烟雾验证会先释放已占用的 `5140` 端口。
 - `STUHELPER_CONSOLE_ADMIN_PASSWORD` 必须在启动前提供非空值；`bots/koishi/koishi.yml` 会依赖它作为 Console 管理员密码。
 - `STUHELPER_PLATFORM_BASE_URL` 和 `STUHELPER_PLATFORM_SERVICE_TOKEN` 是 Koishi 插件读取的后端连接配置；其中 service token 应与后端 `BOT_SERVICE_TOKEN` 一致。
 - NapCat 保持外部部署；本地单元测试不依赖真实 OneBot。
 - Koishi Console 已挂载 StuHelper 自定义群管页面，访问路径为 `/stuhelper`。
+- QQ 绑定页面的机器人入口必须通过 `WEB_VITE_QQ_BOT_ENTRY` / `VITE_QQ_BOT_ENTRY` 配置真实可联系入口；未配置时页面会明确显示“未配置机器人入口”，不会把旧占位名称当作真实 bot。
 - `test:ui` 会临时拉起 Koishi Console 并通过 Playwright 覆盖群管中心 NavRail、11 个业务视图、ChatDock、配置治理二级工作区和 guard template 保存动作，并检查 `pageerror`、未放行的 console error/warning、关键资源加载失败和关键资源 HTTP 4xx/5xx；根目录也可直接运行 `make e2e-koishi`。
 - 机器人开发说明见 [guides/koishi-development.md](guides/koishi-development.md)。
 

@@ -9,7 +9,7 @@ source "${SCRIPT_DIR}/lib/retired-idp-env.sh"
 
 require_cmd python3
 
-if [[ -z "${ENV_TEMPLATE_FILE:-}" || "${ENV_TEMPLATE_FILE}" == "${REPO_ROOT}/.env.example" ]]; then
+if [[ -z "${ENV_TEMPLATE_FILE:-}" || "${ENV_TEMPLATE_FILE}" == ".env.example" || "${ENV_TEMPLATE_FILE}" == "${REPO_ROOT}/.env.example" ]]; then
   export ENV_TEMPLATE_FILE="${REPO_ROOT}/.env.prod.example"
 fi
 
@@ -230,8 +230,8 @@ ensure_value "REDIS_PORT" "${REDIS_PORT:-}" "6379"
 ensure_value "REDIS_USERNAME" "${REDIS_USERNAME+x}" "stuhelper_app"
 ensure_prod_default "REDIS_TLS_ENABLED" "${REDIS_TLS_ENABLED:-}" "true" "false"
 ensure_prod_default "REDIS_TLS_CA" "${REDIS_TLS_CA:-}" "/tls/ca.crt"
-ensure_prod_default "CORS_ORIGINS" "${CORS_ORIGINS:-}" "https://stuhelper.com,https://join.stuhelper.com,https://sso.stuhelper.com" "https://stuhelper.com" "REPLACE_WITH_PRODUCTION_CORS_ORIGINS" "http://localhost:3000,http://localhost:3001" "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001"
-ensure_prod_default "ADMISSION_PUBLIC_BASE_URL" "${ADMISSION_PUBLIC_BASE_URL:-}" "https://join.stuhelper.com" "REPLACE_WITH_ADMISSION_PUBLIC_BASE_URL" "http://localhost:3000" "http://join.stuhelper.com"
+ensure_prod_default "CORS_ORIGINS" "${CORS_ORIGINS:-}" "https://stuhelper.com,https://join.stuhelper.com,https://sso.stuhelper.com" "https://stuhelper.com" "REPLACE_WITH_PRODUCTION_CORS_ORIGINS" "http://localhost:3000,http://localhost:3001" "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001" "http://localhost:3000,http://127.0.0.1:3000,http://join.localhost:3000,http://localhost:3001,http://127.0.0.1:3001"
+ensure_prod_default "ADMISSION_PUBLIC_BASE_URL" "${ADMISSION_PUBLIC_BASE_URL:-}" "https://join.stuhelper.com" "REPLACE_WITH_ADMISSION_PUBLIC_BASE_URL" "http://localhost:3000" "http://join.localhost:3000" "http://join.stuhelper.com"
 ensure_value "ADMISSION_PRODUCTION_READINESS_ENABLED" "${ADMISSION_PRODUCTION_READINESS_ENABLED:-}" "true"
 ensure_value "ADMISSION_READINESS_REQUIRED_PLATFORM" "${ADMISSION_READINESS_REQUIRED_PLATFORM:-}" "qq"
 ensure_value "ADMISSION_READINESS_REQUIRED_GUILD_IDS" "${ADMISSION_READINESS_REQUIRED_GUILD_IDS:-}" ""
@@ -389,7 +389,7 @@ ensure_prod_default "WEB_VITE_API_URL" "${WEB_VITE_API_URL:-}" "/api" ""
 ensure_prod_default "WEB_VITE_SSO_URL" "${WEB_VITE_SSO_URL:-}" "https://sso.stuhelper.com" "REPLACE_WITH_WEB_VITE_SSO_URL" "http://localhost:8085" "http://localhost"
 ensure_prod_default "WEB_VITE_WEB_URL" "${WEB_VITE_WEB_URL:-}" "https://stuhelper.com" "REPLACE_WITH_WEB_VITE_WEB_URL" "http://localhost:3000"
 ensure_value "WEB_VITE_API_TIMEOUT_MS" "${WEB_VITE_API_TIMEOUT_MS:-}" "15000"
-ensure_value "WEB_VITE_QQ_BOT_ENTRY" "${WEB_VITE_QQ_BOT_ENTRY:-}" "StuHelper QQ Bot"
+ensure_prod_default "WEB_VITE_QQ_BOT_ENTRY" "${WEB_VITE_QQ_BOT_ENTRY:-}" "" "StuHelper QQ Bot"
 ensure_value "WEB_VITE_QQ_BIND_COMMAND" "${WEB_VITE_QQ_BIND_COMMAND:-}" "绑定"
 ensure_value "ADMIN_VITE_API_URL" "${ADMIN_VITE_API_URL:-}" "/api/v1"
 ensure_value "ADMIN_VITE_BASE" "${ADMIN_VITE_BASE:-}" "/admin/"

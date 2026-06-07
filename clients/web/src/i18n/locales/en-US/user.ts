@@ -377,7 +377,11 @@ export default {
             alreadyBound: "This account is already bound to a QQ number",
             instruction:
                 "Send the following command to the bot in a private chat",
+            instructionWithoutEntry:
+                "The bot entry is not configured. This code can still be used with a deployed bot; ask an administrator to publish the entry.",
             botEntryUnavailable: "Bot entry not configured",
+            botEntryMissingHint:
+                "This site has no reachable QQ bot entry configured. After creating a code, binding still requires a deployed bot.",
             copyCommand: "Copy binding command",
             commandCopied: "Binding command copied",
             copyCommandFailed: "Copy failed, please copy manually",

@@ -260,6 +260,7 @@ log "ensuring dockerized dev app containers are stopped"
 compose --profile dev-full stop app-dev frontend-dev admin-dev >/dev/null 2>&1 || true
 compose --profile dev-full rm -f app-dev frontend-dev admin-dev >/dev/null 2>&1 || true
 kill_all_dev_processes
+kill_listener_if_matches 5140 "${REPO_ROOT}/bots/koishi"
 
 WEB_DEV_PORT_SELECTED="$(pick_available_port "${WEB_DEV_PORT:-3000}" 30 "${POSTGRES_EXTERNAL_PORT_SELECTED}" "${REDIS_EXTERNAL_PORT_SELECTED}" "${OPENFGA_HTTP_EXTERNAL_PORT_SELECTED}" "${OPENFGA_GRPC_EXTERNAL_PORT_SELECTED}" "${OPENFGA_PLAYGROUND_EXTERNAL_PORT_SELECTED}" "${MINIO_API_EXTERNAL_PORT_SELECTED}" "${MINIO_CONSOLE_EXTERNAL_PORT_SELECTED}" "${MAILPIT_SMTP_EXTERNAL_PORT_SELECTED}" "${MAILPIT_WEB_EXTERNAL_PORT_SELECTED}" "${observability_reserved_ports[@]}")"
 ADMIN_DEV_PORT_SELECTED="$(pick_available_port "${ADMIN_EXTERNAL_PORT:-3001}" 30 "${WEB_DEV_PORT_SELECTED}" "${POSTGRES_EXTERNAL_PORT_SELECTED}" "${REDIS_EXTERNAL_PORT_SELECTED}" "${OPENFGA_HTTP_EXTERNAL_PORT_SELECTED}" "${OPENFGA_GRPC_EXTERNAL_PORT_SELECTED}" "${OPENFGA_PLAYGROUND_EXTERNAL_PORT_SELECTED}" "${MINIO_API_EXTERNAL_PORT_SELECTED}" "${MINIO_CONSOLE_EXTERNAL_PORT_SELECTED}" "${MAILPIT_SMTP_EXTERNAL_PORT_SELECTED}" "${MAILPIT_WEB_EXTERNAL_PORT_SELECTED}" "${observability_reserved_ports[@]}")"
@@ -309,6 +310,12 @@ ensure_pnpm_workspace \
   "clients-admin" \
   "corepack enable >/dev/null 2>&1 || true && corepack prepare pnpm@10 --activate >/dev/null 2>&1 && CI=1 pnpm install --frozen-lockfile"
 
+ensure_yarn_workspace \
+  "${REPO_ROOT}/bots/koishi" \
+  "${REPO_ROOT}/bots/koishi/yarn.lock" \
+  "bots-koishi" \
+  "corepack enable >/dev/null 2>&1 || true && corepack yarn install --immutable"
+
 AIR_BIN="$(ensure_air)"
 write_dev_runtime_env "${WEB_DEV_PORT_SELECTED}" "${ADMIN_DEV_PORT_SELECTED}"
 
@@ -324,7 +331,7 @@ frontend_cmd="
   export VITE_WEB_URL='${WEB_VITE_WEB_URL:-http://localhost:3000}' && \
   export VITE_ADMIN_URL='http://localhost:${ADMIN_DEV_PORT_SELECTED}' && \
   export VITE_API_TIMEOUT_MS='${WEB_VITE_API_TIMEOUT_MS:-15000}' && \
-  export VITE_QQ_BOT_ENTRY='${WEB_VITE_QQ_BOT_ENTRY:-StuHelper QQ Bot}' && \
+  export VITE_QQ_BOT_ENTRY='${WEB_VITE_QQ_BOT_ENTRY:-}' && \
   export VITE_QQ_BIND_COMMAND='${WEB_VITE_QQ_BIND_COMMAND:-绑定}' && \
   export VITE_DEV_PROXY_TARGET='http://127.0.0.1:8080' && \
   exec pnpm --filter @stuhelper/web exec vite --host 127.0.0.1 --strictPort --port ${WEB_DEV_PORT_SELECTED}
@@ -339,6 +346,18 @@ admin_cmd="
   exec pnpm -F @vben/web-ele exec vite --mode development --host 127.0.0.1 --strictPort --port ${ADMIN_DEV_PORT_SELECTED}
 "
 
+koishi_cmd="
+  cd '${REPO_ROOT}/bots/koishi' && \
+  export NODE_ENV=development && \
+  export KOISHI_CONFIG_FILE='' && \
+  export STUHELPER_CONSOLE_ADMIN_PASSWORD='${STUHELPER_CONSOLE_ADMIN_PASSWORD}' && \
+  export STUHELPER_PLATFORM_BASE_URL='${STUHELPER_PLATFORM_BASE_URL:-http://localhost:8080}' && \
+  export STUHELPER_PLATFORM_SERVICE_TOKEN='${STUHELPER_PLATFORM_SERVICE_TOKEN}' && \
+  export STUHELPER_GROUP_CENTER_DATA_DIR='${STUHELPER_GROUP_CENTER_DATA_DIR:-}' && \
+  export STUHELPER_FRESHMAN_MATERIAL_HOSTS='${STUHELPER_FRESHMAN_MATERIAL_HOSTS:-}' && \
+  exec corepack yarn dev
+"
+
 log "starting hot-reload backend (air)"
 start_managed_process backend "${backend_cmd}"
 wait_for_http "backend" "http://127.0.0.1:8080/health/ready" 120 2
@@ -351,10 +370,15 @@ log "starting hot-reload admin (Vite)"
 start_managed_process admin "${admin_cmd}"
 wait_for_http "admin" "http://127.0.0.1:${ADMIN_DEV_PORT_SELECTED}/admin/" 240 2
 
+log "starting Koishi Console and bot plugins"
+start_managed_process koishi "${koishi_cmd}"
+wait_for_http "koishi" "http://127.0.0.1:5140/" 120 2
+
 log "development stack is ready"
 echo "  Web:        http://localhost:${WEB_DEV_PORT_SELECTED}"
 echo "  Admin:      http://localhost:${ADMIN_DEV_PORT_SELECTED}/admin/"
 echo "  Backend:    http://localhost:8080"
+echo "  Koishi:     http://127.0.0.1:5140"
 echo "  Casdoor:    http://localhost:${CASDOOR_EXTERNALPORT:-8085}"
 echo "  Mailpit:    http://localhost:${MAILPIT_WEB_EXTERNAL_PORT_SELECTED}"
 echo "  Logs:       ${DEV_LOG_DIR}"

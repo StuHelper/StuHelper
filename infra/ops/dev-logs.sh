@@ -10,4 +10,5 @@ ensure_dev_runtime_dirs
 tail -n "${TAIL_LINES:-80}" -f \
   "$(log_file backend)" \
   "$(log_file frontend)" \
-  "$(log_file admin)"
+  "$(log_file admin)" \
+  "$(log_file koishi)"

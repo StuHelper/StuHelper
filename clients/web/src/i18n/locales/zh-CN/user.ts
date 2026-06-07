@@ -349,7 +349,11 @@ export default {
             notYetBound: "暂未检测到 QQ 绑定结果",
             alreadyBound: "当前账号已绑定 QQ",
             instruction: "请私聊机器人并发送下面这条命令",
+            instructionWithoutEntry:
+                "机器人入口未配置。已有绑定码可用于已部署的机器人，请联系管理员补充入口信息。",
             botEntryUnavailable: "未配置机器人入口",
+            botEntryMissingHint:
+                "当前站点没有配置可联系的 QQ 机器人入口，生成绑定码后仍需要通过已部署的机器人完成绑定。",
             copyCommand: "复制绑定命令",
             commandCopied: "绑定命令已复制",
             copyCommandFailed: "复制失败，请手动复制",

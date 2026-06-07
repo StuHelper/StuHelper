@@ -9,7 +9,7 @@ const webOrigin = `http://${webHost}:${webPort}`
 const webServerEnv = withoutNoColorEnv({
   VITE_SSO_URL: process.env.VITE_SSO_URL ?? 'http://localhost:8085',
   VITE_WEB_URL: process.env.VITE_WEB_URL ?? webOrigin,
-  VITE_QQ_BOT_ENTRY: process.env.VITE_QQ_BOT_ENTRY ?? 'StuHelper QQ Bot',
+  VITE_QQ_BOT_ENTRY: process.env.VITE_QQ_BOT_ENTRY ?? '',
   VITE_QQ_BIND_COMMAND: process.env.VITE_QQ_BIND_COMMAND ?? '绑定',
   VITE_E2E_API_STUB: '1',
 })

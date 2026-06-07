@@ -28,6 +28,7 @@ for port in "${ADMIN_EXTERNAL_PORT:-3001}" "3001"; do
   kill_listener_if_matches "${port}" "@vben/web-ele exec vite"
   kill_listener_if_matches "${port}" "${REPO_ROOT}/clients/admin/node_modules/.bin/../vite/bin/vite.js"
 done
+kill_listener_if_matches 5140 "${REPO_ROOT}/bots/koishi"
 rm -f "${DEV_RUNTIME_ENV}"
 
 args=(down --remove-orphans)
