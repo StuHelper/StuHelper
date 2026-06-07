@@ -11,13 +11,13 @@
       <h1 class="font-sans text-xl font-extrabold tracking-tight text-text-primary m-0 mb-3">{{ t('errors.notFound.title') }}</h1>
       <p class="text-sm text-text-muted m-0 mb-8">{{ t('errors.notFound.description') }}</p>
       <div class="flex gap-3 justify-center max-sm:flex-col">
-        <router-link
-          to="/"
+        <a
+          :href="homeHref"
           class="inline-flex items-center gap-2 py-2 px-5 text-sm font-medium rounded-full no-underline transition-all duration-fast bg-gradient-to-br from-primary to-accent text-white hover:opacity-90 hover:-translate-y-px max-sm:w-full max-sm:justify-center"
         >
           <Home :size="18" />
           {{ t('errors.notFound.backHome') }}
-        </router-link>
+        </a>
         <button
           class="inline-flex items-center gap-2 py-2 px-5 text-sm font-medium rounded-full bg-transparent text-text-secondary transition-all duration-fast hover:border-text-primary hover:text-text-primary max-sm:w-full max-sm:justify-center"
           @click="goBack"
@@ -31,18 +31,21 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Home, ArrowLeft } from 'lucide-vue-next'
+import { accountCenterURL } from '@/utils/redirect'
 
 const router = useRouter()
 const { t } = useI18n()
+const homeHref = computed(() => accountCenterURL('/'))
 
 const goBack = () => {
   if (window.history.length > 1) {
     router.back()
   } else {
-    router.push('/')
+    window.location.assign(homeHref.value)
   }
 }
 </script>

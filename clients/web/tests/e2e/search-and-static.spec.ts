@@ -101,6 +101,45 @@ test.describe('Static Pages', () => {
     ).toBeVisible()
   })
 
+  test('join host 404 returns users to the main web home', async ({
+    page,
+  }, testInfo) => {
+    await mockUnauthenticated(page)
+
+    const baseURL = String(testInfo.project.use.baseURL)
+    const joinURL = new URL('/courses', baseURL)
+    joinURL.hostname = 'join.localhost'
+
+    await page.goto(joinURL.toString())
+
+    await expect(
+      page.getByRole('heading', { name: /Page Not Found|页面不存在/i }),
+    ).toBeVisible({ timeout: 10_000 })
+
+    const homeLink = page.getByRole('link', {
+      name: /Back Home|返回首页/i,
+    })
+    const homeHref = await homeLink.getAttribute('href')
+    expect(homeHref).toBeTruthy()
+    const homeURL = new URL(homeHref!)
+    expect(homeURL.hostname).not.toBe('join.localhost')
+    expect(homeURL.pathname).toBe('/')
+
+    await homeLink.click()
+    await expect
+      .poll(() => {
+        const currentURL = new URL(page.url())
+        return {
+          hostname: currentURL.hostname,
+          pathname: currentURL.pathname,
+        }
+      })
+      .toEqual({
+        hostname: homeURL.hostname,
+        pathname: '/',
+      })
+  })
+
   test('chunk load failure retries once and renders static load error page', async ({ page }) => {
     await mockUnauthenticated(page)
 
