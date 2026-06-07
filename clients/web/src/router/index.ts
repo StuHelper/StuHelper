@@ -18,6 +18,7 @@ import {
 } from "@/router/auth-guard-decision";
 import {
     currentHostname,
+    shouldBlockAdmissionPathOutsideJoinHost,
     shouldBlockJoinHostRoute,
 } from "@/router/join-domain";
 import {
@@ -487,9 +488,11 @@ function buildNotFoundRoute(to: RouteLocationNormalized): RouteLocationRaw {
 }
 
 router.beforeEach(async (to) => {
+    const hostname = currentHostname();
     if (
         to.name !== "not-found" &&
-        shouldBlockJoinHostRoute(currentHostname(), to.path)
+        (shouldBlockJoinHostRoute(hostname, to.path) ||
+            shouldBlockAdmissionPathOutsideJoinHost(hostname, to.path))
     ) {
         return buildNotFoundRoute(to);
     }

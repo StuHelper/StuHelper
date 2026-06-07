@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   isJoinAdmissionHost,
   isJoinAdmissionPath,
+  shouldBlockAdmissionPathOutsideJoinHost,
   shouldBlockJoinHostRoute,
 } from '../join-domain'
 
@@ -29,5 +30,12 @@ describe('join admission domain routing', () => {
     expect(shouldBlockJoinHostRoute('join.localhost', '/verify/ABCD1234')).toBe(false)
     expect(shouldBlockJoinHostRoute('join.localhost', '/verify/ABCD1234/')).toBe(false)
     expect(shouldBlockJoinHostRoute('localhost', '/courses')).toBe(false)
+  })
+
+  it('blocks admission paths outside join hosts', () => {
+    expect(shouldBlockAdmissionPathOutsideJoinHost('stuhelper.com', '/verify/ABCD1234')).toBe(true)
+    expect(shouldBlockAdmissionPathOutsideJoinHost('localhost', '/admission/freshman/camera/mobile-token')).toBe(true)
+    expect(shouldBlockAdmissionPathOutsideJoinHost('join.localhost', '/verify/ABCD1234')).toBe(false)
+    expect(shouldBlockAdmissionPathOutsideJoinHost('localhost', '/courses')).toBe(false)
   })
 })

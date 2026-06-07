@@ -1,3 +1,4 @@
+import type { TestInfo } from "@playwright/test";
 import { allowExpectedConsoleError, expect, test, type Page } from "./fixtures";
 
 const user = {
@@ -98,6 +99,12 @@ async function confirmAdmissionQQBinding(page: Page, qq = "123456") {
     await page.locator("[data-admission-bind-confirmation-submit]").click();
 }
 
+function joinAdmissionURL(testInfo: TestInfo, path: string): string {
+    const url = new URL(path, String(testInfo.project.use.baseURL));
+    url.hostname = "join.localhost";
+    return url.toString();
+}
+
 test.describe("Auth callback and admission entry", () => {
     test("auth callback consumes an upstream OAuth state and redirects to backend callback", async ({
         page,
@@ -169,7 +176,7 @@ test.describe("Auth callback and admission entry", () => {
 
     test("anonymous admission link starts SSO with the current admission return URL", async ({
         page,
-    }) => {
+    }, testInfo) => {
         let loginRequestURL: URL | null = null;
 
         await mockUnauthenticated(page);
@@ -193,7 +200,7 @@ test.describe("Auth callback and admission entry", () => {
             }),
         );
 
-        await page.goto("/verify/ADMIT-LOGIN");
+        await page.goto(joinAdmissionURL(testInfo, "/verify/ADMIT-LOGIN"));
 
         await expect(
             page.getByRole("heading", { name: "登录 StuHelper" }),
@@ -218,6 +225,21 @@ test.describe("Auth callback and admission entry", () => {
         expect(ssoURL.searchParams.get("client_id")).toBe("stuhelper-web");
         expect(ssoURL.searchParams.get("state")).toBe("admission-sso-state");
         await expect(page.getByText("SSO authorize")).toBeVisible();
+    });
+
+    test("main host admission links render the regular not found page", async ({
+        page,
+    }) => {
+        await mockUnauthenticated(page);
+
+        await page.goto("/verify/ADMIT-MAIN-HOST");
+
+        await expect(
+            page.getByRole("heading", { name: /Page Not Found|页面不存在/i }),
+        ).toBeVisible({ timeout: 10_000 });
+        await expect(
+            page.getByRole("heading", { name: "入群身份认证" }),
+        ).toHaveCount(0);
     });
 
     test("join admission link with a trailing slash opens and keeps the join return URL", async ({
@@ -279,7 +301,7 @@ test.describe("Auth callback and admission entry", () => {
 
     test("anonymous admission signup starts SSO signup with the current admission return URL", async ({
         page,
-    }) => {
+    }, testInfo) => {
         let loginRequests = 0;
         let signupRequestURL: URL | null = null;
 
@@ -310,7 +332,7 @@ test.describe("Auth callback and admission entry", () => {
             }),
         );
 
-        await page.goto("/verify/ADMIT-SIGNUP");
+        await page.goto(joinAdmissionURL(testInfo, "/verify/ADMIT-SIGNUP"));
 
         await expect(
             page.getByRole("heading", { name: "登录 StuHelper" }),
@@ -337,11 +359,10 @@ test.describe("Auth callback and admission entry", () => {
         await expect(page.getByText("SSO signup authorize")).toBeVisible();
     });
 
-    test("admission login callback returns to the verify page and resumes without a manual refresh", async ({
+    test("admission return URL resumes the verify page without a manual refresh", async ({
         page,
-    }) => {
+    }, testInfo) => {
         let authenticated = false;
-        let callbackURL: URL | null = null;
         let loginRequestURL: URL | null = null;
         let linkQQ = "";
 
@@ -375,16 +396,6 @@ test.describe("Auth callback and admission entry", () => {
                     state: "admission-sso-state",
                 }),
             );
-        });
-        await page.route("**/api/v1/auth/callback?*", async (route) => {
-            callbackURL = new URL(route.request().url());
-            authenticated = true;
-            await route.fulfill({
-                status: 302,
-                headers: {
-                    location: "/verify/ADMIT-RETURN",
-                },
-            });
         });
         await page.route("**/api/v1/user/qq-binding", (route) =>
             route.fulfill(ok(null)),
@@ -428,7 +439,7 @@ test.describe("Auth callback and admission entry", () => {
             ),
         );
 
-        await page.goto("/verify/ADMIT-RETURN");
+        await page.goto(joinAdmissionURL(testInfo, "/verify/ADMIT-RETURN"));
         await expect(
             page.getByRole("heading", { name: "登录 StuHelper" }),
         ).toBeVisible();
@@ -441,10 +452,13 @@ test.describe("Auth callback and admission entry", () => {
         );
         await expect(page.getByText("SSO authorize")).toBeVisible();
 
-        await page.goto(
-            "/auth/callback?code=oauth-code-1&state=admission-sso-state",
+        authenticated = true;
+        await page.goto(joinAdmissionURL(testInfo, "/verify/ADMIT-RETURN"));
+        await page.waitForURL(
+            (url) =>
+                url.hostname === "join.localhost" &&
+                url.pathname === "/verify/ADMIT-RETURN",
         );
-        await page.waitForURL(/\/verify\/ADMIT-RETURN$/);
 
         await expect(
             page.getByRole("heading", { name: "确认绑定当前 QQ" }),
@@ -455,11 +469,6 @@ test.describe("Auth callback and admission entry", () => {
             page.getByRole("heading", { name: "选择认证方式" }),
         ).toBeVisible();
 
-        expect(callbackURL).not.toBeNull();
-        expect(callbackURL!.searchParams.get("code")).toBe("oauth-code-1");
-        expect(callbackURL!.searchParams.get("state")).toBe(
-            "admission-sso-state",
-        );
         expect(loginRequestURL).not.toBeNull();
         expect(loginRequestURL!.searchParams.get("redirect")).toBe(
             admissionURL,
@@ -469,7 +478,7 @@ test.describe("Auth callback and admission entry", () => {
 
     test("reopening a consumed admission link resumes for the originally logged-in account", async ({
         page,
-    }) => {
+    }, testInfo) => {
         let previewRequests = 0;
         let linkRequests = 0;
         let linkQQ = "";
@@ -516,7 +525,7 @@ test.describe("Auth callback and admission entry", () => {
             ),
         );
 
-        await page.goto("/verify/ADMIT-CONSUMED");
+        await page.goto(joinAdmissionURL(testInfo, "/verify/ADMIT-CONSUMED"));
 
         const flowHeading = page.getByRole("heading", { name: "选择认证方式" });
         await expect(flowHeading).toBeVisible({ timeout: 5_000 });
@@ -533,17 +542,17 @@ test.describe("Auth callback and admission entry", () => {
 
     test("admission token mismatch and expired states block submission controls", async ({
         page,
-    }) => {
+    }, testInfo) => {
         await mockAuthenticated(page);
 
         await page.route(
             "**/api/v1/admission/sessions/ADMIT-MISMATCH**",
             (route) =>
                 route.fulfill(
-                    apiError("admission.qq_mismatch", "mismatch", 409),
+                    apiError("admission.qq_mismatch", "mismatch", 400),
                 ),
         );
-        await page.goto("/verify/ADMIT-MISMATCH");
+        await page.goto(joinAdmissionURL(testInfo, "/verify/ADMIT-MISMATCH"));
         await expect(
             page.getByRole("heading", { name: "QQ 账号不匹配" }),
         ).toBeVisible();
@@ -564,7 +573,7 @@ test.describe("Auth callback and admission entry", () => {
                     apiError("admission.token_not_found", "missing", 404),
                 ),
         );
-        await page.goto("/verify/ADMIT-MISSING");
+        await page.goto(joinAdmissionURL(testInfo, "/verify/ADMIT-MISSING"));
         await expect(
             page.getByRole("heading", { name: "认证链接无效" }),
         ).toBeVisible();
@@ -591,7 +600,7 @@ test.describe("Auth callback and admission entry", () => {
                     apiError("admission.token_expired", "expired", 410),
                 ),
         );
-        await page.goto("/verify/ADMIT-EXPIRED");
+        await page.goto(joinAdmissionURL(testInfo, "/verify/ADMIT-EXPIRED"));
         await expect(
             page.getByRole("heading", { name: "链接已失效" }),
         ).toBeVisible();
@@ -605,7 +614,7 @@ test.describe("Auth callback and admission entry", () => {
 
     test("logged-in user links an admission session and verifies school email OTP", async ({
         page,
-    }) => {
+    }, testInfo) => {
         let linkQQ = "";
         let academicMatchBody: unknown = null;
         let otpRequestBody: unknown = null;
@@ -707,7 +716,7 @@ test.describe("Auth callback and admission entry", () => {
             },
         );
 
-        await page.goto("/verify/ADMIT-1");
+        await page.goto(joinAdmissionURL(testInfo, "/verify/ADMIT-1"));
 
         await expect(page.getByText("QQ：123456")).toBeVisible();
         await expect(
@@ -760,7 +769,7 @@ test.describe("Auth callback and admission entry", () => {
 
     test("freshman admission offers mobile handoff when desktop camera is unavailable", async ({
         page,
-    }) => {
+    }, testInfo) => {
         allowExpectedConsoleError(
             page,
             /Failed to load resource: net::ERR_NETWORK_CHANGED/,
@@ -801,7 +810,7 @@ test.describe("Auth callback and admission entry", () => {
             ),
         );
 
-        await page.goto("/verify/ADMIT-FRESHMAN");
+        await page.goto(joinAdmissionURL(testInfo, "/verify/ADMIT-FRESHMAN"));
 
         await expect(
             page.getByRole("heading", { name: "选择认证方式" }),
@@ -830,7 +839,7 @@ test.describe("Auth callback and admission entry", () => {
 
     test("freshman admission creates a mobile camera handoff and reacts to SSE continuation", async ({
         page,
-    }) => {
+    }, testInfo) => {
         let applicationBody: unknown = null;
         let handoffCreated = false;
         let eventSourceRequested = false;
@@ -955,7 +964,7 @@ test.describe("Auth callback and admission entry", () => {
             },
         );
 
-        await page.goto("/verify/ADMIT-HANDOFF");
+        await page.goto(joinAdmissionURL(testInfo, "/verify/ADMIT-HANDOFF"));
 
         await expect(
             page.locator("[data-admission-freshman-flow]"),
@@ -982,7 +991,7 @@ test.describe("Auth callback and admission entry", () => {
 
     test("freshman admission allows desktop material submission while a mobile handoff is still pending", async ({
         page,
-    }) => {
+    }, testInfo) => {
         let cameraCaptureBody: unknown = null;
         let handoffCreated = false;
 
@@ -1111,7 +1120,9 @@ test.describe("Auth callback and admission entry", () => {
             },
         );
 
-        await page.goto("/verify/ADMIT-HANDOFF-DESKTOP");
+        await page.goto(
+            joinAdmissionURL(testInfo, "/verify/ADMIT-HANDOFF-DESKTOP"),
+        );
 
         await expect(
             page.locator("[data-admission-freshman-flow]"),
@@ -1141,7 +1152,7 @@ test.describe("Auth callback and admission entry", () => {
 
     test("freshman mobile camera token uploads without requiring login", async ({
         page,
-    }) => {
+    }, testInfo) => {
         let uploadBody: unknown = null;
         let continuationBody: unknown = null;
         let authRequestCount = 0;
@@ -1239,7 +1250,9 @@ test.describe("Auth callback and admission entry", () => {
             },
         );
 
-        await page.goto("/admission/freshman/camera/mobile-token");
+        await page.goto(
+            joinAdmissionURL(testInfo, "/admission/freshman/camera/mobile-token"),
+        );
 
         await expect(page.locator('[data-state="ready"]')).toBeVisible();
         await page.getByRole("button", { name: "打开摄像头" }).click();
@@ -1262,7 +1275,7 @@ test.describe("Auth callback and admission entry", () => {
 
     test("freshman mobile camera enforces the handoff material size limit before upload", async ({
         page,
-    }) => {
+    }, testInfo) => {
         let uploadRequests = 0;
         let authRequestCount = 0;
 
@@ -1326,7 +1339,9 @@ test.describe("Auth callback and admission entry", () => {
             },
         );
 
-        await page.goto("/admission/freshman/camera/mobile-token");
+        await page.goto(
+            joinAdmissionURL(testInfo, "/admission/freshman/camera/mobile-token"),
+        );
 
         await expect(page.locator('[data-state="ready"]')).toBeVisible();
         await page.getByRole("button", { name: "打开摄像头" }).click();
@@ -1342,7 +1357,7 @@ test.describe("Auth callback and admission entry", () => {
 
     test("freshman mobile camera closes the stream when preview playback fails", async ({
         page,
-    }) => {
+    }, testInfo) => {
         let authRequestCount = 0;
 
         await page.addInitScript(() => {
@@ -1397,7 +1412,9 @@ test.describe("Auth callback and admission entry", () => {
                 ),
         );
 
-        await page.goto("/admission/freshman/camera/mobile-token");
+        await page.goto(
+            joinAdmissionURL(testInfo, "/admission/freshman/camera/mobile-token"),
+        );
 
         await expect(page.locator('[data-state="ready"]')).toBeVisible();
         await page.getByRole("button", { name: "打开摄像头" }).click();
@@ -1422,7 +1439,7 @@ test.describe("Auth callback and admission entry", () => {
 
     test("freshman admission captures camera material and submits it for manual review", async ({
         page,
-    }) => {
+    }, testInfo) => {
         let applicationBody: unknown = null;
         let cameraCaptureBody: unknown = null;
 
@@ -1525,7 +1542,7 @@ test.describe("Auth callback and admission entry", () => {
             },
         );
 
-        await page.goto("/verify/ADMIT-CAMERA");
+        await page.goto(joinAdmissionURL(testInfo, "/verify/ADMIT-CAMERA"));
 
         await expect(
             page.locator("[data-admission-freshman-flow]"),

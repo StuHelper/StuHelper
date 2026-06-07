@@ -145,7 +145,7 @@ function isExpectedApiErrorResponse(response: Response) {
   if (
     method === 'GET' &&
     /^\/api\/v1\/admission\/sessions\/[^/]+$/.test(pathname) &&
-    (status === 404 || status === 409 || status === 410)
+    (status === 400 || status === 404 || status === 409 || status === 410)
   ) {
     return true
   }

@@ -26,3 +26,10 @@ export function shouldBlockJoinHostRoute(
 ): boolean {
   return isJoinAdmissionHost(hostname) && !isJoinAdmissionPath(path)
 }
+
+export function shouldBlockAdmissionPathOutsideJoinHost(
+  hostname: string | undefined,
+  path: string,
+): boolean {
+  return isJoinAdmissionPath(path) && !isJoinAdmissionHost(hostname)
+}
