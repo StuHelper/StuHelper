@@ -107,6 +107,7 @@ func TestCreateAdmissionPolicyFromSourceForNewTargetGuild(t *testing.T) {
 	require.NotNil(t, created)
 	require.Equal(t, "qq", created.Platform)
 	require.Equal(t, "guild-2", created.GuildID)
+	require.True(t, created.GuardEnabled)
 	require.Equal(t, int64(4111010006), created.SchoolID)
 	require.Equal(t, 2592000, created.InitialMuteDurationSeconds)
 	require.Empty(t, created.ManagementGuildIDs)
@@ -115,9 +116,10 @@ func TestCreateAdmissionPolicyFromSourceForNewTargetGuild(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, targets, 2)
 	require.Equal(t, AdmissionPolicyTarget{
-		PolicyID: created.ID,
-		Platform: "qq",
-		GuildID:  "guild-2",
+		PolicyID:     created.ID,
+		Platform:     "qq",
+		GuildID:      "guild-2",
+		GuardEnabled: true,
 	}, targets[1])
 
 	_, err = repo.CreatePolicyFromSource(ctx, AdmissionPolicyCreateRequest{

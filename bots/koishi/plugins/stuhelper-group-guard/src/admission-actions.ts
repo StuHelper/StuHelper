@@ -2,9 +2,12 @@ import { h, type Universal } from 'koishi'
 
 import {
   PlatformAPIError,
+  renderMessageTemplate,
+  resolveGroupGuardMessages,
   type AdmissionBotEventRequest,
   type AdmissionPendingAction,
   type GuardMemberRecord,
+  type StuhelperGroupGuardMessageConfig,
 } from '@stuhelper/koishi-shared'
 
 import { formatAdmissionReminder } from './admission-format'
@@ -27,17 +30,19 @@ export async function executeAdmissionAction(
   bot: Universal.Methods,
   action: AdmissionPendingAction,
   record: GuardMemberRecord | null,
+  messages?: Partial<StuhelperGroupGuardMessageConfig>,
 ): Promise<ActionResult> {
   const target = resolveActionTarget(action, record)
+  const resolvedMessages = resolveGroupGuardMessages(messages)
   switch (action.action) {
     case 'remind':
-      return executeReminder(bot, action, target)
+      return executeReminder(bot, action, target, resolvedMessages)
     case 'release':
-      return executeRelease(bot, action, target)
+      return executeRelease(bot, action, target, resolvedMessages)
     case 'kick':
-      return executeKick(bot, action, target)
+      return executeKick(bot, action, target, resolvedMessages)
     case 'blacklist':
-      return executeBlacklist(bot, action, target)
+      return executeBlacklist(bot, action, target, resolvedMessages)
     default:
       throw new Error(`unknown admission action: ${action.action}`)
   }
@@ -54,6 +59,7 @@ async function executeReminder(
   bot: Universal.Methods,
   action: AdmissionPendingAction,
   target: ActionTarget,
+  messages: ReturnType<typeof resolveGroupGuardMessages>,
 ): Promise<ActionResult> {
   if (!action.authURL) {
     throw new Error(`admission remind action ${action.sessionID} missing authURL`)
@@ -65,6 +71,7 @@ async function executeReminder(
     failureCount: action.failureCount,
     remainingRetryCount: action.remainingRetryCount,
     willBlacklistOnTimeout: action.willBlacklistOnTimeout,
+    messages,
   }))
   return successResult(action, 'reminder', messageID)
 }
@@ -73,13 +80,14 @@ async function executeRelease(
   bot: Universal.Methods,
   action: AdmissionPendingAction,
   target: ActionTarget,
+  messages: ReturnType<typeof resolveGroupGuardMessages>,
 ): Promise<ActionResult> {
   await bot.muteGuildMember(target.guildID, target.qqID, 0)
-  const messageID = await sendActionMessage(
-    bot,
-    target.channelID,
-    `${h.at(target.qqID)} 已检测到你完成 StuHelper 学生认证，已自动解除禁言。`,
-  )
+  const content = renderMessageTemplate(messages.admissionReleaseCompleted, {
+    at: h.at(target.qqID),
+    memberId: target.qqID,
+  })
+  const messageID = content ? await sendActionMessage(bot, target.channelID, content) : undefined
   return successResult(action, 'released', messageID)
 }
 
@@ -87,12 +95,13 @@ async function executeKick(
   bot: Universal.Methods,
   action: AdmissionPendingAction,
   target: ActionTarget,
+  messages: ReturnType<typeof resolveGroupGuardMessages>,
 ): Promise<ActionResult> {
-  const messageID = await sendActionMessage(
-    bot,
-    target.channelID,
-    `${h.at(target.qqID)} 认证超时，机器人将自动移出群聊。`,
-  )
+  const content = renderMessageTemplate(messages.admissionKickTimeout, {
+    at: h.at(target.qqID),
+    memberId: target.qqID,
+  })
+  const messageID = content ? await sendActionMessage(bot, target.channelID, content) : undefined
   await bot.kickGuildMember(target.guildID, target.qqID)
   return successResult(action, 'kicked', messageID)
 }
@@ -101,12 +110,13 @@ async function executeBlacklist(
   bot: Universal.Methods,
   action: AdmissionPendingAction,
   target: ActionTarget,
+  messages: ReturnType<typeof resolveGroupGuardMessages>,
 ): Promise<ActionResult> {
-  const messageID = await sendActionMessage(
-    bot,
-    target.channelID,
-    `${h.at(target.qqID)} 认证失败次数已达上限，已加入入群黑名单，机器人将移出群聊。`,
-  )
+  const content = renderMessageTemplate(messages.admissionBlacklistKick, {
+    at: h.at(target.qqID),
+    memberId: target.qqID,
+  })
+  const messageID = content ? await sendActionMessage(bot, target.channelID, content) : undefined
   await bot.kickGuildMember(target.guildID, target.qqID, true)
   return successResult(action, 'kicked', messageID)
 }

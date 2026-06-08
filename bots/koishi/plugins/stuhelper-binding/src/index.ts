@@ -5,6 +5,8 @@ import {
   createBindingPluginConfigSchema,
   createPlatformClient,
   createPluginLogger,
+  renderMessageTemplate,
+  resolveBindingMessages,
   type PlatformVerificationState,
   type StuhelperBindingPluginConfig,
 } from '@stuhelper/koishi-shared'
@@ -18,6 +20,7 @@ export const Config: Schema<Config> = createBindingPluginConfigSchema()
 export function apply(ctx: Context, config: Config) {
   const logger = createPluginLogger(ctx, 'binding')
   const platform = createPlatformClient(config.platform)
+  const messages = resolveBindingMessages(config.binding.messages)
 
   ctx.command(`${config.binding.command} <code:text>`, '绑定 StuHelper 账号')
     .action(async ({ session }, code) => {
@@ -25,10 +28,10 @@ export function apply(ctx: Context, config: Config) {
         throw new Error('binding command requires an active session')
       }
       if (!session.isDirect) {
-        return '请在私聊中发送绑定命令。'
+        return renderMessageTemplate(messages.directOnly)
       }
       if (!code?.trim()) {
-        return `请输入绑定码，例如：${config.binding.command} ABCD1234`
+        return renderMessageTemplate(messages.missingCode, { command: config.binding.command })
       }
 
       try {
@@ -41,9 +44,9 @@ export function apply(ctx: Context, config: Config) {
           userID: result.binding.userID,
           verificationState: result.verificationState.verificationState,
         })
-        return buildBindingSuccessMessage(result.verificationState.verificationState)
+        return buildBindingSuccessMessage(result.verificationState.verificationState, messages)
       } catch (error) {
-        const message = resolveBindingErrorMessage(error)
+        const message = resolveBindingErrorMessage(error, messages)
         logger.warn('qq binding failed', {
           qqID: session.userId,
           error: error instanceof Error ? error.message : String(error),
@@ -55,30 +58,36 @@ export function apply(ctx: Context, config: Config) {
   logger.info(`绑定插件已加载，命令字：${config.binding.command}`)
 }
 
-function buildBindingSuccessMessage(state: PlatformVerificationState) {
+function buildBindingSuccessMessage(
+  state: PlatformVerificationState,
+  messages: ReturnType<typeof resolveBindingMessages>,
+) {
   if (state === 'verified') {
-    return '绑定成功，当前账号已完成学生认证，加入受控群时会自动放行。'
+    return renderMessageTemplate(messages.successVerified)
   }
-  return '绑定成功。当前账号还未完成学生认证，请先回到 StuHelper 完成认证。'
+  return renderMessageTemplate(messages.successUnverified)
 }
 
-function resolveBindingErrorMessage(error: unknown) {
+function resolveBindingErrorMessage(
+  error: unknown,
+  messages: ReturnType<typeof resolveBindingMessages>,
+) {
   if (!(error instanceof PlatformAPIError)) {
-    return '绑定失败，平台暂时不可用。'
+    return renderMessageTemplate(messages.unavailable)
   }
   if (error.status === 400) {
-    return '绑定码无效或已过期，请重新生成后再试。'
+    return renderMessageTemplate(messages.invalidCode)
   }
   if (error.status === 401) {
-    return '机器人服务鉴权失败，请联系管理员检查后端配置。'
+    return renderMessageTemplate(messages.unauthorized)
   }
   if (error.status === 409) {
-    return '该 QQ 号或 StuHelper 账号已经绑定过其他对象。'
+    return renderMessageTemplate(messages.conflict)
   }
   if (error.status === 503) {
-    return '后端机器人接口尚未配置完成，请联系管理员。'
+    return renderMessageTemplate(messages.notConfigured)
   }
-  return '绑定失败，平台暂时不可用。'
+  return renderMessageTemplate(messages.unavailable)
 }
 
 export default {

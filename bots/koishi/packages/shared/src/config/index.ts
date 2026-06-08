@@ -5,6 +5,7 @@ import type {
   StuhelperAdminPluginConfig,
   StuhelperAdmissionCommandConfig,
   StuhelperAdmissionActionStreamConfig,
+  StuhelperBindingMessageConfig,
   StuhelperBindingConfig,
   StuhelperBindingPluginConfig,
   StuhelperCommandConfig,
@@ -14,6 +15,7 @@ import type {
   StuhelperFreshmanForwardConfig,
   StuhelperFunConfig,
   StuhelperGuardConfig,
+  StuhelperGroupGuardMessageConfig,
   StuhelperGroupGuardPluginConfig,
   StuhelperKeywordRuleConfig,
   StuhelperModerationConfig,
@@ -21,6 +23,10 @@ import type {
   StuhelperSchedulerConfig,
   StuhelperAIConfig,
 } from '../types/index'
+import {
+  DEFAULT_BINDING_MESSAGES,
+  DEFAULT_GROUP_GUARD_MESSAGES,
+} from '../message-template'
 
 const DEFAULT_BINDING_COMMAND = '绑定'
 const DEFAULT_CODE_TTL_MINUTES = 10
@@ -52,6 +58,21 @@ export function createBindingConfigSchema(): Schema<StuhelperBindingConfig> {
   return Schema.object({
     command: Schema.string().default(DEFAULT_BINDING_COMMAND).description('用户私聊机器人的绑定命令字。'),
     codeTtlMinutes: Schema.number().min(1).default(DEFAULT_CODE_TTL_MINUTES).description('绑定码有效期，单位为分钟。'),
+    messages: createBindingMessageConfigSchema().description('绑定命令反馈文案。模板变量用 `{变量名}` 表示。'),
+  })
+}
+
+export function createBindingMessageConfigSchema(): Schema<StuhelperBindingMessageConfig> {
+  return Schema.object({
+    directOnly: messageTemplate(DEFAULT_BINDING_MESSAGES.directOnly, '群聊内执行绑定命令时返回。可用变量：无。'),
+    missingCode: messageTemplate(DEFAULT_BINDING_MESSAGES.missingCode, '未提供绑定码时返回。可用变量：`{command}`。'),
+    successVerified: messageTemplate(DEFAULT_BINDING_MESSAGES.successVerified, '绑定成功且账号已完成学生认证时返回。可用变量：无。'),
+    successUnverified: messageTemplate(DEFAULT_BINDING_MESSAGES.successUnverified, '绑定成功但账号未完成学生认证时返回。可用变量：无。'),
+    unavailable: messageTemplate(DEFAULT_BINDING_MESSAGES.unavailable, '平台不可用或未知错误时返回。可用变量：无。'),
+    invalidCode: messageTemplate(DEFAULT_BINDING_MESSAGES.invalidCode, '绑定码无效或过期时返回。可用变量：无。'),
+    unauthorized: messageTemplate(DEFAULT_BINDING_MESSAGES.unauthorized, '机器人服务鉴权失败时返回。可用变量：无。'),
+    conflict: messageTemplate(DEFAULT_BINDING_MESSAGES.conflict, 'QQ 或 StuHelper 账号已绑定其他对象时返回。可用变量：无。'),
+    notConfigured: messageTemplate(DEFAULT_BINDING_MESSAGES.notConfigured, '后端机器人接口未配置时返回。可用变量：无。'),
   })
 }
 
@@ -156,6 +177,56 @@ export function createAIConfigSchema(): Schema<StuhelperAIConfig> {
   })
 }
 
+export function createGroupGuardMessageConfigSchema(): Schema<StuhelperGroupGuardMessageConfig> {
+  return Schema.object({
+    admissionReminder: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionReminder, '认证提醒主文案。可用变量：`{at}`、`{memberId}`、`{minutes}`、`{authURL}`、`{timeoutLine}`。'),
+    admissionTimeoutNormal: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionTimeoutNormal, '首次或普通超时说明。可用变量：`{failureCount}`、`{remainingRetryCount}`。'),
+    admissionTimeoutWithFailures: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionTimeoutWithFailures, '已有未认证次数但本次不会拉黑时的超时说明。可用变量：`{failureCount}`、`{remainingRetryCount}`。'),
+    admissionTimeoutBlacklist: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionTimeoutBlacklist, '本次超时会拉黑时的超时说明。可用变量：`{failureCount}`、`{remainingRetryCount}`。'),
+    backendPendingReminder: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.backendPendingReminder, '后端暂不可用、链接暂未创建时的兜底提醒。可用变量：`{at}`、`{memberId}`、`{reminderTemplate}`。'),
+    admissionReleaseCompleted: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionReleaseCompleted, '认证通过并自动解除禁言后的群内提示。留空表示不发送。可用变量：`{at}`、`{memberId}`。'),
+    admissionKickTimeout: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionKickTimeout, '认证超时移出群聊前提示。可用变量：`{at}`、`{memberId}`。'),
+    admissionBlacklistKick: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionBlacklistKick, '达到失败次数上限并拉黑前提示。可用变量：`{at}`、`{memberId}`。'),
+    antiRecallNotify: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.antiRecallNotify, '检测到撤回消息时的群内提示。可用变量：`{at}`、`{memberId}`、`{content}`。'),
+    moderationMuteNotice: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.moderationMuteNotice, '自动禁言提示。留空表示只执行禁言不发提示。可用变量：`{at}`、`{memberId}`、`{reason}`、`{seconds}`。'),
+    moderationUnmuteNotice: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.moderationUnmuteNotice, '解除禁言提示。留空表示只执行解禁不发提示。可用变量：`{at}`、`{memberId}`、`{reason}`。'),
+    moderationKickNotice: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.moderationKickNotice, '自动移出群聊提示。留空表示只执行踢出不发提示。可用变量：`{at}`、`{memberId}`、`{reason}`。'),
+    freshmanForwardSummary: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.freshmanForwardSummary, '新生材料转发到审核群时的摘要。可用变量：`{applicationId}`、`{applicantName}`、`{schoolName}`、`{departmentOrMajor}`、`{qqID}`、`{materialType}`、`{provisionalExpiresAt}`。'),
+    publicReportMissingArgs: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.publicReportMissingArgs, '举报命令缺少参数时返回。'),
+    publicCommandsDisabled: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.publicCommandsDisabled, '公开命令被 WebUI 关闭时返回。'),
+    muteLotteryGroupOnly: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.muteLotteryGroupOnly, '抽禁言命令不在群聊中执行时返回。'),
+    commandAccessDenied: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.commandAccessDenied, '命令权限不足时返回。'),
+    diceResult: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.diceResult, '骰子结果。可用变量：`{memberId}`、`{sides}`、`{result}`。'),
+    muteLotteryResult: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.muteLotteryResult, '普通抽禁言结果。可用变量：`{memberId}`、`{seconds}`。'),
+    muteLotteryPityResult: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.muteLotteryPityResult, '保底抽禁言结果。可用变量：`{memberId}`、`{seconds}`。'),
+    reportGroupOnly: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.reportGroupOnly, '举报命令不在群聊中执行时返回。'),
+    reportRecordedAIUnavailable: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.reportRecordedAIUnavailable, '举报已记录但未启用 AI 审核时返回。'),
+    reportAIReviewFailed: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.reportAIReviewFailed, '举报 AI 审核失败时返回。'),
+    reportHighRisk: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.reportHighRisk, 'AI 判定高风险时返回。'),
+    reportMediumRisk: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.reportMediumRisk, 'AI 判定中风险时返回。'),
+    reportLowRisk: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.reportLowRisk, 'AI 判定低风险时返回。'),
+    reportNoAction: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.reportNoAction, 'AI 未判定可执行动作时返回。'),
+    admissionCommandGroupOnly: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionCommandGroupOnly, '入群认证管理员命令不在群聊中执行时返回。'),
+    admissionCommandsDisabled: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionCommandsDisabled, '入群认证管理员命令被 WebUI 关闭时返回。'),
+    admissionCommandMissingQQ: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionCommandMissingQQ, '管理员命令缺少 QQ 号时返回。'),
+    admissionCommandMissingOperator: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionCommandMissingOperator, '无法识别操作者 QQ 时返回。'),
+    admissionCommandUnsupportedPlatform: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionCommandUnsupportedPlatform, '当前平台不支持入群认证时返回。'),
+    admissionCommandPolicyDisabled: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionCommandPolicyDisabled, '当前群未启用入群认证时返回。'),
+    admissionCommandNotFound: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionCommandNotFound, '找不到入群认证记录时返回。'),
+    admissionCommandInvalidState: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionCommandInvalidState, '当前认证状态不允许操作时返回。'),
+    admissionCommandUnauthorized: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionCommandUnauthorized, '机器人凭据无权限时返回。'),
+    admissionCommandFailed: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionCommandFailed, '管理员命令未知错误时返回。可用变量：`{error}`。'),
+    admissionCommandPlatformError: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionCommandPlatformError, '平台接口异常时返回。可用变量：`{status}`、`{message}`。'),
+    admissionCommandMissingResendURL: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionCommandMissingResendURL, '后端未返回可重发认证链接时返回。'),
+    admissionCommandStaleRecord: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionCommandStaleRecord, '本地记录被其他任务处理时返回。'),
+    admissionSkipSuccess: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionSkipSuccess, '跳过入群认证成功时返回。可用变量：`{at}`、`{qqID}`。'),
+    admissionAlreadyVerifiedRegenerate: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionAlreadyVerifiedRegenerate, '重新生成链接时发现成员已认证通过的返回文案。可用变量：`{at}`、`{qqID}`。'),
+    admissionResetFailureCountSuccess: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionResetFailureCountSuccess, '清空未认证次数成功时返回。可用变量：`{qqID}`、`{previousFailureCount}`。'),
+    admissionReleaseBlacklistNotFound: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionReleaseBlacklistNotFound, '解除入群拉黑但未找到记录时返回。可用变量：`{qqID}`。'),
+    admissionReleaseBlacklistSuccess: messageTemplate(DEFAULT_GROUP_GUARD_MESSAGES.admissionReleaseBlacklistSuccess, '解除入群拉黑成功时返回。可用变量：`{qqID}`。'),
+  }).description('群管插件所有用户可见提示文案。模板变量使用 `{变量名}`；可发送的提示留空表示不发送。')
+}
+
 export function createCoreConfigSchema(): Schema<StuhelperCoreConfig> {
   return Schema.object({
     platform: createPlatformConfigSchema(),
@@ -186,6 +257,7 @@ export function createGroupGuardPluginConfigSchema(): Schema<StuhelperGroupGuard
     commands: createCommandConfigSchema(),
     admissionCommands: createAdmissionCommandConfigSchema(),
     freshmanForward: createFreshmanForwardConfigSchema(),
+    messages: createGroupGuardMessageConfigSchema(),
   })
 }
 
@@ -203,4 +275,8 @@ export function createConsolePluginConfigSchema(): Schema<StuhelperConsolePlugin
     console: createConsoleConfigSchema(),
     moderation: createModerationConfigSchema(),
   })
+}
+
+function messageTemplate(defaultValue: string, description: string) {
+  return Schema.string().default(defaultValue).description(`${description} 推荐默认值：${defaultValue || '留空'}`)
 }

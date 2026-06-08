@@ -1,6 +1,11 @@
 import { h } from 'koishi'
 
-import type { FreshmanForwardItem } from '@stuhelper/koishi-shared'
+import {
+  renderMessageTemplate,
+  resolveGroupGuardMessages,
+  type FreshmanForwardItem,
+  type StuhelperGroupGuardMessageConfig,
+} from '@stuhelper/koishi-shared'
 
 const MINUTE_MS = 60 * 1000
 const UNKNOWN_FIELD = '未提供'
@@ -18,33 +23,35 @@ export interface AdmissionReminderInput {
   readonly remainingRetryCount?: number
   readonly willBlacklistOnTimeout?: boolean
   readonly now?: Date
+  readonly messages?: Partial<StuhelperGroupGuardMessageConfig>
 }
 
 export function formatAdmissionReminder(input: AdmissionReminderInput) {
   const minutes = minutesUntil(input.deadlineAt, input.now || new Date())
-  return [
-    `${h.at(input.memberId)} (${input.memberId})请在 ${minutes} 分钟内完成 StuHelper 学生身份认证：`,
-    input.authURL,
-    admissionTimeoutLine(input),
-  ].join('\n')
+  const messages = resolveGroupGuardMessages(input.messages)
+  return renderMessageTemplate(messages.admissionReminder, {
+    at: h.at(input.memberId),
+    memberId: input.memberId,
+    minutes,
+    authURL: input.authURL,
+    timeoutLine: admissionTimeoutLine(input, messages),
+  })
 }
 
-function admissionTimeoutLine(input: AdmissionReminderInput) {
+function admissionTimeoutLine(
+  input: AdmissionReminderInput,
+  messages = resolveGroupGuardMessages(input.messages),
+) {
   const failureCount = normalizedCount(input.failureCount)
   const remainingRetryCount = normalizedCount(input.remainingRetryCount)
+  const variables = { failureCount, remainingRetryCount }
   if (input.willBlacklistOnTimeout) {
-    return [
-      '通过后自动解除禁言，超时将移出群聊',
-      `您已累计${failureCount}次未认证，本次超时未认证将永久拉黑`,
-    ].join('\n')
+    return renderMessageTemplate(messages.admissionTimeoutBlacklist, variables)
   }
   if (failureCount > 0) {
-    return [
-      '通过后自动解除禁言，超时将移出群聊',
-      `您已累计${failureCount}次未认证，可重新加群认证次数：${remainingRetryCount}`,
-    ].join('\n')
+    return renderMessageTemplate(messages.admissionTimeoutWithFailures, variables)
   }
-  return `通过后自动解除禁言，超时将移出群聊，可重新加群认证次数：${remainingRetryCount}。`
+  return renderMessageTemplate(messages.admissionTimeoutNormal, variables)
 }
 
 function normalizedCount(value: number | undefined) {
@@ -55,17 +62,18 @@ function minutesUntil(deadlineAt: Date, now: Date) {
   return Math.max(1, Math.ceil((deadlineAt.getTime() - now.getTime()) / MINUTE_MS))
 }
 
-export function formatFreshmanForwardSummary(item: FreshmanForwardItem) {
+export function formatFreshmanForwardSummary(
+  item: FreshmanForwardItem,
+  messages?: Partial<StuhelperGroupGuardMessageConfig>,
+) {
   const application = item.application
-  return [
-    `新生材料审核 ${application.id}`,
-    `姓名：${application.applicantNameMasked}`,
-    `学校：${item.schoolName || application.schoolID}`,
-    `专业：${application.departmentOrMajor || UNKNOWN_FIELD}`,
-    `QQ：${item.qqID || UNKNOWN_FIELD}`,
-    `材料：${MATERIAL_TYPE_LABELS[application.materialType]}`,
-    `临时身份过期：${application.provisionalExpiresAt || UNKNOWN_FIELD}`,
-    `通过：新生审核通过 ${application.id}`,
-    `驳回：新生审核驳回 ${application.id} <原因>`,
-  ].join('\n')
+  return renderMessageTemplate(resolveGroupGuardMessages(messages).freshmanForwardSummary, {
+    applicationId: application.id,
+    applicantName: application.applicantNameMasked,
+    schoolName: item.schoolName || application.schoolID,
+    departmentOrMajor: application.departmentOrMajor || UNKNOWN_FIELD,
+    qqID: item.qqID || UNKNOWN_FIELD,
+    materialType: MATERIAL_TYPE_LABELS[application.materialType],
+    provisionalExpiresAt: application.provisionalExpiresAt || UNKNOWN_FIELD,
+  })
 }

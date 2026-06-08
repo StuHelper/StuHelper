@@ -227,6 +227,7 @@ const admissionPolicy = {
   id: 'policy-qq-1',
   platform: 'qq',
   guildID: 'guild-1',
+  guardEnabled: true,
   freshmanChannelEnabled: true,
   freshmanChannelClosesAt: '2026-09-01T00:00:00Z',
   freshmanDefaultExpiresAt: '2026-10-01T00:00:00Z',

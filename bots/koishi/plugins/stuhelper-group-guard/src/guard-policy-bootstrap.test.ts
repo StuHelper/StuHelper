@@ -30,7 +30,7 @@ test('bootstrapGuardPolicyFromStaticConfig promotes static target groups to qq b
   assert.equal(store.bindings[0].templateId, 'admission-default')
 })
 
-test('syncGuardPolicyFromAdmissionTargets re-enables backend policy bindings', async () => {
+test('syncGuardPolicyFromAdmissionTargets applies backend policy target enabled state', async () => {
   const store = createPolicyStore()
   const config = createGuardConfig()
 
@@ -38,19 +38,21 @@ test('syncGuardPolicyFromAdmissionTargets re-enables backend policy bindings', a
   store.bindings[0].enabled = false
 
   const result = await syncGuardPolicyFromAdmissionTargets(store as unknown as GuardPolicyStore, config, [
-    { policyID: 'policy-178', platform: 'qq', guildID: '178037297' },
-    { policyID: 'policy-743', platform: 'qq', guildID: '743762161' },
-    { policyID: 'policy-other', platform: 'telegram', guildID: 'ignored' },
+    { policyID: 'policy-178', platform: 'qq', guildID: '178037297', guardEnabled: false },
+    { policyID: 'policy-743', platform: 'qq', guildID: '743762161', guardEnabled: true },
+    { policyID: 'policy-old-backend', platform: 'qq', guildID: 'old-backend' },
+    { policyID: 'policy-other', platform: 'telegram', guildID: 'ignored', guardEnabled: true },
   ])
 
   assert.deepEqual(result, {
     templateCreated: false,
-    bindingCreatedCount: 1,
+    bindingCreatedCount: 2,
     bindingUpdatedCount: 1,
   })
   assert.deepEqual(store.bindings.map((binding) => [binding.id, binding.enabled, binding.note]), [
-    ['qq:178037297', true, 'synced from backend admission policies'],
+    ['qq:178037297', false, 'synced from backend admission policies'],
     ['qq:743762161', true, 'synced from backend admission policies'],
+    ['qq:old-backend', true, 'synced from backend admission policies'],
   ])
 })
 

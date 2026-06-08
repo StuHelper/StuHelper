@@ -2,6 +2,8 @@ import { h, type Context, type Session } from 'koishi'
 
 import {
   PlatformAPIError,
+  renderMessageTemplate,
+  resolveGroupGuardMessages,
   type AdmissionSession,
   type AdmissionSessionCreateResult,
   type AdmissionRuntimeSettingsStore,
@@ -18,7 +20,6 @@ import { backendSyncUpdate } from './member-records'
 
 const DEFAULT_ADMISSION_COMMAND_AUTHORITY = 4
 const DUPLICATE_COMMAND_SUPPRESS_MS = 30_000
-const STALE_ADMISSION_RECORD_MESSAGE = '入群认证记录已被其他任务处理，请重新查询当前状态。'
 
 interface AdmissionAdminCommandDeps {
   readonly platform: PlatformClient
@@ -42,7 +43,7 @@ export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdmi
   const commandDeduper = new AdmissionAdminCommandDeduper()
 
   ctx.command('查询入群认证 <qqID>', '查询指定 QQ 的入群认证状态')
-    .action(({ session }, qqID) => runAdmissionCommand(async () => {
+    .action(({ session }, qqID) => runAdmissionCommand(deps.config, async () => {
       const command = await resolveAdmissionCommandContext(session, qqID, deps)
       if (typeof command === 'string') return command
       const admission = await deps.platform.getAdmissionSessionByMember(admissionSubject(command))
@@ -50,7 +51,7 @@ export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdmi
     }))
 
   ctx.command('重发认证链接 <qqID>', '重发当前仍可继续的入群认证链接')
-    .action(({ session }, qqID) => runAdmissionCommand(async () => {
+    .action(({ session }, qqID) => runAdmissionCommand(deps.config, async () => {
       const command = await resolveAdmissionCommandContext(session, qqID, deps)
       if (typeof command === 'string') return command
       const dedupeKey = admissionCommandDedupeKey('resend', command)
@@ -65,7 +66,7 @@ export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdmi
     }))
 
   ctx.command('重新生成认证链接 <qqID>', '取消旧会话并重新生成入群认证链接')
-    .action(({ session }, qqID) => runAdmissionCommand(async () => {
+    .action(({ session }, qqID) => runAdmissionCommand(deps.config, async () => {
       const command = await resolveAdmissionCommandContext(session, qqID, deps)
       if (typeof command === 'string') return command
       const dedupeKey = admissionCommandDedupeKey('regenerate', command)
@@ -84,7 +85,7 @@ export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdmi
         await resetMemberMute(command.session, created.session)
         const synced = await updateLocalAdmissionRecord(command, deps.guardStore, created)
         if (synced === false) {
-          return STALE_ADMISSION_RECORD_MESSAGE
+          return admissionMessage(deps.config, 'admissionCommandStaleRecord')
         }
         return sendAdmissionReminderForCommand(command, deps, created.session)
       } catch (error) {
@@ -94,7 +95,7 @@ export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdmi
     }))
 
   ctx.command('跳过入群认证 <qqID>', '仅跳过当前群的入群认证，不通过 StuHelper 学生认证')
-    .action(({ session }, qqID) => runAdmissionCommand(async () => {
+    .action(({ session }, qqID) => runAdmissionCommand(deps.config, async () => {
       const command = await resolveAdmissionCommandContext(session, qqID, deps)
       if (typeof command === 'string') return command
       const dedupeKey = admissionCommandDedupeKey('skip', command)
@@ -104,9 +105,12 @@ export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdmi
         await releaseMemberMuteForCommand(command)
         const released = await markLocalAdmissionSkipped(command, deps.guardStore, skipped)
         if (released === false) {
-          return STALE_ADMISSION_RECORD_MESSAGE
+          return admissionMessage(deps.config, 'admissionCommandStaleRecord')
         }
-        return `${h.at(command.qqID)} (${command.qqID}) 已跳过本群入群认证并解除禁言。\n此操作只在本群生效，不代表 StuHelper 学生认证已通过。`
+        return admissionMessage(deps.config, 'admissionSkipSuccess', {
+          at: h.at(command.qqID),
+          qqID: command.qqID,
+        })
       } catch (error) {
         commandDeduper.forget(dedupeKey)
         throw error
@@ -114,15 +118,18 @@ export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdmi
     }))
 
   ctx.command('清空入群未认证次数 <qqID>', '清空当前群成员的入群认证失败次数')
-    .action(({ session }, qqID) => runAdmissionCommand(async () => {
+    .action(({ session }, qqID) => runAdmissionCommand(deps.config, async () => {
       const command = await resolveAdmissionCommandContext(session, qqID, deps)
       if (typeof command === 'string') return command
       const result = await deps.platform.resetAdmissionFailureCount(admissionOperatorSubject(command))
-      return `已清空 QQ ${result.qqID} 在本群的入群未认证次数（原次数：${result.previousFailureCount}）。`
+      return admissionMessage(deps.config, 'admissionResetFailureCountSuccess', {
+        qqID: result.qqID,
+        previousFailureCount: result.previousFailureCount,
+      })
     }))
 
   ctx.command('解除入群拉黑 <qqID>', '解除当前群成员的入群拉黑状态')
-    .action(({ session }, qqID) => runAdmissionCommand(async () => {
+    .action(({ session }, qqID) => runAdmissionCommand(deps.config, async () => {
       const command = await resolveAdmissionCommandContext(session, qqID, deps)
       if (typeof command === 'string') return command
       try {
@@ -138,11 +145,11 @@ export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdmi
         })
       } catch (error) {
         if (error instanceof PlatformAPIError && error.status === 404) {
-          return `QQ ${command.qqID} 在本群没有活动入群拉黑记录。`
+          return admissionMessage(deps.config, 'admissionReleaseBlacklistNotFound', { qqID: command.qqID })
         }
         throw error
       }
-      return `已解除 QQ ${command.qqID} 在本群的入群拉黑状态；未认证次数未清空，如需重新计数请使用“清空入群未认证次数 ${command.qqID}”。`
+      return admissionMessage(deps.config, 'admissionReleaseBlacklistSuccess', { qqID: command.qqID })
     }))
 }
 
@@ -188,11 +195,12 @@ async function resolveAdmissionCommandContext(
   qqID: string | undefined,
   deps: AdmissionAdminCommandDeps,
 ): Promise<AdmissionCommandContext | string> {
+  const messages = resolveGroupGuardMessages(deps.config.messages)
   if (!session) {
-    return '入群认证命令只能在群聊中使用。'
+    return renderMessageTemplate(messages.admissionCommandGroupOnly)
   }
   if (deps.runtimeSettings && !await deps.runtimeSettings.isAdmissionCommandsEnabled()) {
-    return '入群认证管理员命令已由 StuHelper WebUI 关闭。'
+    return renderMessageTemplate(messages.admissionCommandsDisabled)
   }
   const accessDenied = ensureAdmissionCommandAccess(session, deps.config)
   if (accessDenied) {
@@ -200,22 +208,22 @@ async function resolveAdmissionCommandContext(
   }
   const guildID = session.guildId || session.channelId
   if (!guildID) {
-    return '入群认证命令只能在群聊中使用。'
+    return renderMessageTemplate(messages.admissionCommandGroupOnly)
   }
   const targetQQID = qqID?.trim()
   if (!targetQQID) {
-    return '请提供要操作的 QQ 号。'
+    return renderMessageTemplate(messages.admissionCommandMissingQQ)
   }
   if (!session.userId) {
-    return '无法识别命令执行者 QQ。'
+    return renderMessageTemplate(messages.admissionCommandMissingOperator)
   }
   const platform = resolveSessionAdmissionPlatform(session)
   if (!platform) {
-    return '当前机器人平台不支持入群认证。'
+    return renderMessageTemplate(messages.admissionCommandUnsupportedPlatform)
   }
   const policy = await deps.policyStore.resolvePolicy(platform, guildID)
   if (!policy) {
-    return '当前群未启用 StuHelper 入群认证。'
+    return renderMessageTemplate(messages.admissionCommandPolicyDisabled)
   }
   return {
     session,
@@ -245,7 +253,7 @@ function ensureAdmissionCommandAccess(
   if (authority >= minAuthority) {
     return
   }
-  return '命令权限不足。'
+  return admissionMessage(config, 'commandAccessDenied')
 }
 
 function admissionSubject(command: AdmissionCommandContext) {
@@ -263,28 +271,36 @@ function admissionOperatorSubject(command: AdmissionCommandContext) {
   }
 }
 
-async function runAdmissionCommand(run: () => Promise<string | void>) {
+async function runAdmissionCommand(
+  config: StuhelperGroupGuardPluginConfig,
+  run: () => Promise<string | void>,
+) {
   try {
     return await run()
   } catch (error) {
-    return formatAdmissionCommandError(error)
+    return formatAdmissionCommandError(error, config)
   }
 }
 
-function formatAdmissionCommandError(error: unknown) {
+function formatAdmissionCommandError(error: unknown, config: StuhelperGroupGuardPluginConfig) {
   if (error instanceof PlatformAPIError) {
     if (error.status === 404) {
-      return '未找到该 QQ 的入群认证记录。'
+      return admissionMessage(config, 'admissionCommandNotFound')
     }
     if (error.status === 409) {
-      return '当前入群认证状态不允许该操作。'
+      return admissionMessage(config, 'admissionCommandInvalidState')
     }
     if (error.status === 401 || error.status === 403) {
-      return '机器人服务凭据无权访问入群认证接口。'
+      return admissionMessage(config, 'admissionCommandUnauthorized')
     }
-    return `StuHelper 平台接口异常：${error.status} ${error.message}`
+    return admissionMessage(config, 'admissionCommandPlatformError', {
+      status: error.status,
+      message: error.message,
+    })
   }
-  return error instanceof Error ? `入群认证命令执行失败：${error.message}` : '入群认证命令执行失败。'
+  return admissionMessage(config, 'admissionCommandFailed', {
+    error: error instanceof Error ? error.message : '',
+  })
 }
 
 function formatAdmissionSessionSummary(session: AdmissionSession) {
@@ -306,14 +322,18 @@ function formatAdmissionSessionSummary(session: AdmissionSession) {
   return rows.join('\n')
 }
 
-function formatAdmissionReminderForSession(session: AdmissionSession) {
+function formatAdmissionReminderForSession(
+  session: AdmissionSession,
+  config: StuhelperGroupGuardPluginConfig,
+) {
   if (!session.authURL) {
-    return '后端没有返回可重发的认证链接。'
+    return admissionMessage(config, 'admissionCommandMissingResendURL')
   }
   return formatAdmissionReminder({
     memberId: session.qqID,
     authURL: session.authURL,
     deadlineAt: reminderDeadline(session),
+    messages: config.messages,
   })
 }
 
@@ -322,7 +342,7 @@ async function sendAdmissionReminderForCommand(
   deps: AdmissionAdminCommandDeps,
   admission: AdmissionSession,
 ) {
-  const message = formatAdmissionReminderForSession(admission)
+  const message = formatAdmissionReminderForSession(admission, deps.config)
   if (!admission.authURL) {
     return message
   }
@@ -336,7 +356,7 @@ async function sendAdmissionReminderForCommand(
   }
   const marked = await markLocalReminderSent(command, deps.guardStore)
   if (marked === false) {
-    return STALE_ADMISSION_RECORD_MESSAGE
+    return admissionMessage(deps.config, 'admissionCommandStaleRecord')
   }
   await deps.platform.recordAdmissionEvent(admission.id, {
     action: 'remind',
@@ -346,9 +366,18 @@ async function sendAdmissionReminderForCommand(
 }
 
 async function sendCommandMessage(session: Session, message: string) {
+  if (!message) return undefined
   const result = await session.send(message)
   if (Array.isArray(result)) return typeof result[0] === 'string' ? result[0] : undefined
   return typeof result === 'string' ? result : undefined
+}
+
+function admissionMessage(
+  config: StuhelperGroupGuardPluginConfig,
+  key: keyof ReturnType<typeof resolveGroupGuardMessages>,
+  variables: Record<string, unknown> = {},
+) {
+  return renderMessageTemplate(resolveGroupGuardMessages(config.messages)[key], variables)
 }
 
 async function resetMemberMute(session: Session, admission: AdmissionSession) {
@@ -378,18 +407,21 @@ async function releaseVerifiedAdmissionForCommand(
   if (record) {
     const synced = await deps.guardStore.markBackendSynced(record.id, backendSyncUpdate(created))
     if (synced === false) {
-      return STALE_ADMISSION_RECORD_MESSAGE
+      return admissionMessage(deps.config, 'admissionCommandStaleRecord')
     }
     const released = await deps.guardStore.markReleased(record.id, new Date())
     if (released === false) {
-      return STALE_ADMISSION_RECORD_MESSAGE
+      return admissionMessage(deps.config, 'admissionCommandStaleRecord')
     }
   }
   await deps.platform.recordAdmissionEvent(created.session.id, {
     action: 'release',
     success: true,
   })
-  return `${h.at(command.qqID)} (${command.qqID}) 已完成 StuHelper 学生身份认证，已解除禁言，无需重新生成认证链接。`
+  return admissionMessage(deps.config, 'admissionAlreadyVerifiedRegenerate', {
+    at: h.at(command.qqID),
+    qqID: command.qqID,
+  })
 }
 
 async function markLocalAdmissionSkipped(

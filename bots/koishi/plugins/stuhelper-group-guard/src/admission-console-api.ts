@@ -13,7 +13,9 @@ import type {
   PlatformAPIError,
   StuhelperGroupGuardPluginConfig,
 } from '@stuhelper/koishi-shared'
-import { PlatformAPIError as PlatformAPIErrorClass } from '@stuhelper/koishi-shared'
+import {
+  PlatformAPIError as PlatformAPIErrorClass,
+} from '@stuhelper/koishi-shared'
 
 import { formatAdmissionReminder } from './admission-format'
 import { backendSyncUpdate } from './member-records'
@@ -413,6 +415,7 @@ async function sendReminderForRecord(
     failureCount: session.failureCount,
     remainingRetryCount: session.remainingRetryCount,
     willBlacklistOnTimeout: session.willBlacklistOnTimeout,
+    messages: deps.config.messages,
   }))
   const reminded = await deps.guardStore.markReminderSent(record.id, new Date())
   if (reminded === false) {
@@ -448,6 +451,7 @@ function requireBotForRecord(ctx: Context, record: GuardMemberRecord): GuardBotR
 }
 
 async function sendBotMessage(bot: Universal.Methods, channelId: string, message: string) {
+  if (!message) return undefined
   const result = await bot.sendMessage(channelId, message)
   if (Array.isArray(result)) {
     return typeof result[0] === 'string' ? result[0] : undefined

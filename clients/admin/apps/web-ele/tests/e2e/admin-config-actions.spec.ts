@@ -65,6 +65,7 @@ const admissionPolicy = {
   id: 'policy-qq-1',
   platform: 'qq',
   guildID: 'guild-1',
+  guardEnabled: true,
   freshmanChannelEnabled: true,
   freshmanChannelClosesAt: '2026-09-01T00:00:00Z',
   freshmanDefaultExpiresAt: '2026-10-01T00:00:00Z',
@@ -440,7 +441,11 @@ test.describe('Admin configuration actions', () => {
       .getByRole('spinbutton', { name: '最大延期天数' })
       .fill('45');
     await policyForm
-      .getByPlaceholder('每行一个材料审核管理群号，可留空')
+      .locator('.el-form-item', { hasText: '启用入群认证守卫' })
+      .locator('.el-switch')
+      .click();
+    await policyForm
+      .getByPlaceholder('每行一个材料审核通知群号，可留空；这里不是目标认证群')
       .fill('guild-admin\nguild-ops');
     await policyForm.getByRole('button', { name: '保存' }).click();
     await expect(
@@ -459,6 +464,7 @@ test.describe('Admin configuration actions', () => {
         method: 'PUT',
         body: expect.objectContaining({
           id: 'policy-qq-1',
+          guardEnabled: false,
           freshmanChannelClosesAt: '2026-09-01T00:00:00Z',
           freshmanDefaultExpiresAt: '2026-10-01T00:00:00Z',
           linkWaitSeconds: 450,
@@ -474,11 +480,11 @@ test.describe('Admin configuration actions', () => {
   }) => {
     await page.goto('/users/admission-policy');
 
-    await page.getByRole('button', { name: '新增认证群' }).click();
-    const dialog = page.getByRole('dialog', { name: '新增新生认证群' });
+    await page.getByRole('button', { name: '新增目标认证群' }).click();
+    const dialog = page.getByRole('dialog', { name: '新增目标认证群' });
     await expect(dialog).toBeVisible();
     await dialog
-      .getByPlaceholder('每行一个新生认证群号')
+      .getByPlaceholder('每行一个需要开启入群认证的 QQ 群号')
       .fill('guild-2\nguild-3');
     await dialog.getByRole('button', { name: '创建' }).click();
 

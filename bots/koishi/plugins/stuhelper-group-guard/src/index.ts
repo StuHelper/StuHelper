@@ -63,7 +63,7 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
   const policyStore = new GuardPolicyStore(ctx, config.guard)
   const runtimeSettings = new AdmissionRuntimeSettingsStore(ctx, defaultAdmissionRuntimeSettings(config))
   const moderationStore = new ModerationStore(ctx)
-  const actions = new ModerationActionService(moderationStore)
+  const actions = new ModerationActionService(moderationStore, config.messages)
   const admissionReminderDeduper = new AdmissionReminderDeduper()
   const memberGuard = new MemberGuardService({
     platform,
@@ -73,6 +73,7 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
     logger,
     isFreshmanForwardEnabled: () => runtimeSettings.isFreshmanForwardEnabled(),
     reminderDeduper: admissionReminderDeduper,
+    messages: config.messages,
   })
   const messageGuard = new MessageGuardService({
     store: moderationStore,

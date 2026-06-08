@@ -7137,7 +7137,7 @@ paths:
       summary: 获取后端 admission 策略目标群
       description: |
         Koishi 使用该接口把后端 `group_admission_policies` 同步为本地 guard 绑定。
-        返回值只包含目标群身份信息，不包含管理群或审核材料配置。
+        返回值只包含目标群身份与守卫启用状态，不包含管理群或审核材料配置。
       security:
         - serviceTokenAuth: []
       responses:
@@ -11220,6 +11220,7 @@ components:
         - id
         - platform
         - guildID
+        - guardEnabled
         - autoApproveJoin
         - autoApproveVerifiedJoin
         - autoApproveUnverifiedJoin
@@ -11243,6 +11244,10 @@ components:
           type: string
         guildID:
           type: string
+        guardEnabled:
+          type: boolean
+          default: true
+          description: 是否把该目标群同步为 Koishi 入群认证守卫绑定。
         autoApproveJoin:
           type: boolean
           deprecated: true
@@ -11309,6 +11314,7 @@ components:
         - policyID
         - platform
         - guildID
+        - guardEnabled
       properties:
         policyID:
           type: string
@@ -11316,6 +11322,9 @@ components:
           type: string
         guildID:
           type: string
+        guardEnabled:
+          type: boolean
+          description: 是否启用该目标群的 Koishi 入群认证守卫。
     FreshmanApplication:
       type: object
       required:

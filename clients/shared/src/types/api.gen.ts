@@ -2906,7 +2906,7 @@ export interface paths {
         /**
          * 获取后端 admission 策略目标群
          * @description Koishi 使用该接口把后端 `group_admission_policies` 同步为本地 guard 绑定。
-         *     返回值只包含目标群身份信息，不包含管理群或审核材料配置。
+         *     返回值只包含目标群身份与守卫启用状态，不包含管理群或审核材料配置。
          */
         get: operations["listBotAdmissionPolicyTargets"];
         put?: never;
@@ -4519,6 +4519,11 @@ export interface components {
             id: string;
             platform: string;
             guildID: string;
+            /**
+             * @description 是否把该目标群同步为 Koishi 入群认证守卫绑定。
+             * @default true
+             */
+            guardEnabled: boolean;
             /** @deprecated */
             autoApproveJoin: boolean;
             /** @default true */
@@ -4555,6 +4560,8 @@ export interface components {
             policyID: string;
             platform: string;
             guildID: string;
+            /** @description 是否启用该目标群的 Koishi 入群认证守卫。 */
+            guardEnabled: boolean;
         };
         FreshmanApplication: {
             id: string;

@@ -134,7 +134,7 @@ AdmissionQQAccess:
 AdmissionPolicy:
   type: object
   required:
-    [id, platform, guildID, autoApproveJoin, autoApproveVerifiedJoin, autoApproveUnverifiedJoin, initialMuteDurationSeconds, linkWaitSeconds, submissionWaitSeconds, manualReviewTimeoutSeconds, reminderIntervalSeconds, failedJoinLimit, freshmanChannelEnabled, freshmanChannelClosesAt, freshmanDefaultExpiresAt, forwardRawMaterialToQQ, managementGuildIDs, maxMaterialBytes, maxExtensionDays]
+    [id, platform, guildID, guardEnabled, autoApproveJoin, autoApproveVerifiedJoin, autoApproveUnverifiedJoin, initialMuteDurationSeconds, linkWaitSeconds, submissionWaitSeconds, manualReviewTimeoutSeconds, reminderIntervalSeconds, failedJoinLimit, freshmanChannelEnabled, freshmanChannelClosesAt, freshmanDefaultExpiresAt, forwardRawMaterialToQQ, managementGuildIDs, maxMaterialBytes, maxExtensionDays]
   properties:
     id:
       type: string
@@ -142,6 +142,10 @@ AdmissionPolicy:
       type: string
     guildID:
       type: string
+    guardEnabled:
+      type: boolean
+      default: true
+      description: 是否把该目标群同步为 Koishi 入群认证守卫绑定。
     autoApproveJoin:
       type: boolean
       deprecated: true
@@ -203,7 +207,7 @@ AdmissionPolicyCreateRequest:
 
 BotAdmissionPolicyTarget:
   type: object
-  required: [policyID, platform, guildID]
+  required: [policyID, platform, guildID, guardEnabled]
   properties:
     policyID:
       type: string
@@ -211,6 +215,9 @@ BotAdmissionPolicyTarget:
       type: string
     guildID:
       type: string
+    guardEnabled:
+      type: boolean
+      description: 是否启用该目标群的 Koishi 入群认证守卫。
 
 FreshmanApplication:
   type: object

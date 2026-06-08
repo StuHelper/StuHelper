@@ -10,6 +10,10 @@ import {
   normalizeModerationContent,
 } from '@stuhelper/koishi-moderation-core'
 import type { StuhelperGroupGuardPluginConfig, StuhelperKeywordRuleConfig } from '@stuhelper/koishi-shared'
+import {
+  renderMessageTemplate,
+  resolveGroupGuardMessages,
+} from '@stuhelper/koishi-shared'
 
 interface MessageGuardDeps {
   store: ModerationStore
@@ -104,7 +108,14 @@ export class MessageGuardService {
     })
 
     if (this.deps.config.moderation.antiRecallNotify) {
-      await session.bot.sendMessage(channelId, `${h.at(record.memberId)} 检测到撤回消息：${record.content}`)
+      const message = renderMessageTemplate(resolveGroupGuardMessages(this.deps.config.messages).antiRecallNotify, {
+        at: h.at(record.memberId),
+        memberId: record.memberId,
+        content: record.content,
+      })
+      if (message) {
+        await session.bot.sendMessage(channelId, message)
+      }
     }
   }
 

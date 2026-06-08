@@ -11,7 +11,7 @@ import (
 func (r *Repository) GetPolicy(ctx context.Context, platform, guildID string) (*AdmissionPolicy, error) {
 	ctx = withDBTable(ctx, "group_admission_policies")
 	policy, err := scanAdmissionPolicy(r.db.QueryRow(ctx, `
-		SELECT id, platform, guild_id, school_id, auto_approve_join,
+		SELECT id, platform, guild_id, guard_enabled, school_id, auto_approve_join,
 		       auto_approve_verified_join, auto_approve_unverified_join, initial_mute_duration_seconds,
 		       link_wait_seconds, submission_wait_seconds, manual_review_timeout_seconds,
 		       reminder_interval_seconds, failed_join_limit, blacklist_duration_seconds,
@@ -29,7 +29,8 @@ func (r *Repository) GetPolicy(ctx context.Context, platform, guildID string) (*
 func scanAdmissionPolicy(row pgx.Row) (*AdmissionPolicy, error) {
 	var policy AdmissionPolicy
 	err := row.Scan(
-		&policy.ID, &policy.Platform, &policy.GuildID, &policy.SchoolID, &policy.AutoApproveJoin,
+		&policy.ID, &policy.Platform, &policy.GuildID, &policy.GuardEnabled,
+		&policy.SchoolID, &policy.AutoApproveJoin,
 		&policy.AutoApproveVerifiedJoin, &policy.AutoApproveUnverifiedJoin, &policy.InitialMuteDurationSeconds,
 		&policy.LinkWaitSeconds, &policy.SubmissionWaitSeconds, &policy.ManualReviewTimeoutSeconds,
 		&policy.ReminderIntervalSeconds, &policy.FailedJoinLimit, &policy.BlacklistDurationSeconds,

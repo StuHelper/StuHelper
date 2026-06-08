@@ -13,6 +13,11 @@ interface BootstrapLogger {
   info(message: string, ...args: unknown[]): void
 }
 
+interface NormalizedAdmissionTargetGroup {
+  readonly guildId: string
+  readonly enabled: boolean
+}
+
 export interface GuardPolicyBootstrapResult {
   readonly templateCreated: boolean
   readonly bindingCreatedCount: number
@@ -30,7 +35,7 @@ export async function bootstrapGuardPolicyFromStaticConfig(
   const result = await ensureGuardPolicyBindings(
     policyStore,
     config,
-    normalizeTargetGroups(config.targetGroups),
+    normalizeStaticTargetGroups(config.targetGroups),
     'bootstrapped from guard.targetGroups',
     false,
   )
@@ -50,11 +55,7 @@ export async function syncGuardPolicyFromAdmissionTargets(
   targets: readonly AdmissionPolicyTarget[],
   logger?: BootstrapLogger,
 ): Promise<GuardPolicyTargetSyncResult> {
-  const targetGroups = normalizeTargetGroups(
-    targets
-      .filter((target) => target.platform === ADMISSION_BUSINESS_PLATFORM)
-      .map((target) => target.guildID),
-  )
+  const targetGroups = normalizeAdmissionTargetGroups(targets)
   const result = await ensureGuardPolicyBindings(
     policyStore,
     config,
@@ -77,7 +78,7 @@ export async function syncGuardPolicyFromAdmissionTargets(
 async function ensureGuardPolicyBindings(
   policyStore: GuardPolicyStore,
   config: StuhelperGuardConfig,
-  targetGroups: readonly string[],
+  targetGroups: readonly NormalizedAdmissionTargetGroup[],
   note: string,
   refreshExistingBindings: boolean,
 ): Promise<GuardPolicyTargetSyncResult> {
@@ -105,17 +106,17 @@ async function ensureGuardPolicyBindings(
   const existingBindingIDs = new Set(bindings.map((binding) => binding.id))
   let bindingCreatedCount = 0
   let bindingUpdatedCount = 0
-  for (const guildId of targetGroups) {
-    const id = createBindingID(ADMISSION_BUSINESS_PLATFORM, guildId)
+  for (const target of targetGroups) {
+    const id = createBindingID(ADMISSION_BUSINESS_PLATFORM, target.guildId)
     const exists = existingBindingIDs.has(id)
     if (exists && !refreshExistingBindings) {
       continue
     }
     await policyStore.saveBinding({
       platform: ADMISSION_BUSINESS_PLATFORM,
-      guildId,
+      guildId: target.guildId,
       templateId: BOOTSTRAP_TEMPLATE_ID,
-      enabled: true,
+      enabled: target.enabled,
       note,
     })
     if (exists) {
@@ -129,6 +130,28 @@ async function ensureGuardPolicyBindings(
   return { templateCreated, bindingCreatedCount, bindingUpdatedCount }
 }
 
-function normalizeTargetGroups(groups: readonly string[]) {
-  return [...new Set(groups.map((item) => item.trim()).filter(Boolean))]
+function normalizeStaticTargetGroups(groups: readonly string[]): NormalizedAdmissionTargetGroup[] {
+  const normalized = new Map<string, NormalizedAdmissionTargetGroup>()
+  for (const value of groups) {
+    const guildId = value.trim()
+    if (!guildId) continue
+    normalized.set(guildId, { guildId, enabled: true })
+  }
+  return [...normalized.values()]
+}
+
+function normalizeAdmissionTargetGroups(
+  targets: readonly AdmissionPolicyTarget[],
+): NormalizedAdmissionTargetGroup[] {
+  const normalized = new Map<string, NormalizedAdmissionTargetGroup>()
+  for (const target of targets) {
+    if (target.platform !== ADMISSION_BUSINESS_PLATFORM) continue
+    const guildId = target.guildID.trim()
+    if (!guildId) continue
+    normalized.set(guildId, {
+      guildId,
+      enabled: target.guardEnabled !== false,
+    })
+  }
+  return [...normalized.values()]
 }

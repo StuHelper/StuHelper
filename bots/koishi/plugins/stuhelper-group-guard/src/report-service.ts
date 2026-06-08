@@ -1,7 +1,12 @@
 import type { Logger, Session, Universal } from 'koishi'
 
 import { ModerationActionService, type ModerationStore } from '@stuhelper/koishi-moderation-core'
-import type { StuhelperAIConfig, StuhelperGroupGuardPluginConfig } from '@stuhelper/koishi-shared'
+import {
+  renderMessageTemplate,
+  resolveGroupGuardMessages,
+  type StuhelperAIConfig,
+  type StuhelperGroupGuardPluginConfig,
+} from '@stuhelper/koishi-shared'
 
 const AI_REVIEW_TIMEOUT_MS = 10_000
 
@@ -42,15 +47,16 @@ export class ReportService {
   async handleReport(session: Session, targetMemberId: string, reason: string) {
     const guildId = session.guildId
     const channelId = session.channelId
+    const messages = resolveGroupGuardMessages(this.deps.config.messages)
     if (!guildId || !channelId) {
-      return '举报命令只能在群聊中使用。'
+      return renderMessageTemplate(messages.reportGroupOnly)
     }
 
     const input = { session, guildId, channelId, targetMemberId, reason }
     const report = await this.createReport(input)
 
     if (!this.deps.config.ai.enabled) {
-      return '举报已记录。当前未启用 AI 审核，事件已进入人工处理范围。'
+      return renderMessageTemplate(messages.reportRecordedAIUnavailable)
     }
     return this.reviewReportWithAI(input, report.id)
   }
@@ -120,7 +126,7 @@ export class ReportService {
         aiSeverity: 'none',
         aiSummary: null,
       })
-      return '举报已记录，但 AI 审核失败，事件已保留供人工处理。'
+      return renderMessageTemplate(resolveGroupGuardMessages(this.deps.config.messages).reportAIReviewFailed)
     }
   }
 
@@ -146,21 +152,21 @@ export class ReportService {
     const { result } = input
     if (result.severity === 'high') {
       await this.createHighRiskReview(input)
-      return '举报已提交，AI 判定为高风险，已进入踢人/拉黑人工复核队列。'
+      return renderMessageTemplate(resolveGroupGuardMessages(this.deps.config.messages).reportHighRisk)
     }
 
     if (result.severity === 'medium') {
       await this.warnAIReport(input)
       await this.muteAIReport(input)
-      return '举报已提交，AI 判定为中风险，已自动警告并禁言。'
+      return renderMessageTemplate(resolveGroupGuardMessages(this.deps.config.messages).reportMediumRisk)
     }
 
     if (result.severity === 'low') {
       await this.warnAIReport(input)
-      return '举报已提交，AI 判定为低风险，已自动记警告。'
+      return renderMessageTemplate(resolveGroupGuardMessages(this.deps.config.messages).reportLowRisk)
     }
 
-    return '举报已提交，AI 未判定出可执行违规动作。'
+    return renderMessageTemplate(resolveGroupGuardMessages(this.deps.config.messages).reportNoAction)
   }
 
   private async createHighRiskReview(input: ApplyAIResultInput) {

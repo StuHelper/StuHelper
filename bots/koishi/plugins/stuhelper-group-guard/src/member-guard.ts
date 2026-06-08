@@ -7,6 +7,7 @@ import {
   type AdmissionPendingAction,
   PlatformAPIError,
   type PlatformClient,
+  type StuhelperGroupGuardMessageConfig,
 } from '@stuhelper/koishi-shared'
 import type { ModerationStore } from '@stuhelper/koishi-moderation-core'
 
@@ -57,6 +58,7 @@ interface MemberGuardDeps {
   logger: Logger
   isFreshmanForwardEnabled?: () => Promise<boolean> | boolean
   reminderDeduper?: AdmissionReminderDeduper
+  messages?: Partial<StuhelperGroupGuardMessageConfig>
 }
 
 export class MemberGuardService {
@@ -142,7 +144,13 @@ export class MemberGuardService {
         muteDurationMs: muteDurationMs(new Date(admission.session.initialMuteUntil)),
       })
       await this.deps.guardStore.markMuted(record.id, new Date())
-      const messageID = await sendAdmissionReminder(session.bot, record, admission.authURL, admission.session)
+      const messageID = await sendAdmissionReminder(
+        session.bot,
+        record,
+        admission.authURL,
+        admission.session,
+        this.deps.messages,
+      )
       this.deps.reminderDeduper?.remember(admission.session.id)
       await this.deps.guardStore.markReminderSent(record.id, new Date())
       await this.recordAdmissionReminderSent(admission.session.id, messageID)
@@ -302,7 +310,7 @@ export class MemberGuardService {
       muteDurationMs: policy.muteDurationSeconds * 1000,
     })
     await this.deps.guardStore.markMuted(record.id, now)
-    await sendBackendPendingReminder(session.bot, record, policy.reminderTemplate)
+    await sendBackendPendingReminder(session.bot, record, policy.reminderTemplate, this.deps.messages)
     await this.deps.guardStore.markReminderSent(record.id, now)
     await this.reportBackendUnavailableJoin(record, policy, message)
   }
@@ -394,7 +402,13 @@ export class MemberGuardService {
       const update = backendSyncUpdate(admission)
       const synced = await this.deps.guardStore.markBackendSynced(record.id, update)
       if (synced === false) return
-      const messageID = await sendAdmissionReminder(bot, { ...record, ...update }, admission.authURL, admission.session)
+      const messageID = await sendAdmissionReminder(
+        bot,
+        { ...record, ...update },
+        admission.authURL,
+        admission.session,
+        this.deps.messages,
+      )
       this.deps.reminderDeduper?.remember(admission.session.id, now)
       await this.deps.guardStore.markReminderSent(record.id, now)
       await this.recordAdmissionReminderSent(admission.session.id, messageID)
@@ -437,7 +451,7 @@ export class MemberGuardService {
         await this.markActionComplete(record, 'reminder', now)
         return
       }
-      const result = await executeAdmissionAction(bot, action, record ?? null)
+      const result = await executeAdmissionAction(bot, action, record ?? null, this.deps.messages)
       if (action.action === 'remind') {
         this.deps.reminderDeduper?.remember(action.sessionID, now)
       }
@@ -537,7 +551,7 @@ export class MemberGuardService {
     const items = await this.deps.platform.listPendingFreshmanForwards()
     for (const item of items) {
       const bot = resolveFreshmanForwardBot(forwardBots, item)
-      await forwardFreshmanMaterial(bot, item)
+      await forwardFreshmanMaterial(bot, item, this.deps.messages)
       await this.deps.platform.markFreshmanForwarded(item.application.id)
     }
   }

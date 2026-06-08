@@ -514,7 +514,7 @@ INSERT INTO group_admission_policies (
     2592000, 3600, 86400,
     86400, 900, 3,
     NULL, TRUE, '2026-12-31T23:59:59+08:00',
-    '2026-10-31T23:59:59+08:00', FALSE, ARRAY['178037297'],
+    '2026-10-31T23:59:59+08:00', FALSE, ARRAY[]::text[],
     10485760, 90, NOW()
 )
 ON CONFLICT (platform, guild_id) DO UPDATE

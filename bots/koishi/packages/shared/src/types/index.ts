@@ -47,6 +47,19 @@ export interface StuhelperPlatformConfig {
 export interface StuhelperBindingConfig {
   command: string
   codeTtlMinutes: number
+  messages?: StuhelperBindingMessageConfig
+}
+
+export interface StuhelperBindingMessageConfig {
+  directOnly: string
+  missingCode: string
+  successVerified: string
+  successUnverified: string
+  unavailable: string
+  invalidCode: string
+  unauthorized: string
+  conflict: string
+  notConfigured: string
 }
 
 export interface StuhelperGuardConfig {
@@ -129,6 +142,54 @@ export interface StuhelperFreshmanForwardConfig {
   enabled?: boolean
 }
 
+export interface StuhelperGroupGuardMessageConfig {
+  admissionReminder: string
+  admissionTimeoutNormal: string
+  admissionTimeoutWithFailures: string
+  admissionTimeoutBlacklist: string
+  backendPendingReminder: string
+  admissionReleaseCompleted: string
+  admissionKickTimeout: string
+  admissionBlacklistKick: string
+  antiRecallNotify: string
+  moderationMuteNotice: string
+  moderationUnmuteNotice: string
+  moderationKickNotice: string
+  freshmanForwardSummary: string
+  publicReportMissingArgs: string
+  publicCommandsDisabled: string
+  muteLotteryGroupOnly: string
+  commandAccessDenied: string
+  diceResult: string
+  muteLotteryResult: string
+  muteLotteryPityResult: string
+  reportGroupOnly: string
+  reportRecordedAIUnavailable: string
+  reportAIReviewFailed: string
+  reportHighRisk: string
+  reportMediumRisk: string
+  reportLowRisk: string
+  reportNoAction: string
+  admissionCommandGroupOnly: string
+  admissionCommandsDisabled: string
+  admissionCommandMissingQQ: string
+  admissionCommandMissingOperator: string
+  admissionCommandUnsupportedPlatform: string
+  admissionCommandPolicyDisabled: string
+  admissionCommandNotFound: string
+  admissionCommandInvalidState: string
+  admissionCommandUnauthorized: string
+  admissionCommandFailed: string
+  admissionCommandPlatformError: string
+  admissionCommandMissingResendURL: string
+  admissionCommandStaleRecord: string
+  admissionSkipSuccess: string
+  admissionAlreadyVerifiedRegenerate: string
+  admissionResetFailureCountSuccess: string
+  admissionReleaseBlacklistNotFound: string
+  admissionReleaseBlacklistSuccess: string
+}
+
 export interface StuhelperCoreConfig {
   platform: StuhelperPlatformConfig
   guard: StuhelperGuardConfig
@@ -154,6 +215,7 @@ export interface StuhelperGroupGuardPluginConfig {
   commands?: StuhelperCommandConfig
   admissionCommands?: StuhelperAdmissionCommandConfig
   freshmanForward?: StuhelperFreshmanForwardConfig
+  messages?: StuhelperGroupGuardMessageConfig
 }
 
 export interface StuhelperAdminPluginConfig {
@@ -245,6 +307,7 @@ export interface AdmissionPolicyTarget {
   readonly policyID: string
   readonly platform: string
   readonly guildID: string
+  readonly guardEnabled?: boolean
 }
 
 export interface AdmissionFailureResetResult {

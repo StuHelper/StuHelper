@@ -13,6 +13,7 @@ func TestAdmissionPolicyJSONMatchesOpenAPIShape(t *testing.T) {
 		ID:                         " policy-1 ",
 		Platform:                   " qq ",
 		GuildID:                    " guild-1 ",
+		GuardEnabled:               true,
 		AutoApproveJoin:            true,
 		InitialMuteDurationSeconds: 10,
 		LinkWaitSeconds:            20,
@@ -36,6 +37,7 @@ func TestAdmissionPolicyJSONMatchesOpenAPIShape(t *testing.T) {
 	require.Equal(t, "policy-1", decoded["id"])
 	require.Equal(t, "qq", decoded["platform"])
 	require.Equal(t, "guild-1", decoded["guildID"])
+	require.Equal(t, true, decoded["guardEnabled"])
 	require.Equal(t, []any{}, decoded["managementGuildIDs"])
 	require.NotContains(t, decoded, "ID")
 	require.NotContains(t, decoded, "ManagementGuildIDs")

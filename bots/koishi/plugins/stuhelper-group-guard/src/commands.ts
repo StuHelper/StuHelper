@@ -9,6 +9,10 @@ import type {
   AdmissionRuntimeSettingsStore,
   StuhelperGroupGuardPluginConfig,
 } from '@stuhelper/koishi-shared'
+import {
+  renderMessageTemplate,
+  resolveGroupGuardMessages,
+} from '@stuhelper/koishi-shared'
 
 import type { ReportService } from './report-service'
 
@@ -20,6 +24,7 @@ interface CommandDeps {
 }
 
 export function registerPublicCommands(ctx: Context, deps: CommandDeps) {
+  const messages = resolveGroupGuardMessages(deps.config.messages)
   ctx.command('举报 <targetMemberId> <reason:text>', '举报群成员并触发审核')
     .action(async ({ session }, targetMemberId, reason) => {
       if (!session) {
@@ -27,12 +32,12 @@ export function registerPublicCommands(ctx: Context, deps: CommandDeps) {
       }
       const disabled = await ensurePublicCommandsEnabled(deps)
       if (disabled) return disabled
-      const denial = await ensureCommandAccess(deps.store, session, COMMAND_POLICY_IDS.report)
+      const denial = await ensureCommandAccess(deps, session, COMMAND_POLICY_IDS.report)
       if (denial) {
         return denial
       }
       if (!targetMemberId?.trim() || !reason?.trim()) {
-        return '请提供被举报成员 ID 和举报原因。'
+        return renderMessageTemplate(messages.publicReportMissingArgs)
       }
       return deps.reportService.handleReport(session, targetMemberId.trim(), reason.trim())
     })
@@ -41,13 +46,13 @@ export function registerPublicCommands(ctx: Context, deps: CommandDeps) {
     .action(async ({ session }, sides) => {
       const disabled = await ensurePublicCommandsEnabled(deps)
       if (disabled) return disabled
-      const denial = await ensureCommandAccess(deps.store, session, COMMAND_POLICY_IDS.dice)
+      const denial = await ensureCommandAccess(deps, session, COMMAND_POLICY_IDS.dice)
       if (denial) {
         return denial
       }
       const resolvedSides = clampSides(sides || deps.config.fun.diceSides)
       const result = randomInt(1, resolvedSides)
-      return buildDiceMessage(session, resolvedSides, result)
+      return buildDiceMessage(session, resolvedSides, result, deps.config)
     })
 
   ctx.command('抽禁言', '随机抽取自己的禁言时长，带保底机制')
@@ -58,7 +63,7 @@ export function registerPublicCommands(ctx: Context, deps: CommandDeps) {
       const disabled = await ensurePublicCommandsEnabled(deps)
       if (disabled) return disabled
       const denial = await ensureCommandAccess(
-        deps.store,
+        deps,
         session,
         COMMAND_POLICY_IDS.muteLottery,
       )
@@ -71,7 +76,7 @@ export function registerPublicCommands(ctx: Context, deps: CommandDeps) {
 
 async function ensurePublicCommandsEnabled(deps: CommandDeps) {
   if (deps.runtimeSettings && !await deps.runtimeSettings.isPublicCommandsEnabled()) {
-    return '公开命令已由 StuHelper WebUI 关闭。'
+    return renderMessageTemplate(resolveGroupGuardMessages(deps.config.messages).publicCommandsDisabled)
   }
 }
 
@@ -79,7 +84,7 @@ async function handleMuteLottery(session: Session, deps: CommandDeps) {
   const guildId = session.guildId
   const channelId = session.channelId
   if (!guildId || !channelId) {
-    return '抽禁言只能在群聊中使用。'
+    return renderMessageTemplate(resolveGroupGuardMessages(deps.config.messages).muteLotteryGroupOnly)
   }
 
   const profile = await deps.store.getFunProfile(session.userId)
@@ -111,32 +116,39 @@ async function handleMuteLottery(session: Session, deps: CommandDeps) {
     summary: `${session.userId} 触发抽禁言`,
     payload: { seconds, guaranteed },
   })
-  return guaranteed
-    ? `保底触发，${session.userId} 本次自助禁言 ${seconds} 秒。`
-    : `${session.userId} 本次自助禁言 ${seconds} 秒。`
+  const messages = resolveGroupGuardMessages(deps.config.messages)
+  return renderMessageTemplate(guaranteed ? messages.muteLotteryPityResult : messages.muteLotteryResult, {
+    memberId: session.userId,
+    seconds,
+  })
 }
 
 function clampSides(sides: number) {
   return Math.max(2, Math.min(1000, sides))
 }
 
-function buildDiceMessage(session: Session | undefined, sides: number, result: number) {
+function buildDiceMessage(
+  session: Session | undefined,
+  sides: number,
+  result: number,
+  config: StuhelperGroupGuardPluginConfig,
+) {
   const memberId = session?.userId || 'unknown'
-  return `${memberId} 投出了 d${sides} = ${result}`
+  return renderMessageTemplate(resolveGroupGuardMessages(config.messages).diceResult, { memberId, sides, result })
 }
 
 function randomInt(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min
 }
 
-async function ensureCommandAccess(store: ModerationStore, session: Session | undefined, commandId: string) {
+async function ensureCommandAccess(deps: CommandDeps, session: Session | undefined, commandId: string) {
   const guildId = session?.guildId
   if (!session || !guildId) {
     return
   }
   const [policy, memberRoles] = await Promise.all([
-    store.getCommandPolicy(commandId),
-    store.getMemberRoles(guildId, session.userId),
+    deps.store.getCommandPolicy(commandId),
+    deps.store.getMemberRoles(guildId, session.userId),
   ])
   const allowed = canExecuteCommand({
     authority: resolveAuthority(session),
@@ -146,7 +158,7 @@ async function ensureCommandAccess(store: ModerationStore, session: Session | un
   if (allowed) {
     return
   }
-  return '命令权限不足。'
+  return renderMessageTemplate(resolveGroupGuardMessages(deps.config.messages).commandAccessDenied)
 }
 
 function resolveAuthority(session: Session | undefined) {

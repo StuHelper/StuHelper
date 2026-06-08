@@ -1,6 +1,9 @@
 import { h, type Universal } from 'koishi'
 
-import type { FreshmanForwardItem } from '@stuhelper/koishi-shared'
+import type {
+  FreshmanForwardItem,
+  StuhelperGroupGuardMessageConfig,
+} from '@stuhelper/koishi-shared'
 
 import { resolveAdmissionSubjectPlatform } from './admission-subject-platform'
 import { formatFreshmanForwardSummary } from './admission-format'
@@ -22,6 +25,7 @@ export function resolveFreshmanForwardBot(
 export async function forwardFreshmanMaterial(
   bot: Universal.Methods,
   item: FreshmanForwardItem,
+  messages?: Partial<StuhelperGroupGuardMessageConfig>,
 ) {
   if (!item.materialURL) {
     throw new Error(`freshman forward ${item.application.id} missing materialURL`)
@@ -32,7 +36,7 @@ export async function forwardFreshmanMaterial(
   const materialURL = validateFreshmanMaterialURL(item.materialURL)
   const content = [
     h.image(materialURL),
-    formatFreshmanForwardSummary(item),
+    formatFreshmanForwardSummary(item, messages),
   ].join('\n')
   const failures: FreshmanForwardFailure[] = []
   for (const guildID of item.managementGuildIDs) {

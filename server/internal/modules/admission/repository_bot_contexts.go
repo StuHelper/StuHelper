@@ -59,7 +59,7 @@ func listPoliciesByGuildKeysSQL() string {
 		WITH wanted(platform, guild_id) AS (
 			SELECT * FROM unnest($1::text[], $2::text[])
 		)
-		SELECT id, platform, guild_id, school_id, auto_approve_join,
+		SELECT id, platform, guild_id, guard_enabled, school_id, auto_approve_join,
 		       auto_approve_verified_join, auto_approve_unverified_join, initial_mute_duration_seconds,
 		       link_wait_seconds, submission_wait_seconds, manual_review_timeout_seconds,
 		       reminder_interval_seconds, failed_join_limit, blacklist_duration_seconds,

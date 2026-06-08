@@ -533,6 +533,12 @@ async function respondAdmissionAdminRequest(
   requests: CapturedAdmissionAdminRequest[],
 ) {
   const url = new URL(req.url || '/', 'http://127.0.0.1')
+  if (req.method === 'GET' && url.pathname === '/api/v1/bot/admission/policies/targets') {
+    assert.equal(req.headers.authorization, 'Bearer test-token')
+    res.setHeader('content-type', 'application/json')
+    res.end(JSON.stringify({ success: true, data: [] }))
+    return
+  }
   const body = req.method === 'POST' ? await readJSONBody(req) : {}
   requests.push({
     method: req.method || 'GET',

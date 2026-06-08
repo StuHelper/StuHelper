@@ -386,6 +386,7 @@ type AdmissionPolicy struct {
 	ID                         string    `json:"id"`
 	Platform                   string    `json:"platform"`
 	GuildID                    string    `json:"guildID"`
+	GuardEnabled               bool      `json:"guardEnabled"`
 	SchoolID                   int64     `json:"-"`
 	AutoApproveJoin            bool      `json:"autoApproveJoin"`
 	AutoApproveVerifiedJoin    bool      `json:"autoApproveVerifiedJoin"`
@@ -413,7 +414,8 @@ type AdmissionPolicyCreateRequest struct {
 }
 
 type AdmissionPolicyTarget struct {
-	PolicyID string `json:"policyID"`
-	Platform string `json:"platform"`
-	GuildID  string `json:"guildID"`
+	PolicyID     string `json:"policyID"`
+	Platform     string `json:"platform"`
+	GuildID      string `json:"guildID"`
+	GuardEnabled bool   `json:"guardEnabled"`
 }

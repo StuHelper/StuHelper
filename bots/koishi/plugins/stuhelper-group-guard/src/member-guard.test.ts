@@ -764,7 +764,7 @@ test('member guard claims pending admission actions and reports results', async 
     successEvent('session-blacklist', 'blacklist', 'message-1'),
   ])
   assert.deepEqual(actionEvents, [
-    { actionID: 'action-release', input: { action: 'release', success: true, messageID: 'message-1' } },
+    { actionID: 'action-release', input: { action: 'release', success: true } },
   ])
 })
 

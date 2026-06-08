@@ -30,6 +30,7 @@ describe('admission policy admin view contract', () => {
 
     for (const token of [
       'freshmanChannelEnabled',
+      'guardEnabled',
       'freshmanChannelClosesAt',
       'freshmanDefaultExpiresAt',
       'initialMuteDurationSeconds',
@@ -69,12 +70,13 @@ describe('admission policy admin view contract', () => {
 
     for (const label of [
       '启用新生入群通道',
+      '启用入群认证守卫',
       '新生通道关闭时间',
       '默认临时认证到期时间',
       '入群初始禁言（秒）',
-      '材料审核管理群号',
-      '新增新生认证群',
-      '新生认证群号',
+      '材料审核通知群号',
+      '新增目标认证群',
+      '目标认证群号',
       '转发原始材料到 QQ',
     ]) {
       expect(source).toContain(label);

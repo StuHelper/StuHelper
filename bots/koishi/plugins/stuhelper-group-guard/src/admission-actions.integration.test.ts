@@ -14,6 +14,7 @@ import { GUARD_MEMBER_TABLE } from '@stuhelper/koishi-shared'
 import {
   admissionAction,
   respondAdmissionEvent,
+  respondAdmissionPolicyTargets,
   respondAdmissionSession,
   respondFreshmanForwards,
   respondPendingActions,
@@ -31,6 +32,7 @@ test('未认证成员入群后会被禁言并收到提醒，认证完成后自�
     if (respondPendingActions(req, res, () => pendingActions)) return
     if (respondAdmissionEvent({ req, res, events: admissionEvents, afterEvent: () => { pendingActions = [] } })) return
     if (respondFreshmanForwards(req, res)) return
+    if (respondAdmissionPolicyTargets(req, res)) return
     assert.fail(`unexpected platform request: ${req.method} ${req.url}`)
   })
 
@@ -82,7 +84,7 @@ test('未认证成员入群后会被禁言并收到提醒，认证完成后自�
     }, 2500)
 
     assert.equal(muteActions[1]?.duration, 0)
-    assert.deepEqual(findEventByAction(admissionEvents, 'release'), successEvent('session-10001', 'release', 'msg-1'))
+    assert.deepEqual(findEventByAction(admissionEvents, 'release'), successEvent('session-10001', 'release'))
     const released = await root.database.get(GUARD_MEMBER_TABLE, {})
     assert.ok(released[0].releasedAt instanceof Date)
   } finally {
@@ -103,6 +105,7 @@ test('重复入群事件只创建一个认证链接', async () => {
     if (respondPendingActions(req, res, [])) return
     if (respondAdmissionEvent({ req, res, events: admissionEvents })) return
     if (respondFreshmanForwards(req, res)) return
+    if (respondAdmissionPolicyTargets(req, res)) return
     assert.fail(`unexpected platform request: ${req.method} ${req.url}`)
   })
 
@@ -164,6 +167,7 @@ test('超时未认证成员会被自动踢出', async () => {
     if (respondPendingActions(req, res, () => pendingActions)) return
     if (respondAdmissionEvent({ req, res, events: admissionEvents, afterEvent: () => { pendingActions = [] } })) return
     if (respondFreshmanForwards(req, res)) return
+    if (respondAdmissionPolicyTargets(req, res)) return
     assert.fail(`unexpected platform request: ${req.method} ${req.url}`)
   })
 
@@ -221,6 +225,7 @@ test('扫描待认证成员时会路由到记录绑定的 bot 实例', async () 
     })) return
     if (respondAdmissionEvent({ req, res, events: admissionEvents, afterEvent: () => { releaseEnabled = false } })) return
     if (respondFreshmanForwards(req, res)) return
+    if (respondAdmissionPolicyTargets(req, res)) return
     assert.fail(`unexpected platform request: ${req.method} ${req.url}`)
   })
 
@@ -280,7 +285,7 @@ test('扫描待认证成员时会路由到记录绑定的 bot 实例', async () 
 
     assert.equal(firstBotMuteActions.length, 0)
     assert.deepEqual(secondBotMuteActions[1], { groupId: 'group-3', memberId: '10003', duration: 0 })
-    assert.deepEqual(findEventByAction(admissionEvents, 'release'), successEvent('session-10003', 'release', 'msg-2'))
+    assert.deepEqual(findEventByAction(admissionEvents, 'release'), successEvent('session-10003', 'release'))
   } finally {
     runtime.dispose()
     await closeServer(server)
@@ -330,8 +335,8 @@ function receiveJoin(
   })
 }
 
-function successEvent(sessionID: string, action: string, messageID: string) {
-  return { sessionID, body: { action, success: true, messageID } }
+function successEvent(sessionID: string, action: string, messageID?: string) {
+  return { sessionID, body: { action, success: true, ...(messageID ? { messageID } : {}) } }
 }
 
 function findEventByAction(events: unknown[], action: string) {

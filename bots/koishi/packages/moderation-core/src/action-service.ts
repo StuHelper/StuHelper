@@ -1,5 +1,11 @@
 import { h, type Universal } from 'koishi'
 
+import {
+  renderMessageTemplate,
+  resolveGroupGuardMessages,
+  type StuhelperGroupGuardMessageConfig,
+} from '@stuhelper/koishi-shared'
+
 import type { ModerationStore } from './store'
 import type { ModerationRuntimeRef } from './types'
 
@@ -40,7 +46,10 @@ export interface MemberRoleInput {
 }
 
 export class ModerationActionService {
-  constructor(private readonly store: ModerationStore) {}
+  constructor(
+    private readonly store: ModerationStore,
+    private readonly messages?: Partial<StuhelperGroupGuardMessageConfig>,
+  ) {}
 
   async warnMember(input: WarnMemberInput) {
     const now = new Date()
@@ -66,7 +75,15 @@ export class ModerationActionService {
 
   async muteMember(input: MuteMemberInput) {
     await input.bot.muteGuildMember(input.guildId, input.memberId, input.seconds * 1000)
-    await input.bot.sendMessage(input.channelId, `${h.at(input.memberId)} 因 ${input.reason} 被禁言 ${input.seconds} 秒。`)
+    const message = renderMessageTemplate(resolveGroupGuardMessages(this.messages).moderationMuteNotice, {
+      at: h.at(input.memberId),
+      memberId: input.memberId,
+      reason: input.reason,
+      seconds: input.seconds,
+    })
+    if (message) {
+      await input.bot.sendMessage(input.channelId, message)
+    }
     await this.store.appendEvent({
       platform: input.bot.platform || '',
       botSelfId: input.bot.selfId,
@@ -82,7 +99,14 @@ export class ModerationActionService {
 
   async unmuteMember(input: BotMemberActionInput) {
     await input.bot.muteGuildMember(input.guildId, input.memberId, 0)
-    await input.bot.sendMessage(input.channelId, `${h.at(input.memberId)} 已解除禁言。原因：${input.reason}`)
+    const message = renderMessageTemplate(resolveGroupGuardMessages(this.messages).moderationUnmuteNotice, {
+      at: h.at(input.memberId),
+      memberId: input.memberId,
+      reason: input.reason,
+    })
+    if (message) {
+      await input.bot.sendMessage(input.channelId, message)
+    }
     await this.store.appendEvent({
       platform: input.bot.platform || '',
       botSelfId: input.bot.selfId,
@@ -97,7 +121,14 @@ export class ModerationActionService {
   }
 
   async kickMember(input: KickMemberInput) {
-    await input.bot.sendMessage(input.channelId, `${h.at(input.memberId)} 因 ${input.reason} 将被移出群聊。`)
+    const message = renderMessageTemplate(resolveGroupGuardMessages(this.messages).moderationKickNotice, {
+      at: h.at(input.memberId),
+      memberId: input.memberId,
+      reason: input.reason,
+    })
+    if (message) {
+      await input.bot.sendMessage(input.channelId, message)
+    }
     await input.bot.kickGuildMember(input.guildId, input.memberId, input.permanent)
     await this.store.appendEvent({
       platform: input.bot.platform || '',

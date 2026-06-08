@@ -51,9 +51,10 @@ const policyFieldLabels = {
   freshmanChannelClosesAt: '新生通道关闭时间',
   freshmanChannelEnabled: '启用新生入群通道',
   freshmanDefaultExpiresAt: '默认临时认证到期时间',
+  guardEnabled: '启用入群认证守卫',
   initialMuteDurationSeconds: '入群初始禁言（秒）',
   linkWaitSeconds: '绑定链接等待（秒）',
-  managementGuildIDs: '材料审核管理群号',
+  managementGuildIDs: '材料审核通知群号',
   manualReviewTimeoutSeconds: '人工审核超时（秒）',
   maxExtensionDays: '最大延期天数',
   maxMaterialBytes: '材料大小上限（字节）',
@@ -145,7 +146,7 @@ async function submitCreatePolicies() {
   }
   const guildIDs = parseCreateGuildIDs();
   if (!createPolicyForm.sourcePolicyID || !createPolicyForm.platform || guildIDs.length === 0) {
-    handleActionError(new Error('请填写新生认证群号并选择要复制的策略'));
+    handleActionError(new Error('请填写目标认证群号并选择要复制的策略'));
     return;
   }
 
@@ -218,7 +219,7 @@ onMounted(fetchData);
         :disabled="loading || policies.length === 0"
         @click="openCreatePolicyDialog"
       >
-        新增认证群
+        新增目标认证群
       </ElButton>
     </template>
 
@@ -257,9 +258,16 @@ onMounted(fetchData);
             {{ policy.platform.toUpperCase() }} 群 {{ policy.guildID }}
           </h2>
           <p class="mt-1 text-sm text-slate-500">
-            新生认证目标群。
+            Koishi 会按此策略同步目标认证群；审核通知群在下方单独配置。
           </p>
         </div>
+        <ElFormItem :label="policyFieldLabels.guardEnabled">
+          <ElSwitch
+            v-model="policy.guardEnabled"
+            active-text="同步给 Koishi"
+            inactive-text="停用目标群"
+          />
+        </ElFormItem>
         <ElFormItem :label="policyFieldLabels.freshmanChannelEnabled">
           <ElSwitch v-model="policy.freshmanChannelEnabled" />
         </ElFormItem>
@@ -307,7 +315,7 @@ onMounted(fetchData);
         <ElFormItem :label="policyFieldLabels.managementGuildIDs">
           <ElInput
             v-model="managementGuildText[policy.id]"
-            placeholder="每行一个材料审核管理群号，可留空"
+            placeholder="每行一个材料审核通知群号，可留空；这里不是目标认证群"
             :rows="3"
             type="textarea"
           />
@@ -332,7 +340,7 @@ onMounted(fetchData);
 
     <ElDialog
       v-model="createPolicyDialogVisible"
-      title="新增新生认证群"
+      title="新增目标认证群"
       width="520px"
       :teleported="false"
     >
@@ -354,10 +362,10 @@ onMounted(fetchData);
         <ElFormItem label="平台">
           <ElInput v-model="createPolicyForm.platform" placeholder="qq" />
         </ElFormItem>
-        <ElFormItem label="新生认证群号">
+        <ElFormItem label="目标认证群号">
           <ElInput
             v-model="createPolicyForm.guildIDs"
-            placeholder="每行一个新生认证群号"
+            placeholder="每行一个需要开启入群认证的 QQ 群号"
             :rows="4"
             type="textarea"
           />

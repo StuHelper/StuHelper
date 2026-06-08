@@ -110,3 +110,39 @@ test('绑定命令在群聊中提示用户改用私聊', async () => {
     await rm(tempDir, { recursive: true, force: true })
   }
 })
+
+test('绑定命令使用 Koishi 配置里的自定义提示文案', async () => {
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-binding-'))
+
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(commands)
+  runtime.register(MockBot, { selfId: '514' })
+  runtime.register(bindingPlugin, {
+    platform: {
+      baseUrl: 'http://127.0.0.1:8080',
+      serviceToken: 'test-token',
+    },
+    binding: {
+      command: '绑定',
+      codeTtlMinutes: 10,
+      messages: {
+        directOnly: '自定义：请私聊机器人绑定。',
+        missingCode: '自定义：请输入 {command} 后面的绑定码。',
+      },
+    },
+  })
+
+  try {
+    await root.start()
+    const groupClient = root.mock.client('10001', 'group-1')
+    await groupClient.shouldReply('绑定 ABCD1234', '自定义：请私聊机器人绑定。')
+
+    const directClient = root.mock.client('10001')
+    await directClient.shouldReply('绑定', '自定义：请输入 绑定 后面的绑定码。')
+  } finally {
+    runtime.dispose()
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})

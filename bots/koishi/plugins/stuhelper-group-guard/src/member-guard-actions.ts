@@ -1,6 +1,11 @@
 import { h, type Universal } from 'koishi'
 
-import type { GuardMemberRecord } from '@stuhelper/koishi-shared'
+import {
+  renderMessageTemplate,
+  resolveGroupGuardMessages,
+  type GuardMemberRecord,
+  type StuhelperGroupGuardMessageConfig,
+} from '@stuhelper/koishi-shared'
 
 import { formatAdmissionReminder, type AdmissionReminderInput } from './admission-format'
 
@@ -24,6 +29,7 @@ export async function sendAdmissionReminder(
   record: GuardMemberRecord,
   authURL: string,
   context: ReminderContext = {},
+  messages?: Partial<StuhelperGroupGuardMessageConfig>,
 ) {
   const result = await bot.sendMessage(record.channelId, formatAdmissionReminder({
     memberId: record.memberId,
@@ -32,6 +38,7 @@ export async function sendAdmissionReminder(
     failureCount: context.failureCount,
     remainingRetryCount: context.remainingRetryCount,
     willBlacklistOnTimeout: context.willBlacklistOnTimeout,
+    messages,
   }))
   return firstMessageID(result)
 }
@@ -40,11 +47,16 @@ export async function sendBackendPendingReminder(
   bot: Universal.Methods,
   record: GuardMemberRecord,
   reminderTemplate: string,
+  messages?: Partial<StuhelperGroupGuardMessageConfig>,
 ) {
-  await bot.sendMessage(record.channelId, [
-    `${h.at(record.memberId)} ${reminderTemplate}`,
-    '认证链接暂时无法创建，机器人会自动重试。',
-  ].join('\n'))
+  const message = renderMessageTemplate(resolveGroupGuardMessages(messages).backendPendingReminder, {
+    at: h.at(record.memberId),
+    memberId: record.memberId,
+    reminderTemplate,
+  })
+  if (message) {
+    await bot.sendMessage(record.channelId, message)
+  }
 }
 
 function firstMessageID(result: unknown): string | undefined {
