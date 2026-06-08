@@ -118,12 +118,6 @@ type adminRouteRegistrar interface {
 	RegisterAdminRoutes(admin *gin.RouterGroup)
 }
 
-func adminMFAMiddlewares(appEnv string, userRepo user.MFAContextRepository) []gin.HandlerFunc {
-	if appEnv == "development" {
-		return nil
-	}
-	return []gin.HandlerFunc{
-		user.MFAContextMiddleware(userRepo),
-		privilegedMFAAuthorizer(),
-	}
+func adminMFAMiddlewares(_ string, _ user.MFAContextRepository) []gin.HandlerFunc {
+	return nil
 }
