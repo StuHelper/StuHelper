@@ -86,7 +86,7 @@
     <WorkspaceSection
       v-else
       title="检索结果"
-      :description="logs.length ? '点击任意行在右侧 Drawer 查看原始执行详情。' : '调整上方过滤条件后点击检索。'"
+      :description="logs.length ? '点击日志正文区域在右侧 Drawer 查看原始执行详情；用户与群组标识可打开实体概览。' : '调整上方过滤条件后点击检索。'"
       :meta="total > 0 ? `${total.toLocaleString()} 条` : ''"
       flush
     >

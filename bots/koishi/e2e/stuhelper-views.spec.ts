@@ -684,7 +684,7 @@ test('log search filters seeded command log and opens detail drawer', async ({ l
   await expect(row).toBeVisible({ timeout: 10_000 })
   await expect(row.getByText('成功', { exact: true })).toBeVisible()
 
-  await row.click()
+  await row.locator('.sh-logs__detail', { hasText: 'drawer-match-token' }).click()
 
   const drawer = page.locator('.el-drawer.sh-drawer', { hasText: 'e2e.log-search' }).first()
   await expect(drawer).toBeVisible({ timeout: 5_000 })
@@ -1579,7 +1579,7 @@ async function shellSearchShortcut(page: Page): Promise<{ label: string; key: st
 }
 
 async function returnToStuhelperShell(page: Page): Promise<void> {
-  const stuhelperEntry = page.locator('a[href="/stuhelper"]').first()
+  const stuhelperEntry = page.locator('a[href^="/stuhelper"]').first()
   await expect(stuhelperEntry).toBeVisible({ timeout: 10_000 })
   await stuhelperEntry.click()
   await expect(page.locator('.stuhelperGroupCenter-app')).toBeVisible({ timeout: 15_000 })

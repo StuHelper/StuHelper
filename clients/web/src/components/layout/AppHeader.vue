@@ -22,7 +22,8 @@
                 </span>
                 <span class="flex min-w-0 flex-col leading-none">
                     <span
-                        class="font-display text-lg font-extrabold tracking-tight text-text-primary"
+                        data-test="brand-title"
+                        class="font-display text-lg font-extrabold tracking-tight text-text-primary max-sm:hidden"
                         >{{ brandTitle }}</span
                     >
                     <span
@@ -109,7 +110,7 @@
                 <router-link
                     v-else-if="showLoginEntry"
                     :to="loginEntryRoute"
-                    class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-text-primary px-4 text-sm font-semibold text-bg-base no-underline whitespace-nowrap shadow-sm transition-all duration-fast hover:-translate-y-px hover:bg-primary hover:text-white hover:shadow-glow-primary max-sm:hidden"
+                    class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-text-primary px-4 text-sm font-semibold text-bg-base no-underline whitespace-nowrap shadow-sm transition-all duration-fast hover:-translate-y-px hover:bg-primary hover:text-white hover:shadow-glow-primary max-sm:w-11 max-sm:px-0"
                     :aria-label="t('nav.login')"
                     :title="t('nav.login')"
                 >

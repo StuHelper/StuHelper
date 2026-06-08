@@ -85,7 +85,7 @@ func TestConsumeOIDCState_EdgeBranches(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest(http.MethodGet, "/callback?state="+state, nil)
 
-		_, _, _, _, _, err := h.consumeOIDCState(c, state)
+		_, err := h.consumeOIDCState(c, state)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "state cookie missing")
 
@@ -108,7 +108,7 @@ func TestConsumeOIDCState_EdgeBranches(t *testing.T) {
 		req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: "other-state"})
 		c.Request = req
 
-		_, _, _, _, _, err := h.consumeOIDCState(c, state)
+		_, err := h.consumeOIDCState(c, state)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "state cookie mismatch")
 
@@ -122,13 +122,13 @@ func TestConsumeOIDCState_EdgeBranches(t *testing.T) {
 		retryReq.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: state})
 		retryCtx.Request = retryReq
 
-		redirect, verifier, appKey, callbackURI, isNative, retryErr := h.consumeOIDCState(retryCtx, state)
+		result, retryErr := h.consumeOIDCState(retryCtx, state)
 		require.NoError(t, retryErr)
-		assert.Equal(t, "/courses/1", redirect)
-		assert.Equal(t, "verifier-2", verifier)
-		assert.Equal(t, oidc.ApplicationWeb, appKey)
-		assert.Empty(t, callbackURI)
-		assert.False(t, isNative)
+		assert.Equal(t, "/courses/1", result.redirectURL)
+		assert.Equal(t, "verifier-2", result.codeVerifier)
+		assert.Equal(t, oidc.ApplicationWeb, result.appKey)
+		assert.Empty(t, result.callbackRedirectURI)
+		assert.False(t, result.native)
 	})
 
 	t.Run("invalid payload is rejected", func(t *testing.T) {
@@ -140,7 +140,7 @@ func TestConsumeOIDCState_EdgeBranches(t *testing.T) {
 		req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: state})
 		c.Request = req
 
-		_, _, _, _, _, err := h.consumeOIDCState(c, state)
+		_, err := h.consumeOIDCState(c, state)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid oidc state payload")
 	})
@@ -159,7 +159,7 @@ func TestConsumeOIDCState_EdgeBranches(t *testing.T) {
 		req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: state})
 		c.Request = req
 
-		_, _, _, _, _, err := h.consumeOIDCState(c, state)
+		_, err := h.consumeOIDCState(c, state)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "code_verifier missing")
 	})
@@ -177,13 +177,13 @@ func TestConsumeOIDCState_EdgeBranches(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest(http.MethodGet, "/callback?state="+state, nil)
 
-		redirect, verifier, appKey, callbackURI, isNative, err := h.consumeOIDCState(c, state)
+		result, err := h.consumeOIDCState(c, state)
 		require.NoError(t, err)
-		assert.Equal(t, "stuhelper://auth/callback", redirect)
-		assert.Equal(t, "verifier-native", verifier)
-		assert.Equal(t, oidc.ApplicationUniapp, appKey)
-		assert.Empty(t, callbackURI)
-		assert.True(t, isNative)
+		assert.Equal(t, "stuhelper://auth/callback", result.redirectURL)
+		assert.Equal(t, "verifier-native", result.codeVerifier)
+		assert.Equal(t, oidc.ApplicationUniapp, result.appKey)
+		assert.Empty(t, result.callbackRedirectURI)
+		assert.True(t, result.native)
 
 		consumed, consumedApp, err := h.consumeNativeCodeVerifier(context.Background(), state)
 		require.NoError(t, err)

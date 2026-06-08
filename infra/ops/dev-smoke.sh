@@ -9,6 +9,7 @@ source "${SCRIPT_DIR}/lib/dev-local.sh"
 
 "${SCRIPT_DIR}/init-dev-env.sh"
 load_env
+export ENV_FILE GENERATED_ENV_FILE GENERATED_SECRET_ENV_FILE SECRETS_ENV_FILE
 if [[ -f "${DEV_RUNTIME_ENV}" ]]; then
   set -a
   # shellcheck disable=SC1090

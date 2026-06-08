@@ -202,6 +202,32 @@ describe("AppHeader", () => {
         expect(wrapper.text()).toContain("nav.login");
     });
 
+    it("keeps the anonymous login entry visible on compact mobile headers", () => {
+        const wrapper = mountHeader({
+            bootstrapCompleted: true,
+            isAuthenticated: false,
+        });
+
+        const loginLink = wrapper
+            .findAll('[data-test="router-link"]')
+            .find((link) => link.text().includes("nav.login"));
+
+        expect(loginLink).toBeTruthy();
+        expect(loginLink?.classes()).not.toContain("max-sm:hidden");
+        expect(loginLink?.classes()).toContain("max-sm:w-11");
+    });
+
+    it("collapses brand text on compact mobile headers to preserve action space", () => {
+        const wrapper = mountHeader({
+            bootstrapCompleted: true,
+            isAuthenticated: false,
+        });
+
+        expect(wrapper.get('[data-test="brand-title"]').classes()).toContain(
+            "max-sm:hidden",
+        );
+    });
+
     it("keeps normal site navigation on the login route", () => {
         Object.assign(mocks.route, {
             name: "login",
