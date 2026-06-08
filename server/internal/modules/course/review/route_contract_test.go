@@ -1,16 +1,23 @@
 package review
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
+	cachepkg "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/routeassert"
 )
 
@@ -65,6 +72,42 @@ func TestReviewTeacherAdminRequiresGlobalCapability(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, w.Code)
 }
 
+func TestReviewAdminStatsDoesNotUseGroupStepUpGate(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	fixture := redisfixture.Start(t)
+	h := &Handler{
+		cache:            cachepkg.NewHelper(fixture.Client),
+		adminAuthorizers: reviewAdminAuthorizers(),
+	}
+	ctx := context.Background()
+	cacheKey := h.cache.BuildVersionedKey(ctx, "review:admin:stats", "all")
+	require.NoError(t, h.cache.Set(ctx, cacheKey, gin.H{"totalReviews": 1}, time.Minute))
+
+	r := gin.New()
+	api := r.Group("/api/v1/course/review")
+	authMW := globalAdminCapabilityAuth(capability.AdminDashboardView, capability.AdminLogsView)
+	blockingStepUpGate := func(c *gin.Context) {
+		response.Error(c, http.StatusPreconditionRequired, errs.ErrStepUpRequired, "step-up required")
+	}
+	h.RegisterRoutes(api, authMW, authMW, blockingStepUpGate)
+
+	stats := httptest.NewRecorder()
+	statsReq := httptest.NewRequest(http.MethodGet, "/api/v1/course/review/admin/stats", nil)
+	r.ServeHTTP(stats, statsReq)
+
+	assert.Equal(t, http.StatusOK, stats.Code)
+	assert.Contains(t, stats.Body.String(), "totalReviews")
+	assert.NotContains(t, stats.Body.String(), string(errs.ErrStepUpRequired))
+
+	logs := httptest.NewRecorder()
+	logsReq := httptest.NewRequest(http.MethodGet, "/api/v1/course/review/admin/logs", nil)
+	r.ServeHTTP(logs, logsReq)
+
+	assert.Equal(t, http.StatusPreconditionRequired, logs.Code)
+	assert.Contains(t, logs.Body.String(), string(errs.ErrStepUpRequired))
+}
+
 func reviewAdminAuthorizers() AdminAuthorizers {
 	return AdminAuthorizers{
 		Entry:                rbac.RequireAnyCapability(capability.AdminEntryCapabilities...),
@@ -74,6 +117,21 @@ func reviewAdminAuthorizers() AdminAuthorizers {
 		TeachersManage:       rbac.RequireGlobalCapability(capability.AdminTeachersManage),
 		SensitiveWordsManage: rbac.RequireGlobalCapability(capability.AdminSensitiveWordsManage),
 		StepUpVerified:       rbac.EnsureStepUpMFA,
+	}
+}
+
+func globalAdminCapabilityAuth(capabilityNames ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		grants := make([]capability.Grant, 0, len(capabilityNames))
+		for _, capabilityName := range capabilityNames {
+			grants = append(grants, capability.Grant{Name: capabilityName})
+		}
+		snapshot := capability.BuildUserAccessSnapshot(grants)
+		c.Set(middleware.CtxKeyUserID, "global-admin-1")
+		c.Set(middleware.CtxKeyCapabilities, snapshot.Capabilities)
+		c.Set(middleware.CtxKeyGlobalCapabilities, snapshot.GlobalCapabilities)
+		c.Set(middleware.CtxKeyCapabilityGrants, snapshot.CapabilityGrants)
+		c.Next()
 	}
 }
 

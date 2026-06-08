@@ -146,6 +146,16 @@ func (h *Handler) RegisterRoutes(
 
 	// 管理员路由组
 	admin := r.Group("/admin")
+	admin.GET(
+		"/stats",
+		httputil.RouteHandlers(
+			h.GetAdminStats,
+			authMiddleware,
+			h.adminAuthorizers.Entry,
+			h.adminAuthorizers.DashboardView,
+		)...,
+	)
+
 	adminRouteMiddlewares := append([]gin.HandlerFunc{authMiddleware}, adminMiddlewares...)
 	adminRouteMiddlewares = httputil.AppendRouteMiddlewares(adminRouteMiddlewares, h.adminAuthorizers.Entry)
 	admin.Use(adminRouteMiddlewares...)
@@ -156,7 +166,6 @@ func (h *Handler) RegisterRoutes(
 		admin.PUT("/reviews/:reviewID", requireModerationRole(), h.AdminUpdateReview)
 		admin.POST("/reviews/:reviewID/edit", requireSchoolAdminRole(), h.AdminEditReviewContent)
 		admin.PATCH("/reviews/batch", requireModerationRole(), h.BatchUpdateReviews)
-		admin.GET("/stats", httputil.RouteHandlers(h.GetAdminStats, h.adminAuthorizers.DashboardView)...)
 		admin.GET("/logs", httputil.RouteHandlers(h.GetOperationLogs, h.adminAuthorizers.LogsView)...)
 		admin.GET("/export", httputil.RouteHandlers(h.ExportReviews, h.adminAuthorizers.ReviewsManage)...)
 
