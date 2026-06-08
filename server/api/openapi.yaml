@@ -417,6 +417,8 @@ paths:
     $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1join-requests~1events"
   /api/v1/bot/admission/join-requests/decision:
     $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1join-requests~1decision"
+  /api/v1/bot/admission/policies/targets:
+    $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1policies~1targets"
   /api/v1/bot/member-blacklist/access:
     $ref: "paths/bot-member-blacklist.yaml#/~1api~1v1~1bot~1member-blacklist~1access"
   /api/v1/bot/member-blacklist:
@@ -776,6 +778,10 @@ components:
       $ref: "components/schemas/admission.yaml#/AdmissionMe"
     AdmissionPolicy:
       $ref: "components/schemas/admission.yaml#/AdmissionPolicy"
+    AdmissionPolicyCreateRequest:
+      $ref: "components/schemas/admission.yaml#/AdmissionPolicyCreateRequest"
+    BotAdmissionPolicyTarget:
+      $ref: "components/schemas/admission.yaml#/BotAdmissionPolicyTarget"
     FreshmanApplication:
       $ref: "components/schemas/admission.yaml#/FreshmanApplication"
     FreshmanReviewRequest:

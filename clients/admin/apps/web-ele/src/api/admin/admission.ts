@@ -1,5 +1,6 @@
 import type {
   AdmissionPolicy,
+  AdmissionPolicyCreateRequest,
   AdmissionSession,
   CreatedAdmissionSession,
   FreshmanApplication,
@@ -22,6 +23,7 @@ const admissionApi = createAdmissionApi(sharedApiClient);
 
 export type {
   AdmissionPolicy,
+  AdmissionPolicyCreateRequest,
   AdmissionSession,
   CreatedAdmissionSession,
   FreshmanApplication,
@@ -60,6 +62,12 @@ export async function reviewFreshmanVerification(
 export async function listAdmissionPolicies() {
   return unwrapData<AdmissionPolicy[]>(
     await admissionApi.listAdmissionPolicies(),
+  );
+}
+
+export async function createAdmissionPolicy(data: AdmissionPolicyCreateRequest) {
+  return unwrapData<AdmissionPolicy>(
+    await admissionApi.createAdmissionPolicy(data),
   );
 }
 

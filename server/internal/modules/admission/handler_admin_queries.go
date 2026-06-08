@@ -18,6 +18,20 @@ func (h *Handler) handleAdminListAdmissionPolicies(c *gin.Context) {
 	response.Success(c, items)
 }
 
+func (h *Handler) handleAdminCreateAdmissionPolicy(c *gin.Context) {
+	var req AdmissionPolicyCreateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request parameters")
+		return
+	}
+	created, err := h.service.CreateAdmissionPolicy(c.Request.Context(), req)
+	if err != nil {
+		respondAdmissionError(c, err)
+		return
+	}
+	response.Created(c, created)
+}
+
 func (h *Handler) handleAdminUpdateAdmissionPolicy(c *gin.Context) {
 	var policy AdmissionPolicy
 	if err := c.ShouldBindJSON(&policy); err != nil {

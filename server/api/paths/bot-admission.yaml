@@ -267,6 +267,36 @@
       '404':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
+/api/v1/bot/admission/policies/targets:
+  get:
+    tags: [Bot]
+    operationId: listBotAdmissionPolicyTargets
+    summary: 获取后端 admission 策略目标群
+    description: |
+      Koishi 使用该接口把后端 `group_admission_policies` 同步为本地 guard 绑定。
+      返回值只包含目标群身份信息，不包含管理群或审核材料配置。
+    security:
+      - serviceTokenAuth: []
+    responses:
+      '200':
+        description: admission 策略目标群列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/admission.yaml#/BotAdmissionPolicyTarget'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
 /api/v1/bot/admission/sessions/pending:
   get:
     tags: [Bot]

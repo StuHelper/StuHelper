@@ -29,7 +29,10 @@ import { registerAdmissionAdminCommands } from './admission-admin-commands'
 import { AdmissionReminderDeduper } from './admission-reminder-deduper'
 import { registerAdmissionActionStreams } from './admission-action-stream'
 import { registerAdmissionConsoleAPI } from './admission-console-api'
-import { bootstrapGuardPolicyFromStaticConfig } from './guard-policy-bootstrap'
+import {
+  bootstrapGuardPolicyFromStaticConfig,
+  syncGuardPolicyFromAdmissionTargets,
+} from './guard-policy-bootstrap'
 
 export const name = 'stuhelper-group-guard'
 export const inject = {
@@ -145,9 +148,23 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
     } catch (error) {
       logger.error('failed to bootstrap guard policy from static targetGroups', error)
     }
+    await syncBackendAdmissionPolicyTargets()
   })
 
+  ctx.setInterval(() => {
+    void syncBackendAdmissionPolicyTargets()
+  }, Math.max(60, config.scheduler.scanIntervalSeconds) * 1000)
+
   logger.info(`群管插件已加载，目标群数量：${config.guard.targetGroups.length}，action stream：${config.actionStream?.enabled !== false ? 'enabled' : 'disabled'}，兜底扫描间隔：${config.scheduler.scanIntervalSeconds} 秒`)
+
+  async function syncBackendAdmissionPolicyTargets() {
+    try {
+      const targets = await platform.listAdmissionPolicyTargets()
+      await syncGuardPolicyFromAdmissionTargets(policyStore, config.guard, targets, logger)
+    } catch (error) {
+      logger.warn('failed to sync guard policy from backend admission policies', error)
+    }
+  }
 }
 
 function defaultAdmissionRuntimeSettings(config: StuhelperGroupGuardPluginConfig): AdmissionRuntimeSettings {

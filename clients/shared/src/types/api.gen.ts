@@ -2896,6 +2896,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bot/admission/policies/targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 获取后端 admission 策略目标群
+         * @description Koishi 使用该接口把后端 `group_admission_policies` 同步为本地 guard 绑定。
+         *     返回值只包含目标群身份信息，不包含管理群或审核材料配置。
+         */
+        get: operations["listBotAdmissionPolicyTargets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/bot/member-blacklist/access": {
         parameters: {
             query?: never;
@@ -3275,7 +3296,12 @@ export interface paths {
         /** 获取入群认证策略 */
         get: operations["listAdmissionPolicies"];
         put?: never;
-        post?: never;
+        /**
+         * 创建入群认证策略
+         * @description 从已有入群认证策略复制运行参数，并使用新的平台与群号创建一个新生认证目标群。
+         *     `managementGuildIDs` 不会从源策略复制，默认保持为空，避免把认证目标群误当材料审核管理群。
+         */
+        post: operations["createAdmissionPolicy"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4516,6 +4542,19 @@ export interface components {
             /** Format: int64 */
             maxMaterialBytes: number;
             maxExtensionDays: number;
+        };
+        AdmissionPolicyCreateRequest: {
+            /** @description 要复制运行参数的已有 admission policy ID。 */
+            sourcePolicyID: string;
+            /** @default qq */
+            platform: string;
+            /** @description 新生认证目标群号。 */
+            guildID: string;
+        };
+        BotAdmissionPolicyTarget: {
+            policyID: string;
+            platform: string;
+            guildID: string;
         };
         FreshmanApplication: {
             id: string;
@@ -10906,6 +10945,30 @@ export interface operations {
             404: components["responses"]["ErrorResponse"];
         };
     };
+    listBotAdmissionPolicyTargets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description admission 策略目标群列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["BotAdmissionPolicyTarget"][];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
     getBotMemberBlacklistAccess: {
         parameters: {
             query: {
@@ -11599,6 +11662,37 @@ export interface operations {
             };
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
+        };
+    };
+    createAdmissionPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdmissionPolicyCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 策略已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdmissionPolicy"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
         };
     };
     updateAdmissionPolicy: {

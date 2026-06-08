@@ -31,6 +31,89 @@ func (r *Repository) ListPolicies(ctx context.Context) ([]AdmissionPolicy, error
 	return scanAdmissionPolicies(rows)
 }
 
+func (r *Repository) ListPolicyTargets(ctx context.Context) ([]AdmissionPolicyTarget, error) {
+	ctx = withDBTable(ctx, "group_admission_policies")
+	rows, err := r.db.Query(ctx, `
+		SELECT id, platform, guild_id
+		FROM group_admission_policies
+		ORDER BY platform ASC, guild_id ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("ListPolicyTargets: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]AdmissionPolicyTarget, 0)
+	for rows.Next() {
+		var item AdmissionPolicyTarget
+		if err := rows.Scan(&item.PolicyID, &item.Platform, &item.GuildID); err != nil {
+			return nil, fmt.Errorf("scan admission policy target: %w", err)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate admission policy targets: %w", err)
+	}
+	return items, nil
+}
+
+func (r *Repository) CreatePolicyFromSource(ctx context.Context, input AdmissionPolicyCreateRequest) (*AdmissionPolicy, error) {
+	ctx = withDBTable(ctx, "group_admission_policies")
+	policyID, err := id.New()
+	if err != nil {
+		return nil, fmt.Errorf("CreatePolicyFromSource id: %w", err)
+	}
+
+	created, err := scanAdmissionPolicy(r.db.QueryRow(ctx, `
+		INSERT INTO group_admission_policies (
+			id, platform, guild_id, school_id, auto_approve_join,
+			auto_approve_verified_join, auto_approve_unverified_join, initial_mute_duration_seconds,
+			link_wait_seconds, submission_wait_seconds, manual_review_timeout_seconds,
+			reminder_interval_seconds, failed_join_limit, blacklist_duration_seconds,
+			freshman_channel_enabled, freshman_channel_closes_at, freshman_default_expires_at,
+			forward_raw_material_to_qq, management_guild_ids, max_material_bytes, max_extension_days
+		)
+		SELECT $1, $2, $3, school_id, auto_approve_join,
+		       auto_approve_verified_join, auto_approve_unverified_join, initial_mute_duration_seconds,
+		       link_wait_seconds, submission_wait_seconds, manual_review_timeout_seconds,
+		       reminder_interval_seconds, failed_join_limit, blacklist_duration_seconds,
+		       freshman_channel_enabled, freshman_channel_closes_at, freshman_default_expires_at,
+		       forward_raw_material_to_qq, '{}'::text[], max_material_bytes, max_extension_days
+		FROM group_admission_policies
+		WHERE id = $4
+		ON CONFLICT (platform, guild_id) DO NOTHING
+		RETURNING id, platform, guild_id, school_id, auto_approve_join,
+		          auto_approve_verified_join, auto_approve_unverified_join,
+		          initial_mute_duration_seconds, link_wait_seconds, submission_wait_seconds,
+		          manual_review_timeout_seconds, reminder_interval_seconds, failed_join_limit,
+		          blacklist_duration_seconds, freshman_channel_enabled, freshman_channel_closes_at,
+		          freshman_default_expires_at, forward_raw_material_to_qq, management_guild_ids,
+		          max_material_bytes, max_extension_days
+	`, policyID, input.Platform, input.GuildID, input.SourcePolicyID))
+	if err != nil {
+		return nil, fmt.Errorf("CreatePolicyFromSource: %w", err)
+	}
+	if created != nil {
+		return created, nil
+	}
+
+	sourceExists, err := r.policyIDExists(ctx, input.SourcePolicyID)
+	if err != nil {
+		return nil, err
+	}
+	if !sourceExists {
+		return nil, ErrAdmissionPolicyNotFound
+	}
+	targetExists, err := r.policyTargetExists(ctx, input.Platform, input.GuildID)
+	if err != nil {
+		return nil, err
+	}
+	if targetExists {
+		return nil, ErrAdmissionPolicyAlreadyExists
+	}
+	return nil, ErrAdmissionPolicyNotFound
+}
+
 func (r *Repository) UpdatePolicy(ctx context.Context, policy AdmissionPolicy) (*AdmissionPolicy, error) {
 	ctx = withDBTable(ctx, "group_admission_policies")
 	updated, err := scanAdmissionPolicy(r.db.QueryRow(ctx, updateAdmissionPolicySQL(), updateAdmissionPolicyArgs(policy)...))
@@ -41,6 +124,30 @@ func (r *Repository) UpdatePolicy(ctx context.Context, policy AdmissionPolicy) (
 		return nil, ErrAdmissionPolicyNotFound
 	}
 	return updated, nil
+}
+
+func (r *Repository) policyIDExists(ctx context.Context, policyID string) (bool, error) {
+	var exists bool
+	if err := r.db.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM group_admission_policies WHERE id = $1
+		)
+	`, policyID).Scan(&exists); err != nil {
+		return false, fmt.Errorf("policyIDExists: %w", err)
+	}
+	return exists, nil
+}
+
+func (r *Repository) policyTargetExists(ctx context.Context, platform, guildID string) (bool, error) {
+	var exists bool
+	if err := r.db.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM group_admission_policies WHERE platform = $1 AND guild_id = $2
+		)
+	`, platform, guildID).Scan(&exists); err != nil {
+		return false, fmt.Errorf("policyTargetExists: %w", err)
+	}
+	return exists, nil
 }
 
 func (r *Repository) ListSessions(

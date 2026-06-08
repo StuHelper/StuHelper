@@ -24,6 +24,7 @@ type SchoolEmailOTPRequest = components['schemas']['SchoolEmailOTPRequest']
 type SchoolEmailOTPVerifyRequest = components['schemas']['SchoolEmailOTPVerifyRequest']
 type SchoolEmailOTPResponse = components['schemas']['SchoolEmailOTPResponse']
 type AdmissionPolicy = components['schemas']['AdmissionPolicy']
+type AdmissionPolicyCreateRequest = components['schemas']['AdmissionPolicyCreateRequest']
 type FreshmanReviewRequest = components['schemas']['FreshmanReviewRequest']
 type ListAdmissionSessionsParams =
   operations['listAdmissionSessions']['parameters']['query']
@@ -107,6 +108,11 @@ export const createAdmissionApi = (client: ApiClient) => ({
   listAdmissionPolicies: () =>
     client.GET('/api/v1/admin/admission/policies'),
 
+  createAdmissionPolicy: (data: AdmissionPolicyCreateRequest) =>
+    client.POST('/api/v1/admin/admission/policies', {
+      body: data,
+    }),
+
   updateAdmissionPolicy: (id: string, data: AdmissionPolicy) =>
     client.PUT('/api/v1/admin/admission/policies/{id}', {
       params: { path: { id } },
@@ -172,6 +178,7 @@ export const createAdmissionApi = (client: ApiClient) => ({
 export type {
   AdmissionMe,
   AdmissionPolicy,
+  AdmissionPolicyCreateRequest,
   AdmissionSession,
   CameraCaptureRequest,
   CreateFreshmanApplicationRequest,

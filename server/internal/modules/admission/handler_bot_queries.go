@@ -85,6 +85,15 @@ func (h *Handler) handleResolveBotJoinRequestDecision(c *gin.Context) {
 	response.Success(c, decision)
 }
 
+func (h *Handler) handleListBotAdmissionPolicyTargets(c *gin.Context) {
+	items, err := h.service.ListAdmissionPolicyTargets(c.Request.Context())
+	if err != nil {
+		respondAdmissionError(c, err)
+		return
+	}
+	response.Success(c, items)
+}
+
 func (h *Handler) handleListBotPendingActions(c *gin.Context) {
 	filter, ok := botPendingActionFilter(c)
 	if !ok {

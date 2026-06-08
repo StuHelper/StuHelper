@@ -241,6 +241,12 @@ export interface AdmissionSessionCreateResult {
   readonly authURL: string
 }
 
+export interface AdmissionPolicyTarget {
+  readonly policyID: string
+  readonly platform: string
+  readonly guildID: string
+}
+
 export interface AdmissionFailureResetResult {
   readonly platform: string
   readonly guildID: string

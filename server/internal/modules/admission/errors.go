@@ -11,6 +11,7 @@ var (
 	ErrAdmissionInvalidStatus              = errors.New("admission session status invalid")
 	ErrAdmissionSessionNotFound            = errors.New("admission session not found")
 	ErrAdmissionPolicyNotFound             = errors.New("admission policy not found")
+	ErrAdmissionPolicyAlreadyExists        = errors.New("admission policy already exists")
 	ErrAdmissionLinkedSessionRequired      = errors.New("admission linked session required")
 	ErrAdmissionFreshmanChannelClosed      = errors.New("freshman admission channel closed")
 	ErrAdmissionFreshmanPendingExists      = errors.New("freshman application pending already exists")

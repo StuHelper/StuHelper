@@ -70,6 +70,7 @@ test('platform admission client sends expected paths and payloads', async (t) =>
     error: 'permission denied',
     rawEvent: { comment: '我是新生' },
   })
+  await client.listAdmissionPolicyTargets()
   await client.listPendingAdmissionActions({ platform: 'qq', botSelfID: '514', limit: 50 })
   await client.claimQueuedAdmissionActions({ platform: 'qq', botSelfID: '514', limit: 20 })
   await client.getMemberBlacklistAccess({
@@ -139,6 +140,7 @@ test('platform admission client sends expected paths and payloads', async (t) =>
     ['POST', '/api/v1/bot/admission/failures/reset'],
     ['POST', '/api/v1/bot/admission/join-requests/decision'],
     ['POST', '/api/v1/bot/admission/join-requests/events'],
+    ['GET', '/api/v1/bot/admission/policies/targets'],
     ['GET', '/api/v1/bot/admission/sessions/pending?platform=qq&botSelfID=514&limit=50'],
     ['POST', '/api/v1/bot/admission/actions/claim?platform=qq&botSelfID=514&limit=20'],
     ['GET', '/api/v1/bot/member-blacklist/access?platform=qq&subjectType=qq_user&subjectID=10001&guildID=guild-1'],
@@ -161,13 +163,13 @@ test('platform admission client sends expected paths and payloads', async (t) =>
   assert.equal(calls[5].body.operatorQQID, '90001')
   assert.equal(calls[6].body.rawEvent.comment, '我是新生')
   assert.equal(calls[7].body.decision, 'approve')
-  assert.equal(calls[12].body.metadata.operatorQQID, '90001')
-  assert.equal(calls[12].body.createdFrom, 'qq_command')
-  assert.equal(calls[14].body.releaseReasonCode, 'manual_pardon')
-  assert.equal(calls[15].body.messageID, 'message-1')
-  assert.equal(calls[16].body.messageID, 'message-2')
-  assert.equal(calls[19].body.operatorQQID, '90001')
-  assert.equal(calls[20].body.expiresInDays, 30)
+  assert.equal(calls[13].body.metadata.operatorQQID, '90001')
+  assert.equal(calls[13].body.createdFrom, 'qq_command')
+  assert.equal(calls[15].body.releaseReasonCode, 'manual_pardon')
+  assert.equal(calls[16].body.messageID, 'message-1')
+  assert.equal(calls[17].body.messageID, 'message-2')
+  assert.equal(calls[20].body.operatorQQID, '90001')
+  assert.equal(calls[21].body.expiresInDays, 30)
 })
 
 test('platform client accepts empty success responses for void requests', async (t) => {
@@ -409,6 +411,9 @@ function responseDataForPath(path: string) {
       autoApproveUnverifiedJoin: true,
       policyID: 'policy-1',
     }
+  }
+  if (path.endsWith('/policies/targets')) {
+    return [{ policyID: 'policy-1', platform: 'qq', guildID: 'guild-1' }]
   }
   if (path.endsWith('/sessions')) {
     return {

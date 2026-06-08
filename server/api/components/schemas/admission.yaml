@@ -187,6 +187,31 @@ AdmissionPolicy:
     maxExtensionDays:
       type: integer
 
+AdmissionPolicyCreateRequest:
+  type: object
+  required: [sourcePolicyID, platform, guildID]
+  properties:
+    sourcePolicyID:
+      type: string
+      description: 要复制运行参数的已有 admission policy ID。
+    platform:
+      type: string
+      default: qq
+    guildID:
+      type: string
+      description: 新生认证目标群号。
+
+BotAdmissionPolicyTarget:
+  type: object
+  required: [policyID, platform, guildID]
+  properties:
+    policyID:
+      type: string
+    platform:
+      type: string
+    guildID:
+      type: string
+
 FreshmanApplication:
   type: object
   required: [id, userID, schoolID, status, applicantNameMasked, materialType, createdAt]

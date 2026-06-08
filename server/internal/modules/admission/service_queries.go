@@ -19,6 +19,32 @@ func (s *Service) ListAdmissionPolicies(ctx context.Context) ([]AdmissionPolicy,
 	return items, nil
 }
 
+func (s *Service) ListAdmissionPolicyTargets(ctx context.Context) ([]AdmissionPolicyTarget, error) {
+	items, err := s.repo.ListPolicyTargets(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for index := range items {
+		items[index].PolicyID = strings.TrimSpace(items[index].PolicyID)
+		items[index].Platform = strings.TrimSpace(items[index].Platform)
+		items[index].GuildID = strings.TrimSpace(items[index].GuildID)
+	}
+	return items, nil
+}
+
+func (s *Service) CreateAdmissionPolicy(ctx context.Context, input AdmissionPolicyCreateRequest) (*AdmissionPolicy, error) {
+	normalized, err := normalizeAdmissionPolicyCreateRequest(input)
+	if err != nil {
+		return nil, err
+	}
+	created, err := s.repo.CreatePolicyFromSource(ctx, normalized)
+	if err != nil {
+		return nil, err
+	}
+	output := normalizeAdmissionPolicyForOutput(*created)
+	return &output, nil
+}
+
 func (s *Service) UpdateAdmissionPolicy(ctx context.Context, policy AdmissionPolicy) (*AdmissionPolicy, error) {
 	updated, err := s.repo.UpdatePolicy(ctx, normalizeAdmissionPolicy(policy))
 	if err != nil {
@@ -153,6 +179,16 @@ func normalizeAdmissionPolicy(policy AdmissionPolicy) AdmissionPolicy {
 	}
 	policy.AutoApproveJoin = policy.AutoApproveVerifiedJoin && policy.AutoApproveUnverifiedJoin
 	return policy
+}
+
+func normalizeAdmissionPolicyCreateRequest(input AdmissionPolicyCreateRequest) (AdmissionPolicyCreateRequest, error) {
+	input.SourcePolicyID = strings.TrimSpace(input.SourcePolicyID)
+	input.Platform = strings.TrimSpace(input.Platform)
+	input.GuildID = strings.TrimSpace(input.GuildID)
+	if input.SourcePolicyID == "" || input.Platform == "" || input.GuildID == "" {
+		return AdmissionPolicyCreateRequest{}, ErrAdmissionInvalidInput
+	}
+	return input, nil
 }
 
 func normalizeAdmissionPolicyForOutput(policy AdmissionPolicy) AdmissionPolicy {

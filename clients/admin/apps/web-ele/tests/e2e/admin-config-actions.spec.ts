@@ -199,6 +199,20 @@ async function mockAdminApi(page: Page, capturedMutations: CapturedMutation[]) {
       return;
     }
 
+    if (path === '/api/v1/admin/admission/policies' && method === 'POST') {
+      const body = parseJsonBody(route) as { guildID?: string } | null;
+      capturedMutations.push({ path, method, body });
+      await route.fulfill(
+        ok({
+          ...admissionPolicy,
+          id: `policy-${body?.guildID ?? 'new'}`,
+          guildID: body?.guildID ?? 'guild-new',
+          managementGuildIDs: [],
+        }),
+      );
+      return;
+    }
+
     if (path === '/api/v1/admin/admission/policies') {
       if (nextAdmissionPolicyListErrorMessage) {
         const message = nextAdmissionPolicyListErrorMessage;
@@ -426,7 +440,7 @@ test.describe('Admin configuration actions', () => {
       .getByRole('spinbutton', { name: '最大延期天数' })
       .fill('45');
     await policyForm
-      .getByPlaceholder('每行一个群号')
+      .getByPlaceholder('每行一个材料审核管理群号，可留空')
       .fill('guild-admin\nguild-ops');
     await policyForm.getByRole('button', { name: '保存' }).click();
     await expect(
@@ -453,6 +467,46 @@ test.describe('Admin configuration actions', () => {
           managementGuildIDs: ['guild-admin', 'guild-ops'],
         }),
       });
+  });
+
+  test('admission policy create posts new target guilds copied from an existing policy', async ({
+    page,
+  }) => {
+    await page.goto('/users/admission-policy');
+
+    await page.getByRole('button', { name: '新增认证群' }).click();
+    const dialog = page.getByRole('dialog', { name: '新增新生认证群' });
+    await expect(dialog).toBeVisible();
+    await dialog
+      .getByPlaceholder('每行一个新生认证群号')
+      .fill('guild-2\nguild-3');
+    await dialog.getByRole('button', { name: '创建' }).click();
+
+    await expect(page.getByText('已创建 2 个新生认证群策略')).toBeVisible();
+    await expect
+      .poll(() =>
+        capturedMutations.filter(
+          (mutation) =>
+            mutation.path === '/api/v1/admin/admission/policies' &&
+            mutation.method === 'POST',
+        ),
+      )
+      .toMatchObject([
+        {
+          body: {
+            sourcePolicyID: 'policy-qq-1',
+            platform: 'qq',
+            guildID: 'guild-2',
+          },
+        },
+        {
+          body: {
+            sourcePolicyID: 'policy-qq-1',
+            platform: 'qq',
+            guildID: 'guild-3',
+          },
+        },
+      ]);
   });
 
   test('admission policy save failures preserve backend error detail', async ({

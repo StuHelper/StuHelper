@@ -7129,6 +7129,37 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '404':
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/bot/admission/policies/targets:
+    get:
+      tags:
+        - Bot
+      operationId: listBotAdmissionPolicyTargets
+      summary: 获取后端 admission 策略目标群
+      description: |
+        Koishi 使用该接口把后端 `group_admission_policies` 同步为本地 guard 绑定。
+        返回值只包含目标群身份信息，不包含管理群或审核材料配置。
+      security:
+        - serviceTokenAuth: []
+      responses:
+        '200':
+          description: admission 策略目标群列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/BotAdmissionPolicyTarget'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/bot/member-blacklist/access:
     get:
       tags:
@@ -8096,6 +8127,47 @@ paths:
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '403':
+          $ref: '#/components/responses/ErrorResponse'
+    post:
+      tags:
+        - Admin
+      operationId: createAdmissionPolicy
+      summary: 创建入群认证策略
+      description: |
+        从已有入群认证策略复制运行参数，并使用新的平台与群号创建一个新生认证目标群。
+        `managementGuildIDs` 不会从源策略复制，默认保持为空，避免把认证目标群误当材料审核管理群。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdmissionPolicyCreateRequest'
+      responses:
+        '201':
+          description: 策略已创建
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdmissionPolicy'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/admin/admission/policies/{id}:
     put:
@@ -11215,6 +11287,35 @@ components:
           format: int64
         maxExtensionDays:
           type: integer
+    AdmissionPolicyCreateRequest:
+      type: object
+      required:
+        - sourcePolicyID
+        - platform
+        - guildID
+      properties:
+        sourcePolicyID:
+          type: string
+          description: 要复制运行参数的已有 admission policy ID。
+        platform:
+          type: string
+          default: qq
+        guildID:
+          type: string
+          description: 新生认证目标群号。
+    BotAdmissionPolicyTarget:
+      type: object
+      required:
+        - policyID
+        - platform
+        - guildID
+      properties:
+        policyID:
+          type: string
+        platform:
+          type: string
+        guildID:
+          type: string
     FreshmanApplication:
       type: object
       required:

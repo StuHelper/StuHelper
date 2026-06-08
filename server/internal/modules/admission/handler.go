@@ -131,6 +131,11 @@ func (h *Handler) registerBotAdmissionRoutes(bot *gin.RouterGroup) {
 		h.handleRecordBotJoinRequestEvent,
 	)
 	bot.GET(
+		"/policies/targets",
+		h.requireBotCredential(botcredential.ScopeBotAdmissionSession),
+		h.handleListBotAdmissionPolicyTargets,
+	)
+	bot.GET(
 		"/sessions/pending",
 		h.requireBotCredential(botcredential.ScopeBotAdmissionSession),
 		h.handleListBotPendingActions,
@@ -210,6 +215,10 @@ func (h *Handler) registerAdminAdmissionRoutes(admin *gin.RouterGroup) {
 	admin.GET(
 		"/admission/policies",
 		httputil.RouteHandlers(h.handleAdminListAdmissionPolicies, h.adminAuthorizers.AdmissionPolicyRead)...,
+	)
+	admin.POST(
+		"/admission/policies",
+		httputil.RouteHandlers(h.handleAdminCreateAdmissionPolicy, h.adminAuthorizers.AdmissionPolicyUpdate)...,
 	)
 	admin.PUT(
 		"/admission/policies/:id",

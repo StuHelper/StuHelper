@@ -64,6 +64,8 @@ func respondAdmissionSessionError(c *gin.Context, err error) bool {
 		response.Conflict(c, "admission linked session required")
 	case errors.Is(err, ErrAdmissionPolicyNotFound):
 		response.NotFound(c, "admission policy not found")
+	case errors.Is(err, ErrAdmissionPolicyAlreadyExists):
+		response.Conflict(c, "admission policy already exists")
 	case errors.Is(err, ErrAdmissionBlacklistNotFound):
 		response.NotFound(c, "admission blacklist not found")
 	case errors.Is(err, ErrAdmissionPendingActionFilterInvalid):

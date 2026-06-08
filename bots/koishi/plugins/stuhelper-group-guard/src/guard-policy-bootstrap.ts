@@ -1,5 +1,6 @@
 import type {
   GuardPolicyStore,
+  AdmissionPolicyTarget,
   StuhelperGuardConfig,
 } from '@stuhelper/koishi-shared'
 import { createBindingID } from '@stuhelper/koishi-shared'
@@ -17,14 +18,71 @@ export interface GuardPolicyBootstrapResult {
   readonly bindingCreatedCount: number
 }
 
+export interface GuardPolicyTargetSyncResult extends GuardPolicyBootstrapResult {
+  readonly bindingUpdatedCount: number
+}
+
 export async function bootstrapGuardPolicyFromStaticConfig(
   policyStore: GuardPolicyStore,
   config: StuhelperGuardConfig,
   logger?: BootstrapLogger,
 ): Promise<GuardPolicyBootstrapResult> {
-  const targetGroups = normalizeTargetGroups(config.targetGroups)
+  const result = await ensureGuardPolicyBindings(
+    policyStore,
+    config,
+    normalizeTargetGroups(config.targetGroups),
+    'bootstrapped from guard.targetGroups',
+    false,
+  )
+
+  if (result.templateCreated || result.bindingCreatedCount > 0) {
+    logger?.info('已把静态入群认证 targetGroups 迁移到 WebUI 策略库：template=%s, bindings=%d', result.templateCreated ? 'created' : 'exists', result.bindingCreatedCount)
+  }
+  return {
+    templateCreated: result.templateCreated,
+    bindingCreatedCount: result.bindingCreatedCount,
+  }
+}
+
+export async function syncGuardPolicyFromAdmissionTargets(
+  policyStore: GuardPolicyStore,
+  config: StuhelperGuardConfig,
+  targets: readonly AdmissionPolicyTarget[],
+  logger?: BootstrapLogger,
+): Promise<GuardPolicyTargetSyncResult> {
+  const targetGroups = normalizeTargetGroups(
+    targets
+      .filter((target) => target.platform === ADMISSION_BUSINESS_PLATFORM)
+      .map((target) => target.guildID),
+  )
+  const result = await ensureGuardPolicyBindings(
+    policyStore,
+    config,
+    targetGroups,
+    'synced from backend admission policies',
+    true,
+  )
+
+  if (result.templateCreated || result.bindingCreatedCount > 0 || result.bindingUpdatedCount > 0) {
+    logger?.info(
+      '已从后端 admission policy 同步入群认证目标群：template=%s, created=%d, updated=%d',
+      result.templateCreated ? 'created' : 'exists',
+      result.bindingCreatedCount,
+      result.bindingUpdatedCount,
+    )
+  }
+  return result
+}
+
+async function ensureGuardPolicyBindings(
+  policyStore: GuardPolicyStore,
+  config: StuhelperGuardConfig,
+  targetGroups: readonly string[],
+  note: string,
+  refreshExistingBindings: boolean,
+): Promise<GuardPolicyTargetSyncResult> {
   if (targetGroups.length === 0) {
-    return { templateCreated: false, bindingCreatedCount: 0 }
+    return { templateCreated: false, bindingCreatedCount: 0, bindingUpdatedCount: 0 }
   }
 
   const [templates, bindings] = await Promise.all([
@@ -46,9 +104,11 @@ export async function bootstrapGuardPolicyFromStaticConfig(
 
   const existingBindingIDs = new Set(bindings.map((binding) => binding.id))
   let bindingCreatedCount = 0
+  let bindingUpdatedCount = 0
   for (const guildId of targetGroups) {
     const id = createBindingID(ADMISSION_BUSINESS_PLATFORM, guildId)
-    if (existingBindingIDs.has(id)) {
+    const exists = existingBindingIDs.has(id)
+    if (exists && !refreshExistingBindings) {
       continue
     }
     await policyStore.saveBinding({
@@ -56,15 +116,17 @@ export async function bootstrapGuardPolicyFromStaticConfig(
       guildId,
       templateId: BOOTSTRAP_TEMPLATE_ID,
       enabled: true,
-      note: 'bootstrapped from guard.targetGroups',
+      note,
     })
-    bindingCreatedCount += 1
+    if (exists) {
+      bindingUpdatedCount += 1
+    } else {
+      existingBindingIDs.add(id)
+      bindingCreatedCount += 1
+    }
   }
 
-  if (templateCreated || bindingCreatedCount > 0) {
-    logger?.info('已把静态入群认证 targetGroups 迁移到 WebUI 策略库：template=%s, bindings=%d', templateCreated ? 'created' : 'exists', bindingCreatedCount)
-  }
-  return { templateCreated, bindingCreatedCount }
+  return { templateCreated, bindingCreatedCount, bindingUpdatedCount }
 }
 
 function normalizeTargetGroups(groups: readonly string[]) {

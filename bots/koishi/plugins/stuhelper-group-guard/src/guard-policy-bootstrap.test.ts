@@ -8,7 +8,10 @@ import type {
   StuhelperGuardConfig,
 } from '@stuhelper/koishi-shared'
 
-import { bootstrapGuardPolicyFromStaticConfig } from './guard-policy-bootstrap'
+import {
+  bootstrapGuardPolicyFromStaticConfig,
+  syncGuardPolicyFromAdmissionTargets,
+} from './guard-policy-bootstrap'
 
 test('bootstrapGuardPolicyFromStaticConfig promotes static target groups to qq bindings idempotently', async () => {
   const store = createPolicyStore()
@@ -25,6 +28,30 @@ test('bootstrapGuardPolicyFromStaticConfig promotes static target groups to qq b
   assert.equal(store.bindings[0].platform, 'qq')
   assert.equal(store.bindings[0].guildId, '178037297')
   assert.equal(store.bindings[0].templateId, 'admission-default')
+})
+
+test('syncGuardPolicyFromAdmissionTargets re-enables backend policy bindings', async () => {
+  const store = createPolicyStore()
+  const config = createGuardConfig()
+
+  await bootstrapGuardPolicyFromStaticConfig(store as unknown as GuardPolicyStore, config)
+  store.bindings[0].enabled = false
+
+  const result = await syncGuardPolicyFromAdmissionTargets(store as unknown as GuardPolicyStore, config, [
+    { policyID: 'policy-178', platform: 'qq', guildID: '178037297' },
+    { policyID: 'policy-743', platform: 'qq', guildID: '743762161' },
+    { policyID: 'policy-other', platform: 'telegram', guildID: 'ignored' },
+  ])
+
+  assert.deepEqual(result, {
+    templateCreated: false,
+    bindingCreatedCount: 1,
+    bindingUpdatedCount: 1,
+  })
+  assert.deepEqual(store.bindings.map((binding) => [binding.id, binding.enabled, binding.note]), [
+    ['qq:178037297', true, 'synced from backend admission policies'],
+    ['qq:743762161', true, 'synced from backend admission policies'],
+  ])
 })
 
 function createPolicyStore() {
@@ -45,13 +72,19 @@ function createPolicyStore() {
     },
     saveBinding: async (input: Omit<GuardGroupBindingRecord, 'id' | 'createdAt' | 'updatedAt'>) => {
       const now = new Date('2026-06-04T08:00:00.000Z')
-      bindings.push({
+      const record = {
         id: `${input.platform}:${input.guildId}`,
         ...input,
         note: input.note ?? null,
         createdAt: now,
         updatedAt: now,
-      })
+      }
+      const index = bindings.findIndex((binding) => binding.id === record.id)
+      if (index >= 0) {
+        bindings[index] = { ...bindings[index], ...record, createdAt: bindings[index].createdAt }
+        return
+      }
+      bindings.push(record)
     },
   }
 }

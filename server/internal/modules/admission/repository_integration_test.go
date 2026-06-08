@@ -91,6 +91,43 @@ func TestListAdmissionSessionsFiltersByRuntimeSubject(t *testing.T) {
 	require.Len(t, items, 2)
 }
 
+func TestCreateAdmissionPolicyFromSourceForNewTargetGuild(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	ctx := context.Background()
+
+	insertAdmissionPolicy(t, fixture)
+
+	created, err := repo.CreatePolicyFromSource(ctx, AdmissionPolicyCreateRequest{
+		SourcePolicyID: "adm-policy-1",
+		Platform:       "qq",
+		GuildID:        "guild-2",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, created)
+	require.Equal(t, "qq", created.Platform)
+	require.Equal(t, "guild-2", created.GuildID)
+	require.Equal(t, int64(4111010006), created.SchoolID)
+	require.Equal(t, 2592000, created.InitialMuteDurationSeconds)
+	require.Empty(t, created.ManagementGuildIDs)
+
+	targets, err := repo.ListPolicyTargets(ctx)
+	require.NoError(t, err)
+	require.Len(t, targets, 2)
+	require.Equal(t, AdmissionPolicyTarget{
+		PolicyID: created.ID,
+		Platform: "qq",
+		GuildID:  "guild-2",
+	}, targets[1])
+
+	_, err = repo.CreatePolicyFromSource(ctx, AdmissionPolicyCreateRequest{
+		SourcePolicyID: "adm-policy-1",
+		Platform:       "qq",
+		GuildID:        "guild-2",
+	})
+	require.ErrorIs(t, err, ErrAdmissionPolicyAlreadyExists)
+}
+
 func seedAdmissionUser(t *testing.T, fixture *postgresfixture.Fixture, suffix string) int64 {
 	t.Helper()
 

@@ -43,6 +43,9 @@ describe('admission policy admin view contract', () => {
       'maxExtensionDays',
       'managementGuildIDs',
       'forwardRawMaterialToQQ',
+      'createAdmissionPolicy',
+      'sourcePolicyID',
+      'parseCreateGuildIDs',
       'POLICY_DATETIME_FORMAT',
       ':value-format="POLICY_DATETIME_FORMAT"',
       'ElMessage.success',
@@ -69,7 +72,9 @@ describe('admission policy admin view contract', () => {
       '新生通道关闭时间',
       '默认临时认证到期时间',
       '入群初始禁言（秒）',
-      '管理群号',
+      '材料审核管理群号',
+      '新增新生认证群',
+      '新生认证群号',
       '转发原始材料到 QQ',
     ]) {
       expect(source).toContain(label);

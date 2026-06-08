@@ -4,6 +4,7 @@ import type {
   AdmissionJoinRequestDecision,
   AdmissionJoinRequestDecisionRequest,
   AdmissionJoinRequestEvent,
+  AdmissionPolicyTarget,
   AdmissionPendingAction,
   AdmissionPendingActionsRequest,
   AdmissionSession,
@@ -38,6 +39,7 @@ const ADMISSION_SESSIONS_PATH = '/api/v1/bot/admission/sessions'
 const ADMISSION_FAILURES_PATH = '/api/v1/bot/admission/failures'
 const ADMISSION_JOIN_REQUEST_DECISION_PATH = '/api/v1/bot/admission/join-requests/decision'
 const ADMISSION_JOIN_REQUEST_EVENTS_PATH = '/api/v1/bot/admission/join-requests/events'
+const ADMISSION_POLICY_TARGETS_PATH = '/api/v1/bot/admission/policies/targets'
 const ADMISSION_PENDING_ACTIONS_PATH = '/api/v1/bot/admission/sessions/pending'
 const ADMISSION_ACTION_STREAM_PATH = '/api/v1/bot/admission/actions/stream'
 const ADMISSION_ACTION_CLAIM_PATH = '/api/v1/bot/admission/actions/claim'
@@ -107,6 +109,7 @@ export interface PlatformClient {
   resetAdmissionFailureCount(input: AdmissionSessionOperatorRequest): Promise<AdmissionFailureResetResult>
   resolveJoinRequestDecision(input: AdmissionJoinRequestDecisionRequest): Promise<AdmissionJoinRequestDecision>
   recordJoinRequestEvent(input: AdmissionJoinRequestEvent): Promise<void>
+  listAdmissionPolicyTargets(): Promise<readonly AdmissionPolicyTarget[]>
   listPendingAdmissionActions(input: AdmissionPendingActionsRequest): Promise<readonly AdmissionPendingAction[]>
   claimQueuedAdmissionActions(input: AdmissionPendingActionsRequest): Promise<readonly AdmissionPendingAction[]>
   recordAdmissionEvent(sessionID: string, input: AdmissionBotEventRequest): Promise<void>
@@ -174,6 +177,7 @@ function createAdmissionClient(
   | 'resetAdmissionFailureCount'
   | 'resolveJoinRequestDecision'
   | 'recordJoinRequestEvent'
+  | 'listAdmissionPolicyTargets'
   | 'listPendingAdmissionActions'
   | 'claimQueuedAdmissionActions'
   | 'recordAdmissionEvent'
@@ -217,6 +221,10 @@ function createAdmissionClient(
 
     async recordJoinRequestEvent(input) {
       await request<void>(ADMISSION_JOIN_REQUEST_EVENTS_PATH, jsonPost(input), true)
+    },
+
+    async listAdmissionPolicyTargets() {
+      return request<readonly AdmissionPolicyTarget[]>(ADMISSION_POLICY_TARGETS_PATH, { method: 'GET' })
     },
 
     async listPendingAdmissionActions(input) {

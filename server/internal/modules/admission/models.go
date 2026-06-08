@@ -405,3 +405,15 @@ type AdmissionPolicy struct {
 	MaxMaterialBytes           int64     `json:"maxMaterialBytes"`
 	MaxExtensionDays           int       `json:"maxExtensionDays"`
 }
+
+type AdmissionPolicyCreateRequest struct {
+	SourcePolicyID string `json:"sourcePolicyID"`
+	Platform       string `json:"platform"`
+	GuildID        string `json:"guildID"`
+}
+
+type AdmissionPolicyTarget struct {
+	PolicyID string `json:"policyID"`
+	Platform string `json:"platform"`
+	GuildID  string `json:"guildID"`
+}
