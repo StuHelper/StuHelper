@@ -157,6 +157,34 @@ describe("auth bootstrap", () => {
         );
     });
 
+    it("clears stale local session when bootstrap refresh is rejected by CSRF", async () => {
+        mockGetUser.mockReturnValue({
+            id: "cached_user",
+            name: "cached",
+            displayName: "Cached",
+        });
+        mockIsTokenExpired.mockReturnValue(true);
+        mockAuthRefresh.mockRejectedValue(
+            new ApiError({
+                code: "A0010202",
+                message: "csrf invalid",
+                status: 403,
+            }),
+        );
+
+        const { useAuthStore } = await import("../auth");
+        const store = useAuthStore();
+
+        expect(store.isAuthenticated).toBe(true);
+
+        await expect(store.bootstrapSession()).resolves.toBeFalsy();
+
+        expect(store.isAuthenticated).toBe(false);
+        expect(store.bootstrapCompleted).toBe(true);
+        expect(mockClearAuth).toHaveBeenCalledTimes(1);
+        expect(mockAuthMe).not.toHaveBeenCalled();
+    });
+
     it("does not clear local session on network-style bootstrap failure", async () => {
         const errorSpy = muteExpectedBootstrapError();
         mockGetUser.mockReturnValue(null);

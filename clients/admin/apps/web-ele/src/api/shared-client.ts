@@ -32,6 +32,9 @@ type TransportError = {
 
 const STEP_UP_REQUIRED_CODE = 'A0010205';
 const MFA_ENROLLMENT_REQUIRED_CODE = 'A0010204';
+const CSRF_INVALID_CODE = 'A0010202';
+const CSRF_MISSING_CODE = 'A0010203';
+const STEP_UP_REQUIRED_STATUSES = new Set([412, 428]);
 
 function logAdminAuthWarning(
   event: string,
@@ -170,9 +173,18 @@ async function handleRecoverableAdminAuthError(
   if (status === 403 && errorCode === MFA_ENROLLMENT_REQUIRED_CODE) {
     await redirectToMFAEnrollment();
   }
-  if (status === 412 && errorCode === STEP_UP_REQUIRED_CODE) {
+  if (
+    status !== undefined &&
+    STEP_UP_REQUIRED_STATUSES.has(status) &&
+    errorCode === STEP_UP_REQUIRED_CODE
+  ) {
     await redirectToStepUp();
   }
+}
+
+function isCSRFErrorPayload(payload: unknown): boolean {
+  const code = parseApiError(payload).code;
+  return code === CSRF_INVALID_CODE || code === CSRF_MISSING_CODE;
 }
 
 async function doRequest<T>(
@@ -213,13 +225,23 @@ async function doRequest<T>(
 }
 
 async function refreshSession() {
-  return executeSessionRefresh({
+  const result = await executeSessionRefresh({
     request: (init) =>
       doRequest<RefreshSessionData>('POST', AUTH_REFRESH_PATH, {
         params: { header: {} },
         ...init,
       }),
+    shouldTreatAsUnauthorized(result, status) {
+      return (
+        status === 401 ||
+        (status === 403 && isCSRFErrorPayload(result.error ?? result.data))
+      );
+    },
   });
+  if (result.kind === 'unauthorized' && result.status === 403) {
+    return { kind: 'unauthorized', status: 401 } as const;
+  }
+  return result;
 }
 
 const adminSessionTransport = {

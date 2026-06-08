@@ -174,7 +174,7 @@ describe('admin shared client reauthentication', () => {
               code: 'A0010205',
             },
           },
-          status: 412,
+          status: 428,
         },
       })
       .mockResolvedValueOnce({
@@ -208,7 +208,7 @@ describe('admin shared client reauthentication', () => {
         url: '/api/v1/auth/step-up',
       }),
     );
-    expect(result.response.status).toBe(412);
+    expect(result.response.status).toBe(428);
 
     replaceSpy.mockRestore();
   });
@@ -299,7 +299,7 @@ describe('admin shared client reauthentication', () => {
     expect(result.response.status).toBe(200);
   });
 
-  it('sends the browser CSRF header on refresh and keeps CSRF failures recoverable', async () => {
+  it('sends the browser CSRF header on refresh and treats CSRF failures as reauthentication', async () => {
     const csrfError = {
       error: {
         code: 'A0010202',
@@ -313,13 +313,25 @@ describe('admin shared client reauthentication', () => {
           error?: unknown;
           response: { status?: number };
         }>;
+        shouldTreatAsUnauthorized: (
+          result: {
+            error?: unknown;
+            response: { status?: number };
+          },
+          status: number | undefined,
+        ) => boolean;
       }) => {
         const result = await options.request();
-        return {
-          kind: 'error',
-          error: result.error,
-          status: result.response.status,
-        };
+        return options.shouldTreatAsUnauthorized(result, result.response.status)
+          ? {
+              kind: 'unauthorized',
+              status: result.response.status,
+            }
+          : {
+              kind: 'error',
+              error: result.error,
+              status: result.response.status,
+            };
       },
     );
     mocks.request.mockRejectedValueOnce({
@@ -332,9 +344,8 @@ describe('admin shared client reauthentication', () => {
     await import('./shared-client');
 
     await expect(mocks.capturedTransport.refresh()).resolves.toEqual({
-      kind: 'error',
-      error: csrfError,
-      status: 403,
+      kind: 'unauthorized',
+      status: 401,
     });
     expect(mocks.request).toHaveBeenCalledWith(
       expect.objectContaining({

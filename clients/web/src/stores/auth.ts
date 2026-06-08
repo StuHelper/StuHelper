@@ -569,8 +569,8 @@ export const useAuthStore = defineStore("auth", () => {
                 if (
                     isApiError(err) &&
                     !isNetworkError(err.code) &&
-                    !isCsrfError(err.code) &&
-                    (err.status === 401 ||
+                    (isCsrfError(err.code) ||
+                        err.status === 401 ||
                         err.status === 403 ||
                         isAuthError(err.code))
                 ) {
