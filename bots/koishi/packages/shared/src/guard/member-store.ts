@@ -98,6 +98,13 @@ export class GuardMemberStore {
     return record as GuardMemberRecord | undefined
   }
 
+  async findByAdmissionSessionID(sessionID: string) {
+    const [record] = await this.ctx.database.get(GUARD_MEMBER_TABLE, {
+      admissionSessionID: sessionID,
+    })
+    return record as GuardMemberRecord | undefined
+  }
+
   async getActiveByID(id: string) {
     const [record] = await this.ctx.database.get(GUARD_MEMBER_TABLE, {
       id,

@@ -3,7 +3,7 @@ type: guide
 audience: backend-dev, ops
 status: current
 authoritative-source: bots/koishi/ + server/api/openapi.yaml
-last-verified: 2026-05-25
+last-verified: 2026-06-09
 ---
 
 # Koishi 机器人开发
@@ -21,7 +21,7 @@ last-verified: 2026-05-25
 | `packages/shared` | 平台 API 客户端、共享配置与基础类型 |
 | `packages/moderation-core` | 群管领域模型、SQLite 表、规则引擎、动作服务；内部统一使用 `guildId`、`memberId` 等平台无关命名 |
 | `plugins/stuhelper-core` | 当前入口插件，承载完整群管中心页面、控制台 API 与 WebSocket 交互 |
-| `plugins/stuhelper-binding` | 私聊 `绑定 <code>` 命令，消费平台绑定码 |
+| `plugins/stuhelper-binding` | 私聊绑定命令，消费平台绑定码；命令字和提示文案由 WebUI runtime settings 控制 |
 | `plugins/stuhelper-group-guard` | 入群准入、关键词/复读处理、撤回留痕、举报、骰子和抽禁言；待认证成员记录会绑定 `platform + botSelfId`，扫描时按原 bot 路由动作 |
 | `plugins/stuhelper-admin` | 提供 `群审状态`、`群审警告`、`群审复核`、`群审禁言`、`群审踢人申请`、`群审拉黑申请` 等文本管理员命令 |
 
@@ -64,6 +64,9 @@ corepack yarn workspaces list
 - Docker Compose 部署 Koishi 时，`koishi` service 必须通过 `env_file` 或等价机制注入 `STUHELPER_PLATFORM_BASE_URL`、`STUHELPER_PLATFORM_SERVICE_TOKEN`、`STUHELPER_FRESHMAN_MATERIAL_HOSTS` 和 `STUHELPER_CONSOLE_ADMIN_PASSWORD`
 - 本地 SQLite 默认位于 `bots/koishi/data/koishi.db`
 - 群管中心 JSON 数据默认位于 Koishi baseDir 下的 `data/stuhelperGroupCenter`；`STUHELPER_GROUP_CENTER_DATA_DIR` 可选覆盖该目录，`test:ui` 会自动指向临时目录以隔离 smoke 数据
+- `stuhelper-binding` 的 Koishi 原生配置只保留 `platform.baseUrl` 与 `platform.serviceToken`。绑定命令字和绑定流程提示保存到 SQLite 表 `stuhelper_binding_runtime_settings`，在 StuHelper 群管中心“全局设置 / QQ 绑定”页面编辑。
+- 入群认证 Action Stream、兜底扫描、公开命令、管理员命令、消息风控、新生材料转发、群内提醒和私聊/临时会话提醒保存到 SQLite 表 `stuhelper_admission_runtime_settings`，在 StuHelper 群管中心“入群认证”页面编辑；认证提醒至少保留一个投递渠道。
+- 骰子默认面数和抽禁言基础秒数、上限、保底阈值、保底秒数保存到 SQLite 表 `stuhelper_group_guard_behavior_settings`，在 StuHelper 群管中心“全局设置”页面编辑；`stuhelper-group-guard` 原生配置不再包含 `fun` 字段，运行时公开命令会即时读取该表。
 
 ### StuHelper 群管中心配置
 
@@ -116,7 +119,7 @@ Koishi 当前依赖的 StuHelper 后端机器人接口包括：
 - 当前后端机器人接口仍然是 QQ 专属契约，因此 `packages/shared/src/platform` 依旧保留 `qq-binding`、`qq-users` 命名。
 - 这种 QQ 语义不会继续向群管核心域扩散；`packages/moderation-core` 与 `plugins/stuhelper-group-guard` 内部已经收敛为平台无关成员语义。
 - admission 后端 `platform` 字段表示被验证账号的 subject platform，当前只有 `qq`。生产 NapCat / OneBot 的 Koishi runtime platform 可能是 `onebot`，插件会把它映射为 `qq` 后调用 admission API；禁言、踢人和发消息仍使用当前 runtime bot，不切换适配器。
-- 当前 admission MVP 可在生产显式设置 `commands.enabled=false`、`moderation.enabled=false`、`freshmanForward.enabled=false`，避免新插件抢旧群管命令、接管消息风控或触发原始材料转发扫描。`actionStream.enabled`、`scheduler.fallbackScanEnabled`、`commands.enabled`、`admissionCommands.enabled`、`moderation.enabled` 和 `freshmanForward.enabled` 会由群管中心 WebUI 的“入群认证”页面保存到 `stuhelper_admission_runtime_settings`，其中 action stream、兜底扫描、消息风控和材料转发可运行时切换。`platform.baseUrl`、`platform.serviceToken`、扫描间隔、重连间隔和 admission 管理命令权限仍是启动/安全配置，只在 WebUI 脱敏或汇总展示。旧 `student-query` 插件不应因为 admission 上线被整体关闭；如它也监听同一批 admission 群的同一阶段入群验证，应调整旧插件自己的目标群或功能范围。
+- 当前 admission MVP 的 Action Stream、兜底扫描、公开命令、入群认证管理员命令、消息风控、新生材料转发和提醒投递渠道都由群管中心 WebUI 的“入群认证”页面保存到 `stuhelper_admission_runtime_settings`，可运行时切换；不要在 `koishi.yml` 中再配置 `scheduler.fallbackScanEnabled`、`actionStream.enabled`、`moderation.enabled`、`commands.enabled`、`admissionCommands.enabled` 或 `freshmanForward.enabled`。`platform.baseUrl`、`platform.serviceToken`、扫描间隔、重连间隔和 admission 管理命令权限仍是启动/安全配置，只在 WebUI 脱敏或汇总展示。旧 `student-query` 插件不应因为 admission 上线被整体关闭；如它也监听同一批 admission 群的同一阶段入群验证，应调整旧插件自己的目标群或功能范围。
 
 ## 测试策略
 

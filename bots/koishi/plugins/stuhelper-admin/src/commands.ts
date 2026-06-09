@@ -1,9 +1,13 @@
 import type { Context, Session } from 'koishi'
 
 import {
+  type AdmissionRuntimeSettingsStore,
+  type AdminRuntimeSettingsStore,
   type GuardMemberAdminRecord,
   type GuardMemberAdminStore,
   type PlatformClient,
+  renderMessageTemplate,
+  resolveAdminMessages,
 } from '@stuhelper/koishi-shared'
 import {
   COMMAND_POLICY_IDS,
@@ -21,7 +25,11 @@ interface AdminCommandDeps {
   guardMembers: GuardMemberAdminStore
   moderationStore: ModerationStore
   platform: PlatformClient
+  runtimeSettings?: AdmissionRuntimeSettingsStore
+  adminSettings?: AdminRuntimeSettingsStore
 }
+
+type AdminMessages = ReturnType<typeof resolveAdminMessages>
 
 export function registerAdminCommands(ctx: Context, deps: AdminCommandDeps) {
   registerStatusCommand(ctx, deps)
@@ -34,83 +42,99 @@ export function registerAdminCommands(ctx: Context, deps: AdminCommandDeps) {
 }
 
 function registerStatusCommand(ctx: Context, deps: AdminCommandDeps) {
-  ctx.command('群审状态 [guildId:text]', '查看当前群待认证成员', { authority: 3 })
+  ctx.command('群审状态 [guildId:text]', adminCommandDescription('guardStatusCommandDescription'), { authority: 3 })
     .action(async ({ session }, guildId) => {
+      const messages = await getAdminMessages(deps)
       const targetGuildId = resolveGuildId(session, guildId)
       const denial = await ensureAdminCommandAccess({
         store: deps.moderationStore,
         session,
         commandId: COMMAND_POLICY_IDS.guardStatus,
         targetGuildId,
+        runtimeSettings: deps.runtimeSettings,
+        messages,
       })
       if (denial) {
         return denial
       }
-      return formatPendingMembers(await deps.guardMembers.listActiveByGuild({ guildId: targetGuildId }))
+      return formatPendingMembers(await deps.guardMembers.listActiveByGuild({ guildId: targetGuildId }), messages)
     })
 }
 
 function registerWarningCommand(ctx: Context, deps: AdminCommandDeps) {
-  ctx.command('群审警告 <memberId:text> [guildId:text]', '查看成员当前警告次数', { authority: 3 })
+  ctx.command('群审警告 <memberId:text> [guildId:text]', adminCommandDescription('guardWarningCommandDescription'), { authority: 3 })
     .action(async ({ session }, memberId, guildId) => {
+      const messages = await getAdminMessages(deps)
       const targetGuildId = resolveGuildId(session, guildId)
       const denial = await ensureAdminCommandAccess({
         store: deps.moderationStore,
         session,
         commandId: COMMAND_POLICY_IDS.guardWarnings,
         targetGuildId,
+        runtimeSettings: deps.runtimeSettings,
+        messages,
       })
       if (denial) {
         return denial
       }
       if (!targetGuildId || !memberId?.trim()) {
-        return '请在群聊中执行，或显式传入群号和成员 ID。'
+        return adminMessage(messages, 'guardWarningMissingContext')
       }
-      return formatWarningCounter(await deps.moderationStore.getWarningCounter(targetGuildId, memberId.trim()), memberId.trim())
+      return formatWarningCounter(
+        await deps.moderationStore.getWarningCounter(targetGuildId, memberId.trim()),
+        memberId.trim(),
+        messages,
+      )
     })
 }
 
 function registerReviewListCommand(ctx: Context, deps: AdminCommandDeps) {
-  ctx.command('群审复核 [guildId:text]', '查看当前群待复核队列', { authority: 3 })
+  ctx.command('群审复核 [guildId:text]', adminCommandDescription('guardReviewListCommandDescription'), { authority: 3 })
     .action(async ({ session }, guildId) => {
+      const messages = await getAdminMessages(deps)
       const targetGuildId = resolveGuildId(session, guildId)
       const denial = await ensureAdminCommandAccess({
         store: deps.moderationStore,
         session,
         commandId: COMMAND_POLICY_IDS.guardReviews,
         targetGuildId,
+        runtimeSettings: deps.runtimeSettings,
+        messages,
       })
       if (denial) {
         return denial
       }
-      return formatPendingReviews(await deps.moderationStore.listPendingReviews(targetGuildId))
+      return formatPendingReviews(await deps.moderationStore.listPendingReviews(targetGuildId), messages)
     })
 }
 
 function registerBatchMuteCommand(ctx: Context, deps: AdminCommandDeps) {
-  ctx.command('群审禁言 <payload:text>', '批量禁言待认证成员', { authority: 3 })
+  ctx.command('群审禁言 <payload:text>', adminCommandDescription('guardBatchMuteCommandDescription'), { authority: 3 })
     .action(async ({ session }, payload) => {
+      const messages = await getAdminMessages(deps)
       const denial = await ensureAdminCommandAccess({
         store: deps.moderationStore,
         session,
         commandId: COMMAND_POLICY_IDS.guardMute,
+        runtimeSettings: deps.runtimeSettings,
+        messages,
       })
       if (denial) {
         return denial
       }
       if (!session?.guildId || !session.channelId) {
-        return '请在目标群聊中执行批量禁言。'
+        return adminMessage(messages, 'guardBatchMuteGroupOnly')
       }
       const parsed = parseBatchMutePayload(payload)
       if (!parsed) {
-        return '请提供禁言秒数和成员 ID 列表，例如：群审批量禁言 120 10001,10002'
+        return adminMessage(messages, 'guardBatchMuteInvalidPayload')
       }
       const targets = await deps.guardMembers.listActiveByGuild({
         guildId: session.guildId,
         memberIds: parsed.memberIds,
       })
       if (!targets.length) {
-        return '没有找到可操作的待认证成员。'
+        return adminMessage(messages, 'guardBatchMuteNoTargets')
       }
       for (const target of targets) {
         const mutedAt = new Date()
@@ -123,22 +147,28 @@ function registerBatchMuteCommand(ctx: Context, deps: AdminCommandDeps) {
           memberId: target.memberId,
           type: 'action_executed',
           level: 'high',
-          summary: `管理员批量禁言了 ${target.memberId}`,
-          payload: { seconds: parsed.seconds, reason: '管理员批量禁言' },
+          summary: adminMessage(messages, 'guardBatchMuteEventSummary', { memberId: target.memberId }),
+          payload: {
+            seconds: parsed.seconds,
+            reason: adminMessage(messages, 'guardBatchMuteEventReason'),
+          },
         })
         await deps.guardMembers.tryMarkActiveMuted({ record: target, mutedAt })
       }
-      return `已批量禁言 ${targets.length} 名成员。`
+      return adminMessage(messages, 'guardBatchMuteSuccess', { count: targets.length })
     })
 }
 
 function registerKickReviewCommand(ctx: Context, deps: AdminCommandDeps) {
-  ctx.command('群审踢人申请 <memberId> <reason:text>', '提交踢人复核申请', { authority: 4 })
+  ctx.command('群审踢人申请 <memberId> <reason:text>', adminCommandDescription('guardKickReviewCommandDescription'), { authority: 4 })
     .action(async ({ session }, memberId, reason) => {
+      const messages = await getAdminMessages(deps)
       const denial = await ensureAdminCommandAccess({
         store: deps.moderationStore,
         session,
         commandId: COMMAND_POLICY_IDS.guardKickRequest,
+        runtimeSettings: deps.runtimeSettings,
+        messages,
       })
       if (denial) {
         return denial
@@ -149,18 +179,22 @@ function registerKickReviewCommand(ctx: Context, deps: AdminCommandDeps) {
         memberId,
         reason,
         actionType: 'kick',
-        actionLabel: '踢人',
+        actionLabel: adminMessage(messages, 'guardReviewKickActionLabel'),
+        messages,
       })
     })
 }
 
 function registerBlockReviewCommand(ctx: Context, deps: AdminCommandDeps) {
-  ctx.command('群审拉黑申请 <memberId> <reason:text>', '提交踢人并拉黑复核申请', { authority: 4 })
+  ctx.command('群审拉黑申请 <memberId> <reason:text>', adminCommandDescription('guardBlockReviewCommandDescription'), { authority: 4 })
     .action(async ({ session }, memberId, reason) => {
+      const messages = await getAdminMessages(deps)
       const denial = await ensureAdminCommandAccess({
         store: deps.moderationStore,
         session,
         commandId: COMMAND_POLICY_IDS.guardBlockRequest,
+        runtimeSettings: deps.runtimeSettings,
+        messages,
       })
       if (denial) {
         return denial
@@ -171,7 +205,8 @@ function registerBlockReviewCommand(ctx: Context, deps: AdminCommandDeps) {
         memberId,
         reason,
         actionType: 'kick_and_block',
-        actionLabel: '踢人并拉黑',
+        actionLabel: adminMessage(messages, 'guardReviewKickAndBlockActionLabel'),
+        messages,
       })
     })
 }
@@ -183,10 +218,11 @@ async function createReviewRequest(input: {
   readonly reason: string | undefined
   readonly actionType: ReviewActionType
   readonly actionLabel: string
+  readonly messages: AdminMessages
 }) {
   const { store, session, memberId, reason, actionType, actionLabel } = input
   if (!session?.guildId || !session.channelId || !memberId?.trim() || !reason?.trim()) {
-    return '请在群聊中提供成员 ID 和原因。'
+    return adminMessage(input.messages, 'guardReviewRequestMissingArgs')
   }
   await store.createReview({
     platform: session.platform,
@@ -209,39 +245,64 @@ async function createReviewRequest(input: {
     memberId: memberId.trim(),
     type: 'review_created',
     level: 'high',
-    summary: `${session.userId} 提交了${actionLabel}复核申请`,
+    summary: adminMessage(input.messages, 'guardReviewRequestEventSummary', {
+      operatorMemberId: session.userId,
+      actionLabel,
+    }),
     payload: { actionType, reason: reason.trim() },
   })
-  return `已提交${actionLabel}复核申请：${memberId.trim()}，原因：${reason.trim()}`
+  return adminMessage(input.messages, 'guardReviewRequestSuccess', {
+    actionLabel,
+    memberId: memberId.trim(),
+    reason: reason.trim(),
+  })
 }
 
-function formatPendingMembers(records: GuardMemberAdminRecord[]) {
+function formatPendingMembers(
+  records: GuardMemberAdminRecord[],
+  messages: AdminMessages,
+) {
   if (!records.length) {
-    return '当前没有待认证成员。'
+    return adminMessage(messages, 'guardPendingMembersEmpty')
   }
-  const lines = records.map((record) => `${record.memberId} 截止 ${record.deadlineAt.toISOString()}`)
-  return `待认证成员：\n${lines.join('\n')}`
+  const lines = records.map((record) => adminMessage(messages, 'guardPendingMemberLine', {
+    memberId: record.memberId,
+    deadlineAt: record.deadlineAt.toISOString(),
+  }))
+  return [adminMessage(messages, 'guardPendingMembersHeader'), ...lines].join('\n')
 }
 
 function formatWarningCounter(
   counter: Awaited<ReturnType<ModerationStore['getWarningCounter']>>,
   memberId: string,
+  messages: AdminMessages,
 ) {
   if (!counter) {
-    return `${memberId} 当前没有警告记录。`
+    return adminMessage(messages, 'guardWarningCounterEmpty', { memberId })
   }
-  const lastReason = counter.lastReason || '无'
-  return `${memberId} 当前累计警告 ${counter.total} 次，最近原因：${lastReason}`
+  const lastReason = counter.lastReason || adminMessage(messages, 'guardWarningCounterNoReason')
+  return adminMessage(messages, 'guardWarningCounterSummary', {
+    memberId,
+    total: counter.total,
+    lastReason,
+  })
 }
 
-function formatPendingReviews(reviews: Awaited<ReturnType<ModerationStore['listPendingReviews']>>) {
+function formatPendingReviews(
+  reviews: Awaited<ReturnType<ModerationStore['listPendingReviews']>>,
+  messages: AdminMessages,
+) {
   if (!reviews.length) {
-    return '当前没有待复核事项。'
+    return adminMessage(messages, 'guardPendingReviewsEmpty')
   }
   const lines = reviews
     .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
-    .map((review) => `${review.memberId} [${review.actionType}] ${review.reason}`)
-  return `待复核队列：\n${lines.join('\n')}`
+    .map((review) => adminMessage(messages, 'guardPendingReviewLine', {
+      memberId: review.memberId,
+      actionType: review.actionType,
+      reason: review.reason,
+    }))
+  return [adminMessage(messages, 'guardPendingReviewsHeader'), ...lines].join('\n')
 }
 
 function parseMemberIds(input: string | undefined) {
@@ -266,4 +327,20 @@ function parseBatchMutePayload(payload: string | undefined) {
     return null
   }
   return { seconds, memberIds }
+}
+
+function adminMessage(
+  messages: AdminMessages,
+  key: keyof ReturnType<typeof resolveAdminMessages>,
+  variables: Record<string, unknown> = {},
+) {
+  return renderMessageTemplate(messages[key], variables)
+}
+
+function adminCommandDescription(key: keyof ReturnType<typeof resolveAdminMessages>) {
+  return adminMessage(resolveAdminMessages(), key)
+}
+
+async function getAdminMessages(deps: AdminCommandDeps): Promise<AdminMessages> {
+  return deps.adminSettings?.getMessages() ?? resolveAdminMessages()
 }

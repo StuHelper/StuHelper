@@ -57,7 +57,7 @@ test('admission action stream can be opened and closed by runtime setting withou
   controller.close()
 })
 
-test('admission action stream respects static disabled default without runtime override', async () => {
+test('admission action stream stays closed when runtime setting is disabled', async () => {
   const opened: unknown[] = []
   const controller = registerAdmissionActionStreams(fakeContext(), {
     platform: {
@@ -71,9 +71,9 @@ test('admission action stream respects static disabled default without runtime o
     memberGuard: {} as MemberGuardService,
     logger: fakeLogger(),
     config: {
-      enabled: false,
       reconnectDelaySeconds: 1,
     },
+    isEnabled: () => false,
   })
 
   await controller.refresh()

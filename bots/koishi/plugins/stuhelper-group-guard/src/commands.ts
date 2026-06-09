@@ -7,25 +7,34 @@ import {
 } from '@stuhelper/koishi-moderation-core'
 import type {
   AdmissionRuntimeSettingsStore,
-  StuhelperGroupGuardPluginConfig,
+  GroupGuardBehaviorSettingsStore,
+  GroupGuardFunSettings,
 } from '@stuhelper/koishi-shared'
 import {
+  DEFAULT_GROUP_GUARD_FUN_SETTINGS,
   renderMessageTemplate,
   resolveGroupGuardMessages,
 } from '@stuhelper/koishi-shared'
 
 import type { ReportService } from './report-service'
+import {
+  getGroupGuardMessages,
+  groupGuardMessage,
+  type GroupGuardMessageProvider,
+  type GroupGuardMessages,
+} from './group-guard-message-provider'
 
 interface CommandDeps {
   store: ModerationStore
   reportService: ReportService
-  config: StuhelperGroupGuardPluginConfig
   runtimeSettings?: AdmissionRuntimeSettingsStore
+  behaviorSettings?: GroupGuardBehaviorSettingsStore
+  messageProvider?: GroupGuardMessageProvider
 }
 
 export function registerPublicCommands(ctx: Context, deps: CommandDeps) {
-  const messages = resolveGroupGuardMessages(deps.config.messages)
-  ctx.command('举报 <targetMemberId> <reason:text>', '举报群成员并触发审核')
+  const messages = resolveGroupGuardMessages()
+  ctx.command('举报 <targetMemberId> <reason:text>', renderMessageTemplate(messages.publicReportCommandDescription))
     .action(async ({ session }, targetMemberId, reason) => {
       if (!session) {
         throw new Error('report command requires session')
@@ -37,12 +46,15 @@ export function registerPublicCommands(ctx: Context, deps: CommandDeps) {
         return denial
       }
       if (!targetMemberId?.trim() || !reason?.trim()) {
-        return renderMessageTemplate(messages.publicReportMissingArgs)
+        return groupGuardMessage(
+          await getGroupGuardMessages(deps.messageProvider),
+          'publicReportMissingArgs',
+        )
       }
       return deps.reportService.handleReport(session, targetMemberId.trim(), reason.trim())
     })
 
-  ctx.command('骰子 [sides:natural]', '投掷骰子')
+  ctx.command('骰子 [sides:natural]', renderMessageTemplate(messages.diceCommandDescription))
     .action(async ({ session }, sides) => {
       const disabled = await ensurePublicCommandsEnabled(deps)
       if (disabled) return disabled
@@ -50,12 +62,18 @@ export function registerPublicCommands(ctx: Context, deps: CommandDeps) {
       if (denial) {
         return denial
       }
-      const resolvedSides = clampSides(sides || deps.config.fun.diceSides)
+      const fun = await getFunSettings(deps)
+      const resolvedSides = clampSides(sides || fun.diceSides)
       const result = randomInt(1, resolvedSides)
-      return buildDiceMessage(session, resolvedSides, result, deps.config)
+      return buildDiceMessage(
+        session,
+        resolvedSides,
+        result,
+        await getGroupGuardMessages(deps.messageProvider),
+      )
     })
 
-  ctx.command('抽禁言', '随机抽取自己的禁言时长，带保底机制')
+  ctx.command('抽禁言', renderMessageTemplate(messages.muteLotteryCommandDescription))
     .action(async ({ session }) => {
       if (!session) {
         throw new Error('mute lottery command requires session')
@@ -76,25 +94,30 @@ export function registerPublicCommands(ctx: Context, deps: CommandDeps) {
 
 async function ensurePublicCommandsEnabled(deps: CommandDeps) {
   if (deps.runtimeSettings && !await deps.runtimeSettings.isPublicCommandsEnabled()) {
-    return renderMessageTemplate(resolveGroupGuardMessages(deps.config.messages).publicCommandsDisabled)
+    return groupGuardMessage(
+      await getGroupGuardMessages(deps.messageProvider),
+      'publicCommandsDisabled',
+    )
   }
 }
 
 async function handleMuteLottery(session: Session, deps: CommandDeps) {
+  const messages = await getGroupGuardMessages(deps.messageProvider)
   const guildId = session.guildId
   const channelId = session.channelId
   if (!guildId || !channelId) {
-    return renderMessageTemplate(resolveGroupGuardMessages(deps.config.messages).muteLotteryGroupOnly)
+    return groupGuardMessage(messages, 'muteLotteryGroupOnly')
   }
 
   const profile = await deps.store.getFunProfile(session.userId)
+  const fun = await getFunSettings(deps)
   const now = new Date()
   const drawCount = (profile?.muteDrawCount || 0) + 1
-  const guaranteed = drawCount >= deps.config.fun.muteLotteryPityThreshold
+  const guaranteed = drawCount >= fun.muteLotteryPityThreshold
   const rolled = guaranteed
-    ? deps.config.fun.muteLotteryPitySeconds
-    : randomInt(1, deps.config.fun.muteLotteryBaseSeconds)
-  const seconds = Math.min(rolled, deps.config.fun.muteLotteryMaxSeconds)
+    ? fun.muteLotteryPitySeconds
+    : randomInt(1, fun.muteLotteryBaseSeconds)
+  const seconds = Math.min(rolled, fun.muteLotteryMaxSeconds)
 
   await deps.store.saveFunProfile({
     memberId: session.userId,
@@ -113,10 +136,11 @@ async function handleMuteLottery(session: Session, deps: CommandDeps) {
     memberId: session.userId,
     type: 'action_executed',
     level: guaranteed ? 'high' : 'low',
-    summary: `${session.userId} 触发抽禁言`,
+    summary: groupGuardMessage(messages, 'moderationMuteLotteryEventSummary', {
+      memberId: session.userId,
+    }),
     payload: { seconds, guaranteed },
   })
-  const messages = resolveGroupGuardMessages(deps.config.messages)
   return renderMessageTemplate(guaranteed ? messages.muteLotteryPityResult : messages.muteLotteryResult, {
     memberId: session.userId,
     seconds,
@@ -131,14 +155,20 @@ function buildDiceMessage(
   session: Session | undefined,
   sides: number,
   result: number,
-  config: StuhelperGroupGuardPluginConfig,
+  messages: GroupGuardMessages,
 ) {
   const memberId = session?.userId || 'unknown'
-  return renderMessageTemplate(resolveGroupGuardMessages(config.messages).diceResult, { memberId, sides, result })
+  return groupGuardMessage(messages, 'diceResult', { memberId, sides, result })
 }
 
 function randomInt(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min
+}
+
+async function getFunSettings(deps: CommandDeps): Promise<GroupGuardFunSettings> {
+  return deps.behaviorSettings
+    ? deps.behaviorSettings.getFunSettings()
+    : DEFAULT_GROUP_GUARD_FUN_SETTINGS
 }
 
 async function ensureCommandAccess(deps: CommandDeps, session: Session | undefined, commandId: string) {
@@ -158,7 +188,10 @@ async function ensureCommandAccess(deps: CommandDeps, session: Session | undefin
   if (allowed) {
     return
   }
-  return renderMessageTemplate(resolveGroupGuardMessages(deps.config.messages).commandAccessDenied)
+  return groupGuardMessage(
+    await getGroupGuardMessages(deps.messageProvider),
+    'commandAccessDenied',
+  )
 }
 
 function resolveAuthority(session: Session | undefined) {

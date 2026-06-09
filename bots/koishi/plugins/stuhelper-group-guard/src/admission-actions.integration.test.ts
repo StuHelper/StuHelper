@@ -32,7 +32,7 @@ test('未认证成员入群后会被禁言并收到提醒，认证完成后自�
     if (respondPendingActions(req, res, () => pendingActions)) return
     if (respondAdmissionEvent({ req, res, events: admissionEvents, afterEvent: () => { pendingActions = [] } })) return
     if (respondFreshmanForwards(req, res)) return
-    if (respondAdmissionPolicyTargets(req, res)) return
+    if (respondAdmissionPolicyTargets(req, res, [admissionPolicyTarget('group-1')])) return
     assert.fail(`unexpected platform request: ${req.method} ${req.url}`)
   })
 
@@ -48,7 +48,7 @@ test('未认证成员入群后会被禁言并收到提醒，认证完成后自�
 
   runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
   runtime.register(MockBot, { selfId: '514' })
-  runtime.register(groupGuardPlugin, groupGuardConfig(address.port, ['group-1'], '请先完成认证。'))
+  runtime.register(groupGuardPlugin, groupGuardConfig(address.port))
 
   try {
     await root.start()
@@ -105,7 +105,7 @@ test('重复入群事件只创建一个认证链接', async () => {
     if (respondPendingActions(req, res, [])) return
     if (respondAdmissionEvent({ req, res, events: admissionEvents })) return
     if (respondFreshmanForwards(req, res)) return
-    if (respondAdmissionPolicyTargets(req, res)) return
+    if (respondAdmissionPolicyTargets(req, res, [admissionPolicyTarget('group-dup')])) return
     assert.fail(`unexpected platform request: ${req.method} ${req.url}`)
   })
 
@@ -121,7 +121,7 @@ test('重复入群事件只创建一个认证链接', async () => {
 
   runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
   runtime.register(MockBot, { selfId: '514' })
-  runtime.register(groupGuardPlugin, groupGuardConfig(address.port, ['group-dup'], '请先完成认证。'))
+  runtime.register(groupGuardPlugin, groupGuardConfig(address.port))
 
   try {
     await root.start()
@@ -167,7 +167,7 @@ test('超时未认证成员会被自动踢出', async () => {
     if (respondPendingActions(req, res, () => pendingActions)) return
     if (respondAdmissionEvent({ req, res, events: admissionEvents, afterEvent: () => { pendingActions = [] } })) return
     if (respondFreshmanForwards(req, res)) return
-    if (respondAdmissionPolicyTargets(req, res)) return
+    if (respondAdmissionPolicyTargets(req, res, [admissionPolicyTarget('group-2')])) return
     assert.fail(`unexpected platform request: ${req.method} ${req.url}`)
   })
 
@@ -182,7 +182,7 @@ test('超时未认证成员会被自动踢出', async () => {
 
   runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
   runtime.register(MockBot, { selfId: '514' })
-  runtime.register(groupGuardPlugin, groupGuardConfig(address.port, ['group-2'], '请先完成认证。'))
+  runtime.register(groupGuardPlugin, groupGuardConfig(address.port))
 
   try {
     await root.start()
@@ -225,7 +225,7 @@ test('扫描待认证成员时会路由到记录绑定的 bot 实例', async () 
     })) return
     if (respondAdmissionEvent({ req, res, events: admissionEvents, afterEvent: () => { releaseEnabled = false } })) return
     if (respondFreshmanForwards(req, res)) return
-    if (respondAdmissionPolicyTargets(req, res)) return
+    if (respondAdmissionPolicyTargets(req, res, [admissionPolicyTarget('group-3')])) return
     assert.fail(`unexpected platform request: ${req.method} ${req.url}`)
   })
 
@@ -242,7 +242,7 @@ test('扫描待认证成员时会路由到记录绑定的 bot 实例', async () 
   runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
   runtime.register(MockBot, { selfId: '514' })
   runtime.register(MockBot, { selfId: '515' })
-  runtime.register(groupGuardPlugin, groupGuardConfig(address.port, ['group-3'], '请先完成认证。'))
+  runtime.register(groupGuardPlugin, groupGuardConfig(address.port))
 
   try {
     await root.start()
@@ -295,18 +295,20 @@ test('扫描待认证成员时会路由到记录绑定的 bot 实例', async () 
 
 type ReceiveEvent = (event: Partial<Universal.Event>) => void
 
-function groupGuardConfig(port: number, targetGroups: string[], reminderTemplate: string) {
+function groupGuardConfig(port: number) {
   return {
     platform: { baseUrl: `http://127.0.0.1:${port}`, serviceToken: 'test-token' },
-    guard: {
-      targetGroups,
-      muteDurationSeconds: 600,
-      kickAfterMinutes: 30,
-      reminderTemplate,
-      exemptUsers: [],
-    },
     scheduler: { scanIntervalSeconds: 1 },
-    freshmanForward: { enabled: false },
+  }
+}
+
+function admissionPolicyTarget(guildID: string) {
+  return {
+    policyID: `policy-${guildID}`,
+    platform: 'qq',
+    guildID,
+    guardEnabled: true,
+    joinHandlingStrategy: 'post_join_guard',
   }
 }
 

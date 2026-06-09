@@ -6,7 +6,6 @@ export const MAX_TEMPLATE_ID_LENGTH = 64
 export const MAX_TEMPLATE_NAME_LENGTH = 128
 export const MAX_REMINDER_TEMPLATE_LENGTH = 2000
 export const MAX_EXEMPT_USER_COUNT = 500
-export const MAX_NOTE_LENGTH = 512
 export const MAX_MUTE_DURATION_SECONDS = 30 * 24 * 3600
 export const MAX_KICK_AFTER_MINUTES = 30 * 24 * 60
 export const MAX_MIN_AUTHORITY = 5
@@ -18,14 +17,6 @@ export interface TemplateFormState {
   kickAfterMinutes: number
   reminderTemplate: string
   exemptUsersText: string
-  enabled: boolean
-}
-
-export interface BindingFormState {
-  platform: string
-  guildId: string
-  templateId: string
-  note: string
   enabled: boolean
 }
 
@@ -43,16 +34,6 @@ export function createTemplateForm(): TemplateFormState {
     kickAfterMinutes: 30,
     reminderTemplate: '',
     exemptUsersText: '',
-    enabled: true,
-  }
-}
-
-export function createBindingForm(): BindingFormState {
-  return {
-    platform: 'qq',
-    guildId: '',
-    templateId: '',
-    note: '',
     enabled: true,
   }
 }
@@ -75,14 +56,6 @@ export function assignTemplateFormState(state: TemplateFormState, source: Templa
   state.enabled = source.enabled
 }
 
-export function assignBindingFormState(state: BindingFormState, source: BindingFormState) {
-  state.platform = source.platform
-  state.guildId = source.guildId
-  state.templateId = source.templateId
-  state.note = source.note
-  state.enabled = source.enabled
-}
-
 export function assignPolicyFormState(state: PolicyFormState, source: PolicyFormState) {
   state.commandId = source.commandId
   state.minAuthority = source.minAuthority
@@ -99,17 +72,6 @@ export function assignTemplateForm(
   state.kickAfterMinutes = item.kickAfterMinutes
   state.reminderTemplate = item.reminderTemplate
   state.exemptUsersText = item.exemptUsers.join(', ')
-  state.enabled = item.enabled
-}
-
-export function assignBindingForm(
-  state: BindingFormState,
-  item: ConfigGovernancePageData['bindings'][number],
-) {
-  state.platform = item.platform
-  state.guildId = item.guildId
-  state.templateId = item.templateId
-  state.note = item.note || ''
   state.enabled = item.enabled
 }
 
@@ -156,25 +118,6 @@ export function validateTemplateForm(state: TemplateFormState): string {
   const tooLongExemptUser = exemptUsers.find((item) => item.length > MAX_ROLE_ID_LENGTH)
   if (tooLongExemptUser) {
     return `豁免成员 ${tooLongExemptUser} 不能超过 ${MAX_ROLE_ID_LENGTH} 个字符`
-  }
-  return ''
-}
-
-export function validateBindingForm(state: BindingFormState): string {
-  if (!state.platform.trim()) return '平台不能为空'
-  if (state.platform.trim().length > MAX_ROLE_ID_LENGTH) {
-    return `平台不能超过 ${MAX_ROLE_ID_LENGTH} 个字符`
-  }
-  if (!state.guildId.trim()) return '群号不能为空'
-  if (state.guildId.trim().length > MAX_ROLE_ID_LENGTH) {
-    return `群号不能超过 ${MAX_ROLE_ID_LENGTH} 个字符`
-  }
-  if (!state.templateId.trim()) return '模板不能为空'
-  if (state.templateId.trim().length > MAX_TEMPLATE_ID_LENGTH) {
-    return `模板 ID 不能超过 ${MAX_TEMPLATE_ID_LENGTH} 个字符`
-  }
-  if (state.note.trim().length > MAX_NOTE_LENGTH) {
-    return `备注不能超过 ${MAX_NOTE_LENGTH} 个字符`
   }
   return ''
 }

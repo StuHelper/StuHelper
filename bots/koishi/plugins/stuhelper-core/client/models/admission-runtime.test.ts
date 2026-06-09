@@ -11,13 +11,20 @@ test('buildAdmissionRuntimeModel exposes admission runtime metrics and switch st
 
   assert.equal(model.metrics[0].label, '目标群')
   assert.equal(model.metrics[0].value, 2)
-  assert.equal(model.metrics[0].note, '1 个静态目标群，2 个启用绑定，去重后 2 个有效目标群')
+  assert.equal(model.metrics[0].note, '2 个启用绑定，去重后 2 个有效目标群')
   assert.equal(model.metrics[1].value, 2)
   assert.equal(model.metrics[3].tone, 'danger')
   assert.equal(model.switchRows.find((row) => row.id === 'service-token')?.tone, 'success')
   assert.equal(model.switchRows.find((row) => row.id === 'action-stream')?.editable, true)
   assert.equal(model.switchRows.find((row) => row.id === 'action-stream')?.settingKey, 'actionStreamEnabled')
   assert.equal(model.switchRows.find((row) => row.id === 'fallback-scan')?.tone, 'warning')
+  assert.equal(model.switchRows.find((row) => row.id === 'admin-commands')?.settingKey, 'adminCommandsEnabled')
+  assert.equal(
+    model.switchRows.find((row) => row.id === 'admission-commands')?.note,
+    '权限由命令策略 admission-admin 控制',
+  )
+  assert.equal(model.switchRows.find((row) => row.id === 'reminder-group')?.settingKey, 'reminderGroupEnabled')
+  assert.equal(model.switchRows.find((row) => row.id === 'reminder-direct')?.settingKey, 'reminderDirectEnabled')
   assert.deepEqual(model.activeMembers.map((member) => member.memberId), ['2001', '2002'])
   assert.deepEqual(model.activeMembers[0].availableActions, ['query', 'resend'])
 })
@@ -28,13 +35,6 @@ function createAdmissionRuntimeFixture(): AdmissionRuntimePageData {
     platform: {
       baseUrl: 'https://stuhelper.com',
       serviceTokenConfigured: true,
-    },
-    guard: {
-      targetGroups: ['178037297'],
-      muteDurationSeconds: 2592000,
-      kickAfterMinutes: 60,
-      reminderTemplate: '请先认证',
-      exemptUserCount: 0,
     },
     scheduler: {
       fallbackScanEnabled: true,
@@ -47,10 +47,10 @@ function createAdmissionRuntimeFixture(): AdmissionRuntimePageData {
     commands: {
       publicCommandsRegistered: true,
       publicCommandsEnabled: false,
+      adminCommandsRegistered: true,
+      adminCommandsEnabled: true,
       admissionCommandsRegistered: true,
       admissionCommandsEnabled: true,
-      admissionCommandMinAuthority: 4,
-      admissionCommandOperatorQQIDCount: 0,
     },
     moderation: {
       enabled: false,
@@ -62,9 +62,12 @@ function createAdmissionRuntimeFixture(): AdmissionRuntimePageData {
     freshmanForward: {
       enabled: false,
     },
+    reminderDelivery: {
+      groupEnabled: true,
+      directEnabled: false,
+    },
     bots: [{ platform: 'onebot', selfId: '2118785781', status: 'online' }],
     stats: {
-      targetGroupCount: 1,
       templateCount: 1,
       bindingCount: 2,
       enabledBindingCount: 2,

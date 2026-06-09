@@ -358,12 +358,5 @@ declare module '@koishijs/client' {
       exemptUsers: string[]
       enabled: boolean
     }): Promise<string>
-    'stuhelperGroupCenter/action/save-guard-binding'(input: {
-      platform: string
-      guildId: string
-      templateId: string
-      enabled: boolean
-      note?: string | null
-    }): Promise<string>
   }
 }

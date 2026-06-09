@@ -130,6 +130,9 @@ func (s *Service) pendingActionFromQueuedRow(
 		return AdmissionPendingAction{}, true, nil
 	}
 	session := row.Session
+	if !sessionCanDispatchQueuedBotAction(&session) {
+		return AdmissionPendingAction{}, true, nil
+	}
 	seeds := pendingActionSeeds([]AdmissionSession{session}, now)
 	contexts, err := s.pendingActionContexts(ctx, []AdmissionSession{session})
 	if err != nil {
@@ -151,6 +154,18 @@ func queuedActionCanDispatch(queued BotAction, current BotAction) bool {
 		return true
 	}
 	return queued == BotActionKick && current == BotActionBlacklist
+}
+
+func sessionCanDispatchQueuedBotAction(session *AdmissionSession) bool {
+	if session == nil || session.CancelledAt != nil {
+		return false
+	}
+	switch session.Status {
+	case StatusJoinedMuted, StatusLinked, StatusMaterialSubmitted, StatusVerified:
+		return true
+	default:
+		return false
+	}
 }
 
 func resolveKickAction(session *AdmissionSession, contexts pendingActionContexts) (BotAction, error) {

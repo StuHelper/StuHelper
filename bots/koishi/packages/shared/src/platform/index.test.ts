@@ -405,15 +405,21 @@ function responseDataForPath(path: string) {
   if (path.endsWith('/join-requests/decision')) {
     return {
       decision: 'approve',
-      reason: 'unverified_auto_approve',
+      reason: 'post_join_guard_auto_approve',
       verificationState: 'unverified',
+      joinHandlingStrategy: 'post_join_guard',
       autoApproveVerifiedJoin: true,
       autoApproveUnverifiedJoin: true,
       policyID: 'policy-1',
     }
   }
   if (path.endsWith('/policies/targets')) {
-    return [{ policyID: 'policy-1', platform: 'qq', guildID: 'guild-1' }]
+    return [{
+      policyID: 'policy-1',
+      platform: 'qq',
+      guildID: 'guild-1',
+      joinHandlingStrategy: 'post_join_guard',
+    }]
   }
   if (path.endsWith('/sessions')) {
     return {

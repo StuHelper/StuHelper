@@ -37,6 +37,13 @@ const (
 	FreshmanApplicationRejected FreshmanApplicationStatus = "rejected"
 )
 
+type AdmissionJoinHandlingStrategy string
+
+const (
+	AdmissionJoinHandlingPostJoinGuard     AdmissionJoinHandlingStrategy = "post_join_guard"
+	AdmissionJoinHandlingJoinRequestReview AdmissionJoinHandlingStrategy = "join_request_review"
+)
+
 type FreshmanCameraHandoffStatus string
 
 const (
@@ -383,28 +390,30 @@ type ExpiredFreshmanCredential struct {
 }
 
 type AdmissionPolicy struct {
-	ID                         string    `json:"id"`
-	Platform                   string    `json:"platform"`
-	GuildID                    string    `json:"guildID"`
-	GuardEnabled               bool      `json:"guardEnabled"`
-	SchoolID                   int64     `json:"-"`
-	AutoApproveJoin            bool      `json:"autoApproveJoin"`
-	AutoApproveVerifiedJoin    bool      `json:"autoApproveVerifiedJoin"`
-	AutoApproveUnverifiedJoin  bool      `json:"autoApproveUnverifiedJoin"`
-	InitialMuteDurationSeconds int       `json:"initialMuteDurationSeconds"`
-	LinkWaitSeconds            int       `json:"linkWaitSeconds"`
-	SubmissionWaitSeconds      int       `json:"submissionWaitSeconds"`
-	ManualReviewTimeoutSeconds int       `json:"manualReviewTimeoutSeconds"`
-	ReminderIntervalSeconds    int       `json:"reminderIntervalSeconds"`
-	FailedJoinLimit            int       `json:"failedJoinLimit"`
-	BlacklistDurationSeconds   *int      `json:"blacklistDurationSeconds,omitempty"`
-	FreshmanChannelEnabled     bool      `json:"freshmanChannelEnabled"`
-	FreshmanChannelClosesAt    time.Time `json:"freshmanChannelClosesAt"`
-	FreshmanDefaultExpiresAt   time.Time `json:"freshmanDefaultExpiresAt"`
-	ForwardRawMaterialToQQ     bool      `json:"forwardRawMaterialToQQ"`
-	ManagementGuildIDs         []string  `json:"managementGuildIDs"`
-	MaxMaterialBytes           int64     `json:"maxMaterialBytes"`
-	MaxExtensionDays           int       `json:"maxExtensionDays"`
+	ID                         string                        `json:"id"`
+	Platform                   string                        `json:"platform"`
+	GuildID                    string                        `json:"guildID"`
+	GuardEnabled               bool                          `json:"guardEnabled"`
+	SchoolID                   int64                         `json:"-"`
+	JoinHandlingStrategy       AdmissionJoinHandlingStrategy `json:"joinHandlingStrategy"`
+	AutoApproveJoin            bool                          `json:"autoApproveJoin"`
+	AutoApproveVerifiedJoin    bool                          `json:"autoApproveVerifiedJoin"`
+	AutoApproveUnverifiedJoin  bool                          `json:"autoApproveUnverifiedJoin"`
+	UnverifiedJoinRejectReason string                        `json:"unverifiedJoinRejectReason"`
+	InitialMuteDurationSeconds int                           `json:"initialMuteDurationSeconds"`
+	LinkWaitSeconds            int                           `json:"linkWaitSeconds"`
+	SubmissionWaitSeconds      int                           `json:"submissionWaitSeconds"`
+	ManualReviewTimeoutSeconds int                           `json:"manualReviewTimeoutSeconds"`
+	ReminderIntervalSeconds    int                           `json:"reminderIntervalSeconds"`
+	FailedJoinLimit            int                           `json:"failedJoinLimit"`
+	BlacklistDurationSeconds   *int                          `json:"blacklistDurationSeconds,omitempty"`
+	FreshmanChannelEnabled     bool                          `json:"freshmanChannelEnabled"`
+	FreshmanChannelClosesAt    time.Time                     `json:"freshmanChannelClosesAt"`
+	FreshmanDefaultExpiresAt   time.Time                     `json:"freshmanDefaultExpiresAt"`
+	ForwardRawMaterialToQQ     bool                          `json:"forwardRawMaterialToQQ"`
+	ManagementGuildIDs         []string                      `json:"managementGuildIDs"`
+	MaxMaterialBytes           int64                         `json:"maxMaterialBytes"`
+	MaxExtensionDays           int                           `json:"maxExtensionDays"`
 }
 
 type AdmissionPolicyCreateRequest struct {
@@ -414,8 +423,9 @@ type AdmissionPolicyCreateRequest struct {
 }
 
 type AdmissionPolicyTarget struct {
-	PolicyID     string `json:"policyID"`
-	Platform     string `json:"platform"`
-	GuildID      string `json:"guildID"`
-	GuardEnabled bool   `json:"guardEnabled"`
+	PolicyID             string                        `json:"policyID"`
+	Platform             string                        `json:"platform"`
+	GuildID              string                        `json:"guildID"`
+	GuardEnabled         bool                          `json:"guardEnabled"`
+	JoinHandlingStrategy AdmissionJoinHandlingStrategy `json:"joinHandlingStrategy"`
 }

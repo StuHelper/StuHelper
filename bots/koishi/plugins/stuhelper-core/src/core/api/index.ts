@@ -4,11 +4,17 @@ import type {} from '@koishijs/plugin-console'
 
 import { StuhelperGroupCenterService } from '../services/stuhelper-group-center.service'
 import { createAuthority4ListenerRegistrar } from './authority-listener'
+import { registerAdminRuntimeSettingsAPI } from './admin-runtime-settings-api'
 import { registerAuthAPI } from './auth-api'
+import { registerBindingRuntimeSettingsAPI } from './binding-runtime-settings-api'
 import { registerCacheAPI } from './cache-api'
 import { registerChatAPI } from './chat-api'
 import { createChatImageAccessRegistry } from './chat-image-fetch'
 import { registerConfigAPI } from './config-api'
+import { registerGroupGuardAISettingsAPI } from './group-guard-ai-settings-api'
+import { registerGroupGuardBehaviorSettingsAPI } from './group-guard-behavior-settings-api'
+import { registerGroupGuardMessageSettingsAPI } from './group-guard-message-settings-api'
+import { registerKeywordRuleAPI } from './keyword-rule-api'
 import { registerLogsAPI } from './logs-api'
 import { registerMemberBlacklistConsoleAPI } from './member-blacklist-console-api'
 import { registerSettingsAPI } from './settings-api'
@@ -53,6 +59,12 @@ export function registerWebSocketAPI(
   registerStatsAPI(apiContext)
   registerLogsAPI(apiContext)
   registerSettingsAPI(apiContext)
+  registerAdminRuntimeSettingsAPI(apiContext)
+  registerBindingRuntimeSettingsAPI(apiContext)
+  registerGroupGuardAISettingsAPI(apiContext)
+  registerGroupGuardBehaviorSettingsAPI(apiContext)
+  registerGroupGuardMessageSettingsAPI(apiContext)
+  registerKeywordRuleAPI(apiContext)
   registerCacheAPI(apiContext)
   registerChatAPI(apiContext, { imageAccess: createChatImageAccessRegistry() })
 }

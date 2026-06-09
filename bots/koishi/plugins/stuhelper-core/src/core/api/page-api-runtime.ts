@@ -9,7 +9,6 @@ import {
   createPlatformClient,
   type GuardMemberRecord,
   type MemberBlacklistEntry,
-  type StuhelperGuardConfig,
   type StuhelperPlatformConfig,
 } from '@stuhelper/koishi-shared'
 
@@ -31,7 +30,6 @@ const RECENT_REVIEW_EVENT_LIMIT = 50
 export interface PageApiOptions {
   service: StuhelperGroupCenterService
   platform: StuhelperPlatformConfig
-  guard: StuhelperGuardConfig
 }
 
 export interface PageApiRuntime {
@@ -50,7 +48,7 @@ export interface PageApiRuntime {
 
 export function createPageApiRuntime(ctx: Context, options: PageApiOptions): PageApiRuntime {
   const moderationStore = new ModerationStore(ctx)
-  const guardPolicyStore = new GuardPolicyStore(ctx, options.guard)
+  const guardPolicyStore = new GuardPolicyStore(ctx)
   const platform = createPlatformClient(options.platform)
   const identityProfileLookup = new IdentityProfileLookup({
     getQQVerificationStatus: (memberId) => platform.getQQVerificationStatus(memberId),
@@ -81,7 +79,6 @@ export function createPageApiRuntime(ctx: Context, options: PageApiOptions): Pag
       service: options.service,
       moderationStore,
       platform,
-      guard: options.guard,
       guardPolicyStore,
     })),
   }
@@ -155,10 +152,9 @@ function createEntityDeps(input: {
   readonly service: StuhelperGroupCenterService
   readonly moderationStore: ModerationStore
   readonly platform: ReturnType<typeof createPlatformClient>
-  readonly guard: StuhelperGuardConfig
   readonly guardPolicyStore: GuardPolicyStore
 }) {
-  const { ctx, service, moderationStore, platform, guard, guardPolicyStore } = input
+  const { ctx, service, moderationStore, platform, guardPolicyStore } = input
   return {
     loadWarns: async () => service.data.warns.getAll() as Record<string, Record<string, { count: number; timestamp: number }>>,
     loadBlacklist: async () => readMemberBlacklistMap(platform),
@@ -170,9 +166,6 @@ function createEntityDeps(input: {
     hasAdmissionPolicy: async (guildId: string) => {
       const normalizedGuildId = guildId.trim()
       if (!normalizedGuildId) return false
-      if (guard.targetGroups.some((targetGuildId) => targetGuildId.trim() === normalizedGuildId)) {
-        return true
-      }
       const bindings = await guardPolicyStore.listBindings()
       return bindings.some((binding) => binding.guildId === normalizedGuildId && binding.enabled)
     },

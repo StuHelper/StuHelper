@@ -18,6 +18,7 @@ import { MODERATION_EVENT_TABLE } from '@stuhelper/koishi-moderation-core'
 
 import {
   respondAdmissionEvent,
+  respondAdmissionPolicyTargets,
   respondAdmissionSession,
   respondFreshmanForwards,
   respondPendingActions,
@@ -26,12 +27,13 @@ import {
 import groupGuardPlugin from './index.ts'
 import { createKoishiTestRuntime } from '../../test-utils/runtime.ts'
 
-test('数据库群绑定模板会驱动 admission 入群认证', async () => {
+test('同步执行态绑定模板会驱动 admission 入群认证', async () => {
   const admissionEvents: unknown[] = []
   const server = createServer((req, res) => {
     if (respondAdmissionSession({ req, res, qqID: '10004', guildID: 'group-4' })) return
     if (respondPendingActions(req, res, () => [])) return
     if (respondAdmissionEvent({ req, res, events: admissionEvents })) return
+    if (respondAdmissionPolicyTargets(req, res)) return
     if (respondFreshmanForwards(req, res)) return
     assert.fail(`unexpected platform request: ${req.method} ${req.url}`)
   })
@@ -53,18 +55,8 @@ test('数据库群绑定模板会驱动 admission 入群认证', async () => {
       baseUrl: `http://127.0.0.1:${address.port}`,
       serviceToken: 'test-token',
     },
-    guard: {
-      targetGroups: [],
-      muteDurationSeconds: 600,
-      kickAfterMinutes: 30,
-      reminderTemplate: '静态模板不应命中。',
-      exemptUsers: [],
-    },
     scheduler: {
       scanIntervalSeconds: 1,
-    },
-    freshmanForward: {
-      enabled: false,
     },
   })
 
@@ -132,13 +124,14 @@ test('数据库群绑定模板会驱动 admission 入群认证', async () => {
   }
 })
 
-test('freshmanForward.enabled=false skips pending-forward backend scan', async () => {
+test('WebUI runtime setting default skips pending-forward backend scan', async () => {
   let pendingForwardRequests = 0
   const admissionEvents: unknown[] = []
   const server = createServer((req, res) => {
     if (respondAdmissionSession({ req, res, qqID: '10005', guildID: 'group-5' })) return
     if (respondPendingActions(req, res, () => [])) return
     if (respondAdmissionEvent({ req, res, events: admissionEvents })) return
+    if (respondAdmissionPolicyTargets(req, res, [admissionPolicyTarget('group-5')])) return
     if (respondFreshmanForwards(req, res)) {
       pendingForwardRequests += 1
       return
@@ -161,18 +154,8 @@ test('freshmanForward.enabled=false skips pending-forward backend scan', async (
       baseUrl: `http://127.0.0.1:${address.port}`,
       serviceToken: 'test-token',
     },
-    guard: {
-      targetGroups: ['group-5'],
-      muteDurationSeconds: 600,
-      kickAfterMinutes: 30,
-      reminderTemplate: '请先完成认证。',
-      exemptUsers: [],
-    },
     scheduler: {
       scanIntervalSeconds: 1,
-    },
-    freshmanForward: {
-      enabled: false,
     },
   })
 
@@ -222,4 +205,14 @@ function closeServer(server: ReturnType<typeof createServer>) {
   return new Promise<void>((resolve, reject) => {
     server.close((error) => error ? reject(error) : resolve())
   })
+}
+
+function admissionPolicyTarget(guildID: string) {
+  return {
+    policyID: `policy-${guildID}`,
+    platform: 'qq',
+    guildID,
+    guardEnabled: true,
+    joinHandlingStrategy: 'post_join_guard',
+  }
 }

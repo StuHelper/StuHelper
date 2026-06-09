@@ -18,7 +18,7 @@
           :disabled="!props.navigation"
           @click="openPolicyWorkspace('bindings')"
         >
-          管理群绑定
+          查看同步绑定
         </el-button>
         <el-button
           class="sh-button sh-button--ghost"
@@ -107,19 +107,13 @@
 
         <WorkspaceSection
           title="实例"
-          description="服务端地址、Bot 实例与默认 guard 参数。"
+          description="服务端地址与 Bot 实例。"
         >
           <dl class="sh-keylist">
             <dt>平台 API</dt>
             <dd class="sh-mono">{{ data.platform.baseUrl || '未配置' }}</dd>
             <dt>服务凭据</dt>
             <dd>{{ data.platform.serviceTokenConfigured ? '已配置' : '未配置' }}</dd>
-            <dt>默认禁言</dt>
-            <dd>{{ data.guard.muteDurationSeconds }} 秒</dd>
-            <dt>宽限期</dt>
-            <dd>{{ data.guard.kickAfterMinutes }} 分钟</dd>
-            <dt>豁免人数</dt>
-            <dd>{{ data.guard.exemptUserCount }}</dd>
             <dt>Bot</dt>
             <dd>
               <span v-if="data.bots.length === 0">未连接</span>
@@ -139,25 +133,12 @@
 
       <div class="sh-split sh-split--1-1">
         <WorkspaceSection
-          title="目标群与绑定"
-          description="静态 targetGroups 和数据库群绑定都会影响本地 guard policy 解析。"
-          :meta="`${data.guard.targetGroups.length + data.bindings.length} 条`"
+          title="同步目标群"
+          description="由后端 Admin 入群认证策略同步到 Koishi 的执行态缓存。目标群增删和启停请在 Admin 后台修改。"
+          :meta="`${data.bindings.length} 条`"
           flush
         >
           <div class="sh-lane">
-            <div
-              v-for="guildId in data.guard.targetGroups"
-              :key="`static:${guildId}`"
-              class="sh-lane__row"
-            >
-              <span class="sh-lane__dot sh-lane__dot--warning"></span>
-              <div class="sh-lane__body">
-                <div class="sh-lane__title">
-                  <EntityChip kind="guild" :id="guildId" />
-                </div>
-                <div class="sh-lane__subtitle">静态 fallback · targetGroups</div>
-              </div>
-            </div>
             <div
               v-for="binding in data.bindings"
               :key="binding.id"
@@ -177,15 +158,15 @@
             </div>
           </div>
           <EmptyState
-            v-if="data.guard.targetGroups.length === 0 && data.bindings.length === 0"
+            v-if="data.bindings.length === 0"
             title="暂无目标群"
-            body="当前实例没有静态目标群，也没有数据库群绑定。"
+            body="当前实例尚未从后端 admission policy 同步到目标群。"
           />
         </WorkspaceSection>
 
         <WorkspaceSection
           title="模板"
-          description="数据库模板会覆盖静态默认 guard 参数。"
+          description="数据库模板提供禁言、宽限期与提醒参数。"
           :meta="`${data.templates.length} 条`"
           flush
         >

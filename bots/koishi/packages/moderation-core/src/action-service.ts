@@ -14,6 +14,10 @@ export type ModerationBot = Universal.Methods & {
   selfId: string
 }
 
+export type ModerationMessageProvider = () =>
+  Partial<StuhelperGroupGuardMessageConfig> |
+  Promise<Partial<StuhelperGroupGuardMessageConfig>>
+
 export interface WarnMemberInput {
   readonly runtime: ModerationRuntimeRef
   readonly guildId: string
@@ -48,10 +52,11 @@ export interface MemberRoleInput {
 export class ModerationActionService {
   constructor(
     private readonly store: ModerationStore,
-    private readonly messages?: Partial<StuhelperGroupGuardMessageConfig>,
+    private readonly messages?: Partial<StuhelperGroupGuardMessageConfig> | ModerationMessageProvider,
   ) {}
 
   async warnMember(input: WarnMemberInput) {
+    const messages = await this.getMessages()
     const now = new Date()
     const warning = await this.store.incrementWarning({
       guildId: input.guildId,
@@ -67,15 +72,19 @@ export class ModerationActionService {
       memberId: input.memberId,
       type: 'action_executed',
       level: 'medium',
-      summary: `已对 ${input.memberId} 记警告：${input.reason}`,
+      summary: moderationMessage(messages, 'moderationWarnEventSummary', {
+        memberId: input.memberId,
+        reason: input.reason,
+      }),
       payload: { totalWarnings: warning.total, reason: input.reason },
     })
     return warning
   }
 
   async muteMember(input: MuteMemberInput) {
+    const messages = await this.getMessages()
     await input.bot.muteGuildMember(input.guildId, input.memberId, input.seconds * 1000)
-    const message = renderMessageTemplate(resolveGroupGuardMessages(this.messages).moderationMuteNotice, {
+    const message = renderMessageTemplate(messages.moderationMuteNotice, {
       at: h.at(input.memberId),
       memberId: input.memberId,
       reason: input.reason,
@@ -92,14 +101,19 @@ export class ModerationActionService {
       memberId: input.memberId,
       type: 'action_executed',
       level: 'high',
-      summary: `已禁言 ${input.memberId}`,
+      summary: moderationMessage(messages, 'moderationMuteEventSummary', {
+        memberId: input.memberId,
+        reason: input.reason,
+        seconds: input.seconds,
+      }),
       payload: { seconds: input.seconds, reason: input.reason },
     })
   }
 
   async unmuteMember(input: BotMemberActionInput) {
+    const messages = await this.getMessages()
     await input.bot.muteGuildMember(input.guildId, input.memberId, 0)
-    const message = renderMessageTemplate(resolveGroupGuardMessages(this.messages).moderationUnmuteNotice, {
+    const message = renderMessageTemplate(messages.moderationUnmuteNotice, {
       at: h.at(input.memberId),
       memberId: input.memberId,
       reason: input.reason,
@@ -115,13 +129,17 @@ export class ModerationActionService {
       memberId: input.memberId,
       type: 'action_executed',
       level: 'medium',
-      summary: `已解除 ${input.memberId} 的禁言`,
+      summary: moderationMessage(messages, 'moderationUnmuteEventSummary', {
+        memberId: input.memberId,
+        reason: input.reason,
+      }),
       payload: { reason: input.reason },
     })
   }
 
   async kickMember(input: KickMemberInput) {
-    const message = renderMessageTemplate(resolveGroupGuardMessages(this.messages).moderationKickNotice, {
+    const messages = await this.getMessages()
+    const message = renderMessageTemplate(messages.moderationKickNotice, {
       at: h.at(input.memberId),
       memberId: input.memberId,
       reason: input.reason,
@@ -138,7 +156,11 @@ export class ModerationActionService {
       memberId: input.memberId,
       type: 'action_executed',
       level: 'critical',
-      summary: `已移出 ${input.memberId}`,
+      summary: moderationMessage(messages, 'moderationKickEventSummary', {
+        memberId: input.memberId,
+        reason: input.reason,
+        permanent: input.permanent,
+      }),
       payload: { permanent: input.permanent, reason: input.reason },
     })
   }
@@ -150,4 +172,19 @@ export class ModerationActionService {
   async unsetMemberRole(input: MemberRoleInput) {
     await input.bot.unsetGuildMemberRole(input.guildId, input.memberId, input.roleId)
   }
+
+  private async getMessages() {
+    const messages = typeof this.messages === 'function'
+      ? await this.messages()
+      : this.messages
+    return resolveGroupGuardMessages(messages)
+  }
+}
+
+function moderationMessage(
+  messages: ReturnType<typeof resolveGroupGuardMessages>,
+  key: keyof ReturnType<typeof resolveGroupGuardMessages>,
+  variables: Record<string, unknown> = {},
+) {
+  return renderMessageTemplate(messages[key], variables)
 }

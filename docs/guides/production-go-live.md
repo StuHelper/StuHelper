@@ -223,7 +223,7 @@ stuhelper-core:console:
 ./infra/ops/package-koishi-stuhelper-packages.sh
 ```
 
-该包必须包含 `koishi-plugin-stuhelper-core` 的 `lib/` 和 `dist/`，以及 `koishi-plugin-stuhelper-group-guard`、`koishi-plugin-stuhelper-binding`、`@stuhelper/koishi-shared`、`@stuhelper/koishi-moderation-core` 的运行时 `lib/` 产物；否则 admission WebUI 页面或 group-guard Console API 会在生产漂移。
+该包必须包含 `koishi-plugin-stuhelper-core` 的 `lib/` 和 `dist/`，以及 `koishi-plugin-stuhelper-group-guard`、`koishi-plugin-stuhelper-binding`、`@stuhelper/koishi-shared`、`@stuhelper/koishi-moderation-core` 的运行时 `lib/` 产物；同时必须包含 `koishi/local-workspaces/...` 和 `koishi/STUHELPER_KOISHI_APPLY_LOCAL_WORKSPACES.cjs`，用于把 StuHelper 私有插件固定为本地 `workspace:*` 依赖，避免 Koishi Market 更新普通插件时请求 npm registry 并因 `koishi-plugin-stuhelper-core@0.0.0` 未发布而失败。否则 admission WebUI 页面或 group-guard Console API 会在生产漂移。
 
 若宝塔 Compose 环境只能手工覆盖包，也必须记录包 sha256、覆盖路径和重启步骤；源码修复必须回写到仓库。
 

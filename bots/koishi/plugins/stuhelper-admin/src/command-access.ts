@@ -4,14 +4,26 @@ import {
   canExecuteCommand,
   type ModerationStore,
 } from '@stuhelper/koishi-moderation-core'
+import {
+  type AdmissionRuntimeSettingsStore,
+  renderMessageTemplate,
+  resolveAdminMessages,
+} from '@stuhelper/koishi-shared'
+
+type AdminMessages = ReturnType<typeof resolveAdminMessages>
 
 export async function ensureAdminCommandAccess(input: {
   readonly store: ModerationStore
   readonly session: Session | undefined
   readonly commandId: string
   readonly targetGuildId?: string
+  readonly runtimeSettings?: AdmissionRuntimeSettingsStore
+  readonly messages?: AdminMessages
 }) {
   const { store, session, commandId } = input
+  if (input.runtimeSettings && !await input.runtimeSettings.isAdminCommandsEnabled()) {
+    return renderMessageTemplate(resolveAdminMessages(input.messages).adminCommandsDisabled)
+  }
   const targetGuildId = input.targetGuildId ?? session?.guildId
   const guildId = targetGuildId
   if (!session || !guildId) return
@@ -24,7 +36,9 @@ export async function ensureAdminCommandAccess(input: {
     memberRoles,
     policy,
   })
-  return allowed ? undefined : '命令权限不足。'
+  return allowed
+    ? undefined
+    : renderMessageTemplate(resolveAdminMessages(input.messages).commandAccessDenied)
 }
 
 export function resolveGuildId(session: Session | undefined, guildId: string | undefined) {

@@ -1,6 +1,14 @@
 import { Context, Logger } from 'koishi'
+import { registerModerationModels } from '@stuhelper/koishi-moderation-core'
 
-import type { StuhelperCoreConfig as Config } from '@stuhelper/koishi-shared'
+import {
+  registerAdminRuntimeSettingsModel,
+  registerBindingRuntimeSettingsModel,
+  registerGroupGuardAISettingsModel,
+  registerGroupGuardBehaviorSettingsModel,
+  registerGroupGuardMessageSettingsModel,
+  type StuhelperCoreConfig as Config,
+} from '@stuhelper/koishi-shared'
 
 import {
   registerGovernanceActionAPI,
@@ -14,6 +22,7 @@ const logger = new Logger('stuhelper-core')
 
 export function registerConsoleApi(ctx: Context, config?: Config) {
   const coreConfig = requireConfig(config)
+  registerConsoleRuntimeSettingsModels(ctx)
 
   ctx.inject(['console', 'database', 'stuhelperGroupCenter', 'auth'], (apiCtx) => {
     validateConsoleAdminPassword(process.env.STUHELPER_CONSOLE_ADMIN_PASSWORD)
@@ -21,12 +30,20 @@ export function registerConsoleApi(ctx: Context, config?: Config) {
     registerPageAPI(apiCtx, {
       service: apiCtx.stuhelperGroupCenter,
       platform: coreConfig.platform,
-      guard: coreConfig.guard,
     })
     registerReviewActionAPI(apiCtx)
     registerGovernanceActionAPI(apiCtx)
     logger.info('WebSocket API registered')
   })
+}
+
+function registerConsoleRuntimeSettingsModels(ctx: Context) {
+  registerAdminRuntimeSettingsModel(ctx)
+  registerBindingRuntimeSettingsModel(ctx)
+  registerGroupGuardAISettingsModel(ctx)
+  registerGroupGuardBehaviorSettingsModel(ctx)
+  registerGroupGuardMessageSettingsModel(ctx)
+  registerModerationModels(ctx)
 }
 
 function requireConfig(config: Config | undefined) {

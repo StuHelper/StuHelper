@@ -50,7 +50,15 @@ try {
   const exitCode = await exitPromise
 
   assert.match(output, /loader apply plugin stuhelper-core:/, 'Koishi 启动时没有加载 stuhelper-core。')
-  assert.match(output, /StuHelper 群管中心模块初始化完成/, 'stuhelper-core 没有完成新的群管中心装配。')
+  assert.match(output, /loader apply plugin stuhelper-binding:/, 'Koishi 启动时没有加载 stuhelper-binding。')
+  assert.match(output, /loader apply plugin stuhelper-group-guard:/, 'Koishi 启动时没有加载 stuhelper-group-guard。')
+  assert.match(output, /loader apply plugin stuhelper-admin:/, 'Koishi 启动时没有加载 stuhelper-admin。')
+  assert.match(output, /StuHelper 群管中心服务已注册/, 'stuhelper-core 没有注册群管中心服务。')
+  assert.match(output, /StuHelper 群管中心控制台入口已注册/, 'stuhelper-core 没有注册群管中心控制台入口。')
+  assert.match(output, /stuhelper-core 旧群管运行时模块已停用，仅注册 WebUI 与 Console API/, 'stuhelper-core 没有明确停用旧群管运行时模块。')
+  assert.match(output, /绑定插件已加载，命令字和提示文案由 WebUI runtime settings 控制/, 'stuhelper-binding 没有按 WebUI runtime settings 装配。')
+  assert.match(output, /目标群由后端 admission policy 同步为 Koishi 执行态缓存/, 'stuhelper-group-guard 没有按后端 admission policy 同步边界装配。')
+  assert.match(output, /管理员命令已注册，执行开关和提示文案由 StuHelper WebUI runtime settings 控制/, 'stuhelper-admin 没有按 WebUI runtime settings 装配。')
   assert.match(output, /WebSocket API registered/, 'stuhelper-core 没有完成 console API 注入与注册。')
   assert.doesNotMatch(output, /启动文件监视器失败/, 'stuhelper-core 仍然在首次启动时错误地监视不存在的 settings.json。')
   assert.match(output, new RegExp(`server listening at http://127\\.0\\.0\\.1:${SMOKE_PORT}`), 'Koishi 控制台没有在烟雾端口完成监听。')

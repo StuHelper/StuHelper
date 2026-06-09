@@ -128,6 +128,151 @@ export interface ModuleStatus {
   error?: string
 }
 
+export interface BindingMessageSettings {
+  directOnly: string
+  missingCode: string
+  successVerified: string
+  successUnverified: string
+  unavailable: string
+  invalidCode: string
+  unauthorized: string
+  conflict: string
+  notConfigured: string
+}
+
+export interface BindingRuntimeSettings {
+  command: string
+  messages: BindingMessageSettings
+}
+
+export interface AdminMessageSettings {
+  guardStatusCommandDescription: string
+  guardWarningCommandDescription: string
+  guardReviewListCommandDescription: string
+  guardBatchMuteCommandDescription: string
+  guardKickReviewCommandDescription: string
+  guardBlockReviewCommandDescription: string
+  freshmanViewCommandDescription: string
+  freshmanApproveCommandDescription: string
+  freshmanRejectCommandDescription: string
+  freshmanBlacklistReleaseCommandDescription: string
+  commandAccessDenied: string
+  adminCommandsDisabled: string
+  guardWarningMissingContext: string
+  guardBatchMuteGroupOnly: string
+  guardBatchMuteInvalidPayload: string
+  guardBatchMuteNoTargets: string
+  guardBatchMuteSuccess: string
+  guardBatchMuteEventSummary: string
+  guardBatchMuteEventReason: string
+  guardReviewRequestMissingArgs: string
+  guardReviewRequestSuccess: string
+  guardReviewRequestEventSummary: string
+  guardReviewKickActionLabel: string
+  guardReviewKickAndBlockActionLabel: string
+  guardPendingMembersEmpty: string
+  guardPendingMembersHeader: string
+  guardPendingMemberLine: string
+  guardWarningCounterEmpty: string
+  guardWarningCounterNoReason: string
+  guardWarningCounterSummary: string
+  guardPendingReviewsEmpty: string
+  guardPendingReviewsHeader: string
+  guardPendingReviewLine: string
+  freshmanManagementGroupOnly: string
+  freshmanMissingApplicationID: string
+  freshmanApproveInvalidFormat: string
+  freshmanApproveInvalidExtension: string
+  freshmanRejectInvalidFormat: string
+  freshmanBlacklistReleaseInvalidFormat: string
+  freshmanApproveSuccess: string
+  freshmanApproveSuccessWithExtension: string
+  freshmanRejectSuccess: string
+  freshmanBlacklistScopeGlobal: string
+  freshmanBlacklistScopeGuild: string
+  freshmanBlacklistReleaseSuccess: string
+  freshmanApplicationSummary: string
+  freshmanApplicationDepartmentFallback: string
+  freshmanApplicationExpiryFallback: string
+  freshmanCommandFailed: string
+  freshmanOperatorQQUnbound: string
+  freshmanOperatorForbidden: string
+  freshmanManagementGuildForbidden: string
+  freshmanBackendForbidden: string
+}
+
+export interface AdminRuntimeSettings {
+  messages: AdminMessageSettings
+}
+
+export interface GroupGuardFunSettings {
+  diceSides: number
+  muteLotteryBaseSeconds: number
+  muteLotteryMaxSeconds: number
+  muteLotteryPityThreshold: number
+  muteLotteryPitySeconds: number
+}
+
+export interface GroupGuardModerationSettings {
+  repeatThreshold: number
+  repeatWindowSize: number
+  warningThresholdExpression: string
+  defaultMuteSeconds: number
+  antiRecallNotify: boolean
+}
+
+export interface GroupGuardBehaviorSettings {
+  fun: GroupGuardFunSettings
+  moderation: GroupGuardModerationSettings
+}
+
+export interface GroupGuardAISettings {
+  enabled: boolean
+  endpoint: string
+  model: string
+  apiKeyConfigured: boolean
+  apiKeyMasked: string
+}
+
+export interface GroupGuardAISettingsUpdate {
+  enabled: boolean
+  endpoint: string
+  model: string
+  newApiKey?: string
+  clearApiKey?: boolean
+}
+
+export interface GroupGuardMessageSettings {
+  messages: Record<string, string>
+}
+
+export type KeywordRuleMatchMode = 'includes' | 'regex'
+export type KeywordRuleAction = 'warn' | 'delete' | 'mute' | 'review'
+
+export interface KeywordRule {
+  id: string
+  guildId: string
+  pattern: string
+  matchMode: KeywordRuleMatchMode
+  action: KeywordRuleAction
+  enabled: boolean
+  muteSeconds: number
+  note: string | null
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface KeywordRuleInput {
+  id: string
+  guildId: string
+  pattern: string
+  matchMode: KeywordRuleMatchMode
+  action: KeywordRuleAction
+  enabled: boolean
+  muteSeconds: number
+  note: string | null
+}
+
 // 图表数据类型
 export interface ChartTrendItem {
   date: string
@@ -177,6 +322,49 @@ export const settingsApi = {
   get: () => call<PluginSettings>('stuhelperGroupCenter/settings/get'),
   update: (settings: PluginSettings) => call<{ success: boolean }>('stuhelperGroupCenter/settings/update', { settings }),
   reset: () => call<{ success: boolean }>('stuhelperGroupCenter/settings/reset'),
+}
+
+export const adminSettingsApi = {
+  get: () => call<AdminRuntimeSettings>('stuhelperGroupCenter/admin-settings/get'),
+  update: (settings: AdminRuntimeSettings) =>
+    call<AdminRuntimeSettings>('stuhelperGroupCenter/admin-settings/update', { settings }),
+  reset: () => call<AdminRuntimeSettings>('stuhelperGroupCenter/admin-settings/reset'),
+}
+
+export const bindingSettingsApi = {
+  get: () => call<BindingRuntimeSettings>('stuhelperGroupCenter/binding-settings/get'),
+  update: (settings: BindingRuntimeSettings) =>
+    call<BindingRuntimeSettings>('stuhelperGroupCenter/binding-settings/update', { settings }),
+  reset: () => call<BindingRuntimeSettings>('stuhelperGroupCenter/binding-settings/reset'),
+}
+
+export const groupGuardAISettingsApi = {
+  get: () => call<GroupGuardAISettings>('stuhelperGroupCenter/group-guard-ai-settings/get'),
+  update: (settings: GroupGuardAISettingsUpdate) =>
+    call<GroupGuardAISettings>('stuhelperGroupCenter/group-guard-ai-settings/update', { settings }),
+  reset: () => call<GroupGuardAISettings>('stuhelperGroupCenter/group-guard-ai-settings/reset'),
+}
+
+export const groupGuardBehaviorSettingsApi = {
+  get: () => call<GroupGuardBehaviorSettings>('stuhelperGroupCenter/group-guard-behavior-settings/get'),
+  update: (settings: GroupGuardBehaviorSettings) =>
+    call<GroupGuardBehaviorSettings>('stuhelperGroupCenter/group-guard-behavior-settings/update', { settings }),
+  reset: () => call<GroupGuardBehaviorSettings>('stuhelperGroupCenter/group-guard-behavior-settings/reset'),
+}
+
+export const groupGuardMessageSettingsApi = {
+  get: () => call<GroupGuardMessageSettings>('stuhelperGroupCenter/group-guard-message-settings/get'),
+  update: (settings: GroupGuardMessageSettings) =>
+    call<GroupGuardMessageSettings>('stuhelperGroupCenter/group-guard-message-settings/update', { settings }),
+  reset: () => call<GroupGuardMessageSettings>('stuhelperGroupCenter/group-guard-message-settings/reset'),
+}
+
+export const keywordRulesApi = {
+  list: () => call<KeywordRule[]>('stuhelperGroupCenter/keyword-rules/list'),
+  upsert: (rule: KeywordRuleInput) =>
+    call<KeywordRule>('stuhelperGroupCenter/keyword-rules/upsert', { rule }),
+  delete: (id: string) =>
+    call<{ success: boolean }>('stuhelperGroupCenter/keyword-rules/delete', { id }),
 }
 
 // 群成员类型

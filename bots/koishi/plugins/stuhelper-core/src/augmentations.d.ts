@@ -25,6 +25,24 @@ import type {
   ModuleStateSnapshot,
 } from './core/services/page-types'
 import type { CommandLogRecord } from './core/modules/log.module'
+import type {
+  AdminRuntimeSettingsInput,
+  AdminRuntimeSettingsRecord,
+  BindingRuntimeSettingsInput,
+  BindingRuntimeSettingsRecord,
+  GroupGuardBehaviorSettingsInput,
+  GroupGuardBehaviorSettingsRecord,
+  GroupGuardMessageSettingsInput,
+  GroupGuardMessageSettingsRecord,
+} from '@stuhelper/koishi-shared'
+import type {
+  GroupGuardAIPublicSettings,
+  GroupGuardAISettingsUpdateInput,
+} from './core/api/group-guard-ai-settings-api'
+import type {
+  KeywordRuleInput,
+  KeywordRulePublicRecord,
+} from './core/api/keyword-rule-api'
 
 type PublicSettings = Omit<Config, 'openai'> & {
   openai: Omit<Config['openai'], 'apiKey'> & {
@@ -187,6 +205,24 @@ declare module '@koishijs/console' {
     'stuhelperGroupCenter/settings/get'(): Promise<ApiResponse<PublicSettings>>
     'stuhelperGroupCenter/settings/update'(params: { settings: SettingsUpdatePayload }): Promise<ApiResponse<{ success: boolean }>>
     'stuhelperGroupCenter/settings/reset'(): Promise<ApiResponse<{ success: boolean }>>
+    'stuhelperGroupCenter/admin-settings/get'(): Promise<ApiResponse<AdminRuntimeSettingsRecord>>
+    'stuhelperGroupCenter/admin-settings/update'(params: { settings: AdminRuntimeSettingsInput }): Promise<ApiResponse<AdminRuntimeSettingsRecord>>
+    'stuhelperGroupCenter/admin-settings/reset'(): Promise<ApiResponse<AdminRuntimeSettingsRecord>>
+    'stuhelperGroupCenter/binding-settings/get'(): Promise<ApiResponse<BindingRuntimeSettingsRecord>>
+    'stuhelperGroupCenter/binding-settings/update'(params: { settings: BindingRuntimeSettingsInput }): Promise<ApiResponse<BindingRuntimeSettingsRecord>>
+    'stuhelperGroupCenter/binding-settings/reset'(): Promise<ApiResponse<BindingRuntimeSettingsRecord>>
+    'stuhelperGroupCenter/group-guard-ai-settings/get'(): Promise<ApiResponse<GroupGuardAIPublicSettings>>
+    'stuhelperGroupCenter/group-guard-ai-settings/update'(params: { settings: GroupGuardAISettingsUpdateInput }): Promise<ApiResponse<GroupGuardAIPublicSettings>>
+    'stuhelperGroupCenter/group-guard-ai-settings/reset'(): Promise<ApiResponse<GroupGuardAIPublicSettings>>
+    'stuhelperGroupCenter/group-guard-behavior-settings/get'(): Promise<ApiResponse<GroupGuardBehaviorSettingsRecord>>
+    'stuhelperGroupCenter/group-guard-behavior-settings/update'(params: { settings: GroupGuardBehaviorSettingsInput }): Promise<ApiResponse<GroupGuardBehaviorSettingsRecord>>
+    'stuhelperGroupCenter/group-guard-behavior-settings/reset'(): Promise<ApiResponse<GroupGuardBehaviorSettingsRecord>>
+    'stuhelperGroupCenter/group-guard-message-settings/get'(): Promise<ApiResponse<GroupGuardMessageSettingsRecord>>
+    'stuhelperGroupCenter/group-guard-message-settings/update'(params: { settings: GroupGuardMessageSettingsInput }): Promise<ApiResponse<GroupGuardMessageSettingsRecord>>
+    'stuhelperGroupCenter/group-guard-message-settings/reset'(): Promise<ApiResponse<GroupGuardMessageSettingsRecord>>
+    'stuhelperGroupCenter/keyword-rules/list'(): Promise<ApiResponse<KeywordRulePublicRecord[]>>
+    'stuhelperGroupCenter/keyword-rules/upsert'(params: { rule: KeywordRuleInput }): Promise<ApiResponse<KeywordRulePublicRecord>>
+    'stuhelperGroupCenter/keyword-rules/delete'(params: { id: string }): Promise<ApiResponse<{ success: boolean }>>
 
     'stuhelperGroupCenter/cache/stats'(): Promise<ApiResponse<unknown>>
     'stuhelperGroupCenter/cache/refresh'(): Promise<ApiResponse<{ success: boolean; stats: unknown }>>
@@ -245,13 +281,6 @@ declare module '@koishijs/console' {
       reminderTemplate: string
       exemptUsers: string[]
       enabled: boolean
-    }): Promise<string>
-    'stuhelperGroupCenter/action/save-guard-binding'(input: {
-      platform: string
-      guildId: string
-      templateId: string
-      enabled: boolean
-      note?: string | null
     }): Promise<string>
   }
 }

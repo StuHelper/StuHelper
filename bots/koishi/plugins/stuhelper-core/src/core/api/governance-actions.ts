@@ -5,7 +5,6 @@ import { GuardPolicyStore } from '@stuhelper/koishi-shared'
 import { ModerationStore } from '@stuhelper/koishi-moderation-core'
 
 import {
-  assertConsoleGuildAccess,
   assertGlobalConsoleScope,
   resolveRequiredConsoleGuildScope,
 } from './console-guild-scope'
@@ -16,7 +15,6 @@ const MAX_TEMPLATE_ID_LENGTH = 64
 const MAX_TEMPLATE_NAME_LENGTH = 128
 const MAX_REMINDER_TEMPLATE_LENGTH = 2000
 const MAX_EXEMPT_USER_COUNT = 500
-const MAX_NOTE_LENGTH = 512
 const MAX_MUTE_DURATION_SECONDS = 30 * 24 * 3600
 const MAX_KICK_AFTER_MINUTES = 30 * 24 * 60
 const MAX_MIN_AUTHORITY = 5
@@ -37,14 +35,6 @@ type GuardTemplateInput = {
   enabled: boolean
 }
 
-type GuardBindingInput = {
-  platform: string
-  guildId: string
-  templateId: string
-  enabled: boolean
-  note?: string | null
-}
-
 const commandPolicySchema = z.object({
   commandId: z.string().trim().min(1).max(MAX_COMMAND_ID_LENGTH),
   minAuthority: z.number().int().min(0).max(MAX_MIN_AUTHORITY).finite(),
@@ -59,18 +49,6 @@ const guardTemplateSchema = z.object({
   reminderTemplate: z.string().trim().min(1).max(MAX_REMINDER_TEMPLATE_LENGTH),
   exemptUsers: z.array(z.string().trim().min(1).max(MAX_ROLE_ID_LENGTH)).max(MAX_EXEMPT_USER_COUNT),
   enabled: z.boolean(),
-}).strict()
-
-const guardBindingSchema = z.object({
-  platform: z.string().trim().min(1).max(MAX_ROLE_ID_LENGTH),
-  guildId: z.string().trim().min(1).max(MAX_ROLE_ID_LENGTH),
-  templateId: z.string().trim().min(1).max(MAX_TEMPLATE_ID_LENGTH),
-  enabled: z.boolean(),
-  note: z.union([
-    z.string().trim().max(MAX_NOTE_LENGTH).transform((value) => value || null),
-    z.null(),
-    z.undefined(),
-  ]),
 }).strict()
 
 export function registerGovernanceActionAPI(ctx: Context) {
@@ -92,13 +70,6 @@ export function registerGovernanceActionAPI(ctx: Context) {
     const scope = await resolveRequiredConsoleGuildScope(this, createScopeDeps(ctx))
     assertGuardTemplateWriteAccess(scope)
     return saveGuardTemplate(guardPolicyStore, parseGuardTemplateInput(input))
-  }, { authority: 4 })
-
-  ctx.console.addListener('stuhelperGroupCenter/action/save-guard-binding', async function (input) {
-    const scope = await resolveRequiredConsoleGuildScope(this, createScopeDeps(ctx))
-    const parsed = parseGuardBindingInput(input)
-    assertGuardBindingWriteAccess(scope, parsed)
-    return saveGuardBinding(guardPolicyStore, parsed)
   }, { authority: 4 })
 }
 
@@ -128,35 +99,12 @@ async function saveGuardTemplate(
   return `已保存群模板：${input.name}`
 }
 
-async function saveGuardBinding(
-  guardPolicyStore: GuardPolicyStore,
-  input: GuardBindingInput,
-) {
-  const templates = await guardPolicyStore.listTemplates()
-  const template = templates.find((item) => item.id === input.templateId)
-  if (!template) {
-    throw new Error(`guard template not found: ${input.templateId}`)
-  }
-  await guardPolicyStore.saveBinding({
-    ...input,
-    note: input.note || null,
-  })
-  return `已保存群绑定：${input.platform}/${input.guildId}`
-}
-
 export function assertCommandPolicyWriteAccess(scope: Parameters<typeof assertGlobalConsoleScope>[0]) {
   assertGlobalConsoleScope(scope, 'command policy write')
 }
 
 export function assertGuardTemplateWriteAccess(scope: Parameters<typeof assertGlobalConsoleScope>[0]) {
   assertGlobalConsoleScope(scope, 'guard template write')
-}
-
-export function assertGuardBindingWriteAccess(
-  scope: Parameters<typeof assertConsoleGuildAccess>[0],
-  input: GuardBindingInput,
-) {
-  assertConsoleGuildAccess(scope, input.guildId, 'guard binding guild')
 }
 
 export function parseCommandPolicyInput(input: unknown): CommandPolicyInput {
@@ -178,17 +126,6 @@ export function parseGuardTemplateInput(input: unknown): GuardTemplateInput {
     reminderTemplate: record.reminderTemplate,
     exemptUsers: record.exemptUsers.map((item) => item.trim()),
     enabled: record.enabled,
-  }
-}
-
-export function parseGuardBindingInput(input: unknown): GuardBindingInput {
-  const record = guardBindingSchema.parse(requireRecord(input, 'guard binding'))
-  return {
-    platform: record.platform,
-    guildId: record.guildId,
-    templateId: record.templateId,
-    enabled: record.enabled,
-    note: record.note,
   }
 }
 

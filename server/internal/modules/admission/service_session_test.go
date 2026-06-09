@@ -132,16 +132,18 @@ func TestResolveJoinRequestDecisionUsesVerifiedAndUnverifiedPolicy(t *testing.T)
 	require.NoError(t, err)
 	assert.Equal(t, AdmissionJoinRequestDecisionApprove, decision.Decision)
 	assert.Equal(t, AdmissionJoinRequestUnverified, decision.VerificationState)
-	assert.Equal(t, "unverified_auto_approve", decision.Reason)
+	assert.Equal(t, AdmissionJoinHandlingPostJoinGuard, decision.JoinHandlingStrategy)
+	assert.Equal(t, "post_join_guard_auto_approve", decision.Reason)
 
-	setAdmissionPolicyAutoApproval(t, fixture, true, false)
+	setAdmissionPolicyJoinRequestReview(t, fixture, "请先完成认证后再申请入群")
 	decision, err = svc.ResolveJoinRequestDecision(context.Background(), AdmissionJoinRequestDecisionInput{
 		Platform: "qq", GuildID: "guild-1", QQID: "10001", RequestID: "request-1",
 	})
 	require.NoError(t, err)
 	assert.Equal(t, AdmissionJoinRequestDecisionReject, decision.Decision)
 	assert.Equal(t, AdmissionJoinRequestUnverified, decision.VerificationState)
-	assert.Equal(t, "unverified_auto_approve_disabled", decision.Reason)
+	assert.Equal(t, AdmissionJoinHandlingJoinRequestReview, decision.JoinHandlingStrategy)
+	assert.Equal(t, "请先完成认证后再申请入群", decision.Reason)
 
 	userID := seedAdmissionUser(t, fixture, "verified-join-decision")
 	bindVerifiedAdmissionQQ(t, fixture, userID, "10001")
@@ -151,18 +153,10 @@ func TestResolveJoinRequestDecisionUsesVerifiedAndUnverifiedPolicy(t *testing.T)
 	require.NoError(t, err)
 	assert.Equal(t, AdmissionJoinRequestDecisionApprove, decision.Decision)
 	assert.Equal(t, AdmissionJoinRequestVerified, decision.VerificationState)
+	assert.Equal(t, AdmissionJoinHandlingJoinRequestReview, decision.JoinHandlingStrategy)
 	assert.Equal(t, "verified_auto_approve", decision.Reason)
 	require.NotNil(t, decision.UserID)
 	assert.Equal(t, fmt.Sprint(userID), *decision.UserID)
-
-	setAdmissionPolicyAutoApproval(t, fixture, false, true)
-	decision, err = svc.ResolveJoinRequestDecision(context.Background(), AdmissionJoinRequestDecisionInput{
-		Platform: "qq", GuildID: "guild-1", QQID: "10001", RequestID: "request-1",
-	})
-	require.NoError(t, err)
-	assert.Equal(t, AdmissionJoinRequestDecisionReject, decision.Decision)
-	assert.Equal(t, AdmissionJoinRequestVerified, decision.VerificationState)
-	assert.Equal(t, "verified_auto_approve_disabled", decision.Reason)
 }
 
 func TestCreateBotSessionReturnsVerifiedForAlreadyCertifiedQQ(t *testing.T) {
@@ -681,6 +675,21 @@ func TestSkipBotAdmissionSessionCancelsCurrentGroupOnlyWithoutStudentVerificatio
 	})
 	require.NoError(t, err)
 	assert.Empty(t, actions)
+
+	err = svc.RecordBotEvent(context.Background(), created.Session.ID, BotEventInput{
+		Action:    BotActionRemind,
+		Success:   true,
+		MessageID: "stale-reminder-message",
+	})
+	require.NoError(t, err)
+	var nextReminderQueued bool
+	err = fixture.Pool.QueryRow(context.Background(), `
+		SELECT next_reminder_at IS NOT NULL
+		FROM group_admission_sessions
+		WHERE id = $1
+	`, created.Session.ID).Scan(&nextReminderQueued)
+	require.NoError(t, err)
+	assert.False(t, nextReminderQueued)
 }
 
 func TestSkipBotAdmissionSessionRejectsVerifiedSession(t *testing.T) {
@@ -1150,20 +1159,21 @@ func assertAdmissionFailureBlacklisted(t *testing.T, fixture *postgresfixture.Fi
 	assert.Equal(t, 1, failureCount)
 }
 
-func setAdmissionPolicyAutoApproval(
+func setAdmissionPolicyJoinRequestReview(
 	t *testing.T,
 	fixture *postgresfixture.Fixture,
-	verified bool,
-	unverified bool,
+	rejectReason string,
 ) {
 	t.Helper()
 	_, err := fixture.Pool.Exec(context.Background(), `
 		UPDATE group_admission_policies
-		SET auto_approve_verified_join = $1,
-		    auto_approve_unverified_join = $2,
-		    auto_approve_join = $1 AND $2
+		SET join_handling_strategy = 'join_request_review',
+		    auto_approve_verified_join = TRUE,
+		    auto_approve_unverified_join = FALSE,
+		    auto_approve_join = FALSE,
+		    unverified_join_reject_reason = $1
 		WHERE platform = 'qq' AND guild_id = 'guild-1'
-	`, verified, unverified)
+	`, rejectReason)
 	require.NoError(t, err)
 }
 

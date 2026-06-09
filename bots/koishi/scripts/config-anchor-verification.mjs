@@ -9,7 +9,7 @@ const NodeLoader = require('@koishijs/loader').default
 
 const EXPECTED_BASE_URL = 'https://p5a.platform.example.invalid'
 const EXPECTED_SERVICE_TOKEN = 'p5a-service-token'
-const UPDATED_BINDING_TTL_MINUTES = 11
+const UPDATED_BINDING_BASE_URL = 'https://p5a.binding-updated.example.invalid'
 const TEMP_PREFIX = 'koishi-p5a-anchor-'
 
 const GROUP_KEY = 'group:stuhelper'
@@ -94,10 +94,7 @@ function assertRawAnchorIdentity(groupConfig) {
 
 function simulateConsolePluginReload(groupConfig) {
   const configPayload = JSON.parse(JSON.stringify(groupConfig[BINDING_KEY]))
-  configPayload.binding = {
-    ...configPayload.binding,
-    codeTtlMinutes: UPDATED_BINDING_TTL_MINUTES,
-  }
+  configPayload.platform.baseUrl = UPDATED_BINDING_BASE_URL
   groupConfig[BINDING_KEY] = configPayload
 }
 
@@ -109,10 +106,14 @@ function assertConsolePersistenceBreaksNamedAnchor(persisted) {
   )
   assert.match(
     persisted,
-    new RegExp(`${BINDING_KEY}:[\\s\\S]*codeTtlMinutes: ${UPDATED_BINDING_TTL_MINUTES}`),
+    new RegExp(`${BINDING_KEY}:[\\s\\S]*baseUrl: ${escapeRegExp(UPDATED_BINDING_BASE_URL)}`),
   )
   assert.match(persisted, new RegExp(`${GROUP_GUARD_KEY}:[\\s\\S]*platform: \\*`))
   assert.match(persisted, new RegExp(`${ADMIN_KEY}:[\\s\\S]*platform: \\*`))
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function waitForConfigWrite() {

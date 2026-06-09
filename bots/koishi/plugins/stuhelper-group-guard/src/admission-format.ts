@@ -8,12 +8,6 @@ import {
 } from '@stuhelper/koishi-shared'
 
 const MINUTE_MS = 60 * 1000
-const UNKNOWN_FIELD = '未提供'
-
-const MATERIAL_TYPE_LABELS = {
-  admission_notice: '录取通知书',
-  admission_certificate: '录取证明',
-} as const
 
 export interface AdmissionReminderInput {
   readonly memberId: string
@@ -67,13 +61,25 @@ export function formatFreshmanForwardSummary(
   messages?: Partial<StuhelperGroupGuardMessageConfig>,
 ) {
   const application = item.application
-  return renderMessageTemplate(resolveGroupGuardMessages(messages).freshmanForwardSummary, {
+  const resolvedMessages = resolveGroupGuardMessages(messages)
+  const unknownField = renderMessageTemplate(resolvedMessages.freshmanForwardUnknownField)
+  return renderMessageTemplate(resolvedMessages.freshmanForwardSummary, {
     applicationId: application.id,
     applicantName: application.applicantNameMasked,
     schoolName: item.schoolName || application.schoolID,
-    departmentOrMajor: application.departmentOrMajor || UNKNOWN_FIELD,
-    qqID: item.qqID || UNKNOWN_FIELD,
-    materialType: MATERIAL_TYPE_LABELS[application.materialType],
-    provisionalExpiresAt: application.provisionalExpiresAt || UNKNOWN_FIELD,
+    departmentOrMajor: application.departmentOrMajor || unknownField,
+    qqID: item.qqID || unknownField,
+    materialType: freshmanMaterialTypeLabel(application.materialType, resolvedMessages),
+    provisionalExpiresAt: application.provisionalExpiresAt || unknownField,
   })
+}
+
+function freshmanMaterialTypeLabel(
+  materialType: FreshmanForwardItem['application']['materialType'],
+  messages: ReturnType<typeof resolveGroupGuardMessages>,
+) {
+  if (materialType === 'admission_notice') {
+    return renderMessageTemplate(messages.freshmanMaterialTypeAdmissionNotice)
+  }
+  return renderMessageTemplate(messages.freshmanMaterialTypeAdmissionCertificate)
 }

@@ -55,7 +55,7 @@ test('stuhelper-core 装配函数保持统一签名', async () => {
     const content = await readWorkspaceFile(`plugins/stuhelper-core/src/${relativePath}`)
     assert.match(
       content,
-      new RegExp(`export function ${functionName}\\(ctx: Context, _?config\\?: Config\\)`),
+      new RegExp(`export function ${functionName}\\(_?ctx: Context, _?config\\?: Config\\)`),
       `${relativePath} 必须导出统一的装配函数签名。`,
     )
   }
@@ -146,7 +146,7 @@ test('stuhelper-core 控制台密码校验必须与 API 注册共享失败边界
   )
 })
 
-test('stuhelper-core 后台任务和运行时模块保持 database/service 注入路径', async () => {
+test('stuhelper-core 后台任务保持 database/service 注入路径，旧运行时模块保持停用', async () => {
   const background = await readWorkspaceFile('plugins/stuhelper-core/src/setup/register-background-jobs.ts')
   const runtime = await readWorkspaceFile('plugins/stuhelper-core/src/setup/register-runtime-modules.ts')
 
@@ -162,59 +162,37 @@ test('stuhelper-core 后台任务和运行时模块保持 database/service 注�
   )
   assert.match(
     runtime,
-    /config\?\.runtimeModules\?\.enabled === false/,
-    'registerRuntimeModules 必须支持关闭旧运行时模块，避免生产 WebUI-only 模式抢占既有命令。',
+    /旧群管运行时模块已停用/,
+    'registerRuntimeModules 必须明确记录旧群管运行时模块已停用。',
   )
-  assert.match(
+  assert.doesNotMatch(
     runtime,
     /ctx\.inject\(\['database', 'stuhelperGroupCenter'\]/,
-    'registerRuntimeModules 必须保持 database + stuhelperGroupCenter 注入集合。',
+    'registerRuntimeModules 不应再注入 database + stuhelperGroupCenter 注册旧命令面。',
   )
-  assert.match(
+  assert.doesNotMatch(
     runtime,
     /moduleCtx\.on\('ready', async \(\) => \{/,
-    'registerRuntimeModules 必须继续在 ready 事件里初始化模块。',
+    'registerRuntimeModules 不应再在 ready 事件里初始化旧运行时模块。',
+  )
+  assert.doesNotMatch(
+    runtime,
+    /getRuntimeModules|registerModule|runtime\/registry/,
+    'registerRuntimeModules 不应再导入或装配旧 runtime registry。',
   )
   assert.doesNotMatch(
     runtime,
     new RegExp(`new ${legacyModuleTypeKey}\\(`),
-    'registerRuntimeModules 不应再直接 new 旧模块类，必须从 runtime registry 装配。',
+    'registerRuntimeModules 不应再直接 new 旧模块类。',
   )
 })
 
-test('stuhelper-core 运行时模块注册顺序不变', async () => {
-  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
-  const match = registry.match(/const MODULE_REGISTRATIONS:[^=]+ = \[([\s\S]*?)\]/)
-  const moduleBody = match?.[1] ?? ''
-  const modules = Array.from(
-    moduleBody.matchAll(/(helpRuntimeModule|diceRuntimeModule|banmeRuntimeModule|configRuntimeModule|memberManageRuntimeModule|messageManageRuntimeModule|orderManageRuntimeModule|keywordRuntimeModule|aiRuntimeModule|warnRuntimeModule|reportRuntimeModule|getauthRuntimeModule|authRuntimeModule|crossGroupRuntimeModule|antirepeatRuntimeModule|welcomeRuntimeModule|repeatRuntimeModule|logRuntimeModule|antirecallRuntimeModule|subscriptionRuntimeModule|eventRuntimeModule|statusRuntimeModule)/g),
-    ([, runtimeModule]) => toModuleClassName(runtimeModule),
-  )
+test('stuhelper-core 生产入口不再导入旧运行时 registry', async () => {
+  const entry = await readWorkspaceFile('plugins/stuhelper-core/src/index.ts')
+  const runtime = await readWorkspaceFile('plugins/stuhelper-core/src/setup/register-runtime-modules.ts')
 
-  assert.deepEqual(modules, [
-    'WarnModule',
-    'KeywordModule',
-    'MemberManageModule',
-    'MessageManageModule',
-    'OrderManageModule',
-    'AntirepeatModule',
-    'WelcomeModule',
-    'RepeatModule',
-    'DiceModule',
-    'BanmeModule',
-    'AntiRecallModule',
-    'AIModule',
-    'ConfigModule',
-    'LogModule',
-    'SubscriptionModule',
-    'HelpModule',
-    'ReportModule',
-    'GetAuthModule',
-    'AuthModule',
-    'EventModule',
-    'StatusModule',
-    'crossGroupModule',
-  ])
+  assert.doesNotMatch(entry, /runtime\/registry|getRuntimeModules/)
+  assert.doesNotMatch(runtime, /runtime\/registry|getRuntimeModules/)
 })
 
 test('P4 原生 RuntimeModule 收尾后不保留旧 adapter 兼容层', async () => {

@@ -795,6 +795,12 @@ func (s *Service) RecordBotEvent(ctx context.Context, sessionID string, event Bo
 		if err != nil {
 			return err
 		}
+		if event.Action == "" {
+			return ErrAdmissionInvalidStatus
+		}
+		if !sessionCanApplyBotEvent(session, event.Action) {
+			return nil
+		}
 		if !event.Success {
 			return s.repo.UpdateLastBotErrorTx(ctx, updateLastBotErrorTxInput{
 				Tx:        tx,
@@ -840,6 +846,10 @@ func (s *Service) RecordBotActionEvent(ctx context.Context, actionID string, eve
 			return ErrAdmissionInvalidStatus
 		}
 		session := &action.Session
+		if !sessionCanApplyBotEvent(session, event.Action) ||
+			!queuedBotActionStillMatchesSession(action.Action, session, s.now()) {
+			return s.repo.MarkBotActionStaleTx(ctx, tx, botActionID, s.now())
+		}
 		if !event.Success {
 			if err := s.repo.UpdateLastBotErrorTx(ctx, updateLastBotErrorTxInput{
 				Tx:        tx,
@@ -921,6 +931,37 @@ func (s *Service) applySuccessfulBotEventTx(ctx context.Context, input successfu
 	default:
 		return ErrAdmissionInvalidStatus
 	}
+}
+
+func sessionCanApplyBotEvent(session *AdmissionSession, action BotAction) bool {
+	if session == nil || session.CancelledAt != nil {
+		return false
+	}
+	switch action {
+	case BotActionRemind, BotActionKick, BotActionBlacklist:
+		switch session.Status {
+		case StatusJoinedMuted, StatusLinked, StatusMaterialSubmitted:
+			return true
+		default:
+			return false
+		}
+	case BotActionRelease:
+		return session.Status == StatusVerified
+	default:
+		return false
+	}
+}
+
+func queuedBotActionStillMatchesSession(
+	queued BotAction,
+	session *AdmissionSession,
+	now time.Time,
+) bool {
+	if !sessionCanDispatchQueuedBotAction(session) {
+		return false
+	}
+	current, _ := resolvePendingAction(session, now)
+	return queuedActionCanDispatch(queued, current)
 }
 
 func (s *Service) incrementFailureFromKickEventTx(ctx context.Context, input successfulBotEventTxInput) error {
@@ -1105,6 +1146,8 @@ func (s *Service) loadPolicy(ctx context.Context, platform, guildID string) (*Ad
 		return nil, err
 	}
 	if policy != nil {
+		normalized := normalizeAdmissionPolicy(*policy)
+		policy = &normalized
 		return policy, nil
 	}
 	return nil, ErrAdmissionPolicyNotFound

@@ -4,13 +4,6 @@ export interface AdmissionRuntimePageData {
     baseUrl: string
     serviceTokenConfigured: boolean
   }
-  guard: {
-    targetGroups: string[]
-    muteDurationSeconds: number
-    kickAfterMinutes: number
-    reminderTemplate: string
-    exemptUserCount: number
-  }
   scheduler: {
     fallbackScanEnabled: boolean
     scanIntervalSeconds: number
@@ -22,10 +15,10 @@ export interface AdmissionRuntimePageData {
   commands: {
     publicCommandsRegistered: boolean
     publicCommandsEnabled: boolean
+    adminCommandsRegistered: boolean
+    adminCommandsEnabled: boolean
     admissionCommandsRegistered: boolean
     admissionCommandsEnabled: boolean
-    admissionCommandMinAuthority?: number
-    admissionCommandOperatorQQIDCount: number
   }
   moderation: {
     enabled: boolean
@@ -37,9 +30,12 @@ export interface AdmissionRuntimePageData {
   freshmanForward: {
     enabled: boolean
   }
+  reminderDelivery: {
+    groupEnabled: boolean
+    directEnabled: boolean
+  }
   bots: AdmissionRuntimeBot[]
   stats: {
-    targetGroupCount: number
     templateCount: number
     bindingCount: number
     enabledBindingCount: number
@@ -128,10 +124,13 @@ export interface AdmissionSwitchRow {
 export type AdmissionRuntimeSettingsKey =
   | 'actionStreamEnabled'
   | 'publicCommandsEnabled'
+  | 'adminCommandsEnabled'
   | 'admissionCommandsEnabled'
   | 'moderationEnabled'
   | 'freshmanForwardEnabled'
   | 'fallbackScanEnabled'
+  | 'reminderGroupEnabled'
+  | 'reminderDirectEnabled'
 
 export type AdmissionRuntimeSettingsPatch = Partial<Record<AdmissionRuntimeSettingsKey, boolean>>
 
@@ -153,7 +152,7 @@ function buildMetrics(data: AdmissionRuntimePageData): AdmissionMetric[] {
     {
       label: '目标群',
       value: activeTargetGuildCount,
-      note: `${data.stats.targetGroupCount} 个静态目标群，${data.stats.enabledBindingCount} 个启用绑定，去重后 ${activeTargetGuildCount} 个有效目标群`,
+      note: `${data.stats.enabledBindingCount} 个启用绑定，去重后 ${activeTargetGuildCount} 个有效目标群`,
       tone: activeTargetGuildCount > 0 ? 'success' : 'warning',
     },
     {
@@ -178,7 +177,7 @@ function buildMetrics(data: AdmissionRuntimePageData): AdmissionMetric[] {
 }
 
 function countActiveTargetGuilds(data: AdmissionRuntimePageData): number {
-  const guildIds = new Set(data.guard.targetGroups.map((guildId) => guildId.trim()).filter(Boolean))
+  const guildIds = new Set<string>()
   for (const binding of data.bindings) {
     if (binding.enabled && binding.guildId.trim()) {
       guildIds.add(binding.guildId.trim())
@@ -219,18 +218,45 @@ function buildSwitchRows(data: AdmissionRuntimePageData): AdmissionSwitchRow[] {
       label: '公开命令',
       value: data.commands.publicCommandsEnabled,
       tone: data.commands.publicCommandsEnabled && data.commands.publicCommandsRegistered ? 'warning' : 'success',
-      note: data.commands.publicCommandsRegistered ? '举报 / 骰子 / 抽禁言' : '启动未注册，需重启后启用',
+      note: '举报 / 骰子 / 抽禁言',
       editable: data.commands.publicCommandsRegistered,
       settingKey: 'publicCommandsEnabled',
+    },
+    {
+      id: 'admin-commands',
+      label: '群审命令',
+      value: data.commands.adminCommandsEnabled,
+      tone: data.commands.adminCommandsEnabled && data.commands.adminCommandsRegistered ? 'success' : 'warning',
+      note: '群审 / 新生审核',
+      editable: data.commands.adminCommandsRegistered,
+      settingKey: 'adminCommandsEnabled',
     },
     {
       id: 'admission-commands',
       label: '准入命令',
       value: data.commands.admissionCommandsEnabled,
       tone: data.commands.admissionCommandsEnabled && data.commands.admissionCommandsRegistered ? 'success' : 'warning',
-      note: data.commands.admissionCommandsRegistered ? `authority ${data.commands.admissionCommandMinAuthority ?? 0}` : '启动未注册，需重启后启用',
+      note: '权限由命令策略 admission-admin 控制',
       editable: data.commands.admissionCommandsRegistered,
       settingKey: 'admissionCommandsEnabled',
+    },
+    {
+      id: 'reminder-group',
+      label: '群内提醒',
+      value: data.reminderDelivery.groupEnabled,
+      tone: data.reminderDelivery.groupEnabled ? 'success' : 'warning',
+      note: '入群认证目标群',
+      editable: true,
+      settingKey: 'reminderGroupEnabled',
+    },
+    {
+      id: 'reminder-direct',
+      label: '私聊提醒',
+      value: data.reminderDelivery.directEnabled,
+      tone: data.reminderDelivery.directEnabled ? 'success' : 'primary',
+      note: '好友私聊 / QQ 临时会话',
+      editable: true,
+      settingKey: 'reminderDirectEnabled',
     },
     {
       id: 'moderation',

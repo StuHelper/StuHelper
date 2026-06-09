@@ -145,6 +145,11 @@ export class ModerationStore {
     await this.ctx.database.create(MODERATION_KEYWORD_RULE_TABLE, record)
   }
 
+  async getKeywordRule(id: string) {
+    const [record] = await this.ctx.database.get(MODERATION_KEYWORD_RULE_TABLE, { id })
+    return record as KeywordRuleRecord | undefined
+  }
+
   async listKeywordRules(guildId: string) {
     const records = await this.ctx.database.get(MODERATION_KEYWORD_RULE_TABLE, {})
     return records.filter((record) => record.guildId === guildId || record.guildId === '*')
@@ -152,6 +157,10 @@ export class ModerationStore {
 
   async listAllKeywordRules() {
     return this.ctx.database.get(MODERATION_KEYWORD_RULE_TABLE, {})
+  }
+
+  async deleteKeywordRule(id: string) {
+    return this.ctx.database.remove(MODERATION_KEYWORD_RULE_TABLE, { id })
   }
 
   async createReview(input: Omit<ReviewQueueRecord, 'id' | 'createdAt' | 'updatedAt'>) {

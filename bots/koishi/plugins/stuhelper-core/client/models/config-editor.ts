@@ -1,5 +1,4 @@
 import type {
-  BindingFormState,
   PolicyFormState,
   TemplateFormState,
 } from './config-forms'
@@ -61,10 +60,6 @@ export function cloneTemplateForm(state: TemplateFormState): TemplateFormState {
   return { ...state }
 }
 
-export function cloneBindingForm(state: BindingFormState): BindingFormState {
-  return { ...state }
-}
-
 export function clonePolicyForm(state: PolicyFormState): PolicyFormState {
   return { ...state }
 }
@@ -116,10 +111,6 @@ export function isTemplateFormDirty(state: TemplateFormState, snapshot: Template
   return !snapshot || !isSameTemplateForm(state, snapshot)
 }
 
-export function isBindingFormDirty(state: BindingFormState, snapshot: BindingFormState | null) {
-  return !snapshot || !isSameBindingForm(state, snapshot)
-}
-
 export function isPolicyFormDirty(state: PolicyFormState, snapshot: PolicyFormState | null) {
   return !snapshot || !isSamePolicyForm(state, snapshot)
 }
@@ -138,14 +129,6 @@ function isSameTemplateForm(left: TemplateFormState, right: TemplateFormState) {
     && left.kickAfterMinutes === right.kickAfterMinutes
     && left.reminderTemplate === right.reminderTemplate
     && left.exemptUsersText === right.exemptUsersText
-    && left.enabled === right.enabled
-}
-
-function isSameBindingForm(left: BindingFormState, right: BindingFormState) {
-  return left.platform === right.platform
-    && left.guildId === right.guildId
-    && left.templateId === right.templateId
-    && left.note === right.note
     && left.enabled === right.enabled
 }
 

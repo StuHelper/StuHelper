@@ -43,8 +43,8 @@ export const DASHBOARD_SHORTCUTS: ReadonlyArray<{
     target: { view: 'identity', workspace: 'members', guildId: null, memberId: null, itemId: null, keyword: '' },
   },
   {
-    label: '检查模板与群绑定',
-    description: '进入配置治理的模板和绑定工作区。',
+    label: '检查模板与同步绑定',
+    description: '进入配置治理的模板和同步绑定工作区。',
     target: { view: 'config', workspace: 'bindings', guildId: null, memberId: null, itemId: null, keyword: '' },
   },
   {

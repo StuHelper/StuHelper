@@ -15,13 +15,13 @@
 - `packages/shared`：共享配置、日志、平台客户端与基础类型。
 - `packages/moderation-core`：群管领域模型、SQLite 表、规则引擎与动作服务。
 - `plugins/stuhelper-core`：当前入口插件，承载完整群管中心页面、控制台 API 与 WebSocket 交互；WebUI 包含“入群认证”页面，用于查看 group-guard 实际运行态、目标群策略、受限成员队列和学生认证联动状态。
-- `plugins/stuhelper-binding`：处理私聊 `绑定 <code>` 命令，消费平台绑定码并建立 QQ 绑定。
+- `plugins/stuhelper-binding`：处理私聊绑定命令，消费平台绑定码并建立 QQ 绑定；命令字和绑定流程提示从 WebUI runtime settings 读取。
 - `plugins/stuhelper-group-guard`：处理入群 admission session 创建、禁言、认证链接提醒、后端 pending action 执行、材料转发、关键词命中、撤回留痕、举报流和娱乐命令。
 - `plugins/stuhelper-admin`：提供文本管理员命令，用于查看待认证成员、查询警告、查看复核队列、批量禁言、提交踢人/拉黑复核申请，以及 QQ 管理群新生材料审核。
 
 Koishi 群管中心 WebUI 只由 `koishi-plugin-stuhelper-core` 注册到 Koishi Console；`stuhelper-group-guard` 不提供单独前端入口，但会注册 `stuhelperGroupGuard/page/admission-runtime` Console API 供 core WebUI 消费。历史上讨论过的 `stuhelper-console` / `stuhelper-platform` 已按 ADR-0006 从运行路径移除，所以“注册 WebUI”对应的是 `stuhelper-core` 的 Console 入口，而不是 admission 插件本身。
 
-生产如果只需要 WebUI 和 Console API，应在 `stuhelper-core` 设置 `runtimeModules.enabled=false`。该模式保留 `/stuhelper` 控制台入口和 admission 运行态页面，但不初始化 core 旧群管运行时模块，避免注册 `report`、`sub`、`config`、`ai` 等命令并与生产既有插件冲突。
+`stuhelper-core` 现在只提供 WebUI、Console API、后台恢复任务和共享服务，不再暴露旧群管运行时模块开关；旧 `report`、`sub`、`config`、`ai` 等命令面由拆分后的插件和 WebUI runtime settings 接管。其原生插件配置只保留 `platform.baseUrl` 和 `platform.serviceToken`，用于访问 StuHelper 后端。
 
 ## 本地命令
 
@@ -46,7 +46,7 @@ corepack yarn workspaces list
 
 ## Admission 策略边界
 
-`koishi.yml` 的本地 `guard` 字段保留为启动兜底和首次迁移输入；`stuhelper-group-guard` 启动后会把静态 `guard.targetGroups` 幂等迁移为 WebUI 可见的数据库模板与 `platform=qq` 群绑定。运行时策略解析优先使用数据库群绑定；禁用某个数据库绑定会覆盖静态 fallback。新生入群认证的准入与会话策略由后端 admission policy 决定。后端负责 `auto_approve_verified_join`、`auto_approve_unverified_join`、初始禁言时长、link/submission/manual-review 等待时间、提醒间隔、失败次数拉黑、黑名单期限、新生通道关闭时间、原始材料转发开关和 `management_guild_ids`。
+新生入群认证目标群、准入与会话策略由后端 admission policy 决定，并由 `stuhelper-group-guard` 同步为 Koishi 本地 guard policy 执行态缓存。Koishi WebUI 的“同步绑定”只读展示该缓存；目标认证群的增删、启停和入群处理策略请在 StuHelper Admin 的入群认证策略页面修改。`koishi.yml` 不再保留本地 `guard` 业务字段，也不再提供静态目标群兜底。后端负责 `auto_approve_verified_join`、`auto_approve_unverified_join`、初始禁言时长、link/submission/manual-review 等待时间、提醒间隔、失败次数拉黑、黑名单期限、新生通道关闭时间、原始材料转发开关和 `management_guild_ids`。
 
 Koishi 在 admission 流程中只做执行器：入群后创建后端 session，发送后端返回的 `join.stuhelper.com/verify/<code>` 认证链接，通过后端 admission action SSE 下行流接收提醒、解禁、踢出和拉黑动作，执行后按 action ID 回写 ACK。`/sessions/pending` 拉取保留为低频 fallback，不再作为生产主路径。`koishi.yml` 的插件加载保持不变，不新增短链域名配置。
 
@@ -56,32 +56,33 @@ Koishi 在 admission 流程中只做执行器：入群后创建后端 session，
 
 ```yaml
 scheduler:
-  fallbackScanEnabled: true
   scanIntervalSeconds: 300
 actionStream:
-  enabled: true
   reconnectDelaySeconds: 5
-commands:
-  enabled: false
-admissionCommands:
-  enabled: true
-  minAuthority: 4
-moderation:
-  enabled: false
-freshmanForward:
-  enabled: false
 ```
 
-这些值是启动默认值；Koishi Console 的 StuHelper 群管中心“入群认证”页面会把 `actionStream.enabled`、`scheduler.fallbackScanEnabled`、`commands.enabled`、`admissionCommands.enabled`、`moderation.enabled` 和 `freshmanForward.enabled` 保存到 `stuhelper_admission_runtime_settings`，并在运行时生效。`actionStream.enabled`、兜底扫描、消息风控和材料转发可以不重启切换；公开命令和 admission 管理命令只能关闭已注册命令，若启动时没有注册，则 WebUI 会提示需要重启后启用。
+入群认证运行开关由 Koishi Console 的 StuHelper 群管中心“入群认证”页面保存到 `stuhelper_admission_runtime_settings`，并在运行时生效。默认值在 `@stuhelper/koishi-shared` 的 `DEFAULT_ADMISSION_RUNTIME_SETTINGS` 中维护：Action Stream、准入管理员命令、兜底扫描和群内认证提醒默认开启；公开命令、消息风控、新生材料转发和私聊/临时会话认证提醒默认关闭。公开命令和 admission 管理命令启动时始终注册，实际是否执行由 WebUI runtime setting 控制。入群认证管理员命令的执行权限由 Koishi Console“配置治理 / 命令策略”里的 CommandPolicy `admission-admin` 控制；如果还没有保存该策略，运行时会按默认 authority 4 兜底，避免误放开给普通成员。认证提醒的“群内提醒”和“私聊/临时会话提醒”是独立 runtime 开关，但 store 会拒绝两个渠道同时关闭。
 
-`platform.baseUrl`、`platform.serviceToken`、`scheduler.scanIntervalSeconds`、`actionStream.reconnectDelaySeconds`、`admissionCommands.minAuthority` 和 `admissionCommands.operatorQQIDs` 仍是启动/安全配置，只在 WebUI 脱敏或汇总展示，不做浏览器侧热改。`admissionCommands` 保留“查询入群认证 / 重发认证链接 / 重新生成认证链接”等管理员命令，便于恢复真实 QQ 入群测试。不要因此卸载或关闭旧 `student-query` 插件本身。若旧插件也在同一批目标群处理同一阶段入群验证，应在旧插件自身的目标群或功能开关中排除 admission 群，避免两个监听器双处理。
+QQ 绑定命令字和绑定流程提示由 Koishi Console 的 StuHelper 群管中心“全局设置 / QQ 绑定”页面保存到 `stuhelper_binding_runtime_settings`，默认值在 `@stuhelper/koishi-shared` 的 `DEFAULT_BINDING_RUNTIME_SETTINGS` 中维护。`stuhelper-binding` 原生插件配置只保留 `platform.baseUrl` 和 `platform.serviceToken`，不再包含 `binding.command`、绑定码 TTL 或提示文案。
+
+管理员文本命令和新生审核命令的用户可见提示文案由 Koishi Console 的 StuHelper 群管中心“全局设置 / 管理员命令”页面保存到 `stuhelper_admin_runtime_settings`，默认值在 `@stuhelper/koishi-shared` 的 `DEFAULT_ADMIN_RUNTIME_SETTINGS` 中维护。`stuhelper-admin` 原生插件配置只保留 `platform.baseUrl` 和 `platform.serviceToken`，不再包含命令提示文案；命令执行开关仍由 `stuhelper_admission_runtime_settings.adminCommandsEnabled` 控制，命令权限由 CommandPolicy 控制。
+
+骰子默认面数和抽禁言基础秒数、上限、保底阈值、保底秒数由 Koishi Console 的 StuHelper 群管中心“全局设置”页面保存到 `stuhelper_group_guard_behavior_settings`，默认值在 `@stuhelper/koishi-shared` 的 `DEFAULT_GROUP_GUARD_BEHAVIOR_SETTINGS` 中维护。`stuhelper-group-guard` 原生插件配置不再包含 `fun` 字段，公开命令每次执行时读取该 runtime settings，因此 WebUI 修改后不需要重启 Koishi。
+
+消息风控关键词规则由 Koishi Console 的 StuHelper 群管中心“全局设置 / 禁言关键词 / 群管关键词规则”页面保存到 `stuhelper_moderation_keyword_rule`，运行时只读取这张表。`stuhelper-group-guard` 原生插件配置不再包含 `moderation.keywordRules`，不要在 `koishi.yml` 中维护第二份关键词规则。
+
+入群认证、公开命令、消息风控、举报和控制台操作的用户可见提示文案由 Koishi Console 的 StuHelper 群管中心“全局设置 / 群管提示”页面保存到 `stuhelper_group_guard_message_settings`，默认值在 `@stuhelper/koishi-shared` 的 `DEFAULT_GROUP_GUARD_MESSAGE_SETTINGS` 中维护。`stuhelper-group-guard` 原生插件配置不再包含 `messages` 字段；运行时发送提醒、执行命令和记录群管事件时通过轻量 message provider 读取同一份 runtime settings，避免 WebUI 与插件配置重复维护文案。
+
+举报 AI 审核的启用状态、HTTP 接口、模型和 API Key 由 Koishi Console 的 StuHelper 群管中心“全局设置 / AI 功能 / 举报 AI 审核”页面保存到 `stuhelper_group_guard_ai_settings`，默认值在 `@stuhelper/koishi-shared` 的 `DEFAULT_GROUP_GUARD_AI_SETTINGS` 中维护。`stuhelper-group-guard` 原生插件配置不再包含 `ai` 字段；运行时每次处理举报时读取同一份 runtime settings。WebUI 只显示 `apiKeyConfigured` 和脱敏后的 `apiKeyMasked`，保存时只发送 `newApiKey` 或 `clearApiKey`，不会把 API Key 明文回传到浏览器状态快照。
+
+`platform.baseUrl`、`platform.serviceToken`、`scheduler.scanIntervalSeconds` 和 `actionStream.reconnectDelaySeconds` 仍是启动配置，只在 WebUI 脱敏或汇总展示，不做浏览器侧热改。`scheduler.fallbackScanEnabled`、`actionStream.enabled`、`moderation.enabled`、准入管理员命令开关和准入管理员命令权限不再是原生插件配置，分别由 WebUI runtime settings 与 CommandPolicy 控制。不要因此卸载或关闭旧 `student-query` 插件本身。若旧插件也在同一批目标群处理同一阶段入群验证，应在旧插件自身的目标群或功能开关中排除 admission 群，避免两个监听器双处理。
 
 ## 自动化验证
 
 - 单元测试基于 Koishi 官方 `@koishijs/plugin-mock`，不需要连接真实 OneBot/NapCat。
 - `test:unit` 会覆盖 `packages/` 与 `plugins/` 下的 Koishi 测试文件。
 - 绑定插件测试会验证私聊绑定命令和群聊误用提示。
-- 群管插件测试会验证 admission session 创建、入群禁言、认证链接、后端提醒/解禁/踢出/拉黑 action、材料转发、关键词处理、模板/群绑定策略解析与撤回留痕。
+- 群管插件测试会验证 admission session 创建、入群禁言、认证链接、后端提醒/解禁/踢出/拉黑 action、材料转发、关键词处理、模板与同步绑定策略解析以及撤回留痕。
 - 管理员命令测试会验证 QQ 管理群新生审核命令、操作者 QQ 上报、后端 capability 错误映射和黑名单解除。
-- 控制台测试会验证高风险批量操作改走人工复核、复核执行、举报报表聚合，以及模板/群绑定保存事件写入 SQLite。
+- 控制台测试会验证高风险批量操作改走人工复核、复核执行、举报报表聚合，以及模板保存、同步绑定只读展示和命令策略写入 SQLite。
 - 启动烟雾验证会真实拉起一次 Koishi，确认四个 StuHelper 插件、群管中心、Console API 与群守卫能力可启动，并固定监听 `5140`。

@@ -1,4 +1,7 @@
 export * from './config/index'
+export * from './admin/index'
+export * from './binding/index'
+export * from './command-description-sync'
 export * from './guard/index'
 export * from './keyword-pattern'
 export * from './logger/index'

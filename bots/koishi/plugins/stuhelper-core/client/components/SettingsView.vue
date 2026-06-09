@@ -103,7 +103,21 @@
                 <span class="form-hint">{t} 代表警告次数，如 {t}^2h 表示警告次数的平方小时</span>
               </div>
             </div>
+            <div class="form-row">
+              <label class="form-label">群管升级表达式</label>
+              <div class="form-control">
+                <el-input v-model="settings.groupGuard.moderation.warningThresholdExpression" placeholder="warnings >= 3" size="small" maxlength="256" />
+                <span class="form-hint">群管消息风控用，变量包括 warnings、repeats、reports</span>
+              </div>
+            </div>
+            <div class="form-row">
+              <label class="form-label">群管默认禁言秒数</label>
+              <div class="form-control">
+                <el-input-number v-model="settings.groupGuard.moderation.defaultMuteSeconds" :min="1" :max="2592000" size="small" />
+              </div>
+            </div>
           </div>
+
         </div>
 
         <!-- Forbidden Keywords -->
@@ -161,6 +175,132 @@
               </div>
             </div>
           </div>
+
+          <div class="subsection-divider">群管关键词规则</div>
+          <div class="keyword-rule-toolbar">
+            <button class="action-btn" type="button" @click="startNewKeywordRule">
+              <k-icon name="plus" class="btn-icon" />
+              <span>新增规则</span>
+            </button>
+          </div>
+          <div v-if="settings.keywordRules.length === 0" class="keyword-rule-empty">
+            暂无群管关键词规则
+          </div>
+          <div v-else class="keyword-rule-list">
+            <button
+              v-for="rule in settings.keywordRules"
+              :key="rule.id"
+              type="button"
+              class="keyword-rule-item"
+              :class="{ active: selectedKeywordRuleID === rule.id }"
+              @click="loadKeywordRule(rule)"
+            >
+              <span class="keyword-rule-item__main">
+                <span class="keyword-rule-item__id">{{ rule.id }}</span>
+                <span class="keyword-rule-item__pattern">{{ rule.pattern }}</span>
+              </span>
+              <span class="keyword-rule-item__meta">
+                {{ keywordRuleGuildLabel(rule.guildId) }} · {{ keywordRuleMatchModeLabel(rule.matchMode) }} · {{ keywordRuleActionLabel(rule.action) }}
+              </span>
+              <span class="keyword-rule-status" :class="{ disabled: !rule.enabled }">
+                {{ rule.enabled ? '启用' : '停用' }}
+              </span>
+            </button>
+          </div>
+
+          <div class="keyword-rule-editor">
+            <div class="form-grid">
+              <div class="form-row">
+                <label class="form-label">规则 ID</label>
+                <div class="form-control">
+                  <el-input v-model="keywordRuleDraft.id" class="mono-control" placeholder="rule-id" size="small" maxlength="128" />
+                </div>
+              </div>
+              <div class="form-row">
+                <label class="form-label">作用群号</label>
+                <div class="form-control">
+                  <el-input v-model="keywordRuleDraft.guildId" class="mono-control" placeholder="*" size="small" maxlength="64" />
+                  <span class="form-hint">*</span>
+                </div>
+              </div>
+              <div class="form-row full">
+                <label class="form-label">匹配内容</label>
+                <div class="form-control">
+                  <textarea
+                    v-model="keywordRuleDraft.pattern"
+                    rows="3"
+                    maxlength="256"
+                    class="form-textarea"
+                    placeholder="关键词或正则表达式"
+                  ></textarea>
+                </div>
+              </div>
+              <div class="form-row">
+                <label class="form-label">匹配模式</label>
+                <div class="form-control">
+                  <el-select v-model="keywordRuleDraft.matchMode" size="small" class="settings-select">
+                    <el-option label="包含" value="includes" />
+                    <el-option label="正则" value="regex" />
+                  </el-select>
+                </div>
+              </div>
+              <div class="form-row">
+                <label class="form-label">命中动作</label>
+                <div class="form-control">
+                  <el-select v-model="keywordRuleDraft.action" size="small" class="settings-select">
+                    <el-option label="警告" value="warn" />
+                    <el-option label="撤回" value="delete" />
+                    <el-option label="禁言" value="mute" />
+                    <el-option label="复核" value="review" />
+                  </el-select>
+                </div>
+              </div>
+              <div class="form-row">
+                <label class="form-label">启用规则</label>
+                <div class="form-control">
+                  <label class="toggle-switch">
+                    <input type="checkbox" v-model="keywordRuleDraft.enabled" />
+                    <span class="toggle-track"></span>
+                  </label>
+                </div>
+              </div>
+              <div class="form-row">
+                <label class="form-label">禁言秒数</label>
+                <div class="form-control">
+                  <el-input-number v-model="keywordRuleDraft.muteSeconds" :min="0" :max="2592000" size="small" />
+                </div>
+              </div>
+              <div class="form-row full">
+                <label class="form-label">规则备注</label>
+                <div class="form-control">
+                  <textarea
+                    v-model="keywordRuleNoteText"
+                    rows="2"
+                    maxlength="512"
+                    class="form-textarea"
+                  ></textarea>
+                </div>
+              </div>
+            </div>
+            <div v-if="keywordRuleValidationError" class="keyword-rule-error" role="alert">
+              {{ keywordRuleValidationError }}
+            </div>
+            <div class="keyword-rule-actions">
+              <button class="action-btn primary" type="button" @click="stageKeywordRuleDraft">
+                <k-icon name="check" class="btn-icon" />
+                <span>暂存规则</span>
+              </button>
+              <button
+                class="action-btn danger-outline"
+                type="button"
+                :disabled="!selectedKeywordRuleID"
+                @click="removeSelectedKeywordRule"
+              >
+                <k-icon name="trash-2" class="btn-icon" />
+                <span>删除规则</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Keywords -->
@@ -180,6 +320,88 @@
                   class="form-textarea"
                 ></textarea>
                 <span class="form-hint">入群申请需要包含这些关键词才能通过审核</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- QQ Binding -->
+        <div v-show="activeSection === 'binding'" class="config-section">
+          <div class="section-header">
+            <h3 class="section-title">QQ 绑定</h3>
+            <p class="section-desc">配置绑定命令字和绑定流程提示</p>
+          </div>
+          <div class="form-grid">
+            <div class="form-row">
+              <label class="form-label">绑定命令字</label>
+              <div class="form-control">
+                <el-input v-model="settings.binding.command" placeholder="绑定" size="small" maxlength="32" />
+              </div>
+            </div>
+            <div
+              v-for="field in bindingMessageFields"
+              :key="field.key"
+              class="form-row full"
+            >
+              <label class="form-label">{{ field.label }}</label>
+              <div class="form-control">
+                <textarea
+                  v-model="settings.binding.messages[field.key]"
+                  rows="3"
+                  class="form-textarea"
+                ></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Admin Commands -->
+        <div v-show="activeSection === 'admin'" class="config-section">
+          <div class="section-header">
+            <h3 class="section-title">管理员命令</h3>
+            <p class="section-desc">配置管理员文本命令、新生审核命令和权限拒绝提示</p>
+          </div>
+          <div class="form-grid">
+            <div
+              v-for="field in adminMessageFields"
+              :key="field.key"
+              class="form-row full"
+            >
+              <label class="form-label">{{ field.label }}</label>
+              <div class="form-control">
+                <textarea
+                  v-model="settings.admin.messages[field.key]"
+                  rows="3"
+                  class="form-textarea"
+                ></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Group Guard Messages -->
+        <div v-show="activeSection === 'groupGuardMessages'" class="config-section">
+          <div class="section-header">
+            <h3 class="section-title">群管提示</h3>
+            <p class="section-desc">配置入群认证、公开命令、风控和举报提示文案</p>
+          </div>
+          <div v-if="groupGuardMessageResetPending" class="runtime-reset-note">
+            保存后将把群管提示恢复为后端默认文案；继续编辑任一文案会取消本项恢复默认。
+          </div>
+          <div class="form-grid">
+            <div
+              v-for="field in groupGuardMessageFields"
+              :key="field.key"
+              class="form-row full"
+            >
+              <label class="form-label">{{ field.label }}</label>
+              <div class="form-control">
+                <textarea
+                  v-model="settings.groupGuardMessages.messages[field.key]"
+                  rows="3"
+                  class="form-textarea"
+                  @input="groupGuardMessageResetPending = false"
+                ></textarea>
               </div>
             </div>
           </div>
@@ -206,6 +428,13 @@
               <div class="form-control">
                 <el-input-number v-model="settings.dice.lengthLimit" :min="100" :max="10000" size="small" />
                 <span class="form-hint">超过此长度的结果将无法显示</span>
+              </div>
+            </div>
+            <div class="form-row">
+              <label class="form-label">默认面数</label>
+              <div class="form-control">
+                <el-input-number v-model="settings.groupGuard.fun.diceSides" :min="2" :max="1000" size="small" />
+                <span class="form-hint">群管插件“骰子”命令未指定面数时使用</span>
               </div>
             </div>
           </div>
@@ -253,6 +482,34 @@
                   <input type="checkbox" v-model="settings.banme.autoBan" />
                   <span class="toggle-track"></span>
                 </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="subsection-divider">群管抽禁言</div>
+          <div class="form-grid">
+            <div class="form-row">
+              <label class="form-label">基础随机秒数</label>
+              <div class="form-control">
+                <el-input-number v-model="settings.groupGuard.fun.muteLotteryBaseSeconds" :min="1" :max="2592000" size="small" />
+              </div>
+            </div>
+            <div class="form-row">
+              <label class="form-label">最大禁言秒数</label>
+              <div class="form-control">
+                <el-input-number v-model="settings.groupGuard.fun.muteLotteryMaxSeconds" :min="1" :max="2592000" size="small" />
+              </div>
+            </div>
+            <div class="form-row">
+              <label class="form-label">保底抽数</label>
+              <div class="form-control">
+                <el-input-number v-model="settings.groupGuard.fun.muteLotteryPityThreshold" :min="1" :max="100000" size="small" />
+              </div>
+            </div>
+            <div class="form-row">
+              <label class="form-label">保底秒数</label>
+              <div class="form-control">
+                <el-input-number v-model="settings.groupGuard.fun.muteLotteryPitySeconds" :min="1" :max="2592000" size="small" />
               </div>
             </div>
           </div>
@@ -417,6 +674,18 @@
                 <span class="form-hint">超过该次数将撤回除第一条外的所有复读消息</span>
               </div>
             </div>
+            <div class="form-row">
+              <label class="form-label">群管复读阈值</label>
+              <div class="form-control">
+                <el-input-number v-model="settings.groupGuard.moderation.repeatThreshold" :min="2" :max="10000" size="small" />
+              </div>
+            </div>
+            <div class="form-row">
+              <label class="form-label">群管检测窗口</label>
+              <div class="form-control">
+                <el-input-number v-model="settings.groupGuard.moderation.repeatWindowSize" :min="2" :max="10000" size="small" />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -455,6 +724,16 @@
                   <input type="checkbox" v-model="settings.antiRecall.showOriginalTime" />
                   <span class="toggle-track"></span>
                 </label>
+              </div>
+            </div>
+            <div class="form-row">
+              <label class="form-label">群管撤回提示</label>
+              <div class="form-control">
+                <label class="toggle-switch">
+                  <input type="checkbox" v-model="settings.groupGuard.moderation.antiRecallNotify" />
+                  <span class="toggle-track"></span>
+                </label>
+                <span class="form-hint">记录撤回事件后是否在群内发送提示</span>
               </div>
             </div>
           </div>
@@ -561,6 +840,48 @@
                   class="form-textarea"
                   placeholder="翻译提示词..."
                 ></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="subsection-divider">举报 AI 审核</div>
+          <div class="form-grid">
+            <div class="form-row">
+              <label class="form-label">启用审核</label>
+              <div class="form-control">
+                <label class="toggle-switch">
+                  <input type="checkbox" v-model="settings.groupGuardAI.enabled" />
+                  <span class="toggle-track"></span>
+                </label>
+              </div>
+            </div>
+            <div class="form-row">
+              <label class="form-label">审核接口</label>
+              <div class="form-control">
+                <el-input v-model="settings.groupGuardAI.endpoint" placeholder="https://example.com/review" size="small" maxlength="2048" />
+              </div>
+            </div>
+            <div class="form-row">
+              <label class="form-label">审核模型</label>
+              <div class="form-control">
+                <el-input v-model="settings.groupGuardAI.model" placeholder="gpt-4.1-mini" size="small" maxlength="256" />
+              </div>
+            </div>
+            <div class="form-row">
+              <label class="form-label">审核密钥</label>
+              <div class="form-control">
+                <el-input
+                  v-model="groupGuardAIApiKeyDraft"
+                  type="password"
+                  :disabled="clearGroupGuardAIApiKey"
+                  placeholder="输入新密钥；留空保留当前密钥"
+                  size="small"
+                />
+                <span class="form-hint">{{ groupGuardAIApiKeyStatusText }}</span>
+                <label v-if="groupGuardAIApiKeyConfigured" class="inline-checkbox">
+                  <input v-model="clearGroupGuardAIApiKey" type="checkbox" />
+                  <span>保存时清除当前密钥</span>
+                </label>
               </div>
             </div>
           </div>
@@ -673,7 +994,25 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, toRaw, watch } from 'vue'
 import { message } from '@koishijs/client'
-import { settingsApi } from '../api'
+import {
+  adminSettingsApi,
+  bindingSettingsApi,
+  groupGuardAISettingsApi,
+  groupGuardBehaviorSettingsApi,
+  groupGuardMessageSettingsApi,
+  keywordRulesApi,
+  settingsApi,
+  type AdminRuntimeSettings,
+  type BindingRuntimeSettings,
+  type GroupGuardAISettings,
+  type GroupGuardAISettingsUpdate,
+  type GroupGuardBehaviorSettings,
+  type GroupGuardMessageSettings,
+  type KeywordRule,
+  type KeywordRuleAction,
+  type KeywordRuleInput,
+  type KeywordRuleMatchMode,
+} from '../api'
 import { useActionError } from '../composables/use-action-error'
 import { useConfirm } from '../composables/use-confirm'
 import ConfirmDialog from './primitives/ConfirmDialog.vue'
@@ -760,6 +1099,12 @@ interface SettingsModel extends PlainRecord {
     maxRecordsPerUser: number
     showOriginalTime: boolean
   }
+  binding: BindingRuntimeSettings
+  admin: AdminRuntimeSettings
+  groupGuardAI: GroupGuardAISettings
+  groupGuard: GroupGuardBehaviorSettings
+  groupGuardMessages: GroupGuardMessageSettings
+  keywordRules: KeywordRule[]
 }
 
 // 默认配置结构
@@ -830,7 +1175,112 @@ const defaultSettings: SettingsModel = {
     retentionDays: 7,
     maxRecordsPerUser: 50,
     showOriginalTime: true
-  }
+  },
+  binding: {
+    command: '绑定',
+    messages: {
+      directOnly: '请在私聊中发送绑定命令。',
+      missingCode: '请输入绑定码，例如：{command} ABCD1234',
+      successVerified: '绑定成功，当前账号已完成学生认证，加入受控群时会自动放行。',
+      successUnverified: '绑定成功。当前账号还未完成学生认证，请先回到 StuHelper 完成认证。',
+      unavailable: '绑定失败，平台暂时不可用。',
+      invalidCode: '绑定码无效或已过期，请重新生成后再试。',
+      unauthorized: '机器人服务鉴权失败，请联系管理员检查后端配置。',
+      conflict: '该 QQ 号或 StuHelper 账号已经绑定过其他对象。',
+      notConfigured: '后端机器人接口尚未配置完成，请联系管理员。'
+    }
+  },
+  admin: {
+    messages: {
+      guardStatusCommandDescription: '查看当前群待认证成员',
+      guardWarningCommandDescription: '查看成员当前警告次数',
+      guardReviewListCommandDescription: '查看当前群待复核队列',
+      guardBatchMuteCommandDescription: '批量禁言待认证成员',
+      guardKickReviewCommandDescription: '提交踢人复核申请',
+      guardBlockReviewCommandDescription: '提交踢人并拉黑复核申请',
+      freshmanViewCommandDescription: '查看新生认证申请',
+      freshmanApproveCommandDescription: '通过新生认证申请',
+      freshmanRejectCommandDescription: '驳回新生认证申请',
+      freshmanBlacklistReleaseCommandDescription: '解除新生入群认证黑名单',
+      commandAccessDenied: '命令权限不足。',
+      adminCommandsDisabled: '管理员命令已由 StuHelper WebUI 关闭。',
+      guardWarningMissingContext: '请在群聊中执行，或显式传入群号和成员 ID。',
+      guardBatchMuteGroupOnly: '请在目标群聊中执行批量禁言。',
+      guardBatchMuteInvalidPayload: '请提供禁言秒数和成员 ID 列表，例如：群审批量禁言 120 10001,10002',
+      guardBatchMuteNoTargets: '没有找到可操作的待认证成员。',
+      guardBatchMuteSuccess: '已批量禁言 {count} 名成员。',
+      guardBatchMuteEventSummary: '管理员批量禁言了 {memberId}',
+      guardBatchMuteEventReason: '管理员批量禁言',
+      guardReviewRequestMissingArgs: '请在群聊中提供成员 ID 和原因。',
+      guardReviewRequestSuccess: '已提交{actionLabel}复核申请：{memberId}，原因：{reason}',
+      guardReviewRequestEventSummary: '{operatorMemberId} 提交了{actionLabel}复核申请',
+      guardReviewKickActionLabel: '踢人',
+      guardReviewKickAndBlockActionLabel: '踢人并拉黑',
+      guardPendingMembersEmpty: '当前没有待认证成员。',
+      guardPendingMembersHeader: '待认证成员：',
+      guardPendingMemberLine: '{memberId} 截止 {deadlineAt}',
+      guardWarningCounterEmpty: '{memberId} 当前没有警告记录。',
+      guardWarningCounterNoReason: '无',
+      guardWarningCounterSummary: '{memberId} 当前累计警告 {total} 次，最近原因：{lastReason}',
+      guardPendingReviewsEmpty: '当前没有待复核事项。',
+      guardPendingReviewsHeader: '待复核队列：',
+      guardPendingReviewLine: '{memberId} [{actionType}] {reason}',
+      freshmanManagementGroupOnly: '请在新生审核管理群中执行此命令。',
+      freshmanMissingApplicationID: '请提供申请 ID。',
+      freshmanApproveInvalidFormat: '通过命令格式为：新生审核通过 <申请ID> [+30d]。',
+      freshmanApproveInvalidExtension: '审批延长天数格式应为 +30d，且必须是正整数天数。',
+      freshmanRejectInvalidFormat: '驳回命令格式为：新生审核驳回 <申请ID> <原因>。',
+      freshmanBlacklistReleaseInvalidFormat: '解除命令格式为：新生黑名单解除 <QQ号> <群号|global>。',
+      freshmanApproveSuccess: '已通过新生认证申请 {applicationID}。',
+      freshmanApproveSuccessWithExtension: '已通过新生认证申请 {applicationID}，临时身份 {expiresInDays} 天后过期。',
+      freshmanRejectSuccess: '已驳回新生认证申请 {applicationID}。',
+      freshmanBlacklistScopeGlobal: '全局',
+      freshmanBlacklistScopeGuild: '群 {guildID} 的',
+      freshmanBlacklistReleaseSuccess: '已解除 {qqID} 的{scope}入群认证黑名单。',
+      freshmanApplicationSummary: [
+        '申请 {applicationID}',
+        '状态：{status}',
+        '姓名：{applicantName}',
+        '学校ID：{schoolID}',
+        '专业：{departmentOrMajor}',
+        '临时身份过期：{provisionalExpiresAt}',
+      ].join('\n'),
+      freshmanApplicationDepartmentFallback: '未提供',
+      freshmanApplicationExpiryFallback: '未设置',
+      freshmanCommandFailed: '新生审核命令执行失败：{error}',
+      freshmanOperatorQQUnbound: '你的 QQ 未绑定 StuHelper 管理员账号，请先完成管理员 QQ 绑定。',
+      freshmanOperatorForbidden: '你的 StuHelper 账号没有新生审核权限。',
+      freshmanManagementGuildForbidden: '当前群不在新生审核管理群白名单内。',
+      freshmanBackendForbidden: '后端拒绝执行该审核命令：{message}',
+    }
+  },
+  groupGuardAI: {
+    enabled: false,
+    endpoint: '',
+    model: '',
+    apiKeyConfigured: false,
+    apiKeyMasked: ''
+  },
+  groupGuard: {
+    fun: {
+      diceSides: 100,
+      muteLotteryBaseSeconds: 120,
+      muteLotteryMaxSeconds: 600,
+      muteLotteryPityThreshold: 5,
+      muteLotteryPitySeconds: 300
+    },
+    moderation: {
+      repeatThreshold: 3,
+      repeatWindowSize: 3,
+      warningThresholdExpression: 'warnings >= 3',
+      defaultMuteSeconds: 600,
+      antiRecallNotify: true
+    }
+  },
+  groupGuardMessages: {
+    messages: {}
+  },
+  keywordRules: []
 }
 
 const loading = ref(true)
@@ -851,9 +1301,17 @@ const openAIApiKeyDraft = ref('')
 const openAIApiKeyConfigured = ref(false)
 const openAIApiKeyMasked = ref('')
 const clearOpenAIApiKey = ref(false)
+const groupGuardAIApiKeyDraft = ref('')
+const groupGuardAIApiKeyConfigured = ref(false)
+const groupGuardAIApiKeyMasked = ref('')
+const clearGroupGuardAIApiKey = ref(false)
+const selectedKeywordRuleID = ref('')
+const keywordRuleDraft = ref<KeywordRuleInput>(createEmptyKeywordRule())
+const keywordRuleValidationError = ref('')
 const activeSection = ref('warn')
 const sectionDropdownOpen = ref(false)
 const settingsLoaded = computed(() => Boolean(originalSettings.value) && !loadError.value)
+const groupGuardMessageResetPending = ref(false)
 let loadRequestSeq = 0
 
 // 当前选中的 section 标签
@@ -867,6 +1325,14 @@ const openAIApiKeyStatusText = computed(() => {
   if (!openAIApiKeyConfigured.value) return '当前未配置密钥'
   return openAIApiKeyMasked.value
     ? `当前已配置：${openAIApiKeyMasked.value}`
+    : '当前已配置密钥'
+})
+
+const groupGuardAIApiKeyStatusText = computed(() => {
+  if (clearGroupGuardAIApiKey.value) return '保存后将清除当前密钥'
+  if (!groupGuardAIApiKeyConfigured.value) return '当前未配置密钥'
+  return groupGuardAIApiKeyMasked.value
+    ? `当前已配置：${groupGuardAIApiKeyMasked.value}`
     : '当前已配置密钥'
 })
 
@@ -889,13 +1355,22 @@ const hasChanges = computed(() => {
   return (
     JSON.stringify(settings.value) !== originalSettings.value ||
     openAIApiKeyDraft.value.trim() !== '' ||
-    clearOpenAIApiKey.value
+    clearOpenAIApiKey.value ||
+    groupGuardAIApiKeyDraft.value.trim() !== '' ||
+    clearGroupGuardAIApiKey.value ||
+    groupGuardMessageResetPending.value
   )
 })
 
 watch(clearOpenAIApiKey, (clear) => {
   if (clear) {
     openAIApiKeyDraft.value = ''
+  }
+})
+
+watch(clearGroupGuardAIApiKey, (clear) => {
+  if (clear) {
+    groupGuardAIApiKeyDraft.value = ''
   }
 })
 
@@ -919,10 +1394,21 @@ const friendKeywordsText = computed({
   }
 })
 
+const keywordRuleNoteText = computed({
+  get: () => keywordRuleDraft.value.note || '',
+  set: (value: string) => {
+    const trimmed = value.trim()
+    keywordRuleDraft.value.note = trimmed || null
+  }
+})
+
 const sections = [
   { id: 'warn', label: '警告设置', icon: 'stuhelperGroupCenter:octicons.warning' },
   { id: 'forbidden', label: '禁言关键词', icon: 'stuhelperGroupCenter:octicons.x' },
   { id: 'keywords', label: '入群审核', icon: 'stuhelperGroupCenter:octicons.personadd' },
+  { id: 'binding', label: 'QQ绑定', icon: 'stuhelperGroupCenter:octicons.link' },
+  { id: 'admin', label: '管理员命令', icon: 'stuhelperGroupCenter:octicons.shield' },
+  { id: 'groupGuardMessages', label: '群管提示', icon: 'stuhelperGroupCenter:octicons.discussion' },
   { id: 'dice', label: '掷骰子', icon: 'stuhelperGroupCenter:octicons.tools' },
   { id: 'banme', label: '自我禁言', icon: 'stuhelperGroupCenter:octicons.person' },
   { id: 'friendRequest', label: '好友申请', icon: 'stuhelperGroupCenter:octicons.personadd' },
@@ -933,6 +1419,212 @@ const sections = [
   { id: 'openai', label: 'AI功能', icon: 'stuhelperGroupCenter:octicons.graph' },
   { id: 'report', label: '举报功能', icon: 'stuhelperGroupCenter:octicons.warning' },
 ]
+
+const bindingMessageFields = [
+  { key: 'directOnly', label: '群聊误用提示' },
+  { key: 'missingCode', label: '缺少绑定码提示' },
+  { key: 'successVerified', label: '绑定成功且已认证' },
+  { key: 'successUnverified', label: '绑定成功但未认证' },
+  { key: 'unavailable', label: '平台不可用提示' },
+  { key: 'invalidCode', label: '绑定码无效提示' },
+  { key: 'unauthorized', label: '服务鉴权失败提示' },
+  { key: 'conflict', label: '绑定冲突提示' },
+  { key: 'notConfigured', label: '后端未配置提示' },
+] as const
+
+const adminMessageFields = [
+  { key: 'guardStatusCommandDescription', label: '群审状态命令说明' },
+  { key: 'guardWarningCommandDescription', label: '群审警告命令说明' },
+  { key: 'guardReviewListCommandDescription', label: '群审复核命令说明' },
+  { key: 'guardBatchMuteCommandDescription', label: '群审批量禁言命令说明' },
+  { key: 'guardKickReviewCommandDescription', label: '踢人复核申请命令说明' },
+  { key: 'guardBlockReviewCommandDescription', label: '拉黑复核申请命令说明' },
+  { key: 'freshmanViewCommandDescription', label: '新生审核查看命令说明' },
+  { key: 'freshmanApproveCommandDescription', label: '新生审核通过命令说明' },
+  { key: 'freshmanRejectCommandDescription', label: '新生审核驳回命令说明' },
+  { key: 'freshmanBlacklistReleaseCommandDescription', label: '新生黑名单解除命令说明' },
+  { key: 'commandAccessDenied', label: '命令权限不足提示' },
+  { key: 'adminCommandsDisabled', label: '管理员命令关闭提示' },
+  { key: 'guardWarningMissingContext', label: '警告命令缺少上下文' },
+  { key: 'guardBatchMuteGroupOnly', label: '批量禁言群聊限制' },
+  { key: 'guardBatchMuteInvalidPayload', label: '批量禁言格式错误' },
+  { key: 'guardBatchMuteNoTargets', label: '批量禁言无目标' },
+  { key: 'guardBatchMuteSuccess', label: '批量禁言成功' },
+  { key: 'guardBatchMuteEventSummary', label: '批量禁言事件摘要' },
+  { key: 'guardBatchMuteEventReason', label: '批量禁言事件原因' },
+  { key: 'guardReviewRequestMissingArgs', label: '复核申请缺少参数' },
+  { key: 'guardReviewRequestSuccess', label: '复核申请成功' },
+  { key: 'guardReviewRequestEventSummary', label: '复核申请事件摘要' },
+  { key: 'guardReviewKickActionLabel', label: '踢人动作标签' },
+  { key: 'guardReviewKickAndBlockActionLabel', label: '踢人并拉黑动作标签' },
+  { key: 'guardPendingMembersEmpty', label: '待认证列表为空' },
+  { key: 'guardPendingMembersHeader', label: '待认证列表标题' },
+  { key: 'guardPendingMemberLine', label: '待认证成员行' },
+  { key: 'guardWarningCounterEmpty', label: '警告记录为空' },
+  { key: 'guardWarningCounterNoReason', label: '警告原因为空占位' },
+  { key: 'guardWarningCounterSummary', label: '警告次数摘要' },
+  { key: 'guardPendingReviewsEmpty', label: '复核队列为空' },
+  { key: 'guardPendingReviewsHeader', label: '复核队列标题' },
+  { key: 'guardPendingReviewLine', label: '复核队列行' },
+  { key: 'freshmanManagementGroupOnly', label: '新生审核管理群限制' },
+  { key: 'freshmanMissingApplicationID', label: '新生申请 ID 缺失' },
+  { key: 'freshmanApproveInvalidFormat', label: '新生通过格式错误' },
+  { key: 'freshmanApproveInvalidExtension', label: '新生延期格式错误' },
+  { key: 'freshmanRejectInvalidFormat', label: '新生驳回格式错误' },
+  { key: 'freshmanBlacklistReleaseInvalidFormat', label: '新生黑名单解除格式错误' },
+  { key: 'freshmanApproveSuccess', label: '新生通过成功' },
+  { key: 'freshmanApproveSuccessWithExtension', label: '新生通过并延期成功' },
+  { key: 'freshmanRejectSuccess', label: '新生驳回成功' },
+  { key: 'freshmanBlacklistScopeGlobal', label: '全局黑名单范围标签' },
+  { key: 'freshmanBlacklistScopeGuild', label: '群黑名单范围标签' },
+  { key: 'freshmanBlacklistReleaseSuccess', label: '新生黑名单解除成功' },
+  { key: 'freshmanApplicationSummary', label: '新生申请详情摘要' },
+  { key: 'freshmanApplicationDepartmentFallback', label: '新生专业为空占位' },
+  { key: 'freshmanApplicationExpiryFallback', label: '新生临时身份过期为空占位' },
+  { key: 'freshmanCommandFailed', label: '新生审核命令失败' },
+  { key: 'freshmanOperatorQQUnbound', label: '审核员 QQ 未绑定' },
+  { key: 'freshmanOperatorForbidden', label: '审核员权限不足' },
+  { key: 'freshmanManagementGuildForbidden', label: '管理群未授权' },
+  { key: 'freshmanBackendForbidden', label: '后端拒绝审核命令' },
+] as const
+
+const groupGuardMessageLabels: Record<string, string> = {
+  publicReportCommandDescription: '举报命令说明',
+  diceCommandDescription: '骰子命令说明',
+  muteLotteryCommandDescription: '抽禁言命令说明',
+  admissionQueryCommandDescription: '入群认证查询命令说明',
+  admissionResendCommandDescription: '重发认证链接命令说明',
+  admissionRegenerateCommandDescription: '重新生成认证链接命令说明',
+  admissionSkipCommandDescription: '跳过入群认证命令说明',
+  admissionResetFailureCountCommandDescription: '清空未认证次数命令说明',
+  admissionReleaseBlacklistCommandDescription: '解除入群拉黑命令说明',
+  admissionReminder: '入群认证提醒',
+  admissionTimeoutNormal: '入群认证普通超时提示',
+  admissionTimeoutWithFailures: '入群认证带失败次数超时提示',
+  admissionTimeoutBlacklist: '入群认证拉黑前超时提示',
+  backendPendingReminder: '后端暂不可用兜底提醒',
+  admissionReleaseCompleted: '认证通过解除禁言提示',
+  admissionKickTimeout: '认证超时踢出提示',
+  admissionBlacklistKick: '认证失败拉黑踢出提示',
+  antiRecallNotify: '防撤回群内提示',
+  moderationMuteNotice: '禁言通知',
+  moderationUnmuteNotice: '解除禁言通知',
+  moderationKickNotice: '踢出通知',
+  freshmanForwardSummary: '新生材料转发摘要',
+  freshmanForwardUnknownField: '新生材料未知字段占位',
+  freshmanMaterialTypeAdmissionNotice: '录取通知书材料标签',
+  freshmanMaterialTypeAdmissionCertificate: '录取证明材料标签',
+  publicReportMissingArgs: '举报命令缺少参数',
+  publicCommandsDisabled: '公开命令关闭提示',
+  muteLotteryGroupOnly: '抽禁言群聊限制',
+  commandAccessDenied: '命令权限不足提示',
+  diceResult: '骰子结果',
+  muteLotteryResult: '抽禁言结果',
+  muteLotteryPityResult: '抽禁言保底结果',
+  reportGroupOnly: '举报命令群聊限制',
+  reportRecordedAIUnavailable: '举报记录后 AI 不可用',
+  reportAIReviewFailed: '举报 AI 审核失败',
+  reportHighRisk: '举报高风险提示',
+  reportMediumRisk: '举报中风险提示',
+  reportLowRisk: '举报低风险提示',
+  reportNoAction: '举报无动作提示',
+  admissionCommandGroupOnly: '入群认证命令群聊限制',
+  admissionCommandsDisabled: '入群认证管理员命令关闭提示',
+  admissionCommandMissingQQ: '入群认证命令缺少 QQ',
+  admissionCommandMissingOperator: '入群认证命令缺少操作人',
+  admissionCommandUnsupportedPlatform: '入群认证命令平台不支持',
+  admissionCommandPolicyDisabled: '当前群未启用入群认证',
+  admissionCommandNotFound: '未找到入群认证记录',
+  admissionCommandInvalidState: '入群认证状态不允许操作',
+  admissionCommandUnauthorized: '入群认证接口未授权',
+  admissionCommandFailed: '入群认证命令失败',
+  admissionCommandPlatformError: '入群认证平台接口错误',
+  admissionCommandMissingResendURL: '后端未返回认证链接',
+  admissionCommandStaleRecord: '入群认证记录已过期',
+  admissionReminderDeliveryDisabled: '认证提醒投递方式关闭',
+  admissionReminderDeliveryFailure: '认证提醒投递失败',
+  admissionReminderDeliveryGroupChannelLabel: '群内提醒通道标签',
+  admissionReminderDeliveryDirectChannelLabel: '私聊/临时会话通道标签',
+  admissionSkipSuccess: '跳过入群认证成功',
+  admissionAlreadyVerifiedRegenerate: '重新生成时已认证提示',
+  admissionResetFailureCountSuccess: '清空未认证次数成功',
+  admissionReleaseBlacklistNotFound: '解除拉黑未找到记录',
+  admissionReleaseBlacklistSuccess: '解除拉黑成功',
+  admissionQuerySummary: '入群认证查询摘要',
+  admissionQueryDeadlineLink: '查询链接有效期行',
+  admissionQueryDeadlineSubmission: '查询学生认证截止行',
+  admissionQueryDeadlineManualReview: '查询人工审核截止行',
+  admissionQueryDeadlineUnset: '查询截止时间为空占位',
+  admissionQueryLastBotError: '查询最近机器人错误行',
+  admissionQueryQQLinked: '查询 QQ 已绑定标签',
+  admissionQueryQQUnlinked: '查询 QQ 未绑定标签',
+  admissionQueryStudentVerified: '查询学生已认证标签',
+  admissionQueryStudentFreshmanPending: '查询新生材料待审核标签',
+  admissionQueryStudentUnverified: '查询学生未认证标签',
+  admissionStatusJoinedMuted: '状态：等待绑定 QQ',
+  admissionStatusLinked: '状态：已绑定待认证',
+  admissionStatusMaterialSubmitted: '状态：新生材料待审核',
+  admissionStatusVerified: '状态：学生认证已通过',
+  admissionStatusExpiredKicked: '状态：已超时移出',
+  admissionStatusCancelled: '状态：已取消',
+  admissionNextStepJoinedMuted: '下一步：打开链接认证',
+  admissionNextStepLinked: '下一步：继续学生认证',
+  admissionNextStepMaterialSubmitted: '下一步：等待人工审核',
+  admissionNextStepVerifiedWithBotError: '下一步：已认证但机器人失败',
+  admissionNextStepVerified: '下一步：已认证解除禁言',
+  admissionNextStepExpiredKickedLinked: '下一步：超时已绑定',
+  admissionNextStepExpiredKicked: '下一步：超时未绑定',
+  admissionNextStepCancelled: '下一步：已取消',
+  admissionNextStepDefault: '下一步默认提示',
+  admissionConsoleSettingsSaved: '控制台设置保存成功',
+  admissionConsoleRecordNotFound: '控制台记录不存在',
+  admissionConsoleStaleRecord: '控制台记录已过期',
+  admissionConsoleResendSuccess: '控制台重发成功',
+  admissionConsoleVerifiedReleaseSuccess: '控制台已认证解除禁言成功',
+  admissionConsoleRegenerateSuccess: '控制台重新生成成功',
+  admissionConsoleSkipSuccess: '控制台跳过成功',
+  admissionConsoleResetFailureCountSuccess: '控制台清空失败次数成功',
+  admissionConsoleReleaseBlacklistSuccess: '控制台解除拉黑成功',
+  admissionConsoleMissingResendURL: '控制台缺少认证链接',
+  admissionConsoleInvalidMuteDeadline: '控制台禁言期限无效',
+  admissionConsoleBotNotFound: '控制台找不到 Bot',
+  admissionConsoleErrorNotFound: '控制台错误：未找到',
+  admissionConsoleErrorInvalidState: '控制台错误：状态不允许',
+  admissionConsoleErrorUnauthorized: '控制台错误：未授权',
+  admissionConsoleErrorPlatform: '控制台错误：平台接口',
+  admissionConsoleErrorFallback: '控制台错误兜底',
+  moderationWarnEventSummary: '风控警告事件摘要',
+  moderationMuteEventSummary: '风控禁言事件摘要',
+  moderationUnmuteEventSummary: '风控解除禁言事件摘要',
+  moderationKickEventSummary: '风控踢出事件摘要',
+  moderationAntiRecallEventSummary: '防撤回事件摘要',
+  moderationKeywordHitEventSummary: '关键词命中事件摘要',
+  moderationKeywordHitReason: '关键词命中原因',
+  moderationKeywordRuleHitReason: '关键词规则命中原因',
+  moderationRepeatHitEventSummary: '复读命中事件摘要',
+  moderationRepeatHitReason: '复读命中原因',
+  moderationRepeatAutoMuteReason: '复读自动处罚原因',
+  moderationMuteLotteryEventSummary: '抽禁言事件摘要',
+  reportCreatedEventSummary: '举报创建事件摘要',
+  reportAIReviewedEventSummary: '举报 AI 审核事件摘要',
+  reportAIWarnReason: 'AI 举报警告原因',
+  reportAIMuteReason: 'AI 举报禁言原因',
+  reportAISummaryFallback: 'AI 举报摘要为空占位',
+  admissionBlacklistEventSummary: '入群黑名单事件摘要',
+  admissionJoinMutedEventSummary: '入群禁言事件摘要',
+  admissionJoinAlreadyVerifiedEventSummary: '入群已认证事件摘要',
+  admissionJoinBackendUnavailableEventSummary: '入群后端不可用事件摘要',
+  admissionJoinBackendVerifiedEventSummary: '后端同步已认证事件摘要',
+  admissionCommandInvalidMuteDeadline: '入群认证命令禁言期限无效',
+}
+
+const groupGuardMessageFields = computed(() => {
+  const keys = Object.keys(settings.value.groupGuardMessages.messages || {})
+  return keys.map((key) => ({
+    key,
+    label: groupGuardMessageLabels[key] || key,
+  }))
+})
 
 function splitLines(value: string): string[] {
   return value.split('\n').map((line) => line.trim()).filter((line) => line)
@@ -966,7 +1658,95 @@ function isPlainRecord(value: unknown): value is PlainRecord {
 
 function parseSettingsSnapshot(value: string): SettingsModel {
   const parsed: unknown = JSON.parse(value)
-  return deepMerge(cloneDefaultSettings(), parsed)
+  return normalizeSettingsSnapshot(parsed)
+}
+
+function normalizeSettingsSnapshot(data: unknown): SettingsModel {
+  const record = isPlainRecord(data) ? data : {}
+  const merged = deepMerge(cloneDefaultSettings(), record)
+  merged.binding = normalizeBindingSettings(record.binding)
+  merged.admin = normalizeAdminSettings(record.admin)
+  merged.groupGuardAI = normalizeGroupGuardAISettings(record.groupGuardAI)
+  merged.groupGuard = normalizeGroupGuardBehaviorSettings(record.groupGuard)
+  merged.groupGuardMessages = normalizeGroupGuardMessageSettings(record.groupGuardMessages)
+  merged.keywordRules = normalizeKeywordRules(record.keywordRules)
+  stripOpenAIApiKeyMetadata(merged)
+  stripGroupGuardAIApiKeyMetadata(merged)
+  return merged
+}
+
+function normalizeBindingSettings(data: unknown): BindingRuntimeSettings {
+  return deepMerge(
+    structuredClone(defaultSettings.binding) as unknown as PlainRecord,
+    data,
+  ) as unknown as BindingRuntimeSettings
+}
+
+function normalizeAdminSettings(data: unknown): AdminRuntimeSettings {
+  return deepMerge(
+    structuredClone(defaultSettings.admin) as unknown as PlainRecord,
+    data,
+  ) as unknown as AdminRuntimeSettings
+}
+
+function normalizeGroupGuardAISettings(data: unknown): GroupGuardAISettings {
+  return deepMerge(
+    structuredClone(defaultSettings.groupGuardAI) as unknown as PlainRecord,
+    data,
+  ) as unknown as GroupGuardAISettings
+}
+
+function normalizeGroupGuardBehaviorSettings(data: unknown): GroupGuardBehaviorSettings {
+  return deepMerge(
+    structuredClone(defaultSettings.groupGuard) as unknown as PlainRecord,
+    data,
+  ) as unknown as GroupGuardBehaviorSettings
+}
+
+function normalizeGroupGuardMessageSettings(data: unknown): GroupGuardMessageSettings {
+  return deepMerge(
+    structuredClone(defaultSettings.groupGuardMessages) as unknown as PlainRecord,
+    data,
+  ) as unknown as GroupGuardMessageSettings
+}
+
+function normalizeKeywordRules(data: unknown): KeywordRule[] {
+  if (!Array.isArray(data)) {
+    return []
+  }
+  return data
+    .map((item) => normalizeKeywordRule(item))
+    .filter((item): item is KeywordRule => Boolean(item))
+    .sort(sortKeywordRules)
+}
+
+function normalizeKeywordRule(data: unknown): KeywordRule | null {
+  if (!isPlainRecord(data)) {
+    return null
+  }
+  const id = readStringField(data.id)
+  const guildId = readStringField(data.guildId)
+  const pattern = readStringField(data.pattern)
+  const matchMode = readKeywordRuleMatchMode(data.matchMode)
+  const action = readKeywordRuleAction(data.action)
+  if (!id || !guildId || !pattern || !matchMode || !action || typeof data.enabled !== 'boolean') {
+    return null
+  }
+  const muteSeconds = typeof data.muteSeconds === 'number' && Number.isFinite(data.muteSeconds)
+    ? Math.max(0, Math.trunc(data.muteSeconds))
+    : 0
+  return {
+    id,
+    guildId,
+    pattern,
+    matchMode,
+    action,
+    enabled: data.enabled,
+    muteSeconds,
+    note: typeof data.note === 'string' && data.note.trim() ? data.note.trim() : null,
+    createdAt: readStringField(data.createdAt) || undefined,
+    updatedAt: readStringField(data.updatedAt) || undefined,
+  }
 }
 
 function applyOpenAIApiKeyMetadata(data: unknown) {
@@ -975,6 +1755,14 @@ function applyOpenAIApiKeyMetadata(data: unknown) {
   openAIApiKeyMasked.value = typeof openai.apiKeyMasked === 'string' ? openai.apiKeyMasked : ''
   openAIApiKeyDraft.value = ''
   clearOpenAIApiKey.value = false
+}
+
+function applyGroupGuardAIApiKeyMetadata(data: unknown) {
+  const ai = isPlainRecord(data) ? data : {}
+  groupGuardAIApiKeyConfigured.value = ai.apiKeyConfigured === true
+  groupGuardAIApiKeyMasked.value = typeof ai.apiKeyMasked === 'string' ? ai.apiKeyMasked : ''
+  groupGuardAIApiKeyDraft.value = ''
+  clearGroupGuardAIApiKey.value = false
 }
 
 function stripOpenAIApiKeyMetadata(model: SettingsModel) {
@@ -986,11 +1774,29 @@ function stripOpenAIApiKeyMetadata(model: SettingsModel) {
   model.openai.apiKey = ''
 }
 
+function stripGroupGuardAIApiKeyMetadata(model: SettingsModel) {
+  const ai = model.groupGuardAI as unknown as PlainRecord
+  delete ai.id
+  delete ai.createdAt
+  delete ai.updatedAt
+  delete ai.apiKey
+  delete ai.newApiKey
+  delete ai.clearApiKey
+  delete ai.apiKeyConfigured
+  delete ai.apiKeyMasked
+}
+
 function buildSettingsUpdatePayload(): PlainRecord {
   const payload = structuredClone(toRaw(settings.value)) as unknown as PlainRecord
   const openai = isPlainRecord(payload.openai) ? { ...payload.openai } : {}
   const newApiKey = openAIApiKeyDraft.value.trim()
 
+  delete payload.binding
+  delete payload.admin
+  delete payload.groupGuardAI
+  delete payload.groupGuard
+  delete payload.groupGuardMessages
+  delete payload.keywordRules
   delete openai.apiKey
   delete openai.apiKeyConfigured
   delete openai.apiKeyMasked
@@ -1004,19 +1810,108 @@ function buildSettingsUpdatePayload(): PlainRecord {
   return payload
 }
 
+function buildBindingSettingsPayload(): BindingRuntimeSettings {
+  const binding = toRaw(settings.value.binding)
+  return {
+    command: binding.command,
+    messages: structuredClone(binding.messages),
+  }
+}
+
+function buildAdminSettingsPayload(): AdminRuntimeSettings {
+  return {
+    messages: structuredClone(toRaw(settings.value.admin.messages)),
+  }
+}
+
+function buildGroupGuardAISettingsPayload(): GroupGuardAISettingsUpdate {
+  const ai = toRaw(settings.value.groupGuardAI)
+  const payload: GroupGuardAISettingsUpdate = {
+    enabled: ai.enabled,
+    endpoint: ai.endpoint,
+    model: ai.model,
+  }
+  const newApiKey = groupGuardAIApiKeyDraft.value.trim()
+  if (clearGroupGuardAIApiKey.value) {
+    payload.clearApiKey = true
+  } else if (newApiKey) {
+    payload.newApiKey = newApiKey
+  }
+  return payload
+}
+
+function buildGroupGuardBehaviorSettingsPayload(): GroupGuardBehaviorSettings {
+  const groupGuard = toRaw(settings.value.groupGuard)
+  return {
+    fun: structuredClone(groupGuard.fun),
+    moderation: structuredClone(groupGuard.moderation),
+  }
+}
+
+function buildGroupGuardMessageSettingsPayload(): GroupGuardMessageSettings {
+  return {
+    messages: structuredClone(toRaw(settings.value.groupGuardMessages.messages)),
+  }
+}
+
+function buildKeywordRulePayload(rule: KeywordRule): KeywordRuleInput {
+  return {
+    id: rule.id,
+    guildId: rule.guildId,
+    pattern: rule.pattern,
+    matchMode: rule.matchMode,
+    action: rule.action,
+    enabled: rule.enabled,
+    muteSeconds: rule.muteSeconds,
+    note: rule.note,
+  }
+}
+
+async function saveKeywordRules() {
+  const original = parseSettingsSnapshot(originalSettings.value).keywordRules
+  const next = settings.value.keywordRules
+  const nextIds = new Set(next.map((rule) => rule.id))
+
+  for (const rule of original) {
+    if (!nextIds.has(rule.id)) {
+      await keywordRulesApi.delete(rule.id)
+    }
+  }
+  for (const rule of next) {
+    await keywordRulesApi.upsert(buildKeywordRulePayload(rule))
+  }
+}
+
 const loadSettings = async (): Promise<boolean> => {
   const requestSeq = ++loadRequestSeq
   loading.value = true
   loadError.value = ''
   clearActionError()
   try {
-    const data = await settingsApi.get()
+    const [data, bindingData, adminData, groupGuardAIData, groupGuardData, groupGuardMessageData, keywordRulesData] = await Promise.all([
+      settingsApi.get(),
+      bindingSettingsApi.get(),
+      adminSettingsApi.get(),
+      groupGuardAISettingsApi.get(),
+      groupGuardBehaviorSettingsApi.get(),
+      groupGuardMessageSettingsApi.get(),
+      keywordRulesApi.list(),
+    ])
     if (requestSeq !== loadRequestSeq) return false
-    // 深度合并默认值和返回数据
-    const merged = deepMerge(cloneDefaultSettings(), data)
+    const merged = normalizeSettingsSnapshot({
+      ...(isPlainRecord(data) ? data : {}),
+      binding: bindingData,
+      admin: adminData,
+      groupGuardAI: groupGuardAIData,
+      groupGuard: groupGuardData,
+      groupGuardMessages: groupGuardMessageData,
+      keywordRules: keywordRulesData,
+    })
     applyOpenAIApiKeyMetadata(data)
-    stripOpenAIApiKeyMetadata(merged)
+    applyGroupGuardAIApiKeyMetadata(groupGuardAIData)
     settings.value = merged
+    groupGuardMessageResetPending.value = false
+    resetKeywordRuleEditor()
     // 保存原始设置用于比较
     originalSettings.value = JSON.stringify(settings.value)
     return true
@@ -1045,6 +1940,16 @@ const saveSettings = async () => {
   clearActionError()
   try {
     await settingsApi.update(buildSettingsUpdatePayload())
+    await bindingSettingsApi.update(buildBindingSettingsPayload())
+    await adminSettingsApi.update(buildAdminSettingsPayload())
+    await groupGuardAISettingsApi.update(buildGroupGuardAISettingsPayload())
+    await groupGuardBehaviorSettingsApi.update(buildGroupGuardBehaviorSettingsPayload())
+    if (groupGuardMessageResetPending.value) {
+      await groupGuardMessageSettingsApi.reset()
+    } else {
+      await groupGuardMessageSettingsApi.update(buildGroupGuardMessageSettingsPayload())
+    }
+    await saveKeywordRules()
     message.success('设置已保存')
     await loadSettings()
   } catch (cause) {
@@ -1069,6 +1974,10 @@ const resetChanges = async () => {
     settings.value = parseSettingsSnapshot(originalSettings.value)
     openAIApiKeyDraft.value = ''
     clearOpenAIApiKey.value = false
+    groupGuardAIApiKeyDraft.value = ''
+    clearGroupGuardAIApiKey.value = false
+    groupGuardMessageResetPending.value = false
+    resetKeywordRuleEditor()
     message.success('已放弃更改')
   }
 }
@@ -1084,12 +1993,180 @@ const resetToDefault = async () => {
   
   if (confirmed) {
     clearActionError()
+    const currentGroupGuardMessages = settings.value.groupGuardMessages
     // 恢复为默认设置
     settings.value = cloneDefaultSettings()
+    settings.value.groupGuardMessages = currentGroupGuardMessages
     openAIApiKeyDraft.value = ''
     clearOpenAIApiKey.value = openAIApiKeyConfigured.value
+    groupGuardAIApiKeyDraft.value = ''
+    clearGroupGuardAIApiKey.value = groupGuardAIApiKeyConfigured.value
+    groupGuardMessageResetPending.value = true
+    resetKeywordRuleEditor()
     message.success('已恢复默认设置，请保存以应用更改')
   }
+}
+
+function createEmptyKeywordRule(): KeywordRuleInput {
+  return {
+    id: '',
+    guildId: '*',
+    pattern: '',
+    matchMode: 'includes',
+    action: 'warn',
+    enabled: true,
+    muteSeconds: 0,
+    note: null,
+  }
+}
+
+function startNewKeywordRule() {
+  selectedKeywordRuleID.value = ''
+  keywordRuleDraft.value = createEmptyKeywordRule()
+  keywordRuleValidationError.value = ''
+}
+
+function loadKeywordRule(rule: KeywordRuleInput) {
+  selectedKeywordRuleID.value = rule.id
+  keywordRuleDraft.value = cloneKeywordRuleInput(rule)
+  keywordRuleValidationError.value = ''
+}
+
+async function removeSelectedKeywordRule() {
+  if (!selectedKeywordRuleID.value) return
+  const target = selectedKeywordRuleID.value
+  const confirmed = await confirm({
+    title: '删除关键词规则',
+    message: `确定删除规则 ${target} 吗？`,
+    tone: 'danger',
+  })
+  if (!confirmed) return
+  settings.value.keywordRules = settings.value.keywordRules.filter((rule) => rule.id !== target)
+  startNewKeywordRule()
+}
+
+function stageKeywordRuleDraft() {
+  try {
+    const rule = validateKeywordRuleDraft(keywordRuleDraft.value)
+    const duplicate = settings.value.keywordRules.find((item) => item.id === rule.id && item.id !== selectedKeywordRuleID.value)
+    if (duplicate) {
+      throw new Error('规则 ID 已存在')
+    }
+    const index = selectedKeywordRuleID.value
+      ? settings.value.keywordRules.findIndex((item) => item.id === selectedKeywordRuleID.value)
+      : settings.value.keywordRules.findIndex((item) => item.id === rule.id)
+    const nextRule: KeywordRule = { ...rule }
+    if (index >= 0) {
+      settings.value.keywordRules.splice(index, 1, nextRule)
+    } else {
+      settings.value.keywordRules.push(nextRule)
+    }
+    settings.value.keywordRules.sort(sortKeywordRules)
+    selectedKeywordRuleID.value = rule.id
+    keywordRuleDraft.value = cloneKeywordRuleInput(rule)
+    keywordRuleValidationError.value = ''
+  } catch (cause) {
+    keywordRuleValidationError.value = errorMessage(cause, '关键词规则无效')
+  }
+}
+
+function resetKeywordRuleEditor() {
+  startNewKeywordRule()
+}
+
+function validateKeywordRuleDraft(input: KeywordRuleInput): KeywordRuleInput {
+  const id = input.id.trim()
+  const guildId = input.guildId.trim()
+  const pattern = input.pattern.trim()
+  const note = input.note?.trim() || null
+  if (!id) throw new Error('规则 ID 不能为空')
+  if (!/^[A-Za-z0-9._:-]+$/.test(id)) throw new Error('规则 ID 只能包含字母、数字、点、下划线、冒号或连字符')
+  if (!guildId) throw new Error('作用群号不能为空')
+  if (guildId !== '*' && !/^\d+$/.test(guildId)) throw new Error('作用群号必须是数字群号或 *')
+  if (!pattern) throw new Error('匹配内容不能为空')
+  if (pattern.length > 256) throw new Error('匹配内容最多 256 字符')
+  if (!isKeywordRuleMatchMode(input.matchMode)) throw new Error('匹配模式无效')
+  if (!isKeywordRuleAction(input.action)) throw new Error('命中动作无效')
+  if (!Number.isInteger(input.muteSeconds) || input.muteSeconds < 0 || input.muteSeconds > 2592000) {
+    throw new Error('禁言秒数必须是 0 到 2592000 之间的整数')
+  }
+  if (note && note.length > 512) throw new Error('规则备注最多 512 字符')
+  if (input.matchMode === 'regex') {
+    try {
+      new RegExp(pattern, 'i')
+    } catch {
+      throw new Error('正则表达式无效')
+    }
+  }
+  return {
+    id,
+    guildId,
+    pattern,
+    matchMode: input.matchMode,
+    action: input.action,
+    enabled: input.enabled,
+    muteSeconds: input.muteSeconds,
+    note,
+  }
+}
+
+function cloneKeywordRuleInput(rule: KeywordRuleInput): KeywordRuleInput {
+  return {
+    id: rule.id,
+    guildId: rule.guildId,
+    pattern: rule.pattern,
+    matchMode: rule.matchMode,
+    action: rule.action,
+    enabled: rule.enabled,
+    muteSeconds: rule.muteSeconds,
+    note: rule.note,
+  }
+}
+
+function keywordRuleGuildLabel(guildId: string) {
+  return guildId === '*' ? '全局' : guildId
+}
+
+function keywordRuleMatchModeLabel(mode: KeywordRuleMatchMode) {
+  return mode === 'regex' ? '正则' : '包含'
+}
+
+function keywordRuleActionLabel(action: KeywordRuleAction) {
+  const labels: Record<KeywordRuleAction, string> = {
+    warn: '警告',
+    delete: '撤回',
+    mute: '禁言',
+    review: '复核',
+  }
+  return labels[action]
+}
+
+function sortKeywordRules(left: KeywordRule, right: KeywordRule) {
+  const scopeOrder = (left.guildId === '*' ? 0 : 1) - (right.guildId === '*' ? 0 : 1)
+  if (scopeOrder !== 0) return scopeOrder
+  const guildOrder = left.guildId.localeCompare(right.guildId)
+  if (guildOrder !== 0) return guildOrder
+  return left.id.localeCompare(right.id)
+}
+
+function readStringField(value: unknown) {
+  return typeof value === 'string' ? value : ''
+}
+
+function readKeywordRuleMatchMode(value: unknown): KeywordRuleMatchMode | null {
+  return isKeywordRuleMatchMode(value) ? value : null
+}
+
+function readKeywordRuleAction(value: unknown): KeywordRuleAction | null {
+  return isKeywordRuleAction(value) ? value : null
+}
+
+function isKeywordRuleMatchMode(value: unknown): value is KeywordRuleMatchMode {
+  return value === 'includes' || value === 'regex'
+}
+
+function isKeywordRuleAction(value: unknown): value is KeywordRuleAction {
+  return value === 'warn' || value === 'delete' || value === 'mute' || value === 'review'
 }
 
 onMounted(() => {
@@ -1353,6 +2430,16 @@ onMounted(() => {
   color: var(--fg3);
 }
 
+.runtime-reset-note {
+  padding: 10px 12px;
+  color: var(--k-color-warning);
+  background: var(--k-color-warning-fade);
+  border: 1px solid color-mix(in srgb, var(--k-color-warning) 34%, transparent);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 /* Form Layout */
 .form-grid {
   display: flex;
@@ -1498,6 +2585,144 @@ onMounted(() => {
   border-bottom: 1px dashed var(--k-color-divider);
 }
 
+.keyword-rule-toolbar {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 10px;
+}
+
+.keyword-rule-empty {
+  padding: 10px 12px;
+  color: var(--fg3);
+  background: var(--bg1);
+  border: 1px solid var(--k-color-border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.keyword-rule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.keyword-rule-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, auto) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 10px;
+  color: var(--fg2);
+  background: var(--bg0);
+  border: 1px solid var(--k-color-border);
+  border-radius: 6px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.keyword-rule-item:hover,
+.keyword-rule-item.active {
+  border-color: color-mix(in srgb, var(--k-color-primary) 55%, var(--k-color-border));
+  background: var(--bg1);
+}
+
+.keyword-rule-item__main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.keyword-rule-item__id,
+.keyword-rule-item__pattern {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.keyword-rule-item__id {
+  max-width: 160px;
+  color: var(--fg1);
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.keyword-rule-item__pattern {
+  color: var(--fg3);
+  font-size: 12px;
+}
+
+.keyword-rule-item__meta {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg3);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.keyword-rule-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 22px;
+  padding: 0 8px;
+  color: var(--k-color-success);
+  background: var(--k-color-success-fade);
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.keyword-rule-status.disabled {
+  color: var(--fg3);
+  background: var(--bg2);
+}
+
+.keyword-rule-editor {
+  padding: 12px 0 0;
+  border-top: 1px solid var(--k-color-divider);
+}
+
+.keyword-rule-error {
+  margin-top: 10px;
+  padding: 8px 10px;
+  color: var(--k-color-danger);
+  background: var(--k-color-danger-fade);
+  border: 1px solid color-mix(in srgb, var(--k-color-danger) 35%, transparent);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.keyword-rule-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.mono-control {
+  max-width: 260px;
+  font-family: 'SF Mono', 'Consolas', monospace;
+}
+
+.settings-select {
+  width: 160px;
+}
+
+.mono-control :deep(.el-input__inner) {
+  font-family: 'SF Mono', 'Consolas', monospace;
+}
 
 
 /* Save Bar - Discord 风格 */
@@ -1849,6 +3074,43 @@ onMounted(() => {
   .subsection-divider {
     margin: 1rem 0 0.5rem;
     font-size: 0.65rem;
+  }
+
+  .keyword-rule-item {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .keyword-rule-item__main {
+    width: 100%;
+  }
+
+  .keyword-rule-item__id {
+    max-width: 46%;
+  }
+
+  .keyword-rule-item__meta {
+    width: 100%;
+  }
+
+  .keyword-rule-status {
+    justify-self: flex-start;
+  }
+
+  .keyword-rule-actions {
+    flex-direction: column;
+  }
+
+  .keyword-rule-actions .action-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .mono-control,
+  .settings-select {
+    width: 100%;
+    max-width: none;
   }
 
   /* 保存栏 */

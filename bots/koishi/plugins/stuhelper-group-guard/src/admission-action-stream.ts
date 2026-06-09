@@ -80,7 +80,7 @@ class AdmissionActionStreamRuntime {
 
   private async readEnabled() {
     try {
-      return await (this.deps.isEnabled?.() ?? this.deps.config?.enabled !== false)
+      return await (this.deps.isEnabled?.() ?? true)
     } catch (error) {
       this.deps.logger.warn('admission action stream runtime setting check failed', {
         error: error instanceof Error ? error.message : String(error),

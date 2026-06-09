@@ -2,23 +2,18 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
-  assignBindingFormState,
   assignPolicyFormState,
   assignTemplateFormState,
-  createBindingForm,
   createPolicyForm,
   createTemplateForm,
-  validateBindingForm,
   validatePolicyForm,
   validateTemplateForm,
 } from './config-forms'
 import {
   DISCARD_CHANGES_MESSAGE,
-  cloneBindingForm,
   clonePolicyForm,
   cloneTemplateForm,
   confirmDiscardChanges,
-  isBindingFormDirty,
   isPolicyFormDirty,
   isTemplateFormDirty,
   normalizeGroupConfigForEdit,
@@ -34,13 +29,6 @@ test('config editor form snapshots detect dirty state per form', () => {
     exemptUsersText: '1001',
     enabled: true,
   })
-  const binding = cloneBindingForm({
-    platform: 'qq',
-    guildId: '1001',
-    templateId: 'tpl-1',
-    note: '主群',
-    enabled: true,
-  })
   const policy = clonePolicyForm({
     commandId: 'report',
     minAuthority: 3,
@@ -48,47 +36,36 @@ test('config editor form snapshots detect dirty state per form', () => {
   })
 
   assert.equal(isTemplateFormDirty(template, template), false)
-  assert.equal(isBindingFormDirty(binding, binding), false)
   assert.equal(isPolicyFormDirty(policy, policy), false)
 
   assert.equal(isTemplateFormDirty({ ...template, name: '升级模板' }, template), true)
-  assert.equal(isBindingFormDirty({ ...binding, note: '分群' }, binding), true)
   assert.equal(isPolicyFormDirty({ ...policy, minAuthority: 4 }, policy), true)
 })
 
 test('config editor default new-record snapshots start clean', () => {
   const template = createTemplateForm()
-  const binding = createBindingForm()
   const policy = createPolicyForm()
 
   assert.equal(isTemplateFormDirty(template, cloneTemplateForm(template)), false)
-  assert.equal(isBindingFormDirty(binding, cloneBindingForm(binding)), false)
   assert.equal(isPolicyFormDirty(policy, clonePolicyForm(policy)), false)
-  assert.equal(binding.platform, 'qq')
 
   assert.equal(isTemplateFormDirty({ ...template, id: 'draft' }, template), true)
-  assert.equal(isBindingFormDirty({ ...binding, guildId: '1001' }, binding), true)
   assert.equal(isPolicyFormDirty({ ...policy, commandId: 'report' }, policy), true)
 })
 
 test('config editor can restore form state from snapshots after discard', () => {
   const template = createTemplateForm()
-  const binding = createBindingForm()
   const policy = createPolicyForm()
   const templateSnapshot = cloneTemplateForm(template)
-  const bindingSnapshot = cloneBindingForm(binding)
   const policySnapshot = clonePolicyForm(policy)
 
   template.id = 'draft'
-  binding.guildId = '1001'
   policy.commandId = 'report'
 
   assignTemplateFormState(template, templateSnapshot)
-  assignBindingFormState(binding, bindingSnapshot)
   assignPolicyFormState(policy, policySnapshot)
 
   assert.equal(isTemplateFormDirty(template, templateSnapshot), false)
-  assert.equal(isBindingFormDirty(binding, bindingSnapshot), false)
   assert.equal(isPolicyFormDirty(policy, policySnapshot), false)
 })
 
@@ -128,27 +105,6 @@ test('config governance forms validate editable field limits before submission',
       enabled: true,
     }),
     /模板 ID/,
-  )
-
-  assert.equal(
-    validateBindingForm({
-      platform: 'qq',
-      guildId: '1001',
-      templateId: 'tpl-default',
-      note: '',
-      enabled: true,
-    }),
-    '',
-  )
-  assert.match(
-    validateBindingForm({
-      platform: 'qq',
-      guildId: '',
-      templateId: 'tpl-default',
-      note: '',
-      enabled: true,
-    }),
-    /群号/,
   )
 
   assert.equal(

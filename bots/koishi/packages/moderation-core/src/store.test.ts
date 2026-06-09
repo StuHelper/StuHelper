@@ -103,6 +103,30 @@ test('ModerationStore updates existing records without primary key churn', async
   assert.equal(writes[3].patch.updatedAt, updatedAt)
 })
 
+test('ModerationStore reads and deletes keyword rules by id', async () => {
+  const rule = createKeywordRule()
+  const deletes: Array<{ table: string; query: Record<string, unknown> }> = []
+  const store = new ModerationStore({
+    database: {
+      async get(table: string, query: Record<string, unknown>) {
+        assert.equal(table, MODERATION_KEYWORD_RULE_TABLE)
+        assert.deepEqual(query, { id: 'rule-1' })
+        return [rule]
+      },
+      async remove(table: string, query: Record<string, unknown>) {
+        deletes.push({ table, query })
+      },
+    },
+  } as never)
+
+  assert.deepEqual(await store.getKeywordRule('rule-1'), rule)
+  await store.deleteKeywordRule('rule-1')
+  assert.deepEqual(deletes, [{
+    table: MODERATION_KEYWORD_RULE_TABLE,
+    query: { id: 'rule-1' },
+  }])
+})
+
 test('ModerationStore owns optimistic review state transitions', async () => {
   const review = createReview()
   const rejectAt = new Date('2026-06-05T04:10:00.000Z')

@@ -66,6 +66,36 @@ test('release admission action 可以通过消息模板恢复群提示', async (
   assert.deepEqual(result.event, { action: 'release', success: true, messageID: 'message-1' })
 })
 
+test('remind admission action respects direct-only reminder delivery', async () => {
+  const groupMessages: string[] = []
+  const privateMessages: Array<{ userId: string, content: string, guildId?: string }> = []
+  const bot = {
+    kickGuildMember: async () => {},
+    muteGuildMember: async () => {},
+    sendMessage: async (_channelId: string, content: string) => {
+      groupMessages.push(content)
+      throw new Error('group reminder should not be sent')
+    },
+    getFriendList: async () => ({ data: [] }),
+    sendPrivateMessage: async (userId: string, content: string, guildId?: string) => {
+      privateMessages.push({ userId, content, guildId })
+      return ['direct-message-1']
+    },
+  } as unknown as Universal.Methods
+
+  const result = await executeAdmissionAction(bot, remindAction(), null, undefined, {
+    groupEnabled: false,
+    directEnabled: true,
+  })
+
+  assert.deepEqual(groupMessages, [])
+  assert.equal(privateMessages.length, 1)
+  assert.equal(privateMessages[0].userId, '10001')
+  assert.equal(privateMessages[0].guildId, 'guild-1')
+  assert.match(privateMessages[0].content, /https:\/\/join\.stuhelper\.com\/verify\/remind-token/)
+  assert.deepEqual(result.event, { action: 'remind', success: true, messageID: 'direct-message-1' })
+})
+
 function unknownAction(): AdmissionPendingAction {
   return {
     sessionID: 'session-unknown',
@@ -74,6 +104,18 @@ function unknownAction(): AdmissionPendingAction {
     channelID: 'guild-1',
     qqID: '10001',
     deadlineAt: new Date(Date.now() + DEADLINE_OFFSET_MS).toISOString(),
+  }
+}
+
+function remindAction(): AdmissionPendingAction {
+  return {
+    sessionID: 'session-remind',
+    action: 'remind',
+    guildID: 'guild-1',
+    channelID: 'channel-1',
+    qqID: '10001',
+    deadlineAt: new Date(Date.now() + DEADLINE_OFFSET_MS).toISOString(),
+    authURL: 'https://join.stuhelper.com/verify/remind-token',
   }
 }
 

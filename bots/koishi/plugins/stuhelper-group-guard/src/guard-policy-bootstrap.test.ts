@@ -5,25 +5,38 @@ import type {
   GuardGroupBindingRecord,
   GuardPolicyStore,
   GuardTemplateRecord,
-  StuhelperGuardConfig,
 } from '@stuhelper/koishi-shared'
 
-import {
-  bootstrapGuardPolicyFromStaticConfig,
-  syncGuardPolicyFromAdmissionTargets,
-} from './guard-policy-bootstrap'
+import { syncGuardPolicyFromAdmissionTargets } from './guard-policy-bootstrap'
 
-test('bootstrapGuardPolicyFromStaticConfig promotes static target groups to qq bindings idempotently', async () => {
+test('syncGuardPolicyFromAdmissionTargets creates default template and qq bindings idempotently', async () => {
   const store = createPolicyStore()
-  const config = createGuardConfig()
 
-  const first = await bootstrapGuardPolicyFromStaticConfig(store as unknown as GuardPolicyStore, config)
-  const second = await bootstrapGuardPolicyFromStaticConfig(store as unknown as GuardPolicyStore, config)
+  const targets = [
+    { policyID: 'policy-178', platform: 'qq', guildID: '178037297', guardEnabled: true },
+    { policyID: 'policy-duplicate', platform: 'qq', guildID: '178037297', guardEnabled: true },
+    { policyID: 'policy-empty', platform: 'qq', guildID: ' ', guardEnabled: true },
+    { policyID: 'policy-other', platform: 'telegram', guildID: 'ignored', guardEnabled: true },
+  ]
 
-  assert.deepEqual(first, { templateCreated: true, bindingCreatedCount: 1 })
-  assert.deepEqual(second, { templateCreated: false, bindingCreatedCount: 0 })
+  const first = await syncGuardPolicyFromAdmissionTargets(store as unknown as GuardPolicyStore, targets)
+  const second = await syncGuardPolicyFromAdmissionTargets(store as unknown as GuardPolicyStore, targets)
+
+  assert.deepEqual(first, {
+    templateCreated: true,
+    bindingCreatedCount: 1,
+    bindingUpdatedCount: 0,
+    bindingDisabledCount: 0,
+  })
+  assert.deepEqual(second, {
+    templateCreated: false,
+    bindingCreatedCount: 0,
+    bindingUpdatedCount: 1,
+    bindingDisabledCount: 0,
+  })
   assert.equal(store.templates[0].id, 'admission-default')
-  assert.equal(store.templates[0].muteDurationSeconds, 2592000)
+  assert.equal(store.templates[0].name, '入群认证默认模板')
+  assert.equal(store.templates[0].muteDurationSeconds, 600)
   assert.equal(store.bindings[0].id, 'qq:178037297')
   assert.equal(store.bindings[0].platform, 'qq')
   assert.equal(store.bindings[0].guildId, '178037297')
@@ -32,27 +45,76 @@ test('bootstrapGuardPolicyFromStaticConfig promotes static target groups to qq b
 
 test('syncGuardPolicyFromAdmissionTargets applies backend policy target enabled state', async () => {
   const store = createPolicyStore()
-  const config = createGuardConfig()
+  await syncGuardPolicyFromAdmissionTargets(store as unknown as GuardPolicyStore, [
+    { policyID: 'policy-178', platform: 'qq', guildID: '178037297', guardEnabled: true },
+  ])
 
-  await bootstrapGuardPolicyFromStaticConfig(store as unknown as GuardPolicyStore, config)
-  store.bindings[0].enabled = false
-
-  const result = await syncGuardPolicyFromAdmissionTargets(store as unknown as GuardPolicyStore, config, [
+  const result = await syncGuardPolicyFromAdmissionTargets(store as unknown as GuardPolicyStore, [
     { policyID: 'policy-178', platform: 'qq', guildID: '178037297', guardEnabled: false },
     { policyID: 'policy-743', platform: 'qq', guildID: '743762161', guardEnabled: true },
+    {
+      policyID: 'policy-review',
+      platform: 'qq',
+      guildID: 'review-only',
+      guardEnabled: true,
+      joinHandlingStrategy: 'join_request_review',
+    },
     { policyID: 'policy-old-backend', platform: 'qq', guildID: 'old-backend' },
     { policyID: 'policy-other', platform: 'telegram', guildID: 'ignored', guardEnabled: true },
   ])
 
   assert.deepEqual(result, {
     templateCreated: false,
-    bindingCreatedCount: 2,
+    bindingCreatedCount: 3,
     bindingUpdatedCount: 1,
+    bindingDisabledCount: 0,
   })
   assert.deepEqual(store.bindings.map((binding) => [binding.id, binding.enabled, binding.note]), [
     ['qq:178037297', false, 'synced from backend admission policies'],
     ['qq:743762161', true, 'synced from backend admission policies'],
+    ['qq:review-only', false, 'synced from backend admission policies'],
     ['qq:old-backend', true, 'synced from backend admission policies'],
+  ])
+})
+
+test('syncGuardPolicyFromAdmissionTargets disables stale qq bindings absent from backend targets', async () => {
+  const store = createPolicyStore()
+  await syncGuardPolicyFromAdmissionTargets(store as unknown as GuardPolicyStore, [
+    { policyID: 'policy-178', platform: 'qq', guildID: '178037297', guardEnabled: true },
+    { policyID: 'policy-743', platform: 'qq', guildID: '743762161', guardEnabled: true },
+  ])
+
+  const result = await syncGuardPolicyFromAdmissionTargets(store as unknown as GuardPolicyStore, [
+    { policyID: 'policy-743', platform: 'qq', guildID: '743762161', guardEnabled: true },
+  ])
+
+  assert.deepEqual(result, {
+    templateCreated: false,
+    bindingCreatedCount: 0,
+    bindingUpdatedCount: 1,
+    bindingDisabledCount: 1,
+  })
+  assert.deepEqual(store.bindings.map((binding) => [binding.id, binding.enabled, binding.note]), [
+    ['qq:178037297', false, 'disabled because backend admission policy target is absent'],
+    ['qq:743762161', true, 'synced from backend admission policies'],
+  ])
+})
+
+test('syncGuardPolicyFromAdmissionTargets does not disable non-qq bindings as stale admission targets', async () => {
+  const store = createPolicyStore()
+  await store.saveBinding({
+    platform: 'telegram',
+    guildId: 'external',
+    templateId: 'external-template',
+    enabled: true,
+    note: 'external binding',
+  })
+
+  const result = await syncGuardPolicyFromAdmissionTargets(store as unknown as GuardPolicyStore, [])
+
+  assert.equal(result.bindingDisabledCount, 0)
+  assert.deepEqual(store.bindings.map((binding) => [binding.id, binding.enabled, binding.note]), [
+    ['telegram:external', true, 'external binding'],
   ])
 })
 
@@ -88,15 +150,5 @@ function createPolicyStore() {
       }
       bindings.push(record)
     },
-  }
-}
-
-function createGuardConfig(): StuhelperGuardConfig {
-  return {
-    targetGroups: ['178037297', '178037297', ' '],
-    muteDurationSeconds: 2592000,
-    kickAfterMinutes: 60,
-    reminderTemplate: '请先认证',
-    exemptUsers: [],
   }
 }

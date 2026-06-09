@@ -4,10 +4,12 @@ import {
   renderMessageTemplate,
   resolveGroupGuardMessages,
   type GuardMemberRecord,
+  type StuhelperAdmissionReminderDeliveryConfig,
   type StuhelperGroupGuardMessageConfig,
 } from '@stuhelper/koishi-shared'
 
 import { formatAdmissionReminder, type AdmissionReminderInput } from './admission-format'
+import { sendAdmissionReminderMessage } from './admission-reminder-delivery'
 
 export async function muteGuardedMember(input: {
   readonly bot: Universal.Methods
@@ -24,23 +26,37 @@ type ReminderContext = Pick<
   'failureCount' | 'remainingRetryCount' | 'willBlacklistOnTimeout'
 >
 
+type ReminderSendGuard = () => boolean | Promise<boolean>
+
 export async function sendAdmissionReminder(
   bot: Universal.Methods,
   record: GuardMemberRecord,
   authURL: string,
   context: ReminderContext = {},
   messages?: Partial<StuhelperGroupGuardMessageConfig>,
+  delivery?: Partial<StuhelperAdmissionReminderDeliveryConfig>,
+  shouldSend?: ReminderSendGuard,
 ) {
-  const result = await bot.sendMessage(record.channelId, formatAdmissionReminder({
+  const result = await sendAdmissionReminderMessage({
+    bot,
+    guildId: record.guildId,
+    channelId: record.channelId,
     memberId: record.memberId,
-    authURL,
-    deadlineAt: record.deadlineAt,
-    failureCount: context.failureCount,
-    remainingRetryCount: context.remainingRetryCount,
-    willBlacklistOnTimeout: context.willBlacklistOnTimeout,
+    content: formatAdmissionReminder({
+      memberId: record.memberId,
+      authURL,
+      deadlineAt: record.deadlineAt,
+      failureCount: context.failureCount,
+      remainingRetryCount: context.remainingRetryCount,
+      willBlacklistOnTimeout: context.willBlacklistOnTimeout,
+      messages,
+    }),
+    delivery,
     messages,
-  }))
-  return firstMessageID(result)
+    shouldSend,
+  })
+  if (result.cancelled) return false
+  return result.messageID
 }
 
 export async function sendBackendPendingReminder(
@@ -48,6 +64,7 @@ export async function sendBackendPendingReminder(
   record: GuardMemberRecord,
   reminderTemplate: string,
   messages?: Partial<StuhelperGroupGuardMessageConfig>,
+  delivery?: Partial<StuhelperAdmissionReminderDeliveryConfig>,
 ) {
   const message = renderMessageTemplate(resolveGroupGuardMessages(messages).backendPendingReminder, {
     at: h.at(record.memberId),
@@ -55,13 +72,14 @@ export async function sendBackendPendingReminder(
     reminderTemplate,
   })
   if (message) {
-    await bot.sendMessage(record.channelId, message)
+    await sendAdmissionReminderMessage({
+      bot,
+      guildId: record.guildId,
+      channelId: record.channelId,
+      memberId: record.memberId,
+      content: message,
+      delivery,
+      messages,
+    })
   }
-}
-
-function firstMessageID(result: unknown): string | undefined {
-  if (Array.isArray(result)) {
-    return typeof result[0] === 'string' ? result[0] : undefined
-  }
-  return typeof result === 'string' ? result : undefined
 }

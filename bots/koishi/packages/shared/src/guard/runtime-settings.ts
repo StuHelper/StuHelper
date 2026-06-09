@@ -12,10 +12,13 @@ declare module 'koishi' {
 export interface AdmissionRuntimeSettings {
   actionStreamEnabled: boolean
   publicCommandsEnabled: boolean
+  adminCommandsEnabled: boolean
   admissionCommandsEnabled: boolean
   moderationEnabled: boolean
   freshmanForwardEnabled: boolean
   fallbackScanEnabled: boolean
+  reminderGroupEnabled: boolean
+  reminderDirectEnabled: boolean
 }
 
 export interface AdmissionRuntimeSettingsRecord extends AdmissionRuntimeSettings {
@@ -26,15 +29,30 @@ export interface AdmissionRuntimeSettingsRecord extends AdmissionRuntimeSettings
 
 export type AdmissionRuntimeSettingsInput = Partial<AdmissionRuntimeSettings>
 
+export const DEFAULT_ADMISSION_RUNTIME_SETTINGS: AdmissionRuntimeSettings = {
+  actionStreamEnabled: true,
+  publicCommandsEnabled: false,
+  adminCommandsEnabled: true,
+  admissionCommandsEnabled: true,
+  moderationEnabled: false,
+  freshmanForwardEnabled: false,
+  fallbackScanEnabled: true,
+  reminderGroupEnabled: true,
+  reminderDirectEnabled: false,
+}
+
 export function registerAdmissionRuntimeSettingsModel(ctx: Context) {
   ctx.model.extend(ADMISSION_RUNTIME_SETTINGS_TABLE, {
     id: 'string',
     actionStreamEnabled: 'boolean',
     publicCommandsEnabled: 'boolean',
+    adminCommandsEnabled: 'boolean',
     admissionCommandsEnabled: 'boolean',
     moderationEnabled: 'boolean',
     freshmanForwardEnabled: 'boolean',
     fallbackScanEnabled: 'boolean',
+    reminderGroupEnabled: 'boolean',
+    reminderDirectEnabled: 'boolean',
     createdAt: 'timestamp',
     updatedAt: 'timestamp',
   }, { primary: 'id' })
@@ -63,6 +81,9 @@ export class AdmissionRuntimeSettingsStore {
       ...changes,
       updatedAt: now,
     }
+    if (!next.reminderGroupEnabled && !next.reminderDirectEnabled) {
+      throw new Error('at least one admission reminder delivery channel must be enabled')
+    }
     await this.ctx.database.set(ADMISSION_RUNTIME_SETTINGS_TABLE, { id: DEFAULT_SETTINGS_ID }, {
       ...changes,
       updatedAt: now,
@@ -72,6 +93,10 @@ export class AdmissionRuntimeSettingsStore {
 
   async isPublicCommandsEnabled() {
     return (await this.getSettings()).publicCommandsEnabled
+  }
+
+  async isAdminCommandsEnabled() {
+    return (await this.getSettings()).adminCommandsEnabled
   }
 
   async isActionStreamEnabled() {
@@ -94,6 +119,14 @@ export class AdmissionRuntimeSettingsStore {
     return (await this.getSettings()).fallbackScanEnabled
   }
 
+  async getAdmissionReminderDeliveryConfig() {
+    const settings = await this.getSettings()
+    return {
+      groupEnabled: settings.reminderGroupEnabled,
+      directEnabled: settings.reminderDirectEnabled,
+    }
+  }
+
   private async createDefaultRecord() {
     const now = new Date()
     const record: AdmissionRuntimeSettingsRecord = {
@@ -111,14 +144,19 @@ function normalizeRecord(
   record: AdmissionRuntimeSettingsRecord,
   defaults: AdmissionRuntimeSettings,
 ): AdmissionRuntimeSettingsRecord {
+  const reminderGroupEnabled = booleanOrDefault(record.reminderGroupEnabled, defaults.reminderGroupEnabled)
+  const reminderDirectEnabled = booleanOrDefault(record.reminderDirectEnabled, defaults.reminderDirectEnabled)
   return {
     ...record,
     actionStreamEnabled: booleanOrDefault(record.actionStreamEnabled, defaults.actionStreamEnabled),
     publicCommandsEnabled: booleanOrDefault(record.publicCommandsEnabled, defaults.publicCommandsEnabled),
+    adminCommandsEnabled: booleanOrDefault(record.adminCommandsEnabled, defaults.adminCommandsEnabled),
     admissionCommandsEnabled: booleanOrDefault(record.admissionCommandsEnabled, defaults.admissionCommandsEnabled),
     moderationEnabled: booleanOrDefault(record.moderationEnabled, defaults.moderationEnabled),
     freshmanForwardEnabled: booleanOrDefault(record.freshmanForwardEnabled, defaults.freshmanForwardEnabled),
     fallbackScanEnabled: booleanOrDefault(record.fallbackScanEnabled, defaults.fallbackScanEnabled),
+    reminderGroupEnabled: reminderGroupEnabled || !reminderDirectEnabled,
+    reminderDirectEnabled,
   }
 }
 

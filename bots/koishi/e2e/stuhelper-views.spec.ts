@@ -227,7 +227,7 @@ test('admission runtime saves switches and executes member actions through real 
   })
   const targetMetric = page.locator('.sh-stat', { hasText: '目标群' }).first()
   await expect(targetMetric.locator('.sh-stat__value')).toHaveText('1')
-  await expect(targetMetric).toContainText('1 个静态目标群，1 个启用绑定')
+  await expect(targetMetric).toContainText('1 个启用绑定，去重后 1 个有效目标群')
 
   const actionStreamRow = page.locator('.sh-lane__row', { hasText: 'Action Stream' }).first()
   await expect(actionStreamRow).toBeVisible({ timeout: 10_000 })
@@ -238,7 +238,8 @@ test('admission runtime saves switches and executes member actions through real 
   const memberRow = page.locator('.el-table__row', { hasText: '200201' }).first()
   await expect(memberRow).toBeVisible({ timeout: 10_000 })
   await memberRow.getByRole('button', { name: '查询', exact: true }).click()
-  await expect(page.getByText(/QQ 200201 的入群认证状态：linked/)).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('入群认证状态：200201')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('状态：已绑定 QQ，等待学生认证')).toBeVisible()
 
   await memberRow.getByRole('button', { name: '重发', exact: true }).click()
   const resendDialog = confirmDialog(page, '确认入群认证动作')
@@ -742,7 +743,7 @@ test('config governance workspace tabs render and update navigation state', asyn
   const workspaceCases = [
     { label: '群配置', hash: /#config($|\?)/, anchor: '群组配置' },
     { label: '模板库', hash: /#config\?workspace=templates/, anchor: '编辑模板' },
-    { label: '群绑定', hash: /#config\?workspace=bindings/, anchor: '新建 / 编辑绑定' },
+    { label: '同步绑定', hash: /#config\?workspace=bindings/, anchor: '同步来源' },
     { label: '命令策略', hash: /#config\?workspace=command-policies/, anchor: '编辑命令策略' },
   ] as const
 
@@ -766,7 +767,7 @@ test('config governance confirms before discarding dirty workspace form', async 
   await templateIdInput.fill('dirty-template-draft')
   await expect(page.getByText('有未提交更改').first()).toBeVisible()
 
-  await page.getByRole('button', { name: '群绑定', exact: true }).click()
+  await page.getByRole('button', { name: '同步绑定', exact: true }).click()
   const cancelDialog = confirmDialog(page, '放弃未保存更改')
   await expect(cancelDialog).toBeVisible({ timeout: 5_000 })
   await expect(cancelDialog.getByText('当前有未保存的改动，继续会丢失这些修改。')).toBeVisible()
@@ -776,14 +777,14 @@ test('config governance confirms before discarding dirty workspace form', async 
   await expect(page).toHaveURL(/#config\?workspace=templates/, { timeout: 5_000 })
   await expect(templateIdInput).toHaveValue('dirty-template-draft')
 
-  await page.getByRole('button', { name: '群绑定', exact: true }).click()
+  await page.getByRole('button', { name: '同步绑定', exact: true }).click()
   const discardDialog = confirmDialog(page, '放弃未保存更改')
   await expect(discardDialog).toBeVisible({ timeout: 5_000 })
   await discardDialog.getByRole('button', { name: '放弃更改', exact: true }).click()
 
   await expect(discardDialog).toBeHidden({ timeout: 5_000 })
   await expect(page).toHaveURL(/#config\?workspace=bindings/, { timeout: 5_000 })
-  await expect(page.getByText('新建 / 编辑绑定').first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('同步来源').first()).toBeVisible({ timeout: 10_000 })
 
   tracker.assertClean()
 })
@@ -824,38 +825,30 @@ test('config governance template save failures stay in the form without replacin
   tracker.assertClean()
 })
 
-test('config governance binding and command policy validation failures keep drafts editable', async ({
+test('config governance synchronized bindings are read-only and command policy validation keeps drafts editable', async ({
   loggedInPage: page,
 }) => {
   await using tracker = createTracker(page)
 
   await clickNavRail(page, '群组配置')
-  await page.getByRole('button', { name: '群绑定', exact: true }).click()
+  await page.getByRole('button', { name: '同步绑定', exact: true }).click()
   await expect(page).toHaveURL(/#config\?workspace=bindings/, { timeout: 5_000 })
 
-  await fillLabeledInput(page, '平台', 'qq')
-  await fillLabeledInput(page, '群号', '1002')
-  await fillLabeledInput(page, '备注', '未选择模板时保留绑定草稿')
-  await page.getByRole('button', { name: '保存绑定', exact: true }).click()
-
-  let actionError = page.locator('.sh-config-governance__action-error').first()
-  await expect(actionError).toBeVisible({ timeout: 10_000 })
-  await expect(actionError).toContainText('保存绑定失败')
-  await expect(actionError).toContainText('模板不能为空')
+  await expect(page.getByText('目标认证群请在 Admin 后台入群认证策略中修改。')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('178037297').first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('synced from backend admission policies').first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('button', { name: '保存绑定', exact: true })).toHaveCount(0)
+  await expect(page.locator('label', { hasText: '群号' })).toHaveCount(0)
+  await expect(page.getByText('后端 admission policy → Koishi guard policy cache')).toBeVisible()
   await expect(page.locator('.sh-load-error', { hasText: '刷新配置治理数据失败' })).toHaveCount(0)
-  await expect(page.locator('label', { hasText: '群号' }).locator('input').first()).toHaveValue('1002')
 
-  await actionError.getByRole('button', { name: '关闭', exact: true }).click()
   await page.getByRole('button', { name: '命令策略', exact: true }).click()
-  const discardDialog = confirmDialog(page, '放弃未保存更改')
-  await expect(discardDialog).toBeVisible({ timeout: 5_000 })
-  await discardDialog.getByRole('button', { name: '放弃更改', exact: true }).click()
 
   await expect(page).toHaveURL(/#config\?workspace=command-policies/, { timeout: 5_000 })
   await fillLabeledInput(page, '角色白名单(逗号分隔)', 'admin')
   await page.getByRole('button', { name: '保存策略', exact: true }).click()
 
-  actionError = page.locator('.sh-config-governance__action-error').first()
+  const actionError = page.locator('.sh-config-governance__action-error').first()
   await expect(actionError).toBeVisible({ timeout: 10_000 })
   await expect(actionError).toContainText('保存策略失败')
   await expect(actionError).toContainText('命令不能为空')
@@ -1013,7 +1006,7 @@ test('legacy group config creates, copies, reloads, and deletes through real con
   tracker.assertClean()
 })
 
-test('config governance saves template, binding, and command policy through real console actions', async ({ loggedInPage: page }) => {
+test('config governance saves template and command policy while showing synced bindings read-only', async ({ loggedInPage: page }) => {
   await using tracker = createTracker(page)
 
   await clickNavRail(page, '群组配置')
@@ -1032,16 +1025,11 @@ test('config governance saves template, binding, and command policy through real
   await expect(page.getByText('已保存群模板：E2E 模板')).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText('E2E 模板').first()).toBeVisible({ timeout: 10_000 })
 
-  await page.getByRole('button', { name: '群绑定', exact: true }).click()
+  await page.getByRole('button', { name: '同步绑定', exact: true }).click()
   await expect(page).toHaveURL(/#config\?workspace=bindings/, { timeout: 5_000 })
-  await fillLabeledInput(page, '平台', 'qq')
-  await fillLabeledInput(page, '群号', '1001')
-  await selectLabeledOption(page, '模板', 'E2E 模板 (e2e-template)')
-  await fillLabeledInput(page, '备注', 'E2E 绑定验证')
-  await page.getByRole('button', { name: '保存绑定', exact: true }).click()
-
-  await expect(page.getByText('已保存群绑定：qq/1001')).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText('E2E 绑定验证').first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('178037297').first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('入群认证默认模板').first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('button', { name: '保存绑定', exact: true })).toHaveCount(0)
 
   await page.getByRole('button', { name: '命令策略', exact: true }).click()
   await expect(page).toHaveURL(/#config\?workspace=command-policies/, { timeout: 5_000 })

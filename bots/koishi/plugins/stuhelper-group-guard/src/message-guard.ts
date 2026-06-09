@@ -9,17 +9,27 @@ import {
   matchKeywordRules,
   normalizeModerationContent,
 } from '@stuhelper/koishi-moderation-core'
-import type { StuhelperGroupGuardPluginConfig, StuhelperKeywordRuleConfig } from '@stuhelper/koishi-shared'
-import {
-  renderMessageTemplate,
-  resolveGroupGuardMessages,
+import type {
+  GroupGuardBehaviorSettingsStore,
+  GroupGuardModerationSettings,
 } from '@stuhelper/koishi-shared'
+import {
+  DEFAULT_GROUP_GUARD_MODERATION_SETTINGS,
+} from '@stuhelper/koishi-shared'
+
+import {
+  getGroupGuardMessages,
+  groupGuardMessage,
+  type GroupGuardMessageProvider,
+  type GroupGuardMessages,
+} from './group-guard-message-provider'
 
 interface MessageGuardDeps {
   store: ModerationStore
   actions: ModerationActionService
   logger: Logger
-  config: StuhelperGroupGuardPluginConfig
+  behaviorSettings?: GroupGuardBehaviorSettingsStore
+  messageProvider?: GroupGuardMessageProvider
 }
 
 type KeywordRuleHit = ReturnType<typeof matchKeywordRules>[number]
@@ -39,19 +49,6 @@ interface KeywordHitInput extends MessageModerationInput {
 
 export class MessageGuardService {
   constructor(private readonly deps: MessageGuardDeps) {}
-
-  async bootstrapKeywordRules() {
-    const now = new Date()
-    for (const rule of this.deps.config.moderation.keywordRules) {
-      await this.deps.store.upsertKeywordRule({
-        ...rule,
-        enabled: rule.enabled ?? true,
-        note: rule.note || null,
-        createdAt: now,
-        updatedAt: now,
-      })
-    }
-  }
 
   async handleMessage(session: Session) {
     const guildId = normalizeID(session.guildId || session.event.guild?.id)
@@ -94,6 +91,7 @@ export class MessageGuardService {
       return
     }
 
+    const messages = await this.getMessages()
     await this.deps.store.markMessageDeleted(messageId, new Date())
     await this.deps.store.appendEvent({
       platform: record.platform,
@@ -103,12 +101,15 @@ export class MessageGuardService {
       memberId: record.memberId,
       type: 'message_deleted',
       level: 'medium',
-      summary: `检测到 ${record.memberId} 撤回消息`,
+      summary: groupGuardMessage(messages, 'moderationAntiRecallEventSummary', {
+        memberId: record.memberId,
+      }),
       payload: { content: record.content, preview: createMessageLedgerPreview(record) },
     })
 
-    if (this.deps.config.moderation.antiRecallNotify) {
-      const message = renderMessageTemplate(resolveGroupGuardMessages(this.deps.config.messages).antiRecallNotify, {
+    const moderation = await this.getModerationSettings()
+    if (moderation.antiRecallNotify) {
+      const message = groupGuardMessage(messages, 'antiRecallNotify', {
         at: h.at(record.memberId),
         memberId: record.memberId,
         content: record.content,
@@ -136,20 +137,22 @@ export class MessageGuardService {
   }
 
   private async processKeywordHit(input: KeywordHitInput) {
-    await this.appendKeywordHitEvent(input)
+    const messages = await this.getMessages()
+    await this.appendKeywordHitEvent(input, messages)
     if (input.hit.action === 'delete') {
       await input.session.bot.deleteMessage(input.channelId, input.messageId)
     }
-    const warning = await this.warnKeywordHit(input)
-    if (this.shouldMuteKeywordHit(input.hit, warning.total)) {
-      await this.muteKeywordHit(input)
+    const moderation = await this.getModerationSettings()
+    const warning = await this.warnKeywordHit(input, messages)
+    if (this.shouldMuteKeywordHit(input.hit, warning.total, moderation)) {
+      await this.muteKeywordHit(input, moderation, messages)
     }
     if (input.hit.action === 'review') {
-      await this.createKeywordReview(input)
+      await this.createKeywordReview(input, messages)
     }
   }
 
-  private async appendKeywordHitEvent(input: KeywordHitInput) {
+  private async appendKeywordHitEvent(input: KeywordHitInput, messages: GroupGuardMessages) {
     await this.deps.store.appendEvent({
       platform: input.session.platform,
       botSelfId: input.session.selfId,
@@ -158,23 +161,30 @@ export class MessageGuardService {
       memberId: input.session.userId,
       type: 'keyword_hit',
       level: 'high',
-      summary: `${input.session.userId} 命中关键词规则 ${input.hit.ruleId}`,
+      summary: groupGuardMessage(messages, 'moderationKeywordHitEventSummary', {
+        memberId: input.session.userId,
+        ruleId: input.hit.ruleId,
+      }),
       payload: { action: input.hit.action, note: input.hit.note },
     })
   }
 
-  private async warnKeywordHit(input: KeywordHitInput) {
+  private async warnKeywordHit(input: KeywordHitInput, messages: GroupGuardMessages) {
     return this.deps.actions.warnMember({
       runtime: { platform: input.session.platform, botSelfId: input.session.selfId },
       guildId: input.guildId,
       channelId: input.channelId,
       memberId: input.session.userId,
-      reason: input.hit.note || '关键词命中',
+      reason: input.hit.note || groupGuardMessage(messages, 'moderationKeywordHitReason'),
     })
   }
 
-  private shouldMuteKeywordHit(hit: KeywordRuleHit, warnings: number) {
-    const escalated = evaluateThresholdExpression(this.deps.config.moderation.warningThresholdExpression, {
+  private shouldMuteKeywordHit(
+    hit: KeywordRuleHit,
+    warnings: number,
+    moderation: GroupGuardModerationSettings,
+  ) {
+    const escalated = evaluateThresholdExpression(moderation.warningThresholdExpression, {
       warnings,
       repeats: 0,
       reports: 0,
@@ -182,21 +192,25 @@ export class MessageGuardService {
     return hit.action === 'mute' || escalated
   }
 
-  private async muteKeywordHit(input: KeywordHitInput) {
+  private async muteKeywordHit(
+    input: KeywordHitInput,
+    moderation: GroupGuardModerationSettings,
+    messages: GroupGuardMessages,
+  ) {
     const muteSeconds = input.hit.action === 'mute'
-      ? input.hit.muteSeconds || this.deps.config.moderation.defaultMuteSeconds
-      : this.deps.config.moderation.defaultMuteSeconds
+      ? input.hit.muteSeconds || moderation.defaultMuteSeconds
+      : moderation.defaultMuteSeconds
     await this.deps.actions.muteMember({
       bot: input.session.bot,
       guildId: input.guildId,
       channelId: input.channelId,
       memberId: input.session.userId,
       seconds: muteSeconds,
-      reason: '关键词规则命中',
+      reason: groupGuardMessage(messages, 'moderationKeywordRuleHitReason'),
     })
   }
 
-  private async createKeywordReview(input: KeywordHitInput) {
+  private async createKeywordReview(input: KeywordHitInput, messages: GroupGuardMessages) {
     await this.deps.store.createReview({
       platform: input.session.platform,
       botSelfId: input.session.selfId,
@@ -205,7 +219,7 @@ export class MessageGuardService {
       memberId: input.session.userId,
       actionType: 'kick',
       status: 'pending',
-      reason: input.hit.note || '关键词规则命中',
+      reason: input.hit.note || groupGuardMessage(messages, 'moderationKeywordRuleHitReason'),
       operatorMemberId: null,
       resolutionNote: null,
       payload: { ruleId: input.hit.ruleId },
@@ -213,12 +227,14 @@ export class MessageGuardService {
   }
 
   private async processRepeatHit(input: MessageModerationInput) {
-    const records = await this.deps.store.listRecentMessages(input.guildId, this.deps.config.moderation.repeatWindowSize)
+    const messages = await this.getMessages()
+    const moderation = await this.getModerationSettings()
+    const records = await this.deps.store.listRecentMessages(input.guildId, moderation.repeatWindowSize)
     const previous = records
       .filter((record) => record.messageId !== input.messageId)
       .reverse()
       .map((record) => ({ normalizedContent: record.normalizedContent, memberId: record.memberId }))
-    const repeat = detectRepeatTrigger(previous, input.normalizedContent, this.deps.config.moderation.repeatThreshold)
+    const repeat = detectRepeatTrigger(previous, input.normalizedContent, moderation.repeatThreshold)
     if (!repeat.hit) {
       return
     }
@@ -228,7 +244,7 @@ export class MessageGuardService {
       guildId: input.guildId,
       channelId: input.channelId,
       memberId: input.session.userId,
-      reason: '复读命中',
+      reason: groupGuardMessage(messages, 'moderationRepeatHitReason'),
     })
     await this.deps.store.appendEvent({
       platform: input.session.platform,
@@ -238,10 +254,13 @@ export class MessageGuardService {
       memberId: input.session.userId,
       type: 'repeat_hit',
       level: 'high',
-      summary: `${input.session.userId} 触发复读检测`,
+      summary: groupGuardMessage(messages, 'moderationRepeatHitEventSummary', {
+        memberId: input.session.userId,
+        count: repeat.count,
+      }),
       payload: { count: repeat.count },
     })
-    const shouldMute = evaluateThresholdExpression(this.deps.config.moderation.warningThresholdExpression, {
+    const shouldMute = evaluateThresholdExpression(moderation.warningThresholdExpression, {
       warnings: warning.total,
       repeats: repeat.count,
       reports: 0,
@@ -252,18 +271,24 @@ export class MessageGuardService {
         guildId: input.guildId,
         channelId: input.channelId,
         memberId: input.session.userId,
-        seconds: this.deps.config.moderation.defaultMuteSeconds,
-        reason: '复读规则触发自动处罚',
+        seconds: moderation.defaultMuteSeconds,
+        reason: groupGuardMessage(messages, 'moderationRepeatAutoMuteReason'),
       })
     }
   }
 
   private async listEffectiveKeywordRules(guildId: string) {
-    const storedRules = await this.deps.store.listKeywordRules(guildId)
-    const configRules = this.deps.config.moderation.keywordRules
-      .filter((rule) => rule.guildId === guildId || rule.guildId === '*')
-      .map((rule) => convertKeywordRuleConfig(rule))
-    return mergeRules(storedRules, configRules)
+    return this.deps.store.listKeywordRules(guildId)
+  }
+
+  private async getModerationSettings() {
+    return this.deps.behaviorSettings
+      ? this.deps.behaviorSettings.getModerationSettings()
+      : DEFAULT_GROUP_GUARD_MODERATION_SETTINGS
+  }
+
+  private async getMessages() {
+    return getGroupGuardMessages(this.deps.messageProvider)
   }
 }
 
@@ -276,28 +301,4 @@ function normalizeID(value: string | number | undefined) {
     return ''
   }
   return String(value)
-}
-
-function convertKeywordRuleConfig(rule: StuhelperKeywordRuleConfig) {
-  const now = new Date(0)
-  return {
-    ...rule,
-    enabled: rule.enabled ?? true,
-    note: rule.note || null,
-    createdAt: now,
-    updatedAt: now,
-  }
-}
-
-function mergeRules(storedRules: Awaited<ReturnType<ModerationStore['listKeywordRules']>>, configRules: ReturnType<typeof convertKeywordRuleConfig>[]) {
-  const merged = new Map<string, ReturnType<typeof convertKeywordRuleConfig>>()
-  for (const rule of storedRules) {
-    merged.set(rule.id, rule)
-  }
-  for (const rule of configRules) {
-    if (!merged.has(rule.id)) {
-      merged.set(rule.id, rule)
-    }
-  }
-  return [...merged.values()]
 }

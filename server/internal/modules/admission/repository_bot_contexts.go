@@ -60,7 +60,8 @@ func listPoliciesByGuildKeysSQL() string {
 			SELECT * FROM unnest($1::text[], $2::text[])
 		)
 		SELECT id, platform, guild_id, guard_enabled, school_id, auto_approve_join,
-		       auto_approve_verified_join, auto_approve_unverified_join, initial_mute_duration_seconds,
+		       join_handling_strategy, auto_approve_verified_join, auto_approve_unverified_join,
+		       unverified_join_reject_reason, initial_mute_duration_seconds,
 		       link_wait_seconds, submission_wait_seconds, manual_review_timeout_seconds,
 		       reminder_interval_seconds, failed_join_limit, blacklist_duration_seconds,
 		       freshman_channel_enabled, freshman_channel_closes_at, freshman_default_expires_at,

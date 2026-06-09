@@ -3,10 +3,8 @@ import test from 'node:test'
 
 import {
   assertCommandPolicyWriteAccess,
-  assertGuardBindingWriteAccess,
   assertGuardTemplateWriteAccess,
   parseCommandPolicyInput,
-  parseGuardBindingInput,
   parseGuardTemplateInput,
 } from './governance-actions'
 
@@ -92,42 +90,6 @@ test('parseGuardTemplateInput trims text fields and rejects out-of-range numeric
   )
 })
 
-test('parseGuardBindingInput trims text fields and normalizes blank note to null', () => {
-  assert.deepEqual(
-    parseGuardBindingInput({
-      platform: ' onebot ',
-      guildId: ' 1001 ',
-      templateId: ' tpl-default ',
-      enabled: true,
-      note: ' 主群 ',
-    }),
-    {
-      platform: 'onebot',
-      guildId: '1001',
-      templateId: 'tpl-default',
-      enabled: true,
-      note: '主群',
-    },
-  )
-
-  assert.deepEqual(
-    parseGuardBindingInput({
-      platform: 'onebot',
-      guildId: '1001',
-      templateId: 'tpl-default',
-      enabled: false,
-      note: '   ',
-    }),
-    {
-      platform: 'onebot',
-      guildId: '1001',
-      templateId: 'tpl-default',
-      enabled: false,
-      note: null,
-    },
-  )
-})
-
 test('governance write access rejects global writes for guild-scoped operators', () => {
   const scoped = {
     kind: 'guilds' as const,
@@ -141,15 +103,5 @@ test('governance write access rejects global writes for guild-scoped operators',
   assert.throws(
     () => assertGuardTemplateWriteAccess(scoped),
     /requires global console scope/,
-  )
-  assert.throws(
-    () => assertGuardBindingWriteAccess(scoped, {
-      platform: 'onebot',
-      guildId: '2002',
-      templateId: 'tpl-default',
-      enabled: true,
-      note: null,
-    }),
-    /outside of the current console guild scope/,
   )
 })

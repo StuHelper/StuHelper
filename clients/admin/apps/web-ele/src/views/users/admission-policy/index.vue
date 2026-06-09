@@ -14,6 +14,8 @@ import {
   ElInputNumber,
   ElMessage,
   ElOption,
+  ElRadioButton,
+  ElRadioGroup,
   ElSelect,
   ElSwitch,
 } from 'element-plus';
@@ -53,6 +55,7 @@ const policyFieldLabels = {
   freshmanDefaultExpiresAt: '默认临时认证到期时间',
   guardEnabled: '启用入群认证守卫',
   initialMuteDurationSeconds: '入群初始禁言（秒）',
+  joinHandlingStrategy: '入群处理策略',
   linkWaitSeconds: '绑定链接等待（秒）',
   managementGuildIDs: '材料审核通知群号',
   manualReviewTimeoutSeconds: '人工审核超时（秒）',
@@ -60,7 +63,13 @@ const policyFieldLabels = {
   maxMaterialBytes: '材料大小上限（字节）',
   reminderIntervalSeconds: '提醒间隔（秒）',
   submissionWaitSeconds: '材料提交等待（秒）',
+  unverifiedJoinRejectReason: '未认证拒绝理由',
 } as const;
+
+const joinHandlingStrategyOptions = [
+  { label: '加群后认证', value: 'post_join_guard' },
+  { label: '申请时审核', value: 'join_request_review' },
+] as const;
 
 const createSourceOptions = computed(() =>
   policies.value.map((policy) => ({
@@ -70,7 +79,9 @@ const createSourceOptions = computed(() =>
 );
 
 type AdmissionPolicyBoundary = Omit<AdmissionPolicy, 'managementGuildIDs'> & {
+  joinHandlingStrategy?: AdmissionPolicy['joinHandlingStrategy'];
   managementGuildIDs?: null | string[];
+  unverifiedJoinRejectReason?: string | null;
 };
 
 function normalizeManagementGuildIDs(values?: null | string[]) {
@@ -85,7 +96,11 @@ function normalizeManagementGuildIDs(values?: null | string[]) {
 function normalizePolicy(policy: AdmissionPolicyBoundary): AdmissionPolicy {
   return {
     ...policy,
+    joinHandlingStrategy: policy.joinHandlingStrategy ?? 'post_join_guard',
     managementGuildIDs: normalizeManagementGuildIDs(policy.managementGuildIDs),
+    unverifiedJoinRejectReason:
+      policy.unverifiedJoinRejectReason?.trim() ||
+      '请先完成 StuHelper 学生认证后再申请入群。',
   };
 }
 
@@ -180,6 +195,10 @@ async function savePolicy(policy: AdmissionPolicy) {
   try {
     await updateAdmissionPolicy({
       ...policy,
+      autoApproveJoin: policy.joinHandlingStrategy === 'post_join_guard',
+      autoApproveVerifiedJoin: true,
+      autoApproveUnverifiedJoin:
+        policy.joinHandlingStrategy === 'post_join_guard',
       managementGuildIDs: parseManagementGuildIDs(policy.id),
     });
     ElMessage.success(
@@ -264,8 +283,29 @@ onMounted(fetchData);
         <ElFormItem :label="policyFieldLabels.guardEnabled">
           <ElSwitch
             v-model="policy.guardEnabled"
-            active-text="同步给 Koishi"
+            active-text="启用"
             inactive-text="停用目标群"
+          />
+        </ElFormItem>
+        <ElFormItem :label="policyFieldLabels.joinHandlingStrategy">
+          <ElRadioGroup v-model="policy.joinHandlingStrategy">
+            <ElRadioButton
+              v-for="option in joinHandlingStrategyOptions"
+              :key="option.value"
+              :label="option.value"
+            >
+              {{ option.label }}
+            </ElRadioButton>
+          </ElRadioGroup>
+        </ElFormItem>
+        <ElFormItem
+          v-if="policy.joinHandlingStrategy === 'join_request_review'"
+          :label="policyFieldLabels.unverifiedJoinRejectReason"
+        >
+          <ElInput
+            v-model="policy.unverifiedJoinRejectReason"
+            maxlength="120"
+            show-word-limit
           />
         </ElFormItem>
         <ElFormItem :label="policyFieldLabels.freshmanChannelEnabled">

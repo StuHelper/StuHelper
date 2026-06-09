@@ -116,10 +116,11 @@ func TestCreateAdmissionPolicyFromSourceForNewTargetGuild(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, targets, 2)
 	require.Equal(t, AdmissionPolicyTarget{
-		PolicyID:     created.ID,
-		Platform:     "qq",
-		GuildID:      "guild-2",
-		GuardEnabled: true,
+		PolicyID:             created.ID,
+		Platform:             "qq",
+		GuildID:              "guild-2",
+		GuardEnabled:         true,
+		JoinHandlingStrategy: AdmissionJoinHandlingPostJoinGuard,
 	}, targets[1])
 
 	_, err = repo.CreatePolicyFromSource(ctx, AdmissionPolicyCreateRequest{

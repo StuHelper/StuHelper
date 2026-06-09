@@ -4524,12 +4524,23 @@ export interface components {
              * @default true
              */
             guardEnabled: boolean;
+            /**
+             * @description 入群处理策略。post_join_guard 表示加群后禁言并发送认证链接；join_request_review 表示在加群申请阶段按 StuHelper 学生认证状态自动通过或拒绝。
+             * @default post_join_guard
+             * @enum {string}
+             */
+            joinHandlingStrategy: "post_join_guard" | "join_request_review";
             /** @deprecated */
             autoApproveJoin: boolean;
             /** @default true */
             autoApproveVerifiedJoin: boolean;
-            /** @default true */
+            /**
+             * @deprecated
+             * @default true
+             */
             autoApproveUnverifiedJoin: boolean;
+            /** @description join_request_review 策略下，未完成 StuHelper 学生认证时返回给 QQ 入群申请的拒绝理由。 */
+            unverifiedJoinRejectReason: string;
             initialMuteDurationSeconds: number;
             linkWaitSeconds: number;
             submissionWaitSeconds: number;
@@ -4562,6 +4573,11 @@ export interface components {
             guildID: string;
             /** @description 是否启用该目标群的 Koishi 入群认证守卫。 */
             guardEnabled: boolean;
+            /**
+             * @description 该目标群当前使用的入群处理策略。
+             * @enum {string}
+             */
+            joinHandlingStrategy: "post_join_guard" | "join_request_review";
         };
         FreshmanApplication: {
             id: string;
@@ -5414,6 +5430,8 @@ export interface components {
             reason?: string;
             /** @enum {string} */
             verificationState: "verified" | "unverified";
+            /** @enum {string} */
+            joinHandlingStrategy: "post_join_guard" | "join_request_review";
             autoApproveVerifiedJoin: boolean;
             autoApproveUnverifiedJoin: boolean;
             policyID?: string;

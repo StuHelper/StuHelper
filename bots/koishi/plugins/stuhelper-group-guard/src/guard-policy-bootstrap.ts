@@ -1,13 +1,21 @@
 import type {
   GuardPolicyStore,
   AdmissionPolicyTarget,
-  StuhelperGuardConfig,
 } from '@stuhelper/koishi-shared'
-import { createBindingID } from '@stuhelper/koishi-shared'
+import {
+  createBindingID,
+} from '@stuhelper/koishi-shared'
+
+import { isPostJoinGuardStrategy } from './post-join-guard-strategy'
 
 const ADMISSION_BUSINESS_PLATFORM = 'qq'
 const BOOTSTRAP_TEMPLATE_ID = 'admission-default'
 const BOOTSTRAP_TEMPLATE_NAME = '入群认证默认模板'
+const BOOTSTRAP_MUTE_DURATION_SECONDS = 600
+const BOOTSTRAP_KICK_AFTER_MINUTES = 30
+const BOOTSTRAP_REMINDER_TEMPLATE = '请先完成 StuHelper 注册、QQ 绑定与学生认证。'
+const SYNCED_BINDING_NOTE = 'synced from backend admission policies'
+const STALE_BINDING_NOTE = 'disabled because backend admission policy target is absent'
 
 interface BootstrapLogger {
   info(message: string, ...args: unknown[]): void
@@ -25,51 +33,33 @@ export interface GuardPolicyBootstrapResult {
 
 export interface GuardPolicyTargetSyncResult extends GuardPolicyBootstrapResult {
   readonly bindingUpdatedCount: number
-}
-
-export async function bootstrapGuardPolicyFromStaticConfig(
-  policyStore: GuardPolicyStore,
-  config: StuhelperGuardConfig,
-  logger?: BootstrapLogger,
-): Promise<GuardPolicyBootstrapResult> {
-  const result = await ensureGuardPolicyBindings(
-    policyStore,
-    config,
-    normalizeStaticTargetGroups(config.targetGroups),
-    'bootstrapped from guard.targetGroups',
-    false,
-  )
-
-  if (result.templateCreated || result.bindingCreatedCount > 0) {
-    logger?.info('已把静态入群认证 targetGroups 迁移到 WebUI 策略库：template=%s, bindings=%d', result.templateCreated ? 'created' : 'exists', result.bindingCreatedCount)
-  }
-  return {
-    templateCreated: result.templateCreated,
-    bindingCreatedCount: result.bindingCreatedCount,
-  }
+  readonly bindingDisabledCount: number
 }
 
 export async function syncGuardPolicyFromAdmissionTargets(
   policyStore: GuardPolicyStore,
-  config: StuhelperGuardConfig,
   targets: readonly AdmissionPolicyTarget[],
   logger?: BootstrapLogger,
 ): Promise<GuardPolicyTargetSyncResult> {
   const targetGroups = normalizeAdmissionTargetGroups(targets)
   const result = await ensureGuardPolicyBindings(
     policyStore,
-    config,
     targetGroups,
-    'synced from backend admission policies',
-    true,
+    SYNCED_BINDING_NOTE,
   )
 
-  if (result.templateCreated || result.bindingCreatedCount > 0 || result.bindingUpdatedCount > 0) {
+  if (
+    result.templateCreated ||
+    result.bindingCreatedCount > 0 ||
+    result.bindingUpdatedCount > 0 ||
+    result.bindingDisabledCount > 0
+  ) {
     logger?.info(
-      '已从后端 admission policy 同步入群认证目标群：template=%s, created=%d, updated=%d',
+      '已从后端 admission policy 同步入群认证目标群：template=%s, created=%d, updated=%d, staleDisabled=%d',
       result.templateCreated ? 'created' : 'exists',
       result.bindingCreatedCount,
       result.bindingUpdatedCount,
+      result.bindingDisabledCount,
     )
   }
   return result
@@ -77,13 +67,11 @@ export async function syncGuardPolicyFromAdmissionTargets(
 
 async function ensureGuardPolicyBindings(
   policyStore: GuardPolicyStore,
-  config: StuhelperGuardConfig,
   targetGroups: readonly NormalizedAdmissionTargetGroup[],
   note: string,
-  refreshExistingBindings: boolean,
 ): Promise<GuardPolicyTargetSyncResult> {
   if (targetGroups.length === 0) {
-    return { templateCreated: false, bindingCreatedCount: 0, bindingUpdatedCount: 0 }
+    return disableStaleBackendBindings(policyStore, [], [], false)
   }
 
   const [templates, bindings] = await Promise.all([
@@ -95,10 +83,10 @@ async function ensureGuardPolicyBindings(
     await policyStore.saveTemplate({
       id: BOOTSTRAP_TEMPLATE_ID,
       name: BOOTSTRAP_TEMPLATE_NAME,
-      muteDurationSeconds: config.muteDurationSeconds,
-      kickAfterMinutes: config.kickAfterMinutes,
-      reminderTemplate: config.reminderTemplate,
-      exemptUsers: [...config.exemptUsers],
+      muteDurationSeconds: BOOTSTRAP_MUTE_DURATION_SECONDS,
+      kickAfterMinutes: BOOTSTRAP_KICK_AFTER_MINUTES,
+      reminderTemplate: BOOTSTRAP_REMINDER_TEMPLATE,
+      exemptUsers: [],
       enabled: true,
     })
   }
@@ -109,9 +97,6 @@ async function ensureGuardPolicyBindings(
   for (const target of targetGroups) {
     const id = createBindingID(ADMISSION_BUSINESS_PLATFORM, target.guildId)
     const exists = existingBindingIDs.has(id)
-    if (exists && !refreshExistingBindings) {
-      continue
-    }
     await policyStore.saveBinding({
       platform: ADMISSION_BUSINESS_PLATFORM,
       guildId: target.guildId,
@@ -127,17 +112,53 @@ async function ensureGuardPolicyBindings(
     }
   }
 
-  return { templateCreated, bindingCreatedCount, bindingUpdatedCount }
+  const staleResult = await disableStaleBackendBindings(
+    policyStore,
+    targetGroups,
+    bindings,
+    templateCreated,
+  )
+
+  return {
+    templateCreated,
+    bindingCreatedCount,
+    bindingUpdatedCount,
+    bindingDisabledCount: staleResult.bindingDisabledCount,
+  }
 }
 
-function normalizeStaticTargetGroups(groups: readonly string[]): NormalizedAdmissionTargetGroup[] {
-  const normalized = new Map<string, NormalizedAdmissionTargetGroup>()
-  for (const value of groups) {
-    const guildId = value.trim()
-    if (!guildId) continue
-    normalized.set(guildId, { guildId, enabled: true })
+async function disableStaleBackendBindings(
+  policyStore: GuardPolicyStore,
+  targetGroups: readonly NormalizedAdmissionTargetGroup[],
+  currentBindings: Awaited<ReturnType<GuardPolicyStore['listBindings']>>,
+  templateCreated: boolean,
+): Promise<GuardPolicyTargetSyncResult> {
+  const bindings = currentBindings.length > 0
+    ? currentBindings
+    : await policyStore.listBindings()
+  const targetGuildIds = new Set(targetGroups.map((target) => target.guildId))
+  let bindingDisabledCount = 0
+
+  for (const binding of bindings) {
+    if (binding.platform !== ADMISSION_BUSINESS_PLATFORM) continue
+    if (targetGuildIds.has(binding.guildId)) continue
+    if (!binding.enabled && binding.note === STALE_BINDING_NOTE) continue
+    await policyStore.saveBinding({
+      platform: binding.platform,
+      guildId: binding.guildId,
+      templateId: binding.templateId,
+      enabled: false,
+      note: STALE_BINDING_NOTE,
+    })
+    bindingDisabledCount += 1
   }
-  return [...normalized.values()]
+
+  return {
+    templateCreated,
+    bindingCreatedCount: 0,
+    bindingUpdatedCount: 0,
+    bindingDisabledCount,
+  }
 }
 
 function normalizeAdmissionTargetGroups(
@@ -150,7 +171,7 @@ function normalizeAdmissionTargetGroups(
     if (!guildId) continue
     normalized.set(guildId, {
       guildId,
-      enabled: target.guardEnabled !== false,
+      enabled: target.guardEnabled !== false && isPostJoinGuardStrategy(target.joinHandlingStrategy),
     })
   }
   return [...normalized.values()]

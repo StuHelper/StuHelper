@@ -4,6 +4,7 @@ import test from 'node:test'
 import { PlatformAPIError } from '@stuhelper/koishi-shared'
 
 import { AdmissionReminderDeduper } from './admission-reminder-deduper'
+import { AdmissionSubjectCoordinator } from './admission-subject-coordinator'
 import { MemberGuardService } from './member-guard'
 
 test('member guard creates admission session, mutes, and sends canonical auth link', async () => {
@@ -101,6 +102,226 @@ test('member guard creates admission session, mutes, and sends canonical auth li
   }])
 })
 
+test('member guard suppresses post-join reminder when admission was skipped before mute', async () => {
+  const created = admissionResult('session-skipped-before-mute', 'token-skipped-before-mute')
+  const savedRecords: any[] = []
+  const muteActions: unknown[] = []
+  const sentMessages: string[] = []
+  const admissionEvents: unknown[] = []
+  const service = new MemberGuardService({
+    platform: {
+      async createAdmissionSession() {
+        return created
+      },
+      async getAdmissionSessionByMember() {
+        return {
+          ...created.session,
+          status: 'cancelled',
+        }
+      },
+      async recordAdmissionEvent(sessionID: string, input: unknown) {
+        admissionEvents.push({ sessionID, input })
+      },
+    },
+    guardStore: activeRecordStore(savedRecords),
+    policyStore: policyStoreFor(['guild-1']),
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+  } as any)
+
+  await service.handleGuildMemberAdded(memberAddedSession({
+    bot: {
+      muteGuildMember: async (...args: unknown[]) => { muteActions.push(args) },
+      sendMessage: async (_channelId: string, content: string) => {
+        sentMessages.push(content)
+        return ['message-skipped']
+      },
+    },
+  }))
+
+  assert.equal(savedRecords.length, 1)
+  assert.ok(savedRecords[0].releasedAt instanceof Date)
+  assert.deepEqual(muteActions, [])
+  assert.deepEqual(sentMessages, [])
+  assert.deepEqual(admissionEvents, [])
+})
+
+test('member guard releases mute and suppresses post-join reminder when admission was skipped after mute', async () => {
+  const created = admissionResult('session-skipped-after-mute', 'token-skipped-after-mute')
+  const savedRecords: any[] = []
+  const muteActions: Array<{ guildId: string, memberId: string, duration: number }> = []
+  const sentMessages: string[] = []
+  let statusChecks = 0
+  const service = new MemberGuardService({
+    platform: {
+      async createAdmissionSession() {
+        return created
+      },
+      async getAdmissionSessionByMember() {
+        statusChecks += 1
+        if (statusChecks === 1) return created.session
+        return {
+          ...created.session,
+          status: 'cancelled',
+        }
+      },
+      async recordAdmissionEvent() {
+        throw new Error('skipped admission should not record reminder event')
+      },
+    },
+    guardStore: activeRecordStore(savedRecords),
+    policyStore: policyStoreFor(['guild-1']),
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+  } as any)
+
+  await service.handleGuildMemberAdded(memberAddedSession({
+    bot: {
+      muteGuildMember: async (guildId: string, memberId: string, duration: number) => {
+        muteActions.push({ guildId, memberId, duration })
+      },
+      sendMessage: async (_channelId: string, content: string) => {
+        sentMessages.push(content)
+        return ['message-skipped']
+      },
+    },
+  }))
+
+  assert.equal(statusChecks, 2)
+  assert.equal(savedRecords.length, 1)
+  assert.ok(savedRecords[0].mutedAt instanceof Date)
+  assert.ok(savedRecords[0].releasedAt instanceof Date)
+  assert.equal(muteActions.length, 2)
+  assert.ok(muteActions[0].duration > 29 * 24 * 60 * 60 * 1000)
+  assert.deepEqual(muteActions[1], { guildId: 'guild-1', memberId: '10001', duration: 0 })
+  assert.deepEqual(sentMessages, [])
+})
+
+test('member guard suppresses post-join reminder when local skip cancellation wins the race', async () => {
+  const created = admissionResult('session-locally-skipped', 'token-locally-skipped')
+  const savedRecords: any[] = []
+  const muteActions: Array<{ guildId: string, memberId: string, duration: number }> = []
+  const sentMessages: string[] = []
+  const admissionEvents: unknown[] = []
+  const coordinator = new AdmissionSubjectCoordinator()
+  let statusChecks = 0
+  const subject = {
+    platform: 'qq',
+    botSelfId: '514',
+    guildId: 'guild-1',
+    memberId: '10001',
+  }
+  const service = new MemberGuardService({
+    platform: {
+      async createAdmissionSession() {
+        return created
+      },
+      async getAdmissionSessionByMember() {
+        statusChecks += 1
+        if (statusChecks === 2) {
+          coordinator.cancelSubject(subject)
+          coordinator.cancel(subject, created.session.id)
+        }
+        return created.session
+      },
+      async recordAdmissionEvent(sessionID: string, input: unknown) {
+        admissionEvents.push({ sessionID, input })
+      },
+    },
+    guardStore: activeRecordStore(savedRecords),
+    policyStore: policyStoreFor(['guild-1']),
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+    admissionSubjectCoordinator: coordinator,
+  } as any)
+
+  await service.handleGuildMemberAdded(memberAddedSession({
+    bot: {
+      muteGuildMember: async (guildId: string, memberId: string, duration: number) => {
+        muteActions.push({ guildId, memberId, duration })
+      },
+      sendMessage: async (_channelId: string, content: string) => {
+        sentMessages.push(content)
+        return ['message-should-not-send']
+      },
+    },
+  }))
+
+  assert.equal(statusChecks, 2)
+  assert.equal(savedRecords.length, 1)
+  assert.ok(savedRecords[0].releasedAt instanceof Date)
+  assert.equal(muteActions.length, 2)
+  assert.ok(muteActions[0].duration > 29 * 24 * 60 * 60 * 1000)
+  assert.deepEqual(muteActions[1], { guildId: 'guild-1', memberId: '10001', duration: 0 })
+  assert.deepEqual(sentMessages, [])
+  assert.deepEqual(admissionEvents, [])
+})
+
+test('member guard can deliver admission reminder by temporary direct session only', async () => {
+  const groupMessages: string[] = []
+  const privateMessages: Array<{ userId: string, content: string, guildId?: string }> = []
+  const admissionEvents: unknown[] = []
+  const service = new MemberGuardService({
+    platform: {
+      async createAdmissionSession() {
+        return admissionResult('session-direct', 'token-direct')
+      },
+      async recordAdmissionEvent(sessionID: string, input: unknown) {
+        admissionEvents.push({ sessionID, input })
+      },
+    },
+    guardStore: {
+      async findActiveBySubject() { return null },
+      async savePending() {},
+      async markMuted() {},
+      async markReminderSent() {},
+    },
+    policyStore: policyStoreFor(['guild-1']),
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+    admissionReminderDelivery: {
+      groupEnabled: false,
+      directEnabled: true,
+    },
+  } as any)
+
+  await service.handleGuildMemberAdded({
+    platform: 'onebot',
+    selfId: '514',
+    guildId: 'guild-1',
+    channelId: 'guild-1',
+    userId: '10001',
+    username: 'Alice',
+    event: { user: { nick: 'Alice' } },
+    bot: {
+      muteGuildMember: async () => {},
+      sendMessage: async (_channelId: string, content: string) => {
+        groupMessages.push(content)
+        throw new Error('group reminder should not be sent')
+      },
+      getFriendList: async () => ({ data: [] }),
+      sendPrivateMessage: async (userId: string, content: string, guildId?: string) => {
+        privateMessages.push({ userId, content, guildId })
+        return ['direct-message-join']
+      },
+    },
+  } as any)
+
+  assert.deepEqual(groupMessages, [])
+  assert.equal(privateMessages.length, 1)
+  assert.equal(privateMessages[0].userId, '10001')
+  assert.equal(privateMessages[0].guildId, 'guild-1')
+  assert.match(privateMessages[0].content, /https:\/\/join\.stuhelper\.com\/verify\/token-direct/)
+  assert.deepEqual(admissionEvents, [{
+    sessionID: 'session-direct',
+    input: {
+      action: 'remind',
+      success: true,
+      messageID: 'direct-message-join',
+    },
+  }])
+})
+
 test('member guard skips mute and reminder when backend marks member verified', async () => {
   const savedRecords: unknown[] = []
   const muteActions: unknown[] = []
@@ -184,6 +405,7 @@ test('member guard auto-approves join request through admission policy on onebot
           decision: 'approve',
           reason: 'verified_auto_approve',
           verificationState: 'verified',
+          joinHandlingStrategy: 'join_request_review',
           autoApproveVerifiedJoin: true,
           autoApproveUnverifiedJoin: true,
           policyID: 'policy-1',
@@ -227,6 +449,44 @@ test('member guard auto-approves join request through admission policy on onebot
   }])
 })
 
+test('member guard handles join request review without a local post-join guard binding', async () => {
+  const approvals: unknown[] = []
+  const service = new MemberGuardService({
+    platform: {
+      async resolveJoinRequestDecision() {
+        return {
+          decision: 'approve',
+          reason: 'verified_auto_approve',
+          verificationState: 'verified',
+          joinHandlingStrategy: 'join_request_review',
+          autoApproveVerifiedJoin: true,
+          autoApproveUnverifiedJoin: false,
+          policyID: 'policy-review',
+        }
+      },
+      async recordJoinRequestEvent() {},
+    },
+    policyStore: {
+      async resolvePolicy() {
+        throw new Error('join request review should not depend on local post-join guard policy')
+      },
+    },
+    guardStore: {},
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+  } as any)
+
+  await service.handleGuildMemberRequest(joinRequestSession({
+    bot: {
+      handleGuildMemberRequest: async (requestID: string, approve: boolean, reason?: string) => {
+        approvals.push({ requestID, approve, reason })
+      },
+    },
+  }))
+
+  assert.deepEqual(approvals, [{ requestID: 'request-1', approve: true, reason: undefined }])
+})
+
 test('member guard rejects join request when admission policy decision rejects', async () => {
   const events: unknown[] = []
   const approvals: unknown[] = []
@@ -235,8 +495,9 @@ test('member guard rejects join request when admission policy decision rejects',
       async resolveJoinRequestDecision() {
         return {
           decision: 'reject',
-          reason: 'unverified_auto_approve_disabled',
+          reason: '请先完成 StuHelper 学生认证后再申请入群。',
           verificationState: 'unverified',
+          joinHandlingStrategy: 'join_request_review',
           autoApproveVerifiedJoin: true,
           autoApproveUnverifiedJoin: false,
           policyID: 'policy-1',
@@ -263,7 +524,7 @@ test('member guard rejects join request when admission policy decision rejects',
   assert.deepEqual(approvals, [{
     requestID: 'request-1',
     approve: false,
-    reason: 'unverified_auto_approve_disabled',
+    reason: '请先完成 StuHelper 学生认证后再申请入群。',
   }])
   assert.deepEqual(events, [{
     platform: 'qq',
@@ -285,6 +546,7 @@ test('member guard records failed join request approval attempts', async () => {
           decision: 'approve',
           reason: 'verified_auto_approve',
           verificationState: 'verified',
+          joinHandlingStrategy: 'join_request_review',
           autoApproveVerifiedJoin: true,
           autoApproveUnverifiedJoin: true,
         }
@@ -929,6 +1191,60 @@ test('member guard suppresses scheduler reminder after admin command reminder ev
   }])
 })
 
+test('member guard suppresses stale reminder after admission was skipped locally', async () => {
+  const events: unknown[] = []
+  const service = new MemberGuardService({
+    platform: {
+      async listPendingAdmissionActions() {
+        return [
+          action('session-skipped', 'remind', {
+            authURL: 'https://join.stuhelper.com/verify/skipped-token',
+          }),
+        ]
+      },
+      async recordAdmissionEvent(sessionID: string, input: unknown) {
+        events.push({ sessionID, input })
+      },
+      async listPendingFreshmanForwards() { return [] },
+    },
+    guardStore: {
+      async listBackendSyncPending() { return [] },
+      async findActiveByAdmissionSessionID() { return null },
+      async findByAdmissionSessionID(sessionID: string) {
+        return {
+          ...recordFor(sessionID),
+          releasedAt: new Date(),
+          kickedAt: null,
+        }
+      },
+      async markReminderSent() {
+        throw new Error('stale skipped reminder should not mark reminders')
+      },
+      async markLastError() {
+        throw new Error('stale skipped reminder should not fail the guard record')
+      },
+    },
+    policyStore: policyStoreFor(['guild-1']),
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+  } as any)
+
+  await service.scanPendingMembers([{
+    platform: 'qq',
+    selfId: '514',
+    sid: 'qq:514',
+    sendMessage: async () => { throw new Error('stale skipped reminder should not send a group message') },
+  } as any])
+
+  assert.deepEqual(events, [{
+    sessionID: 'session-skipped',
+    input: {
+      action: 'remind',
+      success: true,
+    },
+  }])
+})
+
 test('member guard skips qq-only background polls without qq platform', async () => {
   let pendingActionCalls = 0
   let freshmanForwardCalls = 0
@@ -1068,6 +1384,47 @@ function recordFor(sessionID: string) {
     admissionSessionID: sessionID,
     backendSyncPending: false,
   }
+}
+
+function activeRecordStore(savedRecords: any[]) {
+  return {
+    async findActiveBySubject() { return null },
+    async savePending(record: any) { savedRecords.push(record) },
+    async getActiveByID(id: string) {
+      return savedRecords.find((record) => record.id === id && !record.releasedAt && !record.kickedAt)
+    },
+    async markMuted(id: string, now: Date) {
+      const record = savedRecords.find((item) => item.id === id && !item.releasedAt && !item.kickedAt)
+      if (!record) return false
+      record.mutedAt = now
+      return true
+    },
+    async markReminderSent(id: string, now: Date) {
+      const record = savedRecords.find((item) => item.id === id && !item.releasedAt && !item.kickedAt)
+      if (!record) return false
+      record.reminderSentAt = now
+      return true
+    },
+    async markReleased(id: string, now: Date) {
+      const record = savedRecords.find((item) => item.id === id && !item.releasedAt && !item.kickedAt)
+      if (!record) return false
+      record.releasedAt = now
+      return true
+    },
+  }
+}
+
+function memberAddedSession(overrides: Record<string, unknown> = {}) {
+  return {
+    platform: 'qq',
+    selfId: '514',
+    guildId: 'guild-1',
+    channelId: 'channel-1',
+    userId: '10001',
+    username: 'Alice',
+    event: { user: { nick: 'Alice' } },
+    ...overrides,
+  } as any
 }
 
 function joinRequestSession(overrides: Record<string, unknown> = {}) {

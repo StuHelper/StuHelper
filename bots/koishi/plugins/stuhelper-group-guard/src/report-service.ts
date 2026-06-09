@@ -2,11 +2,21 @@ import type { Logger, Session, Universal } from 'koishi'
 
 import { ModerationActionService, type ModerationStore } from '@stuhelper/koishi-moderation-core'
 import {
-  renderMessageTemplate,
-  resolveGroupGuardMessages,
-  type StuhelperAIConfig,
-  type StuhelperGroupGuardPluginConfig,
+  DEFAULT_GROUP_GUARD_MODERATION_SETTINGS,
+  type GroupGuardAISettings,
+  type GroupGuardBehaviorSettingsStore,
 } from '@stuhelper/koishi-shared'
+
+import {
+  getGroupGuardAISettings,
+  type GroupGuardAISettingsProvider,
+} from './group-guard-ai-provider'
+import {
+  getGroupGuardMessages,
+  groupGuardMessage,
+  type GroupGuardMessageProvider,
+  type GroupGuardMessages,
+} from './group-guard-message-provider'
 
 const AI_REVIEW_TIMEOUT_MS = 10_000
 
@@ -19,7 +29,9 @@ interface ReportServiceDeps {
   store: ModerationStore
   actions: ModerationActionService
   logger: Logger
-  config: StuhelperGroupGuardPluginConfig
+  aiSettings?: GroupGuardAISettingsProvider
+  behaviorSettings?: GroupGuardBehaviorSettingsStore
+  messageProvider?: GroupGuardMessageProvider
 }
 
 type ReportBot = Universal.Methods & { platform?: string, selfId: string }
@@ -47,21 +59,26 @@ export class ReportService {
   async handleReport(session: Session, targetMemberId: string, reason: string) {
     const guildId = session.guildId
     const channelId = session.channelId
-    const messages = resolveGroupGuardMessages(this.deps.config.messages)
+    const messages = await this.getMessages()
     if (!guildId || !channelId) {
-      return renderMessageTemplate(messages.reportGroupOnly)
+      return groupGuardMessage(messages, 'reportGroupOnly')
     }
 
     const input = { session, guildId, channelId, targetMemberId, reason }
-    const report = await this.createReport(input)
+    const ai = await this.getAISettings()
+    const report = await this.createReport(input, messages, ai)
 
-    if (!this.deps.config.ai.enabled) {
-      return renderMessageTemplate(messages.reportRecordedAIUnavailable)
+    if (!ai.enabled) {
+      return groupGuardMessage(messages, 'reportRecordedAIUnavailable')
     }
-    return this.reviewReportWithAI(input, report.id)
+    return this.reviewReportWithAI(input, report.id, messages, ai)
   }
 
-  private async createReport(input: ReportRuntimeInput) {
+  private async createReport(
+    input: ReportRuntimeInput,
+    messages: GroupGuardMessages,
+    ai: GroupGuardAISettings,
+  ) {
     const report = await this.deps.store.createReport({
       platform: input.session.platform,
       botSelfId: input.session.selfId,
@@ -70,15 +87,19 @@ export class ReportService {
       reporterMemberId: input.session.userId,
       targetMemberId: input.targetMemberId,
       reason: input.reason,
-      aiStatus: this.deps.config.ai.enabled ? 'pending' : 'disabled',
+      aiStatus: ai.enabled ? 'pending' : 'disabled',
       aiSeverity: 'none',
       aiSummary: null,
     })
-    await this.appendReportCreatedEvent(input, report.id)
+    await this.appendReportCreatedEvent(input, report.id, messages)
     return report
   }
 
-  private async appendReportCreatedEvent(input: ReportRuntimeInput, reportId: string) {
+  private async appendReportCreatedEvent(
+    input: ReportRuntimeInput,
+    reportId: string,
+    messages: GroupGuardMessages,
+  ) {
     await this.deps.store.appendEvent({
       platform: input.session.platform,
       botSelfId: input.session.selfId,
@@ -87,26 +108,34 @@ export class ReportService {
       memberId: input.targetMemberId,
       type: 'report_created',
       level: 'medium',
-      summary: `${input.session.userId} 举报了 ${input.targetMemberId}`,
+      summary: groupGuardMessage(messages, 'reportCreatedEventSummary', {
+        reporterMemberId: input.session.userId,
+        targetMemberId: input.targetMemberId,
+      }),
       payload: { reason: input.reason, reportID: reportId },
     })
   }
 
-  private async reviewReportWithAI(input: ReportRuntimeInput, reportId: string) {
+  private async reviewReportWithAI(
+    input: ReportRuntimeInput,
+    reportId: string,
+    messages: GroupGuardMessages,
+    ai: GroupGuardAISettings,
+  ) {
     try {
-      const result = await reviewReportWithAI(this.deps.config.ai, {
+      const result = await reviewReportWithAI(ai, {
         guildId: input.guildId,
         reporterMemberId: input.session.userId,
         targetMemberId: input.targetMemberId,
         reason: input.reason,
-      })
+      }, groupGuardMessage(messages, 'reportAISummaryFallback'))
       await this.deps.store.updateReportAIResult({
         id: reportId,
         aiStatus: 'completed',
         aiSeverity: result.severity,
         aiSummary: result.summary,
       })
-      await this.appendAIReviewedEvent({ input, result, reportId })
+      await this.appendAIReviewedEvent({ input, result, reportId, messages })
       return this.applyAIResult({
         bot: input.session.bot,
         guildId: input.guildId,
@@ -114,7 +143,7 @@ export class ReportService {
         targetMemberId: input.targetMemberId,
         reason: input.reason,
         result,
-      })
+      }, messages)
     } catch (error) {
       this.deps.logger.warn('report ai review failed', {
         targetMemberId: input.targetMemberId,
@@ -126,7 +155,7 @@ export class ReportService {
         aiSeverity: 'none',
         aiSummary: null,
       })
-      return renderMessageTemplate(resolveGroupGuardMessages(this.deps.config.messages).reportAIReviewFailed)
+      return groupGuardMessage(messages, 'reportAIReviewFailed')
     }
   }
 
@@ -134,6 +163,7 @@ export class ReportService {
     readonly input: ReportRuntimeInput
     readonly result: AIReviewResult
     readonly reportId: string
+    readonly messages: GroupGuardMessages
   }) {
     await this.deps.store.appendEvent({
       platform: input.input.session.platform,
@@ -143,30 +173,32 @@ export class ReportService {
       memberId: input.input.targetMemberId,
       type: 'report_ai_reviewed',
       level: input.result.severity === 'high' ? 'critical' : input.result.severity === 'medium' ? 'high' : 'low',
-      summary: `AI 已完成举报审核：${input.result.summary}`,
+      summary: groupGuardMessage(input.messages, 'reportAIReviewedEventSummary', {
+        summary: input.result.summary,
+      }),
       payload: { severity: input.result.severity, reportID: input.reportId },
     })
   }
 
-  private async applyAIResult(input: ApplyAIResultInput) {
+  private async applyAIResult(input: ApplyAIResultInput, messages: GroupGuardMessages) {
     const { result } = input
     if (result.severity === 'high') {
       await this.createHighRiskReview(input)
-      return renderMessageTemplate(resolveGroupGuardMessages(this.deps.config.messages).reportHighRisk)
+      return groupGuardMessage(messages, 'reportHighRisk')
     }
 
     if (result.severity === 'medium') {
-      await this.warnAIReport(input)
-      await this.muteAIReport(input)
-      return renderMessageTemplate(resolveGroupGuardMessages(this.deps.config.messages).reportMediumRisk)
+      await this.warnAIReport(input, messages)
+      await this.muteAIReport(input, messages)
+      return groupGuardMessage(messages, 'reportMediumRisk')
     }
 
     if (result.severity === 'low') {
-      await this.warnAIReport(input)
-      return renderMessageTemplate(resolveGroupGuardMessages(this.deps.config.messages).reportLowRisk)
+      await this.warnAIReport(input, messages)
+      return groupGuardMessage(messages, 'reportLowRisk')
     }
 
-    return renderMessageTemplate(resolveGroupGuardMessages(this.deps.config.messages).reportNoAction)
+    return groupGuardMessage(messages, 'reportNoAction')
   }
 
   private async createHighRiskReview(input: ApplyAIResultInput) {
@@ -185,29 +217,44 @@ export class ReportService {
     })
   }
 
-  private async warnAIReport(input: ApplyAIResultInput) {
+  private async warnAIReport(input: ApplyAIResultInput, messages: GroupGuardMessages) {
     await this.deps.actions.warnMember({
       runtime: { platform: input.bot.platform || '', botSelfId: input.bot.selfId },
       guildId: input.guildId,
       channelId: input.channelId,
       memberId: input.targetMemberId,
-      reason: `AI 举报审核：${input.reason}`,
+      reason: groupGuardMessage(messages, 'reportAIWarnReason', { reason: input.reason }),
     })
   }
 
-  private async muteAIReport(input: ApplyAIResultInput) {
+  private async muteAIReport(input: ApplyAIResultInput, messages: GroupGuardMessages) {
+    const moderation = this.deps.behaviorSettings
+      ? await this.deps.behaviorSettings.getModerationSettings()
+      : DEFAULT_GROUP_GUARD_MODERATION_SETTINGS
     await this.deps.actions.muteMember({
       bot: input.bot,
       guildId: input.guildId,
       channelId: input.channelId,
       memberId: input.targetMemberId,
-      seconds: this.deps.config.moderation.defaultMuteSeconds,
-      reason: 'AI 举报审核命中中风险',
+      seconds: moderation.defaultMuteSeconds,
+      reason: groupGuardMessage(messages, 'reportAIMuteReason', { reason: input.reason }),
     })
+  }
+
+  private async getMessages() {
+    return getGroupGuardMessages(this.deps.messageProvider)
+  }
+
+  private async getAISettings() {
+    return getGroupGuardAISettings(this.deps.aiSettings)
   }
 }
 
-async function reviewReportWithAI(config: StuhelperAIConfig, input: Record<string, string>): Promise<AIReviewResult> {
+async function reviewReportWithAI(
+  config: GroupGuardAISettings,
+  input: Record<string, string>,
+  summaryFallback: string,
+): Promise<AIReviewResult> {
   if (!config.endpoint || !config.apiKey || !config.model) {
     throw new Error('ai review configuration is incomplete')
   }
@@ -229,6 +276,6 @@ async function reviewReportWithAI(config: StuhelperAIConfig, input: Record<strin
   const payload = await response.json() as { severity?: AIReviewResult['severity'], summary?: string }
   return {
     severity: payload.severity || 'none',
-    summary: payload.summary || '未返回摘要',
+    summary: payload.summary || summaryFallback,
   }
 }

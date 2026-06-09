@@ -1,66 +1,97 @@
-import { Context, Schema } from 'koishi'
+import { Context, Schema, type Session } from 'koishi'
 
 import {
+  BindingRuntimeSettingsStore,
+  DEFAULT_BINDING_COMMAND,
+  DEFAULT_BINDING_RUNTIME_SETTINGS,
   PlatformAPIError,
   createBindingPluginConfigSchema,
   createPlatformClient,
   createPluginLogger,
+  registerBindingRuntimeSettingsModel,
   renderMessageTemplate,
-  resolveBindingMessages,
   type PlatformVerificationState,
+  type BindingRuntimeSettingsRecord,
   type StuhelperBindingPluginConfig,
 } from '@stuhelper/koishi-shared'
 
 export const name = 'stuhelper-binding'
+export const inject = ['database']
 
 export type Config = StuhelperBindingPluginConfig
 
 export const Config: Schema<Config> = createBindingPluginConfigSchema()
 
 export function apply(ctx: Context, config: Config) {
+  registerBindingRuntimeSettingsModel(ctx)
   const logger = createPluginLogger(ctx, 'binding')
   const platform = createPlatformClient(config.platform)
-  const messages = resolveBindingMessages(config.binding.messages)
+  const settingsStore = new BindingRuntimeSettingsStore(ctx, DEFAULT_BINDING_RUNTIME_SETTINGS)
 
-  ctx.command(`${config.binding.command} <code:text>`, '绑定 StuHelper 账号')
-    .action(async ({ session }, code) => {
-      if (!session) {
-        throw new Error('binding command requires an active session')
-      }
-      if (!session.isDirect) {
-        return renderMessageTemplate(messages.directOnly)
-      }
-      if (!code?.trim()) {
-        return renderMessageTemplate(messages.missingCode, { command: config.binding.command })
-      }
+  ctx.middleware(async (session, next) => {
+    const settings = await settingsStore.getSettings()
+    const parsed = parseBindingCommand(session, settings.command)
+    if (!parsed) {
+      return next()
+    }
+    const messages = settings.messages
 
-      try {
-        const result = await platform.consumeQQBindingCode({
-          code: code.trim(),
-          qqID: session.userId,
-        })
-        logger.info('qq binding succeeded', {
-          qqID: session.userId,
-          userID: result.binding.userID,
-          verificationState: result.verificationState.verificationState,
-        })
-        return buildBindingSuccessMessage(result.verificationState.verificationState, messages)
-      } catch (error) {
-        const message = resolveBindingErrorMessage(error, messages)
-        logger.warn('qq binding failed', {
-          qqID: session.userId,
-          error: error instanceof Error ? error.message : String(error),
-        })
-        return message
-      }
-    })
+    if (!session.isDirect) {
+      return renderMessageTemplate(messages.directOnly)
+    }
+    if (!parsed.code) {
+      return renderMessageTemplate(messages.missingCode, { command: settings.command })
+    }
 
-  logger.info(`绑定插件已加载，命令字：${config.binding.command}`)
+    try {
+      const result = await platform.consumeQQBindingCode({
+        code: parsed.code,
+        qqID: session.userId,
+      })
+      logger.info('qq binding succeeded', {
+        qqID: session.userId,
+        userID: result.binding.userID,
+        verificationState: result.verificationState.verificationState,
+      })
+      return buildBindingSuccessMessage(result.verificationState.verificationState, messages)
+    } catch (error) {
+      const message = resolveBindingErrorMessage(error, messages)
+      logger.warn('qq binding failed', {
+        qqID: session.userId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return message
+    }
+  })
+
+  logger.info('绑定插件已加载，命令字和提示文案由 WebUI runtime settings 控制')
+}
+
+function parseBindingCommand(
+  session: Session,
+  configuredCommand: string,
+) {
+  const content = session.content?.trim()
+  if (!content) {
+    return null
+  }
+  const command = configuredCommand.trim() || DEFAULT_BINDING_COMMAND
+  if (content === command) {
+    return { code: '' }
+  }
+  if (!content.startsWith(command)) {
+    return null
+  }
+  const rest = content.slice(command.length)
+  if (!/^\s/.test(rest)) {
+    return null
+  }
+  return { code: rest.trim() }
 }
 
 function buildBindingSuccessMessage(
   state: PlatformVerificationState,
-  messages: ReturnType<typeof resolveBindingMessages>,
+  messages: BindingRuntimeSettingsRecord['messages'],
 ) {
   if (state === 'verified') {
     return renderMessageTemplate(messages.successVerified)
@@ -70,7 +101,7 @@ function buildBindingSuccessMessage(
 
 function resolveBindingErrorMessage(
   error: unknown,
-  messages: ReturnType<typeof resolveBindingMessages>,
+  messages: BindingRuntimeSettingsRecord['messages'],
 ) {
   if (!(error instanceof PlatformAPIError)) {
     return renderMessageTemplate(messages.unavailable)
@@ -92,6 +123,7 @@ function resolveBindingErrorMessage(
 
 export default {
   name,
+  inject,
   Config,
   apply,
 }

@@ -1,6 +1,5 @@
 import type { Context } from 'koishi'
 
-import type { StuhelperGuardConfig } from '../types/index'
 import {
   GUARD_GROUP_BINDING_TABLE,
   GUARD_TEMPLATE_TABLE,
@@ -8,11 +7,8 @@ import {
   type GuardTemplateRecord,
 } from './policy'
 
-const STATIC_TEMPLATE_ID = '__static__'
-const STATIC_TEMPLATE_NAME = '静态默认模板'
-
 export interface EffectiveGuardPolicy {
-  source: 'binding' | 'static'
+  source: 'binding'
   templateId: string
   templateName: string
   platform: string
@@ -42,10 +38,7 @@ interface GuardTemplateInput {
 }
 
 export class GuardPolicyStore {
-  constructor(
-    private readonly ctx: Context,
-    private readonly fallbackConfig?: StuhelperGuardConfig,
-  ) {}
+  constructor(private readonly ctx: Context) {}
 
   async listTemplates() {
     return this.ctx.database.get(GUARD_TEMPLATE_TABLE, {}) as Promise<GuardTemplateRecord[]>
@@ -110,21 +103,7 @@ export class GuardPolicyStore {
       return createBoundPolicy(binding, template)
     }
 
-    if (!this.fallbackConfig || !this.fallbackConfig.targetGroups.includes(guildId)) {
-      return null
-    }
-
-    return {
-      source: 'static',
-      templateId: STATIC_TEMPLATE_ID,
-      templateName: STATIC_TEMPLATE_NAME,
-      platform,
-      guildId,
-      muteDurationSeconds: this.fallbackConfig.muteDurationSeconds,
-      kickAfterMinutes: this.fallbackConfig.kickAfterMinutes,
-      reminderTemplate: this.fallbackConfig.reminderTemplate,
-      exemptUsers: [...this.fallbackConfig.exemptUsers],
-    } satisfies EffectiveGuardPolicy
+    return null
   }
 
   private async requireEnabledTemplate(templateId: string) {

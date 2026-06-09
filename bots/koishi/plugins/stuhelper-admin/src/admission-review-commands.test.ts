@@ -9,6 +9,13 @@ import test from 'node:test'
 import commands from '@koishijs/plugin-commands'
 import sqlite from '@koishijs/plugin-database-sqlite'
 import MockBot from '@koishijs/plugin-mock'
+import type { Context } from 'koishi'
+
+import {
+  AdminRuntimeSettingsStore,
+  DEFAULT_ADMIN_RUNTIME_SETTINGS,
+  type StuhelperAdminMessageConfig,
+} from '@stuhelper/koishi-shared'
 
 import adminPlugin from './index.ts'
 import { createKoishiTestRuntime } from '../../test-utils/runtime.ts'
@@ -83,6 +90,40 @@ test('新生审核命令会把操作者 QQ、群号、频道和原始命令发�
   }
 })
 
+test('新生审核命令使用 WebUI runtime settings 里的自定义提示文案', async () => {
+  const requests: CapturedCommandRequest[] = []
+  const server = createServer((req, res) => respondCommandRequest(req, res, requests))
+  await new Promise<void>((resolve) => server.listen(0, resolve))
+  const address = server.address()
+  assert.ok(address && typeof address === 'object')
+
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-admin-'))
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(commands)
+  runtime.register(MockBot, { selfId: '514' })
+  runtime.register(adminPlugin, createAdminPluginConfig(address.port))
+
+  try {
+    await root.start()
+    await saveAdminRuntimeMessages(root, {
+      freshmanApproveSuccess: '自定义通过：{applicationID}',
+      freshmanApplicationSummary: '自定义申请 {applicationID} / {applicantName} / {departmentOrMajor}',
+    })
+    await root.mock.initUser('20020', 3)
+    await root.mock.initChannel('mgmt-1')
+    const client = root.mock.client('20020', 'mgmt-1')
+
+    await client.shouldReply('新生审核查看 A123', '自定义申请 A123 / 张* / 计算机科学与技术')
+    await client.shouldReply('新生审核通过 A123', '自定义通过：A123')
+  } finally {
+    runtime.dispose()
+    await closeServer(server)
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
 test('新生审核命令会映射后端操作者授权错误并拒绝非法延长期限', async () => {
   const server = createServer((req, res) => respondForbiddenCommand(req, res))
   await new Promise<void>((resolve) => server.listen(0, resolve))
@@ -124,23 +165,21 @@ interface CapturedCommandRequest {
 function createAdminPluginConfig(port: number) {
   return {
     platform: { baseUrl: `http://127.0.0.1:${port}`, serviceToken: 'test-token' },
-    admin: { enableCommands: true },
-    moderation: {
-      repeatThreshold: 3,
-      repeatWindowSize: 3,
-      warningThresholdExpression: 'warnings >= 3',
-      defaultMuteSeconds: 180,
-      antiRecallNotify: true,
-      keywordRules: [],
-    },
-    fun: {
-      diceSides: 100,
-      muteLotteryBaseSeconds: 60,
-      muteLotteryMaxSeconds: 600,
-      muteLotteryPityThreshold: 5,
-      muteLotteryPitySeconds: 300,
-    },
   }
+}
+
+async function saveAdminRuntimeMessages(
+  root: Pick<Context, 'database'>,
+  messages: Partial<StuhelperAdminMessageConfig>,
+) {
+  await new AdminRuntimeSettingsStore(
+    root,
+    DEFAULT_ADMIN_RUNTIME_SETTINGS,
+  ).saveSettings({
+    messages: {
+      ...messages,
+    },
+  })
 }
 
 function commandBody(operatorQQID: string, guildID: string, rawCommand: string) {

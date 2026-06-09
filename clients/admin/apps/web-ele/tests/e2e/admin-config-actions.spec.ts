@@ -66,6 +66,11 @@ const admissionPolicy = {
   platform: 'qq',
   guildID: 'guild-1',
   guardEnabled: true,
+  joinHandlingStrategy: 'post_join_guard',
+  autoApproveJoin: true,
+  autoApproveVerifiedJoin: true,
+  autoApproveUnverifiedJoin: true,
+  unverifiedJoinRejectReason: '请先完成 StuHelper 学生认证后再申请入群。',
   freshmanChannelEnabled: true,
   freshmanChannelClosesAt: '2026-09-01T00:00:00Z',
   freshmanDefaultExpiresAt: '2026-10-01T00:00:00Z',
@@ -444,6 +449,10 @@ test.describe('Admin configuration actions', () => {
       .locator('.el-form-item', { hasText: '启用入群认证守卫' })
       .locator('.el-switch')
       .click();
+    await policyForm.getByText('申请时审核', { exact: true }).click();
+    await policyForm
+      .getByRole('textbox', { name: '未认证拒绝理由' })
+      .fill('请先完成 StuHelper 学生认证后再申请入群');
     await policyForm
       .getByPlaceholder('每行一个材料审核通知群号，可留空；这里不是目标认证群')
       .fill('guild-admin\nguild-ops');
@@ -465,6 +474,12 @@ test.describe('Admin configuration actions', () => {
         body: expect.objectContaining({
           id: 'policy-qq-1',
           guardEnabled: false,
+          joinHandlingStrategy: 'join_request_review',
+          autoApproveJoin: false,
+          autoApproveVerifiedJoin: true,
+          autoApproveUnverifiedJoin: false,
+          unverifiedJoinRejectReason:
+            '请先完成 StuHelper 学生认证后再申请入群',
           freshmanChannelClosesAt: '2026-09-01T00:00:00Z',
           freshmanDefaultExpiresAt: '2026-10-01T00:00:00Z',
           linkWaitSeconds: 450,

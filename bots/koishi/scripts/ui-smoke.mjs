@@ -67,7 +67,7 @@ try {
   })
 
   let listening = false
-  let cacheWarmed = false
+  let consoleApiRegistered = false
   let smokeSeeded = false
 
   koishiChild.stdout.on('data', (chunk) => {
@@ -76,9 +76,8 @@ try {
     if (text.includes(`server listening at http://127.0.0.1:${SMOKE_PORT}`)) {
       listening = true
     }
-    // 等 cache 预热完成才让 spec 开跑，避免 dashboard 首次访问冷启动竞态
-    if (text.includes('缓存预热完成')) {
-      cacheWarmed = true
+    if (text.includes('WebSocket API registered')) {
+      consoleApiRegistered = true
     }
     if (text.includes(SEED_READY_MESSAGE)) {
       smokeSeeded = true
@@ -96,10 +95,10 @@ try {
           `koishi 进程在监听就绪前提前退出（exitCode=${koishiExitCode}, signal=${koishiExitSignal}）`,
         )
       }
-      return listening && cacheWarmed && smokeSeeded
+      return listening && consoleApiRegistered && smokeSeeded
     },
     STARTUP_LISTEN_TIMEOUT_MS,
-    'koishi 控制台未在超时内完成 listening + cache 预热 + smoke seed',
+    'koishi 控制台未在超时内完成 listening + console API 注册 + smoke seed',
   )
 
   playwrightExitCode = await runPlaywright()
@@ -816,6 +815,19 @@ function startPlatformStub() {
         qqID: body.qqID || '200201',
         previousFailureCount: 2,
       })
+      return
+    }
+
+    if (method === 'GET' && url.pathname === '/api/v1/bot/admission/policies/targets') {
+      writeJSON(response, [
+        {
+          policyID: 'policy-ui-smoke-admission-178037297',
+          platform: 'qq',
+          guildID: '178037297',
+          guardEnabled: true,
+          joinHandlingStrategy: 'post_join_guard',
+        },
+      ])
       return
     }
 

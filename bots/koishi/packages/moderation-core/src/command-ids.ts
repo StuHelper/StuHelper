@@ -8,6 +8,7 @@ export const COMMAND_POLICY_IDS = {
   guardMute: 'guard-mute',
   guardKickRequest: 'guard-kick-request',
   guardBlockRequest: 'guard-block-request',
+  admissionAdmin: 'admission-admin',
 } as const
 
 export type CommandPolicyId = (typeof COMMAND_POLICY_IDS)[keyof typeof COMMAND_POLICY_IDS]
@@ -22,4 +23,5 @@ export const SUPPORTED_COMMAND_POLICY_IDS = [
   COMMAND_POLICY_IDS.guardMute,
   COMMAND_POLICY_IDS.guardKickRequest,
   COMMAND_POLICY_IDS.guardBlockRequest,
+  COMMAND_POLICY_IDS.admissionAdmin,
 ] as const satisfies readonly CommandPolicyId[]

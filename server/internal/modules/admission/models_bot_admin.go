@@ -62,6 +62,7 @@ type AdmissionJoinRequestDecision struct {
 	Decision                  AdmissionJoinRequestDecisionAction    `json:"decision"`
 	Reason                    string                                `json:"reason,omitempty"`
 	VerificationState         AdmissionJoinRequestVerificationState `json:"verificationState"`
+	JoinHandlingStrategy      AdmissionJoinHandlingStrategy         `json:"joinHandlingStrategy"`
 	AutoApproveVerifiedJoin   bool                                  `json:"autoApproveVerifiedJoin"`
 	AutoApproveUnverifiedJoin bool                                  `json:"autoApproveUnverifiedJoin"`
 	PolicyID                  string                                `json:"policyID,omitempty"`

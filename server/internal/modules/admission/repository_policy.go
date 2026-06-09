@@ -12,7 +12,8 @@ func (r *Repository) GetPolicy(ctx context.Context, platform, guildID string) (*
 	ctx = withDBTable(ctx, "group_admission_policies")
 	policy, err := scanAdmissionPolicy(r.db.QueryRow(ctx, `
 		SELECT id, platform, guild_id, guard_enabled, school_id, auto_approve_join,
-		       auto_approve_verified_join, auto_approve_unverified_join, initial_mute_duration_seconds,
+		       join_handling_strategy, auto_approve_verified_join, auto_approve_unverified_join,
+		       unverified_join_reject_reason, initial_mute_duration_seconds,
 		       link_wait_seconds, submission_wait_seconds, manual_review_timeout_seconds,
 		       reminder_interval_seconds, failed_join_limit, blacklist_duration_seconds,
 		       freshman_channel_enabled, freshman_channel_closes_at, freshman_default_expires_at,
@@ -31,7 +32,8 @@ func scanAdmissionPolicy(row pgx.Row) (*AdmissionPolicy, error) {
 	err := row.Scan(
 		&policy.ID, &policy.Platform, &policy.GuildID, &policy.GuardEnabled,
 		&policy.SchoolID, &policy.AutoApproveJoin,
-		&policy.AutoApproveVerifiedJoin, &policy.AutoApproveUnverifiedJoin, &policy.InitialMuteDurationSeconds,
+		&policy.JoinHandlingStrategy, &policy.AutoApproveVerifiedJoin, &policy.AutoApproveUnverifiedJoin,
+		&policy.UnverifiedJoinRejectReason, &policy.InitialMuteDurationSeconds,
 		&policy.LinkWaitSeconds, &policy.SubmissionWaitSeconds, &policy.ManualReviewTimeoutSeconds,
 		&policy.ReminderIntervalSeconds, &policy.FailedJoinLimit, &policy.BlacklistDurationSeconds,
 		&policy.FreshmanChannelEnabled, &policy.FreshmanChannelClosesAt, &policy.FreshmanDefaultExpiresAt,

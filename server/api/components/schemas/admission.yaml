@@ -134,7 +134,7 @@ AdmissionQQAccess:
 AdmissionPolicy:
   type: object
   required:
-    [id, platform, guildID, guardEnabled, autoApproveJoin, autoApproveVerifiedJoin, autoApproveUnverifiedJoin, initialMuteDurationSeconds, linkWaitSeconds, submissionWaitSeconds, manualReviewTimeoutSeconds, reminderIntervalSeconds, failedJoinLimit, freshmanChannelEnabled, freshmanChannelClosesAt, freshmanDefaultExpiresAt, forwardRawMaterialToQQ, managementGuildIDs, maxMaterialBytes, maxExtensionDays]
+    [id, platform, guildID, guardEnabled, joinHandlingStrategy, autoApproveJoin, autoApproveVerifiedJoin, autoApproveUnverifiedJoin, unverifiedJoinRejectReason, initialMuteDurationSeconds, linkWaitSeconds, submissionWaitSeconds, manualReviewTimeoutSeconds, reminderIntervalSeconds, failedJoinLimit, freshmanChannelEnabled, freshmanChannelClosesAt, freshmanDefaultExpiresAt, forwardRawMaterialToQQ, managementGuildIDs, maxMaterialBytes, maxExtensionDays]
   properties:
     id:
       type: string
@@ -146,6 +146,11 @@ AdmissionPolicy:
       type: boolean
       default: true
       description: 是否把该目标群同步为 Koishi 入群认证守卫绑定。
+    joinHandlingStrategy:
+      type: string
+      enum: [post_join_guard, join_request_review]
+      default: post_join_guard
+      description: 入群处理策略。post_join_guard 表示加群后禁言并发送认证链接；join_request_review 表示在加群申请阶段按 StuHelper 学生认证状态自动通过或拒绝。
     autoApproveJoin:
       type: boolean
       deprecated: true
@@ -155,6 +160,10 @@ AdmissionPolicy:
     autoApproveUnverifiedJoin:
       type: boolean
       default: true
+      deprecated: true
+    unverifiedJoinRejectReason:
+      type: string
+      description: join_request_review 策略下，未完成 StuHelper 学生认证时返回给 QQ 入群申请的拒绝理由。
     initialMuteDurationSeconds:
       type: integer
     linkWaitSeconds:
@@ -207,7 +216,7 @@ AdmissionPolicyCreateRequest:
 
 BotAdmissionPolicyTarget:
   type: object
-  required: [policyID, platform, guildID, guardEnabled]
+  required: [policyID, platform, guildID, guardEnabled, joinHandlingStrategy]
   properties:
     policyID:
       type: string
@@ -218,6 +227,10 @@ BotAdmissionPolicyTarget:
     guardEnabled:
       type: boolean
       description: 是否启用该目标群的 Koishi 入群认证守卫。
+    joinHandlingStrategy:
+      type: string
+      enum: [post_join_guard, join_request_review]
+      description: 该目标群当前使用的入群处理策略。
 
 FreshmanApplication:
   type: object
@@ -442,7 +455,7 @@ BotAdmissionJoinRequestDecisionRequest:
 
 BotAdmissionJoinRequestDecision:
   type: object
-  required: [decision, verificationState, autoApproveVerifiedJoin, autoApproveUnverifiedJoin]
+  required: [decision, verificationState, joinHandlingStrategy, autoApproveVerifiedJoin, autoApproveUnverifiedJoin]
   properties:
     decision:
       type: string
@@ -452,6 +465,9 @@ BotAdmissionJoinRequestDecision:
     verificationState:
       type: string
       enum: [verified, unverified]
+    joinHandlingStrategy:
+      type: string
+      enum: [post_join_guard, join_request_review]
     autoApproveVerifiedJoin:
       type: boolean
     autoApproveUnverifiedJoin:

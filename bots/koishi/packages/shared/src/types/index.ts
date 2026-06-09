@@ -35,6 +35,10 @@ export type AdmissionBotAction =
   | 'blacklist'
   | 'forward'
 
+export type AdmissionJoinHandlingStrategy =
+  | 'post_join_guard'
+  | 'join_request_review'
+
 export type FreshmanReviewAction = 'approve' | 'reject'
 
 export const GUARD_MEMBER_TABLE = 'stuhelper_guard_member'
@@ -42,12 +46,6 @@ export const GUARD_MEMBER_TABLE = 'stuhelper_guard_member'
 export interface StuhelperPlatformConfig {
   baseUrl: string
   serviceToken: string
-}
-
-export interface StuhelperBindingConfig {
-  command: string
-  codeTtlMinutes: number
-  messages?: StuhelperBindingMessageConfig
 }
 
 export interface StuhelperBindingMessageConfig {
@@ -62,87 +60,85 @@ export interface StuhelperBindingMessageConfig {
   notConfigured: string
 }
 
-export interface StuhelperGuardConfig {
-  targetGroups: string[]
-  muteDurationSeconds: number
-  kickAfterMinutes: number
-  reminderTemplate: string
-  exemptUsers: string[]
-}
-
-export interface StuhelperAdminConfig {
-  enableCommands: boolean
+export interface StuhelperAdminMessageConfig {
+  guardStatusCommandDescription: string
+  guardWarningCommandDescription: string
+  guardReviewListCommandDescription: string
+  guardBatchMuteCommandDescription: string
+  guardKickReviewCommandDescription: string
+  guardBlockReviewCommandDescription: string
+  freshmanViewCommandDescription: string
+  freshmanApproveCommandDescription: string
+  freshmanRejectCommandDescription: string
+  freshmanBlacklistReleaseCommandDescription: string
+  commandAccessDenied: string
+  adminCommandsDisabled: string
+  guardWarningMissingContext: string
+  guardBatchMuteGroupOnly: string
+  guardBatchMuteInvalidPayload: string
+  guardBatchMuteNoTargets: string
+  guardBatchMuteSuccess: string
+  guardBatchMuteEventSummary: string
+  guardBatchMuteEventReason: string
+  guardReviewRequestMissingArgs: string
+  guardReviewRequestSuccess: string
+  guardReviewRequestEventSummary: string
+  guardReviewKickActionLabel: string
+  guardReviewKickAndBlockActionLabel: string
+  guardPendingMembersEmpty: string
+  guardPendingMembersHeader: string
+  guardPendingMemberLine: string
+  guardWarningCounterEmpty: string
+  guardWarningCounterNoReason: string
+  guardWarningCounterSummary: string
+  guardPendingReviewsEmpty: string
+  guardPendingReviewsHeader: string
+  guardPendingReviewLine: string
+  freshmanManagementGroupOnly: string
+  freshmanMissingApplicationID: string
+  freshmanApproveInvalidFormat: string
+  freshmanApproveInvalidExtension: string
+  freshmanRejectInvalidFormat: string
+  freshmanBlacklistReleaseInvalidFormat: string
+  freshmanApproveSuccess: string
+  freshmanApproveSuccessWithExtension: string
+  freshmanRejectSuccess: string
+  freshmanBlacklistScopeGlobal: string
+  freshmanBlacklistScopeGuild: string
+  freshmanBlacklistReleaseSuccess: string
+  freshmanApplicationSummary: string
+  freshmanApplicationDepartmentFallback: string
+  freshmanApplicationExpiryFallback: string
+  freshmanCommandFailed: string
+  freshmanOperatorQQUnbound: string
+  freshmanOperatorForbidden: string
+  freshmanManagementGuildForbidden: string
+  freshmanBackendForbidden: string
 }
 
 export interface StuhelperSchedulerConfig {
   scanIntervalSeconds: number
-  fallbackScanEnabled?: boolean
 }
 
 export interface StuhelperAdmissionActionStreamConfig {
-  enabled?: boolean
   reconnectDelaySeconds?: number
 }
 
-export type StuhelperKeywordRuleMatchMode = 'includes' | 'regex'
-export type StuhelperKeywordRuleAction = 'warn' | 'delete' | 'mute' | 'review'
-
-export interface StuhelperKeywordRuleConfig {
-  id: string
-  guildId: string
-  pattern: string
-  matchMode: StuhelperKeywordRuleMatchMode
-  action: StuhelperKeywordRuleAction
-  enabled?: boolean
-  muteSeconds: number
-  note: string
-}
-
-export interface StuhelperModerationConfig {
-  enabled?: boolean
-  repeatThreshold: number
-  repeatWindowSize: number
-  warningThresholdExpression: string
-  defaultMuteSeconds: number
-  antiRecallNotify: boolean
-  keywordRules: StuhelperKeywordRuleConfig[]
-}
-
-export interface StuhelperFunConfig {
-  diceSides: number
-  muteLotteryBaseSeconds: number
-  muteLotteryMaxSeconds: number
-  muteLotteryPityThreshold: number
-  muteLotteryPitySeconds: number
-}
-
-export interface StuhelperConsoleConfig {
-  enabled: boolean
-  title: string
-}
-
-export interface StuhelperAIConfig {
-  enabled: boolean
-  endpoint: string
-  apiKey: string
-  model: string
-}
-
-export interface StuhelperCommandConfig {
-  enabled?: boolean
-}
-
-export interface StuhelperAdmissionCommandConfig {
-  enabled?: boolean
-  minAuthority?: number
-  operatorQQIDs?: string[]
-}
-
-export interface StuhelperFreshmanForwardConfig {
-  enabled?: boolean
+export interface StuhelperAdmissionReminderDeliveryConfig {
+  groupEnabled?: boolean
+  directEnabled?: boolean
 }
 
 export interface StuhelperGroupGuardMessageConfig {
+  publicReportCommandDescription: string
+  diceCommandDescription: string
+  muteLotteryCommandDescription: string
+  admissionQueryCommandDescription: string
+  admissionResendCommandDescription: string
+  admissionRegenerateCommandDescription: string
+  admissionSkipCommandDescription: string
+  admissionResetFailureCountCommandDescription: string
+  admissionReleaseBlacklistCommandDescription: string
   admissionReminder: string
   admissionTimeoutNormal: string
   admissionTimeoutWithFailures: string
@@ -156,6 +152,9 @@ export interface StuhelperGroupGuardMessageConfig {
   moderationUnmuteNotice: string
   moderationKickNotice: string
   freshmanForwardSummary: string
+  freshmanForwardUnknownField: string
+  freshmanMaterialTypeAdmissionNotice: string
+  freshmanMaterialTypeAdmissionCertificate: string
   publicReportMissingArgs: string
   publicCommandsDisabled: string
   muteLotteryGroupOnly: string
@@ -183,51 +182,99 @@ export interface StuhelperGroupGuardMessageConfig {
   admissionCommandPlatformError: string
   admissionCommandMissingResendURL: string
   admissionCommandStaleRecord: string
+  admissionReminderDeliveryDisabled: string
+  admissionReminderDeliveryFailure: string
+  admissionReminderDeliveryGroupChannelLabel: string
+  admissionReminderDeliveryDirectChannelLabel: string
   admissionSkipSuccess: string
   admissionAlreadyVerifiedRegenerate: string
   admissionResetFailureCountSuccess: string
   admissionReleaseBlacklistNotFound: string
   admissionReleaseBlacklistSuccess: string
+  admissionQuerySummary: string
+  admissionQueryDeadlineLink: string
+  admissionQueryDeadlineSubmission: string
+  admissionQueryDeadlineManualReview: string
+  admissionQueryDeadlineUnset: string
+  admissionQueryLastBotError: string
+  admissionQueryQQLinked: string
+  admissionQueryQQUnlinked: string
+  admissionQueryStudentVerified: string
+  admissionQueryStudentFreshmanPending: string
+  admissionQueryStudentUnverified: string
+  admissionStatusJoinedMuted: string
+  admissionStatusLinked: string
+  admissionStatusMaterialSubmitted: string
+  admissionStatusVerified: string
+  admissionStatusExpiredKicked: string
+  admissionStatusCancelled: string
+  admissionNextStepJoinedMuted: string
+  admissionNextStepLinked: string
+  admissionNextStepMaterialSubmitted: string
+  admissionNextStepVerifiedWithBotError: string
+  admissionNextStepVerified: string
+  admissionNextStepExpiredKickedLinked: string
+  admissionNextStepExpiredKicked: string
+  admissionNextStepCancelled: string
+  admissionNextStepDefault: string
+  admissionConsoleSettingsSaved: string
+  admissionConsoleRecordNotFound: string
+  admissionConsoleStaleRecord: string
+  admissionConsoleResendSuccess: string
+  admissionConsoleVerifiedReleaseSuccess: string
+  admissionConsoleRegenerateSuccess: string
+  admissionConsoleSkipSuccess: string
+  admissionConsoleResetFailureCountSuccess: string
+  admissionConsoleReleaseBlacklistSuccess: string
+  admissionConsoleMissingResendURL: string
+  admissionConsoleInvalidMuteDeadline: string
+  admissionConsoleBotNotFound: string
+  admissionConsoleErrorNotFound: string
+  admissionConsoleErrorInvalidState: string
+  admissionConsoleErrorUnauthorized: string
+  admissionConsoleErrorPlatform: string
+  admissionConsoleErrorFallback: string
+  moderationWarnEventSummary: string
+  moderationMuteEventSummary: string
+  moderationUnmuteEventSummary: string
+  moderationKickEventSummary: string
+  moderationAntiRecallEventSummary: string
+  moderationKeywordHitEventSummary: string
+  moderationKeywordHitReason: string
+  moderationKeywordRuleHitReason: string
+  moderationRepeatHitEventSummary: string
+  moderationRepeatHitReason: string
+  moderationRepeatAutoMuteReason: string
+  moderationMuteLotteryEventSummary: string
+  reportCreatedEventSummary: string
+  reportAIReviewedEventSummary: string
+  reportAIWarnReason: string
+  reportAIMuteReason: string
+  reportAISummaryFallback: string
+  admissionBlacklistEventSummary: string
+  admissionJoinMutedEventSummary: string
+  admissionJoinAlreadyVerifiedEventSummary: string
+  admissionJoinBackendUnavailableEventSummary: string
+  admissionJoinBackendVerifiedEventSummary: string
+  admissionCommandInvalidMuteDeadline: string
 }
 
 export interface StuhelperCoreConfig {
   platform: StuhelperPlatformConfig
-  guard: StuhelperGuardConfig
-  console: StuhelperConsoleConfig
-  runtimeModules?: {
-    enabled?: boolean
-  }
 }
 
 export interface StuhelperBindingPluginConfig {
   platform: StuhelperPlatformConfig
-  binding: StuhelperBindingConfig
 }
 
 export interface StuhelperGroupGuardPluginConfig {
   platform: StuhelperPlatformConfig
-  guard: StuhelperGuardConfig
   scheduler: StuhelperSchedulerConfig
   actionStream?: StuhelperAdmissionActionStreamConfig
-  moderation: StuhelperModerationConfig
-  fun: StuhelperFunConfig
-  ai: StuhelperAIConfig
-  commands?: StuhelperCommandConfig
-  admissionCommands?: StuhelperAdmissionCommandConfig
-  freshmanForward?: StuhelperFreshmanForwardConfig
-  messages?: StuhelperGroupGuardMessageConfig
 }
 
 export interface StuhelperAdminPluginConfig {
   platform: StuhelperPlatformConfig
-  admin: StuhelperAdminConfig
-  moderation: StuhelperModerationConfig
-  fun: StuhelperFunConfig
-}
-
-export interface StuhelperConsolePluginConfig {
-  console: StuhelperConsoleConfig
-  moderation: StuhelperModerationConfig
 }
 
 export interface QQBinding {
@@ -308,6 +355,7 @@ export interface AdmissionPolicyTarget {
   readonly platform: string
   readonly guildID: string
   readonly guardEnabled?: boolean
+  readonly joinHandlingStrategy?: AdmissionJoinHandlingStrategy
 }
 
 export interface AdmissionFailureResetResult {
@@ -344,6 +392,7 @@ export interface AdmissionJoinRequestDecision {
   readonly decision: AdmissionJoinRequestDecisionAction
   readonly reason?: string
   readonly verificationState: AdmissionJoinRequestVerificationState
+  readonly joinHandlingStrategy?: AdmissionJoinHandlingStrategy
   readonly autoApproveVerifiedJoin: boolean
   readonly autoApproveUnverifiedJoin: boolean
   readonly policyID?: string

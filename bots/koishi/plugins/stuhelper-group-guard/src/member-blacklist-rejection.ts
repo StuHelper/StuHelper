@@ -1,6 +1,13 @@
 import type { Logger, Session, Universal } from 'koishi'
 
-import { PlatformAPIError, type GuardMemberRecord, type GuardMemberStore } from '@stuhelper/koishi-shared'
+import {
+  PlatformAPIError,
+  renderMessageTemplate,
+  resolveGroupGuardMessages,
+  type GuardMemberRecord,
+  type GuardMemberStore,
+  type StuhelperGroupGuardMessageConfig,
+} from '@stuhelper/koishi-shared'
 import type { ModerationStore } from '@stuhelper/koishi-moderation-core'
 
 import { requireAdmissionSubjectPlatform } from './admission-subject-platform'
@@ -29,6 +36,7 @@ export async function kickBlacklistedJoin(input: BlacklistedJoinInput) {
     memberId,
     moderationStore: input.moderationStore,
     logger: input.logger,
+    messages: input.messages,
     error: input.error,
   })
 }
@@ -45,6 +53,7 @@ export async function kickBlacklistedPendingMember(input: BlacklistedPendingInpu
     guardRecordID: input.record.id,
     moderationStore: input.moderationStore,
     logger: input.logger,
+    messages: input.messages,
     error: input.error,
   })
 }
@@ -59,7 +68,9 @@ async function reportBlacklistedMember(input: BlacklistedMemberEventInput) {
     memberId: input.memberId,
     type: 'join_guarded',
     level: 'high',
-    summary: `成员 ${input.memberId} 命中入群黑名单，已移出群聊`,
+    summary: groupGuardMessage(input.messages, 'admissionBlacklistEventSummary', {
+      memberId: input.memberId,
+    }),
     payload: { memberBlacklisted: true, error: message },
   })
   input.logger.warn('group guard rejected blacklisted member', {
@@ -80,6 +91,7 @@ interface BlacklistedJoinInput {
   readonly session: Session
   readonly moderationStore: ModerationStore
   readonly logger: Logger
+  readonly messages?: Partial<StuhelperGroupGuardMessageConfig>
   readonly error: unknown
 }
 
@@ -89,6 +101,7 @@ interface BlacklistedPendingInput {
   readonly guardStore: GuardMemberStore
   readonly moderationStore: ModerationStore
   readonly logger: Logger
+  readonly messages?: Partial<StuhelperGroupGuardMessageConfig>
   readonly error: unknown
   readonly now: Date
 }
@@ -101,6 +114,15 @@ interface BlacklistedMemberEventInput {
   readonly memberId: string
   readonly moderationStore: ModerationStore
   readonly logger: Logger
+  readonly messages?: Partial<StuhelperGroupGuardMessageConfig>
   readonly error: unknown
   readonly guardRecordID?: string
+}
+
+function groupGuardMessage(
+  messages: Partial<StuhelperGroupGuardMessageConfig> | undefined,
+  key: keyof ReturnType<typeof resolveGroupGuardMessages>,
+  variables: Record<string, unknown> = {},
+) {
+  return renderMessageTemplate(resolveGroupGuardMessages(messages)[key], variables)
 }

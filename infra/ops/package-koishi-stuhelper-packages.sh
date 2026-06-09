@@ -22,9 +22,13 @@ root, so paths are laid out as:
 
   koishi/node_modules/<package>/package.json
   koishi/node_modules/<package>/lib/
+  koishi/local-workspaces/{packages,plugins}/<package>/package.json
+  koishi/local-workspaces/{packages,plugins}/<package>/lib/
+  koishi/STUHELPER_KOISHI_APPLY_LOCAL_WORKSPACES.cjs
 
-Only package.json and lib/ are included. No source tree, node_modules,
-environment file, SSH helper, or secret is packaged.
+Only package.json, lib/, and the stuhelper-core browser dist/ are included.
+No source tree, nested node_modules, environment file, SSH helper, or secret is
+packaged.
 
 Input:
   output.tar.gz defaults to KOISHI_STUHELPER_PACKAGE_OUTPUT, then
@@ -120,6 +124,55 @@ copy_browser_plugin_payload() {
   )
 }
 
+write_workspace_guard() {
+  local destination_file="$1"
+
+  cat >"${destination_file}" <<'NODE'
+#!/usr/bin/env node
+const fs = require('node:fs')
+const path = require('node:path')
+
+const root = __dirname
+const manifestPath = path.join(root, 'package.json')
+const requiredWorkspaces = [
+  'local-workspaces/plugins/*',
+  'local-workspaces/packages/*',
+]
+const requiredPrivateDependencies = [
+  'koishi-plugin-stuhelper-core',
+  'koishi-plugin-stuhelper-group-guard',
+]
+const optionalPrivateDependencies = [
+  'koishi-plugin-stuhelper-binding',
+  'koishi-plugin-stuhelper-admin',
+]
+
+if (!fs.existsSync(manifestPath)) {
+  throw new Error(`Koishi package.json not found: ${manifestPath}`)
+}
+
+const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+manifest.workspaces = Array.from(new Set([
+  ...(Array.isArray(manifest.workspaces) ? manifest.workspaces : []),
+  ...requiredWorkspaces,
+]))
+manifest.dependencies ||= {}
+
+for (const name of requiredPrivateDependencies) {
+  manifest.dependencies[name] = 'workspace:*'
+}
+for (const name of optionalPrivateDependencies) {
+  if (Object.prototype.hasOwnProperty.call(manifest.dependencies, name)) {
+    manifest.dependencies[name] = 'workspace:*'
+  }
+}
+
+fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+console.log('[stuhelper-koishi] local workspace guard applied')
+NODE
+  chmod +x "${destination_file}"
+}
+
 mkdir -p "${OUTPUT_DIR}"
 
 tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/stuhelper-koishi-packages.XXXXXX")"
@@ -130,30 +183,58 @@ copy_package_payload \
   "${REPO_ROOT}/bots/koishi/packages/shared" \
   "@stuhelper/koishi-shared" \
   "${tmp_root}/koishi/node_modules/@stuhelper/koishi-shared"
+copy_package_payload \
+  "${REPO_ROOT}/bots/koishi/packages/shared" \
+  "@stuhelper/koishi-shared" \
+  "${tmp_root}/koishi/local-workspaces/packages/koishi-shared"
 
 copy_package_payload \
   "${REPO_ROOT}/bots/koishi/packages/moderation-core" \
   "@stuhelper/koishi-moderation-core" \
   "${tmp_root}/koishi/node_modules/@stuhelper/koishi-moderation-core"
+copy_package_payload \
+  "${REPO_ROOT}/bots/koishi/packages/moderation-core" \
+  "@stuhelper/koishi-moderation-core" \
+  "${tmp_root}/koishi/local-workspaces/packages/koishi-moderation-core"
 
 copy_browser_plugin_payload \
   "${REPO_ROOT}/bots/koishi/plugins/stuhelper-core" \
   "koishi-plugin-stuhelper-core" \
   "${tmp_root}/koishi/node_modules/koishi-plugin-stuhelper-core"
+copy_browser_plugin_payload \
+  "${REPO_ROOT}/bots/koishi/plugins/stuhelper-core" \
+  "koishi-plugin-stuhelper-core" \
+  "${tmp_root}/koishi/local-workspaces/plugins/stuhelper-core"
 
 copy_package_payload \
   "${REPO_ROOT}/bots/koishi/plugins/stuhelper-binding" \
   "koishi-plugin-stuhelper-binding" \
   "${tmp_root}/koishi/node_modules/koishi-plugin-stuhelper-binding"
+copy_package_payload \
+  "${REPO_ROOT}/bots/koishi/plugins/stuhelper-binding" \
+  "koishi-plugin-stuhelper-binding" \
+  "${tmp_root}/koishi/local-workspaces/plugins/stuhelper-binding"
 
 copy_package_payload \
   "${REPO_ROOT}/bots/koishi/plugins/stuhelper-group-guard" \
   "koishi-plugin-stuhelper-group-guard" \
   "${tmp_root}/koishi/node_modules/koishi-plugin-stuhelper-group-guard"
+copy_package_payload \
+  "${REPO_ROOT}/bots/koishi/plugins/stuhelper-group-guard" \
+  "koishi-plugin-stuhelper-group-guard" \
+  "${tmp_root}/koishi/local-workspaces/plugins/stuhelper-group-guard"
+
+write_workspace_guard "${tmp_root}/koishi/STUHELPER_KOISHI_APPLY_LOCAL_WORKSPACES.cjs"
 
 (
   cd "${tmp_root}"
   tar -czf "${tmp_file}" \
+    koishi/STUHELPER_KOISHI_APPLY_LOCAL_WORKSPACES.cjs \
+    koishi/local-workspaces/packages/koishi-shared \
+    koishi/local-workspaces/packages/koishi-moderation-core \
+    koishi/local-workspaces/plugins/stuhelper-core \
+    koishi/local-workspaces/plugins/stuhelper-binding \
+    koishi/local-workspaces/plugins/stuhelper-group-guard \
     koishi/node_modules/@stuhelper/koishi-shared \
     koishi/node_modules/@stuhelper/koishi-moderation-core \
     koishi/node_modules/koishi-plugin-stuhelper-core \

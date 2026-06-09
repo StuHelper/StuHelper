@@ -1,6 +1,12 @@
 import { h, type Context, type Session } from 'koishi'
 
 import {
+  COMMAND_POLICY_IDS,
+  canExecuteCommand,
+  type CommandPolicyRecord,
+  type ModerationStore,
+} from '@stuhelper/koishi-moderation-core'
+import {
   PlatformAPIError,
   renderMessageTemplate,
   resolveGroupGuardMessages,
@@ -14,20 +20,38 @@ import {
 } from '@stuhelper/koishi-shared'
 
 import { formatAdmissionReminder } from './admission-format'
+import { sendAdmissionReminderMessage } from './admission-reminder-delivery'
 import { resolveAdmissionSubjectPlatform } from './admission-subject-platform'
+import type { AdmissionSubjectCoordinator } from './admission-subject-coordinator'
 import type { AdmissionReminderDeduper } from './admission-reminder-deduper'
 import { backendSyncUpdate } from './member-records'
+import {
+  getGroupGuardMessages,
+  groupGuardMessage,
+  type GroupGuardMessageProvider,
+  type GroupGuardMessages,
+} from './group-guard-message-provider'
 
 const DEFAULT_ADMISSION_COMMAND_AUTHORITY = 4
 const DUPLICATE_COMMAND_SUPPRESS_MS = 30_000
+const DEFAULT_ADMISSION_COMMAND_POLICY: CommandPolicyRecord = {
+  commandId: COMMAND_POLICY_IDS.admissionAdmin,
+  roles: [],
+  minAuthority: DEFAULT_ADMISSION_COMMAND_AUTHORITY,
+  createdAt: new Date(0),
+  updatedAt: new Date(0),
+}
 
 interface AdmissionAdminCommandDeps {
   readonly platform: PlatformClient
   readonly guardStore: GuardMemberStore
   readonly policyStore: GuardPolicyStore
+  readonly moderationStore: ModerationStore
   readonly config: StuhelperGroupGuardPluginConfig
   readonly runtimeSettings?: AdmissionRuntimeSettingsStore
+  readonly admissionSubjectCoordinator?: AdmissionSubjectCoordinator
   readonly reminderDeduper?: AdmissionReminderDeduper
+  readonly messageProvider?: GroupGuardMessageProvider
 }
 
 interface AdmissionCommandContext {
@@ -41,17 +65,18 @@ interface AdmissionCommandContext {
 
 export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdminCommandDeps) {
   const commandDeduper = new AdmissionAdminCommandDeduper()
+  const messages = resolveGroupGuardMessages()
 
-  ctx.command('查询入群认证 <qqID>', '查询指定 QQ 的入群认证状态')
-    .action(({ session }, qqID) => runAdmissionCommand(deps.config, async () => {
+  ctx.command('查询入群认证 <qqID>', renderMessageTemplate(messages.admissionQueryCommandDescription))
+    .action(({ session }, qqID) => runAdmissionCommand(deps, async () => {
       const command = await resolveAdmissionCommandContext(session, qqID, deps)
       if (typeof command === 'string') return command
       const admission = await deps.platform.getAdmissionSessionByMember(admissionSubject(command))
-      return formatAdmissionSessionSummary(admission)
+      return formatAdmissionSessionSummary(admission, await getGroupGuardMessages(deps.messageProvider))
     }))
 
-  ctx.command('重发认证链接 <qqID>', '重发当前仍可继续的入群认证链接')
-    .action(({ session }, qqID) => runAdmissionCommand(deps.config, async () => {
+  ctx.command('重发认证链接 <qqID>', renderMessageTemplate(messages.admissionResendCommandDescription))
+    .action(({ session }, qqID) => runAdmissionCommand(deps, async () => {
       const command = await resolveAdmissionCommandContext(session, qqID, deps)
       if (typeof command === 'string') return command
       const dedupeKey = admissionCommandDedupeKey('resend', command)
@@ -65,8 +90,8 @@ export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdmi
       }
     }))
 
-  ctx.command('重新生成认证链接 <qqID>', '取消旧会话并重新生成入群认证链接')
-    .action(({ session }, qqID) => runAdmissionCommand(deps.config, async () => {
+  ctx.command('重新生成认证链接 <qqID>', renderMessageTemplate(messages.admissionRegenerateCommandDescription))
+    .action(({ session }, qqID) => runAdmissionCommand(deps, async () => {
       const command = await resolveAdmissionCommandContext(session, qqID, deps)
       if (typeof command === 'string') return command
       const dedupeKey = admissionCommandDedupeKey('regenerate', command)
@@ -82,10 +107,11 @@ export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdmi
         if (created.session.status === 'verified') {
           return releaseVerifiedAdmissionForCommand(command, deps, created)
         }
-        await resetMemberMute(command.session, created.session)
+        const currentMessages = await getGroupGuardMessages(deps.messageProvider)
+        await resetMemberMute(command.session, created.session, currentMessages)
         const synced = await updateLocalAdmissionRecord(command, deps.guardStore, created)
         if (synced === false) {
-          return admissionMessage(deps.config, 'admissionCommandStaleRecord')
+          return groupGuardMessage(currentMessages, 'admissionCommandStaleRecord')
         }
         return sendAdmissionReminderForCommand(command, deps, created.session)
       } catch (error) {
@@ -94,42 +120,48 @@ export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdmi
       }
     }))
 
-  ctx.command('跳过入群认证 <qqID>', '仅跳过当前群的入群认证，不通过 StuHelper 学生认证')
-    .action(({ session }, qqID) => runAdmissionCommand(deps.config, async () => {
+  ctx.command('跳过入群认证 <qqID>', renderMessageTemplate(messages.admissionSkipCommandDescription))
+    .action(({ session }, qqID) => runAdmissionCommand(deps, async () => {
       const command = await resolveAdmissionCommandContext(session, qqID, deps)
       if (typeof command === 'string') return command
       const dedupeKey = admissionCommandDedupeKey('skip', command)
       if (!commandDeduper.claim(dedupeKey)) return
+      const ref = admissionCommandSubjectRef(command)
+      deps.admissionSubjectCoordinator?.cancelSubject(ref)
       try {
         const skipped = await deps.platform.skipAdmissionSessionForMember(admissionOperatorSubject(command))
-        await releaseMemberMuteForCommand(command)
-        const released = await markLocalAdmissionSkipped(command, deps.guardStore, skipped)
+        const released = await runAdmissionCommandSubjectExclusive(ref, deps, skipped.id, async () => {
+          await releaseMemberMuteForCommand(command)
+          return markLocalAdmissionSkipped(command, deps.guardStore, skipped)
+        })
+        const currentMessages = await getGroupGuardMessages(deps.messageProvider)
         if (released === false) {
-          return admissionMessage(deps.config, 'admissionCommandStaleRecord')
+          return groupGuardMessage(currentMessages, 'admissionCommandStaleRecord')
         }
-        return admissionMessage(deps.config, 'admissionSkipSuccess', {
+        return groupGuardMessage(currentMessages, 'admissionSkipSuccess', {
           at: h.at(command.qqID),
           qqID: command.qqID,
         })
       } catch (error) {
+        deps.admissionSubjectCoordinator?.clearSubjectCancellation(ref)
         commandDeduper.forget(dedupeKey)
         throw error
       }
     }))
 
-  ctx.command('清空入群未认证次数 <qqID>', '清空当前群成员的入群认证失败次数')
-    .action(({ session }, qqID) => runAdmissionCommand(deps.config, async () => {
+  ctx.command('清空入群未认证次数 <qqID>', renderMessageTemplate(messages.admissionResetFailureCountCommandDescription))
+    .action(({ session }, qqID) => runAdmissionCommand(deps, async () => {
       const command = await resolveAdmissionCommandContext(session, qqID, deps)
       if (typeof command === 'string') return command
       const result = await deps.platform.resetAdmissionFailureCount(admissionOperatorSubject(command))
-      return admissionMessage(deps.config, 'admissionResetFailureCountSuccess', {
+      return groupGuardMessage(await getGroupGuardMessages(deps.messageProvider), 'admissionResetFailureCountSuccess', {
         qqID: result.qqID,
         previousFailureCount: result.previousFailureCount,
       })
     }))
 
-  ctx.command('解除入群拉黑 <qqID>', '解除当前群成员的入群拉黑状态')
-    .action(({ session }, qqID) => runAdmissionCommand(deps.config, async () => {
+  ctx.command('解除入群拉黑 <qqID>', renderMessageTemplate(messages.admissionReleaseBlacklistCommandDescription))
+    .action(({ session }, qqID) => runAdmissionCommand(deps, async () => {
       const command = await resolveAdmissionCommandContext(session, qqID, deps)
       if (typeof command === 'string') return command
       try {
@@ -145,11 +177,11 @@ export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdmi
         })
       } catch (error) {
         if (error instanceof PlatformAPIError && error.status === 404) {
-          return admissionMessage(deps.config, 'admissionReleaseBlacklistNotFound', { qqID: command.qqID })
+          return groupGuardMessage(await getGroupGuardMessages(deps.messageProvider), 'admissionReleaseBlacklistNotFound', { qqID: command.qqID })
         }
         throw error
       }
-      return admissionMessage(deps.config, 'admissionReleaseBlacklistSuccess', { qqID: command.qqID })
+      return groupGuardMessage(await getGroupGuardMessages(deps.messageProvider), 'admissionReleaseBlacklistSuccess', { qqID: command.qqID })
     }))
 }
 
@@ -195,35 +227,35 @@ async function resolveAdmissionCommandContext(
   qqID: string | undefined,
   deps: AdmissionAdminCommandDeps,
 ): Promise<AdmissionCommandContext | string> {
-  const messages = resolveGroupGuardMessages(deps.config.messages)
+  const messages = await getGroupGuardMessages(deps.messageProvider)
   if (!session) {
-    return renderMessageTemplate(messages.admissionCommandGroupOnly)
+    return groupGuardMessage(messages, 'admissionCommandGroupOnly')
   }
   if (deps.runtimeSettings && !await deps.runtimeSettings.isAdmissionCommandsEnabled()) {
-    return renderMessageTemplate(messages.admissionCommandsDisabled)
-  }
-  const accessDenied = ensureAdmissionCommandAccess(session, deps.config)
-  if (accessDenied) {
-    return accessDenied
+    return groupGuardMessage(messages, 'admissionCommandsDisabled')
   }
   const guildID = session.guildId || session.channelId
   if (!guildID) {
-    return renderMessageTemplate(messages.admissionCommandGroupOnly)
+    return groupGuardMessage(messages, 'admissionCommandGroupOnly')
   }
   const targetQQID = qqID?.trim()
   if (!targetQQID) {
-    return renderMessageTemplate(messages.admissionCommandMissingQQ)
+    return groupGuardMessage(messages, 'admissionCommandMissingQQ')
   }
   if (!session.userId) {
-    return renderMessageTemplate(messages.admissionCommandMissingOperator)
+    return groupGuardMessage(messages, 'admissionCommandMissingOperator')
+  }
+  const accessDenied = await ensureAdmissionCommandAccess(session, guildID, deps)
+  if (accessDenied) {
+    return accessDenied
   }
   const platform = resolveSessionAdmissionPlatform(session)
   if (!platform) {
-    return renderMessageTemplate(messages.admissionCommandUnsupportedPlatform)
+    return groupGuardMessage(messages, 'admissionCommandUnsupportedPlatform')
   }
   const policy = await deps.policyStore.resolvePolicy(platform, guildID)
   if (!policy) {
-    return renderMessageTemplate(messages.admissionCommandPolicyDisabled)
+    return groupGuardMessage(messages, 'admissionCommandPolicyDisabled')
   }
   return {
     session,
@@ -240,20 +272,28 @@ function resolveSessionAdmissionPlatform(session: Session) {
     resolveAdmissionSubjectPlatform((session.bot as { platform?: string }).platform)
 }
 
-function ensureAdmissionCommandAccess(
+async function ensureAdmissionCommandAccess(
   session: Session,
-  config: StuhelperGroupGuardPluginConfig,
+  guildID: string,
+  deps: AdmissionAdminCommandDeps,
 ) {
-  const commandConfig = config.admissionCommands
-  if (commandConfig?.operatorQQIDs?.includes(session.userId)) {
+  const [policy, memberRoles] = await Promise.all([
+    deps.moderationStore.getCommandPolicy(COMMAND_POLICY_IDS.admissionAdmin),
+    deps.moderationStore.getMemberRoles(guildID, session.userId),
+  ])
+  const allowed = canExecuteCommand({
+    authority: resolveAuthority(session),
+    memberRoles,
+    policy: policy ?? DEFAULT_ADMISSION_COMMAND_POLICY,
+  })
+  if (allowed) {
     return
   }
-  const minAuthority = commandConfig?.minAuthority ?? DEFAULT_ADMISSION_COMMAND_AUTHORITY
-  const authority = (session as { user?: { authority?: number } }).user?.authority ?? 0
-  if (authority >= minAuthority) {
-    return
-  }
-  return admissionMessage(config, 'commandAccessDenied')
+  return groupGuardMessage(await getGroupGuardMessages(deps.messageProvider), 'commandAccessDenied')
+}
+
+function resolveAuthority(session: Session) {
+  return (session as { user?: { authority?: number } }).user?.authority ?? 0
 }
 
 function admissionSubject(command: AdmissionCommandContext) {
@@ -271,69 +311,96 @@ function admissionOperatorSubject(command: AdmissionCommandContext) {
   }
 }
 
+async function runAdmissionCommandSubjectExclusive<T>(
+  ref: ReturnType<typeof admissionCommandSubjectRef>,
+  deps: AdmissionAdminCommandDeps,
+  admissionSessionID: string,
+  run: () => Promise<T>,
+) {
+  if (!deps.admissionSubjectCoordinator) {
+    return run()
+  }
+  deps.admissionSubjectCoordinator.cancel(ref, admissionSessionID)
+  try {
+    return await deps.admissionSubjectCoordinator.runExclusive(ref, run)
+  } finally {
+    deps.admissionSubjectCoordinator.clearSubjectCancellation(ref)
+  }
+}
+
+function admissionCommandSubjectRef(command: AdmissionCommandContext) {
+  return {
+    platform: command.platform,
+    botSelfId: command.botSelfID,
+    guildId: command.guildID,
+    memberId: command.qqID,
+  }
+}
+
 async function runAdmissionCommand(
-  config: StuhelperGroupGuardPluginConfig,
+  deps: AdmissionAdminCommandDeps,
   run: () => Promise<string | void>,
 ) {
   try {
     return await run()
   } catch (error) {
-    return formatAdmissionCommandError(error, config)
+    return formatAdmissionCommandError(error, await getGroupGuardMessages(deps.messageProvider))
   }
 }
 
-function formatAdmissionCommandError(error: unknown, config: StuhelperGroupGuardPluginConfig) {
+function formatAdmissionCommandError(error: unknown, messages: GroupGuardMessages) {
   if (error instanceof PlatformAPIError) {
     if (error.status === 404) {
-      return admissionMessage(config, 'admissionCommandNotFound')
+      return groupGuardMessage(messages, 'admissionCommandNotFound')
     }
     if (error.status === 409) {
-      return admissionMessage(config, 'admissionCommandInvalidState')
+      return groupGuardMessage(messages, 'admissionCommandInvalidState')
     }
     if (error.status === 401 || error.status === 403) {
-      return admissionMessage(config, 'admissionCommandUnauthorized')
+      return groupGuardMessage(messages, 'admissionCommandUnauthorized')
     }
-    return admissionMessage(config, 'admissionCommandPlatformError', {
+    return groupGuardMessage(messages, 'admissionCommandPlatformError', {
       status: error.status,
       message: error.message,
     })
   }
-  return admissionMessage(config, 'admissionCommandFailed', {
+  return groupGuardMessage(messages, 'admissionCommandFailed', {
     error: error instanceof Error ? error.message : '',
   })
 }
 
-function formatAdmissionSessionSummary(session: AdmissionSession) {
-  const rows = [
-    `入群认证状态：${session.qqID}`,
-    `状态：${statusLabel(session.status)}`,
-    `会话：${session.id}`,
-    `QQ 绑定：${isQQLinked(session) ? '已完成' : '未完成'}`,
-    `学生认证：${studentVerificationLabel(session)}`,
-  ]
-  const deadline = describeDeadline(session)
-  if (deadline) {
-    rows.push(deadline)
-  }
-  rows.push(`下一步：${nextAdmissionStep(session)}`)
-  if (session.lastBotError) {
-    rows.push(`最近机器人错误：${session.lastBotError}`)
-  }
-  return rows.join('\n')
+function formatAdmissionSessionSummary(
+  session: AdmissionSession,
+  messages: GroupGuardMessages,
+) {
+  return compactRenderedMessage(groupGuardMessage(messages, 'admissionQuerySummary', {
+    qqID: session.qqID,
+    statusLabel: statusLabel(session.status, messages),
+    sessionID: session.id,
+    qqLinkedLabel: isQQLinked(session)
+      ? groupGuardMessage(messages, 'admissionQueryQQLinked')
+      : groupGuardMessage(messages, 'admissionQueryQQUnlinked'),
+    studentVerificationLabel: studentVerificationLabel(session, messages),
+    deadlineLine: describeDeadline(session, messages) ?? '',
+    nextStep: nextAdmissionStep(session, messages),
+    lastBotErrorLine: session.lastBotError
+      ? groupGuardMessage(messages, 'admissionQueryLastBotError', { lastBotError: session.lastBotError })
+      : '',
+  }))
 }
 
 function formatAdmissionReminderForSession(
   session: AdmissionSession,
-  config: StuhelperGroupGuardPluginConfig,
+  messages: GroupGuardMessages,
 ) {
   if (!session.authURL) {
-    return admissionMessage(config, 'admissionCommandMissingResendURL')
+    return groupGuardMessage(messages, 'admissionCommandMissingResendURL')
   }
   return formatAdmissionReminder({
     memberId: session.qqID,
     authURL: session.authURL,
     deadlineAt: reminderDeadline(session),
-    messages: config.messages,
+    messages,
   })
 }
 
@@ -342,21 +409,33 @@ async function sendAdmissionReminderForCommand(
   deps: AdmissionAdminCommandDeps,
   admission: AdmissionSession,
 ) {
-  const message = formatAdmissionReminderForSession(admission, deps.config)
+  const messages = await getGroupGuardMessages(deps.messageProvider)
+  const message = formatAdmissionReminderForSession(admission, messages)
   if (!admission.authURL) {
     return message
   }
+  const delivery = await deps.runtimeSettings?.getAdmissionReminderDeliveryConfig()
   deps.reminderDeduper?.remember(admission.id)
   let messageID: string | undefined
   try {
-    messageID = await sendCommandMessage(command.session, message)
+    const result = await sendAdmissionReminderMessage({
+      bot: command.session.bot,
+      guildId: command.guildID,
+      channelId: command.channelID,
+      memberId: command.qqID,
+      content: message,
+      delivery,
+      messages,
+      sendGroupMessage: (content) => command.session.send(content),
+    })
+    messageID = result.messageID
   } catch (error) {
     deps.reminderDeduper?.forget(admission.id)
     throw error
   }
   const marked = await markLocalReminderSent(command, deps.guardStore)
   if (marked === false) {
-    return admissionMessage(deps.config, 'admissionCommandStaleRecord')
+    return groupGuardMessage(messages, 'admissionCommandStaleRecord')
   }
   await deps.platform.recordAdmissionEvent(admission.id, {
     action: 'remind',
@@ -365,25 +444,14 @@ async function sendAdmissionReminderForCommand(
   })
 }
 
-async function sendCommandMessage(session: Session, message: string) {
-  if (!message) return undefined
-  const result = await session.send(message)
-  if (Array.isArray(result)) return typeof result[0] === 'string' ? result[0] : undefined
-  return typeof result === 'string' ? result : undefined
-}
-
-function admissionMessage(
-  config: StuhelperGroupGuardPluginConfig,
-  key: keyof ReturnType<typeof resolveGroupGuardMessages>,
-  variables: Record<string, unknown> = {},
+async function resetMemberMute(
+  session: Session,
+  admission: AdmissionSession,
+  messages: GroupGuardMessages,
 ) {
-  return renderMessageTemplate(resolveGroupGuardMessages(config.messages)[key], variables)
-}
-
-async function resetMemberMute(session: Session, admission: AdmissionSession) {
   const muteDuration = new Date(admission.initialMuteUntil).getTime() - Date.now()
   if (!Number.isFinite(muteDuration) || muteDuration <= 0) {
-    throw new Error('入群认证禁言期限无效，无法重置禁言。')
+    throw new Error(groupGuardMessage(messages, 'admissionCommandInvalidMuteDeadline'))
   }
   await session.bot.muteGuildMember(admission.guildID, admission.qqID, muteDuration)
 }
@@ -397,6 +465,7 @@ async function releaseVerifiedAdmissionForCommand(
   deps: AdmissionAdminCommandDeps,
   created: AdmissionSessionCreateResult,
 ) {
+  const messages = await getGroupGuardMessages(deps.messageProvider)
   await command.session.bot.muteGuildMember(created.session.guildID, created.session.qqID, 0)
   const record = await deps.guardStore.findActiveBySubject({
     platform: command.platform,
@@ -407,18 +476,18 @@ async function releaseVerifiedAdmissionForCommand(
   if (record) {
     const synced = await deps.guardStore.markBackendSynced(record.id, backendSyncUpdate(created))
     if (synced === false) {
-      return admissionMessage(deps.config, 'admissionCommandStaleRecord')
+      return groupGuardMessage(messages, 'admissionCommandStaleRecord')
     }
     const released = await deps.guardStore.markReleased(record.id, new Date())
     if (released === false) {
-      return admissionMessage(deps.config, 'admissionCommandStaleRecord')
+      return groupGuardMessage(messages, 'admissionCommandStaleRecord')
     }
   }
   await deps.platform.recordAdmissionEvent(created.session.id, {
     action: 'release',
     success: true,
   })
-  return admissionMessage(deps.config, 'admissionAlreadyVerifiedRegenerate', {
+  return groupGuardMessage(messages, 'admissionAlreadyVerifiedRegenerate', {
     at: h.at(command.qqID),
     qqID: command.qqID,
   })
@@ -490,14 +559,19 @@ function reminderDeadline(session: AdmissionSession) {
   }
 }
 
-function describeDeadline(session: AdmissionSession) {
+function describeDeadline(
+  session: AdmissionSession,
+  messages: GroupGuardMessages,
+) {
   switch (session.status) {
     case 'joined_muted':
-      return `链接有效期：${session.linkWaitDeadlineAt}`
+      return groupGuardMessage(messages, 'admissionQueryDeadlineLink', { deadlineAt: session.linkWaitDeadlineAt })
     case 'linked':
-      return `学生认证截止：${session.submissionWaitDeadlineAt}`
+      return groupGuardMessage(messages, 'admissionQueryDeadlineSubmission', { deadlineAt: session.submissionWaitDeadlineAt })
     case 'material_submitted':
-      return `人工审核截止：${session.manualReviewDeadlineAt || '未设置'}`
+      return groupGuardMessage(messages, 'admissionQueryDeadlineManualReview', {
+        deadlineAt: session.manualReviewDeadlineAt || groupGuardMessage(messages, 'admissionQueryDeadlineUnset'),
+      })
     default:
       return undefined
   }
@@ -514,55 +588,72 @@ function hasLinkedUser(session: AdmissionSession) {
   return session.userID !== undefined && session.userID !== null && String(session.userID).trim() !== ''
 }
 
-function studentVerificationLabel(session: AdmissionSession) {
+function studentVerificationLabel(
+  session: AdmissionSession,
+  messages: GroupGuardMessages,
+) {
   switch (session.status) {
     case 'verified':
-      return '已通过'
+      return groupGuardMessage(messages, 'admissionQueryStudentVerified')
     case 'material_submitted':
-      return '新生材料待审核'
+      return groupGuardMessage(messages, 'admissionQueryStudentFreshmanPending')
     default:
-      return '未通过'
+      return groupGuardMessage(messages, 'admissionQueryStudentUnverified')
   }
 }
 
-function nextAdmissionStep(session: AdmissionSession) {
+function nextAdmissionStep(
+  session: AdmissionSession,
+  messages: GroupGuardMessages,
+) {
   switch (session.status) {
     case 'joined_muted':
-      return '让成员打开认证链接登录并完成 QQ 绑定与学生认证；链接找不到时可使用“重发认证链接”。'
+      return groupGuardMessage(messages, 'admissionNextStepJoinedMuted')
     case 'linked':
-      return 'QQ 已绑定，但还没有学生认证凭据；请继续完成老生邮箱/学校 SSO 认证，或提交新生材料。'
+      return groupGuardMessage(messages, 'admissionNextStepLinked')
     case 'material_submitted':
-      return '等待具备审核权限的管理员审核新生材料；审核通过后机器人会解除禁言。'
+      return groupGuardMessage(messages, 'admissionNextStepMaterialSubmitted')
     case 'verified':
       return session.lastBotError
-        ? '后端已通过学生认证，但机器人执行失败；请检查最近机器人错误和 Koishi 日志。'
-        : '后端已通过学生认证，机器人会解除禁言；若仍被禁言，请查询 Koishi release 日志。'
+        ? groupGuardMessage(messages, 'admissionNextStepVerifiedWithBotError')
+        : groupGuardMessage(messages, 'admissionNextStepVerified')
     case 'expired_kicked':
       return hasLinkedUser(session)
-        ? '旧会话已超时；该 QQ 曾绑定账号但未完成学生认证，请使用“重新生成认证链接”后重新认证。'
-        : '旧会话已超时；请使用“重新生成认证链接”后让成员重新认证。'
+        ? groupGuardMessage(messages, 'admissionNextStepExpiredKickedLinked')
+        : groupGuardMessage(messages, 'admissionNextStepExpiredKicked')
     case 'cancelled':
-      return '当前会话已取消；请使用“重新生成认证链接”创建新链接。'
+      return groupGuardMessage(messages, 'admissionNextStepCancelled')
     default:
-      return '按当前状态继续处理。'
+      return groupGuardMessage(messages, 'admissionNextStepDefault')
   }
 }
 
-function statusLabel(status: AdmissionSession['status']) {
+function statusLabel(
+  status: AdmissionSession['status'],
+  messages: GroupGuardMessages,
+) {
   switch (status) {
     case 'joined_muted':
-      return '等待打开链接并绑定 QQ'
+      return groupGuardMessage(messages, 'admissionStatusJoinedMuted')
     case 'linked':
-      return '已绑定 QQ，等待学生认证'
+      return groupGuardMessage(messages, 'admissionStatusLinked')
     case 'material_submitted':
-      return '新生材料待审核'
+      return groupGuardMessage(messages, 'admissionStatusMaterialSubmitted')
     case 'verified':
-      return '学生认证已通过，等待或已完成解除禁言'
+      return groupGuardMessage(messages, 'admissionStatusVerified')
     case 'expired_kicked':
-      return '已超时移出或等待移出'
+      return groupGuardMessage(messages, 'admissionStatusExpiredKicked')
     case 'cancelled':
-      return '已取消'
+      return groupGuardMessage(messages, 'admissionStatusCancelled')
     default:
       return status
   }
+}
+
+function compactRenderedMessage(message: string) {
+  return message
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim())
+    .join('\n')
 }

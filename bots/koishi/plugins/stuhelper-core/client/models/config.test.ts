@@ -20,7 +20,7 @@ function createConfigFixture(): ConfigGovernancePageData {
     workspaces: [
       { id: 'guild-config', label: '群配置' },
       { id: 'templates', label: '模板库' },
-      { id: 'bindings', label: '群绑定' },
+      { id: 'bindings', label: '同步绑定' },
       { id: 'command-policies', label: '命令策略' },
     ],
     groupConfigs: [],

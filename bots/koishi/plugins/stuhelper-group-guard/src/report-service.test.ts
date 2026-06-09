@@ -64,17 +64,12 @@ test('handleReport marks AI review as failed when the request times out', async 
         warnings.push({ message, meta })
       },
     } as any,
-    config: {
-      moderation: {
-        defaultMuteSeconds: 180,
-      },
-      ai: {
-        enabled: true,
-        endpoint: 'https://example.test/review',
-        apiKey: 'test-key',
-        model: 'gpt-test',
-      },
-    } as any,
+    aiSettings: async () => ({
+      enabled: true,
+      endpoint: 'https://example.test/review',
+      apiKey: 'test-key',
+      model: 'gpt-test',
+    }),
   })
 
   try {
@@ -90,6 +85,57 @@ test('handleReport marks AI review as failed when the request times out', async 
   } finally {
     globalThis.fetch = originalFetch
     AbortSignal.timeout = originalTimeout
+  }
+})
+
+test('handleReport uses runtime AI settings and records disabled status without fetch', async () => {
+  const originalFetch = globalThis.fetch
+  const reports: Array<{ aiStatus: string }> = []
+  let fetched = false
+
+  globalThis.fetch = async () => {
+    fetched = true
+    return new Response('{}', { status: 200 })
+  }
+
+  const service = new ReportService({
+    store: {
+      createReport: async (input: { aiStatus: string }) => {
+        reports.push(input)
+        return { id: 'rp-disabled' }
+      },
+      appendEvent: async () => {},
+      updateReportAIResult: async () => {
+        throw new Error('updateReportAIResult should not be called when AI is disabled')
+      },
+      createReview: async () => {
+        throw new Error('createReview should not be called when AI is disabled')
+      },
+    } as any,
+    actions: {
+      warnMember: async () => {
+        throw new Error('warnMember should not be called when AI is disabled')
+      },
+      muteMember: async () => {
+        throw new Error('muteMember should not be called when AI is disabled')
+      },
+    } as any,
+    logger: { warn: () => {} } as any,
+    aiSettings: async () => ({
+      enabled: false,
+      endpoint: 'https://example.test/review',
+      apiKey: 'test-key',
+      model: 'gpt-test',
+    }),
+  })
+
+  try {
+    const message = await service.handleReport(createSession(), '10002', '恶意刷屏')
+    assert.equal(message, '举报已记录。当前未启用 AI 审核，事件已进入人工处理范围。')
+    assert.equal(reports[0]?.aiStatus, 'disabled')
+    assert.equal(fetched, false)
+  } finally {
+    globalThis.fetch = originalFetch
   }
 })
 

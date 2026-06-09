@@ -459,18 +459,20 @@ cd ../..
 sha256sum /tmp/stuhelper-koishi-packages.tar.gz
 ```
 
-上传 `/tmp/stuhelper-koishi-packages.tar.gz` 到 Koishi 生产 Compose 目录后，生产侧先校验 sha256，再备份现有 StuHelper 包目录和 `koishi.yml`，最后在 Compose 目录根部解包。归档内部路径已经固定为 `koishi/node_modules/...`，所以解包目标必须是 Koishi Compose 目录，不是 `koishi/node_modules`。归档必须包含 `koishi-plugin-stuhelper-core/lib` 与 `koishi-plugin-stuhelper-core/dist`，否则群管中心 admission WebUI 不会随后端 Console API 一起发布。
+上传 `/tmp/stuhelper-koishi-packages.tar.gz` 到 Koishi 生产 Compose 目录后，生产侧先校验 sha256，再备份现有 StuHelper 包目录、`koishi/local-workspaces`、`koishi/package.json`、`koishi/yarn.lock` 与 `koishi.yml`，最后在 Compose 目录根部解包。归档内部路径已经固定为 `koishi/node_modules/...` 与 `koishi/local-workspaces/...`，所以解包目标必须是 Koishi Compose 目录，不是 `koishi/node_modules`。归档必须包含 `koishi-plugin-stuhelper-core/lib` 与 `koishi-plugin-stuhelper-core/dist`，否则群管中心 admission WebUI 不会随后端 Console API 一起发布。解包后必须运行 `koishi/STUHELPER_KOISHI_APPLY_LOCAL_WORKSPACES.cjs`，把 `koishi-plugin-stuhelper-core` 与 `koishi-plugin-stuhelper-group-guard` 固定为本地 `workspace:*` 依赖；否则 Koishi Market 更新普通插件时会把私有 StuHelper 包当作 npm 包解析，并请求 `https://registry.npmmirror.com/koishi-plugin-stuhelper-core` 导致 `Package not found`。
 
 ```bash
 sha256sum stuhelper-koishi-packages.tar.gz
 backup_dir="backups/admission-$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "${backup_dir}"
-cp -a koishi.yml koishi/node_modules/@stuhelper/koishi-shared koishi/node_modules/@stuhelper/koishi-moderation-core koishi/node_modules/koishi-plugin-stuhelper-core koishi/node_modules/koishi-plugin-stuhelper-binding koishi/node_modules/koishi-plugin-stuhelper-group-guard "${backup_dir}/"
+cp -a koishi.yml koishi/package.json koishi/yarn.lock koishi/local-workspaces koishi/node_modules/@stuhelper/koishi-shared koishi/node_modules/@stuhelper/koishi-moderation-core koishi/node_modules/koishi-plugin-stuhelper-core koishi/node_modules/koishi-plugin-stuhelper-binding koishi/node_modules/koishi-plugin-stuhelper-group-guard "${backup_dir}/"
 tar -xzf stuhelper-koishi-packages.tar.gz
+node koishi/STUHELPER_KOISHI_APPLY_LOCAL_WORKSPACES.cjs
+docker compose exec koishi sh -lc 'cd /koishi && corepack yarn install --immutable'
 docker compose restart koishi
 ```
 
-这个 tar 只包含 `package.json` 和 `lib/`，不包含源码树、`node_modules`、环境变量文件、SSH 辅助脚本或 secret。临时 SSH 命令和上传脚本可以放在本机未跟踪路径，但不得提交到 git。
+这个 tar 只包含运行时 `package.json`、`lib/`、`stuhelper-core` 浏览器 `dist/`、本地 workspace 镜像和无 secret 的 workspace guard，不包含源码树、嵌套 `node_modules`、环境变量文件、SSH 辅助脚本或 secret。临时 SSH 命令和上传脚本可以放在本机未跟踪路径，但不得提交到 git。
 
 生产 `student-query.enableGroupVerify` 保持 `true`；admission 上线不能靠关闭旧插件本身来规避冲突，冲突应通过新插件的 `commands.enabled=false`、`moderation.enabled=false`，以及旧插件自己的目标群/功能范围收敛处理。
 

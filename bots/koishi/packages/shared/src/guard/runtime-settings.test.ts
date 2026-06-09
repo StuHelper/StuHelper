@@ -18,10 +18,13 @@ test('AdmissionRuntimeSettingsStore saveSettings updates mutable fields without 
           id: 'default',
           actionStreamEnabled: true,
           publicCommandsEnabled: false,
+          adminCommandsEnabled: true,
           admissionCommandsEnabled: true,
           moderationEnabled: false,
           freshmanForwardEnabled: false,
           fallbackScanEnabled: true,
+          reminderGroupEnabled: true,
+          reminderDirectEnabled: false,
           createdAt: now,
           updatedAt: now,
         }]
@@ -35,10 +38,13 @@ test('AdmissionRuntimeSettingsStore saveSettings updates mutable fields without 
   } as never, {
     actionStreamEnabled: true,
     publicCommandsEnabled: false,
+    adminCommandsEnabled: true,
     admissionCommandsEnabled: true,
     moderationEnabled: false,
     freshmanForwardEnabled: false,
     fallbackScanEnabled: true,
+    reminderGroupEnabled: true,
+    reminderDirectEnabled: false,
   })
 
   const saved = await store.saveSettings({
@@ -56,4 +62,49 @@ test('AdmissionRuntimeSettingsStore saveSettings updates mutable fields without 
   assert.equal(writes[0].actionStreamEnabled, false)
   assert.equal(writes[0].moderationEnabled, true)
   assert.ok(writes[0].updatedAt instanceof Date)
+})
+
+test('AdmissionRuntimeSettingsStore keeps at least one reminder delivery channel enabled', async () => {
+  const now = new Date('2026-06-09T09:00:00.000Z')
+  const store = new AdmissionRuntimeSettingsStore({
+    database: {
+      async get() {
+        return [{
+          id: 'default',
+          actionStreamEnabled: true,
+          publicCommandsEnabled: false,
+          adminCommandsEnabled: true,
+          admissionCommandsEnabled: true,
+          moderationEnabled: false,
+          freshmanForwardEnabled: false,
+          fallbackScanEnabled: true,
+          reminderGroupEnabled: true,
+          reminderDirectEnabled: false,
+          createdAt: now,
+          updatedAt: now,
+        }]
+      },
+      async set() {
+        throw new Error('invalid reminder settings should not be persisted')
+      },
+    },
+  } as never, {
+    actionStreamEnabled: true,
+    publicCommandsEnabled: false,
+    adminCommandsEnabled: true,
+    admissionCommandsEnabled: true,
+    moderationEnabled: false,
+    freshmanForwardEnabled: false,
+    fallbackScanEnabled: true,
+    reminderGroupEnabled: true,
+    reminderDirectEnabled: false,
+  })
+
+  await assert.rejects(
+    () => store.saveSettings({
+      reminderGroupEnabled: false,
+      reminderDirectEnabled: false,
+    }),
+    /at least one admission reminder delivery channel must be enabled/,
+  )
 })

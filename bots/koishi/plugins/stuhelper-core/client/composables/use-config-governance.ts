@@ -4,29 +4,22 @@ import type { ConsoleNavigationController } from './use-console-navigation'
 import { consolePageApi } from '../page-api'
 import type { ConfigGovernancePageData } from '../page-types'
 import {
-  assignBindingForm,
-  assignBindingFormState,
   assignPolicyForm,
   assignPolicyFormState,
   assignTemplateForm,
   assignTemplateFormState,
-  createBindingForm,
   createPolicyForm,
   createTemplateForm,
   splitCommaTokens,
-  validateBindingForm,
   validatePolicyForm,
   validateTemplateForm,
-  type BindingFormState,
   type PolicyFormState,
   type TemplateFormState,
 } from '../models/config-forms'
 import {
-  cloneBindingForm,
   clonePolicyForm,
   cloneTemplateForm,
   DISCARD_CHANGES_MESSAGE,
-  isBindingFormDirty,
   isPolicyFormDirty,
   isTemplateFormDirty,
 } from '../models/config-editor'
@@ -54,27 +47,22 @@ export function useConfigGovernance(
   const notice = ref('')
   const confirmingDiscard = ref(false)
   const submittingTemplate = ref(false)
-  const submittingBinding = ref(false)
   const submittingPolicy = ref(false)
   const templateSnapshot = ref<TemplateFormState | null>(createTemplateForm())
-  const bindingSnapshot = ref<BindingFormState | null>(createBindingForm())
   const policySnapshot = ref<PolicyFormState | null>(createPolicyForm())
   const templateForm = reactive<TemplateFormState>(createTemplateForm())
-  const bindingForm = reactive<BindingFormState>(createBindingForm())
   const policyForm = reactive<PolicyFormState>(createPolicyForm())
   let loadRequestSeq = 0
 
   const configModel = computed(() => data.value ? buildConfigGovernanceModel(data.value, { workspace: currentWorkspace.value }) : null)
   const templateDirty = computed(() => isTemplateFormDirty(templateForm, templateSnapshot.value))
-  const bindingDirty = computed(() => isBindingFormDirty(bindingForm, bindingSnapshot.value))
   const policyDirty = computed(() => isPolicyFormDirty(policyForm, policySnapshot.value))
   const currentDirty = computed(() => {
     if (currentWorkspace.value === 'templates') return templateDirty.value
-    if (currentWorkspace.value === 'bindings') return bindingDirty.value
     if (currentWorkspace.value === 'command-policies') return policyDirty.value
     return false
   })
-  const hasUnsavedChanges = computed(() => templateDirty.value || bindingDirty.value || policyDirty.value)
+  const hasUnsavedChanges = computed(() => templateDirty.value || policyDirty.value)
 
   watch(
     () => navigation?.state.value.workspace,
@@ -107,20 +95,16 @@ export function useConfigGovernance(
     notice,
     confirmingDiscard,
     submittingTemplate,
-    submittingBinding,
     submittingPolicy,
     templateForm,
-    bindingForm,
     policyForm,
     configModel,
     currentDirty,
     loadData,
     selectWorkspace,
     loadTemplate,
-    loadBinding,
     loadPolicy,
     submitTemplate,
-    submitBinding,
     submitPolicy,
     clearActionError,
   }
@@ -176,18 +160,12 @@ export function useConfigGovernance(
 
   function discardCurrentChanges() {
     if (currentWorkspace.value === 'templates') restoreTemplateForm()
-    if (currentWorkspace.value === 'bindings') restoreBindingForm()
     if (currentWorkspace.value === 'command-policies') restorePolicyForm()
   }
 
   function restoreTemplateForm() {
     if (!templateSnapshot.value) return
     assignTemplateFormState(templateForm, templateSnapshot.value)
-  }
-
-  function restoreBindingForm() {
-    if (!bindingSnapshot.value) return
-    assignBindingFormState(bindingForm, bindingSnapshot.value)
   }
 
   function restorePolicyForm() {
@@ -199,13 +177,6 @@ export function useConfigGovernance(
     if (templateDirty.value && templateForm.id !== item.id && !(await requestDiscardConfirmation())) return
     assignTemplateForm(templateForm, item)
     templateSnapshot.value = cloneTemplateForm(templateForm)
-  }
-
-  async function loadBinding(item: ConfigGovernancePageData['bindings'][number]) {
-    const isSame = bindingForm.guildId === item.guildId && bindingForm.platform === item.platform
-    if (bindingDirty.value && !isSame && !(await requestDiscardConfirmation())) return
-    assignBindingForm(bindingForm, item)
-    bindingSnapshot.value = cloneBindingForm(bindingForm)
   }
 
   async function loadPolicy(item: ConfigGovernancePageData['commandPolicies'][number]) {
@@ -231,24 +202,6 @@ export function useConfigGovernance(
       templateSnapshot.value = cloneTemplateForm(templateForm)
     }, () => {
       submittingTemplate.value = false
-    })
-  }
-
-  async function submitBinding() {
-    if (!validateBeforeSubmit('保存绑定失败', validateBindingForm(bindingForm))) return
-    submittingBinding.value = true
-    await submit('保存绑定失败', async () => {
-      notice.value = await consolePageApi.saveGuardBinding({
-        platform: bindingForm.platform,
-        guildId: bindingForm.guildId,
-        templateId: bindingForm.templateId,
-        enabled: bindingForm.enabled,
-        note: bindingForm.note || undefined,
-      })
-      await loadData()
-      bindingSnapshot.value = cloneBindingForm(bindingForm)
-    }, () => {
-      submittingBinding.value = false
     })
   }
 

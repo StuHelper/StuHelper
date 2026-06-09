@@ -9,6 +9,12 @@ import commands from '@koishijs/plugin-commands'
 import sqlite from '@koishijs/plugin-database-sqlite'
 import MockBot from '@koishijs/plugin-mock'
 
+import {
+  BindingRuntimeSettingsStore,
+  DEFAULT_BINDING_RUNTIME_SETTINGS,
+  type BindingRuntimeSettingsInput,
+} from '@stuhelper/koishi-shared'
+
 import bindingPlugin from './index.ts'
 import { createKoishiTestRuntime } from '../../test-utils/runtime.ts'
 
@@ -65,10 +71,6 @@ test('绑定命令在私聊中消费绑定码并返回成功提示', async () =>
       baseUrl: `http://127.0.0.1:${address.port}`,
       serviceToken: 'test-token',
     },
-    binding: {
-      command: '绑定',
-      codeTtlMinutes: 10,
-    },
   })
 
   try {
@@ -95,10 +97,6 @@ test('绑定命令在群聊中提示用户改用私聊', async () => {
       baseUrl: 'http://127.0.0.1:8080',
       serviceToken: 'test-token',
     },
-    binding: {
-      command: '绑定',
-      codeTtlMinutes: 10,
-    },
   })
 
   try {
@@ -111,7 +109,7 @@ test('绑定命令在群聊中提示用户改用私聊', async () => {
   }
 })
 
-test('绑定命令使用 Koishi 配置里的自定义提示文案', async () => {
+test('绑定命令使用 WebUI runtime settings 里的命令字和自定义提示文案', async () => {
   const runtime = createKoishiTestRuntime()
   const { root } = runtime
   const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-binding-'))
@@ -124,25 +122,31 @@ test('绑定命令使用 Koishi 配置里的自定义提示文案', async () => 
       baseUrl: 'http://127.0.0.1:8080',
       serviceToken: 'test-token',
     },
-    binding: {
-      command: '绑定',
-      codeTtlMinutes: 10,
-      messages: {
-        directOnly: '自定义：请私聊机器人绑定。',
-        missingCode: '自定义：请输入 {command} 后面的绑定码。',
-      },
-    },
   })
 
   try {
     await root.start()
+    await saveBindingRuntimeSettings(root, {
+      command: '绑定账号',
+      messages: {
+        directOnly: '自定义：请私聊机器人绑定。',
+        missingCode: '自定义：请输入 {command} 后面的绑定码。',
+      },
+    })
     const groupClient = root.mock.client('10001', 'group-1')
-    await groupClient.shouldReply('绑定 ABCD1234', '自定义：请私聊机器人绑定。')
+    await groupClient.shouldReply('绑定账号 ABCD1234', '自定义：请私聊机器人绑定。')
 
     const directClient = root.mock.client('10001')
-    await directClient.shouldReply('绑定', '自定义：请输入 绑定 后面的绑定码。')
+    await directClient.shouldReply('绑定账号', '自定义：请输入 绑定账号 后面的绑定码。')
   } finally {
     runtime.dispose()
     await rm(tempDir, { recursive: true, force: true })
   }
 })
+
+async function saveBindingRuntimeSettings(
+  root: ConstructorParameters<typeof BindingRuntimeSettingsStore>[0],
+  overrides: BindingRuntimeSettingsInput,
+) {
+  await new BindingRuntimeSettingsStore(root, DEFAULT_BINDING_RUNTIME_SETTINGS).saveSettings(overrides)
+}

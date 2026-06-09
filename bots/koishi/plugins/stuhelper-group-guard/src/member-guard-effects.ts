@@ -1,8 +1,17 @@
 import { h, type Universal } from 'koishi'
 
-import type { GuardMemberRecord } from '@stuhelper/koishi-shared'
+import type {
+  GuardMemberRecord,
+  StuhelperAdmissionReminderDeliveryConfig,
+  StuhelperGroupGuardMessageConfig,
+} from '@stuhelper/koishi-shared'
+import {
+  renderMessageTemplate,
+  resolveGroupGuardMessages,
+} from '@stuhelper/koishi-shared'
 
 import { formatAdmissionReminder } from './admission-format'
+import { sendAdmissionReminderMessage } from './admission-reminder-delivery'
 
 const POSITIVE_MUTE_DURATION_REQUIRED = 'admission session initialMuteUntil must be in the future'
 
@@ -27,21 +36,43 @@ export async function sendAdmissionReminder(
   bot: Universal.Methods,
   record: GuardMemberRecord,
   authURL: string,
+  messages?: Partial<StuhelperGroupGuardMessageConfig>,
+  delivery?: Partial<StuhelperAdmissionReminderDeliveryConfig>,
 ) {
-  await bot.sendMessage(record.channelId, formatAdmissionReminder({
+  await sendAdmissionReminderMessage({
+    bot,
+    guildId: record.guildId,
+    channelId: record.channelId,
     memberId: record.memberId,
-    authURL,
-    deadlineAt: record.deadlineAt,
-  }))
+    content: formatAdmissionReminder({
+      memberId: record.memberId,
+      authURL,
+      deadlineAt: record.deadlineAt,
+      messages,
+    }),
+    delivery,
+    messages,
+  })
 }
 
 export async function sendBackendPendingReminder(
   bot: Universal.Methods,
   record: GuardMemberRecord,
   reminderTemplate: string,
+  messages?: Partial<StuhelperGroupGuardMessageConfig>,
+  delivery?: Partial<StuhelperAdmissionReminderDeliveryConfig>,
 ) {
-  await bot.sendMessage(record.channelId, [
-    `${h.at(record.memberId)} ${reminderTemplate}`,
-    '认证链接暂时无法创建，机器人会自动重试。',
-  ].join('\n'))
+  await sendAdmissionReminderMessage({
+    bot,
+    guildId: record.guildId,
+    channelId: record.channelId,
+    memberId: record.memberId,
+    content: renderMessageTemplate(resolveGroupGuardMessages(messages).backendPendingReminder, {
+      at: h.at(record.memberId),
+      memberId: record.memberId,
+      reminderTemplate,
+    }),
+    delivery,
+    messages,
+  })
 }

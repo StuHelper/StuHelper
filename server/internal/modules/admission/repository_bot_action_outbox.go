@@ -229,6 +229,18 @@ func (r *Repository) MarkBotActionStale(ctx context.Context, actionID int64, now
 	return nil
 }
 
+func (r *Repository) MarkBotActionStaleTx(ctx context.Context, tx pgx.Tx, actionID int64, now time.Time) error {
+	_, err := tx.Exec(ctx, `
+		UPDATE admission_bot_action_outbox
+		SET status = 'stale', updated_at = $2
+		WHERE id = $1 AND status <> 'succeeded'
+	`, actionID, now)
+	if err != nil {
+		return fmt.Errorf("MarkBotActionStaleTx: %w", err)
+	}
+	return nil
+}
+
 func (r *Repository) ListVerifiedUnreleasedSessionsByUserSchoolTx(
 	ctx context.Context,
 	tx pgx.Tx,

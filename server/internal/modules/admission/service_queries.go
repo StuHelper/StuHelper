@@ -28,6 +28,7 @@ func (s *Service) ListAdmissionPolicyTargets(ctx context.Context) ([]AdmissionPo
 		items[index].PolicyID = strings.TrimSpace(items[index].PolicyID)
 		items[index].Platform = strings.TrimSpace(items[index].Platform)
 		items[index].GuildID = strings.TrimSpace(items[index].GuildID)
+		items[index].JoinHandlingStrategy = normalizeJoinHandlingStrategy(items[index].JoinHandlingStrategy)
 	}
 	return items, nil
 }
@@ -158,9 +159,15 @@ func (s *Service) ResolveJoinRequestDecision(
 	if err != nil {
 		return nil, err
 	}
+	if !policy.GuardEnabled {
+		return nil, ErrAdmissionPolicyNotFound
+	}
 	userID, err := s.repo.GetVerifiedAdmissionUserByQQ(ctx, input.QQID, policy.SchoolID, s.now())
 	if err != nil {
 		return nil, err
+	}
+	if policy.JoinHandlingStrategy == AdmissionJoinHandlingPostJoinGuard {
+		return postJoinGuardDecision(policy, userID), nil
 	}
 	if userID != nil {
 		return verifiedJoinRequestDecision(policy, userID), nil
@@ -173,11 +180,17 @@ func normalizeAdmissionPolicy(policy AdmissionPolicy) AdmissionPolicy {
 	policy.ManagementGuildIDs = normalizeStringSlice(policy.ManagementGuildIDs)
 	policy.Platform = strings.TrimSpace(policy.Platform)
 	policy.GuildID = strings.TrimSpace(policy.GuildID)
-	if policy.AutoApproveJoin && !policy.AutoApproveVerifiedJoin && !policy.AutoApproveUnverifiedJoin {
+	policy.JoinHandlingStrategy = normalizeJoinHandlingStrategy(policy.JoinHandlingStrategy)
+	policy.UnverifiedJoinRejectReason = normalizeUnverifiedJoinRejectReason(policy.UnverifiedJoinRejectReason)
+	if policy.JoinHandlingStrategy == AdmissionJoinHandlingJoinRequestReview {
 		policy.AutoApproveVerifiedJoin = true
-		policy.AutoApproveUnverifiedJoin = true
+		policy.AutoApproveUnverifiedJoin = false
+		policy.AutoApproveJoin = false
+		return policy
 	}
-	policy.AutoApproveJoin = policy.AutoApproveVerifiedJoin && policy.AutoApproveUnverifiedJoin
+	policy.AutoApproveVerifiedJoin = true
+	policy.AutoApproveUnverifiedJoin = true
+	policy.AutoApproveJoin = true
 	return policy
 }
 
@@ -238,6 +251,24 @@ func normalizeJoinRequestEventDecision(
 	}
 }
 
+func postJoinGuardDecision(policy *AdmissionPolicy, userID *int64) *AdmissionJoinRequestDecision {
+	decision := &AdmissionJoinRequestDecision{
+		Decision:                  AdmissionJoinRequestDecisionApprove,
+		Reason:                    "post_join_guard_auto_approve",
+		VerificationState:         AdmissionJoinRequestUnverified,
+		JoinHandlingStrategy:      policy.JoinHandlingStrategy,
+		AutoApproveVerifiedJoin:   policy.AutoApproveVerifiedJoin,
+		AutoApproveUnverifiedJoin: policy.AutoApproveUnverifiedJoin,
+		PolicyID:                  policy.ID,
+	}
+	if userID != nil {
+		value := strconv.FormatInt(*userID, 10)
+		decision.VerificationState = AdmissionJoinRequestVerified
+		decision.UserID = &value
+	}
+	return decision
+}
+
 func verifiedJoinRequestDecision(policy *AdmissionPolicy, userID *int64) *AdmissionJoinRequestDecision {
 	var outputUserID *string
 	if userID != nil {
@@ -246,6 +277,7 @@ func verifiedJoinRequestDecision(policy *AdmissionPolicy, userID *int64) *Admiss
 	}
 	decision := &AdmissionJoinRequestDecision{
 		VerificationState:         AdmissionJoinRequestVerified,
+		JoinHandlingStrategy:      policy.JoinHandlingStrategy,
 		AutoApproveVerifiedJoin:   policy.AutoApproveVerifiedJoin,
 		AutoApproveUnverifiedJoin: policy.AutoApproveUnverifiedJoin,
 		PolicyID:                  policy.ID,
@@ -264,6 +296,7 @@ func verifiedJoinRequestDecision(policy *AdmissionPolicy, userID *int64) *Admiss
 func unverifiedJoinRequestDecision(policy *AdmissionPolicy) *AdmissionJoinRequestDecision {
 	decision := &AdmissionJoinRequestDecision{
 		VerificationState:         AdmissionJoinRequestUnverified,
+		JoinHandlingStrategy:      policy.JoinHandlingStrategy,
 		AutoApproveVerifiedJoin:   policy.AutoApproveVerifiedJoin,
 		AutoApproveUnverifiedJoin: policy.AutoApproveUnverifiedJoin,
 		PolicyID:                  policy.ID,
@@ -274,8 +307,28 @@ func unverifiedJoinRequestDecision(policy *AdmissionPolicy) *AdmissionJoinReques
 		return decision
 	}
 	decision.Decision = AdmissionJoinRequestDecisionReject
-	decision.Reason = "unverified_auto_approve_disabled"
+	decision.Reason = policy.UnverifiedJoinRejectReason
 	return decision
+}
+
+func normalizeJoinHandlingStrategy(strategy AdmissionJoinHandlingStrategy) AdmissionJoinHandlingStrategy {
+	normalized := AdmissionJoinHandlingStrategy(strings.ToLower(strings.TrimSpace(string(strategy))))
+	switch normalized {
+	case AdmissionJoinHandlingJoinRequestReview:
+		return AdmissionJoinHandlingJoinRequestReview
+	case AdmissionJoinHandlingPostJoinGuard, "":
+		return AdmissionJoinHandlingPostJoinGuard
+	default:
+		return normalized
+	}
+}
+
+func normalizeUnverifiedJoinRejectReason(reason string) string {
+	trimmed := strings.TrimSpace(reason)
+	if trimmed != "" {
+		return trimmed
+	}
+	return "请先完成 StuHelper 学生认证后再申请入群。"
 }
 
 func normalizeStringSlice(values []string) []string {

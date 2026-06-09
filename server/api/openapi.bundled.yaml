@@ -11221,9 +11221,11 @@ components:
         - platform
         - guildID
         - guardEnabled
+        - joinHandlingStrategy
         - autoApproveJoin
         - autoApproveVerifiedJoin
         - autoApproveUnverifiedJoin
+        - unverifiedJoinRejectReason
         - initialMuteDurationSeconds
         - linkWaitSeconds
         - submissionWaitSeconds
@@ -11248,6 +11250,13 @@ components:
           type: boolean
           default: true
           description: 是否把该目标群同步为 Koishi 入群认证守卫绑定。
+        joinHandlingStrategy:
+          type: string
+          enum:
+            - post_join_guard
+            - join_request_review
+          default: post_join_guard
+          description: 入群处理策略。post_join_guard 表示加群后禁言并发送认证链接；join_request_review 表示在加群申请阶段按 StuHelper 学生认证状态自动通过或拒绝。
         autoApproveJoin:
           type: boolean
           deprecated: true
@@ -11257,6 +11266,10 @@ components:
         autoApproveUnverifiedJoin:
           type: boolean
           default: true
+          deprecated: true
+        unverifiedJoinRejectReason:
+          type: string
+          description: join_request_review 策略下，未完成 StuHelper 学生认证时返回给 QQ 入群申请的拒绝理由。
         initialMuteDurationSeconds:
           type: integer
         linkWaitSeconds:
@@ -11315,6 +11328,7 @@ components:
         - platform
         - guildID
         - guardEnabled
+        - joinHandlingStrategy
       properties:
         policyID:
           type: string
@@ -11325,6 +11339,12 @@ components:
         guardEnabled:
           type: boolean
           description: 是否启用该目标群的 Koishi 入群认证守卫。
+        joinHandlingStrategy:
+          type: string
+          enum:
+            - post_join_guard
+            - join_request_review
+          description: 该目标群当前使用的入群处理策略。
     FreshmanApplication:
       type: object
       required:
@@ -13392,6 +13412,7 @@ components:
       required:
         - decision
         - verificationState
+        - joinHandlingStrategy
         - autoApproveVerifiedJoin
         - autoApproveUnverifiedJoin
       properties:
@@ -13407,6 +13428,11 @@ components:
           enum:
             - verified
             - unverified
+        joinHandlingStrategy:
+          type: string
+          enum:
+            - post_join_guard
+            - join_request_review
         autoApproveVerifiedJoin:
           type: boolean
         autoApproveUnverifiedJoin:

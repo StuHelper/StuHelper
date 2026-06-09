@@ -11,12 +11,23 @@ import MockBot from '@koishijs/plugin-mock'
 import { Universal } from 'koishi'
 
 import {
+  COMMAND_POLICY_IDS,
   ModerationStore,
   MODERATION_EVENT_TABLE,
   MODERATION_FUN_PROFILE_TABLE,
   MODERATION_REPORT_TABLE,
 } from '@stuhelper/koishi-moderation-core'
-import { GUARD_MEMBER_TABLE } from '@stuhelper/koishi-shared'
+import {
+  ADMISSION_RUNTIME_SETTINGS_TABLE,
+  DEFAULT_ADMISSION_RUNTIME_SETTINGS,
+  DEFAULT_GROUP_GUARD_BEHAVIOR_SETTINGS,
+  DEFAULT_GROUP_GUARD_MESSAGE_SETTINGS,
+  GUARD_GROUP_BINDING_TABLE,
+  GUARD_MEMBER_TABLE,
+  GUARD_TEMPLATE_TABLE,
+  GROUP_GUARD_BEHAVIOR_SETTINGS_TABLE,
+  GROUP_GUARD_MESSAGE_SETTINGS_TABLE,
+} from '@stuhelper/koishi-shared'
 
 import groupGuardPlugin from './index.ts'
 import { createKoishiTestRuntime } from '../../test-utils/runtime.ts'
@@ -33,6 +44,7 @@ test('举报命令会创建举报记录并返回人工处理提示', async () =>
 
   try {
     await root.start()
+    await saveAdmissionRuntimeSettings(root, { publicCommandsEnabled: true })
     await root.mock.initUser('10001', 1)
     await root.mock.initChannel('group-1')
 
@@ -61,18 +73,20 @@ test('抽禁言命令会按保底规则写入画像并执行禁言', async () =>
   runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
   runtime.register(commands)
   runtime.register(MockBot, { selfId: '514' })
-  runtime.register(groupGuardPlugin, createGroupGuardConfig({
-    fun: {
-      diceSides: 100,
-      muteLotteryBaseSeconds: 60,
-      muteLotteryMaxSeconds: 600,
-      muteLotteryPityThreshold: 1,
-      muteLotteryPitySeconds: 300,
-    },
-  }))
+  runtime.register(groupGuardPlugin, createGroupGuardConfig())
 
   try {
     await root.start()
+    await saveAdmissionRuntimeSettings(root, { publicCommandsEnabled: true })
+    await saveGroupGuardBehaviorSettings(root, {
+      fun: {
+        diceSides: 100,
+        muteLotteryBaseSeconds: 60,
+        muteLotteryMaxSeconds: 600,
+        muteLotteryPityThreshold: 1,
+        muteLotteryPitySeconds: 300,
+      },
+    })
     await root.mock.initUser('10003', 1)
     await root.mock.initChannel('group-1')
 
@@ -110,6 +124,7 @@ test('命令权限策略会限制举报命令并允许角色放行', async () =>
 
   try {
     await root.start()
+    await saveAdmissionRuntimeSettings(root, { publicCommandsEnabled: true })
     await root.mock.initUser('10004', 1)
     await root.mock.initChannel('group-1')
 
@@ -134,7 +149,7 @@ test('命令权限策略会限制举报命令并允许角色放行', async () =>
   }
 })
 
-test('公开命令可以关闭以避免接管既有生产命令', async () => {
+test('公开命令由 WebUI runtime setting 控制启停', async () => {
   const runtime = createKoishiTestRuntime()
   const { root } = runtime
   const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-commands-'))
@@ -142,16 +157,88 @@ test('公开命令可以关闭以避免接管既有生产命令', async () => {
   runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
   runtime.register(commands)
   runtime.register(MockBot, { selfId: '514' })
-  runtime.register(groupGuardPlugin, createGroupGuardConfig({
-    commands: { enabled: false },
-  }))
+  runtime.register(groupGuardPlugin, createGroupGuardConfig())
 
   try {
     await root.start()
-    assert.equal(root.$commander.resolve('举报'), undefined)
-    assert.equal(root.$commander.resolve('骰子'), undefined)
-    assert.equal(root.$commander.resolve('抽禁言'), undefined)
+    assert.notEqual(root.$commander.resolve('举报'), undefined)
+    assert.notEqual(root.$commander.resolve('骰子'), undefined)
+    assert.notEqual(root.$commander.resolve('抽禁言'), undefined)
     assert.notEqual(root.$commander.resolve('查询入群认证'), undefined)
+    await root.mock.initUser('10001', 1)
+    await root.mock.initChannel('group-1')
+    await root.mock.client('10001', 'group-1').shouldReply(
+      '举报 10002 广告刷屏',
+      '公开命令已由 StuHelper WebUI 关闭。',
+    )
+  } finally {
+    runtime.dispose()
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('公开命令关闭提示由 WebUI 群管提示 runtime setting 控制', async () => {
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-commands-'))
+
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(commands)
+  runtime.register(MockBot, { selfId: '514' })
+  runtime.register(groupGuardPlugin, createGroupGuardConfig())
+
+  try {
+    await root.start()
+    await saveGroupGuardMessageSettings(root, {
+      messages: {
+        publicCommandsDisabled: '自定义公开命令关闭提示。',
+      },
+    })
+    await root.mock.initUser('10001', 1)
+    await root.mock.initChannel('group-1')
+
+    await root.mock.client('10001', 'group-1').shouldReply(
+      '举报 10002 广告刷屏',
+      '自定义公开命令关闭提示。',
+    )
+  } finally {
+    runtime.dispose()
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('入群认证管理员命令权限由 WebUI 命令策略 admission-admin 控制', async () => {
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-commands-'))
+
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(commands)
+  runtime.register(MockBot, { selfId: '514' })
+  runtime.register(groupGuardPlugin, createGroupGuardConfig())
+
+  try {
+    await root.start()
+    await root.mock.initUser('90002', 1)
+    await root.mock.initChannel('group-1')
+    const bot = root.bots[0] as unknown as Universal.Methods & { platform?: string }
+    bot.platform = 'onebot'
+
+    const client = root.mock.client('90002', 'group-1')
+    await client.shouldReply('查询入群认证 10001', '命令权限不足。')
+
+    const moderationStore = new ModerationStore(root)
+    const now = new Date()
+    await moderationStore.upsertCommandPolicy({
+      commandId: COMMAND_POLICY_IDS.admissionAdmin,
+      roles: ['admission-manager'],
+      minAuthority: 5,
+      createdAt: now,
+      updatedAt: now,
+    })
+    await moderationStore.setMemberRoles('group-1', '90002', ['admission-manager'])
+
+    await client.shouldReply('查询入群认证 10001', '当前群未启用 StuHelper 入群认证。')
   } finally {
     runtime.dispose()
     await rm(tempDir, { recursive: true, force: true })
@@ -178,9 +265,6 @@ test('入群认证管理员命令可以查询、重发和重新生成认证链�
       baseUrl: `http://127.0.0.1:${address.port}`,
       serviceToken: 'test-token',
     },
-    commands: { enabled: false },
-    moderation: { enabled: false },
-    freshmanForward: { enabled: false },
     scheduler: { scanIntervalSeconds: 3600 },
   }))
 
@@ -188,6 +272,7 @@ test('入群认证管理员命令可以查询、重发和重新生成认证链�
     await root.start()
     await root.mock.initUser('90001', 5)
     await root.mock.initChannel('group-1')
+    await enableAdmissionPolicy(root)
     const bot = root.bots[0] as unknown as Universal.Methods & { platform?: string }
     bot.platform = 'onebot'
     bot.muteGuildMember = async (guildId, memberId, duration) => {
@@ -239,6 +324,67 @@ test('入群认证管理员命令可以查询、重发和重新生成认证链�
   }
 })
 
+test('入群认证管理员命令会按配置通过临时会话重发认证链接', async () => {
+  const requests: CapturedAdmissionAdminRequest[] = []
+  const server = createServer((req, res) => respondAdmissionAdminRequest(req, res, requests))
+  await new Promise<void>((resolve) => server.listen(0, resolve))
+  const address = server.address()
+  assert.ok(address && typeof address === 'object')
+
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-commands-'))
+  const privateMessages: Array<{ userId: string, content: string, guildId?: string }> = []
+
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(commands)
+  runtime.register(MockBot, { selfId: '514' })
+  runtime.register(groupGuardPlugin, createGroupGuardConfig({
+    platform: {
+      baseUrl: `http://127.0.0.1:${address.port}`,
+      serviceToken: 'test-token',
+    },
+    scheduler: { scanIntervalSeconds: 3600 },
+  }))
+
+  try {
+    await root.start()
+    await saveAdmissionRuntimeSettings(root, {
+      reminderGroupEnabled: false,
+      reminderDirectEnabled: true,
+    })
+    await root.mock.initUser('90001', 5)
+    await root.mock.initChannel('group-1')
+    await enableAdmissionPolicy(root)
+    const bot = root.bots[0] as unknown as Universal.Methods & { platform?: string }
+    bot.platform = 'onebot'
+    bot.getFriendList = async () => ({ data: [] }) as any
+    bot.sendPrivateMessage = async (userId, content, guildId) => {
+      privateMessages.push({ userId, content: String(content), guildId })
+      return ['direct-message-command']
+    }
+
+    const client = root.mock.client('90001', 'group-1')
+    await root.database.create(GUARD_MEMBER_TABLE, activeAdmissionGuardRecord())
+    const replies = await client.receive('重发认证链接 10001')
+    await waitForRequestCount(requests, 2)
+
+    assert.deepEqual(replies, [])
+    assert.equal(privateMessages.length, 1)
+    assert.equal(privateMessages[0].userId, '10001')
+    assert.equal(privateMessages[0].guildId, 'group-1')
+    assert.match(privateMessages[0].content, /https:\/\/join\.stuhelper\.com\/verify\/token-current/)
+    assert.equal(requests[1].path, '/api/v1/bot/admission/sessions/session-token-current/events')
+    assert.equal(requests[1].body.action, 'remind')
+    assert.equal(requests[1].body.success, true)
+    assert.equal(requests[1].body.messageID, 'direct-message-command')
+  } finally {
+    runtime.dispose()
+    await closeServer(server)
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
 test('入群认证管理员命令会抑制短时间重复重新生成链接', async () => {
   const requests: CapturedAdmissionAdminRequest[] = []
   const server = createServer((req, res) => respondAdmissionAdminRequest(req, res, requests))
@@ -259,9 +405,6 @@ test('入群认证管理员命令会抑制短时间重复重新生成链接', as
       baseUrl: `http://127.0.0.1:${address.port}`,
       serviceToken: 'test-token',
     },
-    commands: { enabled: false },
-    moderation: { enabled: false },
-    freshmanForward: { enabled: false },
     scheduler: { scanIntervalSeconds: 3600 },
   }))
 
@@ -269,6 +412,7 @@ test('入群认证管理员命令会抑制短时间重复重新生成链接', as
     await root.start()
     await root.mock.initUser('90001', 5)
     await root.mock.initChannel('group-1')
+    await enableAdmissionPolicy(root)
     const bot = root.bots[0] as unknown as Universal.Methods & { platform?: string }
     bot.platform = 'onebot'
     bot.muteGuildMember = async (guildId, memberId, duration) => {
@@ -315,9 +459,6 @@ test('重新生成认证链接遇到已认证 QQ 时解除禁言且不重发链�
       baseUrl: `http://127.0.0.1:${address.port}`,
       serviceToken: 'test-token',
     },
-    commands: { enabled: false },
-    moderation: { enabled: false },
-    freshmanForward: { enabled: false },
     scheduler: { scanIntervalSeconds: 3600 },
   }))
 
@@ -325,6 +466,7 @@ test('重新生成认证链接遇到已认证 QQ 时解除禁言且不重发链�
     await root.start()
     await root.mock.initUser('90001', 5)
     await root.mock.initChannel('group-1')
+    await enableAdmissionPolicy(root)
     const bot = root.bots[0] as unknown as Universal.Methods & { platform?: string }
     bot.platform = 'onebot'
     bot.muteGuildMember = async (guildId, memberId, duration) => {
@@ -380,9 +522,6 @@ test('入群认证管理员命令可以跳过本群认证、清空失败次数�
       baseUrl: `http://127.0.0.1:${address.port}`,
       serviceToken: 'test-token',
     },
-    commands: { enabled: false },
-    moderation: { enabled: false },
-    freshmanForward: { enabled: false },
     scheduler: { scanIntervalSeconds: 3600 },
   }))
 
@@ -390,6 +529,7 @@ test('入群认证管理员命令可以跳过本群认证、清空失败次数�
     await root.start()
     await root.mock.initUser('90001', 5)
     await root.mock.initChannel('group-1')
+    await enableAdmissionPolicy(root)
     const bot = root.bots[0] as unknown as Universal.Methods & { platform?: string }
     bot.platform = 'onebot'
     bot.muteGuildMember = async (guildId, memberId, duration) => {
@@ -434,37 +574,9 @@ function createGroupGuardConfig(overrides?: Partial<ReturnType<typeof createBase
   return {
     ...createBaseGroupGuardConfig(),
     ...overrides,
-    guard: {
-      ...createBaseGroupGuardConfig().guard,
-      ...overrides?.guard,
-    },
     scheduler: {
       ...createBaseGroupGuardConfig().scheduler,
       ...overrides?.scheduler,
-    },
-    moderation: {
-      ...createBaseGroupGuardConfig().moderation,
-      ...overrides?.moderation,
-    },
-    fun: {
-      ...createBaseGroupGuardConfig().fun,
-      ...overrides?.fun,
-    },
-    ai: {
-      ...createBaseGroupGuardConfig().ai,
-      ...overrides?.ai,
-    },
-    commands: {
-      ...createBaseGroupGuardConfig().commands,
-      ...overrides?.commands,
-    },
-    admissionCommands: {
-      ...createBaseGroupGuardConfig().admissionCommands,
-      ...overrides?.admissionCommands,
-    },
-    freshmanForward: {
-      ...createBaseGroupGuardConfig().freshmanForward,
-      ...overrides?.freshmanForward,
     },
   }
 }
@@ -475,49 +587,135 @@ function createBaseGroupGuardConfig() {
       baseUrl: 'http://127.0.0.1:18080',
       serviceToken: 'test-token',
     },
-    guard: {
-      targetGroups: ['group-1'],
+    scheduler: {
+      scanIntervalSeconds: 60,
+    },
+  }
+}
+
+async function saveGroupGuardBehaviorSettings(
+  root: {
+    database: {
+      create(table: string, record: Record<string, unknown>): Promise<unknown>
+      get(table: string, query: Record<string, unknown>): Promise<Record<string, unknown>[]>
+      set(table: string, query: Record<string, unknown>, patch: Record<string, unknown>): Promise<unknown>
+    }
+  },
+  overrides: Partial<typeof DEFAULT_GROUP_GUARD_BEHAVIOR_SETTINGS>,
+) {
+  const now = new Date()
+  const [existing] = await root.database.get(GROUP_GUARD_BEHAVIOR_SETTINGS_TABLE, { id: 'default' })
+  if (existing) {
+    await root.database.set(GROUP_GUARD_BEHAVIOR_SETTINGS_TABLE, { id: 'default' }, {
+      ...overrides,
+      updatedAt: now,
+    })
+    return
+  }
+  await root.database.create(GROUP_GUARD_BEHAVIOR_SETTINGS_TABLE, {
+    id: 'default',
+    ...DEFAULT_GROUP_GUARD_BEHAVIOR_SETTINGS,
+    ...overrides,
+    createdAt: now,
+    updatedAt: now,
+  })
+}
+
+async function saveGroupGuardMessageSettings(
+  root: {
+    database: {
+      create(table: string, record: Record<string, unknown>): Promise<unknown>
+      get(table: string, query: Record<string, unknown>): Promise<Record<string, unknown>[]>
+      set(table: string, query: Record<string, unknown>, patch: Record<string, unknown>): Promise<unknown>
+    }
+  },
+  overrides: { messages?: Record<string, string> },
+) {
+  const now = new Date()
+  const messages = {
+    ...DEFAULT_GROUP_GUARD_MESSAGE_SETTINGS.messages,
+    ...overrides.messages,
+  }
+  const [existing] = await root.database.get(GROUP_GUARD_MESSAGE_SETTINGS_TABLE, { id: 'default' })
+  if (existing) {
+    await root.database.set(GROUP_GUARD_MESSAGE_SETTINGS_TABLE, { id: 'default' }, {
+      messages,
+      updatedAt: now,
+    })
+    return
+  }
+  await root.database.create(GROUP_GUARD_MESSAGE_SETTINGS_TABLE, {
+    id: 'default',
+    messages,
+    createdAt: now,
+    updatedAt: now,
+  })
+}
+
+async function enableAdmissionPolicy(
+  root: {
+    database: {
+      create(table: string, record: Record<string, unknown>): Promise<unknown>
+      get(table: string, query: Record<string, unknown>): Promise<Record<string, unknown>[]>
+    }
+  },
+) {
+  const now = new Date()
+  const [template] = await root.database.get(GUARD_TEMPLATE_TABLE, { id: 'default' })
+  if (!template) {
+    await root.database.create(GUARD_TEMPLATE_TABLE, {
+      id: 'default',
+      name: '测试入群认证模板',
       muteDurationSeconds: 600,
       kickAfterMinutes: 30,
       reminderTemplate: '请先完成认证。',
       exemptUsers: [],
-    },
-    scheduler: {
-      scanIntervalSeconds: 60,
-    },
-    moderation: {
-      repeatThreshold: 3,
-      repeatWindowSize: 3,
-      warningThresholdExpression: 'warnings >= 3',
-      defaultMuteSeconds: 180,
-      antiRecallNotify: true,
-      keywordRules: [],
-    },
-    fun: {
-      diceSides: 100,
-      muteLotteryBaseSeconds: 60,
-      muteLotteryMaxSeconds: 600,
-      muteLotteryPityThreshold: 5,
-      muteLotteryPitySeconds: 300,
-    },
-    ai: {
-      enabled: false,
-      endpoint: '',
-      apiKey: '',
-      model: '',
-    },
-    commands: {
       enabled: true,
-    },
-    admissionCommands: {
-      enabled: true,
-      minAuthority: 4,
-      operatorQQIDs: [],
-    },
-    freshmanForward: {
-      enabled: false,
-    },
+      createdAt: now,
+      updatedAt: now,
+    })
   }
+  const [binding] = await root.database.get(GUARD_GROUP_BINDING_TABLE, { id: 'qq:group-1' })
+  if (!binding) {
+    await root.database.create(GUARD_GROUP_BINDING_TABLE, {
+      id: 'qq:group-1',
+      platform: 'qq',
+      guildId: 'group-1',
+      templateId: 'default',
+      enabled: true,
+      note: 'test admission policy',
+      createdAt: now,
+      updatedAt: now,
+    })
+  }
+}
+
+async function saveAdmissionRuntimeSettings(
+  root: {
+    database: {
+      create(table: string, record: Record<string, unknown>): Promise<unknown>
+      get(table: string, query: Record<string, unknown>): Promise<Record<string, unknown>[]>
+      set(table: string, query: Record<string, unknown>, patch: Record<string, unknown>): Promise<unknown>
+    }
+  },
+  overrides: Partial<typeof DEFAULT_ADMISSION_RUNTIME_SETTINGS>,
+) {
+  const now = new Date()
+  const [existing] = await root.database.get(ADMISSION_RUNTIME_SETTINGS_TABLE, { id: 'default' })
+  if (existing) {
+    await root.database.set(ADMISSION_RUNTIME_SETTINGS_TABLE, { id: 'default' }, {
+      ...overrides,
+      updatedAt: now,
+    })
+    return
+  }
+  await root.database.create(ADMISSION_RUNTIME_SETTINGS_TABLE, {
+    id: 'default',
+    ...DEFAULT_ADMISSION_RUNTIME_SETTINGS,
+    ...overrides,
+    createdAt: now,
+    updatedAt: now,
+  })
 }
 
 interface CapturedAdmissionAdminRequest {

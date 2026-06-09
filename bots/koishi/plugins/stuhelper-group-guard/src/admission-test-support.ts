@@ -25,6 +25,15 @@ export function respondAdmissionSession(input: {
   readonly guildID: string
 }) {
   const { req, res, qqID, guildID } = input
+  const url = new URL(req.url || '/', 'http://127.0.0.1')
+  if (req.method === 'GET' && url.pathname === '/api/v1/bot/admission/sessions/member') {
+    assert.equal(req.headers.authorization, 'Bearer test-token')
+    assert.equal(url.searchParams.get('guildID'), guildID)
+    assert.equal(url.searchParams.get('qqID'), qqID)
+    res.setHeader('content-type', 'application/json')
+    res.end(JSON.stringify({ success: true, data: admissionSessionData(qqID, guildID) }))
+    return true
+  }
   if (req.method !== 'POST' || req.url !== '/api/v1/bot/admission/sessions') return false
   assert.equal(req.headers.authorization, 'Bearer test-token')
   res.setHeader('content-type', 'application/json')

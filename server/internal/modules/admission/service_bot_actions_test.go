@@ -274,6 +274,107 @@ func TestQueuedAdmissionActionSkipsStaleKickAfterLink(t *testing.T) {
 	assert.Equal(t, 1, staleCount)
 }
 
+func TestQueuedAdmissionActionSkipsStaleReminderAfterBotSkip(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created, err := svc.CreateBotSession(context.Background(), BotSessionCreateInput{
+		Platform:  "qq",
+		BotSelfID: "514",
+		GuildID:   "guild-1",
+		ChannelID: "channel-1",
+		QQID:      "10001",
+	})
+	require.NoError(t, err)
+
+	_, err = svc.ResendAdminAdmissionSession(context.Background(), AdminAdmissionSessionActionInput{
+		SessionID:      created.Session.ID,
+		OperatorUserID: 9001,
+	})
+	require.NoError(t, err)
+	_, err = svc.SkipBotAdmissionSession(context.Background(), BotSessionOperatorInput{
+		Platform:     "qq",
+		GuildID:      "guild-1",
+		QQID:         "10001",
+		OperatorQQID: "90001",
+	})
+	require.NoError(t, err)
+
+	actions, err := svc.ClaimQueuedAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
+	require.NoError(t, err)
+	assert.Empty(t, actions)
+
+	var staleCount int
+	err = fixture.Pool.QueryRow(context.Background(), `
+		SELECT COUNT(*)
+		FROM admission_bot_action_outbox
+		WHERE session_id = $1 AND action = 'remind' AND status = 'stale'
+	`, created.Session.ID).Scan(&staleCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, staleCount)
+}
+
+func TestClaimedAdmissionReminderAckAfterBotSkipIsStale(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created, err := svc.CreateBotSession(context.Background(), BotSessionCreateInput{
+		Platform:  "qq",
+		BotSelfID: "514",
+		GuildID:   "guild-1",
+		ChannelID: "channel-1",
+		QQID:      "10001",
+	})
+	require.NoError(t, err)
+
+	_, err = svc.ResendAdminAdmissionSession(context.Background(), AdminAdmissionSessionActionInput{
+		SessionID:      created.Session.ID,
+		OperatorUserID: 9001,
+	})
+	require.NoError(t, err)
+	actions, err := svc.ClaimQueuedAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
+	require.NoError(t, err)
+	require.Len(t, actions, 1)
+	require.NotEmpty(t, actions[0].ActionID)
+	assert.Equal(t, BotActionRemind, actions[0].Action)
+
+	_, err = svc.SkipBotAdmissionSession(context.Background(), BotSessionOperatorInput{
+		Platform:     "qq",
+		GuildID:      "guild-1",
+		QQID:         "10001",
+		OperatorQQID: "90001",
+	})
+	require.NoError(t, err)
+	err = svc.RecordBotActionEvent(context.Background(), actions[0].ActionID, BotEventInput{
+		Action:    BotActionRemind,
+		Success:   true,
+		MessageID: "stale-reminder-message",
+	})
+	require.NoError(t, err)
+
+	var outboxStatus string
+	var sessionStatus string
+	var nextReminderQueued bool
+	var messageID string
+	err = fixture.Pool.QueryRow(context.Background(), `
+		SELECT o.status, s.status, s.next_reminder_at IS NOT NULL, COALESCE(o.message_id, '')
+		FROM admission_bot_action_outbox AS o
+		JOIN group_admission_sessions AS s ON s.id = o.session_id
+		WHERE o.id = $1::bigint
+	`, actions[0].ActionID).Scan(&outboxStatus, &sessionStatus, &nextReminderQueued, &messageID)
+	require.NoError(t, err)
+	assert.Equal(t, "stale", outboxStatus)
+	assert.Equal(t, string(StatusCancelled), sessionStatus)
+	assert.False(t, nextReminderQueued)
+	assert.Empty(t, messageID)
+}
+
 func TestStudentVerificationProjectionReleasesLinkedSession(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)

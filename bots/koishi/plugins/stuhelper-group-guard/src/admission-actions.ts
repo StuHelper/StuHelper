@@ -7,12 +7,15 @@ import {
   type AdmissionBotEventRequest,
   type AdmissionPendingAction,
   type GuardMemberRecord,
+  type StuhelperAdmissionReminderDeliveryConfig,
   type StuhelperGroupGuardMessageConfig,
 } from '@stuhelper/koishi-shared'
 
 import { formatAdmissionReminder } from './admission-format'
+import { sendAdmissionReminderMessage } from './admission-reminder-delivery'
 
-type ActionMark = 'reminder' | 'released' | 'kicked'
+type ActionMark = 'reminder' | 'released' | 'kicked' | 'none'
+type ReminderSendGuard = () => boolean | Promise<boolean>
 
 interface ActionTarget {
   readonly guildID: string
@@ -31,12 +34,14 @@ export async function executeAdmissionAction(
   action: AdmissionPendingAction,
   record: GuardMemberRecord | null,
   messages?: Partial<StuhelperGroupGuardMessageConfig>,
+  delivery?: Partial<StuhelperAdmissionReminderDeliveryConfig>,
+  shouldSendReminder?: ReminderSendGuard,
 ): Promise<ActionResult> {
   const target = resolveActionTarget(action, record)
   const resolvedMessages = resolveGroupGuardMessages(messages)
   switch (action.action) {
     case 'remind':
-      return executeReminder(bot, action, target, resolvedMessages)
+      return executeReminder(bot, action, target, resolvedMessages, delivery, shouldSendReminder)
     case 'release':
       return executeRelease(bot, action, target, resolvedMessages)
     case 'kick':
@@ -60,20 +65,34 @@ async function executeReminder(
   action: AdmissionPendingAction,
   target: ActionTarget,
   messages: ReturnType<typeof resolveGroupGuardMessages>,
+  delivery?: Partial<StuhelperAdmissionReminderDeliveryConfig>,
+  shouldSend?: ReminderSendGuard,
 ): Promise<ActionResult> {
   if (!action.authURL) {
     throw new Error(`admission remind action ${action.sessionID} missing authURL`)
   }
-  const messageID = await sendActionMessage(bot, target.channelID, formatAdmissionReminder({
+  const result = await sendAdmissionReminderMessage({
+    bot,
+    guildId: target.guildID,
+    channelId: target.channelID,
     memberId: target.qqID,
-    authURL: action.authURL,
-    deadlineAt: target.deadlineAt,
-    failureCount: action.failureCount,
-    remainingRetryCount: action.remainingRetryCount,
-    willBlacklistOnTimeout: action.willBlacklistOnTimeout,
+    content: formatAdmissionReminder({
+      memberId: target.qqID,
+      authURL: action.authURL,
+      deadlineAt: target.deadlineAt,
+      failureCount: action.failureCount,
+      remainingRetryCount: action.remainingRetryCount,
+      willBlacklistOnTimeout: action.willBlacklistOnTimeout,
+      messages,
+    }),
+    delivery,
     messages,
-  }))
-  return successResult(action, 'reminder', messageID)
+    shouldSend,
+  })
+  if (result.cancelled) {
+    return successResult(action, 'none')
+  }
+  return successResult(action, 'reminder', result.messageID)
 }
 
 async function executeRelease(

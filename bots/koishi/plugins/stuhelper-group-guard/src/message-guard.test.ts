@@ -10,9 +10,16 @@ import { Universal } from 'koishi'
 
 import {
   MODERATION_EVENT_TABLE,
+  MODERATION_KEYWORD_RULE_TABLE,
   MODERATION_MESSAGE_LEDGER_TABLE,
   MODERATION_WARNING_TABLE,
 } from '@stuhelper/koishi-moderation-core'
+import {
+  ADMISSION_RUNTIME_SETTINGS_TABLE,
+  DEFAULT_ADMISSION_RUNTIME_SETTINGS,
+  DEFAULT_GROUP_GUARD_BEHAVIOR_SETTINGS,
+  GROUP_GUARD_BEHAVIOR_SETTINGS_TABLE,
+} from '@stuhelper/koishi-shared'
 
 import groupGuardPlugin from './index.ts'
 import { createKoishiTestRuntime } from '../../test-utils/runtime.ts'
@@ -31,51 +38,33 @@ test('关键词命中后会删除消息、累计警告并执行自动禁言', as
       baseUrl: 'http://127.0.0.1:18080',
       serviceToken: 'test-token',
     },
-    guard: {
-      targetGroups: ['group-1'],
-      muteDurationSeconds: 600,
-      kickAfterMinutes: 30,
-      reminderTemplate: '请先完成认证。',
-      exemptUsers: [],
-    },
     scheduler: {
       scanIntervalSeconds: 60,
-    },
-    moderation: {
-      repeatThreshold: 3,
-      repeatWindowSize: 3,
-      warningThresholdExpression: 'warnings >= 1',
-      defaultMuteSeconds: 180,
-      antiRecallNotify: true,
-      keywordRules: [
-        {
-          id: 'keyword-1',
-          guildId: 'group-1',
-          pattern: '广告',
-          matchMode: 'includes',
-          action: 'delete',
-          muteSeconds: 0,
-          note: '违禁广告',
-        },
-      ],
-    },
-    fun: {
-      diceSides: 100,
-      muteLotteryBaseSeconds: 60,
-      muteLotteryMaxSeconds: 600,
-      muteLotteryPityThreshold: 5,
-      muteLotteryPitySeconds: 300,
-    },
-    ai: {
-      enabled: false,
-      endpoint: '',
-      apiKey: '',
-      model: '',
     },
   })
 
   try {
     await root.start()
+    await root.database.create(MODERATION_KEYWORD_RULE_TABLE, {
+      id: 'keyword-1',
+      guildId: 'group-1',
+      pattern: '广告',
+      matchMode: 'includes',
+      action: 'delete',
+      enabled: true,
+      muteSeconds: 0,
+      note: '违禁广告',
+      createdAt: new Date('2026-06-05T03:00:00.000Z'),
+      updatedAt: new Date('2026-06-05T03:00:00.000Z'),
+    })
+    await saveAdmissionRuntimeSettings(root, { moderationEnabled: true })
+    await saveGroupGuardBehaviorSettings(root, {
+      moderation: {
+        warningThresholdExpression: 'warnings >= 1',
+        defaultMuteSeconds: 180,
+        antiRecallNotify: true,
+      },
+    })
     const bot = root.bots[0] as unknown as Universal.Methods & { receive: (event: Partial<Universal.Event>) => void }
     bot.deleteMessage = async (_channelId, messageId) => {
       deleteActions.push(messageId)
@@ -122,41 +111,14 @@ test('撤回事件会记录到事件日志并发送防撤回提示', async () =>
       baseUrl: 'http://127.0.0.1:18080',
       serviceToken: 'test-token',
     },
-    guard: {
-      targetGroups: ['group-1'],
-      muteDurationSeconds: 600,
-      kickAfterMinutes: 30,
-      reminderTemplate: '请先完成认证。',
-      exemptUsers: [],
-    },
     scheduler: {
       scanIntervalSeconds: 60,
-    },
-    moderation: {
-      repeatThreshold: 3,
-      repeatWindowSize: 3,
-      warningThresholdExpression: 'warnings >= 3',
-      defaultMuteSeconds: 180,
-      antiRecallNotify: true,
-      keywordRules: [],
-    },
-    fun: {
-      diceSides: 100,
-      muteLotteryBaseSeconds: 60,
-      muteLotteryMaxSeconds: 600,
-      muteLotteryPityThreshold: 5,
-      muteLotteryPitySeconds: 300,
-    },
-    ai: {
-      enabled: false,
-      endpoint: '',
-      apiKey: '',
-      model: '',
     },
   })
 
   try {
     await root.start()
+    await saveAdmissionRuntimeSettings(root, { moderationEnabled: true })
     const bot = root.bots[0] as unknown as Universal.Methods & { receive: (event: Partial<Universal.Event>) => void }
     bot.muteGuildMember = async () => {}
     bot.sendMessage = async (_channelId, content) => {
@@ -205,4 +167,60 @@ async function waitForValue<T>(load: () => Promise<T | undefined>, timeoutMs = 5
     await sleep(intervalMs)
   }
   throw new Error('waitForValue timeout')
+}
+
+async function saveGroupGuardBehaviorSettings(
+  root: {
+    database: {
+      create(table: string, record: Record<string, unknown>): Promise<unknown>
+      get(table: string, query: Record<string, unknown>): Promise<Record<string, unknown>[]>
+      set(table: string, query: Record<string, unknown>, patch: Record<string, unknown>): Promise<unknown>
+    }
+  },
+  overrides: Partial<typeof DEFAULT_GROUP_GUARD_BEHAVIOR_SETTINGS>,
+) {
+  const now = new Date()
+  const [existing] = await root.database.get(GROUP_GUARD_BEHAVIOR_SETTINGS_TABLE, { id: 'default' })
+  if (existing) {
+    await root.database.set(GROUP_GUARD_BEHAVIOR_SETTINGS_TABLE, { id: 'default' }, {
+      ...overrides,
+      updatedAt: now,
+    })
+    return
+  }
+  await root.database.create(GROUP_GUARD_BEHAVIOR_SETTINGS_TABLE, {
+    id: 'default',
+    ...DEFAULT_GROUP_GUARD_BEHAVIOR_SETTINGS,
+    ...overrides,
+    createdAt: now,
+    updatedAt: now,
+  })
+}
+
+async function saveAdmissionRuntimeSettings(
+  root: {
+    database: {
+      create(table: string, record: Record<string, unknown>): Promise<unknown>
+      get(table: string, query: Record<string, unknown>): Promise<Record<string, unknown>[]>
+      set(table: string, query: Record<string, unknown>, patch: Record<string, unknown>): Promise<unknown>
+    }
+  },
+  overrides: Partial<typeof DEFAULT_ADMISSION_RUNTIME_SETTINGS>,
+) {
+  const now = new Date()
+  const [existing] = await root.database.get(ADMISSION_RUNTIME_SETTINGS_TABLE, { id: 'default' })
+  if (existing) {
+    await root.database.set(ADMISSION_RUNTIME_SETTINGS_TABLE, { id: 'default' }, {
+      ...overrides,
+      updatedAt: now,
+    })
+    return
+  }
+  await root.database.create(ADMISSION_RUNTIME_SETTINGS_TABLE, {
+    id: 'default',
+    ...DEFAULT_ADMISSION_RUNTIME_SETTINGS,
+    ...overrides,
+    createdAt: now,
+    updatedAt: now,
+  })
 }

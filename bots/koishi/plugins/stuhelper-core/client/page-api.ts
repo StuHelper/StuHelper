@@ -65,13 +65,4 @@ export const consolePageApi = {
   }) {
     return send('stuhelperGroupCenter/action/save-guard-template', input)
   },
-  saveGuardBinding(input: {
-    platform: string
-    guildId: string
-    templateId: string
-    enabled: boolean
-    note?: string | null
-  }) {
-    return send('stuhelperGroupCenter/action/save-guard-binding', input)
-  },
 }

@@ -61,14 +61,6 @@ const nativeRuntimeCases = [
 
 const coreConfig = {
   platform: { baseUrl: 'https://platform.example', serviceToken: 'token' },
-  guard: {
-    targetGroups: [],
-    muteDurationSeconds: 0,
-    kickAfterMinutes: 0,
-    reminderTemplate: '',
-    exemptUsers: [],
-  },
-  console: { enabled: true, title: 'StuHelper' },
 }
 
 for (const [id, data, config] of nativeRuntimeCases) {

@@ -103,38 +103,33 @@
 
         <WorkspaceSection
           v-else-if="currentWorkspace === 'bindings'"
-          title="群绑定"
-          description="群到模板的映射关系。Guard 生效策略:优先群绑定模板,再退回静态 fallback。"
+          title="同步绑定"
+          description="由后端 Admin 入群认证策略同步生成的 Koishi 执行态缓存。目标认证群请在 Admin 后台入群认证策略中修改。"
           :meta="`${configModel?.bindingRows.length ?? 0} 条`"
           flush
         >
           <EmptyState
             v-if="(configModel?.bindingRows.length ?? 0) === 0"
-            title="暂无群绑定"
-            body="填写右侧表单新建群绑定；保存后治理策略会立即生效。"
+            title="暂无同步绑定"
+            body="当前 Koishi 实例尚未从后端 admission policy 同步到目标群。"
           />
           <div v-else class="sh-lane">
-            <button
+            <div
               v-for="item in configModel?.bindingRows ?? []"
               :key="item.id"
-              type="button"
-              class="sh-lane__row sh-lane__row--interactive"
-              :class="{
-                'sh-lane__row--active':
-                  bindingForm.guildId === item.guildId && bindingForm.platform === item.platform,
-              }"
-              @click="loadBinding(item)"
+              class="sh-lane__row"
             >
-              <span class="sh-lane__dot sh-lane__dot--primary"></span>
+              <span class="sh-lane__dot" :class="item.enabled ? 'sh-lane__dot--primary' : ''"></span>
               <div class="sh-lane__body">
                 <div class="sh-lane__title sh-mono">{{ item.guildId }}</div>
                 <div class="sh-lane__subtitle">
                   <span class="sh-mono">{{ item.platform }}</span>
                   · {{ item.effectiveTemplateName }}
-                  · {{ item.note || '无备注' }}
+                  · {{ item.enabled ? '已启用' : '已停用' }}
+                  · {{ item.note || '同步缓存' }}
                 </div>
               </div>
-            </button>
+            </div>
           </div>
         </WorkspaceSection>
 
@@ -220,48 +215,17 @@
 
         <WorkspaceSection
           v-else-if="currentWorkspace === 'bindings'"
-          title="新建 / 编辑绑定"
-          description="选择左侧已有绑定进行编辑，或填写右侧表单新建群到模板的映射关系。"
+          title="同步来源"
+          description="本页只展示 Koishi 当前执行态；目标群增删、启停和入群处理策略以 Admin 后台 admission policy 为准。"
         >
-          <div class="sh-form-grid">
-            <label class="sh-field">
-              <span class="sh-field__label">平台</span>
-              <el-input v-model.trim="bindingForm.platform" class="sh-control sh-control--mono" placeholder="qq" />
-            </label>
-            <label class="sh-field">
-              <span class="sh-field__label">群号</span>
-              <el-input v-model.trim="bindingForm.guildId" class="sh-control sh-control--mono" placeholder="12345678" />
-            </label>
-          </div>
-          <label class="sh-field">
-            <span class="sh-field__label">模板</span>
-            <el-select v-model="bindingForm.templateId" class="sh-control" placeholder="选择模板" clearable>
-              <el-option
-                v-for="item in configModel?.templateRows ?? []"
-                :key="item.id"
-                :label="`${item.name} (${item.id})`"
-                :value="item.id"
-              />
-            </el-select>
-          </label>
-          <label class="sh-field">
-            <span class="sh-field__label">备注</span>
-            <el-input v-model.trim="bindingForm.note" class="sh-control" placeholder="记录绑定原因" />
-          </label>
-          <div class="sh-btn-row sh-form__actions">
-            <el-checkbox v-model="bindingForm.enabled" class="sh-check">启用绑定</el-checkbox>
-            <div class="sh-btn-row__spacer"></div>
-            <el-button
-              type="primary"
-              class="sh-button sh-button--primary"
-              :disabled="submittingBinding"
-              @click="submitBinding"
-            >
-              {{ submittingBinding ? '保存中…' : '保存绑定' }}
-            </el-button>
-          </div>
-          <p v-if="currentDirty" class="sh-field__hint">有未提交更改</p>
-          <p v-if="notice" class="sh-field__hint sh-notice-hint">{{ notice }}</p>
+          <dl class="sh-keylist">
+            <dt>配置源</dt>
+            <dd>Admin 后台 / 用户系统 / 入群认证策略</dd>
+            <dt>同步方向</dt>
+            <dd>后端 admission policy → Koishi guard policy cache</dd>
+            <dt>执行模板</dt>
+            <dd>由 Koishi 模板库提供禁言、踢出和提醒参数</dd>
+          </dl>
         </WorkspaceSection>
 
         <WorkspaceSection
@@ -350,20 +314,16 @@ const {
   currentWorkspace,
   notice,
   submittingTemplate,
-  submittingBinding,
   submittingPolicy,
   templateForm,
-  bindingForm,
   policyForm,
   configModel,
   currentDirty,
   loadData,
   selectWorkspace,
   loadTemplate,
-  loadBinding,
   loadPolicy,
   submitTemplate,
-  submitBinding,
   submitPolicy,
   clearActionError,
 } = useConfigGovernance(props.navigation, confirmDiscardChanges)
