@@ -12,7 +12,7 @@ import type {
   PlatformClient,
   StuhelperGroupGuardPluginConfig,
 } from '@stuhelper/koishi-shared'
-import { resolveGroupGuardMessages } from '@stuhelper/koishi-shared'
+import { PlatformAPIError, resolveGroupGuardMessages } from '@stuhelper/koishi-shared'
 
 import {
   buildAdmissionRuntimePageData,
@@ -213,6 +213,93 @@ test('admission runtime regenerate does not record verified release after losing
   assert.equal(eventRecorded, false)
 })
 
+test('admission runtime skip keeps local release when QQ unmute fails', async () => {
+  const synced: unknown[] = []
+  const released: Array<{ id: string; now: Date }> = []
+  const data = await handleAdmissionRuntimeAction(
+    fakeContext([], [], [], {
+      async muteGuildMember() {
+        throw new Error('Error with request set_group_ban, retcode: 1200')
+      },
+    }),
+    {
+      config: createConfig(),
+      platform: fakePlatform({
+        async skipAdmissionSessionForMember(input) {
+          assert.equal(input.operatorQQID, 'console:42')
+          return createAdmissionSession({ id: 'session-skipped', status: 'cancelled' })
+        },
+      }),
+      runtimeSettings: fakeRuntimeSettings(),
+      guardStore: fakeGuardStore({
+        async getActiveByID() {
+          return createMember({ backendSyncPending: false, admissionSessionID: 'session-1' })
+        },
+        async markBackendSynced(id, input) {
+          synced.push({ id, input })
+        },
+        async markReleased(id, now) {
+          released.push({ id, now })
+        },
+      }),
+      policyStore: fakePolicyStore(),
+      moderationStore: fakeModerationStore(),
+    },
+    { recordId: 'qq:2118785781:178037297:2001', action: 'skip' },
+    { auth: { id: 42 } },
+  )
+
+  assert.match(data, /已跳过 QQ 2001 在本群的入群认证/)
+  assert.match(data, /自动解除禁言失败/)
+  assert.match(data, /retcode: 1200/)
+  assert.equal(synced.length, 1)
+  assert.equal(released.length, 1)
+})
+
+test('admission runtime skip cleans local record when backend session was already cancelled', async () => {
+  const muteActions: Array<{ guildId: string; memberId: string; duration: number }> = []
+  let queried = false
+  let released = false
+  const data = await handleAdmissionRuntimeAction(
+    fakeContext([], muteActions),
+    {
+      config: createConfig(),
+      platform: fakePlatform({
+        async skipAdmissionSessionForMember() {
+          throw new PlatformAPIError('invalid admission state', 409)
+        },
+        async getAdmissionSessionByMember(input) {
+          queried = true
+          assert.deepEqual(input, {
+            platform: 'qq',
+            guildID: '178037297',
+            qqID: '2001',
+          })
+          return createAdmissionSession({ id: 'session-skipped', status: 'cancelled' })
+        },
+      }),
+      runtimeSettings: fakeRuntimeSettings(),
+      guardStore: fakeGuardStore({
+        async getActiveByID() {
+          return createMember({ backendSyncPending: false, admissionSessionID: 'session-1' })
+        },
+        async markReleased() {
+          released = true
+        },
+      }),
+      policyStore: fakePolicyStore(),
+      moderationStore: fakeModerationStore(),
+    },
+    { recordId: 'qq:2118785781:178037297:2001', action: 'skip' },
+    { auth: { id: 42 } },
+  )
+
+  assert.equal(data, '已跳过 QQ 2001 在本群的入群认证并解除禁言。')
+  assert.equal(queried, true)
+  assert.equal(released, true)
+  assert.deepEqual(muteActions, [{ guildId: '178037297', memberId: '2001', duration: 0 }])
+})
+
 test('admission runtime settings action persists WebUI switch changes', async () => {
   const listeners = new Map<string, (input: unknown) => Promise<string>>()
   const savedInputs: unknown[] = []
@@ -330,6 +417,12 @@ function fakeContext(
   sentMessages: Array<{ channelId: string; message: string }> = [],
   muteActions: Array<{ guildId: string; memberId: string; duration: number }> = [],
   privateMessages: Array<{ userId: string; message: string; guildId?: string }> = [],
+  botOverrides: Partial<{
+    sendMessage(channelId: string, message: string): Promise<string | string[]>
+    muteGuildMember(guildId: string, memberId: string, duration: number): Promise<void>
+    getFriendList(): Promise<{ data: unknown[] }>
+    sendPrivateMessage(userId: string, message: string, guildId?: string): Promise<string[]>
+  }> = {},
 ) {
   return {
     bots: [{
@@ -350,6 +443,7 @@ function fakeContext(
         privateMessages.push({ userId, message, guildId })
         return ['direct-message-1']
       },
+      ...botOverrides,
     }],
   } as unknown as Context
 }

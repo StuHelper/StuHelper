@@ -22,6 +22,7 @@ import type { ModerationStore } from '@stuhelper/koishi-moderation-core'
 
 import { formatAdmissionReminder } from './admission-format'
 import { sendAdmissionReminderMessage } from './admission-reminder-delivery'
+import { formatAdmissionActionError } from './admission-actions'
 import { backendSyncUpdate } from './member-records'
 import { requireAdmissionActionPlatform } from './admission-action-boundary'
 import type { GuardBotRuntime } from './member-guard'
@@ -374,13 +375,9 @@ async function skipAdmissionSession(
   const ref = admissionRecordSubjectRef(record)
   deps.admissionSubjectCoordinator?.cancelSubject(ref)
   try {
-    const session = await deps.platform.skipAdmissionSessionForMember({
-      ...admissionSubject(record),
-      operatorQQID,
-    })
+    const session = await skipAdmissionSessionOrUseCancelled(deps.platform, record, operatorQQID)
+    let unmuteError: unknown
     const released = await runAdmissionRecordSubjectExclusive(ref, deps, session.id, async () => {
-      const bot = requireBotForRecord(ctx, record, messages)
-      await bot.muteGuildMember(record.guildId, record.memberId, 0)
       const synced = await deps.guardStore.markBackendSynced(record.id, {
         admissionSessionID: session.id,
         backendSyncPending: false,
@@ -390,14 +387,49 @@ async function skipAdmissionSession(
       })
       if (synced === false) return false
       const released = await deps.guardStore.markReleased(record.id, new Date())
-      return released !== false
+      if (released === false) return false
+      try {
+        const bot = requireBotForRecord(ctx, record, messages)
+        await bot.muteGuildMember(record.guildId, record.memberId, 0)
+      } catch (error) {
+        unmuteError = error
+      }
+      return true
     })
     if (released === false) {
       return groupGuardMessage(messages, 'admissionConsoleStaleRecord')
     }
+    if (unmuteError) {
+      return groupGuardMessage(messages, 'admissionConsoleSkipUnmuteFailed', {
+        qqID: record.memberId,
+        error: formatAdmissionActionError(unmuteError),
+      })
+    }
     return groupGuardMessage(messages, 'admissionConsoleSkipSuccess', { qqID: record.memberId })
   } catch (error) {
     deps.admissionSubjectCoordinator?.clearSubjectCancellation(ref)
+    throw error
+  }
+}
+
+async function skipAdmissionSessionOrUseCancelled(
+  platform: PlatformClient,
+  record: GuardMemberRecord,
+  operatorQQID: string,
+) {
+  try {
+    return await platform.skipAdmissionSessionForMember({
+      ...admissionSubject(record),
+      operatorQQID,
+    })
+  } catch (error) {
+    if (!isAdmissionInvalidStateError(error)) {
+      throw error
+    }
+    const session = await platform.getAdmissionSessionByMember(admissionSubject(record))
+    if (session.status === 'cancelled') {
+      return session
+    }
     throw error
   }
 }
@@ -611,6 +643,14 @@ function formatAdmissionConsoleActionError(
     })
   }
   return error instanceof Error ? error.message : groupGuardMessage(messages, 'admissionConsoleErrorFallback')
+}
+
+function isAdmissionInvalidStateError(error: unknown) {
+  if (error instanceof PlatformAPIErrorClass) {
+    return error.status === 409
+  }
+  const platformError = error as PlatformAPIError | undefined
+  return platformError?.name === 'PlatformAPIError' && platformError.status === 409
 }
 
 function describeDeadline(

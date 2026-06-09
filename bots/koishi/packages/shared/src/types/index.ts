@@ -187,6 +187,7 @@ export interface StuhelperGroupGuardMessageConfig {
   admissionReminderDeliveryGroupChannelLabel: string
   admissionReminderDeliveryDirectChannelLabel: string
   admissionSkipSuccess: string
+  admissionSkipUnmuteFailed: string
   admissionAlreadyVerifiedRegenerate: string
   admissionResetFailureCountSuccess: string
   admissionReleaseBlacklistNotFound: string
@@ -224,6 +225,7 @@ export interface StuhelperGroupGuardMessageConfig {
   admissionConsoleVerifiedReleaseSuccess: string
   admissionConsoleRegenerateSuccess: string
   admissionConsoleSkipSuccess: string
+  admissionConsoleSkipUnmuteFailed: string
   admissionConsoleResetFailureCountSuccess: string
   admissionConsoleReleaseBlacklistSuccess: string
   admissionConsoleMissingResendURL: string

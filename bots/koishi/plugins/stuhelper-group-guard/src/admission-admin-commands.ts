@@ -21,6 +21,7 @@ import {
 
 import { formatAdmissionReminder } from './admission-format'
 import { sendAdmissionReminderMessage } from './admission-reminder-delivery'
+import { formatAdmissionActionError } from './admission-actions'
 import { resolveAdmissionSubjectPlatform } from './admission-subject-platform'
 import type { AdmissionSubjectCoordinator } from './admission-subject-coordinator'
 import type { AdmissionReminderDeduper } from './admission-reminder-deduper'
@@ -129,14 +130,28 @@ export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdmi
       const ref = admissionCommandSubjectRef(command)
       deps.admissionSubjectCoordinator?.cancelSubject(ref)
       try {
-        const skipped = await deps.platform.skipAdmissionSessionForMember(admissionOperatorSubject(command))
+        const skipped = await skipAdmissionSessionOrUseCancelled(deps.platform, command)
+        let unmuteError: unknown
         const released = await runAdmissionCommandSubjectExclusive(ref, deps, skipped.id, async () => {
-          await releaseMemberMuteForCommand(command)
-          return markLocalAdmissionSkipped(command, deps.guardStore, skipped)
+          const marked = await markLocalAdmissionSkipped(command, deps.guardStore, skipped)
+          if (marked === false) return false
+          try {
+            await releaseMemberMuteForCommand(command)
+          } catch (error) {
+            unmuteError = error
+          }
+          return true
         })
         const currentMessages = await getGroupGuardMessages(deps.messageProvider)
         if (released === false) {
           return groupGuardMessage(currentMessages, 'admissionCommandStaleRecord')
+        }
+        if (unmuteError) {
+          return groupGuardMessage(currentMessages, 'admissionSkipUnmuteFailed', {
+            at: h.at(command.qqID),
+            qqID: command.qqID,
+            error: formatAdmissionActionError(unmuteError),
+          })
         }
         return groupGuardMessage(currentMessages, 'admissionSkipSuccess', {
           at: h.at(command.qqID),
@@ -183,6 +198,24 @@ export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdmi
       }
       return groupGuardMessage(await getGroupGuardMessages(deps.messageProvider), 'admissionReleaseBlacklistSuccess', { qqID: command.qqID })
     }))
+}
+
+async function skipAdmissionSessionOrUseCancelled(
+  platform: PlatformClient,
+  command: AdmissionCommandContext,
+) {
+  try {
+    return await platform.skipAdmissionSessionForMember(admissionOperatorSubject(command))
+  } catch (error) {
+    if (!isAdmissionInvalidStateError(error)) {
+      throw error
+    }
+    const session = await platform.getAdmissionSessionByMember(admissionSubject(command))
+    if (session.status === 'cancelled') {
+      return session
+    }
+    throw error
+  }
 }
 
 class AdmissionAdminCommandDeduper {
@@ -367,6 +400,10 @@ function formatAdmissionCommandError(error: unknown, messages: GroupGuardMessage
   return groupGuardMessage(messages, 'admissionCommandFailed', {
     error: error instanceof Error ? error.message : '',
   })
+}
+
+function isAdmissionInvalidStateError(error: unknown) {
+  return error instanceof PlatformAPIError && error.status === 409
 }
 
 function formatAdmissionSessionSummary(
