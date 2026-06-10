@@ -24,7 +24,15 @@ test('buildAdmissionRuntimeModel exposes admission runtime metrics and switch st
     '权限由命令策略 admission-admin 控制',
   )
   assert.equal(model.switchRows.find((row) => row.id === 'reminder-group')?.settingKey, 'reminderGroupEnabled')
+  assert.equal(
+    model.switchRows.find((row) => row.id === 'reminder-group')?.note,
+    '目标群内提醒，两个提醒渠道至少保留一个',
+  )
   assert.equal(model.switchRows.find((row) => row.id === 'reminder-direct')?.settingKey, 'reminderDirectEnabled')
+  assert.equal(
+    model.switchRows.find((row) => row.id === 'reminder-direct')?.note,
+    '好友私聊 / QQ 临时会话，两个提醒渠道至少保留一个',
+  )
   assert.deepEqual(model.activeMembers.map((member) => member.memberId), ['2001', '2002'])
   assert.deepEqual(model.activeMembers[0].availableActions, ['query', 'resend'])
 })

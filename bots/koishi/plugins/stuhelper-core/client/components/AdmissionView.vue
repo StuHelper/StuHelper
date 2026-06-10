@@ -90,12 +90,20 @@
                 <div class="sh-lane__subtitle">
                   <SeverityTag :label="formatSwitchValue(row.value)" :intent="row.tone" />
                   <span>{{ row.note }}</span>
+                  <span
+                    v-if="runtimeSwitchDisabled(row)"
+                    class="sh-admission__switch-lock"
+                  >
+                    {{ runtimeSwitchDisabledReason(row) }}
+                  </span>
                 </div>
               </div>
               <el-switch
                 v-if="row.editable && row.settingKey"
                 :model-value="Boolean(row.value)"
                 :loading="settingLoadingKey === row.settingKey"
+                :disabled="runtimeSwitchDisabled(row)"
+                :title="runtimeSwitchDisabledReason(row)"
                 :aria-label="runtimeSwitchLabel(row)"
                 @change="(value: boolean | string | number) => submitRuntimeSetting(row, Boolean(value))"
               />
@@ -144,15 +152,26 @@
               :key="binding.id"
               class="sh-lane__row"
             >
-              <span class="sh-lane__dot" :class="binding.enabled ? 'sh-lane__dot--primary' : ''"></span>
+              <span class="sh-lane__dot" :class="bindingDotClass(binding.enabled)"></span>
               <div class="sh-lane__body">
                 <div class="sh-lane__title">
                   <EntityChip kind="guild" :id="binding.guildId" />
                 </div>
-                <div class="sh-lane__subtitle">
+                <div class="sh-lane__subtitle sh-admission__binding-meta">
+                  <SeverityTag
+                    :label="binding.enabled ? '启用' : '停用'"
+                    :intent="binding.enabled ? 'success' : 'warning'"
+                  />
+                  <span class="sh-admission__binding-divider">·</span>
+                  <span>Admin policy sync</span>
+                  <span class="sh-admission__binding-divider">·</span>
                   <span class="sh-mono">{{ binding.platform }}</span>
-                  · {{ binding.templateId }}
-                  · {{ binding.enabled ? '已启用' : '已停用' }}
+                  <span class="sh-admission__binding-divider">·</span>
+                  <span>{{ binding.templateId }}</span>
+                  <span class="sh-admission__binding-divider">·</span>
+                  <span>{{ binding.note || 'Admin policy 同步缓存' }}</span>
+                  <span class="sh-admission__binding-divider">·</span>
+                  <span>更新 {{ formatTimestamp(binding.updatedAt) }}</span>
                 </div>
               </div>
             </div>
@@ -321,6 +340,7 @@ import SeverityTag from './primitives/SeverityTag.vue'
 import WorkspaceSection from './primitives/WorkspaceSection.vue'
 
 type GuardPolicyWorkspace = 'templates' | 'bindings'
+const REMINDER_CHANNEL_REQUIRED_MESSAGE = '群内提醒和私聊/临时会话提醒至少需要开启一个。'
 
 const props = defineProps<{
   navigation?: ConsoleNavigationController
@@ -411,6 +431,16 @@ async function submitMemberAction(
 
 async function submitRuntimeSetting(row: AdmissionSwitchRow, enabled: boolean) {
   if (!row.settingKey) return
+  if (wouldDisableLastReminderChannel(row, enabled)) {
+    clearSettingsError()
+    settingsNotice.value = ''
+    setSettingsError(
+      '提醒渠道配置无效',
+      new Error(REMINDER_CHANNEL_REQUIRED_MESSAGE),
+      REMINDER_CHANNEL_REQUIRED_MESSAGE,
+    )
+    return
+  }
   settingLoadingKey.value = row.settingKey
   clearSettingsError()
   settingsNotice.value = ''
@@ -464,6 +494,10 @@ function switchDotClass(tone: AdmissionSwitchRow['tone']) {
   return 'sh-lane__dot--primary'
 }
 
+function bindingDotClass(enabled: boolean) {
+  return enabled ? 'sh-lane__dot--primary' : 'sh-lane__dot--warning'
+}
+
 function formatSwitchValue(value: AdmissionSwitchRow['value']) {
   if (typeof value === 'boolean') return value ? '启用' : '关闭'
   return String(value)
@@ -471,6 +505,24 @@ function formatSwitchValue(value: AdmissionSwitchRow['value']) {
 
 function runtimeSwitchLabel(row: AdmissionSwitchRow) {
   return `切换入群认证运行开关：${row.label}`
+}
+
+function isReminderDeliverySwitch(row: AdmissionSwitchRow) {
+  return row.settingKey === 'reminderGroupEnabled' || row.settingKey === 'reminderDirectEnabled'
+}
+
+function wouldDisableLastReminderChannel(row: AdmissionSwitchRow, enabled: boolean) {
+  if (!data.value || enabled || !isReminderDeliverySwitch(row)) return false
+  if (row.settingKey === 'reminderGroupEnabled') return !data.value.reminderDelivery.directEnabled
+  return !data.value.reminderDelivery.groupEnabled
+}
+
+function runtimeSwitchDisabled(row: AdmissionSwitchRow) {
+  return Boolean(row.value) && wouldDisableLastReminderChannel(row, false)
+}
+
+function runtimeSwitchDisabledReason(row: AdmissionSwitchRow) {
+  return runtimeSwitchDisabled(row) ? REMINDER_CHANNEL_REQUIRED_MESSAGE : ''
 }
 </script>
 
@@ -498,6 +550,21 @@ function runtimeSwitchLabel(row: AdmissionSwitchRow) {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.sh-admission__binding-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.sh-admission__binding-divider {
+  color: var(--sh-fg-3);
+}
+
+.sh-admission__switch-lock {
+  color: var(--sh-warning);
 }
 
 .sh-admission__notice {
