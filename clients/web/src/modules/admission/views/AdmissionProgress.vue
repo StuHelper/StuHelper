@@ -201,14 +201,15 @@ function formatRemaining(value: string, now: number): string {
   border-bottom: 1px solid #e2e8f0;
   display: grid;
   gap: 16px;
-  margin: -4px 0 20px;
-  padding-bottom: 18px;
+  margin: 0 0 20px;
+  padding-bottom: 20px;
 }
 
 .admission-progress__summary {
-  align-items: start;
+  align-items: center;
   display: grid;
   gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .admission-progress__eyebrow {
@@ -233,6 +234,22 @@ function formatRemaining(value: string, now: number): string {
   font-size: 13px;
   line-height: 20px;
   margin: 0;
+}
+
+.admission-progress__deadline {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 7px 12px;
+  white-space: nowrap;
+}
+
+.admission-progress__mute {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  color: #92400e;
+  padding: 10px 12px;
 }
 
 .admission-progress__steps {
@@ -294,6 +311,16 @@ function formatRemaining(value: string, now: number): string {
 }
 
 @media (max-width: 640px) {
+  .admission-progress__summary {
+    align-items: start;
+    grid-template-columns: 1fr;
+  }
+
+  .admission-progress__deadline {
+    border-radius: 8px;
+    white-space: normal;
+  }
+
   .admission-progress__steps {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

@@ -1,110 +1,105 @@
 <template>
-  <main class="min-h-screen bg-slate-50 px-4 py-8 text-slate-950">
-    <section class="mx-auto flex w-full max-w-2xl flex-col gap-5">
-      <header class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <p class="text-sm font-medium text-slate-500">StuHelper</p>
-        <h1 class="mt-2 text-2xl font-semibold">入群身份认证</h1>
-        <p v-if="displayQQ" class="mt-2 text-sm text-slate-600">
-          QQ：{{ displayQQ }}
-        </p>
-      </header>
-      <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+  <AdmissionShell
+    :display-qq="displayQQ"
+    :status-label="admissionStatusLabel"
+  >
+    <template #progress>
         <AdmissionProgress
           :page-state="pageState"
           :session="session"
         />
+    </template>
 
-        <div v-if="pageState === 'loading'" data-state="loading">
-          <p class="text-sm text-slate-600">正在校验链接...</p>
-        </div>
+    <AdmissionStatePanel
+      v-if="pageState === 'loading'"
+      :icon="CircleDashed"
+      state="loading"
+      title="正在校验链接"
+      tone="info"
+      description="正在读取本次入群认证会话，请保持页面打开。"
+    />
 
-        <div v-else-if="pageState === 'needsLogin'" data-state="needsLogin">
-          <h2 class="text-lg font-semibold">
-            {{ consumedTokenNeedsLogin ? '继续入群认证' : '登录 StuHelper' }}
-          </h2>
-          <p v-if="consumedTokenNeedsLogin" class="mt-2 text-sm text-slate-600">
-            该链接已绑定 StuHelper 账号，请使用首次绑定该链接的账号登录后继续认证。
-          </p>
-          <p v-else class="mt-2 text-sm text-slate-600">
-            登录或注册后会回到当前认证链接。
-          </p>
-          <div class="mt-4 flex flex-wrap gap-3">
-            <button class="primary-button" type="button" @click="startLogin">
-              登录
-            </button>
-            <button
-              v-if="!consumedTokenNeedsLogin"
-              class="secondary-button"
-              type="button"
-              @click="startSignup"
-            >
-              注册
-            </button>
-          </div>
-        </div>
+    <AdmissionStatePanel
+      v-else-if="pageState === 'needsLogin'"
+      :description="consumedTokenNeedsLogin
+        ? '该链接已绑定 StuHelper 账号，请使用首次绑定该链接的账号登录后继续认证。'
+        : '登录或注册后会回到当前认证链接。'"
+      :icon="LogIn"
+      state="needsLogin"
+      :title="consumedTokenNeedsLogin ? '继续入群认证' : '登录 StuHelper'"
+      tone="info"
+    >
+      <template #actions>
+        <button class="primary-button" type="button" @click="startLogin">
+          登录
+        </button>
+        <button
+          v-if="!consumedTokenNeedsLogin"
+          class="secondary-button"
+          type="button"
+          @click="startSignup"
+        >
+          注册
+        </button>
+      </template>
+    </AdmissionStatePanel>
 
-        <div v-else-if="pageState === 'accountMismatch'" data-state="accountMismatch">
-          <h2 class="text-lg font-semibold">账号不匹配</h2>
-          <p class="mt-2 text-sm text-slate-600">
-            该认证链接已绑定首次打开时登录的 StuHelper 账号。请退出当前账号后使用原账号登录，或联系管理员重新生成认证链接。
-          </p>
-          <div class="mt-3 flex flex-wrap items-center gap-2">
-            <p class="text-xs text-slate-500" data-admission-reissue-command>
-              管理员可在群内使用：
-              <code class="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700">
-                {{ reissueCommand }}
-              </code>
-            </p>
-            <button
-              class="secondary-button"
-              data-admission-copy-reissue-command
-              type="button"
-              @click="copyReissueCommand"
-            >
-              复制指令
-            </button>
-          </div>
-          <button class="primary-button mt-4" type="button" @click="startAccountSwitch">
-            重新登录
-          </button>
-        </div>
+    <AdmissionStatePanel
+      v-else-if="pageState === 'accountMismatch'"
+      :icon="UserX"
+      state="accountMismatch"
+      title="账号不匹配"
+      tone="danger"
+      description="该认证链接已绑定首次打开时登录的 StuHelper 账号。请退出当前账号后使用原账号登录，或联系管理员重新生成认证链接。"
+    >
+      <template #help>
+        <AdmissionReissueHint
+          :command="reissueCommand"
+          @copy="copyReissueCommand"
+        />
+      </template>
+      <template #actions>
+        <button class="primary-button" type="button" @click="startAccountSwitch">
+          重新登录
+        </button>
+      </template>
+    </AdmissionStatePanel>
 
-        <div v-else-if="pageState === 'qqMismatch'" data-state="qqMismatch">
-          <h2 class="text-lg font-semibold">QQ 账号不匹配</h2>
-          <p class="mt-2 text-sm text-slate-600">
-            这条认证链接属于 QQ {{ displayQQ || '当前入群 QQ' }}。当前登录的 StuHelper 账号已绑定其他 QQ，不能用于认证这个入群申请。
-          </p>
-          <p class="mt-2 text-sm text-slate-600">
-            请退出后登录或注册属于该 QQ 的 StuHelper 账号，或联系管理员重新生成认证链接。
-          </p>
-          <div class="mt-3 flex flex-wrap items-center gap-2">
-            <p class="text-xs text-slate-500" data-admission-reissue-command>
-              管理员可在群内使用：
-              <code class="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700">
-                {{ reissueCommand }}
-              </code>
-            </p>
-            <button
-              class="secondary-button"
-              data-admission-copy-reissue-command
-              type="button"
-              @click="copyReissueCommand"
-            >
-              复制指令
-            </button>
-          </div>
-          <button class="primary-button mt-4" type="button" @click="startAccountSwitch">
-            重新登录
-          </button>
-        </div>
+    <AdmissionStatePanel
+      v-else-if="pageState === 'qqMismatch'"
+      :description="[
+        `这条认证链接属于 QQ ${displayQQ || '当前入群 QQ'}。当前登录的 StuHelper 账号已绑定其他 QQ，不能用于认证这个入群申请。`,
+        '请退出后登录或注册属于该 QQ 的 StuHelper 账号，或联系管理员重新生成认证链接。',
+      ]"
+      :icon="UserX"
+      state="qqMismatch"
+      title="QQ 账号不匹配"
+      tone="danger"
+    >
+      <template #help>
+        <AdmissionReissueHint
+          :command="reissueCommand"
+          @copy="copyReissueCommand"
+        />
+      </template>
+      <template #actions>
+        <button class="primary-button" type="button" @click="startAccountSwitch">
+          重新登录
+        </button>
+      </template>
+    </AdmissionStatePanel>
 
-        <div v-else-if="pageState === 'ready'" data-state="ready">
-          <h2 class="text-lg font-semibold">确认绑定当前 QQ</h2>
-          <p class="mt-2 text-sm text-slate-600">
-            确认后会把当前 StuHelper 账号与本次入群 QQ 认证会话绑定。
-          </p>
+    <AdmissionStatePanel
+      v-else-if="pageState === 'ready'"
+      :icon="Link2"
+      state="ready"
+      title="确认绑定当前 QQ"
+      tone="warning"
+      description="确认后会把当前 StuHelper 账号与本次入群 QQ 认证会话绑定。"
+    >
+      <template #actions>
           <button
-            class="primary-button mt-4"
+            class="primary-button"
             data-admission-open-bind-confirmation
             type="button"
             :disabled="linking"
@@ -112,25 +107,34 @@
           >
             {{ linking ? '正在确认...' : '开始认证' }}
           </button>
-        </div>
+      </template>
+    </AdmissionStatePanel>
 
-        <div v-else-if="pageState === 'linked'" data-state="linked">
-          <h2 class="text-lg font-semibold">选择认证方式</h2>
+    <section v-else-if="pageState === 'linked'" class="admission-flow" data-state="linked">
+      <div class="admission-flow__header">
+        <span class="admission-flow__icon" aria-hidden="true">
+          <ShieldCheck class="admission-flow__icon-svg" />
+        </span>
+        <div>
+          <h2>选择认证方式</h2>
+          <p>当前 QQ 会话已绑定，请选择符合你身份的学生认证方式。</p>
+        </div>
+      </div>
           <div
             v-if="linkedResourceErrorMessage"
-            class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+            class="linked-resource-error"
             data-linked-resource-error
           >
             <p>{{ linkedResourceErrorMessage }}</p>
             <button
-              class="secondary-button mt-3"
+              class="secondary-button"
               type="button"
               @click="retryLinkedResources"
             >
               重新加载
             </button>
           </div>
-          <div class="mt-4 flex gap-2">
+          <div class="admission-flow__tabs">
             <button
               class="flow-tab"
               :class="{ 'flow-tab--active': activeFlow === 'oldStudent' }"
@@ -167,88 +171,81 @@
           />
           <div
             v-else
-            class="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"
+            class="formal-student-credential"
             data-formal-student-credential
           >
             已完成老生认证。
           </div>
-        </div>
-
-        <div v-else-if="pageState === 'pendingReview'" data-state="pendingReview">
-          <h2 class="text-lg font-semibold">等待管理员审核</h2>
-          <p class="mt-2 text-sm text-slate-600">
-            材料已提交，请等待管理员处理。
-          </p>
-        </div>
-
-        <ProjectionPendingNotice
-          v-else-if="pageState === 'projectionPending'"
-          :timed-out="projectionRefreshTimedOut"
-          @retry="retryProjectionRefresh"
-        />
-
-        <div v-else-if="pageState === 'approved'" data-state="approved">
-          <h2 class="text-lg font-semibold">认证已通过</h2>
-          <p class="mt-2 text-sm text-slate-600">
-            群内禁言会由机器人自动解除。
-          </p>
-        </div>
-
-        <div v-else-if="pageState === 'invalid'" data-state="invalid">
-          <h2 class="text-lg font-semibold">认证链接无效</h2>
-          <p class="mt-2 text-sm text-slate-600">
-            这个链接不存在、已经被替换，或不是群内机器人/管理员生成的最新认证链接。请回到 QQ 群使用最新链接。
-          </p>
-          <p class="mt-2 text-sm text-slate-600">
-            如果仍无法打开，请联系管理员重新生成认证链接。
-          </p>
-          <div class="mt-3 flex flex-wrap items-center gap-2">
-            <p class="text-xs text-slate-500" data-admission-reissue-command>
-              管理员可在群内使用：
-              <code class="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700">
-                {{ reissueCommand }}
-              </code>
-            </p>
-            <button
-              class="secondary-button"
-              data-admission-copy-reissue-command
-              type="button"
-              @click="copyReissueCommand"
-            >
-              复制指令
-            </button>
-          </div>
-        </div>
-
-        <div v-else-if="pageState === 'expired'" data-state="expired">
-          <h2 class="text-lg font-semibold">链接已失效</h2>
-          <p class="mt-2 text-sm text-slate-600">
-            请回到 QQ 群联系管理员重新生成认证链接。
-          </p>
-          <div class="mt-3 flex flex-wrap items-center gap-2">
-            <p class="text-xs text-slate-500" data-admission-reissue-command>
-              管理员可在群内使用：
-              <code class="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700">
-                {{ reissueCommand }}
-              </code>
-            </p>
-            <button
-              class="secondary-button"
-              data-admission-copy-reissue-command
-              type="button"
-              @click="copyReissueCommand"
-            >
-              复制指令
-            </button>
-          </div>
-        </div>
-
-        <div v-else data-state="error">
-          <h2 class="text-lg font-semibold">无法打开认证</h2>
-          <p class="mt-2 text-sm text-slate-600">{{ errorMessage }}</p>
-        </div>
-      </section>
     </section>
+
+    <AdmissionStatePanel
+      v-else-if="pageState === 'pendingReview'"
+      :icon="Hourglass"
+      state="pendingReview"
+      title="等待管理员审核"
+      tone="warning"
+      description="材料已提交，请等待管理员处理。页面会在可见时自动检查最新状态。"
+    />
+
+    <ProjectionPendingNotice
+      v-else-if="pageState === 'projectionPending'"
+      :timed-out="projectionRefreshTimedOut"
+      @retry="retryProjectionRefresh"
+    />
+
+    <AdmissionStatePanel
+      v-else-if="pageState === 'approved'"
+      :icon="CheckCircle2"
+      state="approved"
+      title="认证已通过"
+      tone="success"
+      description="群内禁言会由机器人自动解除。"
+    />
+
+    <AdmissionStatePanel
+      v-else-if="pageState === 'invalid'"
+      :description="[
+        '这个链接不存在、已经被替换，或不是群内机器人/管理员生成的最新认证链接。请回到 QQ 群使用最新链接。',
+        '如果仍无法打开，请联系管理员重新生成认证链接。',
+      ]"
+      :icon="XCircle"
+      state="invalid"
+      title="认证链接无效"
+      tone="danger"
+    >
+      <template #help>
+        <AdmissionReissueHint
+          :command="reissueCommand"
+          @copy="copyReissueCommand"
+        />
+      </template>
+    </AdmissionStatePanel>
+
+    <AdmissionStatePanel
+      v-else-if="pageState === 'expired'"
+      :icon="XCircle"
+      state="expired"
+      title="链接已失效"
+      tone="warning"
+      description="请回到 QQ 群联系管理员重新生成认证链接。"
+    >
+      <template #help>
+        <AdmissionReissueHint
+          :command="reissueCommand"
+          @copy="copyReissueCommand"
+        />
+      </template>
+    </AdmissionStatePanel>
+
+    <AdmissionStatePanel
+      v-else
+      :description="errorMessage"
+      :icon="AlertTriangle"
+      state="error"
+      title="无法打开认证"
+      tone="danger"
+    />
+  </AdmissionShell>
 
     <Dialog :open="bindConfirmationDialogOpen" @update:open="handleBindConfirmationOpenChange">
       <DialogContent
@@ -322,13 +319,23 @@
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  </main>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ShieldAlert, ShieldCheck } from 'lucide-vue-next'
+import {
+  AlertTriangle,
+  CheckCircle2,
+  CircleDashed,
+  Hourglass,
+  Link2,
+  LogIn,
+  ShieldAlert,
+  ShieldCheck,
+  UserX,
+  XCircle,
+} from 'lucide-vue-next'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -370,7 +377,10 @@ import {
 } from '../oldStudentAdmission'
 import { waitForAdmissionProjection } from '../projectionRefresh'
 import FreshmanCameraFlow from './FreshmanCameraFlow.vue'
+import AdmissionReissueHint from './AdmissionReissueHint.vue'
 import AdmissionProgress from './AdmissionProgress.vue'
+import AdmissionShell from './AdmissionShell.vue'
+import AdmissionStatePanel from './AdmissionStatePanel.vue'
 import OldStudentVerificationFlow from './OldStudentVerificationFlow.vue'
 import ProjectionPendingNotice from './ProjectionPendingNotice.vue'
 
@@ -426,6 +436,36 @@ const reissueCommand = computed(() => {
   return displayQQ.value
     ? `重新生成认证链接 ${displayQQ.value}`
     : '重新生成认证链接 <QQ号>'
+})
+const admissionStatusLabel = computed(() => {
+  switch (pageState.value) {
+    case 'loading':
+      return '校验链接'
+    case 'needsLogin':
+      return consumedTokenNeedsLogin.value ? '等待原账号登录' : '等待登录'
+    case 'accountMismatch':
+      return '账号不匹配'
+    case 'qqMismatch':
+      return 'QQ 不匹配'
+    case 'ready':
+      return '等待确认 QQ'
+    case 'linked':
+      return '选择认证方式'
+    case 'pendingReview':
+      return '等待审核'
+    case 'projectionPending':
+      return '身份同步中'
+    case 'approved':
+      return '认证通过'
+    case 'invalid':
+      return '链接无效'
+    case 'expired':
+      return '链接失效'
+    case 'error':
+      return '加载失败'
+    default:
+      return '处理中'
+  }
 })
 
 function readAdmissionToken(): string {

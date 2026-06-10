@@ -1,11 +1,21 @@
 .primary-button,
 .secondary-button {
+  align-items: center;
+  border: 1px solid transparent;
   border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
   font-size: 14px;
   font-weight: 600;
+  justify-content: center;
   line-height: 20px;
-  min-height: 40px;
+  min-height: 44px;
   padding: 10px 16px;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease;
 }
 
 .primary-button {
@@ -13,9 +23,8 @@
   color: #ffffff;
 }
 
-.primary-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
+.primary-button:hover:not(:disabled) {
+  background: #111827;
 }
 
 .secondary-button {
@@ -23,18 +32,131 @@
   color: #0f172a;
 }
 
+.secondary-button:hover:not(:disabled) {
+  background: #cbd5e1;
+}
+
+.primary-button:disabled,
+.secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.primary-button:focus-visible,
+.secondary-button:focus-visible,
+.flow-tab:focus-visible {
+  outline: 3px solid rgb(15 118 110 / 0.28);
+  outline-offset: 2px;
+}
+
+.admission-flow {
+  display: grid;
+  gap: 16px;
+}
+
+.admission-flow__header {
+  align-items: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.admission-flow__header h2,
+.admission-flow__header p,
+.linked-resource-error p {
+  margin: 0;
+}
+
+.admission-flow__header h2 {
+  color: #0f172a;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 28px;
+}
+
+.admission-flow__header p {
+  color: #475569;
+  font-size: 14px;
+  line-height: 22px;
+  margin-top: 6px;
+}
+
+.admission-flow__icon {
+  align-items: center;
+  background: #ecfdf5;
+  border-radius: 8px;
+  color: #047857;
+  display: inline-flex;
+  height: 44px;
+  justify-content: center;
+  width: 44px;
+}
+
+.admission-flow__icon-svg {
+  height: 22px;
+  width: 22px;
+}
+
+.admission-flow__tabs {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .flow-tab {
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   color: #334155;
+  cursor: pointer;
   font-size: 14px;
   font-weight: 600;
-  min-height: 36px;
-  padding: 8px 12px;
+  line-height: 20px;
+  min-height: 44px;
+  padding: 10px 12px;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
 }
 
 .flow-tab--active {
   background: #0f172a;
   border-color: #0f172a;
   color: #ffffff;
+}
+
+.flow-tab:hover:not(.flow-tab--active) {
+  background: #f1f5f9;
+}
+
+.linked-resource-error {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  color: #92400e;
+  display: grid;
+  font-size: 14px;
+  gap: 12px;
+  line-height: 22px;
+  padding: 12px;
+}
+
+.formal-student-credential {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #334155;
+  font-size: 14px;
+  line-height: 22px;
+  padding: 16px;
+}
+
+@media (max-width: 520px) {
+  .admission-flow__header {
+    grid-template-columns: 1fr;
+  }
+
+  .admission-flow__tabs {
+    grid-template-columns: 1fr;
+  }
 }
