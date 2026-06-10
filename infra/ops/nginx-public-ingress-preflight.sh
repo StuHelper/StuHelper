@@ -387,6 +387,8 @@ def validate_main(block: Node, upstreams: dict[str, str]) -> None:
     require_common_proxy_server(block, label)
     require_location_return_code(block, label, "=", "/verify", "404")
     require_location_return_code(block, label, "^~", "/verify/", "404")
+    require_location_return_code(block, label, "=", "/start", "404")
+    require_location_return_code(block, label, "^~", "/start/", "404")
     require_location_proxy(block, label, "^~", "/api/", upstreams["backend"])
     require_location_proxy(block, label, "^~", "/health/", upstreams["backend"])
     require_location_proxy(block, label, "^~", "/admin/", upstreams["admin"])
@@ -413,6 +415,8 @@ def validate_join(block: Node, upstreams: dict[str, str]) -> None:
     label = "join.stuhelper.com"
     require_common_proxy_server(block, label)
     require_location_return_code(block, label, "=", "/verify", "404")
+    require_location_proxy(block, label, "=", "/start", upstreams["web"])
+    require_location_proxy(block, label, "^~", "/start/", upstreams["web"])
     require_location_proxy(block, label, "^~", "/verify/", upstreams["web"])
     require_location_proxy(block, label, "^~", "/admission/freshman/camera/", upstreams["web"])
     require_location_proxy(block, label, "^~", "/api/", upstreams["backend"])

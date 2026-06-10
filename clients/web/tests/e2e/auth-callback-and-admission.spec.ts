@@ -45,6 +45,63 @@ const freshmanAdmissionMe = {
     session: linkedSession,
 };
 
+const unverifiedStudentProfile = {
+    userID: 2,
+    schoolID: null,
+    studentIDs: [],
+    activeStudentID: null,
+    verificationStatus: "unverified",
+    verificationMethod: null,
+    rejectionReason: null,
+    reviewedAt: null,
+    phone: null,
+    phoneVerified: false,
+    consentGivenAt: null,
+    verifiedAt: null,
+    createdAt: now,
+    updatedAt: now,
+};
+
+const verifiedStudentProfile = {
+    ...unverifiedStudentProfile,
+    schoolID: 4111010006,
+    studentIDs: ["20260001"],
+    activeStudentID: "20260001",
+    verificationStatus: "verified",
+    verificationMethod: "school_email_otp",
+    consentGivenAt: now,
+    verifiedAt: now,
+};
+
+const joinStartSchool = {
+    schoolID: 4111010006,
+    schoolCode: "4111010006",
+    schoolName: "北京航空航天大学",
+    verificationMethod: "manual",
+    approvalPolicy: "auto",
+    consentText: "同意使用学校认证信息完成学生身份认证。",
+    manualFormFields: null,
+    enabled: true,
+    schoolSsoEnabled: false,
+    schoolEmailOtpEnabled: true,
+    schoolEmailIdentityPolicy: {
+        type: "academic_student_email",
+        studentIDEmailDomain: "buaa.edu.cn",
+        requireStudentName: true,
+    },
+};
+
+interface JoinStartReadinessState {
+    profile: typeof unverifiedStudentProfile | typeof verifiedStudentProfile;
+    qqBinding: {
+        userID: number;
+        qqID: string;
+        boundAt: string;
+        createdAt: string;
+        updatedAt: string;
+    } | null;
+}
+
 function json(data: unknown, status = 200) {
     return {
         status,
@@ -88,6 +145,28 @@ async function mockAuthenticated(page: Page) {
     await page.route("**/api/v1/auth/me", (route) => route.fulfill(ok(user)));
     await page.route("**/api/v1/auth/refresh", (route) =>
         route.fulfill(ok({ expiresIn: 3600 })),
+    );
+}
+
+async function mockJoinStartReadiness(
+    page: Page,
+    state: JoinStartReadinessState,
+) {
+    await page.route("**/api/v1/user/identity", (route) =>
+        route.fulfill(apiError("A0040404", "identity not found", 404)),
+    );
+    await page.route("**/api/v1/user/profile", (route) =>
+        route.fulfill(ok(state.profile)),
+    );
+    await page.route("**/api/v1/user/qq-binding", (route) =>
+        route.fulfill(
+            state.qqBinding
+                ? ok(state.qqBinding)
+                : apiError("A0040404", "qq binding not found", 404),
+        ),
+    );
+    await page.route("**/api/v1/user/schools", (route) =>
+        route.fulfill(ok([joinStartSchool])),
     );
 }
 
@@ -250,6 +329,109 @@ test.describe("Auth callback and admission entry", () => {
         await expect(
             page.getByRole("heading", { name: "入群身份认证" }),
         ).toHaveCount(0);
+    });
+
+    test("main host join self-service start renders the regular not found page", async ({
+        page,
+    }) => {
+        await mockUnauthenticated(page);
+
+        await page.goto("/start");
+
+        await expect(
+            page.getByRole("heading", { name: /Page Not Found|页面不存在/i }),
+        ).toBeVisible({ timeout: 10_000 });
+        await expect(
+            page.getByRole("heading", { name: "学生认证与 QQ 绑定" }),
+        ).toHaveCount(0);
+    });
+
+    test("anonymous join self-service start starts SSO with the join start return URL", async ({
+        page,
+    }, testInfo) => {
+        let loginRequestURL: URL | null = null;
+
+        await mockUnauthenticated(page);
+        await page.route("**/api/v1/auth/login**", async (route) => {
+            loginRequestURL = new URL(route.request().url());
+            await route.fulfill(
+                ok({
+                    url: "https://sso.stuhelper.com/login/oauth/authorize?client_id=stuhelper-web&state=join-start-state",
+                    state: "join-start-state",
+                }),
+            );
+        });
+        await page.route("https://sso.stuhelper.com/**", (route) =>
+            route.fulfill({
+                contentType: "text/html",
+                body: "<!doctype html><title>SSO</title><main>SSO authorize</main>",
+            }),
+        );
+
+        const joinStartURL = joinAdmissionURL(testInfo, "/start");
+        await page.goto(joinStartURL);
+
+        await expect(
+            page.getByRole("heading", { name: "登录 StuHelper" }),
+        ).toBeVisible();
+        await page.getByRole("button", { name: "登录" }).click();
+        await page.waitForURL(
+            (url) =>
+                url.hostname === "sso.stuhelper.com" &&
+                url.pathname === "/login/oauth/authorize",
+        );
+
+        expect(loginRequestURL).not.toBeNull();
+        expect(loginRequestURL!.searchParams.get("redirect")).toBe(
+            joinStartURL,
+        );
+    });
+
+    test("authenticated join self-service start shows account readiness steps", async ({
+        page,
+    }, testInfo) => {
+        let admissionSessionRequests = 0;
+        const readiness: JoinStartReadinessState = {
+            profile: unverifiedStudentProfile,
+            qqBinding: null,
+        };
+
+        await mockAuthenticated(page);
+        await mockJoinStartReadiness(page, readiness);
+        await page.route("**/api/v1/admission/sessions/**", (route) => {
+            admissionSessionRequests += 1;
+            return route.fulfill(
+                apiError("admission.session_not_expected", "unexpected", 500),
+            );
+        });
+
+        await page.goto(joinAdmissionURL(testInfo, "/start"));
+        await expect(
+            page.getByRole("heading", { name: "完成学生认证" }),
+        ).toBeVisible();
+        await expect(
+            page.locator("[data-student-verification-panel]"),
+        ).toBeVisible();
+        expect(admissionSessionRequests).toBe(0);
+
+        readiness.profile = verifiedStudentProfile;
+        await page.reload();
+        await expect(
+            page.getByRole("heading", { name: "绑定 QQ" }),
+        ).toBeVisible();
+        await expect(page.locator("[data-qq-binding-panel]")).toBeVisible();
+
+        readiness.qqBinding = {
+            userID: 2,
+            qqID: "123456",
+            boundAt: now,
+            createdAt: now,
+            updatedAt: now,
+        };
+        await page.reload();
+        await expect(
+            page.getByRole("heading", { name: "账号已准备好" }),
+        ).toBeVisible();
     });
 
     test("join admission link with a trailing slash opens and keeps the join return URL", async ({

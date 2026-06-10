@@ -96,6 +96,17 @@ describe('post-login redirect helpers', () => {
     ).toBe(`${window.location.origin}/verify/ADMIT-LOGIN/`)
   })
 
+  it('keeps join self-service start redirects on the current business origin', () => {
+    vi.stubEnv('VITE_WEB_URL', 'https://stuhelper.com')
+
+    expect(
+      resolvePostLoginRedirectTarget(`${window.location.origin}/start`),
+    ).toBe(`${window.location.origin}/start`)
+    expect(
+      resolvePostLoginRedirectTarget(`${window.location.origin}/start/`),
+    ).toBe(`${window.location.origin}/start/`)
+  })
+
   it('falls back to the current origin when no preferred origin is configured', () => {
     expect(absoluteURLOnPreferredOrigin('/identity', null)).toBe(
       `${window.location.origin}/identity`,

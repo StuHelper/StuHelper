@@ -52,6 +52,15 @@ function isAdmissionRedirectPath(pathname: string): boolean {
     return /^\/verify\/[^/]+\/?$/.test(pathname);
 }
 
+function isJoinSelfServiceRedirectPath(pathname: string): boolean {
+    return /^\/start\/?$/.test(pathname);
+}
+
+function shouldKeepCurrentBusinessOrigin(pathname: string): boolean {
+    return isAdmissionRedirectPath(pathname) ||
+        isJoinSelfServiceRedirectPath(pathname);
+}
+
 function allowedPostLoginRedirectOrigins(): Set<string> {
     const origins = new Set<string>();
     if (typeof window !== "undefined") {
@@ -103,7 +112,7 @@ export function resolvePostLoginRedirectTarget(redirect?: string): string | unde
     const parsed = new URL(sanitized, window.location.origin);
     if (
         parsed.origin === window.location.origin &&
-        isAdmissionRedirectPath(parsed.pathname)
+        shouldKeepCurrentBusinessOrigin(parsed.pathname)
     ) {
         return parsed.toString();
     }

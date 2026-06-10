@@ -91,6 +91,14 @@ awk '
   !skip { print }
 ' "${MAIN_NGINX_FILE}" >"${missing_main_verify_reject}"
 
+missing_main_start_reject="${tmpdir}/missing-main-start-reject.conf"
+awk '
+  /^    location = \/start \{$/ { skip=1; next }
+  /^    location \^~ \/start\/ \{$/ { skip=1; next }
+  skip && /^    }$/ { skip=0; next }
+  !skip { print }
+' "${MAIN_NGINX_FILE}" >"${missing_main_start_reject}"
+
 missing_join_verify_proxy="${tmpdir}/missing-join-verify-proxy.conf"
 awk '
   /^    server_name join\.stuhelper\.com;$/ { in_join=1 }
@@ -99,6 +107,16 @@ awk '
   skip && /^    }$/ { skip=0; next }
   !skip { print }
 ' "${MAIN_NGINX_FILE}" >"${missing_join_verify_proxy}"
+
+missing_join_start_proxy="${tmpdir}/missing-join-start-proxy.conf"
+awk '
+  /^    server_name join\.stuhelper\.com;$/ { in_join=1 }
+  in_join && /^server \{$/ { in_join=0 }
+  in_join && /^    location = \/start \{$/ { skip=1; next }
+  in_join && /^    location \^~ \/start\/ \{$/ { skip=1; next }
+  skip && /^    }$/ { skip=0; next }
+  !skip { print }
+' "${MAIN_NGINX_FILE}" >"${missing_join_start_proxy}"
 
 join_root_proxies_web="${tmpdir}/join-root-proxies-web.conf"
 python3 - "${MAIN_NGINX_FILE}" "${join_root_proxies_web}" <<'PY'
@@ -280,7 +298,9 @@ run_preflight_pass "all" "${baota_dump_with_json_logs}" "${tmpdir}" "baota-json-
 run_preflight_pass "sso" "${baota_sso_static_well_known_fixed}" "${tmpdir}" "baota-sso-static-well-known-fixed"
 run_preflight_pass "sso" "${baota_sso_static_well_known_with_extension}" "${tmpdir}" "baota-sso-static-well-known-with-extension"
 run_preflight_fail "stuhelper" "${missing_main_verify_reject}" "${tmpdir}" "missing-main-verify-reject" 'stuhelper\.com: no HTTPS server block satisfies the ingress contract: stuhelper\.com: missing location = /verify'
+run_preflight_fail "stuhelper" "${missing_main_start_reject}" "${tmpdir}" "missing-main-start-reject" 'stuhelper\.com: no HTTPS server block satisfies the ingress contract: stuhelper\.com: missing location = /start'
 run_preflight_fail "stuhelper" "${missing_join_verify_proxy}" "${tmpdir}" "missing-join-verify-proxy" 'join\.stuhelper\.com: no HTTPS server block satisfies the ingress contract: join\.stuhelper\.com: missing location \^~ /verify/'
+run_preflight_fail "stuhelper" "${missing_join_start_proxy}" "${tmpdir}" "missing-join-start-proxy" 'join\.stuhelper\.com: no HTTPS server block satisfies the ingress contract: join\.stuhelper\.com: missing location = /start'
 run_preflight_fail "stuhelper" "${join_root_proxies_web}" "${tmpdir}" "join-root-proxies-web" 'join\.stuhelper\.com: no HTTPS server block satisfies the ingress contract: join\.stuhelper\.com: location / must return 404'
 run_preflight_fail "sso" "${bad_sso_static_root}" "${tmpdir}" "bad-sso-static-root" 'requires exact openid-configuration and jwks'
 run_preflight_fail "sso" "${baota_sso_static_well_known_missing_jwks}" "${tmpdir}" "baota-sso-static-well-known-missing-jwks" 'requires exact openid-configuration and jwks'

@@ -187,6 +187,14 @@ const routes: RouteRecordRaw[] = [
         },
     },
     {
+        path: "/start",
+        name: "join-start",
+        component: lazyLoad(
+            () => import("@/modules/admission/views/JoinStartPage.vue"),
+        ),
+        meta: { title: "学生认证与 QQ 绑定", layout: "none" },
+    },
+    {
         path: "/verify/:code",
         name: "admission-token",
         component: lazyLoad(

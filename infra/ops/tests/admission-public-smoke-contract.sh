@@ -46,11 +46,12 @@ def require(condition, message):
         raise SystemExit(message)
 
 require(evidence.get("passed") is True, "smoke did not pass")
-require(evidence.get("summary", {}).get("passed") == 10, "passed count")
+require(evidence.get("summary", {}).get("passed") == 12, "passed count")
 require(evidence.get("summary", {}).get("failed") == 0, "failed count")
-require(len(checks) == 10, "check count")
+require(len(checks) == 12, "check count")
 for name in (
     "Admission join verify token serves Web SPA",
+    "Admission join start serves Web SPA",
     "Admission join verify token allows camera capture",
     "Admission join metrics vitals beacon returns 204",
     "Admission join metrics frontend error beacon returns 204",
@@ -58,6 +59,7 @@ for name in (
     "Admission join root returns 404",
     "Admission join main Web route returns 404",
     "Admission join bare verify returns 404",
+    "Web host join start returns 404",
     "Web host verify token returns 404",
     "Web host bare verify returns 404",
 ):
@@ -65,9 +67,11 @@ for name in (
 
 endpoints = evidence.get("endpoints", {})
 require(endpoints.get("admissionVerify", "").endswith("/join/verify/__stuhelper_public_smoke__"), "admissionVerify endpoint")
+require(endpoints.get("admissionStart", "").endswith("/join/start"), "admissionStart endpoint")
 require(endpoints.get("admissionRoot", "").endswith("/join/"), "admissionRoot endpoint")
 require(endpoints.get("admissionMainRouteProbe", "").endswith("/join/developers/apps"), "admissionMainRouteProbe endpoint")
 require(endpoints.get("admissionBareVerify", "").endswith("/join/verify"), "admissionBareVerify endpoint")
+require(endpoints.get("webStart", "").endswith("/web/start"), "webStart endpoint")
 require(endpoints.get("webVerify", "").endswith("/web/verify/__stuhelper_public_smoke__"), "webVerify endpoint")
 require(endpoints.get("webBareVerify", "").endswith("/web/verify"), "webBareVerify endpoint")
 require(endpoints.get("admissionMetricsVitals", "").endswith("/join/api/v1/metrics/vitals"), "admissionMetricsVitals endpoint")
@@ -91,10 +95,12 @@ bash -n "${SMOKE_SCRIPT}"
 assert_contains "${SMOKE_SCRIPT}" 'prefer_production_env_files_if_default'
 assert_contains "${SMOKE_SCRIPT}" 'ADMISSION_PUBLIC_BASE_URL must be exactly https://join\.stuhelper\.com'
 assert_contains "${SMOKE_SCRIPT}" '/verify/\$\{probe_token\}'
+assert_contains "${SMOKE_SCRIPT}" '/start'
 assert_contains "${SMOKE_SCRIPT}" '/api/v1/metrics/vitals'
 assert_contains "${SMOKE_SCRIPT}" '/api/v1/metrics/frontend-errors'
 assert_contains "${SMOKE_SCRIPT}" '/api/v1/admission/freshman/camera-handoffs/'
 assert_contains "${SMOKE_SCRIPT}" 'Admission join verify token allows camera capture'
+assert_contains "${SMOKE_SCRIPT}" 'Admission join start serves Web SPA'
 assert_contains "${SMOKE_SCRIPT}" 'Permissions-Policy'
 assert_contains "${SMOKE_SCRIPT}" 'camera=\(self\)'
 assert_contains "${SMOKE_SCRIPT}" 'Accept: text/event-stream'
@@ -105,6 +111,7 @@ assert_contains "${SMOKE_SCRIPT}" 'Admission join metrics frontend error beacon 
 assert_contains "${SMOKE_SCRIPT}" 'Origin: \$\{origin\}'
 assert_contains "${SMOKE_SCRIPT}" 'Referer: \$\{referer\}'
 assert_contains "${SMOKE_SCRIPT}" 'Web host verify token returns 404'
+assert_contains "${SMOKE_SCRIPT}" 'Web host join start returns 404'
 assert_contains "${SMOKE_SCRIPT}" 'WEB_PUBLIC_URL /verify'
 assert_contains "${SMOKE_SCRIPT}" 'Admission join bare verify returns 404'
 assert_contains "${SMOKE_SCRIPT}" 'ADMISSION_PUBLIC_SMOKE_CURL_NO_PROXY'
@@ -169,7 +176,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
-        if path == "/join/verify/__stuhelper_public_smoke__" and parsed.query == "":
+        if path in {"/join/verify/__stuhelper_public_smoke__", "/join/start"} and parsed.query == "":
             encoded = b'<!doctype html><title>StuHelper</title><div id="app"></div>'
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
@@ -191,6 +198,7 @@ class Handler(BaseHTTPRequestHandler):
             "/join/",
             "/join/developers/apps",
             "/join/verify",
+            "/web/start",
             "/web/verify",
             "/web/verify/__stuhelper_public_smoke__",
         }:

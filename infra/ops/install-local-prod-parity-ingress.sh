@@ -209,6 +209,14 @@ server {
         return 404;
     }
 
+    location = /start {
+        return 404;
+    }
+
+    location ^~ /start/ {
+        return 404;
+    }
+
     location ^~ /api/v1/admission/freshman/camera-handoffs/ {
         proxy_pass http://127.0.0.1:${backend_port};
         proxy_http_version 1.1;
@@ -310,6 +318,16 @@ server {
 
     location = /verify {
         return 404;
+    }
+
+    location = /start {
+        proxy_pass http://127.0.0.1:${web_port};
+        proxy_http_version 1.1;
+    }
+
+    location ^~ /start/ {
+        proxy_pass http://127.0.0.1:${web_port};
+        proxy_http_version 1.1;
     }
 
     location ^~ /verify/ {

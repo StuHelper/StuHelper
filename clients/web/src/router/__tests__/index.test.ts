@@ -143,6 +143,26 @@ describe('router auth guard', () => {
     await expect(guard?.(publicRoute('/verify/LOCALJOINSMOKE', 'admission-token'))).resolves.toBe(true)
   })
 
+  it('allows join self-service start on the join admission host', async () => {
+    vi.stubGlobal('window', { location: { hostname: 'join.localhost' } })
+    const guard = mocks.getBeforeEachGuard()
+
+    await expect(guard?.(publicRoute('/start', 'join-start'))).resolves.toBe(true)
+  })
+
+  it('renders not found for join self-service start outside the join admission host', async () => {
+    vi.stubGlobal('window', { location: { hostname: 'stuhelper.com' } })
+    const guard = mocks.getBeforeEachGuard()
+
+    await expect(guard?.(publicRoute('/start', 'join-start'))).resolves.toEqual({
+      hash: '',
+      name: 'not-found',
+      params: { pathMatch: ['start'] },
+      query: {},
+      replace: true,
+    })
+  })
+
   it('does not refresh expired local auth state on public routes', async () => {
     const guard = mocks.getBeforeEachGuard()
     mocks.authStore.isAuthenticated = true

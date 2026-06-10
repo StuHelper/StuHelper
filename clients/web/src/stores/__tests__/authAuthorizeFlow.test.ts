@@ -7,6 +7,8 @@ const mockLogout = vi.fn();
 const mockGetUser = vi.fn();
 const mockSetUser = vi.fn();
 const mockClearAuth = vi.fn();
+const mockIsTokenExpired = vi.fn(() => false);
+const mockRememberAdmissionAuthReturn = vi.fn(() => true);
 const mockStoreOAuthState = vi.fn((state: string) => {
     sessionStorage.setItem("oauth_state", state);
     return true;
@@ -39,6 +41,8 @@ vi.mock("@/utils/auth", () => ({
         setUser: mockSetUser,
     },
     clearAuth: mockClearAuth,
+    isTokenExpired: mockIsTokenExpired,
+    rememberAdmissionAuthReturn: mockRememberAdmissionAuthReturn,
     storeOAuthState: mockStoreOAuthState,
     tokenExpiry: {
         set: vi.fn(),
@@ -96,6 +100,10 @@ describe("auth authorize flow", () => {
         mockGetUser.mockReset();
         mockSetUser.mockReset();
         mockClearAuth.mockReset();
+        mockIsTokenExpired.mockReset();
+        mockIsTokenExpired.mockReturnValue(false);
+        mockRememberAdmissionAuthReturn.mockReset();
+        mockRememberAdmissionAuthReturn.mockReturnValue(true);
         mockStoreOAuthState.mockClear();
         mockWindowOpen.mockReset();
         mockSetTimeout.mockReset();
@@ -200,6 +208,39 @@ describe("auth authorize flow", () => {
         );
         expect(mockLogin).not.toHaveBeenCalled();
         expect(sessionStorage.getItem("oauth_state")).toBe("signup-state");
+    });
+
+    it("keeps join self-service start as the login return target", async () => {
+        mockLogin.mockResolvedValue({
+            data: { data: { state: "start-state", url: "#start" } },
+        });
+        vi.stubGlobal("window", {
+            open: mockWindowOpen,
+            location: {
+                href: "https://join.stuhelper.com/start",
+                hash: "",
+                origin: "https://join.stuhelper.com",
+            },
+            setTimeout: mockSetTimeout,
+            clearTimeout: mockClearTimeout,
+            fetch: mockFetch,
+        });
+
+        const { useAuthStore } = await import("../auth");
+        const store = useAuthStore();
+
+        await store.login("https://join.stuhelper.com/start");
+
+        expect(mockLogin).toHaveBeenCalledWith(
+            "https://join.stuhelper.com/start",
+            undefined,
+            "web",
+            { prompt: undefined, maxAge: undefined },
+        );
+        expect(sessionStorage.getItem("oauth_state")).toBe("start-state");
+        expect(mockRememberAdmissionAuthReturn).toHaveBeenCalledWith(
+            "https://join.stuhelper.com/start",
+        );
     });
 
     it("does not redirect when the oauth state cannot be stored", async () => {

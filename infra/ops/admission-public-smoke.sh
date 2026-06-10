@@ -12,6 +12,7 @@ Usage: infra/ops/admission-public-smoke.sh
 Verifies the public production admission ingress:
 
   - ADMISSION_PUBLIC_BASE_URL /verify/<token> serves the Web SPA
+  - ADMISSION_PUBLIC_BASE_URL /start serves the Web SPA for no-token self-service readiness
   - ADMISSION_PUBLIC_BASE_URL /verify/<token> allows camera permission for
     desktop material capture
   - ADMISSION_PUBLIC_BASE_URL /api/v1/metrics/vitals accepts same-origin Web Vitals beacons
@@ -22,6 +23,7 @@ Verifies the public production admission ingress:
   - ADMISSION_PUBLIC_BASE_URL /developers/apps returns 404 and never serves the main Web SPA
   - ADMISSION_PUBLIC_BASE_URL /verify returns 404
   - WEB_PUBLIC_URL /verify and /verify/<token> return 404
+  - WEB_PUBLIC_URL /start returns 404
 
 Required production env:
   ADMISSION_PUBLIC_BASE_URL must be https://join.stuhelper.com
@@ -195,9 +197,11 @@ if [[ "${allow_local_targets}" != "true" ]]; then
 fi
 
 admission_verify_url="${admission_public_base_url}/verify/${probe_token}"
+admission_start_url="${admission_public_base_url}/start"
 admission_root_url="${admission_public_base_url}/"
 admission_main_route_probe_url="${admission_public_base_url}/developers/apps"
 admission_bare_verify_url="${admission_public_base_url}/verify"
+web_start_url="${web_public_url}/start"
 web_verify_url="${web_public_url}/verify/${probe_token}"
 web_bare_verify_url="${web_public_url}/verify"
 admission_metrics_vitals_url="${admission_public_base_url}/api/v1/metrics/vitals"
@@ -520,9 +524,11 @@ write_evidence() {
       "${web_public_url}" \
       "${probe_token}" \
       "${admission_verify_url}" \
+      "${admission_start_url}" \
       "${admission_root_url}" \
       "${admission_main_route_probe_url}" \
       "${admission_bare_verify_url}" \
+      "${web_start_url}" \
       "${web_verify_url}" \
       "${web_bare_verify_url}" \
       "${admission_metrics_vitals_url}" \
@@ -537,7 +543,7 @@ import json
 import sys
 from pathlib import Path
 
-checks_path = Path(sys.argv[19])
+checks_path = Path(sys.argv[21])
 checks = []
 if checks_path.exists():
     checks = [
@@ -556,22 +562,24 @@ bundle = {
     },
     "endpoints": {
         "admissionVerify": sys.argv[6],
-        "admissionRoot": sys.argv[7],
-        "admissionMainRouteProbe": sys.argv[8],
-        "admissionBareVerify": sys.argv[9],
-        "webVerify": sys.argv[10],
-        "webBareVerify": sys.argv[11],
-        "admissionMetricsVitals": sys.argv[12],
-        "admissionMetricsFrontendErrors": sys.argv[13],
-        "admissionCameraHandoffEvents": sys.argv[14],
+        "admissionStart": sys.argv[7],
+        "admissionRoot": sys.argv[8],
+        "admissionMainRouteProbe": sys.argv[9],
+        "admissionBareVerify": sys.argv[10],
+        "webStart": sys.argv[11],
+        "webVerify": sys.argv[12],
+        "webBareVerify": sys.argv[13],
+        "admissionMetricsVitals": sys.argv[14],
+        "admissionMetricsFrontendErrors": sys.argv[15],
+        "admissionCameraHandoffEvents": sys.argv[16],
     },
-    "resolveIP": sys.argv[15],
+    "resolveIP": sys.argv[17],
     "summary": {
-        "passed": int(sys.argv[16]),
-        "failed": int(sys.argv[17]),
+        "passed": int(sys.argv[18]),
+        "failed": int(sys.argv[19]),
     },
     "checks": checks,
-    "passed": sys.argv[18] == "true",
+    "passed": sys.argv[20] == "true",
 }
 print(json.dumps(bundle, ensure_ascii=True, indent=2))
 PY
@@ -597,6 +605,7 @@ check_jsonl="${tmpdir}/checks.jsonl"
 : >"${check_jsonl}"
 
 check_http_status "Admission join verify token serves Web SPA" "${admission_verify_url}" "200" "true"
+check_http_status "Admission join start serves Web SPA" "${admission_start_url}" "200" "true"
 check_get_status_header_contains "Admission join verify token allows camera capture" "${admission_verify_url}" "200" "Permissions-Policy" "camera=(self)"
 check_post_json_status "Admission join metrics vitals beacon returns 204" "${admission_metrics_vitals_url}" '{"name":"LCP","value":1234.5,"rating":"good"}' "204" "${admission_origin}" "${admission_verify_url}"
 check_post_json_status "Admission join metrics frontend error beacon returns 204" "${admission_metrics_frontend_errors_url}" '{"kind":"error","message":"public admission smoke"}' "204" "${admission_origin}" "${admission_verify_url}"
@@ -604,6 +613,7 @@ check_get_status_header_contains "Admission join camera handoff SSE ingress retu
 check_http_status "Admission join root returns 404" "${admission_root_url}" "404"
 check_http_status "Admission join main Web route returns 404" "${admission_main_route_probe_url}" "404"
 check_http_status "Admission join bare verify returns 404" "${admission_bare_verify_url}" "404"
+check_http_status "Web host join start returns 404" "${web_start_url}" "404"
 check_http_status "Web host verify token returns 404" "${web_verify_url}" "404"
 check_http_status "Web host bare verify returns 404" "${web_bare_verify_url}" "404"
 
