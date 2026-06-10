@@ -18,6 +18,7 @@ import {
   ElRadioGroup,
   ElSelect,
   ElSwitch,
+  ElTag,
 } from 'element-plus';
 
 import {
@@ -130,6 +131,48 @@ async function fetchData() {
 
 function parseManagementGuildIDs(policyID: string) {
   return parseGuildIDText(managementGuildText[policyID] ?? '');
+}
+
+function managementGuildCount(policy: AdmissionPolicy) {
+  return parseManagementGuildIDs(policy.id).length;
+}
+
+function joinHandlingStrategyLabel(policy: AdmissionPolicy) {
+  return (
+    joinHandlingStrategyOptions.find(
+      (option) => option.value === policy.joinHandlingStrategy,
+    )?.label ?? policy.joinHandlingStrategy
+  );
+}
+
+function joinHandlingStrategyHelp(policy: AdmissionPolicy) {
+  return policy.joinHandlingStrategy === 'post_join_guard'
+    ? 'Koishi 会在目标群成员入群后执行禁言、发认证链接、通过后解除禁言。'
+    : 'Koishi 不启用入群后守卫绑定，后端按 StuHelper 学生认证状态处理加群申请。';
+}
+
+function guardSyncLabel(policy: AdmissionPolicy) {
+  if (!policy.guardEnabled) return '目标群停用';
+  return policy.joinHandlingStrategy === 'post_join_guard'
+    ? '同步为 Koishi 入群后守卫'
+    : '同步为申请审核策略';
+}
+
+function guardSyncTagType(
+  policy: AdmissionPolicy,
+): 'danger' | 'info' | 'success' | 'warning' {
+  if (!policy.guardEnabled) return 'info';
+  return policy.joinHandlingStrategy === 'post_join_guard'
+    ? 'success'
+    : 'warning';
+}
+
+function saveImpactSummary(policy: AdmissionPolicy) {
+  return [
+    `目标认证群：${policy.platform.toUpperCase()} ${policy.guildID}`,
+    `执行状态：${guardSyncLabel(policy)}`,
+    `审核通知群：${managementGuildCount(policy)} 个`,
+  ].join('；');
 }
 
 function parseCreateGuildIDs() {
@@ -272,105 +315,182 @@ onMounted(fetchData);
         class="rounded border border-slate-200 bg-white p-5 shadow-sm"
         label-position="top"
       >
-        <div class="mb-4">
-          <h2 class="text-base font-semibold text-slate-900">
-            {{ policy.platform.toUpperCase() }} 群 {{ policy.guildID }}
-          </h2>
-          <p class="mt-1 text-sm text-slate-500">
-            Koishi 会按此策略同步目标认证群；审核通知群在下方单独配置。
+        <header class="flex flex-col gap-3 border-b border-slate-200 pb-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <h2 class="text-base font-semibold text-slate-900">
+                {{ policy.platform.toUpperCase() }} 群 {{ policy.guildID }}
+              </h2>
+              <ElTag
+                size="small"
+                :type="guardSyncTagType(policy)"
+                data-policy-sync-source="admin"
+              >
+                {{ guardSyncLabel(policy) }}
+              </ElTag>
+            </div>
+            <p class="mt-1 text-sm text-slate-500">
+              Admin 是入群认证策略权威源。Koishi WebUI 只显示同步后的执行态和现场队列。
+            </p>
+          </div>
+          <div
+            class="grid min-w-[220px] gap-1 text-sm text-slate-600"
+            data-policy-summary
+          >
+            <span>目标认证群：{{ policy.guildID }}</span>
+            <span>入群处理：{{ joinHandlingStrategyLabel(policy) }}</span>
+            <span>审核通知群：{{ managementGuildCount(policy) }} 个</span>
+          </div>
+        </header>
+
+        <section class="grid gap-4 border-b border-slate-200 py-4">
+          <div>
+            <h3 class="text-sm font-semibold text-slate-900">入群处理</h3>
+            <p class="mt-1 text-sm text-slate-500">
+              这里配置目标认证群本身。不要把材料审核通知群填到目标认证群里。
+            </p>
+          </div>
+          <div class="grid gap-4 lg:grid-cols-2">
+            <ElFormItem :label="policyFieldLabels.guardEnabled">
+              <ElSwitch
+                v-model="policy.guardEnabled"
+                active-text="启用"
+                inactive-text="停用目标群"
+              />
+            </ElFormItem>
+            <ElFormItem :label="policyFieldLabels.joinHandlingStrategy">
+              <ElRadioGroup v-model="policy.joinHandlingStrategy">
+                <ElRadioButton
+                  v-for="option in joinHandlingStrategyOptions"
+                  :key="option.value"
+                  :label="option.value"
+                >
+                  {{ option.label }}
+                </ElRadioButton>
+              </ElRadioGroup>
+              <p class="mt-2 text-xs leading-5 text-slate-500">
+                {{ joinHandlingStrategyHelp(policy) }}
+              </p>
+            </ElFormItem>
+          </div>
+          <ElFormItem
+            v-if="policy.joinHandlingStrategy === 'join_request_review'"
+            :label="policyFieldLabels.unverifiedJoinRejectReason"
+          >
+            <ElInput
+              v-model="policy.unverifiedJoinRejectReason"
+              maxlength="120"
+              show-word-limit
+            />
+          </ElFormItem>
+        </section>
+
+        <section class="grid gap-4 border-b border-slate-200 py-4">
+          <div>
+            <h3 class="text-sm font-semibold text-slate-900">时间与提醒</h3>
+            <p class="mt-1 text-sm text-slate-500">
+              这些时间控制入群后禁言、链接绑定、材料提交、人工审核和提醒节奏。
+            </p>
+          </div>
+          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <ElFormItem :label="policyFieldLabels.initialMuteDurationSeconds">
+              <ElInputNumber v-model="policy.initialMuteDurationSeconds" :min="1" />
+            </ElFormItem>
+            <ElFormItem :label="policyFieldLabels.linkWaitSeconds">
+              <ElInputNumber v-model="policy.linkWaitSeconds" :min="1" />
+            </ElFormItem>
+            <ElFormItem :label="policyFieldLabels.submissionWaitSeconds">
+              <ElInputNumber v-model="policy.submissionWaitSeconds" :min="1" />
+            </ElFormItem>
+            <ElFormItem :label="policyFieldLabels.manualReviewTimeoutSeconds">
+              <ElInputNumber v-model="policy.manualReviewTimeoutSeconds" :min="1" />
+            </ElFormItem>
+            <ElFormItem :label="policyFieldLabels.reminderIntervalSeconds">
+              <ElInputNumber v-model="policy.reminderIntervalSeconds" :min="1" />
+            </ElFormItem>
+          </div>
+        </section>
+
+        <section class="grid gap-4 border-b border-slate-200 py-4">
+          <div>
+            <h3 class="text-sm font-semibold text-slate-900">新生材料与审核通知</h3>
+            <p class="mt-1 text-sm text-slate-500">
+              审核通知群只接收材料审核提醒，不会被同步为 Koishi 入群认证目标群。
+            </p>
+          </div>
+          <div class="grid gap-4 lg:grid-cols-3">
+            <ElFormItem :label="policyFieldLabels.freshmanChannelEnabled">
+              <ElSwitch v-model="policy.freshmanChannelEnabled" />
+            </ElFormItem>
+            <ElFormItem :label="policyFieldLabels.freshmanChannelClosesAt">
+              <ElDatePicker
+                v-model="policy.freshmanChannelClosesAt"
+                type="datetime"
+                :value-format="POLICY_DATETIME_FORMAT"
+              />
+            </ElFormItem>
+            <ElFormItem :label="policyFieldLabels.freshmanDefaultExpiresAt">
+              <ElDatePicker
+                v-model="policy.freshmanDefaultExpiresAt"
+                type="datetime"
+                :value-format="POLICY_DATETIME_FORMAT"
+              />
+            </ElFormItem>
+          </div>
+          <div class="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]">
+            <ElFormItem :label="policyFieldLabels.managementGuildIDs">
+              <ElInput
+                v-model="managementGuildText[policy.id]"
+                placeholder="每行一个材料审核通知群号，可留空；这里不是目标认证群"
+                :rows="3"
+                type="textarea"
+              />
+              <p class="mt-2 text-xs leading-5 text-slate-500">
+                当前将向 {{ managementGuildCount(policy) }} 个审核通知群转发审核提醒。
+              </p>
+            </ElFormItem>
+            <ElFormItem :label="policyFieldLabels.forwardRawMaterialToQQ">
+              <ElSwitch v-model="policy.forwardRawMaterialToQQ" />
+            </ElFormItem>
+          </div>
+        </section>
+
+        <section class="grid gap-4 border-b border-slate-200 py-4">
+          <div>
+            <h3 class="text-sm font-semibold text-slate-900">失败与限制</h3>
+            <p class="mt-1 text-sm text-slate-500">
+              控制多次未认证、黑名单、延期和上传材料大小限制。
+            </p>
+          </div>
+          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <ElFormItem :label="policyFieldLabels.failedJoinLimit">
+              <ElInputNumber v-model="policy.failedJoinLimit" :min="1" />
+            </ElFormItem>
+            <ElFormItem :label="policyFieldLabels.blacklistDurationSeconds">
+              <ElInputNumber v-model="policy.blacklistDurationSeconds" :min="0" />
+            </ElFormItem>
+            <ElFormItem :label="policyFieldLabels.maxMaterialBytes">
+              <ElInputNumber v-model="policy.maxMaterialBytes" :min="1" />
+            </ElFormItem>
+            <ElFormItem :label="policyFieldLabels.maxExtensionDays">
+              <ElInputNumber v-model="policy.maxExtensionDays" :min="1" />
+            </ElFormItem>
+          </div>
+        </section>
+
+        <footer class="flex flex-col gap-3 pt-4 lg:flex-row lg:items-center lg:justify-between">
+          <p class="text-sm leading-6 text-slate-500" data-policy-save-impact>
+            保存影响：{{ saveImpactSummary(policy) }}。Koishi 会在下次同步后显示执行态。
           </p>
-        </div>
-        <ElFormItem :label="policyFieldLabels.guardEnabled">
-          <ElSwitch
-            v-model="policy.guardEnabled"
-            active-text="启用"
-            inactive-text="停用目标群"
-          />
-        </ElFormItem>
-        <ElFormItem :label="policyFieldLabels.joinHandlingStrategy">
-          <ElRadioGroup v-model="policy.joinHandlingStrategy">
-            <ElRadioButton
-              v-for="option in joinHandlingStrategyOptions"
-              :key="option.value"
-              :label="option.value"
-            >
-              {{ option.label }}
-            </ElRadioButton>
-          </ElRadioGroup>
-        </ElFormItem>
-        <ElFormItem
-          v-if="policy.joinHandlingStrategy === 'join_request_review'"
-          :label="policyFieldLabels.unverifiedJoinRejectReason"
-        >
-          <ElInput
-            v-model="policy.unverifiedJoinRejectReason"
-            maxlength="120"
-            show-word-limit
-          />
-        </ElFormItem>
-        <ElFormItem :label="policyFieldLabels.freshmanChannelEnabled">
-          <ElSwitch v-model="policy.freshmanChannelEnabled" />
-        </ElFormItem>
-        <ElFormItem :label="policyFieldLabels.freshmanChannelClosesAt">
-          <ElDatePicker
-            v-model="policy.freshmanChannelClosesAt"
-            type="datetime"
-            :value-format="POLICY_DATETIME_FORMAT"
-          />
-        </ElFormItem>
-        <ElFormItem :label="policyFieldLabels.freshmanDefaultExpiresAt">
-          <ElDatePicker
-            v-model="policy.freshmanDefaultExpiresAt"
-            type="datetime"
-            :value-format="POLICY_DATETIME_FORMAT"
-          />
-        </ElFormItem>
-        <ElFormItem :label="policyFieldLabels.initialMuteDurationSeconds">
-          <ElInputNumber v-model="policy.initialMuteDurationSeconds" :min="1" />
-        </ElFormItem>
-        <ElFormItem :label="policyFieldLabels.linkWaitSeconds">
-          <ElInputNumber v-model="policy.linkWaitSeconds" :min="1" />
-        </ElFormItem>
-        <ElFormItem :label="policyFieldLabels.submissionWaitSeconds">
-          <ElInputNumber v-model="policy.submissionWaitSeconds" :min="1" />
-        </ElFormItem>
-        <ElFormItem :label="policyFieldLabels.manualReviewTimeoutSeconds">
-          <ElInputNumber v-model="policy.manualReviewTimeoutSeconds" :min="1" />
-        </ElFormItem>
-        <ElFormItem :label="policyFieldLabels.reminderIntervalSeconds">
-          <ElInputNumber v-model="policy.reminderIntervalSeconds" :min="1" />
-        </ElFormItem>
-        <ElFormItem :label="policyFieldLabels.failedJoinLimit">
-          <ElInputNumber v-model="policy.failedJoinLimit" :min="1" />
-        </ElFormItem>
-        <ElFormItem :label="policyFieldLabels.blacklistDurationSeconds">
-          <ElInputNumber v-model="policy.blacklistDurationSeconds" :min="0" />
-        </ElFormItem>
-        <ElFormItem :label="policyFieldLabels.maxMaterialBytes">
-          <ElInputNumber v-model="policy.maxMaterialBytes" :min="1" />
-        </ElFormItem>
-        <ElFormItem :label="policyFieldLabels.maxExtensionDays">
-          <ElInputNumber v-model="policy.maxExtensionDays" :min="1" />
-        </ElFormItem>
-        <ElFormItem :label="policyFieldLabels.managementGuildIDs">
-          <ElInput
-            v-model="managementGuildText[policy.id]"
-            placeholder="每行一个材料审核通知群号，可留空；这里不是目标认证群"
-            :rows="3"
-            type="textarea"
-          />
-        </ElFormItem>
-        <ElFormItem :label="policyFieldLabels.forwardRawMaterialToQQ">
-          <ElSwitch v-model="policy.forwardRawMaterialToQQ" />
-        </ElFormItem>
-        <ElButton
-          type="primary"
-          :disabled="savingPolicyIDs[policy.id]"
-          :loading="savingPolicyIDs[policy.id]"
-          @click="savePolicy(policy)"
-        >
-          保存
-        </ElButton>
+          <ElButton
+            type="primary"
+            :disabled="savingPolicyIDs[policy.id]"
+            :loading="savingPolicyIDs[policy.id]"
+            @click="savePolicy(policy)"
+          >
+            保存
+          </ElButton>
+        </footer>
       </ElForm>
 
       <p class="text-sm text-slate-500">

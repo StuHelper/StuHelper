@@ -69,21 +69,43 @@ describe('admission policy admin view contract', () => {
     const source = await readFile(sourcePath, 'utf8');
 
     for (const label of [
+      'Admin 是入群认证策略权威源',
       '启用新生入群通道',
       '启用入群认证守卫',
       '新生通道关闭时间',
       '默认临时认证到期时间',
       '入群初始禁言（秒）',
       '材料审核通知群号',
+      '目标认证群',
       '新增目标认证群',
       '目标认证群号',
       '转发原始材料到 QQ',
+      '审核通知群只接收材料审核提醒',
+      'Koishi 会在下次同步后显示执行态',
     ]) {
       expect(source).toContain(label);
     }
 
     expect(source).toContain('policyFieldLabels.freshmanChannelEnabled');
     expect(source).not.toContain('label="freshmanChannelEnabled"');
+  });
+
+  it('keeps Admin as policy authority and exposes save impact summary', async () => {
+    const source = await readFile(sourcePath, 'utf8');
+
+    for (const token of [
+      'data-policy-sync-source="admin"',
+      'data-policy-summary',
+      'data-policy-save-impact',
+      'function guardSyncLabel',
+      'function saveImpactSummary',
+      'function managementGuildCount',
+      'joinHandlingStrategyHelp',
+      'Admin 是入群认证策略权威源',
+      'Koishi WebUI 只显示同步后的执行态和现场队列',
+    ]) {
+      expect(source).toContain(token);
+    }
   });
 
   it('no longer hosts the member blacklist release form', async () => {

@@ -11,8 +11,10 @@ import AdmissionSessionFilters from './AdmissionSessionFilters.vue';
 import AdmissionSessionTable from './AdmissionSessionTable.vue';
 import {
   admissionReissueCommand,
+  botErrorLabel,
   canManageAdmissionSession,
   statusLabel,
+  statusOperationHint,
   statusTagType,
 } from './options';
 
@@ -153,6 +155,13 @@ describe('AdmissionSessionTable', () => {
     expect(wrapper.text()).toContain('178037297');
     expect(wrapper.text()).toContain('2118785781');
     expect(wrapper.text()).toContain('unmute failed');
+    expect(wrapper.text()).toContain('后端 admission session');
+    expect(wrapper.text()).toContain('Koishi WebUI 显示现场 guard record');
+    expect(wrapper.text()).toContain('账号已绑定，等待学生认证或材料提交。');
+    expect(wrapper.text()).toContain('存在 Bot 执行错误');
+    expect(wrapper.find('[data-field="statusHint"]').exists()).toBe(true);
+    expect(wrapper.find('[data-field="runtimeBoundary"]').exists()).toBe(true);
+    expect(wrapper.find('[data-field="botDiagnostics"]').exists()).toBe(true);
 
     const copy = wrapper.find('[data-action="copyAuthURL"]');
     expect(copy.exists()).toBe(true);
@@ -259,8 +268,14 @@ describe('AdmissionSessionTable', () => {
     expect(statusTagType('joined_muted')).toBe('danger');
     expect(statusLabel('verified')).toBe('已通过');
     expect(statusTagType('verified')).toBe('success');
+    expect(statusOperationHint('joined_muted')).toContain('等待用户打开链接');
+    expect(statusOperationHint('verified')).toContain('Koishi 解除禁言同步');
     expect(admissionReissueCommand(baseSession)).toBe(
       '重新生成认证链接 1390191645',
+    );
+    expect(botErrorLabel(baseSession)).toBe('存在 Bot 执行错误');
+    expect(botErrorLabel({ ...baseSession, lastBotError: null })).toBe(
+      '暂无 Bot 错误',
     );
     expect(canManageAdmissionSession('linked')).toBe(true);
     expect(canManageAdmissionSession('verified')).toBe(false);

@@ -9,11 +9,13 @@ import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.
 import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
 import {
   admissionReissueCommand,
+  botErrorLabel,
   boolLabel,
   canManageAdmissionSession,
   formatDateTime,
   formatText,
   statusLabel,
+  statusOperationHint,
   statusTagType,
 } from './options';
 
@@ -69,12 +71,20 @@ function sessionActionDisabled(row: AdmissionSession) {
       <PersistentAdminTableColumn
         column-key="status"
         label="状态"
-        :default-width="120"
+        :default-min-width="180"
       >
         <template #default="{ row }">
-          <ElTag :type="statusTagType(row.status)" data-field="status">
-            {{ statusLabel(row.status) }}
-          </ElTag>
+          <div class="grid gap-1">
+            <ElTag :type="statusTagType(row.status)" data-field="status">
+              {{ statusLabel(row.status) }}
+            </ElTag>
+            <span
+              class="text-xs leading-5 text-slate-500"
+              data-field="statusHint"
+            >
+              {{ statusOperationHint(row.status) }}
+            </span>
+          </div>
         </template>
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
@@ -100,6 +110,12 @@ function sessionActionDisabled(row: AdmissionSession) {
             Bot {{ formatText(row.botSelfID) }} · 频道
             {{ formatText(row.channelID) }}
           </div>
+          <div
+            class="text-xs text-slate-500"
+            data-field="runtimeBoundary"
+          >
+            后端 admission session；Koishi WebUI 显示现场 guard record
+          </div>
         </template>
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
@@ -110,7 +126,7 @@ function sessionActionDisabled(row: AdmissionSession) {
         <template #default="{ row }">
           <div class="font-mono text-xs">{{ row.id }}</div>
           <div class="text-xs text-slate-500">
-            已消费：{{ boolLabel(Boolean(row.tokenConsumedAt)) }}
+            JOIN 链接：{{ row.authURL ? '可复制' : '未返回' }} · 已消费：{{ boolLabel(Boolean(row.tokenConsumedAt)) }}
           </div>
           <ElButton
             v-if="row.authURL"
@@ -206,11 +222,21 @@ function sessionActionDisabled(row: AdmissionSession) {
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
         column-key="botError"
-        label="Bot 错误"
-        :default-min-width="220"
+        label="Bot 执行诊断"
+        :default-min-width="260"
       >
         <template #default="{ row }">
-          <span class="text-xs">{{ formatText(row.lastBotError) }}</span>
+          <div class="grid gap-1" data-field="botDiagnostics">
+            <ElTag
+              size="small"
+              :type="row.lastBotError ? 'danger' : 'info'"
+            >
+              {{ botErrorLabel(row) }}
+            </ElTag>
+            <span class="text-xs leading-5 text-slate-500">
+              {{ formatText(row.lastBotError) }}
+            </span>
+          </div>
         </template>
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
