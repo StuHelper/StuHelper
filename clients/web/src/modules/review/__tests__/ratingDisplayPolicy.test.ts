@@ -40,7 +40,8 @@ describe('review community rating display policy', () => {
     expect(policySources.teacherProfilePage).toContain('<EmojiRating')
   })
 
-  it('keeps chart tooltips non-numeric for rating values', () => {
-    expect(policySources.teacherProfilePage).toContain("return `${p.name}<br/>${t('teaching.profile.ratingLabel')}`")
+  it('keeps the rating trend surface non-numeric', () => {
+    expect(policySources.teacherProfilePage).toContain('<EmojiRating :value="point.avgRating"')
+    expect(policySources.teacherProfilePage).not.toContain('formatRating(')
   })
 })
