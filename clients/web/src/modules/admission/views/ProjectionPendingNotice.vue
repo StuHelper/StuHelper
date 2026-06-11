@@ -1,10 +1,17 @@
 <template>
   <div class="projection-pending" data-state="projectionPending">
     <div class="projection-pending__heading">
-      <span class="projection-pending__icon" aria-hidden="true">
-        <RefreshCw class="projection-pending__icon-svg" />
+      <span
+        class="projection-pending__icon"
+        :class="timedOut ? 'join-tone-warning' : 'join-tone-info'"
+        aria-hidden="true"
+      >
+        <RefreshCw
+          class="projection-pending__icon-svg"
+          :class="{ 'projection-pending__icon-svg--spinning': !timedOut }"
+        />
       </span>
-      <div>
+      <div class="projection-pending__copy">
         <h2>身份生效中</h2>
         <p
           v-if="timedOut"
@@ -19,7 +26,7 @@
     </div>
     <p
       v-if="timedOut"
-      class="projection-pending__hint"
+      class="projection-pending__hint join-chip"
     >
       如果长时间未自动恢复，请回到 QQ 群确认机器人是否已经解除禁言。
     </p>
@@ -48,33 +55,53 @@ defineEmits<{
 </script>
 
 <style scoped>
+/*
+ * 身份同步通知：色调气泡里的 RefreshCw 同步中持续旋转（仅 transform，
+ * 全局 prefers-reduced-motion 开关会禁用）；超时后切为警示色调并停止旋转。
+ * data-state / data-projection-* 与全部文案为测试契约。
+ */
 .projection-pending {
-  border: 1px solid #dbe3ee;
-  border-radius: 8px;
   display: grid;
-  gap: 16px;
+  gap: 18px;
 }
 
 .projection-pending__heading {
+  align-items: start;
   display: grid;
-  gap: 12px;
+  gap: 14px;
   grid-template-columns: auto minmax(0, 1fr);
 }
 
+/* 色调背景/文字色来自全局 .join-tone-info / .join-tone-warning */
 .projection-pending__icon {
   align-items: center;
-  background: #eff6ff;
-  border-radius: 8px;
-  color: #1d4ed8;
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 var(--join-glass-highlight);
   display: inline-flex;
-  height: 44px;
+  height: 46px;
   justify-content: center;
-  width: 44px;
+  width: 46px;
 }
 
 .projection-pending__icon-svg {
   height: 22px;
   width: 22px;
+}
+
+.projection-pending__icon-svg--spinning {
+  animation: projection-pending-spin 1.8s linear infinite;
+}
+
+@keyframes projection-pending-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.projection-pending__copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
 }
 
 .projection-pending h2,
@@ -83,31 +110,31 @@ defineEmits<{
 }
 
 .projection-pending h2 {
-  color: #0f172a;
-  font-size: 20px;
-  font-weight: 700;
+  color: var(--join-ink);
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
   line-height: 28px;
 }
 
 .projection-pending p,
 .projection-pending__hint {
-  color: #475569;
+  color: var(--join-ink-soft);
   font-size: 14px;
   line-height: 22px;
 }
 
 .projection-pending__hint {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 12px;
+  padding: 12px 14px;
 }
 
+/* 重试按钮：品牌渐变 CTA（触控目标 ≥44px） */
 .projection-pending__button {
   align-items: center;
-  background: #0f172a;
+  background: var(--join-gradient-cta);
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--join-radius-control);
+  box-shadow: var(--join-cta-glow);
   color: #ffffff;
   cursor: pointer;
   display: inline-flex;
@@ -116,21 +143,29 @@ defineEmits<{
   justify-content: center;
   line-height: 20px;
   min-height: 44px;
-  padding: 10px 16px;
-  transition: background-color 160ms ease, box-shadow 160ms ease;
+  padding: 10px 18px;
+  transition:
+    box-shadow var(--duration-base) var(--ease-smooth),
+    filter var(--duration-base) var(--ease-smooth),
+    transform var(--duration-fast) var(--ease-spring);
   width: fit-content;
 }
 
 .projection-pending__button:hover {
-  background: #111827;
+  box-shadow: var(--join-cta-glow-hover);
+  filter: brightness(1.06);
+}
+
+.projection-pending__button:active {
+  transform: scale(0.97);
 }
 
 .projection-pending__button:focus-visible {
-  outline: 3px solid rgb(15 118 110 / 0.28);
+  outline: 3px solid rgba(91, 124, 247, 0.45);
   outline-offset: 2px;
 }
 
-@media (max-width: 520px) {
+@media (max-width: 420px) {
   .projection-pending__heading {
     grid-template-columns: 1fr;
   }

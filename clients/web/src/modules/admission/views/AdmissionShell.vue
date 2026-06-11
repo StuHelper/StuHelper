@@ -1,9 +1,9 @@
 <template>
-  <main class="admission-shell">
+  <main class="admission-shell join-surface">
     <section class="admission-shell__frame">
-      <header class="admission-shell__header">
+      <header class="admission-shell__header join-glass-heavy">
         <div class="admission-shell__heading">
-          <p class="admission-shell__eyebrow">StuHelper JOIN</p>
+          <p class="admission-shell__eyebrow join-eyebrow">StuHelper JOIN</p>
           <h1 class="admission-shell__title">入群身份认证</h1>
           <p class="admission-shell__description">
             请按当前步骤完成账号绑定和学生身份认证。认证通过后，机器人会继续处理群内状态。
@@ -11,18 +11,20 @@
         </div>
 
         <dl class="admission-shell__facts" aria-label="认证上下文">
-          <div class="admission-shell__fact">
+          <div class="admission-shell__fact join-chip">
             <dt>目标 QQ</dt>
-            <dd>{{ displayQq ? `QQ：${displayQq}` : "等待读取" }}</dd>
+            <dd class="admission-shell__fact-qq">
+              {{ displayQq ? `QQ：${displayQq}` : "等待读取" }}
+            </dd>
           </div>
-          <div class="admission-shell__fact">
+          <div class="admission-shell__fact join-chip">
             <dt>当前状态</dt>
             <dd>{{ statusLabel }}</dd>
           </div>
         </dl>
       </header>
 
-      <section class="admission-shell__panel">
+      <section class="admission-shell__panel join-glass">
         <slot name="progress" />
         <div class="admission-shell__content">
           <slot />
@@ -39,35 +41,26 @@ defineProps<{
 }>()
 </script>
 
+<style src="./join-theme.css"></style>
+
 <style scoped>
 .admission-shell {
-  background:
-    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
-  color: #0f172a;
   min-height: 100dvh;
-  padding: 24px 16px 32px;
+  padding: 28px 16px max(36px, env(safe-area-inset-bottom));
 }
 
 .admission-shell__frame {
   display: grid;
-  gap: 16px;
+  gap: 18px;
   margin: 0 auto;
   max-width: 760px;
   width: 100%;
 }
 
-.admission-shell__header,
-.admission-shell__panel {
-  background: #ffffff;
-  border: 1px solid #dbe3ee;
-  border-radius: 8px;
-  box-shadow: 0 12px 28px rgb(15 23 42 / 0.06);
-}
-
 .admission-shell__header {
   display: grid;
-  gap: 18px;
-  padding: 22px;
+  gap: 20px;
+  padding: 26px;
 }
 
 .admission-shell__heading {
@@ -83,24 +76,17 @@ defineProps<{
   margin: 0;
 }
 
-.admission-shell__eyebrow {
-  color: #0f766e;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 20px;
-}
-
 .admission-shell__title {
-  color: #0f172a;
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: 0;
-  line-height: 34px;
+  color: var(--join-ink);
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 38px;
   margin: 0;
 }
 
 .admission-shell__description {
-  color: #475569;
+  color: var(--join-ink-soft);
   font-size: 14px;
   line-height: 22px;
   max-width: 58ch;
@@ -108,37 +94,40 @@ defineProps<{
 
 .admission-shell__facts {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .admission-shell__fact {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
   display: grid;
   gap: 4px;
   min-width: 0;
-  padding: 12px;
+  padding: 12px 14px;
 }
 
 .admission-shell__fact dt {
-  color: #64748b;
+  color: var(--join-ink-muted);
   font-size: 12px;
   font-weight: 600;
+  letter-spacing: 0.04em;
   line-height: 18px;
 }
 
 .admission-shell__fact dd {
-  color: #0f172a;
+  color: var(--join-ink);
   font-size: 16px;
   font-weight: 700;
   line-height: 24px;
   overflow-wrap: anywhere;
 }
 
+.admission-shell__fact-qq {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
 .admission-shell__panel {
-  padding: 22px;
+  padding: 26px;
 }
 
 .admission-shell__content {
@@ -148,17 +137,17 @@ defineProps<{
 
 @media (max-width: 640px) {
   .admission-shell {
-    padding: 16px 12px 24px;
+    padding: 18px 12px max(28px, env(safe-area-inset-bottom));
   }
 
   .admission-shell__header,
   .admission-shell__panel {
-    padding: 16px;
+    padding: 18px;
   }
 
   .admission-shell__title {
-    font-size: 24px;
-    line-height: 30px;
+    font-size: 25px;
+    line-height: 32px;
   }
 
   .admission-shell__facts {

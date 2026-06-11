@@ -1,95 +1,57 @@
-.primary-button,
-.secondary-button {
-  align-items: center;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  cursor: pointer;
-  display: inline-flex;
-  font-size: 14px;
-  font-weight: 600;
-  justify-content: center;
-  line-height: 20px;
-  min-height: 44px;
-  padding: 10px 16px;
-  transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    color 160ms ease;
-}
-
-.primary-button {
-  background: #0f172a;
-  color: #ffffff;
-}
-
-.primary-button:hover:not(:disabled) {
-  background: #111827;
-}
-
-.secondary-button {
-  background: #e2e8f0;
-  color: #0f172a;
-}
-
-.secondary-button:hover:not(:disabled) {
-  background: #cbd5e1;
-}
-
-.primary-button:disabled,
-.secondary-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.primary-button:focus-visible,
-.secondary-button:focus-visible,
-.flow-tab:focus-visible {
-  outline: 3px solid rgb(15 118 110 / 0.28);
-  outline-offset: 2px;
-}
+/*
+ * AdmissionPage 作用域样式（经 <style scoped src> 引入）。
+ *
+ * 视觉原语（.primary-button/.secondary-button/.flow-tab/.flow-tab--active、
+ * .join-chip、语义色调等）由 join-theme.css 在 .join-surface 命名空间下
+ * 全局提供 —— 这些类名同时是测试选择器，必须保留在原有元素上。
+ * 本文件只负责 linked 状态的布局与少量页面级区块。
+ */
 
 .admission-flow {
   display: grid;
-  gap: 16px;
+  gap: 18px;
 }
 
+/* ── 头部：成功色调气泡 + 标题层级 ─────────────────── */
 .admission-flow__header {
   align-items: start;
   display: grid;
-  gap: 12px;
+  gap: 14px;
   grid-template-columns: auto minmax(0, 1fr);
 }
 
-.admission-flow__header h2,
-.admission-flow__header p,
-.linked-resource-error p {
-  margin: 0;
+.admission-flow__heading-copy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
 }
 
 .admission-flow__header h2 {
-  color: #0f172a;
+  color: var(--join-ink);
   font-size: 20px;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: -0.01em;
   line-height: 28px;
+  margin: 0;
 }
 
 .admission-flow__header p {
-  color: #475569;
+  color: var(--join-ink-soft);
   font-size: 14px;
   line-height: 22px;
-  margin-top: 6px;
+  margin: 0;
+  max-width: 60ch;
 }
 
+/* 色调（背景/文字色）来自全局 .join-tone-success */
 .admission-flow__icon {
   align-items: center;
-  background: #ecfdf5;
-  border-radius: 8px;
-  color: #047857;
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 var(--join-glass-highlight);
   display: inline-flex;
-  height: 44px;
+  height: 46px;
   justify-content: center;
-  width: 44px;
+  width: 46px;
 }
 
 .admission-flow__icon-svg {
@@ -97,66 +59,55 @@
   width: 22px;
 }
 
+/* ── 流程标签：玻璃分段切换（按钮样式由主题层提供）── */
 .admission-flow__tabs {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.flow-tab {
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  color: #334155;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 20px;
-  min-height: 44px;
-  padding: 10px 12px;
-  transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease;
-}
-
-.flow-tab--active {
-  background: #0f172a;
-  border-color: #0f172a;
-  color: #ffffff;
-}
-
-.flow-tab:hover:not(.flow-tab--active) {
-  background: #f1f5f9;
-}
-
+/* ── 资料加载失败：警示色调 chip + 重试按钮 ────────── */
 .linked-resource-error {
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  border-radius: 8px;
-  color: #92400e;
+  background: var(--join-tone-warning-bg);
+  border: 1px solid var(--join-glass-border-soft);
+  border-radius: var(--radius-lg);
+  color: var(--join-tone-warning-fg);
   display: grid;
-  font-size: 14px;
   gap: 12px;
-  line-height: 22px;
-  padding: 12px;
+  justify-items: start;
+  padding: 14px 16px;
 }
 
-.formal-student-credential {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  color: #334155;
+.linked-resource-error p {
   font-size: 14px;
   line-height: 22px;
-  padding: 16px;
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
-@media (max-width: 520px) {
-  .admission-flow__header {
-    grid-template-columns: 1fr;
-  }
+/* ── 已是老生认证：玻璃信息卡（.join-chip 提供底/边/圆角）── */
+.formal-student-credential {
+  align-items: flex-start;
+  color: var(--join-ink-soft);
+  display: flex;
+  font-size: 14px;
+  gap: 10px;
+  line-height: 22px;
+  padding: 14px 16px;
+}
 
-  .admission-flow__tabs {
+.formal-student-credential::before {
+  background: var(--join-tone-success-fg);
+  border-radius: 999px;
+  content: "";
+  flex: none;
+  height: 8px;
+  margin-top: 7px;
+  width: 8px;
+}
+
+@media (max-width: 420px) {
+  .admission-flow__header {
     grid-template-columns: 1fr;
   }
 }

@@ -1,0 +1,400 @@
+/*
+ * join.stuhelper.com — 品牌玻璃风主题层
+ *
+ * 仅作用于 join 域名的页面（admission 模块）。所有规则都以 .join-surface
+ * 为命名空间，避免泄漏到主站；join 专属变量集中在这里（含暗色覆盖），
+ * 不修改全局 tailwind.css 的 @theme / [data-theme="dark"] / 媒体查询三处同步块。
+ *
+ * 约束（来自测试契约，勿改动）：
+ * - .primary-button / .secondary-button / .flow-tab /
+ *   .join-start-primary-button / .join-start-secondary-button 是单测选择器，
+ *   类名必须保留；这里只负责让它们在 join 上下文里有统一的玻璃风样式。
+ * - 触控目标 ≥44px；focus-visible 必须可见；动画只用 transform/opacity
+ *   （全局 prefers-reduced-motion 规则会自动禁用）。
+ * - CTA 渐变三个色标（#4563d8 / #6f58d8 / #b8467e）与白色文字的对比度
+ *   均 ≥4.5:1；eyebrow 渐变在浅色玻璃上同样使用深色端点（#4563d8→#b8467e）
+ *   以满足 ≥4.5:1。调整任一渐变颜色前先重新核算。
+ * - AdmissionBindConfirmationDialog.vue 因 teleport 到 body 之外，
+ *   持有一份 --bind-* 玻璃变量副本（含暗色覆盖）——改动这里的玻璃
+ *   变量值时需同步该文件。
+ */
+
+/* ── Join 专属设计变量 ─────────────────────────────── */
+.join-surface {
+  --join-glass-bg: rgba(255, 255, 255, 0.66);
+  --join-glass-bg-heavy: rgba(255, 255, 255, 0.82);
+  --join-glass-border: rgba(255, 255, 255, 0.65);
+  --join-glass-border-soft: rgba(255, 255, 255, 0.38);
+  --join-glass-highlight: rgba(255, 255, 255, 0.9);
+  --join-chip-bg: rgba(255, 255, 255, 0.5);
+
+  --join-ink: var(--color-text-primary);
+  --join-ink-soft: var(--color-text-secondary);
+  --join-ink-muted: var(--color-text-muted);
+
+  --join-gradient-cta: linear-gradient(135deg, #4563d8 0%, #6f58d8 50%, #b8467e 100%);
+  --join-gradient-eyebrow: linear-gradient(135deg, #4563d8, #b8467e);
+  --join-cta-glow: 0 8px 24px rgba(91, 124, 247, 0.35);
+  --join-cta-glow-hover: 0 10px 32px rgba(111, 88, 216, 0.45);
+
+  --join-orb-primary: rgba(91, 124, 247, 0.4);
+  --join-orb-accent: rgba(232, 122, 172, 0.35);
+  --join-orb-secondary: rgba(90, 184, 204, 0.28);
+
+  --join-tone-info-bg: rgba(91, 124, 247, 0.14);
+  --join-tone-info-fg: #3d56c9;
+  --join-tone-success-bg: rgba(82, 192, 122, 0.16);
+  --join-tone-success-fg: #2c8a52;
+  --join-tone-warning-bg: rgba(232, 168, 64, 0.18);
+  --join-tone-warning-fg: #9a6a14;
+  --join-tone-danger-bg: rgba(216, 96, 96, 0.15);
+  --join-tone-danger-fg: #b54040;
+
+  --join-radius-card: var(--radius-2xl);
+  --join-radius-control: 12px;
+  --join-focus-ring: 0 0 0 3px rgba(91, 124, 247, 0.3);
+
+  color: var(--join-ink);
+}
+
+/* 暗色模式：跟随既有 data-theme 机制 + system 偏好 */
+[data-theme="dark"] .join-surface {
+  --join-glass-bg: rgba(32, 26, 52, 0.6);
+  --join-glass-bg-heavy: rgba(38, 31, 60, 0.85);
+  --join-glass-border: rgba(255, 255, 255, 0.12);
+  --join-glass-border-soft: rgba(255, 255, 255, 0.07);
+  --join-glass-highlight: rgba(255, 255, 255, 0.16);
+  --join-chip-bg: rgba(255, 255, 255, 0.06);
+
+  --join-gradient-eyebrow: linear-gradient(
+    135deg,
+    var(--color-primary-light),
+    var(--color-accent-light)
+  );
+
+  --join-orb-primary: rgba(91, 124, 247, 0.25);
+  --join-orb-accent: rgba(232, 122, 172, 0.2);
+  --join-orb-secondary: rgba(90, 184, 204, 0.16);
+
+  --join-tone-info-fg: #93acff;
+  --join-tone-success-fg: #7bd6a0;
+  --join-tone-warning-fg: #f0c060;
+  --join-tone-danger-fg: #e88888;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .join-surface {
+    --join-glass-bg: rgba(32, 26, 52, 0.6);
+    --join-glass-bg-heavy: rgba(38, 31, 60, 0.85);
+    --join-glass-border: rgba(255, 255, 255, 0.12);
+    --join-glass-border-soft: rgba(255, 255, 255, 0.07);
+    --join-glass-highlight: rgba(255, 255, 255, 0.16);
+    --join-chip-bg: rgba(255, 255, 255, 0.06);
+
+    --join-gradient-eyebrow: linear-gradient(
+      135deg,
+      var(--color-primary-light),
+      var(--color-accent-light)
+    );
+
+    --join-orb-primary: rgba(91, 124, 247, 0.25);
+    --join-orb-accent: rgba(232, 122, 172, 0.2);
+    --join-orb-secondary: rgba(90, 184, 204, 0.16);
+
+    --join-tone-info-fg: #93acff;
+    --join-tone-success-fg: #7bd6a0;
+    --join-tone-warning-fg: #f0c060;
+    --join-tone-danger-fg: #e88888;
+  }
+}
+
+/* ── 页面环境：渐变底 + 浮动光斑 ───────────────────── */
+.join-surface {
+  background:
+    radial-gradient(52rem 32rem at 8% -4%, var(--join-orb-primary), transparent 60%),
+    radial-gradient(44rem 30rem at 104% 18%, var(--join-orb-accent), transparent 62%),
+    radial-gradient(36rem 28rem at 50% 112%, var(--join-orb-secondary), transparent 65%),
+    var(--color-bg-base);
+  isolation: isolate;
+  overflow: hidden;
+  position: relative;
+}
+
+.join-surface::before,
+.join-surface::after {
+  border-radius: 999px;
+  content: "";
+  filter: blur(56px);
+  opacity: 0.55;
+  pointer-events: none;
+  position: absolute;
+  z-index: -1;
+}
+
+.join-surface::before {
+  animation: join-orb-drift 22s var(--ease-smooth) infinite alternate;
+  background: var(--join-orb-primary);
+  height: 320px;
+  left: -120px;
+  top: -80px;
+  width: 320px;
+}
+
+.join-surface::after {
+  animation: join-orb-drift 26s var(--ease-smooth) infinite alternate-reverse;
+  background: var(--join-orb-accent);
+  bottom: -100px;
+  height: 280px;
+  right: -100px;
+  width: 280px;
+}
+
+@keyframes join-orb-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(40px, 28px, 0) scale(1.12);
+  }
+}
+
+/* ── 玻璃面板原语 ─────────────────────────────────── */
+.join-glass,
+.join-glass-heavy {
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
+  backdrop-filter: blur(18px) saturate(170%);
+  border: 1px solid var(--join-glass-border-soft);
+  border-radius: var(--join-radius-card);
+  box-shadow:
+    inset 0 1px 0 var(--join-glass-highlight),
+    var(--shadow-card);
+}
+
+.join-glass {
+  background: var(--join-glass-bg);
+}
+
+.join-glass-heavy {
+  background: var(--join-glass-bg-heavy);
+}
+
+/* backdrop-filter 不可用时提高不透明度兜底（保证文字对比度） */
+@supports not (backdrop-filter: blur(1px)) {
+  .join-surface .join-glass {
+    background: var(--join-glass-bg-heavy);
+  }
+  .join-surface .join-glass-heavy {
+    background: var(--color-bg-card);
+  }
+}
+
+/* 玻璃信息小卡（chips、facts、嵌套块） */
+.join-chip {
+  background: var(--join-chip-bg);
+  border: 1px solid var(--join-glass-border-soft);
+  border-radius: var(--radius-lg);
+}
+
+/* ── 按钮（保留既有测试选择器类名）────────────────── */
+.join-surface .primary-button,
+.join-surface .join-start-primary-button,
+.join-surface .secondary-button,
+.join-surface .join-start-secondary-button {
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--join-radius-control);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 600;
+  justify-content: center;
+  line-height: 20px;
+  min-height: 44px;
+  padding: 10px 18px;
+  transition:
+    box-shadow var(--duration-base) var(--ease-smooth),
+    background-color var(--duration-base) var(--ease-smooth),
+    border-color var(--duration-base) var(--ease-smooth),
+    color var(--duration-base) var(--ease-smooth),
+    filter var(--duration-base) var(--ease-smooth),
+    transform var(--duration-fast) var(--ease-spring);
+}
+
+.join-surface .primary-button,
+.join-surface .join-start-primary-button {
+  background: var(--join-gradient-cta);
+  box-shadow: var(--join-cta-glow);
+  color: #ffffff;
+}
+
+.join-surface .primary-button:hover:not(:disabled),
+.join-surface .join-start-primary-button:hover:not(:disabled) {
+  box-shadow: var(--join-cta-glow-hover);
+  filter: brightness(1.06);
+}
+
+.join-surface .secondary-button,
+.join-surface .join-start-secondary-button {
+  background: var(--join-chip-bg);
+  border-color: var(--join-glass-border);
+  color: var(--join-ink);
+}
+
+.join-surface .secondary-button:hover:not(:disabled),
+.join-surface .join-start-secondary-button:hover:not(:disabled) {
+  background: var(--join-glass-bg-heavy);
+  border-color: var(--join-glass-highlight);
+}
+
+.join-surface .primary-button:active:not(:disabled),
+.join-surface .secondary-button:active:not(:disabled),
+.join-surface .join-start-primary-button:active:not(:disabled),
+.join-surface .join-start-secondary-button:active:not(:disabled),
+.join-surface .flow-tab:active {
+  transform: scale(0.97);
+}
+
+.join-surface .primary-button:disabled,
+.join-surface .secondary-button:disabled,
+.join-surface .join-start-primary-button:disabled,
+.join-surface .join-start-secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.join-surface .primary-button:focus-visible,
+.join-surface .secondary-button:focus-visible,
+.join-surface .join-start-primary-button:focus-visible,
+.join-surface .join-start-secondary-button:focus-visible,
+.join-surface .flow-tab:focus-visible {
+  outline: 3px solid rgba(91, 124, 247, 0.45);
+  outline-offset: 2px;
+}
+
+/* ── 流程标签页（.flow-tab 为测试选择器）──────────── */
+.join-surface .flow-tab {
+  background: var(--join-chip-bg);
+  border: 1px solid var(--join-glass-border-soft);
+  border-radius: var(--join-radius-control);
+  color: var(--join-ink-soft);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  min-height: 44px;
+  padding: 10px 14px;
+  transition:
+    background-color var(--duration-base) var(--ease-smooth),
+    border-color var(--duration-base) var(--ease-smooth),
+    box-shadow var(--duration-base) var(--ease-smooth),
+    color var(--duration-base) var(--ease-smooth),
+    transform var(--duration-fast) var(--ease-spring);
+}
+
+.join-surface .flow-tab:hover:not(.flow-tab--active) {
+  background: var(--join-glass-bg-heavy);
+  color: var(--join-ink);
+}
+
+.join-surface .flow-tab--active {
+  background: var(--join-gradient-cta);
+  border-color: transparent;
+  box-shadow: var(--join-cta-glow);
+  color: #ffffff;
+}
+
+/* ── 表单控件 ─────────────────────────────────────── */
+.join-surface .join-label {
+  color: var(--join-ink-soft);
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  margin-bottom: 6px;
+}
+
+.join-surface .join-input,
+.join-surface .join-select {
+  background: var(--join-chip-bg);
+  border: 1px solid var(--join-glass-border);
+  border-radius: var(--join-radius-control);
+  color: var(--join-ink);
+  font-size: 15px;
+  line-height: 22px;
+  min-height: 44px;
+  padding: 10px 14px;
+  transition:
+    background-color var(--duration-fast) var(--ease-smooth),
+    border-color var(--duration-fast) var(--ease-smooth),
+    box-shadow var(--duration-fast) var(--ease-smooth);
+  width: 100%;
+}
+
+.join-surface .join-input::placeholder {
+  color: var(--join-ink-muted);
+}
+
+.join-surface .join-input:focus,
+.join-surface .join-select:focus {
+  background: var(--join-glass-bg-heavy);
+  border-color: var(--color-primary);
+  box-shadow: var(--join-focus-ring);
+  outline: none;
+}
+
+/* 键盘聚焦需要比 :focus 更强的可见性；必须排在 :focus 规则之后才能生效 */
+.join-surface .join-input:focus-visible,
+.join-surface .join-select:focus-visible {
+  outline: 3px solid rgba(91, 124, 247, 0.45);
+  outline-offset: 2px;
+}
+
+.join-surface .join-input:read-only {
+  background: var(--join-glass-bg);
+  color: var(--join-ink-soft);
+}
+
+.join-surface .join-input:disabled,
+.join-surface .join-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* ── 语义色调（状态面板图标气泡等）─────────────────── */
+.join-surface .join-tone-info {
+  background: var(--join-tone-info-bg);
+  color: var(--join-tone-info-fg);
+}
+.join-surface .join-tone-success {
+  background: var(--join-tone-success-bg);
+  color: var(--join-tone-success-fg);
+}
+.join-surface .join-tone-warning {
+  background: var(--join-tone-warning-bg);
+  color: var(--join-tone-warning-fg);
+}
+.join-surface .join-tone-danger {
+  background: var(--join-tone-danger-bg);
+  color: var(--join-tone-danger-fg);
+}
+.join-surface .join-tone-neutral {
+  background: var(--join-chip-bg);
+  color: var(--join-ink-soft);
+}
+
+/* ── 文字辅助 ─────────────────────────────────────── */
+.join-surface .join-eyebrow {
+  background: var(--join-gradient-eyebrow);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  line-height: 20px;
+  text-transform: uppercase;
+}
+
+.join-surface .join-muted {
+  color: var(--join-ink-soft);
+}

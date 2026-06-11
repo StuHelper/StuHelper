@@ -4,10 +4,10 @@
     :status-label="admissionStatusLabel"
   >
     <template #progress>
-        <AdmissionProgress
-          :page-state="pageState"
-          :session="session"
-        />
+      <AdmissionProgress
+        :page-state="pageState"
+        :session="session"
+      />
     </template>
 
     <AdmissionStatePanel
@@ -98,84 +98,84 @@
       description="确认后会把当前 StuHelper 账号与本次入群 QQ 认证会话绑定。"
     >
       <template #actions>
-          <button
-            class="primary-button"
-            data-admission-open-bind-confirmation
-            type="button"
-            :disabled="linking"
-            @click="openBindConfirmationDialog"
-          >
-            {{ linking ? '正在确认...' : '开始认证' }}
-          </button>
+        <button
+          class="primary-button"
+          data-admission-open-bind-confirmation
+          type="button"
+          :disabled="linking"
+          @click="openBindConfirmationDialog"
+        >
+          {{ linking ? '正在确认...' : '开始认证' }}
+        </button>
       </template>
     </AdmissionStatePanel>
 
     <section v-else-if="pageState === 'linked'" class="admission-flow" data-state="linked">
       <div class="admission-flow__header">
-        <span class="admission-flow__icon" aria-hidden="true">
+        <span class="admission-flow__icon join-tone-success" aria-hidden="true">
           <ShieldCheck class="admission-flow__icon-svg" />
         </span>
-        <div>
+        <div class="admission-flow__heading-copy">
           <h2>选择认证方式</h2>
           <p>当前 QQ 会话已绑定，请选择符合你身份的学生认证方式。</p>
         </div>
       </div>
-          <div
-            v-if="linkedResourceErrorMessage"
-            class="linked-resource-error"
-            data-linked-resource-error
-          >
-            <p>{{ linkedResourceErrorMessage }}</p>
-            <button
-              class="secondary-button"
-              type="button"
-              @click="retryLinkedResources"
-            >
-              重新加载
-            </button>
-          </div>
-          <div class="admission-flow__tabs">
-            <button
-              class="flow-tab"
-              :class="{ 'flow-tab--active': activeFlow === 'oldStudent' }"
-              type="button"
-              @click="selectAdmissionFlow('oldStudent')"
-            >
-              老生认证
-            </button>
-            <button
-              class="flow-tab"
-              :class="{ 'flow-tab--active': activeFlow === 'freshman' }"
-              type="button"
-              @click="selectAdmissionFlow('freshman')"
-            >
-              新生认证
-            </button>
-          </div>
-          <OldStudentVerificationFlow
-            v-if="activeFlow === 'oldStudent'"
-            :admission-session-id="session?.id"
-            :current-return-url="currentAdmissionURL()"
-            :linked="pageState === 'linked'"
-            :schools="admissionSchools"
-            @expired="handleAdmissionExpired"
-            @verified="handleOldStudentVerified"
-          />
-          <FreshmanCameraFlow
-            v-else-if="showFreshmanSubmission"
-            :admission-session-id="session?.id"
-            :max-material-bytes="session?.maxMaterialBytes"
-            :schools="admissionSchools"
-            @expired="handleAdmissionExpired"
-            @submitted="markPendingReview"
-          />
-          <div
-            v-else
-            class="formal-student-credential"
-            data-formal-student-credential
-          >
-            已完成老生认证。
-          </div>
+      <div
+        v-if="linkedResourceErrorMessage"
+        class="linked-resource-error"
+        data-linked-resource-error
+      >
+        <p>{{ linkedResourceErrorMessage }}</p>
+        <button
+          class="secondary-button"
+          type="button"
+          @click="retryLinkedResources"
+        >
+          重新加载
+        </button>
+      </div>
+      <div class="admission-flow__tabs">
+        <button
+          class="flow-tab"
+          :class="{ 'flow-tab--active': activeFlow === 'oldStudent' }"
+          type="button"
+          @click="selectAdmissionFlow('oldStudent')"
+        >
+          老生认证
+        </button>
+        <button
+          class="flow-tab"
+          :class="{ 'flow-tab--active': activeFlow === 'freshman' }"
+          type="button"
+          @click="selectAdmissionFlow('freshman')"
+        >
+          新生认证
+        </button>
+      </div>
+      <OldStudentVerificationFlow
+        v-if="activeFlow === 'oldStudent'"
+        :admission-session-id="session?.id"
+        :current-return-url="currentAdmissionURL()"
+        :linked="pageState === 'linked'"
+        :schools="admissionSchools"
+        @expired="handleAdmissionExpired"
+        @verified="handleOldStudentVerified"
+      />
+      <FreshmanCameraFlow
+        v-else-if="showFreshmanSubmission"
+        :admission-session-id="session?.id"
+        :max-material-bytes="session?.maxMaterialBytes"
+        :schools="admissionSchools"
+        @expired="handleAdmissionExpired"
+        @submitted="markPendingReview"
+      />
+      <div
+        v-else
+        class="formal-student-credential join-chip"
+        data-formal-student-credential
+      >
+        已完成老生认证。
+      </div>
     </section>
 
     <AdmissionStatePanel
@@ -247,78 +247,20 @@
     />
   </AdmissionShell>
 
-    <Dialog :open="bindConfirmationDialogOpen" @update:open="handleBindConfirmationOpenChange">
-      <DialogContent
-        class="sm:max-w-[520px]"
-        data-admission-bind-confirmation-dialog
-      >
-        <DialogHeader>
-          <div class="mb-1 flex h-10 w-10 items-center justify-center rounded-md bg-amber-100 text-amber-700">
-            <ShieldAlert class="h-5 w-5" aria-hidden="true" />
-          </div>
-          <DialogTitle>确认绑定 QQ</DialogTitle>
-          <DialogDescription>
-            您正在将 StuHelper 账号
-            <span class="font-semibold text-slate-950">[{{ currentUserLabel }}]</span>
-            绑定至 QQ：
-            <span class="font-semibold text-slate-950">[{{ displayQQ || '当前入群 QQ' }}]</span>。
-            绑定后无法变更。请确认是否继续？
-          </DialogDescription>
-        </DialogHeader>
-
-        <div class="space-y-3">
-          <div class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-relaxed text-amber-900">
-            绑定后该 QQ 将用于入群验证和机器人识别。若这不是你正在入群使用的 QQ，请取消并重新登录正确账号。
-          </div>
-          <div class="grid gap-2">
-            <label
-              class="text-sm font-medium text-slate-800"
-              for="admission-bind-confirmation-qq"
-            >
-              手动输入需要绑定的 QQ 号
-            </label>
-            <Input
-              id="admission-bind-confirmation-qq"
-              v-model="bindConfirmationQQ"
-              autocomplete="off"
-              data-admission-bind-confirmation-input
-              :disabled="linking"
-              inputmode="numeric"
-              :placeholder="displayQQ || 'QQ号'"
-              @blur="bindConfirmationTouched = true"
-              @keydown.enter.prevent="submitBindConfirmation"
-            />
-            <p
-              v-if="bindConfirmationError"
-              class="text-sm text-red-600"
-              data-admission-bind-confirmation-error
-            >
-              {{ bindConfirmationError }}
-            </p>
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button
-            :disabled="linking"
-            type="button"
-            variant="outline"
-            @click="closeBindConfirmationDialog"
-          >
-            取消
-          </Button>
-          <Button
-            data-admission-bind-confirmation-submit
-            :disabled="!bindConfirmationMatches || linking"
-            type="button"
-            @click="submitBindConfirmation"
-          >
-            <ShieldCheck class="h-4 w-4" aria-hidden="true" />
-            {{ linking ? '正在确认...' : '确认并开始认证' }}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+  <AdmissionBindConfirmationDialog
+    :current-user-label="currentUserLabel"
+    :display-qq="displayQQ"
+    :error-message="bindConfirmationError"
+    :linking="linking"
+    :matches="bindConfirmationMatches"
+    :open="bindConfirmationDialogOpen"
+    :qq="bindConfirmationQQ"
+    @cancel="closeBindConfirmationDialog"
+    @submit="submitBindConfirmation"
+    @touch="bindConfirmationTouched = true"
+    @update:open="handleBindConfirmationOpenChange"
+    @update:qq="bindConfirmationQQ = $event"
+  />
 </template>
 
 <script setup lang="ts">
@@ -331,22 +273,11 @@ import {
   Hourglass,
   Link2,
   LogIn,
-  ShieldAlert,
   ShieldCheck,
   UserX,
   XCircle,
 } from 'lucide-vue-next'
 
-import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { useVerificationStore } from '@/stores/verification'
@@ -377,6 +308,7 @@ import {
 } from '../oldStudentAdmission'
 import { waitForAdmissionProjection } from '../projectionRefresh'
 import FreshmanCameraFlow from './FreshmanCameraFlow.vue'
+import AdmissionBindConfirmationDialog from './AdmissionBindConfirmationDialog.vue'
 import AdmissionReissueHint from './AdmissionReissueHint.vue'
 import AdmissionProgress from './AdmissionProgress.vue'
 import AdmissionShell from './AdmissionShell.vue'

@@ -6,15 +6,15 @@
     data-admission-progress
   >
     <div class="admission-progress__summary">
-      <div>
-        <p class="admission-progress__eyebrow">当前阶段</p>
+      <div class="admission-progress__now">
+        <p class="admission-progress__eyebrow join-eyebrow">当前阶段</p>
         <p class="admission-progress__title" data-admission-progress-current>
           {{ currentStep.label }}
         </p>
       </div>
       <p
         v-if="activeDeadline"
-        class="admission-progress__deadline"
+        class="admission-progress__deadline join-chip"
         data-admission-active-deadline
       >
         {{ activeDeadline.label }}：
@@ -25,7 +25,7 @@
       </p>
       <p
         v-else-if="pageState === 'approved'"
-        class="admission-progress__deadline"
+        class="admission-progress__deadline join-chip"
         data-admission-active-deadline
       >
         已通过认证，等待机器人同步群内状态。
@@ -40,7 +40,7 @@
         :class="`admission-progress__step--${step.state}`"
         data-admission-progress-step
       >
-        <span class="admission-progress__dot" aria-hidden="true" />
+        <span class="admission-progress__marker" aria-hidden="true" />
         <span class="admission-progress__content">
           <span class="admission-progress__label">{{ step.label }}</span>
           <span class="admission-progress__description">{{ step.description }}</span>
@@ -197,64 +197,65 @@ function formatRemaining(value: string, now: number): string {
 </script>
 
 <style scoped>
+/*
+ * 玻璃步骤轨道：四个状态化标记（完成=渐变对勾、当前=辉光圆环、
+ * 失败=危险色、待办=弱化）+ 节点间连接线。
+ * data-admission-* 属性与全部文案为测试契约；逻辑层未改动。
+ */
 .admission-progress {
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--join-glass-border-soft);
   display: grid;
-  gap: 16px;
-  margin: 0 0 20px;
-  padding-bottom: 20px;
+  gap: 18px;
+  margin: 0 0 22px;
+  padding-bottom: 22px;
 }
 
+/* ── 概要行：当前阶段 + 截止时间 chip ──────────────── */
 .admission-progress__summary {
   align-items: center;
   display: grid;
-  gap: 8px;
+  gap: 10px;
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.admission-progress__now {
+  display: grid;
+  gap: 2px;
+}
+
 .admission-progress__eyebrow {
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 18px;
   margin: 0;
 }
 
 .admission-progress__title {
-  color: #0f172a;
-  font-size: 18px;
-  font-weight: 700;
+  color: var(--join-ink);
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
   line-height: 26px;
   margin: 0;
 }
 
-.admission-progress__deadline,
-.admission-progress__mute {
-  color: #475569;
+.admission-progress__deadline {
+  border-radius: 999px;
+  color: var(--join-ink-soft);
   font-size: 13px;
   line-height: 20px;
   margin: 0;
-}
-
-.admission-progress__deadline {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 999px;
-  padding: 7px 12px;
+  padding: 9px 14px;
   white-space: nowrap;
 }
 
-.admission-progress__mute {
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  border-radius: 8px;
-  color: #92400e;
-  padding: 10px 12px;
+.admission-progress__deadline time {
+  color: var(--join-ink);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
 }
 
+/* ── 步骤轨道 ─────────────────────────────────────── */
 .admission-progress__steps {
   display: grid;
-  gap: 10px;
+  gap: 14px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   list-style: none;
   margin: 0;
@@ -263,66 +264,166 @@ function formatRemaining(value: string, now: number): string {
 
 .admission-progress__step {
   display: grid;
-  gap: 6px;
+  gap: 10px;
+  justify-items: start;
   min-width: 0;
+  position: relative;
 }
 
-.admission-progress__dot {
-  background: #cbd5e1;
+/* 节点间连接线（横向） */
+.admission-progress__step:not(:last-child)::after {
+  background: var(--join-glass-border);
   border-radius: 999px;
+  content: "";
+  height: 2px;
+  left: 34px;
+  position: absolute;
+  right: 6px;
+  top: 12px;
+}
+
+.admission-progress__step--complete:not(:last-child)::after {
+  background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
+  opacity: 0.6;
+}
+
+/* 标记基态（待办=弱化玻璃点） */
+.admission-progress__marker {
+  background: var(--join-chip-bg);
+  border: 2px solid var(--join-glass-border);
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 var(--join-glass-highlight);
+  display: grid;
+  height: 26px;
+  place-items: center;
+  position: relative;
+  width: 26px;
+  z-index: 1;
+}
+
+/* 完成：品牌渐变填充 + 白色对勾 */
+.admission-progress__step--complete .admission-progress__marker {
+  background: var(--join-gradient-cta);
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(91, 124, 247, 0.35);
+}
+
+.admission-progress__step--complete .admission-progress__marker::after {
+  border-bottom: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  content: "";
+  height: 5px;
+  margin-top: -2px;
+  transform: rotate(-45deg);
+  width: 10px;
+}
+
+/* 当前：品牌描边 + 辉光圆环 + 实心内点 */
+.admission-progress__step--current .admission-progress__marker {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 4px rgba(91, 124, 247, 0.22);
+}
+
+.admission-progress__step--current .admission-progress__marker::after {
+  background: var(--color-primary);
+  border-radius: 999px;
+  content: "";
   height: 8px;
-  width: 100%;
+  width: 8px;
+}
+
+/* 失败：危险色调 */
+.admission-progress__step--failed .admission-progress__marker {
+  background: var(--join-tone-danger-bg);
+  border-color: var(--join-tone-danger-fg);
+  box-shadow: none;
+}
+
+.admission-progress__step--failed .admission-progress__marker::after {
+  background: var(--join-tone-danger-fg);
+  border-radius: 999px;
+  content: "";
+  height: 8px;
+  width: 8px;
 }
 
 .admission-progress__content {
   display: grid;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
 }
 
 .admission-progress__label {
-  color: #334155;
+  color: var(--join-ink-soft);
   font-size: 13px;
   font-weight: 700;
   line-height: 18px;
 }
 
+.admission-progress__step--complete .admission-progress__label {
+  color: var(--join-ink);
+}
+
+.admission-progress__step--current .admission-progress__label {
+  color: var(--color-primary);
+}
+
+.admission-progress__step--failed .admission-progress__label {
+  color: var(--join-tone-danger-fg);
+}
+
 .admission-progress__description {
-  color: #64748b;
+  color: var(--join-ink-muted);
   font-size: 12px;
   line-height: 17px;
 }
 
-.admission-progress__step--complete .admission-progress__dot,
-.admission-progress__step--current .admission-progress__dot {
-  background: #0f766e;
+/* ── 禁言提示：警示色调 chip ───────────────────────── */
+.admission-progress__mute {
+  background: var(--join-tone-warning-bg);
+  border: 1px solid var(--join-glass-border-soft);
+  border-radius: var(--radius-lg);
+  color: var(--join-tone-warning-fg);
+  font-size: 13px;
+  line-height: 20px;
+  margin: 0;
+  padding: 12px 14px;
 }
 
-.admission-progress__step--current .admission-progress__label {
-  color: #0f766e;
-}
-
-.admission-progress__step--failed .admission-progress__dot {
-  background: #dc2626;
-}
-
-.admission-progress__step--failed .admission-progress__label {
-  color: #b91c1c;
-}
-
+/* ── 移动端：纵向轨道 ──────────────────────────────── */
 @media (max-width: 640px) {
   .admission-progress__summary {
     align-items: start;
     grid-template-columns: 1fr;
+    justify-items: start;
   }
 
   .admission-progress__deadline {
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
     white-space: normal;
   }
 
   .admission-progress__steps {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    grid-template-columns: 1fr;
+  }
+
+  .admission-progress__step {
+    align-items: start;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .admission-progress__step:not(:last-child)::after {
+    bottom: -10px;
+    height: auto;
+    left: 12px;
+    right: auto;
+    top: 32px;
+    width: 2px;
+  }
+
+  .admission-progress__step--complete:not(:last-child)::after {
+    background: linear-gradient(180deg, var(--color-primary), var(--color-accent));
   }
 }
 </style>

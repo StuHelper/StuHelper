@@ -1,5 +1,5 @@
 <template>
-  <div class="admission-reissue-hint">
+  <div class="admission-reissue-hint join-chip">
     <p data-admission-reissue-command>
       管理员可在群内使用：
       <code>{{ command }}</code>
@@ -26,52 +26,35 @@ defineEmits<{
 </script>
 
 <style scoped>
+/*
+ * 重发指令提示：玻璃信息卡（.join-chip 提供底/边/圆角），
+ * 指令以等宽 code 徽标呈现；复制按钮沿用全局 .secondary-button
+ * 玻璃样式（类名同时是测试选择器，必须保留）。
+ */
 .admission-reissue-hint {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px 14px;
 }
 
 .admission-reissue-hint p {
-  color: #64748b;
+  color: var(--join-ink-soft);
   font-size: 13px;
-  line-height: 20px;
+  line-height: 24px;
   margin: 0;
 }
 
 .admission-reissue-hint code {
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  color: #0f172a;
-  font-size: 13px;
-  padding: 2px 6px;
-}
-
-.secondary-button {
-  align-items: center;
-  background: #e2e8f0;
-  border: 1px solid transparent;
+  background: var(--color-primary-alpha);
+  border: 1px solid var(--join-glass-border-soft);
   border-radius: 8px;
-  color: #0f172a;
-  cursor: pointer;
-  display: inline-flex;
-  font-size: 14px;
-  font-weight: 600;
-  justify-content: center;
-  line-height: 20px;
-  min-height: 44px;
-  padding: 10px 16px;
-  transition: background-color 160ms ease, border-color 160ms ease;
-}
-
-.secondary-button:hover {
-  background: #cbd5e1;
-}
-
-.secondary-button:focus-visible {
-  outline: 3px solid rgb(15 118 110 / 0.28);
-  outline-offset: 2px;
+  color: var(--join-ink);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+  padding: 3px 8px;
 }
 </style>

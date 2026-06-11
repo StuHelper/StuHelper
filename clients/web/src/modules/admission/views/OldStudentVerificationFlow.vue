@@ -1,31 +1,33 @@
 <template>
-  <section class="mt-5 border-t border-slate-200 pt-5" data-admission-old-student-flow>
-    <div v-if="schools.length === 0" class="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
+  <section class="old-flow" data-admission-old-student-flow>
+    <div v-if="schools.length === 0" class="old-flow__notice join-chip">
       暂无可用学校认证配置。
     </div>
 
-    <div v-else class="grid gap-4">
-      <label class="field-label">
-        学校
-        <select
-          :value="selectedSchoolCode"
-          class="field-control"
-          data-school-select
-          @change="updateSchoolCode"
-        >
-          <option
-            v-for="school in schools"
-            :key="school.schoolCode"
-            :value="school.schoolCode"
+    <div v-else class="old-flow__stack">
+      <label class="old-flow__field">
+        <span class="join-label">学校</span>
+        <span class="old-flow__select-wrap">
+          <select
+            :value="selectedSchoolCode"
+            class="join-select"
+            data-school-select
+            @change="updateSchoolCode"
           >
-            {{ school.schoolName }}（{{ school.schoolCode }}）
-          </option>
-        </select>
+            <option
+              v-for="school in schools"
+              :key="school.schoolCode"
+              :value="school.schoolCode"
+            >
+              {{ school.schoolName }}（{{ school.schoolCode }}）
+            </option>
+          </select>
+        </span>
       </label>
 
       <button
         v-if="selectedSchoolHasSSO"
-        class="secondary-button"
+        class="secondary-button old-flow__sso"
         data-school-sso-button
         type="button"
         @click="startSchoolSSO"
@@ -35,26 +37,26 @@
 
       <form
         v-if="linked && selectedSchoolHasEmailOTP"
-        class="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4"
+        class="old-flow__form join-chip"
         data-school-email-otp-form
         @submit.prevent="verifyEmailOTP"
       >
-        <div v-if="selectedSchoolRequiresAcademicEmail" class="grid gap-3 sm:grid-cols-2">
-          <label class="field-label">
-            学号
+        <div v-if="selectedSchoolRequiresAcademicEmail" class="old-flow__pair">
+          <label class="old-flow__field">
+            <span class="join-label">学号</span>
             <input
               :value="studentID"
-              class="field-control"
+              class="join-input"
               data-academic-student-id-input
               type="text"
               @input="updateStudentID"
             >
           </label>
-          <label class="field-label">
-            姓名
+          <label class="old-flow__field">
+            <span class="join-label">姓名</span>
             <input
               :value="studentName"
-              class="field-control"
+              class="join-input"
               data-academic-student-name-input
               type="text"
               @input="updateStudentName"
@@ -63,26 +65,27 @@
         </div>
         <p
           v-if="selectedSchoolRequiresAcademicEmail && academicMatchMessage"
+          class="old-flow__match"
           :class="academicMatchMessageClass"
           data-academic-match-status
         >
           {{ academicMatchMessage }}
         </p>
-        <label class="field-label">
-          学校邮箱
-          <input
-            :value="email"
-            class="field-control"
-            data-academic-email-input
-            type="email"
-            :readonly="selectedSchoolRequiresAcademicEmail"
-            :placeholder="selectedSchoolRequiresAcademicEmail ? '学号和姓名校验通过后自动填写' : ''"
-            @input="updateEmail"
-          >
-        </label>
-        <div class="flex flex-wrap gap-3">
+        <div class="old-flow__send-row">
+          <label class="old-flow__field">
+            <span class="join-label">学校邮箱</span>
+            <input
+              :value="email"
+              class="join-input"
+              data-academic-email-input
+              type="email"
+              :readonly="selectedSchoolRequiresAcademicEmail"
+              :placeholder="selectedSchoolRequiresAcademicEmail ? '学号和姓名校验通过后自动填写' : ''"
+              @input="updateEmail"
+            >
+          </label>
           <button
-            class="secondary-button"
+            class="secondary-button old-flow__send"
             :class="{ 'button-disabled': selectedSchoolRequiresAcademicEmail && !canRequestEmailOTP }"
             data-school-email-otp-request
             type="button"
@@ -93,19 +96,19 @@
             {{ selectedSchoolRequiresAcademicEmail ? '校验并发送验证码' : '发送验证码' }}
           </button>
         </div>
-        <p v-if="successMessage" class="text-sm text-green-700">{{ successMessage }}</p>
-        <label class="field-label">
-          验证码
+        <p v-if="successMessage" class="old-flow__feedback old-flow__feedback--success">{{ successMessage }}</p>
+        <label class="old-flow__field old-flow__code-field">
+          <span class="join-label">验证码</span>
           <input
             :value="code"
-            class="field-control"
+            class="join-input"
             inputmode="numeric"
             type="text"
             @input="updateCode"
           >
         </label>
         <button
-          class="primary-button"
+          class="primary-button old-flow__verify"
           data-school-email-otp-verify
           type="submit"
           :disabled="!canVerifyEmailOTP"
@@ -114,15 +117,15 @@
         </button>
       </form>
 
-      <div v-else-if="!linked" class="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
+      <div v-else-if="!linked" class="old-flow__notice join-chip">
         请先确认绑定当前 QQ 后再进行老生认证。
       </div>
 
-      <div v-else class="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
+      <div v-else class="old-flow__notice join-chip">
         当前学校暂未开通加群老生认证方式。
       </div>
 
-      <p v-if="errorMessage" class="text-sm text-red-600">{{ errorMessage }}</p>
+      <p v-if="errorMessage" class="old-flow__feedback old-flow__feedback--danger">{{ errorMessage }}</p>
     </div>
   </section>
 </template>
@@ -458,30 +461,219 @@ function readErrorMessage(error: unknown, fallback: string): string {
 </script>
 
 <style scoped>
-.field-label {
-  color: #334155;
+/*
+ * 视觉层为品牌玻璃风（join-theme.css 提供 .join-* 原语与按钮样式）。
+ * 测试契约：.primary-button/.secondary-button/.button-disabled 类名、
+ * data-* 选择器、输入框 DOM 顺序（验证码输入必须是最后一个 <input>）。
+ */
+.old-flow,
+.old-flow__stack {
   display: grid;
+  gap: 16px;
+}
+
+/* ── 空态/锁定提示：玻璃信息卡 + 警示圆点 ─────────── */
+.old-flow__notice {
+  align-items: flex-start;
+  color: var(--join-ink-soft);
+  display: flex;
   font-size: 14px;
-  font-weight: 600;
-  gap: 6px;
+  gap: 10px;
+  line-height: 22px;
+  padding: 14px 16px;
 }
 
-.field-control {
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  color: #0f172a;
-  min-height: 40px;
-  padding: 8px 10px;
+.old-flow__notice::before {
+  background: var(--join-tone-warning-fg);
+  border-radius: 999px;
+  content: "";
+  flex: none;
+  height: 8px;
+  margin-top: 7px;
+  width: 8px;
 }
 
+/* ── 表单字段 ─────────────────────────────────────── */
+.old-flow__field {
+  display: block;
+  min-width: 0;
+}
+
+.old-flow__select-wrap {
+  display: block;
+  position: relative;
+}
+
+.old-flow__select-wrap .join-select {
+  appearance: none;
+  padding-right: 42px;
+}
+
+.old-flow__select-wrap::after {
+  border-bottom: 2px solid var(--join-ink-muted);
+  border-right: 2px solid var(--join-ink-muted);
+  content: "";
+  height: 9px;
+  pointer-events: none;
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-65%) rotate(45deg);
+  width: 9px;
+}
+
+/* ── SSO：官方入口升级为渐变 CTA（保留 .secondary-button 选择器） ── */
+.old-flow__sso.secondary-button {
+  background: var(--join-gradient-cta);
+  border-color: transparent;
+  box-shadow: var(--join-cta-glow);
+  color: #ffffff;
+  width: 100%;
+}
+
+.old-flow__sso.secondary-button:hover:not(:disabled) {
+  background: var(--join-gradient-cta);
+  border-color: transparent;
+  box-shadow: var(--join-cta-glow-hover);
+  filter: brightness(1.06);
+}
+
+/* ── 邮箱验证码表单：嵌套玻璃区块 ─────────────────── */
+.old-flow__form {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.old-flow__pair {
+  display: grid;
+  gap: 14px;
+}
+
+.old-flow__send-row {
+  display: grid;
+  gap: 12px;
+}
+
+.old-flow__send {
+  white-space: nowrap;
+}
+
+/* 学术邮箱模式下按钮保持可点击，仅做视觉降级（测试契约） */
 .button-disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
 
-.primary-button:disabled,
-.secondary-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
+.old-flow .secondary-button.button-disabled:hover:not(:disabled) {
+  background: var(--join-chip-bg);
+  border-color: var(--join-glass-border);
+}
+
+/* 验证码输入区：虚线分隔出“第二步”，等宽字距增强可读性 */
+.old-flow__code-field {
+  border-top: 1px dashed var(--join-glass-border);
+  padding-top: 16px;
+}
+
+.old-flow__code-field .join-input {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.18em;
+}
+
+.old-flow__verify {
+  width: 100%;
+}
+
+/* ── 学籍匹配状态行：语义色气泡（class 钩子来自冻结的脚本绑定） ── */
+.old-flow__match {
+  align-items: flex-start;
+  border-radius: var(--radius-lg);
+  display: flex;
+  font-size: 13px;
+  font-weight: 600;
+  gap: 8px;
+  line-height: 20px;
+  margin: 0;
+  padding: 10px 14px;
+}
+
+.old-flow__match::before {
+  background: currentColor;
+  border-radius: 999px;
+  content: "";
+  flex: none;
+  height: 7px;
+  margin-top: 6px;
+  width: 7px;
+}
+
+/* checking（脚本绑定 text-slate-600）→ 信息蓝 + 呼吸圆点 */
+.old-flow__match.text-slate-600 {
+  background: var(--join-tone-info-bg);
+  color: var(--join-tone-info-fg);
+}
+
+.old-flow__match.text-slate-600::before {
+  animation: old-flow-checking-pulse 1.2s ease-in-out infinite;
+}
+
+/* matched（text-green-700）→ 成功绿 */
+.old-flow__match.text-green-700 {
+  background: var(--join-tone-success-bg);
+  color: var(--join-tone-success-fg);
+}
+
+/* waiting/mismatch/error（text-red-600）→ 警示红 */
+.old-flow__match.text-red-600 {
+  background: var(--join-tone-danger-bg);
+  color: var(--join-tone-danger-fg);
+}
+
+@keyframes old-flow-checking-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* ── 成功/失败反馈气泡 ────────────────────────────── */
+.old-flow__feedback {
+  border-radius: var(--radius-lg);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  margin: 0;
+  padding: 10px 14px;
+}
+
+.old-flow__feedback--success {
+  background: var(--join-tone-success-bg);
+  color: var(--join-tone-success-fg);
+}
+
+.old-flow__feedback--danger {
+  background: var(--join-tone-danger-bg);
+  color: var(--join-tone-danger-fg);
+}
+
+/* ── ≥640px：双列学号/姓名 + 邮箱与发送按钮同排 ───── */
+@media (min-width: 640px) {
+  .old-flow__form {
+    padding: 20px;
+  }
+
+  .old-flow__pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .old-flow__send-row {
+    align-items: end;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
 }
 </style>
