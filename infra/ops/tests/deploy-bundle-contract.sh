@@ -38,6 +38,8 @@ assert_contains "${BUNDLE_SCRIPT}" "--exclude='\\.deploy'"
 assert_contains "${BUNDLE_SCRIPT}" "--exclude='\\.env'"
 assert_contains "${BUNDLE_SCRIPT}" "--exclude='\\.env\\.prod\\.shared'"
 assert_contains "${BUNDLE_SCRIPT}" "--exclude='infra/generated/\\*'"
+assert_contains "${BUNDLE_SCRIPT}" "--exclude='\\*\\*/node_modules'"
+assert_contains "${BUNDLE_SCRIPT}" "--exclude='\\*\\*/dist'"
 
 clean_check_line="$(line_number 'status --porcelain --untracked-files=all')"
 mkdir_line="$(line_number 'mkdir -p "\$\{OUTPUT_DIR\}"')"

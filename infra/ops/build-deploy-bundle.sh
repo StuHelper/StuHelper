@@ -43,6 +43,10 @@ trap 'rm -f "${tmpfile}"' EXIT
     --exclude='.secrets/*' \
     --exclude='.deploy' \
     --exclude='infra/generated/*' \
+    --exclude='**/node_modules' \
+    --exclude='**/dist' \
+    --exclude='**/.turbo' \
+    --exclude='**/.vite' \
     --exclude='clients/**/node_modules' \
     --exclude='clients/**/dist' \
     --exclude='clients/**/.turbo' \
