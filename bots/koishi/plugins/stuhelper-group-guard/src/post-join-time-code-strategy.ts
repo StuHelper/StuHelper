@@ -14,6 +14,7 @@ import {
   requireMemberID,
   resolveGuildID,
 } from './member-records'
+import type { AdmissionSubjectPlatform } from './admission-subject-platform'
 import { groupGuardMessage } from './group-guard-message-provider'
 
 const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000
@@ -28,7 +29,7 @@ export function isPostJoinTimeCodeStrategy(strategy?: string) {
 
 export interface PostJoinTimeCodeStrategyInput {
   readonly session: Session
-  readonly platform: string
+  readonly platform: AdmissionSubjectPlatform
   readonly guardStore: GuardMemberStore
   readonly policyStore: GuardPolicyStore
   readonly moderationStore: ModerationStore
@@ -97,7 +98,7 @@ export async function applyPostJoinTimeCodeStrategy(input: PostJoinTimeCodeStrat
 
 export async function handlePostJoinTimeCodeMessage(input: {
   readonly session: Session
-  readonly platform: string
+  readonly platform: AdmissionSubjectPlatform
   readonly guardStore: GuardMemberStore
   readonly moderationStore: ModerationStore
   readonly messages?: Partial<StuhelperGroupGuardMessageConfig>
