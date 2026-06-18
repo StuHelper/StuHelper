@@ -30,6 +30,7 @@ trap 'rm -f "${tmpfile}"' EXIT
     --exclude='.claude' \
     --exclude='.run' \
     --exclude='.tools' \
+    --exclude='.env*' \
     --exclude='.env' \
     --exclude='.env.generated' \
     --exclude='.env.generated.secrets' \
@@ -42,6 +43,7 @@ trap 'rm -f "${tmpfile}"' EXIT
     --exclude='.secrets' \
     --exclude='.secrets/*' \
     --exclude='.deploy' \
+    --exclude='infra/generated' \
     --exclude='infra/generated/*' \
     --exclude='**/node_modules' \
     --exclude='**/dist' \
