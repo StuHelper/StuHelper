@@ -68,8 +68,9 @@ const policyFieldLabels = {
 } as const;
 
 const joinHandlingStrategyOptions = [
-  { label: '加群后认证', value: 'post_join_guard' },
-  { label: '申请时审核', value: 'join_request_review' },
+  { label: '加群后学生认证', value: 'post_join_guard' },
+  { label: '申请时学生认证', value: 'join_request_review' },
+  { label: '加群后时间验证码', value: 'post_join_time_code' },
 ] as const;
 
 const createSourceOptions = computed(() =>
@@ -146,25 +147,36 @@ function joinHandlingStrategyLabel(policy: AdmissionPolicy) {
 }
 
 function joinHandlingStrategyHelp(policy: AdmissionPolicy) {
-  return policy.joinHandlingStrategy === 'post_join_guard'
-    ? 'Koishi 会在目标群成员入群后执行禁言、发认证链接、通过后解除禁言。'
-    : 'Koishi 不启用入群后守卫绑定，后端按 StuHelper 学生认证状态处理加群申请。';
+  if (policy.joinHandlingStrategy === 'post_join_guard') {
+    return 'Koishi 会在目标群成员入群后执行禁言、发认证链接、通过后解除禁言。';
+  }
+  if (policy.joinHandlingStrategy === 'post_join_time_code') {
+    return 'Koishi 会先同意入群申请，成员入群后在群内发送动态验证码完成验证；超时未验证将自动移出群聊。';
+  }
+  return 'Koishi 不启用入群后守卫绑定，后端按 StuHelper 学生认证状态处理加群申请。';
 }
 
 function guardSyncLabel(policy: AdmissionPolicy) {
   if (!policy.guardEnabled) return '目标群停用';
-  return policy.joinHandlingStrategy === 'post_join_guard'
+  return isPostJoinLocalStrategy(policy)
     ? '同步为 Koishi 入群后守卫'
-    : '同步为申请审核策略';
+    : '同步为申请阶段策略';
 }
 
 function guardSyncTagType(
   policy: AdmissionPolicy,
 ): 'danger' | 'info' | 'success' | 'warning' {
   if (!policy.guardEnabled) return 'info';
-  return policy.joinHandlingStrategy === 'post_join_guard'
+  return isPostJoinLocalStrategy(policy)
     ? 'success'
     : 'warning';
+}
+
+function isPostJoinLocalStrategy(policy: AdmissionPolicy) {
+  return (
+    policy.joinHandlingStrategy === 'post_join_guard' ||
+    policy.joinHandlingStrategy === 'post_join_time_code'
+  );
 }
 
 function saveImpactSummary(policy: AdmissionPolicy) {
@@ -238,10 +250,10 @@ async function savePolicy(policy: AdmissionPolicy) {
   try {
     await updateAdmissionPolicy({
       ...policy,
-      autoApproveJoin: policy.joinHandlingStrategy === 'post_join_guard',
+      autoApproveJoin: isPostJoinLocalStrategy(policy),
       autoApproveVerifiedJoin: true,
       autoApproveUnverifiedJoin:
-        policy.joinHandlingStrategy === 'post_join_guard',
+        isPostJoinLocalStrategy(policy),
       managementGuildIDs: parseManagementGuildIDs(policy.id),
     });
     ElMessage.success(

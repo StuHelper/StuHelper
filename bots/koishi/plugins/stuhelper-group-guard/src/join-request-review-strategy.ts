@@ -1,9 +1,12 @@
 import type { Session } from 'koishi'
 
 import type {
+  AdmissionJoinHandlingStrategy,
   AdmissionJoinRequestDecisionAction,
   PlatformClient,
 } from '@stuhelper/koishi-shared'
+
+export const JOIN_REQUEST_REVIEW_STRATEGY: AdmissionJoinHandlingStrategy = 'join_request_review'
 
 export interface JoinRequestReviewRecordInput {
   readonly platform: string
@@ -74,9 +77,20 @@ function requestIDOf(session: Session) {
 }
 
 function rawRequestEvent(session: Session) {
-  return (session.event as { _data?: Record<string, unknown> } | undefined)?._data || {}
+  const data = (session.event as { _data?: Record<string, unknown> } | undefined)?._data || {}
+  if (!session.content || typeof data.content === 'string') {
+    return data
+  }
+  return {
+    ...data,
+    content: session.content,
+  }
 }
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
+}
+
+export function isJoinRequestReviewStrategy(strategy?: AdmissionJoinHandlingStrategy) {
+  return (strategy ?? JOIN_REQUEST_REVIEW_STRATEGY) === JOIN_REQUEST_REVIEW_STRATEGY
 }

@@ -162,6 +162,9 @@ func (s *Service) ResolveJoinRequestDecision(
 	if !policy.GuardEnabled {
 		return nil, ErrAdmissionPolicyNotFound
 	}
+	if policy.JoinHandlingStrategy == AdmissionJoinHandlingPostJoinTimeCode {
+		return postJoinGuardDecision(policy, nil), nil
+	}
 	userID, err := s.repo.GetVerifiedAdmissionUserByQQ(ctx, input.QQID, policy.SchoolID, s.now())
 	if err != nil {
 		return nil, err
@@ -186,6 +189,12 @@ func normalizeAdmissionPolicy(policy AdmissionPolicy) AdmissionPolicy {
 		policy.AutoApproveVerifiedJoin = true
 		policy.AutoApproveUnverifiedJoin = false
 		policy.AutoApproveJoin = false
+		return policy
+	}
+	if policy.JoinHandlingStrategy == AdmissionJoinHandlingPostJoinTimeCode {
+		policy.AutoApproveVerifiedJoin = true
+		policy.AutoApproveUnverifiedJoin = true
+		policy.AutoApproveJoin = true
 		return policy
 	}
 	policy.AutoApproveVerifiedJoin = true
@@ -254,7 +263,7 @@ func normalizeJoinRequestEventDecision(
 func postJoinGuardDecision(policy *AdmissionPolicy, userID *int64) *AdmissionJoinRequestDecision {
 	decision := &AdmissionJoinRequestDecision{
 		Decision:                  AdmissionJoinRequestDecisionApprove,
-		Reason:                    "post_join_guard_auto_approve",
+		Reason:                    postJoinAutoApproveReason(policy.JoinHandlingStrategy),
 		VerificationState:         AdmissionJoinRequestUnverified,
 		JoinHandlingStrategy:      policy.JoinHandlingStrategy,
 		AutoApproveVerifiedJoin:   policy.AutoApproveVerifiedJoin,
@@ -267,6 +276,13 @@ func postJoinGuardDecision(policy *AdmissionPolicy, userID *int64) *AdmissionJoi
 		decision.UserID = &value
 	}
 	return decision
+}
+
+func postJoinAutoApproveReason(strategy AdmissionJoinHandlingStrategy) string {
+	if strategy == AdmissionJoinHandlingPostJoinTimeCode {
+		return "post_join_time_code_auto_approve"
+	}
+	return "post_join_guard_auto_approve"
 }
 
 func verifiedJoinRequestDecision(policy *AdmissionPolicy, userID *int64) *AdmissionJoinRequestDecision {
@@ -316,6 +332,8 @@ func normalizeJoinHandlingStrategy(strategy AdmissionJoinHandlingStrategy) Admis
 	switch normalized {
 	case AdmissionJoinHandlingJoinRequestReview:
 		return AdmissionJoinHandlingJoinRequestReview
+	case AdmissionJoinHandlingPostJoinTimeCode, "join_request_time_code":
+		return AdmissionJoinHandlingPostJoinTimeCode
 	case AdmissionJoinHandlingPostJoinGuard, "":
 		return AdmissionJoinHandlingPostJoinGuard
 	default:

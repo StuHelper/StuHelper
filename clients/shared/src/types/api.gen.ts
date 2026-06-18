@@ -4525,11 +4525,11 @@ export interface components {
              */
             guardEnabled: boolean;
             /**
-             * @description 入群处理策略。post_join_guard 表示加群后禁言并发送认证链接；join_request_review 表示在加群申请阶段按 StuHelper 学生认证状态自动通过或拒绝。
+             * @description 入群处理策略。post_join_guard 表示加群后禁言并发送认证链接；join_request_review 表示在加群申请阶段按 StuHelper 学生认证状态自动通过或拒绝；post_join_time_code 表示 Koishi 先同意入群申请，成员入群后在群内发送动态验证码完成验证，超时未验证则移出群聊。
              * @default post_join_guard
              * @enum {string}
              */
-            joinHandlingStrategy: "post_join_guard" | "join_request_review";
+            joinHandlingStrategy: "post_join_guard" | "join_request_review" | "post_join_time_code";
             /** @deprecated */
             autoApproveJoin: boolean;
             /** @default true */
@@ -4577,7 +4577,7 @@ export interface components {
              * @description 该目标群当前使用的入群处理策略。
              * @enum {string}
              */
-            joinHandlingStrategy: "post_join_guard" | "join_request_review";
+            joinHandlingStrategy: "post_join_guard" | "join_request_review" | "post_join_time_code";
         };
         FreshmanApplication: {
             id: string;
@@ -5431,7 +5431,7 @@ export interface components {
             /** @enum {string} */
             verificationState: "verified" | "unverified";
             /** @enum {string} */
-            joinHandlingStrategy: "post_join_guard" | "join_request_review";
+            joinHandlingStrategy: "post_join_guard" | "join_request_review" | "post_join_time_code";
             autoApproveVerifiedJoin: boolean;
             autoApproveUnverifiedJoin: boolean;
             policyID?: string;

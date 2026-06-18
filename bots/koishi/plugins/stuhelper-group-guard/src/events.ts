@@ -26,18 +26,19 @@ export function registerGroupGuardEvents(ctx: Context, deps: EventDeps) {
     return deps.memberGuard.handleGuildMemberRequest(session)
   })
 
+  ctx.on('message', async (session) => {
+    await deps.memberGuard.handleMessage(session)
+    const messageGuard = deps.messageGuard
+    if (!messageGuard) return
+    if (deps.runtimeSettings) {
+      const enabled = await deps.runtimeSettings.isModerationEnabled()
+      if (!enabled) return
+    }
+    return messageGuard.handleMessage(session)
+  })
+
   const messageGuard = deps.messageGuard
   if (messageGuard) {
-    ctx.on('message', (session) => {
-      if (deps.runtimeSettings) {
-        return deps.runtimeSettings.isModerationEnabled().then((enabled) => {
-          if (!enabled) return
-          return messageGuard.handleMessage(session)
-        })
-      }
-      return messageGuard.handleMessage(session)
-    })
-
     ctx.on('message-deleted', (session) => {
       if (deps.runtimeSettings) {
         return deps.runtimeSettings.isModerationEnabled().then((enabled) => {

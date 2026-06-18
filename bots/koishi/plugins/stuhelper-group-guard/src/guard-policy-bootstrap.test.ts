@@ -41,6 +41,7 @@ test('syncGuardPolicyFromAdmissionTargets creates default template and qq bindin
   assert.equal(store.bindings[0].platform, 'qq')
   assert.equal(store.bindings[0].guildId, '178037297')
   assert.equal(store.bindings[0].templateId, 'admission-default')
+  assert.equal(store.bindings[0].joinHandlingStrategy, 'post_join_guard')
 })
 
 test('syncGuardPolicyFromAdmissionTargets applies backend policy target enabled state', async () => {
@@ -59,21 +60,29 @@ test('syncGuardPolicyFromAdmissionTargets applies backend policy target enabled 
       guardEnabled: true,
       joinHandlingStrategy: 'join_request_review',
     },
+    {
+      policyID: 'policy-code',
+      platform: 'qq',
+      guildID: 'code-only',
+      guardEnabled: true,
+      joinHandlingStrategy: 'post_join_time_code',
+    },
     { policyID: 'policy-old-backend', platform: 'qq', guildID: 'old-backend' },
     { policyID: 'policy-other', platform: 'telegram', guildID: 'ignored', guardEnabled: true },
   ])
 
   assert.deepEqual(result, {
     templateCreated: false,
-    bindingCreatedCount: 3,
+    bindingCreatedCount: 4,
     bindingUpdatedCount: 1,
     bindingDisabledCount: 0,
   })
-  assert.deepEqual(store.bindings.map((binding) => [binding.id, binding.enabled, binding.note]), [
-    ['qq:178037297', false, 'synced from backend admission policies'],
-    ['qq:743762161', true, 'synced from backend admission policies'],
-    ['qq:review-only', false, 'synced from backend admission policies'],
-    ['qq:old-backend', true, 'synced from backend admission policies'],
+  assert.deepEqual(store.bindings.map((binding) => [binding.id, binding.enabled, binding.joinHandlingStrategy, binding.note]), [
+    ['qq:178037297', false, 'post_join_guard', 'synced from backend admission policies'],
+    ['qq:743762161', true, 'post_join_guard', 'synced from backend admission policies'],
+    ['qq:review-only', false, 'join_request_review', 'synced from backend admission policies'],
+    ['qq:code-only', true, 'post_join_time_code', 'synced from backend admission policies'],
+    ['qq:old-backend', true, 'post_join_guard', 'synced from backend admission policies'],
   ])
 })
 
@@ -94,9 +103,9 @@ test('syncGuardPolicyFromAdmissionTargets disables stale qq bindings absent from
     bindingUpdatedCount: 1,
     bindingDisabledCount: 1,
   })
-  assert.deepEqual(store.bindings.map((binding) => [binding.id, binding.enabled, binding.note]), [
-    ['qq:178037297', false, 'disabled because backend admission policy target is absent'],
-    ['qq:743762161', true, 'synced from backend admission policies'],
+  assert.deepEqual(store.bindings.map((binding) => [binding.id, binding.enabled, binding.joinHandlingStrategy, binding.note]), [
+    ['qq:178037297', false, 'post_join_guard', 'disabled because backend admission policy target is absent'],
+    ['qq:743762161', true, 'post_join_guard', 'synced from backend admission policies'],
   ])
 })
 
@@ -113,8 +122,8 @@ test('syncGuardPolicyFromAdmissionTargets does not disable non-qq bindings as st
   const result = await syncGuardPolicyFromAdmissionTargets(store as unknown as GuardPolicyStore, [])
 
   assert.equal(result.bindingDisabledCount, 0)
-  assert.deepEqual(store.bindings.map((binding) => [binding.id, binding.enabled, binding.note]), [
-    ['telegram:external', true, 'external binding'],
+  assert.deepEqual(store.bindings.map((binding) => [binding.id, binding.enabled, binding.joinHandlingStrategy, binding.note]), [
+    ['telegram:external', true, undefined, 'external binding'],
   ])
 })
 

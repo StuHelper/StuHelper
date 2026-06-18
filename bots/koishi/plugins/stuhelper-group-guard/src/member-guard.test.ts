@@ -50,6 +50,7 @@ test('member guard creates admission session, mutes, and sends canonical auth li
         return {
           source: 'static',
           templateId: 'static',
+          joinHandlingStrategy: 'post_join_guard',
           exemptUsers: [],
         }
       },
@@ -362,6 +363,7 @@ test('member guard skips mute and reminder when backend marks member verified', 
         return {
           source: 'static',
           templateId: 'static',
+          joinHandlingStrategy: 'post_join_guard',
           exemptUsers: [],
         }
       },
@@ -537,6 +539,232 @@ test('member guard rejects join request when admission policy decision rejects',
   }])
 })
 
+test('member guard records local post-join time-code challenge after member joins', async () => {
+  const savedRecords: any[] = []
+  const sentMessages: string[] = []
+  const moderationEvents: any[] = []
+  const reminderMarks: Array<{ id: string, now: Date }> = []
+  const muteActions: unknown[] = []
+  const now = new Date('2026-06-17T07:30:00.000Z')
+  const service = new MemberGuardService({
+    platform: {
+      async createAdmissionSession() {
+        throw new Error('post-join time-code strategy must not create admission sessions')
+      },
+    },
+    policyStore: timeCodePolicyStore(),
+    guardStore: {
+      async findActiveBySubject() { return null },
+      async savePending(record: any) { savedRecords.push(record) },
+      async markReminderSent(id: string, markedAt: Date) {
+        reminderMarks.push({ id, now: markedAt })
+        const record = savedRecords.find((item) => item.id === id)
+        if (record) record.reminderSentAt = markedAt
+      },
+    },
+    moderationStore: { async appendEvent(event: any) { moderationEvents.push(event) } },
+    logger: { error() {}, warn() {} },
+    now: () => now,
+  } as any)
+
+  await service.handleGuildMemberAdded(memberAddedSession({
+    bot: {
+      muteGuildMember: async (...args: unknown[]) => {
+        muteActions.push(args)
+      },
+      sendMessage: async (_channelId: string, content: string) => {
+        sentMessages.push(content)
+        return ['message-code']
+      },
+    },
+  }))
+
+  assert.equal(savedRecords.length, 1)
+  assert.equal(savedRecords[0].admissionSessionID, null)
+  assert.equal(savedRecords[0].backendSyncPending, false)
+  assert.equal(savedRecords[0].verificationState, 'unbound')
+  assert.equal(savedRecords[0].deadlineAt.toISOString(), '2026-06-17T08:00:00.000Z')
+  assert.deepEqual(muteActions, [])
+  assert.equal(reminderMarks.length, 1)
+  assert.equal(reminderMarks[0].id, savedRecords[0].id)
+  assert.match(sentMessages[0], /请在 30 分钟内发送验证码/)
+  assert.match(sentMessages[0], /群公告/)
+  assert.doesNotMatch(sentMessages[0], /1531/)
+  assert.equal(moderationEvents.length, 1)
+  assert.equal(moderationEvents[0].type, 'join_guarded')
+  assert.equal(moderationEvents[0].payload.joinHandlingStrategy, 'post_join_time_code')
+  assert.equal('code' in moderationEvents[0].payload, false)
+})
+
+test('member guard releases post-join time-code challenge on valid group message', async () => {
+  const now = new Date('2026-06-17T07:30:00.000Z')
+  const record = timeCodeRecord({ deadlineAt: new Date('2026-06-17T08:00:00.000Z') })
+  const releases: Array<{ id: string, now: Date }> = []
+  const sentMessages: string[] = []
+  const moderationEvents: any[] = []
+  const service = new MemberGuardService({
+    platform: {},
+    policyStore: timeCodePolicyStore(),
+    guardStore: {
+      async findActiveBySubject() { return record },
+      async markReleased(id: string, markedAt: Date) {
+        releases.push({ id, now: markedAt })
+        record.releasedAt = markedAt
+        return true
+      },
+    },
+    moderationStore: { async appendEvent(event: any) { moderationEvents.push(event) } },
+    logger: { error() {}, warn() {} },
+    now: () => now,
+  } as any)
+
+  const handled = await service.handleMessage(messageSession({
+    content: '验证码：1531',
+    bot: {
+      sendMessage: async (_channelId: string, content: string) => {
+        sentMessages.push(content)
+        return ['message-verified']
+      },
+    },
+  }))
+
+  assert.equal(handled, true)
+  assert.deepEqual(releases, [{ id: record.id, now }])
+  assert.match(sentMessages[0], /验证通过/)
+  assert.equal(moderationEvents.length, 1)
+  assert.equal(moderationEvents[0].type, 'join_released')
+  assert.equal(moderationEvents[0].payload.joinHandlingStrategy, 'post_join_time_code')
+})
+
+test('member guard keeps post-join time-code challenge active on invalid code', async () => {
+  const now = new Date('2026-06-17T07:30:00.000Z')
+  const record = timeCodeRecord({ deadlineAt: new Date('2026-06-17T08:00:00.000Z') })
+  const sentMessages: string[] = []
+  const service = new MemberGuardService({
+    platform: {},
+    policyStore: timeCodePolicyStore(),
+    guardStore: {
+      async findActiveBySubject() { return record },
+      async markReleased() {
+        throw new Error('invalid code must not release guard record')
+      },
+    },
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+    now: () => now,
+  } as any)
+
+  const handled = await service.handleMessage(messageSession({
+    content: '9999',
+    bot: {
+      sendMessage: async (_channelId: string, content: string) => {
+        sentMessages.push(content)
+        return ['message-invalid']
+      },
+    },
+  }))
+
+  assert.equal(handled, false)
+  assert.deepEqual(sentMessages, ['<at id="10001"/> 验证码不正确，请核对后重新发送。'])
+})
+
+test('member guard kicks expired post-join time-code challenge during scheduled scan', async () => {
+  const now = new Date('2026-06-17T08:01:00.000Z')
+  const record = timeCodeRecord({ deadlineAt: new Date('2026-06-17T08:00:00.000Z') })
+  const sentMessages: string[] = []
+  const kicks: Array<{ guildId: string, memberId: string, permanent?: boolean }> = []
+  const kickedMarks: Array<{ id: string, now: Date }> = []
+  const moderationEvents: any[] = []
+  const service = new MemberGuardService({
+    platform: {
+      async listPendingAdmissionActions() { return [] },
+      async listPendingFreshmanForwards() { return [] },
+    },
+    policyStore: timeCodePolicyStore(),
+    guardStore: {
+      async listBackendSyncPending() { return [] },
+      async listActive() { return [record] },
+      async markKicked(id: string, markedAt: Date) {
+        kickedMarks.push({ id, now: markedAt })
+        record.kickedAt = markedAt
+        return true
+      },
+      async markLastError(id: string, message: string, markedAt: Date) {
+        record.lastError = `${id}:${message}:${markedAt.toISOString()}`
+      },
+    },
+    moderationStore: { async appendEvent(event: any) { moderationEvents.push(event) } },
+    logger: { error() {}, warn() {} },
+    now: () => now,
+  } as any)
+
+  await service.scanPendingMembers([{
+    platform: 'qq',
+    selfId: '514',
+    sid: 'qq:514',
+    sendMessage: async (_channelId: string, content: string) => {
+      sentMessages.push(content)
+      return ['message-expired']
+    },
+    muteGuildMember: async () => {},
+    kickGuildMember: async (guildId: string, memberId: string, permanent?: boolean) => {
+      kicks.push({ guildId, memberId, permanent })
+    },
+  } as any])
+
+  assert.deepEqual(sentMessages, ['<at id="10001"/> 入群验证码超时，机器人将自动移出群聊。'])
+  assert.deepEqual(kicks, [{ guildId: 'guild-1', memberId: '10001', permanent: undefined }])
+  assert.deepEqual(kickedMarks, [{ id: record.id, now }])
+  assert.equal(moderationEvents.length, 1)
+  assert.equal(moderationEvents[0].type, 'join_expired')
+  assert.equal(moderationEvents[0].payload.joinHandlingStrategy, 'post_join_time_code')
+})
+
+test('member guard still kicks expired post-join time-code challenge when timeout notice fails', async () => {
+  const now = new Date('2026-06-17T08:01:00.000Z')
+  const record = timeCodeRecord({ deadlineAt: new Date('2026-06-17T08:00:00.000Z') })
+  const kicks: Array<{ guildId: string, memberId: string, permanent?: boolean }> = []
+  const errors: string[] = []
+  const service = new MemberGuardService({
+    platform: {
+      async listPendingAdmissionActions() { return [] },
+      async listPendingFreshmanForwards() { return [] },
+    },
+    policyStore: timeCodePolicyStore(),
+    guardStore: {
+      async listBackendSyncPending() { return [] },
+      async listActive() { return [record] },
+      async markKicked(id: string, markedAt: Date) {
+        record.kickedAt = markedAt
+        return id === record.id
+      },
+      async markLastError(_id: string, message: string) {
+        errors.push(message)
+      },
+    },
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+    now: () => now,
+  } as any)
+
+  await service.scanPendingMembers([{
+    platform: 'qq',
+    selfId: '514',
+    sid: 'qq:514',
+    sendMessage: async () => {
+      throw new Error('notice failed')
+    },
+    muteGuildMember: async () => {},
+    kickGuildMember: async (guildId: string, memberId: string, permanent?: boolean) => {
+      kicks.push({ guildId, memberId, permanent })
+    },
+  } as any])
+
+  assert.deepEqual(errors, ['notice failed'])
+  assert.deepEqual(kicks, [{ guildId: 'guild-1', memberId: '10001', permanent: undefined }])
+  assert.ok(record.kickedAt instanceof Date)
+})
+
 test('member guard records failed join request approval attempts', async () => {
   const events: unknown[] = []
   const service = new MemberGuardService({
@@ -627,6 +855,7 @@ test('member guard fail-closes when platform session creation is unavailable and
           templateName: 'static',
           platform: 'qq',
           guildId: 'guild-1',
+          joinHandlingStrategy: 'post_join_guard',
           muteDurationSeconds: 600,
           kickAfterMinutes: 30,
           reminderTemplate: '请等待机器人恢复认证链接。',
@@ -767,6 +996,7 @@ test('member guard kicks blacklisted members instead of pending backend sync', a
         return {
           source: 'static',
           templateId: 'static',
+          joinHandlingStrategy: 'post_join_guard',
           exemptUsers: [],
         }
       },
@@ -1363,9 +1593,30 @@ function policyStoreFor(guildIds: readonly string[]) {
         templateName: 'static',
         platform,
         guildId,
+        joinHandlingStrategy: 'post_join_guard',
         muteDurationSeconds: 600,
         kickAfterMinutes: 30,
         reminderTemplate: '请先完成认证。',
+        exemptUsers: [],
+      }
+    },
+  }
+}
+
+function timeCodePolicyStore() {
+  return {
+    async resolvePolicy(platform: string, guildId: string) {
+      if (platform !== 'qq' || guildId !== 'guild-1') return null
+      return {
+        source: 'static',
+        templateId: 'static',
+        templateName: 'static',
+        platform,
+        guildId,
+        joinHandlingStrategy: 'post_join_time_code',
+        muteDurationSeconds: 600,
+        kickAfterMinutes: 30,
+        reminderTemplate: '请先完成验证码。',
         exemptUsers: [],
       }
     },
@@ -1384,6 +1635,34 @@ function recordFor(sessionID: string) {
     admissionSessionID: sessionID,
     backendSyncPending: false,
   }
+}
+
+function timeCodeRecord(overrides: Record<string, unknown> = {}) {
+  const now = new Date('2026-06-17T07:30:00.000Z')
+  return {
+    id: 'qq:514:guild-1:10001',
+    platform: 'qq',
+    botSelfId: '514',
+    guildId: 'guild-1',
+    channelId: 'channel-1',
+    memberId: '10001',
+    memberName: 'Alice',
+    verificationState: 'unbound',
+    admissionSessionID: null,
+    backendSyncPending: false,
+    joinedAt: now,
+    deadlineAt: new Date('2026-06-17T08:00:00.000Z'),
+    nextReminderAt: null,
+    manualReviewDeadlineAt: null,
+    mutedAt: null,
+    reminderSentAt: null,
+    releasedAt: null,
+    kickedAt: null,
+    lastError: null,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  } as any
 }
 
 function activeRecordStore(savedRecords: any[]) {
@@ -1423,6 +1702,26 @@ function memberAddedSession(overrides: Record<string, unknown> = {}) {
     userId: '10001',
     username: 'Alice',
     event: { user: { nick: 'Alice' } },
+    ...overrides,
+  } as any
+}
+
+function messageSession(overrides: Record<string, unknown> = {}) {
+  return {
+    platform: 'qq',
+    selfId: '514',
+    guildId: 'guild-1',
+    channelId: 'channel-1',
+    userId: '10001',
+    username: 'Alice',
+    content: '',
+    event: {
+      guild: { id: 'guild-1' },
+      user: { nick: 'Alice' },
+    },
+    bot: {
+      sendMessage: async () => {},
+    },
     ...overrides,
   } as any
 }

@@ -38,6 +38,7 @@ export type AdmissionBotAction =
 export type AdmissionJoinHandlingStrategy =
   | 'post_join_guard'
   | 'join_request_review'
+  | 'post_join_time_code'
 
 export type FreshmanReviewAction = 'approve' | 'reject'
 
@@ -146,6 +147,10 @@ export interface StuhelperGroupGuardMessageConfig {
   backendPendingReminder: string
   admissionReleaseCompleted: string
   admissionKickTimeout: string
+  admissionTimeCodeReminder: string
+  admissionTimeCodeVerified: string
+  admissionTimeCodeInvalid: string
+  admissionTimeCodeKickTimeout: string
   admissionBlacklistKick: string
   antiRecallNotify: string
   moderationMuteNotice: string
@@ -258,6 +263,9 @@ export interface StuhelperGroupGuardMessageConfig {
   admissionJoinAlreadyVerifiedEventSummary: string
   admissionJoinBackendUnavailableEventSummary: string
   admissionJoinBackendVerifiedEventSummary: string
+  admissionTimeCodeJoinGuardedEventSummary: string
+  admissionTimeCodeVerifiedEventSummary: string
+  admissionTimeCodeExpiredEventSummary: string
   admissionCommandInvalidMuteDeadline: string
 }
 

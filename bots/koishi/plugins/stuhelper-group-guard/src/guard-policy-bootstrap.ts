@@ -4,9 +4,11 @@ import type {
 } from '@stuhelper/koishi-shared'
 import {
   createBindingID,
+  type AdmissionJoinHandlingStrategy,
 } from '@stuhelper/koishi-shared'
 
 import { isPostJoinGuardStrategy } from './post-join-guard-strategy'
+import { isPostJoinTimeCodeStrategy } from './post-join-time-code-strategy'
 
 const ADMISSION_BUSINESS_PLATFORM = 'qq'
 const BOOTSTRAP_TEMPLATE_ID = 'admission-default'
@@ -23,6 +25,7 @@ interface BootstrapLogger {
 
 interface NormalizedAdmissionTargetGroup {
   readonly guildId: string
+  readonly joinHandlingStrategy: AdmissionJoinHandlingStrategy
   readonly enabled: boolean
 }
 
@@ -101,6 +104,7 @@ async function ensureGuardPolicyBindings(
       platform: ADMISSION_BUSINESS_PLATFORM,
       guildId: target.guildId,
       templateId: BOOTSTRAP_TEMPLATE_ID,
+      joinHandlingStrategy: target.joinHandlingStrategy,
       enabled: target.enabled,
       note,
     })
@@ -147,6 +151,7 @@ async function disableStaleBackendBindings(
       platform: binding.platform,
       guildId: binding.guildId,
       templateId: binding.templateId,
+      joinHandlingStrategy: binding.joinHandlingStrategy,
       enabled: false,
       note: STALE_BINDING_NOTE,
     })
@@ -169,10 +174,25 @@ function normalizeAdmissionTargetGroups(
     if (target.platform !== ADMISSION_BUSINESS_PLATFORM) continue
     const guildId = target.guildID.trim()
     if (!guildId) continue
+    const joinHandlingStrategy = normalizeJoinHandlingStrategy(target.joinHandlingStrategy)
     normalized.set(guildId, {
       guildId,
-      enabled: target.guardEnabled !== false && isPostJoinGuardStrategy(target.joinHandlingStrategy),
+      joinHandlingStrategy,
+      enabled: target.guardEnabled !== false && isPostJoinLocalStrategy(joinHandlingStrategy),
     })
   }
   return [...normalized.values()]
+}
+
+function isPostJoinLocalStrategy(strategy?: AdmissionJoinHandlingStrategy) {
+  return isPostJoinGuardStrategy(strategy) || isPostJoinTimeCodeStrategy(strategy)
+}
+
+function normalizeJoinHandlingStrategy(
+  strategy?: AdmissionJoinHandlingStrategy | 'join_request_time_code',
+): AdmissionJoinHandlingStrategy {
+  if (strategy === 'join_request_time_code') {
+    return 'post_join_time_code'
+  }
+  return strategy ?? 'post_join_guard'
 }

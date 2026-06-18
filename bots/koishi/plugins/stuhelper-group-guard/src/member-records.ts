@@ -62,6 +62,29 @@ export function createBackendPendingGuardMemberRecord(input: {
   })
 }
 
+export function createTimeCodeGuardMemberRecord(input: {
+  readonly session: Session
+  readonly policy: EffectiveGuardPolicy
+  readonly platform: AdmissionSubjectPlatform
+  readonly now?: Date
+}): GuardMemberRecord {
+  const { session, policy, platform, now = new Date() } = input
+  const deadlineAt = new Date(now.getTime() + policy.kickAfterMinutes * MINUTE_MS)
+  return {
+    ...createBaseGuardMemberRecord(session, {
+      platform,
+      admissionSessionID: null,
+      backendSyncPending: false,
+      deadlineAt,
+      nextReminderAt: null,
+      manualReviewDeadlineAt: null,
+      lastError: null,
+      now,
+    }),
+    verificationState: 'unbound',
+  }
+}
+
 export function backendSyncUpdate(admission: AdmissionSessionCreateResult) {
   return {
     admissionSessionID: admission.session.id,

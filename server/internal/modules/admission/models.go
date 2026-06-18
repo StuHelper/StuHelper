@@ -42,6 +42,7 @@ type AdmissionJoinHandlingStrategy string
 const (
 	AdmissionJoinHandlingPostJoinGuard     AdmissionJoinHandlingStrategy = "post_join_guard"
 	AdmissionJoinHandlingJoinRequestReview AdmissionJoinHandlingStrategy = "join_request_review"
+	AdmissionJoinHandlingPostJoinTimeCode  AdmissionJoinHandlingStrategy = "post_join_time_code"
 )
 
 type FreshmanCameraHandoffStatus string

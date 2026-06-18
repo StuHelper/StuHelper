@@ -6,6 +6,7 @@ import {
   type GuardGroupBindingRecord,
   type GuardTemplateRecord,
 } from './policy'
+import type { AdmissionJoinHandlingStrategy } from '../types/index'
 
 export interface EffectiveGuardPolicy {
   source: 'binding'
@@ -13,6 +14,7 @@ export interface EffectiveGuardPolicy {
   templateName: string
   platform: string
   guildId: string
+  joinHandlingStrategy: AdmissionJoinHandlingStrategy
   muteDurationSeconds: number
   kickAfterMinutes: number
   reminderTemplate: string
@@ -23,6 +25,7 @@ interface GuardBindingInput {
   platform: string
   guildId: string
   templateId: string
+  joinHandlingStrategy?: AdmissionJoinHandlingStrategy
   enabled: boolean
   note?: string | null
 }
@@ -74,6 +77,7 @@ export class GuardPolicyStore {
     if (existing) {
       await this.ctx.database.set(GUARD_GROUP_BINDING_TABLE, { id }, {
         templateId: input.templateId,
+        joinHandlingStrategy: input.joinHandlingStrategy ?? 'post_join_guard',
         enabled: input.enabled,
         note: input.note || null,
         updatedAt: now,
@@ -84,6 +88,7 @@ export class GuardPolicyStore {
     await this.ctx.database.create(GUARD_GROUP_BINDING_TABLE, {
       id,
       ...input,
+      joinHandlingStrategy: input.joinHandlingStrategy ?? 'post_join_guard',
       note: input.note || null,
       createdAt: now,
       updatedAt: now,
@@ -129,6 +134,7 @@ function createBoundPolicy(binding: GuardGroupBindingRecord, template: GuardTemp
     templateName: template.name,
     platform: binding.platform,
     guildId: binding.guildId,
+    joinHandlingStrategy: binding.joinHandlingStrategy ?? 'post_join_guard',
     muteDurationSeconds: template.muteDurationSeconds,
     kickAfterMinutes: template.kickAfterMinutes,
     reminderTemplate: template.reminderTemplate,

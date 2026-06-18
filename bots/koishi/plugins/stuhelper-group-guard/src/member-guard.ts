@@ -36,6 +36,12 @@ import {
   applyPostJoinGuardStrategy,
   postJoinGuardSubjectKey,
 } from './post-join-guard-strategy'
+import {
+  applyPostJoinTimeCodeStrategy,
+  handlePostJoinTimeCodeMessage,
+  isPostJoinTimeCodeStrategy,
+  kickExpiredPostJoinTimeCodeMembers,
+} from './post-join-time-code-strategy'
 import { sendAdmissionReminder } from './member-guard-actions'
 import {
   resolveAdmissionReminderDeliveryInput,
@@ -70,6 +76,7 @@ interface MemberGuardDeps {
   reminderDeduper?: AdmissionReminderDeduper
   admissionReminderDelivery?: AdmissionReminderDeliveryConfigProvider
   messageProvider?: GroupGuardMessageProvider
+  now?: () => Date
 }
 
 export class MemberGuardService {
@@ -132,6 +139,21 @@ export class MemberGuardService {
     this.activeJoinSubjects.add(subjectKey)
     try {
       const messages = await this.getMessages()
+      const policy = await this.deps.policyStore.resolvePolicy(admissionPlatform, guildId)
+      if (isPostJoinTimeCodeStrategy(policy?.joinHandlingStrategy)) {
+        await applyPostJoinTimeCodeStrategy({
+          session,
+          platform: admissionPlatform,
+          guardStore: this.deps.guardStore,
+          policyStore: this.deps.policyStore,
+          moderationStore: this.deps.moderationStore,
+          logger: this.deps.logger,
+          messages,
+          now: this.deps.now,
+          policy,
+        })
+        return
+      }
       await applyPostJoinGuardStrategy({
         session,
         platform: admissionPlatform,
@@ -144,10 +166,31 @@ export class MemberGuardService {
         reminderDeduper: this.deps.reminderDeduper,
         admissionReminderDelivery: () => this.getAdmissionReminderDelivery(),
         messages,
+        policy,
       })
     } finally {
       this.activeJoinSubjects.delete(subjectKey)
     }
+  }
+
+  async handleMessage(session: Session) {
+    const guildId = session.guildId || session.event.guild?.id
+    if (!guildId || !session.userId || !session.content?.trim()) {
+      return false
+    }
+    const admissionPlatform = resolveAdmissionSubjectPlatform(session.platform)
+    if (!admissionPlatform) {
+      return false
+    }
+    const messages = await this.getMessages()
+    return handlePostJoinTimeCodeMessage({
+      session,
+      platform: admissionPlatform,
+      guardStore: this.deps.guardStore,
+      moderationStore: this.deps.moderationStore,
+      messages,
+      now: this.deps.now,
+    })
   }
 
   async scanPendingMembers(bots: readonly GuardBotRuntime[]) {
@@ -159,6 +202,13 @@ export class MemberGuardService {
     for (const bot of bots) {
       await this.syncBackendPendingMembers(bot, now)
       await this.scanBotAdmissionActions(bot, now)
+      await kickExpiredPostJoinTimeCodeMembers({
+        bot,
+        guardStore: this.deps.guardStore,
+        moderationStore: this.deps.moderationStore,
+        messages: await this.getMessages(),
+        now: this.deps.now,
+      })
     }
     await this.forwardFreshmanMaterials(bots)
   }

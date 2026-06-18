@@ -159,6 +159,32 @@ func TestResolveJoinRequestDecisionUsesVerifiedAndUnverifiedPolicy(t *testing.T)
 	assert.Equal(t, fmt.Sprint(userID), *decision.UserID)
 }
 
+func TestResolveJoinRequestDecisionAutoApprovesPostJoinTimeCodeStrategy(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	userID := seedAdmissionUser(t, fixture, "time-code-independent")
+	bindVerifiedAdmissionQQ(t, fixture, userID, "10001")
+	setAdmissionPolicyPostJoinTimeCode(t, fixture)
+
+	decision, err := svc.ResolveJoinRequestDecision(context.Background(), AdmissionJoinRequestDecisionInput{
+		Platform:  "qq",
+		GuildID:   "guild-1",
+		QQID:      "10001",
+		RequestID: "request-1",
+		RawEvent:  map[string]any{"comment": "验证码9999"},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, AdmissionJoinRequestDecisionApprove, decision.Decision)
+	assert.Equal(t, AdmissionJoinRequestUnverified, decision.VerificationState)
+	assert.Equal(t, AdmissionJoinHandlingPostJoinTimeCode, decision.JoinHandlingStrategy)
+	assert.Equal(t, "post_join_time_code_auto_approve", decision.Reason)
+	assert.True(t, decision.AutoApproveVerifiedJoin)
+	assert.True(t, decision.AutoApproveUnverifiedJoin)
+	assert.Nil(t, decision.UserID)
+}
+
 func TestCreateBotSessionReturnsVerifiedForAlreadyCertifiedQQ(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)
@@ -1174,6 +1200,22 @@ func setAdmissionPolicyJoinRequestReview(
 		    unverified_join_reject_reason = $1
 		WHERE platform = 'qq' AND guild_id = 'guild-1'
 	`, rejectReason)
+	require.NoError(t, err)
+}
+
+func setAdmissionPolicyPostJoinTimeCode(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+) {
+	t.Helper()
+	_, err := fixture.Pool.Exec(context.Background(), `
+		UPDATE group_admission_policies
+		SET join_handling_strategy = 'post_join_time_code',
+		    auto_approve_verified_join = TRUE,
+		    auto_approve_unverified_join = TRUE,
+		    auto_approve_join = TRUE
+		WHERE platform = 'qq' AND guild_id = 'guild-1'
+	`)
 	require.NoError(t, err)
 }
 

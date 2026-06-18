@@ -4,7 +4,7 @@ audience: backend-dev, frontend-dev, product, maintainers
 status: current
 authoritative-source: server/api/openapi.yaml after implementation
 created: 2026-05-03
-last-verified: 2026-05-30
+last-verified: 2026-06-18
 ---
 
 # Koishi 新生群入群认证与学生身份打通设计
@@ -61,8 +61,8 @@ Admin 后台执行：
 
 ## 主流程
 
-1. 新人申请加入 QQ 群；审核制群由 bot 调后端判断该 QQ 是否已经绑定并具备目标学校有效学生身份，再分别按 `auto_approve_verified_join` / `auto_approve_unverified_join` 决定是否自动同意，非审核制群跳过该步骤；失败必须上报后端审计。
-2. 新人实际入群后，Koishi 调后端创建入群认证会话。
+1. 新人申请加入 QQ 群；审核制群由 bot 调后端按 `join_handling_strategy` 决定申请阶段动作：`post_join_guard` 和 `post_join_time_code` 自动同意，`join_request_review` 按 StuHelper 学生认证状态同意或拒绝，非审核制群跳过该步骤；失败必须上报后端审计。
+2. 新人实际入群后，Koishi 按策略执行入群后流程。`post_join_guard` 调后端创建入群认证会话；`post_join_time_code` 只创建 Koishi 本地待验证记录并提示成员在群内发送验证码，不创建 admission session。
 3. 后端返回认证链接、禁言时长、等待截止时间、提醒间隔等策略。
 4. Koishi 默认禁言 30 天，并 @ 新人发送认证链接和截止时间。
 5. 用户打开 `join.stuhelper.com` 链接；后端先做 token 轻量校验，但不消费 token。
@@ -158,6 +158,12 @@ Koishi 群内 @ 新人的短文案直接发送 canonical URL。`buaa.team` 只�
 - `forward_raw_material_to_qq`: 显式开启后才转发原始材料
 - `management_guild_ids`: `[]`，QQ 管理群白名单列表
 
+`join_handling_strategy` 取值：
+
+- `post_join_guard`：默认策略，申请阶段自动同意，入群后禁言并发送 StuHelper 学生认证链接。
+- `join_request_review`：申请阶段按 StuHelper 学生认证状态同意或拒绝，不同步为 Koishi 本地入群后守卫。
+- `post_join_time_code`：申请阶段自动同意，成员入群后由 Koishi 本地验证码策略验证；验证码规则为“QQ 号末位数字 + 当前北京时间(UTC+8)24 小时制 HHMM 的整数值，不足四位左补零”，校验保留前 2 分钟到后 1 分钟窗口，超时未验证由 Koishi 踢出。该策略不创建 admission session，不发送学生认证链接。
+
 还需配置提醒文案、踢出提醒文案、管理群 ID 列表、材料转发开关、新生通道开关、审批延长天数上限和材料大小上限。
 
 ### `group_admission_failures`
@@ -237,7 +243,7 @@ Admin 接口：
 
 `stuhelper-group-guard`：
 
-- 只处理 `guild-member-added` 后的 admission session 创建、禁言 30 天、认证链接、提醒、解禁、踢出、拉黑、材料转发和执行结果上报，不再注册 `guild-member-request`。
+- 处理 `guild-member-added` 后的策略执行。`post_join_guard` 创建 admission session、禁言 30 天、发送认证链接、提醒、解禁、踢出、拉黑、材料转发和执行结果上报；`post_join_time_code` 创建本地待验证记录、提示成员发送四位验证码、在群消息中校验验证码并放行，超时未验证时踢出。该插件不再注册 `guild-member-request`。
 
 `stuhelper-binding`：
 
@@ -292,6 +298,7 @@ Bot 执行动作必须记录禁言、提醒、解禁、踢出、拉黑和材料�
 Koishi：
 
 - 入群创建会话、禁言 30 天、发送带 `qq=` 的链接。
+- 入群后时间验证码策略不创建 admission session、不禁言，正确验证码放行，错误验证码提示，超时踢出。
 - 每 10 分钟提醒，link/submission 等待分别超时后提醒并踢出，3 次失败后永久拉黑。
 - 已通过后解禁，QQ 审核命令成功和失败都有明确反馈。
 - 多 bot 场景按 `platform + botSelfId` 路由执行。

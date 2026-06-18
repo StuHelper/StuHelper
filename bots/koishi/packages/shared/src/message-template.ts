@@ -161,6 +161,14 @@ export const DEFAULT_GROUP_GUARD_MESSAGES: StuhelperGroupGuardMessageConfig = Ob
   admissionReminderDeliveryFailure: '入群认证提醒发送失败：{errors}',
   admissionReminderDeliveryGroupChannelLabel: '群内提醒',
   admissionReminderDeliveryDirectChannelLabel: '私聊/临时会话提醒',
+  admissionTimeCodeReminder: [
+    '{at} ({memberId}) 请在 {minutes} 分钟内发送验证码完成入群验证。',
+    '请按群公告中的入群验证码规则计算四位验证码；验证码以发送消息时的北京时间(UTC+8)为准。',
+    '超时未验证将自动移出群聊。',
+  ].join('\n'),
+  admissionTimeCodeVerified: '{at} 验证通过，已完成入群验证。',
+  admissionTimeCodeInvalid: '{at} 验证码不正确，请核对后重新发送。',
+  admissionTimeCodeKickTimeout: '{at} 入群验证码超时，机器人将自动移出群聊。',
   admissionSkipSuccess: [
     '{at} ({qqID}) 已跳过本群入群认证并解除禁言。',
     '此操作只在本群生效，不代表 StuHelper 学生认证已通过。',
@@ -249,6 +257,9 @@ export const DEFAULT_GROUP_GUARD_MESSAGES: StuhelperGroupGuardMessageConfig = Ob
   admissionJoinAlreadyVerifiedEventSummary: '已识别 {memberId} 为完成学生认证的成员，跳过入群禁言',
   admissionJoinBackendUnavailableEventSummary: '后端 admission session 创建失败，已对 {memberId} 执行本地兜底禁言',
   admissionJoinBackendVerifiedEventSummary: '后端同步识别 {memberId} 已完成学生认证，已解除本地兜底禁言',
+  admissionTimeCodeJoinGuardedEventSummary: '已对 {memberId} 执行入群验证码验证',
+  admissionTimeCodeVerifiedEventSummary: '{memberId} 已通过入群验证码验证',
+  admissionTimeCodeExpiredEventSummary: '{memberId} 入群验证码超时，已移出群聊',
   admissionCommandInvalidMuteDeadline: '入群认证禁言期限无效，无法重置禁言。',
 })
 

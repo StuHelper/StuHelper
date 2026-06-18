@@ -3,7 +3,7 @@ type: guide
 audience: backend-dev, ops
 status: current
 authoritative-source: bots/koishi/ + server/api/openapi.yaml
-last-verified: 2026-06-09
+last-verified: 2026-06-18
 ---
 
 # Koishi 机器人开发
@@ -121,6 +121,16 @@ Koishi 当前依赖的 StuHelper 后端机器人接口包括：
 - admission 后端 `platform` 字段表示被验证账号的 subject platform，当前只有 `qq`。生产 NapCat / OneBot 的 Koishi runtime platform 可能是 `onebot`，插件会把它映射为 `qq` 后调用 admission API；禁言、踢人和发消息仍使用当前 runtime bot，不切换适配器。
 - 当前 admission MVP 的 Action Stream、兜底扫描、公开命令、入群认证管理员命令、消息风控、新生材料转发和提醒投递渠道都由群管中心 WebUI 的“入群认证”页面保存到 `stuhelper_admission_runtime_settings`，可运行时切换；不要在 `koishi.yml` 中再配置 `scheduler.fallbackScanEnabled`、`actionStream.enabled`、`moderation.enabled`、`commands.enabled`、`admissionCommands.enabled` 或 `freshmanForward.enabled`。`platform.baseUrl`、`platform.serviceToken`、扫描间隔、重连间隔和 admission 管理命令权限仍是启动/安全配置，只在 WebUI 脱敏或汇总展示。旧 `student-query` 插件不应因为 admission 上线被整体关闭；如它也监听同一批 admission 群的同一阶段入群验证，应调整旧插件自己的目标群或功能范围。
 
+## Admission 入群策略
+
+后端 admission policy 的 `joinHandlingStrategy` 是 Koishi 入群处理的权威输入：
+
+- `post_join_guard`：申请阶段由后端自动同意，成员入群后 Koishi 创建后端 admission session、禁言、发送学生认证链接，并按后端 action 解禁或踢出。
+- `join_request_review`：Koishi 只处理加群申请事件，后端按 StuHelper 学生认证状态决定同意或拒绝；该策略不会同步为 Koishi 本地入群后守卫。
+- `post_join_time_code`：申请阶段由后端自动同意，成员入群后 Koishi 只创建本地待验证记录，不创建后端 admission session、不禁言、不发送学生认证链接。默认群内提示要求成员阅读群公告中的验证码规则并发送四位验证码；验证码为“QQ 号末位数字 + 当前北京时间(UTC+8)24 小时制 HHMM 的整数值，不足四位左补零”。Koishi 校验成员消息中的独立四位数字，按发送消息时的北京时间保留前 2 分钟到后 1 分钟容错窗口；`kickAfterMinutes` 到期仍未验证时自动踢出。
+
+旧策略值 `join_request_time_code` 仅用于兼容历史配置，后端和 Koishi bootstrap 都会映射为 `post_join_time_code`；新代码、OpenAPI、后台选项和文档都不应继续暴露旧值。
+
 ## 测试策略
 
 - 单元测试使用 Koishi 官方 `@koishijs/plugin-mock`
@@ -128,6 +138,7 @@ Koishi 当前依赖的 StuHelper 后端机器人接口包括：
 - 当前自动化已覆盖：
   - QQ 绑定命令
   - 入群禁言、提醒、认证后解禁、超时踢出
+  - 入群后时间验证码的本地待验证记录、群消息验证码放行、错误验证码提示和超时踢出
   - 关键词命中后的删除、警告和禁言
   - 举报命令与抽禁言命令
   - 撤回事件留痕与提示

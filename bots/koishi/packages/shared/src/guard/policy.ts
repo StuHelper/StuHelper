@@ -1,5 +1,7 @@
 import { Context } from 'koishi'
 
+import type { AdmissionJoinHandlingStrategy } from '../types/index'
+
 export const GUARD_TEMPLATE_TABLE = 'stuhelper_guard_template'
 export const GUARD_GROUP_BINDING_TABLE = 'stuhelper_guard_group_binding'
 
@@ -27,6 +29,7 @@ export interface GuardGroupBindingRecord {
   platform: string
   guildId: string
   templateId: string
+  joinHandlingStrategy?: AdmissionJoinHandlingStrategy
   enabled: boolean
   note: string | null
   createdAt: Date
@@ -51,6 +54,7 @@ export function registerGuardPolicyModels(ctx: Context) {
     platform: 'string',
     guildId: 'string',
     templateId: 'string',
+    joinHandlingStrategy: { type: 'string', initial: 'post_join_guard' },
     enabled: 'boolean',
     note: 'text',
     createdAt: 'timestamp',

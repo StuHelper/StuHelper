@@ -11255,8 +11255,9 @@ components:
           enum:
             - post_join_guard
             - join_request_review
+            - post_join_time_code
           default: post_join_guard
-          description: 入群处理策略。post_join_guard 表示加群后禁言并发送认证链接；join_request_review 表示在加群申请阶段按 StuHelper 学生认证状态自动通过或拒绝。
+          description: 入群处理策略。post_join_guard 表示加群后禁言并发送认证链接；join_request_review 表示在加群申请阶段按 StuHelper 学生认证状态自动通过或拒绝；post_join_time_code 表示 Koishi 先同意入群申请，成员入群后在群内发送动态验证码完成验证，超时未验证则移出群聊。
         autoApproveJoin:
           type: boolean
           deprecated: true
@@ -11344,6 +11345,7 @@ components:
           enum:
             - post_join_guard
             - join_request_review
+            - post_join_time_code
           description: 该目标群当前使用的入群处理策略。
     FreshmanApplication:
       type: object
@@ -13433,6 +13435,7 @@ components:
           enum:
             - post_join_guard
             - join_request_review
+            - post_join_time_code
         autoApproveVerifiedJoin:
           type: boolean
         autoApproveUnverifiedJoin:

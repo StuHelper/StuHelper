@@ -61,6 +61,7 @@ export interface PostJoinGuardStrategyInput {
   readonly reminderDeduper?: AdmissionReminderDeduper
   readonly admissionReminderDelivery?: AdmissionReminderDeliveryConfigProvider
   readonly messages?: Partial<StuhelperGroupGuardMessageConfig>
+  readonly policy?: EffectiveGuardPolicy
 }
 
 export function postJoinGuardSubjectKey(input: {
@@ -78,8 +79,8 @@ export async function applyPostJoinGuardStrategy(input: PostJoinGuardStrategyInp
     return
   }
   const memberId = requireMemberID(input.session)
-  const policy = await input.policyStore.resolvePolicy(input.platform, guildId)
-  if (!policy || policy.exemptUsers.includes(memberId)) {
+  const policy = input.policy ?? await input.policyStore.resolvePolicy(input.platform, guildId)
+  if (!policy || !isPostJoinGuardStrategy(policy.joinHandlingStrategy) || policy.exemptUsers.includes(memberId)) {
     return
   }
 

@@ -50,6 +50,8 @@ corepack yarn workspaces list
 
 Koishi 在 admission 流程中只做执行器：入群后创建后端 session，发送后端返回的 `join.stuhelper.com/verify/<code>` 认证链接，通过后端 admission action SSE 下行流接收提醒、解禁、踢出和拉黑动作，执行后按 action ID 回写 ACK。`/sessions/pending` 拉取保留为低频 fallback，不再作为生产主路径。`koishi.yml` 的插件加载保持不变，不新增短链域名配置。
 
+`post_join_time_code` 是入群后动态验证码策略，会同步为 Koishi 本地入群后守卫，但不会创建后端 admission session，也不会发送学生认证链接。后端在申请阶段自动同意入群；成员实际入群后，Koishi 记录本地待验证状态并在群内 @ 新成员提示其按群公告规则发送四位验证码。验证码规则为“QQ 号末位数字 + 当前北京时间(UTC+8)24 小时制 HHMM 的整数值，不足四位左补零”；校验以成员发送消息时的北京时间为准，保留前 2 分钟到后 1 分钟的容错窗口，用于覆盖读公告、计算和发送之间的分钟切换。成员在 `kickAfterMinutes` 内发送正确四位验证码即放行，超时未验证将自动移出群聊。旧配置值 `join_request_time_code` 仅作为兼容输入映射到 `post_join_time_code`，不要再作为新策略保存。
+
 生产 NapCat 的 Koishi runtime platform 是 `onebot`，后端 admission 表中的 `platform` 是被验证账号的 subject platform。当前 admission MVP 验证的是 QQ 号，因此 `onebot` runtime 会显式映射为后端 `platform=qq`；未来若接入官方 QQ 机器人适配器，需要重新确认事件能力和 ID 语义，不能把 Koishi 适配器名直接写入 admission 业务记录。
 
 生产 admission MVP 建议在 `stuhelper-group-guard` 下显式配置：

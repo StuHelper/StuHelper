@@ -10,10 +10,12 @@ test('group guard events keep optional message guard narrowed without assertions
   assert.doesNotMatch(source, /messageGuard!/)
 })
 
-test('group guard event listeners return service promises to Koishi', () => {
+test('group guard event listeners return service promises to Koishi', async () => {
   const ctx = createEventContext()
   const memberAdded = Promise.resolve()
   const memberRequest = Promise.resolve()
+  const memberMessageCalls: unknown[] = []
+  const messageGuardCalls: unknown[] = []
   const message = Promise.resolve()
   const messageDeleted = Promise.resolve()
 
@@ -21,10 +23,17 @@ test('group guard event listeners return service promises to Koishi', () => {
     memberGuard: {
       handleGuildMemberAdded: () => memberAdded,
       handleGuildMemberRequest: () => memberRequest,
+      handleMessage: (session: unknown) => {
+        memberMessageCalls.push(session)
+        return Promise.resolve(false)
+      },
       scanPendingMembers: () => Promise.resolve(),
     },
     messageGuard: {
-      handleMessage: () => message,
+      handleMessage: (session: unknown) => {
+        messageGuardCalls.push(session)
+        return message
+      },
       handleMessageDeleted: () => messageDeleted,
     },
     logger: createLogger(),
@@ -33,8 +42,45 @@ test('group guard event listeners return service promises to Koishi', () => {
 
   assert.equal(ctx.handlers.get('guild-member-added')?.({}), memberAdded)
   assert.equal(ctx.handlers.get('guild-member-request')?.({}), memberRequest)
-  assert.equal(ctx.handlers.get('message')?.({}), message)
+  await ctx.handlers.get('message')?.({ id: 'message-1' })
+  assert.deepEqual(memberMessageCalls, [{ id: 'message-1' }])
+  assert.deepEqual(messageGuardCalls, [{ id: 'message-1' }])
   assert.equal(ctx.handlers.get('message-deleted')?.({}), messageDeleted)
+})
+
+test('group guard message listener keeps admission code handling when moderation is disabled', async () => {
+  const ctx = createEventContext()
+  const memberMessageCalls: unknown[] = []
+  const messageGuardCalls: unknown[] = []
+
+  registerGroupGuardEvents(ctx as any, {
+    memberGuard: {
+      handleGuildMemberAdded: () => Promise.resolve(),
+      handleGuildMemberRequest: () => Promise.resolve(),
+      handleMessage: (session: unknown) => {
+        memberMessageCalls.push(session)
+        return Promise.resolve(true)
+      },
+      scanPendingMembers: () => Promise.resolve(),
+    },
+    messageGuard: {
+      handleMessage: (session: unknown) => {
+        messageGuardCalls.push(session)
+        return Promise.resolve()
+      },
+      handleMessageDeleted: () => Promise.resolve(),
+    },
+    runtimeSettings: {
+      isModerationEnabled: async () => false,
+    },
+    logger: createLogger(),
+    scanIntervalSeconds: 30,
+  } as any)
+
+  await ctx.handlers.get('message')?.({ id: 'message-2' })
+
+  assert.deepEqual(memberMessageCalls, [{ id: 'message-2' }])
+  assert.deepEqual(messageGuardCalls, [])
 })
 
 test('scheduled group guard scans log rejected promises explicitly', async () => {
@@ -53,6 +99,7 @@ test('scheduled group guard scans log rejected promises explicitly', async () =>
     memberGuard: {
       handleGuildMemberAdded: () => Promise.resolve(),
       handleGuildMemberRequest: () => Promise.resolve(),
+      handleMessage: () => Promise.resolve(false),
       scanPendingMembers: () => rejectedScan,
     },
     messageGuard: {
