@@ -5,7 +5,6 @@ import {
   ModerationStore,
   createMessageLedgerPreview,
   detectRepeatTrigger,
-  evaluateThresholdExpression,
   matchKeywordRules,
   normalizeModerationContent,
 } from '@stuhelper/koishi-moderation-core'
@@ -15,6 +14,7 @@ import type {
 } from '@stuhelper/koishi-shared'
 import {
   DEFAULT_GROUP_GUARD_MODERATION_SETTINGS,
+  evaluateThresholdExpression,
 } from '@stuhelper/koishi-shared'
 
 import {
@@ -126,6 +126,12 @@ export class MessageGuardService {
       guildId: input.guildId,
       content: input.content,
       normalizedContent: input.normalizedContent,
+    }, ({ rule, error }) => {
+      this.deps.logger.warn('keyword rule skipped due to evaluation failure', {
+        ruleId: rule.id,
+        guildId: input.guildId,
+        error: error instanceof Error ? error.message : String(error),
+      })
     })
     if (!hits.length) {
       return

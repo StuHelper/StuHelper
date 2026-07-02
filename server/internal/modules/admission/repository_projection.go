@@ -28,7 +28,7 @@ func (r *Repository) GetLatestSessionByUserID(
 	ctx = withDBTable(ctx, "group_admission_sessions")
 	admissionSessionID = strings.TrimSpace(admissionSessionID)
 	if admissionSessionID != "" {
-		session, err := scanAdmissionSession(r.db.QueryRow(ctx, `
+		session, err := r.scanAdmissionSession(r.db.QueryRow(ctx, `
 			SELECT `+admissionSessionColumns+`
 			FROM group_admission_sessions
 			WHERE user_id = $1 AND id = $2
@@ -42,7 +42,7 @@ func (r *Repository) GetLatestSessionByUserID(
 		}
 		return session, nil
 	}
-	session, err := scanAdmissionSession(r.db.QueryRow(ctx, `
+	session, err := r.scanAdmissionSession(r.db.QueryRow(ctx, `
 		SELECT `+admissionSessionColumns+`
 		FROM group_admission_sessions
 		WHERE user_id = $1
@@ -71,6 +71,23 @@ func (r *Repository) GetLatestCredentialForUser(
 			return nil, nil
 		}
 		return nil, fmt.Errorf("GetLatestCredentialForUser: %w", err)
+	}
+	return credential, nil
+}
+
+func (r *Repository) GetLatestCredentialForUserTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	userID int64,
+	now time.Time,
+) (*VerificationCredential, error) {
+	query, args := latestCredentialForUserQuery(userID, 0, now)
+	credential, err := scanVerificationCredential(tx.QueryRow(ctx, query, args...))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("GetLatestCredentialForUserTx: %w", err)
 	}
 	return credential, nil
 }

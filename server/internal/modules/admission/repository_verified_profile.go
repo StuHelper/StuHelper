@@ -69,10 +69,32 @@ func (r *Repository) ProjectVerifiedUserProfileTx(
 	if err != nil {
 		return fmt.Errorf("ProjectVerifiedUserProfileTx: %w", err)
 	}
-	if err := r.upsertVerifiedUserProfileProjectionJobsTx(ctx, tx, credential.UserID); err != nil {
+	if err := r.upsertUserProfileProjectionJobsTx(ctx, tx, credential.UserID, true); err != nil {
 		return err
 	}
 	return nil
+}
+
+// DowngradeVerifiedUserProfileTx 在用户不再持有任何有效凭证时，把 user_profiles 投影
+// 从 verified 降级为 unverified，并入队 approved=false 的投影/角色同步任务。
+// 仅降级当前为 verified 的行，避免覆盖用户主站流程产生的 pending/rejected 状态。
+func (r *Repository) DowngradeVerifiedUserProfileTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	userID int64,
+) error {
+	_, err := tx.Exec(ctx, `
+			UPDATE user_profiles
+			SET verification_status = 'unverified',
+			    verification_method = NULL,
+			    verified_at = NULL,
+			    updated_at = NOW()
+			WHERE user_id = $1 AND verification_status = 'verified'
+		`, userID)
+	if err != nil {
+		return fmt.Errorf("DowngradeVerifiedUserProfileTx: %w", err)
+	}
+	return r.upsertUserProfileProjectionJobsTx(ctx, tx, userID, false)
 }
 
 type verifiedProfileProjectionFieldsOutput struct {
@@ -120,8 +142,13 @@ func verifiedProfileProjectionFields(credential VerificationCredential) (verifie
 	}, nil
 }
 
-func (r *Repository) upsertVerifiedUserProfileProjectionJobsTx(ctx context.Context, tx pgx.Tx, userID int64) error {
-	profilePayload, err := json.Marshal(profileProjectionPayload{UserID: userID, Approved: true})
+func (r *Repository) upsertUserProfileProjectionJobsTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	userID int64,
+	approved bool,
+) error {
+	profilePayload, err := json.Marshal(profileProjectionPayload{UserID: userID, Approved: approved})
 	if err != nil {
 		return fmt.Errorf("marshal profile projection payload: %w", err)
 	}
@@ -139,7 +166,7 @@ func (r *Repository) upsertVerifiedUserProfileProjectionJobsTx(ctx context.Conte
 	rolePayload, err := json.Marshal(verifiedRoleSyncPayload{
 		UserID:   userID,
 		Role:     admissionVerifiedStudentRoleName,
-		Approved: true,
+		Approved: approved,
 	})
 	if err != nil {
 		return fmt.Errorf("marshal verified student role payload: %w", err)

@@ -2,14 +2,11 @@ import type { CommandPolicyRecord } from './types'
 
 export interface CommandAccessInput {
   authority: number
-  memberRoles: string[]
-  policy?: CommandPolicyRecord
+  memberRoles: readonly string[]
+  policy: CommandPolicyRecord
 }
 
 export function canExecuteCommand(input: CommandAccessInput) {
-  if (!input.policy) {
-    return true
-  }
   if (input.authority >= input.policy.minAuthority) {
     return true
   }
@@ -17,4 +14,14 @@ export function canExecuteCommand(input: CommandAccessInput) {
     return false
   }
   return input.policy.roles.some((role) => input.memberRoles.includes(role))
+}
+
+export function createFallbackCommandPolicy(commandId: string, minAuthority: number): CommandPolicyRecord {
+  return {
+    commandId,
+    roles: [],
+    minAuthority,
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+  }
 }

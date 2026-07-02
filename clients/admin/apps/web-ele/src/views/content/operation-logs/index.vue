@@ -1,47 +1,39 @@
 <script setup lang="ts">
 import type { OperationLog } from '#/api/admin';
 
-import { onMounted, reactive, ref } from 'vue';
-
 import { ElAlert, ElButton, ElPagination, ElTag } from 'element-plus';
 
 import { getOperationLogs } from '#/api/admin';
+import { useAdminList } from '#/composables/use-admin-list';
 import { $t } from '#/locales';
 
 import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
 import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
 import AdminContentLayout from '../../shared/AdminContentLayout.vue';
 import { compactID, formatAdminDateTime } from '../../shared/display';
+import {
+  ADMIN_DEFAULT_PAGE_SIZE,
+  ADMIN_PAGE_SIZES,
+  ADMIN_PAGINATION_LAYOUT,
+} from '../../shared/pagination';
 
 const USER_AGENT_PREVIEW_LENGTH = 64;
-const loading = ref(false);
-const loadError = ref('');
-const logs = ref<OperationLog[]>([]);
-const total = ref(0);
-const query = reactive({
-  page: 1,
-  pageSize: 20,
-});
-let fetchRequestSeq = 0;
 
-async function fetchData() {
-  const requestSeq = ++fetchRequestSeq;
-  loading.value = true;
-  loadError.value = '';
-  try {
-    const data = await getOperationLogs(query);
-    if (requestSeq !== fetchRequestSeq) return;
-    logs.value = data.items;
-    total.value = data.total;
-  } catch (error) {
-    if (requestSeq !== fetchRequestSeq) return;
-    loadError.value = adminErrorMessage(error);
-  } finally {
-    if (requestSeq === fetchRequestSeq) {
-      loading.value = false;
-    }
-  }
-}
+const {
+  fetchData,
+  items: logs,
+  loadError,
+  loading,
+  query,
+  resetPageAndFetch,
+  total,
+} = useAdminList<OperationLog, { page: number; pageSize: number }>({
+  fetcher: (listQuery) => getOperationLogs(listQuery),
+  initialQuery: {
+    page: 1,
+    pageSize: ADMIN_DEFAULT_PAGE_SIZE,
+  },
+});
 
 function formatJSON(value?: Record<string, unknown>) {
   if (!value || Object.keys(value).length === 0) return '—';
@@ -53,19 +45,6 @@ function compactText(value?: null | string) {
   if (value.length <= USER_AGENT_PREVIEW_LENGTH) return value;
   return `${value.slice(0, USER_AGENT_PREVIEW_LENGTH)}...`;
 }
-
-function refreshPage(page: number) {
-  query.page = page;
-  void fetchData();
-}
-
-function adminErrorMessage(error: unknown): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : $t('admin.result.requestFailed');
-}
-
-onMounted(fetchData);
 </script>
 
 <template>
@@ -171,11 +150,11 @@ onMounted(fetchData);
         v-model:current-page="query.page"
         v-model:page-size="query.pageSize"
         background
-        layout="prev, pager, next, sizes, total"
-        :page-sizes="[10, 20, 50, 100]"
+        :layout="ADMIN_PAGINATION_LAYOUT"
+        :page-sizes="ADMIN_PAGE_SIZES"
         :total="total"
-        @current-change="refreshPage"
-        @size-change="refreshPage(1)"
+        @current-change="fetchData"
+        @size-change="resetPageAndFetch"
       />
     </template>
   </AdminContentLayout>

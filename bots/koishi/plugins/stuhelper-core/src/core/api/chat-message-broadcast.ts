@@ -206,10 +206,10 @@ async function readGuildMeta(deps: BroadcastDeps, session: ChatBroadcastSession)
 }
 
 async function fillGuildMetaFromBot(deps: BroadcastDeps, session: ChatBroadcastSession, guild: GuildMeta) {
-  const bot = session.bot || deps.api.ctx.bots.find((item) => item.platform === session.platform)
-  if (!bot || typeof bot.getGuild !== 'function' || !session.guildId) return
+  if (!session.guildId) return
   try {
-    const guildInfo = await bot.getGuild(session.guildId)
+    // 复用 CacheService 的 TTL 缓存，避免每条消息都向 bot 远程查询群信息。
+    const guildInfo = await deps.api.service.cache.getGuildInfo(session.guildId)
     guild.guildName ||= guildInfo?.name
     guild.guildAvatar ||= guildInfo?.avatar
   } catch (cause) {
@@ -289,13 +289,13 @@ async function enrichAtElements(
 }
 
 async function fillAtElementName(deps: BroadcastDeps, session: ChatBroadcastSession, element: ChatElement) {
-  const bot = session.bot || deps.api.ctx.bots.find((item) => item.platform === session.platform)
   const userId = readOptionalString(element.attrs?.id)
-  if (!bot || typeof bot.getGuildMember !== 'function' || !session.guildId || !userId) return
+  if (!session.guildId || !userId) return
   try {
-    const member = await bot.getGuildMember(session.guildId, userId)
-    if (member?.nick || member?.user?.name) {
-      element.attrs.name = member.nick || member.user.name
+    // 复用 CacheService 的 TTL 缓存，避免每个 at 元素都向 bot 远程查询群名片。
+    const member = await deps.api.service.cache.getMemberInfo(session.guildId, userId)
+    if (member?.nick || member?.name) {
+      element.attrs.name = member.nick || member.name
     }
   } catch (cause) {
     deps.api.ctx.logger('stuhelperGroupCenter').warn('获取 at 用户群名片失败: %s', toApiErrorMessage(cause))

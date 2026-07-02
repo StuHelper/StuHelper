@@ -25,6 +25,24 @@ const messageMocks = vi.hoisted(() => ({
   info: vi.fn(),
 }));
 
+const routerMocks = vi.hoisted(() => ({
+  replace: vi.fn(() => Promise.resolve()),
+  route: {
+    path: '/users/member-blacklist',
+    query: {} as Record<string, string>,
+  },
+}));
+
+vi.mock('#/locales', () => ({
+  $t: (key: string, params?: Record<string, unknown>) =>
+    params ? `${key}:${Object.values(params).join('/')}` : key,
+}));
+
+vi.mock('vue-router', () => ({
+  useRoute: () => routerMocks.route,
+  useRouter: () => ({ replace: routerMocks.replace }),
+}));
+
 vi.mock('#/api/admin', () => ({
   listMemberBlacklist: apiMocks.listMemberBlacklist,
   createMemberBlacklist: apiMocks.createMemberBlacklist,
@@ -118,6 +136,8 @@ describe('member-blacklist index view orchestration', () => {
     apiMocks.releaseMemberBlacklist.mockReset();
     messageMocks.success.mockReset();
     messageMocks.error.mockReset();
+    routerMocks.replace.mockClear();
+    routerMocks.route.query = {};
     accessMocks.accessCodes = ['member_blacklist:manage'];
 
     apiMocks.listMemberBlacklist.mockResolvedValue({
@@ -277,7 +297,9 @@ describe('member-blacklist index view orchestration', () => {
     await flushPromises();
 
     expect(apiMocks.createMemberBlacklist).toHaveBeenCalledWith(payload);
-    expect(messageMocks.success).toHaveBeenCalledWith('已将 20002 加入黑名单');
+    expect(messageMocks.success).toHaveBeenCalledWith(
+      'admin.users.memberBlacklist.createSuccess:20002',
+    );
     expect(apiMocks.listMemberBlacklist).toHaveBeenCalledTimes(1);
   });
 
@@ -349,7 +371,9 @@ describe('member-blacklist index view orchestration', () => {
       'entry-active',
       releasePayload.request,
     );
-    expect(messageMocks.success).toHaveBeenCalledWith('已解除黑名单：10001');
+    expect(messageMocks.success).toHaveBeenCalledWith(
+      'admin.users.memberBlacklist.releaseSuccess:10001',
+    );
     expect(apiMocks.listMemberBlacklist).toHaveBeenCalledTimes(1);
   });
 

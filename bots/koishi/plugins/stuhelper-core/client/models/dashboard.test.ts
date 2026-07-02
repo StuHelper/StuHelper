@@ -100,6 +100,5 @@ function createDashboardFixture(): DashboardPageData {
     commandPolicies: [],
     guardTemplates: [],
     guardBindings: [],
-    systemStatus: [],
   }
 }

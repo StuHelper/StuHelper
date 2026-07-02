@@ -177,7 +177,7 @@ test('管理员可以查看成员警告次数', async () => {
 
   try {
     await root.start()
-    await root.mock.initUser('20011', 3)
+    await root.mock.initUser('20011', 4)
     await root.mock.initChannel('group-1')
 
     const moderationStore = new ModerationStore(root)
@@ -208,7 +208,7 @@ test('管理员可以查看待复核队列', async () => {
 
   try {
     await root.start()
-    await root.mock.initUser('20012', 3)
+    await root.mock.initUser('20012', 4)
     await root.mock.initChannel('group-1')
 
     const moderationStore = new ModerationStore(root)
@@ -228,6 +228,70 @@ test('管理员可以查看待复核队列', async () => {
 
     const client = root.mock.client('20012', 'group-1')
     await client.shouldReply('群审复核', /待复核队列：\n10002 \[kick] 广告刷屏/)
+  } finally {
+    runtime.dispose()
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('无命令策略记录时管理员命令 fail-closed 要求 authority 4', async () => {
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-admin-'))
+
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(commands)
+  runtime.register(MockBot, { selfId: '514' })
+  runtime.register(adminPlugin, createAdminPluginConfig())
+
+  try {
+    await root.start()
+    await root.mock.initUser('20030', 3)
+    await root.mock.initUser('20031', 4)
+    await root.mock.initChannel('group-1')
+
+    await root.mock.client('20030', 'group-1').shouldReply('群审状态', '命令权限不足。')
+    await root.mock.client('20031', 'group-1').shouldReply('群审状态', '当前没有待认证成员。')
+  } finally {
+    runtime.dispose()
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('私聊不带群号的群审复核提示指定群号且不泄露跨群数据', async () => {
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-admin-'))
+
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(commands)
+  runtime.register(MockBot, { selfId: '514' })
+  runtime.register(adminPlugin, createAdminPluginConfig())
+
+  try {
+    await root.start()
+    await root.mock.initUser('20032', 4)
+
+    const moderationStore = new ModerationStore(root)
+    for (const guildId of ['group-1', 'group-2']) {
+      await moderationStore.createReview({
+        platform: 'mock',
+        botSelfId: '514',
+        guildId,
+        channelId: guildId,
+        memberId: `member-of-${guildId}`,
+        actionType: 'kick',
+        status: 'pending',
+        reason: '广告刷屏',
+        operatorMemberId: null,
+        resolutionNote: null,
+        payload: null,
+      })
+    }
+
+    const client = root.mock.client('20032')
+    await client.shouldReply('群审复核', '请在群聊中执行，或显式传入群号查看对应群的待复核队列。')
+    await client.shouldReply('群审复核 group-2', /^待复核队列：\nmember-of-group-2 \[kick] 广告刷屏$/)
   } finally {
     runtime.dispose()
     await rm(tempDir, { recursive: true, force: true })
@@ -276,7 +340,7 @@ test('管理员可以批量禁言待认证成员', async () => {
 
   try {
     await root.start()
-    await root.mock.initUser('20014', 3)
+    await root.mock.initUser('20014', 4)
     await root.mock.initChannel('group-1')
     await root.database.create(GUARD_MEMBER_TABLE, createGuardMemberRecord({
       id: 'pending-11',
@@ -302,6 +366,49 @@ test('管理员可以批量禁言待认证成员', async () => {
     assert.deepEqual(muteActions, [
       { guildId: 'group-1', memberId: '10011', duration: 120000 },
       { guildId: 'group-1', memberId: '10012', duration: 120000 },
+    ])
+  } finally {
+    runtime.dispose()
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('批量禁言空格分隔的成员 ID 全部生效', async () => {
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-admin-'))
+  const muteActions: Array<{ guildId: string, memberId: string, duration: number }> = []
+
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(commands)
+  runtime.register(MockBot, { selfId: '514' })
+  runtime.register(adminPlugin, createAdminPluginConfig())
+
+  try {
+    await root.start()
+    await root.mock.initUser('20014', 4)
+    await root.mock.initChannel('group-1')
+    for (const memberId of ['10011', '10012', '10013']) {
+      await root.database.create(GUARD_MEMBER_TABLE, createGuardMemberRecord({
+        id: `pending-space-${memberId}`,
+        guildId: 'group-1',
+        memberId,
+        deadlineAt: new Date('2026-04-19T10:00:00Z'),
+      }))
+    }
+
+    const bot = root.bots[0] as unknown as Universal.Methods
+    bot.muteGuildMember = async (guildId, memberId, duration) => {
+      muteActions.push({ guildId, memberId, duration })
+    }
+
+    const client = root.mock.client('20014', 'group-1')
+    await client.shouldReply('群审禁言 120 10011 10012 10013', '已批量禁言 3 名成员。')
+
+    assert.deepEqual(muteActions, [
+      { guildId: 'group-1', memberId: '10011', duration: 120000 },
+      { guildId: 'group-1', memberId: '10012', duration: 120000 },
+      { guildId: 'group-1', memberId: '10013', duration: 120000 },
     ])
   } finally {
     runtime.dispose()

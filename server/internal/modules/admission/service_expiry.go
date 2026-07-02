@@ -19,7 +19,14 @@ func (s *Service) StartBackgroundJobs(ctx context.Context, start func(string, fu
 	}
 	start("admission freshman expiry worker", s.runFreshmanExpiryWorker)
 	start("admission member blacklist expiry worker", s.runMemberBlacklistExpiryWorker)
+	start("admission bot action outbox cleanup worker", s.runOutboxCleanupWorker)
 }
+
+// 终态 outbox 行的保留期与清理频率：保留 7 天用于排障/审计，每小时清理一次。
+const (
+	admissionBotActionRetention    = 7 * 24 * time.Hour
+	admissionOutboxCleanupInterval = time.Hour
+)
 
 func (s *Service) runFreshmanExpiryWorker(ctx context.Context) {
 	ticker := time.NewTicker(outbox.IAMWorkerPollInterval)
@@ -39,6 +46,19 @@ func (s *Service) runMemberBlacklistExpiryWorker(ctx context.Context) {
 	defer ticker.Stop()
 	for {
 		s.runMemberBlacklistExpiryBatch(ctx)
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func (s *Service) runOutboxCleanupWorker(ctx context.Context) {
+	ticker := time.NewTicker(admissionOutboxCleanupInterval)
+	defer ticker.Stop()
+	for {
+		s.runOutboxCleanupBatch(ctx)
 		select {
 		case <-ctx.Done():
 			return
@@ -67,6 +87,22 @@ func (s *Service) runMemberBlacklistExpiryBatch(ctx context.Context) {
 	if processed > 0 {
 		logger.L().Info("admission member blacklist expiry batch completed", zap.Int("processed_count", processed))
 	}
+}
+
+func (s *Service) runOutboxCleanupBatch(ctx context.Context) {
+	deleted, err := s.PruneTerminalBotActions(ctx)
+	if err != nil && ctx.Err() == nil {
+		logger.L().Warn("admission outbox cleanup batch failed", zap.Error(err))
+		return
+	}
+	if deleted > 0 {
+		logger.L().Info("admission outbox cleanup batch completed", zap.Int64("deleted_count", deleted))
+	}
+}
+
+// PruneTerminalBotActions 删除保留期之前的终态 outbox 行，返回删除行数。
+func (s *Service) PruneTerminalBotActions(ctx context.Context) (int64, error) {
+	return s.repo.PruneTerminalBotActions(ctx, s.now().Add(-admissionBotActionRetention))
 }
 
 func (s *Service) ProcessExpiredFreshmanCredentials(ctx context.Context) (int, error) {
@@ -110,11 +146,32 @@ func (s *Service) processExpiredFreshmanCredential(
 		if err := s.repo.MarkFreshmanCredentialExpiryProcessedTx(ctx, tx, item.ID, s.now()); err != nil {
 			return err
 		}
+		if err := s.reprojectUserProfileAfterFreshmanExpiryTx(ctx, tx, item.UserID); err != nil {
+			return err
+		}
 		if err := s.projection.EnqueueFreshmanProvisionalRoleSyncTx(ctx, tx, item.UserID, false); err != nil {
 			return fmt.Errorf("enqueue freshman provisional role removal: %w", err)
 		}
 		return s.repo.InsertAuditEventTx(ctx, tx, freshmanExpiryAuditEvent(ctx, item))
 	})
+}
+
+// reprojectUserProfileAfterFreshmanExpiryTx 在新生临时凭证过期后修正 user_profiles 投影：
+// 若用户仍持有其他有效凭证，则以该凭证重投影（保持 verified，刷新来源/学校）；
+// 否则降级为 unverified，并入队 approved=false 的投影/角色同步任务。
+func (s *Service) reprojectUserProfileAfterFreshmanExpiryTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	userID int64,
+) error {
+	remaining, err := s.repo.GetLatestCredentialForUserTx(ctx, tx, userID, s.now())
+	if err != nil {
+		return fmt.Errorf("load remaining credential after freshman expiry: %w", err)
+	}
+	if remaining != nil {
+		return s.repo.ProjectVerifiedUserProfileTx(ctx, tx, *remaining)
+	}
+	return s.repo.DowngradeVerifiedUserProfileTx(ctx, tx, userID)
 }
 
 func (s *Service) processExpiredMemberBlacklist(ctx context.Context, item MemberBlacklistEntry) error {

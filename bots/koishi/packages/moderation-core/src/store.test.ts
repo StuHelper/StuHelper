@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
+
+import sqlite from '@koishijs/plugin-database-sqlite'
+import { Context } from 'koishi'
 
 import {
   MODERATION_COMMAND_POLICY_TABLE,
@@ -8,6 +14,7 @@ import {
   MODERATION_MESSAGE_LEDGER_TABLE,
   MODERATION_REVIEW_TABLE,
 } from './constants'
+import { registerModerationModels } from './models'
 import { ModerationStore } from './store'
 import type {
   CommandPolicyRecord,
@@ -306,6 +313,89 @@ function createFunProfile(overrides: Partial<FunProfileRecord> = {}): FunProfile
   }
 }
 
+test('listPendingReviews 对空 guildId 返回空数组且不触发全表查询', async () => {
+  const queries: unknown[] = []
+  const store = new ModerationStore({
+    database: {
+      async get(table: string, query: unknown) {
+        assert.equal(table, MODERATION_REVIEW_TABLE)
+        queries.push(query)
+        return [
+          createReview({ id: 'rv-pending', status: 'pending' }),
+          createReview({ id: 'rv-executed', status: 'executed' }),
+        ]
+      },
+    },
+  } as never)
+
+  assert.deepEqual(await store.listPendingReviews(''), [])
+  assert.deepEqual(await store.listPendingReviews('   '), [])
+  assert.equal(queries.length, 0)
+
+  const scoped = await store.listPendingReviews(' guild-1 ')
+  assert.deepEqual(queries, [{ guildId: 'guild-1' }])
+  assert.deepEqual(scoped.map((item) => item.id), ['rv-pending'])
+})
+
+test('listAllPendingReviews 显式执行全局查询', async () => {
+  const queries: unknown[] = []
+  const store = new ModerationStore({
+    database: {
+      async get(table: string, query: unknown) {
+        assert.equal(table, MODERATION_REVIEW_TABLE)
+        queries.push(query)
+        return [
+          createReview({ id: 'rv-1', guildId: 'guild-1', status: 'pending' }),
+          createReview({ id: 'rv-2', guildId: 'guild-2', status: 'stuck_manual' }),
+          createReview({ id: 'rv-3', guildId: 'guild-3', status: 'rejected' }),
+        ]
+      },
+    },
+  } as never)
+
+  const records = await store.listAllPendingReviews()
+  assert.deepEqual(queries, [{}])
+  assert.deepEqual(records.map((item) => item.id), ['rv-1', 'rv-2'])
+})
+
+test('incrementWarning 并发命中不丢失计数（原子自增）', async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-moderation-store-'))
+  const root = new Context()
+  root.plugin(sqlite, { path: join(tempDir, 'koishi.db') })
+
+  try {
+    await root.start()
+    registerModerationModels(root)
+    const store = new ModerationStore(root)
+    const now = new Date('2026-06-12T03:00:00.000Z')
+
+    const concurrentHits = 5
+    await Promise.all(Array.from({ length: concurrentHits }, (_, index) =>
+      store.incrementWarning({
+        guildId: 'guild-1',
+        memberId: '10001',
+        reason: `hit-${index}`,
+        now,
+      }),
+    ))
+
+    const counter = await store.getWarningCounter('guild-1', '10001')
+    assert.equal(counter?.total, concurrentHits)
+
+    const after = await store.incrementWarning({
+      guildId: 'guild-1',
+      memberId: '10001',
+      reason: 'final',
+      now,
+    })
+    assert.equal(after.total, concurrentHits + 1)
+    assert.equal(after.lastReason, 'final')
+  } finally {
+    await root.stop()
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
 function createReview(overrides: Partial<ReviewQueueRecord> = {}): ReviewQueueRecord {
   return {
     id: 'rv-1',
@@ -325,3 +415,111 @@ function createReview(overrides: Partial<ReviewQueueRecord> = {}): ReviewQueueRe
     ...overrides,
   }
 }
+
+test('查询下推：listRecentMessages/listRecentEvents 在数据库层排序截断，listKeywordRules 命中 guildId 与通配', async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-moderation-store-'))
+  const root = new Context()
+  root.plugin(sqlite, { path: join(tempDir, 'koishi.db') })
+
+  try {
+    await root.start()
+    registerModerationModels(root)
+    const store = new ModerationStore(root)
+    const base = new Date('2026-06-12T00:00:00.000Z').getTime()
+
+    for (let index = 0; index < 5; index += 1) {
+      await store.saveMessage(createMessage({
+        messageId: `msg-${index}`,
+        guildId: index < 4 ? 'guild-1' : 'guild-2',
+        createdAt: new Date(base + index * 60_000),
+      }))
+      await store.appendEvent({
+        platform: 'qq',
+        botSelfId: 'bot-1',
+        guildId: 'guild-1',
+        channelId: 'channel-1',
+        memberId: '10001',
+        type: 'keyword_hit',
+        level: 'low',
+        summary: `event-${index}`,
+        payload: null,
+      })
+    }
+    await store.upsertKeywordRule(createKeywordRule({ id: 'rule-guild', guildId: 'guild-1' }))
+    await store.upsertKeywordRule(createKeywordRule({ id: 'rule-wildcard', guildId: '*' }))
+    await store.upsertKeywordRule(createKeywordRule({ id: 'rule-other', guildId: 'guild-9' }))
+
+    const messages = await store.listRecentMessages('guild-1', 2)
+    assert.deepEqual(messages.map((record) => record.messageId), ['msg-3', 'msg-2'])
+
+    const events = await store.listRecentEvents(3)
+    assert.equal(events.length, 3)
+
+    const rules = await store.listKeywordRules('guild-1')
+    assert.deepEqual(rules.map((record) => record.id).sort(), ['rule-guild', 'rule-wildcard'])
+  } finally {
+    await root.stop()
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('pruneExpired 按保留期删除过期消息台账与事件日志', async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-moderation-store-'))
+  const root = new Context()
+  root.plugin(sqlite, { path: join(tempDir, 'koishi.db') })
+
+  try {
+    await root.start()
+    registerModerationModels(root)
+    const store = new ModerationStore(root)
+    const now = new Date('2026-06-12T00:00:00.000Z')
+    const daysAgo = (days: number) => new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+
+    await store.saveMessage(createMessage({ messageId: 'msg-old', createdAt: daysAgo(20) }))
+    await store.saveMessage(createMessage({ messageId: 'msg-fresh', createdAt: daysAgo(3) }))
+    await root.database.create('stuhelper_moderation_event', {
+      id: 'event-old',
+      platform: 'qq',
+      botSelfId: 'bot-1',
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+      memberId: '10001',
+      type: 'keyword_hit',
+      level: 'low',
+      summary: 'old',
+      payload: null,
+      createdAt: daysAgo(40),
+      updatedAt: daysAgo(40),
+    })
+    await root.database.create('stuhelper_moderation_event', {
+      id: 'event-fresh',
+      platform: 'qq',
+      botSelfId: 'bot-1',
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+      memberId: '10001',
+      type: 'keyword_hit',
+      level: 'low',
+      summary: 'fresh',
+      payload: null,
+      createdAt: daysAgo(5),
+      updatedAt: daysAgo(5),
+    })
+
+    const result = await store.pruneExpired({
+      messageRetentionDays: 14,
+      eventRetentionDays: 30,
+      now,
+    })
+
+    assert.equal(result.removedMessages, 1)
+    assert.equal(result.removedEvents, 1)
+    assert.equal(await store.getMessage('msg-old'), undefined)
+    assert.ok(await store.getMessage('msg-fresh'))
+    const events = await store.listRecentEvents(10)
+    assert.deepEqual(events.map((record) => record.id), ['event-fresh'])
+  } finally {
+    await root.stop()
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})

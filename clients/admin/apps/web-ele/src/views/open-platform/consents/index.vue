@@ -4,8 +4,6 @@ import type {
   OpenPlatformScope,
 } from '#/api/admin';
 
-import { reactive, ref } from 'vue';
-
 import {
   ElAlert,
   ElButton,
@@ -20,6 +18,8 @@ import {
   getOpenPlatformConsentList,
   revokeOpenPlatformConsent,
 } from '#/api/admin';
+import { useAdminAction } from '#/composables/use-admin-action';
+import { useAdminList } from '#/composables/use-admin-list';
 import { $t } from '#/locales';
 
 import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
@@ -31,63 +31,51 @@ import {
   formatNullableText,
 } from '../../shared/display';
 
-const loading = ref(false);
-const actionLoading = ref(false);
-const loadError = ref('');
-const actionError = ref('');
-const consents = ref<OpenPlatformAdminUserAuthorizedApp[]>([]);
-const total = ref(0);
-const query = reactive<{
-  appID?: number;
-  page: number;
-  pageSize: number;
-  userID?: number;
-}>({
-  page: 1,
-  pageSize: 20,
-});
-let fetchRequestSeq = 0;
-
-async function fetchData() {
-  const requestSeq = ++fetchRequestSeq;
-  const appID = normalizeOptionalID(query.appID);
-  const userID = normalizeOptionalID(query.userID);
-  if (!appID && !userID) {
-    loading.value = false;
-    loadError.value = '';
-    ElMessage.warning($t('admin.openPlatform.consents.queryRequired'));
-    consents.value = [];
-    total.value = 0;
-    return;
+const {
+  fetchData,
+  items: consents,
+  loadError,
+  loading,
+  query,
+  resetPageAndFetch,
+  total,
+} = useAdminList<
+  OpenPlatformAdminUserAuthorizedApp,
+  {
+    appID: null | number;
+    page: number;
+    pageSize: number;
+    userID: null | number;
   }
-  loading.value = true;
-  loadError.value = '';
-  try {
-    const data = await getOpenPlatformConsentList({
+>({
+  // 查询必须带 appID 或 userID 之一，挂载时不自动拉取
+  fetchOnMount: false,
+  fetcher: async (listQuery) => {
+    const appID = normalizeOptionalID(listQuery.appID);
+    const userID = normalizeOptionalID(listQuery.userID);
+    if (!appID && !userID) {
+      ElMessage.warning($t('admin.openPlatform.consents.queryRequired'));
+      return { items: [], total: 0 };
+    }
+    return getOpenPlatformConsentList({
       appID,
-      page: query.page,
-      pageSize: query.pageSize,
+      page: listQuery.page,
+      pageSize: listQuery.pageSize,
       userID,
     });
-    if (requestSeq !== fetchRequestSeq) return;
-    consents.value = data.items;
-    total.value = data.total;
-  } catch (error) {
-    if (requestSeq !== fetchRequestSeq) return;
-    loadError.value = adminErrorMessage(error);
-  } finally {
-    if (requestSeq === fetchRequestSeq) {
-      loading.value = false;
-    }
-  }
-}
+  },
+  initialQuery: {
+    appID: null,
+    page: 1,
+    pageSize: 20,
+    userID: null,
+  },
+});
 
-function handleQuery() {
-  query.page = 1;
-  void fetchData();
-}
+const { actionError, actionPending, clearActionError, runAction } =
+  useAdminAction();
 
-function normalizeOptionalID(value?: number) {
+function normalizeOptionalID(value?: null | number) {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
     return undefined;
   }
@@ -123,7 +111,7 @@ async function handleRevokeConsent(
   item: OpenPlatformAdminUserAuthorizedApp,
   scope?: OpenPlatformScope,
 ) {
-  if (actionLoading.value) {
+  if (actionPending.value) {
     return;
   }
   const reason = await promptRevokeReason(
@@ -137,29 +125,19 @@ async function handleRevokeConsent(
   if (reason === null) {
     return;
   }
-  actionLoading.value = true;
-  actionError.value = '';
-  try {
-    await revokeOpenPlatformConsent({
-      appID: item.app.id,
-      reason,
-      scopes: scope ? [scope] : undefined,
-      userID: item.userID,
-    });
-    ElMessage.success($t('admin.openPlatform.consents.revoked'));
+  const succeeded = await runAction(
+    () =>
+      revokeOpenPlatformConsent({
+        appID: item.app.id,
+        reason,
+        scopes: scope ? [scope] : undefined,
+        userID: item.userID,
+      }),
+    { successMessage: $t('admin.openPlatform.consents.revoked') },
+  );
+  if (succeeded) {
     await fetchData();
-  } catch (error) {
-    actionError.value = adminErrorMessage(error);
-    ElMessage.error(actionError.value);
-  } finally {
-    actionLoading.value = false;
   }
-}
-
-function adminErrorMessage(error: unknown): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : $t('admin.result.requestFailed');
 }
 </script>
 
@@ -183,7 +161,7 @@ function adminErrorMessage(error: unknown): string {
         :min="1"
         :placeholder="$t('admin.openPlatform.consents.userIdPlaceholder')"
       />
-      <ElButton type="primary" @click="handleQuery">
+      <ElButton type="primary" @click="resetPageAndFetch">
         {{ $t('admin.common.query') }}
       </ElButton>
     </template>
@@ -208,7 +186,7 @@ function adminErrorMessage(error: unknown): string {
       :closable="true"
       show-icon
       :title="actionError"
-      @close="actionError = ''"
+      @close="clearActionError"
     />
 
     <PersistentAdminTable
@@ -301,7 +279,7 @@ function adminErrorMessage(error: unknown): string {
               plain
               size="small"
               type="danger"
-              :disabled="actionLoading"
+              :disabled="actionPending"
               @click="handleRevokeConsent(row)"
             >
               {{ $t('admin.openPlatform.consents.revokeAll') }}
@@ -312,7 +290,7 @@ function adminErrorMessage(error: unknown): string {
               plain
               size="small"
               type="warning"
-              :disabled="actionLoading"
+              :disabled="actionPending"
               @click="handleRevokeConsent(row, scope.scope)"
             >
               {{ $t('admin.openPlatform.consents.revokeScope') }}

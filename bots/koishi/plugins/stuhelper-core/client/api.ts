@@ -121,13 +121,6 @@ export const subscriptionApi = {
   update: (index: number, subscription: Subscription) => call<{ success: boolean }>('stuhelperGroupCenter/subscriptions/update', { index, subscription }),
 }
 
-export interface ModuleStatus {
-  name: string
-  description: string
-  state: 'unloaded' | 'loading' | 'loaded' | 'error'
-  error?: string
-}
-
 export interface BindingMessageSettings {
   directOnly: string
   missingCode: string
@@ -307,7 +300,6 @@ export interface ChartData {
 // 统计 API
 export const statsApi = {
   dashboard: () => call<DashboardStats>('stuhelperGroupCenter/stats/dashboard'),
-  modules: () => call<ModuleStatus[]>('stuhelperGroupCenter/stats/modules'),
   charts: (days?: number) => call<ChartData>('stuhelperGroupCenter/stats/charts', { days }),
 }
 

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { buildDashboardPageData } from './dashboard-page.service'
+import { buildDashboardPageData, DashboardPageService } from './dashboard-page.service'
 
-test('buildDashboardPageData aggregates pending work and system status', () => {
+test('buildDashboardPageData aggregates pending work', () => {
   const data = buildDashboardPageData({
     generatedAt: '2026-04-21T08:00:00.000Z',
     pendingMembers: [
@@ -19,17 +19,33 @@ test('buildDashboardPageData aggregates pending work and system status', () => {
     commandPolicies: [createCommandPolicy()],
     guardTemplates: [createTemplate()],
     guardBindings: [createBinding()],
-    moduleStates: [
-      { name: 'status', description: '系统状态', state: 'loaded' },
-      { name: 'report', description: '举报模块', state: 'error', error: 'boom' },
-    ],
   })
 
   assert.equal(data.overview.pendingReviews, 1)
   assert.equal(data.overview.pendingAdmissions, 1)
   assert.equal(data.overview.openReports, 1)
-  assert.equal(data.systemStatus[1].state, 'error')
   assert.equal(data.recentEvents[0].summary, '高危事件')
+})
+
+test('getOverviewData returns the same counts as the full dashboard but no detail lists', async () => {
+  const deps = {
+    loadPendingMembers: async () => [createGuardMember({ id: 'gm-1' })],
+    loadPendingReviews: async () => [createReview()],
+    loadRecentEvents: async () => [createEvent()],
+    loadRecentReports: async () => [createReport()],
+    loadCommandPolicies: async () => [createCommandPolicy()],
+    loadGuardTemplates: async () => [createTemplate()],
+    loadGuardBindings: async () => [createBinding()],
+  }
+  const service = new DashboardPageService(deps)
+
+  const [full, overview] = await Promise.all([service.getPageData(), service.getOverviewData()])
+
+  // 计数必须与全量 dashboard 的 overview 完全一致（脉冲徽标不得与控制台显示漂移）。
+  assert.deepEqual(overview.overview, full.overview)
+  assert.equal(typeof overview.generatedAt, 'string')
+  // 轻量端点只返回计数，绝不携带任何明细列表。
+  assert.deepEqual(Object.keys(overview).sort(), ['generatedAt', 'overview'])
 })
 
 function createGuardMember(overrides: Partial<Parameters<typeof buildDashboardPageData>[0]['pendingMembers'][number]> = {}) {

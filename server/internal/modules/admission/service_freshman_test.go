@@ -48,6 +48,22 @@ func TestFreshmanApplicationRejectsClosedChannelAndReusesPendingApplication(t *t
 	assert.Equal(t, app.ID, reused.ID)
 }
 
+// F020 回归：新生申请的目标学校必须与关联会话策略所属学校一致，跨校提交直接拒绝。
+func TestFreshmanApplicationRejectsCrossSchoolTarget(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newFreshmanTestService(t, fixture)
+	userID := seedLinkedAdmissionUser(t, fixture, svc, "freshman-school-mismatch")
+
+	_, err := svc.CreateFreshmanApplication(context.Background(), FreshmanApplicationCreateInput{
+		UserID:        userID,
+		SchoolID:      4111010007,
+		ApplicantName: "Alice Applicant",
+		MaterialType:  MaterialAdmissionNotice,
+	})
+
+	require.ErrorIs(t, err, ErrAdmissionSchoolMismatch)
+}
+
 func TestFreshmanApplicationReassignsPendingApplicationToCurrentSession(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newFreshmanTestService(t, fixture)

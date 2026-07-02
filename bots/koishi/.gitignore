@@ -29,3 +29,4 @@ tsconfig.tsbuildinfo
 *.ntvs*
 *.njsproj
 *.sln
+packages/shared/src/types/.api-drift.tmp.ts

@@ -9,6 +9,7 @@ import {
   buildScopedConfigGovernancePageData,
   buildScopedDashboardPageData,
   buildScopedIdentityPageData,
+  buildScopedOverviewData,
   buildScopedReviewPageData,
 } from './page-scope'
 import {
@@ -30,6 +31,9 @@ export function registerPageAPI(ctx: Context, options: PageApiOptions) {
   ctx.console.addListener('stuhelperGroupCenter/page/dashboard', function () {
     return handleDashboardPage(runtime, this)
   }, { authority: CONSOLE_AUTHORITY })
+  ctx.console.addListener('stuhelperGroupCenter/page/overview', function () {
+    return handleOverviewPage(runtime, this)
+  }, { authority: CONSOLE_AUTHORITY })
   ctx.console.addListener('stuhelperGroupCenter/page/identity', function () {
     return handleIdentityPage(runtime, this)
   }, { authority: CONSOLE_AUTHORITY })
@@ -49,6 +53,13 @@ async function handleDashboardPage(runtime: PageApiRuntime, client: ScopedConsol
   if (scope.kind === 'all') return runtime.dashboardPage.getPageData()
   const data = await loadDashboardData(runtime.dashboardDeps)
   return buildScopedDashboardPageData({ generatedAt: new Date().toISOString(), ...data }, scope)
+}
+
+async function handleOverviewPage(runtime: PageApiRuntime, client: ScopedConsoleClient) {
+  const scope = await resolvePageScope(runtime, client)
+  if (scope.kind === 'all') return runtime.dashboardPage.getOverviewData()
+  const data = await loadDashboardData(runtime.dashboardDeps)
+  return buildScopedOverviewData({ generatedAt: new Date().toISOString(), ...data }, scope)
 }
 
 async function handleIdentityPage(runtime: PageApiRuntime, client: ScopedConsoleClient) {
@@ -124,7 +135,6 @@ async function loadDashboardData(deps: PageApiRuntime['dashboardDeps']) {
     commandPolicies,
     guardTemplates,
     guardBindings,
-    moduleStates,
   ] = await Promise.all([
     deps.loadPendingMembers(),
     deps.loadPendingReviews(),
@@ -133,9 +143,8 @@ async function loadDashboardData(deps: PageApiRuntime['dashboardDeps']) {
     deps.loadCommandPolicies(),
     deps.loadGuardTemplates(),
     deps.loadGuardBindings(),
-    deps.loadModuleStates(),
   ])
-  return { pendingMembers, pendingReviews, recentEvents, recentReports, commandPolicies, guardTemplates, guardBindings, moduleStates }
+  return { pendingMembers, pendingReviews, recentEvents, recentReports, commandPolicies, guardTemplates, guardBindings }
 }
 
 function normalizeEntityProfileQuery(query: EntityProfileQuery): EntityProfileQuery {

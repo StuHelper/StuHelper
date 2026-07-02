@@ -8,15 +8,11 @@ import { SettingsManager, PluginSettings } from '../settings'
 import { CacheService } from './cache.service'
 import { AuthService } from './auth.service'
 import type { Subscription } from '../../types'
-import type { RuntimeModuleInstance } from '../../runtime/types'
 import {
-  collectWarmCacheTargets,
   formatShanghaiTimestamp,
   toErrorMessage,
 } from './stuhelper-group-center.utils'
-import { redactSensitiveText } from '../modules/log-redaction'
-
-const CACHE_WARM_DELAY_MS = 2_000
+import { redactSensitiveText } from '../data/log-redaction'
 
 export type PushMessageBot = {
   sendMessage(channelId: string, content: string): Promise<unknown>
@@ -50,7 +46,6 @@ export class StuhelperGroupCenterService extends Service {
   /** 数据管理器 */
   private _data: DataManager
   /** 功能模块注册表 */
-  private _modules: Map<string, RuntimeModuleInstance> = new Map()
   /** 设置管理器 */
   private _settingsManager: SettingsManager
   /** 缓存服务 */
@@ -60,7 +55,6 @@ export class StuhelperGroupCenterService extends Service {
   /** 日志 */
   private readonly serviceLogger
   /** 缓存预热定时器 */
-  private warmCacheTimer: NodeJS.Timeout | null = null
 
   constructor(ctx: Context) {
     super(ctx, 'stuhelperGroupCenter')
@@ -94,73 +88,6 @@ export class StuhelperGroupCenterService extends Service {
   /** 获取权限服务 */
   get auth(): AuthService {
     return this._auth
-  }
-
-  /**
-   * 注册模块
-   */
-  registerModule(module: RuntimeModuleInstance): void {
-    const name = module.meta.name
-    if (this._modules.has(name)) {
-      this.serviceLogger.warn('模块 %s 已存在，将被覆盖', name)
-    }
-    this._modules.set(name, module)
-    this.serviceLogger.info('注册模块: %s', name)
-  }
-
-  /**
-   * 获取模块
-   */
-  getModule<T extends RuntimeModuleInstance>(name: string): T | undefined {
-    return this._modules.get(name) as T | undefined
-  }
-
-  /**
-   * 获取所有模块
-   */
-  getAllModules(): RuntimeModuleInstance[] {
-    return Array.from(this._modules.values())
-  }
-
-  /**
-   * 初始化所有模块
-   */
-  async initModules(): Promise<void> {
-    for (const [name, module] of this._modules) {
-      try {
-        await module.init()
-        this.serviceLogger.info('模块 %s 初始化完成', name)
-      } catch (error) {
-        this.serviceLogger.error('模块 %s 初始化失败: %s', name, toErrorMessage(error))
-        throw error
-      }
-    }
-
-    this.warmCacheAsync()
-  }
-
-  /**
-   * 异步预热缓存（不阻塞启动）
-   */
-  private warmCacheAsync(): void {
-    if (this.warmCacheTimer) {
-      clearTimeout(this.warmCacheTimer)
-    }
-
-    this.warmCacheTimer = setTimeout(() => {
-      void this.runWarmCache()
-    }, CACHE_WARM_DELAY_MS)
-  }
-
-  private async runWarmCache(): Promise<void> {
-    try {
-      const targets = collectWarmCacheTargets(this._data, this.getSubscriptions())
-      await this._cache.warmCache(targets.guildIds, targets.userIds, targets.memberPairs)
-    } catch (error) {
-      this.serviceLogger.error('缓存预热失败: %s', toErrorMessage(error))
-    } finally {
-      this.warmCacheTimer = null
-    }
   }
 
   /**
@@ -241,21 +168,6 @@ export class StuhelperGroupCenterService extends Service {
    * 服务停止时调用
    */
   protected stop(): void {
-    if (this.warmCacheTimer) {
-      clearTimeout(this.warmCacheTimer)
-      this.warmCacheTimer = null
-    }
-
-    for (const [name, module] of this._modules) {
-      try {
-        module.dispose()
-        this.serviceLogger.info('模块 %s 已销毁', name)
-      } catch (error) {
-        this.serviceLogger.error('模块 %s 销毁失败: %s', name, toErrorMessage(error))
-      }
-    }
-    this._modules.clear()
-
     this._data.dispose()
     this._settingsManager.dispose()
   }

@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import type { AdmissionSessionAction, StatusFilter } from './options';
 
-import type { ListAdmissionSessionsParams } from '#/api/admin';
+import type {
+  AdmissionSession,
+  ListAdmissionSessionsParams,
+} from '#/api/admin';
 
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed } from 'vue';
 
 import { useAccessStore } from '@vben/stores';
 
@@ -15,186 +18,144 @@ import {
   regenerateAdminAdmissionSession,
   resendAdminAdmissionSession,
 } from '#/api/admin';
+import { useAdminAction } from '#/composables/use-admin-action';
+import { useAdminList } from '#/composables/use-admin-list';
 import { $t } from '#/locales';
+import { copyTextToClipboard } from '#/utils/clipboard';
 
 import AdminContentLayout from '../../shared/AdminContentLayout.vue';
+import { ADMIN_DEFAULT_PAGE_SIZE } from '../../shared/pagination';
 import AdmissionSessionFilters from './AdmissionSessionFilters.vue';
 import AdmissionSessionTable from './AdmissionSessionTable.vue';
 
-const loading = ref(false);
-const loadError = ref('');
-const actionError = ref('');
-const actionLoadingById = reactive<
-  Record<string, AdmissionSessionAction | undefined>
->({});
-const items = ref<Awaited<ReturnType<typeof listAdmissionSessions>>['items']>(
-  [],
-);
-const total = ref(0);
-let fetchRequestSeq = 0;
 const accessStore = useAccessStore();
 const canManage = computed(() =>
   accessStore.accessCodes.includes('admission:session:manage'),
 );
 
-const query = reactive({
-  page: 1,
-  pageSize: 20,
-  platform: 'qq',
-  botSelfID: '',
-  guildID: '',
-  qqID: '',
-  status: '' as StatusFilter,
+const {
+  fetchData,
+  items,
+  loadError,
+  loading,
+  query,
+  resetPageAndFetch,
+  total,
+} = useAdminList<
+  AdmissionSession,
+  {
+    botSelfID: string;
+    guildID: string;
+    page: number;
+    pageSize: number;
+    platform: string;
+    qqID: string;
+    status: StatusFilter;
+  }
+>({
+  fetcher: (listQuery) => {
+    const params: ListAdmissionSessionsParams = {
+      page: listQuery.page,
+      pageSize: listQuery.pageSize,
+    };
+    if (listQuery.status) params.status = listQuery.status;
+    if (listQuery.platform.trim()) params.platform = listQuery.platform.trim();
+    if (listQuery.botSelfID.trim()) {
+      params.botSelfID = listQuery.botSelfID.trim();
+    }
+    if (listQuery.guildID.trim()) params.guildID = listQuery.guildID.trim();
+    if (listQuery.qqID.trim()) params.qqID = listQuery.qqID.trim();
+    return listAdmissionSessions(params);
+  },
+  initialQuery: {
+    botSelfID: '',
+    guildID: '',
+    page: 1,
+    pageSize: ADMIN_DEFAULT_PAGE_SIZE,
+    platform: 'qq',
+    qqID: '',
+    status: '',
+  },
 });
 
-async function fetchData() {
-  const requestSeq = ++fetchRequestSeq;
-  loading.value = true;
-  loadError.value = '';
-  try {
-    const params: ListAdmissionSessionsParams = {
-      page: query.page,
-      pageSize: query.pageSize,
-    };
-    if (query.status) params.status = query.status;
-    if (query.platform.trim()) params.platform = query.platform.trim();
-    if (query.botSelfID.trim()) params.botSelfID = query.botSelfID.trim();
-    if (query.guildID.trim()) params.guildID = query.guildID.trim();
-    if (query.qqID.trim()) params.qqID = query.qqID.trim();
-
-    const data = await listAdmissionSessions(params);
-    if (requestSeq !== fetchRequestSeq) return;
-    items.value = data.items;
-    total.value = data.total;
-  } catch (error) {
-    if (requestSeq !== fetchRequestSeq) return;
-    loadError.value = adminErrorMessage(error);
-  } finally {
-    if (requestSeq === fetchRequestSeq) {
-      loading.value = false;
-    }
-  }
-}
-
-function runSearch() {
-  query.page = 1;
-  void fetchData();
-}
-
-function onPageSizeChange() {
-  query.page = 1;
-  void fetchData();
-}
+const { actionError, clearActionError, pendingActionKinds, runAction } =
+  useAdminAction();
 
 function resetQuery() {
-  query.page = 1;
   query.platform = 'qq';
   query.botSelfID = '';
   query.guildID = '';
   query.qqID = '';
   query.status = '';
-  void fetchData();
+  resetPageAndFetch();
 }
 
 async function copyAuthURL(url: string) {
-  await copyToClipboard(url, '认证链接已复制');
+  await copyToClipboard(url, $t('admin.users.admissionSessions.authURLCopied'));
 }
 
 async function copyReissueCommand(command: string) {
-  await copyToClipboard(command, '重生命令已复制');
+  await copyToClipboard(
+    command,
+    $t('admin.users.admissionSessions.reissueCopied'),
+  );
 }
 
 async function copyToClipboard(text: string, successMessage: string) {
-  try {
-    if (!navigator.clipboard?.writeText) {
-      throw new Error('clipboard unavailable');
-    }
-    await navigator.clipboard.writeText(text);
+  const copied = await copyTextToClipboard(text);
+  if (copied) {
     ElMessage.success(successMessage);
     return true;
-  } catch {
-    if (copyTextWithFallback(text)) {
-      ElMessage.success(successMessage);
-      return true;
-    }
-    ElMessage.error('复制失败，请手动复制');
-    return false;
   }
-}
-
-function copyTextWithFallback(text: string): boolean {
-  const textarea = document.createElement('textarea');
-  try {
-    textarea.value = text;
-    document.body.append(textarea);
-    textarea.focus();
-    textarea.select();
-    return document.execCommand('copy');
-  } catch {
-    return false;
-  } finally {
-    textarea.remove();
-  }
+  ElMessage.error($t('admin.users.admissionSessions.copyFailed'));
+  return false;
 }
 
 async function requestResend(id: string) {
-  await runSessionAction(id, 'resend', async () => {
-    await resendAdminAdmissionSession(id);
-    ElMessage.success('已加入机器人重发队列');
-  });
+  await runSessionAction(
+    id,
+    'resend',
+    () => resendAdminAdmissionSession(id),
+    $t('admin.users.admissionSessions.resendQueued'),
+  );
 }
 
 async function requestRegenerate(id: string) {
-  await runSessionAction(id, 'regenerate', async () => {
-    await regenerateAdminAdmissionSession(id);
-    ElMessage.success('已重新生成并加入机器人提醒队列');
-  });
+  await runSessionAction(
+    id,
+    'regenerate',
+    () => regenerateAdminAdmissionSession(id),
+    $t('admin.users.admissionSessions.regenerated'),
+  );
 }
 
 async function requestCancel(id: string) {
-  await runSessionAction(id, 'cancel', async () => {
-    await cancelAdminAdmissionSession(id);
-    ElMessage.success('认证会话已取消');
-  });
+  await runSessionAction(
+    id,
+    'cancel',
+    () => cancelAdminAdmissionSession(id),
+    $t('admin.users.admissionSessions.sessionCancelled'),
+  );
 }
 
 async function runSessionAction(
   id: string,
-  action: AdmissionSessionAction,
-  request: () => Promise<void>,
+  kind: AdmissionSessionAction,
+  request: () => Promise<unknown>,
+  successMessage: string,
 ) {
-  if (actionLoadingById[id]) {
-    return;
-  }
-
-  actionLoadingById[id] = action;
-  actionError.value = '';
-  try {
-    await request();
+  const succeeded = await runAction(request, { id, kind, successMessage });
+  if (succeeded) {
     await fetchData();
-  } catch (error) {
-    handleActionError(error);
-  } finally {
-    delete actionLoadingById[id];
   }
 }
-
-function handleActionError(error: unknown) {
-  actionError.value = adminErrorMessage(error);
-  ElMessage.error(actionError.value);
-}
-
-function adminErrorMessage(error: unknown): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : $t('admin.result.requestFailed');
-}
-
-onMounted(fetchData);
 </script>
 
 <template>
-  <AdminContentLayout title="入群认证会话" :total="total">
+  <AdminContentLayout
+    :title="$t('admin.routes.userSystem.admissionSessions')"
+    :total="total"
+  >
     <template #toolbar>
       <AdmissionSessionFilters
         v-model:qq-i-d="query.qqID"
@@ -202,7 +163,7 @@ onMounted(fetchData);
         v-model:bot-self-i-d="query.botSelfID"
         v-model:platform="query.platform"
         v-model:status="query.status"
-        @search="runSearch"
+        @search="resetPageAndFetch"
         @reset="resetQuery"
       />
     </template>
@@ -227,14 +188,14 @@ onMounted(fetchData);
       :closable="true"
       show-icon
       :title="actionError"
-      @close="actionError = ''"
+      @close="clearActionError"
     />
 
     <AdmissionSessionTable
       v-model:page="query.page"
       v-model:page-size="query.pageSize"
       :can-manage="canManage"
-      :action-loading-by-id="actionLoadingById"
+      :action-loading-by-id="pendingActionKinds"
       :loading="loading"
       :items="items"
       :total="total"
@@ -244,7 +205,7 @@ onMounted(fetchData);
       @request-regenerate="requestRegenerate"
       @request-cancel="requestCancel"
       @page-change="fetchData"
-      @page-size-change="onPageSizeChange"
+      @page-size-change="resetPageAndFetch"
     />
   </AdminContentLayout>
 </template>

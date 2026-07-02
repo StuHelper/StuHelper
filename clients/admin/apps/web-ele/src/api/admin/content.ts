@@ -37,19 +37,6 @@ export async function updateReview(
   return unwrapData(await adminApi.updateReview(String(reviewId), data));
 }
 
-export async function batchUpdateReviews(data: {
-  action: 'delete' | 'hide' | 'restore';
-  ids: Array<number | string>;
-  reason?: string;
-}) {
-  return unwrapData(
-    await adminApi.batchUpdateReviews({
-      action: data.action,
-      ids: data.ids.map(String),
-    }),
-  );
-}
-
 export interface ReportListParams {
   page?: number;
   pageSize?: number;

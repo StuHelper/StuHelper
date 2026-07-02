@@ -39,7 +39,7 @@ export function usePulse(): PulseHandle {
   async function refresh(): Promise<void> {
     state.loading = true
     try {
-      const data = await consolePageApi.dashboard()
+      const data = await consolePageApi.overview()
       state.pendingReviews = data.overview.pendingReviews
       state.pendingAdmissions = data.overview.pendingAdmissions
       state.openReports = data.overview.openReports

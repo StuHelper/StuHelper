@@ -1,5 +1,7 @@
 import type { Context } from 'koishi'
 
+import { type SettingsReadCache, settingsReadCacheFor } from '../settings-cache'
+
 export const GROUP_GUARD_AI_SETTINGS_TABLE = 'stuhelper_group_guard_ai_settings'
 
 const DEFAULT_SETTINGS_ID = 'default'
@@ -50,12 +52,20 @@ export function registerGroupGuardAISettingsModel(ctx: Context) {
 }
 
 export class GroupGuardAISettingsStore {
+  private readonly cache: SettingsReadCache<GroupGuardAISettingsRecord>
+
   constructor(
     private readonly ctx: Pick<Context, 'database'>,
     private readonly defaults: GroupGuardAISettings = DEFAULT_GROUP_GUARD_AI_SETTINGS,
-  ) {}
+  ) {
+    this.cache = settingsReadCacheFor(ctx.database, GROUP_GUARD_AI_SETTINGS_TABLE)
+  }
 
   async getSettings(): Promise<GroupGuardAISettingsRecord> {
+    return this.cache.read(() => this.loadSettings())
+  }
+
+  private async loadSettings(): Promise<GroupGuardAISettingsRecord> {
     const [record] = await this.ctx.database.get(GROUP_GUARD_AI_SETTINGS_TABLE, { id: DEFAULT_SETTINGS_ID })
     if (record) {
       return normalizeRecord(record, this.defaults)
@@ -76,7 +86,7 @@ export class GroupGuardAISettingsStore {
       ...changes,
       updatedAt: now,
     })
-    return next
+    return this.cache.write(next)
   }
 
   async resetSettings() {
@@ -94,7 +104,7 @@ export class GroupGuardAISettingsStore {
       model: next.model,
       updatedAt: now,
     })
-    return next
+    return this.cache.write(next)
   }
 
   async getAISettings() {

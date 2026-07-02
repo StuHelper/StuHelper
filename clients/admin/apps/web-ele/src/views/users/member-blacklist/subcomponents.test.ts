@@ -5,10 +5,15 @@ import type { MemberBlacklistEntry } from '#/api/admin';
 import { mount } from '@vue/test-utils';
 import { defineComponent, h } from 'vue';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import BlacklistFilters from './BlacklistFilters.vue';
 import BlacklistTable from './BlacklistTable.vue';
+
+vi.mock('#/locales', () => ({
+  $t: (key: string, params?: Record<string, unknown>) =>
+    params ? `${key}:${Object.values(params).join('/')}` : key,
+}));
 
 // Element Plus tables drive scoped slots from the inside; in happy-dom we
 // reimplement the row→column slot relationship with a tiny pair of stubs that
@@ -131,8 +136,8 @@ describe('BlacklistFilters', () => {
     });
 
     const buttons = wrapper.findAll('button');
-    const search = buttons.find((btn) => btn.text() === '查询');
-    const reset = buttons.find((btn) => btn.text() === '重置');
+    const search = buttons.find((btn) => btn.text() === 'admin.common.query');
+    const reset = buttons.find((btn) => btn.text() === 'admin.common.reset');
     const create = wrapper.find('[data-action="openCreate"]');
 
     expect(search).toBeDefined();

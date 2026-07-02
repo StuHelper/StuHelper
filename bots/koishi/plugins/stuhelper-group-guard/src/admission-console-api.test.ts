@@ -209,8 +209,95 @@ test('admission runtime regenerate does not record verified release after losing
 
   assert.equal(data, '入群认证记录已被其他任务处理，请刷新页面后确认当前状态。')
   assert.equal(sentMessages.length, 0)
-  assert.deepEqual(muteActions, [{ guildId: '178037297', memberId: '2001', duration: 0 }])
+  // F051：同步失败时不执行任何 bot 动作（先持久化再 unmute）
+  assert.deepEqual(muteActions, [])
   assert.equal(eventRecorded, false)
+})
+
+test('admission runtime regenerate keeps verified release when QQ unmute fails', async () => {
+  const synced: unknown[] = []
+  const released: Array<{ id: string; now: Date }> = []
+  let eventRecorded = false
+  const data = await handleAdmissionRuntimeAction(
+    fakeContext([], [], [], {
+      async muteGuildMember() {
+        throw new Error('Error with request set_group_ban, retcode: 1200')
+      },
+    }),
+    {
+      config: createConfig(),
+      platform: fakePlatform({
+        async regenerateAdmissionSessionLink() {
+          return {
+            session: createAdmissionSession({ status: 'verified' }),
+            token: 'abc',
+            authURL: 'https://join.stuhelper.com/verify/abc',
+          }
+        },
+        async recordAdmissionEvent() {
+          eventRecorded = true
+        },
+      }),
+      runtimeSettings: fakeRuntimeSettings(),
+      guardStore: fakeGuardStore({
+        async getActiveByID() {
+          return createMember({ backendSyncPending: false, admissionSessionID: 'session-1' })
+        },
+        async markBackendSynced(id, input) {
+          synced.push({ id, input })
+        },
+        async markReleased(id, now) {
+          released.push({ id, now })
+        },
+      }),
+      policyStore: fakePolicyStore(),
+      moderationStore: fakeModerationStore(),
+    },
+    { recordId: 'qq:2118785781:178037297:2001', action: 'regenerate' },
+    { auth: { id: 42 } },
+  )
+
+  assert.match(String(data), /QQ 2001 已完成学生认证并同步释放记录，但自动解除禁言失败/)
+  assert.equal(synced.length, 1)
+  assert.equal(released.length, 1)
+  assert.equal(eventRecorded, true)
+})
+
+test('admission runtime regenerate keeps backend sync when QQ re-mute fails', async () => {
+  const synced: unknown[] = []
+  const sentMessages: Array<{ channelId: string; message: string }> = []
+  const privateMessages: Array<{ userId: string; message: string; guildId?: string }> = []
+  const data = await handleAdmissionRuntimeAction(
+    fakeContext(sentMessages, [], privateMessages, {
+      async muteGuildMember() {
+        throw new Error('Error with request set_group_ban, retcode: 1200')
+      },
+    }),
+    {
+      config: createConfig(),
+      platform: fakePlatform(),
+      runtimeSettings: fakeRuntimeSettings(),
+      guardStore: fakeGuardStore({
+        async getActiveByID() {
+          return createMember({ backendSyncPending: false, admissionSessionID: 'session-1' })
+        },
+        async markBackendSynced(id, input) {
+          synced.push({ id, input })
+        },
+      }),
+      policyStore: fakePolicyStore(),
+      moderationStore: fakeModerationStore(),
+    },
+    { recordId: 'qq:2118785781:178037297:2001', action: 'regenerate' },
+    { auth: { id: 42 } },
+  )
+
+  assert.match(String(data), /已重新生成 QQ 2001 的入群认证链接，但重置禁言失败/)
+  // 本地记录已同步到新 session，不会停留在旧 session
+  assert.equal(synced.length, 1)
+  // 重置禁言失败后不再尝试发送提醒
+  assert.equal(sentMessages.length, 0)
+  assert.equal(privateMessages.length, 0)
 })
 
 test('admission runtime skip keeps local release when QQ unmute fails', async () => {
@@ -373,7 +460,7 @@ test('admission runtime console actions use configured message templates', async
       config: createConfig(),
       platform: fakePlatform({
         async getAdmissionSessionByMember() {
-          return createAdmissionSession({ status: 'linked', userID: 42 })
+          return createAdmissionSession({ status: 'linked', userID: '42' })
         },
       }),
       runtimeSettings: fakeRuntimeSettings(),
@@ -629,7 +716,6 @@ function createAdmissionSession(overrides: Partial<AdmissionSession> = {}): Admi
     guildID: '178037297',
     channelID: '178037297',
     qqID: '2001',
-    userID: null,
     status: 'joined_muted',
     tokenExpiresAt: '2026-06-04T09:00:00.000Z',
     linkWaitDeadlineAt: '2026-06-04T09:00:00.000Z',

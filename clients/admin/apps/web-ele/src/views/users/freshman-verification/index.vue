@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { FreshmanApplication } from '#/api/admin';
 
-import { onMounted, reactive, ref } from 'vue';
+import { reactive, ref } from 'vue';
 
 import {
   ElAlert,
@@ -13,6 +13,7 @@ import {
   ElMessage,
   ElOption,
   ElPagination,
+  ElPopconfirm,
   ElSelect,
   ElTag,
 } from 'element-plus';
@@ -21,89 +22,97 @@ import {
   listFreshmanVerifications,
   reviewFreshmanVerification,
 } from '#/api/admin';
+import { useAdminAction } from '#/composables/use-admin-action';
+import { useAdminList } from '#/composables/use-admin-list';
 import { $t } from '#/locales';
 
 import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
 import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
 import AdminContentLayout from '../../shared/AdminContentLayout.vue';
 import { formatAdminDateTime } from '../../shared/display';
+import {
+  ADMIN_DEFAULT_PAGE_SIZE,
+  ADMIN_PAGE_SIZES,
+  ADMIN_PAGINATION_LAYOUT,
+} from '../../shared/pagination';
 
-type FreshmanReviewRow = FreshmanApplication & {
-  failureCount?: number;
-  materialURL?: string;
-  qqID?: string;
-};
 type FreshmanReviewAction = 'approve' | 'approveWithDays' | 'reject';
+type FreshmanStatusFilter = 'approved' | 'pending' | 'rejected';
 
-const loading = ref(false);
-const items = ref<FreshmanReviewRow[]>([]);
-const total = ref(0);
-const loadError = ref('');
-const actionError = ref('');
-const materialDialogVisible = ref(false);
-const materialPreviewURL = ref('');
-const query = reactive({
-  page: 1,
-  pageSize: 20,
-  status: 'pending' as 'approved' | 'pending' | 'rejected',
-});
 const extensionDaysById = reactive<Record<string, number | undefined>>({});
 const rejectionReasons = reactive<Record<string, string>>({});
-const reviewingActionsById = reactive<
-  Record<string, FreshmanReviewAction | undefined>
->({});
-let fetchRequestSeq = 0;
+const materialDialogVisible = ref(false);
+const materialPreviewURL = ref('');
 
-async function fetchData() {
-  const requestSeq = ++fetchRequestSeq;
-  loading.value = true;
-  loadError.value = '';
-  try {
-    const data = await listFreshmanVerifications(query);
-    if (requestSeq !== fetchRequestSeq) return;
-    items.value = data.items as FreshmanReviewRow[];
-    total.value = data.total;
-    for (const item of items.value) {
+const {
+  fetchData,
+  items,
+  loadError,
+  loading,
+  query,
+  resetPageAndFetch,
+  total,
+} = useAdminList<
+  FreshmanApplication,
+  { page: number; pageSize: number; status: FreshmanStatusFilter }
+>({
+  fetcher: async (listQuery) => {
+    const data = await listFreshmanVerifications(listQuery);
+    for (const item of data.items) {
       extensionDaysById[item.id] ??= 0;
     }
-  } catch (error) {
-    if (requestSeq !== fetchRequestSeq) return;
-    loadError.value = adminErrorMessage(error);
-  } finally {
-    if (requestSeq === fetchRequestSeq) {
-      loading.value = false;
-    }
-  }
-}
+    return data;
+  },
+  initialQuery: {
+    page: 1,
+    pageSize: ADMIN_DEFAULT_PAGE_SIZE,
+    status: 'pending',
+  },
+});
 
-function resetPageAndFetch() {
-  query.page = 1;
-  void fetchData();
-}
+const {
+  actionError,
+  clearActionError,
+  isActionPending,
+  pendingActionKinds,
+  runAction,
+} = useAdminAction();
 
-async function approve(row: FreshmanReviewRow, expiresInDays?: number) {
+async function approve(row: FreshmanApplication) {
   await handleReview(
     row,
-    {
-      action: 'approve',
-      ...(expiresInDays ? { expiresInDays } : {}),
-    },
-    expiresInDays ? '已通过新生审核并设置临时认证期限' : '已通过新生审核',
-    expiresInDays ? 'approveWithDays' : 'approve',
+    { action: 'approve' },
+    $t('admin.users.freshmanVerification.approveSuccess'),
+    'approve',
   );
 }
 
-async function reject(row: FreshmanReviewRow) {
+async function approveWithDays(row: FreshmanApplication) {
+  const expiresInDays = rowExtensionDays(row);
+  if (expiresInDays === undefined) {
+    return;
+  }
+  await handleReview(
+    row,
+    { action: 'approve', expiresInDays },
+    $t('admin.users.freshmanVerification.approveWithDaysSuccess'),
+    'approveWithDays',
+  );
+}
+
+async function reject(row: FreshmanApplication) {
   const reason = rejectionReasons[row.id]?.trim();
   if (!reason) {
-    ElMessage.error('请填写驳回原因');
+    ElMessage.warning(
+      $t('admin.users.freshmanVerification.rejectReasonRequired'),
+    );
     return;
   }
 
   const submitted = await handleReview(
     row,
     { action: 'reject', reason },
-    '已驳回新生审核',
+    $t('admin.users.freshmanVerification.rejectSuccess'),
     'reject',
   );
   if (submitted) {
@@ -112,80 +121,68 @@ async function reject(row: FreshmanReviewRow) {
 }
 
 async function handleReview(
-  row: FreshmanReviewRow,
+  row: FreshmanApplication,
   payload: Parameters<typeof reviewFreshmanVerification>[1],
   successMessage: string,
   action: FreshmanReviewAction,
 ) {
-  if (rowReviewing(row)) {
-    return false;
-  }
-
-  reviewingActionsById[row.id] = action;
-  actionError.value = '';
-  try {
-    await reviewFreshmanVerification(row.id, payload);
-    ElMessage.success(successMessage);
+  const succeeded = await runAction(
+    () => reviewFreshmanVerification(row.id, payload),
+    {
+      id: row.id,
+      kind: action,
+      successMessage,
+    },
+  );
+  if (succeeded) {
     delete extensionDaysById[row.id];
     await fetchData();
-    return true;
-  } catch (error) {
-    handleActionError(error);
-    return false;
-  } finally {
-    delete reviewingActionsById[row.id];
   }
-}
-
-function rowReviewing(row: FreshmanReviewRow) {
-  return Boolean(reviewingActionsById[row.id]);
+  return succeeded;
 }
 
 function rowActionLoading(
-  row: FreshmanReviewRow,
+  row: FreshmanApplication,
   action: FreshmanReviewAction,
 ) {
-  return reviewingActionsById[row.id] === action;
+  return pendingActionKinds.value[row.id] === action;
 }
 
-function rowExtensionDays(row: FreshmanReviewRow) {
+/**
+ * 临时认证天数：仅正整数有效。0 是显式的"不要带天数"，对应禁用
+ * 带天数通过按钮，而不是静默退化为普通通过。
+ */
+function rowExtensionDays(row: FreshmanApplication) {
   const days = extensionDaysById[row.id];
-  return typeof days === 'number' && days > 0 ? days : undefined;
+  return typeof days === 'number' && Number.isInteger(days) && days > 0
+    ? days
+    : undefined;
 }
 
-function openMaterial(row: FreshmanReviewRow) {
+function openMaterial(row: FreshmanApplication) {
   if (!row.materialURL) {
-    ElMessage.warning('暂无材料预览');
+    ElMessage.warning($t('admin.users.freshmanVerification.noMaterial'));
     return;
   }
   materialPreviewURL.value = row.materialURL;
   materialDialogVisible.value = true;
 }
 
-function statusType(status: FreshmanReviewRow['status']) {
+function statusType(status: FreshmanApplication['status']) {
   if (status === 'approved') return 'success';
   if (status === 'rejected') return 'danger';
   return 'warning';
 }
 
-function statusLabel(status: FreshmanReviewRow['status']) {
-  if (status === 'approved') return '已通过';
-  if (status === 'rejected') return '已驳回';
-  return '待审核';
+function statusLabel(status: FreshmanApplication['status']) {
+  if (status === 'approved') {
+    return $t('admin.users.freshmanVerification.statusApproved');
+  }
+  if (status === 'rejected') {
+    return $t('admin.users.freshmanVerification.statusRejected');
+  }
+  return $t('admin.users.freshmanVerification.statusPending');
 }
-
-function handleActionError(error: unknown) {
-  actionError.value = adminErrorMessage(error);
-  ElMessage.error(actionError.value);
-}
-
-function adminErrorMessage(error: unknown): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : $t('admin.result.requestFailed');
-}
-
-onMounted(fetchData);
 </script>
 
 <template>
@@ -200,11 +197,22 @@ onMounted(fetchData);
         :teleported="false"
         @change="resetPageAndFetch"
       >
-        <ElOption label="待审核" value="pending" />
-        <ElOption label="已通过" value="approved" />
-        <ElOption label="已驳回" value="rejected" />
+        <ElOption
+          :label="$t('admin.users.freshmanVerification.statusPending')"
+          value="pending"
+        />
+        <ElOption
+          :label="$t('admin.users.freshmanVerification.statusApproved')"
+          value="approved"
+        />
+        <ElOption
+          :label="$t('admin.users.freshmanVerification.statusRejected')"
+          value="rejected"
+        />
       </ElSelect>
-      <ElButton type="primary" @click="resetPageAndFetch">查询</ElButton>
+      <ElButton type="primary" @click="resetPageAndFetch">
+        {{ $t('admin.common.query') }}
+      </ElButton>
     </template>
 
     <ElAlert
@@ -227,7 +235,7 @@ onMounted(fetchData);
       :closable="true"
       show-icon
       :title="actionError"
-      @close="actionError = ''"
+      @close="clearActionError"
     />
 
     <PersistentAdminTable
@@ -240,7 +248,7 @@ onMounted(fetchData);
       <PersistentAdminTableColumn
         column-key="status"
         data-field="status"
-        label="状态"
+        :label="$t('admin.common.status')"
         :default-width="100"
       >
         <template #default="{ row }">
@@ -252,28 +260,28 @@ onMounted(fetchData);
       <PersistentAdminTableColumn
         column-key="schoolID"
         data-field="schoolID"
-        label="学校"
+        :label="$t('admin.users.freshmanVerification.schoolColumn')"
         prop="schoolID"
         :default-width="120"
       />
       <PersistentAdminTableColumn
         column-key="qqID"
         data-field="qqID"
-        label="QQ"
+        :label="$t('admin.users.freshmanVerification.qqColumn')"
         :default-width="140"
       >
         <template #default="{ row }">{{ row.qqID || '—' }}</template>
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
         column-key="applicant"
-        label="申请人"
+        :label="$t('admin.users.freshmanVerification.applicantColumn')"
         prop="applicantNameMasked"
         :default-width="120"
       />
       <PersistentAdminTableColumn
         column-key="createdAt"
         data-field="createdAt"
-        label="申请时间"
+        :label="$t('admin.users.freshmanVerification.createdAtColumn')"
         :default-width="148"
       >
         <template #default="{ row }">
@@ -285,7 +293,7 @@ onMounted(fetchData);
       <PersistentAdminTableColumn
         column-key="failureCount"
         data-field="failureCount"
-        label="失败次数"
+        :label="$t('admin.users.freshmanVerification.failureCountColumn')"
         :default-width="100"
       >
         <template #default="{ row }">{{ row.failureCount ?? '—' }}</template>
@@ -293,7 +301,7 @@ onMounted(fetchData);
       <PersistentAdminTableColumn
         column-key="actions"
         fixed="right"
-        label="操作"
+        :label="$t('admin.common.actions')"
         :default-width="420"
       >
         <template #default="{ row }">
@@ -305,42 +313,63 @@ onMounted(fetchData);
               data-material-preview
               @click="openMaterial(row)"
             >
-              材料预览
+              {{ $t('admin.users.freshmanVerification.materialPreview') }}
             </ElButton>
-            <ElButton
-              plain
-              size="small"
-              type="success"
-              data-action="approve"
-              :disabled="rowReviewing(row)"
-              :loading="rowActionLoading(row, 'approve')"
-              @click="approve(row)"
+            <ElPopconfirm
+              :title="$t('admin.users.freshmanVerification.confirmApprove')"
+              @confirm="approve(row)"
             >
-              通过
-            </ElButton>
+              <template #reference>
+                <ElButton
+                  plain
+                  size="small"
+                  type="success"
+                  data-action="approve"
+                  :disabled="isActionPending(row.id)"
+                  :loading="rowActionLoading(row, 'approve')"
+                >
+                  {{ $t('admin.users.freshmanVerification.approve') }}
+                </ElButton>
+              </template>
+            </ElPopconfirm>
             <ElInputNumber
               v-model="extensionDaysById[row.id]"
               class="freshman-action-number"
-              :disabled="rowReviewing(row)"
+              :disabled="isActionPending(row.id)"
               :min="0"
               size="small"
             />
-            <ElButton
-              plain
-              size="small"
-              type="success"
-              data-action="approveWithDays"
-              :disabled="rowReviewing(row)"
-              :loading="rowActionLoading(row, 'approveWithDays')"
-              @click="approve(row, rowExtensionDays(row))"
+            <ElPopconfirm
+              :title="
+                $t('admin.users.freshmanVerification.confirmApproveWithDays', {
+                  days: rowExtensionDays(row) ?? 0,
+                })
+              "
+              @confirm="approveWithDays(row)"
             >
-              带天数通过
-            </ElButton>
+              <template #reference>
+                <ElButton
+                  plain
+                  size="small"
+                  type="success"
+                  data-action="approveWithDays"
+                  :disabled="
+                    isActionPending(row.id) ||
+                    rowExtensionDays(row) === undefined
+                  "
+                  :loading="rowActionLoading(row, 'approveWithDays')"
+                >
+                  {{ $t('admin.users.freshmanVerification.approveWithDays') }}
+                </ElButton>
+              </template>
+            </ElPopconfirm>
             <ElInput
               v-model="rejectionReasons[row.id]"
               class="freshman-action-reason"
-              :disabled="rowReviewing(row)"
-              placeholder="驳回原因"
+              :disabled="isActionPending(row.id)"
+              :placeholder="
+                $t('admin.users.freshmanVerification.rejectReasonPlaceholder')
+              "
               size="small"
             />
             <ElButton
@@ -348,11 +377,11 @@ onMounted(fetchData);
               size="small"
               type="danger"
               data-action="reject"
-              :disabled="rowReviewing(row)"
+              :disabled="isActionPending(row.id)"
               :loading="rowActionLoading(row, 'reject')"
               @click="reject(row)"
             >
-              驳回
+              {{ $t('admin.users.freshmanVerification.reject') }}
             </ElButton>
           </div>
         </template>
@@ -363,13 +392,20 @@ onMounted(fetchData);
       <ElPagination
         v-model:current-page="query.page"
         v-model:page-size="query.pageSize"
+        background
+        :layout="ADMIN_PAGINATION_LAYOUT"
+        :page-sizes="ADMIN_PAGE_SIZES"
         :total="total"
-        layout="total, prev, pager, next"
         @current-change="fetchData"
+        @size-change="resetPageAndFetch"
       />
     </template>
 
-    <ElDialog v-model="materialDialogVisible" title="材料预览" width="720px">
+    <ElDialog
+      v-model="materialDialogVisible"
+      :title="$t('admin.users.freshmanVerification.materialPreview')"
+      width="720px"
+    >
       <ElImage :src="materialPreviewURL" fit="contain" />
     </ElDialog>
   </AdminContentLayout>

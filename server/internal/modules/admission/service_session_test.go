@@ -13,8 +13,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/postgresfixture"
 )
+
+// newTestAuthURLCipher 构造测试用 PII Cipher（auth_url at-rest 加密）。
+func newTestAuthURLCipher(t *testing.T) *pii.Cipher {
+	t.Helper()
+	cipher, err := pii.NewCipher(1, map[uint8][]byte{1: []byte("0123456789abcdef0123456789abcdef")})
+	require.NoError(t, err)
+	return cipher
+}
 
 func TestAdmissionSessionCreatePreviewAndMismatch(t *testing.T) {
 	fixture := postgresfixture.Start(t)
@@ -183,6 +192,33 @@ func TestResolveJoinRequestDecisionAutoApprovesPostJoinTimeCodeStrategy(t *testi
 	assert.True(t, decision.AutoApproveVerifiedJoin)
 	assert.True(t, decision.AutoApproveUnverifiedJoin)
 	assert.Nil(t, decision.UserID)
+}
+
+// F060 回归：active 黑名单（guild scope 命中）用户即便已验证，也不得在
+// join_request_review 策略下被自动批准；拒绝决策需携带明确 reason。
+func TestResolveJoinRequestDecisionRejectsBlacklistedMember(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newBlacklistTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	setAdmissionPolicyJoinRequestReview(t, fixture, "请先完成认证后再申请入群")
+	userID := seedAdmissionUser(t, fixture, "blacklisted-join-decision")
+	bindVerifiedAdmissionQQ(t, fixture, userID, "10001")
+	_, err := svc.CreateMemberBlacklistFromAdmin(
+		context.Background(),
+		memberBlacklistTestCreateInput(BlacklistScopeGuild, stringPtr("guild-1")),
+	)
+	require.NoError(t, err)
+
+	decision, err := svc.ResolveJoinRequestDecision(context.Background(), AdmissionJoinRequestDecisionInput{
+		Platform: "qq", GuildID: "guild-1", QQID: "10001", RequestID: "request-blacklist",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, AdmissionJoinRequestDecisionReject, decision.Decision)
+	assert.Equal(t, "member_blacklisted", decision.Reason)
+	assert.Equal(t, AdmissionJoinRequestVerified, decision.VerificationState)
+	require.NotNil(t, decision.UserID)
+	assert.Equal(t, fmt.Sprint(userID), *decision.UserID)
 }
 
 func TestCreateBotSessionReturnsVerifiedForAlreadyCertifiedQQ(t *testing.T) {
@@ -1134,7 +1170,7 @@ func linkAdmissionSessionForQQ(
 
 func newSessionTestService(t *testing.T, fixture *postgresfixture.Fixture) *Service {
 	t.Helper()
-	svc, err := NewService(NewRepository(fixture.DB), &testQQBindingGateway{}, []byte("test-admission-hmac-key-32-bytes!"))
+	svc, err := NewService(NewRepository(fixture.DB, newTestAuthURLCipher(t)), &testQQBindingGateway{}, []byte("test-admission-hmac-key-32-bytes!"))
 	require.NoError(t, err)
 	svc.now = fixedAdmissionNow
 	svc.generateToken = func() (string, error) { return "test-admission-token", nil }

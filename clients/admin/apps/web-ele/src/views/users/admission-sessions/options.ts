@@ -3,6 +3,8 @@ import type {
   ListAdmissionSessionsParams,
 } from '#/api/admin';
 
+import { $t } from '#/locales';
+
 import { formatAdminDateTime, formatNullableText } from '../../shared/display';
 
 export type StatusFilter =
@@ -11,42 +13,66 @@ export type StatusFilter =
 
 export type AdmissionSessionAction = 'cancel' | 'regenerate' | 'resend';
 
-export const STATUS_LABELS: Record<string, string> = {
-  cancelled: '已取消',
-  expired_kicked: '超时移出',
-  joined_muted: '已入群禁言',
-  linked: '已绑定账号',
-  material_submitted: '材料待审',
-  verified: '已通过',
+const STATUS_LABEL_KEYS: Record<string, string> = {
+  cancelled: 'admin.users.admissionSessions.status.cancelled',
+  expired_kicked: 'admin.users.admissionSessions.status.expiredKicked',
+  joined_muted: 'admin.users.admissionSessions.status.joinedMuted',
+  linked: 'admin.users.admissionSessions.status.linked',
+  material_submitted: 'admin.users.admissionSessions.status.materialSubmitted',
+  verified: 'admin.users.admissionSessions.status.verified',
 };
 
-export const STATUS_OPERATION_HINTS: Record<string, string> = {
-  cancelled: '管理员已取消，此会话不再处理。',
-  expired_kicked: '认证超时，成员需要重新入群或重新生成链接。',
-  joined_muted: '已入群并临时禁言，等待用户打开链接或机器人重发提醒。',
-  linked: '账号已绑定，等待学生认证或材料提交。',
-  material_submitted: '新生材料已进入后台审核队列。',
-  verified: '后端已通过，等待或已完成 Koishi 解除禁言同步。',
+const STATUS_HINT_KEYS: Record<string, string> = {
+  cancelled: 'admin.users.admissionSessions.hint.cancelled',
+  expired_kicked: 'admin.users.admissionSessions.hint.expiredKicked',
+  joined_muted: 'admin.users.admissionSessions.hint.joinedMuted',
+  linked: 'admin.users.admissionSessions.hint.linked',
+  material_submitted: 'admin.users.admissionSessions.hint.materialSubmitted',
+  verified: 'admin.users.admissionSessions.hint.verified',
 };
 
-export const STATUS_OPTIONS: Array<{ label: string; value: StatusFilter }> = [
-  { label: '全部状态', value: '' },
-  { label: '已入群禁言', value: 'joined_muted' },
-  { label: '已绑定账号', value: 'linked' },
-  { label: '材料待审', value: 'material_submitted' },
-  { label: '已通过', value: 'verified' },
-  { label: '超时移出', value: 'expired_kicked' },
-  { label: '已取消', value: 'cancelled' },
-];
+/** 惰性求值：语言包异步加载，模块级常量会把 key 固化成首屏语言。 */
+export function statusOptions(): Array<{ label: string; value: StatusFilter }> {
+  return [
+    { label: $t('admin.users.admissionSessions.status.all'), value: '' },
+    {
+      label: $t('admin.users.admissionSessions.status.joinedMuted'),
+      value: 'joined_muted',
+    },
+    {
+      label: $t('admin.users.admissionSessions.status.linked'),
+      value: 'linked',
+    },
+    {
+      label: $t('admin.users.admissionSessions.status.materialSubmitted'),
+      value: 'material_submitted',
+    },
+    {
+      label: $t('admin.users.admissionSessions.status.verified'),
+      value: 'verified',
+    },
+    {
+      label: $t('admin.users.admissionSessions.status.expiredKicked'),
+      value: 'expired_kicked',
+    },
+    {
+      label: $t('admin.users.admissionSessions.status.cancelled'),
+      value: 'cancelled',
+    },
+  ];
+}
 
 export function statusLabel(status: AdmissionSession['status']): string {
-  return STATUS_LABELS[status] ?? status;
+  const key = STATUS_LABEL_KEYS[status];
+  return key ? $t(key) : status;
 }
 
 export function statusOperationHint(
   status: AdmissionSession['status'],
 ): string {
-  return STATUS_OPERATION_HINTS[status] ?? '未知状态，请检查后端会话。';
+  return $t(
+    STATUS_HINT_KEYS[status] ?? 'admin.users.admissionSessions.hint.unknown',
+  );
 }
 
 export function statusTagType(
@@ -68,15 +94,21 @@ export function formatText(value?: null | string): string {
 }
 
 export function boolLabel(value: boolean): string {
-  return value ? '是' : '否';
+  return $t(value ? 'admin.common.yes' : 'admin.common.no');
 }
 
 export function admissionReissueCommand(session: AdmissionSession): string {
+  // 这是发给 Koishi 机器人的命令字符串，命令字由 bot 侧 runtime settings
+  // 定义为中文，不随管理界面语言变化，因此不走 i18n。
   return `重新生成认证链接 ${session.qqID}`;
 }
 
 export function botErrorLabel(session: AdmissionSession): string {
-  return session.lastBotError ? '存在 Bot 执行错误' : '暂无 Bot 错误';
+  return $t(
+    session.lastBotError
+      ? 'admin.users.admissionSessions.botErrorPresent'
+      : 'admin.users.admissionSessions.botErrorNone',
+  );
 }
 
 export function canManageAdmissionSession(

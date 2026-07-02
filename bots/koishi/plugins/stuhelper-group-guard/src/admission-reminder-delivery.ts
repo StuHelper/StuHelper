@@ -22,6 +22,10 @@ export type AdmissionReminderDeliveryConfigProvider =
       | Promise<Partial<StuhelperAdmissionReminderDeliveryConfig> | undefined>
     )
 
+export interface AdmissionReminderDeliveryLogger {
+  warn(message: string, context: Record<string, unknown>): void
+}
+
 export interface AdmissionReminderDeliveryInput {
   readonly bot: Universal.Methods
   readonly guildId: string
@@ -32,6 +36,7 @@ export interface AdmissionReminderDeliveryInput {
   readonly messages?: Partial<StuhelperGroupGuardMessageConfig>
   readonly sendGroupMessage?: (content: string) => Promise<unknown>
   readonly shouldSend?: () => boolean | Promise<boolean>
+  readonly logger?: AdmissionReminderDeliveryLogger
 }
 
 interface ResolvedAdmissionReminderDeliveryConfig {
@@ -122,6 +127,9 @@ export async function sendAdmissionReminderMessage(
     }
   }
 
+  // 投递失败必须留痕：部分通道失败（另一通道成功）以前会被静默吞掉
+  logDeliveryAttemptFailures(input, errors)
+
   if (!sent) {
     if (!await shouldSend(input)) return { cancelled: true }
     throw deliveryError(errors, input.messages)
@@ -131,6 +139,21 @@ export async function sendAdmissionReminderMessage(
     messageID: groupMessageID ?? directMessageID,
     groupMessageID,
     directMessageID,
+  }
+}
+
+function logDeliveryAttemptFailures(
+  input: AdmissionReminderDeliveryInput,
+  errors: readonly DeliveryAttemptError[],
+) {
+  if (!input.logger || !errors.length) return
+  for (const attempt of errors) {
+    input.logger.warn('admission reminder delivery attempt failed', {
+      channel: attempt.channel,
+      guildId: input.guildId,
+      memberId: input.memberId,
+      error: errorMessage(attempt.error),
+    })
   }
 }
 

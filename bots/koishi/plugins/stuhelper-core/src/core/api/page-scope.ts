@@ -1,4 +1,5 @@
 import {
+  buildDashboardOverview,
   buildDashboardPageData,
   type DashboardPageBuilderInput,
 } from '../services/dashboard-page.service'
@@ -14,28 +15,49 @@ import {
   buildConfigGovernanceData,
   type ConfigGovernanceBuilderInput,
 } from '../services/config-governance.service'
+import type { OverviewPageData } from '../services/page-types'
 
 import {
   hasConsoleGuildAccess,
   type ConsoleGuildScope,
 } from './console-guild-scope'
 
-export function buildScopedDashboardPageData(
+/** 将 dashboard 输入按 console guild 范围过滤；scope=all 时原样返回。 */
+function applyScopeToDashboardInput(
   input: DashboardPageBuilderInput,
   scope: ConsoleGuildScope,
-) {
+): DashboardPageBuilderInput {
   if (scope.kind === 'all') {
-    return buildDashboardPageData(input)
+    return input
   }
 
-  return buildDashboardPageData({
+  return {
     ...input,
     pendingMembers: filterGuildRecords(input.pendingMembers, scope),
     pendingReviews: filterGuildRecords(input.pendingReviews, scope),
     recentEvents: filterGuildRecords(input.recentEvents, scope),
     recentReports: filterGuildRecords(input.recentReports, scope),
     guardBindings: filterGuildRecords(input.guardBindings, scope),
-  })
+  }
+}
+
+export function buildScopedDashboardPageData(
+  input: DashboardPageBuilderInput,
+  scope: ConsoleGuildScope,
+) {
+  return buildDashboardPageData(applyScopeToDashboardInput(input, scope))
+}
+
+/** 与 buildScopedDashboardPageData 共用同一过滤，保证脉冲总览计数与作用域内 dashboard 一致。 */
+export function buildScopedOverviewData(
+  input: DashboardPageBuilderInput,
+  scope: ConsoleGuildScope,
+): OverviewPageData {
+  const scoped = applyScopeToDashboardInput(input, scope)
+  return {
+    generatedAt: input.generatedAt,
+    overview: buildDashboardOverview(scoped),
+  }
 }
 
 export function buildScopedIdentityPageData(

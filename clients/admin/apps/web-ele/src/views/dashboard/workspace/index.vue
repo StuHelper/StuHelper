@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { AdminStats } from '#/api/admin';
 
-import { computed, onMounted, ref } from 'vue';
+import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { IconifyIcon } from '@vben/icons';
@@ -10,6 +10,7 @@ import { useAccessStore } from '@vben/stores';
 import { ElAlert, ElButton, ElSkeleton } from 'element-plus';
 
 import { getAdminStats } from '#/api/admin';
+import { useAdminLoad } from '#/composables/use-admin-list';
 import { $t } from '#/locales';
 
 import AdminContentLayout from '../../shared/AdminContentLayout.vue';
@@ -18,10 +19,12 @@ import './workspace.css';
 
 const router = useRouter();
 const accessStore = useAccessStore();
-const loading = ref(true);
-const loadError = ref('');
-const stats = ref<AdminStats | null>(null);
-let fetchRequestSeq = 0;
+const {
+  data: stats,
+  load: fetchStats,
+  loadError,
+  loading,
+} = useAdminLoad<AdminStats>(getAdminStats);
 
 interface WorkspaceLink {
   authority: string[];
@@ -126,35 +129,9 @@ const visibleShortcuts = computed(() =>
   shortcuts.filter((item) => canAccess(item.authority)),
 );
 
-async function fetchStats() {
-  const requestSeq = ++fetchRequestSeq;
-  loading.value = true;
-  loadError.value = '';
-  try {
-    const data = await getAdminStats();
-    if (requestSeq !== fetchRequestSeq) return;
-    stats.value = data;
-  } catch (error) {
-    if (requestSeq !== fetchRequestSeq) return;
-    loadError.value = adminErrorMessage(error);
-  } finally {
-    if (requestSeq === fetchRequestSeq) {
-      loading.value = false;
-    }
-  }
-}
-
 async function goTo(path: string) {
   await router.push(path);
 }
-
-function adminErrorMessage(error: unknown): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : $t('admin.result.requestFailed');
-}
-
-onMounted(fetchStats);
 </script>
 
 <template>

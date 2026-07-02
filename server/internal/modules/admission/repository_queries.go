@@ -180,7 +180,7 @@ func (r *Repository) ListSessions(
 		return nil, 0, fmt.Errorf("ListSessions: %w", err)
 	}
 	defer rows.Close()
-	return scanAdmissionSessionList(rows)
+	return r.scanAdmissionSessionList(rows)
 }
 
 func (r *Repository) GetFreshmanApplicationByID(ctx context.Context, applicationID string) (*FreshmanApplication, error) {

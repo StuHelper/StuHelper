@@ -1,12 +1,9 @@
 <script setup lang="ts">
 import type { Review } from '#/api/admin';
 
-import { onMounted, reactive, ref } from 'vue';
-
 import {
   ElAlert,
   ElButton,
-  ElMessage,
   ElOption,
   ElPagination,
   ElSelect,
@@ -14,6 +11,8 @@ import {
 } from 'element-plus';
 
 import { getReviewList, updateReview } from '#/api/admin';
+import { useAdminAction } from '#/composables/use-admin-action';
+import { useAdminList } from '#/composables/use-admin-list';
 import { $t } from '#/locales';
 
 import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
@@ -24,25 +23,42 @@ import {
   formatAdminDateTime,
   formatNullableText,
 } from '../../shared/display';
+import {
+  ADMIN_DEFAULT_PAGE_SIZE,
+  ADMIN_PAGE_SIZES,
+  ADMIN_PAGINATION_LAYOUT,
+} from '../../shared/pagination';
 import ReviewActions from './ReviewActions.vue';
 
-const loading = ref(false);
-const actionLoading = ref(false);
-const reviews = ref<Review[]>([]);
-const total = ref(0);
-const loadError = ref('');
-const actionError = ref('');
-const query = reactive({
-  page: 1,
-  pageSize: 20,
-  status: 'all' as
-    | 'all'
-    | 'deleted'
-    | 'hidden'
-    | 'pending_review'
-    | 'published',
+type ReviewStatusFilter =
+  | 'all'
+  | 'deleted'
+  | 'hidden'
+  | 'pending_review'
+  | 'published';
+
+const {
+  fetchData,
+  items: reviews,
+  loadError,
+  loading,
+  query,
+  resetPageAndFetch,
+  total,
+} = useAdminList<
+  Review,
+  { page: number; pageSize: number; status: ReviewStatusFilter }
+>({
+  fetcher: (listQuery) => getReviewList(listQuery),
+  initialQuery: {
+    page: 1,
+    pageSize: ADMIN_DEFAULT_PAGE_SIZE,
+    status: 'all',
+  },
 });
-let fetchRequestSeq = 0;
+
+const { actionError, clearActionError, isActionPending, runAction } =
+  useAdminAction();
 
 function averageRating(ratings: Record<string, number>) {
   const values = Object.values(ratings);
@@ -51,47 +67,15 @@ function averageRating(ratings: Record<string, number>) {
   return (totalScore / values.length).toFixed(1);
 }
 
-async function fetchData() {
-  const requestSeq = ++fetchRequestSeq;
-  loading.value = true;
-  loadError.value = '';
-  try {
-    const data = await getReviewList(query);
-    if (requestSeq !== fetchRequestSeq) return;
-    reviews.value = data.items;
-    total.value = data.total;
-  } catch (error) {
-    if (requestSeq !== fetchRequestSeq) return;
-    loadError.value = adminErrorMessage(error);
-  } finally {
-    if (requestSeq === fetchRequestSeq) {
-      loading.value = false;
-    }
-  }
-}
-
-function resetPageAndFetch() {
-  query.page = 1;
-  void fetchData();
-}
-
 async function handleAction(
   reviewId: string,
   action: 'delete' | 'hide' | 'restore',
 ) {
-  if (actionLoading.value) {
-    return;
-  }
-
-  actionLoading.value = true;
-  actionError.value = '';
-  try {
-    await updateReview(reviewId, { action });
+  const succeeded = await runAction(() => updateReview(reviewId, { action }), {
+    id: reviewId,
+  });
+  if (succeeded) {
     await fetchData();
-  } catch (error) {
-    handleActionError(error);
-  } finally {
-    actionLoading.value = false;
   }
 }
 
@@ -116,19 +100,6 @@ const statusLabel = (status: string) => {
   };
   return map[status] || status;
 };
-
-function adminErrorMessage(error: unknown): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : $t('admin.result.requestFailed');
-}
-
-function handleActionError(error: unknown) {
-  actionError.value = adminErrorMessage(error);
-  ElMessage.error(actionError.value);
-}
-
-onMounted(fetchData);
 </script>
 
 <template>
@@ -187,7 +158,7 @@ onMounted(fetchData);
       :closable="true"
       show-icon
       :title="actionError"
-      @close="actionError = ''"
+      @close="clearActionError"
     />
 
     <PersistentAdminTable
@@ -290,7 +261,7 @@ onMounted(fetchData);
         <template #default="{ row }">
           <ReviewActions
             :row="row"
-            :action-loading="actionLoading"
+            :action-loading="isActionPending(row.id)"
             @action="handleAction"
           />
         </template>
@@ -301,9 +272,12 @@ onMounted(fetchData);
       <ElPagination
         v-model:current-page="query.page"
         v-model:page-size="query.pageSize"
+        background
+        :layout="ADMIN_PAGINATION_LAYOUT"
+        :page-sizes="ADMIN_PAGE_SIZES"
         :total="total"
-        layout="total, prev, pager, next"
         @current-change="fetchData"
+        @size-change="resetPageAndFetch"
       />
     </template>
   </AdminContentLayout>

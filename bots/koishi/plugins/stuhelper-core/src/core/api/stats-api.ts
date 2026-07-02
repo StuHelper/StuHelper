@@ -4,7 +4,7 @@ import { assertGlobalConsoleScope, type ConsoleGuildScope } from './console-guil
 import { loadScopedBlacklistTotal } from './dashboard-blacklist-stats'
 import { readCommandLogs } from './log-module-lookup'
 import { filterGuildEntries, filterLogs, filterSubscriptions } from './scope-filters'
-import type { CommandLogRecord } from '../modules/log.module'
+import type { CommandLogRecord } from '../data/command-log-records'
 
 const DEFAULT_CHART_DAYS = 7
 const MS_PER_DAY = 24 * 60 * 60 * 1000
@@ -12,16 +12,6 @@ const ISO_DATE_LENGTH = 10
 const RANK_LIMIT = 10
 
 export function registerStatsAPI(api: WebSocketAPIContext): void {
-  api.addAuthorityListener('stuhelperGroupCenter/stats/modules', async function () {
-    const scope = await api.resolveConsoleScope(this)
-    assertGlobalConsoleScope(scope, 'module stats')
-    return success(api.service.getAllModules().map((module) => ({
-      name: module.meta.name,
-      description: module.meta.description,
-      state: module.state,
-      error: module.error ? module.error.message : undefined,
-    })))
-  })
   api.addAuthorityListener('stuhelperGroupCenter/stats/dashboard', async function () {
     const scope = await api.resolveConsoleScope(this)
     return success(await buildDashboardStats(api, scope))

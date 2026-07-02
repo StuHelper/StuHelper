@@ -10,19 +10,25 @@ test('group guard events keep optional message guard narrowed without assertions
   assert.doesNotMatch(source, /messageGuard!/)
 })
 
-test('group guard event listeners return service promises to Koishi', async () => {
+test('group guard event listeners await services and keep message deletion promises', async () => {
   const ctx = createEventContext()
-  const memberAdded = Promise.resolve()
-  const memberRequest = Promise.resolve()
   const memberMessageCalls: unknown[] = []
   const messageGuardCalls: unknown[] = []
   const message = Promise.resolve()
   const messageDeleted = Promise.resolve()
+  let memberAddedCalls = 0
+  let memberRequestCalls = 0
 
   registerGroupGuardEvents(ctx as any, {
     memberGuard: {
-      handleGuildMemberAdded: () => memberAdded,
-      handleGuildMemberRequest: () => memberRequest,
+      handleGuildMemberAdded: () => {
+        memberAddedCalls += 1
+        return Promise.resolve()
+      },
+      handleGuildMemberRequest: () => {
+        memberRequestCalls += 1
+        return Promise.resolve()
+      },
       handleMessage: (session: unknown) => {
         memberMessageCalls.push(session)
         return Promise.resolve(false)
@@ -40,8 +46,10 @@ test('group guard event listeners return service promises to Koishi', async () =
     scanIntervalSeconds: 30,
   } as any)
 
-  assert.equal(ctx.handlers.get('guild-member-added')?.({}), memberAdded)
-  assert.equal(ctx.handlers.get('guild-member-request')?.({}), memberRequest)
+  await ctx.handlers.get('guild-member-added')?.({})
+  await ctx.handlers.get('guild-member-request')?.({})
+  assert.equal(memberAddedCalls, 1)
+  assert.equal(memberRequestCalls, 1)
   await ctx.handlers.get('message')?.({ id: 'message-1' })
   assert.deepEqual(memberMessageCalls, [{ id: 'message-1' }])
   assert.deepEqual(messageGuardCalls, [{ id: 'message-1' }])
@@ -81,6 +89,74 @@ test('group guard message listener keeps admission code handling when moderation
 
   assert.deepEqual(memberMessageCalls, [{ id: 'message-2' }])
   assert.deepEqual(messageGuardCalls, [])
+})
+
+test('guild-member-added handler failures are logged with member context', async () => {
+  const ctx = createEventContext()
+  const errors: unknown[][] = []
+
+  registerGroupGuardEvents(ctx as any, {
+    memberGuard: {
+      handleGuildMemberAdded: () => Promise.reject(new Error('backend unavailable')),
+      handleGuildMemberRequest: () => Promise.resolve(),
+      scanPendingMembers: () => Promise.resolve(),
+    },
+    logger: {
+      error: (...args: unknown[]) => {
+        errors.push(args)
+      },
+    },
+    scanIntervalSeconds: 30,
+  } as any)
+
+  const session = { platform: 'onebot', guildId: 'guild-1', userId: 'member-1' }
+  await assert.doesNotReject(async () => {
+    await ctx.handlers.get('guild-member-added')?.(session)
+  })
+
+  assert.equal(errors.length, 1)
+  assert.match(String(errors[0]?.[0]), /guild-member-added handling failed/)
+  assert.deepEqual(errors[0]?.[1], {
+    platform: 'onebot',
+    guildId: 'guild-1',
+    memberId: 'member-1',
+  })
+  assert.equal((errors[0]?.[2] as Error).message, 'backend unavailable')
+})
+
+test('guild-member-request handler failures are logged with member context', async () => {
+  const ctx = createEventContext()
+  const errors: unknown[][] = []
+
+  registerGroupGuardEvents(ctx as any, {
+    memberGuard: {
+      handleGuildMemberAdded: () => Promise.resolve(),
+      handleGuildMemberRequest: () => {
+        throw new Error('decision service down')
+      },
+      scanPendingMembers: () => Promise.resolve(),
+    },
+    logger: {
+      error: (...args: unknown[]) => {
+        errors.push(args)
+      },
+    },
+    scanIntervalSeconds: 30,
+  } as any)
+
+  const session = { platform: 'onebot', guildId: 'guild-2', userId: 'member-2' }
+  await assert.doesNotReject(async () => {
+    await ctx.handlers.get('guild-member-request')?.(session)
+  })
+
+  assert.equal(errors.length, 1)
+  assert.match(String(errors[0]?.[0]), /guild-member-request handling failed/)
+  assert.deepEqual(errors[0]?.[1], {
+    platform: 'onebot',
+    guildId: 'guild-2',
+    memberId: 'member-2',
+  })
+  assert.equal((errors[0]?.[2] as Error).message, 'decision service down')
 })
 
 test('scheduled group guard scans log rejected promises explicitly', async () => {

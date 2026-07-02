@@ -352,6 +352,12 @@ test('legacy stats APIs filter guild data to the console scope', async () => {
   const listeners = new Map<string, Listener>()
   const ctx = createContext(listeners)
   const service = createService(['1001'])
+  service.data.commandLogs = createMapStore({
+    logs: [
+      { timestamp: new Date().toISOString(), command: 'a', success: true, guildId: '1001', userId: 'u1' },
+      { timestamp: new Date().toISOString(), command: 'b', success: true, guildId: '2002', userId: 'u2' },
+    ],
+  })
   const restoreFetch = mockPlatformFetch([])
 
   try {
@@ -585,10 +591,16 @@ test('settings API replaces and clears OpenAI API key through explicit secret fi
   assert.equal(afterClear.data.openai.apiKeyMasked, '')
 })
 
-test('legacy log search filters records to the console scope', async () => {
+test('log search filters records to the console scope', async () => {
   const listeners = new Map<string, Listener>()
   const ctx = createContext(listeners)
   const service = createService(['1001'])
+  service.data.commandLogs = createMapStore({
+    logs: [
+      { timestamp: 1_787_803_200_000, guildId: '1001', userId: 'u1', command: 'a', target: 'command', details: 'in scope' },
+      { timestamp: 1_787_803_201_000, guildId: '2002', userId: 'u2', command: 'b', target: 'command', details: 'outside scope' },
+    ],
+  })
 
   registerTestWebSocketAPI(ctx as any, service as any)
 
@@ -599,11 +611,10 @@ test('legacy log search filters records to the console scope', async () => {
   await assertRejectsScope(listeners, 'stuhelperGroupCenter/logs/search', { guildId: '2002' })
 })
 
-test('legacy log search falls back to data store when log runtime module is absent', async () => {
+test('log search reads records from the command log data store', async () => {
   const listeners = new Map<string, Listener>()
   const ctx = createContext(listeners)
   const service = createService(['1001'])
-  service.getAllModules = () => []
   service.data.commandLogs = createMapStore({
     logs: [
       {
@@ -635,11 +646,10 @@ test('legacy log search falls back to data store when log runtime module is abse
   assert.equal(logs.data.list[0].result, 'loaded from data store')
 })
 
-test('legacy log search redacts sensitive command fields before returning to WebUI', async () => {
+test('log search redacts sensitive command fields before returning to WebUI', async () => {
   const listeners = new Map<string, Listener>()
   const ctx = createContext(listeners)
   const service = createService(['1001'])
-  service.getAllModules = () => []
   service.data.commandLogs = createMapStore({
     logs: [
       {
@@ -681,44 +691,11 @@ test('legacy log search redacts sensitive command fields before returning to Web
   assert.match(payload, /\[REDACTED\]/)
 })
 
-test('legacy log search falls back when named log module lookup throws', async () => {
-  const listeners = new Map<string, Listener>()
-  const ctx = createContext(listeners)
-  const service = createService(['1001'])
-  Object.assign(service, {
-    getModule(name: string) {
-      throw new Error(`${name[0].toUpperCase()}${name.slice(1)} module not found`)
-    },
-  })
-  service.getAllModules = () => []
-  service.data.commandLogs = createMapStore({
-    logs: [
-      {
-        timestamp: 1_787_803_200_000,
-        guildId: '1001',
-        userId: 'u1',
-        command: 'fallback',
-        target: 'command',
-        details: 'loaded despite missing module lookup',
-      },
-    ],
-  })
-
-  registerTestWebSocketAPI(ctx as any, service as any)
-
-  const logs = await callListener(listeners, 'stuhelperGroupCenter/logs/search', {})
-
-  assert.equal(logs.success, true)
-  assert.equal(logs.data.total, 1)
-  assert.equal(logs.data.list[0].command, 'fallback')
-  assert.equal(logs.data.list[0].result, 'loaded despite missing module lookup')
-})
 
 test('legacy log search normalizes malformed runtime params before filtering', async () => {
   const listeners = new Map<string, Listener>()
   const ctx = createContext(listeners)
   const service = createService(['1001'])
-  service.getAllModules = () => []
   service.data.commandLogs = createMapStore({
     logs: [
       {
@@ -773,7 +750,6 @@ test('chart stats falls back to data store when log runtime module is absent', a
   const listeners = new Map<string, Listener>()
   const ctx = createContext(listeners)
   const service = createService(['1001'])
-  service.getAllModules = () => []
   service.data.commandLogs = createMapStore({
     logs: [
       {
@@ -1117,16 +1093,6 @@ function createService(guildIds: string[]) {
       refreshAll: async () => undefined,
       clearAll: async () => undefined,
     },
-    getAllModules: () => [
-      {
-        meta: { name: 'log', description: 'log' },
-        state: 'active',
-        getAllLogs: async () => [
-          { timestamp: new Date().toISOString(), command: 'a', success: true, guildId: '1001', userId: 'u1' },
-          { timestamp: new Date().toISOString(), command: 'b', success: true, guildId: '2002', userId: 'u2' },
-        ],
-      },
-    ],
     settings: {
       settings: {
         openai: {

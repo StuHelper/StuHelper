@@ -11,6 +11,9 @@ export const consolePageApi = {
   dashboard() {
     return send('stuhelperGroupCenter/page/dashboard')
   },
+  overview() {
+    return send('stuhelperGroupCenter/page/overview')
+  },
   identity() {
     return send('stuhelperGroupCenter/page/identity')
   },

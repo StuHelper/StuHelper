@@ -7,7 +7,8 @@ import * as path from 'path'
 import { Context } from 'koishi'
 import { createWriteStream, WriteStream } from 'fs'
 import { JsonDataStore } from './json.store'
-import { redactSensitiveText } from '../modules/log-redaction'
+import { redactSensitiveText } from './log-redaction'
+import { formatShanghaiTimestamp } from '../services/stuhelper-group-center.utils'
 import type {
   GroupConfig,
   WarnRecord,
@@ -200,12 +201,7 @@ export class DataManager {
   writeLog(message: string): void {
     if (this.logStream) {
       const safeMessage = redactSensitiveText(message)
-      const date = new Date()
-      date.setHours(date.getHours() + 8)
-      const time = date.toISOString()
-        .replace('T', ' ')
-        .replace('Z', '')
-        .slice(0, 16)
+      const time = formatShanghaiTimestamp(new Date())
       const logLine = `[${time}] ${safeMessage}\n`
       this.logStream.write(logLine)
       this.ctx.logger('stuhelperGroupCenter').info(logLine.trim())

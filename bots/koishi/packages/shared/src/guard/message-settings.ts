@@ -1,5 +1,6 @@
 import type { Context } from 'koishi'
 
+import { type SettingsReadCache, settingsReadCacheFor } from '../settings-cache'
 import {
   DEFAULT_GROUP_GUARD_MESSAGES,
   resolveGroupGuardMessages,
@@ -48,12 +49,20 @@ export function registerGroupGuardMessageSettingsModel(ctx: Context) {
 }
 
 export class GroupGuardMessageSettingsStore {
+  private readonly cache: SettingsReadCache<GroupGuardMessageSettingsRecord>
+
   constructor(
     private readonly ctx: Pick<Context, 'database'>,
     private readonly defaults: GroupGuardMessageSettings = DEFAULT_GROUP_GUARD_MESSAGE_SETTINGS,
-  ) {}
+  ) {
+    this.cache = settingsReadCacheFor(ctx.database, GROUP_GUARD_MESSAGE_SETTINGS_TABLE)
+  }
 
   async getSettings(): Promise<GroupGuardMessageSettingsRecord> {
+    return this.cache.read(() => this.loadSettings())
+  }
+
+  private async loadSettings(): Promise<GroupGuardMessageSettingsRecord> {
     const [record] = await this.ctx.database.get(GROUP_GUARD_MESSAGE_SETTINGS_TABLE, { id: DEFAULT_SETTINGS_ID })
     if (record) {
       return normalizeRecord(record, this.defaults)
@@ -74,7 +83,7 @@ export class GroupGuardMessageSettingsStore {
       ...changes,
       updatedAt: now,
     })
-    return next
+    return this.cache.write(next)
   }
 
   async resetSettings() {
@@ -89,7 +98,7 @@ export class GroupGuardMessageSettingsStore {
       messages: next.messages,
       updatedAt: now,
     })
-    return next
+    return this.cache.write(next)
   }
 
   async getMessages() {

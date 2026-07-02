@@ -5,7 +5,7 @@ import type { AdmissionSession } from '#/api/admin';
 import { mount } from '@vue/test-utils';
 import { defineComponent, h } from 'vue';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import AdmissionSessionFilters from './AdmissionSessionFilters.vue';
 import AdmissionSessionTable from './AdmissionSessionTable.vue';
@@ -17,6 +17,11 @@ import {
   statusOperationHint,
   statusTagType,
 } from './options';
+
+vi.mock('#/locales', () => ({
+  $t: (key: string, params?: Record<string, unknown>) =>
+    params ? `${key}:${Object.values(params).join('/')}` : key,
+}));
 
 const PersistentAdminTableStub = defineComponent({
   name: 'PersistentAdminTable',
@@ -123,8 +128,8 @@ describe('AdmissionSessionFilters', () => {
     expect(wrapper.find('[data-field="status"]').exists()).toBe(true);
 
     const buttons = wrapper.findAll('button');
-    const search = buttons.find((btn) => btn.text() === '查询');
-    const reset = buttons.find((btn) => btn.text() === '重置');
+    const search = buttons.find((btn) => btn.text() === 'admin.common.query');
+    const reset = buttons.find((btn) => btn.text() === 'admin.common.reset');
     if (!search || !reset) {
       throw new Error('expected search and reset buttons');
     }
@@ -155,10 +160,15 @@ describe('AdmissionSessionTable', () => {
     expect(wrapper.text()).toContain('178037297');
     expect(wrapper.text()).toContain('2118785781');
     expect(wrapper.text()).toContain('unmute failed');
-    expect(wrapper.text()).toContain('后端 admission session');
-    expect(wrapper.text()).toContain('Koishi WebUI 显示现场 guard record');
-    expect(wrapper.text()).toContain('账号已绑定，等待学生认证或材料提交。');
-    expect(wrapper.text()).toContain('存在 Bot 执行错误');
+    expect(wrapper.text()).toContain(
+      'admin.users.admissionSessions.boundaryNote',
+    );
+    expect(wrapper.text()).toContain(
+      'admin.users.admissionSessions.hint.linked',
+    );
+    expect(wrapper.text()).toContain(
+      'admin.users.admissionSessions.botErrorPresent',
+    );
     expect(wrapper.find('[data-field="statusHint"]').exists()).toBe(true);
     expect(wrapper.find('[data-field="runtimeBoundary"]').exists()).toBe(true);
     expect(wrapper.find('[data-field="botDiagnostics"]').exists()).toBe(true);
@@ -264,18 +274,28 @@ describe('AdmissionSessionTable', () => {
   });
 
   it('uses operator-facing status labels and tag severity', () => {
-    expect(statusLabel('joined_muted')).toBe('已入群禁言');
+    expect(statusLabel('joined_muted')).toBe(
+      'admin.users.admissionSessions.status.joinedMuted',
+    );
     expect(statusTagType('joined_muted')).toBe('danger');
-    expect(statusLabel('verified')).toBe('已通过');
+    expect(statusLabel('verified')).toBe(
+      'admin.users.admissionSessions.status.verified',
+    );
     expect(statusTagType('verified')).toBe('success');
-    expect(statusOperationHint('joined_muted')).toContain('等待用户打开链接');
-    expect(statusOperationHint('verified')).toContain('Koishi 解除禁言同步');
+    expect(statusOperationHint('joined_muted')).toBe(
+      'admin.users.admissionSessions.hint.joinedMuted',
+    );
+    expect(statusOperationHint('verified')).toBe(
+      'admin.users.admissionSessions.hint.verified',
+    );
     expect(admissionReissueCommand(baseSession)).toBe(
       '重新生成认证链接 1390191645',
     );
-    expect(botErrorLabel(baseSession)).toBe('存在 Bot 执行错误');
+    expect(botErrorLabel(baseSession)).toBe(
+      'admin.users.admissionSessions.botErrorPresent',
+    );
     expect(botErrorLabel({ ...baseSession, lastBotError: null })).toBe(
-      '暂无 Bot 错误',
+      'admin.users.admissionSessions.botErrorNone',
     );
     expect(canManageAdmissionSession('linked')).toBe(true);
     expect(canManageAdmissionSession('verified')).toBe(false);

@@ -41,22 +41,49 @@ const IMAGE_MIME_BY_EXTENSION = Object.freeze(new Map<string, string>([
   ['.webp', 'image/webp'],
 ]))
 
-export function createChatImageAccessRegistry(): ChatImageAccessRegistry {
-  const entries = new Map<string, Set<string | undefined>>()
+/** 聊天图片访问授权有效期：过期后必须等待消息重新推送才能再取图 */
+const CHAT_IMAGE_ACCESS_TTL_MS = 30 * 60 * 1000
+/** 注册表容量上限：超出时先清理过期条目，再按插入顺序淘汰最旧条目 */
+const CHAT_IMAGE_ACCESS_CAPACITY = 5_000
+
+export interface ChatImageAccessRegistryOptions {
+  readonly ttlMs?: number
+  readonly capacity?: number
+  readonly now?: () => number
+}
+
+interface ChatImageAccessEntry {
+  readonly guildIds: ReadonlySet<string | undefined>
+  readonly expiresAt: number
+}
+
+export function createChatImageAccessRegistry(
+  options: ChatImageAccessRegistryOptions = {},
+): ChatImageAccessRegistry {
+  const ttlMs = options.ttlMs ?? CHAT_IMAGE_ACCESS_TTL_MS
+  const capacity = options.capacity ?? CHAT_IMAGE_ACCESS_CAPACITY
+  const now = options.now ?? Date.now
+  const entries = new Map<string, ChatImageAccessEntry>()
 
   return {
     remember(elements, guildId) {
+      const at = now()
       for (const image of readImageElements(elements)) {
-        rememberImageEntry(entries, image, guildId)
+        rememberImageEntry(entries, image, guildId, at + ttlMs)
       }
+      evictImageEntries(entries, capacity, at)
     },
     assertAllowed(params, scope) {
       const request = parseChatImageFetchParams(params)
-      const guildIds = entries.get(accessKey(request))
-      if (!guildIds) {
+      const key = accessKey(request)
+      const entry = entries.get(key)
+      if (entry && entry.expiresAt <= now()) {
+        entries.delete(key)
+      }
+      if (!entry || entry.expiresAt <= now()) {
         throw new Error('image file is not attached to a delivered chat message')
       }
-      assertImageScope(scope, guildIds)
+      assertImageScope(scope, entry.guildIds)
       return request
     },
   }
@@ -90,14 +117,36 @@ export async function fetchOneBotImage(
 }
 
 function rememberImageEntry(
-  entries: Map<string, Set<string | undefined>>,
+  entries: Map<string, ChatImageAccessEntry>,
   image: ChatImageFetchRequest,
   guildId: string | undefined,
+  expiresAt: number,
 ) {
   const key = accessKey(image)
-  const guildIds = entries.get(key) ?? new Set<string | undefined>()
+  const existing = entries.get(key)
+  const guildIds = new Set(existing?.guildIds ?? [])
   guildIds.add(guildId)
-  entries.set(key, guildIds)
+  // 重新插入以刷新插入顺序，使容量淘汰近似 LRU
+  entries.delete(key)
+  entries.set(key, { guildIds, expiresAt })
+}
+
+function evictImageEntries(
+  entries: Map<string, ChatImageAccessEntry>,
+  capacity: number,
+  at: number,
+) {
+  if (entries.size <= capacity) return
+  for (const [key, entry] of entries) {
+    if (entry.expiresAt <= at) {
+      entries.delete(key)
+    }
+  }
+  while (entries.size > capacity) {
+    const oldest = entries.keys().next()
+    if (oldest.done) break
+    entries.delete(oldest.value)
+  }
 }
 
 function parseChatImageFetchParams(params: ChatImageFetchParams): ChatImageFetchRequest {

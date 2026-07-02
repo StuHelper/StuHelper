@@ -3,7 +3,9 @@ import type { StatusFilter } from './options';
 
 import { ElButton, ElInput, ElOption, ElSelect } from 'element-plus';
 
-import { STATUS_OPTIONS } from './options';
+import { $t } from '#/locales';
+
+import { statusOptions } from './options';
 
 const emit = defineEmits<{
   (e: 'reset'): void;
@@ -23,7 +25,7 @@ const status = defineModel<StatusFilter>('status', { required: true });
       v-model="qqID"
       clearable
       data-field="qqID"
-      placeholder="QQ 号"
+      :placeholder="$t('admin.users.admissionSessions.qqPlaceholder')"
       style="width: 180px"
       @keyup.enter="emit('search')"
     />
@@ -31,7 +33,7 @@ const status = defineModel<StatusFilter>('status', { required: true });
       v-model="guildID"
       clearable
       data-field="guildID"
-      placeholder="群号"
+      :placeholder="$t('admin.users.admissionSessions.guildPlaceholder')"
       style="width: 160px"
       @keyup.enter="emit('search')"
     />
@@ -39,7 +41,7 @@ const status = defineModel<StatusFilter>('status', { required: true });
       v-model="botSelfID"
       clearable
       data-field="botSelfID"
-      placeholder="Bot QQ"
+      :placeholder="$t('admin.users.admissionSessions.botPlaceholder')"
       style="width: 160px"
       @keyup.enter="emit('search')"
     />
@@ -47,7 +49,7 @@ const status = defineModel<StatusFilter>('status', { required: true });
       v-model="platform"
       clearable
       data-field="platform"
-      placeholder="平台"
+      :placeholder="$t('admin.users.admissionSessions.platformPlaceholder')"
       style="width: 120px"
       @keyup.enter="emit('search')"
     />
@@ -59,13 +61,17 @@ const status = defineModel<StatusFilter>('status', { required: true });
       @change="emit('search')"
     >
       <ElOption
-        v-for="opt in STATUS_OPTIONS"
+        v-for="opt in statusOptions()"
         :key="opt.value || 'all'"
         :label="opt.label"
         :value="opt.value"
       />
     </ElSelect>
-    <ElButton type="primary" @click="emit('search')">查询</ElButton>
-    <ElButton @click="emit('reset')">重置</ElButton>
+    <ElButton type="primary" @click="emit('search')">
+      {{ $t('admin.common.query') }}
+    </ElButton>
+    <ElButton @click="emit('reset')">
+      {{ $t('admin.common.reset') }}
+    </ElButton>
   </div>
 </template>

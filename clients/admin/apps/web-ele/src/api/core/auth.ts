@@ -3,7 +3,13 @@ import type { components } from '@stuhelper/shared/types';
 
 import type { ApiCallResult } from '#/api/shared-result';
 
-import { createAuthApi, extractResultErrorCode } from '@stuhelper/shared/api';
+import {
+  AUTH_ACCESS_DENIED_CODE,
+  AUTH_FORBIDDEN_CODE,
+  createAuthApi,
+  extractResultErrorCode,
+  isAuthSessionErrorCode,
+} from '@stuhelper/shared/api';
 
 import { sharedApiClient, sharedBaseApiClient } from '#/api/shared-client';
 import { unwrapData } from '#/api/shared-result';
@@ -47,10 +53,14 @@ function classifySessionProbe(
   const status = result.response?.status;
   const code = extractResultErrorCode(result);
 
-  if (status === 401 || code?.startsWith('A00101')) {
+  if (status === 401 || isAuthSessionErrorCode(code)) {
     return { kind: 'unauthenticated' };
   }
-  if (status === 403 || code === 'A0010200' || code === 'A0010201') {
+  if (
+    status === 403 ||
+    code === AUTH_FORBIDDEN_CODE ||
+    code === AUTH_ACCESS_DENIED_CODE
+  ) {
     return { kind: 'forbidden' };
   }
   if (status !== undefined && status >= 500) {
@@ -153,13 +163,6 @@ export async function getMeApi() {
   return unwrapData<AuthApi.MeResult>(await authApi.me());
 }
 
-/**
- * 刷新 Token（Cookie 自动携带）
- */
-export async function refreshTokenApi() {
-  return unwrapData(await authApi.refresh());
-}
-
 function classifyLogoutResult(result: ApiCallResult<unknown>): LogoutResult {
   const status = result.response?.status;
   const code = extractResultErrorCode(result);
@@ -167,7 +170,7 @@ function classifyLogoutResult(result: ApiCallResult<unknown>): LogoutResult {
   if (!result.error && status !== undefined && status >= 200 && status < 300) {
     return { kind: 'ok' };
   }
-  if (status === 401 || code?.startsWith('A00101')) {
+  if (status === 401 || isAuthSessionErrorCode(code)) {
     return { kind: 'unauthenticated' };
   }
   return { kind: 'error', message: 'admin.result.requestFailed' };

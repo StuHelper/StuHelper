@@ -1,5 +1,5 @@
 import type { Argv, Context, Session } from 'koishi'
-import { redactCommandArgs, redactSensitiveText, redactSensitiveValue } from '../core/modules/log-redaction'
+import { redactCommandArgs, redactSensitiveText, redactSensitiveValue } from '../core/data/log-redaction'
 
 type CommandOptions = Readonly<Record<string, unknown>>
 type CommandSession = Session<'authority'>

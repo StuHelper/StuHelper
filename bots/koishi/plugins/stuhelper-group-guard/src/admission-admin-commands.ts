@@ -7,7 +7,6 @@ import {
   type ModerationStore,
 } from '@stuhelper/koishi-moderation-core'
 import {
-  PlatformAPIError,
   renderMessageTemplate,
   resolveGroupGuardMessages,
   type AdmissionSession,
@@ -22,9 +21,18 @@ import {
 import { formatAdmissionReminder } from './admission-format'
 import { sendAdmissionReminderMessage } from './admission-reminder-delivery'
 import { formatAdmissionActionError } from './admission-actions'
+import {
+  asPlatformAPIError,
+  formatAdmissionSessionSummary,
+  reminderDeadline,
+  skipAdmissionSessionOrUseCancelled,
+} from './admission-summary'
 import { resolveAdmissionSubjectPlatform } from './admission-subject-platform'
 import type { AdmissionSubjectCoordinator } from './admission-subject-coordinator'
-import type { AdmissionReminderDeduper } from './admission-reminder-deduper'
+import {
+  ADMISSION_DEDUPE_WINDOW_MS,
+  type AdmissionReminderDeduper,
+} from './admission-reminder-deduper'
 import { backendSyncUpdate } from './member-records'
 import {
   getGroupGuardMessages,
@@ -34,7 +42,6 @@ import {
 } from './group-guard-message-provider'
 
 const DEFAULT_ADMISSION_COMMAND_AUTHORITY = 4
-const DUPLICATE_COMMAND_SUPPRESS_MS = 30_000
 const DEFAULT_ADMISSION_COMMAND_POLICY: CommandPolicyRecord = {
   commandId: COMMAND_POLICY_IDS.admissionAdmin,
   roles: [],
@@ -130,7 +137,11 @@ export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdmi
       const ref = admissionCommandSubjectRef(command)
       deps.admissionSubjectCoordinator?.cancelSubject(ref)
       try {
-        const skipped = await skipAdmissionSessionOrUseCancelled(deps.platform, command)
+        const skipped = await skipAdmissionSessionOrUseCancelled(
+          deps.platform,
+          admissionSubject(command),
+          command.session.userId,
+        )
         let unmuteError: unknown
         const released = await runAdmissionCommandSubjectExclusive(ref, deps, skipped.id, async () => {
           const marked = await markLocalAdmissionSkipped(command, deps.guardStore, skipped)
@@ -191,7 +202,7 @@ export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdmi
           operatorQQID: command.session.userId,
         })
       } catch (error) {
-        if (error instanceof PlatformAPIError && error.status === 404) {
+        if (asPlatformAPIError(error)?.status === 404) {
           return groupGuardMessage(await getGroupGuardMessages(deps.messageProvider), 'admissionReleaseBlacklistNotFound', { qqID: command.qqID })
         }
         throw error
@@ -200,31 +211,13 @@ export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdmi
     }))
 }
 
-async function skipAdmissionSessionOrUseCancelled(
-  platform: PlatformClient,
-  command: AdmissionCommandContext,
-) {
-  try {
-    return await platform.skipAdmissionSessionForMember(admissionOperatorSubject(command))
-  } catch (error) {
-    if (!isAdmissionInvalidStateError(error)) {
-      throw error
-    }
-    const session = await platform.getAdmissionSessionByMember(admissionSubject(command))
-    if (session.status === 'cancelled') {
-      return session
-    }
-    throw error
-  }
-}
-
 class AdmissionAdminCommandDeduper {
   private readonly claimedAtByKey = new Map<string, number>()
 
   claim(key: string, now = new Date()) {
     const current = now.getTime()
     const claimedAt = this.claimedAtByKey.get(key)
-    if (claimedAt !== undefined && current - claimedAt <= DUPLICATE_COMMAND_SUPPRESS_MS) {
+    if (claimedAt !== undefined && current - claimedAt <= ADMISSION_DEDUPE_WINDOW_MS) {
       return false
     }
     this.claimedAtByKey.set(key, current)
@@ -238,7 +231,7 @@ class AdmissionAdminCommandDeduper {
 
   private prune(nowMs: number) {
     for (const [key, claimedAt] of this.claimedAtByKey) {
-      if (nowMs - claimedAt > DUPLICATE_COMMAND_SUPPRESS_MS) {
+      if (nowMs - claimedAt > ADMISSION_DEDUPE_WINDOW_MS) {
         this.claimedAtByKey.delete(key)
       }
     }
@@ -382,48 +375,25 @@ async function runAdmissionCommand(
 }
 
 function formatAdmissionCommandError(error: unknown, messages: GroupGuardMessages) {
-  if (error instanceof PlatformAPIError) {
-    if (error.status === 404) {
+  const platformError = asPlatformAPIError(error)
+  if (platformError) {
+    if (platformError.status === 404) {
       return groupGuardMessage(messages, 'admissionCommandNotFound')
     }
-    if (error.status === 409) {
+    if (platformError.status === 409) {
       return groupGuardMessage(messages, 'admissionCommandInvalidState')
     }
-    if (error.status === 401 || error.status === 403) {
+    if (platformError.status === 401 || platformError.status === 403) {
       return groupGuardMessage(messages, 'admissionCommandUnauthorized')
     }
     return groupGuardMessage(messages, 'admissionCommandPlatformError', {
-      status: error.status,
-      message: error.message,
+      status: platformError.status,
+      message: platformError.message,
     })
   }
   return groupGuardMessage(messages, 'admissionCommandFailed', {
     error: error instanceof Error ? error.message : '',
   })
-}
-
-function isAdmissionInvalidStateError(error: unknown) {
-  return error instanceof PlatformAPIError && error.status === 409
-}
-
-function formatAdmissionSessionSummary(
-  session: AdmissionSession,
-  messages: GroupGuardMessages,
-) {
-  return compactRenderedMessage(groupGuardMessage(messages, 'admissionQuerySummary', {
-    qqID: session.qqID,
-    statusLabel: statusLabel(session.status, messages),
-    sessionID: session.id,
-    qqLinkedLabel: isQQLinked(session)
-      ? groupGuardMessage(messages, 'admissionQueryQQLinked')
-      : groupGuardMessage(messages, 'admissionQueryQQUnlinked'),
-    studentVerificationLabel: studentVerificationLabel(session, messages),
-    deadlineLine: describeDeadline(session, messages) ?? '',
-    nextStep: nextAdmissionStep(session, messages),
-    lastBotErrorLine: session.lastBotError
-      ? groupGuardMessage(messages, 'admissionQueryLastBotError', { lastBotError: session.lastBotError })
-      : '',
-  }))
 }
 
 function formatAdmissionReminderForSession(
@@ -583,114 +553,4 @@ async function markLocalReminderSent(
   if (!record) return true
   const marked = await guardStore.markReminderSent(record.id, new Date())
   return marked !== false
-}
-
-function reminderDeadline(session: AdmissionSession) {
-  switch (session.status) {
-    case 'linked':
-      return new Date(session.submissionWaitDeadlineAt)
-    case 'material_submitted':
-      return new Date(session.manualReviewDeadlineAt || session.submissionWaitDeadlineAt)
-    default:
-      return new Date(session.linkWaitDeadlineAt)
-  }
-}
-
-function describeDeadline(
-  session: AdmissionSession,
-  messages: GroupGuardMessages,
-) {
-  switch (session.status) {
-    case 'joined_muted':
-      return groupGuardMessage(messages, 'admissionQueryDeadlineLink', { deadlineAt: session.linkWaitDeadlineAt })
-    case 'linked':
-      return groupGuardMessage(messages, 'admissionQueryDeadlineSubmission', { deadlineAt: session.submissionWaitDeadlineAt })
-    case 'material_submitted':
-      return groupGuardMessage(messages, 'admissionQueryDeadlineManualReview', {
-        deadlineAt: session.manualReviewDeadlineAt || groupGuardMessage(messages, 'admissionQueryDeadlineUnset'),
-      })
-    default:
-      return undefined
-  }
-}
-
-function isQQLinked(session: AdmissionSession) {
-  return hasLinkedUser(session) ||
-    session.status === 'linked' ||
-    session.status === 'material_submitted' ||
-    session.status === 'verified'
-}
-
-function hasLinkedUser(session: AdmissionSession) {
-  return session.userID !== undefined && session.userID !== null && String(session.userID).trim() !== ''
-}
-
-function studentVerificationLabel(
-  session: AdmissionSession,
-  messages: GroupGuardMessages,
-) {
-  switch (session.status) {
-    case 'verified':
-      return groupGuardMessage(messages, 'admissionQueryStudentVerified')
-    case 'material_submitted':
-      return groupGuardMessage(messages, 'admissionQueryStudentFreshmanPending')
-    default:
-      return groupGuardMessage(messages, 'admissionQueryStudentUnverified')
-  }
-}
-
-function nextAdmissionStep(
-  session: AdmissionSession,
-  messages: GroupGuardMessages,
-) {
-  switch (session.status) {
-    case 'joined_muted':
-      return groupGuardMessage(messages, 'admissionNextStepJoinedMuted')
-    case 'linked':
-      return groupGuardMessage(messages, 'admissionNextStepLinked')
-    case 'material_submitted':
-      return groupGuardMessage(messages, 'admissionNextStepMaterialSubmitted')
-    case 'verified':
-      return session.lastBotError
-        ? groupGuardMessage(messages, 'admissionNextStepVerifiedWithBotError')
-        : groupGuardMessage(messages, 'admissionNextStepVerified')
-    case 'expired_kicked':
-      return hasLinkedUser(session)
-        ? groupGuardMessage(messages, 'admissionNextStepExpiredKickedLinked')
-        : groupGuardMessage(messages, 'admissionNextStepExpiredKicked')
-    case 'cancelled':
-      return groupGuardMessage(messages, 'admissionNextStepCancelled')
-    default:
-      return groupGuardMessage(messages, 'admissionNextStepDefault')
-  }
-}
-
-function statusLabel(
-  status: AdmissionSession['status'],
-  messages: GroupGuardMessages,
-) {
-  switch (status) {
-    case 'joined_muted':
-      return groupGuardMessage(messages, 'admissionStatusJoinedMuted')
-    case 'linked':
-      return groupGuardMessage(messages, 'admissionStatusLinked')
-    case 'material_submitted':
-      return groupGuardMessage(messages, 'admissionStatusMaterialSubmitted')
-    case 'verified':
-      return groupGuardMessage(messages, 'admissionStatusVerified')
-    case 'expired_kicked':
-      return groupGuardMessage(messages, 'admissionStatusExpiredKicked')
-    case 'cancelled':
-      return groupGuardMessage(messages, 'admissionStatusCancelled')
-    default:
-      return status
-  }
-}
-
-function compactRenderedMessage(message: string) {
-  return message
-    .split('\n')
-    .map((line) => line.trimEnd())
-    .filter((line) => line.trim())
-    .join('\n')
 }

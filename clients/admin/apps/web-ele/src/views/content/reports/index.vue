@@ -1,12 +1,9 @@
 <script setup lang="ts">
 import type { Report } from '#/api/admin';
 
-import { onMounted, reactive, ref } from 'vue';
-
 import {
   ElAlert,
   ElButton,
-  ElMessage,
   ElOption,
   ElPagination,
   ElPopconfirm,
@@ -15,6 +12,8 @@ import {
 } from 'element-plus';
 
 import { getReportList, processReport } from '#/api/admin';
+import { useAdminAction } from '#/composables/use-admin-action';
+import { useAdminList } from '#/composables/use-admin-list';
 import { $t } from '#/locales';
 
 import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
@@ -25,61 +24,46 @@ import {
   formatAdminDateTime,
   formatNullableText,
 } from '../../shared/display';
+import {
+  ADMIN_DEFAULT_PAGE_SIZE,
+  ADMIN_PAGE_SIZES,
+  ADMIN_PAGINATION_LAYOUT,
+} from '../../shared/pagination';
 
-const loading = ref(false);
-const actionLoading = ref(false);
-const reports = ref<Report[]>([]);
-const total = ref(0);
-const loadError = ref('');
-const actionError = ref('');
-const query = reactive({
-  page: 1,
-  pageSize: 20,
-  status: 'all' as 'all' | 'pending' | 'rejected' | 'resolved',
+type ReportStatusFilter = 'all' | 'pending' | 'rejected' | 'resolved';
+
+const {
+  fetchData,
+  items: reports,
+  loadError,
+  loading,
+  query,
+  resetPageAndFetch,
+  total,
+} = useAdminList<
+  Report,
+  { page: number; pageSize: number; status: ReportStatusFilter }
+>({
+  fetcher: (listQuery) => getReportList(listQuery),
+  initialQuery: {
+    page: 1,
+    pageSize: ADMIN_DEFAULT_PAGE_SIZE,
+    status: 'all',
+  },
 });
-let fetchRequestSeq = 0;
 
-async function fetchData() {
-  const requestSeq = ++fetchRequestSeq;
-  loading.value = true;
-  loadError.value = '';
-  try {
-    const data = await getReportList(query);
-    if (requestSeq !== fetchRequestSeq) return;
-    reports.value = data.items;
-    total.value = data.total;
-  } catch (error) {
-    if (requestSeq !== fetchRequestSeq) return;
-    loadError.value = adminErrorMessage(error);
-  } finally {
-    if (requestSeq === fetchRequestSeq) {
-      loading.value = false;
-    }
-  }
-}
-
-function resetPageAndFetch() {
-  query.page = 1;
-  void fetchData();
-}
+const { actionError, clearActionError, isActionPending, runAction } =
+  useAdminAction();
 
 async function handleAction(
   reportId: string,
   action: 'delete' | 'hide' | 'reject',
 ) {
-  if (actionLoading.value) {
-    return;
-  }
-
-  actionLoading.value = true;
-  actionError.value = '';
-  try {
-    await processReport(reportId, { action });
+  const succeeded = await runAction(() => processReport(reportId, { action }), {
+    id: reportId,
+  });
+  if (succeeded) {
     await fetchData();
-  } catch (error) {
-    handleActionError(error);
-  } finally {
-    actionLoading.value = false;
   }
 }
 
@@ -106,19 +90,6 @@ const reasonLabel = (reason: Report['reason']) => {
   const label = $t(key);
   return label === key ? reason : label;
 };
-
-function adminErrorMessage(error: unknown): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : $t('admin.result.requestFailed');
-}
-
-function handleActionError(error: unknown) {
-  actionError.value = adminErrorMessage(error);
-  ElMessage.error(actionError.value);
-}
-
-onMounted(fetchData);
 </script>
 
 <template>
@@ -173,7 +144,7 @@ onMounted(fetchData);
       :closable="true"
       show-icon
       :title="actionError"
-      @close="actionError = ''"
+      @close="clearActionError"
     />
 
     <PersistentAdminTable
@@ -287,7 +258,7 @@ onMounted(fetchData);
                   plain
                   size="small"
                   type="info"
-                  :disabled="actionLoading"
+                  :disabled="isActionPending(row.id)"
                 >
                   {{ $t('admin.content.reports.reject') }}
                 </ElButton>
@@ -302,7 +273,7 @@ onMounted(fetchData);
                   plain
                   size="small"
                   type="warning"
-                  :disabled="actionLoading"
+                  :disabled="isActionPending(row.id)"
                 >
                   {{ $t('admin.content.reports.hideReview') }}
                 </ElButton>
@@ -317,7 +288,7 @@ onMounted(fetchData);
                   plain
                   size="small"
                   type="danger"
-                  :disabled="actionLoading"
+                  :disabled="isActionPending(row.id)"
                 >
                   {{ $t('admin.content.reports.deleteReview') }}
                 </ElButton>
@@ -333,9 +304,12 @@ onMounted(fetchData);
       <ElPagination
         v-model:current-page="query.page"
         v-model:page-size="query.pageSize"
+        background
+        :layout="ADMIN_PAGINATION_LAYOUT"
+        :page-sizes="ADMIN_PAGE_SIZES"
         :total="total"
-        layout="total, prev, pager, next"
         @current-change="fetchData"
+        @size-change="resetPageAndFetch"
       />
     </template>
   </AdminContentLayout>

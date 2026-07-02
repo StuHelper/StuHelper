@@ -206,7 +206,7 @@ async function mockAdminApi(page: Page, capturedMutations: CapturedMutation[]) {
     }
 
     if (path === '/api/v1/admin/admission/policies' && method === 'POST') {
-      const body = parseJsonBody(route) as { guildID?: string } | null;
+      const body = parseJsonBody(route) as null | { guildID?: string };
       capturedMutations.push({ path, method, body });
       await route.fulfill(
         ok({
@@ -478,8 +478,7 @@ test.describe('Admin configuration actions', () => {
           autoApproveJoin: false,
           autoApproveVerifiedJoin: true,
           autoApproveUnverifiedJoin: false,
-          unverifiedJoinRejectReason:
-            '请先完成 StuHelper 学生认证后再申请入群',
+          unverifiedJoinRejectReason: '请先完成 StuHelper 学生认证后再申请入群',
           freshmanChannelClosesAt: '2026-09-01T00:00:00Z',
           freshmanDefaultExpiresAt: '2026-10-01T00:00:00Z',
           linkWaitSeconds: 450,

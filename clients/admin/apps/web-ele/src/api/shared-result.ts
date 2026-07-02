@@ -6,10 +6,13 @@ import {
   extractResultErrorCode,
   extractResultErrorMessage,
   extractResultList,
+  isAuthSessionErrorCode,
   isResultFailure,
+  MFA_ENROLLMENT_REQUIRED_CODE,
   readResultStatus,
+  STEP_UP_REQUIRED_CODE,
+  STEP_UP_REQUIRED_STATUSES,
 } from '@stuhelper/shared/api';
-import { ElMessage } from 'element-plus';
 
 import { $t } from '#/locales';
 
@@ -27,13 +30,17 @@ export function extractErrorMessage(result: ApiCallResult<unknown>): string {
   const code = extractResultErrorCode(result);
   const status = readResultStatus(result);
 
-  if (status === 401 || code?.startsWith('A00101')) {
+  if (status === 401 || isAuthSessionErrorCode(code)) {
     return $t('admin.result.authExpired');
   }
-  if (status === 403 && code === 'A0010204') {
+  if (status === 403 && code === MFA_ENROLLMENT_REQUIRED_CODE) {
     return $t('admin.result.mfaEnrollmentRequired');
   }
-  if (status === 412 && code === 'A0010205') {
+  if (
+    status !== undefined &&
+    STEP_UP_REQUIRED_STATUSES.has(status) &&
+    code === STEP_UP_REQUIRED_CODE
+  ) {
     return $t('admin.result.stepUpRequired');
   }
   if (code && BUSINESS_ERROR_MESSAGE_KEYS[code]) {
@@ -49,9 +56,7 @@ export function unwrapData<T>(result: ApiCallResult<T>): T {
     return payload;
   }
 
-  const message = extractErrorMessage(result);
-  ElMessage.error(message);
-  throw new Error(message);
+  throw new Error(extractErrorMessage(result));
 }
 
 export function unwrapOptionalData<T>(result: ApiCallResult<T>): null | T {
@@ -65,9 +70,7 @@ export function unwrapOptionalData<T>(result: ApiCallResult<T>): null | T {
     return null;
   }
 
-  const message = extractErrorMessage(result);
-  ElMessage.error(message);
-  throw new Error(message);
+  throw new Error(extractErrorMessage(result));
 }
 
 export function unwrapVoid(result: ApiCallResult<unknown>): void {
@@ -81,9 +84,7 @@ export function unwrapVoid(result: ApiCallResult<unknown>): void {
     return;
   }
 
-  const message = extractErrorMessage(result);
-  ElMessage.error(message);
-  throw new Error(message);
+  throw new Error(extractErrorMessage(result));
 }
 
 export function unwrapListData<T>(
@@ -97,7 +98,5 @@ export function unwrapListData<T>(
     return { items: payload.list, total: payload.total };
   }
 
-  const message = extractErrorMessage(result);
-  ElMessage.error(message);
-  throw new Error(message);
+  throw new Error(extractErrorMessage(result));
 }

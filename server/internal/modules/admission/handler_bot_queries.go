@@ -14,6 +14,16 @@ import (
 const maxBotPendingActionFilterLength = 64
 const maxBotSessionSubjectGuildLength = 128
 
+// SSE 下行协议常量：与 api/contracts/admission-action-stream.json 字节级锁定，
+// 由 stream_contract_test.go 与 koishi 侧 action-stream-contract.test.ts 双侧校验。
+const (
+	admissionStreamEventAction    = "action"
+	admissionStreamEventKeepalive = "keepalive"
+	admissionStreamEventError     = "error"
+	admissionStreamOpenComment    = "connected"
+	admissionStreamErrorMessage   = "admission queued action unavailable"
+)
+
 type botJoinRequestEventHTTPRequest struct {
 	Platform  string         `json:"platform" binding:"required"`
 	GuildID   string         `json:"guildID" binding:"required"`
@@ -120,7 +130,7 @@ func (h *Handler) handleStreamBotAdmissionActions(c *gin.Context) {
 	headers.Set("Content-Type", "text/event-stream")
 	headers.Set("Cache-Control", "no-cache")
 	headers.Set("X-Accel-Buffering", "no")
-	if err := sse.WriteComment(c.Writer, "connected"); err != nil {
+	if err := sse.WriteComment(c.Writer, admissionStreamOpenComment); err != nil {
 		return
 	}
 	c.Writer.Flush()
@@ -139,8 +149,7 @@ func (h *Handler) handleStreamBotAdmissionActions(c *gin.Context) {
 		case <-c.Request.Context().Done():
 			return
 		case <-keepalive.C:
-			c.SSEvent("keepalive", time.Now().UTC().Format(time.RFC3339))
-			c.Writer.Flush()
+			writeAdmissionKeepaliveEvent(c, time.Now())
 		case <-ticker.C:
 			if !h.writeQueuedAdmissionActions(c, filter) {
 				return
@@ -165,15 +174,28 @@ func (h *Handler) handleClaimBotAdmissionActions(c *gin.Context) {
 func (h *Handler) writeQueuedAdmissionActions(c *gin.Context, filter AdmissionPendingActionFilter) bool {
 	actions, err := h.service.ClaimQueuedAdmissionActions(c.Request.Context(), filter)
 	if err != nil {
-		c.SSEvent("error", "admission queued action unavailable")
-		c.Writer.Flush()
+		writeAdmissionStreamErrorEvent(c)
 		return false
 	}
 	for i := range actions {
-		c.SSEvent("action", actions[i])
-		c.Writer.Flush()
+		writeAdmissionActionEvent(c, actions[i])
 	}
 	return true
+}
+
+func writeAdmissionActionEvent(c *gin.Context, action AdmissionPendingAction) {
+	c.SSEvent(admissionStreamEventAction, action)
+	c.Writer.Flush()
+}
+
+func writeAdmissionKeepaliveEvent(c *gin.Context, now time.Time) {
+	c.SSEvent(admissionStreamEventKeepalive, now.UTC().Format(time.RFC3339))
+	c.Writer.Flush()
+}
+
+func writeAdmissionStreamErrorEvent(c *gin.Context) {
+	c.SSEvent(admissionStreamEventError, admissionStreamErrorMessage)
+	c.Writer.Flush()
 }
 
 func botPendingActionFilter(c *gin.Context) (AdmissionPendingActionFilter, bool) {

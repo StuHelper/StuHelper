@@ -24,7 +24,7 @@ func (r *Repository) ListPendingActionSessions(
 		return nil, fmt.Errorf("ListPendingActionSessions: %w", err)
 	}
 	defer rows.Close()
-	return scanAdmissionSessions(rows)
+	return r.scanAdmissionSessions(rows)
 }
 
 func pendingActionSessionsQuery(filter AdmissionPendingActionFilter, now time.Time) (string, []any) {
@@ -125,7 +125,7 @@ func (r *Repository) QueueAdmissionReminderNowTx(
 	} else {
 		row = r.db.QueryRow(ctx, query, sessionID, now, StatusJoinedMuted, StatusLinked, StatusMaterialSubmitted)
 	}
-	session, err := scanAdmissionSession(row)
+	session, err := r.scanAdmissionSession(row)
 	if err != nil {
 		return nil, fmt.Errorf("QueueAdmissionReminderNow: %w", err)
 	}

@@ -3,6 +3,8 @@ import type { MemberBlacklistEntry } from '#/api/admin';
 
 import { ElButton, ElPagination, ElTag } from 'element-plus';
 
+import { $t } from '#/locales';
+
 import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
 import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
 import {
@@ -43,7 +45,7 @@ const pageSize = defineModel<number>('pageSize', { required: true });
     >
       <PersistentAdminTableColumn
         column-key="status"
-        label="状态"
+        :label="$t('admin.users.memberBlacklist.statusColumn')"
         :default-width="96"
       >
         <template #default="{ row }">
@@ -54,7 +56,7 @@ const pageSize = defineModel<number>('pageSize', { required: true });
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
         column-key="subject"
-        label="主体"
+        :label="$t('admin.users.memberBlacklist.subjectColumn')"
         :default-min-width="160"
       >
         <template #default="{ row }">
@@ -64,21 +66,21 @@ const pageSize = defineModel<number>('pageSize', { required: true });
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
         column-key="scope"
-        label="范围"
+        :label="$t('admin.users.memberBlacklist.scopeColumn')"
         :default-width="160"
       >
         <template #default="{ row }">{{ scopeLabel(row) }}</template>
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
         column-key="source"
-        label="来源"
+        :label="$t('admin.users.memberBlacklist.sourceColumn')"
         :default-width="120"
       >
         <template #default="{ row }">{{ sourceLabel(row) }}</template>
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
         column-key="reason"
-        label="原因"
+        :label="$t('admin.users.memberBlacklist.reasonColumn')"
         :default-min-width="200"
       >
         <template #default="{ row }">
@@ -88,14 +90,14 @@ const pageSize = defineModel<number>('pageSize', { required: true });
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
         column-key="createdFrom"
-        label="创建入口"
+        :label="$t('admin.users.memberBlacklist.createdFromColumn')"
         :default-width="140"
       >
         <template #default="{ row }">{{ createdFromLabel(row) }}</template>
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
         column-key="createdBy"
-        label="创建人"
+        :label="$t('admin.users.memberBlacklist.createdByColumn')"
         :default-width="200"
       >
         <template #default="{ row }">
@@ -104,7 +106,7 @@ const pageSize = defineModel<number>('pageSize', { required: true });
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
         column-key="createdAt"
-        label="创建时间"
+        :label="$t('admin.users.memberBlacklist.createdAtColumn')"
         :default-width="180"
       >
         <template #default="{ row }">
@@ -113,16 +115,20 @@ const pageSize = defineModel<number>('pageSize', { required: true });
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
         column-key="expiresAt"
-        label="过期时间"
+        :label="$t('admin.users.memberBlacklist.expiresAtColumn')"
         :default-width="180"
       >
         <template #default="{ row }">
-          {{ row.expiresAt ? formatDateTime(row.expiresAt) : '永久' }}
+          {{
+            row.expiresAt
+              ? formatDateTime(row.expiresAt)
+              : $t('admin.users.memberBlacklist.permanent')
+          }}
         </template>
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
         column-key="releasedAt"
-        label="解除时间"
+        :label="$t('admin.users.memberBlacklist.releasedAtColumn')"
         :default-width="180"
       >
         <template #default="{ row }">
@@ -132,7 +138,7 @@ const pageSize = defineModel<number>('pageSize', { required: true });
       <PersistentAdminTableColumn
         column-key="actions"
         fixed="right"
-        label="操作"
+        :label="$t('admin.common.actions')"
         :default-width="120"
       >
         <template #default="{ row }">
@@ -144,7 +150,7 @@ const pageSize = defineModel<number>('pageSize', { required: true });
             type="warning"
             @click="emit('release', row)"
           >
-            解除
+            {{ $t('admin.users.memberBlacklist.release') }}
           </ElButton>
           <span v-else class="text-slate-400">—</span>
         </template>

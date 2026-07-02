@@ -5,12 +5,14 @@ import type { AdmissionSession } from '#/api/admin';
 
 import { ElButton, ElPagination, ElPopconfirm, ElTag } from 'element-plus';
 
+import { $t } from '#/locales';
+
 import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
 import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
 import {
   admissionReissueCommand,
-  botErrorLabel,
   boolLabel,
+  botErrorLabel,
   canManageAdmissionSession,
   formatDateTime,
   formatText,
@@ -21,7 +23,7 @@ import {
 
 const props = withDefaults(
   defineProps<{
-    actionLoadingById?: Record<string, AdmissionSessionAction | undefined>;
+    actionLoadingById?: Readonly<Record<string, string | undefined>>;
     canManage: boolean;
     items: AdmissionSession[];
     loading: boolean;
@@ -70,7 +72,7 @@ function sessionActionDisabled(row: AdmissionSession) {
     >
       <PersistentAdminTableColumn
         column-key="status"
-        label="状态"
+        :label="$t('admin.users.admissionSessions.statusColumn')"
         :default-min-width="180"
       >
         <template #default="{ row }">
@@ -89,44 +91,63 @@ function sessionActionDisabled(row: AdmissionSession) {
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
         column-key="subject"
-        label="成员"
+        :label="$t('admin.users.admissionSessions.memberColumn')"
         :default-min-width="180"
       >
         <template #default="{ row }">
           <div class="font-mono">{{ row.qqID }}</div>
           <div class="text-xs text-slate-500">
-            用户 {{ formatText(row.userID) }}
+            {{
+              $t('admin.users.admissionSessions.userLine', {
+                id: formatText(row.userID),
+              })
+            }}
           </div>
         </template>
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
         column-key="runtime"
-        label="运行时"
+        :label="$t('admin.users.admissionSessions.runtimeColumn')"
         :default-min-width="210"
       >
         <template #default="{ row }">
-          <div>{{ row.platform }} / 群 {{ row.guildID }}</div>
-          <div class="text-xs text-slate-500">
-            Bot {{ formatText(row.botSelfID) }} · 频道
-            {{ formatText(row.channelID) }}
+          <div>
+            {{
+              $t('admin.users.admissionSessions.guildLine', {
+                guild: row.guildID,
+                platform: row.platform,
+              })
+            }}
           </div>
-          <div
-            class="text-xs text-slate-500"
-            data-field="runtimeBoundary"
-          >
-            后端 admission session；Koishi WebUI 显示现场 guard record
+          <div class="text-xs text-slate-500">
+            {{
+              $t('admin.users.admissionSessions.botLine', {
+                bot: formatText(row.botSelfID),
+                channel: formatText(row.channelID),
+              })
+            }}
+          </div>
+          <div class="text-xs text-slate-500" data-field="runtimeBoundary">
+            {{ $t('admin.users.admissionSessions.boundaryNote') }}
           </div>
         </template>
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
         column-key="token"
-        label="链接"
+        :label="$t('admin.users.admissionSessions.linkColumn')"
         :default-min-width="260"
       >
         <template #default="{ row }">
           <div class="font-mono text-xs">{{ row.id }}</div>
           <div class="text-xs text-slate-500">
-            JOIN 链接：{{ row.authURL ? '可复制' : '未返回' }} · 已消费：{{ boolLabel(Boolean(row.tokenConsumedAt)) }}
+            {{
+              $t('admin.users.admissionSessions.joinLinkLine', {
+                availability: row.authURL
+                  ? $t('admin.users.admissionSessions.linkCopyable')
+                  : $t('admin.users.admissionSessions.linkNotReturned'),
+                consumed: boolLabel(Boolean(row.tokenConsumedAt)),
+              })
+            }}
           </div>
           <ElButton
             v-if="row.authURL"
@@ -136,7 +157,7 @@ function sessionActionDisabled(row: AdmissionSession) {
             type="primary"
             @click="emit('copyAuthURL', row.authURL)"
           >
-            复制认证链接
+            {{ $t('admin.users.admissionSessions.copyAuthURL') }}
           </ElButton>
           <ElButton
             v-if="row.status !== 'verified'"
@@ -146,7 +167,7 @@ function sessionActionDisabled(row: AdmissionSession) {
             type="warning"
             @click="emit('copyReissueCommand', admissionReissueCommand(row))"
           >
-            复制重生命令
+            {{ $t('admin.users.admissionSessions.copyReissue') }}
           </ElButton>
           <ElButton
             v-if="canManage && canManageAdmissionSession(row.status)"
@@ -158,11 +179,11 @@ function sessionActionDisabled(row: AdmissionSession) {
             :loading="sessionActionLoading(row, 'resend')"
             @click="emit('requestResend', row.id)"
           >
-            请求重发
+            {{ $t('admin.users.admissionSessions.requestResend') }}
           </ElButton>
           <ElPopconfirm
             v-if="canManage && canManageAdmissionSession(row.status)"
-            title="重新生成会取消当前未完成会话，确认继续？"
+            :title="$t('admin.users.admissionSessions.regenerateConfirm')"
             @confirm="emit('requestRegenerate', row.id)"
           >
             <template #reference>
@@ -174,13 +195,13 @@ function sessionActionDisabled(row: AdmissionSession) {
                 :disabled="sessionActionDisabled(row)"
                 :loading="sessionActionLoading(row, 'regenerate')"
               >
-                重新生成
+                {{ $t('admin.users.admissionSessions.regenerate') }}
               </ElButton>
             </template>
           </ElPopconfirm>
           <ElPopconfirm
             v-if="canManage && canManageAdmissionSession(row.status)"
-            title="确认取消该入群认证会话？"
+            :title="$t('admin.users.admissionSessions.cancelConfirm')"
             @confirm="emit('requestCancel', row.id)"
           >
             <template #reference>
@@ -192,7 +213,7 @@ function sessionActionDisabled(row: AdmissionSession) {
                 :disabled="sessionActionDisabled(row)"
                 :loading="sessionActionLoading(row, 'cancel')"
               >
-                取消会话
+                {{ $t('admin.users.admissionSessions.cancelSession') }}
               </ElButton>
             </template>
           </ElPopconfirm>
@@ -200,37 +221,70 @@ function sessionActionDisabled(row: AdmissionSession) {
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
         column-key="deadlines"
-        label="期限"
+        :label="$t('admin.users.admissionSessions.deadlinesColumn')"
         :default-min-width="240"
       >
         <template #default="{ row }">
-          <div>链接：{{ formatDateTime(row.linkWaitDeadlineAt) }}</div>
-          <div>提交：{{ formatDateTime(row.submissionWaitDeadlineAt) }}</div>
-          <div>审核：{{ formatDateTime(row.manualReviewDeadlineAt) }}</div>
+          <div>
+            {{
+              $t('admin.users.admissionSessions.linkDeadline', {
+                time: formatDateTime(row.linkWaitDeadlineAt),
+              })
+            }}
+          </div>
+          <div>
+            {{
+              $t('admin.users.admissionSessions.submitDeadline', {
+                time: formatDateTime(row.submissionWaitDeadlineAt),
+              })
+            }}
+          </div>
+          <div>
+            {{
+              $t('admin.users.admissionSessions.reviewDeadline', {
+                time: formatDateTime(row.manualReviewDeadlineAt),
+              })
+            }}
+          </div>
         </template>
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
         column-key="events"
-        label="事件"
+        :label="$t('admin.users.admissionSessions.eventsColumn')"
         :default-min-width="220"
       >
         <template #default="{ row }">
-          <div>消费：{{ formatDateTime(row.tokenConsumedAt) }}</div>
-          <div>通过：{{ formatDateTime(row.verifiedAt) }}</div>
-          <div>取消：{{ formatDateTime(row.cancelledAt) }}</div>
+          <div>
+            {{
+              $t('admin.users.admissionSessions.consumedAt', {
+                time: formatDateTime(row.tokenConsumedAt),
+              })
+            }}
+          </div>
+          <div>
+            {{
+              $t('admin.users.admissionSessions.verifiedAt', {
+                time: formatDateTime(row.verifiedAt),
+              })
+            }}
+          </div>
+          <div>
+            {{
+              $t('admin.users.admissionSessions.cancelledAt', {
+                time: formatDateTime(row.cancelledAt),
+              })
+            }}
+          </div>
         </template>
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
         column-key="botError"
-        label="Bot 执行诊断"
+        :label="$t('admin.users.admissionSessions.botDiagnosticsColumn')"
         :default-min-width="260"
       >
         <template #default="{ row }">
           <div class="grid gap-1" data-field="botDiagnostics">
-            <ElTag
-              size="small"
-              :type="row.lastBotError ? 'danger' : 'info'"
-            >
+            <ElTag size="small" :type="row.lastBotError ? 'danger' : 'info'">
               {{ botErrorLabel(row) }}
             </ElTag>
             <span class="text-xs leading-5 text-slate-500">
@@ -241,7 +295,7 @@ function sessionActionDisabled(row: AdmissionSession) {
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
         column-key="initialMuteUntil"
-        label="禁言到期"
+        :label="$t('admin.users.admissionSessions.muteUntilColumn')"
         :default-width="180"
       >
         <template #default="{ row }">

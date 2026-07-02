@@ -19,11 +19,11 @@ func scanAdmissionPolicies(rows pgx.Rows) ([]AdmissionPolicy, error) {
 	return items, rows.Err()
 }
 
-func scanAdmissionSessionList(rows pgx.Rows) ([]AdmissionSession, int, error) {
+func (r *Repository) scanAdmissionSessionList(rows pgx.Rows) ([]AdmissionSession, int, error) {
 	items := make([]AdmissionSession, 0)
 	total := 0
 	for rows.Next() {
-		session, rowTotal, err := scanAdmissionSessionWithTotal(rows)
+		session, rowTotal, err := r.scanAdmissionSessionWithTotal(rows)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -33,12 +33,13 @@ func scanAdmissionSessionList(rows pgx.Rows) ([]AdmissionSession, int, error) {
 	return items, total, rows.Err()
 }
 
-func scanAdmissionSessionWithTotal(row pgx.Row) (*AdmissionSession, int, error) {
+func (r *Repository) scanAdmissionSessionWithTotal(row pgx.Row) (*AdmissionSession, int, error) {
 	var session AdmissionSession
+	var authURLEnc []byte
 	var total int
 	err := row.Scan(
 		&session.ID, &session.Platform, &session.BotSelfID, &session.GuildID, &session.ChannelID, &session.QQID,
-		&session.UserID, &session.TokenHash, &session.AuthURL, &session.TokenExpiresAt,
+		&session.UserID, &session.TokenHash, &authURLEnc, &session.TokenExpiresAt,
 		&session.TokenConsumedAt, &session.Status, &session.LinkWaitDeadlineAt,
 		&session.SubmissionWaitDeadlineAt, &session.ManualReviewDeadlineAt, &session.InitialMuteUntil,
 		&session.VerifiedAt, &session.CancelledAt, &session.LastBotError, &total,
@@ -46,6 +47,11 @@ func scanAdmissionSessionWithTotal(row pgx.Row) (*AdmissionSession, int, error) 
 	if err != nil {
 		return nil, 0, err
 	}
+	authURL, err := r.decryptAuthURL(authURLEnc)
+	if err != nil {
+		return nil, 0, fmt.Errorf("scanAdmissionSessionWithTotal decrypt auth_url: %w", err)
+	}
+	session.AuthURL = authURL
 	return &session, total, nil
 }
 

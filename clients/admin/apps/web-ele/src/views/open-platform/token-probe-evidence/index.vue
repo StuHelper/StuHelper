@@ -4,8 +4,6 @@ import type {
   OpenPlatformTokenProbeResult,
 } from '#/api/admin';
 
-import { onMounted, reactive, ref } from 'vue';
-
 import {
   ElAlert,
   ElButton,
@@ -18,6 +16,7 @@ import {
 } from 'element-plus';
 
 import { getOpenPlatformTokenProbeEvidenceList } from '#/api/admin';
+import { useAdminList } from '#/composables/use-admin-list';
 import { $t } from '#/locales';
 
 import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
@@ -29,59 +28,47 @@ import {
   formatNullableText,
 } from '../../shared/display';
 
-const loading = ref(false);
-const loadError = ref('');
-const records = ref<OpenPlatformTokenProbeEvidence[]>([]);
-const total = ref(0);
-const query = reactive<{
-  appID?: number;
-  clientID: string;
-  page: number;
-  pageSize: number;
-  result: '' | OpenPlatformTokenProbeResult;
-  reviewerUserID?: number;
-}>({
-  clientID: '',
-  page: 1,
-  pageSize: 20,
-  result: '',
+const {
+  fetchData,
+  items: records,
+  loadError,
+  loading,
+  query,
+  resetPageAndFetch,
+  total,
+} = useAdminList<
+  OpenPlatformTokenProbeEvidence,
+  {
+    appID: null | number;
+    clientID: string;
+    page: number;
+    pageSize: number;
+    result: '' | OpenPlatformTokenProbeResult;
+    reviewerUserID: null | number;
+  }
+>({
+  fetcher: (listQuery) =>
+    getOpenPlatformTokenProbeEvidenceList({
+      appID: normalizeOptionalID(listQuery.appID),
+      clientID: listQuery.clientID.trim() || undefined,
+      page: listQuery.page,
+      pageSize: listQuery.pageSize,
+      result: listQuery.result || undefined,
+      reviewerUserID: normalizeOptionalID(listQuery.reviewerUserID),
+    }),
+  initialQuery: {
+    appID: null,
+    clientID: '',
+    page: 1,
+    pageSize: 20,
+    result: '',
+    reviewerUserID: null,
+  },
 });
 
 const resultOptions: OpenPlatformTokenProbeResult[] = ['passed', 'failed'];
-let fetchRequestSeq = 0;
 
-async function fetchData() {
-  const requestSeq = ++fetchRequestSeq;
-  loading.value = true;
-  loadError.value = '';
-  try {
-    const data = await getOpenPlatformTokenProbeEvidenceList({
-      appID: normalizeOptionalID(query.appID),
-      clientID: query.clientID.trim() || undefined,
-      page: query.page,
-      pageSize: query.pageSize,
-      result: query.result || undefined,
-      reviewerUserID: normalizeOptionalID(query.reviewerUserID),
-    });
-    if (requestSeq !== fetchRequestSeq) return;
-    records.value = data.items;
-    total.value = data.total;
-  } catch (error) {
-    if (requestSeq !== fetchRequestSeq) return;
-    loadError.value = adminErrorMessage(error);
-  } finally {
-    if (requestSeq === fetchRequestSeq) {
-      loading.value = false;
-    }
-  }
-}
-
-function handleQuery() {
-  query.page = 1;
-  void fetchData();
-}
-
-function normalizeOptionalID(value?: number) {
+function normalizeOptionalID(value?: null | number) {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
     return undefined;
   }
@@ -119,14 +106,6 @@ function hasMetadata(metadata: Record<string, unknown>) {
 function formatMetadata(metadata: Record<string, unknown>) {
   return JSON.stringify(metadata, null, 2);
 }
-
-function adminErrorMessage(error: unknown): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : $t('admin.result.requestFailed');
-}
-
-onMounted(fetchData);
 </script>
 
 <template>
@@ -171,7 +150,7 @@ onMounted(fetchData);
         clearable
         :placeholder="$t('admin.openPlatform.tokenProbe.clientIdPlaceholder')"
       />
-      <ElButton type="primary" @click="handleQuery">
+      <ElButton type="primary" @click="resetPageAndFetch">
         {{ $t('admin.common.query') }}
       </ElButton>
     </template>

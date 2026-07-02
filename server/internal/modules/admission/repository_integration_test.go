@@ -39,7 +39,7 @@ func TestAdmissionMigration(t *testing.T) {
 
 func TestListAdmissionSessionsFiltersByRuntimeSubject(t *testing.T) {
 	fixture := postgresfixture.Start(t)
-	repo := NewRepository(fixture.DB)
+	repo := NewRepository(fixture.DB, newTestAuthURLCipher(t))
 	ctx := context.Background()
 
 	insertAdmissionSessionForFilter(t, fixture, admissionSessionFilterSeed{
@@ -93,7 +93,7 @@ func TestListAdmissionSessionsFiltersByRuntimeSubject(t *testing.T) {
 
 func TestCreateAdmissionPolicyFromSourceForNewTargetGuild(t *testing.T) {
 	fixture := postgresfixture.Start(t)
-	repo := NewRepository(fixture.DB)
+	repo := NewRepository(fixture.DB, newTestAuthURLCipher(t))
 	ctx := context.Background()
 
 	insertAdmissionPolicy(t, fixture)

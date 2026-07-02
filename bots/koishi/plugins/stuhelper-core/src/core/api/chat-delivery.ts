@@ -2,8 +2,14 @@ import type { Binding } from 'koishi'
 
 import type { Role } from '../../types'
 
+import {
+  type ConsoleGuildScope,
+  type ConsoleGuildScopeDeps,
+  hasConsoleGuildAccess,
+  resolveConsoleGuildScope,
+} from './console-guild-scope'
+
 const CHAT_EVENT_TYPE = 'stuhelperGroupCenter/chat/message'
-const DEFAULT_MIN_AUTHORITY = 4
 
 export interface ConsoleChatPayload {
   guildId?: string
@@ -19,11 +25,6 @@ export interface ConsoleChatClient {
   send(payload: { type: string; body: ConsoleChatPayload }): void
 }
 
-interface ChatGuildScope {
-  kind: 'all' | 'guilds'
-  guildIds?: Set<string>
-}
-
 interface ChatDeliveryDeps {
   clients: readonly ConsoleChatClient[]
   payload: ConsoleChatPayload
@@ -35,12 +36,18 @@ interface ChatDeliveryDeps {
 
 export async function deliverChatMessageToClients(deps: ChatDeliveryDeps) {
   const deliveredClientIds: string[] = []
-  const rolesById = new Map(deps.roles.map((role) => [role.id, role]))
-  const scopeCache = new Map<number, Promise<ChatGuildScope | null>>()
+  const scopeDeps: ConsoleGuildScopeDeps = {
+    roles: deps.roles,
+    getUserRoleIds: deps.getUserRoleIds,
+    listBindingsByAuthId: deps.listBindingsByAuthId,
+    minAuthority: deps.minAuthority,
+  }
+  // 同一次广播里多个 console 连接可能属于同一账号，按 authId 复用范围解析结果。
+  const scopeCache = new Map<number, Promise<ConsoleGuildScope | null>>()
 
   for (const client of deps.clients) {
-    const scope = await resolveClientScope({ client, deps, rolesById, scopeCache })
-    if (!scope || !shouldDeliverPayload(scope, deps.payload.guildId)) {
+    const scope = await resolveCachedScope(client, scopeDeps, scopeCache)
+    if (!scope || !hasConsoleGuildAccess(scope, deps.payload.guildId)) {
       continue
     }
 
@@ -54,78 +61,19 @@ export async function deliverChatMessageToClients(deps: ChatDeliveryDeps) {
   return deliveredClientIds
 }
 
-async function resolveClientScope(input: {
-  readonly client: ConsoleChatClient
-  readonly deps: ChatDeliveryDeps
-  readonly rolesById: ReadonlyMap<string, Pick<Role, 'id' | 'guildIds'>>
-  readonly scopeCache: Map<number, Promise<ChatGuildScope | null>>
-}) {
-  const { client, deps, rolesById, scopeCache } = input
-  if (!client.auth || client.auth.authority < (deps.minAuthority ?? DEFAULT_MIN_AUTHORITY)) {
-    return null
+function resolveCachedScope(
+  client: ConsoleChatClient,
+  deps: ConsoleGuildScopeDeps,
+  cache: Map<number, Promise<ConsoleGuildScope | null>>,
+): Promise<ConsoleGuildScope | null> {
+  if (!client.auth) {
+    return Promise.resolve(null)
   }
-
-  const authId = client.auth.id
-  const cached = scopeCache.get(authId)
+  const cached = cache.get(client.auth.id)
   if (cached) {
     return cached
   }
-
-  const pending = buildClientScope(authId, deps, rolesById)
-  scopeCache.set(authId, pending)
+  const pending = resolveConsoleGuildScope(client, deps)
+  cache.set(client.auth.id, pending)
   return pending
-}
-
-async function buildClientScope(
-  authId: number,
-  deps: ChatDeliveryDeps,
-  rolesById: ReadonlyMap<string, Pick<Role, 'id' | 'guildIds'>>,
-) {
-  const bindings = await deps.listBindingsByAuthId(authId)
-  const roleIds = new Set<string>()
-
-  roleIdsFromUser(deps, String(authId)).forEach((roleId) => roleIds.add(roleId))
-  for (const binding of bindings) {
-    roleIdsFromUser(deps, `${binding.platform}:${binding.pid}`).forEach((roleId) => roleIds.add(roleId))
-    roleIdsFromUser(deps, binding.pid).forEach((roleId) => roleIds.add(roleId))
-  }
-
-  if (roleIds.size === 0) {
-    return { kind: 'all' } as const
-  }
-
-  const scopedGuildIds = new Set<string>()
-  for (const roleId of roleIds) {
-    const role = rolesById.get(roleId)
-    if (!role) {
-      throw new Error(`console role assignment references missing role: ${roleId}`)
-    }
-    if (!role.guildIds || role.guildIds.length === 0) {
-      return { kind: 'all' } as const
-    }
-    role.guildIds.forEach((guildId) => scopedGuildIds.add(guildId))
-  }
-
-  if (scopedGuildIds.size === 0) {
-    return { kind: 'all' } as const
-  }
-
-  return {
-    kind: 'guilds',
-    guildIds: scopedGuildIds,
-  } as const
-}
-
-function roleIdsFromUser(deps: ChatDeliveryDeps, userId: string) {
-  return deps.getUserRoleIds(userId)
-}
-
-function shouldDeliverPayload(scope: ChatGuildScope, guildId: string | undefined) {
-  if (scope.kind === 'all') {
-    return true
-  }
-  if (!guildId) {
-    return false
-  }
-  return scope.guildIds?.has(guildId) ?? false
 }

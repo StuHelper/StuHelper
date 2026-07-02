@@ -16,6 +16,8 @@ export const DEFAULT_BINDING_MESSAGES: StuhelperBindingMessageConfig = Object.fr
   unauthorized: '机器人服务鉴权失败，请联系管理员检查后端配置。',
   conflict: '该 QQ 号或 StuHelper 账号已经绑定过其他对象。',
   notConfigured: '后端机器人接口尚未配置完成，请联系管理员。',
+  rateLimited: '绑定操作过于频繁，请 {seconds} 秒后再试。',
+  tooManyFailures: '绑定码连续错误次数过多，已暂时锁定，请 {minutes} 分钟后再试。',
 })
 
 export const DEFAULT_ADMIN_MESSAGES: StuhelperAdminMessageConfig = Object.freeze({
@@ -32,6 +34,7 @@ export const DEFAULT_ADMIN_MESSAGES: StuhelperAdminMessageConfig = Object.freeze
   commandAccessDenied: '命令权限不足。',
   adminCommandsDisabled: '管理员命令已由 StuHelper WebUI 关闭。',
   guardWarningMissingContext: '请在群聊中执行，或显式传入群号和成员 ID。',
+  guardReviewListMissingContext: '请在群聊中执行，或显式传入群号查看对应群的待复核队列。',
   guardBatchMuteGroupOnly: '请在目标群聊中执行批量禁言。',
   guardBatchMuteInvalidPayload: '请提供禁言秒数和成员 ID 列表，例如：群审批量禁言 120 10001,10002',
   guardBatchMuteNoTargets: '没有找到可操作的待认证成员。',
@@ -222,7 +225,9 @@ export const DEFAULT_GROUP_GUARD_MESSAGES: StuhelperGroupGuardMessageConfig = Ob
   admissionConsoleStaleRecord: '入群认证记录已被其他任务处理，请刷新页面后确认当前状态。',
   admissionConsoleResendSuccess: '已重发 QQ {qqID} 的入群认证链接。',
   admissionConsoleVerifiedReleaseSuccess: 'QQ {qqID} 已完成学生认证，已解除禁言。',
+  admissionConsoleVerifiedReleaseUnmuteFailed: 'QQ {qqID} 已完成学生认证并同步释放记录，但自动解除禁言失败，请手动解除禁言。错误：{error}',
   admissionConsoleRegenerateSuccess: '已重新生成 QQ {qqID} 的入群认证链接并重置禁言。',
+  admissionConsoleRegenerateMuteFailed: '已重新生成 QQ {qqID} 的入群认证链接，但重置禁言失败，请手动处理禁言并重发认证链接。错误：{error}',
   admissionConsoleSkipSuccess: '已跳过 QQ {qqID} 在本群的入群认证并解除禁言。',
   admissionConsoleSkipUnmuteFailed: '已跳过 QQ {qqID} 在本群的入群认证，但自动解除禁言失败，请手动解除禁言。错误：{error}',
   admissionConsoleResetFailureCountSuccess: '已清空 QQ {qqID} 在本群的入群未认证次数（原次数：{previousFailureCount}）。',

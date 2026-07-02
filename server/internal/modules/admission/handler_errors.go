@@ -13,6 +13,7 @@ import (
 const (
 	ErrCodeAdmissionMemberBlacklisted errs.ErrorCode = "admission.member_blacklisted"
 	ErrCodeAdmissionQQMismatch        errs.ErrorCode = "admission.qq_mismatch"
+	ErrCodeAdmissionSchoolMismatch    errs.ErrorCode = "admission.school_mismatch"
 	ErrCodeAdmissionTokenConsumed     errs.ErrorCode = "admission.token_consumed"
 	ErrCodeAdmissionTokenExpired      errs.ErrorCode = "admission.token_expired"
 	ErrCodeAdmissionTokenNotFound     errs.ErrorCode = "admission.token_not_found"
@@ -60,6 +61,8 @@ func respondAdmissionSessionError(c *gin.Context, err error) bool {
 		response.NotFound(c, "admission school not found")
 	case errors.Is(err, ErrAdmissionSchoolDisabled):
 		response.BadRequest(c, "admission school disabled")
+	case errors.Is(err, ErrAdmissionSchoolMismatch):
+		response.BadRequest(c, "admission school does not match linked session policy", ErrCodeAdmissionSchoolMismatch)
 	case errors.Is(err, ErrAdmissionLinkedSessionRequired):
 		response.Conflict(c, "admission linked session required")
 	case errors.Is(err, ErrAdmissionPolicyNotFound):

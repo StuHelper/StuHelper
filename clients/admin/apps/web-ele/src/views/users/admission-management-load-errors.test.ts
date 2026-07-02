@@ -15,18 +15,15 @@ describe('admission management views error contract', () => {
       const source = await readFile(resolve(process.cwd(), viewPath), 'utf8');
 
       expect(source).toContain('ElAlert');
-      expect(source).toContain("const loadError = ref('')");
-      expect(source).toContain('let fetchRequestSeq = 0;');
-      expect(source).toContain('const requestSeq = ++fetchRequestSeq;');
-      expect(source).toContain("loadError.value = ''");
-      expect(source).toContain('if (requestSeq !== fetchRequestSeq) return;');
-      expect(source).toContain('loadError.value = adminErrorMessage(error)');
-      expect(source).toContain('if (requestSeq === fetchRequestSeq) {');
       expect(source).toContain('v-if="loadError"');
       expect(source).toContain(':title="loadError"');
       expect(source).toContain('@click="fetchData"');
       expect(source).toContain("$t('admin.common.retry')");
-      expect(source).toContain('function adminErrorMessage(error: unknown)');
+
+      // 加载/错误状态机收口在共享 composable（由 use-admin-list.test.ts 锁定），
+      // 视图不得回退到旧的内联复制粘贴实现。
+      expect(source).not.toContain('let fetchRequestSeq');
+      expect(source).not.toContain('function adminErrorMessage');
     }
   });
 
@@ -34,13 +31,13 @@ describe('admission management views error contract', () => {
     for (const viewPath of viewPaths) {
       const source = await readFile(resolve(process.cwd(), viewPath), 'utf8');
 
-      expect(source).toContain("const actionError = ref('')");
-      expect(source).toContain("actionError.value = ''");
-      expect(source).toContain('actionError.value = adminErrorMessage(error)');
-      expect(source).toContain('ElMessage.error(actionError.value)');
+      // 失败提示的唯一 toast 层在 useAdminAction（由 use-admin-action.test.ts
+      // 锁定），视图保留可驻留的内联 Alert 以便 toast 消失后仍可见。
+      expect(source).toContain('useAdminAction');
       expect(source).toContain('v-if="actionError"');
       expect(source).toContain(':title="actionError"');
-      expect(source).toContain('@close="actionError = \'\'"');
+      expect(source).toContain('@close="clearActionError"');
+      expect(source).not.toContain('ElMessage.error(actionError.value)');
     }
   });
 });

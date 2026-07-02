@@ -1,42 +1,10 @@
-import type { RuntimeModuleInstance } from '../../runtime/types'
-import type { CommandLogRecord, LogModule } from '../modules/log.module'
-import { normalizeCommandLogRecords } from '../modules/command-log-records'
+import { type CommandLogRecord, normalizeCommandLogRecords } from '../data/command-log-records'
 import type { WebSocketAPIContext } from './api-context'
 
-export interface LogModuleReader {
-  getAllLogs(): Promise<CommandLogRecord[]>
-}
-
-type ServiceWithOptionalGetModule = Omit<WebSocketAPIContext['service'], 'getModule'> & {
-  getModule?: WebSocketAPIContext['service']['getModule']
-}
-
-export function findLogModule(api: WebSocketAPIContext): LogModuleReader | undefined {
-  const service = api.service as ServiceWithOptionalGetModule
-  const directModule = typeof service.getModule === 'function'
-    ? safeGetLogModule(service)
-    : undefined
-
-  return directModule ?? service.getAllModules().find(isLogModuleReader)
-}
-
+/**
+ * 命令日志唯一来源是 DataManager 的 commandLogs 存储。
+ * （旧运行时模块体系已删除，原 findLogModule 的模块表查找路径随之移除。）
+ */
 export async function readCommandLogs(api: WebSocketAPIContext): Promise<CommandLogRecord[]> {
-  const logModule = findLogModule(api)
-  if (logModule) {
-    return logModule.getAllLogs()
-  }
-
   return normalizeCommandLogRecords(api.service.data.commandLogs.getAll()).reverse()
-}
-
-function isLogModuleReader(module: RuntimeModuleInstance): module is RuntimeModuleInstance & LogModuleReader {
-  return module.meta.name === 'log' && typeof (module as { getAllLogs?: unknown }).getAllLogs === 'function'
-}
-
-function safeGetLogModule(service: ServiceWithOptionalGetModule): LogModule | undefined {
-  try {
-    return service.getModule?.<LogModule>('log')
-  } catch {
-    return undefined
-  }
 }

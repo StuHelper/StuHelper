@@ -3,6 +3,8 @@ import type {
   MemberBlacklistEntry,
 } from '#/api/admin';
 
+import { $t } from '#/locales';
+
 import { formatAdminDateTime } from '../../shared/display';
 
 export type ScopeType = 'global' | 'guild';
@@ -16,53 +18,106 @@ export type ReleaseReasonCode =
   | 'release_only';
 export type DisplayStatus = 'active' | 'expired' | 'released';
 
-export const SOURCE_LABELS: Record<string, string> = {
-  admission_failure: '认证失败',
-  kick_blacklist: '踢出拉黑',
-  manual_admin: '管理员手动',
-  migration_admission_failure: '迁移·认证失败',
-  migration_legacy_koishi: '迁移·Koishi 旧库',
-  moderation_action: '审核处置',
+const SOURCE_LABEL_KEYS: Record<string, string> = {
+  admission_failure: 'admin.users.memberBlacklist.source.admissionFailure',
+  kick_blacklist: 'admin.users.memberBlacklist.source.kickBlacklist',
+  manual_admin: 'admin.users.memberBlacklist.source.manualAdmin',
+  migration_admission_failure:
+    'admin.users.memberBlacklist.source.migrationAdmissionFailure',
+  migration_legacy_koishi:
+    'admin.users.memberBlacklist.source.migrationLegacyKoishi',
+  moderation_action: 'admin.users.memberBlacklist.source.moderationAction',
 };
 
-export const CREATED_FROM_LABELS: Record<string, string> = {
-  admin_console: 'Admin 后台',
-  admission_worker: 'Admission Worker',
-  koishi_console: 'Koishi 控制台',
-  migration_script: '迁移脚本',
-  moderation_review: '审核流程',
-  qq_command: 'QQ 命令',
+const CREATED_FROM_LABEL_KEYS: Record<string, string> = {
+  admin_console: 'admin.users.memberBlacklist.createdFrom.adminConsole',
+  admission_worker: 'admin.users.memberBlacklist.createdFrom.admissionWorker',
+  koishi_console: 'admin.users.memberBlacklist.createdFrom.koishiConsole',
+  migration_script: 'admin.users.memberBlacklist.createdFrom.migrationScript',
+  moderation_review: 'admin.users.memberBlacklist.createdFrom.moderationReview',
+  qq_command: 'admin.users.memberBlacklist.createdFrom.qqCommand',
 };
 
-export const RELEASE_REASON_OPTIONS: Array<{
+/** 惰性求值：语言包异步加载，模块级常量会把 key 固化成首屏语言。 */
+export function releaseReasonOptions(): Array<{
   label: string;
   value: ReleaseReasonCode;
-}> = [
-  { label: '宽恕（重置 admission 失败计数）', value: 'manual_pardon' },
-  { label: '仅解除（保留失败计数）', value: 'release_only' },
-  { label: '申诉通过', value: 'admission_appeal_passed' },
-];
+}> {
+  return [
+    {
+      label: $t('admin.users.memberBlacklist.releaseReason.manualPardon'),
+      value: 'manual_pardon',
+    },
+    {
+      label: $t('admin.users.memberBlacklist.releaseReason.releaseOnly'),
+      value: 'release_only',
+    },
+    {
+      label: $t('admin.users.memberBlacklist.releaseReason.appealPassed'),
+      value: 'admission_appeal_passed',
+    },
+  ];
+}
 
-export const STATUS_OPTIONS: Array<{ label: string; value: StatusFilter }> = [
-  { label: '生效中', value: 'active' },
-  { label: '已解除', value: 'released' },
-  { label: '已过期', value: 'expired' },
-  { label: '全部', value: 'all' },
-];
+export function statusOptions(): Array<{
+  label: string;
+  value: StatusFilter;
+}> {
+  return [
+    { label: $t('admin.users.memberBlacklist.status.active'), value: 'active' },
+    {
+      label: $t('admin.users.memberBlacklist.status.released'),
+      value: 'released',
+    },
+    {
+      label: $t('admin.users.memberBlacklist.status.expired'),
+      value: 'expired',
+    },
+    { label: $t('admin.users.memberBlacklist.status.all'), value: 'all' },
+  ];
+}
 
-export const SCOPE_OPTIONS: Array<{ label: string; value: '' | ScopeType }> = [
-  { label: '全部范围', value: '' },
-  { label: '单群', value: 'guild' },
-  { label: '全局', value: 'global' },
-];
+export function scopeOptions(): Array<{
+  label: string;
+  value: '' | ScopeType;
+}> {
+  return [
+    { label: $t('admin.users.memberBlacklist.scopeFilter.all'), value: '' },
+    {
+      label: $t('admin.users.memberBlacklist.scopeFilter.guild'),
+      value: 'guild',
+    },
+    {
+      label: $t('admin.users.memberBlacklist.scopeFilter.global'),
+      value: 'global',
+    },
+  ];
+}
 
-export const SOURCE_OPTIONS: Array<{ label: string; value: SourceFilter }> = [
-  { label: '全部来源', value: '' },
-  { label: '管理员手动', value: 'manual_admin' },
-  { label: 'QQ 踢出', value: 'kick_blacklist' },
-  { label: '审核处置', value: 'moderation_action' },
-  { label: '认证失败', value: 'admission_failure' },
-];
+export function sourceOptions(): Array<{
+  label: string;
+  value: SourceFilter;
+}> {
+  return [
+    { label: $t('admin.users.memberBlacklist.sourceFilter.all'), value: '' },
+    {
+      label: $t('admin.users.memberBlacklist.sourceFilter.manualAdmin'),
+      value: 'manual_admin',
+    },
+    {
+      label: $t('admin.users.memberBlacklist.sourceFilter.kickBlacklist'),
+      value: 'kick_blacklist',
+    },
+    {
+      label: $t('admin.users.memberBlacklist.sourceFilter.moderationAction'),
+      value: 'moderation_action',
+    },
+    {
+      label: $t('admin.users.memberBlacklist.sourceFilter.admissionFailure'),
+      value: 'admission_failure',
+    },
+  ];
+}
 
 export function entryStatus(entry: MemberBlacklistEntry): DisplayStatus {
   if (entry.releasedAt) return 'released';
@@ -81,21 +136,25 @@ export function statusType(
 }
 
 export function statusLabel(status: DisplayStatus): string {
-  if (status === 'active') return '生效中';
-  if (status === 'expired') return '已过期';
-  return '已解除';
+  return $t(`admin.users.memberBlacklist.status.${status}`);
 }
 
 export function scopeLabel(entry: MemberBlacklistEntry): string {
-  return entry.scopeType === 'global' ? '全局' : `群 ${entry.guildID ?? '—'}`;
+  return entry.scopeType === 'global'
+    ? $t('admin.users.memberBlacklist.scopeGlobal')
+    : $t('admin.users.memberBlacklist.scopeGuildEntry', {
+        guild: entry.guildID ?? '—',
+      });
 }
 
 export function sourceLabel(entry: MemberBlacklistEntry): string {
-  return SOURCE_LABELS[entry.source] ?? entry.source;
+  const key = SOURCE_LABEL_KEYS[entry.source];
+  return key ? $t(key) : entry.source;
 }
 
 export function createdFromLabel(entry: MemberBlacklistEntry): string {
-  return CREATED_FROM_LABELS[entry.createdFrom] ?? entry.createdFrom;
+  const key = CREATED_FROM_LABEL_KEYS[entry.createdFrom];
+  return key ? $t(key) : entry.createdFrom;
 }
 
 export function createdByLabel(entry: MemberBlacklistEntry): string {

@@ -492,7 +492,7 @@ function admissionSession(id: string) {
 function freshmanApplication(id: string) {
   return {
     id,
-    userID: 42,
+    userID: '42',
     schoolID: 4111010006,
     status: 'pending',
     applicantNameMasked: 'A***',
@@ -520,3 +520,33 @@ function memberBlacklistEntry(id: string) {
     updatedAt: '2026-05-03T12:00:00Z',
   }
 }
+
+test('readWithInactivityTimeout 超时取消 reader 并抛错', async () => {
+  const { readWithInactivityTimeout } = await import('./index')
+  let cancelled: unknown = null
+  const reader = {
+    read: () => new Promise<never>(() => {}),
+    cancel: async (reason?: unknown) => {
+      cancelled = reason
+    },
+  }
+
+  await assert.rejects(
+    readWithInactivityTimeout(reader, 20),
+    /inactive for 20ms/,
+  )
+  assert.ok(cancelled instanceof Error)
+})
+
+test('readWithInactivityTimeout 正常读取直接返回并清理定时器', async () => {
+  const { readWithInactivityTimeout } = await import('./index')
+  const reader = {
+    read: async () => ({ done: false, value: new Uint8Array([1]) }),
+    cancel: async () => {
+      assert.fail('正常读取不应取消 reader')
+    },
+  }
+
+  const result = await readWithInactivityTimeout(reader, 1000)
+  assert.equal(result.done, false)
+})

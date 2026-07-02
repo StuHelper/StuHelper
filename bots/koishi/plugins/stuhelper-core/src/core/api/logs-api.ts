@@ -3,8 +3,8 @@ import { error, success } from './api-response'
 import { assertConsoleGuildAccess } from './console-guild-scope'
 import { readCommandLogs } from './log-module-lookup'
 import { filterLogs } from './scope-filters'
-import type { CommandLogRecord } from '../modules/log.module'
-import { redactCommandLogRecord } from '../modules/log-redaction'
+import type { CommandLogRecord } from '../data/command-log-records'
+import { redactCommandLogRecord } from '../data/log-redaction'
 
 const DEFAULT_LOG_PAGE = 1
 const DEFAULT_LOG_PAGE_SIZE = 20

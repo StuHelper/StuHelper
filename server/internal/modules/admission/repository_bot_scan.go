@@ -30,10 +30,10 @@ type freshmanForwardRecord struct {
 	QQID               string
 }
 
-func scanAdmissionSessions(rows pgx.Rows) ([]AdmissionSession, error) {
+func (r *Repository) scanAdmissionSessions(rows pgx.Rows) ([]AdmissionSession, error) {
 	items := make([]AdmissionSession, 0)
 	for rows.Next() {
-		session, err := scanAdmissionSession(rows)
+		session, err := r.scanAdmissionSession(rows)
 		if err != nil {
 			return nil, fmt.Errorf("scan admission session: %w", err)
 		}

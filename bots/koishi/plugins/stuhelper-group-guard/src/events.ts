@@ -18,12 +18,20 @@ interface EventDeps {
 }
 
 export function registerGroupGuardEvents(ctx: Context, deps: EventDeps) {
-  ctx.on('guild-member-added', (session) => {
-    return deps.memberGuard.handleGuildMemberAdded(session)
+  ctx.on('guild-member-added', async (session) => {
+    try {
+      await deps.memberGuard.handleGuildMemberAdded(session)
+    } catch (error) {
+      logMemberEventFailure(deps, 'guild-member-added handling failed', session, error)
+    }
   })
 
-  ctx.on('guild-member-request', (session) => {
-    return deps.memberGuard.handleGuildMemberRequest(session)
+  ctx.on('guild-member-request', async (session) => {
+    try {
+      await deps.memberGuard.handleGuildMemberRequest(session)
+    } catch (error) {
+      logMemberEventFailure(deps, 'guild-member-request handling failed', session, error)
+    }
   })
 
   ctx.on('message', async (session) => {
@@ -60,4 +68,17 @@ export function registerGroupGuardEvents(ctx: Context, deps: EventDeps) {
       })
       .catch((error) => deps.logger.error('group guard scheduled scan readiness failed', error))
   }, deps.scanIntervalSeconds * 1000)
+}
+
+function logMemberEventFailure(
+  deps: EventDeps,
+  message: string,
+  session: { platform?: string, guildId?: string, userId?: string },
+  error: unknown,
+) {
+  deps.logger.error(message, {
+    platform: session.platform,
+    guildId: session.guildId,
+    memberId: session.userId,
+  }, error)
 }

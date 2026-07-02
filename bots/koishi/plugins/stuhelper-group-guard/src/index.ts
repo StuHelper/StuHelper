@@ -43,6 +43,8 @@ import { createGroupGuardAISettingsProvider } from './group-guard-ai-provider'
 import { createGroupGuardMessageProvider } from './group-guard-message-provider'
 
 export const name = 'stuhelper-group-guard'
+
+const RETENTION_PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000
 export const inject = {
   required: ['database'],
   optional: ['console'],
@@ -155,17 +157,23 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
     guardStore,
     policyStore,
     moderationStore,
+    logger,
     admissionSubjectCoordinator,
     onRuntimeSettingsChanged: () => actionStreams.refresh(),
   })
 
   ctx.on('ready', async () => {
     await syncBackendAdmissionPolicyTargets()
+    await pruneModerationRetention()
   })
 
   ctx.setInterval(() => {
     void syncBackendAdmissionPolicyTargets()
   }, Math.max(60, config.scheduler.scanIntervalSeconds) * 1000)
+
+  ctx.setInterval(() => {
+    void pruneModerationRetention()
+  }, RETENTION_PRUNE_INTERVAL_MS)
 
   logger.info(`群管插件已加载，目标群由后端 admission policy 同步为 Koishi 执行态缓存，action stream 和兜底扫描开关由 WebUI 控制，兜底扫描间隔：${config.scheduler.scanIntervalSeconds} 秒`)
   ctx.on('ready', () => {
@@ -186,6 +194,20 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
       syncGroupGuardCommandDescriptions(ctx, await messageSettings.getMessages())
     } catch (error) {
       logger.warn('failed to sync group guard command descriptions from runtime settings', error)
+    }
+  }
+
+  async function pruneModerationRetention() {
+    try {
+      const result = await moderationStore.pruneExpired({
+        messageRetentionDays: config.retention.messageRetentionDays,
+        eventRetentionDays: config.retention.eventRetentionDays,
+      })
+      if (result.removedMessages > 0 || result.removedEvents > 0) {
+        logger.info(`moderation retention pruned: messages=${result.removedMessages} events=${result.removedEvents}`)
+      }
+    } catch (error) {
+      logger.warn('failed to prune moderation retention', error)
     }
   }
 }

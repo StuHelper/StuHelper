@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import type { OpenPlatformDisclosureReport } from '#/api/admin';
 
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, reactive } from 'vue';
 
 import { ElAlert, ElButton, ElInputNumber, ElTag } from 'element-plus';
 
 import { getOpenPlatformDisclosureReport } from '#/api/admin';
+import { useAdminLoad } from '#/composables/use-admin-list';
 import { $t } from '#/locales';
 
 import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
@@ -28,12 +29,18 @@ const emptySummary: ReportSummary = {
   windowHours: 24,
 };
 
-const loading = ref(false);
-const loadError = ref('');
-const report = ref<OpenPlatformDisclosureReport>();
 const query = reactive({
   windowHours: 24,
 });
+
+const {
+  data: report,
+  load: fetchReport,
+  loadError,
+  loading,
+} = useAdminLoad(() =>
+  getOpenPlatformDisclosureReport({ windowHours: query.windowHours }),
+);
 
 const summary = computed(() => report.value?.summary ?? emptySummary);
 const endpoints = computed(() => report.value?.endpoints ?? []);
@@ -42,7 +49,6 @@ const rateLimitDimensions = computed(
   () => report.value?.rateLimitDimensions ?? [],
 );
 const replayEvents = computed(() => report.value?.recentReplayEvents ?? []);
-let fetchRequestSeq = 0;
 
 const summaryItems = computed(() => [
   {
@@ -71,30 +77,6 @@ const summaryItems = computed(() => [
     value: summary.value.replayDetected,
   },
 ]);
-
-async function fetchReport() {
-  const requestSeq = ++fetchRequestSeq;
-  loading.value = true;
-  loadError.value = '';
-  try {
-    const data = await getOpenPlatformDisclosureReport({
-      windowHours: query.windowHours,
-    });
-    if (requestSeq !== fetchRequestSeq) return;
-    report.value = data;
-  } catch (error) {
-    if (requestSeq !== fetchRequestSeq) return;
-    loadError.value = adminErrorMessage(error);
-  } finally {
-    if (requestSeq === fetchRequestSeq) {
-      loading.value = false;
-    }
-  }
-}
-
-function handleQuery() {
-  void fetchReport();
-}
 
 function formatCount(value?: number) {
   return new Intl.NumberFormat().format(value ?? 0);
@@ -131,14 +113,6 @@ function formatScopes(scopes: string[]) {
 function formatMetadata(metadata: Record<string, unknown>) {
   return JSON.stringify(metadata, null, 2);
 }
-
-function adminErrorMessage(error: unknown): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : $t('admin.result.requestFailed');
-}
-
-onMounted(fetchReport);
 </script>
 
 <template>
@@ -155,7 +129,7 @@ onMounted(fetchReport);
         :min="1"
         :placeholder="$t('admin.openPlatform.disclosure.windowHours')"
       />
-      <ElButton type="primary" @click="handleQuery">
+      <ElButton type="primary" @click="fetchReport">
         {{ $t('admin.common.query') }}
       </ElButton>
     </template>

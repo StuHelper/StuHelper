@@ -3,40 +3,10 @@ import test from 'node:test'
 
 import {
   detectRepeatTrigger,
-  evaluateThresholdExpression,
   matchKeywordRules,
   normalizeModerationContent,
   type KeywordRuleRecord,
 } from './rule-engine.ts'
-
-test('阈值表达式支持比较与逻辑运算', () => {
-  assert.equal(
-    evaluateThresholdExpression('warnings >= 3 && repeats >= 2', {
-      warnings: 3,
-      repeats: 2,
-      reports: 0,
-    }),
-    true,
-  )
-
-  assert.equal(
-    evaluateThresholdExpression('warnings >= 4 || reports >= 1', {
-      warnings: 3,
-      repeats: 0,
-      reports: 1,
-    }),
-    true,
-  )
-
-  assert.equal(
-    evaluateThresholdExpression('warnings >= 4 && reports >= 1', {
-      warnings: 3,
-      repeats: 0,
-      reports: 1,
-    }),
-    false,
-  )
-})
 
 test('复读检测在达到阈值时命中', () => {
   const result = detectRepeatTrigger([
@@ -87,7 +57,53 @@ test('关键词规则会生成动作列表', () => {
   assert.equal(hits[1].muteSeconds, 600)
 })
 
-test('正则关键词规则拒绝容易触发回溯爆炸的表达式', () => {
+test('非法正则关键词规则被逐条跳过并上报失败，不中断匹配', () => {
+  const rules: KeywordRuleRecord[] = [
+    {
+      id: 'unsafe-regex',
+      guildId: 'group-1',
+      pattern: '(a+)+$',
+      matchMode: 'regex',
+      action: 'mute',
+      enabled: true,
+      muteSeconds: 600,
+      note: 'unsafe',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+    {
+      id: 'safe-includes',
+      guildId: 'group-1',
+      pattern: 'aaaa',
+      matchMode: 'includes',
+      action: 'delete',
+      enabled: true,
+      muteSeconds: 0,
+      note: 'safe',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  ]
+  const failures: Array<{ ruleId: string; message: string }> = []
+
+  const hits = matchKeywordRules(rules, {
+    guildId: 'group-1',
+    content: 'aaaaaaaaaaaaaaaa!',
+    normalizedContent: normalizeModerationContent('aaaaaaaaaaaaaaaa!'),
+  }, ({ rule, error }) => {
+    failures.push({
+      ruleId: rule.id,
+      message: error instanceof Error ? error.message : String(error),
+    })
+  })
+
+  assert.deepEqual(hits.map((item) => item.ruleId), ['safe-includes'])
+  assert.equal(failures.length, 1)
+  assert.equal(failures[0].ruleId, 'unsafe-regex')
+  assert.match(failures[0].message, /unsafe keyword regex/)
+})
+
+test('非法正则关键词规则在未提供失败回调时也不抛错', () => {
   const rules: KeywordRuleRecord[] = [
     {
       id: 'unsafe-regex',
@@ -103,9 +119,11 @@ test('正则关键词规则拒绝容易触发回溯爆炸的表达式', () => {
     },
   ]
 
-  assert.throws(() => matchKeywordRules(rules, {
+  const hits = matchKeywordRules(rules, {
     guildId: 'group-1',
     content: 'aaaaaaaaaaaaaaaa!',
     normalizedContent: normalizeModerationContent('aaaaaaaaaaaaaaaa!'),
-  }), /unsafe keyword regex/)
+  })
+
+  assert.deepEqual(hits, [])
 })

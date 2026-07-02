@@ -24,7 +24,7 @@ func (r *Repository) GetLinkedSessionByUserID(
 	ctx = withDBTable(ctx, "group_admission_sessions")
 	admissionSessionID = strings.TrimSpace(admissionSessionID)
 	if admissionSessionID != "" {
-		session, err := scanAdmissionSession(r.db.QueryRow(ctx, `
+		session, err := r.scanAdmissionSession(r.db.QueryRow(ctx, `
 			SELECT `+admissionSessionColumns+`
 			FROM group_admission_sessions
 			WHERE user_id = $1 AND id = $2 AND status = $3
@@ -44,7 +44,7 @@ func (r *Repository) GetLinkedSessionByUserID(
 		  CASE WHEN submission_wait_deadline_at >= $3 THEN 0 ELSE 1 END,
 		  updated_at DESC
 		LIMIT 1`
-	session, err := scanAdmissionSession(r.db.QueryRow(ctx, query, userID, StatusLinked, now))
+	session, err := r.scanAdmissionSession(r.db.QueryRow(ctx, query, userID, StatusLinked, now))
 	if errors.Is(err, ErrAdmissionTokenNotFound) {
 		return nil, nil
 	}
@@ -60,7 +60,7 @@ func (r *Repository) GetLinkedSessionByUserIDTx(
 ) (*AdmissionSession, error) {
 	admissionSessionID = strings.TrimSpace(admissionSessionID)
 	if admissionSessionID != "" {
-		session, err := scanAdmissionSession(tx.QueryRow(ctx, `
+		session, err := r.scanAdmissionSession(tx.QueryRow(ctx, `
 			SELECT `+admissionSessionColumns+`
 			FROM group_admission_sessions
 			WHERE user_id = $1 AND id = $2 AND status = $3
@@ -82,7 +82,7 @@ func (r *Repository) GetLinkedSessionByUserIDTx(
 		  updated_at DESC
 		LIMIT 1
 		FOR UPDATE`
-	session, err := scanAdmissionSession(tx.QueryRow(ctx, query, userID, StatusLinked, now))
+	session, err := r.scanAdmissionSession(tx.QueryRow(ctx, query, userID, StatusLinked, now))
 	if errors.Is(err, ErrAdmissionTokenNotFound) {
 		return nil, nil
 	}

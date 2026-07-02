@@ -29,12 +29,6 @@ export interface ModerationRuntimeRef {
   botSelfId: string
 }
 
-export interface ThresholdMetrics {
-  warnings: number
-  repeats: number
-  reports: number
-}
-
 export interface KeywordRuleRecord {
   id: string
   guildId: string

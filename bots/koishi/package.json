@@ -40,7 +40,9 @@
     "test:p5a-config": "node scripts/config-anchor-verification.mjs",
     "test:ui": "node scripts/ui-smoke.mjs",
     "workspaces:list": "yarn workspaces list",
-    "test": "yarn build && yarn test:unit && yarn test:startup && yarn test:ui"
+    "test": "yarn build && yarn test:unit && yarn test:startup && yarn test:ui",
+    "api:generate": "openapi-typescript ../../server/api/openapi.bundled.yaml -o packages/shared/src/types/api.gen.ts",
+    "check:api-drift": "openapi-typescript ../../server/api/openapi.bundled.yaml -o packages/shared/src/types/.api-drift.tmp.ts && diff packages/shared/src/types/.api-drift.tmp.ts packages/shared/src/types/api.gen.ts && rm packages/shared/src/types/.api-drift.tmp.ts"
   },
   "devDependencies": {
     "@koishijs/client": "^5.30.4",
@@ -53,6 +55,7 @@
     "cross-env": "^7.0.3",
     "esbuild": "^0.23.1",
     "esbuild-register": "npm:@shigma/esbuild-register@^1.1.1",
+    "openapi-typescript": "^7.13.0",
     "tsx": "^4.16.2",
     "typescript": "^5.6.2",
     "yakumo": "^1.0.0-beta.21",

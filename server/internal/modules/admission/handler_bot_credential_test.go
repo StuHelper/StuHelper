@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/botcredential"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/serviceaccount"
 )
 
 type fakeAdmissionBotCredentialVerifier struct {
@@ -42,4 +43,25 @@ func TestAdmissionBotCredentialRejectsRepeatedAuthorizationHeaders(t *testing.T)
 
 	require.Equal(t, http.StatusUnauthorized, resp.Code, resp.Body.String())
 	assert.Empty(t, verifier.seenToken)
+}
+
+// F023 回归：typed-nil *serviceaccount.Verifier 装入 BotCredentialVerifier 接口后，
+// handler 的 nil 守卫不会命中；带 Bearer 头的请求必须 fail-closed 返回 503，而非 panic。
+func TestAdmissionBotCredentialTypedNilVerifierFailsClosed(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	var typedNil *serviceaccount.Verifier
+	h := &Handler{botCredentialVerifier: typedNil}
+	router := gin.New()
+	router.GET(
+		"/bot/admission/protected",
+		h.requireBotCredential(botcredential.ScopeBotAdmissionSession),
+		func(c *gin.Context) { c.Status(http.StatusOK) },
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/bot/admission/protected", nil)
+	req.Header.Set("Authorization", "Bearer service-token")
+	resp := httptest.NewRecorder()
+
+	require.NotPanics(t, func() { router.ServeHTTP(resp, req) })
+	assert.Equal(t, http.StatusServiceUnavailable, resp.Code, resp.Body.String())
 }

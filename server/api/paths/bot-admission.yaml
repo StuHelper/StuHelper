@@ -351,6 +351,7 @@
       该接口返回 `text/event-stream`。服务端会发送 `event: action`，`data` 为
       `BotAdmissionPendingAction` JSON；机器人执行后必须调用
       `/api/v1/bot/admission/actions/{id}/events` ACK。`event: keepalive` 用于保活。
+      领取动作失败时服务端发送 `event: error` 并关闭连接，机器人应据此重连。
     security:
       - serviceTokenAuth: []
     parameters:

@@ -8,7 +8,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 
 import { Config as PluginSettings } from '../../types'
-import { CONTEXT_REPORT_PROMPT, DEFAULT_REPORT_PROMPT } from '../modules/report-prompts'
+import { CONTEXT_REPORT_PROMPT, DEFAULT_REPORT_PROMPT } from './report-prompts'
 import { DEFAULT_TRANSLATE_PROMPT } from './default-prompts'
 import { deepMerge, getDiff } from './settings-merge'
 

@@ -12,11 +12,16 @@ import {
   AUTH_REFRESH_PATH,
   buildSecurityHeaders,
   createSessionApiClient,
+  CSRF_TOKEN_INVALID_CODE,
+  CSRF_TOKEN_MISSING_CODE,
   executeSessionRefresh,
+  MFA_ENROLLMENT_REQUIRED_CODE,
   normalizeRequestHeaders,
   normalizeSchemaPath,
   parseApiError,
   serializePath,
+  STEP_UP_REQUIRED_CODE,
+  STEP_UP_REQUIRED_STATUSES,
 } from '@stuhelper/shared/api';
 
 import { baseRequestClient } from '#/api/request';
@@ -29,12 +34,6 @@ type TransportError = {
     status?: number;
   };
 };
-
-const STEP_UP_REQUIRED_CODE = 'A0010205';
-const MFA_ENROLLMENT_REQUIRED_CODE = 'A0010204';
-const CSRF_INVALID_CODE = 'A0010202';
-const CSRF_MISSING_CODE = 'A0010203';
-const STEP_UP_REQUIRED_STATUSES = new Set([412, 428]);
 
 function logAdminAuthWarning(
   event: string,
@@ -184,7 +183,7 @@ async function handleRecoverableAdminAuthError(
 
 function isCSRFErrorPayload(payload: unknown): boolean {
   const code = parseApiError(payload).code;
-  return code === CSRF_INVALID_CODE || code === CSRF_MISSING_CODE;
+  return code === CSRF_TOKEN_INVALID_CODE || code === CSRF_TOKEN_MISSING_CODE;
 }
 
 async function doRequest<T>(

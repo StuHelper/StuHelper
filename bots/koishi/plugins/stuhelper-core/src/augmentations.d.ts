@@ -17,14 +17,14 @@ import type {
 import type {
   DashboardPageData,
   IdentityPageData,
+  OverviewPageData,
   ReviewPageData,
   ConfigGovernancePageData,
   EntityProfile,
   EntityProfileQuery,
   ReviewWorkItem,
-  ModuleStateSnapshot,
 } from './core/services/page-types'
-import type { CommandLogRecord } from './core/modules/log.module'
+import type { CommandLogRecord } from './core/data/command-log-records'
 import type {
   AdminRuntimeSettingsInput,
   AdminRuntimeSettingsRecord,
@@ -181,7 +181,6 @@ declare module '@koishijs/console' {
     'stuhelperGroupCenter/subscriptions/remove'(params: { index: number }): Promise<ApiResponse<{ success: boolean }>>
     'stuhelperGroupCenter/subscriptions/update'(params: { index: number; subscription: Subscription }): Promise<ApiResponse<{ success: boolean }>>
 
-    'stuhelperGroupCenter/stats/modules'(): Promise<ApiResponse<ModuleStateSnapshot[]>>
     'stuhelperGroupCenter/stats/dashboard'(): Promise<ApiResponse<DashboardStatsPayload>>
     'stuhelperGroupCenter/stats/charts'(params?: { days?: number }): Promise<ApiResponse<ChartStatsPayload>>
 
@@ -244,6 +243,7 @@ declare module '@koishijs/console' {
     }>>
 
     'stuhelperGroupCenter/page/dashboard'(): Promise<DashboardPageData>
+    'stuhelperGroupCenter/page/overview'(): Promise<OverviewPageData>
     'stuhelperGroupCenter/page/identity'(): Promise<IdentityPageData>
     'stuhelperGroupCenter/page/review'(): Promise<ReviewPageData>
     'stuhelperGroupCenter/page/config-governance'(): Promise<ConfigGovernancePageData>

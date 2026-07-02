@@ -43,7 +43,7 @@ test('新生审核命令会把操作者 QQ、群号、频道和原始命令发�
 
   try {
     await root.start()
-    await root.mock.initUser('20020', 3)
+    await root.mock.initUser('20020', 4)
     await root.mock.initChannel('mgmt-1')
     const client = root.mock.client('20020', 'mgmt-1')
 
@@ -111,7 +111,7 @@ test('新生审核命令使用 WebUI runtime settings 里的自定义提示文�
       freshmanApproveSuccess: '自定义通过：{applicationID}',
       freshmanApplicationSummary: '自定义申请 {applicationID} / {applicantName} / {departmentOrMajor}',
     })
-    await root.mock.initUser('20020', 3)
+    await root.mock.initUser('20020', 4)
     await root.mock.initChannel('mgmt-1')
     const client = root.mock.client('20020', 'mgmt-1')
 
@@ -140,7 +140,7 @@ test('新生审核命令会映射后端操作者授权错误并拒绝非法延�
 
   try {
     await root.start()
-    await root.mock.initUser('20021', 3)
+    await root.mock.initUser('20021', 4)
     await root.mock.initChannel('mgmt-1')
     const client = root.mock.client('20021', 'mgmt-1')
 
@@ -227,7 +227,7 @@ function readJSONBody(req: IncomingMessage) {
 function freshmanApplication() {
   return {
     id: 'A123',
-    userID: 42,
+    userID: '42',
     schoolID: 4111010006,
     status: 'pending',
     applicantNameMasked: '张*',

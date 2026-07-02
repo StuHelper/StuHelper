@@ -96,7 +96,7 @@ func (r *Repository) ClaimDueBotActions(
 			return fmt.Errorf("ClaimDueBotActions query: %w", err)
 		}
 		defer claimed.Close()
-		rows, err = scanBotActionOutboxRows(claimed)
+		rows, err = r.scanBotActionOutboxRows(claimed)
 		return err
 	})
 	if err != nil {
@@ -165,7 +165,7 @@ func (r *Repository) GetBotActionForUpdateTx(
 		WHERE o.id = $1
 		FOR UPDATE OF o, s
 	`, actionID)
-	action, err := scanBotActionOutboxRow(row)
+	action, err := r.scanBotActionOutboxRow(row)
 	if err != nil {
 		return nil, fmt.Errorf("GetBotActionForUpdateTx: %w", err)
 	}
@@ -241,6 +241,22 @@ func (r *Repository) MarkBotActionStaleTx(ctx context.Context, tx pgx.Tx, action
 	return nil
 }
 
+// PruneTerminalBotActions 删除 updated_at 早于 olderThan 的终态（succeeded/dead_letter/stale）
+// outbox 行，防止表无限膨胀。非终态行（pending/failed/dispatched）一律保留，避免误删在途动作。
+// 返回删除行数。
+func (r *Repository) PruneTerminalBotActions(ctx context.Context, olderThan time.Time) (int64, error) {
+	ctx = withDBTable(ctx, admissionBotActionOutboxTable)
+	tag, err := r.db.Exec(ctx, `
+		DELETE FROM admission_bot_action_outbox
+		WHERE status IN ('succeeded', 'dead_letter', 'stale')
+		  AND updated_at < $1
+	`, olderThan)
+	if err != nil {
+		return 0, fmt.Errorf("PruneTerminalBotActions: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}
+
 func (r *Repository) ListVerifiedUnreleasedSessionsByUserSchoolTx(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -262,7 +278,7 @@ func (r *Repository) ListVerifiedUnreleasedSessionsByUserSchoolTx(
 		return nil, fmt.Errorf("ListVerifiedUnreleasedSessionsByUserSchoolTx: %w", err)
 	}
 	defer rows.Close()
-	return scanAdmissionSessions(rows)
+	return r.scanAdmissionSessions(rows)
 }
 
 func admissionBotActionKey(sessionID string, action BotAction, scheduledAt time.Time) string {
@@ -306,10 +322,10 @@ func admissionSessionScanColumnsWithAlias(alias string) string {
 		` + alias + `.verified_at, ` + alias + `.cancelled_at, ` + alias + `.last_bot_error`
 }
 
-func scanBotActionOutboxRows(rows pgx.Rows) ([]AdmissionBotActionOutboxRow, error) {
+func (r *Repository) scanBotActionOutboxRows(rows pgx.Rows) ([]AdmissionBotActionOutboxRow, error) {
 	items := []AdmissionBotActionOutboxRow{}
 	for rows.Next() {
-		item, err := scanBotActionOutboxRow(rows)
+		item, err := r.scanBotActionOutboxRow(rows)
 		if err != nil {
 			return nil, fmt.Errorf("scan bot action outbox row: %w", err)
 		}
@@ -321,8 +337,9 @@ func scanBotActionOutboxRows(rows pgx.Rows) ([]AdmissionBotActionOutboxRow, erro
 	return items, nil
 }
 
-func scanBotActionOutboxRow(row pgx.Row) (AdmissionBotActionOutboxRow, error) {
+func (r *Repository) scanBotActionOutboxRow(row pgx.Row) (AdmissionBotActionOutboxRow, error) {
 	var item AdmissionBotActionOutboxRow
+	var authURLEnc []byte
 	err := row.Scan(
 		&item.ID, &item.ActionKey, &item.SessionID, &item.Action,
 		&item.Platform, &item.BotSelfID, &item.GuildID, &item.ChannelID, &item.QQID,
@@ -330,10 +347,18 @@ func scanBotActionOutboxRow(row pgx.Row) (AdmissionBotActionOutboxRow, error) {
 		&item.LastError, &item.MessageID, &item.CreatedAt, &item.UpdatedAt,
 		&item.Session.ID, &item.Session.Platform, &item.Session.BotSelfID, &item.Session.GuildID,
 		&item.Session.ChannelID, &item.Session.QQID, &item.Session.UserID, &item.Session.TokenHash,
-		&item.Session.AuthURL, &item.Session.TokenExpiresAt, &item.Session.TokenConsumedAt,
+		&authURLEnc, &item.Session.TokenExpiresAt, &item.Session.TokenConsumedAt,
 		&item.Session.Status, &item.Session.LinkWaitDeadlineAt, &item.Session.SubmissionWaitDeadlineAt,
 		&item.Session.ManualReviewDeadlineAt, &item.Session.InitialMuteUntil, &item.Session.VerifiedAt,
 		&item.Session.CancelledAt, &item.Session.LastBotError, &item.Session.nextReminderAt,
 	)
-	return item, err
+	if err != nil {
+		return item, err
+	}
+	authURL, err := r.decryptAuthURL(authURLEnc)
+	if err != nil {
+		return item, fmt.Errorf("scanBotActionOutboxRow decrypt auth_url: %w", err)
+	}
+	item.Session.AuthURL = authURL
+	return item, nil
 }

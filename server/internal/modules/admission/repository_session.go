@@ -18,7 +18,11 @@ const admissionSessionColumns = `
 
 func (r *Repository) CreateSession(ctx context.Context, session *AdmissionSession) error {
 	ctx = withDBTable(ctx, "group_admission_sessions")
-	_, err := r.db.Exec(ctx, `
+	authURLEnc, err := r.encryptAuthURL(session.AuthURL)
+	if err != nil {
+		return fmt.Errorf("CreateSession encrypt auth_url: %w", err)
+	}
+	_, err = r.db.Exec(ctx, `
 		INSERT INTO group_admission_sessions (
 			id, platform, bot_self_id, guild_id, channel_id, qq_id, user_id, token_hash, auth_url,
 			token_expires_at, token_consumed_at, status, link_wait_deadline_at,
@@ -27,7 +31,7 @@ func (r *Repository) CreateSession(ctx context.Context, session *AdmissionSessio
 		)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 	`, session.ID, session.Platform, session.BotSelfID, session.GuildID, session.ChannelID, session.QQID,
-		session.UserID, session.TokenHash, session.AuthURL, session.TokenExpiresAt, session.TokenConsumedAt, session.Status,
+		session.UserID, session.TokenHash, authURLEnc, session.TokenExpiresAt, session.TokenConsumedAt, session.Status,
 		session.LinkWaitDeadlineAt, session.SubmissionWaitDeadlineAt, session.ManualReviewDeadlineAt,
 		session.InitialMuteUntil, session.VerifiedAt, session.CancelledAt, session.LastBotError, session.nextReminderAt)
 	if err != nil {
@@ -37,7 +41,11 @@ func (r *Repository) CreateSession(ctx context.Context, session *AdmissionSessio
 }
 
 func (r *Repository) CreateSessionTx(ctx context.Context, tx pgx.Tx, session *AdmissionSession) error {
-	_, err := tx.Exec(ctx, `
+	authURLEnc, err := r.encryptAuthURL(session.AuthURL)
+	if err != nil {
+		return fmt.Errorf("CreateSessionTx encrypt auth_url: %w", err)
+	}
+	_, err = tx.Exec(ctx, `
 		INSERT INTO group_admission_sessions (
 			id, platform, bot_self_id, guild_id, channel_id, qq_id, user_id, token_hash, auth_url,
 			token_expires_at, token_consumed_at, status, link_wait_deadline_at,
@@ -46,7 +54,7 @@ func (r *Repository) CreateSessionTx(ctx context.Context, tx pgx.Tx, session *Ad
 		)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 	`, session.ID, session.Platform, session.BotSelfID, session.GuildID, session.ChannelID, session.QQID,
-		session.UserID, session.TokenHash, session.AuthURL, session.TokenExpiresAt, session.TokenConsumedAt, session.Status,
+		session.UserID, session.TokenHash, authURLEnc, session.TokenExpiresAt, session.TokenConsumedAt, session.Status,
 		session.LinkWaitDeadlineAt, session.SubmissionWaitDeadlineAt, session.ManualReviewDeadlineAt,
 		session.InitialMuteUntil, session.VerifiedAt, session.CancelledAt, session.LastBotError, session.nextReminderAt)
 	if err != nil {
@@ -58,7 +66,7 @@ func (r *Repository) CreateSessionTx(ctx context.Context, tx pgx.Tx, session *Ad
 func (r *Repository) GetSessionByID(ctx context.Context, id string) (*AdmissionSession, error) {
 	ctx = withDBTable(ctx, "group_admission_sessions")
 	query := "SELECT " + admissionSessionColumns + " FROM group_admission_sessions WHERE id = $1"
-	session, err := scanAdmissionSession(r.db.QueryRow(ctx, query, id))
+	session, err := r.scanAdmissionSession(r.db.QueryRow(ctx, query, id))
 	if err != nil {
 		return nil, fmt.Errorf("GetSessionByID: %w", err)
 	}
@@ -67,7 +75,7 @@ func (r *Repository) GetSessionByID(ctx context.Context, id string) (*AdmissionS
 
 func (r *Repository) GetSessionByIDForUpdate(ctx context.Context, tx pgx.Tx, id string) (*AdmissionSession, error) {
 	query := "SELECT " + admissionSessionColumns + " FROM group_admission_sessions WHERE id = $1 FOR UPDATE"
-	session, err := scanAdmissionSession(tx.QueryRow(ctx, query, id))
+	session, err := r.scanAdmissionSession(tx.QueryRow(ctx, query, id))
 	if err != nil {
 		return nil, fmt.Errorf("GetSessionByIDForUpdate: %w", err)
 	}
@@ -86,7 +94,7 @@ func (r *Repository) GetLatestSessionBySubject(
 		ORDER BY created_at DESC, updated_at DESC, id DESC
 		LIMIT 1
 	`
-	session, err := scanAdmissionSession(r.db.QueryRow(ctx, query, input.Platform, input.GuildID, input.QQID))
+	session, err := r.scanAdmissionSession(r.db.QueryRow(ctx, query, input.Platform, input.GuildID, input.QQID))
 	if err != nil {
 		if errors.Is(err, ErrAdmissionTokenNotFound) {
 			return nil, ErrAdmissionSessionNotFound
@@ -109,7 +117,7 @@ func (r *Repository) GetLatestSessionBySubjectForUpdateTx(
 		LIMIT 1
 		FOR UPDATE
 	`
-	session, err := scanAdmissionSession(tx.QueryRow(ctx, query, input.Platform, input.GuildID, input.QQID))
+	session, err := r.scanAdmissionSession(tx.QueryRow(ctx, query, input.Platform, input.GuildID, input.QQID))
 	if err != nil {
 		if errors.Is(err, ErrAdmissionTokenNotFound) {
 			return nil, ErrAdmissionSessionNotFound
@@ -122,7 +130,7 @@ func (r *Repository) GetLatestSessionBySubjectForUpdateTx(
 func (r *Repository) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*AdmissionSession, error) {
 	ctx = withDBTable(ctx, "group_admission_sessions")
 	query := "SELECT " + admissionSessionColumns + " FROM group_admission_sessions WHERE token_hash = $1"
-	session, err := scanAdmissionSession(r.db.QueryRow(ctx, query, tokenHash))
+	session, err := r.scanAdmissionSession(r.db.QueryRow(ctx, query, tokenHash))
 	if err != nil {
 		return nil, fmt.Errorf("GetSessionByTokenHash: %w", err)
 	}
@@ -135,7 +143,7 @@ func (r *Repository) GetSessionByTokenHashForUpdate(
 	tokenHash string,
 ) (*AdmissionSession, error) {
 	query := "SELECT " + admissionSessionColumns + " FROM group_admission_sessions WHERE token_hash = $1 FOR UPDATE"
-	session, err := scanAdmissionSession(tx.QueryRow(ctx, query, tokenHash))
+	session, err := r.scanAdmissionSession(tx.QueryRow(ctx, query, tokenHash))
 	if err != nil {
 		return nil, fmt.Errorf("GetSessionByTokenHashForUpdate: %w", err)
 	}
@@ -181,7 +189,7 @@ func (r *Repository) CancelInProgressSessionByID(
 	now time.Time,
 ) (*AdmissionSession, error) {
 	ctx = withDBTable(ctx, "group_admission_sessions")
-	session, err := scanAdmissionSession(r.db.QueryRow(
+	session, err := r.scanAdmissionSession(r.db.QueryRow(
 		ctx,
 		cancelInProgressSessionByIDQuery(),
 		sessionID,
@@ -203,7 +211,7 @@ func (r *Repository) CancelInProgressSessionByIDTx(
 	sessionID string,
 	now time.Time,
 ) (*AdmissionSession, error) {
-	session, err := scanAdmissionSession(tx.QueryRow(
+	session, err := r.scanAdmissionSession(tx.QueryRow(
 		ctx,
 		cancelInProgressSessionByIDQuery(),
 		sessionID,
@@ -269,7 +277,7 @@ func (r *Repository) MarkMaterialSubmittedTx(
 	} else {
 		row = r.db.QueryRow(ctx, query, sessionID, StatusMaterialSubmitted, manualReviewDeadline, StatusLinked)
 	}
-	session, err := scanAdmissionSession(row)
+	session, err := r.scanAdmissionSession(row)
 	if err != nil {
 		if errors.Is(err, ErrAdmissionTokenNotFound) {
 			return nil, ErrAdmissionInvalidStatus
@@ -301,7 +309,7 @@ func (r *Repository) MarkVerifiedTx(
 	} else {
 		row = r.db.QueryRow(ctx, query, sessionID, StatusVerified, now, StatusLinked, StatusMaterialSubmitted)
 	}
-	session, err := scanAdmissionSession(row)
+	session, err := r.scanAdmissionSession(row)
 	if err != nil {
 		if errors.Is(err, ErrAdmissionTokenNotFound) {
 			return nil, ErrAdmissionInvalidStatus
@@ -312,18 +320,19 @@ func (r *Repository) MarkVerifiedTx(
 }
 
 func (r *Repository) updateSessionTx(ctx context.Context, tx pgx.Tx, query string, args ...any) (*AdmissionSession, error) {
-	session, err := scanAdmissionSession(tx.QueryRow(ctx, query, args...))
+	session, err := r.scanAdmissionSession(tx.QueryRow(ctx, query, args...))
 	if err != nil {
 		return nil, fmt.Errorf("updateSessionTx: %w", err)
 	}
 	return session, nil
 }
 
-func scanAdmissionSession(row pgx.Row) (*AdmissionSession, error) {
+func (r *Repository) scanAdmissionSession(row pgx.Row) (*AdmissionSession, error) {
 	var session AdmissionSession
+	var authURLEnc []byte
 	err := row.Scan(
 		&session.ID, &session.Platform, &session.BotSelfID, &session.GuildID, &session.ChannelID, &session.QQID,
-		&session.UserID, &session.TokenHash, &session.AuthURL, &session.TokenExpiresAt,
+		&session.UserID, &session.TokenHash, &authURLEnc, &session.TokenExpiresAt,
 		&session.TokenConsumedAt, &session.Status, &session.LinkWaitDeadlineAt,
 		&session.SubmissionWaitDeadlineAt, &session.ManualReviewDeadlineAt, &session.InitialMuteUntil,
 		&session.VerifiedAt, &session.CancelledAt, &session.LastBotError,
@@ -334,5 +343,10 @@ func scanAdmissionSession(row pgx.Row) (*AdmissionSession, error) {
 		}
 		return nil, err
 	}
+	authURL, err := r.decryptAuthURL(authURLEnc)
+	if err != nil {
+		return nil, fmt.Errorf("scanAdmissionSession decrypt auth_url: %w", err)
+	}
+	session.AuthURL = authURL
 	return &session, nil
 }

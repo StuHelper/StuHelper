@@ -18,15 +18,14 @@ import {
   MODERATION_REPORT_TABLE,
 } from '@stuhelper/koishi-moderation-core'
 import {
-  ADMISSION_RUNTIME_SETTINGS_TABLE,
+  AdmissionRuntimeSettingsStore,
   DEFAULT_ADMISSION_RUNTIME_SETTINGS,
   DEFAULT_GROUP_GUARD_BEHAVIOR_SETTINGS,
-  DEFAULT_GROUP_GUARD_MESSAGE_SETTINGS,
+  GroupGuardBehaviorSettingsStore,
+  GroupGuardMessageSettingsStore,
   GUARD_GROUP_BINDING_TABLE,
   GUARD_MEMBER_TABLE,
   GUARD_TEMPLATE_TABLE,
-  GROUP_GUARD_BEHAVIOR_SETTINGS_TABLE,
-  GROUP_GUARD_MESSAGE_SETTINGS_TABLE,
 } from '@stuhelper/koishi-shared'
 
 import groupGuardPlugin from './index.ts'
@@ -603,22 +602,9 @@ async function saveGroupGuardBehaviorSettings(
   },
   overrides: Partial<typeof DEFAULT_GROUP_GUARD_BEHAVIOR_SETTINGS>,
 ) {
-  const now = new Date()
-  const [existing] = await root.database.get(GROUP_GUARD_BEHAVIOR_SETTINGS_TABLE, { id: 'default' })
-  if (existing) {
-    await root.database.set(GROUP_GUARD_BEHAVIOR_SETTINGS_TABLE, { id: 'default' }, {
-      ...overrides,
-      updatedAt: now,
-    })
-    return
-  }
-  await root.database.create(GROUP_GUARD_BEHAVIOR_SETTINGS_TABLE, {
-    id: 'default',
-    ...DEFAULT_GROUP_GUARD_BEHAVIOR_SETTINGS,
-    ...overrides,
-    createdAt: now,
-    updatedAt: now,
-  })
+  // 走真实 store 保存：settings 读缓存按 (database, table) 共享，
+  // 绕过 store 的裸 DB 写不会被运行中的插件实例观察到。
+  await new GroupGuardBehaviorSettingsStore(root).saveSettings(overrides)
 }
 
 async function saveGroupGuardMessageSettings(
@@ -631,25 +617,7 @@ async function saveGroupGuardMessageSettings(
   },
   overrides: { messages?: Record<string, string> },
 ) {
-  const now = new Date()
-  const messages = {
-    ...DEFAULT_GROUP_GUARD_MESSAGE_SETTINGS.messages,
-    ...overrides.messages,
-  }
-  const [existing] = await root.database.get(GROUP_GUARD_MESSAGE_SETTINGS_TABLE, { id: 'default' })
-  if (existing) {
-    await root.database.set(GROUP_GUARD_MESSAGE_SETTINGS_TABLE, { id: 'default' }, {
-      messages,
-      updatedAt: now,
-    })
-    return
-  }
-  await root.database.create(GROUP_GUARD_MESSAGE_SETTINGS_TABLE, {
-    id: 'default',
-    messages,
-    createdAt: now,
-    updatedAt: now,
-  })
+  await new GroupGuardMessageSettingsStore(root).saveSettings({ messages: overrides.messages })
 }
 
 async function enableAdmissionPolicy(
@@ -700,22 +668,7 @@ async function saveAdmissionRuntimeSettings(
   },
   overrides: Partial<typeof DEFAULT_ADMISSION_RUNTIME_SETTINGS>,
 ) {
-  const now = new Date()
-  const [existing] = await root.database.get(ADMISSION_RUNTIME_SETTINGS_TABLE, { id: 'default' })
-  if (existing) {
-    await root.database.set(ADMISSION_RUNTIME_SETTINGS_TABLE, { id: 'default' }, {
-      ...overrides,
-      updatedAt: now,
-    })
-    return
-  }
-  await root.database.create(ADMISSION_RUNTIME_SETTINGS_TABLE, {
-    id: 'default',
-    ...DEFAULT_ADMISSION_RUNTIME_SETTINGS,
-    ...overrides,
-    createdAt: now,
-    updatedAt: now,
-  })
+  await new AdmissionRuntimeSettingsStore(root, DEFAULT_ADMISSION_RUNTIME_SETTINGS).saveSettings(overrides)
 }
 
 interface CapturedAdmissionAdminRequest {
@@ -749,7 +702,7 @@ async function respondAdmissionAdminRequest(
     if (url.searchParams.get('qqID') === '10002') {
       res.end(JSON.stringify({
         success: true,
-        data: admissionAdminSession('expired_kicked', 'token-expired', { userID: 6 }),
+        data: admissionAdminSession('expired_kicked', 'token-expired', { userID: '6' }),
       }))
       return
     }
@@ -768,7 +721,7 @@ async function respondAdmissionAdminRequest(
         data: {
           session: admissionAdminSession('verified', 'token-verified', {
             qqID: '10003',
-            userID: 7,
+            userID: '7',
             tokenConsumedAt: new Date().toISOString(),
           }),
           token: 'token-verified',

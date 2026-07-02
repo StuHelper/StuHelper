@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import type { OpenPlatformAuditEvent, OpenPlatformScope } from '#/api/admin';
 
-import { onMounted, reactive, ref } from 'vue';
-
 import {
   ElAlert,
   ElButton,
@@ -14,6 +12,7 @@ import {
 } from 'element-plus';
 
 import { getOpenPlatformAuditEventList } from '#/api/admin';
+import { useAdminList } from '#/composables/use-admin-list';
 import { $t } from '#/locales';
 
 import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
@@ -30,22 +29,42 @@ import {
   openPlatformAuditEventTypeLabelKeys,
 } from './auditEvents';
 
-const loading = ref(false);
-const loadError = ref('');
-const events = ref<OpenPlatformAuditEvent[]>([]);
-const total = ref(0);
-const query = reactive<{
-  appID?: number;
-  eventType: string;
-  page: number;
-  pageSize: number;
-  scope: '' | OpenPlatformScope;
-  userID?: number;
-}>({
-  eventType: '',
-  page: 1,
-  pageSize: 20,
-  scope: '',
+const {
+  fetchData,
+  items: events,
+  loadError,
+  loading,
+  query,
+  resetPageAndFetch,
+  total,
+} = useAdminList<
+  OpenPlatformAuditEvent,
+  {
+    appID: null | number;
+    eventType: string;
+    page: number;
+    pageSize: number;
+    scope: '' | OpenPlatformScope;
+    userID: null | number;
+  }
+>({
+  fetcher: (listQuery) =>
+    getOpenPlatformAuditEventList({
+      appID: normalizeOptionalID(listQuery.appID),
+      eventType: listQuery.eventType.trim() || undefined,
+      page: listQuery.page,
+      pageSize: listQuery.pageSize,
+      scope: listQuery.scope || undefined,
+      userID: normalizeOptionalID(listQuery.userID),
+    }),
+  initialQuery: {
+    appID: null,
+    eventType: '',
+    page: 1,
+    pageSize: 20,
+    scope: '',
+    userID: null,
+  },
 });
 
 const scopeOptions: OpenPlatformScope[] = [
@@ -62,40 +81,8 @@ const scopeOptions: OpenPlatformScope[] = [
 ];
 
 const knownEventTypes = knownOpenPlatformAuditEventTypes;
-let fetchRequestSeq = 0;
 
-async function fetchData() {
-  const requestSeq = ++fetchRequestSeq;
-  loading.value = true;
-  loadError.value = '';
-  try {
-    const data = await getOpenPlatformAuditEventList({
-      appID: normalizeOptionalID(query.appID),
-      eventType: query.eventType.trim() || undefined,
-      page: query.page,
-      pageSize: query.pageSize,
-      scope: query.scope || undefined,
-      userID: normalizeOptionalID(query.userID),
-    });
-    if (requestSeq !== fetchRequestSeq) return;
-    events.value = data.items;
-    total.value = data.total;
-  } catch (error) {
-    if (requestSeq !== fetchRequestSeq) return;
-    loadError.value = adminErrorMessage(error);
-  } finally {
-    if (requestSeq === fetchRequestSeq) {
-      loading.value = false;
-    }
-  }
-}
-
-function handleQuery() {
-  query.page = 1;
-  void fetchData();
-}
-
-function normalizeOptionalID(value?: number) {
+function normalizeOptionalID(value?: null | number) {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
     return undefined;
   }
@@ -125,14 +112,6 @@ function hasMetadata(metadata: Record<string, unknown>) {
 function formatMetadata(metadata: Record<string, unknown>) {
   return JSON.stringify(metadata, null, 2);
 }
-
-function adminErrorMessage(error: unknown): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : $t('admin.result.requestFailed');
-}
-
-onMounted(fetchData);
 </script>
 
 <template>
@@ -187,7 +166,7 @@ onMounted(fetchData);
           :value="scope"
         />
       </ElSelect>
-      <ElButton type="primary" @click="handleQuery">
+      <ElButton type="primary" @click="resetPageAndFetch">
         {{ $t('admin.common.query') }}
       </ElButton>
     </template>

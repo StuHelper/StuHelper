@@ -49,3 +49,9 @@ export interface UpdateReportAIResultInput {
   readonly aiSeverity: ModerationReportRecord['aiSeverity']
   readonly aiSummary: string | null
 }
+
+export interface PruneExpiredInput {
+  readonly messageRetentionDays: number
+  readonly eventRetentionDays: number
+  readonly now?: Date
+}

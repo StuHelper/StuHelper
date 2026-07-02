@@ -262,6 +262,7 @@
     tags: [Admission]
     operationId: previewFreshmanMobileCameraHandoff
     summary: 手机端预览拍照接力
+    security: []
     parameters:
       - name: token
         in: path
@@ -291,6 +292,7 @@
     tags: [Admission]
     operationId: uploadFreshmanMobileCameraCapture
     summary: 手机端上传接力拍摄的新生材料图片
+    security: []
     parameters:
       - name: token
         in: path
@@ -332,6 +334,7 @@
     tags: [Admission]
     operationId: chooseFreshmanMobileCameraContinuation
     summary: 手机端选择上传后在哪一端继续
+    security: []
     parameters:
       - name: token
         in: path
@@ -460,7 +463,6 @@
     tags: [Admission]
     operationId: startAdmissionSchoolSSO
     summary: 跳转学校官方 SSO 登录
-    security: []
     parameters:
       - name: schoolCode
         in: path
@@ -489,7 +491,6 @@
     tags: [Admission]
     operationId: completeAdmissionSchoolSSO
     summary: 学校官方 SSO 回调
-    security: []
     parameters:
       - name: schoolCode
         in: path

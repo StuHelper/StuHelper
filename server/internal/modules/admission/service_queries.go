@@ -169,6 +169,20 @@ func (s *Service) ResolveJoinRequestDecision(
 	if err != nil {
 		return nil, err
 	}
+	// F060：任何自动批准前先做服务端权威黑名单判定（active 且 global/guild scope 命中），
+	// 命中即拒绝，不依赖机器人侧另行查询。
+	blacklistEntry, err := s.repo.GetMemberBlacklistAccess(ctx, MemberBlacklistAccessQuery{
+		Platform:    input.Platform,
+		SubjectType: BlacklistSubjectQQUser,
+		SubjectID:   input.QQID,
+		GuildID:     &input.GuildID,
+	}, s.now())
+	if err != nil {
+		return nil, err
+	}
+	if blacklistEntry != nil {
+		return blacklistedJoinRequestDecision(policy, userID), nil
+	}
 	if policy.JoinHandlingStrategy == AdmissionJoinHandlingPostJoinGuard {
 		return postJoinGuardDecision(policy, userID), nil
 	}
@@ -283,6 +297,24 @@ func postJoinAutoApproveReason(strategy AdmissionJoinHandlingStrategy) string {
 		return "post_join_time_code_auto_approve"
 	}
 	return "post_join_guard_auto_approve"
+}
+
+func blacklistedJoinRequestDecision(policy *AdmissionPolicy, userID *int64) *AdmissionJoinRequestDecision {
+	decision := &AdmissionJoinRequestDecision{
+		Decision:                  AdmissionJoinRequestDecisionReject,
+		Reason:                    "member_blacklisted",
+		VerificationState:         AdmissionJoinRequestUnverified,
+		JoinHandlingStrategy:      policy.JoinHandlingStrategy,
+		AutoApproveVerifiedJoin:   policy.AutoApproveVerifiedJoin,
+		AutoApproveUnverifiedJoin: policy.AutoApproveUnverifiedJoin,
+		PolicyID:                  policy.ID,
+	}
+	if userID != nil {
+		value := strconv.FormatInt(*userID, 10)
+		decision.VerificationState = AdmissionJoinRequestVerified
+		decision.UserID = &value
+	}
+	return decision
 }
 
 func verifiedJoinRequestDecision(policy *AdmissionPolicy, userID *int64) *AdmissionJoinRequestDecision {

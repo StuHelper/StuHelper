@@ -1,4 +1,5 @@
 import type { Logger, Session, Universal } from 'koishi'
+import { z } from 'zod'
 
 import { ModerationActionService, type ModerationStore } from '@stuhelper/koishi-moderation-core'
 import {
@@ -19,6 +20,11 @@ import {
 } from './group-guard-message-provider'
 
 const AI_REVIEW_TIMEOUT_MS = 10_000
+
+const aiReviewResponseSchema = z.object({
+  severity: z.enum(['none', 'low', 'medium', 'high']),
+  summary: z.string().optional(),
+})
 
 interface AIReviewResult {
   severity: 'none' | 'low' | 'medium' | 'high'
@@ -273,9 +279,16 @@ async function reviewReportWithAI(
   if (!response.ok) {
     throw new Error(`ai review failed: ${response.status}`)
   }
-  const payload = await response.json() as { severity?: AIReviewResult['severity'], summary?: string }
+  const payload: unknown = await response.json()
+  const parsed = aiReviewResponseSchema.safeParse(payload)
+  if (!parsed.success) {
+    const issues = parsed.error.issues
+      .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
+      .join('; ')
+    throw new Error(`ai review response malformed: ${issues}`)
+  }
   return {
-    severity: payload.severity || 'none',
-    summary: payload.summary || summaryFallback,
+    severity: parsed.data.severity,
+    summary: parsed.data.summary?.trim() || summaryFallback,
   }
 }

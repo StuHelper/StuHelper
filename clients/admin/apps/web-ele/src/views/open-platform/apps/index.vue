@@ -6,7 +6,7 @@ import type {
   OpenPlatformScope,
 } from '#/api/admin';
 
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -36,7 +36,9 @@ import {
   rotateOpenPlatformAppSecret,
   suspendOpenPlatformApp,
 } from '#/api/admin';
+import { adminErrorMessage, useAdminList } from '#/composables/use-admin-list';
 import { $t } from '#/locales';
+import { copyTextToClipboard } from '#/utils/clipboard';
 
 import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
 import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
@@ -49,50 +51,41 @@ import {
 import ImportCasdoorAppDialog from './ImportCasdoorAppDialog.vue';
 import ResourceGrantsDialog from './ResourceGrantsDialog.vue';
 
-const loading = ref(false);
 const actionLoading = ref(false);
-const loadError = ref('');
 const actionError = ref('');
 const importDialogVisible = ref(false);
 const importLoading = ref(false);
 const resourceGrantsDialogVisible = ref(false);
 const resourceGrantsApp = ref<null | OpenPlatformAppWithScopes>(null);
-const apps = ref<OpenPlatformAppWithScopes[]>([]);
-const total = ref(0);
 const issuedSecret = ref<null | {
   appName: string;
   clientID: string;
   secret: string;
 }>(null);
-const query = reactive({
-  page: 1,
-  pageSize: 20,
-  status: 'pending' as OpenPlatformAppStatus,
+
+const {
+  fetchData,
+  items: apps,
+  loadError,
+  loading,
+  query,
+  resetPageAndFetch,
+  total,
+} = useAdminList<
+  OpenPlatformAppWithScopes,
+  { page: number; pageSize: number; status: OpenPlatformAppStatus }
+>({
+  fetcher: (listQuery) => getOpenPlatformAppList(listQuery),
+  initialQuery: {
+    page: 1,
+    pageSize: 20,
+    status: 'pending',
+  },
 });
-let fetchRequestSeq = 0;
 
 const pendingApps = computed(
   () => apps.value.filter((item) => item.app.status === 'pending').length,
 );
-
-async function fetchData() {
-  const requestSeq = ++fetchRequestSeq;
-  loading.value = true;
-  loadError.value = '';
-  try {
-    const data = await getOpenPlatformAppList(query);
-    if (requestSeq !== fetchRequestSeq) return;
-    apps.value = data.items;
-    total.value = data.total;
-  } catch (error) {
-    if (requestSeq !== fetchRequestSeq) return;
-    loadError.value = adminErrorMessage(error);
-  } finally {
-    if (requestSeq === fetchRequestSeq) {
-      loading.value = false;
-    }
-  }
-}
 
 async function handleApproveScope(
   app: OpenPlatformAppWithScopes,
@@ -168,36 +161,13 @@ async function copyIssuedSecret() {
 }
 
 async function copyToClipboard(text: string, successMessage: string) {
-  try {
-    if (!navigator.clipboard?.writeText) {
-      throw new Error('clipboard unavailable');
-    }
-    await navigator.clipboard.writeText(text);
+  const copied = await copyTextToClipboard(text);
+  if (copied) {
     ElMessage.success(successMessage);
     return true;
-  } catch {
-    if (copyTextWithFallback(text)) {
-      ElMessage.success(successMessage);
-      return true;
-    }
-    ElMessage.error($t('admin.openPlatform.apps.secretCopyFailed'));
-    return false;
   }
-}
-
-function copyTextWithFallback(text: string): boolean {
-  const textarea = document.createElement('textarea');
-  try {
-    textarea.value = text;
-    document.body.append(textarea);
-    textarea.focus();
-    textarea.select();
-    return document.execCommand('copy');
-  } catch {
-    return false;
-  } finally {
-    textarea.remove();
-  }
+  ElMessage.error($t('admin.openPlatform.apps.secretCopyFailed'));
+  return false;
 }
 
 async function handleImportCasdoorApp(
@@ -413,11 +383,6 @@ async function promptDecisionNote(messageKey: string) {
   }
 }
 
-function resetPageAndFetch() {
-  query.page = 1;
-  void fetchData();
-}
-
 type TagType = 'danger' | 'info' | 'success' | 'warning';
 
 function appStatusTag(status: string): TagType {
@@ -486,12 +451,6 @@ function canManageResourceGrants(app: OpenPlatformAppWithScopes) {
   return app.app.status !== 'pending';
 }
 
-function adminErrorMessage(error: unknown): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : $t('admin.result.requestFailed');
-}
-
 function hasAvailableAction(app: OpenPlatformAppWithScopes) {
   return (
     pendingScopes(app).length > 0 ||
@@ -504,8 +463,6 @@ function hasAvailableAction(app: OpenPlatformAppWithScopes) {
     canRevokeApp(app)
   );
 }
-
-onMounted(fetchData);
 </script>
 
 <template>
@@ -578,7 +535,12 @@ onMounted(fetchData);
           <span>{{ issuedSecret.clientID }}</span>
           <div class="open-platform-secret-alert__secret">
             <code>{{ issuedSecret.secret }}</code>
-            <ElButton plain size="small" type="primary" @click="copyIssuedSecret">
+            <ElButton
+              plain
+              size="small"
+              type="primary"
+              @click="copyIssuedSecret"
+            >
               <IconifyIcon icon="lucide:copy" />
               {{ $t('admin.openPlatform.apps.copySecret') }}
             </ElButton>

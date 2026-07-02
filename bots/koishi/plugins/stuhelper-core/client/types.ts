@@ -9,6 +9,7 @@ import type {
   EntityProfile,
   EntityProfileQuery,
   IdentityPageData,
+  OverviewPageData,
   ReviewPageData,
   ReviewWorkItem,
 } from './page-types'
@@ -315,6 +316,7 @@ declare module '@koishijs/client' {
 
     // 页面域 API
     'stuhelperGroupCenter/page/dashboard'(): Promise<DashboardPageData>
+    'stuhelperGroupCenter/page/overview'(): Promise<OverviewPageData>
     'stuhelperGroupCenter/page/identity'(): Promise<IdentityPageData>
     'stuhelperGroupCenter/page/review'(): Promise<ReviewPageData>
     'stuhelperGroupCenter/page/config-governance'(): Promise<ConfigGovernancePageData>

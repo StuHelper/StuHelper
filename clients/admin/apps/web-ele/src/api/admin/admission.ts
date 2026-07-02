@@ -10,7 +10,6 @@ import type {
   ListMemberBlacklistParams,
   MemberBlacklistCreateRequest,
   MemberBlacklistEntry,
-  MemberBlacklistReleaseBySubjectRequest,
   MemberBlacklistReleaseRequest,
 } from '@stuhelper/shared/api';
 
@@ -32,7 +31,6 @@ export type {
   ListMemberBlacklistParams,
   MemberBlacklistCreateRequest,
   MemberBlacklistEntry,
-  MemberBlacklistReleaseBySubjectRequest,
   MemberBlacklistReleaseRequest,
 };
 
@@ -41,12 +39,6 @@ export async function listFreshmanVerifications(
 ) {
   return unwrapListData<FreshmanApplication>(
     await admissionApi.listFreshmanVerifications(params),
-  );
-}
-
-export async function getFreshmanVerification(id: string) {
-  return unwrapData<FreshmanApplication>(
-    await admissionApi.getFreshmanVerification(id),
   );
 }
 
@@ -65,7 +57,9 @@ export async function listAdmissionPolicies() {
   );
 }
 
-export async function createAdmissionPolicy(data: AdmissionPolicyCreateRequest) {
+export async function createAdmissionPolicy(
+  data: AdmissionPolicyCreateRequest,
+) {
   return unwrapData<AdmissionPolicy>(
     await admissionApi.createAdmissionPolicy(data),
   );
@@ -123,13 +117,5 @@ export async function releaseMemberBlacklist(
 ) {
   return unwrapData<MemberBlacklistEntry>(
     await admissionApi.releaseMemberBlacklist(id, data),
-  );
-}
-
-export async function releaseMemberBlacklistBySubject(
-  data: MemberBlacklistReleaseBySubjectRequest,
-) {
-  return unwrapData<MemberBlacklistEntry>(
-    await admissionApi.releaseMemberBlacklistBySubject(data),
   );
 }

@@ -50,6 +50,7 @@ var (
 	ErrAdmissionApplicationNotFound        = errors.New("admission application not found")
 	ErrAdmissionSchoolNotFound             = errors.New("admission school not found")
 	ErrAdmissionSchoolDisabled             = errors.New("admission school disabled")
+	ErrAdmissionSchoolMismatch             = errors.New("admission school does not match linked session policy")
 	ErrAdmissionPendingActionFilterInvalid = errors.New("admission pending action filter invalid")
 	ErrMemberBlacklisted                   = errors.New("member is blacklisted")
 	ErrAdmissionBlacklistNotFound          = errors.New("admission blacklist not found")

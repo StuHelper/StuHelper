@@ -49,9 +49,10 @@ test('member guard forwards freshman material to every management group before m
   assert.match(sends[0].content, /新生审核驳回 A123 <原因>/)
 })
 
-test('member guard attempts every freshman forward target and does not mark when any send fails', async () => {
+test('member guard attempts every freshman forward target and still marks forwarded on partial failure', async () => {
   const marks: string[] = []
   const attemptedGuilds: string[] = []
+  const warns: Array<{ message: string, context: Record<string, unknown> }> = []
   const service = new MemberGuardService({
     platform: {
       async listPendingAdmissionActions() { return [] },
@@ -67,35 +68,46 @@ test('member guard attempts every freshman forward target and does not mark when
     },
     policyStore: {},
     moderationStore: { async appendEvent() {} },
-    logger: { error() {}, warn() {} },
+    logger: {
+      error() {},
+      warn(message: string, context: Record<string, unknown>) {
+        warns.push({ message, context })
+      },
+    },
   } as any)
 
-  await assert.rejects(
-    withMaterialHosts('cdn.example.edu', () => service.scanPendingMembers([{
-      platform: 'qq',
-      selfId: '514',
-      sid: 'qq:514',
-      sendMessage: async (guildID: string) => {
-        attemptedGuilds.push(guildID)
-        if (guildID === '9002') throw new Error('send failed')
-        return ['message-1']
-      },
-    } as any])),
-    /freshman forward A123 failed for guilds: 9002/,
-  )
+  await withMaterialHosts('cdn.example.edu', () => service.scanPendingMembers([{
+    platform: 'qq',
+    selfId: '514',
+    sid: 'qq:514',
+    sendMessage: async (guildID: string) => {
+      attemptedGuilds.push(guildID)
+      if (guildID === '9002') throw new Error('send failed')
+      return ['message-1']
+    },
+  } as any]))
+
   assert.deepEqual(attemptedGuilds, ['9001', '9002', '9003'])
-  assert.deepEqual(marks, [])
+  // 后端 forwarded 回执无按群粒度：部分成功也回执，避免下一轮向已送达群重复刷屏
+  assert.deepEqual(marks, ['A123'])
+  const partialWarn = warns.find((entry) => entry.message === 'freshman forward partially delivered')
+  assert.ok(partialWarn)
+  assert.equal(partialWarn?.context.applicationID, 'A123')
+  assert.deepEqual(partialWarn?.context.deliveredGuildIDs, ['9001', '9003'])
+  assert.match(String(partialWarn?.context.failures), /guild 9002: send failed/)
 })
 
-test('member guard rejects freshman material URLs outside the explicit host allowlist', async () => {
+test('member guard retries next round without marking when all freshman forward targets fail', async () => {
+  const marks: string[] = []
+  const warns: string[] = []
   const service = new MemberGuardService({
     platform: {
       async listPendingAdmissionActions() { return [] },
       async listPendingFreshmanForwards() {
-        return [freshmanForwardItem(['9001'], 'https://127.0.0.1/material.jpg')]
+        return [freshmanForwardItem(['9001', '9002'])]
       },
-      async markFreshmanForwarded() {
-        throw new Error('forward should not be marked')
+      async markFreshmanForwarded(applicationID: string) {
+        marks.push(applicationID)
       },
     },
     guardStore: {
@@ -103,18 +115,106 @@ test('member guard rejects freshman material URLs outside the explicit host allo
     },
     policyStore: {},
     moderationStore: { async appendEvent() {} },
-    logger: { error() {}, warn() {} },
+    logger: {
+      error() {},
+      warn(message: string) {
+        warns.push(message)
+      },
+    },
   } as any)
 
-  await assert.rejects(
-    withMaterialHosts('cdn.example.edu', () => service.scanPendingMembers([{
-      platform: 'qq',
-      selfId: '514',
-      sid: 'qq:514',
-      sendMessage: async () => { throw new Error('send should not be called') },
-    } as any])),
-    /freshman material URL host is not public: 127\.0\.0\.1/,
-  )
+  await withMaterialHosts('cdn.example.edu', () => service.scanPendingMembers([{
+    platform: 'qq',
+    selfId: '514',
+    sid: 'qq:514',
+    sendMessage: async () => { throw new Error('send failed') },
+  } as any]))
+
+  assert.deepEqual(marks, [])
+  assert.ok(warns.includes('freshman forward delivery failed for all guilds'))
+})
+
+test('member guard skips poisoned freshman forward item and keeps processing the queue', async () => {
+  const marks: string[] = []
+  const warns: Array<{ message: string, context: Record<string, unknown> }> = []
+  const badItem = { ...freshmanForwardItem(['9001']), materialURL: '' }
+  const goodItem = {
+    ...freshmanForwardItem(['9001']),
+    application: { ...freshmanForwardItem().application, id: 'B456' },
+  }
+  const service = new MemberGuardService({
+    platform: {
+      async listPendingAdmissionActions() { return [] },
+      async listPendingFreshmanForwards() {
+        return [badItem, goodItem]
+      },
+      async markFreshmanForwarded(applicationID: string) {
+        marks.push(applicationID)
+      },
+    },
+    guardStore: {
+      async listBackendSyncPending() { return [] },
+    },
+    policyStore: {},
+    moderationStore: { async appendEvent() {} },
+    logger: {
+      error() {},
+      warn(message: string, context: Record<string, unknown>) {
+        warns.push({ message, context })
+      },
+    },
+  } as any)
+
+  await withMaterialHosts('cdn.example.edu', () => service.scanPendingMembers([{
+    platform: 'qq',
+    selfId: '514',
+    sid: 'qq:514',
+    sendMessage: async () => ['message-1'],
+  } as any]))
+
+  // 坏项被跳过并记日志，后续项继续转发
+  assert.deepEqual(marks, ['B456'])
+  const itemWarn = warns.find((entry) => entry.message === 'freshman forward item failed')
+  assert.equal(itemWarn?.context.applicationID, 'A123')
+  assert.match(String(itemWarn?.context.error), /missing materialURL/)
+})
+
+test('member guard rejects freshman material URLs outside the explicit host allowlist', async () => {
+  const warns: Array<{ message: string, context: Record<string, unknown> }> = []
+  let marked = false
+  const service = new MemberGuardService({
+    platform: {
+      async listPendingAdmissionActions() { return [] },
+      async listPendingFreshmanForwards() {
+        return [freshmanForwardItem(['9001'], 'https://127.0.0.1/material.jpg')]
+      },
+      async markFreshmanForwarded() {
+        marked = true
+      },
+    },
+    guardStore: {
+      async listBackendSyncPending() { return [] },
+    },
+    policyStore: {},
+    moderationStore: { async appendEvent() {} },
+    logger: {
+      error() {},
+      warn(message: string, context: Record<string, unknown>) {
+        warns.push({ message, context })
+      },
+    },
+  } as any)
+
+  await withMaterialHosts('cdn.example.edu', () => service.scanPendingMembers([{
+    platform: 'qq',
+    selfId: '514',
+    sid: 'qq:514',
+    sendMessage: async () => { throw new Error('send should not be called') },
+  } as any]))
+
+  assert.equal(marked, false)
+  const itemWarn = warns.find((entry) => entry.message === 'freshman forward item failed')
+  assert.match(String(itemWarn?.context.error), /freshman material URL host is not public: 127\.0\.0\.1/)
 })
 
 async function withMaterialHosts<T>(hosts: string, action: () => Promise<T>) {
@@ -138,7 +238,7 @@ function freshmanForwardItem(
   return {
     application: {
       id: 'A123',
-      userID: 42,
+      userID: '42',
       schoolID: 4111010006,
       applicantNameMasked: '张*',
       departmentOrMajor: '计算机科学与技术',

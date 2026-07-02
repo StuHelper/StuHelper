@@ -15,6 +15,11 @@ import {
   type StuhelperBindingPluginConfig,
 } from '@stuhelper/koishi-shared'
 
+import { BindingAttemptGuard, type BindingAttemptDecision } from './attempt-guard'
+
+const MS_PER_SECOND = 1_000
+const MS_PER_MINUTE = 60_000
+
 export const name = 'stuhelper-binding'
 export const inject = ['database']
 
@@ -27,6 +32,7 @@ export function apply(ctx: Context, config: Config) {
   const logger = createPluginLogger(ctx, 'binding')
   const platform = createPlatformClient(config.platform)
   const settingsStore = new BindingRuntimeSettingsStore(ctx, DEFAULT_BINDING_RUNTIME_SETTINGS)
+  const attemptGuard = new BindingAttemptGuard()
 
   ctx.middleware(async (session, next) => {
     const settings = await settingsStore.getSettings()
@@ -43,11 +49,23 @@ export function apply(ctx: Context, config: Config) {
       return renderMessageTemplate(messages.missingCode, { command: settings.command })
     }
 
+    const attemptKey = bindingAttemptKey(session)
+    const decision = attemptGuard.check(attemptKey)
+    if (decision.allowed === false) {
+      logger.warn('qq binding attempt rejected', {
+        qqID: session.userId,
+        reason: decision.reason,
+        retryAfterMs: decision.retryAfterMs,
+      })
+      return buildAttemptRejectionMessage(decision, messages)
+    }
+
     try {
       const result = await platform.consumeQQBindingCode({
         code: parsed.code,
         qqID: session.userId,
       })
+      attemptGuard.markSuccess(attemptKey)
       logger.info('qq binding succeeded', {
         qqID: session.userId,
         userID: result.binding.userID,
@@ -55,6 +73,9 @@ export function apply(ctx: Context, config: Config) {
       })
       return buildBindingSuccessMessage(result.verificationState.verificationState, messages)
     } catch (error) {
+      if (isInvalidBindingCodeError(error)) {
+        attemptGuard.markFailure(attemptKey)
+      }
       const message = resolveBindingErrorMessage(error, messages)
       logger.warn('qq binding failed', {
         qqID: session.userId,
@@ -97,6 +118,29 @@ function buildBindingSuccessMessage(
     return renderMessageTemplate(messages.successVerified)
   }
   return renderMessageTemplate(messages.successUnverified)
+}
+
+function bindingAttemptKey(session: Session) {
+  return `${session.platform}:${session.userId}`
+}
+
+function buildAttemptRejectionMessage(
+  decision: Extract<BindingAttemptDecision, { allowed: false }>,
+  messages: BindingRuntimeSettingsRecord['messages'],
+) {
+  if (decision.reason === 'locked_out') {
+    return renderMessageTemplate(messages.tooManyFailures, {
+      minutes: Math.ceil(decision.retryAfterMs / MS_PER_MINUTE),
+      seconds: Math.ceil(decision.retryAfterMs / MS_PER_SECOND),
+    })
+  }
+  return renderMessageTemplate(messages.rateLimited, {
+    seconds: Math.ceil(decision.retryAfterMs / MS_PER_SECOND),
+  })
+}
+
+function isInvalidBindingCodeError(error: unknown) {
+  return error instanceof PlatformAPIError && error.status === 400
 }
 
 function resolveBindingErrorMessage(

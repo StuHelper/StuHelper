@@ -31,6 +31,39 @@ test('JsonDataStore throws when saving data fails', (t) => {
   assert.throws(() => store.flush(), /disk write failed/)
 })
 
+test('JsonDataStore delayed flush failure is logged and retried instead of crashing the timer', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stuhelper-json-store-'))
+  const filePath = path.join(dir, 'data.json')
+  const errors: unknown[][] = []
+  const store = new JsonDataStore(filePath, { value: 1 }, {
+    createBackup: false,
+    saveDelay: 5,
+    logger: {
+      info() {},
+      error(...args: unknown[]) {
+        errors.push(args)
+      },
+    },
+  })
+  const mocked = t.mock.method(fs, 'writeFileSync', () => {
+    throw new Error('disk write failed')
+  })
+
+  store.set('value', 2)
+  await new Promise((resolve) => setTimeout(resolve, 50))
+
+  // timer 回调内的 flush 失败被捕获并记录，进程不会被未捕获异常击穿
+  // （flush 自身记录"保存数据失败"，timer 捕获层再记录"延迟保存失败"）
+  assert.equal(errors.length, 2)
+  assert.match(String(errors[0][0]), /保存数据失败/)
+  assert.match(String(errors[1][0]), /延迟保存失败/)
+
+  // dirty 状态保留：写盘恢复后再次 flush 可成功落盘
+  mocked.mock.restore()
+  store.flush()
+  assert.equal(JSON.parse(fs.readFileSync(filePath, 'utf8')).value, 2)
+})
+
 test('JsonDataStore escapes backup basename when cleaning old backups', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stuhelper-json-store-'))
   const filePath = path.join(dir, 'data+1.json')

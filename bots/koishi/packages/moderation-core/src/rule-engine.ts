@@ -1,12 +1,10 @@
 import { DEFAULT_REPEAT_THRESHOLD } from './constants'
-import { evaluateThresholdExpression as evaluateExpression } from './expression'
 import { testSafeKeywordRegex } from '@stuhelper/koishi-shared'
 import type {
   KeywordHit,
   KeywordMatchContext,
   KeywordRuleRecord,
   MessageLedgerRecord,
-  ThresholdMetrics,
 } from './types'
 
 export {
@@ -16,10 +14,6 @@ export {
 interface RepeatInput {
   normalizedContent: string
   memberId: string
-}
-
-export function evaluateThresholdExpression(input: string, metrics: ThresholdMetrics) {
-  return evaluateExpression(input, metrics)
 }
 
 export function normalizeModerationContent(content: string) {
@@ -37,11 +31,22 @@ export function detectRepeatTrigger(records: RepeatInput[], normalizedContent: s
   return { hit: count >= threshold, count }
 }
 
-export function matchKeywordRules(rules: KeywordRuleRecord[], context: KeywordMatchContext): KeywordHit[] {
+export interface KeywordRuleMatchFailure {
+  readonly rule: KeywordRuleRecord
+  readonly error: unknown
+}
+
+export type KeywordRuleErrorHandler = (failure: KeywordRuleMatchFailure) => void
+
+export function matchKeywordRules(
+  rules: KeywordRuleRecord[],
+  context: KeywordMatchContext,
+  onRuleError?: KeywordRuleErrorHandler,
+): KeywordHit[] {
   return rules
     .filter((rule) => rule.enabled)
     .filter((rule) => rule.guildId === context.guildId || rule.guildId === '*')
-    .filter((rule) => isRuleMatched(rule, context))
+    .filter((rule) => isRuleMatchedSafely(rule, context, onRuleError))
     .map((rule) => ({
       ruleId: rule.id,
       action: rule.action,
@@ -52,6 +57,19 @@ export function matchKeywordRules(rules: KeywordRuleRecord[], context: KeywordMa
 
 export function createMessageLedgerPreview(record: Pick<MessageLedgerRecord, 'memberId' | 'content'>) {
   return `${record.memberId}: ${record.content}`
+}
+
+function isRuleMatchedSafely(
+  rule: KeywordRuleRecord,
+  context: KeywordMatchContext,
+  onRuleError?: KeywordRuleErrorHandler,
+) {
+  try {
+    return isRuleMatched(rule, context)
+  } catch (error) {
+    onRuleError?.({ rule, error })
+    return false
+  }
 }
 
 function isRuleMatched(rule: KeywordRuleRecord, context: KeywordMatchContext) {

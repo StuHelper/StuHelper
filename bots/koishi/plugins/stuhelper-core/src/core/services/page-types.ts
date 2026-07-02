@@ -11,13 +11,6 @@ import type {
   QQVerificationStatus,
 } from '@stuhelper/koishi-shared'
 
-export interface ModuleStateSnapshot {
-  name: string
-  description: string
-  state: 'unloaded' | 'loading' | 'loaded' | 'error'
-  error?: string
-}
-
 export interface SerializedGuardMember extends Omit<GuardMemberRecord, 'joinedAt' | 'deadlineAt' | 'mutedAt' | 'reminderSentAt' | 'releasedAt' | 'kickedAt' | 'createdAt' | 'updatedAt'> {
   joinedAt: string
   deadlineAt: string
@@ -67,6 +60,12 @@ export interface DashboardOverview {
   policyItems: number
 }
 
+/** 全局脉冲轮询用的轻量总览：只含计数，不含任何明细列表。 */
+export interface OverviewPageData {
+  generatedAt: string
+  overview: DashboardOverview
+}
+
 export interface DashboardPageData {
   generatedAt: string
   overview: DashboardOverview
@@ -77,7 +76,6 @@ export interface DashboardPageData {
   commandPolicies: SerializedCommandPolicy[]
   guardTemplates: SerializedGuardTemplate[]
   guardBindings: SerializedGuardBinding[]
-  systemStatus: ModuleStateSnapshot[]
 }
 
 export interface IdentityLookupError {

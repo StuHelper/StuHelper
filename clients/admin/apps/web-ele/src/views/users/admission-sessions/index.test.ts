@@ -24,6 +24,24 @@ const messageMocks = vi.hoisted(() => ({
   success: vi.fn(),
 }));
 
+const routerMocks = vi.hoisted(() => ({
+  replace: vi.fn(() => Promise.resolve()),
+  route: {
+    path: '/users/admission-sessions',
+    query: {} as Record<string, string>,
+  },
+}));
+
+vi.mock('#/locales', () => ({
+  $t: (key: string, params?: Record<string, unknown>) =>
+    params ? `${key}:${Object.values(params).join('/')}` : key,
+}));
+
+vi.mock('vue-router', () => ({
+  useRoute: () => routerMocks.route,
+  useRouter: () => ({ replace: routerMocks.replace }),
+}));
+
 function mockExecCommand(result: boolean, copiedText: string[] = []) {
   const execCommand = vi.fn((command: string) => {
     if (command === 'copy') {
@@ -122,6 +140,8 @@ describe('admission sessions index view orchestration', () => {
     apiMocks.resendAdminAdmissionSession.mockReset();
     messageMocks.error.mockReset();
     messageMocks.success.mockReset();
+    routerMocks.replace.mockClear();
+    routerMocks.route.query = {};
     accessMocks.accessCodes = ['admission:session:manage'];
     apiMocks.listAdmissionSessions.mockResolvedValue({
       items: [sampleSession],
@@ -254,11 +274,14 @@ describe('admission sessions index view orchestration', () => {
 
     const table = wrapper.findComponent({ name: 'AdmissionSessionTable' });
     await table.vm.$emit('copyAuthURL', sampleSession.authURL);
+    await flushPromises();
 
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       sampleSession.authURL,
     );
-    expect(messageMocks.success).toHaveBeenCalledWith('认证链接已复制');
+    expect(messageMocks.success).toHaveBeenCalledWith(
+      'admin.users.admissionSessions.authURLCopied',
+    );
   });
 
   it('falls back to execCommand when auth URL clipboard writes fail', async () => {
@@ -280,7 +303,9 @@ describe('admission sessions index view orchestration', () => {
     expect(execCommand).toHaveBeenCalledWith('copy');
     expect(copiedText).toContain(sampleSession.authURL);
     expect(document.querySelector('textarea')).toBeNull();
-    expect(messageMocks.success).toHaveBeenCalledWith('认证链接已复制');
+    expect(messageMocks.success).toHaveBeenCalledWith(
+      'admin.users.admissionSessions.authURLCopied',
+    );
     expect(messageMocks.error).not.toHaveBeenCalled();
   });
 
@@ -290,11 +315,14 @@ describe('admission sessions index view orchestration', () => {
 
     const table = wrapper.findComponent({ name: 'AdmissionSessionTable' });
     await table.vm.$emit('copyReissueCommand', '重新生成认证链接 1390191645');
+    await flushPromises();
 
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       '重新生成认证链接 1390191645',
     );
-    expect(messageMocks.success).toHaveBeenCalledWith('重生命令已复制');
+    expect(messageMocks.success).toHaveBeenCalledWith(
+      'admin.users.admissionSessions.reissueCopied',
+    );
   });
 
   it('falls back to execCommand when copying reissue commands without clipboard API', async () => {
@@ -314,7 +342,9 @@ describe('admission sessions index view orchestration', () => {
     expect(execCommand).toHaveBeenCalledWith('copy');
     expect(copiedText).toContain('重新生成认证链接 1390191645');
     expect(document.querySelector('textarea')).toBeNull();
-    expect(messageMocks.success).toHaveBeenCalledWith('重生命令已复制');
+    expect(messageMocks.success).toHaveBeenCalledWith(
+      'admin.users.admissionSessions.reissueCopied',
+    );
     expect(messageMocks.error).not.toHaveBeenCalled();
   });
 
@@ -333,8 +363,12 @@ describe('admission sessions index view orchestration', () => {
     await table.vm.$emit('copyReissueCommand', '重新生成认证链接 1390191645');
     await flushPromises();
 
-    expect(messageMocks.error).toHaveBeenCalledWith('复制失败，请手动复制');
-    expect(messageMocks.success).not.toHaveBeenCalledWith('重生命令已复制');
+    expect(messageMocks.error).toHaveBeenCalledWith(
+      'admin.users.admissionSessions.copyFailed',
+    );
+    expect(messageMocks.success).not.toHaveBeenCalledWith(
+      'admin.users.admissionSessions.reissueCopied',
+    );
     expect(document.querySelector('textarea')).toBeNull();
   });
 
@@ -361,11 +395,15 @@ describe('admission sessions index view orchestration', () => {
       sampleSession.id,
     );
     expect(apiMocks.listAdmissionSessions).toHaveBeenCalledTimes(3);
-    expect(messageMocks.success).toHaveBeenCalledWith('已加入机器人重发队列');
     expect(messageMocks.success).toHaveBeenCalledWith(
-      '已重新生成并加入机器人提醒队列',
+      'admin.users.admissionSessions.resendQueued',
     );
-    expect(messageMocks.success).toHaveBeenCalledWith('认证会话已取消');
+    expect(messageMocks.success).toHaveBeenCalledWith(
+      'admin.users.admissionSessions.regenerated',
+    );
+    expect(messageMocks.success).toHaveBeenCalledWith(
+      'admin.users.admissionSessions.sessionCancelled',
+    );
   });
 
   it('keeps session action loading scoped to the current session id', async () => {

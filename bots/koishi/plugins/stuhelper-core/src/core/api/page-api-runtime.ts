@@ -101,18 +101,12 @@ function createDashboardDeps(input: {
   const { ctx, service, moderationStore, guardPolicyStore } = input
   return {
     loadPendingMembers: () => listActiveGuardMembers(ctx),
-    loadPendingReviews: () => moderationStore.listPendingReviews(),
+    loadPendingReviews: () => moderationStore.listAllPendingReviews(),
     loadRecentEvents: () => moderationStore.listRecentEvents(RECENT_DASHBOARD_EVENT_LIMIT),
     loadRecentReports: () => moderationStore.listOpenReports(),
     loadCommandPolicies: () => moderationStore.listCommandPolicies(),
     loadGuardTemplates: () => guardPolicyStore.listTemplates(),
     loadGuardBindings: () => guardPolicyStore.listBindings(),
-    loadModuleStates: () => service.getAllModules().map((module) => ({
-      name: module.meta.name,
-      description: module.meta.description,
-      state: module.state,
-      error: module.error?.message,
-    })),
   }
 }
 
@@ -125,7 +119,7 @@ function createIdentityDeps(ctx: Context, identityProfileLookup: IdentityProfile
 
 function createReviewDeps(ctx: Context, moderationStore: ModerationStore) {
   return {
-    loadPendingReviews: () => moderationStore.listPendingReviews(),
+    loadPendingReviews: () => moderationStore.listAllPendingReviews(),
     loadPendingMembers: () => listActiveGuardMembers(ctx),
     loadReports: () => moderationStore.listOpenReports(),
     loadEvents: () => moderationStore.listRecentEvents(RECENT_REVIEW_EVENT_LIMIT),
@@ -159,7 +153,7 @@ function createEntityDeps(input: {
     loadWarns: async () => service.data.warns.getAll() as Record<string, Record<string, { count: number; timestamp: number }>>,
     loadBlacklist: async () => readMemberBlacklistMap(platform),
     loadGuardRecords: () => listGuardRecords(ctx),
-    loadReviews: () => moderationStore.listPendingReviews(),
+    loadReviews: () => moderationStore.listAllPendingReviews(),
     loadReports: () => moderationStore.listOpenReports(),
     loadEvents: (limit: number) => moderationStore.listRecentEvents(limit),
     hasGuildConfig: async (guildId: string) => Boolean((await service.data.groupConfig.getAll() as Record<string, unknown>)[guildId]),

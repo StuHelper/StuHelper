@@ -25,6 +25,7 @@ import {
   kickBlacklistedPendingMember,
 } from './member-blacklist-rejection'
 import {
+  formatFreshmanForwardFailures,
   forwardFreshmanMaterial,
   resolveFreshmanForwardBot,
 } from './freshman-forward'
@@ -460,9 +461,43 @@ export class MemberGuardService {
     const items = await this.deps.platform.listPendingFreshmanForwards()
     const messages = await this.getMessages()
     for (const item of items) {
+      // F052：逐项容错——单个坏项（bot 不在线 / 材料非法 / 发送失败）只记日志，
+      // 不允许阻塞队列中的后续待转发项。
+      await this.forwardFreshmanMaterialItem(forwardBots, item, messages)
+    }
+  }
+
+  private async forwardFreshmanMaterialItem(
+    forwardBots: readonly GuardBotRuntime[],
+    item: Awaited<ReturnType<PlatformClient['listPendingFreshmanForwards']>>[number],
+    messages: Awaited<ReturnType<MemberGuardService['getMessages']>>,
+  ) {
+    try {
       const bot = resolveFreshmanForwardBot(forwardBots, item)
-      await forwardFreshmanMaterial(bot, item, messages)
+      const delivery = await forwardFreshmanMaterial(bot, item, messages)
+      if (!delivery.deliveredGuildIDs.length) {
+        // 全部管理群发送失败：不回执，等待下一轮扫描重试
+        this.deps.logger.warn('freshman forward delivery failed for all guilds', {
+          applicationID: item.application.id,
+          failures: formatFreshmanForwardFailures(delivery.failures),
+        })
+        return
+      }
+      if (delivery.failures.length) {
+        // 部分成功：后端 forwarded 回执没有按群粒度（POST /{id}/forwarded 仅携带
+        // application id），仍回执以避免下一轮向已送达的群重复刷屏，失败群记日志人工跟进。
+        this.deps.logger.warn('freshman forward partially delivered', {
+          applicationID: item.application.id,
+          deliveredGuildIDs: [...delivery.deliveredGuildIDs],
+          failures: formatFreshmanForwardFailures(delivery.failures),
+        })
+      }
       await this.deps.platform.markFreshmanForwarded(item.application.id)
+    } catch (error) {
+      this.deps.logger.warn('freshman forward item failed', {
+        applicationID: item.application.id,
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
   }
 

@@ -148,7 +148,13 @@ export class JsonDataStore<T extends Record<string, unknown> = Record<string, un
     }
 
     this.saveTimer = setTimeout(() => {
-      this.flush()
+      try {
+        this.flush()
+      } catch (error) {
+        // flush 抛错不能击穿裸 timer 回调（Node 会按未捕获异常终止进程）；
+        // 记录错误并保留 dirty 状态，等待下一次写入或 dispose 时重试。
+        this.options.logger?.error('[JsonDataStore] 延迟保存失败: %s', this.filePath, error)
+      }
     }, this.options.saveDelay)
   }
 

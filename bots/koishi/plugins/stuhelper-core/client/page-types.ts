@@ -1,5 +1,4 @@
 export type {
-  ModuleStateSnapshot,
   SerializedGuardMember,
   SerializedReview,
   SerializedReport,
@@ -9,6 +8,7 @@ export type {
   SerializedCommandPolicy,
   DashboardOverview,
   DashboardPageData,
+  OverviewPageData,
   IdentityLookupError,
   IdentityMemberSnapshot,
   IdentityGroupSummary,

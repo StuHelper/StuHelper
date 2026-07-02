@@ -104,6 +104,9 @@ function registerReviewListCommand(ctx: Context, deps: AdminCommandDeps) {
       if (denial) {
         return denial
       }
+      if (!targetGuildId) {
+        return adminMessage(messages, 'guardReviewListMissingContext')
+      }
       return formatPendingReviews(await deps.moderationStore.listPendingReviews(targetGuildId), messages)
     })
 }
@@ -317,12 +320,12 @@ function parseBatchMutePayload(payload: string | undefined) {
   if (!source) {
     return null
   }
-  const [secondsText, memberIdsText] = source.split(/\s+/, 2)
+  const [secondsText, ...memberIdParts] = source.split(/\s+/)
   const seconds = Number(secondsText)
   if (!Number.isInteger(seconds) || seconds < 0) {
     return null
   }
-  const memberIds = parseMemberIds(memberIdsText)
+  const memberIds = parseMemberIds(memberIdParts.join(' '))
   if (!memberIds.length) {
     return null
   }

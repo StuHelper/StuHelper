@@ -84,6 +84,42 @@ test('GroupGuardBehaviorSettingsStore saves partial settings without primary key
   assert.ok(writes[0].updatedAt instanceof Date)
 })
 
+test('GroupGuardBehaviorSettingsStore rejects unparsable warning threshold expressions', async () => {
+  const writes: unknown[] = []
+  const store = new GroupGuardBehaviorSettingsStore({
+    database: {
+      async get() {
+        return [{
+          id: 'default',
+          fun: DEFAULT_GROUP_GUARD_BEHAVIOR_SETTINGS.fun,
+          moderation: DEFAULT_GROUP_GUARD_BEHAVIOR_SETTINGS.moderation,
+          createdAt: new Date('2026-06-09T10:00:00.000Z'),
+          updatedAt: new Date('2026-06-09T10:00:00.000Z'),
+        }]
+      },
+      async set(_table: string, _query: unknown, patch: unknown) {
+        writes.push(patch)
+      },
+    },
+  } as never)
+
+  await assert.rejects(
+    store.saveSettings({ moderation: { warningThresholdExpression: 'warnings => 3' } }),
+    /warningThresholdExpression 不是合法的阈值表达式/,
+  )
+  await assert.rejects(
+    store.saveSettings({ moderation: { warningThresholdExpression: 'warnings >= ' } }),
+    /warningThresholdExpression 不是合法的阈值表达式/,
+  )
+  assert.equal(writes.length, 0)
+
+  const saved = await store.saveSettings({
+    moderation: { warningThresholdExpression: 'warnings >= 2 || reports >= 1' },
+  })
+  assert.equal(saved.moderation.warningThresholdExpression, 'warnings >= 2 || reports >= 1')
+  assert.equal(writes.length, 1)
+})
+
 test('GroupGuardBehaviorSettingsStore normalizes old records with missing fields', async () => {
   const store = new GroupGuardBehaviorSettingsStore({
     database: {
@@ -113,4 +149,56 @@ test('GroupGuardBehaviorSettingsStore normalizes old records with missing fields
   assert.equal(settings.moderation.warningThresholdExpression, DEFAULT_GROUP_GUARD_BEHAVIOR_SETTINGS.moderation.warningThresholdExpression)
   assert.equal(settings.moderation.defaultMuteSeconds, DEFAULT_GROUP_GUARD_BEHAVIOR_SETTINGS.moderation.defaultMuteSeconds)
   assert.equal(settings.moderation.antiRecallNotify, DEFAULT_GROUP_GUARD_BEHAVIOR_SETTINGS.moderation.antiRecallNotify)
+})
+
+test('GroupGuardBehaviorSettingsStore 读缓存：重复读取只查一次数据库', async () => {
+  let reads = 0
+  const now = new Date('2026-06-09T10:00:00.000Z')
+  const store = new GroupGuardBehaviorSettingsStore({
+    database: {
+      async get() {
+        reads += 1
+        return [{
+          id: 'default',
+          fun: DEFAULT_GROUP_GUARD_BEHAVIOR_SETTINGS.fun,
+          moderation: DEFAULT_GROUP_GUARD_BEHAVIOR_SETTINGS.moderation,
+          createdAt: now,
+          updatedAt: now,
+        }]
+      },
+    },
+  } as never)
+
+  await store.getSettings()
+  await store.getModerationSettings()
+  await store.getFunSettings()
+
+  assert.equal(reads, 1)
+})
+
+test('GroupGuardBehaviorSettingsStore 保存后回填缓存，读取返回新值且不再查库', async () => {
+  let reads = 0
+  const now = new Date('2026-06-09T10:00:00.000Z')
+  const store = new GroupGuardBehaviorSettingsStore({
+    database: {
+      async get() {
+        reads += 1
+        return [{
+          id: 'default',
+          fun: DEFAULT_GROUP_GUARD_BEHAVIOR_SETTINGS.fun,
+          moderation: DEFAULT_GROUP_GUARD_BEHAVIOR_SETTINGS.moderation,
+          createdAt: now,
+          updatedAt: now,
+        }]
+      },
+      async set() {},
+    },
+  } as never)
+
+  await store.saveSettings({ fun: { diceSides: 66 } })
+  const readsAfterSave = reads
+  const settings = await store.getSettings()
+
+  assert.equal(settings.fun.diceSides, 66)
+  assert.equal(reads, readsAfterSave)
 })

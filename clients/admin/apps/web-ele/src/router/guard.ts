@@ -1,4 +1,4 @@
-import type { RouteRecordRaw, Router } from 'vue-router';
+import type { Router, RouteRecordRaw } from 'vue-router';
 
 import { LOGIN_PATH } from '@vben/constants';
 import { preferences } from '@vben/preferences';
@@ -39,10 +39,10 @@ function collectAbsoluteRoutePaths(routes: RouteRecordRaw[]) {
       currentPath = resolveRoutePath(parentPath, route.path);
       paths.add(currentPath);
     }
-    route.children?.forEach(child => visit(child, currentPath));
+    route.children?.forEach((child) => visit(child, currentPath));
   }
 
-  routes.forEach(route => visit(route));
+  routes.forEach((route) => visit(route));
   return paths;
 }
 

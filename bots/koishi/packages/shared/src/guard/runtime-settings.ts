@@ -1,5 +1,7 @@
 import type { Context } from 'koishi'
 
+import { type SettingsReadCache, settingsReadCacheFor } from '../settings-cache'
+
 export const ADMISSION_RUNTIME_SETTINGS_TABLE = 'stuhelper_admission_runtime_settings'
 const DEFAULT_SETTINGS_ID = 'default'
 
@@ -59,12 +61,20 @@ export function registerAdmissionRuntimeSettingsModel(ctx: Context) {
 }
 
 export class AdmissionRuntimeSettingsStore {
+  private readonly cache: SettingsReadCache<AdmissionRuntimeSettingsRecord>
+
   constructor(
     private readonly ctx: Pick<Context, 'database'>,
     private readonly defaults: AdmissionRuntimeSettings,
-  ) {}
+  ) {
+    this.cache = settingsReadCacheFor(ctx.database, ADMISSION_RUNTIME_SETTINGS_TABLE)
+  }
 
   async getSettings(): Promise<AdmissionRuntimeSettingsRecord> {
+    return this.cache.read(() => this.loadSettings())
+  }
+
+  private async loadSettings(): Promise<AdmissionRuntimeSettingsRecord> {
     const [record] = await this.ctx.database.get(ADMISSION_RUNTIME_SETTINGS_TABLE, { id: DEFAULT_SETTINGS_ID })
     if (record) {
       return normalizeRecord(record, this.defaults)
@@ -88,7 +98,7 @@ export class AdmissionRuntimeSettingsStore {
       ...changes,
       updatedAt: now,
     })
-    return next
+    return this.cache.write(next)
   }
 
   async isPublicCommandsEnabled() {

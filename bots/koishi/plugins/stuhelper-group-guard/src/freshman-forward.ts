@@ -22,11 +22,21 @@ export function resolveFreshmanForwardBot(
   throw new Error(`freshman forward ${item.application.id} missing botSelfID for multi-bot runtime`)
 }
 
+export interface FreshmanForwardFailure {
+  readonly guildID: string
+  readonly error: unknown
+}
+
+export interface FreshmanForwardDeliveryResult {
+  readonly deliveredGuildIDs: readonly string[]
+  readonly failures: readonly FreshmanForwardFailure[]
+}
+
 export async function forwardFreshmanMaterial(
   bot: Universal.Methods,
   item: FreshmanForwardItem,
   messages?: Partial<StuhelperGroupGuardMessageConfig>,
-) {
+): Promise<FreshmanForwardDeliveryResult> {
   if (!item.materialURL) {
     throw new Error(`freshman forward ${item.application.id} missing materialURL`)
   }
@@ -38,17 +48,23 @@ export async function forwardFreshmanMaterial(
     h.image(materialURL),
     formatFreshmanForwardSummary(item, messages),
   ].join('\n')
+  const deliveredGuildIDs: string[] = []
   const failures: FreshmanForwardFailure[] = []
   for (const guildID of item.managementGuildIDs) {
     try {
       await bot.sendMessage(guildID, content)
+      deliveredGuildIDs.push(guildID)
     } catch (error) {
       failures.push({ guildID, error })
     }
   }
-  if (failures.length) {
-    throw createFreshmanForwardError(item.application.id, failures)
-  }
+  return { deliveredGuildIDs, failures }
+}
+
+export function formatFreshmanForwardFailures(failures: readonly FreshmanForwardFailure[]): string {
+  return failures
+    .map((failure) => `guild ${failure.guildID}: ${forwardErrorMessage(failure.error)}`)
+    .join('；')
 }
 
 export interface FreshmanForwardBot extends Universal.Methods {
@@ -62,18 +78,6 @@ function botMatchesForward(bot: FreshmanForwardBot, item: FreshmanForwardItem) {
   return platformMatches && bot.selfId === item.botSelfID
 }
 
-function createFreshmanForwardError(applicationID: string, failures: readonly FreshmanForwardFailure[]) {
-  const guildIDs = failures.map((failure) => failure.guildID).join(', ')
-  const errors = failures.map((failure) => normalizeForwardError(failure))
-  return new AggregateError(errors, `freshman forward ${applicationID} failed for guilds: ${guildIDs}`)
-}
-
-function normalizeForwardError(failure: FreshmanForwardFailure) {
-  const message = failure.error instanceof Error ? failure.error.message : String(failure.error)
-  return new Error(`guild ${failure.guildID}: ${message}`)
-}
-
-interface FreshmanForwardFailure {
-  readonly guildID: string
-  readonly error: unknown
+function forwardErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
 }

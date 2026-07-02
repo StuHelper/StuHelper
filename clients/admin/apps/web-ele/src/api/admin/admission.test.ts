@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   api: {
-    getFreshmanVerification: vi.fn(),
     cancelAdminAdmissionSession: vi.fn(),
     createMemberBlacklist: vi.fn(),
     listAdmissionPolicies: vi.fn(),
@@ -11,7 +10,6 @@ const mocks = vi.hoisted(() => ({
     listMemberBlacklist: vi.fn(),
     regenerateAdminAdmissionSession: vi.fn(),
     releaseMemberBlacklist: vi.fn(),
-    releaseMemberBlacklistBySubject: vi.fn(),
     resendAdminAdmissionSession: vi.fn(),
     reviewFreshmanVerification: vi.fn(),
     updateAdmissionPolicy: vi.fn(),
@@ -47,7 +45,6 @@ describe('admin admission API wrapper', () => {
       pageSize: 20,
       status: 'pending',
     });
-    await api.getFreshmanVerification('app-1');
     await api.reviewFreshmanVerification('app-1', { action: 'approve' });
     await api.listAdmissionPolicies();
     await api.updateAdmissionPolicy({ id: 'policy-1' } as never);
@@ -60,21 +57,12 @@ describe('admin admission API wrapper', () => {
     await api.releaseMemberBlacklist('entry-1', {
       releaseReasonCode: 'release_only',
     });
-    await api.releaseMemberBlacklistBySubject({
-      platform: 'qq',
-      subjectType: 'qq_user',
-      subjectID: '10001',
-      scopeType: 'guild',
-      guildID: 'guild-1',
-      releaseReasonCode: 'manual_pardon',
-    });
 
     expect(mocks.api.listFreshmanVerifications).toHaveBeenCalledWith({
       page: 1,
       pageSize: 20,
       status: 'pending',
     });
-    expect(mocks.api.getFreshmanVerification).toHaveBeenCalledWith('app-1');
     expect(mocks.api.reviewFreshmanVerification).toHaveBeenCalledWith('app-1', {
       action: 'approve',
     });
@@ -102,14 +90,6 @@ describe('admin admission API wrapper', () => {
     });
     expect(mocks.api.releaseMemberBlacklist).toHaveBeenCalledWith('entry-1', {
       releaseReasonCode: 'release_only',
-    });
-    expect(mocks.api.releaseMemberBlacklistBySubject).toHaveBeenCalledWith({
-      platform: 'qq',
-      subjectType: 'qq_user',
-      subjectID: '10001',
-      scopeType: 'guild',
-      guildID: 'guild-1',
-      releaseReasonCode: 'manual_pardon',
     });
   });
 });

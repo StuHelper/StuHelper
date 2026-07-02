@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS public.admission_bot_action_outbox_terminal_cleanup_idx;

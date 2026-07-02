@@ -136,26 +136,6 @@
             </div>
           </WorkspaceSection>
 
-          <WorkspaceSection title="系统状态" description="核心模块运行状况。">
-            <div class="sh-dashboard-status-list">
-              <article
-                v-for="item in dashboardData.systemStatus"
-                :key="item.name"
-                class="sh-dashboard-status-list__item"
-              >
-                <div>
-                  <div class="sh-dashboard-status-list__label">
-                    {{ item.description }}
-                  </div>
-                  <div v-if="item.error" class="sh-dashboard-status-list__note">
-                    {{ item.error }}
-                  </div>
-                </div>
-                <SeverityTag :label="item.state" :intent="statusIntent(item.state)" />
-              </article>
-            </div>
-          </WorkspaceSection>
-
           <WorkspaceSection
             title="最近事件与举报"
             description="快速判断是否需要进入处置中心。"
@@ -196,7 +176,6 @@ import {
 import { errorMessage } from '../utils/error-message'
 import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
 import EmptyState from './primitives/EmptyState.vue'
-import SeverityTag, { type TagIntent } from './primitives/SeverityTag.vue'
 import WorkspaceSection from './primitives/WorkspaceSection.vue'
 import DistChartCard from './dashboard/DistChartCard.vue'
 import RankChartCard from './dashboard/RankChartCard.vue'
@@ -282,13 +261,6 @@ function goToTarget(target: {
   keyword: string
 }) {
   props.navigation?.jumpTo(target)
-}
-
-function statusIntent(state: string): TagIntent {
-  if (state === 'loaded') return 'success'
-  if (state === 'error') return 'danger'
-  if (state === 'loading') return 'info'
-  return 'neutral'
 }
 
 function baseIntent(index: number): string {

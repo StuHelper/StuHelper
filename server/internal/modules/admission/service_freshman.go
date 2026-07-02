@@ -38,6 +38,11 @@ func (s *Service) CreateFreshmanApplication(
 	if err != nil {
 		return nil, err
 	}
+	// F020：目标学校必须与关联会话所属策略的学校一致，否则 A 校管理群的
+	// 操作员可审核并签发 B 校凭证，构成跨校审批越权。
+	if policy.SchoolID != input.SchoolID {
+		return nil, ErrAdmissionSchoolMismatch
+	}
 	if !policy.FreshmanChannelEnabled || s.now().After(policy.FreshmanChannelClosesAt) {
 		return nil, ErrAdmissionFreshmanChannelClosed
 	}

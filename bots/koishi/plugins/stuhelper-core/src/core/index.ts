@@ -11,9 +11,6 @@
 // 数据层
 export * from './data'
 
-// 模块层
-export * from './modules'
-
 // 服务层
 export * from './services'
 

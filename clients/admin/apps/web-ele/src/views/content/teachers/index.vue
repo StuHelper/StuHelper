@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Teacher } from '#/api/admin';
 
-import { onMounted, reactive, ref } from 'vue';
+import { reactive, ref } from 'vue';
 
 import {
   ElAlert,
@@ -21,55 +21,59 @@ import {
   getTeacherList,
   updateTeacher,
 } from '#/api/admin';
+import { useAdminAction } from '#/composables/use-admin-action';
+import { useAdminList } from '#/composables/use-admin-list';
 import { $t } from '#/locales';
 
 import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
 import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
 import AdminContentLayout from '../../shared/AdminContentLayout.vue';
 import { formatAdminDateTime } from '../../shared/display';
+import {
+  ADMIN_DEFAULT_PAGE_SIZE,
+  ADMIN_PAGE_SIZES,
+  ADMIN_PAGINATION_LAYOUT,
+} from '../../shared/pagination';
 
-const loading = ref(false);
-const actionLoading = ref(false);
-const loadError = ref('');
-const actionError = ref('');
-const teachers = ref<Teacher[]>([]);
-const total = ref(0);
-const query = reactive({
-  page: 1,
-  pageSize: 20,
-  keyword: '',
-  departmentID: null as null | number,
-});
-let fetchRequestSeq = 0;
-
-async function fetchData() {
-  const requestSeq = ++fetchRequestSeq;
-  loading.value = true;
-  loadError.value = '';
-  try {
-    const data = await getTeacherList({
-      departmentID: query.departmentID ?? undefined,
-      keyword: query.keyword || undefined,
-      page: query.page,
-      pageSize: query.pageSize,
-    });
-    if (requestSeq !== fetchRequestSeq) return;
-    teachers.value = data.items;
-    total.value = data.total;
-  } catch (error) {
-    if (requestSeq !== fetchRequestSeq) return;
-    loadError.value = adminErrorMessage(error);
-  } finally {
-    if (requestSeq === fetchRequestSeq) {
-      loading.value = false;
-    }
+const {
+  fetchData,
+  items: teachers,
+  loadError,
+  loading,
+  query,
+  resetPageAndFetch,
+  total,
+} = useAdminList<
+  Teacher,
+  {
+    departmentID: null | number;
+    keyword: string;
+    page: number;
+    pageSize: number;
   }
-}
+>({
+  fetcher: (listQuery) =>
+    getTeacherList({
+      departmentID: listQuery.departmentID ?? undefined,
+      keyword: listQuery.keyword || undefined,
+      page: listQuery.page,
+      pageSize: listQuery.pageSize,
+    }),
+  initialQuery: {
+    departmentID: null,
+    keyword: '',
+    page: 1,
+    pageSize: ADMIN_DEFAULT_PAGE_SIZE,
+  },
+});
 
-function resetPageAndFetch() {
-  query.page = 1;
-  void fetchData();
-}
+const {
+  actionError,
+  actionPending,
+  clearActionError,
+  isActionPending,
+  runAction,
+} = useAdminAction();
 
 // ── 弹窗 ──
 
@@ -113,9 +117,6 @@ function openEdit(row: Teacher) {
 }
 
 async function handleSubmit() {
-  if (actionLoading.value) {
-    return;
-  }
   if (!form.name.trim()) {
     ElMessage.warning($t('admin.content.teachers.validation.nameRequired'));
     return;
@@ -146,54 +147,33 @@ async function handleSubmit() {
       kind: 'create',
     };
   }
-  actionLoading.value = true;
-  actionError.value = '';
-  try {
-    if (action.kind === 'edit') {
-      await updateTeacher(action.id, action.data);
-      ElMessage.success($t('admin.content.teachers.updated'));
-    } else {
-      await createTeacher(action.data);
-      ElMessage.success($t('admin.content.teachers.created'));
-    }
+  const succeeded = await runAction(
+    () =>
+      action.kind === 'edit'
+        ? updateTeacher(action.id, action.data)
+        : createTeacher(action.data),
+    {
+      successMessage:
+        action.kind === 'edit'
+          ? $t('admin.content.teachers.updated')
+          : $t('admin.content.teachers.created'),
+    },
+  );
+  if (succeeded) {
     dialogVisible.value = false;
     await fetchData();
-  } catch (error) {
-    handleActionError(error);
-  } finally {
-    actionLoading.value = false;
   }
 }
 
 async function handleDelete(teacherId: number) {
-  if (actionLoading.value) {
-    return;
-  }
-  actionLoading.value = true;
-  actionError.value = '';
-  try {
-    await deleteTeacher(teacherId);
-    ElMessage.success($t('admin.content.teachers.deleted'));
+  const succeeded = await runAction(() => deleteTeacher(teacherId), {
+    id: teacherId,
+    successMessage: $t('admin.content.teachers.deleted'),
+  });
+  if (succeeded) {
     await fetchData();
-  } catch (error) {
-    handleActionError(error);
-  } finally {
-    actionLoading.value = false;
   }
 }
-
-function handleActionError(error: unknown) {
-  actionError.value = adminErrorMessage(error);
-  ElMessage.error(actionError.value);
-}
-
-function adminErrorMessage(error: unknown): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : $t('admin.result.requestFailed');
-}
-
-onMounted(fetchData);
 </script>
 
 <template>
@@ -221,7 +201,7 @@ onMounted(fetchData);
       <ElButton type="primary" @click="resetPageAndFetch">
         {{ $t('admin.common.query') }}
       </ElButton>
-      <ElButton type="success" :disabled="actionLoading" @click="openCreate">
+      <ElButton type="success" :disabled="actionPending" @click="openCreate">
         {{ $t('admin.content.teachers.create') }}
       </ElButton>
     </template>
@@ -246,7 +226,7 @@ onMounted(fetchData);
       :closable="true"
       show-icon
       :title="actionError"
-      @close="actionError = ''"
+      @close="clearActionError"
     />
 
     <PersistentAdminTable
@@ -312,7 +292,7 @@ onMounted(fetchData);
               plain
               size="small"
               type="primary"
-              :disabled="actionLoading"
+              :disabled="isActionPending(row.id)"
               @click="openEdit(row)"
             >
               {{ $t('admin.common.edit') }}
@@ -326,7 +306,7 @@ onMounted(fetchData);
                   plain
                   size="small"
                   type="danger"
-                  :disabled="actionLoading"
+                  :disabled="isActionPending(row.id)"
                 >
                   {{ $t('admin.common.delete') }}
                 </ElButton>
@@ -341,9 +321,12 @@ onMounted(fetchData);
       <ElPagination
         v-model:current-page="query.page"
         v-model:page-size="query.pageSize"
+        background
+        :layout="ADMIN_PAGINATION_LAYOUT"
+        :page-sizes="ADMIN_PAGE_SIZES"
         :total="total"
-        layout="total, prev, pager, next"
         @current-change="fetchData"
+        @size-change="resetPageAndFetch"
       />
     </template>
 
@@ -376,7 +359,7 @@ onMounted(fetchData);
         <ElButton @click="dialogVisible = false">
           {{ $t('admin.common.cancel') }}
         </ElButton>
-        <ElButton type="primary" :loading="actionLoading" @click="handleSubmit">
+        <ElButton type="primary" :loading="actionPending" @click="handleSubmit">
           {{ $t('admin.common.confirm') }}
         </ElButton>
       </template>

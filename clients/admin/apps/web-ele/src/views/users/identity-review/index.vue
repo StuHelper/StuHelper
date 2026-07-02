@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { IdentityVerification } from '#/api/admin';
 
-import { onMounted, reactive, ref } from 'vue';
+import { ref } from 'vue';
 
 import {
   ElAlert,
@@ -17,56 +17,54 @@ import {
 } from 'element-plus';
 
 import { getIdentityList, reviewIdentity } from '#/api/admin';
+import { useAdminAction } from '#/composables/use-admin-action';
+import { useAdminList } from '#/composables/use-admin-list';
 import { $t } from '#/locales';
 
 import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
 import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
 import AdminContentLayout from '../../shared/AdminContentLayout.vue';
 import { formatAdminDateTime } from '../../shared/display';
+import {
+  ADMIN_DEFAULT_PAGE_SIZE,
+  ADMIN_PAGE_SIZES,
+  ADMIN_PAGINATION_LAYOUT,
+} from '../../shared/pagination';
 
 type IdentityReviewAction = 'approve' | 'reject';
+type IdentityStatusFilter = 'all' | 'pending' | 'rejected' | 'verified';
 
-const loading = ref(false);
-const items = ref<IdentityVerification[]>([]);
-const total = ref(0);
-const loadError = ref('');
-const actionError = ref('');
+const {
+  fetchData,
+  items,
+  loadError,
+  loading,
+  query,
+  resetPageAndFetch,
+  total,
+} = useAdminList<
+  IdentityVerification,
+  { page: number; pageSize: number; status: IdentityStatusFilter }
+>({
+  fetcher: (listQuery) => getIdentityList(listQuery),
+  initialQuery: {
+    page: 1,
+    pageSize: ADMIN_DEFAULT_PAGE_SIZE,
+    status: 'all',
+  },
+});
+
+const {
+  actionError,
+  clearActionError,
+  isActionPending,
+  pendingActionKinds,
+  runAction,
+} = useAdminAction();
+
 const rejectDialogVisible = ref(false);
 const rejectTarget = ref<IdentityVerification | null>(null);
 const rejectionReason = ref('');
-const reviewingActionsByUserId = reactive<
-  Record<number, IdentityReviewAction | undefined>
->({});
-let fetchRequestSeq = 0;
-const query = reactive({
-  page: 1,
-  pageSize: 20,
-  status: 'all' as 'all' | 'pending' | 'rejected' | 'verified',
-});
-
-async function fetchData() {
-  const requestSeq = ++fetchRequestSeq;
-  loading.value = true;
-  loadError.value = '';
-  try {
-    const data = await getIdentityList(query);
-    if (requestSeq !== fetchRequestSeq) return;
-    items.value = data.items;
-    total.value = data.total;
-  } catch (error) {
-    if (requestSeq !== fetchRequestSeq) return;
-    loadError.value = adminErrorMessage(error);
-  } finally {
-    if (requestSeq === fetchRequestSeq) {
-      loading.value = false;
-    }
-  }
-}
-
-function resetPageAndFetch() {
-  query.page = 1;
-  void fetchData();
-}
 
 async function handleReview(
   userId: number,
@@ -74,32 +72,26 @@ async function handleReview(
   rejectionReason?: string,
 ) {
   const action: IdentityReviewAction = approved ? 'approve' : 'reject';
-  if (userReviewing(userId)) {
-    return false;
-  }
-
-  reviewingActionsByUserId[userId] = action;
-  actionError.value = '';
-  try {
-    await reviewIdentity(userId, {
-      approved,
-      ...(rejectionReason ? { rejectionReason } : {}),
-    });
-    ElMessage.success(
-      $t(
+  const succeeded = await runAction(
+    () =>
+      reviewIdentity(userId, {
+        approved,
+        ...(rejectionReason ? { rejectionReason } : {}),
+      }),
+    {
+      id: userId,
+      kind: action,
+      successMessage: $t(
         approved
           ? 'admin.users.identityReview.approveSuccess'
           : 'admin.users.identityReview.rejectSuccess',
       ),
-    );
+    },
+  );
+  if (succeeded) {
     await fetchData();
-    return true;
-  } catch (error) {
-    handleActionError(error);
-    return false;
-  } finally {
-    delete reviewingActionsByUserId[userId];
   }
+  return succeeded;
 }
 
 function openRejectDialog(row: IdentityVerification) {
@@ -111,7 +103,7 @@ function openRejectDialog(row: IdentityVerification) {
 async function submitReject() {
   const reason = rejectionReason.value.trim();
   if (!reason) {
-    ElMessage.error($t('admin.users.identityReview.rejectReasonRequired'));
+    ElMessage.warning($t('admin.users.identityReview.rejectReasonRequired'));
     return;
   }
 
@@ -130,16 +122,14 @@ async function submitReject() {
   rejectionReason.value = '';
 }
 
-function userReviewing(userId: number) {
-  return Boolean(reviewingActionsByUserId[userId]);
-}
-
 function userActionLoading(userId: number, action: IdentityReviewAction) {
-  return reviewingActionsByUserId[userId] === action;
+  return pendingActionKinds.value[String(userId)] === action;
 }
 
 function rejectTargetReviewing() {
-  return rejectTarget.value ? userReviewing(rejectTarget.value.userID) : false;
+  return rejectTarget.value
+    ? isActionPending(rejectTarget.value.userID)
+    : false;
 }
 
 function rejectTargetActionLoading(action: IdentityReviewAction) {
@@ -172,19 +162,6 @@ const verifyMethodLabel = (method: IdentityVerification['verifyMethod']) => {
     ? $t(`admin.users.identityReview.verifyMethod.${method}`)
     : $t('admin.users.identityReview.status.pending');
 };
-
-function handleActionError(error: unknown) {
-  actionError.value = adminErrorMessage(error);
-  ElMessage.error(actionError.value);
-}
-
-function adminErrorMessage(error: unknown): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : $t('admin.result.requestFailed');
-}
-
-onMounted(fetchData);
 </script>
 
 <template>
@@ -239,7 +216,7 @@ onMounted(fetchData);
       :closable="true"
       show-icon
       :title="actionError"
-      @close="actionError = ''"
+      @close="clearActionError"
     />
 
     <PersistentAdminTable
@@ -320,7 +297,7 @@ onMounted(fetchData);
                   size="small"
                   type="success"
                   data-action="approve"
-                  :disabled="userReviewing(row.userID)"
+                  :disabled="isActionPending(row.userID)"
                   :loading="userActionLoading(row.userID, 'approve')"
                 >
                   {{ $t('admin.users.identityReview.approve') }}
@@ -332,7 +309,7 @@ onMounted(fetchData);
               size="small"
               type="danger"
               data-action="reject"
-              :disabled="userReviewing(row.userID)"
+              :disabled="isActionPending(row.userID)"
               :loading="userActionLoading(row.userID, 'reject')"
               @click="openRejectDialog(row)"
             >
@@ -348,9 +325,12 @@ onMounted(fetchData);
       <ElPagination
         v-model:current-page="query.page"
         v-model:page-size="query.pageSize"
+        background
+        :layout="ADMIN_PAGINATION_LAYOUT"
+        :page-sizes="ADMIN_PAGE_SIZES"
         :total="total"
-        layout="total, prev, pager, next"
         @current-change="fetchData"
+        @size-change="resetPageAndFetch"
       />
     </template>
 

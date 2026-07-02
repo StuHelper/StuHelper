@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { AdmissionPolicy } from '#/api/admin';
 
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
 
 import {
   ElAlert,
@@ -26,64 +26,88 @@ import {
   listAdmissionPolicies,
   updateAdmissionPolicy,
 } from '#/api/admin';
+import { useAdminAction } from '#/composables/use-admin-action';
+import { adminErrorMessage, useAdminLoad } from '#/composables/use-admin-list';
 import { $t } from '#/locales';
 
 import AdminContentLayout from '../../shared/AdminContentLayout.vue';
 
-const loading = ref(false);
-const loadError = ref('');
-const actionError = ref('');
-const policies = ref<AdmissionPolicy[]>([]);
 const managementGuildText = reactive<Record<string, string>>({});
-const savingPolicyIDs = reactive<Record<string, boolean>>({});
 const createPolicyDialogVisible = ref(false);
-const createPolicySubmitting = ref(false);
 const createPolicyForm = reactive({
   guildIDs: '',
   platform: 'qq',
   sourcePolicyID: '',
 });
-let fetchRequestSeq = 0;
 
 const POLICY_DATETIME_FORMAT = 'YYYY-MM-DDTHH:mm:ssZ';
 
-const policyFieldLabels = {
-  blacklistDurationSeconds: '自动拉黑时长（秒）',
-  failedJoinLimit: '失败入群上限',
-  forwardRawMaterialToQQ: '转发原始材料到 QQ',
-  freshmanChannelClosesAt: '新生通道关闭时间',
-  freshmanChannelEnabled: '启用新生入群通道',
-  freshmanDefaultExpiresAt: '默认临时认证到期时间',
-  guardEnabled: '启用入群认证守卫',
-  initialMuteDurationSeconds: '入群初始禁言（秒）',
-  joinHandlingStrategy: '入群处理策略',
-  linkWaitSeconds: '绑定链接等待（秒）',
-  managementGuildIDs: '材料审核通知群号',
-  manualReviewTimeoutSeconds: '人工审核超时（秒）',
-  maxExtensionDays: '最大延期天数',
-  maxMaterialBytes: '材料大小上限（字节）',
-  reminderIntervalSeconds: '提醒间隔（秒）',
-  submissionWaitSeconds: '材料提交等待（秒）',
-  unverifiedJoinRejectReason: '未认证拒绝理由',
-} as const;
+const policyFieldLabels = computed(() => ({
+  blacklistDurationSeconds: $t(
+    'admin.users.admissionPolicy.fields.blacklistDurationSeconds',
+  ),
+  failedJoinLimit: $t('admin.users.admissionPolicy.fields.failedJoinLimit'),
+  forwardRawMaterialToQQ: $t(
+    'admin.users.admissionPolicy.fields.forwardRawMaterialToQQ',
+  ),
+  freshmanChannelClosesAt: $t(
+    'admin.users.admissionPolicy.fields.freshmanChannelClosesAt',
+  ),
+  freshmanChannelEnabled: $t(
+    'admin.users.admissionPolicy.fields.freshmanChannelEnabled',
+  ),
+  freshmanDefaultExpiresAt: $t(
+    'admin.users.admissionPolicy.fields.freshmanDefaultExpiresAt',
+  ),
+  guardEnabled: $t('admin.users.admissionPolicy.fields.guardEnabled'),
+  initialMuteDurationSeconds: $t(
+    'admin.users.admissionPolicy.fields.initialMuteDurationSeconds',
+  ),
+  joinHandlingStrategy: $t(
+    'admin.users.admissionPolicy.fields.joinHandlingStrategy',
+  ),
+  linkWaitSeconds: $t('admin.users.admissionPolicy.fields.linkWaitSeconds'),
+  managementGuildIDs: $t(
+    'admin.users.admissionPolicy.fields.managementGuildIDs',
+  ),
+  manualReviewTimeoutSeconds: $t(
+    'admin.users.admissionPolicy.fields.manualReviewTimeoutSeconds',
+  ),
+  maxExtensionDays: $t('admin.users.admissionPolicy.fields.maxExtensionDays'),
+  maxMaterialBytes: $t('admin.users.admissionPolicy.fields.maxMaterialBytes'),
+  reminderIntervalSeconds: $t(
+    'admin.users.admissionPolicy.fields.reminderIntervalSeconds',
+  ),
+  submissionWaitSeconds: $t(
+    'admin.users.admissionPolicy.fields.submissionWaitSeconds',
+  ),
+  unverifiedJoinRejectReason: $t(
+    'admin.users.admissionPolicy.fields.unverifiedJoinRejectReason',
+  ),
+}));
 
-const joinHandlingStrategyOptions = [
-  { label: '加群后学生认证', value: 'post_join_guard' },
-  { label: '申请时学生认证', value: 'join_request_review' },
-  { label: '加群后时间验证码', value: 'post_join_time_code' },
-] as const;
-
-const createSourceOptions = computed(() =>
-  policies.value.map((policy) => ({
-    label: `${policy.platform.toUpperCase()} 群 ${policy.guildID}`,
-    value: policy.id,
-  })),
+const joinHandlingStrategyOptions = computed(
+  () =>
+    [
+      {
+        label: $t('admin.users.admissionPolicy.strategyPostJoinGuard'),
+        value: 'post_join_guard',
+      },
+      {
+        label: $t('admin.users.admissionPolicy.strategyJoinRequestReview'),
+        value: 'join_request_review',
+      },
+      {
+        label: $t('admin.users.admissionPolicy.strategyPostJoinTimeCode'),
+        value: 'post_join_time_code',
+      },
+    ] as const,
 );
 
 type AdmissionPolicyBoundary = Omit<AdmissionPolicy, 'managementGuildIDs'> & {
   joinHandlingStrategy?: AdmissionPolicy['joinHandlingStrategy'];
   managementGuildIDs?: null | string[];
-  unverifiedJoinRejectReason?: string | null;
+  unverifiedJoinRejectReason?: null | string;
 };
 
 function normalizeManagementGuildIDs(values?: null | string[]) {
@@ -100,35 +124,44 @@ function normalizePolicy(policy: AdmissionPolicyBoundary): AdmissionPolicy {
     ...policy,
     joinHandlingStrategy: policy.joinHandlingStrategy ?? 'post_join_guard',
     managementGuildIDs: normalizeManagementGuildIDs(policy.managementGuildIDs),
-    unverifiedJoinRejectReason:
-      policy.unverifiedJoinRejectReason?.trim() ||
-      '请先完成 StuHelper 学生认证后再申请入群。',
+    // F030：留空保持留空，前端不注入默认文案——否则保存会把客户端默认值
+    // 静默写回后端。默认提示放输入框 placeholder，由后端落默认。
+    unverifiedJoinRejectReason: policy.unverifiedJoinRejectReason ?? '',
   };
 }
 
-async function fetchData() {
-  const requestSeq = ++fetchRequestSeq;
-  loading.value = true;
-  loadError.value = '';
-  try {
-    const data = await listAdmissionPolicies();
-    if (requestSeq !== fetchRequestSeq) return;
-    policies.value = data.map((policy) => normalizePolicy(policy));
-    for (const policy of policies.value) {
-      managementGuildText[policy.id] = policy.managementGuildIDs.join('\n');
-    }
-    if (!createPolicyForm.sourcePolicyID && policies.value.length > 0) {
-      createPolicyForm.sourcePolicyID = policies.value[0]!.id;
-    }
-  } catch (error) {
-    if (requestSeq !== fetchRequestSeq) return;
-    loadError.value = adminErrorMessage(error);
-  } finally {
-    if (requestSeq === fetchRequestSeq) {
-      loading.value = false;
-    }
+const {
+  data: loadedPolicies,
+  load: fetchData,
+  loadError,
+  loading,
+} = useAdminLoad(async () => {
+  const data = await listAdmissionPolicies();
+  const normalized = data.map((policy) => normalizePolicy(policy));
+  for (const policy of normalized) {
+    managementGuildText[policy.id] = policy.managementGuildIDs.join('\n');
   }
-}
+  const firstPolicy = normalized[0];
+  if (!createPolicyForm.sourcePolicyID && firstPolicy) {
+    createPolicyForm.sourcePolicyID = firstPolicy.id;
+  }
+  return normalized;
+});
+
+const policies = computed(() => loadedPolicies.value ?? []);
+
+const { actionError, clearActionError, isActionPending, runAction } =
+  useAdminAction();
+
+const createSourceOptions = computed(() =>
+  policies.value.map((policy) => ({
+    label: $t('admin.users.admissionPolicy.sourceOptionLabel', {
+      guild: policy.guildID,
+      platform: policy.platform.toUpperCase(),
+    }),
+    value: policy.id,
+  })),
+);
 
 function parseManagementGuildIDs(policyID: string) {
   return parseGuildIDText(managementGuildText[policyID] ?? '');
@@ -140,7 +173,7 @@ function managementGuildCount(policy: AdmissionPolicy) {
 
 function joinHandlingStrategyLabel(policy: AdmissionPolicy) {
   return (
-    joinHandlingStrategyOptions.find(
+    joinHandlingStrategyOptions.value.find(
       (option) => option.value === policy.joinHandlingStrategy,
     )?.label ?? policy.joinHandlingStrategy
   );
@@ -148,19 +181,25 @@ function joinHandlingStrategyLabel(policy: AdmissionPolicy) {
 
 function joinHandlingStrategyHelp(policy: AdmissionPolicy) {
   if (policy.joinHandlingStrategy === 'post_join_guard') {
-    return 'Koishi 会在目标群成员入群后执行禁言、发认证链接、通过后解除禁言。';
+    return $t('admin.users.admissionPolicy.strategyHelpPostJoinGuard');
   }
   if (policy.joinHandlingStrategy === 'post_join_time_code') {
-    return 'Koishi 会先同意入群申请，成员入群后在群内发送动态验证码完成验证；超时未验证将自动移出群聊。';
+    return $t('admin.users.admissionPolicy.strategyHelpPostJoinTimeCode');
   }
-  return 'Koishi 不启用入群后守卫绑定，后端按 StuHelper 学生认证状态处理加群申请。';
+  return $t('admin.users.admissionPolicy.strategyHelpJoinRequestReview');
 }
 
 function guardSyncLabel(policy: AdmissionPolicy) {
-  if (!policy.guardEnabled) return '目标群停用';
-  return isPostJoinLocalStrategy(policy)
-    ? '同步为 Koishi 入群后守卫'
-    : '同步为申请阶段策略';
+  if (!policy.guardEnabled) {
+    return $t('admin.users.admissionPolicy.syncDisabled');
+  }
+  if (policy.joinHandlingStrategy === 'post_join_guard') {
+    return $t('admin.users.admissionPolicy.syncPostJoinGuard');
+  }
+  if (policy.joinHandlingStrategy === 'post_join_time_code') {
+    return $t('admin.users.admissionPolicy.syncPostJoinTimeCode');
+  }
+  return $t('admin.users.admissionPolicy.syncJoinRequestReview');
 }
 
 function guardSyncTagType(
@@ -181,9 +220,16 @@ function isPostJoinLocalStrategy(policy: AdmissionPolicy) {
 
 function saveImpactSummary(policy: AdmissionPolicy) {
   return [
-    `目标认证群：${policy.platform.toUpperCase()} ${policy.guildID}`,
-    `执行状态：${guardSyncLabel(policy)}`,
-    `审核通知群：${managementGuildCount(policy)} 个`,
+    $t('admin.users.admissionPolicy.impactTarget', {
+      guild: policy.guildID,
+      platform: policy.platform.toUpperCase(),
+    }),
+    $t('admin.users.admissionPolicy.impactState', {
+      state: guardSyncLabel(policy),
+    }),
+    $t('admin.users.admissionPolicy.impactReviewGuilds', {
+      count: managementGuildCount(policy),
+    }),
   ].join('；');
 }
 
@@ -203,88 +249,101 @@ function parseGuildIDText(value: string) {
 
 function openCreatePolicyDialog() {
   createPolicyForm.platform ||= 'qq';
-  if (!createPolicyForm.sourcePolicyID && policies.value.length > 0) {
-    createPolicyForm.sourcePolicyID = policies.value[0]!.id;
+  const firstPolicy = policies.value[0];
+  if (!createPolicyForm.sourcePolicyID && firstPolicy) {
+    createPolicyForm.sourcePolicyID = firstPolicy.id;
   }
   createPolicyForm.guildIDs = '';
   createPolicyDialogVisible.value = true;
 }
 
 async function submitCreatePolicies() {
-  if (createPolicySubmitting.value) {
-    return;
-  }
   const guildIDs = parseCreateGuildIDs();
-  if (!createPolicyForm.sourcePolicyID || !createPolicyForm.platform || guildIDs.length === 0) {
-    handleActionError(new Error('请填写目标认证群号并选择要复制的策略'));
+  if (
+    !createPolicyForm.sourcePolicyID ||
+    !createPolicyForm.platform ||
+    guildIDs.length === 0
+  ) {
+    ElMessage.warning($t('admin.users.admissionPolicy.formIncomplete'));
     return;
   }
 
-  createPolicySubmitting.value = true;
-  actionError.value = '';
-  try {
-    for (const guildID of guildIDs) {
-      await createAdmissionPolicy({
-        guildID,
-        platform: createPolicyForm.platform,
-        sourcePolicyID: createPolicyForm.sourcePolicyID,
-      });
-    }
-    ElMessage.success(`已创建 ${guildIDs.length} 个新生认证群策略`);
+  const failures: Array<{ guildID: string; message: string }> = [];
+  const succeeded = await runAction(
+    async () => {
+      for (const guildID of guildIDs) {
+        try {
+          await createAdmissionPolicy({
+            guildID,
+            platform: createPolicyForm.platform,
+            sourcePolicyID: createPolicyForm.sourcePolicyID,
+          });
+        } catch (error) {
+          failures.push({ guildID, message: adminErrorMessage(error) });
+        }
+      }
+      if (failures.length > 0) {
+        // F029：失败群号回填输入框，重试只补失败项；已创建的群号
+        // 不会被重复提交，错误信息逐群列出失败原因。
+        createPolicyForm.guildIDs = failures
+          .map((failure) => failure.guildID)
+          .join('\n');
+        throw new Error(
+          $t('admin.users.admissionPolicy.createPartialFailure', {
+            created: guildIDs.length - failures.length,
+            failed: failures.length,
+            failures: failures
+              .map((failure) => `${failure.guildID}（${failure.message}）`)
+              .join('；'),
+          }),
+        );
+      }
+    },
+    {
+      successMessage: $t('admin.users.admissionPolicy.createSuccess', {
+        count: guildIDs.length,
+      }),
+    },
+  );
+
+  if (succeeded) {
     createPolicyDialogVisible.value = false;
+  }
+  if (succeeded || failures.length < guildIDs.length) {
     await fetchData();
-  } catch (error) {
-    handleActionError(error);
-  } finally {
-    createPolicySubmitting.value = false;
   }
 }
 
 async function savePolicy(policy: AdmissionPolicy) {
-  if (savingPolicyIDs[policy.id]) {
-    return;
-  }
-
-  savingPolicyIDs[policy.id] = true;
-  actionError.value = '';
-  try {
-    await updateAdmissionPolicy({
-      ...policy,
-      autoApproveJoin: isPostJoinLocalStrategy(policy),
-      autoApproveVerifiedJoin: true,
-      autoApproveUnverifiedJoin:
-        isPostJoinLocalStrategy(policy),
-      managementGuildIDs: parseManagementGuildIDs(policy.id),
-    });
-    ElMessage.success(
-      `已保存 ${policy.platform.toUpperCase()} 群 ${policy.guildID} 入群认证策略`,
-    );
+  const succeeded = await runAction(
+    () =>
+      updateAdmissionPolicy({
+        ...policy,
+        autoApproveJoin: isPostJoinLocalStrategy(policy),
+        autoApproveVerifiedJoin: true,
+        autoApproveUnverifiedJoin: isPostJoinLocalStrategy(policy),
+        managementGuildIDs: parseManagementGuildIDs(policy.id),
+        unverifiedJoinRejectReason:
+          policy.unverifiedJoinRejectReason?.trim() ?? '',
+      }),
+    {
+      id: policy.id,
+      successMessage: $t('admin.users.admissionPolicy.saveSuccess', {
+        guild: policy.guildID,
+        platform: policy.platform.toUpperCase(),
+      }),
+    },
+  );
+  if (succeeded) {
     await fetchData();
-  } catch (error) {
-    handleActionError(error);
-  } finally {
-    savingPolicyIDs[policy.id] = false;
   }
 }
-
-function handleActionError(error: unknown) {
-  actionError.value = adminErrorMessage(error);
-  ElMessage.error(actionError.value);
-}
-
-function adminErrorMessage(error: unknown): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : $t('admin.result.requestFailed');
-}
-
-onMounted(fetchData);
 </script>
 
 <template>
   <AdminContentLayout
-    description="控制新生入群验证、临时认证期限和人工审核转发行为。"
-    title="入群认证策略"
+    :description="$t('admin.users.admissionPolicy.description')"
+    :title="$t('admin.routes.userSystem.admissionPolicy')"
     :total="policies.length"
   >
     <template #actions>
@@ -293,7 +352,7 @@ onMounted(fetchData);
         :disabled="loading || policies.length === 0"
         @click="openCreatePolicyDialog"
       >
-        新增目标认证群
+        {{ $t('admin.users.admissionPolicy.createButton') }}
       </ElButton>
     </template>
 
@@ -317,7 +376,7 @@ onMounted(fetchData);
       :closable="true"
       show-icon
       :title="actionError"
-      @close="actionError = ''"
+      @close="clearActionError"
     />
 
     <div v-loading="loading" class="grid gap-4">
@@ -327,11 +386,18 @@ onMounted(fetchData);
         class="rounded border border-slate-200 bg-white p-5 shadow-sm"
         label-position="top"
       >
-        <header class="flex flex-col gap-3 border-b border-slate-200 pb-4 lg:flex-row lg:items-start lg:justify-between">
+        <header
+          class="flex flex-col gap-3 border-b border-slate-200 pb-4 lg:flex-row lg:items-start lg:justify-between"
+        >
           <div>
             <div class="flex flex-wrap items-center gap-2">
               <h2 class="text-base font-semibold text-slate-900">
-                {{ policy.platform.toUpperCase() }} 群 {{ policy.guildID }}
+                {{
+                  $t('admin.users.admissionPolicy.policyCardTitle', {
+                    guild: policy.guildID,
+                    platform: policy.platform.toUpperCase(),
+                  })
+                }}
               </h2>
               <ElTag
                 size="small"
@@ -342,32 +408,52 @@ onMounted(fetchData);
               </ElTag>
             </div>
             <p class="mt-1 text-sm text-slate-500">
-              Admin 是入群认证策略权威源。Koishi WebUI 只显示同步后的执行态和现场队列。
+              {{ $t('admin.users.admissionPolicy.authorityNote') }}
             </p>
           </div>
           <div
             class="grid min-w-[220px] gap-1 text-sm text-slate-600"
             data-policy-summary
           >
-            <span>目标认证群：{{ policy.guildID }}</span>
-            <span>入群处理：{{ joinHandlingStrategyLabel(policy) }}</span>
-            <span>审核通知群：{{ managementGuildCount(policy) }} 个</span>
+            <span>
+              {{
+                $t('admin.users.admissionPolicy.summaryTargetGuild', {
+                  guild: policy.guildID,
+                })
+              }}
+            </span>
+            <span>
+              {{
+                $t('admin.users.admissionPolicy.summaryStrategy', {
+                  label: joinHandlingStrategyLabel(policy),
+                })
+              }}
+            </span>
+            <span>
+              {{
+                $t('admin.users.admissionPolicy.summaryReviewGuilds', {
+                  count: managementGuildCount(policy),
+                })
+              }}
+            </span>
           </div>
         </header>
 
         <section class="grid gap-4 border-b border-slate-200 py-4">
           <div>
-            <h3 class="text-sm font-semibold text-slate-900">入群处理</h3>
+            <h3 class="text-sm font-semibold text-slate-900">
+              {{ $t('admin.users.admissionPolicy.sectionJoinHandling') }}
+            </h3>
             <p class="mt-1 text-sm text-slate-500">
-              这里配置目标认证群本身。不要把材料审核通知群填到目标认证群里。
+              {{ $t('admin.users.admissionPolicy.sectionJoinHandlingNote') }}
             </p>
           </div>
           <div class="grid gap-4 lg:grid-cols-2">
             <ElFormItem :label="policyFieldLabels.guardEnabled">
               <ElSwitch
                 v-model="policy.guardEnabled"
-                active-text="启用"
-                inactive-text="停用目标群"
+                :active-text="$t('admin.users.admissionPolicy.guardActive')"
+                :inactive-text="$t('admin.users.admissionPolicy.guardInactive')"
               />
             </ElFormItem>
             <ElFormItem :label="policyFieldLabels.joinHandlingStrategy">
@@ -392,6 +478,9 @@ onMounted(fetchData);
             <ElInput
               v-model="policy.unverifiedJoinRejectReason"
               maxlength="120"
+              :placeholder="
+                $t('admin.users.admissionPolicy.unverifiedRejectPlaceholder')
+              "
               show-word-limit
             />
           </ElFormItem>
@@ -399,14 +488,19 @@ onMounted(fetchData);
 
         <section class="grid gap-4 border-b border-slate-200 py-4">
           <div>
-            <h3 class="text-sm font-semibold text-slate-900">时间与提醒</h3>
+            <h3 class="text-sm font-semibold text-slate-900">
+              {{ $t('admin.users.admissionPolicy.sectionTiming') }}
+            </h3>
             <p class="mt-1 text-sm text-slate-500">
-              这些时间控制入群后禁言、链接绑定、材料提交、人工审核和提醒节奏。
+              {{ $t('admin.users.admissionPolicy.sectionTimingNote') }}
             </p>
           </div>
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <ElFormItem :label="policyFieldLabels.initialMuteDurationSeconds">
-              <ElInputNumber v-model="policy.initialMuteDurationSeconds" :min="1" />
+              <ElInputNumber
+                v-model="policy.initialMuteDurationSeconds"
+                :min="1"
+              />
             </ElFormItem>
             <ElFormItem :label="policyFieldLabels.linkWaitSeconds">
               <ElInputNumber v-model="policy.linkWaitSeconds" :min="1" />
@@ -415,19 +509,27 @@ onMounted(fetchData);
               <ElInputNumber v-model="policy.submissionWaitSeconds" :min="1" />
             </ElFormItem>
             <ElFormItem :label="policyFieldLabels.manualReviewTimeoutSeconds">
-              <ElInputNumber v-model="policy.manualReviewTimeoutSeconds" :min="1" />
+              <ElInputNumber
+                v-model="policy.manualReviewTimeoutSeconds"
+                :min="1"
+              />
             </ElFormItem>
             <ElFormItem :label="policyFieldLabels.reminderIntervalSeconds">
-              <ElInputNumber v-model="policy.reminderIntervalSeconds" :min="1" />
+              <ElInputNumber
+                v-model="policy.reminderIntervalSeconds"
+                :min="1"
+              />
             </ElFormItem>
           </div>
         </section>
 
         <section class="grid gap-4 border-b border-slate-200 py-4">
           <div>
-            <h3 class="text-sm font-semibold text-slate-900">新生材料与审核通知</h3>
+            <h3 class="text-sm font-semibold text-slate-900">
+              {{ $t('admin.users.admissionPolicy.sectionMaterial') }}
+            </h3>
             <p class="mt-1 text-sm text-slate-500">
-              审核通知群只接收材料审核提醒，不会被同步为 Koishi 入群认证目标群。
+              {{ $t('admin.users.admissionPolicy.sectionMaterialNote') }}
             </p>
           </div>
           <div class="grid gap-4 lg:grid-cols-3">
@@ -449,16 +551,24 @@ onMounted(fetchData);
               />
             </ElFormItem>
           </div>
-          <div class="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]">
+          <div
+            class="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]"
+          >
             <ElFormItem :label="policyFieldLabels.managementGuildIDs">
               <ElInput
                 v-model="managementGuildText[policy.id]"
-                placeholder="每行一个材料审核通知群号，可留空；这里不是目标认证群"
+                :placeholder="
+                  $t('admin.users.admissionPolicy.managementGuildPlaceholder')
+                "
                 :rows="3"
                 type="textarea"
               />
               <p class="mt-2 text-xs leading-5 text-slate-500">
-                当前将向 {{ managementGuildCount(policy) }} 个审核通知群转发审核提醒。
+                {{
+                  $t('admin.users.admissionPolicy.managementGuildHint', {
+                    count: managementGuildCount(policy),
+                  })
+                }}
               </p>
             </ElFormItem>
             <ElFormItem :label="policyFieldLabels.forwardRawMaterialToQQ">
@@ -469,9 +579,11 @@ onMounted(fetchData);
 
         <section class="grid gap-4 border-b border-slate-200 py-4">
           <div>
-            <h3 class="text-sm font-semibold text-slate-900">失败与限制</h3>
+            <h3 class="text-sm font-semibold text-slate-900">
+              {{ $t('admin.users.admissionPolicy.sectionLimits') }}
+            </h3>
             <p class="mt-1 text-sm text-slate-500">
-              控制多次未认证、黑名单、延期和上传材料大小限制。
+              {{ $t('admin.users.admissionPolicy.sectionLimitsNote') }}
             </p>
           </div>
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -479,7 +591,10 @@ onMounted(fetchData);
               <ElInputNumber v-model="policy.failedJoinLimit" :min="1" />
             </ElFormItem>
             <ElFormItem :label="policyFieldLabels.blacklistDurationSeconds">
-              <ElInputNumber v-model="policy.blacklistDurationSeconds" :min="0" />
+              <ElInputNumber
+                v-model="policy.blacklistDurationSeconds"
+                :min="0"
+              />
             </ElFormItem>
             <ElFormItem :label="policyFieldLabels.maxMaterialBytes">
               <ElInputNumber v-model="policy.maxMaterialBytes" :min="1" />
@@ -490,37 +605,47 @@ onMounted(fetchData);
           </div>
         </section>
 
-        <footer class="flex flex-col gap-3 pt-4 lg:flex-row lg:items-center lg:justify-between">
+        <footer
+          class="flex flex-col gap-3 pt-4 lg:flex-row lg:items-center lg:justify-between"
+        >
           <p class="text-sm leading-6 text-slate-500" data-policy-save-impact>
-            保存影响：{{ saveImpactSummary(policy) }}。Koishi 会在下次同步后显示执行态。
+            {{
+              $t('admin.users.admissionPolicy.saveImpact', {
+                summary: saveImpactSummary(policy),
+              })
+            }}
           </p>
           <ElButton
             type="primary"
-            :disabled="savingPolicyIDs[policy.id]"
-            :loading="savingPolicyIDs[policy.id]"
+            :disabled="isActionPending(policy.id)"
+            :loading="isActionPending(policy.id)"
             @click="savePolicy(policy)"
           >
-            保存
+            {{ $t('admin.common.save') }}
           </ElButton>
         </footer>
       </ElForm>
 
       <p class="text-sm text-slate-500">
-        成员黑名单管理已迁移至独立页面：「用户系统 → 成员黑名单」。
+        {{ $t('admin.users.admissionPolicy.blacklistMovedNote') }}
       </p>
     </div>
 
     <ElDialog
       v-model="createPolicyDialogVisible"
-      title="新增目标认证群"
+      :title="$t('admin.users.admissionPolicy.dialogTitle')"
       width="520px"
       :teleported="false"
     >
       <ElForm label-position="top">
-        <ElFormItem label="复制策略">
+        <ElFormItem
+          :label="$t('admin.users.admissionPolicy.dialogSourcePolicy')"
+        >
           <ElSelect
             v-model="createPolicyForm.sourcePolicyID"
-            placeholder="选择已有策略"
+            :placeholder="
+              $t('admin.users.admissionPolicy.dialogSourcePlaceholder')
+            "
             class="w-full"
           >
             <ElOption
@@ -531,26 +656,30 @@ onMounted(fetchData);
             />
           </ElSelect>
         </ElFormItem>
-        <ElFormItem label="平台">
+        <ElFormItem :label="$t('admin.users.admissionPolicy.dialogPlatform')">
           <ElInput v-model="createPolicyForm.platform" placeholder="qq" />
         </ElFormItem>
-        <ElFormItem label="目标认证群号">
+        <ElFormItem :label="$t('admin.users.admissionPolicy.dialogGuildIDs')">
           <ElInput
             v-model="createPolicyForm.guildIDs"
-            placeholder="每行一个需要开启入群认证的 QQ 群号"
+            :placeholder="
+              $t('admin.users.admissionPolicy.dialogGuildIDsPlaceholder')
+            "
             :rows="4"
             type="textarea"
           />
         </ElFormItem>
       </ElForm>
       <template #footer>
-        <ElButton @click="createPolicyDialogVisible = false">取消</ElButton>
+        <ElButton @click="createPolicyDialogVisible = false">
+          {{ $t('admin.common.cancel') }}
+        </ElButton>
         <ElButton
           type="primary"
-          :loading="createPolicySubmitting"
+          :loading="isActionPending()"
           @click="submitCreatePolicies"
         >
-          创建
+          {{ $t('admin.users.admissionPolicy.dialogCreate') }}
         </ElButton>
       </template>
     </ElDialog>

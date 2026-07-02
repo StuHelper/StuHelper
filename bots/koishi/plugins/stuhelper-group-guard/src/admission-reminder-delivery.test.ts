@@ -134,6 +134,37 @@ test('admission reminder delivery accepts one successful enabled channel', async
   assert.equal(result.messageID, 'group-message-1')
 })
 
+test('admission reminder delivery logs partial channel failures instead of swallowing them', async () => {
+  const warns: Array<{ message: string, context: Record<string, unknown> }> = []
+  const result = await sendAdmissionReminderMessage({
+    bot: {
+      sendMessage: async () => {
+        throw new Error('group send failed')
+      },
+      getFriendList: async () => ({ data: [{ id: '10001' }] }),
+      sendPrivateMessage: async () => ['direct-message-1'],
+    } as unknown as Universal.Methods,
+    guildId: 'guild-1',
+    channelId: 'channel-1',
+    memberId: '10001',
+    content: '认证链接',
+    delivery: { groupEnabled: true, directEnabled: true },
+    logger: {
+      warn(message, context) {
+        warns.push({ message, context })
+      },
+    },
+  })
+
+  assert.equal(result.directMessageID, 'direct-message-1')
+  assert.equal(warns.length, 1)
+  assert.equal(warns[0].message, 'admission reminder delivery attempt failed')
+  assert.equal(warns[0].context.channel, 'group')
+  assert.equal(warns[0].context.guildId, 'guild-1')
+  assert.equal(warns[0].context.memberId, '10001')
+  assert.match(String(warns[0].context.error), /group send failed/)
+})
+
 test('admission reminder delivery allows disabling all reminder channels', async () => {
   assert.deepEqual(
     resolveAdmissionReminderDeliveryConfig({ groupEnabled: false, directEnabled: false }),

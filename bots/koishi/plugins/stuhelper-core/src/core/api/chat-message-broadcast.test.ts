@@ -123,6 +123,10 @@ function createBroadcastHarness() {
         getRoles: (): Pick<Role, 'id' | 'guildIds'>[] => [],
         getUserRoleIds: () => [],
       },
+      cache: {
+        getGuildInfo: async () => null,
+        getMemberInfo: async () => null,
+      },
     },
   } as unknown as WebSocketAPIContext
 

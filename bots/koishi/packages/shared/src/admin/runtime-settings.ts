@@ -1,5 +1,6 @@
 import type { Context } from 'koishi'
 
+import { type SettingsReadCache, settingsReadCacheFor } from '../settings-cache'
 import {
   DEFAULT_ADMIN_MESSAGES,
   resolveAdminMessages,
@@ -100,12 +101,20 @@ export function registerAdminRuntimeSettingsModel(ctx: Context) {
 }
 
 export class AdminRuntimeSettingsStore {
+  private readonly cache: SettingsReadCache<AdminRuntimeSettingsRecord>
+
   constructor(
     private readonly ctx: Pick<Context, 'database'>,
     private readonly defaults: AdminRuntimeSettings = DEFAULT_ADMIN_RUNTIME_SETTINGS,
-  ) {}
+  ) {
+    this.cache = settingsReadCacheFor(ctx.database, ADMIN_RUNTIME_SETTINGS_TABLE)
+  }
 
   async getSettings(): Promise<AdminRuntimeSettingsRecord> {
+    return this.cache.read(() => this.loadSettings())
+  }
+
+  private async loadSettings(): Promise<AdminRuntimeSettingsRecord> {
     const [record] = await this.ctx.database.get(ADMIN_RUNTIME_SETTINGS_TABLE, { id: DEFAULT_SETTINGS_ID })
     if (record) {
       return normalizeRecord(record, this.defaults)
@@ -126,7 +135,7 @@ export class AdminRuntimeSettingsStore {
       ...changes,
       updatedAt: now,
     })
-    return next
+    return this.cache.write(next)
   }
 
   async resetSettings() {
@@ -142,7 +151,7 @@ export class AdminRuntimeSettingsStore {
       messages: next.messages,
       updatedAt: now,
     })
-    return next
+    return this.cache.write(next)
   }
 
   async getMessages() {

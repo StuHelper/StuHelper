@@ -67,6 +67,7 @@ export class CacheService {
         }
       } catch (e) {
         // 继续尝试下一个 bot
+        this.logger.debug(`bot ${bot.sid} 获取群组 ${guildId} 信息失败: %s`, toCacheErrorMessage(e))
       }
     }
 
@@ -113,6 +114,7 @@ export class CacheService {
         }
       } catch (e) {
         // 继续尝试
+        this.logger.debug(`bot ${bot.sid} 获取用户 ${userId} 信息失败: %s`, toCacheErrorMessage(e))
       }
     }
 
@@ -161,6 +163,7 @@ export class CacheService {
         }
       } catch (e) {
         // 继续尝试
+        this.logger.debug(`bot ${bot.sid} 获取群成员 ${guildId}:${userId} 信息失败: %s`, toCacheErrorMessage(e))
       }
     }
 
@@ -290,4 +293,8 @@ async function countSettledSuccesses<T>(
     onFailure(targets[index])
   })
   return successes
+}
+
+function toCacheErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

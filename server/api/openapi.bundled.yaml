@@ -6511,6 +6511,7 @@ paths:
         - Admission
       operationId: previewFreshmanMobileCameraHandoff
       summary: 手机端预览拍照接力
+      security: []
       parameters:
         - name: token
           in: path
@@ -6541,6 +6542,7 @@ paths:
         - Admission
       operationId: uploadFreshmanMobileCameraCapture
       summary: 手机端上传接力拍摄的新生材料图片
+      security: []
       parameters:
         - name: token
           in: path
@@ -6583,6 +6585,7 @@ paths:
         - Admission
       operationId: chooseFreshmanMobileCameraContinuation
       summary: 手机端选择上传后在哪一端继续
+      security: []
       parameters:
         - name: token
           in: path
@@ -6715,7 +6718,6 @@ paths:
         - Admission
       operationId: startAdmissionSchoolSSO
       summary: 跳转学校官方 SSO 登录
-      security: []
       parameters:
         - name: schoolCode
           in: path
@@ -6744,7 +6746,6 @@ paths:
         - Admission
       operationId: completeAdmissionSchoolSSO
       summary: 学校官方 SSO 回调
-      security: []
       parameters:
         - name: schoolCode
           in: path
@@ -7441,6 +7442,7 @@ paths:
         该接口返回 `text/event-stream`。服务端会发送 `event: action`，`data` 为
         `BotAdmissionPendingAction` JSON；机器人执行后必须调用
         `/api/v1/bot/admission/actions/{id}/events` ACK。`event: keepalive` 用于保活。
+        领取动作失败时服务端发送 `event: error` 并关闭连接，机器人应据此重连。
       security:
         - serviceTokenAuth: []
       parameters:

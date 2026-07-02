@@ -4,6 +4,8 @@ import { Context } from 'koishi'
 
 import { GUARD_MEMBER_TABLE } from '@stuhelper/koishi-shared'
 
+import { KeyedMutex } from './keyed-mutex'
+
 import {
   MODERATION_COMMAND_POLICY_TABLE,
   MODERATION_EVENT_TABLE,
@@ -32,11 +34,14 @@ import type {
   ClaimPendingReviewInput,
   FinalizeClaimedReviewInput,
   IncrementWarningInput,
+  PruneExpiredInput,
   RollbackClaimedReviewInput,
   ResolveReviewInput,
   UpdatePendingReviewInput,
   UpdateReportAIResultInput,
 } from './store-inputs'
+
+const DAY_IN_MS = 24 * 60 * 60 * 1000
 
 const REVIEW_STATUS_PENDING: ReviewStatus = 'pending'
 const REVIEW_STATUS_APPROVED: ReviewStatus = 'approved'
@@ -46,6 +51,10 @@ const ACTIONABLE_REVIEW_STATUSES = new Set<ReviewStatus>([
   REVIEW_STATUS_PENDING,
   REVIEW_STATUS_STUCK_MANUAL,
 ])
+
+// 模块级互斥锁：同一进程内所有 ModerationStore 实例（core/group-guard/admin
+// 插件各持一份）共享，保证同一计数器的并发自增不会互相覆盖。
+const warningCounterMutex = new KeyedMutex()
 
 export class ModerationStore {
   constructor(private readonly ctx: Pick<Context, 'database'>) {}
@@ -58,8 +67,11 @@ export class ModerationStore {
   }
 
   async listRecentEvents(limit = 20) {
-    const records = await this.ctx.database.get(MODERATION_EVENT_TABLE, {})
-    return records.sort(sortByCreatedDesc).slice(0, limit)
+    const records = await this.ctx.database.get(MODERATION_EVENT_TABLE, {}, {
+      sort: { createdAt: 'desc' },
+      limit,
+    })
+    return records as ModerationEventRecord[]
   }
 
   async saveMessage(record: MessageLedgerRecord) {
@@ -81,8 +93,29 @@ export class ModerationStore {
   }
 
   async listRecentMessages(guildId: string, limit: number) {
-    const records = await this.ctx.database.get(MODERATION_MESSAGE_LEDGER_TABLE, { guildId })
-    return records.sort(sortByCreatedDesc).slice(0, limit)
+    const records = await this.ctx.database.get(MODERATION_MESSAGE_LEDGER_TABLE, { guildId }, {
+      sort: { createdAt: 'desc' },
+      limit,
+    })
+    return records as MessageLedgerRecord[]
+  }
+
+  /**
+   * 按保留期修剪消息台账与事件日志（F004）。
+   * 两张表都是 append-only 热表，不修剪会无限增长拖慢全部查询。
+   */
+  async pruneExpired(input: PruneExpiredInput) {
+    const now = input.now ?? new Date()
+    const messageCutoff = new Date(now.getTime() - input.messageRetentionDays * DAY_IN_MS)
+    const eventCutoff = new Date(now.getTime() - input.eventRetentionDays * DAY_IN_MS)
+    const [messages, events] = await Promise.all([
+      this.ctx.database.remove(MODERATION_MESSAGE_LEDGER_TABLE, { createdAt: { $lt: messageCutoff } }),
+      this.ctx.database.remove(MODERATION_EVENT_TABLE, { createdAt: { $lt: eventCutoff } }),
+    ])
+    return {
+      removedMessages: messages.removed ?? 0,
+      removedEvents: events.removed ?? 0,
+    }
   }
 
   async markMessageDeleted(messageId: string, deletedAt: Date) {
@@ -96,6 +129,10 @@ export class ModerationStore {
 
   async incrementWarning(input: IncrementWarningInput) {
     const id = createGuildScopedID(input.guildId, input.memberId)
+    return warningCounterMutex.run(id, () => this.applyWarningIncrement(id, input))
+  }
+
+  private async applyWarningIncrement(id: string, input: IncrementWarningInput): Promise<WarningCounterRecord> {
     const [record] = await this.ctx.database.get(MODERATION_WARNING_TABLE, { id })
     if (!record) {
       const created: WarningCounterRecord = {
@@ -151,8 +188,10 @@ export class ModerationStore {
   }
 
   async listKeywordRules(guildId: string) {
-    const records = await this.ctx.database.get(MODERATION_KEYWORD_RULE_TABLE, {})
-    return records.filter((record) => record.guildId === guildId || record.guildId === '*')
+    const records = await this.ctx.database.get(MODERATION_KEYWORD_RULE_TABLE, {
+      guildId: { $in: [guildId, '*'] },
+    })
+    return records as KeywordRuleRecord[]
   }
 
   async listAllKeywordRules() {
@@ -170,9 +209,17 @@ export class ModerationStore {
     return record
   }
 
-  async listPendingReviews(guildId?: string) {
-    const query = guildId ? { guildId } : {}
-    const records = await this.ctx.database.get(MODERATION_REVIEW_TABLE, query)
+  async listPendingReviews(guildId: string) {
+    const normalizedGuildId = guildId.trim()
+    if (!normalizedGuildId) {
+      return []
+    }
+    const records = await this.ctx.database.get(MODERATION_REVIEW_TABLE, { guildId: normalizedGuildId })
+    return records.filter((record) => ACTIONABLE_REVIEW_STATUSES.has(record.status))
+  }
+
+  async listAllPendingReviews() {
+    const records = await this.ctx.database.get(MODERATION_REVIEW_TABLE, {})
     return records.filter((record) => ACTIONABLE_REVIEW_STATUSES.has(record.status))
   }
 
@@ -356,7 +403,7 @@ export class ModerationStore {
   async getOverview(): Promise<ModerationOverview> {
     const [events, reviews, reports, warnings, guards] = await Promise.all([
       this.listRecentEvents(20),
-      this.listPendingReviews(),
+      this.listAllPendingReviews(),
       this.listOpenReports(),
       this.listWarningCounters(),
       this.ctx.database.get(GUARD_MEMBER_TABLE, {}),
@@ -373,10 +420,6 @@ export class ModerationStore {
 
 function createGuildScopedID(guildId: string, memberId: string) {
   return `${guildId}:${memberId}`
-}
-
-function sortByCreatedDesc<T extends { createdAt: Date }>(left: T, right: T) {
-  return right.createdAt.getTime() - left.createdAt.getTime()
 }
 
 function omitFields<T extends object, K extends keyof T>(record: T, keys: readonly K[]): Omit<T, K> {

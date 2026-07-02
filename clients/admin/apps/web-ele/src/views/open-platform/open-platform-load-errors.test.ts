@@ -22,34 +22,32 @@ describe('open platform and dashboard load error contract', () => {
       const source = await readFile(resolve(process.cwd(), viewPath), 'utf8');
 
       expect(source).toContain('ElAlert');
-      expect(source).toContain("const loadError = ref('')");
-      expect(source).toContain('let fetchRequestSeq = 0;');
-      expect(source).toContain('const requestSeq = ++fetchRequestSeq;');
-      expect(source).toContain("loadError.value = ''");
-      expect(source).toContain('if (requestSeq !== fetchRequestSeq) return;');
-      expect(source).toContain('loadError.value = adminErrorMessage(error)');
-      expect(source).toContain('if (requestSeq === fetchRequestSeq) {');
+      expect(source).toMatch(/use-admin-list/);
+      expect(source).toMatch(/useAdminList|useAdminLoad/);
       expect(source).toContain('v-if="loadError"');
       expect(source).toContain(':title="loadError"');
       expect(source).toContain("$t('admin.common.retry')");
-      expect(source).toContain('function adminErrorMessage(error: unknown)');
+      // The race guard lives in the composable only.
+      expect(source).not.toContain('fetchRequestSeq');
+      expect(source).not.toContain('function adminErrorMessage');
     }
   });
 
-  it('keeps dashboard stat loads scoped to the latest request', async () => {
+  it('keeps dashboard stat loads race-guarded through useAdminLoad', async () => {
     for (const viewPath of dashboardViewPaths) {
       const source = await readFile(resolve(process.cwd(), viewPath), 'utf8');
 
       expect(source).toContain('ElAlert');
-      expect(source).toContain("const loadError = ref('')");
-      expect(source).toContain('let fetchRequestSeq = 0;');
-      expect(source).toContain('const requestSeq = ++fetchRequestSeq;');
-      expect(source).toContain('const data = await getAdminStats()');
-      expect(source).toContain('if (requestSeq !== fetchRequestSeq) return;');
-      expect(source).toContain('stats.value = data');
-      expect(source).toContain('if (requestSeq === fetchRequestSeq) {');
+      expect(source).toContain(
+        "import { useAdminLoad } from '#/composables/use-admin-list'",
+      );
+      expect(source).toContain('useAdminLoad<AdminStats>(getAdminStats)');
+      expect(source).toContain('v-if="loadError"');
       expect(source).toContain('@click="fetchStats"');
       expect(source).toContain("$t('admin.common.retry')");
+      // The race guard lives in the composable only.
+      expect(source).not.toContain('fetchRequestSeq');
+      expect(source).not.toContain('function adminErrorMessage');
     }
   });
 
@@ -80,9 +78,7 @@ describe('open platform and dashboard load error contract', () => {
       'utf8',
     );
 
-    expect(source).toContain('function resetPageAndFetch()');
-    expect(source).toContain('query.page = 1;');
-    expect(source).toContain('void fetchData();');
+    expect(source).toContain('resetPageAndFetch');
     expect(source).toContain('@change="resetPageAndFetch"');
     expect(source).toContain('@click="resetPageAndFetch"');
     expect(source).toContain('@current-change="fetchData"');

@@ -38,7 +38,6 @@ test('buildScopedDashboardPageData filters guild-bound dashboard collections', (
       createGuardBinding('bind-1001', '1001'),
       createGuardBinding('bind-2002', '2002'),
     ],
-    moduleStates: [{ name: 'guard', description: 'guard', state: 'loaded' as const }],
   }, SCOPE_1001)
 
   assert.deepEqual(data.pendingMembers.map((item) => item.guildId), ['1001'])

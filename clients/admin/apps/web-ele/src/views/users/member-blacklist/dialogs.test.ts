@@ -4,10 +4,15 @@ import type { MemberBlacklistEntry } from '#/api/admin';
 
 import { mount } from '@vue/test-utils';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import CreateBlacklistDialog from './CreateBlacklistDialog.vue';
 import ReleaseBlacklistDialog from './ReleaseBlacklistDialog.vue';
+
+vi.mock('#/locales', () => ({
+  $t: (key: string, params?: Record<string, unknown>) =>
+    params ? `${key}:${Object.values(params).join('/')}` : key,
+}));
 
 const dialogStubs = {
   ElDialog: {

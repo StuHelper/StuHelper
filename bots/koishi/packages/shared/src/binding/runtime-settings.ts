@@ -1,5 +1,6 @@
 import type { Context } from 'koishi'
 
+import { type SettingsReadCache, settingsReadCacheFor } from '../settings-cache'
 import {
   DEFAULT_BINDING_MESSAGES,
   resolveBindingMessages,
@@ -21,6 +22,8 @@ export const BINDING_MESSAGE_KEYS = Object.freeze([
   'unauthorized',
   'conflict',
   'notConfigured',
+  'rateLimited',
+  'tooManyFailures',
 ] as const)
 
 declare module 'koishi' {
@@ -61,12 +64,20 @@ export function registerBindingRuntimeSettingsModel(ctx: Context) {
 }
 
 export class BindingRuntimeSettingsStore {
+  private readonly cache: SettingsReadCache<BindingRuntimeSettingsRecord>
+
   constructor(
     private readonly ctx: Pick<Context, 'database'>,
     private readonly defaults: BindingRuntimeSettings = DEFAULT_BINDING_RUNTIME_SETTINGS,
-  ) {}
+  ) {
+    this.cache = settingsReadCacheFor(ctx.database, BINDING_RUNTIME_SETTINGS_TABLE)
+  }
 
   async getSettings(): Promise<BindingRuntimeSettingsRecord> {
+    return this.cache.read(() => this.loadSettings())
+  }
+
+  private async loadSettings(): Promise<BindingRuntimeSettingsRecord> {
     const [record] = await this.ctx.database.get(BINDING_RUNTIME_SETTINGS_TABLE, { id: DEFAULT_SETTINGS_ID })
     if (record) {
       return normalizeRecord(record, this.defaults)
@@ -87,7 +98,7 @@ export class BindingRuntimeSettingsStore {
       ...changes,
       updatedAt: now,
     })
-    return next
+    return this.cache.write(next)
   }
 
   async resetSettings() {
@@ -104,7 +115,7 @@ export class BindingRuntimeSettingsStore {
       messages: next.messages,
       updatedAt: now,
     })
-    return next
+    return this.cache.write(next)
   }
 
   async getCommand() {

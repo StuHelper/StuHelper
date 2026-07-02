@@ -3,6 +3,7 @@ import type { Context, Session } from 'koishi'
 import {
   COMMAND_POLICY_IDS,
   canExecuteCommand,
+  createFallbackCommandPolicy,
   type ModerationStore,
 } from '@stuhelper/koishi-moderation-core'
 import type {
@@ -183,7 +184,8 @@ async function ensureCommandAccess(deps: CommandDeps, session: Session | undefin
   const allowed = canExecuteCommand({
     authority: resolveAuthority(session),
     memberRoles,
-    policy,
+    // 公开命令：无策略记录时显式声明对所有成员开放。
+    policy: policy ?? createFallbackCommandPolicy(commandId, 0),
   })
   if (allowed) {
     return

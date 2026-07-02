@@ -36,6 +36,19 @@ func TestNewVerifierRequiresCredentialStore(t *testing.T) {
 	assert.Contains(t, err.Error(), "credential store is required")
 }
 
+// F023 回归：typed-nil *Verifier 装入接口绕过调用方 nil 守卫时，
+// Verify 必须返回明确错误而非 nil 接收者 panic。
+func TestVerifierVerifyNilReceiverReturnsCredentialNotConfigured(t *testing.T) {
+	var verifier *Verifier
+
+	var err error
+	require.NotPanics(t, func() {
+		err = verifier.Verify(context.Background(), "any-token", "/api/v1/bot/protected", ScopeBotQQBindingConsume)
+	})
+
+	require.ErrorIs(t, err, ErrCredentialNotConfigured)
+}
+
 type fakeCredentialStore struct {
 	record          *credentialRecord
 	loadErr         error

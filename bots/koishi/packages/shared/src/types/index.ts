@@ -1,48 +1,34 @@
+import type { components, operations } from './api.gen'
+
+export type { components, operations, paths } from './api.gen'
 export * from './member-blacklist'
 
-export type PlatformVerificationState =
-  | 'unbound'
-  | 'bound_unverified'
-  | 'verified'
+type Schemas = components['schemas']
+
+// API 契约枚举一律取自 openapi 生成类型（api.gen.ts），server 端改动会先体现为这里的编译错误。
+export type PlatformVerificationState = Schemas['QQVerificationStatus']['verificationState']
 
 export type GuardMemberActionState =
   | 'pending_verification'
   | 'released'
   | 'expired_pending_kick'
 
-export type AdmissionSessionStatus =
-  | 'joined_muted'
-  | 'linked'
-  | 'material_submitted'
-  | 'verified'
-  | 'expired_kicked'
-  | 'cancelled'
+export type AdmissionSessionStatus = Schemas['AdmissionStatus']
 
-export type FreshmanApplicationStatus =
-  | 'pending'
-  | 'approved'
-  | 'rejected'
+export type FreshmanApplicationStatus = Schemas['FreshmanApplicationStatus']
 
-export type FreshmanMaterialType =
-  | 'admission_notice'
-  | 'admission_certificate'
+export type FreshmanMaterialType = Schemas['FreshmanApplication']['materialType']
 
-export type AdmissionBotAction =
-  | 'mute'
-  | 'remind'
-  | 'release'
-  | 'kick'
-  | 'blacklist'
-  | 'forward'
+export type AdmissionBotAction = Schemas['BotAdmissionEventRequest']['action']
 
-export type AdmissionJoinHandlingStrategy =
-  | 'post_join_guard'
-  | 'join_request_review'
-  | 'post_join_time_code'
+export type AdmissionJoinHandlingStrategy = Schemas['BotAdmissionPolicyTarget']['joinHandlingStrategy']
 
-export type FreshmanReviewAction = 'approve' | 'reject'
+export type FreshmanReviewAction = Schemas['FreshmanReviewRequest']['action']
 
 export const GUARD_MEMBER_TABLE = 'stuhelper_guard_member'
+
+/** Koishi console 管理面（WebUI）操作所需的最低 authority 等级。 */
+export const CONSOLE_MIN_AUTHORITY = 4
 
 export interface StuhelperPlatformConfig {
   baseUrl: string
@@ -59,6 +45,8 @@ export interface StuhelperBindingMessageConfig {
   unauthorized: string
   conflict: string
   notConfigured: string
+  rateLimited: string
+  tooManyFailures: string
 }
 
 export interface StuhelperAdminMessageConfig {
@@ -75,6 +63,7 @@ export interface StuhelperAdminMessageConfig {
   commandAccessDenied: string
   adminCommandsDisabled: string
   guardWarningMissingContext: string
+  guardReviewListMissingContext: string
   guardBatchMuteGroupOnly: string
   guardBatchMuteInvalidPayload: string
   guardBatchMuteNoTargets: string
@@ -228,7 +217,9 @@ export interface StuhelperGroupGuardMessageConfig {
   admissionConsoleStaleRecord: string
   admissionConsoleResendSuccess: string
   admissionConsoleVerifiedReleaseSuccess: string
+  admissionConsoleVerifiedReleaseUnmuteFailed: string
   admissionConsoleRegenerateSuccess: string
+  admissionConsoleRegenerateMuteFailed: string
   admissionConsoleSkipSuccess: string
   admissionConsoleSkipUnmuteFailed: string
   admissionConsoleResetFailureCountSuccess: string
@@ -277,202 +268,68 @@ export interface StuhelperBindingPluginConfig {
   platform: StuhelperPlatformConfig
 }
 
+export interface StuhelperRetentionConfig {
+  messageRetentionDays: number
+  eventRetentionDays: number
+}
+
 export interface StuhelperGroupGuardPluginConfig {
   platform: StuhelperPlatformConfig
   scheduler: StuhelperSchedulerConfig
   actionStream?: StuhelperAdmissionActionStreamConfig
+  retention: StuhelperRetentionConfig
 }
 
 export interface StuhelperAdminPluginConfig {
   platform: StuhelperPlatformConfig
 }
 
-export interface QQBinding {
-  userID: number
-  qqID: string
-  boundAt: string
-  createdAt: string
-  updatedAt: string
-}
+// ---- API 契约类型：全部别名自 api.gen.ts，禁止在此手写字段 ----
 
-export interface QQBindingCode {
-  code: string
-  expiresAt: string
-}
+export type QQBinding = Schemas['QQBinding']
 
-export interface ConsumeQQBindingRequest {
-  code: string
-  qqID: string
-}
+export type QQBindingCode = Schemas['QQBindingCode']
 
-export interface QQVerificationStatus {
-  qqID: string
-  userID: number | null
-  boundAt: string | null
-  verificationState: PlatformVerificationState
-  profileVerificationStatus: 'unverified' | 'pending' | 'verified' | 'rejected'
-  studentVerified: boolean
-}
+export type ConsumeQQBindingRequest = Schemas['ConsumeQQBindingRequest']
 
-export interface AdmissionSession {
-  readonly id: string
-  readonly platform: string
-  readonly guildID: string
-  readonly channelID?: string
-  readonly qqID: string
-  readonly userID?: number | string | null
-  readonly status: AdmissionSessionStatus
-  readonly tokenExpiresAt: string
-  readonly linkWaitDeadlineAt: string
-  readonly submissionWaitDeadlineAt: string
-  readonly manualReviewDeadlineAt?: string | null
-  readonly initialMuteUntil: string
-  readonly projectionPending: boolean
-  readonly authURL?: string
-  readonly maxMaterialBytes?: number
-  readonly lastBotError?: string | null
-  readonly failureCount?: number
-  readonly remainingRetryCount?: number
-  readonly willBlacklistOnTimeout?: boolean
-}
+export type QQVerificationStatus = Schemas['QQVerificationStatus']
 
-export interface AdmissionSessionCreateRequest {
-  readonly platform: string
-  readonly guildID: string
-  readonly channelID: string
-  readonly qqID: string
-  readonly botSelfID?: string
-}
+export type AdmissionSession = Schemas['AdmissionSession']
 
-export interface AdmissionSessionSubjectRequest {
-  readonly platform: string
-  readonly guildID: string
-  readonly qqID: string
-}
+export type AdmissionSessionCreateRequest = Schemas['BotAdmissionSessionCreateRequest']
 
-export interface AdmissionSessionOperatorRequest extends AdmissionSessionSubjectRequest {
-  readonly operatorQQID: string
-}
+export type AdmissionSessionSubjectRequest = Schemas['BotAdmissionSessionSubjectRequest']
 
-export interface AdmissionSessionCreateResult {
-  readonly session: AdmissionSession
-  readonly token: string
-  readonly authURL: string
-}
+export type AdmissionSessionOperatorRequest = Schemas['BotAdmissionSessionOperatorRequest']
 
-export interface AdmissionPolicyTarget {
-  readonly policyID: string
-  readonly platform: string
-  readonly guildID: string
-  readonly guardEnabled?: boolean
-  readonly joinHandlingStrategy?: AdmissionJoinHandlingStrategy
-}
+export type AdmissionSessionCreateResult = Schemas['CreatedAdmissionSession']
 
-export interface AdmissionFailureResetResult {
-  readonly platform: string
-  readonly guildID: string
-  readonly qqID: string
-  readonly previousFailureCount: number
-}
+export type AdmissionPolicyTarget = Schemas['BotAdmissionPolicyTarget']
 
-export interface AdmissionJoinRequestEvent {
-  readonly platform: string
-  readonly guildID: string
-  readonly qqID: string
-  readonly requestID: string
-  readonly decision?: AdmissionJoinRequestDecisionAction
-  readonly success: boolean
-  readonly error?: string
-  readonly rawEvent?: Record<string, unknown>
-}
+export type AdmissionFailureResetResult = Schemas['BotAdmissionFailureResetResult']
 
-export type AdmissionJoinRequestDecisionAction = 'approve' | 'reject'
+export type AdmissionJoinRequestEvent = Schemas['BotAdmissionJoinRequestEvent']
 
-export type AdmissionJoinRequestVerificationState = 'verified' | 'unverified'
+export type AdmissionJoinRequestDecisionAction = Schemas['BotAdmissionJoinRequestDecision']['decision']
 
-export interface AdmissionJoinRequestDecisionRequest {
-  readonly platform: string
-  readonly guildID: string
-  readonly qqID: string
-  readonly requestID: string
-  readonly rawEvent?: Record<string, unknown>
-}
+export type AdmissionJoinRequestVerificationState = Schemas['BotAdmissionJoinRequestDecision']['verificationState']
 
-export interface AdmissionJoinRequestDecision {
-  readonly decision: AdmissionJoinRequestDecisionAction
-  readonly reason?: string
-  readonly verificationState: AdmissionJoinRequestVerificationState
-  readonly joinHandlingStrategy?: AdmissionJoinHandlingStrategy
-  readonly autoApproveVerifiedJoin: boolean
-  readonly autoApproveUnverifiedJoin: boolean
-  readonly policyID?: string
-  readonly userID?: number | string | null
-}
+export type AdmissionJoinRequestDecisionRequest = Schemas['BotAdmissionJoinRequestDecisionRequest']
 
-export interface AdmissionPendingActionsRequest {
-  readonly platform: string
-  readonly botSelfID: string
-  readonly limit?: number
-}
+export type AdmissionJoinRequestDecision = Schemas['BotAdmissionJoinRequestDecision']
 
-export interface AdmissionPendingAction {
-  readonly actionID?: string
-  readonly sessionID: string
-  readonly action: Extract<AdmissionBotAction, 'remind' | 'release' | 'kick' | 'blacklist'>
-  readonly platform?: string
-  readonly botSelfID?: string
-  readonly guildID?: string
-  readonly channelID?: string
-  readonly qqID?: string
-  readonly authURL?: string
-  readonly deadlineAt?: string
-  readonly reason?: string
-  readonly failureCount?: number
-  readonly remainingRetryCount?: number
-  readonly willBlacklistOnTimeout?: boolean
-}
+export type AdmissionPendingActionsRequest =
+  operations['listBotPendingAdmissionActions']['parameters']['query']
 
-export interface AdmissionBotEventRequest {
-  readonly action: AdmissionBotAction
-  readonly success: boolean
-  readonly messageID?: string
-  readonly error?: string
-}
+export type AdmissionPendingAction = Schemas['BotAdmissionPendingAction']
 
-export interface FreshmanApplication {
-  readonly id: string
-  readonly userID: number | string
-  readonly schoolID: number
-  readonly admissionSessionID?: string
-  readonly applicantName?: string
-  readonly applicantNameMasked: string
-  readonly departmentOrMajor?: string | null
-  readonly materialType: FreshmanMaterialType
-  readonly status: FreshmanApplicationStatus
-  readonly provisionalExpiresAt?: string | null
-  readonly reviewedAt?: string | null
-  readonly createdAt: string
-}
+export type AdmissionBotEventRequest = Schemas['BotAdmissionEventRequest']
 
-export interface FreshmanForwardItem {
-  readonly application: FreshmanApplication
-  readonly materialURL: string
-  readonly managementGuildIDs: readonly string[]
-  readonly platform?: string
-  readonly botSelfID?: string
-  readonly schoolName?: string
-  readonly qqID?: string
-}
+export type FreshmanApplication = Schemas['FreshmanApplication']
 
-export interface FreshmanCommandContext {
-  readonly operatorQQID: string
-  readonly guildID: string
-  readonly channelID?: string
-  readonly rawCommand: string
-}
+export type FreshmanForwardItem =
+  operations['listBotPendingFreshmanForwards']['responses'][200]['content']['application/json']['data'][number]
 
-export interface FreshmanReviewRequest extends FreshmanCommandContext {
-  readonly action: FreshmanReviewAction
-  readonly reason?: string
-  readonly expiresInDays?: number
-}
+export type FreshmanCommandContext = Schemas['BotFreshmanCommandContext']
+
+export type FreshmanReviewRequest = Schemas['BotFreshmanReviewRequest']

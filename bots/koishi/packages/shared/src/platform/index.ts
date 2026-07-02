@@ -346,7 +346,7 @@ async function runAdmissionActionStream(
   const decoder = new TextDecoder()
   let buffer = ''
   while (!signal.aborted) {
-    const { done, value } = await reader.read()
+    const { done, value } = await readWithInactivityTimeout(reader, ADMISSION_ACTION_STREAM_INACTIVITY_TIMEOUT_MS)
     if (done) break
     buffer += decoder.decode(value, { stream: true })
     const parts = buffer.split(/\r?\n\r?\n/)
@@ -357,6 +357,36 @@ async function runAdmissionActionStream(
   }
   if (!signal.aborted) {
     throw new Error('admission action stream closed')
+  }
+}
+
+/**
+ * 服务端每 15 秒发送 keepalive 事件；连续 60 秒收不到任何字节说明连接已半死
+ * （NAT 超时、对端崩溃等场景下 reader.read() 会永久挂起），主动取消并抛错，
+ * 由调用方的 onError 重连逻辑接管。
+ */
+export const ADMISSION_ACTION_STREAM_INACTIVITY_TIMEOUT_MS = 60_000
+
+export async function readWithInactivityTimeout<T>(
+  reader: { read(): Promise<T>; cancel(reason?: unknown): Promise<void> },
+  timeoutMs: number,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      reader.read(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          const error = new Error(`admission action stream inactive for ${timeoutMs}ms`)
+          void reader.cancel(error).catch(() => {})
+          reject(error)
+        }, timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timer) {
+      clearTimeout(timer)
+    }
   }
 }
 

@@ -1,7 +1,10 @@
+/** 入群认证提醒/管理命令的重复抑制窗口（毫秒），全插件共用同一窗口。 */
+export const ADMISSION_DEDUPE_WINDOW_MS = 30_000
+
 export class AdmissionReminderDeduper {
   private readonly sentAtBySession = new Map<string, number>()
 
-  constructor(private readonly windowMs = 30_000) {}
+  constructor(private readonly windowMs = ADMISSION_DEDUPE_WINDOW_MS) {}
 
   remember(sessionID: string, now = new Date()) {
     if (!sessionID) return

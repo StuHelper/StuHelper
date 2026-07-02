@@ -17,6 +17,8 @@ import {
   ElSelect,
 } from 'element-plus';
 
+import { $t } from '#/locales';
+
 import { toIsoString } from './options';
 
 const props = defineProps<{
@@ -86,26 +88,35 @@ function submit() {
   <ElDialog
     v-model="visible"
     data-dialog="create"
-    title="新增成员黑名单"
+    :title="$t('admin.users.memberBlacklist.createDialogTitle')"
     width="520px"
   >
     <ElForm label-position="top">
-      <ElFormItem label="平台">
+      <ElFormItem :label="$t('admin.users.memberBlacklist.platformLabel')">
         <ElInput v-model="draft.platform" data-field="platform" />
       </ElFormItem>
-      <ElFormItem label="主体 ID（QQ 号）">
+      <ElFormItem :label="$t('admin.users.memberBlacklist.subjectLabel')">
         <ElInput v-model="draft.subjectID" data-field="subjectID" />
       </ElFormItem>
-      <ElFormItem label="范围">
+      <ElFormItem :label="$t('admin.users.memberBlacklist.scopeLabel')">
         <ElSelect v-model="draft.scopeType" data-field="scopeType">
-          <ElOption label="单群" value="guild" />
-          <ElOption label="全局" value="global" />
+          <ElOption
+            :label="$t('admin.users.memberBlacklist.scopeFilter.guild')"
+            value="guild"
+          />
+          <ElOption
+            :label="$t('admin.users.memberBlacklist.scopeFilter.global')"
+            value="global"
+          />
         </ElSelect>
       </ElFormItem>
-      <ElFormItem v-if="draft.scopeType === 'guild'" label="群号">
+      <ElFormItem
+        v-if="draft.scopeType === 'guild'"
+        :label="$t('admin.users.memberBlacklist.guildLabel')"
+      >
         <ElInput v-model="draft.guildID" data-field="guildID" />
       </ElFormItem>
-      <ElFormItem label="原因（必填）">
+      <ElFormItem :label="$t('admin.users.memberBlacklist.reasonLabel')">
         <ElInput
           v-model="draft.reasonText"
           :rows="3"
@@ -113,7 +124,7 @@ function submit() {
           type="textarea"
         />
       </ElFormItem>
-      <ElFormItem label="过期时间（留空表示永久）">
+      <ElFormItem :label="$t('admin.users.memberBlacklist.expiresLabel')">
         <ElDatePicker
           v-model="draft.expiresAt"
           data-field="expiresAt"
@@ -122,10 +133,12 @@ function submit() {
       </ElFormItem>
     </ElForm>
     <template #footer>
-      <ElButton @click="visible = false">取消</ElButton>
+      <ElButton @click="visible = false">
+        {{ $t('admin.common.cancel') }}
+      </ElButton>
       <ElPopconfirm
         v-if="draft.scopeType === 'global'"
-        title="确认创建全局黑名单？该成员将被所有群拒绝。"
+        :title="$t('admin.users.memberBlacklist.globalConfirm')"
         @confirm="submit"
       >
         <template #reference>
@@ -135,7 +148,7 @@ function submit() {
             data-action="submitCreate"
             type="danger"
           >
-            创建全局黑名单
+            {{ $t('admin.users.memberBlacklist.createGlobal') }}
           </ElButton>
         </template>
       </ElPopconfirm>
@@ -147,7 +160,7 @@ function submit() {
         type="primary"
         @click="submit"
       >
-        创建
+        {{ $t('admin.users.memberBlacklist.create') }}
       </ElButton>
     </template>
   </ElDialog>

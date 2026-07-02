@@ -177,7 +177,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	}
 	admissionUserGateway := newAdmissionUserGateway(userService)
 	admissionService, err := admission.NewService(
-		admission.NewRepository(rt.database),
+		admission.NewRepository(rt.database, piiCipher),
 		admissionUserGateway,
 		crypto.GetHMACKey(),
 		admission.WithAdmissionRedisClient(rt.redisClient.GetClient()),
@@ -329,7 +329,15 @@ func (rt *Runtime) initCasdoorRoleSync(userRepo *user.Repository) (user.RoleSync
 	return platformcasdoor.BuildRoleSyncFunc(client, userRepo.GetCasdoorSubject), nil
 }
 
-func (rt *Runtime) initBotCredentialVerifier(ctx context.Context) (*serviceaccount.Verifier, error) {
+// botServiceCredentialVerifier 是 bot 凭证校验器的装配接口。
+// initBotCredentialVerifier 必须返回接口类型：若返回具体类型 *serviceaccount.Verifier，
+// 空配置下的 typed-nil 装入下游 handler 接口后 nil 守卫永远不会命中，
+// 携带 Bearer 头的 /api/v1/bot/** 请求会触发 nil 接收者 panic。
+type botServiceCredentialVerifier interface {
+	Verify(ctx context.Context, rawToken, audience, scope string) error
+}
+
+func (rt *Runtime) initBotCredentialVerifier(ctx context.Context) (botServiceCredentialVerifier, error) {
 	if strings.TrimSpace(rt.cfg.Bot.ServiceToken) == "" {
 		return nil, nil
 	}

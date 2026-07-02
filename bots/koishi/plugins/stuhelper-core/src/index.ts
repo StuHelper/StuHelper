@@ -9,7 +9,6 @@ import { registerBackgroundJobs } from './setup/register-background-jobs'
 import { registerConsoleApi } from './setup/register-console-api'
 import { registerConsoleEntry } from './setup/register-console-entry'
 import { registerCoreService } from './setup/register-core-service'
-import { registerRuntimeModules } from './setup/register-runtime-modules'
 
 // 插件元信息
 export const name = 'stuhelper-core'
@@ -34,7 +33,6 @@ export function apply(ctx: Context, config: Config) {
   registerConsoleEntry(ctx)
   registerConsoleApi(ctx, config)
   registerBackgroundJobs(ctx)
-  registerRuntimeModules(ctx, config)
 }
 
 export default {

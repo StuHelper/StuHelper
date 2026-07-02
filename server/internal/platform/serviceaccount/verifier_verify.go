@@ -41,6 +41,10 @@ type serviceAccountCallAudit struct {
 }
 
 func (v *Verifier) Verify(ctx context.Context, rawToken, audience, scope string) error {
+	if v == nil {
+		// 纵深防御：typed-nil 装入接口绕过调用方 nil 守卫时，返回明确错误而非 panic。
+		return ErrCredentialNotConfigured
+	}
 	tokenHash, err := v.hashToken(strings.TrimSpace(rawToken))
 	if err != nil {
 		return err

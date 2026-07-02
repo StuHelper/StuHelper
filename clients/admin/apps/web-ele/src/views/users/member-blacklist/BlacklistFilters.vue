@@ -3,7 +3,9 @@ import type { ScopeType, SourceFilter, StatusFilter } from './options';
 
 import { ElButton, ElInput, ElOption, ElSelect } from 'element-plus';
 
-import { SCOPE_OPTIONS, SOURCE_OPTIONS, STATUS_OPTIONS } from './options';
+import { $t } from '#/locales';
+
+import { scopeOptions, sourceOptions, statusOptions } from './options';
 
 defineProps<{
   canManage: boolean;
@@ -28,7 +30,7 @@ const subjectID = defineModel<string>('subjectID', { required: true });
       v-model="subjectID"
       clearable
       data-field="subjectID"
-      placeholder="QQ / 主体 ID"
+      :placeholder="$t('admin.users.memberBlacklist.subjectPlaceholder')"
       style="width: 180px"
       @keyup.enter="emit('search')"
     />
@@ -36,7 +38,7 @@ const subjectID = defineModel<string>('subjectID', { required: true });
       v-model="guildID"
       clearable
       data-field="guildID"
-      placeholder="群号"
+      :placeholder="$t('admin.users.memberBlacklist.guildPlaceholder')"
       style="width: 160px"
       @keyup.enter="emit('search')"
     />
@@ -44,7 +46,7 @@ const subjectID = defineModel<string>('subjectID', { required: true });
       v-model="platform"
       clearable
       data-field="platform"
-      placeholder="平台"
+      :placeholder="$t('admin.users.memberBlacklist.platformPlaceholder')"
       style="width: 120px"
     />
     <ElSelect
@@ -55,7 +57,7 @@ const subjectID = defineModel<string>('subjectID', { required: true });
       @change="emit('search')"
     >
       <ElOption
-        v-for="opt in SCOPE_OPTIONS"
+        v-for="opt in scopeOptions()"
         :key="opt.value || 'all'"
         :label="opt.label"
         :value="opt.value"
@@ -69,7 +71,7 @@ const subjectID = defineModel<string>('subjectID', { required: true });
       @change="emit('search')"
     >
       <ElOption
-        v-for="opt in SOURCE_OPTIONS"
+        v-for="opt in sourceOptions()"
         :key="opt.value || 'all'"
         :label="opt.label"
         :value="opt.value"
@@ -83,14 +85,18 @@ const subjectID = defineModel<string>('subjectID', { required: true });
       @change="emit('search')"
     >
       <ElOption
-        v-for="opt in STATUS_OPTIONS"
+        v-for="opt in statusOptions()"
         :key="opt.value"
         :label="opt.label"
         :value="opt.value"
       />
     </ElSelect>
-    <ElButton type="primary" @click="emit('search')">查询</ElButton>
-    <ElButton @click="emit('reset')">重置</ElButton>
+    <ElButton type="primary" @click="emit('search')">
+      {{ $t('admin.common.query') }}
+    </ElButton>
+    <ElButton @click="emit('reset')">
+      {{ $t('admin.common.reset') }}
+    </ElButton>
     <div class="flex-1"></div>
     <ElButton
       v-if="canManage"
@@ -98,7 +104,7 @@ const subjectID = defineModel<string>('subjectID', { required: true });
       type="success"
       @click="emit('openCreate')"
     >
-      新增黑名单
+      {{ $t('admin.users.memberBlacklist.createButton') }}
     </ElButton>
   </div>
 </template>

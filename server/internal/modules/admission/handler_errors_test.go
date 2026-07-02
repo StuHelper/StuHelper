@@ -42,6 +42,14 @@ func TestRespondAdmissionErrorDistinguishesInvalidInputAndForbiddenSource(t *tes
 	}
 }
 
+// F020：跨校新生申请错误必须映射为 400 + 专属业务错误码，而非落入 500 默认分支。
+func TestRespondAdmissionErrorMapsSchoolMismatch(t *testing.T) {
+	_, recorder := newAdmissionErrorTestContext(ErrAdmissionSchoolMismatch)
+
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), string(ErrCodeAdmissionSchoolMismatch))
+}
+
 func newAdmissionErrorTestContext(err error) (*gin.Context, *httptest.ResponseRecorder) {
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()

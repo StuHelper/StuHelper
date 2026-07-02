@@ -1,5 +1,8 @@
 import type { Context } from 'koishi'
 
+import { type SettingsReadCache, settingsReadCacheFor } from '../settings-cache'
+import { evaluateThresholdExpression, type ThresholdMetrics } from './threshold-expression'
+
 export const GROUP_GUARD_BEHAVIOR_SETTINGS_TABLE = 'stuhelper_group_guard_behavior_settings'
 const DEFAULT_SETTINGS_ID = 'default'
 
@@ -73,12 +76,20 @@ export function registerGroupGuardBehaviorSettingsModel(ctx: Context) {
 }
 
 export class GroupGuardBehaviorSettingsStore {
+  private readonly cache: SettingsReadCache<GroupGuardBehaviorSettingsRecord>
+
   constructor(
     private readonly ctx: Pick<Context, 'database'>,
     private readonly defaults: GroupGuardBehaviorSettings = DEFAULT_GROUP_GUARD_BEHAVIOR_SETTINGS,
-  ) {}
+  ) {
+    this.cache = settingsReadCacheFor(ctx.database, GROUP_GUARD_BEHAVIOR_SETTINGS_TABLE)
+  }
 
   async getSettings(): Promise<GroupGuardBehaviorSettingsRecord> {
+    return this.cache.read(() => this.loadSettings())
+  }
+
+  private async loadSettings(): Promise<GroupGuardBehaviorSettingsRecord> {
     const [record] = await this.ctx.database.get(GROUP_GUARD_BEHAVIOR_SETTINGS_TABLE, { id: DEFAULT_SETTINGS_ID })
     if (record) {
       return normalizeRecord(record, this.defaults)
@@ -99,7 +110,7 @@ export class GroupGuardBehaviorSettingsStore {
       ...changes,
       updatedAt: now,
     })
-    return next
+    return this.cache.write(next)
   }
 
   async resetSettings() {
@@ -116,7 +127,7 @@ export class GroupGuardBehaviorSettingsStore {
       moderation: next.moderation,
       updatedAt: now,
     })
-    return next
+    return this.cache.write(next)
   }
 
   async getFunSettings() {
@@ -230,7 +241,9 @@ function normalizePartialModerationSettings(value: unknown) {
     const setting = value[key]
     if (key === 'warningThresholdExpression') {
       if (typeof setting === 'string' && setting.trim()) {
-        result[key] = setting.trim()
+        const expression = setting.trim()
+        assertValidWarningThresholdExpression(expression)
+        result[key] = expression
       }
       continue
     }
@@ -273,6 +286,21 @@ function isPositiveInteger(value: unknown): value is number {
 
 function nonEmptyStringOrDefault(value: unknown, fallback: string) {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback
+}
+
+const THRESHOLD_EXPRESSION_VALIDATION_METRICS: ThresholdMetrics = Object.freeze({
+  warnings: 0,
+  repeats: 0,
+  reports: 0,
+})
+
+function assertValidWarningThresholdExpression(expression: string) {
+  try {
+    evaluateThresholdExpression(expression, THRESHOLD_EXPRESSION_VALIDATION_METRICS)
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    throw new Error(`warningThresholdExpression 不是合法的阈值表达式：${reason}`)
+  }
 }
 
 function booleanOrDefault(value: unknown, fallback: boolean) {

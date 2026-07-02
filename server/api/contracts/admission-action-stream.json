@@ -1,0 +1,25 @@
+{
+  "$comment": "admission action SSE 流的双侧字节级契约。server 侧 internal/modules/admission/stream_contract_test.go 断言发射函数输出与 frames 完全一致；koishi 侧 bots/koishi/packages/shared/src/platform/action-stream-contract.test.ts 用同样的字节回放并断言解析行为。任何一侧改协议必须先改本文件，另一侧测试会立即失败。",
+  "commentOnOpen": ": connected\n\n",
+  "frames": {
+    "action": "event:action\ndata:{\"actionID\":\"outbox-1\",\"sessionID\":\"session-1\",\"action\":\"remind\",\"platform\":\"qq\",\"botSelfID\":\"2118785781\",\"guildID\":\"178037297\",\"channelID\":\"178037297\",\"qqID\":\"2001\",\"authURL\":\"https://join.stuhelper.com/verify/contract\",\"deadlineAt\":\"2026-06-13T01:00:00Z\",\"reason\":\"contract-fixture\",\"failureCount\":1,\"remainingRetryCount\":2,\"willBlacklistOnTimeout\":true}\n\n",
+    "keepalive": "event:keepalive\ndata:2026-06-13T00:00:00Z\n\n",
+    "error": "event:error\ndata:admission queued action unavailable\n\n"
+  },
+  "actionPayload": {
+    "actionID": "outbox-1",
+    "sessionID": "session-1",
+    "action": "remind",
+    "platform": "qq",
+    "botSelfID": "2118785781",
+    "guildID": "178037297",
+    "channelID": "178037297",
+    "qqID": "2001",
+    "authURL": "https://join.stuhelper.com/verify/contract",
+    "deadlineAt": "2026-06-13T01:00:00Z",
+    "reason": "contract-fixture",
+    "failureCount": 1,
+    "remainingRetryCount": 2,
+    "willBlacklistOnTimeout": true
+  }
+}

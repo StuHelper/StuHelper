@@ -144,6 +144,50 @@ test('绑定命令使用 WebUI runtime settings 里的命令字和自定义提�
   }
 })
 
+test('绑定码无效时计入失败并立即重试会触发限速文案', async () => {
+  let consumeCalls = 0
+  const server = createServer((req, res) => {
+    consumeCalls += 1
+    res.statusCode = 400
+    res.setHeader('content-type', 'application/json')
+    res.end(JSON.stringify({
+      success: false,
+      error: { code: 'INVALID_BINDING_CODE', message: 'binding code invalid' },
+    }))
+  })
+
+  await new Promise<void>((resolve) => server.listen(0, resolve))
+  const address = server.address()
+  assert.ok(address && typeof address === 'object')
+
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-binding-'))
+
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(commands)
+  runtime.register(MockBot, { selfId: '514' })
+  runtime.register(bindingPlugin, {
+    platform: {
+      baseUrl: `http://127.0.0.1:${address.port}`,
+      serviceToken: 'test-token',
+    },
+  })
+
+  try {
+    await root.start()
+    const client = root.mock.client('10001')
+    await client.shouldReply('绑定 WRONG001', '绑定码无效或已过期，请重新生成后再试。')
+    // 限速窗口内的第二次尝试：不再请求后端，直接返回限速文案
+    await client.shouldReply('绑定 WRONG002', /绑定操作过于频繁，请 \d+ 秒后再试。/)
+    assert.equal(consumeCalls, 1)
+  } finally {
+    runtime.dispose()
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
 async function saveBindingRuntimeSettings(
   root: ConstructorParameters<typeof BindingRuntimeSettingsStore>[0],
   overrides: BindingRuntimeSettingsInput,

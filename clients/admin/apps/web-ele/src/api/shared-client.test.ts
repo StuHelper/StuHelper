@@ -107,8 +107,13 @@ mockVirtualModule(
       }
       return headers;
     },
+    CSRF_TOKEN_INVALID_CODE: 'A0010202',
+    CSRF_TOKEN_MISSING_CODE: 'A0010203',
+    MFA_ENROLLMENT_REQUIRED_CODE: 'A0010204',
     parseApiError: mocks.parseApiError,
     serializePath: (schemaPath: string) => schemaPath,
+    STEP_UP_REQUIRED_CODE: 'A0010205',
+    STEP_UP_REQUIRED_STATUSES: new Set([412, 428]),
   }),
   { virtual: true },
 );
