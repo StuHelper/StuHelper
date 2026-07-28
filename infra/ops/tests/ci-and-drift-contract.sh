@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 CI_FILE="${REPO_ROOT}/.gitlab-ci.yml"
+GITHUB_CI_FILE="${REPO_ROOT}/.github/workflows/ci.yml"
 ROOT_MAKEFILE="${REPO_ROOT}/Makefile"
 SERVER_MAKEFILE="${REPO_ROOT}/server/Makefile"
 ADMIN_DOCKERFILE="${REPO_ROOT}/clients/admin/scripts/deploy/Dockerfile"
@@ -59,6 +60,14 @@ assert_contains "${CI_FILE}" '^koishi_test:$'
 assert_contains "${CI_FILE}" 'image: mcr\.microsoft\.com/playwright:v1\.58\.2-noble'
 assert_contains "${CI_FILE}" 'bots/koishi/playwright-report'
 assert_contains "${CI_FILE}" 'bots/koishi/test-results'
+assert_contains "${GITHUB_CI_FILE}" 'DATABASE_URL: postgres://stuhelper_app:test@127\.0\.0\.1:5432/test'
+assert_contains "${GITHUB_CI_FILE}" 'STUHELPER_TEST_POSTGRES_URL: postgres://test:test@127\.0\.0\.1:5432/postgres'
+assert_contains "${GITHUB_CI_FILE}" 'CREATE ROLE stuhelper_app;'
+assert_contains "${GITHUB_CI_FILE}" 'WITH LOGIN PASSWORD .* NOSUPERUSER NOCREATEDB NOCREATEROLE CONNECTION LIMIT 30;'
+assert_contains "${GITHUB_CI_FILE}" 'ALTER DATABASE test OWNER TO stuhelper_app;'
+assert_contains "${GITHUB_CI_FILE}" 'ALTER SCHEMA public OWNER TO stuhelper_app;'
+assert_contains "${GITHUB_CI_FILE}" 'if \[ "\$\{\{ matrix\.install_admin \}\}" = "true" \]; then'
+assert_not_contains "${GITHUB_CI_FILE}" 'if \[\[ "\$\{\{ matrix\.install_admin \}\}"'
 assert_contains "${ROOT_MAKEFILE}" '^check-infra-contracts:$'
 assert_contains "${ROOT_MAKEFILE}" 'bash infra/ops/tests/run-infra-contracts\.sh'
 assert_contains "${CI_FILE}" 'docker buildx build .*--file clients/web/Dockerfile .* \.$'
