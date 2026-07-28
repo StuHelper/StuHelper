@@ -6,7 +6,6 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@cimom/vben-effects-common-ui": ["./src/types/vben-effects-common-ui"],
       "@stuhelper/shared": ["../shared/src/index.ts"],
       "@stuhelper/shared/*": ["../shared/src/*"]
     },

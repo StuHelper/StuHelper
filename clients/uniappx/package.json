@@ -11,10 +11,10 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@dcloudio/uni-app": "vue3",
-    "@dcloudio/uni-components": "vue3",
-    "@dcloudio/uni-h5": "3.0.0-alpha-5000120260211001",
-    "@dcloudio/uni-h5-vue": "3.0.0-alpha-5000120260211001",
+    "@dcloudio/uni-app": "3.0.0-alpha-5020220260725001",
+    "@dcloudio/uni-components": "3.0.0-alpha-5020220260725001",
+    "@dcloudio/uni-h5": "3.0.0-alpha-5020220260725001",
+    "@dcloudio/uni-h5-vue": "3.0.0-alpha-5020220260725001",
     "@stuhelper/shared": "workspace:*",
     "@vue/reactivity": "3.4.21",
     "@vue/runtime-core": "3.4.21",
@@ -25,8 +25,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
-    "@dcloudio/types": "^3.4.0",
-    "@dcloudio/vite-plugin-uni": "vue3",
+    "@dcloudio/types": "3.4.31",
+    "@dcloudio/vite-plugin-uni": "3.0.0-alpha-5020220260725001",
     "@vue/compiler-sfc": "3.4.21",
     "typescript": "^5.9.0",
     "vite": "^6.0.0",

@@ -327,8 +327,8 @@ jobs:
       - name: Audit production dependencies
         working-directory: clients
         run: |
-          pnpm audit --audit-level=high --prod
-          pnpm --dir admin audit --audit-level=high --prod
+          pnpm audit --registry=https://registry.npmjs.org --audit-level=high --prod
+          pnpm --dir admin audit --registry=https://registry.npmjs.org --audit-level=high --prod
 
       - name: Build all browser clients
         working-directory: clients
