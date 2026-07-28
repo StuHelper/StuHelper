@@ -1,21 +1,20 @@
 import assert from 'node:assert/strict'
 import { execFileSync, spawn } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:net'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { load, dump } from 'js-yaml'
 
 const STARTUP_TIMEOUT_MS = 10000
-const SMOKE_PORT = 5140
+const SMOKE_PORT = await findAvailablePort()
 const COREPACK_BIN = process.platform === 'win32' ? 'corepack.cmd' : 'corepack'
 const cwd = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const tempConfigDir = await createTempConfigDir()
 const tempConfigPath = await writeSmokeConfig(tempConfigDir)
 
 try {
-  await releasePort(SMOKE_PORT)
-
   const startup = startupInvocation(tempConfigPath)
   const child = spawn(startup.command, startup.args, {
     cwd,
@@ -131,73 +130,6 @@ function isMissingProcessError(error) {
   return error instanceof Error && 'code' in error && error.code === 'ESRCH'
 }
 
-async function releasePort(port) {
-  const pids = listListeningPIDs(port)
-  for (const pid of pids) {
-    process.kill(pid, 'SIGTERM')
-  }
-  if (!pids.length) {
-    return
-  }
-
-  const deadline = Date.now() + 5000
-  while (Date.now() < deadline) {
-    if (!listListeningPIDs(port).length) {
-      return
-    }
-    await sleep(100)
-  }
-
-  for (const pid of listListeningPIDs(port)) {
-    process.kill(pid, 'SIGKILL')
-  }
-
-  const remaining = listListeningPIDs(port)
-  assert.equal(remaining.length, 0, `端口 ${port} 仍被占用：${remaining.join(', ')}`)
-}
-
-function listListeningPIDs(port) {
-  try {
-    const output = execFileSync('lsof', [`-tiTCP:${port}`, '-sTCP:LISTEN'], {
-      encoding: 'utf8',
-    }).trim()
-    if (!output) {
-      return []
-    }
-    return output
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((item) => Number(item))
-      .filter((item) => Number.isInteger(item) && item > 0)
-  } catch (error) {
-    if (isCommandNoMatchError(error)) {
-      return []
-    }
-    if (isMissingCommandError(error) && process.platform === 'win32') {
-      return listWindowsListeningPIDs(port)
-    }
-    throw error
-  }
-}
-
-function listWindowsListeningPIDs(port) {
-  const output = execFileSync('netstat', ['-ano', '-p', 'TCP'], { encoding: 'utf8' })
-  return output
-    .split(/\r?\n/)
-    .map((line) => line.trim().split(/\s+/))
-    .filter((parts) => parts.length >= 5 && parts[0] === 'TCP' && parts[3] === 'LISTENING')
-    .filter((parts) => parts[1].endsWith(`:${port}`) || parts[1].endsWith(`]:${port}`))
-    .map((parts) => Number(parts[4]))
-    .filter((item) => Number.isInteger(item) && item > 0)
-}
-
-function isMissingCommandError(error) {
-  return typeof error === 'object'
-    && error !== null
-    && 'code' in error
-    && error.code === 'ENOENT'
-}
-
 function isWindowsTaskkillNoMatchError(error) {
   return typeof error === 'object'
     && error !== null
@@ -210,6 +142,29 @@ function isCommandNoMatchError(error) {
     && error !== null
     && 'status' in error
     && error.status === 1
+}
+
+function findAvailablePort() {
+  return new Promise((resolvePort, rejectPort) => {
+    const server = createServer()
+    server.unref()
+    server.once('error', rejectPort)
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address()
+      if (typeof address !== 'object' || address === null) {
+        server.close()
+        rejectPort(new Error('无法为 Koishi 启动探针分配本地端口。'))
+        return
+      }
+      server.close((error) => {
+        if (error) {
+          rejectPort(error)
+          return
+        }
+        resolvePort(address.port)
+      })
+    })
+  })
 }
 
 async function createTempConfigDir() {

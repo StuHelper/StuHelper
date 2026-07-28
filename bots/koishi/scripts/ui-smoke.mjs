@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { load, dump } from 'js-yaml'
 
 /**
- * P0a UI smoke 启动器。复用 startup-smoke.mjs 的端口释放 + 临时配置 + spawn 模式；
+ * P0a UI smoke 启动器。复用 startup-smoke.mjs 的动态端口 + 临时配置 + spawn 模式；
  * 等 koishi 输出 "server listening" 后启动 Playwright；spec 跑完后 SIGTERM 关闭进程组。
  *
  * 与 startup-smoke 的差异：
@@ -17,7 +17,7 @@ import { load, dump } from 'js-yaml'
  * - 启动 Koishi 前先构建 workspace，保证 ignored 的 production dist 与源码同步
  */
 
-const SMOKE_PORT = Number.parseInt(process.env.STUHELPER_UI_SMOKE_PORT ?? '5140', 10)
+const SMOKE_PORT = await resolveSmokePort()
 const STARTUP_LISTEN_TIMEOUT_MS = 30_000
 const SHUTDOWN_TIMEOUT_MS = 5_000
 const COREPACK_BIN = process.platform === 'win32' ? 'corepack.cmd' : 'corepack'
@@ -38,7 +38,6 @@ let koishiExitSignal = null
 let playwrightExitCode = 1
 
 try {
-  await releasePort(SMOKE_PORT)
   await seedSmokeData(smokeDataDir)
   buildWorkspace()
 
@@ -250,65 +249,6 @@ function isMissingProcessError(error) {
   return error instanceof Error && 'code' in error && error.code === 'ESRCH'
 }
 
-async function releasePort(port) {
-  const pids = listListeningPIDs(port)
-  for (const pid of pids) {
-    process.kill(pid, 'SIGTERM')
-  }
-  if (!pids.length) return
-
-  const deadline = Date.now() + 5000
-  while (Date.now() < deadline) {
-    if (!listListeningPIDs(port).length) return
-    await sleep(100)
-  }
-
-  for (const pid of listListeningPIDs(port)) {
-    process.kill(pid, 'SIGKILL')
-  }
-
-  const remaining = listListeningPIDs(port)
-  assert.equal(remaining.length, 0, `端口 ${port} 仍被占用：${remaining.join(', ')}`)
-}
-
-function listListeningPIDs(port) {
-  try {
-    const output = execFileSync('lsof', [`-tiTCP:${port}`, '-sTCP:LISTEN'], {
-      encoding: 'utf8',
-    }).trim()
-    if (!output) return []
-    return output
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((item) => Number(item))
-      .filter((item) => Number.isInteger(item) && item > 0)
-  } catch (error) {
-    if (isCommandNoMatchError(error)) return []
-    if (isMissingCommandError(error) && process.platform === 'win32') {
-      return listWindowsListeningPIDs(port)
-    }
-    throw error
-  }
-}
-
-function listWindowsListeningPIDs(port) {
-  const output = execFileSync('netstat', ['-ano', '-p', 'TCP'], { encoding: 'utf8' })
-  return output
-    .split(/\r?\n/)
-    .map((line) => line.trim().split(/\s+/))
-    .filter((parts) => parts.length >= 5 && parts[0] === 'TCP' && parts[3] === 'LISTENING')
-    .filter((parts) => parts[1].endsWith(`:${port}`) || parts[1].endsWith(`]:${port}`))
-    .map((parts) => Number(parts[4]))
-    .filter((item) => Number.isInteger(item) && item > 0)
-}
-
-function isMissingCommandError(error) {
-  return typeof error === 'object'
-    && error !== null
-    && 'code' in error
-    && error.code === 'ENOENT'
-}
-
 function isWindowsTaskkillNoMatchError(error) {
   return typeof error === 'object'
     && error !== null
@@ -321,6 +261,39 @@ function isCommandNoMatchError(error) {
     && error !== null
     && 'status' in error
     && error.status === 1
+}
+
+async function resolveSmokePort() {
+  const configuredPort = process.env.STUHELPER_UI_SMOKE_PORT
+  if (configuredPort !== undefined) {
+    const port = Number(configuredPort)
+    assert.ok(
+      Number.isInteger(port) && port >= 1 && port <= 65535,
+      'STUHELPER_UI_SMOKE_PORT 必须是 1 到 65535 之间的整数。',
+    )
+    return port
+  }
+
+  return new Promise((resolvePort, rejectPort) => {
+    const server = createServer()
+    server.unref()
+    server.once('error', rejectPort)
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address()
+      if (typeof address !== 'object' || address === null) {
+        server.close()
+        rejectPort(new Error('无法为 Koishi UI 探针分配本地端口。'))
+        return
+      }
+      server.close((error) => {
+        if (error) {
+          rejectPort(error)
+          return
+        }
+        resolvePort(address.port)
+      })
+    })
+  })
 }
 
 async function createTempConfigDir() {
