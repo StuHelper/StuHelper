@@ -48,7 +48,10 @@ run_git_check() {
   local hits="" rc=0
 
   set +e
-  hits="$(cd "${REPO_DIR}" && git grep -lE "${pattern}" -- "$@" 2>/dev/null)"
+  hits="$(
+    cd "${REPO_DIR}" &&
+      git -c safe.directory="${REPO_DIR}" grep -lE "${pattern}" -- "$@" 2>/dev/null
+  )"
   rc=$?
   set -e
 
