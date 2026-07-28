@@ -2,20 +2,24 @@ package auth
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
-	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
+)
+
+var ErrProviderRefreshTokenRevocationUnavailable = errors.New(
+	"auth: provider refresh token revocation unavailable",
 )
 
 // Handler 认证处理器
@@ -69,8 +73,12 @@ func NewHandler(
 	oidcClient *oidc.Client,
 	userSyncRepo UserSyncRepo,
 	opts ...HandlerOption,
-) *Handler {
-	svc := NewService(cfg.Token, tokenService, userSyncRepo, providerTokenRevocationOptions(oidcClient, cfg)...)
+) (*Handler, error) {
+	providerOptions, err := providerTokenRevocationOptions(oidcClient, cfg)
+	if err != nil {
+		return nil, err
+	}
+	svc := NewService(cfg.Token, tokenService, userSyncRepo, providerOptions...)
 
 	// 从 CORS_ORIGINS 构建允许的重定向地址白名单
 	redirectHosts := buildAllowedRedirectHosts(cfg.CORSOrigins)
@@ -95,7 +103,7 @@ func NewHandler(
 			opt(h)
 		}
 	}
-	return h
+	return h, nil
 }
 
 func (h *Handler) SessionRevoker() *Service {
@@ -105,20 +113,28 @@ func (h *Handler) SessionRevoker() *Service {
 	return h.svc
 }
 
-func providerTokenRevocationOptions(oidcClient *oidc.Client, cfg HandlerConfig) []ServiceOption {
-	if oidcClient == nil || cfg.ProviderTokenCipher == nil {
-		return nil
+func providerTokenRevocationOptions(oidcClient *oidc.Client, cfg HandlerConfig) ([]ServiceOption, error) {
+	if oidcClient == nil {
+		return nil, fmt.Errorf("%w: OIDC client is required", ErrProviderRefreshTokenRevocationUnavailable)
+	}
+	if cfg.ProviderTokenCipher == nil {
+		return nil, fmt.Errorf("%w: provider token cipher is required", ErrProviderRefreshTokenRevocationUnavailable)
 	}
 	supported, err := oidcClient.SupportsRefreshTokenRevocation()
 	if err != nil {
-		logger.L().Warn("OIDC provider refresh token revocation disabled: metadata lookup failed", zap.Error(err))
-		return nil
+		return nil, fmt.Errorf(
+			"%w: metadata lookup failed: %w",
+			ErrProviderRefreshTokenRevocationUnavailable,
+			err,
+		)
 	}
 	if !supported {
-		logger.L().Warn("OIDC provider refresh token revocation disabled: revocation endpoint unavailable")
-		return nil
+		return nil, fmt.Errorf(
+			"%w: revocation endpoint is not advertised",
+			ErrProviderRefreshTokenRevocationUnavailable,
+		)
 	}
-	return []ServiceOption{WithProviderRefreshTokenRevocation(oidcClient, cfg.ProviderTokenCipher)}
+	return []ServiceOption{WithProviderRefreshTokenRevocation(oidcClient, cfg.ProviderTokenCipher)}, nil
 }
 
 // buildAllowedRedirectHosts 从 CORS_ORIGINS 提取允许的重定向 host

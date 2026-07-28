@@ -9,7 +9,9 @@ import (
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/admission"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
@@ -30,7 +32,7 @@ func (rt *Runtime) initAuthModule(
 		return nil, nil, nil, err
 	}
 
-	authHandler := auth.NewHandler(
+	authHandler, err := auth.NewHandler(
 		auth.HandlerConfig{
 			Token:                  rt.cfg.Token,
 			CORSOrigins:            rt.authRedirectOrigins(),
@@ -45,6 +47,9 @@ func (rt *Runtime) initAuthModule(
 		userSyncRepo,
 		auth.WithAdminAuthorizers(authAdminAuthorizers()),
 	)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to initialize auth handler: %w", err)
+	}
 	authHandler.RegisterPublicRoutes(api)
 
 	api.Use(middleware.CSRFMiddleware())
@@ -118,6 +123,12 @@ type adminRouteRegistrar interface {
 	RegisterAdminRoutes(admin *gin.RouterGroup)
 }
 
-func adminMFAMiddlewares(_ string, _ user.MFAContextRepository) []gin.HandlerFunc {
-	return nil
+func adminMFAMiddlewares(appEnv string, repo user.MFAContextRepository) []gin.HandlerFunc {
+	if appEnv == config.EnvDevelopment {
+		return nil
+	}
+	return []gin.HandlerFunc{
+		user.MFAContextMiddleware(repo),
+		rbac.RequirePrivilegedMFA(),
+	}
 }

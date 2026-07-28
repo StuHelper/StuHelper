@@ -18,20 +18,10 @@ func adminEntryAuthorizer() gin.HandlerFunc {
 	return rbac.RequireAnyCapability(capability.AdminEntryCapabilities...)
 }
 
-func adminStepUpBypass() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Next()
-	}
-}
-
-func adminStepUpVerifiedBypass(*gin.Context) bool {
-	return true
-}
-
 func authAdminAuthorizers() auth.AdminAuthorizers {
 	return auth.AdminAuthorizers{
 		AccountLockUpdate: rbac.RequireGlobalCapability(capability.UserSystemUpdate),
-		StepUpMFA:         adminStepUpBypass(),
+		StepUpMFA:         rbac.RequireStepUpMFA(),
 	}
 }
 
@@ -59,7 +49,7 @@ func userAdminAuthorizers() user.AdminAuthorizers {
 		SchoolUpdate:   rbac.RequireCapability(capability.UserSchoolUpdate),
 		SystemRead:     rbac.RequireGlobalCapability(capability.UserSystemRead),
 		SystemUpdate:   rbac.RequireGlobalCapability(capability.UserSystemUpdate),
-		StepUpMFA:      adminStepUpBypass(),
+		StepUpMFA:      rbac.RequireStepUpMFA(),
 	}
 }
 
@@ -84,7 +74,7 @@ func reviewAdminAuthorizers() review.AdminAuthorizers {
 		ReviewsManage:        rbac.RequireGlobalCapability(capability.AdminReviewsManage),
 		TeachersManage:       rbac.RequireGlobalCapability(capability.AdminTeachersManage),
 		SensitiveWordsManage: rbac.RequireGlobalCapability(capability.AdminSensitiveWordsManage),
-		StepUpVerified:       adminStepUpVerifiedBypass,
+		StepUpVerified:       rbac.EnsureStepUpMFA,
 	}
 }
 
