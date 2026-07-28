@@ -12,6 +12,7 @@
 BINARY_NAME := stuhelper
 BUILD_DIR := bin
 COVERAGE_FILE := coverage.out
+TEST_PACKAGE_PARALLELISM ?= 1
 REDOCLY_VERSION := 2.21.1
 REDOCLY := npx --yes @redocly/cli@$(REDOCLY_VERSION)
 MIGRATE_VERSION := v4.18.3
@@ -71,10 +72,10 @@ lint: check-casdoor-boundary
 	golangci-lint run --timeout 5m
 
 test:
-	go test -race ./...
+	go test -race -p $(TEST_PACKAGE_PARALLELISM) ./...
 
 test-coverage:
-	go test -race -coverprofile=$(COVERAGE_FILE) -covermode=atomic ./...
+	go test -race -p $(TEST_PACKAGE_PARALLELISM) -coverprofile=$(COVERAGE_FILE) -covermode=atomic ./...
 	go tool cover -func=$(COVERAGE_FILE)
 
 build:

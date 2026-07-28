@@ -26,7 +26,7 @@ Optional env:
   OPENFGA_RESOURCE_SMOKE_RESOURCE_ID
   OPENFGA_RESOURCE_SMOKE_TIMEOUT   Go duration, defaults to 20s
   OPENFGA_RESOURCE_SMOKE_MODE      host or container; defaults to container in production, otherwise host when Go is available
-  OPENFGA_RESOURCE_SMOKE_GO_IMAGE  container-mode Go image; defaults to GOLANG_IMAGE_REF or golang:1.26-bookworm
+  OPENFGA_RESOURCE_SMOKE_GO_IMAGE  container-mode Go image; defaults to GOLANG_IMAGE_REF or golang:1.26.5-bookworm
   OPENFGA_RESOURCE_SMOKE_EVIDENCE_FILE
 USAGE
 }
@@ -69,7 +69,7 @@ run_smoke_with_docker() {
   require_cmd docker
   local stack_name_value="${STACK_NAME:-${COMPOSE_PROJECT_NAME:-stuhelper}}"
   local docker_network_name="${DOCKER_NETWORK_NAME:-${stack_name_value}-backend}"
-  local go_image_ref="${OPENFGA_RESOURCE_SMOKE_GO_IMAGE:-${GOLANG_IMAGE_REF:-golang:1.26-bookworm}}"
+  local go_image_ref="${OPENFGA_RESOURCE_SMOKE_GO_IMAGE:-${GOLANG_IMAGE_REF:-golang:1.26.5-bookworm}}"
   docker run --rm \
     --network "${docker_network_name}" \
     -v "${REPO_ROOT}:/workspace" \

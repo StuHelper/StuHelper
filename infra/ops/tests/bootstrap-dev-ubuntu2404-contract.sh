@@ -28,7 +28,7 @@ bash -n "${BOOTSTRAP_SCRIPT}"
 
 assert_contains "${BOOTSTRAP_SCRIPT}" 'run as root \(sudo bash infra/ops/bootstrap-dev-ubuntu2404\.sh\)'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'DEV_USER="\$\{DEV_USER:-\$\{SUDO_USER:-\$\{USER:-\}\}\}"'
-assert_contains "${BOOTSTRAP_SCRIPT}" 'GO_VERSION="\$\{GO_VERSION:-1\.26\.0\}"'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'GO_VERSION="\$\{GO_VERSION:-1\.26\.5\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'NODE_MAJOR="\$\{NODE_MAJOR:-24\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'PNPM_VERSION="\$\{PNPM_VERSION:-10\.32\.1\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'AIR_VERSION="\$\{AIR_VERSION:-v1\.61\.7\}"'

@@ -183,7 +183,7 @@ run_casdoor_bootstrap_with_docker() {
     -w /workspace/server \
     -e "PATH=/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
     "${env_args[@]}" \
-    golang:1.26-bookworm \
+    golang:1.26.5-bookworm \
     go run ./cmd/casdoor-bootstrap
 }
 
@@ -315,7 +315,7 @@ else
       -e OPENFGA_API_URL="http://openfga:8080" \
       -e OPENFGA_STORE_ID="${OPENFGA_STORE_ID:-}" \
       -e FGA_MODEL_PATH="${FGA_MODEL_PATH:-/workspace/infra/openfga/model.fga}" \
-      golang:1.26-bookworm \
+      golang:1.26.5-bookworm \
       go run ./cmd/fga-setup
   )"
 fi

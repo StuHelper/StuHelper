@@ -2,7 +2,7 @@
 set -euo pipefail
 
 DEV_USER="${DEV_USER:-${SUDO_USER:-${USER:-}}}"
-GO_VERSION="${GO_VERSION:-1.26.0}"
+GO_VERSION="${GO_VERSION:-1.26.5}"
 NODE_MAJOR="${NODE_MAJOR:-24}"
 PNPM_VERSION="${PNPM_VERSION:-10.32.1}"
 AIR_VERSION="${AIR_VERSION:-v1.61.7}"
@@ -31,7 +31,7 @@ Bootstraps an Ubuntu 24.04 workstation for StuHelper local development.
 
 Optional env:
   DEV_USER                 Target non-root user. Defaults to SUDO_USER.
-  GO_VERSION               Defaults to 1.26.0.
+  GO_VERSION               Defaults to 1.26.5.
   NODE_MAJOR               Defaults to 24.
   PNPM_VERSION             Defaults to 10.32.1.
   AIR_VERSION              Defaults to v1.61.7.
