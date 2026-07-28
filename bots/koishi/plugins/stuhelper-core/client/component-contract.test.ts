@@ -1204,6 +1204,15 @@ test('SearchPanel escape does not bubble into the AppShell escape chain', () => 
   assert.match(shellSource, /if \(event\.defaultPrevented\) return/)
 })
 
+test('passive console messages do not intercept subsequent actions', () => {
+  const styleSource = readClientFile('./styles/shell.css')
+
+  assert.match(
+    styleSource,
+    /body:has\(\.stuhelperGroupCenter-app\) \.el-message:not\(\.is-closable\) \{\s*pointer-events: none;\s*\}/,
+  )
+})
+
 test('mobile shell exposes a CommandBar rail toggle outside the collapsed rail', () => {
   const commandSource = readClientFile('./components/shell/CommandBar.vue')
   const styleSource = readClientFile('./styles/shell.css')

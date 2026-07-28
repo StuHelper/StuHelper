@@ -1294,6 +1294,10 @@ test('role management creates, edits, assigns member, revokes member, and delete
   }
   await page.locator('.copy-btn').click()
   await expect(toastMessage(page, '角色 ID 已复制到剪贴板')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.el-message', { hasText: '角色 ID 已复制到剪贴板' }).last()).toHaveCSS(
+    'pointer-events',
+    'none',
+  )
   await expect
     .poll(() =>
       page.evaluate(() => {

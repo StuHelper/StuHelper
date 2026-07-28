@@ -5,6 +5,14 @@
  * 所有数值都来自 tokens.css；不允许出现硬编码颜色或像素。
  */
 
+/*
+ * Element Plus 会把消息传送到 body。被动提示不应在消失动画期间拦截后续操作；
+ * 可关闭的消息仍保留指针交互，方便用户主动关闭。
+ */
+body:has(.stuhelperGroupCenter-app) .el-message:not(.is-closable) {
+  pointer-events: none;
+}
+
 /* ── AppShell layout ────────────────────────────────────────── */
 
 .sh-shell {
