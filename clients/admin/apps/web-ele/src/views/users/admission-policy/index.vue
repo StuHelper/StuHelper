@@ -57,7 +57,7 @@ const policyFieldLabels = {
   guardEnabled: '启用入群认证守卫',
   initialMuteDurationSeconds: '入群初始禁言（秒）',
   joinHandlingStrategy: '入群处理策略',
-  linkWaitSeconds: '绑定链接等待（秒）',
+  linkWaitSeconds: '学生认证链接等待（秒）',
   managementGuildIDs: '材料审核通知群号',
   manualReviewTimeoutSeconds: '人工审核超时（秒）',
   maxExtensionDays: '最大延期天数',
@@ -179,12 +179,37 @@ function isPostJoinLocalStrategy(policy: AdmissionPolicy) {
   );
 }
 
+function isPostJoinGuardStrategy(policy: AdmissionPolicy) {
+  return policy.joinHandlingStrategy === 'post_join_guard';
+}
+
+function isPostJoinTimeCodeStrategy(policy: AdmissionPolicy) {
+  return policy.joinHandlingStrategy === 'post_join_time_code';
+}
+
+function usesStudentVerificationFlow(policy: AdmissionPolicy) {
+  return isPostJoinGuardStrategy(policy);
+}
+
+function linkWaitLabel(policy: AdmissionPolicy) {
+  return isPostJoinTimeCodeStrategy(policy)
+    ? '验证码等待（秒）'
+    : policyFieldLabels.linkWaitSeconds;
+}
+
+function usesPostJoinWait(policy: AdmissionPolicy) {
+  return isPostJoinGuardStrategy(policy) || isPostJoinTimeCodeStrategy(policy);
+}
+
 function saveImpactSummary(policy: AdmissionPolicy) {
-  return [
+  const summary = [
     `目标认证群：${policy.platform.toUpperCase()} ${policy.guildID}`,
     `执行状态：${guardSyncLabel(policy)}`,
-    `审核通知群：${managementGuildCount(policy)} 个`,
-  ].join('；');
+  ];
+  if (usesStudentVerificationFlow(policy)) {
+    summary.push(`审核通知群：${managementGuildCount(policy)} 个`);
+  }
+  return summary.join('；');
 }
 
 function parseCreateGuildIDs() {
@@ -230,7 +255,7 @@ async function submitCreatePolicies() {
         sourcePolicyID: createPolicyForm.sourcePolicyID,
       });
     }
-    ElMessage.success(`已创建 ${guildIDs.length} 个新生认证群策略`);
+    ElMessage.success(`已创建 ${guildIDs.length} 个入群认证群策略`);
     createPolicyDialogVisible.value = false;
     await fetchData();
   } catch (error) {
@@ -283,7 +308,7 @@ onMounted(fetchData);
 
 <template>
   <AdminContentLayout
-    description="控制新生入群验证、临时认证期限和人工审核转发行为。"
+    description="控制目标群入群处理方式、入群后等待时长和学生认证审核行为。"
     title="入群认证策略"
     :total="policies.length"
   >
@@ -351,7 +376,12 @@ onMounted(fetchData);
           >
             <span>目标认证群：{{ policy.guildID }}</span>
             <span>入群处理：{{ joinHandlingStrategyLabel(policy) }}</span>
-            <span>审核通知群：{{ managementGuildCount(policy) }} 个</span>
+            <span v-if="usesStudentVerificationFlow(policy)">
+              审核通知群：{{ managementGuildCount(policy) }} 个
+            </span>
+            <span v-else-if="isPostJoinTimeCodeStrategy(policy)">
+              验证码等待：{{ policy.linkWaitSeconds }} 秒
+            </span>
           </div>
         </header>
 
@@ -397,33 +427,64 @@ onMounted(fetchData);
           </ElFormItem>
         </section>
 
-        <section class="grid gap-4 border-b border-slate-200 py-4">
+        <section
+          v-if="usesPostJoinWait(policy)"
+          class="grid gap-4 border-b border-slate-200 py-4"
+        >
           <div>
             <h3 class="text-sm font-semibold text-slate-900">时间与提醒</h3>
             <p class="mt-1 text-sm text-slate-500">
-              这些时间控制入群后禁言、链接绑定、材料提交、人工审核和提醒节奏。
+              {{
+                isPostJoinTimeCodeStrategy(policy)
+                  ? '验证码等待时间控制成员入群后必须完成动态验证码的期限，超时后 Koishi 会移出成员。'
+                  : '这些时间控制入群后禁言、链接绑定、材料提交、人工审核和提醒节奏。'
+              }}
             </p>
           </div>
-          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <ElFormItem :label="policyFieldLabels.initialMuteDurationSeconds">
+          <div
+            class="grid gap-4 md:grid-cols-2"
+            :class="isPostJoinTimeCodeStrategy(policy) ? 'xl:grid-cols-2' : 'xl:grid-cols-5'"
+          >
+            <ElFormItem
+              v-if="isPostJoinGuardStrategy(policy)"
+              :label="policyFieldLabels.initialMuteDurationSeconds"
+            >
               <ElInputNumber v-model="policy.initialMuteDurationSeconds" :min="1" />
             </ElFormItem>
-            <ElFormItem :label="policyFieldLabels.linkWaitSeconds">
+            <ElFormItem :label="linkWaitLabel(policy)">
               <ElInputNumber v-model="policy.linkWaitSeconds" :min="1" />
+              <p
+                v-if="isPostJoinTimeCodeStrategy(policy)"
+                class="mt-2 text-xs leading-5 text-slate-500"
+              >
+                Koishi 同步后会按该值创建群内验证码挑战的超时踢出期限。
+              </p>
             </ElFormItem>
-            <ElFormItem :label="policyFieldLabels.submissionWaitSeconds">
+            <ElFormItem
+              v-if="isPostJoinGuardStrategy(policy)"
+              :label="policyFieldLabels.submissionWaitSeconds"
+            >
               <ElInputNumber v-model="policy.submissionWaitSeconds" :min="1" />
             </ElFormItem>
-            <ElFormItem :label="policyFieldLabels.manualReviewTimeoutSeconds">
+            <ElFormItem
+              v-if="isPostJoinGuardStrategy(policy)"
+              :label="policyFieldLabels.manualReviewTimeoutSeconds"
+            >
               <ElInputNumber v-model="policy.manualReviewTimeoutSeconds" :min="1" />
             </ElFormItem>
-            <ElFormItem :label="policyFieldLabels.reminderIntervalSeconds">
+            <ElFormItem
+              v-if="isPostJoinGuardStrategy(policy)"
+              :label="policyFieldLabels.reminderIntervalSeconds"
+            >
               <ElInputNumber v-model="policy.reminderIntervalSeconds" :min="1" />
             </ElFormItem>
           </div>
         </section>
 
-        <section class="grid gap-4 border-b border-slate-200 py-4">
+        <section
+          v-if="usesStudentVerificationFlow(policy)"
+          class="grid gap-4 border-b border-slate-200 py-4"
+        >
           <div>
             <h3 class="text-sm font-semibold text-slate-900">新生材料与审核通知</h3>
             <p class="mt-1 text-sm text-slate-500">
@@ -467,7 +528,10 @@ onMounted(fetchData);
           </div>
         </section>
 
-        <section class="grid gap-4 border-b border-slate-200 py-4">
+        <section
+          v-if="usesStudentVerificationFlow(policy)"
+          class="grid gap-4 border-b border-slate-200 py-4"
+        >
           <div>
             <h3 class="text-sm font-semibold text-slate-900">失败与限制</h3>
             <p class="mt-1 text-sm text-slate-500">

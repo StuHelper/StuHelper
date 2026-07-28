@@ -232,6 +232,7 @@ export interface StuhelperGroupGuardMessageConfig {
   admissionConsoleSkipSuccess: string
   admissionConsoleSkipUnmuteFailed: string
   admissionConsoleResetFailureCountSuccess: string
+  admissionConsoleReleaseBlacklistNotFound: string
   admissionConsoleReleaseBlacklistSuccess: string
   admissionConsoleMissingResendURL: string
   admissionConsoleInvalidMuteDeadline: string
@@ -366,6 +367,7 @@ export interface AdmissionPolicyTarget {
   readonly guildID: string
   readonly guardEnabled?: boolean
   readonly joinHandlingStrategy?: AdmissionJoinHandlingStrategy
+  readonly linkWaitSeconds?: number
 }
 
 export interface AdmissionFailureResetResult {

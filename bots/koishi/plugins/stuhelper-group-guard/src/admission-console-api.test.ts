@@ -251,7 +251,7 @@ test('admission runtime skip keeps local release when QQ unmute fails', async ()
 
   assert.match(data, /已跳过 QQ 2001 在本群的入群认证/)
   assert.match(data, /自动解除禁言失败/)
-  assert.match(data, /retcode: 1200/)
+  assert.match(data, /机器人缺少群管理员权限/)
   assert.equal(synced.length, 1)
   assert.equal(released.length, 1)
 })
@@ -300,6 +300,60 @@ test('admission runtime skip cleans local record when backend session was alread
   assert.deepEqual(muteActions, [{ guildId: '178037297', memberId: '2001', duration: 0 }])
 })
 
+test('admission runtime release blacklist reports missing blacklist records separately', async () => {
+  await assert.rejects(
+    () => handleAdmissionRuntimeAction(
+      fakeContext(),
+      {
+        config: createConfig(),
+        platform: fakePlatform({
+          async releaseMemberBlacklistBySubject() {
+            throw new PlatformAPIError('blacklist not found', 404)
+          },
+        }),
+        runtimeSettings: fakeRuntimeSettings(),
+        guardStore: fakeGuardStore({
+          async getActiveByID() {
+            return createMember({ backendSyncPending: false, admissionSessionID: 'session-1' })
+          },
+        }),
+        policyStore: fakePolicyStore(),
+        moderationStore: fakeModerationStore(),
+      },
+      { recordId: 'qq:2118785781:178037297:2001', action: 'release-blacklist' },
+      { auth: { id: 42 } },
+    ),
+    /QQ 2001 在本群没有活动入群拉黑记录/,
+  )
+})
+
+test('admission runtime platform 404 names the missing admission session for session actions', async () => {
+  await assert.rejects(
+    () => handleAdmissionRuntimeAction(
+      fakeContext(),
+      {
+        config: createConfig(),
+        platform: fakePlatform({
+          async getAdmissionSessionByMember() {
+            throw new PlatformAPIError('admission session not found', 404)
+          },
+        }),
+        runtimeSettings: fakeRuntimeSettings(),
+        guardStore: fakeGuardStore({
+          async getActiveByID() {
+            return createMember({ backendSyncPending: false, admissionSessionID: 'session-1' })
+          },
+        }),
+        policyStore: fakePolicyStore(),
+        moderationStore: fakeModerationStore(),
+      },
+      { recordId: 'qq:2118785781:178037297:2001', action: 'query' },
+      { auth: { id: 42 } },
+    ),
+    /平台侧未找到 QQ 2001 在本群的入群认证会话/,
+  )
+})
+
 test('admission runtime settings action persists WebUI switch changes', async () => {
   const listeners = new Map<string, (input: unknown) => Promise<string>>()
   const savedInputs: unknown[] = []
@@ -328,6 +382,7 @@ test('admission runtime settings action persists WebUI switch changes', async ()
           fallbackScanEnabled: false,
           reminderGroupEnabled: true,
           reminderDirectEnabled: false,
+          timeCodeReminderEnabled: false,
           createdAt: new Date('2026-06-04T07:00:00.000Z'),
           updatedAt: new Date('2026-06-04T08:00:00.000Z'),
         }
@@ -343,7 +398,13 @@ test('admission runtime settings action persists WebUI switch changes', async ()
 
   const listener = listeners.get('stuhelperGroupGuard/action/save-admission-runtime-settings')
   assert.ok(listener)
-  const result = await listener({ actionStreamEnabled: false, moderationEnabled: true, fallbackScanEnabled: false, ignored: 'x' })
+  const result = await listener({
+    actionStreamEnabled: false,
+    moderationEnabled: true,
+    fallbackScanEnabled: false,
+    timeCodeReminderEnabled: false,
+    ignored: 'x',
+  })
   assert.equal(result, '已保存入群认证运行开关。')
   assert.equal(refreshCount, 1)
   assert.deepEqual(savedInputs, [{
@@ -356,6 +417,7 @@ test('admission runtime settings action persists WebUI switch changes', async ()
     fallbackScanEnabled: false,
     reminderGroupEnabled: undefined,
     reminderDirectEnabled: undefined,
+    timeCodeReminderEnabled: false,
   }])
 })
 
@@ -461,6 +523,7 @@ function fakeRuntimeSettings(overrides: Partial<AdmissionRuntimeSettingsStore> =
       fallbackScanEnabled: true,
       reminderGroupEnabled: true,
       reminderDirectEnabled: false,
+      timeCodeReminderEnabled: true,
       createdAt: new Date('2026-06-04T07:00:00.000Z'),
       updatedAt: new Date('2026-06-04T07:00:00.000Z'),
     }),
@@ -475,6 +538,7 @@ function fakeRuntimeSettings(overrides: Partial<AdmissionRuntimeSettingsStore> =
       fallbackScanEnabled: true,
       reminderGroupEnabled: true,
       reminderDirectEnabled: false,
+      timeCodeReminderEnabled: true,
       createdAt: new Date('2026-06-04T07:00:00.000Z'),
       updatedAt: new Date('2026-06-04T07:00:00.000Z'),
     }),

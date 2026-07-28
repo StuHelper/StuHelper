@@ -36,6 +36,76 @@ test('handleWorkItemAction approves guarded admission members by releasing the m
   assert.equal(deps.events[0].type, 'join_released')
 })
 
+test('handleWorkItemAction resolves qq admission records through onebot runtime bots', async () => {
+  const now = new Date('2026-04-21T08:00:00.000Z')
+  const guardRecord = createGuardRecord({
+    id: 'qq:bot:1001:2001',
+    platform: 'qq',
+  })
+  const deps = createActionDeps({
+    guardRecords: [guardRecord],
+    reports: [],
+    reviews: [],
+    bots: [{
+      platform: 'onebot',
+      selfId: guardRecord.botSelfId,
+      muteGuildMember: async (guildId: string, memberId: string, duration: number) => {
+        deps.botCalls.mute.push([guildId, memberId, duration])
+      },
+      kickGuildMember: async (guildId: string, memberId: string) => {
+        deps.botCalls.kick.push([guildId, memberId])
+      },
+      sendMessage: async (channelId: string, content: string) => {
+        deps.botCalls.send.push([channelId, content])
+      },
+    }],
+    now,
+  })
+
+  const message = await handleWorkItemAction(deps, {
+    kind: 'admission',
+    itemId: guardRecord.id,
+    action: 'approve',
+    note: '生产 NapCat OneBot 运行时',
+  }, createActor())
+
+  assert.equal(message, `已放行待准入成员：${guardRecord.memberId}`)
+  assert.deepEqual(deps.botCalls.mute, [[guardRecord.guildId, guardRecord.memberId, 0]])
+  assert.match(deps.botCalls.send[0][1], /已通过人工准入/)
+  assert.equal(deps.events[0].platform, 'qq')
+})
+
+test('handleWorkItemAction reports onebot admission unmute permission failures clearly', async () => {
+  const now = new Date('2026-04-21T08:00:00.000Z')
+  const guardRecord = createGuardRecord()
+  const deps = createActionDeps({
+    guardRecords: [guardRecord],
+    reports: [],
+    bots: [{
+      platform: 'onebot',
+      selfId: guardRecord.botSelfId,
+      muteGuildMember: async () => {
+        throw new Error('Error with request set_group_ban, args: {"group_id":"1001"}, retcode: 1200')
+      },
+      kickGuildMember: async () => {},
+      sendMessage: async () => {},
+    }],
+    now,
+  })
+
+  await assert.rejects(
+    () => handleWorkItemAction(deps, {
+      kind: 'admission',
+      itemId: guardRecord.id,
+      action: 'approve',
+    }, createActor()),
+    /机器人缺少群管理员权限，无法修改成员禁言状态/,
+  )
+  assert.equal(deps.databaseState.guardUpdates.length, 2)
+  assert.match(String(deps.databaseState.guardUpdates.at(-1)?.patch.lastError), /set_group_ban/)
+  assert.equal(deps.databaseState.guardUpdates.at(-1)?.patch.updatedAt, now)
+})
+
 test('handleWorkItemAction creates review from report and removes report from open queue', async () => {
   const report = createReportRecord()
   const deps = createActionDeps({

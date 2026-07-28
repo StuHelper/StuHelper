@@ -429,4 +429,5 @@ type AdmissionPolicyTarget struct {
 	GuildID              string                        `json:"guildID"`
 	GuardEnabled         bool                          `json:"guardEnabled"`
 	JoinHandlingStrategy AdmissionJoinHandlingStrategy `json:"joinHandlingStrategy"`
+	LinkWaitSeconds      int                           `json:"linkWaitSeconds"`
 }

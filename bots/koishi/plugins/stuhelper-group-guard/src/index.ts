@@ -89,6 +89,7 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
     moderationStore,
     logger,
     isFreshmanForwardEnabled: () => runtimeSettings.isFreshmanForwardEnabled(),
+    isTimeCodeReminderEnabled: () => runtimeSettings.isTimeCodeReminderEnabled(),
     admissionSubjectCoordinator,
     reminderDeduper: admissionReminderDeduper,
     admissionReminderDelivery: () => runtimeSettings.getAdmissionReminderDeliveryConfig(),

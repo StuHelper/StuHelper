@@ -60,6 +60,9 @@ assert_contains "${EVIDENCE_SCRIPT}" 'fallbackScanEnabled'
 assert_contains "${EVIDENCE_SCRIPT}" 'moderation'
 assert_contains "${EVIDENCE_SCRIPT}" 'freshmanForward'
 assert_contains "${EVIDENCE_SCRIPT}" 'Koishi admission config semantics'
+assert_contains "${EVIDENCE_SCRIPT}" 'KOISHI_NAPCAT_ONEBOT_CONFIG_FILE'
+assert_contains "${EVIDENCE_SCRIPT}" 'KOISHI_NAPCAT_RECONNECT_MAX_MS'
+assert_contains "${EVIDENCE_SCRIPT}" 'KOISHI_NAPCAT_HEARTBEAT_MAX_MS'
 
 assert_not_contains "${EVIDENCE_SCRIPT}" 'root@'
 assert_not_contains "${EVIDENCE_SCRIPT}" '65022|2222'
@@ -75,6 +78,7 @@ trap cleanup EXIT
 compose_dir="${tmpdir}/koishi-napcat"
 mkdir -p \
   "${compose_dir}/koishi" \
+  "${compose_dir}/napcat/config" \
   "${compose_dir}/koishi/node_modules/@stuhelper/koishi-shared/lib" \
   "${compose_dir}/koishi/node_modules/koishi-plugin-stuhelper-group-guard/lib" \
   "${compose_dir}/koishi/node_modules/koishi-plugin-stuhelper-core/dist" \
@@ -107,6 +111,26 @@ plugins:
     student-query:uciuxr:
       enableGroupVerify: true
 YAML
+
+cat >"${compose_dir}/napcat/config/onebot11_2118785781.json" <<'JSON'
+{
+  "network": {
+    "websocketClients": [
+      {
+        "enable": true,
+        "name": "rws",
+        "url": "ws://koishi:5140/onebot",
+        "reportSelfMessage": false,
+        "messagePostFormat": "array",
+        "token": "",
+        "debug": false,
+        "heartInterval": 10000,
+        "reconnectInterval": 1000
+      }
+    ]
+  }
+}
+JSON
 
 cat >"${compose_dir}/koishi/node_modules/@stuhelper/koishi-shared/lib/index.js" <<'JS'
 const ADMISSION_RUNTIME_SETTINGS_TABLE = 'stuhelper_admission_runtime_settings'
@@ -237,6 +261,7 @@ require(payload.get("passed") is True, "evidence did not pass")
 require(payload.get("summary", {}).get("failed") == 0, "evidence has failed checks")
 require(payload.get("targets", {}).get("expectedGroupIDs") == ["178037297"], "unexpected target groups")
 require(count_check("Koishi admission config semantics", passed=True) == 1, "missing config semantics check")
+require(count_check("NapCat OneBot reverse WebSocket reconnect interval", passed=True) == 1, "missing NapCat OneBot config check")
 require(count_check("Koishi shared runtime settings include action stream switch", passed=True) == 1, "missing shared runtime package check")
 require(count_check("Koishi group guard runtime refreshes action stream from WebUI settings", passed=True) == 1, "missing group guard runtime package check")
 require(count_check("Koishi WebUI exposes action stream runtime switch", passed=True) == 1, "missing WebUI runtime package check")
@@ -267,6 +292,7 @@ expect_config_failure() {
 
   mkdir -p "${bad_compose_dir}"
   cp -R "${compose_dir}/koishi" "${bad_compose_dir}/koishi"
+  cp -R "${compose_dir}/napcat" "${bad_compose_dir}/napcat"
   python3 - "${bad_compose_dir}/koishi/koishi.yml" "${mutation}" <<'PY'
 import sys
 from pathlib import Path
@@ -359,7 +385,47 @@ expect_config_failure "moderation_enabled" "moderation.enabled is not false"
 expect_config_failure "freshman_forward_enabled" "freshmanForward.enabled is not false"
 expect_config_failure "student_query_disabled" "student-query.enableGroupVerify is not true"
 
+cat >"${compose_dir}/napcat/config/onebot11_2118785781.json" <<'JSON'
+{
+  "network": {
+    "websocketClients": [
+      {
+        "enable": true,
+        "name": "rws",
+        "url": "ws://koishi:5140/onebot",
+        "heartInterval": 30000,
+        "reconnectInterval": 30000
+      }
+    ]
+  }
+}
+JSON
+if PATH="${tmpdir}/bin:${PATH}" \
+  KOISHI_COMPOSE_DIR="${compose_dir}" \
+  KOISHI_CONTAINER_NAME="koishi" \
+  KOISHI_ADMISSION_EVIDENCE_FILE="${tmpdir}/bad-napcat-evidence.json" \
+  "${EVIDENCE_SCRIPT}" >"${tmpdir}/bad-napcat.stdout" 2>"${tmpdir}/bad-napcat.stderr"; then
+  fail "expected evidence script to fail for slow NapCat OneBot reconnect interval"
+fi
+python3 - "${tmpdir}/bad-napcat-evidence.json" <<'PY' || fail "missing NapCat reconnect failure detail"
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+for check in payload.get("checks", []):
+    if (
+        check.get("name") == "NapCat OneBot reverse WebSocket reconnect interval"
+        and check.get("passed") is False
+        and "reconnectInterval" in check.get("detail", "")
+    ):
+        raise SystemExit(0)
+raise SystemExit(1)
+PY
+
 assert_contains "${PROD_GO_LIVE}" 'koishi-admission-production-evidence\.sh'
 assert_contains "${RELEASE_RUNBOOK}" 'koishi-admission-production-evidence\.sh'
+assert_contains "${PROD_GO_LIVE}" 'reconnectInterval'
+assert_contains "${RELEASE_RUNBOOK}" 'reconnectInterval'
 
 echo "[koishi-admission-production-evidence-contract] all assertions passed"

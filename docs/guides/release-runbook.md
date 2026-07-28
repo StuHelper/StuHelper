@@ -443,7 +443,7 @@ stuhelper-group-guard:admission:
 
 这表示新插件只接入 admission 入群后验证，不抢“举报 / 骰子 / 抽禁言”等生产既有命令，不接管消息风控监听，也不扫描新生材料原图转发；但保留“查询入群认证 / 重发认证链接 / 重新生成认证链接 / 跳过入群认证 / 清空入群未认证次数 / 解除入群拉黑”等 admission 管理命令。“跳过入群认证”只跳过本群审核并解除禁言，不代表 StuHelper 学生认证通过；“解除入群拉黑”不隐式清空失败次数，需要重新计数时单独执行“清空入群未认证次数”。旧 `student-query` 插件不要整体关闭；如它也对 admission 目标群做同一阶段入群验证，应在旧插件自己的目标群或功能范围里排除 `178037297`。
 
-这些 YAML 值是启动默认值；Koishi 群管中心 WebUI 的“入群认证”页面会把 `actionStream.enabled`、`scheduler.fallbackScanEnabled`、`commands.enabled`、`admissionCommands.enabled`、`moderation.enabled` 和 `freshmanForward.enabled` 持久化到 `stuhelper_admission_runtime_settings`。`actionStream.enabled`、兜底扫描、消息风控和材料转发保存后立即生效；公开命令和 admission 管理命令只能关闭已注册命令，若启动时未注册，需要调整 `koishi.yml` 并重启后才能启用。`platform.baseUrl`、`platform.serviceToken`、`scheduler.scanIntervalSeconds`、`actionStream.reconnectDelaySeconds`、`admissionCommands.minAuthority` 和 `admissionCommands.operatorQQIDs` 仍是启动/安全配置，只在 WebUI 脱敏或汇总展示。
+这些 YAML 值是启动默认值；Koishi 群管中心 WebUI 的“入群认证”页面会把 `actionStream.enabled`、`scheduler.fallbackScanEnabled`、`commands.enabled`、`admissionCommands.enabled`、`moderation.enabled` 和 `freshmanForward.enabled` 持久化到 `stuhelper_admission_runtime_settings`。`actionStream.enabled`、兜底扫描、消息风控和材料转发保存后立即生效；公开命令和 admission 管理命令只能关闭已注册命令，若启动时未注册，需要调整 `koishi.yml` 并重启后才能启用。`platform.baseUrl`、`platform.serviceToken`、`scheduler.scanIntervalSeconds`、`actionStream.reconnectDelaySeconds`、`admissionCommands.minAuthority` 和 `admissionCommands.operatorQQIDs` 仍是启动/安全配置，只在 WebUI 脱敏或汇总展示。NapCat 的账号级反向 OneBot 配置也属于生产可复现状态，`napcat/config/onebot11_<qq>.json` 里的 `reconnectInterval` 应保持 1000ms 级、`heartInterval` 应保持 10000ms 级；默认 30000ms 重连会在 Koishi 重启或临时断线时扩大消息丢失窗口，入群验证码这类一次性群消息会直接表现为“没反应”。
 
 若同机启用 `stuhelper-core` 提供 Koishi 群管中心 WebUI，生产必须设置 `runtimeModules.enabled: false`。这会保留 Console 入口、WebUI 和 Console API，但不初始化 core 旧运行时模块，避免注册 `report`、`sub`、`config`、`ai` 等命令并与生产既有插件冲突。
 
@@ -484,7 +484,7 @@ KOISHI_ADMISSION_BOT_SELF_ID=<botSelfID> \
 ./infra/ops/koishi-admission-production-evidence.sh
 ```
 
-该脚本检查 `stuhelper-group-guard:admission` 配置目标群 `178037297`、`commands.enabled=false`、`moderation.enabled=false`、`freshmanForward.enabled=false`、`student-query.enableGroupVerify=true`、Koishi 容器环境、bot admission API 200，以及最近日志中没有 `duplicate command names: 举报`、`admission 401/unauthorized`、`B0000001`、`pending-forward` 循环报错。ChatLuna API key invalid 之类日志不属于 admission 上线验收范围。
+该脚本检查 `stuhelper-group-guard:admission` 配置目标群 `178037297`、`commands.enabled=false`、`moderation.enabled=false`、`freshmanForward.enabled=false`、`student-query.enableGroupVerify=true`、NapCat 账号级 OneBot 反连配置、Koishi 容器环境、bot admission API 200，以及最近日志中没有 `duplicate command names: 举报`、`admission 401/unauthorized`、`B0000001`、`pending-forward` 循环报错。ChatLuna API key invalid 之类日志不属于 admission 上线验收范围。
 默认日志窗口是最近 2 小时，避免上午救火前的历史错误影响当前验收；需要回溯时可显式设置 `KOISHI_ADMISSION_LOG_SINCE=24h`。长期运行的 Koishi 容器可能已经没有启动加载日志，脚本默认不要求加载日志必须出现在当前窗口；如果刚重启后要强制检查加载日志，可设置 `KOISHI_ADMISSION_REQUIRE_LOAD_LOG=true`。
 
 也可以在 Koishi 节点用聚合入口采集同一份证据：

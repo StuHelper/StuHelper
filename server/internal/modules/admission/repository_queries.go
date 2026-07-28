@@ -35,7 +35,7 @@ func (r *Repository) ListPolicies(ctx context.Context) ([]AdmissionPolicy, error
 func (r *Repository) ListPolicyTargets(ctx context.Context) ([]AdmissionPolicyTarget, error) {
 	ctx = withDBTable(ctx, "group_admission_policies")
 	rows, err := r.db.Query(ctx, `
-		SELECT id, platform, guild_id, guard_enabled, join_handling_strategy
+		SELECT id, platform, guild_id, guard_enabled, join_handling_strategy, link_wait_seconds
 		FROM group_admission_policies
 		ORDER BY platform ASC, guild_id ASC
 	`)
@@ -53,6 +53,7 @@ func (r *Repository) ListPolicyTargets(ctx context.Context) ([]AdmissionPolicyTa
 			&item.GuildID,
 			&item.GuardEnabled,
 			&item.JoinHandlingStrategy,
+			&item.LinkWaitSeconds,
 		); err != nil {
 			return nil, fmt.Errorf("scan admission policy target: %w", err)
 		}

@@ -65,7 +65,7 @@ corepack yarn workspaces list
 - 本地 SQLite 默认位于 `bots/koishi/data/koishi.db`
 - 群管中心 JSON 数据默认位于 Koishi baseDir 下的 `data/stuhelperGroupCenter`；`STUHELPER_GROUP_CENTER_DATA_DIR` 可选覆盖该目录，`test:ui` 会自动指向临时目录以隔离 smoke 数据
 - `stuhelper-binding` 的 Koishi 原生配置只保留 `platform.baseUrl` 与 `platform.serviceToken`。绑定命令字和绑定流程提示保存到 SQLite 表 `stuhelper_binding_runtime_settings`，在 StuHelper 群管中心“全局设置 / QQ 绑定”页面编辑。
-- 入群认证 Action Stream、兜底扫描、公开命令、管理员命令、消息风控、新生材料转发、群内提醒和私聊/临时会话提醒保存到 SQLite 表 `stuhelper_admission_runtime_settings`，在 StuHelper 群管中心“入群认证”页面编辑；认证提醒至少保留一个投递渠道。
+- 入群认证 Action Stream、兜底扫描、公开命令、管理员命令、消息风控、新生材料转发、群内提醒和私聊/临时会话提醒保存到 SQLite 表 `stuhelper_admission_runtime_settings`，在 StuHelper 群管中心“入群认证”页面编辑；学生认证链接的群内提醒和私聊/临时会话提醒可以同时关闭，关闭后只是不发送链接提醒。
 - 骰子默认面数和抽禁言基础秒数、上限、保底阈值、保底秒数保存到 SQLite 表 `stuhelper_group_guard_behavior_settings`，在 StuHelper 群管中心“全局设置”页面编辑；`stuhelper-group-guard` 原生配置不再包含 `fun` 字段，运行时公开命令会即时读取该表。
 
 ### StuHelper 群管中心配置
@@ -118,7 +118,7 @@ Koishi 当前依赖的 StuHelper 后端机器人接口包括：
 
 - 当前后端机器人接口仍然是 QQ 专属契约，因此 `packages/shared/src/platform` 依旧保留 `qq-binding`、`qq-users` 命名。
 - 这种 QQ 语义不会继续向群管核心域扩散；`packages/moderation-core` 与 `plugins/stuhelper-group-guard` 内部已经收敛为平台无关成员语义。
-- admission 后端 `platform` 字段表示被验证账号的 subject platform，当前只有 `qq`。生产 NapCat / OneBot 的 Koishi runtime platform 可能是 `onebot`，插件会把它映射为 `qq` 后调用 admission API；禁言、踢人和发消息仍使用当前 runtime bot，不切换适配器。
+- admission 后端 `platform` 字段表示被验证账号的 subject platform，当前只有 `qq`。生产 NapCat / OneBot 的 Koishi runtime platform 可能是 `onebot`，插件会把它映射为 `qq` 后调用 admission API；控制台处置 `platform=qq` 的准入 / 复核记录时，也会优先精确匹配同平台 bot，找不到时回退到同 `botSelfId` 的 QQ 兼容运行时 bot（例如 `onebot`）。禁言、踢人和发消息仍使用当前 runtime bot，不切换适配器。
 - 当前 admission MVP 的 Action Stream、兜底扫描、公开命令、入群认证管理员命令、消息风控、新生材料转发和提醒投递渠道都由群管中心 WebUI 的“入群认证”页面保存到 `stuhelper_admission_runtime_settings`，可运行时切换；不要在 `koishi.yml` 中再配置 `scheduler.fallbackScanEnabled`、`actionStream.enabled`、`moderation.enabled`、`commands.enabled`、`admissionCommands.enabled` 或 `freshmanForward.enabled`。`platform.baseUrl`、`platform.serviceToken`、扫描间隔、重连间隔和 admission 管理命令权限仍是启动/安全配置，只在 WebUI 脱敏或汇总展示。旧 `student-query` 插件不应因为 admission 上线被整体关闭；如它也监听同一批 admission 群的同一阶段入群验证，应调整旧插件自己的目标群或功能范围。
 
 ## Admission 入群策略
@@ -127,7 +127,9 @@ Koishi 当前依赖的 StuHelper 后端机器人接口包括：
 
 - `post_join_guard`：申请阶段由后端自动同意，成员入群后 Koishi 创建后端 admission session、禁言、发送学生认证链接，并按后端 action 解禁或踢出。
 - `join_request_review`：Koishi 只处理加群申请事件，后端按 StuHelper 学生认证状态决定同意或拒绝；该策略不会同步为 Koishi 本地入群后守卫。
-- `post_join_time_code`：申请阶段由后端自动同意，成员入群后 Koishi 只创建本地待验证记录，不创建后端 admission session、不禁言、不发送学生认证链接。默认群内提示要求成员阅读群公告中的验证码规则并发送四位验证码；验证码为“QQ 号末位数字 + 当前北京时间(UTC+8)24 小时制 HHMM 的整数值，不足四位左补零”。Koishi 校验成员消息中的独立四位数字，按发送消息时的北京时间保留前 2 分钟到后 1 分钟容错窗口；`kickAfterMinutes` 到期仍未验证时自动踢出。
+- `post_join_time_code`：申请阶段由后端自动同意，成员入群后 Koishi 只创建本地待验证记录，不创建后端 admission session、不禁言、不发送学生认证链接。默认群内提示要求成员阅读群公告中的验证码规则并发送四位验证码；验证码为“QQ 号末位数字 + 当前北京时间(UTC+8)24 小时制 HHMM 的整数值，不足四位左补零”。Koishi 校验成员消息中的独立四位数字，以用户发送验证码消息时的北京时间为准，允许前后 30 秒误差；Admin 入群认证策略页的 `linkWaitSeconds` 在该策略下显示为“验证码等待（秒）”，Koishi 同步 bot policy target 时会向上取整为 binding 级 `kickAfterMinutesOverride`，到期仍未验证时自动踢出。默认提示文案 `admissionTimeCodeReminder` 由 Koishi 群管中心“全局设置 / 群管提示”运行时维护，支持 `{at}`、`{memberId}`、`{minutes}`、`{toleranceSeconds}` 变量。是否发送这条入群后验证码提醒由 Koishi 群管中心“入群认证 / 运行开关 / 验证码提醒”控制；“认证链接群内提醒”和“认证链接私聊提醒”只影响 `post_join_guard` 的学生认证链接投递，不影响验证码提示。关闭“验证码提醒”后仍会创建验证码挑战、校验成员消息并在超时后踢出。
+
+Admin 入群认证策略页按 `joinHandlingStrategy` 显示适用字段：`post_join_guard` 显示学生认证链接等待、新生材料与审核通知、失败和拉黑限制；`join_request_review` 只显示申请阶段学生认证审核和未认证拒绝理由；`post_join_time_code` 只显示目标群和验证码等待，不显示新生材料、材料审核通知、入群禁言或学生认证链接配置。
 
 旧策略值 `join_request_time_code` 仅用于兼容历史配置，后端和 Koishi bootstrap 都会映射为 `post_join_time_code`；新代码、OpenAPI、后台选项和文档都不应继续暴露旧值。
 

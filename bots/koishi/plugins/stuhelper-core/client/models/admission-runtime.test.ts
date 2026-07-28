@@ -26,12 +26,17 @@ test('buildAdmissionRuntimeModel exposes admission runtime metrics and switch st
   assert.equal(model.switchRows.find((row) => row.id === 'reminder-group')?.settingKey, 'reminderGroupEnabled')
   assert.equal(
     model.switchRows.find((row) => row.id === 'reminder-group')?.note,
-    '目标群内提醒，两个提醒渠道至少保留一个',
+    '只影响学生认证链接群内投递，不影响验证码提醒',
   )
   assert.equal(model.switchRows.find((row) => row.id === 'reminder-direct')?.settingKey, 'reminderDirectEnabled')
   assert.equal(
     model.switchRows.find((row) => row.id === 'reminder-direct')?.note,
-    '好友私聊 / QQ 临时会话，两个提醒渠道至少保留一个',
+    '只影响学生认证链接私聊 / 临时会话投递',
+  )
+  assert.equal(model.switchRows.find((row) => row.id === 'time-code-reminder')?.settingKey, 'timeCodeReminderEnabled')
+  assert.equal(
+    model.switchRows.find((row) => row.id === 'time-code-reminder')?.note,
+    '入群后发送验证码规则提示；关闭后仍会校验验证码并超时踢出',
   )
   assert.deepEqual(model.activeMembers.map((member) => member.memberId), ['2001', '2002'])
   assert.deepEqual(model.activeMembers[0].availableActions, ['query', 'resend'])
@@ -74,6 +79,9 @@ function createAdmissionRuntimeFixture(): AdmissionRuntimePageData {
       groupEnabled: true,
       directEnabled: false,
     },
+    timeCode: {
+      reminderEnabled: true,
+    },
     bots: [{ platform: 'onebot', selfId: '2118785781', status: 'online' }],
     stats: {
       templateCount: 1,
@@ -99,6 +107,8 @@ function createAdmissionRuntimeFixture(): AdmissionRuntimePageData {
         platform: 'qq',
         guildId: '178037297',
         templateId: 'default',
+        kickAfterMinutes: 8,
+        kickAfterMinutesOverride: 8,
         enabled: true,
         note: null,
         updatedAt: '2026-06-04T07:00:00.000Z',
@@ -108,6 +118,8 @@ function createAdmissionRuntimeFixture(): AdmissionRuntimePageData {
         platform: 'qq',
         guildId: '1001',
         templateId: 'default',
+        kickAfterMinutes: 60,
+        kickAfterMinutesOverride: null,
         enabled: true,
         note: null,
         updatedAt: '2026-06-04T07:00:00.000Z',

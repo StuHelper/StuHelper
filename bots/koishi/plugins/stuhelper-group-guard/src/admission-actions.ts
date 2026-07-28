@@ -4,6 +4,7 @@ import {
   PlatformAPIError,
   renderMessageTemplate,
   resolveGroupGuardMessages,
+  formatBotOperationError,
   type AdmissionBotEventRequest,
   type AdmissionPendingAction,
   type GuardMemberRecord,
@@ -57,7 +58,7 @@ export function formatAdmissionActionError(error: unknown) {
   if (error instanceof PlatformAPIError) {
     return `${error.status}:${error.message}`
   }
-  return error instanceof Error ? error.message : String(error)
+  return formatBotOperationError(error)
 }
 
 async function executeReminder(

@@ -1,5 +1,9 @@
 import { h } from 'koishi'
-import { type GuardMemberRecord } from '@stuhelper/koishi-shared'
+import {
+  formatBotOperationError,
+  isOneBotSetGroupBanPermissionError,
+  type GuardMemberRecord,
+} from '@stuhelper/koishi-shared'
 
 import {
   createAdmissionEvent,
@@ -60,7 +64,7 @@ async function approveAdmission(input: AdmissionActionRuntimeInput) {
     }))
   } catch (error) {
     await rollbackGuardClaimSafely({ deps, guardId: record.id, claimedAt: claimAt, rolledBackAt: getNow(deps), originalError: error })
-    throw error
+    throw formatAdmissionRuntimeError(error)
   }
   return `已放行待准入成员：${record.memberId}`
 }
@@ -85,9 +89,16 @@ async function denyAdmission(input: AdmissionActionRuntimeInput) {
     }))
   } catch (error) {
     await rollbackGuardClaimSafely({ deps, guardId: record.id, claimedAt: claimAt, rolledBackAt: getNow(deps), originalError: error })
-    throw error
+    throw formatAdmissionRuntimeError(error)
   }
   return `已拒绝待准入成员：${record.memberId}`
+}
+
+function formatAdmissionRuntimeError(error: unknown) {
+  if (isOneBotSetGroupBanPermissionError(error)) {
+    return new Error(formatBotOperationError(error))
+  }
+  return error instanceof Error ? error : new Error(String(error))
 }
 
 async function deferAdmission(input: AdmissionActionRuntimeInput) {

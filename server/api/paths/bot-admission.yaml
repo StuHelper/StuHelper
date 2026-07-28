@@ -274,7 +274,8 @@
     summary: 获取后端 admission 策略目标群
     description: |
       Koishi 使用该接口把后端 `group_admission_policies` 同步为本地 guard 绑定。
-      返回值只包含目标群身份与守卫启用状态，不包含管理群或审核材料配置。
+      返回值只包含目标群身份、守卫启用状态、入群处理策略和入群后等待时间，
+      不包含管理群或审核材料配置。
     security:
       - serviceTokenAuth: []
     responses:

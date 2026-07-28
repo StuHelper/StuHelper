@@ -21,6 +21,9 @@ Environment:
   KOISHI_ADMISSION_LOG_SINCE                 defaults to 2h
   KOISHI_ADMISSION_LOG_TAIL                  defaults to 2000
   KOISHI_ADMISSION_REQUIRE_LOAD_LOG          defaults to false
+  KOISHI_NAPCAT_ONEBOT_CONFIG_FILE           defaults to $KOISHI_COMPOSE_DIR/napcat/config/onebot11_$KOISHI_ADMISSION_BOT_SELF_ID.json
+  KOISHI_NAPCAT_RECONNECT_MAX_MS             defaults to 1000
+  KOISHI_NAPCAT_HEARTBEAT_MAX_MS             defaults to 10000
   KOISHI_ADMISSION_EVIDENCE_FILE             defaults to infra/generated/koishi-admission-production-evidence.json
 
 The script never prints STUHELPER_PLATFORM_SERVICE_TOKEN. It only records
@@ -67,6 +70,9 @@ bot_self_id="${KOISHI_ADMISSION_BOT_SELF_ID:-2118785781}"
 log_since="${KOISHI_ADMISSION_LOG_SINCE:-2h}"
 log_tail="${KOISHI_ADMISSION_LOG_TAIL:-2000}"
 require_load_log="${KOISHI_ADMISSION_REQUIRE_LOAD_LOG:-false}"
+napcat_onebot_config_file="${KOISHI_NAPCAT_ONEBOT_CONFIG_FILE:-${compose_dir}/napcat/config/onebot11_${bot_self_id}.json}"
+napcat_reconnect_max_ms="${KOISHI_NAPCAT_RECONNECT_MAX_MS:-1000}"
+napcat_heartbeat_max_ms="${KOISHI_NAPCAT_HEARTBEAT_MAX_MS:-10000}"
 evidence_file="${KOISHI_ADMISSION_EVIDENCE_FILE:-${REPO_ROOT}/infra/generated/koishi-admission-production-evidence.json}"
 
 [[ -d "${compose_dir}" ]] || die "KOISHI_COMPOSE_DIR does not exist: ${compose_dir}"
@@ -74,6 +80,8 @@ evidence_file="${KOISHI_ADMISSION_EVIDENCE_FILE:-${REPO_ROOT}/infra/generated/ko
 [[ -n "${container_name}" ]] || die "KOISHI_CONTAINER_NAME must not be empty"
 [[ -n "${expected_group_ids//,/}" ]] || die "KOISHI_ADMISSION_EXPECTED_GROUP_IDS must not be empty"
 [[ -n "${bot_self_id}" ]] || die "KOISHI_ADMISSION_BOT_SELF_ID must not be empty"
+[[ "${napcat_reconnect_max_ms}" =~ ^[0-9]+$ ]] || die "KOISHI_NAPCAT_RECONNECT_MAX_MS must be an integer"
+[[ "${napcat_heartbeat_max_ms}" =~ ^[0-9]+$ ]] || die "KOISHI_NAPCAT_HEARTBEAT_MAX_MS must be an integer"
 
 evidence_lines="$(mktemp)"
 trap 'rm -f "${evidence_lines}"' EXIT
@@ -333,6 +341,65 @@ PY
   fi
 }
 
+check_napcat_onebot_config() {
+  local output
+
+  if [[ ! -f "${napcat_onebot_config_file}" ]]; then
+    record_check "NapCat OneBot reverse WebSocket reconnect interval" "napcat_config" "false" "missing file: ${napcat_onebot_config_file}"
+    return
+  fi
+
+  if output="$(python3 - "${napcat_onebot_config_file}" "${napcat_reconnect_max_ms}" "${napcat_heartbeat_max_ms}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+reconnect_max = int(sys.argv[2])
+heartbeat_max = int(sys.argv[3])
+payload = json.loads(path.read_text(encoding="utf-8"))
+clients = payload.get("network", {}).get("websocketClients", [])
+targets = [
+    client
+    for client in clients
+    if client.get("enable") is True and client.get("url") == "ws://koishi:5140/onebot"
+]
+errors = []
+
+if not targets:
+    errors.append("missing enabled ws://koishi:5140/onebot reverse WebSocket client")
+
+summaries = []
+for client in targets:
+    reconnect = client.get("reconnectInterval")
+    heartbeat = client.get("heartInterval")
+    summaries.append({
+        "name": client.get("name"),
+        "url": client.get("url"),
+        "reconnectInterval": reconnect,
+        "heartInterval": heartbeat,
+    })
+    if not isinstance(reconnect, int) or reconnect > reconnect_max:
+        errors.append(f"reconnectInterval {reconnect!r} exceeds {reconnect_max}ms")
+    if not isinstance(heartbeat, int) or heartbeat > heartbeat_max:
+        errors.append(f"heartInterval {heartbeat!r} exceeds {heartbeat_max}ms")
+
+print(json.dumps({
+    "file": str(path),
+    "maxReconnectMs": reconnect_max,
+    "maxHeartbeatMs": heartbeat_max,
+    "clients": summaries,
+    "errors": errors,
+}, ensure_ascii=True, separators=(",", ":")))
+raise SystemExit(1 if errors else 0)
+PY
+  )"; then
+    record_check "NapCat OneBot reverse WebSocket reconnect interval" "napcat_config" "true" "${output}"
+  else
+    record_check "NapCat OneBot reverse WebSocket reconnect interval" "napcat_config" "false" "${output:-NapCat OneBot config check failed}"
+  fi
+}
+
 check_container_running() {
   local running
   if running="$(docker inspect -f '{{.State.Running}}' "${container_name}" 2>/dev/null)" && [[ "${running}" == "true" ]]; then
@@ -482,6 +549,7 @@ write_evidence() {
   KOISHI_COMPOSE_DIR_VALUE="${compose_dir}" \
   KOISHI_CONFIG_FILE_VALUE="${config_file}" \
   KOISHI_CONTAINER_VALUE="${container_name}" \
+  KOISHI_NAPCAT_ONEBOT_CONFIG_FILE_VALUE="${napcat_onebot_config_file}" \
   KOISHI_EXPECTED_GROUP_IDS_VALUE="${expected_group_ids}" \
   KOISHI_BOT_SELF_ID_VALUE="${bot_self_id}" \
   KOISHI_LOG_SINCE_VALUE="${log_since}" \
@@ -509,6 +577,7 @@ bundle = {
         "composeDir": os.environ["KOISHI_COMPOSE_DIR_VALUE"],
         "configFile": os.environ["KOISHI_CONFIG_FILE_VALUE"],
         "container": os.environ["KOISHI_CONTAINER_VALUE"],
+        "napcatOneBotConfigFile": os.environ["KOISHI_NAPCAT_ONEBOT_CONFIG_FILE_VALUE"],
         "expectedGroupIDs": [
             item.strip()
             for item in os.environ["KOISHI_EXPECTED_GROUP_IDS_VALUE"].split(",")
@@ -554,6 +623,7 @@ config_section_has_enabled "freshmanForward" "false"
 config_contains "student-query plugin remains configured" 'student-query:'
 config_contains "student-query group verify remains enabled" 'enableGroupVerify:[[:space:]]*true'
 check_koishi_config_semantics
+check_napcat_onebot_config
 
 runtime_file_contains \
   "Koishi shared runtime settings include action stream switch" \

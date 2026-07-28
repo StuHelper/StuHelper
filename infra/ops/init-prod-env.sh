@@ -223,7 +223,7 @@ else
   ensure_prod_default "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}" "verify-full" "require" "disable"
 fi
 ensure_prod_default "POSTGRES_PGDATA" "${POSTGRES_PGDATA:-}" "/var/lib/postgresql/data" "/var/lib/postgresql/18/docker"
-ensure_prod_default "POSTGRES_ARCHIVE_MODE" "${POSTGRES_ARCHIVE_MODE:-}" "on" "off"
+ensure_value "POSTGRES_ARCHIVE_MODE" "${POSTGRES_ARCHIVE_MODE:-}" "off"
 ensure_value "POSTGRES_ARCHIVE_TIMEOUT" "${POSTGRES_ARCHIVE_TIMEOUT:-}" "15min"
 ensure_prod_default "REDIS_HOST" "${REDIS_HOST:-}" "redis" "localhost"
 ensure_value "REDIS_PORT" "${REDIS_PORT:-}" "6379"

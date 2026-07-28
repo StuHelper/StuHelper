@@ -121,6 +121,7 @@ func TestCreateAdmissionPolicyFromSourceForNewTargetGuild(t *testing.T) {
 		GuildID:              "guild-2",
 		GuardEnabled:         true,
 		JoinHandlingStrategy: AdmissionJoinHandlingPostJoinGuard,
+		LinkWaitSeconds:      DefaultLinkWaitSeconds,
 	}, targets[1])
 
 	_, err = repo.CreatePolicyFromSource(ctx, AdmissionPolicyCreateRequest{

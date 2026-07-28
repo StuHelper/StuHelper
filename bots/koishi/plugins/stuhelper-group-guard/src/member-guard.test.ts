@@ -596,6 +596,46 @@ test('member guard records local post-join time-code challenge after member join
   assert.equal('code' in moderationEvents[0].payload, false)
 })
 
+test('member guard can disable post-join time-code reminder without disabling challenge', async () => {
+  const savedRecords: any[] = []
+  const sentMessages: string[] = []
+  const moderationEvents: any[] = []
+  const reminderMarks: Array<{ id: string, now: Date }> = []
+  const now = new Date('2026-06-17T07:30:00.000Z')
+  const service = new MemberGuardService({
+    platform: {},
+    policyStore: timeCodePolicyStore(),
+    guardStore: {
+      async findActiveBySubject() { return null },
+      async savePending(record: any) { savedRecords.push(record) },
+      async markReminderSent(id: string, markedAt: Date) {
+        reminderMarks.push({ id, now: markedAt })
+      },
+    },
+    moderationStore: { async appendEvent(event: any) { moderationEvents.push(event) } },
+    logger: { error() {}, warn() {} },
+    isTimeCodeReminderEnabled: async () => false,
+    now: () => now,
+  } as any)
+
+  await service.handleGuildMemberAdded(memberAddedSession({
+    bot: {
+      sendMessage: async (_channelId: string, content: string) => {
+        sentMessages.push(content)
+        return ['message-code']
+      },
+    },
+  }))
+
+  assert.equal(savedRecords.length, 1)
+  assert.equal(savedRecords[0].deadlineAt.toISOString(), '2026-06-17T08:00:00.000Z')
+  assert.deepEqual(sentMessages, [])
+  assert.deepEqual(reminderMarks, [])
+  assert.equal(moderationEvents.length, 1)
+  assert.equal(moderationEvents[0].payload.joinHandlingStrategy, 'post_join_time_code')
+  assert.equal(moderationEvents[0].payload.reminderSent, false)
+})
+
 test('member guard releases post-join time-code challenge on valid group message', async () => {
   const now = new Date('2026-06-17T07:30:00.000Z')
   const record = timeCodeRecord({ deadlineAt: new Date('2026-06-17T08:00:00.000Z') })
@@ -634,6 +674,71 @@ test('member guard releases post-join time-code challenge on valid group message
   assert.equal(moderationEvents.length, 1)
   assert.equal(moderationEvents[0].type, 'join_released')
   assert.equal(moderationEvents[0].payload.joinHandlingStrategy, 'post_join_time_code')
+})
+
+test('member guard validates post-join time-code against user message timestamp with 30 second tolerance', async () => {
+  const processingTime = new Date('2026-06-17T07:31:05.000Z')
+  const userMessageTime = new Date('2026-06-17T07:30:35.000Z')
+  const record = timeCodeRecord({ deadlineAt: new Date('2026-06-17T08:00:00.000Z') })
+  const releases: Array<{ id: string, now: Date }> = []
+  const service = new MemberGuardService({
+    platform: {},
+    policyStore: timeCodePolicyStore(),
+    guardStore: {
+      async findActiveBySubject() { return record },
+      async markReleased(id: string, markedAt: Date) {
+        releases.push({ id, now: markedAt })
+        record.releasedAt = markedAt
+        return true
+      },
+    },
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+    now: () => processingTime,
+  } as any)
+
+  const handled = await service.handleMessage(messageSession({
+    content: '验证码：1531',
+    timestamp: userMessageTime.getTime(),
+    bot: { sendMessage: async () => ['message-verified'] },
+  }))
+
+  assert.equal(handled, true)
+  assert.deepEqual(releases, [{ id: record.id, now: processingTime }])
+})
+
+test('member guard rejects post-join time-code outside 30 second tolerance', async () => {
+  const processingTime = new Date('2026-06-17T07:31:35.000Z')
+  const userMessageTime = new Date('2026-06-17T07:31:31.000Z')
+  const record = timeCodeRecord({ deadlineAt: new Date('2026-06-17T08:00:00.000Z') })
+  const sentMessages: string[] = []
+  const service = new MemberGuardService({
+    platform: {},
+    policyStore: timeCodePolicyStore(),
+    guardStore: {
+      async findActiveBySubject() { return record },
+      async markReleased() {
+        throw new Error('out-of-window code must not release guard record')
+      },
+    },
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+    now: () => processingTime,
+  } as any)
+
+  const handled = await service.handleMessage(messageSession({
+    content: '1531',
+    timestamp: userMessageTime.getTime(),
+    bot: {
+      sendMessage: async (_channelId: string, content: string) => {
+        sentMessages.push(content)
+        return ['message-invalid']
+      },
+    },
+  }))
+
+  assert.equal(handled, false)
+  assert.deepEqual(sentMessages, ['<at id="10001"/> 验证码不正确，请核对后重新发送。'])
 })
 
 test('member guard keeps post-join time-code challenge active on invalid code', async () => {

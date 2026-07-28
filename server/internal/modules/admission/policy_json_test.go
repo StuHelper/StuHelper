@@ -44,6 +44,29 @@ func TestAdmissionPolicyJSONMatchesOpenAPIShape(t *testing.T) {
 	require.NotContains(t, decoded, "schoolID")
 }
 
+func TestAdmissionPolicyTargetJSONIncludesPostJoinWaitSeconds(t *testing.T) {
+	target := AdmissionPolicyTarget{
+		PolicyID:             "policy-1",
+		Platform:             "qq",
+		GuildID:              "guild-1",
+		GuardEnabled:         true,
+		JoinHandlingStrategy: AdmissionJoinHandlingPostJoinTimeCode,
+		LinkWaitSeconds:      600,
+	}
+
+	payload, err := json.Marshal(target)
+	require.NoError(t, err)
+
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(payload, &decoded))
+	require.Equal(t, "policy-1", decoded["policyID"])
+	require.Equal(t, "qq", decoded["platform"])
+	require.Equal(t, "guild-1", decoded["guildID"])
+	require.Equal(t, true, decoded["guardEnabled"])
+	require.Equal(t, string(AdmissionJoinHandlingPostJoinTimeCode), decoded["joinHandlingStrategy"])
+	require.Equal(t, float64(600), decoded["linkWaitSeconds"])
+}
+
 func TestAdmissionSessionJSONMatchesOpenAPIShape(t *testing.T) {
 	userID := int64(42)
 	session := AdmissionSession{

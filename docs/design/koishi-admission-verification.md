@@ -162,7 +162,7 @@ Koishi 群内 @ 新人的短文案直接发送 canonical URL。`buaa.team` 只�
 
 - `post_join_guard`：默认策略，申请阶段自动同意，入群后禁言并发送 StuHelper 学生认证链接。
 - `join_request_review`：申请阶段按 StuHelper 学生认证状态同意或拒绝，不同步为 Koishi 本地入群后守卫。
-- `post_join_time_code`：申请阶段自动同意，成员入群后由 Koishi 本地验证码策略验证；验证码规则为“QQ 号末位数字 + 当前北京时间(UTC+8)24 小时制 HHMM 的整数值，不足四位左补零”，校验保留前 2 分钟到后 1 分钟窗口，超时未验证由 Koishi 踢出。该策略不创建 admission session，不发送学生认证链接。
+- `post_join_time_code`：申请阶段自动同意，成员入群后由 Koishi 本地验证码策略验证；验证码规则为“QQ 号末位数字 + 当前北京时间(UTC+8)24 小时制 HHMM 的整数值，不足四位左补零”，校验以用户发送验证码消息时的北京时间为准，允许前后 30 秒误差，超时未验证由 Koishi 踢出。该策略不创建 admission session，不发送学生认证链接；Admin policy 的 `linkWaitSeconds` 在该策略下作为“验证码等待（秒）”维护，并同步为 Koishi binding 的 `kickAfterMinutesOverride`。群内默认提示文案 `admissionTimeCodeReminder` 由 Koishi 群管中心“全局设置 / 群管提示”运行时维护；是否发送入群后验证码提醒由 Koishi 群管中心“入群认证 / 运行开关 / 验证码提醒”控制，关闭后不影响验证码校验和超时踢出。
 
 还需配置提醒文案、踢出提醒文案、管理群 ID 列表、材料转发开关、新生通道开关、审批延长天数上限和材料大小上限。
 

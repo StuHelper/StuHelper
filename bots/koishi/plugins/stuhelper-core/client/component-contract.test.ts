@@ -599,6 +599,24 @@ test('SettingsView manages group guard messages through WebUI runtime settings',
   assert.match(source, /await groupGuardMessageSettingsApi\.reset\(\)/)
   assert.match(source, /const groupGuardMessageResetPending = ref\(false\)/)
   assert.match(source, /groupGuardMessageResetPending\.value = true/)
+  assert.match(source, /admissionTimeCodeReminder: '入群验证码提醒'/)
+  assert.match(source, /admissionTimeCodeVerified: '入群验证码通过提示'/)
+  assert.match(source, /admissionTimeCodeInvalid: '入群验证码错误提示'/)
+})
+
+test('SettingsView labels every group guard message field in Chinese', () => {
+  const source = readClientFile('./components/SettingsView.vue')
+  const sharedSource = readFileSync(resolve(clientDir, '../../../packages/shared/src/message-template.ts'), 'utf8')
+  const defaultMessagesMatch = sharedSource.match(/export const DEFAULT_GROUP_GUARD_MESSAGES:[\s\S]*?Object\.freeze\(\{([\s\S]*?)\n\}\)/)
+  const labelsMatch = source.match(/const groupGuardMessageLabels:[\s\S]*?= \{([\s\S]*?)\n\}/)
+
+  assert.ok(defaultMessagesMatch)
+  assert.ok(labelsMatch)
+  const messageKeys = [...defaultMessagesMatch[1].matchAll(/^\s{2}([A-Za-z0-9_]+):/gm)].map((match) => match[1])
+  const labeledKeys = new Set([...labelsMatch[1].matchAll(/^\s{2}([A-Za-z0-9_]+):/gm)].map((match) => match[1]))
+  const missingKeys = messageKeys.filter((key) => !labeledKeys.has(key))
+
+  assert.deepEqual(missingKeys, [])
 })
 
 test('SettingsView keeps save failures visible and prevents duplicate submissions', () => {
@@ -764,6 +782,7 @@ test('ReviewView keeps action failures inside the action panel instead of replac
 
 test('AdmissionView keeps runtime action failures inside their operation sections', () => {
   const source = readClientFile('./components/AdmissionView.vue')
+  const modelSource = readClientFile('./models/admission-runtime.ts')
 
   assert.match(source, /title="加载入群认证数据失败"/)
   assert.match(source, /import \{ useActionError \} from '\.\.\/composables\/use-action-error'/)
@@ -777,13 +796,15 @@ test('AdmissionView keeps runtime action failures inside their operation section
   assert.match(source, /clearSettingsError\(\)\s*settingsNotice\.value = ''/)
   assert.match(source, /setActionError\('入群认证操作失败', cause, '入群认证操作失败'\)/)
   assert.match(source, /setSettingsError\('保存入群认证运行开关失败', cause, '保存入群认证运行开关失败'\)/)
-  assert.match(source, /const REMINDER_CHANNEL_REQUIRED_MESSAGE = '群内提醒和私聊\/临时会话提醒至少需要开启一个。'/)
-  assert.match(source, /:disabled="runtimeSwitchDisabled\(row\)"/)
-  assert.match(source, /:title="runtimeSwitchDisabledReason\(row\)"/)
-  assert.match(source, /v-if="runtimeSwitchDisabled\(row\)"/)
-  assert.match(source, /function isReminderDeliverySwitch\(row: AdmissionSwitchRow\)/)
-  assert.match(source, /function wouldDisableLastReminderChannel\(row: AdmissionSwitchRow, enabled: boolean\)/)
-  assert.match(source, /if \(wouldDisableLastReminderChannel\(row, enabled\)\) \{[\s\S]*?setSettingsError\(\s*'提醒渠道配置无效',\s*new Error\(REMINDER_CHANNEL_REQUIRED_MESSAGE\),\s*REMINDER_CHANNEL_REQUIRED_MESSAGE,\s*\)/)
+  assert.match(modelSource, /timeCodeReminderEnabled/)
+  assert.match(modelSource, /验证码提醒/)
+  assert.doesNotMatch(source, /REMINDER_CHANNEL_REQUIRED_MESSAGE/)
+  assert.doesNotMatch(source, /runtimeSwitchDisabled/)
+  assert.doesNotMatch(source, /runtimeSwitchDisabledReason/)
+  assert.doesNotMatch(source, /wouldDisableLastReminderChannel/)
+  assert.doesNotMatch(source, /isReminderDeliverySwitch/)
+  assert.doesNotMatch(source, /提醒渠道配置无效/)
+  assert.doesNotMatch(source, /群内提醒和私聊\/临时会话提醒至少需要开启一个。/)
   assert.match(source, /import \{ errorMessage \} from '\.\.\/utils\/error-message'/)
   assert.doesNotMatch(source, /function errorMessage\(cause: unknown, fallback: string\): string/)
   assert.ok(
@@ -826,6 +847,7 @@ test('AdmissionView exposes admission policy navigation without editable target 
   assert.match(source, /目标群增删和启停请在 Admin 后台修改/)
   assert.match(source, /bindingDotClass\(binding\.enabled\)/)
   assert.match(source, /Admin policy sync/)
+  assert.match(source, /binding\.kickAfterMinutes/)
   assert.match(source, /binding\.note \|\| 'Admin policy 同步缓存'/)
   assert.match(source, /更新 \{\{ formatTimestamp\(binding\.updatedAt\) \}\}/)
   assert.match(source, /binding\.enabled \? 'success' : 'warning'/)

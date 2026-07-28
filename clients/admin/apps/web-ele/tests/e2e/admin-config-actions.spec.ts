@@ -446,16 +446,16 @@ test.describe('Admin configuration actions', () => {
       .getByRole('spinbutton', { name: '最大延期天数' })
       .fill('45');
     await policyForm
+      .getByPlaceholder('每行一个材料审核通知群号，可留空；这里不是目标认证群')
+      .fill('guild-admin\nguild-ops');
+    await policyForm
       .locator('.el-form-item', { hasText: '启用入群认证守卫' })
       .locator('.el-switch')
       .click();
-    await policyForm.getByText('申请时审核', { exact: true }).click();
+    await policyForm.getByText('申请时学生认证', { exact: true }).click();
     await policyForm
       .getByRole('textbox', { name: '未认证拒绝理由' })
       .fill('请先完成 StuHelper 学生认证后再申请入群');
-    await policyForm
-      .getByPlaceholder('每行一个材料审核通知群号，可留空；这里不是目标认证群')
-      .fill('guild-admin\nguild-ops');
     await policyForm.getByRole('button', { name: '保存' }).click();
     await expect(
       page.getByText('已保存 QQ 群 guild-1 入群认证策略'),
@@ -490,6 +490,36 @@ test.describe('Admin configuration actions', () => {
       });
   });
 
+  test('admission policy time-code strategy only shows applicable controls', async ({
+    page,
+  }) => {
+    await page.goto('/users/admission-policy');
+
+    const policyForm = page
+      .locator('form')
+      .filter({ hasText: 'QQ 群 guild-1' });
+    await expect(policyForm).toBeVisible();
+
+    await policyForm.getByText('加群后时间验证码', { exact: true }).click();
+
+    await expect(
+      policyForm.getByRole('spinbutton', { name: '验证码等待（秒）' }),
+    ).toBeVisible();
+    await expect(policyForm.getByText('验证码等待：300 秒')).toBeVisible();
+    await expect(
+      policyForm.getByText('启用新生入群通道'),
+    ).toHaveCount(0);
+    await expect(
+      policyForm.getByText('新生材料与审核通知'),
+    ).toHaveCount(0);
+    await expect(
+      policyForm.getByRole('spinbutton', { name: '入群初始禁言（秒）' }),
+    ).toHaveCount(0);
+    await expect(
+      policyForm.getByRole('textbox', { name: '未认证拒绝理由' }),
+    ).toHaveCount(0);
+  });
+
   test('admission policy create posts new target guilds copied from an existing policy', async ({
     page,
   }) => {
@@ -503,7 +533,7 @@ test.describe('Admin configuration actions', () => {
       .fill('guild-2\nguild-3');
     await dialog.getByRole('button', { name: '创建' }).click();
 
-    await expect(page.getByText('已创建 2 个新生认证群策略')).toBeVisible();
+    await expect(page.getByText('已创建 2 个入群认证群策略')).toBeVisible();
     await expect
       .poll(() =>
         capturedMutations.filter(

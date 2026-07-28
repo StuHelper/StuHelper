@@ -11,6 +11,7 @@ import {
 import type { WorkItemActionActor } from './review-action-types'
 
 type ManagedBot = Universal.Methods & { platform?: string; selfId: string }
+const QQ_COMPATIBLE_RUNTIME_PLATFORMS = new Set(['qq', 'onebot', 'red'])
 
 interface ReviewResolvedEventInput {
   readonly review: ReviewQueueRecord
@@ -64,11 +65,17 @@ export async function requireReportRecord(ctx: Context, reportId: string) {
 }
 
 export function resolveManagedBot(ctx: Context, platform: string, botSelfId: string) {
-  const bot = ctx.bots.find((item) => item.platform === platform && item.selfId === botSelfId)
+  const bot = ctx.bots.find((item) => item.platform === platform && item.selfId === botSelfId) ||
+    ctx.bots.find((item) => isCompatibleRuntimeBot(platform, item.platform) && item.selfId === botSelfId)
   if (!bot) {
     throw new Error(`console bot not found: ${platform}:${botSelfId}`)
   }
   return bot as ManagedBot
+}
+
+function isCompatibleRuntimeBot(recordPlatform: string, runtimePlatform: string | undefined) {
+  return recordPlatform === 'qq' &&
+    Boolean(runtimePlatform && QQ_COMPATIBLE_RUNTIME_PLATFORMS.has(runtimePlatform))
 }
 
 export function createReviewResolvedEvent(input: ReviewResolvedEventInput) {

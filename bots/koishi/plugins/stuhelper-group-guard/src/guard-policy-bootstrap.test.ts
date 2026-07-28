@@ -37,11 +37,13 @@ test('syncGuardPolicyFromAdmissionTargets creates default template and qq bindin
   assert.equal(store.templates[0].id, 'admission-default')
   assert.equal(store.templates[0].name, '入群认证默认模板')
   assert.equal(store.templates[0].muteDurationSeconds, 600)
+  assert.equal(store.templates[0].kickAfterMinutes, 30)
   assert.equal(store.bindings[0].id, 'qq:178037297')
   assert.equal(store.bindings[0].platform, 'qq')
   assert.equal(store.bindings[0].guildId, '178037297')
   assert.equal(store.bindings[0].templateId, 'admission-default')
   assert.equal(store.bindings[0].joinHandlingStrategy, 'post_join_guard')
+  assert.equal(store.bindings[0].kickAfterMinutesOverride, 30)
 })
 
 test('syncGuardPolicyFromAdmissionTargets applies backend policy target enabled state', async () => {
@@ -66,6 +68,7 @@ test('syncGuardPolicyFromAdmissionTargets applies backend policy target enabled 
       guildID: 'code-only',
       guardEnabled: true,
       joinHandlingStrategy: 'post_join_time_code',
+      linkWaitSeconds: 450,
     },
     { policyID: 'policy-old-backend', platform: 'qq', guildID: 'old-backend' },
     { policyID: 'policy-other', platform: 'telegram', guildID: 'ignored', guardEnabled: true },
@@ -84,6 +87,10 @@ test('syncGuardPolicyFromAdmissionTargets applies backend policy target enabled 
     ['qq:code-only', true, 'post_join_time_code', 'synced from backend admission policies'],
     ['qq:old-backend', true, 'post_join_guard', 'synced from backend admission policies'],
   ])
+  assert.equal(
+    store.bindings.find((binding) => binding.id === 'qq:code-only')?.kickAfterMinutesOverride,
+    8,
+  )
 })
 
 test('syncGuardPolicyFromAdmissionTargets disables stale qq bindings absent from backend targets', async () => {

@@ -18,8 +18,7 @@ import type { AdmissionSubjectPlatform } from './admission-subject-platform'
 import { groupGuardMessage } from './group-guard-message-provider'
 
 const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000
-const TIME_CODE_WINDOW_BEFORE_MINUTES = 2
-const TIME_CODE_WINDOW_AFTER_MINUTES = 1
+const TIME_CODE_TOLERANCE_SECONDS = 30
 
 export const POST_JOIN_TIME_CODE_STRATEGY = 'post_join_time_code' as const
 
@@ -37,6 +36,7 @@ export interface PostJoinTimeCodeStrategyInput {
   readonly messages?: Partial<StuhelperGroupGuardMessageConfig>
   readonly now?: () => Date
   readonly policy?: EffectiveGuardPolicy
+  readonly reminderEnabled?: boolean
 }
 
 export async function applyPostJoinTimeCodeStrategy(input: PostJoinTimeCodeStrategyInput) {
@@ -69,15 +69,19 @@ export async function applyPostJoinTimeCodeStrategy(input: PostJoinTimeCodeStrat
   })
   await input.guardStore.savePending(record)
   const messages = resolveGroupGuardMessages(input.messages)
-  await input.session.bot.sendMessage(
-    record.channelId,
-    groupGuardMessage(messages, 'admissionTimeCodeReminder', {
-      at: h.at(memberId),
-      memberId,
-      minutes: policy.kickAfterMinutes,
-    }),
-  )
-  await input.guardStore.markReminderSent(record.id, now)
+  const reminderEnabled = input.reminderEnabled ?? true
+  if (reminderEnabled) {
+    await input.session.bot.sendMessage(
+      record.channelId,
+      groupGuardMessage(messages, 'admissionTimeCodeReminder', {
+        at: h.at(memberId),
+        memberId,
+        minutes: policy.kickAfterMinutes,
+        toleranceSeconds: TIME_CODE_TOLERANCE_SECONDS,
+      }),
+    )
+    await input.guardStore.markReminderSent(record.id, now)
+  }
   await input.moderationStore.appendEvent({
     platform: record.platform,
     botSelfId: record.botSelfId,
@@ -90,8 +94,8 @@ export async function applyPostJoinTimeCodeStrategy(input: PostJoinTimeCodeStrat
     payload: {
       joinHandlingStrategy: POST_JOIN_TIME_CODE_STRATEGY,
       deadlineAt: record.deadlineAt.toISOString(),
-      timeWindowBeforeMinutes: TIME_CODE_WINDOW_BEFORE_MINUTES,
-      timeWindowAfterMinutes: TIME_CODE_WINDOW_AFTER_MINUTES,
+      timeToleranceSeconds: TIME_CODE_TOLERANCE_SECONDS,
+      reminderSent: reminderEnabled,
     },
   })
 }
@@ -124,7 +128,8 @@ export async function handlePostJoinTimeCodeMessage(input: {
   if (new Date(record.deadlineAt).getTime() <= now.getTime()) {
     return false
   }
-  const expected = allowedAdmissionTimeCodes(memberId, now)
+  const messageTime = resolveSessionMessageTime(input.session, now)
+  const expected = allowedAdmissionTimeCodes(memberId, messageTime)
   if (!isValidAdmissionTimeCode(content, expected)) {
     if (hasAdmissionTimeCodeCandidate(content)) {
       const messages = resolveGroupGuardMessages(input.messages)
@@ -233,15 +238,14 @@ export async function kickExpiredPostJoinTimeCodeMembers(input: {
 export function admissionTimeCode(qqID: string, now = new Date()) {
   const lastDigit = lastQQDigit(qqID)
   if (lastDigit === null) return null
-  const beijing = new Date(now.getTime() + BEIJING_OFFSET_MS)
-  const hhmm = beijing.getUTCHours() * 100 + beijing.getUTCMinutes()
+  const hhmm = beijingHHMM(now)
   return String(hhmm + lastDigit).padStart(4, '0')
 }
 
 export function allowedAdmissionTimeCodes(qqID: string, now = new Date()) {
   const codes = new Set<string>()
-  for (let offset = -TIME_CODE_WINDOW_BEFORE_MINUTES; offset <= TIME_CODE_WINDOW_AFTER_MINUTES; offset += 1) {
-    const candidate = admissionTimeCode(qqID, new Date(now.getTime() + offset * 60_000))
+  for (const candidateTime of admissionTimeCodeCandidateTimes(now)) {
+    const candidate = admissionTimeCode(qqID, candidateTime)
     if (candidate) {
       codes.add(candidate)
     }
@@ -261,6 +265,32 @@ function admissionTimeCodeCandidates(content: string) {
   return (content.match(/\d+/g) ?? []).filter((code) => code.length === 4)
 }
 
+function admissionTimeCodeCandidateTimes(now: Date) {
+  const times = [now]
+  for (const offsetSeconds of [-TIME_CODE_TOLERANCE_SECONDS, TIME_CODE_TOLERANCE_SECONDS]) {
+    const candidate = new Date(now.getTime() + offsetSeconds * 1000)
+    if (sameBeijingHHMM(candidate, now)) continue
+    times.push(candidate)
+  }
+  return times
+}
+
+function resolveSessionMessageTime(session: Session, fallback: Date) {
+  const eventTimestamp = session.event?.timestamp
+  if (typeof eventTimestamp === 'number' && Number.isFinite(eventTimestamp)) {
+    return new Date(eventTimestamp)
+  }
+  const timestamp = session.timestamp
+  if (typeof timestamp === 'number' && Number.isFinite(timestamp)) {
+    return new Date(timestamp)
+  }
+  return fallback
+}
+
+function sameBeijingHHMM(left: Date, right: Date) {
+  return beijingHHMM(left) === beijingHHMM(right)
+}
+
 function lastQQDigit(qqID: string) {
   for (let index = qqID.length - 1; index >= 0; index -= 1) {
     const char = qqID.charCodeAt(index)
@@ -269,4 +299,9 @@ function lastQQDigit(qqID: string) {
     }
   }
   return null
+}
+
+function beijingHHMM(now: Date) {
+  const beijing = new Date(now.getTime() + BEIJING_OFFSET_MS)
+  return beijing.getUTCHours() * 100 + beijing.getUTCMinutes()
 }

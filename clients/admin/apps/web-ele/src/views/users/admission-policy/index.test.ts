@@ -81,6 +81,8 @@ describe('admission policy admin view contract', () => {
       '目标认证群号',
       '转发原始材料到 QQ',
       '审核通知群只接收材料审核提醒',
+      '验证码等待（秒）',
+      'Koishi 同步后会按该值创建群内验证码挑战的超时踢出期限',
       'Koishi 会在下次同步后显示执行态',
     ]) {
       expect(source).toContain(label);
@@ -100,9 +102,24 @@ describe('admission policy admin view contract', () => {
       'function guardSyncLabel',
       'function saveImpactSummary',
       'function managementGuildCount',
+      'function usesStudentVerificationFlow',
+      'function linkWaitLabel',
       'joinHandlingStrategyHelp',
       'Admin 是入群认证策略权威源',
       'Koishi WebUI 只显示同步后的执行态和现场队列',
+    ]) {
+      expect(source).toContain(token);
+    }
+  });
+
+  it('keeps post-join time-code controls scoped to applicable fields', async () => {
+    const source = await readFile(sourcePath, 'utf8');
+
+    for (const token of [
+      'isPostJoinTimeCodeStrategy(policy)',
+      '验证码等待：{{ policy.linkWaitSeconds }} 秒',
+      'v-if="usesStudentVerificationFlow(policy)"',
+      ':label="linkWaitLabel(policy)"',
     ]) {
       expect(source).toContain(token);
     }

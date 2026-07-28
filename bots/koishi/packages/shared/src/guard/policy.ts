@@ -30,6 +30,7 @@ export interface GuardGroupBindingRecord {
   guildId: string
   templateId: string
   joinHandlingStrategy?: AdmissionJoinHandlingStrategy
+  kickAfterMinutesOverride?: number | null
   enabled: boolean
   note: string | null
   createdAt: Date
@@ -55,6 +56,7 @@ export function registerGuardPolicyModels(ctx: Context) {
     guildId: 'string',
     templateId: 'string',
     joinHandlingStrategy: { type: 'string', initial: 'post_join_guard' },
+    kickAfterMinutesOverride: { type: 'unsigned', initial: null },
     enabled: 'boolean',
     note: 'text',
     createdAt: 'timestamp',

@@ -216,7 +216,7 @@ AdmissionPolicyCreateRequest:
 
 BotAdmissionPolicyTarget:
   type: object
-  required: [policyID, platform, guildID, guardEnabled, joinHandlingStrategy]
+  required: [policyID, platform, guildID, guardEnabled, joinHandlingStrategy, linkWaitSeconds]
   properties:
     policyID:
       type: string
@@ -231,6 +231,11 @@ BotAdmissionPolicyTarget:
       type: string
       enum: [post_join_guard, join_request_review, post_join_time_code]
       description: 该目标群当前使用的入群处理策略。
+    linkWaitSeconds:
+      type: integer
+      description: |
+        入群后等待秒数。`post_join_guard` 下表示学生认证链接等待时间；`post_join_time_code`
+        下表示群内动态验证码等待时间，Koishi 会按该值生成本地超时踢出期限。
 
 FreshmanApplication:
   type: object

@@ -34,6 +34,9 @@ export interface AdmissionRuntimePageData {
     groupEnabled: boolean
     directEnabled: boolean
   }
+  timeCode: {
+    reminderEnabled: boolean
+  }
   bots: AdmissionRuntimeBot[]
   stats: {
     templateCount: number
@@ -70,6 +73,8 @@ export interface AdmissionRuntimeBinding {
   platform: string
   guildId: string
   templateId: string
+  kickAfterMinutes: number | null
+  kickAfterMinutesOverride: number | null
   enabled: boolean
   note: string | null
   updatedAt: string
@@ -131,6 +136,7 @@ export type AdmissionRuntimeSettingsKey =
   | 'fallbackScanEnabled'
   | 'reminderGroupEnabled'
   | 'reminderDirectEnabled'
+  | 'timeCodeReminderEnabled'
 
 export type AdmissionRuntimeSettingsPatch = Partial<Record<AdmissionRuntimeSettingsKey, boolean>>
 
@@ -242,21 +248,30 @@ function buildSwitchRows(data: AdmissionRuntimePageData): AdmissionSwitchRow[] {
     },
     {
       id: 'reminder-group',
-      label: '群内提醒',
+      label: '认证链接群内提醒',
       value: data.reminderDelivery.groupEnabled,
       tone: data.reminderDelivery.groupEnabled ? 'success' : 'warning',
-      note: '目标群内提醒，两个提醒渠道至少保留一个',
+      note: '只影响学生认证链接群内投递，不影响验证码提醒',
       editable: true,
       settingKey: 'reminderGroupEnabled',
     },
     {
       id: 'reminder-direct',
-      label: '私聊提醒',
+      label: '认证链接私聊提醒',
       value: data.reminderDelivery.directEnabled,
       tone: data.reminderDelivery.directEnabled ? 'success' : 'primary',
-      note: '好友私聊 / QQ 临时会话，两个提醒渠道至少保留一个',
+      note: '只影响学生认证链接私聊 / 临时会话投递',
       editable: true,
       settingKey: 'reminderDirectEnabled',
+    },
+    {
+      id: 'time-code-reminder',
+      label: '验证码提醒',
+      value: data.timeCode.reminderEnabled,
+      tone: data.timeCode.reminderEnabled ? 'success' : 'warning',
+      note: '入群后发送验证码规则提示；关闭后仍会校验验证码并超时踢出',
+      editable: true,
+      settingKey: 'timeCodeReminderEnabled',
     },
     {
       id: 'moderation',

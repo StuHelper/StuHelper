@@ -226,6 +226,7 @@ Admin 是 admission policy 的权威源。页面必须强化“修改这里才�
    - `submissionWaitSeconds`
    - `manualReviewTimeoutSeconds`
    - `reminderIntervalSeconds`
+   - `post_join_time_code` 策略下只显示 `linkWaitSeconds`，标签为“验证码等待（秒）”；该值通过 bot policy target 同步为 Koishi binding 的 `kickAfterMinutesOverride`。
 
 4. 新生材料与审核通知
    - `freshmanChannelEnabled`
@@ -234,12 +235,14 @@ Admin 是 admission policy 的权威源。页面必须强化“修改这里才�
    - `managementGuildIDs`
    - `forwardRawMaterialToQQ`
    - 明确 `managementGuildIDs` 是材料审核通知群，不是目标认证群。
+   - 仅 `post_join_guard` 显示。`join_request_review` 和 `post_join_time_code` 不创建入群后 admission session，不显示新生材料或审核通知配置。
 
 5. 失败与拉黑
    - `failedJoinLimit`
    - `blacklistDurationSeconds`
    - `maxExtensionDays`
    - `maxMaterialBytes`
+   - 仅 `post_join_guard` 显示。`post_join_time_code` 的本地验证码超时踢出不创建后端 admission session，不显示失败次数、拉黑和材料大小限制。
 
 6. 保存前影响摘要
    - 保存按钮附近展示将影响的目标群、启用状态、入群处理策略、审核通知群数量。
@@ -306,9 +309,9 @@ Admission 运行页分为五个区域：
 - 群内提醒。
 - 私聊提醒。
 
-产品约束：至少开启一个。
+产品约束：允许两个渠道同时关闭。
 
-如果用户尝试同时关闭两个，WebUI 应阻止保存并提示原因。后端/Koishi runtime settings 层也应有等价保护，避免绕过 UI 造成“有人入群但完全不会收到提醒”的配置。
+如果用户同时关闭两个，WebUI 与后端/Koishi runtime settings 层应保存该配置。该状态只表示不发送学生认证链接提醒，不应影响 admission action、兜底扫描、`post_join_time_code` 本地验证码校验和超时踢出。
 
 私聊提醒语义：
 
@@ -514,8 +517,8 @@ location = /start/ {
 
 新增或更新：
 
-- runtime settings 禁止同时关闭 `reminderGroupEnabled` 和 `reminderDirectEnabled`。
-- WebUI model 暴露提醒开关约束所需状态。
+- runtime settings 允许同时关闭 `reminderGroupEnabled` 和 `reminderDirectEnabled`。
+- WebUI model 暴露两个提醒渠道的独立开关状态。
 - action result 区分部分成功和失败。
 - policy target sync 中 `join_request_review` 继续映射为 disabled post-join guard binding。
 - stale binding note 保持可读。
@@ -609,7 +612,7 @@ location = /start/ {
 - Admin 策略页能清楚区分目标认证群和材料审核通知群。
 - Koishi WebUI 清楚表达 Admin 权威源与 Koishi 执行缓存。
 - Koishi 目标群同步与 Admin policy target 一致。
-- 提醒渠道不能全部关闭。
+- 学生认证链接提醒渠道可以全部关闭，关闭后不影响验证码策略校验和超时踢出。
 - WebUI skip 的部分成功可读。
 - 新增和既有 E2E 能覆盖上述业务路径。
 - 当前已知 Web 单测失败得到处理。

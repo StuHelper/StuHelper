@@ -19,6 +19,7 @@ export interface AdmissionRuntimeSettings {
   fallbackScanEnabled: boolean
   reminderGroupEnabled: boolean
   reminderDirectEnabled: boolean
+  timeCodeReminderEnabled: boolean
 }
 
 export interface AdmissionRuntimeSettingsRecord extends AdmissionRuntimeSettings {
@@ -39,6 +40,7 @@ export const DEFAULT_ADMISSION_RUNTIME_SETTINGS: AdmissionRuntimeSettings = {
   fallbackScanEnabled: true,
   reminderGroupEnabled: true,
   reminderDirectEnabled: false,
+  timeCodeReminderEnabled: true,
 }
 
 export function registerAdmissionRuntimeSettingsModel(ctx: Context) {
@@ -53,6 +55,7 @@ export function registerAdmissionRuntimeSettingsModel(ctx: Context) {
     fallbackScanEnabled: 'boolean',
     reminderGroupEnabled: 'boolean',
     reminderDirectEnabled: 'boolean',
+    timeCodeReminderEnabled: 'boolean',
     createdAt: 'timestamp',
     updatedAt: 'timestamp',
   }, { primary: 'id' })
@@ -80,9 +83,6 @@ export class AdmissionRuntimeSettingsStore {
       ...current,
       ...changes,
       updatedAt: now,
-    }
-    if (!next.reminderGroupEnabled && !next.reminderDirectEnabled) {
-      throw new Error('at least one admission reminder delivery channel must be enabled')
     }
     await this.ctx.database.set(ADMISSION_RUNTIME_SETTINGS_TABLE, { id: DEFAULT_SETTINGS_ID }, {
       ...changes,
@@ -127,6 +127,10 @@ export class AdmissionRuntimeSettingsStore {
     }
   }
 
+  async isTimeCodeReminderEnabled() {
+    return (await this.getSettings()).timeCodeReminderEnabled
+  }
+
   private async createDefaultRecord() {
     const now = new Date()
     const record: AdmissionRuntimeSettingsRecord = {
@@ -144,8 +148,6 @@ function normalizeRecord(
   record: AdmissionRuntimeSettingsRecord,
   defaults: AdmissionRuntimeSettings,
 ): AdmissionRuntimeSettingsRecord {
-  const reminderGroupEnabled = booleanOrDefault(record.reminderGroupEnabled, defaults.reminderGroupEnabled)
-  const reminderDirectEnabled = booleanOrDefault(record.reminderDirectEnabled, defaults.reminderDirectEnabled)
   return {
     ...record,
     actionStreamEnabled: booleanOrDefault(record.actionStreamEnabled, defaults.actionStreamEnabled),
@@ -155,8 +157,9 @@ function normalizeRecord(
     moderationEnabled: booleanOrDefault(record.moderationEnabled, defaults.moderationEnabled),
     freshmanForwardEnabled: booleanOrDefault(record.freshmanForwardEnabled, defaults.freshmanForwardEnabled),
     fallbackScanEnabled: booleanOrDefault(record.fallbackScanEnabled, defaults.fallbackScanEnabled),
-    reminderGroupEnabled: reminderGroupEnabled || !reminderDirectEnabled,
-    reminderDirectEnabled,
+    reminderGroupEnabled: booleanOrDefault(record.reminderGroupEnabled, defaults.reminderGroupEnabled),
+    reminderDirectEnabled: booleanOrDefault(record.reminderDirectEnabled, defaults.reminderDirectEnabled),
+    timeCodeReminderEnabled: booleanOrDefault(record.timeCodeReminderEnabled, defaults.timeCodeReminderEnabled),
   }
 }
 

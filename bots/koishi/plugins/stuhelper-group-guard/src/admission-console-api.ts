@@ -152,6 +152,9 @@ export async function buildAdmissionRuntimePageData(ctx: Context, deps: Admissio
       groupEnabled: settings.reminderGroupEnabled,
       directEnabled: settings.reminderDirectEnabled,
     },
+    timeCode: {
+      reminderEnabled: settings.timeCodeReminderEnabled,
+    },
     bots: ctx.bots.map((bot) => ({
       platform: bot.platform,
       selfId: bot.selfId,
@@ -180,12 +183,21 @@ export async function buildAdmissionRuntimePageData(ctx: Context, deps: Admissio
       platform: binding.platform,
       guildId: binding.guildId,
       templateId: binding.templateId,
+      kickAfterMinutes: binding.kickAfterMinutesOverride ?? templateKickAfterMinutes(templates, binding.templateId),
+      kickAfterMinutesOverride: binding.kickAfterMinutesOverride ?? null,
       enabled: binding.enabled,
       note: binding.note,
       updatedAt: binding.updatedAt.toISOString(),
     })),
     activeMembers: sortedMembers.map(serializeGuardMember),
   }
+}
+
+function templateKickAfterMinutes(
+  templates: Awaited<ReturnType<GuardPolicyStore['listTemplates']>>,
+  templateId: string,
+) {
+  return templates.find((template) => template.id === templateId)?.kickAfterMinutes ?? null
 }
 
 function parseRuntimeSettingsInput(input: unknown): AdmissionRuntimeSettingsInput {
@@ -203,6 +215,7 @@ function parseRuntimeSettingsInput(input: unknown): AdmissionRuntimeSettingsInpu
     fallbackScanEnabled: readOptionalBoolean(record.fallbackScanEnabled),
     reminderGroupEnabled: readOptionalBoolean(record.reminderGroupEnabled),
     reminderDirectEnabled: readOptionalBoolean(record.reminderDirectEnabled),
+    timeCodeReminderEnabled: readOptionalBoolean(record.timeCodeReminderEnabled),
   }
 }
 
@@ -239,7 +252,7 @@ export async function handleAdmissionRuntimeAction(
         return await releaseAdmissionBlacklist(deps, record, resolveConsoleOperatorID(client), messages)
     }
   } catch (error) {
-    throw new Error(formatAdmissionConsoleActionError(error, messages))
+    throw new Error(formatAdmissionConsoleActionError(error, messages, parsed.action, record))
   }
 }
 
@@ -619,10 +632,12 @@ function resolveConsoleOperatorID(client: ConsoleActionClient | undefined) {
 function formatAdmissionConsoleActionError(
   error: unknown,
   messages: GroupGuardMessages,
+  action: AdmissionRuntimeAction,
+  record: GuardMemberRecord,
 ) {
   if (error instanceof PlatformAPIErrorClass) {
     if (error.status === 404) {
-      return groupGuardMessage(messages, 'admissionConsoleErrorNotFound')
+      return formatAdmissionConsoleNotFoundError(messages, action, record)
     }
     if (error.status === 409) {
       return groupGuardMessage(messages, 'admissionConsoleErrorInvalidState')
@@ -637,12 +652,26 @@ function formatAdmissionConsoleActionError(
   }
   const platformError = error as PlatformAPIError | undefined
   if (platformError?.name === 'PlatformAPIError' && typeof platformError.status === 'number') {
+    if (platformError.status === 404) {
+      return formatAdmissionConsoleNotFoundError(messages, action, record)
+    }
     return groupGuardMessage(messages, 'admissionConsoleErrorPlatform', {
       status: platformError.status,
       message: platformError.message,
     })
   }
   return error instanceof Error ? error.message : groupGuardMessage(messages, 'admissionConsoleErrorFallback')
+}
+
+function formatAdmissionConsoleNotFoundError(
+  messages: GroupGuardMessages,
+  action: AdmissionRuntimeAction,
+  record: GuardMemberRecord,
+) {
+  if (action === 'release-blacklist') {
+    return groupGuardMessage(messages, 'admissionConsoleReleaseBlacklistNotFound', { qqID: record.memberId })
+  }
+  return groupGuardMessage(messages, 'admissionConsoleErrorNotFound', { qqID: record.memberId })
 }
 
 function isAdmissionInvalidStateError(error: unknown) {

@@ -72,6 +72,7 @@ interface MemberGuardDeps {
   moderationStore: ModerationStore
   logger: Logger
   isFreshmanForwardEnabled?: () => Promise<boolean> | boolean
+  isTimeCodeReminderEnabled?: () => Promise<boolean> | boolean
   admissionSubjectCoordinator?: AdmissionSubjectCoordinator
   reminderDeduper?: AdmissionReminderDeduper
   admissionReminderDelivery?: AdmissionReminderDeliveryConfigProvider
@@ -151,6 +152,7 @@ export class MemberGuardService {
           messages,
           now: this.deps.now,
           policy,
+          reminderEnabled: await this.isTimeCodeReminderEnabled(),
         })
         return
       }
@@ -468,6 +470,10 @@ export class MemberGuardService {
 
   private async getMessages() {
     return getGroupGuardMessages(this.deps.messageProvider)
+  }
+
+  private async isTimeCodeReminderEnabled() {
+    return await this.deps.isTimeCodeReminderEnabled?.() ?? true
   }
 
   private getAdmissionReminderDelivery() {

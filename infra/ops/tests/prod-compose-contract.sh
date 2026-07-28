@@ -91,6 +91,7 @@ assert_contains "${REPO_ROOT}/docker-compose.yml" 'password=\$\{CASDOOR_DB_PASSW
 assert_not_contains "${REPO_ROOT}/docker-compose.yml" 'password=\$\{CASDOOR_DB_PASSWORD\}'
 assert_contains "${REPO_ROOT}/docker-compose.yml" 'VITE_QQ_BOT_ENTRY=\$\{WEB_VITE_QQ_BOT_ENTRY:-\}'
 assert_contains "${REPO_ROOT}/docker-compose.yml" 'VITE_QQ_BIND_COMMAND=\$\{WEB_VITE_QQ_BIND_COMMAND:-绑定\}'
+assert_contains "${COMPOSE_FILE}" 'archive_mode=\$\{POSTGRES_ARCHIVE_MODE:-off\}'
 assert_contains "${COMPOSE_FILE}" 'archive_command=sh -c'
 assert_contains "${COMPOSE_FILE}" 'dest=/var/lib/postgresql/wal-archive/%f'
 assert_contains "${COMPOSE_FILE}" 'cmp -s %p'

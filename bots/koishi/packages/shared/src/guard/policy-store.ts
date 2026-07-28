@@ -26,6 +26,7 @@ interface GuardBindingInput {
   guildId: string
   templateId: string
   joinHandlingStrategy?: AdmissionJoinHandlingStrategy
+  kickAfterMinutesOverride?: number | null
   enabled: boolean
   note?: string | null
 }
@@ -75,13 +76,17 @@ export class GuardPolicyStore {
     const id = createBindingID(input.platform, input.guildId)
     const [existing] = await this.ctx.database.get(GUARD_GROUP_BINDING_TABLE, { id }) as GuardGroupBindingRecord[]
     if (existing) {
-      await this.ctx.database.set(GUARD_GROUP_BINDING_TABLE, { id }, {
+      const changes: Partial<GuardGroupBindingRecord> = {
         templateId: input.templateId,
         joinHandlingStrategy: input.joinHandlingStrategy ?? 'post_join_guard',
         enabled: input.enabled,
         note: input.note || null,
         updatedAt: now,
-      })
+      }
+      if ('kickAfterMinutesOverride' in input) {
+        changes.kickAfterMinutesOverride = input.kickAfterMinutesOverride ?? null
+      }
+      await this.ctx.database.set(GUARD_GROUP_BINDING_TABLE, { id }, changes)
       return
     }
 
@@ -89,6 +94,7 @@ export class GuardPolicyStore {
       id,
       ...input,
       joinHandlingStrategy: input.joinHandlingStrategy ?? 'post_join_guard',
+      kickAfterMinutesOverride: input.kickAfterMinutesOverride ?? null,
       note: input.note || null,
       createdAt: now,
       updatedAt: now,
@@ -136,7 +142,7 @@ function createBoundPolicy(binding: GuardGroupBindingRecord, template: GuardTemp
     guildId: binding.guildId,
     joinHandlingStrategy: binding.joinHandlingStrategy ?? 'post_join_guard',
     muteDurationSeconds: template.muteDurationSeconds,
-    kickAfterMinutes: template.kickAfterMinutes,
+    kickAfterMinutes: binding.kickAfterMinutesOverride ?? template.kickAfterMinutes,
     reminderTemplate: template.reminderTemplate,
     exemptUsers: [...template.exemptUsers],
   } satisfies EffectiveGuardPolicy

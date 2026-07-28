@@ -2906,7 +2906,8 @@ export interface paths {
         /**
          * 获取后端 admission 策略目标群
          * @description Koishi 使用该接口把后端 `group_admission_policies` 同步为本地 guard 绑定。
-         *     返回值只包含目标群身份与守卫启用状态，不包含管理群或审核材料配置。
+         *     返回值只包含目标群身份、守卫启用状态、入群处理策略和入群后等待时间，
+         *     不包含管理群或审核材料配置。
          */
         get: operations["listBotAdmissionPolicyTargets"];
         put?: never;
@@ -4578,6 +4579,11 @@ export interface components {
              * @enum {string}
              */
             joinHandlingStrategy: "post_join_guard" | "join_request_review" | "post_join_time_code";
+            /**
+             * @description 入群后等待秒数。`post_join_guard` 下表示学生认证链接等待时间；`post_join_time_code`
+             *     下表示群内动态验证码等待时间，Koishi 会按该值生成本地超时踢出期限。
+             */
+            linkWaitSeconds: number;
         };
         FreshmanApplication: {
             id: string;

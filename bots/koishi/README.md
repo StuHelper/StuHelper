@@ -46,13 +46,15 @@ corepack yarn workspaces list
 
 ## Admission 策略边界
 
-新生入群认证目标群、准入与会话策略由后端 admission policy 决定，并由 `stuhelper-group-guard` 同步为 Koishi 本地 guard policy 执行态缓存。Koishi WebUI 的“同步绑定”只读展示该缓存；目标认证群的增删、启停和入群处理策略请在 StuHelper Admin 的入群认证策略页面修改。`koishi.yml` 不再保留本地 `guard` 业务字段，也不再提供静态目标群兜底。后端负责 `auto_approve_verified_join`、`auto_approve_unverified_join`、初始禁言时长、link/submission/manual-review 等待时间、提醒间隔、失败次数拉黑、黑名单期限、新生通道关闭时间、原始材料转发开关和 `management_guild_ids`。
+新生入群认证目标群、准入与会话策略由后端 admission policy 决定，并由 `stuhelper-group-guard` 同步为 Koishi 本地 guard policy 执行态缓存。Koishi WebUI 的“同步绑定”只读展示该缓存；目标认证群的增删、启停、入群处理策略和入群后等待时长请在 StuHelper Admin 的入群认证策略页面修改。`koishi.yml` 不再保留本地 `guard` 业务字段，也不再提供静态目标群兜底。后端负责 `auto_approve_verified_join`、`auto_approve_unverified_join`、初始禁言时长、link/submission/manual-review 等待时间、提醒间隔、失败次数拉黑、黑名单期限、新生通道关闭时间、原始材料转发开关和 `management_guild_ids`。Admin 的 `linkWaitSeconds` 会随 bot policy target 下发；Koishi 同步时写入目标群 binding 的 `kickAfterMinutesOverride`，仅覆盖该群的超时期限，不覆盖模板提醒文案和豁免名单。
 
 Koishi 在 admission 流程中只做执行器：入群后创建后端 session，发送后端返回的 `join.stuhelper.com/verify/<code>` 认证链接，通过后端 admission action SSE 下行流接收提醒、解禁、踢出和拉黑动作，执行后按 action ID 回写 ACK。`/sessions/pending` 拉取保留为低频 fallback，不再作为生产主路径。`koishi.yml` 的插件加载保持不变，不新增短链域名配置。
 
-`post_join_time_code` 是入群后动态验证码策略，会同步为 Koishi 本地入群后守卫，但不会创建后端 admission session，也不会发送学生认证链接。后端在申请阶段自动同意入群；成员实际入群后，Koishi 记录本地待验证状态并在群内 @ 新成员提示其按群公告规则发送四位验证码。验证码规则为“QQ 号末位数字 + 当前北京时间(UTC+8)24 小时制 HHMM 的整数值，不足四位左补零”；校验以成员发送消息时的北京时间为准，保留前 2 分钟到后 1 分钟的容错窗口，用于覆盖读公告、计算和发送之间的分钟切换。成员在 `kickAfterMinutes` 内发送正确四位验证码即放行，超时未验证将自动移出群聊。旧配置值 `join_request_time_code` 仅作为兼容输入映射到 `post_join_time_code`，不要再作为新策略保存。
+`post_join_time_code` 是入群后动态验证码策略，会同步为 Koishi 本地入群后守卫，但不会创建后端 admission session，也不会发送学生认证链接。后端在申请阶段自动同意入群；成员实际入群后，Koishi 记录本地待验证状态并默认在群内 @ 新成员提示其按群公告规则发送四位验证码。验证码规则为“QQ 号末位数字 + 当前北京时间(UTC+8)24 小时制 HHMM 的整数值，不足四位左补零”；校验以用户发送验证码消息时的北京时间为准，允许前后 30 秒误差，用于覆盖分钟边界处阅读公告、计算和发送之间的时间切换。成员必须在 Admin 入群认证策略页的“验证码等待（秒）”期限内发送正确四位验证码；Koishi 同步时会把该秒数向上取整为 `kickAfterMinutesOverride`，到期仍未验证则自动移出群聊。默认提示文案 `admissionTimeCodeReminder` 可在 Koishi 群管中心“全局设置 / 群管提示”中运行时自定义，可用变量包括 `{at}`、`{memberId}`、`{minutes}`、`{toleranceSeconds}`。是否发送这条入群后验证码提醒由 Koishi 群管中心“入群认证 / 运行开关 / 验证码提醒”控制；关闭后仍会创建验证码挑战、校验成员消息并在超时后踢出。旧配置值 `join_request_time_code` 仅作为兼容输入映射到 `post_join_time_code`，不要再作为新策略保存。
 
 生产 NapCat 的 Koishi runtime platform 是 `onebot`，后端 admission 表中的 `platform` 是被验证账号的 subject platform。当前 admission MVP 验证的是 QQ 号，因此 `onebot` runtime 会显式映射为后端 `platform=qq`；未来若接入官方 QQ 机器人适配器，需要重新确认事件能力和 ID 语义，不能把 Koishi 适配器名直接写入 admission 业务记录。
+
+`post_join_time_code` 依赖 NapCat 通过反向 OneBot WebSocket 把普通群消息实时送到 Koishi。NapCat 断线窗口内收到的群消息只会留在 NapCat/QQ 日志中，不会自动补投给 Koishi；生产账号级 `napcat/config/onebot11_<qq>.json` 应把 `reconnectInterval` 保持在 1000ms 级、`heartInterval` 保持在 10000ms 级，避免 Koishi 重启或短暂断线时正确验证码表现为“没反应”。
 
 生产 admission MVP 建议在 `stuhelper-group-guard` 下显式配置：
 
@@ -63,7 +65,9 @@ actionStream:
   reconnectDelaySeconds: 5
 ```
 
-入群认证运行开关由 Koishi Console 的 StuHelper 群管中心“入群认证”页面保存到 `stuhelper_admission_runtime_settings`，并在运行时生效。默认值在 `@stuhelper/koishi-shared` 的 `DEFAULT_ADMISSION_RUNTIME_SETTINGS` 中维护：Action Stream、准入管理员命令、兜底扫描和群内认证提醒默认开启；公开命令、消息风控、新生材料转发和私聊/临时会话认证提醒默认关闭。公开命令和 admission 管理命令启动时始终注册，实际是否执行由 WebUI runtime setting 控制。入群认证管理员命令的执行权限由 Koishi Console“配置治理 / 命令策略”里的 CommandPolicy `admission-admin` 控制；如果还没有保存该策略，运行时会按默认 authority 4 兜底，避免误放开给普通成员。认证提醒的“群内提醒”和“私聊/临时会话提醒”是独立 runtime 开关，但 store 会拒绝两个渠道同时关闭。
+入群认证运行开关由 Koishi Console 的 StuHelper 群管中心“入群认证”页面保存到 `stuhelper_admission_runtime_settings`，并在运行时生效。默认值在 `@stuhelper/koishi-shared` 的 `DEFAULT_ADMISSION_RUNTIME_SETTINGS` 中维护：Action Stream、准入管理员命令、兜底扫描、群内认证提醒和入群验证码提醒默认开启；公开命令、消息风控、新生材料转发和私聊/临时会话认证提醒默认关闭。公开命令和 admission 管理命令启动时始终注册，实际是否执行由 WebUI runtime setting 控制。入群认证管理员命令的执行权限由 Koishi Console“配置治理 / 命令策略”里的 CommandPolicy `admission-admin` 控制；如果还没有保存该策略，运行时会按默认 authority 4 兜底，避免误放开给普通成员。学生认证链接提醒的“群内提醒”和“私聊/临时会话提醒”是独立 runtime 开关，允许两个渠道同时关闭；两个都关闭时不会发送学生认证链接提醒，但不影响 action 处理、兜底扫描，也不影响 `post_join_time_code` 的本地验证码校验和超时踢出。`post_join_time_code` 的入群验证码提醒使用独立“验证码提醒”开关，关闭后不影响验证码校验和超时踢出。
+
+入群认证处置依赖机器人拥有目标群管理员权限。OneBot/NapCat 在缺少禁言权限时会对 `set_group_ban` 返回 `retcode 1200`，Koishi 控制台会将其提示为“机器人缺少群管理员权限，无法修改成员禁言状态”，而不是暴露底层 retcode。控制台入群认证运行时面板的 404 也按动作区分：认证会话缺失提示刷新或重新生成，解除拉黑时没有活动拉黑记录则提示“没有活动入群拉黑记录”。
 
 QQ 绑定命令字和绑定流程提示由 Koishi Console 的 StuHelper 群管中心“全局设置 / QQ 绑定”页面保存到 `stuhelper_binding_runtime_settings`，默认值在 `@stuhelper/koishi-shared` 的 `DEFAULT_BINDING_RUNTIME_SETTINGS` 中维护。`stuhelper-binding` 原生插件配置只保留 `platform.baseUrl` 和 `platform.serviceToken`，不再包含 `binding.command`、绑定码 TTL 或提示文案。
 

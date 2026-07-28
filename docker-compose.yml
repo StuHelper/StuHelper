@@ -33,7 +33,7 @@ services:
     - -c
     - wal_level=replica
     - -c
-    - archive_mode=${POSTGRES_ARCHIVE_MODE:-on}
+    - archive_mode=${POSTGRES_ARCHIVE_MODE:-off}
     - -c
     - archive_timeout=${POSTGRES_ARCHIVE_TIMEOUT:-15min}
     - -c

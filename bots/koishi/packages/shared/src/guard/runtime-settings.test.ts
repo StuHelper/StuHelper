@@ -25,6 +25,7 @@ test('AdmissionRuntimeSettingsStore saveSettings updates mutable fields without 
           fallbackScanEnabled: true,
           reminderGroupEnabled: true,
           reminderDirectEnabled: false,
+          timeCodeReminderEnabled: true,
           createdAt: now,
           updatedAt: now,
         }]
@@ -45,6 +46,7 @@ test('AdmissionRuntimeSettingsStore saveSettings updates mutable fields without 
     fallbackScanEnabled: true,
     reminderGroupEnabled: true,
     reminderDirectEnabled: false,
+    timeCodeReminderEnabled: true,
   })
 
   const saved = await store.saveSettings({
@@ -64,28 +66,32 @@ test('AdmissionRuntimeSettingsStore saveSettings updates mutable fields without 
   assert.ok(writes[0].updatedAt instanceof Date)
 })
 
-test('AdmissionRuntimeSettingsStore keeps at least one reminder delivery channel enabled', async () => {
+test('AdmissionRuntimeSettingsStore allows disabling all reminder delivery channels', async () => {
+  const writes: Array<Record<string, unknown>> = []
   const now = new Date('2026-06-09T09:00:00.000Z')
+  const record = {
+    id: 'default',
+    actionStreamEnabled: true,
+    publicCommandsEnabled: false,
+    adminCommandsEnabled: true,
+    admissionCommandsEnabled: true,
+    moderationEnabled: false,
+    freshmanForwardEnabled: false,
+    fallbackScanEnabled: true,
+    reminderGroupEnabled: true,
+    reminderDirectEnabled: false,
+    timeCodeReminderEnabled: true,
+    createdAt: now,
+    updatedAt: now,
+  }
   const store = new AdmissionRuntimeSettingsStore({
     database: {
       async get() {
-        return [{
-          id: 'default',
-          actionStreamEnabled: true,
-          publicCommandsEnabled: false,
-          adminCommandsEnabled: true,
-          admissionCommandsEnabled: true,
-          moderationEnabled: false,
-          freshmanForwardEnabled: false,
-          fallbackScanEnabled: true,
-          reminderGroupEnabled: true,
-          reminderDirectEnabled: false,
-          createdAt: now,
-          updatedAt: now,
-        }]
+        return [{ ...record }]
       },
-      async set() {
-        throw new Error('invalid reminder settings should not be persisted')
+      async set(_table: string, _query: unknown, patch: Record<string, unknown>) {
+        Object.assign(record, patch)
+        writes.push(patch)
       },
     },
   } as never, {
@@ -98,13 +104,68 @@ test('AdmissionRuntimeSettingsStore keeps at least one reminder delivery channel
     fallbackScanEnabled: true,
     reminderGroupEnabled: true,
     reminderDirectEnabled: false,
+    timeCodeReminderEnabled: true,
   })
 
-  await assert.rejects(
-    () => store.saveSettings({
-      reminderGroupEnabled: false,
-      reminderDirectEnabled: false,
-    }),
-    /at least one admission reminder delivery channel must be enabled/,
-  )
+  const saved = await store.saveSettings({
+    reminderGroupEnabled: false,
+    reminderDirectEnabled: false,
+  })
+  const delivery = await store.getAdmissionReminderDeliveryConfig()
+
+  assert.equal(saved.reminderGroupEnabled, false)
+  assert.equal(saved.reminderDirectEnabled, false)
+  assert.deepEqual(delivery, { groupEnabled: false, directEnabled: false })
+  assert.equal(writes.length, 1)
+  assert.equal(writes[0].reminderGroupEnabled, false)
+  assert.equal(writes[0].reminderDirectEnabled, false)
+})
+
+test('AdmissionRuntimeSettingsStore persists post-join time-code reminder switch', async () => {
+  const writes: Array<Record<string, unknown>> = []
+  const now = new Date('2026-06-18T10:00:00.000Z')
+  const record = {
+    id: 'default',
+    actionStreamEnabled: true,
+    publicCommandsEnabled: false,
+    adminCommandsEnabled: true,
+    admissionCommandsEnabled: true,
+    moderationEnabled: false,
+    freshmanForwardEnabled: false,
+    fallbackScanEnabled: true,
+    reminderGroupEnabled: true,
+    reminderDirectEnabled: false,
+    timeCodeReminderEnabled: true,
+    createdAt: now,
+    updatedAt: now,
+  }
+  const store = new AdmissionRuntimeSettingsStore({
+    database: {
+      async get() {
+        return [{ ...record }]
+      },
+      async set(_table: string, _query: unknown, patch: Record<string, unknown>) {
+        Object.assign(record, patch)
+        writes.push(patch)
+      },
+    },
+  } as never, {
+    actionStreamEnabled: true,
+    publicCommandsEnabled: false,
+    adminCommandsEnabled: true,
+    admissionCommandsEnabled: true,
+    moderationEnabled: false,
+    freshmanForwardEnabled: false,
+    fallbackScanEnabled: true,
+    reminderGroupEnabled: true,
+    reminderDirectEnabled: false,
+    timeCodeReminderEnabled: true,
+  })
+
+  const saved = await store.saveSettings({ timeCodeReminderEnabled: false })
+
+  assert.equal(saved.timeCodeReminderEnabled, false)
+  assert.equal(await store.isTimeCodeReminderEnabled(), false)
+  assert.equal(writes.length, 1)
+  assert.equal(writes[0].timeCodeReminderEnabled, false)
 })

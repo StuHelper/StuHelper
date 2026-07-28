@@ -18,6 +18,7 @@ const BOOTSTRAP_KICK_AFTER_MINUTES = 30
 const BOOTSTRAP_REMINDER_TEMPLATE = '请先完成 StuHelper 注册、QQ 绑定与学生认证。'
 const SYNCED_BINDING_NOTE = 'synced from backend admission policies'
 const STALE_BINDING_NOTE = 'disabled because backend admission policy target is absent'
+const SECONDS_PER_MINUTE = 60
 
 interface BootstrapLogger {
   info(message: string, ...args: unknown[]): void
@@ -27,6 +28,7 @@ interface NormalizedAdmissionTargetGroup {
   readonly guildId: string
   readonly joinHandlingStrategy: AdmissionJoinHandlingStrategy
   readonly enabled: boolean
+  readonly kickAfterMinutes: number
 }
 
 export interface GuardPolicyBootstrapResult {
@@ -105,6 +107,7 @@ async function ensureGuardPolicyBindings(
       guildId: target.guildId,
       templateId: BOOTSTRAP_TEMPLATE_ID,
       joinHandlingStrategy: target.joinHandlingStrategy,
+      kickAfterMinutesOverride: target.kickAfterMinutes,
       enabled: target.enabled,
       note,
     })
@@ -152,6 +155,7 @@ async function disableStaleBackendBindings(
       guildId: binding.guildId,
       templateId: binding.templateId,
       joinHandlingStrategy: binding.joinHandlingStrategy,
+      kickAfterMinutesOverride: binding.kickAfterMinutesOverride,
       enabled: false,
       note: STALE_BINDING_NOTE,
     })
@@ -179,9 +183,17 @@ function normalizeAdmissionTargetGroups(
       guildId,
       joinHandlingStrategy,
       enabled: target.guardEnabled !== false && isPostJoinLocalStrategy(joinHandlingStrategy),
+      kickAfterMinutes: normalizeKickAfterMinutes(target.linkWaitSeconds),
     })
   }
   return [...normalized.values()]
+}
+
+function normalizeKickAfterMinutes(linkWaitSeconds?: number) {
+  if (!Number.isFinite(linkWaitSeconds) || !linkWaitSeconds || linkWaitSeconds <= 0) {
+    return BOOTSTRAP_KICK_AFTER_MINUTES
+  }
+  return Math.max(1, Math.ceil(linkWaitSeconds / SECONDS_PER_MINUTE))
 }
 
 function isPostJoinLocalStrategy(strategy?: AdmissionJoinHandlingStrategy) {

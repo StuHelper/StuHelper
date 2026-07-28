@@ -70,6 +70,7 @@ test('GuardPolicyStore saveBinding updates mutable fields without primary key ch
           platform: 'qq',
           guildId: '10001',
           templateId: 'default',
+          kickAfterMinutesOverride: null,
           enabled: true,
           note: null,
           createdAt: now,
@@ -99,6 +100,7 @@ test('GuardPolicyStore saveBinding updates mutable fields without primary key ch
   assert.equal('createdAt' in writes[0], false)
   assert.equal(writes[0].templateId, 'strict')
   assert.equal(writes[0].joinHandlingStrategy, 'post_join_guard')
+  assert.equal('kickAfterMinutesOverride' in writes[0], false)
   assert.equal(writes[0].enabled, false)
   assert.equal(writes[0].note, null)
   assert.ok(writes[0].updatedAt instanceof Date)
@@ -125,6 +127,7 @@ test('GuardPolicyStore saveBinding persists explicit admission join strategy', a
     guildId: 'time-code',
     templateId: 'default',
     joinHandlingStrategy: 'post_join_time_code',
+    kickAfterMinutesOverride: 8,
     enabled: true,
     note: 'synced',
   })
@@ -132,8 +135,52 @@ test('GuardPolicyStore saveBinding persists explicit admission join strategy', a
   assert.equal(creates.length, 1)
   assert.equal(creates[0].id, 'qq:time-code')
   assert.equal(creates[0].joinHandlingStrategy, 'post_join_time_code')
+  assert.equal(creates[0].kickAfterMinutesOverride, 8)
   assert.equal(creates[0].enabled, true)
   assert.equal(creates[0].note, 'synced')
   assert.ok(creates[0].createdAt instanceof Date)
   assert.ok(creates[0].updatedAt instanceof Date)
+})
+
+test('GuardPolicyStore resolvePolicy applies binding kick deadline override', async () => {
+  const now = new Date('2026-06-05T03:00:00.000Z')
+  const store = new GuardPolicyStore({
+    database: {
+      async get(table: string, query: { id?: string }) {
+        if (table === GUARD_GROUP_BINDING_TABLE) {
+          assert.deepEqual(query, { id: 'qq:time-code' })
+          return [{
+            id: 'qq:time-code',
+            platform: 'qq',
+            guildId: 'time-code',
+            templateId: 'default',
+            joinHandlingStrategy: 'post_join_time_code',
+            kickAfterMinutesOverride: 8,
+            enabled: true,
+            note: null,
+            createdAt: now,
+            updatedAt: now,
+          }]
+        }
+        assert.equal(table, GUARD_TEMPLATE_TABLE)
+        assert.deepEqual(query, { id: 'default' })
+        return [{
+          id: 'default',
+          name: '默认模板',
+          muteDurationSeconds: 60,
+          kickAfterMinutes: 30,
+          reminderTemplate: 'reminder',
+          exemptUsers: [],
+          enabled: true,
+          createdAt: now,
+          updatedAt: now,
+        }]
+      },
+    },
+  } as never)
+
+  const policy = await store.resolvePolicy('qq', 'time-code')
+
+  assert.equal(policy?.kickAfterMinutes, 8)
+  assert.equal(policy?.reminderTemplate, 'reminder')
 })
