@@ -67,6 +67,7 @@ describe('admission policy admin view contract', () => {
 
   it('renders operator-facing Chinese labels instead of raw API field names', async () => {
     const source = await readFile(sourcePath, 'utf8');
+    const normalizedSource = source.replaceAll(/\s+/g, ' ');
 
     for (const label of [
       'Admin 是入群认证策略权威源',
@@ -85,7 +86,7 @@ describe('admission policy admin view contract', () => {
       'Koishi 同步后会按该值创建群内验证码挑战的超时踢出期限',
       'Koishi 会在下次同步后显示执行态',
     ]) {
-      expect(source).toContain(label);
+      expect(normalizedSource).toContain(label);
     }
 
     expect(source).toContain('policyFieldLabels.freshmanChannelEnabled');
@@ -94,6 +95,7 @@ describe('admission policy admin view contract', () => {
 
   it('keeps Admin as policy authority and exposes save impact summary', async () => {
     const source = await readFile(sourcePath, 'utf8');
+    const normalizedSource = source.replaceAll(/\s+/g, ' ');
 
     for (const token of [
       'data-policy-sync-source="admin"',
@@ -108,7 +110,7 @@ describe('admission policy admin view contract', () => {
       'Admin 是入群认证策略权威源',
       'Koishi WebUI 只显示同步后的执行态和现场队列',
     ]) {
-      expect(source).toContain(token);
+      expect(normalizedSource).toContain(token);
     }
   });
 

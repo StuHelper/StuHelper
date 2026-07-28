@@ -9,8 +9,8 @@ import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.
 import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
 import {
   admissionReissueCommand,
-  botErrorLabel,
   boolLabel,
+  botErrorLabel,
   canManageAdmissionSession,
   formatDateTime,
   formatText,
@@ -110,10 +110,7 @@ function sessionActionDisabled(row: AdmissionSession) {
             Bot {{ formatText(row.botSelfID) }} · 频道
             {{ formatText(row.channelID) }}
           </div>
-          <div
-            class="text-xs text-slate-500"
-            data-field="runtimeBoundary"
-          >
+          <div class="text-xs text-slate-500" data-field="runtimeBoundary">
             后端 admission session；Koishi WebUI 显示现场 guard record
           </div>
         </template>
@@ -126,7 +123,9 @@ function sessionActionDisabled(row: AdmissionSession) {
         <template #default="{ row }">
           <div class="font-mono text-xs">{{ row.id }}</div>
           <div class="text-xs text-slate-500">
-            JOIN 链接：{{ row.authURL ? '可复制' : '未返回' }} · 已消费：{{ boolLabel(Boolean(row.tokenConsumedAt)) }}
+            JOIN 链接：{{ row.authURL ? '可复制' : '未返回' }} · 已消费：{{
+              boolLabel(Boolean(row.tokenConsumedAt))
+            }}
           </div>
           <ElButton
             v-if="row.authURL"
@@ -227,10 +226,7 @@ function sessionActionDisabled(row: AdmissionSession) {
       >
         <template #default="{ row }">
           <div class="grid gap-1" data-field="botDiagnostics">
-            <ElTag
-              size="small"
-              :type="row.lastBotError ? 'danger' : 'info'"
-            >
+            <ElTag size="small" :type="row.lastBotError ? 'danger' : 'info'">
               {{ botErrorLabel(row) }}
             </ElTag>
             <span class="text-xs leading-5 text-slate-500">

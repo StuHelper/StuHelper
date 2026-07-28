@@ -443,7 +443,7 @@ test('command palette searches teachers from keyboard and opens teacher profile'
   })
   await expect(trendChart).toBeVisible()
   await expect(trendChart).toContainText('2025 春')
-  await expect(trendChart).toContainText('4.3')
+  await expect(trendChart).not.toContainText('4.3')
   await expect(dialog).toBeHidden()
 })
 

@@ -38,8 +38,11 @@
               -
             </span>
           </RatingCircle>
-          <span class="text-sm font-semibold tabular-nums text-text-primary">
-            {{ teacher.avgRating !== null ? `${formatRating(teacher.avgRating)} / 5` : t('teaching.profile.noRating') }}
+          <span
+            v-if="teacher.avgRating === null"
+            class="text-sm font-semibold text-text-muted"
+          >
+            {{ t('teaching.profile.noRating') }}
           </span>
           <span class="text-xs text-text-muted">{{ t('teaching.profile.overallRating') }}</span>
         </div>
@@ -91,9 +94,7 @@
                 aria-hidden="true"
               />
             </div>
-            <span class="text-xs font-semibold tabular-nums text-text-primary">
-              {{ formatRating(point.avgRating) }}
-            </span>
+            <EmojiRating :value="point.avgRating" size="sm" />
             <span class="max-w-full truncate text-center text-[11px] text-text-muted">
               {{ point.termName }}
             </span>
@@ -495,10 +496,6 @@ async function fetchTeacherReviews(reset: boolean, id = teacherID.value) {
       teacherReviewsLoading.value = false
     }
   }
-}
-
-function formatRating(value: number): string {
-  return value.toFixed(1)
 }
 
 function ratingTrendHeight(value: number): number {

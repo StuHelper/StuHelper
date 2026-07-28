@@ -1,5 +1,9 @@
 <template>
-  <div class="inline-flex items-center gap-1.5">
+  <div
+    class="inline-flex items-center gap-1.5"
+    role="img"
+    :aria-label="t(`review.rating.face${normalizedValue}`)"
+  >
     <span
       class="inline-flex items-center justify-center transition-transform duration-200"
       :style="{ color: ratingColor }"
@@ -19,8 +23,11 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { getRatingColor } from '@/design-system/rating'
 import { getRatingFacePath, normalizeRatingLevel } from '@/modules/review/ratingFaces'
+
+const { t } = useI18n()
 
 const props = withDefaults(defineProps<{
   value: number

@@ -756,7 +756,7 @@ test.describe("Course community surfaces", () => {
         await expect(page.getByRole("button", { name: "加载更多" })).toHaveCount(0);
     });
 
-    test("teacher profile shows readable overall rating and course context", async ({
+    test("teacher profile shows a non-numeric overall rating and course context", async ({
         page,
     }) => {
         await mockTeacherStatsApi(page);
@@ -767,7 +767,8 @@ test.describe("Course community surfaces", () => {
             page.getByRole("heading", { name: "陈老师" }),
         ).toBeVisible({ timeout: 10_000 });
         await expect(page.getByText("计算机科学与技术学院")).toBeVisible();
-        await expect(page.getByText("4.2 / 5")).toBeVisible();
+        await expect(page.getByRole("img", { name: "不错" }).first()).toBeVisible();
+        await expect(page.getByText("4.2 / 5")).toHaveCount(0);
         await expect(page.getByText("综合评分")).toBeVisible();
         await expect(page.getByText("2026 春")).toBeVisible();
         await expect(

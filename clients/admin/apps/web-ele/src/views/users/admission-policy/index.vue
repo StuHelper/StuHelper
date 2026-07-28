@@ -83,7 +83,7 @@ const createSourceOptions = computed(() =>
 type AdmissionPolicyBoundary = Omit<AdmissionPolicy, 'managementGuildIDs'> & {
   joinHandlingStrategy?: AdmissionPolicy['joinHandlingStrategy'];
   managementGuildIDs?: null | string[];
-  unverifiedJoinRejectReason?: string | null;
+  unverifiedJoinRejectReason?: null | string;
 };
 
 function normalizeManagementGuildIDs(values?: null | string[]) {
@@ -117,8 +117,8 @@ async function fetchData() {
     for (const policy of policies.value) {
       managementGuildText[policy.id] = policy.managementGuildIDs.join('\n');
     }
-    if (!createPolicyForm.sourcePolicyID && policies.value.length > 0) {
-      createPolicyForm.sourcePolicyID = policies.value[0]!.id;
+    if (!createPolicyForm.sourcePolicyID) {
+      createPolicyForm.sourcePolicyID = policies.value[0]?.id ?? '';
     }
   } catch (error) {
     if (requestSeq !== fetchRequestSeq) return;
@@ -167,9 +167,7 @@ function guardSyncTagType(
   policy: AdmissionPolicy,
 ): 'danger' | 'info' | 'success' | 'warning' {
   if (!policy.guardEnabled) return 'info';
-  return isPostJoinLocalStrategy(policy)
-    ? 'success'
-    : 'warning';
+  return isPostJoinLocalStrategy(policy) ? 'success' : 'warning';
 }
 
 function isPostJoinLocalStrategy(policy: AdmissionPolicy) {
@@ -228,8 +226,8 @@ function parseGuildIDText(value: string) {
 
 function openCreatePolicyDialog() {
   createPolicyForm.platform ||= 'qq';
-  if (!createPolicyForm.sourcePolicyID && policies.value.length > 0) {
-    createPolicyForm.sourcePolicyID = policies.value[0]!.id;
+  if (!createPolicyForm.sourcePolicyID) {
+    createPolicyForm.sourcePolicyID = policies.value[0]?.id ?? '';
   }
   createPolicyForm.guildIDs = '';
   createPolicyDialogVisible.value = true;
@@ -240,7 +238,11 @@ async function submitCreatePolicies() {
     return;
   }
   const guildIDs = parseCreateGuildIDs();
-  if (!createPolicyForm.sourcePolicyID || !createPolicyForm.platform || guildIDs.length === 0) {
+  if (
+    !createPolicyForm.sourcePolicyID ||
+    !createPolicyForm.platform ||
+    guildIDs.length === 0
+  ) {
     handleActionError(new Error('请填写目标认证群号并选择要复制的策略'));
     return;
   }
@@ -277,8 +279,7 @@ async function savePolicy(policy: AdmissionPolicy) {
       ...policy,
       autoApproveJoin: isPostJoinLocalStrategy(policy),
       autoApproveVerifiedJoin: true,
-      autoApproveUnverifiedJoin:
-        isPostJoinLocalStrategy(policy),
+      autoApproveUnverifiedJoin: isPostJoinLocalStrategy(policy),
       managementGuildIDs: parseManagementGuildIDs(policy.id),
     });
     ElMessage.success(
@@ -352,7 +353,9 @@ onMounted(fetchData);
         class="rounded border border-slate-200 bg-white p-5 shadow-sm"
         label-position="top"
       >
-        <header class="flex flex-col gap-3 border-b border-slate-200 pb-4 lg:flex-row lg:items-start lg:justify-between">
+        <header
+          class="flex flex-col gap-3 border-b border-slate-200 pb-4 lg:flex-row lg:items-start lg:justify-between"
+        >
           <div>
             <div class="flex flex-wrap items-center gap-2">
               <h2 class="text-base font-semibold text-slate-900">
@@ -367,7 +370,8 @@ onMounted(fetchData);
               </ElTag>
             </div>
             <p class="mt-1 text-sm text-slate-500">
-              Admin 是入群认证策略权威源。Koishi WebUI 只显示同步后的执行态和现场队列。
+              Admin 是入群认证策略权威源。Koishi WebUI
+              只显示同步后的执行态和现场队列。
             </p>
           </div>
           <div
@@ -443,13 +447,20 @@ onMounted(fetchData);
           </div>
           <div
             class="grid gap-4 md:grid-cols-2"
-            :class="isPostJoinTimeCodeStrategy(policy) ? 'xl:grid-cols-2' : 'xl:grid-cols-5'"
+            :class="
+              isPostJoinTimeCodeStrategy(policy)
+                ? 'xl:grid-cols-2'
+                : 'xl:grid-cols-5'
+            "
           >
             <ElFormItem
               v-if="isPostJoinGuardStrategy(policy)"
               :label="policyFieldLabels.initialMuteDurationSeconds"
             >
-              <ElInputNumber v-model="policy.initialMuteDurationSeconds" :min="1" />
+              <ElInputNumber
+                v-model="policy.initialMuteDurationSeconds"
+                :min="1"
+              />
             </ElFormItem>
             <ElFormItem :label="linkWaitLabel(policy)">
               <ElInputNumber v-model="policy.linkWaitSeconds" :min="1" />
@@ -470,13 +481,19 @@ onMounted(fetchData);
               v-if="isPostJoinGuardStrategy(policy)"
               :label="policyFieldLabels.manualReviewTimeoutSeconds"
             >
-              <ElInputNumber v-model="policy.manualReviewTimeoutSeconds" :min="1" />
+              <ElInputNumber
+                v-model="policy.manualReviewTimeoutSeconds"
+                :min="1"
+              />
             </ElFormItem>
             <ElFormItem
               v-if="isPostJoinGuardStrategy(policy)"
               :label="policyFieldLabels.reminderIntervalSeconds"
             >
-              <ElInputNumber v-model="policy.reminderIntervalSeconds" :min="1" />
+              <ElInputNumber
+                v-model="policy.reminderIntervalSeconds"
+                :min="1"
+              />
             </ElFormItem>
           </div>
         </section>
@@ -486,7 +503,9 @@ onMounted(fetchData);
           class="grid gap-4 border-b border-slate-200 py-4"
         >
           <div>
-            <h3 class="text-sm font-semibold text-slate-900">新生材料与审核通知</h3>
+            <h3 class="text-sm font-semibold text-slate-900">
+              新生材料与审核通知
+            </h3>
             <p class="mt-1 text-sm text-slate-500">
               审核通知群只接收材料审核提醒，不会被同步为 Koishi 入群认证目标群。
             </p>
@@ -510,7 +529,9 @@ onMounted(fetchData);
               />
             </ElFormItem>
           </div>
-          <div class="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]">
+          <div
+            class="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]"
+          >
             <ElFormItem :label="policyFieldLabels.managementGuildIDs">
               <ElInput
                 v-model="managementGuildText[policy.id]"
@@ -519,7 +540,8 @@ onMounted(fetchData);
                 type="textarea"
               />
               <p class="mt-2 text-xs leading-5 text-slate-500">
-                当前将向 {{ managementGuildCount(policy) }} 个审核通知群转发审核提醒。
+                当前将向
+                {{ managementGuildCount(policy) }} 个审核通知群转发审核提醒。
               </p>
             </ElFormItem>
             <ElFormItem :label="policyFieldLabels.forwardRawMaterialToQQ">
@@ -543,7 +565,10 @@ onMounted(fetchData);
               <ElInputNumber v-model="policy.failedJoinLimit" :min="1" />
             </ElFormItem>
             <ElFormItem :label="policyFieldLabels.blacklistDurationSeconds">
-              <ElInputNumber v-model="policy.blacklistDurationSeconds" :min="0" />
+              <ElInputNumber
+                v-model="policy.blacklistDurationSeconds"
+                :min="0"
+              />
             </ElFormItem>
             <ElFormItem :label="policyFieldLabels.maxMaterialBytes">
               <ElInputNumber v-model="policy.maxMaterialBytes" :min="1" />
@@ -554,9 +579,12 @@ onMounted(fetchData);
           </div>
         </section>
 
-        <footer class="flex flex-col gap-3 pt-4 lg:flex-row lg:items-center lg:justify-between">
+        <footer
+          class="flex flex-col gap-3 pt-4 lg:flex-row lg:items-center lg:justify-between"
+        >
           <p class="text-sm leading-6 text-slate-500" data-policy-save-impact>
-            保存影响：{{ saveImpactSummary(policy) }}。Koishi 会在下次同步后显示执行态。
+            保存影响：{{ saveImpactSummary(policy) }}。Koishi
+            会在下次同步后显示执行态。
           </p>
           <ElButton
             type="primary"

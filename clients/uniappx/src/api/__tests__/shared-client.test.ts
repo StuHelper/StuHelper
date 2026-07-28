@@ -368,7 +368,12 @@ describe('uniappx api client transport', () => {
       if (options.url.endsWith('/api/v1/auth/refresh')) {
         options.success?.({
           statusCode: 200,
-          data: { success: true },
+          data: {
+            success: true,
+            data: {
+              expiresIn: 600,
+            },
+          },
           header: {},
         })
         return { abort: vi.fn() }

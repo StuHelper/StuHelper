@@ -578,7 +578,12 @@ onMounted(fetchData);
           <span>{{ issuedSecret.clientID }}</span>
           <div class="open-platform-secret-alert__secret">
             <code>{{ issuedSecret.secret }}</code>
-            <ElButton plain size="small" type="primary" @click="copyIssuedSecret">
+            <ElButton
+              plain
+              size="small"
+              type="primary"
+              @click="copyIssuedSecret"
+            >
               <IconifyIcon icon="lucide:copy" />
               {{ $t('admin.openPlatform.apps.copySecret') }}
             </ElButton>

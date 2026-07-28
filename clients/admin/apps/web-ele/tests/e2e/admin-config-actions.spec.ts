@@ -206,7 +206,7 @@ async function mockAdminApi(page: Page, capturedMutations: CapturedMutation[]) {
     }
 
     if (path === '/api/v1/admin/admission/policies' && method === 'POST') {
-      const body = parseJsonBody(route) as { guildID?: string } | null;
+      const body = parseJsonBody(route) as null | { guildID?: string };
       capturedMutations.push({ path, method, body });
       await route.fulfill(
         ok({
@@ -437,7 +437,7 @@ test.describe('Admin configuration actions', () => {
     await expect(policyForm).toBeVisible();
 
     await policyForm
-      .getByRole('spinbutton', { name: '绑定链接等待（秒）' })
+      .getByRole('spinbutton', { name: '学生认证链接等待（秒）' })
       .fill('450');
     await policyForm
       .getByRole('spinbutton', { name: '失败入群上限' })
@@ -478,8 +478,7 @@ test.describe('Admin configuration actions', () => {
           autoApproveJoin: false,
           autoApproveVerifiedJoin: true,
           autoApproveUnverifiedJoin: false,
-          unverifiedJoinRejectReason:
-            '请先完成 StuHelper 学生认证后再申请入群',
+          unverifiedJoinRejectReason: '请先完成 StuHelper 学生认证后再申请入群',
           freshmanChannelClosesAt: '2026-09-01T00:00:00Z',
           freshmanDefaultExpiresAt: '2026-10-01T00:00:00Z',
           linkWaitSeconds: 450,
@@ -506,12 +505,8 @@ test.describe('Admin configuration actions', () => {
       policyForm.getByRole('spinbutton', { name: '验证码等待（秒）' }),
     ).toBeVisible();
     await expect(policyForm.getByText('验证码等待：300 秒')).toBeVisible();
-    await expect(
-      policyForm.getByText('启用新生入群通道'),
-    ).toHaveCount(0);
-    await expect(
-      policyForm.getByText('新生材料与审核通知'),
-    ).toHaveCount(0);
+    await expect(policyForm.getByText('启用新生入群通道')).toHaveCount(0);
+    await expect(policyForm.getByText('新生材料与审核通知')).toHaveCount(0);
     await expect(
       policyForm.getByRole('spinbutton', { name: '入群初始禁言（秒）' }),
     ).toHaveCount(0);
@@ -572,7 +567,7 @@ test.describe('Admin configuration actions', () => {
       .filter({ hasText: 'QQ 群 guild-1' });
     await expect(policyForm).toBeVisible();
     await policyForm
-      .getByRole('spinbutton', { name: '绑定链接等待（秒）' })
+      .getByRole('spinbutton', { name: '学生认证链接等待（秒）' })
       .fill('450');
     await policyForm.getByRole('button', { name: '保存' }).click();
 
@@ -582,7 +577,7 @@ test.describe('Admin configuration actions', () => {
     await expect(actionError).toBeVisible();
     await expect(policyForm).toBeVisible();
     await expect(
-      policyForm.getByRole('spinbutton', { name: '绑定链接等待（秒）' }),
+      policyForm.getByRole('spinbutton', { name: '学生认证链接等待（秒）' }),
     ).toHaveValue('450');
     await expect(page.getByText('请求失败，请稍后重试')).toHaveCount(0);
   });

@@ -52,7 +52,9 @@ export function unwrapData<T>(result: ApiCallResult<T>): T {
     throw new Error(extractErrorMessage(result));
 }
 
-export function unwrapOptionalData<T>(result: ApiCallResult<T>): T | null {
+export function unwrapOptionalData<T>(
+    result: ApiCallResult<T | null>,
+): T | null {
     const status = readResultStatus(result);
     const payload = extractOptionalResultData(result);
 

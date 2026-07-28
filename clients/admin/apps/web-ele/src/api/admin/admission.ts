@@ -65,7 +65,9 @@ export async function listAdmissionPolicies() {
   );
 }
 
-export async function createAdmissionPolicy(data: AdmissionPolicyCreateRequest) {
+export async function createAdmissionPolicy(
+  data: AdmissionPolicyCreateRequest,
+) {
   return unwrapData<AdmissionPolicy>(
     await admissionApi.createAdmissionPolicy(data),
   );
