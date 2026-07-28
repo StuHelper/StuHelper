@@ -10,6 +10,7 @@ import sqlite from '@koishijs/plugin-database-sqlite'
 import MockBot from '@koishijs/plugin-mock'
 
 import { GUARD_MEMBER_TABLE } from '@stuhelper/koishi-shared'
+import { MODERATION_EVENT_TABLE } from '@stuhelper/koishi-moderation-core'
 
 import {
   admissionAction,
@@ -140,6 +141,13 @@ test('重复入群事件只创建一个认证链接', async () => {
     receiveJoin(bot, '10004', 'group-dup', undefined, 'onebot')
     await waitFor(() => sentMessages.length > 0)
     await waitFor(() => Boolean(findEventByAction(admissionEvents, 'remind')))
+    await waitFor(async () => {
+      const events = await root.database.get(MODERATION_EVENT_TABLE, {
+        memberId: '10004',
+        type: 'join_guarded',
+      })
+      return events.length === 1
+    })
 
     assert.equal(admissionSessionRequests, 1)
     assert.equal(muteActions.length, 1)
