@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
+import A11yButton from '@/components/A11yButton.vue'
 import { api } from '@/api'
 import type { components } from '@/api'
 import { assertMutationSuccess, unwrapListData } from '@/api/result'
+import { usePagedList } from '@/composables/usePagedList'
 import { setPageTitle, translate } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 import { formatDateTime } from '@/utils/format'
@@ -11,52 +13,43 @@ import { DEFAULT_PAGE_SIZE } from '@/config/pagination'
 
 const authStore = useAuthStore()
 const t = translate
-const loading = ref(false)
-const loadingMore = ref(false)
-const notifications = ref<components['schemas']['Notification'][]>([])
-const page = ref(1)
-const hasMore = ref(true)
 const lastLoadedAt = ref(0)
+const markingRead = ref<Record<string, boolean>>({})
+const markingAll = ref(false)
 const STALE_MS = 30_000
-
-async function loadNotifications() {
-  if (!(await authStore.requireAuth(t('user.notifications.requireAuth')))) return
-  loading.value = true
-  page.value = 1
-  hasMore.value = true
-  try {
-    const result = await api.notification.getNotifications(1, DEFAULT_PAGE_SIZE)
-    const data = unwrapListData<components['schemas']['Notification']>(result)
-    notifications.value = data.list
-    hasMore.value = data.list.length >= DEFAULT_PAGE_SIZE
-    lastLoadedAt.value = Date.now()
-  } catch (error) {
+const {
+  items: notifications,
+  loading,
+  loadingMore,
+  hasMore,
+  refresh: refreshNotifications,
+  loadMore,
+} = usePagedList<components['schemas']['Notification']>({
+  pageSize: DEFAULT_PAGE_SIZE,
+  async fetchPage(page, pageSize) {
+    const result = await api.notification.getNotifications(page, pageSize)
+    return unwrapListData<components['schemas']['Notification']>(result)
+  },
+  onError(error) {
     uni.showToast({
       title: error instanceof Error ? error.message : t('user.notifications.loadFailed'),
       icon: 'none',
     })
-  } finally {
-    loading.value = false
-  }
-}
+  },
+})
+const hasUnread = computed(() => notifications.value.some(item => !item.isRead))
 
-async function loadMore() {
-  if (loadingMore.value || !hasMore.value) return
-  loadingMore.value = true
-  try {
-    page.value++
-    const result = await api.notification.getNotifications(page.value, DEFAULT_PAGE_SIZE)
-    const data = unwrapListData<components['schemas']['Notification']>(result)
-    notifications.value = [...notifications.value, ...data.list]
-    hasMore.value = data.list.length >= DEFAULT_PAGE_SIZE
-  } catch (_error) { void _error;
-    page.value = Math.max(1, page.value - 1)
-  } finally {
-    loadingMore.value = false
+async function loadNotifications() {
+  if (!(await authStore.requireAuth(t('user.notifications.requireAuth')))) return
+  if (await refreshNotifications()) {
+    lastLoadedAt.value = Date.now()
   }
 }
 
 async function markRead(id: string) {
+  const notification = notifications.value.find(item => item.id === id)
+  if (!notification || notification.isRead || markingAll.value || markingRead.value[id]) return
+  markingRead.value = { ...markingRead.value, [id]: true }
   try {
     assertMutationSuccess(await api.notification.markAsRead(id))
     notifications.value = notifications.value.map((item) => item.id === id ? { ...item, isRead: true } : item)
@@ -65,10 +58,14 @@ async function markRead(id: string) {
       title: error instanceof Error ? error.message : t('user.notifications.actionFailed'),
       icon: 'none',
     })
+  } finally {
+    markingRead.value = { ...markingRead.value, [id]: false }
   }
 }
 
 async function markAllRead() {
+  if (markingAll.value || !hasUnread.value) return
+  markingAll.value = true
   try {
     assertMutationSuccess(await api.notification.markAllAsRead())
     notifications.value = notifications.value.map((item) => ({ ...item, isRead: true }))
@@ -78,6 +75,8 @@ async function markAllRead() {
       title: error instanceof Error ? error.message : t('user.notifications.actionFailed'),
       icon: 'none',
     })
+  } finally {
+    markingAll.value = false
   }
 }
 
@@ -91,19 +90,20 @@ onShow(() => {
 <template>
   <scroll-view class="notifications-page" scroll-y>
     <view class="toolbar">
-      <button class="mark-all-btn" data-testid="uni-notification-mark-all" @tap="markAllRead">
-        {{ t('user.notifications.markAllRead') }}
-      </button>
+      <A11yButton class="mark-all-btn" data-testid="uni-notification-mark-all" :disabled="markingAll || !hasUnread" @tap="markAllRead">
+        {{ markingAll ? t('common.processing') : t('user.notifications.markAllRead') }}
+      </A11yButton>
     </view>
     <view v-if="loading" class="state-card"><text>{{ t('common.loading') }}</text></view>
     <view v-else-if="notifications.length === 0" class="state-card"><text>{{ t('user.notifications.empty') }}</text></view>
     <view v-else class="list-wrap">
-      <view
+      <A11yButton
         v-for="item in notifications"
         :key="item.id"
         class="notification-card"
         :class="{ unread: !item.isRead }"
         :data-testid="`uni-notification-card-${item.id}`"
+        :disabled="item.isRead || markingAll || markingRead[item.id]"
         @tap="markRead(item.id)"
       >
         <view class="notification-head">
@@ -121,10 +121,10 @@ onShow(() => {
           <text>{{ item.type }}</text>
           <text>{{ formatDateTime(item.createdAt) }}</text>
         </view>
-      </view>
-      <view v-if="hasMore" class="load-more" data-testid="uni-notification-load-more" @tap="loadMore">
-        <text>{{ loadingMore ? t('common.loading') : t('common.loadMore') }}</text>
-      </view>
+      </A11yButton>
+      <A11yButton v-if="hasMore" class="load-more" data-testid="uni-notification-load-more" :disabled="loadingMore" @tap="loadMore">
+        {{ loadingMore ? t('common.loading') : t('common.loadMore') }}
+      </A11yButton>
     </view>
   </scroll-view>
 </template>
@@ -162,11 +162,16 @@ onShow(() => {
 }
 
 .notification-card {
+  display: block;
+  width: 100%;
   margin-bottom: 18rpx;
   padding: 28rpx;
+  border: 0;
   background: #ffffff;
   border-radius: 24rpx;
   box-shadow: 0 10rpx 30rpx rgba(15, 23, 42, 0.05);
+  text-align: left;
+  line-height: inherit;
 }
 
 .notification-card.unread {
@@ -207,7 +212,11 @@ onShow(() => {
 }
 
 .load-more {
+  display: block;
+  width: 100%;
   padding: 28rpx;
+  border: 0;
+  background: transparent;
   text-align: center;
   color: #4f46e5;
   font-size: 26rpx;

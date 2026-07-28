@@ -14,15 +14,17 @@
         </button>
       </div>
       
-      <div class="role-list">
-        <div
+      <div class="role-list" aria-label="角色列表">
+        <button
           v-for="role in roles"
           :key="role.id"
+          type="button"
           class="role-item"
           :class="{
             active: currentRole?.id === role.id,
             locked: !canDragRole(role),
           }"
+          :aria-current="currentRole?.id === role.id ? 'true' : undefined"
           @click="selectRole(role)"
           :draggable="canDragRole(role)"
           @dragstart="onDragStart($event, role)"
@@ -32,9 +34,9 @@
         >
           <span class="role-color" :style="{ backgroundColor: role.color || '#999' }"></span>
           <span class="role-name">{{ role.name }}</span>
-          <k-icon v-if="role.builtin" name="lock" class="builtin-icon" title="内置角色" />
-          <k-icon v-else name="grip-vertical" class="drag-handle" />
-        </div>
+          <k-icon v-if="role.builtin" name="lock" class="builtin-icon" title="内置角色" aria-hidden="true" />
+          <k-icon v-else name="grip-vertical" class="drag-handle" aria-hidden="true" />
+        </button>
       </div>
     </aside>
 
@@ -72,15 +74,48 @@
         </div>
       </div>
 
-      <div class="tabs">
-        <div class="tab-item" :class="{ active: activeTab === 'display' }" @click="activeTab = 'display'">基础</div>
-        <div class="tab-item" :class="{ active: activeTab === 'permissions' }" @click="activeTab = 'permissions'">权限</div>
-        <div class="tab-item" :class="{ active: activeTab === 'members' }" @click="activeTab = 'members'">成员</div>
+      <div class="tabs" role="tablist" aria-label="角色编辑分类">
+        <button
+          id="role-tab-display"
+          type="button"
+          class="tab-item"
+          role="tab"
+          :class="{ active: activeTab === 'display' }"
+          :aria-selected="activeTab === 'display'"
+          aria-controls="role-panel-display"
+          @click="activeTab = 'display'"
+        >基础</button>
+        <button
+          id="role-tab-permissions"
+          type="button"
+          class="tab-item"
+          role="tab"
+          :class="{ active: activeTab === 'permissions' }"
+          :aria-selected="activeTab === 'permissions'"
+          aria-controls="role-panel-permissions"
+          @click="activeTab = 'permissions'"
+        >权限</button>
+        <button
+          id="role-tab-members"
+          type="button"
+          class="tab-item"
+          role="tab"
+          :class="{ active: activeTab === 'members' }"
+          :aria-selected="activeTab === 'members'"
+          aria-controls="role-panel-members"
+          @click="activeTab = 'members'"
+        >成员</button>
       </div>
 
       <div class="tab-content">
         <!-- 基础设置 -->
-        <div v-if="activeTab === 'display'" class="display-settings">
+        <div
+          v-if="activeTab === 'display'"
+          id="role-panel-display"
+          class="display-settings"
+          role="tabpanel"
+          aria-labelledby="role-tab-display"
+        >
           <!-- 内置角色提示 -->
           <div v-if="currentRole.builtin" class="builtin-notice">
             <k-icon name="info" />
@@ -159,7 +194,13 @@
         </div>
 
         <!-- 权限设置 -->
-        <div v-if="activeTab === 'permissions'" class="permissions-settings">
+        <div
+          v-if="activeTab === 'permissions'"
+          id="role-panel-permissions"
+          class="permissions-settings"
+          role="tabpanel"
+          aria-labelledby="role-tab-permissions"
+        >
           <div class="permissions-layout">
             <!-- 左侧主内容 -->
             <div class="permissions-main" ref="permissionsMainRef">
@@ -200,15 +241,20 @@
                           </span>
                         </div>
                       </div>
-                      <div
+                      <button
+                        type="button"
                         class="toggle-switch"
+                        role="switch"
                         :class="{ active: hasPermission(node.id), locked: isCoveredByWildcard(node.id) }"
-                        @click.stop="!isCoveredByWildcard(node.id) && togglePermission(node.id)"
+                        :aria-checked="hasPermission(node.id)"
+                        :aria-label="`${hasPermission(node.id) ? '停用' : '启用'}权限：${node.name}`"
+                        :disabled="Boolean(isCoveredByWildcard(node.id))"
+                        @click.stop="togglePermission(node.id)"
                         :title="isCoveredByWildcard(node.id) ? `已被 ${isCoveredByWildcard(node.id)} 通配符覆盖` : ''"
                       >
-                        <span class="slider"></span>
-                        <span v-if="isCoveredByWildcard(node.id)" class="lock-icon">🔒</span>
-                      </div>
+                        <span class="slider" aria-hidden="true"></span>
+                        <span v-if="isCoveredByWildcard(node.id)" class="lock-icon" aria-hidden="true">🔒</span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -219,24 +265,32 @@
             <nav class="permissions-nav" v-if="Object.keys(groupedPermissions).length > 0">
               <div class="nav-title">快速导航</div>
               <div class="nav-list">
-                <div
+                <button
                   v-for="(group, name) in groupedPermissions"
                   :key="name"
+                  type="button"
                   class="nav-item"
                   :class="{ active: activeGroup === name }"
+                  :aria-current="activeGroup === name ? 'location' : undefined"
                   @click="scrollToGroup(name as string)"
                 >
-                  <span class="nav-dot"></span>
+                  <span class="nav-dot" aria-hidden="true"></span>
                   <span class="nav-name">{{ name }}</span>
                   <span class="nav-count">{{ group.length }}</span>
-                </div>
+                </button>
               </div>
             </nav>
           </div>
         </div>
         
         <!-- 成员管理 -->
-        <div v-if="activeTab === 'members'" class="members-settings">
+        <div
+          v-if="activeTab === 'members'"
+          id="role-panel-members"
+          class="members-settings"
+          role="tabpanel"
+          aria-labelledby="role-tab-members"
+        >
              <!-- 内置角色提示：不可手动添加成员 -->
              <div v-if="currentRole.builtin" class="builtin-notice">
                <k-icon name="info" />
@@ -290,7 +344,7 @@
                <div class="member-list" v-else-if="filteredRoleMembers.length > 0">
                    <div v-for="member in filteredRoleMembers" :key="member.id" class="member-item">
                        <div class="member-info">
-                          <img v-if="member.avatar" :src="member.avatar" class="member-avatar">
+                          <img v-if="member.avatar" :src="member.avatar" :alt="member.name || member.id" class="member-avatar">
                           <div v-else class="member-icon">👤</div>
                           <div class="member-text">
                             <span class="member-name">{{ member.name || member.id }}</span>
@@ -361,10 +415,18 @@
 
     <!-- 导入成员对话框 -->
     <transition name="fade">
-      <div class="modal-overlay" v-if="showImportDialog" @click="closeImportDialog">
-        <div class="modal-dialog import-dialog" @click.stop>
+      <div class="modal-overlay" v-if="showImportDialog" @click.self="closeImportDialog">
+        <div
+          ref="importDialogRef"
+          class="modal-dialog import-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="role-import-title"
+          tabindex="-1"
+          @keydown="handleImportDialogKeydown"
+        >
           <div class="modal-header">
-            <h3>导入成员</h3>
+            <h3 id="role-import-title">导入成员</h3>
           </div>
           <div class="modal-body">
             <div v-if="importError" class="roles-action-banner roles-action-banner--modal" role="alert">
@@ -448,24 +510,23 @@
                 <span class="preview-count">已选 {{ selectedImportIds.size }} / {{ importPreviewMembers.length }}</span>
               </div>
               <div class="preview-list">
-                <div
+                <label
                   v-for="member in importPreviewMembers"
                   :key="member.id"
                   class="preview-item"
                   :class="{ selected: selectedImportIds.has(member.id) }"
-                  @click="toggleMemberSelect(member.id)"
                 >
                   <input
                     type="checkbox"
                     :checked="selectedImportIds.has(member.id)"
-                    @click.stop
+                    :aria-label="`选择成员 ${member.name || member.id}`"
                     @change="toggleMemberSelect(member.id)"
                   >
-                  <img v-if="member.avatar" :src="member.avatar" class="preview-avatar">
+                  <img v-if="member.avatar" :src="member.avatar" :alt="member.name || member.id" class="preview-avatar">
                   <div v-else class="preview-icon">👤</div>
                   <span class="preview-name">{{ member.name || member.id }}</span>
                   <span class="preview-id">{{ member.id }}</span>
-                </div>
+                </label>
               </div>
             </div>
 
@@ -480,8 +541,9 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button class="secondary-btn" @click="closeImportDialog">取消</button>
+            <button type="button" class="secondary-btn" @click="closeImportDialog">取消</button>
             <button
+              type="button"
               class="primary-btn"
               @click="doImportMembers"
               :disabled="selectedImportIds.size === 0 || importLoading"
@@ -502,6 +564,7 @@ import { errorMessage } from '../utils/error-message'
 import { copyTextToClipboard } from '../utils/clipboard'
 import { useActionError } from '../composables/use-action-error'
 import { useConfirm } from '../composables/use-confirm'
+import { useDialogFocus } from '../composables/use-dialog-focus'
 import {
   canDragRoleForReorder,
   canDropRoleForReorder,
@@ -563,6 +626,7 @@ const filteredRoleMembers = computed(() => {
 
 // 导入对话框相关状态
 const showImportDialog = ref(false)
+const importDialogRef = ref<HTMLElement | null>(null)
 const importSource = ref<'role' | 'authority' | 'guild-admin'>('role')
 const importSourceRoleId = ref('')
 const importAuthorityLevel = ref(1)
@@ -1193,6 +1257,12 @@ const closeImportDialog = () => {
   selectedImportIds.value = new Set()
 }
 
+const { handleKeydown: handleImportDialogKeydown } = useDialogFocus(
+  showImportDialog,
+  importDialogRef,
+  closeImportDialog,
+)
+
 const loadImportPreview = async () => {
   const sourceRoleId = importSourceRoleId.value
   const targetRoleId = currentRole.value?.id ?? ''
@@ -1496,6 +1566,7 @@ const copyRoleId = async () => {
 
 /* 角色项 */
 .role-item {
+  width: 100%;
   display: flex;
   align-items: center;
   padding: 0.5rem 0.625rem;
@@ -1503,6 +1574,11 @@ const copyRoleId = async () => {
   border-radius: 4px;
   cursor: pointer;
   transition: background 0.15s ease;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
 }
 
 .role-item:hover {
@@ -1706,6 +1782,11 @@ const copyRoleId = async () => {
   color: var(--fg3, rgba(255, 255, 245, .4));
   font-size: 0.8rem;
   font-weight: 500;
+  border-top: 0;
+  border-right: 0;
+  border-left: 0;
+  background: transparent;
+  font-family: inherit;
 }
 
 .tab-item:hover {
@@ -2000,6 +2081,7 @@ const copyRoleId = async () => {
 }
 
 .nav-item {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -2009,6 +2091,10 @@ const copyRoleId = async () => {
   transition: all 0.15s ease;
   color: var(--fg3, rgba(255, 255, 245, .4));
   font-size: 0.75rem;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
 }
 
 .nav-item:hover {
@@ -2126,6 +2212,9 @@ const copyRoleId = async () => {
   height: 20px;
   cursor: pointer;
   flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 .toggle-switch .slider {
@@ -2171,6 +2260,10 @@ const copyRoleId = async () => {
 .toggle-switch.locked {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+.toggle-switch:disabled {
+  cursor: not-allowed;
 }
 
 .toggle-switch .lock-icon {

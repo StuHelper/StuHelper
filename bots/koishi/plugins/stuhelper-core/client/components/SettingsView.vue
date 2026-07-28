@@ -36,38 +36,65 @@
     <div v-else-if="settingsLoaded" class="settings-content">
       <!-- Mobile Section Selector -->
       <div class="mobile-section-selector">
-        <div class="selector-current" @click="sectionDropdownOpen = !sectionDropdownOpen">
+        <button
+          type="button"
+          class="selector-current"
+          aria-controls="settings-mobile-sections"
+          :aria-expanded="sectionDropdownOpen"
+          :aria-label="`选择设置分类，当前为${currentSectionLabel}`"
+          @click="sectionDropdownOpen = !sectionDropdownOpen"
+          @keydown.escape.stop="sectionDropdownOpen = false"
+        >
           <span class="current-label">{{ currentSectionLabel }}</span>
-          <k-icon :name="sectionDropdownOpen ? 'chevron-up' : 'chevron-down'" class="selector-arrow" />
-        </div>
+          <k-icon
+            :name="sectionDropdownOpen ? 'chevron-up' : 'chevron-down'"
+            class="selector-arrow"
+            aria-hidden="true"
+          />
+        </button>
         <transition name="dropdown">
-          <div class="selector-dropdown" v-if="sectionDropdownOpen">
-            <div
+          <div
+            v-if="sectionDropdownOpen"
+            id="settings-mobile-sections"
+            class="selector-dropdown"
+            @keydown.escape.stop="sectionDropdownOpen = false"
+          >
+            <button
               v-for="section in sections"
               :key="section.id"
+              type="button"
               class="selector-option"
               :class="{ active: activeSection === section.id }"
+              :aria-current="activeSection === section.id ? 'page' : undefined"
               @click="selectSection(section.id)"
             >
               {{ section.label }}
-            </div>
+            </button>
           </div>
         </transition>
       </div>
-      <div class="mobile-section-backdrop" v-if="sectionDropdownOpen" @click="sectionDropdownOpen = false"></div>
+      <button
+        v-if="sectionDropdownOpen"
+        type="button"
+        class="mobile-section-backdrop"
+        aria-label="关闭设置分类菜单"
+        @click="sectionDropdownOpen = false"
+      ></button>
 
       <!-- Sidebar (PC) -->
-      <nav class="settings-sidebar">
-        <div
+      <nav class="settings-sidebar" aria-label="全局设置分类">
+        <button
           v-for="section in sections"
           :key="section.id"
+          type="button"
           class="sidebar-item"
           :class="{ active: activeSection === section.id }"
+          :aria-current="activeSection === section.id ? 'page' : undefined"
           @click="activeSection = section.id"
         >
-          <k-icon :name="section.icon" class="sidebar-icon" />
+          <k-icon :name="section.icon" class="sidebar-icon" aria-hidden="true" />
           <span class="sidebar-label">{{ section.label }}</span>
-        </div>
+        </button>
       </nav>
 
       <!-- Main Content -->
@@ -2372,6 +2399,7 @@ onMounted(() => {
 }
 
 .sidebar-item {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2382,6 +2410,10 @@ onMounted(() => {
   font-size: 12px;
   transition: all 0.15s ease;
   margin-bottom: 2px;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
 }
 
 .sidebar-item:hover {
@@ -2900,6 +2932,7 @@ onMounted(() => {
   }
 
   .selector-current {
+    width: 100%;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -2907,6 +2940,10 @@ onMounted(() => {
     cursor: pointer;
     background: var(--bg2);
     transition: background 0.15s ease;
+    border: 0;
+    color: inherit;
+    font-family: inherit;
+    text-align: left;
   }
 
   .selector-current:hover {
@@ -2941,12 +2978,20 @@ onMounted(() => {
   }
 
   .selector-option {
+    display: block;
+    width: 100%;
     padding: 0.75rem 1rem;
     font-size: 0.875rem;
     color: var(--fg2);
     cursor: pointer;
     border-bottom: 1px solid var(--k-color-divider);
     transition: all 0.15s ease;
+    background: transparent;
+    border-top: 0;
+    border-left: 0;
+    border-right: 0;
+    font-family: inherit;
+    text-align: left;
   }
 
   .selector-option:last-child {
@@ -2972,6 +3017,8 @@ onMounted(() => {
     right: 0;
     bottom: 0;
     background: rgba(0, 0, 0, 0.4);
+    border: 0;
+    cursor: default;
     z-index: 19;
   }
 

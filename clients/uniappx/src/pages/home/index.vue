@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
+import A11yButton from '@/components/A11yButton.vue'
 import { api } from '@/api'
 import type { components } from '@/api'
 import { unwrapData, unwrapListData } from '@/api/result'
@@ -17,6 +18,7 @@ const departmentCount = ref(0)
 const hotCourses = ref<components['schemas']['HotCourse'][]>([])
 const lastLoadedAt = ref(0)
 const DASHBOARD_STALE_MS = 60_000
+let dashboardLoadPromise: Promise<void> | null = null
 
 function isSuccessfulResult(result: { error?: unknown; response?: { status?: number } }): boolean {
   const status = result.response?.status ?? 0
@@ -31,7 +33,7 @@ const greeting = computed(() =>
 const shortcuts = computed(() => getHomeFeatures())
 const appNotice = computed(() => getUniappxAppNotice())
 
-async function loadDashboard(force = false) {
+async function performDashboardLoad(force = false) {
   const now = Date.now()
   if (
     !force &&
@@ -91,6 +93,14 @@ async function loadDashboard(force = false) {
   }
 }
 
+function loadDashboard(force = false): Promise<void> {
+  if (dashboardLoadPromise) return dashboardLoadPromise
+  dashboardLoadPromise = performDashboardLoad(force).finally(() => {
+    dashboardLoadPromise = null
+  })
+  return dashboardLoadPromise
+}
+
 function go(path: string) {
   if (path.startsWith('/pages/home') || path.startsWith('/pages/course') || path.startsWith('/pages/review') || path.startsWith('/pages/user')) {
     const tabPages = ['/pages/home/index', '/pages/course/index', '/pages/review/index', '/pages/user/index']
@@ -143,7 +153,7 @@ onShow(() => {
     <view class="section">
       <text class="section-title">{{ t('home.shortcutsTitle') }}</text>
       <view class="shortcut-grid">
-        <view
+        <A11yButton
           v-for="item in shortcuts"
           :key="item.path"
           class="shortcut-card"
@@ -153,27 +163,27 @@ onShow(() => {
           <text class="shortcut-icon">{{ item.icon }}</text>
           <text class="shortcut-title">{{ item.title }}</text>
           <text class="shortcut-desc">{{ item.desc }}</text>
-        </view>
+        </A11yButton>
       </view>
     </view>
 
     <view class="section">
       <view class="section-header">
         <text class="section-title">{{ t('home.hotCoursesTitle') }}</text>
-        <text
+        <A11yButton
           class="section-link"
           data-testid="uni-home-view-all-reviews"
           @tap="go('/pages/review/index')"
         >
           {{ t('home.viewAll') }}
-        </text>
+        </A11yButton>
       </view>
       <view v-if="loading" class="loading-card"><text>{{ t('common.loading') }}</text></view>
       <view v-else-if="hotCourses.length === 0" class="empty-card">
         <text>{{ t('home.noHotCourses') }}</text>
       </view>
       <view v-else class="list-card">
-        <view
+        <A11yButton
           v-for="course in hotCourses"
           :key="course.courseID"
           class="list-row"
@@ -185,7 +195,7 @@ onShow(() => {
             <text class="list-meta">{{ t('common.reviewCount', { count: course.reviewCount }) }}</text>
           </view>
           <text class="list-score">{{ course.avgRating.toFixed(1) }}</text>
-        </view>
+        </A11yButton>
       </view>
     </view>
   </scroll-view>
@@ -270,8 +280,12 @@ onShow(() => {
 }
 
 .section-link {
+  padding: 8rpx;
+  border: 0;
+  background: transparent;
   color: #4f46e5;
   font-size: 24rpx;
+  line-height: inherit;
 }
 
 .shortcut-grid {
@@ -291,7 +305,12 @@ onShow(() => {
 }
 
 .shortcut-card {
+  display: block;
+  width: 100%;
   padding: 28rpx 20rpx;
+  border: 0;
+  text-align: left;
+  line-height: inherit;
 }
 
 .shortcut-icon {
@@ -329,10 +348,15 @@ onShow(() => {
 
 .list-row {
   display: flex;
+  width: 100%;
   justify-content: space-between;
   align-items: center;
   padding: 28rpx;
+  border: 0;
   border-bottom: 1rpx solid #e2e8f0;
+  background: transparent;
+  text-align: left;
+  line-height: inherit;
 }
 
 .list-row:last-child {

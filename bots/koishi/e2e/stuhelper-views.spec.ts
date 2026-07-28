@@ -307,7 +307,8 @@ test('chat dock receives, forwards, sends image message, and recalls through rea
   const sessionItem = dock.locator('.session-item', { hasText: 'E2E 聊天频道' }).first()
   await expect(sessionItem).toBeVisible({ timeout: 10_000 })
   await expect(sessionItem.locator('.badge')).toHaveText('1')
-  await sessionItem.click()
+  await sessionItem.focus()
+  await sessionItem.press('Enter')
 
   await expect(dock.locator('.chat-header', { hasText: 'E2E 聊天频道' })).toBeVisible({ timeout: 10_000 })
   await expect(dock.locator('.member-item', { hasText: 'E2E 群主' })).toBeVisible({ timeout: 10_000 })
@@ -322,6 +323,17 @@ test('chat dock receives, forwards, sends image message, and recalls through rea
     /^data:image\/png;base64,/,
     { timeout: 10_000 },
   )
+
+  await incomingRow.focus()
+  await incomingRow.press('Shift+F10')
+  const keyboardMenu = page.getByRole('menu', { name: '消息操作' })
+  await expect(keyboardMenu).toBeVisible({ timeout: 5_000 })
+  await expect(keyboardMenu.getByRole('menuitem', { name: '回复' })).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await expect(keyboardMenu.getByRole('menuitem', { name: '@TA' })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(keyboardMenu).toHaveCount(0)
+  await expect(incomingRow).toBeFocused()
 
   await incomingRow.click({ button: 'right' })
   const copyMenu = page.locator('.context-menu').first()
@@ -882,16 +894,16 @@ test('legacy group config opens plugin editor and saves normalized defaults', as
   await expect(dialog).toBeVisible({ timeout: 5_000 })
   await expect(configTextarea(dialog, '验证关键词')).toHaveValue('legacy-pass')
 
-  await dialog.locator('.sidebar-item', { hasText: '功能插件' }).click()
+  await dialog.getByRole('tab', { name: '功能插件' }).press('Enter')
   const banmeCard = dialog.locator('.plugin-card', { hasText: '自我禁言' }).first()
   await expect(banmeCard).toBeVisible()
-  await banmeCard.locator('.plugin-header').click()
+  await banmeCard.locator('.plugin-disclosure').click()
   await expect(configInput(dialog, 'UP时长')).toHaveValue('24h')
   await expect(configInput(dialog, '歪时长')).toHaveValue('12h')
 
-  await dialog.locator('.sidebar-item', { hasText: '入群设置' }).click()
+  await dialog.getByRole('tab', { name: '入群设置' }).press('Enter')
   await configTextarea(dialog, '验证关键词').fill('legacy-pass, e2e-added-pass')
-  await dialog.locator('.sidebar-item', { hasText: '违规管理' }).click()
+  await dialog.getByRole('tab', { name: '违规管理' }).press('Enter')
   await configTextarea(dialog, '禁言关键词').fill('legacy-spam, e2e-added-spam')
   await dialog.getByRole('button', { name: '保存', exact: true }).click()
 
@@ -928,8 +940,9 @@ test('legacy group config creates, copies, reloads, and deletes through real con
   await expect(page.locator('.view-title', { hasText: '群组配置' })).toBeVisible({ timeout: 10_000 })
 
   await page.getByRole('button', { name: '新建配置', exact: true }).click()
-  const createDialog = page.locator('.config-view .dialog-card', { hasText: '新建群组配置' }).first()
+  const createDialog = page.getByRole('dialog', { name: '新建群组配置' })
   await expect(createDialog).toBeVisible({ timeout: 5_000 })
+  await expect(createDialog.locator('input')).toBeFocused()
   await createDialog.locator('input').fill(guildId)
   await createDialog.getByRole('button', { name: '创建', exact: true }).click()
 
@@ -1307,7 +1320,7 @@ test('role management creates, edits, assigns member, revokes member, and delete
     )
     .toContain(roleId)
 
-  await page.locator('.tab-item', { hasText: '成员' }).click()
+  await page.getByRole('tab', { name: '成员' }).press('Enter')
   await page.locator('.add-member input[placeholder="输入用户 ID 添加..."]').fill(memberId)
   await page.getByRole('button', { name: '添加成员', exact: true }).click()
 
@@ -1345,7 +1358,7 @@ test('role management imports members from another custom role', async ({ logged
   await expect(page.locator('.roles-view-container')).toBeVisible({ timeout: 10_000 })
 
   await createNamedRole(page, sourceRoleName, `src-${suffix}`)
-  await page.locator('.tab-item', { hasText: '成员' }).click()
+  await page.getByRole('tab', { name: '成员' }).press('Enter')
   await page.locator('.add-member input[placeholder="输入用户 ID 添加..."]').fill(importedMemberId)
   await page.getByRole('button', { name: '添加成员', exact: true }).click()
   await expect(toastMessage(page, '添加成员成功')).toBeVisible({ timeout: 10_000 })
@@ -1354,7 +1367,7 @@ test('role management imports members from another custom role', async ({ logged
   })
 
   await createNamedRole(page, targetRoleName, `dst-${suffix}`)
-  await page.locator('.tab-item', { hasText: '成员' }).click()
+  await page.getByRole('tab', { name: '成员' }).press('Enter')
   await expect(page.locator('.empty-tip', { hasText: '暂无成员（输入用户 QQ 号添加）' })).toBeVisible({
     timeout: 10_000,
   })
@@ -1398,7 +1411,7 @@ test('role management imports members from authority and guild admin sources', a
   await expect(page.locator('.roles-view-container')).toBeVisible({ timeout: 10_000 })
 
   await createNamedRole(page, targetRoleName, `multi-${suffix}`)
-  await page.locator('.tab-item', { hasText: '成员' }).click()
+  await page.getByRole('tab', { name: '成员' }).press('Enter')
 
   await page.getByRole('button', { name: '导入成员', exact: true }).click()
   let importDialog = roleDialog(page, '导入成员')

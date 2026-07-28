@@ -75,15 +75,48 @@ func (c *Client) SupportsRefreshTokenRevocation() (bool, error) {
 func (c *Client) revocationEndpoint() (string, error) {
 	var metadata struct {
 		RevocationEndpoint string `json:"revocation_endpoint"`
+		EndSessionEndpoint string `json:"end_session_endpoint"`
 	}
 	if err := c.provider.Claims(&metadata); err != nil {
 		return "", fmt.Errorf("oidc: load revocation metadata: %w", err)
 	}
 	endpoint := strings.TrimSpace(metadata.RevocationEndpoint)
+	if endpoint != "" {
+		return validateDiscoveredRevocationEndpoint(endpoint)
+	}
+
+	// Casdoor exposes its POST token-revocation API at /api/logout, but releases
+	// including the repository-pinned 3.31.1 advertise that URL only as the
+	// OIDC end_session_endpoint. Do not treat arbitrary provider logout URLs as
+	// RFC 7009 endpoints: the exact Casdoor path is the compatibility boundary.
+	return casdoorEndSessionRevocationEndpoint(metadata.EndSessionEndpoint)
+}
+
+func validateDiscoveredRevocationEndpoint(endpoint string) (string, error) {
+	validated, err := validateCasdoorURL("revocation endpoint", endpoint, true)
+	if err != nil {
+		return "", fmt.Errorf("oidc: invalid revocation endpoint: %w", err)
+	}
+	return validated, nil
+}
+
+func casdoorEndSessionRevocationEndpoint(endpoint string) (string, error) {
+	endpoint = strings.TrimSpace(endpoint)
 	if endpoint == "" {
 		return "", ErrRevocationEndpointUnavailable
 	}
-	return endpoint, nil
+	validated, err := validateCasdoorURL("end session endpoint", endpoint, true)
+	if err != nil {
+		return "", fmt.Errorf("oidc: invalid end session endpoint: %w", err)
+	}
+	parsed, err := url.Parse(validated)
+	if err != nil {
+		return "", fmt.Errorf("oidc: parse end session endpoint: %w", err)
+	}
+	if parsed.EscapedPath() != "/api/logout" {
+		return "", ErrRevocationEndpointUnavailable
+	}
+	return validated, nil
 }
 
 func newRevocationRequest(ctx context.Context, endpoint, refreshToken string, cfg oauth2.Config) (*http.Request, error) {

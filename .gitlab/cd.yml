@@ -1,72 +1,38 @@
+.remote_operation_template:
+  image: alpine:3.24@sha256:28bd5fe8a8bd2a60b63fd00ec6b4fe3a9c4d741873baabf15717e1c667943f8b
+  before_script:
+  - apk add --no-cache bash git gzip openssh-client tar
+
 .deploy_remote_template:
+  extends: .remote_operation_template
   stage: deploy
-  image: alpine:3.21
   script:
-  - test -n "${DEPLOY_TARGET_HOST:-}" || { echo "DEPLOY_TARGET_HOST is required"; exit 1; }
-  - test -n "${DEPLOY_TARGET_USER:-}" || { echo "DEPLOY_TARGET_USER is required"; exit 1; }
-  - test -n "${DEPLOY_TARGET_APP_DIR:-}" || { echo "DEPLOY_TARGET_APP_DIR is required"; exit 1; }
-  - test -n "${DEPLOY_TARGET_SSH_KEY:-}" || { echo "DEPLOY_TARGET_SSH_KEY is required"; exit 1; }
-  - test -n "${BACKEND_IMAGE_REF:-}" || { echo "BACKEND_IMAGE_REF is required"; exit 1; }
-  - test -n "${FRONTEND_IMAGE_REF:-}" || { echo "FRONTEND_IMAGE_REF is required"; exit 1; }
-  - test -n "${ADMIN_IMAGE_REF:-}" || { echo "ADMIN_IMAGE_REF is required"; exit 1; }
-  - apk add --no-cache openssh-client bash tar gzip
-  - export TARGET_TAG="${DEPLOY_TAG:-${CI_COMMIT_SHORT_SHA}}"
-  - eval "$(ssh-agent -s)"
-  - mkdir -p ~/.ssh
-  - chmod 700 ~/.ssh
-  - printf '%s\n' "$DEPLOY_TARGET_SSH_KEY" | tr -d '\r' | ssh-add -
-  - |
-    if [ -n "${DEPLOY_TARGET_SSH_KNOWN_HOSTS:-}" ]; then
-      printf '%s\n' "$DEPLOY_TARGET_SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
-    else
-      echo "ERROR: DEPLOY_TARGET_SSH_KNOWN_HOSTS is not set. Set this CI variable to the deploy host's SSH public key." >&2
-      echo "Generate with: ssh-keyscan -p PORT HOST" >&2
-      exit 1
-    fi
-  - chmod 644 ~/.ssh/known_hosts
-  - ./infra/ops/build-deploy-bundle.sh "${CI_PROJECT_DIR}/deploy-bundle.tgz"
-  - ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "mkdir -p '${DEPLOY_TARGET_APP_DIR}'"
-  - scp -P "${DEPLOY_TARGET_PORT:-22}" "${CI_PROJECT_DIR}/deploy-bundle.tgz" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${DEPLOY_TARGET_APP_DIR}/deploy-bundle.tgz"
-  - |
-    ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "
-      set -euo pipefail &&
-      cd '${DEPLOY_TARGET_APP_DIR}' &&
-      tar xzf deploy-bundle.tgz &&
-      rm -f deploy-bundle.tgz &&
-      TAG='${TARGET_TAG}' BACKEND_IMAGE_REF='${BACKEND_IMAGE_REF}' FRONTEND_IMAGE_REF='${FRONTEND_IMAGE_REF}' ADMIN_IMAGE_REF='${ADMIN_IMAGE_REF}' \
-      ./infra/ops/remote-preflight.sh &&
-      TAG='${TARGET_TAG}' BACKEND_IMAGE_REF='${BACKEND_IMAGE_REF}' FRONTEND_IMAGE_REF='${FRONTEND_IMAGE_REF}' ADMIN_IMAGE_REF='${ADMIN_IMAGE_REF}' \
-      ./infra/ops/remote-prod-deploy.sh
-    "
+  - export DEPLOY_ENVIRONMENT="${CI_ENVIRONMENT_NAME}"
+  - export TARGET_SHA="${CI_COMMIT_SHA}"
+  - ./infra/ops/run-ci-remote-operation.sh deploy
 
 .verify_remote_template:
+  extends: .remote_operation_template
   stage: verify
-  image: alpine:3.21
   script:
-  - test -n "${DEPLOY_TARGET_HOST:-}" || { echo "DEPLOY_TARGET_HOST is required"; exit 1; }
-  - test -n "${DEPLOY_TARGET_USER:-}" || { echo "DEPLOY_TARGET_USER is required"; exit 1; }
-  - test -n "${DEPLOY_TARGET_APP_DIR:-}" || { echo "DEPLOY_TARGET_APP_DIR is required"; exit 1; }
-  - test -n "${DEPLOY_TARGET_SSH_KEY:-}" || { echo "DEPLOY_TARGET_SSH_KEY is required"; exit 1; }
-  - apk add --no-cache openssh-client bash curl
-  - eval "$(ssh-agent -s)"
-  - mkdir -p ~/.ssh
-  - chmod 700 ~/.ssh
-  - printf '%s\n' "$DEPLOY_TARGET_SSH_KEY" | tr -d '\r' | ssh-add -
-  - |
-    if [ -n "${DEPLOY_TARGET_SSH_KNOWN_HOSTS:-}" ]; then
-      printf '%s\n' "$DEPLOY_TARGET_SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
-    else
-      echo "ERROR: DEPLOY_TARGET_SSH_KNOWN_HOSTS is not set." >&2
-      exit 1
-    fi
-  - chmod 644 ~/.ssh/known_hosts
-  - |
-    ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "
-      set -euo pipefail &&
-      cd '${DEPLOY_TARGET_APP_DIR}' &&
-      ./infra/ops/smoke-check.sh &&
-      ./infra/ops/observability-smoke-check.sh
-    "
+  - export DEPLOY_ENVIRONMENT="${CI_ENVIRONMENT_NAME}"
+  - export TARGET_SHA="${CI_COMMIT_SHA}"
+  - ./infra/ops/run-ci-remote-operation.sh verify
+
+.rollback_remote_template:
+  extends: .remote_operation_template
+  stage: deploy
+  needs: []
+  before_script:
+  - apk add --no-cache bash docker-cli docker-cli-buildx git gzip openssh-client tar
+  script:
+  - export DEPLOY_ENVIRONMENT="${CI_ENVIRONMENT_NAME}"
+  - export TARGET_SHA="${ROLLBACK_SHA:-${ROLLBACK_TAG:-}}"
+  - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
+  - ./infra/ops/resolve-registry-release-images.sh /tmp/rollback-images.env
+  - . /tmp/rollback-images.env
+  - export ROLLBACK_BACKEND_IMAGE_REF ROLLBACK_FRONTEND_IMAGE_REF ROLLBACK_ADMIN_IMAGE_REF
+  - ./infra/ops/run-ci-remote-operation.sh rollback
 
 deploy_staging:
   extends: .deploy_remote_template
@@ -111,7 +77,8 @@ deploy_production:
 
 verify_staging:
   extends: .verify_remote_template
-  needs: [deploy_staging]
+  needs:
+  - deploy_staging
   variables:
     DEPLOY_TARGET_HOST: $STAGING_DEPLOY_HOST
     DEPLOY_TARGET_PORT: $STAGING_DEPLOY_PORT
@@ -128,7 +95,8 @@ verify_staging:
 
 verify_production:
   extends: .verify_remote_template
-  needs: [deploy_production]
+  needs:
+  - deploy_production
   variables:
     DEPLOY_TARGET_HOST: $DEPLOY_HOST
     DEPLOY_TARGET_PORT: $DEPLOY_PORT
@@ -144,8 +112,7 @@ verify_production:
   - when: never
 
 rollback_staging:
-  extends: .deploy_remote_template
-  needs: []
+  extends: .rollback_remote_template
   variables:
     DEPLOY_TARGET_HOST: $STAGING_DEPLOY_HOST
     DEPLOY_TARGET_PORT: $STAGING_DEPLOY_PORT
@@ -153,7 +120,6 @@ rollback_staging:
     DEPLOY_TARGET_APP_DIR: $STAGING_DEPLOY_APP_DIR
     DEPLOY_TARGET_SSH_KEY: $STAGING_DEPLOY_SSH_KEY
     DEPLOY_TARGET_SSH_KNOWN_HOSTS: $STAGING_DEPLOY_SSH_KNOWN_HOSTS
-    DEPLOY_TAG: $ROLLBACK_TAG
   environment:
     name: staging
     url: $STAGING_PUBLIC_URL
@@ -161,41 +127,9 @@ rollback_staging:
   - if: '$CI_COMMIT_BRANCH == "develop"'
     when: manual
   - when: never
-  before_script: []
-  script:
-  - test -n "${DEPLOY_TARGET_HOST:-}" || { echo "DEPLOY_TARGET_HOST is required"; exit 1; }
-  - test -n "${DEPLOY_TARGET_USER:-}" || { echo "DEPLOY_TARGET_USER is required"; exit 1; }
-  - test -n "${DEPLOY_TARGET_APP_DIR:-}" || { echo "DEPLOY_TARGET_APP_DIR is required"; exit 1; }
-  - test -n "${DEPLOY_TARGET_SSH_KEY:-}" || { echo "DEPLOY_TARGET_SSH_KEY is required"; exit 1; }
-  - apk add --no-cache openssh-client bash tar gzip
-  - export TARGET_TAG="${DEPLOY_TAG:-}"
-  - eval "$(ssh-agent -s)"
-  - mkdir -p ~/.ssh
-  - chmod 700 ~/.ssh
-  - printf '%s\n' "$DEPLOY_TARGET_SSH_KEY" | tr -d '\r' | ssh-add -
-  - |
-    if [ -n "${DEPLOY_TARGET_SSH_KNOWN_HOSTS:-}" ]; then
-      printf '%s\n' "$DEPLOY_TARGET_SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
-    else
-      echo "ERROR: DEPLOY_TARGET_SSH_KNOWN_HOSTS is not set." >&2
-      exit 1
-    fi
-  - chmod 644 ~/.ssh/known_hosts
-  - ./infra/ops/build-deploy-bundle.sh "${CI_PROJECT_DIR}/deploy-bundle.tgz"
-  - ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "mkdir -p '${DEPLOY_TARGET_APP_DIR}'"
-  - scp -P "${DEPLOY_TARGET_PORT:-22}" "${CI_PROJECT_DIR}/deploy-bundle.tgz" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${DEPLOY_TARGET_APP_DIR}/deploy-bundle.tgz"
-  - |
-    ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "
-      set -euo pipefail &&
-      cd '${DEPLOY_TARGET_APP_DIR}' &&
-      tar xzf deploy-bundle.tgz &&
-      rm -f deploy-bundle.tgz &&
-      TAG='${TARGET_TAG}' ROLLBACK_TAG='${TARGET_TAG}' ./infra/ops/remote-prod-rollback.sh
-    "
 
 rollback_production:
-  extends: .deploy_remote_template
-  needs: []
+  extends: .rollback_remote_template
   variables:
     DEPLOY_TARGET_HOST: $DEPLOY_HOST
     DEPLOY_TARGET_PORT: $DEPLOY_PORT
@@ -203,7 +137,6 @@ rollback_production:
     DEPLOY_TARGET_APP_DIR: $DEPLOY_APP_DIR
     DEPLOY_TARGET_SSH_KEY: $DEPLOY_SSH_KEY
     DEPLOY_TARGET_SSH_KNOWN_HOSTS: $DEPLOY_SSH_KNOWN_HOSTS
-    DEPLOY_TAG: $ROLLBACK_TAG
   environment:
     name: production
     url: $WEB_PUBLIC_URL
@@ -211,34 +144,3 @@ rollback_production:
   - if: '$CI_COMMIT_BRANCH == "main"'
     when: manual
   - when: never
-  before_script: []
-  script:
-  - test -n "${DEPLOY_TARGET_HOST:-}" || { echo "DEPLOY_TARGET_HOST is required"; exit 1; }
-  - test -n "${DEPLOY_TARGET_USER:-}" || { echo "DEPLOY_TARGET_USER is required"; exit 1; }
-  - test -n "${DEPLOY_TARGET_APP_DIR:-}" || { echo "DEPLOY_TARGET_APP_DIR is required"; exit 1; }
-  - test -n "${DEPLOY_TARGET_SSH_KEY:-}" || { echo "DEPLOY_TARGET_SSH_KEY is required"; exit 1; }
-  - apk add --no-cache openssh-client bash tar gzip
-  - export TARGET_TAG="${DEPLOY_TAG:-}"
-  - eval "$(ssh-agent -s)"
-  - mkdir -p ~/.ssh
-  - chmod 700 ~/.ssh
-  - printf '%s\n' "$DEPLOY_TARGET_SSH_KEY" | tr -d '\r' | ssh-add -
-  - |
-    if [ -n "${DEPLOY_TARGET_SSH_KNOWN_HOSTS:-}" ]; then
-      printf '%s\n' "$DEPLOY_TARGET_SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
-    else
-      echo "ERROR: DEPLOY_TARGET_SSH_KNOWN_HOSTS is not set." >&2
-      exit 1
-    fi
-  - chmod 644 ~/.ssh/known_hosts
-  - ./infra/ops/build-deploy-bundle.sh "${CI_PROJECT_DIR}/deploy-bundle.tgz"
-  - ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "mkdir -p '${DEPLOY_TARGET_APP_DIR}'"
-  - scp -P "${DEPLOY_TARGET_PORT:-22}" "${CI_PROJECT_DIR}/deploy-bundle.tgz" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${DEPLOY_TARGET_APP_DIR}/deploy-bundle.tgz"
-  - |
-    ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "
-      set -euo pipefail &&
-      cd '${DEPLOY_TARGET_APP_DIR}' &&
-      tar xzf deploy-bundle.tgz &&
-      rm -f deploy-bundle.tgz &&
-      TAG='${TARGET_TAG}' ROLLBACK_TAG='${TARGET_TAG}' ./infra/ops/remote-prod-rollback.sh
-    "

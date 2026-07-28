@@ -321,9 +321,9 @@
                 <button
                   :data-testid="`review-like-${r.id}`"
                   class="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-full text-sm text-text-muted transition-colors duration-fast hover:text-vote-up hover:bg-vote-up/10"
-                  :class="reviewVotes[r.id] === 'like' ? '!text-vote-up-active !bg-vote-up/12' : ''"
+                  :class="currentUserVote(r) === 'like' ? '!text-vote-up-active !bg-vote-up/12' : ''"
                   :aria-label="t('review.vote.like')"
-                  :aria-pressed="reviewVotes[r.id] === 'like'"
+                  :aria-pressed="currentUserVote(r) === 'like'"
                   :title="t('review.vote.like')"
                   @click="handleVote(r, 'like')"
                 >
@@ -333,9 +333,9 @@
                 <button
                   :data-testid="`review-dislike-${r.id}`"
                   class="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-full text-sm text-text-muted transition-colors duration-fast hover:text-vote-down hover:bg-vote-down/10"
-                  :class="reviewVotes[r.id] === 'dislike' ? '!text-vote-down-active !bg-vote-down/12' : ''"
+                  :class="currentUserVote(r) === 'dislike' ? '!text-vote-down-active !bg-vote-down/12' : ''"
                   :aria-label="t('review.vote.dislike')"
-                  :aria-pressed="reviewVotes[r.id] === 'dislike'"
+                  :aria-pressed="currentUserVote(r) === 'dislike'"
                   :title="t('review.vote.dislike')"
                   @click="handleVote(r, 'dislike')"
                 >
@@ -430,7 +430,7 @@
       <!-- Moderation Dialog -->
       <ModerationDialog
         :visible="showModerationDialog"
-        :review-i-d="moderatingReviewID"
+        :submitting="moderationSubmitting"
         @confirm="handleModerate"
         @close="showModerationDialog = false"
       />
@@ -440,6 +440,7 @@
         v-if="editingReview"
         :visible="showEditDialog"
         :review="editingReview"
+        :submitting="editSubmitting"
         @confirm="handleAdminEdit"
         @close="showEditDialog = false"
       />
@@ -594,7 +595,7 @@ function selectTeacher(teacher: { teacherID: number | null }) {
 
 // ── Voting state (per-review) ──
 const {
-  reviewVotes,
+  currentUserVote,
   displayLikeCount,
   displayDislikeCount,
   handleVote,
@@ -620,8 +621,9 @@ const {
   canManageReviews,
   showModerationDialog,
   showEditDialog,
-  moderatingReviewID,
   editingReview,
+  moderationSubmitting,
+  editSubmitting,
   openModeration,
   openEdit,
   handleModerate,

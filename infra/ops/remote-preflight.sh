@@ -77,7 +77,7 @@ docker compose version >/dev/null
 # 备份脚本已容器化，不再依赖宿主机 pg_dump，但需要确保容器镜像中包含这些工具
 log "正在校验 postgres 容器内备份工具可用性..."
 
-pg_image="postgres:${POSTGRES_VERSION:-18.3-alpine}"
+pg_image="${POSTGRES_IMAGE_REF:-postgres:18.3-alpine@sha256:54451ecb8ab38c24c3ec123f2fd501303a3a1856a5c66e98cecf2460d5e1e9d7}"
 
 # 检查 pg_dump 存在且可执行
 if ! docker run --rm "${pg_image}" which pg_dump >/dev/null 2>&1; then

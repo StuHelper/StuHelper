@@ -1,8 +1,21 @@
 <script setup lang="ts">
 import { onLaunch, onShow } from '@dcloudio/uni-app'
+import { onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 
 const authStore = useAuthStore()
+
+function handleH5KeyboardActivation(event: KeyboardEvent) {
+  if (event.defaultPrevented || event.repeat) return
+  if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return
+  if (!(event.target instanceof Element)) return
+
+  const target = event.target.closest<HTMLElement>('.a11y-button[role="button"]')
+  if (!target || target.getAttribute('aria-disabled') === 'true') return
+
+  event.preventDefault()
+  target.click()
+}
 
 function bootstrapAuthSession(): void {
   void authStore.bootstrapSession().catch((error) => {
@@ -78,6 +91,18 @@ onShow(() => {
     }
   }
 })
+
+onMounted(() => {
+  if (typeof document !== 'undefined') {
+    document.addEventListener('keydown', handleH5KeyboardActivation, true)
+  }
+})
+
+onUnmounted(() => {
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('keydown', handleH5KeyboardActivation, true)
+  }
+})
 </script>
 
 <template>
@@ -90,5 +115,12 @@ onShow(() => {
 page {
   background-color: #f8fafc;
   color: #0f172a;
+}
+
+.a11y-button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #4f46e5;
+  outline-offset: 3px;
 }
 </style>

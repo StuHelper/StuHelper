@@ -355,6 +355,7 @@ type GetCourseReviewsParams struct {
 	Sort      string // time, likes, rating
 	TermID    string
 	TeacherID *int64
+	UserHash  string
 }
 
 // GetCourseReviewsResult 获取课程评论结果
@@ -399,6 +400,9 @@ func (s *Service) GetCourseReviews(ctx context.Context, params GetCourseReviewsP
 	if err != nil {
 		return nil, err
 	}
+	if err := s.populateUserVotes(ctx, params.UserHash, list); err != nil {
+		return nil, err
+	}
 
 	return &GetCourseReviewsResult{List: list, Total: total}, nil
 }
@@ -408,6 +412,7 @@ type GetBatchCourseReviewsParams struct {
 	CourseIDs []int64
 	PageSize  int
 	Sort      string
+	UserHash  string
 }
 
 // BatchCourseReviewsResult 批量课程测评结果（按课程ID分组）
@@ -438,6 +443,9 @@ func (s *Service) GetBatchCourseReviews(ctx context.Context, params GetBatchCour
 	if err != nil {
 		return nil, err
 	}
+	if err := s.populateGroupedUserVotes(ctx, params.UserHash, reviews); err != nil {
+		return nil, err
+	}
 	return &BatchCourseReviewsResult{Reviews: reviews, Totals: totals}, nil
 }
 
@@ -456,6 +464,7 @@ type GetLatestReviewsParams struct {
 	PageSize  int
 	Sort      string
 	TeacherID *int64
+	UserHash  string
 }
 
 // GetLatestReviews 获取最新评论列表
@@ -478,6 +487,9 @@ func (s *Service) GetLatestReviews(ctx context.Context, params GetLatestReviewsP
 	if err != nil {
 		return nil, err
 	}
+	if err := s.populateUserVotes(ctx, params.UserHash, list); err != nil {
+		return nil, err
+	}
 
 	return &GetCourseReviewsResult{List: list, Total: total}, nil
 }
@@ -491,6 +503,7 @@ type SearchReviewsParams struct {
 	Page         int
 	PageSize     int
 	Sort         string
+	UserHash     string
 }
 
 // SearchReviews 搜索测评列表
@@ -507,6 +520,9 @@ func (s *Service) SearchReviews(ctx context.Context, params SearchReviewsParams)
 		Offset:       offset,
 	})
 	if err != nil {
+		return nil, err
+	}
+	if err := s.populateUserVotes(ctx, params.UserHash, list); err != nil {
 		return nil, err
 	}
 

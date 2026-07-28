@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
+import A11yButton from '@/components/A11yButton.vue'
 import { persistSSOState } from '@/auth/sso-state'
 import { api } from '@/api'
 import { unwrapData } from '@/api/result'
@@ -76,9 +77,9 @@ async function handleSSOLogin() {
       <text class="title">{{ t('auth.login.title') }}</text>
       <text class="subtitle">{{ t('auth.login.subtitle') }}</text>
 
-      <button class="primary-btn" :disabled="ssoLoading" @tap="handleSSOLogin">
+      <A11yButton class="primary-btn" :disabled="ssoLoading" @tap="handleSSOLogin">
         {{ ssoLoading ? t('auth.login.preparingSso') : t('auth.login.useSso') }}
-      </button>
+      </A11yButton>
 
       <text class="tips">{{ t('auth.login.tips') }}</text>
     </view>

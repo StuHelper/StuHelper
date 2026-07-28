@@ -42,16 +42,42 @@ func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 	seedReviewWithRatings(t, fixture, "review-read-1", courseID, teacherID, "u-read-1", 4.5, StatusPublished, ReviewRatings{"teaching": 5, "difficulty": 4}, "数据库真不错", "内容一")
 	seedReviewWithRatings(t, fixture, "review-read-2", otherCourseID, teacherID, "u-read-2", 4.0, StatusPublished, ReviewRatings{"teaching": 4, "difficulty": 4}, "分布式很赞", "内容二")
 	seedReviewWithRatings(t, fixture, "review-read-other-teacher", thirdCourseID, otherTeacherID, "u-read-other", 4.1, StatusPublished, ReviewRatings{"teaching": 4, "difficulty": 4}, "其他教师评论", "内容三")
+	_, err := fixture.Pool.Exec(ctx, `
+		INSERT INTO review_votes (id, review_id, user_hash, vote_type)
+		VALUES ('vote-read-current-user', 'review-read-1', 'u-current-reader', 'like')
+	`)
+	require.NoError(t, err)
 
 	courseReviews, err := svc.GetCourseReviews(ctx, GetCourseReviewsParams{CourseID: courseID, Page: 1, PageSize: 10, Sort: SortTime})
 	require.NoError(t, err)
 	require.Len(t, courseReviews.List, 1)
 	assert.Equal(t, "review-read-1", courseReviews.List[0].ID)
+	assert.Nil(t, courseReviews.List[0].UserVote)
 
-	batched, err := svc.GetBatchCourseReviews(ctx, GetBatchCourseReviewsParams{CourseIDs: []int64{courseID, otherCourseID}, PageSize: 5, Sort: SortTime})
+	courseReviewsWithVote, err := svc.GetCourseReviews(ctx, GetCourseReviewsParams{
+		CourseID: courseID,
+		Page:     1,
+		PageSize: 10,
+		Sort:     SortTime,
+		UserHash: "u-current-reader",
+	})
+	require.NoError(t, err)
+	require.Len(t, courseReviewsWithVote.List, 1)
+	require.NotNil(t, courseReviewsWithVote.List[0].UserVote)
+	assert.Equal(t, voteTypeLike, *courseReviewsWithVote.List[0].UserVote)
+
+	batched, err := svc.GetBatchCourseReviews(ctx, GetBatchCourseReviewsParams{
+		CourseIDs: []int64{courseID, otherCourseID},
+		PageSize:  5,
+		Sort:      SortTime,
+		UserHash:  "u-current-reader",
+	})
 	require.NoError(t, err)
 	assert.Len(t, batched.Reviews[courseID], 1)
 	assert.Len(t, batched.Reviews[otherCourseID], 1)
+	require.NotNil(t, batched.Reviews[courseID][0].UserVote)
+	assert.Equal(t, voteTypeLike, *batched.Reviews[courseID][0].UserVote)
+	assert.Nil(t, batched.Reviews[otherCourseID][0].UserVote)
 
 	exists, err := svc.CheckCourseExists(ctx, courseID)
 	require.NoError(t, err)

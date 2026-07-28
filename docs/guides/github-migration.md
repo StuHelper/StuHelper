@@ -51,9 +51,9 @@ last-verified: 2026-07-28
 |--------|------|------------|
 | `CI` | PR、`develop`/`main` push、手工 | PR 只读；按路径选择 Go、契约、前端、E2E、Koishi、Infra、Semgrep 和完整历史 secret scan |
 | `CodeQL` | PR、push、每周、手工 | Go 与 JavaScript/TypeScript 代码扫描 |
-| `Publish images` | 受信任 push 的 `CI` 成功后 | 仅此工作流拥有 `packages: write` 和 attestation 权限；发布不可变 SHA tag |
-| `Deploy` | 手工 | 使用受保护 environment 的 SSH secrets 部署指定 40 位 commit SHA |
-| `Rollback` | 手工 | 使用同一 environment 锁回滚到已存在的不可变镜像 tag |
+| `Publish images` | 受信任 push 的 `CI` 全部成功后 | 构建一次、扫描同一镜像、发布不可变 SHA tag，并为最终 digest 签发 provenance |
+| `Deploy` | 手工 | 验证指定 40 位 commit SHA、发布工作流身份、源分支、源提交和镜像 digest 后部署 |
+| `Rollback` | 手工 | 使用同一 environment 锁回滚到经过相同 provenance 校验的 40 位 commit SHA |
 
 所有外部 Action 必须固定到完整 commit SHA，并在注释中保留对应主版本。公开 fork 的 PR 不得使用 `pull_request_target` 检出或运行不受信任代码。
 
@@ -70,7 +70,7 @@ last-verified: 2026-07-28
 3. 只允许 GitHub 官方 Action和仓库中已固定 SHA 的允许列表；
 4. 保留 fork PR 的 secrets 禁用状态。
 
-`Publish images` 在 job 级显式申请 `packages: write`，其余工作流不应继承写权限。
+`Publish images` 在 job 级显式申请 `packages: write`、`attestations: write` 和 `id-token: write`。Deploy 与 Rollback 仅申请 `packages: read` 和 `attestations: read`；其他工作流不继承这些权限。
 
 ### 免费额度与预算护栏
 
@@ -99,7 +99,7 @@ last-verified: 2026-07-28
 
 `production` 至少配置 required reviewers、禁止管理员绕过和仅允许 `main` 分支部署。`staging` 仅允许 `develop` 和 `main`。
 
-SSH known_hosts 必须预先固定真实 host public key；工作流不允许运行时 `ssh-keyscan` 或 TOFU。
+SSH known_hosts 必须预先固定真实 host public key，且条目必须与 `DEPLOY_HOST` 和 `DEPLOY_PORT` 对应；工作流不允许运行时 `ssh-keyscan` 或 TOFU。部署主机使用 DNS 名称或规范 IPv4 地址，部署用户使用规范 Linux 账号名，应用目录使用不含软解析片段的绝对路径。
 
 ### Repository variables
 
@@ -151,7 +151,7 @@ GitHub 原生检测不能替代仓库内的完整历史 Gitleaks 门禁：两者
 - `ghcr.io/stuhelper/frontend:<full-commit-sha>`
 - `ghcr.io/stuhelper/admin:<full-commit-sha>`
 
-`develop-latest` 和 `latest` 只用于人类识别；部署与回滚必须使用不可变的完整 commit SHA tag。首次推送后确认三个 package 都关联到 `StuHelper/StuHelper`，并根据公开部署策略设置 package visibility。
+`develop-latest` 和 `latest` 只用于人类识别。部署与回滚输入必须是完整 commit SHA；工作流先把对应 tag 解析为 manifest digest，再验证 `StuHelper/StuHelper/.github/workflows/publish-images.yml` 签发的 provenance、源 commit、源 branch 和 GitHub-hosted runner 身份，最终只向远端传递 `image@sha256:...`。首次推送后确认三个 package 都关联到 `StuHelper/StuHelper`，并根据公开部署策略设置 package visibility。
 
 远端部署脚本当前仍执行 registry login。迁移 GHCR 时，需要在远端 secret backend 中配置独立、最小 `read:packages` 读取凭据，不能复用个人日常登录凭据。
 

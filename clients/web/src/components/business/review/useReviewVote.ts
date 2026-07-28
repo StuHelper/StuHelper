@@ -2,16 +2,16 @@
  * 管理单条评测的投票状态、乐观更新与反馈动画。
  */
 import { ref, computed, watch, onScopeDispose } from 'vue'
-import type { Review } from '@stuhelper/shared/review'
-import { api } from '@/api'
-import { getErrorMessage } from '@/api/errors'
-import { useToast } from '@/composables/useToast'
 import {
   applyOptimisticVote,
   createReviewVoteState,
   getDisplayVoteCount,
+  type Review,
   type VoteType,
-} from './reviewVoteState'
+} from '@stuhelper/shared/review'
+import { api } from '@/api'
+import { getErrorMessage } from '@/api/errors'
+import { useToast } from '@/composables/useToast'
 
 export function useReviewVote(
   reviewGetter: () => Review,
@@ -19,7 +19,7 @@ export function useReviewVote(
 ) {
   const toast = useToast()
 
-  const userVote = ref<VoteType | null>(null)
+  const userVote = ref<VoteType | null>(reviewGetter().userVote ?? null)
   const isVoting = ref(false)
   const likeOffset = ref(0)
   const dislikeOffset = ref(0)
@@ -34,10 +34,10 @@ export function useReviewVote(
   )
 
   // 评测数据刷新后，重置本地投票偏移量
-  watch(reviewGetter, () => {
+  watch(reviewGetter, (review) => {
     likeOffset.value = 0
     dislikeOffset.value = 0
-    userVote.value = null
+    userVote.value = review.userVote ?? null
   })
 
   // 清理动画定时器

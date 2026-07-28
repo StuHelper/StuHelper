@@ -279,18 +279,22 @@ make prod-rollback
 - staging：`rollback_staging`
 - production：`rollback_production`
 
-可选变量：
+必填变量：
 
 ```text
-ROLLBACK_TAG=<previous-stable-tag-or-sha>
+ROLLBACK_SHA=<previous-release-full-40-character-commit-sha>
 ```
 
 回滚 Job 会：
 
-1. SSH 到远端部署机
-2. 读取目标机 `.deploy/remote.env`
-3. 如果传了 `ROLLBACK_TAG`，按它执行；否则自动回滚到上一条成功发布记录
-4. 自动再次运行 smoke checks
+1. 校验目标环境、SSH endpoint 和完整 commit SHA
+2. 把 registry 中三个 `<full-sha>` tag 分别解析成不可变镜像 digest
+3. SSH 到远端部署机，并只传递已校验的 digest 引用
+4. 读取目标机 `.deploy/remote.env`，执行回滚
+5. 自动再次运行业务与可观测性 smoke checks
+
+GitLab 手工 Job 不接受 `latest`、短 SHA 或任意业务 tag。仓库本地的 `make prod-rollback`
+仍可按上节规则读取上一条成功发布记录，二者不要混淆。
 
 ### 应用 + 数据库回滚（存在破坏性迁移）
 

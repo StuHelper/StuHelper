@@ -147,7 +147,8 @@ make prod-deploy
 - 目标机自持 Vault token 文件：
   - `${DEPLOY_APP_DIR}/.secrets/vault/token`
 - registry / shared env / generated env secrets 都由 `${DEPLOY_APP_DIR}/.deploy/remote.env` 中的 secret ref 决定（默认 `SECRET_BACKEND=vault-kv-v2`）
-- CI / Ansible 仅传：`TAG`、`BACKEND_IMAGE_REF`、`FRONTEND_IMAGE_REF`、`ADMIN_IMAGE_REF`、`ROLLBACK_TAG`
+- CI / Ansible 仅传发布标识与镜像引用；GitLab/GitHub CI 传完整 commit SHA 和三个
+  `image@sha256:...` 引用，仓库本地/Ansible 兼容链路仍可使用 `TAG` / `ROLLBACK_TAG`
 
 如果远端部署控制面变更，直接在目标机执行：
 
@@ -304,16 +305,18 @@ GitLab 提供两个手工 Job：
 
 可以传：
 
-- `ROLLBACK_TAG=<之前已推送过的镜像 tag>`
+- `ROLLBACK_SHA=<之前已发布版本的完整 40 位 commit SHA>`（必填）
 
-如果不传，远端会优先回滚到 `.deploy/releases.log` 里记录的上一条成功版本。
+GitLab 手工回滚不接受可变 tag、短 SHA 或空值；本地 `make prod-rollback` 才会在未传
+`ROLLBACK_TAG` 时尝试读取 `.deploy/releases.log` 的上一条成功版本。
 
 回滚本质上是：
 
-1. 远端读取 `.deploy/remote.env`
-2. 远端重新拉取指定 tag 的 backend / frontend / admin 镜像
-3. 重新执行 `infra/ops/remote-prod-rollback.sh`
-4. 自动再次跑 smoke check
+1. CI 把三个完整 SHA tag 解析并校验为不可变 digest 引用
+2. 远端读取 `.deploy/remote.env`
+3. 远端按三个 digest 拉取 backend / frontend / admin 镜像
+4. 重新执行 `infra/ops/remote-prod-rollback.sh`
+5. 自动再次跑业务与可观测性 smoke check
 
 仓库内也保留了本地生产回滚命令：
 

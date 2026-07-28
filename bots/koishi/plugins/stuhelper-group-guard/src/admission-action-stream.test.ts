@@ -4,7 +4,10 @@ import type { Context } from 'koishi'
 
 import type { PlatformClient } from '@stuhelper/koishi-shared'
 
-import { registerAdmissionActionStreams } from './admission-action-stream'
+import {
+  admissionActionReconnectDelayMs,
+  registerAdmissionActionStreams,
+} from './admission-action-stream'
 import type { MemberGuardService } from './member-guard'
 
 test('admission action stream can be opened and closed by runtime setting without restart', async () => {
@@ -106,11 +109,55 @@ test('admission action stream reconnects after stream disconnects', async () => 
   assert.equal(opened.length, 1)
 
   onError?.(new Error('stream closed'))
+  onError?.(new Error('duplicate stream error'))
   await waitFor(() => opened.length > 1)
 
   assert.equal(opened.length, 2)
 
   controller.close()
+})
+
+test('admission action stream retries after a transient runtime setting failure', async () => {
+  const opened: unknown[] = []
+  let settingsReads = 0
+  const controller = registerAdmissionActionStreams(fakeContext(), {
+    platform: {
+      streamAdmissionActions(input) {
+        opened.push(input)
+        return {
+          close() {},
+        }
+      },
+    } as unknown as PlatformClient,
+    memberGuard: {} as MemberGuardService,
+    logger: fakeLogger(),
+    config: {
+      reconnectDelaySeconds: 1,
+    },
+    isEnabled: () => {
+      settingsReads += 1
+      if (settingsReads === 1) {
+        throw new Error('database unavailable')
+      }
+      return true
+    },
+  })
+
+  await controller.refresh()
+  assert.equal(opened.length, 0)
+  await waitFor(() => opened.length > 0)
+
+  assert.equal(opened.length, 1)
+  assert.equal(settingsReads, 2)
+  controller.close()
+})
+
+test('admission action stream reconnect delay is bounded exponential backoff with jitter', () => {
+  assert.equal(admissionActionReconnectDelayMs(5, 0, () => 0), 5_000)
+  assert.equal(admissionActionReconnectDelayMs(5, 0, () => 1), 6_000)
+  assert.equal(admissionActionReconnectDelayMs(5, 1, () => 0), 8_000)
+  assert.equal(admissionActionReconnectDelayMs(5, 1, () => 0.5), 10_000)
+  assert.equal(admissionActionReconnectDelayMs(5, 100, () => 1), 300_000)
 })
 
 function fakeContext() {

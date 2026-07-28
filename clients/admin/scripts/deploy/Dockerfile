@@ -1,5 +1,5 @@
-ARG NODE_IMAGE=node:22-slim
-ARG NGINX_IMAGE=nginx:stable-alpine
+ARG NODE_IMAGE=node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d
+ARG NGINX_IMAGE=nginx:1.30.4-alpine@sha256:97d490c12ba55b4946b01546d1c3ed324e8d41ab1c9fcb2a616aa470620e5b46
 
 FROM ${NODE_IMAGE} AS builder
 
@@ -9,6 +9,7 @@ ENV PATH="$PNPM_HOME:$PATH"
 ENV NODE_OPTIONS=--max-old-space-size=8192
 ENV TZ=Asia/Shanghai
 ENV CI=true
+ENV TURBO_TELEMETRY_DISABLED=1
 ARG VITE_GLOB_API_URL=/api/v1
 ARG VITE_BASE=/admin/
 ENV VITE_GLOB_API_URL=${VITE_GLOB_API_URL}
@@ -30,8 +31,6 @@ RUN --mount=type=cache,id=pnpm-admin,target=/pnpm/store pnpm --dir admin install
 RUN pnpm --dir admin --filter @vben/vite-config stub
 RUN pnpm --dir admin build:ele
 
-RUN echo "Builder Success 🎉"
-
 FROM ${NGINX_IMAGE} AS production
 
 # 配置 nginx
@@ -49,5 +48,6 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:8080/ || exit 1
 
-# 启动 nginx
+USER nginx
+
 CMD ["nginx", "-g", "daemon off;"]

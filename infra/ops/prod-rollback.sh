@@ -5,6 +5,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
 
+requested_backend_image_ref="${ROLLBACK_BACKEND_IMAGE_REF:-}"
+requested_frontend_image_ref="${ROLLBACK_FRONTEND_IMAGE_REF:-}"
+requested_admin_image_ref="${ROLLBACK_ADMIN_IMAGE_REF:-}"
+
 load_env
 
 current_tag="${TAG:-}"
@@ -30,6 +34,14 @@ print(f"{image}:{tag}")
 PY
 }
 
+override_count=0
+[[ -n "${requested_backend_image_ref}" ]] && ((override_count += 1))
+[[ -n "${requested_frontend_image_ref}" ]] && ((override_count += 1))
+[[ -n "${requested_admin_image_ref}" ]] && ((override_count += 1))
+if ((override_count != 0 && override_count != 3)); then
+  die "rollback image override requires backend, frontend, and admin digest references together"
+fi
+
 if [[ -z "${target_tag}" ]]; then
   target_tag="$(resolve_previous_release_tag "${current_tag:-}")" || die "unable to resolve previous release tag; set ROLLBACK_TAG manually"
 fi
@@ -42,6 +54,12 @@ else
   BACKEND_IMAGE_REF="$(derive_tagged_image_ref "${BACKEND_IMAGE_REF:-}" "${target_tag}" || true)"
   FRONTEND_IMAGE_REF="$(derive_tagged_image_ref "${FRONTEND_IMAGE_REF:-}" "${target_tag}" || true)"
   ADMIN_IMAGE_REF="$(derive_tagged_image_ref "${ADMIN_IMAGE_REF:-}" "${target_tag}" || true)"
+fi
+
+if ((override_count == 3)); then
+  BACKEND_IMAGE_REF="${requested_backend_image_ref}"
+  FRONTEND_IMAGE_REF="${requested_frontend_image_ref}"
+  ADMIN_IMAGE_REF="${requested_admin_image_ref}"
 fi
 
 [[ -n "${BACKEND_IMAGE_REF:-}" ]] || die "missing BACKEND_IMAGE_REF for rollback target ${target_tag}; deploy that release once with the new immutable-image flow or set it explicitly"

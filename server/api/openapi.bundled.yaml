@@ -4556,10 +4556,8 @@ paths:
         - name: voteType
           in: query
           schema:
-            type: string
-            enum:
-              - like
-              - dislike
+            allOf:
+              - $ref: '#/components/schemas/VoteType'
             default: like
       responses:
         '200':
@@ -9148,6 +9146,9 @@ components:
           type: integer
         dislikeCount:
           type: integer
+        userVote:
+          $ref: '#/components/schemas/VoteType'
+          description: 当前已认证用户对该测评的投票；匿名或未投票时省略
         replyCount:
           type: integer
         status:
@@ -9182,6 +9183,14 @@ components:
         minimum: 1
         maximum: 5
       description: Map of dimension key to rating value (1-5)
+    VoteType:
+      type: string
+      enum:
+        - like
+        - dislike
+      x-enum-varnames:
+        - VoteTypeLike
+        - VoteTypeDislike
     PostReviewRequest:
       type: object
       required:
@@ -9260,10 +9269,7 @@ components:
         - voteType
       properties:
         voteType:
-          type: string
-          enum:
-            - like
-            - dislike
+          $ref: '#/components/schemas/VoteType'
     ReportReviewRequest:
       type: object
       required:

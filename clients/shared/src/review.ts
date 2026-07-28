@@ -7,9 +7,14 @@ export type {
 export type {
   PaginatedResult,
   ReviewContentCheck,
+  ReviewVoteState,
+  VoteType,
 } from './presentation/review'
 
 export {
+  applyOptimisticVote,
+  createReviewVoteState,
+  getDisplayVoteCount,
   isValidRatings,
   normalizeContentCheck,
 } from './presentation/review'

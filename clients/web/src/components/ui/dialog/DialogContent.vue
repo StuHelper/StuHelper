@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from 'vue'
-import { computed, inject, useAttrs } from 'vue'
+import { computed, inject, ref, useAttrs } from 'vue'
 import { X } from 'lucide-vue-next'
 
+import { useDialogFocus } from '@/composables/useDialogFocus'
 import { dialogContextKey } from './context'
 
 defineOptions({
@@ -15,17 +16,37 @@ const props = defineProps<{
 const dialog = inject(dialogContextKey)
 const attrs = useAttrs()
 const open = computed(() => dialog?.open.value ?? false)
+const contentRef = ref<HTMLElement | null>(null)
+const labelledBy = computed(() => {
+  if (attrs['aria-label'] || attrs['aria-labelledby']) {
+    return attrs['aria-labelledby'] as string | undefined
+  }
+  return dialog?.titleId
+})
+const describedBy = computed(() => {
+  if (attrs['aria-describedby']) {
+    return attrs['aria-describedby'] as string
+  }
+  return dialog?.descriptionId
+})
 
 function closeDialog(): void {
   dialog?.setOpen(false)
 }
+
+const { handleKeydown } = useDialogFocus({
+  close: closeDialog,
+  dialogRef: contentRef,
+  open,
+})
 </script>
 
 <template>
   <Teleport to="body">
-    <div v-if="open" class="fixed inset-0 z-50" @keydown.esc="closeDialog">
-      <div class="fixed inset-0 bg-black/45" @click="closeDialog" />
+    <div v-if="open" class="fixed inset-0 z-50">
+      <div class="fixed inset-0 bg-black/45" aria-hidden="true" @click="closeDialog" />
       <div
+        ref="contentRef"
         v-bind="attrs"
         :class="[
           'fixed left-1/2 top-1/2 z-50 grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4',
@@ -34,8 +55,11 @@ function closeDialog(): void {
         ]"
         role="dialog"
         aria-modal="true"
+        :aria-labelledby="labelledBy"
+        :aria-describedby="describedBy"
         tabindex="-1"
         @click.stop
+        @keydown="handleKeydown"
       >
         <slot />
         <button

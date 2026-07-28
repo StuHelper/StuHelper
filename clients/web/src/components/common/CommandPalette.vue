@@ -12,15 +12,16 @@
           role="dialog"
           aria-modal="true"
           :aria-label="t('nav.searchCoursePlaceholder')"
-          @keydown="trapFocus"
+          tabindex="-1"
+          @keydown="handleKeydown"
         >
           <div class="flex items-center gap-3 px-5 py-4 border-b border-border-light">
             <Search class="text-text-muted shrink-0" :size="20" />
             <input
-              ref="inputRef"
               v-model="searchQuery"
               class="flex-1 border-none outline-none bg-transparent text-lg font-sans text-text-primary placeholder:text-text-muted"
               :placeholder="t('nav.searchCoursePlaceholder')"
+              autofocus
               role="combobox"
               :aria-expanded="results.length > 0 ? 'true' : 'false'"
               aria-haspopup="listbox"
@@ -29,7 +30,6 @@
               @keydown.down.prevent="moveDown"
               @keydown.up.prevent="moveUp"
               @keydown.enter.prevent="selectCurrent"
-              @keydown.esc="close"
             />
             <kbd class="font-sans text-xs py-px px-2 bg-bg-tertiary rounded text-text-muted shrink-0">ESC</kbd>
           </div>
@@ -96,11 +96,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onUnmounted } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Search, Clock } from 'lucide-vue-next'
 import { useCommandPalette } from '@/composables/useCommandPalette'
+import { useBodyScrollLock } from '@/composables/useBodyScrollLock'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 import { api } from '@/api'
 import {
   readCourseListPayload,
@@ -114,7 +116,6 @@ const { t } = useI18n()
 const router = useRouter()
 const { isOpen, searchQuery, close } = useCommandPalette()
 
-const inputRef = ref<HTMLInputElement | null>(null)
 const modalRef = ref<HTMLElement | null>(null)
 
 type PaletteResult =
@@ -138,8 +139,12 @@ const loading = ref(false)
 const searchError = ref('')
 const activeIndex = ref(0)
 
-// 保存打开前的 body overflow 原始值，关闭时恢复而非无条件置空
-let savedBodyOverflow = ''
+useBodyScrollLock(isOpen)
+const { handleKeydown } = useDialogFocus({
+  close,
+  dialogRef: modalRef,
+  open: isOpen,
+})
 
 const RECENT_KEY = 'recent-searches'
 // 最大搜索历史条数常量化
@@ -182,22 +187,6 @@ function teacherResult(teacher: TeacherSummaryPayload): PaletteResult {
     name: teacher.teacherName,
     detail: teacher.departmentName ?? '',
     badge: t('nav.teacher'),
-  }
-}
-
-// 焦点陷阱：Tab/Shift+Tab 在对话框内循环
-function trapFocus(e: KeyboardEvent) {
-  if (e.key !== 'Tab' || !modalRef.value) return
-  const focusable = modalRef.value.querySelectorAll<HTMLElement>(
-    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-  )
-  if (focusable.length === 0) return
-  const first = focusable[0]
-  const last = focusable[focusable.length - 1]
-  if (e.shiftKey) {
-    if (document.activeElement === first) { e.preventDefault(); last.focus() }
-  } else {
-    if (document.activeElement === last) { e.preventDefault(); first.focus() }
   }
 }
 
@@ -297,21 +286,11 @@ onUnmounted(() => {
   // 清理 timer 后置空
   if (searchTimer) { clearTimeout(searchTimer); searchTimer = null }
   if (searchController) { searchController.abort(); searchController = undefined }
-  // 组件卸载时恢复 body overflow，防止路由切换后滚动被锁定
-  if (isOpen.value) {
-    document.body.style.overflow = savedBodyOverflow
-    isOpen.value = false
-  }
+  if (isOpen.value) close()
 })
 
 watch(isOpen, (val) => {
-  if (val) {
-    // 保存当前 overflow 值，避免关闭时覆盖其他模态框的滚动锁定
-    savedBodyOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    nextTick(() => inputRef.value?.focus())
-  } else {
-    document.body.style.overflow = savedBodyOverflow
+  if (!val) {
     // 关闭时清理搜索 timer 和 inflight 请求
     if (searchTimer) { clearTimeout(searchTimer); searchTimer = null }
     if (searchController) { searchController.abort(); searchController = undefined }

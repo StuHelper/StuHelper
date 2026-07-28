@@ -10,10 +10,9 @@ import {
   applyOptimisticVote,
   createReviewVoteState,
   getDisplayVoteCount,
+  type Review,
   type VoteType,
-} from '@/components/business/review/reviewVoteState'
-
-import type { Review } from '@stuhelper/shared/review'
+} from '@stuhelper/shared/review'
 
 export function useReviewVoting() {
   const { t } = useI18n()
@@ -34,6 +33,13 @@ export function useReviewVoting() {
     return getDisplayVoteCount(r.dislikeCount, dislikeOffsets[r.id] ?? 0)
   }
 
+  function currentUserVote(r: Review): VoteType | null {
+    if (Object.prototype.hasOwnProperty.call(reviewVotes, r.id)) {
+      return reviewVotes[r.id] ?? null
+    }
+    return r.userVote ?? null
+  }
+
   async function handleVote(r: Review, type: VoteType) {
     if (!authStore.bootstrapCompleted) {
       await authStore.bootstrapSession()
@@ -51,7 +57,7 @@ export function useReviewVoting() {
 
     const id = r.id
     const previousState = createReviewVoteState({
-      userVote: reviewVotes[id] ?? null,
+      userVote: currentUserVote(r),
       likeOffset: likeOffsets[id] ?? 0,
       dislikeOffset: dislikeOffsets[id] ?? 0,
     })
@@ -75,6 +81,7 @@ export function useReviewVoting() {
 
   return {
     reviewVotes,
+    currentUserVote,
     displayLikeCount,
     displayDislikeCount,
     handleVote,

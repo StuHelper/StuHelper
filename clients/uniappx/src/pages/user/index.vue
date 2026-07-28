@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
+import A11yButton from '@/components/A11yButton.vue'
 import { api } from '@/api'
 import type { components } from '@/api'
 import { unwrapOptionalData } from '@/api/result'
@@ -11,8 +12,10 @@ import { useAuthStore } from '@/stores/auth'
 const authStore = useAuthStore()
 const t = translate
 const loading = ref(false)
+const logoutLoading = ref(false)
 const surface = ref<components['schemas']['UserSurface'] | null>(null)
 const menus = computed(() => getUserMenuItems())
+let surfaceLoadPromise: Promise<void> | null = null
 
 const verificationSummary = computed(() => {
   if (!surface.value) return t('user.index.verification.unverified')
@@ -68,7 +71,7 @@ function goVerify(type: 'identity' | 'student') {
   // #endif
 }
 
-async function loadUserSurface() {
+async function performUserSurfaceLoad() {
   loading.value = true
   try {
     await authStore.bootstrapSession()
@@ -88,6 +91,14 @@ async function loadUserSurface() {
   }
 }
 
+function loadUserSurface(): Promise<void> {
+  if (surfaceLoadPromise) return surfaceLoadPromise
+  surfaceLoadPromise = performUserSurfaceLoad().finally(() => {
+    surfaceLoadPromise = null
+  })
+  return surfaceLoadPromise
+}
+
 function open(path: string) {
   if (!authStore.isAuthenticated) {
     uni.navigateTo({ url: `/pages/auth/login?redirect=${encodeURIComponent(path)}` })
@@ -97,6 +108,8 @@ function open(path: string) {
 }
 
 async function handleLogout() {
+  if (logoutLoading.value) return
+  logoutLoading.value = true
   try {
     await authStore.logout()
     surface.value = null
@@ -106,6 +119,8 @@ async function handleLogout() {
       title: error instanceof Error ? error.message : t('common.retryLater'),
       icon: 'none',
     })
+  } finally {
+    logoutLoading.value = false
   }
 }
 
@@ -125,17 +140,17 @@ onShow(() => {
           <text class="user-subtitle">{{ authStore.user?.email || t('user.index.subtitleGuest') }}</text>
         </view>
       </view>
-      <button
+      <A11yButton
         v-if="!authStore.isAuthenticated"
         class="login-btn"
         data-testid="uni-user-login"
         @tap="open('/pages/user/index')"
       >
         {{ t('user.index.loginNow') }}
-      </button>
-      <button v-else class="logout-btn" data-testid="uni-user-logout" @tap="handleLogout">
-        {{ t('user.index.logout') }}
-      </button>
+      </A11yButton>
+      <A11yButton v-else class="logout-btn" data-testid="uni-user-logout" :disabled="logoutLoading" @tap="handleLogout">
+        {{ logoutLoading ? t('common.processing') : t('user.index.logout') }}
+      </A11yButton>
     </view>
 
     <view v-if="loading" class="state-card"><text>{{ t('common.loading') }}</text></view>
@@ -143,25 +158,27 @@ onShow(() => {
     <view v-else class="section-card">
       <text class="section-title">{{ t('user.index.authOverview') }}</text>
       <view class="summary-row">
-        <view
+        <A11yButton
           class="summary-item"
           data-testid="uni-user-identity-summary"
+          :aria-disabled="identityVerified"
           @tap="!identityVerified && goVerify('identity')"
         >
           <text class="summary-label">{{ t('user.index.realName') }}</text>
           <text class="summary-value" :class="{ 'action-link': !identityVerified }">{{ identitySummary }}</text>
           <text v-if="!identityVerified" class="action-hint">{{ t('user.index.tapToVerify') }}</text>
-        </view>
-        <view
+        </A11yButton>
+        <A11yButton
           class="summary-item"
           data-testid="uni-user-student-summary"
+          :aria-disabled="!identityVerified || studentVerified"
           @tap="identityVerified && !studentVerified && goVerify('student')"
         >
           <text class="summary-label">{{ t('user.index.student') }}</text>
           <text class="summary-value" :class="{ 'action-link': identityVerified && !studentVerified }">{{ verificationSummary }}</text>
           <text v-if="identityVerified && !studentVerified" class="action-hint">{{ t('user.index.tapToVerify') }}</text>
           <text v-else-if="!identityVerified && !studentVerified" class="action-hint">{{ t('user.index.identityFirst') }}</text>
-        </view>
+        </A11yButton>
         <view class="summary-item" data-testid="uni-user-phone-summary">
           <text class="summary-label">{{ t('user.index.phone') }}</text>
           <text class="summary-value">
@@ -173,13 +190,13 @@ onShow(() => {
 
     <view class="section-card">
       <text class="section-title">{{ t('user.index.commonFeatures') }}</text>
-      <view v-for="item in menus" :key="item.path" class="menu-row" @tap="open(item.path)">
+      <A11yButton v-for="item in menus" :key="item.path" class="menu-row" @tap="open(item.path)">
         <view class="menu-main">
           <text class="menu-icon">{{ item.icon }}</text>
           <text class="menu-title">{{ item.title }}</text>
         </view>
         <text class="menu-arrow">›</text>
-      </view>
+      </A11yButton>
     </view>
   </scroll-view>
 </template>
@@ -283,10 +300,15 @@ onShow(() => {
 .summary-item,
 .menu-row {
   display: flex;
+  width: 100%;
   justify-content: space-between;
   align-items: center;
   padding: 22rpx 0;
+  border: 0;
   border-bottom: 1rpx solid #e2e8f0;
+  background: transparent;
+  text-align: left;
+  line-height: inherit;
 }
 
 .summary-item:last-child,

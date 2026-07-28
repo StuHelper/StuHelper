@@ -11,7 +11,7 @@
       
       <!-- 连接群聊按钮 -->
       <div class="connect-group-bar">
-        <button class="connect-btn" @click="showConnectDialog = true">
+        <button type="button" class="connect-btn" @click="showConnectDialog = true">
           <k-icon name="plus" /> 新建会话
         </button>
       </div>
@@ -20,15 +20,17 @@
         <div v-if="sessions.length === 0" class="empty-sessions">
           等待消息...
         </div>
-        <div
+        <button
           v-for="session in sessions"
           :key="session.key"
+          type="button"
           class="session-item"
           :class="{ active: currentSessionId === session.key }"
+          :aria-current="currentSessionId === session.key ? 'true' : undefined"
           @click="selectSession(session.key)"
         >
           <div class="session-icon">
-            <img v-if="session.avatar" :src="session.avatar" @error="handleAvatarError" />
+            <img v-if="session.avatar" :src="session.avatar" :alt="session.name" @error="handleAvatarError" />
             <k-icon v-else :name="session.type === 'group' ? 'users' : 'user'" />
           </div>
           <div class="session-info">
@@ -39,7 +41,7 @@
             <span class="time">{{ formatTimeShort(session.lastMessage?.timestamp) }}</span>
             <span class="badge" v-if="session.unread > 0">{{ session.unread }}</span>
           </div>
-        </div>
+        </button>
       </div>
     </div>
 
@@ -49,7 +51,7 @@
         <div class="chat-header">
           <div class="header-info">
             <div class="header-icon">
-              <img v-if="currentSession.avatar" :src="currentSession.avatar" @error="handleAvatarError" />
+              <img v-if="currentSession.avatar" :src="currentSession.avatar" :alt="currentSession.name" @error="handleAvatarError" />
               <k-icon v-else :name="currentSession.type === 'group' ? 'users' : 'user'" />
             </div>
             <span class="header-name">{{ currentSession.name }}</span>
@@ -66,10 +68,13 @@
             :key="msg.id"
             class="message-row"
             :class="{ self: isSelf(msg) }"
+            tabindex="0"
+            :aria-label="messageAriaLabel(msg)"
             @contextmenu.prevent="showContextMenu($event, msg)"
+            @keydown="handleMessageKeydown($event, msg)"
           >
             <div class="message-avatar">
-              <img v-if="msg.avatar" :src="msg.avatar" @error="handleAvatarError" />
+              <img v-if="msg.avatar" :src="msg.avatar" :alt="msg.username" @error="handleAvatarError" />
               <div v-else class="avatar-placeholder">{{ msg.username[0]?.toUpperCase() }}</div>
             </div>
             <div class="message-content-wrapper">
@@ -105,8 +110,8 @@
               :key="index"
               class="pending-image-item"
             >
-              <img :src="img.dataUrl" />
-              <button class="remove-image-btn" @click="removePendingImage(index)">×</button>
+              <img :src="img.dataUrl" :alt="`待发送图片 ${index + 1}`" />
+              <button type="button" class="remove-image-btn" :aria-label="`移除待发送图片 ${index + 1}`" @click="removePendingImage(index)">×</button>
             </div>
           </div>
           <div class="input-row">
@@ -118,7 +123,7 @@
               @keydown.enter.exact.prevent="sendMessage"
               @paste="handlePaste"
             ></textarea>
-            <button class="send-btn" @click="sendMessage" :disabled="(!inputText.trim() && pendingImages.length === 0) || sending">
+            <button type="button" class="send-btn" aria-label="发送消息" @click="sendMessage" :disabled="(!inputText.trim() && pendingImages.length === 0) || sending">
               <k-icon name="send" v-if="!sending" />
               <k-icon name="loader" class="spin" v-else />
             </button>
@@ -142,7 +147,13 @@
           <h3>群成员</h3>
           <span class="member-count" v-if="!loadingMembers">{{ members.length }}</span>
         </div>
-        <button class="collapse-btn" @click="membersSidebarCollapsed = !membersSidebarCollapsed">
+        <button
+          type="button"
+          class="collapse-btn"
+          :aria-label="membersSidebarCollapsed ? '展开群成员列表' : '收起群成员列表'"
+          :aria-expanded="!membersSidebarCollapsed"
+          @click="membersSidebarCollapsed = !membersSidebarCollapsed"
+        >
           {{ membersSidebarCollapsed ? '◀' : '▶' }}
         </button>
       </div>
@@ -180,20 +191,22 @@
             <div class="member-group-header">
               <span class="crown-icon">👑</span> 群主 — {{ filteredOwners.length }}
             </div>
-            <div
+            <button
               v-for="member in filteredOwners"
               :key="member.id"
+              type="button"
               class="member-item owner"
+              :aria-label="`在消息中提及 ${member.name || member.id}`"
               @click="onMemberClick(member)"
             >
               <div class="member-avatar">
-                <img :src="member.avatar" @error="handleMemberAvatarError" />
+                <img :src="member.avatar" :alt="member.name || member.id" @error="handleMemberAvatarError" />
               </div>
               <div class="member-info">
                 <div class="member-name">{{ member.name }}</div>
                 <div class="member-title" v-if="member.title">{{ member.title }}</div>
               </div>
-            </div>
+            </button>
           </template>
 
           <!-- 管理员分组 -->
@@ -201,20 +214,22 @@
             <div class="member-group-header">
               <span class="admin-icon">⚙️</span> 管理员 — {{ filteredAdmins.length }}
             </div>
-            <div
+            <button
               v-for="member in filteredAdmins"
               :key="member.id"
+              type="button"
               class="member-item admin"
+              :aria-label="`在消息中提及 ${member.name || member.id}`"
               @click="onMemberClick(member)"
             >
               <div class="member-avatar">
-                <img :src="member.avatar" @error="handleMemberAvatarError" />
+                <img :src="member.avatar" :alt="member.name || member.id" @error="handleMemberAvatarError" />
               </div>
               <div class="member-info">
                 <div class="member-name">{{ member.name }}</div>
                 <div class="member-title" v-if="member.title">{{ member.title }}</div>
               </div>
-            </div>
+            </button>
           </template>
 
           <!-- 普通成员分组 -->
@@ -222,20 +237,22 @@
             <div class="member-group-header">
               <span class="member-icon">👤</span> 成员 — {{ filteredNormalMembers.length }}
             </div>
-            <div
+            <button
               v-for="member in filteredNormalMembers"
               :key="member.id"
+              type="button"
               class="member-item"
+              :aria-label="`在消息中提及 ${member.name || member.id}`"
               @click="onMemberClick(member)"
             >
               <div class="member-avatar">
-                <img :src="member.avatar" @error="handleMemberAvatarError" />
+                <img :src="member.avatar" :alt="member.name || member.id" @error="handleMemberAvatarError" />
               </div>
               <div class="member-info">
                 <div class="member-name">{{ member.name }}</div>
                 <div class="member-title" v-if="member.title">{{ member.title }}</div>
               </div>
-            </div>
+            </button>
           </template>
 
           <!-- 无搜索结果 -->
@@ -256,46 +273,53 @@
     <Teleport to="body">
       <div
         v-if="contextMenu.visible"
+        ref="contextMenuRef"
         class="context-menu"
+        role="menu"
+        aria-label="消息操作"
         :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
         @click.stop
+        @keydown="handleContextMenuKeydown"
       >
-        <div class="context-menu-item" @click="handleReply">
+        <button type="button" class="context-menu-item" role="menuitem" @click="handleReply">
           <span class="menu-icon">↩️</span>
           <span>回复</span>
-        </div>
-        <div class="context-menu-item" @click="handleAt">
+        </button>
+        <button type="button" class="context-menu-item" role="menuitem" @click="handleAt">
           <span class="menu-icon">@</span>
           <span>@TA</span>
-        </div>
-        <div class="context-menu-item" @click="handleCopy">
+        </button>
+        <button type="button" class="context-menu-item" role="menuitem" @click="handleCopy">
           <span class="menu-icon">📋</span>
           <span>复制</span>
-        </div>
+        </button>
         <div class="context-menu-divider"></div>
-        <div class="context-menu-item" @click="openForwardDialog">
+        <button type="button" class="context-menu-item" role="menuitem" @click="openForwardDialog">
           <span class="menu-icon">📤</span>
           <span>转发</span>
-        </div>
-        <div class="context-menu-item danger" @click="handleRecall" v-if="canRecall">
+        </button>
+        <button type="button" class="context-menu-item danger" role="menuitem" @click="handleRecall" v-if="canRecall">
           <span class="menu-icon">🗑️</span>
           <span>撤回</span>
-        </div>
+        </button>
       </div>
-      <div v-if="contextMenu.visible" class="context-menu-overlay" @click="hideContextMenu"></div>
+      <div v-if="contextMenu.visible" class="context-menu-overlay" aria-hidden="true" @click="hideContextMenu"></div>
     </Teleport>
 
     <!-- 转发消息对话框 -->
     <div class="forward-dialog-overlay" v-if="forwardDialogOpen" @click.self="closeForwardDialog">
       <div
+        ref="forwardDialogRef"
         class="forward-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="forward-dialog-title"
+        tabindex="-1"
+        @keydown="handleForwardDialogKeydown"
       >
         <div class="dialog-header">
           <h3 id="forward-dialog-title">转发消息</h3>
-          <button class="close-btn" :disabled="forwarding" @click="closeForwardDialog">×</button>
+          <button type="button" class="close-btn" aria-label="关闭转发消息对话框" :disabled="forwarding" @click="closeForwardDialog">×</button>
         </div>
         <div class="dialog-body">
           <div class="forward-preview">
@@ -348,11 +372,19 @@
     </div>
 
     <!-- 连接群聊对话框 -->
-    <div class="connect-dialog-overlay" v-if="showConnectDialog" @click.self="showConnectDialog = false">
-      <div class="connect-dialog">
+    <div class="connect-dialog-overlay" v-if="showConnectDialog" @click.self="closeConnectDialog">
+      <div
+        ref="connectDialogRef"
+        class="connect-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="connect-dialog-title"
+        tabindex="-1"
+        @keydown="handleConnectDialogKeydown"
+      >
         <div class="dialog-header">
-          <h3>新建会话</h3>
-          <button class="close-btn" @click="showConnectDialog = false">×</button>
+          <h3 id="connect-dialog-title">新建会话</h3>
+          <button type="button" class="close-btn" aria-label="关闭新建会话对话框" @click="closeConnectDialog">×</button>
         </div>
         <div class="dialog-body">
           <div class="form-group">
@@ -395,8 +427,8 @@
           </div>
         </div>
         <div class="dialog-footer">
-          <button class="cancel-btn" @click="showConnectDialog = false">取消</button>
-          <button class="confirm-btn" @click="connectToChat" :disabled="!connectForm.targetId.trim()">
+          <button type="button" class="cancel-btn" @click="closeConnectDialog">取消</button>
+          <button type="button" class="confirm-btn" @click="connectToChat" :disabled="!connectForm.targetId.trim()">
             连接
           </button>
         </div>
@@ -413,6 +445,7 @@ import { receive, message } from '@koishijs/client'
 import { chatApi, GuildMember } from '../api'
 import type { ChatMessage } from '../types'
 import { useActionFeedback } from '../composables/use-action-feedback'
+import { useDialogFocus } from '../composables/use-dialog-focus'
 import { copyTextToClipboard } from '../utils/clipboard'
 import ChatMessageContent from './chat/ChatMessageContent.vue'
 import { buildMessagePlainText } from './chat/message-content-model'
@@ -438,6 +471,8 @@ const sending = ref(false)
 const messageListRef = ref<HTMLElement | null>(null)
 const inputRef = ref<HTMLTextAreaElement | null>(null)
 const showConnectDialog = ref(false)
+const connectDialogRef = ref<HTMLElement | null>(null)
+const forwardDialogRef = ref<HTMLElement | null>(null)
 const {
   actionError,
   actionErrorTitle,
@@ -561,11 +596,17 @@ const contextMenu = reactive({
   y: 0,
   targetMsg: null as ChatMessage | null
 })
+const contextMenuRef = ref<HTMLElement | null>(null)
+let contextMenuTrigger: HTMLElement | null = null
 const forwardDialogOpen = ref(false)
 const forwardMessage = ref<ChatMessage | null>(null)
 const forwardTargetSessionKey = ref('')
 const forwarding = ref(false)
 const forwardError = ref('')
+
+const closeConnectDialog = () => {
+  showConnectDialog.value = false
+}
 
 // 计算是否可以撤回（只有自己发的消息可以撤回）
 const canRecall = computed(() => {
@@ -573,16 +614,78 @@ const canRecall = computed(() => {
   return contextMenu.targetMsg.userId === contextMenu.targetMsg.selfId
 })
 
-const showContextMenu = (e: MouseEvent, msg: ChatMessage) => {
+const openContextMenu = (
+  msg: ChatMessage,
+  trigger: HTMLElement,
+  x: number,
+  y: number,
+) => {
   contextMenu.visible = true
-  contextMenu.x = e.clientX
-  contextMenu.y = e.clientY
+  contextMenu.x = x
+  contextMenu.y = y
   contextMenu.targetMsg = msg
+  contextMenuTrigger = trigger
+
+  void nextTick(() => {
+    const menu = contextMenuRef.value
+    if (!menu) return
+    const rect = menu.getBoundingClientRect()
+    contextMenu.x = Math.max(8, Math.min(x, window.innerWidth - rect.width - 8))
+    contextMenu.y = Math.max(8, Math.min(y, window.innerHeight - rect.height - 8))
+    menu.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus()
+  })
 }
 
-const hideContextMenu = () => {
+const showContextMenu = (e: MouseEvent, msg: ChatMessage) => {
+  if (!(e.currentTarget instanceof HTMLElement)) return
+  openContextMenu(msg, e.currentTarget, e.clientX, e.clientY)
+}
+
+const hideContextMenu = (restoreFocus = true) => {
+  const trigger = contextMenuTrigger
   contextMenu.visible = false
   contextMenu.targetMsg = null
+  contextMenuTrigger = null
+  if (restoreFocus && trigger?.isConnected) {
+    void nextTick(() => trigger.focus({ preventScroll: true }))
+  }
+}
+
+const handleMessageKeydown = (event: KeyboardEvent, msg: ChatMessage) => {
+  if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return
+  if (!(event.currentTarget instanceof HTMLElement)) return
+  event.preventDefault()
+  const rect = event.currentTarget.getBoundingClientRect()
+  openContextMenu(msg, event.currentTarget, rect.left + 24, rect.top + 24)
+}
+
+const handleContextMenuKeydown = (event: KeyboardEvent) => {
+  const menu = contextMenuRef.value
+  if (!menu) return
+  const items = Array.from(menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
+  if (items.length === 0) return
+  const currentIndex = items.findIndex((item) => item === document.activeElement)
+
+  if (event.key === 'Escape' || event.key === 'Tab') {
+    event.preventDefault()
+    hideContextMenu()
+    return
+  }
+
+  let nextIndex: number | undefined
+  if (event.key === 'ArrowDown') {
+    nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % items.length
+  } else if (event.key === 'ArrowUp') {
+    nextIndex = currentIndex < 0 ? items.length - 1 : (currentIndex - 1 + items.length) % items.length
+  } else if (event.key === 'Home') {
+    nextIndex = 0
+  } else if (event.key === 'End') {
+    nextIndex = items.length - 1
+  }
+
+  if (nextIndex === undefined) return
+  event.preventDefault()
+  items[nextIndex]?.focus()
 }
 
 const forwardTargetSessions = computed(() => sessions.value)
@@ -598,7 +701,8 @@ const handleReply = () => {
   // 使用 Koishi/OneBot 标准格式：<quote id="消息ID" />
   const quoteElement = `<quote id="${msg.id}" />`
   inputText.value = quoteElement + inputText.value
-  hideContextMenu()
+  hideContextMenu(false)
+  void nextTick(() => inputRef.value?.focus())
 }
 
 // @某人
@@ -612,7 +716,8 @@ const handleAt = () => {
   } else {
     inputText.value = `${atElement} `
   }
-  hideContextMenu()
+  hideContextMenu(false)
+  void nextTick(() => inputRef.value?.focus())
 }
 
 // 复制消息内容
@@ -639,7 +744,7 @@ const openForwardDialog = () => {
   forwardTargetSessionKey.value = defaultForwardTargetSessionKey()
   forwardError.value = ''
   forwardDialogOpen.value = true
-  hideContextMenu()
+  hideContextMenu(false)
 }
 
 const defaultForwardTargetSessionKey = () => {
@@ -658,6 +763,17 @@ const resetForwardDialog = () => {
   forwardTargetSessionKey.value = ''
   forwardError.value = ''
 }
+
+const { handleKeydown: handleForwardDialogKeydown } = useDialogFocus(
+  forwardDialogOpen,
+  forwardDialogRef,
+  closeForwardDialog,
+)
+const { handleKeydown: handleConnectDialogKeydown } = useDialogFocus(
+  showConnectDialog,
+  connectDialogRef,
+  closeConnectDialog,
+)
 
 const buildForwardPreview = (msg: ChatMessage) => {
   return buildMessagePlainText(msg, currentSession.value?.messages ?? [], members.value).trim() ||
@@ -758,6 +874,16 @@ const handleRecall = async () => {
 // 辅助函数：判断是否是自己发送的消息
 const isSelf = (msg: ChatMessage) => {
   return msg.userId === msg.selfId
+}
+
+const messageAriaLabel = (msg: ChatMessage) => {
+  const text = buildMessagePlainText(
+    msg,
+    currentSession.value?.messages ?? [],
+    members.value,
+  ).trim()
+  const summary = text.length > 120 ? `${text.slice(0, 117)}…` : text
+  return `${msg.username}，${formatTimeDetail(msg.timestamp)}${summary ? `，${summary}` : ''}`
 }
 
 // 接收消息监听
@@ -1103,12 +1229,20 @@ const handleAvatarError = (e: Event) => {
 }
 
 .session-item {
+  width: 100%;
   display: flex;
   padding: 10px 12px;
   gap: 10px;
   cursor: pointer;
   transition: background-color 0.15s ease;
   border-left: 2px solid transparent;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
 }
 
 .session-item:hover {
@@ -1314,6 +1448,12 @@ const handleAvatarError = (e: Event) => {
   display: flex;
   gap: 10px;
   max-width: 80%;
+  border-radius: var(--radius-md);
+  outline: none;
+}
+
+.message-row:focus-visible {
+  box-shadow: 0 0 0 2px var(--k-color-primary);
 }
 
 .message-row.self {
@@ -2166,12 +2306,18 @@ const handleAvatarError = (e: Event) => {
 }
 
 .member-item {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 5px 10px;
   cursor: pointer;
   transition: background-color 0.15s ease;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
 }
 
 .member-item:hover {
@@ -2273,6 +2419,7 @@ const handleAvatarError = (e: Event) => {
 }
 
 .context-menu-item {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2281,17 +2428,24 @@ const handleAvatarError = (e: Event) => {
   color: var(--fg1);
   font-size: 12px;
   transition: background-color 0.1s ease;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
 }
 
-.context-menu-item:hover {
+.context-menu-item:hover,
+.context-menu-item:focus-visible {
   background: var(--bg3);
+  outline: none;
 }
 
 .context-menu-item.danger {
   color: var(--k-color-danger);
 }
 
-.context-menu-item.danger:hover {
+.context-menu-item.danger:hover,
+.context-menu-item.danger:focus-visible {
   background: var(--k-color-danger-fade);
 }
 

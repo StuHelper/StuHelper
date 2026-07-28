@@ -10,23 +10,36 @@ package_backend:
   extends: .package_image_template
   script:
   - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
-  - docker pull "${BACKEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}"
-  - docker tag "${BACKEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" "${BACKEND_IMAGE}:${CI_COMMIT_SHORT_SHA}"
-  - |-
+  - |
+    set -euo pipefail
+    expected_digest="${BACKEND_CANDIDATE_REF##*@}"
+    immutable_ref="${BACKEND_IMAGE}:${CI_COMMIT_SHA}"
     if [ "${CI_COMMIT_BRANCH}" = "main" ]; then
-      docker tag "${BACKEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" "${BACKEND_IMAGE}:latest"
+      mutable_ref="${BACKEND_IMAGE}:latest"
     else
-      docker tag "${BACKEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" "${BACKEND_IMAGE}:develop-latest"
+      mutable_ref="${BACKEND_IMAGE}:develop-latest"
     fi
-  - docker push "${BACKEND_IMAGE}:${CI_COMMIT_SHORT_SHA}"
-  - printf 'BACKEND_IMAGE_REF=%s\n' "${BACKEND_IMAGE}:${CI_COMMIT_SHORT_SHA}" > backend-image.env
-  - |-
-    if [ "${CI_COMMIT_BRANCH}" = "main" ]; then
-      docker push "${BACKEND_IMAGE}:latest"
-    else
-      docker push "${BACKEND_IMAGE}:develop-latest"
+
+    docker buildx imagetools create \
+      --prefer-index=false \
+      --tag "${immutable_ref}" \
+      "${BACKEND_CANDIDATE_REF}"
+    actual_digest="$(
+      docker buildx imagetools inspect "${immutable_ref}" |
+        awk '$1 == "Digest:" {print $2; exit}'
+    )"
+    if [ "${actual_digest}" != "${expected_digest}" ]; then
+      echo "immutable backend tag digest mismatch" >&2
+      exit 1
     fi
+
+    docker buildx imagetools create \
+      --prefer-index=false \
+      --tag "${mutable_ref}" \
+      "${BACKEND_CANDIDATE_REF}"
+    printf 'BACKEND_IMAGE_REF=%s@%s\n' "${BACKEND_IMAGE}" "${expected_digest}" > backend-image.env
   artifacts:
+    expire_in: 7 days
     reports:
       dotenv: backend-image.env
   needs:
@@ -40,32 +53,47 @@ package_backend:
   - prod_init_contract
   - infra_contract
   - backend_vulnerability_scan
+  - custom_sast
   - secret_scan
   - backend_build
   - docker_build_backend
   - container_scan_backend
+  - sbom_backend
 
 package_frontend:
   extends: .package_image_template
   script:
   - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
-  - docker pull "${FRONTEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}"
-  - docker tag "${FRONTEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" "${FRONTEND_IMAGE}:${CI_COMMIT_SHORT_SHA}"
-  - |-
+  - |
+    set -euo pipefail
+    expected_digest="${FRONTEND_CANDIDATE_REF##*@}"
+    immutable_ref="${FRONTEND_IMAGE}:${CI_COMMIT_SHA}"
     if [ "${CI_COMMIT_BRANCH}" = "main" ]; then
-      docker tag "${FRONTEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" "${FRONTEND_IMAGE}:latest"
+      mutable_ref="${FRONTEND_IMAGE}:latest"
     else
-      docker tag "${FRONTEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" "${FRONTEND_IMAGE}:develop-latest"
+      mutable_ref="${FRONTEND_IMAGE}:develop-latest"
     fi
-  - docker push "${FRONTEND_IMAGE}:${CI_COMMIT_SHORT_SHA}"
-  - printf 'FRONTEND_IMAGE_REF=%s\n' "${FRONTEND_IMAGE}:${CI_COMMIT_SHORT_SHA}" > frontend-image.env
-  - |-
-    if [ "${CI_COMMIT_BRANCH}" = "main" ]; then
-      docker push "${FRONTEND_IMAGE}:latest"
-    else
-      docker push "${FRONTEND_IMAGE}:develop-latest"
+
+    docker buildx imagetools create \
+      --prefer-index=false \
+      --tag "${immutable_ref}" \
+      "${FRONTEND_CANDIDATE_REF}"
+    actual_digest="$(
+      docker buildx imagetools inspect "${immutable_ref}" |
+        awk '$1 == "Digest:" {print $2; exit}'
+    )"
+    if [ "${actual_digest}" != "${expected_digest}" ]; then
+      echo "immutable frontend tag digest mismatch" >&2
+      exit 1
     fi
+
+    docker buildx imagetools create \
+      --prefer-index=false \
+      --tag "${mutable_ref}" \
+      "${FRONTEND_CANDIDATE_REF}"
+    printf 'FRONTEND_IMAGE_REF=%s@%s\n' "${FRONTEND_IMAGE}" "${expected_digest}" > frontend-image.env
   artifacts:
+    expire_in: 7 days
     reports:
       dotenv: frontend-image.env
   needs:
@@ -84,28 +112,42 @@ package_frontend:
   - frontend_build
   - docker_build_frontend
   - container_scan_frontend
+  - sbom_frontend
 
 package_admin:
   extends: .package_image_template
   script:
   - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
-  - docker pull "${ADMIN_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}"
-  - docker tag "${ADMIN_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" "${ADMIN_IMAGE}:${CI_COMMIT_SHORT_SHA}"
-  - |-
+  - |
+    set -euo pipefail
+    expected_digest="${ADMIN_CANDIDATE_REF##*@}"
+    immutable_ref="${ADMIN_IMAGE}:${CI_COMMIT_SHA}"
     if [ "${CI_COMMIT_BRANCH}" = "main" ]; then
-      docker tag "${ADMIN_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" "${ADMIN_IMAGE}:latest"
+      mutable_ref="${ADMIN_IMAGE}:latest"
     else
-      docker tag "${ADMIN_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" "${ADMIN_IMAGE}:develop-latest"
+      mutable_ref="${ADMIN_IMAGE}:develop-latest"
     fi
-  - docker push "${ADMIN_IMAGE}:${CI_COMMIT_SHORT_SHA}"
-  - printf 'ADMIN_IMAGE_REF=%s\n' "${ADMIN_IMAGE}:${CI_COMMIT_SHORT_SHA}" > admin-image.env
-  - |-
-    if [ "${CI_COMMIT_BRANCH}" = "main" ]; then
-      docker push "${ADMIN_IMAGE}:latest"
-    else
-      docker push "${ADMIN_IMAGE}:develop-latest"
+
+    docker buildx imagetools create \
+      --prefer-index=false \
+      --tag "${immutable_ref}" \
+      "${ADMIN_CANDIDATE_REF}"
+    actual_digest="$(
+      docker buildx imagetools inspect "${immutable_ref}" |
+        awk '$1 == "Digest:" {print $2; exit}'
+    )"
+    if [ "${actual_digest}" != "${expected_digest}" ]; then
+      echo "immutable admin tag digest mismatch" >&2
+      exit 1
     fi
+
+    docker buildx imagetools create \
+      --prefer-index=false \
+      --tag "${mutable_ref}" \
+      "${ADMIN_CANDIDATE_REF}"
+    printf 'ADMIN_IMAGE_REF=%s@%s\n' "${ADMIN_IMAGE}" "${expected_digest}" > admin-image.env
   artifacts:
+    expire_in: 7 days
     reports:
       dotenv: admin-image.env
   needs:
@@ -124,3 +166,4 @@ package_admin:
   - admin_build
   - docker_build_admin
   - container_scan_admin
+  - sbom_admin

@@ -850,10 +850,14 @@
       @click.self="closeReasonDialog"
     >
       <form
+        ref="reasonDialogRef"
         class="w-full max-w-md rounded-lg border border-border bg-bg-card p-5 shadow-xl"
         role="dialog"
         aria-modal="true"
         :aria-labelledby="reasonDialogTitleID"
+        :aria-describedby="reasonDialogDescriptionID"
+        tabindex="-1"
+        @keydown="handleReasonDialogKeydown"
         @submit.prevent="submitReasonDialog"
       >
         <header class="flex items-start justify-between gap-3">
@@ -861,7 +865,10 @@
             <h2 :id="reasonDialogTitleID" class="m-0 text-base font-semibold text-text-primary">
               {{ reasonDialogTitle }}
             </h2>
-            <p class="m-0 mt-1 text-sm leading-relaxed text-text-secondary">
+            <p
+              :id="reasonDialogDescriptionID"
+              class="m-0 mt-1 text-sm leading-relaxed text-text-secondary"
+            >
               {{ reasonDialogDescription }}
             </p>
           </div>
@@ -885,6 +892,8 @@
             class="developer-input min-h-24 resize-y py-2"
             rows="4"
             autocomplete="off"
+            autofocus
+            :disabled="reasonDialogSubmitting"
           />
         </label>
 
@@ -927,6 +936,8 @@ import { Activity, ExternalLink, KeyRound, PencilLine, Plus, RefreshCw, Send, Tr
 import { api } from '@/api'
 import { getErrorMessage } from '@/api/errors'
 import { useToast } from '@/composables/useToast'
+import { useBodyScrollLock } from '@/composables/useBodyScrollLock'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 import EmptyState from '@/components/common/EmptyState.vue'
 import SkeletonCard from '@/components/common/SkeletonCard.vue'
 import ConnectEndpointsPanel from '../components/ConnectEndpointsPanel.vue'
@@ -999,6 +1010,7 @@ interface ReasonDialogState {
 const PAGE_SIZE = 10
 const APP_AUDIT_PAGE_SIZE = 10
 const reasonDialogTitleID = 'developer-apps-reason-dialog-title'
+const reasonDialogDescriptionID = 'developer-apps-reason-dialog-description'
 
 const { t } = useI18n()
 const toast = useToast()
@@ -1041,6 +1053,15 @@ const reasonDialog = reactive<ReasonDialogState>({
   scopeRequest: null,
   reason: '',
   error: '',
+})
+const reasonDialogRef = ref<HTMLElement | null>(null)
+const reasonDialogOpen = computed(() => reasonDialog.open)
+
+useBodyScrollLock(reasonDialogOpen)
+const { handleKeydown: handleReasonDialogKeydown } = useDialogFocus({
+  close: closeReasonDialog,
+  dialogRef: reasonDialogRef,
+  open: reasonDialogOpen,
 })
 
 const statusOptions: AppStatusFilter[] = ['all', 'pending', 'approved', 'suspended', 'revoked']

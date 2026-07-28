@@ -38,6 +38,7 @@ type Review struct {
 	Ratings              ReviewRatings `json:"ratings"`
 	LikeCount            int           `json:"likeCount"`
 	DislikeCount         int           `json:"dislikeCount"`
+	UserVote             *string       `json:"userVote,omitempty"`
 	ReplyCount           int           `json:"replyCount"`
 	Status               string        `json:"status"`
 	ContentFlag          *string       `json:"contentFlag,omitempty"` // warn / review / cleared / nil

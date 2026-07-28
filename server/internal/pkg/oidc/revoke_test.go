@@ -26,7 +26,7 @@ func TestRevokeRefreshTokenUsesDiscoveredRevocationEndpoint(t *testing.T) {
 		seenToken = r.Form.Get("token")
 		seenHint = r.Form.Get("token_type_hint")
 		w.WriteHeader(http.StatusOK)
-	}), true)
+	}), revocationDiscoveryOptions{includeRevocationEndpoint: true})
 	defer server.Close()
 
 	err := client.RevokeRefreshToken(context.Background(), "provider-refresh-token")
@@ -47,7 +47,7 @@ func TestRevokeRefreshTokenForApplicationNormalizesInputs(t *testing.T) {
 		require.NoError(t, r.ParseForm())
 		seenToken = r.Form.Get("token")
 		w.WriteHeader(http.StatusOK)
-	}), true)
+	}), revocationDiscoveryOptions{includeRevocationEndpoint: true})
 	defer server.Close()
 
 	err := client.RevokeRefreshTokenForApplication(
@@ -67,7 +67,7 @@ func TestRevokeRefreshTokenRejectsBlankTokenWithoutProviderCall(t *testing.T) {
 	client, server := newRevocationOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		calls++
 		w.WriteHeader(http.StatusOK)
-	}), true)
+	}), revocationDiscoveryOptions{includeRevocationEndpoint: true})
 	defer server.Close()
 
 	err := client.RevokeRefreshToken(context.Background(), " \t\n ")
@@ -79,7 +79,7 @@ func TestRevokeRefreshTokenRejectsBlankTokenWithoutProviderCall(t *testing.T) {
 func TestRevokeRefreshTokenProviderFailureIsUnavailable(t *testing.T) {
 	client, server := newRevocationOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "revocation unavailable", http.StatusServiceUnavailable)
-	}), true)
+	}), revocationDiscoveryOptions{includeRevocationEndpoint: true})
 	defer server.Close()
 
 	err := client.RevokeRefreshToken(context.Background(), "provider-refresh-token")
@@ -90,7 +90,7 @@ func TestRevokeRefreshTokenProviderFailureIsUnavailable(t *testing.T) {
 func TestRevokeRefreshTokenRequiresEndpointMetadata(t *testing.T) {
 	client, server := newRevocationOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	}), false)
+	}), revocationDiscoveryOptions{})
 	defer server.Close()
 
 	err := client.RevokeRefreshToken(context.Background(), "provider-refresh-token")
@@ -102,7 +102,7 @@ func TestRevokeRefreshTokenRequiresEndpointMetadata(t *testing.T) {
 func TestSupportsRefreshTokenRevocationReflectsMetadata(t *testing.T) {
 	supportedClient, supportedServer := newRevocationOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	}), true)
+	}), revocationDiscoveryOptions{includeRevocationEndpoint: true})
 	defer supportedServer.Close()
 
 	supported, err := supportedClient.SupportsRefreshTokenRevocation()
@@ -111,7 +111,7 @@ func TestSupportsRefreshTokenRevocationReflectsMetadata(t *testing.T) {
 
 	unsupportedClient, unsupportedServer := newRevocationOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	}), false)
+	}), revocationDiscoveryOptions{})
 	defer unsupportedServer.Close()
 
 	supported, err = unsupportedClient.SupportsRefreshTokenRevocation()
@@ -119,10 +119,42 @@ func TestSupportsRefreshTokenRevocationReflectsMetadata(t *testing.T) {
 	assert.False(t, supported)
 }
 
+func TestRevokeRefreshTokenUsesCasdoorEndSessionEndpointFallback(t *testing.T) {
+	var seenToken string
+	client, server := newRevocationOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		seenToken = r.Form.Get("token")
+		w.WriteHeader(http.StatusOK)
+	}), revocationDiscoveryOptions{endSessionPath: "/api/logout"})
+	defer server.Close()
+
+	supported, err := client.SupportsRefreshTokenRevocation()
+	require.NoError(t, err)
+	require.True(t, supported)
+	require.NoError(t, client.RevokeRefreshToken(context.Background(), "provider-refresh-token"))
+	assert.Equal(t, "provider-refresh-token", seenToken)
+}
+
+func TestSupportsRefreshTokenRevocationRejectsGenericEndSessionEndpoint(t *testing.T) {
+	client, server := newRevocationOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}), revocationDiscoveryOptions{endSessionPath: "/oidc/logout"})
+	defer server.Close()
+
+	supported, err := client.SupportsRefreshTokenRevocation()
+	require.NoError(t, err)
+	assert.False(t, supported)
+}
+
+type revocationDiscoveryOptions struct {
+	includeRevocationEndpoint bool
+	endSessionPath            string
+}
+
 func newRevocationOIDCClient(
 	t *testing.T,
 	revocationHandler http.HandlerFunc,
-	includeRevocationEndpoint bool,
+	options revocationDiscoveryOptions,
 ) (*Client, *httptest.Server) {
 	t.Helper()
 	var issuer string
@@ -138,8 +170,11 @@ func newRevocationOIDCClient(
 			"jwks_uri":               issuer + "/keys",
 			"introspection_endpoint": issuer + "/introspect",
 		}
-		if includeRevocationEndpoint {
+		if options.includeRevocationEndpoint {
 			metadata["revocation_endpoint"] = issuer + "/revoke"
+		}
+		if options.endSessionPath != "" {
+			metadata["end_session_endpoint"] = issuer + options.endSessionPath
 		}
 		_ = json.NewEncoder(w).Encode(metadata)
 	})
@@ -147,6 +182,9 @@ func newRevocationOIDCClient(
 		_ = json.NewEncoder(w).Encode(map[string]any{"keys": []any{}})
 	})
 	mux.HandleFunc("/revoke", revocationHandler)
+	if options.endSessionPath != "" {
+		mux.HandleFunc(options.endSessionPath, revocationHandler)
+	}
 
 	client, err := NewClient(context.Background(), config.CasdoorConfig{
 		Issuer:                    issuer,

@@ -4,7 +4,9 @@
       <!-- Back button + title -->
       <div class="flex items-center gap-3 mb-6">
         <button
+          type="button"
           class="flex items-center justify-center w-9 h-9 rounded-full bg-transparent border-none cursor-pointer transition-all duration-200 text-text-secondary hover:text-primary hover:bg-bg-hover"
+          :aria-label="t('common.actions.back')"
           @click="router.back()"
         >
           <ArrowLeft :size="20" />
@@ -28,7 +30,7 @@
 
         <!-- Course search -->
         <div class="mb-5">
-          <label class="block text-sm font-medium text-text-secondary mb-2">
+          <label for="review-course-search" class="block text-sm font-medium text-text-secondary mb-2">
             {{ t('review.postForm.selectCourse') }}
             <span class="text-danger ml-0.5">*</span>
           </label>
@@ -54,13 +56,19 @@
                 class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted"
               />
               <input
+                id="review-course-search"
                 ref="courseSearchInputRef"
                 v-model="courseSearch.query.value"
                 type="text"
+                role="combobox"
                 class="w-full pl-10 pr-10 px-4 py-3 bg-bg-elevated rounded-lg text-text-primary placeholder:text-text-muted focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors"
                 :class="{ 'border-danger focus:border-danger focus:ring-danger/20': showErrors && !selectedCourse }"
                 :placeholder="t('review.postForm.searchCoursePlaceholder')"
                 autocomplete="off"
+                aria-autocomplete="list"
+                aria-controls="review-course-search-listbox"
+                :aria-expanded="showDropdown && Boolean(courseSearch.query.value.trim())"
+                :aria-activedescendant="activeCourseResultId"
                 @focus="showDropdown = true"
                 @keydown="handleCourseKeyDown"
               />
@@ -68,6 +76,7 @@
                 v-if="courseSearch.query.value || selectedCourse"
                 type="button"
                 class="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer p-0 flex items-center text-text-muted hover:text-text-secondary transition-colors"
+                :aria-label="t('common.actions.clear')"
                 @click="clearCourseSelection"
               >
                 <X :size="16" />
@@ -77,6 +86,9 @@
             <!-- Autocomplete dropdown -->
             <div
               v-if="showDropdown && courseSearch.query.value.trim().length > 0"
+              id="review-course-search-listbox"
+              role="listbox"
+              :aria-busy="courseSearchLoading"
               class="absolute z-50 left-0 right-0 mt-1 bg-bg-card rounded-lg max-h-[240px] overflow-y-auto shadow-lg"
             >
               <div
@@ -96,6 +108,9 @@
                 <div
                   v-for="(item, index) in courseSearch.results.value"
                   :key="item.id"
+                  :id="courseResultId(item.id)"
+                  role="option"
+                  :aria-selected="courseSearch.selectedIndex.value === index"
                   class="px-4 py-2.5 text-sm text-text-primary cursor-pointer transition-colors duration-150 hover:bg-bg-hover"
                   :class="{
                     'bg-primary/10': courseSearch.selectedIndex.value === index,
@@ -133,7 +148,7 @@
 
         <!-- Teacher selector -->
         <div class="mb-5">
-          <label class="block text-sm font-medium text-text-secondary mb-2">
+          <label for="review-teacher" class="block text-sm font-medium text-text-secondary mb-2">
             {{ t('review.postForm.selectTeacher') }}
             <span class="inline-flex items-center ml-2 px-2 py-0.5 rounded-full text-xs font-bold bg-primary/15 text-primary">
               {{ t('review.post.teacherOptional') }}
@@ -144,6 +159,7 @@
           </div>
           <select
             v-else
+            id="review-teacher"
             v-model="selectedTeacherID"
             class="w-full px-4 py-3 bg-bg-elevated rounded-lg text-text-primary focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors disabled:opacity-60"
             :disabled="!selectedCourse"
@@ -163,11 +179,12 @@
 
         <!-- Semester dropdown -->
         <div class="mb-5">
-          <label class="block text-sm font-medium text-text-secondary mb-2">
+          <label for="review-term" class="block text-sm font-medium text-text-secondary mb-2">
             {{ t('review.postForm.semester') }}
             <span class="text-danger ml-0.5">*</span>
           </label>
           <select
+            id="review-term"
             v-model="termID"
             data-testid="review-term"
             class="w-full px-4 py-3 bg-bg-elevated rounded-lg text-text-primary focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors appearance-none bg-no-repeat"
@@ -539,6 +556,16 @@ const courseSearch = usePinyinSearch({
   maxResults: 15,
 })
 
+function courseResultId(courseID: PinyinSearchItem['id']) {
+  return `review-course-search-option-${courseID}`
+}
+
+const activeCourseResultId = computed(() => {
+  if (!showDropdown.value || !courseSearch.query.value.trim()) return undefined
+  const selected = courseSearch.results.value[courseSearch.selectedIndex.value]
+  return selected ? courseResultId(selected.id) : undefined
+})
+
 // 搜索词变化后延迟请求接口，避免频繁查询
 let searchAbortController: AbortController | null = null
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -615,6 +642,10 @@ async function editCourseSelection() {
 }
 
 function handleCourseKeyDown(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    showDropdown.value = false
+    return
+  }
   if (!showDropdown.value) return
   const selected = courseSearch.handleKeyDown(e)
   if (selected) {

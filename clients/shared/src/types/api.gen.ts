@@ -3662,6 +3662,8 @@ export interface components {
             ratings: components["schemas"]["ReviewRatings"];
             likeCount: number;
             dislikeCount: number;
+            /** @description 当前已认证用户对该测评的投票；匿名或未投票时省略 */
+            userVote?: components["schemas"]["VoteType"];
             replyCount: number;
             /** @enum {string} */
             status: "published" | "pending_review" | "hidden" | "deleted";
@@ -3681,6 +3683,8 @@ export interface components {
         ReviewRatings: {
             [key: string]: number;
         };
+        /** @enum {string} */
+        VoteType: "like" | "dislike";
         PostReviewRequest: {
             /** Format: int64 */
             courseID: number;
@@ -3701,8 +3705,7 @@ export interface components {
             ratings?: components["schemas"]["ReviewRatings"];
         };
         VoteRequest: {
-            /** @enum {string} */
-            voteType: "like" | "dislike";
+            voteType: components["schemas"]["VoteType"];
         };
         ReportReviewRequest: {
             /** @enum {string} */
@@ -8860,7 +8863,7 @@ export interface operations {
                 page?: components["parameters"]["PageParam"];
                 /** @description 每页数量 */
                 pageSize?: components["parameters"]["PageSizeParam"];
-                voteType?: "like" | "dislike";
+                voteType?: components["schemas"]["VoteType"];
             };
             header?: never;
             path?: never;

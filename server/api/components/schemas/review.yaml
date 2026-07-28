@@ -6,6 +6,11 @@ ReviewRatings:
     maximum: 5
   description: "Map of dimension key to rating value (1-5)"
 
+VoteType:
+  type: string
+  enum: [like, dislike]
+  x-enum-varnames: [VoteTypeLike, VoteTypeDislike]
+
 Review:
   type: object
   required:
@@ -55,6 +60,9 @@ Review:
       type: integer
     dislikeCount:
       type: integer
+    userVote:
+      $ref: "#/VoteType"
+      description: 当前已认证用户对该测评的投票；匿名或未投票时省略
     replyCount:
       type: integer
     status:
@@ -128,8 +136,7 @@ VoteRequest:
   required: [voteType]
   properties:
     voteType:
-      type: string
-      enum: [like, dislike]
+      $ref: "#/VoteType"
 
 ReportReviewRequest:
   type: object

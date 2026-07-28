@@ -18,7 +18,7 @@
 
 services:
   postgres:
-    image: postgres:${POSTGRES_VERSION:-18.3-alpine}
+    image: ${POSTGRES_IMAGE_REF:-postgres:18.3-alpine@sha256:54451ecb8ab38c24c3ec123f2fd501303a3a1856a5c66e98cecf2460d5e1e9d7}
     container_name: ${STACK_NAME:-stuhelper}-postgres
     command:
     - postgres
@@ -76,7 +76,7 @@ services:
     security_opt:
     - no-new-privileges:true
   redis:
-    image: redis:${REDIS_VERSION:-8.6.2-alpine}
+    image: ${REDIS_IMAGE_REF:-redis:8.6.2-alpine@sha256:c5e375abb885e6b2021c0377879e4890bf76f9065b8922ffc113f2b226b9fc17}
     container_name: ${STACK_NAME:-stuhelper}-redis
     command: >-
       redis-server
@@ -121,7 +121,8 @@ services:
     security_opt:
     - no-new-privileges:true
   mailpit:
-    image: axllent/mailpit:${MAILPIT_VERSION:-v1.30.1}
+    profiles: [dev-full]
+    image: ${MAILPIT_IMAGE_REF:-axllent/mailpit:v1.30.1@sha256:3bd7c2f2696deb35a4780d152b404dceec99cb041b942c0877b3b22384714f85}
     container_name: ${STACK_NAME:-stuhelper}-mailpit
     ports:
     - "127.0.0.1:${MAILPIT_SMTP_EXTERNAL_PORT:-1025}:1025"
@@ -143,7 +144,7 @@ services:
     security_opt:
     - no-new-privileges:true
   minio:
-    image: minio/minio:RELEASE.2025-02-28T09-55-16Z
+    image: ${MINIO_IMAGE_REF:-minio/minio:RELEASE.2025-02-28T09-55-16Z@sha256:a929054ae025fa7997857cd0e2a2e3029238e31ad89877326dc032f4c1a14259}
     container_name: ${STACK_NAME:-stuhelper}-minio
     command: server /data --console-address ":9001"
     environment:
@@ -174,7 +175,7 @@ services:
     security_opt:
     - no-new-privileges:true
   minio-init:
-    image: minio/mc:RELEASE.2025-03-12T17-29-24Z
+    image: ${MINIO_MC_IMAGE_REF:-minio/mc:RELEASE.2025-03-12T17-29-24Z@sha256:470f5546b596e16c7816b9c3fa7a78ce4076bb73c2c73f7faeec0c8043923123}
     container_name: ${STACK_NAME:-stuhelper}-minio-init
     entrypoint:
     - /bin/sh
@@ -241,7 +242,7 @@ services:
     - no-new-privileges:true
   migrate-dev:
     profiles: [dev-full]
-    image: golang:1.26.5-bookworm
+    image: ${GOLANG_IMAGE_REF:-golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651}
     container_name: ${STACK_NAME:-stuhelper}-migrate-dev
     working_dir: /workspace/server
     command: >-
@@ -294,7 +295,7 @@ services:
     - no-new-privileges:true
   seed-dev:
     profiles: [dev-full]
-    image: postgres:${POSTGRES_VERSION:-18.3-alpine}
+    image: ${POSTGRES_IMAGE_REF:-postgres:18.3-alpine@sha256:54451ecb8ab38c24c3ec123f2fd501303a3a1856a5c66e98cecf2460d5e1e9d7}
     container_name: ${STACK_NAME:-stuhelper}-seed-dev
     command:
     - /bin/sh
@@ -318,7 +319,7 @@ services:
     - no-new-privileges:true
   resource-seed-dev:
     profiles: [dev-full]
-    image: minio/mc:RELEASE.2025-03-12T17-29-24Z
+    image: ${MINIO_MC_IMAGE_REF:-minio/mc:RELEASE.2025-03-12T17-29-24Z@sha256:470f5546b596e16c7816b9c3fa7a78ce4076bb73c2c73f7faeec0c8043923123}
     container_name: ${STACK_NAME:-stuhelper}-resource-seed-dev
     entrypoint:
     - /bin/sh
@@ -353,7 +354,8 @@ services:
     security_opt:
     - no-new-privileges:true
   casdoor:
-    image: casbin/casdoor:${CASDOOR_VERSION:-3.31.1}
+    profiles: [dev-full]
+    image: ${CASDOOR_IMAGE_REF:-casbin/casdoor:3.31.1@sha256:a9c9bca53ccf94a96f3f8b4ca40298dbe00c114ef0100b742d2085b9368a6a0b}
     container_name: ${STACK_NAME:-stuhelper}-casdoor
     restart: unless-stopped
     security_opt:
@@ -391,7 +393,7 @@ services:
           cpus: '0.50'
           memory: 512M
   openfga-migrate:
-    image: openfga/openfga:v1.8.12
+    image: ${OPENFGA_IMAGE_REF:-openfga/openfga:v1.8.12@sha256:e2c06000981774a7a02d8aa2292df800ea80a8bc4df61a7ed5f098738b53b1ff}
     container_name: ${STACK_NAME:-stuhelper}-openfga-migrate
     command: migrate
     environment:
@@ -414,7 +416,7 @@ services:
     security_opt:
     - no-new-privileges:true
   openfga:
-    image: openfga/openfga:v1.8.12
+    image: ${OPENFGA_IMAGE_REF:-openfga/openfga:v1.8.12@sha256:e2c06000981774a7a02d8aa2292df800ea80a8bc4df61a7ed5f098738b53b1ff}
     container_name: ${STACK_NAME:-stuhelper}-openfga
     command: run
     environment:
@@ -511,7 +513,7 @@ services:
     - no-new-privileges:true
   frontend-dev:
     profiles: [dev-full]
-    image: node:24-alpine
+    image: ${NODE_ALPINE_IMAGE_REF:-node:24.18.0-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd}
     container_name: ${STACK_NAME:-stuhelper}-frontend-dev
     working_dir: /app
     command: sh -c "corepack enable && pnpm install && pnpm --filter @stuhelper/web dev --host 0.0.0.0 --port 3000"
@@ -554,7 +556,7 @@ services:
     - no-new-privileges:true
   admin-dev:
     profiles: [dev-full]
-    image: node:24-bookworm
+    image: ${NODE_BOOKWORM_IMAGE_REF:-node:24.18.0-bookworm@sha256:5711a0d445a1af54af9589066c646df387d1831a608226f4cd694fc59e745059}
     container_name: ${STACK_NAME:-stuhelper}-admin-dev
     working_dir: /workspace
     command: sh -c "corepack enable && corepack prepare pnpm@10 --activate && CI=1 pnpm install && pnpm dev:ele -- --host 0.0.0.0 --port 3001"

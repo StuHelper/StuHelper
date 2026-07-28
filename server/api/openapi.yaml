@@ -600,6 +600,8 @@ components:
       $ref: "components/schemas/review.yaml#/Review"
     ReviewRatings:
       $ref: "components/schemas/review.yaml#/ReviewRatings"
+    VoteType:
+      $ref: "components/schemas/review.yaml#/VoteType"
     PostReviewRequest:
       $ref: "components/schemas/review.yaml#/PostReviewRequest"
     UpdateReviewRequest:

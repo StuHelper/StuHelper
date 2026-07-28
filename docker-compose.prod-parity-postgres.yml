@@ -8,7 +8,7 @@ name: ${PROD_PARITY_DATASTORE_PROJECT:-stuhelper-prod-parity-datastore}
 
 services:
   postgres:
-    image: postgres:${POSTGRES_VERSION:-18.3-alpine}
+    image: ${POSTGRES_IMAGE_REF:-postgres:18.3-alpine@sha256:54451ecb8ab38c24c3ec123f2fd501303a3a1856a5c66e98cecf2460d5e1e9d7}
     container_name: ${PROD_PARITY_POSTGRES_CONTAINER:-stuhelper-prod-parity-postgres}
     environment:
       POSTGRES_USER: ${SHARED_POSTGRES_SUPERUSER:-postgres}

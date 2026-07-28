@@ -57,6 +57,7 @@ export const useAuthStore = defineStore('auth', () => {
   const loading = ref(false)
   const initialized = ref(false)
   const lastBootstrapAt = ref(0)
+  let bootstrapPromise: Promise<void> | null = null
 
   const isAuthenticated = computed(() => !!user.value)
   const displayName = computed(
@@ -74,12 +75,11 @@ export const useAuthStore = defineStore('auth', () => {
     clearNativeTokens()
   }
 
-  async function bootstrapSession(force = false) {
+  async function performBootstrapSession(force = false) {
     const now = Date.now()
     if (!force && initialized.value && user.value && now - lastBootstrapAt.value < BOOTSTRAP_STALE_MS) {
       return
     }
-    if (loading.value) return
     loading.value = true
     try {
       // 原生 App：检查本地 token 是否存在且未过期
@@ -119,6 +119,14 @@ export const useAuthStore = defineStore('auth', () => {
     } finally {
       loading.value = false
     }
+  }
+
+  function bootstrapSession(force = false): Promise<void> {
+    if (bootstrapPromise) return bootstrapPromise
+    bootstrapPromise = performBootstrapSession(force).finally(() => {
+      bootstrapPromise = null
+    })
+    return bootstrapPromise
   }
 
   async function logout() {

@@ -114,8 +114,9 @@ func (d *DB) Query(ctx context.Context, sql string, args ...any) (*RowsWithCance
 	duration := time.Since(start).Seconds()
 	metrics.ObserveDBQueryDuration("query", table, duration)
 
-	// 瞬时连接错误：退避后重试一次（仅在 context 未超时时）
-	if err != nil && isConnectionError(err) && ctx.Err() == nil {
+	// 只读 SQL 遇到瞬时连接错误时退避重试一次。写语句即使通过 Query
+	// 执行，也不能透明重试：连接断开时无法确认服务端是否已经完成写入。
+	if err != nil && isRetryableReadSQL(sql) && isConnectionError(err) && ctx.Err() == nil {
 		logger.L().Warn("query connection error, retrying once", zap.Error(err))
 		if waitForRetry(ctx, jitteredRetryDelay()) {
 			retryStart := time.Now()
@@ -140,7 +141,8 @@ func (d *DB) Query(ctx context.Context, sql string, args ...any) (*RowsWithCance
 
 // QueryRow 执行带超时的单行查询
 // 返回 RowWithCancel 包装类型，确保 Scan 完成后才取消 context
-// 对瞬时连接错误自动重试一次（与 Query 保持一致）
+// 明确的只读 SQL遇到瞬时连接错误时自动重试一次（与 Query 保持一致）。
+// INSERT/UPDATE/DELETE ... RETURNING 不会重试，避免产生重复写入。
 func (d *DB) QueryRow(ctx context.Context, sql string, args ...any) *RowWithCancel {
 	table := TableHint(ctx)
 	ctx, cancel := d.withTimeout(ctx)
@@ -184,8 +186,8 @@ func (r *RowWithCancel) Scan(dest ...any) error {
 	duration := time.Since(r.start).Seconds()
 	metrics.ObserveDBQueryDuration("query_row", r.table, duration)
 
-	// 瞬时连接错误：退避后重试一次
-	if err != nil && isConnectionError(err) && r.ctx.Err() == nil {
+	// 只读 SQL 才允许退避重试；写语句的结果不确定性必须交给上层处理。
+	if err != nil && isRetryableReadSQL(r.sql) && isConnectionError(err) && r.ctx.Err() == nil {
 		logger.L().Warn("query_row connection error, retrying once", zap.Error(err))
 		if waitForRetry(r.ctx, jitteredRetryDelay()) {
 			retryStart := time.Now()
@@ -351,6 +353,18 @@ func extractSQLOperation(sql string) string {
 		return "UNKNOWN"
 	}
 	return strings.ToUpper(fields[0])
+}
+
+// isRetryableReadSQL deliberately uses a small allowlist. CTE and EXPLAIN may
+// contain data-changing statements, while SELECT can be safely retried under
+// the repository convention that data mutations use explicit DML.
+func isRetryableReadSQL(sql string) bool {
+	switch extractSQLOperation(sql) {
+	case "SELECT", "SHOW", "TABLE", "VALUES":
+		return true
+	default:
+		return false
+	}
 }
 
 func recordSpanError(span trace.Span, err error) {

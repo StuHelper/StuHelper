@@ -2,6 +2,7 @@ export const zhCNMessages = {
   'common.loading': '加载中...',
   'common.loadMore': '加载更多',
   'common.search': '搜索',
+  'common.retry': '重试',
   'common.processing': '处理中...',
   'common.retryLater': '请求失败，请稍后重试',
   'common.sessionExpired': '登录状态已失效，请重新登录',
@@ -81,6 +82,7 @@ export const zhCNMessages = {
   'course.index.noResults': '暂无课程结果',
 
   'course.detail.loadFailed': '课程详情加载失败',
+  'course.detail.partialLoadFailed': '部分课程信息暂时不可用，可稍后重试',
   'course.detail.requireAuthFavorite': '请先登录后再收藏课程',
   'course.detail.requireAuthReview': '请先登录后再发布评课',
   'course.detail.favoriteRemoved': '已取消收藏',

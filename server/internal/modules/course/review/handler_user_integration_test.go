@@ -116,6 +116,13 @@ func TestReviewHandler_UserInteractionSuccessPaths(t *testing.T) {
 	h.GetUserVotes(c)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), reviewID)
+	assert.Contains(t, w.Body.String(), `"userVote":"like"`)
+
+	w, c = withUserContext(http.MethodGet, "/reviews/latest", "", selfUserID)
+	c.Set(middleware.CtxKeyCapabilities, []string{"review.list.full"})
+	h.GetLatestReviews(c)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"userVote":"like"`)
 
 	// draft save/get/delete
 	w, c = withUserContext(http.MethodPost, "/drafts", `{"courseID":`+strconv.FormatInt(courseID, 10)+`,"teacherID":`+strconv.FormatInt(teacherID, 10)+`,"termID":"2025-2","title":"草稿","content":"草稿内容","grade":"A","ratings":{"teaching":4}}`, selfUserID)

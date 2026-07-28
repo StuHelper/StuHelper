@@ -20,6 +20,8 @@ export function useReviewAdmin(onRefresh: () => void) {
   const showEditDialog = ref(false)
   const moderatingReviewID = ref('')
   const editingReview = ref<Review | null>(null)
+  const moderationSubmitting = ref(false)
+  const editSubmitting = ref(false)
 
   function openModeration(r: Review) {
     moderatingReviewID.value = r.id
@@ -32,13 +34,17 @@ export function useReviewAdmin(onRefresh: () => void) {
   }
 
   async function handleModerate(reason: string) {
-    showModerationDialog.value = false
+    if (moderationSubmitting.value) return
+    moderationSubmitting.value = true
     try {
       await api.admin.updateReview(moderatingReviewID.value, { action: 'hide', reason })
+      showModerationDialog.value = false
       toast.success(t('review.admin.moderateSuccess'))
       onRefresh()
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, t('review.admin.actionFailed')))
+    } finally {
+      moderationSubmitting.value = false
     }
   }
 
@@ -53,14 +59,17 @@ export function useReviewAdmin(onRefresh: () => void) {
   }
 
   async function handleAdminEdit(payload: { title: string; content: string; reason: string }) {
-    if (!editingReview.value) return
-    showEditDialog.value = false
+    if (!editingReview.value || editSubmitting.value) return
+    editSubmitting.value = true
     try {
       await api.admin.editReview(editingReview.value.id, payload)
+      showEditDialog.value = false
       toast.success(t('review.admin.editSuccess'))
       onRefresh()
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, t('review.admin.actionFailed')))
+    } finally {
+      editSubmitting.value = false
     }
   }
 
@@ -70,6 +79,8 @@ export function useReviewAdmin(onRefresh: () => void) {
     showEditDialog,
     moderatingReviewID,
     editingReview,
+    moderationSubmitting,
+    editSubmitting,
     openModeration,
     openEdit,
     handleModerate,

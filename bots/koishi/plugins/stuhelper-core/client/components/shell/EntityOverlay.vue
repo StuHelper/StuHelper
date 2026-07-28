@@ -7,11 +7,15 @@
         @click="close"
       ></div>
       <aside
+        ref="dialogRef"
         class="sh-overlay"
         :data-open="open ? 'true' : 'false'"
         role="dialog"
         aria-modal="true"
         :aria-hidden="open ? 'false' : 'true'"
+        aria-labelledby="entity-overlay-title"
+        tabindex="-1"
+        @keydown="handleDialogKeydown"
       >
         <template v-if="display">
         <header class="sh-overlay__head">
@@ -19,7 +23,7 @@
             <span class="sh-overlay__kind">
               {{ display.kind === 'user' ? 'USER' : 'GUILD' }}
             </span>
-            <h2 class="sh-overlay__title">{{ profileTitle }}</h2>
+            <h2 id="entity-overlay-title" class="sh-overlay__title">{{ profileTitle }}</h2>
             <span class="sh-overlay__id">{{ display.id }}</span>
           </div>
           <button
@@ -99,16 +103,20 @@
                 <li
                   v-for="warn in state.profile.warns"
                   :key="`${warn.guildId}:${warn.userId}`"
-                  class="sh-overlay__row"
-                  @click="goWarns(warn.guildId, state.profile?.kind === 'user' ? warn.userId : undefined)"
                 >
-                  <span class="sh-overlay__row-primary">
-                    {{ state.profile?.kind === 'user'
-                      ? (warn.guildName || warn.guildId)
-                      : warn.userId }}
-                  </span>
-                  <span class="sh-overlay__row-secondary"></span>
-                  <span class="sh-overlay__row-meta sh-num">{{ warn.count }} 次</span>
+                  <button
+                    type="button"
+                    class="sh-overlay__row"
+                    @click="goWarns(warn.guildId, state.profile?.kind === 'user' ? warn.userId : undefined)"
+                  >
+                    <span class="sh-overlay__row-primary">
+                      {{ state.profile?.kind === 'user'
+                        ? (warn.guildName || warn.guildId)
+                        : warn.userId }}
+                    </span>
+                    <span class="sh-overlay__row-secondary"></span>
+                    <span class="sh-overlay__row-meta sh-num">{{ warn.count }} 次</span>
+                  </button>
                 </li>
               </ul>
             </section>
@@ -127,18 +135,18 @@
                 <li
                   v-for="entry in state.profile.restricted"
                   :key="`${entry.guildId}:${entry.memberId}:${entry.joinedAt}`"
-                  class="sh-overlay__row"
-                  @click="goIdentity(entry.guildId, entry.memberId)"
                 >
-                  <span class="sh-overlay__row-primary">
-                    {{ state.profile?.kind === 'user'
-                      ? (entry.guildName || entry.guildId)
-                      : entry.memberId }}
-                  </span>
-                  <span class="sh-overlay__row-secondary"></span>
-                  <span class="sh-overlay__row-meta">
-                    <span class="sh-overlay__pill" :data-tone="restrictedTone(entry.status)">{{ restrictedLabel(entry.status) }}</span>
-                  </span>
+                  <button type="button" class="sh-overlay__row" @click="goIdentity(entry.guildId, entry.memberId)">
+                    <span class="sh-overlay__row-primary">
+                      {{ state.profile?.kind === 'user'
+                        ? (entry.guildName || entry.guildId)
+                        : entry.memberId }}
+                    </span>
+                    <span class="sh-overlay__row-secondary"></span>
+                    <span class="sh-overlay__row-meta">
+                      <span class="sh-overlay__pill" :data-tone="restrictedTone(entry.status)">{{ restrictedLabel(entry.status) }}</span>
+                    </span>
+                  </button>
                 </li>
               </ul>
             </section>
@@ -149,12 +157,12 @@
                 <li
                   v-for="review in state.profile.reviews"
                   :key="review.id"
-                  class="sh-overlay__row"
-                  @click="goReview(review.id, review.guildId)"
                 >
-                  <span class="sh-overlay__row-primary">{{ review.actionType }}</span>
-                  <span class="sh-overlay__row-secondary">{{ review.reason || review.guildName || review.guildId }}</span>
-                  <span class="sh-overlay__row-meta sh-mono">{{ formatDate(review.createdAt) }}</span>
+                  <button type="button" class="sh-overlay__row" @click="goReview(review.id, review.guildId)">
+                    <span class="sh-overlay__row-primary">{{ review.actionType }}</span>
+                    <span class="sh-overlay__row-secondary">{{ review.reason || review.guildName || review.guildId }}</span>
+                    <span class="sh-overlay__row-meta sh-mono">{{ formatDate(review.createdAt) }}</span>
+                  </button>
                 </li>
               </ul>
             </section>
@@ -165,16 +173,16 @@
                 <li
                   v-for="report in state.profile.reports"
                   :key="report.id"
-                  class="sh-overlay__row"
-                  @click="goReports(report.guildId)"
                 >
-                  <span class="sh-overlay__row-primary">{{ report.reason || '(无原因)' }}</span>
-                  <span class="sh-overlay__row-secondary">
-                    {{ state.profile?.kind === 'user'
-                      ? (report.guildName || report.guildId)
-                      : report.targetMemberId }}
-                  </span>
-                  <span class="sh-overlay__row-meta sh-mono">{{ formatDate(report.createdAt) }}</span>
+                  <button type="button" class="sh-overlay__row" @click="goReports(report.guildId)">
+                    <span class="sh-overlay__row-primary">{{ report.reason || '(无原因)' }}</span>
+                    <span class="sh-overlay__row-secondary">
+                      {{ state.profile?.kind === 'user'
+                        ? (report.guildName || report.guildId)
+                        : report.targetMemberId }}
+                    </span>
+                    <span class="sh-overlay__row-meta sh-mono">{{ formatDate(report.createdAt) }}</span>
+                  </button>
                 </li>
               </ul>
             </section>
@@ -185,15 +193,19 @@
                 <li
                   v-for="event in state.profile.recentEvents"
                   :key="event.id"
-                  class="sh-overlay__row"
-                  @click="goLogs(event.guildId, state.profile?.kind === 'user' ? event.memberId ?? undefined : undefined)"
                 >
-                  <span class="sh-overlay__row-primary">
-                    <span class="sh-overlay__pill" :data-tone="event.severity">{{ event.severity }}</span>
-                    <span class="sh-overlay__row-kind">{{ event.kind }}</span>
-                  </span>
-                  <span class="sh-overlay__row-secondary">{{ event.message }}</span>
-                  <span class="sh-overlay__row-meta sh-mono">{{ formatDate(event.createdAt) }}</span>
+                  <button
+                    type="button"
+                    class="sh-overlay__row"
+                    @click="goLogs(event.guildId, state.profile?.kind === 'user' ? event.memberId ?? undefined : undefined)"
+                  >
+                    <span class="sh-overlay__row-primary">
+                      <span class="sh-overlay__pill" :data-tone="event.severity">{{ event.severity }}</span>
+                      <span class="sh-overlay__row-kind">{{ event.kind }}</span>
+                    </span>
+                    <span class="sh-overlay__row-secondary">{{ event.message }}</span>
+                    <span class="sh-overlay__row-meta sh-mono">{{ formatDate(event.createdAt) }}</span>
+                  </button>
                 </li>
               </ul>
             </section>
@@ -233,6 +245,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { consolePageApi } from '../../page-api'
 import type { EntityProfile, EntityRestrictedFact } from '../../page-types'
 import { useAppShell, type EntityRef } from '../../composables/use-app-shell'
+import { useDialogFocus } from '../../composables/use-dialog-focus'
 import type {
   ConsoleNavigationController,
   ConsoleNavigationState,
@@ -247,6 +260,7 @@ const props = defineProps<{
 const shell = useAppShell()
 
 const open = computed(() => shell.entityTarget.value !== null)
+const dialogRef = ref<HTMLElement | null>(null)
 const display = ref<EntityRef | null>(null)
 let loadRequestSeq = 0
 
@@ -378,6 +392,12 @@ function reload() {
 function close(): void {
   shell.closeEntity()
 }
+
+const { handleKeydown: handleDialogKeydown } = useDialogFocus(
+  open,
+  dialogRef,
+  close,
+)
 
 function goJump(jump: JumpDef): void {
   const target = shell.entityTarget.value
@@ -536,6 +556,7 @@ function formatDate(value: string | null): string {
 }
 
 .sh-overlay__row {
+  width: 100%;
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
   align-items: center;
@@ -544,9 +565,16 @@ function formatDate(value: string | null): string {
   border-bottom: 1px solid var(--sh-border);
   cursor: pointer;
   transition: background var(--sh-dur-fast) var(--sh-ease);
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  border-top: 0;
+  border-right: 0;
+  border-left: 0;
 }
 
-.sh-overlay__row:last-child {
+.sh-overlay__list > li:last-child .sh-overlay__row {
   border-bottom-color: transparent;
 }
 

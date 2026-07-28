@@ -51,8 +51,8 @@
       - name: voteType
         in: query
         schema:
-          type: string
-          enum: [like, dislike]
+          allOf:
+            - $ref: '../components/schemas/review.yaml#/VoteType'
           default: like
     responses:
       '200':

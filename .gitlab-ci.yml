@@ -20,13 +20,15 @@ default:
 
 .pnpm_setup: &pnpm_setup
   - corepack enable
-  - corepack prepare pnpm@10 --activate
+  - corepack prepare pnpm@10.32.1 --activate
 
 variables:
   REGISTRY: registry.stuhelper.com
   BACKEND_IMAGE: registry.stuhelper.com/stuhelper/backend
   FRONTEND_IMAGE: registry.stuhelper.com/stuhelper/frontend
   ADMIN_IMAGE: registry.stuhelper.com/stuhelper/admin
+  TRIVY_IMAGE: ghcr.io/aquasecurity/trivy:0.72.0@sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f
+  SYFT_IMAGE: ghcr.io/anchore/syft:v1.44.0@sha256:86fde6445b483d902fe011dd9f68c4987dd94e07da1e9edc004e3c2422650de6
   DOCKER_HOST: tcp://docker:2376
   DOCKER_TLS_CERTDIR: /certs
   DOCKER_TLS_VERIFY: "1"
@@ -39,45 +41,56 @@ include:
 
 .playwright_job:
   stage: test
-  image: mcr.microsoft.com/playwright:v1.58.2-noble
+  image: mcr.microsoft.com/playwright:v1.58.2-noble@sha256:6446946a1d9fd62d9ae501312a2d76a43ee688542b21622056a372959b65d63d
   before_script: *pnpm_setup
   variables:
     CI: "true"
 
 .node_pnpm_job:
-  image: node:24-bookworm
+  image: node:24.18.0-bookworm@sha256:5711a0d445a1af54af9589066c646df387d1831a608226f4cd694fc59e745059
   before_script: *pnpm_setup
 
 .docker_job:
-  image: docker:27.5.1-cli
+  image: docker:27.5.1-cli@sha256:851f91d241214e7c6db86513b270d58776379aacc5eb9c4a87e5b47115e3065c
   services:
-  - name: docker:27.5.1-dind
+  - name: docker:27.5.1-dind@sha256:aa3df78ecf320f5fafdce71c659f1629e96e9de0968305fe1de670e0ca9176ce
+    alias: docker
+
+.trusted_image_job:
+  rules:
+  - if: '$CI_PIPELINE_SOURCE == "push" && ($CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main")'
+  - when: never
+
+.docker_build_job:
+  extends:
+  - .docker_job
+  - .trusted_image_job
+  stage: build
+  before_script:
+  - apk add --no-cache jq
 
 .trivy_scan_job:
-  extends: .docker_job
+  extends:
+  - .docker_job
+  - .trusted_image_job
   stage: package_scan
-  before_script:
-  - apk add --no-cache curl tar
-  - export TRIVY_VERSION=0.58.2
-  - curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" | tar -xz -C /usr/local/bin trivy
 
 .syft_scan_job:
-  extends: .docker_job
+  extends:
+  - .docker_job
+  - .trusted_image_job
   stage: package_scan
-  before_script:
-  - apk add --no-cache curl
-  - curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
 
 check_shadow_files:
   stage: lint
-  image: alpine:3.21
+  image: alpine:3.24@sha256:28bd5fe8a8bd2a60b63fd00ec6b4fe3a9c4d741873baabf15717e1c667943f8b
   script:
   - apk add --no-cache bash findutils
   - bash scripts/check-uniappx-shadow-files.sh
 
 check_docs_hygiene:
   stage: lint
-  image: node:24-bookworm
+  image: node:24.18.0-bookworm@sha256:5711a0d445a1af54af9589066c646df387d1831a608226f4cd694fc59e745059
   script:
   - make check-docs
 
@@ -93,7 +106,7 @@ frontend_lint:
 
 koishi_test:
   stage: test
-  image: mcr.microsoft.com/playwright:v1.58.2-noble
+  image: mcr.microsoft.com/playwright:v1.58.2-noble@sha256:6446946a1d9fd62d9ae501312a2d76a43ee688542b21622056a372959b65d63d
   before_script:
   - corepack enable
   - corepack prepare yarn@4.12.0 --activate
@@ -133,7 +146,7 @@ admin_typecheck:
 
 prod_init_contract:
   stage: test
-  image: python:3.13-bookworm
+  image: python:3.13.11-bookworm@sha256:b3ad23176613a34fcd715a28da314a0cbbd230dcc68798efb80ec30292b2a683
   before_script:
   - apt-get update
   - apt-get install -y openssl
@@ -142,7 +155,7 @@ prod_init_contract:
 
 infra_contract:
   stage: test
-  image: python:3.13-bookworm
+  image: python:3.13.11-bookworm@sha256:b3ad23176613a34fcd715a28da314a0cbbd230dcc68798efb80ec30292b2a683
   before_script:
   - apt-get update
   - apt-get install -y curl jq nodejs openssl
@@ -219,20 +232,20 @@ admin_dependency_scan:
 
 frontend_sast:
   stage: security
-  image: semgrep/semgrep:1.128.0
+  image: semgrep/semgrep:1.128.0@sha256:183a149fb3e9700ab5294a7b4ab0241a826fd046bc8b721062fbea80fdfa438f
   script:
   - semgrep scan --config=p/javascript --config=p/typescript --config=p/owasp-top-ten --config=p/security-audit --config=p/jwt --severity ERROR --error clients/web/src clients/admin/apps/web-ele/src
 
 custom_sast:
   stage: security
-  image: semgrep/semgrep:1.128.0
+  image: semgrep/semgrep:1.128.0@sha256:183a149fb3e9700ab5294a7b4ab0241a826fd046bc8b721062fbea80fdfa438f
   script:
   - bash scripts/check-semgrep-custom-rules.sh
 
 secret_scan:
   stage: security
   image:
-    name: ghcr.io/gitleaks/gitleaks:v8.24.3
+    name: ghcr.io/gitleaks/gitleaks:v8.24.3@sha256:e1b35e12a8c6fa8901f060459cfb6b2fc4c484d3afbe3b029733a3bbfab07055
     entrypoint: [""]
   script:
   - bash scripts/check-secrets.sh
@@ -240,60 +253,81 @@ secret_scan:
 container_scan_backend:
   extends: .trivy_scan_job
   script:
-  - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
-  - trivy image --severity HIGH,CRITICAL --exit-code 1 --no-progress "${BACKEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}"
+  - export TRIVY_USERNAME="${REGISTRY_USERNAME}"
+  - export TRIVY_PASSWORD="${REGISTRY_PASSWORD}"
+  - docker run --rm --env TRIVY_USERNAME --env TRIVY_PASSWORD "${TRIVY_IMAGE}" image --scanners vuln --severity HIGH,CRITICAL --exit-code 1 --no-progress "${BACKEND_CANDIDATE_REF}"
   needs:
-  - docker_build_backend
+  - job: docker_build_backend
+    artifacts: true
 container_scan_frontend:
   extends: .trivy_scan_job
   script:
-  - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
-  - trivy image --severity HIGH,CRITICAL --exit-code 1 --no-progress "${FRONTEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}"
+  - export TRIVY_USERNAME="${REGISTRY_USERNAME}"
+  - export TRIVY_PASSWORD="${REGISTRY_PASSWORD}"
+  - docker run --rm --env TRIVY_USERNAME --env TRIVY_PASSWORD "${TRIVY_IMAGE}" image --scanners vuln --severity HIGH,CRITICAL --exit-code 1 --no-progress "${FRONTEND_CANDIDATE_REF}"
   needs:
-  - docker_build_frontend
+  - job: docker_build_frontend
+    artifacts: true
 container_scan_admin:
   extends: .trivy_scan_job
   script:
-  - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
-  - trivy image --severity HIGH,CRITICAL --exit-code 1 --no-progress "${ADMIN_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}"
+  - export TRIVY_USERNAME="${REGISTRY_USERNAME}"
+  - export TRIVY_PASSWORD="${REGISTRY_PASSWORD}"
+  - docker run --rm --env TRIVY_USERNAME --env TRIVY_PASSWORD "${TRIVY_IMAGE}" image --scanners vuln --severity HIGH,CRITICAL --exit-code 1 --no-progress "${ADMIN_CANDIDATE_REF}"
   needs:
-  - docker_build_admin
+  - job: docker_build_admin
+    artifacts: true
 sbom_backend:
   extends: .syft_scan_job
   script:
-  - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
-  - docker pull "${BACKEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}"
-  - syft "docker:${BACKEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" -o cyclonedx-json=sbom-backend.cdx.json
+  - export SYFT_REGISTRY_AUTH_AUTHORITY="${REGISTRY}"
+  - export SYFT_REGISTRY_AUTH_USERNAME="${REGISTRY_USERNAME}"
+  - export SYFT_REGISTRY_AUTH_PASSWORD="${REGISTRY_PASSWORD}"
+  - export SYFT_CHECK_FOR_APP_UPDATE=false
+  - docker run --rm --env SYFT_REGISTRY_AUTH_AUTHORITY --env SYFT_REGISTRY_AUTH_USERNAME --env SYFT_REGISTRY_AUTH_PASSWORD --env SYFT_CHECK_FOR_APP_UPDATE "${SYFT_IMAGE}" "${BACKEND_CANDIDATE_REF}" --from registry -o cyclonedx-json > sbom-backend.cdx.json
   artifacts:
     when: always
     paths:
     - sbom-backend.cdx.json
+    reports:
+      cyclonedx: sbom-backend.cdx.json
   needs:
-  - docker_build_backend
+  - job: docker_build_backend
+    artifacts: true
 sbom_frontend:
   extends: .syft_scan_job
   script:
-  - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
-  - docker pull "${FRONTEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}"
-  - syft "docker:${FRONTEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" -o cyclonedx-json=sbom-frontend.cdx.json
+  - export SYFT_REGISTRY_AUTH_AUTHORITY="${REGISTRY}"
+  - export SYFT_REGISTRY_AUTH_USERNAME="${REGISTRY_USERNAME}"
+  - export SYFT_REGISTRY_AUTH_PASSWORD="${REGISTRY_PASSWORD}"
+  - export SYFT_CHECK_FOR_APP_UPDATE=false
+  - docker run --rm --env SYFT_REGISTRY_AUTH_AUTHORITY --env SYFT_REGISTRY_AUTH_USERNAME --env SYFT_REGISTRY_AUTH_PASSWORD --env SYFT_CHECK_FOR_APP_UPDATE "${SYFT_IMAGE}" "${FRONTEND_CANDIDATE_REF}" --from registry -o cyclonedx-json > sbom-frontend.cdx.json
   artifacts:
     when: always
     paths:
     - sbom-frontend.cdx.json
+    reports:
+      cyclonedx: sbom-frontend.cdx.json
   needs:
-  - docker_build_frontend
+  - job: docker_build_frontend
+    artifacts: true
 sbom_admin:
   extends: .syft_scan_job
   script:
-  - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
-  - docker pull "${ADMIN_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}"
-  - syft "docker:${ADMIN_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" -o cyclonedx-json=sbom-admin.cdx.json
+  - export SYFT_REGISTRY_AUTH_AUTHORITY="${REGISTRY}"
+  - export SYFT_REGISTRY_AUTH_USERNAME="${REGISTRY_USERNAME}"
+  - export SYFT_REGISTRY_AUTH_PASSWORD="${REGISTRY_PASSWORD}"
+  - export SYFT_CHECK_FOR_APP_UPDATE=false
+  - docker run --rm --env SYFT_REGISTRY_AUTH_AUTHORITY --env SYFT_REGISTRY_AUTH_USERNAME --env SYFT_REGISTRY_AUTH_PASSWORD --env SYFT_CHECK_FOR_APP_UPDATE "${SYFT_IMAGE}" "${ADMIN_CANDIDATE_REF}" --from registry -o cyclonedx-json > sbom-admin.cdx.json
   artifacts:
     when: always
     paths:
     - sbom-admin.cdx.json
+    reports:
+      cyclonedx: sbom-admin.cdx.json
   needs:
-  - docker_build_admin
+  - job: docker_build_admin
+    artifacts: true
 frontend_build:
   stage: build
   extends: .node_pnpm_job
@@ -317,27 +351,48 @@ admin_build:
   - pnpm build:ele
 
 docker_build_backend:
-  extends: .docker_job
-  stage: build
+  extends: .docker_build_job
   script:
   - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
-  - export BUILD_TIME="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
   - docker buildx create --use --name "gitlab-builder-${CI_JOB_ID}"
-  - docker buildx build --push --platform linux/amd64 --tag "${BACKEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" --build-arg "VERSION=${CI_COMMIT_SHORT_SHA}" --build-arg "GIT_COMMIT=${CI_COMMIT_SHA}" --build-arg "BUILD_TIME=${BUILD_TIME}" --cache-from "type=registry,ref=${BACKEND_IMAGE}:buildcache" --cache-to "type=registry,ref=${BACKEND_IMAGE}:buildcache,mode=max" server
+  - trap 'docker buildx rm "gitlab-builder-${CI_JOB_ID}" >/dev/null 2>&1 || true' EXIT
+  - docker buildx build --pull --push --platform linux/amd64 --metadata-file backend-image-metadata.json --tag "${BACKEND_IMAGE}:candidate-${CI_COMMIT_SHA}" --build-arg "VERSION=${CI_COMMIT_SHORT_SHA}" --build-arg "GIT_COMMIT=${CI_COMMIT_SHA}" --build-arg "BUILD_TIME=${CI_COMMIT_TIMESTAMP}" --cache-from "type=registry,ref=${BACKEND_IMAGE}:buildcache" --cache-to "type=registry,ref=${BACKEND_IMAGE}:buildcache,mode=max" server
+  - export IMAGE_DIGEST="$(jq -er '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' backend-image-metadata.json)"
+  - printf 'BACKEND_CANDIDATE_REF=%s@%s\n' "${BACKEND_IMAGE}" "${IMAGE_DIGEST}" > backend-candidate.env
+  artifacts:
+    expire_in: 1 day
+    paths:
+    - backend-image-metadata.json
+    reports:
+      dotenv: backend-candidate.env
 docker_build_frontend:
-  extends: .docker_job
-  stage: build
+  extends: .docker_build_job
   script:
   - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
-  - export BUILD_TIME="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
   - docker buildx create --use --name "gitlab-builder-${CI_JOB_ID}"
+  - trap 'docker buildx rm "gitlab-builder-${CI_JOB_ID}" >/dev/null 2>&1 || true' EXIT
   - ': "${WEB_VITE_SSO_URL:?WEB_VITE_SSO_URL must be set for frontend builds}"'
-  - docker buildx build --push --platform linux/amd64 --file clients/web/Dockerfile --tag "${FRONTEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" --build-arg "VITE_API_URL=${WEB_VITE_API_URL:-/api}" --build-arg "VITE_SSO_URL=${WEB_VITE_SSO_URL}" --build-arg "VITE_WEB_URL=${WEB_VITE_WEB_URL:-${WEB_PUBLIC_URL:-https://stuhelper.com}}" --build-arg "VITE_ADMIN_URL=${ADMIN_PUBLIC_URL:-/admin/}" --build-arg "VITE_API_TIMEOUT_MS=${WEB_VITE_API_TIMEOUT_MS:-15000}" --build-arg "VITE_QQ_BOT_ENTRY=${WEB_VITE_QQ_BOT_ENTRY:-}" --build-arg "VITE_QQ_BIND_COMMAND=${WEB_VITE_QQ_BIND_COMMAND:-绑定}" --cache-from "type=registry,ref=${FRONTEND_IMAGE}:buildcache" --cache-to "type=registry,ref=${FRONTEND_IMAGE}:buildcache,mode=max" .
+  - docker buildx build --pull --push --platform linux/amd64 --metadata-file frontend-image-metadata.json --file clients/web/Dockerfile --tag "${FRONTEND_IMAGE}:candidate-${CI_COMMIT_SHA}" --build-arg "VITE_API_URL=${WEB_VITE_API_URL:-/api}" --build-arg "VITE_SSO_URL=${WEB_VITE_SSO_URL}" --build-arg "VITE_WEB_URL=${WEB_VITE_WEB_URL:-${WEB_PUBLIC_URL:-https://stuhelper.com}}" --build-arg "VITE_ADMIN_URL=${ADMIN_PUBLIC_URL:-/admin/}" --build-arg "VITE_API_TIMEOUT_MS=${WEB_VITE_API_TIMEOUT_MS:-15000}" --build-arg "VITE_QQ_BOT_ENTRY=${WEB_VITE_QQ_BOT_ENTRY:-}" --build-arg "VITE_QQ_BIND_COMMAND=${WEB_VITE_QQ_BIND_COMMAND:-绑定}" --cache-from "type=registry,ref=${FRONTEND_IMAGE}:buildcache" --cache-to "type=registry,ref=${FRONTEND_IMAGE}:buildcache,mode=max" .
+  - export IMAGE_DIGEST="$(jq -er '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' frontend-image-metadata.json)"
+  - printf 'FRONTEND_CANDIDATE_REF=%s@%s\n' "${FRONTEND_IMAGE}" "${IMAGE_DIGEST}" > frontend-candidate.env
+  artifacts:
+    expire_in: 1 day
+    paths:
+    - frontend-image-metadata.json
+    reports:
+      dotenv: frontend-candidate.env
 docker_build_admin:
-  extends: .docker_job
-  stage: build
+  extends: .docker_build_job
   script:
   - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
-  - export BUILD_TIME="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
   - docker buildx create --use --name "gitlab-builder-${CI_JOB_ID}"
-  - docker buildx build --push --platform linux/amd64 --file clients/admin/scripts/deploy/Dockerfile --tag "${ADMIN_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" --build-arg "VITE_GLOB_API_URL=${ADMIN_VITE_API_URL:-/api/v1}" --build-arg "VITE_BASE=${ADMIN_VITE_BASE:-/admin/}" --cache-from "type=registry,ref=${ADMIN_IMAGE}:buildcache" --cache-to "type=registry,ref=${ADMIN_IMAGE}:buildcache,mode=max" clients
+  - trap 'docker buildx rm "gitlab-builder-${CI_JOB_ID}" >/dev/null 2>&1 || true' EXIT
+  - docker buildx build --pull --push --platform linux/amd64 --metadata-file admin-image-metadata.json --file clients/admin/scripts/deploy/Dockerfile --tag "${ADMIN_IMAGE}:candidate-${CI_COMMIT_SHA}" --build-arg "VITE_GLOB_API_URL=${ADMIN_VITE_API_URL:-/api/v1}" --build-arg "VITE_BASE=${ADMIN_VITE_BASE:-/admin/}" --cache-from "type=registry,ref=${ADMIN_IMAGE}:buildcache" --cache-to "type=registry,ref=${ADMIN_IMAGE}:buildcache,mode=max" clients
+  - export IMAGE_DIGEST="$(jq -er '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' admin-image-metadata.json)"
+  - printf 'ADMIN_CANDIDATE_REF=%s@%s\n' "${ADMIN_IMAGE}" "${IMAGE_DIGEST}" > admin-candidate.env
+  artifacts:
+    expire_in: 1 day
+    paths:
+    - admin-image-metadata.json
+    reports:
+      dotenv: admin-candidate.env

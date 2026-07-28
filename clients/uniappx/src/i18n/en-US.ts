@@ -2,6 +2,7 @@ export const enUSMessages = {
   'common.loading': 'Loading...',
   'common.loadMore': 'Load more',
   'common.search': 'Search',
+  'common.retry': 'Retry',
   'common.processing': 'Processing...',
   'common.retryLater': 'Request failed. Please try again later.',
   'common.sessionExpired': 'Your session has expired. Please sign in again.',
@@ -81,6 +82,7 @@ export const enUSMessages = {
   'course.index.noResults': 'No courses found',
 
   'course.detail.loadFailed': 'Failed to load course details',
+  'course.detail.partialLoadFailed': 'Some course information is temporarily unavailable. Please retry later.',
   'course.detail.requireAuthFavorite': 'Please sign in before favoriting this course.',
   'course.detail.requireAuthReview': 'Please sign in before posting a review.',
   'course.detail.favoriteRemoved': 'Removed from favorites',

@@ -210,17 +210,24 @@
       @click.self="closeRevokeDialog"
     >
       <section
+        ref="revokeDialogRef"
         class="w-full max-w-md rounded-lg border border-border bg-bg-card p-5 shadow-xl"
         role="dialog"
         aria-modal="true"
         :aria-labelledby="revokeDialogTitleID"
+        :aria-describedby="revokeDialogDescriptionID"
+        tabindex="-1"
+        @keydown="handleRevokeDialogKeydown"
       >
         <header class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <h3 :id="revokeDialogTitleID" class="m-0 text-base font-semibold text-text-primary">
               {{ revokeDialogTitle }}
             </h3>
-            <p class="m-0 mt-1 text-sm leading-relaxed text-text-secondary">
+            <p
+              :id="revokeDialogDescriptionID"
+              class="m-0 mt-1 text-sm leading-relaxed text-text-secondary"
+            >
               {{ revokeDialogDescription }}
             </p>
           </div>
@@ -268,11 +275,13 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Activity, ExternalLink, ShieldCheck, Trash2, X } from 'lucide-vue-next'
 import SkeletonCard from '@/components/common/SkeletonCard.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import { useBodyScrollLock } from '@/composables/useBodyScrollLock'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 import { useAuthorizedAppsController } from '../authorizedAppsController'
 import type {
   OpenPlatformUserConsentAuditEvent,
@@ -282,6 +291,7 @@ import type {
 type Sensitivity = OpenPlatformUserConsentScope['sensitivity']
 
 const revokeDialogTitleID = 'authorized-apps-revoke-dialog-title'
+const revokeDialogDescriptionID = 'authorized-apps-revoke-dialog-description'
 
 const { t } = useI18n()
 const translate = (key: string, params?: Record<string, unknown>) => t(key, params ?? {})
@@ -306,6 +316,16 @@ const {
   appRevokeKey,
   scopeRevokeKey,
 } = useAuthorizedAppsController(translate)
+
+const revokeDialogRef = ref<HTMLElement | null>(null)
+const revokeDialogOpen = computed(() => revokeDialog.open)
+
+useBodyScrollLock(revokeDialogOpen)
+const { handleKeydown: handleRevokeDialogKeydown } = useDialogFocus({
+  close: closeRevokeDialog,
+  dialogRef: revokeDialogRef,
+  open: revokeDialogOpen,
+})
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString()

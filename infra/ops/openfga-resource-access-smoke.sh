@@ -69,7 +69,7 @@ run_smoke_with_docker() {
   require_cmd docker
   local stack_name_value="${STACK_NAME:-${COMPOSE_PROJECT_NAME:-stuhelper}}"
   local docker_network_name="${DOCKER_NETWORK_NAME:-${stack_name_value}-backend}"
-  local go_image_ref="${OPENFGA_RESOURCE_SMOKE_GO_IMAGE:-${GOLANG_IMAGE_REF:-golang:1.26.5-bookworm}}"
+  local go_image_ref="${OPENFGA_RESOURCE_SMOKE_GO_IMAGE:-${GOLANG_IMAGE_REF:-golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651}}"
   docker run --rm \
     --network "${docker_network_name}" \
     -v "${REPO_ROOT}:/workspace" \

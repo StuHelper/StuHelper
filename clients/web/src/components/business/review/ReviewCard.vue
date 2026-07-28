@@ -279,7 +279,7 @@
     <!-- 屏蔽弹窗 -->
     <ModerationDialog
       :visible="showModerationDialog"
-      :review-i-d="review.id"
+      :submitting="moderationSubmitting"
       @confirm="handleModerate"
       @close="showModerationDialog = false"
     />
@@ -288,6 +288,7 @@
     <AdminEditDialog
       :visible="showEditDialog"
       :review="review"
+      :submitting="editSubmitting"
       @confirm="handleAdminEdit"
       @close="showEditDialog = false"
     />
@@ -423,6 +424,8 @@ const { deleting, handleDeleteOwn } = useReviewDelete(() => props.review, t, (id
 const {
   showModerationDialog,
   showEditDialog,
+  moderationSubmitting,
+  editSubmitting,
   handleModerate,
   handleRestore,
   handleAdminEdit,

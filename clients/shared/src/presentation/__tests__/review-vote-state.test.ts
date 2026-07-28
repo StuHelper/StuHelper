@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
+
 import {
   applyOptimisticVote,
   createReviewVoteState,
   getDisplayVoteCount,
-} from '../reviewVoteState'
+} from '../review'
 
-describe('reviewVoteState', () => {
+describe('review vote state', () => {
   it('adds a like from the neutral state', () => {
     const next = applyOptimisticVote(createReviewVoteState(), 'like')
 
@@ -27,7 +28,7 @@ describe('reviewVoteState', () => {
     })
   })
 
-  it('switches from like to dislike with a full rollback snapshot available', () => {
+  it('switches from like to dislike without mutating the rollback snapshot', () => {
     const previous = createReviewVoteState({ userVote: 'like', likeOffset: 1 })
     const next = applyOptimisticVote(previous, 'dislike')
 

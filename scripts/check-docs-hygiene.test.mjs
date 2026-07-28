@@ -153,3 +153,32 @@ last-verified: 2026-05-07
     ),
   );
 });
+
+test('validateDocsTree skips ignored runtime directories', () => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'stuhelper-docs-'));
+  const runtimeDir = path.join(repoRoot, '.deploy', 'vault', 'file');
+
+  writeFile(
+    repoRoot,
+    'docs/README.md',
+    `---
+type: reference
+audience: all
+status: current
+authoritative-source: this file
+last-verified: 2026-04-19
+---
+
+# Documentation
+`,
+  );
+  writeFile(repoRoot, '.deploy/vault/file/.DS_Store', 'runtime-only');
+  fs.chmodSync(runtimeDir, 0o000);
+
+  try {
+    assert.deepEqual(validateDocsTree(repoRoot), []);
+  } finally {
+    fs.chmodSync(runtimeDir, 0o700);
+    fs.rmSync(repoRoot, { force: true, recursive: true });
+  }
+});

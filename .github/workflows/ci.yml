@@ -10,7 +10,7 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
+  pull-requests: read # Required by paths-filter for fork PR metadata
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -136,7 +136,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:18
+        image: postgres:18@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a
         env:
           POSTGRES_DB: test
           POSTGRES_USER: test
@@ -149,7 +149,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
       redis:
-        image: redis:8
+        image: redis:8@sha256:c88d347edef6249a6d2293f926f1eeb48bd40c57cbcd02c07f52e7f1fd2cb46b
         ports:
           - 6379:6379
         options: >-
@@ -364,31 +364,33 @@ jobs:
       needs.changes.outputs.clients == 'true'
     runs-on: ubuntu-latest
     container:
-      image: mcr.microsoft.com/playwright:v1.58.2-noble
+      image: mcr.microsoft.com/playwright:v1.58.2-noble@sha256:6446946a1d9fd62d9ae501312a2d76a43ee688542b21622056a372959b65d63d
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: Web
-            command: pnpm run test:e2e:web
+            script: test:e2e:web
             install_admin: false
             artifact_path: |
               clients/web/playwright-report
               clients/web/test-results
           - name: Admin
-            command: pnpm run test:e2e:admin
+            script: test:e2e:admin
             install_admin: true
             artifact_path: |
               clients/admin/apps/web-ele/playwright-report
               clients/admin/apps/web-ele/test-results
           - name: UniAppX
-            command: pnpm run test:e2e:uni
+            script: test:e2e:uni
             install_admin: false
             artifact_path: |
               clients/uniappx/playwright-report
               clients/uniappx/test-results
     env:
       CI: "true"
+      INSTALL_ADMIN: ${{ matrix.install_admin }}
+      PLAYWRIGHT_SCRIPT: ${{ matrix.script }}
     steps:
       - name: Check out the repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -410,13 +412,13 @@ jobs:
         working-directory: clients
         run: |
           pnpm install --frozen-lockfile
-          if [ "${{ matrix.install_admin }}" = "true" ]; then
+          if [[ "${INSTALL_ADMIN}" == "true" ]]; then
             pnpm --dir admin install --frozen-lockfile
           fi
 
       - name: Run Playwright
         working-directory: clients
-        run: ${{ matrix.command }}
+        run: pnpm run "${PLAYWRIGHT_SCRIPT}"
 
       - name: Upload Playwright evidence
         if: always()
@@ -435,7 +437,7 @@ jobs:
       needs.changes.outputs.koishi == 'true'
     runs-on: ubuntu-latest
     container:
-      image: mcr.microsoft.com/playwright:v1.58.2-noble
+      image: mcr.microsoft.com/playwright:v1.58.2-noble@sha256:6446946a1d9fd62d9ae501312a2d76a43ee688542b21622056a372959b65d63d
     env:
       CI: "true"
     steps:
@@ -478,7 +480,7 @@ jobs:
       needs.changes.outputs.infra == 'true'
     runs-on: ubuntu-latest
     container:
-      image: mcr.microsoft.com/playwright:v1.58.2-noble
+      image: mcr.microsoft.com/playwright:v1.58.2-noble@sha256:6446946a1d9fd62d9ae501312a2d76a43ee688542b21622056a372959b65d63d
     steps:
       - name: Check out the repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -583,3 +585,20 @@ jobs:
           if [[ "${RESULTS}" == *failure* || "${RESULTS}" == *cancelled* ]]; then
             exit 1
           fi
+
+  publish-images:
+    name: Publish images
+    needs: required
+    if: >-
+      needs.required.result == 'success' &&
+      github.event_name == 'push' &&
+      (github.ref_name == 'develop' || github.ref_name == 'main')
+    permissions:
+      contents: read
+      packages: write # Publish scanned images after every CI gate succeeds
+      attestations: write # Attach provenance to each immutable image digest
+      id-token: write # Mint the OIDC identity used by the provenance signer
+    uses: ./.github/workflows/publish-images.yml
+    with:
+      commit_sha: ${{ github.sha }}
+      branch: ${{ github.ref_name }}

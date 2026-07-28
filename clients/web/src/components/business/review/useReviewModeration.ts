@@ -16,15 +16,21 @@ export function useReviewModeration(
 
   const showModerationDialog = ref(false)
   const showEditDialog = ref(false)
+  const moderationSubmitting = ref(false)
+  const editSubmitting = ref(false)
 
   async function handleModerate(reason: string) {
-    showModerationDialog.value = false
+    if (moderationSubmitting.value) return
+    moderationSubmitting.value = true
     try {
       await api.admin.updateReview(reviewGetter().id, { action: 'hide', reason })
+      showModerationDialog.value = false
       toast.success(t('review.admin.moderateSuccess'))
       emitModerated()
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, t('review.admin.actionFailed')))
+    } finally {
+      moderationSubmitting.value = false
     }
   }
 
@@ -39,19 +45,25 @@ export function useReviewModeration(
   }
 
   async function handleAdminEdit(payload: { title: string; content: string; reason: string }) {
-    showEditDialog.value = false
+    if (editSubmitting.value) return
+    editSubmitting.value = true
     try {
       await api.admin.editReview(reviewGetter().id, payload)
+      showEditDialog.value = false
       toast.success(t('review.admin.editSuccess'))
       emitModerated()
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, t('review.admin.actionFailed')))
+    } finally {
+      editSubmitting.value = false
     }
   }
 
   return {
     showModerationDialog,
     showEditDialog,
+    moderationSubmitting,
+    editSubmitting,
     handleModerate,
     handleRestore,
     handleAdminEdit,

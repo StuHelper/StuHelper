@@ -324,7 +324,7 @@ ensure_dev_default "REDIS_EXTERNAL_PORT" "${REDIS_EXTERNAL_PORT:-}" "6379" "2637
 ensure_value "REDIS_TLS_ENABLED" "${REDIS_TLS_ENABLED:-}" "true"
 ensure_dev_default "REDIS_TLS_CA" "${REDIS_TLS_CA:-}" "/tls/ca.crt" "/redis-tls/ca.crt"
 ensure_dev_default "CASDOOR_EXTERNALPORT" "${CASDOOR_EXTERNALPORT:-}" "8085" "28085"
-ensure_value "CASDOOR_VERSION" "${CASDOOR_VERSION:-}" "3.31.1"
+ensure_value "CASDOOR_IMAGE_REF" "${CASDOOR_IMAGE_REF:-}" "casbin/casdoor:3.31.1@sha256:a9c9bca53ccf94a96f3f8b4ca40298dbe00c114ef0100b742d2085b9368a6a0b"
 ensure_dev_default "CASDOOR_ISSUER" "${CASDOOR_ISSUER:-}" "http://localhost:8085" "http://localhost" "http://host.docker.internal:8085" "http://sso.stuhelper.com" "https://sso.stuhelper.com" "http://127.0.0.1:28085"
 ensure_dev_default "CASDOOR_INTERNAL_ADDRESS" "${CASDOOR_INTERNAL_ADDRESS:-}" "casdoor:8000" "host.docker.internal:80"
 ensure_dev_default "CASDOOR_PUBLIC_AUTH_BASE_URL" "${CASDOOR_PUBLIC_AUTH_BASE_URL:-}" "" "http://sso.stuhelper.com" "https://sso.stuhelper.com"

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
+import A11yButton from '@/components/A11yButton.vue'
 import { api } from '@/api'
 import type { components } from '@/api'
 import type { ReviewRatings } from '@stuhelper/shared/review'
@@ -13,6 +14,7 @@ const authStore = useAuthStore()
 const t = translate
 const courseID = ref(0)
 const submitting = ref(false)
+const savingDraft = ref(false)
 const loading = ref(false)
 const course = ref<components['schemas']['Course'] | null>(null)
 const terms = ref<components['schemas']['Term'][]>([])
@@ -100,9 +102,10 @@ function setRating(key: string, value: 1 | 2 | 3 | 4 | 5) {
 }
 
 async function saveDraft() {
-  if (!(await authStore.requireAuth(t('review.post.requireAuth')))) return
-  if (!course.value) return
+  if (!course.value || savingDraft.value) return
+  savingDraft.value = true
   try {
+    if (!(await authStore.requireAuth(t('review.post.requireAuth')))) return
     assertMutationSuccess(await api.draft.saveDraft({
       courseID: course.value.id,
       teacherID: form.value.teacherID || undefined,
@@ -118,14 +121,16 @@ async function saveDraft() {
       title: error instanceof Error ? error.message : t('review.post.draftSaveFailed'),
       icon: 'none',
     })
+  } finally {
+    savingDraft.value = false
   }
 }
 
 async function submitReview() {
-  if (!(await authStore.requireAuth(t('review.post.requireAuth')))) return
   if (!canSubmit.value || !course.value || submitting.value) return
   submitting.value = true
   try {
+    if (!(await authStore.requireAuth(t('review.post.requireAuth')))) return
     assertMutationSuccess(await api.review.createReview({
       courseID: course.value.id,
       teacherID: form.value.teacherID || undefined,
@@ -219,16 +224,18 @@ onLoad(async (options) => {
         <view v-for="dimension in dimensions" :key="dimension.key" class="rating-row">
           <text class="rating-label">{{ dimension.name }}</text>
           <view class="rating-options">
-            <text
+            <A11yButton
               v-for="value in ratingValues"
               :key="value"
               class="rating-pill"
               :class="{ active: form.ratings[dimension.key] === value }"
               :data-testid="`uni-review-rating-${dimension.key}-${value}`"
+              :aria-label="`${dimension.name} ${value}`"
+              :aria-pressed="form.ratings[dimension.key] === value"
               @tap="setRating(dimension.key, value)"
             >
               {{ value }}
-            </text>
+            </A11yButton>
           </view>
         </view>
       </view>
@@ -247,10 +254,12 @@ onLoad(async (options) => {
         </text>
       </view>
 
-      <button class="secondary-btn" data-testid="uni-review-save-draft" @tap="saveDraft">{{ t('review.post.saveDraft') }}</button>
-      <button class="primary-btn" data-testid="uni-review-submit" :disabled="!canSubmit || submitting" @tap="submitReview">
+      <A11yButton class="secondary-btn" data-testid="uni-review-save-draft" :disabled="savingDraft" @tap="saveDraft">
+        {{ savingDraft ? t('common.processing') : t('review.post.saveDraft') }}
+      </A11yButton>
+      <A11yButton class="primary-btn" data-testid="uni-review-submit" :disabled="!canSubmit || submitting" @tap="submitReview">
         {{ submitting ? t('review.post.submitting') : t('review.post.submit') }}
-      </button>
+      </A11yButton>
     </view>
   </scroll-view>
 </template>

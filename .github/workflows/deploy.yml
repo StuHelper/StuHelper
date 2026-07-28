@@ -17,7 +17,8 @@ on:
 
 permissions:
   contents: read
-  packages: read
+  packages: read # Pull release manifests from GHCR
+  attestations: read # Verify provenance before remote mutation
 
 concurrency:
   group: deployment-${{ inputs.target }}
@@ -38,6 +39,7 @@ jobs:
       DEPLOY_TARGET_APP_DIR: ${{ secrets.DEPLOY_APP_DIR }}
       DEPLOY_TARGET_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
       DEPLOY_TARGET_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+      DEPLOY_ENVIRONMENT: ${{ inputs.target }}
       TARGET_SHA: ${{ inputs.commit_sha }}
     steps:
       - name: Validate the immutable release identifier
@@ -54,28 +56,49 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Validate deployment inputs
+        run: ./infra/ops/validate-ci-deploy-inputs.sh
+
       - name: Build the deployment bundle
         run: ./infra/ops/build-deploy-bundle.sh "${RUNNER_TEMP}/deploy-bundle.tgz"
 
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # v4.5.2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve and verify release images
+        id: release-images
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE_NAMESPACE: ghcr.io/stuhelper
+        run: ./infra/ops/resolve-attested-release-images.sh
+
       - name: Upload, deploy, and verify
         env:
-          BACKEND_IMAGE_REF: ghcr.io/stuhelper/backend:${{ inputs.commit_sha }}
-          FRONTEND_IMAGE_REF: ghcr.io/stuhelper/frontend:${{ inputs.commit_sha }}
-          ADMIN_IMAGE_REF: ghcr.io/stuhelper/admin:${{ inputs.commit_sha }}
+          BACKEND_IMAGE_REF: ${{ steps.release-images.outputs.backend_image_ref }}
+          FRONTEND_IMAGE_REF: ${{ steps.release-images.outputs.frontend_image_ref }}
+          ADMIN_IMAGE_REF: ${{ steps.release-images.outputs.admin_image_ref }}
         run: |
           set -euo pipefail
-          : "${DEPLOY_TARGET_HOST:?DEPLOY_HOST environment secret is required}"
-          : "${DEPLOY_TARGET_USER:?DEPLOY_USER environment secret is required}"
-          : "${DEPLOY_TARGET_APP_DIR:?DEPLOY_APP_DIR environment secret is required}"
-          : "${DEPLOY_TARGET_SSH_KEY:?DEPLOY_SSH_KEY environment secret is required}"
-          : "${DEPLOY_TARGET_SSH_KNOWN_HOSTS:?DEPLOY_SSH_KNOWN_HOSTS environment secret is required}"
-
           port="${DEPLOY_TARGET_PORT:-22}"
           eval "$(ssh-agent -s)"
+          trap 'ssh-agent -k >/dev/null 2>&1 || true' EXIT
           install -d -m 700 "${HOME}/.ssh"
           printf '%s\n' "${DEPLOY_TARGET_SSH_KEY}" | tr -d '\r' | ssh-add -
-          printf '%s\n' "${DEPLOY_TARGET_SSH_KNOWN_HOSTS}" > "${HOME}/.ssh/known_hosts"
+          printf '%s\n' "${DEPLOY_TARGET_SSH_KNOWN_HOSTS}" |
+            tr -d '\r' >"${HOME}/.ssh/known_hosts"
           chmod 600 "${HOME}/.ssh/known_hosts"
+          known_host_lookup="${DEPLOY_TARGET_HOST}"
+          if [[ "${port}" != "22" ]]; then
+            known_host_lookup="[${DEPLOY_TARGET_HOST}]:${port}"
+          fi
+          if ! ssh-keygen -F "${known_host_lookup}" -f "${HOME}/.ssh/known_hosts" >/dev/null; then
+            echo "DEPLOY_SSH_KNOWN_HOSTS does not pin the selected endpoint" >&2
+            exit 1
+          fi
 
           ssh_args=(
             -o BatchMode=yes

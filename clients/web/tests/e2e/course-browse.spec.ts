@@ -273,17 +273,24 @@ test.describe('Course Browse Flow', () => {
     await page.goto('/courses')
     await page.waitForLoadState('networkidle')
 
-    await page
-      .getByRole('textbox', {
-        name: /搜索课程名称、拼音或首字母/,
-      })
-      .fill('高数')
+    const searchInput = page.getByRole('combobox', {
+      name: /搜索课程名称、拼音或首字母/,
+    })
+    await expect(searchInput).toHaveAttribute('aria-expanded', 'false')
+    await searchInput.fill('高数')
 
-    await expect(
-      page.getByRole('option', {
-        name: /高等数学A.*数学科学学院.*15条测评/,
-      }),
-    ).toBeVisible()
+    const option = page.getByRole('option', {
+      name: /高等数学A.*数学科学学院.*15条测评/,
+    })
+    await expect(option).toBeVisible()
+    await expect(searchInput).toHaveAttribute('aria-expanded', 'true')
+    await expect(searchInput).toHaveAttribute(
+      'aria-activedescendant',
+      await option.getAttribute('id') ?? '',
+    )
+
+    await searchInput.press('Escape')
+    await expect(searchInput).toHaveAttribute('aria-expanded', 'false')
   })
 
   test('course hub search falls back to server catalog beyond the first page', async ({
@@ -321,7 +328,7 @@ test.describe('Course Browse Flow', () => {
     await page.waitForLoadState('networkidle')
 
     await page
-      .getByRole('textbox', {
+      .getByRole('combobox', {
         name: /搜索课程名称、拼音或首字母/,
       })
       .fill('深度学习导论')
@@ -359,7 +366,7 @@ test.describe('Course Browse Flow', () => {
     await page.waitForLoadState('networkidle')
 
     await page
-      .getByRole('textbox', {
+      .getByRole('combobox', {
         name: /搜索课程名称、拼音或首字母/,
       })
       .fill('深度学习导论')
@@ -408,7 +415,7 @@ test.describe('Course Browse Flow', () => {
     await page.goto('/courses')
     await page.waitForLoadState('networkidle')
 
-    const searchInput = page.getByRole('textbox', {
+    const searchInput = page.getByRole('combobox', {
       name: /搜索课程名称、拼音或首字母/,
     })
     await searchInput.fill('深度学习导论')
@@ -442,6 +449,39 @@ test.describe('Course Browse Flow', () => {
     await expect
       .poll(() => new URL(page.url()).searchParams.get('courseName'))
       .toBe('深度学习导论')
+  })
+
+  test('hot course cards are keyboard-operable links', async ({ page }) => {
+    const hotCourse = course()
+    await page.route('**/api/v1/course/review/rankings/hot*', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            list: [{
+              courseID: hotCourse.id,
+              courseName: hotCourse.name,
+              reviewCount: hotCourse.reviewCount,
+              avgRating: 4.5,
+            }],
+          },
+        }),
+      }),
+    )
+    await mockCourseDetailShell(page, hotCourse)
+
+    await page.goto('/courses')
+    const hotCourseLink = page.getByRole('link', {
+      name: /高等数学A.*15条测评/,
+    })
+    await expect(hotCourseLink).toBeVisible({ timeout: 10_000 })
+
+    await hotCourseLink.focus()
+    await expect(hotCourseLink).toBeFocused()
+    await hotCourseLink.press('Enter')
+
+    await expect(page).toHaveURL(/\/courses\/1$/)
   })
 
   test('invalid grouped course response fails closed and can retry', async ({

@@ -4,7 +4,10 @@ delete process.env.NO_COLOR
 
 const pnpmCommand = process.env.PLAYWRIGHT_PNPM_COMMAND ?? 'corepack pnpm'
 const webPort = Number(process.env.PLAYWRIGHT_WEB_PORT ?? 3000)
-const webHost = process.env.PLAYWRIGHT_WEB_HOST ?? '127.0.0.1'
+// Keep the default origin identical to `make dev-up`'s VITE_WEB_URL so a
+// reused Vite server exercises the same canonical login redirect origin that
+// the Playwright assertions observe.
+const webHost = process.env.PLAYWRIGHT_WEB_HOST ?? 'localhost'
 const webOrigin = `http://${webHost}:${webPort}`
 const webServerEnv = withoutNoColorEnv({
   VITE_SSO_URL: process.env.VITE_SSO_URL ?? 'http://localhost:8085',

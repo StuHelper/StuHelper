@@ -205,3 +205,52 @@ func TestRowWithCancelScan_SkipsRetryWhenContextCanceledDuringBackoff(t *testing
 	require.ErrorIs(t, err, wantErr)
 	assert.Nil(t, row.db)
 }
+
+func TestRowWithCancelScan_NeverRetriesDataChangingStatement(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	wantErr := &net.OpError{Op: "read", Net: "tcp", Err: errors.New("connection reset by peer")}
+
+	row := &RowWithCancel{
+		row: fakeRow{
+			scan: func(dest ...any) error {
+				return wantErr
+			},
+		},
+		cancel: func() {},
+		// A retry would dereference this deliberately incomplete DB and panic.
+		db:    &DB{},
+		ctx:   ctx,
+		sql:   "INSERT INTO audit_events (id) VALUES ($1) RETURNING id",
+		table: "audit_events",
+	}
+
+	require.NotPanics(t, func() {
+		err := row.Scan(new(string))
+		require.ErrorIs(t, err, wantErr)
+	})
+}
+
+func TestIsRetryableReadSQLUsesStrictAllowlist(t *testing.T) {
+	tests := []struct {
+		name string
+		sql  string
+		want bool
+	}{
+		{name: "select", sql: " \n SELECT id FROM users", want: true},
+		{name: "show", sql: "SHOW transaction_read_only", want: true},
+		{name: "table", sql: "TABLE users", want: true},
+		{name: "values", sql: "VALUES (1)", want: true},
+		{name: "insert returning", sql: "INSERT INTO users (id) VALUES (1) RETURNING id", want: false},
+		{name: "update returning", sql: "UPDATE users SET name = 'x' RETURNING id", want: false},
+		{name: "delete returning", sql: "DELETE FROM users RETURNING id", want: false},
+		{name: "cte", sql: "WITH changed AS (DELETE FROM users RETURNING id) SELECT * FROM changed", want: false},
+		{name: "explain analyze", sql: "EXPLAIN ANALYZE DELETE FROM users", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isRetryableReadSQL(tt.sql))
+		})
+	}
+}

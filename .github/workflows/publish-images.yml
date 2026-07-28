@@ -1,32 +1,33 @@
 name: Publish images
 
 on:
-  workflow_run:
-    workflows:
-      - CI
-    types:
-      - completed
+  workflow_call:
+    inputs:
+      commit_sha:
+        description: Tested full commit SHA
+        required: true
+        type: string
+      branch:
+        description: Trusted branch that produced the commit
+        required: true
+        type: string
 
 permissions:
   contents: read
-  packages: write
-  attestations: write
-  id-token: write
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_branch }}
+  group: publish-images-${{ inputs.branch }}
   cancel-in-progress: true
 
 jobs:
   publish:
     name: ${{ matrix.name }}
-    if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_repository.full_name == github.repository &&
-      (github.event.workflow_run.head_branch == 'develop' ||
-      github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # Push the three scanned OCI images to GHCR
+      attestations: write # Store provenance with each manifest digest
+      id-token: write # Mint the OIDC identity used to sign provenance
     strategy:
       fail-fast: false
       matrix:
@@ -44,23 +45,34 @@ jobs:
             file: clients/admin/scripts/deploy/Dockerfile
             image: ghcr.io/stuhelper/admin
     steps:
+      - name: Validate trusted release inputs
+        env:
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          SOURCE_BRANCH: ${{ inputs.branch }}
+        run: |
+          if [[ ! "${COMMIT_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "commit_sha must be a full lowercase 40-character Git commit SHA" >&2
+            exit 1
+          fi
+          if [[ "${SOURCE_BRANCH}" != "develop" && "${SOURCE_BRANCH}" != "main" ]]; then
+            echo "branch must be develop or main" >&2
+            exit 1
+          fi
+
       - name: Check out the tested commit
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ inputs.commit_sha }}
           persist-credentials: false
 
       - name: Record reproducible build metadata
         id: build-meta
+        env:
+          COMMIT_SHA: ${{ inputs.commit_sha }}
         run: |
-          printf 'build_time=%s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "${GITHUB_OUTPUT}"
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # v4.5.2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          commit_epoch="$(git show -s --format=%ct "${COMMIT_SHA}")"
+          build_time="$(date -u --date="@${commit_epoch}" +'%Y-%m-%dT%H:%M:%SZ')"
+          printf 'build_time=%s\n' "${build_time}" >>"${GITHUB_OUTPUT}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
@@ -71,26 +83,24 @@ jobs:
         with:
           images: ${{ matrix.image }}
           tags: |
-            type=raw,value=${{ github.event.workflow_run.head_sha }}
-            type=raw,value=develop-latest,enable=${{ github.event.workflow_run.head_branch == 'develop' }}
-            type=raw,value=latest,enable=${{ github.event.workflow_run.head_branch == 'main' }}
+            type=raw,value=${{ inputs.commit_sha }}
           labels: |
-            org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
+            org.opencontainers.image.revision=${{ inputs.commit_sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
 
-      - name: Build and publish
-        id: build
+      - name: Build the candidate locally
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
           platforms: linux/amd64
-          push: true
+          load: true
+          push: false
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
           build-args: |
-            VERSION=${{ github.event.workflow_run.head_sha }}
-            GIT_COMMIT=${{ github.event.workflow_run.head_sha }}
+            VERSION=${{ inputs.commit_sha }}
+            GIT_COMMIT=${{ inputs.commit_sha }}
             BUILD_TIME=${{ steps.build-meta.outputs.build_time }}
             VITE_API_URL=${{ vars.WEB_VITE_API_URL || '/api' }}
             VITE_SSO_URL=${{ vars.WEB_VITE_SSO_URL || 'https://sso.stuhelper.com' }}
@@ -101,22 +111,65 @@ jobs:
             VITE_QQ_BIND_COMMAND=${{ vars.WEB_VITE_QQ_BIND_COMMAND || '绑定' }}
             VITE_GLOB_API_URL=${{ vars.ADMIN_VITE_API_URL || '/api/v1' }}
             VITE_BASE=${{ vars.ADMIN_VITE_BASE || '/admin/' }}
-          cache-from: type=gha,scope=${{ matrix.name }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
 
-      - name: Scan the published image
+      - name: Scan the candidate image
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
-          image-ref: ${{ matrix.image }}@${{ steps.build.outputs.digest }}
-          version: v0.70.0
+          image-ref: ${{ matrix.image }}:${{ inputs.commit_sha }}
+          version: v0.72.0
           format: table
           severity: HIGH,CRITICAL
           ignore-unfixed: false
           exit-code: "1"
 
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # v4.5.2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish the scanned image
+        id: publish
+        env:
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          IMAGE_NAME: ${{ matrix.image }}
+        run: |
+          set -euo pipefail
+          immutable_ref="${IMAGE_NAME}:${COMMIT_SHA}"
+          docker push "${immutable_ref}"
+          digest="$(
+            docker buildx imagetools inspect \
+              "${immutable_ref}" \
+              --format '{{json .Manifest}}' |
+              jq -er '.digest'
+          )"
+          if [[ ! "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "published image returned an invalid manifest digest" >&2
+            exit 1
+          fi
+          printf 'digest=%s\n' "${digest}" >>"${GITHUB_OUTPUT}"
+
       - name: Attest image provenance
         uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
         with:
           subject-name: ${{ matrix.image }}
-          subject-digest: ${{ steps.build.outputs.digest }}
+          subject-digest: ${{ steps.publish.outputs.digest }}
           push-to-registry: true
+
+      - name: Update the human-readable branch alias
+        env:
+          IMAGE_NAME: ${{ matrix.image }}
+          SOURCE_BRANCH: ${{ inputs.branch }}
+          PUBLISHED_DIGEST: ${{ steps.publish.outputs.digest }}
+        run: |
+          set -euo pipefail
+          if [[ "${SOURCE_BRANCH}" == "develop" ]]; then
+            alias_ref="${IMAGE_NAME}:develop-latest"
+          else
+            alias_ref="${IMAGE_NAME}:latest"
+          fi
+          docker buildx imagetools create \
+            --prefer-index=false \
+            --tag "${alias_ref}" \
+            "${IMAGE_NAME}@${PUBLISHED_DIGEST}"

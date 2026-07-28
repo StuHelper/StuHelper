@@ -44,7 +44,44 @@ const RETIRED_PATH_PATTERNS = [
 ];
 const ABSOLUTE_PATH_PATTERN = /\/Users\/|\/home\/|\/root\/|C:\\/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const SKIP_DIRS = new Set(['.git', 'node_modules']);
+const SKIP_DIRS = new Set([
+  '.ace-tool',
+  '.claude',
+  '.conda',
+  '.deploy',
+  '.docker',
+  '.eggs',
+  '.git',
+  '.hbuilderx',
+  '.idea',
+  '.mypy_cache',
+  '.playwright-mcp',
+  '.pnpm-store',
+  '.pytest_cache',
+  '.ruff_cache',
+  '.run',
+  '.secrets',
+  '.tools',
+  '.venv',
+  '.vscode',
+  '.worktrees',
+  'backups',
+  'bin',
+  'build',
+  'coverage',
+  'dist',
+  'env',
+  'htmlcov',
+  'node_modules',
+  'output',
+  'playwright-report',
+  'storybook-static',
+  'test-results',
+  'tmp',
+  'unpackage',
+  'vendor',
+  'venv',
+]);
 
 function toPosix(value) {
   return value.split(path.sep).join(path.posix.sep);

@@ -22,9 +22,11 @@
             :size="20"
           />
           <input
+            id="course-hub-search"
             ref="searchInputRef"
             v-model="query"
             type="text"
+            role="combobox"
             autocomplete="off"
             data-1p-ignore
             data-lpignore="true"
@@ -37,6 +39,10 @@
                    focus:shadow-glow-primary focus:ring-1 focus:ring-primary/30"
             :placeholder="t('review.home.searchPlaceholder')"
             :aria-label="t('review.home.searchPlaceholder')"
+            aria-autocomplete="list"
+            aria-controls="course-hub-search-listbox"
+            :aria-expanded="showDropdown && Boolean(query.trim())"
+            :aria-activedescendant="activeResultId"
             @keydown="onSearchKeyDown"
             @focus="showDropdown = true"
           />
@@ -55,6 +61,7 @@
           v-if="showDropdown && query.trim()"
           id="course-hub-search-listbox"
           role="listbox"
+          :aria-busy="remoteSearchLoading"
           class="absolute left-0 right-0 mt-1 rounded-xl overflow-hidden z-[var(--z-dropdown)]
                  bg-bg-card shadow-lg
                  max-h-[360px] overflow-y-auto"
@@ -63,6 +70,7 @@
             <div
               v-for="(course, idx) in displayedResults"
               :key="course.id"
+              :id="courseResultId(course.id)"
               role="option"
               :aria-selected="idx === selectedIndex"
               class="flex items-center justify-between px-4 py-3 cursor-pointer transition-colors duration-fast"
@@ -165,12 +173,13 @@
           {{ t('review.home.hotCourses') }}
         </h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div
+          <router-link
             v-for="(course, idx) in hotCourses"
             :key="course.courseID"
-            class="glass-card shadow-card rounded-xl p-5 cursor-pointer hover-lift stagger-item"
+            :to="`/courses/${course.courseID}`"
+            class="glass-card shadow-card rounded-xl p-5 cursor-pointer hover-lift stagger-item no-underline
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
             :style="{ animationDelay: `${idx * 80}ms` }"
-            @click="navigateToCourse(course.courseID)"
           >
             <h3 class="text-base font-semibold mb-2 truncate text-text-primary">
               {{ course.courseName }}
@@ -181,7 +190,7 @@
                 {{ course.reviewCount }}{{ t('review.home.reviewUnit') }}
               </span>
             </div>
-          </div>
+          </router-link>
         </div>
       </section>
 
@@ -269,6 +278,16 @@ const displayedResults = computed(() => {
   }
 
   return merged
+})
+
+function courseResultId(courseId: number) {
+  return `course-hub-search-option-${courseId}`
+}
+
+const activeResultId = computed(() => {
+  if (!showDropdown.value || !query.value.trim()) return undefined
+  const selected = displayedResults.value[selectedIndex.value]
+  return selected ? courseResultId(selected.id) : undefined
 })
 
 const visibleSearchError = computed(() => {

@@ -4,7 +4,7 @@
 services:
   alloy:
     profiles: [observability, prod]
-    image: grafana/alloy:${GRAFANA_ALLOY_VERSION:-v1.10.2}
+    image: ${GRAFANA_ALLOY_IMAGE_REF:-grafana/alloy:v1.10.2@sha256:bcf27f18c4402869af112fb39e35e1db3804a404686f4caa20bdf77814219223}
     container_name: ${STACK_NAME:-stuhelper}-alloy
     command:
     - run
@@ -47,7 +47,7 @@ services:
     - no-new-privileges:true
   prometheus:
     profiles: [observability, prod]
-    image: prom/prometheus:${PROMETHEUS_VERSION:-v3.5.0}
+    image: ${PROMETHEUS_IMAGE_REF:-prom/prometheus:v3.5.0@sha256:63805ebb8d2b3920190daf1cb14a60871b16fd38bed42b857a3182bc621f4996}
     container_name: ${STACK_NAME:-stuhelper}-prometheus
     command:
     - --config.file=/etc/prometheus/prometheus.yml
@@ -84,7 +84,7 @@ services:
     - no-new-privileges:true
   alertmanager:
     profiles: [observability, prod]
-    image: prom/alertmanager:${ALERTMANAGER_VERSION:-v0.28.1}
+    image: ${ALERTMANAGER_IMAGE_REF:-prom/alertmanager:v0.28.1@sha256:27c475db5fb156cab31d5c18a4251ac7ed567746a2483ff264516437a39b15ba}
     container_name: ${STACK_NAME:-stuhelper}-alertmanager
     command:
     - --config.file=/etc/alertmanager/alertmanager.yml
@@ -113,7 +113,7 @@ services:
     - no-new-privileges:true
   loki:
     profiles: [observability, prod]
-    image: grafana/loki:${LOKI_VERSION:-3.5.5}
+    image: ${LOKI_IMAGE_REF:-grafana/loki:3.5.5@sha256:31628519045e7f28692a7ae73b4a3fd293dccb425585ed5d16ceea3b5c9592e6}
     container_name: ${STACK_NAME:-stuhelper}-loki
     command: ["-config.file=/etc/loki/loki.yaml"]
     ports:
@@ -140,7 +140,7 @@ services:
     - no-new-privileges:true
   tempo:
     profiles: [observability, prod]
-    image: grafana/tempo:${TEMPO_VERSION:-2.8.2}
+    image: ${TEMPO_IMAGE_REF:-grafana/tempo:2.8.2@sha256:0ef775495967cd5d7a6b2e146b6ea695d624803c8db8349fb8ce4164f719f9b7}
     container_name: ${STACK_NAME:-stuhelper}-tempo
     command: ["-config.file=/etc/tempo/tempo.yaml"]
     ports:
@@ -167,7 +167,7 @@ services:
     - no-new-privileges:true
   grafana:
     profiles: [observability, prod]
-    image: grafana/grafana:${GRAFANA_VERSION:-12.1.1}
+    image: ${GRAFANA_IMAGE_REF:-grafana/grafana:12.1.1@sha256:a1701c2180249361737a99a01bc770db39381640e4d631825d38ff4535efa47d}
     container_name: ${STACK_NAME:-stuhelper}-grafana
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
@@ -210,7 +210,7 @@ services:
     - no-new-privileges:true
   node-exporter:
     profiles: [observability, prod]
-    image: prom/node-exporter:${NODE_EXPORTER_VERSION:-v1.9.1}
+    image: ${NODE_EXPORTER_IMAGE_REF:-prom/node-exporter:v1.9.1@sha256:d00a542e409ee618a4edc67da14dd48c5da66726bbd5537ab2af9c1dfc442c8a}
     container_name: ${STACK_NAME:-stuhelper}-node-exporter
     command:
     - --path.rootfs=/host
@@ -238,7 +238,7 @@ services:
     - no-new-privileges:true
   cadvisor:
     profiles: [observability, prod]
-    image: gcr.io/cadvisor/cadvisor:${CADVISOR_VERSION:-v0.52.1}
+    image: ${CADVISOR_IMAGE_REF:-gcr.io/cadvisor/cadvisor:v0.52.1@sha256:f40e65878e25c2e78ea037f73a449527a0fb994e303dc3e34cb6b187b4b91435}
     container_name: ${STACK_NAME:-stuhelper}-cadvisor
     security_opt:
     - no-new-privileges:true
@@ -268,7 +268,7 @@ services:
           memory: 512M
   postgres-exporter:
     profiles: [observability, prod]
-    image: quay.io/prometheuscommunity/postgres-exporter:${POSTGRES_EXPORTER_VERSION:-v0.17.1}
+    image: ${POSTGRES_EXPORTER_IMAGE_REF:-quay.io/prometheuscommunity/postgres-exporter:v0.17.1@sha256:38606faa38c54787525fb0ff2fd6b41b4cfb75d455c1df294927c5f611699b17}
     container_name: ${STACK_NAME:-stuhelper}-postgres-exporter
     environment:
       DATA_SOURCE_URI: postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}&sslrootcert=/tls/ca.crt
@@ -304,7 +304,7 @@ services:
     - no-new-privileges:true
   redis-exporter:
     profiles: [observability, prod]
-    image: oliver006/redis_exporter:${REDIS_EXPORTER_VERSION:-v1.76.0}
+    image: ${REDIS_EXPORTER_IMAGE_REF:-oliver006/redis_exporter:v1.76.0@sha256:1542bc6a88decfc16db6603045accd502cc3a46c46659d7cfd568e1f6965fe59}
     container_name: ${STACK_NAME:-stuhelper}-redis-exporter
     environment:
       REDIS_ADDR: rediss://${REDIS_EXPORTER_USERNAME:-stuhelper_metrics}:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379
@@ -339,7 +339,7 @@ services:
     - no-new-privileges:true
   blackbox-exporter:
     profiles: [observability, prod]
-    image: quay.io/prometheus/blackbox-exporter:${BLACKBOX_EXPORTER_VERSION:-v0.27.0}
+    image: ${BLACKBOX_EXPORTER_IMAGE_REF:-quay.io/prometheus/blackbox-exporter:v0.27.0@sha256:a50c4c0eda297baa1678cd4dc4712a67fdea713b832d43ce7fcc5f9bea05094d}
     container_name: ${STACK_NAME:-stuhelper}-blackbox-exporter
     command:
     - --config.file=/etc/blackbox/blackbox.yml
@@ -369,7 +369,7 @@ services:
     - no-new-privileges:true
   alert-webhook-sink:
     profiles: [prod]
-    image: mendhak/http-https-echo:${ALERT_WEBHOOK_SINK_VERSION:-35}
+    image: ${ALERT_WEBHOOK_SINK_IMAGE_REF:-mendhak/http-https-echo:35@sha256:440ca6b810bc04606aac700e461caca5543eaa882c4e0af96a33424d05a23592}
     container_name: ${STACK_NAME:-stuhelper}-alert-webhook-sink
     environment:
       HTTP_PORT: 8080

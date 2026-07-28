@@ -70,6 +70,43 @@ describe('useAuthStore', () => {
     expect(store.user?.displayName).toBe('H5 User')
   })
 
+  it('coalesces concurrent bootstraps and makes every caller await the same result', async () => {
+    hasStoredH5SessionHint.mockReturnValue(true)
+    let resolveMe!: (value: unknown) => void
+    authApi.me.mockReturnValue(new Promise((resolve) => {
+      resolveMe = resolve
+    }))
+
+    const { useAuthStore } = await import('./auth')
+    const store = useAuthStore()
+
+    const first = store.bootstrapSession(true)
+    const second = store.bootstrapSession(true)
+    let secondSettled = false
+    void second.finally(() => {
+      secondSettled = true
+    })
+    await Promise.resolve()
+
+    expect(authApi.me).toHaveBeenCalledTimes(1)
+    expect(store.loading).toBe(true)
+    expect(secondSettled).toBe(false)
+
+    resolveMe({
+      data: {
+        data: {
+          id: 'coalesced-user',
+          displayName: 'Coalesced User',
+        },
+      },
+    })
+    await Promise.all([first, second])
+
+    expect(store.isAuthenticated).toBe(true)
+    expect(store.user?.displayName).toBe('Coalesced User')
+    expect(store.loading).toBe(false)
+  })
+
   it('persists session id returned by exchange-native', async () => {
     const getStorageSync = vi.fn((key: string) => {
       if (key === 'stuhelper:sso-state') {

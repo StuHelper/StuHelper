@@ -77,6 +77,26 @@ describe('useReviewVoting', () => {
     expect(voting.displayDislikeCount(review as never)).toBe(2)
   })
 
+  it('hydrates the current vote from the API review and toggles it off', async () => {
+    mockVoteReview.mockResolvedValue(undefined)
+    const review = {
+      id: 'review-hydrated',
+      likeCount: 10,
+      dislikeCount: 2,
+      userVote: 'like',
+    }
+    const voting = useReviewVoting()
+
+    expect(voting.currentUserVote(review as never)).toBe('like')
+
+    await voting.handleVote(review as never, 'like')
+
+    expect(voting.reviewVotes['review-hydrated']).toBeNull()
+    expect(voting.currentUserVote(review as never)).toBeNull()
+    expect(voting.displayLikeCount(review as never)).toBe(9)
+    expect(voting.displayDislikeCount(review as never)).toBe(2)
+  })
+
   it('rolls back optimistic vote state on failure', async () => {
     mockVoteReview.mockRejectedValue(new Error('boom'))
     const review = { id: 'review-2', likeCount: 3, dislikeCount: 1 }

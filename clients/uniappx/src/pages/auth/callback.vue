@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
+import A11yButton from '@/components/A11yButton.vue'
 import { useAuthStore } from '@/stores/auth'
 import { translate } from '@/i18n'
 
@@ -69,9 +70,9 @@ function handleRetry() {
         <text class="spinner">❌</text>
         <text class="status-text">{{ t('auth.callback.failed') }}</text>
         <text class="error-detail">{{ errorMessage }}</text>
-        <button class="retry-btn" @tap="handleRetry">
+        <A11yButton class="retry-btn" @tap="handleRetry">
           {{ t('auth.callback.retry') }}
-        </button>
+        </A11yButton>
       </view>
     </view>
   </view>

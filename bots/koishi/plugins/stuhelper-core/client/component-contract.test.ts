@@ -71,6 +71,46 @@ test('EntityOverlay ignores stale profile loads for retries and close transition
   assert.match(source, /finally \{\s*if \(requestSeq === loadRequestSeq && entityKey\(shell\.entityTarget\.value\) === key\) \{\s*state\.loading = false/)
 })
 
+test('legacy console interactions preserve keyboard and modal accessibility contracts', () => {
+  const chatSource = readClientFile('./components/ChatView.vue')
+  const configSource = readClientFile('./components/ConfigView.vue')
+  const rolesSource = readClientFile('./components/RolesView.vue')
+  const settingsSource = readClientFile('./components/SettingsView.vue')
+  const entitySource = readClientFile('./components/shell/EntityOverlay.vue')
+  const dialogFocusSource = readClientFile('./composables/use-dialog-focus.ts')
+
+  assert.match(settingsSource, /<button[\s\S]*?class="selector-current"[\s\S]*?:aria-expanded="sectionDropdownOpen"/)
+  assert.match(settingsSource, /<nav class="settings-sidebar" aria-label="全局设置分类">[\s\S]*?<button/)
+  assert.doesNotMatch(settingsSource, /<div class="selector-current" @click=/)
+
+  assert.match(rolesSource, /role="tablist" aria-label="角色编辑分类"/)
+  assert.match(rolesSource, /class="toggle-switch"\s*role="switch"/)
+  assert.match(rolesSource, /:aria-checked="hasPermission\(node\.id\)"/)
+  assert.match(rolesSource, /<label[\s\S]*?class="preview-item"/)
+
+  assert.match(configSource, /class="edit-sidebar" role="tablist"/)
+  assert.match(configSource, /class="plugin-disclosure"[\s\S]*?:aria-expanded=/)
+  assert.doesNotMatch(configSource, /class="plugin-header" @click=/)
+  assert.match(configSource, /aria-labelledby="config-create-title"/)
+  assert.match(configSource, /aria-labelledby="config-edit-title"/)
+  assert.match(configSource, /aria-labelledby="config-delete-title"/)
+
+  assert.match(chatSource, /@keydown="handleMessageKeydown\(\$event, msg\)"/)
+  assert.match(chatSource, /event\.key !== 'ContextMenu'[\s\S]*?event\.shiftKey && event\.key === 'F10'/)
+  assert.match(chatSource, /role="menu"\s*aria-label="消息操作"/)
+  assert.match(chatSource, /role="menuitem"/)
+  assert.match(chatSource, /handleContextMenuKeydown/)
+
+  assert.match(entitySource, /aria-labelledby="entity-overlay-title"/)
+  assert.match(entitySource, /<button[\s\S]*?class="sh-overlay__row"/)
+  assert.doesNotMatch(entitySource, /<li[^>]*class="sh-overlay__row"/)
+
+  assert.match(dialogFocusSource, /target\.focus\(\{ preventScroll: true \}\)/)
+  assert.match(dialogFocusSource, /if \(event\.key === 'Escape'\)/)
+  assert.match(dialogFocusSource, /if \(event\.shiftKey && \(active === first \|\| !dialog\.contains\(active\)\)\)/)
+  assert.match(dialogFocusSource, /else if \(!event\.shiftKey && \(active === last \|\| !dialog\.contains\(active\)\)\)/)
+})
+
 test('legacy API client unwraps console responses through an explicit unknown boundary', () => {
   const source = readClientFile('./api.ts')
   const chatImageSource = readClientFile('./components/chat/image-proxy.ts')

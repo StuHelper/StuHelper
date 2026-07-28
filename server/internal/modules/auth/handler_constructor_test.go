@@ -28,7 +28,7 @@ func newTokenServiceForHandlerCtor(t *testing.T) (*token.Service, *redisfixture.
 
 func TestNewHandler_WiresDependencies(t *testing.T) {
 	tokenSvc, fixture := newTokenServiceForHandlerCtor(t)
-	client := newHandlerConstructorOIDCClient(t, "advertise")
+	client := newHandlerConstructorOIDCClient(t, "casdoor-end-session")
 	cfg := HandlerConfig{
 		CORSOrigins:            []string{"https://web.example.com", "https://admin.example.com"},
 		Token:                  config.TokenConfig{AccessTokenTTL: 300, RefreshTokenTTL: 600, CookieSecure: true, CookieDomain: ".example.com"},
@@ -133,9 +133,12 @@ func newHandlerConstructorOIDCClient(t *testing.T, revocationMetadata any) *oidc
 			"introspection_endpoint": issuer + "/introspect",
 		}
 		if revocationMetadata != nil {
-			if revocationMetadata == "advertise" {
+			switch revocationMetadata {
+			case "advertise":
 				metadata["revocation_endpoint"] = issuer + "/revoke"
-			} else {
+			case "casdoor-end-session":
+				metadata["end_session_endpoint"] = issuer + "/api/logout"
+			default:
 				metadata["revocation_endpoint"] = revocationMetadata
 			}
 		}

@@ -2,10 +2,19 @@ import { expect, test, type Page } from './fixtures'
 
 type MockOptions = {
   authenticated?: boolean
+  courseDetailFailures?: number
+  courseResponseDelayMs?: number
+  courseSupplementFailure?: boolean
+  mutationDelayMs?: number
   paginatedCourses?: boolean
   paginatedReviews?: boolean
   paginatedUserLists?: boolean
+  reviewPage2Failures?: number
+  reviewSortRace?: boolean
+  reviewUserVote?: 'like' | 'dislike'
   ssoState?: string
+  teacherDetailFailures?: number
+  teacherResponseDelayMs?: number
   userSurface?: {
     displayName?: string
     identityStatus: 'none' | 'pending' | 'approved' | 'rejected'
@@ -207,8 +216,14 @@ async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUn
   const requests: string[] = []
   const authenticated = options.authenticated === true
   const replyItems = [initialReply]
+  let remainingReviewPage2Failures = options.reviewPage2Failures ?? 0
+  let remainingCourseDetailFailures = options.courseDetailFailures ?? 0
+  let remainingTeacherDetailFailures = options.teacherDetailFailures ?? 0
+  const responseReview = options.reviewUserVote
+    ? { ...review, userVote: options.reviewUserVote }
+    : review
   const paginatedReviewPage = [
-    review,
+    responseReview,
     ...Array.from({ length: 19 }, (_, index) => buildReview(`mobile-review-page-1-${index + 2}`, index + 2)),
   ]
   const paginatedCoursePage = [
@@ -282,6 +297,9 @@ async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUn
         body = request.postData()
       }
       mutationBodies.push({ body, method, path: pathname })
+      if (options.mutationDelayMs) {
+        await new Promise(resolve => setTimeout(resolve, options.mutationDelayMs))
+      }
     }
 
     if (method === 'GET' && pathname === '/api/v1/auth/me') {
@@ -346,6 +364,17 @@ async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUn
       return
     }
     if (method === 'GET' && /^\/api\/v1\/course\/courses\/\d+$/.test(pathname)) {
+      if (options.courseResponseDelayMs) {
+        await new Promise(resolve => setTimeout(resolve, options.courseResponseDelayMs))
+      }
+      if (remainingCourseDetailFailures > 0) {
+        remainingCourseDetailFailures -= 1
+        await route.fulfill(json({
+          success: false,
+          error: { code: 'UNI_COURSE_DETAIL_FAILED', message: '课程详情暂时不可用' },
+        }))
+        return
+      }
       const courseID = Number(pathname.split('/').pop())
       await route.fulfill(ok(courseID === secondCourse.id ? secondCourse : course))
       return
@@ -374,6 +403,13 @@ async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUn
       method === 'GET' &&
       /^\/api\/v1\/course\/review\/courses\/\d+\/rating-stats$/.test(pathname)
     ) {
+      if (options.courseSupplementFailure) {
+        await route.fulfill(json({
+          success: false,
+          error: { code: 'UNI_COURSE_STATS_FAILED', message: '课程评分统计暂时不可用' },
+        }))
+        return
+      }
       await route.fulfill(ok({
         courseID: course.id,
         courseName: course.name,
@@ -418,12 +454,34 @@ async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUn
       return
     }
     if (method === 'GET' && pathname === '/api/v1/course/review/reviews/latest') {
-      if (options.paginatedReviews) {
-        const pageNumber = Number(url.searchParams.get('page') || '1')
-        await route.fulfill(list(pageNumber === 1 ? paginatedReviewPage : [secondPageReview]))
+      const pageNumber = Number(url.searchParams.get('page') || '1')
+      const requestedSort = url.searchParams.get('sort') || 'time'
+      if (options.reviewSortRace && pageNumber === 1 && requestedSort !== 'time') {
+        const isSlowStaleRequest = requestedSort === 'likes'
+        await new Promise(resolve => setTimeout(resolve, isSlowStaleRequest ? 250 : 20))
+        await route.fulfill(list([{
+          ...responseReview,
+          id: isSlowStaleRequest ? 'review-sort-stale' : 'review-sort-current',
+          title: isSlowStaleRequest ? '过期最热结果' : '当前高分结果',
+        }]))
         return
       }
-      await route.fulfill(list([review]))
+      if (options.paginatedReviews) {
+        if (pageNumber === 2 && remainingReviewPage2Failures > 0) {
+          remainingReviewPage2Failures -= 1
+          await route.fulfill(json({
+            success: false,
+            error: { code: 'UNI_REVIEW_PAGE_FAILED', message: '评课下一页加载失败' },
+          }))
+          return
+        }
+        await route.fulfill(paginatedList(
+          pageNumber === 1 ? paginatedReviewPage : [secondPageReview],
+          21,
+        ))
+        return
+      }
+      await route.fulfill(list([responseReview]))
       return
     }
     if (method === 'POST' && /^\/api\/v1\/course\/review\/reviews\/[^/]+\/votes$/.test(pathname)) {
@@ -468,6 +526,17 @@ async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUn
       method === 'GET' &&
       /^\/api\/v1\/course\/review\/teachers\/\d+\/stats$/.test(pathname)
     ) {
+      if (options.teacherResponseDelayMs) {
+        await new Promise(resolve => setTimeout(resolve, options.teacherResponseDelayMs))
+      }
+      if (remainingTeacherDetailFailures > 0) {
+        remainingTeacherDetailFailures -= 1
+        await route.fulfill(json({
+          success: false,
+          error: { code: 'UNI_TEACHER_DETAIL_FAILED', message: '教师信息暂时不可用' },
+        }))
+        return
+      }
       await route.fulfill(ok({
         teacherID: teacher.teacherID,
         teacherName: teacher.teacherName,
@@ -738,6 +807,31 @@ test.describe('UniAppX H5 surface', () => {
     await page.waitForLoadState('networkidle')
   })
 
+  test('navigation cards expose button semantics and support keyboard activation', async ({
+    page,
+  }) => {
+    await mockUniApi(page)
+
+    await gotoUniPage(page, '/')
+    const courseShortcut = page.getByTestId('uni-home-shortcut-course')
+    await expect(courseShortcut).toHaveAttribute('role', 'button')
+    await expect(courseShortcut).toHaveAttribute('tabindex', '0')
+    await courseShortcut.focus()
+    await page.keyboard.press('Enter')
+    await expect(page).toHaveURL(/#\/pages\/course\/index/)
+
+    const courseCard = page.getByTestId(`uni-course-card-${course.id}`)
+    await expect(courseCard).toHaveAttribute('role', 'button')
+    await courseCard.focus()
+    await page.keyboard.press('Space')
+    await expect(page).toHaveURL(new RegExp(`/#/pages/course/detail\\?id=${course.id}`))
+
+    const teacherCard = page.getByTestId(`uni-course-teacher-${teacher.teacherID}`)
+    await teacherCard.focus()
+    await page.keyboard.press('Enter')
+    await expect(page).toHaveURL(new RegExp(`/#/pages/teacher/profile\\?id=${teacher.teacherID}`))
+  })
+
   test('course, review, and teacher browsing pages render API-backed content', async ({
     page,
   }) => {
@@ -780,6 +874,54 @@ test.describe('UniAppX H5 surface', () => {
     await expect(page.getByText(course.name)).toBeVisible()
   })
 
+  test('detail pages coalesce lifecycle loads and retain primary content on supplemental failure', async ({
+    page,
+  }) => {
+    const { requests } = await mockUniApi(page, {
+      courseResponseDelayMs: 120,
+      courseSupplementFailure: true,
+      teacherResponseDelayMs: 120,
+    })
+
+    await gotoUniPage(page, `/#/pages/course/detail?id=${course.id}`)
+    await expect(page.getByText(course.name).first()).toBeVisible()
+    await expect(
+      page.locator('[role="alert"]').getByText('部分课程信息暂时不可用，可稍后重试'),
+    ).toBeVisible()
+    expect(requests.filter(request => (
+      request === `GET /api/v1/course/courses/${course.id}`
+    ))).toHaveLength(1)
+
+    await gotoUniPage(page, `/#/pages/teacher/profile?id=${teacher.teacherID}`)
+    await expect(page.getByText(teacher.teacherName).first()).toBeVisible()
+    expect(requests.filter(request => (
+      request === `GET /api/v1/course/review/teachers/${teacher.teacherID}/stats`
+    ))).toHaveLength(1)
+  })
+
+  test('course and teacher fatal load errors expose working retries', async ({ page }) => {
+    const { requests } = await mockUniApi(page, {
+      courseDetailFailures: 1,
+      teacherDetailFailures: 1,
+    })
+
+    await gotoUniPage(page, `/#/pages/course/detail?id=${course.id}`)
+    await expect(page.getByText('课程详情加载失败')).toBeVisible()
+    await page.getByTestId('uni-course-detail-retry').click()
+    await expect(page.getByText(course.name).first()).toBeVisible()
+    expect(requests.filter(request => (
+      request === `GET /api/v1/course/courses/${course.id}`
+    ))).toHaveLength(2)
+
+    await gotoUniPage(page, `/#/pages/teacher/profile?id=${teacher.teacherID}`)
+    await expect(page.getByText('教师信息加载失败')).toBeVisible()
+    await page.getByTestId('uni-teacher-retry').click()
+    await expect(page.getByText(teacher.teacherName).first()).toBeVisible()
+    expect(requests.filter(request => (
+      request === `GET /api/v1/course/review/teachers/${teacher.teacherID}/stats`
+    ))).toHaveLength(2)
+  })
+
   test('course list searches, loads more, and opens a course detail page', async ({ page }) => {
     const { requests } = await mockUniApi(page, { paginatedCourses: true })
 
@@ -820,6 +962,7 @@ test.describe('UniAppX H5 surface', () => {
   }) => {
     const { mutationBodies, mutations, requests } = await mockUniApi(page, {
       authenticated: true,
+      mutationDelayMs: 120,
       paginatedReviews: true,
     })
 
@@ -836,17 +979,27 @@ test.describe('UniAppX H5 surface', () => {
 
     const likeButton = page.getByTestId(`uni-review-like-${review.id}`)
     await expect(likeButton).toContainText('7')
-    await likeButton.click()
+    await likeButton.evaluate((element) => {
+      const target = element as HTMLElement
+      target.click()
+      target.click()
+    })
     await expect(likeButton).toContainText('8')
     await expect
-      .poll(() => mutations.includes(`POST /api/v1/course/review/reviews/${review.id}/votes`))
-      .toBe(true)
+      .poll(() => mutations.filter(item => (
+        item === `POST /api/v1/course/review/reviews/${review.id}/votes`
+      )).length)
+      .toBe(1)
     const votePayload = requireMutationBody(
       mutationBodies,
       'POST',
       `/api/v1/course/review/reviews/${review.id}/votes`,
     )
     expect(votePayload).toMatchObject({ voteType: 'like' })
+
+    await likeButton.click()
+    await expect(likeButton).toContainText('7')
+    await expect(likeButton).toHaveAttribute('aria-pressed', 'false')
 
     const dislikeButton = page.getByTestId(`uni-review-dislike-${review.id}`)
     await expect(dislikeButton).toContainText('1')
@@ -857,7 +1010,7 @@ test.describe('UniAppX H5 surface', () => {
       .poll(() => mutationBodies
         .filter((item) => item.path === `/api/v1/course/review/reviews/${review.id}/votes`)
         .map((item) => item.body))
-      .toEqual([{ voteType: 'like' }, { voteType: 'dislike' }])
+      .toEqual([{ voteType: 'like' }, { voteType: 'like' }, { voteType: 'dislike' }])
 
     await page.getByTestId('uni-review-load-more').click()
     await expect
@@ -875,17 +1028,98 @@ test.describe('UniAppX H5 surface', () => {
     await expect(page.getByText(course.name).first()).toBeVisible()
   })
 
+  test('review square hydrates the server-authoritative vote and toggles it off', async ({
+    page,
+  }) => {
+    const { mutationBodies } = await mockUniApi(page, {
+      authenticated: true,
+      reviewUserVote: 'like',
+    })
+
+    await gotoUniPage(page, '/#/pages/review/index')
+
+    const likeButton = page.getByTestId(`uni-review-like-${review.id}`)
+    await expect(likeButton).toHaveAttribute('aria-pressed', 'true')
+    await expect(likeButton).toContainText('7')
+
+    await likeButton.click()
+
+    await expect(likeButton).toHaveAttribute('aria-pressed', 'false')
+    await expect(likeButton).toContainText('6')
+    await expect
+      .poll(() => mutationBodies
+        .filter((item) => item.path === `/api/v1/course/review/reviews/${review.id}/votes`)
+        .map((item) => item.body))
+      .toEqual([{ voteType: 'like' }])
+  })
+
+  test('review pagination reports a failure and retries the same page without skipping', async ({
+    page,
+  }) => {
+    const { requests } = await mockUniApi(page, {
+      authenticated: true,
+      paginatedReviews: true,
+      reviewPage2Failures: 1,
+    })
+
+    await gotoUniPage(page, '/#/pages/review/index')
+
+    await page.getByTestId('uni-review-load-more').click()
+    await expect(page.getByText('评课下一页加载失败')).toBeVisible()
+    await expect(page.getByTestId(`uni-review-card-${secondPageReview.id}`)).toHaveCount(0)
+
+    await page.getByTestId('uni-review-load-more').click()
+    await expect(page.getByTestId(`uni-review-card-${secondPageReview.id}`)).toBeVisible()
+    expect(requests.filter((request) => (
+      request.startsWith('GET /api/v1/course/review/reviews/latest?')
+      && request.includes('page=2')
+    ))).toHaveLength(2)
+  })
+
+  test('review sorting ignores a slower stale response', async ({ page }) => {
+    await mockUniApi(page, { reviewSortRace: true })
+
+    await gotoUniPage(page, '/#/pages/review/index')
+
+    await page.getByTestId('uni-review-sort-likes').click()
+    await page.getByTestId('uni-review-sort-rating').click()
+    await expect(page.getByText('当前高分结果')).toBeVisible()
+    await page.waitForTimeout(300)
+    await expect(page.getByText('当前高分结果')).toBeVisible()
+    await expect(page.getByText('过期最热结果')).toHaveCount(0)
+  })
+
+  test('review course heading is keyboard operable on H5', async ({ page }) => {
+    await mockUniApi(page)
+
+    await gotoUniPage(page, '/#/pages/review/index')
+
+    const heading = page.getByTestId(`uni-review-open-${review.id}`)
+    await heading.focus()
+    await page.keyboard.press('Enter')
+    await expect(page).toHaveURL(new RegExp(`/#/pages/course/detail\\?id=${course.id}`))
+  })
+
   test('authenticated course detail toggles favorites and submits a reply', async ({ page }) => {
-    const { mutationBodies, mutations } = await mockUniApi(page, { authenticated: true })
+    const { mutationBodies, mutations } = await mockUniApi(page, {
+      authenticated: true,
+      mutationDelayMs: 120,
+    })
 
     await gotoUniPage(page, `/#/pages/course/detail?id=${course.id}`)
 
     const favoriteButton = page.getByTestId('uni-course-favorite')
     await expect(favoriteButton).toContainText('已收藏')
-    await favoriteButton.click()
+    await favoriteButton.evaluate((element) => {
+      const target = element as HTMLElement
+      target.click()
+      target.click()
+    })
     await expect
-      .poll(() => mutations.includes(`DELETE /api/v1/course/review/courses/${course.id}/favorites`))
-      .toBe(true)
+      .poll(() => mutations.filter(item => (
+        item === `DELETE /api/v1/course/review/courses/${course.id}/favorites`
+      )).length)
+      .toBe(1)
     await expect(favoriteButton).toContainText('收藏')
     await favoriteButton.click()
     await expect
@@ -901,11 +1135,17 @@ test.describe('UniAppX H5 surface', () => {
       `uni-review-reply-input-${review.id}`,
       '这是一条 UniAppX H5 端到端回复内容。',
     )
-    await page.getByTestId(`uni-review-reply-submit-${review.id}`).click()
+    await page.getByTestId(`uni-review-reply-submit-${review.id}`).evaluate((element) => {
+      const target = element as HTMLElement
+      target.click()
+      target.click()
+    })
 
     await expect
-      .poll(() => mutations.includes(`POST /api/v1/course/review/reviews/${review.id}/replies`))
-      .toBe(true)
+      .poll(() => mutations.filter(item => (
+        item === `POST /api/v1/course/review/reviews/${review.id}/replies`
+      )).length)
+      .toBe(1)
     const replyPayload = requireMutationBody(
       mutationBodies,
       'POST',
@@ -975,7 +1215,10 @@ test.describe('UniAppX H5 surface', () => {
   test('authenticated review post page loads form data and saves a draft', async ({
     page,
   }) => {
-    const { mutationBodies, mutations } = await mockUniApi(page, { authenticated: true })
+    const { mutationBodies, mutations } = await mockUniApi(page, {
+      authenticated: true,
+      mutationDelayMs: 120,
+    })
 
     await gotoUniPage(page, `/#/pages/review/post?courseID=${course.id}`)
 
@@ -996,10 +1239,14 @@ test.describe('UniAppX H5 surface', () => {
     )
     await page.getByTestId('uni-review-rating-overall-5').click()
     await page.getByTestId('uni-review-rating-workload-4').click()
-    await page.getByTestId('uni-review-save-draft').click()
+    await page.getByTestId('uni-review-save-draft').evaluate((element) => {
+      const target = element as HTMLElement
+      target.click()
+      target.click()
+    })
     await expect
-      .poll(() => mutations.includes('POST /api/v1/course/review/drafts'))
-      .toBe(true)
+      .poll(() => mutations.filter(item => item === 'POST /api/v1/course/review/drafts').length)
+      .toBe(1)
     const draftPayload = requireMutationBody(
       mutationBodies,
       'POST',
@@ -1017,7 +1264,10 @@ test.describe('UniAppX H5 surface', () => {
   })
 
   test('authenticated review post page submits a complete review', async ({ page }) => {
-    const { mutationBodies, mutations } = await mockUniApi(page, { authenticated: true })
+    const { mutationBodies, mutations } = await mockUniApi(page, {
+      authenticated: true,
+      mutationDelayMs: 120,
+    })
 
     await gotoUniPage(page, `/#/pages/review/post?courseID=${course.id}`)
 
@@ -1035,11 +1285,15 @@ test.describe('UniAppX H5 surface', () => {
 
     const submitButton = page.getByTestId('uni-review-submit')
     await expect(submitButton).toBeEnabled()
-    await submitButton.click()
+    await submitButton.evaluate((element) => {
+      const target = element as HTMLElement
+      target.click()
+      target.click()
+    })
 
     await expect
-      .poll(() => mutations.includes('POST /api/v1/course/review/reviews'))
-      .toBe(true)
+      .poll(() => mutations.filter(item => item === 'POST /api/v1/course/review/reviews').length)
+      .toBe(1)
     const payload = requireMutationBody(
       mutationBodies,
       'POST',
@@ -1095,6 +1349,27 @@ test.describe('UniAppX H5 surface', () => {
       .toBe(true)
   })
 
+  test('user-center menu is keyboard operable while unavailable verification actions stay inert', async ({
+    page,
+  }) => {
+    await mockUniApi(page, { authenticated: true })
+
+    await gotoUniPage(page, '/#/pages/user/index')
+
+    const approvedIdentity = page.getByTestId('uni-user-identity-summary')
+    await expect(approvedIdentity).toHaveAttribute('role', 'button')
+    await expect(approvedIdentity).toHaveAttribute('aria-disabled', 'true')
+    await approvedIdentity.focus()
+    await page.keyboard.press('Enter')
+    await expect(page).toHaveURL(/\/#\/pages\/user\/index$/)
+
+    const reviewsMenu = page.getByRole('button', { name: /我的评课/ })
+    await reviewsMenu.focus()
+    await page.keyboard.press('Enter')
+    await expect(page).toHaveURL(/\/#\/pages\/user\/reviews$/)
+    await expect(page.getByText(review.title)).toBeVisible()
+  })
+
   test('authenticated user center opens Web identity verification when real-name status is incomplete', async ({
     page,
   }) => {
@@ -1118,7 +1393,8 @@ test.describe('UniAppX H5 surface', () => {
     await expect(page.getByTestId('uni-user-student-summary')).toContainText('请先完成实名认证')
     await expect(page.getByTestId('uni-user-phone-summary')).toContainText('未绑定')
 
-    await page.getByTestId('uni-user-student-summary').click()
+    await page.getByTestId('uni-user-student-summary').focus()
+    await page.keyboard.press('Enter')
     await expect(page).toHaveURL(/\/#\/pages\/user\/index$/)
 
     await page.getByTestId('uni-user-identity-summary').click()
@@ -1149,7 +1425,8 @@ test.describe('UniAppX H5 surface', () => {
     await expect(page.getByTestId('uni-user-student-summary')).toContainText('点击去认证')
     await expect(page.getByTestId('uni-user-phone-summary')).toContainText('已绑定')
 
-    await page.getByTestId('uni-user-identity-summary').click()
+    await page.getByTestId('uni-user-identity-summary').focus()
+    await page.keyboard.press('Enter')
     await expect(page).toHaveURL(/\/#\/pages\/user\/index$/)
 
     await page.getByTestId('uni-user-student-summary').click()
@@ -1210,6 +1487,7 @@ test.describe('UniAppX H5 surface', () => {
   test('authenticated notifications support paging and read actions', async ({ page }) => {
     const { mutations, requests } = await mockUniApi(page, {
       authenticated: true,
+      mutationDelayMs: 120,
       paginatedUserLists: true,
     })
 
@@ -1226,16 +1504,28 @@ test.describe('UniAppX H5 surface', () => {
     await expect(page.getByTestId(`uni-notification-card-${secondNotification.id}`)).toBeVisible()
 
     await expect(page.getByTestId(`uni-notification-unread-${notification.id}`)).toBeVisible()
-    await page.getByTestId(`uni-notification-card-${notification.id}`).click()
+    await page.getByTestId(`uni-notification-card-${notification.id}`).evaluate((element) => {
+      const target = element as HTMLElement
+      target.click()
+      target.click()
+    })
     await expect
-      .poll(() => mutations.includes(`PUT /api/v1/course/review/user/notifications/${notification.id}/read`))
-      .toBe(true)
+      .poll(() => mutations.filter(item => (
+        item === `PUT /api/v1/course/review/user/notifications/${notification.id}/read`
+      )).length)
+      .toBe(1)
     await expect(page.getByTestId(`uni-notification-unread-${notification.id}`)).toHaveCount(0)
 
-    await page.getByTestId('uni-notification-mark-all').click()
+    await page.getByTestId('uni-notification-mark-all').evaluate((element) => {
+      const target = element as HTMLElement
+      target.click()
+      target.click()
+    })
     await expect
-      .poll(() => mutations.includes('PUT /api/v1/course/review/user/notifications/read-all'))
-      .toBe(true)
+      .poll(() => mutations.filter(item => (
+        item === 'PUT /api/v1/course/review/user/notifications/read-all'
+      )).length)
+      .toBe(1)
     await expect(page.locator('[data-testid^="uni-notification-unread-"]')).toHaveCount(0)
   })
 

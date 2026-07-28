@@ -9,6 +9,7 @@
             v-model="searchQuery"
             type="text"
             placeholder="搜索群号或群名..."
+            aria-label="搜索群号或群名"
             class="search-input"
           />
         </div>
@@ -23,12 +24,12 @@
           />
         </div>
         <!-- 视图切换 -->
-        <div class="view-toggle">
-          <button class="view-btn" :class="{ active: viewMode === 'grid' }" @click="viewMode = 'grid'" title="卡片视图">
+        <div class="view-toggle" role="group" aria-label="群组配置显示方式">
+          <button type="button" class="view-btn" :class="{ active: viewMode === 'grid' }" :aria-pressed="viewMode === 'grid'" @click="viewMode = 'grid'" title="卡片视图">
             <k-icon name="grid" />
             <span>卡片</span>
           </button>
-          <button class="view-btn" :class="{ active: viewMode === 'list' }" @click="viewMode = 'list'" title="列表视图">
+          <button type="button" class="view-btn" :class="{ active: viewMode === 'list' }" :aria-pressed="viewMode === 'list'" @click="viewMode = 'list'" title="列表视图">
             <k-icon name="list" />
             <span>列表</span>
           </button>
@@ -97,12 +98,12 @@
             v-for="(config, guildId) in filteredConfigs"
             :key="guildId"
             class="list-row"
-            @click="editConfig(guildId as string)"
           >
             <div class="col-guild">
               <img
                 v-if="fetchNames && config.guildAvatar"
                 :src="config.guildAvatar"
+                :alt="config.guildName || String(guildId)"
                 class="guild-avatar-sm"
                 @error="(e) => (e.target as HTMLImageElement).style.display = 'none'"
               />
@@ -150,13 +151,13 @@
             v-for="(config, guildId) in filteredConfigs"
             :key="guildId"
             class="config-card"
-            @click="editConfig(guildId as string)"
           >
             <div class="card-header">
               <div class="guild-info">
                 <img
                   v-if="fetchNames && config.guildAvatar"
                   :src="config.guildAvatar"
+                  :alt="config.guildName || String(guildId)"
                   class="guild-avatar"
                   @error="(e) => (e.target as HTMLImageElement).style.display = 'none'"
                 />
@@ -208,11 +209,19 @@
     </div>
 
     <!-- 新建配置弹窗 -->
-    <div v-if="showCreateDialog" class="dialog-overlay" @click.self="showCreateDialog = false">
-      <div class="dialog-card">
+    <div v-if="showCreateDialog" class="dialog-overlay" @click.self="closeCreateDialog">
+      <div
+        ref="createDialogRef"
+        class="dialog-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="config-create-title"
+        tabindex="-1"
+        @keydown="handleCreateDialogKeydown"
+      >
         <div class="dialog-header">
-          <h3>新建群组配置</h3>
-          <button class="close-btn" @click="showCreateDialog = false">
+          <h3 id="config-create-title">新建群组配置</h3>
+          <button type="button" class="close-btn" aria-label="关闭新建群组配置对话框" @click="closeCreateDialog">
             <k-icon name="x" />
           </button>
         </div>
@@ -233,63 +242,92 @@
               type="text"
               placeholder="输入群号..."
               class="form-input"
+              autofocus
               @keyup.enter="createConfig"
             />
           </div>
         </div>
         <div class="dialog-footer">
-          <k-button @click="showCreateDialog = false">取消</k-button>
+          <k-button @click="closeCreateDialog">取消</k-button>
           <k-button type="primary" @click="createConfig" :loading="creating">创建</k-button>
         </div>
       </div>
     </div>
 
     <!-- 编辑面板 -->
-    <div v-if="showEditDialog" class="edit-overlay" @click.self="showEditDialog = false">
-      <div class="edit-dialog large">
+    <div v-if="showEditDialog" class="edit-overlay" @click.self="closeEditDialog">
+      <div
+        ref="editDialogRef"
+        class="edit-dialog large"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="config-edit-title"
+        tabindex="-1"
+        @keydown="handleEditDialogKeydown"
+      >
         <div class="dialog-header">
-          <h3>编辑群组配置 - {{ editingGuildId }}</h3>
-          <button class="close-btn" @click="showEditDialog = false">
+          <h3 id="config-edit-title">编辑群组配置 - {{ editingGuildId }}</h3>
+          <button type="button" class="close-btn" aria-label="关闭编辑群组配置对话框" @click="closeEditDialog">
             <k-icon name="x" />
           </button>
         </div>
         
         <div v-if="editingConfig" class="edit-layout">
           <!-- 左侧侧边栏 -->
-          <div class="edit-sidebar">
-            <div
+          <div class="edit-sidebar" role="tablist" aria-label="群组配置分类" aria-orientation="vertical">
+            <button
+              id="config-tab-entrance"
+              type="button"
               class="sidebar-item"
+              role="tab"
               :class="{ active: activeTab === 'entrance' }"
+              :aria-selected="activeTab === 'entrance'"
+              aria-controls="config-panel-entrance"
               @click="activeTab = 'entrance'"
             >
               <k-icon name="user-plus" />
               <span>入群设置</span>
-            </div>
-            <div
+            </button>
+            <button
+              id="config-tab-moderation"
+              type="button"
               class="sidebar-item"
+              role="tab"
               :class="{ active: activeTab === 'moderation' }"
+              :aria-selected="activeTab === 'moderation'"
+              aria-controls="config-panel-moderation"
               @click="activeTab = 'moderation'"
             >
               <k-icon name="shield" />
               <span>违规管理</span>
-            </div>
-            <div
+            </button>
+            <button
+              id="config-tab-exit"
+              type="button"
               class="sidebar-item"
+              role="tab"
               :class="{ active: activeTab === 'exit' }"
+              :aria-selected="activeTab === 'exit'"
+              aria-controls="config-panel-exit"
               @click="activeTab = 'exit'"
             >
               <k-icon name="user-minus" />
               <span>退群设置</span>
-            </div>
+            </button>
             <div class="divider" style="margin: 0.5rem 0.75rem; width: auto; opacity: 0.5;"></div>
-            <div
+            <button
+              id="config-tab-plugins"
+              type="button"
               class="sidebar-item"
+              role="tab"
               :class="{ active: activeTab === 'plugins' }"
+              :aria-selected="activeTab === 'plugins'"
+              aria-controls="config-panel-plugins"
               @click="activeTab = 'plugins'"
             >
               <k-icon name="box" />
               <span>功能插件</span>
-            </div>
+            </button>
           </div>
 
           <!-- 右侧内容区 -->
@@ -305,7 +343,13 @@
             </div>
 
             <!-- 入群设置 -->
-            <div v-show="activeTab === 'entrance'" class="config-section">
+            <div
+              v-show="activeTab === 'entrance'"
+              id="config-panel-entrance"
+              class="config-section"
+              role="tabpanel"
+              aria-labelledby="config-tab-entrance"
+            >
               <div class="section-title">入群欢迎</div>
               <div class="form-group">
                 <label>启用欢迎消息</label>
@@ -352,7 +396,13 @@
             </div>
 
             <!-- 违规管理 -->
-            <div v-show="activeTab === 'moderation'" class="config-section">
+            <div
+              v-show="activeTab === 'moderation'"
+              id="config-panel-moderation"
+              class="config-section"
+              role="tabpanel"
+              aria-labelledby="config-tab-moderation"
+            >
               <div class="section-title">警告设置</div>
               <div class="form-group">
                 <label>警告阈值</label>
@@ -407,7 +457,13 @@
             </div>
 
             <!-- 退群设置 -->
-            <div v-show="activeTab === 'exit'" class="config-section">
+            <div
+              v-show="activeTab === 'exit'"
+              id="config-panel-exit"
+              class="config-section"
+              role="tabpanel"
+              aria-labelledby="config-tab-exit"
+            >
               <div class="section-title">退群欢送</div>
               <div class="form-group">
                 <label>启用欢送消息</label>
@@ -434,23 +490,35 @@
             </div>
 
             <!-- 功能插件 -->
-            <div v-show="activeTab === 'plugins'" class="config-section">
+            <div
+              v-show="activeTab === 'plugins'"
+              id="config-panel-plugins"
+              class="config-section"
+              role="tabpanel"
+              aria-labelledby="config-tab-plugins"
+            >
 
               <!-- 防撤回 -->
               <div class="plugin-card">
-                <div class="plugin-header" @click="togglePlugin('antiRecall')">
-                  <div class="plugin-title">
-                    <span>防撤回</span>
-                  </div>
+                <div class="plugin-header">
+                  <button
+                    type="button"
+                    class="plugin-disclosure"
+                    :aria-expanded="expandedPlugins['antiRecall']"
+                    aria-controls="config-plugin-anti-recall"
+                    @click="togglePlugin('antiRecall')"
+                  >
+                    <span class="plugin-title">防撤回</span>
+                    <k-icon :name="expandedPlugins['antiRecall'] ? 'chevron-up' : 'chevron-down'" aria-hidden="true" />
+                  </button>
                   <div class="plugin-status">
-                    <label class="toggle-switch" @click.stop>
+                    <label class="toggle-switch">
                       <input type="checkbox" v-model="editingConfig.antiRecall.enabled" />
                       <span class="slider"></span>
                     </label>
-                    <k-icon :name="expandedPlugins['antiRecall'] ? 'chevron-up' : 'chevron-down'" />
                   </div>
                 </div>
-                <div class="plugin-body" v-show="expandedPlugins['antiRecall']">
+                <div id="config-plugin-anti-recall" class="plugin-body" v-show="expandedPlugins['antiRecall']">
                    <div class="form-group">
                     <label>保存天数</label>
                     <el-input-number v-model="editingConfig.antiRecall.retentionDays" :min="1" :max="30" placeholder="默认使用全局设置" style="width: 100%" />
@@ -464,19 +532,25 @@
               
               <!-- 复读检测 -->
               <div class="plugin-card" style="margin-top: 1rem;">
-                <div class="plugin-header" @click="togglePlugin('repeat')">
-                  <div class="plugin-title">
-                    <span>复读检测</span>
-                  </div>
+                <div class="plugin-header">
+                  <button
+                    type="button"
+                    class="plugin-disclosure"
+                    :aria-expanded="expandedPlugins['repeat']"
+                    aria-controls="config-plugin-repeat"
+                    @click="togglePlugin('repeat')"
+                  >
+                    <span class="plugin-title">复读检测</span>
+                    <k-icon :name="expandedPlugins['repeat'] ? 'chevron-up' : 'chevron-down'" aria-hidden="true" />
+                  </button>
                   <div class="plugin-status">
-                    <label class="toggle-switch" @click.stop>
+                    <label class="toggle-switch">
                       <input type="checkbox" v-model="editingConfig.antiRepeat.enabled" @change="handleRepeatSwitch" />
                       <span class="slider"></span>
                     </label>
-                    <k-icon :name="expandedPlugins['repeat'] ? 'chevron-up' : 'chevron-down'" />
                   </div>
                 </div>
-                <div class="plugin-body" v-show="expandedPlugins['repeat']">
+                <div id="config-plugin-repeat" class="plugin-body" v-show="expandedPlugins['repeat']">
                    <div class="form-group">
                     <label>复读阈值</label>
                     <el-input-number
@@ -491,20 +565,28 @@
 
               <!-- 掷骰子 -->
               <div class="plugin-card" style="margin-top: 1rem;">
-                <div class="plugin-header" @click="togglePlugin('dice')">
-                  <div class="plugin-title">
-                    <k-icon name="dice" />
-                    <span>掷骰子</span>
-                  </div>
+                <div class="plugin-header">
+                  <button
+                    type="button"
+                    class="plugin-disclosure"
+                    :aria-expanded="expandedPlugins['dice']"
+                    aria-controls="config-plugin-dice"
+                    @click="togglePlugin('dice')"
+                  >
+                    <span class="plugin-title">
+                      <k-icon name="dice" />
+                      <span>掷骰子</span>
+                    </span>
+                    <k-icon :name="expandedPlugins['dice'] ? 'chevron-up' : 'chevron-down'" aria-hidden="true" />
+                  </button>
                   <div class="plugin-status">
-                    <label class="toggle-switch" @click.stop>
+                    <label class="toggle-switch">
                       <input type="checkbox" v-model="editingConfig.dice.enabled" />
                       <span class="slider"></span>
                     </label>
-                    <k-icon :name="expandedPlugins['dice'] ? 'chevron-up' : 'chevron-down'" />
                   </div>
                 </div>
-                <div class="plugin-body" v-show="expandedPlugins['dice']">
+                <div id="config-plugin-dice" class="plugin-body" v-show="expandedPlugins['dice']">
                    <div class="form-group">
                     <label>长度限制</label>
                     <el-input-number v-model="editingConfig.dice.lengthLimit" :min="10" style="width: 100%" />
@@ -514,20 +596,28 @@
 
               <!-- BanMe -->
               <div class="plugin-card" style="margin-top: 1rem;">
-                <div class="plugin-header" @click="togglePlugin('banme')">
-                  <div class="plugin-title">
-                    <k-icon name="slash" />
-                    <span>自我禁言</span>
-                  </div>
+                <div class="plugin-header">
+                  <button
+                    type="button"
+                    class="plugin-disclosure"
+                    :aria-expanded="expandedPlugins['banme']"
+                    aria-controls="config-plugin-banme"
+                    @click="togglePlugin('banme')"
+                  >
+                    <span class="plugin-title">
+                      <k-icon name="slash" />
+                      <span>自我禁言</span>
+                    </span>
+                    <k-icon :name="expandedPlugins['banme'] ? 'chevron-up' : 'chevron-down'" aria-hidden="true" />
+                  </button>
                   <div class="plugin-status">
-                    <label class="toggle-switch" @click.stop>
+                    <label class="toggle-switch">
                       <input type="checkbox" v-model="editingConfig.banme.enabled" />
                       <span class="slider"></span>
                     </label>
-                    <k-icon :name="expandedPlugins['banme'] ? 'chevron-up' : 'chevron-down'" />
                   </div>
                 </div>
-                <div class="plugin-body" v-show="expandedPlugins['banme']">
+                <div id="config-plugin-banme" class="plugin-body" v-show="expandedPlugins['banme']">
                    <div class="form-group">
                     <label>自动检测</label>
                     <label class="toggle-switch">
@@ -582,20 +672,28 @@
 
               <!-- AI 对话 -->
               <div class="plugin-card" style="margin-top: 1rem;">
-                <div class="plugin-header" @click="togglePlugin('ai')">
-                  <div class="plugin-title">
-                    <k-icon name="bot" />
-                    <span>AI 助手</span>
-                  </div>
+                <div class="plugin-header">
+                  <button
+                    type="button"
+                    class="plugin-disclosure"
+                    :aria-expanded="expandedPlugins['ai']"
+                    aria-controls="config-plugin-ai"
+                    @click="togglePlugin('ai')"
+                  >
+                    <span class="plugin-title">
+                      <k-icon name="bot" />
+                      <span>AI 助手</span>
+                    </span>
+                    <k-icon :name="expandedPlugins['ai'] ? 'chevron-up' : 'chevron-down'" aria-hidden="true" />
+                  </button>
                   <div class="plugin-status">
-                    <label class="toggle-switch" @click.stop>
+                    <label class="toggle-switch">
                       <input type="checkbox" v-model="editingConfig.openai.enabled" />
                       <span class="slider"></span>
                     </label>
-                    <k-icon :name="expandedPlugins['ai'] ? 'chevron-up' : 'chevron-down'" />
                   </div>
                 </div>
-                <div class="plugin-body" v-show="expandedPlugins['ai']">
+                <div id="config-plugin-ai" class="plugin-body" v-show="expandedPlugins['ai']">
                   <div class="form-group">
                     <label>启用对话</label>
                     <label class="toggle-switch">
@@ -633,20 +731,28 @@
 
               <!-- 举报功能 -->
               <div class="plugin-card" style="margin-top: 1rem;">
-                <div class="plugin-header" @click="togglePlugin('report')">
-                  <div class="plugin-title">
-                    <k-icon name="flag" />
-                    <span>举报功能</span>
-                  </div>
+                <div class="plugin-header">
+                  <button
+                    type="button"
+                    class="plugin-disclosure"
+                    :aria-expanded="expandedPlugins['report']"
+                    aria-controls="config-plugin-report"
+                    @click="togglePlugin('report')"
+                  >
+                    <span class="plugin-title">
+                      <k-icon name="flag" />
+                      <span>举报功能</span>
+                    </span>
+                    <k-icon :name="expandedPlugins['report'] ? 'chevron-up' : 'chevron-down'" aria-hidden="true" />
+                  </button>
                   <div class="plugin-status">
-                    <label class="toggle-switch" @click.stop>
+                    <label class="toggle-switch">
                       <input type="checkbox" v-model="editingConfig.report.enabled" />
                       <span class="slider"></span>
                     </label>
-                    <k-icon :name="expandedPlugins['report'] ? 'chevron-up' : 'chevron-down'" />
                   </div>
                 </div>
-                <div class="plugin-body" v-show="expandedPlugins['report']">
+                <div id="config-plugin-report" class="plugin-body" v-show="expandedPlugins['report']">
                   <div class="form-group">
                     <label>自动处理</label>
                     <label class="toggle-switch">
@@ -675,7 +781,7 @@
 
         <div class="dialog-footer">
           <div class="footer-right">
-            <k-button @click="showEditDialog = false">取消</k-button>
+            <k-button @click="closeEditDialog">取消</k-button>
             <k-button type="primary" @click="saveConfig" :loading="saving">保存</k-button>
           </div>
         </div>
@@ -683,11 +789,19 @@
     </div>
 
     <!-- 删除确认弹窗 -->
-    <div v-if="showDeleteDialog" class="dialog-overlay" style="z-index: 1100" @click.self="showDeleteDialog = false">
-      <div class="dialog-card">
+    <div v-if="showDeleteDialog" class="dialog-overlay" style="z-index: 1100" @click.self="closeDeleteDialog">
+      <div
+        ref="deleteDialogRef"
+        class="dialog-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="config-delete-title"
+        tabindex="-1"
+        @keydown="handleDeleteDialogKeydown"
+      >
         <div class="dialog-header">
-          <h3>删除群组配置</h3>
-          <button class="close-btn" @click="showDeleteDialog = false">
+          <h3 id="config-delete-title">删除群组配置</h3>
+          <button type="button" class="close-btn" aria-label="关闭删除群组配置对话框" @click="closeDeleteDialog">
             <k-icon name="x" />
           </button>
         </div>
@@ -704,7 +818,9 @@
           <p class="warning-text">警告：此操作不可撤销！</p>
           <p class="info-text">
             请输入群号
-            <code class="code-highlight" @click="() => copyGuildId()">{{ editingGuildId }}</code>
+            <button type="button" class="code-highlight" @click="() => copyGuildId()">
+              <code>{{ editingGuildId }}</code>
+            </button>
             以确认删除
           </p>
           <div class="form-group">
@@ -714,12 +830,13 @@
               type="text"
               :placeholder="'请输入 ' + editingGuildId"
               class="form-input"
+              autofocus
               @keyup.enter="confirmDelete"
             />
           </div>
         </div>
         <div class="dialog-footer">
-          <k-button @click="showDeleteDialog = false">取消</k-button>
+          <k-button @click="closeDeleteDialog">取消</k-button>
           <k-button type="danger" @click="confirmDelete" :loading="deleting" :disabled="deleteConfirmId !== editingGuildId">删除</k-button>
         </div>
       </div>
@@ -733,6 +850,7 @@ import { message } from '@koishijs/client'
 import { configApi } from '../api'
 import { useActionError } from '../composables/use-action-error'
 import type { ConsoleNavigationController } from '../composables/use-console-navigation'
+import { useDialogFocus } from '../composables/use-dialog-focus'
 import { normalizeGroupConfigForEdit } from '../models/config-editor'
 import type { GroupConfig } from '../types'
 import { copyTextToClipboard } from '../utils/clipboard'
@@ -780,6 +898,9 @@ const hasFilteredConfigs = computed(() => Object.keys(filteredConfigs.value).len
 const showEditDialog = ref(false)
 const showCreateDialog = ref(false)
 const showDeleteDialog = ref(false)
+const createDialogRef = ref<HTMLElement | null>(null)
+const editDialogRef = ref<HTMLElement | null>(null)
+const deleteDialogRef = ref<HTMLElement | null>(null)
 const newConfig = ref({ guildId: '' })
 const deleteConfirmId = ref('')
 const editingGuildId = ref('')
@@ -788,6 +909,34 @@ const editingApprovalKeywords = ref('')
 const editingForbiddenKeywords = ref('')
 const activeTab = ref('entrance')
 const expandedPlugins = ref<Record<string, boolean>>({})
+
+const closeCreateDialog = () => {
+  showCreateDialog.value = false
+}
+
+const closeEditDialog = () => {
+  showEditDialog.value = false
+}
+
+const closeDeleteDialog = () => {
+  showDeleteDialog.value = false
+}
+
+const { handleKeydown: handleCreateDialogKeydown } = useDialogFocus(
+  showCreateDialog,
+  createDialogRef,
+  closeCreateDialog,
+)
+const { handleKeydown: handleEditDialogKeydown } = useDialogFocus(
+  showEditDialog,
+  editDialogRef,
+  closeEditDialog,
+)
+const { handleKeydown: handleDeleteDialogKeydown } = useDialogFocus(
+  showDeleteDialog,
+  deleteDialogRef,
+  closeDeleteDialog,
+)
 
 // 自动拒绝 (Boolean <-> String 'true'/'false')
 const autoReject = computed({
@@ -1273,7 +1422,7 @@ function applyNavigationState(): void {
   gap: 1rem;
   padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--k-color-divider);
-  cursor: pointer;
+  cursor: default;
   transition: background-color 0.15s ease;
   align-items: center;
 }
@@ -1473,7 +1622,7 @@ function applyNavigationState(): void {
   background: var(--k-card-bg);
   border: 1px solid var(--k-color-border);
   border-radius: 6px;
-  cursor: pointer;
+  cursor: default;
   transition: border-color 0.15s ease, background-color 0.15s ease;
   animation: fadeIn 0.2s ease-out backwards;
 }
@@ -1747,6 +1896,7 @@ function applyNavigationState(): void {
 }
 
 .sidebar-item {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -1756,6 +1906,10 @@ function applyNavigationState(): void {
   color: var(--fg2);
   font-size: 0.8125rem;
   transition: color 0.15s ease, background-color 0.15s ease;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
 }
 
 .sidebar-item:hover {
@@ -1821,9 +1975,25 @@ function applyNavigationState(): void {
   justify-content: space-between;
   padding: 0.5rem 0.75rem;
   background: var(--bg1);
-  cursor: pointer;
+  cursor: default;
   user-select: none;
   transition: background-color 0.15s ease;
+}
+
+.plugin-disclosure {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
 }
 
 .plugin-header:hover {

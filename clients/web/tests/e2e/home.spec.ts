@@ -706,7 +706,7 @@ test('course hub remote search still works when local catalog response is malfor
 
   const localSearch = page
     .locator('main')
-    .getByRole('textbox', {
+    .getByRole('combobox', {
       name: /搜索课程名称、拼音|Search by course name/i,
     })
   await localSearch.fill('高等数学')

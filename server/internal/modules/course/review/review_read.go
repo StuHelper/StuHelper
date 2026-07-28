@@ -42,6 +42,10 @@ func (h *Handler) GetCourseReviews(c *gin.Context) {
 		}
 		teacherID = &id
 	}
+	userHash, ok := h.resolveOptionalUserHash(c)
+	if !ok {
+		return
+	}
 
 	result, err := h.service.GetCourseReviews(c.Request.Context(), GetCourseReviewsParams{
 		CourseID:  courseID,
@@ -50,6 +54,7 @@ func (h *Handler) GetCourseReviews(c *gin.Context) {
 		Sort:      sort,
 		TermID:    termID,
 		TeacherID: teacherID,
+		UserHash:  userHash,
 	})
 	if err != nil {
 		logger.FromGin(c).Error("failed to get course reviews", zap.Error(err))
@@ -83,12 +88,17 @@ func (h *Handler) GetLatestReviews(c *gin.Context) {
 		}
 		teacherID = &id
 	}
+	userHash, ok := h.resolveOptionalUserHash(c)
+	if !ok {
+		return
+	}
 
 	result, err := h.service.GetLatestReviews(c.Request.Context(), GetLatestReviewsParams{
 		Page:      page,
 		PageSize:  pageSize,
 		Sort:      sort,
 		TeacherID: teacherID,
+		UserHash:  userHash,
 	})
 	if err != nil {
 		logger.FromGin(c).Error("failed to get latest reviews", zap.Error(err))
@@ -134,6 +144,10 @@ func (h *Handler) SearchReviews(c *gin.Context) {
 		response.BadRequest(c, "at least one search condition is required")
 		return
 	}
+	userHash, ok := h.resolveOptionalUserHash(c)
+	if !ok {
+		return
+	}
 
 	result, err := h.service.SearchReviews(c.Request.Context(), SearchReviewsParams{
 		Query:        q,
@@ -143,6 +157,7 @@ func (h *Handler) SearchReviews(c *gin.Context) {
 		Page:         page,
 		PageSize:     pageSize,
 		Sort:         sort,
+		UserHash:     userHash,
 	})
 	if err != nil {
 		logger.FromGin(c).Error("failed to search reviews", zap.Error(err))
@@ -196,11 +211,16 @@ func (h *Handler) GetBatchCourseReviews(c *gin.Context) {
 	if !isValidSort(sort) {
 		sort = SortTime
 	}
+	userHash, ok := h.resolveOptionalUserHash(c)
+	if !ok {
+		return
+	}
 
 	result, err := h.service.GetBatchCourseReviews(c.Request.Context(), GetBatchCourseReviewsParams{
 		CourseIDs: courseIDs,
 		PageSize:  pageSize,
 		Sort:      sort,
+		UserHash:  userHash,
 	})
 	if err != nil {
 		logger.FromGin(c).Error("failed to get batch reviews", zap.Error(err))

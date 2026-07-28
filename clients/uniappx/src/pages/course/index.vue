@@ -1,59 +1,48 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
+import A11yButton from '@/components/A11yButton.vue'
 import { api } from '@/api'
 import type { components } from '@/api'
 import { unwrapListData } from '@/api/result'
+import { usePagedList } from '@/composables/usePagedList'
 import { setPageTitle, translate } from '@/i18n'
 import { DEFAULT_PAGE_SIZE } from '@/config/pagination'
 
 const t = translate
-const loading = ref(false)
-const loadingMore = ref(false)
 const query = ref('')
-const page = ref(1)
-const pageSize = DEFAULT_PAGE_SIZE
-const total = ref(0)
-const courses = ref<components['schemas']['Course'][]>([])
-
-async function fetchCourses(reset = false) {
-  if (loading.value || loadingMore.value) return
-  if (reset) {
-    page.value = 1
-    loading.value = true
-  } else {
-    loadingMore.value = true
-  }
-
-  try {
+const {
+  items: courses,
+  loading,
+  loadingMore,
+  hasMore,
+  refresh: refreshCourses,
+  loadMore: loadMoreCourses,
+} = usePagedList<components['schemas']['Course']>({
+  pageSize: DEFAULT_PAGE_SIZE,
+  async fetchPage(page, pageSize) {
     const result = await api.course.getCourses({
-      page: page.value,
+      page,
       pageSize,
       q: query.value.trim() || undefined,
       sort: 'reviewCount',
     })
-    const data = unwrapListData<components['schemas']['Course']>(result)
-    total.value = data.total
-    courses.value = reset ? data.list : [...courses.value, ...data.list]
-  } catch (error) {
+    return unwrapListData<components['schemas']['Course']>(result)
+  },
+  onError(error) {
     uni.showToast({
       title: error instanceof Error ? error.message : t('course.index.loadFailed'),
       icon: 'none',
     })
-  } finally {
-    loading.value = false
-    loadingMore.value = false
-  }
-}
+  },
+})
 
 function handleSearch() {
-  void fetchCourses(true)
+  void refreshCourses()
 }
 
 function loadMore() {
-  if (courses.value.length >= total.value) return
-  page.value += 1
-  void fetchCourses(false)
+  void loadMoreCourses()
 }
 
 function openCourse(id: number) {
@@ -63,7 +52,7 @@ function openCourse(id: number) {
 onShow(() => {
   setPageTitle('common.pageTitles.courseList')
   if (courses.value.length > 0) return
-  void fetchCourses(true)
+  void refreshCourses()
 })
 </script>
 
@@ -77,7 +66,7 @@ onShow(() => {
         :placeholder="t('course.index.searchPlaceholder')"
         @confirm="handleSearch"
       />
-      <button class="search-btn" data-testid="uni-course-search-submit" @tap="handleSearch">{{ t('common.search') }}</button>
+      <A11yButton class="search-btn" data-testid="uni-course-search-submit" @tap="handleSearch">{{ t('common.search') }}</A11yButton>
     </view>
 
     <view v-if="loading" class="state-card"><text>{{ t('common.loading') }}</text></view>
@@ -85,7 +74,7 @@ onShow(() => {
       <text>{{ t('course.index.noResults') }}</text>
     </view>
     <view v-else class="list-wrap">
-      <view v-for="course in courses" :key="course.id" class="course-card" :data-testid="`uni-course-card-${course.id}`" @tap="openCourse(course.id)">
+      <A11yButton v-for="course in courses" :key="course.id" class="course-card" :data-testid="`uni-course-card-${course.id}`" @tap="openCourse(course.id)">
         <view class="course-main">
           <text class="course-name">{{ course.name }}</text>
           <text class="course-code">{{ course.code || t('common.unavailableCourseCode') }}</text>
@@ -98,11 +87,11 @@ onShow(() => {
           <text>{{ course.departmentName || t('common.unclassifiedDepartment') }}</text>
           <text>{{ t('common.creditValue', { value: course.credits }) }}</text>
         </view>
-      </view>
+      </A11yButton>
 
-      <button v-if="courses.length < total" class="more-btn" data-testid="uni-course-load-more" :disabled="loadingMore" @tap="loadMore">
+      <A11yButton v-if="hasMore" class="more-btn" data-testid="uni-course-load-more" :disabled="loadingMore" @tap="loadMore">
         {{ loadingMore ? t('common.loading') : t('common.loadMore') }}
-      </button>
+      </A11yButton>
     </view>
   </scroll-view>
 </template>
@@ -168,11 +157,16 @@ onShow(() => {
 }
 
 .course-card {
+  display: block;
+  width: 100%;
   margin-bottom: 18rpx;
   padding: 28rpx;
+  border: 0;
   background: #ffffff;
   border-radius: 24rpx;
   box-shadow: 0 10rpx 30rpx rgba(15, 23, 42, 0.04);
+  text-align: left;
+  line-height: inherit;
 }
 
 .course-main {

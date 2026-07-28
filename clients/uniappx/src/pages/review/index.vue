@@ -4,13 +4,17 @@ import { onShow } from '@dcloudio/uni-app'
 import { api } from '@/api'
 import type { components } from '@/api'
 import { assertMutationSuccess, unwrapListData } from '@/api/result'
+import A11yButton from '@/components/A11yButton.vue'
 import { setPageTitle, translate } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 import { averageRating, formatShortDate, truncateText } from '@/utils/format'
 import { DEFAULT_PAGE_SIZE } from '@/config/pagination'
-
-type VoteType = 'like' | 'dislike'
-const LOCAL_VOTES_STORAGE_KEY = 'stuhelper:uniappx:review-votes'
+import {
+  applyOptimisticVote,
+  createReviewVoteState,
+  getDisplayVoteCount,
+  type VoteType,
+} from '@stuhelper/shared/review'
 
 const authStore = useAuthStore()
 const t = translate
@@ -19,99 +23,102 @@ const loadingMore = ref(false)
 const sort = ref<'time' | 'likes' | 'rating'>('time')
 const reviews = ref<components['schemas']['Review'][]>([])
 const voting = ref<Record<string, boolean>>({})
-const localVotes = ref<Record<string, VoteType | null>>(loadLocalVotes())
 const page = ref(1)
-const hasMore = ref(true)
-
-const VALID_VOTE_VALUES = new Set<string | null>(['like', 'dislike', null])
-
-function loadLocalVotes(): Record<string, VoteType | null> {
-  try {
-    const raw = uni.getStorageSync(LOCAL_VOTES_STORAGE_KEY)
-    if (typeof raw !== 'string' || !raw) return {}
-    const parsed: unknown = JSON.parse(raw)
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
-    const result: Record<string, VoteType | null> = {}
-    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-      if (typeof key === 'string' && VALID_VOTE_VALUES.has(value as string | null)) {
-        result[key] = value as VoteType | null
-      }
-    }
-    return result
-  } catch (_error) { void _error;
-    return {}
-  }
-}
-
-function persistLocalVotes() {
-  try {
-    uni.setStorageSync(LOCAL_VOTES_STORAGE_KEY, JSON.stringify(localVotes.value))
-  } catch (_error) { void _error;
-    // ignore storage failures
-  }
-}
+const total = ref(0)
+const hasMore = ref(false)
+let loadGeneration = 0
 
 async function loadReviews() {
+  const generation = ++loadGeneration
+  const requestedSort = sort.value
   loading.value = true
-  page.value = 1
-  hasMore.value = true
+  loadingMore.value = false
   try {
-    const result = await api.review.getLatestReviews({ page: 1, pageSize: DEFAULT_PAGE_SIZE, sort: sort.value })
+    const result = await api.review.getLatestReviews({
+      page: 1,
+      pageSize: DEFAULT_PAGE_SIZE,
+      sort: requestedSort,
+    })
     const data = unwrapListData<components['schemas']['Review']>(result)
+    if (generation !== loadGeneration) return
     reviews.value = data.list
-    hasMore.value = data.list.length >= DEFAULT_PAGE_SIZE
+    page.value = 1
+    total.value = data.total
+    hasMore.value = reviews.value.length < total.value
   } catch (error) {
+    if (generation !== loadGeneration) return
     uni.showToast({
       title: error instanceof Error ? error.message : t('review.index.loadFailed'),
       icon: 'none',
     })
   } finally {
-    loading.value = false
+    if (generation === loadGeneration) {
+      loading.value = false
+    }
   }
 }
 
 async function loadMore() {
-  if (loadingMore.value || !hasMore.value) return
+  if (loading.value || loadingMore.value || !hasMore.value) return
+  const generation = loadGeneration
+  const nextPage = page.value + 1
+  const requestedSort = sort.value
   loadingMore.value = true
   try {
-    page.value++
-    const result = await api.review.getLatestReviews({ page: page.value, pageSize: DEFAULT_PAGE_SIZE, sort: sort.value })
+    const result = await api.review.getLatestReviews({
+      page: nextPage,
+      pageSize: DEFAULT_PAGE_SIZE,
+      sort: requestedSort,
+    })
     const data = unwrapListData<components['schemas']['Review']>(result)
+    if (generation !== loadGeneration) return
     reviews.value = [...reviews.value, ...data.list]
-    hasMore.value = data.list.length >= 20
-  } catch (_error) { void _error;
-    page.value = Math.max(1, page.value - 1)
+    page.value = nextPage
+    total.value = data.total
+    hasMore.value = reviews.value.length < total.value
+  } catch (error) {
+    if (generation !== loadGeneration) return
+    uni.showToast({
+      title: error instanceof Error ? error.message : t('review.index.loadFailed'),
+      icon: 'none',
+    })
   } finally {
-    loadingMore.value = false
+    if (generation === loadGeneration) {
+      loadingMore.value = false
+    }
   }
 }
 
 async function vote(review: components['schemas']['Review'], type: VoteType) {
-  if (!(await authStore.requireAuth(t('review.index.requireAuthVote')))) return
   if (voting.value[review.id]) return
   voting.value = { ...voting.value, [review.id]: true }
-  const previousVote = localVotes.value[review.id] ?? null
-  localVotes.value = { ...localVotes.value, [review.id]: type }
-  persistLocalVotes()
-
-  const nextReviews = reviews.value.map((item) => {
-    if (item.id !== review.id) return item
-    let likeCount = item.likeCount
-    let dislikeCount = item.dislikeCount
-    if (previousVote === 'like') likeCount -= 1
-    if (previousVote === 'dislike') dislikeCount -= 1
-    if (type === 'like') likeCount += 1
-    if (type === 'dislike') dislikeCount += 1
-    return { ...item, likeCount, dislikeCount }
-  })
-  reviews.value = nextReviews
+  let previousReview: components['schemas']['Review'] | null = null
 
   try {
+    if (!(await authStore.requireAuth(t('review.index.requireAuthVote')))) return
+    previousReview = { ...review }
+    const nextState = applyOptimisticVote(
+      createReviewVoteState({ userVote: review.userVote ?? null }),
+      type,
+    )
+
+    reviews.value = reviews.value.map((item) => {
+      if (item.id !== review.id) return item
+      return {
+        ...item,
+        userVote: nextState.userVote ?? undefined,
+        likeCount: getDisplayVoteCount(item.likeCount, nextState.likeOffset),
+        dislikeCount: getDisplayVoteCount(item.dislikeCount, nextState.dislikeOffset),
+      }
+    })
+
     assertMutationSuccess(await api.review.voteReview(review.id, { voteType: type }))
   } catch (error) {
-    localVotes.value = { ...localVotes.value, [review.id]: previousVote }
-    persistLocalVotes()
-    reviews.value = reviews.value.map((item) => (item.id === review.id ? review : item))
+    if (previousReview) {
+      reviews.value = reviews.value.map((item) => (
+        item.id === review.id ? previousReview as components['schemas']['Review'] : item
+      ))
+    }
     uni.showToast({
       title: error instanceof Error ? error.message : t('review.index.voteFailed'),
       icon: 'none',
@@ -119,6 +126,12 @@ async function vote(review: components['schemas']['Review'], type: VoteType) {
   } finally {
     voting.value = { ...voting.value, [review.id]: false }
   }
+}
+
+function changeSort(nextSort: 'time' | 'likes' | 'rating') {
+  if (sort.value === nextSort && reviews.value.length > 0) return
+  sort.value = nextSort
+  void loadReviews()
 }
 
 function openCourse(courseID: number) {
@@ -134,28 +147,28 @@ onShow(() => {
 <template>
   <scroll-view class="review-page" scroll-y>
     <view class="filter-row">
-      <button data-testid="uni-review-sort-time" class="filter-btn" :class="{ active: sort === 'time' }" @tap="sort = 'time'; loadReviews()">
+      <A11yButton data-testid="uni-review-sort-time" class="filter-btn" :class="{ active: sort === 'time' }" :aria-pressed="sort === 'time'" @tap="changeSort('time')">
         {{ t('review.index.sort.latest') }}
-      </button>
-      <button data-testid="uni-review-sort-likes" class="filter-btn" :class="{ active: sort === 'likes' }" @tap="sort = 'likes'; loadReviews()">
+      </A11yButton>
+      <A11yButton data-testid="uni-review-sort-likes" class="filter-btn" :class="{ active: sort === 'likes' }" :aria-pressed="sort === 'likes'" @tap="changeSort('likes')">
         {{ t('review.index.sort.hot') }}
-      </button>
-      <button data-testid="uni-review-sort-rating" class="filter-btn" :class="{ active: sort === 'rating' }" @tap="sort = 'rating'; loadReviews()">
+      </A11yButton>
+      <A11yButton data-testid="uni-review-sort-rating" class="filter-btn" :class="{ active: sort === 'rating' }" :aria-pressed="sort === 'rating'" @tap="changeSort('rating')">
         {{ t('review.index.sort.top') }}
-      </button>
+      </A11yButton>
     </view>
 
     <view v-if="loading" class="state-card"><text>{{ t('common.loading') }}</text></view>
     <view v-else-if="reviews.length === 0" class="state-card"><text>{{ t('review.index.empty') }}</text></view>
     <view v-else class="list-wrap">
       <view v-for="review in reviews" :key="review.id" class="review-card" :data-testid="`uni-review-card-${review.id}`">
-        <view class="review-head" :data-testid="`uni-review-open-${review.id}`" @tap="openCourse(review.courseID)">
+        <A11yButton class="review-head" :data-testid="`uni-review-open-${review.id}`" @tap="openCourse(review.courseID)">
           <view class="review-main">
             <text class="course-name">{{ review.courseName || t('common.courseFallback', { id: review.courseID }) }}</text>
             <text class="review-title">{{ review.title }}</text>
           </view>
           <text class="review-score">{{ averageRating(review.ratings) }}</text>
-        </view>
+        </A11yButton>
         <text v-if="review.teacherName" class="review-teacher">{{ review.teacherName }}</text>
         <text class="review-content">{{ truncateText(review.content, 160) }}</text>
         <view class="review-meta">
@@ -163,18 +176,18 @@ onShow(() => {
           <text>{{ formatShortDate(review.createdAt) }}</text>
         </view>
         <view class="action-row">
-          <button class="vote-btn" :data-testid="`uni-review-like-${review.id}`" :class="{ active: localVotes[review.id] === 'like' }" :disabled="voting[review.id]" @tap="vote(review, 'like')">
+          <A11yButton class="vote-btn" :data-testid="`uni-review-like-${review.id}`" :class="{ active: review.userVote === 'like' }" :aria-pressed="review.userVote === 'like'" :disabled="voting[review.id]" @tap="vote(review, 'like')">
             👍 {{ review.likeCount }}
-          </button>
-          <button class="vote-btn down" :data-testid="`uni-review-dislike-${review.id}`" :class="{ active: localVotes[review.id] === 'dislike' }" :disabled="voting[review.id]" @tap="vote(review, 'dislike')">
+          </A11yButton>
+          <A11yButton class="vote-btn down" :data-testid="`uni-review-dislike-${review.id}`" :class="{ active: review.userVote === 'dislike' }" :aria-pressed="review.userVote === 'dislike'" :disabled="voting[review.id]" @tap="vote(review, 'dislike')">
             👎 {{ review.dislikeCount }}
-          </button>
-          <button class="detail-btn" :data-testid="`uni-review-view-course-${review.id}`" @tap="openCourse(review.courseID)">{{ t('review.index.viewCourse') }}</button>
+          </A11yButton>
+          <A11yButton class="detail-btn" :data-testid="`uni-review-view-course-${review.id}`" @tap="openCourse(review.courseID)">{{ t('review.index.viewCourse') }}</A11yButton>
         </view>
       </view>
-      <view v-if="hasMore" class="load-more" data-testid="uni-review-load-more" @tap="loadMore">
-        <text>{{ loadingMore ? t('common.loading') : t('common.loadMore') }}</text>
-      </view>
+      <A11yButton v-if="hasMore" class="load-more" data-testid="uni-review-load-more" :disabled="loadingMore" @tap="loadMore">
+        {{ loadingMore ? t('common.loading') : t('common.loadMore') }}
+      </A11yButton>
     </view>
   </scroll-view>
 </template>
@@ -238,6 +251,12 @@ onShow(() => {
   display: flex;
   justify-content: space-between;
   gap: 16rpx;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  line-height: inherit;
 }
 
 .review-main {
@@ -318,9 +337,17 @@ onShow(() => {
 }
 
 .load-more {
+  display: block;
+  width: 100%;
   padding: 28rpx;
+  border: 0;
+  background: transparent;
   text-align: center;
   color: #4f46e5;
   font-size: 26rpx;
+}
+
+.load-more[disabled] {
+  opacity: 0.6;
 }
 </style>

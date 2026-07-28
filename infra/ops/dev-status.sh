@@ -7,14 +7,21 @@ source "${SCRIPT_DIR}/lib/common.sh"
 # shellcheck source=lib/dev-local.sh
 source "${SCRIPT_DIR}/lib/dev-local.sh"
 
-"${SCRIPT_DIR}/init-dev-env.sh"
-ensure_dev_runtime_dirs
-if [[ -f "${DEV_RUNTIME_ENV}" ]]; then
-  set -a
-  # shellcheck disable=SC1090
-  source "${DEV_RUNTIME_ENV}"
-  set +a
+if [[ ! -f "${ENV_FILE}" ]]; then
+  warn "development environment is not initialized; run make dev-init before starting the stack"
 fi
+
+set -a
+if [[ -f "${ENV_FILE}" ]]; then
+  source_env_file "${ENV_FILE}"
+fi
+if [[ -f "${GENERATED_ENV_FILE}" ]]; then
+  source_env_file "${GENERATED_ENV_FILE}"
+fi
+if [[ -f "${DEV_RUNTIME_ENV}" ]]; then
+  source_env_file "${DEV_RUNTIME_ENV}"
+fi
+set +a
 
 report_process() {
   local name="$1"
@@ -37,4 +44,16 @@ if [[ -n "${WEB_BASE_URL:-}" ]]; then
 fi
 echo
 echo "[stuhelper] docker services"
-compose ps
+if ! command -v docker >/dev/null 2>&1; then
+  warn "docker command is unavailable"
+  exit 0
+fi
+if ! docker info >/dev/null 2>&1; then
+  warn "docker daemon is unavailable"
+  exit 0
+fi
+
+compose_project="${COMPOSE_PROJECT_NAME:-${STACK_NAME:-stuhelper-dev}}"
+docker ps -a \
+  --filter "label=com.docker.compose.project=${compose_project}" \
+  --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
