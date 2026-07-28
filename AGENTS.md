@@ -38,14 +38,14 @@ corepack yarn workspaces list
 
 | 层 | 技术 |
 |----|------|
-| 后端 | Go 1.26+ / Gin / pgx / PostgreSQL 18 / Redis 8 |
+| 后端 | Go 1.26.5+ / Gin / pgx / PostgreSQL 18 / Redis 8 |
 | 前端 | Vue 3.5+ / TypeScript 5+ / Vite 6+ / Element Plus / Pinia |
 | 管理后台 | Vben Admin 5（Element Plus 变体） |
 | 机器人 | Koishi 工作区 / NapCat（外部部署） |
 | 认证 | Casdoor OIDC |
 | 资源授权 | OpenFGA |
 | 契约 | OpenAPI 3.1 → Go + TypeScript 生成 |
-| 部署 | Docker Compose / GitLab CI/CD |
+| 部署 | Docker Compose / GitHub Actions / GHCR |
 | 观测 | Grafana LGTM + Alertmanager + OpenTelemetry |
 
 ## 真实来源
@@ -155,6 +155,7 @@ StuHelper/
 | 文档治理 | [docs/design/documentation-governance.md](docs/design/documentation-governance.md) |
 | 文档维护 | [docs/guides/documentation-maintenance.md](docs/guides/documentation-maintenance.md) |
 | 运维发布 | [docs/guides/production-go-live.md](docs/guides/production-go-live.md) / [docs/guides/](docs/guides/) |
+| GitHub 迁移 | [docs/guides/github-migration.md](docs/guides/github-migration.md) |
 | API 参考 | [docs/reference/api-overview.md](docs/reference/api-overview.md) |
 | 数据库参考 | [docs/reference/database.md](docs/reference/database.md) |
 | 错误码参考 | [docs/reference/error-codes.md](docs/reference/error-codes.md) |

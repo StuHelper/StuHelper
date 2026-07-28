@@ -1,0 +1,10 @@
+# Default ownership. Split into organization teams when those teams exist.
+* @Xauryan
+
+# High-risk and generated-contract surfaces.
+/.github/ @Xauryan
+/server/api/ @Xauryan
+/server/migrations/ @Xauryan
+/server/internal/pkg/capability/ @Xauryan
+/infra/ @Xauryan
+/docker-compose*.yml @Xauryan

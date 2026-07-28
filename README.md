@@ -17,7 +17,7 @@ make dev-up
 
 自动启动 PostgreSQL / Redis / Casdoor / OpenFGA / MinIO，执行迁移和 seed，启动热重载（后端 `air`，前端 `Vite`）。
 
-前置工具：Docker / Docker Compose、Go 1.26+、Node.js 24+ / pnpm 10+、Python 3（供环境渲染与运维脚本使用）。
+前置工具：Docker / Docker Compose、Go 1.26.5+、Node.js 24+ / pnpm 10+、Python 3（供环境渲染与运维脚本使用）。
 
 ```bash
 make dev-status   # 端口和进程
@@ -63,14 +63,11 @@ make prod-deploy  # 配置校验 → 镜像构建 → 启动 → Smoke Check
 
 ## CI/CD
 
-| 分支 | 目标环境 |
-|------|----------|
-| `develop` | staging 自动部署 |
-| `main` | production 构建完成后手工审批发布 |
+GitHub Actions 是主 CI/CD 通道：PR 和 `develop` / `main` push 运行按路径裁剪的质量门禁；质量门禁通过后发布带完整 commit SHA 的 GHCR 镜像。staging 与 production 部署均使用受保护 GitHub environment 和手工工作流，production 必须配置审批人。
 
 质量门禁：Go lint/test/build、OpenAPI lint/drift、gosec、govulncheck、pnpm audit、Trivy、Web/Admin lint/type-check/test/build/Playwright、Koishi 单元 / 启动 / Console Playwright smoke。
 
-回滚 Job：`rollback_staging` / `rollback_production`，可传 `ROLLBACK_TAG`。
+迁移步骤、Actions 权限、branch ruleset、environment secrets 和回滚约束见 [GitHub 迁移与 Actions 治理](docs/guides/github-migration.md)。GitLab CI 定义在切换验收期间暂时保留为恢复参考，不再作为 GitHub 发布的权威来源。
 
 ```bash
 make prod-rollback              # 本地回滚
@@ -84,7 +81,7 @@ make ansible-rollback-prod      # Ansible 回滚
 
 | 组件 | 技术 |
 |------|------|
-| 后端 | Go 1.26+ / Gin / pgx |
+| 后端 | Go 1.26.5+ / Gin / pgx |
 | 前端 | Vue 3.5+ / TypeScript 5+ / Vite 6+ / Pinia |
 | 管理后台 | Vben Admin（Element Plus 变体） |
 | 数据库 | PostgreSQL 18 / Redis 8 |
@@ -92,7 +89,7 @@ make ansible-rollback-prod      # Ansible 回滚
 | 认证 | Casdoor OIDC |
 | 资源授权 | OpenFGA |
 | 契约 | OpenAPI 3.1 |
-| 部署 | Docker Compose / GitLab CI/CD |
+| 部署 | Docker Compose / GitHub Actions / GHCR |
 | 观测 | Grafana LGTM + Alertmanager + OpenTelemetry |
 | 机器人 | Koishi 工作区 / NapCat（外部部署） |
 
@@ -122,6 +119,8 @@ StuHelper/
 | [docs/guides/production-go-live.md](docs/guides/production-go-live.md) | 生产上线缺漏清单与执行步骤 |
 | [docs/guides/](docs/guides/) | 运维与发布 |
 | [docs/README.md](docs/README.md) | 文档总索引 |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献流程与提交前验证 |
+| [SECURITY.md](SECURITY.md) | 私密漏洞报告与安全响应 |
 
 ## 约定
 

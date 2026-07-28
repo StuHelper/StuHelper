@@ -1,0 +1,122 @@
+name: Publish images
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+
+permissions:
+  contents: read
+  packages: write
+  attestations: write
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: ${{ matrix.name }}
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      (github.event.workflow_run.head_branch == 'develop' ||
+      github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend
+            context: server
+            file: server/Dockerfile
+            image: ghcr.io/stuhelper/backend
+          - name: frontend
+            context: .
+            file: clients/web/Dockerfile
+            image: ghcr.io/stuhelper/frontend
+          - name: admin
+            context: clients
+            file: clients/admin/scripts/deploy/Dockerfile
+            image: ghcr.io/stuhelper/admin
+    steps:
+      - name: Check out the tested commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      - name: Record reproducible build metadata
+        id: build-meta
+        run: |
+          printf 'build_time=%s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "${GITHUB_OUTPUT}"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Derive image tags and labels
+        id: metadata
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: ${{ matrix.image }}
+          tags: |
+            type=raw,value=${{ github.event.workflow_run.head_sha }}
+            type=raw,value=develop-latest,enable=${{ github.event.workflow_run.head_branch == 'develop' }}
+            type=raw,value=latest,enable=${{ github.event.workflow_run.head_branch == 'main' }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+      - name: Build and publish
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          build-args: |
+            VERSION=${{ github.event.workflow_run.head_sha }}
+            GIT_COMMIT=${{ github.event.workflow_run.head_sha }}
+            BUILD_TIME=${{ steps.build-meta.outputs.build_time }}
+            VITE_API_URL=${{ vars.WEB_VITE_API_URL || '/api' }}
+            VITE_SSO_URL=${{ vars.WEB_VITE_SSO_URL || 'https://sso.stuhelper.com' }}
+            VITE_WEB_URL=${{ vars.WEB_VITE_WEB_URL || 'https://stuhelper.com' }}
+            VITE_ADMIN_URL=${{ vars.ADMIN_PUBLIC_URL || 'https://stuhelper.com/admin/' }}
+            VITE_API_TIMEOUT_MS=${{ vars.WEB_VITE_API_TIMEOUT_MS || '15000' }}
+            VITE_QQ_BOT_ENTRY=${{ vars.WEB_VITE_QQ_BOT_ENTRY }}
+            VITE_QQ_BIND_COMMAND=${{ vars.WEB_VITE_QQ_BIND_COMMAND || '绑定' }}
+            VITE_GLOB_API_URL=${{ vars.ADMIN_VITE_API_URL || '/api/v1' }}
+            VITE_BASE=${{ vars.ADMIN_VITE_BASE || '/admin/' }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+      - name: Scan the published image
+        uses: aquasecurity/trivy-action@c07df6fec6fa692e6fd1200d50aaa1fdd66f03c8 # pinned
+        with:
+          image-ref: ${{ matrix.image }}@${{ steps.build.outputs.digest }}
+          version: v0.58.2
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: false
+          exit-code: "1"
+
+      - name: Attest image provenance
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
+        with:
+          subject-name: ${{ matrix.image }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true

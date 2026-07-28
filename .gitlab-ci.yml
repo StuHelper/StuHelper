@@ -221,7 +221,7 @@ frontend_sast:
   stage: security
   image: semgrep/semgrep:1.128.0
   script:
-  - semgrep scan --config=p/vuejs --config=p/typescript --config=p/owasp-top-ten --config=p/security-audit --config=p/jwt --severity ERROR --error clients/web/src clients/admin/apps/web-ele/src
+  - semgrep scan --config=p/javascript --config=p/typescript --config=p/owasp-top-ten --config=p/security-audit --config=p/jwt --severity ERROR --error clients/web/src clients/admin/apps/web-ele/src
 
 custom_sast:
   stage: security

@@ -1,6 +1,9 @@
 ---
-type: superpowers-design
-status: approved-design
+type: internal
+audience: maintainers
+status: current
+authoritative-source: current repository state and referenced implementation paths
+last-verified: 2026-06-10
 approval: user-approved方案A
 approved-at: 2026-06-10
 scope:

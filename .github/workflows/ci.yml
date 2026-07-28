@@ -1,0 +1,566 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - develop
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect changed areas
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      clients: ${{ steps.filter.outputs.clients }}
+      contract: ${{ steps.filter.outputs.contract }}
+      docs: ${{ steps.filter.outputs.docs }}
+      infra: ${{ steps.filter.outputs.infra }}
+      koishi: ${{ steps.filter.outputs.koishi }}
+      workflows: ${{ steps.filter.outputs.workflows }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Classify changed paths
+        id: filter
+        uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3
+        with:
+          filters: |
+            backend:
+              - 'server/**'
+            clients:
+              - 'clients/**'
+              - 'server/api/**'
+              - 'server/internal/pkg/capability/**'
+            contract:
+              - 'server/api/**'
+              - 'server/internal/api/gen/**'
+              - 'server/internal/pkg/capability/**'
+              - 'server/Makefile'
+              - 'clients/shared/**'
+              - 'clients/scripts/**'
+              - 'clients/package.json'
+              - 'clients/pnpm-lock.yaml'
+              - 'clients/pnpm-workspace.yaml'
+            docs:
+              - 'AGENTS.md'
+              - 'README.md'
+              - 'docs/**'
+              - 'scripts/check-docs-hygiene*'
+            infra:
+              - '.env.example'
+              - '.env.prod.example'
+              - 'Makefile'
+              - 'docker-compose*.yml'
+              - 'infra/**'
+            koishi:
+              - 'bots/koishi/**'
+              - 'server/api/**'
+            workflows:
+              - '.github/**'
+              - '.gitleaksignore'
+
+  repository-policy:
+    name: Repository policy
+    needs: changes
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      needs.changes.outputs.docs == 'true' ||
+      needs.changes.outputs.clients == 'true' ||
+      needs.changes.outputs.workflows == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: server/go.mod
+          cache: false
+
+      - name: Check documentation hygiene
+        run: make check-docs
+
+      - name: Check UniAppX shadow files
+        run: bash scripts/check-uniappx-shadow-files.sh
+
+      - name: Lint GitHub Actions workflows
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+
+  secret-scan:
+    name: Secret history scan
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the complete repository history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Scan all reachable commits
+        run: >-
+          docker run --rm
+          -v "${GITHUB_WORKSPACE}:/repo:ro"
+          ghcr.io/gitleaks/gitleaks@sha256:e1b35e12a8c6fa8901f060459cfb6b2fc4c484d3afbe3b029733a3bbfab07055
+          git /repo --redact=100 --no-banner
+
+  backend:
+    name: Backend
+    needs: changes
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:8
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://test:test@127.0.0.1:5432/test?sslmode=disable
+      STUHELPER_TEST_POSTGRES_URL: postgres://test:test@127.0.0.1:5432/postgres?sslmode=disable
+      PGPASSWORD: test
+      REDIS_HOST: 127.0.0.1
+      REDIS_PASSWORD: ""
+      REDIS_PORT: "6379"
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+
+      - name: Install pinned security and lint tools
+        working-directory: server
+        run: |
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.22.4
+          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+
+      - name: Lint
+        working-directory: server
+        run: make lint
+
+      - name: Run static security checks
+        working-directory: server
+        run: |
+          make security
+          govulncheck ./...
+
+      - name: Apply the database baseline
+        working-directory: server
+        run: make migrate-up
+
+      - name: Test with race detection and coverage
+        working-directory: server
+        run: |
+          make test-coverage
+          make check-coverage-threshold
+
+      - name: Verify reversible migrations
+        working-directory: server
+        run: make migrate-verify
+
+      - name: Build
+        working-directory: server
+        run: make build
+
+      - name: Upload backend evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: backend-${{ github.sha }}
+          path: |
+            server/coverage.out
+            server/bin/stuhelper
+          if-no-files-found: warn
+          retention-days: 7
+
+  contract:
+    name: OpenAPI and generated-code contract
+    needs: changes
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      needs.changes.outputs.contract == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10.32.1
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: clients/pnpm-lock.yaml
+
+      - name: Install client dependencies
+        working-directory: clients
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate API specifications and generated Go code
+        working-directory: server
+        run: |
+          make lint-spec
+          make check-bundled-drift
+          make check-drift-go
+          make check-doc-sync
+
+      - name: Validate generated TypeScript and capability contracts
+        working-directory: clients
+        run: |
+          pnpm run check:api-drift
+          pnpm run check:capabilities-drift
+
+  clients:
+    name: Web, Admin, and UniAppX
+    needs: changes
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      needs.changes.outputs.clients == 'true'
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      VITE_ADMIN_URL: /admin/
+      VITE_API_URL: /api
+      VITE_SSO_URL: https://sso.example.invalid
+      VITE_WEB_URL: https://web.example.invalid
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10.32.1
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: |
+            clients/pnpm-lock.yaml
+            clients/admin/pnpm-lock.yaml
+
+      - name: Install client dependencies
+        working-directory: clients
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --dir admin install --frozen-lockfile
+
+      - name: Lint
+        working-directory: clients
+        run: pnpm run lint:all
+
+      - name: Type-check
+        working-directory: clients
+        run: pnpm run type-check:all
+
+      - name: Run unit tests
+        working-directory: clients
+        run: pnpm run test:all
+
+      - name: Audit production dependencies
+        working-directory: clients
+        run: |
+          pnpm audit --audit-level=high --prod
+          pnpm --dir admin audit --audit-level=high --prod
+
+      - name: Build all browser clients
+        working-directory: clients
+        run: |
+          pnpm run build:web
+          pnpm run build:admin
+          pnpm run build:uni:h5
+
+  client-e2e:
+    name: ${{ matrix.name }} E2E
+    needs: changes
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      needs.changes.outputs.clients == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.2-noble
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Web
+            command: pnpm run test:e2e:web
+            install_admin: false
+            artifact_path: |
+              clients/web/playwright-report
+              clients/web/test-results
+          - name: Admin
+            command: pnpm run test:e2e:admin
+            install_admin: true
+            artifact_path: |
+              clients/admin/apps/web-ele/playwright-report
+              clients/admin/apps/web-ele/test-results
+          - name: UniAppX
+            command: pnpm run test:e2e:uni
+            install_admin: false
+            artifact_path: |
+              clients/uniappx/playwright-report
+              clients/uniappx/test-results
+    env:
+      CI: "true"
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10.32.1
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
+
+      - name: Install client dependencies
+        working-directory: clients
+        run: |
+          pnpm install --frozen-lockfile
+          if [[ "${{ matrix.install_admin }}" == "true" ]]; then
+            pnpm --dir admin install --frozen-lockfile
+          fi
+
+      - name: Run Playwright
+        working-directory: clients
+        run: ${{ matrix.command }}
+
+      - name: Upload Playwright evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: e2e-${{ matrix.name }}-${{ github.sha }}
+          path: ${{ matrix.artifact_path }}
+          if-no-files-found: ignore
+          retention-days: 7
+
+  koishi:
+    name: Koishi
+    needs: changes
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      needs.changes.outputs.koishi == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.2-noble
+    env:
+      CI: "true"
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
+
+      - name: Install dependencies
+        working-directory: bots/koishi
+        run: |
+          corepack enable
+          corepack yarn install --immutable
+
+      - name: Test
+        working-directory: bots/koishi
+        run: corepack yarn test
+
+      - name: Upload Koishi evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: koishi-${{ github.sha }}
+          path: |
+            bots/koishi/playwright-report
+            bots/koishi/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  infra:
+    name: Infrastructure contracts
+    needs: changes
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      needs.changes.outputs.infra == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.2-noble
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10.32.1
+          run_install: false
+
+      - name: Install contract dependencies
+        run: |
+          apt-get update
+          apt-get install --yes curl jq openssl
+
+      - name: Install browser client dependencies used by smoke contracts
+        working-directory: clients
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare Koishi package artifacts used by infra contracts
+        working-directory: bots/koishi
+        run: |
+          corepack enable
+          corepack yarn install --immutable
+          corepack yarn build
+
+      - name: Test production environment initialization
+        run: bash infra/ops/tests/init-prod-env-contract.sh
+
+      - name: Run infrastructure contracts
+        run: bash infra/ops/tests/run-infra-contracts.sh
+
+  sast:
+    name: Semgrep
+    needs: changes
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      needs.changes.outputs.clients == 'true' ||
+      needs.changes.outputs.backend == 'true' ||
+      needs.changes.outputs.workflows == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Scan application code
+        run: >-
+          docker run --rm
+          -v "${GITHUB_WORKSPACE}:/src:ro"
+          -w /src
+          semgrep/semgrep@sha256:183a149fb3e9700ab5294a7b4ab0241a826fd046bc8b721062fbea80fdfa438f
+          semgrep scan
+          --config=p/javascript
+          --config=p/typescript
+          --config=p/owasp-top-ten
+          --config=p/security-audit
+          --config=p/jwt
+          --severity ERROR
+          --error
+          clients/web/src
+          clients/admin/apps/web-ele/src
+
+      - name: Run project-specific Semgrep rules
+        run: >-
+          docker run --rm
+          -v "${GITHUB_WORKSPACE}:/src:ro"
+          -w /src
+          --entrypoint bash
+          semgrep/semgrep@sha256:183a149fb3e9700ab5294a7b4ab0241a826fd046bc8b721062fbea80fdfa438f
+          scripts/check-semgrep-custom-rules.sh
+
+  required:
+    name: Required
+    if: always()
+    needs:
+      - changes
+      - repository-policy
+      - secret-scan
+      - backend
+      - contract
+      - clients
+      - client-e2e
+      - koishi
+      - infra
+      - sast
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every selected check to pass
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          printf 'Job results: %s\n' "${RESULTS}"
+          if [[ "${RESULTS}" == *failure* || "${RESULTS}" == *cancelled* ]]; then
+            exit 1
+          fi
