@@ -391,7 +391,7 @@ jobs:
         working-directory: clients
         run: |
           pnpm install --frozen-lockfile
-          if [[ "${{ matrix.install_admin }}" == "true" ]]; then
+          if [ "${{ matrix.install_admin }}" = "true" ]; then
             pnpm --dir admin install --frozen-lockfile
           fi
 
