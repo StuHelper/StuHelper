@@ -343,11 +343,11 @@ jobs:
         working-directory: clients
         run: pnpm run test:all
 
-      - name: Audit production dependencies
+      - name: Audit high-severity dependencies
         working-directory: clients
         run: |
           pnpm audit --registry=https://registry.npmjs.org --audit-level=high --prod
-          pnpm --dir admin audit --registry=https://registry.npmjs.org --audit-level=high --prod
+          pnpm --dir admin audit --registry=https://registry.npmjs.org --audit-level=high
 
       - name: Build all browser clients
         working-directory: clients

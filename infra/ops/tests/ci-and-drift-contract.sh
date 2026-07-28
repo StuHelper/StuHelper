@@ -68,6 +68,8 @@ assert_contains "${GITHUB_CI_FILE}" 'ALTER DATABASE test OWNER TO stuhelper_app;
 assert_contains "${GITHUB_CI_FILE}" 'ALTER SCHEMA public OWNER TO stuhelper_app;'
 assert_contains "${GITHUB_CI_FILE}" 'if \[ "\$\{\{ matrix\.install_admin \}\}" = "true" \]; then'
 assert_not_contains "${GITHUB_CI_FILE}" 'if \[\[ "\$\{\{ matrix\.install_admin \}\}"'
+assert_contains "${GITHUB_CI_FILE}" 'pnpm --dir admin audit --registry=https://registry\.npmjs\.org --audit-level=high$'
+assert_not_contains "${GITHUB_CI_FILE}" 'pnpm --dir admin audit .* --prod'
 assert_contains "${ROOT_MAKEFILE}" '^check-infra-contracts:$'
 assert_contains "${ROOT_MAKEFILE}" 'bash infra/ops/tests/run-infra-contracts\.sh'
 assert_contains "${CI_FILE}" 'docker buildx build .*--file clients/web/Dockerfile .* \.$'

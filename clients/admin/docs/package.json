@@ -31,7 +31,7 @@
     "@vben/tailwind-config": "workspace:*",
     "@vben/vite-config": "workspace:*",
     "@vite-pwa/vitepress": "catalog:conflicts_@vite-pwa/vitepress_h1_1_0",
-    "vitepress": "catalog:conflicts_vitepress_h1_6_4",
+    "vitepress": "catalog:conflicts_vitepress_h2_0_0",
     "vue": "catalog:"
   }
 }
