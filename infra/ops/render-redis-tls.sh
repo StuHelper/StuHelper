@@ -31,6 +31,7 @@ ensure_redis_tls_permissions() {
   [[ -f "${SERVER_KEY}" ]] && chmod 644 "${SERVER_KEY}"
   [[ -f "${CA_CERT}" ]] && chmod 644 "${CA_CERT}"
   [[ -f "${SERVER_CERT}" ]] && chmod 644 "${SERVER_CERT}"
+  return 0
 }
 
 ensure_redis_tls_permissions

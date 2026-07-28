@@ -36,6 +36,7 @@ ensure_postgres_tls_permissions() {
   fi
   [[ -f "${CA_CERT}" ]] && chmod 644 "${CA_CERT}"
   [[ -f "${SERVER_CERT}" ]] && chmod 644 "${SERVER_CERT}"
+  return 0
 }
 
 ensure_postgres_tls_permissions
