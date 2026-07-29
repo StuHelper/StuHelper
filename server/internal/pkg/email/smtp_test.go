@@ -45,36 +45,51 @@ func TestNewSMTPSenderValidatesSenderHeaders(t *testing.T) {
 
 func TestBuildTextMessageRejectsHeaderInjection(t *testing.T) {
 	from := mail.Address{Name: "StuHelper", Address: "sender@example.com"}
-	to := mail.Address{Name: "Student", Address: "student@example.com"}
 
-	message, err := buildTextMessage(from, to, "选课提醒", "正文")
+	message, err := buildTextMessage(from, "选课提醒", "正文")
 	require.NoError(t, err)
 	assert.Contains(t, string(message), "Subject: =?UTF-8?")
+	assert.Contains(t, string(message), "To: "+undisclosedRecipientsHeader)
 	assert.True(t, strings.HasSuffix(string(message), "正文\r\n"))
 
-	for name, mutate := range map[string]func() (mail.Address, mail.Address, string){
-		"sender": func() (mail.Address, mail.Address, string) {
+	for name, mutate := range map[string]func() (mail.Address, string){
+		"sender address": func() (mail.Address, string) {
 			return mail.Address{
 				Name:    "StuHelper",
 				Address: "sender@example.com\r\nBcc: attacker@example.com",
-			}, to, "subject"
-		},
-		"recipient": func() (mail.Address, mail.Address, string) {
-			return from, mail.Address{
-				Name:    "Student\r\nBcc: attacker@example.com",
-				Address: "student@example.com",
 			}, "subject"
 		},
-		"subject": func() (mail.Address, mail.Address, string) {
-			return from, to, "subject\r\nBcc: attacker@example.com"
+		"sender display name": func() (mail.Address, string) {
+			return mail.Address{
+				Name:    "StuHelper\r\nBcc: attacker@example.com",
+				Address: "sender@example.com",
+			}, "subject"
+		},
+		"subject": func() (mail.Address, string) {
+			return from, "subject\r\nBcc: attacker@example.com"
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			gotFrom, gotTo, subject := mutate()
-			_, err := buildTextMessage(gotFrom, gotTo, subject, "body")
+			gotFrom, subject := mutate()
+			_, err := buildTextMessage(gotFrom, subject, "body")
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "forbidden line break")
 		})
+	}
+}
+
+func TestParseHeaderAddressRejectsRecipientInjection(t *testing.T) {
+	recipient, err := parseHeaderAddress("recipient", "Student <student@example.com>")
+	require.NoError(t, err)
+	assert.Equal(t, "student@example.com", recipient.Address)
+
+	for _, value := range []string{
+		"student@example.com\r\nBcc: attacker@example.com",
+		"Student\r\nBcc: attacker@example.com <student@example.com>",
+	} {
+		_, err := parseHeaderAddress("recipient", value)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "forbidden line break")
 	}
 }
 

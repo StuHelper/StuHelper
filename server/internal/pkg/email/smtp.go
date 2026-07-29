@@ -32,6 +32,8 @@ type SMTPSender struct {
 	from mail.Address
 }
 
+const undisclosedRecipientsHeader = "undisclosed-recipients:;"
+
 func NewSMTPSender(cfg SMTPConfig) (*SMTPSender, error) {
 	cfg.Host = strings.TrimSpace(cfg.Host)
 	cfg.From = strings.TrimSpace(cfg.From)
@@ -121,7 +123,7 @@ func (s *SMTPSender) Send(ctx context.Context, to string, subject string, textBo
 	if err != nil {
 		return fmt.Errorf("smtp data: %w", err)
 	}
-	message, err := buildTextMessage(s.from, recipient, subject, textBody)
+	message, err := buildTextMessage(s.from, subject, textBody)
 	if err != nil {
 		return fmt.Errorf("build smtp message: %w", err)
 	}
@@ -161,17 +163,11 @@ func (s *SMTPSender) dial(ctx context.Context, addr string) (net.Conn, error) {
 	return conn, nil
 }
 
-func buildTextMessage(from mail.Address, to mail.Address, subject string, textBody string) ([]byte, error) {
+func buildTextMessage(from mail.Address, subject string, textBody string) ([]byte, error) {
 	if err := validateHeaderValue("sender address", from.Address); err != nil {
 		return nil, err
 	}
 	if err := validateHeaderValue("sender display name", from.Name); err != nil {
-		return nil, err
-	}
-	if err := validateHeaderValue("recipient address", to.Address); err != nil {
-		return nil, err
-	}
-	if err := validateHeaderValue("recipient display name", to.Name); err != nil {
 		return nil, err
 	}
 	if err := validateHeaderValue("subject", subject); err != nil {
@@ -183,7 +179,10 @@ func buildTextMessage(from mail.Address, to mail.Address, subject string, textBo
 	if err := writeHeader(writer, "From", from.String()); err != nil {
 		return nil, err
 	}
-	if err := writeHeader(writer, "To", to.String()); err != nil {
+	// Keep the recipient exclusively in the SMTP envelope. This avoids
+	// reflecting an account-controlled address into message content while
+	// retaining a standards-compliant destination header.
+	if err := writeHeader(writer, "To", undisclosedRecipientsHeader); err != nil {
 		return nil, err
 	}
 	if err := writeHeader(writer, "Subject", mime.QEncoding.Encode("UTF-8", strings.TrimSpace(subject))); err != nil {
