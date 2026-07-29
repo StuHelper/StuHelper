@@ -34,7 +34,7 @@
     "web-vitals": "^5.1.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.58.2",
+    "@playwright/test": "^1.61.1",
     "@storybook/addon-a11y": "8.6.17",
     "@storybook/addon-essentials": "8.6.17",
     "@storybook/test": "8.6.17",

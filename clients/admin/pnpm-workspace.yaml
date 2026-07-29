@@ -74,7 +74,7 @@ catalog:
   '@intlify/unplugin-vue-i18n': ^11.0.7
   '@jspm/generator': ^2.12.0
   '@manypkg/get-packages': ^3.1.0
-  '@playwright/test': ^1.58.2
+  '@playwright/test': ^1.61.1
   '@pnpm/workspace.read-manifest': ^1000.3.0
   '@stylistic/stylelint-plugin': ^5.0.1
   '@tailwindcss/typography': ^0.5.19
