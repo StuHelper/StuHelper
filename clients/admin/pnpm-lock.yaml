@@ -512,7 +512,7 @@ overrides:
 patchedDependencies:
   brace-expansion@5.0.8:
     hash: 5579b1facb24189723db2e7633fb7425ee74b3ffd43575548c9dad32c21a3fb9
-    path: ../../infra/patches/npm/brace-expansion@5.0.8.patch
+    path: ../patches/npm/brace-expansion@5.0.8.patch
 
 importers:
 

@@ -21,6 +21,7 @@ WORKDIR /app
 
 # Admin 依赖 clients/shared，Docker context 必须是 clients/。
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml /app/
+COPY patches /app/patches
 COPY scripts /app/scripts
 COPY shared /app/shared
 COPY admin /app/admin

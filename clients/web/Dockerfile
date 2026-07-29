@@ -20,6 +20,7 @@ ENV VITE_API_TIMEOUT_MS=${VITE_API_TIMEOUT_MS}
 ENV VITE_QQ_BOT_ENTRY=${VITE_QQ_BOT_ENTRY}
 ENV VITE_QQ_BIND_COMMAND=${VITE_QQ_BIND_COMMAND}
 COPY clients/package.json clients/pnpm-lock.yaml clients/pnpm-workspace.yaml ./
+COPY clients/patches ./patches
 COPY clients/web/package.json ./web/
 COPY clients/shared/package.json ./shared/
 COPY clients/uniappx/package.json ./uniappx/

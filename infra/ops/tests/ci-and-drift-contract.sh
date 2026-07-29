@@ -8,6 +8,7 @@ GITHUB_CI_FILE="${REPO_ROOT}/.github/workflows/ci.yml"
 SECRET_SCAN_SCRIPT="${REPO_ROOT}/scripts/check-secrets.sh"
 ROOT_MAKEFILE="${REPO_ROOT}/Makefile"
 SERVER_MAKEFILE="${REPO_ROOT}/server/Makefile"
+WEB_DOCKERFILE="${REPO_ROOT}/clients/web/Dockerfile"
 ADMIN_DOCKERFILE="${REPO_ROOT}/clients/admin/scripts/deploy/Dockerfile"
 ADMIN_NGINX="${REPO_ROOT}/clients/admin/scripts/deploy/nginx.conf"
 ADMIN_ENV_LOADER="${REPO_ROOT}/clients/admin/internal/vite-config/src/utils/env.ts"
@@ -16,7 +17,7 @@ CLIENTS_DOCKERIGNORE="${REPO_ROOT}/clients/.dockerignore"
 CLIENTS_PACKAGE="${REPO_ROOT}/clients/package.json"
 CLIENTS_WORKSPACE="${REPO_ROOT}/clients/pnpm-workspace.yaml"
 ADMIN_WORKSPACE="${REPO_ROOT}/clients/admin/pnpm-workspace.yaml"
-BRACE_EXPANSION_PATCH="${REPO_ROOT}/infra/patches/npm/brace-expansion@5.0.8.patch"
+BRACE_EXPANSION_PATCH="${REPO_ROOT}/clients/patches/npm/brace-expansion@5.0.8.patch"
 
 fail() {
   echo "[ci-and-drift-contract][error] $*" >&2
@@ -122,9 +123,9 @@ assert_contains "${CI_FILE}" 'pnpm run test:all$'
 assert_not_contains "${CI_FILE}" '^admin_unit_test:$'
 assert_contains "${CLIENTS_PACKAGE}" '"test:all": "pnpm run check:dependency-compat .*pnpm run test:admin"'
 assert_contains "${CLIENTS_WORKSPACE}" 'brace-expansion@<5\.0\.8: 5\.0\.8'
-assert_contains "${CLIENTS_WORKSPACE}" 'brace-expansion@5\.0\.8: \.\./infra/patches/npm/brace-expansion@5\.0\.8\.patch'
+assert_contains "${CLIENTS_WORKSPACE}" 'brace-expansion@5\.0\.8: patches/npm/brace-expansion@5\.0\.8\.patch'
 assert_contains "${ADMIN_WORKSPACE}" 'brace-expansion@<5\.0\.8: 5\.0\.8'
-assert_contains "${ADMIN_WORKSPACE}" 'brace-expansion@5\.0\.8: \.\./\.\./infra/patches/npm/brace-expansion@5\.0\.8\.patch'
+assert_contains "${ADMIN_WORKSPACE}" 'brace-expansion@5\.0\.8: \.\./patches/npm/brace-expansion@5\.0\.8\.patch'
 assert_contains "${BRACE_EXPANSION_PATCH}" 'module\.exports = Object\.assign\(expand, exports, \{ default: expand \}\);'
 assert_contains "${BRACE_EXPANSION_PATCH}" '^\+export default expand;$'
 assert_contains "${ROOT_MAKEFILE}" '^check-infra-contracts:$'
@@ -133,8 +134,10 @@ assert_contains "${CI_FILE}" 'docker buildx build .*--file clients/web/Dockerfil
 assert_contains "${CI_FILE}" 'docker buildx build .*--build-arg "VITE_QQ_BOT_ENTRY=\$\{WEB_VITE_QQ_BOT_ENTRY:-\}"'
 assert_contains "${CI_FILE}" 'docker buildx build .*--build-arg "VITE_QQ_BIND_COMMAND=\$\{WEB_VITE_QQ_BIND_COMMAND:-绑定\}"'
 assert_contains "${CI_FILE}" 'docker buildx build .*--file clients/admin/scripts/deploy/Dockerfile .* clients$'
+assert_contains "${WEB_DOCKERFILE}" '^COPY clients/patches \./patches$'
 assert_contains "${ADMIN_DOCKERFILE}" '^RUN corepack enable && corepack prepare pnpm@10\.32\.1 --activate$'
 assert_contains "${ADMIN_DOCKERFILE}" '^ARG VITE_BASE=/admin/$'
+assert_contains "${ADMIN_DOCKERFILE}" '^COPY patches /app/patches$'
 assert_contains "${ADMIN_DOCKERFILE}" '^COPY shared /app/shared$'
 assert_contains "${ADMIN_DOCKERFILE}" '^RUN pnpm --filter @stuhelper/shared build$'
 assert_contains "${ADMIN_DOCKERFILE}" '^RUN pnpm --dir admin --filter @vben/vite-config stub$'
