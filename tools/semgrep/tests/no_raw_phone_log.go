@@ -5,8 +5,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/phoneutil"
 )
 
 func logPhoneValues(log *zap.Logger, phone string) {
