@@ -16,6 +16,19 @@ test('deepMerge merges own plain-record fields without mutating prototypes', () 
   assert.equal(({} as { polluted?: boolean }).polluted, undefined)
 })
 
+test('deepMerge never recurses into an inherited target field', () => {
+  const inheritedNested = { enabled: false }
+  const target = Object.create({ nested: inheritedNested }) as {
+    nested: { enabled: boolean }
+  }
+
+  deepMerge(target, { nested: { enabled: true } })
+
+  assert.equal(Object.prototype.hasOwnProperty.call(target, 'nested'), true)
+  assert.deepEqual(target.nested, { enabled: true })
+  assert.deepEqual(inheritedNested, { enabled: false })
+})
+
 test('isPlainRecord rejects arrays and class instances', () => {
   class Example {}
 

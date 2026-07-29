@@ -1,19 +1,20 @@
 export type PlainRecord = Record<string, unknown>
 
-const FORBIDDEN_MERGE_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
-
 export function deepMerge<T extends PlainRecord>(target: T, source: unknown): T {
   if (!isPlainRecord(source)) {
     return target
   }
 
   for (const [key, value] of Object.entries(source)) {
-    if (FORBIDDEN_MERGE_KEYS.has(key)) {
+    // Keep these comparisons explicit so both runtime review and static
+    // analysis can prove that built-in prototype paths are unreachable.
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
       continue
     }
 
-    const current = target[key]
-    if (isPlainRecord(current) && isPlainRecord(value)) {
+    const targetOwnsKey = Object.prototype.hasOwnProperty.call(target, key)
+    const current = targetOwnsKey ? target[key] : undefined
+    if (targetOwnsKey && isPlainRecord(current) && isPlainRecord(value)) {
       deepMerge(current, value)
     } else {
       target[key] = value
