@@ -1086,18 +1086,18 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@koishijs/plugin-admin@npm:^2.0.0-beta.4":
-  version: 2.0.0-beta.4
-  resolution: "@koishijs/plugin-admin@npm:2.0.0-beta.4"
+"@koishijs/plugin-admin@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "@koishijs/plugin-admin@npm:2.0.0"
   dependencies:
     throttle-debounce: "npm:^3.0.1"
   peerDependencies:
-    "@koishijs/plugin-console": ^5.25.6
-    koishi: ^4.16.4
+    "@koishijs/plugin-console": ^5.30.11
+    koishi: ^4.18.11
   peerDependenciesMeta:
     "@koishijs/plugin-console":
       optional: true
-  checksum: 10c0/0853c610d6d586bb6fe6edcc72dffeaa54026619755fe3b38c208a45b501b13c57ee32227ac83fdf13147379d86dbe3859bd58157fbabfcb4119abe6e70b35a8
+  checksum: 10c0/6e1f77b21a3dc242e8f8613608fc3e809d03dfcafb4b2b10b52140a6cdd2fe23a90dd68cb8503a03ddf6271a1615def98e58db7c3fe213a8fe25be50ccac04aa
   languageName: node
   linkType: hard
 
@@ -5148,7 +5148,7 @@ __metadata:
     "@koishijs/plugin-adapter-qq": "npm:^4.9.2"
     "@koishijs/plugin-adapter-satori": "npm:^1.5.1"
     "@koishijs/plugin-adapter-telegram": "npm:^4.5.8"
-    "@koishijs/plugin-admin": "npm:^2.0.0-beta.4"
+    "@koishijs/plugin-admin": "npm:^2.0.0"
     "@koishijs/plugin-analytics": "npm:^2.0.6"
     "@koishijs/plugin-auth": "npm:^4.1.6"
     "@koishijs/plugin-bind": "npm:^1.5.1"
