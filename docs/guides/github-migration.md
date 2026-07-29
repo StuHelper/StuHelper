@@ -3,7 +3,7 @@ type: guide
 audience: maintainers
 status: current
 authoritative-source: .github/workflows/ + GitHub repository settings
-last-verified: 2026-07-28
+last-verified: 2026-07-29
 ---
 
 # GitHub 迁移与 Actions 治理
@@ -51,7 +51,7 @@ last-verified: 2026-07-28
 |--------|------|------------|
 | `CI` | PR、`develop`/`main` push、手工 | PR 只读；按路径选择 Go、契约、前端、E2E、Koishi、Infra、Semgrep、完整历史 secret scan、PR 新增依赖审查，以及 22 个受管运行时镜像的 `HIGH` / `CRITICAL` / `UNKNOWN` 策略扫描 |
 | `CodeQL` | PR、push、每周、手工 | Go 与 JavaScript/TypeScript 代码扫描 |
-| `Publish images` | 受信任 push 的 `CI` 全部成功后 | 构建一次、扫描同一镜像、发布不可变 SHA tag，并为最终 digest 签发 provenance |
+| `Publish images` | 受信任 push 的 `CI` 全部成功后 | 同一 commit 只构建一次、扫描同一镜像、发布不可变 SHA tag；另一受信任分支只能复用已验证 digest，并为最终 digest 签发 provenance |
 | `Deploy` | 手工 | 验证指定 40 位 commit SHA、发布工作流身份、源分支、源提交和镜像 digest 后部署 |
 | `Rollback` | 手工 | 使用同一 environment 锁回滚到经过相同 provenance 校验的 40 位 commit SHA |
 
@@ -151,7 +151,7 @@ GitHub 原生检测不能替代仓库内的完整历史 Gitleaks 门禁：两者
 - `ghcr.io/stuhelper/frontend:<full-commit-sha>`
 - `ghcr.io/stuhelper/admin:<full-commit-sha>`
 
-`develop-latest` 和 `latest` 只用于人类识别。部署与回滚输入必须是完整 commit SHA；工作流先把对应 tag 解析为 manifest digest，再验证 `StuHelper/StuHelper/.github/workflows/publish-images.yml` 签发的 provenance、源 commit、源 branch 和 GitHub-hosted runner 身份，最终只向远端传递 `image@sha256:...`。首次推送后确认三个 package 都关联到 `StuHelper/StuHelper`，并根据公开部署策略设置 package visibility。
+`develop-latest` 和 `latest` 只用于人类识别。部署与回滚输入必须是完整 commit SHA；同一 commit 的发布任务以 commit SHA 串行，首次构建使用 commit 时间固定镜像与文件元数据。若 SHA tag 已存在，工作流必须先验证仓库、签发工作流、源 commit、受信任源 branch 和 GitHub-hosted runner 身份，随后直接复用原 digest，禁止覆盖该 tag。部署工作流把 tag 解析为 manifest digest，重复执行相同 provenance 校验，最终只向远端传递 `image@sha256:...`。首次推送后确认三个 package 都关联到 `StuHelper/StuHelper`，并根据公开部署策略设置 package visibility。
 
 远端部署脚本当前仍执行 registry login。迁移 GHCR 时，需要在远端 secret backend 中配置独立、最小 `read:packages` 读取凭据，不能复用个人日常登录凭据。
 

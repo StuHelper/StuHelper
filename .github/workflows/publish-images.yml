@@ -16,8 +16,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: publish-images-${{ inputs.branch }}
-  cancel-in-progress: true
+  group: publish-images-${{ inputs.commit_sha }}
+  cancel-in-progress: false
 
 jobs:
   publish:
@@ -73,23 +73,31 @@ jobs:
         run: |
           commit_epoch="$(git show -s --format=%ct "${COMMIT_SHA}")"
           build_time="$(date -u --date="@${commit_epoch}" +'%Y-%m-%dT%H:%M:%SZ')"
+          printf 'commit_epoch=%s\n' "${commit_epoch}" >>"${GITHUB_OUTPUT}"
           printf 'build_time=%s\n' "${build_time}" >>"${GITHUB_OUTPUT}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
-      - name: Derive image tags and labels
-        id: metadata
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # v4.5.2
         with:
-          images: ${{ matrix.image }}
-          tags: |
-            type=raw,value=${{ inputs.commit_sha }}
-          labels: |
-            org.opencontainers.image.revision=${{ inputs.commit_sha }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve a trusted immutable image
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          IMAGE_NAME: ${{ matrix.image }}
+        run: ./infra/ops/resolve-existing-published-image.sh
 
       - name: Build the candidate locally
+        if: steps.existing.outputs.found != 'true'
+        env:
+          SOURCE_DATE_EPOCH: ${{ steps.build-meta.outputs.commit_epoch }}
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: ${{ matrix.context }}
@@ -97,8 +105,12 @@ jobs:
           platforms: linux/amd64
           load: true
           push: false
-          tags: ${{ steps.metadata.outputs.tags }}
-          labels: ${{ steps.metadata.outputs.labels }}
+          tags: ${{ matrix.image }}:${{ inputs.commit_sha }}
+          labels: |
+            org.opencontainers.image.created=${{ steps.build-meta.outputs.build_time }}
+            org.opencontainers.image.revision=${{ inputs.commit_sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ inputs.commit_sha }}
           build-args: |
             VERSION=${{ inputs.commit_sha }}
             GIT_COMMIT=${{ inputs.commit_sha }}
@@ -114,6 +126,7 @@ jobs:
             VITE_BASE=${{ vars.ADMIN_VITE_BASE || '/admin/' }}
 
       - name: Scan the candidate image
+        if: steps.existing.outputs.found != 'true'
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
           image-ref: ${{ matrix.image }}:${{ inputs.commit_sha }}
@@ -123,20 +136,20 @@ jobs:
           ignore-unfixed: false
           exit-code: "1"
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # v4.5.2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Publish the scanned image
         id: publish
         env:
           COMMIT_SHA: ${{ inputs.commit_sha }}
+          EXISTING_DIGEST: ${{ steps.existing.outputs.digest }}
+          IMAGE_EXISTS: ${{ steps.existing.outputs.found }}
           IMAGE_NAME: ${{ matrix.image }}
         run: |
           set -euo pipefail
+          if [[ "${IMAGE_EXISTS}" == "true" ]]; then
+            printf 'digest=%s\n' "${EXISTING_DIGEST}" >>"${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
           immutable_ref="${IMAGE_NAME}:${COMMIT_SHA}"
           docker push "${immutable_ref}"
           digest="$(

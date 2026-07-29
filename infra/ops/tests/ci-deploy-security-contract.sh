@@ -167,8 +167,16 @@ assert_contains "${ROLLBACK_WORKFLOW}" 'commit_sha:'
 assert_not_contains "${ROLLBACK_WORKFLOW}" 'release_tag:'
 assert_not_contains "${ROLLBACK_WORKFLOW}" 'TARGET_TAG'
 assert_contains "${PUBLISH_WORKFLOW}" 'name: Scan the candidate image'
+assert_contains "${PUBLISH_WORKFLOW}" 'group: publish-images-\$\{\{ inputs\.commit_sha \}\}'
+assert_contains "${PUBLISH_WORKFLOW}" 'cancel-in-progress: false'
+assert_contains "${PUBLISH_WORKFLOW}" 'SOURCE_DATE_EPOCH: \$\{\{ steps\.build-meta\.outputs\.commit_epoch \}\}'
+assert_contains "${PUBLISH_WORKFLOW}" 'org\.opencontainers\.image\.created=\$\{\{ steps\.build-meta\.outputs\.build_time \}\}'
+assert_contains "${PUBLISH_WORKFLOW}" 'name: Resolve a trusted immutable image'
+assert_contains "${PUBLISH_WORKFLOW}" 'resolve-existing-published-image\.sh'
+assert_contains "${PUBLISH_WORKFLOW}" 'steps\.existing\.outputs\.found != '\''true'\'''
 assert_contains "${PUBLISH_WORKFLOW}" 'docker push "\$\{immutable_ref\}"'
 assert_contains "${PUBLISH_WORKFLOW}" 'docker buildx imagetools create'
+assert_not_contains "${PUBLISH_WORKFLOW}" 'docker/metadata-action@'
 [[ "$(grep -c 'docker/build-push-action@' "${PUBLISH_WORKFLOW}")" -eq 1 ]] ||
   fail "the publish workflow must build the scanned artifact exactly once"
 
