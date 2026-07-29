@@ -62,6 +62,10 @@ load_env_preserving DATABASE_URL
 compose_env=(
   EXTERNAL_POSTGRES_ENABLED=true
   EXTERNAL_DATASTORE_NETWORK=stuhelper-external-contract
+  ENV_FILE_PATH=/dev/null
+  SECRETS_ENV_FILE_PATH=/dev/null
+  GENERATED_ENV_FILE_PATH=/dev/null
+  GENERATED_SECRET_ENV_FILE_PATH=/dev/null
   DATABASE_URL=postgres://stuhelper_app:dummy@external-postgres:5432/stuhelper?sslmode=verify-full\&sslrootcert=/tls/ca.crt
   REDIS_PASSWORD=redis-dummy
   REDIS_EXPORTER_PASSWORD=redis-metrics-dummy
