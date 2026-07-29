@@ -1031,14 +1031,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@koishijs/plugin-adapter-discord@npm:^4.5.10":
-  version: 4.6.0
-  resolution: "@koishijs/plugin-adapter-discord@npm:4.6.0"
+"@koishijs/plugin-adapter-discord@npm:^4.6.1":
+  version: 4.6.1
+  resolution: "@koishijs/plugin-adapter-discord@npm:4.6.1"
   dependencies:
-    "@satorijs/adapter-discord": "npm:^4.6.0"
+    "@satorijs/adapter-discord": "npm:^4.6.1"
   peerDependencies:
     koishi: ^4.18.11
-  checksum: 10c0/e64af3cc6a21bd6e010cc34d817b74edae7e4d50a9ef2b446df01b5917698211b2b85f11e88bbd3548a5734cffbedf93e7a3ff997ba4f502e855d4c959785a90
+  checksum: 10c0/d85c70710ce0d184014148a9f29bb9fe5ad78e9ab50cd0ede38c1f2556fc0051b2f4870993e2f8c8801af729cf5220f8b661d852a702d008aa7d7aa6a5c08d4e
   languageName: node
   linkType: hard
 
@@ -1985,12 +1985,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@satorijs/adapter-discord@npm:^4.6.0":
-  version: 4.6.0
-  resolution: "@satorijs/adapter-discord@npm:4.6.0"
+"@satorijs/adapter-discord@npm:^4.6.1":
+  version: 4.6.1
+  resolution: "@satorijs/adapter-discord@npm:4.6.1"
   peerDependencies:
     "@satorijs/core": ^4.6.0
-  checksum: 10c0/2660a9273f6dcce668bb31f60d1bdf026c59654849bd483bec6fb4657e3896e1345bbee2fddc48ee54c2e74e2580768a3127594a6a5ab5d53d4d9029cbf82679
+  checksum: 10c0/8d86ba97ed46dcd7349de40f2de3cb3c894d691b216cde2ced1f13e466d46f59e6bf34169cce4ef50e4d545d096f5acb5742738867d86b429673cc623865fb54
   languageName: node
   linkType: hard
 
@@ -5143,7 +5143,7 @@ __metadata:
     "@koishijs/core": "npm:4.18.11"
     "@koishijs/loader": "npm:^4.6.11"
     "@koishijs/plugin-actions": "npm:^0.0.2"
-    "@koishijs/plugin-adapter-discord": "npm:^4.5.10"
+    "@koishijs/plugin-adapter-discord": "npm:^4.6.1"
     "@koishijs/plugin-adapter-kook": "npm:^4.6.5"
     "@koishijs/plugin-adapter-qq": "npm:^4.9.2"
     "@koishijs/plugin-adapter-satori": "npm:^1.5.1"
