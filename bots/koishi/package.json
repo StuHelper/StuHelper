@@ -49,7 +49,7 @@
     "@koishijs/scripts": "^4.6.1",
     "@playwright/test": "1.58.2",
     "@types/node": "^22.7.5",
-    "@types/react": "^18.2.70",
+    "@types/react": "^19.2.17",
     "cross-env": "^7.0.3",
     "esbuild": "^0.25.12",
     "esbuild-register": "npm:@shigma/esbuild-register@^1.1.1",
