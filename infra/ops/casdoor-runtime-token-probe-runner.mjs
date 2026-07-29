@@ -232,8 +232,8 @@ async function loadPlaywright() {
       const core = await import('playwright-core');
       return core;
     } catch {
-      const requireFromAdmin = createRequire(new URL('../../clients/admin/package.json', import.meta.url));
-      return requireFromAdmin('playwright');
+      const requireFromWeb = createRequire(new URL('../../clients/web/package.json', import.meta.url));
+      return requireFromWeb('@playwright/test');
     }
   }
 }

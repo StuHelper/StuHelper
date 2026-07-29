@@ -49,6 +49,15 @@ async function assertStaticContract() {
   ]) {
     assert.ok(source.includes(pattern), `runner must contain ${pattern}`);
   }
+  assert.ok(
+    source.includes("../../clients/web/package.json") &&
+      source.includes("requireFromWeb('@playwright/test')"),
+    'host runner fallback must use the Web workspace installed by infrastructure CI',
+  );
+  assert.ok(
+    !source.includes('../../clients/admin/package.json'),
+    'host runner must not depend on the separately installed Admin workspace',
+  );
   const retiredIDPPattern = Buffer.from('5a49544144454c', 'hex').toString('utf8');
   assert.ok(!source.includes(retiredIDPPattern), 'runner must not reference retired IDP identifiers');
 }
