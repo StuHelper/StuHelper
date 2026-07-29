@@ -78,6 +78,73 @@ AdminIdentityReviewItem:
       type: string
       format: date-time
 
+AdminIdentityReviewDetail:
+  type: object
+  required:
+    - userID
+    - docType
+    - realName
+    - verified
+    - createdAt
+    - updatedAt
+    - docPhotoFrontURL
+    - docPhotoBackURL
+    - docPhotoSelfieURL
+  properties:
+    userID:
+      type: integer
+      format: int64
+    docType:
+      type: string
+      enum: [MAINLAND_ID, HK_MACAU, TW, PASSPORT]
+    realName:
+      type: string
+    verified:
+      type: boolean
+    verifyMethod:
+      type:
+        - string
+        - "null"
+      enum: [academic_db_match, tencent_cloud, manual]
+    reviewedAt:
+      type:
+        - string
+        - "null"
+      format: date-time
+    verifiedAt:
+      type:
+        - string
+        - "null"
+      format: date-time
+    rejectionReason:
+      type:
+        - string
+        - "null"
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+    docPhotoFrontURL:
+      type:
+        - string
+        - "null"
+      format: uri
+      description: 证件正面材料的短期签名 URL；仅管理员详情接口返回。
+    docPhotoBackURL:
+      type:
+        - string
+        - "null"
+      format: uri
+      description: 证件背面材料的短期签名 URL；可能为空。
+    docPhotoSelfieURL:
+      type:
+        - string
+        - "null"
+      format: uri
+      description: 本人手持证件材料的短期签名 URL；仅管理员详情接口返回。
+
 UploadIdentityPhotoRequest:
   type: object
   required: [slot, filename, contentType, dataBase64]

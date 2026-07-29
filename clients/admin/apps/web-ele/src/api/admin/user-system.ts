@@ -9,6 +9,8 @@ const userAdminApi = createUserAdminApi(sharedApiClient);
 
 export type IdentityVerification =
   components['schemas']['AdminIdentityReviewItem'];
+export type IdentityVerificationReviewDetail =
+  components['schemas']['AdminIdentityReviewDetail'];
 export type StudentVerification =
   components['schemas']['AdminStudentVerificationItem'];
 export type SchoolConfig = components['schemas']['AdminSchoolConfig'];
@@ -31,6 +33,12 @@ export async function reviewIdentity(
   data: { approved: boolean; rejectionReason?: string },
 ) {
   return unwrapData(await userAdminApi.reviewIdentity(userId, data));
+}
+
+export async function getIdentityReviewDetail(userId: number) {
+  return unwrapData<IdentityVerificationReviewDetail>(
+    await userAdminApi.getIdentityVerificationReviewDetail(userId),
+  );
 }
 
 export async function getStudentVerificationList(params: {

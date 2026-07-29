@@ -41,6 +41,10 @@ type Runtime struct {
 	bgWg     sync.WaitGroup
 	bgCancel context.CancelFunc
 
+	shutdownHooks []func()
+	shutdownOnce  sync.Once
+	cleanupOnce   sync.Once
+
 	pgPool       *pgxpool.Pool
 	redisClient  *redisclient.Client
 	database     *db.DB
@@ -122,7 +126,20 @@ func (rt *Runtime) closeLogger() {
 }
 
 func (rt *Runtime) addCleanup(fn func()) {
+	if fn == nil {
+		return
+	}
 	rt.cleanups = append(rt.cleanups, fn)
+}
+
+// addShutdownHook registers a non-blocking action that must run before
+// http.Server.Shutdown starts waiting for active handlers. Long-lived handlers
+// such as SSE streams use these hooks to release their subscriptions promptly.
+func (rt *Runtime) addShutdownHook(fn func()) {
+	if fn == nil {
+		return
+	}
+	rt.shutdownHooks = append(rt.shutdownHooks, fn)
 }
 
 func (rt *Runtime) startBackgroundTask(ctx context.Context, name string, run func(context.Context)) {
@@ -152,14 +169,27 @@ func (rt *Runtime) startBackgroundTask(ctx context.Context, name string, run fun
 	}()
 }
 
+func (rt *Runtime) beginShutdown() {
+	rt.shutdownOnce.Do(func() {
+		if rt.bgCancel != nil {
+			rt.bgCancel()
+		}
+		for i := len(rt.shutdownHooks) - 1; i >= 0; i-- {
+			rt.shutdownHooks[i]()
+		}
+	})
+}
+
 func (rt *Runtime) runCleanups() {
-	if rt.bgCancel != nil {
-		rt.bgCancel()
-	}
-	rt.bgWg.Wait()
-	for i := len(rt.cleanups) - 1; i >= 0; i-- {
-		rt.cleanups[i]()
-	}
+	rt.cleanupOnce.Do(func() {
+		rt.beginShutdown()
+		rt.bgWg.Wait()
+		for i := len(rt.cleanups) - 1; i >= 0; i-- {
+			rt.cleanups[i]()
+		}
+		rt.cleanups = nil
+		rt.shutdownHooks = nil
+	})
 }
 
 func (rt *Runtime) initCoreServices() error {

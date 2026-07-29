@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -99,16 +100,22 @@ func TestFindAcademicStudentsByPersonUID_UsesTableAwareRepoWhenAvailable(t *test
 	assert.Equal(t, "20240002", students[1].XH)
 }
 
-func TestSubmitIdentity_MainlandIDAutoMatchUsesEnabledSchoolTables(t *testing.T) {
+func TestSubmitIdentity_MainlandIDAutoMatchRequiresVerifiedBoundStudent(t *testing.T) {
 	const (
+		userID    = int64(7)
+		schoolID  = int64(4111010002)
+		studentID = "20240002"
+		tableName = "academic.school_b_students"
 		docNumber = "110101199001011237"
 		realName  = "张三"
 	)
 
 	var captured *IdentityRecord
+	queryCount := 0
 	repo := &academicAwareMockRepo{
 		mockRepo: &mockRepo{
-			onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
+			onGetIdentityStatusByUserID: func(_ context.Context, gotUserID int64) (*IdentityStatus, error) {
+				assert.Equal(t, userID, gotUserID)
 				if captured == nil {
 					return nil, nil
 				}
@@ -122,12 +129,23 @@ func TestSubmitIdentity_MainlandIDAutoMatchUsesEnabledSchoolTables(t *testing.T)
 					VerifiedAt:   captured.VerifiedAt,
 				}, nil
 			},
-			onListSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {
-				tableOne := "academic.school_a_students"
-				tableTwo := "academic.school_b_students"
-				return []SchoolConfig{
-					{SchoolID: 4111010001, Enabled: true, AcademicDBTable: &tableOne},
-					{SchoolID: 4111010002, Enabled: true, AcademicDBTable: &tableTwo},
+			onGetProfileByUserID: func(_ context.Context, gotUserID int64) (*Profile, error) {
+				assert.Equal(t, userID, gotUserID)
+				activeStudentID := studentID
+				return &Profile{
+					UserID:             userID,
+					SchoolID:           int64Ptr(schoolID),
+					StudentIDs:         []string{studentID},
+					ActiveStudentID:    &activeStudentID,
+					VerificationStatus: StatusVerified,
+				}, nil
+			},
+			onGetSchoolConfig: func(_ context.Context, gotSchoolID int64) (*SchoolConfig, error) {
+				assert.Equal(t, schoolID, gotSchoolID)
+				return &SchoolConfig{
+					SchoolID:        schoolID,
+					Enabled:         true,
+					AcademicDBTable: stringPtr(tableName),
 				}, nil
 			},
 			onCreateIdentity: func(_ context.Context, identity *IdentityRecord) error {
@@ -136,23 +154,21 @@ func TestSubmitIdentity_MainlandIDAutoMatchUsesEnabledSchoolTables(t *testing.T)
 				return nil
 			},
 		},
-		onFindAcademicStudentsByPersonUIDFromTable: func(_ context.Context, _, gotDocNumber, tableName string) ([]AcademicStudent, error) {
+		onFindAcademicStudentsByPersonUIDFromTable: func(_ context.Context, _, gotDocNumber, gotTableName string) ([]AcademicStudent, error) {
+			queryCount++
 			assert.Equal(t, docNumber, gotDocNumber)
-			switch tableName {
-			case "academic.school_a_students":
-				return []AcademicStudent{{XH: "20240001", XM: stringPtr("李四")}}, nil
-			case "academic.school_b_students":
-				return []AcademicStudent{{XH: "20240002", XM: stringPtr(realName)}}, nil
-			default:
-				return nil, nil
-			}
+			assert.Equal(t, tableName, gotTableName)
+			return []AcademicStudent{
+				{XH: "20249999", XM: stringPtr(realName)},
+				{XH: studentID, XM: stringPtr(realName)},
+			}, nil
 		},
 	}
 
 	service, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	result, err := service.SubmitIdentity(context.Background(), 7, SubmitIdentityRequest{
+	result, err := service.SubmitIdentity(context.Background(), userID, SubmitIdentityRequest{
 		DocType:   DocTypeMainlandID,
 		DocNumber: docNumber,
 		RealName:  realName,
@@ -167,6 +183,192 @@ func TestSubmitIdentity_MainlandIDAutoMatchUsesEnabledSchoolTables(t *testing.T)
 	assert.NotNil(t, captured.ReviewedAt)
 	assert.NotNil(t, captured.VerifiedAt)
 	assert.True(t, result.Verified)
+	assert.Equal(t, 1, queryCount, "自动匹配只能查询当前已认证账号所属学校的学籍表")
+}
+
+func TestSubmitIdentity_MainlandIDDoesNotAutoVerifyWithoutBoundStudentProof(t *testing.T) {
+	const (
+		userID    = int64(7)
+		schoolID  = int64(4111010002)
+		tableName = "academic.school_b_students"
+		docNumber = "110101199001011237"
+		realName  = "张三"
+	)
+
+	tests := []struct {
+		name    string
+		profile *Profile
+	}{
+		{
+			name: "student profile is not verified",
+			profile: &Profile{
+				UserID:             userID,
+				SchoolID:           int64Ptr(schoolID),
+				StudentIDs:         []string{"20240002"},
+				VerificationStatus: StatusPending,
+			},
+		},
+		{
+			name: "academic record belongs to a different student id",
+			profile: &Profile{
+				UserID:             userID,
+				SchoolID:           int64Ptr(schoolID),
+				StudentIDs:         []string{"20240001"},
+				VerificationStatus: StatusVerified,
+			},
+		},
+		{
+			name: "verified profile has no bound student id",
+			profile: &Profile{
+				UserID:             userID,
+				SchoolID:           int64Ptr(schoolID),
+				VerificationStatus: StatusVerified,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var captured *IdentityRecord
+			repo := &academicAwareMockRepo{
+				mockRepo: &mockRepo{
+					onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
+						if captured == nil {
+							return nil, nil
+						}
+						return &IdentityStatus{
+							UserID:   captured.UserID,
+							DocType:  captured.DocType,
+							RealName: captured.RealName,
+							Verified: captured.Verified,
+						}, nil
+					},
+					onGetProfileByUserID: func(_ context.Context, _ int64) (*Profile, error) {
+						return tt.profile, nil
+					},
+					onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
+						return &SchoolConfig{
+							SchoolID:        schoolID,
+							Enabled:         true,
+							AcademicDBTable: stringPtr(tableName),
+						}, nil
+					},
+					onCreateIdentity: func(_ context.Context, identity *IdentityRecord) error {
+						copied := *identity
+						captured = &copied
+						return nil
+					},
+				},
+				onFindAcademicStudentsByPersonUIDFromTable: func(
+					_ context.Context,
+					_,
+					_ string,
+					_ string,
+				) ([]AcademicStudent, error) {
+					return []AcademicStudent{{XH: "20240002", XM: stringPtr(realName)}}, nil
+				},
+			}
+
+			store := &fakeIdentityPhotoStore{
+				presignURL: "https://storage.example.test/identity/photo.png",
+			}
+			service, err := NewService(
+				repo,
+				[]byte("test-hmac-key-at-least-32-chars!"),
+				&fakeEncryptor{},
+				WithIdentityPhotoStore(store),
+			)
+			require.NoError(t, err)
+
+			front := "identities/7/2026/04/1777777777777777001-front.png"
+			selfie := "identities/7/2026/04/1777777777777777002-selfie.png"
+			result, err := service.SubmitIdentity(context.Background(), userID, SubmitIdentityRequest{
+				DocType:        DocTypeMainlandID,
+				DocNumber:      docNumber,
+				RealName:       realName,
+				DocPhotoFront:  &front,
+				DocPhotoSelfie: &selfie,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, captured)
+			require.NotNil(t, result)
+			assert.False(t, captured.Verified)
+			assert.Nil(t, captured.VerifyMethod)
+			assert.Nil(t, captured.ReviewedAt)
+			assert.Nil(t, captured.VerifiedAt)
+			assert.False(t, result.Verified)
+		})
+	}
+}
+
+func TestSubmitIdentity_AcademicAutoMatchIsRevalidatedInsideTransaction(t *testing.T) {
+	const (
+		userID    = int64(7)
+		schoolID  = int64(4111010002)
+		studentID = "20240002"
+		tableName = "academic.school_b_students"
+	)
+
+	var captured *IdentityRecord
+	initialProfile := &Profile{
+		UserID:             userID,
+		SchoolID:           int64Ptr(schoolID),
+		StudentIDs:         []string{studentID},
+		VerificationStatus: StatusVerified,
+	}
+	repo := &academicAwareMockRepo{
+		mockRepo: &mockRepo{
+			onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
+				if captured == nil {
+					return nil, nil
+				}
+				return &IdentityStatus{UserID: userID, Verified: captured.Verified}, nil
+			},
+			onGetProfileByUserID: func(_ context.Context, _ int64) (*Profile, error) {
+				return initialProfile, nil
+			},
+			onGetProfileByUserIDForUpdateTx: func(_ context.Context, _ pgx.Tx, _ int64) (*Profile, error) {
+				return &Profile{
+					UserID:             userID,
+					SchoolID:           int64Ptr(schoolID),
+					StudentIDs:         []string{studentID},
+					VerificationStatus: StatusRejected,
+				}, nil
+			},
+			onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
+				return &SchoolConfig{
+					SchoolID:        schoolID,
+					Enabled:         true,
+					AcademicDBTable: stringPtr(tableName),
+				}, nil
+			},
+			onCreateIdentityTx: func(_ context.Context, _ pgx.Tx, identity *IdentityRecord) error {
+				copied := *identity
+				captured = &copied
+				return nil
+			},
+		},
+		onFindAcademicStudentsByPersonUIDFromTable: func(
+			_ context.Context,
+			_,
+			_ string,
+			_ string,
+		) ([]AcademicStudent, error) {
+			return []AcademicStudent{{XH: studentID, XM: stringPtr("张三")}}, nil
+		},
+	}
+
+	service, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	result, err := service.SubmitIdentity(context.Background(), userID, SubmitIdentityRequest{
+		DocType:   DocTypeMainlandID,
+		DocNumber: "110101199001011237",
+		RealName:  "张三",
+	})
+	require.ErrorIs(t, err, ErrPhotoRequired)
+	assert.Nil(t, result)
+	assert.Nil(t, captured, "stale automatic proof must not create a pending record without manual evidence")
 }
 
 func TestUpdateSchoolConfig_RejectsInvalidAcademicTable(t *testing.T) {

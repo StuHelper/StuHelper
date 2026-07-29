@@ -328,21 +328,19 @@ func (s *Service) syncUserProfileProjection(ctx context.Context, userID int64) e
 
 	tuples := fga.MissingTuples(existingOwnerTuples, desiredOwnerTuples)
 	tuples = append(tuples, fga.MissingTuples(existingSchoolTuples, desiredSchoolTuples)...)
-	if err := s.profileFGA.WriteTuples(projectionCtx, tuples); err != nil {
-		return fmt.Errorf("write projected tuples: %w", err)
-	}
 
 	staleOwnerTuples := staleFGATuples(existingOwnerTuples, desiredOwnerTuples)
-	if len(staleOwnerTuples) > 0 {
-		if err := s.profileFGA.DeleteTuples(projectionCtx, staleOwnerTuples); err != nil {
-			return fmt.Errorf("delete stale owner tuples: %w", err)
+	staleSchoolTuples := staleFGATuples(existingSchoolTuples, desiredSchoolTuples)
+	staleTuples := make([]fga.Tuple, 0, len(staleOwnerTuples)+len(staleSchoolTuples))
+	staleTuples = append(staleTuples, staleOwnerTuples...)
+	staleTuples = append(staleTuples, staleSchoolTuples...)
+	if len(staleTuples) > 0 {
+		if err := s.profileFGA.DeleteTuples(projectionCtx, staleTuples); err != nil {
+			return fmt.Errorf("delete stale projected tuples: %w", err)
 		}
 	}
-	staleSchoolTuples := staleFGATuples(existingSchoolTuples, desiredSchoolTuples)
-	if len(staleSchoolTuples) > 0 {
-		if err := s.profileFGA.DeleteTuples(projectionCtx, staleSchoolTuples); err != nil {
-			return fmt.Errorf("delete stale school tuples: %w", err)
-		}
+	if err := s.profileFGA.WriteTuples(projectionCtx, tuples); err != nil {
+		return fmt.Errorf("write projected tuples: %w", err)
 	}
 	return nil
 }
@@ -380,7 +378,7 @@ func (s *Service) syncAdmissionVerificationProjection(ctx context.Context, userI
 func (s *Service) ensureVerifiedProfileCredential(ctx context.Context, userID int64) (int64, error) {
 	var schoolID int64
 	err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		profile, err := s.repo.GetProfileByUserIDTx(ctx, tx, userID)
+		profile, err := s.repo.GetProfileByUserIDForUpdateTx(ctx, tx, userID)
 		if err != nil {
 			return fmt.Errorf("get profile tx: %w", err)
 		}

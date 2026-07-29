@@ -320,6 +320,11 @@ test.describe("Course community surfaces", () => {
 
         await page.goto("/courses/reviews");
 
+        await expect(
+            page.getByRole("heading", { level: 1, name: "评课中心" }),
+        ).toHaveCount(1);
+        await expect(page.locator("main")).toHaveCount(1);
+        await expect(page.locator("main main")).toHaveCount(0);
         await expect(page.getByText("最新聚合测评")).toBeVisible({
             timeout: 10_000,
         });

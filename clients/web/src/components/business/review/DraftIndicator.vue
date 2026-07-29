@@ -15,12 +15,14 @@
     </div>
     <div v-if="hasDraft && !saving" class="flex gap-2">
       <button
+        type="button"
         class="px-2 py-1 text-xs rounded-sm cursor-pointer bg-text-primary text-bg-base border-none transition-all duration-fast ease-out hover:bg-accent hover:text-white"
         @click="$emit('restore')"
       >
         {{ t('review.draft.restore') }}
       </button>
       <button
+        type="button"
         class="px-2 py-1 text-xs rounded-sm cursor-pointer bg-transparent text-text-muted transition-all duration-fast ease-out hover:border-text-primary hover:text-text-primary"
         @click="$emit('delete')"
       >

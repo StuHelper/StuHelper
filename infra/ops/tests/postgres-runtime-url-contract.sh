@@ -29,22 +29,31 @@ materialize_postgres_runtime_urls
 [[ "${DATABASE_URL}${BACKUP_DATABASE_URL}${REPLICATION_DATABASE_URL}" != *'REPLACE_WITH_'* ]] ||
   fail "a PostgreSQL runtime URL still contains a secret placeholder"
 
-require_production_postgres_url DATABASE_URL "${DATABASE_URL}" false
-require_production_postgres_url BACKUP_DATABASE_URL "${BACKUP_DATABASE_URL}" false
-require_production_postgres_url REPLICATION_DATABASE_URL "${REPLICATION_DATABASE_URL}" false
+require_production_postgres_url DATABASE_URL "${DATABASE_URL}"
+require_production_postgres_url BACKUP_DATABASE_URL "${BACKUP_DATABASE_URL}"
+require_production_postgres_url REPLICATION_DATABASE_URL "${REPLICATION_DATABASE_URL}"
 
 rejection_log="$(mktemp)"
 trap 'rm -f "${rejection_log}"' EXIT
 if (
   require_production_postgres_url \
     DATABASE_URL \
-    'postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@external-postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt' \
-    false
+    'postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@external-postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt'
 ) 2>"${rejection_log}"; then
   fail "production PostgreSQL validation accepted an unresolved password placeholder"
 fi
 grep -q 'unresolved secret placeholder' "${rejection_log}" ||
   fail "unresolved PostgreSQL password rejection was not explicit"
+
+if (
+  require_production_postgres_url \
+    DATABASE_URL \
+    'postgres://stuhelper_app:example@external-postgres:5432/stuhelper?sslmode=disable'
+) 2>"${rejection_log}"; then
+  fail "production PostgreSQL validation accepted plaintext transport"
+fi
+grep -q 'must include sslmode=verify-ca or sslmode=verify-full' "${rejection_log}" ||
+  fail "plaintext PostgreSQL rejection was not explicit"
 
 preserve_dir="$(mktemp -d)"
 trap 'rm -f "${rejection_log}"; rm -rf "${preserve_dir}"' EXIT

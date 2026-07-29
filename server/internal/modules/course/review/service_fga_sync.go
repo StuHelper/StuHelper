@@ -84,10 +84,10 @@ func (s *Service) StartBackgroundJobs(ctx context.Context, start func(string, fu
 	if start == nil {
 		panic("review.Service.StartBackgroundJobs: starter is required")
 	}
-	s.asyncCtx = ctx
-	s.asyncLaunch = start
+	s.backgroundCtx = ctx
 	start("review fga sync worker", s.runFGASyncWorker)
 	start("review fga sync reconciliation", s.runFGASyncReconciliationLoop)
+	start("review notification worker", s.runReviewNotificationWorker)
 }
 
 func (s *Service) runFGASyncWorker(ctx context.Context) {

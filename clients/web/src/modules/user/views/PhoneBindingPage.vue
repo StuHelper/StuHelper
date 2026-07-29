@@ -1,5 +1,5 @@
 <template>
-    <main class="max-w-[600px] mx-auto p-6 animate-fade-in max-sm:p-4">
+    <section class="max-w-[600px] mx-auto p-6 animate-fade-in max-sm:p-4">
         <header class="flex items-center gap-3 mb-6">
             <button
                 type="button"
@@ -135,7 +135,7 @@
                 }}
             </button>
         </section>
-    </main>
+    </section>
 </template>
 
 <script setup lang="ts">

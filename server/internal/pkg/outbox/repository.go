@@ -26,7 +26,7 @@ const (
 var ErrJobLockLost = errors.New("outbox job lock lost")
 
 const upsertSQL = `
-	INSERT INTO ` + DomainEventOutboxTable + ` (
+	INSERT INTO ` + DomainEventOutboxTable + ` AS current_job (
 		stream,
 		job_type,
 		dedupe_key,
@@ -43,10 +43,21 @@ const upsertSQL = `
 	DO UPDATE SET
 		job_type = EXCLUDED.job_type,
 		payload = EXCLUDED.payload,
-		status = 'pending',
+		status = CASE
+			WHEN current_job.status = 'processing' THEN 'processing'
+			ELSE 'pending'
+		END,
 		attempt_count = 0,
 		available_at = NOW(),
-		locked_at = NULL,
+		locked_at = CASE
+			WHEN current_job.status = 'processing' THEN current_job.locked_at
+			ELSE NULL
+		END,
+		locked_revision = CASE
+			WHEN current_job.status = 'processing' THEN current_job.locked_revision
+			ELSE NULL
+		END,
+		revision = current_job.revision + 1,
 		last_error = NULL,
 		updated_at = NOW()
 `
@@ -68,6 +79,7 @@ const claimSQL = `
 	UPDATE ` + DomainEventOutboxTable + ` AS o
 	SET status = 'processing',
 		locked_at = NOW(),
+		locked_revision = o.revision,
 		updated_at = NOW()
 	FROM candidates
 	WHERE o.id = candidates.id
@@ -92,6 +104,7 @@ const claimByTypesSQL = `
 	UPDATE ` + DomainEventOutboxTable + ` AS o
 	SET status = 'processing',
 		locked_at = NOW(),
+		locked_revision = o.revision,
 		updated_at = NOW()
 	FROM candidates
 	WHERE o.id = candidates.id
@@ -100,8 +113,20 @@ const claimByTypesSQL = `
 
 const markDoneSQL = `
 	UPDATE ` + DomainEventOutboxTable + `
-	SET status = 'completed',
+	SET status = CASE
+			WHEN locked_revision = revision THEN 'completed'
+			ELSE 'pending'
+		END,
+		attempt_count = CASE
+			WHEN locked_revision = revision THEN attempt_count
+			ELSE 0
+		END,
+		available_at = CASE
+			WHEN locked_revision = revision THEN available_at
+			ELSE NOW()
+		END,
 		locked_at = NULL,
+		locked_revision = NULL,
 		last_error = NULL,
 		updated_at = NOW()
 	WHERE id = $1
@@ -111,11 +136,24 @@ const markDoneSQL = `
 
 const markRetrySQL = `
 	UPDATE ` + DomainEventOutboxTable + `
-	SET status = '` + StatusFailed + `',
-		attempt_count = attempt_count + 1,
-		available_at = $3,
+	SET status = CASE
+			WHEN locked_revision = revision THEN '` + StatusFailed + `'
+			ELSE '` + StatusPending + `'
+		END,
+		attempt_count = CASE
+			WHEN locked_revision = revision THEN attempt_count + 1
+			ELSE 0
+		END,
+		available_at = CASE
+			WHEN locked_revision = revision THEN $3
+			ELSE NOW()
+		END,
 		locked_at = NULL,
-		last_error = $4,
+		locked_revision = NULL,
+		last_error = CASE
+			WHEN locked_revision = revision THEN $4
+			ELSE NULL
+		END,
 		updated_at = NOW()
 	WHERE id = $1
 	  AND status = 'processing'
@@ -124,11 +162,21 @@ const markRetrySQL = `
 
 const markDeadLetterSQL = `
 	UPDATE ` + DomainEventOutboxTable + `
-	SET status = '` + StatusDeadLetter + `',
-		attempt_count = attempt_count + 1,
+	SET status = CASE
+			WHEN locked_revision = revision THEN '` + StatusDeadLetter + `'
+			ELSE '` + StatusPending + `'
+		END,
+		attempt_count = CASE
+			WHEN locked_revision = revision THEN attempt_count + 1
+			ELSE 0
+		END,
 		available_at = NOW(),
 		locked_at = NULL,
-		last_error = $3,
+		locked_revision = NULL,
+		last_error = CASE
+			WHEN locked_revision = revision THEN $3
+			ELSE NULL
+		END,
 		updated_at = NOW()
 	WHERE id = $1
 	  AND status = 'processing'
@@ -141,10 +189,24 @@ const requeueDeadLetterSQL = `
 		attempt_count = 0,
 		available_at = NOW(),
 		locked_at = NULL,
+		locked_revision = NULL,
 		last_error = NULL,
 		updated_at = NOW()
 	WHERE id = $1
 	  AND status = '` + StatusDeadLetter + `'
+`
+
+const markAbandonedSQL = `
+	UPDATE ` + DomainEventOutboxTable + `
+	SET status = '` + StatusPending + `',
+		available_at = NOW(),
+		locked_at = NULL,
+		locked_revision = NULL,
+		last_error = NULL,
+		updated_at = NOW()
+	WHERE id = $1
+	  AND status = 'processing'
+	  AND locked_at = $2
 `
 
 var streamNamePattern = regexp.MustCompile(`^[a-z_]+$`)
@@ -274,10 +336,28 @@ func MarkJobFailure(
 	lastError string,
 	terminal bool,
 ) error {
+	if !terminal && nextAttemptAt.IsZero() && lastError == "" {
+		return MarkJobAbandoned(ctx, database, jobID, lockedAt)
+	}
 	if terminal {
 		return MarkJobDeadLetter(ctx, database, jobID, lockedAt, lastError)
 	}
 	return MarkJobRetry(ctx, database, jobID, lockedAt, nextAttemptAt, lastError)
+}
+
+// MarkJobAbandoned releases a claimed job without consuming a retry attempt.
+// Workers use this when their parent context is canceled during graceful
+// shutdown; the same or a newer revision becomes immediately claimable.
+func MarkJobAbandoned(ctx context.Context, database *db.DB, jobID int64, lockedAt time.Time) error {
+	ctx = db.WithTableHint(ctx, DomainEventOutboxTable)
+	result, err := database.Exec(ctx, markAbandonedSQL, jobID, lockedAt)
+	if err != nil {
+		return fmt.Errorf("mark outbox job abandoned: %w", err)
+	}
+	if result.RowsAffected() == 0 {
+		return ErrJobLockLost
+	}
+	return nil
 }
 
 func RequeueDeadLetterJob(ctx context.Context, database *db.DB, jobID int64) (bool, error) {

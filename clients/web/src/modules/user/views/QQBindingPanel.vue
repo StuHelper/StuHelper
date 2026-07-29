@@ -2,6 +2,7 @@
   <div :class="shellClass" data-qq-binding-panel>
     <header v-if="standalone" class="flex items-center gap-3 mb-6">
       <button
+        type="button"
         class="min-h-11 min-w-11 p-2 bg-transparent rounded-lg text-text-muted cursor-pointer transition-all duration-fast hover:border-text-primary hover:text-text-primary"
         :aria-label="t('common.actions.back')"
         @click="goBack"

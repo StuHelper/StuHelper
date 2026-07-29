@@ -67,6 +67,8 @@ test.describe('Static Pages', () => {
     await expect(
       page.getByRole('heading', { name: /About StuHelper|关于/i }),
     ).toBeVisible({ timeout: 10_000 })
+    await expect(page.locator('main')).toHaveCount(1)
+    await expect(page.locator('main main')).toHaveCount(0)
   })
 
   test('privacy page renders title', async ({ page }) => {

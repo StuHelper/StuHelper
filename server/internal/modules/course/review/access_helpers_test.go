@@ -168,8 +168,8 @@ func TestResolveAccessFacts_UsesServiceLifecycleForPolicyRefresh(t *testing.T) {
 	cancelLifecycle()
 
 	svc := &Service{
-		accessReader: contextAwareAccessReader{},
-		asyncCtx:     lifecycleCtx,
+		accessReader:  contextAwareAccessReader{},
+		backgroundCtx: lifecycleCtx,
 	}
 
 	_, err := svc.ResolveAccessFacts(context.Background(), "", nil)

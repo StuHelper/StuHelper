@@ -3,12 +3,12 @@ type: guide
 audience: maintainers
 status: current
 authoritative-source: .github/workflows/ + GitHub repository settings
-last-verified: 2026-07-29
+last-verified: 2026-07-30
 ---
 
-# GitHub 迁移与 Actions 治理
+# GitHub 仓库与 Actions 治理
 
-## 目标
+## 当前仓库形态
 
 - GitHub Organization：`StuHelper`
 - 公开仓库：`StuHelper/StuHelper`
@@ -17,9 +17,9 @@ last-verified: 2026-07-29
 - 日常集成分支：`develop`
 - 稳定发布分支：`main`
 - 容器镜像：GitHub Container Registry（GHCR）
-- GitLab：迁移前工作树保留为只读恢复锚点，不再承担日常提交或发布权威
 
-不要在 GitHub 新仓库中初始化 README、`.gitignore` 或 LICENSE。第一次推送必须来自已经净化并验证过的迁移镜像，避免产生无意义的 unrelated history。
+仓库内只保留 GitHub Actions 工作流；GitHub 是代码评审、质量门禁、镜像发布、部署和回滚的唯一仓库级自动化控制面。
+项目文档以仓库内 `docs/` 为权威来源，GitHub Wiki 已关闭，避免形成无法随代码评审和版本化的第二套事实源。
 
 ## 为什么保留单仓
 
@@ -32,9 +32,9 @@ last-verified: 2026-07-29
 3. 根目录 Makefile、E2E、部署脚本不再依赖其源码路径；
 4. 跨仓契约变更有自动化兼容测试。
 
-## 公开前历史净化
+## 历史与秘密基线
 
-迁移必须在隔离 bare mirror 中完成，禁止在日常开发工作区直接改写历史。净化范围包括：
+所有可达提交都必须持续满足完整历史 Gitleaks 门禁，不得包含：
 
 - 历史私钥和配套生成证书；
 - 曾提交的真实部署环境文件；
@@ -42,9 +42,9 @@ last-verified: 2026-07-29
 - 误提交的本地构建二进制；
 - 已删除的内部工具缓存和内部安全审查导出。
 
-净化后必须重新执行完整历史 Gitleaks 扫描。经人工确认的假阳性使用根目录 `.gitleaksignore` 中的 commit-scoped fingerprint 精确基线化；禁止按整个仓库或宽泛正则关闭规则。
+经人工确认的假阳性使用根目录 `.gitleaksignore` 中的 commit-scoped fingerprint 精确基线化；禁止按整个仓库、整个规则或宽泛正则关闭检测。CI 必须以 `fetch-depth: 0` 检出并扫描所有可达提交。
 
-历史删除不能使已经泄露的凭据失效。任何可能使用过的历史私钥、部署口令、Git 凭据、数据库连接信息或服务令牌，都必须在对应系统中轮换并验证旧值失效。
+任何泄露过的凭据都必须在对应系统中失效；删除 Git 内容不能替代凭据失效和审计。
 
 ## GitHub Actions 工作流
 
@@ -98,7 +98,7 @@ last-verified: 2026-07-29
 
 - `PUBLIC_URL`
 
-`production` 至少配置 required reviewers、禁止管理员绕过和仅允许 `main` 分支部署。`staging` 仅允许 `develop` 和 `main`。
+`production` 只允许 `main` 分支并要求 environment reviewer；`staging` 仅允许 `develop` 和 `main`。生产真正启用前必须至少有两名具备相应仓库权限的维护者，并启用“发起部署者不能批准自己的部署”。只有一个合格 reviewer 时直接启用该选项会造成无法部署，不能把单人自批当作双人复核。
 
 SSH known_hosts 必须预先固定真实 host public key，且条目必须与 `DEPLOY_HOST` 和 `DEPLOY_PORT` 对应；工作流不允许运行时 `ssh-keyscan` 或 TOFU。部署主机使用 DNS 名称或规范 IPv4 地址，部署用户使用规范 Linux 账号名，应用目录使用不含软解析片段的绝对路径。
 
@@ -130,11 +130,9 @@ SSH known_hosts 必须预先固定真实 host public key，且条目必须与 `D
 - 要求分支在合并前更新；
 - 高风险路径由 `.github/CODEOWNERS` 审批。
 
-历史净化后的第一次导入是一次受控例外；导入完成并核对分支 SHA 后立即启用 ruleset。
-
 ### Code security
 
-仓库创建并导入后立即完成：
+仓库必须保持：
 
 1. 确认公开仓库的 Secret scanning 已运行，并逐条处理任何 alert；
 2. 启用仓库级 Push protection；绕过必须留下理由并由指定人员复核；
@@ -156,23 +154,34 @@ GitHub 原生检测不能替代仓库内的完整历史 Gitleaks 门禁：两者
 
 远端部署脚本当前仍执行 registry login。迁移 GHCR 时，需要在远端 secret backend 中配置独立、最小 `read:packages` 读取凭据，不能复用个人日常登录凭据。
 
-## 迁移验收
+## 仓库治理验收
 
-1. 核对 GitHub 三个分支的 commit graph 和净化后 SHA；
+1. 核对 GitHub `develop` / `main` 的 commit graph 和受保护分支设置；
 2. 完整历史 Gitleaks 扫描为零未基线化发现；
 3. `CI / Required` 与 CodeQL 全部通过；
 4. 三个 GHCR 镜像均可按 digest 拉取，Trivy 和 provenance attestation 成功；
 5. staging 手工部署、真实页面/E2E、服务健康和观测 smoke 全部通过；
 6. production environment 审批与回滚演练通过；
-7. GitLab 保留只读并记录迁移前最后 SHA；
-8. `SECURITY.md` 的私密报告入口可用，Secret scanning、Push protection 和 Dependabot alerts 已启用；
-9. 完成根目录许可证决策后再对外宣布“开源”；仅设为 public 不等于授予开源许可。
+7. `SECURITY.md` 的私密报告入口可用，Secret scanning、Push protection 和 Dependabot alerts 已启用；
+8. 根目录许可证状态与项目对外表述一致；仅设为 public 不等于授予开源许可。
 
-## 待确认的治理决策
+## 当前就绪状态
 
-仓库当前没有根目录 LICENSE。创建 public 仓库前必须由项目所有者明确选择：
+以下状态于 2026-07-30 通过 GitHub API 重新核验：
 
-- 保留所有权利（公开源码但不授予复用许可）；或
-- 选择适用于整个 monorepo 的开源许可证，并处理 `clients/admin` 与 Koishi 现有许可证边界。
+| 项目 | 状态 | 当前事实 |
+|------|------|----------|
+| 仓库与分支 | 已验证 | `StuHelper/StuHelper` 为 public，默认分支为 `main`；`main` / `develop` 受同一 ruleset 保护 |
+| 合并门禁 | 已验证 | 要求 PR、1 个 approval、CODEOWNERS、撤销旧审批、最后推送者之外的批准、解决 review thread、线性历史和 squash merge；Required、Go CodeQL、JavaScript/TypeScript CodeQL 为必需检查 |
+| Actions 供应链 | 已验证 | Actions 已启用 selected-actions 策略，外部 action 固定完整 commit SHA，默认 `GITHUB_TOKEN` 只读且不能批准 PR |
+| Code security | 已验证 | Secret scanning、push protection、Dependabot alerts/security updates 和 private vulnerability reporting 已启用；当前 CodeQL、Dependabot、secret-scanning alert 均为 0 |
+| Environments | 部分验证 | `staging` 与 `production` 分支策略存在；production 当前只有一名 reviewer 且允许自批，不构成双人复核 |
+| 部署凭据 | 未就绪 | 两个 environment 的 secrets 和 variables 都为空，仓库级 Actions secrets/variables 也为空 |
+| GHCR | 未就绪 | 当前没有 `backend`、`frontend`、`admin` container package；尚无可验证的 digest/provenance 发布物 |
+| 真实部署与回滚 | 未验证 | 因缺少 environment secrets、第二名 production reviewer 和已发布 GHCR 镜像，尚未执行 staging/production 部署或回滚演练 |
 
-迁移自动化不得擅自替项目选择许可证。
+因此，代码与仓库治理可进入 PR 审核；镜像发布、真实 staging、production 和 rollback 必须在上述外部条件补齐后单独验收，不能用本地 smoke 或 workflow 静态检查代替。
+
+## 许可证状态
+
+仓库当前没有根目录 `LICENSE`，因此当前状态是公开可见源码，但仓库本身不授予复制、修改或分发许可，不应对外宣称为开源项目。若项目所有者决定授权复用，必须增加覆盖整个 monorepo 的根许可证，并先核对 `clients/admin` 与 Koishi 依赖/派生代码的许可证边界。自动化不得替项目所有者选择许可证。

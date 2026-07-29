@@ -3,6 +3,7 @@
         <!-- Back button + title -->
         <header v-if="standalone" class="flex items-center gap-3 mb-6">
             <button
+                type="button"
                 class="min-h-11 min-w-11 p-2 bg-transparent rounded-lg text-text-muted cursor-pointer transition-all duration-fast hover:border-text-primary hover:text-text-primary"
                 :aria-label="t('common.actions.back')"
                 @click="goBack"
@@ -102,6 +103,7 @@
                 </div>
             </div>
             <button
+                type="button"
                 class="w-full py-2.5 bg-text-primary text-bg-base rounded-lg text-sm font-medium cursor-pointer transition-all duration-fast hover:bg-accent hover:text-white border-0"
                 @click="showForm = true"
             >
@@ -110,7 +112,13 @@
         </div>
 
         <!-- Verification form -->
-        <div v-else class="bg-bg-card rounded-xl p-5 shadow-card">
+        <form
+            v-else
+            class="bg-bg-card rounded-xl p-5 shadow-card"
+            data-student-verification-form
+            :aria-busy="submitting"
+            @submit.prevent="handleSubmit"
+        >
             <p class="text-sm text-text-muted mb-5 m-0">
                 {{ t("user.verification.student.desc") }}
             </p>
@@ -182,6 +190,9 @@
                         v-if="academicMatchMessage"
                         :class="academicMatchMessageClass"
                         data-student-academic-match-status
+                        role="status"
+                        aria-live="polite"
+                        aria-atomic="true"
                     >
                         {{ academicMatchMessage }}
                     </p>
@@ -321,6 +332,7 @@
                                 v-if="field.type === 'textarea'"
                                 :id="`manual-${field.key}`"
                                 v-model="form.manualFormData[field.key]"
+                                :aria-label="field.label"
                                 rows="3"
                                 class="w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary resize-y"
                                 :placeholder="field.placeholder || field.label"
@@ -330,6 +342,7 @@
                                 v-else-if="field.type === 'select'"
                                 :id="`manual-${field.key}`"
                                 v-model="form.manualFormData[field.key]"
+                                :aria-label="field.label"
                                 class="w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary outline-none transition-all duration-fast focus:border-primary appearance-none cursor-pointer"
                             >
                                 <option value="" disabled>
@@ -348,6 +361,7 @@
                                 v-else
                                 :id="`manual-${field.key}`"
                                 v-model="form.manualFormData[field.key]"
+                                :aria-label="field.label"
                                 :type="field.type === 'date' ? 'date' : 'text'"
                                 class="w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary"
                                 :placeholder="field.placeholder || field.label"
@@ -389,9 +403,9 @@
                 <!-- Submit button -->
                 <button
                     class="w-full py-2.5 bg-text-primary text-bg-base rounded-lg text-sm font-medium cursor-pointer transition-all duration-fast hover:bg-accent hover:text-white border-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                    type="submit"
                     data-student-verification-submit
                     :disabled="!canSubmit || submitting"
-                    @click="handleSubmit"
                 >
                     <span
                         v-if="submitting"
@@ -407,7 +421,7 @@
                     </span>
                 </button>
             </template>
-        </div>
+        </form>
     </div>
 </template>
 

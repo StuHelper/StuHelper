@@ -425,6 +425,19 @@ func (d *DB) WithTx(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx)
 		return err
 	}
 
+	// 回调可能忽略了 context 并在事务期限到达后返回 nil。此时继续使用独立
+	// context 提交会把已经超时或被调用方取消的请求写入数据库，违背调用方对
+	// 事务边界的预期。提交前显式检查，并用独立短 context 完成回滚。
+	if err := ctx.Err(); err != nil {
+		rbCtx, rbCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer rbCancel()
+		if rbErr := tx.Rollback(rbCtx); rbErr != nil {
+			logger.L().Warn("tx rollback failed after context ended",
+				zap.Error(rbErr))
+		}
+		return fmt.Errorf("transaction context ended before commit: %w", err)
+	}
+
 	commitCtx, commitCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer commitCancel()
 	return tx.Commit(commitCtx)

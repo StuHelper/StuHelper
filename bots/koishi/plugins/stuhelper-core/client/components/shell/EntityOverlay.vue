@@ -4,6 +4,7 @@
       <div
         class="sh-overlay__scrim"
         :data-open="open ? 'true' : 'false'"
+        role="presentation"
         @click="close"
       ></div>
       <aside

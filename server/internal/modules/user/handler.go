@@ -14,6 +14,7 @@ import (
 type Handler struct {
 	service                  *Service
 	verifyLimiter            *middleware.RedisRateLimiter
+	identityPhotoLimiter     *middleware.RedisRateLimiter
 	bindPhoneUserLimiter     *middleware.RedisRateLimiter
 	bindPhoneEndpointLimiter *middleware.RedisRateLimiter
 	otpService               OTPGenerator
@@ -43,6 +44,7 @@ func WithAdminAuthorizers(authorizers AdminAuthorizers) HandlerOption {
 
 const (
 	verifyRateLimitPerMinute        = 5
+	identityPhotoUploadLimitPerDay  = 12
 	bindPhoneOTPUserLimitPerMinute  = 5
 	bindPhoneOTPRouteLimitPerMinute = 5
 )
@@ -60,17 +62,20 @@ func NewHandler(
 	}
 	var (
 		verifyLimiter            *middleware.RedisRateLimiter
+		identityPhotoLimiter     *middleware.RedisRateLimiter
 		bindPhoneUserLimiter     *middleware.RedisRateLimiter
 		bindPhoneEndpointLimiter *middleware.RedisRateLimiter
 	)
 	if rdb != nil {
 		verifyLimiter = middleware.NewRedisRateLimiter(rdb, verifyRateLimitPerMinute, time.Minute)
+		identityPhotoLimiter = middleware.NewRedisRateLimiter(rdb, identityPhotoUploadLimitPerDay, 24*time.Hour)
 		bindPhoneUserLimiter = middleware.NewRedisRateLimiter(rdb, bindPhoneOTPUserLimitPerMinute, time.Minute)
 		bindPhoneEndpointLimiter = middleware.NewRedisRateLimiter(rdb, bindPhoneOTPRouteLimitPerMinute, time.Minute)
 	}
 	h := &Handler{
 		service:                  service,
 		verifyLimiter:            verifyLimiter,
+		identityPhotoLimiter:     identityPhotoLimiter,
 		bindPhoneUserLimiter:     bindPhoneUserLimiter,
 		bindPhoneEndpointLimiter: bindPhoneEndpointLimiter,
 		otpService:               otpService,
@@ -92,7 +97,15 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, authMW gin.HandlerFunc) {
 		user.GET("/me", h.handleGetUserSurface)
 		user.GET("/identity", h.handleGetIdentity)
 		user.POST("/identity", h.handleSubmitIdentity)
-		user.POST("/identity/uploads", h.handleUploadIdentityPhoto)
+		if h.identityPhotoLimiter != nil {
+			user.POST(
+				"/identity/uploads",
+				middleware.EndpointRateLimitMiddleware(h.identityPhotoLimiter, "user-identity-photo-upload"),
+				h.handleUploadIdentityPhoto,
+			)
+		} else {
+			user.POST("/identity/uploads", h.handleUploadIdentityPhoto)
+		}
 		user.GET("/qq-binding", h.handleGetQQBinding)
 		user.POST("/qq-binding/code", h.handleCreateQQBindingCode)
 		user.GET("/profile", h.handleGetProfile)
@@ -130,6 +143,14 @@ func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
 		"/identities",
 		httputil.RouteHandlers(
 			h.handleAdminListIdentities,
+			h.adminAuthorizers.IdentityRead,
+			h.adminAuthorizers.StepUpMFA,
+		)...,
+	)
+	admin.GET(
+		"/identities/:userID",
+		httputil.RouteHandlers(
+			h.handleAdminGetIdentity,
 			h.adminAuthorizers.IdentityRead,
 			h.adminAuthorizers.StepUpMFA,
 		)...,

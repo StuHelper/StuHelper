@@ -37,15 +37,15 @@
 
         <div class="divider-vertical"></div>
 
-        <button class="btn btn-secondary" @click="reloadConfigs" :disabled="reloading" title="从文件重新加载配置数据">
+        <button type="button" class="btn btn-secondary" @click="reloadConfigs" :disabled="reloading" title="从文件重新加载配置数据">
           <k-icon name="loader" class="spin" v-if="reloading" />
           重载
         </button>
-        <button class="btn btn-secondary" @click="refreshConfigs" title="刷新列表">
+        <button type="button" class="btn btn-secondary" @click="refreshConfigs" title="刷新列表">
           <k-icon name="refresh-cw" />
           刷新
         </button>
-        <button class="btn btn-primary" @click="openCreateDialog">
+        <button type="button" class="btn btn-primary" @click="openCreateDialog">
           <k-icon name="plus" />
           新建配置
         </button>
@@ -63,7 +63,7 @@
         <strong>加载群组配置失败</strong>
         <span>{{ loadError }}</span>
       </div>
-      <button class="btn btn-secondary" @click="refreshConfigs">
+      <button type="button" class="btn btn-secondary" @click="refreshConfigs">
         <k-icon name="refresh-cw" />
         重试
       </button>
@@ -128,16 +128,16 @@
               <span v-if="config.keywords?.length" title="违规词"><b>{{ config.keywords.length }}</b> 违规</span>
               <span v-if="!config.approvalKeywords?.length && !config.keywords?.length" class="muted">-</span>
             </div>
-            <div class="col-actions" @click.stop>
-              <button class="action-btn" @click="copyGuildId(guildId as string)" title="复制群号">
+            <div class="col-actions" @click.stop @keydown.stop>
+              <button type="button" class="action-btn" @click="copyGuildId(guildId as string)" title="复制群号">
                 <k-icon name="copy" />
                 <span>复制</span>
               </button>
-              <button class="action-btn" @click="editConfig(guildId as string)" title="编辑配置">
+              <button type="button" class="action-btn" @click="editConfig(guildId as string)" title="编辑配置">
                 <k-icon name="edit-2" />
                 <span>编辑</span>
               </button>
-              <button class="action-btn danger" @click="deleteConfig(guildId as string)" title="删除配置">
+              <button type="button" class="action-btn danger" @click="deleteConfig(guildId as string)" title="删除配置">
                 <k-icon name="trash-2" />
                 <span>删除</span>
               </button>
@@ -209,7 +209,12 @@
     </div>
 
     <!-- 新建配置弹窗 -->
-    <div v-if="showCreateDialog" class="dialog-overlay" @click.self="closeCreateDialog">
+    <div
+      v-if="showCreateDialog"
+      class="dialog-overlay"
+      role="presentation"
+      @click.self="closeCreateDialog"
+    >
       <div
         ref="createDialogRef"
         class="dialog-card"
@@ -240,6 +245,7 @@
             <input
               v-model="newConfig.guildId"
               type="text"
+              aria-label="群号"
               placeholder="输入群号..."
               class="form-input"
               autofocus
@@ -255,7 +261,12 @@
     </div>
 
     <!-- 编辑面板 -->
-    <div v-if="showEditDialog" class="edit-overlay" @click.self="closeEditDialog">
+    <div
+      v-if="showEditDialog"
+      class="edit-overlay"
+      role="presentation"
+      @click.self="closeEditDialog"
+    >
       <div
         ref="editDialogRef"
         class="edit-dialog large"
@@ -362,6 +373,7 @@
                 <label>欢迎语</label>
                 <textarea
                   v-model="editingConfig.welcomeMsg"
+                  aria-label="欢迎语"
                   rows="3"
                   placeholder="输入欢迎消息... ({at}提新成员)"
                   class="form-textarea"
@@ -384,6 +396,7 @@
                 <label>验证关键词</label>
                 <textarea
                   v-model="editingApprovalKeywords"
+                  aria-label="验证关键词"
                   rows="2"
                   placeholder="多个关键词用逗号分隔"
                   class="form-textarea"
@@ -417,6 +430,7 @@
                 <label>禁言关键词</label>
                 <textarea
                   v-model="editingForbiddenKeywords"
+                  aria-label="禁言关键词"
                   rows="2"
                   placeholder="多个关键词用逗号分隔"
                   class="form-textarea"
@@ -476,6 +490,7 @@
                 <label>欢送语</label>
                 <textarea
                   v-model="editingConfig.goodbyeMsg"
+                  aria-label="欢送语"
                   rows="3"
                   placeholder="输入欢送消息... ({at}提退群成员)"
                   class="form-textarea"
@@ -712,6 +727,7 @@
                     <label>系统提示词</label>
                     <textarea
                       v-model="editingConfig.openai.systemPrompt"
+                      aria-label="系统提示词"
                       rows="3"
                       class="form-textarea"
                       placeholder="留空使用全局设置"
@@ -721,6 +737,7 @@
                     <label>翻译提示词</label>
                     <textarea
                       v-model="editingConfig.openai.translatePrompt"
+                      aria-label="翻译提示词"
                       rows="3"
                       class="form-textarea"
                       placeholder="留空使用全局设置"
@@ -789,7 +806,13 @@
     </div>
 
     <!-- 删除确认弹窗 -->
-    <div v-if="showDeleteDialog" class="dialog-overlay" style="z-index: 1100" @click.self="closeDeleteDialog">
+    <div
+      v-if="showDeleteDialog"
+      class="dialog-overlay"
+      role="presentation"
+      style="z-index: 1100"
+      @click.self="closeDeleteDialog"
+    >
       <div
         ref="deleteDialogRef"
         class="dialog-card"
@@ -828,6 +851,7 @@
             <input
               v-model="deleteConfirmId"
               type="text"
+              aria-label="确认群号"
               :placeholder="'请输入 ' + editingGuildId"
               class="form-input"
               autofocus

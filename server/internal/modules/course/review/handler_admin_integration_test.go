@@ -109,6 +109,11 @@ func teacherPublicCacheVersions(ctx context.Context, h *Handler) (string, string
 	return h.cache.GetVersion(ctx, teacherPublicListCacheKey), h.cache.GetVersion(ctx, teacherPublicHotCacheKey)
 }
 
+func processTeacherPublicStatsProjection(t *testing.T, ctx context.Context, h *Handler) {
+	t.Helper()
+	require.NoError(t, h.processTeacherPublicStatsRefreshBatch(ctx))
+}
+
 func assertCourseReviewCountCachesBumped(t *testing.T, ctx context.Context, h *Handler, previousCoursesVersion, previousCourseVersion string) (string, string) {
 	t.Helper()
 	nextCoursesVersion, nextCourseVersion := courseReviewCountCacheVersions(ctx, h)
@@ -296,6 +301,7 @@ func TestReviewHandler_AdminReviewCountCacheInvalidationPaths(t *testing.T) {
 		h.AdminUpdateReview(c)
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 		coursesVersion, courseVersion = assertCourseReviewCountCachesBumped(t, ctx, h, coursesVersion, courseVersion)
+		processTeacherPublicStatsProjection(t, ctx, h)
 		teachersVersion, hotTeachersVersion = assertTeacherPublicCachesBumped(t, ctx, h, teachersVersion, hotTeachersVersion)
 
 		w, c = withAdminContext(http.MethodPut, "/admin/reviews/"+pendingReviewID, `{"action":"restore","reason":"审核通过"}`)
@@ -303,6 +309,7 @@ func TestReviewHandler_AdminReviewCountCacheInvalidationPaths(t *testing.T) {
 		h.AdminUpdateReview(c)
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 		assertCourseReviewCountCachesBumped(t, ctx, h, coursesVersion, courseVersion)
+		processTeacherPublicStatsProjection(t, ctx, h)
 		assertTeacherPublicCachesBumped(t, ctx, h, teachersVersion, hotTeachersVersion)
 
 		var hiddenStatus, pendingStatus string
@@ -331,6 +338,7 @@ func TestReviewHandler_AdminReviewCountCacheInvalidationPaths(t *testing.T) {
 		h.AdminUpdateReview(c)
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 		assertCourseReviewCountCachesBumped(t, ctx, h, coursesVersion, courseVersion)
+		processTeacherPublicStatsProjection(t, ctx, h)
 		assertTeacherPublicCachesBumped(t, ctx, h, teachersVersion, hotTeachersVersion)
 
 		var status string
@@ -355,6 +363,7 @@ func TestReviewHandler_AdminReviewCountCacheInvalidationPaths(t *testing.T) {
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 		assert.Contains(t, w.Body.String(), `"affected":1`)
 		coursesVersion, courseVersion = assertCourseReviewCountCachesBumped(t, ctx, h, coursesVersion, courseVersion)
+		processTeacherPublicStatsProjection(t, ctx, h)
 		teachersVersion, hotTeachersVersion = assertTeacherPublicCachesBumped(t, ctx, h, teachersVersion, hotTeachersVersion)
 
 		w, c = withAdminContext(http.MethodPatch, "/admin/reviews/batch", `{"ids":["`+deleteID+`"],"action":"delete"}`)
@@ -362,6 +371,7 @@ func TestReviewHandler_AdminReviewCountCacheInvalidationPaths(t *testing.T) {
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 		assert.Contains(t, w.Body.String(), `"affected":1`)
 		assertCourseReviewCountCachesBumped(t, ctx, h, coursesVersion, courseVersion)
+		processTeacherPublicStatsProjection(t, ctx, h)
 		assertTeacherPublicCachesBumped(t, ctx, h, teachersVersion, hotTeachersVersion)
 
 		var restoredStatus, deletedStatus string
@@ -396,6 +406,7 @@ func TestReviewHandler_AdminReviewCountCacheInvalidationPaths(t *testing.T) {
 		h.ProcessReport(c)
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 		assertCourseReviewCountCachesBumped(t, ctx, h, coursesVersion, courseVersion)
+		processTeacherPublicStatsProjection(t, ctx, h)
 		assertTeacherPublicCachesBumped(t, ctx, h, teachersVersion, hotTeachersVersion)
 
 		var status string
@@ -420,6 +431,7 @@ func TestReviewHandler_AdminReviewCountCacheInvalidationPaths(t *testing.T) {
 		h.ClearContentFlag(c)
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 		assertCourseReviewCountCachesBumped(t, ctx, h, coursesVersion, courseVersion)
+		processTeacherPublicStatsProjection(t, ctx, h)
 		assertTeacherPublicCachesBumped(t, ctx, h, teachersVersion, hotTeachersVersion)
 
 		var status string

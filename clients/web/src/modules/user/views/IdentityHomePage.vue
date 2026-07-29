@@ -1,5 +1,5 @@
 <template>
-    <main class="mx-auto max-w-[1120px] p-6 animate-fade-in max-sm:p-4">
+    <section class="mx-auto max-w-[1120px] p-6 animate-fade-in max-sm:p-4">
         <header class="mb-6">
             <p class="m-0 text-xs font-semibold uppercase text-primary">
                 {{ t("user.identityHome.eyebrow") }}
@@ -58,7 +58,7 @@
                 </div>
             </router-link>
         </section>
-    </main>
+    </section>
 </template>
 
 <script setup lang="ts">

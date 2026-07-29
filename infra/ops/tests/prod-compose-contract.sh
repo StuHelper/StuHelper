@@ -66,6 +66,24 @@ object_storage_block="$(
 
 [[ -n "${object_storage_block}" ]] || fail "expected local object-storage service block in ${COMPOSE_FILE}"
 
+migrate_dev_block="$(
+  awk '
+    /^  migrate-dev:/ { in_block=1; next }
+    /^  migrate:/ { in_block=0 }
+    in_block { print }
+  ' "${COMPOSE_FILE}"
+)"
+[[ -n "${migrate_dev_block}" ]] || fail "expected migrate-dev service block in ${COMPOSE_FILE}"
+
+openfga_migrate_block="$(
+  awk '
+    /^  openfga-migrate:/ { in_block=1; next }
+    /^  openfga:/ { in_block=0 }
+    in_block { print }
+  ' "${COMPOSE_FILE}"
+)"
+[[ -n "${openfga_migrate_block}" ]] || fail "expected openfga-migrate service block in ${COMPOSE_FILE}"
+
 postgres_client_block="$(
   awk '
     /^  postgres-client:/ { in_block=1; next }
@@ -189,6 +207,18 @@ if ! printf '%s\n' "${object_storage_block}" | grep -Eq '^    - ALL$'; then
 fi
 if ! printf '%s\n' "${object_storage_block}" | grep -Eq '^    profiles: \[dev-full, prod-parity\]$'; then
   fail "local object-storage service must never join the production profile"
+fi
+if ! printf '%s\n' "${migrate_dev_block}" | grep -Eq '^      GOTMPDIR: /go-cache$'; then
+  fail "migrate-dev must place go run executables on the executable Go cache volume"
+fi
+if ! printf '%s\n' "${migrate_dev_block}" | grep -Eq '^    - /tmp:rw,nosuid,nodev,noexec,size=64m$'; then
+  fail "migrate-dev must keep its disposable /tmp mount non-executable"
+fi
+if printf '%s\n' "${openfga_migrate_block}" | grep -Eq 'sslrootcert='; then
+  fail "local OpenFGA must not require a PostgreSQL CA file when sslmode defaults to disable"
+fi
+if ! printf '%s\n' "${openfga_migrate_block}" | grep -Eq 'sslmode=\$\{POSTGRES_INTERNAL_SSL_MODE:-disable\}$'; then
+  fail "local OpenFGA must use the explicit development PostgreSQL SSL mode"
 fi
 assert_contains "${COMPOSE_PROD_FILE}" '127\.0\.0\.1:\$\{BACKEND_EXTERNAL_PORT:-18080\}:8080'
 assert_contains "${COMPOSE_PROD_FILE}" '127\.0\.0\.1:\$\{WEB_EXTERNAL_PORT:-18000\}:80'

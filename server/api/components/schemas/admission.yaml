@@ -380,6 +380,17 @@ BotAdmissionEventRequest:
     error:
       type: string
 
+BotAdmissionActionEventRequest:
+  allOf:
+    - $ref: '#/BotAdmissionEventRequest'
+    - type: object
+      required: [dispatchAttempt]
+      properties:
+        dispatchAttempt:
+          type: integer
+          minimum: 1
+          description: 领取 action 时返回的派发代次。服务端仅接受当前代次的 ACK。
+
 BotAdmissionPendingAction:
   type: object
   required: [sessionID, action]
@@ -387,6 +398,10 @@ BotAdmissionPendingAction:
     actionID:
       type: string
       description: 持久化 bot action outbox ID。SSE 下行动作会携带，ACK 时应提交到 actions/{id}/events。
+    dispatchAttempt:
+      type: integer
+      minimum: 1
+      description: actionID 对应的派发代次；ACK 时必须原样提交。
     sessionID:
       type: string
     action:

@@ -4,6 +4,7 @@
       <div
         v-if="shell.searchOpen.value"
         class="stuhelperGroupCenter-portal sh-search"
+        role="presentation"
         @click.self="close"
       >
         <div
@@ -22,6 +23,7 @@
               v-model="query"
               type="text"
               class="sh-search__input"
+              aria-label="全站搜索"
               placeholder="输入用户 ID / 群号 / 视图名 / 命令…"
               @keydown.down.prevent="moveFocus(1)"
               @keydown.up.prevent="moveFocus(-1)"
@@ -37,7 +39,7 @@
             <span class="sh-search__hint-line">{{ shortcuts.search }} 打开 · {{ shortcuts.chat }} 实时聊天 · Esc 关闭</span>
           </div>
 
-          <ul class="sh-search__list" v-if="results.length > 0" role="list">
+          <ul class="sh-search__list" v-if="results.length > 0">
             <li
               v-for="(result, index) in results"
               :key="result.id"

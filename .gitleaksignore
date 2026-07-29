@@ -1,4 +1,4 @@
-# Baseline for reviewed false positives after the GitHub migration history rewrite.
+# Reviewed false-positive baseline for the repository's reachable history.
 # Keep entries commit-scoped so new findings in the same files still fail CI.
 0675ee7223377e1d2ebf774e546efe335ba2631a:server/internal/api/gen/server.gen.go:generic-api-key:4399
 1937f433a68d9b7415a7a8ff880a2ce226136b89:server/internal/api/gen/server.gen.go:generic-api-key:4919

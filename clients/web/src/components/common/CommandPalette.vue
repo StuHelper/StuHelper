@@ -4,6 +4,7 @@
       <div
         v-if="isOpen"
         class="palette-overlay fixed inset-0 bg-bg-overlay z-[var(--z-modal-backdrop)] flex items-start justify-center pt-[15vh] max-md:pt-4 max-md:px-4"
+        role="presentation"
         @click.self="close"
       >
         <div
@@ -20,8 +21,9 @@
             <input
               v-model="searchQuery"
               class="flex-1 border-none outline-none bg-transparent text-lg font-sans text-text-primary placeholder:text-text-muted"
+              :aria-label="t('nav.searchCoursePlaceholder')"
               :placeholder="t('nav.searchCoursePlaceholder')"
-              autofocus
+              data-dialog-initial-focus
               role="combobox"
               :aria-expanded="results.length > 0 ? 'true' : 'false'"
               aria-haspopup="listbox"
@@ -50,6 +52,7 @@
                 <div class="py-2 px-5 text-xs font-medium text-text-muted uppercase tracking-wide">{{ t('nav.searchResults') }}</div>
                 <div role="listbox" id="palette-listbox">
                   <button
+                    type="button"
                     v-for="(item, idx) in results"
                     :key="`${item.type}-${item.id}`"
                     :id="`palette-option-${idx}`"
@@ -59,6 +62,7 @@
                     :aria-selected="activeIndex === idx"
                     @click="selectItem(item)"
                     @mouseenter="activeIndex = idx"
+                    @focus="activeIndex = idx"
                   >
                     <div class="flex-1 flex items-center gap-2 min-w-0">
                       <span class="font-medium whitespace-nowrap overflow-hidden text-ellipsis">{{ item.name }}</span>
@@ -76,12 +80,14 @@
               <div v-if="recentSearches.length > 0" class="py-1">
                 <div class="py-2 px-5 text-xs font-medium text-text-muted uppercase tracking-wide">{{ t('nav.recentSearches') }}</div>
                 <button
+                  type="button"
                   v-for="(term, idx) in recentSearches"
                   :key="term"
                   class="flex items-center gap-3 w-full py-2.5 px-5 text-left text-text-primary text-sm cursor-pointer transition-colors duration-fast ease-smooth hover:bg-bg-hover"
                   :class="{ '!bg-bg-hover': activeIndex === idx }"
                   @click="searchQuery = term"
                   @mouseenter="activeIndex = idx"
+                  @focus="activeIndex = idx"
                 >
                   <Clock :size="14" />
                   <span class="font-medium whitespace-nowrap overflow-hidden text-ellipsis">{{ term }}</span>

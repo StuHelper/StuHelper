@@ -244,6 +244,7 @@ services:
       PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       GOCACHE: /go-cache/build
       GOMODCACHE: /go-cache/mod
+      GOTMPDIR: /go-cache
       DATABASE_URL: postgresql://${POSTGRES_USER:-stuhelper}:${POSTGRES_PASSWORD:-}@postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}
     volumes:
     - ./server:/workspace/server:ro
@@ -263,7 +264,7 @@ services:
           memory: 512M
     read_only: true
     tmpfs:
-    - /tmp
+    - /tmp:rw,nosuid,nodev,noexec,size=64m
     cap_drop:
     - ALL
     security_opt:
@@ -400,7 +401,7 @@ services:
     command: migrate
     environment:
       OPENFGA_DATASTORE_ENGINE: postgres
-      OPENFGA_DATASTORE_URI: postgresql://openfga:${OPENFGA_DB_PASSWORD}@postgres:5432/openfga?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}&sslrootcert=/tls/ca.crt
+      OPENFGA_DATASTORE_URI: postgresql://openfga:${OPENFGA_DB_PASSWORD}@postgres:5432/openfga?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}
     volumes:
     - ./infra/generated/postgres-client-ca:/tls:ro
     depends_on:
@@ -423,7 +424,7 @@ services:
     command: run
     environment:
       OPENFGA_DATASTORE_ENGINE: postgres
-      OPENFGA_DATASTORE_URI: postgresql://openfga:${OPENFGA_DB_PASSWORD}@postgres:5432/openfga?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}&sslrootcert=/tls/ca.crt
+      OPENFGA_DATASTORE_URI: postgresql://openfga:${OPENFGA_DB_PASSWORD}@postgres:5432/openfga?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}
       OPENFGA_PLAYGROUND_ENABLED: "${OPENFGA_PLAYGROUND_ENABLED:-false}"
     ports:
     - "127.0.0.1:${OPENFGA_HTTP_EXTERNAL_PORT:-8081}:8080"

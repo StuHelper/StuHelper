@@ -20,6 +20,7 @@ type fakeProfileFGAClient struct {
 	readCalls   []struct{ object, relation string }
 	deleteCalls [][]fga.Tuple
 	writeCalls  [][]fga.Tuple
+	operations  []string
 	readTuples  []fga.Tuple
 	readByRel   map[string][]fga.Tuple
 	readErr     error
@@ -29,6 +30,7 @@ type fakeProfileFGAClient struct {
 
 func (f *fakeProfileFGAClient) ReadTuples(_ context.Context, object, relation string) ([]fga.Tuple, error) {
 	f.readCalls = append(f.readCalls, struct{ object, relation string }{object: object, relation: relation})
+	f.operations = append(f.operations, "read:"+relation)
 	if f.readErr != nil {
 		return nil, f.readErr
 	}
@@ -41,12 +43,14 @@ func (f *fakeProfileFGAClient) ReadTuples(_ context.Context, object, relation st
 func (f *fakeProfileFGAClient) WriteTuples(_ context.Context, tuples []fga.Tuple) error {
 	copied := append([]fga.Tuple(nil), tuples...)
 	f.writeCalls = append(f.writeCalls, copied)
+	f.operations = append(f.operations, "write")
 	return f.writeErr
 }
 
 func (f *fakeProfileFGAClient) DeleteTuples(_ context.Context, tuples []fga.Tuple) error {
 	copied := append([]fga.Tuple(nil), tuples...)
 	f.deleteCalls = append(f.deleteCalls, copied)
+	f.operations = append(f.operations, "delete")
 	return f.deleteErr
 }
 
@@ -135,7 +139,7 @@ func TestSyncUserProfileProjectionValidatesSchoolBeforeFGAMutation(t *testing.T)
 	assert.Empty(t, fgaClient.deleteCalls)
 }
 
-func TestSyncUserProfileProjectionKeepsExistingSchoolTupleWhenWriteFails(t *testing.T) {
+func TestSyncUserProfileProjectionRevokesStaleSchoolBeforeWrite(t *testing.T) {
 	schoolID := int64(4111010006)
 	writeErr := errors.New("openfga write unavailable")
 	fgaClient := &fakeProfileFGAClient{
@@ -165,7 +169,11 @@ func TestSyncUserProfileProjectionKeepsExistingSchoolTupleWhenWriteFails(t *test
 		{User: "user:123", Relation: "owner", Object: "user_profile:123"},
 		{User: "school:4111010006", Relation: "school", Object: "user_profile:123"},
 	}, fgaClient.writeCalls[0])
-	assert.Empty(t, fgaClient.deleteCalls)
+	require.Len(t, fgaClient.deleteCalls, 1)
+	assert.Equal(t, []fga.Tuple{
+		{User: "school:4111010001", Relation: "school", Object: "user_profile:123"},
+	}, fgaClient.deleteCalls[0])
+	assert.Equal(t, []string{"read:owner", "read:school", "delete", "write"}, fgaClient.operations)
 }
 
 func TestSyncUserProfileProjectionSkipsExistingOwnerTuple(t *testing.T) {

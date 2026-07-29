@@ -38,6 +38,7 @@
       v-if="userMenuOpen"
       :id="USER_MENU_ID"
       role="menu"
+      tabindex="-1"
       :aria-label="t('nav.user')"
       class="absolute right-0 top-full z-[var(--z-dropdown)] mt-2 w-60 rounded-xl border border-white/20 bg-bg-glass-heavy/95 p-1.5 shadow-lg backdrop-blur-xl animate-fade-in dark:border-white/8"
       @keydown="handleUserMenuKeydown"

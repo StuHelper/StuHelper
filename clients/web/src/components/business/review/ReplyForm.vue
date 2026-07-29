@@ -25,10 +25,12 @@
       </span>
       <div class="flex gap-2">
         <button
+          type="button"
           class="px-3 py-1 text-sm rounded-full cursor-pointer transition-all duration-fast bg-transparent text-text-secondary hover:border-text-muted"
           @click="handleCancel"
         >{{ t('common.actions.cancel') }}</button>
         <button
+          type="button"
           class="px-3 py-1 text-sm rounded-full cursor-pointer transition-all duration-fast bg-gradient-to-br from-primary to-accent border-none text-white font-medium hover:not-disabled:opacity-90 hover:not-disabled:-translate-y-px disabled:opacity-50 disabled:cursor-not-allowed"
           :disabled="!canSubmit || submitting"
           @click="handleSubmit"

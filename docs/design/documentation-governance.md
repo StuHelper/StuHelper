@@ -109,7 +109,7 @@ ADR 不承担以下职责：
   检查 frontmatter、目录归属、绝对路径、retired 路径、相对链接、长期资产白名单。
 - `cd server && make check-doc-sync`
   检查 `docs/reference/api-overview.md` 的模块前缀仍覆盖当前 OpenAPI。
-- GitLab CI 在 lint 阶段执行同一套规则。
+- GitHub Actions 的 `Repository policy` 作业执行同一套规则。
 
 ## 变更原则
 

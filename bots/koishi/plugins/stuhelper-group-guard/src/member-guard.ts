@@ -390,7 +390,14 @@ export class MemberGuardService {
 
   private async recordAdmissionActionResult(action: AdmissionPendingAction, event: Parameters<PlatformClient['recordAdmissionEvent']>[1]) {
     if (action.actionID) {
-      await this.deps.platform.recordAdmissionActionEvent(action.actionID, event)
+      const dispatchAttempt = action.dispatchAttempt
+      if (!Number.isInteger(dispatchAttempt) || dispatchAttempt! <= 0) {
+        throw new Error(`admission action ${action.sessionID} missing valid dispatchAttempt`)
+      }
+      await this.deps.platform.recordAdmissionActionEvent(action.actionID, {
+        ...event,
+        dispatchAttempt: dispatchAttempt!,
+      })
       return
     }
     await this.deps.platform.recordAdmissionEvent(action.sessionID, event)

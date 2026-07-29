@@ -73,18 +73,18 @@ type Service struct {
 	notifSender    ReviewNotificationSender
 	accessReader   ReviewAccessReader
 	accessPolicySF singleflight.Group
-	asyncCtx       context.Context
-	asyncLaunch    func(string, func(context.Context))
+	backgroundCtx  context.Context
 }
 
 type ReviewNotification struct {
-	UserID       int64
-	Type         string
-	Title        string
-	Body         string
-	SourceModule string
-	SourceID     string
-	CourseID     int64
+	IdempotencyKey string `json:"idempotencyKey"`
+	UserID         int64  `json:"userID"`
+	Type           string `json:"type"`
+	Title          string `json:"title"`
+	Body           string `json:"body"`
+	SourceModule   string `json:"sourceModule"`
+	SourceID       string `json:"sourceID"`
+	CourseID       int64  `json:"courseID"`
 }
 
 type ReviewNotificationSender interface {

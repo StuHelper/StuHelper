@@ -49,12 +49,17 @@ func (s *Service) GrantResourceAccess(ctx context.Context, input ResourceGrantIn
 	for _, grant := range grants {
 		tuples = append(tuples, resourceGrantTuple(grant))
 	}
-	if err := s.resourceFGA.WriteMissingTuples(ctx, tuples); err != nil {
+	existingTuples, err := s.existingResourceTuples(ctx, tuples)
+	if err != nil {
+		return nil, err
+	}
+	addedTuples := fga.MissingTuples(existingTuples, tuples)
+	if err := s.resourceFGA.WriteMissingTuples(ctx, addedTuples); err != nil {
 		return nil, fmt.Errorf("%w: write resource access tuples: %v", ErrResourceAccessUnavailable, err)
 	}
 	if err := s.recordResourceAccessAdminAudit(ctx, app.ID, input.ReviewerUserID, input.RequestID,
 		"open_platform.resource_access.granted", resourceType, resourceID, actions, reason); err != nil {
-		if rollbackErr := s.deleteResourceTuplesForRollback(ctx, tuples); rollbackErr != nil {
+		if rollbackErr := s.deleteResourceTuplesForRollback(ctx, addedTuples); rollbackErr != nil {
 			return nil, errors.Join(err, fmt.Errorf("%w: rollback granted resource access tuples: %v", ErrResourceAccessUnavailable, rollbackErr))
 		}
 		return nil, err

@@ -419,6 +419,7 @@ export interface AdmissionPendingActionsRequest {
 
 export interface AdmissionPendingAction {
   readonly actionID?: string
+  readonly dispatchAttempt?: number
   readonly sessionID: string
   readonly action: Extract<AdmissionBotAction, 'remind' | 'release' | 'kick' | 'blacklist'>
   readonly platform?: string
@@ -439,6 +440,10 @@ export interface AdmissionBotEventRequest {
   readonly success: boolean
   readonly messageID?: string
   readonly error?: string
+}
+
+export interface AdmissionBotActionEventRequest extends AdmissionBotEventRequest {
+  readonly dispatchAttempt: number
 }
 
 export interface FreshmanApplication {

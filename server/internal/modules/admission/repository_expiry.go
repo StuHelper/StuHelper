@@ -36,16 +36,19 @@ func (r *Repository) MarkFreshmanCredentialExpiryProcessedTx(
 	tx pgx.Tx,
 	credentialID string,
 	now time.Time,
-) error {
-	_, err := tx.Exec(ctx, `
+) (bool, error) {
+	tag, err := tx.Exec(ctx, `
 		UPDATE user_verification_credentials
 		SET revoked_at = $2, expiry_processed_at = $2, updated_at = NOW()
 		WHERE id = $1
+		  AND expires_at <= $2
+		  AND revoked_at IS NULL
+		  AND expiry_processed_at IS NULL
 	`, credentialID, now)
 	if err != nil {
-		return fmt.Errorf("MarkFreshmanCredentialExpiryProcessedTx: %w", err)
+		return false, fmt.Errorf("MarkFreshmanCredentialExpiryProcessedTx: %w", err)
 	}
-	return nil
+	return tag.RowsAffected() == 1, nil
 }
 
 func scanExpiredFreshmanCredentials(rows pgx.Rows) ([]ExpiredFreshmanCredential, error) {

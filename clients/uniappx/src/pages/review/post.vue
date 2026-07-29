@@ -202,6 +202,7 @@ onLoad(async (options) => {
         <input
           v-model="form.title"
           class="input-field"
+          :aria-label="t('review.post.reviewTitle')"
           data-testid="uni-review-title"
           maxlength="40"
           :placeholder="t('review.post.titlePlaceholder')"
@@ -213,6 +214,7 @@ onLoad(async (options) => {
         <input
           v-model="form.grade"
           class="input-field"
+          :aria-label="t('review.post.grade')"
           data-testid="uni-review-grade"
           maxlength="20"
           :placeholder="t('review.post.gradePlaceholder')"
@@ -245,6 +247,7 @@ onLoad(async (options) => {
         <textarea
           v-model="form.content"
           class="textarea-field"
+          :aria-label="t('review.post.content')"
           data-testid="uni-review-content"
           maxlength="5000"
           :placeholder="t('review.post.contentPlaceholder')"

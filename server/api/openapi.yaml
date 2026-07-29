@@ -688,6 +688,8 @@ components:
       $ref: "components/schemas/user-system.yaml#/UserIdentity"
     AdminIdentityReviewItem:
       $ref: "components/schemas/user-system.yaml#/AdminIdentityReviewItem"
+    AdminIdentityReviewDetail:
+      $ref: "components/schemas/user-system.yaml#/AdminIdentityReviewDetail"
     SubmitIdentityRequest:
       $ref: "components/schemas/user-system.yaml#/SubmitIdentityRequest"
     UserProfile:

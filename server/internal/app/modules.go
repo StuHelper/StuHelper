@@ -75,6 +75,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	notifHandler := notification.NewHandler(notifService, notifHub, userRepo.GetInternalUserID)
 	notifHandler.RegisterRoutes(api, authMW)
 	notifRealtime.StartSubscriber(bgCtx, startBackgroundTask)
+	rt.addShutdownHook(notifHub.Stop)
 	rt.addCleanup(notifRealtime.Stop)
 
 	courseModule := rt.initCourseModule(bgCtx, fgaClient, notifService, userRepo)

@@ -288,7 +288,9 @@ export default {
             photoFront: "Front Photo",
             photoBack: "Back Photo",
             photoSelfie: "Selfie with Document",
-            photoRequired: "Photo upload required for non-mainland documents",
+            photoRequired: "Upload clear verification evidence",
+            manualEvidencePrompt:
+                "We could not verify this identity from your linked academic record. Upload the document front and a selfie holding the document for manual review.",
             uploadFailed: "Failed to upload identity photo. Please try again.",
             photoTooLarge: "Image size must not exceed {max}",
             photoInvalidType: "Only JPG, PNG, or WebP images are supported",

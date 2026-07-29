@@ -243,7 +243,7 @@ func (s *Service) VerifyStudentEmailOTP(ctx context.Context, input StudentEmailO
 	profile.ManualFormData = studentEmailManualFormData(record)
 
 	if err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		txExisting, err := s.repo.GetProfileByUserIDTx(ctx, tx, input.UserID)
+		txExisting, err := s.repo.GetProfileByUserIDForUpdateTx(ctx, tx, input.UserID)
 		if err != nil {
 			return fmt.Errorf("VerifyStudentEmailOTP check existing tx: %w", err)
 		}

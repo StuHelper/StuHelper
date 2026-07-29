@@ -182,14 +182,6 @@ export const useAuthStore = defineStore('auth', () => {
         accessStore.setLoginExpired(false);
       }
 
-      if (userInfo.realName) {
-        showAuthNotification({
-          message: `${$t('authentication.loginSuccessDesc')}:${userInfo.realName}`,
-          title: $t('authentication.loginSuccess'),
-          type: 'success',
-        });
-      }
-
       return userInfo;
     } catch (error) {
       if (error instanceof SessionBootstrapError) {

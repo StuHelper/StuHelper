@@ -3,7 +3,7 @@ type: product-spec
 audience: product, backend-dev
 status: current
 authoritative-source: server/api/openapi.yaml
-last-verified: 2026-07-29
+last-verified: 2026-07-30
 ---
 
 # 用户系统
@@ -16,15 +16,19 @@ last-verified: 2026-07-29
 
 确认"这个人是谁"。
 
-**大陆身份证**：提交姓名 + 证件号 → 后端调用腾讯云二要素核验 → 加密后存入数据库。命中学籍表则自动通过，否则转人工。
+**大陆身份证**：提交姓名 + 证件号 → 加密后存入数据库。只有当前账号已经完成学生认证，并且在该账号所属学校的学籍表中同时满足“证件记录一致、姓名一致、命中学号属于当前账号”时才自动通过；缺少任一账号绑定证据时进入人工审核。当前实现不调用第三方二要素核验服务。
 
-**非大陆证件**：上传证件照片 → 人工审核。
+**非大陆证件**：上传证件正面照和手持/自拍照 → 人工审核；背面照可选。
+
+**人工审核材料门槛**：任何进入人工审核的申请都必须同时具备正面照和手持/自拍照。大陆身份证可以先不上传照片尝试自动匹配，但只有事务内锁定并复核学籍绑定仍满足自动通过条件时才会成功；不能自动通过时直接返回“需要照片”，不会创建一个缺少材料的 pending 申请。
 
 提交流程分两步：
 1. `POST /api/v1/user/identity/uploads` — 上传照片
 2. `POST /api/v1/user/identity` — 提交证件信息 + 已上传照片 key
 
 支持证件类型：`MAINLAND_ID` / `HK_MACAU` / `TW` / `PASSPORT`
+
+照片只接受 JPEG、PNG 或 WebP，单文件不超过 5 MiB；每个已登录用户最多上传 12 次/24 h。后端只接受由当前用户上传、槽位匹配且对象存储可验证的私有 key，不接受外部 URL 或跨用户 key。
 
 ### 学生认证
 
@@ -40,7 +44,7 @@ last-verified: 2026-07-29
 
 ## 状态机
 
-实名：数据库使用 `Verified bool` 字段 + `RejectionReason`，API 层映射为：`none`（未提交）→ `pending`（已提交未审核）→ `approved`（Verified=true）/ `rejected`（RejectionReason 非空）。大陆身份证命中学籍表自动通过（auto-verify），其他证件类型转人工审核。
+实名：数据库使用 `Verified bool` 字段 + `RejectionReason`，API 层映射为：`none`（未提交）→ `pending`（已提交未审核）→ `approved`（Verified=true）/ `rejected`（RejectionReason 非空）。大陆身份证仅在“已认证学生账号 + 同校 + 账号绑定学号 + 姓名 + 证件记录”全部一致时自动通过；自动匹配结果会在写入事务内再次锁定并校验学生档案和学校配置。其他情况转人工审核。
 
 学生：`unverified` → `pending` → `verified` / `rejected`（rejected 可重新提交）
 
@@ -95,6 +99,8 @@ last-verified: 2026-07-29
 
 实名认证审核、学生认证审核、学校配置管理、系统配置管理。
 
+实名认证列表不返回材料 key 或签名 URL。审核员必须先通过全局 `user:identity:read` capability 和 step-up MFA，再调用详情端点按需获取短时签名 URL；每次成功查看都会写入材料访问审计。批准操作要求 `user:identity:review` capability、step-up MFA，以及完整且可从对象存储验证的正面照和手持/自拍照。
+
 审核通过后更新应用数据库，必要时同步 Casdoor 角色投影。
 
 ## 端点
@@ -114,7 +120,8 @@ last-verified: 2026-07-29
 | `/api/v1/bot/qq-binding/consume` | POST | 机器人消费绑定码并建立绑定 |
 | `/api/v1/bot/qq-users/{qqID}/verification` | GET | 机器人按 QQ 号查询绑定与学生认证状态 |
 | `/api/v1/user/schools` | GET | 学校列表 |
-| `/api/v1/admin/identities` | GET / PUT | 实名审核 |
+| `/api/v1/admin/identities` | GET | 实名审核列表（不含材料） |
+| `/api/v1/admin/identities/{userID}` | GET / PUT | 按需读取签名材料 / 提交实名审核决定 |
 | `/api/v1/admin/student-verifications` | GET / PUT | 学生审核 |
 | `/api/v1/admin/school-configs` | GET / PUT | 学校配置 |
 | `/api/v1/admin/system-configs` | GET / PUT | 系统配置 |

@@ -57,6 +57,7 @@ func setupAdminHandlerTestRouterWithRoleAndProof(
 	roles []string,
 	orgScopedRoles map[string][]string,
 	proofAt time.Time,
+	opts ...ServiceOption,
 ) *gin.Engine {
 	t.Helper()
 
@@ -64,7 +65,12 @@ func setupAdminHandlerTestRouterWithRoleAndProof(
 		repo = &mockRepo{}
 	}
 
-	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(
+		repo,
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		opts...,
+	)
 	require.NoError(t, err)
 
 	h := NewHandler(svc, nil, nil, nil, WithAdminAuthorizers(userAdminAuthorizers()))
@@ -219,7 +225,7 @@ func (stubBindPhoneSMSSender) Send(context.Context, string, string) error {
 func TestHandleAdminReviewIdentity_AllowsBlankRejectionReason(t *testing.T) {
 	repo := &mockRepo{
 		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
-			return &IdentityStatus{UserID: 123, Verified: true}, nil
+			return &IdentityStatus{UserID: 123, Verified: false}, nil
 		},
 		onUpdateIdentityReviewStatus: func(_ context.Context, _ int64, approved bool, verifyMethod *string, _ *time.Time, _ *time.Time, rejectionReason *string) error {
 			assert.False(t, approved)
@@ -249,9 +255,10 @@ func TestHandleAdminReviewIdentity_AllowsBlankRejectionReason(t *testing.T) {
 }
 
 func TestHandleAdminReviewStudentVerification_AllowsBlankRejectionReason(t *testing.T) {
+	const schoolID = int64(4111010006)
 	repo := &mockRepo{
 		onGetProfileByUserID: func(_ context.Context, _ int64) (*Profile, error) {
-			return &Profile{UserID: 123, VerificationStatus: StatusPending}, nil
+			return &Profile{UserID: 123, SchoolID: int64Ptr(schoolID), VerificationStatus: StatusPending}, nil
 		},
 		onUpdateProfile: func(_ context.Context, profile *Profile) error {
 			assert.Equal(t, StatusRejected, profile.VerificationStatus)
@@ -281,9 +288,10 @@ func TestHandleAdminReviewStudentVerification_AllowsBlankRejectionReason(t *test
 }
 
 func TestHandleAdminReviewStudentVerification_AllowsNullRejectionReason(t *testing.T) {
+	const schoolID = int64(4111010006)
 	repo := &mockRepo{
 		onGetProfileByUserID: func(_ context.Context, _ int64) (*Profile, error) {
-			return &Profile{UserID: 123, VerificationStatus: StatusPending}, nil
+			return &Profile{UserID: 123, SchoolID: int64Ptr(schoolID), VerificationStatus: StatusPending}, nil
 		},
 		onUpdateProfile: func(_ context.Context, profile *Profile) error {
 			assert.Equal(t, StatusRejected, profile.VerificationStatus)

@@ -18,6 +18,7 @@
       <div v-else-if="error" class="text-center py-12" role="alert">
         <p class="mb-4 text-text-muted">{{ courseLoadErrorMessage }}</p>
         <button
+          type="button"
           v-if="canRetryCourseLoad"
           class="py-2 px-6 text-sm font-medium text-white bg-primary rounded-full transition-opacity duration-fast hover:opacity-90"
           data-course-detail-retry-button
@@ -55,6 +56,7 @@
           <div class="flex items-center gap-2 ml-auto">
             <FavoriteButton :course-i-d="courseID" />
             <button
+              type="button"
               class="py-1.5 px-5 text-sm font-medium text-white bg-accent rounded-full transition-opacity duration-fast hover:opacity-90"
               @click="goToPostPage"
             >
@@ -181,6 +183,7 @@
           </h3>
           <div class="flex flex-wrap gap-2">
             <button
+              type="button"
               v-for="teacher in teacherChips"
               :key="teacher.teacherID ?? 'all'"
               class="rounded-full px-3 py-1 text-[0.8125rem] font-semibold transition-all duration-base"
@@ -207,6 +210,7 @@
               <!-- Admin toolbar -->
               <div v-if="canManageReviews" class="absolute top-3 right-3 flex items-center gap-1 z-10">
                 <button
+                  type="button"
                   v-if="r.status !== 'hidden'"
                   class="p-1.5 rounded-lg text-text-muted transition-colors duration-fast hover:text-text-primary hover:bg-bg-elevated"
                   :title="t('review.admin.hide')"
@@ -216,6 +220,7 @@
                 </button>
                 <template v-else>
                   <button
+                    type="button"
                     class="p-1.5 rounded-lg text-text-muted transition-colors duration-fast hover:text-text-primary hover:bg-bg-elevated"
                     :title="t('review.admin.restore')"
                     @click="handleRestore(r)"
@@ -223,6 +228,7 @@
                     <Eye :size="16" />
                   </button>
                   <button
+                    type="button"
                     class="p-1.5 rounded-lg text-text-muted transition-colors duration-fast hover:text-text-primary hover:bg-bg-elevated"
                     :title="t('review.admin.edit')"
                     @click="openEdit(r)"
@@ -319,6 +325,7 @@
               <!-- Like / Dislike buttons -->
               <div class="flex items-center gap-2">
                 <button
+                  type="button"
                   :data-testid="`review-like-${r.id}`"
                   class="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-full text-sm text-text-muted transition-colors duration-fast hover:text-vote-up hover:bg-vote-up/10"
                   :class="currentUserVote(r) === 'like' ? '!text-vote-up-active !bg-vote-up/12' : ''"
@@ -331,6 +338,7 @@
                   <span class="text-xs font-mono">{{ displayLikeCount(r) }}</span>
                 </button>
                 <button
+                  type="button"
                   :data-testid="`review-dislike-${r.id}`"
                   class="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-full text-sm text-text-muted transition-colors duration-fast hover:text-vote-down hover:bg-vote-down/10"
                   :class="currentUserVote(r) === 'dislike' ? '!text-vote-down-active !bg-vote-down/12' : ''"
@@ -343,6 +351,7 @@
                   <span class="text-xs font-mono">{{ displayDislikeCount(r) }}</span>
                 </button>
                 <button
+                  type="button"
                   class="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-full text-sm text-text-muted transition-colors duration-fast hover:text-text-primary hover:bg-bg-elevated"
                   :aria-expanded="expandedReviewID === r.id"
                   :aria-label="t('review.review.commentBtn')"
@@ -361,7 +370,7 @@
                 </div>
                 <div v-else-if="repliesError" class="text-center text-sm py-4 text-danger">
                   {{ t('review.review.replyLoadFailed') }}
-                  <button class="text-sm cursor-pointer underline ml-2 text-primary" @click="loadReplies(r.id)">
+                  <button type="button" class="text-sm cursor-pointer underline ml-2 text-primary" @click="loadReplies(r.id)">
                     {{ t('common.actions.retry') }}
                   </button>
                 </div>
@@ -400,6 +409,7 @@
           >
             <p class="mb-4 text-danger">{{ t('common.loadFailed') }}</p>
             <button
+              type="button"
               class="py-2 px-6 text-sm font-medium text-white bg-primary rounded-full transition-opacity duration-fast hover:opacity-90 disabled:opacity-50"
               :disabled="reviewsLoading"
               @click="retryReviews"
@@ -417,6 +427,7 @@
           <!-- Load more -->
           <div v-if="hasMore && !reviewsLoadError" class="flex justify-center py-6">
             <button
+              type="button"
               class="py-2 px-6 text-sm font-medium text-white bg-primary rounded-full opacity-90 transition-opacity duration-fast hover:opacity-100 disabled:opacity-50"
               :disabled="reviewsLoading"
               @click="loadMoreReviews"

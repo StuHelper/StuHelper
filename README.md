@@ -68,11 +68,11 @@ make prod-deploy  # 配置校验 → 镜像构建 → 启动 → Smoke Check
 
 ## CI/CD
 
-GitHub Actions 是仓库的权威 CI/CD 通道：PR 和 `develop` / `main` push 运行按路径裁剪的质量门禁；质量门禁通过后发布带完整 commit SHA 的 GHCR 镜像。staging 与 production 部署使用受保护 GitHub environment 和手工工作流，production 必须经过审批。迁移前的 GitLab 工作树只保留为只读恢复锚点，不再接收日常提交或承担发布权威。
+GitHub Actions 是仓库唯一的 CI/CD 通道：PR 和 `develop` / `main` push 运行按路径裁剪的质量门禁；受信任分支的质量门禁通过后发布带完整 commit SHA 的 GHCR 镜像。staging 与 production 部署使用受保护 GitHub environment 和手工作流，production 必须经过审批。
 
 质量门禁：Go lint/test/build、OpenAPI lint/drift、gosec、govulncheck、pnpm audit、Trivy、Web/Admin lint/type-check/test/build/Playwright、Koishi 单元 / 启动 / Console Playwright smoke。
 
-迁移步骤、Actions 权限、branch ruleset、environment secrets 和回滚约束见 [GitHub 迁移与 Actions 治理](docs/guides/github-migration.md)。仓库不保存真实部署 secrets；真实 staging / production 发布仍须按该文档配置环境秘密并单独验收。GitLab CI 定义仅存在于迁移恢复材料中，不再作为当前发布门禁。
+Actions 权限、branch ruleset、environment secrets 和回滚约束见 [GitHub 仓库与 Actions 治理](docs/guides/github-migration.md)。仓库不保存真实部署 secrets；真实 staging / production 发布仍须按该文档配置环境秘密并单独验收。
 
 ```bash
 make prod-rollback              # 本地回滚

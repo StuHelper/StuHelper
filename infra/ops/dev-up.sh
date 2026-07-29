@@ -143,6 +143,42 @@ sync_dev_browser_public_urls() {
   upsert_env_file "${ENV_FILE}" "CORS_ORIGINS" "http://localhost:${web_port},http://127.0.0.1:${web_port},http://join.localhost:${web_port},http://localhost:${admin_port},http://127.0.0.1:${admin_port}"
 }
 
+sync_dev_postgres_role_passwords() {
+  local container="${STACK_NAME:-stuhelper-dev}-postgres"
+
+  docker exec -i "${container}" \
+    psql -v ON_ERROR_STOP=1 \
+      -U "${POSTGRES_USER:-stuhelper}" \
+      -d postgres <<'SQL'
+\getenv postgres_admin_role POSTGRES_USER
+\getenv postgres_admin_password POSTGRES_PASSWORD
+\getenv stuhelper_app_password STUHELPER_APP_DB_PASSWORD
+\getenv stuhelper_backup_password STUHELPER_BACKUP_DB_PASSWORD
+\getenv stuhelper_replication_password STUHELPER_REPLICATION_DB_PASSWORD
+\getenv postgres_exporter_password POSTGRES_EXPORTER_DB_PASSWORD
+\getenv openfga_password OPENFGA_DB_PASSWORD
+\getenv casdoor_password CASDOOR_DB_PASSWORD
+
+WITH desired(role_name, role_password) AS (
+  VALUES
+    (:'postgres_admin_role', :'postgres_admin_password'),
+    ('stuhelper_app', :'stuhelper_app_password'),
+    ('stuhelper_backup', :'stuhelper_backup_password'),
+    ('stuhelper_replication', :'stuhelper_replication_password'),
+    ('stuhelper_metrics', :'postgres_exporter_password'),
+    ('openfga', :'openfga_password'),
+    ('casdoor', :'casdoor_password')
+)
+SELECT format('ALTER ROLE %I WITH PASSWORD %L', desired.role_name, desired.role_password)
+FROM desired
+JOIN pg_roles ON pg_roles.rolname = desired.role_name
+WHERE desired.role_password <> ''
+\gexec
+SQL
+
+  log "synchronized local PostgreSQL role passwords without replacing the development data volume"
+}
+
 ensure_dev_runtime_dirs
 ensure_node_toolchain
 "${SCRIPT_DIR}/init-dev-env.sh"
@@ -253,6 +289,8 @@ base_services=(
 )
 
 log "starting development infrastructure (Docker)"
+compose up -d --wait --wait-timeout 90 postgres
+sync_dev_postgres_role_passwords
 compose up -d "${base_services[@]}"
 "${SCRIPT_DIR}/ensure-postgres-monitoring-role.sh"
 compose up --no-deps resource-seed-dev

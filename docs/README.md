@@ -58,8 +58,8 @@ last-verified: 2026-05-09
 3. [guides/database-migrations.md](guides/database-migrations.md) — 迁移、seed、回滚
 4. [guides/observability.md](guides/observability.md) — Grafana LGTM、告警、排障
 5. [guides/backup-and-restore.md](guides/backup-and-restore.md) — PostgreSQL 备份恢复
-6. [guides/automation.md](guides/automation.md) — 一键启动、迁移期 GitLab、Ansible
-7. [guides/github-migration.md](guides/github-migration.md) — GitHub Actions、GHCR、仓库治理与迁移验收
+6. [guides/automation.md](guides/automation.md) — 一键启动、GitHub Actions、Ansible
+7. [guides/github-migration.md](guides/github-migration.md) — GitHub Actions、GHCR 与仓库治理
 8. [guides/production-topology.md](guides/production-topology.md) — 生产拓扑
 
 ### 我想查**事实**

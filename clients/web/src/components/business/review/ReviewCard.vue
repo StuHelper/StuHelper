@@ -12,6 +12,7 @@
     <!-- 管理员工具栏 -->
     <div v-if="canManageReviews" class="absolute top-3 right-3 flex items-center gap-1">
       <button
+        type="button"
         v-if="!isHidden"
         class="p-1.5 rounded-lg text-text-muted hover:text-warning hover:bg-warning/10 cursor-pointer transition-colors"
         :title="t('review.admin.hide')"
@@ -21,6 +22,7 @@
       </button>
       <template v-else>
         <button
+          type="button"
           class="p-1.5 rounded-lg text-text-muted hover:text-primary hover:bg-primary/10 cursor-pointer transition-colors"
           :title="t('review.admin.restore')"
           @click="handleRestore"
@@ -28,6 +30,7 @@
           <Eye :size="16" />
         </button>
         <button
+          type="button"
           class="p-1.5 rounded-lg text-text-muted hover:text-primary hover:bg-primary/10 cursor-pointer transition-colors"
           :title="t('review.admin.edit')"
           @click="showEditDialog = true"
@@ -129,6 +132,7 @@
       :class="{ 'pt-3 border-t border-border-light': displayRatings.length === 0 }"
     >
       <button
+        type="button"
         v-ripple
         :class="[neutralActionButtonClass, { '!text-primary bg-primary/[0.08]': userVote === 'like' }]"
         :aria-label="t('review.vote.like')"
@@ -142,6 +146,7 @@
       </button>
 
       <button
+        type="button"
         v-ripple
         :class="[neutralActionButtonClass, { '!text-primary bg-primary/[0.08]': userVote === 'dislike' }]"
         :aria-label="t('review.vote.dislike')"
@@ -153,6 +158,7 @@
       </button>
 
       <button
+        type="button"
         v-ripple
         :class="neutralActionButtonClass"
         :aria-label="t('review.review.commentBtn')"
@@ -164,6 +170,7 @@
 
       <!-- 举报按钮（非自己的评价） -->
       <button
+        type="button"
         v-if="!props.isOwnReview"
         v-ripple
         :class="[warningActionButtonClass, 'ml-auto']"
@@ -175,6 +182,7 @@
 
       <!-- 编辑按钮（自己的评价） -->
       <button
+        type="button"
         v-if="props.isOwnReview && !editing"
         v-ripple
         :class="[primaryActionButtonClass, 'ml-auto']"
@@ -186,6 +194,7 @@
 
       <!-- 删除按钮（自己的评价） -->
       <button
+        type="button"
         v-if="props.isOwnReview"
         v-ripple
         :class="[dangerActionButtonClass, { 'ml-auto': editing }]"
@@ -205,6 +214,7 @@
       <p class="text-xs font-medium text-text-primary m-0 mb-2">{{ t('review.review.reportReason') }}</p>
       <div class="flex flex-wrap gap-2">
         <button
+          type="button"
           v-for="reason in reportReasons"
           :key="reason"
           class="text-xs px-3 py-1.5 rounded-full bg-bg-hover text-text-secondary cursor-pointer transition-colors hover:bg-warning/10 hover:text-warning"
@@ -221,16 +231,19 @@
       <textarea
         v-model="editContent"
         class="w-full px-3 py-2 bg-transparent rounded-lg text-sm text-text-primary outline-none border border-border-light focus:border-primary resize-y min-h-[100px]"
+        :aria-label="t('review.review.editPlaceholder')"
         :placeholder="t('review.review.editPlaceholder')"
       />
       <div class="flex justify-end gap-2 mt-2">
         <button
+          type="button"
           class="px-4 py-1.5 text-xs rounded-full bg-transparent text-text-muted cursor-pointer transition-colors hover:text-text-primary"
           @click="cancelEditing"
         >
           {{ t('common.actions.cancel') }}
         </button>
         <button
+          type="button"
           class="px-4 py-1.5 text-xs rounded-full bg-primary text-white cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-50"
           :disabled="saving || !editContent.trim()"
           @click="handleSaveEdit"
@@ -247,7 +260,7 @@
       </div>
       <div v-else-if="repliesError" class="text-center text-accent text-sm py-4 flex items-center justify-center gap-2">
         {{ t('review.review.replyLoadFailed') }}
-        <button class="text-primary text-sm cursor-pointer underline" @click="loadReplies">
+        <button type="button" class="text-primary text-sm cursor-pointer underline" @click="loadReplies">
           {{ t('common.actions.retry') }}
         </button>
       </div>

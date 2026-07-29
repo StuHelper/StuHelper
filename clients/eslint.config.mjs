@@ -1,6 +1,7 @@
 import js from "@eslint/js";
 import globals from "globals";
 import pluginVue from "eslint-plugin-vue";
+import pluginVueA11y from "eslint-plugin-vuejs-accessibility";
 import tseslint from "typescript-eslint";
 
 const commonIgnores = [
@@ -19,6 +20,7 @@ export default tseslint.config(
 	js.configs.recommended,
 	...tseslint.configs.recommended,
 	...pluginVue.configs["flat/essential"],
+	...pluginVueA11y.configs["flat/recommended"],
 	{
 		files: ["**/*.{ts,tsx,vue}"],
 		languageOptions: {
@@ -38,6 +40,34 @@ export default tseslint.config(
 			"no-debugger": "warn",
 			"no-empty": ["error", { allowEmptyCatch: false }],
 			"no-undef": "off",
+			"vue/html-button-has-type": "error",
+			"vuejs-accessibility/interactive-supports-focus": [
+				"error",
+				{
+					tabbable: [
+						"button",
+						"checkbox",
+						"combobox",
+						"link",
+						"menuitem",
+						"radio",
+						"searchbox",
+						"spinbutton",
+						"switch",
+						"tab",
+						"textbox",
+					],
+				},
+			],
+			"vuejs-accessibility/label-has-for": [
+				"error",
+				{
+					allowChildren: true,
+					controlComponents: ["Input"],
+					required: { some: ["nesting", "id"] },
+				},
+			],
+			"vuejs-accessibility/no-static-element-interactions": "off",
 		},
 	},
 	{

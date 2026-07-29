@@ -12,12 +12,6 @@ const authStore = useAuthStore();
 // from the OIDC issuer config, so the frontend never needs to know
 // where the identity provider lives.
 const accountSettingsUrl = computed(() => authStore.accountSettingsUrl);
-
-function handleGoToAccountSettings() {
-  if (accountSettingsUrl.value) {
-    window.open(accountSettingsUrl.value, '_blank', 'noopener,noreferrer');
-  }
-}
 </script>
 <template>
   <div class="w-1/3">
@@ -33,8 +27,10 @@ function handleGoToAccountSettings() {
         </p>
         <a
           v-if="accountSettingsUrl"
+          :href="accountSettingsUrl"
           class="text-primary cursor-pointer underline"
-          @click="handleGoToAccountSettings"
+          rel="noopener noreferrer"
+          target="_blank"
         >
           {{ $t('admin.profile.password.goToAccountSettings') }}
         </a>

@@ -1,5 +1,6 @@
 <template>
   <button
+    type="button"
     v-ripple
     class="inline-flex items-center gap-1 py-2 px-3 bg-transparent rounded-full text-text-muted cursor-pointer transition-all duration-fast press-spring disabled:opacity-60 disabled:cursor-not-allowed"
     :class="isFavorited

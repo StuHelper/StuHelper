@@ -13,13 +13,15 @@ resolve_log_opts() {
     return
   fi
 
-  if [[ -n "${CI_MERGE_REQUEST_DIFF_BASE_SHA:-}" && -n "${CI_COMMIT_SHA:-}" ]]; then
-    printf '%s..%s\n' "${CI_MERGE_REQUEST_DIFF_BASE_SHA}" "${CI_COMMIT_SHA}"
+  if [[ -n "${GITHUB_BASE_REF:-}" && -n "${GITHUB_SHA:-}" ]] &&
+    git rev-parse --verify "origin/${GITHUB_BASE_REF}" >/dev/null 2>&1; then
+    printf '%s..%s\n' "origin/${GITHUB_BASE_REF}" "${GITHUB_SHA}"
     return
   fi
 
-  if [[ -n "${CI_COMMIT_BEFORE_SHA:-}" && -n "${CI_COMMIT_SHA:-}" ]] && ! is_zero_sha "${CI_COMMIT_BEFORE_SHA}"; then
-    printf '%s..%s\n' "${CI_COMMIT_BEFORE_SHA}" "${CI_COMMIT_SHA}"
+  if [[ -n "${GITHUB_EVENT_BEFORE:-}" && -n "${GITHUB_SHA:-}" ]] &&
+    ! is_zero_sha "${GITHUB_EVENT_BEFORE}"; then
+    printf '%s..%s\n' "${GITHUB_EVENT_BEFORE}" "${GITHUB_SHA}"
     return
   fi
 
@@ -41,7 +43,7 @@ echo "Running gitleaks secret scan on ${source_path} with git log opts: ${log_op
 gitleaks git "${source_path}" \
   --log-opts "${log_opts}" \
   --gitleaks-ignore-path "${source_path%/}/.gitleaksignore" \
-  --platform gitlab \
+  --platform github \
   --redact=100 \
   --no-banner \
   --verbose \

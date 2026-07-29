@@ -26,8 +26,9 @@
           :id="titleInputId"
           v-model="title"
           type="text"
+          :aria-label="t('review.review.titleLabel')"
           maxlength="200"
-          autofocus
+          data-dialog-initial-focus
           :disabled="submitting"
           class="w-full rounded-lg bg-bg-input px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/40 mb-4"
         />
@@ -38,6 +39,7 @@
         <textarea
           :id="contentInputId"
           v-model="content"
+          :aria-label="t('review.review.contentLabel')"
           maxlength="5000"
           rows="6"
           :disabled="submitting"
@@ -51,6 +53,7 @@
           :id="reasonInputId"
           v-model="reason"
           type="text"
+          :aria-label="t('review.admin.editReasonLabel')"
           maxlength="500"
           :placeholder="t('review.admin.editReasonPlaceholder')"
           :disabled="submitting"

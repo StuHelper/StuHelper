@@ -107,7 +107,7 @@ bash infra/ops/scan-runtime-images.sh
 - 已修复但仍留在策略中的例外/VEX 会作为 stale record 失败；
 - 生产部署与远端 preflight 会校验当前进程中的基础设施镜像引用，任何未经过该策略扫描的覆盖值都会阻断部署。
 
-GitHub Actions 的 `Runtime image security` 和 GitLab 的 `runtime_image_security` 都运行完整扫描并保留 JSON evidence；`make check-infra-contracts` 负责校验策略结构、CI 接线和防降级约束，不重复拉取全部镜像。
+GitHub Actions 的 `Runtime image security` 运行完整扫描并保留 JSON evidence；`make check-infra-contracts` 负责校验策略结构、CI 接线和防降级约束，不重复拉取全部镜像。
 
 ## 仅启动可观测性
 
@@ -170,7 +170,7 @@ make prod-deploy
 - 目标机自持 Vault token 文件：
   - `${DEPLOY_APP_DIR}/.secrets/vault/token`
 - registry / shared env / generated env secrets 都由 `${DEPLOY_APP_DIR}/.deploy/remote.env` 中的 secret ref 决定（默认 `SECRET_BACKEND=vault-kv-v2`）
-- CI / Ansible 仅传发布标识与镜像引用；GitLab/GitHub CI 传完整 commit SHA 和三个
+- CI / Ansible 仅传发布标识与镜像引用；GitHub Actions 传完整 commit SHA 和三个
   `image@sha256:...` 引用，仓库本地/Ansible 兼容链路仍可使用 `TAG` / `ROLLBACK_TAG`
 
 如果远端部署控制面变更，直接在目标机执行：
@@ -217,26 +217,31 @@ make prod-reset
 
 这些文件都属于**运行时派生产物**，不应手工维护，也不应提交到 Git。
 
-## GitLab 自动构建与远端部署
+## GitHub Actions 构建与远端部署
 
-符合分支规则的 push 会触发 GitLab CI/CD：
+Pull Request、`develop` 和 `main` push 会触发 `.github/workflows/ci.yml`。按变更路径选择的门禁包括：
 
-1. 先跑质量门禁与安全门禁
-   - Go lint / test / build
-   - OpenAPI lint / drift
-   - `gosec`
-   - `govulncheck`
-   - `pnpm audit` 覆盖 Web、Admin、UniAppX 的生产与开发依赖，使用 npm 官方审计端点并阻断 `MODERATE` 及以上风险；`brace-expansion` 固定为已修复的 `5.0.8`，仓库补丁只提供旧版 `minimatch` 所需的导出兼容层，`check:dependency-compat` 会验证根工作区与 Admin 工作区中的所有实际安装实例
-   - `yarn npm audit` 覆盖 Koishi 全工作区依赖，使用 npm 官方审计端点并阻断 `MODERATE` 及以上风险
-   - `Trivy`：应用候选镜像检查 `HIGH` / `CRITICAL`；22 个受管运行时镜像额外检查 `UNKNOWN`，并逐项核对限时例外与 VEX
-   - `pnpm test:all` 覆盖 Web、共享契约、UniAppX 与 Admin 单元测试；Web / Admin / UniAppX Playwright 分别覆盖桌面与移动视口，Web 默认限制为 2 个 worker，避免共享 Runner 上的浏览器资源争用
-   - Koishi unit / startup / Console Playwright smoke
-   - 前端构建要求显式提供 `WEB_VITE_SSO_URL`；生产值应指向 `https://sso.stuhelper.com`，用于主站发起 Casdoor 登录和展示 Connect 端点，缺失即失败，不再使用构建期 fallback
-2. 构建 backend / frontend / admin 镜像
-3. 推送到自建镜像仓库
-4. 在 Git 工作区干净时打包部署 bundle（脚本、compose、配置模板、文档）
-5. 通过 SSH 上传到远端 Ubuntu 24.04 服务器
-6. 在远端执行 `infra/ops/remote-preflight.sh` + `infra/ops/remote-prod-deploy.sh`
+- Go lint / test / race / coverage / build、`gosec`、`govulncheck` 和可逆迁移验证；
+- OpenAPI lint、Go/TypeScript/capability 生成物 drift；
+- Web、Admin、UniAppX lint / type-check / unit / build，以及桌面和移动 Playwright；
+- Koishi 全工作区依赖审计、单元测试、真实启动和 Console Playwright；
+- npm/Yarn 依赖审计、Semgrep、CodeQL、完整 Git 历史 Gitleaks；
+- 应用候选镜像的 `HIGH` / `CRITICAL` Trivy 门禁，以及 22 个受管运行时镜像额外 `UNKNOWN` 策略、限时例外和 VEX 校验。
+
+受信任的 `develop` / `main` push 只有在 `CI / Required` 成功后，才调用
+`.github/workflows/publish-images.yml`：
+
+1. 使用完整 commit SHA 构建 backend / frontend / admin；
+2. 扫描本地候选镜像；
+3. 把同一镜像推送到 `ghcr.io/stuhelper/*:<full-commit-sha>`；
+4. 解析最终 manifest digest 并签发 provenance attestation；
+5. 更新仅供人类识别的 `develop-latest` 或 `latest` alias。
+
+staging 和 production 都通过 `.github/workflows/deploy.yml` 手工部署。输入必须是已发布的完整
+40 位 commit SHA；工作流会验证镜像所属仓库、签发工作流、源分支、源提交和 digest，再打包部署
+bundle，通过固定 SSH host key 上传，在远端执行 `infra/ops/remote-preflight.sh`、
+`infra/ops/remote-prod-deploy.sh`、业务 smoke 和可观测性 smoke。production 必须由受保护 GitHub
+environment 审批。
 
 生产分支真正部署到线上之前，打包阶段和 `remote-preflight.sh` 会共同避免：
 
@@ -265,28 +270,18 @@ sudo bash infra/ops/bootstrap-ubuntu2404.sh
 - PostgreSQL backup sync timer
 - WAL 归档目录
 
-GitLab CI 至少需要以下变量：
+`staging` 和 `production` GitHub environment 都使用以下 secrets，值按环境隔离：
 
-- **打包镜像阶段**
-  - `REGISTRY`
-  - `REGISTRY_USERNAME`
-  - `REGISTRY_PASSWORD`
-  - `WEB_VITE_SSO_URL`（前端构建单一来源；生产值指向 `https://sso.stuhelper.com`，只用于上游 Casdoor 认证，缺失即失败，不再回落到默认 SSO 域名）
-  - `WEB_VITE_WEB_URL`（Web 主站浏览器 origin；生产值指向 `https://stuhelper.com`，用于登录后回到主站原路径）
-- **SSH 发布阶段（staging）**
-  - `STAGING_DEPLOY_HOST`
-  - `STAGING_DEPLOY_PORT`
-  - `STAGING_DEPLOY_USER`
-  - `STAGING_DEPLOY_APP_DIR`
-  - `STAGING_DEPLOY_SSH_KEY`
-  - `STAGING_DEPLOY_SSH_KNOWN_HOSTS`（目标机 SSH host public key，禁止 TOFU）
-- **SSH 发布阶段（production）**
-  - `DEPLOY_HOST`
-  - `DEPLOY_PORT`
-  - `DEPLOY_USER`
-  - `DEPLOY_APP_DIR`
-  - `DEPLOY_SSH_KEY`
-  - `DEPLOY_SSH_KNOWN_HOSTS`（目标机 SSH host public key，禁止 TOFU）
+- `DEPLOY_HOST`
+- `DEPLOY_PORT`
+- `DEPLOY_USER`
+- `DEPLOY_APP_DIR`
+- `DEPLOY_SSH_KEY`
+- `DEPLOY_SSH_KNOWN_HOSTS`（固定目标 SSH host public key，禁止 TOFU）
+
+浏览器构建参数使用 GitHub repository variables，现行名称见
+[GitHub 仓库与 Actions 治理](github-migration.md#repository-variables)。真实密钥不得放在 repository
+variables、workflow YAML 或构建参数中。
 
 远端主机自身还必须提前准备：
 
@@ -296,53 +291,20 @@ GitLab CI 至少需要以下变量：
 - `${DEPLOY_APP_DIR}/.env.prod.generated.secrets`（应为空占位）
 - `${DEPLOY_APP_DIR}/.secrets/vault/token`
 
-## GitLab 环境流转
-
-- `develop` 分支 push：
-  - 构建 backend / frontend / admin 镜像
-  - 推送到自建 registry
-  - 自动部署到 staging
-  - 自动执行 `verify_staging`
-- `main` 分支 push：
-  - 构建 backend / frontend / admin 镜像
-  - 推送到自建 registry
-  - 等待手工触发 `deploy_production`
-  - 发布完成后自动执行 `verify_production`
-
-前端质量门禁：
-
-- `frontend_e2e`：Web Playwright
-- `admin_e2e`：Admin Playwright
-- `uniappx_e2e`：UniAppX H5 Playwright
-- `koishi_test`：Koishi packages/plugins 单元测试、真实启动烟雾验证和 Console Playwright smoke
-
-只有 Web/Admin/UniAppX H5 E2E 和 Koishi 测试通过后，镜像构建与远端部署才会继续。Koishi Console Playwright
-失败时，GitLab 会保留 `bots/koishi/playwright-report` 和 `bots/koishi/test-results` 作为 artifact，
-用于查看 trace、截图和错误上下文。
-
 ## 回滚
 
-GitLab 提供两个手工 Job：
-
-- `rollback_staging`
-- `rollback_production`
-
-可以传：
-
-- `ROLLBACK_SHA=<之前已发布版本的完整 40 位 commit SHA>`（必填）
-
-GitLab 手工回滚不接受可变 tag、短 SHA 或空值；本地 `make prod-rollback` 才会在未传
-`ROLLBACK_TAG` 时尝试读取 `.deploy/releases.log` 的上一条成功版本。
+GitHub `Rollback` 手工作业选择 `staging` 或 `production` environment，并要求
+`commit_sha=<previous-release-full-40-character-commit-sha>`。它不接受可变 tag、短 SHA 或空值。
 
 回滚本质上是：
 
-1. CI 把三个完整 SHA tag 解析并校验为不可变 digest 引用
+1. GitHub Actions 把三个完整 SHA tag 解析为 digest，并验证 provenance
 2. 远端读取 `.deploy/remote.env`
 3. 远端按三个 digest 拉取 backend / frontend / admin 镜像
 4. 重新执行 `infra/ops/remote-prod-rollback.sh`
 5. 自动再次跑业务与可观测性 smoke check
 
-仓库内也保留了本地生产回滚命令：
+本地应急入口仍保留；未传 `ROLLBACK_TAG` 时会尝试读取 `.deploy/releases.log` 的上一条成功版本：
 
 ```bash
 # 项目根目录下运行

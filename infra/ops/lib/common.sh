@@ -295,16 +295,14 @@ require_verified_postgres_ssl_mode() {
 require_production_postgres_url() {
   local key="$1"
   local value="${2:-}"
-  local allow_plaintext="${3:-false}"
   local output
 
-  if ! output="$(python3 - "${key}" "${value}" "${allow_plaintext}" 2>&1 <<'PY'
+  if ! output="$(python3 - "${key}" "${value}" 2>&1 <<'PY'
 import sys
 from urllib.parse import parse_qs, urlsplit
 
 key = sys.argv[1]
 value = sys.argv[2].strip()
-allow_plaintext = sys.argv[3] == "true"
 
 if not value:
     raise SystemExit(f"{key} must be configured for production PostgreSQL")
@@ -322,8 +320,6 @@ if host in {"localhost", "127.0.0.1", "::1"}:
 query = parse_qs(parsed.query, keep_blank_values=True)
 ssl_modes = query.get("sslmode", [])
 ssl_mode = ssl_modes[0] if ssl_modes else ""
-if allow_plaintext and ssl_mode == "disable":
-    raise SystemExit(0)
 if ssl_mode not in {"verify-ca", "verify-full"}:
     raise SystemExit(
         f"{key} must include sslmode=verify-ca or sslmode=verify-full for production (got {ssl_mode or '<missing>'})"
@@ -339,14 +335,10 @@ PY
 }
 
 require_production_postgres_ssl() {
-  local allow_plaintext="false"
-  if [[ "${EXTERNAL_POSTGRES_ALLOW_PLAINTEXT:-false}" == "true" ]]; then
-    allow_plaintext="true"
-    [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" ]] || die "EXTERNAL_POSTGRES_ENABLED must be true when EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true"
-    [[ -n "${EXTERNAL_DATASTORE_NETWORK:-}" ]] || die "EXTERNAL_DATASTORE_NETWORK is required when EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true"
-    [[ "${POSTGRES_INTERNAL_SSL_MODE:-}" == "disable" ]] || die "POSTGRES_INTERNAL_SSL_MODE must be disable when EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true"
-    [[ "${DB_SSL_MODE:-}" == "disable" ]] || die "DB_SSL_MODE must be disable when EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true"
-  elif [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" ]]; then
+  [[ "${EXTERNAL_POSTGRES_ALLOW_PLAINTEXT:-false}" != "true" ]] ||
+    die "EXTERNAL_POSTGRES_ALLOW_PLAINTEXT is only allowed in prod-parity; production PostgreSQL must use verified TLS"
+
+  if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" ]]; then
     require_verified_postgres_ssl_mode "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}"
     [[ "${DB_SSL_MODE:-}" == "verify-full" ]] || die "DB_SSL_MODE must be verify-full for external production PostgreSQL"
     [[ "${DB_SSL_ROOT_CERT:-}" == "/tls/ca.crt" ]] ||
@@ -361,9 +353,9 @@ require_production_postgres_ssl() {
       die "DB_SSL_ROOT_CERT must be /tls/ca.crt for production"
   fi
 
-  require_production_postgres_url "DATABASE_URL" "${DATABASE_URL:-}" "${allow_plaintext}"
-  require_production_postgres_url "BACKUP_DATABASE_URL" "${BACKUP_DATABASE_URL:-}" "${allow_plaintext}"
-  require_production_postgres_url "REPLICATION_DATABASE_URL" "${REPLICATION_DATABASE_URL:-}" "${allow_plaintext}"
+  require_production_postgres_url "DATABASE_URL" "${DATABASE_URL:-}"
+  require_production_postgres_url "BACKUP_DATABASE_URL" "${BACKUP_DATABASE_URL:-}"
+  require_production_postgres_url "REPLICATION_DATABASE_URL" "${REPLICATION_DATABASE_URL:-}"
 }
 
 require_production_external_student_source_security() {
@@ -396,6 +388,7 @@ require_production_external_student_source_security() {
   [[ "${EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE}" =~ ^[0-9]{10}$ ]] ||
     die "EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE must be a 10-digit school code"
   for key in \
+    EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME \
     EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA \
     EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE \
     EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_ID_COLUMN \
@@ -404,6 +397,8 @@ require_production_external_student_source_security() {
     [[ "${value}" =~ ^[A-Za-z][A-Za-z0-9_]{0,127}$ ]] ||
       die "${key} must be a safe Oracle identifier"
   done
+  [[ "${EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME^^}" != "${EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA^^}" ]] ||
+    die "EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must not own the source schema"
 
   [[ "${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE:-}" == "verify-full" ]] ||
     die "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE must be verify-full in production"

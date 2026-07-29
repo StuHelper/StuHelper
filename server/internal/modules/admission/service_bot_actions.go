@@ -146,6 +146,7 @@ func (s *Service) pendingActionFromQueuedRow(
 		return AdmissionPendingAction{}, true, nil
 	}
 	action.ActionID = strconv.FormatInt(row.ID, 10)
+	action.DispatchAttempt = row.AttemptCount
 	return action, false, nil
 }
 

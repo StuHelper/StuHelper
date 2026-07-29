@@ -4,6 +4,7 @@ import "time"
 
 type AdmissionPendingAction struct {
 	ActionID               string    `json:"actionID,omitempty"`
+	DispatchAttempt        int       `json:"dispatchAttempt,omitempty"`
 	SessionID              string    `json:"sessionID"`
 	Action                 BotAction `json:"action"`
 	Platform               string    `json:"platform,omitempty"`

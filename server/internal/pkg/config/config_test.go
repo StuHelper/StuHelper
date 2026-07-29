@@ -211,6 +211,16 @@ func TestIsProductionLikeEnvTrimsWhitespace(t *testing.T) {
 	assert.False(t, IsProductionLikeEnv(" development "))
 }
 
+func TestLoadAppConfigDefaultBodyLimitAccommodatesTenMiBBase64Payload(t *testing.T) {
+	t.Setenv("MAX_BODY_SIZE", "")
+	var parseErrs []string
+
+	cfg := loadAppConfig(&parseErrs)
+
+	require.Empty(t, parseErrs)
+	assert.Equal(t, int64(16<<20), cfg.MaxBodySize)
+}
+
 func TestValidate_RejectsAppEnvWhitespace(t *testing.T) {
 	c := validProductionConfigForTest()
 	c.App.Env = " production "
@@ -911,7 +921,7 @@ func TestValidate_EmailMultiAllowsProduction(t *testing.T) {
 	require.NoError(t, c.validate(nil))
 }
 
-func TestValidate_ProductionAllowsExplicitExternalPlaintextPostgres(t *testing.T) {
+func TestValidate_ProductionRejectsExplicitExternalPlaintextPostgres(t *testing.T) {
 	c := validProductionConfigForTest()
 	c.Database.SSLMode = "disable"
 	c.Database.SSLRootCert = ""
@@ -919,7 +929,19 @@ func TestValidate_ProductionAllowsExplicitExternalPlaintextPostgres(t *testing.T
 
 	err := c.validate(nil)
 
-	require.NoError(t, err)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "EXTERNAL_POSTGRES_ALLOW_PLAINTEXT is only allowed in prod-parity")
+	assert.Contains(t, err.Error(), "DB_SSL_MODE must be 'verify-full' in production")
+}
+
+func TestValidate_ProdParityAllowsExplicitPlaintextPostgres(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.App.Env = EnvProdParity
+	c.Database.SSLMode = "disable"
+	c.Database.SSLRootCert = ""
+	c.Database.AllowPlaintext = true
+
+	require.NoError(t, c.validate(nil))
 }
 
 func TestValidate_ProductionRejectsImplicitPlaintextDatastores(t *testing.T) {
@@ -950,7 +972,7 @@ func TestLoadExternalDataConfigFromEnv(t *testing.T) {
 	t.Setenv("EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE", "4111010006")
 	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_HOST", "oracle.example.test")
 	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME", "ORCLPDB1")
-	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME", "SYSTEM")
+	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME", "stuhelper_academic_ro")
 	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD", "secret")
 	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA", "USR_JWBIZ")
 	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE", "T_XS_JBXX")
@@ -989,7 +1011,7 @@ func TestValidateRejectsIncompleteExternalStudentSource(t *testing.T) {
 			Host:                    "oracle.example.test",
 			Port:                    1521,
 			ServiceName:             "ORCLPDB1",
-			Username:                "SYSTEM",
+			Username:                "stuhelper_academic_ro",
 			TLSMode:                 "verify-full",
 			TLSCAFile:               "/external-student-source-tls/ca.crt",
 			Schema:                  "USR_JWBIZ",
@@ -1048,6 +1070,72 @@ func TestValidateRejectsPlaintextOracleStudentSourceInProduction(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE must be verify-full in production")
+}
+
+func TestValidateRejectsAdministrativeOracleStudentSourceAccount(t *testing.T) {
+	for _, username := range []string{"SYS", "system", "SYSBACKUP", "SYSDG", "SYSKM", "SYSRAC"} {
+		t.Run(username, func(t *testing.T) {
+			errs := validateExternalOracleStudentSource(ExternalOracleStudentSourceConfig{
+				Host:                    "oracle.example.test",
+				Port:                    2484,
+				ServiceName:             "ORCLPDB1",
+				Username:                username,
+				Password:                "secret",
+				TLSMode:                 "verify-full",
+				TLSCAFile:               "/external-student-source-tls/ca.crt",
+				Schema:                  "USR_JWBIZ",
+				Table:                   "T_XS_JBXX",
+				StudentIDColumn:         "XH",
+				StudentNameColumn:       "XM",
+				ConnectTimeoutSeconds:   5,
+				QueryTimeoutSeconds:     3,
+				MaxOpenConns:            4,
+				MaxIdleConns:            1,
+				ConnMaxLifetimeSeconds:  300,
+				ConnMaxIdleTimeSeconds:  60,
+				BreakerFailureThreshold: 5,
+				BreakerSuccessThreshold: 2,
+				BreakerOpenSeconds:      30,
+			}, true)
+
+			assert.Contains(
+				t,
+				errs,
+				"EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must be a dedicated non-administrative account",
+			)
+		})
+	}
+}
+
+func TestValidateRejectsOracleStudentSourceSchemaOwnerAccount(t *testing.T) {
+	errs := validateExternalOracleStudentSource(ExternalOracleStudentSourceConfig{
+		Host:                    "oracle.example.test",
+		Port:                    2484,
+		ServiceName:             "ORCLPDB1",
+		Username:                "usr_jwbiz",
+		Password:                "secret",
+		TLSMode:                 "verify-full",
+		TLSCAFile:               "/external-student-source-tls/ca.crt",
+		Schema:                  "USR_JWBIZ",
+		Table:                   "T_XS_JBXX",
+		StudentIDColumn:         "XH",
+		StudentNameColumn:       "XM",
+		ConnectTimeoutSeconds:   5,
+		QueryTimeoutSeconds:     3,
+		MaxOpenConns:            4,
+		MaxIdleConns:            1,
+		ConnMaxLifetimeSeconds:  300,
+		ConnMaxIdleTimeSeconds:  60,
+		BreakerFailureThreshold: 5,
+		BreakerSuccessThreshold: 2,
+		BreakerOpenSeconds:      30,
+	}, true)
+
+	assert.Contains(
+		t,
+		errs,
+		"EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must not own the source schema",
+	)
 }
 
 func TestValidate_DevelopmentAllowsMissingBotServiceToken(t *testing.T) {

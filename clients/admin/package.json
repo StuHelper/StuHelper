@@ -46,6 +46,7 @@
     "@vue/test-utils": "catalog:",
     "cross-env": "catalog:",
     "cspell": "catalog:",
+    "eslint-plugin-vuejs-accessibility": "catalog:",
     "happy-dom": "catalog:",
     "is-ci": "catalog:",
     "lefthook": "catalog:",

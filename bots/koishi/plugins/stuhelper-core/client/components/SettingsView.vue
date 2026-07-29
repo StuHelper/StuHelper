@@ -5,6 +5,7 @@
       <h2 class="view-title">全局设置</h2>
       <div class="header-actions">
         <button
+          type="button"
           class="action-btn danger-outline"
           :disabled="!settingsLoaded || saving"
           @click="resetToDefault"
@@ -26,7 +27,7 @@
         <strong>加载全局设置失败</strong>
         <span>{{ loadError }}</span>
       </div>
-      <button class="action-btn" @click="loadSettings">
+      <button type="button" class="action-btn" @click="loadSettings">
         <k-icon name="refresh-cw" class="btn-icon" />
         <span>重试</span>
       </button>
@@ -195,6 +196,7 @@
               <div class="form-control">
                 <textarea
                   v-model="forbiddenKeywordsText"
+                  aria-label="禁言关键词"
                   rows="4"
                   placeholder="每行一个关键词"
                   class="form-textarea"
@@ -255,6 +257,7 @@
                 <div class="form-control">
                   <textarea
                     v-model="keywordRuleDraft.pattern"
+                    aria-label="匹配内容"
                     rows="3"
                     maxlength="256"
                     class="form-textarea"
@@ -302,6 +305,7 @@
                 <div class="form-control">
                   <textarea
                     v-model="keywordRuleNoteText"
+                    aria-label="规则备注"
                     rows="2"
                     maxlength="512"
                     class="form-textarea"
@@ -342,6 +346,7 @@
               <div class="form-control">
                 <textarea
                   v-model="keywordsText"
+                  aria-label="审核关键词"
                   rows="6"
                   placeholder="每行一个关键词"
                   class="form-textarea"
@@ -374,6 +379,7 @@
               <div class="form-control">
                 <textarea
                   v-model="settings.binding.messages[field.key]"
+                  :aria-label="field.label"
                   rows="3"
                   class="form-textarea"
                 ></textarea>
@@ -398,6 +404,7 @@
               <div class="form-control">
                 <textarea
                   v-model="settings.admin.messages[field.key]"
+                  :aria-label="field.label"
                   rows="3"
                   class="form-textarea"
                 ></textarea>
@@ -425,6 +432,7 @@
               <div class="form-control">
                 <textarea
                   v-model="settings.groupGuardMessages.messages[field.key]"
+                  :aria-label="field.label"
                   rows="3"
                   class="form-textarea"
                   @input="groupGuardMessageResetPending = false"
@@ -612,6 +620,7 @@
               <div class="form-control">
                 <textarea
                   v-model="friendKeywordsText"
+                  aria-label="通过关键词"
                   rows="4"
                   placeholder="每行一个关键词"
                   class="form-textarea"
@@ -852,6 +861,7 @@
               <div class="form-control">
                 <textarea
                   v-model="settings.openai.systemPrompt"
+                  aria-label="系统提示词"
                   rows="4"
                   class="form-textarea"
                   placeholder="你是一个有帮助的AI助手..."
@@ -863,6 +873,7 @@
               <div class="form-control">
                 <textarea
                   v-model="settings.openai.translatePrompt"
+                  aria-label="翻译提示词"
                   rows="4"
                   class="form-textarea"
                   placeholder="翻译提示词..."
@@ -969,6 +980,7 @@
               <div class="form-control">
                 <textarea
                   v-model="settings.report.defaultPrompt"
+                  aria-label="默认审核提示词"
                   rows="6"
                   class="form-textarea"
                   placeholder="AI 审核提示词..."
@@ -980,6 +992,7 @@
               <div class="form-control">
                 <textarea
                   v-model="settings.report.contextPrompt"
+                  aria-label="带上下文审核提示词"
                   rows="6"
                   class="form-textarea"
                   placeholder="带上下文的 AI 审核提示词..."
@@ -997,8 +1010,8 @@
       <div class="save-bar" v-if="settingsLoaded && hasChanges">
         <span class="save-bar-text">检测到未保存的修改</span>
         <div class="save-actions">
-          <button class="save-bar-btn secondary" :disabled="saving" @click="resetChanges">放弃更改</button>
-          <button class="save-bar-btn primary" :disabled="saving" @click="saveSettings">
+          <button type="button" class="save-bar-btn secondary" :disabled="saving" @click="resetChanges">放弃更改</button>
+          <button type="button" class="save-bar-btn primary" :disabled="saving" @click="saveSettings">
             {{ saving ? '保存中...' : '保存更改' }}
           </button>
         </div>

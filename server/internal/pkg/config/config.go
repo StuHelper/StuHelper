@@ -348,12 +348,14 @@ func Load() (*Config, error) {
 
 func loadAppConfig(parseErrs *[]string) AppConfig {
 	return AppConfig{
-		Env:                getEnv("APP_ENV", "development"),
-		Port:               getEnv("APP_PORT", "8080"),
-		CORSOrigins:        getEnvSlice("CORS_ORIGINS", []string{}),
-		TrustedProxies:     getEnvSlice("TRUSTED_PROXIES", []string{}),
-		HMACSecret:         getEnv("HMAC_SECRET", ""),
-		MaxBodySize:        getEnvInt64("MAX_BODY_SIZE", 10<<20, parseErrs),
+		Env:            getEnv("APP_ENV", "development"),
+		Port:           getEnv("APP_PORT", "8080"),
+		CORSOrigins:    getEnvSlice("CORS_ORIGINS", []string{}),
+		TrustedProxies: getEnvSlice("TRUSTED_PROXIES", []string{}),
+		HMACSecret:     getEnv("HMAC_SECRET", ""),
+		// 资源接口允许 10 MiB 原始文件；Base64 与 JSON envelope 会把请求体
+		// 放大到约 13.4 MiB，因此传输层默认需要保留充足余量。
+		MaxBodySize:        getEnvInt64("MAX_BODY_SIZE", 16<<20, parseErrs),
 		MetricsUser:        getEnv("METRICS_USER", "prometheus"),
 		MetricsPassword:    getEnv("METRICS_PASSWORD", ""),
 		APIIPRateLimit:     getEnvInt("API_IP_RATE_LIMIT", 100, parseErrs),

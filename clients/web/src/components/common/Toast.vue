@@ -34,6 +34,7 @@
         />
         <span class="flex-1 leading-snug">{{ item.message }}</span>
         <button
+          type="button"
           class="text-text-muted text-lg leading-none px-1 cursor-pointer hover:text-text-primary"
           :aria-label="t('common.actions.close')"
           @click="remove(item.id)"

@@ -53,9 +53,13 @@ func (rt *Runtime) serve(router *gin.Engine) error {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer shutdownCancel()
 
-	if err := srv.Shutdown(shutdownCtx); err != nil {
+	// 先停止后台取件并释放 SSE 等长连接，再让 net/http 等待在途请求完成。
+	// http.Server.Shutdown 本身不会主动取消活动中的长连接处理器。
+	rt.beginShutdown()
+	shutdownErr := shutdownHTTPServer(shutdownCtx, srv)
+	if shutdownErr != nil {
 		logger.L().Error("Server forced to shutdown",
-			gozap.Error(err),
+			gozap.Error(shutdownErr),
 			gozap.Duration("timeout", shutdownTimeout),
 		)
 	} else {
@@ -64,5 +68,21 @@ func (rt *Runtime) serve(router *gin.Engine) error {
 
 	rt.runCleanups()
 	logger.L().Info("All resources released, server exited")
-	return serverStartErr
+	return errors.Join(serverStartErr, shutdownErr)
+}
+
+type httpServerShutdown interface {
+	Shutdown(context.Context) error
+	Close() error
+}
+
+func shutdownHTTPServer(ctx context.Context, srv httpServerShutdown) error {
+	if err := srv.Shutdown(ctx); err != nil {
+		shutdownErr := fmt.Errorf("graceful HTTP shutdown: %w", err)
+		if closeErr := srv.Close(); closeErr != nil {
+			return errors.Join(shutdownErr, fmt.Errorf("force close HTTP server: %w", closeErr))
+		}
+		return shutdownErr
+	}
+	return nil
 }

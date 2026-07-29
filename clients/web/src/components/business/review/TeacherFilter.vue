@@ -2,6 +2,7 @@
   <div v-if="teachers.length > 0" class="flex items-center gap-2 flex-wrap">
     <span class="text-xs text-text-muted font-medium shrink-0">{{ t('review.filter.teacher') }}</span>
     <button
+      type="button"
       class="py-1 px-3 text-xs rounded-full border transition-all duration-fast ease-smooth cursor-pointer"
       :class="!modelValue
         ? 'bg-primary text-white border-primary'
@@ -11,6 +12,7 @@
       {{ t('review.filter.all') }}
     </button>
     <button
+      type="button"
       v-for="teacher in teachers"
       :key="teacher"
       class="py-1 px-3 text-xs rounded-full border transition-all duration-fast ease-smooth cursor-pointer"

@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"encoding/base64"
 	"strings"
 	"testing"
 
@@ -50,4 +51,26 @@ func TestResourceOperationsRejectInvalidResourceIDBeforeDependencies(t *testing.
 		require.ErrorIs(t, err, ErrResourceIDInvalid)
 		assert.Empty(t, url)
 	}
+}
+
+func TestResourceWritesRejectUnknownVisibilityBeforeExternalEffects(t *testing.T) {
+	ctx := context.Background()
+	svc := &Service{}
+
+	created, err := svc.CreateResource(ctx, "owner", CreateRequest{
+		Title:       "private notes",
+		Visibility:  "privtae",
+		Filename:    "notes.txt",
+		ContentType: "text/plain",
+		DataBase64:  base64.StdEncoding.EncodeToString([]byte("private")),
+	})
+	require.ErrorIs(t, err, ErrResourceVisibilityInvalid)
+	assert.Nil(t, created)
+
+	updated, err := svc.UpdateResource(ctx, 1, "owner", UpdateRequest{
+		Title:      "private notes",
+		Visibility: "internal",
+	})
+	require.ErrorIs(t, err, ErrResourceVisibilityInvalid)
+	assert.Nil(t, updated)
 }

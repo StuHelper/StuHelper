@@ -40,8 +40,8 @@ type IdentityStatus struct {
 	UpdatedAt       time.Time
 }
 
-// IdentityReviewItem 实名认证审核列表项（用于管理员列表和审核）
-// 不包含 DocNumberEnc 和 PersonUID，包含照片字段供审核
+// IdentityReviewItem 实名认证审核视图（用于管理员列表和详情）
+// 不包含 DocNumberEnc 和 PersonUID；列表查询不加载照片字段，详情查询才加载。
 type IdentityReviewItem struct {
 	UserID          int64
 	DocType         string

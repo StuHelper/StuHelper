@@ -1,5 +1,5 @@
 <template>
-  <main class="mx-auto max-w-[1120px] p-6 animate-fade-in max-sm:p-4">
+  <section class="mx-auto max-w-[1120px] p-6 animate-fade-in max-sm:p-4">
     <header class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div class="min-w-0">
         <p class="m-0 text-xs font-semibold uppercase text-primary">
@@ -892,7 +892,7 @@
             class="developer-input min-h-24 resize-y py-2"
             rows="4"
             autocomplete="off"
-            autofocus
+            data-dialog-initial-focus
             :disabled="reasonDialogSubmitting"
           />
         </label>
@@ -926,7 +926,7 @@
       </form>
     </div>
     </Teleport>
-  </main>
+  </section>
 </template>
 
 <script setup lang="ts">

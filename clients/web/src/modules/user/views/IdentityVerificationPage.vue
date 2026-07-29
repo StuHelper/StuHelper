@@ -3,6 +3,7 @@
         <!-- Back button + title -->
         <header class="flex items-center gap-3 mb-6">
             <button
+                type="button"
                 class="p-2 bg-transparent rounded-lg text-text-muted cursor-pointer transition-all duration-fast hover:border-text-primary hover:text-text-primary"
                 :aria-label="t('common.actions.back')"
                 @click="goBack"
@@ -133,6 +134,7 @@
                 </div>
             </div>
             <button
+                type="button"
                 class="mt-4 w-full py-2.5 bg-text-primary text-bg-base rounded-lg text-sm font-medium cursor-pointer transition-all duration-fast hover:bg-accent hover:text-white border-0"
                 @click="showForm = true"
             >
@@ -141,7 +143,13 @@
         </div>
 
         <!-- Verification form -->
-        <div v-else class="bg-bg-card rounded-xl p-5 shadow-card">
+        <form
+            v-else
+            class="bg-bg-card rounded-xl p-5 shadow-card"
+            data-identity-verification-form
+            :aria-busy="submitting"
+            @submit.prevent="handleSubmit"
+        >
             <p class="text-sm text-text-muted mb-5 m-0">
                 {{ t("user.verification.identity.desc") }}
             </p>
@@ -186,6 +194,7 @@
                     data-identity-real-name-input
                     v-model="form.realName"
                     type="text"
+                    autocomplete="name"
                     class="w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary"
                     :placeholder="t('user.verification.identity.realName')"
                 />
@@ -204,39 +213,58 @@
                     data-identity-doc-number-input
                     v-model="form.docNumber"
                     type="text"
+                    autocomplete="off"
                     class="w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary"
                     :class="docNumberError ? 'border-red-500/60' : ''"
                     :placeholder="t('user.verification.identity.docNumber')"
+                    :aria-invalid="Boolean(docNumberError)"
+                    :aria-describedby="
+                        docNumberError
+                            ? 'identity-doc-number-error'
+                            : undefined
+                    "
                 />
                 <p
                     v-if="docNumberError"
+                    id="identity-doc-number-error"
                     data-identity-doc-number-error
                     class="text-xs text-red-500 mt-2 mb-0"
+                    role="alert"
                 >
                     {{ docNumberError }}
                 </p>
             </div>
 
-            <!-- Step 4: Photo upload (non-mainland ID only) -->
-            <div v-if="form.docType !== 'MAINLAND_ID'" class="mb-5 space-y-4">
+            <!-- Step 4: Photo evidence for manual review -->
+            <div v-if="requiresManualEvidence" class="mb-5 space-y-4">
+                <p
+                    v-if="manualEvidenceRequired"
+                    data-identity-manual-evidence-required
+                    class="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm text-text-secondary"
+                    role="alert"
+                >
+                    {{ t("user.verification.identity.manualEvidencePrompt") }}
+                </p>
+
                 <!-- Front photo -->
                 <div>
-                    <label
+                    <p
                         class="block text-sm font-semibold text-text-primary mb-2"
                     >
                         {{ t("user.verification.identity.photoFront") }}
                         <span class="text-red-500 ml-1">*</span>
-                    </label>
+                    </p>
                     <div
                         v-if="previews.front"
                         class="relative w-full max-w-[240px] aspect-[3/2] rounded-lg overflow-hidden"
                     >
                         <img
                             :src="previews.front"
-                            alt=""
+                            :alt="t('user.verification.identity.photoFront')"
                             class="w-full h-full object-cover"
                         />
                         <button
+                            type="button"
                             class="absolute top-1 right-1 size-6 bg-black/50 border-0 rounded-full flex items-center justify-center cursor-pointer text-white"
                             :aria-label="t('common.actions.delete')"
                             @click="clearPhoto('front')"
@@ -254,7 +282,10 @@
                         }}</span>
                         <input
                             type="file"
-                            accept="image/*"
+                            accept="image/jpeg,image/png,image/webp"
+                            :aria-label="
+                                t('user.verification.identity.photoFront')
+                            "
                             class="sr-only"
                             @change="handlePhotoChange($event, 'front')"
                         />
@@ -263,21 +294,22 @@
 
                 <!-- Back photo -->
                 <div>
-                    <label
+                    <p
                         class="block text-sm font-semibold text-text-primary mb-2"
                     >
                         {{ t("user.verification.identity.photoBack") }}
-                    </label>
+                    </p>
                     <div
                         v-if="previews.back"
                         class="relative w-full max-w-[240px] aspect-[3/2] rounded-lg overflow-hidden"
                     >
                         <img
                             :src="previews.back"
-                            alt=""
+                            :alt="t('user.verification.identity.photoBack')"
                             class="w-full h-full object-cover"
                         />
                         <button
+                            type="button"
                             class="absolute top-1 right-1 size-6 bg-black/50 border-0 rounded-full flex items-center justify-center cursor-pointer text-white"
                             :aria-label="t('common.actions.delete')"
                             @click="clearPhoto('back')"
@@ -295,7 +327,10 @@
                         }}</span>
                         <input
                             type="file"
-                            accept="image/*"
+                            accept="image/jpeg,image/png,image/webp"
+                            :aria-label="
+                                t('user.verification.identity.photoBack')
+                            "
                             class="sr-only"
                             @change="handlePhotoChange($event, 'back')"
                         />
@@ -304,22 +339,23 @@
 
                 <!-- Selfie -->
                 <div>
-                    <label
+                    <p
                         class="block text-sm font-semibold text-text-primary mb-2"
                     >
                         {{ t("user.verification.identity.photoSelfie") }}
                         <span class="text-red-500 ml-1">*</span>
-                    </label>
+                    </p>
                     <div
                         v-if="previews.selfie"
                         class="relative w-full max-w-[240px] aspect-[3/2] rounded-lg overflow-hidden"
                     >
                         <img
                             :src="previews.selfie"
-                            alt=""
+                            :alt="t('user.verification.identity.photoSelfie')"
                             class="w-full h-full object-cover"
                         />
                         <button
+                            type="button"
                             class="absolute top-1 right-1 size-6 bg-black/50 border-0 rounded-full flex items-center justify-center cursor-pointer text-white"
                             :aria-label="t('common.actions.delete')"
                             @click="clearPhoto('selfie')"
@@ -337,7 +373,10 @@
                         }}</span>
                         <input
                             type="file"
-                            accept="image/*"
+                            accept="image/jpeg,image/png,image/webp"
+                            :aria-label="
+                                t('user.verification.identity.photoSelfie')
+                            "
                             class="sr-only"
                             @change="handlePhotoChange($event, 'selfie')"
                         />
@@ -347,10 +386,10 @@
 
             <!-- Submit button -->
             <button
+                type="submit"
                 data-identity-submit
                 class="w-full py-2.5 bg-text-primary text-bg-base rounded-lg text-sm font-medium cursor-pointer transition-all duration-fast hover:bg-accent hover:text-white border-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 :disabled="!canSubmit || submitting"
-                @click="handleSubmit"
             >
                 <span v-if="submitting" class="inline-flex items-center gap-2">
                     <span
@@ -362,12 +401,12 @@
                     {{ t("user.verification.identity.submit") }}
                 </span>
             </button>
-        </div>
+        </form>
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from "vue";
+import { ref, reactive, computed, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import {
@@ -380,6 +419,7 @@ import {
 } from "lucide-vue-next";
 import { useVerificationStore } from "@/stores/verification";
 import { useToast } from "@/composables/useToast";
+import { isApiError } from "@/api/errors";
 import {
     isValidMainlandIDNumber,
     normalizeMainlandIDNumber,
@@ -396,6 +436,7 @@ const identity = computed(() => store.identity);
 const storeLoading = computed(() => store.loading);
 const showForm = ref(false);
 const submitting = ref(false);
+const manualEvidenceRequired = ref(false);
 
 type DocType = "MAINLAND_ID" | "HK_MACAU" | "TW" | "PASSPORT";
 
@@ -465,11 +506,15 @@ function docTypeLabel(docType: string): string {
     return found ? found.label : docType;
 }
 
+const requiresManualEvidence = computed(
+    () => form.docType !== "MAINLAND_ID" || manualEvidenceRequired.value,
+);
+
 const canSubmit = computed(() => {
     if (!form.docType || !form.realName.trim() || !form.docNumber.trim())
         return false;
     if (docNumberError.value) return false;
-    if (form.docType !== "MAINLAND_ID") {
+    if (requiresManualEvidence.value) {
         if (!photos.front || !photos.selfie) return false;
     }
     return true;
@@ -530,6 +575,13 @@ function clearPhoto(key: "front" | "back" | "selfie") {
     previews[key] = null;
 }
 
+watch(
+    () => form.docType,
+    () => {
+        manualEvidenceRequired.value = false;
+    },
+);
+
 async function handleSubmit() {
     if (!canSubmit.value || submitting.value) return;
 
@@ -540,28 +592,23 @@ async function handleSubmit() {
                 ? normalizeMainlandIDNumber(form.docNumber)
                 : form.docNumber.trim();
         const uploaded = {
-            front:
-                form.docType !== "MAINLAND_ID" && photos.front
-                    ? await uploadPhoto("front", photos.front)
-                    : undefined,
-            back:
-                form.docType !== "MAINLAND_ID" && photos.back
-                    ? await uploadPhoto("back", photos.back)
-                    : undefined,
-            selfie:
-                form.docType !== "MAINLAND_ID" && photos.selfie
-                    ? await uploadPhoto("selfie", photos.selfie)
-                    : undefined,
+            front: photos.front
+                ? await uploadPhoto("front", photos.front)
+                : undefined,
+            back: photos.back
+                ? await uploadPhoto("back", photos.back)
+                : undefined,
+            selfie: photos.selfie
+                ? await uploadPhoto("selfie", photos.selfie)
+                : undefined,
         };
         await store.submitIdentity({
             docType: form.docType,
             realName: form.realName.trim(),
             docNumber,
-            ...(form.docType !== "MAINLAND_ID" && {
-                docPhotoFront: uploaded.front,
-                docPhotoBack: uploaded.back,
-                docPhotoSelfie: uploaded.selfie,
-            }),
+            ...(uploaded.front ? { docPhotoFront: uploaded.front } : {}),
+            ...(uploaded.back ? { docPhotoBack: uploaded.back } : {}),
+            ...(uploaded.selfie ? { docPhotoSelfie: uploaded.selfie } : {}),
         });
         await store.fetchStatus();
         showForm.value = false;
@@ -569,6 +616,17 @@ async function handleSubmit() {
             await navigateAfterVerification();
         }
     } catch (err) {
+        if (
+            form.docType === "MAINLAND_ID" &&
+            isApiError(err) &&
+            err.code === "A0030005"
+        ) {
+            manualEvidenceRequired.value = true;
+            toast.error(
+                t("user.verification.identity.manualEvidencePrompt"),
+            );
+            return;
+        }
         toast.error(
             err instanceof Error
                 ? err.message

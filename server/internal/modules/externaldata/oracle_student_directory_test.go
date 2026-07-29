@@ -30,7 +30,7 @@ func TestNormalizeOracleStudentDirectoryConfig(t *testing.T) {
 		Host:              "oracle.example.test",
 		Port:              1521,
 		ServiceName:       "ORCLPDB1",
-		Username:          "SYSTEM",
+		Username:          "stuhelper_academic_ro",
 		Password:          "secret",
 		TLSMode:           "disable",
 		Schema:            "usr_jwbiz",
@@ -52,13 +52,55 @@ func TestNormalizeOracleStudentDirectoryConfig(t *testing.T) {
 	assert.Equal(t, defaultOracleBreakerOpenTimeout, cfg.BreakerOpenTimeout)
 }
 
+func TestNormalizeOracleStudentDirectoryConfigRejectsAdministrativeAccounts(t *testing.T) {
+	for _, username := range []string{"SYS", "system", "SYSBACKUP", "SYSDG", "SYSKM", "SYSRAC"} {
+		t.Run(username, func(t *testing.T) {
+			_, err := normalizeOracleStudentDirectoryConfig(OracleStudentDirectoryConfig{
+				SchoolCode:        "4111010006",
+				Host:              "oracle.example.test",
+				Port:              2484,
+				ServiceName:       "ORCLPDB1",
+				Username:          username,
+				Password:          "secret",
+				TLSMode:           "disable",
+				Schema:            "USR_JWBIZ",
+				Table:             "T_XS_JBXX",
+				StudentIDColumn:   "XH",
+				StudentNameColumn: "XM",
+			})
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "dedicated non-administrative account")
+		})
+	}
+}
+
+func TestNormalizeOracleStudentDirectoryConfigRejectsSourceSchemaOwner(t *testing.T) {
+	_, err := normalizeOracleStudentDirectoryConfig(OracleStudentDirectoryConfig{
+		SchoolCode:        "4111010006",
+		Host:              "oracle.example.test",
+		Port:              2484,
+		ServiceName:       "ORCLPDB1",
+		Username:          "usr_jwbiz",
+		Password:          "secret",
+		TLSMode:           "disable",
+		Schema:            "USR_JWBIZ",
+		Table:             "T_XS_JBXX",
+		StudentIDColumn:   "XH",
+		StudentNameColumn: "XM",
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must not own the source schema")
+}
+
 func TestNormalizeOracleStudentDirectoryConfigRejectsUnsafeIdentifiers(t *testing.T) {
 	_, err := normalizeOracleStudentDirectoryConfig(OracleStudentDirectoryConfig{
 		SchoolCode:        "4111010006",
 		Host:              "oracle.example.test",
 		Port:              1521,
 		ServiceName:       "ORCLPDB1",
-		Username:          "SYSTEM",
+		Username:          "stuhelper_academic_ro",
 		Password:          "secret",
 		TLSMode:           "disable",
 		Schema:            "USR_JWBIZ",

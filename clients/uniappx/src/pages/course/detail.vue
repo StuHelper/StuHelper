@@ -345,6 +345,7 @@ onShow(() => {
                 <input
                   v-model="replyText"
                   class="reply-input"
+                  :aria-label="t('course.detail.replyPlaceholder')"
                   :data-testid="`uni-review-reply-input-${review.id}`"
                   :placeholder="t('course.detail.replyPlaceholder')"
                   :disabled="replySubmitting"

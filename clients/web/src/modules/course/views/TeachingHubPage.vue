@@ -47,6 +47,7 @@
             @focus="showDropdown = true"
           />
           <button
+            type="button"
             v-if="query"
             class="absolute right-4 top-1/2 -translate-y-1/2 p-0 text-text-muted hover:text-text-primary transition-colors duration-fast"
             :aria-label="t('review.home.clear')"
@@ -72,11 +73,15 @@
               :key="course.id"
               :id="courseResultId(course.id)"
               role="option"
+              tabindex="-1"
               :aria-selected="idx === selectedIndex"
               class="flex items-center justify-between px-4 py-3 cursor-pointer transition-colors duration-fast"
               :class="idx === selectedIndex ? 'bg-bg-hover' : 'bg-transparent'"
               @mouseenter="selectedIndex = idx"
+              @focus="selectedIndex = idx"
               @click="navigateToCourse(course.id)"
+              @keydown.enter.prevent="navigateToCourse(course.id)"
+              @keydown.space.prevent="navigateToCourse(course.id)"
             >
               <div class="flex-1 min-w-0">
                 <span class="text-sm font-medium truncate block text-text-primary">

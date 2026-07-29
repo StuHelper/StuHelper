@@ -1,5 +1,6 @@
 import type {
   AdmissionBotEventRequest,
+  AdmissionBotActionEventRequest,
   AdmissionFailureResetResult,
   AdmissionJoinRequestDecision,
   AdmissionJoinRequestDecisionRequest,
@@ -114,7 +115,7 @@ export interface PlatformClient {
   claimQueuedAdmissionActions(input: AdmissionPendingActionsRequest): Promise<readonly AdmissionPendingAction[]>
   recordAdmissionEvent(sessionID: string, input: AdmissionBotEventRequest): Promise<void>
   streamAdmissionActions(input: AdmissionPendingActionsRequest, handlers: AdmissionActionStreamHandlers): AdmissionActionStreamHandle
-  recordAdmissionActionEvent(actionID: string, input: AdmissionBotEventRequest): Promise<void>
+  recordAdmissionActionEvent(actionID: string, input: AdmissionBotActionEventRequest): Promise<void>
   listPendingFreshmanForwards(): Promise<readonly FreshmanForwardItem[]>
   markFreshmanForwarded(applicationID: string): Promise<void>
   viewFreshmanApplication(applicationID: string, input: FreshmanCommandContext): Promise<FreshmanApplication>

@@ -3,8 +3,12 @@ package notification
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/StuHelper/StuHelper/server/internal/pkg/db"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/httputil"
@@ -30,15 +34,16 @@ func withDBTable(ctx context.Context, table string) context.Context {
 
 // CreateParams 创建通知参数
 type CreateParams struct {
-	UserID       int64
-	Type         string
-	Title        string
-	Body         string
-	Payload      json.RawMessage
-	SourceModule string
-	SourceID     string
-	SourceURL    *string
-	CourseID     *int64
+	IdempotencyKey string
+	UserID         int64
+	Type           string
+	Title          string
+	Body           string
+	Payload        json.RawMessage
+	SourceModule   string
+	SourceID       string
+	SourceURL      *string
+	CourseID       *int64
 }
 
 // ListParams 查询通知列表参数
@@ -57,19 +62,66 @@ type ListResult struct {
 
 // Create 创建通知
 func (r *Repository) Create(ctx context.Context, p CreateParams) (string, error) {
+	notificationID, _, err := r.CreateIdempotent(ctx, p)
+	return notificationID, err
+}
+
+// CreateIdempotent inserts one durable notification for an optional
+// idempotency key. It returns created=false when a retry finds the existing
+// notification, allowing callers to suppress duplicate realtime delivery.
+func (r *Repository) CreateIdempotent(
+	ctx context.Context,
+	p CreateParams,
+) (notificationID string, created bool, err error) {
 	ctx = withDBTable(ctx, "notifications")
 	newID, err := id.New()
 	if err != nil {
-		return "", fmt.Errorf("notification create generate id: %w", err)
+		return "", false, fmt.Errorf("notification create generate id: %w", err)
 	}
-	_, err = r.db.Exec(ctx, `
-		INSERT INTO notifications (id, user_id, type, title, body, payload, source_module, source_id, source_url, source_course_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-	`, newID, p.UserID, p.Type, p.Title, p.Body, payloadOrEmptyJSON(p.Payload), p.SourceModule, p.SourceID, p.SourceURL, p.CourseID)
+	idempotencyKey := strings.TrimSpace(p.IdempotencyKey)
+	if len(idempotencyKey) > 255 {
+		return "", false, fmt.Errorf("notification idempotency key exceeds 255 characters")
+	}
+	if idempotencyKey == "" {
+		_, err = r.db.Exec(ctx, `
+			INSERT INTO notifications (
+				id, user_id, type, title, body, payload, source_module,
+				source_id, source_url, source_course_id, idempotency_key
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL)
+		`, newID, p.UserID, p.Type, p.Title, p.Body, payloadOrEmptyJSON(p.Payload), p.SourceModule, p.SourceID, p.SourceURL, p.CourseID)
+		if err != nil {
+			return "", false, fmt.Errorf("notification create: %w", err)
+		}
+		return newID, true, nil
+	}
+
+	err = r.db.QueryRow(ctx, `
+		INSERT INTO notifications (
+			id, user_id, type, title, body, payload, source_module,
+			source_id, source_url, source_course_id, idempotency_key
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL
+		DO NOTHING
+		RETURNING id
+	`, newID, p.UserID, p.Type, p.Title, p.Body, payloadOrEmptyJSON(p.Payload), p.SourceModule, p.SourceID, p.SourceURL, p.CourseID, idempotencyKey).Scan(&notificationID)
+	if err == nil {
+		return notificationID, true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return "", false, fmt.Errorf("notification create idempotent: %w", err)
+	}
+
+	err = r.db.QueryRow(
+		ctx,
+		`SELECT id FROM notifications WHERE idempotency_key = $1`,
+		idempotencyKey,
+	).Scan(&notificationID)
 	if err != nil {
-		return "", fmt.Errorf("notification create: %w", err)
+		return "", false, fmt.Errorf("notification resolve idempotent result: %w", err)
 	}
-	return newID, nil
+	return notificationID, false, nil
 }
 
 // List 获取通知列表

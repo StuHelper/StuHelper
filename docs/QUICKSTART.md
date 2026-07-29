@@ -34,6 +34,7 @@ make dev-up
 
 完成以下步骤：
 - 生成开发环境变量
+- 把会参与数据库派生值和 PII 解密的本地开发 HMAC / AES 密钥以 `0600` 权限持久化到 `${XDG_STATE_HOME:-~/.local/state}/stuhelper/dev/crypto.env`；重克隆仓库但继续使用同一 Docker 数据卷时会自动恢复这些密钥，避免健康检查通过但用户资料因密钥漂移而不可读
 - 启动 PostgreSQL / Redis / Casdoor / OpenFGA / SeaweedFS mini（Docker，仅本地 S3 同构验证）
 - 验证 Casdoor OIDC metadata；本地开发会从 Casdoor 内置应用读取一次性 bootstrap 凭据，并幂等创建 StuHelper 的 Web / Admin / UniApp first-party applications、flat roles 和启用的 providers；生产路径会使用独立 bootstrap 凭据执行同一套对象收敛
 - 初始化 OpenFGA Store 和 Model
@@ -190,11 +191,9 @@ make prod-parity-reset   # 停止并清理本机生产等价 volume
 
 该模式使用仓库内生产 Compose 和 `.run/prod-parity/` 下的本地 env/secrets；`make prod-parity-up` 会安装本机 Nginx/hosts 入口，把 `stuhelper.com`、`join.stuhelper.com`、`sso.stuhelper.com` 指向本机，并在缺少本机证书时生成 `.run/prod-parity/local-tls/` 下的本地 TLS 证书。浏览器可见的账号中心、授权应用、开发者应用、学生认证和 QQ 绑定都由 `https://stuhelper.com` 主站承载；`https://join.stuhelper.com/verify/<code>` 承载入群验证，`join.stuhelper.com/` 和主站业务页面路径返回 404，避免把 join 当成主站别名；`https://sso.stuhelper.com` 承载 Casdoor 登录和 OIDC issuer。本机浏览器默认访问 Web `https://stuhelper.com`、Admin `https://stuhelper.com/admin/`、Join 验证入口 `https://join.stuhelper.com/verify/<code>`、SSO `https://sso.stuhelper.com`；直连排错地址仍保留 API `http://127.0.0.1:28080`、Grafana `http://127.0.0.1:23003`。它用于在 Ubuntu 24.04 本机先跑通“构建 → 启动 → migration/bootstrap → datastore isolation → API/Casdoor/OpenFGA/观测 smoke → Web/Admin 浏览器渲染 smoke → 真实上游登录后刷新保持会话”的生产等价流程，再把同一套发布脚本用于真实生产。datastore smoke 会验证共享 PostgreSQL 中 StuHelper / OpenFGA / 本地 SSO Casdoor 使用独立数据库、独立登录账号和跨库拒绝连接，并验证 Redis 是 StuHelper Compose 内的独立 TLS/ACL 实例、没有加入外部 datastore 网络；脱敏 evidence 写入 `.run/prod-parity/datastore-smoke-evidence.json`。浏览器 smoke 会先写入本机 prod-parity 专用的最小课程 / 教师 / 评课数据、入群认证会话，并刷新评分统计与教师物化视图，脱敏 evidence 写入 `.run/prod-parity/smoke-data-evidence.json`；随后用桌面和移动视口访问首页、登录、SSO admin/123 登录刷新、认证回调错误态、入群认证链接、静态说明页、课程入口、课程列表、课程详情、课程评课详情、评课聚合、搜索、教师主页、教师详情、写评课、用户中心业务 tab、账号中心、个人资料、账号安全、Connect 端点、授权应用、实名/学生认证、手机/QQ 绑定、学籍信息、开发者应用、通知、Open Platform 授权与资料补全保护跳转、404 页面和 Admin 登录跳转，并验证保护入口保留 redirect；evidence 和截图写入 `.run/prod-parity/`，截图文件名带视口后缀。每次浏览器 smoke 前会清理本机 prod-parity Redis 中的课程 / 评课缓存和 `rl:*` 限流键，避免上一轮验收污染本轮结果；浏览器运行时会拦截 Web Vitals / 前端错误上报，防止烟测自身消耗业务 API 限流额度；Admin 跳转到本机 Casdoor 登录页时，会把 Casdoor 打包 CSS 中的 Google Fonts 请求替换为空 CSS 并写入 `stubbedExternalResources` 证据，避免本机准入依赖第三方字体 CDN。该检查会覆盖 `document`、`script`、`stylesheet`、`font`、`image` 关键资源加载失败、关键资源 HTTP 4xx/5xx、页面触发的未声明允许 `fetch` / `xhr` HTTP 4xx/5xx、前端 `pageerror` 和非网络状态类浏览器 `console.error`，用于区分“curl 200 但前端实际白屏/资源加载失败”的问题。
 
-本地 `make e2e` / `make e2e-web` / `make e2e-admin` / `make e2e-uni` 会默认设置
-`PLAYWRIGHT_REUSE_SERVER=1`，因此可直接复用 `make dev-up` 已启动的 Web / Admin Vite 服务；如果目标端口没有
-现成服务，Playwright 仍会按各自配置自动启动测试服务。CI 下默认不复用现有服务，避免接入脏运行态；需要
-强制覆盖时可显式传入 `PLAYWRIGHT_REUSE_SERVER=0` 或 `PLAYWRIGHT_REUSE_SERVER=1`。如果本机已有其他进程占用
-默认 Playwright 端口，可改用备用端口运行 E2E。Web E2E 默认同时执行 `desktop-chromium` 和
+本地和 CI 的 Playwright 默认都不复用已有服务，而是按各自配置启动隔离的测试服务；只有显式设置
+`PLAYWRIGHT_REUSE_SERVER=1` 时才会复用目标端口上的现有服务。这样可以避免把脏运行态误当成测试结果。
+如果本机已有其他进程占用默认 Playwright 端口，可改用备用端口运行 E2E。Web E2E 默认同时执行 `desktop-chromium` 和
 `mobile-chromium` 两个 Playwright project，覆盖桌面与移动视口交互；Admin E2E 会先构建后台 SPA，再用
 `vite preview` 测试发布形态的静态产物，并覆盖桌面与移动 project。Admin 默认串行执行；需要压测测试并发时，
 可显式设置 `ADMIN_E2E_WORKERS`：
@@ -208,10 +207,12 @@ make e2e-uni
 make e2e-koishi
 ```
 
-## GitLab 发布
+## GitHub 发布
 
-- `develop` → staging 自动部署 + `verify_staging`
-- `main` → 先构建与安全检查，再手工触发 `deploy_production`，完成后执行 `verify_production`
+- Pull Request、`develop` 和 `main` push 运行 GitHub Actions 质量、安全、契约和 E2E 门禁。
+- `develop` / `main` 的受信任 push 只有在 `CI / Required` 通过后，才把三个带完整 commit SHA 的不可变镜像发布到 GHCR。
+- staging / production 通过 GitHub `Deploy` 手工作业发布，输入必须是已经发布并带 provenance 的完整 40 位 commit SHA；production 由受保护 environment 审批。
+- GitHub `Rollback` 手工作业按相同的 provenance 和 digest 约束回滚，不接受可变 tag。
 
 远端服务器首次准备：
 
@@ -220,6 +221,9 @@ sudo bash infra/ops/bootstrap-ubuntu2404.sh
 ```
 
 这个脚本会一起装好 Docker / Compose、Go 1.26、部署目录、备份目录、`.deploy/remote.env`、Vault token 占位文件，以及 PostgreSQL 逻辑备份 / base backup / backup sync timer。
+
+仓库、Actions 权限、GHCR、environment secrets、发布和回滚治理见
+[GitHub 仓库与 Actions 治理](guides/github-migration.md)。
 
 Ansible 入口：
 

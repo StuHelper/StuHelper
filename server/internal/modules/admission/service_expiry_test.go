@@ -36,6 +36,11 @@ func TestExpiredFreshmanCredentialRevokesOnlyFreshmanProjection(t *testing.T) {
 	assertProjectionEnqueued(t, svc, approved.UserID, false)
 	assertCredentialExpiryProcessed(t, fixture, freshmanCredentialID)
 	assertCredentialNotRevoked(t, fixture, "school-sso-expiry")
+
+	processed, err = svc.ProcessExpiredFreshmanCredentials(context.Background())
+	require.NoError(t, err)
+	assert.Zero(t, processed)
+	assert.Len(t, svc.projection.(*testFreshmanProjectionGateway).calls, 1)
 }
 
 func resetProjectionCalls(t *testing.T, svc *Service) {

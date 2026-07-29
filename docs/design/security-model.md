@@ -3,7 +3,7 @@ type: design
 audience: backend-dev, ops
 status: current
 authoritative-source: this file
-last-verified: 2026-05-30
+last-verified: 2026-07-30
 ---
 
 # 安全实践
@@ -85,7 +85,10 @@ Koishi 与主站后端跨机通信时，不复用用户态会话，而是使用�
 
 ### 证件照片
 
-`doc_photo_front` / `doc_photo_back` / `doc_photo_selfie` 只存对象存储 key，审核时后端签发短时 URL。
+- `doc_photo_front` / `doc_photo_back` / `doc_photo_selfie` 只保存私有对象存储 key，不接受客户端提交的 `data:`、HTTP(S) URL 或其他外部引用。
+- 上传只接受内容声明与实际探测结果一致的 JPEG、PNG 或 WebP，单文件上限 5 MiB；对象 key 绑定当前用户和 `front` / `back` / `selfie` 槽位。提交时再次校验 key 所属用户、槽位和对象可读性。
+- 非大陆证件和所有不能自动通过的大陆身份证申请都必须同时具备证件正面照与手持/自拍照，背面照可选。大陆身份证只有在事务内锁定并复核“已认证学生账号、同校、绑定学号、姓名和证件记录”仍全部一致时，才允许无照片自动通过。
+- 管理列表不读取也不返回照片 key。审核员通过 `GET /api/v1/admin/identities/{userID}` 按需获取短时签名 URL；该入口同时要求全局 `user:identity:read` capability 和 step-up MFA，并为每次成功查看写入 `data.access` 审计事件。直接批准缺失、越权或对象存储不可验证的材料会被拒绝。
 
 ## 匿名与隐私
 
@@ -117,6 +120,7 @@ CSV 加 UTF-8 BOM，公式注入字符（`=`、`+`、`-`、`@`）添加前缀转
 | 举报 | 10/min |
 | 回复 | 10/min |
 | 刷新 token | 10/min |
+| 实名材料上传 | 每个已登录用户 12 次/24 h |
 | Casdoor SMS Provider 回调 | 按 IP + provider key + 手机号维度限流 |
 | Open Platform consent | 按 user + app 维度限流 |
 | Open Platform disclosure | 按 app + user + endpoint 维度限流 |
@@ -140,7 +144,7 @@ CSV 加 UTF-8 BOM，公式注入字符（`=`、`+`、`-`、`@`）添加前缀转
 - PostgreSQL 服务端 CA 私钥/私钥证书目录只挂载到 PostgreSQL；Redis 服务端 CA 私钥、服务端私钥和仅含密码哈希的 ACL 目录只挂载到 Redis。两者启动时分别复制到 UID 70/999 可读的私有 tmpfs，源文件保持 0600。Redis 应用与 exporter 使用独立密码和显式命令白名单，exporter 无应用 key 访问权。
 - 应用、迁移、OpenFGA 和 exporter 只挂载 `postgres-client-ca` / `redis-client-ca` 中的公开 `ca.crt`；部署脚本会拒绝客户端 CA 目录中的额外文件、符号链接和私钥。
 - Oracle 学籍源只允许 TCPS `verify-full`，默认端口为 `2484`；应用只挂载独立的 `/external-student-source-tls/ca.crt` 公共 CA，不挂载服务端密钥、CA 私钥或数据库数据目录
-- Oracle 运行账号不得是 `SYS`/`SYSTEM`，只授予 `CREATE SESSION` 和目标表 `XH`/`XM` 查询所需的 `SELECT`；学号和姓名都经过长度、字符集与控制字符校验，冲突重复行和非法源记录按数据完整性故障关闭
+- Oracle 运行账号必须与源 schema owner 不同，且不得是 `SYS`、`SYSTEM`、`SYSBACKUP`、`SYSDG`、`SYSKM` 或 `SYSRAC`。账号不得继承任何 role 或列级权限；只允许直接授予无 `ADMIN OPTION` 的 `CREATE SESSION`，以及目标表上无 `GRANT OPTION`、无 `HIERARCHY OPTION` 的 `SELECT`。学号和姓名都经过长度、字符集与控制字符校验，冲突重复行和非法源记录按数据完整性故障关闭
 - 外部依赖统一通过受控 client 调用，记录固定低基数的延迟/结果指标并启用熔断；外部学籍源不可用时 User 与 Admission API 返回 503，不回退为“未匹配”，避免把基础设施故障误判为学生身份失败
 
 ## CI 安全门禁
@@ -152,7 +156,7 @@ CSV 加 UTF-8 BOM，公式注入字符（`=`、`+`、`-`、`@`）添加前缀转
 - 生产部署：实际基础设施镜像引用必须与已扫描策略一致；可变标签即使固定 digest 也必须在 30 天内重新核对上游
 - CI SSH 部署使用固定 host key（`DEPLOY_TARGET_SSH_KNOWN_HOSTS` CI 变量），禁止 TOFU
 - 部署前自动执行数据库备份（`backup-postgres.sh`），失败阻断发布
-- 这些门禁在 GitHub Actions 中汇总到 `CI / Required`，在迁移验收期保留的 GitLab CI 中也会阻塞后续构建 / 发布
+- 这些门禁在 GitHub Actions 中汇总到 `CI / Required`，失败会阻塞后续镜像发布
 
 ## 日志脱敏
 
@@ -161,4 +165,5 @@ CSV 加 UTF-8 BOM，公式注入字符（`=`、`+`、`-`、`@`）添加前缀转
 ## 待改进
 
 1. 证件照片仍经后端中转上传（未实现浏览器直传）
-2. 生产环境仍需真实启用 HTTPS、强密码和值班告警
+2. 证件材料的业务保留期限尚未形成可由仓库自动验证的对象存储 lifecycle 策略；生产 bucket 必须在数据治理确定保留期后配置到期删除，并把策略与删除审计纳入上线证据
+3. 生产环境仍需用真实环境证据验收 HTTPS、强密码和值班告警

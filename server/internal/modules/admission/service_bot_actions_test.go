@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -166,9 +167,10 @@ func TestQueuedAdmissionActionReleaseAckCompletesSession(t *testing.T) {
 	assert.Equal(t, created.Session.ID, actions[0].SessionID)
 
 	err = svc.RecordBotActionEvent(context.Background(), actions[0].ActionID, BotEventInput{
-		Action:    BotAction(" release "),
-		Success:   true,
-		MessageID: " release-msg-1 ",
+		Action:          BotAction(" release "),
+		Success:         true,
+		DispatchAttempt: actions[0].DispatchAttempt,
+		MessageID:       " release-msg-1 ",
 	})
 	require.NoError(t, err)
 
@@ -185,6 +187,104 @@ func TestQueuedAdmissionActionReleaseAckCompletesSession(t *testing.T) {
 	assert.Equal(t, "succeeded", status)
 	assert.True(t, cancelled)
 	assert.Equal(t, "release-msg-1", messageID)
+}
+
+func TestQueuedAdmissionActionUpsertPreservesActiveDispatchLease(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createBotLinkedSessionForPendingActions(t, svc, fixture, "linked-active-dispatch")
+
+	verified, err := svc.MarkVerified(context.Background(), created.Session.ID)
+	require.NoError(t, err)
+	firstClaim, err := svc.ClaimQueuedAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
+	require.NoError(t, err)
+	require.Len(t, firstClaim, 1)
+	assert.Equal(t, 1, firstClaim[0].DispatchAttempt)
+
+	err = svc.repo.WithTx(context.Background(), func(ctx context.Context, tx pgx.Tx) error {
+		return svc.queueBotActionTx(ctx, tx, verified, BotActionRelease, svc.now(), svc.now())
+	})
+	require.NoError(t, err)
+
+	secondClaim, err := svc.ClaimQueuedAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
+	require.NoError(t, err)
+	assert.Empty(t, secondClaim)
+
+	var status string
+	var attemptCount int
+	err = fixture.Pool.QueryRow(context.Background(), `
+		SELECT status, attempt_count
+		FROM admission_bot_action_outbox
+		WHERE id = $1::bigint
+	`, firstClaim[0].ActionID).Scan(&status, &attemptCount)
+	require.NoError(t, err)
+	assert.Equal(t, string(AdmissionBotActionDispatched), status)
+	assert.Equal(t, 1, attemptCount)
+}
+
+func TestQueuedAdmissionActionLateAckCannotFinalizeNewDispatchAttempt(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createBotLinkedSessionForPendingActions(t, svc, fixture, "linked-late-dispatch-ack")
+
+	_, err := svc.MarkVerified(context.Background(), created.Session.ID)
+	require.NoError(t, err)
+	firstClaim, err := svc.ClaimQueuedAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
+	require.NoError(t, err)
+	require.Len(t, firstClaim, 1)
+	assert.Equal(t, 1, firstClaim[0].DispatchAttempt)
+
+	_, err = fixture.Pool.Exec(context.Background(), `
+		UPDATE admission_bot_action_outbox
+		SET next_attempt_at = $2
+		WHERE id = $1::bigint
+	`, firstClaim[0].ActionID, svc.now().Add(-time.Second))
+	require.NoError(t, err)
+	secondClaim, err := svc.ClaimQueuedAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
+	require.NoError(t, err)
+	require.Len(t, secondClaim, 1)
+	assert.Equal(t, 2, secondClaim[0].DispatchAttempt)
+
+	err = svc.RecordBotActionEvent(context.Background(), firstClaim[0].ActionID, BotEventInput{
+		Action:          BotActionRelease,
+		Success:         true,
+		DispatchAttempt: firstClaim[0].DispatchAttempt,
+	})
+	require.NoError(t, err)
+	assertAdmissionSessionStatus(t, fixture, created.Session.ID, StatusVerified)
+
+	var status string
+	var attemptCount int
+	err = fixture.Pool.QueryRow(context.Background(), `
+		SELECT status, attempt_count
+		FROM admission_bot_action_outbox
+		WHERE id = $1::bigint
+	`, firstClaim[0].ActionID).Scan(&status, &attemptCount)
+	require.NoError(t, err)
+	assert.Equal(t, string(AdmissionBotActionDispatched), status)
+	assert.Equal(t, secondClaim[0].DispatchAttempt, attemptCount)
+
+	err = svc.RecordBotActionEvent(context.Background(), secondClaim[0].ActionID, BotEventInput{
+		Action:          BotActionRelease,
+		Success:         true,
+		DispatchAttempt: secondClaim[0].DispatchAttempt,
+	})
+	require.NoError(t, err)
+	assertAdmissionSessionCancelled(t, fixture, created.Session.ID)
 }
 
 func TestQueuedAdmissionActionDeadLettersTimedOutDispatchAfterMaxAttempts(t *testing.T) {
@@ -352,9 +452,10 @@ func TestClaimedAdmissionReminderAckAfterBotSkipIsStale(t *testing.T) {
 	})
 	require.NoError(t, err)
 	err = svc.RecordBotActionEvent(context.Background(), actions[0].ActionID, BotEventInput{
-		Action:    BotActionRemind,
-		Success:   true,
-		MessageID: "stale-reminder-message",
+		Action:          BotActionRemind,
+		Success:         true,
+		DispatchAttempt: actions[0].DispatchAttempt,
+		MessageID:       "stale-reminder-message",
 	})
 	require.NoError(t, err)
 

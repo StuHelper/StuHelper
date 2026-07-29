@@ -319,11 +319,6 @@ require_production_object_storage
 [[ "${CASDOOR_SMS_PROVIDER_TITLE:-}" == "content" ]] || die "CASDOOR_SMS_PROVIDER_TITLE must be content for production deploy"
 [[ "${SMS_ENABLED:-false}" == "true" ]] || die "SMS_ENABLED must be true for production deploy"
 [[ "${OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED:-false}" == "true" ]] || die "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED must be true for production deploy"
-if [[ "${EXTERNAL_POSTGRES_ALLOW_PLAINTEXT:-false}" == "true" ]]; then
-  [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" ]] ||
-    die "EXTERNAL_POSTGRES_ENABLED must be true when EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true"
-  warn "external PostgreSQL plaintext transport is explicitly enabled; TLS is not provided by StuHelper"
-fi
 require_production_postgres_ssl
 require_production_external_student_source_security
 [[ "${REDIS_TLS_ENABLED:-false}" == "true" ]] || die "REDIS_TLS_ENABLED must be true for production deploy"

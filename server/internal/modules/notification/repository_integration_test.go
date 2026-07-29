@@ -65,3 +65,30 @@ func TestRepositoryListClampsInvalidPagination(t *testing.T) {
 	assert.Equal(t, 1, result.Total)
 	assert.Equal(t, 1, result.Unread)
 }
+
+func TestServiceSendIsIdempotentAndSuppressesDuplicateRealtimeDelivery(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	fixture := postgresfixture.Start(t)
+	publisher := &recordingRealtimePublisher{}
+	service := NewService(NewRepository(fixture.DB), publisher)
+	userID := seedNotificationUser(t, fixture, "notif-idempotent-user")
+	params := SendParams{
+		IdempotencyKey: "review-reply:550e8400-e29b-41d4-a716-446655440998",
+		UserID:         userID,
+		Type:           "reply",
+		Title:          "幂等通知",
+		Body:           "同一业务事件只能形成一条通知",
+		SourceModule:   "review",
+		SourceID:       "550e8400-e29b-41d4-a716-446655440997",
+	}
+
+	require.NoError(t, service.Send(ctx, params))
+	require.NoError(t, service.Send(ctx, params))
+
+	result, err := service.List(ctx, userID, 1, 10)
+	require.NoError(t, err)
+	require.Len(t, result.List, 1)
+	assert.Len(t, publisher.snapshot(), 1)
+}

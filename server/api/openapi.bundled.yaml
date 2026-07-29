@@ -7439,7 +7439,8 @@ paths:
       description: |
         该接口返回 `text/event-stream`。服务端会发送 `event: action`，`data` 为
         `BotAdmissionPendingAction` JSON；机器人执行后必须调用
-        `/api/v1/bot/admission/actions/{id}/events` ACK。`event: keepalive` 用于保活。
+        `/api/v1/bot/admission/actions/{id}/events`，并原样提交 `dispatchAttempt`
+        完成带 fencing 的 ACK。`event: keepalive` 用于保活。
       security:
         - serviceTokenAuth: []
       parameters:
@@ -7481,7 +7482,8 @@ paths:
         该接口用于无法保持 SSE 长连接的机器人运行时或兜底扫描。服务端会从
         `admission_bot_action_outbox` 领取到期 action，并返回带 `actionID` 的
         `BotAdmissionPendingAction`；机器人执行后必须调用
-        `/api/v1/bot/admission/actions/{id}/events` ACK。
+        `/api/v1/bot/admission/actions/{id}/events`，并原样提交
+        `dispatchAttempt` 完成带 fencing 的 ACK。
       security:
         - serviceTokenAuth: []
       parameters:
@@ -7541,7 +7543,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/BotAdmissionEventRequest'
+              $ref: '#/components/schemas/BotAdmissionActionEventRequest'
       responses:
         '200':
           description: Action 事件已记录
@@ -7792,6 +7794,51 @@ paths:
         '500':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/admin/identities/{userID}:
+    get:
+      tags:
+        - Admin
+      operationId: getIdentityVerificationReviewDetail
+      summary: 获取实名认证审核材料
+      description: 返回经过归属校验的短期签名材料 URL；访问需要全局读取权限和 MFA 二次验证，并写入审计日志。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: userID
+          in: path
+          required: true
+          description: 用户 ID
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 实名认证审核详情
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdminIdentityReviewDetail'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
     put:
       tags:
         - Admin
@@ -7836,7 +7883,11 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '404':
           $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
         '500':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/admin/student-verifications:
     get:
@@ -7940,6 +7991,8 @@ paths:
         '403':
           $ref: '#/components/responses/ErrorResponse'
         '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
@@ -10141,6 +10194,79 @@ components:
         updatedAt:
           type: string
           format: date-time
+    AdminIdentityReviewDetail:
+      type: object
+      required:
+        - userID
+        - docType
+        - realName
+        - verified
+        - createdAt
+        - updatedAt
+        - docPhotoFrontURL
+        - docPhotoBackURL
+        - docPhotoSelfieURL
+      properties:
+        userID:
+          type: integer
+          format: int64
+        docType:
+          type: string
+          enum:
+            - MAINLAND_ID
+            - HK_MACAU
+            - TW
+            - PASSPORT
+        realName:
+          type: string
+        verified:
+          type: boolean
+        verifyMethod:
+          type:
+            - string
+            - 'null'
+          enum:
+            - academic_db_match
+            - tencent_cloud
+            - manual
+        reviewedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        verifiedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        rejectionReason:
+          type:
+            - string
+            - 'null'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        docPhotoFrontURL:
+          type:
+            - string
+            - 'null'
+          format: uri
+          description: 证件正面材料的短期签名 URL；仅管理员详情接口返回。
+        docPhotoBackURL:
+          type:
+            - string
+            - 'null'
+          format: uri
+          description: 证件背面材料的短期签名 URL；可能为空。
+        docPhotoSelfieURL:
+          type:
+            - string
+            - 'null'
+          format: uri
+          description: 本人手持证件材料的短期签名 URL；仅管理员详情接口返回。
     SubmitIdentityRequest:
       type: object
       required:
@@ -13495,6 +13621,10 @@ components:
         actionID:
           type: string
           description: 持久化 bot action outbox ID。SSE 下行动作会携带，ACK 时应提交到 actions/{id}/events。
+        dispatchAttempt:
+          type: integer
+          minimum: 1
+          description: actionID 对应的派发代次；ACK 时必须原样提交。
         sessionID:
           type: string
         action:
@@ -13530,6 +13660,17 @@ components:
           minimum: 0
         willBlacklistOnTimeout:
           type: boolean
+    BotAdmissionActionEventRequest:
+      allOf:
+        - $ref: '#/components/schemas/BotAdmissionEventRequest'
+        - type: object
+          required:
+            - dispatchAttempt
+          properties:
+            dispatchAttempt:
+              type: integer
+              minimum: 1
+              description: 领取 action 时返回的派发代次。服务端仅接受当前代次的 ACK。
     BotFreshmanCommandContext:
       type: object
       required:

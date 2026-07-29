@@ -282,11 +282,17 @@ func normalizeOracleStudentDirectoryConfig(cfg OracleStudentDirectoryConfig) (Or
 	if cfg.Host == "" || cfg.ServiceName == "" || cfg.Username == "" || cfg.Password == "" {
 		return cfg, fmt.Errorf("oracle host, service name, username and password are required")
 	}
+	if isDisallowedOracleRuntimeUsername(cfg.Username) {
+		return cfg, fmt.Errorf("oracle runtime username must be a dedicated non-administrative account")
+	}
 	if cfg.Port <= 0 || cfg.Port > 65535 {
 		return cfg, fmt.Errorf("oracle port must be between 1 and 65535")
 	}
 	if cfg.Schema, err = normalizeOracleIdentifier(cfg.Schema, "schema"); err != nil {
 		return cfg, err
+	}
+	if strings.EqualFold(cfg.Username, cfg.Schema) {
+		return cfg, fmt.Errorf("oracle runtime username must not own the source schema")
 	}
 	if cfg.Table, err = normalizeOracleIdentifier(cfg.Table, "table"); err != nil {
 		return cfg, err
@@ -385,6 +391,15 @@ func normalizeOracleStudentDirectoryConfig(cfg OracleStudentDirectoryConfig) (Or
 		return cfg, fmt.Errorf("oracle circuit breaker open timeout must be between 1 and 600 seconds")
 	}
 	return cfg, nil
+}
+
+func isDisallowedOracleRuntimeUsername(username string) bool {
+	switch strings.ToUpper(strings.TrimSpace(username)) {
+	case "SYS", "SYSBACKUP", "SYSDG", "SYSKM", "SYSRAC", "SYSTEM":
+		return true
+	default:
+		return false
+	}
 }
 
 func buildOracleStudentLookupQuery(cfg OracleStudentDirectoryConfig) string {

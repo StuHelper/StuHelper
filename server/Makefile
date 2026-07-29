@@ -152,19 +152,19 @@ migrate-up:
 
 migrate-down-one:
 	$(call require_database_url)
-	$(MIGRATE) -path migrations -database "$(DATABASE_URL)" down 1
+	@$(MIGRATE) -path migrations -database "$(DATABASE_URL)" down 1
 
 migrate-status:
 	$(call require_database_url)
-	$(MIGRATE) -path migrations -database "$(DATABASE_URL)" version
+	@$(MIGRATE) -path migrations -database "$(DATABASE_URL)" version
 
 migrate-verify:
 	$(call require_database_url)
 	$(MIGRATE_RUNTIME)
-	$(MIGRATE) -path migrations -database "$(DATABASE_URL)" down 1
+	@$(MIGRATE) -path migrations -database "$(DATABASE_URL)" down 1
 	$(MIGRATE_RUNTIME)
 
 seed-dev:
 	$(call require_database_url)
 	@command -v psql >/dev/null 2>&1 || (echo "ERROR: psql is required for seed-dev" && exit 1)
-	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -f scripts/seed.sql
+	@psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -f scripts/seed.sql

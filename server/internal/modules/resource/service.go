@@ -24,6 +24,7 @@ var (
 	ErrResourcePayloadInvalid       = errors.New("invalid base64 payload")
 	ErrResourcePayloadSizeInvalid   = errors.New("resource payload size is invalid")
 	ErrResourceContentTypeMismatch  = errors.New("contentType does not match payload")
+	ErrResourceVisibilityInvalid    = errors.New("visibility must be public or private")
 	ErrResourceStorageMountNotFound = errors.New("resource storage mount not found")
 	ErrResourceStorageMountDisabled = errors.New("resource storage mount disabled")
 	ErrResourceStorageDriverMissing = errors.New("resource storage driver unavailable")
@@ -76,7 +77,10 @@ func (s *Service) CreateResource(ctx context.Context, ownerUserID string, req Cr
 	if strings.TrimSpace(req.Filename) == "" {
 		return nil, ErrResourceFilenameRequired
 	}
-	req.Visibility = normalizeVisibility(req.Visibility)
+	req.Visibility, err = normalizeResourceVisibility(req.Visibility)
+	if err != nil {
+		return nil, err
+	}
 	objectKey, err := newResourceObjectKey(ownerUserID, req.Filename)
 	if err != nil {
 		return nil, err
@@ -184,7 +188,10 @@ func (s *Service) UpdateResource(ctx context.Context, resourceID int64, ownerUse
 	if strings.TrimSpace(req.Title) == "" {
 		return nil, ErrResourceTitleRequired
 	}
-	req.Visibility = normalizeVisibility(req.Visibility)
+	req.Visibility, err = normalizeResourceVisibility(req.Visibility)
+	if err != nil {
+		return nil, err
+	}
 	return s.repo.UpdateResource(ctx, resourceID, ownerUserID, req)
 }
 
@@ -270,14 +277,19 @@ func isResourceBadRequestError(err error) bool {
 		errors.Is(err, ErrResourcePayloadRequired) ||
 		errors.Is(err, ErrResourcePayloadInvalid) ||
 		errors.Is(err, ErrResourcePayloadSizeInvalid) ||
-		errors.Is(err, ErrResourceContentTypeMismatch)
+		errors.Is(err, ErrResourceContentTypeMismatch) ||
+		errors.Is(err, ErrResourceVisibilityInvalid)
 }
 
-func normalizeVisibility(value string) string {
-	if strings.TrimSpace(value) == "private" {
-		return "private"
+func normalizeResourceVisibility(value string) (string, error) {
+	switch strings.TrimSpace(value) {
+	case "public":
+		return "public", nil
+	case "private":
+		return "private", nil
+	default:
+		return "", ErrResourceVisibilityInvalid
 	}
-	return "public"
 }
 
 func normalizeCreateResourceRequest(req CreateRequest) CreateRequest {

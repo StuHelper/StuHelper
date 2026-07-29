@@ -1,6 +1,7 @@
 <template>
-  <div class="flex max-w-full items-center gap-1 overflow-x-auto p-1 bg-bg-card rounded-full shadow-sm" role="tablist" @keydown="onKeydown">
+  <div class="flex max-w-full items-center gap-1 overflow-x-auto p-1 bg-bg-card rounded-full shadow-sm" role="tablist">
     <button
+      type="button"
       v-for="(tab, index) in tabs"
       :key="tab.value"
       :ref="el => { if (el) tabRefs[index] = el as HTMLButtonElement }"
@@ -11,6 +12,7 @@
       :aria-label="tab.label"
       :tabindex="modelValue === tab.value ? 0 : -1"
       @click="$emit('update:modelValue', tab.value)"
+      @keydown="onKeydown"
     >
       {{ tab.label }}
     </button>

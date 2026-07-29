@@ -119,6 +119,7 @@
               ref="inputRef"
               v-model="inputText"
               class="chat-input"
+              aria-label="消息内容"
               placeholder="发送消息... (Enter 发送, Shift+Enter 换行, 可粘贴图片)"
               @keydown.enter.exact.prevent="sendMessage"
               @paste="handlePaste"
@@ -164,6 +165,7 @@
           <input
             type="text"
             v-model="memberSearch"
+            aria-label="搜索群成员"
             placeholder="搜索成员..."
             class="search-input"
           />
@@ -276,6 +278,7 @@
         ref="contextMenuRef"
         class="context-menu"
         role="menu"
+        tabindex="-1"
         aria-label="消息操作"
         :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
         @click.stop
@@ -307,7 +310,12 @@
     </Teleport>
 
     <!-- 转发消息对话框 -->
-    <div class="forward-dialog-overlay" v-if="forwardDialogOpen" @click.self="closeForwardDialog">
+    <div
+      v-if="forwardDialogOpen"
+      class="forward-dialog-overlay"
+      role="presentation"
+      @click.self="closeForwardDialog"
+    >
       <div
         ref="forwardDialogRef"
         class="forward-dialog"
@@ -357,10 +365,11 @@
           </div>
         </div>
         <div class="dialog-footer">
-          <button class="cancel-btn" :disabled="forwarding" @click="closeForwardDialog">
+          <button type="button" class="cancel-btn" :disabled="forwarding" @click="closeForwardDialog">
             取消
           </button>
           <button
+            type="button"
             class="confirm-btn"
             :disabled="!forwardTargetSessionKey || forwarding"
             @click="confirmForward"
@@ -372,7 +381,12 @@
     </div>
 
     <!-- 连接群聊对话框 -->
-    <div class="connect-dialog-overlay" v-if="showConnectDialog" @click.self="closeConnectDialog">
+    <div
+      v-if="showConnectDialog"
+      class="connect-dialog-overlay"
+      role="presentation"
+      @click.self="closeConnectDialog"
+    >
       <div
         ref="connectDialogRef"
         class="connect-dialog"
@@ -405,6 +419,7 @@
             <input
               v-model="connectForm.targetId"
               type="text"
+              :aria-label="connectForm.type === 'group' ? '群号或频道 ID' : '用户 ID'"
               :placeholder="connectForm.type === 'group' ? '输入群号' : '输入QQ号/用户ID'"
               @keydown.enter="connectToChat"
             />
@@ -414,12 +429,13 @@
             <input
               v-model="connectForm.name"
               type="text"
+              aria-label="显示名称（可选）"
               placeholder="自定义显示名称"
             />
           </div>
           <div class="form-group">
             <label>平台</label>
-            <select v-model="connectForm.platform">
+            <select v-model="connectForm.platform" aria-label="平台">
               <option value="onebot">OneBot</option>
               <option value="qq">QQ</option>
               <option value="red">Red</option>

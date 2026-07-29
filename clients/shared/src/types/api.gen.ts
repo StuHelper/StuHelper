@@ -3015,7 +3015,8 @@ export interface paths {
          * 机器人订阅 admission action SSE 下行流
          * @description 该接口返回 `text/event-stream`。服务端会发送 `event: action`，`data` 为
          *     `BotAdmissionPendingAction` JSON；机器人执行后必须调用
-         *     `/api/v1/bot/admission/actions/{id}/events` ACK。`event: keepalive` 用于保活。
+         *     `/api/v1/bot/admission/actions/{id}/events`，并原样提交 `dispatchAttempt`
+         *     完成带 fencing 的 ACK。`event: keepalive` 用于保活。
          */
         get: operations["streamBotAdmissionActions"];
         put?: never;
@@ -3040,7 +3041,8 @@ export interface paths {
          * @description 该接口用于无法保持 SSE 长连接的机器人运行时或兜底扫描。服务端会从
          *     `admission_bot_action_outbox` 领取到期 action，并返回带 `actionID` 的
          *     `BotAdmissionPendingAction`；机器人执行后必须调用
-         *     `/api/v1/bot/admission/actions/{id}/events` ACK。
+         *     `/api/v1/bot/admission/actions/{id}/events`，并原样提交
+         *     `dispatchAttempt` 完成带 fencing 的 ACK。
          */
         post: operations["claimBotAdmissionActions"];
         delete?: never;
@@ -3175,7 +3177,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * 获取实名认证审核材料
+         * @description 返回经过归属校验的短期签名材料 URL；访问需要全局读取权限和 MFA 二次验证，并写入审计日志。
+         */
+        get: operations["getIdentityVerificationReviewDetail"];
         /** 审核实名认证 */
         put: operations["reviewIdentityVerification"];
         post?: never;
@@ -4058,6 +4064,40 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+        };
+        AdminIdentityReviewDetail: {
+            /** Format: int64 */
+            userID: number;
+            /** @enum {string} */
+            docType: "MAINLAND_ID" | "HK_MACAU" | "TW" | "PASSPORT";
+            realName: string;
+            verified: boolean;
+            /** @enum {string|null} */
+            verifyMethod?: "academic_db_match" | "tencent_cloud" | "manual" | null;
+            /** Format: date-time */
+            reviewedAt?: string | null;
+            /** Format: date-time */
+            verifiedAt?: string | null;
+            rejectionReason?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /**
+             * Format: uri
+             * @description 证件正面材料的短期签名 URL；仅管理员详情接口返回。
+             */
+            docPhotoFrontURL: string | null;
+            /**
+             * Format: uri
+             * @description 证件背面材料的短期签名 URL；可能为空。
+             */
+            docPhotoBackURL: string | null;
+            /**
+             * Format: uri
+             * @description 本人手持证件材料的短期签名 URL；仅管理员详情接口返回。
+             */
+            docPhotoSelfieURL: string | null;
         };
         SubmitIdentityRequest: {
             /** @enum {string} */
@@ -5449,6 +5489,8 @@ export interface components {
         BotAdmissionPendingAction: {
             /** @description 持久化 bot action outbox ID。SSE 下行动作会携带，ACK 时应提交到 actions/{id}/events。 */
             actionID?: string;
+            /** @description actionID 对应的派发代次；ACK 时必须原样提交。 */
+            dispatchAttempt?: number;
             sessionID: string;
             /** @enum {string} */
             action: "remind" | "release" | "kick" | "blacklist";
@@ -5465,6 +5507,10 @@ export interface components {
             failureCount?: number;
             remainingRetryCount?: number;
             willBlacklistOnTimeout?: boolean;
+        };
+        BotAdmissionActionEventRequest: components["schemas"]["BotAdmissionEventRequest"] & {
+            /** @description 领取 action 时返回的派发代次。服务端仅接受当前代次的 ACK。 */
+            dispatchAttempt: number;
         };
         BotFreshmanCommandContext: {
             operatorQQID: string;
@@ -11254,7 +11300,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BotAdmissionEventRequest"];
+                "application/json": components["schemas"]["BotAdmissionActionEventRequest"];
             };
         };
         responses: {
@@ -11452,6 +11498,38 @@ export interface operations {
             500: components["responses"]["ErrorResponse"];
         };
     };
+    getIdentityVerificationReviewDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 用户 ID */
+                userID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 实名认证审核详情 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdminIdentityReviewDetail"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
     reviewIdentityVerification: {
         parameters: {
             query?: never;
@@ -11483,7 +11561,9 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     listStudentVerifications: {
@@ -11553,6 +11633,7 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
         };
     };

@@ -3,6 +3,7 @@
     <!-- 分类标签 -->
     <div class="flex flex-wrap gap-1.5 pb-2 mb-2 border-b border-border-light">
       <button
+        type="button"
         v-for="cat in allCategories"
         :key="cat.id"
         class="max-w-full px-3 py-1 text-xs rounded-full transition-colors duration-fast cursor-pointer border-none leading-tight break-words text-left"
@@ -31,6 +32,7 @@
       <div v-for="dept in departments" :key="dept.id">
         <!-- 院系标题 -->
         <button
+          type="button"
           class="w-full text-left px-3 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-fast bg-transparent border-none rounded-md"
           :class="expandedDepts.has(dept.id)
             ? 'text-primary font-semibold'

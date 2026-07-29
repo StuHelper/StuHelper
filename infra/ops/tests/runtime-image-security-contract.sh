@@ -10,7 +10,6 @@ NODE_DOCKERFILE="${REPO_ROOT}/infra/images/node-dev/Dockerfile"
 BASE_COMPOSE="${REPO_ROOT}/docker-compose.yml"
 POSTGRES_INIT="${REPO_ROOT}/infra/postgres/init-extra-dbs.sh"
 GITHUB_CI="${REPO_ROOT}/.github/workflows/ci.yml"
-GITLAB_CI="${REPO_ROOT}/.gitlab-ci.yml"
 PROD_ENV_EXAMPLE="${REPO_ROOT}/.env.prod.example"
 PROD_DEPLOY="${REPO_ROOT}/infra/ops/prod-deploy.sh"
 REMOTE_PREFLIGHT="${REPO_ROOT}/infra/ops/remote-preflight.sh"
@@ -139,9 +138,6 @@ github_required_block="$(github_job_block required)"
 [[ "${github_required_block}" == *"- runtime-image-security"* ]] ||
   fail "GitHub required gate must depend on runtime-image-security"
 
-assert_contains "${GITLAB_CI}" '^runtime_image_security:$'
-assert_contains "${GITLAB_CI}" 'TRIVY_CACHE_DIR=.*RUNTIME_IMAGE_SCAN_OUTPUT_DIR=.*bash infra/ops/scan-runtime-images\.sh'
-assert_contains "${GITLAB_CI}" 'runtime-image-scan-evidence/\*\.json'
 assert_contains "${GITHUB_CI}" 'image: cgr\.dev/chainguard/postgres:latest@sha256:[0-9a-f]{64}$'
 assert_contains "${GITHUB_CI}" 'image: redis:8\.8\.1-alpine@sha256:[0-9a-f]{64}$'
 

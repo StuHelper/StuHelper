@@ -12,6 +12,7 @@
         <p>{{ t('errors.authCallback.error') }}</p>
         <p class="text-text-muted text-sm my-3 mb-6">{{ error }}</p>
         <button
+          type="button"
           class="py-2 px-6 bg-text-primary text-bg-base border-none rounded-sm text-sm font-medium cursor-pointer transition-all duration-fast hover:bg-accent hover:text-white"
           @click="goToLogin"
         >

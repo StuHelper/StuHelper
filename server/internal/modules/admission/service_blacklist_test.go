@@ -199,6 +199,11 @@ func TestExpiredAdmissionBlacklistSweepResetsFailureCount(t *testing.T) {
 	assert.Equal(t, 1, processed)
 	assertMemberBlacklistReleased(t, fixture, entry.ID)
 	assertAdmissionFailureCount(t, fixture, "10001", 0)
+
+	processed, err = svc.ProcessExpiredMemberBlacklists(context.Background())
+	require.NoError(t, err)
+	assert.Zero(t, processed)
+	assertAdmissionFailureCount(t, fixture, "10001", 0)
 }
 
 func newBlacklistTestService(t *testing.T, fixture *postgresfixture.Fixture) *Service {

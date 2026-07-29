@@ -161,6 +161,9 @@ describe('OldStudentVerificationFlow', () => {
       studentName: '张三',
     })
     expect(emailInput.element.value).toBe('20250001@buaa.edu.cn')
+    expect(wrapper.get('[data-academic-match-status]').attributes('role')).toBe(
+      'status',
+    )
 
     await wrapper.find('[data-school-email-otp-request]').trigger('click')
     await flushPromises()
@@ -173,6 +176,7 @@ describe('OldStudentVerificationFlow', () => {
       studentName: '张三',
     })
     expect(emailInput.element.value).toBe('20250001@buaa.edu.cn')
+    expect(wrapper.findAll('[role="status"]')).toHaveLength(2)
     vi.useRealTimers()
   })
 
@@ -241,6 +245,7 @@ describe('OldStudentVerificationFlow', () => {
 
     expect(wrapper.emitted('expired')).toBeUndefined()
     expect(wrapper.text()).toContain('consumed')
+    expect(wrapper.get('[role="alert"]').text()).toContain('consumed')
   })
 
   it('keeps email OTP verification disabled until email and code are ready', async () => {
@@ -283,6 +288,9 @@ describe('OldStudentVerificationFlow', () => {
     await wrapper.find('[data-school-email-otp-form]').trigger('submit')
     await flushPromises()
 
+    expect(
+      wrapper.get('[data-school-email-otp-form]').attributes('aria-busy'),
+    ).toBe('true')
     expect(mockAdmissionApi.verifySchoolEmailOTP).toHaveBeenCalledTimes(1)
     expect(mockAdmissionApi.verifySchoolEmailOTP).toHaveBeenCalledWith({
       schoolCode: '4111010006',
@@ -298,6 +306,9 @@ describe('OldStudentVerificationFlow', () => {
     })
     await flushPromises()
 
+    expect(
+      wrapper.get('[data-school-email-otp-form]').attributes('aria-busy'),
+    ).toBe('false')
     expect(wrapper.emitted('verified')).toHaveLength(1)
   })
 })

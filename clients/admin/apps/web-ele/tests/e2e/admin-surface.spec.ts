@@ -492,6 +492,19 @@ async function mockAdminApi(page: Page) {
       return;
     }
     if (path.startsWith('/api/v1/admin/identities/')) {
+      if (method === 'GET') {
+        await route.fulfill(
+          ok({
+            ...identityReview,
+            docPhotoFrontURL:
+              'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=',
+            docPhotoBackURL: null,
+            docPhotoSelfieURL:
+              'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=',
+          }),
+        );
+        return;
+      }
       await route.fulfill(ok({ ...identityReview, verified: true }));
       return;
     }

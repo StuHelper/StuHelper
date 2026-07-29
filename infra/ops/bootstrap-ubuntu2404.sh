@@ -332,9 +332,10 @@ Next steps:
 4. Review the remote deploy control plane in ${DEPLOY_APP_DIR}/.deploy/remote.env
    - registry/shared/generated secret refs should point to your remote secret backend
 5. Ensure the deploy bundle is synced to ${DEPLOY_APP_DIR}; re-run bootstrap or install-backup-timers.sh afterwards if you want systemd timers installed from the repo
-6. Ensure the GitLab CI variables are set:
+6. Configure the staging and production GitHub environment secrets:
    - DEPLOY_HOST / DEPLOY_PORT / DEPLOY_USER / DEPLOY_APP_DIR / DEPLOY_SSH_KEY
-7. Push to main and approve the production deploy job to trigger build -> push -> remote deploy
+   - DEPLOY_SSH_KNOWN_HOSTS
+7. Publish a trusted main commit, then run the protected GitHub Deploy workflow for production
 EOF
 }
 

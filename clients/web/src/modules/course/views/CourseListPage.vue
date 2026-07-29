@@ -235,6 +235,7 @@ onBeforeUnmount(() => {
           </label>
           <div class="flex gap-2">
             <button
+              type="button"
               :disabled="allExpanded"
               :aria-label="t('review.courseList.expandAll')"
               :title="t('review.courseList.expandAll')"
@@ -249,6 +250,7 @@ onBeforeUnmount(() => {
               <ChevronDown :size="18" />
             </button>
             <button
+              type="button"
               :disabled="allCollapsed"
               :aria-label="t('review.courseList.collapseAll')"
               :title="t('review.courseList.collapseAll')"
@@ -278,6 +280,7 @@ onBeforeUnmount(() => {
   <div v-else-if="error" class="flex flex-col items-center justify-center py-20 text-text-secondary">
         <p class="mb-4">{{ error }}</p>
         <button
+          type="button"
           class="rounded-lg bg-primary px-4 py-2 text-white hover:bg-primary/90 cursor-pointer"
           @click="fetchCourses"
         >
@@ -310,6 +313,7 @@ onBeforeUnmount(() => {
           class="rounded-xl bg-bg-card border border-border-light overflow-hidden"
         >
           <button
+            type="button"
             class="flex w-full items-center justify-between px-5 py-3 cursor-pointer hover:bg-bg-elevated/50 transition-colors"
             :aria-expanded="group.expanded"
             @click="toggleDepartment(group.originalIndex)"

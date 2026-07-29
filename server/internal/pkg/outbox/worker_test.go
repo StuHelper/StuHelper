@@ -179,37 +179,45 @@ func TestProcessBatch_MarksRetryOnFailure(t *testing.T) {
 	assert.Equal(t, "trimmed:boom", retryError)
 }
 
-func TestProcessBatch_MarkFailureSurvivesParentCancellation(t *testing.T) {
+func TestProcessBatch_AbandonsClaimedJobsWithoutConsumingRetriesOnParentCancellation(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var markFailureErr error
+	var abandonedIDs []int64
 	err := ProcessBatch(
 		ctx,
 		WorkerConfig{Name: "test worker", BatchSize: 10, LockStaleAfter: time.Minute, RetryBaseBackoff: time.Second, MaxBackoff: time.Minute},
 		func(context.Context, int, time.Duration) ([]testJob, error) {
-			return []testJob{{id: 7, jobType: "sync", attemptCount: 0}}, nil
+			return []testJob{
+				{id: 7, jobType: "sync", attemptCount: 4},
+				{id: 8, jobType: "sync", attemptCount: 2},
+			}, nil
 		},
-		func(context.Context, testJob) error {
+		func(_ context.Context, job testJob) error {
+			assert.EqualValues(t, 7, job.id)
 			cancel()
-			return errors.New("boom")
+			return context.Canceled
 		},
 		func(context.Context, int64, time.Time) error {
 			return errors.New("should not mark done")
 		},
-		func(ctx context.Context, _ int64, _ time.Time, _ time.Time, _ string, _ bool) error {
-			markFailureErr = ctx.Err()
-			return markFailureErr
+		func(ctx context.Context, jobID int64, _ time.Time, nextAttempt time.Time, lastError string, terminal bool) error {
+			require.NoError(t, ctx.Err())
+			assert.True(t, nextAttempt.IsZero())
+			assert.Empty(t, lastError)
+			assert.False(t, terminal)
+			abandonedIDs = append(abandonedIDs, jobID)
+			return nil
 		},
 		func(job testJob) JobMeta {
 			return JobMeta{ID: job.id, JobType: job.jobType, AttemptCount: job.attemptCount}
 		},
 		nil,
 	)
-	require.NoError(t, err)
-	assert.NoError(t, markFailureErr)
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Equal(t, []int64{7, 8}, abandonedIDs)
 }
 
 func TestProcessBatch_ContinuesAfterMarkDoneFailure(t *testing.T) {

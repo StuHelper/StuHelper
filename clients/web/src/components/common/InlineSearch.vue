@@ -49,6 +49,7 @@
         </div>
         <template v-else>
           <button
+            type="button"
             v-for="(course, idx) in results"
             :id="`search-item-${idx}`"
             :key="course.id"
@@ -57,6 +58,7 @@
             class="w-full flex items-center gap-2 px-4 py-2.5 text-left cursor-pointer transition-colors duration-fast hover:bg-bg-hover"
             :class="idx === activeIndex && 'bg-bg-hover'"
             @mouseenter="activeIndex = idx"
+            @focus="activeIndex = idx"
             @click="selectCourse(course)"
           >
             <span class="text-sm font-medium text-text-primary truncate">{{ course.name }}</span>
@@ -70,6 +72,7 @@
       <template v-else-if="recentSearches.length > 0">
         <div class="px-4 py-2 text-xs text-text-muted font-medium">{{ t('review.topBar.recentSearches') }}</div>
         <button
+          type="button"
           v-for="(item, idx) in recentSearches"
           :id="`search-item-${idx}`"
           :key="item.id"
@@ -78,6 +81,7 @@
           class="w-full flex items-center gap-2 px-4 py-2.5 text-left cursor-pointer transition-colors duration-fast hover:bg-bg-hover"
           :class="idx === activeIndex && 'bg-bg-hover'"
           @mouseenter="activeIndex = idx"
+          @focus="activeIndex = idx"
           @click="selectRecent(item)"
         >
           <span class="text-sm font-medium text-text-primary truncate">{{ item.name }}</span>

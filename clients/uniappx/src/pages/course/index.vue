@@ -62,6 +62,7 @@ onShow(() => {
       <input
         v-model="query"
         class="search-input"
+        :aria-label="t('course.index.searchPlaceholder')"
         data-testid="uni-course-search-input"
         :placeholder="t('course.index.searchPlaceholder')"
         @confirm="handleSearch"

@@ -3,6 +3,8 @@
     class="sh-rail"
     @mouseenter="onHoverIn"
     @mouseleave="onHoverOut"
+    @focusin="onHoverIn"
+    @focusout="onHoverOut"
   >
     <button
       type="button"

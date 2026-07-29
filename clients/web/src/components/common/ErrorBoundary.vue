@@ -6,6 +6,7 @@
     <h2 class="text-lg font-semibold text-text-primary">{{ t('errors.boundary.title') }}</h2>
     <p class="text-sm text-text-secondary max-w-md">{{ t('errors.boundary.description') }}</p>
     <button
+      type="button"
       class="mt-2 py-2 px-6 text-sm font-medium text-white bg-primary rounded-full cursor-pointer transition-opacity duration-fast hover:opacity-90"
       @click="handleReload"
     >

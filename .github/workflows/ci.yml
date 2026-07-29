@@ -64,6 +64,7 @@ jobs:
             infra:
               - '.env.example'
               - '.env.prod.example'
+              - '.github/**'
               - 'Makefile'
               - 'docker-compose*.yml'
               - 'infra/**'

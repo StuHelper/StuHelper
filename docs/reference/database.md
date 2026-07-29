@@ -3,7 +3,7 @@ type: reference
 audience: backend-dev, ops
 status: current
 authoritative-source: server/migrations/
-last-verified: 2026-07-29
+last-verified: 2026-07-30
 ---
 
 # 数据库导航摘要
@@ -31,6 +31,7 @@ last-verified: 2026-07-29
 | 教务展示 | `academic_*` | [product-specs/academics-data-integration.md](../product-specs/academics-data-integration.md) |
 | 资源共享 | `resource_*` | [product-specs/resource-sharing.md](../product-specs/resource-sharing.md) |
 | 通知 | `notification*` | [product-specs/notification.md](../product-specs/notification.md) |
+| Admission 机器人动作 | `admission_bot_action_outbox` | [design/koishi-admission-verification.md](../design/koishi-admission-verification.md) |
 | 开放平台 | `open_platform_*` | [design/open-platform-v1.md](../design/open-platform-v1.md) |
 | 审计与 outbox | `audit_events`、`domain_event_outbox` | [product-specs/audit-logging.md](../product-specs/audit-logging.md) |
 
@@ -39,7 +40,10 @@ last-verified: 2026-07-29
 这些约束写在这里是因为它们**跨多张表**，不是单个 migration 能完整表达：
 
 - `users` 是 shadow user 表：业务外键锚点 + 最小用户画像缓存，身份真源是 Casdoor。
-- `domain_event_outbox` 是统一 outbox：`stream + dedupe_key` 唯一键；`pending / processing / completed / failed` 状态机；后台 worker 按 stream 消费，主事务不直连外部系统。
+- `domain_event_outbox` 是统一 outbox：`stream + dedupe_key` 唯一键；`pending / processing / completed / failed / dead_letter` 状态机；后台 worker 按 stream 消费，主事务不直连外部系统。`revision` / `locked_revision` 是 supersession fence：处理中的同 key 新事件只提升 revision 并保留当前 lease，旧 worker 完成或失败时若发现 revision 已变化，就把最新修订重新排队，不能把新事件错误标成完成或 dead letter。进程取消时已 claim 但未处理的 job 以 detached finalize context 归还 pending，且不增加失败次数。
+- `admission_bot_action_outbox.attempt_count` 同时作为下发世代号暴露为 `dispatchAttempt`；Koishi ACK 必须回传该值。服务端只有在 action 仍为 `dispatched` 且 attempt 相等时接受成功/失败回执，延迟到达的旧世代 ACK 不能覆盖新一轮派发状态。
+- `teacher_public_stats` 是异步投影。`reviews`、`teachers`、`departments` 的 statement-level trigger 在同一数据库事务中幂等 upsert `review_projection / teacher_public_stats_refresh / teacher_public_stats` job；单并发 worker 刷新物化视图后统一失效 Redis 缓存，周期性 enqueue 只承担漂移对账，不把同步刷新延迟带回 HTTP 请求。
+- 评课点赞与回复通知在业务写事务内写入 `review_notification` outbox。worker 可重试投递，`notifications.idempotency_key` 的 partial unique index 保证重复消费只产生一条持久通知；实时 SSE 只在首次插入时发送，不能把连接在线状态当作持久投递保证。
 - `audit_events.category = 'admin_operation'` 收口所有管理员操作的审计留痕。
 - `open_platform_user_consents` 是第三方 app + user + scope 授权事实；scope consent 不写入 OpenFGA。
 - 能力由角色静态展开，**不落本地 RBAC 表**；资源级权限由 OpenFGA 承担。详见 [design/authorization-model.md](../design/authorization-model.md)。

@@ -58,6 +58,21 @@ func (r *Repository) GetSchoolConfig(ctx context.Context, schoolID int64) (*Scho
 	return item, nil
 }
 
+func (r *Repository) GetSchoolConfigForUpdateTx(ctx context.Context, tx pgx.Tx, schoolID int64) (*SchoolConfig, error) {
+	ctx = withDBTable(ctx, "school_configs")
+	item, err := scanSchoolConfig(tx.QueryRow(ctx, `
+		SELECT `+selectSchoolConfigColumns+`
+		FROM school_configs sc
+		LEFT JOIN schools s ON s.id = sc.school_id
+		WHERE sc.school_id = $1
+		FOR UPDATE OF sc
+	`, schoolID))
+	if err != nil {
+		return nil, fmt.Errorf("GetSchoolConfigForUpdateTx: %w", err)
+	}
+	return item, nil
+}
+
 // ListSchoolConfigs 获取所有启用的学校认证配置
 func (r *Repository) ListSchoolConfigs(ctx context.Context) ([]SchoolConfig, error) {
 	ctx = withDBTable(ctx, "school_configs")

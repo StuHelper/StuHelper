@@ -56,6 +56,83 @@ func TestRepository_UpsertResetsDeadLetterJob(t *testing.T) {
 	assert.JSONEq(t, `{"version":2}`, string(reclaimed[0].Payload))
 }
 
+func TestRepository_SupersededProcessingJobFinishesBeforeLatestPayloadRuns(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	ctx := context.Background()
+	first := upsertAndClaimOutboxJob(t, fixture, ctx, "superseded-processing")
+
+	require.NoError(t, fixture.DB.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		return UpsertJobTx(
+			ctx,
+			tx,
+			"test_outbox",
+			"sync",
+			"superseded-processing",
+			[]byte(`{"version":2}`),
+		)
+	}))
+
+	concurrent, err := ClaimJobs(ctx, fixture.DB, "test_outbox", 10, time.Minute)
+	require.NoError(t, err)
+	assert.Empty(t, concurrent, "new payload must not run concurrently with an active older revision")
+
+	require.NoError(t, MarkJobDone(ctx, fixture.DB, first.ID, first.LockedAt))
+	assertOutboxStatus(t, fixture, first.ID, StatusPending)
+
+	latest, err := ClaimJobs(ctx, fixture.DB, "test_outbox", 10, time.Minute)
+	require.NoError(t, err)
+	require.Len(t, latest, 1)
+	assert.JSONEq(t, `{"version":2}`, string(latest[0].Payload))
+	assert.Equal(t, 0, latest[0].AttemptCount)
+
+	require.NoError(t, MarkJobDone(ctx, fixture.DB, latest[0].ID, latest[0].LockedAt))
+	assertOutboxStatus(t, fixture, first.ID, StatusCompleted)
+}
+
+func TestRepository_SupersededProcessingFailureDoesNotDeadLetterLatestPayload(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	ctx := context.Background()
+	first := upsertAndClaimOutboxJob(t, fixture, ctx, "superseded-failure")
+
+	require.NoError(t, fixture.DB.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		return UpsertJobTx(
+			ctx,
+			tx,
+			"test_outbox",
+			"sync",
+			"superseded-failure",
+			[]byte(`{"version":2}`),
+		)
+	}))
+	require.NoError(t, MarkJobFailure(
+		ctx,
+		fixture.DB,
+		first.ID,
+		first.LockedAt,
+		time.Time{},
+		"old revision failed",
+		true,
+	))
+
+	var status string
+	var attemptCount int
+	var lastError *string
+	err := fixture.Pool.QueryRow(ctx, `
+		SELECT status, attempt_count, last_error
+		FROM domain_event_outbox
+		WHERE id = $1
+	`, first.ID).Scan(&status, &attemptCount, &lastError)
+	require.NoError(t, err)
+	assert.Equal(t, StatusPending, status)
+	assert.Equal(t, 0, attemptCount)
+	assert.Nil(t, lastError)
+
+	latest, err := ClaimJobs(ctx, fixture.DB, "test_outbox", 10, time.Minute)
+	require.NoError(t, err)
+	require.Len(t, latest, 1)
+	assert.JSONEq(t, `{"version":2}`, string(latest[0].Payload))
+}
+
 func TestRepository_RequeueDeadLetterJob(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	ctx := context.Background()
@@ -75,6 +152,28 @@ func TestRepository_RequeueDeadLetterJob(t *testing.T) {
 	requeued, err = RequeueDeadLetterJob(ctx, fixture.DB, job.ID)
 	require.NoError(t, err)
 	assert.False(t, requeued)
+}
+
+func TestRepository_AbandonRequeuesWithoutConsumingAttempt(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	ctx := context.Background()
+	job := upsertAndClaimOutboxJob(t, fixture, ctx, "graceful-shutdown")
+
+	require.NoError(t, MarkJobFailure(
+		ctx,
+		fixture.DB,
+		job.ID,
+		job.LockedAt,
+		time.Time{},
+		"",
+		false,
+	))
+	assertOutboxStatus(t, fixture, job.ID, StatusPending)
+
+	reclaimed, err := ClaimJobs(ctx, fixture.DB, "test_outbox", 10, time.Minute)
+	require.NoError(t, err)
+	require.Len(t, reclaimed, 1)
+	assert.Equal(t, 0, reclaimed[0].AttemptCount)
 }
 
 func TestRepository_MarkDoneRejectsStaleLease(t *testing.T) {

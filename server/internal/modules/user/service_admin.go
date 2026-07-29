@@ -31,6 +31,26 @@ func (s *Service) ListIdentities(ctx context.Context, status string, page, pageS
 	return s.repo.ListIdentityReviewItems(ctx, status, page, pageSize)
 }
 
+// GetIdentityReviewItem 返回管理员审核所需的单条详情，并将经过归属和槽位
+// 校验的对象存储 key 转换为短期签名 URL。
+func (s *Service) GetIdentityReviewItem(ctx context.Context, userID int64) (*IdentityReviewItem, error) {
+	if err := validateUserID(userID); err != nil {
+		return nil, err
+	}
+	item, err := s.repo.GetIdentityReviewItemByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("GetIdentityReviewItem get: %w", err)
+	}
+	if item == nil {
+		return nil, ErrIdentityNotFound
+	}
+	resolved, err := s.ResolveIdentityReviewItemAssets(ctx, item)
+	if err != nil {
+		return nil, fmt.Errorf("GetIdentityReviewItem resolve evidence: %w", err)
+	}
+	return resolved, nil
+}
+
 // ReviewIdentity 管理员审核实名认证（通过/驳回）
 // 使用精准更新，不读取也不回写敏感字段
 func (s *Service) ReviewIdentity(ctx context.Context, userID int64, approved bool, reason string) error {
@@ -43,6 +63,20 @@ func (s *Service) ReviewIdentity(ctx context.Context, userID int64, approved boo
 	}
 	if identityStatus == nil {
 		return ErrIdentityNotFound
+	}
+	if identityStatus.Verified || identityStatus.ReviewedAt != nil {
+		return ErrVerificationReviewStateConflict
+	}
+	if approved {
+		// 直接调用审核接口也必须先通过材料归属、槽位和可访问性校验，
+		// 不能只依赖管理端 UI 隐藏按钮。
+		detail, err := s.GetIdentityReviewItem(ctx, userID)
+		if err != nil {
+			return err
+		}
+		if detail.DocPhotoFront == nil || detail.DocPhotoSelfie == nil {
+			return ErrPhotoRequired
+		}
 	}
 
 	var (
@@ -109,37 +143,50 @@ func (s *Service) GetProfileSchoolID(ctx context.Context, userID int64) (*int64,
 }
 
 // ReviewStudentVerification 管理员审核学生认证（通过/驳回）
-func (s *Service) ReviewStudentVerification(ctx context.Context, userID int64, approved bool, reason string) error {
+func (s *Service) ReviewStudentVerification(
+	ctx context.Context,
+	userID int64,
+	expectedSchoolID int64,
+	approved bool,
+	reason string,
+) error {
 	if err := validateUserID(userID); err != nil {
 		return err
 	}
+	if err := validateSchoolID(expectedSchoolID); err != nil {
+		return ErrVerificationReviewStateConflict
+	}
 	trimmedReason := strings.TrimSpace(reason)
 
-	profile, err := s.repo.GetProfileByUserID(ctx, userID)
-	if err != nil {
-		return fmt.Errorf("ReviewStudentVerification get: %w", err)
-	}
-	if profile == nil {
-		return ErrProfileNotFound
-	}
-
-	now := time.Now()
-	profile.ReviewedAt = &now
-	if approved {
-		profile.VerificationStatus = StatusVerified
-		profile.VerifiedAt = &now
-		profile.RejectionReason = nil
-	} else {
-		profile.VerificationStatus = StatusRejected
-		profile.VerifiedAt = nil
-		if trimmedReason != "" {
-			profile.RejectionReason = &trimmedReason
-		} else {
-			profile.RejectionReason = nil
-		}
-	}
-
 	return s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		profile, err := s.repo.GetProfileByUserIDForUpdateTx(ctx, tx, userID)
+		if err != nil {
+			return fmt.Errorf("ReviewStudentVerification get tx: %w", err)
+		}
+		if profile == nil {
+			return ErrProfileNotFound
+		}
+		if profile.VerificationStatus != StatusPending || profile.SchoolID == nil ||
+			*profile.SchoolID != expectedSchoolID {
+			return ErrVerificationReviewStateConflict
+		}
+
+		now := time.Now()
+		profile.ReviewedAt = &now
+		if approved {
+			profile.VerificationStatus = StatusVerified
+			profile.VerifiedAt = &now
+			profile.RejectionReason = nil
+		} else {
+			profile.VerificationStatus = StatusRejected
+			profile.VerifiedAt = nil
+			if trimmedReason != "" {
+				profile.RejectionReason = &trimmedReason
+			} else {
+				profile.RejectionReason = nil
+			}
+		}
+
 		if err := s.repo.UpdateProfileTx(ctx, tx, profile); err != nil {
 			return fmt.Errorf("ReviewStudentVerification update profile tx: %w", err)
 		}

@@ -42,6 +42,11 @@ assert_contains "${DEV_LOCAL}" 'sync_dev_observability_ports'
 assert_contains "${DEV_UP}" 'sync_dev_casdoor_builtin_bootstrap_credentials'
 assert_contains "${DEV_UP}" 'ensure_dev_casdoor_web_login_user'
 assert_contains "${DEV_UP}" 'sync_dev_browser_public_urls'
+assert_contains "${DEV_UP}" 'sync_dev_postgres_role_passwords'
+assert_contains "${DEV_UP}" '\\getenv postgres_admin_password POSTGRES_PASSWORD'
+assert_contains "${DEV_UP}" "SELECT format\\('ALTER ROLE %I WITH PASSWORD %L'"
+assert_contains "${DEV_UP}" 'compose up -d --wait --wait-timeout 90 postgres'
+assert_contains "${DEV_UP}" '^sync_dev_postgres_role_passwords$'
 assert_contains "${DEV_UP}" "SELECT client_id, client_secret FROM application WHERE name = 'app-built-in' AND organization = 'built-in' LIMIT 1"
 assert_contains "${DEV_UP}" 'built-in/admin Casdoor user is required before dev web login bootstrap'
 assert_contains "${DEV_UP}" 'INSERT INTO public\."user" AS target'

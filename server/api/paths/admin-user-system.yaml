@@ -44,6 +44,49 @@
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
 /api/v1/admin/identities/{userID}:
+  get:
+    tags: [Admin]
+    operationId: getIdentityVerificationReviewDetail
+    summary: 获取实名认证审核材料
+    description: 返回经过归属校验的短期签名材料 URL；访问需要全局读取权限和 MFA 二次验证，并写入审计日志。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: userID
+        in: path
+        required: true
+        description: 用户 ID
+        schema:
+          type: integer
+          format: int64
+    responses:
+      '200':
+        description: 实名认证审核详情
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/user-system.yaml#/AdminIdentityReviewDetail'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
   put:
     tags: [Admin]
     operationId: reviewIdentityVerification
@@ -86,7 +129,11 @@
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '404':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
 /api/v1/admin/student-verifications:
@@ -182,6 +229,8 @@
       '403':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'

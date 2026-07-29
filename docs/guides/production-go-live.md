@@ -3,7 +3,7 @@ type: guide
 audience: ops
 status: current
 authoritative-source: docker-compose.prod.yml + infra/ops/*.sh + infra/nginx/baota-stuhelper.conf
-last-verified: 2026-05-30
+last-verified: 2026-07-30
 ---
 
 # 生产上线缺漏清单与执行指导
@@ -171,7 +171,7 @@ sudo ./infra/ops/apply-baota-nginx-templates.sh --profile sso --apply --reload -
 
 北航老生学号邮箱 OTP 使用外部只读 Oracle 学籍源。Oracle DBA 必须提供启用 TCPS 的监听器和证书，证书 SAN 必须覆盖 `EXTERNAL_STUDENT_SOURCE_ORACLE_HOST`；应用固定使用 `EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE=verify-full`，默认端口 `2484`，并从 `EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_HOST_PATH` 复制公开 CA 到只读容器路径 `/external-student-source-tls/ca.crt`。该挂载不得包含数据库文件、服务端私钥或 CA 私钥。
 
-生产 secret backend 中启用 `EXTERNAL_STUDENT_SOURCE_ENABLED=true`，配置 `EXTERNAL_STUDENT_SOURCE_PROVIDER=oracle`、`EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE=4111010006`、host/service/user/password/schema/table/column、连接超时、查询超时和连接池参数。密码只能存在于 secret backend。运行账号不得使用 `SYS` 或 `SYSTEM`；在 Oracle 源端通过 `EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_PASSWORD=<secret> ./infra/ops/provision-external-student-source-oracle-readonly.sh` 管理专用账号，只授予 `CREATE SESSION` 和 `USR_JWBIZ.T_XS_JBXX` 的 `SELECT`。应用只查询 `XH` 与 `XM`，单次学号查询最多读取两行，并拒绝空值、不一致学号、冲突姓名和非法字符。
+生产 secret backend 中启用 `EXTERNAL_STUDENT_SOURCE_ENABLED=true`，配置 `EXTERNAL_STUDENT_SOURCE_PROVIDER=oracle`、`EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE=4111010006`、host/service/user/password/schema/table/column、连接超时、查询超时和连接池参数。密码只能存在于 secret backend。运行账号必须与源 schema owner 不同，且不得使用 `SYS`、`SYSTEM`、`SYSBACKUP`、`SYSDG`、`SYSKM` 或 `SYSRAC`；在 Oracle 源端通过 `EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_PASSWORD=<secret> ./infra/ops/provision-external-student-source-oracle-readonly.sh` 管理专用账号。脚本会拒绝任何 role、列级授权或额外系统/对象权限，只允许直接授予无 `ADMIN OPTION` 的 `CREATE SESSION`，以及 `USR_JWBIZ.T_XS_JBXX` 上无 `GRANT OPTION`、无 `HIERARCHY OPTION` 的 `SELECT`。应用只查询 `XH` 与 `XM`，单次学号查询最多读取两行，并拒绝空值、不一致学号、冲突姓名和非法字符。
 
 运行时默认使用 4 个最大连接、1 个空闲连接、300 秒连接寿命和 60 秒空闲寿命。熔断参数由 `EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_FAILURE_THRESHOLD=5`、`EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_SUCCESS_THRESHOLD=2`、`EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_OPEN_SECONDS=30` 控制；半开状态只允许一个恢复探测。Oracle 超时、TLS、查询或数据完整性故障记录到 `external_requests_total{client="oracle_student_directory"}` 和 `circuit_breaker_state`，User 与 Admission 接口返回 503，不把依赖故障伪装成“学号姓名不匹配”。
 

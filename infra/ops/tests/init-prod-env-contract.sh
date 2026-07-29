@@ -514,22 +514,25 @@ assert_file_not_contains "${legacy_dir}/.env.prod.generated.secrets" "^${retired
 external_dir="$(mktemp -d)"
 cleanup_dirs+=("${external_dir}")
 cp "${REPO_ROOT}/.env.prod.example" "${external_dir}/.env.prod.shared"
-python3 - "${external_dir}/.env.prod.shared" <<'PY'
+external_postgres_ca="${external_dir}/external-postgres-ca.crt"
+external_postgres_ca_key="${external_dir}/external-postgres-ca.key"
+openssl req -x509 -newkey rsa:2048 -nodes \
+  -keyout "${external_postgres_ca_key}" \
+  -out "${external_postgres_ca}" \
+  -subj "/CN=StuHelper external PostgreSQL contract CA" \
+  -days 1 >/dev/null 2>&1
+rm -f -- "${external_postgres_ca_key}"
+python3 - "${external_dir}/.env.prod.shared" "${external_postgres_ca}" <<'PY'
 from pathlib import Path
 import sys
 
 path = Path(sys.argv[1])
+external_postgres_ca = sys.argv[2]
 replacements = {
-    "DATABASE_URL": "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=disable",
-    "BACKUP_DATABASE_URL": "postgres://stuhelper_backup:REPLACE_WITH_STUHELPER_BACKUP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=disable",
-    "REPLICATION_DATABASE_URL": "postgres://stuhelper_replication:REPLACE_WITH_STUHELPER_REPLICATION_DB_PASSWORD@postgres:5432/stuhelper?sslmode=disable",
-    "DB_SSL_MODE": "disable",
-    "DB_SSL_ROOT_CERT": "",
-    "POSTGRES_ENABLE_SSL": "off",
-    "POSTGRES_INTERNAL_SSL_MODE": "disable",
     "EXTERNAL_POSTGRES_ENABLED": "true",
-    "EXTERNAL_POSTGRES_ALLOW_PLAINTEXT": "true",
+    "EXTERNAL_POSTGRES_ALLOW_PLAINTEXT": "false",
     "EXTERNAL_DATASTORE_NETWORK": "baota_net",
+    "POSTGRES_CLIENT_CA_HOST_PATH": external_postgres_ca,
 }
 lines = []
 for line in path.read_text().splitlines():
@@ -556,12 +559,14 @@ EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_DIR="${external_dir}/generated/external-st
 DEPLOY_STATE_DIR="${external_dir}/.deploy" \
 bash "${INIT_SCRIPT}" >"${external_dir}/stdout.log" 2>"${external_dir}/stderr.log"
 external_env="${external_dir}/.env.prod.shared"
-assert_env_value "${external_env}" "DATABASE_URL" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=disable"
-assert_env_value "${external_env}" "DB_SSL_MODE" "disable"
-assert_env_value "${external_env}" "DB_SSL_ROOT_CERT" ""
-assert_env_value "${external_env}" "POSTGRES_ENABLE_SSL" "off"
-assert_env_value "${external_env}" "POSTGRES_INTERNAL_SSL_MODE" "disable"
+assert_env_value "${external_env}" "DATABASE_URL" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt"
+assert_env_value "${external_env}" "DB_SSL_MODE" "verify-full"
+assert_env_value "${external_env}" "DB_SSL_ROOT_CERT" "/tls/ca.crt"
+assert_env_value "${external_env}" "POSTGRES_ENABLE_SSL" "on"
+assert_env_value "${external_env}" "POSTGRES_INTERNAL_SSL_MODE" "verify-full"
+assert_env_value "${external_env}" "EXTERNAL_POSTGRES_ALLOW_PLAINTEXT" "false"
 assert_env_value "${external_env}" "EXTERNAL_DATASTORE_NETWORK" "baota_net"
+assert_file_exists "${external_dir}/generated/postgres-client-ca/ca.crt"
 assert_env_value "${external_env}" "REDIS_USERNAME" "stuhelper_app"
 assert_env_value "${external_env}" "REDIS_EXPORTER_USERNAME" "stuhelper_metrics"
 assert_env_value "${external_env}" "REDIS_TLS_ENABLED" "true"

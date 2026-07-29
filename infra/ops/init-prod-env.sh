@@ -217,26 +217,30 @@ ensure_value "LOG_LEVEL" "${LOG_LEVEL:-}" "info"
 ensure_prod_default "LOG_FORMAT" "${LOG_FORMAT:-}" "json" "console"
 ensure_value "LOG_OUTPUT" "${LOG_OUTPUT:-}" "stdout"
 ensure_value "EXTERNAL_POSTGRES_ENABLED" "${EXTERNAL_POSTGRES_ENABLED:-}" "false"
-ensure_value "EXTERNAL_POSTGRES_ALLOW_PLAINTEXT" "${EXTERNAL_POSTGRES_ALLOW_PLAINTEXT:-}" "false"
+ensure_prod_default "EXTERNAL_POSTGRES_ALLOW_PLAINTEXT" "${EXTERNAL_POSTGRES_ALLOW_PLAINTEXT:-}" "false" "true"
 ensure_value "EXTERNAL_DATASTORE_NETWORK" "${EXTERNAL_DATASTORE_NETWORK:-}" ""
-if [[ "${EXTERNAL_POSTGRES_ALLOW_PLAINTEXT:-false}" == "true" ]]; then
-  ensure_value "DATABASE_URL" "${DATABASE_URL:-}" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=disable"
-  ensure_value "BACKUP_DATABASE_URL" "${BACKUP_DATABASE_URL:-}" "postgres://stuhelper_backup:REPLACE_WITH_STUHELPER_BACKUP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=disable"
-  ensure_value "REPLICATION_DATABASE_URL" "${REPLICATION_DATABASE_URL:-}" "postgres://stuhelper_replication:REPLACE_WITH_STUHELPER_REPLICATION_DB_PASSWORD@postgres:5432/stuhelper?sslmode=disable"
-  ensure_value "DB_SSL_MODE" "${DB_SSL_MODE:-}" "disable"
-  ensure_value "POSTGRES_ENABLE_SSL" "${POSTGRES_ENABLE_SSL:-}" "off"
-  ensure_value "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}" "disable"
-  ensure_value "POSTGRES_CLIENT_CA_HOST_PATH" "${POSTGRES_CLIENT_CA_HOST_PATH:-}" ""
-else
-  ensure_prod_default "DATABASE_URL" "${DATABASE_URL:-}" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt" "postgres://stuhelper:dev123@localhost:5432/stuhelper?sslmode=disable" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@localhost:5432/stuhelper?sslmode=disable"
-  ensure_prod_default "BACKUP_DATABASE_URL" "${BACKUP_DATABASE_URL:-}" "postgres://stuhelper_backup:REPLACE_WITH_STUHELPER_BACKUP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt"
-  ensure_prod_default "REPLICATION_DATABASE_URL" "${REPLICATION_DATABASE_URL:-}" "postgres://stuhelper_replication:REPLACE_WITH_STUHELPER_REPLICATION_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt"
-  ensure_prod_default "DB_SSL_MODE" "${DB_SSL_MODE:-}" "verify-full" "require" "disable"
-  ensure_prod_default "DB_SSL_ROOT_CERT" "${DB_SSL_ROOT_CERT:-}" "/tls/ca.crt"
-  ensure_prod_default "POSTGRES_ENABLE_SSL" "${POSTGRES_ENABLE_SSL:-}" "on" "off"
-  ensure_prod_default "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}" "verify-full" "require" "disable"
-  ensure_value "POSTGRES_CLIENT_CA_HOST_PATH" "${POSTGRES_CLIENT_CA_HOST_PATH:-}" ""
-fi
+ensure_prod_default \
+  "DATABASE_URL" \
+  "${DATABASE_URL:-}" \
+  "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt" \
+  "postgres://stuhelper:dev123@localhost:5432/stuhelper?sslmode=disable" \
+  "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@localhost:5432/stuhelper?sslmode=disable" \
+  "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=disable"
+ensure_prod_default \
+  "BACKUP_DATABASE_URL" \
+  "${BACKUP_DATABASE_URL:-}" \
+  "postgres://stuhelper_backup:REPLACE_WITH_STUHELPER_BACKUP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt" \
+  "postgres://stuhelper_backup:REPLACE_WITH_STUHELPER_BACKUP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=disable"
+ensure_prod_default \
+  "REPLICATION_DATABASE_URL" \
+  "${REPLICATION_DATABASE_URL:-}" \
+  "postgres://stuhelper_replication:REPLACE_WITH_STUHELPER_REPLICATION_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt" \
+  "postgres://stuhelper_replication:REPLACE_WITH_STUHELPER_REPLICATION_DB_PASSWORD@postgres:5432/stuhelper?sslmode=disable"
+ensure_prod_default "DB_SSL_MODE" "${DB_SSL_MODE:-}" "verify-full" "require" "disable"
+ensure_prod_default "DB_SSL_ROOT_CERT" "${DB_SSL_ROOT_CERT:-}" "/tls/ca.crt"
+ensure_prod_default "POSTGRES_ENABLE_SSL" "${POSTGRES_ENABLE_SSL:-}" "on" "off"
+ensure_prod_default "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}" "verify-full" "require" "disable"
+ensure_value "POSTGRES_CLIENT_CA_HOST_PATH" "${POSTGRES_CLIENT_CA_HOST_PATH:-}" ""
 ensure_prod_default "POSTGRES_PGDATA" "${POSTGRES_PGDATA:-}" "/var/lib/postgresql/data" "/var/lib/postgresql/18/docker"
 ensure_value "POSTGRES_ARCHIVE_MODE" "${POSTGRES_ARCHIVE_MODE:-}" "off"
 ensure_value "POSTGRES_ARCHIVE_TIMEOUT" "${POSTGRES_ARCHIVE_TIMEOUT:-}" "15min"

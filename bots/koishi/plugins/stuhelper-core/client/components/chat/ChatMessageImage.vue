@@ -4,7 +4,12 @@
     class="msg-img"
     :class="{ loading: loading, error: failed, clickable: Boolean(openUrl) }"
     :alt="failed ? '图片已过期或无法加载' : '聊天图片'"
+    :role="openUrl ? 'button' : undefined"
+    :tabindex="openUrl ? 0 : undefined"
+    :aria-label="openUrl ? '打开聊天图片' : undefined"
     @click="openImage"
+    @keydown.enter.prevent="openImage"
+    @keydown.space.prevent="openImage"
   />
 </template>
 

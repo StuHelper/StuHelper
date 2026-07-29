@@ -19,13 +19,14 @@ import (
 var (
 	ErrIdentityAlreadyExists                    = errors.New("identity already exists")
 	ErrIdentityAlreadyVerified                  = errors.New("identity already verified")
+	ErrVerificationReviewStateConflict          = errors.New("verification is no longer pending review")
 	ErrUserIDInvalid                            = errors.New("user id is invalid")
 	ErrProfileAlreadyVerified                   = errors.New("profile already verified")
 	ErrProfilePendingReview                     = errors.New("profile is pending review, please wait for admin approval")
 	ErrSchoolNotFound                           = errors.New("school not found")
 	ErrSchoolDisabled                           = errors.New("school verification disabled")
 	ErrConsentRequired                          = errors.New("consent is required")
-	ErrPhotoRequired                            = errors.New("photo upload required for non-mainland documents")
+	ErrPhotoRequired                            = errors.New("document and selfie photos are required for manual identity review")
 	ErrLDAPFailed                               = errors.New("LDAP verification failed")
 	ErrStudentIDRequired                        = errors.New("student ID is required for LDAP verification")
 	ErrStudentIDInvalid                         = errors.New("student ID is invalid")
@@ -126,9 +127,13 @@ const (
 // Repo 定义 Service 所需的数据访问能力。
 type Repo interface {
 	GetIdentityStatusByUserID(ctx context.Context, userID int64) (*IdentityStatus, error)
+	GetIdentityStatusByUserIDTx(ctx context.Context, tx pgx.Tx, userID int64) (*IdentityStatus, error)
 	CreateIdentity(ctx context.Context, identity *IdentityRecord) error
+	CreateIdentityTx(ctx context.Context, tx pgx.Tx, identity *IdentityRecord) error
 	UpdateIdentitySubmission(ctx context.Context, identity *IdentityRecord) error
+	UpdateIdentitySubmissionTx(ctx context.Context, tx pgx.Tx, identity *IdentityRecord) error
 	ListIdentityReviewItems(ctx context.Context, status string, page, pageSize int) ([]IdentityReviewItem, int, error)
+	GetIdentityReviewItemByUserID(ctx context.Context, userID int64) (*IdentityReviewItem, error)
 	UpdateIdentityReviewStatus(ctx context.Context, userID int64, approved bool, verifyMethod *string, reviewedAt *time.Time, verifiedAt *time.Time, rejectionReason *string) error
 
 	GetProfileByUserID(ctx context.Context, userID int64) (*Profile, error)
@@ -144,6 +149,7 @@ type Repo interface {
 	UpsertQQBindingCode(ctx context.Context, code *QQBindingCode) error
 
 	GetSchoolConfig(ctx context.Context, schoolID int64) (*SchoolConfig, error)
+	GetSchoolConfigForUpdateTx(ctx context.Context, tx pgx.Tx, schoolID int64) (*SchoolConfig, error)
 	ListSchoolConfigs(ctx context.Context) ([]SchoolConfig, error)
 	ListAllSchoolConfigs(ctx context.Context) ([]SchoolConfig, error)
 	UpdateSchoolConfig(ctx context.Context, config *SchoolConfig) error
@@ -157,6 +163,7 @@ type Repo interface {
 	ValidateAcademicDBTable(ctx context.Context, tableName string) error
 	WithTx(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx) error) error
 	GetProfileByUserIDTx(ctx context.Context, tx pgx.Tx, userID int64) (*Profile, error)
+	GetProfileByUserIDForUpdateTx(ctx context.Context, tx pgx.Tx, userID int64) (*Profile, error)
 	CreateProfileTx(ctx context.Context, tx pgx.Tx, profile *Profile) error
 	UpdateProfileTx(ctx context.Context, tx pgx.Tx, profile *Profile) error
 	EnsureVerificationCredentialTx(ctx context.Context, tx pgx.Tx, credential VerificationCredentialProjection) error

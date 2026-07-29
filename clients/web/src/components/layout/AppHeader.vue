@@ -74,6 +74,7 @@
             </div>
 
             <button
+                type="button"
                 v-if="showWriteReview"
                 v-ripple
                 class="flex h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-accent to-primary px-4 text-sm font-semibold text-white whitespace-nowrap shadow-sm transition-all duration-fast hover:-translate-y-px hover:shadow-md press-spring max-sm:w-11 max-sm:px-0"

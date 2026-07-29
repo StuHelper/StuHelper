@@ -221,8 +221,9 @@ func TestCreateBotSessionReturnsVerifiedForAlreadyCertifiedQQ(t *testing.T) {
 	assert.Equal(t, created.Session.ID, actions[0].SessionID)
 
 	err = svc.RecordBotActionEvent(context.Background(), actions[0].ActionID, BotEventInput{
-		Action:  actions[0].Action,
-		Success: true,
+		Action:          actions[0].Action,
+		Success:         true,
+		DispatchAttempt: actions[0].DispatchAttempt,
 	})
 	require.NoError(t, err)
 	assertAdmissionSessionCancelled(t, fixture, created.Session.ID)

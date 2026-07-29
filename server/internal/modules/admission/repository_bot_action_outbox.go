@@ -51,15 +51,15 @@ func (r *Repository) QueueBotActionTx(
 			qq_id = EXCLUDED.qq_id,
 			scheduled_at = EXCLUDED.scheduled_at,
 			status = CASE
-				WHEN admission_bot_action_outbox.status IN ('succeeded', 'dead_letter') THEN admission_bot_action_outbox.status
+				WHEN admission_bot_action_outbox.status IN ('dispatched', 'succeeded', 'dead_letter') THEN admission_bot_action_outbox.status
 				ELSE 'pending'
 			END,
 			next_attempt_at = CASE
-				WHEN admission_bot_action_outbox.status IN ('succeeded', 'dead_letter') THEN admission_bot_action_outbox.next_attempt_at
+				WHEN admission_bot_action_outbox.status IN ('dispatched', 'succeeded', 'dead_letter') THEN admission_bot_action_outbox.next_attempt_at
 				ELSE EXCLUDED.next_attempt_at
 			END,
 			last_error = CASE
-				WHEN admission_bot_action_outbox.status IN ('succeeded', 'dead_letter') THEN admission_bot_action_outbox.last_error
+				WHEN admission_bot_action_outbox.status IN ('dispatched', 'succeeded', 'dead_letter') THEN admission_bot_action_outbox.last_error
 				ELSE NULL
 			END,
 			updated_at = EXCLUDED.updated_at
@@ -176,19 +176,25 @@ func (r *Repository) MarkBotActionSucceededTx(
 	ctx context.Context,
 	tx pgx.Tx,
 	actionID int64,
+	dispatchAttempt int,
 	event BotEventInput,
 	now time.Time,
 ) error {
-	_, err := tx.Exec(ctx, `
+	tag, err := tx.Exec(ctx, `
 		UPDATE admission_bot_action_outbox
 		SET status = 'succeeded',
 		    last_error = NULL,
 		    message_id = NULLIF($2, ''),
 		    updated_at = $3
 		WHERE id = $1
-	`, actionID, event.MessageID, now)
+		  AND status = 'dispatched'
+		  AND attempt_count = $4
+	`, actionID, event.MessageID, now, dispatchAttempt)
 	if err != nil {
 		return fmt.Errorf("MarkBotActionSucceededTx: %w", err)
+	}
+	if tag.RowsAffected() != 1 {
+		return ErrAdmissionBotActionLeaseLost
 	}
 	return nil
 }
@@ -197,21 +203,27 @@ func (r *Repository) MarkBotActionFailedTx(
 	ctx context.Context,
 	tx pgx.Tx,
 	actionID int64,
+	dispatchAttempt int,
 	event BotEventInput,
 	now time.Time,
 	attemptCount int,
 ) error {
 	errMsg := normalizeBotEventError(event)
-	_, err := tx.Exec(ctx, `
+	tag, err := tx.Exec(ctx, `
 		UPDATE admission_bot_action_outbox
 		SET status = CASE WHEN attempt_count >= $5 THEN 'dead_letter' ELSE 'failed' END,
 		    last_error = $2,
 		    next_attempt_at = $3,
 		    updated_at = $4
 		WHERE id = $1
-	`, actionID, errMsg, now.Add(botActionRetryBackoff(attemptCount)), now, admissionBotActionMaxAttempts)
+		  AND status = 'dispatched'
+		  AND attempt_count = $6
+	`, actionID, errMsg, now.Add(botActionRetryBackoff(attemptCount)), now, admissionBotActionMaxAttempts, dispatchAttempt)
 	if err != nil {
 		return fmt.Errorf("MarkBotActionFailedTx: %w", err)
+	}
+	if tag.RowsAffected() != 1 {
+		return ErrAdmissionBotActionLeaseLost
 	}
 	return nil
 }

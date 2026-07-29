@@ -27,12 +27,20 @@ export function isAdmissionActionPlatform(bot: GuardBotRuntime) {
 
 export async function assertAdmissionActionBoundary(input: AdmissionActionBoundaryInput) {
   const platform = requireAdmissionActionPlatform(input.bot)
+  assertDispatchFence(input.action)
   assertActionBot(input.action, input.bot, platform)
   const guildID = resolveActionGuildID(input.action, input.record)
   assertRecordMatchesAction(input.record, input.action, input.bot, platform, guildID)
   const policy = await input.policyStore.resolvePolicy(platform, guildID)
   if (!policy) {
     throw new Error(`admission action ${input.action.sessionID} targets unmanaged guild ${guildID}`)
+  }
+}
+
+function assertDispatchFence(action: AdmissionPendingAction) {
+  if (!action.actionID) return
+  if (!Number.isInteger(action.dispatchAttempt) || action.dispatchAttempt! <= 0) {
+    throw new Error(`admission action ${action.sessionID} missing valid dispatchAttempt`)
   }
 }
 
