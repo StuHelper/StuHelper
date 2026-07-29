@@ -1312,9 +1312,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@koishijs/plugin-market@npm:^2.11.4":
-  version: 2.11.9
-  resolution: "@koishijs/plugin-market@npm:2.11.9"
+"@koishijs/plugin-market@npm:^2.11.11":
+  version: 2.11.11
+  resolution: "@koishijs/plugin-market@npm:2.11.11"
   dependencies:
     "@koishijs/console": "npm:^5.30.11"
     "@koishijs/registry": "npm:^7.0.3"
@@ -1330,7 +1330,7 @@ __metadata:
   peerDependenciesMeta:
     "@koishijs/plugin-console":
       optional: true
-  checksum: 10c0/d2d13faf9177bc8c821a3149aced7244276ff080d491811c7652ad0064ad6eb71a45f3119c224a17445caf441c23c9d4ca66590ba1927c8b9a266ad527b1ab62
+  checksum: 10c0/94609753372f2be2662040f97175ec425952426453133fc260a61d5e6ba4f5898da9b131bffd835cc4ec3edb47a02e5a0c428943934cf7fa0fbd595046b3bb25
   languageName: node
   linkType: hard
 
@@ -5164,7 +5164,7 @@ __metadata:
     "@koishijs/plugin-inspect": "npm:^1.1.7"
     "@koishijs/plugin-locales": "npm:^2.5.3"
     "@koishijs/plugin-logger": "npm:^2.6.9"
-    "@koishijs/plugin-market": "npm:^2.11.4"
+    "@koishijs/plugin-market": "npm:^2.11.11"
     "@koishijs/plugin-mock": "npm:^2.6.6"
     "@koishijs/plugin-notifier": "npm:^1.2.1"
     "@koishijs/plugin-oobe": "npm:^0.0.2"
