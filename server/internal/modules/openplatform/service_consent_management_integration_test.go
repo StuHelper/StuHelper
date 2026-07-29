@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/postgresfixture"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/metrics"
+	"github.com/StuHelper/StuHelper/server/internal/testutil/postgresfixture"
+	"github.com/StuHelper/StuHelper/server/internal/testutil/redisfixture"
 )
 
 func TestUserConsentManagementListAndRevoke(t *testing.T) {

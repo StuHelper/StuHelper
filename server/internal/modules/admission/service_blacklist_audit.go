@@ -3,7 +3,7 @@ package admission
 import (
 	"context"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/audit"
 )
 
 func memberBlacklistCreatedAuditEvent(ctx context.Context, entry *MemberBlacklistEntry) audit.Event {

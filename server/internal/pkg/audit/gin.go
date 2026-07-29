@@ -5,9 +5,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/capability"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/httputil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
 )
 
 // EventFromGin 用当前 gin 上下文补齐审计日志中的公共请求字段。

@@ -9,8 +9,8 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
+	"github.com/StuHelper/StuHelper/server/internal/modules/user"
+	"github.com/StuHelper/StuHelper/server/internal/testutil/redisfixture"
 )
 
 func TestDevBindPhoneSMSSenderStoresOTPForLocalVerification(t *testing.T) {

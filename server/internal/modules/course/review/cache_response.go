@@ -6,9 +6,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/cache"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/response"
 )
 
 func respondWithCachedData[T any](

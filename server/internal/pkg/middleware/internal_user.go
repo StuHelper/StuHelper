@@ -8,9 +8,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/errs"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/response"
 )
 
 // InternalUserIDResolver 根据 Casdoor subject 解析内部 user ID。

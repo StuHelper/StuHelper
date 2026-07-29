@@ -11,11 +11,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/crypto/pii"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/oidc"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/token"
 )
 
 var ErrProviderRefreshTokenRevocationUnavailable = errors.New(

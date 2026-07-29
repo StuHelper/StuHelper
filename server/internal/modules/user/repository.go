@@ -5,7 +5,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/db"
 )
 
 // Repository 用户数据访问层

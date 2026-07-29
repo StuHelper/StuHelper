@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/authorization"
+	"github.com/StuHelper/StuHelper/server/internal/platform/authorization"
 )
 
 func TestNewRBACAuthorizerDisablesMFAGatesInDevelopment(t *testing.T) {

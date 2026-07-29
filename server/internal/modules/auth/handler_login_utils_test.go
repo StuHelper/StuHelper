@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/oidc"
 )
 
 func TestBuildAllowedRedirectHosts(t *testing.T) {

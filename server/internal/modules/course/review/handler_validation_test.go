@@ -11,9 +11,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/reviewaccess"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/reviewaccess"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/systemconfig"
 )
 
 func TestReviewHandlerValidationPaths(t *testing.T) {

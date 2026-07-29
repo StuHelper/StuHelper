@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/casdoor"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/capability"
+	"github.com/StuHelper/StuHelper/server/internal/platform/casdoor"
 )
 
 var flatRoleNamePattern = regexp.MustCompile(`^[a-z]+(_[a-z]+)*$`)

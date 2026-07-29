@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/fga"
 )
 
 const (

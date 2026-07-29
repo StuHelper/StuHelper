@@ -11,9 +11,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	pkgcrypto "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	pkgcrypto "github.com/StuHelper/StuHelper/server/internal/pkg/crypto"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/errs"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/response"
 )
 
 const (

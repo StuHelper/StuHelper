@@ -9,7 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/id"
 )
 
 // CreateReportParams 创建举报参数

@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"strings"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/metrics"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/phoneutil"
 )
 
 var mainlandPhoneDigitsPattern = regexp.MustCompile(`1[3-9]\d{9}`)

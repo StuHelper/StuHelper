@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/reviewaccess"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/reviewaccess"
 )
 
 var errReviewAccessReaderNotConfigured = errors.New("review access reader is not configured")

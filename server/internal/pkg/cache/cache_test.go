@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/metrics"
+	"github.com/StuHelper/StuHelper/server/internal/testutil/redisfixture"
 )
 
 // setupTestRedis creates a miniredis instance and returns a connected client.

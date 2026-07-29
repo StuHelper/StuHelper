@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/outbox"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/outbox"
 )
 
 const fgaSyncOutboxStream = outbox.StreamIAMOpenFGATupleSync

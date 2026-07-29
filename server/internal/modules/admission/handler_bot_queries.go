@@ -7,8 +7,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sse"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/response"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/sse"
 )
 
 const maxBotPendingActionFilterLength = 64

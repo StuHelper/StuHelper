@@ -12,7 +12,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/db"
 )
 
 const admissionTokenBytes = 32

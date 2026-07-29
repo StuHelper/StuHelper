@@ -6,10 +6,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/errs"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/fga"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/response"
 )
 
 const (

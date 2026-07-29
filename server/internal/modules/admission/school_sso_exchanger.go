@@ -7,7 +7,7 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/oidc"
 )
 
 type schoolSSOOIDCClient interface {

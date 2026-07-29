@@ -1,6 +1,6 @@
 package openplatform
 
-import "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/tokenprobe"
+import "github.com/StuHelper/StuHelper/server/internal/pkg/tokenprobe"
 
 type ProvisionedApplicationSpec struct {
 	Organization         string

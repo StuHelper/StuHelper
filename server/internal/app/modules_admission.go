@@ -3,9 +3,9 @@ package app
 import (
 	"context"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/admission"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
-	platformcasdoor "git.stuhelper.com/StuHelper/StuHelper/internal/platform/casdoor"
+	"github.com/StuHelper/StuHelper/server/internal/modules/admission"
+	"github.com/StuHelper/StuHelper/server/internal/modules/user"
+	platformcasdoor "github.com/StuHelper/StuHelper/server/internal/platform/casdoor"
 )
 
 func (rt *Runtime) initAdmissionOperatorAccess(userRepo *user.Repository) admission.OperatorAccessGateway {

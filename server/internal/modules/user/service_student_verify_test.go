@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/schoolauth"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/phoneutil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/schoolauth"
 )
 
 type mobileLDAPAuthClient struct {

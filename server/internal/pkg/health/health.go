@@ -13,9 +13,9 @@ import (
 
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/errs"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/response"
 )
 
 // defaultCheckTimeout 健康检查默认超时时间

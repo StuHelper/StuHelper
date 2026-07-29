@@ -8,7 +8,7 @@ import (
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
 )
 
 // VerifyIDToken 验证 ID Token 并返回解析后的 Claims

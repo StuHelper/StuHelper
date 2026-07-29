@@ -8,7 +8,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/response"
 )
 
 var allowedFrontendErrorKinds = map[string]bool{

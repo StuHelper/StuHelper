@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/id"
 )
 
 // UpsertDraftParams 保存草稿参数

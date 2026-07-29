@@ -8,7 +8,7 @@ import (
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
 )
 
 func oauth2ConfigsFromCasdoor(endpoint oauth2.Endpoint, cfg config.CasdoorConfig) (map[string]oauth2.Config, error) {

@@ -11,12 +11,12 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	gozap "go.uber.org/zap"
 
-	apidocs "git.stuhelper.com/StuHelper/StuHelper/api"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/health"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	apidocs "github.com/StuHelper/StuHelper/server/api"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/health"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/metrics"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
 )
 
 func (rt *Runtime) buildRouter() (*gin.Engine, error) {

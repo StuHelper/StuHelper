@@ -62,7 +62,7 @@ tidy:
 
 fmt:
 	gofmt -w .
-	@command -v goimports >/dev/null 2>&1 && goimports -w -local git.stuhelper.com/StuHelper/StuHelper . || true
+	@command -v goimports >/dev/null 2>&1 && goimports -w -local github.com/StuHelper/StuHelper/server . || true
 
 check-casdoor-boundary:
 	bash scripts/check-casdoor-boundary.sh

@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/crypto"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
 )
 
 func TestCourseHandlerValidationPaths(t *testing.T) {

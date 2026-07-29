@@ -6,7 +6,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/systemconfig"
 )
 
 // Service Token 管理服务

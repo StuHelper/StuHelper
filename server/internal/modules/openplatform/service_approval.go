@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/ctxutil"
 )
 
 const casdoorApplicationCleanupTimeout = 5 * time.Second

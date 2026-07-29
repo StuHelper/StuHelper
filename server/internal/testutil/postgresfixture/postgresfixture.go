@@ -24,7 +24,7 @@ import (
 	postgrescontainer "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/db"
 )
 
 type Fixture struct {

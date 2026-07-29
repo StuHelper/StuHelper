@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	cachepkg "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
+	cachepkg "github.com/StuHelper/StuHelper/server/internal/pkg/cache"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/crypto"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/httputil"
+	"github.com/StuHelper/StuHelper/server/internal/testutil/redisfixture"
 )
 
 func setupReviewCacheHandler(t *testing.T) (*Handler, context.Context) {

@@ -11,8 +11,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/crypto/pii"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/fga"
 )
 
 // 业务错误定义

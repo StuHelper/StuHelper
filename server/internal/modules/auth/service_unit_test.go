@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/crypto"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/token"
+	"github.com/StuHelper/StuHelper/server/internal/testutil/redisfixture"
 )
 
 type fakeUserSyncRepo struct{}

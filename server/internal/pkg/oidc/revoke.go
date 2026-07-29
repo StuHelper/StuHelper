@@ -12,7 +12,7 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/metrics"
 )
 
 var ErrRevocationEndpointUnavailable = errors.New("oidc: revocation endpoint unavailable")

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/phoneutil"
 )
 
 func normalizeMaskedPhone(phone *string) *string {

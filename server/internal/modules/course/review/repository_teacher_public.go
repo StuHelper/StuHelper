@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/httputil"
 )
 
 // ListPublicTeachers 获取公开教师列表（支持搜索、院系过滤、多排序）。

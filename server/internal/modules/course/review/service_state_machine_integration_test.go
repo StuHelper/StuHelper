@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/postgresfixture"
+	"github.com/StuHelper/StuHelper/server/internal/testutil/postgresfixture"
 )
 
 type recordingNotificationSender struct {

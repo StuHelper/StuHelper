@@ -1,6 +1,6 @@
 package serviceaccount
 
-import "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/botcredential"
+import "github.com/StuHelper/StuHelper/server/internal/pkg/botcredential"
 
 var (
 	ErrCredentialNotConfigured    = botcredential.ErrCredentialNotConfigured

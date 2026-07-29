@@ -3,7 +3,7 @@ package auth
 import (
 	"context"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/crypto"
 )
 
 // SyncOIDCUser 同步 OIDC 登录的用户到本地 shadow user 表。

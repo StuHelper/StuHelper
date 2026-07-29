@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"time"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"github.com/StuHelper/StuHelper/server/internal/modules/user"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/crypto"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/db"
 )
 
 const defaultTimeout = 30 * time.Second

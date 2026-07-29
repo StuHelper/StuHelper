@@ -7,7 +7,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
 )
 
 // ListUserSessions 列出用户的所有活跃 session（用于"管理登录设备"等 UI）。

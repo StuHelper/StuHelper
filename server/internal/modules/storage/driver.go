@@ -6,8 +6,8 @@ import (
 	"path"
 	"strings"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/objectstorage"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/objectstorage"
 )
 
 type Driver interface {

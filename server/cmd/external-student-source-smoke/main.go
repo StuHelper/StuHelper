@@ -15,7 +15,7 @@ import (
 
 	"github.com/joho/godotenv"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/externaldata"
+	"github.com/StuHelper/StuHelper/server/internal/modules/externaldata"
 )
 
 const defaultSmokeTimeout = 15 * time.Second

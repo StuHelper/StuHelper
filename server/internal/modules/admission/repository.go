@@ -5,7 +5,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/db"
 )
 
 type Repository struct {

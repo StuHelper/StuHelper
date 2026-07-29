@@ -15,8 +15,8 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/schoolauth"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/ctxutil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/schoolauth"
 )
 
 const (

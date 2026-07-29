@@ -11,7 +11,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
 )
 
 const (

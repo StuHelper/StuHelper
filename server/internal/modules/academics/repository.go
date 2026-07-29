@@ -3,7 +3,7 @@ package academics
 import (
 	"context"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/db"
 )
 
 type Repository struct {

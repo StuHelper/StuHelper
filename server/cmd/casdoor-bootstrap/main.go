@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/casdoor"
+	"github.com/StuHelper/StuHelper/server/internal/platform/casdoor"
 )
 
 const bootstrapTimeout = 2 * time.Minute

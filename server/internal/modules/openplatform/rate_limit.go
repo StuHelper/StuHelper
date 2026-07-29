@@ -13,8 +13,8 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/metrics"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
 )
 
 const (

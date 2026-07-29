@@ -1,6 +1,6 @@
 package casdoor
 
-import "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/tokenprobe"
+import "github.com/StuHelper/StuHelper/server/internal/pkg/tokenprobe"
 
 var ErrTokenMinimizationProbeFailed = tokenprobe.ErrTokenMinimizationProbeFailed
 

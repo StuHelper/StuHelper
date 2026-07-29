@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
 )
 
 func TestSubjectFromGinIncludesMFAState(t *testing.T) {

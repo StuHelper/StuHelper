@@ -13,12 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/postgresfixture"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/cache"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/crypto"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/httputil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
+	"github.com/StuHelper/StuHelper/server/internal/testutil/postgresfixture"
+	"github.com/StuHelper/StuHelper/server/internal/testutil/redisfixture"
 )
 
 type courseHandlerEnvelope struct {

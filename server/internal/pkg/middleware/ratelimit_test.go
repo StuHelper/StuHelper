@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
+	"github.com/StuHelper/StuHelper/server/internal/testutil/redisfixture"
 )
 
 func TestProgressiveEndpointRateLimitMiddleware_AnonymousVsAuthenticated(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/token"
 )
 
 var (

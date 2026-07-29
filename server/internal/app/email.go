@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/email"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/db"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/email"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/systemconfig"
 )
 
 type schoolEmailSender struct {

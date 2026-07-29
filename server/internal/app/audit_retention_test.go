@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/openplatform"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/postgresfixture"
+	"github.com/StuHelper/StuHelper/server/internal/modules/openplatform"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/audit"
+	"github.com/StuHelper/StuHelper/server/internal/testutil/postgresfixture"
 )
 
 func TestRunAuditRetentionCleanupUsesIAMPolicy(t *testing.T) {

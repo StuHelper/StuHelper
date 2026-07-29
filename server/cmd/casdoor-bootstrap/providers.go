@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/casdoor"
+	"github.com/StuHelper/StuHelper/server/internal/platform/casdoor"
 )
 
 const (

@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/crypto"
 )
 
 // 分页默认值

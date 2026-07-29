@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/capability"
 )
 
 type OperatorRoleMembershipFunc func(ctx context.Context, userID int64, role string) (bool, error)

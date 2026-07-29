@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/errs"
 )
 
 func TestRespondVerifyStudentError(t *testing.T) {

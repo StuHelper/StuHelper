@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
+	"github.com/StuHelper/StuHelper/server/internal/modules/auth"
+	"github.com/StuHelper/StuHelper/server/internal/modules/user"
 )
 
 type bindPhoneOTPAdapter struct {

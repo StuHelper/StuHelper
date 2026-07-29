@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/admission"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"github.com/StuHelper/StuHelper/server/internal/modules/admission"
+	"github.com/StuHelper/StuHelper/server/internal/modules/user"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/db"
 )
 
 type admissionUserGateway struct {

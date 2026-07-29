@@ -7,15 +7,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/admission"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
-	platformcasdoor "git.stuhelper.com/StuHelper/StuHelper/internal/platform/casdoor"
+	"github.com/StuHelper/StuHelper/server/internal/modules/admission"
+	"github.com/StuHelper/StuHelper/server/internal/modules/auth"
+	"github.com/StuHelper/StuHelper/server/internal/modules/rbac"
+	"github.com/StuHelper/StuHelper/server/internal/modules/user"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/crypto"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/crypto/pii"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
+	platformcasdoor "github.com/StuHelper/StuHelper/server/internal/platform/casdoor"
 )
 
 func (rt *Runtime) initAuthModule(

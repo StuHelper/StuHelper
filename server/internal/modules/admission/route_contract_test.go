@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/routeassert"
+	"github.com/StuHelper/StuHelper/server/internal/testutil/routeassert"
 )
 
 func TestAdmissionRoutes(t *testing.T) {

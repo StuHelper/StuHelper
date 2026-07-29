@@ -16,7 +16,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
 )
 
 // BuildInfo 构建信息，用于资源属性。

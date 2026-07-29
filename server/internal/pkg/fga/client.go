@@ -16,8 +16,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/metrics"
 )
 
 // Client OpenFGA 授权引擎客户端
@@ -27,7 +27,7 @@ type Client struct {
 	modelID string
 }
 
-var tracer = otel.Tracer("git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga")
+var tracer = otel.Tracer("github.com/StuHelper/StuHelper/server/internal/pkg/fga")
 
 // DefaultWriteTimeout 是 FGA 写入/同步操作的默认超时，防止请求或后台协程无限阻塞。
 const DefaultWriteTimeout = 10 * time.Second

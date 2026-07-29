@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/postgresfixture"
+	"github.com/StuHelper/StuHelper/server/internal/testutil/postgresfixture"
 )
 
 func TestNewService_PanicsOnMissingDeps(t *testing.T) {

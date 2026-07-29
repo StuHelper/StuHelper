@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/reviewaccess"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/reviewaccess"
 )
 
 // ReviewAccessSubject 是评课访问控制所需的最小用户事实集合。

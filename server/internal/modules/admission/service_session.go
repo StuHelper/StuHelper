@@ -15,8 +15,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/audit"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/id"
 )
 
 const initialReminderGrace = time.Duration(DefaultInitialReminderGraceSeconds) * time.Second

@@ -9,9 +9,9 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sanitizer"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/audit"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/httputil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/sanitizer"
 )
 
 // AdminUpdateReviewParams 管理员更新评论参数

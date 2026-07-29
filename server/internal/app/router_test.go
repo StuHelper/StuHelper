@@ -9,9 +9,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
-	redisclient "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/redis"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
+	redisclient "github.com/StuHelper/StuHelper/server/internal/pkg/redis"
 )
 
 func TestRegisterPlatformRoutes_RequiresCORSOrigins(t *testing.T) {

@@ -13,9 +13,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/schoolauth"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/phoneutil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/schoolauth"
 )
 
 // VerifyStudent 学生认证（LDAP 方式）

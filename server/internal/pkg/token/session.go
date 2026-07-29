@@ -17,7 +17,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
 )
 
 // touchSessionScript 原子地读取、合并 lastActiveAt / tokenHash 字段并重写 session + 续期 TTL。

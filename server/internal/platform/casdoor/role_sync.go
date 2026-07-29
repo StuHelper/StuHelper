@@ -9,7 +9,7 @@ import (
 	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
 )
 
 var ErrRoleSyncCredentialNotConfigured = errors.New("casdoor role sync credential is not configured")

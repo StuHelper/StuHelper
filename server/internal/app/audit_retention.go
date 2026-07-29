@@ -6,9 +6,9 @@ import (
 
 	gozap "go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/openplatform"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"github.com/StuHelper/StuHelper/server/internal/modules/openplatform"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/audit"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
 )
 
 const auditRetentionCleanupInterval = 24 * time.Hour

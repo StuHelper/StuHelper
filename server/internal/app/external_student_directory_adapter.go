@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/externaldata"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
+	"github.com/StuHelper/StuHelper/server/internal/modules/externaldata"
+	"github.com/StuHelper/StuHelper/server/internal/modules/user"
 )
 
 type externalStudentDirectoryAdapter struct {

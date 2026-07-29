@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"strings"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/crypto"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
 )
 
 // mainlandPhonePattern 中国大陆手机号正则（号段 13x-19x，共 11 位）

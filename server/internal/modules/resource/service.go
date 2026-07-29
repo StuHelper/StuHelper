@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/ctxutil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/id"
 )
 
 const maxResourceUploadSize = 10 * 1024 * 1024

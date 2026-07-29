@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/postgresfixture"
+	"github.com/StuHelper/StuHelper/server/internal/testutil/postgresfixture"
 )
 
 func TestCourseService_IntegrationReadPaths(t *testing.T) {

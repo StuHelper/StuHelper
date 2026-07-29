@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/openplatform"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
+	"github.com/StuHelper/StuHelper/server/internal/modules/openplatform"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/oidc"
 )
 
 type oidcOpenPlatformResourceAccessTokenVerifier struct {

@@ -3,8 +3,8 @@ package auth
 import (
 	"github.com/gin-gonic/gin"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/oidc"
 )
 
 // GetStepUpURL 生成 MFA step-up OIDC 重认证 URL。

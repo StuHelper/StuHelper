@@ -9,7 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/httputil"
 )
 
 var ErrSourceNotFound = errors.New("academic source not found")

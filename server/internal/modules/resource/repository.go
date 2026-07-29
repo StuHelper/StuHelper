@@ -8,8 +8,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/db"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/httputil"
 )
 
 var ErrResourceNotFound = errors.New("resource not found")

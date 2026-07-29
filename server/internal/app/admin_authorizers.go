@@ -3,15 +3,15 @@ package app
 import (
 	"github.com/gin-gonic/gin"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/academics"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/admission"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/openplatform"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/storage"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
+	"github.com/StuHelper/StuHelper/server/internal/modules/academics"
+	"github.com/StuHelper/StuHelper/server/internal/modules/admission"
+	"github.com/StuHelper/StuHelper/server/internal/modules/auth"
+	"github.com/StuHelper/StuHelper/server/internal/modules/course/review"
+	"github.com/StuHelper/StuHelper/server/internal/modules/openplatform"
+	"github.com/StuHelper/StuHelper/server/internal/modules/rbac"
+	"github.com/StuHelper/StuHelper/server/internal/modules/storage"
+	"github.com/StuHelper/StuHelper/server/internal/modules/user"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/capability"
 )
 
 func adminEntryAuthorizer() gin.HandlerFunc {

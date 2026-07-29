@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/httputil"
 )
 
 func (r *Repository) ListTerms(ctx context.Context) ([]Term, error) {

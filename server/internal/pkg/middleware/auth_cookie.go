@@ -10,11 +10,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/crypto"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/metrics"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/oidc"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/token"
 )
 
 func resolveCookieToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.Service, rawToken string) (*authResult, error) {

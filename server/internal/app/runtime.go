@@ -11,16 +11,16 @@ import (
 	"github.com/joho/godotenv"
 	gozap "go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/observability"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
-	redisclient "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/redis"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/audit"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/crypto"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/db"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/fga"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/observability"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/oidc"
+	redisclient "github.com/StuHelper/StuHelper/server/internal/pkg/redis"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/token"
 )
 
 // BuildInfo 描述当前二进制的构建元数据。

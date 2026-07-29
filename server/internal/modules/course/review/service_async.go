@@ -6,8 +6,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/ctxutil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
 )
 
 const asyncNotificationTimeout = 5 * time.Second

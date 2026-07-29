@@ -1,6 +1,6 @@
 package rbac
 
-import "git.stuhelper.com/StuHelper/StuHelper/internal/platform/authorization"
+import "github.com/StuHelper/StuHelper/server/internal/platform/authorization"
 
 func SetDefaultAuthorizer(authorizer authorization.AuthorizationService) {
 	if authorizer == nil {

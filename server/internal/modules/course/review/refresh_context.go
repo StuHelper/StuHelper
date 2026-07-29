@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/ctxutil"
 )
 
 func detachedRefreshContext(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {

@@ -7,9 +7,9 @@ import (
 
 	gozap "go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/externaldata"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"github.com/StuHelper/StuHelper/server/internal/modules/externaldata"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
 )
 
 func (rt *Runtime) initExternalStudentDirectory() (*externaldata.StudentDirectoryRegistry, error) {

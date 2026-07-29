@@ -19,8 +19,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/schoolauth"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/ctxutil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/schoolauth"
 )
 
 // #nosec G101 -- this is a credential kind identifier, not a credential value.

@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/metrics"
 )
 
 // ExchangeCode 用授权码 + PKCE code_verifier 交换 Token。

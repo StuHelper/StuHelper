@@ -1,4 +1,4 @@
-module git.stuhelper.com/StuHelper/StuHelper
+module github.com/StuHelper/StuHelper/server
 
 go 1.26.5
 

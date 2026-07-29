@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	gozap "go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
 )
 
 func (rt *Runtime) serve(router *gin.Engine) error {

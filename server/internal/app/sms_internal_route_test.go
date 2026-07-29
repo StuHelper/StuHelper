@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sms"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/sms"
 )
 
 func TestRegisterSMSInternalRouteUsesMainRouter(t *testing.T) {

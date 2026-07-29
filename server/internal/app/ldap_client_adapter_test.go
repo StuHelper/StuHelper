@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
+	"github.com/StuHelper/StuHelper/server/internal/modules/ldap"
+	"github.com/StuHelper/StuHelper/server/internal/modules/user"
 )
 
 func TestNewLDAPAuthClientRejectsInvalidConfig(t *testing.T) {

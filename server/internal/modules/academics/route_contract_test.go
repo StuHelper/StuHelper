@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/routeassert"
+	"github.com/StuHelper/StuHelper/server/internal/testutil/routeassert"
 )
 
 func TestRegisterRoutes_UsesOpenAPIAcademicsPaths(t *testing.T) {

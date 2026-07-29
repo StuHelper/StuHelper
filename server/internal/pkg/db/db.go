@@ -21,9 +21,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/ctxutil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/metrics"
 )
 
 // txTimeoutMultiplier 事务超时相对于单次查询超时的倍数
@@ -216,7 +216,7 @@ func (r *RowWithCancel) Scan(dest ...any) error {
 // 编译时断言：RowsWithCancel 实现 pgx.Rows 接口
 var _ pgx.Rows = (*RowsWithCancel)(nil)
 
-var tracer = otel.Tracer("git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db")
+var tracer = otel.Tracer("github.com/StuHelper/StuHelper/server/internal/pkg/db")
 
 // RowsWithCancel 包装 pgx.Rows，确保 Close 后才取消 context
 type RowsWithCancel struct {

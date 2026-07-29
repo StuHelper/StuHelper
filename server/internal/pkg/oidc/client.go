@@ -12,7 +12,7 @@ import (
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
 )
 
 // Client 标准 OIDC 客户端

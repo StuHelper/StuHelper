@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
+	"github.com/StuHelper/StuHelper/server/internal/modules/course/review"
+	"github.com/StuHelper/StuHelper/server/internal/modules/notification"
 )
 
 type recordingReviewNotificationSender struct {

@@ -8,8 +8,8 @@ import (
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/ctxutil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/ctxutil"
 )
 
 const defaultJWKSCacheTTL = 5 * time.Minute

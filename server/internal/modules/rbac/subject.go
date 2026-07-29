@@ -3,8 +3,8 @@ package rbac
 import (
 	"github.com/gin-gonic/gin"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/authorization"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
+	"github.com/StuHelper/StuHelper/server/internal/platform/authorization"
 )
 
 func subjectFromGin(c *gin.Context) authorization.Subject {

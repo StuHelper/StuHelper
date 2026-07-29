@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/capability"
 )
 
 type Service struct {

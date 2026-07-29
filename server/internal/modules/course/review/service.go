@@ -13,11 +13,11 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/singleflight"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/reviewaccess"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sanitizer"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/db"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/httputil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/reviewaccess"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/sanitizer"
 )
 
 // maskHash 返回哈希值的前 12 个字符，用于日志脱敏，防止跨日志条目追踪用户

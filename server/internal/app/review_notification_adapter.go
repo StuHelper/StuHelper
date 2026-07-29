@@ -3,8 +3,8 @@ package app
 import (
 	"context"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
+	"github.com/StuHelper/StuHelper/server/internal/modules/course/review"
+	"github.com/StuHelper/StuHelper/server/internal/modules/notification"
 )
 
 type reviewNotificationAdapter struct {

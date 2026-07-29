@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/systemconfig"
 )
 
 func (s *Service) LoadSystemConfigSnapshots(ctx context.Context) error {

@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/id"
 )
 
 // RatingTrendItem 评分趋势项

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/app"
+	"github.com/StuHelper/StuHelper/server/internal/app"
 )
 
 // 构建信息，通过 -ldflags 注入。

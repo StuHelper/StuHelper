@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/externaldata"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
+	"github.com/StuHelper/StuHelper/server/internal/modules/externaldata"
+	"github.com/StuHelper/StuHelper/server/internal/modules/user"
 )
 
 type fakeExternalDirectorySource struct {

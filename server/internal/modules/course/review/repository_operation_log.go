@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	auditpkg "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
+	auditpkg "github.com/StuHelper/StuHelper/server/internal/pkg/audit"
 )
 
 // maxExportLimit 导出查询的最大行数上限

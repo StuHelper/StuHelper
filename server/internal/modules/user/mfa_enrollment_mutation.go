@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/audit"
 )
 
 const privilegedMFAReviewerRole = "super_admin"

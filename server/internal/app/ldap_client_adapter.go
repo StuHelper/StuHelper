@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
+	"github.com/StuHelper/StuHelper/server/internal/modules/ldap"
+	"github.com/StuHelper/StuHelper/server/internal/modules/user"
 )
 
 type ldapClientAdapter struct {

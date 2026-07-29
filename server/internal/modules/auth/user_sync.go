@@ -3,7 +3,7 @@ package auth
 import (
 	"context"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/usersync"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/usersync"
 )
 
 // UserSyncInput 认证同步输入，别名到 usersync.Input。

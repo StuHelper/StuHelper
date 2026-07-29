@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/phoneutil"
 )
 
 func TestNewService_NilRepo(t *testing.T) {

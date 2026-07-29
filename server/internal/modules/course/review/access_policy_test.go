@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/reviewaccess"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/capability"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/reviewaccess"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/systemconfig"
 )
 
 type fakeReviewAccessReader struct {

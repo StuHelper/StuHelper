@@ -1,8 +1,8 @@
 package app
 
 import (
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
-	platformauth "git.stuhelper.com/StuHelper/StuHelper/internal/platform/authorization"
+	"github.com/StuHelper/StuHelper/server/internal/modules/rbac"
+	platformauth "github.com/StuHelper/StuHelper/server/internal/platform/authorization"
 )
 
 func configureRBACAuthorizer(appEnv string) {

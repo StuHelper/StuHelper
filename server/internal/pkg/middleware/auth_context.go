@@ -9,7 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/capability"
 )
 
 // 上下文键名常量

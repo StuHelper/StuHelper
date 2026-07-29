@@ -3,7 +3,7 @@ package token
 import (
 	"github.com/redis/go-redis/v9"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/crypto"
 )
 
 // NewServiceForTest 创建用于测试的 Token 管理服务。

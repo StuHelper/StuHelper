@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/capability"
 )
 
 func (s *Service) ReviewFreshmanApplicationFromBot(

@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/db"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/id"
 )
 
 const (

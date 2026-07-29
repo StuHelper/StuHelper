@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/resource"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/storage"
+	"github.com/StuHelper/StuHelper/server/internal/modules/resource"
+	"github.com/StuHelper/StuHelper/server/internal/modules/storage"
 )
 
 func TestNormalizeResourceStorageErrorMapsStorageErrors(t *testing.T) {

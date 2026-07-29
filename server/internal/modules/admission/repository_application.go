@@ -11,8 +11,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/schoolauth"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/id"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/schoolauth"
 )
 
 func (r *Repository) GetLinkedSessionByUserID(

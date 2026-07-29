@@ -6,8 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/botcredential"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/botcredential"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/httputil"
 )
 
 func memberBlacklistAccessQueryFromGin(c *gin.Context) MemberBlacklistAccessQuery {

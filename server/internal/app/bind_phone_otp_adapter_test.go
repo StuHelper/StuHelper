@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
+	"github.com/StuHelper/StuHelper/server/internal/modules/auth"
+	"github.com/StuHelper/StuHelper/server/internal/modules/user"
 )
 
 func TestNormalizeBindPhoneOTPErrorMapsAuthErrors(t *testing.T) {

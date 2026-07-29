@@ -16,9 +16,9 @@ import (
 
 	go_ora "github.com/sijms/go-ora/v2"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/circuitbreaker"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/schoolauth"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/circuitbreaker"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/metrics"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/schoolauth"
 )
 
 const defaultOracleQueryTimeout = 3 * time.Second

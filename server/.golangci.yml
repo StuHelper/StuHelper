@@ -71,7 +71,7 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - git.stuhelper.com/StuHelper/StuHelper
+        - github.com/StuHelper/StuHelper/server
 
 issues:
   max-issues-per-linter: 50
