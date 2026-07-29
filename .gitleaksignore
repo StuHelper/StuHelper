@@ -13,6 +13,7 @@
 5d38ed96853f3532af7c550cf3739326e4dd9252:server/internal/api/gen/server.gen.go:generic-api-key:6443
 5e2fdee6e21d877b001415981571952c02a5dcaa:server/internal/api/gen/server.gen.go:generic-api-key:3963
 5e2fdee6e21d877b001415981571952c02a5dcaa:server/internal/api/gen/server.gen.go:generic-api-key:4029
+60d2eb17f96984f7be9395a3c014c42f67cbde3f:server/internal/api/gen/server.gen.go:generic-api-key:10532
 6475df8d3e83538c029a163d8d27d435dfe200a0:bots/koishi/plugins/stuhelper-core/src/core/api/chat-scope.test.ts:generic-api-key:456
 66bb41a45911378905826ffe2645baaa95ef0de4:server/internal/modules/admission/service.go:generic-api-key:21
 7568c05c7d6648c6116bbbbb65d3b559f9992fc8:server/internal/api/gen/server.gen.go:generic-api-key:6840
