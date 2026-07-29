@@ -85,6 +85,16 @@ fi
 if ! grep -Eq '^[[:space:]]+run: pnpm --filter @stuhelper/web exec playwright install --with-deps chromium$' <<<"${infra_job_block}"; then
   fail "GitHub infrastructure contracts must install the Chromium binary used by browser smoke contracts"
 fi
+publish_job_block="$(sed -n '/^  publish-images:$/,$p' "${GITHUB_CI_FILE}")"
+if ! grep -Eq '^[[:space:]]+always\(\) &&$' <<<"${publish_job_block}"; then
+  fail "GitHub image publishing must evaluate after upstream jobs are skipped"
+fi
+if ! grep -Eq '^[[:space:]]+!cancelled\(\) &&$' <<<"${publish_job_block}"; then
+  fail "GitHub image publishing must stop when the workflow is cancelled"
+fi
+if ! grep -Eq "^[[:space:]]+needs\\.required\\.result == 'success' &&$" <<<"${publish_job_block}"; then
+  fail "GitHub image publishing must require the aggregate CI gate to succeed"
+fi
 assert_contains "${GITHUB_CI_FILE}" 'pnpm audit --registry=https://registry\.npmjs\.org --audit-level=moderate$'
 assert_contains "${GITHUB_CI_FILE}" 'pnpm --dir admin audit --registry=https://registry\.npmjs\.org --audit-level=moderate$'
 assert_not_contains "${GITHUB_CI_FILE}" 'pnpm audit .* --prod'

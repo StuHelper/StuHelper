@@ -661,6 +661,8 @@ jobs:
     name: Publish images
     needs: required
     if: >-
+      always() &&
+      !cancelled() &&
       needs.required.result == 'success' &&
       github.event_name == 'push' &&
       (github.ref_name == 'develop' || github.ref_name == 'main')
