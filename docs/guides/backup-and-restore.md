@@ -25,10 +25,13 @@ export BACKUP_DATABASE_URL='postgres://...'
 ./infra/ops/backup-postgres.sh backups/stuhelper-$(date +%F-%H%M%S).dump
 ```
 
+命令行显式导出的 `BACKUP_DATABASE_URL` / `REPLICATION_DATABASE_URL` 优先于环境文件；未显式导出时才读取标准 StuHelper 环境与 secret backend。样板 URL 中的密码占位符只在进程内展开并进行 URL 编码，不会把真实密码回写到共享配置文件。
+
 脚本会：
 
 - 生成 PostgreSQL custom-format dump
 - 生成同名 `.sha256` 校验文件
+- 通过非 root、只读、仅挂载客户端 CA 的一次性 `postgres-client` 容器连接数据库；宿主机无需安装 PostgreSQL 客户端，备份任务不会接触数据库数据卷或服务端 TLS 私钥
 
 ## Base Backup（pg_basebackup）
 
@@ -100,6 +103,8 @@ sudo ./infra/ops/install-backup-timers.sh
 export DATABASE_URL='postgres://...'
 ALLOW_DESTRUCTIVE=1 ./infra/ops/restore-postgres.sh backups/stuhelper-2026-03-30-120000.dump
 ```
+
+逻辑恢复同样使用一次性 `postgres-client` 容器，连接目标可为内置或外部 PostgreSQL；恢复容器只读取标准输入中的 dump 和客户端 CA，不挂载活动数据库数据卷。
 
 ## Base Backup 恢复 / PITR
 

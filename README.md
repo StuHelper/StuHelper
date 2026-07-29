@@ -15,7 +15,7 @@ make dev-init
 make dev-up
 ```
 
-自动启动 PostgreSQL / Redis / Casdoor / OpenFGA / MinIO，执行迁移和 seed，启动热重载（后端 `air`，前端 `Vite`）。
+自动启动 PostgreSQL / Redis / Casdoor / OpenFGA / SeaweedFS（仅本地 S3 同构验证），执行迁移和 seed，启动热重载（后端 `air`，前端 `Vite`）。
 
 前置工具：Docker / Docker Compose、Go 1.26.5+、Node.js 24+ / pnpm 10+、Python 3（供环境渲染与运维脚本使用）。
 
@@ -63,11 +63,11 @@ make prod-deploy  # 配置校验 → 镜像构建 → 启动 → Smoke Check
 
 ## CI/CD
 
-GitHub Actions 是主 CI/CD 通道：PR 和 `develop` / `main` push 运行按路径裁剪的质量门禁；质量门禁通过后发布带完整 commit SHA 的 GHCR 镜像。staging 与 production 部署均使用受保护 GitHub environment 和手工工作流，production 必须配置审批人。
+GitHub Actions 已作为迁移后的主 CI/CD 通道完成仓库内配置：PR 和 `develop` / `main` push 运行按路径裁剪的质量门禁；质量门禁通过后发布带完整 commit SHA 的 GHCR 镜像。staging 与 production 部署均使用受保护 GitHub environment 和手工工作流，production 必须配置审批人。在净化历史首次导入、GitHub 仓库设置和 GHCR 验收完成前，GitLab 仍是当前发布恢复锚点。
 
 质量门禁：Go lint/test/build、OpenAPI lint/drift、gosec、govulncheck、pnpm audit、Trivy、Web/Admin lint/type-check/test/build/Playwright、Koishi 单元 / 启动 / Console Playwright smoke。
 
-迁移步骤、Actions 权限、branch ruleset、environment secrets 和回滚约束见 [GitHub 迁移与 Actions 治理](docs/guides/github-migration.md)。GitLab CI 定义在切换验收期间暂时保留为恢复参考，不再作为 GitHub 发布的权威来源。
+迁移步骤、Actions 权限、branch ruleset、environment secrets 和回滚约束见 [GitHub 迁移与 Actions 治理](docs/guides/github-migration.md)。GitLab CI 定义在切换验收期间继续运行并作为恢复参考；完成该文档中的迁移验收后，GitHub 工作流才成为发布权威来源。
 
 ```bash
 make prod-rollback              # 本地回滚
@@ -85,7 +85,7 @@ make ansible-rollback-prod      # Ansible 回滚
 | 前端 | Vue 3.5+ / TypeScript 5+ / Vite 6+ / Pinia |
 | 管理后台 | Vben Admin（Element Plus 变体） |
 | 数据库 | PostgreSQL 18 / Redis 8 |
-| 对象存储 | S3 兼容（默认 MinIO） |
+| 对象存储 | 生产外部 HTTPS S3；开发 / prod-parity 使用 SeaweedFS mini |
 | 认证 | Casdoor OIDC |
 | 资源授权 | OpenFGA |
 | 契约 | OpenAPI 3.1 |
@@ -127,3 +127,9 @@ StuHelper/
 - API 契约权威来源：`server/api/openapi.yaml`
 - 数据库权威来源：`server/migrations/`
 - 生成代码禁止手改：`server/internal/api/gen/`、`clients/shared/src/types/api.gen.ts`
+
+## 许可状态
+
+仓库根目录目前没有统一的开源许可证。除子目录中明确附带许可证的第三方或派生组件外，仓库公开可见不代表授予复制、修改、分发或再许可权利；在项目所有者完成 monorepo 许可证决策前，不应把整个仓库称为开源项目。
+
+`clients/admin/` 保留其目录内 Vben 的 MIT 许可证与版权声明；`bots/koishi/package.json` 当前声明 `AGPL-3.0`。这两个既有边界不自动扩展到仓库其他目录。

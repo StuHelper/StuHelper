@@ -42,7 +42,7 @@ func TestStoreNewRejectsInvalidTLSCAFile(t *testing.T) {
 	t.Parallel()
 
 	_, err := New(context.Background(), Config{
-		Endpoint:        "https://minio:9000",
+		Endpoint:        "https://object-storage:8334",
 		Region:          "us-east-1",
 		Bucket:          "stuhelper-test",
 		AccessKeyID:     "access-key",

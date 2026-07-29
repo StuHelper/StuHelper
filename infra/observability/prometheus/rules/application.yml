@@ -60,6 +60,16 @@ groups:
           summary: External dependency errors detected
           description: '{{ $labels.client }} {{ $labels.operation }} error rate is above 0.1 req/s.'
 
+      - alert: StuHelperCircuitBreakerOpen
+        expr: max by (name) (circuit_breaker_state) > 0
+        for: 2m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: Dependency circuit breaker is open
+          description: '{{ $labels.name }} has remained open or half-open for more than 2 minutes.'
+
       - alert: StuHelperOutboxTerminalFailures
         expr: increase(outbox_job_failures_total{terminal="true"}[5m]) > 0
         for: 1m

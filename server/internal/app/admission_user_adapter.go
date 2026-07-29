@@ -41,13 +41,23 @@ func (g admissionUserGateway) GetAcademicInfo(
 	studentID string,
 ) (*admission.AcademicStudent, error) {
 	student, err := g.service.GetAcademicInfo(ctx, schoolID, studentID)
-	if err != nil || student == nil {
-		return nil, err
+	if err != nil {
+		return nil, normalizeAdmissionAcademicLookupError(err)
+	}
+	if student == nil {
+		return nil, nil
 	}
 	return &admission.AcademicStudent{
 		StudentID: student.XH,
 		Name:      student.XM,
 	}, nil
+}
+
+func normalizeAdmissionAcademicLookupError(err error) error {
+	if errors.Is(err, user.ErrAcademicLookupUnavailable) {
+		return admission.ErrAdmissionAcademicLookupUnavailable
+	}
+	return err
 }
 
 func (g admissionUserGateway) EnqueueFreshmanProvisionalRoleSyncTx(

@@ -43,6 +43,18 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
 }
 
+require_integer_range() {
+  local key="$1"
+  local value="$2"
+  local minimum="$3"
+  local maximum="$4"
+
+  if [[ ! "${value}" =~ ^[0-9]+$ ]] ||
+    ((10#${value} < minimum || 10#${value} > maximum)); then
+    die "${key} must be an integer between ${minimum} and ${maximum}"
+  fi
+}
+
 source_env_file() {
   local file="$1"
   [[ -f "${file}" ]] || return 0
@@ -122,6 +134,48 @@ normalize_backup_object_storage_env() {
   fi
 }
 
+materialize_postgres_runtime_urls() {
+  local rendered
+  rendered="$(python3 - <<'PY'
+import os
+import shlex
+from urllib.parse import quote
+
+mappings = (
+    (
+        "DATABASE_URL",
+        "REPLACE_WITH_STUHELPER_APP_DB_PASSWORD",
+        "STUHELPER_APP_DB_PASSWORD",
+    ),
+    (
+        "BACKUP_DATABASE_URL",
+        "REPLACE_WITH_STUHELPER_BACKUP_DB_PASSWORD",
+        "STUHELPER_BACKUP_DB_PASSWORD",
+    ),
+    (
+        "REPLICATION_DATABASE_URL",
+        "REPLACE_WITH_STUHELPER_REPLICATION_DB_PASSWORD",
+        "STUHELPER_REPLICATION_DB_PASSWORD",
+    ),
+)
+
+for url_key, placeholder, secret_key in mappings:
+    if url_key not in os.environ:
+        continue
+    value = os.environ[url_key]
+    secret = os.environ.get(secret_key, "")
+    # Environment initialization loads the shared template before generating
+    # its secret file. Leave the placeholder intact during that first pass;
+    # strict production validation rejects it if no later source resolves it.
+    if placeholder in value and secret:
+        value = value.replace(placeholder, quote(secret, safe=""))
+    print(f"export {url_key}={shlex.quote(value)}")
+PY
+)"
+  # shellcheck disable=SC1091
+  source /dev/stdin <<<"${rendered}"
+}
+
 LOCAL_STATE_DIR="${LOCAL_STATE_DIR:-$(default_local_state_dir)}"
 POSTGRES_WAL_RESTORE_DIR="${POSTGRES_WAL_RESTORE_DIR:-${LOCAL_STATE_DIR}/postgres/wal-restore}"
 
@@ -143,6 +197,83 @@ require_backup_object_storage_config() {
 
   if (( ${#missing[@]} > 0 )); then
     die "backup object storage configuration is incomplete; missing: ${missing[*]}"
+  fi
+}
+
+require_https_object_storage_endpoint() {
+  local key="$1"
+  local value="${2:-}"
+  local output
+
+  if ! output="$(python3 - "${key}" "${value}" 2>&1 <<'PY'
+import sys
+from urllib.parse import urlsplit
+
+key, value = sys.argv[1:3]
+value = value.strip()
+if not value:
+    raise SystemExit(f"{key} is required")
+
+parsed = urlsplit(value)
+if parsed.scheme.lower() != "https":
+    raise SystemExit(f"{key} must use https")
+if not parsed.hostname:
+    raise SystemExit(f"{key} must include a hostname")
+if parsed.username is not None or parsed.password is not None:
+    raise SystemExit(f"{key} must not contain embedded credentials")
+if parsed.query or parsed.fragment:
+    raise SystemExit(f"{key} must not contain query parameters or a fragment")
+if parsed.path not in {"", "/"}:
+    raise SystemExit(f"{key} must not contain an object path")
+PY
+  )"; then
+    die "${output}"
+  fi
+}
+
+require_production_object_storage() {
+  require_backup_object_storage_config
+  require_https_object_storage_endpoint "OBJECT_STORAGE_ENDPOINT" "${OBJECT_STORAGE_ENDPOINT:-}"
+  require_https_object_storage_endpoint "BACKUP_OBJECT_STORAGE_ENDPOINT" "${BACKUP_OBJECT_STORAGE_ENDPOINT:-}"
+
+  [[ "${OBJECT_STORAGE_USE_SSL:-false}" == "true" ]] ||
+    die "OBJECT_STORAGE_USE_SSL must be true for production"
+  [[ "${BACKUP_OBJECT_STORAGE_TLS_INSECURE:-false}" == "false" ]] ||
+    die "BACKUP_OBJECT_STORAGE_TLS_INSECURE must be false for production"
+
+  case "${OBJECT_STORAGE_FORCE_PATH_STYLE:-false}" in
+    true|false) ;;
+    *) die "OBJECT_STORAGE_FORCE_PATH_STYLE must be true or false" ;;
+  esac
+  case "${BACKUP_OBJECT_STORAGE_FORCE_PATH_STYLE:-${OBJECT_STORAGE_FORCE_PATH_STYLE:-false}}" in
+    true|false) ;;
+    *) die "BACKUP_OBJECT_STORAGE_FORCE_PATH_STYLE must be true or false" ;;
+  esac
+
+  if [[ -n "${OBJECT_STORAGE_TLS_CA:-}" ]]; then
+    [[ "${OBJECT_STORAGE_TLS_CA}" == "/object-storage-tls/ca.crt" ]] ||
+      die "OBJECT_STORAGE_TLS_CA must be /object-storage-tls/ca.crt"
+    [[ -n "${OBJECT_STORAGE_TLS_CA_HOST_PATH:-}" ]] ||
+      die "OBJECT_STORAGE_TLS_CA_HOST_PATH is required when OBJECT_STORAGE_TLS_CA is configured"
+    [[ -f "${OBJECT_STORAGE_TLS_CA_HOST_PATH}" &&
+       -r "${OBJECT_STORAGE_TLS_CA_HOST_PATH}" ]] ||
+      die "OBJECT_STORAGE_TLS_CA_HOST_PATH must be a readable regular file"
+  elif [[ -n "${OBJECT_STORAGE_TLS_CA_HOST_PATH:-}" ]]; then
+    die "OBJECT_STORAGE_TLS_CA_HOST_PATH must be empty when OBJECT_STORAGE_TLS_CA is empty"
+  fi
+
+  if [[ -n "${BACKUP_OBJECT_STORAGE_TLS_CA:-}" ]]; then
+    [[ -f "${BACKUP_OBJECT_STORAGE_TLS_CA}" && -r "${BACKUP_OBJECT_STORAGE_TLS_CA}" ]] ||
+      die "BACKUP_OBJECT_STORAGE_TLS_CA must be a readable regular file"
+  fi
+
+  if [[ "${OBJECT_STORAGE_ACCESS_KEY_ID:-}" == "${BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID:-}" &&
+        "${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}" != "${BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY:-}" ]]; then
+    die "the same object-storage access key cannot map to different secrets"
+  fi
+  if [[ "${OBJECT_STORAGE_ACCESS_KEY_ID:-}" != "${BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID:-}" &&
+        "${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}" == "${BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY:-}" ]]; then
+    die "application and backup object-storage identities must not share a secret"
   fi
 }
 
@@ -177,6 +308,8 @@ allow_plaintext = sys.argv[3] == "true"
 
 if not value:
     raise SystemExit(f"{key} must be configured for production PostgreSQL")
+if "REPLACE_WITH_" in value:
+    raise SystemExit(f"{key} contains an unresolved secret placeholder")
 
 parsed = urlsplit(value)
 if parsed.scheme not in {"postgres", "postgresql"}:
@@ -213,16 +346,80 @@ require_production_postgres_ssl() {
     [[ -n "${EXTERNAL_DATASTORE_NETWORK:-}" ]] || die "EXTERNAL_DATASTORE_NETWORK is required when EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true"
     [[ "${POSTGRES_INTERNAL_SSL_MODE:-}" == "disable" ]] || die "POSTGRES_INTERNAL_SSL_MODE must be disable when EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true"
     [[ "${DB_SSL_MODE:-}" == "disable" ]] || die "DB_SSL_MODE must be disable when EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true"
+  elif [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" ]]; then
+    require_verified_postgres_ssl_mode "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}"
+    [[ "${DB_SSL_MODE:-}" == "verify-full" ]] || die "DB_SSL_MODE must be verify-full for external production PostgreSQL"
+    [[ "${DB_SSL_ROOT_CERT:-}" == "/tls/ca.crt" ]] ||
+      die "DB_SSL_ROOT_CERT must be /tls/ca.crt for external production PostgreSQL"
+    [[ -n "${POSTGRES_CLIENT_CA_HOST_PATH:-}" ]] ||
+      die "POSTGRES_CLIENT_CA_HOST_PATH is required for external production PostgreSQL TLS"
   else
     [[ "${POSTGRES_ENABLE_SSL:-}" == "on" ]] || die "POSTGRES_ENABLE_SSL must be on for production"
     require_verified_postgres_ssl_mode "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}"
     [[ "${DB_SSL_MODE:-}" == "verify-full" ]] || die "DB_SSL_MODE must be verify-full for production"
-    [[ -n "${DB_SSL_ROOT_CERT:-}" ]] || die "DB_SSL_ROOT_CERT is required for production"
+    [[ "${DB_SSL_ROOT_CERT:-}" == "/tls/ca.crt" ]] ||
+      die "DB_SSL_ROOT_CERT must be /tls/ca.crt for production"
   fi
 
   require_production_postgres_url "DATABASE_URL" "${DATABASE_URL:-}" "${allow_plaintext}"
   require_production_postgres_url "BACKUP_DATABASE_URL" "${BACKUP_DATABASE_URL:-}" "${allow_plaintext}"
   require_production_postgres_url "REPLICATION_DATABASE_URL" "${REPLICATION_DATABASE_URL:-}" "${allow_plaintext}"
+}
+
+require_production_external_student_source_security() {
+  [[ "${EXTERNAL_STUDENT_SOURCE_ENABLED:-false}" == "true" ]] || return 0
+  [[ "${EXTERNAL_STUDENT_SOURCE_PROVIDER:-}" == "oracle" ]] ||
+    die "EXTERNAL_STUDENT_SOURCE_PROVIDER must be oracle when the external student source is enabled"
+
+  local key
+  local value
+  for key in \
+    EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE \
+    EXTERNAL_STUDENT_SOURCE_ORACLE_HOST \
+    EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME \
+    EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME \
+    EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD \
+    EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_HOST_PATH \
+    EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA \
+    EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE \
+    EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_ID_COLUMN \
+    EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_NAME_COLUMN; do
+    value="${!key:-}"
+    [[ -n "${value}" ]] || die "${key} is required when the external student source is enabled"
+    case "${value}" in
+      REPLACE_WITH_* | RUN_*)
+        die "${key} contains an unresolved placeholder"
+        ;;
+    esac
+  done
+
+  [[ "${EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE}" =~ ^[0-9]{10}$ ]] ||
+    die "EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE must be a 10-digit school code"
+  for key in \
+    EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA \
+    EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE \
+    EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_ID_COLUMN \
+    EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_NAME_COLUMN; do
+    value="${!key}"
+    [[ "${value}" =~ ^[A-Za-z][A-Za-z0-9_]{0,127}$ ]] ||
+      die "${key} must be a safe Oracle identifier"
+  done
+
+  [[ "${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE:-}" == "verify-full" ]] ||
+    die "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE must be verify-full in production"
+  [[ "${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE:-}" == "/external-student-source-tls/ca.crt" ]] ||
+    die "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE must be /external-student-source-tls/ca.crt in production"
+
+  require_integer_range "EXTERNAL_STUDENT_SOURCE_ORACLE_PORT" "${EXTERNAL_STUDENT_SOURCE_ORACLE_PORT:-}" 1 65535
+  require_integer_range "EXTERNAL_STUDENT_SOURCE_ORACLE_CONNECT_TIMEOUT_SECONDS" "${EXTERNAL_STUDENT_SOURCE_ORACLE_CONNECT_TIMEOUT_SECONDS:-}" 1 60
+  require_integer_range "EXTERNAL_STUDENT_SOURCE_ORACLE_QUERY_TIMEOUT_SECONDS" "${EXTERNAL_STUDENT_SOURCE_ORACLE_QUERY_TIMEOUT_SECONDS:-}" 1 60
+  require_integer_range "EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_OPEN_CONNS" "${EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_OPEN_CONNS:-}" 1 100
+  require_integer_range "EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_IDLE_CONNS" "${EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_IDLE_CONNS:-}" 0 "${EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_OPEN_CONNS}"
+  require_integer_range "EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_LIFETIME_SECONDS" "${EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_LIFETIME_SECONDS:-}" 30 3600
+  require_integer_range "EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_IDLE_TIME_SECONDS" "${EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_IDLE_TIME_SECONDS:-}" 30 "${EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_LIFETIME_SECONDS}"
+  require_integer_range "EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_FAILURE_THRESHOLD" "${EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_FAILURE_THRESHOLD:-}" 1 100
+  require_integer_range "EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_SUCCESS_THRESHOLD" "${EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_SUCCESS_THRESHOLD:-}" 1 20
+  require_integer_range "EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_OPEN_SECONDS" "${EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_OPEN_SECONDS:-}" 1 600
 }
 
 trim_trailing_slash() {
@@ -657,6 +854,9 @@ load_env() {
   fi
   source_env_file "${GENERATED_ENV_FILE}"
   source_generated_secret_env
+  if [[ "${STUHELPER_PRESERVE_POSTGRES_URL_PLACEHOLDERS:-false}" != "true" ]]; then
+    materialize_postgres_runtime_urls
+  fi
   normalize_backup_object_storage_env
   export POSTGRES_WAL_ARCHIVE_VOLUME_NAME="${POSTGRES_WAL_ARCHIVE_VOLUME_NAME:-${STACK_NAME:-stuhelper}-postgres-wal-archive}"
   if [[ "${preserved_tag}" != "__STUHELPER_UNSET__" ]]; then export TAG="${preserved_tag}"; fi
@@ -665,6 +865,27 @@ load_env() {
   if [[ "${preserved_frontend_image_ref}" != "__STUHELPER_UNSET__" ]]; then export FRONTEND_IMAGE_REF="${preserved_frontend_image_ref}"; fi
   if [[ "${preserved_admin_image_ref}" != "__STUHELPER_UNSET__" ]]; then export ADMIN_IMAGE_REF="${preserved_admin_image_ref}"; fi
   set +a
+}
+
+load_env_preserving() {
+  local -A preserved_values=()
+  local key
+
+  for key in "$@"; do
+    [[ "${key}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] ||
+      die "invalid environment key requested for preservation: ${key}"
+    if [[ -v "${key}" ]]; then
+      preserved_values["${key}"]="${!key}"
+    fi
+  done
+
+  load_env
+
+  for key in "${!preserved_values[@]}"; do
+    printf -v "${key}" '%s' "${preserved_values[${key}]}"
+    export "${key}"
+  done
+  materialize_postgres_runtime_urls
 }
 
 load_remote_deploy_config() {
@@ -709,6 +930,7 @@ compose() {
     if [[ -n "${SECRETS_ENV_FILE}" && -f "${SECRETS_ENV_FILE}" ]]; then source_env_file "${SECRETS_ENV_FILE}"; fi && \
     if [[ -f "${GENERATED_ENV_FILE}" ]]; then source_env_file "${GENERATED_ENV_FILE}"; fi && \
     source_generated_secret_env && \
+    materialize_postgres_runtime_urls && \
     if [[ "${preserved_tag}" != "__STUHELPER_UNSET__" ]]; then export TAG="${preserved_tag}"; fi && \
     if [[ "${preserved_rollback_tag}" != "__STUHELPER_UNSET__" ]]; then export ROLLBACK_TAG="${preserved_rollback_tag}"; fi && \
     if [[ "${preserved_backend_image_ref}" != "__STUHELPER_UNSET__" ]]; then export BACKEND_IMAGE_REF="${preserved_backend_image_ref}"; fi && \

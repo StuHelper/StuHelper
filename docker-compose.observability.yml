@@ -2,12 +2,55 @@
 # 与 docker-compose.yml 一起使用；公共网络/卷/secret 仍定义在主文件。
 
 services:
+  docker-socket-proxy:
+    profiles: [observability, prod]
+    image: ${DOCKER_SOCKET_PROXY_IMAGE_REF:-ghcr.io/tecnativa/docker-socket-proxy:latest@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459}
+    container_name: ${STACK_NAME:-stuhelper}-docker-socket-proxy
+    environment:
+      CONTAINERS: "1"
+      EVENTS: "1"
+      INFO: "1"
+      NETWORKS: "1"
+      PING: "1"
+      POST: "0"
+      VERSION: "1"
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:2375/_ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+    networks:
+    - docker_api
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 64M
+    read_only: true
+    tmpfs:
+    - /tmp
+    - /run
+    cap_drop:
+    - ALL
+    security_opt:
+    - no-new-privileges:true
   alloy:
     profiles: [observability, prod]
-    image: ${GRAFANA_ALLOY_IMAGE_REF:-grafana/alloy:v1.10.2@sha256:bcf27f18c4402869af112fb39e35e1db3804a404686f4caa20bdf77814219223}
+    image: ${GRAFANA_ALLOY_IMAGE_REF:-grafana/alloy:v1.18.0@sha256:491b0578c04983fd54fe99b587b6fab4404dc46d0dc16677bd6b00cc1140b308}
     container_name: ${STACK_NAME:-stuhelper}-alloy
+    environment:
+      ALLOY_DOCKER_LOG_MAX_AGE: ${ALLOY_DOCKER_LOG_MAX_AGE:-1h}
+      ALLOY_DOCKER_STREAM_TIMEOUT: ${ALLOY_DOCKER_STREAM_TIMEOUT:-24h}
+      STACK_NAME: ${STACK_NAME:-stuhelper}
+    user: "473:473"
     command:
     - run
+    - --disable-reporting
     - --server.http.listen-addr=0.0.0.0:12345
     - --storage.path=/var/lib/alloy/data
     - /etc/alloy/config.alloy
@@ -17,11 +60,15 @@ services:
     - "127.0.0.1:${OTEL_HTTP_PORT:-4318}:4318"
     volumes:
     - ./infra/observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
-    - /var/lib/docker/containers:/var/lib/docker/containers:ro
     - alloy_data:/var/lib/alloy/data
     depends_on:
-      loki:
+      docker-socket-proxy:
         condition: service_healthy
+      loki:
+        # Loki's current distroless image intentionally ships no shell or HTTP
+        # client. Runtime readiness is monitored by Prometheus/blackbox; Alloy
+        # will retry remote writes while Loki finishes its brief startup.
+        condition: service_started
       tempo:
         condition: service_healthy
     healthcheck:
@@ -35,6 +82,7 @@ services:
     networks:
     - backend
     - observability
+    - docker_api
     deploy:
       resources:
         limits:
@@ -43,11 +91,13 @@ services:
     read_only: true
     tmpfs:
     - /tmp
+    cap_drop:
+    - ALL
     security_opt:
     - no-new-privileges:true
   prometheus:
     profiles: [observability, prod]
-    image: ${PROMETHEUS_IMAGE_REF:-prom/prometheus:v3.5.0@sha256:63805ebb8d2b3920190daf1cb14a60871b16fd38bed42b857a3182bc621f4996}
+    image: ${PROMETHEUS_IMAGE_REF:-prom/prometheus:v3.13.1@sha256:3c42b892cf723fa54d2f262c37a0e1f80aa8c8ddb1da7b9b0df9455a35a7f893}
     container_name: ${STACK_NAME:-stuhelper}-prometheus
     command:
     - --config.file=/etc/prometheus/prometheus.yml
@@ -80,11 +130,16 @@ services:
         limits:
           cpus: '1.0'
           memory: 2G
+    read_only: true
+    tmpfs:
+    - /tmp
+    cap_drop:
+    - ALL
     security_opt:
     - no-new-privileges:true
   alertmanager:
     profiles: [observability, prod]
-    image: ${ALERTMANAGER_IMAGE_REF:-prom/alertmanager:v0.28.1@sha256:27c475db5fb156cab31d5c18a4251ac7ed567746a2483ff264516437a39b15ba}
+    image: ${ALERTMANAGER_IMAGE_REF:-prom/alertmanager:v0.33.1@sha256:9e082985f56f4c8c9f724e18f2288c6708f472e56a5286b8863d080434ea065d}
     container_name: ${STACK_NAME:-stuhelper}-alertmanager
     command:
     - --config.file=/etc/alertmanager/alertmanager.yml
@@ -109,11 +164,16 @@ services:
         limits:
           cpus: '0.50'
           memory: 512M
+    read_only: true
+    tmpfs:
+    - /tmp
+    cap_drop:
+    - ALL
     security_opt:
     - no-new-privileges:true
   loki:
     profiles: [observability, prod]
-    image: ${LOKI_IMAGE_REF:-grafana/loki:3.5.5@sha256:31628519045e7f28692a7ae73b4a3fd293dccb425585ed5d16ceea3b5c9592e6}
+    image: ${LOKI_IMAGE_REF:-grafana/loki:3.7.4@sha256:87f0a067673756a3cede1bcbf0c74875f7df9b09fddb53e399d0c576f756cfcc}
     container_name: ${STACK_NAME:-stuhelper}-loki
     command: ["-config.file=/etc/loki/loki.yaml"]
     ports:
@@ -121,12 +181,6 @@ services:
     volumes:
     - ./infra/observability/loki/loki.yaml:/etc/loki/loki.yaml:ro
     - loki_data:/loki
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3100/ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
     restart: unless-stopped
 
     networks:
@@ -136,11 +190,16 @@ services:
         limits:
           cpus: '1.0'
           memory: 1G
+    read_only: true
+    tmpfs:
+    - /tmp
+    cap_drop:
+    - ALL
     security_opt:
     - no-new-privileges:true
   tempo:
     profiles: [observability, prod]
-    image: ${TEMPO_IMAGE_REF:-grafana/tempo:2.8.2@sha256:0ef775495967cd5d7a6b2e146b6ea695d624803c8db8349fb8ce4164f719f9b7}
+    image: ${TEMPO_IMAGE_REF:-grafana/tempo:3.0.2@sha256:cda87c212d8c584dc0b89e337e7ed648a5100feb657e5d528480ee4fa03dbbe3}
     container_name: ${STACK_NAME:-stuhelper}-tempo
     command: ["-config.file=/etc/tempo/tempo.yaml"]
     ports:
@@ -149,7 +208,7 @@ services:
     - ./infra/observability/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
     - tempo_data:/var/tempo
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3200/ready"]
+      test: ["CMD", "/tempo", "-health", "-health.url=http://127.0.0.1:3200/ready"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -163,18 +222,28 @@ services:
         limits:
           cpus: '1.0'
           memory: 1G
+    read_only: true
+    tmpfs:
+    - /tmp
+    cap_drop:
+    - ALL
     security_opt:
     - no-new-privileges:true
   grafana:
     profiles: [observability, prod]
-    image: ${GRAFANA_IMAGE_REF:-grafana/grafana:12.1.1@sha256:a1701c2180249361737a99a01bc770db39381640e4d631825d38ff4535efa47d}
+    image: ${GRAFANA_IMAGE_REF:-grafana/grafana:nightly-slim@sha256:5909f8f4123b9ff3efcd701e23c0b5310b6ae0ea12fd3ee906f2bc91831e5363}
     container_name: ${STACK_NAME:-stuhelper}-grafana
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_METRICS_ENABLED: "true"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
       GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3003}
     ports:
     - "127.0.0.1:${GRAFANA_PORT:-3003}:3000"
@@ -186,7 +255,7 @@ services:
       prometheus:
         condition: service_healthy
       loki:
-        condition: service_healthy
+        condition: service_started
       tempo:
         condition: service_healthy
       alertmanager:
@@ -206,11 +275,16 @@ services:
         limits:
           cpus: '1.0'
           memory: 512M
+    read_only: true
+    tmpfs:
+    - /tmp
+    cap_drop:
+    - ALL
     security_opt:
     - no-new-privileges:true
   node-exporter:
     profiles: [observability, prod]
-    image: ${NODE_EXPORTER_IMAGE_REF:-prom/node-exporter:v1.9.1@sha256:d00a542e409ee618a4edc67da14dd48c5da66726bbd5537ab2af9c1dfc442c8a}
+    image: ${NODE_EXPORTER_IMAGE_REF:-prom/node-exporter:v1.12.1@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0}
     container_name: ${STACK_NAME:-stuhelper}-node-exporter
     command:
     - --path.rootfs=/host
@@ -234,11 +308,13 @@ services:
     read_only: true
     tmpfs:
     - /tmp
+    cap_drop:
+    - ALL
     security_opt:
     - no-new-privileges:true
   cadvisor:
     profiles: [observability, prod]
-    image: ${CADVISOR_IMAGE_REF:-gcr.io/cadvisor/cadvisor:v0.52.1@sha256:f40e65878e25c2e78ea037f73a449527a0fb994e303dc3e34cb6b187b4b91435}
+    image: ${CADVISOR_IMAGE_REF:-ghcr.io/google/cadvisor:v0.60.5@sha256:763aecf1c32c2be8a1a75f9abfc2fc461005c9dbbaa39cb356b354aac1296dbe}
     container_name: ${STACK_NAME:-stuhelper}-cadvisor
     security_opt:
     - no-new-privileges:true
@@ -268,14 +344,14 @@ services:
           memory: 512M
   postgres-exporter:
     profiles: [observability, prod]
-    image: ${POSTGRES_EXPORTER_IMAGE_REF:-quay.io/prometheuscommunity/postgres-exporter:v0.17.1@sha256:38606faa38c54787525fb0ff2fd6b41b4cfb75d455c1df294927c5f611699b17}
+    image: ${POSTGRES_EXPORTER_IMAGE_REF:-quay.io/prometheuscommunity/postgres-exporter:v0.20.1@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e}
     container_name: ${STACK_NAME:-stuhelper}-postgres-exporter
     environment:
-      DATA_SOURCE_URI: postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}&sslrootcert=/tls/ca.crt
-      DATA_SOURCE_USER: stuhelper_backup
-      DATA_SOURCE_PASS: ${STUHELPER_BACKUP_DB_PASSWORD}
+      DATA_SOURCE_URI: postgres:5432/postgres?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}&sslrootcert=/tls/ca.crt
+      DATA_SOURCE_USER: stuhelper_metrics
+      DATA_SOURCE_PASS: ${POSTGRES_EXPORTER_DB_PASSWORD:?POSTGRES_EXPORTER_DB_PASSWORD is required}
     volumes:
-    - ./infra/generated/postgres:/tls:ro
+    - ./infra/generated/postgres-client-ca:/tls:ro
     ports:
     - "127.0.0.1:${POSTGRES_EXPORTER_PORT:-9187}:9187"
     depends_on:
@@ -304,13 +380,16 @@ services:
     - no-new-privileges:true
   redis-exporter:
     profiles: [observability, prod]
-    image: ${REDIS_EXPORTER_IMAGE_REF:-oliver006/redis_exporter:v1.76.0@sha256:1542bc6a88decfc16db6603045accd502cc3a46c46659d7cfd568e1f6965fe59}
+    image: ${REDIS_EXPORTER_IMAGE_REF:-oliver006/redis_exporter:v1.88.0@sha256:2c8c55c63ce4d915389f03d337b8acef56aaaca9fab8728291287e612d4d6398}
     container_name: ${STACK_NAME:-stuhelper}-redis-exporter
     environment:
-      REDIS_ADDR: rediss://${REDIS_EXPORTER_USERNAME:-stuhelper_metrics}:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379
+      REDIS_ADDR: rediss://redis:6379
+      REDIS_USER: ${REDIS_EXPORTER_USERNAME:-stuhelper_metrics}
+      REDIS_PASSWORD: ${REDIS_EXPORTER_PASSWORD:?REDIS_EXPORTER_PASSWORD is required}
       REDIS_EXPORTER_TLS_CA_CERT_FILE: /tls/ca.crt
+      REDIS_EXPORTER_DISABLE_SCRAPE_ENDPOINT: "true"
     volumes:
-    - ./infra/generated/redis:/tls:ro
+    - ./infra/generated/redis-client-ca:/tls:ro
     ports:
     - "127.0.0.1:${REDIS_EXPORTER_PORT:-9121}:9121"
     depends_on:
@@ -339,7 +418,7 @@ services:
     - no-new-privileges:true
   blackbox-exporter:
     profiles: [observability, prod]
-    image: ${BLACKBOX_EXPORTER_IMAGE_REF:-quay.io/prometheus/blackbox-exporter:v0.27.0@sha256:a50c4c0eda297baa1678cd4dc4712a67fdea713b832d43ce7fcc5f9bea05094d}
+    image: ${BLACKBOX_EXPORTER_IMAGE_REF:-quay.io/prometheus/blackbox-exporter:master@sha256:9a7db82eecc48c8f226a24ca72c7b367b749b7994881824aa9b6a05b24ff4579}
     container_name: ${STACK_NAME:-stuhelper}-blackbox-exporter
     command:
     - --config.file=/etc/blackbox/blackbox.yml
@@ -368,8 +447,8 @@ services:
     security_opt:
     - no-new-privileges:true
   alert-webhook-sink:
-    profiles: [prod]
-    image: ${ALERT_WEBHOOK_SINK_IMAGE_REF:-mendhak/http-https-echo:35@sha256:440ca6b810bc04606aac700e461caca5543eaa882c4e0af96a33424d05a23592}
+    profiles: [local-alert-sink]
+    image: ${ALERT_WEBHOOK_SINK_IMAGE_REF:-mendhak/http-https-echo:41@sha256:2046be25f4a2c0bdda662ebfb7c2b7b60fc95c31d97987be143645a8a2194a40}
     container_name: ${STACK_NAME:-stuhelper}-alert-webhook-sink
     environment:
       HTTP_PORT: 8080

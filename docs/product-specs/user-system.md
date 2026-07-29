@@ -3,7 +3,7 @@ type: product-spec
 audience: product, backend-dev
 status: current
 authoritative-source: server/api/openapi.yaml
-last-verified: 2026-04-19
+last-verified: 2026-07-29
 ---
 
 # 用户系统
@@ -32,7 +32,11 @@ last-verified: 2026-04-19
 
 **LDAP**：学号 + 密码 → 后端 LDAP bind → 成功自动通过 → 同步 `verified_student` 角色。
 
+**学籍邮箱 OTP**：学号 + 姓名 → 按学校代码路由到外部只读学籍源 → 匹配后由后端固定派生学校邮箱 → 邮箱 OTP 通过后自动认证。客户端不能替换后端派生的邮箱；学籍源不可用时返回服务不可用，不得作为“不匹配”处理。
+
 **手工表单**：学校配置动态表单 → 提交 → `pending` → 管理员审核。
+
+学号只接受 1–50 位 ASCII 字母、数字、点、下划线和连字符，且首位必须是字母或数字；姓名规范化后最多 80 个 Unicode 字符，并拒绝控制字符、零宽格式字符和私用区字符。相同学号返回冲突姓名、空姓名或不一致学号时，学籍匹配失败关闭。
 
 ## 状态机
 
@@ -75,6 +79,7 @@ last-verified: 2026-04-19
 - `verification_method`：`ldap` 或 `manual`
 - `ldap_config` / `manual_form_fields` / `consent_text`
 - `academic_db_table` / `enabled`
+- `manual_form_fields.admission.emailIdentityPolicy`：学籍邮箱策略、邮箱域和姓名匹配要求
 
 ## 系统配置
 

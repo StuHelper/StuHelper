@@ -82,7 +82,7 @@ database_url="$(materialize_database_url "${database_url}")"
 
 compose --profile prod run --rm --no-deps -T \
   -v "${directory_tsv}:/tmp/school_directory_2025.tsv:ro" \
-  postgres \
+  postgres-client \
   psql \
     -X \
     -v ON_ERROR_STOP=1 \

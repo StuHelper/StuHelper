@@ -1,6 +1,7 @@
 package circuitbreaker
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -80,13 +81,14 @@ func DefaultConfig() Config {
 
 // CircuitBreaker 熔断器
 type CircuitBreaker struct {
-	config          Config
-	name            string
-	state           State
-	failures        int
-	successes       int
-	lastFailureTime time.Time
-	mu              sync.RWMutex
+	config           Config
+	name             string
+	state            State
+	failures         int
+	successes        int
+	lastFailureTime  time.Time
+	halfOpenInFlight bool
+	mu               sync.RWMutex
 }
 
 // New 创建熔断器
@@ -96,6 +98,11 @@ func New(cfg Config) *CircuitBreaker {
 
 // NewNamed 创建带名称的熔断器（名称用于 Prometheus 指标标签）
 func NewNamed(name string, cfg Config) *CircuitBreaker {
+	cfg = normalizeConfig(cfg)
+	name = strings.TrimSpace(name)
+	if name == "" {
+		name = "default"
+	}
 	cb := &CircuitBreaker{
 		config: cfg,
 		name:   name,
@@ -103,6 +110,20 @@ func NewNamed(name string, cfg Config) *CircuitBreaker {
 	}
 	cbStateGauge.WithLabelValues(name).Set(float64(StateClosed))
 	return cb
+}
+
+func normalizeConfig(cfg Config) Config {
+	defaults := DefaultConfig()
+	if cfg.FailureThreshold <= 0 {
+		cfg.FailureThreshold = defaults.FailureThreshold
+	}
+	if cfg.SuccessThreshold <= 0 {
+		cfg.SuccessThreshold = defaults.SuccessThreshold
+	}
+	if cfg.Timeout <= 0 {
+		cfg.Timeout = defaults.Timeout
+	}
+	return cfg
 }
 
 // State 获取当前状态
@@ -131,6 +152,7 @@ func (cb *CircuitBreaker) ensureStateTransition() State {
 		cb.transition(StateHalfOpen)
 		cb.failures = 0
 		cb.successes = 0
+		cb.halfOpenInFlight = false
 	}
 	return cb.state
 }
@@ -144,6 +166,9 @@ func (cb *CircuitBreaker) transition(to State) {
 	cbTransitionsTotal.WithLabelValues(cb.name, from.String(), to.String()).Inc()
 	cbStateGauge.WithLabelValues(cb.name).Set(float64(to))
 	cb.state = to
+	if to != StateHalfOpen {
+		cb.halfOpenInFlight = false
+	}
 }
 
 // Allow 检查是否允许执行操作
@@ -154,7 +179,13 @@ func (cb *CircuitBreaker) Allow() bool {
 	// 统一通过 ensureStateTransition 处理 Open→HalfOpen 转换
 	state := cb.ensureStateTransition()
 	switch state {
-	case StateClosed, StateHalfOpen:
+	case StateClosed:
+		return true
+	case StateHalfOpen:
+		if cb.halfOpenInFlight {
+			return false
+		}
+		cb.halfOpenInFlight = true
 		return true
 	default:
 		return false
@@ -173,6 +204,7 @@ func (cb *CircuitBreaker) RecordSuccess() {
 	case StateClosed:
 		cb.failures = 0
 	case StateHalfOpen:
+		cb.halfOpenInFlight = false
 		cb.successes++
 		if cb.successes >= cb.config.SuccessThreshold {
 			cb.transition(StateClosed)
@@ -200,6 +232,7 @@ func (cb *CircuitBreaker) RecordFailure() {
 			cb.transition(StateOpen)
 		}
 	case StateHalfOpen:
+		cb.halfOpenInFlight = false
 		cb.transition(StateOpen)
 		cb.successes = 0
 	}
@@ -218,9 +251,10 @@ func (cb *CircuitBreaker) Metrics() map[string]any {
 	defer cb.mu.RUnlock()
 
 	return map[string]any{
-		"state":        cb.currentState().String(),
-		"failures":     cb.failures,
-		"successes":    cb.successes,
-		"last_failure": cb.lastFailureTime,
+		"state":           cb.currentState().String(),
+		"failures":        cb.failures,
+		"successes":       cb.successes,
+		"last_failure":    cb.lastFailureTime,
+		"probe_in_flight": cb.halfOpenInFlight,
 	}
 }

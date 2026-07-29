@@ -9,17 +9,17 @@ import (
 
 func TestParseDocAESKeys_Valid(t *testing.T) {
 	// 有效的 32 字节 hex key
-	hexKey := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-	keys, errs := parseDocAESKeys("1:" + hexKey)
+	fixtureHex := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	keys, errs := parseDocAESKeys("1:" + fixtureHex)
 	assert.Empty(t, errs)
 	assert.Len(t, keys, 1)
 	assert.Len(t, keys[1], 32)
 }
 
 func TestParseDocAESKeys_MultipleKeys(t *testing.T) {
-	hexKey1 := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-	hexKey2 := "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
-	keys, errs := parseDocAESKeys("1:" + hexKey1 + ",2:" + hexKey2)
+	fixtureHexA := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	fixtureHexB := "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+	keys, errs := parseDocAESKeys("1:" + fixtureHexA + ",2:" + fixtureHexB)
 	assert.Empty(t, errs)
 	assert.Len(t, keys, 2)
 }
@@ -31,15 +31,15 @@ func TestParseDocAESKeys_InvalidFormat(t *testing.T) {
 }
 
 func TestParseDocAESKeys_InvalidKeyID(t *testing.T) {
-	hexKey := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	fixtureHex := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
 	tests := []struct {
 		name  string
 		input string
 	}{
-		{"零值", "0:" + hexKey},
-		{"超范围", "256:" + hexKey},
-		{"非数字", "abc:" + hexKey},
+		{"零值", "0:" + fixtureHex},
+		{"超范围", "256:" + fixtureHex},
+		{"非数字", "abc:" + fixtureHex},
 	}
 
 	for _, tt := range tests {
@@ -52,8 +52,8 @@ func TestParseDocAESKeys_InvalidKeyID(t *testing.T) {
 }
 
 func TestParseDocAESKeys_DuplicateKeyID(t *testing.T) {
-	hexKey := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-	_, errs := parseDocAESKeys("1:" + hexKey + ",1:" + hexKey)
+	fixtureHex := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	_, errs := parseDocAESKeys("1:" + fixtureHex + ",1:" + fixtureHex)
 	assert.NotEmpty(t, errs)
 	assert.Contains(t, errs[0], "duplicate key ID")
 }
@@ -97,9 +97,9 @@ func TestParseSecurityConfig_MissingKeys(t *testing.T) {
 }
 
 func TestParseSecurityConfig_ActiveKeyNotInKeySet(t *testing.T) {
-	hexKey := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	fixtureHex := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	t.Setenv("DOC_AES_ACTIVE_KEY_ID", "2")
-	t.Setenv("DOC_AES_KEYS", "1:"+hexKey)
+	t.Setenv("DOC_AES_KEYS", "1:"+fixtureHex)
 
 	cfg, errs := parseSecurityConfig()
 	// parseSecurityConfig 本身不校验 activeKeyID 是否在 keys 中，
@@ -109,9 +109,9 @@ func TestParseSecurityConfig_ActiveKeyNotInKeySet(t *testing.T) {
 }
 
 func TestValidate_SecurityConfig_ActiveKeyMissing(t *testing.T) {
-	hexKey := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	fixtureHex := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	t.Setenv("DOC_AES_ACTIVE_KEY_ID", "2")
-	t.Setenv("DOC_AES_KEYS", "1:"+hexKey)
+	t.Setenv("DOC_AES_KEYS", "1:"+fixtureHex)
 
 	cfg, securityErrs := parseSecurityConfig()
 	require.Empty(t, securityErrs)
@@ -126,9 +126,9 @@ func TestValidate_SecurityConfig_ActiveKeyMissing(t *testing.T) {
 }
 
 func TestParseSecurityConfig_ValidConfig(t *testing.T) {
-	hexKey := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	fixtureHex := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	t.Setenv("DOC_AES_ACTIVE_KEY_ID", "1")
-	t.Setenv("DOC_AES_KEYS", "1:"+hexKey)
+	t.Setenv("DOC_AES_KEYS", "1:"+fixtureHex)
 
 	cfg, errs := parseSecurityConfig()
 	assert.Empty(t, errs)
@@ -965,11 +965,17 @@ func TestLoadExternalDataConfigFromEnv(t *testing.T) {
 	assert.Equal(t, "oracle", source.Provider)
 	assert.Equal(t, "4111010006", source.SchoolCode)
 	assert.Equal(t, "oracle.example.test", source.Oracle.Host)
+	assert.Equal(t, 2484, source.Oracle.Port)
 	assert.Equal(t, "ORCLPDB1", source.Oracle.ServiceName)
+	assert.Equal(t, "verify-full", source.Oracle.TLSMode)
+	assert.Equal(t, "/external-student-source-tls/ca.crt", source.Oracle.TLSCAFile)
 	assert.Equal(t, "USR_JWBIZ", source.Oracle.Schema)
 	assert.Equal(t, "T_XS_JBXX", source.Oracle.Table)
 	assert.Equal(t, "XH", source.Oracle.StudentIDColumn)
 	assert.Equal(t, "XM", source.Oracle.StudentNameColumn)
+	assert.Equal(t, 5, source.Oracle.BreakerFailureThreshold)
+	assert.Equal(t, 2, source.Oracle.BreakerSuccessThreshold)
+	assert.Equal(t, 30, source.Oracle.BreakerOpenSeconds)
 }
 
 func TestValidateRejectsIncompleteExternalStudentSource(t *testing.T) {
@@ -980,18 +986,25 @@ func TestValidateRejectsIncompleteExternalStudentSource(t *testing.T) {
 		Provider:   "oracle",
 		SchoolCode: "4111010006",
 		Oracle: ExternalOracleStudentSourceConfig{
-			Host:                  "oracle.example.test",
-			Port:                  1521,
-			ServiceName:           "ORCLPDB1",
-			Username:              "SYSTEM",
-			Schema:                "USR_JWBIZ",
-			Table:                 "T_XS_JBXX",
-			StudentIDColumn:       "XH",
-			StudentNameColumn:     "XM",
-			ConnectTimeoutSeconds: 5,
-			QueryTimeoutSeconds:   3,
-			MaxOpenConns:          4,
-			MaxIdleConns:          1,
+			Host:                    "oracle.example.test",
+			Port:                    1521,
+			ServiceName:             "ORCLPDB1",
+			Username:                "SYSTEM",
+			TLSMode:                 "verify-full",
+			TLSCAFile:               "/external-student-source-tls/ca.crt",
+			Schema:                  "USR_JWBIZ",
+			Table:                   "T_XS_JBXX",
+			StudentIDColumn:         "XH",
+			StudentNameColumn:       "XM",
+			ConnectTimeoutSeconds:   5,
+			QueryTimeoutSeconds:     3,
+			MaxOpenConns:            4,
+			MaxIdleConns:            1,
+			ConnMaxLifetimeSeconds:  300,
+			ConnMaxIdleTimeSeconds:  60,
+			BreakerFailureThreshold: 5,
+			BreakerSuccessThreshold: 2,
+			BreakerOpenSeconds:      30,
 		},
 	}}
 
@@ -999,6 +1012,42 @@ func TestValidateRejectsIncompleteExternalStudentSource(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD is required")
+}
+
+func TestValidateRejectsPlaintextOracleStudentSourceInProduction(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.ExternalData.StudentSources = []ExternalStudentSourceConfig{{
+		Name:       "buaa",
+		Enabled:    true,
+		Provider:   "oracle",
+		SchoolCode: "4111010006",
+		Oracle: ExternalOracleStudentSourceConfig{
+			Host:                    "oracle.example.test",
+			Port:                    1521,
+			ServiceName:             "ORCLPDB1",
+			Username:                "stuhelper_ro",
+			Password:                "secret",
+			TLSMode:                 "disable",
+			Schema:                  "USR_JWBIZ",
+			Table:                   "T_XS_JBXX",
+			StudentIDColumn:         "XH",
+			StudentNameColumn:       "XM",
+			ConnectTimeoutSeconds:   5,
+			QueryTimeoutSeconds:     3,
+			MaxOpenConns:            4,
+			MaxIdleConns:            1,
+			ConnMaxLifetimeSeconds:  300,
+			ConnMaxIdleTimeSeconds:  60,
+			BreakerFailureThreshold: 5,
+			BreakerSuccessThreshold: 2,
+			BreakerOpenSeconds:      30,
+		},
+	}}
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE must be verify-full in production")
 }
 
 func TestValidate_DevelopmentAllowsMissingBotServiceToken(t *testing.T) {

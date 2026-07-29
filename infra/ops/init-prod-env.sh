@@ -8,6 +8,7 @@ source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/retired-idp-env.sh"
 
 require_cmd python3
+export STUHELPER_PRESERVE_POSTGRES_URL_PLACEHOLDERS=true
 
 if [[ -z "${ENV_TEMPLATE_FILE:-}" || "${ENV_TEMPLATE_FILE}" == ".env.example" || "${ENV_TEMPLATE_FILE}" == "${REPO_ROOT}/.env.example" ]]; then
   export ENV_TEMPLATE_FILE="${REPO_ROOT}/.env.prod.example"
@@ -69,6 +70,15 @@ ensure_prod_default() {
   done
 }
 
+ensure_managed_runtime_image() {
+  local key="$1"
+  local desired="$2"
+  shift 2
+  local current="${!key-}"
+
+  ensure_prod_default "${key}" "${current}" "${desired}" "$@"
+}
+
 placeholder_or_empty() {
   local value="${1:-}"
   [[ -z "${value}" || "${value}" == *"REPLACE_WITH_"* || "${value}" == "ChangeMeBeforeProduction" ]]
@@ -93,11 +103,17 @@ ensure_bootstrap_env_value() {
 
 load_env
 
-if placeholder_or_empty "${POSTGRES_PASSWORD:-}" || [[ "${POSTGRES_PASSWORD:-}" == "dev123" ]]; then
-  upsert_env_file "${SECRETS_ENV_FILE}" "POSTGRES_PASSWORD" "prod-pg-$(random_hex 16)"
+if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]]; then
+  if placeholder_or_empty "${POSTGRES_PASSWORD:-}" || [[ "${POSTGRES_PASSWORD:-}" == "dev123" ]]; then
+    upsert_env_file "${SECRETS_ENV_FILE}" "POSTGRES_PASSWORD" "prod-pg-$(random_hex 16)"
+  fi
 fi
 if placeholder_or_empty "${REDIS_PASSWORD:-}" || [[ "${REDIS_PASSWORD:-}" == "dev123" ]]; then
   upsert_env_file "${SECRETS_ENV_FILE}" "REDIS_PASSWORD" "prod-redis-$(random_hex 16)"
+fi
+if placeholder_or_empty "${REDIS_EXPORTER_PASSWORD:-}" ||
+   [[ "${REDIS_EXPORTER_PASSWORD:-}" == "${REDIS_PASSWORD:-}" ]]; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "REDIS_EXPORTER_PASSWORD" "prod-redis-metrics-$(random_hex 16)"
 fi
 if placeholder_or_empty "${STUHELPER_APP_DB_PASSWORD:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "STUHELPER_APP_DB_PASSWORD" "prod-app-$(random_hex 16)"
@@ -110,6 +126,9 @@ if placeholder_or_empty "${STUHELPER_BACKUP_DB_PASSWORD:-}"; then
 fi
 if placeholder_or_empty "${STUHELPER_REPLICATION_DB_PASSWORD:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "STUHELPER_REPLICATION_DB_PASSWORD" "prod-repl-$(random_hex 16)"
+fi
+if placeholder_or_empty "${POSTGRES_EXPORTER_DB_PASSWORD:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "POSTGRES_EXPORTER_DB_PASSWORD" "prod-pg-metrics-$(random_hex 16)"
 fi
 if placeholder_or_empty "${HMAC_SECRET:-}" || [[ "${HMAC_SECRET:-}" == "dev_hmac_secret_change_in_production_32ch" ]]; then
   upsert_env_file "${SECRETS_ENV_FILE}" "HMAC_SECRET" "$(random_hex 32)"
@@ -151,17 +170,11 @@ fi
 if placeholder_or_empty "${GRAFANA_ADMIN_PASSWORD:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "GRAFANA_ADMIN_PASSWORD" "prod-grafana-$(random_hex 12)"
 fi
-if placeholder_or_empty "${MINIO_ROOT_USER:-}"; then
-  upsert_env_file "${SECRETS_ENV_FILE}" "MINIO_ROOT_USER" "minio-root-$(random_hex 8)"
-fi
-if placeholder_or_empty "${MINIO_ROOT_PASSWORD:-}"; then
-  upsert_env_file "${SECRETS_ENV_FILE}" "MINIO_ROOT_PASSWORD" "prod-minio-root-$(random_hex 24)"
-fi
 if placeholder_or_empty "${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}"; then
-  upsert_env_file "${SECRETS_ENV_FILE}" "OBJECT_STORAGE_SECRET_ACCESS_KEY" "prod-minio-app-$(random_hex 16)"
+  upsert_env_file "${SECRETS_ENV_FILE}" "OBJECT_STORAGE_SECRET_ACCESS_KEY" "REPLACE_WITH_OBJECT_STORAGE_SECRET_ACCESS_KEY"
 fi
 if placeholder_or_empty "${BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY:-}"; then
-  upsert_env_file "${SECRETS_ENV_FILE}" "BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY" "prod-minio-backup-$(random_hex 16)"
+  upsert_env_file "${SECRETS_ENV_FILE}" "BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY" "REPLACE_WITH_BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY"
 fi
 if placeholder_or_empty "${CASDOOR_CLIENT_SECRET:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "CASDOOR_CLIENT_SECRET" "prod-casdoor-web-$(random_hex 24)"
@@ -213,6 +226,7 @@ if [[ "${EXTERNAL_POSTGRES_ALLOW_PLAINTEXT:-false}" == "true" ]]; then
   ensure_value "DB_SSL_MODE" "${DB_SSL_MODE:-}" "disable"
   ensure_value "POSTGRES_ENABLE_SSL" "${POSTGRES_ENABLE_SSL:-}" "off"
   ensure_value "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}" "disable"
+  ensure_value "POSTGRES_CLIENT_CA_HOST_PATH" "${POSTGRES_CLIENT_CA_HOST_PATH:-}" ""
 else
   ensure_prod_default "DATABASE_URL" "${DATABASE_URL:-}" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt" "postgres://stuhelper:dev123@localhost:5432/stuhelper?sslmode=disable" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@localhost:5432/stuhelper?sslmode=disable"
   ensure_prod_default "BACKUP_DATABASE_URL" "${BACKUP_DATABASE_URL:-}" "postgres://stuhelper_backup:REPLACE_WITH_STUHELPER_BACKUP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt"
@@ -221,6 +235,7 @@ else
   ensure_prod_default "DB_SSL_ROOT_CERT" "${DB_SSL_ROOT_CERT:-}" "/tls/ca.crt"
   ensure_prod_default "POSTGRES_ENABLE_SSL" "${POSTGRES_ENABLE_SSL:-}" "on" "off"
   ensure_prod_default "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}" "verify-full" "require" "disable"
+  ensure_value "POSTGRES_CLIENT_CA_HOST_PATH" "${POSTGRES_CLIENT_CA_HOST_PATH:-}" ""
 fi
 ensure_prod_default "POSTGRES_PGDATA" "${POSTGRES_PGDATA:-}" "/var/lib/postgresql/data" "/var/lib/postgresql/18/docker"
 ensure_value "POSTGRES_ARCHIVE_MODE" "${POSTGRES_ARCHIVE_MODE:-}" "off"
@@ -228,6 +243,7 @@ ensure_value "POSTGRES_ARCHIVE_TIMEOUT" "${POSTGRES_ARCHIVE_TIMEOUT:-}" "15min"
 ensure_prod_default "REDIS_HOST" "${REDIS_HOST:-}" "redis" "localhost"
 ensure_value "REDIS_PORT" "${REDIS_PORT:-}" "6379"
 ensure_value "REDIS_USERNAME" "${REDIS_USERNAME+x}" "stuhelper_app"
+ensure_value "REDIS_EXPORTER_USERNAME" "${REDIS_EXPORTER_USERNAME+x}" "stuhelper_metrics"
 ensure_prod_default "REDIS_TLS_ENABLED" "${REDIS_TLS_ENABLED:-}" "true" "false"
 ensure_prod_default "REDIS_TLS_CA" "${REDIS_TLS_CA:-}" "/tls/ca.crt"
 ensure_prod_default "CORS_ORIGINS" "${CORS_ORIGINS:-}" "https://stuhelper.com,https://join.stuhelper.com,https://sso.stuhelper.com" "https://stuhelper.com" "REPLACE_WITH_PRODUCTION_CORS_ORIGINS" "http://localhost:3000,http://localhost:3001" "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001" "http://localhost:3000,http://127.0.0.1:3000,http://join.localhost:3000,http://localhost:3001,http://127.0.0.1:3001"
@@ -298,8 +314,11 @@ ensure_value "EXTERNAL_STUDENT_SOURCE_ENABLED" "${EXTERNAL_STUDENT_SOURCE_ENABLE
 ensure_value "EXTERNAL_STUDENT_SOURCE_NAME" "${EXTERNAL_STUDENT_SOURCE_NAME:-}" "buaa-academic-oracle"
 ensure_value "EXTERNAL_STUDENT_SOURCE_PROVIDER" "${EXTERNAL_STUDENT_SOURCE_PROVIDER:-}" "oracle"
 ensure_value "EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE" "${EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE:-}" "4111010006"
-ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_PORT" "${EXTERNAL_STUDENT_SOURCE_ORACLE_PORT:-}" "1521"
+ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_PORT" "${EXTERNAL_STUDENT_SOURCE_ORACLE_PORT:-}" "2484"
 ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME" "${EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME:-}" "ORCLPDB1"
+ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE" "${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE:-}" "verify-full"
+ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE" "${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE:-}" "/external-student-source-tls/ca.crt"
+ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_HOST_PATH" "${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_HOST_PATH:-}" ""
 ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA" "${EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA:-}" "USR_JWBIZ"
 ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE" "${EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE:-}" "T_XS_JBXX"
 ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_ID_COLUMN" "${EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_ID_COLUMN:-}" "XH"
@@ -308,6 +327,11 @@ ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_CONNECT_TIMEOUT_SECONDS" "${EXTERNA
 ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_QUERY_TIMEOUT_SECONDS" "${EXTERNAL_STUDENT_SOURCE_ORACLE_QUERY_TIMEOUT_SECONDS:-}" "3"
 ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_OPEN_CONNS" "${EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_OPEN_CONNS:-}" "4"
 ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_IDLE_CONNS" "${EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_IDLE_CONNS:-}" "1"
+ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_LIFETIME_SECONDS" "${EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_LIFETIME_SECONDS:-}" "300"
+ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_IDLE_TIME_SECONDS" "${EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_IDLE_TIME_SECONDS:-}" "60"
+ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_FAILURE_THRESHOLD" "${EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_FAILURE_THRESHOLD:-}" "5"
+ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_SUCCESS_THRESHOLD" "${EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_SUCCESS_THRESHOLD:-}" "2"
+ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_OPEN_SECONDS" "${EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_OPEN_SECONDS:-}" "30"
 ensure_value "EXTERNAL_STUDENT_SOURCE_SMOKE_MODE" "${EXTERNAL_STUDENT_SOURCE_SMOKE_MODE:-}" "container"
 ensure_value "EXTERNAL_STUDENT_SOURCE_SMOKE_COMMAND" "${EXTERNAL_STUDENT_SOURCE_SMOKE_COMMAND:-}" "/app/external-student-source-smoke"
 ensure_value "EXTERNAL_STUDENT_SOURCE_SMOKE_TIMEOUT_SECONDS" "${EXTERNAL_STUDENT_SOURCE_SMOKE_TIMEOUT_SECONDS:-}" "15"
@@ -398,12 +422,11 @@ ensure_prod_default "WEB_EXTERNAL_PORT" "${WEB_EXTERNAL_PORT:-}" "18000" "3000"
 ensure_prod_default "ADMIN_EXTERNAL_PORT" "${ADMIN_EXTERNAL_PORT:-}" "18001" "3001"
 ensure_prod_default "OPENFGA_API_URL" "${OPENFGA_API_URL:-}" "http://openfga:8080" "http://localhost:8081"
 ensure_prod_default "OPENFGA_RESOURCE_SMOKE_MODE" "${OPENFGA_RESOURCE_SMOKE_MODE:-}" "container" "host"
-ensure_prod_default "OBJECT_STORAGE_ENDPOINT" "${OBJECT_STORAGE_ENDPOINT:-}" "REPLACE_WITH_OBJECT_STORAGE_ENDPOINT" "http://localhost:9000" "http://minio:9000"
+ensure_prod_default "OBJECT_STORAGE_ENDPOINT" "${OBJECT_STORAGE_ENDPOINT:-}" "REPLACE_WITH_OBJECT_STORAGE_ENDPOINT" "http://localhost:9000" "http://object-storage:8333"
 ensure_value "OBJECT_STORAGE_REGION" "${OBJECT_STORAGE_REGION:-}" "us-east-1"
 ensure_value "OBJECT_STORAGE_BUCKET" "${OBJECT_STORAGE_BUCKET:-}" "stuhelper-identity"
-ensure_prod_default "MINIO_ROOT_USER" "${MINIO_ROOT_USER:-}" "REPLACE_WITH_MINIO_ROOT_USER" "stuhelper"
 ensure_prod_default "OBJECT_STORAGE_ACCESS_KEY_ID" "${OBJECT_STORAGE_ACCESS_KEY_ID:-}" "REPLACE_WITH_OBJECT_STORAGE_ACCESS_KEY_ID" "stuhelper"
-ensure_prod_default "BACKUP_OBJECT_STORAGE_ENDPOINT" "${BACKUP_OBJECT_STORAGE_ENDPOINT:-}" "REPLACE_WITH_BACKUP_OBJECT_STORAGE_ENDPOINT" "http://localhost:9000" "http://minio:9000"
+ensure_prod_default "BACKUP_OBJECT_STORAGE_ENDPOINT" "${BACKUP_OBJECT_STORAGE_ENDPOINT:-}" "REPLACE_WITH_BACKUP_OBJECT_STORAGE_ENDPOINT" "http://localhost:9000" "http://object-storage:8333"
 ensure_value "BACKUP_OBJECT_STORAGE_BUCKET" "${BACKUP_OBJECT_STORAGE_BUCKET:-}" "stuhelper-postgres-backup"
 ensure_value "BACKUP_OBJECT_STORAGE_PREFIX" "${BACKUP_OBJECT_STORAGE_PREFIX:-}" "postgres"
 ensure_prod_default "BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID" "${BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID:-}" "REPLACE_WITH_BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID" "stuhelper-backup"
@@ -411,7 +434,7 @@ ensure_prod_default "BACKUP_OBJECT_STORAGE_TLS_INSECURE" "${BACKUP_OBJECT_STORAG
 ensure_prod_default "OBJECT_STORAGE_USE_SSL" "${OBJECT_STORAGE_USE_SSL:-}" "true" "false"
 ensure_prod_default "OBJECT_STORAGE_FORCE_PATH_STYLE" "${OBJECT_STORAGE_FORCE_PATH_STYLE:-}" "false" "true"
 ensure_value "OBJECT_STORAGE_PRESIGN_TTL" "${OBJECT_STORAGE_PRESIGN_TTL:-}" "600"
-ensure_value "OBJECT_STORAGE_TLS_CA" "${OBJECT_STORAGE_TLS_CA:-}" "/minio-tls/ca.crt"
+ensure_value "OBJECT_STORAGE_TLS_CA_HOST_PATH" "${OBJECT_STORAGE_TLS_CA_HOST_PATH:-}" ""
 ensure_value "PROMETHEUS_RETENTION_TIME" "${PROMETHEUS_RETENTION_TIME:-}" "15d"
 ensure_value "PROMETHEUS_RETENTION_SIZE" "${PROMETHEUS_RETENTION_SIZE:-}" "20GB"
 ensure_value "BACKUP_LOGICAL_RETENTION_DAYS" "${BACKUP_LOGICAL_RETENTION_DAYS:-}" "14"
@@ -421,14 +444,38 @@ ensure_prod_default "GRAFANA_ROOT_URL" "${GRAFANA_ROOT_URL:-}" "REPLACE_WITH_GRA
 ensure_prod_default "ALLOW_LOCAL_ALERT_SINK" "${ALLOW_LOCAL_ALERT_SINK:-}" "false" "true"
 ensure_prod_default "ALERTMANAGER_WEBHOOK_URL" "${ALERTMANAGER_WEBHOOK_URL:-}" "REPLACE_WITH_ALERTMANAGER_WEBHOOK_URL" "http://alert-webhook-sink:8080/alerts"
 ensure_prod_default "TAG" "${TAG:-}" "" "latest"
+ensure_managed_runtime_image "POSTGRES_IMAGE_REF" "cgr.dev/chainguard/postgres:latest@sha256:dc2f04037c1044a22af76cee4de70b9111885b17c561b939d7ed70103d100759" "postgres:18.3-alpine@sha256:54451ecb8ab38c24c3ec123f2fd501303a3a1856a5c66e98cecf2460d5e1e9d7"
+ensure_managed_runtime_image "REDIS_IMAGE_REF" "redis:8.8.1-alpine@sha256:8096655e437712b07503796fb64d81359256cfcff0ab29d95a7da72863786efb" "redis:8.6.2-alpine@sha256:c5e375abb885e6b2021c0377879e4890bf76f9065b8922ffc113f2b226b9fc17"
+ensure_managed_runtime_image "RCLONE_IMAGE_REF" "rclone/rclone:beta@sha256:f52965eba611ba8984117638b2a0539dcce170731937f93fbace66897d102698"
+ensure_managed_runtime_image "GOLANG_IMAGE_REF" "cgr.dev/chainguard/go:latest@sha256:b116b5f2d3f5e7556b66252f9ee7ef9988b84c2139c89d824efcebd6cadbf436" "golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651"
+ensure_managed_runtime_image "OPENFGA_IMAGE_REF" "openfga/openfga:v1.18.1@sha256:efde89d24487da1a8bc37d85b61341f1fb7024943a1ded65f4b7d51a75666688" "openfga/openfga:v1.8.12@sha256:e2c06000981774a7a02d8aa2292df800ea80a8bc4df61a7ed5f098738b53b1ff"
+ensure_managed_runtime_image "DOCKER_SOCKET_PROXY_IMAGE_REF" "ghcr.io/tecnativa/docker-socket-proxy:latest@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459"
+ensure_managed_runtime_image "GRAFANA_ALLOY_IMAGE_REF" "grafana/alloy:v1.18.0@sha256:491b0578c04983fd54fe99b587b6fab4404dc46d0dc16677bd6b00cc1140b308" "grafana/alloy:v1.10.2@sha256:bcf27f18c4402869af112fb39e35e1db3804a404686f4caa20bdf77814219223"
+ensure_managed_runtime_image "PROMETHEUS_IMAGE_REF" "prom/prometheus:v3.13.1@sha256:3c42b892cf723fa54d2f262c37a0e1f80aa8c8ddb1da7b9b0df9455a35a7f893" "prom/prometheus:v3.5.0@sha256:63805ebb8d2b3920190daf1cb14a60871b16fd38bed42b857a3182bc621f4996"
+ensure_managed_runtime_image "ALERTMANAGER_IMAGE_REF" "prom/alertmanager:v0.33.1@sha256:9e082985f56f4c8c9f724e18f2288c6708f472e56a5286b8863d080434ea065d" "prom/alertmanager:v0.28.1@sha256:27c475db5fb156cab31d5c18a4251ac7ed567746a2483ff264516437a39b15ba"
+ensure_managed_runtime_image "LOKI_IMAGE_REF" "grafana/loki:3.7.4@sha256:87f0a067673756a3cede1bcbf0c74875f7df9b09fddb53e399d0c576f756cfcc" "grafana/loki:3.5.5@sha256:31628519045e7f28692a7ae73b4a3fd293dccb425585ed5d16ceea3b5c9592e6"
+ensure_managed_runtime_image "TEMPO_IMAGE_REF" "grafana/tempo:3.0.2@sha256:cda87c212d8c584dc0b89e337e7ed648a5100feb657e5d528480ee4fa03dbbe3" "grafana/tempo:2.8.2@sha256:0ef775495967cd5d7a6b2e146b6ea695d624803c8db8349fb8ce4164f719f9b7"
+ensure_managed_runtime_image "GRAFANA_IMAGE_REF" "grafana/grafana:nightly-slim@sha256:5909f8f4123b9ff3efcd701e23c0b5310b6ae0ea12fd3ee906f2bc91831e5363" "grafana/grafana:12.1.1@sha256:a1701c2180249361737a99a01bc770db39381640e4d631825d38ff4535efa47d"
+ensure_managed_runtime_image "NODE_EXPORTER_IMAGE_REF" "prom/node-exporter:v1.12.1@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0" "prom/node-exporter:v1.9.1@sha256:d00a542e409ee618a4edc67da14dd48c5da66726bbd5537ab2af9c1dfc442c8a"
+ensure_managed_runtime_image "CADVISOR_IMAGE_REF" "ghcr.io/google/cadvisor:v0.60.5@sha256:763aecf1c32c2be8a1a75f9abfc2fc461005c9dbbaa39cb356b354aac1296dbe" "gcr.io/cadvisor/cadvisor:v0.52.1@sha256:f40e65878e25c2e78ea037f73a449527a0fb994e303dc3e34cb6b187b4b91435"
+ensure_managed_runtime_image "POSTGRES_EXPORTER_IMAGE_REF" "quay.io/prometheuscommunity/postgres-exporter:v0.20.1@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e" "quay.io/prometheuscommunity/postgres-exporter:v0.17.1@sha256:38606faa38c54787525fb0ff2fd6b41b4cfb75d455c1df294927c5f611699b17"
+ensure_managed_runtime_image "REDIS_EXPORTER_IMAGE_REF" "oliver006/redis_exporter:v1.88.0@sha256:2c8c55c63ce4d915389f03d337b8acef56aaaca9fab8728291287e612d4d6398" "oliver006/redis_exporter:v1.76.0@sha256:1542bc6a88decfc16db6603045accd502cc3a46c46659d7cfd568e1f6965fe59"
+ensure_managed_runtime_image "BLACKBOX_EXPORTER_IMAGE_REF" "quay.io/prometheus/blackbox-exporter:master@sha256:9a7db82eecc48c8f226a24ca72c7b367b749b7994881824aa9b6a05b24ff4579" "quay.io/prometheus/blackbox-exporter:v0.27.0@sha256:a50c4c0eda297baa1678cd4dc4712a67fdea713b832d43ce7fcc5f9bea05094d"
 ensure_prod_default "BACKEND_IMAGE_REF" "${BACKEND_IMAGE_REF:-}" "REPLACE_WITH_BACKEND_IMAGE_REF" "registry.stuhelper.com/stuhelper/backend:latest" "stuhelper/backend:dev-placeholder"
 ensure_prod_default "FRONTEND_IMAGE_REF" "${FRONTEND_IMAGE_REF:-}" "REPLACE_WITH_FRONTEND_IMAGE_REF" "registry.stuhelper.com/stuhelper/frontend:latest" "stuhelper/frontend:dev-placeholder"
 ensure_prod_default "ADMIN_IMAGE_REF" "${ADMIN_IMAGE_REF:-}" "REPLACE_WITH_ADMIN_IMAGE_REF" "registry.stuhelper.com/stuhelper/admin:latest" "stuhelper/admin:dev-placeholder"
 
 load_env
+materialize_postgres_runtime_urls
 require_production_postgres_ssl
-"${SCRIPT_DIR}/render-postgres-tls.sh"
+if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]]; then
+  "${SCRIPT_DIR}/render-postgres-tls.sh"
+else
+  log "external PostgreSQL selected; skipping local PostgreSQL server certificate generation"
+fi
 "${SCRIPT_DIR}/render-redis-tls.sh"
 "${SCRIPT_DIR}/render-redis-acl.sh"
+"${SCRIPT_DIR}/prepare-datastore-client-cas.sh"
+"${SCRIPT_DIR}/prepare-object-storage-client-ca.sh"
 log "production environment file is ready: ${ENV_FILE}"
 log "generated runtime file path: ${GENERATED_ENV_FILE}"

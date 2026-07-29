@@ -25,6 +25,8 @@ generated_secret_ref_require_line="$(line_number 'GENERATED_ENV_SECRET_REF must 
 secret_backend_require_line="$(line_number 'production deploy requires a non-file secret backend for generated secrets')"
 source_bootstrap_line="$(line_number 'source_casdoor_bootstrap_env # load bootstrap credential env')"
 postgres_ssl_line="$(line_number 'require_production_postgres_ssl')"
+external_student_source_security_line="$(line_number 'require_production_external_student_source_security')"
+object_storage_gate_line="$(line_number 'require_production_object_storage')"
 public_ingress_config_preflight_line="$(line_number 'require_public_ingress_config_preflight')"
 public_ingress_preflight_line="$(line_number 'require_public_identity_ingress_preflight')"
 render_postgres_tls_line="$(line_number 'render-postgres-tls.sh')"
@@ -57,6 +59,9 @@ bootstrap_reject_line="$(line_number 'reject_placeholder CASDOOR_BOOTSTRAP_CLIEN
 app_provisioning_require_line="$(line_number 'require_nonempty CASDOOR_APP_PROVISIONING_CLIENT_SECRET')"
 app_provisioning_reject_line="$(line_number 'reject_placeholder CASDOOR_APP_PROVISIONING_CLIENT_SECRET')"
 backup_endpoint_reject_line="$(line_number 'reject_placeholder BACKUP_OBJECT_STORAGE_ENDPOINT')"
+object_storage_access_reject_line="$(line_number 'reject_placeholder OBJECT_STORAGE_ACCESS_KEY_ID')"
+object_storage_secret_reject_line="$(line_number 'reject_placeholder OBJECT_STORAGE_SECRET_ACCESS_KEY')"
+object_storage_local_reject_line="$(line_number 'reject_local_value OBJECT_STORAGE_ENDPOINT')"
 user_profile_require_line="$(line_number 'require_nonempty CASDOOR_USER_PROFILE_CLIENT_SECRET')"
 introspection_require_line="$(line_number 'require_nonempty CASDOOR_INTROSPECTION_CLIENT_SECRET')"
 role_sync_require_line="$(line_number 'require_nonempty CASDOOR_ROLE_SYNC_CLIENT_SECRET')"
@@ -143,6 +148,16 @@ if (( user_profile_require_line <= app_provisioning_require_line )); then
 fi
 if (( backup_endpoint_reject_line <= app_provisioning_reject_line )); then
   fail "backup object storage placeholder rejection must be part of production deploy validation"
+fi
+if (( object_storage_secret_reject_line <= object_storage_access_reject_line ||
+      object_storage_secret_reject_line >= backup_endpoint_reject_line )); then
+  fail "application object-storage secret placeholder rejection must follow its access key and precede backup validation"
+fi
+if (( object_storage_local_reject_line <= object_storage_secret_reject_line )); then
+  fail "object-storage local endpoint rejection must run after placeholder rejection"
+fi
+if (( object_storage_gate_line <= object_storage_local_reject_line )); then
+  fail "HTTPS and TLS object-storage gates must run after endpoint placeholder/local checks"
 fi
 if (( introspection_require_line <= user_profile_require_line )); then
   fail "Casdoor introspection validation should be grouped after user-profile validation"
@@ -237,8 +252,17 @@ fi
 if (( token_probe_required_line <= sms_enabled_line )); then
   fail "Open Platform runtime token probe required gate must run after SMS production gate"
 fi
+if (( postgres_ssl_line <= object_storage_gate_line )); then
+  fail "production PostgreSQL SSL gate must run after production object-storage TLS validation"
+fi
 if (( postgres_ssl_line <= token_probe_required_line )); then
   fail "production PostgreSQL SSL gate must run after production runtime feature gates"
+fi
+if (( external_student_source_security_line <= postgres_ssl_line )); then
+  fail "external student source TLS validation must run after PostgreSQL validation"
+fi
+if (( public_ingress_config_preflight_line <= external_student_source_security_line )); then
+  fail "external student source TLS validation must run before public ingress checks"
 fi
 if (( public_ingress_config_preflight_line <= postgres_ssl_line )); then
   fail "public Nginx ingress config preflight must run after production PostgreSQL SSL config validation"
@@ -286,6 +310,12 @@ fi
 if ! grep -qF 'EXTERNAL_POSTGRES_ENABLED' "${PROD_DEPLOY_FILE}"; then
   fail "production deploy must support skipping the internal PostgreSQL service"
 fi
+if ! grep -qF 'if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]]; then' "${PROD_DEPLOY_FILE}"; then
+  fail "production deploy must scope internal PostgreSQL superuser validation to internal mode"
+fi
+if ! grep -qF 'require_nonempty POSTGRES_PASSWORD' "${PROD_DEPLOY_FILE}"; then
+  fail "production deploy must still require a superuser password for internal PostgreSQL"
+fi
 if ! grep -qF 'require_public_identity_ingress_preflight' "${PROD_DEPLOY_FILE}"; then
   fail "production deploy must fail fast on missing public web, SSO, and admission ingress"
 fi
@@ -296,6 +326,10 @@ fi
 if (( render_redis_acl_line <= load_env_line )); then
   fail "render-redis-acl.sh must run after load_env so the latest REDIS_PASSWORD is available"
 fi
+grep -qF 'require_nonempty REDIS_EXPORTER_PASSWORD' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must require the dedicated Redis exporter password"
+grep -qF 'REDIS_EXPORTER_PASSWORD must be independent from REDIS_PASSWORD' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must reject Redis application/exporter password reuse"
 external_redis_pattern="EXTERNAL_""REDIS"
 if grep -qF "${external_redis_pattern}" "${PROD_DEPLOY_FILE}"; then
   fail "production deploy must not support external Redis for the production StuHelper app"

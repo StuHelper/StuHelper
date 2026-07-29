@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/schoolauth"
 )
 
 type mobileLDAPAuthClient struct {
@@ -44,6 +45,12 @@ func TestValidateStudentVerificationTransition(t *testing.T) {
 	t.Run("unverified allowed", func(t *testing.T) {
 		require.NoError(t, validateStudentVerificationTransition(&Profile{VerificationStatus: StatusUnverified}))
 	})
+}
+
+func TestValidateOptionalStudentIDRejectsNonCanonicalCharacters(t *testing.T) {
+	require.NoError(t, validateOptionalStudentID("2025-A_01"))
+	require.ErrorIs(t, validateOptionalStudentID("student/id"), ErrStudentIDInvalid)
+	require.ErrorIs(t, validateOptionalStudentID("学号20250001"), ErrStudentIDInvalid)
 }
 
 func TestVerifyStudent_ManualAllowsEmptyCredentialsAndPersistsManualData(t *testing.T) {
@@ -210,7 +217,7 @@ func TestVerifyStudent_RejectsStudentIDTooLong(t *testing.T) {
 
 	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
 		SchoolID:  4111010001,
-		StudentID: strings.Repeat("1", maxStudentIDRunes+1),
+		StudentID: strings.Repeat("1", schoolauth.MaxStudentIDRunes+1),
 		Consent:   true,
 	})
 	assert.ErrorIs(t, err, ErrStudentIDInvalid)
@@ -218,7 +225,7 @@ func TestVerifyStudent_RejectsStudentIDTooLong(t *testing.T) {
 	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
 		SchoolID: 4111010001,
 		ManualFormData: map[string]any{
-			"studentID": strings.Repeat("2", maxStudentIDRunes+1),
+			"studentID": strings.Repeat("2", schoolauth.MaxStudentIDRunes+1),
 		},
 		Consent: true,
 	})

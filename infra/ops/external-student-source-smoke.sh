@@ -78,6 +78,11 @@ PY
 
 run_host_smoke() {
   require_cmd go
+  if [[ "${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE:-verify-full}" == "verify-full" ]]; then
+    [[ -n "${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_HOST_PATH:-}" ]] ||
+      die "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_HOST_PATH is required for host-mode verified Oracle TLS"
+    export EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE="${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_HOST_PATH}"
+  fi
   (
     cd "${REPO_ROOT}/server"
     go run ./cmd/external-student-source-smoke
@@ -141,6 +146,24 @@ for key, expected in required.items():
 
 if evidence.get("readableRecordPresent") is not True:
     raise SystemExit("external student source has no readable student record")
+
+oracle = evidence.get("oracle") or {}
+if oracle.get("tlsMode") != "verify-full" or oracle.get("tlsVerified") is not True:
+    raise SystemExit("external Oracle student source did not use verified TLS")
+
+expected_oracle_tuning = {
+    "maxOpenConns": "EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_OPEN_CONNS",
+    "maxIdleConns": "EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_IDLE_CONNS",
+    "connMaxLifetimeSeconds": "EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_LIFETIME_SECONDS",
+    "connMaxIdleTimeSeconds": "EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_IDLE_TIME_SECONDS",
+    "breakerFailureThreshold": "EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_FAILURE_THRESHOLD",
+    "breakerSuccessThreshold": "EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_SUCCESS_THRESHOLD",
+    "breakerOpenSeconds": "EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_OPEN_SECONDS",
+}
+for evidence_key, env_key in expected_oracle_tuning.items():
+    expected = os.environ.get(env_key, "").strip()
+    if not expected or oracle.get(evidence_key) != int(expected):
+        raise SystemExit(f"external Oracle evidence does not match {env_key}")
 
 sample = evidence.get("sample") or {}
 require_sample = os.environ.get("EXTERNAL_STUDENT_SOURCE_SMOKE_REQUIRE_SAMPLE", "").strip().lower()

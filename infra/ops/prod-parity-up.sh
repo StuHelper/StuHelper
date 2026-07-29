@@ -119,6 +119,7 @@ ensure_file_value "${ENV_FILE}" "REDIS_HOST" "redis"
 ensure_file_value "${ENV_FILE}" "REDIS_PORT" "6379"
 ensure_file_value "${ENV_FILE}" "REDIS_EXTERNAL_PORT" "26379"
 ensure_file_value "${ENV_FILE}" "REDIS_USERNAME" "stuhelper_app"
+ensure_file_value "${ENV_FILE}" "REDIS_EXPORTER_USERNAME" "stuhelper_metrics"
 ensure_file_value "${ENV_FILE}" "REDIS_TLS_ENABLED" "true"
 ensure_file_value "${ENV_FILE}" "REDIS_TLS_CA" "/redis-tls/ca.crt"
 ensure_file_value "${ENV_FILE}" "WEB_PUBLIC_URL" "https://stuhelper.com"
@@ -216,21 +217,24 @@ ensure_file_value "${ENV_FILE}" "OTEL_SERVICE_NAMESPACE" "stuhelper"
 ensure_file_value "${ENV_FILE}" "FRONTEND_METRICS_ALLOWED_ORIGINS" "https://stuhelper.com"
 ensure_file_value "${ENV_FILE}" "OTEL_EXPORTER_OTLP_ENDPOINT" "http://alloy:4318"
 ensure_file_value "${ENV_FILE}" "OTEL_EXPORTER_OTLP_INSECURE" "true"
-ensure_file_value "${ENV_FILE}" "OBJECT_STORAGE_ENDPOINT" "http://minio:9000"
+ensure_file_value "${ENV_FILE}" "OBJECT_STORAGE_ENDPOINT" "https://object-storage:8334"
 ensure_file_value "${ENV_FILE}" "OBJECT_STORAGE_REGION" "us-east-1"
 ensure_file_value "${ENV_FILE}" "OBJECT_STORAGE_BUCKET" "stuhelper-identity"
 ensure_file_value "${ENV_FILE}" "OBJECT_STORAGE_ACCESS_KEY_ID" "stuhelper-prod-parity"
 ensure_file_value "${ENV_FILE}" "OBJECT_STORAGE_USE_SSL" "true"
 ensure_file_value "${ENV_FILE}" "OBJECT_STORAGE_FORCE_PATH_STYLE" "true"
 ensure_file_value "${ENV_FILE}" "OBJECT_STORAGE_PRESIGN_TTL" "600"
-ensure_file_value "${ENV_FILE}" "BACKUP_OBJECT_STORAGE_ENDPOINT" "http://minio:9000"
+ensure_file_value "${ENV_FILE}" "OBJECT_STORAGE_TLS_CA" "/object-storage-tls/ca.crt"
+ensure_file_value "${ENV_FILE}" "OBJECT_STORAGE_TLS_CA_HOST_PATH" "${REPO_ROOT}/infra/generated/object-storage/ca.crt"
+ensure_file_value "${ENV_FILE}" "BACKUP_OBJECT_STORAGE_ENDPOINT" "https://object-storage:8334"
 ensure_file_value "${ENV_FILE}" "BACKUP_OBJECT_STORAGE_BUCKET" "stuhelper-postgres-backup"
 ensure_file_value "${ENV_FILE}" "BACKUP_OBJECT_STORAGE_PREFIX" "postgres"
 ensure_file_value "${ENV_FILE}" "BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID" "stuhelper-prod-parity-backup"
-ensure_file_value "${ENV_FILE}" "BACKUP_OBJECT_STORAGE_TLS_INSECURE" "true"
-ensure_file_value "${ENV_FILE}" "MINIO_ROOT_USER" "stuhelper-prod-parity-root"
-ensure_file_value "${ENV_FILE}" "MINIO_API_EXTERNAL_PORT" "29000"
-ensure_file_value "${ENV_FILE}" "MINIO_CONSOLE_EXTERNAL_PORT" "29001"
+ensure_file_value "${ENV_FILE}" "BACKUP_OBJECT_STORAGE_TLS_CA" "${REPO_ROOT}/infra/generated/object-storage/ca.crt"
+ensure_file_value "${ENV_FILE}" "BACKUP_OBJECT_STORAGE_TLS_INSECURE" "false"
+ensure_file_value "${ENV_FILE}" "BACKUP_OBJECT_STORAGE_DOCKER_NETWORK" "stuhelper-prod-parity-backend"
+ensure_file_value "${ENV_FILE}" "DEV_OBJECT_STORAGE_EXTERNAL_PORT" "29000"
+ensure_file_value "${ENV_FILE}" "LOCAL_OBJECT_STORAGE_TLS_EXTERNAL_PORT" "29001"
 ensure_file_value "${ENV_FILE}" "GRAFANA_ROOT_URL" "http://127.0.0.1:23003"
 ensure_file_value "${ENV_FILE}" "ALLOW_LOCAL_ALERT_SINK" "true"
 ensure_file_value "${ENV_FILE}" "ALERTMANAGER_WEBHOOK_URL" "http://alert-webhook-sink:8080/alerts"
@@ -252,9 +256,11 @@ ensure_file_secret "${SECRETS_ENV_FILE}" "POSTGRES_PASSWORD" "prod-parity-intern
 ensure_file_secret "${SECRETS_ENV_FILE}" "STUHELPER_APP_DB_PASSWORD" "prod-parity-app"
 ensure_file_secret "${SECRETS_ENV_FILE}" "STUHELPER_BACKUP_DB_PASSWORD" "prod-parity-backup"
 ensure_file_secret "${SECRETS_ENV_FILE}" "STUHELPER_REPLICATION_DB_PASSWORD" "prod-parity-repl"
+ensure_file_secret "${SECRETS_ENV_FILE}" "POSTGRES_EXPORTER_DB_PASSWORD" "prod-parity-pg-metrics"
 ensure_file_secret "${SECRETS_ENV_FILE}" "OPENFGA_DB_PASSWORD" "prod-parity-openfga"
 ensure_file_secret "${SECRETS_ENV_FILE}" "CASDOOR_DB_PASSWORD" "prod-parity-casdoor-db"
 ensure_file_secret "${SECRETS_ENV_FILE}" "REDIS_PASSWORD" "prod-parity-redis"
+ensure_file_secret "${SECRETS_ENV_FILE}" "REDIS_EXPORTER_PASSWORD" "prod-parity-redis-metrics"
 ensure_file_secret "${SECRETS_ENV_FILE}" "METRICS_PASSWORD" "prod-parity-metrics"
 ensure_file_secret "${SECRETS_ENV_FILE}" "HMAC_SECRET" "prod-parity-hmac"
 if ! grep -Eq '^DOC_AES_KEYS=' "${SECRETS_ENV_FILE}"; then
@@ -273,9 +279,8 @@ ensure_file_secret "${SECRETS_ENV_FILE}" "CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_SECRE
 ensure_file_secret "${SECRETS_ENV_FILE}" "SMS_SECRET_ID" "prod-parity-sms-secret-id"
 ensure_file_secret "${SECRETS_ENV_FILE}" "SMS_SECRET_KEY" "prod-parity-sms-secret-key"
 ensure_file_secret "${SECRETS_ENV_FILE}" "SMS_INTERNAL_KEY" "prod-parity-sms-internal"
-ensure_file_secret "${SECRETS_ENV_FILE}" "MINIO_ROOT_PASSWORD" "prod-parity-minio-root"
-ensure_file_secret "${SECRETS_ENV_FILE}" "OBJECT_STORAGE_SECRET_ACCESS_KEY" "prod-parity-minio-app"
-ensure_file_secret "${SECRETS_ENV_FILE}" "BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY" "prod-parity-minio-backup"
+ensure_file_secret "${SECRETS_ENV_FILE}" "OBJECT_STORAGE_SECRET_ACCESS_KEY" "prod-parity-object-storage-app"
+ensure_file_secret "${SECRETS_ENV_FILE}" "BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY" "prod-parity-object-storage-backup"
 ensure_file_secret "${SECRETS_ENV_FILE}" "GRAFANA_ADMIN_PASSWORD" "prod-parity-grafana"
 ensure_file_secret "${SECRETS_ENV_FILE}" "BOT_SERVICE_TOKEN" "prod-parity-bot"
 
@@ -310,8 +315,11 @@ sync_casdoor_builtin_bootstrap_credentials
 
 log "rendering local production-parity Redis and observability configs"
 "${SCRIPT_DIR}/render-redis-tls.sh"
-"${SCRIPT_DIR}/render-minio-ca-bundle.sh"
 "${SCRIPT_DIR}/render-redis-acl.sh"
+"${SCRIPT_DIR}/prepare-datastore-client-cas.sh"
+"${SCRIPT_DIR}/render-local-object-storage-config.sh"
+"${SCRIPT_DIR}/render-object-storage-tls.sh"
+"${SCRIPT_DIR}/prepare-object-storage-client-ca.sh"
 "${SCRIPT_DIR}/render-observability.sh" prod
 
 log "building production images locally for ${tag}"
@@ -341,7 +349,8 @@ docker build \
 
 infra_services=(
   redis
-  minio
+  object-storage
+  docker-socket-proxy
   alloy
   alertmanager
   alert-webhook-sink
@@ -358,7 +367,6 @@ infra_services=(
 
 log "starting local production-parity infrastructure services"
 compose --profile prod up -d --wait "${infra_services[@]}"
-compose --profile prod up --no-deps minio-init
 
 log "running local production-parity database migrations"
 compose --profile prod up --no-deps migrate

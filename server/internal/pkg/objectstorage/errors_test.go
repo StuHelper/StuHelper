@@ -10,7 +10,7 @@ import (
 func TestClassifyErrorKind_UsesMessageFallbacks(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, ErrorKindNetwork, classifyErrorKind(errors.New("dial tcp: lookup minio: no such host")))
+	assert.Equal(t, ErrorKindNetwork, classifyErrorKind(errors.New("dial tcp: lookup object-storage: no such host")))
 	assert.Equal(t, ErrorKindNotFound, classifyErrorKind(errors.New("NoSuchKey: object not found")))
 	assert.Equal(t, ErrorKindPermission, classifyErrorKind(errors.New("AccessDenied: forbidden")))
 	assert.Equal(t, ErrorKindAuthentication, classifyErrorKind(errors.New("SignatureDoesNotMatch")))

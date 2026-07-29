@@ -157,6 +157,33 @@ func TestStudentEmailOTPRejectsBUAAStudentNameMismatch(t *testing.T) {
 	require.ErrorIs(t, err, ErrStudentNameMismatch)
 }
 
+func TestStudentEmailOTPRejectsInvalidAcademicIdentityInput(t *testing.T) {
+	redis := redisfixture.Start(t)
+	svc, err := NewService(
+		buaaStudentEmailOTPRepo(t, &AcademicStudent{XH: "20250001", XM: stringPtr("张三")}),
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithStudentEmailOTP(redis.Client, &testStudentEmailSender{}),
+	)
+	require.NoError(t, err)
+
+	_, err = svc.RequestStudentEmailOTP(context.Background(), StudentEmailOTPInput{
+		UserID:      7,
+		SchoolID:    4111010006,
+		StudentID:   "student/id",
+		StudentName: "张三",
+	})
+	require.ErrorIs(t, err, ErrStudentIDInvalid)
+
+	_, err = svc.RequestStudentEmailOTP(context.Background(), StudentEmailOTPInput{
+		UserID:      7,
+		SchoolID:    4111010006,
+		StudentID:   "20250001",
+		StudentName: "张\u200b三",
+	})
+	require.ErrorIs(t, err, ErrStudentNameInvalid)
+}
+
 func TestStudentEmailOTPRejectsBUAAAliasEmail(t *testing.T) {
 	redis := redisfixture.Start(t)
 	sender := &testStudentEmailSender{}

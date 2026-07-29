@@ -16,6 +16,8 @@ sync_dev_observability_ports
 load_env
 "${SCRIPT_DIR}/render-observability.sh" observability
 
+compose up -d --wait postgres redis
+"${SCRIPT_DIR}/ensure-postgres-monitoring-role.sh"
 compose --profile observability up -d --wait alloy prometheus alertmanager loki tempo grafana node-exporter cadvisor postgres-exporter redis-exporter blackbox-exporter
 "${SCRIPT_DIR}/observability-smoke-check.sh"
 

@@ -63,6 +63,16 @@ assert_env_value() {
   fi
 }
 
+assert_env_values_differ() {
+  local first_file="$1"
+  local first_key="$2"
+  local second_file="$3"
+  local second_key="$4"
+  if [[ "$(env_value "${first_file}" "${first_key}")" == "$(env_value "${second_file}" "${second_key}")" ]]; then
+    fail "expected ${first_key} and ${second_key} to differ"
+  fi
+}
+
 run_init_prod_env() {
   local tmpdir
   tmpdir="$(mktemp -d)"
@@ -71,6 +81,13 @@ run_init_prod_env() {
   GENERATED_ENV_FILE="${tmpdir}/.env.prod.generated" \
   GENERATED_SECRET_ENV_FILE="${tmpdir}/.env.prod.generated.secrets" \
   GENERATED_OBS_DIR="${tmpdir}/generated/observability" \
+  POSTGRES_TLS_DIR="${tmpdir}/generated/postgres" \
+  REDIS_TLS_DIR="${tmpdir}/generated/redis" \
+  REDIS_ACL_DIR="${tmpdir}/generated/redis" \
+  POSTGRES_CLIENT_CA_DIR="${tmpdir}/generated/postgres-client-ca" \
+  REDIS_CLIENT_CA_DIR="${tmpdir}/generated/redis-client-ca" \
+  OBJECT_STORAGE_CLIENT_CA_DIR="${tmpdir}/generated/object-storage-client-ca" \
+  EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_DIR="${tmpdir}/generated/external-student-source-client-ca" \
   DEPLOY_STATE_DIR="${tmpdir}/.deploy" \
   bash "${INIT_SCRIPT}" >"${tmpdir}/stdout.log" 2>"${tmpdir}/stderr.log"
   printf '%s\n' "${tmpdir}"
@@ -132,10 +149,40 @@ assert_env_value "${fresh_env}" "DB_SSL_MODE" "verify-full"
 assert_env_value "${fresh_env}" "DB_SSL_ROOT_CERT" "/tls/ca.crt"
 assert_env_value "${fresh_env}" "POSTGRES_ENABLE_SSL" "on"
 assert_env_value "${fresh_env}" "POSTGRES_INTERNAL_SSL_MODE" "verify-full"
+assert_env_value "${fresh_env}" "POSTGRES_CLIENT_CA_HOST_PATH" ""
+assert_env_value "${fresh_env}" "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE" "verify-full"
+assert_env_value "${fresh_env}" "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE" "/external-student-source-tls/ca.crt"
+assert_env_value "${fresh_env}" "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_HOST_PATH" ""
+assert_env_value "${fresh_env}" "EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_LIFETIME_SECONDS" "300"
+assert_env_value "${fresh_env}" "EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_IDLE_TIME_SECONDS" "60"
+assert_env_value "${fresh_env}" "EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_FAILURE_THRESHOLD" "5"
+assert_env_value "${fresh_env}" "EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_SUCCESS_THRESHOLD" "2"
+assert_env_value "${fresh_env}" "EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_OPEN_SECONDS" "30"
+assert_file_contains "${fresh_secrets}" '^POSTGRES_EXPORTER_DB_PASSWORD=prod-pg-metrics-[0-9a-f]+$'
+assert_file_contains "${fresh_secrets}" '^REDIS_EXPORTER_PASSWORD=prod-redis-metrics-[0-9a-f]+$'
+assert_env_values_differ "${fresh_secrets}" "REDIS_EXPORTER_PASSWORD" "${fresh_secrets}" "REDIS_PASSWORD"
+[[ -f "${fresh_dir}/generated/postgres-client-ca/ca.crt" ]] ||
+  fail "expected dedicated PostgreSQL client CA bundle"
+[[ ! -e "${fresh_dir}/generated/postgres-client-ca/server.key" &&
+   ! -e "${fresh_dir}/generated/postgres-client-ca/ca.key" ]] ||
+  fail "PostgreSQL client CA mount must not contain private keys"
+[[ -f "${fresh_dir}/generated/redis-client-ca/ca.crt" ]] ||
+  fail "expected dedicated Redis client CA bundle"
+[[ ! -e "${fresh_dir}/generated/redis-client-ca/server.key" &&
+   ! -e "${fresh_dir}/generated/redis-client-ca/users.acl" &&
+   ! -e "${fresh_dir}/generated/redis-client-ca/ca.key" ]] ||
+  fail "Redis client CA mount must not contain private keys or ACL credentials"
+[[ "$(stat -c '%a' "${fresh_dir}/generated/postgres/server.key")" == "600" ]] ||
+  fail "PostgreSQL server key source must use mode 600"
+[[ "$(stat -c '%a' "${fresh_dir}/generated/redis/server.key")" == "600" ]] ||
+  fail "Redis server key source must use mode 600"
+[[ "$(stat -c '%a' "${fresh_dir}/generated/redis/users.acl")" == "600" ]] ||
+  fail "Redis ACL password-verifier source must use mode 600"
 assert_env_value "${fresh_env}" "EXTERNAL_POSTGRES_ENABLED" "false"
 assert_env_value "${fresh_env}" "EXTERNAL_POSTGRES_ALLOW_PLAINTEXT" "false"
 assert_env_value "${fresh_env}" "EXTERNAL_DATASTORE_NETWORK" ""
 assert_env_value "${fresh_env}" "REDIS_USERNAME" "stuhelper_app"
+assert_env_value "${fresh_env}" "REDIS_EXPORTER_USERNAME" "stuhelper_metrics"
 assert_env_value "${fresh_env}" "CASDOOR_BOOTSTRAP_ENABLED" "true"
 assert_env_value "${fresh_env}" "CASDOOR_BOOTSTRAP_ENV_FILE" ".env.casdoor-bootstrap.local"
 assert_env_value "${fresh_env}" "CASDOOR_ADMIN_CLIENT_ID" "stuhelper-admin"
@@ -167,7 +214,7 @@ assert_env_value "${fresh_env}" "EXTERNAL_STUDENT_SOURCE_ENABLED" "false"
 assert_env_value "${fresh_env}" "EXTERNAL_STUDENT_SOURCE_NAME" "buaa-academic-oracle"
 assert_env_value "${fresh_env}" "EXTERNAL_STUDENT_SOURCE_PROVIDER" "oracle"
 assert_env_value "${fresh_env}" "EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE" "4111010006"
-assert_env_value "${fresh_env}" "EXTERNAL_STUDENT_SOURCE_ORACLE_PORT" "1521"
+assert_env_value "${fresh_env}" "EXTERNAL_STUDENT_SOURCE_ORACLE_PORT" "2484"
 assert_env_value "${fresh_env}" "EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME" "ORCLPDB1"
 assert_env_value "${fresh_env}" "EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA" "USR_JWBIZ"
 assert_env_value "${fresh_env}" "EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE" "T_XS_JBXX"
@@ -257,7 +304,10 @@ assert_file_not_contains "${fresh_env}" '^OPENFGA_MODEL_ID=REPLACE_WITH_OPENFGA_
 assert_env_value "${fresh_env}" "OBJECT_STORAGE_ENDPOINT" "REPLACE_WITH_OBJECT_STORAGE_ENDPOINT"
 assert_env_value "${fresh_env}" "OBJECT_STORAGE_USE_SSL" "true"
 assert_env_value "${fresh_env}" "OBJECT_STORAGE_FORCE_PATH_STYLE" "false"
-assert_env_value "${fresh_env}" "OBJECT_STORAGE_TLS_CA" "/minio-tls/ca.crt"
+assert_env_value "${fresh_env}" "OBJECT_STORAGE_TLS_CA" ""
+assert_env_value "${fresh_env}" "OBJECT_STORAGE_TLS_CA_HOST_PATH" ""
+[[ -d "${fresh_dir}/generated/object-storage-client-ca" ]] ||
+  fail "expected object-storage client CA mount directory to exist"
 assert_env_value "${fresh_env}" "GRAFANA_ROOT_URL" "REPLACE_WITH_GRAFANA_ROOT_URL"
 assert_env_value "${fresh_env}" "ALERTMANAGER_WEBHOOK_URL" "REPLACE_WITH_ALERTMANAGER_WEBHOOK_URL"
 assert_env_value "${fresh_env}" "ALLOW_LOCAL_ALERT_SINK" "false"
@@ -279,6 +329,8 @@ assert_file_contains "${fresh_secrets}" '^CASDOOR_INTROSPECTION_CLIENT_SECRET=pr
 assert_file_contains "${fresh_secrets}" '^CASDOOR_ROLE_SYNC_CLIENT_SECRET=prod-casdoor-role-sync-[0-9a-f]+$'
 assert_file_contains "${fresh_secrets}" '^CASDOOR_USER_LOOKUP_CLIENT_SECRET=prod-casdoor-user-lookup-[0-9a-f]+$'
 assert_file_contains "${fresh_secrets}" '^CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_SECRET=prod-casdoor-token-probe-smoke-[0-9a-f]+$'
+assert_env_value "${fresh_secrets}" "OBJECT_STORAGE_SECRET_ACCESS_KEY" "REPLACE_WITH_OBJECT_STORAGE_SECRET_ACCESS_KEY"
+assert_env_value "${fresh_secrets}" "BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY" "REPLACE_WITH_BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY"
 assert_env_value "${fresh_secrets}" "CASDOOR_TOKEN_PROBE_USERNAME" "REPLACE_WITH_CASDOOR_TOKEN_PROBE_USERNAME"
 assert_env_value "${fresh_secrets}" "CASDOOR_TOKEN_PROBE_PASSWORD" "REPLACE_WITH_CASDOOR_TOKEN_PROBE_PASSWORD"
 assert_file_not_contains "${fresh_secrets}" '^CASDOOR_DB_PASSWORD='
@@ -310,6 +362,13 @@ SECRETS_ENV_FILE="${legacy_dir}/.env.prod.secrets.local" \
 GENERATED_ENV_FILE="${legacy_dir}/.env.prod.generated" \
 GENERATED_SECRET_ENV_FILE="${legacy_dir}/.env.prod.generated.secrets" \
 GENERATED_OBS_DIR="${legacy_dir}/generated/observability" \
+POSTGRES_TLS_DIR="${legacy_dir}/generated/postgres" \
+REDIS_TLS_DIR="${legacy_dir}/generated/redis" \
+REDIS_ACL_DIR="${legacy_dir}/generated/redis" \
+POSTGRES_CLIENT_CA_DIR="${legacy_dir}/generated/postgres-client-ca" \
+REDIS_CLIENT_CA_DIR="${legacy_dir}/generated/redis-client-ca" \
+OBJECT_STORAGE_CLIENT_CA_DIR="${legacy_dir}/generated/object-storage-client-ca" \
+EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_DIR="${legacy_dir}/generated/external-student-source-client-ca" \
 DEPLOY_STATE_DIR="${legacy_dir}/.deploy" \
 bash "${INIT_SCRIPT}" >"${legacy_dir}/stdout.log" 2>"${legacy_dir}/stderr.log"
 
@@ -432,7 +491,8 @@ assert_file_not_contains "${legacy_env}" '^OPENFGA_MODEL_ID=REPLACE_WITH_OPENFGA
 assert_env_value "${legacy_env}" "OBJECT_STORAGE_ENDPOINT" "REPLACE_WITH_OBJECT_STORAGE_ENDPOINT"
 assert_env_value "${legacy_env}" "OBJECT_STORAGE_USE_SSL" "true"
 assert_env_value "${legacy_env}" "OBJECT_STORAGE_FORCE_PATH_STYLE" "false"
-assert_env_value "${legacy_env}" "OBJECT_STORAGE_TLS_CA" "/minio-tls/ca.crt"
+assert_env_value "${legacy_env}" "OBJECT_STORAGE_TLS_CA" ""
+assert_env_value "${legacy_env}" "OBJECT_STORAGE_TLS_CA_HOST_PATH" ""
 assert_env_value "${legacy_env}" "GRAFANA_ROOT_URL" "REPLACE_WITH_GRAFANA_ROOT_URL"
 assert_env_value "${legacy_env}" "ALERTMANAGER_WEBHOOK_URL" "REPLACE_WITH_ALERTMANAGER_WEBHOOK_URL"
 assert_env_value "${legacy_env}" "ALLOW_LOCAL_ALERT_SINK" "false"
@@ -486,6 +546,13 @@ SECRETS_ENV_FILE="${external_dir}/.env.prod.secrets.local" \
 GENERATED_ENV_FILE="${external_dir}/.env.prod.generated" \
 GENERATED_SECRET_ENV_FILE="${external_dir}/.env.prod.generated.secrets" \
 GENERATED_OBS_DIR="${external_dir}/generated/observability" \
+POSTGRES_TLS_DIR="${external_dir}/generated/postgres" \
+REDIS_TLS_DIR="${external_dir}/generated/redis" \
+REDIS_ACL_DIR="${external_dir}/generated/redis" \
+POSTGRES_CLIENT_CA_DIR="${external_dir}/generated/postgres-client-ca" \
+REDIS_CLIENT_CA_DIR="${external_dir}/generated/redis-client-ca" \
+OBJECT_STORAGE_CLIENT_CA_DIR="${external_dir}/generated/object-storage-client-ca" \
+EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_DIR="${external_dir}/generated/external-student-source-client-ca" \
 DEPLOY_STATE_DIR="${external_dir}/.deploy" \
 bash "${INIT_SCRIPT}" >"${external_dir}/stdout.log" 2>"${external_dir}/stderr.log"
 external_env="${external_dir}/.env.prod.shared"
@@ -496,8 +563,10 @@ assert_env_value "${external_env}" "POSTGRES_ENABLE_SSL" "off"
 assert_env_value "${external_env}" "POSTGRES_INTERNAL_SSL_MODE" "disable"
 assert_env_value "${external_env}" "EXTERNAL_DATASTORE_NETWORK" "baota_net"
 assert_env_value "${external_env}" "REDIS_USERNAME" "stuhelper_app"
+assert_env_value "${external_env}" "REDIS_EXPORTER_USERNAME" "stuhelper_metrics"
 assert_env_value "${external_env}" "REDIS_TLS_ENABLED" "true"
 assert_env_value "${external_env}" "REDIS_TLS_CA" "/tls/ca.crt"
+assert_file_not_contains "${external_dir}/.env.prod.secrets.local" '^POSTGRES_PASSWORD='
 
 insecure_dir="$(mktemp -d)"
 cleanup_dirs+=("${insecure_dir}")
@@ -520,6 +589,13 @@ SECRETS_ENV_FILE="${insecure_dir}/.env.prod.secrets.local" \
 GENERATED_ENV_FILE="${insecure_dir}/.env.prod.generated" \
 GENERATED_SECRET_ENV_FILE="${insecure_dir}/.env.prod.generated.secrets" \
 GENERATED_OBS_DIR="${insecure_dir}/generated/observability" \
+POSTGRES_TLS_DIR="${insecure_dir}/generated/postgres" \
+REDIS_TLS_DIR="${insecure_dir}/generated/redis" \
+REDIS_ACL_DIR="${insecure_dir}/generated/redis" \
+POSTGRES_CLIENT_CA_DIR="${insecure_dir}/generated/postgres-client-ca" \
+REDIS_CLIENT_CA_DIR="${insecure_dir}/generated/redis-client-ca" \
+OBJECT_STORAGE_CLIENT_CA_DIR="${insecure_dir}/generated/object-storage-client-ca" \
+EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_DIR="${insecure_dir}/generated/external-student-source-client-ca" \
 DEPLOY_STATE_DIR="${insecure_dir}/.deploy" \
 bash "${INIT_SCRIPT}" >"${insecure_dir}/stdout.log" 2>"${insecure_dir}/stderr.log"; then
   fail "expected init-prod-env.sh to reject production BACKUP_DATABASE_URL with sslmode=require"

@@ -38,10 +38,12 @@ fi
 
 log_opts="$(resolve_log_opts)"
 echo "Running gitleaks secret scan on ${source_path} with git log opts: ${log_opts}"
-gitleaks detect \
-  --source "${source_path}" \
+gitleaks git "${source_path}" \
   --log-opts "${log_opts}" \
-  --redact \
+  --gitleaks-ignore-path "${source_path%/}/.gitleaksignore" \
+  --platform gitlab \
+  --redact=100 \
+  --no-banner \
   --verbose \
   --exit-code 1 \
   "$@"

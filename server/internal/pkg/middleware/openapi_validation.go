@@ -28,7 +28,7 @@ type openAPIRequestValidator struct {
 //   - 认证仍由现有 AuthMiddleware / OptionalAuthMiddleware 负责
 //   - 安全声明通过 NoopAuthenticationFunc 跳过具体认证细节，避免与现有认证链重复
 func NewOpenAPIRequestValidationMiddleware() (gin.HandlerFunc, error) {
-	swagger, err := gen.GetSwagger()
+	swagger, err := gen.GetSpec()
 	if err != nil {
 		return nil, fmt.Errorf("load openapi spec: %w", err)
 	}

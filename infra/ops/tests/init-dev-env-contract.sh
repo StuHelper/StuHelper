@@ -56,6 +56,15 @@ assert_env_value() {
   fi
 }
 
+assert_env_values_differ() {
+  local file="$1"
+  local first_key="$2"
+  local second_key="$3"
+  if [[ "$(env_value "${file}" "${first_key}")" == "$(env_value "${file}" "${second_key}")" ]]; then
+    fail "expected ${first_key} and ${second_key} to differ in ${file}"
+  fi
+}
+
 cleanup_dirs=()
 cleanup() {
   local dir
@@ -72,6 +81,13 @@ ENV_FILE="${tmpdir}/.env" \
 GENERATED_ENV_FILE="${tmpdir}/.env.generated" \
 GENERATED_SECRET_ENV_FILE="${tmpdir}/.env.generated.secrets" \
 GENERATED_OBS_DIR="${tmpdir}/generated/observability" \
+REDIS_TLS_DIR="${tmpdir}/generated/redis" \
+REDIS_ACL_DIR="${tmpdir}/generated/redis" \
+POSTGRES_CLIENT_CA_DIR="${tmpdir}/generated/postgres-client-ca" \
+REDIS_CLIENT_CA_DIR="${tmpdir}/generated/redis-client-ca" \
+EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_DIR="${tmpdir}/generated/external-student-source-client-ca" \
+LOCAL_OBJECT_STORAGE_CONFIG_DIR="${tmpdir}/generated/object-storage" \
+OBJECT_STORAGE_TLS_DIR="${tmpdir}/generated/object-storage" \
 bash "${INIT_SCRIPT}" >"${tmpdir}/stdout.log" 2>"${tmpdir}/stderr.log"
 
 env_file="${tmpdir}/.env"
@@ -87,6 +103,20 @@ assert_env_value "${env_file}" "BACKEND_EXTERNAL_PORT" "8080"
 assert_env_value "${env_file}" "WEB_EXTERNAL_PORT" "3000"
 assert_env_value "${env_file}" "ADMIN_EXTERNAL_PORT" "3001"
 assert_env_value "${env_file}" "POSTGRES_EXTERNAL_PORT" "5432"
+assert_env_value "${env_file}" "POSTGRES_CLIENT_CA_HOST_PATH" ""
+assert_env_value "${env_file}" "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE" "verify-full"
+assert_env_value "${env_file}" "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE" "/external-student-source-tls/ca.crt"
+assert_env_value "${env_file}" "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_HOST_PATH" ""
+assert_env_value "${env_file}" "EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_LIFETIME_SECONDS" "300"
+assert_env_value "${env_file}" "EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_IDLE_TIME_SECONDS" "60"
+assert_env_value "${env_file}" "EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_FAILURE_THRESHOLD" "5"
+assert_env_value "${env_file}" "EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_SUCCESS_THRESHOLD" "2"
+assert_env_value "${env_file}" "EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_OPEN_SECONDS" "30"
+assert_file_contains "${env_file}" '^POSTGRES_EXPORTER_DB_PASSWORD=dev-pg-metrics-[0-9a-f]+$'
+assert_env_values_differ "${env_file}" "POSTGRES_EXPORTER_DB_PASSWORD" "STUHELPER_BACKUP_DB_PASSWORD"
+assert_file_contains "${env_file}" '^REDIS_EXPORTER_PASSWORD=dev-redis-metrics-[0-9a-f]+$'
+assert_env_values_differ "${env_file}" "REDIS_EXPORTER_PASSWORD" "REDIS_PASSWORD"
+assert_env_value "${env_file}" "REDIS_EXPORTER_USERNAME" "stuhelper_metrics"
 assert_env_value "${env_file}" "REDIS_EXTERNAL_PORT" "6379"
 assert_env_value "${env_file}" "OPENFGA_HTTP_EXTERNAL_PORT" "8081"
 assert_env_value "${env_file}" "OPENFGA_GRPC_EXTERNAL_PORT" "8082"
@@ -124,8 +154,14 @@ assert_env_value "${env_file}" "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND" ""
 assert_env_value "${env_file}" "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_TIMEOUT_SECONDS" "30"
 assert_env_value "${env_file}" "CASDOOR_TOKEN_PROBE_BROWSER_HEADLESS" "true"
 assert_env_value "${env_file}" "CASDOOR_TOKEN_PROBE_BROWSER_NO_SANDBOX" "true"
-assert_env_value "${env_file}" "MINIO_API_EXTERNAL_PORT" "9000"
-assert_env_value "${env_file}" "MINIO_CONSOLE_EXTERNAL_PORT" "9001"
+assert_env_value "${env_file}" "DEV_OBJECT_STORAGE_EXTERNAL_PORT" "9000"
+assert_env_value "${env_file}" "LOCAL_OBJECT_STORAGE_TLS_EXTERNAL_PORT" "9001"
+[[ -s "${tmpdir}/generated/object-storage/s3.json" ]] ||
+  fail "expected local object-storage identity config"
+[[ -s "${tmpdir}/generated/object-storage/ca.crt" ]] ||
+  fail "expected local object-storage CA certificate"
+[[ "$(stat -c '%a' "${tmpdir}/generated/object-storage/s3.json")" == "600" ]] ||
+  fail "local object-storage identity config must use mode 600"
 assert_env_value "${env_file}" "CASDOOR_USER_PROFILE_CLIENT_ID" "casdoor-admin-user-profile"
 assert_env_value "${env_file}" "CASDOOR_USER_PROFILE_APPLICATION" "casdoor-admin-user-profile"
 assert_env_value "${env_file}" "CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID" "casdoor-token-probe-smoke"
@@ -171,6 +207,13 @@ ENV_FILE="${legacy_dir}/.env" \
 GENERATED_ENV_FILE="${legacy_dir}/.env.generated" \
 GENERATED_SECRET_ENV_FILE="${legacy_dir}/.env.generated.secrets" \
 GENERATED_OBS_DIR="${legacy_dir}/generated/observability" \
+REDIS_TLS_DIR="${legacy_dir}/generated/redis" \
+REDIS_ACL_DIR="${legacy_dir}/generated/redis" \
+POSTGRES_CLIENT_CA_DIR="${legacy_dir}/generated/postgres-client-ca" \
+REDIS_CLIENT_CA_DIR="${legacy_dir}/generated/redis-client-ca" \
+EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_DIR="${legacy_dir}/generated/external-student-source-client-ca" \
+LOCAL_OBJECT_STORAGE_CONFIG_DIR="${legacy_dir}/generated/object-storage" \
+OBJECT_STORAGE_TLS_DIR="${legacy_dir}/generated/object-storage" \
 bash "${INIT_SCRIPT}" >"${legacy_dir}/stdout.log" 2>"${legacy_dir}/stderr.log"
 
 legacy_env="${legacy_dir}/.env"
@@ -222,8 +265,8 @@ assert_env_value "${legacy_env}" "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND" ""
 assert_env_value "${legacy_env}" "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_TIMEOUT_SECONDS" "30"
 assert_env_value "${legacy_env}" "CASDOOR_TOKEN_PROBE_BROWSER_HEADLESS" "true"
 assert_env_value "${legacy_env}" "CASDOOR_TOKEN_PROBE_BROWSER_NO_SANDBOX" "true"
-assert_env_value "${legacy_env}" "MINIO_API_EXTERNAL_PORT" "9000"
-assert_env_value "${legacy_env}" "MINIO_CONSOLE_EXTERNAL_PORT" "9001"
+assert_env_value "${legacy_env}" "DEV_OBJECT_STORAGE_EXTERNAL_PORT" "9000"
+assert_env_value "${legacy_env}" "LOCAL_OBJECT_STORAGE_TLS_EXTERNAL_PORT" "9001"
 assert_env_value "${legacy_env}" "CASDOOR_USER_PROFILE_CLIENT_ID" "casdoor-admin-user-profile"
 assert_env_value "${legacy_env}" "CASDOOR_USER_PROFILE_APPLICATION" "casdoor-admin-user-profile"
 assert_env_value "${legacy_env}" "CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID" "casdoor-token-probe-smoke"
@@ -295,11 +338,14 @@ overrides = {
     "OPENFGA_RESOURCE_SMOKE_MODE": "container",
     "OPEN_PLATFORM_PRODUCTION_EVIDENCE_ALLOW_LOCAL_TARGETS": "true",
     "OTEL_EXPORTER_OTLP_ENDPOINT": "http://alloy:4318",
-    "OBJECT_STORAGE_ENDPOINT": "http://minio:9000",
+    "OBJECT_STORAGE_ENDPOINT": "http://object-storage:8333",
     "OBJECT_STORAGE_ACCESS_KEY_ID": "stuhelper-prod-parity",
+    "OBJECT_STORAGE_SECRET_ACCESS_KEY": "legacy-shared-object-storage-secret",
     "OBJECT_STORAGE_USE_SSL": "true",
-    "MINIO_API_EXTERNAL_PORT": "29000",
-    "MINIO_CONSOLE_EXTERNAL_PORT": "29001",
+    "BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID": "stuhelper-prod-parity-backup",
+    "BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY": "legacy-shared-object-storage-secret",
+    "DEV_OBJECT_STORAGE_EXTERNAL_PORT": "29000",
+    "LOCAL_OBJECT_STORAGE_TLS_EXTERNAL_PORT": "29001",
     "TOKEN_COOKIE_SECURE": "true",
     "TOKEN_COOKIE_DOMAIN": ".stuhelper.com",
     "ALLOW_LOCAL_ALERT_SINK": "true",
@@ -330,6 +376,13 @@ ENV_FILE="${polluted_dir}/.env" \
 GENERATED_ENV_FILE="${polluted_dir}/.env.generated" \
 GENERATED_SECRET_ENV_FILE="${polluted_dir}/.env.generated.secrets" \
 GENERATED_OBS_DIR="${polluted_dir}/generated/observability" \
+REDIS_TLS_DIR="${polluted_dir}/generated/redis" \
+REDIS_ACL_DIR="${polluted_dir}/generated/redis" \
+POSTGRES_CLIENT_CA_DIR="${polluted_dir}/generated/postgres-client-ca" \
+REDIS_CLIENT_CA_DIR="${polluted_dir}/generated/redis-client-ca" \
+EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_DIR="${polluted_dir}/generated/external-student-source-client-ca" \
+LOCAL_OBJECT_STORAGE_CONFIG_DIR="${polluted_dir}/generated/object-storage" \
+OBJECT_STORAGE_TLS_DIR="${polluted_dir}/generated/object-storage" \
 bash "${INIT_SCRIPT}" >"${polluted_dir}/stdout.log" 2>"${polluted_dir}/stderr.log"
 
 polluted_env="${polluted_dir}/.env"
@@ -394,8 +447,9 @@ assert_env_value "${polluted_env}" "OTEL_EXPORTER_OTLP_ENDPOINT" "http://localho
 assert_env_value "${polluted_env}" "OBJECT_STORAGE_ENDPOINT" "http://localhost:9000"
 assert_env_value "${polluted_env}" "OBJECT_STORAGE_ACCESS_KEY_ID" "stuhelper"
 assert_env_value "${polluted_env}" "OBJECT_STORAGE_USE_SSL" "false"
-assert_env_value "${polluted_env}" "MINIO_API_EXTERNAL_PORT" "9000"
-assert_env_value "${polluted_env}" "MINIO_CONSOLE_EXTERNAL_PORT" "9001"
+assert_env_value "${polluted_env}" "DEV_OBJECT_STORAGE_EXTERNAL_PORT" "9000"
+assert_env_value "${polluted_env}" "LOCAL_OBJECT_STORAGE_TLS_EXTERNAL_PORT" "9001"
+assert_env_values_differ "${polluted_env}" "OBJECT_STORAGE_SECRET_ACCESS_KEY" "BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY"
 assert_env_value "${polluted_env}" "TOKEN_COOKIE_SECURE" "false"
 assert_env_value "${polluted_env}" "TOKEN_COOKIE_DOMAIN" ""
 assert_env_value "${polluted_env}" "ALLOW_LOCAL_ALERT_SINK" "false"

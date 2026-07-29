@@ -43,14 +43,23 @@ type smokeEvidence struct {
 }
 
 type oracleEvidence struct {
-	HostConfigured     bool   `json:"hostConfigured"`
-	Port               int    `json:"port"`
-	Schema             string `json:"schema"`
-	ServiceName        string `json:"serviceName"`
-	StudentIDColumn    string `json:"studentIDColumn"`
-	StudentNameColumn  string `json:"studentNameColumn"`
-	Table              string `json:"table"`
-	UsernameConfigured bool   `json:"usernameConfigured"`
+	BreakerFailureThreshold int    `json:"breakerFailureThreshold"`
+	BreakerOpenSeconds      int64  `json:"breakerOpenSeconds"`
+	BreakerSuccessThreshold int    `json:"breakerSuccessThreshold"`
+	ConnMaxIdleTimeSeconds  int64  `json:"connMaxIdleTimeSeconds"`
+	ConnMaxLifetimeSeconds  int64  `json:"connMaxLifetimeSeconds"`
+	HostConfigured          bool   `json:"hostConfigured"`
+	MaxIdleConns            int    `json:"maxIdleConns"`
+	MaxOpenConns            int    `json:"maxOpenConns"`
+	Port                    int    `json:"port"`
+	Schema                  string `json:"schema"`
+	ServiceName             string `json:"serviceName"`
+	StudentIDColumn         string `json:"studentIDColumn"`
+	StudentNameColumn       string `json:"studentNameColumn"`
+	Table                   string `json:"table"`
+	TLSMode                 string `json:"tlsMode"`
+	TLSVerified             bool   `json:"tlsVerified"`
+	UsernameConfigured      bool   `json:"usernameConfigured"`
 }
 
 type sampleLookupEvidence struct {
@@ -115,14 +124,23 @@ func run(ctx context.Context, getenv func(string) string) (evidence smokeEvidenc
 		SourceName:            cfg.SourceName,
 		TimeoutSeconds:        int64(cfg.Timeout / time.Second),
 		Oracle: oracleEvidence{
-			HostConfigured:     strings.TrimSpace(cfg.Oracle.Host) != "",
-			Port:               cfg.Oracle.Port,
-			Schema:             strings.ToUpper(strings.TrimSpace(cfg.Oracle.Schema)),
-			ServiceName:        cfg.Oracle.ServiceName,
-			StudentIDColumn:    strings.ToUpper(strings.TrimSpace(cfg.Oracle.StudentIDColumn)),
-			StudentNameColumn:  strings.ToUpper(strings.TrimSpace(cfg.Oracle.StudentNameColumn)),
-			Table:              strings.ToUpper(strings.TrimSpace(cfg.Oracle.Table)),
-			UsernameConfigured: strings.TrimSpace(cfg.Oracle.Username) != "",
+			BreakerFailureThreshold: cfg.Oracle.BreakerFailureThreshold,
+			BreakerOpenSeconds:      int64(cfg.Oracle.BreakerOpenTimeout / time.Second),
+			BreakerSuccessThreshold: cfg.Oracle.BreakerSuccessThreshold,
+			ConnMaxIdleTimeSeconds:  int64(cfg.Oracle.ConnMaxIdleTime / time.Second),
+			ConnMaxLifetimeSeconds:  int64(cfg.Oracle.ConnMaxLifetime / time.Second),
+			HostConfigured:          strings.TrimSpace(cfg.Oracle.Host) != "",
+			MaxIdleConns:            cfg.Oracle.MaxIdleConns,
+			MaxOpenConns:            cfg.Oracle.MaxOpenConns,
+			Port:                    cfg.Oracle.Port,
+			Schema:                  strings.ToUpper(strings.TrimSpace(cfg.Oracle.Schema)),
+			ServiceName:             cfg.Oracle.ServiceName,
+			StudentIDColumn:         strings.ToUpper(strings.TrimSpace(cfg.Oracle.StudentIDColumn)),
+			StudentNameColumn:       strings.ToUpper(strings.TrimSpace(cfg.Oracle.StudentNameColumn)),
+			Table:                   strings.ToUpper(strings.TrimSpace(cfg.Oracle.Table)),
+			TLSMode:                 strings.ToLower(strings.TrimSpace(cfg.Oracle.TLSMode)),
+			TLSVerified:             strings.EqualFold(strings.TrimSpace(cfg.Oracle.TLSMode), "verify-full"),
+			UsernameConfigured:      strings.TrimSpace(cfg.Oracle.Username) != "",
 		},
 		Sample: sampleLookupEvidence{
 			Enabled:              cfg.SampleStudentID != "",
@@ -189,7 +207,7 @@ func smokeConfigFromEnv(getenv func(string) string) (smokeConfig, error) {
 		return smokeConfig{}, fmt.Errorf("EXTERNAL_STUDENT_SOURCE_SMOKE_STUDENT_ID is required when EXTERNAL_STUDENT_SOURCE_SMOKE_REQUIRE_SAMPLE=true")
 	}
 
-	port, err := envInt(getenv, "EXTERNAL_STUDENT_SOURCE_ORACLE_PORT", 1521)
+	port, err := envInt(getenv, "EXTERNAL_STUDENT_SOURCE_ORACLE_PORT", 2484)
 	if err != nil {
 		return smokeConfig{}, err
 	}
@@ -209,6 +227,26 @@ func smokeConfigFromEnv(getenv func(string) string) (smokeConfig, error) {
 	if err != nil {
 		return smokeConfig{}, err
 	}
+	connMaxLifetimeSeconds, err := envInt(getenv, "EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_LIFETIME_SECONDS", 300)
+	if err != nil {
+		return smokeConfig{}, err
+	}
+	connMaxIdleTimeSeconds, err := envInt(getenv, "EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_IDLE_TIME_SECONDS", 60)
+	if err != nil {
+		return smokeConfig{}, err
+	}
+	breakerFailureThreshold, err := envInt(getenv, "EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_FAILURE_THRESHOLD", 5)
+	if err != nil {
+		return smokeConfig{}, err
+	}
+	breakerSuccessThreshold, err := envInt(getenv, "EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_SUCCESS_THRESHOLD", 2)
+	if err != nil {
+		return smokeConfig{}, err
+	}
+	breakerOpenSeconds, err := envInt(getenv, "EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_OPEN_SECONDS", 30)
+	if err != nil {
+		return smokeConfig{}, err
+	}
 
 	return smokeConfig{
 		SourceName:            envOrDefault(getenv, "EXTERNAL_STUDENT_SOURCE_NAME", "buaa-academic-oracle"),
@@ -219,20 +257,27 @@ func smokeConfigFromEnv(getenv func(string) string) (smokeConfig, error) {
 		SampleExpectedName:    strings.TrimSpace(getenv("EXTERNAL_STUDENT_SOURCE_SMOKE_EXPECTED_NAME")),
 		Timeout:               time.Duration(timeoutSeconds) * time.Second,
 		Oracle: externaldata.OracleStudentDirectoryConfig{
-			SchoolCode:        strings.TrimSpace(getenv("EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE")),
-			Host:              strings.TrimSpace(getenv("EXTERNAL_STUDENT_SOURCE_ORACLE_HOST")),
-			Port:              port,
-			ServiceName:       strings.TrimSpace(getenv("EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME")),
-			Username:          strings.TrimSpace(getenv("EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME")),
-			Password:          strings.TrimSpace(getenv("EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD")),
-			Schema:            strings.TrimSpace(getenv("EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA")),
-			Table:             strings.TrimSpace(getenv("EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE")),
-			StudentIDColumn:   envOrDefault(getenv, "EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_ID_COLUMN", "XH"),
-			StudentNameColumn: envOrDefault(getenv, "EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_NAME_COLUMN", "XM"),
-			ConnectTimeout:    time.Duration(connectTimeoutSeconds) * time.Second,
-			QueryTimeout:      time.Duration(queryTimeoutSeconds) * time.Second,
-			MaxOpenConns:      maxOpenConns,
-			MaxIdleConns:      maxIdleConns,
+			SchoolCode:              strings.TrimSpace(getenv("EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE")),
+			Host:                    strings.TrimSpace(getenv("EXTERNAL_STUDENT_SOURCE_ORACLE_HOST")),
+			Port:                    port,
+			ServiceName:             strings.TrimSpace(getenv("EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME")),
+			Username:                strings.TrimSpace(getenv("EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME")),
+			Password:                getenv("EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD"),
+			TLSMode:                 envOrDefault(getenv, "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE", "verify-full"),
+			TLSCAFile:               envOrDefault(getenv, "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE", "/external-student-source-tls/ca.crt"),
+			Schema:                  strings.TrimSpace(getenv("EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA")),
+			Table:                   strings.TrimSpace(getenv("EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE")),
+			StudentIDColumn:         envOrDefault(getenv, "EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_ID_COLUMN", "XH"),
+			StudentNameColumn:       envOrDefault(getenv, "EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_NAME_COLUMN", "XM"),
+			ConnectTimeout:          time.Duration(connectTimeoutSeconds) * time.Second,
+			QueryTimeout:            time.Duration(queryTimeoutSeconds) * time.Second,
+			MaxOpenConns:            maxOpenConns,
+			MaxIdleConns:            maxIdleConns,
+			ConnMaxLifetime:         time.Duration(connMaxLifetimeSeconds) * time.Second,
+			ConnMaxIdleTime:         time.Duration(connMaxIdleTimeSeconds) * time.Second,
+			BreakerFailureThreshold: breakerFailureThreshold,
+			BreakerSuccessThreshold: breakerSuccessThreshold,
+			BreakerOpenTimeout:      time.Duration(breakerOpenSeconds) * time.Second,
 		},
 	}, nil
 }

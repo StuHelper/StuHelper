@@ -41,9 +41,18 @@ case "${MODE}" in
     ;;
 esac
 
+postgres_image_ref="${POSTGRES_IMAGE_REF:-cgr.dev/chainguard/postgres:latest@sha256:dc2f04037c1044a22af76cee4de70b9111885b17c561b939d7ed70103d100759}"
+[[ "${postgres_image_ref}" =~ ^.+@sha256:[0-9a-f]{64}$ ]] ||
+  die "POSTGRES_IMAGE_REF must be a complete image@sha256 reference"
+
 docker run --rm \
-  -v "${wal_archive_volume}:/wal" \
-  alpine:3.22 sh -ec "
+  --read-only \
+  --cap-drop ALL \
+  --security-opt no-new-privileges \
+  --user 70:70 \
+  --mount "type=volume,src=${wal_archive_volume},dst=/wal" \
+  --entrypoint /bin/sh \
+  "${postgres_image_ref}" -ec "
     if [ -d /wal ]; then
       find /wal -type f -mtime +${WAL_ARCHIVE_RETENTION_DAYS:-14} -print -delete
     fi

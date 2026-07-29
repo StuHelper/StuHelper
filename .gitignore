@@ -76,6 +76,7 @@ coverage.xml
 # Go workspace files are local-only for this repository.
 vendor/
 server/stuhelper
+server/fga-setup
 server/tmp/
 
 # ==================== Docker ====================

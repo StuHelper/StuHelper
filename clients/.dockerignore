@@ -1,5 +1,9 @@
 .git
 .gitignore
+.env
+.env.*
+**/.env
+**/.env.*
 .pnpm-store
 .turbo
 node_modules

@@ -2,11 +2,19 @@ package schoolauth
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
-const EmailIdentityPolicyAcademicStudentEmail = "academic_student_email"
+const (
+	EmailIdentityPolicyAcademicStudentEmail = "academic_student_email"
+	MaxStudentIDRunes                       = 50
+	MaxAcademicNameRunes                    = 80
+)
+
+var studentIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,49}$`)
 
 type AdmissionSettings struct {
 	EmailDomains        []string
@@ -105,14 +113,30 @@ func NormalizeStudentID(value string) string {
 	return strings.TrimSpace(value)
 }
 
+func IsValidStudentID(value string) bool {
+	normalized := NormalizeStudentID(value)
+	return utf8.ValidString(normalized) && studentIDPattern.MatchString(normalized)
+}
+
 func NormalizeAcademicName(value string) string {
 	return strings.Join(strings.Fields(strings.TrimSpace(value)), "")
+}
+
+func IsValidAcademicName(value string) bool {
+	normalized := NormalizeAcademicName(value)
+	if normalized == "" || !utf8.ValidString(normalized) ||
+		utf8.RuneCountInString(normalized) > MaxAcademicNameRunes {
+		return false
+	}
+	return !strings.ContainsFunc(normalized, func(r rune) bool {
+		return unicode.IsControl(r) || unicode.In(r, unicode.Cf, unicode.Co, unicode.Cs)
+	})
 }
 
 func DeriveStudentEmail(studentID string, domain string) string {
 	normalizedStudentID := NormalizeStudentID(studentID)
 	normalizedDomain := NormalizeEmailDomain(domain)
-	if normalizedStudentID == "" || normalizedDomain == "" {
+	if !IsValidStudentID(normalizedStudentID) || normalizedDomain == "" {
 		return ""
 	}
 	return strings.ToLower(normalizedStudentID + "@" + normalizedDomain)

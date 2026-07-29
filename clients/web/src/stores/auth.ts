@@ -279,7 +279,7 @@ export const useAuthStore = defineStore("auth", () => {
     }
 
     // localStorage 数据可能损坏，读取失败时降级为空
-    let initialUser: UserInfo | null = null;
+    let initialUser: UserInfo | null;
     try {
         initialUser = normalizeStoredUser(userManager.getUser());
     } catch {

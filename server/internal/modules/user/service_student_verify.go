@@ -9,16 +9,14 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/schoolauth"
 )
-
-const maxStudentIDRunes = 50
 
 // VerifyStudent 学生认证（LDAP 方式）
 func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStudentRequest) (*Profile, error) {
@@ -278,7 +276,7 @@ func validateOptionalStudentID(studentID string) error {
 	if studentID == "" {
 		return nil
 	}
-	if utf8.RuneCountInString(studentID) > maxStudentIDRunes {
+	if !schoolauth.IsValidStudentID(studentID) {
 		return ErrStudentIDInvalid
 	}
 	return nil
@@ -341,9 +339,12 @@ func (s *Service) lookupAcademicStudentForSchool(
 	school *SchoolConfig,
 	studentID string,
 ) (*AcademicStudent, error) {
-	normalizedID := strings.TrimSpace(studentID)
+	normalizedID := schoolauth.NormalizeStudentID(studentID)
 	if normalizedID == "" {
 		return nil, ErrStudentIDRequired
+	}
+	if !schoolauth.IsValidStudentID(normalizedID) {
+		return nil, ErrStudentIDInvalid
 	}
 	if s.studentDirectory != nil && school != nil && strings.TrimSpace(school.SchoolCode) != "" {
 		record, handled, err := s.studentDirectory.LookupStudent(ctx, school.SchoolCode, normalizedID)

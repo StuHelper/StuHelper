@@ -4,6 +4,7 @@ delete process.env.NO_COLOR
 
 const pnpmCommand = process.env.PLAYWRIGHT_PNPM_COMMAND ?? 'corepack pnpm'
 const webPort = Number(process.env.PLAYWRIGHT_WEB_PORT ?? 3000)
+const workers = Number(process.env.PLAYWRIGHT_WORKERS ?? 2)
 // Keep the default origin identical to `make dev-up`'s VITE_WEB_URL so a
 // reused Vite server exercises the same canonical login redirect origin that
 // the Playwright assertions observe.
@@ -30,6 +31,7 @@ function withoutNoColorEnv(overrides: Record<string, string>) {
 export default defineConfig({
   testDir: './tests/e2e',
   timeout: 30_000,
+  workers,
   use: {
     baseURL: webOrigin,
     trace: 'on-first-retry'

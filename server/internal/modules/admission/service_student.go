@@ -241,9 +241,15 @@ func (s *Service) resolveAcademicStudentEmail(
 	if studentID == "" {
 		return "", "", "", ErrAdmissionStudentIDRequired
 	}
+	if !schoolauth.IsValidStudentID(studentID) {
+		return "", "", "", ErrAdmissionStudentIDInvalid
+	}
 	studentName := schoolauth.NormalizeAcademicName(input.StudentName)
 	if config.EmailIdentityPolicy.RequireStudentName && studentName == "" {
 		return "", "", "", ErrAdmissionStudentNameRequired
+	}
+	if config.EmailIdentityPolicy.RequireStudentName && !schoolauth.IsValidAcademicName(studentName) {
+		return "", "", "", ErrAdmissionStudentNameInvalid
 	}
 	student, err := s.academicLookup.GetAcademicInfo(ctx, config.SchoolID, studentID)
 	if err != nil {

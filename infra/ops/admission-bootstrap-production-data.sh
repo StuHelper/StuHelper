@@ -118,7 +118,7 @@ esac
 
 run_sql() {
   compose --profile prod run --rm --no-deps -T \
-    postgres \
+    postgres-client \
     psql \
       -X \
       -v ON_ERROR_STOP=1 \

@@ -36,6 +36,13 @@ func TestSmokeConfigFromEnv(t *testing.T) {
 	assert.True(t, cfg.RequireSample)
 	assert.Equal(t, "4111010006", cfg.Oracle.SchoolCode)
 	assert.Equal(t, 65521, cfg.Oracle.Port)
+	assert.Equal(t, "verify-full", cfg.Oracle.TLSMode)
+	assert.Equal(t, "/external-student-source-tls/ca.crt", cfg.Oracle.TLSCAFile)
+	assert.Equal(t, 300, int(cfg.Oracle.ConnMaxLifetime.Seconds()))
+	assert.Equal(t, 60, int(cfg.Oracle.ConnMaxIdleTime.Seconds()))
+	assert.Equal(t, 5, cfg.Oracle.BreakerFailureThreshold)
+	assert.Equal(t, 2, cfg.Oracle.BreakerSuccessThreshold)
+	assert.Equal(t, 30, int(cfg.Oracle.BreakerOpenTimeout.Seconds()))
 	assert.Equal(t, "20250001", cfg.SampleStudentID)
 	assert.Equal(t, "张三", cfg.SampleExpectedName)
 }

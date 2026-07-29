@@ -76,7 +76,7 @@ func TestEnsureDefaultMountAndListMounts(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)
 	svc := NewService(repo, config.ObjectStorageConfig{
-		Endpoint: "minio:9000",
+		Endpoint: "object-storage:8333",
 		Bucket:   "stuhelper-assets",
 	})
 	ctx := context.Background()
@@ -100,7 +100,7 @@ func TestEnsureDefaultMountBackfillsSeededDefaultBucket(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)
 	svc := NewService(repo, config.ObjectStorageConfig{
-		Endpoint: "minio:9000",
+		Endpoint: "object-storage:8333",
 		Bucket:   "stuhelper-assets",
 	})
 	ctx := context.Background()
@@ -124,13 +124,13 @@ func TestEnsureDefaultMountAllowsSameBucketRestart(t *testing.T) {
 	ctx := context.Background()
 
 	firstStart := NewService(repo, config.ObjectStorageConfig{
-		Endpoint: "minio:9000",
+		Endpoint: "object-storage:8333",
 		Bucket:   "stuhelper-assets",
 	})
 	require.NoError(t, firstStart.EnsureDefaultMount(ctx))
 
 	restarted := NewService(repo, config.ObjectStorageConfig{
-		Endpoint: "minio:9000",
+		Endpoint: "object-storage:8333",
 		Bucket:   "stuhelper-assets",
 	})
 	require.NoError(t, restarted.EnsureDefaultMount(ctx))
@@ -147,13 +147,13 @@ func TestEnsureDefaultMountRejectsBucketDriftAndKeepsExistingBucket(t *testing.T
 	ctx := context.Background()
 
 	firstStart := NewService(repo, config.ObjectStorageConfig{
-		Endpoint: "minio:9000",
+		Endpoint: "object-storage:8333",
 		Bucket:   "old-assets",
 	})
 	require.NoError(t, firstStart.EnsureDefaultMount(ctx))
 
 	driftedStart := NewService(repo, config.ObjectStorageConfig{
-		Endpoint: "minio:9000",
+		Endpoint: "object-storage:8333",
 		Bucket:   "new-assets",
 	})
 	err := driftedStart.EnsureDefaultMount(ctx)
@@ -193,7 +193,7 @@ func TestEnsureDefaultMountSkipsDisabledObjectStorageWithoutBucketDrift(t *testi
 			ctx := context.Background()
 
 			firstStart := NewService(repo, config.ObjectStorageConfig{
-				Endpoint: "minio:9000",
+				Endpoint: "object-storage:8333",
 				Bucket:   "old-assets",
 			})
 			require.NoError(t, firstStart.EnsureDefaultMount(ctx))

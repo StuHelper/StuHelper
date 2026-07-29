@@ -16,7 +16,7 @@ services:
 
   postgres-exporter:
     environment:
-      DATA_SOURCE_URI: postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-verify-full}&sslrootcert=/tls/ca.crt
+      DATA_SOURCE_URI: postgres:5432/postgres?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-verify-full}&sslrootcert=/tls/ca.crt
 
   app:
     profiles: [prod]
@@ -38,14 +38,13 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
       REDIS_TLS_ENABLED: ${REDIS_TLS_ENABLED:-true}
       REDIS_TLS_CA: /redis-tls/ca.crt
-      OBJECT_STORAGE_TLS_CA: /minio-tls/ca.crt
+      OBJECT_STORAGE_TLS_CA: ${OBJECT_STORAGE_TLS_CA:-}
       CASDOOR_CLIENT_SECRET: ${CASDOOR_CLIENT_SECRET:?CASDOOR_CLIENT_SECRET is required}
       CASDOOR_APP_PROVISIONING_CLIENT_SECRET: ${CASDOOR_APP_PROVISIONING_CLIENT_SECRET:?CASDOOR_APP_PROVISIONING_CLIENT_SECRET is required}
       CASDOOR_USER_PROFILE_CLIENT_SECRET: ${CASDOOR_USER_PROFILE_CLIENT_SECRET:?CASDOOR_USER_PROFILE_CLIENT_SECRET is required}
       CASDOOR_INTROSPECTION_CLIENT_SECRET: ${CASDOOR_INTROSPECTION_CLIENT_SECRET:?CASDOOR_INTROSPECTION_CLIENT_SECRET is required}
       CASDOOR_ROLE_SYNC_CLIENT_SECRET: ${CASDOOR_ROLE_SYNC_CLIENT_SECRET:?CASDOOR_ROLE_SYNC_CLIENT_SECRET is required}
       CASDOOR_USER_LOOKUP_CLIENT_SECRET: ${CASDOOR_USER_LOOKUP_CLIENT_SECRET:?CASDOOR_USER_LOOKUP_CLIENT_SECRET is required}
-      AWS_CA_BUNDLE: /minio-tls/ca.crt
       OTEL_ENABLED: "true"
       OTEL_SERVICE_NAME: stuhelper-backend
       OTEL_SERVICE_NAMESPACE: stuhelper
@@ -53,9 +52,10 @@ services:
       OTEL_EXPORTER_OTLP_INSECURE: "true"
       OTEL_TRACE_SAMPLE_RATIO: ${OTEL_TRACE_SAMPLE_RATIO:-0.2}
     volumes:
-    - ./infra/generated/postgres:/tls:ro
-    - ./infra/generated/redis:/redis-tls:ro
-    - ./infra/generated/minio/ca.crt:/minio-tls/ca.crt:ro
+    - ./infra/generated/postgres-client-ca:/tls:ro
+    - ./infra/generated/redis-client-ca:/redis-tls:ro
+    - ./infra/generated/external-student-source-client-ca:/external-student-source-tls:ro
+    - ${OBJECT_STORAGE_CLIENT_CA_DIR:-./infra/generated/object-storage-client-ca}:/object-storage-tls:ro
     extra_hosts:
     - "stuhelper.com:host-gateway"
     - "join.stuhelper.com:host-gateway"

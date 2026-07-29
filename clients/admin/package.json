@@ -21,7 +21,7 @@
     "lint": "vsh lint",
     "postinstall": "pnpm -r run stub --if-present",
     "preinstall": "npx only-allow pnpm",
-    "prepare": "is-ci || pnpm exec lefthook install",
+    "prepare": "is-ci || LEFTHOOK_CONFIG=clients/admin/lefthook.yml pnpm exec lefthook install",
     "test": "pnpm --dir .. run build:shared && pnpm --filter @vben/web-ele test",
     "test:e2e": "turbo run test:e2e --filter=@vben/web-ele"
   },

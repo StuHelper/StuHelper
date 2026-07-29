@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 CI_FILE="${REPO_ROOT}/.gitlab-ci.yml"
 GITHUB_CI_FILE="${REPO_ROOT}/.github/workflows/ci.yml"
+SECRET_SCAN_SCRIPT="${REPO_ROOT}/scripts/check-secrets.sh"
 ROOT_MAKEFILE="${REPO_ROOT}/Makefile"
 SERVER_MAKEFILE="${REPO_ROOT}/server/Makefile"
 ADMIN_DOCKERFILE="${REPO_ROOT}/clients/admin/scripts/deploy/Dockerfile"
@@ -12,6 +13,10 @@ ADMIN_NGINX="${REPO_ROOT}/clients/admin/scripts/deploy/nginx.conf"
 ADMIN_ENV_LOADER="${REPO_ROOT}/clients/admin/internal/vite-config/src/utils/env.ts"
 ADMIN_TURBO="${REPO_ROOT}/clients/admin/turbo.json"
 CLIENTS_DOCKERIGNORE="${REPO_ROOT}/clients/.dockerignore"
+CLIENTS_PACKAGE="${REPO_ROOT}/clients/package.json"
+CLIENTS_WORKSPACE="${REPO_ROOT}/clients/pnpm-workspace.yaml"
+ADMIN_WORKSPACE="${REPO_ROOT}/clients/admin/pnpm-workspace.yaml"
+BRACE_EXPANSION_PATCH="${REPO_ROOT}/infra/patches/npm/brace-expansion@5.0.8.patch"
 
 fail() {
   echo "[ci-and-drift-contract][error] $*" >&2
@@ -21,7 +26,7 @@ fail() {
 assert_contains() {
   local file="$1"
   local pattern="$2"
-  if ! grep -Eq "${pattern}" "${file}"; then
+  if ! grep -Eq -- "${pattern}" "${file}"; then
     fail "expected ${file} to contain pattern: ${pattern}"
   fi
 }
@@ -29,7 +34,7 @@ assert_contains() {
 assert_not_contains() {
   local file="$1"
   local pattern="$2"
-  if grep -Eq "${pattern}" "${file}"; then
+  if grep -Eq -- "${pattern}" "${file}"; then
     fail "expected ${file} to not contain pattern: ${pattern}"
   fi
 }
@@ -69,8 +74,38 @@ assert_contains "${GITHUB_CI_FILE}" 'ALTER SCHEMA public OWNER TO stuhelper_app;
 assert_contains "${GITHUB_CI_FILE}" 'INSTALL_ADMIN: \$\{\{ matrix\.install_admin \}\}'
 assert_contains "${GITHUB_CI_FILE}" 'if \[\[ "\$\{INSTALL_ADMIN\}" == "true" \]\]; then'
 assert_not_contains "${GITHUB_CI_FILE}" 'if \[\[ "\$\{\{ matrix\.install_admin \}\}"'
-assert_contains "${GITHUB_CI_FILE}" 'pnpm --dir admin audit --registry=https://registry\.npmjs\.org --audit-level=high$'
+assert_contains "${GITHUB_CI_FILE}" 'pnpm audit --registry=https://registry\.npmjs\.org --audit-level=moderate$'
+assert_contains "${GITHUB_CI_FILE}" 'pnpm --dir admin audit --registry=https://registry\.npmjs\.org --audit-level=moderate$'
+assert_not_contains "${GITHUB_CI_FILE}" 'pnpm audit .* --prod'
 assert_not_contains "${GITHUB_CI_FILE}" 'pnpm --dir admin audit .* --prod'
+assert_contains "${GITHUB_CI_FILE}" 'YARN_NPM_REGISTRY_SERVER: https://registry\.npmjs\.org'
+assert_contains "${GITHUB_CI_FILE}" 'corepack yarn npm audit --all --severity moderate$'
+assert_contains "${GITHUB_CI_FILE}" 'pnpm run test:all$'
+assert_contains "${GITHUB_CI_FILE}" 'git /repo$'
+assert_contains "${GITHUB_CI_FILE}" '--gitleaks-ignore-path /repo/\.gitleaksignore'
+assert_contains "${GITHUB_CI_FILE}" '--platform github'
+assert_contains "${GITHUB_CI_FILE}" '^  dependency-review:$'
+assert_contains "${GITHUB_CI_FILE}" 'actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5\.0\.0'
+assert_contains "${GITHUB_CI_FILE}" 'fail-on-severity: moderate'
+assert_contains "${GITHUB_CI_FILE}" '^      - dependency-review$'
+assert_contains "${SECRET_SCAN_SCRIPT}" '^gitleaks git "\$\{source_path\}"'
+assert_contains "${SECRET_SCAN_SCRIPT}" '--gitleaks-ignore-path "\$\{source_path%/\}/\.gitleaksignore"'
+assert_contains "${SECRET_SCAN_SCRIPT}" '--platform gitlab'
+assert_contains "${SECRET_SCAN_SCRIPT}" '--redact=100'
+assert_not_contains "${SECRET_SCAN_SCRIPT}" 'gitleaks detect'
+assert_contains "${CI_FILE}" 'pnpm audit --registry=https://registry\.npmjs\.org --audit-level=moderate$'
+assert_contains "${CI_FILE}" 'YARN_NPM_REGISTRY_SERVER=https://registry\.npmjs\.org corepack yarn npm audit --all --severity moderate$'
+assert_not_contains "${CI_FILE}" 'pnpm audit .* --prod'
+assert_contains "${CI_FILE}" 'pnpm --dir admin install --frozen-lockfile$'
+assert_contains "${CI_FILE}" 'pnpm run test:all$'
+assert_not_contains "${CI_FILE}" '^admin_unit_test:$'
+assert_contains "${CLIENTS_PACKAGE}" '"test:all": "pnpm run check:dependency-compat .*pnpm run test:admin"'
+assert_contains "${CLIENTS_WORKSPACE}" 'brace-expansion@<5\.0\.8: 5\.0\.8'
+assert_contains "${CLIENTS_WORKSPACE}" 'brace-expansion@5\.0\.8: \.\./infra/patches/npm/brace-expansion@5\.0\.8\.patch'
+assert_contains "${ADMIN_WORKSPACE}" 'brace-expansion@<5\.0\.8: 5\.0\.8'
+assert_contains "${ADMIN_WORKSPACE}" 'brace-expansion@5\.0\.8: \.\./\.\./infra/patches/npm/brace-expansion@5\.0\.8\.patch'
+assert_contains "${BRACE_EXPANSION_PATCH}" 'module\.exports = Object\.assign\(expand, exports, \{ default: expand \}\);'
+assert_contains "${BRACE_EXPANSION_PATCH}" '^\+export default expand;$'
 assert_contains "${ROOT_MAKEFILE}" '^check-infra-contracts:$'
 assert_contains "${ROOT_MAKEFILE}" 'bash infra/ops/tests/run-infra-contracts\.sh'
 assert_contains "${CI_FILE}" 'docker buildx build .*--file clients/web/Dockerfile .* \.$'
@@ -92,6 +127,8 @@ assert_contains "${ADMIN_NGINX}" 'location /admin/jse/ \{'
 assert_contains "${ADMIN_NGINX}" 'location /admin/css/ \{'
 assert_contains "${ADMIN_NGINX}" 'try_files \$uri =404;'
 assert_not_contains "${CLIENTS_DOCKERIGNORE}" '^admin$'
+assert_contains "${CLIENTS_DOCKERIGNORE}" '^\*\*/\.env$'
+assert_contains "${CLIENTS_DOCKERIGNORE}" '^\*\*/\.env\.\*$'
 assert_contains "${SERVER_MAKEFILE}" '^check-drift-ts: bundle-spec$'
 assert_contains "${SERVER_MAKEFILE}" '^check-drift-capabilities:$'
 assert_contains "${SERVER_MAKEFILE}" '^check-drift-all: check-bundled-drift check-drift-go check-drift-ts check-drift-capabilities$'

@@ -22,10 +22,6 @@ Options:
   -h, --help                 Show this help.
 
 Environment:
-  POSTGRES_TLS_SERVER_KEY_OWNER  Host owner for PostgreSQL server.key when run
-                                 as root. Default: 70:70 for postgres:*-alpine.
-  REDIS_TLS_SERVER_KEY_OWNER     Host owner for Redis server.key and users.acl.
-                                 Default: 999:1000 for redis:*-alpine.
   CASDOOR_CONTAINER_OWNER        Host owner for Casdoor conf/logs when run as
                                  root. Default: 1000:1000 for casbin/casdoor.
   OPENLIST_CONTAINER_OWNER       Host owner for OpenList runtime data when run
@@ -45,8 +41,6 @@ skip_casdoor=false
 skip_openlist=false
 apply=false
 
-postgres_key_owner="${POSTGRES_TLS_SERVER_KEY_OWNER:-70:70}"
-redis_key_owner="${REDIS_TLS_SERVER_KEY_OWNER:-999:1000}"
 casdoor_owner="${CASDOOR_CONTAINER_OWNER:-1000:1000}"
 openlist_owner="${OPENLIST_CONTAINER_OWNER:-1001:1001}"
 validation_failed=false
@@ -142,8 +136,12 @@ normalize_owned_tree() {
 }
 
 postgres_tls_dir="${source_dir}/infra/generated/postgres"
+postgres_client_ca_dir="${source_dir}/infra/generated/postgres-client-ca"
 redis_tls_dir="${source_dir}/infra/generated/redis"
-minio_tls_dir="${source_dir}/infra/generated/minio"
+redis_client_ca_dir="${source_dir}/infra/generated/redis-client-ca"
+external_student_source_client_ca_dir="${source_dir}/infra/generated/external-student-source-client-ca"
+object_storage_tls_dir="${source_dir}/infra/generated/object-storage"
+object_storage_client_ca_dir="${source_dir}/infra/generated/object-storage-client-ca"
 postgres_config_dir="${source_dir}/infra/postgres"
 observability_dir="${source_dir}/infra/observability"
 generated_observability_dir="${source_dir}/infra/generated/observability"
@@ -154,10 +152,7 @@ chmod_if_exists 755 "${source_dir}/infra/generated"
 if [[ -d "${postgres_tls_dir}" ]]; then
   log "normalizing PostgreSQL TLS permissions: ${postgres_tls_dir}"
   chmod_if_exists 755 "${postgres_tls_dir}"
-  if [[ -f "${postgres_tls_dir}/server.key" ]]; then
-    maybe_chown "${postgres_key_owner}" "${postgres_tls_dir}/server.key"
-    chmod_if_exists 600 "${postgres_tls_dir}/server.key"
-  fi
+  chmod_if_exists 600 "${postgres_tls_dir}/server.key"
   chmod_if_exists 600 "${postgres_tls_dir}/ca.key"
   chmod_if_exists 644 "${postgres_tls_dir}/ca.crt"
   chmod_if_exists 644 "${postgres_tls_dir}/server.crt"
@@ -169,31 +164,50 @@ if [[ -d "${redis_tls_dir}" ]]; then
   chmod_if_exists 600 "${redis_tls_dir}/ca.key"
   chmod_if_exists 644 "${redis_tls_dir}/ca.crt"
   chmod_if_exists 644 "${redis_tls_dir}/server.crt"
-  if [[ -f "${redis_tls_dir}/server.key" ]]; then
-    maybe_chown "${redis_key_owner}" "${redis_tls_dir}/server.key"
-    chmod_if_exists 600 "${redis_tls_dir}/server.key"
-  fi
-  if [[ -f "${redis_tls_dir}/users.acl" ]]; then
-    maybe_chown "${redis_key_owner}" "${redis_tls_dir}/users.acl"
-    chmod_if_exists 640 "${redis_tls_dir}/users.acl"
-  fi
+  chmod_if_exists 600 "${redis_tls_dir}/server.key"
+  chmod_if_exists 600 "${redis_tls_dir}/users.acl"
 fi
 
-if [[ -d "${minio_tls_dir}" ]]; then
-  log "normalizing MinIO TLS permissions: ${minio_tls_dir}"
-  chmod_if_exists 755 "${minio_tls_dir}"
-  chmod_if_exists 600 "${minio_tls_dir}/ca.key"
-  chmod_if_exists 600 "${minio_tls_dir}/private.key"
-  chmod_if_exists 644 "${minio_tls_dir}/ca.crt"
-  chmod_if_exists 644 "${minio_tls_dir}/ca-bundle.crt"
-  chmod_if_exists 644 "${minio_tls_dir}/public.crt"
+for datastore_client_ca_dir in \
+  "${postgres_client_ca_dir}" \
+  "${redis_client_ca_dir}" \
+  "${external_student_source_client_ca_dir}"; do
+  if [[ -d "${datastore_client_ca_dir}" ]]; then
+    log "normalizing datastore client CA permissions: ${datastore_client_ca_dir}"
+    chmod_if_exists 755 "${datastore_client_ca_dir}"
+    chmod_if_exists 644 "${datastore_client_ca_dir}/ca.crt"
+  fi
+done
+
+if [[ -d "${object_storage_tls_dir}" ]]; then
+  log "normalizing object-storage TLS/config permissions: ${object_storage_tls_dir}"
+  chmod_if_exists 755 "${object_storage_tls_dir}"
+  chmod_if_exists 600 "${object_storage_tls_dir}/ca.key"
+  chmod_if_exists 600 "${object_storage_tls_dir}/private.key"
+  chmod_if_exists 600 "${object_storage_tls_dir}/s3.json"
+  chmod_if_exists 644 "${object_storage_tls_dir}/ca.crt"
+  chmod_if_exists 644 "${object_storage_tls_dir}/public.crt"
+fi
+
+if [[ -d "${object_storage_client_ca_dir}" ]]; then
+  log "normalizing object-storage client CA permissions: ${object_storage_client_ca_dir}"
+  chmod_if_exists 755 "${object_storage_client_ca_dir}"
+  chmod_if_exists 644 "${object_storage_client_ca_dir}/ca.crt"
 fi
 
 if [[ -d "${postgres_config_dir}" ]]; then
   log "normalizing PostgreSQL bind-mount config permissions: ${postgres_config_dir}"
   chmod_if_exists 755 "${postgres_config_dir}"
   chmod_if_exists 755 "${postgres_config_dir}/init-extra-dbs.sh"
+  chmod_if_exists 755 "${postgres_config_dir}/docker-entrypoint-with-tls.sh"
   chmod_if_exists 644 "${postgres_config_dir}/pg_hba.prod.conf"
+fi
+
+redis_config_dir="${source_dir}/infra/redis"
+if [[ -d "${redis_config_dir}" ]]; then
+  log "normalizing Redis bind-mount config permissions: ${redis_config_dir}"
+  chmod_if_exists 755 "${redis_config_dir}"
+  chmod_if_exists 755 "${redis_config_dir}/docker-entrypoint-with-secrets.sh"
 fi
 
 if [[ -d "${observability_dir}" ]]; then

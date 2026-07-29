@@ -22,3 +22,12 @@ func TestNormalizeAdmissionQQBindingErrorMapsUserConflicts(t *testing.T) {
 		require.False(t, errors.Is(err, sourceErr), "user module error must not leak through admission adapter")
 	}
 }
+
+func TestNormalizeAdmissionAcademicLookupErrorMapsDependencyFailure(t *testing.T) {
+	sourceErr := fmt.Errorf("wrapped: %w", user.ErrAcademicLookupUnavailable)
+
+	err := normalizeAdmissionAcademicLookupError(sourceErr)
+
+	require.ErrorIs(t, err, admission.ErrAdmissionAcademicLookupUnavailable)
+	require.False(t, errors.Is(err, user.ErrAcademicLookupUnavailable))
+}

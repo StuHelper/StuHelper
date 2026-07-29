@@ -20,7 +20,7 @@
     "@vue/runtime-core": "3.4.21",
     "@vue/runtime-dom": "3.4.21",
     "@vue/shared": "3.4.21",
-    "pinia": "^2.3.0",
+    "pinia": "2.2.4",
     "vue": "3.4.21"
   },
   "devDependencies": {
@@ -28,9 +28,10 @@
     "@dcloudio/types": "3.4.31",
     "@dcloudio/vite-plugin-uni": "3.0.0-alpha-5020220260725001",
     "@vue/compiler-sfc": "3.4.21",
+    "@vueuse/core": "11.3.0",
     "typescript": "^5.9.0",
-    "vite": "^6.0.0",
-    "vitest": "^4.0.18",
+    "vite": "6.4.3",
+    "vitest": "^4.1.10",
     "vue-tsc": "^2.2.0"
   }
 }

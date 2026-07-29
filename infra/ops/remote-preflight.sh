@@ -4,7 +4,7 @@
 # 在部署前验证目标机器的运行环境满足要求：
 # - 必要命令行工具存在
 # - Docker Compose 环境可用
-# - 容器内 pg_dump/pg_basebackup 可用（备份容器化执行依赖）
+# - postgres-client 镜像内 pg_dump/pg_basebackup 可用（备份容器化执行依赖）
 # - Secret 后端配置正确
 # - 生成文件和目录就绪
 # - 备份 timer 已安装并启用
@@ -53,8 +53,16 @@ if [[ -n "${pending_generated_secret_ref}" ]]; then
 fi
 
 [[ "${APP_ENV:-}" == "production" ]] || die "APP_ENV must be production for remote preflight"
+python3 "${REPO_ROOT}/infra/ops/validate-runtime-image-scan.py" \
+  --repo-root "${REPO_ROOT}" \
+  --policy-only \
+  --effective-environment production
 
 require_production_postgres_ssl
+require_production_external_student_source_security
+require_production_object_storage
+"${SCRIPT_DIR}/prepare-object-storage-client-ca.sh"
+"${SCRIPT_DIR}/prepare-datastore-client-cas.sh"
 require_public_ingress_config_preflight
 require_public_identity_ingress_preflight
 if [[ "${ADMISSION_PUBLIC_SMOKE_ENABLED:-true}" == "true" ]]; then
@@ -73,24 +81,24 @@ fi
 docker info >/dev/null
 docker compose version >/dev/null
 
-# 校验 postgres 容器内 pg_dump 和 pg_basebackup 可用性
+# 校验 postgres-client 镜像内 pg_dump 和 pg_basebackup 可用性
 # 备份脚本已容器化，不再依赖宿主机 pg_dump，但需要确保容器镜像中包含这些工具
-log "正在校验 postgres 容器内备份工具可用性..."
+log "正在校验 postgres-client 镜像内备份工具可用性..."
 
-pg_image="${POSTGRES_IMAGE_REF:-postgres:18.3-alpine@sha256:54451ecb8ab38c24c3ec123f2fd501303a3a1856a5c66e98cecf2460d5e1e9d7}"
+pg_image="${POSTGRES_IMAGE_REF:-cgr.dev/chainguard/postgres:latest@sha256:dc2f04037c1044a22af76cee4de70b9111885b17c561b939d7ed70103d100759}"
 
 # 检查 pg_dump 存在且可执行
-if ! docker run --rm "${pg_image}" which pg_dump >/dev/null 2>&1; then
-  die "postgres 容器镜像 (${pg_image}) 中 pg_dump 不可用"
+if ! docker run --rm --entrypoint /usr/bin/which "${pg_image}" pg_dump >/dev/null 2>&1; then
+  die "postgres-client 镜像 (${pg_image}) 中 pg_dump 不可用"
 fi
 
 # 检查 pg_basebackup 存在且可执行
-if ! docker run --rm "${pg_image}" which pg_basebackup >/dev/null 2>&1; then
-  die "postgres 容器镜像 (${pg_image}) 中 pg_basebackup 不可用"
+if ! docker run --rm --entrypoint /usr/bin/which "${pg_image}" pg_basebackup >/dev/null 2>&1; then
+  die "postgres-client 镜像 (${pg_image}) 中 pg_basebackup 不可用"
 fi
 
 # 获取容器内 pg_dump 版本，与运行中的 PostgreSQL 版本做兼容性日志
-pg_dump_version="$(docker run --rm "${pg_image}" pg_dump --version 2>/dev/null | head -1 || echo "unknown")"
+pg_dump_version="$(docker run --rm --entrypoint /usr/bin/pg_dump "${pg_image}" --version 2>/dev/null | head -1 || echo "unknown")"
 log "容器内 pg_dump 版本: ${pg_dump_version}"
 
 require_backup_object_storage_config
@@ -120,10 +128,10 @@ fi
 log "正在校验恢复能力..."
 
 # 1. pg_restore 可用（恢复 custom-format dump 的核心工具）
-if ! docker run --rm "${pg_image}" which pg_restore >/dev/null 2>&1; then
-  die "postgres 容器镜像 (${pg_image}) 中 pg_restore 不可用"
+if ! docker run --rm --entrypoint /usr/bin/which "${pg_image}" pg_restore >/dev/null 2>&1; then
+  die "postgres-client 镜像 (${pg_image}) 中 pg_restore 不可用"
 fi
-pg_restore_version="$(docker run --rm "${pg_image}" pg_restore --version 2>/dev/null | head -1 || echo "unknown")"
+pg_restore_version="$(docker run --rm --entrypoint /usr/bin/pg_restore "${pg_image}" --version 2>/dev/null | head -1 || echo "unknown")"
 log "容器内 pg_restore 版本: ${pg_restore_version}"
 
 # 2. 备份目录存在且可写
@@ -152,7 +160,7 @@ else
 fi
 
 # 4. BACKUP_DATABASE_URL 连通性（通过 Compose 网络快速超时检测）
-if compose run --rm --no-deps -T postgres \
+if compose run --rm --no-deps -T postgres-client \
   pg_isready -d "${BACKUP_DATABASE_URL}" -t 5 >/dev/null 2>&1; then
   log "备份数据库连通性: OK"
 else

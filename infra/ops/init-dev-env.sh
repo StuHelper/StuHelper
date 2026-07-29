@@ -8,6 +8,7 @@ source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/retired-idp-env.sh"
 
 require_cmd python3
+export STUHELPER_PRESERVE_POSTGRES_URL_PLACEHOLDERS=true
 
 ensure_env_file
 ensure_generated_files
@@ -120,6 +121,10 @@ fi
 if placeholder_or_empty "${REDIS_PASSWORD:-}" || [[ "${REDIS_PASSWORD:-}" == "dev123" ]]; then
   upsert_env_file "${ENV_FILE}" "REDIS_PASSWORD" "dev-redis-$(random_hex 12)"
 fi
+if placeholder_or_empty "${REDIS_EXPORTER_PASSWORD:-}" ||
+   [[ "${REDIS_EXPORTER_PASSWORD:-}" == "${REDIS_PASSWORD:-}" ]]; then
+  upsert_env_file "${ENV_FILE}" "REDIS_EXPORTER_PASSWORD" "dev-redis-metrics-$(random_hex 12)"
+fi
 if placeholder_or_empty "${STUHELPER_APP_DB_PASSWORD:-}"; then
   upsert_env_file "${ENV_FILE}" "STUHELPER_APP_DB_PASSWORD" "dev-app-$(random_hex 12)"
 fi
@@ -134,6 +139,9 @@ if placeholder_or_empty "${STUHELPER_BACKUP_DB_PASSWORD:-}"; then
 fi
 if placeholder_or_empty "${STUHELPER_REPLICATION_DB_PASSWORD:-}"; then
   upsert_env_file "${ENV_FILE}" "STUHELPER_REPLICATION_DB_PASSWORD" "dev-repl-$(random_hex 12)"
+fi
+if placeholder_or_empty "${POSTGRES_EXPORTER_DB_PASSWORD:-}"; then
+  upsert_env_file "${ENV_FILE}" "POSTGRES_EXPORTER_DB_PASSWORD" "dev-pg-metrics-$(random_hex 12)"
 fi
 if placeholder_or_empty "${HMAC_SECRET:-}"; then
   upsert_env_file "${ENV_FILE}" "HMAC_SECRET" "$(random_hex 32)"
@@ -151,14 +159,14 @@ fi
 if placeholder_or_empty "${GRAFANA_ADMIN_PASSWORD:-}"; then
   upsert_env_file "${ENV_FILE}" "GRAFANA_ADMIN_PASSWORD" "dev-grafana-$(random_hex 8)"
 fi
-if placeholder_or_empty "${MINIO_ROOT_USER:-}"; then
-  upsert_env_file "${ENV_FILE}" "MINIO_ROOT_USER" "dev-minio-root"
-fi
-if placeholder_or_empty "${MINIO_ROOT_PASSWORD:-}"; then
-  upsert_env_file "${ENV_FILE}" "MINIO_ROOT_PASSWORD" "dev-minio-root-$(random_hex 12)"
-fi
 if placeholder_or_empty "${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}"; then
-  upsert_env_file "${ENV_FILE}" "OBJECT_STORAGE_SECRET_ACCESS_KEY" "dev-minio-$(random_hex 12)"
+  upsert_env_file "${ENV_FILE}" "OBJECT_STORAGE_SECRET_ACCESS_KEY" "dev-object-storage-$(random_hex 12)"
+fi
+if [[ -n "${BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID:-}" &&
+      "${BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID}" != "${OBJECT_STORAGE_ACCESS_KEY_ID:-}" ]] &&
+   { placeholder_or_empty "${BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY:-}" ||
+     [[ "${BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY:-}" == "${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}" ]]; }; then
+  upsert_env_file "${ENV_FILE}" "BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY" "dev-backup-object-storage-$(random_hex 12)"
 fi
 if placeholder_or_empty "${CASDOOR_CLIENT_ID:-}"; then
   upsert_env_file "${ENV_FILE}" "CASDOOR_CLIENT_ID" "stuhelper-web"
@@ -315,6 +323,7 @@ ensure_value "FRONTEND_METRICS_ALLOWED_ORIGINS" "${FRONTEND_METRICS_ALLOWED_ORIG
 ensure_dev_pattern_default "DATABASE_URL" "${DATABASE_URL:-}" "postgres://stuhelper_app:${STUHELPER_APP_DB_PASSWORD:-}@localhost:5432/stuhelper?sslmode=disable" "postgres://stuhelper_app:*@postgres:5432/stuhelper?sslmode=disable"
 ensure_dev_default "POSTGRES_EXTERNAL_PORT" "${POSTGRES_EXTERNAL_PORT:-}" "5432" "15432"
 ensure_value "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}" "disable"
+ensure_value "POSTGRES_CLIENT_CA_HOST_PATH" "${POSTGRES_CLIENT_CA_HOST_PATH:-}" ""
 ensure_dev_default "POSTGRES_PGDATA" "${POSTGRES_PGDATA:-}" "/var/lib/postgresql/data" "/var/lib/postgresql/18/docker"
 ensure_dev_default "POSTGRES_ARCHIVE_MODE" "${POSTGRES_ARCHIVE_MODE:-}" "off" "on"
 ensure_value "POSTGRES_ARCHIVE_TIMEOUT" "${POSTGRES_ARCHIVE_TIMEOUT:-}" "15min"
@@ -324,7 +333,7 @@ ensure_dev_default "REDIS_EXTERNAL_PORT" "${REDIS_EXTERNAL_PORT:-}" "6379" "2637
 ensure_value "REDIS_TLS_ENABLED" "${REDIS_TLS_ENABLED:-}" "true"
 ensure_dev_default "REDIS_TLS_CA" "${REDIS_TLS_CA:-}" "/tls/ca.crt" "/redis-tls/ca.crt"
 ensure_dev_default "CASDOOR_EXTERNALPORT" "${CASDOOR_EXTERNALPORT:-}" "8085" "28085"
-ensure_value "CASDOOR_IMAGE_REF" "${CASDOOR_IMAGE_REF:-}" "casbin/casdoor:3.31.1@sha256:a9c9bca53ccf94a96f3f8b4ca40298dbe00c114ef0100b742d2085b9368a6a0b"
+ensure_value "CASDOOR_IMAGE_REF" "${CASDOOR_IMAGE_REF:-}" "casbin/casdoor:latest@sha256:d7658640aba370495e59dc1464756d2ae7ec66576203b9de0040e9cc37793607"
 ensure_dev_default "CASDOOR_ISSUER" "${CASDOOR_ISSUER:-}" "http://localhost:8085" "http://localhost" "http://host.docker.internal:8085" "http://sso.stuhelper.com" "https://sso.stuhelper.com" "http://127.0.0.1:28085"
 ensure_dev_default "CASDOOR_INTERNAL_ADDRESS" "${CASDOOR_INTERNAL_ADDRESS:-}" "casdoor:8000" "host.docker.internal:80"
 ensure_dev_default "CASDOOR_PUBLIC_AUTH_BASE_URL" "${CASDOOR_PUBLIC_AUTH_BASE_URL:-}" "" "http://sso.stuhelper.com" "https://sso.stuhelper.com"
@@ -394,15 +403,23 @@ ensure_dev_default "OPENFGA_HTTP_EXTERNAL_PORT" "${OPENFGA_HTTP_EXTERNAL_PORT:-}
 ensure_dev_default "OPENFGA_GRPC_EXTERNAL_PORT" "${OPENFGA_GRPC_EXTERNAL_PORT:-}" "8082"
 ensure_dev_default "OPENFGA_PLAYGROUND_EXTERNAL_PORT" "${OPENFGA_PLAYGROUND_EXTERNAL_PORT:-}" "3002"
 ensure_dev_default "OPENFGA_RESOURCE_SMOKE_MODE" "${OPENFGA_RESOURCE_SMOKE_MODE:-}" "host" "container"
-ensure_dev_default "OBJECT_STORAGE_ENDPOINT" "${OBJECT_STORAGE_ENDPOINT:-}" "http://localhost:9000" "http://minio:9000"
+ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE" "${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE:-}" "verify-full"
+ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE" "${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE:-}" "/external-student-source-tls/ca.crt"
+ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_HOST_PATH" "${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_HOST_PATH:-}" ""
+ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_LIFETIME_SECONDS" "${EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_LIFETIME_SECONDS:-}" "300"
+ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_IDLE_TIME_SECONDS" "${EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_IDLE_TIME_SECONDS:-}" "60"
+ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_FAILURE_THRESHOLD" "${EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_FAILURE_THRESHOLD:-}" "5"
+ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_SUCCESS_THRESHOLD" "${EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_SUCCESS_THRESHOLD:-}" "2"
+ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_OPEN_SECONDS" "${EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_OPEN_SECONDS:-}" "30"
+ensure_dev_default "OBJECT_STORAGE_ENDPOINT" "${OBJECT_STORAGE_ENDPOINT:-}" "http://localhost:9000" "http://object-storage:8333"
 ensure_value "OBJECT_STORAGE_REGION" "${OBJECT_STORAGE_REGION:-}" "us-east-1"
 ensure_value "OBJECT_STORAGE_BUCKET" "${OBJECT_STORAGE_BUCKET:-}" "stuhelper-identity"
 ensure_value "OBJECT_STORAGE_ACCESS_KEY_ID" "${OBJECT_STORAGE_ACCESS_KEY_ID:-}" "stuhelper"
 ensure_dev_default "OBJECT_STORAGE_USE_SSL" "${OBJECT_STORAGE_USE_SSL:-}" "false" "true"
 ensure_value "OBJECT_STORAGE_FORCE_PATH_STYLE" "${OBJECT_STORAGE_FORCE_PATH_STYLE:-}" "true"
 ensure_value "OBJECT_STORAGE_PRESIGN_TTL" "${OBJECT_STORAGE_PRESIGN_TTL:-}" "600"
-ensure_dev_default "MINIO_API_EXTERNAL_PORT" "${MINIO_API_EXTERNAL_PORT:-}" "9000" "29000"
-ensure_dev_default "MINIO_CONSOLE_EXTERNAL_PORT" "${MINIO_CONSOLE_EXTERNAL_PORT:-}" "9001" "29001"
+ensure_dev_default "DEV_OBJECT_STORAGE_EXTERNAL_PORT" "${DEV_OBJECT_STORAGE_EXTERNAL_PORT:-}" "9000" "29000"
+ensure_dev_default "LOCAL_OBJECT_STORAGE_TLS_EXTERNAL_PORT" "${LOCAL_OBJECT_STORAGE_TLS_EXTERNAL_PORT:-}" "9001" "29001"
 ensure_value "PROMETHEUS_RETENTION_TIME" "${PROMETHEUS_RETENTION_TIME:-}" "15d"
 ensure_value "PROMETHEUS_RETENTION_SIZE" "${PROMETHEUS_RETENTION_SIZE:-}" "20GB"
 ensure_value "BACKUP_LOGICAL_RETENTION_DAYS" "${BACKUP_LOGICAL_RETENTION_DAYS:-}" "14"
@@ -414,4 +431,7 @@ ensure_dev_pattern_default "ADMIN_IMAGE_REF" "${ADMIN_IMAGE_REF:-}" "stuhelper/a
 
 "${SCRIPT_DIR}/render-redis-tls.sh"
 "${SCRIPT_DIR}/render-redis-acl.sh"
+"${SCRIPT_DIR}/prepare-datastore-client-cas.sh"
+"${SCRIPT_DIR}/render-local-object-storage-config.sh"
+"${SCRIPT_DIR}/render-object-storage-tls.sh"
 log "development environment file is ready: ${ENV_FILE}"

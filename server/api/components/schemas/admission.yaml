@@ -551,9 +551,14 @@ SchoolEmailAcademicMatchRequest:
       description: 当前 Join 页面绑定的 admission session ID；用于确认匹配请求属于当前页面 session。
     studentID:
       type: string
+      minLength: 1
+      maxLength: 50
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,49}$'
       description: 学号。
     studentName:
       type: string
+      minLength: 1
+      maxLength: 80
       description: 姓名。
 
 SchoolEmailAcademicMatchResponse:
@@ -588,12 +593,18 @@ SchoolEmailOTPRequest:
     email:
       type: string
       format: email
+      maxLength: 320
       description: 普通学校邮箱 OTP 可直接提交邮箱；配置学籍邮箱策略时由后端按学号派生并校验不可篡改
     studentID:
       type: string
+      minLength: 1
+      maxLength: 50
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,49}$'
       description: 配置 academic_student_email 策略的学校必填
     studentName:
       type: string
+      minLength: 1
+      maxLength: 80
       description: 配置 academic_student_email 且 requireStudentName=true 的学校必填
 
 SchoolEmailOTPVerifyRequest:
@@ -610,6 +621,7 @@ SchoolEmailOTPVerifyRequest:
     email:
       type: string
       format: email
+      maxLength: 320
     code:
       type: string
       minLength: 4

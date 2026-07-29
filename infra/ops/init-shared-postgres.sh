@@ -20,6 +20,7 @@ casdoor_db="${CASDOOR_DB_NAME:-casdoor}"
 app_user="${STUHELPER_APP_DB_USER:-stuhelper_app}"
 backup_user="${STUHELPER_BACKUP_DB_USER:-stuhelper_backup}"
 replication_user="${STUHELPER_REPLICATION_DB_USER:-stuhelper_replication}"
+metrics_user="stuhelper_metrics"
 openfga_user="${OPENFGA_DB_USER:-openfga}"
 casdoor_user="${CASDOOR_DB_USER:-casdoor}"
 
@@ -27,6 +28,7 @@ required=(
   STUHELPER_APP_DB_PASSWORD
   STUHELPER_BACKUP_DB_PASSWORD
   STUHELPER_REPLICATION_DB_PASSWORD
+  POSTGRES_EXPORTER_DB_PASSWORD
   OPENFGA_DB_PASSWORD
 )
 for key in "${required[@]}"; do
@@ -46,10 +48,12 @@ docker exec -i "${postgres_container}" \
     -v app_user="${app_user}" \
     -v backup_user="${backup_user}" \
     -v replication_user="${replication_user}" \
+    -v metrics_user="${metrics_user}" \
     -v openfga_user="${openfga_user}" \
     -v app_password="${STUHELPER_APP_DB_PASSWORD}" \
     -v backup_password="${STUHELPER_BACKUP_DB_PASSWORD}" \
     -v replication_password="${STUHELPER_REPLICATION_DB_PASSWORD}" \
+    -v metrics_password="${POSTGRES_EXPORTER_DB_PASSWORD}" \
     -v openfga_password="${OPENFGA_DB_PASSWORD}" <<'SQL'
 \set QUIET on
 
@@ -77,6 +81,27 @@ SELECT format(
   :'backup_password'
 ) \gexec
 SELECT format('GRANT pg_read_all_data, pg_read_all_settings, pg_read_all_stats TO %I', :'backup_user') \gexec
+
+SELECT format(
+  'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION INHERIT CONNECTION LIMIT 5',
+  :'metrics_user',
+  :'metrics_password'
+)
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'metrics_user') \gexec
+SELECT format(
+  'ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION INHERIT CONNECTION LIMIT 5',
+  :'metrics_user',
+  :'metrics_password'
+) \gexec
+SELECT format('ALTER ROLE %I RESET ALL', :'metrics_user') \gexec
+SELECT format('REVOKE %I FROM %I', granted_role.rolname, :'metrics_user')
+  FROM pg_auth_members membership
+  JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
+  JOIN pg_roles member_role ON member_role.oid = membership.member
+ WHERE member_role.rolname = :'metrics_user'
+   AND granted_role.rolname <> 'pg_monitor' \gexec
+SELECT format('GRANT pg_monitor TO %I', :'metrics_user') \gexec
+SELECT format('GRANT CONNECT ON DATABASE postgres TO %I', :'metrics_user') \gexec
 
 SELECT format(
   'CREATE ROLE %I LOGIN REPLICATION PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE CONNECTION LIMIT 5',
@@ -109,12 +134,14 @@ SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', :'stuhelper_db') \gexec
 SELECT format('GRANT CONNECT, TEMPORARY ON DATABASE %I TO %I', :'stuhelper_db', :'app_user') \gexec
 SELECT format('GRANT CONNECT ON DATABASE %I TO %I', :'stuhelper_db', :'backup_user') \gexec
 SELECT format('GRANT CONNECT ON DATABASE %I TO %I', :'stuhelper_db', :'replication_user') \gexec
+SELECT format('REVOKE CONNECT ON DATABASE %I FROM %I', :'stuhelper_db', :'metrics_user') \gexec
 
 SELECT format('CREATE DATABASE %I OWNER %I', :'openfga_db', :'openfga_user')
 WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'openfga_db') \gexec
 SELECT format('ALTER DATABASE %I OWNER TO %I', :'openfga_db', :'openfga_user') \gexec
 SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', :'openfga_db') \gexec
 SELECT format('GRANT CONNECT, TEMPORARY ON DATABASE %I TO %I', :'openfga_db', :'openfga_user') \gexec
+SELECT format('REVOKE CONNECT ON DATABASE %I FROM %I', :'openfga_db', :'metrics_user') \gexec
 
 \connect :stuhelper_db
 SELECT format('ALTER SCHEMA public OWNER TO %I', :'app_user') \gexec
@@ -141,6 +168,7 @@ if [[ -n "${CASDOOR_DB_PASSWORD:-}" ]]; then
       -d "${superdb}" \
       -v casdoor_db="${casdoor_db}" \
       -v casdoor_user="${casdoor_user}" \
+      -v metrics_user="${metrics_user}" \
       -v casdoor_password="${CASDOOR_DB_PASSWORD}" <<'SQL'
 \set QUIET on
 
@@ -161,6 +189,7 @@ WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'casdoor_db') \gexe
 SELECT format('ALTER DATABASE %I OWNER TO %I', :'casdoor_db', :'casdoor_user') \gexec
 SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', :'casdoor_db') \gexec
 SELECT format('GRANT CONNECT, TEMPORARY ON DATABASE %I TO %I', :'casdoor_db', :'casdoor_user') \gexec
+SELECT format('REVOKE CONNECT ON DATABASE %I FROM %I', :'casdoor_db', :'metrics_user') \gexec
 
 \connect :casdoor_db
 SELECT format('ALTER SCHEMA public OWNER TO %I', :'casdoor_user') \gexec
@@ -170,4 +199,4 @@ SQL
   log "shared PostgreSQL Casdoor database is ready: casdoor_database=${casdoor_db}"
 fi
 
-log "shared PostgreSQL is ready: database=${stuhelper_db}, app_role=${app_user}, openfga_database=${openfga_db}"
+log "shared PostgreSQL is ready: database=${stuhelper_db}, app_role=${app_user}, metrics_role=${metrics_user}, openfga_database=${openfga_db}"

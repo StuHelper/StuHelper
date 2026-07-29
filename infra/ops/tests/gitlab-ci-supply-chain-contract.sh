@@ -44,8 +44,8 @@ assert_contains "${CI_FILE}" 'image: mcr\.microsoft\.com/playwright:v1\.58\.2-no
 assert_contains "${CI_FILE}" 'image: semgrep/semgrep:1\.128\.0@sha256:[0-9a-f]{64}$'
 assert_contains "${CI_FILE}" 'name: ghcr\.io/gitleaks/gitleaks:v8\.24\.3@sha256:[0-9a-f]{64}$'
 assert_contains "${SERVER_CI}" 'image: golang:1\.26\.5-bookworm@sha256:[0-9a-f]{64}$'
-assert_contains "${SERVER_CI}" 'name: postgres:18\.3@sha256:[0-9a-f]{64}$'
-assert_contains "${SERVER_CI}" 'name: redis:8\.6\.2@sha256:[0-9a-f]{64}$'
+assert_contains "${SERVER_CI}" 'name: cgr\.dev/chainguard/postgres:latest@sha256:[0-9a-f]{64}$'
+assert_contains "${SERVER_CI}" 'name: redis:8\.8\.1-alpine@sha256:[0-9a-f]{64}$'
 assert_contains "${CD_FILE}" 'image: alpine:3\.24@sha256:[0-9a-f]{64}$'
 
 assert_not_contains "${CI_FILE}" 'curl .*\|[[:space:]]*tar'

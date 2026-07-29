@@ -9,8 +9,17 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROM_TEMPLATE = REPO_ROOT / "infra/observability/prometheus/prometheus.yml.tmpl"
-PROM_OUTPUT = REPO_ROOT / "infra/generated/observability/prometheus/prometheus.yml"
-ALERT_OUTPUT = REPO_ROOT / "infra/generated/observability/alertmanager/alertmanager.yml"
+GENERATED_OBS_DIR = Path(
+    os.environ.get(
+        "GENERATED_OBS_DIR",
+        REPO_ROOT / "infra/generated/observability",
+    )
+)
+PROM_OUTPUT = GENERATED_OBS_DIR / "prometheus/prometheus.yml"
+ALERT_OUTPUT = GENERATED_OBS_DIR / "alertmanager/alertmanager.yml"
+PRODUCTION_EXTERNAL_HTTP_TARGETS = (
+    "          - https://sso.stuhelper.com/.well-known/openid-configuration"
+)
 
 
 def env(name: str, default: str = "") -> str:
@@ -21,7 +30,7 @@ def yaml_quote(value: str) -> str:
     return json.dumps(value)
 
 
-def write_prometheus() -> None:
+def write_prometheus(mode: str) -> None:
     metrics_user = env("METRICS_USER", "prometheus")
     metrics_password = env("METRICS_PASSWORD")
     if not metrics_password:
@@ -30,6 +39,8 @@ def write_prometheus() -> None:
     rendered = PROM_TEMPLATE.read_text()
     rendered = rendered.replace("__METRICS_USER__", yaml_quote(metrics_user))
     rendered = rendered.replace("__METRICS_PASSWORD__", yaml_quote(metrics_password))
+    external_targets = PRODUCTION_EXTERNAL_HTTP_TARGETS if mode == "prod" else ""
+    rendered = rendered.replace("__BLACKBOX_PRODUCTION_HTTP_TARGETS__", external_targets)
     PROM_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     PROM_OUTPUT.write_text(rendered)
 
@@ -94,7 +105,7 @@ def main() -> None:
     parser.add_argument("--mode", choices=["dev", "observability", "prod"], required=True)
     args = parser.parse_args()
 
-    write_prometheus()
+    write_prometheus(args.mode)
     write_alertmanager(args.mode)
     print(str(PROM_OUTPUT))
     print(str(ALERT_OUTPUT))

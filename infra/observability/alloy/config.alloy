@@ -45,22 +45,65 @@ otelcol.exporter.otlp "tempo" {
   }
 }
 
-local.file_match "docker_logs" {
-  path_targets = [{
-    __path__ = "/var/lib/docker/containers/*/*-json.log",
-    job      = "docker",
-    stack    = "stuhelper",
-    env      = "production",
-  }]
+discovery.docker "stuhelper" {
+  host = "http://docker-socket-proxy:2375"
 }
 
-loki.source.file "docker_logs" {
-  targets    = local.file_match.docker_logs.targets
-  forward_to = [loki.process.docker.receiver]
+discovery.relabel "stuhelper_logs" {
+  targets = discovery.docker.stuhelper.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    regex         = sys.env("STACK_NAME")
+    action        = "keep"
+  }
+
+  // Avoid recursive log amplification when Alloy/Loki report delivery errors.
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    regex         = "(alloy|loki)"
+    action        = "drop"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "compose_service"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    replacement   = "$1"
+    target_label  = "container"
+  }
+
+  rule {
+    target_label = "job"
+    replacement  = "docker"
+  }
+
+  rule {
+    target_label = "stack"
+    replacement  = sys.env("STACK_NAME")
+  }
+}
+
+loki.source.docker "docker_logs" {
+  host             = "http://docker-socket-proxy:2375"
+  targets          = discovery.relabel.stuhelper_logs.output
+  refresh_interval = sys.env("ALLOY_DOCKER_STREAM_TIMEOUT")
+  forward_to       = [loki.process.docker.receiver]
 }
 
 loki.process "docker" {
   stage.docker {}
+
+  // Bound first-start and post-outage replay so an old Docker log backlog
+  // cannot overwhelm Loki. Live entries are unaffected.
+  stage.drop {
+    older_than          = sys.env("ALLOY_DOCKER_LOG_MAX_AGE")
+    drop_counter_reason = "docker_backlog_too_old"
+  }
 
   forward_to = [loki.write.default.receiver]
 }

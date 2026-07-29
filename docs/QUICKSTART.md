@@ -3,7 +3,7 @@ type: guide
 audience: all
 status: current
 authoritative-source: this file
-last-verified: 2026-05-25
+last-verified: 2026-07-29
 ---
 
 # 快速开始
@@ -34,13 +34,13 @@ make dev-up
 
 完成以下步骤：
 - 生成开发环境变量
-- 启动 PostgreSQL / Redis / Casdoor / OpenFGA / MinIO（Docker）
+- 启动 PostgreSQL / Redis / Casdoor / OpenFGA / SeaweedFS mini（Docker，仅本地 S3 同构验证）
 - 验证 Casdoor OIDC metadata；本地开发会从 Casdoor 内置应用读取一次性 bootstrap 凭据，并幂等创建 StuHelper 的 Web / Admin / UniApp first-party applications、flat roles 和启用的 providers；生产路径会使用独立 bootstrap 凭据执行同一套对象收敛
 - 初始化 OpenFGA Store 和 Model
-- 初始化对象存储 bucket
+- 按桶隔离身份并预创建应用 / 备份 bucket，上传开发资源 seed
 - 数据库迁移和开发 seed
 - 启动热重载：后端 `air`、前端 `Vite`
-- 自动选择可用端口；若 PostgreSQL / Redis / OpenFGA / MinIO、Web/Admin 或启用观测栈时的 Prometheus / Grafana / Alloy / exporter 默认宿主机端口已被占用，会顺延到下一个空闲端口；默认开发链路不启动 Traefik，也不占用本机 `80/443`
+- 自动选择可用端口；若 PostgreSQL / Redis / OpenFGA / 本地对象存储、Web/Admin 或启用观测栈时的 Prometheus / Grafana / Alloy / exporter 默认宿主机端口已被占用，会顺延到下一个空闲端口；默认开发链路不启动 Traefik，也不占用本机 `80/443`
 
 ```bash
 make dev-status   # 查看实际地址
@@ -62,7 +62,7 @@ make dev-reset    # 彻底清理（含 volume）
 | Casdoor | http://127.0.0.1:8085 |
 | Grafana | http://127.0.0.1:3003（需 `make obs-up`） |
 
-PostgreSQL、Redis 和 MinIO 的宿主机端口如果已被本机服务占用，`make dev-up`
+PostgreSQL、Redis 和本地对象存储的宿主机端口如果已被本机服务占用，`make dev-up`
 会顺延到可用端口并写回 `.env`；实际值以 `make dev-status` 与 `.env` 为准。
 
 ## 后端命令
@@ -165,6 +165,14 @@ make prod-down     # 停止
 - `.env.prod.generated`
 
 并且会以 `.env.prod.example` 为唯一基线生成生产 skeleton，保留生产占位符，不再从开发 `.env.example` 派生 `localhost` / `http` / 本地告警接收器等默认值。
+其中 `POSTGRES_EXPORTER_DB_PASSWORD` 会作为独立 secret 生成，用于只有
+`pg_monitor` 权限的 `stuhelper_metrics`；不要把 `STUHELPER_BACKUP_DB_PASSWORD`
+或应用数据库密码复用给 exporter。Redis exporter 使用独立
+`REDIS_EXPORTER_PASSWORD` 和无应用 key 访问权的 `stuhelper_metrics` ACL
+用户，不得复用应用的 `REDIS_PASSWORD`。
+初始化还会生成 `postgres-client-ca` / `redis-client-ca` 两个公开证书目录。
+应用、迁移、OpenFGA 和 exporter 只挂载这些目录；服务端私钥和仅含密码哈希的 Redis ACL
+保留在各自服务的私有源目录，并在容器启动时复制到 0600 的 tmpfs。
 
 ## 本机生产等价环境
 

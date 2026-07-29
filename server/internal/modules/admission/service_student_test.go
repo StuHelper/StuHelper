@@ -331,6 +331,22 @@ func TestSchoolEmailOTPDerivesBUAAEmailAfterAcademicNameMatch(t *testing.T) {
 	`)
 	require.NoError(t, err)
 
+	_, err = svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
+		UserID:      userID,
+		SchoolID:    4111010006,
+		StudentID:   "student/id",
+		StudentName: "张三",
+	})
+	require.ErrorIs(t, err, ErrAdmissionStudentIDInvalid)
+
+	_, err = svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
+		UserID:      userID,
+		SchoolID:    4111010006,
+		StudentID:   "20250001",
+		StudentName: "张\u200b三",
+	})
+	require.ErrorIs(t, err, ErrAdmissionStudentNameInvalid)
+
 	resp, err := svc.RequestSchoolEmailOTP(context.Background(), SchoolEmailOTPInput{
 		UserID:      userID,
 		SchoolID:    4111010006,

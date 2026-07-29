@@ -40,6 +40,7 @@ corepack yarn test
 corepack yarn dev
 corepack yarn start
 corepack yarn workspaces list
+YARN_NPM_REGISTRY_SERVER=https://registry.npmjs.org corepack yarn npm audit --all --severity moderate
 ```
 
 说明：
@@ -50,6 +51,7 @@ corepack yarn workspaces list
 - `yarn test:startup` 会真实拉起一次 Koishi，并在启动前强制释放 `5140` 端口。
 - `yarn test:ui` 会先构建工作区，再用临时 SQLite、临时 mock bot 和临时群管中心 JSON 数据目录拉起 Koishi Console，通过 Playwright 覆盖登录 warm-up、群管中心 NavRail、12 个业务视图、ChatDock、聊天接收 / 图片代理 / 发送 / 撤回、全局搜索、处置中心举报驳回、配置治理、订阅、黑名单、警告、日志检索、全局设置、角色权限和系统缓存真实交互，并检查 `pageerror`、未放行的 console error/warning、关键资源加载失败和关键资源 HTTP 4xx/5xx。
 - `yarn test` 会串行执行构建、单元测试、启动烟雾验证和 UI smoke；根目录 `make e2e-koishi` 等价于执行 Koishi UI smoke。
+- 依赖审计必须显式使用 npm 官方审计端点并覆盖完整工作区；默认依赖镜像不提供 npm audit API，不能把该端点的 404 视为审计通过。
 - Koishi 工作区通过 Yarn `resolutions` 对 `@koishijs/client@5.30.11` 应用 `.yarn/patches/` 补丁，避免其构建入口以 CJS 方式加载 Vite 和 Vite 插件。升级 `@koishijs/client` 时，先复跑 `corepack yarn build` 和 `make e2e-koishi`；如果上游已改为 ESM Node API，再移除该补丁和 resolution。
 
 ## 配置入口

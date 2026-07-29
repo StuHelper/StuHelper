@@ -276,10 +276,19 @@ check_ready Alloy "${ALLOY_READY_URL}" || true
 if [[ "${OBS_SMOKE_STRICT}" == "true" ]]; then
   check_grafana_health_body || true
   check_alertmanager_receiver || true
+  check_prometheus_query "Prometheus target prometheus" 'up{job="prometheus"}' || true
+  check_prometheus_query "Prometheus target alloy" 'up{job="alloy"}' || true
+  check_prometheus_query "Prometheus target loki" 'up{job="loki"}' || true
+  check_prometheus_query "Prometheus target tempo" 'up{job="tempo"}' || true
   check_prometheus_query "Prometheus target app" 'up{job="app"}' || true
   check_prometheus_query "Prometheus target grafana" 'up{job="grafana"}' || true
   check_prometheus_query "Prometheus target alertmanager" 'up{job="alertmanager"}' || true
+  check_prometheus_query "Prometheus target node exporter" 'up{job="node-exporter"}' || true
   check_prometheus_query "Prometheus target cadvisor" 'up{job="cadvisor"}' || true
+  check_prometheus_query "Prometheus target PostgreSQL exporter" 'up{job="postgres-exporter"}' || true
+  check_prometheus_query "PostgreSQL exporter database connection" 'pg_up{job="postgres-exporter"}' || true
+  check_prometheus_query "Prometheus target Redis exporter" 'up{job="redis-exporter"}' || true
+  check_prometheus_query "Redis exporter database connection" 'redis_up{job="redis-exporter"}' || true
   check_prometheus_query "Blackbox SSO metadata" 'probe_success{job="blackbox-http",instance="https://sso.stuhelper.com/.well-known/openid-configuration"}' || true
   check_prometheus_query "Blackbox OpenFGA TCP" 'probe_success{job="blackbox-tcp",instance="openfga:8081"}' || true
 fi

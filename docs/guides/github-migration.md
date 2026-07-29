@@ -49,7 +49,7 @@ last-verified: 2026-07-28
 
 | 工作流 | 触发 | 权限与职责 |
 |--------|------|------------|
-| `CI` | PR、`develop`/`main` push、手工 | PR 只读；按路径选择 Go、契约、前端、E2E、Koishi、Infra、Semgrep 和完整历史 secret scan |
+| `CI` | PR、`develop`/`main` push、手工 | PR 只读；按路径选择 Go、契约、前端、E2E、Koishi、Infra、Semgrep、完整历史 secret scan、PR 新增依赖审查，以及 22 个受管运行时镜像的 `HIGH` / `CRITICAL` / `UNKNOWN` 策略扫描 |
 | `CodeQL` | PR、push、每周、手工 | Go 与 JavaScript/TypeScript 代码扫描 |
 | `Publish images` | 受信任 push 的 `CI` 全部成功后 | 构建一次、扫描同一镜像、发布不可变 SHA tag，并为最终 digest 签发 provenance |
 | `Deploy` | 手工 | 验证指定 40 位 commit SHA、发布工作流身份、源分支、源提交和镜像 digest 后部署 |
@@ -77,7 +77,7 @@ last-verified: 2026-07-28
 公开仓库使用标准 GitHub-hosted runner 的计算时间免费，但 larger runner、Actions artifact、cache 和 package 存储有各自规则，不能把“公开仓库 Actions 免费”理解为所有关联资源无限免费。
 
 - 工作流只使用标准 `ubuntu-latest`，不启用 larger runner；
-- 测试 artifact 只在失败诊断或审计需要时上传，当前保留 7 天；
+- 测试 artifact 只在失败诊断或审计需要时上传，普通测试当前保留 7 天，运行时镜像 JSON 扫描 evidence 保留 14 天；
 - Actions cache 保持仓库默认 10 GB 上限，禁止为提速擅自扩大付费上限；
 - 三个 GHCR package 在验收后设为 public；Container registry 当前公开存储和带宽政策需定期复核；
 - 组织 Billing 中为 Actions、Packages 和 cache 设置预算告警；若目标是严格零成本，预算上限设为 0，并接受超限后缓存只读或任务被阻止。

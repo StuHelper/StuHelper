@@ -40,6 +40,7 @@ var (
 	ErrInvalidAcademicDBTable                   = errors.New("academic table config is invalid")
 	ErrInvalidSchoolConfigValue                 = errors.New("school config value is invalid")
 	ErrAcademicTableNotConfigured               = errors.New("academic table is not configured for the school")
+	ErrAcademicLookupUnavailable                = errors.New("academic student lookup is unavailable")
 	ErrSchoolLDAPConfigMissing                  = errors.New("LDAP configuration is not provided for the school")
 	ErrLDAPConfigInvalid                        = errors.New("LDAP configuration is invalid")
 	ErrSystemConfigNotFound                     = errors.New("system config not found")
@@ -69,6 +70,7 @@ var (
 	ErrStudentEmailOTPInvalid                   = errors.New("student email otp invalid")
 	ErrStudentEmailOTPMaxAttempts               = errors.New("student email otp max attempts exceeded")
 	ErrStudentNameRequired                      = errors.New("student name is required")
+	ErrStudentNameInvalid                       = errors.New("student name is invalid")
 	ErrStudentNameMismatch                      = errors.New("student name does not match academic database")
 )
 

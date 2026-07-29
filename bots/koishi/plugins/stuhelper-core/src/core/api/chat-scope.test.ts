@@ -453,11 +453,11 @@ test('settings API does not expose existing OpenAI API key', async () => {
   const ctx = createContext(listeners)
   const service = createService(['1001'])
   grantGlobalConsoleScope(service)
-  const secret = 'sk-live-secret-123456789'
+  const fixtureValue = 'test-openai-value-that-must-stay-hidden'
   service.settings.settings = {
     openai: {
       enabled: true,
-      apiKey: secret,
+      apiKey: fixtureValue,
       model: 'gpt-4.1-mini',
     },
   }
@@ -469,8 +469,8 @@ test('settings API does not expose existing OpenAI API key', async () => {
   assert.equal(result.success, true)
   assert.equal(result.data.openai.apiKey, undefined)
   assert.equal(result.data.openai.apiKeyConfigured, true)
-  assert.notEqual(result.data.openai.apiKeyMasked, secret)
-  assert.doesNotMatch(JSON.stringify(result.data), new RegExp(secret))
+  assert.notEqual(result.data.openai.apiKeyMasked, fixtureValue)
+  assert.doesNotMatch(JSON.stringify(result.data), new RegExp(fixtureValue))
 })
 
 test('settings API preserves existing OpenAI API key when no new key is provided', async () => {

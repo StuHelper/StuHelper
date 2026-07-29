@@ -109,19 +109,26 @@ type ExternalStudentSourceConfig struct {
 }
 
 type ExternalOracleStudentSourceConfig struct {
-	Host                  string
-	Port                  int
-	ServiceName           string
-	Username              string
-	Password              string
-	Schema                string
-	Table                 string
-	StudentIDColumn       string
-	StudentNameColumn     string
-	ConnectTimeoutSeconds int
-	QueryTimeoutSeconds   int
-	MaxOpenConns          int
-	MaxIdleConns          int
+	Host                    string
+	Port                    int
+	ServiceName             string
+	Username                string
+	Password                string
+	TLSMode                 string
+	TLSCAFile               string
+	Schema                  string
+	Table                   string
+	StudentIDColumn         string
+	StudentNameColumn       string
+	ConnectTimeoutSeconds   int
+	QueryTimeoutSeconds     int
+	MaxOpenConns            int
+	MaxIdleConns            int
+	ConnMaxLifetimeSeconds  int
+	ConnMaxIdleTimeSeconds  int
+	BreakerFailureThreshold int
+	BreakerSuccessThreshold int
+	BreakerOpenSeconds      int
 }
 
 // LogConfig 日志配置
@@ -577,19 +584,26 @@ func loadExternalDataConfig(parseErrs *[]string) ExternalDataConfig {
 		Provider:   getEnv("EXTERNAL_STUDENT_SOURCE_PROVIDER", "oracle"),
 		SchoolCode: getEnv("EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE", ""),
 		Oracle: ExternalOracleStudentSourceConfig{
-			Host:                  getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_HOST", ""),
-			Port:                  getEnvInt("EXTERNAL_STUDENT_SOURCE_ORACLE_PORT", 1521, parseErrs),
-			ServiceName:           getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME", ""),
-			Username:              getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME", ""),
-			Password:              getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD", ""),
-			Schema:                getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA", ""),
-			Table:                 getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE", ""),
-			StudentIDColumn:       getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_ID_COLUMN", "XH"),
-			StudentNameColumn:     getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_NAME_COLUMN", "XM"),
-			ConnectTimeoutSeconds: getEnvInt("EXTERNAL_STUDENT_SOURCE_ORACLE_CONNECT_TIMEOUT_SECONDS", 5, parseErrs),
-			QueryTimeoutSeconds:   getEnvInt("EXTERNAL_STUDENT_SOURCE_ORACLE_QUERY_TIMEOUT_SECONDS", 3, parseErrs),
-			MaxOpenConns:          getEnvInt("EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_OPEN_CONNS", 4, parseErrs),
-			MaxIdleConns:          getEnvInt("EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_IDLE_CONNS", 1, parseErrs),
+			Host:                    getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_HOST", ""),
+			Port:                    getEnvInt("EXTERNAL_STUDENT_SOURCE_ORACLE_PORT", 2484, parseErrs),
+			ServiceName:             getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME", ""),
+			Username:                getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME", ""),
+			Password:                getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD", ""),
+			TLSMode:                 getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE", "verify-full"),
+			TLSCAFile:               getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE", "/external-student-source-tls/ca.crt"),
+			Schema:                  getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA", ""),
+			Table:                   getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE", ""),
+			StudentIDColumn:         getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_ID_COLUMN", "XH"),
+			StudentNameColumn:       getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_NAME_COLUMN", "XM"),
+			ConnectTimeoutSeconds:   getEnvInt("EXTERNAL_STUDENT_SOURCE_ORACLE_CONNECT_TIMEOUT_SECONDS", 5, parseErrs),
+			QueryTimeoutSeconds:     getEnvInt("EXTERNAL_STUDENT_SOURCE_ORACLE_QUERY_TIMEOUT_SECONDS", 3, parseErrs),
+			MaxOpenConns:            getEnvInt("EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_OPEN_CONNS", 4, parseErrs),
+			MaxIdleConns:            getEnvInt("EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_IDLE_CONNS", 1, parseErrs),
+			ConnMaxLifetimeSeconds:  getEnvInt("EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_LIFETIME_SECONDS", 300, parseErrs),
+			ConnMaxIdleTimeSeconds:  getEnvInt("EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_IDLE_TIME_SECONDS", 60, parseErrs),
+			BreakerFailureThreshold: getEnvInt("EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_FAILURE_THRESHOLD", 5, parseErrs),
+			BreakerSuccessThreshold: getEnvInt("EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_SUCCESS_THRESHOLD", 2, parseErrs),
+			BreakerOpenSeconds:      getEnvInt("EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_OPEN_SECONDS", 30, parseErrs),
 		},
 	}
 	return ExternalDataConfig{StudentSources: []ExternalStudentSourceConfig{source}}

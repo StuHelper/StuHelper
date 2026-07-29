@@ -10262,8 +10262,12 @@ components:
           description: 教育部学校标识码；公开学生认证请求必须以此字段识别学校。
         studentID:
           type: string
+          minLength: 1
+          maxLength: 50
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,49}$
         password:
           type: string
+          maxLength: 200
           writeOnly: true
         manualFormData:
           type:
@@ -10285,12 +10289,18 @@ components:
         email:
           type: string
           format: email
+          maxLength: 320
           description: 普通学校邮箱 OTP 可直接提交邮箱；配置学籍邮箱策略时由后端按学号派生并校验不可篡改
         studentID:
           type: string
+          minLength: 1
+          maxLength: 50
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,49}$
           description: 配置 academic_student_email 策略的学校必填
         studentName:
           type: string
+          minLength: 1
+          maxLength: 80
           description: 配置 academic_student_email 且 requireStudentName=true 的学校必填
     StudentEmailOTPVerifyRequest:
       type: object
@@ -10306,6 +10316,7 @@ components:
         email:
           type: string
           format: email
+          maxLength: 320
         code:
           type: string
           minLength: 4
@@ -11591,9 +11602,14 @@ components:
           description: 当前 Join 页面绑定的 admission session ID；用于确认匹配请求属于当前页面 session。
         studentID:
           type: string
+          minLength: 1
+          maxLength: 50
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,49}$
           description: 学号。
         studentName:
           type: string
+          minLength: 1
+          maxLength: 80
           description: 姓名。
     SchoolEmailAcademicMatchResponse:
       type: object
@@ -11628,12 +11644,18 @@ components:
         email:
           type: string
           format: email
+          maxLength: 320
           description: 普通学校邮箱 OTP 可直接提交邮箱；配置学籍邮箱策略时由后端按学号派生并校验不可篡改
         studentID:
           type: string
+          minLength: 1
+          maxLength: 50
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,49}$
           description: 配置 academic_student_email 策略的学校必填
         studentName:
           type: string
+          minLength: 1
+          maxLength: 80
           description: 配置 academic_student_email 且 requireStudentName=true 的学校必填
     SchoolEmailOTPVerifyRequest:
       type: object
@@ -11652,6 +11674,7 @@ components:
         email:
           type: string
           format: email
+          maxLength: 320
         code:
           type: string
           minLength: 4
@@ -13278,9 +13301,14 @@ components:
           description: 教育部学校标识码；即时学籍匹配必须以此字段识别学校。
         studentID:
           type: string
+          minLength: 1
+          maxLength: 50
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,49}$
           description: 学号。
         studentName:
           type: string
+          minLength: 1
+          maxLength: 80
           description: 姓名。
     StudentEmailAcademicMatchResponse:
       type: object
@@ -13293,6 +13321,7 @@ components:
         email:
           type: string
           format: email
+          maxLength: 320
           description: 匹配通过后由后端按学号派生出的学校邮箱。
         studentID:
           type: string

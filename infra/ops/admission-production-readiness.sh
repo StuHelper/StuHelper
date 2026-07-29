@@ -91,6 +91,7 @@ case "${external_student_source_enabled}" in
       EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME
       EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME
       EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD
+      EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_HOST_PATH
       EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA
       EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE
       EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_ID_COLUMN
@@ -100,6 +101,10 @@ case "${external_student_source_enabled}" in
       [[ -n "${!key:-}" && "${!key}" != REPLACE_WITH_* ]] || \
         die "${key} is required when EXTERNAL_STUDENT_SOURCE_ENABLED=true"
     done
+    [[ "${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE:-}" == "verify-full" ]] ||
+      die "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE must be verify-full in production"
+    [[ "${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE:-}" == "/external-student-source-tls/ca.crt" ]] ||
+      die "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE must be /external-student-source-tls/ca.crt in production"
     if [[ "${external_student_source_school_code}" == "4111010006" ]]; then
       buaa_external_student_source_ready="true"
     fi
@@ -110,7 +115,7 @@ esac
 
 run_readiness_sql() {
   compose --profile prod run --rm --no-deps -T \
-    postgres \
+    postgres-client \
     psql \
       -X \
       -v ON_ERROR_STOP=1 \

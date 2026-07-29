@@ -134,8 +134,12 @@ func respondAdmissionVerificationError(c *gin.Context, err error) bool {
 		response.BadRequest(c, "admission school email domain not allowed")
 	case errors.Is(err, ErrAdmissionStudentIDRequired):
 		response.BadRequest(c, "admission student id required")
+	case errors.Is(err, ErrAdmissionStudentIDInvalid):
+		response.BadRequest(c, "admission student id invalid")
 	case errors.Is(err, ErrAdmissionStudentNameRequired):
 		response.BadRequest(c, "admission student name required")
+	case errors.Is(err, ErrAdmissionStudentNameInvalid):
+		response.BadRequest(c, "admission student name invalid")
 	case errors.Is(err, ErrAdmissionStudentRecordNotFound):
 		response.BadRequest(c, "admission student record not found")
 	case errors.Is(err, ErrAdmissionStudentNameMismatch):

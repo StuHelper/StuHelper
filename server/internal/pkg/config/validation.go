@@ -260,7 +260,7 @@ func (c *Config) validate(parseErrs []string) error {
 		}
 	}
 	errs = append(errs, validateAdmissionPublicBaseURL(c.Admission.PublicBaseURL, productionLike)...)
-	errs = append(errs, validateExternalDataConfig(c.ExternalData)...)
+	errs = append(errs, validateExternalDataConfig(c.ExternalData, productionLike)...)
 
 	if len(parseErrs) > 0 {
 		errs = append(errs, parseErrs...)
@@ -783,7 +783,7 @@ func isHTTPSOrigin(origin string) bool {
 	return err == nil && strings.EqualFold(parsed.Scheme, "https")
 }
 
-func validateExternalDataConfig(cfg ExternalDataConfig) []string {
+func validateExternalDataConfig(cfg ExternalDataConfig, productionLike bool) []string {
 	var errs []string
 	for i, source := range cfg.StudentSources {
 		if !source.Enabled {
@@ -802,7 +802,7 @@ func validateExternalDataConfig(cfg ExternalDataConfig) []string {
 		}
 		switch provider {
 		case "oracle":
-			errs = append(errs, validateExternalOracleStudentSource(source.Oracle)...)
+			errs = append(errs, validateExternalOracleStudentSource(source.Oracle, productionLike)...)
 		default:
 			errs = append(errs, "EXTERNAL_STUDENT_SOURCE_PROVIDER must be oracle when EXTERNAL_STUDENT_SOURCE_ENABLED=true")
 		}
@@ -810,7 +810,7 @@ func validateExternalDataConfig(cfg ExternalDataConfig) []string {
 	return errs
 }
 
-func validateExternalOracleStudentSource(cfg ExternalOracleStudentSourceConfig) []string {
+func validateExternalOracleStudentSource(cfg ExternalOracleStudentSourceConfig, productionLike bool) []string {
 	var errs []string
 	required := map[string]string{
 		"EXTERNAL_STUDENT_SOURCE_ORACLE_HOST":                cfg.Host,
@@ -841,6 +841,34 @@ func validateExternalOracleStudentSource(cfg ExternalOracleStudentSourceConfig) 
 	}
 	if cfg.MaxIdleConns < 0 || cfg.MaxIdleConns > cfg.MaxOpenConns {
 		errs = append(errs, "EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_IDLE_CONNS must be between 0 and EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_OPEN_CONNS")
+	}
+	if cfg.ConnMaxLifetimeSeconds < 30 || cfg.ConnMaxLifetimeSeconds > 3600 {
+		errs = append(errs, fmt.Sprintf("EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_LIFETIME_SECONDS must be between 30 and 3600 (got %d)", cfg.ConnMaxLifetimeSeconds))
+	}
+	if cfg.ConnMaxIdleTimeSeconds < 30 || cfg.ConnMaxIdleTimeSeconds > cfg.ConnMaxLifetimeSeconds {
+		errs = append(errs, "EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_IDLE_TIME_SECONDS must be between 30 and EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_LIFETIME_SECONDS")
+	}
+	if cfg.BreakerFailureThreshold < 1 || cfg.BreakerFailureThreshold > 100 {
+		errs = append(errs, fmt.Sprintf("EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_FAILURE_THRESHOLD must be between 1 and 100 (got %d)", cfg.BreakerFailureThreshold))
+	}
+	if cfg.BreakerSuccessThreshold < 1 || cfg.BreakerSuccessThreshold > 20 {
+		errs = append(errs, fmt.Sprintf("EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_SUCCESS_THRESHOLD must be between 1 and 20 (got %d)", cfg.BreakerSuccessThreshold))
+	}
+	if cfg.BreakerOpenSeconds < 1 || cfg.BreakerOpenSeconds > 600 {
+		errs = append(errs, fmt.Sprintf("EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_OPEN_SECONDS must be between 1 and 600 (got %d)", cfg.BreakerOpenSeconds))
+	}
+	tlsMode := strings.ToLower(strings.TrimSpace(cfg.TLSMode))
+	switch tlsMode {
+	case "verify-full":
+		if strings.TrimSpace(cfg.TLSCAFile) == "" {
+			errs = append(errs, "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE is required when EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE=verify-full")
+		}
+	case "disable":
+		if productionLike {
+			errs = append(errs, "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE must be verify-full in production")
+		}
+	default:
+		errs = append(errs, "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE must be verify-full or disable")
 	}
 	return errs
 }

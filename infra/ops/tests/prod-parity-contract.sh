@@ -12,7 +12,8 @@ SMOKE_CHECK="${REPO_ROOT}/infra/ops/smoke-check.sh"
 SSO_PUBLIC_SMOKE="${REPO_ROOT}/infra/ops/sso-public-smoke.sh"
 ADMISSION_PUBLIC_SMOKE="${REPO_ROOT}/infra/ops/admission-public-smoke.sh"
 PARITY_SMOKE_DATA="${REPO_ROOT}/infra/ops/prod-parity-smoke-data.sh"
-MINIO_CA_BUNDLE="${REPO_ROOT}/infra/ops/render-minio-ca-bundle.sh"
+OBJECT_STORAGE_TLS_RENDER="${REPO_ROOT}/infra/ops/render-object-storage-tls.sh"
+OBJECT_STORAGE_CONFIG_RENDER="${REPO_ROOT}/infra/ops/render-local-object-storage-config.sh"
 ADMISSION_READINESS="${REPO_ROOT}/infra/ops/admission-production-readiness.sh"
 PARITY_DATASTORE_SMOKE="${REPO_ROOT}/infra/ops/prod-parity-datastore-smoke.sh"
 PARITY_BROWSER_SMOKE="${REPO_ROOT}/infra/ops/prod-parity-browser-smoke.sh"
@@ -47,11 +48,11 @@ assert_not_contains() {
   fi
 }
 
-for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${SMOKE_CHECK}" "${SSO_PUBLIC_SMOKE}" "${ADMISSION_PUBLIC_SMOKE}" "${PARITY_SMOKE_DATA}" "${MINIO_CA_BUNDLE}" "${ADMISSION_READINESS}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_BROWSER_SMOKE_NODE}" "${ADMISSION_PROD_SIM_E2E}" "${ADMISSION_PROD_SIM_E2E_NODE}" "${PARITY_LOCAL_INGRESS}" "${PARITY_LOCAL_INGRESS_NGINX}" "${COMMON_LIB}" "${ADMIN_INDEX_HTML}" "${WEB_NGINX}"; do
+for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${SMOKE_CHECK}" "${SSO_PUBLIC_SMOKE}" "${ADMISSION_PUBLIC_SMOKE}" "${PARITY_SMOKE_DATA}" "${OBJECT_STORAGE_TLS_RENDER}" "${OBJECT_STORAGE_CONFIG_RENDER}" "${ADMISSION_READINESS}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_BROWSER_SMOKE_NODE}" "${ADMISSION_PROD_SIM_E2E}" "${ADMISSION_PROD_SIM_E2E_NODE}" "${PARITY_LOCAL_INGRESS}" "${PARITY_LOCAL_INGRESS_NGINX}" "${COMMON_LIB}" "${ADMIN_INDEX_HTML}" "${WEB_NGINX}"; do
   [[ -f "${file}" ]] || fail "missing file: ${file}"
 done
 
-bash -n "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${SMOKE_CHECK}" "${SSO_PUBLIC_SMOKE}" "${ADMISSION_PUBLIC_SMOKE}" "${PARITY_SMOKE_DATA}" "${MINIO_CA_BUNDLE}" "${ADMISSION_READINESS}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${ADMISSION_PROD_SIM_E2E}" "${PARITY_LOCAL_INGRESS}"
+bash -n "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${SMOKE_CHECK}" "${SSO_PUBLIC_SMOKE}" "${ADMISSION_PUBLIC_SMOKE}" "${PARITY_SMOKE_DATA}" "${OBJECT_STORAGE_TLS_RENDER}" "${OBJECT_STORAGE_CONFIG_RENDER}" "${ADMISSION_READINESS}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${ADMISSION_PROD_SIM_E2E}" "${PARITY_LOCAL_INGRESS}"
 
 for default_path in ".env" "./.env" ".env.generated" "./.env.generated" ".env.generated.secrets" "./.env.generated.secrets" ".deploy" "./.deploy"; do
   case "${default_path}" in
@@ -80,11 +81,14 @@ assert_not_contains "${PARITY_COMPOSE}" '^  redis:'
 assert_contains "${REPO_ROOT}/docker-compose.prod.yml" 'APP_ENV: \$\{APP_ENV:-production\}'
 
 assert_contains "${INIT_SHARED_PG}" 'STUHELPER_APP_DB_PASSWORD'
+assert_contains "${INIT_SHARED_PG}" 'POSTGRES_EXPORTER_DB_PASSWORD'
 assert_contains "${INIT_SHARED_PG}" 'OPENFGA_DB_PASSWORD'
 assert_contains "${INIT_SHARED_PG}" 'CASDOOR_DB_PASSWORD'
 assert_contains "${INIT_SHARED_PG}" 'CREATE DATABASE %I OWNER %I'
 assert_contains "${INIT_SHARED_PG}" 'ALTER ROLE %I WITH LOGIN PASSWORD %L'
 assert_contains "${INIT_SHARED_PG}" 'GRANT pg_read_all_data, pg_read_all_settings, pg_read_all_stats'
+assert_contains "${INIT_SHARED_PG}" 'GRANT pg_monitor TO %I'
+assert_contains "${INIT_SHARED_PG}" 'REVOKE CONNECT ON DATABASE %I FROM %I'
 assert_contains "${INIT_SHARED_PG}" 'GRANT USAGE, CREATE ON SCHEMA public'
 assert_contains "${INIT_SHARED_PG}" 'openfga_database'
 assert_contains "${INIT_SHARED_PG}" 'casdoor_database'
@@ -97,9 +101,15 @@ assert_contains "${PARITY_UP}" 'REDIS_EXTERNAL_PORT.*26379'
 assert_contains "${PARITY_UP}" 'OPENFGA_HTTP_EXTERNAL_PORT.*8081'
 assert_contains "${PARITY_UP}" 'OPENFGA_GRPC_EXTERNAL_PORT.*8082'
 assert_contains "${PARITY_UP}" 'OPENFGA_PLAYGROUND_EXTERNAL_PORT.*3002'
-assert_contains "${PARITY_UP}" 'MINIO_API_EXTERNAL_PORT.*29000'
-assert_contains "${PARITY_UP}" 'MINIO_CONSOLE_EXTERNAL_PORT.*29001'
-assert_contains "${PARITY_UP}" 'render-minio-ca-bundle\.sh'
+assert_contains "${PARITY_UP}" 'DEV_OBJECT_STORAGE_EXTERNAL_PORT.*29000'
+assert_contains "${PARITY_UP}" 'LOCAL_OBJECT_STORAGE_TLS_EXTERNAL_PORT.*29001'
+assert_contains "${PARITY_UP}" 'render-local-object-storage-config\.sh'
+assert_contains "${PARITY_UP}" 'render-object-storage-tls\.sh'
+assert_contains "${PARITY_UP}" 'prepare-object-storage-client-ca\.sh'
+assert_contains "${PARITY_UP}" 'OBJECT_STORAGE_TLS_CA_HOST_PATH.*infra/generated/object-storage/ca\.crt'
+assert_contains "${PARITY_UP}" 'OBJECT_STORAGE_ENDPOINT.*https://object-storage:8334'
+assert_contains "${PARITY_UP}" 'BACKUP_OBJECT_STORAGE_TLS_INSECURE.*false'
+assert_contains "${PARITY_UP}" 'BACKUP_OBJECT_STORAGE_DOCKER_NETWORK.*stuhelper-prod-parity-backend'
 assert_contains "${PARITY_UP}" 'WEB_PUBLIC_URL.*https://stuhelper\.com'
 assert_contains "${PARITY_UP}" 'ADMIN_PUBLIC_URL.*https://stuhelper\.com/admin/'
 assert_contains "${PARITY_UP}" 'ADMISSION_PUBLIC_BASE_URL.*https://join\.stuhelper\.com'
@@ -124,11 +134,14 @@ assert_contains "${PARITY_UP}" 'SSO_PUBLIC_BASE_URL.*https://sso\.stuhelper\.com
 assert_contains "${PARITY_UP}" 'SSO_PUBLIC_SMOKE_EXPECTED_ISSUER.*http://sso\.stuhelper\.com'
 assert_contains "${PARITY_UP}" 'SSO_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS.*true'
 
-assert_contains "${MINIO_CA_BUNDLE}" 'MINIO_TLS_DIR'
-assert_contains "${MINIO_CA_BUNDLE}" 'ca\.crt'
-assert_contains "${MINIO_CA_BUNDLE}" 'is a directory'
-assert_contains "${MINIO_CA_BUNDLE}" 'sudo -n true'
-assert_contains "${MINIO_CA_BUNDLE}" 'openssl_cmd req'
+assert_contains "${OBJECT_STORAGE_TLS_RENDER}" 'OBJECT_STORAGE_TLS_DIR'
+assert_contains "${OBJECT_STORAGE_TLS_RENDER}" 'ca\.crt'
+assert_contains "${OBJECT_STORAGE_TLS_RENDER}" 'is a directory'
+assert_contains "${OBJECT_STORAGE_TLS_RENDER}" 'sudo -n true'
+assert_contains "${OBJECT_STORAGE_TLS_RENDER}" 'openssl_cmd req'
+assert_contains "${OBJECT_STORAGE_CONFIG_RENDER}" 'stuhelper-application'
+assert_contains "${OBJECT_STORAGE_CONFIG_RENDER}" 'stuhelper-backup'
+assert_contains "${OBJECT_STORAGE_CONFIG_RENDER}" 'os\.replace'
 assert_contains "${PARITY_UP}" 'CASDOOR_EXTERNALPORT.*28085'
 assert_contains "${PARITY_UP}" 'CASDOOR_ISSUER.*http://sso\.stuhelper\.com'
 assert_contains "${PARITY_UP}" 'CASDOOR_PUBLIC_AUTH_BASE_URL.*https://sso\.stuhelper\.com'
@@ -139,6 +152,9 @@ assert_contains "${PARITY_UP}" 'TOKEN_COOKIE_DOMAIN.*\.stuhelper\.com'
 assert_contains "${PARITY_UP}" 'CASDOOR_BOOTSTRAP_ENABLED.*true'
 assert_contains "${PARITY_UP}" 'CASDOOR_BOOTSTRAP_ENV_FILE'
 assert_contains "${PARITY_UP}" 'CASDOOR_DB_PASSWORD'
+assert_contains "${PARITY_UP}" 'POSTGRES_EXPORTER_DB_PASSWORD'
+assert_contains "${PARITY_UP}" 'REDIS_EXPORTER_PASSWORD'
+assert_contains "${PARITY_UP}" 'REDIS_EXPORTER_USERNAME'
 assert_contains "${PARITY_UP}" 'CASDOOR_BOOTSTRAP_CLIENT_ID'
 assert_contains "${PARITY_UP}" 'CASDOOR_BOOTSTRAP_CLIENT_SECRET'
 assert_contains "${PARITY_UP}" 'CASDOOR_BOOTSTRAP_ORGANIZATION'
@@ -302,7 +318,10 @@ assert_contains "${PARITY_DATASTORE_SMOKE}" 'assert_pg_connect_allowed'
 assert_contains "${PARITY_DATASTORE_SMOKE}" 'assert_pg_connect_denied'
 assert_contains "${PARITY_DATASTORE_SMOKE}" 'Redis container must not join external datastore network'
 assert_contains "${PARITY_DATASTORE_SMOKE}" 'Redis plaintext port must be disabled'
-assert_contains "${PARITY_DATASTORE_SMOKE}" 'redis-cli --tls'
+assert_contains "${PARITY_DATASTORE_SMOKE}" 'redis-cli --no-auth-warning --tls'
+assert_contains "${PARITY_DATASTORE_SMOKE}" '/redis-runtime/users\.acl'
+assert_contains "${PARITY_DATASTORE_SMOKE}" 'Redis application ACL must deny administrative CONFIG access'
+assert_contains "${PARITY_DATASTORE_SMOKE}" 'Redis exporter ACL must deny writes'
 assert_contains "${PARITY_DATASTORE_SMOKE}" 'casdoorChecked'
 
 assert_contains "${PARITY_SMOKE_DATA}" 'smoke-data-evidence\.json'

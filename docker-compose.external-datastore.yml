@@ -11,6 +11,10 @@ services:
     networks: !override
     - external-datastore
 
+  postgres-client:
+    networks: !override
+    - external-datastore
+
   casdoor:
     profiles: !override [local-sso]
     depends_on: !reset []
@@ -28,7 +32,7 @@ services:
 
   openfga-migrate:
     environment:
-      OPENFGA_DATASTORE_URI: ${OPENFGA_DATASTORE_URI:-postgresql://openfga:${OPENFGA_DB_PASSWORD}@${POSTGRES_HOST:-postgres}:5432/openfga?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}}
+      OPENFGA_DATASTORE_URI: ${OPENFGA_DATASTORE_URI:-postgresql://openfga:${OPENFGA_DB_PASSWORD}@${POSTGRES_HOST:-postgres}:5432/openfga?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}&sslrootcert=/tls/ca.crt}
     depends_on: !reset []
     networks: !override
     - backend
@@ -36,14 +40,14 @@ services:
 
   openfga:
     environment:
-      OPENFGA_DATASTORE_URI: ${OPENFGA_DATASTORE_URI:-postgresql://openfga:${OPENFGA_DB_PASSWORD}@${POSTGRES_HOST:-postgres}:5432/openfga?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}}
+      OPENFGA_DATASTORE_URI: ${OPENFGA_DATASTORE_URI:-postgresql://openfga:${OPENFGA_DB_PASSWORD}@${POSTGRES_HOST:-postgres}:5432/openfga?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}&sslrootcert=/tls/ca.crt}
     networks: !override
     - backend
     - external-datastore
 
   postgres-exporter:
     environment:
-      DATA_SOURCE_URI: ${POSTGRES_EXPORTER_DATA_SOURCE_URI:-${POSTGRES_HOST:-postgres}:5432/${POSTGRES_DB:-stuhelper}?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}}
+      DATA_SOURCE_URI: ${POSTGRES_EXPORTER_DATA_SOURCE_URI:-${POSTGRES_HOST:-postgres}:5432/postgres?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}&sslrootcert=/tls/ca.crt}
     depends_on: !reset []
     networks: !override
     - backend

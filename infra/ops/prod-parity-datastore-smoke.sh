@@ -48,10 +48,12 @@ casdoor_db="${CASDOOR_DB_NAME:-casdoor}"
 app_user="${STUHELPER_APP_DB_USER:-stuhelper_app}"
 backup_user="${STUHELPER_BACKUP_DB_USER:-stuhelper_backup}"
 replication_user="${STUHELPER_REPLICATION_DB_USER:-stuhelper_replication}"
+metrics_user="stuhelper_metrics"
 openfga_user="${OPENFGA_DB_USER:-openfga}"
 casdoor_user="${CASDOOR_DB_USER:-casdoor}"
 redis_container="${REDIS_CONTAINER_NAME:-${STACK_NAME:-stuhelper}-redis}"
 redis_user="${REDIS_USERNAME:-stuhelper_app}"
+redis_metrics_user="${REDIS_EXPORTER_USERNAME:-stuhelper_metrics}"
 external_datastore_network="${EXTERNAL_DATASTORE_NETWORK:-}"
 compose_project="${COMPOSE_PROJECT_NAME:-${STACK_NAME:-stuhelper}}"
 
@@ -59,10 +61,16 @@ for key in \
   STUHELPER_APP_DB_PASSWORD \
   STUHELPER_BACKUP_DB_PASSWORD \
   STUHELPER_REPLICATION_DB_PASSWORD \
+  POSTGRES_EXPORTER_DB_PASSWORD \
   OPENFGA_DB_PASSWORD \
-  REDIS_PASSWORD; do
+  REDIS_PASSWORD \
+  REDIS_EXPORTER_PASSWORD; do
   [[ -n "${!key:-}" ]] || die "${key} is required for prod-parity datastore smoke"
 done
+[[ "${redis_user}" != "${redis_metrics_user}" ]] ||
+  die "REDIS_USERNAME and REDIS_EXPORTER_USERNAME must be different"
+[[ "${REDIS_PASSWORD}" != "${REDIS_EXPORTER_PASSWORD}" ]] ||
+  die "REDIS_PASSWORD and REDIS_EXPORTER_PASSWORD must be different"
 
 docker inspect "${postgres_container}" >/dev/null 2>&1 || die "PostgreSQL container not found: ${postgres_container}"
 docker inspect "${redis_container}" >/dev/null 2>&1 || die "Redis container not found: ${redis_container}"
@@ -87,6 +95,7 @@ metadata_failures="$(
       -v app_user="${app_user}" \
       -v backup_user="${backup_user}" \
       -v replication_user="${replication_user}" \
+      -v metrics_user="${metrics_user}" \
       -v openfga_user="${openfga_user}" <<'SQL'
 WITH failures(message) AS (
   SELECT 'stuhelper app role must be login-only'
@@ -123,6 +132,32 @@ WITH failures(message) AS (
        AND NOT rolsuper
        AND NOT rolcreatedb
        AND NOT rolcreaterole
+  )
+  UNION ALL
+  SELECT 'stuhelper metrics role must be a constrained login role'
+  WHERE NOT EXISTS (
+    SELECT 1
+      FROM pg_roles
+     WHERE rolname = :'metrics_user'
+       AND rolcanlogin
+       AND NOT rolsuper
+       AND NOT rolcreatedb
+       AND NOT rolcreaterole
+       AND NOT rolreplication
+       AND rolconnlimit = 5
+  )
+  UNION ALL
+  SELECT 'stuhelper metrics role must inherit pg_monitor'
+  WHERE NOT pg_has_role(:'metrics_user', 'pg_monitor', 'member')
+  UNION ALL
+  SELECT 'stuhelper metrics role has unexpected direct role memberships'
+  WHERE EXISTS (
+    SELECT 1
+      FROM pg_auth_members membership
+      JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
+      JOIN pg_roles member_role ON member_role.oid = membership.member
+     WHERE member_role.rolname = :'metrics_user'
+       AND granted_role.rolname <> 'pg_monitor'
   )
   UNION ALL
   SELECT 'openfga role must be login-only'
@@ -163,6 +198,12 @@ WITH failures(message) AS (
   UNION ALL
   SELECT 'stuhelper backup role must not have CONNECT on openfga database'
   WHERE has_database_privilege(:'backup_user', :'openfga_db', 'CONNECT')
+  UNION ALL
+  SELECT 'stuhelper metrics role must not have CONNECT on stuhelper database'
+  WHERE has_database_privilege(:'metrics_user', :'stuhelper_db', 'CONNECT')
+  UNION ALL
+  SELECT 'stuhelper metrics role must not have CONNECT on openfga database'
+  WHERE has_database_privilege(:'metrics_user', :'openfga_db', 'CONNECT')
 )
 SELECT message FROM failures;
 SQL
@@ -258,6 +299,9 @@ assert_pg_connect_denied "${app_user}" "${STUHELPER_APP_DB_PASSWORD}" "${openfga
 assert_pg_connect_allowed "${backup_user}" "${STUHELPER_BACKUP_DB_PASSWORD}" "${stuhelper_db}"
 assert_pg_connect_denied "${backup_user}" "${STUHELPER_BACKUP_DB_PASSWORD}" "${openfga_db}"
 assert_pg_connect_allowed "${replication_user}" "${STUHELPER_REPLICATION_DB_PASSWORD}" "${stuhelper_db}"
+assert_pg_connect_allowed "${metrics_user}" "${POSTGRES_EXPORTER_DB_PASSWORD}" "postgres"
+assert_pg_connect_denied "${metrics_user}" "${POSTGRES_EXPORTER_DB_PASSWORD}" "${stuhelper_db}"
+assert_pg_connect_denied "${metrics_user}" "${POSTGRES_EXPORTER_DB_PASSWORD}" "${openfga_db}"
 assert_pg_connect_allowed "${openfga_user}" "${OPENFGA_DB_PASSWORD}" "${openfga_db}"
 assert_pg_connect_denied "${openfga_user}" "${OPENFGA_DB_PASSWORD}" "${stuhelper_db}"
 
@@ -272,6 +316,7 @@ if [[ -n "${CASDOOR_DB_PASSWORD:-}" ]]; then
         -d "${postgres_superdb}" \
         -v casdoor_db="${casdoor_db}" \
         -v casdoor_user="${casdoor_user}" \
+        -v metrics_user="${metrics_user}" \
         -v stuhelper_db="${stuhelper_db}" \
         -v openfga_db="${openfga_db}" <<'SQL'
 WITH failures(message) AS (
@@ -301,6 +346,9 @@ WITH failures(message) AS (
   UNION ALL
   SELECT 'casdoor role must not have CONNECT on openfga database'
   WHERE has_database_privilege(:'casdoor_user', :'openfga_db', 'CONNECT')
+  UNION ALL
+  SELECT 'stuhelper metrics role must not have CONNECT on casdoor database'
+  WHERE has_database_privilege(:'metrics_user', :'casdoor_db', 'CONNECT')
 )
 SELECT message FROM failures;
 SQL
@@ -312,6 +360,7 @@ SQL
   assert_pg_connect_allowed "${casdoor_user}" "${CASDOOR_DB_PASSWORD}" "${casdoor_db}"
   assert_pg_connect_denied "${casdoor_user}" "${CASDOOR_DB_PASSWORD}" "${stuhelper_db}"
   assert_pg_connect_denied "${casdoor_user}" "${CASDOOR_DB_PASSWORD}" "${openfga_db}"
+  assert_pg_connect_denied "${metrics_user}" "${POSTGRES_EXPORTER_DB_PASSWORD}" "${casdoor_db}"
   casdoor_checked="true"
   record_check "postgres casdoor role and database are isolated"
 fi
@@ -335,17 +384,59 @@ record_check "redis container has its own /data volume"
 redis_cmd="$(docker inspect "${redis_container}" | jq -r '.[0].Config.Cmd | join(" ")')"
 [[ "${redis_cmd}" == *"--port 0"* ]] || die "Redis plaintext port must be disabled"
 [[ "${redis_cmd}" == *"--tls-port 6379"* ]] || die "Redis TLS port must be enabled on 6379"
-[[ "${redis_cmd}" == *"--aclfile /usr/local/etc/redis/users.acl"* ]] || die "Redis ACL file must be configured"
+[[ "${redis_cmd}" == *"--aclfile /redis-runtime/users.acl"* ]] || die "Redis ACL file must be configured"
 record_check "redis command enforces TLS-only ACL access"
+
+redis_runtime_modes="$(
+  docker exec "${redis_container}" sh -eu -c \
+    'stat -c "%n:%a" /redis-runtime/server.key /redis-runtime/users.acl'
+)"
+grep -Fxq '/redis-runtime/server.key:600' <<<"${redis_runtime_modes}" ||
+  die "Redis runtime server key must use mode 600"
+grep -Fxq '/redis-runtime/users.acl:600' <<<"${redis_runtime_modes}" ||
+  die "Redis runtime ACL must use mode 600"
+record_check "redis runtime private key and ACL use mode 600"
 
 redis_ping="$(
   docker exec \
     -e REDISCLI_AUTH="${REDIS_PASSWORD}" \
     "${redis_container}" \
-    redis-cli --tls --cacert /tls/ca.crt --user "${redis_user}" ping
+    redis-cli --no-auth-warning --tls --cacert /redis-runtime/ca.crt --user "${redis_user}" ping
 )"
 [[ "${redis_ping}" == "PONG" ]] || die "Redis TLS/ACL ping failed"
 record_check "redis TLS ACL ping succeeds"
+
+redis_app_admin_attempt="$(
+  docker exec \
+    -e REDISCLI_AUTH="${REDIS_PASSWORD}" \
+    "${redis_container}" \
+    redis-cli --no-auth-warning --tls --cacert /redis-runtime/ca.crt \
+      --user "${redis_user}" CONFIG GET maxmemory 2>&1 || true
+)"
+grep -Eq 'NOPERM|not allowed' <<<"${redis_app_admin_attempt}" ||
+  die "Redis application ACL must deny administrative CONFIG access"
+record_check "redis application ACL denies administrative commands"
+
+redis_metrics_info="$(
+  docker exec \
+    -e REDISCLI_AUTH="${REDIS_EXPORTER_PASSWORD}" \
+    "${redis_container}" \
+    redis-cli --no-auth-warning --tls --cacert /redis-runtime/ca.crt \
+      --user "${redis_metrics_user}" INFO server
+)"
+grep -q '^redis_version:' <<<"${redis_metrics_info}" ||
+  die "Redis exporter ACL cannot read INFO"
+
+redis_metrics_write_attempt="$(
+  docker exec \
+    -e REDISCLI_AUTH="${REDIS_EXPORTER_PASSWORD}" \
+    "${redis_container}" \
+    redis-cli --no-auth-warning --tls --cacert /redis-runtime/ca.crt \
+      --user "${redis_metrics_user}" SET stuhelper:parity:redis-metrics-denied 1 2>&1 || true
+)"
+grep -Eq 'NOPERM|not allowed' <<<"${redis_metrics_write_attempt}" ||
+  die "Redis exporter ACL must deny writes"
+record_check "redis exporter uses an independent read-only monitoring credential"
 
 mkdir -p "$(dirname "${evidence_file}")"
 POSTGRES_CONTAINER="${postgres_container}" \

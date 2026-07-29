@@ -136,17 +136,23 @@ CSV 加 UTF-8 BOM，公式注入字符（`=`、`+`、`-`、`@`）添加前缀转
 - SQL 全部参数化
 - 动态排序使用白名单
 - 学生认证所需 LDAP 连接信息只保存在学校级 `ldap_config`，由管理端配置更新和服务层校验负责收口
-- TLS 证书验证在所有环境强制启用（已移除 `LDAP_INSECURE_SKIP_VERIFY`、`REDIS_TLS_INSECURE`、`sslmode=require` 选项）
-- 外部依赖统一通过受控 client 调用，接入指标和 trace
+- 生产 TLS 连接只接受完整证书链与主机名校验；LDAP、PostgreSQL、Redis、对象存储和外部 Oracle 学籍源均不得使用跳过验证或仅加密不验身份的模式
+- PostgreSQL 服务端 CA 私钥/私钥证书目录只挂载到 PostgreSQL；Redis 服务端 CA 私钥、服务端私钥和仅含密码哈希的 ACL 目录只挂载到 Redis。两者启动时分别复制到 UID 70/999 可读的私有 tmpfs，源文件保持 0600。Redis 应用与 exporter 使用独立密码和显式命令白名单，exporter 无应用 key 访问权。
+- 应用、迁移、OpenFGA 和 exporter 只挂载 `postgres-client-ca` / `redis-client-ca` 中的公开 `ca.crt`；部署脚本会拒绝客户端 CA 目录中的额外文件、符号链接和私钥。
+- Oracle 学籍源只允许 TCPS `verify-full`，默认端口为 `2484`；应用只挂载独立的 `/external-student-source-tls/ca.crt` 公共 CA，不挂载服务端密钥、CA 私钥或数据库数据目录
+- Oracle 运行账号不得是 `SYS`/`SYSTEM`，只授予 `CREATE SESSION` 和目标表 `XH`/`XM` 查询所需的 `SELECT`；学号和姓名都经过长度、字符集与控制字符校验，冲突重复行和非法源记录按数据完整性故障关闭
+- 外部依赖统一通过受控 client 调用，记录固定低基数的延迟/结果指标并启用熔断；外部学籍源不可用时 User 与 Admission API 返回 503，不回退为“未匹配”，避免把基础设施故障误判为学生身份失败
 
 ## CI 安全门禁
 
 - Go：`gosec`（版本固定 v2.22.4，零 issue 零 nolint 注释）+ `govulncheck`
-- Node：`pnpm audit`
-- 镜像：`Trivy`
+- Node：Web、Admin、UniAppX 通过 npm 官方审计端点执行全依赖 `pnpm audit`；Koishi 执行全工作区 `yarn npm audit`；两者均阻断 `MODERATE` 及以上风险，不使用通告忽略项。`brace-expansion` 统一锁定到含 CVE-2026-14257 修复的 `5.0.8`，仓库补丁仅恢复旧版 `minimatch` 的 callable CommonJS/default export，并由 `check:dependency-compat` 验证安全版本、命名导出和实际 brace 匹配行为
+- 应用候选镜像：固定 digest 的 `Trivy` 阻断 `HIGH` / `CRITICAL`
+- 第三方运行时镜像：`infra/security/runtime-images.json` 管理完整 `tag@sha256` 清单，Trivy 同时检查 `HIGH` / `CRITICAL` / `UNKNOWN`；`CRITICAL` 只接受带证据且最长 30 天复核周期的 `not_affected` VEX，`HIGH` / `UNKNOWN` 只接受逐包逐版本、最长 30 天的显式例外
+- 生产部署：实际基础设施镜像引用必须与已扫描策略一致；可变标签即使固定 digest 也必须在 30 天内重新核对上游
 - CI SSH 部署使用固定 host key（`DEPLOY_TARGET_SSH_KNOWN_HOSTS` CI 变量），禁止 TOFU
 - 部署前自动执行数据库备份（`backup-postgres.sh`），失败阻断发布
-- 这些门禁在 GitLab CI 中会阻塞后续构建 / 发布
+- 这些门禁在 GitHub Actions 中汇总到 `CI / Required`，在迁移验收期保留的 GitLab CI 中也会阻塞后续构建 / 发布
 
 ## 日志脱敏
 

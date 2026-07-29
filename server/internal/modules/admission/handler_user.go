@@ -37,9 +37,9 @@ type cameraHandoffContinuationHTTPRequest struct {
 type schoolEmailOTPHTTPRequest struct {
 	SchoolCode         string `json:"schoolCode" binding:"required,numeric,len=10"`
 	AdmissionSessionID string `json:"admissionSessionID"`
-	Email              string `json:"email"`
-	StudentID          string `json:"studentID"`
-	StudentName        string `json:"studentName"`
+	Email              string `json:"email" binding:"omitempty,max=320"`
+	StudentID          string `json:"studentID" binding:"omitempty,max=50"`
+	StudentName        string `json:"studentName" binding:"omitempty,max=80"`
 }
 
 type schoolEmailAcademicMatchHTTPRequest struct {
@@ -52,8 +52,8 @@ type schoolEmailAcademicMatchHTTPRequest struct {
 type schoolEmailOTPVerifyHTTPRequest struct {
 	SchoolCode         string `json:"schoolCode" binding:"required,numeric,len=10"`
 	AdmissionSessionID string `json:"admissionSessionID"`
-	Email              string `json:"email" binding:"required"`
-	Code               string `json:"code" binding:"required"`
+	Email              string `json:"email" binding:"required,max=320"`
+	Code               string `json:"code" binding:"required,min=4,max=12"`
 }
 
 func (h *Handler) handlePreviewAdmissionSession(c *gin.Context) {

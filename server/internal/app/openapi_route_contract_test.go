@@ -78,7 +78,7 @@ func TestOpenAPIRoutes_AreFullyRegistered(t *testing.T) {
 	metricsGroup.POST("/vitals", metrics.VitalsHandler())
 	metricsGroup.POST("/frontend-errors", metrics.FrontendErrorHandler())
 
-	swagger, err := apigen.GetSwagger()
+	swagger, err := apigen.GetSpec()
 	require.NoError(t, err)
 
 	expected := collectOpenAPIRoutes(swagger)

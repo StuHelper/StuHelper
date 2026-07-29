@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 APPLICATION_RULES="${REPO_ROOT}/infra/observability/prometheus/rules/application.yml"
 PROM_TEMPLATE="${REPO_ROOT}/infra/observability/prometheus/prometheus.yml.tmpl"
+PROM_RENDERER="${REPO_ROOT}/infra/ops/render-observability-configs.py"
 
 fail() {
   echo "[observability-alert-contract][error] $*" >&2
@@ -31,6 +32,9 @@ assert_contains "Outbox job reached terminal retry threshold"
 assert_contains "StuHelperRefreshTokenReuseDetected"
 assert_contains "increase(auth_refresh_token_reuse_total[5m]) > 0"
 assert_contains "Refresh token reuse detected"
+assert_contains "StuHelperCircuitBreakerOpen"
+assert_contains "max by (name) (circuit_breaker_state) > 0"
+assert_contains "Dependency circuit breaker is open"
 assert_contains "StuHelperIAMDriftReconciliationThresholdExceeded"
 assert_contains "increase(iam_drift_reconciliation_threshold_exceeded_total[10m]) > 0"
 assert_contains "IAM drift reconciliation exceeded automatic repair threshold"
@@ -43,6 +47,8 @@ assert_contains "StuHelperOpenPlatformDisclosureRateLimited"
 assert_contains 'sum(rate(open_platform_disclosure_requests_total{result="rate_limited"}[5m])) > 0.1'
 assert_contains "StuHelperSSOProbeFailed"
 assert_contains 'probe_success{job="blackbox-http",instance="https://sso.stuhelper.com/.well-known/openid-configuration"} == 0'
-assert_prometheus_contains "https://sso.stuhelper.com/.well-known/openid-configuration"
+assert_prometheus_contains "__BLACKBOX_PRODUCTION_HTTP_TARGETS__"
+grep -Fq -- "https://sso.stuhelper.com/.well-known/openid-configuration" "${PROM_RENDERER}" ||
+  fail "expected production Prometheus renderer to retain the SSO probe target"
 
 echo "[observability-alert-contract] all assertions passed"

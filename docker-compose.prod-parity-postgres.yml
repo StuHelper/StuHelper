@@ -8,8 +8,9 @@ name: ${PROD_PARITY_DATASTORE_PROJECT:-stuhelper-prod-parity-datastore}
 
 services:
   postgres:
-    image: ${POSTGRES_IMAGE_REF:-postgres:18.3-alpine@sha256:54451ecb8ab38c24c3ec123f2fd501303a3a1856a5c66e98cecf2460d5e1e9d7}
+    image: ${POSTGRES_IMAGE_REF:-cgr.dev/chainguard/postgres:latest@sha256:dc2f04037c1044a22af76cee4de70b9111885b17c561b939d7ed70103d100759}
     container_name: ${PROD_PARITY_POSTGRES_CONTAINER:-stuhelper-prod-parity-postgres}
+    entrypoint: ["/usr/bin/docker-entrypoint.sh"]
     environment:
       POSTGRES_USER: ${SHARED_POSTGRES_SUPERUSER:-postgres}
       POSTGRES_PASSWORD: ${SHARED_POSTGRES_PASSWORD:?SHARED_POSTGRES_PASSWORD is required}

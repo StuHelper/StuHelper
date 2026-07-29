@@ -129,12 +129,10 @@ export function useAuthorizedAppsController(t: Translate) {
 
   async function submitRevokeDialog() {
     if (!revokeDialog.app || !revokeDialog.mode) return
-    let succeeded = false
-    if (revokeDialog.mode === 'scope' && revokeDialog.scope) {
-      succeeded = await revokeScope(revokeDialog.app, revokeDialog.scope)
-    } else {
-      succeeded = await revokeApp(revokeDialog.app)
-    }
+    const succeeded =
+      revokeDialog.mode === 'scope' && revokeDialog.scope
+        ? await revokeScope(revokeDialog.app, revokeDialog.scope)
+        : await revokeApp(revokeDialog.app)
     if (succeeded) {
       closeRevokeDialog()
     }

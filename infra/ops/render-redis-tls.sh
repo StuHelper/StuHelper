@@ -27,8 +27,9 @@ mkdir -p "${REDIS_TLS_DIR}"
 ensure_redis_tls_permissions() {
   chmod 755 "${REDIS_TLS_DIR}"
   [[ -f "${CA_KEY}" ]] && chmod 600 "${CA_KEY}"
-  # Redis drops privileges before reading its TLS key from the bind mount.
-  [[ -f "${SERVER_KEY}" ]] && chmod 644 "${SERVER_KEY}"
+  # The Redis wrapper copies this source key into a UID 999-only tmpfs before
+  # the upstream entrypoint drops privileges.
+  [[ -f "${SERVER_KEY}" ]] && chmod 600 "${SERVER_KEY}"
   [[ -f "${CA_CERT}" ]] && chmod 644 "${CA_CERT}"
   [[ -f "${SERVER_CERT}" ]] && chmod 644 "${SERVER_CERT}"
   return 0

@@ -17,7 +17,7 @@ import (
 
 const admissionTokenBytes = 32
 const admissionJoinTokenLength = 10
-const admissionJoinTokenAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+const admissionJoinCharacters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 type QQBindingGateway interface {
 	EnsureQQBindingForUserTx(context.Context, db.Tx, int64, string) error
@@ -197,13 +197,13 @@ func generateAdmissionToken() (string, error) {
 func generateAdmissionJoinToken() (string, error) {
 	var builder strings.Builder
 	builder.Grow(admissionJoinTokenLength)
-	alphabetSize := big.NewInt(int64(len(admissionJoinTokenAlphabet)))
+	alphabetSize := big.NewInt(int64(len(admissionJoinCharacters)))
 	for i := 0; i < admissionJoinTokenLength; i++ {
 		index, err := rand.Int(rand.Reader, alphabetSize)
 		if err != nil {
 			return "", err
 		}
-		builder.WriteByte(admissionJoinTokenAlphabet[index.Int64()])
+		builder.WriteByte(admissionJoinCharacters[index.Int64()])
 	}
 	return builder.String(), nil
 }

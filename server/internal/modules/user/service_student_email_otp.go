@@ -315,9 +315,15 @@ func (s *Service) resolveAcademicStudentEmailOTPIdentity(
 	if studentID == "" {
 		return nil, "", "", "", ErrStudentIDRequired
 	}
+	if !schoolauth.IsValidStudentID(studentID) {
+		return nil, "", "", "", ErrStudentIDInvalid
+	}
 	studentName := schoolauth.NormalizeAcademicName(input.StudentName)
 	if policy.RequireStudentName && studentName == "" {
 		return nil, "", "", "", ErrStudentNameRequired
+	}
+	if policy.RequireStudentName && !schoolauth.IsValidAcademicName(studentName) {
+		return nil, "", "", "", ErrStudentNameInvalid
 	}
 	student, err := s.lookupAcademicStudentForSchool(ctx, school, studentID)
 	if err != nil {

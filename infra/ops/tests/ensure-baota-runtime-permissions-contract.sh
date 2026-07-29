@@ -30,8 +30,7 @@ assert_contains() {
 [[ -f "${SCRIPT}" ]] || fail "missing script: ${SCRIPT}"
 bash -n "${SCRIPT}"
 
-assert_contains "${POSTGRES_TLS_SCRIPT}" 'POSTGRES_TLS_SERVER_KEY_OWNER="\$\{POSTGRES_TLS_SERVER_KEY_OWNER:-70:70\}"'
-assert_contains "${POSTGRES_TLS_SCRIPT}" 'chown "\$\{POSTGRES_TLS_SERVER_KEY_OWNER\}" "\$\{SERVER_KEY\}"'
+assert_contains "${POSTGRES_TLS_SCRIPT}" '\[\[ -f "\$\{SERVER_KEY\}" \]\] && chmod 600 "\$\{SERVER_KEY\}"'
 
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "${tmpdir}"' EXIT
@@ -41,11 +40,16 @@ casdoor_root="${tmpdir}/casdoor"
 openlist_root="${tmpdir}/openlist"
 mkdir -p \
   "${source_dir}/infra/generated/postgres" \
+  "${source_dir}/infra/generated/postgres-client-ca" \
   "${source_dir}/infra/generated/redis" \
-  "${source_dir}/infra/generated/minio" \
+  "${source_dir}/infra/generated/redis-client-ca" \
+  "${source_dir}/infra/generated/external-student-source-client-ca" \
+  "${source_dir}/infra/generated/object-storage" \
+  "${source_dir}/infra/generated/object-storage-client-ca" \
   "${source_dir}/infra/generated/observability/prometheus" \
   "${source_dir}/infra/generated/observability/alertmanager" \
   "${source_dir}/infra/postgres" \
+  "${source_dir}/infra/redis" \
   "${source_dir}/infra/observability/alloy" \
   "${source_dir}/infra/observability/loki" \
   "${source_dir}/infra/observability/tempo" \
@@ -59,20 +63,26 @@ touch \
   "${source_dir}/infra/generated/postgres/ca.crt" \
   "${source_dir}/infra/generated/postgres/server.key" \
   "${source_dir}/infra/generated/postgres/server.crt" \
+  "${source_dir}/infra/generated/postgres-client-ca/ca.crt" \
   "${source_dir}/infra/generated/redis/ca.key" \
   "${source_dir}/infra/generated/redis/ca.crt" \
   "${source_dir}/infra/generated/redis/server.key" \
   "${source_dir}/infra/generated/redis/server.crt" \
   "${source_dir}/infra/generated/redis/users.acl" \
-  "${source_dir}/infra/generated/minio/ca.key" \
-  "${source_dir}/infra/generated/minio/ca.crt" \
-  "${source_dir}/infra/generated/minio/ca-bundle.crt" \
-  "${source_dir}/infra/generated/minio/private.key" \
-  "${source_dir}/infra/generated/minio/public.crt" \
+  "${source_dir}/infra/generated/redis-client-ca/ca.crt" \
+  "${source_dir}/infra/generated/external-student-source-client-ca/ca.crt" \
+  "${source_dir}/infra/generated/object-storage/ca.key" \
+  "${source_dir}/infra/generated/object-storage/ca.crt" \
+  "${source_dir}/infra/generated/object-storage/private.key" \
+  "${source_dir}/infra/generated/object-storage/public.crt" \
+  "${source_dir}/infra/generated/object-storage/s3.json" \
+  "${source_dir}/infra/generated/object-storage-client-ca/ca.crt" \
   "${source_dir}/infra/generated/observability/prometheus/prometheus.yml" \
   "${source_dir}/infra/generated/observability/alertmanager/alertmanager.yml" \
   "${source_dir}/infra/postgres/init-extra-dbs.sh" \
+  "${source_dir}/infra/postgres/docker-entrypoint-with-tls.sh" \
   "${source_dir}/infra/postgres/pg_hba.prod.conf" \
+  "${source_dir}/infra/redis/docker-entrypoint-with-secrets.sh" \
   "${source_dir}/infra/observability/alloy/config.alloy" \
   "${source_dir}/infra/observability/loki/loki.yaml" \
   "${source_dir}/infra/observability/tempo/tempo.yaml" \
@@ -87,9 +97,14 @@ printf '{}\n' >"${openlist_root}/config.json"
 
 chmod 700 \
   "${source_dir}/infra/generated/postgres" \
+  "${source_dir}/infra/generated/postgres-client-ca" \
   "${source_dir}/infra/generated/redis" \
-  "${source_dir}/infra/generated/minio" \
+  "${source_dir}/infra/generated/redis-client-ca" \
+  "${source_dir}/infra/generated/external-student-source-client-ca" \
+  "${source_dir}/infra/generated/object-storage" \
+  "${source_dir}/infra/generated/object-storage-client-ca" \
   "${source_dir}/infra/postgres" \
+  "${source_dir}/infra/redis" \
   "${source_dir}/infra/observability" \
   "${openlist_root}"
 chmod 600 "${source_dir}/infra/generated/redis/users.acl"
@@ -116,24 +131,35 @@ assert_mode 600 "${source_dir}/infra/generated/postgres/ca.key"
 assert_mode 600 "${source_dir}/infra/generated/postgres/server.key"
 assert_mode 644 "${source_dir}/infra/generated/postgres/ca.crt"
 assert_mode 644 "${source_dir}/infra/generated/postgres/server.crt"
+assert_mode 755 "${source_dir}/infra/generated/postgres-client-ca"
+assert_mode 644 "${source_dir}/infra/generated/postgres-client-ca/ca.crt"
 
 assert_mode 755 "${source_dir}/infra/generated/redis"
 assert_mode 600 "${source_dir}/infra/generated/redis/ca.key"
 assert_mode 644 "${source_dir}/infra/generated/redis/ca.crt"
 assert_mode 600 "${source_dir}/infra/generated/redis/server.key"
 assert_mode 644 "${source_dir}/infra/generated/redis/server.crt"
-assert_mode 640 "${source_dir}/infra/generated/redis/users.acl"
+assert_mode 600 "${source_dir}/infra/generated/redis/users.acl"
+assert_mode 755 "${source_dir}/infra/generated/redis-client-ca"
+assert_mode 644 "${source_dir}/infra/generated/redis-client-ca/ca.crt"
+assert_mode 755 "${source_dir}/infra/generated/external-student-source-client-ca"
+assert_mode 644 "${source_dir}/infra/generated/external-student-source-client-ca/ca.crt"
 
-assert_mode 755 "${source_dir}/infra/generated/minio"
-assert_mode 600 "${source_dir}/infra/generated/minio/ca.key"
-assert_mode 600 "${source_dir}/infra/generated/minio/private.key"
-assert_mode 644 "${source_dir}/infra/generated/minio/ca.crt"
-assert_mode 644 "${source_dir}/infra/generated/minio/ca-bundle.crt"
-assert_mode 644 "${source_dir}/infra/generated/minio/public.crt"
+assert_mode 755 "${source_dir}/infra/generated/object-storage"
+assert_mode 600 "${source_dir}/infra/generated/object-storage/ca.key"
+assert_mode 600 "${source_dir}/infra/generated/object-storage/private.key"
+assert_mode 600 "${source_dir}/infra/generated/object-storage/s3.json"
+assert_mode 644 "${source_dir}/infra/generated/object-storage/ca.crt"
+assert_mode 644 "${source_dir}/infra/generated/object-storage/public.crt"
+assert_mode 755 "${source_dir}/infra/generated/object-storage-client-ca"
+assert_mode 644 "${source_dir}/infra/generated/object-storage-client-ca/ca.crt"
 
 assert_mode 755 "${source_dir}/infra/postgres"
 assert_mode 755 "${source_dir}/infra/postgres/init-extra-dbs.sh"
+assert_mode 755 "${source_dir}/infra/postgres/docker-entrypoint-with-tls.sh"
 assert_mode 644 "${source_dir}/infra/postgres/pg_hba.prod.conf"
+assert_mode 755 "${source_dir}/infra/redis"
+assert_mode 755 "${source_dir}/infra/redis/docker-entrypoint-with-secrets.sh"
 
 assert_mode 755 "${source_dir}/infra/observability/alloy"
 assert_mode 644 "${source_dir}/infra/observability/alloy/config.alloy"

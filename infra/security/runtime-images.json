@@ -1,0 +1,603 @@
+{
+  "schema_version": 1,
+  "controls": {
+    "critical_exception_policy": "vex-only",
+    "max_exception_days": 30,
+    "max_pin_review_days": 30
+  },
+  "scanner": {
+    "image": "ghcr.io/aquasecurity/trivy:0.72.0@sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f",
+    "severities": [
+      "HIGH",
+      "CRITICAL",
+      "UNKNOWN"
+    ]
+  },
+  "images": [
+    {
+      "id": "POSTGRES",
+      "kind": "registry",
+      "image": "cgr.dev/chainguard/postgres:latest@sha256:dc2f04037c1044a22af76cee4de70b9111885b17c561b939d7ed70103d100759",
+      "env_var": "POSTGRES_IMAGE_REF",
+      "env_files": [".env.example", ".env.prod.example"],
+      "scope": "production datastore and backup tooling",
+      "owner": "platform",
+      "pin_review": {
+        "verified_on": "2026-07-29",
+        "review_by": "2026-08-12",
+        "upstream_evidence": "https://images.chainguard.dev/directory/image/postgres/versions"
+      }
+    },
+    {
+      "id": "REDIS",
+      "kind": "registry",
+      "image": "redis:8.8.1-alpine@sha256:8096655e437712b07503796fb64d81359256cfcff0ab29d95a7da72863786efb",
+      "env_var": "REDIS_IMAGE_REF",
+      "env_files": [".env.example", ".env.prod.example"],
+      "scope": "production cache, token blacklist, and rate limiting",
+      "owner": "platform"
+    },
+    {
+      "id": "MAILPIT",
+      "kind": "registry",
+      "image": "axllent/mailpit:v1.30.6@sha256:7f33095f80e901f6ad08028f06ca284aa58fe84942be5496008d041d3b9f4d4d",
+      "env_var": "MAILPIT_IMAGE_REF",
+      "scope": "loopback-only local development mail capture",
+      "owner": "developer-experience"
+    },
+    {
+      "id": "SEAWEEDFS",
+      "kind": "registry",
+      "image": "chrislusf/seaweedfs:4.40@sha256:52194fba4fecd0083c842158b3a902ba6e04a63619b2b0efcd08007bdb6a4602",
+      "env_var": "DEV_OBJECT_STORAGE_IMAGE_REF",
+      "scope": "local development and isolated production-parity object storage",
+      "owner": "platform"
+    },
+    {
+      "id": "RCLONE",
+      "kind": "registry",
+      "image": "rclone/rclone:beta@sha256:f52965eba611ba8984117638b2a0539dcce170731937f93fbace66897d102698",
+      "env_var": "RCLONE_IMAGE_REF",
+      "env_files": [".env.example", ".env.prod.example"],
+      "scope": "short-lived production backup synchronization and development seed jobs",
+      "owner": "platform",
+      "pin_review": {
+        "verified_on": "2026-07-29",
+        "review_by": "2026-08-12",
+        "upstream_evidence": "https://github.com/rclone/rclone/releases"
+      }
+    },
+    {
+      "id": "GO_TOOLCHAIN",
+      "kind": "registry",
+      "image": "cgr.dev/chainguard/go:latest@sha256:b116b5f2d3f5e7556b66252f9ee7ef9988b84c2139c89d824efcebd6cadbf436",
+      "env_var": "GOLANG_IMAGE_REF",
+      "env_files": [".env.example", ".env.prod.example"],
+      "scope": "development migrations and bounded operational smoke checks",
+      "owner": "platform",
+      "pin_review": {
+        "verified_on": "2026-07-29",
+        "review_by": "2026-08-12",
+        "upstream_evidence": "https://images.chainguard.dev/directory/image/go/versions"
+      }
+    },
+    {
+      "id": "NODE_DEV",
+      "kind": "build",
+      "image": "stuhelper/node-dev:security-scan",
+      "context": "infra/images/node-dev",
+      "dockerfile": "infra/images/node-dev/Dockerfile",
+      "build_args": [
+        "NODE_BASE_IMAGE_REF=node:24.18.0-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd",
+        "NPM_VERSION=11.18.0",
+        "NPM_TARBALL_SHA512=T67M4L5wNm0cZ7EBLErcEkY1SmzEW/WJ+SADBzsFUY1UdAPfFHXFQtZ6SEXiK0+vzXysCvAsepbMaBTwnrAD+w==",
+        "BRACE_EXPANSION_VERSION=5.0.8",
+        "BRACE_EXPANSION_TARBALL_SHA512=JZyDyq3D4AUifKTPOB7DELf6XsB3WdPuNxCtob1vFXPsSXhdAiHBWJ/tJ8HAc9aH84BK+5JFZLNkJKx3G9kzQg=="
+      ],
+      "scope": "Web and Admin local development servers",
+      "owner": "developer-experience"
+    },
+    {
+      "id": "CASDOOR_DEV",
+      "kind": "registry",
+      "image": "casbin/casdoor:latest@sha256:d7658640aba370495e59dc1464756d2ae7ec66576203b9de0040e9cc37793607",
+      "env_var": "CASDOOR_IMAGE_REF",
+      "scope": "optional loopback-only local identity-provider development fixture",
+      "owner": "identity",
+      "pin_review": {
+        "verified_on": "2026-07-29",
+        "review_by": "2026-08-05",
+        "upstream_evidence": "https://github.com/casdoor/casdoor/releases/tag/v3.125.0"
+      }
+    },
+    {
+      "id": "OPENFGA",
+      "kind": "registry",
+      "image": "openfga/openfga:v1.18.1@sha256:efde89d24487da1a8bc37d85b61341f1fb7024943a1ded65f4b7d51a75666688",
+      "env_var": "OPENFGA_IMAGE_REF",
+      "env_files": [".env.example", ".env.prod.example"],
+      "scope": "production resource authorization on the private backend network",
+      "owner": "identity"
+    },
+    {
+      "id": "DOCKER_SOCKET_PROXY",
+      "kind": "registry",
+      "image": "ghcr.io/tecnativa/docker-socket-proxy:latest@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459",
+      "env_var": "DOCKER_SOCKET_PROXY_IMAGE_REF",
+      "env_files": [".env.example", ".env.prod.example"],
+      "scope": "read-only observability access to an allowlisted Docker API",
+      "owner": "observability",
+      "pin_review": {
+        "verified_on": "2026-07-29",
+        "review_by": "2026-08-12",
+        "upstream_evidence": "https://github.com/Tecnativa/docker-socket-proxy/releases"
+      }
+    },
+    {
+      "id": "ALLOY",
+      "kind": "registry",
+      "image": "grafana/alloy:v1.18.0@sha256:491b0578c04983fd54fe99b587b6fab4404dc46d0dc16677bd6b00cc1140b308",
+      "env_var": "GRAFANA_ALLOY_IMAGE_REF",
+      "env_files": [".env.example", ".env.prod.example"],
+      "scope": "production telemetry collector on private observability networks",
+      "owner": "observability"
+    },
+    {
+      "id": "PROMETHEUS",
+      "kind": "registry",
+      "image": "prom/prometheus:v3.13.1@sha256:3c42b892cf723fa54d2f262c37a0e1f80aa8c8ddb1da7b9b0df9455a35a7f893",
+      "env_var": "PROMETHEUS_IMAGE_REF",
+      "env_files": [".env.example", ".env.prod.example"],
+      "scope": "production metrics database on private observability networks",
+      "owner": "observability"
+    },
+    {
+      "id": "ALERTMANAGER",
+      "kind": "registry",
+      "image": "prom/alertmanager:v0.33.1@sha256:9e082985f56f4c8c9f724e18f2288c6708f472e56a5286b8863d080434ea065d",
+      "env_var": "ALERTMANAGER_IMAGE_REF",
+      "env_files": [".env.example", ".env.prod.example"],
+      "scope": "production alert routing on private observability networks",
+      "owner": "observability"
+    },
+    {
+      "id": "LOKI",
+      "kind": "registry",
+      "image": "grafana/loki:3.7.4@sha256:87f0a067673756a3cede1bcbf0c74875f7df9b09fddb53e399d0c576f756cfcc",
+      "env_var": "LOKI_IMAGE_REF",
+      "env_files": [".env.example", ".env.prod.example"],
+      "scope": "production log storage on private observability networks",
+      "owner": "observability"
+    },
+    {
+      "id": "TEMPO",
+      "kind": "registry",
+      "image": "grafana/tempo:3.0.2@sha256:cda87c212d8c584dc0b89e337e7ed648a5100feb657e5d528480ee4fa03dbbe3",
+      "env_var": "TEMPO_IMAGE_REF",
+      "env_files": [".env.example", ".env.prod.example"],
+      "scope": "production trace storage on private observability networks",
+      "owner": "observability"
+    },
+    {
+      "id": "GRAFANA",
+      "kind": "registry",
+      "image": "grafana/grafana:nightly-slim@sha256:5909f8f4123b9ff3efcd701e23c0b5310b6ae0ea12fd3ee906f2bc91831e5363",
+      "env_var": "GRAFANA_IMAGE_REF",
+      "env_files": [".env.example", ".env.prod.example"],
+      "scope": "loopback-bound production observability user interface",
+      "owner": "observability",
+      "pin_review": {
+        "verified_on": "2026-07-29",
+        "review_by": "2026-08-12",
+        "upstream_evidence": "https://hub.docker.com/r/grafana/grafana/tags?name=nightly-slim"
+      }
+    },
+    {
+      "id": "NODE_EXPORTER",
+      "kind": "registry",
+      "image": "prom/node-exporter:v1.12.1@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0",
+      "env_var": "NODE_EXPORTER_IMAGE_REF",
+      "env_files": [".env.example", ".env.prod.example"],
+      "scope": "private host metrics exporter",
+      "owner": "observability"
+    },
+    {
+      "id": "CADVISOR",
+      "kind": "registry",
+      "image": "ghcr.io/google/cadvisor:v0.60.5@sha256:763aecf1c32c2be8a1a75f9abfc2fc461005c9dbbaa39cb356b354aac1296dbe",
+      "env_var": "CADVISOR_IMAGE_REF",
+      "env_files": [".env.example", ".env.prod.example"],
+      "scope": "private container metrics exporter with read-only host mounts",
+      "owner": "observability"
+    },
+    {
+      "id": "POSTGRES_EXPORTER",
+      "kind": "registry",
+      "image": "quay.io/prometheuscommunity/postgres-exporter:v0.20.1@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e",
+      "env_var": "POSTGRES_EXPORTER_IMAGE_REF",
+      "env_files": [".env.example", ".env.prod.example"],
+      "scope": "private PostgreSQL metrics exporter",
+      "owner": "observability"
+    },
+    {
+      "id": "REDIS_EXPORTER",
+      "kind": "registry",
+      "image": "oliver006/redis_exporter:v1.88.0@sha256:2c8c55c63ce4d915389f03d337b8acef56aaaca9fab8728291287e612d4d6398",
+      "env_var": "REDIS_EXPORTER_IMAGE_REF",
+      "env_files": [".env.example", ".env.prod.example"],
+      "scope": "private Redis metrics exporter",
+      "owner": "observability"
+    },
+    {
+      "id": "BLACKBOX_EXPORTER",
+      "kind": "registry",
+      "image": "quay.io/prometheus/blackbox-exporter:master@sha256:9a7db82eecc48c8f226a24ca72c7b367b749b7994881824aa9b6a05b24ff4579",
+      "env_var": "BLACKBOX_EXPORTER_IMAGE_REF",
+      "env_files": [".env.example", ".env.prod.example"],
+      "scope": "private synthetic HTTP and TLS probe executor",
+      "owner": "observability",
+      "pin_review": {
+        "verified_on": "2026-07-29",
+        "review_by": "2026-08-12",
+        "upstream_evidence": "https://github.com/prometheus/blackbox_exporter/commits/master/"
+      }
+    },
+    {
+      "id": "ALERT_WEBHOOK_SINK",
+      "kind": "registry",
+      "image": "mendhak/http-https-echo:41@sha256:2046be25f4a2c0bdda662ebfb7c2b7b60fc95c31d97987be143645a8a2194a40",
+      "env_var": "ALERT_WEBHOOK_SINK_IMAGE_REF",
+      "scope": "local development and production-parity alert fixture",
+      "owner": "observability"
+    }
+  ],
+  "exceptions": [
+    {
+      "image_id": "MAILPIT",
+      "owner": "platform-security",
+      "approved_on": "2026-07-29",
+      "expires_on": "2026-08-12",
+      "rationale": "The current upstream release embeds the x/crypto module that Trivy maps to an unversioned OpenPGP maintenance advisory.",
+      "mitigations": [
+        "Mailpit is enabled only in the dev-full profile and is bound to loopback.",
+        "No production email delivery path or public ingress reaches this service."
+      ],
+      "findings": [
+        {"id": "GO-2026-5932", "severity": "UNKNOWN", "package": "golang.org/x/crypto", "installed_version": "v0.54.0", "fixed_version": ""}
+      ]
+    },
+    {
+      "image_id": "SEAWEEDFS",
+      "owner": "platform-security",
+      "approved_on": "2026-07-29",
+      "expires_on": "2026-08-12",
+      "rationale": "SeaweedFS 4.40 is the current release and upstream has not yet published a digest containing the gRPC fix.",
+      "mitigations": [
+        "The service is limited to local development and isolated parity profiles.",
+        "All published ports bind to loopback and production uses an external HTTPS S3 service."
+      ],
+      "findings": [
+        {"id": "GHSA-hrxh-6v49-42gf", "severity": "HIGH", "package": "google.golang.org/grpc", "installed_version": "v1.81.1", "fixed_version": "1.82.1"},
+        {"id": "GO-2026-5932", "severity": "UNKNOWN", "package": "golang.org/x/crypto", "installed_version": "v0.54.0", "fixed_version": ""}
+      ]
+    },
+    {
+      "image_id": "RCLONE",
+      "owner": "platform-security",
+      "approved_on": "2026-07-29",
+      "expires_on": "2026-08-12",
+      "rationale": "The pinned beta build is otherwise clear and the remaining advisory has no fixed module version.",
+      "mitigations": [
+        "Rclone runs as a short-lived, capability-free job with no inbound listener.",
+        "Credentials and destination scope are restricted to the configured backup or seed bucket."
+      ],
+      "findings": [
+        {"id": "GO-2026-5932", "severity": "UNKNOWN", "package": "golang.org/x/crypto", "installed_version": "v0.54.0", "fixed_version": ""}
+      ]
+    },
+    {
+      "image_id": "CASDOOR_DEV",
+      "owner": "platform-security",
+      "approved_on": "2026-07-29",
+      "expires_on": "2026-08-05",
+      "rationale": "The optional local identity fixture uses the newest upstream image while its next dependency rebuild is pending.",
+      "mitigations": [
+        "The service exists only in the dev-full profile and every published port binds to loopback.",
+        "It is not the production identity provider and no production identity data is mounted or queried.",
+        "The pin expires after seven days so a rebuilt upstream image is adopted promptly."
+      ],
+      "findings": [
+        {"id": "CVE-2026-25681", "severity": "HIGH", "package": "golang.org/x/net", "installed_version": "v0.49.0", "fixed_version": "0.55.0"},
+        {"id": "CVE-2026-27136", "severity": "HIGH", "package": "golang.org/x/net", "installed_version": "v0.49.0", "fixed_version": "0.55.0"},
+        {"id": "CVE-2026-27145", "severity": "HIGH", "package": "stdlib", "installed_version": "v1.25.8", "fixed_version": "1.25.11, 1.26.4"},
+        {"id": "CVE-2026-29181", "severity": "HIGH", "package": "go.opentelemetry.io/otel", "installed_version": "v1.40.0", "fixed_version": "1.41.0"},
+        {"id": "CVE-2026-32280", "severity": "HIGH", "package": "stdlib", "installed_version": "v1.25.8", "fixed_version": "1.25.9, 1.26.2"},
+        {"id": "CVE-2026-32281", "severity": "HIGH", "package": "stdlib", "installed_version": "v1.25.8", "fixed_version": "1.25.9, 1.26.2"},
+        {"id": "CVE-2026-32283", "severity": "HIGH", "package": "stdlib", "installed_version": "v1.25.8", "fixed_version": "1.25.9, 1.26.2"},
+        {"id": "CVE-2026-33252", "severity": "HIGH", "package": "github.com/modelcontextprotocol/go-sdk", "installed_version": "v1.4.0", "fixed_version": "1.4.1"},
+        {"id": "CVE-2026-33487", "severity": "HIGH", "package": "github.com/russellhaering/goxmldsig", "installed_version": "v1.2.0", "fixed_version": "1.6.0"},
+        {"id": "CVE-2026-33811", "severity": "HIGH", "package": "stdlib", "installed_version": "v1.25.8", "fixed_version": "1.25.10, 1.26.3"},
+        {"id": "CVE-2026-33814", "severity": "HIGH", "package": "golang.org/x/net", "installed_version": "v0.49.0", "fixed_version": "0.53.0"},
+        {"id": "CVE-2026-33814", "severity": "HIGH", "package": "stdlib", "installed_version": "v1.25.8", "fixed_version": "1.25.10, 1.26.3"},
+        {"id": "CVE-2026-34986", "severity": "HIGH", "package": "github.com/go-jose/go-jose/v4", "installed_version": "v4.1.3", "fixed_version": "4.1.4"},
+        {"id": "CVE-2026-39820", "severity": "HIGH", "package": "stdlib", "installed_version": "v1.25.8", "fixed_version": "1.25.10, 1.26.3"},
+        {"id": "CVE-2026-39821", "severity": "HIGH", "package": "golang.org/x/net", "installed_version": "v0.49.0", "fixed_version": "0.55.0"},
+        {"id": "CVE-2026-39822", "severity": "HIGH", "package": "stdlib", "installed_version": "v1.25.8", "fixed_version": "1.25.12, 1.26.5, 1.27.0-rc.2"},
+        {"id": "CVE-2026-39828", "severity": "HIGH", "package": "golang.org/x/crypto", "installed_version": "v0.47.0", "fixed_version": "0.52.0"},
+        {"id": "CVE-2026-39829", "severity": "HIGH", "package": "golang.org/x/crypto", "installed_version": "v0.47.0", "fixed_version": "0.52.0"},
+        {"id": "CVE-2026-39830", "severity": "HIGH", "package": "golang.org/x/crypto", "installed_version": "v0.47.0", "fixed_version": "0.52.0"},
+        {"id": "CVE-2026-39831", "severity": "HIGH", "package": "golang.org/x/crypto", "installed_version": "v0.47.0", "fixed_version": "0.52.0"},
+        {"id": "CVE-2026-39832", "severity": "HIGH", "package": "golang.org/x/crypto", "installed_version": "v0.47.0", "fixed_version": "0.52.0"},
+        {"id": "CVE-2026-39835", "severity": "HIGH", "package": "golang.org/x/crypto", "installed_version": "v0.47.0", "fixed_version": "0.52.0"},
+        {"id": "CVE-2026-39836", "severity": "HIGH", "package": "stdlib", "installed_version": "v1.25.8", "fixed_version": "1.25.10, 1.26.3"},
+        {"id": "CVE-2026-39883", "severity": "HIGH", "package": "go.opentelemetry.io/otel/sdk", "installed_version": "v1.40.0", "fixed_version": "1.43.0"},
+        {"id": "CVE-2026-42499", "severity": "HIGH", "package": "stdlib", "installed_version": "v1.25.8", "fixed_version": "1.25.10, 1.26.3"},
+        {"id": "CVE-2026-42504", "severity": "HIGH", "package": "stdlib", "installed_version": "v1.25.8", "fixed_version": "1.25.11, 1.26.4"},
+        {"id": "CVE-2026-42508", "severity": "HIGH", "package": "golang.org/x/crypto", "installed_version": "v0.47.0", "fixed_version": "0.52.0"},
+        {"id": "CVE-2026-44973", "severity": "HIGH", "package": "github.com/go-git/go-billy/v5", "installed_version": "v5.6.2", "fixed_version": "5.9.0"},
+        {"id": "CVE-2026-45022", "severity": "HIGH", "package": "github.com/go-git/go-git/v5", "installed_version": "v5.16.3", "fixed_version": "5.19.0"},
+        {"id": "CVE-2026-46595", "severity": "HIGH", "package": "golang.org/x/crypto", "installed_version": "v0.47.0", "fixed_version": "0.52.0"},
+        {"id": "CVE-2026-46597", "severity": "HIGH", "package": "golang.org/x/crypto", "installed_version": "v0.47.0", "fixed_version": "0.52.0"},
+        {"id": "CVE-2026-46602", "severity": "HIGH", "package": "golang.org/x/image", "installed_version": "v0.18.0", "fixed_version": "0.43.0"},
+        {"id": "CVE-2026-46604", "severity": "HIGH", "package": "golang.org/x/image", "installed_version": "v0.18.0", "fixed_version": "0.43.0"},
+        {"id": "CVE-2026-56852", "severity": "HIGH", "package": "golang.org/x/text", "installed_version": "v0.33.0", "fixed_version": "0.39.0"},
+        {"id": "GHSA-hrxh-6v49-42gf", "severity": "HIGH", "package": "google.golang.org/grpc", "installed_version": "v1.79.3", "fixed_version": "1.82.1"},
+        {"id": "GHSA-hwqm-qvj9-4jr2", "severity": "HIGH", "package": "github.com/russellhaering/gosaml2", "installed_version": "v0.9.0", "fixed_version": "0.11.0"},
+        {"id": "GHSA-pcgw-qcv5-h8ch", "severity": "HIGH", "package": "github.com/russellhaering/gosaml2", "installed_version": "v0.9.0", "fixed_version": "0.11.0"},
+        {"id": "GHSA-q382-vc8q-7jhj", "severity": "HIGH", "package": "github.com/modelcontextprotocol/go-sdk", "installed_version": "v1.4.0", "fixed_version": "1.4.1"},
+        {"id": "CVE-2026-39824", "severity": "UNKNOWN", "package": "golang.org/x/sys", "installed_version": "v0.40.0", "fixed_version": "0.44.0"},
+        {"id": "CVE-2026-42500", "severity": "UNKNOWN", "package": "golang.org/x/image", "installed_version": "v0.18.0", "fixed_version": "0.41.0"},
+        {"id": "CVE-2026-46600", "severity": "UNKNOWN", "package": "golang.org/x/net", "installed_version": "v0.49.0", "fixed_version": "0.56.0"},
+        {"id": "GO-2026-5932", "severity": "UNKNOWN", "package": "golang.org/x/crypto", "installed_version": "v0.47.0", "fixed_version": ""}
+      ]
+    },
+    {
+      "image_id": "OPENFGA",
+      "owner": "platform-security",
+      "approved_on": "2026-07-29",
+      "expires_on": "2026-08-12",
+      "rationale": "OpenFGA 1.18.1 is the current stable release and a fixed upstream image is not yet available.",
+      "mitigations": [
+        "OpenFGA is reachable only from the private backend network and loopback-bound host ports.",
+        "The deployment does not use xDS RBAC and application calls use bounded request timeouts."
+      ],
+      "findings": [
+        {"id": "CVE-2026-39822", "severity": "HIGH", "package": "stdlib", "installed_version": "v1.26.4", "fixed_version": "1.25.12, 1.26.5, 1.27.0-rc.2"},
+        {"id": "CVE-2026-56852", "severity": "HIGH", "package": "golang.org/x/text", "installed_version": "v0.37.0", "fixed_version": "0.39.0"},
+        {"id": "GHSA-hrxh-6v49-42gf", "severity": "HIGH", "package": "google.golang.org/grpc", "installed_version": "v1.81.1", "fixed_version": "1.82.1"},
+        {"id": "CVE-2026-46600", "severity": "UNKNOWN", "package": "golang.org/x/net", "installed_version": "v0.55.0", "fixed_version": "0.56.0"}
+      ]
+    },
+    {
+      "image_id": "ALLOY",
+      "owner": "platform-security",
+      "approved_on": "2026-07-29",
+      "expires_on": "2026-08-12",
+      "rationale": "Alloy 1.18.0 is current and its next upstream dependency rebuild has not been published.",
+      "mitigations": [
+        "Alloy has no raw Docker socket and uses a GET-only allowlisted proxy on an internal network.",
+        "The proxy denies POST, archive upload, exec, image, and volume APIs.",
+        "Alloy runs non-root with a read-only filesystem and all Linux capabilities dropped."
+      ],
+      "findings": [
+        {"id": "CVE-2026-34040", "severity": "HIGH", "package": "github.com/docker/docker", "installed_version": "v28.5.2+incompatible", "fixed_version": "29.3.1"},
+        {"id": "CVE-2026-41567", "severity": "HIGH", "package": "github.com/docker/docker", "installed_version": "v28.5.2+incompatible", "fixed_version": ""},
+        {"id": "CVE-2026-42306", "severity": "HIGH", "package": "github.com/docker/docker", "installed_version": "v28.5.2+incompatible", "fixed_version": ""},
+        {"id": "CVE-2026-56852", "severity": "HIGH", "package": "golang.org/x/text", "installed_version": "v0.38.0", "fixed_version": "0.39.0"},
+        {"id": "GHSA-hrxh-6v49-42gf", "severity": "HIGH", "package": "google.golang.org/grpc", "installed_version": "v1.81.1", "fixed_version": "1.82.1"},
+        {"id": "GO-2026-5932", "severity": "UNKNOWN", "package": "golang.org/x/crypto", "installed_version": "v0.53.0", "fixed_version": ""}
+      ]
+    },
+    {
+      "image_id": "PROMETHEUS",
+      "owner": "platform-security",
+      "approved_on": "2026-07-29",
+      "expires_on": "2026-08-12",
+      "rationale": "Prometheus 3.13.1 is current and upstream has not published a rebuilt image with the listed Go fixes.",
+      "mitigations": [
+        "Prometheus is isolated on observability networks and its host port is loopback-bound.",
+        "The container is non-root, read-only, capability-free, and accepts no xDS configuration."
+      ],
+      "findings": [
+        {"id": "CVE-2026-56852", "severity": "HIGH", "package": "golang.org/x/text", "installed_version": "v0.38.0", "fixed_version": "0.39.0"},
+        {"id": "GHSA-hrxh-6v49-42gf", "severity": "HIGH", "package": "google.golang.org/grpc", "installed_version": "v1.81.1", "fixed_version": "1.82.1"},
+        {"id": "CVE-2026-46600", "severity": "UNKNOWN", "package": "golang.org/x/net", "installed_version": "v0.55.0", "fixed_version": "0.56.0"},
+        {"id": "GO-2026-5932", "severity": "UNKNOWN", "package": "golang.org/x/crypto", "installed_version": "v0.52.0", "fixed_version": ""}
+      ]
+    },
+    {
+      "image_id": "ALERTMANAGER",
+      "owner": "platform-security",
+      "approved_on": "2026-07-29",
+      "expires_on": "2026-08-12",
+      "rationale": "Alertmanager 0.33.1 is current and its upstream image predates the newest Go dependency advisories.",
+      "mitigations": [
+        "Alertmanager is private, loopback-bound, non-root, read-only, and capability-free.",
+        "Webhook destinations are allowlisted and no SSH server or xDS control plane is configured."
+      ],
+      "findings": [
+        {"id": "CVE-2026-39822", "severity": "HIGH", "package": "stdlib", "installed_version": "v1.26.4", "fixed_version": "1.25.12, 1.26.5, 1.27.0-rc.2"},
+        {"id": "CVE-2026-39828", "severity": "HIGH", "package": "golang.org/x/crypto", "installed_version": "v0.51.0", "fixed_version": "0.52.0"},
+        {"id": "CVE-2026-39829", "severity": "HIGH", "package": "golang.org/x/crypto", "installed_version": "v0.51.0", "fixed_version": "0.52.0"},
+        {"id": "CVE-2026-39830", "severity": "HIGH", "package": "golang.org/x/crypto", "installed_version": "v0.51.0", "fixed_version": "0.52.0"},
+        {"id": "CVE-2026-39831", "severity": "HIGH", "package": "golang.org/x/crypto", "installed_version": "v0.51.0", "fixed_version": "0.52.0"},
+        {"id": "CVE-2026-39832", "severity": "HIGH", "package": "golang.org/x/crypto", "installed_version": "v0.51.0", "fixed_version": "0.52.0"},
+        {"id": "CVE-2026-39835", "severity": "HIGH", "package": "golang.org/x/crypto", "installed_version": "v0.51.0", "fixed_version": "0.52.0"},
+        {"id": "CVE-2026-42508", "severity": "HIGH", "package": "golang.org/x/crypto", "installed_version": "v0.51.0", "fixed_version": "0.52.0"},
+        {"id": "CVE-2026-46595", "severity": "HIGH", "package": "golang.org/x/crypto", "installed_version": "v0.51.0", "fixed_version": "0.52.0"},
+        {"id": "CVE-2026-46597", "severity": "HIGH", "package": "golang.org/x/crypto", "installed_version": "v0.51.0", "fixed_version": "0.52.0"},
+        {"id": "CVE-2026-56852", "severity": "HIGH", "package": "golang.org/x/text", "installed_version": "v0.37.0", "fixed_version": "0.39.0"},
+        {"id": "GHSA-hrxh-6v49-42gf", "severity": "HIGH", "package": "google.golang.org/grpc", "installed_version": "v1.80.0", "fixed_version": "1.82.1"},
+        {"id": "CVE-2026-46600", "severity": "UNKNOWN", "package": "golang.org/x/net", "installed_version": "v0.55.0", "fixed_version": "0.56.0"},
+        {"id": "GO-2026-5932", "severity": "UNKNOWN", "package": "golang.org/x/crypto", "installed_version": "v0.51.0", "fixed_version": ""}
+      ]
+    },
+    {
+      "image_id": "LOKI",
+      "owner": "platform-security",
+      "approved_on": "2026-07-29",
+      "expires_on": "2026-08-12",
+      "rationale": "Loki 3.7.4 is current and no rebuilt stable image contains the newly released dependency fixes.",
+      "mitigations": [
+        "Loki has no public port and accepts traffic only on the private observability network.",
+        "The container is non-root, read-only, and runs without Linux capabilities."
+      ],
+      "findings": [
+        {"id": "CVE-2026-56852", "severity": "HIGH", "package": "golang.org/x/text", "installed_version": "v0.38.0", "fixed_version": "0.39.0"},
+        {"id": "GHSA-hrxh-6v49-42gf", "severity": "HIGH", "package": "google.golang.org/grpc", "installed_version": "v1.81.1", "fixed_version": "1.82.1"},
+        {"id": "CVE-2026-46600", "severity": "UNKNOWN", "package": "golang.org/x/net", "installed_version": "v0.55.0", "fixed_version": "0.56.0"},
+        {"id": "GO-2026-5932", "severity": "UNKNOWN", "package": "golang.org/x/crypto", "installed_version": "v0.52.0", "fixed_version": ""}
+      ]
+    },
+    {
+      "image_id": "TEMPO",
+      "owner": "platform-security",
+      "approved_on": "2026-07-29",
+      "expires_on": "2026-08-12",
+      "rationale": "Tempo 3.0.2 is current and upstream has not yet published a fixed stable container build.",
+      "mitigations": [
+        "Tempo is reachable only on private observability networks and loopback-bound ports.",
+        "The container is non-root, read-only, capability-free, and does not use xDS RBAC."
+      ],
+      "findings": [
+        {"id": "CVE-2026-27145", "severity": "HIGH", "package": "stdlib", "installed_version": "v1.26.3", "fixed_version": "1.25.11, 1.26.4"},
+        {"id": "CVE-2026-39822", "severity": "HIGH", "package": "stdlib", "installed_version": "v1.26.3", "fixed_version": "1.25.12, 1.26.5, 1.27.0-rc.2"},
+        {"id": "CVE-2026-42504", "severity": "HIGH", "package": "stdlib", "installed_version": "v1.26.3", "fixed_version": "1.25.11, 1.26.4"},
+        {"id": "CVE-2026-56852", "severity": "HIGH", "package": "golang.org/x/text", "installed_version": "v0.37.0", "fixed_version": "0.39.0"},
+        {"id": "GHSA-hrxh-6v49-42gf", "severity": "HIGH", "package": "google.golang.org/grpc", "installed_version": "v1.80.0", "fixed_version": "1.82.1"},
+        {"id": "CVE-2026-46600", "severity": "UNKNOWN", "package": "golang.org/x/net", "installed_version": "v0.55.0", "fixed_version": "0.56.0"},
+        {"id": "GO-2026-5932", "severity": "UNKNOWN", "package": "golang.org/x/crypto", "installed_version": "v0.52.0", "fixed_version": ""}
+      ]
+    },
+    {
+      "image_id": "GRAFANA",
+      "owner": "platform-security",
+      "approved_on": "2026-07-29",
+      "expires_on": "2026-08-12",
+      "rationale": "The pinned nightly image has no known high or critical finding and one unversioned module advisory.",
+      "mitigations": [
+        "Grafana is loopback-bound behind authenticated ingress and has anonymous access disabled.",
+        "The container is non-root, read-only, capability-free, and update checks are disabled."
+      ],
+      "findings": [
+        {"id": "GO-2026-5932", "severity": "UNKNOWN", "package": "golang.org/x/crypto", "installed_version": "v0.54.0", "fixed_version": ""}
+      ]
+    },
+    {
+      "image_id": "NODE_EXPORTER",
+      "owner": "platform-security",
+      "approved_on": "2026-07-29",
+      "expires_on": "2026-08-12",
+      "rationale": "The current exporter release has no high or critical finding and one unversioned module advisory.",
+      "mitigations": [
+        "The exporter has no public ingress and is scraped only by private Prometheus.",
+        "Its filesystem and process mounts are read-only and its capabilities are dropped."
+      ],
+      "findings": [
+        {"id": "GO-2026-5932", "severity": "UNKNOWN", "package": "golang.org/x/crypto", "installed_version": "v0.54.0", "fixed_version": ""}
+      ]
+    },
+    {
+      "image_id": "CADVISOR",
+      "owner": "platform-security",
+      "approved_on": "2026-07-29",
+      "expires_on": "2026-08-12",
+      "rationale": "cAdvisor 0.60.5 is current and upstream has not yet rebuilt it with the latest gRPC release.",
+      "mitigations": [
+        "cAdvisor is private and scraped only by Prometheus on the observability network.",
+        "All host mounts are read-only and no xDS authorization configuration is used."
+      ],
+      "findings": [
+        {"id": "GHSA-hrxh-6v49-42gf", "severity": "HIGH", "package": "google.golang.org/grpc", "installed_version": "v1.81.1", "fixed_version": "1.82.1"},
+        {"id": "GO-2026-5932", "severity": "UNKNOWN", "package": "golang.org/x/crypto", "installed_version": "v0.54.0", "fixed_version": ""}
+      ]
+    },
+    {
+      "image_id": "POSTGRES_EXPORTER",
+      "owner": "platform-security",
+      "approved_on": "2026-07-29",
+      "expires_on": "2026-08-12",
+      "rationale": "postgres-exporter 0.20.1 is current and a rebuilt image with the newest Go fixes is pending.",
+      "mitigations": [
+        "The exporter is private and authenticates with a least-privilege monitoring role.",
+        "It is non-root, read-only, capability-free, and exposes no public host port."
+      ],
+      "findings": [
+        {"id": "CVE-2026-39822", "severity": "HIGH", "package": "stdlib", "installed_version": "v1.26.4", "fixed_version": "1.25.12, 1.26.5, 1.27.0-rc.2"},
+        {"id": "CVE-2026-56852", "severity": "HIGH", "package": "golang.org/x/text", "installed_version": "v0.38.0", "fixed_version": "0.39.0"},
+        {"id": "CVE-2026-46600", "severity": "UNKNOWN", "package": "golang.org/x/net", "installed_version": "v0.55.0", "fixed_version": "0.56.0"},
+        {"id": "GO-2026-5932", "severity": "UNKNOWN", "package": "golang.org/x/crypto", "installed_version": "v0.53.0", "fixed_version": ""}
+      ]
+    },
+    {
+      "image_id": "REDIS_EXPORTER",
+      "owner": "platform-security",
+      "approved_on": "2026-07-29",
+      "expires_on": "2026-08-12",
+      "rationale": "The current exporter image has no high or critical finding and one unversioned module advisory.",
+      "mitigations": [
+        "The exporter is private and uses a dedicated read-only Redis metrics identity.",
+        "It is non-root, read-only, capability-free, and exposes no public port."
+      ],
+      "findings": [
+        {"id": "GO-2026-5932", "severity": "UNKNOWN", "package": "golang.org/x/crypto", "installed_version": "v0.54.0", "fixed_version": ""}
+      ]
+    },
+    {
+      "image_id": "BLACKBOX_EXPORTER",
+      "owner": "platform-security",
+      "approved_on": "2026-07-29",
+      "expires_on": "2026-08-12",
+      "rationale": "The pinned current master image has no high or critical finding and one unversioned module advisory.",
+      "mitigations": [
+        "Only repository-rendered allowlisted probe targets are accepted.",
+        "The exporter is private, non-root, read-only, capability-free, and has no public ingress."
+      ],
+      "findings": [
+        {"id": "GO-2026-5932", "severity": "UNKNOWN", "package": "golang.org/x/crypto", "installed_version": "v0.54.0", "fixed_version": ""}
+      ]
+    }
+  ],
+  "vex": [
+    {
+      "image_id": "CASDOOR_DEV",
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "owner": "platform-security",
+      "assessed_on": "2026-07-29",
+      "review_by": "2026-08-05",
+      "impact_statement": "The image embeds commit 8bb6c391480b, which is 285 commits ahead of the token-exchange fix; Trivy cannot order Casdoor's embedded pseudo-version against product release 2.387.0.",
+      "evidence": [
+        "https://github.com/casdoor/casdoor/compare/d92b8568686d...8bb6c391480b",
+        "https://osv.dev/vulnerability/GHSA-c9w5-qp6m-m395"
+      ],
+      "finding": {
+        "id": "CVE-2026-9094",
+        "severity": "CRITICAL",
+        "package": "github.com/casdoor/casdoor",
+        "installed_version": "v1.1000.1-0.20260724163043-8bb6c391480b+dirty",
+        "fixed_version": "2.387.0"
+      }
+    },
+    {
+      "image_id": "CASDOOR_DEV",
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "owner": "platform-security",
+      "assessed_on": "2026-07-29",
+      "review_by": "2026-08-05",
+      "impact_statement": "The image embeds commit 8bb6c391480b, which is 770 commits ahead of the authorization fix; Trivy cannot order Casdoor's embedded pseudo-version against product release 2.63.0.",
+      "evidence": [
+        "https://github.com/casdoor/casdoor/compare/d883db907bb6e0b95737ef8e8b57b7da9078cbdd...8bb6c391480b",
+        "https://nvd.nist.gov/vuln/detail/CVE-2025-61524"
+      ],
+      "finding": {
+        "id": "CVE-2025-61524",
+        "severity": "HIGH",
+        "package": "github.com/casdoor/casdoor",
+        "installed_version": "v1.1000.1-0.20260724163043-8bb6c391480b+dirty",
+        "fixed_version": "2.63.0"
+      }
+    }
+  ]
+}

@@ -21,19 +21,13 @@ SERVER_CERT="${POSTGRES_TLS_DIR}/server.crt"
 SERVER_CSR="${POSTGRES_TLS_DIR}/server.csr"
 COMMON_NAME="${POSTGRES_SSL_COMMON_NAME:-postgres}"
 SAN_LIST="${POSTGRES_SSL_SAN_LIST:-DNS:postgres,DNS:localhost,IP:127.0.0.1}"
-POSTGRES_TLS_SERVER_KEY_OWNER="${POSTGRES_TLS_SERVER_KEY_OWNER:-70:70}"
 
 mkdir -p "${POSTGRES_TLS_DIR}"
 
 ensure_postgres_tls_permissions() {
   chmod 755 "${POSTGRES_TLS_DIR}"
   [[ -f "${CA_KEY}" ]] && chmod 600 "${CA_KEY}"
-  if [[ -f "${SERVER_KEY}" ]]; then
-    if [[ -n "${POSTGRES_TLS_SERVER_KEY_OWNER}" && "$(id -u)" == "0" ]]; then
-      chown "${POSTGRES_TLS_SERVER_KEY_OWNER}" "${SERVER_KEY}"
-    fi
-    chmod 600 "${SERVER_KEY}"
-  fi
+  [[ -f "${SERVER_KEY}" ]] && chmod 600 "${SERVER_KEY}"
   [[ -f "${CA_CERT}" ]] && chmod 644 "${CA_CERT}"
   [[ -f "${SERVER_CERT}" ]] && chmod 644 "${SERVER_CERT}"
   return 0

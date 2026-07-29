@@ -3,16 +3,16 @@ type: guide
 audience: ops
 status: current
 authoritative-source: this file
-last-verified: 2026-05-22
+last-verified: 2026-07-29
 ---
 
 # 生产拓扑与运维责任
 
 ## 部署架构
 
-主站单机 Docker Compose 部署。StuHelper 应用、PostgreSQL、Redis、OpenFGA、对象存储与观测栈由仓库内 Compose 管理；公网入口由宝塔 Nginx 管理。公开登录认证入口和 OIDC issuer 是 `https://sso.stuhelper.com`（Casdoor）。StuHelper 账号中心、学生认证、QQ 绑定、授权应用和开发者应用当前由 `https://stuhelper.com` 主站承载；`https://join.stuhelper.com` 只承载入群验证业务闭环。公网入口清单只包含 `stuhelper.com`、`join.stuhelper.com` 和 `sso.stuhelper.com`。
+主站单机 Docker Compose 部署。StuHelper 应用、PostgreSQL、Redis、OpenFGA 与观测栈由仓库内 Compose 管理；对象存储使用独立管理的外部 HTTPS S3，生产 Compose 不启动本地 S3 服务。公网入口由宝塔 Nginx 管理。公开登录认证入口和 OIDC issuer 是 `https://sso.stuhelper.com`（Casdoor）。StuHelper 账号中心、学生认证、QQ 绑定、授权应用和开发者应用当前由 `https://stuhelper.com` 主站承载；`https://join.stuhelper.com` 只承载入群验证业务闭环。公网入口清单只包含 `stuhelper.com`、`join.stuhelper.com` 和 `sso.stuhelper.com`。
 
-> 生产前提：承载 `postgres_data` / `redis_data` / 对象存储数据目录的底层块设备必须开启静态加密（云盘 KMS/EBS/PD 或主机侧 LUKS）。仓库内的 Compose 只定义容器拓扑，不负责替代宿主机磁盘加密。
+> 生产前提：承载 `postgres_data` / `redis_data` 的底层块设备必须开启静态加密（云盘 KMS/EBS/PD 或主机侧 LUKS）；外部 S3 必须启用服务端静态加密、版本/保留与生命周期策略。仓库内 Compose 不替代这些存储控制面。
 
 ```
 [Internet]
@@ -29,6 +29,8 @@ last-verified: 2026-05-22
     ├── join.stuhelper.com / 和主站业务页面路径 → 404（防止串站）
     ├── join.stuhelper.com /api/* 与 /health/* → 127.0.0.1:18080 → backend
     └── sso.stuhelper.com /.well-known/* /api/* /login/* → Casdoor
+
+[backend / backup timer] ──HTTPS + 独立最小权限身份──> [外部 S3]
 ```
 
 主站生产配置只发布 StuHelper 主站、Join 业务域和 Casdoor SSO 入口。`WEB_VITE_WEB_URL=https://stuhelper.com`，`WEB_VITE_SSO_URL=https://sso.stuhelper.com`，`CASDOOR_ISSUER=https://sso.stuhelper.com`，`CASDOOR_PUBLIC_AUTH_BASE_URL=https://sso.stuhelper.com`。`CASDOOR_REDIRECT_URI`、`CASDOOR_ADMIN_REDIRECT_URI` 与 `CASDOOR_UNIAPP_REDIRECT_URI` 固定回到 `https://stuhelper.com/api/v1/auth/callback`。`ADMISSION_PUBLIC_BASE_URL=https://join.stuhelper.com`。`OPEN_PLATFORM_CONSENT_BASE_URL=https://stuhelper.com` 与 `OPEN_PLATFORM_ACCOUNT_BASE_URL=https://stuhelper.com` 承载开放平台用户交互入口。`FRONTEND_METRICS_ALLOWED_ORIGINS=https://stuhelper.com` 限定匿名前端指标上报来源。`CORS_ORIGINS` 必须包含 `https://stuhelper.com`、`https://join.stuhelper.com` 和 `https://sso.stuhelper.com`；`TOKEN_COOKIE_DOMAIN=.stuhelper.com`，让登录回调后签发的浏览器会话可用于主站和 admission 流程。
@@ -76,7 +78,9 @@ Koishi 与 NapCat 当前不纳入主站 Docker Compose 拓扑，而是作为外�
 
 当前生产拓扑不使用 Traefik。Traefik 与 Nginx 技术上可以共存，但不能同时拥有公网 `80/443` 或分别承担同一批域名的入口职责；否则 TLS 终止、`X-Forwarded-*`、OIDC discovery、JWKS、授权页回调和路径路由会出现双层漂移。StuHelper 在宝塔单机环境中固定选择宝塔 Nginx 作为唯一公网入口，Compose 只把应用服务暴露到宿主机回环端口。
 
-如果生产机已经由宝塔 Compose 管理全局 PostgreSQL，可用 `docker-compose.external-datastore.yml` 把 StuHelper 生产容器接入 `EXTERNAL_DATASTORE_NETWORK=baota_net`，并设置 `EXTERNAL_POSTGRES_ENABLED=true`。该模式不会启动 `stuhelper-prod-postgres`，但需要先在外部 PostgreSQL 中为 StuHelper / OpenFGA 创建独立数据库和独立账号，并把旧 StuHelper 专用 Postgres 中的 `stuhelper` / `openfga` 数据迁移到外部 Postgres；若外部 PostgreSQL 未启用 TLS，还必须显式设置 `EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true`。Redis 仍由 StuHelper Compose 以独立 TLS/ACL 实例运行，不复用全局 Redis，也不加入外部 datastore 网络。本机 `make prod-parity-smoke` 会运行 `prod-parity-datastore-smoke.sh`，用容器级连接检查证明共享 PostgreSQL 的库/账号隔离和 Redis 独立实例约束；随后 `prod-parity-smoke-data.sh` 会写入本机专用最小课程 / 教师 / 评课数据和入群认证会话、刷新评分统计和教师物化视图，使浏览器 smoke 能验证生产镜像在真实后端数据下的课程详情、课程评课详情、评课聚合、教师详情和入群认证链接渲染。
+如果生产机已经由宝塔 Compose 管理全局 PostgreSQL，可用 `docker-compose.external-datastore.yml` 把 StuHelper 生产容器接入 `EXTERNAL_DATASTORE_NETWORK=baota_net`，并设置 `EXTERNAL_POSTGRES_ENABLED=true`。该模式不会启动 `stuhelper-prod-postgres`，也不会生成、读取或要求 StuHelper 内置 PostgreSQL 的超级用户密码；应用、备份、复制、OpenFGA 和监控只使用各自的最小权限凭据。数据库管理员需要先在外部 PostgreSQL 中为 StuHelper / OpenFGA 创建独立数据库和独立账号，并把旧 StuHelper 专用 Postgres 中的 `stuhelper` / `openfga` 数据迁移到外部 Postgres；还必须预置 `stuhelper_metrics` 登录角色，限制连接数为 5，只授予 `pg_monitor` 和维护库 `postgres` 的 `CONNECT`，并把独立密码通过 `POSTGRES_EXPORTER_DB_PASSWORD` 注入 StuHelper secret backend。部署脚本不会拿应用/备份凭据代替，也不会越过外部数据库责任边界自动使用超级用户建角色；启动后的严格观测 smoke 以 `pg_up=1` 验证预置结果。若维护库、端口或主机名不同，可通过 `POSTGRES_EXPORTER_DATA_SOURCE_URI` 覆盖不含凭据的连接目标。外部 PostgreSQL 使用 TLS 时，`POSTGRES_CLIENT_CA_HOST_PATH` 必须指向宿主机上经过核验的 PEM CA bundle；部署脚本只把公开证书复制到 `infra/generated/postgres-client-ca/ca.crt`，不会生成或误用本地服务端 CA。若外部 PostgreSQL 未启用 TLS，还必须显式设置 `EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true`。Redis 仍由 StuHelper Compose 以独立 TLS/ACL 实例运行，不复用全局 Redis，也不加入外部 datastore 网络。本机 `make prod-parity-smoke` 会运行 `prod-parity-datastore-smoke.sh`，用容器级连接检查证明共享 PostgreSQL 的库/账号隔离、监控角色最小权限和 Redis 独立实例约束；随后 `prod-parity-smoke-data.sh` 会写入本机专用最小课程 / 教师 / 评课数据和入群认证会话、刷新评分统计和教师物化视图，使浏览器 smoke 能验证生产镜像在真实后端数据下的课程详情、课程评课详情、评课聚合、教师详情和入群认证链接渲染。
+
+外部 Oracle 学籍源是应用的只读出站依赖，不加入 PostgreSQL/Redis 的数据网络，也不向 Oracle 暴露任何 StuHelper 数据库凭据。应用通过 TCPS `verify-full` 连接，默认端口 `2484`；`EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_HOST_PATH` 的公开 CA 被复制到专用只读挂载 `/external-student-source-tls/ca.crt`。Oracle 账号只具备目标表查询权限，连接池最多 4 个连接，连续失败由熔断器快速隔离。学籍源不可用时身份流程返回 503，应用其他业务域继续服务。
 
 ### 证书终止策略
 
@@ -98,8 +102,8 @@ Koishi 与 NapCat 当前不纳入主站 Docker Compose 拓扑，而是作为外�
 
 | 组件 | 责任方 | 执行方式 |
 |------|--------|----------|
-| PostgreSQL 逻辑备份 | 仓库内脚本 + systemd timer | `docker compose run --rm postgres pg_dump` |
-| PostgreSQL base backup | 仓库内脚本 + systemd timer | `docker compose run --rm postgres pg_basebackup` |
+| PostgreSQL 逻辑备份 | 仓库内脚本 + systemd timer | `docker compose run --rm postgres-client pg_dump` |
+| PostgreSQL base backup | 仓库内脚本 + systemd timer | `docker compose run --rm postgres-client pg_basebackup` |
 | 备份同步到对象存储 | 仓库内脚本 + systemd timer | `infra/ops/sync-postgres-backups.sh` |
 | 恢复演练 | 运维手工执行 | `infra/ops/restore-postgres.sh` |
 

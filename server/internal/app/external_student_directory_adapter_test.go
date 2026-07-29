@@ -2,16 +2,39 @@ package app
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/externaldata"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
 )
 
 type fakeExternalDirectorySource struct {
 	record *externaldata.StudentRecord
 	err    error
+}
+
+func TestExternalStudentDirectoryAdapterMapsSourceFailureToDependencyError(t *testing.T) {
+	sourceErr := errors.New("oracle unavailable")
+	registry, err := externaldata.NewStudentDirectoryRegistry([]externaldata.StudentSource{{
+		Name:       "test",
+		SchoolCode: "4111010006",
+		Directory:  fakeExternalDirectorySource{err: sourceErr},
+	}})
+	require.NoError(t, err)
+
+	record, handled, err := newExternalStudentDirectoryAdapter(registry).LookupStudent(
+		context.Background(),
+		"4111010006",
+		"20250001",
+	)
+
+	require.Nil(t, record)
+	require.True(t, handled)
+	require.ErrorIs(t, err, user.ErrAcademicLookupUnavailable)
+	require.ErrorIs(t, err, sourceErr)
 }
 
 func (s fakeExternalDirectorySource) LookupStudent(context.Context, string) (*externaldata.StudentRecord, error) {

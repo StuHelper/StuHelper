@@ -35,6 +35,11 @@ if [[ -n "${pending_generated_secret_ref}" ]]; then
   export GENERATED_ENV_SECRET_REF="${pending_generated_secret_ref}"
 fi
 
+python3 "${REPO_ROOT}/infra/ops/validate-runtime-image-scan.py" \
+  --repo-root "${REPO_ROOT}" \
+  --policy-only \
+  --effective-environment production
+
 require_nonempty() {
   local key="$1"
   local value="${2:-}"
@@ -115,8 +120,12 @@ PY
 require_backup_object_storage_config
 source_casdoor_bootstrap_env # load bootstrap credential env
 
-require_nonempty POSTGRES_PASSWORD "${POSTGRES_PASSWORD:-}"
+if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]]; then
+  require_nonempty POSTGRES_PASSWORD "${POSTGRES_PASSWORD:-}"
+fi
 require_nonempty REDIS_PASSWORD "${REDIS_PASSWORD:-}"
+require_nonempty REDIS_EXPORTER_PASSWORD "${REDIS_EXPORTER_PASSWORD:-}"
+require_nonempty POSTGRES_EXPORTER_DB_PASSWORD "${POSTGRES_EXPORTER_DB_PASSWORD:-}"
 require_nonempty METRICS_PASSWORD "${METRICS_PASSWORD:-}"
 require_nonempty GRAFANA_ADMIN_PASSWORD "${GRAFANA_ADMIN_PASSWORD:-}"
 require_nonempty ALERTMANAGER_WEBHOOK_URL "${ALERTMANAGER_WEBHOOK_URL:-}"
@@ -193,8 +202,6 @@ reject_placeholder_if_set OPENFGA_STORE_ID "${OPENFGA_STORE_ID:-}" "REPLACE_WITH
 reject_placeholder_if_set OPENFGA_MODEL_ID "${OPENFGA_MODEL_ID:-}" "REPLACE_WITH_OPENFGA_MODEL_ID"
 require_nonempty OBJECT_STORAGE_ENDPOINT "${OBJECT_STORAGE_ENDPOINT:-}"
 require_nonempty OBJECT_STORAGE_BUCKET "${OBJECT_STORAGE_BUCKET:-}"
-require_nonempty MINIO_ROOT_USER "${MINIO_ROOT_USER:-}"
-require_nonempty MINIO_ROOT_PASSWORD "${MINIO_ROOT_PASSWORD:-}"
 require_nonempty OBJECT_STORAGE_ACCESS_KEY_ID "${OBJECT_STORAGE_ACCESS_KEY_ID:-}"
 require_nonempty OBJECT_STORAGE_SECRET_ACCESS_KEY "${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}"
 require_nonempty GRAFANA_ROOT_URL "${GRAFANA_ROOT_URL:-}"
@@ -202,8 +209,14 @@ require_immutable_image_ref BACKEND_IMAGE_REF "${BACKEND_IMAGE_REF:-}"
 require_immutable_image_ref FRONTEND_IMAGE_REF "${FRONTEND_IMAGE_REF:-}"
 require_immutable_image_ref ADMIN_IMAGE_REF "${ADMIN_IMAGE_REF:-}"
 
-reject_placeholder POSTGRES_PASSWORD "${POSTGRES_PASSWORD:-}" "dev123"
+if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]]; then
+  reject_placeholder POSTGRES_PASSWORD "${POSTGRES_PASSWORD:-}" "dev123"
+fi
 reject_placeholder REDIS_PASSWORD "${REDIS_PASSWORD:-}" "dev123"
+reject_placeholder REDIS_EXPORTER_PASSWORD "${REDIS_EXPORTER_PASSWORD:-}" "RUN_MAKE_DEV_INIT" "REPLACE_WITH_REDIS_EXPORTER_PASSWORD"
+reject_placeholder POSTGRES_EXPORTER_DB_PASSWORD "${POSTGRES_EXPORTER_DB_PASSWORD:-}" "RUN_MAKE_DEV_INIT" "REPLACE_WITH_POSTGRES_EXPORTER_DB_PASSWORD"
+[[ "${REDIS_EXPORTER_PASSWORD}" != "${REDIS_PASSWORD}" ]] ||
+  die "REDIS_EXPORTER_PASSWORD must be independent from REDIS_PASSWORD"
 reject_placeholder GRAFANA_ADMIN_PASSWORD "${GRAFANA_ADMIN_PASSWORD:-}" "ChangeMeBeforeProduction"
 reject_placeholder CORS_ORIGINS "${CORS_ORIGINS:-}" "REPLACE_WITH_PRODUCTION_CORS_ORIGINS"
 reject_placeholder CASDOOR_ISSUER "${CASDOOR_ISSUER:-}" "REPLACE_WITH_CASDOOR_ISSUER"
@@ -260,6 +273,7 @@ reject_placeholder WEB_VITE_SSO_URL "${WEB_VITE_SSO_URL:-}" "REPLACE_WITH_WEB_VI
 reject_placeholder WEB_VITE_WEB_URL "${WEB_VITE_WEB_URL:-}" "REPLACE_WITH_WEB_VITE_WEB_URL"
 reject_placeholder OBJECT_STORAGE_ENDPOINT "${OBJECT_STORAGE_ENDPOINT:-}" "REPLACE_WITH_OBJECT_STORAGE_ENDPOINT"
 reject_placeholder OBJECT_STORAGE_ACCESS_KEY_ID "${OBJECT_STORAGE_ACCESS_KEY_ID:-}" "REPLACE_WITH_OBJECT_STORAGE_ACCESS_KEY_ID"
+reject_placeholder OBJECT_STORAGE_SECRET_ACCESS_KEY "${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}" "REPLACE_WITH_OBJECT_STORAGE_SECRET_ACCESS_KEY"
 reject_placeholder BACKUP_OBJECT_STORAGE_ENDPOINT "${BACKUP_OBJECT_STORAGE_ENDPOINT:-}" "REPLACE_WITH_BACKUP_OBJECT_STORAGE_ENDPOINT"
 reject_placeholder BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID "${BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID:-}" "REPLACE_WITH_BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID"
 reject_placeholder BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY "${BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY:-}" "REPLACE_WITH_BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY"
@@ -294,6 +308,8 @@ reject_local_value OBJECT_STORAGE_ENDPOINT "${OBJECT_STORAGE_ENDPOINT:-}"
 reject_local_value BACKUP_OBJECT_STORAGE_ENDPOINT "${BACKUP_OBJECT_STORAGE_ENDPOINT:-}"
 reject_local_value GRAFANA_ROOT_URL "${GRAFANA_ROOT_URL:-}"
 
+require_production_object_storage
+"${SCRIPT_DIR}/prepare-object-storage-client-ca.sh"
 [[ "${TOKEN_COOKIE_SECURE:-false}" == "true" ]] || die "TOKEN_COOKIE_SECURE must be true for production deploy"
 [[ "${ADMISSION_PUBLIC_BASE_URL:-}" == "https://join.stuhelper.com" ]] || die "ADMISSION_PUBLIC_BASE_URL must be exactly https://join.stuhelper.com for production deploy"
 [[ "${OTEL_ENABLED:-false}" == "true" ]] || die "OTEL_ENABLED must be true for production deploy"
@@ -303,7 +319,13 @@ reject_local_value GRAFANA_ROOT_URL "${GRAFANA_ROOT_URL:-}"
 [[ "${CASDOOR_SMS_PROVIDER_TITLE:-}" == "content" ]] || die "CASDOOR_SMS_PROVIDER_TITLE must be content for production deploy"
 [[ "${SMS_ENABLED:-false}" == "true" ]] || die "SMS_ENABLED must be true for production deploy"
 [[ "${OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED:-false}" == "true" ]] || die "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED must be true for production deploy"
+if [[ "${EXTERNAL_POSTGRES_ALLOW_PLAINTEXT:-false}" == "true" ]]; then
+  [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" ]] ||
+    die "EXTERNAL_POSTGRES_ENABLED must be true when EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true"
+  warn "external PostgreSQL plaintext transport is explicitly enabled; TLS is not provided by StuHelper"
+fi
 require_production_postgres_ssl
+require_production_external_student_source_security
 [[ "${REDIS_TLS_ENABLED:-false}" == "true" ]] || die "REDIS_TLS_ENABLED must be true for production deploy"
 require_public_ingress_config_preflight
 require_public_identity_ingress_preflight
@@ -311,11 +333,13 @@ require_public_identity_ingress_preflight
 export TAG="${TAG:-$(derive_release_id_from_image_ref "${BACKEND_IMAGE_REF:-}" || git_tag_default)}"
 export BUILD_TIME="${BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 
-if [[ "${EXTERNAL_POSTGRES_ALLOW_PLAINTEXT:-false}" != "true" ]]; then
+if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]]; then
   "${SCRIPT_DIR}/render-postgres-tls.sh"
 else
-  warn "PostgreSQL TLS material generation skipped because EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true"
+  log "external PostgreSQL selected; skipping local PostgreSQL server certificate generation"
 fi
+"${SCRIPT_DIR}/render-redis-tls.sh"
+"${SCRIPT_DIR}/prepare-datastore-client-cas.sh"
 "${SCRIPT_DIR}/render-redis-acl.sh"
 "${SCRIPT_DIR}/render-observability.sh" prod
 
@@ -323,11 +347,9 @@ log "pulling immutable production images for release ${TAG}"
 compose --profile prod pull app frontend admin
 
 infra_services=(
-  redis
-  minio
+  docker-socket-proxy
   alloy
   alertmanager
-  alert-webhook-sink
   loki
   tempo
   prometheus
@@ -338,17 +360,27 @@ infra_services=(
   redis-exporter
   blackbox-exporter
 )
+datastore_services=(
+  redis
+)
 if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]]; then
-  infra_services=(postgres "${infra_services[@]}")
+  datastore_services=(postgres "${datastore_services[@]}")
 fi
 
 authz_services=(
   openfga
 )
 
-log "starting production infrastructure services"
+log "starting production datastore services"
+compose --profile prod up -d --wait "${datastore_services[@]}"
+if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]]; then
+  "${SCRIPT_DIR}/ensure-postgres-monitoring-role.sh"
+else
+  log "external PostgreSQL selected; expecting a pre-provisioned stuhelper_metrics role with pg_monitor"
+fi
+
+log "starting production observability infrastructure services"
 compose --profile prod up -d --wait "${infra_services[@]}"
-compose --profile prod up --no-deps minio-init
 
 log "creating pre-deploy database backup"
 predeploy_backup_dir="${REPO_ROOT}/backups/postgres/logical"

@@ -9,6 +9,7 @@ PARITY_COMPOSE="${REPO_ROOT}/docker-compose.prod-parity-postgres.yml"
 PROD_COMPOSE="${REPO_ROOT}/docker-compose.prod.yml"
 ENV_EXAMPLE="${REPO_ROOT}/.env.example"
 REMOTE_PREFLIGHT="${REPO_ROOT}/infra/ops/remote-preflight.sh"
+NODE_DEV_DOCKERFILE="${REPO_ROOT}/infra/images/node-dev/Dockerfile"
 
 fail() {
   printf '[compose-image-supply-chain-contract][error] %s\n' "$*" >&2
@@ -52,9 +53,17 @@ done
 
 assert_not_contains "${BASE_COMPOSE}" 'image:.*_VERSION'
 assert_not_contains "${OBS_COMPOSE}" 'image:.*_VERSION'
-assert_contains "${BASE_COMPOSE}" 'POSTGRES_IMAGE_REF:-postgres:18\.3-alpine@sha256:[0-9a-f]{64}'
-assert_contains "${PARITY_COMPOSE}" 'POSTGRES_IMAGE_REF:-postgres:18\.3-alpine@sha256:[0-9a-f]{64}'
-assert_contains "${REMOTE_PREFLIGHT}" 'POSTGRES_IMAGE_REF:-postgres:18\.3-alpine@sha256:[0-9a-f]{64}'
+assert_contains "${BASE_COMPOSE}" 'POSTGRES_IMAGE_REF:-cgr\.dev/chainguard/postgres:latest@sha256:[0-9a-f]{64}'
+assert_contains "${PARITY_COMPOSE}" 'POSTGRES_IMAGE_REF:-cgr\.dev/chainguard/postgres:latest@sha256:[0-9a-f]{64}'
+assert_contains "${REMOTE_PREFLIGHT}" 'POSTGRES_IMAGE_REF:-cgr\.dev/chainguard/postgres:latest@sha256:[0-9a-f]{64}'
+assert_contains "${BASE_COMPOSE}" 'entrypoint: \["/usr/local/bin/stuhelper-postgres-entrypoint"\]'
+assert_contains "${BASE_COMPOSE}" 'docker-entrypoint-with-tls\.sh:/usr/local/bin/stuhelper-postgres-entrypoint:ro'
+assert_contains "${BASE_COMPOSE}" '/var/lib/postgres/initdb/00-init-extra-dbs\.sh:ro'
+assert_contains "${BASE_COMPOSE}" '^x-node-dev-build: &node-dev-build$'
+assert_contains "${BASE_COMPOSE}" 'NODE_BASE_IMAGE_REF: \$\{NODE_DEV_BASE_IMAGE_REF:-node:24\.18\.0-alpine@sha256:[0-9a-f]{64}\}'
+assert_contains "${NODE_DEV_DOCKERFILE}" '^ARG NODE_BASE_IMAGE_REF=node:24\.18\.0-alpine@sha256:[0-9a-f]{64}$'
+assert_contains "${NODE_DEV_DOCKERFILE}" '^ARG NPM_TARBALL_SHA512=[A-Za-z0-9+/]+=*$'
+assert_contains "${NODE_DEV_DOCKERFILE}" '^ARG BRACE_EXPANSION_TARBALL_SHA512=[A-Za-z0-9+/]+=*$'
 
 mailpit_block="$(service_block "${BASE_COMPOSE}" mailpit)"
 casdoor_block="$(service_block "${BASE_COMPOSE}" casdoor)"
@@ -67,13 +76,13 @@ for image_var in \
   POSTGRES_IMAGE_REF \
   REDIS_IMAGE_REF \
   MAILPIT_IMAGE_REF \
-  MINIO_IMAGE_REF \
-  MINIO_MC_IMAGE_REF \
+  DEV_OBJECT_STORAGE_IMAGE_REF \
+  RCLONE_IMAGE_REF \
   GOLANG_IMAGE_REF \
-  NODE_ALPINE_IMAGE_REF \
-  NODE_BOOKWORM_IMAGE_REF \
+  NODE_DEV_BASE_IMAGE_REF \
   CASDOOR_IMAGE_REF \
   OPENFGA_IMAGE_REF \
+  DOCKER_SOCKET_PROXY_IMAGE_REF \
   GRAFANA_ALLOY_IMAGE_REF \
   PROMETHEUS_IMAGE_REF \
   ALERTMANAGER_IMAGE_REF \

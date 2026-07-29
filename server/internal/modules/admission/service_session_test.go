@@ -1151,7 +1151,7 @@ func TestGenerateAdmissionJoinTokenUsesShortReadableCode(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, token, admissionJoinTokenLength)
 	for _, char := range token {
-		assert.Contains(t, admissionJoinTokenAlphabet, string(char))
+		assert.Contains(t, admissionJoinCharacters, string(char))
 	}
 }
 

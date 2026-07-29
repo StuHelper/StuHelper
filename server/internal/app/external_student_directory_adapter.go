@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/externaldata"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
@@ -21,8 +22,11 @@ func (a externalStudentDirectoryAdapter) LookupStudent(
 	studentID string,
 ) (*user.ExternalStudentRecord, bool, error) {
 	record, handled, err := a.registry.LookupStudent(ctx, schoolCode, studentID)
-	if err != nil || record == nil {
-		return nil, handled, err
+	if err != nil {
+		return nil, handled, fmt.Errorf("%w: %w", user.ErrAcademicLookupUnavailable, err)
+	}
+	if record == nil {
+		return nil, handled, nil
 	}
 	return &user.ExternalStudentRecord{
 		SchoolCode:  record.SchoolCode,

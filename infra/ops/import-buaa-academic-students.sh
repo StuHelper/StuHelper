@@ -201,7 +201,7 @@ database_url="$(materialize_database_url "${database_url}")"
 
 compose --profile prod run --rm --no-deps -T \
   -v "${normalized_tsv}:/tmp/buaa_academic_students.normalized.tsv:ro" \
-  postgres \
+  postgres-client \
   psql \
     -X \
     -v ON_ERROR_STOP=1 \

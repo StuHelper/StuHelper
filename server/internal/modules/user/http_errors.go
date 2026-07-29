@@ -42,6 +42,7 @@ var (
 		response.MatchError(ErrStudentIDRequired, 400, "student ID is required for this verification method"),
 		response.MatchError(ErrStudentIDInvalid, 400, "student ID is invalid"),
 		response.MatchError(ErrStudentNameRequired, 400, "student name is required for this verification method"),
+		response.MatchError(ErrStudentNameInvalid, 400, "student name is invalid"),
 		response.MatchError(ErrStudentNameMismatch, 400, "student name does not match academic database"),
 		response.MatchError(ErrStudentEmailDomainNotAllowed, 400, "student school email is not allowed"),
 		response.MatchError(ErrStudentEmailOTPCooldown, 429, "please wait before requesting a new code"),
@@ -55,6 +56,7 @@ var (
 		response.MatchError(ErrManualFieldInvalid, 400, "form field validation failed"),
 		response.MatchError(ErrInvalidAcademicDBTable, 400, "school academic table configuration is invalid", errs.ErrProfileAcademicTable),
 		response.MatchError(ErrAcademicTableNotConfigured, 400, "school academic table is not configured", errs.ErrAcademicTableNotConfigured),
+		response.MatchError(ErrAcademicLookupUnavailable, 503, "academic student lookup is temporarily unavailable", errs.ErrServiceUnavailable),
 		response.MatchError(ErrSchoolLDAPConfigMissing, 400, "school LDAP configuration is missing", errs.ErrSchoolLDAPConfigMissing),
 		response.MatchError(ErrLDAPConfigInvalid, 400, "school LDAP configuration is invalid", errs.ErrLDAPConfigInvalid),
 		response.MatchError(ErrLDAPFailed, 400, "LDAP verification failed, please check your credentials", errs.ErrProfileLDAPFailed),
@@ -70,6 +72,7 @@ var (
 		response.MatchError(ErrSchoolDisabled, 400, "school verification channel disabled", errs.ErrProfileSchoolDisabled),
 		response.MatchError(ErrAcademicTableNotConfigured, 400, "academic table is not configured", errs.ErrAcademicTableNotConfigured),
 		response.MatchError(ErrInvalidAcademicDBTable, 400, "academic table configuration is invalid", errs.ErrProfileAcademicTable),
+		response.MatchError(ErrAcademicLookupUnavailable, 503, "academic student lookup is temporarily unavailable", errs.ErrServiceUnavailable),
 	}
 	adminReviewIdentityErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrUserIDInvalid, 400, "user id is invalid", errs.ErrInvalidParam),

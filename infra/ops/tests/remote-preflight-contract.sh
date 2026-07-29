@@ -36,7 +36,8 @@ line_number() {
   printf '%s\n' "${line}"
 }
 
-assert_contains "${PREFLIGHT_FILE}" 'compose run --rm --no-deps -T postgres'
+assert_contains "${PREFLIGHT_FILE}" 'compose run --rm --no-deps -T postgres-client'
+assert_not_contains "${PREFLIGHT_FILE}" 'compose run --rm --no-deps -T postgres \\'
 assert_contains "${PREFLIGHT_FILE}" 'die "备份数据库连通性检查失败'
 assert_not_contains "${PREFLIGHT_FILE}" 'docker run --rm --network host "\$\{pg_image\}"'
 assert_contains "${COMMON_LIB_FILE}" 'failed to read generated secret env from \$\{SECRET_BACKEND\}'
@@ -73,6 +74,8 @@ assert_contains "${COMMON_LIB_FILE}" 'require_verified_postgres_ssl_mode "POSTGR
 assert_contains "${COMMON_LIB_FILE}" 'DB_SSL_MODE must be verify-full for production'
 assert_contains "${PREFLIGHT_FILE}" 'APP_ENV must be production for remote preflight'
 assert_contains "${PREFLIGHT_FILE}" 'require_production_postgres_ssl'
+assert_contains "${PREFLIGHT_FILE}" 'require_production_external_student_source_security'
+assert_contains "${COMMON_LIB_FILE}" 'EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE must be verify-full in production'
 assert_contains "${PREFLIGHT_FILE}" 'require_public_ingress_config_preflight'
 assert_contains "${PREFLIGHT_FILE}" 'require_public_identity_ingress_preflight'
 assert_contains "${PREFLIGHT_FILE}" 'ADMISSION_PUBLIC_SMOKE_ENABLED'

@@ -3,7 +3,7 @@ type: guide
 audience: ops
 status: current
 authoritative-source: this file
-last-verified: 2026-05-25
+last-verified: 2026-07-29
 ---
 
 # 一键启动与部署
@@ -32,16 +32,16 @@ make dev-up
 `make dev-up` 会自动完成：
 
 1. 初始化本地 `.env`（补齐可运行的开发密钥与默认值）
-2. 启动 PostgreSQL / Redis / Casdoor / OpenFGA / MinIO / migration / seed（Docker）
+2. 启动 PostgreSQL / Redis / Casdoor / OpenFGA / SeaweedFS mini / migration / seed（Docker；SeaweedFS 仅用于本地 S3 同构验证）
 3. 验证 Casdoor OIDC metadata，从本地 Casdoor 内置应用读取一次性 bootstrap 凭据，并幂等创建 StuHelper 的 Web / Admin / UniApp first-party applications、flat roles 和启用的 providers
 4. 自动初始化 OpenFGA Store、Model、基础 tuples
-5. 自动初始化对象存储 bucket
+5. 生成桶级本地身份配置，预创建应用 / 备份 bucket，并上传开发资源 seed
 6. 生成 `.env.generated`
 7. 启动本机热重载进程：
    - 后端：`air`
    - Web：`Vite`
    - Admin：`Vite`
-8. 自动选择可用端口；若 `3000/3001`、PostgreSQL / Redis / OpenFGA / MinIO 默认宿主机端口，或启用观测栈时的 Prometheus / Grafana / Alloy / exporter 等宿主机端口已被占用，会顺延到下一个空闲端口
+8. 自动选择可用端口；若 `3000/3001`、PostgreSQL / Redis / OpenFGA / 本地对象存储默认宿主机端口，或启用观测栈时的 Prometheus / Grafana / Alloy / exporter 等宿主机端口已被占用，会顺延到下一个空闲端口
 
 默认开发链路不启动 Traefik，也不监听本机 `80/443`。生产公网入口以宝塔 Nginx 配置和
 `infra/ops/nginx-public-ingress-preflight.sh` 契约为准。
@@ -86,6 +86,29 @@ make check-infra-contracts
 该入口会执行 `infra/ops/tests/run-infra-contracts.sh`，同时覆盖 `*.sh` 和 `*.mjs`
 合同测试，避免 runtime token probe runner 这类 Node 合同漏出 CI 门禁。
 
+## 运行时镜像安全策略
+
+`infra/security/runtime-images.json` 是第三方运行时、运维工具和本地开发基础镜像的扫描清单。清单中的 registry 镜像必须使用完整 `tag@sha256`，带 `latest`、`beta`、`master` 或 `nightly` 的标签即使固定了 digest，也必须在 30 天内重新核对上游；生产使用的引用还必须同时与 `.env.example`、`.env.prod.example` 一致。
+
+完整扫描入口：
+
+```bash
+mkdir -p .cache/trivy runtime-image-scan-evidence
+TRIVY_CACHE_DIR="$PWD/.cache/trivy" \
+RUNTIME_IMAGE_SCAN_OUTPUT_DIR="$PWD/runtime-image-scan-evidence" \
+bash infra/ops/scan-runtime-images.sh
+```
+
+扫描器使用固定 digest 的 Trivy，刷新漏洞库后检查 `HIGH`、`CRITICAL` 和 `UNKNOWN`，并把每个镜像的 JSON evidence 单独落盘。规则如下：
+
+- 未列入策略的发现立即失败；
+- `CRITICAL` 不能使用普通例外，只能提交 `not_affected` VEX，并提供可复核的上游或仓库证据；
+- `HIGH` 和 `UNKNOWN` 只能使用带 owner、缓解措施和最长 30 天有效期的逐包、逐版本例外；
+- 已修复但仍留在策略中的例外/VEX 会作为 stale record 失败；
+- 生产部署与远端 preflight 会校验当前进程中的基础设施镜像引用，任何未经过该策略扫描的覆盖值都会阻断部署。
+
+GitHub Actions 的 `Runtime image security` 和 GitLab 的 `runtime_image_security` 都运行完整扫描并保留 JSON evidence；`make check-infra-contracts` 负责校验策略结构、CI 接线和防降级约束，不重复拉取全部镜像。
+
 ## 仅启动可观测性
 
 ```bash
@@ -116,7 +139,7 @@ make prod-deploy
 - `.env.prod.generated`
 - `.env.prod.generated.secrets`
 
-生成 `.env.prod.shared` 时会直接以 `.env.prod.example` 为模板，并把旧版由开发模板带入的 `localhost` / `http` / 本地对象存储 / 本地告警 sink 默认值重写回生产占位符或正式生产默认值。
+生成 `.env.prod.shared` 时会直接以 `.env.prod.example` 为模板，并把旧版由开发模板带入的 `localhost` / `http` / 本地对象存储 / 本地告警 sink 默认值重写回生产占位符或正式生产默认值。仓库已知的旧 PostgreSQL、Redis、OpenFGA、运维工具和可观测性镜像默认值也会升级到已扫描的 digest；不等于旧默认值的运维自定义覆盖不会被静默改写，但若不匹配当前扫描策略，生产部署会明确失败。
 
 其中：
 
@@ -128,14 +151,14 @@ make prod-deploy
 
 `make prod-deploy` 会自动完成：
 
-1. 校验生产共享配置 + 本机 secrets + 运行时派生 secrets 文件
-2. 渲染 Prometheus / Alertmanager 生成配置
-3. 拉取 / 启动 backend / frontend / admin 生产镜像
-4. 启动基础设施、授权、对象存储、可观测性组件
-5. 幂等创建 / 校验 Casdoor organization、first-party applications、7 个 flat roles、启用的 provider，并初始化 OpenFGA 派生配置
-6. 自动初始化对象存储 bucket
-7. 启动 `app` / `frontend` / `admin`，并将它们绑定到宿主机 `127.0.0.1:18080` / `18000` / `18001`
-8. 执行业务 Smoke Check + Observability Smoke Check
+1. 校验生产共享配置、secret backend、应用不可变镜像引用、基础设施镜像扫描策略及例外有效期、外部 HTTPS S3 与 PostgreSQL/Redis TLS 配置
+2. 渲染 Prometheus / Alertmanager 生成配置并启动 Redis、OpenFGA 和可观测性组件；生产 Compose 不启动本地对象存储
+3. 在迁移前生成 PostgreSQL 备份，通过 rclone 上传到已预配的外部备份 bucket，并执行取回 evidence
+4. 执行数据库迁移，幂等创建 / 校验 Casdoor organization、first-party applications、flat roles、启用的 provider，并初始化 OpenFGA 派生配置
+5. 启动 `app` / `frontend` / `admin`，绑定宿主机 `127.0.0.1:18080` / `18000` / `18001`
+6. 执行业务、公网浏览器和 Observability Smoke Check
+
+生产对象存储 bucket、访问身份、服务端加密和生命周期策略必须由外部 S3 控制面预先创建；部署身份没有建桶或管理 IAM 的权限。公共 CA 场景下 `OBJECT_STORAGE_TLS_CA` 与 `OBJECT_STORAGE_TLS_CA_HOST_PATH` 都留空。私有 CA 场景下，前者固定为容器路径 `/object-storage-tls/ca.crt`，后者指向宿主机上经核验的只读 PEM CA bundle；部署脚本只把公开证书原子复制到 `infra/generated/object-storage-client-ca/ca.crt`，应用容器不会挂载本地 SeaweedFS 的私钥或身份配置。备份 rclone 的 `BACKUP_OBJECT_STORAGE_TLS_CA` 仍使用宿主机可读路径，可与应用 CA 不同。
 
 ## 远端部署控制面
 
@@ -203,9 +226,10 @@ make prod-reset
    - OpenAPI lint / drift
    - `gosec`
    - `govulncheck`
-   - `pnpm audit`
-   - `Trivy`
-   - Web / Admin unit test + Playwright
+   - `pnpm audit` 覆盖 Web、Admin、UniAppX 的生产与开发依赖，使用 npm 官方审计端点并阻断 `MODERATE` 及以上风险；`brace-expansion` 固定为已修复的 `5.0.8`，仓库补丁只提供旧版 `minimatch` 所需的导出兼容层，`check:dependency-compat` 会验证根工作区与 Admin 工作区中的所有实际安装实例
+   - `yarn npm audit` 覆盖 Koishi 全工作区依赖，使用 npm 官方审计端点并阻断 `MODERATE` 及以上风险
+   - `Trivy`：应用候选镜像检查 `HIGH` / `CRITICAL`；22 个受管运行时镜像额外检查 `UNKNOWN`，并逐项核对限时例外与 VEX
+   - `pnpm test:all` 覆盖 Web、共享契约、UniAppX 与 Admin 单元测试；Web / Admin / UniAppX Playwright 分别覆盖桌面与移动视口，Web 默认限制为 2 个 worker，避免共享 Runner 上的浏览器资源争用
    - Koishi unit / startup / Console Playwright smoke
    - 前端构建要求显式提供 `WEB_VITE_SSO_URL`；生产值应指向 `https://sso.stuhelper.com`，用于主站发起 Casdoor 登录和展示 Connect 端点，缺失即失败，不再使用构建期 fallback
 2. 构建 backend / frontend / admin 镜像
