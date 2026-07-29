@@ -1388,14 +1388,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@koishijs/plugin-server-satori@npm:^2.9.0":
-  version: 2.9.0
-  resolution: "@koishijs/plugin-server-satori@npm:2.9.0"
+"@koishijs/plugin-server-satori@npm:^2.9.1":
+  version: 2.9.1
+  resolution: "@koishijs/plugin-server-satori@npm:2.9.1"
   dependencies:
-    "@satorijs/plugin-server": "npm:^2.9.0"
+    "@satorijs/plugin-server": "npm:^2.9.1"
   peerDependencies:
-    koishi: ^4.18.5
-  checksum: 10c0/04401f11624cadf52f3c4ab1bff985c2a01d559067269b6990025008167c6199e76a04665385903d6743ff028864423a4fd85beab926c668ef0ae0aa64525dc1
+    koishi: ^4.18.11
+  checksum: 10c0/7b6fb12aea8da6c9b55dcd5667ded851dd0aaddf77d110a6ed4cdfc59c78612649831c1fe53afacbd394548146f24ca454325b57b47d859be686852abbfb8bad
   languageName: node
   linkType: hard
 
@@ -2057,14 +2057,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@satorijs/plugin-server@npm:^2.9.0":
-  version: 2.9.0
-  resolution: "@satorijs/plugin-server@npm:2.9.0"
+"@satorijs/plugin-server@npm:^2.9.1":
+  version: 2.9.1
+  resolution: "@satorijs/plugin-server@npm:2.9.1"
   dependencies:
-    cosmokit: "npm:^1.6.3"
+    cosmokit: "npm:^1.8.1"
   peerDependencies:
-    "@satorijs/core": ^4.5.0
-  checksum: 10c0/bd20839fc1b92705f4db8d91934fd6ea92dae5c14710c48789d2bb8a16dfafef21fe953283dd02f3b9a4530dc3138aca39b6e3f627b238dc5637d2b5230dac00
+    "@satorijs/core": ^4.6.0
+  checksum: 10c0/1ea6242d26b1aec8a0e257d4991b1e9d1e75909453928a10bf45204e3712a37eee6b684ef6896b66cd7d6b61bee35cf34fd922d4b93e69276adb2d8749801ce6
   languageName: node
   linkType: hard
 
@@ -5171,7 +5171,7 @@ __metadata:
     "@koishijs/plugin-proxy-agent": "npm:^0.3.3"
     "@koishijs/plugin-sandbox": "npm:^3.4.1"
     "@koishijs/plugin-server": "npm:^3.2.4"
-    "@koishijs/plugin-server-satori": "npm:^2.9.0"
+    "@koishijs/plugin-server-satori": "npm:^2.9.1"
     "@koishijs/plugin-server-temp": "npm:^1.5.0"
     "@koishijs/plugin-status": "npm:^7.4.10"
     "@koishijs/scripts": "npm:^4.6.1"
