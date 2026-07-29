@@ -13,10 +13,11 @@ last-verified: 2026-07-29
 - GitHub Organization：`StuHelper`
 - 公开仓库：`StuHelper/StuHelper`
 - 仓库形态：保留 monorepo
-- 默认开发分支：迁移期先保留 `develop`
+- GitHub 默认分支：`main`
+- 日常集成分支：`develop`
 - 稳定发布分支：`main`
 - 容器镜像：GitHub Container Registry（GHCR）
-- GitLab：迁移验收完成前保留为只读恢复锚点
+- GitLab：迁移前工作树保留为只读恢复锚点，不再承担日常提交或发布权威
 
 不要在 GitHub 新仓库中初始化 README、`.gitignore` 或 LICENSE。第一次推送必须来自已经净化并验证过的迁移镜像，避免产生无意义的 unrelated history。
 
@@ -117,7 +118,7 @@ SSH known_hosts 必须预先固定真实 host public key，且条目必须与 `D
 
 ### Branch protection
 
-迁移期对 `develop` 和 `main` 配置 ruleset：
+对 `develop` 和 `main` 配置 ruleset：
 
 - 禁止 force push 和删除；
 - 合并必须经过 Pull Request；
@@ -125,7 +126,7 @@ SSH known_hosts 必须预先固定真实 host public key，且条目必须与 `D
 - 新提交后撤销旧审批；
 - 必须解决所有 review conversation；
 - 必须通过 `CI / Required`；
-- `main` 额外要求 CodeQL 的 Go 与 JavaScript/TypeScript 检查；
+- 必须通过 CodeQL 的 Go 与 JavaScript/TypeScript 检查；
 - 要求分支在合并前更新；
 - 高风险路径由 `.github/CODEOWNERS` 审批。
 

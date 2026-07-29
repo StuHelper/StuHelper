@@ -2,19 +2,19 @@
 type: reference
 audience: backend-dev, ops
 status: current
-authoritative-source: server/migrations/000001_initial_schema.up.sql
-last-verified: 2026-05-18
+authoritative-source: server/migrations/
+last-verified: 2026-07-29
 ---
 
 # 数据库导航摘要
 
-> 本文档仅做数据面与模块索引。表结构、索引、约束以 [`server/migrations/000001_initial_schema.up.sql`](../../server/migrations/000001_initial_schema.up.sql) 为准。
+> 本文档仅做数据面与模块索引。表结构、索引、约束以 [`server/migrations/`](../../server/migrations/) 中按版本顺序应用后的完整 migration 集合为准；`000001_initial_schema.up.sql` 只是基线，不代表后续演进后的完整 schema。
 
 ## 数据面
 
 | 存储 | 用途 | 权威来源 |
 |------|------|----------|
-| PostgreSQL | 业务数据 | `server/migrations/000001_initial_schema.up.sql` |
+| PostgreSQL | 业务数据 | `server/migrations/` 中的有序 migration 集合 |
 | Redis | 会话、黑名单、限流、缓存、通知广播 | 代码使用处（无独立 schema） |
 | 对象存储（MinIO/S3） | 证件照、资源文件 | 统一经 `storage` abstraction 访问 |
 | Casdoor | 身份平面（账号、OIDC 会话、扁平角色目录） | Casdoor 管理端 |
@@ -47,7 +47,7 @@ last-verified: 2026-05-18
 
 ## 查找指引
 
-- 想看**完整 schema**：`server/migrations/000001_initial_schema.up.sql`。
+- 想看**完整 schema**：从 `000001` 开始按版本顺序阅读或应用 `server/migrations/*.up.sql`；不能只看 baseline。
 - 想看**查询与事务**：`server/internal/modules/**/repository*.go`。
 - 想看**本地 ERD**：`make db-erd`（如果启用了 schemaspy/atlas）。
 
