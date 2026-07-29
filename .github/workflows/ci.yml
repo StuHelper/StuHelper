@@ -533,6 +533,10 @@ jobs:
         working-directory: clients
         run: pnpm install --frozen-lockfile
 
+      - name: Install Chromium used by browser smoke contracts
+        working-directory: clients
+        run: pnpm exec playwright install --with-deps chromium
+
       - name: Prepare Koishi package artifacts used by infra contracts
         working-directory: bots/koishi
         run: |
