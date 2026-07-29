@@ -22,6 +22,7 @@ import {
 import { formatBanmeMessage, formatSuccessLog } from './banme-messages'
 import type { JackpotResult } from './banme-types'
 import { commandErrorMessage } from './command-error-message'
+import { secureRandomInt, secureRandomUnit } from '../../utils/secure-random'
 
 const SIMILAR_CHARS_PATH = './data/similarChars.json'
 const HOUR_MS = 3_600_000
@@ -233,7 +234,7 @@ function rollJackpot(record: BanMeRecord, config: BanMeConfig): JackpotResult {
   const hardPity = config.jackpot?.hardPity || DEFAULT_HARD_PITY
   const currentProb = calculateCurrentProbability(record.pity, config)
 
-  if (record.pity < hardPity && Math.random() >= currentProb) {
+  if (record.pity < hardPity && secureRandomUnit() >= currentProb) {
     return { isJackpot: false, isGuaranteed: false }
   }
 
@@ -241,7 +242,7 @@ function rollJackpot(record: BanMeRecord, config: BanMeConfig): JackpotResult {
   record.pity = 0
   if (record.guaranteed) {
     record.guaranteed = false
-  } else if (Math.random() < 0.5) {
+  } else if (secureRandomUnit() < 0.5) {
     record.guaranteed = true
   }
   return { isJackpot: true, isGuaranteed }
@@ -273,7 +274,7 @@ function calculateMuteDuration(
   const baseMinMillis = Math.max(baseMin * 1000, 1000)
   const additionalMinutes = Math.floor(Math.pow(record.count - 1, 1 / 3) * growthRate)
   const maxMilliseconds = Math.min(baseMaxMillis + (additionalMinutes * 60 * 1000), MAX_MUTE_MS)
-  return Math.floor(Math.random() * (maxMilliseconds - baseMinMillis)) + baseMinMillis
+  return secureRandomInt(baseMinMillis, maxMilliseconds)
 }
 
 function requireBanmeNumber(value: number | undefined, field: string): number {

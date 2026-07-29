@@ -253,7 +253,7 @@ func (s *SessionStore) revokeLoadedSession(ctx context.Context, data *SessionDat
 	pipe.SRem(ctx, userSessionsPrefix+data.UserID, data.SessionID)
 	if _, err := pipe.Exec(ctx); err != nil {
 		logger.L().Warn("session revoke: cleanup failed (tokens already blacklisted)",
-			zap.String("session_id", data.SessionID),
+			zap.Bool("session_present", data.SessionID != ""),
 			zap.Error(err),
 		)
 	}
@@ -277,10 +277,10 @@ func (s *SessionStore) RevokeAll(ctx context.Context, userID string, blacklist *
 		if err != nil {
 			logger.L().Warn("session revoke all: failed to revoke session",
 				zap.String("user_id", userID),
-				zap.String("session_id", sid),
+				zap.Bool("session_reference_present", sid != ""),
 				zap.Error(err),
 			)
-			revokeErr = errors.Join(revokeErr, fmt.Errorf("session %s: %w", sid, err))
+			revokeErr = errors.Join(revokeErr, fmt.Errorf("revoke indexed session: %w", err))
 			continue
 		}
 		if data == nil {
@@ -290,7 +290,7 @@ func (s *SessionStore) RevokeAll(ctx context.Context, userID string, blacklist *
 		if data.UserID != userID {
 			logger.L().Warn("session revoke all: stale cross-user session reference",
 				zap.String("user_id", userID),
-				zap.String("session_id", sid),
+				zap.Bool("session_reference_present", sid != ""),
 				zap.String("session_user_id", data.UserID),
 			)
 			staleSessionIDs = append(staleSessionIDs, sid)
@@ -299,10 +299,10 @@ func (s *SessionStore) RevokeAll(ctx context.Context, userID string, blacklist *
 		if _, rErr := s.revokeLoadedSession(ctx, data, blacklist, accessTTL, refreshTTL); rErr != nil {
 			logger.L().Warn("session revoke all: failed to revoke session",
 				zap.String("user_id", userID),
-				zap.String("session_id", sid),
+				zap.Bool("session_reference_present", sid != ""),
 				zap.Error(rErr),
 			)
-			revokeErr = errors.Join(revokeErr, fmt.Errorf("session %s: %w", sid, rErr))
+			revokeErr = errors.Join(revokeErr, fmt.Errorf("revoke indexed session: %w", rErr))
 		}
 	}
 	s.removeStaleSessionRefs(ctx, userID, staleSessionIDs)

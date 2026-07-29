@@ -65,7 +65,7 @@ func (h *Handler) requireTrackedSession(
 			return false
 		}
 		logger.FromGin(c).Error("failed to load tracked session",
-			zap.String("session_id", sessionID),
+			zap.Bool("session_present", sessionID != ""),
 			zap.Error(err),
 		)
 		response.ServiceUnavailable(c, "service temporarily unavailable")
@@ -79,7 +79,7 @@ func (h *Handler) requireTrackedSession(
 			return false
 		}
 		logger.FromGin(c).Error("failed to validate tracked session",
-			zap.String("session_id", sessionID),
+			zap.Bool("session_present", sessionID != ""),
 			zap.Error(err),
 		)
 		response.ServiceUnavailable(c, "service temporarily unavailable")

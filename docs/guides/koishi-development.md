@@ -53,6 +53,7 @@ YARN_NPM_REGISTRY_SERVER=https://registry.npmjs.org corepack yarn npm audit --al
 - `yarn test` 会串行执行构建、单元测试、启动烟雾验证和 UI smoke；根目录 `make e2e-koishi` 等价于执行 Koishi UI smoke。
 - 依赖审计必须显式使用 npm 官方审计端点并覆盖完整工作区；默认依赖镜像不提供 npm audit API，不能把该端点的 404 视为审计通过。
 - Koishi 工作区通过 Yarn `resolutions` 对 `@koishijs/client@5.30.11` 应用 `.yarn/patches/` 补丁，避免其构建入口以 CJS 方式加载 Vite 和 Vite 插件。升级 `@koishijs/client` 时，先复跑 `corepack yarn build` 和 `make e2e-koishi`；如果上游已改为 ESM Node API，再移除该补丁和 resolution。
+- Koishi 上游仍有多个包依赖 CommonJS API 的 `file-type@16.5.4`，无法直接跨越到 ESM-only 的 21.x。工作区通过 Yarn patch 精确回移上游 21.3.1 对 ASF 零长度子头无限循环的修复，并由 `dependency-security.test.ts` 在独立子进程内以超时上界验证恶意 55 字节输入必定终止。升级所有调用方到新 API 后，应删除该 backport、resolution 和回归兼容分支。
 
 ## 配置入口
 

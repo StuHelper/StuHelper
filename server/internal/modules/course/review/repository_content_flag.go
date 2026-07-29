@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"github.com/StuHelper/StuHelper/server/internal/pkg/httputil"
 )
 
 // GetReviewContentFlagStateTx 在事务内读取评论审核状态和内容标记。
@@ -71,6 +73,8 @@ func (r *Repository) MarkContentFlagClearedTx(ctx context.Context, tx pgx.Tx, re
 // ListFlaggedReviews 获取待复核评课列表（content_flag in warn/review）。
 func (r *Repository) ListFlaggedReviews(ctx context.Context, limit, offset int, schoolIDs []int64) ([]Review, int, error) {
 	ctx = withDBTable(ctx, "reviews")
+	limit = httputil.ClampPageSize(limit)
+	offset = httputil.ClampOffset(offset)
 	var qb strings.Builder
 	qb.WriteString(`
 		SELECT r.id, r.course_id, r.title, r.content, r.status, r.content_flag,
@@ -95,7 +99,7 @@ func (r *Repository) ListFlaggedReviews(ctx context.Context, limit, offset int, 
 	defer rows.Close()
 
 	var total int
-	list := make([]Review, 0, limit)
+	list := make([]Review, 0)
 	for rows.Next() {
 		var review Review
 		if err := rows.Scan(

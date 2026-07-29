@@ -1,1 +1,2 @@
 * -text
+bots/koishi/.yarn/patches/*.patch -whitespace

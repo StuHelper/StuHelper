@@ -20,7 +20,7 @@ func main() {
 
 	settings, err := loadSettings(os.Getenv)
 	if err != nil {
-		log.Fatalf("invalid Casdoor bootstrap configuration: %v", err)
+		log.Fatal("invalid Casdoor bootstrap configuration")
 	}
 
 	client, err := casdoor.NewBootstrapClient(settings.credential)
@@ -46,7 +46,7 @@ func main() {
 func runApplicationBootstrap() {
 	settings, err := loadApplicationBootstrapSettings(os.Getenv)
 	if err != nil {
-		log.Fatalf("invalid Casdoor application bootstrap configuration: %v", err)
+		log.Fatal("invalid Casdoor application bootstrap configuration")
 	}
 
 	client, err := casdoor.NewAppProvisioningClient(settings.credential)

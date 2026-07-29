@@ -18,4 +18,21 @@ test('detects onebot set_group_ban permission retcode errors', () => {
 test('does not treat unrelated onebot errors as set_group_ban permission errors', () => {
   assert.equal(isOneBotSetGroupBanPermissionError(new Error('Error with request send_msg, retcode: 1200')), false)
   assert.equal(isOneBotSetGroupBanPermissionError(new Error('Error with request set_group_ban, retcode: 100')), false)
+  assert.equal(isOneBotSetGroupBanPermissionError(new Error('set_group_ban xretcode: 1200')), false)
+  assert.equal(isOneBotSetGroupBanPermissionError(new Error('set_group_ban retcode: not-a-number')), false)
+})
+
+test('parses supported onebot retcode separators in linear time', () => {
+  for (const separator of [':', '=', ',']) {
+    assert.equal(
+      isOneBotSetGroupBanPermissionError(new Error(`set_group_ban retcode ${separator} 1200`)),
+      true,
+    )
+  }
+
+  const longPrefix = 'x'.repeat(20_000)
+  assert.equal(
+    isOneBotSetGroupBanPermissionError(new Error(`${longPrefix} set_group_ban retcode: 1200`)),
+    false,
+  )
 })

@@ -52,12 +52,12 @@ func TestSend_ReturnsErrorWhenCredentialsMissing(t *testing.T) {
 
 func TestSignV3_ProducesValidFormat(t *testing.T) {
 	svc := NewService(Config{
-		SecretID:  "AKIDz8krbsJ5yKBZQpn74WFkmLPx3EXAMPLE",
-		SecretKey: "Gu5t9xGARNpq86cd98joQYCN3EXAMPLE",
+		SecretID:  "test-secret-id",
+		SecretKey: "test-secret-key",
 	}, zap.NewNop())
 
 	ts := time.Unix(1551113065, 0).UTC()
 	auth := svc.signV3("sms.tencentcloudapi.com", ts, "1551113065", []byte("{}"))
 	assert.Contains(t, auth, "TC3-HMAC-SHA256")
-	assert.Contains(t, auth, "AKIDz8krbsJ5yKBZQpn74WFkmLPx3EXAMPLE")
+	assert.Contains(t, auth, "test-secret-id")
 }

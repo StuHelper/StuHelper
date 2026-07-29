@@ -6,6 +6,7 @@ import {
   extractRefreshSessionData,
   normalizeSchemaPath,
   normalizeRequestHeaders,
+  serializePath,
 } from '../session-client'
 
 describe('extractRefreshSessionData', () => {
@@ -209,6 +210,30 @@ describe('normalizeSchemaPath', () => {
     expect(
       normalizeSchemaPath('https://example.com/api', '/api/v1/user/me'),
     ).toBe('/v1/user/me')
+  })
+
+  it('trims long trailing slash runs without a regular expression', () => {
+    expect(
+      normalizeSchemaPath(`https://example.com/api/v1${'/'.repeat(10_000)}`, '/api/v1/user/me'),
+    ).toBe('/user/me')
+  })
+})
+
+describe('serializePath', () => {
+  it('serializes repeated placeholders and preserves unmatched braces', () => {
+    expect(
+      serializePath('/schools/{school}/users/{user}', {
+        school: '北航/沙河',
+        user: 42,
+      }),
+    ).toBe('/schools/%E5%8C%97%E8%88%AA%2F%E6%B2%99%E6%B2%B3/users/42')
+    expect(serializePath('/literal/{}', {})).toBe('/literal/{}')
+    expect(serializePath('/literal/{missing', {})).toBe('/literal/{missing')
+  })
+
+  it('handles many placeholders with bounded linear scanning', () => {
+    const schemaPath = Array.from({ length: 2_000 }, () => '/{id}').join('')
+    expect(serializePath(schemaPath, { id: 'x' })).toBe('/x'.repeat(2_000))
   })
 })
 

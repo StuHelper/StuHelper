@@ -21,3 +21,12 @@ func TestSanitizeCacheKey(t *testing.T) {
 	assert.Equal(t, first, second)
 	assert.NotEqual(t, "course=query", first)
 }
+
+func TestPaginationBounds(t *testing.T) {
+	assert.Equal(t, DefaultPageSize, ClampPageSize(0))
+	assert.Equal(t, MaxPageSize, ClampPageSize(MaxPageSize+1))
+	assert.Equal(t, 0, SafeOffset(-1, -1))
+	assert.Equal(t, (MaxPage-1)*MaxPageSize, SafeOffset(MaxPage+1, MaxPageSize+1))
+	assert.Equal(t, 0, ClampOffset(-1))
+	assert.Equal(t, (MaxPage-1)*MaxPageSize, ClampOffset(MaxPage*MaxPageSize))
+}

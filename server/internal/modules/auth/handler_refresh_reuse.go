@@ -33,7 +33,7 @@ func (h *Handler) rejectRefreshReuse(c *gin.Context, refreshToken string) {
 	if err := h.svc.RevokeAllSessions(c.Request.Context(), ref.UserID); err != nil {
 		logger.FromGin(c).Error("failed to revoke sessions after refresh token reuse",
 			zap.String("user_id", ref.UserID),
-			zap.String("session_id", ref.SessionID),
+			zap.Bool("session_present", ref.SessionID != ""),
 			zap.Error(err),
 		)
 		response.ServiceUnavailable(c, "service temporarily unavailable")

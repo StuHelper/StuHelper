@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/StuHelper/StuHelper/server/internal/pkg/httputil"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/id"
 )
 
@@ -59,6 +60,7 @@ type HotCourse struct {
 // timeFilter 的值仅来自下方 switch 硬编码的 INTERVAL 字面量，不包含任何用户输入，无 SQL 注入风险
 func (r *Repository) ListHotCourses(ctx context.Context, period string, limit int) ([]HotCourse, error) {
 	ctx = withDBTable(ctx, "courses")
+	limit = httputil.ClampPageSize(limit)
 	// 安全保证：timeFilter 仅从 switch 硬编码值中选取，period 参数不直接拼入 SQL
 	var timeFilter string
 	switch period {
@@ -87,7 +89,7 @@ func (r *Repository) ListHotCourses(ctx context.Context, period string, limit in
 	}
 	defer rows.Close()
 
-	list := make([]HotCourse, 0, limit)
+	list := make([]HotCourse, 0)
 	for rows.Next() {
 		var item HotCourse
 		if err := rows.Scan(&item.CourseID, &item.CourseName, &item.ReviewCount, &item.AvgRating); err != nil {

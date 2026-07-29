@@ -81,6 +81,19 @@ func SafeOffset(page, pageSize int) int {
 	return offset * pageSize
 }
 
+// ClampOffset limits an already-calculated row offset to the same bounded
+// pagination window used by SafeOffset.
+func ClampOffset(offset int) int {
+	if offset < 0 {
+		return 0
+	}
+	maxOffset := (MaxPage - 1) * MaxPageSize
+	if offset > maxOffset {
+		return maxOffset
+	}
+	return offset
+}
+
 // ParseIDParam 解析路径参数中的 ID
 func ParseIDParam(c *gin.Context, name string) (int64, error) {
 	idStr := c.Param(name)

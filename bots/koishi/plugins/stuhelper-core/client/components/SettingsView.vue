@@ -1042,9 +1042,8 @@ import {
 } from '../api'
 import { useActionError } from '../composables/use-action-error'
 import { useConfirm } from '../composables/use-confirm'
+import { deepMerge, isPlainRecord, type PlainRecord } from '../models/plain-record'
 import ConfirmDialog from './primitives/ConfirmDialog.vue'
-
-type PlainRecord = Record<string, unknown>
 
 interface SettingsModel extends PlainRecord {
   keywords: string[]
@@ -1669,28 +1668,6 @@ function splitLines(value: string): string[] {
 
 function cloneDefaultSettings(): SettingsModel {
   return structuredClone(defaultSettings)
-}
-
-function deepMerge<T extends PlainRecord>(target: T, source: unknown): T {
-  if (!isPlainRecord(source)) {
-    return target
-  }
-
-  const targetRecord = target as PlainRecord
-  for (const [key, value] of Object.entries(source)) {
-    const current = targetRecord[key]
-    if (isPlainRecord(current) && isPlainRecord(value)) {
-      deepMerge(current, value)
-    } else {
-      targetRecord[key] = value
-    }
-  }
-
-  return target
-}
-
-function isPlainRecord(value: unknown): value is PlainRecord {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function parseSettingsSnapshot(value: string): SettingsModel {

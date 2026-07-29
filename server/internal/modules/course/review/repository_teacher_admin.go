@@ -14,6 +14,8 @@ import (
 // 使用 CTE 预聚合评论数，避免 correlated subquery 对每行执行 COUNT。
 func (r *Repository) ListAdminTeachers(ctx context.Context, search string, departmentID int64, limit, offset int) ([]AdminTeacher, int, error) {
 	ctx = withDBTable(ctx, "teachers")
+	limit = httputil.ClampPageSize(limit)
+	offset = httputil.ClampOffset(offset)
 	var qb strings.Builder
 	qb.WriteString(`
 		WITH review_counts AS (
@@ -55,7 +57,7 @@ func (r *Repository) ListAdminTeachers(ctx context.Context, search string, depar
 	}
 	defer rows.Close()
 
-	list := make([]AdminTeacher, 0, limit)
+	list := make([]AdminTeacher, 0)
 	var total int
 	for rows.Next() {
 		var t AdminTeacher

@@ -46,10 +46,20 @@ func NewSMTPSender(cfg SMTPConfig) (*SMTPSender, error) {
 	if cfg.From == "" {
 		return nil, errors.New("email from is required")
 	}
+	from, err := parseHeaderAddress("sender", cfg.From)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateHeaderValue("sender display name", cfg.FromName); err != nil {
+		return nil, err
+	}
+	if cfg.FromName != "" {
+		from.Name = cfg.FromName
+	}
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = 10 * time.Second
 	}
-	from := mail.Address{Name: cfg.FromName, Address: cfg.From}
+	cfg.From = from.Address
 	return &SMTPSender{cfg: cfg, from: from}, nil
 }
 
@@ -57,9 +67,12 @@ func (s *SMTPSender) Send(ctx context.Context, to string, subject string, textBo
 	if s == nil {
 		return errors.New("smtp sender is nil")
 	}
-	recipient, err := mail.ParseAddress(strings.TrimSpace(to))
+	recipient, err := parseHeaderAddress("recipient", to)
 	if err != nil {
-		return fmt.Errorf("parse recipient: %w", err)
+		return err
+	}
+	if err := validateHeaderValue("subject", subject); err != nil {
+		return err
 	}
 	addr := net.JoinHostPort(s.cfg.Host, fmt.Sprintf("%d", s.cfg.Port))
 	conn, err := s.dial(ctx, addr)
@@ -108,7 +121,7 @@ func (s *SMTPSender) Send(ctx context.Context, to string, subject string, textBo
 	if err != nil {
 		return fmt.Errorf("smtp data: %w", err)
 	}
-	message, err := buildTextMessage(s.from, *recipient, subject, textBody)
+	message, err := buildTextMessage(s.from, recipient, subject, textBody)
 	if err != nil {
 		return fmt.Errorf("build smtp message: %w", err)
 	}
@@ -149,6 +162,22 @@ func (s *SMTPSender) dial(ctx context.Context, addr string) (net.Conn, error) {
 }
 
 func buildTextMessage(from mail.Address, to mail.Address, subject string, textBody string) ([]byte, error) {
+	if err := validateHeaderValue("sender address", from.Address); err != nil {
+		return nil, err
+	}
+	if err := validateHeaderValue("sender display name", from.Name); err != nil {
+		return nil, err
+	}
+	if err := validateHeaderValue("recipient address", to.Address); err != nil {
+		return nil, err
+	}
+	if err := validateHeaderValue("recipient display name", to.Name); err != nil {
+		return nil, err
+	}
+	if err := validateHeaderValue("subject", subject); err != nil {
+		return nil, err
+	}
+
 	var buffer bytes.Buffer
 	writer := bufio.NewWriter(&buffer)
 	if err := writeHeader(writer, "From", from.String()); err != nil {
@@ -185,17 +214,48 @@ func buildTextMessage(from mail.Address, to mail.Address, subject string, textBo
 }
 
 func writeHeader(writer *bufio.Writer, key string, value string) error {
+	if key == "" || strings.ContainsAny(key, ":\r\n") {
+		return errors.New("invalid SMTP header name")
+	}
+	if err := validateHeaderValue(key, value); err != nil {
+		return err
+	}
 	if _, err := writer.WriteString(key); err != nil {
 		return err
 	}
 	if _, err := writer.WriteString(": "); err != nil {
 		return err
 	}
-	if _, err := writer.WriteString(strings.ReplaceAll(value, "\n", " ")); err != nil {
+	if _, err := writer.WriteString(value); err != nil {
 		return err
 	}
 	if _, err := writer.WriteString("\r\n"); err != nil {
 		return err
+	}
+	return nil
+}
+
+func parseHeaderAddress(field string, value string) (mail.Address, error) {
+	value = strings.TrimSpace(value)
+	if err := validateHeaderValue(field, value); err != nil {
+		return mail.Address{}, err
+	}
+	parsed, err := mail.ParseAddress(value)
+	if err != nil {
+		return mail.Address{}, fmt.Errorf("parse %s address: %w", field, err)
+	}
+	if err := validateHeaderValue(field, parsed.Address); err != nil {
+		return mail.Address{}, err
+	}
+	if err := validateHeaderValue(field+" display name", parsed.Name); err != nil {
+		return mail.Address{}, err
+	}
+	return *parsed, nil
+}
+
+func validateHeaderValue(field string, value string) error {
+	if strings.ContainsAny(value, "\r\n") {
+		return fmt.Errorf("%s contains a forbidden line break", field)
 	}
 	return nil
 }

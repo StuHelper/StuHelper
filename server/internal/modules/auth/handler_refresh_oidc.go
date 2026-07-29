@@ -79,7 +79,7 @@ func (h *Handler) resolveOIDCRefreshApplication(c *gin.Context, sessionID, oldRe
 	if err == nil {
 		return appKey, true
 	}
-	logger.FromGin(c).Error("failed to resolve OIDC refresh application", zap.String("session_id", sessionID), zap.Error(err))
+	logger.FromGin(c).Error("failed to resolve OIDC refresh application", zap.Bool("session_present", sessionID != ""), zap.Error(err))
 	h.clearTokenCookies(c)
 	if errors.Is(err, token.ErrSessionNotFound) ||
 		errors.Is(err, errSessionIDRequired) ||
@@ -188,7 +188,7 @@ func (h *Handler) rotateOIDCSession(c *gin.Context, rotation oidcSessionRotation
 
 	if sessionRotationCommitted(err) {
 		logger.FromGin(c).Error("OIDC session rotated with post-commit cleanup failure",
-			zap.String("session_id", rotation.sessionID),
+			zap.Bool("session_present", rotation.sessionID != ""),
 			zap.Error(err),
 		)
 		return true
@@ -202,7 +202,7 @@ func (h *Handler) rotateOIDCSession(c *gin.Context, rotation oidcSessionRotation
 		rotation.payload.refreshToken,
 		"local session rotation failed before commit",
 	)
-	logger.FromGin(c).Error("failed to rotate OIDC session", zap.String("session_id", rotation.sessionID), zap.Error(err))
+	logger.FromGin(c).Error("failed to rotate OIDC session", zap.Bool("session_present", rotation.sessionID != ""), zap.Error(err))
 	h.clearTokenCookies(c)
 	if errors.Is(err, token.ErrSessionNotFound) ||
 		errors.Is(err, errSessionIDRequired) ||
@@ -231,7 +231,7 @@ func (h *Handler) revokeIssuedProviderRefreshToken(
 	defer cancel()
 	if err := h.svc.revokeRawProviderRefreshToken(revokeCtx, appKey, newRefreshToken); err != nil {
 		logger.FromGin(c).Error("failed to revoke uncommitted provider refresh token",
-			zap.String("session_id", sessionID),
+			zap.Bool("session_present", sessionID != ""),
 			zap.String("provider_app_key", appKey),
 			zap.String("reason", reason),
 			zap.Error(err),

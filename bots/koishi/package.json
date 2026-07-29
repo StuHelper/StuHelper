@@ -53,7 +53,7 @@
     "cross-env": "^7.0.3",
     "esbuild": "^0.25.12",
     "esbuild-register": "npm:@shigma/esbuild-register@^1.1.1",
-    "tsx": "^4.16.2",
+    "tsx": "^4.23.1",
     "typescript": "^5.6.2",
     "yakumo": "^1.0.0-beta.21",
     "yakumo-esbuild": "^1.0.0-beta.7",
@@ -63,7 +63,12 @@
   "resolutions": {
     "@koishijs/client@npm:^5.30.4": "patch:@koishijs/client@npm%3A5.30.11#~/.yarn/patches/@koishijs-client-npm-5.30.11-f4fd28fbc1.patch",
     "@koishijs/plugin-console@npm:^5.30.4": "patch:@koishijs/plugin-console@npm%3A5.30.11#~/.yarn/patches/@koishijs-plugin-console-npm-5.30.11-fa58ce5155.patch",
-    "js-yaml@npm:4.1.0": "npm:4.3.0"
+    "element-plus@npm:2.7.7": "npm:2.11.1",
+    "esbuild@npm:^0.21.3": "npm:0.25.12",
+    "file-type@npm:^16.5.4": "patch:file-type@npm%3A16.5.4#~/.yarn/patches/file-type-npm-16.5.4-36faadc4ae.patch",
+    "js-yaml@npm:4.1.0": "npm:4.3.0",
+    "tsx@npm:^4.19.2": "npm:4.23.1",
+    "uuid@npm:^8.3.2": "npm:11.1.1"
   },
   "dependencies": {
     "@koishijs/core": "4.18.11",

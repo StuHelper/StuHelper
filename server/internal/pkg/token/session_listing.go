@@ -45,7 +45,7 @@ func (s *SessionStore) loadUserSessions(ctx context.Context, userID string, sess
 		if session.UserID != userID {
 			logger.L().Warn("list user sessions: stale cross-user session reference",
 				zap.String("user_id", userID),
-				zap.String("session_id", sessionIDs[i]),
+				zap.Bool("session_reference_present", sessionIDs[i] != ""),
 				zap.String("session_user_id", session.UserID),
 			)
 			staleSessionIDs = append(staleSessionIDs, sessionIDs[i])
@@ -73,7 +73,7 @@ func decodeListedSession(sessionID string, raw any) (SessionData, bool) {
 	var data SessionData
 	if err := json.Unmarshal([]byte(payload), &data); err != nil {
 		logger.L().Warn("list user sessions: failed to decode session payload",
-			zap.String("session_id", sessionID),
+			zap.Bool("session_reference_present", sessionID != ""),
 			zap.Error(err),
 		)
 		return SessionData{}, false
@@ -91,7 +91,7 @@ func sessionPayloadString(sessionID string, raw any) (string, bool) {
 		return string(value), true
 	default:
 		logger.L().Warn("list user sessions: unexpected session payload type",
-			zap.String("session_id", sessionID),
+			zap.Bool("session_reference_present", sessionID != ""),
 			zap.String("type", fmt.Sprintf("%T", raw)),
 		)
 		return "", false

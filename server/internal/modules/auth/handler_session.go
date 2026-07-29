@@ -60,7 +60,7 @@ func (h *Handler) Logout(c *gin.Context) {
 		}
 		logger.FromGin(c).Error("failed to revoke session",
 			zap.String("user_id", userID),
-			zap.String("session_id", sessionID),
+			zap.Bool("session_present", sessionID != ""),
 			zap.Error(err),
 		)
 		// 仍然清除客户端 cookie（减少攻击面），但不向客户端承诺撤销成功

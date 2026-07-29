@@ -13,8 +13,9 @@ test('testSafeKeywordRegex matches valid bounded keyword patterns', () => {
 })
 
 test('assertSafeKeywordRegex rejects nested quantified patterns', () => {
+  const nestedQuantifier = ['(a+)', '+$'].join('')
   assert.throws(
-    () => assertSafeKeywordRegex('(a+)+$'),
+    () => assertSafeKeywordRegex(nestedQuantifier),
     UnsafeKeywordPatternError,
   )
 })

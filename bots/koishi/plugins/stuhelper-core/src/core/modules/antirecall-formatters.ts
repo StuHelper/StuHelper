@@ -149,7 +149,9 @@ function sanitizeContentForDisplay(content: string): string {
     const elements = Element.parse(content)
     return elements.map(formatElement).join('').trim()
   } catch {
-    return content.replace(/<[^>]+>/g, '').trim() || '[消息内容解析失败]'
+    // Malformed Koishi markup is untrusted input. Fail closed instead of trying
+    // to repair it with a partial tag-stripping expression.
+    return '[消息内容解析失败]'
   }
 }
 

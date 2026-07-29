@@ -547,7 +547,7 @@ test('SettingsView keeps global settings state and merge helpers typed', () => {
   assert.doesNotMatch(source, /JSON\.parse\(JSON\.stringify\(defaultSettings\)\)/)
   assert.match(source, /interface SettingsModel extends PlainRecord \{/)
   assert.match(source, /const settings = ref<SettingsModel>\(cloneDefaultSettings\(\)\)/)
-  assert.match(source, /function deepMerge<T extends PlainRecord>\(target: T, source: unknown\): T/)
+  assert.match(source, /import \{ deepMerge, isPlainRecord, type PlainRecord \} from '\.\.\/models\/plain-record'/)
   assert.match(source, /function parseSettingsSnapshot\(value: string\): SettingsModel/)
 })
 

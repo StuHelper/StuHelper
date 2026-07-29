@@ -21,7 +21,7 @@ const nativeSessionIDHeader = "X-Stuhelper-Session-ID"
 // 因此通过独立的 HttpOnly cookie 传递 session ID，确保 logout/refresh 都能定位到正确的 session。
 const sessionCookieName = middleware.CookieSessionID
 
-func (h *Handler) writeCookie(c *gin.Context, name, value string, maxAge int, path string, httpOnly bool) {
+func (h *Handler) writeHTTPOnlyCookie(c *gin.Context, name, value string, maxAge int, path string) {
 	http.SetCookie(c.Writer, &http.Cookie{ //nolint:gosec // cookie Secure flag is environment-configured through TokenConfig.
 		Name:     name,
 		Value:    value,
@@ -29,7 +29,20 @@ func (h *Handler) writeCookie(c *gin.Context, name, value string, maxAge int, pa
 		Path:     path,
 		Domain:   h.tokenConfig.CookieDomain,
 		Secure:   h.tokenConfig.CookieSecure,
-		HttpOnly: httpOnly,
+		HttpOnly: true,
+		SameSite: tokenCookieSameSite,
+	})
+}
+
+func (h *Handler) writeCSRFCookie(c *gin.Context, value string, maxAge int) {
+	http.SetCookie(c.Writer, &http.Cookie{ //nolint:gosec // CSRF double-submit cookie must be readable by the browser client.
+		Name:     middleware.CSRFCookieName,
+		Value:    value,
+		MaxAge:   maxAge,
+		Path:     "/",
+		Domain:   h.tokenConfig.CookieDomain,
+		Secure:   h.tokenConfig.CookieSecure,
+		HttpOnly: false,
 		SameSite: tokenCookieSameSite,
 	})
 }
@@ -59,32 +72,32 @@ func (h *Handler) prepareTokenCookies(c *gin.Context, sessionID string) (string,
 
 func (h *Handler) setTokenCookiesWithCSRF(c *gin.Context, accessToken, refreshToken, csrfToken string) {
 	h.setCSRFCookie(c, csrfToken)
-	h.writeCookie(c, middleware.CookieAccessToken, accessToken, h.currentAccessTokenTTLSeconds(), middleware.CookieAccessTokenPath, true)
-	h.writeCookie(c, middleware.CookieRefreshToken, refreshToken, h.tokenConfig.RefreshTokenTTL, middleware.CookieRefreshTokenPath, true)
+	h.writeHTTPOnlyCookie(c, middleware.CookieAccessToken, accessToken, h.currentAccessTokenTTLSeconds(), middleware.CookieAccessTokenPath)
+	h.writeHTTPOnlyCookie(c, middleware.CookieRefreshToken, refreshToken, h.tokenConfig.RefreshTokenTTL, middleware.CookieRefreshTokenPath)
 }
 
 // clearTokenCookies 清除 Token Cookie 和 Session Cookie
 func (h *Handler) clearTokenCookies(c *gin.Context) {
-	h.writeCookie(c, middleware.CookieAccessToken, "", -1, middleware.CookieAccessTokenPath, true)
-	h.writeCookie(c, middleware.CookieRefreshToken, "", -1, middleware.CookieRefreshTokenPath, true)
+	h.writeHTTPOnlyCookie(c, middleware.CookieAccessToken, "", -1, middleware.CookieAccessTokenPath)
+	h.writeHTTPOnlyCookie(c, middleware.CookieRefreshToken, "", -1, middleware.CookieRefreshTokenPath)
 	h.clearCSRFCookie(c)
 	h.clearSessionCookie(c)
 }
 
 func (h *Handler) setCSRFCookie(c *gin.Context, token string) {
 	c.Header(middleware.CSRFHeaderName, token)
-	h.writeCookie(c, middleware.CSRFCookieName, token, h.tokenConfig.RefreshTokenTTL, "/", false)
+	h.writeCSRFCookie(c, token, h.tokenConfig.RefreshTokenTTL)
 }
 
 func (h *Handler) clearCSRFCookie(c *gin.Context) {
 	c.Header(middleware.CSRFHeaderName, "")
-	h.writeCookie(c, middleware.CSRFCookieName, "", -1, "/", false)
+	h.writeCSRFCookie(c, "", -1)
 }
 
 // setSessionCookie 写入 session ID cookie（HttpOnly）。
 // OIDC 场景下 token 内无 sid claim，通过此 cookie 在 logout/refresh 时定位 session。
 func (h *Handler) setSessionCookie(c *gin.Context, sessionID string) {
-	h.writeCookie(c, sessionCookieName, sessionID, h.tokenConfig.RefreshTokenTTL, "/", true)
+	h.writeHTTPOnlyCookie(c, sessionCookieName, sessionID, h.tokenConfig.RefreshTokenTTL, "/")
 }
 
 // getSessionID 从请求中获取 session ID。
@@ -151,5 +164,5 @@ func sessionIDFromCookie(c *gin.Context) (string, bool) {
 
 // clearSessionCookie 清除 session ID cookie
 func (h *Handler) clearSessionCookie(c *gin.Context) {
-	h.writeCookie(c, sessionCookieName, "", -1, "/", true)
+	h.writeHTTPOnlyCookie(c, sessionCookieName, "", -1, "/")
 }

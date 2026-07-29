@@ -13,6 +13,8 @@ const repoRoot = resolve(__dirname, '../../..');
 const runner = resolve(repoRoot, 'infra/ops/casdoor-runtime-token-probe-runner.mjs');
 const serverRunner = resolve(repoRoot, 'server/scripts/casdoor-runtime-token-probe-runner.mjs');
 let lastAuthorizationNonce = '';
+let lastAuthorizationRedirectURI = '';
+let lastAuthorizationState = '';
 
 await assertStaticContract();
 const browserExecutable = await findBrowserExecutable();
@@ -118,14 +120,14 @@ function mockCasdoorHandler(req, res) {
   }
   if (req.method === 'GET' && url.pathname === '/authorize') {
     lastAuthorizationNonce = url.searchParams.get('nonce') || '';
+    lastAuthorizationRedirectURI = url.searchParams.get('redirect_uri') || '';
+    lastAuthorizationState = url.searchParams.get('state') || '';
     const html = `<!doctype html>
       <html>
         <body>
           <form method="post" action="/login">
             <input name="username" />
             <input name="password" type="password" />
-            <input name="redirect_uri" type="hidden" value="${escapeHTML(url.searchParams.get('redirect_uri'))}" />
-            <input name="state" type="hidden" value="${escapeHTML(url.searchParams.get('state'))}" />
             <button type="submit">Sign in</button>
           </form>
         </body>
@@ -142,9 +144,10 @@ function mockCasdoorHandler(req, res) {
         res.end('bad credentials');
         return;
       }
-      const redirectURI = new URL(form.get('redirect_uri'));
+      assert.ok(lastAuthorizationRedirectURI, 'authorization redirect URI must be captured');
+      const redirectURI = new URL(lastAuthorizationRedirectURI);
       redirectURI.searchParams.set('code', 'mock-code');
-      redirectURI.searchParams.set('state', form.get('state'));
+      redirectURI.searchParams.set('state', lastAuthorizationState);
       res.writeHead(302, { location: redirectURI.toString() });
       res.end();
     });
@@ -246,12 +249,4 @@ function unsignedJWT(claims) {
   const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
   const payload = Buffer.from(JSON.stringify(claims)).toString('base64url');
   return `${header}.${payload}.`;
-}
-
-function escapeHTML(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('"', '&quot;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
 }

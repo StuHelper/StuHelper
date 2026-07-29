@@ -74,7 +74,7 @@ export const SAFE_HTTP_METHODS = new Set<HttpMethod | 'HEAD' | 'OPTIONS'>([
 const API_BASE_PREFIXES = [API_VERSION_PREFIX, '/api'] as const
 
 export function normalizeSchemaPath(baseUrl: string, schemaPath: string): string {
-  const normalizedBaseUrl = baseUrl.replace(/\/+$/, '')
+  const normalizedBaseUrl = trimTrailingSlashes(baseUrl)
 
   for (const prefix of API_BASE_PREFIXES) {
     if (
@@ -92,12 +92,44 @@ export function serializePath(
   schemaPath: string,
   pathParams?: Record<string, unknown>,
 ): string {
-  return schemaPath.replace(/\{([^}]+)\}/g, (_match, key) => {
+  const chunks: string[] = []
+  let cursor = 0
+
+  while (cursor < schemaPath.length) {
+    const open = schemaPath.indexOf('{', cursor)
+    if (open < 0) {
+      chunks.push(schemaPath.slice(cursor))
+      break
+    }
+    const close = schemaPath.indexOf('}', open + 1)
+    if (close < 0) {
+      chunks.push(schemaPath.slice(cursor))
+      break
+    }
+    if (close === open + 1) {
+      chunks.push(schemaPath.slice(cursor, close + 1))
+      cursor = close + 1
+      continue
+    }
+
+    chunks.push(schemaPath.slice(cursor, open))
+    const key = schemaPath.slice(open + 1, close)
     const value = pathParams?.[key]
-    return encodeURIComponent(
+    chunks.push(encodeURIComponent(
       value === null || value === undefined ? '' : String(value),
-    )
-  })
+    ))
+    cursor = close + 1
+  }
+
+  return chunks.join('')
+}
+
+function trimTrailingSlashes(value: string): string {
+  let end = value.length
+  while (end > 0 && value.charCodeAt(end - 1) === 0x2f) {
+    end -= 1
+  }
+  return value.slice(0, end)
 }
 
 export function appendQuery(

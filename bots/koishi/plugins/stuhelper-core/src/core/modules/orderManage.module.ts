@@ -13,6 +13,7 @@ import type {
 import { markCommandExecutionFailed } from './command-execution-state'
 import { getRequiredPluginConfig } from './module-config'
 import { registerOrderManageCommands } from './order-manage-commands'
+import { secureRandomInt } from '../../utils/secure-random'
 
 export class OrderManageModule implements RuntimeModuleInstance {
   readonly meta: RuntimeModuleMeta = {
@@ -92,7 +93,7 @@ export class OrderManageModule implements RuntimeModuleInstance {
     const arrCopy = [...arr]
     n = Math.min(n, arrCopy.length)
     for (let i = 0; i < n; i++) {
-      const idx = Math.floor(Math.random() * arrCopy.length)
+      const idx = secureRandomInt(0, arrCopy.length)
       result.push(arrCopy[idx])
       arrCopy.splice(idx, 1)
     }

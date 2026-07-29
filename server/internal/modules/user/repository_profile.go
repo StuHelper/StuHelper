@@ -9,6 +9,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/StuHelper/StuHelper/server/internal/pkg/httputil"
 )
 
 type rowScanner interface {
@@ -128,6 +130,8 @@ func (r *Repository) UpdateProfileTx(ctx context.Context, tx pgx.Tx, profile *Pr
 // ListProfilesByStatus 分页查询学生认证档案（按状态和学校筛选）
 func (r *Repository) ListProfilesByStatus(ctx context.Context, status string, schoolID *int64, page, pageSize int) ([]Profile, int, error) {
 	ctx = withDBTable(ctx, "user_profiles")
+	pageSize = httputil.ClampPageSize(pageSize)
+	offset := httputil.SafeOffset(page, pageSize)
 	args := make([]any, 0, 4)
 	argIdx := 1
 	whereClause := ""
@@ -160,7 +164,7 @@ func (r *Repository) ListProfilesByStatus(ctx context.Context, status string, sc
 		return []Profile{}, 0, nil
 	}
 
-	args = append(args, pageSize, (page-1)*pageSize)
+	args = append(args, pageSize, offset)
 	rows, err := r.db.Query(ctx, `
 		SELECT p.user_id, p.school_id, p.student_ids, p.active_student_id, p.manual_form_data,
 		       p.verification_status, p.verification_method, p.rejection_reason, p.reviewed_at,
@@ -176,7 +180,7 @@ func (r *Repository) ListProfilesByStatus(ctx context.Context, status string, sc
 	}
 	defer rows.Close()
 
-	list := make([]Profile, 0, pageSize)
+	list := make([]Profile, 0)
 	for rows.Next() {
 		var item Profile
 		var studentIDsJSON []byte

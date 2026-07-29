@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"github.com/StuHelper/StuHelper/server/internal/pkg/httputil"
 )
 
 // CreateIdentity 创建实名认证记录
@@ -90,6 +92,8 @@ func (r *Repository) GetIdentityStatusByUserID(ctx context.Context, userID int64
 // ListIdentityReviewItems 分页查询实名认证审核列表（不含 doc_number_enc/person_uid）
 func (r *Repository) ListIdentityReviewItems(ctx context.Context, status string, page, pageSize int) ([]IdentityReviewItem, int, error) {
 	ctx = withDBTable(ctx, "user_identities")
+	pageSize = httputil.ClampPageSize(pageSize)
+	offset := httputil.SafeOffset(page, pageSize)
 	args := make([]any, 0, 4)
 	whereClause := ""
 
@@ -111,7 +115,7 @@ func (r *Repository) ListIdentityReviewItems(ctx context.Context, status string,
 		return []IdentityReviewItem{}, 0, nil
 	}
 
-	args = append(args, pageSize, (page-1)*pageSize)
+	args = append(args, pageSize, offset)
 	rows, err := r.db.Query(ctx, `
 		SELECT user_id, doc_type, real_name,
 		       verified, verify_method, reviewed_at, verified_at,
@@ -127,7 +131,7 @@ func (r *Repository) ListIdentityReviewItems(ctx context.Context, status string,
 	}
 	defer rows.Close()
 
-	list := make([]IdentityReviewItem, 0, pageSize)
+	list := make([]IdentityReviewItem, 0)
 	for rows.Next() {
 		var item IdentityReviewItem
 		if err := rows.Scan(

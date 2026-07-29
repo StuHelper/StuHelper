@@ -12,6 +12,8 @@ import (
 // 查询 mv_teacher_public_stats 物化视图，避免 live JOIN 全表聚合。
 func (r *Repository) ListPublicTeachers(ctx context.Context, search string, departmentID *int64, sort string, limit, offset int) ([]TeacherSummary, int, error) {
 	ctx = withDBTable(ctx, "mv_teacher_public_stats")
+	limit = httputil.ClampPageSize(limit)
+	offset = httputil.ClampOffset(offset)
 	var qb strings.Builder
 	qb.WriteString(`
 		SELECT teacher_id, teacher_name, department_name,
@@ -54,7 +56,7 @@ func (r *Repository) ListPublicTeachers(ctx context.Context, search string, depa
 	}
 	defer rows.Close()
 
-	list := make([]TeacherSummary, 0, limit)
+	list := make([]TeacherSummary, 0)
 	var total int
 	for rows.Next() {
 		var t TeacherSummary
@@ -71,6 +73,7 @@ func (r *Repository) ListPublicTeachers(ctx context.Context, search string, depa
 // 查询 mv_teacher_public_stats 物化视图，避免 live JOIN 全表聚合。
 func (r *Repository) ListHotTeachers(ctx context.Context, limit int) ([]TeacherSummary, error) {
 	ctx = withDBTable(ctx, "mv_teacher_public_stats")
+	limit = httputil.ClampPageSize(limit)
 	rows, err := r.db.Query(ctx, `
 		SELECT teacher_id, teacher_name, department_name,
 			avg_rating, course_count, review_count
@@ -84,7 +87,7 @@ func (r *Repository) ListHotTeachers(ctx context.Context, limit int) ([]TeacherS
 	}
 	defer rows.Close()
 
-	list := make([]TeacherSummary, 0, limit)
+	list := make([]TeacherSummary, 0)
 	for rows.Next() {
 		var t TeacherSummary
 		if err := rows.Scan(&t.TeacherID, &t.TeacherName, &t.DepartmentName,
