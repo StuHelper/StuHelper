@@ -1053,14 +1053,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@koishijs/plugin-adapter-qq@npm:^4.9.2":
-  version: 4.11.0
-  resolution: "@koishijs/plugin-adapter-qq@npm:4.11.0"
+"@koishijs/plugin-adapter-qq@npm:^4.13.1":
+  version: 4.13.1
+  resolution: "@koishijs/plugin-adapter-qq@npm:4.13.1"
   dependencies:
-    "@satorijs/adapter-qq": "npm:^4.11.0"
+    "@satorijs/adapter-qq": "npm:^4.13.1"
   peerDependencies:
     koishi: ^4.18.11
-  checksum: 10c0/7949c74d0a853e4ac56d9e9cfd38b08dedca2c8d7963a2b95aeff9f5d438b4958aaa9be963b9dba67cae61c05e12f26cd6ed138f365f100718e508ca76014945
+  checksum: 10c0/81d336682a8265529867ec1a2c4d3262b7b4b71efc0154e42c58b4b8e7622fd681534a81486360ab6f66c88b85994936630e923cc83b75ad595f2ae236d72f6f
   languageName: node
   linkType: hard
 
@@ -2003,12 +2003,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@satorijs/adapter-qq@npm:^4.11.0":
-  version: 4.11.0
-  resolution: "@satorijs/adapter-qq@npm:4.11.0"
+"@satorijs/adapter-qq@npm:^4.13.1":
+  version: 4.13.1
+  resolution: "@satorijs/adapter-qq@npm:4.13.1"
   peerDependencies:
     "@satorijs/core": ^4.6.0
-  checksum: 10c0/2bbd2cd3e4918e92342991ff856257037a0e73af2e2940d3286ce10afdc18ec646b13c4d3f12833284c303dadd5c0e88231fc527edd9f2e23cc5beb514df403f
+  checksum: 10c0/1effd831a9b628209601fc2c3972e2d63ff9ae585919972f94df7b87291c8a8577c565390fe9753830e1cde59f3cd2e9c787a403e012d5bdbea0e6fd1e5872cd
   languageName: node
   linkType: hard
 
@@ -5145,7 +5145,7 @@ __metadata:
     "@koishijs/plugin-actions": "npm:^0.0.2"
     "@koishijs/plugin-adapter-discord": "npm:^4.5.10"
     "@koishijs/plugin-adapter-kook": "npm:^4.6.5"
-    "@koishijs/plugin-adapter-qq": "npm:^4.9.2"
+    "@koishijs/plugin-adapter-qq": "npm:^4.13.1"
     "@koishijs/plugin-adapter-satori": "npm:^1.5.1"
     "@koishijs/plugin-adapter-telegram": "npm:^4.5.8"
     "@koishijs/plugin-admin": "npm:^2.0.0-beta.4"

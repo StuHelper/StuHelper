@@ -70,7 +70,7 @@
     "@koishijs/plugin-actions": "^0.0.2",
     "@koishijs/plugin-adapter-discord": "^4.5.10",
     "@koishijs/plugin-adapter-kook": "^4.6.5",
-    "@koishijs/plugin-adapter-qq": "^4.9.2",
+    "@koishijs/plugin-adapter-qq": "^4.13.1",
     "@koishijs/plugin-adapter-satori": "^1.5.1",
     "@koishijs/plugin-adapter-telegram": "^4.5.8",
     "@koishijs/plugin-admin": "^2.0.0-beta.4",
