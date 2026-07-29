@@ -535,7 +535,7 @@ jobs:
 
       - name: Install Chromium used by browser smoke contracts
         working-directory: clients
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm --filter @stuhelper/web exec playwright install --with-deps chromium
 
       - name: Prepare Koishi package artifacts used by infra contracts
         working-directory: bots/koishi

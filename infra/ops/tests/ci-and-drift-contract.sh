@@ -82,7 +82,7 @@ fi
 if ! grep -Eq '^[[:space:]]+sudo apt-get install --yes curl jq openssl$' <<<"${infra_job_block}"; then
   fail "GitHub infrastructure contracts must install host dependencies with sudo"
 fi
-if ! grep -Eq '^[[:space:]]+run: pnpm exec playwright install --with-deps chromium$' <<<"${infra_job_block}"; then
+if ! grep -Eq '^[[:space:]]+run: pnpm --filter @stuhelper/web exec playwright install --with-deps chromium$' <<<"${infra_job_block}"; then
   fail "GitHub infrastructure contracts must install the Chromium binary used by browser smoke contracts"
 fi
 assert_contains "${GITHUB_CI_FILE}" 'pnpm audit --registry=https://registry\.npmjs\.org --audit-level=moderate$'
