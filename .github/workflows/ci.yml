@@ -434,7 +434,7 @@ jobs:
         working-directory: clients
         run: |
           pnpm install --frozen-lockfile
-          if [[ "${INSTALL_ADMIN}" == "true" ]]; then
+          if [ "${INSTALL_ADMIN}" = "true" ]; then
             pnpm --dir admin install --frozen-lockfile
           fi
 
@@ -507,8 +507,6 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       needs.changes.outputs.infra == 'true'
     runs-on: ubuntu-latest
-    container:
-      image: mcr.microsoft.com/playwright:v1.58.2-noble@sha256:6446946a1d9fd62d9ae501312a2d76a43ee688542b21622056a372959b65d63d
     steps:
       - name: Check out the repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -528,8 +526,8 @@ jobs:
 
       - name: Install contract dependencies
         run: |
-          apt-get update
-          apt-get install --yes curl jq openssl
+          sudo apt-get update
+          sudo apt-get install --yes curl jq openssl
 
       - name: Install browser client dependencies used by smoke contracts
         working-directory: clients
