@@ -28,6 +28,7 @@ jobs:
       packages: write # Push the three scanned OCI images to GHCR
       attestations: write # Store provenance with each manifest digest
       id-token: write # Mint the OIDC identity used to sign provenance
+      artifact-metadata: write # Link each published digest to the organization artifact inventory
     strategy:
       fail-fast: false
       matrix:

@@ -671,6 +671,7 @@ jobs:
       packages: write # Publish scanned images after every CI gate succeeds
       attestations: write # Attach provenance to each immutable image digest
       id-token: write # Mint the OIDC identity used by the provenance signer
+      artifact-metadata: write # Allow actions/attest v4 to register GHCR storage records
     uses: ./.github/workflows/publish-images.yml
     with:
       commit_sha: ${{ github.sha }}

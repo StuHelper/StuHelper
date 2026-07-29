@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 CI_FILE="${REPO_ROOT}/.gitlab-ci.yml"
 GITHUB_CI_FILE="${REPO_ROOT}/.github/workflows/ci.yml"
+GITHUB_PUBLISH_FILE="${REPO_ROOT}/.github/workflows/publish-images.yml"
 SECRET_SCAN_SCRIPT="${REPO_ROOT}/scripts/check-secrets.sh"
 ROOT_MAKEFILE="${REPO_ROOT}/Makefile"
 SERVER_MAKEFILE="${REPO_ROOT}/server/Makefile"
@@ -96,6 +97,10 @@ fi
 if ! grep -Eq "^[[:space:]]+needs\\.required\\.result == 'success' &&$" <<<"${publish_job_block}"; then
   fail "GitHub image publishing must require the aggregate CI gate to succeed"
 fi
+if ! grep -Eq '^[[:space:]]+artifact-metadata: write ' <<<"${publish_job_block}"; then
+  fail "GitHub image publishing caller must grant artifact metadata write access"
+fi
+assert_contains "${GITHUB_PUBLISH_FILE}" '^[[:space:]]+artifact-metadata: write # Link each published digest to the organization artifact inventory$'
 assert_contains "${GITHUB_CI_FILE}" 'pnpm audit --registry=https://registry\.npmjs\.org --audit-level=moderate$'
 assert_contains "${GITHUB_CI_FILE}" 'pnpm --dir admin audit --registry=https://registry\.npmjs\.org --audit-level=moderate$'
 assert_not_contains "${GITHUB_CI_FILE}" 'pnpm audit .* --prod'

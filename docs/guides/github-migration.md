@@ -70,7 +70,7 @@ last-verified: 2026-07-28
 3. 只允许 GitHub 官方 Action和仓库中已固定 SHA 的允许列表；
 4. 保留 fork PR 的 secrets 禁用状态。
 
-`Publish images` 在 job 级显式申请 `packages: write`、`attestations: write` 和 `id-token: write`。Deploy 与 Rollback 仅申请 `packages: read` 和 `attestations: read`；其他工作流不继承这些权限。
+`Publish images` 在 job 级显式申请 `packages: write`、`attestations: write`、`id-token: write` 和 `artifact-metadata: write`。最后一项用于 `actions/attest` 将已发布 digest 登记到组织 Linked Artifacts；Deploy 与 Rollback 仅申请 `packages: read` 和 `attestations: read`；其他工作流不继承这些权限。
 
 ### 免费额度与预算护栏
 
