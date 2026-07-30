@@ -45,7 +45,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
   检查生产备份目录或用生产 WAL 执行目标时间点恢复，也没有观察生产锁等待或真实大表延迟。
   因此“生产已经丢失 PITR”“生产已经 OOM/死锁/永久停更”等说法仍不得当作已证实事实。
 - 当前工作树在复核开始前已经有未提交修改。Codex 对 P0-1、P1-1、P1-2、P1-3、P1-4、
-  P1-5、P1-6、P1-7、P1-8、P1-9、P1-10、P2-1、P2-2、P2-6 与 P2-7 的修复已经按问题独立提交
+  P1-5、P1-6、P1-7、P1-8、P1-9、P1-10、P2-1、P2-2、P2-6、P2-7 与 P2-10 的修复已经按问题独立提交
   （提交见下方进度表），但均未合并或发布；原有其他工作树修改没有混入这些提交。
 - 原报告大量“修复方案”和全部 18 条驳回长文在句中截断。例如 P0-1 结尾是
   `only surface the 4`，P1-1 结尾是 `Promise.resolve<string[]>(`，P1-3 结尾是
@@ -96,7 +96,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 | P2-7 | 条件性确认，已完成 Koishi 交付阶段修复与全量回归 | P2 | 已修复，待发布与功能启用验收 | 功能开启时，delivery 单项失败按 application 隔离、记录 `phase=delivery` 后继续，健康项正常 ACK；批末仍重抛以保留 scheduler error。ACK 失败记录 `phase=ack` 后 fail-fast，避免控制面失联时扩大重复发送。立即增加 attempts/dead-letter/schema、并行转发或 claim/lease 都不是解除单 poison 队首阻塞的必要条件。 |
 | P2-8 | 确认 | P2 → P4 | 可选 | 中英文增加 `school_email_otp`、`school_sso` 标签并可选保留 enum 原值 fallback。只是后台 i18n，不应占用 P2 修复预算。 |
 | P2-9 | 强静态证据确认；运行验证待补 | P2 | 必须 | 用 `{{ playbook_dir }}` 构造 command/copy 绝对源路径，使用 `argv` 并加窄路径契约/语法检查。当前环境没有 `ansible-playbook`，因此仍需 CI/真实 controller 验证。通用扫描所有 Ansible command/shell 的检测器过重。 |
-| P2-10 | 确认 | P2 | 必须 | 普通 importer 不应接受单独 hash；从普通 upsert 移除该字段并保留既有 enc/hash，若确需导入身份证则另做接受完整加密 pair 的受控入口。不能伪造空 `enc` 绕过约束。 |
+| P2-10 | 确认，已完成最小修复、真实 PostgreSQL 语义验证与全量 infra 回归 | P2 | 已修复，待发布 | 普通 importer 已拒绝 `sfzjh_enc`/`sfzjh_hash`，并从 normalize、临时表、copy、insert 和 conflict update 全链路移除两列：新行得到 `NULL/NULL`，重导保留既有 pair。当前仓库没有完整 pair 导入入口；在没有真实需求和密钥治理设计前不新增 CLI/API，也不能伪造空 `enc` 绕过约束。 |
 | P2-11 | 确认潜在契约缺陷 | P2 → P3 | 应改 | 统一为 `explode: true`，Handler 用 `QueryArray` 并兼容旧逗号格式，重新生成；修正或删除未使用的 Web grouped adapter。OpenAPI 与 Handler 当前都按逗号语义，真正不兼容的是默认客户端，原文“三端各不兼容”不准确。 |
 | P2-12 | 确认 | P2 | 必须 | 对会调用外部 Oracle 的 academic-match/request-otp 增加鉴权后的 Redis per-user 共享预算；测 429、用户隔离与 Redis 策略。现有全局/IP limiter 不等于完全无限流，但不足以保护昂贵 fan-out。 |
 | P2-13 | 确认 | P2 | 必须 | claim 后批量加载上下文；批量查询失败时按 attempt fence 安全释放 lease，单行 stale/映射错误不能中断其余项，并用独立有界 cleanup context。原文只做 per-row continue 仍处理不了批量查询失败。 |
@@ -166,7 +166,8 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
    生产对象存储与 WAL 目标时间点演练仍是发布验收项。
 3. P1-8 删除态 review 状态机已完成修复、真实 PostgreSQL 回归验证和独立提交；
    已删除内容不会被举报处理复活，历史举报仍可正常结案。
-4. P2-10 身份证 enc/hash 导入约束。
+4. P2-10 身份证 enc/hash 导入约束已完成最小修复、真实 PostgreSQL 验证和独立提交；
+   当前仓库没有完整 pair 导入入口，不为本项额外建设未经需求驱动的 PII 导入 API/CLI。
 5. P3-7 敏感导出审计。
 6. P1-9 `phone.read` 已按既有安全模型完成实时 Casdoor 读取与 fail-closed 修复；
    仍需带真实 Casdoor 凭据执行一次发布环境验收。
@@ -279,6 +280,15 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置�
   `yarn test` 一次通过：build、Vue contracts、597/597 unit、startup smoke 和 WebUI E2E
   46/46；deployable package contract 也通过。测试使用 fake bot/platform，没有向真实 QQ 群
   发送材料；功能当前默认关闭，尚未在发布环境开启并观察真实队列推进。
+- Academic importer P2-10：迁移约束与 PostgreSQL 18 临时表实测均确认 hash-only 新行会被
+  `chk_buaa_students_sfzjh_secure_pair` 拒绝，旧完整 pair 在旧 upsert 尝试清空 hash 时也会让
+  整条 INSERT 失败；约束会阻止半对落库，真实后果是普通字段同样无法导入/更新。修复后分别实测
+  旧行名称更新时 `sfzjh_enc` 字节和 `sfzjh_hash` 原样保留，新行得到 `NULL/NULL`。契约测试覆盖
+  两个禁用 header、SQL 不再写 pair 及生产手册边界；ShellCheck、75 个 shell + 1 个 Node
+  infra contracts、文档卫生单测 5/5 和全量文档检查通过。独立代理另外在用后即销毁的
+  PostgreSQL 18 容器复现旧两种失败并逐列核对修复后的 15 列链路，最终只要求纠正文案中不存在
+  的“现成受控工具”，纠正后无代码 blocker。主代理一次长复合数据库验证调用无输出并以 139
+  退出，拆成只操作临时表的短事务后全部通过；未向持久表导入测试数据，也未处理真实身份证件号。
 - image policy：2026-07-30 通过，2026-08-06 因 `review_by=2026-08-05` 失败，确认日历门禁。
 - 授权：capability/RBAC/review 定向 Go 测试通过，确认 X-1 在 Handler 前 fail-closed。
 - P2 早期基线：3 个 infra/import contract、Koishi 定向 29 tests，以及 outbox、externaldata、
@@ -309,6 +319,7 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置�
 | P2-2 | 已修复，待 GitHub CI 验收 | always-on 静态 job 执行 Dockerfile/CI wiring 并纳入 Required；Koishi job 执行 deployable package contract。三个定向合约、actionlint 与全量 76 个 infra contracts 通过 | `fix(ci): make supply-chain contracts unskippable` |
 | P2-6 | 已修复，未发布；真实 Console 热重载/插件卸载待验收 | Group Guard 使用 required console 子作用域；Core/Group Guard 特权 listeners 都由 `ctx.effect` 绑定生命周期，并用 registration identity 避免旧 disposer 删除新注册。authority 固定为 4。build、contracts、595 unit、startup 与 package contract 通过；WebUI E2E 首轮无关用例 45/46，立即复跑 46/46 | `fix(koishi): dispose privileged console listeners` |
 | P2-7 | 已修复，未发布；真实材料转发待启用验收 | delivery failure 逐项记录并继续，成功项 ACK；批末重抛。ACK failure 独立记录并 fail-fast。poison→healthy 与 ACK failure 回归通过；完整 Koishi build/contracts/597 unit/startup/46 E2E 及 package contract 通过 | `fix(koishi): isolate freshman forward failures` |
+| P2-10 | 已修复，未发布；完整 pair 导入能力不存在且不在本次范围 | 普通 TSV 拒绝两个身份证安全列，15 列 normalize/copy/upsert 链路不再写 pair；已有 pair 保留，新行 `NULL/NULL`。真实 PostgreSQL 临时表语义、定向契约、ShellCheck、76 个 infra contracts 与文档卫生通过 | `fix(import): preserve academic identity pairs` |
 
 ### 明确不建议实施的“修复”
 
@@ -328,6 +339,9 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置�
 - 不为 P2-7 立即新增 `forward_attempt_count`、dead-letter、按群持久化 delivery 或
   claim/lease schema，也不把最多 100 条顺序发送改成 `Promise.allSettled` 并发冲击 QQ；
   当前局部隔离已解除单 poison 队首阻塞，复杂治理应由真实启用后的失败率与重复率驱动。
+- 不为 P2-10 伪造空 `sfzjh_enc`、用 `COALESCE` 模糊两列所有权，或在没有需求、密钥分发和
+  审计设计时顺带新增完整身份证导入 API/CLI。当前正确边界是普通 importer 完全不拥有这两列；
+  将来若确需导入，必须从同一明文原子生成 AES-GCM envelope 与 HMAC，并单独完成安全审计。
 - 不用 `COALESCE('', 0)` 隐藏 P2-16 的 NULL 数据语义。
 - 不在当前单副本部署为 P2-18 先建 Redis pub/sub/version 系统。
 - 不为 P2-23 增加无限自动 supervisor；panic 必须进入现有 retry/dead-letter。
@@ -1545,6 +1559,38 @@ server/migrations/000001_initial_schema.up.sql:71 enforces CONSTRAINT chk_buaa_s
 **修复方案**
 
 Apply option (a) from the proposal - it matches the script's own stated contract that encrypted identity columns are not loaded from this TSV. In infra/ops/import-buaa-academic-students.sh: (1) remove "sfzjh_hash" from the Python `columns` list at line 121, and add a fail-fast right after `header` is built (around line 145) that raises SystemExit if the header contains sfzjh_hash or sfzjh_enc, e.g. `forbidden = [c for c in ("sfzjh_hash", "sfzjh_enc") if c in header]` -> `raise SystemExit(f"BUAA academic TSV must not supply {', '.join(forbidden)}: academic.buaa_students enforces chk_buaa_students_sfzjh_secure_pair, so encrypted identity columns must be written as a pair by the dedicated encrypted identity sync path")`; (2) delete `sfzjh_hash text,` from the TEMP TABLE at line 214, delete sfzjh_hash from the \copy column list at line 229, delete it from the INSERT column list at line 232, and delete the `NULLIF(btrim(sfzjh_hash), ''),` select item at line 239 - all four must change together so the normalized header and the copy list stay aligned; (3) delete `sfzjh_hash = EXCLUDED.sfzjh_hash,` from the ON CONFLICT SET list at line 257 so a re-import can never null a hash that is paired with an existing sfzjh_enc (simpler and strictly safer than the proposed COALESCE); (4) drop `sfzjh_hash` from the "Supported optional columns" usage text at line 45 and extend the note at lines 48-49 to say both sfzjh_enc and sfzjh_hash are never imported here because the schema enforces chk_buaa
+
+> Claude 原修复方案在 `schema enforces chk_buaa` 处截断；其中“使用现成 dedicated sync path”
+> 的假设也不成立。下面的 Codex 结论与已实施边界为本项权威处置。
+
+**Codex 独立复核与处置（2026-07-30）**
+
+- **问题真实，但不会持久化半对。**`academic.buaa_students` 的 CHECK 要求
+  `sfzjh_enc/sfzjh_hash` 同时为空或同时非空。旧脚本把 hash-only 候选行送入 INSERT 时，
+  PostgreSQL 会在冲突更新前拒绝该候选；不带 hash 重导一个已有完整 pair 时，旧
+  `sfzjh_hash = EXCLUDED.sfzjh_hash` 又会尝试形成 `enc != NULL/hash = NULL` 并被拒绝。
+  约束因此保护了存量数据，真实故障是整个多行 INSERT 原子失败，任何新行和普通字段更新都不落库，
+  不是“数据库成功保存了孤立 hash”。
+- **普通 importer 已撤销两列所有权。**规范化列从 16 个收窄为 15 个，并同步删除临时表、
+  `\copy`、INSERT/SELECT 和 `ON CONFLICT` 中的 `sfzjh_hash`；`sfzjh_enc` 本来就不在写入 SQL。
+  规范化、copy 和 SQL 的 15 列顺序已逐项对齐。新记录自然得到 `NULL/NULL`；冲突更新完全不引用
+  两列，因此已有加密 envelope 与 HMAC 保持字节级不变。
+- **输入契约 fail-fast。**离线 validate-only 与真实导入共用同一规范化器；标准
+  `sfzjh_enc` 或 `sfzjh_hash` header（包括首尾空白）会在任何 Docker、环境文件或数据库操作前
+  失败。帮助文本和生产 go-live 手册不再把 hash 列为支持字段，并明确普通 upsert 只保留既有 pair。
+- **不存在可复用的完整 pair 写入口。**独立全库搜索确认 user academic repository 只读，
+  seed 只显式写 `NULL/NULL`，prod-parity 也省略两列；通用 PII cipher 不能等同于一个可操作的
+  学籍导入工具。最终文案明确“当前仓库不提供该入口”。确需该能力时，必须另行实现并审计从同一
+  明文原子生成 AES-GCM envelope 与使用服务端一致密钥的 HMAC 的专用工具；本次直接新增 API/CLI
+  会扩大 PII、密钥和审计边界，属于过度设计。
+- **回归与交叉验证。**契约测试新增两个禁用 header 的动态失败用例，并静态保证 SQL 不再声明、
+  选择或冲突更新 hash；真实 PostgreSQL 18 临时表复现旧两种失败，并证明修复语义为“旧 pair
+  保留、新行 `NULL/NULL`”。ShellCheck、75 个 shell + 1 个 Node infra contracts、文档卫生
+  单测 5/5 与全量文档检查通过。独立只读代理逐列复核 Python fieldnames、normalized TSV、
+  TEMP、`\copy`、INSERT/SELECT 和 conflict update，纠正了“已有受控工具”的文案后确认无 blocker。
+- **验证边界。**没有执行生产导入、没有使用真实身份证件号或生产密钥，也没有实现完整 pair 导入。
+  当前提交只保证普通 fallback TSV 导入不再违反安全配对约束、不会清空存量 pair；未来专用 PII
+  导入能力必须作为独立需求重新做威胁模型、密钥一致性、最小权限、审计和回滚验收。
 
 #### P2-11. Batch reviews `courseIDs` array serialization is incompatible on all three legs (spec explode:false vs. client explode:true vs. handler reading only first value)
 
@@ -2818,6 +2864,7 @@ STUHELPER_REDIS_INTEGRATION
 | P2-2 | Dockerfile/Koishi 输入可绕过只在 infra job 中运行的供应链合约 | Codex 已完成实现：Dockerfile/CI wiring 两个静态合约改为 always-on Required 依赖，Koishi package contract 接入已有 Koishi build/test job；没有扩大为所有机器人变更跑全套 infra。三个定向合约、actionlint 与全部 76 个 infra contracts 通过。随独立修复提交入库，真实 GitHub runner 待验收 |
 | P2-6 | Console listeners 不随插件作用域释放，停用后仍可能调用特权动作 | Codex 已完成实现：Group Guard 改为 required console 子作用域；Core 与 Group Guard listeners 均由 `ctx.effect` 管理，并以 registration identity 保护服务重载后的新注册，authority 固定为 4。build、contracts、595 unit、startup 与 package contract 通过；WebUI E2E 首轮无关用例 45/46，立即复跑 46/46。随独立修复提交入库；真实 Console 热重载/插件卸载待验收 |
 | P2-7 | 单个不可转发的新生材料阻塞后续队列 | Codex 已完成 Koishi delivery 阶段修复：单项 delivery failure 记录后继续，健康项 ACK，批末保持失败信号；ACK failure 分相并 fail-fast。poison→healthy、ACK failure 及既有多群语义测试通过，完整 Koishi build/contracts/597 unit/startup/46 E2E 与 package contract 通过。随独立修复提交入库；功能默认关闭，真实启用验收及服务端 URL 批构建边界仍待处理 |
+| P2-10 | 普通学籍 importer 破坏身份证 enc/hash 成对写入约束 | Codex 已完成最小修复：普通 TSV 明确拒绝两列并从全部写入阶段移除 hash，重导不触碰已有 pair，新行保持 `NULL/NULL`；真实 PostgreSQL 18、定向契约、ShellCheck、76 个 infra contracts 和文档卫生通过。随独立修复提交入库；仓库当前没有完整 pair 导入入口，本次没有过度扩建 PII API/CLI |
 | X-1 | 无 scope 的 school_admin 全量可见 | Codex 已证伪；现有 capability 展开和 admin Entry 在 Handler 前返回 403，不按 P1 修复 |
 | X-2 | env 模板差集 | Codex 判定部分成立；改为分类治理，不执行 21 项全量入模板/严格集合相等方案 |
 | 其余条目 | — | 不再用“其余 41 项待修”概括；按 Codex 逐项表和四批实施顺序处置 |

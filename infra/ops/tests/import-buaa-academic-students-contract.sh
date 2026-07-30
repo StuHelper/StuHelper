@@ -52,11 +52,20 @@ assert_contains "${IMPORT_SCRIPT}" 'ANALYZE academic\.buaa_students'
 assert_contains "${IMPORT_SCRIPT}" 'imported_buaa_academic_students'
 assert_contains "${IMPORT_SCRIPT}" 'total_buaa_academic_students'
 assert_contains "${IMPORT_SCRIPT}" 'sfzjh_enc'
+assert_contains "${IMPORT_SCRIPT}" 'sfzjh_hash'
+assert_contains "${IMPORT_SCRIPT}" 'must not contain encrypted identity column'
+assert_contains "${IMPORT_SCRIPT}" 'Existing pairs are preserved'
+assert_contains "${IMPORT_SCRIPT}" 'does not currently provide'
+assert_not_contains "${IMPORT_SCRIPT}" 'sfzjh_hash text'
+assert_not_contains "${IMPORT_SCRIPT}" 'NULLIF\(btrim\(sfzjh_hash\)'
+assert_not_contains "${IMPORT_SCRIPT}" 'sfzjh_hash = EXCLUDED\.sfzjh_hash'
 assert_not_contains "${IMPORT_SCRIPT}" 'TRUNCATE academic\.buaa_students'
 assert_not_contains "${IMPORT_SCRIPT}" 'DELETE FROM academic\.buaa_students'
 
 assert_contains "${READINESS_SCRIPT}" 'BUAA academic table academic\.buaa_students has no rows'
 assert_contains "${GO_LIVE_DOC}" 'import-buaa-academic-students\.sh'
+assert_contains "${GO_LIVE_DOC}" '不接受.*sfzjh_enc.*sfzjh_hash'
+assert_contains "${GO_LIVE_DOC}" '当前仓库不提供该入口'
 assert_contains "${RELEASE_RUNBOOK}" 'import-buaa-academic-students\.sh'
 
 tmpdir="$(mktemp -d)"
@@ -101,5 +110,19 @@ if BUAA_ACADEMIC_DRY_RUN=true BUAA_ACADEMIC_STUDENTS_TSV="${duplicate_tsv}" "${I
 fi
 grep -Eq 'duplicate xh 20250001' "${tmpdir}/duplicate.err" || \
   fail "duplicate-row error did not explain duplicate xh"
+
+for forbidden_column in sfzjh_enc sfzjh_hash; do
+  forbidden_tsv="${tmpdir}/${forbidden_column}.tsv"
+  {
+    printf 'xh\txm\t%s\n' "${forbidden_column}"
+    printf '20250001\t张三\tforbidden-value\n'
+  } >"${forbidden_tsv}"
+
+  if BUAA_ACADEMIC_VALIDATE_ONLY=true BUAA_ACADEMIC_STUDENTS_TSV="${forbidden_tsv}" "${IMPORT_SCRIPT}" >"${tmpdir}/${forbidden_column}.out" 2>"${tmpdir}/${forbidden_column}.err"; then
+    fail "validate-only should reject ${forbidden_column}"
+  fi
+  grep -Eq "must not contain encrypted identity column\\(s\\): ${forbidden_column}" "${tmpdir}/${forbidden_column}.err" || \
+    fail "${forbidden_column} error did not explain the secure-pair restriction"
+done
 
 echo "[import-buaa-academic-students-contract] all assertions passed"
