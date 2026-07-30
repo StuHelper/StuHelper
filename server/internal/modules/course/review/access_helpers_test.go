@@ -2,6 +2,7 @@ package review
 
 import (
 	"context"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -126,7 +127,7 @@ func TestResolveAccessFacts(t *testing.T) {
 		capability.ReviewCreate,
 		capability.ReviewEditOwn,
 		capability.ReviewDeleteOwn,
-	})
+	}, nil)
 	require.NoError(t, err)
 	assert.True(t, facts.Authenticated)
 	assert.True(t, facts.StudentVerified)
@@ -152,7 +153,7 @@ func TestResolveAccessFacts_AnonymousAndCacheFresh(t *testing.T) {
 	t.Cleanup(systemconfig.InvalidateReviewAccessPolicySnapshot)
 
 	svc := &Service{accessReader: fakeAccessReader{err: assert.AnError}}
-	facts, err := svc.ResolveAccessFacts(context.Background(), "", nil)
+	facts, err := svc.ResolveAccessFacts(context.Background(), "", nil, nil)
 	require.NoError(t, err)
 	assert.False(t, facts.Authenticated)
 	assert.Equal(t, 18, facts.PreviewTitleRunes)
@@ -172,8 +173,96 @@ func TestResolveAccessFacts_UsesServiceLifecycleForPolicyRefresh(t *testing.T) {
 		backgroundCtx: lifecycleCtx,
 	}
 
-	_, err := svc.ResolveAccessFacts(context.Background(), "", nil)
+	_, err := svc.ResolveAccessFacts(context.Background(), "", nil, nil)
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestResolveReviewAccessFactsForRequestRequiresGlobalManageCapability(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	systemconfig.SetReviewAccessPolicySnapshot(systemconfig.ReviewAccessPolicySnapshot{
+		PreviewTitleRunes:   8,
+		PreviewContentRunes: 80,
+		PreviewContentPct:   100,
+		LoadedAt:            time.Now(),
+	})
+	t.Cleanup(systemconfig.InvalidateReviewAccessPolicySnapshot)
+
+	handler := &Handler{service: &Service{accessReader: fakeAccessReader{
+		subject: &reviewaccess.Subject{InternalUserID: 42},
+	}}}
+	resolve := func(t *testing.T, snapshot capability.UserAccessSnapshot) ReviewAccessFacts {
+		t.Helper()
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+		c.Set(middleware.CtxKeyUserID, "admin-subject")
+		c.Set(middleware.CtxKeyCapabilities, snapshot.Capabilities)
+		c.Set(middleware.CtxKeyGlobalCapabilities, snapshot.GlobalCapabilities)
+
+		facts, ok := handler.resolveReviewAccessFactsForRequest(c)
+		require.True(t, ok)
+		require.Equal(t, http.StatusOK, w.Code)
+		return facts
+	}
+
+	t.Run("scoped grant stays preview-only on public reads", func(t *testing.T) {
+		testCases := []struct {
+			name  string
+			grant capability.Grant
+		}{
+			{
+				name: "school scope",
+				grant: capability.Grant{
+					Name:           capability.AdminReviewsManage,
+					ScopeSchoolIDs: []string{"4111010006"},
+				},
+			},
+			{
+				name: "section scope",
+				grant: capability.Grant{
+					Name:            capability.AdminReviewsManage,
+					ScopeSectionIDs: []string{"school_4111010006_review_moderation"},
+				},
+			},
+		}
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				snapshot := capability.BuildUserAccessSnapshot([]capability.Grant{tc.grant})
+				require.Contains(t, snapshot.Capabilities, capability.AdminReviewsManage)
+				require.Empty(t, snapshot.GlobalCapabilities)
+
+				facts := resolve(t, snapshot)
+				assert.False(t, facts.CanManageReviews)
+				assert.False(t, facts.CanViewFull)
+
+				result := stripReviewsForResponse([]Review{{
+					Status:  StatusPublished,
+					Content: "范围外正文第一行很长，不能因为 scoped grant 返回完整内容\n第二行敏感正文",
+				}}, facts)
+				require.Len(t, result, 1)
+				assert.NotContains(t, result[0].Content, "第二行敏感正文")
+			})
+		}
+	})
+
+	t.Run("global grant keeps platform-wide management access", func(t *testing.T) {
+		snapshot := capability.BuildUserAccessSnapshot([]capability.Grant{{
+			Name: capability.AdminReviewsManage,
+		}})
+		require.Contains(t, snapshot.GlobalCapabilities, capability.AdminReviewsManage)
+
+		facts := resolve(t, snapshot)
+		assert.True(t, facts.CanManageReviews)
+		assert.True(t, facts.CanViewFull)
+
+		const content = "全局管理员可见完整第一行\n完整第二行"
+		result := stripReviewsForResponse([]Review{{
+			Status:  StatusPublished,
+			Content: content,
+		}}, facts)
+		require.Len(t, result, 1)
+		assert.Equal(t, content, result[0].Content)
+	})
 }
 
 func TestResolveUserHashHelpers(t *testing.T) {

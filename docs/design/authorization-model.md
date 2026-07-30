@@ -3,7 +3,7 @@ type: design
 audience: backend-dev
 status: current
 authoritative-source: server/internal/pkg/capability/ + design/openfga-model.fga
-last-verified: 2026-05-18
+last-verified: 2026-07-31
 ---
 
 # 授权模型
@@ -23,6 +23,13 @@ last-verified: 2026-05-18
 Casdoor JWT 只提供扁平角色名，不携带学校 ID 或资源 ID。`school_admin` 展开为 school-scoped grants，`section_*` 展开为 section-scoped grants；缺少 scope 时不授予对应 capability，避免把 scoped admin 误放大为全局权限。
 
 当前运行时已通过 `server/internal/platform/authorization.RoleScopeResolver` 补全 scoped admin 范围：先把 Casdoor subject 映射到内部 `users.id`，再从 OpenFGA 查询 `school#effective_admin` 生成 `school_admin` scope；`section_admin` / `section_moderator` 则反查可管理的 `section` 并保留 section ID，同时校验每个 section 必须有唯一 `section#school` 归属。OpenFGA tuple 中的 `user:<id>` 必须使用内部 `users.id`，不能使用 Casdoor subject。`school_admin` 的评课/举报管理能力是 school-scoped grant，handler 仍需按 review/report 的学校归属做资源边界校验。
+
+课程评课列表、最新评课、搜索与批量读取等 optional-auth 公共接口只把
+`GlobalCapabilities` 中的 `admin:reviews:manage` 解释为平台级完整正文权限。带学校或
+板块 scope 的同名 grant 不能把公共读取提升为全局管理读取；scoped admin 必须通过现有
+后台审核接口及其资源归属检查读取和操作授权范围内内容。普通学生的
+`review:list:full` / create / edit-own / delete-own 仍从完整 capability 集合读取，并继续
+叠加数据库中的学生、实名和 owner 事实。
 
 典型能力：
 - 后台入口：`admin:dashboard:view`

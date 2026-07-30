@@ -3,7 +3,7 @@ type: product-spec
 audience: product, backend-dev
 status: current
 authoritative-source: server/api/openapi.yaml
-last-verified: 2026-04-19
+last-verified: 2026-07-31
 ---
 
 # 课程与评课
@@ -132,7 +132,8 @@ last-verified: 2026-04-19
 | 游客 | 课程/教师/评课预览 |
 | 已登录未认证 | 比游客多，评课正文有限制 |
 | 已认证学生 | 完整评课、发布评课 |
-| 管理员 | 完整内容、后台管理 |
+| 全局评课管理员 | 完整内容、后台管理 |
+| 带学校/板块范围的评课管理员 | scoped grant 本身不提升公共列表正文权限；通过带资源边界的后台审核路由管理授权范围内内容 |
 
 发布评课需要：已登录 + 实名认证通过 + 学生认证通过。
 
