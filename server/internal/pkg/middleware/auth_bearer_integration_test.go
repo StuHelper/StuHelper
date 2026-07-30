@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -77,6 +78,14 @@ func requireIntrospectionCredentials(t *testing.T, r *http.Request) {
 	assert.Equal(t, "introspection-secret", pass)
 }
 
+func testBearerProviderJWT(t *testing.T, tokenType string) string {
+	t.Helper()
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`))
+	payload, err := json.Marshal(map[string]any{"tokenType": tokenType})
+	require.NoError(t, err)
+	return header + "." + base64.RawURLEncoding.EncodeToString(payload) + ".test-signature"
+}
+
 func TestAuthMiddleware_BearerUsesFlatCasdoorRoles(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -94,7 +103,7 @@ func TestAuthMiddleware_BearerUsesFlatCasdoorRoles(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/me", nil)
-	req.Header.Set("Authorization", "Bearer provider-access-token")
+	req.Header.Set("Authorization", "Bearer "+testBearerProviderJWT(t, "access-token"))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -122,7 +131,7 @@ func TestAuthMiddlewareWithRoleScopeResolverBuildsScopedGrants(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/me", nil)
-	req.Header.Set("Authorization", "Bearer provider-access-token")
+	req.Header.Set("Authorization", "Bearer "+testBearerProviderJWT(t, "access-token"))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -145,7 +154,7 @@ func TestAuthMiddlewareWithRoleScopeResolverFailureReturns503(t *testing.T) {
 	r.GET("/me", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	req := httptest.NewRequest(http.MethodGet, "/me", nil)
-	req.Header.Set("Authorization", "Bearer provider-access-token")
+	req.Header.Set("Authorization", "Bearer "+testBearerProviderJWT(t, "access-token"))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -167,7 +176,7 @@ func TestAuthMiddleware_BearerProviderUnavailableReturns503(t *testing.T) {
 	r.GET("/me", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	req := httptest.NewRequest(http.MethodGet, "/me", nil)
-	req.Header.Set("Authorization", "Bearer provider-access-token")
+	req.Header.Set("Authorization", "Bearer "+testBearerProviderJWT(t, "access-token"))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -196,7 +205,7 @@ func TestAuthMiddleware_BearerRejectsForeignClientID(t *testing.T) {
 	r.GET("/me", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	req := httptest.NewRequest(http.MethodGet, "/me", nil)
-	req.Header.Set("Authorization", "Bearer foreign-client-token")
+	req.Header.Set("Authorization", "Bearer "+testBearerProviderJWT(t, "access-token"))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -224,7 +233,7 @@ func TestAuthMiddleware_BearerRejectsMissingClientID(t *testing.T) {
 	r.GET("/me", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	req := httptest.NewRequest(http.MethodGet, "/me", nil)
-	req.Header.Set("Authorization", "Bearer token-without-client")
+	req.Header.Set("Authorization", "Bearer "+testBearerProviderJWT(t, "access-token"))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -251,11 +260,92 @@ func TestOptionalAuthMiddleware_BearerProviderUnavailableMarksDiagnostic(t *test
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/public", nil)
-	req.Header.Set("Authorization", "Bearer provider-access-token")
+	req.Header.Set("Authorization", "Bearer "+testBearerProviderJWT(t, "access-token"))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), `"backendFailure":true`)
 	assert.Contains(t, w.Body.String(), `"userID":""`)
+}
+
+func TestAuthMiddleware_BearerRejectsActiveRefreshToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tokenSvc := newTokenServiceForMiddlewareTest(t)
+	oidcClient, server := newBearerOIDCClient(t)
+	defer server.Close()
+
+	r := gin.New()
+	r.Use(AuthMiddleware(oidcClient, tokenSvc))
+	r.GET("/me", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodGet, "/me", nil)
+	req.Header.Set("Authorization", "Bearer "+testBearerProviderJWT(t, "refresh-token"))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Contains(t, w.Body.String(), string(errs.ErrTokenInvalid))
+}
+
+func TestAuthMiddleware_BearerRejectsMissingOrBlankSubject(t *testing.T) {
+	for name, subject := range map[string]*string{
+		"missing": nil,
+		"blank":   ptrString(" \t\n "),
+	} {
+		t.Run(name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			tokenSvc := newTokenServiceForMiddlewareTest(t)
+			oidcClient, server := newBearerOIDCClientWithIntrospection(t, func(w http.ResponseWriter, r *http.Request) {
+				requireIntrospectionCredentials(t, r)
+				response := map[string]any{
+					"active":    true,
+					"client_id": "client-id",
+				}
+				if subject != nil {
+					response["sub"] = *subject
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(response)
+			})
+			defer server.Close()
+
+			r := gin.New()
+			r.Use(AuthMiddleware(oidcClient, tokenSvc))
+			r.GET("/me", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+			req := httptest.NewRequest(http.MethodGet, "/me", nil)
+			req.Header.Set("Authorization", "Bearer "+testBearerProviderJWT(t, "access-token"))
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusUnauthorized, w.Code)
+			assert.Contains(t, w.Body.String(), string(errs.ErrTokenInvalid))
+		})
+	}
+}
+
+func TestOptionalAuthMiddleware_BearerRefreshTokenDoesNotDowngradeToAnonymous(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tokenSvc := newTokenServiceForMiddlewareTest(t)
+	oidcClient, server := newBearerOIDCClient(t)
+	defer server.Close()
+
+	r := gin.New()
+	r.Use(OptionalAuthMiddleware(oidcClient, tokenSvc, OptionalAuthConfig{}))
+	r.GET("/public", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodGet, "/public", nil)
+	req.Header.Set("Authorization", "Bearer "+testBearerProviderJWT(t, "refresh-token"))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Contains(t, w.Body.String(), string(errs.ErrTokenInvalid))
+}
+
+func ptrString(value string) *string {
+	return &value
 }

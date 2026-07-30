@@ -3,7 +3,7 @@ type: design
 audience: backend-dev, frontend-dev
 status: current
 authoritative-source: server/internal/modules/auth/
-last-verified: 2026-05-30
+last-verified: 2026-07-30
 ---
 
 # 认证与 SSO
@@ -79,6 +79,17 @@ access / refresh token 区分 `typ`，refresh 不会被当作 access 验证。
 - 即时吊销依赖 Redis blacklist；自然过期依赖 5 分钟 `TOKEN_ACCESS_TTL`
 - `refresh` / `logout` / `logout-all` 仍会命中 session store 做轮换或撤销
 - 这是当前有意的性能/安全边界：不把浏览器读请求重新拉回每请求 Redis RTT
+
+### Bearer access token 校验模型
+
+- Bearer token 走 Casdoor introspection，以获得 provider 侧即时吊销状态；provider 5xx
+  或网络不可用按认证后端不可用处理，不降级为匿名或仅本地解析。
+- 请求发送 `token_type_hint=access_token`，但该字段按标准只是提示，不能作为安全边界。
+- introspection 返回 active 后，StuHelper 还会检查同一原始 JWT 的 Casdoor
+  `tokenType` claim，只有精确的 `access-token` 才能进入 Bearer 认证；`refresh-token`、
+  claim 缺失、opaque 或 malformed token 均 fail-closed。
+- 用户认证路径还要求 token 来自已登记的应用且 `sub` 非空。introspection response
+  的 `token_type=Bearer` 只表示传输 scheme，不能用来区分 access 与 refresh。
 
 ### Native exchange / refresh 当前口径
 

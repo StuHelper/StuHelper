@@ -439,7 +439,7 @@ Claude 新生成的 `AUDIT-REPORT.md` 是一份新的汇总快照，不是对本
 | 41 | 确认 | P3 | teacher profile 的 load-more 失败会用错误面板替换已加载 review。区分 initial 与 append error，保留已有列表并提供重试当前页即可。 |
 | 42 | 部分确认 | P2 | fresh store 的 status fetch 失败会把依赖验证状态的字段呈现为 false negative；并非所有 email/base info 都必然受影响，已有 cache 时也可能保留。应显式建 loading/ready/error/retry 状态，在成功前不展示“未验证”结论。 |
 | 43 | 确认 | P2 | caller cancellation 和 50ms lookup deadline 都会记作全局 breaker failure，连续 5 次可使鉴权 fail-closed 30 秒。应把 caller cancellation 分类为 neutral，并为必要查询使用有界 detached context；没有指标前武断改成 200ms/3s 只是参数猜测。 |
-| 44 | 确认 | P1 | 当前固定 Casdoor 版本的 introspection 对 refresh token 也可返回 active，而 middleware 只看 active/app ID，没有校验原始 JWT 的 token type 或非空 `sub`。最小修复是发送 `token_type_hint=access_token`，同时要求已由 provider 验证的原 JWT claim `tokenType == "access-token"` 且 `sub` 非空；introspection response 的 `token_type=Bearer` 不能区分两者。再次自建整套 JWKS 验签不是这个根因的必要条件。 |
+| 44 | 确认，已完成本地修复与回归验证 | P1 | Bearer introspection 现在发送 `token_type_hint=access_token`，并在 active 后对同一原始 JWT 强制校验 Casdoor `tokenType == "access-token"`；refresh、claim 缺失、opaque 和 malformed token 均 fail-closed。用户认证还要求已登记应用和非空 `sub`。没有信任 response 的通用 `token_type=Bearer`，也没有为每个 Bearer 请求再建一套 JWKS 验签。 |
 | 45 | 确认 | P2 | RequestLogger/Recovery 记录 raw path，path parameter 中的一次性 bearer 会进入日志。路由匹配后优先记录 `c.FullPath()`，无模板时使用统一的安全 fallback；逐个 token 做脆弱的字符串替换不可取。 |
 | 51 | 部分确认 | P2 | browser cookie 场景存在 logout 与在途 refresh 竞争，可被误判为 reuse 并撤销整个 family；native 常在更早的 tracked-session 检查失败。应加载 referenced session：缺失或 hash 相同视为已撤销，不触发 family revoke；与当前 hash 不同才是真 reuse。无需先新增一套 revoke reason schema。 |
 | 57 | 确认 | P2 | public feed/search 把 scoped `admin:reviews:manage` 当全局 full-content 标志，合法的 scoped admin 可在范围外看到 full 而非 brief 内容。公共路径只接受 global grant；scoped admin 使用已有 scoped admin 路由。为了在公共列表做“范围内 full”而给所有 DTO/SQL 增加 `SchoolID` 是另一个产品增强，不是最小修复。 |
@@ -560,6 +560,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | 报告编号 | 状态 | 验证证据 | 提交 |
 |----------|------|----------|------|
 | 9 | 已修复，待发布 | Web review payload reader 保留 `like`/`dislike`，缺失字段保持可选，非法 enum fail-closed；定向 payload/voting 回归、Web 类型检查与相关静态检查通过 | `fix(review): preserve current user vote state` |
+| 44 | 已修复，待发布 | active introspection 只接受 Casdoor `access-token` purpose，refresh/missing/malformed/opaque token 均拒绝；Bearer 用户路径拒绝空白 subject，provider unavailable 与 inactive 分类保持不变；OIDC、middleware、app/auth 定向回归与服务端静态检查通过 | `fix(auth): reject refresh tokens on bearer paths` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 

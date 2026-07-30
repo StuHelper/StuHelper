@@ -4,6 +4,7 @@ import (
 	"context"
 	crand "crypto/rand"
 	"crypto/rsa"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -31,6 +32,9 @@ func newTestOIDCClient(t *testing.T) (*Client, *httptest.Server) {
 
 	jwk := jose.JSONWebKey{Key: &privateKey.PublicKey, KeyID: "kid-1", Algorithm: string(jose.RS256), Use: "sig"}
 	var issuer string
+	providerAccessToken := testIntrospectionJWT(t, map[string]any{
+		"tokenType": "access-token",
+	})
 
 	issueIDToken := func() string {
 		signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: jose.JSONWebKey{Key: privateKey, KeyID: jwk.KeyID}}, nil)
@@ -72,7 +76,7 @@ func newTestOIDCClient(t *testing.T) (*Client, *httptest.Server) {
 		_ = r.ParseForm()
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"access_token":  "provider-access-token",
+			"access_token":  providerAccessToken,
 			"token_type":    "Bearer",
 			"refresh_token": "provider-refresh-token",
 			"expires_in":    3600,
@@ -141,7 +145,9 @@ func TestOIDCClient_IntegrationFlows(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "provider-refresh-token", refreshed.RefreshToken)
 
-	result, err := client.IntrospectToken(context.Background(), "provider-access-token")
+	result, err := client.IntrospectToken(context.Background(), testIntrospectionJWT(t, map[string]any{
+		"tokenType": "access-token",
+	}))
 	require.NoError(t, err)
 	assert.True(t, result.Active)
 	assert.Equal(t, "oidc-client", result.GetAppID())
@@ -156,12 +162,14 @@ func TestOIDCClient_IntegrationFlows(t *testing.T) {
 
 func TestOIDCClientIntrospectTokenNormalizesInputs(t *testing.T) {
 	var seenToken string
+	var seenTokenTypeHint string
 	var seenUser string
 	var seenPass string
 	client, srv := newIntrospectionOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seenUser, seenPass, _ = r.BasicAuth()
 		require.NoError(t, r.ParseForm())
 		seenToken = r.Form.Get("token")
+		seenTokenTypeHint = r.Form.Get("token_type_hint")
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"active":    true,
@@ -174,14 +182,55 @@ func TestOIDCClientIntrospectTokenNormalizesInputs(t *testing.T) {
 	})
 	defer srv.Close()
 
-	result, err := client.IntrospectToken(context.Background(), " \tprovider-access-token\n ")
+	accessToken := testIntrospectionJWT(t, map[string]any{"tokenType": "access-token"})
+	result, err := client.IntrospectToken(context.Background(), " \t"+accessToken+"\n ")
 
 	require.NoError(t, err)
 	assert.True(t, result.Active)
 	assert.Equal(t, "oidc-client", result.GetAppID())
-	assert.Equal(t, "provider-access-token", seenToken)
+	assert.Equal(t, accessToken, seenToken)
+	assert.Equal(t, "access_token", seenTokenTypeHint)
 	assert.Equal(t, "introspection-client", seenUser)
 	assert.Equal(t, "introspection-secret", seenPass)
+}
+
+func TestOIDCClientIntrospectTokenRejectsActiveNonAccessTokens(t *testing.T) {
+	client, srv := newIntrospectionOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"active":    true,
+			"client_id": "oidc-client",
+			"sub":       "user-oidc-1",
+		})
+	}), nil)
+	defer srv.Close()
+
+	tests := map[string]string{
+		"refresh token": testIntrospectionJWT(t, map[string]any{"tokenType": "refresh-token"}),
+		"missing type":  testIntrospectionJWT(t, map[string]any{"sub": "user-oidc-1"}),
+		"wrong type":    testIntrospectionJWT(t, map[string]any{"tokenType": "id-token"}),
+		"opaque token":  "opaque-provider-token",
+	}
+	for name, rawToken := range tests {
+		t.Run(name, func(t *testing.T) {
+			_, err := client.IntrospectToken(context.Background(), rawToken)
+			require.ErrorIs(t, err, ErrInvalidAccessToken)
+		})
+	}
+}
+
+func TestOIDCClientIntrospectTokenKeepsInactiveClassification(t *testing.T) {
+	client, srv := newIntrospectionOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"active": false})
+	}), nil)
+	defer srv.Close()
+
+	result, err := client.IntrospectToken(context.Background(), "opaque-revoked-token")
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.False(t, result.Active)
 }
 
 func TestOIDCClientIntrospectTokenRejectsBlankTokenWithoutProviderCall(t *testing.T) {
@@ -196,6 +245,14 @@ func TestOIDCClientIntrospectTokenRejectsBlankTokenWithoutProviderCall(t *testin
 
 	require.ErrorIs(t, err, ErrInvalidAccessToken)
 	assert.Equal(t, int32(0), introspectionRequests.Load())
+}
+
+func testIntrospectionJWT(t *testing.T, claims map[string]any) string {
+	t.Helper()
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`))
+	payload, err := json.Marshal(claims)
+	require.NoError(t, err)
+	return header + "." + base64.RawURLEncoding.EncodeToString(payload) + ".test-signature"
 }
 
 func TestIntrospectionOAuth2ConfigNormalizesCredentials(t *testing.T) {

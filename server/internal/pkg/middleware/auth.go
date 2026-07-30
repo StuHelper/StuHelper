@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -88,8 +89,13 @@ func resolveToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.S
 			logger.L().Debug("bearer token rejected for unknown OIDC client", zap.String("client_id", result.GetAppID()))
 			return nil, fmt.Errorf("invalid token audience: %w", oidc.ErrInvalidAudience)
 		}
+		subject := strings.TrimSpace(result.Sub)
+		if subject == "" {
+			logger.L().Debug("bearer token rejected without a subject")
+			return nil, errTokenMalformed
+		}
 		return &authResult{
-			userID:         result.Sub,
+			userID:         subject,
 			appID:          result.GetAppID(),
 			username:       result.Username,
 			email:          result.Email,
