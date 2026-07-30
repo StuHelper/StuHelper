@@ -13154,6 +13154,7 @@ components:
           type: string
         contentType:
           type: string
+          description: 服务端校验后的有效 MIME 类型；声明与内容嗅探相同时使用嗅探值，受支持的容器或文本细分类型使用其规范化声明值。
         sizeBytes:
           type: integer
           format: int64
@@ -13238,6 +13239,7 @@ components:
           type: string
         contentType:
           type: string
+          description: 浏览器声明的 MIME 类型；必须与服务端内容嗅探结果相同，或属于服务端明确支持且可验证的容器或文本细分类型。
         dataBase64:
           type: string
           description: 文件 base64 内容，支持标准 Base64 或 data URL 形式

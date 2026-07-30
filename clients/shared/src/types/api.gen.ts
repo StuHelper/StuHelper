@@ -5299,6 +5299,7 @@ export interface components {
             mountID: number;
             objectKey: string;
             filename: string;
+            /** @description 服务端校验后的有效 MIME 类型；声明与内容嗅探相同时使用嗅探值，受支持的容器或文本细分类型使用其规范化声明值。 */
             contentType: string;
             /** Format: int64 */
             sizeBytes: number;
@@ -5331,6 +5332,7 @@ export interface components {
             tags: string[];
             bindings: components["schemas"]["ResourceBinding"][];
             filename: string;
+            /** @description 浏览器声明的 MIME 类型；必须与服务端内容嗅探结果相同，或属于服务端明确支持且可验证的容器或文本细分类型。 */
             contentType: string;
             /** @description 文件 base64 内容，支持标准 Base64 或 data URL 形式 */
             dataBase64: string;

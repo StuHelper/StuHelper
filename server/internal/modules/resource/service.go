@@ -1,8 +1,10 @@
 package resource
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"mime"
@@ -67,7 +69,7 @@ func (s *Service) CreateResource(ctx context.Context, ownerUserID string, req Cr
 		return nil, err
 	}
 	req = normalizeCreateResourceRequest(req)
-	content, detectedType, err := decodePayload(req.ContentType, req.DataBase64)
+	content, effectiveType, err := decodePayload(req.ContentType, req.DataBase64)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +87,7 @@ func (s *Service) CreateResource(ctx context.Context, ownerUserID string, req Cr
 	if err != nil {
 		return nil, err
 	}
-	mountID, stored, err := s.storage.Put(ctx, req.MountKey, objectKey, content, detectedType)
+	mountID, stored, err := s.storage.Put(ctx, req.MountKey, objectKey, content, effectiveType)
 	if err != nil {
 		return nil, err
 	}
@@ -238,20 +240,74 @@ func decodePayload(contentType, dataBase64 string) ([]byte, string, error) {
 	}
 	detectedType := http.DetectContentType(content)
 	if provided := strings.TrimSpace(contentType); provided != "" {
-		if !resourceMediaTypesMatch(provided, detectedType) {
+		effectiveType, compatible := resolveResourceContentType(provided, detectedType, content)
+		if !compatible {
 			return nil, "", ErrResourceContentTypeMismatch
 		}
+		return content, effectiveType, nil
 	}
 	return content, detectedType, nil
 }
 
-func resourceMediaTypesMatch(provided, detected string) bool {
+func resolveResourceContentType(provided, detected string, content []byte) (string, bool) {
 	providedType, _, providedErr := mime.ParseMediaType(provided)
 	detectedType, _, detectedErr := mime.ParseMediaType(detected)
 	if providedErr != nil || detectedErr != nil {
-		return provided == detected
+		return "", false
 	}
-	return providedType == detectedType
+	if providedType == detectedType {
+		return strings.TrimSpace(detected), true
+	}
+
+	switch detectedType {
+	case "application/zip":
+		return resolveZIPContainerContentType(providedType)
+	case "application/octet-stream":
+		if bytes.HasPrefix(content, []byte{
+			0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1,
+		}) && isLegacyOfficeContentType(providedType) {
+			return providedType, true
+		}
+	case "text/plain":
+		switch providedType {
+		case "text/csv", "text/markdown", "text/tab-separated-values":
+			return providedType, true
+		case "application/json":
+			if json.Valid(bytes.TrimPrefix(content, []byte{0xef, 0xbb, 0xbf})) {
+				return providedType, true
+			}
+		}
+	}
+	return "", false
+}
+
+func resolveZIPContainerContentType(providedType string) (string, bool) {
+	switch providedType {
+	case "application/x-zip-compressed":
+		return "application/zip", true
+	case "application/epub+zip",
+		"application/java-archive",
+		"application/vnd.oasis.opendocument.presentation",
+		"application/vnd.oasis.opendocument.spreadsheet",
+		"application/vnd.oasis.opendocument.text",
+		"application/vnd.openxmlformats-officedocument.presentationml.presentation",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+		return providedType, true
+	default:
+		return "", false
+	}
+}
+
+func isLegacyOfficeContentType(contentType string) bool {
+	switch contentType {
+	case "application/msword",
+		"application/vnd.ms-excel",
+		"application/vnd.ms-powerpoint":
+		return true
+	default:
+		return false
+	}
 }
 
 func normalizeRequiredResourceOwner(ownerUserID string) (string, error) {
