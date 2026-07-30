@@ -19,6 +19,7 @@ type Handler struct {
 	internalUserIDResolver middleware.InternalUserIDResolver
 	botCredentialVerifier  BotCredentialVerifier
 	adminAuthorizers       AdminAuthorizers
+	streamStop             <-chan struct{}
 }
 
 type AdminAuthorizers struct {
@@ -37,6 +38,16 @@ type HandlerOption func(*Handler)
 func WithAdminAuthorizers(authorizers AdminAuthorizers) HandlerOption {
 	return func(h *Handler) {
 		h.adminAuthorizers = authorizers
+	}
+}
+
+// WithStreamShutdown releases long-lived admission SSE handlers when the
+// application begins graceful shutdown. A nil context leaves the option unset.
+func WithStreamShutdown(ctx context.Context) HandlerOption {
+	return func(h *Handler) {
+		if ctx != nil {
+			h.streamStop = ctx.Done()
+		}
 	}
 }
 

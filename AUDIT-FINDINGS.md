@@ -45,8 +45,8 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
   检查生产备份目录或用生产 WAL 执行目标时间点恢复，也没有观察生产锁等待或真实大表延迟。
   因此“生产已经丢失 PITR”“生产已经 OOM/死锁/永久停更”等说法仍不得当作已证实事实。
 - 当前工作树在复核开始前已经有未提交修改。Codex 对 P0-1、P1-1、P1-2、P1-3、P1-4、
-  P1-5 与 P1-8 的修复已经按问题独立提交，但均未合并或发布；原有其他工作树修改没有混入
-  这些提交。
+  P1-5、P1-6 与 P1-8 的修复已经按问题独立提交，但均未合并或发布；原有其他工作树修改
+  没有混入这些提交。
 - 原报告大量“修复方案”和全部 18 条驳回长文在句中截断。例如 P0-1 结尾是
   `only surface the 4`，P1-1 结尾是 `Promise.resolve<string[]>(`，P1-3 结尾是
   `both loc`；P3-1 至 P3-9 的方案也全部半句结束。第 1 条驳回理由还重复了两次。
@@ -75,7 +75,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 | P1-3 | 确认，已完成本地修复与真实隔离恢复；生产状态未验证 | P1 | 已修复，待发布；生产 PITR 待演练 | 已改为 staging 内 `plain + wal-method=stream`，使用临时 replication slot 和 `pg_verifybackup`，压缩后经 `.partial` 原子发布；同步器排除临时工件，evidence 同时验证本地/取回的逻辑与物理备份、SHA256、可读性和新鲜度。固定 PostgreSQL 18.4 客户端真实生成并校验备份，无网络恢复实例成功读回探针，临时 slot/容器/卷/网络均已清理。没有引入持久 slot、备份平台或通用编排层；仍不能据此宣称生产 WAL 连续性/PITR 已验收。 |
 | P1-4 | 确认，已完成本地修复与真实干净 worktree 打包验证 | P1 | 已修复，待发布 | 部署包改为只取 Git `HEAD` 跟踪文件，脏工作树在创建输出前拒绝；打包后断言根目录恰好包含 `.env.example`、`.env.prod.example`，不存在其他根 env 文件。临时干净仓库实测忽略的 secret/`node_modules` 不入包、两个模板存在、未跟踪文件会阻断。没有维护第二份易漂移 exclude 清单或引入新发布系统；仍需 CI 和真实远端部署/回滚验收。 |
 | P1-5 | 部分确认，已完成窄范围修复；真实远端回滚未验证 | P1/P2 边界 | 已修复，待发布与远端演练 | 普通生产部署继续按当天 fail-closed。仅同环境成功发布记录、目标 tag、三个应用 digest、当时有效的完整 policy、当前生产基础镜像、操作人和理由全部匹配时，才复用原部署日审核窗口并写 0600 JSONL 审计。GitHub 回滚用当前 workflow SHA 的最小控制器覆盖旧 release 中的旧 validator；每日门禁提前 3 天告警。没有全局 report-only，也不允许未部署版本或镜像漂移绕过。 |
-| P1-6 | 确认，但只在存在活跃 SSE 时触发 | P1 | 必须 | 将进程 shutdown context 传入 bot-action 与 camera SSE 的 `select`，使长连接主动退出并加关闭测试。“每次 SIGTERM 都失败”措辞过度；强制所有流 10 分钟重连与本缺陷无关。 |
+| P1-6 | 确认，已完成本地修复与真实 HTTP/数据库回归 | P1 | 已修复，待发布 | Admission handler 复用 runtime 现有 `bgCtx.Done()`，两个 SSE 在停机时发送 `end/shutdown` 并退出；ticker/keepalive 执行前二次检查，避免停机后再 claim。真实 HTTP + PostgreSQL 验证 bot 流可让 `http.Server.Shutdown` 在 2 秒内返回，camera 流同样主动结束。没有设置全局 `BaseContext` 或新增 10 分钟强制重连。 |
 | P1-7 | 确认 | P1 → P2 | 应改 | 先改 OpenAPI 的 optional auth，再生成契约、接可选认证中间件并测 owner/non-owner。它造成刷新后删除按钮消失，是 UX/契约缺陷，不是 P1 级安全事件。 |
 | P1-8 | 确认，已完成本地修复与真实 PostgreSQL 回归验证 | P1 | 已修复，待发布 | `ProcessReport` 对非删除态复用现有管理员转换白名单；作者已删除的 review 保持终态，只结案历史 report。缺失 review 统一映射 404。没有改 schema、增加新状态或在 Repository 注入静默 no-op。真实数据库覆盖 `hide`/`delete`、重复非法转换、计数和时间戳不变；评课包全量与定向 race 测试通过。 |
 | P1-9 | 核心确认 | P1/P2 边界 | 决策后必须 | `phone_enc` 存的是掩码值，`phone.read` 却要求连续 11 位。若保留能力，按安全模型实时从 Casdoor 获取并 fail-closed；否则删除/禁用该能力与契约。不能为省事把明文手机号落库，也不能用“无手机号 200”掩盖不可用。 |
@@ -174,7 +174,7 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
 
 1. P0-1、P1-4 与 P1-5 已完成修复、验证和独立提交；P1-5 仍需在受保护
    GitHub environment 与真实目标机执行一次带审计记录的回滚演练。
-2. P1-2 migration 指南已完成修复、真实迁移验证和独立提交；继续 P1-6 SSE shutdown。
+2. P1-2 migration 指南与 P1-6 SSE shutdown 已完成修复、真实回归验证和独立提交。
 3. P2-1/P2-2 CI 门禁，P2-6 privileged listener 生命周期。
 4. P2-7 转发 poison、P2-13/14/15 claimed batch、P2-23 outbox panic。
 5. P2-21/P2-22 breaker 分类，R-8 Redis 错误分类，P3-9 cache version unavailable。
@@ -229,6 +229,11 @@ R-14、R-15、R-17，以及 X-2 的配置分类治理。
   后才调用部署。显式 source worktree 打包仍要求 clean HEAD 且保留 env 模板。ShellCheck、
   actionlint、文档卫生以及新增后全部 76 个 infra contracts 通过。尚未触发真实 GitHub
   protected environment、SSH 上传或生产回滚。
+- SSE P1-6：两个定向测试均使用真实 PostgreSQL 和 `httptest.Server` 建立持续 HTTP 响应。
+  取消应用 shutdown context 后，bot action 与 camera handoff 流都在 2 秒内写出
+  `event:end`/`data:shutdown` 并结束；bot 用真实 `http.Server.Shutdown` 证明不会等到 deadline。
+  定向 race、admission 全包（55.895 秒）、`go vet` 和全服务端 `golangci-lint`（0 issues）
+  通过。尚未对已发布二进制发送真实 SIGTERM 或执行 Compose 滚动更新。
 - image policy：2026-07-30 通过，2026-08-06 因 `review_by=2026-08-05` 失败，确认日历门禁。
 - 授权：capability/RBAC/review 定向 Go 测试通过，确认 X-1 在 Handler 前 fail-closed。
 - P2：3 个 infra/import contract 通过；Koishi 定向 29 tests 通过；outbox、externaldata、
@@ -250,6 +255,7 @@ R-14、R-15、R-17，以及 X-2 的配置分类治理。
 | P1-3 | 已修复，未发布；生产 PITR 待验收 | 物理备份在外部 staging 以 `plain + stream` 生成，经临时 slot、`pg_verifybackup`、SHA256 和 `.partial` 原子发布；同步排除临时工件，evidence 覆盖本地/取回的逻辑与物理备份及新鲜度。真实 18.4 隔离恢复启动并读回探针；ShellCheck、文档卫生和 75 个 infra contracts 通过 | `fix(backup): verify and atomically publish base backups` |
 | P1-4 | 已修复，未发布 | 部署包只取干净 Git `HEAD`，生成后断言两个根 env 模板存在且无其他根 env；干净临时仓库实测忽略 secret/依赖不入包、未跟踪文件 fail-closed。ShellCheck、部署包/CI 契约与文档卫生通过 | `fix(deploy): preserve required env templates in bundles` |
 | P1-5 | 已修复，未发布；真实远端回滚待验收 | 普通部署维持当前日硬门禁；历史窗口只对同环境成功记录和完全相同 digest 的审计回滚开放。当前 workflow 控制器兼容旧 release，每日 3 天提前告警。ShellCheck、actionlint、文档卫生及 76 个 infra contracts 通过 | `fix(rollback): audit expired image review exceptions` |
+| P1-6 | 已修复，未发布；真实进程 SIGTERM 待验收 | Admission handler 接入既有 shutdown context；两个 SSE 写 `end/shutdown` 后退出，并在周期任务前优先检查停机。真实 HTTP/PostgreSQL、`http.Server.Shutdown`、定向 race、admission 全包、vet 与 lint 通过 | `fix(admission): release SSE streams during shutdown` |
 | P1-8 | 已修复，未发布 | Service 复用统一 review 状态机；作者删除态只结案 report，不改 review。真实 PostgreSQL 覆盖两种动作、重复转换、计数、时间戳和后续 restore；评课包全量、定向 race、vet、全服务端 lint 与文档卫生检查通过 | `fix(review): preserve deleted reviews during report handling` |
 
 ### 明确不建议实施的“修复”
@@ -601,7 +607,27 @@ Give the admission handler a shutdown release symmetric to `notification.Hub`, r
 
 3. `server/internal/modules/admission/handler_bot_queries.go:137` and `server/internal/modules/admission/handler_user.go:215`: add `case <-h.streamStop:` to both select loops, emitting `c.SSEvent("end", "shutdown")` + `c.Writer.Flush()` before `return` so the bot sees a clean close and reconnects to the new instance rather than logging a stream error.
 
-4. `server/internal/modules/admission/handler_bot_queries.go`: add a hard max-lifetime timer to the bot stream (e.g. `time.NewTimer(10 * time.Minute)`, matching `handler_user.go:212`) that ends the stream with `end`/`timeout`; the plugin's exis
+4. 原方案还建议给 bot stream 增加固定 10 分钟最大寿命。Codex 不采纳：客户端定期重连是另一项
+   可靠性策略，不能替代进程 shutdown 信号；在没有代理 idle-timeout、负载均衡或连接老化证据时
+   强制断开所有正常流，属于与本缺陷无关的行为变更。
+
+**Codex 修复与复验（2026-07-30）**
+
+- `Handler` 新增可选 `WithStreamShutdown(context.Context)`，只保存 `ctx.Done()`；未传 option
+  时 nil channel 永久阻塞，现有单元构造和非应用装配行为不变。
+- 应用装配把现有 `bgCtx` 传入 handler。`Runtime.beginShutdown()` 已先调用 `bgCancel()`，
+  再执行 hooks 和 `http.Server.Shutdown`，因此没有新增 lifecycle、goroutine 或全局
+  `http.Server.BaseContext`。
+- bot action 与 camera handoff 两个 SSE loop 都监听停机 channel，写出 `end: shutdown` 后返回；
+  初始事件后以及 ticker/keepalive/timeout 分支实际工作前再次检查，避免多个 case 同时 ready
+  时继续 claim action 或查询状态。
+- 新增真实 PostgreSQL + `httptest.Server` 回归。bot 流建立后取消应用 context，再调用真实
+  `http.Server.Shutdown`，2 秒 deadline 内成功返回并读到 `event:end`/`data:shutdown`；
+  camera handoff 流也在同一窗口主动结束。定向 race、admission 全包、`go vet` 和全服务端
+  `golangci-lint`（0 issues）通过。
+- 修复没有增加 bot 10 分钟 timer、没有取消普通请求、没有改 SSE/OpenAPI 契约。原标题的
+  “every SIGTERM”仅在存在这些活跃 SSE 时成立；没有在已发布二进制或 Compose 中发送真实
+  SIGTERM，故生产滚动更新仍是待验收边界。
 
 #### P1-7. GET /course/review/reviews/{reviewID}/replies has no optional-auth middleware, so isOwner is always false and users lose the delete button on their own replies
 
@@ -2517,6 +2543,7 @@ STUHELPER_REDIS_INTEGRATION
 | P1-3 | 物理备份命令无法生成、半成品可被同步且 evidence 不覆盖物理备份 | Codex 已完成实现：改为外部 staging 的 `plain + stream`、临时 replication slot、`pg_verifybackup`、SHA256 与 `.partial` 原子发布；同步排除临时工件，evidence 覆盖本地/取回的逻辑与物理备份及新鲜度。真实 PostgreSQL 18.4 备份在无网络隔离实例启动并读回探针，75 个 infra contracts 全部通过。随独立修复提交入库，尚未发布；生产对象存储/WAL PITR 仍须单独验收 |
 | P1-4 | 部署包丢失 env 模板 | Codex 已完成实现：部署包只取干净 Git `HEAD`，打包后断言两个根 env 模板存在且无其他根 env。临时干净仓库实测忽略 secret/依赖不入包、未跟踪文件阻断，相关部署/CI 契约通过。随独立修复提交入库，尚未发布；未执行真实远端部署/回滚 |
 | P1-5 | 日历过期的 image review 阻断生产发布和旧版本回滚 | Codex 已完成窄范围实现：普通生产部署仍按当天硬校验；只有同环境成功发布记录、完全相同 digest、当时有效 policy 和完整审计上下文才能复用历史窗口，并写 0600 JSONL。GitHub 用当前 workflow 控制器兼容旧 release，每日提前 3 天告警。ShellCheck、actionlint、文档卫生与 76 个 infra contracts 通过；尚未执行真实远端回滚 |
+| P1-6 | 活跃 Admission SSE 阻塞优雅停机 | Codex 已完成实现：两个 SSE 复用 runtime shutdown context，发送 `end/shutdown` 后退出，周期分支工作前再次检查停机。真实 HTTP/PostgreSQL 测试证明 bot 流可让 `http.Server.Shutdown` 在 2 秒内成功，camera 流也主动结束；定向 race、admission 全包、vet 与 lint 通过。随独立修复提交入库，尚未发布；真实进程 SIGTERM 待演练 |
 | P1-8 | 举报处理可把作者已删除的评课改回隐藏态并再次发布 | Codex 已完成实现：举报入口复用统一状态机，作者删除态只结案 report、不改 review；缺失 review 映射 404。真实 PostgreSQL 覆盖 hide/delete、重复非法转换、计数、时间戳和后续 restore，评课包全量、定向 race、vet、全服务端 lint 与文档卫生检查通过。随独立修复提交入库，尚未发布 |
 | X-1 | 无 scope 的 school_admin 全量可见 | Codex 已证伪；现有 capability 展开和 admin Entry 在 Handler 前返回 403，不按 P1 修复 |
 | X-2 | env 模板差集 | Codex 判定部分成立；改为分类治理，不执行 21 项全量入模板/严格集合相等方案 |

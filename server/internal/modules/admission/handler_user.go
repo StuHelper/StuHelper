@@ -204,6 +204,9 @@ func (h *Handler) handleWatchFreshmanCameraHandoff(c *gin.Context) {
 	if isFreshmanCameraHandoffTerminal(handoff) {
 		return
 	}
+	if h.writeStreamShutdownEvent(c) {
+		return
+	}
 
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -217,14 +220,26 @@ func (h *Handler) handleWatchFreshmanCameraHandoff(c *gin.Context) {
 		select {
 		case <-c.Request.Context().Done():
 			return
+		case <-h.streamStop:
+			h.writeStreamShutdownEvent(c)
+			return
 		case <-deadline.C:
+			if h.writeStreamShutdownEvent(c) {
+				return
+			}
 			c.SSEvent("end", "timeout")
 			c.Writer.Flush()
 			return
 		case <-keepalive.C:
+			if h.writeStreamShutdownEvent(c) {
+				return
+			}
 			c.SSEvent("keepalive", time.Now().UTC().Format(time.RFC3339))
 			c.Writer.Flush()
 		case <-ticker.C:
+			if h.writeStreamShutdownEvent(c) {
+				return
+			}
 			next, err := h.service.GetFreshmanCameraHandoffForUser(c.Request.Context(), userID, handoffID)
 			if err != nil {
 				c.SSEvent("error", "admission camera handoff status unavailable")

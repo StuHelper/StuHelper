@@ -201,6 +201,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		userRepo.GetInternalUserID,
 		botCredentialVerifier,
 		admission.WithAdminAuthorizers(admissionAdminAuthorizers()),
+		admission.WithStreamShutdown(bgCtx),
 	)
 	admissionHandler.RegisterRoutes(api, authMW)
 	admissionHandler.RegisterBotRoutes(api)
